@@ -1,0 +1,44 @@
+# OmniCraft 万象工坊 - 开发进度日志
+
+## 模板说明
+每次完成任务后，在此文件顶部追加一条记录（保留所有历史记录）。
+
+格式：
+---
+## [YYYY-MM-DD] - Task [ID]: [任务标题]
+
+### What was done:
+- [具体修改的文件]
+- [具体改动内容]
+
+### Testing:
+- [测试方式]
+- [测试结果]
+
+### Notes:
+- [给未来 Agent 的重要提示]
+---
+
+## 项目初始化 - 文档产出完成
+
+### 产出文件：
+- architecture.md：完整技术架构设计（9 个章节，含系统总览、DB Schema DDL、API 清单、安全规范、扩容路线图）
+- task.json：42 个原子任务（覆盖 Go 后端、Next.js 前端、Tauri 客户端全流程）
+- CLAUDE.md：Agent 工作流程指南
+- progress.txt：本文件（进度日志模板）
+
+### 任务分组总览：
+- Task 1-2：基础设施（Go 初始化、Docker Compose）
+- Task 3-5：数据库 Schema（全表 DDL）
+- Task 6-9：Go 后端核心（认证、OSS、阿里云审核）
+- Task 10-19：Go 后端业务（IP 库、内容、版本管理、PR、社交、判官、管理员）
+- Task 20-32：Next.js 前端（所有页面和组件）
+- Task 33-35：Tauri PC 客户端
+- Task 36-42：优化、SEO、安全、测试、部署
+
+### 开始开发前的准备事项（需要人工操作）：
+1. 申请阿里云账号，开通 OSS（创建 Bucket）和内容安全服务
+2. 获取阿里云 AccessKey ID 和 AccessKey Secret
+3. 准备一台 Linux 服务器（2C4G 起步）安装 Docker + Docker Compose
+4. 配置域名和 SSL 证书（建议 Let's Encrypt）
+5. 将所有密钥填入 .env 文件（参考 architecture.md 第 8 章）
