@@ -1,0 +1,761 @@
+{
+  "project": "OmniCraft 万象工坊",
+  "description": "以 IP 二创内容聚合为核心、Agent 自动化为增值能力、GitHub 式 PR 协同为护城河的全民创意分享平台",
+  "tech_stack": {
+    "frontend": "Next.js 14 (App Router, TypeScript, Tailwind CSS)",
+    "backend": "Go (Gin + GORM + PostgreSQL)",
+    "client": "Tauri (Rust + WebView)",
+    "storage": "阿里云 OSS + Redis + PostgreSQL",
+    "deploy": "Docker Compose (P0) → K8s (P2)"
+  },
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Go 后端项目初始化与基础配置",
+      "description": "初始化 Go 项目结构、依赖管理、配置加载、日志、数据库连接",
+      "steps": [
+        "创建 backend/ 目录，执行 go mod init omnicraft/backend",
+        "安装核心依赖：gin, gorm, gorm/driver/postgres, redis/v9, golang-jwt/jwt/v5, aliyun-oss-go-sdk",
+        "创建 config/config.go 使用 viper 加载 config.yaml 和环境变量",
+        "创建 config.yaml 模板（含所有 features/limits/reputation/judge/upload 配置项）",
+        "创建 internal/pkg/database/db.go 初始化 GORM + PgBouncer 连接，预留 dbresolver 读写分离配置",
+        "创建 internal/pkg/redis/redis.go 初始化 Redis 连接",
+        "创建 cmd/server/main.go 入口，注册路由，启动 Gin 服务",
+        "创建 internal/middleware/logger.go 请求日志中间件",
+        "创建 internal/middleware/cors.go CORS 中间件",
+        "创建 .env.example 列出所有必需环境变量"
+      ],
+      "passes": false
+    },
+    {
+      "id": 2,
+      "title": "Docker Compose 部署配置",
+      "description": "配置所有服务的容器化部署文件",
+      "steps": [
+        "创建 docker-compose.yml 包含：frontend(Next.js)、backend(Go)、postgres、pgbouncer、redis、nginx",
+        "创建 nginx/nginx.conf 配置反向代理：/ → frontend:3000，/api → backend:8080",
+        "创建 backend/Dockerfile（多阶段构建，最终镜像 < 30MB）",
+        "创建 frontend/Dockerfile（Next.js standalone 输出）",
+        "创建 pgbouncer/pgbouncer.ini 连接池配置（pool_mode=transaction）",
+        "创建 migrations/ 目录，准备迁移脚本运行方式说明",
+        "创建 k8s/ 目录，添加 README.md 说明 P2 阶段使用",
+        "验证：docker compose up 可成功启动所有服务"
+      ],
+      "passes": false
+    },
+    {
+      "id": 3,
+      "title": "数据库 Schema — 用户与权限表",
+      "description": "创建用户、判官资质、信誉分日志、OAuth 预留表",
+      "steps": [
+        "创建 migrations/001_users.sql：users 表（含 reputation 初始值 10、role、is_banned）",
+        "创建 migrations/002_judge_qualifications.sql：judge_qualifications 表（按 content_type 分类）",
+        "创建 migrations/003_reputation_logs.sql：reputation_logs 表",
+        "创建 migrations/004_oauth_accounts.sql：oauth_accounts 表（P1 预留）",
+        "创建对应 GORM model：internal/model/user.go",
+        "验证：迁移文件可在 PostgreSQL 中成功执行"
+      ],
+      "passes": false
+    },
+    {
+      "id": 4,
+      "title": "数据库 Schema — IP 库与内容表",
+      "description": "创建 IP 库、内容主表、附件、标签、版本管理、PR 表",
+      "steps": [
+        "创建 migrations/005_ips.sql：ips 表（含 status、全文检索索引）+ ip_review_logs + ip_tags",
+        "创建 migrations/006_content_items.sql：content_items 表（统一多类型，含 cover_image_url、sheet_music 类型、权限开关、支付预埋）",
+        "创建 migrations/007_content_attachments.sql：content_attachments 表（含乐谱 file_type：sheet_music_midi/xml/mscz/mscx）",
+        "创建 migrations/008_content_tags.sql：content_tags 表（content_item_id + tag）",
+        "创建 migrations/009_content_versions.sql：content_versions 表（版本链、parent_version_id）",
+        "创建 migrations/010_pull_requests.sql：pull_requests 表 + content_contributors + author_blocklist",
+        "创建对应 GORM models：internal/model/ip.go, content.go, version.go",
+        "验证：所有迁移文件成功执行，外键约束正确"
+      ],
+      "passes": false
+    },
+    {
+      "id": 5,
+      "title": "数据库 Schema — 社交、审核、赛博判官表",
+      "description": "创建社交互动、举报、审核记录、判官题库与投票表",
+      "steps": [
+        "创建 migrations/011_social.sql：comments（楼中楼）+ discussions + reactions + favorites + browse_history",
+        "创建 migrations/012_reports.sql：reports 表",
+        "创建 migrations/013_ai_review.sql：ai_review_records 表",
+        "创建 migrations/014_judge.sql：judge_questions + judge_cases + judge_votes + judge_exam_records",
+        "在 migrations/001_users.sql 中补充 preferred_locale 字段（DEFAULT 'zh-CN'）",
+        "创建对应 GORM models：internal/model/social.go, review.go, judge.go",
+        "验证：全部迁移执行成功"
+      ],
+      "passes": false
+    },
+    {
+      "id": 6,
+      "title": "用户认证 — 注册/登录/JWT",
+      "description": "实现邮箱密码注册、登录、JWT 签发、刷新、登出",
+      "steps": [
+        "创建 internal/pkg/jwt/jwt.go：生成/验证 Access Token（2h）和 Refresh Token（7d）",
+        "创建 internal/repository/user_repo.go：CreateUser, FindByEmail, FindByID",
+        "创建 internal/service/auth_service.go：Register（密码 bcrypt）、Login、RefreshToken、Logout（Redis 黑名单）",
+        "创建 internal/handler/auth.go：POST /api/v1/auth/register, /login, /logout, /refresh",
+        "创建 internal/middleware/auth.go：JWT 验证中间件，注入用户信息到 ctx",
+        "实现限流：登录/注册接口 Redis 令牌桶 5 次/分钟",
+        "验证：注册 → 登录 → 获取 /auth/me → 刷新 Token → 登出 全流程正常"
+      ],
+      "passes": false
+    },
+    {
+      "id": 7,
+      "title": "用户中心 API",
+      "description": "实现用户主页、信息更新、信誉分查询",
+      "steps": [
+        "创建 internal/handler/user.go：GET /users/:id, PATCH /users/:id, GET /users/:id/contents, GET /users/:id/reputation",
+        "创建 internal/service/reputation_service.go：AddReputation（写 reputation_logs + 更新 users.reputation）、GetReputationLogs",
+        "实现权限控制：PATCH 仅允许本人操作",
+        "验证：查看用户信息、更新头像/Bio、查看信誉分日志正常"
+      ],
+      "passes": false
+    },
+    {
+      "id": 8,
+      "title": "阿里云 OSS 封装与预签名上传",
+      "description": "封装 OSS 操作，实现客户端直传预签名 URL",
+      "steps": [
+        "创建 internal/pkg/aliyun/oss.go：封装 PutObject、GetSignedURL、DeleteObject、GetSTS",
+        "创建 internal/service/oss_service.go：GeneratePresignUploadURL（含文件大小/类型/时长校验）、GeneratePresignDownloadURL",
+        "创建 internal/handler/content.go（片段）：POST /api/v1/contents/oss-token，校验文件类型/大小限制（从 config 读取），返回预签名 URL + oss_key",
+        "实现 OSS 生命周期策略说明（写入 docs/oss-lifecycle.md）",
+        "验证：调用接口获取预签名 URL，直接上传文件到 OSS，URL 有效"
+      ],
+      "passes": false
+    },
+    {
+      "id": 9,
+      "title": "阿里云内容安全接入",
+      "description": "封装阿里云内容安全 API，实现异步审核回调",
+      "steps": [
+        "创建 internal/pkg/aliyun/green.go：封装 textModeration、imageModeration、videoAsyncScan",
+        "创建 internal/service/review_service.go：SubmitForAIReview（写 ai_review_records，按内容类型路由审核接口）、ProcessAICallback（处理回调，更新内容状态）",
+        "创建 internal/handler/internal.go：POST /api/v1/internal/ai-callback（内部回调，验证来源 IP）",
+        "实现审核结果处理逻辑：block → 直接下架 + 扣信誉分；review → 创建 judge_cases；pass → 发布",
+        "验证：上传测试内容触发审核，模拟回调接口写入正确状态"
+      ],
+      "passes": false
+    },
+    {
+      "id": 10,
+      "title": "IP 库 CRUD 与审核流",
+      "description": "实现 IP 的创建、查询、搜索以及审核链路",
+      "steps": [
+        "创建 internal/repository/ip_repo.go：CreateIP、ListIPs（分页/搜索/分类筛选）、FindByID、UpdateStatus",
+        "创建 internal/service/ip_service.go：CreateIP（提交后自动触发 AI 审核）、ApproveIP、RejectIP",
+        "创建 internal/handler/ip.go：GET /ips, POST /ips, GET /ips/:id, GET /ips/:id/contents, GET /ips/:id/discussions",
+        "实现全文搜索：PostgreSQL GIN 索引 + to_tsvector 搜索 IP 名称",
+        "实现 IP 创建后 AI 初审流程",
+        "验证：创建 IP → AI 审核 → 管理员审核通过 → IP 上架流程正常"
+      ],
+      "passes": false
+    },
+    {
+      "id": 11,
+      "title": "内容发布 API（多类型支持）",
+      "description": "实现内容发布、查询、权限控制，支持全类型内容",
+      "steps": [
+        "创建 internal/repository/content_repo.go：CreateContent、ListContents（分页/筛选/排序）、FindByID、UpdateContent、DeleteContent",
+        "创建 internal/service/content_service.go：PublishContent（写 content_items + content_attachments + content_tags，触发 AI 审核，创建初始版本 v1）",
+        "创建 internal/handler/content.go（完整）：GET /contents, POST /contents, GET /contents/:id, PATCH /contents/:id, DELETE /contents/:id",
+        "实现内容权限控制：is_public（未登录/非关注者不可见），allow_copy，agent_enabled",
+        "实现排序：最热门（view+like 加权）、最高点击、最新发布、最高好评率",
+        "实现时间范围筛选参数 time_range（all/week/month/year），与 sort 组合使用",
+        "实现多标签 AND 筛选：tags[] 参数，使用 content_tags 关联子查询",
+        "实现 tag_group_id 参数：查 tag_groups 表展开 tags 数组后走多标签筛选",
+        "在 OSS Token 接口白名单追加乐谱 MIME 类型（mid/midi/xml/mxl/mscz/mscx）",
+        "video 内容发布完成后异步截帧写入 cover_image_url（调用 OSS 图片处理接口或 FFmpeg 容器任务）",
+        "验证：发布文章（MD）、图片、Mod（zip）、乐谱（MIDI/MusicXML），time_range/tags 筛选正常"
+      ],
+      "passes": false
+    },
+    {
+      "id": 12,
+      "title": "版本管理引擎 — 版本存储与查询",
+      "description": "实现自研版本管理引擎的核心存储逻辑",
+      "steps": [
+        "创建 internal/pkg/diffengine/diff.go：封装 diff-match-patch（使用 go 移植版），实现 ComputeDiff（返回 patch 字符串）和 ApplyPatch（还原内容）",
+        "创建 internal/repository/version_repo.go：CreateVersion、ListVersionsByContent、FindVersionByID、SetLatestVersion",
+        "创建 internal/service/version_service.go：CreateNewVersion（文本内容计算 diff 并上传 OSS；二进制直接上传全量快照到 OSS；写 content_versions 记录）",
+        "实现版本恢复：GetVersionContent（按 parent_version_id 链追溯，逐步 apply diff 重建内容）",
+        "创建 internal/handler/version.go：GET /contents/:id/versions, GET /versions/:id",
+        "验证：发布文章后版本为 v1，手动更新后生成 diff v2，版本历史正确返回，v1 内容可正确还原"
+      ],
+      "passes": false
+    },
+    {
+      "id": 13,
+      "title": "协同 PR 引擎 — 提交与对比",
+      "description": "实现 PR 提交、diff 渲染数据接口",
+      "steps": [
+        "创建 internal/repository/pr_repo.go：CreatePR、FindPRByID、ListPRsByContent、UpdatePRStatus",
+        "创建 internal/service/pr_service.go：SubmitPR（验证 base_version_id、检查提交者未被作者拉黑、写 pending 版本、写 pull_requests）",
+        "实现冲突检测：SubmitPR 时检查 base_version_id 是否仍是最新版本，若不是则标记 conflict",
+        "创建 internal/handler/version.go（扩展）：POST /pr, GET /pr/:id（返回 base 内容、proposed diff、人类可读摘要）, GET /contents/:id/prs",
+        "验证：基于 v1 提交 PR → 获取 PR 详情含 diff 信息 → 冲突检测（两个 PR 同时基于 v1）"
+      ],
+      "passes": false
+    },
+    {
+      "id": 14,
+      "title": "协同 PR 引擎 — 接受/拒绝/合并",
+      "description": "实现 PR 的审核操作和手动合并",
+      "steps": [
+        "创建 internal/service/pr_service.go（扩展）：AcceptPR（pending 版本升级为 active，更新 content_items.updated_at，添加贡献者荣誉）、RejectPR（删除 pending 版本，记录原因）、ManualMerge（提交最终合并内容，生成新版本）",
+        "实现贡献者管理：AcceptPR 时写/更新 content_contributors",
+        "创建 internal/handler/version.go（扩展）：POST /pr/:id/accept, POST /pr/:id/reject, POST /pr/:id/merge",
+        "实现作者拉黑：POST /dashboard/contributors/:userId/block → 写 author_blocklist，拦截后续 PR",
+        "验证：PR 接受后版本链正确更新，贡献者名单出现在内容详情；拒绝 PR 后 pending 版本删除"
+      ],
+      "passes": false
+    },
+    {
+      "id": 15,
+      "title": "社交互动 — 评论与讨论区",
+      "description": "实现评论（楼中楼）和讨论帖功能",
+      "steps": [
+        "创建 internal/repository/social_repo.go：CreateComment、ListComments（支持分页/楼中楼）、DeleteComment、CreateDiscussion、GetDiscussion、ListDiscussions",
+        "创建 internal/service/social_service.go：PostComment（低信誉分用户拦截，触发 AI 评论审核）、PostDiscussion",
+        "创建 internal/handler/social.go：POST /social/comments, DELETE /social/comments/:id, GET /social/discussions, POST /social/discussions, GET /social/discussions/:id",
+        "实现评论审核：AI 扫描通过后 published；扫描结果为 block 则 banned",
+        "验证：发帖、回复楼中楼、删除评论流程正常；恶意内容被自动屏蔽"
+      ],
+      "passes": false
+    },
+    {
+      "id": 16,
+      "title": "社交互动 — 点赞/点踩/举报/收藏",
+      "description": "实现点赞、点踩、举报、收藏、浏览历史功能",
+      "steps": [
+        "创建 internal/repository/social_repo.go（扩展）：UpsertReaction（防重复）、CreateReport、CreateFavorite、DeleteFavorite、RecordBrowse",
+        "创建 internal/service/social_service.go（扩展）：React（更新 content_items.like_count/dislike_count）、Report（写举报记录，检查是否达到自动隐藏阈值 10% 举报率）、Favorite",
+        "创建 internal/handler/social.go（扩展）：POST /social/reactions, POST /contents/:id/report, POST /social/comments/:id/report",
+        "实现自动隐藏逻辑：举报数/点击率 ≥ 10% 时自动将内容状态改为 under_review，触发众裁",
+        "验证：点赞计数更新、举报触发阈值后内容自动进入审核、收藏/浏览历史记录正常"
+      ],
+      "passes": false
+    },
+    {
+      "id": 17,
+      "title": "赛博判官 — 资质考核",
+      "description": "实现判官考核题库管理和考试流程",
+      "steps": [
+        "创建 internal/repository/judge_repo.go：GetRandomQuestions（按 content_type 随机取 10 题）、CreateExamRecord、CheckQualification",
+        "创建 internal/service/judge_service.go：GetExam（校验该 content_type 是否有足够题目）、SubmitExam（批改，≥ 80% 正确则写 judge_qualifications，记录考试结果）",
+        "创建 internal/handler/judge.go：GET /judge/exam/:category, POST /judge/exam/submit",
+        "管理员题库录入：POST /admin/judge/questions（批量录入，含答案）",
+        "验证：考试流程完整（无题库时返回提示，有题库时可正常考试，通过后获得判官资质）"
+      ],
+      "passes": false
+    },
+    {
+      "id": 18,
+      "title": "赛博判官 — 众裁投票与权限撤销",
+      "description": "实现众裁案例分发、投票统计、权限撤销机制",
+      "steps": [
+        "创建 internal/repository/judge_repo.go（扩展）：CreateCase、ListOpenCases（按 content_type 筛选有资质的判官）、Vote（防重复投票）、CloseCase（计算结果）",
+        "创建 internal/service/judge_service.go（扩展）：GetJudgeQueue（仅返回该判官有资质的类型的案例）、SubmitVote（投票后检查是否达到最小投票数，触发关闭逻辑）、CloseCase（支持率 < 60% 下架，写审核日志）",
+        "实现判官错误率撤权：每次投票后检查该判官最近 N 次（N > 10）的投票记录，错误率 > 50% 则撤销权限 + 扣 1 信誉分",
+        "创建 internal/handler/judge.go（扩展）：GET /judge/queue, POST /judge/vote",
+        "实现题库自动更新：定时任务（每周一次），从各 content_type 的 judge_cases 中随机选 10 个多票案例生成新题",
+        "验证：有资质的判官可见对应类型的待审内容，投票达阈值后自动关闭案例，结果正确"
+      ],
+      "passes": false
+    },
+    {
+      "id": 19,
+      "title": "管理员后台 API",
+      "description": "实现管理员的 IP 终审、内容管理、用户封禁、申诉处理、配置管理",
+      "steps": [
+        "创建 internal/middleware/admin.go：管理员权限校验中间件",
+        "创建 internal/handler/admin.go：GET /admin/ips, POST /admin/ips/:id/approve, POST /admin/ips/:id/reject",
+        "实现内容终审：GET /admin/contents（under_review 列表）, POST /admin/contents/:id/ban（封禁 + 永久封禁用户 for 黄赌毒）",
+        "实现用户管理：POST /admin/users/:id/ban（黑名单，is_banned=true），GET /admin/users",
+        "实现申诉处理：GET /admin/appeals（举报 status=pending 列表）, POST /admin/appeals/:id（valid/invalid，valid 则恢复内容，invalid 则对举报人扣分）",
+        "实现系统配置 API：GET /admin/config（读取 config.yaml），PATCH /admin/config（热更新，支持修改 limits/features/reputation 等所有配置项）",
+        "验证：管理员可完成 IP 审核、封禁内容、处理申诉、修改视频大小限制等操作"
+      ],
+      "passes": false
+    },
+    {
+      "id": 20,
+      "title": "Next.js 前端项目初始化",
+      "description": "初始化 Next.js 项目，配置 Tailwind CSS、路由结构、组件库、i18n、设计系统",
+      "steps": [
+        "创建 frontend/ 目录，执行 npx create-next-app@latest（TypeScript + App Router + Tailwind）",
+        "安装核心依赖：@uiw/react-md-editor、react-markdown、diff-match-patch、lucide-react、shadcn/ui",
+        "安装新增依赖：next-intl（i18n）、react-masonry-css（瀑布流）、osmd（OpenSheetMusicDisplay，乐谱渲染）、midi-player-js + soundfont-player（MIDI 播放）、next-themes（暗色模式）",
+        "配置 shadcn/ui：初始化，安装 Button、Modal、Toast、Badge、Skeleton、Tabs、Card、DropdownMenu 等组件",
+        "配置 tailwind.config.ts：按 architecture.md 10.4 扩展 canvas/border/fg/accent/tag 颜色 token",
+        "配置 next-intl（无路由前缀模式）：创建 i18n.ts、messages/zh.json、messages/en.json 骨架文件",
+        "配置 next-themes：在 layout.tsx 中包裹 ThemeProvider，支持 light/dark/system",
+        "创建 app/ 目录结构（参考 architecture.md 3.1 页面路由清单，新增 /search 路由）",
+        "创建 lib/api.ts：封装 fetch 请求（自动带 JWT、统一错误处理）",
+        "创建 lib/auth.ts：客户端 token 管理（localStorage + 自动刷新）",
+        "创建 components/layout/Header.tsx：顶部导航（登录状态、搜索框、最近访问 IP、语言切换器 ZH/EN、主题切换按钮）",
+        "验证：npm run dev 正常启动，首页可访问，暗色模式切换生效，ZH/EN 切换无报错"
+      ],
+      "passes": false
+    },
+    {
+      "id": 21,
+      "title": "Web 前端 — 登录/注册页",
+      "description": "实现登录注册页面，JWT 存储，认证状态管理",
+      "steps": [
+        "创建 app/(public)/login/page.tsx：邮箱密码登录表单，错误提示，登录成功跳转首页",
+        "创建 app/(public)/register/page.tsx：注册表单（用户名/邮箱/密码），注册成功后自动登录",
+        "创建 contexts/AuthContext.tsx：全局认证状态（currentUser、login、logout、refresh）",
+        "实现 Next.js middleware.ts：未登录访问 /dashboard、/judge、/publish 时重定向 /login",
+        "验证：注册 → 登录 → 刷新页面仍保持登录状态 → 登出后重定向到登录页"
+      ],
+      "passes": false
+    },
+    {
+      "id": 22,
+      "title": "Web 前端 — 首页（内容浏览 + 分面搜索）",
+      "description": "实现首页无筛选默认浏览、瀑布流 ContentCard、时间排序，以及分面搜索入口",
+      "steps": [
+        "创建 app/(public)/page.tsx：SSR 获取热门内容，默认展示全站热门（无筛选状态）",
+        "创建 components/content/ContentCard.tsx：瀑布流卡片（封面图 3:4 + 标题 + 作者 + 点赞/评论数 + 最多 3 个低饱和色标签），未上传封面时按 content_type 显示对应 SVG 占位图",
+        "集成 react-masonry-css：MasonryGrid 组件（移动 2 列 / 平板 3 列 / PC 4 列），在首页、IP 详情页、原创区复用",
+        "实现顶部「最近访问 IP」快捷入口（localStorage 存储最近 5 个 IP）",
+        "实现顶部排序 Tab：最热门 / 最新 / 最多点击，以及时间范围选择器（全部/本周/本月/本年）",
+        "左侧集成 FacetedSearchSidebar（Task 49 实现），首页默认收起，展开时通知首页刷新 query",
+        "创建 components/layout/Sidebar.tsx：侧边栏外层容器（包含 FacetedSearchSidebar + 标签组快捷按钮）",
+        "验证：首页默认展示热门内容瀑布流，排序/时间筛选切换正常，侧边栏展开可见分面标签"
+      ],
+      "passes": false
+    },
+    {
+      "id": 23,
+      "title": "Web 前端 — IP 详情页",
+      "description": "实现 IP 详情页（Steam 创意工坊式布局）",
+      "steps": [
+        "创建 app/(public)/ip/[ipId]/page.tsx：SSR 获取 IP 信息、内容数量统计",
+        "创建 components/ip/IPDetail.tsx：IP 封面、描述、标签、内容类目 Tab",
+        "创建 components/ip/IPCategoryTabs.tsx：内容类目 Tab（文字/图片/表情包/视频等），点击切换显示对应内容列表",
+        "每个类目下支持排序：最热门/最高点击/最新发布/最高好评率",
+        "在 IP 详情页嵌入讨论区入口（跳转到讨论区列表）",
+        "验证：IP 详情页正常展示，类目 Tab 切换加载对应内容，各排序方式生效"
+      ],
+      "passes": false
+    },
+    {
+      "id": 24,
+      "title": "Web 前端 — 内容详情页",
+      "description": "实现内容详情页（含 MD 渲染、乐谱 Viewer、下载、Agent 部署、社交互动）",
+      "steps": [
+        "创建 app/(public)/content/[contentId]/page.tsx：SSR 获取内容详情",
+        "创建 components/content/ContentDetail.tsx：根据 content_type 渲染对应内容（MD 文章/图片/视频播放器/音频播放器/乐谱 Viewer）",
+        "创建 components/content/MarkdownRenderer.tsx：使用 react-markdown + syntax highlighting 渲染 MD 内容",
+        "集成 components/content/SheetMusicViewer.tsx（Task 51 实现）：content_type=sheet_music 时渲染",
+        "顶部展示封面图（cover_image_url 有值则显示，无值则显示对应 content_type 占位图）",
+        "实现下载按钮（allow_copy=true 时显示，调用 OSS 签名 URL）",
+        "实现「一键部署」按钮（agent_enabled=true 时显示，触发 URL Scheme 唤醒 Tauri）",
+        "集成 components/social/ReactionBar.tsx（点赞/点踩/举报）",
+        "集成 components/social/CommentSection.tsx（评论区）",
+        "集成 components/content/VersionHistory.tsx（版本历史时间轴，仅二创区内容显示）",
+        "验证：MD 文章、图片、乐谱（MIDI/MusicXML/PDF）各类型正常渲染，封面图正常显示"
+      ],
+      "passes": false
+    },
+    {
+      "id": 25,
+      "title": "Web 前端 — 原创区",
+      "description": "实现原创区首页和内容详情页（与二创区区分：无 IP、无 PR 功能）",
+      "steps": [
+        "创建 app/(public)/original/page.tsx：原创区内容流（无 IP 概念，直接按内容类型/标签浏览）",
+        "实现原创区内容类型筛选（支持效率模板/学习资料/3D 打印文件等特有类型）",
+        "创建 app/(public)/original/[contentId]/page.tsx：原创内容详情（复用 ContentDetail 组件，隐藏 PR 相关 UI）",
+        "验证：原创区内容正常展示，无 PR 入口，社交互动功能正常"
+      ],
+      "passes": false
+    },
+    {
+      "id": 26,
+      "title": "Web 前端 — 内容发布页",
+      "description": "实现多类型内容发布，含 MD 编辑器、OSS 上传、封面图、乐谱上传、标签建议、权限配置",
+      "steps": [
+        "创建 app/(protected)/publish/page.tsx：内容发布页",
+        "实现内容类型选择器（根据所属区域展示不同类型选项，含 sheet_music）",
+        "集成 components/content/MarkdownEditor.tsx（@uiw/react-md-editor）用于文章/文字类内容",
+        "创建 components/content/FileUploader.tsx：调用 /contents/oss-token 获取预签名 URL，直传 OSS，显示上传进度",
+        "实现封面图上传区域：独立的图片上传组件，上传后预览；内容类型为 image 时可从附件直接选取",
+        "实现乐谱文件上传：content_type=sheet_music 时，FileUploader 限定 .mid/.midi/.xml/.mxl/.mscz/.mscx/.pdf 扩展名",
+        "实现 Mod 打包上传：支持 zip 文件上传，上传前提示文件结构规范",
+        "实现标签输入组件：支持模糊搜索 GET /tags/search 自动补全，已选标签显示为低饱和色 Badge",
+        "实现权限配置面板：is_public / allow_copy / agent_enabled 三个开关",
+        "实现 IP 选择（二创区内容）：搜索并选择 IP",
+        "验证：发布文章、图片、Mod、乐谱各类型内容，文件 + 封面图上传成功，标签搜索自动补全正常"
+      ],
+      "passes": false
+    },
+    {
+      "id": 27,
+      "title": "Web 前端 — PR 协同创作",
+      "description": "实现 PR 提交、diff 查看、接受/拒绝/手动合并界面",
+      "steps": [
+        "创建 components/pr/PRCard.tsx：PR 列表卡片（提交者、修改摘要、状态）",
+        "创建 components/pr/DiffViewer.tsx：三栏 Diff 渲染（原始/版本A/版本B），使用 diff-match-patch 高亮修改部分",
+        "创建 components/pr/MergeEditor.tsx：手动合并编辑器（左右并列两个版本，中间可编辑合并结果）",
+        "在内容详情页添加「提交修改申请」入口（仅二创区、非作者）",
+        "创建 app/(protected)/dashboard/pr-requests/page.tsx：作者查看收到的 PR 列表，操作接受/拒绝/合并",
+        "验证：提交 PR → 作者查看 diff → 接受后内容更新 → 贡献者名单出现"
+      ],
+      "passes": false
+    },
+    {
+      "id": 28,
+      "title": "Web 前端 — 版本历史与回退",
+      "description": "实现 Google Docs 风格的版本历史时间轴和一键回退",
+      "steps": [
+        "创建 components/content/VersionHistory.tsx：版本历史侧边栏（时间轴样式，显示版本号/修改者/时间）",
+        "实现版本预览：点击历史版本弹出 Modal 预览该版本内容",
+        "实现版本回退：作者可点击「恢复到此版本」（调用 Go 服务生成新版本，内容为目标版本还原结果）",
+        "验证：版本历史正确显示，预览历史版本内容与实际一致，回退后内容正确"
+      ],
+      "passes": false
+    },
+    {
+      "id": 29,
+      "title": "Web 前端 — 创作者后台",
+      "description": "实现创作者后台（我的内容、PR 管理、贡献者管理）",
+      "steps": [
+        "创建 app/(protected)/dashboard/page.tsx：后台概览（内容数、总浏览数、待审 PR 数）",
+        "创建 app/(protected)/dashboard/contents/page.tsx：我的内容列表（含编辑/删除/查看数据）",
+        "创建 app/(protected)/dashboard/contributors/page.tsx：贡献者荣誉名单 + 拉黑操作",
+        "实现内容编辑：点击编辑跳转到发布页预填数据，更新后生成新版本",
+        "验证：后台所有页面正常，PR 管理流程完整"
+      ],
+      "passes": false
+    },
+    {
+      "id": 30,
+      "title": "Web 前端 — 用户中心",
+      "description": "实现用户主页、收藏、浏览历史、信誉分展示",
+      "steps": [
+        "创建 app/(protected)/user/[userId]/page.tsx：用户主页（头像/Bio/发布内容列表/信誉分）",
+        "创建 app/(protected)/history/page.tsx：浏览历史列表",
+        "实现收藏功能：内容详情页添加收藏按钮，用户主页显示收藏列表",
+        "实现信誉分展示：显示当前分值、变动记录、低分限制提示",
+        "创建 app/(protected)/settings/page.tsx：账号设置（用户名/头像/Bio 修改）",
+        "验证：用户主页信息正确，收藏/历史功能正常，信誉分变动实时更新"
+      ],
+      "passes": false
+    },
+    {
+      "id": 31,
+      "title": "Web 前端 — 赛博判官页面",
+      "description": "实现判官资质考核和众裁队列界面",
+      "steps": [
+        "创建 app/(protected)/judge/exam/page.tsx：资质考核页面（选择内容类型 → 10 道题 → 显示结果）",
+        "创建 components/judge/ExamQuestion.tsx：单题渲染（含图片/文本题目、四选一选项）",
+        "创建 app/(protected)/judge/queue/page.tsx：待审内容队列（仅显示有资质的内容类型）",
+        "创建 components/judge/ReviewCard.tsx：待审内容卡片（展示原内容 + 举报原因 + 投票按钮）",
+        "实现投票后刷新队列（提交后移除已投票项目）",
+        "验证：考核流程完整，通过后可进入审核队列，投票后内容从队列移除"
+      ],
+      "passes": false
+    },
+    {
+      "id": 32,
+      "title": "Web 前端 — 管理员后台页面",
+      "description": "实现管理员的 IP 审核、内容终审、用户管理、配置页面",
+      "steps": [
+        "创建 app/admin/ips/page.tsx：IP 审核列表（pending → approve/reject）",
+        "创建 app/admin/contents/page.tsx：违规内容终审列表",
+        "创建 app/admin/users/page.tsx：用户管理（封禁/解封）",
+        "创建 app/admin/appeal/page.tsx：申诉处理列表",
+        "创建 app/admin/config/page.tsx：系统配置面板（对应 config.yaml 所有配置项，支持热修改）",
+        "实现管理员路由守卫：非管理员访问 /admin/* 重定向",
+        "验证：管理员可完成 IP 审核、封禁内容、调整视频大小限制配置"
+      ],
+      "passes": false
+    },
+    {
+      "id": 33,
+      "title": "Tauri PC 客户端 — 项目初始化",
+      "description": "初始化 Tauri 项目，配置权限白名单和 URL Scheme",
+      "steps": [
+        "创建 tauri-client/ 目录，执行 npm create tauri-app@latest（TypeScript + Vite）",
+        "配置 tauri.conf.json：allowlist 仅开放 fs（白名单目录）、shell（禁止）、dialog（确认弹窗）",
+        "实现 URL Scheme 注册：omnicraft:// 协议（Windows/macOS 系统注册）",
+        "创建 src-tauri/src/main.rs：注册 Tauri commands，处理 URL Scheme 启动参数",
+        "创建 src-tauri/src/url_scheme.rs：解析 omnicraft://deploy?content_id=xxx&token=xxx 参数",
+        "验证：Tauri 应用可启动，URL Scheme 可从浏览器唤醒"
+      ],
+      "passes": false
+    },
+    {
+      "id": 34,
+      "title": "Tauri PC 客户端 — 白名单动作引擎",
+      "description": "实现 6 种白名单文件操作和 HMAC 签名验证",
+      "steps": [
+        "创建 src-tauri/src/commands/security.rs：VerifyScriptSignature（HMAC-SHA256 验证 Go 下发脚本签名）",
+        "创建 src-tauri/src/commands/file_ops.rs：实现 download_file、extract_archive、move_file、create_dir、read_config、write_config、backup_file 七种操作",
+        "所有文件操作强制校验路径在白名单目录内，超出则拒绝",
+        "实现 backup_file：执行任何写操作前自动备份原文件到 .omnicraft_backup/",
+        "创建 src-tauri/src/commands/env_detect.rs：检测 Steam 游戏安装路径（读注册表 Windows / 文件系统 macOS）",
+        "验证：调用各白名单动作正常工作，非法路径被拒绝，备份文件自动生成"
+      ],
+      "passes": false
+    },
+    {
+      "id": 35,
+      "title": "Tauri PC 客户端 — 部署流程 UI",
+      "description": "实现 Agent 一键部署的用户界面和流程",
+      "steps": [
+        "创建 src/App.tsx：部署流程 UI（步骤：环境检测 → 安全确认 → 执行中 → 完成/失败）",
+        "实现环境检测界面：展示检测到的游戏安装路径，允许用户手动修改",
+        "实现高危操作二次确认弹窗（使用 Tauri dialog）",
+        "实现执行进度显示（步骤列表 + 当前状态）",
+        "实现桌面通知（成功/失败，使用 Tauri notification）",
+        "Go 后端实现 POST /agent/script（根据 content_id 返回动作脚本 JSON + HMAC 签名）",
+        "验证：从 Web 点击一键部署 → 唤醒 Tauri → 环境检测 → 确认 → 执行 → 通知 完整流程"
+      ],
+      "passes": false
+    },
+    {
+      "id": 36,
+      "title": "响应式设计与移动端适配",
+      "description": "确保 Web 端在移动端正常使用",
+      "steps": [
+        "Header 移动端：搜索框收起为图标，添加汉堡菜单",
+        "首页 IP 列表：移动端单列，PC 端多列 Grid",
+        "内容详情页：移动端隐藏侧边栏，版本历史改为底部抽屉",
+        "发布页：文件上传区域移动端适配",
+        "管理员后台：表格支持横向滚动",
+        "验证：在 375px / 768px / 1440px 三种宽度下主要页面布局正常"
+      ],
+      "passes": false
+    },
+    {
+      "id": 37,
+      "title": "SEO 优化与 Open Graph",
+      "description": "为公开页面配置 SSR metadata，提升搜索引擎收录",
+      "steps": [
+        "为 IP 详情页、内容详情页配置 Next.js generateMetadata（title/description/og:image）",
+        "实现动态 sitemap.xml（GET /sitemap.xml，定期更新已发布内容）",
+        "实现 robots.txt（允许爬虫访问公开页面，禁止 /admin、/api）",
+        "验证：首页/IP 详情/内容详情的 og:title 和 og:image 正确设置，sitemap 可访问"
+      ],
+      "passes": false
+    },
+    {
+      "id": 38,
+      "title": "错误处理与 Loading 状态",
+      "description": "实现全局错误页、骨架屏、Toast 通知",
+      "steps": [
+        "创建 app/error.tsx：全局错误边界页",
+        "创建 app/not-found.tsx：404 页面",
+        "创建 components/ui/Toast.tsx：全局 Toast 通知（成功/错误/警告）",
+        "创建 components/ui/Skeleton.tsx：骨架屏组件",
+        "为首页、IP 详情、内容详情添加 loading.tsx 骨架屏",
+        "Go 后端统一错误格式：{ code, message, details }",
+        "验证：网络错误时 Toast 提示，页面加载时骨架屏正常显示"
+      ],
+      "passes": false
+    },
+    {
+      "id": 39,
+      "title": "性能优化",
+      "description": "图片懒加载、API 响应缓存、Redis 热数据缓存",
+      "steps": [
+        "Next.js 图片使用 next/image（自动 WebP 转换 + 懒加载）",
+        "Go 后端：IP 列表、内容列表添加 Redis 缓存（5 分钟 TTL，写操作后 invalidate）",
+        "Go 后端：热门 IP、热门内容使用 Redis sorted set 缓存排行",
+        "实现内容浏览计数异步化：浏览事件写入 Redis incr，定时批量写回 PostgreSQL",
+        "验证：首页 IP 列表响应时间 < 200ms（Redis 缓存命中），高并发下 DB 压力正常"
+      ],
+      "passes": false
+    },
+    {
+      "id": 40,
+      "title": "安全加固",
+      "description": "JWT 安全、SQL 注入防护、接口限流完善",
+      "steps": [
+        "Go 后端：所有用户输入通过 GORM 参数化查询，不允许裸 SQL 字符串拼接",
+        "实现全局接口限流（Redis 令牌桶）：普通接口 100 次/分钟/IP，上传接口 10 次/小时/用户",
+        "实现 JWT 强制失效：logout 时将 refresh token 写入 Redis 黑名单",
+        "OSS 预签名 URL 在 Go 层校验文件类型白名单（仅允许 image/*、video/*、audio/*、application/zip 等）",
+        "实现 CSP（Content Security Policy）响应头，防 XSS",
+        "验证：SQL 注入测试无效，限流超限返回 429，登出后 token 失效"
+      ],
+      "passes": false
+    },
+    {
+      "id": 41,
+      "title": "完整流程集成测试",
+      "description": "端到端测试核心业务流程",
+      "steps": [
+        "测试流程一：注册 → 登录 → 创建 IP（等待审核）→ 管理员审核通过 → 发布二创内容（MD 文章）→ 内容审核通过 → 其他用户浏览/点赞/评论",
+        "测试流程二：用户 B 提交 PR → 用户 A 查看 diff → 接受 PR → 版本更新 → 版本历史正确 → 用户 B 出现在贡献者列表",
+        "测试流程三：发布违规内容（模拟 AI 审核返回 block）→ 内容自动下架 → 用户信誉分扣减",
+        "测试流程四：举报阈值测试 → 内容自动进入 under_review → 赛博判官众裁 → 投票结果触发下架",
+        "测试流程五：Tauri 客户端一键部署 Mod 完整流程",
+        "运行 npm run build（前端），go build（后端），确保无编译错误",
+        "验证：所有核心业务流程无报错，数据一致性正确"
+      ],
+      "passes": false
+    },
+    {
+      "id": 42,
+      "title": "部署配置完善与上线准备",
+      "description": "完善生产环境配置，准备首次部署",
+      "steps": [
+        "完善 nginx/nginx.conf：配置 SSL（Let's Encrypt）、Gzip 压缩、静态资源缓存头",
+        "创建 .env.production 模板（所有必需变量列表，无实际密钥）",
+        "编写 README.md：包含本地开发启动步骤、Docker Compose 部署步骤、环境变量说明",
+        "创建 scripts/init-db.sh：首次部署时自动执行所有 migrations/ 文件",
+        "创建 scripts/backup-db.sh：PostgreSQL 定时备份脚本",
+        "验证：按照 README 步骤可从零完成本地开发环境搭建，docker compose up 可完整启动所有服务"
+      ],
+      "passes": false
+    },
+    {
+      "id": 43,
+      "title": "数据库 Schema — 标签体系增强",
+      "description": "创建全局标签表、标签建议表、用户标签组表、已保存搜索配置表",
+      "steps": [
+        "创建 migrations/015_tags.sql：tags 表（id, name, category, usage_count），含 GIN 索引 + category+usage_count 复合索引",
+        "创建 migrations/016_tag_suggestions.sql：tag_suggestions 表（content_item_id, user_id, tag, action, status），含唯一约束",
+        "创建 migrations/017_tag_groups.sql：tag_groups 表（user_id, name, tags TEXT[]），含用户索引",
+        "创建 migrations/018_saved_searches.sql：saved_searches 表（user_id, name, config JSONB）",
+        "创建对应 GORM models：internal/model/tag.go（Tags, TagSuggestion, TagGroup, SavedSearch）",
+        "创建定时任务骨架：internal/pkg/scheduler/tag_usage_sync.go（每日同步 content_tags 统计到 tags.usage_count）",
+        "验证：全部迁移执行成功，GORM model 可正常 AutoMigrate"
+      ],
+      "passes": false
+    },
+    {
+      "id": 44,
+      "title": "Go API — 分面标签搜索与内容筛选扩展",
+      "description": "实现分面标签列表接口、标签名搜索接口，以及内容列表 time_range/tags 筛选",
+      "steps": [
+        "创建 internal/repository/tag_repo.go：GetTagsByCategory（按大类 + usage_count 排序）、GetCooccurringTags（多标签共现 SQL）、SearchTagsByName",
+        "创建 internal/service/tag_service.go：GetFacetedTags（无 selected_tags 时按大类排序；有 selected_tags 时运行共现查询）",
+        "创建 internal/handler/tag.go：GET /api/v1/tags/faceted（参数：category, selected_tags[], zone, content_type）、GET /api/v1/tags/search（参数：q）",
+        "扩展 internal/repository/content_repo.go：ListContents 增加 time_range 条件（created_at >= NOW()-interval）和 tags[] AND 子查询",
+        "扩展 internal/repository/content_repo.go：支持 tag_group_id（查 tag_groups.tags 数组后展开为 AND 筛选）",
+        "为 GET /tags/faceted 增加 Redis 缓存（TTL 5 分钟，key 含所有参数哈希）",
+        "验证：单标签/多标签共现结果正确，time_range=week 返回近 7 天内容，tag_group_id 筛选与手动多标签结果一致"
+      ],
+      "passes": false
+    },
+    {
+      "id": 45,
+      "title": "Go API — 标签建议、标签组管理、搜索配置保存",
+      "description": "实现标签建议提交/审批、用户标签组 CRUD、已保存搜索 CRUD",
+      "steps": [
+        "创建 internal/repository/tag_repo.go（扩展）：CreateTagSuggestion、ListTagSuggestions（按 content_item_id）、UpdateTagSuggestionStatus、CreateTagGroup、ListTagGroups（按 user_id）、UpdateTagGroup、DeleteTagGroup、CreateSavedSearch、ListSavedSearches、DeleteSavedSearch",
+        "创建 internal/service/tag_service.go（扩展）：SuggestTag（同一用户对同一内容同一 tag+action 去重）、ApproveTagSuggestion（approved 时更新 content_tags）、RejectTagSuggestion、ReportTagSuggestion（写 reports 表）",
+        "创建 internal/handler/tag.go（扩展）：POST /contents/:id/tags/suggest、GET /dashboard/tag-suggestions、PATCH /tag-suggestions/:id",
+        "创建 internal/handler/user.go（扩展）：GET/POST/PATCH/DELETE /users/me/tag-groups、GET/POST/DELETE /users/me/saved-searches",
+        "验证：用户提交标签建议 → 作者审批通过 → content_tags 更新；创建/编辑/删除标签组正常；保存/查询/删除搜索配置正常"
+      ],
+      "passes": false
+    },
+    {
+      "id": 46,
+      "title": "Next.js i18n（next-intl，zh-CN/en-US）",
+      "description": "集成多语言框架，完成所有 UI 文本的国际化覆盖",
+      "steps": [
+        "配置 next-intl（无路由前缀模式）：在 app/layout.tsx 包裹 NextIntlClientProvider，locale 从 cookie 读取",
+        "创建 lib/locale.ts：getLocale()（读 cookie → localStorage → 浏览器默认），setLocale()（写 cookie + localStorage，调用 PATCH /users/:id 更新服务端）",
+        "创建 messages/zh.json：覆盖全部 UI 命名空间（common/nav/content/tag/judge/auth/error/upload）",
+        "创建 messages/en.json：与 zh.json 结构完全一致的英文翻译",
+        "在 Header.tsx 实现语言切换器（ZH / EN 按钮），切换时调用 setLocale() 并刷新页面",
+        "全局替换所有硬编码中文字符串为 useTranslations() hook 调用（通过 grep 检查无遗漏）",
+        "Go 后端错误响应只返回 code 字段（英文枚举），前端在 messages 中配置 errors.xxx 映射",
+        "验证：切换 EN 后所有页面文本变为英文，切换回 ZH 恢复；刷新页面语言持久化；服务端 preferred_locale 字段同步更新"
+      ],
+      "passes": false
+    },
+    {
+      "id": 47,
+      "title": "UI 设计系统（GitHub 风格 Light/Dark 主题）",
+      "description": "建立完整的设计 token 体系、暗色模式，统一全站 UI 风格",
+      "steps": [
+        "扩展 tailwind.config.ts：按 architecture.md 10.4 定义 canvas/border/fg/accent/tag 颜色 token（含 light/dark 变体）",
+        "配置 next-themes：在 app/layout.tsx 中 ThemeProvider attribute='class'，storageKey='omnicraft-theme'",
+        "在 Header.tsx 右上角实现主题切换按钮（Sun/Moon 图标，循环 light → dark → system）",
+        "创建 components/ui/TagBadge.tsx：低饱和色标签组件（接受 color 参数：blue/green/purple/orange，自动适配暗色）",
+        "更新 shadcn/ui 组件的 CSS 变量（--background/--foreground/--border 等）对齐 GitHub 色板",
+        "创建 styles/globals.css：定义字体栈（-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial）",
+        "验证：light/dark/system 三种模式下，首页、内容详情页、发布页、管理后台视觉一致；TagBadge 在暗色下低饱和色正常显示"
+      ],
+      "passes": false
+    },
+    {
+      "id": 48,
+      "title": "内容浏览瀑布流 + 封面图系统",
+      "description": "实现 MasonryGrid、ContentCard 封面图规则、SVG 占位图",
+      "steps": [
+        "创建 components/ui/MasonryGrid.tsx：封装 react-masonry-css，breakpointCols={{ default: 4, 1100: 3, 700: 2, 500: 2 }}",
+        "创建 components/content/ContentCard.tsx：封面图（3:4 比例，object-cover）+ 标题（2行截断）+ 作者 + 点赞/评论数 + 最多 3 个 TagBadge",
+        "创建 lib/coverPlaceholder.ts：根据 content_type 返回对应 SVG data URI 占位图（article/image/video/sheet_music/mod/prompt/other 各一套）",
+        "封面图加载逻辑：cover_image_url 有值 → 使用 next/image；为空 → 调用 coverPlaceholder；image 类型 → 优先第一个附件缩略图",
+        "video 封面异步截帧：Go 后端 content_service 在 video 发布后用 OSS 图片处理（video snapshot）异步获取第一帧写入 cover_image_url",
+        "在首页、IP 详情页内容列表、原创区三个页面接入 MasonryGrid + ContentCard",
+        "验证：各 content_type 封面图/占位图正确显示；瀑布流在 375/768/1440px 宽度下列数正确；hover 效果正常"
+      ],
+      "passes": false
+    },
+    {
+      "id": 49,
+      "title": "FacetedSearchSidebar 组件",
+      "description": "实现分面标签筛选侧边栏（Google Scholar 风格），含大类选择、动态标签列表、Advanced 区、保存搜索",
+      "steps": [
+        "创建 components/layout/FacetedSearchSidebar.tsx：主组件，管理 selectedCategory/selectedTags/advancedConfig 状态",
+        "顶部大类选择器：水平滚动 Tab 或 Select（学习/游戏/动漫/音乐/影视/其他），切换时清空已选标签",
+        "标签列表区：调用 GET /tags/faceted（传入当前 category + selected_tags[]），展示返回标签列表（name + 内容数量 badge）",
+        "点击标签 → 加入 selected_tags → 重新请求 /tags/faceted（共现模式） → 列表实时更新",
+        "已选标签显示：顶部展示已选标签 chips，点击可取消单个或全部清除",
+        "Advanced 折叠区：内容类型多选 + 时间范围 Select + 排序方式 Select，展开/收起动画",
+        "「保存此搜索」按钮：弹出命名输入框 → 调用 POST /users/me/saved-searches → Toast 成功提示",
+        "侧边栏底部展示「我的标签组」快捷入口（调用 GET /users/me/tag-groups，登录后显示）",
+        "组件通过 onFilterChange(query) 回调通知父页面刷新内容列表",
+        "验证：选择大类后标签列表正确，逐步点击标签后列表正确缩小，Advanced 筛选生效，保存搜索后可在侧边栏看到"
+      ],
+      "passes": false
+    },
+    {
+      "id": 50,
+      "title": "标签组管理 UI",
+      "description": "实现用户标签组的创建、编辑、删除页面，以及内容详情页的标签建议功能",
+      "steps": [
+        "创建 app/(protected)/settings/tag-groups/page.tsx：我的标签组列表页（每组显示名称 + tags 数组 + 编辑/删除按钮）",
+        "实现创建/编辑标签组 Modal：名称输入 + 标签输入（复用发布页的标签自动补全组件）",
+        "调用 POST/PATCH/DELETE /users/me/tag-groups 接口，操作后刷新列表",
+        "在 FacetedSearchSidebar 底部标签组区域：展示标签组列表，点击一键应用该组所有标签到 selected_tags",
+        "在内容详情页标签区域：每个标签旁显示 + / - 微型按钮（hover 显示），点击调用 POST /contents/:id/tags/suggest",
+        "标签建议提交后显示 Toast：「已提交建议，等待作者审批」",
+        "创作者后台：app/(protected)/dashboard/page.tsx 概览卡片增加「待审标签建议 N 条」入口",
+        "创建 app/(protected)/dashboard/tag-suggestions/page.tsx：作者查看标签建议列表，逐条 approve/reject",
+        "验证：标签组创建/编辑/删除正常；一键应用标签组后侧边栏正确选中；内容详情标签建议提交后作者端可见"
+      ],
+      "passes": false
+    },
+    {
+      "id": 51,
+      "title": "乐谱 Viewer（OSMD + MIDI 播放器）",
+      "description": "实现 SheetMusicViewer 组件，支持 MusicXML 渲染和 MIDI 播放",
+      "steps": [
+        "创建 components/content/SheetMusicViewer.tsx：主组件，根据 attachment.mime_type 分发渲染策略",
+        "实现 OSMDRenderer（MusicXML）：动态 import opensheetmusicdisplay，在 useEffect 中初始化 OSMD 实例，load OSS 签名 URL 的 XML 内容，渲染到 div 容器",
+        "实现 MIDIPlayer（MIDI）：动态 import midi-player-js + soundfont-player（Acoustic Grand Piano 音色），UI 包含播放/暂停按钮 + 进度条 + 当前时间/总时长",
+        "实现 PDFViewer（PDF）：使用 <embed src={ossUrl} type='application/pdf'> 全宽嵌入，附带「新窗口打开」链接",
+        "实现 DownloadPrompt（MSCZ/MSCX）：展示乐谱图案占位 + 「下载文件」按钮（使用 OSS 签名 URL）+ 提示语「使用 MuseScore 打开」",
+        "OSMD/MIDI 均使用动态导入（dynamic import with ssr: false）避免 SSR 报错",
+        "在 ContentCard 中，sheet_music 类型封面图使用内置五线谱 SVG 占位",
+        "验证：上传 .mid 文件后可播放；上传 .xml 文件后五线谱正确渲染；上传 .pdf 后嵌入显示；MSCZ 显示下载提示"
+      ],
+      "passes": false
+    }
+  ]
+}
