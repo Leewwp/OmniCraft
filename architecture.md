@@ -1246,4 +1246,217 @@ colors: {
 
 ---
 
+---
+
+## 11. 网页端 Agent（V0.4 MVP）
+
+> **范围**：MVP 仅实现 Tier 1 最小可行集（1a 上传自动包装、1b 合规检测、2a 自然语言搜索、
+> 2b 内容使用指导、3b 内容初审辅助），架构设计保留 Tier 2/3 扩展路径。
+> 当前任务优先级低于现有 Agent（Tauri 客户端）和主站核心功能，本节仅供未来实现参考。
+
+### 11.1 设计原则
+
+- **Provider 抽象**：LLM 供应商通过统一接口隔离，MVP 实现通义千问，可插拔替换 OpenAI / DeepSeek
+- **Tool-Call 模式（MVP）**：LLM 从白名单 tool 列表中选择调用，单轮或短链路执行，不使用自主 ReAct 循环
+- **SSE 流式传输**：所有 Agent 流式响应使用 Server-Sent Events，不引入 WebSocket
+- **Feature Flag 控制**：`features.web_agent_enabled: false`（默认关闭，独立于 Tauri Agent）
+- **零独立基础设施**：向量检索使用 pgvector（已有 PostgreSQL），不引入新服务
+
+### 11.2 LLM Provider 抽象层（Go）
+
+```go
+// internal/pkg/llm/provider.go
+type ChatMessage struct {
+    Role    string `json:"role"`    // "system" | "user" | "assistant" | "tool"
+    Content string `json:"content"`
+}
+
+type ChatRequest struct {
+    Messages    []ChatMessage          `json:"messages"`
+    Tools       []ToolDefinition       `json:"tools,omitempty"`
+    Stream      bool                   `json:"stream"`
+    MaxTokens   int                    `json:"max_tokens,omitempty"`
+}
+
+type ChatDelta struct {
+    Content   string `json:"content"`
+    ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+    Done      bool   `json:"done"`
+}
+
+type LLMProvider interface {
+    Chat(ctx context.Context, req ChatRequest) (ChatMessage, error)
+    ChatStream(ctx context.Context, req ChatRequest) (<-chan ChatDelta, error)
+}
+```
+
+**实现类**：
+
+| 实现 | 说明 |
+|---|---|
+| `QwenProvider` | 调用阿里云通义千问 API（`dashscope.aliyuncs.com`） |
+| `OpenAICompatProvider` | 通用 OpenAI 协议（DeepSeek / 本地 Ollama 均可复用此实现） |
+
+运行时通过 `config.yaml > agent.llm_provider` 选择，工厂函数 `llm.NewProvider(cfg)` 返回接口实例。
+
+### 11.3 配置扩展（config.yaml）
+
+```yaml
+agent:
+  web_agent_enabled: false          # 网页端 Agent 总开关（独立于 Tauri agent_enabled）
+  llm_provider: qwen                # qwen | openai_compat
+  llm_model: qwen-turbo             # 模型名称（随 provider 变）
+  llm_api_base: ""                  # 留空则使用 provider 默认 endpoint；可覆盖为 DeepSeek/Ollama 地址
+  llm_api_key: ""                   # 从 env: AGENT_LLM_API_KEY 注入，此处留空
+  embedding_model: text-embedding-v3 # 用于向量化的 embedding 模型
+  embedding_dimensions: 1536
+  rate_limit_free_per_day: 20       # 普通用户每日 Agent 调用上限
+  rate_limit_creator_per_day: 100   # 创作者（有发布内容）每日上限
+  rate_limit_admin: -1              # 管理员无限制
+  upload_assist_max_file_mb: 50     # 上传自动包装时读取的文件大小上限
+```
+
+**环境变量**（不写入 config.yaml）：
+
+```
+AGENT_LLM_API_KEY=sk-xxx
+```
+
+### 11.4 数据库 Schema
+
+```sql
+-- 启用 pgvector 扩展（一次性执行）
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- 对话历史
+CREATE TABLE agent_conversations (
+    id              BIGSERIAL PRIMARY KEY,
+    user_id         BIGINT REFERENCES users(id) ON DELETE CASCADE,
+    context_type    VARCHAR(50) NOT NULL,  -- 'upload_assist'|'compliance'|'search'|'usage_guide'|'moderation'|'general'
+    context_id      BIGINT,                -- 关联 content_item_id（可为 NULL）
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX ON agent_conversations (user_id);
+
+CREATE TABLE agent_messages (
+    id                  BIGSERIAL PRIMARY KEY,
+    conversation_id     BIGINT REFERENCES agent_conversations(id) ON DELETE CASCADE,
+    role                VARCHAR(20) NOT NULL,  -- 'user'|'assistant'|'tool'
+    content             TEXT NOT NULL,
+    tool_calls          JSONB,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX ON agent_messages (conversation_id);
+
+-- 内容向量嵌入（用于语义搜索）
+CREATE TABLE content_embeddings (
+    content_item_id     BIGINT PRIMARY KEY REFERENCES content_items(id) ON DELETE CASCADE,
+    embedding           vector(1536) NOT NULL,
+    embedded_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- IVFFlat 索引（适合百万级以内向量；P2 阶段可升级为 HNSW）
+CREATE INDEX ON content_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+```
+
+### 11.5 API 路由
+
+所有 Agent 接口挂载于 `/api/v1/agent/`，需登录（JWT），受 Redis 限流。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `POST` | `/agent/upload-assist` | 1a 上传自动包装：解析已上传文件，返回建议标签/分类/标题/简介 |
+| `POST` | `/agent/compliance-check` | 1b 合规检测：文件格式 + Aliyun 内容安全 + LLM 侵权分析 |
+| `POST` | `/agent/search` | 2a 自然语言搜索：query → embedding → pgvector → 排序返回 |
+| `POST` | `/agent/usage-guide` | 2b 使用指导：基于内容 metadata + 附件信息生成安装/使用说明 |
+| `POST` | `/agent/moderate` | 3b 内容初审：Aliyun Safety + LLM 综合分析，返回风险等级 + 整改建议 |
+| `POST` | `/agent/chat/stream` | 通用流式对话（SSE），供上述功能的流式变体复用 |
+
+**请求/响应约定**：
+
+```jsonc
+// POST /agent/upload-assist
+{
+  "content_item_id": 123,   // 已创建（草稿状态）的内容 ID
+  "file_keys": ["oss/xxx/mod.zip"]  // OSS 文件 key 列表
+}
+// Response（非流式）
+{
+  "suggested_tags": ["Minecraft", "家具", "1.20+"],
+  "suggested_category": "mod",
+  "suggested_title": "简约北欧风家具包 v2.0",
+  "suggested_description": "...",
+  "conversation_id": 456
+}
+
+// POST /agent/chat/stream → SSE
+data: {"delta": "根据你的文件...", "done": false}
+data: {"delta": "建议标签：", "done": false}
+data: {"done": true, "conversation_id": 456}
+```
+
+### 11.6 MVP Tool 白名单
+
+Agent 在 Tool-Call 模式下只能调用以下内部工具，不可执行任意代码：
+
+| Tool 名称 | 签名 | 说明 |
+|---|---|---|
+| `search_contents` | `(query string, filters map) → []ContentSummary` | 调用已有内容搜索逻辑 |
+| `get_content_detail` | `(id int64) → ContentDetail` | 获取内容详情（含 attachments、tags） |
+| `get_tag_list` | `(category string) → []Tag` | 获取标签列表（辅助打标） |
+| `check_file_format` | `(file_key string) → FormatReport` | 校验文件扩展名、MIME、基本结构 |
+| `call_aliyun_safety` | `(text string) → SafetyResult` | 调用内容安全 API |
+| `vector_search` | `(query_embedding []float32, topk int) → []ContentSummary` | pgvector 语义检索 |
+
+新工具须经过评审后加入白名单，**Agent 不可自定义或组合超出白名单的调用**。
+
+### 11.7 向量化 Pipeline
+
+内容发布/更新时触发异步向量化任务（与现有 AI 审核任务同级）：
+
+```
+内容发布 → content_service.PublishContent()
+  └── 异步 goroutine:
+        1. 拼接向量化文本：title + description + tags（joined）
+        2. 调用 LLM embedding API（embedding_model）
+        3. 写入 content_embeddings（upsert）
+```
+
+自然语言搜索流程：
+
+```
+用户 query
+  → POST /agent/search
+  → agent_service.Search():
+      1. 调用 embedding API 向量化 query
+      2. pgvector cosine 相似度检索（topk=20）
+      3. LLM 对结果排序/过滤/摘要
+      4. 返回结构化结果列表
+```
+
+向量化失败不阻断发布流程，失败时记录日志、稍后重试。
+
+### 11.8 限流实现
+
+```
+Redis Key: agent:rl:{user_id}:{YYYY-MM-DD}
+操作: INCR → 若结果 > rate_limit → 返回 429
+过期: EXPIRE 86400（当日到期自动清零）
+```
+
+超限响应：`HTTP 429 { "code": "AGENT_RATE_LIMIT_EXCEEDED", "reset_at": "2026-04-16T00:00:00Z" }`
+
+### 11.9 前端 Agent 组件
+
+| 组件 | 位置 | 说明 |
+|---|---|---|
+| `AgentChatWidget.tsx` | 全站右下角悬浮 | 通用对话入口，`web_agent_enabled=false` 时不渲染 |
+| `UploadAssistPanel.tsx` | 发布页（publish/page.tsx）| 上传完成后显示「AI 自动填写」按钮，调用 `/agent/upload-assist` |
+| `ComplianceCheckBadge.tsx` | 发布页确认区 | 展示合规检测结果（通过/风险/违规），支持流式进度 |
+| `SearchAgentInput.tsx` | 搜索页（/search） | 自然语言搜索输入框，替换关键词搜索框；降级兼容普通搜索 |
+| `UsageGuidePanel.tsx` | 内容详情页侧边 | 「AI 使用指导」折叠卡片，按需加载 |
+
+SSE 流式渲染复用 `lib/useSSE.ts` hook（封装 `EventSource`）。
+
+---
+
 *文档完成时间：与 PRD V0.3 对齐，后续变更请同步更新 task.json 对应任务。*

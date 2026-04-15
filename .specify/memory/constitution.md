@@ -1,15 +1,13 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change    : none → 1.0.0 (initial ratification)
-Modified sections : N/A — first ratification
-Added sections    :
-  Principles I–XII (tech stack, code quality, DB integrity, config,
-  feature flags, security, performance, UI design, agent workflow,
-  business rules, surgical changes, testing discipline)
-  § Business Rules Reference
-  § Agent Workflow Reference
-  § Governance
+Version change    : 1.0.0 → 1.1.0 (MINOR — new section added)
+Modified sections :
+  Principle I   — added pgvector to approved stack (zero new infra, part of PostgreSQL)
+  Principle V   — added web_agent_enabled to defined feature flags
+  Principle X   — added AGENT_LLM_API_KEY to env var list
+  New: § XIII Web Agent Constraints (LLM provider abstraction, tool whitelist,
+       SSE, pgvector pipeline, rate limiting, feature scope)
 Templates updated :
   ⚠ .specify/templates/plan-template.md   — PENDING (not yet created)
   ⚠ .specify/templates/spec-template.md   — PENDING (not yet created)
@@ -36,6 +34,7 @@ The following stack is FROZEN for all phases unless amended via a formal constit
 | Content Review | Aliyun Content Safety API |
 | Deployment P0 | Docker Compose single-node |
 | Deployment P2 | Kubernetes (Aliyun ACK) — pre-reserved, not yet active |
+| Vector Search | pgvector extension for PostgreSQL — no separate vector DB |
 
 Introducing a new runtime dependency (npm package, Go module, or system service) requires explicit
 justification against an existing alternative and MUST be added to the dependency management file
@@ -86,7 +85,8 @@ before merging. No library may be introduced for convenience if the standard lib
 - When a flag is `false`: the UI MUST NOT render the feature; the API endpoint MUST return HTTP 503
   with `{ "code": "FEATURE_DISABLED" }`
 - Removing feature-flagged code is FORBIDDEN at MVP stage; disable via flag, not deletion
-- Defined flags (initial): `payment_enabled`, `ad_enabled`, `agent_enabled`, `judge_enabled`
+- Defined flags (initial): `payment_enabled`, `ad_enabled`, `agent_enabled`, `judge_enabled`,
+  `web_agent_enabled` (web-side LLM agent, defaults `false`, independent of Tauri `agent_enabled`)
 
 ### VI. Security Non-Negotiables
 
@@ -197,6 +197,30 @@ a constitution re-ratification:
 - Tests MUST NOT be deleted or weakened to make a build pass; if a test reveals a real defect,
   fix the defect
 
+### XIII. Web Agent Constraints
+
+Applies when `features.web_agent_enabled: true`. These constraints are non-negotiable for any
+web Agent implementation:
+
+- **LLM Provider abstraction**: all LLM calls MUST go through the `LLMProvider` interface
+  (`internal/pkg/llm/`); the active provider is selected by `config.yaml > agent.llm_provider`
+  (`qwen` or `openai_compat`); API key MUST come from env var `AGENT_LLM_API_KEY` only
+- **Tool whitelist**: the web Agent MUST operate in Tool-Call mode using only the approved tool
+  whitelist defined in `architecture.md §11.6`; arbitrary code execution by the Agent is FORBIDDEN;
+  adding a new tool requires a constitution amendment
+- **SSE only**: Agent streaming responses MUST use Server-Sent Events; WebSocket is FORBIDDEN for
+  Agent communication at MVP stage
+- **Rate limiting**: every Agent API call MUST be gated by the Redis rate limiter
+  (`agent:rl:{user_id}:{date}`); limits are read from `config.yaml > agent.rate_limit_*`;
+  hardcoded limits are FORBIDDEN
+- **Vector pipeline**: content embeddings MUST use pgvector (existing PostgreSQL); no separate
+  vector DB is permitted; embedding failures MUST NOT block content publishing
+- **MVP scope**: only the five approved MVP features (upload-assist, compliance-check, search,
+  usage-guide, moderate) may be implemented under Tasks 52–59; Tier 2/3 features require a new
+  explicit PRD section and constitution amendment before implementation begins
+- **Priority**: web Agent tasks (52–59) are lower priority than existing Tasks 1–51; an agent
+  session MUST NOT start a web Agent task if any Task with id ≤ 51 remains with `passes: false`
+
 ## Business Rules Reference
 
 > Canonical source: `architecture.md §5` (reputation) and `CLAUDE.md §Key Business Rules`.
@@ -227,4 +251,4 @@ See Principle X for the authoritative rule set. All numeric thresholds MUST be r
 - **Conflict resolution**: if a task step conflicts with a principle, the principle wins; the
   conflicting step MUST be clarified before implementation begins
 
-**Version**: 1.0.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-04-15
+**Version**: 1.1.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-04-15
