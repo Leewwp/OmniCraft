@@ -154,7 +154,7 @@
         "实现 IP 创建后 AI 初审流程：AI 审核返回 block（黄赌毒/违规 IP）时，自动将 IP 状态设为 'banned'（永久封禁），关联的二创内容状态均变为 'banned'（即使内容本身审核通过也禁止展示）",
         "验证：创建 IP → AI 审核 → 管理员审核通过 → IP 上架流程正常；黄赌毒 IP 被自动 ban 后，关联内容全部下架"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 11,
@@ -173,7 +173,7 @@
         "注：video 封面异步截帧写入 cover_image_url 由 Task 48 step 3 统一实现，本任务不重复",
         "验证：发布文章（MD）、图片、Mod（zip）、乐谱（MIDI/MusicXML），time_range/tags 筛选正常"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 12,
@@ -187,7 +187,7 @@
         "创建 internal/handler/version.go：GET /contents/:id/versions, GET /versions/:id",
         "验证：发布文章后版本为 v1，手动更新后生成 diff v2，版本历史正确返回，v1 内容可正确还原"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 13,
@@ -201,7 +201,7 @@
         "在 SubmitPR 中增加 AI 合规检查：PR 提交后触发 review_service.SubmitForAIReview 检测定向引战/恶意魔改内容，高危直接驳回 PR（PRD §6.4）",
         "验证：基于 v1 提交 PR → 获取 PR 详情含 diff 信息 → 冲突检测（两个 PR 同时基于 v1）→ 恶意内容 PR 被自动驳回"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 14,
