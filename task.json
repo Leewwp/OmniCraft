@@ -865,7 +865,7 @@
         "创建定时任务骨架：internal/pkg/scheduler/tag_usage_sync.go（每日同步 content_tags 统计到 tags.usage_count）",
         "验证：全部迁移执行成功，GORM model 可正常 AutoMigrate"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 44,
@@ -883,7 +883,7 @@
         "为 GET /tags/faceted 增加 Redis 缓存（TTL 5 分钟，key 含所有参数哈希）",
         "验证：单标签/多标签共现结果正确，time_range=week 返回近 7 天内容，tag_group_id 筛选与手动多标签结果一致"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 45,
@@ -900,7 +900,7 @@
         "创建 internal/handler/user.go（扩展）：GET/POST/PATCH/DELETE /users/me/tag-groups、GET/POST/DELETE /users/me/saved-searches",
         "验证：用户提交标签建议 → 作者审批通过 → content_tags 更新；创建/编辑/删除标签组正常；保存/查询/删除搜索配置正常"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 46,
@@ -1062,7 +1062,7 @@
         "在 config.yaml 追加 agent 节：web_agent_enabled/llm_provider/llm_model/llm_api_base/embedding_model/embedding_dimensions/rate_limit_* 全部字段，默认值 web_agent_enabled=false",
         "验证：全部迁移执行成功，pgvector 扩展已安装，GORM model 可正常 AutoMigrate，vector(1536) 列可写入测试向量"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 53,
@@ -1303,7 +1303,7 @@
         "创建迁移脚本 migrations/029_judge_reason.sql：ALTER TABLE judge_votes ADD COLUMN reason TEXT；创建 judge_reason_votes 表（id, reason_owner_vote_id BIGINT REFERENCES judge_votes(id), voter_id BIGINT REFERENCES users(id), vote_type VARCHAR(10) CHECK (vote_type IN ('up','down')), UNIQUE(reason_owner_vote_id, voter_id)）+ 索引",
         "验证：所有迁移脚本可顺利执行（psql -f），表结构与 architecture.md 4.5/4.3 节一致，seed 数据正确插入"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 64,
@@ -1415,7 +1415,7 @@
         "扩展 GET /contents 排序逻辑（基于 Task 11 的 newest/hot）：新增 most_views 排序（view_count DESC）、best_rated 排序（like_count/(like_count+dislike_count) DESC，需 ≥5 总票数有效）",
         "验证：IP 按分类筛选正确，内容按类型+分类+排序+时间范围组合筛选正确，most_views/best_rated 计算准确，分页正常"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 70,
@@ -1639,7 +1639,7 @@
         "扩展 internal/handler/admin.go：POST /admin/categories、PATCH /admin/categories/:id、DELETE /admin/categories/:id、PUT /admin/categories/reorder",
         "验证：前端可通过公开接口获取分类列表，管理员可 CRUD 分类，删除有关联内容的分类时被拒绝，缓存正常刷新"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 79,

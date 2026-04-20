@@ -18,6 +18,7 @@ type ListIPsFilter struct {
 	Search   string
 	Category string
 	Status   string
+	Sort     string
 	Page     int
 	PageSize int
 }
@@ -83,8 +84,16 @@ func (r *IPRepository) ListIPs(f ListIPsFilter) ([]model.IP, int64, error) {
 		pageSize = 20
 	}
 
+	switch f.Sort {
+	case "most_content":
+		q = q.Select("ips.*, (SELECT COUNT(*) FROM content_items WHERE ip_id = ips.id AND status = 'published') AS content_count").
+			Order("content_count DESC")
+	default:
+		q = q.Order("ips.created_at DESC")
+	}
+
 	offset := (page - 1) * pageSize
-	if err := q.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&ips).Error; err != nil {
+	if err := q.Offset(offset).Limit(pageSize).Find(&ips).Error; err != nil {
 		return nil, 0, err
 	}
 
