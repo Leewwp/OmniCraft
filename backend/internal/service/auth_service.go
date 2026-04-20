@@ -159,7 +159,7 @@ func (s *AuthService) RefreshToken(refreshToken string) (*jwtutil.TokenPair, err
 		return nil, ErrTokenInvalid
 	}
 
-	user, err := s.userRepo.FindByID(claims.UserID)
+	user, err := s.userRepo.FindByID(int64(claims.UserID))
 	if err != nil || user == nil {
 		return nil, ErrTokenInvalid
 	}

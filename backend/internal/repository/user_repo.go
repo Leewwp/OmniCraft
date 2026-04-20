@@ -32,7 +32,7 @@ func (r *UserRepository) FindByEmail(email string) (*model.User, error) {
 	return &user, nil
 }
 
-func (r *UserRepository) FindByID(id uint) (*model.User, error) {
+func (r *UserRepository) FindByID(id int64) (*model.User, error) {
 	var user model.User
 	err := r.db.First(&user, id).Error
 	if err != nil {
@@ -42,6 +42,10 @@ func (r *UserRepository) FindByID(id uint) (*model.User, error) {
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (r *UserRepository) UpdateFields(id int64, updates map[string]interface{}) error {
+	return r.db.Model(&model.User{}).Where("id = ?", id).Updates(updates).Error
 }
 
 func (r *UserRepository) FindByUsername(username string) (*model.User, error) {
