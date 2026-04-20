@@ -25,7 +25,7 @@
         "创建 internal/middleware/cors.go CORS 中间件",
         "创建 .env.example 列出所有必需环境变量"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 2,
@@ -41,7 +41,7 @@
         "创建 k8s/ 目录，添加 README.md 说明 P2 阶段使用",
         "验证：docker compose up 可成功启动所有服务"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 3,
@@ -55,7 +55,7 @@
         "创建对应 GORM model：internal/model/user.go",
         "验证：迁移文件可在 PostgreSQL 中成功执行"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 4,
@@ -101,7 +101,7 @@
         "实现限流：登录/注册接口 Redis 令牌桶 5 次/分钟",
         "验证：注册 → 登录 → 获取 /auth/me → 刷新 Token → 登出 全流程正常"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 7,
@@ -310,7 +310,7 @@
         "## Global Design Tokens",
         "## Component: Header"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 21,
@@ -333,7 +333,7 @@
         "## Page: /login 登录页",
         "## Page: /register 注册页"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 22,
@@ -1656,7 +1656,8 @@
         "扩展 internal/repository/social_repo.go：ListCommentsByDiscussion（楼中楼回复，按时间正序，支持 parent_id 筛选）、CreateComment、DeleteComment",
         "创建 internal/service/social_service.go：GetDiscussions(ctx, ipID, sort, page)、GetDiscussionDetail(ctx, id)、CreateDiscussion(ctx, userID, ipID, title, body)、CreateReply(ctx, userID, discussionID, parentID, body)、PinDiscussion(ctx, userID, discussionID)（仅 IP 创建者/管理员）、SearchDiscussions(ctx, ipID, keyword)",
         "扩展 internal/handler/social.go：GET /ips/:id/discussions（列表）、POST /ips/:id/discussions（发帖）、GET /discussions/:id（详情+回复）、POST /discussions/:id/comments（回复）、PATCH /discussions/:id/pin（置顶/取消置顶）、GET /ips/:id/discussions/search?q=（搜索）",
-        "验证：讨论列表分页排序正常，发帖/回复功能正常，楼中楼嵌套正确（最多2层），置顶功能仅限IP创建者/管理员"
+        "补充 GET /users/:id/discussions：列出用户发帖或回复过的讨论帖（UNION discussions.author_id=uid 与 comments.author_id=uid WHERE target_type='discussion'），按最后活跃时间倒序分页，返回字段：discussion_id / title / ip_name / reply_count / last_active_at（供 Task 84 用户主页「参与的讨论」Tab）",
+        "验证：讨论列表分页排序正常，发帖/回复功能正常，楼中楼嵌套正确（最多2层），置顶功能仅限IP创建者/管理员；GET /users/:id/discussions 正确返回用户参与的讨论列表"
       ],
       "passes": false
     },
@@ -1756,7 +1757,7 @@
         "创建 components/social/UserProfileCard.tsx：用户头像 / 用户名 / 简介 / 信誉分徽章 / 注册时间 / 判官资质 Badge 列表",
         "创建 components/social/FollowButton.tsx：关注/取消关注按钮（target_type='user'），调用 POST/DELETE /users/:id/follow，显示关注状态，未登录时跳转登录",
         "实现关注数/粉丝数点击弹出 FollowerListModal：分页加载用户列表（头像+用户名+关注按钮），调用 GET /users/:id/followers 和 GET /users/:id/following",
-        "实现内容 Tab 切换：发布的内容（瀑布流 ContentCard，调用 GET /contents?author=:userId）/ 收藏（调用 GET /users/:id/favorites）/ 参与的讨论",
+        "实现内容 Tab 切换：发布的内容（瀑布流 ContentCard，调用 GET /contents?author=:userId）/ 收藏（调用 GET /users/:id/favorites）/ 参与的讨论（调用 GET /users/:id/discussions，Task 79 提供）",
         "查看自己主页时显示「编辑资料」按钮（跳转 /settings）和「申请判官资质」入口（跳转 /judge/exam）",
         "messages/zh.json + en.json 补充 user.profile.* 命名空间翻译",
         "验证：用户主页信息正确显示，关注/取消关注功能正常，关注/粉丝列表弹窗分页加载，内容 Tab 切换正常"
@@ -1768,6 +1769,7 @@
         "## Component: FollowButton",
         "## Component: UserProfileCard",
         "## Component: FollowerListModal",
+        "## Component: JudgeQualBadge",
         "## Component: ContentCard"
       ],
       "passes": false

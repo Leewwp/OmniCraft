@@ -432,8 +432,8 @@ omnicraft://deploy?content_id=xxx&token=yyy&action_script=zzz
          ▼
     [第二级] 赛博判官众裁
          ├── 分发给对应类型判官（文章/图片/提示词/评论）
-         ├── 支持率 ≥ 60% → 上架
-         └── 支持率 < 60% → 永久下架 → 可申诉
+         ├── 「不违规」比例 ≥ 60% → 恢复展示
+         └── 「不违规」比例 < 60% → 不予展示（管理员可手动恢复）→ 可申诉
               │
               ▼（用户申诉）
          [第三级] 管理员终审
@@ -566,6 +566,7 @@ CREATE TABLE content_items (
     zone            VARCHAR(10) NOT NULL,   -- 'fanwork' | 'original'
     ip_id           BIGINT REFERENCES ips(id) ON DELETE SET NULL, -- 仅二创区有值
     category        VARCHAR(50),   -- 原创区内容分类（仅 zone='original'）：'film_tv' | 'gaming' | 'literature' | 'pet' | 'food' | 'beauty_fashion' | 'home' | 'tech_digital' | 'travel' | 'sports' | 'productivity'
+    -- 应用层约束（GORM Validate Tag）：zone='original' 时 category 必填且须为上述枚举；zone='fanwork' 时 category 须为 NULL。枚举扩展时在 config/categories 种子数据中补充，不加 DB CHECK 约束（避免迁移负担）
     content_type    VARCHAR(20) NOT NULL,
     -- content_type: 'article' | 'image' | 'video' | 'audio'
     --              | 'mod' | 'prompt' | 'template' | 'sheet_music' | 'other'
@@ -849,6 +850,11 @@ CREATE TABLE messages (
 );
 
 CREATE INDEX idx_messages_conversation ON messages(conversation_id, created_at);
+
+-- 注：以下两条索引由独立迁移 migrations/035_conversation_indexes.sql 创建（Task 66 step 1），
+--     不与 messages/conversations 表 DDL（migrations/024_conversations.sql, Task 63）同时执行。
+CREATE INDEX idx_messages_sender ON messages(sender_id);
+CREATE INDEX idx_conversations_updated ON conversations(updated_at DESC);
 
 -- 素质建设课程表（AI 根据系统扣分逻辑生成教学内容，按违规类型分类）
 CREATE TABLE rehab_courses (
@@ -1196,6 +1202,11 @@ reputation:
   judge_accuracy_bonus: 1          # 赛博判官高准确率奖励
   rehab_course_completed: 1        # 完成素质建设课程加分
   min_score_for_publish: 3         # 低于此分禁止发布/互动
+  # 恶意内容二次发布累计扣分（PRD §6.2）
+  repeat_violation_window_days: 7        # 滑动窗口天数
+  repeat_violation_threshold: 2          # 窗口内 block/violation 计数阈值
+  repeat_violation_extra_penalty: -1     # 超阈后额外扣分
+  publish_freeze_seconds: 604800         # 超阈后发布冻结时长（7 日）
 
 judge:
   pass_score_rate: 0.8        # 考核通过分率（80%）
@@ -1209,6 +1220,10 @@ upload:
   oss_bucket: "omnicraft-prod"
   oss_region: "cn-hangzhou"
   presign_expire_sec: 3600
+
+social:
+  report_auto_hide_rate: 0.10        # 内容举报率（举报数/点击数）≥ 此值时自动隐藏并触发众裁（PRD §6.2）
+  comment_fold_threshold: 0.30       # 评论区点踩/点赞比 ≥ 此值时自动折叠评论区并触发审核（PRD §6.2）
 ```
 
 ---
@@ -1621,13 +1636,25 @@ colors: {
 #### 内容类型统一说明
 
 **原创区内容分类体系**：
-- **一级分类**（`content_items.category`，按潜在用户量排序）：推荐 | 影视 | 游戏 | 文学 | 宠物 | 美食 | 美妆穿搭 | 家居 | 数码科技 | 旅行 | 运动 | 效率
-- **二级分类**（`content_items.content_type`，内容类型）：all（全部） | image（图片） | video（视频） | audio（音频） | text（文字） | template（效率模板） | model（模型与设计） | other（其他）
+- **一级分类**（`content_items.category` 枚举值）：影视(`film_tv`) | 游戏(`gaming`) | 文学(`literature`) | 宠物(`pet`) | 美食(`food`) | 美妆穿搭(`beauty_fashion`) | 家居(`home`) | 数码科技(`tech_digital`) | 旅行(`travel`) | 运动(`sports`) | 效率(`productivity`) — 共 11 个落库枚举
+- **前端一级 Tab（UI 层）**：`推荐（默认）` + 上述 11 个分类 —— `推荐` 为**前端伪分类**，不落库 `category` 字段；前端选中时调用 `GET /contents?zone=original&sort=recommended` 不传 `category` 参数
+- **二级分类（UI 层 Tab）**：全部 / 图片 / 视频 / 音频（含乐谱） / 文字 / 效率模板 / 模型与设计 / 其他
 - 分类体系由后端动态加载，管理员后台统一管理（增删改排序）
 
 **数据库映射**：
-- `content_items.content_type` 使用 VARCHAR，存储上述二级分类 slug 值（image/video/audio/text/template/model/other）
-- 特殊内容处理：表情包/动图归为 `content_type='image'`，通过标签筛选（tag='GIF'、tag='表情包'）
+- `content_items.content_type` 使用 VARCHAR，落库枚举仅：`article | image | video | audio | mod | prompt | template | sheet_music | other`（见 §4.2 DDL）
+- **UI 二级 Tab 与 content_type 的映射关系**：
+
+| UI 二级 Tab | 查询策略 |
+|------------|---------|
+| 全部 | 不传 `content_type` 参数 |
+| 图片 | `content_type=image`（表情包/动图通过 `tag=GIF` / `tag=表情包` 区分） |
+| 视频 | `content_type=video` |
+| 音频（含乐谱） | `content_type IN ('audio','sheet_music')`（后端 OR 查询） |
+| 文字 | `content_type IN ('article','prompt')` |
+| 效率模板 | `content_type=template` |
+| 模型与设计 | **不传 `content_type`，改传 `tag=3D模型` 或 `tag=设计素材`**（无对应枚举值） |
+| 其他 | `content_type=other` |
 
 **IP 分类**（`ips.category`，二创区，按潜在用户量排序）：`gaming` | `film_tv` | `variety` | `short_drama` | `animation` | `comics` | `novel` | `celebrity_idol` | `music` | `vtuber` | `other`
 
@@ -1650,7 +1677,7 @@ colors: {
 - **Provider 抽象**：LLM 供应商通过统一接口隔离，MVP 实现通义千问，可插拔替换 OpenAI / DeepSeek
 - **Tool-Call 模式（MVP）**：LLM 从白名单 tool 列表中选择调用，单轮或短链路执行，不使用自主 ReAct 循环
 - **SSE 流式传输**：所有 Agent 流式响应使用 Server-Sent Events，不引入 WebSocket
-- **Feature Flag 控制**：`features.web_agent_enabled: false`（默认关闭，独立于 Tauri Agent）
+- **Feature Flag 控制**：`agent.web_agent_enabled: false`（默认关闭，独立于 Tauri `features.agent_enabled`；配置位置见 §11.3）
 - **零独立基础设施**：向量检索使用 pgvector（已有 PostgreSQL），不引入新服务
 
 ### 11.2 LLM Provider 抽象层（Go）

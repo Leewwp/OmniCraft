@@ -1,0 +1,35 @@
+export const AUTH_KEYS = {
+  ACCESS_TOKEN: "access_token",
+  REFRESH_TOKEN: "refresh_token",
+  USER: "user",
+} as const;
+
+export function saveTokens(accessToken: string, refreshToken: string) {
+  localStorage.setItem(AUTH_KEYS.ACCESS_TOKEN, accessToken);
+  localStorage.setItem(AUTH_KEYS.REFRESH_TOKEN, refreshToken);
+}
+
+export function getAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(AUTH_KEYS.ACCESS_TOKEN);
+}
+
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(AUTH_KEYS.REFRESH_TOKEN);
+}
+
+export function clearTokens() {
+  localStorage.removeItem(AUTH_KEYS.ACCESS_TOKEN);
+  localStorage.removeItem(AUTH_KEYS.REFRESH_TOKEN);
+  localStorage.removeItem(AUTH_KEYS.USER);
+}
+
+export function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.exp * 1000 < Date.now();
+  } catch {
+    return true;
+  }
+}
