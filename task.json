@@ -71,7 +71,7 @@
         "创建对应 GORM models：internal/model/ip.go, content.go, version.go",
         "验证：所有迁移文件成功执行，外键约束正确"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 5,
@@ -86,7 +86,7 @@
         "创建对应 GORM models：internal/model/social.go, review.go, judge.go",
         "验证：全部迁移执行成功"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 6,
@@ -113,7 +113,7 @@
         "实现权限控制：PATCH 仅允许本人操作",
         "验证：查看用户信息、更新头像/Bio、查看信誉分日志正常"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 8,

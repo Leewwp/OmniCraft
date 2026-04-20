@@ -105,8 +105,8 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 }
 
 func (h *AuthHandler) Me(c *gin.Context) {
-	userID, ok := middleware.GetUserID(c)
-	if !ok {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "not authenticated"})
 		return
 	}

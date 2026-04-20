@@ -1,6 +1,47 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
+## [2026-04-20] - Task 4/5/7: DB Schema IP/内容/社交/审核/判官表 + 用户中心 API
+
+### What was done:
+
+**Task 4 — DB Schema IP 库与内容表**
+- migrations/005_ips.sql：ips（slug UNIQUE, GIN全文索引）+ ip_review_logs + ip_tags
+- migrations/006_content_items.sql：content_items（zone/content_type/cover_image_url/is_public/allow_copy/agent_enabled/is_paid/price）
+- migrations/007_content_attachments.sql：content_attachments（含乐谱 file_type sheet_music_*）
+- migrations/008_content_tags.sql：content_tags（复合主键）
+- migrations/009_content_versions.sql：content_versions（UNIQUE content+version_number, 部分索引 is_latest=TRUE）
+- migrations/010_pull_requests.sql：pull_requests + content_contributors + author_blocklist
+- internal/model/ip.go：IP, IPReviewLog, IPTag GORM models
+- internal/model/content.go：ContentItem, ContentAttachment, ContentTag GORM models
+- internal/model/version.go：ContentVersion, PullRequest, ContentContributor, AuthorBlocklist GORM models
+
+**Task 5 — DB Schema 社交/审核/判官表**
+- migrations/011_social.sql：discussions + comments + reactions + favorites + browse_history + follows + appeals
+- migrations/012_reports.sql：reports
+- migrations/013_ai_review.sql：ai_review_records
+- migrations/014_judge.sql：judge_questions + judge_cases + judge_votes + judge_reason_votes + judge_exam_records
+- internal/model/social.go：Discussion, Comment, Reaction, Favorite, BrowseHistory, Follow, Appeal GORM models
+- internal/model/review.go：AIReviewRecord, Report GORM models
+- internal/model/judge.go：JudgeQuestion, JudgeCase, JudgeVote, JudgeReasonVote, JudgeExamRecord GORM models
+
+**Task 7 — 用户中心 API**
+- internal/service/reputation_service.go：AddReputation（事务写 log + 更新 users.reputation）、GetLogs（分页）
+- internal/handler/user.go：GET /users/:id、PATCH /users/:id（本人才可改）、GET /users/:id/reputation
+- internal/handler/routes.go：注册 /users 路由组
+- 修复 GetUserID 返回签名：改为 int64（兼容 uint/int64 context value）
+- 修复 FindByID 签名改为 int64，auth_service 处添加 int64(claims.UserID) 转换
+
+### Testing:
+- go build ./... → 0 errors（全部模型、service、handler 编译通过）
+- go vet ./... → 0 warnings
+
+### Notes:
+- User.ID 仍为 uint（GORM 惯例），但 repository.FindByID 接受 int64，内部 GORM 自动兼容
+- 社交/审核/判官表的 GORM model 中 int64 主键与 User.ID uint 引用通过 gorm:"foreignKey" 关联，GORM 会自动匹配
+---
+
+---
 ## [2026-04-20] - Task 1/2/3/6/20/21: 后端初始化 + Docker Compose + 用户认证 + 前端初始化 + 登录注册页
 
 ### What was done:

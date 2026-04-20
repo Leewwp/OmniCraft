@@ -24,4 +24,12 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		auth.POST("/refresh", authHandler.Refresh)
 		auth.GET("/me", middleware.AuthRequired(cfg), authHandler.Me)
 	}
+
+	userHandler := NewUserHandler(db)
+	users := v1.Group("/users")
+	{
+		users.GET("/:id", userHandler.GetUser)
+		users.PATCH("/:id", middleware.AuthRequired(cfg), userHandler.UpdateUser)
+		users.GET("/:id/reputation", userHandler.GetReputation)
+	}
 }

@@ -68,11 +68,18 @@ func OptionalAuth(cfg *config.Config) gin.HandlerFunc {
 	}
 }
 
-func GetUserID(c *gin.Context) (uint, bool) {
+func GetUserID(c *gin.Context) int64 {
 	v, exists := c.Get(UserIDKey)
 	if !exists {
-		return 0, false
+		return 0
 	}
-	id, ok := v.(uint)
-	return id, ok
+	switch id := v.(type) {
+	case int64:
+		return id
+	case uint:
+		return int64(id)
+	case uint64:
+		return int64(id)
+	}
+	return 0
 }
