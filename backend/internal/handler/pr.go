@@ -123,3 +123,31 @@ func (h *PRHandler) RejectPR(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "pr rejected"})
 }
+
+func (h *PRHandler) BlockContributor(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+	userID, err := strconv.ParseInt(c.Param("userId"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
+		return
+	}
+	if err := h.prSvc.BlockContributor(callerID, userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "contributor blocked"})
+}
+
+func (h *PRHandler) UnblockContributor(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+	userID, err := strconv.ParseInt(c.Param("userId"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
+		return
+	}
+	if err := h.prSvc.UnblockContributor(callerID, userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "contributor unblocked"})
+}

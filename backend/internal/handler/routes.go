@@ -69,4 +69,59 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		pr.POST("/:id/accept", middleware.AuthRequired(cfg), prHandler.AcceptPR)
 		pr.POST("/:id/reject", middleware.AuthRequired(cfg), prHandler.RejectPR)
 	}
+
+	dashboard := v1.Group("/dashboard", middleware.AuthRequired(cfg))
+	{
+		dashboard.POST("/contributors/:userId/block", prHandler.BlockContributor)
+		dashboard.DELETE("/contributors/:userId/block", prHandler.UnblockContributor)
+	}
+
+	socialHandler := NewSocialHandler(db, cfg)
+	social := v1.Group("/social")
+	{
+		social.GET("/comments", socialHandler.ListComments)
+		social.POST("/comments", middleware.AuthRequired(cfg), socialHandler.PostComment)
+		social.DELETE("/comments/:id", middleware.AuthRequired(cfg), socialHandler.DeleteComment)
+		social.GET("/discussions", socialHandler.ListDiscussions)
+		social.POST("/discussions", middleware.AuthRequired(cfg), socialHandler.PostDiscussion)
+		social.GET("/discussions/:id", socialHandler.GetDiscussion)
+		social.POST("/reactions", middleware.AuthRequired(cfg), socialHandler.React)
+		social.POST("/comments/:id/report", middleware.AuthRequired(cfg), socialHandler.ReportComment)
+	}
+	contents.POST("/:id/report", middleware.AuthRequired(cfg), socialHandler.ReportContent)
+
+	favHandler := NewFavoriteHandler(db, cfg)
+	favorites := v1.Group("/favorites", middleware.AuthRequired(cfg))
+	{
+		favorites.POST("", favHandler.AddFavorite)
+		favorites.DELETE("/:contentId", favHandler.RemoveFavorite)
+	}
+	users.GET("/:id/favorites", favHandler.ListUserFavorites)
+
+	judgeHandler := NewJudgeHandler(db, cfg)
+	judge := v1.Group("/judge")
+	{
+		judge.GET("/exam/:category", judgeHandler.GetExam)
+		judge.POST("/exam/submit", middleware.AuthRequired(cfg), judgeHandler.SubmitExam)
+		judge.GET("/queue", middleware.AuthRequired(cfg), judgeHandler.GetQueue)
+		judge.POST("/vote", middleware.AuthRequired(cfg), judgeHandler.SubmitVote)
+		judge.GET("/cases/:id/verdict", judgeHandler.GetVerdictDetail)
+		judge.POST("/reasons/:id/vote", middleware.AuthRequired(cfg), judgeHandler.VoteReason)
+	}
+
+	adminHandler := NewAdminHandler(db, cfg)
+	admin := v1.Group("/admin", middleware.AuthRequired(cfg), middleware.AdminRequired())
+	{
+		admin.GET("/ips", adminHandler.ListPendingIPs)
+		admin.POST("/ips/:id/approve", adminHandler.ApproveIP)
+		admin.POST("/ips/:id/reject", adminHandler.RejectIP)
+		admin.GET("/contents", adminHandler.ListUnderReviewContents)
+		admin.POST("/contents/:id/ban", adminHandler.BanContent)
+		admin.GET("/users", adminHandler.ListUsers)
+		admin.POST("/users/:id/ban", adminHandler.BanUser)
+		admin.GET("/appeals", adminHandler.ListAppeals)
+		admin.POST("/appeals/:id", adminHandler.ResolveAppeal)
+		admin.GET("/config", adminHandler.GetConfig)
+		admin.POST("/judge/questions", judgeHandler.CreateQuestions)
+	}
 }

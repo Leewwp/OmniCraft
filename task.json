@@ -213,9 +213,9 @@
         "创建 internal/handler/version.go（扩展）：POST /pr/:id/accept, POST /pr/:id/reject（请求 body 包含 rejection_reason 拒绝理由）, POST /pr/:id/merge",
         "实现作者拉黑：POST /dashboard/contributors/:userId/block → 写 author_blocklist，拦截后续 PR；配套 DELETE /dashboard/contributors/:userId/block 解除拉黑",
         "PR 拒绝通知机制：RejectPR 执行时自动调用 notification_service.CreateNotification(type='pr_rejected', channel='system', recipient=pr.submitter, reason=rejection_reason)，通知包含拒绝理由文本（注：channel 必须为 reply/like/system 枚举之一，pr_rejected 是 notifications.type 值）",
-        "验证：PR 接受后版本链正确更新，贡献者名单出现在内容详情；拒绝 PR 后 pending 版本删除，PR 提交者收到包含拒绝理由的通知"
+        "验证： PR 接受后版本链正确更新，贡献者名单出现在内容详情；拒绝 PR 后 pending 版本删除， PR 提交者收到包含拒绝理由的通知"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 15,
@@ -228,7 +228,7 @@
         "实现评论审核：AI 扫描通过后 published；扫描结果为 block 则 banned",
         "验证：发帖、回复楼中楼、删除评论流程正常；恶意内容被自动屏蔽"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 16,
@@ -243,7 +243,7 @@
         "实现评论区负面比例检测：评论区点踩/点赞比超过阈值（config.yaml > social.comment_fold_threshold，默认 0.30）时自动折叠评论区并触发审核（PRD §6.2）",
         "验证：点赞计数更新、举报触发阈值后内容自动进入审核、收藏添加/取消/列表查询正常"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 17,
@@ -256,7 +256,7 @@
         "管理员题库录入：POST /admin/judge/questions（批量录入，含答案）；seed 需覆盖全部 content_type 枚举，包含新增的 sheet_music / template / other 以适配 judge_qualifications 扩展后的枚举",
         "验证：考试流程完整（无题库时返回提示，有题库时可正常考试，通过后获得判官资质）"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 18,
@@ -270,7 +270,7 @@
         "实现题库自动更新：定时任务（每周一次），从各 content_type 的 judge_cases 中随机选 10 个多票案例生成新题",
         "验证：有资质的判官可见对应类型的待审内容，投票达阈值后自动关闭案例，结果正确"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 19,
@@ -285,7 +285,7 @@
         "实现系统配置 API：GET /admin/config（读取 config.yaml），PATCH /admin/config（热更新，支持修改 limits/features/reputation 等所有配置项）",
         "验证：管理员可完成 IP 审核、封禁内容、处理申诉、修改视频大小限制等操作"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 20,
