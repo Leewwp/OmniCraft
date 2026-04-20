@@ -1081,7 +1081,7 @@
         "编写单元测试 internal/pkg/llm/provider_test.go：用 httptest mock HTTP 验证 QwenProvider.Chat 和 ChatStream 正确解析响应",
         "验证：go build ./... 无错误；mock 测试通过；切换 llm_provider=openai_compat + llm_api_base=https://api.deepseek.com 可正常调用"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 54,
@@ -1099,7 +1099,7 @@
         "创建 internal/handler/agent.go：POST /api/v1/agent/upload-assist（需登录 + 限流中间件）",
         "验证：上传 .zip Mod 文件后调用接口，返回合理的标签/分类/标题；上传 .md 文件后返回对应简介建议；文件大小超限时返回 400 FILE_TOO_LARGE"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 55,
@@ -1119,7 +1119,7 @@
         "创建 internal/handler/agent.go（扩展）：POST /api/v1/agent/compliance-check（需登录 + 限流）",
         "验证：正常文件返回 safe；上传含敏感词文本返回 violation；格式不合规文件返回 file_format_error"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 56,
@@ -1138,7 +1138,7 @@
         "添加降级逻辑：若 web_agent_enabled=false 或 embedding 未就绪，返回 503 FEATURE_DISABLED",
         "验证：发布一条内容后等待向量化完成，调用 /agent/search?query=「适合新手的家具 Mod」能返回语义相关结果；纯关键词无法匹配但语义相似的内容也能被检索到"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 57,
@@ -1158,7 +1158,7 @@
         "创建 lib/useSSE.ts（前端 hook 骨架，供 Task 59 使用）：封装 EventSource，管理连接生命周期和错误处理",
         "验证：对 content_type=mod 的内容调用接口，返回包含安装步骤的 Markdown 格式指导；stream=true 时 SSE 逐 delta 推送正常"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 58,
@@ -1178,7 +1178,7 @@
         "SSE 响应格式：Content-Type: text/event-stream；每条消息 data: {\"delta\":\"...\",\"done\":false}；结束时 data: {\"done\":true,\"conversation_id\":N}",
         "验证：对含违规词的内容调用 /agent/moderate 返回 violation + 整改建议；/agent/chat/stream 流式输出正常，conversation_id 可用于后续追问"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 59,
@@ -1232,7 +1232,7 @@
         "内容权限校验：is_public=false 时，仅关注者可查看（在 content_service.GetContent 中检查 follows 表）",
         "验证：关注/取关用户和 IP 正常，粉丝/关注列表分页正确，is_public=false 的内容仅关注者可访问"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 61,
@@ -1251,7 +1251,7 @@
         "扩展 internal/handler/admin.go：更新 GET /admin/appeals 从 appeals 表读取 status=pending、POST /admin/appeals/:id 更新 status 为 approved/rejected + admin_response，approved 时恢复内容 status 为 published",
         "验证：用户可对被下架内容提交申诉，管理员可批准（恢复上架）或拒绝（记录原因），重复申诉被拒绝"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 62,
@@ -1348,7 +1348,7 @@
         "在已有业务逻辑中触发通知创建：评论回复 → channel=reply、点赞 → channel=like、审核结果/信誉分变动 → channel=system、PR 提交/处理 → channel=system、关注 → channel=system",
         "验证：各频道通知列表正确，标记已读功能正常，全部已读按频道过滤，未读计数准确"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 66,
@@ -1366,7 +1366,7 @@
         "私信发送时同时创建通知（可选，后续迭代）",
         "验证：创建对话幂等，发送消息正常，对话列表按最新消息排序，未读标记准确，非参与者无权访问"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 67,
@@ -1564,7 +1564,7 @@
         "更新 internal/model/ 下对应 GORM 模型：LLMConfig，扩展 User（SupportInfo）",
         "验证：migrate up 无报错，新表/字段存在，partial unique index 确保仅一个 active LLM config"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 76,
@@ -1659,7 +1659,7 @@
         "补充 GET /users/:id/discussions：列出用户发帖或回复过的讨论帖（UNION discussions.author_id=uid 与 comments.author_id=uid WHERE target_type='discussion'），按最后活跃时间倒序分页，返回字段：discussion_id / title / ip_name / reply_count / last_active_at（供 Task 84 用户主页「参与的讨论」Tab）",
         "验证：讨论列表分页排序正常，发帖/回复功能正常，楼中楼嵌套正确（最多2层），置顶功能仅限IP创建者/管理员；GET /users/:id/discussions 正确返回用户参与的讨论列表"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 80,
@@ -1691,7 +1691,7 @@
         "扩展 internal/handler/user.go 或新建 reputation handler：GET /reputation-logs/me（需登录，返回分页日志列表含 action, delta, reason, created_at）",
         "验证：返回当前用户信誉分变动历史，分页正常，未登录返回 401"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 82,
@@ -1801,7 +1801,7 @@
         "## Component: ContentCard",
         "## Component: ConfirmModal"
       ],
-      "passes": false
+      "passes": true
     }
   ]
 }
