@@ -12,11 +12,11 @@ type User struct {
 	AvatarURL       string    `gorm:"size:2048" json:"avatar_url"`
 	Bio             string    `gorm:"type:text" json:"bio"`
 	Reputation      int       `gorm:"not null;default:10" json:"reputation"`
-	PreferredLocale string    `gorm:"not null;default:'zh-CN';size:10" json:"preferred_locale"`
+	PreferredLocale string    `gorm:"size:10;default:'zh'"  json:"preferred_locale"`
+	SupportInfo     JSONMap   `gorm:"type:jsonb;default:'{}'" json:"support_info,omitempty"`
 	Role            string    `gorm:"not null;default:'user';size:20" json:"role"`
 	IsBanned        bool      `gorm:"not null;default:false" json:"is_banned"`
 	BanReason       string    `gorm:"type:text" json:"ban_reason,omitempty"`
-	SupportInfo     []byte    `gorm:"type:jsonb;default:'{}'" json:"support_info,omitempty"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }

@@ -3,9 +3,9 @@ package model
 import "time"
 
 type Discussion struct {
-	ID            int64        `gorm:"primaryKey;autoIncrement"`
-	IPID          *int64       `gorm:"index"`
-	IP            *IP          `gorm:"foreignKey:IPID"`
+	ID            int64  `gorm:"primaryKey;autoIncrement"`
+	IPID          *int64 `gorm:"index"`
+	IP            *IP    `gorm:"foreignKey:IPID"`
 	ContentItemID *int64
 	ContentItem   *ContentItem `gorm:"foreignKey:ContentItemID"`
 	AuthorID      int64        `gorm:"not null;index"`
@@ -13,8 +13,10 @@ type Discussion struct {
 	Title         string       `gorm:"size:500;not null"`
 	Body          string       `gorm:"type:text"`
 	Status        string       `gorm:"size:20;not null;default:published"`
+	IsPinned      bool         `gorm:"not null;default:false"`
 	ViewCount     int64        `gorm:"not null;default:0"`
 	ReplyCount    int          `gorm:"not null;default:0"`
+	LastActiveAt  time.Time    `gorm:"not null;default:NOW()"`
 	CreatedAt     time.Time    `gorm:"autoCreateTime"`
 	UpdatedAt     time.Time    `gorm:"autoUpdateTime"`
 }
@@ -31,6 +33,9 @@ type Comment struct {
 	Parent        *Comment  `gorm:"foreignKey:ParentID"`
 	AuthorID      int64     `gorm:"not null;index"`
 	Author        User      `gorm:"foreignKey:AuthorID"`
+	TargetType    string    `gorm:"size:20;index"`
+	TargetID      int64     `gorm:"index"`
+	Content       string    `gorm:"type:text"`
 	Body          string    `gorm:"type:text;not null"`
 	Status        string    `gorm:"size:20;not null;default:published"`
 	LikeCount     int       `gorm:"not null;default:0"`
@@ -84,18 +89,18 @@ type Follow struct {
 func (Follow) TableName() string { return "follows" }
 
 type Appeal struct {
-	ID            int64      `gorm:"primaryKey;autoIncrement"`
-	UserID        int64      `gorm:"not null;index"`
-	User          User       `gorm:"foreignKey:UserID"`
-	TargetType    string     `gorm:"size:20;not null"`
-	TargetID      int64      `gorm:"not null"`
-	Reason        string     `gorm:"type:text;not null"`
-	Status        string     `gorm:"size:20;not null;default:pending;index"`
-	AdminResponse string     `gorm:"type:text"`
-	ResolvedBy    *int64
-	ResolvedByUser *User     `gorm:"foreignKey:ResolvedBy"`
-	ResolvedAt    *time.Time
-	CreatedAt     time.Time  `gorm:"autoCreateTime"`
+	ID             int64  `gorm:"primaryKey;autoIncrement"`
+	UserID         int64  `gorm:"not null;index"`
+	User           User   `gorm:"foreignKey:UserID"`
+	TargetType     string `gorm:"size:20;not null"`
+	TargetID       int64  `gorm:"not null"`
+	Reason         string `gorm:"type:text;not null"`
+	Status         string `gorm:"size:20;not null;default:pending;index"`
+	AdminResponse  string `gorm:"type:text"`
+	ResolvedBy     *int64
+	ResolvedByUser *User `gorm:"foreignKey:ResolvedBy"`
+	ResolvedAt     *time.Time
+	CreatedAt      time.Time `gorm:"autoCreateTime"`
 }
 
 func (Appeal) TableName() string { return "appeals" }
