@@ -109,6 +109,27 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		judge.POST("/reasons/:id/vote", middleware.AuthRequired(cfg), judgeHandler.VoteReason)
 	}
 
+	catHandler := NewCategoryHandler(db)
+	v1.GET("/categories", catHandler.ListCategories)
+
+	tagHandler := NewTagHandler(db)
+	v1.GET("/tags/faceted", tagHandler.GetFacetedTags)
+	v1.GET("/tags/search", tagHandler.SearchTags)
+	contents.POST("/:id/tags/suggest", middleware.AuthRequired(cfg), tagHandler.SuggestTag)
+	dashboard.GET("/tag-suggestions", tagHandler.ListTagSuggestions)
+	dashboard.PATCH("/tag-suggestions/:id", tagHandler.UpdateTagSuggestion)
+
+	me := v1.Group("/users/me", middleware.AuthRequired(cfg))
+	{
+		me.GET("/tag-groups", tagHandler.ListTagGroups)
+		me.POST("/tag-groups", tagHandler.CreateTagGroup)
+		me.PATCH("/tag-groups/:id", tagHandler.UpdateTagGroup)
+		me.DELETE("/tag-groups/:id", tagHandler.DeleteTagGroup)
+		me.GET("/saved-searches", tagHandler.ListSavedSearches)
+		me.POST("/saved-searches", tagHandler.CreateSavedSearch)
+		me.DELETE("/saved-searches/:id", tagHandler.DeleteSavedSearch)
+	}
+
 	adminHandler := NewAdminHandler(db, cfg)
 	admin := v1.Group("/admin", middleware.AuthRequired(cfg), middleware.AdminRequired())
 	{
@@ -123,5 +144,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		admin.POST("/appeals/:id", adminHandler.ResolveAppeal)
 		admin.GET("/config", adminHandler.GetConfig)
 		admin.POST("/judge/questions", judgeHandler.CreateQuestions)
+		admin.POST("/categories", catHandler.AdminCreateCategory)
+		admin.PATCH("/categories/:id", catHandler.AdminUpdateCategory)
+		admin.DELETE("/categories/:id", catHandler.AdminDeleteCategory)
+		admin.PUT("/categories/reorder", catHandler.AdminReorderCategories)
 	}
 }

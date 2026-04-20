@@ -17,17 +17,18 @@ func NewContentRepository(db *gorm.DB) *ContentRepository {
 }
 
 type ListContentsFilter struct {
-	Zone        string
-	IPID        *int64
-	Category    string
-	ContentType string
-	AuthorID    *int64
-	Status      string
-	Tags        []string
-	Sort        string
-	TimeRange   string
-	Page        int
-	PageSize    int
+	Zone         string
+	IPID         *int64
+	Category     string
+	ContentType  string
+	ContentTypes []string
+	AuthorID     *int64
+	Status       string
+	Tags         []string
+	Sort         string
+	TimeRange    string
+	Page         int
+	PageSize     int
 }
 
 func (r *ContentRepository) CreateContent(content *model.ContentItem) error {
@@ -67,7 +68,9 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 	if f.Category != "" {
 		q = q.Where("category = ?", f.Category)
 	}
-	if f.ContentType != "" {
+	if len(f.ContentTypes) > 0 {
+		q = q.Where("content_type IN ?", f.ContentTypes)
+	} else if f.ContentType != "" {
 		q = q.Where("content_type = ?", f.ContentType)
 	}
 	if f.AuthorID != nil {
@@ -101,6 +104,11 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 	switch f.Sort {
 	case "hot":
 		q = q.Order("(view_count + like_count * 3) DESC")
+	case "most_views":
+		q = q.Order("view_count DESC")
+	case "best_rated":
+		q = q.Where("(like_count + dislike_count) >= 5").
+			Order("(like_count::float / NULLIF(like_count + dislike_count, 0)) DESC NULLS LAST")
 	default:
 		q = q.Order("created_at DESC")
 	}
@@ -159,4 +167,13 @@ func (r *ContentRepository) GetTags(contentID int64) ([]model.ContentTag, error)
 	var tags []model.ContentTag
 	err := r.db.Where("content_item_id = ?", contentID).Find(&tags).Error
 	return tags, err
+}
+
+func (r *ContentRepository) AddTag(contentID int64, tag string) error {
+	ct := model.ContentTag{ContentItemID: contentID, Tag: tag}
+	return r.db.FirstOrCreate(&ct, model.ContentTag{ContentItemID: contentID, Tag: tag}).Error
+}
+
+func (r *ContentRepository) RemoveTag(contentID int64, tag string) error {
+	return r.db.Where("content_item_id = ? AND tag = ?", contentID, tag).Delete(&model.ContentTag{}).Error
 }

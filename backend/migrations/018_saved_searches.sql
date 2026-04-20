@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS saved_searches (
+    id         BIGSERIAL PRIMARY KEY,
+    user_id    BIGINT       NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name       VARCHAR(200) NOT NULL,
+    config     JSONB        NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_saved_searches_user ON saved_searches (user_id);

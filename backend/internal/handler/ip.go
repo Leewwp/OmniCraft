@@ -29,6 +29,7 @@ func (h *IPHandler) ListIPs(c *gin.Context) {
 	filter := repository.ListIPsFilter{
 		Search:   c.Query("q"),
 		Category: c.Query("category"),
+		Sort:     c.DefaultQuery("sort", "newest"),
 		Page:     page,
 		PageSize: pageSize,
 	}

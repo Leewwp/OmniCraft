@@ -14,7 +14,7 @@ import (
 )
 
 type ContentHandler struct {
-	contentSvc *service.ContentService
+	contentSvc  *service.ContentService
 	contentRepo *repository.ContentRepository
 }
 
@@ -49,17 +49,26 @@ func (h *ContentHandler) ListContents(c *gin.Context) {
 		tags = strings.Split(tagsStr, ",")
 	}
 
+	var contentTypes []string
+	if ctStr := c.Query("content_type"); ctStr != "" {
+		parts := strings.Split(ctStr, ",")
+		if len(parts) > 1 {
+			contentTypes = parts
+		}
+	}
+
 	filter := repository.ListContentsFilter{
-		Zone:        c.Query("zone"),
-		IPID:        ipID,
-		Category:    c.Query("category"),
-		ContentType: c.Query("content_type"),
-		AuthorID:    authorID,
-		Tags:        tags,
-		Sort:        c.DefaultQuery("sort", "newest"),
-		TimeRange:   c.DefaultQuery("time_range", "all"),
-		Page:        page,
-		PageSize:    pageSize,
+		Zone:         c.Query("zone"),
+		IPID:         ipID,
+		Category:     c.Query("category"),
+		ContentType:  c.Query("content_type"),
+		ContentTypes: contentTypes,
+		AuthorID:     authorID,
+		Tags:         tags,
+		Sort:         c.DefaultQuery("sort", "newest"),
+		TimeRange:    c.DefaultQuery("time_range", "all"),
+		Page:         page,
+		PageSize:     pageSize,
 	}
 
 	contents, total, err := h.contentSvc.ListContents(filter)
