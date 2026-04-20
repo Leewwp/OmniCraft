@@ -40,7 +40,6 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		ips.POST("", middleware.AuthRequired(cfg), ipHandler.CreateIP)
 		ips.GET("/:id", ipHandler.GetIP)
 		ips.GET("/:id/contents", ipHandler.GetIPContents)
-		ips.GET("/:id/discussions", ipHandler.GetIPDiscussions)
 	}
 
 	contentHandler := NewContentHandler(db)
@@ -128,6 +127,65 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		me.GET("/saved-searches", tagHandler.ListSavedSearches)
 		me.POST("/saved-searches", tagHandler.CreateSavedSearch)
 		me.DELETE("/saved-searches/:id", tagHandler.DeleteSavedSearch)
+	}
+
+	followHandler := NewFollowHandler(db)
+	users.POST("/:id/follow", middleware.AuthRequired(cfg), followHandler.FollowUser)
+	users.DELETE("/:id/follow", middleware.AuthRequired(cfg), followHandler.UnfollowUser)
+	users.GET("/:id/followers", followHandler.GetFollowers)
+	users.GET("/:id/following", followHandler.GetFollowing)
+	ips.POST("/:id/follow", middleware.AuthRequired(cfg), followHandler.FollowIP)
+	ips.DELETE("/:id/follow", middleware.AuthRequired(cfg), followHandler.UnfollowIP)
+
+	appealHandler := NewAppealHandler(db)
+	v1.POST("/appeals", middleware.AuthRequired(cfg), appealHandler.SubmitAppeal)
+	v1.GET("/appeals/me", middleware.AuthRequired(cfg), appealHandler.GetMyAppeals)
+
+	notifHandler := NewNotificationHandler(db)
+	notif := v1.Group("/notifications", middleware.AuthRequired(cfg))
+	{
+		notif.GET("", notifHandler.ListNotifications)
+		notif.PATCH("/:id/read", notifHandler.MarkRead)
+		notif.POST("/read-all", notifHandler.MarkAllRead)
+		notif.GET("/unread-count", notifHandler.UnreadCount)
+	}
+
+	msgHandler := NewMessageHandler(db)
+	messages := v1.Group("/messages", middleware.AuthRequired(cfg))
+	{
+		messages.GET("", msgHandler.ListConversations)
+		messages.POST("", msgHandler.SendMessage)
+		messages.GET("/:id", msgHandler.ListMessages)
+	}
+
+	histHandler := NewBrowseHistoryHandler(db)
+	me.POST("/history", histHandler.RecordView)
+	me.GET("/history", histHandler.GetHistory)
+	me.DELETE("/history", histHandler.ClearHistory)
+
+	discHandler := NewDiscussionHandler(db)
+	ips.GET("/:id/discussions", discHandler.ListDiscussions)
+	ips.POST("/:id/discussions", middleware.AuthRequired(cfg), discHandler.CreateDiscussion)
+	ips.GET("/:id/discussions/search", discHandler.SearchDiscussions)
+	discussions := v1.Group("/discussions")
+	{
+		discussions.GET("/:id", discHandler.GetDiscussion)
+		discussions.POST("/:id/comments", middleware.AuthRequired(cfg), discHandler.ReplyToDiscussion)
+		discussions.PATCH("/:id/pin", middleware.AuthRequired(cfg), discHandler.PinDiscussion)
+	}
+
+	repHandler := NewReputationHandler(db)
+	v1.GET("/reputation-logs/me", middleware.AuthRequired(cfg), repHandler.GetMyReputationLogs)
+
+	agentHandler := NewAgentHandler(db, cfg)
+	agent := v1.Group("/agent", middleware.AuthRequired(cfg))
+	{
+		agent.POST("/upload-assist", agentHandler.UploadAssist)
+		agent.POST("/compliance-check", agentHandler.ComplianceCheck)
+		agent.POST("/search", agentHandler.NLSearch)
+		agent.POST("/usage-guide/:id", agentHandler.UsageGuide)
+		agent.POST("/moderate/:id", agentHandler.Moderate)
+		agent.POST("/chat/stream", agentHandler.ChatStream)
 	}
 
 	adminHandler := NewAdminHandler(db, cfg)

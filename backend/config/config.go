@@ -20,6 +20,19 @@ type Config struct {
 	Judge      JudgeConfig      `mapstructure:"judge"`
 	Social     SocialConfig     `mapstructure:"social"`
 	Upload     UploadConfig     `mapstructure:"upload"`
+	Agent      AgentConfig      `mapstructure:"agent"`
+}
+
+type AgentConfig struct {
+	WebAgentEnabled       bool   `mapstructure:"web_agent_enabled"`
+	LLMProvider           string `mapstructure:"llm_provider"`
+	LLMModel              string `mapstructure:"llm_model"`
+	LLMAPIBase            string `mapstructure:"llm_api_base"`
+	LLMAPIKey             string `mapstructure:"llm_api_key"`
+	EmbeddingModel        string `mapstructure:"embedding_model"`
+	EmbeddingDimensions   int    `mapstructure:"embedding_dimensions"`
+	RateLimitPerDay       int    `mapstructure:"rate_limit_per_day"`
+	UploadAssistMaxFileMB int    `mapstructure:"upload_assist_max_file_mb"`
 }
 
 type ServerConfig struct {
@@ -39,9 +52,9 @@ type RedisConfig struct {
 }
 
 type JWTConfig struct {
-	Secret         string `mapstructure:"secret"`
-	AccessTokenTTL int    `mapstructure:"access_token_ttl"`
-	RefreshTokenTTL int   `mapstructure:"refresh_token_ttl"`
+	Secret          string `mapstructure:"secret"`
+	AccessTokenTTL  int    `mapstructure:"access_token_ttl"`
+	RefreshTokenTTL int    `mapstructure:"refresh_token_ttl"`
 }
 
 type OSSConfig struct {
@@ -66,10 +79,10 @@ type LimitsConfig struct {
 }
 
 type ReputationConfig struct {
-	QualityContentThreshold    int `mapstructure:"quality_content_threshold"`
-	QualityCommentThreshold    int `mapstructure:"quality_comment_threshold"`
-	RepeatViolationWindowDays  int `mapstructure:"repeat_violation_window_days"`
-	RepeatViolationThreshold   int `mapstructure:"repeat_violation_threshold"`
+	QualityContentThreshold     int `mapstructure:"quality_content_threshold"`
+	QualityCommentThreshold     int `mapstructure:"quality_comment_threshold"`
+	RepeatViolationWindowDays   int `mapstructure:"repeat_violation_window_days"`
+	RepeatViolationThreshold    int `mapstructure:"repeat_violation_threshold"`
 	RepeatViolationExtraPenalty int `mapstructure:"repeat_violation_extra_penalty"`
 }
 

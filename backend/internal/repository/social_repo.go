@@ -46,6 +46,24 @@ func (r *SocialRepository) ListComments(contentID int64, parentID *int64, page, 
 	return comments, total, err
 }
 
+func (r *SocialRepository) ListCommentsByTarget(targetType string, targetID int64, page, pageSize int) ([]model.Comment, int64, error) {
+	var comments []model.Comment
+	var total int64
+	var q *gorm.DB
+	if targetType == "discussion" {
+		q = r.db.Model(&model.Comment{}).
+			Where("discussion_id = ? AND parent_id IS NULL AND status = ?", targetID, "published")
+	} else {
+		q = r.db.Model(&model.Comment{}).
+			Where("target_type = ? AND target_id = ? AND parent_id IS NULL AND status = ?", targetType, targetID, "published")
+	}
+	q.Count(&total)
+	err := q.Preload("Author").Order("created_at ASC").
+		Offset((page - 1) * pageSize).Limit(pageSize).
+		Find(&comments).Error
+	return comments, total, err
+}
+
 func (r *SocialRepository) DeleteComment(id int64) error {
 	return r.db.Model(&model.Comment{}).Where("id = ?", id).Update("status", "hidden").Error
 }
