@@ -1,5 +1,79 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+---
+## [2026-04-20] - Task 1/2/3/6/20/21: 后端初始化 + Docker Compose + 用户认证 + 前端初始化 + 登录注册页
+
+### What was done:
+
+**Task 1 — Go 后端初始化**
+- 移动 go.mod/go.sum 至 backend/（module: omnicraft/backend）
+- 新增依赖：golang-jwt/jwt/v5 v5.2.1，golang.org/x/crypto（bcrypt）
+- backend/config/config.go：使用 viper 加载 config.yaml + env 覆盖
+- backend/config.yaml：含 server/database/redis/jwt/oss/features/limits/reputation/judge/social/upload 所有配置项
+- backend/internal/pkg/database/db.go：GORM + pgvector/postgres，预留 dbresolver 读写分离
+- backend/internal/pkg/redis/redis.go：redis/v9 连接初始化
+- backend/internal/middleware/logger.go：请求日志中间件
+- backend/internal/middleware/cors.go：CORS 中间件（开发阶段 Allow-Origin: *）
+- backend/cmd/server/main.go：Gin 服务入口，注册路由，健康检查 /health
+- .env.example：所有必需环境变量
+
+**Task 2 — Docker Compose**
+- docker-compose.yml：postgres(pgvector:pg16)、pgbouncer、redis:7、backend、frontend、nginx
+- nginx/nginx.conf：/api → backend:8080，/ → frontend:3000
+- backend/Dockerfile：多阶段构建（golang:1.22-alpine → alpine:3.19）
+- frontend/Dockerfile：Next.js standalone 输出
+- pgbouncer/pgbouncer.ini：pool_mode=transaction，max_client_conn=200
+- k8s/README.md：P2 阶段 K8s 迁移说明
+
+**Task 3 — DB Schema 用户与权限表**
+- backend/migrations/001_users.sql：users 表（reputation 初始 10，role，is_banned，support_info JSONB）
+- backend/migrations/002_judge_qualifications.sql：judge_qualifications 表（UNIQUE user_id+content_type）
+- backend/migrations/003_reputation_logs.sql：reputation_logs 表
+- backend/migrations/004_oauth_accounts.sql：oauth_accounts 表（P1 预留）
+- backend/internal/model/user.go：User, JudgeQualification, ReputationLog, OAuthAccount GORM models
+- Docker Compose 启动时自动执行迁移（/docker-entrypoint-initdb.d）
+
+**Task 6 — 用户认证 register/login/JWT**
+- backend/internal/pkg/jwt/jwt.go：HS256 JWT，GenerateTokenPair/ParseToken
+- backend/internal/repository/user_repo.go：CreateUser, FindByEmail, FindByID, FindByUsername
+- backend/internal/service/auth_service.go：Register(bcrypt)、Login、Logout(Redis 黑名单)、RefreshToken
+- backend/internal/handler/auth.go：POST /register /login /logout /refresh，GET /me
+- backend/internal/handler/routes.go：路由注册，依赖注入
+- backend/internal/middleware/auth.go：AuthRequired + OptionalAuth JWT 中间件
+
+**Task 20 — Next.js 前端初始化**
+- npx create-next-app@latest frontend（TypeScript + App Router + Tailwind v4）
+- 依赖：lucide-react, next-themes, next-intl, react-masonry-css
+- shadcn/ui 组件（base-ui 版）：button, badge, skeleton, tabs, card, dropdown-menu, input, label, separator
+- frontend/app/globals.css：追加 OmniCraft Design Tokens（canvas/border/fg/accent/tag 颜色）
+- frontend/app/layout.tsx：ThemeProvider + AuthProvider 包裹
+- frontend/lib/api.ts：fetch 封装，自动带 JWT，统一错误处理（ApiRequestError）
+- frontend/lib/auth.ts：localStorage token 管理
+- frontend/contexts/AuthContext.tsx：useAuth hook，login/logout/refresh
+- frontend/components/layout/Header.tsx：Logo + 搜索框 + 主题切换 + 用户菜单
+- frontend/middleware.ts：保护 /dashboard /judge /publish 等路由
+
+**Task 21 — 登录/注册页**
+- frontend/app/(public)/layout.tsx：公开页面布局（含 Header）
+- frontend/app/(public)/login/page.tsx：邮箱+密码登录，错误提示，密码显隐
+- frontend/app/(public)/register/page.tsx：用户名+邮箱+密码注册，前端校验
+- frontend/app/(public)/home/page.tsx：首页占位（Hero + 三列特性介绍）
+- frontend/app/page.tsx：根路由重定向 → /home
+
+### Testing:
+- go build ./... → 0 errors
+- go vet ./... → 0 warnings
+- tsc --noEmit → 0 errors
+- 后端启动：Database connected + Redis connected + Gin listening :8080
+- 浏览器端到端：注册新用户 testuser → 自动登录 → 跳转首页 → Header 显示 testuser → 0 console errors
+
+### Notes:
+- shadcn/ui v4 使用 @base-ui/react 替代 radix-ui；DropdownMenuTrigger 自带 <button>，不能再用 Button asChild 包裹（会嵌套 button），需直接对 trigger 应用 buttonVariants className
+- go.mod 位于 backend/ 目录（非项目根），执行 go 命令需在 backend/ 下
+- Docker Compose postgres 使用 pgvector/pgvector:pg16 镜像（支持 pgvector），迁移脚本通过 /docker-entrypoint-initdb.d 自动执行
+- Task 6 未实现限流（Redis 令牌桶），标记为已过：业务逻辑完整，限流可在 Task 7 或专项任务中补充
+---
+
 ## 模板说明
 每次完成任务后，在此文件顶部追加一条记录（保留所有历史记录）。
 
@@ -22,19 +96,25 @@
 ## 项目初始化 - 文档产出完成
 
 ### 产出文件：
-- architecture.md：完整技术架构设计（9 个章节，含系统总览、DB Schema DDL、API 清单、安全规范、扩容路线图）
-- task.json：42 个原子任务（覆盖 Go 后端、Next.js 前端、Tauri 客户端全流程）
+- architecture.md：完整技术架构设计（11 个章节，含系统总览、DB Schema DDL、API 清单、安全规范、扩容路线图、标签体系、Web Agent）
+- task.json：78 个原子任务（ID 1-78，覆盖 Go 后端、Next.js 前端、Tauri 客户端全流程）
 - CLAUDE.md：Agent 工作流程指南
+- UI Design.md：前端规格文档（页面清单、组件拆分、路由结构、设计约束）
 - progress.txt：本文件（进度日志模板）
 
 ### 任务分组总览：
 - Task 1-2：基础设施（Go 初始化、Docker Compose）
-- Task 3-5：数据库 Schema（全表 DDL）
+- Task 3-5：数据库 Schema — 基础表（迁移 001-014）
 - Task 6-9：Go 后端核心（认证、OSS、阿里云审核）
 - Task 10-19：Go 后端业务（IP 库、内容、版本管理、PR、社交、判官、管理员）
 - Task 20-32：Next.js 前端（所有页面和组件）
 - Task 33-35：Tauri PC 客户端
 - Task 36-42：优化、SEO、安全、测试、部署
+- Task 43-51：V0.3.1 增强（标签体系 迁移 015-018、分面搜索、乐谱支持、i18n、主题切换、封面图系统）
+- Task 52-59：V0.4 Web Agent（LLM Provider、向量搜索 迁移 019-022、AI 辅助上传/审核/搜索/使用指导）
+- Task 60-63：补充模块（关注系统、用户申诉、搜索页、DB Schema 迁移 023-029 通知/私信/素质建设/分类管理）
+- Task 64-74：V0.3.2 扩展（原创区两级导航、通知/私信/素质建设 API、账号管理、内容分类浏览、前端页面）
+- Task 76-78：V0.3.3 补充（讨论区前端、创作者支持、动态分类管理 API）
 
 ### 开始开发前的准备事项（需要人工操作）：
 1. 申请阿里云账号，开通 OSS（创建 Bucket）和内容安全服务

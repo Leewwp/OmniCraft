@@ -1,0 +1,63 @@
+server:
+  port: "8080"
+  mode: "debug"
+
+database:
+  dsn: "host=localhost port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable"
+  read_dsn: ""
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+
+jwt:
+  secret: "dev-secret-change-in-production"
+  access_token_ttl: 120
+  refresh_token_ttl: 7
+
+oss:
+  endpoint: ""
+  access_key_id: ""
+  access_key_secret: ""
+  bucket_name: ""
+  domain: ""
+
+features:
+  payment_enabled: false
+
+limits:
+  video_max_mb: 300
+  video_max_sec: 180
+  image_max_mb: 20
+  text_max_mb: 10
+  mod_max_mb: 500
+  sheet_music_max_mb: 50
+
+reputation:
+  quality_content_threshold: 10
+  quality_comment_threshold: 5
+  repeat_violation_window_days: 7
+  repeat_violation_threshold: 2
+  repeat_violation_extra_penalty: -1
+
+judge:
+  min_votes_required: 20
+  pass_threshold: 0.60
+  exam_pass_rate: 0.80
+  error_rate_revoke: 0.50
+  error_rate_window: 10
+
+social:
+  report_auto_hide_rate: 0.10
+  comment_fold_threshold: 0.30
+
+upload:
+  sheet_music_extensions:
+    - ".mid"
+    - ".midi"
+    - ".xml"
+    - ".mxl"
+    - ".mscz"
+    - ".mscx"
+    - ".pdf"

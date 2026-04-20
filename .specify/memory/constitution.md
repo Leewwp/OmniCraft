@@ -1,13 +1,15 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change    : 1.0.0 → 1.1.0 (MINOR — new section added)
+Version change    : 1.1.0 → 1.1.1 (PATCH — design spec authority added)
 Modified sections :
   Principle I   — added pgvector to approved stack (zero new infra, part of PostgreSQL)
   Principle V   — added web_agent_enabled to defined feature flags
   Principle X   — added AGENT_LLM_API_KEY to env var list
   New: § XIII Web Agent Constraints (LLM provider abstraction, tool whitelist,
        SSE, pgvector pipeline, rate limiting, feature scope)
+  New: § XIV UI Design Spec Authority (design/ui-spec.md as visual authority,
+       ui_spec_ref field in task.json, CLAUDE.md Rules 14-15)
 Templates updated :
   ⚠ .specify/templates/plan-template.md   — PENDING (not yet created)
   ⚠ .specify/templates/spec-template.md   — PENDING (not yet created)
@@ -26,7 +28,7 @@ The following stack is FROZEN for all phases unless amended via a formal constit
 | Layer | Technology |
 |---|---|
 | Frontend | Next.js (App Router · SSR · TypeScript strict) |
-| Backend | Go 1.22+, Gin/Fiber framework, GORM ORM |
+| Backend | Go 1.22+, Gin framework, GORM ORM |
 | Primary DB | PostgreSQL 15+ via PgBouncer connection pool |
 | Cache / Rate-limit | Redis 7+ |
 | File Storage | Aliyun OSS — direct client-side upload via pre-signed URL |
@@ -86,7 +88,9 @@ before merging. No library may be introduced for convenience if the standard lib
   with `{ "code": "FEATURE_DISABLED" }`
 - Removing feature-flagged code is FORBIDDEN at MVP stage; disable via flag, not deletion
 - Defined flags (initial): `payment_enabled`, `ad_enabled`, `agent_enabled`, `judge_enabled`,
-  `web_agent_enabled` (web-side LLM agent, defaults `false`, independent of Tauri `agent_enabled`)
+  `web_agent_enabled` (web-side LLM agent, defaults `false`, independent of Tauri `agent_enabled`),
+  `creator_support_enabled` (creator support module — donation QR / external links, defaults `false`,
+  P1 phase)
 
 ### VI. Security Non-Negotiables
 
@@ -155,15 +159,31 @@ a constitution re-ratification:
 
 **Reputation System**:
 - Initial score: 10; minimum score to interact: 3
-- Deductions (read from `config.yaml > reputation`): malicious report −2, malicious comment −2,
-  malicious contribution −3, malicious report-of-comment −1, judge error −1
+- Scoring tiers (impact high → low, read from `config.yaml > reputation`):
+  - **Content-related**: quality content (likes ≥ threshold) +3, PR accepted +3 | malicious/plagiarised content, malicious PR contribution −3
+  - **Comment-related**: quality comment (likes ≥ threshold) +2 | malicious comment, malicious report of normal comment −2
+  - **Tag-related**: successful report or tag addition +1 | malicious tag report −1
+  - **Judge-related**: judge accuracy bonus +1 | judge error −1
+  - **Rehab**: rehab course completed +1 (each course once only)
+- "Malicious" vs "valid" report: determined by the **final resolution outcome**
+- Quality content / quality comment thresholds MUST be read from `config.yaml > reputation`
+- Rehab courses: users below threshold (3) can complete violation-specific courses to recover
+  reputation; each course may be completed once; minimum reading time ≥ 180s
 - Yellow/gambling/drug content: direct permanent ban; the reputation deduction path does NOT apply
+
+**User Roles**: `user` | `creator` | `admin` — judge status is determined by `judge_qualifications`
+table, NOT stored as a role value; there is no separate "hardcore contributor" role
 
 **Cyber Judge**:
 - A content type MUST NOT open crowd-review until its question bank is initialised by an admin
 - Qualification passing threshold: ≥ 80% correct
 - Revocation: error rate > 50% across the most recent N > 10 judgments → revoke privilege + deduct
   1 reputation point; re-qualification required before reinstatement
+- Verdict closure: total voter count ≥ threshold (MVP default: 20, configurable, target: 100)
+- Verdict outcome: ≥ 60% "not violation" → content restored; < 60% → controversial, hidden
+  (admin may manually restore); results displayed on verdict detail page with reason voting
+- Judges may optionally submit a reason; after voting, the verdict detail page shows current
+  vote distribution and other judges' reasons (upvote/downvote, sorted by net likes)
 
 **Upload Limits** (ALL read from `config.yaml > limits`; hardcoding any value is FORBIDDEN):
 
@@ -203,8 +223,10 @@ Applies when `features.web_agent_enabled: true`. These constraints are non-negot
 web Agent implementation:
 
 - **LLM Provider abstraction**: all LLM calls MUST go through the `LLMProvider` interface
-  (`internal/pkg/llm/`); the active provider is selected by `config.yaml > agent.llm_provider`
-  (`qwen` or `openai_compat`); API key MUST come from env var `AGENT_LLM_API_KEY` only
+  (`internal/pkg/llm/`); the active provider is selected by `llm_configs` table (is_active=TRUE),
+  falling back to `config.yaml > agent.llm_provider` (`qwen` or `openai_compat`) if no DB config
+  exists; API key MUST come from env var `AGENT_LLM_API_KEY` (config.yaml fallback) or encrypted
+  `api_key_enc` column (DB path) — plaintext API keys MUST NOT appear in any committed file
 - **Tool whitelist**: the web Agent MUST operate in Tool-Call mode using only the approved tool
   whitelist defined in `architecture.md §11.6`; arbitrary code execution by the Agent is FORBIDDEN;
   adding a new tool requires a constitution amendment
@@ -220,6 +242,13 @@ web Agent implementation:
   explicit PRD section and constitution amendment before implementation begins
 - **Priority**: web Agent tasks (52–59) are lower priority than existing Tasks 1–51; an agent
   session MUST NOT start a web Agent task if any Task with id ≤ 51 remains with `passes: false`
+
+### XIV. UI Design Spec Authority
+
+- `design/ui-spec.md` is the sole visual authority for frontend implementation
+- The `ui_spec_ref` field in `task.json` lists headings to reference before coding
+- Design specifications take precedence over prose descriptions in `steps`
+- If `design/ui-spec.md` section is empty, implement based on `steps` and add comments
 
 ## Business Rules Reference
 
@@ -251,4 +280,4 @@ See Principle X for the authoritative rule set. All numeric thresholds MUST be r
 - **Conflict resolution**: if a task step conflicts with a principle, the principle wins; the
   conflicting step MUST be clarified before implementation begins
 
-**Version**: 1.1.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-04-15
+**Version**: 1.4.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-04-17
