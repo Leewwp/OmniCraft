@@ -1,6 +1,46 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
+## [2026-04-20] - Task 10/11/12/13: IP CRUD + 内容 API + 版本引擎 + PR 引擎
+
+### What was done:
+
+**Task 10 — IP 库 CRUD**
+- internal/repository/ip_repo.go：CreateIP, FindByID, FindBySlug, ListIPs（分页/GIN全文搜索/分类筛选）, UpdateStatus, BanIPAndContents（事务）
+- internal/service/ip_service.go：CreateIP（自动生成 slug）, GetIP, ListIPs, ApproveIP, RejectIP, BanIP
+- internal/handler/ip.go：GET /ips, POST /ips, GET /ips/:id, GET /ips/:id/contents, GET /ips/:id/discussions
+- routes.go：注册 /ips 路由组
+
+**Task 11 — 内容发布 API**
+- internal/repository/content_repo.go：CreateContent, FindByID, ListContents（zone/ip/category/type/author/tags/time_range/sort 筛选）, UpdateContent, DeleteContent, IncrViewCount, CreateAttachments, CreateTags, GetAttachments, GetTags
+- internal/service/content_service.go：PublishContent（写 content_items + attachments + tags）, GetContent, ListContents, UpdateContent（权限校验）, DeleteContent（权限校验）
+- internal/handler/content.go：GET/POST/GET/:id/PATCH/:id/DELETE/:id /contents + 浏览计数 + 附件/标签返回
+- routes.go：注册 /contents 路由组
+
+**Task 12 — 版本管理引擎**
+- 安装 github.com/sergi/go-diff/diffmatchpatch
+- internal/pkg/diffengine/diff.go：ComputePatch（diff-match-patch patch string）, ApplyPatch, DiffSummary
+- internal/repository/version_repo.go：CreateVersion, FindByID, ListByContent, GetLatest, SetLatest（事务），GetVersionChain
+- internal/service/version_service.go：CreateInitialVersion, CreateNewVersion（diff存储）, GetVersionContent（链式还原）, ListVersions
+- internal/handler/version.go：GET /contents/:id/versions, GET /versions/:id
+- routes.go：注册 /versions 路由组
+
+**Task 13 — PR 引擎（提交/接受/拒绝）**
+- internal/repository/pr_repo.go：CreatePR, FindByID, ListByContent, UpdateStatus, IsBlocked, UpsertContributor
+- internal/service/pr_service.go：SubmitPR（检查 block/冲突检测）, GetPR, ListPRs, AcceptPR（UpsertContributor）, RejectPR
+- internal/handler/pr.go：POST /pr, GET /pr/:id, POST /pr/:id/accept, POST /pr/:id/reject
+- routes.go：注册 /pr 路由组；contents 路由增加 GET /:id/prs
+
+### Testing:
+- go build ./... → 0 errors
+
+### Notes:
+- Task 10 AI 审核调用已存根（TODO: 接入 review_service 后启用，Task 9）
+- Task 13 PR AI 合规检查存根（Task 9 实现后接入）
+- Task 14（PR 接受后版本链升级、通知）部分逻辑在 AcceptPR/RejectPR 中已有框架，通知系统在 Task 65 实现后接入
+---
+
+---
 ## [2026-04-20] - Task 4/5/7: DB Schema IP/内容/社交/审核/判官表 + 用户中心 API
 
 ### What was done:

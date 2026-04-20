@@ -32,4 +32,41 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		users.PATCH("/:id", middleware.AuthRequired(cfg), userHandler.UpdateUser)
 		users.GET("/:id/reputation", userHandler.GetReputation)
 	}
+
+	ipHandler := NewIPHandler(db)
+	ips := v1.Group("/ips")
+	{
+		ips.GET("", ipHandler.ListIPs)
+		ips.POST("", middleware.AuthRequired(cfg), ipHandler.CreateIP)
+		ips.GET("/:id", ipHandler.GetIP)
+		ips.GET("/:id/contents", ipHandler.GetIPContents)
+		ips.GET("/:id/discussions", ipHandler.GetIPDiscussions)
+	}
+
+	contentHandler := NewContentHandler(db)
+	contents := v1.Group("/contents")
+	{
+		contents.GET("", contentHandler.ListContents)
+		contents.POST("", middleware.AuthRequired(cfg), contentHandler.CreateContent)
+		contents.GET("/:id", contentHandler.GetContent)
+		contents.PATCH("/:id", middleware.AuthRequired(cfg), contentHandler.UpdateContent)
+		contents.DELETE("/:id", middleware.AuthRequired(cfg), contentHandler.DeleteContent)
+		contents.GET("/:id/versions", NewVersionHandler(db).ListVersions)
+		contents.GET("/:id/prs", NewPRHandler(db).ListPRs)
+	}
+
+	versionHandler := NewVersionHandler(db)
+	versions := v1.Group("/versions")
+	{
+		versions.GET("/:id", versionHandler.GetVersion)
+	}
+
+	prHandler := NewPRHandler(db)
+	pr := v1.Group("/pr")
+	{
+		pr.POST("", middleware.AuthRequired(cfg), prHandler.SubmitPR)
+		pr.GET("/:id", prHandler.GetPR)
+		pr.POST("/:id/accept", middleware.AuthRequired(cfg), prHandler.AcceptPR)
+		pr.POST("/:id/reject", middleware.AuthRequired(cfg), prHandler.RejectPR)
+	}
 }
