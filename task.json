@@ -137,7 +137,8 @@
         "创建 internal/service/review_service.go：SubmitForAIReview（写 ai_review_records，按内容类型路由审核接口）、ProcessAICallback（处理回调，更新内容状态）",
         "创建 internal/handler/internal.go：POST /api/v1/internal/ai-callback（内部回调，验证来源 IP）",
         "实现审核结果处理逻辑：block → 直接下架 + 扣信誉分；review → 创建 judge_cases；pass → 发布",
-        "验证：上传测试内容触发审核，模拟回调接口写入正确状态"
+        "恶意内容二次发布累计扣分（PRD §6.2）：block/violation 处理后，查询该用户近 `reputation.repeat_violation_window_days`（默认 7）日内被 block/violation 计数，达到 `repeat_violation_threshold`（默认 2）时在标准 −3 基础上额外调用 reputation_service.AddReputation(delta=`repeat_violation_extra_penalty` 默认 −1, reason='repeat_violation') 并在 Redis 写入 `publish_freeze:{user_id}` 7 日过期键；content_service.PublishContent 入口检测此键存在则拒绝发布返回 403 PUBLISH_FROZEN",
+        "验证：上传测试内容触发审核，模拟回调接口写入正确状态；连续两次违规后信誉分额外扣 1 分、发布接口返回 PUBLISH_FROZEN"
       ],
       "passes": false
     },
@@ -169,7 +170,7 @@
         "实现多标签 AND 筛选：tags[] 参数，使用 content_tags 关联子查询",
         "实现 tag_group_id 参数：查 tag_groups 表展开 tags 数组后走多标签筛选",
         "在 OSS Token 接口白名单追加乐谱 MIME 类型（mid/midi/xml/mxl/mscz/mscx）",
-        "video 内容发布完成后异步截帧写入 cover_image_url（调用 OSS 图片处理接口或 FFmpeg 容器任务）",
+        "注：video 封面异步截帧写入 cover_image_url 由 Task 48 step 3 统一实现，本任务不重复",
         "验证：发布文章（MD）、图片、Mod（zip）、乐谱（MIDI/MusicXML），time_range/tags 筛选正常"
       ],
       "passes": false
@@ -211,7 +212,7 @@
         "实现贡献者管理：AcceptPR 时写/更新 content_contributors",
         "创建 internal/handler/version.go（扩展）：POST /pr/:id/accept, POST /pr/:id/reject（请求 body 包含 rejection_reason 拒绝理由）, POST /pr/:id/merge",
         "实现作者拉黑：POST /dashboard/contributors/:userId/block → 写 author_blocklist，拦截后续 PR；配套 DELETE /dashboard/contributors/:userId/block 解除拉黑",
-        "PR 拒绝通知机制：RejectPR 执行时自动调用 notification_service.CreateNotification(channel='pr_rejected', recipient=pr.submitter, reason=rejection_reason)，通知包含拒绝理由文本",
+        "PR 拒绝通知机制：RejectPR 执行时自动调用 notification_service.CreateNotification(type='pr_rejected', channel='system', recipient=pr.submitter, reason=rejection_reason)，通知包含拒绝理由文本（注：channel 必须为 reply/like/system 枚举之一，pr_rejected 是 notifications.type 值）",
         "验证：PR 接受后版本链正确更新，贡献者名单出现在内容详情；拒绝 PR 后 pending 版本删除，PR 提交者收到包含拒绝理由的通知"
       ],
       "passes": false
@@ -235,11 +236,11 @@
       "description": "实现点赞、点踩、举报、收藏功能（浏览历史由 Task 85 独立实现）",
       "steps": [
         "创建 internal/repository/social_repo.go（扩展）：UpsertReaction（防重复）、CreateReport、CreateFavorite、DeleteFavorite、ListFavoritesByUser",
-        "创建 internal/service/social_service.go（扩展）：React（更新 content_items.like_count/dislike_count）、Report（写举报记录，检查是否达到自动隐藏阈值 10% 举报率）、Favorite/Unfavorite",
+        "创建 internal/service/social_service.go（扩展）：React（更新 content_items.like_count/dislike_count）、Report（写举报记录，检查是否达到自动隐藏阈值 social.report_auto_hide_rate）、Favorite/Unfavorite",
         "创建 internal/handler/social.go（扩展）：POST /social/reactions, POST /contents/:id/report, POST /social/comments/:id/report",
         "创建 internal/handler/favorite.go：POST /favorites（body: content_item_id）、DELETE /favorites/:contentId、GET /users/:id/favorites（分页，公开接口）",
-        "实现自动隐藏逻辑：举报数/点击率 ≥ 10% 时自动将内容状态改为 under_review，触发众裁",
-        "实现评论区负面比例检测：评论区点踩/点赞比超过阈值（config.yaml > social.comment_fold_threshold）时自动折叠评论区并触发审核（PRD §6.2）",
+        "实现自动隐藏逻辑：举报数/点击数 ≥ 阈值（config.yaml > social.report_auto_hide_rate，默认 0.10）时自动将内容状态改为 under_review，触发众裁（PRD §6.2）",
+        "实现评论区负面比例检测：评论区点踩/点赞比超过阈值（config.yaml > social.comment_fold_threshold，默认 0.30）时自动折叠评论区并触发审核（PRD §6.2）",
         "验证：点赞计数更新、举报触发阈值后内容自动进入审核、收藏添加/取消/列表查询正常"
       ],
       "passes": false
@@ -304,11 +305,19 @@
         "创建 components/layout/Header.tsx：顶部导航（登录状态、搜索框、最近访问 IP、语言切换器 ZH/EN、主题切换按钮）",
         "验证：npm run dev 正常启动，首页可访问，暗色模式切换生效，ZH/EN 切换无报错"
       ],
-      "ui_spec_ref": ["## Global Design Tokens", "## Component: Header"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Component: Header"
+      ],
       "passes": false
     },
     {
       "id": 21,
+      "depends_on": [
+        6,
+        20
+      ],
       "title": "Web 前端 — 登录/注册页",
       "description": "实现登录注册页面，JWT 存储，认证状态管理",
       "steps": [
@@ -318,12 +327,23 @@
         "实现 Next.js middleware.ts：未登录访问 /dashboard、/judge、/publish 时重定向 /login",
         "验证：注册 → 登录 → 刷新页面仍保持登录状态 → 登出后重定向到登录页"
       ],
-      "ui_spec_ref": ["## Page: /login 登录页", "## Page: /register 注册页"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /login 登录页",
+        "## Page: /register 注册页"
+      ],
       "passes": false
     },
     {
       "id": 22,
-      "depends_on": [10, 11, 20],
+      "depends_on": [
+        10,
+        11,
+        20,
+        69,
+        78
+      ],
       "title": "Web 前端 — 首页（三区域布局 + 核心组件）",
       "description": "实现首页三区域布局（最近访问 IP + IP 浏览区 + 二创内容浏览区），创建复用核心组件 ContentCard / MasonryGrid，首页不使用分面搜索侧边栏",
       "steps": [
@@ -336,12 +356,25 @@
         "确保首页不使用分面搜索侧边栏（分面搜索仅在 /search 页使用），所有筛选条件为横向 Tab 或下拉",
         "验证：三区域布局正确，IP 分类筛选联动，内容类型筛选联动，排序和时间范围正常，响应式（2/3/4 列）"
       ],
-      "ui_spec_ref": ["## Page: / 首页", "## Component: ContentCard", "## Component: MasonryGrid"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: / 首页",
+        "## Component: ContentCard",
+        "## Component: MasonryGrid",
+        "## Component: IPCard"
+      ],
       "passes": false
     },
     {
       "id": 23,
-      "depends_on": [10, 11, 20],
+      "depends_on": [
+        10,
+        11,
+        20,
+        69,
+        78
+      ],
       "title": "Web 前端 — IP 详情页",
       "description": "实现 IP 详情页（Steam 创意工坊式布局）",
       "steps": [
@@ -353,14 +386,28 @@
         "在 IP 详情页嵌入讨论区入口（跳转到讨论区列表）",
         "验证：IP 详情页正常展示，类目 Tab 切换加载对应内容，各排序方式生效，类目内容列表页正常跳转"
       ],
-      "ui_spec_ref": ["## Page: /ip/[ipId] IP 详情页", "## Page: /ip/[ipId]/[category] IP 类目内容列表", "## Component: IPCategoryTabs"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /ip/[ipId] IP 详情页",
+        "## Page: /ip/[ipId]/[category] IP 类目内容列表",
+        "## Component: IPCategoryTabs",
+        "## Component: ContentCard",
+        "## Component: MasonryGrid"
+      ],
       "passes": false
     },
     {
       "id": 24,
       "title": "Web 前端 — 内容详情页",
       "description": "实现内容详情页（含 MD 渲染、乐谱 Viewer、下载、Agent 部署、社交互动）",
-      "depends_on": [11, 15, 16, 20, 51],
+      "depends_on": [
+        11,
+        15,
+        16,
+        20,
+        51
+      ],
       "steps": [
         "创建 app/(public)/content/[contentId]/page.tsx：SSR 获取内容详情",
         "创建 components/content/ContentDetail.tsx：根据 content_type 渲染对应内容（MD 文章/图片/视频播放器/音频播放器/乐谱 Viewer）",
@@ -374,11 +421,28 @@
         "集成 components/content/VersionHistory.tsx（版本历史时间轴，仅二创区内容显示）",
         "验证：MD 文章、图片、乐谱（MIDI/MusicXML/PDF）各类型正常渲染，封面图正常显示"
       ],
-      "ui_spec_ref": ["## Page: /content/[contentId] 内容详情页", "## Component: ContentDetail", "## Component: ReactionBar", "## Component: VersionHistory", "## Component: UsageGuidePanel"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /content/[contentId] 内容详情页",
+        "## Component: ContentDetail",
+        "## Component: ReactionBar",
+        "## Component: VersionHistory",
+        "## Component: UsageGuidePanel",
+        "## Component: MarkdownRenderer",
+        "## Component: SheetMusicViewer",
+        "## Component: CommentSection"
+      ],
       "passes": false
     },
     {
       "id": 25,
+      "depends_on": [
+        11,
+        20,
+        69,
+        78
+      ],
       "title": "Web 前端 — 原创区",
       "description": "实现原创区首页和内容详情页（与二创区区分：无 IP、无 PR 功能）",
       "steps": [
@@ -387,12 +451,22 @@
         "创建 app/(public)/original/[contentId]/page.tsx：原创内容详情（复用 ContentDetail 组件，隐藏 PR 相关 UI）",
         "验证：原创区内容正常展示，无 PR 入口，社交互动功能正常"
       ],
-      "ui_spec_ref": ["## Page: /original 原创区首页", "## Page: /original/[contentId] 原创内容详情"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /original 原创区首页",
+        "## Page: /original/[contentId] 原创内容详情",
+        "## Component: ContentDetail"
+      ],
       "passes": false
     },
     {
       "id": 26,
-      "depends_on": [8, 11, 20],
+      "depends_on": [
+        8,
+        11,
+        20
+      ],
       "title": "Web 前端 — 内容发布页",
       "description": "实现多类型内容发布，含 MD 编辑器、OSS 上传、封面图、乐谱上传、标签建议、权限配置",
       "steps": [
@@ -408,12 +482,23 @@
         "实现 IP 选择（二创区内容）：搜索并选择 IP",
         "验证：发布文章、图片、Mod、乐谱各类型内容，文件 + 封面图上传成功，标签搜索自动补全正常"
       ],
-      "ui_spec_ref": ["## Page: /publish 发布内容", "## Component: FileUploader", "## Component: UploadAssistPanel", "## Component: ComplianceCheckBadge"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /publish 发布内容",
+        "## Component: FileUploader",
+        "## Component: UploadAssistPanel",
+        "## Component: ComplianceCheckBadge"
+      ],
       "passes": false
     },
     {
       "id": 27,
-      "depends_on": [13, 14, 20],
+      "depends_on": [
+        13,
+        14,
+        20
+      ],
       "title": "Web 前端 — PR 协同创作",
       "description": "实现 PR 提交、diff 查看、接受/拒绝/手动合并界面",
       "steps": [
@@ -425,11 +510,22 @@
         "实现 PR 拒绝机制：拒绝按钮点击 → 二次确认 ConfirmModal（必填拒绝理由文本框）→ 提交后自动创建通知发送给 PR 提交者，通知内容含拒绝理由",
         "验证：提交 PR → 作者查看 diff → 接受后内容更新 → 贡献者名单出现；拒绝 PR 后提交者收到通知含拒绝原因"
       ],
-      "ui_spec_ref": ["## Component: PRCard", "## Component: DiffViewer", "## Page: /dashboard/pr-requests PR 申请管理"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Component: PRCard",
+        "## Component: DiffViewer",
+        "## Page: /dashboard/pr-requests PR 申请管理",
+        "## Component: ConfirmModal"
+      ],
       "passes": false
     },
     {
       "id": 28,
+      "depends_on": [
+        12,
+        20
+      ],
       "title": "Web 前端 — 版本历史与回退",
       "description": "实现 Google Docs 风格的版本历史时间轴和一键回退",
       "steps": [
@@ -438,12 +534,20 @@
         "实现版本回退：作者可点击「恢复到此版本」（调用 Go 服务生成新版本，内容为目标版本还原结果）",
         "验证：版本历史正确显示，预览历史版本内容与实际一致，回退后内容正确"
       ],
-      "ui_spec_ref": ["## Component: VersionHistory"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Component: VersionHistory"
+      ],
       "passes": false
     },
     {
       "id": 29,
-      "depends_on": [11, 14, 20],
+      "depends_on": [
+        11,
+        14,
+        20
+      ],
       "title": "Web 前端 — 创作者后台",
       "description": "实现创作者后台（我的内容、PR 管理、贡献者管理）",
       "steps": [
@@ -453,12 +557,29 @@
         "实现内容编辑：点击编辑跳转到发布页预填数据，更新后生成新版本",
         "验证：后台所有页面正常，PR 管理流程完整"
       ],
-      "ui_spec_ref": ["## Page: /dashboard 创作者后台概览", "## Page: /dashboard/contents 我的内容", "## Page: /dashboard/contributors 贡献者管理"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /dashboard 创作者后台概览",
+        "## Page: /dashboard/contents 我的内容",
+        "## Page: /dashboard/contributors 贡献者管理"
+      ],
       "passes": false
     },
     {
       "id": 30,
-      "depends_on": [16, 20],
+      "depends_on": [
+        16,
+        20
+      ],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /settings 账号设置",
+        "## Component: Header",
+        "## Component: ContentDetail",
+        "## Component: FollowButton"
+      ],
       "title": "Web 前端 — 账号设置骨架 + 收藏按钮",
       "description": "实现基础账号设置页和内容详情页的收藏按钮；用户主页（Task 84）、浏览历史（Task 85）、FollowButton（Task 84）由对应任务负责",
       "steps": [
@@ -467,12 +588,15 @@
         "在 Header 下拉菜单增加「个人主页」「浏览历史」「账号设置」「我的申诉」等入口，分别跳转 /user/:me/、/history、/settings、/appeals（页面由 Task 84/85/71 实现）",
         "验证：账号设置页可修改基础资料，内容详情页收藏按钮切换状态正确，Header 菜单跳转正常"
       ],
-      "ui_spec_ref": ["## Page: /settings 账号设置", "## Component: ContentDetail"],
       "passes": false
     },
     {
       "id": 31,
-      "depends_on": [17, 18, 20],
+      "depends_on": [
+        17,
+        18,
+        20
+      ],
       "title": "Web 前端 — 赛博判官页面",
       "description": "实现判官资质考核和众裁队列界面",
       "steps": [
@@ -485,12 +609,25 @@
         "实现投票后刷新队列（提交后移除已投票项目，显示 VerdictDetail）",
         "验证：考核流程完整，通过后可进入审核队列，投票后显示判决详情，理由点赞/点踩正常"
       ],
-      "ui_spec_ref": ["## Page: /judge/exam 赛博判官资质考核", "## Page: /judge/queue 待审内容队列", "## Component: ExamQuestion", "## Component: ReviewCard", "## Component: VerdictDetail"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /judge/exam 赛博判官资质考核",
+        "## Page: /judge/queue 待审内容队列",
+        "## Component: ExamQuestion",
+        "## Component: ReviewCard",
+        "## Component: VerdictDetail"
+      ],
       "passes": false
     },
     {
       "id": 32,
-      "depends_on": [19, 20, 61, 78],
+      "depends_on": [
+        19,
+        20,
+        61,
+        78
+      ],
       "title": "Web 前端 — 管理员后台页面",
       "description": "实现管理员的 IP 审核、内容终审、用户管理、配置页面",
       "steps": [
@@ -504,7 +641,17 @@
         "封禁内容 / 封禁用户 / 拒绝 IP / 拒绝申诉 等破坏性操作均需 ConfirmModal 二次确认（要求输入操作原因）",
         "验证：管理员可完成 IP 审核、封禁内容、调整视频大小限制配置、管理内容分类"
       ],
-      "ui_spec_ref": ["## Page: /admin/ips IP 库管理", "## Page: /admin/contents 内容终审", "## Page: /admin/users 用户管理", "## Page: /admin/appeal 申诉处理", "## Page: /admin/config 系统配置", "## Page: /admin/categories 分类与标签管理"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /admin/ips IP 库管理",
+        "## Page: /admin/contents 内容终审",
+        "## Page: /admin/users 用户管理",
+        "## Page: /admin/appeal 申诉处理",
+        "## Page: /admin/config 系统配置",
+        "## Page: /admin/categories 分类与标签管理",
+        "## Component: ConfirmModal"
+      ],
       "passes": false
     },
     {
@@ -552,6 +699,15 @@
     },
     {
       "id": 36,
+      "depends_on": [
+        20,
+        22,
+        23,
+        24,
+        26,
+        29,
+        32
+      ],
       "title": "响应式设计与移动端适配",
       "description": "确保 Web 端在移动端正常使用",
       "steps": [
@@ -562,11 +718,21 @@
         "管理员后台：表格支持横向滚动",
         "验证：在 375px / 700px / 1100px / 1440px 四种宽度下主要页面布局正常"
       ],
-      "ui_spec_ref": ["## Global Design Tokens", "## Global Interaction Patterns"],
+      "ui_spec_ref": [
+        "## Global Design Tokens",
+        "## Global Interaction Patterns",
+        "## Component: Header"
+      ],
       "passes": false
     },
     {
       "id": 37,
+      "depends_on": [
+        20,
+        22,
+        23,
+        24
+      ],
       "title": "SEO 优化与 Open Graph",
       "description": "为公开页面配置 SSR metadata，提升搜索引擎收录",
       "steps": [
@@ -579,6 +745,9 @@
     },
     {
       "id": 38,
+      "depends_on": [
+        20
+      ],
       "title": "错误处理与 Loading 状态",
       "description": "实现全局错误页、骨架屏、Toast 通知",
       "steps": [
@@ -590,11 +759,21 @@
         "Go 后端统一错误格式：{ code, message, details }",
         "验证：网络错误时 Toast 提示，页面加载时骨批屏正常显示"
       ],
-      "ui_spec_ref": ["## Component: EmptyState", "## Component: ConfirmModal"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Component: EmptyState",
+        "## Component: ConfirmModal"
+      ],
       "passes": false
     },
     {
       "id": 39,
+      "depends_on": [
+        20,
+        22,
+        24
+      ],
       "title": "性能优化",
       "description": "图片懒加载、API 响应缓存、Redis 热数据缓存",
       "steps": [
@@ -608,6 +787,11 @@
     },
     {
       "id": 40,
+      "depends_on": [
+        1,
+        6,
+        20
+      ],
       "title": "安全加固",
       "description": "JWT 安全、SQL 注入防护、接口限流完善",
       "steps": [
@@ -622,6 +806,17 @@
     },
     {
       "id": 41,
+      "depends_on": [
+        22,
+        23,
+        24,
+        26,
+        27,
+        29,
+        31,
+        32,
+        35
+      ],
       "title": "完整流程集成测试",
       "description": "端到端测试核心业务流程",
       "steps": [
@@ -637,6 +832,11 @@
     },
     {
       "id": 42,
+      "depends_on": [
+        2,
+        40,
+        41
+      ],
       "title": "部署配置完善与上线准备",
       "description": "完善生产环境配置，准备首次部署",
       "steps": [
@@ -651,6 +851,9 @@
     },
     {
       "id": 43,
+      "depends_on": [
+        4
+      ],
       "title": "数据库 Schema — 标签体系增强",
       "description": "创建全局标签表、标签建议表、用户标签组表、已保存搜索配置表",
       "steps": [
@@ -666,6 +869,9 @@
     },
     {
       "id": 44,
+      "depends_on": [
+        43
+      ],
       "title": "Go API — 分面标签搜索与内容筛选扩展",
       "description": "实现分面标签列表接口、标签名搜索接口，以及内容列表 time_range/tags 筛选",
       "steps": [
@@ -681,12 +887,16 @@
     },
     {
       "id": 45,
+      "depends_on": [
+        43
+      ],
       "title": "Go API — 标签建议、标签组管理、搜索配置保存",
       "description": "实现标签建议提交/审批、用户标签组 CRUD、已保存搜索 CRUD",
       "steps": [
         "创建 internal/repository/tag_repo.go（扩展）：CreateTagSuggestion、ListTagSuggestions（按 content_item_id）、UpdateTagSuggestionStatus、CreateTagGroup、ListTagGroups（按 user_id）、UpdateTagGroup、DeleteTagGroup、CreateSavedSearch、ListSavedSearches、DeleteSavedSearch",
         "创建 internal/service/tag_service.go（扩展）：SuggestTag（同一用户对同一内容同一 tag+action 去重）、ApproveTagSuggestion（approved 时更新 content_tags）、RejectTagSuggestion、ReportTagSuggestion（写 reports 表）",
         "创建 internal/handler/tag.go（扩展）：POST /contents/:id/tags/suggest、GET /dashboard/tag-suggestions、PATCH /tag-suggestions/:id",
+        "速率限制：POST /contents/:id/tags/suggest 通过 Redis 令牌桶限流「每用户每内容每日最多 10 条」（key: tag_suggest:{user_id}:{content_id}:{date}），超限返回 429 TAG_SUGGEST_RATE_LIMIT_EXCEEDED，防止恶意刷屏骚扰创作者",
         "创建 internal/handler/user.go（扩展）：GET/POST/PATCH/DELETE /users/me/tag-groups、GET/POST/DELETE /users/me/saved-searches",
         "验证：用户提交标签建议 → 作者审批通过 → content_tags 更新；创建/编辑/删除标签组正常；保存/查询/删除搜索配置正常"
       ],
@@ -694,6 +904,9 @@
     },
     {
       "id": 46,
+      "depends_on": [
+        20
+      ],
       "title": "Next.js i18n（next-intl，zh-CN/en-US）—— 全量翻译补全",
       "description": "Task 20 已完成 next-intl 初始化、骨架 messages 文件、Header 语言切换器；本任务补全所有 UI 文本的国际化覆盖",
       "steps": [
@@ -708,6 +921,9 @@
     },
     {
       "id": 47,
+      "depends_on": [
+        20
+      ],
       "title": "UI 设计系统（GitHub 风格 Light/Dark 主题）—— 组件完善",
       "description": "Task 20 已完成 tailwind token 扩展、next-themes 配置、Header 主题切换按钮；本任务补全 TagBadge、shadcn CSS 变量、全局字体、全站暗色适配验证",
       "steps": [
@@ -717,11 +933,20 @@
         "全站页面暗色模式适配检查：确保所有页面在 light/dark/system 三种模式下视觉一致",
         "验证：light/dark/system 三种模式下，首页、内容详情页、发布页、管理后台视觉一致；TagBadge 在暗色下低饱和色正常显示"
       ],
-      "ui_spec_ref": ["## Global Design Tokens", "## Component: TagBadge"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Component: TagBadge",
+        "## Component: Header"
+      ],
       "passes": false
     },
     {
       "id": 48,
+      "depends_on": [
+        20,
+        22
+      ],
       "title": "封面图系统与占位图",
       "description": "Task 22 已创建 MasonryGrid、ContentCard 并在首页接入；本任务实现 SVG 占位图体系、封面图加载策略，并在其余页面接入瀑布流",
       "steps": [
@@ -731,11 +956,20 @@
         "在 IP 详情页内容列表、原创区接入 MasonryGrid + ContentCard（首页已由 Task 22 接入）",
         "验证：各 content_type 封面图/占位图正确显示；瀑布流在 375/700/1100/1440px 宽度下列数正确（移动 2 / 平板 3 / PC 4）；hover 效果正常"
       ],
-      "ui_spec_ref": ["## Component: MasonryGrid", "## Component: ContentCard"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Component: MasonryGrid",
+        "## Component: ContentCard"
+      ],
       "passes": false
     },
     {
       "id": 49,
+      "depends_on": [
+        20,
+        44
+      ],
       "title": "FacetedSearchSidebar 组件",
       "description": "实现分面标签筛选侧边栏（Google Scholar 风格），含大类选择、动态标签列表、Advanced 区、保存搜索",
       "steps": [
@@ -750,11 +984,21 @@
         "组件通过 onFilterChange(query) 回调通知父页面刷新内容列表",
         "验证：选择大类后标签列表正确，逐步点击标签后列表正确缩小，Advanced 筛选生效，保存搜索后可在侧边栏看到"
       ],
-      "ui_spec_ref": ["## Component: FacetedSearchSidebar"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Component: FacetedSearchSidebar"
+      ],
       "passes": false
     },
     {
       "id": 50,
+      "depends_on": [
+        20,
+        29,
+        45,
+        49
+      ],
       "title": "标签组管理 UI",
       "description": "实现用户标签组的创建、编辑、删除页面，以及内容详情页的标签建议功能",
       "steps": [
@@ -768,11 +1012,20 @@
         "创建 app/(protected)/dashboard/tag-suggestions/page.tsx：作者查看标签建议列表，逐条 approve/reject",
         "验证：标签组创建/编辑/删除正常；一键应用标签组后侧边栏正确选中；内容详情标签建议提交后作者端可见"
       ],
-      "ui_spec_ref": ["## Page: /settings/tag-groups 标签组管理", "## Page: /dashboard/tag-suggestions 标签建议审核"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /settings/tag-groups 标签组管理",
+        "## Page: /dashboard/tag-suggestions 标签建议审核",
+        "## Component: FacetedSearchSidebar"
+      ],
       "passes": false
     },
     {
       "id": 51,
+      "depends_on": [
+        20
+      ],
       "title": "乐谱 Viewer（OSMD + MIDI 播放器）",
       "description": "实现 SheetMusicViewer 组件，支持 MusicXML 渲染和 MIDI 播放",
       "steps": [
@@ -785,11 +1038,19 @@
         "在 ContentCard 中，sheet_music 类型封面图使用内置五线谱 SVG 占位",
         "验证：上传 .mid 文件后可播放；上传 .xml 文件后五线谱正确渲染；上传 .pdf 后嵌入显示；MSCZ 显示下载提示"
       ],
-      "ui_spec_ref": ["## Component: SheetMusicViewer"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Component: SheetMusicViewer",
+        "## Component: ContentCard"
+      ],
       "passes": false
     },
     {
       "id": 52,
+      "depends_on": [
+        3
+      ],
       "title": "数据库 Schema — 网页端 Agent（对话历史 + 向量嵌入）",
       "description": "启用 pgvector 扩展，创建 agent_conversations、agent_messages、content_embeddings 表",
       "steps": [
@@ -805,7 +1066,9 @@
     },
     {
       "id": 53,
-      "depends_on": [52],
+      "depends_on": [
+        52
+      ],
       "title": "Go — LLM Provider 抽象层（Qwen + OpenAI 兼容）",
       "description": "实现 LLMProvider interface、QwenProvider、OpenAICompatProvider，以及工厂函数和 Redis 限流中间件",
       "steps": [
@@ -822,6 +1085,10 @@
     },
     {
       "id": 54,
+      "depends_on": [
+        52,
+        53
+      ],
       "title": "Go API — 上传自动包装接口（1a）",
       "description": "实现 POST /api/v1/agent/upload-assist：解析已上传文件，调用 LLM 生成标签/分类/标题/简介",
       "steps": [
@@ -836,6 +1103,11 @@
     },
     {
       "id": 55,
+      "depends_on": [
+        9,
+        52,
+        53
+      ],
       "title": "Go API — 合规检测接口（1b）",
       "description": "实现 POST /api/v1/agent/compliance-check：文件格式校验 + Aliyun 内容安全 + LLM 侵权分析",
       "steps": [
@@ -851,6 +1123,11 @@
     },
     {
       "id": 56,
+      "depends_on": [
+        11,
+        52,
+        53
+      ],
       "title": "Go API — 自然语言搜索 + pgvector 向量化 Pipeline（2a）",
       "description": "实现内容向量化异步 job、POST /api/v1/agent/search 自然语言搜索接口",
       "steps": [
@@ -865,6 +1142,11 @@
     },
     {
       "id": 57,
+      "depends_on": [
+        11,
+        52,
+        53
+      ],
       "title": "Go API — 内容使用指导接口（2b）",
       "description": "实现 POST /api/v1/agent/usage-guide：基于内容 metadata + 附件信息 RAG 生成安装/使用说明",
       "steps": [
@@ -880,6 +1162,11 @@
     },
     {
       "id": 58,
+      "depends_on": [
+        9,
+        52,
+        53
+      ],
       "title": "Go API — 内容初审机器人（3b）+ 通用流式对话接口",
       "description": "实现 POST /api/v1/agent/moderate（内容初审）和 POST /api/v1/agent/chat/stream（通用 SSE 对话）",
       "steps": [
@@ -895,6 +1182,14 @@
     },
     {
       "id": 59,
+      "depends_on": [
+        20,
+        54,
+        55,
+        56,
+        57,
+        58
+      ],
       "title": "前端 — Agent 组件集成（Chat Widget + 发布页 + 详情页 + 搜索页）",
       "description": "实现 AgentChatWidget、UploadAssistPanel、ComplianceCheckBadge、UsageGuidePanel、SearchAgentInput 五个前端 Agent 组件",
       "steps": [
@@ -907,14 +1202,27 @@
         "messages/zh.json + en.json 补充 agent.* 命名空间翻译（AI 自动填写/正在分析/使用指导/...）",
         "验证：发布页上传 Mod 后 AI 自动填写可用；合规徽章正确显示；详情页 UsageGuidePanel 流式渲染 Markdown；SearchAgentInput 返回语义搜索结果；ChatWidget 可正常对话"
       ],
-      "ui_spec_ref": ["## Component: AgentChatWidget", "## Component: UploadAssistPanel", "## Component: ComplianceCheckBadge", "## Component: UsageGuidePanel", "## Component: SearchAgentInput"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Component: AgentChatWidget",
+        "## Component: UploadAssistPanel",
+        "## Component: ComplianceCheckBadge",
+        "## Component: UsageGuidePanel",
+        "## Component: SearchAgentInput"
+      ],
       "passes": false
     },
     {
       "id": 60,
+      "depends_on": [
+        3,
+        4
+      ],
       "title": "Go API — 关注系统（关注用户 + 关注 IP）",
       "description": "实现关注/取消关注用户和 IP 的完整后端功能，支持粉丝列表、关注列表查询",
       "steps": [
+        "创建迁移文件 migrations/033_follows.sql：follows 表（id, follower_id BIGINT REFERENCES users(id) ON DELETE CASCADE, target_type VARCHAR(20) CHECK(target_type IN ('user','ip')), target_id BIGINT NOT NULL, created_at）+ UNIQUE(follower_id, target_type, target_id) + 索引 idx_follows_follower(follower_id)、idx_follows_target(target_type, target_id)，与 architecture.md §4.5 DDL 对齐",
         "创建 internal/model/follow.go：Follow 模型（follower_id, target_type, target_id），对应 follows 表",
         "创建 internal/repository/follow_repo.go：Follow/Unfollow/IsFollowing/GetFollowers/GetFollowing/CountFollowers/CountFollowing",
         "创建 internal/service/follow_service.go：Follow(ctx, userID, targetType, targetID)、Unfollow、IsFollowing、GetFollowerList（分页）、GetFollowingList（分页）",
@@ -928,9 +1236,14 @@
     },
     {
       "id": 61,
+      "depends_on": [
+        3,
+        11
+      ],
       "title": "Go API — 用户申诉系统",
       "description": "实现用户对被下架内容提起申诉的完整后端功能",
       "steps": [
+        "创建迁移文件 migrations/034_appeals.sql：appeals 表（id, user_id BIGINT REFERENCES users(id) ON DELETE CASCADE, target_type VARCHAR(20) CHECK(target_type IN ('content','comment')), target_id BIGINT NOT NULL, reason TEXT NOT NULL, status VARCHAR(20) DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')), admin_response TEXT, resolved_by BIGINT REFERENCES users(id), resolved_at TIMESTAMPTZ, created_at）+ 索引 idx_appeals_user(user_id)、idx_appeals_status(status)，与 architecture.md §4.5 DDL 对齐",
         "创建 internal/model/appeal.go：Appeal 模型（user_id, target_type, target_id, reason, status, admin_response, resolved_by, resolved_at），对应 appeals 表",
         "创建 internal/repository/appeal_repo.go：Create/GetByID/ListByUser/ListPending/UpdateStatus",
         "创建 internal/service/appeal_service.go：SubmitAppeal(ctx, userID, targetType, targetID, reason)（校验：目标确实被下架、用户是作者、无重复申诉）、GetMyAppeals(ctx, userID)（分页）",
@@ -944,7 +1257,11 @@
       "id": 62,
       "title": "Web 前端 — 搜索页",
       "description": "实现独立搜索页 /search，集成 AI 搜索和分面筛选",
-      "depends_on": [20, 44, 49],
+      "depends_on": [
+        20,
+        44,
+        49
+      ],
       "steps": [
         "创建 app/(public)/search/page.tsx：搜索页布局（顶部搜索框 + 左侧分面侧边栏 + 右侧结果区）",
         "集成 SearchAgentInput 组件（Task 59）作为搜索页顶部搜索框，web_agent_enabled=false 时降级为普通关键词搜索框",
@@ -956,11 +1273,24 @@
         "messages/zh.json + en.json 补充 search.* 命名空间翻译",
         "验证：关键词搜索返回结果正确，分面筛选联动正常，保存搜索功能可用，空状态正确显示"
       ],
-      "ui_spec_ref": ["## Page: /search 搜索页"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /search 搜索页",
+        "## Component: FacetedSearchSidebar",
+        "## Component: ContentCard",
+        "## Component: EmptyState",
+        "## Component: SearchAgentInput"
+      ],
       "passes": false
     },
     {
       "id": 63,
+      "depends_on": [
+        3,
+        4,
+        5
+      ],
       "title": "数据库 Schema — 通知、私信、素质建设、分类管理表",
       "description": "创建 notifications、conversations、conversation_participants、messages、rehab_courses、rehab_completions、categories 表的数据库迁移（迁移编号 023-029，承接 Task 52 的 022）",
       "steps": [
@@ -979,25 +1309,37 @@
       "id": 64,
       "title": "Web 前端 — 原创区两级导航布局",
       "description": "重构原创区首页为两级导航：一级分类 Tab（对应 content_items.category）+ 二级内容类型子筛选",
-      "depends_on": [20, 69],
+      "depends_on": [
+        20,
+        69,
+        78
+      ],
       "steps": [
         "重构 app/(public)/original/page.tsx 为两级导航布局",
-        "一级分类 Tab：推荐（默认）/ 影视 / 游戏 / 文学 / 宠物 / 美食 / 美妆穿搭 / 家居 / 数码科技 / 旅行 / 运动 / 效率（对应 content_items.category 枚举），调用 GET /contents?zone=original&category=xxx",
-        "二级内容类型子筛选（从 API 动态加载）：全部 / 图片 / 视频 / 音频（含乐谱） / 文字 / 效率模板 / 模型与设计 / 其他",
+        "一级分类从 GET /categories?zone=original&level=primary 动态加载（Task 78 提供），二级从 GET /categories?zone=original&level=secondary&parent_id=<一级id> 加载后按下述映射表转后端查询参数",
+        "一级分类 Tab：推荐（默认）/ 影视 / 游戏 / 文学 / 宠物 / 美食 / 美妆穿搭 / 家居 / 数码科技 / 旅行 / 运动 / 效率。注：`推荐` 为前端伪分类（不落库），选中时调用 GET /contents?zone=original&sort=recommended（不传 category）；其他分类调用 GET /contents?zone=original&category=<slug>（slug 参考 architecture.md §10.6）",
+        "二级内容类型子筛选（从 API 动态加载，按 architecture.md §10.6 映射表转换为后端参数）：全部（不传）/ 图片（content_type=image）/ 视频（content_type=video）/ 音频含乐谱（content_type IN audio,sheet_music）/ 文字（content_type IN article,prompt）/ 效率模板（content_type=template）/ 模型与设计（不传 content_type，改传 tag=3D模型 或 tag=设计素材）/ 其他（content_type=other）",
         "排序 Tab：最热门 / 最新 / 最多点击 / 最高好评率",
         "主区域：瀑布流 ContentCard（响应式 2/3/4 列）",
         "移除原创区分面搜索侧边栏引用，保持简洁",
         "「推荐」分类调用后端推荐接口（GET /contents?zone=original&sort=recommended）",
         "验证：两级导航联动正确，分类切换时内容列表更新，排序正常，响应式布局正确"
       ],
-      "ui_spec_ref": ["## Page: /original 原创区首页"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /original 原创区首页",
+        "## Component: ContentCard"
+      ],
       "passes": false
     },
     {
       "id": 65,
       "title": "Go API — 通知系统",
       "description": "实现通知系统后端：通知列表、标记已读、未读计数，支持按频道（reply/like/system）分类",
-      "depends_on": [63],
+      "depends_on": [
+        63
+      ],
       "steps": [
         "创建 internal/model/notification.go：Notification 模型（user_id, type, channel, title, body, target_type, target_id, sender_id, is_read），对应 notifications 表",
         "创建 internal/repository/notification_repo.go：Create/ListByUserAndChannel（分页）/MarkRead/MarkAllReadByChannel/CountUnreadByChannel",
@@ -1012,8 +1354,11 @@
       "id": 66,
       "title": "Go API — 私信系统",
       "description": "实现一对一私信系统后端：对话列表、发送消息、标记已读",
-      "depends_on": [63],
+      "depends_on": [
+        63
+      ],
       "steps": [
+        "创建迁移文件 migrations/035_conversation_indexes.sql：补充 CREATE INDEX idx_conversations_updated ON conversations(updated_at DESC) 和 CREATE INDEX idx_messages_sender ON messages(sender_id)（与 architecture.md §4.5 补充说明对齐）",
         "创建 internal/model/conversation.go：Conversation、ConversationParticipant、Message 模型，对应 conversations/conversation_participants/messages 表",
         "创建 internal/repository/message_repo.go：CreateConversation/GetConversationsByUser（分页，按 updated_at 排序）/GetMessages（分页，按 created_at）/CreateMessage/MarkConversationRead/GetUnreadMessageCount",
         "创建 internal/service/message_service.go：StartConversation(ctx, senderID, receiverID)（幂等：已有对话则返回已有的）、SendMessage(ctx, conversationID, senderID, body)（更新 conversation.updated_at）、GetMyConversations(ctx, userID)（含最后消息预览 + 未读标记）、GetMessages(ctx, conversationID, userID)（校验参与者权限）、MarkRead(ctx, conversationID, userID)",
@@ -1027,19 +1372,25 @@
       "id": 67,
       "title": "Go API — 素质建设课程系统",
       "description": "实现素质建设课程后端：课程列表、课程详情、开始学习、完成学习（校验阅读时间 ≥ 180s）、加信誉分",
-      "depends_on": [63],
+      "depends_on": [
+        63
+      ],
       "steps": [
         "创建 internal/model/rehab.go：RehabCourse（violation_type, content_i18n, min_reading_sec, reward_points）、RehabCompletion（user_id, course_id, started_at, completed_at, points_awarded）模型",
         "创建 internal/repository/rehab_repo.go：ListCourses/GetCourseByID/GetCompletionsByUser/CreateCompletion/UpdateCompletion",
         "创建 internal/service/rehab_service.go：GetAvailableCourses(ctx, userID)（查询用户 reputation_logs 的违规类型，匹配未完成的课程）、GetCourseDetail(ctx, courseID, locale)（按 locale 返回对应语言内容）、StartCourse(ctx, userID, courseID)（记录 started_at，校验课程未完成）、CompleteCourse(ctx, userID, courseID)（校验：started_at 存在、当前时间 - started_at ≥ min_reading_sec、未重复完成，通过则更新 completed_at + 增加信誉分 + 写 reputation_logs）、GetMyProgress(ctx, userID)",
         "创建 internal/handler/rehab.go：GET /rehab/courses、GET /rehab/courses/:id、POST /rehab/courses/:id/start、POST /rehab/courses/:id/complete、GET /rehab/my-progress",
-        "创建 migrations/ 初始 seed 数据：为每种 violation_type 创建默认课程（content_i18n 含 zh-CN/en-US 占位内容）",
+        "校验 Task 63 migrations/026_rehab_seed.sql 已生效（本任务不新建迁移）；如需改进课程内容，在管理后台通过 content_i18n 扩展 API 更新而非新增迁移",
         "验证：课程列表基于用户扣分记录正确匹配，开始/完成学习时间校验正确，信誉分正确增加，每门课程只能完成一次"
       ],
       "passes": false
     },
     {
       "id": 68,
+      "depends_on": [
+        6,
+        7
+      ],
       "title": "Go API — 账号注销与密码修改",
       "description": "实现账号注销（软删除/匿名化）和密码修改接口",
       "steps": [
@@ -1052,11 +1403,15 @@
     },
     {
       "id": 69,
+      "depends_on": [
+        10,
+        11
+      ],
       "title": "Go API — 内容分类与浏览逻辑扩展",
       "description": "在 Task 11 基础 ListContents（newest/hot/time_range/tags）上扩展：GET /ips 增加 category、most_content 排序；GET /contents 增加 category/content_type 筛选、most_views/best_rated 排序（适用 zone=original）",
       "steps": [
         "扩展 GET /ips 接口：增加 category 查询参数（按 ips.category 筛选），增加 sort 参数值 most_content（关联内容数量 DESC，Task 11 已实现 newest/hot 排序）",
-        "扩展 GET /contents 接口（zone=original 时）：增加 category 查询参数（按 content_items.category 筛选），增加 content_type 查询参数（筛选值：all/image/video/audio/text/template/model/other，对应二级分类）",
+        "扩展 GET /contents 接口（zone=original 时）：增加 category 查询参数（按 content_items.category 筛选，落库枚举：film_tv/gaming/literature/pet/food/beauty_fashion/home/tech_digital/travel/sports/productivity）；增加 content_type 查询参数，支持多值逗号分隔（如 content_type=audio,sheet_music 或 article,prompt），后端解析为 IN 查询。注：model 无对应枚举，前端改传 tag 参数，本接口不处理 model 值",
         "扩展 GET /contents 排序逻辑（基于 Task 11 的 newest/hot）：新增 most_views 排序（view_count DESC）、best_rated 排序（like_count/(like_count+dislike_count) DESC，需 ≥5 总票数有效）",
         "验证：IP 按分类筛选正确，内容按类型+分类+排序+时间范围组合筛选正确，most_views/best_rated 计算准确，分页正常"
       ],
@@ -1066,7 +1421,12 @@
       "id": 70,
       "title": "Web 前端 — 消息中心页面",
       "description": "实现消息中心页面 /messages，包含通知（回复/点赞/系统）和私信功能",
-      "depends_on": [20, 63, 65, 66],
+      "depends_on": [
+        20,
+        63,
+        65,
+        66
+      ],
       "steps": [
         "创建 app/(protected)/messages/page.tsx：消息中心页面布局（左侧 Tab + 右侧内容区）",
         "创建 components/social/NotificationDropdown.tsx：Header 铃铛图标 + 未读 Badge + 下拉显示最近 5 条通知预览 + 「查看全部」链接跳转 /messages",
@@ -1078,14 +1438,26 @@
         "messages/zh.json + en.json 补充 messages.* 命名空间翻译",
         "验证：通知列表按频道正确显示，标记已读功能正常，私信对话可发送和接收消息，未读 Badge 数量准确"
       ],
-      "ui_spec_ref": ["## Page: /messages 消息中心"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /messages 消息中心",
+        "## Component: Header",
+        "## Component: NotificationDropdown",
+        "## Component: NotificationList",
+        "## Component: ConversationList",
+        "## Component: ChatWindow"
+      ],
       "passes": false
     },
     {
       "id": 71,
       "title": "Web 前端 — 我的申诉页面",
       "description": "实现用户申诉页面 /appeals，查看和提交内容被下架后的申诉",
-      "depends_on": [20, 61],
+      "depends_on": [
+        20,
+        61
+      ],
       "steps": [
         "创建 app/(protected)/appeals/page.tsx：我的申诉页面布局",
         "实现申诉列表：被封内容标题 / 申诉理由 / 提交时间 / 当前状态（pending 黄色标签 / approved 绿色 / rejected 红色），调用 GET /appeals/me",
@@ -1095,14 +1467,23 @@
         "messages/zh.json + en.json 补充 appeals.* 命名空间翻译",
         "验证：申诉列表正确显示，提交新申诉表单校验正常，状态标签颜色正确，管理员反馈正确展示"
       ],
-      "ui_spec_ref": ["## Page: /appeals 我的申诉"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /appeals 我的申诉",
+        "## Component: EmptyState"
+      ],
       "passes": false
     },
     {
       "id": 72,
       "title": "Web 前端 — 素质建设课程页面",
       "description": "实现素质建设课程页面 /rehab，信誉分低的用户通过学习恢复信誉分",
-      "depends_on": [20, 63, 67],
+      "depends_on": [
+        20,
+        63,
+        67
+      ],
       "steps": [
         "创建 app/(protected)/rehab/page.tsx：素质建设课程页面布局",
         "创建 components/rehab/CourseCard.tsx：课程卡片（违规类型图标 + 课程标题 + 可恢复分值 + 完成状态标签），点击进入课程详情",
@@ -1114,14 +1495,25 @@
         "messages/zh.json + en.json 补充 rehab.* 命名空间翻译",
         "验证：课程列表基于用户扣分记录正确显示，倒计时正常工作，完成学习后信誉分增加，已完成课程显示完成标签"
       ],
-      "ui_spec_ref": ["## Page: /rehab 素质建设课程"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /rehab 素质建设课程",
+        "## Component: CourseCard",
+        "## Component: CourseContent",
+        "## Component: ReputationDetail"
+      ],
       "passes": false
     },
     {
       "id": 73,
       "title": "Web 前端 — IP 详情页关注 IP 功能",
       "description": "在 IP 详情页增加关注 IP 按钮，复用 FollowButton 组件",
-      "depends_on": [20, 23, 60],
+      "depends_on": [
+        20,
+        23,
+        60
+      ],
       "steps": [
         "扩展 app/(public)/ip/[ipId]/page.tsx：在 IP 封面区域增加 FollowButton（target_type='ip'）",
         "FollowButton 组件增加 target_type='ip' 支持：POST /ips/:id/follow、DELETE /ips/:id/follow",
@@ -1129,14 +1521,22 @@
         "未登录时点击关注按钮跳转登录页",
         "验证：关注/取消关注 IP 功能正常，关注者数量实时更新，未登录跳转登录页"
       ],
-      "ui_spec_ref": ["## Page: /ip/[ipId] IP 详情页"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /ip/[ipId] IP 详情页",
+        "## Component: FollowButton"
+      ],
       "passes": false
     },
     {
       "id": 74,
       "title": "Web 前端 — 账号设置增强（密码修改 + 账号注销）",
       "description": "在账号设置页增加密码修改和账号注销功能",
-      "depends_on": [20, 68],
+      "depends_on": [
+        20,
+        68
+      ],
       "steps": [
         "扩展 app/(protected)/settings/page.tsx：增加密码修改表单区域和账号注销危险区域",
         "密码修改表单：旧密码 + 新密码 + 确认新密码，调用 PATCH /users/me/password，成功后提示重新登录",
@@ -1144,14 +1544,20 @@
         "messages/zh.json + en.json 补充 settings.password.* 和 settings.deleteAccount.* 翻译",
         "验证：密码修改成功后旧密码失效，账号注销二次确认正常，注销后跳转首页且无法登录"
       ],
-      "ui_spec_ref": ["## Page: /settings 账号设置"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /settings 账号设置"
+      ],
       "passes": false
     },
     {
       "id": 75,
       "title": "DB Schema — 补全遗漏表和字段迁移",
       "description": "补全 architecture.md §4 中新增的数据库表和字段，包括 llm_configs 表和 users.support_info 字段（categories、judge_reason_votes、judge_votes.reason 已由 Task 63 覆盖）",
-      "depends_on": [63],
+      "depends_on": [
+        63
+      ],
       "steps": [
         "创建迁移文件 migrations/030_add_support_info_to_users.sql：ALTER TABLE users ADD COLUMN support_info JSONB DEFAULT '{}'",
         "创建迁移文件 migrations/031_create_llm_configs.sql：创建 llm_configs 表（config_name, provider_type, api_base, model, api_key_enc, is_active, extra_params）+ 唯一 partial 索引 idx_llm_configs_active",
@@ -1164,9 +1570,13 @@
       "id": 76,
       "title": "Web 前端 — 讨论区前端页面",
       "description": "实现 IP 讨论区列表页和讨论详情/发帖页面",
-      "depends_on": [20, 79],
+      "depends_on": [
+        20,
+        79
+      ],
       "steps": [
         "创建 app/(public)/ip/[ipId]/discussions/page.tsx：讨论区列表页（SSR 获取讨论列表，按最新回复排序，分页，显示帖子标题/作者/回复数/最后回复时间）",
+        "讨论列表页工具栏右侧增加搜索输入框（UI Design.md P04a）：本地节流 300ms 后调用 GET /ips/:id/discussions/search?q=<keyword>（Task 79 提供），q 为空时返回默认列表，有结果时高亮匹配词、无结果时显示「未找到相关讨论」 EmptyState",
         "创建 app/(public)/ip/[ipId]/discussions/[discussionId]/page.tsx：讨论详情页（帖子内容 + 回复列表，支持楼中楼回复，分页加载）",
         "创建 app/(protected)/ip/[ipId]/discussions/new/page.tsx：发帖页面（标题 + Markdown 编辑器，提交后跳转到帖子详情）",
         "创建 components/social/DiscussionCard.tsx：讨论帖卡片组件（帖子标题、作者头像/名称、回复数、最后回复时间）",
@@ -1175,14 +1585,27 @@
         "messages/zh.json + en.json 补充 discussion.* 命名空间翻译",
         "验证：讨论列表分页正常，发帖后立即可见，回复功能正常，楼中楼嵌套正确"
       ],
-      "ui_spec_ref": ["## Page: /ip/[ipId]/discussions 讨论区列表", "## Page: /ip/[ipId]/discussions/[discussionId] 讨论详情", "## Page: /ip/[ipId]/discussions/new 发帖页", "## Component: DiscussionCard", "## Component: ReplyList"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /ip/[ipId]/discussions 讨论区列表",
+        "## Page: /ip/[ipId]/discussions/[discussionId] 讨论详情",
+        "## Page: /ip/[ipId]/discussions/new 发帖页",
+        "## Component: DiscussionCard",
+        "## Component: ReplyList",
+        "## Component: EmptyState"
+      ],
       "passes": false
     },
     {
       "id": 77,
       "title": "Web 前端 — 创作者支持模块（P1）",
       "description": "实现创作者自定义打赏码/外部链接展示，无资金流闭环",
-      "depends_on": [20, 75, 80],
+      "depends_on": [
+        20,
+        75,
+        80
+      ],
       "steps": [
         "扩展 app/(protected)/dashboard/page.tsx：增加「创作者支持设置」区域",
         "创建 components/social/CreatorSupportPanel.tsx：创作者支持面板（打赏码图片上传区 + 外部链接输入，最多 3 个链接，调用 PATCH /users/me/support-info）",
@@ -1192,14 +1615,22 @@
         "messages/zh.json + en.json 补充 support.* 命名空间翻译",
         "验证：创作者可配置打赏码和链接，用户主页和内容详情页正确展示，feature flag 控制正常"
       ],
-      "ui_spec_ref": ["## Page: /dashboard 创作者后台概览", "## Page: /user/[userId] 用户主页", "## Component: CreatorSupportPanel"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /dashboard 创作者后台概览",
+        "## Page: /user/[userId] 用户主页",
+        "## Component: CreatorSupportPanel"
+      ],
       "passes": false
     },
     {
       "id": 78,
       "title": "Go API — 动态分类管理",
       "description": "实现分类的 CRUD API，供前端动态加载分类/大类/内容类型，管理员可管理所有分类",
-      "depends_on": [63],
+      "depends_on": [
+        63
+      ],
       "steps": [
         "创建 internal/model/category.go：Category 模型（zone, level, parent_id, name_i18n, slug, sort_order, is_active），对应 categories 表",
         "创建 internal/repository/category_repo.go：ListByZoneAndLevel（按 sort_order 排序，支持 parent_id 筛选）、GetBySlug、Create、Update、Delete、UpdateSortOrder（批量更新排序）",
@@ -1212,6 +1643,11 @@
     },
     {
       "id": 79,
+      "depends_on": [
+        5,
+        15,
+        63
+      ],
       "title": "Go API — 讨论区后端",
       "description": "实现 IP 讨论区的帖子 CRUD 和回复功能后端 API",
       "steps": [
@@ -1228,7 +1664,9 @@
       "id": 80,
       "title": "Go API — 创作者支持后端",
       "description": "实现创作者支持信息（打赏码/外部链接）的读写 API，受 feature flag 控制",
-      "depends_on": [75],
+      "depends_on": [
+        75
+      ],
       "steps": [
         "扩展 internal/handler/user.go：PATCH /users/me/support-info（更新 support_info JSONB，校验 donation_image_url 格式和 external_links 数量 ≤ 3）",
         "扩展 internal/handler/user.go：GET /users/:id 返回体增加 support_info 字段（仅 creator_support_enabled=true 时返回）",
@@ -1240,6 +1678,10 @@
     },
     {
       "id": 81,
+      "depends_on": [
+        3,
+        7
+      ],
       "title": "Go API — 信誉分变动日志 API",
       "description": "实现当前用户的信誉分变动历史查询接口",
       "steps": [
@@ -1254,7 +1696,9 @@
       "id": 82,
       "title": "Go API — Agent / LLM 配置管理后端",
       "description": "实现管理员可视化管理 LLM 提供商配置的后端 CRUD API，含加密存储 API Key 和连接测试",
-      "depends_on": [75],
+      "depends_on": [
+        75
+      ],
       "steps": [
         "创建 internal/model/llm_config.go：LLMConfig 模型（config_name, provider_type, api_base, model, api_key_enc, is_active, extra_params），对应 llm_configs 表",
         "创建 internal/repository/llm_config_repo.go：List、GetByID、GetActive、Create、Update、Delete、Activate（事务：先 SET is_active=false WHERE is_active=true，再 SET is_active=true WHERE id=?）",
@@ -1270,7 +1714,11 @@
       "id": 83,
       "title": "Web 前端 — Agent 管理页面",
       "description": "实现管理员 Agent/LLM 配置管理页面，含配置列表、新建/编辑 Modal、激活切换和连接测试",
-      "depends_on": [20, 75, 82],
+      "depends_on": [
+        20,
+        75,
+        82
+      ],
       "steps": [
         "创建 app/admin/agent-config/page.tsx：Agent 管理页面主体（ActiveConfigCard + LLMConfigTable + 新增按钮）",
         "创建 components/admin/ActiveConfigCard.tsx：顶部激活配置摘要卡片（配置名 / 提供商 / 模型 / 状态），无激活配置时显示警告",
@@ -1282,14 +1730,27 @@
         "messages/zh.json + en.json 补充 admin.agentConfig.* 命名空间翻译",
         "验证：管理员可新建/编辑/删除/激活 LLM 配置，API Key 脱敏显示，测试连接反馈正确，非管理员无法访问"
       ],
-      "ui_spec_ref": ["## Page: /admin/agent-config Agent 管理", "## Component: LLMConfigTable", "## Component: LLMConfigModal", "## Component: ActiveConfigCard"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /admin/agent-config Agent 管理",
+        "## Component: LLMConfigTable",
+        "## Component: LLMConfigModal",
+        "## Component: ActiveConfigCard",
+        "## Component: ConfirmModal"
+      ],
       "passes": false
     },
     {
       "id": 84,
       "title": "Web 前端 — 用户主页",
       "description": "实现用户公开主页 /user/[userId]，含用户信息卡片、关注/粉丝列表 Modal、内容/收藏/讨论 Tab",
-      "depends_on": [4, 16, 20, 60],
+      "depends_on": [
+        4,
+        16,
+        20,
+        60
+      ],
       "steps": [
         "创建 app/(public)/user/[userId]/page.tsx：用户主页布局（用户信息卡片 + 内容 Tab 区域），SSR 调用 GET /users/:id 获取用户数据",
         "创建 components/social/UserProfileCard.tsx：用户头像 / 用户名 / 简介 / 信誉分徽章 / 注册时间 / 判官资质 Badge 列表",
@@ -1300,14 +1761,26 @@
         "messages/zh.json + en.json 补充 user.profile.* 命名空间翻译",
         "验证：用户主页信息正确显示，关注/取消关注功能正常，关注/粉丝列表弹窗分页加载，内容 Tab 切换正常"
       ],
-      "ui_spec_ref": ["## Page: /user/[userId] 用户主页", "## Component: FollowButton", "## Component: UserProfileCard", "## Component: FollowerListModal"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /user/[userId] 用户主页",
+        "## Component: FollowButton",
+        "## Component: UserProfileCard",
+        "## Component: FollowerListModal",
+        "## Component: ContentCard"
+      ],
       "passes": false
     },
     {
       "id": 85,
       "title": "Go API + Web 前端 — 浏览历史",
       "description": "实现浏览历史的后端 API 和前端页面 /history，记录用户浏览内容并按日期分组展示",
-      "depends_on": [3, 11, 20],
+      "depends_on": [
+        3,
+        11,
+        20
+      ],
       "steps": [
         "创建迁移文件 migrations/032_browse_history.sql：创建 browse_history 表（id, user_id BIGINT REFERENCES users(id), content_item_id BIGINT REFERENCES content_items(id), viewed_at TIMESTAMPTZ DEFAULT NOW()）+ 索引（user_id+viewed_at DESC, user_id+content_item_id UNIQUE 实现 upsert）",
         "创建 internal/model/browse_history.go：BrowseHistory 模型",
@@ -1319,7 +1792,13 @@
         "messages/zh.json + en.json 补充 history.* 命名空间翻译",
         "验证：浏览内容后记录自动创建，历史列表按日期分组正确，清除功能正常，分页加载正常"
       ],
-      "ui_spec_ref": ["## Page: /history 浏览历史"],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /history 浏览历史",
+        "## Component: ContentCard",
+        "## Component: ConfirmModal"
+      ],
       "passes": false
     }
   ]

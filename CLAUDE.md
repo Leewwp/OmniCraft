@@ -6,6 +6,19 @@
 
 详细架构：`architecture.md` | 任务列表：`task.json`
 
+## 工具链版本（强制）
+
+| 工具 | 版本 | 备注 |
+|------|------|------|
+| Go | 1.22+ | 后端 / Tauri sidecar |
+| Node.js | 20+ | 前端 / Tauri 客户端 |
+| pnpm 或 npm | pnpm 9+ / npm 10+ | 前端包管理（推荐 pnpm） |
+| PostgreSQL | 16+ | 需 pgvector ≥ 0.7 |
+| Redis | 7+ | — |
+| Rust | 1.75+ | 仅 Tauri 客户端需要 |
+
+CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致。
+
 ---
 
 ## MANDATORY: Agent 工作流程
@@ -52,7 +65,8 @@ cd frontend && npm run dev &
 
 **前端任务补充**：
 - 实现任何页面或组件前，必须先读取 `design/ui-spec.md` 中该任务 `ui_spec_ref` 字段列出的章节
-- 使用 `grep -A 100 "## Component: Xxx" design/ui-spec.md` 精确定位目标章节
+- **关键**：除 `ui_spec_ref` 外，必须主动使用 `grep` 在 `design/ui-spec.md` 中检索你将要实现的子组件名（如 `grep -A 50 "## Component: TagBadge" design/ui-spec.md`）
+- 只要 `design/ui-spec.md` 中存在对应的 `## Component:` 或 `## Page:`，就必须严格遵守，它是唯一视觉权威
 - 视觉实现以 `design/ui-spec.md` 为唯一视觉权威；与 steps 文字描述冲突时，**设计规格优先**
 - `design/ui-spec.md` 未生成时（文件为空），跳过此步，按 steps 描述实现，完成后补充注释
 
@@ -262,7 +276,7 @@ docker compose logs -f backend     # 查看后端日志
 - 后端在更新用户信誉分后需返回新分值，前端据此更新 UI 状态
 
 **排除条件**：
-- 黄赌毒永封用户不适用信誉分恢复，`users.status = 'banned'` 状态下所有功能禁用
+- 黄赌毒永封用户不适用信誉分恢复，`users.is_banned = TRUE` 状态下所有功能禁用（users 表使用布尔字段而非 status 枚举，详见 architecture.md §4.1）
 - IP 被永久封禁（`ips.status = 'banned'`）时，关联内容全部下架，作者信誉分不因此扣分（由管理员或 AI 审核独立判定）
 
 **特殊场景**：
@@ -272,8 +286,12 @@ docker compose logs -f backend     # 查看后端日志
 - **判决覆盖**：如众裁后被管理员手动覆盖要素判决，原投票中的判官错误扣分被取消
 
 **信誉分与内容展示的关系**：
-- 创作者信誉分 < 3 时，新发布内容仍可显示在浏览页面，但作者无法编辑或删除（需申诉解封）
+- 创作者信誉分 < 3 时，**已发布内容仍可见**，但作者**无法新建发布、无法编辑/删除已有内容**（与 PRD §6.3 权限矩阵一致）；恢复至 ≥ 3 后立即解锁
 - 被标记为 'banned' 的内容所有用户均不可见，内容作者可通过申诉页面发起恢复请求
+
+**恶意内容二次发布累计扣分（PRD §6.2）**：
+- 同一用户 7 日内 ≥ 2 次内容被 AI 审核 block 或管理员判定违规 → 在标准 −3 基础上**额外扣 1 分**并冻结 7 日发布权限
+- 阈值（`reputation.repeat_violation_window_days` 默认 7、`repeat_violation_threshold` 默认 2、`repeat_violation_extra_penalty` 默认 −1）从 `config.yaml` 读取，不硬编码
 
 ---
 
@@ -312,9 +330,32 @@ docker compose logs -f backend     # 查看后端日志
 - 判决结果：「不违规」比例 ≥ 60% → 恢复展示；< 60% → 有争议，不予展示（管理员可手动恢复）
 - 判决详情页：投票后展示当前投票分布 + 其他判官提交的理由列表（可点赞/点踩，按赞数排序）
 
+### 自动风控阈值（PRD §6.2，从 config.yaml > social 读取）
+- 内容自动隐藏：举报数 / 点击数 ≥ `social.report_auto_hide_rate`（默认 0.10）→ status 改为 under_review，触发众裁
+- 评论区折叠：点踩 / 点赞 比 ≥ `social.comment_fold_threshold`（默认 0.30）→ 自动折叠并触发审核
+- 严禁硬编码 0.10 / 0.30，必须读配置
+
 ### 支付模块
 - MVP 阶段：`features.payment_enabled: false`，所有支付相关 UI 不渲染，接口返回 503
 - 不要删除支付相关代码，仅通过 feature flag 控制
+
+### Tauri 客户端文件操作白名单
+
+客户端（`tauri-client/`）仅允许以下 7 种文件操作，其他一切操作必须拒绝：
+
+| 操作 | 触发方 | 说明 |
+|------|--------|------|
+| `download_file` | 用户授权 | 下载 OSS 内容到白名单目录 |
+| `extract_archive` | 用户授权 | 解压 zip（路径必须在白名单目录内） |
+| `move_file` | 用户授权 | 移动文件到目标目录（白名单内） |
+| `create_dir` | 用户授权 | 创建目录（白名单内） |
+| `read_config` | 用户授权 | 读取游戏配置文件 |
+| `write_config` | 用户授权 | 写入游戏配置文件（写前自动触发 `backup_file`） |
+| `backup_file` | 系统自动 | write_config/move_file 执行前自动备份原文件到 `.omnicraft_backup/`，**禁止 LLM 直接调用** |
+
+- 所有路径必须校验在白名单目录内（`tauri.conf.json > allowlist.fs.scope`），超出立即拒绝
+- Go 下发的动作脚本必须附带 HMAC-SHA256 签名（详见 `task.json` Task 34）
+- Agent 工具白名单、限流速率等详细规范见 `architecture.md` §3.3 / §6.1
 
 ---
 
@@ -333,5 +374,5 @@ docker compose logs -f backend     # 查看后端日志
 11. **Surgical changes only** — 精准修改必要代码，匹配现有风格不随意重构
 12. **Clean up self-generated debris** — 仅清理自身修改产生的冗余引用 / 变量
 13. **Define success criteria** — 明确验证标准，分步执行并完成校验
-14. **Consult ui-spec for frontend** — 实现前端页面/组件前必须读取 `design/ui-spec.md` 对应章节（`ui_spec_ref` 字段指明章节名），文件为空时跳过
+14. **Consult ui-spec for frontend** — 实现前端页面/组件前必须读取 `design/ui-spec.md` 对应章节（通过 `ui_spec_ref` 字段或主动 grep 检索组件名），严格遵照全局无阴影等 UI 规范。文件为空时跳过。
 15. **Design spec overrides prose** — 视觉细节以 `design/ui-spec.md` 为准，优先级高于 task steps 的文字描述
