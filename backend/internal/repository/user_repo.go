@@ -63,3 +63,7 @@ func (r *UserRepository) FindByUsername(username string) (*model.User, error) {
 func (r *UserRepository) UpdateUser(user *model.User) error {
 	return r.db.Save(user).Error
 }
+
+func (r *UserRepository) DB() *gorm.DB {
+	return r.db
+}

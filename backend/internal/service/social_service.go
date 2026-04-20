@@ -1,0 +1,182 @@
+package service
+
+import (
+	"errors"
+
+	"omnicraft/backend/config"
+	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/repository"
+)
+
+var (
+	ErrCommentNotFound    = errors.New("comment not found")
+	ErrDiscussionNotFound = errors.New("discussion not found")
+	ErrLowReputation      = errors.New("reputation too low to post")
+	ErrCommentForbidden   = errors.New("not comment author")
+)
+
+const minReputationToComment = 0
+
+type SocialService struct {
+	socialRepo  *repository.SocialRepository
+	contentRepo *repository.ContentRepository
+	userRepo    *repository.UserRepository
+	cfg         *config.Config
+}
+
+func NewSocialService(sRepo *repository.SocialRepository, cRepo *repository.ContentRepository, uRepo *repository.UserRepository, cfg *config.Config) *SocialService {
+	return &SocialService{socialRepo: sRepo, contentRepo: cRepo, userRepo: uRepo, cfg: cfg}
+}
+
+type PostCommentInput struct {
+	ContentItemID *int64 `json:"content_item_id"`
+	DiscussionID  *int64 `json:"discussion_id"`
+	ParentID      *int64 `json:"parent_id"`
+	Body          string `json:"body" binding:"required,min=1,max=5000"`
+}
+
+func (s *SocialService) PostComment(input PostCommentInput, authorID int64) (*model.Comment, error) {
+	user, err := s.userRepo.FindByID(authorID)
+	if err != nil || user == nil {
+		return nil, errors.New("user not found")
+	}
+	if user.IsBanned {
+		return nil, errors.New("user is banned")
+	}
+	if user.Reputation < minReputationToComment {
+		return nil, ErrLowReputation
+	}
+
+	comment := &model.Comment{
+		ContentItemID: input.ContentItemID,
+		DiscussionID:  input.DiscussionID,
+		ParentID:      input.ParentID,
+		AuthorID:      authorID,
+		Body:          input.Body,
+		Status:        "published",
+	}
+
+	if err := s.socialRepo.CreateComment(comment); err != nil {
+		return nil, err
+	}
+	return comment, nil
+}
+
+func (s *SocialService) DeleteComment(commentID int64, callerID int64) error {
+	c, err := s.socialRepo.FindComment(commentID)
+	if err != nil || c == nil {
+		return ErrCommentNotFound
+	}
+	if c.AuthorID != callerID {
+		return ErrCommentForbidden
+	}
+	return s.socialRepo.DeleteComment(commentID)
+}
+
+func (s *SocialService) ListComments(contentID int64, parentID *int64, page, pageSize int) ([]model.Comment, int64, error) {
+	return s.socialRepo.ListComments(contentID, parentID, page, pageSize)
+}
+
+type PostDiscussionInput struct {
+	IPID          *int64 `json:"ip_id"`
+	ContentItemID *int64 `json:"content_item_id"`
+	Title         string `json:"title" binding:"required,min=1,max=500"`
+	Body          string `json:"body"`
+}
+
+func (s *SocialService) PostDiscussion(input PostDiscussionInput, authorID int64) (*model.Discussion, error) {
+	d := &model.Discussion{
+		IPID:          input.IPID,
+		ContentItemID: input.ContentItemID,
+		AuthorID:      authorID,
+		Title:         input.Title,
+		Body:          input.Body,
+		Status:        "published",
+	}
+	if err := s.socialRepo.CreateDiscussion(d); err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+func (s *SocialService) GetDiscussion(id int64) (*model.Discussion, error) {
+	d, err := s.socialRepo.FindDiscussion(id)
+	if err != nil || d == nil {
+		return nil, ErrDiscussionNotFound
+	}
+	return d, nil
+}
+
+func (s *SocialService) ListDiscussions(ipID *int64, contentID *int64, page, pageSize int) ([]model.Discussion, int64, error) {
+	return s.socialRepo.ListDiscussions(ipID, contentID, page, pageSize)
+}
+
+type ReactInput struct {
+	TargetType string `json:"target_type" binding:"required,oneof=content comment"`
+	TargetID   int64  `json:"target_id" binding:"required"`
+	Reaction   string `json:"reaction" binding:"required,oneof=like dislike"`
+}
+
+func (s *SocialService) React(input ReactInput, userID int64) (string, error) {
+	reaction := &model.Reaction{
+		UserID:     userID,
+		TargetType: input.TargetType,
+		TargetID:   input.TargetID,
+		Reaction:   input.Reaction,
+	}
+
+	action, err := s.socialRepo.UpsertReaction(reaction)
+	if err != nil {
+		return "", err
+	}
+
+	if input.TargetType == "content" {
+		likes, dislikes, _ := s.socialRepo.GetReactionCounts("content", input.TargetID)
+		s.contentRepo.UpdateContent(input.TargetID, map[string]interface{}{
+			"like_count":    likes,
+			"dislike_count": dislikes,
+		})
+	}
+
+	return action, nil
+}
+
+func (s *SocialService) Report(targetType string, targetID int64, reporterID int64, reason, detail string) error {
+	report := &model.Report{
+		ReporterID: reporterID,
+		TargetType: targetType,
+		TargetID:   targetID,
+		Reason:     reason,
+		Detail:     detail,
+		Status:     "pending",
+	}
+	if err := s.socialRepo.CreateReport(report); err != nil {
+		return err
+	}
+
+	if targetType == "content" {
+		content, err := s.contentRepo.FindByID(targetID)
+		if err != nil || content == nil || content.ViewCount == 0 {
+			return nil
+		}
+		count, _ := s.socialRepo.CountReports("content", targetID)
+		threshold := s.cfg.Social.ReportAutoHideRate
+		ratio := float64(count) / float64(content.ViewCount)
+		if ratio >= threshold {
+			s.contentRepo.UpdateContent(targetID, map[string]interface{}{"status": "under_review"})
+		}
+	}
+	return nil
+}
+
+func (s *SocialService) Favorite(userID, contentID int64) error {
+	return s.socialRepo.CreateFavorite(userID, contentID)
+}
+
+func (s *SocialService) Unfavorite(userID, contentID int64) error {
+	return s.socialRepo.DeleteFavorite(userID, contentID)
+}
+
+func (s *SocialService) ListFavorites(userID int64, page, pageSize int) ([]model.Favorite, int64, error) {
+	return s.socialRepo.ListFavoritesByUser(userID, page, pageSize)
+}

@@ -64,3 +64,19 @@ func (r *PRRepository) UpsertContributor(contentID int64, userID int64) error {
 		DO UPDATE SET pr_count = content_contributors.pr_count + 1
 	`, contentID, userID).Error
 }
+
+func (r *PRRepository) ListContributors(contentID int64) ([]model.ContentContributor, error) {
+	var contributors []model.ContentContributor
+	err := r.db.Where("content_item_id = ?", contentID).Order("pr_count DESC").Find(&contributors).Error
+	return contributors, err
+}
+
+func (r *PRRepository) BlockUser(authorID int64, blockedID int64) error {
+	blocklist := model.AuthorBlocklist{AuthorID: authorID, BlockedID: blockedID}
+	return r.db.FirstOrCreate(&blocklist, model.AuthorBlocklist{AuthorID: authorID, BlockedID: blockedID}).Error
+}
+
+func (r *PRRepository) UnblockUser(authorID int64, blockedID int64) error {
+	return r.db.Where("author_id = ? AND blocked_id = ?", authorID, blockedID).
+		Delete(&model.AuthorBlocklist{}).Error
+}

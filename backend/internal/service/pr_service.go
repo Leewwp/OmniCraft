@@ -9,10 +9,10 @@ import (
 )
 
 var (
-	ErrPRNotFound      = errors.New("pr not found")
-	ErrPRBlocked       = errors.New("submitter is blocked by content author")
-	ErrPRConflict      = errors.New("base version is no longer latest, conflict detected")
-	ErrPRForbidden     = errors.New("only content author can manage this pr")
+	ErrPRNotFound  = errors.New("pr not found")
+	ErrPRBlocked   = errors.New("submitter is blocked by content author")
+	ErrPRConflict  = errors.New("base version is no longer latest, conflict detected")
+	ErrPRForbidden = errors.New("only content author can manage this pr")
 )
 
 type PRService struct {
@@ -123,4 +123,23 @@ func (s *PRService) RejectPR(prID int64, callerID int64, reason string) error {
 		"reject_reason": reason,
 		"resolved_at":   now,
 	})
+}
+
+func (s *PRService) BlockContributor(authorID int64, blockedID int64) error {
+	return s.prRepo.BlockUser(authorID, blockedID)
+}
+
+func (s *PRService) UnblockContributor(authorID int64, blockedID int64) error {
+	return s.prRepo.UnblockUser(authorID, blockedID)
+}
+
+func (s *PRService) ListContributors(contentID int64, callerID int64) (interface{}, error) {
+	content, err := s.contentRepo.FindByID(contentID)
+	if err != nil || content == nil {
+		return nil, ErrContentNotFound
+	}
+	if content.AuthorID != callerID {
+		return nil, ErrPRForbidden
+	}
+	return s.prRepo.ListContributors(contentID)
 }
