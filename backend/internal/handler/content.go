@@ -1,13 +1,17 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
+
+	"github.com/redis/go-redis/v9"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -16,14 +20,55 @@ import (
 type ContentHandler struct {
 	contentSvc  *service.ContentService
 	contentRepo *repository.ContentRepository
+	ossSvc      *service.OSSService
+	ossInitErr  error
 }
 
-func NewContentHandler(db *gorm.DB) *ContentHandler {
+func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *ContentHandler {
 	repo := repository.NewContentRepository(db)
+	ossSvc, ossErr := service.NewOSSService(cfg)
+	reputSvc := service.NewReputationService(db)
+	reviewSvc := service.NewReviewService(db, rdb, cfg, reputSvc)
 	return &ContentHandler{
-		contentSvc:  service.NewContentService(repo),
+		contentSvc:  service.NewContentServiceWithDeps(repo, reviewSvc, rdb),
 		contentRepo: repo,
+		ossSvc:      ossSvc,
+		ossInitErr:  ossErr,
 	}
+}
+
+func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
+	if h.ossSvc == nil {
+		msg := "oss service is not configured"
+		if h.ossInitErr != nil {
+			msg = h.ossInitErr.Error()
+		}
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "OSS_NOT_CONFIGURED", "message": msg})
+		return
+	}
+
+	var req service.PresignUploadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		return
+	}
+
+	resp, err := h.ossSvc.GeneratePresignUploadURL(c.Request.Context(), req)
+	if err != nil {
+		var validationErr *service.UploadValidationError
+		if errors.As(err, &validationErr) {
+			c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": validationErr.Error()})
+			return
+		}
+		if errors.Is(err, service.ErrOSSNotConfigured) {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "OSS_NOT_CONFIGURED", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *ContentHandler) ListContents(c *gin.Context) {
@@ -100,6 +145,10 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 
 	content, err := h.contentSvc.PublishContent(input, callerID)
 	if err != nil {
+		if errors.Is(err, service.ErrPublishFrozen) {
+			c.JSON(http.StatusForbidden, gin.H{"code": "PUBLISH_FROZEN", "message": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": err.Error()})
 		return
 	}

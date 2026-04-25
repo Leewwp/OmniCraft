@@ -31,6 +31,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		users.GET("/:id", userHandler.GetUser)
 		users.PATCH("/:id", middleware.AuthRequired(cfg), userHandler.UpdateUser)
 		users.GET("/:id/reputation", userHandler.GetReputation)
+		users.GET("/:id/contents", userHandler.GetUserContents)
 	}
 
 	ipHandler := NewIPHandler(db)
@@ -42,11 +43,12 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		ips.GET("/:id/contents", ipHandler.GetIPContents)
 	}
 
-	contentHandler := NewContentHandler(db)
+	contentHandler := NewContentHandler(db, cfg, rdb)
 	contents := v1.Group("/contents")
 	{
 		contents.GET("", contentHandler.ListContents)
 		contents.POST("", middleware.AuthRequired(cfg), contentHandler.CreateContent)
+		contents.POST("/oss-token", middleware.AuthRequired(cfg), contentHandler.GenerateOSSToken)
 		contents.GET("/:id", contentHandler.GetContent)
 		contents.PATCH("/:id", middleware.AuthRequired(cfg), contentHandler.UpdateContent)
 		contents.DELETE("/:id", middleware.AuthRequired(cfg), contentHandler.DeleteContent)
@@ -67,6 +69,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		pr.GET("/:id", prHandler.GetPR)
 		pr.POST("/:id/accept", middleware.AuthRequired(cfg), prHandler.AcceptPR)
 		pr.POST("/:id/reject", middleware.AuthRequired(cfg), prHandler.RejectPR)
+		pr.POST("/:id/merge", middleware.AuthRequired(cfg), prHandler.ManualMerge)
 	}
 
 	dashboard := v1.Group("/dashboard", middleware.AuthRequired(cfg))
@@ -201,10 +204,17 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		admin.GET("/appeals", adminHandler.ListAppeals)
 		admin.POST("/appeals/:id", adminHandler.ResolveAppeal)
 		admin.GET("/config", adminHandler.GetConfig)
+		admin.PATCH("/config", adminHandler.PatchConfig)
 		admin.POST("/judge/questions", judgeHandler.CreateQuestions)
 		admin.POST("/categories", catHandler.AdminCreateCategory)
 		admin.PATCH("/categories/:id", catHandler.AdminUpdateCategory)
 		admin.DELETE("/categories/:id", catHandler.AdminDeleteCategory)
 		admin.PUT("/categories/reorder", catHandler.AdminReorderCategories)
+	}
+
+	internalHandler := NewInternalHandler(db, rdb, cfg)
+	internal := v1.Group("/internal")
+	{
+		internal.POST("/ai-callback", internalHandler.AICallback)
 	}
 }

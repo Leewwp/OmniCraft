@@ -16,12 +16,14 @@ import (
 type UserHandler struct {
 	userRepo    *repository.UserRepository
 	reputSvc    *service.ReputationService
+	contentRepo *repository.ContentRepository
 }
 
 func NewUserHandler(db *gorm.DB) *UserHandler {
 	return &UserHandler{
-		userRepo: repository.NewUserRepository(db),
-		reputSvc: service.NewReputationService(db),
+		userRepo:    repository.NewUserRepository(db),
+		reputSvc:    service.NewReputationService(db),
+		contentRepo: repository.NewContentRepository(db),
 	}
 }
 
@@ -128,6 +130,31 @@ func (h *UserHandler) GetReputation(c *gin.Context) {
 		"page":      page,
 		"page_size": pageSize,
 	})
+}
+
+func (h *UserHandler) GetUserContents(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	contentType := c.Query("content_type")
+
+	items, total, err := h.contentRepo.ListContents(repository.ListContentsFilter{
+		AuthorID:    &id,
+		ContentType: contentType,
+		Page:        page,
+		PageSize:    pageSize,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"contents": items, "total": total})
 }
 
 func sanitizeUser(u *model.User) gin.H {

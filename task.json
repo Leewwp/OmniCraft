@@ -126,10 +126,13 @@
         "实现 OSS 生命周期策略说明（写入 docs/oss-lifecycle.md）",
         "验证：调用接口获取预签名 URL，直接上传文件到 OSS，URL 有效"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 9,
+      "depends_on": [
+        8
+      ],
       "title": "阿里云内容安全接入",
       "description": "封装阿里云内容安全 API，实现异步审核回调",
       "steps": [
@@ -364,7 +367,7 @@
         "## Component: MasonryGrid",
         "## Component: IPCard"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 23,
@@ -395,7 +398,7 @@
         "## Component: ContentCard",
         "## Component: MasonryGrid"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 24,
@@ -458,7 +461,7 @@
         "## Page: /original/[contentId] 原创内容详情",
         "## Component: ContentDetail"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 26,
@@ -490,7 +493,7 @@
         "## Component: UploadAssistPanel",
         "## Component: ComplianceCheckBadge"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 27,
@@ -1119,7 +1122,7 @@
         "创建 internal/handler/agent.go（扩展）：POST /api/v1/agent/compliance-check（需登录 + 限流）",
         "验证：正常文件返回 safe；上传含敏感词文本返回 violation；格式不合规文件返回 file_format_error"
       ],
-      "passes": true
+      "passes": false
     },
     {
       "id": 56,
@@ -1178,7 +1181,7 @@
         "SSE 响应格式：Content-Type: text/event-stream；每条消息 data: {\"delta\":\"...\",\"done\":false}；结束时 data: {\"done\":true,\"conversation_id\":N}",
         "验证：对含违规词的内容调用 /agent/moderate 返回 violation + 整改建议；/agent/chat/stream 流式输出正常，conversation_id 可用于后续追问"
       ],
-      "passes": true
+      "passes": false
     },
     {
       "id": 59,

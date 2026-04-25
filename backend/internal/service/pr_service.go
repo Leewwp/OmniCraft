@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"omnicraft/backend/internal/model"
@@ -123,6 +124,56 @@ func (s *PRService) RejectPR(prID int64, callerID int64, reason string) error {
 		"reject_reason": reason,
 		"resolved_at":   now,
 	})
+}
+
+func (s *PRService) ManualMerge(prID int64, callerID int64, mergedText string) (*model.ContentVersion, error) {
+	pr, err := s.prRepo.FindByID(prID)
+	if err != nil || pr == nil {
+		return nil, ErrPRNotFound
+	}
+
+	content, err := s.contentRepo.FindByID(pr.ContentItemID)
+	if err != nil || content == nil {
+		return nil, ErrContentNotFound
+	}
+	if content.AuthorID != callerID {
+		return nil, ErrPRForbidden
+	}
+	if pr.Status != "open" {
+		return nil, errors.New("pr is not open")
+	}
+
+	versions, err := s.versionRepo.ListByContent(pr.ContentItemID)
+	if err != nil {
+		return nil, err
+	}
+	nextNum := len(versions) + 1
+	parentID := pr.BaseVersionID
+
+	v := &model.ContentVersion{
+		ContentItemID:   pr.ContentItemID,
+		ParentVersionID: &parentID,
+		AuthorID:        callerID,
+		VersionNumber:   nextNum,
+		StorageType:     "full",
+		StorageKey:      mergedText,
+		DiffSummary:     fmt.Sprintf("v%d: manual merge from PR #%d", nextNum, prID),
+		Status:          "active",
+		IsLatest:        true,
+	}
+	if err := s.versionRepo.CreateVersion(v); err != nil {
+		return nil, err
+	}
+	if err := s.versionRepo.SetLatest(pr.ContentItemID, v.ID); err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	if err := s.prRepo.UpdateStatus(prID, "merged", map[string]interface{}{"resolved_at": now}); err != nil {
+		return nil, err
+	}
+	_ = s.prRepo.UpsertContributor(pr.ContentItemID, pr.SubmitterID)
+	return v, nil
 }
 
 func (s *PRService) BlockContributor(authorID int64, blockedID int64) error {

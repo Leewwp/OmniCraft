@@ -13,11 +13,11 @@ import (
 )
 
 type AdminHandler struct {
-	ipSvc      *service.IPService
+	ipSvc       *service.IPService
 	contentRepo *repository.ContentRepository
 	userRepo    *repository.UserRepository
 	socialRepo  *repository.SocialRepository
-	cfg        *config.Config
+	cfg         *config.Config
 }
 
 func NewAdminHandler(db *gorm.DB, cfg *config.Config) *AdminHandler {
@@ -130,7 +130,7 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 	var total int64
 	h.userRepo.DB().Model(&struct{ ID uint }{}).Table("users").Count(&total)
 	h.userRepo.DB().Table("users").Select("id, username, email, role, is_banned, reputation, created_at").
-		Offset((page-1)*pageSize).Limit(pageSize).Find(&users)
+		Offset((page - 1) * pageSize).Limit(pageSize).Find(&users)
 	c.JSON(http.StatusOK, gin.H{"users": users, "total": total})
 }
 
@@ -147,7 +147,7 @@ func (h *AdminHandler) ListAppeals(c *gin.Context) {
 	var total int64
 	h.userRepo.DB().Model(&struct{ ID uint }{}).Table("appeals").Where("status = ?", "pending").Count(&total)
 	h.userRepo.DB().Table("appeals").Where("status = ?", "pending").
-		Offset((page-1)*pageSize).Limit(pageSize).Find(&appeals)
+		Offset((page - 1) * pageSize).Limit(pageSize).Find(&appeals)
 	c.JSON(http.StatusOK, gin.H{"appeals": appeals, "total": total})
 }
 
@@ -179,4 +179,67 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 
 func (h *AdminHandler) GetConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"config": h.cfg})
+}
+
+func (h *AdminHandler) PatchConfig(c *gin.Context) {
+	var patches map[string]interface{}
+	if err := c.ShouldBindJSON(&patches); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_BODY", "message": err.Error()})
+		return
+	}
+
+	if limits, ok := patches["limits"].(map[string]interface{}); ok {
+		if v, ok := limits["video_max_mb"].(float64); ok {
+			h.cfg.Limits.VideoMaxMB = int(v)
+		}
+		if v, ok := limits["image_max_mb"].(float64); ok {
+			h.cfg.Limits.ImageMaxMB = int(v)
+		}
+		if v, ok := limits["mod_max_mb"].(float64); ok {
+			h.cfg.Limits.ModMaxMB = int(v)
+		}
+		if v, ok := limits["text_max_mb"].(float64); ok {
+			h.cfg.Limits.TextMaxMB = int(v)
+		}
+		if v, ok := limits["sheet_music_max_mb"].(float64); ok {
+			h.cfg.Limits.SheetMusicMaxMB = int(v)
+		}
+		if v, ok := limits["video_max_sec"].(float64); ok {
+			h.cfg.Limits.VideoMaxSec = int(v)
+		}
+	}
+	if features, ok := patches["features"].(map[string]interface{}); ok {
+		if v, ok := features["payment_enabled"].(bool); ok {
+			h.cfg.Features.PaymentEnabled = v
+		}
+	}
+	if reputation, ok := patches["reputation"].(map[string]interface{}); ok {
+		if v, ok := reputation["repeat_violation_threshold"].(float64); ok {
+			h.cfg.Reputation.RepeatViolationThreshold = int(v)
+		}
+		if v, ok := reputation["repeat_violation_window_days"].(float64); ok {
+			h.cfg.Reputation.RepeatViolationWindowDays = int(v)
+		}
+		if v, ok := reputation["repeat_violation_extra_penalty"].(float64); ok {
+			h.cfg.Reputation.RepeatViolationExtraPenalty = int(v)
+		}
+	}
+	if agent, ok := patches["agent"].(map[string]interface{}); ok {
+		if v, ok := agent["web_agent_enabled"].(bool); ok {
+			h.cfg.Agent.WebAgentEnabled = v
+		}
+		if v, ok := agent["rate_limit_per_day"].(float64); ok {
+			h.cfg.Agent.RateLimitPerDay = int(v)
+		}
+	}
+	if social, ok := patches["social"].(map[string]interface{}); ok {
+		if v, ok := social["report_auto_hide_rate"].(float64); ok {
+			h.cfg.Social.ReportAutoHideRate = v
+		}
+		if v, ok := social["comment_fold_threshold"].(float64); ok {
+			h.cfg.Social.CommentFoldThreshold = v
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"config": h.cfg, "message": "config updated"})
 }

@@ -23,6 +23,15 @@ oss:
   bucket_name: ""
   domain: ""
 
+green:
+  access_key_id: ""
+  access_key_secret: ""
+  region: "cn-shanghai"
+  callback_url: ""
+  callback_allowed_ips:
+    - "127.0.0.1"
+    - "::1"
+
 features:
   payment_enabled: false
 
@@ -61,3 +70,14 @@ upload:
     - ".mscz"
     - ".mscx"
     - ".pdf"
+    
+agent:
+  web_agent_enabled: true
+  llm_provider: "openai_compat"        # 或 "qwen"
+  llm_model: "deepseek-chat"           # 按实际选择
+  llm_api_base: "https://api.deepseek.com"
+  llm_api_key: ""                      # 留空，改用 env var 注入（需修复 config.go）
+  embedding_model: "text-embedding-3-small"
+  embedding_dimensions: 1536
+  rate_limit_per_day: 50
+  upload_assist_max_file_mb: 10
