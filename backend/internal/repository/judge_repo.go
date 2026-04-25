@@ -129,3 +129,20 @@ func (r *JudgeRepository) GetRecentVoteHistory(judgeID int64, limit int) ([]mode
 func (r *JudgeRepository) RevokeQualifications(userID int64) error {
 	return r.db.Model(&model.JudgeQualification{}).Where("user_id = ?", userID).Update("is_active", false).Error
 }
+
+func (r *JudgeRepository) GetDistinctCaseTypes() ([]string, error) {
+	var types []string
+	err := r.db.Model(&model.JudgeCase{}).
+		Where("status IN (?, ?)", "closed_approve", "closed_reject").
+		Distinct("target_type").Pluck("target_type", &types).Error
+	return types, err
+}
+
+func (r *JudgeRepository) ListClosedCasesForQuestioning(contentType string, limit int) ([]model.JudgeCase, error) {
+	var cases []model.JudgeCase
+	err := r.db.Where(
+		"target_type = ? AND status IN (?, ?) AND id NOT IN (SELECT source_case_id FROM judge_questions WHERE source_case_id IS NOT NULL)",
+		contentType, "closed_approve", "closed_reject",
+	).Order("(vote_approve + vote_reject) DESC").Limit(limit).Find(&cases).Error
+	return cases, err
+}

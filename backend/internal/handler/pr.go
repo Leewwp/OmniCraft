@@ -124,6 +124,34 @@ func (h *PRHandler) RejectPR(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "pr rejected"})
 }
 
+func (h *PRHandler) ManualMerge(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid pr id"})
+		return
+	}
+
+	var body struct {
+		MergedText string `json:"merged_text"`
+	}
+	_ = c.ShouldBindJSON(&body)
+
+	version, err := h.prSvc.ManualMerge(id, callerID, body.MergedText)
+	if err != nil {
+		switch err {
+		case service.ErrPRNotFound:
+			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": err.Error()})
+		case service.ErrPRForbidden:
+			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": err.Error()})
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{"code": "ERROR", "message": err.Error()})
+		}
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "pr merged", "version": version})
+}
+
 func (h *PRHandler) BlockContributor(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	userID, err := strconv.ParseInt(c.Param("userId"), 10, 64)

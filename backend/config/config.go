@@ -1,10 +1,13 @@
 package config
 
 import (
+	"errors"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 )
 
@@ -14,6 +17,7 @@ type Config struct {
 	Redis      RedisConfig      `mapstructure:"redis"`
 	JWT        JWTConfig        `mapstructure:"jwt"`
 	OSS        OSSConfig        `mapstructure:"oss"`
+	Green      GreenConfig      `mapstructure:"green"`
 	Features   FeaturesConfig   `mapstructure:"features"`
 	Limits     LimitsConfig     `mapstructure:"limits"`
 	Reputation ReputationConfig `mapstructure:"reputation"`
@@ -65,6 +69,14 @@ type OSSConfig struct {
 	Domain          string `mapstructure:"domain"`
 }
 
+type GreenConfig struct {
+	AccessKeyID        string   `mapstructure:"access_key_id"`
+	AccessKeySecret    string   `mapstructure:"access_key_secret"`
+	Region             string   `mapstructure:"region"`
+	CallbackURL        string   `mapstructure:"callback_url"`
+	CallbackAllowedIPs []string `mapstructure:"callback_allowed_ips"`
+}
+
 type FeaturesConfig struct {
 	PaymentEnabled bool `mapstructure:"payment_enabled"`
 }
@@ -106,6 +118,8 @@ type UploadConfig struct {
 var Cfg *Config
 
 func Load() *Config {
+	loadDotEnvFiles()
+
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")
@@ -125,6 +139,21 @@ func Load() *Config {
 
 	Cfg = cfg
 	return cfg
+}
+
+func loadDotEnvFiles() {
+	candidates := []string{".env", filepath.Join("..", ".env")}
+	for _, candidate := range candidates {
+		if err := godotenv.Overload(candidate); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			log.Printf("Warning: failed loading env file %s: %v", candidate, err)
+			continue
+		}
+		log.Printf("Loaded environment from %s", candidate)
+		return
+	}
 }
 
 func overrideFromEnv(cfg *Config) {
@@ -157,5 +186,39 @@ func overrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("OSS_DOMAIN"); v != "" {
 		cfg.OSS.Domain = v
+	}
+	if v := os.Getenv("GREEN_ACCESS_KEY_ID"); v != "" {
+		cfg.Green.AccessKeyID = v
+	}
+	if v := os.Getenv("GREEN_ACCESS_KEY_SECRET"); v != "" {
+		cfg.Green.AccessKeySecret = v
+	}
+	if v := os.Getenv("GREEN_REGION"); v != "" {
+		cfg.Green.Region = v
+	}
+	if v := os.Getenv("GREEN_CALLBACK_URL"); v != "" {
+		cfg.Green.CallbackURL = v
+	}
+	if v := os.Getenv("GREEN_CALLBACK_ALLOWED_IPS"); v != "" {
+		parts := strings.Split(v, ",")
+		ips := make([]string, 0, len(parts))
+		for _, part := range parts {
+			ip := strings.TrimSpace(part)
+			if ip != "" {
+				ips = append(ips, ip)
+			}
+		}
+		if len(ips) > 0 {
+			cfg.Green.CallbackAllowedIPs = ips
+		}
+	}
+	if v := os.Getenv("AGENT_LLM_API_KEY"); v != "" {
+		cfg.Agent.LLMAPIKey = v
+	}
+	if v := os.Getenv("AGENT_LLM_PROVIDER"); v != "" {
+		cfg.Agent.LLMProvider = v
+	}
+	if v := os.Getenv("AGENT_LLM_API_BASE"); v != "" {
+		cfg.Agent.LLMAPIBase = v
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/database"
 	redisclient "omnicraft/backend/internal/pkg/redis"
+	"omnicraft/backend/internal/pkg/scheduler"
 )
 
 func main() {
@@ -19,6 +20,9 @@ func main() {
 
 	db := database.Init(cfg)
 	rdb := redisclient.Init(cfg)
+
+	scheduler.NewJudgeQuestionSync(db).Start()
+	scheduler.NewTagUsageSync(db).Start()
 
 	r := gin.New()
 	r.Use(middleware.Logger())
