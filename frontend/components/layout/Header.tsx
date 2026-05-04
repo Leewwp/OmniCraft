@@ -32,6 +32,22 @@ export function Header() {
           <span className="text-base">万象工坊</span>
         </Link>
 
+        {/* Nav */}
+        <nav className="hidden sm:flex items-center gap-1">
+          <Link
+            href="/"
+            className="rounded-md px-3 py-1.5 text-sm text-foreground/80 hover:bg-muted hover:text-foreground transition-colors"
+          >
+            二创区
+          </Link>
+          <Link
+            href="/original"
+            className="rounded-md px-3 py-1.5 text-sm text-foreground/80 hover:bg-muted hover:text-foreground transition-colors"
+          >
+            原创区
+          </Link>
+        </nav>
+
         {/* Search */}
         <div className="flex flex-1 items-center gap-2">
           <div className="relative hidden sm:flex flex-1 max-w-sm items-center">
