@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { SubmitPREntry } from "@/components/pr/SubmitPREntry";
+import { ContentDetailClient } from "@/components/content/ContentDetailClient";
 
 interface ContentItem {
   id: number;
@@ -128,6 +129,8 @@ export default async function FanworkContentDetailPage({
             </ul>
           </section>
         ) : null}
+
+        <ContentDetailClient contentId={data.content.id} authorId={data.content.author_id} />
       </article>
     </div>
   );

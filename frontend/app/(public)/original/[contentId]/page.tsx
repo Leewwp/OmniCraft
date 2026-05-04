@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { ContentDetailClient } from "@/components/content/ContentDetailClient";
 
 interface ContentItem {
   id: number;
@@ -123,6 +124,8 @@ export default async function OriginalDetailPage({
         <footer className="text-xs text-muted-foreground">
           原创区详情页已隐藏 PR 协同创作入口。
         </footer>
+
+        <ContentDetailClient contentId={data.content.id} authorId={data.content.author_id} />
       </article>
     </div>
   );
