@@ -1,11 +1,11 @@
 # OmniCraft UI 设计规格
 
-> ⚠️ **存根警示（第七轮修复追加）**：本文件为 UI spec 占位存根，内容由模板批量生成，**不得作为权威设计来源**。以下两类信息存在已知偏差，请以 `UI Design.md` 为准：
+> ℹ️ **生成状态**：本文件由 Gemini 批量生成，已完成初始内容填充。全局规范（Design Tokens、Interaction Patterns）和组件规范（Component 章节）可直接用于实现。以下偏差需 Agent 实现时注意：
 >
-> 1. **各页面「核心组件清单」多数为模板化默认值**（如 `/user/[userId]`、`/content/[contentId]`、`/login` 等仅列出 `EmptyState/LoadingSpinner`），未反映真实组件组合；请参考对应 Task 的 `ui_spec_ref` 引用列表和 `UI Design.md` 页面小节。
-> 2. **「响应式规则」段对表单页（登录/注册/设置等）错误套用了"瀑布流 2/3/4 列"模板**，这些页面无瀑布流；应以 `UI Design.md §五补充设计约束` 的断点规则为准。
+> 1. **部分页面「核心组件清单」仍为模板默认值**（`EmptyState/LoadingSpinner`），Agent 应参考对应 Task 的 `ui_spec_ref` 和 `UI Design.md` 页面小节获取真实组件列表。
+> 2. **表单类页面的「响应式规则」已修正**（login/register/settings/judge exam/rehab/messages/appeals 等 15 个页面），但个别页面可能仍有遗留。
 >
-> Agent 在根据本文件生成代码时，**必须同时读取 `UI Design.md` 对应页面小节**验证组件清单与响应式行为；仅 `## Global Design Tokens`、`## Global Interaction Patterns`、`## Component: Header`、`## Component: FacetedSearchSidebar` 四节内容可信（Gemini 已精修）。本文件计划由 Gemini 在 P0 实现启动前整体重生成，届时本警示块将移除。
+> Agent 在实现前端时，优先以 `## Component:` 具体组件的规范和 `UI Design.md` 对应页面为准；发现不一致时以设计规范为准。
 
 ---
 
@@ -177,31 +177,34 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：搜索栏 + 分面侧边栏 + 搜索结果瀑布流
 
 **核心组件清单**
 - `Header`
+- `SearchAgentInput`
+- `FacetedSearchSidebar`
 - `ContentCard`
 - `MasonryGrid`
-- `Footer`
+- `EmptyState`
+- `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
+- 页面最大宽度：1280px
+- 左侧分面侧边栏 + 右侧搜索结果
+- 区域间距（block）：24px (`space-y-6`)
 - 元素间距（inline）：16px (`gap-4`)
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 搜索结果卡片网格（默认排序）+ 分面筛选。
+- loading: 搜索结果区骨架屏（Skeleton 灰色块网格）。
+- empty: "未找到匹配结果" EmptyState + 搜索建议。
+- error: 搜索失败 Toast + 重试按钮。
+- 特殊状态：未登录时 NL 搜索降级为关键词搜索。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 分面侧边栏折叠为 Sheet 抽屉（85vw 左侧滑入），搜索结果瀑布流 2 列。
+- 平板 (≤1100px): 左侧侧边栏 220px + 右侧瀑布流 3 列。
+- PC (>1100px): 左侧侧边栏 260px + 右侧瀑布流 4 列。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -223,29 +226,30 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：登录表单卡片（带 1px border），居中展示
 
 **核心组件清单**
-- `EmptyState`
-- `LoadingSpinner`
+- `Header`
+- `EmptyState`（表单验证错误时行内提示）
+- `LoadingSpinner`（提交登录请求时按钮内嵌）
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
+- 页面最大宽度：1280px
+- 登录卡片：最大宽度 400px，垂直水平居中
 - 区域间距（block）：32px (`space-y-8`)
 - 元素间距（inline）：16px (`gap-4`)
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 邮箱 + 密码输入框 + 登录按钮 + 注册链接。
+- loading: 登录按钮内嵌 Spinner，输入框 disabled。
+- empty: 不适用（表单始终显示）。
+- error: 行内红字错误提示（邮箱格式、密码长度、账号不存在等）。
+- 特殊状态：已登录用户自动跳转首页。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 登录卡片全宽（margin 16px），padding 20px。
+- 平板 (≤1100px): 登录卡片最大宽度 400px，居中。
+- PC (>1100px): 登录卡片最大宽度 400px，居中，两侧留白。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -267,29 +271,29 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：注册表单卡片（带 1px border），居中展示
 
 **核心组件清单**
-- `EmptyState`
-- `LoadingSpinner`
+- `Header`
+- `EmptyState`（表单验证错误时行内提示）
+- `LoadingSpinner`（提交注册请求时按钮内嵌）
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
+- 页面最大宽度：1280px
+- 注册卡片：最大宽度 400px，垂直水平居中
 - 区域间距（block）：32px (`space-y-8`)
 - 元素间距（inline）：16px (`gap-4`)
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 用户名 + 邮箱 + 密码 + 确认密码输入框 + 注册按钮 + 登录链接。
+- loading: 注册按钮内嵌 Spinner，输入框 disabled。
+- error: 行内红字错误提示（各字段前端校验 + 服务端返回）。
+- 特殊状态：已登录用户自动跳转首页。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 注册卡片全宽（margin 16px），padding 20px。
+- 平板 (≤1100px): 注册卡片最大宽度 400px，居中。
+- PC (>1100px): 注册卡片最大宽度 400px，居中，两侧留白。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -406,31 +410,30 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：搜索栏 + 讨论列表 + 发帖入口
 
 **核心组件清单**
 - `Header`
-- `ContentCard`
-- `MasonryGrid`
-- `Footer`
+- `DiscussionCard`
+- `EmptyState`
+- `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：960px，居中
+- 搜索框 + 发帖按钮 → 讨论卡片列表（按活跃时间倒序）
+- 区域间距（block）：16px (`space-y-4`)
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 讨论列表卡片（标题/作者/回复数/最后活跃时间）+ 搜索框。
+- loading: 骨架屏（Skeleton 灰色块列表）。
+- empty: "暂无讨论" EmptyState。
+- error: Toast 右上角报错。
+- 特殊状态：信誉分不足用户发帖按钮 disabled。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 讨论列表全宽（margin 16px），卡片间距 12px。
+- 平板 (≤1100px): 内容区最大宽度 720px，居中。
+- PC (>1100px): 内容区最大宽度 960px，居中。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -447,7 +450,6 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 二创区页面/组件：依托于 ips.category 进行展示或跳转。
-- ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
 - 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
 - 信誉分 < 3 用户：发布/评论/点赞按钮 disabled，hover tooltip 提示「信誉分不足」。
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
@@ -455,31 +457,32 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：讨论主帖 + 回复列表，各模块带 1px border
 
 **核心组件清单**
 - `Header`
-- `ContentCard`
-- `MasonryGrid`
-- `Footer`
+- `DiscussionCard`
+- `ReplyList`
+- `CommentSection`（回复区复用楼中楼组件）
+- `EmptyState`
+- `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：960px，居中
+- 讨论主帖 → 回复列表（按时间排序）
+- 区域间距（block）：24px (`space-y-6`)
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 讨论标题/内容/作者 + 回复列表 + 回复输入框。
+- loading: 骨架屏（Skeleton）。
+- empty: 讨论不存在 404 EmptyState。
+- error: Toast 右上角报错。
+- 特殊状态：信誉分不足时回复按钮 disabled。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 讨论详情全宽（margin 16px），回复列表卡片间距 12px。
+- 平板 (≤1100px): 内容区最大宽度 720px，居中。
+- PC (>1100px): 内容区最大宽度 960px，居中。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -501,31 +504,28 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：发帖表单卡片（标题 + 内容 + 提交按钮）
 
 **核心组件清单**
 - `Header`
-- `ContentCard`
-- `MasonryGrid`
-- `Footer`
+- `MarkdownEditor`
+- `EmptyState`
+- `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：720px，居中
+- 标题输入框 → Markdown 编辑器 → 提交按钮
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 讨论标题 + Markdown 编辑器 + 发布按钮。
+- loading: 提交按钮内嵌 Spinner。
+- error: 行内红字提示 + Toast 报错。
+- 特殊状态：未登录拦截；信誉分不足拦截。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 表单全宽（margin 16px），编辑器高度 300px。
+- 平板 (≤1100px): 表单最大宽度 640px，居中。
+- PC (>1100px): 表单最大宽度 720px，居中。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -548,29 +548,35 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：详情内容卡片 + 评论区 + 版本历史，各模块带 1px border
 
 **核心组件清单**
+- `Header`
+- `ContentDetail`
+- `SheetMusicViewer`（content_type=sheet_music 时渲染）
+- `ReactionBar`
+- `CommentSection`
+- `VersionHistory`
 - `EmptyState`
 - `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
+- 页面最大宽度：960px，居中
+- 详情主体 → 操作栏 → 评论区 → 版本历史，纵向排列
 - 区域间距（block）：32px (`space-y-8`)
 - 元素间距（inline）：16px (`gap-4`)
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 内容详情 + 点赞/点踩/收藏 + 评论区 + 版本历史。
+- loading: 骨架屏（Skeleton 灰色块填充）。
+- empty: 内容不存在 404 EmptyState。
+- error: 内容被 ban 或权限不足时显示对应 EmptyState。
+- 特殊状态：信誉分不足用户评论/点赞按钮 disabled。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 内容区全宽（margin 16px），操作栏图标按钮横向排列。
+- 平板 (≤1100px): 内容区最大宽度 720px，居中。
+- PC (>1100px): 内容区最大宽度 960px，居中，评论区侧栏吸附。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -633,6 +639,7 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 原创区无 IP 概念，严格按照 content_items.category (推荐|影视|游戏|文学等) 分类。
+- 隐藏 PR 入口（原创区无协同机制）。
 - ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
 - 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
@@ -640,29 +647,32 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：详情内容卡片 + 评论区，各模块带 1px border
 
 **核心组件清单**
+- `Header`
+- `ContentDetail`
+- `SheetMusicViewer`（content_type=sheet_music 时渲染）
+- `ReactionBar`
+- `CommentSection`
 - `EmptyState`
 - `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
+- 页面最大宽度：960px，居中
+- 详情主体 → 操作栏 → 评论区，纵向排列
 - 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 内容详情 + 点赞/点踩/收藏 + 评论区（无 PR 版本历史）。
+- loading: 骨架屏（Skeleton 灰色块填充）。
+- empty: 内容不存在 404 EmptyState。
+- error: 内容被 ban 或权限不足时显示对应 EmptyState。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 内容区全宽（margin 16px），操作栏图标按钮横向排列。
+- 平板 (≤1100px): 内容区最大宽度 720px，居中。
+- PC (>1100px): 内容区最大宽度 960px，居中。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -684,29 +694,35 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：用户信息卡片 + 内容 Tab 切换区（发布/收藏/讨论）
 
 **核心组件清单**
+- `Header`
+- `UserProfileCard`
+- `FollowButton`
+- `FollowerListModal`
+- `JudgeQualBadge`
+- `ContentCard`
+- `MasonryGrid`（内容 Tab 中使用）
 - `EmptyState`
 - `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：960px，居中
+- 用户信息卡片 → Tab 切换栏 → 内容列表
+- 区域间距（block）：24px (`space-y-6`)
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 用户头像/用户名/信誉分/判官资质 Badge + 关注按钮 + 内容 Tab。
+- loading: 骨架屏（Skeleton 灰色块填充用户卡片和内容区）。
+- empty: 用户不存在 404 EmptyState；某 Tab 无内容时显示 EmptyState。
+- error: Toast 右上角报错。
+- 特殊状态：未登录时关注按钮跳转 /login；当前用户自己的主页时隐藏关注按钮显示编辑入口。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 用户卡片全宽（margin 16px），内容 Tab 列表单列。
+- 平板 (≤1100px): 内容区最大宽度 640px，Tab 内容瀑布流 3 列。
+- PC (>1100px): 内容区最大宽度 960px，用户信息左侧吸附，Tab 内容瀑布流 4 列。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -750,9 +766,9 @@ interface FacetedSearchSidebarProps {
 - 特殊状态：信誉分不足、权限不足或未登录拦截。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 表单全宽（margin 16px），编辑器高度 250px，上传组件全宽。
+- 平板 (≤1100px): 表单最大宽度 720px，居中。
+- PC (>1100px): 表单最大宽度 960px，居中，两侧留白。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -770,33 +786,34 @@ interface FacetedSearchSidebarProps {
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 密码修改/注销等破坏性操作需 ConfirmModal 二次确认。
 
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：设置分组卡片（个人信息 / 安全设置 / 危险操作），每组带 1px border
 
 **核心组件清单**
+- `Header`
+- `ConfirmModal`（密码修改确认、账号注销确认）
 - `EmptyState`
 - `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
+- 页面最大宽度：720px，居中
+- 设置分组卡片纵向排列，组间距 24px (`space-y-6`)
 - 元素间距（inline）：16px (`gap-4`)
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 头像、用户名、邮箱（只读）、Bio 编辑表单。
+- loading: 保存按钮内嵌 Spinner。
+- error: 行内红字错误提示（字段校验失败、旧密码错误等）。
+- 特殊状态：未登录拦截跳转 /login。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 设置卡片全宽（margin 16px），padding 16px。
+- 平板 (≤1100px): 设置区最大宽度 640px，居中。
+- PC (>1100px): 设置区最大宽度 720px，居中，两侧留白。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -818,29 +835,30 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：标签组列表卡片 + 新建/编辑表单区
 
 **核心组件清单**
+- `Header`
+- `TagBadge`
+- `ConfirmModal`（删除标签组确认）
 - `EmptyState`
 - `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：720px，居中
+- 标签组列表纵向排列，每组卡片展示名称 + 标签 Badge 列表 + 编辑/删除操作
+- 区域间距（block）：24px (`space-y-6`)
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 标签组列表 + 新建按钮。
+- loading: 骨架屏（Skeleton 灰色块）。
+- empty: 暂无标签组 EmptyState + 新建 CTA。
+- error: Toast 右上角报错。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 列表全宽（margin 16px），操作按钮展开式。
+- 平板 (≤1100px): 内容区最大宽度 640px，居中。
+- PC (>1100px): 内容区最大宽度 720px，居中。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -883,9 +901,9 @@ interface FacetedSearchSidebarProps {
 - 特殊状态：信誉分不足、权限不足或未登录拦截。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 表格水平滚动，概览卡片单列堆叠，操作按钮展开式。
+- 平板 (≤1100px): 表格自适应宽度，概览卡片 2 列。
+- PC (>1100px): 表格最大宽度 1280px，概览卡片 4 列。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -928,9 +946,9 @@ interface FacetedSearchSidebarProps {
 - 特殊状态：信誉分不足、权限不足或未登录拦截。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 表格水平滚动，操作按钮展开式。
+- 平板 (≤1100px): 表格自适应宽度。
+- PC (>1100px): 表格最大宽度 1280px。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -973,9 +991,9 @@ interface FacetedSearchSidebarProps {
 - 特殊状态：信誉分不足、权限不足或未登录拦截。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 表格水平滚动，操作按钮展开式。
+- 平板 (≤1100px): 表格自适应宽度。
+- PC (>1100px): 表格最大宽度 1280px。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -1005,22 +1023,22 @@ interface FacetedSearchSidebarProps {
 - `ConfirmModal`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
+- 页面最大宽度：1280px
+- 左侧管理导航 + 右侧表格
 - 区域间距（block）：32px (`space-y-8`)
 - 元素间距（inline）：16px (`gap-4`)
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
+- default: 数据表格 + 操作列。
+- loading: 表格骨架屏（Skeleton），不使用全屏遮罩 loading。
 - empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
 - error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- 特殊状态：非 admin/创作者角色 403 拦截。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 表格水平滚动，操作按钮展开式。
+- 平板 (≤1100px): 表格自适应宽度。
+- PC (>1100px): 表格最大宽度 1280px。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -1042,30 +1060,33 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：标签建议审核表格 + 操作列
 
 **核心组件清单**
+- `Header`
 - `AdminNav`
 - `Table`
-- `ConfirmModal`
+- `TagBadge`
+- `ConfirmModal`（通过/拒绝确认）
+- `EmptyState`
+- `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：1280px
+- 左侧管理导航 + 右侧标签建议审核表格
+- 区域间距（block）：24px (`space-y-6`)
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 待审标签建议表格（标签名/内容/建议人/操作）。
+- loading: 表格骨架屏（Skeleton）。
+- empty: "暂无待审核标签建议" EmptyState。
+- error: Toast 右上角报错。
+- 特殊状态：非 admin/创作者角色 403 拦截。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 表格水平滚动，操作按钮展开式，管理导航折叠。
+- 平板 (≤1100px): 表格自适应宽度。
+- PC (>1100px): 左侧管理导航 220px + 右侧表格自适应。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -1088,29 +1109,30 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：考题卡片（题目 + 选项 + 提交按钮）
 
 **核心组件清单**
+- `Header`
+- `ExamQuestion`
 - `EmptyState`
 - `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：640px，居中
+- 考题卡片纵向排列，每次展示 1 题
+- 支持进度条显示已完成/总题数
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 考题展示 + 选项 + 提交按钮。
+- loading: 骨架屏（Skeleton 灰色块）。
+- empty: 该类型无可用考题时 EmptyState。
+- error: Toast 右上角报错。
+- 特殊状态：未登录拦截；已通过考核显示"已获得资格"；信誉分不足显示禁用提示。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 考题卡片全宽（margin 16px），选项按钮纵向堆叠。
+- 平板 (≤1100px): 考题区最大宽度 540px，居中。
+- PC (>1100px): 考题区最大宽度 640px，居中。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -1133,29 +1155,31 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：待审案例卡片队列
 
 **核心组件清单**
+- `Header`
+- `ReviewCard`
+- `VerdictDetail`
 - `EmptyState`
 - `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：720px，居中
+- 每次展示 1 个待审案例，投票后展示下一条
+- 投票分布实时显示
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 案例详情 + 违规/不违规投票按钮 + 理由输入 + 投票分布。
+- loading: 骨架屏（Skeleton 灰色块）。
+- empty: 队列空时 EmptyState"暂无待审内容"。
+- error: Toast 右上角报错。
+- 特殊状态：未登录拦截；无对应类型判官资格显示"需先通过考核"；信誉分不足禁用投票。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 案例卡片全宽（margin 16px），投票按钮全宽纵向排列。
+- 平板 (≤1100px): 案例区最大宽度 640px，居中。
+- PC (>1100px): 案例区最大宽度 720px，居中。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -1177,29 +1201,31 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：按日期分组的浏览历史列表
 
 **核心组件清单**
+- `Header`
+- `ContentCard`
+- `ConfirmModal`（清除全部确认）
 - `EmptyState`
 - `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：720px，居中
+- 日期分组标题 + 卡片列表，每页 30 条滚动加载
+- 区域间距（block）：24px (`space-y-6`)
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 按日期分组（今天/昨天/日期）展示浏览过的内容卡片。
+- loading: 骨架屏（Skeleton 灰色块）。
+- empty: "暂无浏览记录" EmptyState + 探索首页 CTA。
+- error: Toast 右上角报错。
+- 特殊状态：未登录拦截跳转 /login。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 列表全宽（margin 16px）。
+- 平板 (≤1100px): 内容区最大宽度 640px，居中。
+- PC (>1100px): 内容区最大宽度 720px，居中。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -1221,29 +1247,30 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：申诉列表卡片 + 新建申诉表单
 
 **核心组件清单**
+- `Header`
 - `EmptyState`
 - `LoadingSpinner`
+- `ConfirmModal`（提交申诉确认）
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：720px，居中
+- 申诉列表 + 申诉表单，纵向排列
+- 区域间距（block）：24px (`space-y-6`)
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 我的申诉列表（含状态 Badge）+ 新建申诉入口。
+- loading: 骨架屏（Skeleton）。
+- empty: "暂无申诉记录" EmptyState。
+- error: Toast 右上角报错。
+- 特殊状态：未登录拦截；被 ban 内容才可申诉。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 列表全宽（margin 16px）。
+- 平板 (≤1100px): 内容区最大宽度 640px，居中。
+- PC (>1100px): 内容区最大宽度 720px，居中。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -1265,29 +1292,32 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：通知列表 + 私信对话列表，Tab 切换
 
 **核心组件清单**
+- `Header`
+- `NotificationList`
+- `ConversationList`
+- `ChatWindow`
 - `EmptyState`
 - `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：960px，居中
+- 左侧对话列表 + 右侧聊天窗口（桌面端），移动端单栏切换
+- 区域间距（block）：16px (`space-y-4`)
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 通知/私信 Tab + 列表 + 聊天窗口。
+- loading: 骨架屏（Skeleton 灰色块）。
+- empty: "暂无消息" EmptyState。
+- error: Toast 右上角报错。
+- 特殊状态：未登录拦截；hover 显示单条标记已读/删除操作。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 单栏切换（列表或聊天窗口全宽），底部 Tab 切换通知/私信。
+- 平板 (≤1100px): 左侧列表 240px + 右侧聊天区自适应。
+- PC (>1100px): 左侧列表 300px + 右侧聊天区自适应。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -1305,33 +1335,35 @@ interface FacetedSearchSidebarProps {
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 每门课程仅能完成一次，最低阅读 3 分钟（180 秒）。
 
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：课程列表卡片 + 课程内容详情区
 
 **核心组件清单**
+- `Header`
+- `CourseCard`
+- `CourseContent`
 - `EmptyState`
 - `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：720px，居中
+- 课程列表 → 课程内容（Markdown 渲染），阅读计时器
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 课程列表 + 已匹配违规类型高亮。
+- loading: 骨架屏（Skeleton）。
+- empty: "暂无可选课程" EmptyState。
+- error: Toast 右上角报错。
+- 特殊状态：未登录拦截；信誉分 ≥ 3 时显示"信誉分正常，无需学习"。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 课程区全宽（margin 16px），课程内容 Markdown 自适应。
+- 平板 (≤1100px): 内容区最大宽度 640px，居中。
+- PC (>1100px): 内容区最大宽度 720px，居中。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -1347,38 +1379,38 @@ interface FacetedSearchSidebarProps {
 ## Page: /admin/ips IP 库管理
 
 **Key Constraints**
-- 二创区页面/组件：依托于 ips.category 进行展示或跳转。
 - 后台页面：Role 必须为 admin 且二次校验拦截，包含 ConfirmModal 二次确认。
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：待审核 IP 表格 + 操作列
 
 **核心组件清单**
 - `Header`
-- `ContentCard`
-- `MasonryGrid`
-- `Footer`
+- `AdminNav`
+- `Table`
+- `ConfirmModal`（通过/拒绝 IP 二次确认）
+- `EmptyState`
+- `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：1280px
+- 左侧管理导航 + 右侧 IP 审核表格
+- 表格支持状态筛选、搜索
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 待审 IP 表格（名称/分类/提交人/状态/操作）。
+- loading: 表格骨架屏。
+- empty: "无待审核 IP" EmptyState。
+- error: Toast 右上角报错。
+- 特殊状态：非 admin 角色 403 拦截。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 表格水平滚动，管理导航折叠为顶部 Tab。
+- 平板 (≤1100px): 表格自适应宽度。
+- PC (>1100px): 左侧管理导航 220px + 右侧表格自适应。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -1400,29 +1432,32 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：待审内容表格 + 操作列
 
 **核心组件清单**
+- `Header`
+- `AdminNav`
+- `Table`
+- `ConfirmModal`（ban 内容二次确认）
 - `EmptyState`
 - `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：1280px
+- 左侧管理导航 + 右侧内容表格
+- 表格支持分页、状态筛选
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 待审内容表格（标题/作者/类型/举报数/状态/操作）。
+- loading: 表格骨架屏。
+- empty: "无待审内容" EmptyState。
+- error: Toast 右上角报错。
+- 特殊状态：非 admin 角色 403 拦截。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 表格水平滚动，管理导航折叠为顶部 Tab。
+- 平板 (≤1100px): 表格自适应宽度，管理导航左侧 180px。
+- PC (>1100px): 左侧管理导航 220px + 右侧表格自适应。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -1444,29 +1479,32 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：用户表格 + 搜索筛选 + 操作列
 
 **核心组件清单**
+- `Header`
+- `AdminNav`
+- `Table`
+- `ConfirmModal`（ban 用户二次确认，输入原因）
 - `EmptyState`
 - `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：1280px
+- 左侧管理导航 + 右侧用户表格
+- 表格支持搜索、分页、信誉分筛选
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 用户表格（头像/用户名/邮箱/信誉分/角色/状态/操作）。
+- loading: 表格骨架屏。
+- empty: "无匹配用户" EmptyState。
+- error: Toast 右上角报错。
+- 特殊状态：非 admin 角色 403 拦截。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 表格水平滚动，管理导航折叠为顶部 Tab。
+- 平板 (≤1100px): 表格自适应宽度。
+- PC (>1100px): 左侧管理导航 220px + 右侧表格自适应。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -1488,29 +1526,31 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：申诉列表 + 申诉详情侧栏 + 处理操作
 
 **核心组件清单**
+- `Header`
+- `AdminNav`
+- `Table`
+- `ConfirmModal`（通过/驳回申诉二次确认，输入处理原因）
 - `EmptyState`
 - `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：1280px
+- 左侧管理导航 + 申诉列表
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 申诉列表（申请人/类型/原内容/原因/状态/操作）。
+- loading: 表格骨架屏。
+- empty: "无待处理申诉" EmptyState。
+- error: Toast 右上角报错。
+- 特殊状态：非 admin 角色 403 拦截。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 表格水平滚动，管理导航折叠为顶部 Tab。
+- 平板 (≤1100px): 表格自适应宽度。
+- PC (>1100px): 左侧管理导航 220px + 右侧表格自适应。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -1528,33 +1568,34 @@ interface FacetedSearchSidebarProps {
 **Key Constraints**
 - 后台页面：Role 必须为 admin 且二次校验拦截，包含 ConfirmModal 二次确认。
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 热更新配置，重启后恢复 config.yaml 默认值。
 
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：配置分组表单（limits/features/reputation/agent/social/labels）
 
 **核心组件清单**
+- `Header`
+- `AdminNav`
+- `ConfirmModal`（保存配置二次确认）
 - `EmptyState`
 - `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：720px，居中
+- 左侧管理导航 + 配置表单（JSON/YAML 编辑或结构化表单）
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 当前配置键值对表单。
+- loading: 骨架屏（Skeleton）。
+- error: 行内红字提示 + Toast 报错。
+- 特殊状态：非 admin 角色 403 拦截。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 表单全宽（margin 16px），管理导航折叠。
+- 平板 (≤1100px): 配置区最大宽度 640px，居中。
+- PC (>1100px): 左侧管理导航 220px + 右侧配置表单 500px。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -1576,29 +1617,33 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：分类树形列表 + 标签管理
 
 **核心组件清单**
+- `Header`
+- `AdminNav`
+- `Table`
+- `ConfirmModal`（增删改分类二次确认）
+- `TagBadge`
 - `EmptyState`
 - `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：1280px
+- 左侧管理导航 + 右侧分类树/标签列表
+- 支持拖拽排序、增删改
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 分类树（父/子级）+ 标签列表 + 操作按钮。
+- loading: 骨架屏（Skeleton）。
+- empty: 分类/标签为空时 EmptyState。
+- error: Toast 右上角报错。
+- 特殊状态：非 admin 角色 403 拦截。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 分类树折叠，管理导航折叠为顶部 Tab。
+- 平板 (≤1100px): 树形列表自适应。
+- PC (>1100px): 左侧管理导航 220px + 右侧分类管理区自适应。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
@@ -1621,29 +1666,33 @@ interface FacetedSearchSidebarProps {
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：当前生效配置卡片 + LLM 配置表格
 
 **核心组件清单**
+- `Header`
+- `AdminNav`
+- `ActiveConfigCard`
+- `LLMConfigTable`
+- `LLMConfigModal`（新建/编辑 LLM 配置弹窗）
+- `ConfirmModal`（删除/切换生效确认）
 - `EmptyState`
 - `LoadingSpinner`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：1280px
+- 左侧管理导航 + 右侧当前配置区 + 历史配置表
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 生效配置卡片 + 配置列表表格 + 新建按钮。
+- loading: 骨架屏（Skeleton）。
+- empty: 无配置时 EmptyState + 新建 CTA。
+- error: Toast 右上角报错。
+- 特殊状态：非 admin 角色 403 拦截；`agent.web_agent_enabled=false` 时显示功能禁用提示。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 表格水平滚动，管理导航折叠为顶部 Tab。
+- 平板 (≤1100px): 表格自适应宽度。
+- PC (>1100px): 左侧管理导航 220px + 右侧配置区自适应。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`

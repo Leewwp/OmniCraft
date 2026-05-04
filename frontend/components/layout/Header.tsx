@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Sun, Moon, Monitor, Search, User, LogOut, LayoutDashboard, Brush } from "lucide-react";
+import { Sun, Moon, Monitor, Search, User, LogOut, LayoutDashboard, Brush, Clock, Settings, Shield } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -102,6 +102,18 @@ export function Header() {
                 <DropdownMenuItem onClick={() => router.push("/dashboard")}>
                   <LayoutDashboard className="mr-2 h-4 w-4" />
                   创作者后台
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push("/history")}>
+                  <Clock className="mr-2 h-4 w-4" />
+                  浏览历史
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push("/settings")}>
+                  <Settings className="mr-2 h-4 w-4" />
+                  账号设置
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push("/appeals")}>
+                  <Shield className="mr-2 h-4 w-4" />
+                  我的申诉
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
