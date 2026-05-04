@@ -37,7 +37,7 @@ func (r *ContentRepository) CreateContent(content *model.ContentItem) error {
 
 func (r *ContentRepository) FindByID(id int64) (*model.ContentItem, error) {
 	var content model.ContentItem
-	err := r.db.First(&content, id).Error
+	err := r.db.Preload("Author").First(&content, id).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -51,7 +51,7 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 	var items []model.ContentItem
 	var total int64
 
-	q := r.db.Model(&model.ContentItem{})
+	q := r.db.Model(&model.ContentItem{}).Preload("Author")
 
 	if f.Status != "" {
 		q = q.Where("status = ?", f.Status)

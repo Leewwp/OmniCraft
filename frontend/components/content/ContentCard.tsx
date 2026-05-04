@@ -16,19 +16,37 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export interface ContentCardData {
-  id: number;
-  title: string;
+  // Go API returns uppercase fields
+  ID?: number;
+  id?: number;
+  Title?: string;
+  title?: string;
+  AuthorID?: number;
   author_id?: number;
-  author?: {
+  Author?: {
+    ID?: number;
+    Username?: string;
     username?: string;
   };
+  author?: {
+    id?: number;
+    username?: string;
+  };
+  Zone?: string;
   zone?: string;
+  ContentType?: string;
   content_type?: string;
+  CoverImageURL?: string;
   cover_image_url?: string;
+  ViewCount?: number;
   view_count?: number;
+  LikeCount?: number;
   like_count?: number;
+  CommentCount?: number;
   comment_count?: number;
+  Tags?: string[];
   tags?: string[];
+  Category?: string;
   category?: string;
 }
 
@@ -80,22 +98,31 @@ function getTypeIcon(contentType: string) {
 }
 
 function getCardHref(data: ContentCardData): string {
-  if (data.zone === "original") {
-    return `/original/${data.id}`;
+  const id = data.ID ?? data.id ?? 0;
+  const zone = data.Zone ?? data.zone ?? "";
+  if (zone === "original") {
+    return `/original/${id}`;
   }
-  return `/content/${data.id}`;
+  return `/content/${id}`;
 }
 
 export function ContentCard({ data, className }: ContentCardProps) {
-  const contentType = data.content_type || "other";
+  const contentType = data.ContentType ?? data.content_type ?? "other";
   const Icon = getTypeIcon(contentType);
+  const rawTags = data.Tags ?? data.tags ?? [];
+  const category = data.Category ?? data.category;
   const tagCandidates =
-    data.tags && data.tags.length > 0
-      ? data.tags
-      : [getTypeLabel(contentType), data.category].filter(
+    rawTags.length > 0
+      ? rawTags
+      : [getTypeLabel(contentType), category].filter(
           (item): item is string => Boolean(item)
         );
   const tags = tagCandidates.slice(0, 3);
+  const coverUrl = data.CoverImageURL ?? data.cover_image_url;
+  const displayTitle = data.Title ?? data.title ?? "";
+  const authorName = data.Author?.Username ?? data.author?.username ?? "";
+  const authorId = data.AuthorID ?? data.author_id;
+  const zone = data.Zone ?? data.zone;
 
   return (
     <Link
@@ -106,11 +133,11 @@ export function ContentCard({ data, className }: ContentCardProps) {
       )}
     >
       <div className="aspect-[3/4] w-full border-b border-border bg-muted/40">
-        {data.cover_image_url ? (
+        {coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={data.cover_image_url}
-            alt={data.title}
+            src={coverUrl}
+            alt={displayTitle}
             className="h-full w-full object-cover"
             loading="lazy"
           />
@@ -127,10 +154,10 @@ export function ContentCard({ data, className }: ContentCardProps) {
       <div className="flex flex-col gap-3 p-3">
         <div className="space-y-1">
           <h3 className="line-clamp-2 text-sm font-semibold text-foreground">
-            {data.title}
+            {displayTitle}
           </h3>
           <p className="text-xs text-muted-foreground">
-            {data.author?.username || `用户 #${data.author_id ?? "-"}`}
+            {authorName || `用户 #${authorId ?? "-"}`}
           </p>
         </div>
 
@@ -147,15 +174,15 @@ export function ContentCard({ data, className }: ContentCardProps) {
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <Heart className="h-3.5 w-3.5" />
-            {data.like_count ?? 0}
+            {data.LikeCount ?? data.like_count ?? 0}
           </span>
           <span className="inline-flex items-center gap-1">
             <MessageCircle className="h-3.5 w-3.5" />
-            {data.comment_count ?? 0}
+            {data.CommentCount ?? data.comment_count ?? 0}
           </span>
           <span className="inline-flex items-center gap-1">
             <Eye className="h-3.5 w-3.5" />
-            {data.view_count ?? 0}
+            {data.ViewCount ?? data.view_count ?? 0}
           </span>
         </div>
       </div>
