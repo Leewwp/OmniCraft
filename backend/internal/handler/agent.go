@@ -6,6 +6,7 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -21,11 +22,18 @@ type AgentHandler struct {
 
 func NewAgentHandler(db *gorm.DB, cfg *config.Config) *AgentHandler {
 	provider := llm.NewProvider(cfg)
+	greenClient := aliyun.NewGreenClient(
+		cfg.Green.AccessKeyID,
+		cfg.Green.AccessKeySecret,
+		cfg.Green.Region,
+	)
 	return &AgentHandler{
 		agentSvc: service.NewAgentService(
 			provider,
 			repository.NewEmbeddingRepository(db),
 			repository.NewContentRepository(db),
+			greenClient,
+			db,
 			cfg,
 		),
 		cfg: cfg,

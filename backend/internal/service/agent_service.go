@@ -7,9 +7,13 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
+
+	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/repository"
 )
@@ -21,14 +25,18 @@ type AgentService struct {
 	llmProvider   llm.LLMProvider
 	embeddingRepo *repository.EmbeddingRepository
 	contentRepo   *repository.ContentRepository
+	greenClient   *aliyun.GreenClient
+	db            *gorm.DB
 	cfg           *config.Config
 }
 
-func NewAgentService(provider llm.LLMProvider, embeddingRepo *repository.EmbeddingRepository, contentRepo *repository.ContentRepository, cfg *config.Config) *AgentService {
+func NewAgentService(provider llm.LLMProvider, embeddingRepo *repository.EmbeddingRepository, contentRepo *repository.ContentRepository, greenClient *aliyun.GreenClient, db *gorm.DB, cfg *config.Config) *AgentService {
 	return &AgentService{
 		llmProvider:   provider,
 		embeddingRepo: embeddingRepo,
 		contentRepo:   contentRepo,
+		greenClient:   greenClient,
+		db:            db,
 		cfg:           cfg,
 	}
 }
@@ -88,6 +96,28 @@ func (s *AgentService) ComplianceCheck(ctx context.Context, title, description, 
 		return nil, ErrAgentDisabled
 	}
 
+	// Step 1/3: Aliyun Green text moderation
+	var greenResult string
+	var greenReason string
+	text := strings.TrimSpace(title + "\n" + description)
+	if s.greenClient != nil && text != "" {
+		scanRes, err := s.greenClient.TextModeration(ctx, text)
+		if err == nil {
+			greenResult = scanRes.Result
+			greenReason = scanRes.Reason
+		}
+	}
+
+	// Green block → immediate violation, skip LLM
+	if greenResult == "block" {
+		return &ComplianceResult{
+			RiskLevel:   "violation",
+			Reason:      "Content flagged by automated safety check: " + greenReason,
+			Suggestions: []string{"Content violates platform safety policy"},
+		}, nil
+	}
+
+	// Step 2/3: LLM copyright / compliance analysis
 	prompt := fmt.Sprintf(`Analyze the following content for compliance issues (copyright infringement, inappropriate content):
 Title: %s
 Description: %s
@@ -107,14 +137,43 @@ Respond ONLY with valid JSON: {"risk_level":"safe|warning|violation","reason":""
 
 	resp, err := s.llmProvider.Chat(ctx, req)
 	if err != nil {
+		// LLM unavailable but Green returned review → return warning
+		if greenResult == "review" {
+			return &ComplianceResult{
+				RiskLevel:   "warning",
+				Reason:      "Content requires manual review (safety check: " + greenReason + ")",
+				Suggestions: []string{"LLM analysis unavailable, review manually"},
+			}, nil
+		}
 		return nil, err
 	}
 
-	var result ComplianceResult
-	if err := json.Unmarshal([]byte(resp.Content), &result); err != nil {
-		result = ComplianceResult{RiskLevel: "safe", Reason: resp.Content}
+	var llmResult ComplianceResult
+	if err := json.Unmarshal([]byte(resp.Content), &llmResult); err != nil {
+		llmResult = ComplianceResult{RiskLevel: "safe", Reason: resp.Content}
 	}
-	return &result, nil
+
+	// Step 3/3: Aggregate Green + LLM results
+	return aggregateComplianceResults(greenResult, greenReason, &llmResult), nil
+}
+
+func aggregateComplianceResults(greenResult, greenReason string, llmResult *ComplianceResult) *ComplianceResult {
+	if greenResult == "block" {
+		return &ComplianceResult{
+			RiskLevel:   "violation",
+			Reason:      "Content flagged by automated safety check: " + greenReason,
+			Suggestions: []string{"Content violates platform safety policy"},
+		}
+	}
+	if greenResult == "review" {
+		if llmResult.RiskLevel == "safe" {
+			llmResult.RiskLevel = "warning"
+		}
+		if greenReason != "" {
+			llmResult.Reason = "[SafetyCheck:review] " + llmResult.Reason
+		}
+	}
+	return llmResult
 }
 
 type ContentSummary struct {
@@ -243,6 +302,21 @@ func (s *AgentService) Moderate(ctx context.Context, contentItemID int64) (*Mode
 		return nil, ErrContentNotFound
 	}
 
+	// Step 1: Aliyun Green text moderation
+	var greenResult string
+	var greenViolations []string
+	text := strings.TrimSpace(content.Title + "\n" + content.Description)
+	if s.greenClient != nil && text != "" {
+		scanRes, err := s.greenClient.TextModeration(ctx, text)
+		if err == nil {
+			greenResult = scanRes.Result
+			if scanRes.Result == "block" {
+				greenViolations = append(greenViolations, scanRes.Reason)
+			}
+		}
+	}
+
+	// Step 2: LLM comprehensive analysis
 	prompt := fmt.Sprintf(`Moderate this content for policy violations:
 Title: %s
 Description: %s
@@ -263,14 +337,44 @@ Respond ONLY with JSON: {"risk_level":"safe|warning|violation","violations":[],"
 
 	resp, err := s.llmProvider.Chat(ctx, req)
 	if err != nil {
+		// LLM unavailable, use Green result as fallback
+		if greenResult == "block" {
+			return &ModerationResult{
+				RiskLevel:  "violation",
+				Violations: greenViolations,
+			}, nil
+		}
 		return nil, err
 	}
 
-	var result ModerationResult
-	if err := json.Unmarshal([]byte(resp.Content), &result); err != nil {
-		result = ModerationResult{RiskLevel: "safe", Violations: []string{}, Suggestions: []string{}}
+	var llmResult ModerationResult
+	if err := json.Unmarshal([]byte(resp.Content), &llmResult); err != nil {
+		llmResult = ModerationResult{RiskLevel: "safe", Violations: []string{}, Suggestions: []string{}}
 	}
-	return &result, nil
+
+	// Aggregate: Green violations take precedence
+	if greenResult == "block" {
+		llmResult.RiskLevel = "violation"
+		llmResult.Violations = append(greenViolations, llmResult.Violations...)
+	}
+
+	// Step 3: Auto-create AI review record on violation
+	if llmResult.RiskLevel == "violation" && s.db != nil {
+		raw, _ := json.Marshal(llmResult)
+		record := model.AIReviewRecord{
+			TargetType:  "content",
+			TargetID:    contentItemID,
+			Provider:    "agent",
+			Result:      "block",
+			RawResponse: raw,
+			ScannedAt:   time.Now(),
+		}
+		if err := s.db.Create(&record).Error; err != nil {
+			log.Printf("failed to create ai review record for content %d: %v", contentItemID, err)
+		}
+	}
+
+	return &llmResult, nil
 }
 
 func (s *AgentService) EmbedContentAsync(contentItemID int64, text string) {
