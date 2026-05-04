@@ -436,7 +436,7 @@
         "## Component: SheetMusicViewer",
         "## Component: CommentSection"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 25,
@@ -621,7 +621,7 @@
         "## Component: ReviewCard",
         "## Component: VerdictDetail"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 32,
