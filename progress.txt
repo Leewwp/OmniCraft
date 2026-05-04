@@ -1,6 +1,51 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
+## [2026-05-05] - Task 31: Web 前端 — 赛博判官页面
+
+### What was done:
+- 新建 components/judge/ExamQuestion.tsx：单题渲染组件（题目文本 + 四选项 + 选中高亮 + disabled 状态）
+- 新建 app/(protected)/judge/exam/page.tsx：资质考核页面（选择内容类型 → 获取 10 道考题 → 逐题答题 + 进度条 → 提交答案 → 显示通过/未通过结果）
+- 新建 components/judge/ReviewCard.tsx：待审内容卡片（展示案例信息 + 举报原因 + 当前投票进度条（已投/最低阈值）+ 不违规/违规投票按钮 + 确认弹窗 + 可选判定理由）
+- 新建 components/judge/VerdictDetail.tsx：判决详情组件（投票分布不违规/违规比例进度条 + 判决结果（已结案时）+ 判官理由列表（按赞数排序）+ 理由点赞/点踩）
+- 新建 app/(protected)/judge/queue/page.tsx：待审内容队列页面（获取队列 → 逐个展示案例 → 投票后显示 VerdictDetail → 下一条 → 队列空状态/完成状态）
+
+### Testing:
+- npm run build: ✅ Turbopack 编译成功，/judge/exam 和 /judge/queue 路由正确注册
+- npm run lint (tsc --noEmit): ✅ 零错误
+
+### Notes:
+- 所有页面均使用 "use client" 模式，通过 api 模块调用后端 judge API
+- 信誉分 < 3 时考核页面和投票按钮均 disabled，显示警告提示
+- 未登录用户自动跳转 /login
+- UI 遵循全局扁平化无阴影规范，1px border 设计
+- 理由点赞/点踩使用乐观更新模式
+
+---
+## [2026-05-05] - Task 24: Web 前端 — 内容详情页
+
+### What was done:
+- 新建 components/content/MarkdownRenderer.tsx：react-markdown + 代码块样式渲染 MD 内容
+- 新建 components/content/ContentDetail.tsx：根据 content_type 渲染对应内容（MD 文章/图片/视频/音频/乐谱/Mod/提示词/模板），含封面图（有 URL 显示图片，无则显示类型占位图）、附件下载、一键部署按钮、收藏按钮、ReactionBar、CommentSection
+- 新建 components/content/SheetMusicViewer.tsx：乐谱附件列表 + 下载 + 预览提示
+- 新建 components/social/ReactionBar.tsx：点赞/点踩/举报（含乐观更新、信誉分不足 disabled）
+- 新建 components/social/CommentSection.tsx：评论区（含评论列表、发评、楼中楼、点赞/点踩）
+- 重写 app/(public)/content/[contentId]/page.tsx：SSR 获取内容详情 → ContentDetail + VersionHistory（仅二创区）
+- 保留 ContentDetailClient.tsx 供 original/[contentId] 页面使用
+
+### Testing:
+- npm run build: ✅ Turbopack 编译成功
+- npm run lint (tsc --noEmit): ✅ 零错误
+- go build ./...: ✅ 通过
+
+### Notes:
+- ContentDetail 是 "use client" 组件，page.tsx 是 SSR 服务端组件，通过 props 传递数据
+- 一键部署按钮仅 agent_enabled=true && content_type IN ('mod','prompt') 时显示
+- 下载按钮仅 allow_copy=true 时显示
+- 版本历史仅二创区 (zone=fanwork) 显示
+- 乐谱类型使用 SheetMusicViewer 渲染附件
+
+---
 ## [2026-05-04] - 批量开发：Tasks 27-30, 68, 80 + 67 代码完成（迁移阻塞）
 
 ### 已完成：
