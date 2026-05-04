@@ -7,6 +7,8 @@ export const AUTH_KEYS = {
 export function saveTokens(accessToken: string, refreshToken: string) {
   localStorage.setItem(AUTH_KEYS.ACCESS_TOKEN, accessToken);
   localStorage.setItem(AUTH_KEYS.REFRESH_TOKEN, refreshToken);
+  // Also set cookie for middleware route protection
+  document.cookie = `access_token=${accessToken}; path=/; max-age=7200; SameSite=Lax`;
 }
 
 export function getAccessToken(): string | null {
@@ -23,6 +25,8 @@ export function clearTokens() {
   localStorage.removeItem(AUTH_KEYS.ACCESS_TOKEN);
   localStorage.removeItem(AUTH_KEYS.REFRESH_TOKEN);
   localStorage.removeItem(AUTH_KEYS.USER);
+  // Also clear cookie
+  document.cookie = "access_token=; path=/; max-age=0";
 }
 
 export function isTokenExpired(token: string): boolean {

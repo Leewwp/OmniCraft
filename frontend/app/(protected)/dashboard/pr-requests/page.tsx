@@ -9,8 +9,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
 
 interface ContentItem {
-  id: number;
-  title: string;
+  ID?: number;
+  id?: number;
+  Title?: string;
+  title?: string;
 }
 
 interface VersionContentResponse {
@@ -48,8 +50,9 @@ export default function PRRequestsPage() {
         const contents = contentData.contents || [];
         const allPRs = await Promise.all(
           contents.map(async (content) => {
-            const data = await api.get<{ prs?: PRCardData[] }>(`/api/v1/contents/${content.id}/prs?status=open`);
-            return (data.prs || []).map((pr) => ({ ...pr, contentTitle: content.title }));
+            const cid = content.ID ?? content.id ?? 0;
+            const data = await api.get<{ prs?: PRCardData[] }>(`/api/v1/contents/${cid}/prs?status=open`);
+            return (data.prs || []).map((pr) => ({ ...pr, contentTitle: content.Title ?? content.title ?? "" }));
           })
         );
 
