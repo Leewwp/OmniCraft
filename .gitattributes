@@ -1,0 +1,12 @@
+# Force LF for ALL text files — ensures Windows git and WSL git agree
+* text eol=lf
+
+# Binary files (git will auto-detect others, but these are safe to declare)
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.ico      binary
+*.pdf      binary
+*.zip      binary
+*.gz       binary
