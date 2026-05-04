@@ -1254,8 +1254,8 @@ OSS_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com
 OSS_CDN_DOMAIN=                   # 可选，CDN 加速域名
 
 # 阿里云内容安全
-ALIYUN_GREEN_ENDPOINT=green.cn-hangzhou.aliyuncs.com
-ALIYUN_GREEN_CALLBACK_URL=https://api.omnicraft.com/api/v1/internal/ai-callback
+ALIYUN_GREEN_ENDPOINT=green-cip.cn-hangzhou.aliyuncs.com
+ALIYUN_GREEN_CALLBACK_URL=
 
 # Agent 签名
 AGENT_HMAC_SECRET=<随机 32 字节>
