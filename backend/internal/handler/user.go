@@ -1,29 +1,43 @@
 package handler
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 
+	"github.com/redis/go-redis/v9"
+	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
+
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type UserHandler struct {
 	userRepo    *repository.UserRepository
 	reputSvc    *service.ReputationService
 	contentRepo *repository.ContentRepository
+	authSvc     *service.AuthService
+	rdb         *redis.Client
+	cfg         *config.Config
+	jwtSecret   string
 }
 
-func NewUserHandler(db *gorm.DB) *UserHandler {
+func NewUserHandler(db *gorm.DB, authSvc *service.AuthService, rdb *redis.Client, cfg *config.Config) *UserHandler {
 	return &UserHandler{
 		userRepo:    repository.NewUserRepository(db),
 		reputSvc:    service.NewReputationService(db),
 		contentRepo: repository.NewContentRepository(db),
+		authSvc:     authSvc,
+		rdb:         rdb,
+		cfg:         cfg,
+		jwtSecret:   cfg.JWT.Secret,
 	}
 }
 
@@ -155,6 +169,139 @@ func (h *UserHandler) GetUserContents(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"contents": items, "total": total})
+}
+
+func (h *UserHandler) ChangePassword(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+
+	var req struct {
+		OldPassword string `json:"old_password" binding:"required"`
+		NewPassword string `json:"new_password" binding:"required,min=6,max=128"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		return
+	}
+
+	user, err := h.userRepo.FindByID(callerID)
+	if err != nil || user == nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"code": "INVALID_PASSWORD", "message": "old password is incorrect"})
+		return
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to hash password"})
+		return
+	}
+
+	if err := h.userRepo.UpdateFields(callerID, map[string]interface{}{"password_hash": string(hash)}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		return
+	}
+
+	invalidateUserTokens(h.rdb, callerID)
+
+	c.JSON(http.StatusOK, gin.H{"message": "password changed successfully"})
+}
+
+func (h *UserHandler) DeleteAccount(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+
+	var req struct {
+		Password string `json:"password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		return
+	}
+
+	user, err := h.userRepo.FindByID(callerID)
+	if err != nil || user == nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"code": "INVALID_PASSWORD", "message": "password is incorrect"})
+		return
+	}
+
+	anonName := fmt.Sprintf("已注销用户_%d", callerID)
+	anonEmail := fmt.Sprintf("deleted_%d@anon.local", callerID)
+	updates := map[string]interface{}{
+		"username":      anonName,
+		"email":         anonEmail,
+		"avatar_url":    "",
+		"bio":           "",
+		"is_banned":     true,
+		"ban_reason":    "self_deleted",
+		"password_hash": "",
+	}
+
+	if err := h.userRepo.UpdateFields(callerID, updates); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		return
+	}
+
+	invalidateUserTokens(h.rdb, callerID)
+
+	c.JSON(http.StatusOK, gin.H{"message": "account deleted successfully"})
+}
+
+func (h *UserHandler) UpdateSupportInfo(c *gin.Context) {
+	if !h.cfg.Features.CreatorSupportEnabled {
+		c.JSON(http.StatusForbidden, gin.H{"code": "FEATURE_DISABLED", "message": "creator support is not enabled"})
+		return
+	}
+
+	callerID := middleware.GetUserID(c)
+
+	var req struct {
+		DonationImageURL string   `json:"donation_image_url"`
+		ExternalLinks    []string `json:"external_links"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		return
+	}
+
+	if len(req.ExternalLinks) > 3 {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": "VALIDATION_ERROR", "message": "external_links maximum is 3"})
+		return
+	}
+
+	info := model.JSONMap{
+		"donation_image_url": req.DonationImageURL,
+		"external_links":     req.ExternalLinks,
+	}
+
+	if err := h.userRepo.UpdateFields(callerID, map[string]interface{}{"support_info": info}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "support info updated", "support_info": info})
+}
+
+func invalidateUserTokens(rdb *redis.Client, userID int64) {
+	if rdb == nil {
+		return
+	}
+	ctx := context.Background()
+	pattern := fmt.Sprintf("refresh_token:%d:*", userID)
+	keys, err := rdb.Keys(ctx, pattern).Result()
+	if err != nil {
+		return
+	}
+	if len(keys) > 0 {
+		rdb.Del(ctx, keys...)
+	}
 }
 
 func sanitizeUser(u *model.User) gin.H {

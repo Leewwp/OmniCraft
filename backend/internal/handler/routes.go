@@ -25,13 +25,16 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		auth.GET("/me", middleware.AuthRequired(cfg), authHandler.Me)
 	}
 
-	userHandler := NewUserHandler(db)
+	userHandler := NewUserHandler(db, authService, rdb, cfg)
 	users := v1.Group("/users")
 	{
 		users.GET("/:id", userHandler.GetUser)
 		users.PATCH("/:id", middleware.AuthRequired(cfg), userHandler.UpdateUser)
 		users.GET("/:id/reputation", userHandler.GetReputation)
 		users.GET("/:id/contents", userHandler.GetUserContents)
+		users.DELETE("/me", middleware.AuthRequired(cfg), userHandler.DeleteAccount)
+		users.PATCH("/me/password", middleware.AuthRequired(cfg), userHandler.ChangePassword)
+		users.PATCH("/me/support-info", middleware.AuthRequired(cfg), userHandler.UpdateSupportInfo)
 	}
 
 	ipHandler := NewIPHandler(db)
@@ -191,8 +194,17 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		agent.POST("/chat/stream", agentHandler.ChatStream)
 	}
 
-	adminHandler := NewAdminHandler(db, cfg)
-	admin := v1.Group("/admin", middleware.AuthRequired(cfg), middleware.AdminRequired())
+	rehabHandler := NewRehabHandler(db)
+		rehab := v1.Group("/rehab", middleware.AuthRequired(cfg))
+		{
+			rehab.GET("/courses", rehabHandler.ListCourses)
+			rehab.GET("/courses/:id", rehabHandler.GetCourse)
+			rehab.POST("/courses/:id/complete", rehabHandler.CompleteCourse)
+			rehab.GET("/my-progress", rehabHandler.GetMyProgress)
+		}
+
+		adminHandler := NewAdminHandler(db, cfg)
+		admin := v1.Group("/admin", middleware.AuthRequired(cfg), middleware.AdminRequired())
 	{
 		admin.GET("/ips", adminHandler.ListPendingIPs)
 		admin.POST("/ips/:id/approve", adminHandler.ApproveIP)
@@ -210,7 +222,13 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		admin.PATCH("/categories/:id", catHandler.AdminUpdateCategory)
 		admin.DELETE("/categories/:id", catHandler.AdminDeleteCategory)
 		admin.PUT("/categories/reorder", catHandler.AdminReorderCategories)
-	}
+			admin.GET("/llm-configs", adminHandler.ListLLMConfigs)
+			admin.POST("/llm-configs", adminHandler.CreateLLMConfig)
+			admin.PATCH("/llm-configs/:id", adminHandler.UpdateLLMConfig)
+			admin.DELETE("/llm-configs/:id", adminHandler.DeleteLLMConfig)
+			admin.POST("/llm-configs/:id/activate", adminHandler.ActivateLLMConfig)
+			admin.POST("/llm-configs/:id/test", adminHandler.TestLLMConfig)
+		}
 
 	internalHandler := NewInternalHandler(db, rdb, cfg)
 	internal := v1.Group("/internal")
