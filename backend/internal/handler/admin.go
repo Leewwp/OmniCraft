@@ -13,20 +13,22 @@ import (
 )
 
 type AdminHandler struct {
-	ipSvc       *service.IPService
-	contentRepo *repository.ContentRepository
-	userRepo    *repository.UserRepository
-	socialRepo  *repository.SocialRepository
-	cfg         *config.Config
+	ipSvc         *service.IPService
+	contentRepo   *repository.ContentRepository
+	userRepo      *repository.UserRepository
+	socialRepo    *repository.SocialRepository
+	llmConfigSvc  *service.LLMConfigService
+	cfg           *config.Config
 }
 
 func NewAdminHandler(db *gorm.DB, cfg *config.Config) *AdminHandler {
 	return &AdminHandler{
-		ipSvc:       service.NewIPService(repository.NewIPRepository(db)),
-		contentRepo: repository.NewContentRepository(db),
-		userRepo:    repository.NewUserRepository(db),
-		socialRepo:  repository.NewSocialRepository(db),
-		cfg:         cfg,
+		ipSvc:        service.NewIPService(repository.NewIPRepository(db)),
+		contentRepo:  repository.NewContentRepository(db),
+		userRepo:     repository.NewUserRepository(db),
+		socialRepo:   repository.NewSocialRepository(db),
+		llmConfigSvc: service.NewLLMConfigService(repository.NewLLMConfigRepository(db), cfg),
+		cfg:          cfg,
 	}
 }
 
@@ -242,4 +244,101 @@ func (h *AdminHandler) PatchConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"config": h.cfg, "message": "config updated"})
+}
+
+func (h *AdminHandler) ListLLMConfigs(c *gin.Context) {
+	configs, err := h.llmConfigSvc.ListConfigs()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"configs": configs})
+}
+
+func (h *AdminHandler) CreateLLMConfig(c *gin.Context) {
+	var req struct {
+		ConfigName   string `json:"config_name" binding:"required"`
+		ProviderType string `json:"provider_type" binding:"required"`
+		APIBase      string `json:"api_base"`
+		Model        string `json:"model" binding:"required"`
+		APIKey       string `json:"api_key"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		return
+	}
+	r, err := h.llmConfigSvc.CreateConfig(req.ConfigName, req.ProviderType, req.APIBase, req.Model, req.APIKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"config": r})
+}
+
+func (h *AdminHandler) UpdateLLMConfig(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid config id"})
+		return
+	}
+	var req map[string]interface{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		return
+	}
+	delete(req, "id")
+	delete(req, "is_active")
+	if err := h.llmConfigSvc.UpdateConfig(id, req); err != nil {
+		if err == service.ErrConfigNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"code": "CONFIG_NOT_FOUND", "message": "config not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "config updated"})
+}
+
+func (h *AdminHandler) DeleteLLMConfig(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid config id"})
+		return
+	}
+	if err := h.llmConfigSvc.DeleteConfig(id); err != nil {
+		if err == repository.ErrActiveConfigCannotDelete {
+			c.JSON(http.StatusConflict, gin.H{"code": "ACTIVE_CONFIG", "message": "cannot delete active config"})
+			return
+		}
+		c.JSON(http.StatusNotFound, gin.H{"code": "CONFIG_NOT_FOUND", "message": "config not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "config deleted"})
+}
+
+func (h *AdminHandler) ActivateLLMConfig(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid config id"})
+		return
+	}
+	if err := h.llmConfigSvc.ActivateConfig(id); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": "CONFIG_NOT_FOUND", "message": "config not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "config activated"})
+}
+
+func (h *AdminHandler) TestLLMConfig(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid config id"})
+		return
+	}
+	response, err := h.llmConfigSvc.TestConnection(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "TEST_FAILED", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"response": response})
 }
