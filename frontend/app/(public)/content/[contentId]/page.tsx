@@ -4,13 +4,21 @@ import { SubmitPREntry } from "@/components/pr/SubmitPREntry";
 import { ContentDetailClient } from "@/components/content/ContentDetailClient";
 
 interface ContentItem {
-  id: number;
-  title: string;
+  ID?: number;
+  id?: number;
+  Title?: string;
+  title?: string;
+  Description?: string;
   description?: string;
+  ContentType?: string;
   content_type?: string;
+  AuthorID?: number;
   author_id?: number;
+  CoverImageURL?: string;
   cover_image_url?: string;
+  AllowCopy?: boolean;
   allow_copy?: boolean;
+  Zone?: string;
   zone?: string;
 }
 
@@ -67,7 +75,8 @@ export default async function FanworkContentDetailPage({
     notFound();
   }
 
-  if (data.content.zone === "original") {
+  const zone = data.content.Zone ?? data.content.zone;
+  if (zone === "original") {
     notFound();
   }
 
@@ -77,23 +86,23 @@ export default async function FanworkContentDetailPage({
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6">
       <article className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
         <header className="space-y-2">
-          <h1 className="text-2xl font-bold tracking-tight">{data.content.title}</h1>
-          <p className="text-sm text-muted-foreground">创作者：用户 #{data.content.author_id ?? "-"}</p>
-          <p className="text-xs text-muted-foreground">类型：{data.content.content_type || "other"}</p>
+          <h1 className="text-2xl font-bold tracking-tight">{data.content.Title ?? data.content.title}</h1>
+          <p className="text-sm text-muted-foreground">创作者：用户 #{(data.content.AuthorID ?? data.content.author_id) ?? "-"}</p>
+          <p className="text-xs text-muted-foreground">类型：{(data.content.ContentType ?? data.content.content_type) || "other"}</p>
         </header>
 
-        {data.content.cover_image_url ? (
+        {(data.content.CoverImageURL ?? data.content.cover_image_url) ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={data.content.cover_image_url}
-            alt={data.content.title}
+            src={data.content.CoverImageURL ?? data.content.cover_image_url}
+            alt={data.content.Title ?? data.content.title}
             className="max-h-96 w-full rounded-md border border-border object-cover"
           />
         ) : null}
 
         <section className="rounded-md border border-border bg-muted/30 p-3">
           <p className="text-sm leading-relaxed text-foreground/90">
-            {data.content.description || "该内容暂无文字说明。"}
+            {(data.content.Description ?? data.content.description) || "该内容暂无文字说明。"}
           </p>
         </section>
 
@@ -110,10 +119,10 @@ export default async function FanworkContentDetailPage({
         <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
           <p className="text-xs text-muted-foreground">二创内容支持 PR 协同修改流程。</p>
           <SubmitPREntry
-            contentId={data.content.id}
-            zone={data.content.zone}
-            allowCopy={data.content.allow_copy}
-            authorId={data.content.author_id}
+            contentId={data.content.ID ?? data.content.id ?? 0}
+            zone={data.content.Zone ?? data.content.zone ?? ""}
+            allowCopy={data.content.AllowCopy ?? data.content.allow_copy}
+            authorId={data.content.AuthorID ?? data.content.author_id ?? 0}
           />
         </div>
 
@@ -130,7 +139,7 @@ export default async function FanworkContentDetailPage({
           </section>
         ) : null}
 
-        <ContentDetailClient contentId={data.content.id} authorId={data.content.author_id} />
+        <ContentDetailClient contentId={data.content.ID ?? data.content.id ?? 0} authorId={data.content.AuthorID ?? data.content.author_id ?? 0} />
       </article>
     </div>
   );
