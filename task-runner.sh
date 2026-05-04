@@ -17,6 +17,7 @@ TASK_FILE="task.json"
 PROGRESS_FILE="progress.txt"
 LOG_DIR=".task-logs"
 RUNNER_LOG="$LOG_DIR/runner-$(date +%Y%m%d-%H%M%S).log"
+CLAUDE_CMD=""
 
 MAX_TASKS=0
 DRY_RUN=false
@@ -73,6 +74,50 @@ sys.exit(1)
 "
 }
 
+# --- 检测 claude 命令位置 ---
+find_claude() {
+  # 如果用户已设置 CLAUDE_CMD 环境变量，直接使用
+  if [ -n "${CLAUDE_CMD:-}" ] && command -v "$CLAUDE_CMD" &>/dev/null; then
+    echo "$CLAUDE_CMD"
+    return 0
+  fi
+
+  # 直接可用的 claude
+  if command -v claude &>/dev/null; then
+    echo "claude"
+    return 0
+  fi
+
+  # WSL: 从 Windows 用户目录找 claude.exe (WSL 可直接运行 Windows exe)
+  local win_home=""
+  if [ -d "/mnt/c/Users" ]; then
+    # 尝试从 WSL 的 $USER 推断 Windows 用户名
+    win_home="/mnt/c/Users/${USER}"
+  fi
+  # 如果 $USER 不对，扫描 /mnt/c/Users/ 下包含 .local/bin/claude 的目录
+  if [ -z "$win_home" ] || [ ! -f "$win_home/.local/bin/claude.exe" ]; then
+    for d in /mnt/c/Users/*/; do
+      if [ -f "${d}.local/bin/claude.exe" ]; then
+        win_home="${d%/}"
+        break
+      fi
+    done
+  fi
+
+  if [ -n "$win_home" ] && [ -f "$win_home/.local/bin/claude.exe" ]; then
+    echo "$win_home/.local/bin/claude.exe"
+    return 0
+  fi
+
+  # Git Bash: /c/Users/... 路径
+  if [ -f "/c/Users/${USER}/.local/bin/claude" ]; then
+    echo "/c/Users/${USER}/.local/bin/claude"
+    return 0
+  fi
+
+  return 1
+}
+
 # --- 检查 git 状态 ---
 check_git_clean() {
   cd "$PROJECT_DIR"
@@ -95,6 +140,23 @@ main() {
   log "Max tasks: ${MAX_TASKS:-unlimited}"
   log "Dry run: $DRY_RUN"
   log "============================================"
+
+  # 检测 claude 命令
+  CLAUDE_CMD=$(find_claude) || {
+    log "ERROR: claude CLI not found in PATH or common locations."
+    log ""
+    log "The task-runner requires 'claude' (Claude Code CLI) to run tasks."
+    log ""
+    log "Please run this script from one of these environments:"
+    log "  1. Git Bash (installed with Git for Windows)"
+    log "  2. Claude Code's built-in terminal"
+    log "  3. A terminal where 'claude' is in PATH"
+    log ""
+    log "Or set CLAUDE_CMD environment variable:"
+    log "  export CLAUDE_CMD=/path/to/claude"
+    exit 1
+  }
+  log "Claude CLI: $CLAUDE_CMD"
 
   if ! check_git_clean; then
     if $DRY_RUN; then
@@ -150,11 +212,11 @@ main() {
     log "Launching Claude Code for Task $task_id..."
     local task_start=$(date +%s)
 
-    # 调用 claude -p 执行单任务开发
+    # 调用 $CLAUDE_CMD -p 执行单任务开发
     # -p 模式: 非交互，执行完退出
     # Claude 会自动加载 CLAUDE.md 中的工作流程
     set +e
-    claude -p "Complete Task $task_id: $task_title from task.json in the OmniCraft project.
+    $CLAUDE_CMD -p "Complete Task $task_id: $task_title from task.json in the OmniCraft project.
 
 IMPORTANT: Follow the CLAUDE.md workflow strictly:
 1. Read task.json for the task details and steps
