@@ -3,15 +3,19 @@ package llm
 import "omnicraft/backend/config"
 
 func NewProvider(cfg *config.Config) LLMProvider {
-	switch cfg.Agent.LLMProvider {
+	providerType := cfg.Agent.LLMProvider
+	apiKey := cfg.Agent.LLMAPIKey
+	apiBase := cfg.Agent.LLMAPIBase
+	model := cfg.Agent.LLMModel
+	embedModel := cfg.Agent.EmbeddingModel
+	return NewProviderFromConfig(providerType, apiKey, apiBase, model, embedModel)
+}
+
+func NewProviderFromConfig(providerType, apiKey, apiBase, model, embedModel string) LLMProvider {
+	switch providerType {
 	case "openai_compat":
-		return NewOpenAICompatProvider(
-			cfg.Agent.LLMAPIKey,
-			cfg.Agent.LLMAPIBase,
-			cfg.Agent.LLMModel,
-			cfg.Agent.EmbeddingModel,
-		)
+		return NewOpenAICompatProvider(apiKey, apiBase, model, embedModel)
 	default:
-		return NewQwenProvider(cfg.Agent.LLMModel, cfg.Agent.EmbeddingModel)
+		return NewQwenProvider(model, embedModel)
 	}
 }

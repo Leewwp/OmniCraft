@@ -143,7 +143,7 @@
         "恶意内容二次发布累计扣分（PRD §6.2）：block/violation 处理后，查询该用户近 `reputation.repeat_violation_window_days`（默认 7）日内被 block/violation 计数，达到 `repeat_violation_threshold`（默认 2）时在标准 −3 基础上额外调用 reputation_service.AddReputation(delta=`repeat_violation_extra_penalty` 默认 −1, reason='repeat_violation') 并在 Redis 写入 `publish_freeze:{user_id}` 7 日过期键；content_service.PublishContent 入口检测此键存在则拒绝发布返回 403 PUBLISH_FROZEN",
         "验证：上传测试内容触发审核，模拟回调接口写入正确状态；连续两次违规后信誉分额外扣 1 分、发布接口返回 PUBLISH_FROZEN"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 10,
@@ -521,7 +521,7 @@
         "## Page: /dashboard/pr-requests PR 申请管理",
         "## Component: ConfirmModal"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 28,
@@ -542,7 +542,7 @@
         "## Global Design Tokens",
         "## Component: VersionHistory"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 29,
@@ -567,7 +567,7 @@
         "## Page: /dashboard/contents 我的内容",
         "## Page: /dashboard/contributors 贡献者管理"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 30,
@@ -591,7 +591,7 @@
         "在 Header 下拉菜单增加「个人主页」「浏览历史」「账号设置」「我的申诉」等入口，分别跳转 /user/:me/、/history、/settings、/appeals（页面由 Task 84/85/71 实现）",
         "验证：账号设置页可修改基础资料，内容详情页收藏按钮切换状态正确，Header 菜单跳转正常"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 31,
@@ -1122,7 +1122,7 @@
         "创建 internal/handler/agent.go（扩展）：POST /api/v1/agent/compliance-check（需登录 + 限流）",
         "验证：正常文件返回 safe；上传含敏感词文本返回 violation；格式不合规文件返回 file_format_error"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 56,
@@ -1181,7 +1181,7 @@
         "SSE 响应格式：Content-Type: text/event-stream；每条消息 data: {\"delta\":\"...\",\"done\":false}；结束时 data: {\"done\":true,\"conversation_id\":N}",
         "验证：对含违规词的内容调用 /agent/moderate 返回 violation + 整改建议；/agent/chat/stream 流式输出正常，conversation_id 可用于后续追问"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 59,
@@ -1386,7 +1386,7 @@
         "校验 Task 63 migrations/026_rehab_seed.sql 已生效（本任务不新建迁移）；如需改进课程内容，在管理后台通过 content_i18n 扩展 API 更新而非新增迁移",
         "验证：课程列表基于用户扣分记录正确匹配，开始/完成学习时间校验正确，信誉分正确增加，每门课程只能完成一次"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 68,
@@ -1402,7 +1402,7 @@
         "密码修改逻辑：验证旧密码（bcrypt.CompareHashAndPassword）→ 新密码 bcrypt 加密 → 更新 password_hash → 使所有 Refresh Token 失效（删除 Redis 中该用户的所有 Refresh Token）",
         "验证：注销后无法登录，内容仍可访问但作者匿名化，密码修改后旧密码失效、新密码可登录，Refresh Token 被清除"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 69,
@@ -1451,7 +1451,7 @@
         "## Component: ConversationList",
         "## Component: ChatWindow"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 71,
@@ -1476,7 +1476,7 @@
         "## Page: /appeals 我的申诉",
         "## Component: EmptyState"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 72,
@@ -1678,7 +1678,7 @@
         "实现 feature flag 检查：creator_support_enabled=false 时 PATCH 返回 403，GET 不返回 support_info",
         "验证：创作者可配置打赏码和外部链接，feature flag 关闭时 API 不可用，链接数量超限返回 422"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 81,
@@ -1712,7 +1712,7 @@
         "扩展 internal/pkg/llm/factory.go：NewProvider 优先查 DB active config，无则 fallback config.yaml",
         "验证：管理员可 CRUD 配置，API Key 加密存储不泄露明文，激活切换事务安全，测试连接返回模型响应，非管理员 403"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 83,

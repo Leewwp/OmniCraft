@@ -23,6 +23,7 @@ func NewOpenAICompatProvider(apiKey, apiBase, model, embedModel string) *OpenAIC
 	if apiBase == "" {
 		apiBase = "https://api.openai.com"
 	}
+	apiBase = strings.TrimRight(apiBase, "/")
 	return &OpenAICompatProvider{
 		apiKey:     apiKey,
 		apiBase:    apiBase,
@@ -60,7 +61,8 @@ func (p *OpenAICompatProvider) doPost(ctx context.Context, path string, body int
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", p.apiBase+path, bytes.NewReader(b))
+	url := p.apiBase + path
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(b))
 	if err != nil {
 		return nil, err
 	}

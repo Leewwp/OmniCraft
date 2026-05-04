@@ -78,7 +78,8 @@ type GreenConfig struct {
 }
 
 type FeaturesConfig struct {
-	PaymentEnabled bool `mapstructure:"payment_enabled"`
+	PaymentEnabled          bool `mapstructure:"payment_enabled"`
+	CreatorSupportEnabled   bool `mapstructure:"creator_support_enabled"`
 }
 
 type LimitsConfig struct {
@@ -217,6 +218,9 @@ func overrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("AGENT_LLM_PROVIDER"); v != "" {
 		cfg.Agent.LLMProvider = v
+	}
+	if v := os.Getenv("AGENT_LLM_MODEL"); v != "" {
+		cfg.Agent.LLMModel = v
 	}
 	if v := os.Getenv("AGENT_LLM_API_BASE"); v != "" {
 		cfg.Agent.LLMAPIBase = v
