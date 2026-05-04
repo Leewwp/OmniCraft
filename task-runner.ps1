@@ -85,9 +85,8 @@ function Invoke-Task {
         "- Never delete or modify task descriptions."
 
     try {
-        $output = claude -p $prompt 2>&1
+        claude -p $prompt 2>&1 | Tee-Object -FilePath $RunnerLog -Append
         $exitCode = $LASTEXITCODE
-        $output | Out-File -FilePath $RunnerLog -Append -Encoding UTF8
         $duration = [math]::Round(((Get-Date) - $startTime).TotalSeconds, 1)
 
         if ($exitCode -ne 0) {
