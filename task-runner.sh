@@ -76,8 +76,11 @@ sys.exit(1)
 # --- 检查 git 状态 ---
 check_git_clean() {
   cd "$PROJECT_DIR"
-  if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
-    log "WARNING: Git working directory has uncommitted changes."
+  local dirty
+  dirty=$(git status --porcelain 2>/dev/null)
+  if [ -n "$dirty" ]; then
+    log "WARNING: Git working directory has uncommitted changes:"
+    echo "$dirty" | while read -r line; do log "  $line"; done
     log "Please commit or stash changes before running task-runner."
     return 1
   fi
