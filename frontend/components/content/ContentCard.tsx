@@ -16,37 +16,20 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export interface ContentCardData {
-  // Go API returns uppercase fields
-  ID?: number;
-  id?: number;
-  Title?: string;
-  title?: string;
-  AuthorID?: number;
+  id: number;
+  title: string;
   author_id?: number;
-  Author?: {
-    ID?: number;
-    Username?: string;
-    username?: string;
-  };
   author?: {
     id?: number;
     username?: string;
   };
-  Zone?: string;
   zone?: string;
-  ContentType?: string;
   content_type?: string;
-  CoverImageURL?: string;
   cover_image_url?: string;
-  ViewCount?: number;
   view_count?: number;
-  LikeCount?: number;
   like_count?: number;
-  CommentCount?: number;
   comment_count?: number;
-  Tags?: string[];
   tags?: string[];
-  Category?: string;
   category?: string;
 }
 
@@ -98,19 +81,17 @@ function getTypeIcon(contentType: string) {
 }
 
 function getCardHref(data: ContentCardData): string {
-  const id = data.ID ?? data.id ?? 0;
-  const zone = data.Zone ?? data.zone ?? "";
-  if (zone === "original") {
-    return `/original/${id}`;
+  if (data.zone === "original") {
+    return `/original/${data.id}`;
   }
-  return `/content/${id}`;
+  return `/content/${data.id}`;
 }
 
 export function ContentCard({ data, className }: ContentCardProps) {
-  const contentType = data.ContentType ?? data.content_type ?? "other";
+  const contentType = data.content_type || "other";
   const Icon = getTypeIcon(contentType);
-  const rawTags = data.Tags ?? data.tags ?? [];
-  const category = data.Category ?? data.category;
+  const rawTags = data.tags ?? [];
+  const category = data.category;
   const tagCandidates =
     rawTags.length > 0
       ? rawTags
@@ -118,11 +99,10 @@ export function ContentCard({ data, className }: ContentCardProps) {
           (item): item is string => Boolean(item)
         );
   const tags = tagCandidates.slice(0, 3);
-  const coverUrl = data.CoverImageURL ?? data.cover_image_url;
-  const displayTitle = data.Title ?? data.title ?? "";
-  const authorName = data.Author?.Username ?? data.author?.username ?? "";
-  const authorId = data.AuthorID ?? data.author_id;
-  const zone = data.Zone ?? data.zone;
+  const coverUrl = data.cover_image_url;
+  const displayTitle = data.title;
+  const authorName = data.author?.username ?? "";
+  const authorId = data.author_id;
 
   return (
     <Link
@@ -174,15 +154,15 @@ export function ContentCard({ data, className }: ContentCardProps) {
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <Heart className="h-3.5 w-3.5" />
-            {data.LikeCount ?? data.like_count ?? 0}
+            {data.like_count ?? 0}
           </span>
           <span className="inline-flex items-center gap-1">
             <MessageCircle className="h-3.5 w-3.5" />
-            {data.CommentCount ?? data.comment_count ?? 0}
+            {data.comment_count ?? 0}
           </span>
           <span className="inline-flex items-center gap-1">
             <Eye className="h-3.5 w-3.5" />
-            {data.ViewCount ?? data.view_count ?? 0}
+            {data.view_count ?? 0}
           </span>
         </div>
       </div>

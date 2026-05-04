@@ -3,21 +3,11 @@ import { UserProfileClient } from "./UserProfileClient";
 
 interface UserData {
   id?: number;
-  ID?: number;
   username?: string;
-  Username?: string;
-  email?: string;
   avatar_url?: string;
-  AvatarURL?: string;
   bio?: string;
-  Bio?: string;
   reputation?: number;
-  Reputation?: number;
-  role?: string;
-  Role?: string;
-  preferred_locale?: string;
   created_at?: string;
-  CreatedAt?: string;
 }
 
 function getApiBase() {
@@ -49,12 +39,11 @@ export default async function UserProfilePage({
     notFound();
   }
 
-  const userIdNum = user.ID ?? user.id ?? 0;
-  const displayName = user.Username ?? user.username ?? `用户 #${userId}`;
-  const bio = user.Bio ?? user.bio ?? "";
-  const avatar = user.AvatarURL ?? user.avatar_url;
-  const reputation = user.Reputation ?? user.reputation ?? 0;
-  const createdAt = user.CreatedAt ?? user.created_at;
+  const userIdNum = user.id ?? 0;
+  const displayName = user.username ?? `用户 #${userId}`;
+  const bio = user.bio ?? "";
+  const reputation = user.reputation ?? 0;
+  const createdAt = user.created_at;
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6">

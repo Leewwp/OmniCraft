@@ -28,8 +28,8 @@ export function MasonryGrid({ items }: MasonryGridProps) {
       className="-ml-4 flex w-auto"
       columnClassName="pl-4 space-y-4"
     >
-      {items.map((item, idx) => (
-        <ContentCard key={item.ID ?? item.id ?? idx} data={item} />
+      {items.map((item) => (
+        <ContentCard key={item.id} data={item} />
       ))}
     </Masonry>
   );
