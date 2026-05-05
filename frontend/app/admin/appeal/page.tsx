@@ -1,0 +1,226 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { api, ApiRequestError } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
+
+interface AppealItem {
+  id: number;
+  user_id: number;
+  target_type: string;
+  target_id: number;
+  reason: string;
+  status: string;
+  admin_response: string;
+  created_at: string;
+}
+
+export default function AdminAppealPage() {
+  const [appeals, setAppeals] = useState<AppealItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{
+    appealId: number;
+    action: "approved" | "rejected";
+    targetInfo: string;
+  } | null>(null);
+
+  const pageSize = 20;
+
+  const loadAppeals = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await api.get<{ appeals: AppealItem[]; total: number }>(
+        `/api/v1/admin/appeals?page=${page}&page_size=${pageSize}`
+      );
+      setAppeals(data.appeals || []);
+      setTotal(data.total || 0);
+    } catch (e) {
+      setError(e instanceof ApiRequestError ? e.message : "加载申诉列表失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [page]);
+
+  useEffect(() => {
+    void loadAppeals();
+  }, [loadAppeals]);
+
+  async function resolveAppeal(id: number, status: string, response: string) {
+    setBusy(true);
+    setError("");
+    try {
+      await api.post(`/api/v1/admin/appeals/${id}`, {
+        status,
+        admin_response: response,
+      });
+      setAppeals((prev) => prev.filter((a) => a.id !== id));
+      setTotal((t) => t - 1);
+    } catch (e) {
+      setError(e instanceof ApiRequestError ? e.message : "处理申诉失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const totalPages = Math.ceil(total / pageSize);
+
+  if (loading) {
+    return (
+      <div className="space-y-4 p-6">
+        <div className="space-y-3 rounded-md border border-border bg-card p-6 shadow-none">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-8 w-full animate-pulse rounded bg-muted" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 p-6">
+      <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 shadow-none">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">申诉处理</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            处理用户对被下架内容的申诉（共 {total} 个待处理）
+          </p>
+        </div>
+      </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {appeals.length === 0 ? (
+        <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
+          <p className="text-sm text-muted-foreground">无待处理申诉</p>
+        </div>
+      ) : (
+        <>
+          <div className="overflow-x-auto rounded-md border border-border bg-card shadow-none">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3 font-medium">ID</th>
+                  <th className="px-4 py-3 font-medium">申请人ID</th>
+                  <th className="px-4 py-3 font-medium">目标类型</th>
+                  <th className="px-4 py-3 font-medium">目标ID</th>
+                  <th className="px-4 py-3 font-medium">申诉原因</th>
+                  <th className="px-4 py-3 font-medium">状态</th>
+                  <th className="px-4 py-3 font-medium">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {appeals.map((a) => (
+                  <tr key={a.id} className="border-b border-border hover:bg-muted/20">
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{a.id}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{a.user_id}</td>
+                    <td className="px-4 py-3 text-xs">
+                      <span
+                        className={`rounded px-2 py-0.5 text-xs ${
+                          a.target_type === "content"
+                            ? "bg-blue-50 text-blue-700"
+                            : "bg-purple-50 text-purple-700"
+                        }`}
+                      >
+                        {a.target_type}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{a.target_id}</td>
+                    <td className="max-w-[200px] truncate px-4 py-3 text-xs text-muted-foreground">
+                      {a.reason}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
+                        {a.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-emerald-600 hover:bg-emerald-50"
+                          disabled={busy}
+                          onClick={() => {
+                            setConfirmAction({
+                              appealId: a.id,
+                              action: "approved",
+                              targetInfo: `${a.target_type} #${a.target_id}`,
+                            });
+                            setConfirmOpen(true);
+                          }}
+                        >
+                          通过
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={busy}
+                          onClick={() => {
+                            setConfirmAction({
+                              appealId: a.id,
+                              action: "rejected",
+                              targetInfo: `${a.target_type} #${a.target_id}`,
+                            });
+                            setConfirmOpen(true);
+                          }}
+                        >
+                          驳回
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                第 {page} / {totalPages} 页
+              </span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                  上一页
+                </Button>
+                <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                  下一页
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      <ConfirmModal
+        open={confirmOpen}
+        onOpenChange={(v) => { setConfirmOpen(v); if (!v) setConfirmAction(null); }}
+        title={confirmAction?.action === "approved" ? "通过申诉" : "驳回申诉"}
+        description={
+          confirmAction
+            ? confirmAction.action === "approved"
+              ? `确认通过「${confirmAction.targetInfo}」的申诉吗？通过后内容将恢复上架。`
+              : `确认驳回「${confirmAction.targetInfo}」的申诉吗？驳回后维持下架状态。`
+            : ""
+        }
+        confirmLabel={confirmAction?.action === "approved" ? "确认通过" : "确认驳回"}
+        confirmVariant={confirmAction?.action === "approved" ? "default" : "destructive"}
+        requireReason
+        reasonLabel="处理意见"
+        onConfirm={async (reason) => {
+          if (confirmAction) {
+            await resolveAppeal(confirmAction.appealId, confirmAction.action, reason);
+          }
+        }}
+      />
+    </div>
+  );
+}
