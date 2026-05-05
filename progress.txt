@@ -1,6 +1,31 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
+## [2026-05-05] - Task 32: Web 前端 — 管理员后台页面
+
+### What was done:
+- 新建 app/admin/ips/page.tsx：IP 审核列表（pending IP 表格 + 通过/拒绝操作 + ConfirmModal 二次确认 + 分页）
+- 新建 app/admin/contents/page.tsx：违规内容终审（under_review 内容表格 + 查看链接 + 封禁操作 + ConfirmModal 输入封禁原因）
+- 新建 app/admin/users/page.tsx：用户管理（用户表格含搜索/分页/信誉分颜色标记 + 封禁/解封 + 管理员保护 + ConfirmModal 输入封禁原因）
+- 新建 app/admin/appeal/page.tsx：申诉处理（pending 申诉表格 + 通过/驳回 + ConfirmModal 输入处理意见）
+- 新建 app/admin/config/page.tsx：系统配置面板（6 组配置表单：Limits/Features/Reputation/Judge/Agent/Social，Toggle + Number 输入 + 热更新保存 + 成功提示）
+- 新建 app/admin/categories/page.tsx：分类与标签管理（分类 CRUD + 行内编辑 + 上下拖拽排序 + 新建表单 + ConfirmModal 删除确认）
+- lib/api.ts：新增 api.put 方法（PUT 请求 JSON body）
+- admin/layout.tsx 已提前完成（管理导航 + 移动端 Tab + 非 admin 重定向 403）
+- components/ui/confirm-modal.tsx 已提前完成（通用二次确认弹窗，支持 destructive variant + requireReason）
+
+### Testing:
+- npm run build: ✅ Turbopack 编译成功，/admin 下 6 个子路由全部正确注册
+- npm run lint (tsc --noEmit): ✅ 零新增错误（仅有预存 Next.js validator 类型警告）
+- go build ./...: ✅ 通过
+- go vet ./...: ✅ 零警告
+
+### Notes:
+- 路由守卫由 layout.tsx 统一处理：useAuth 校验 user.role === "admin"，非管理员重定向或显示 403
+- 破坏性操作均使用 ConfirmModal requireReason 二次确认
+- Config 页面热更新通过 PATCH /admin/config 实现，修改后即时生效（重启恢复 config.yaml 默认值）
+
+---
 ## [2026-05-05] - Task 31: Web 前端 — 赛博判官页面
 
 ### What was done:

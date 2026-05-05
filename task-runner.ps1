@@ -85,7 +85,11 @@ function Invoke-Task {
         "- Never delete or modify task descriptions."
 
     try {
-        claude -p $prompt 2>&1 | Tee-Object -FilePath $RunnerLog -Append
+        claude -p $prompt 2>&1 | ForEach-Object {
+            $line = $_
+            Write-Host $line
+            Add-Content -Path $RunnerLog -Value $line -Encoding UTF8
+        }
         $exitCode = $LASTEXITCODE
         $duration = [math]::Round(((Get-Date) - $startTime).TotalSeconds, 1)
 

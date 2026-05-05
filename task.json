@@ -655,7 +655,7 @@
         "## Page: /admin/categories 分类与标签管理",
         "## Component: ConfirmModal"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 33,
