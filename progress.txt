@@ -19,6 +19,15 @@
 - npm run lint (tsc --noEmit): ✅ 零新增错误（仅有预存 Next.js validator 类型警告）
 - go build ./...: ✅ 通过
 - go vet ./...: ✅ 零警告
+- Playwright 浏览器测试: ✅ 全部通过
+  - 登录: ✅（API 获取 token → cookie 注入 → 页面正常加载）
+  - /admin/ips: ✅ IP 审核表格 + 侧边栏导航渲染
+  - /admin/contents: ✅ 内容终审页面渲染
+  - /admin/users: ✅ 用户管理表格 + 搜索功能正常
+  - /admin/appeal: ✅ 申诉处理页面渲染
+  - /admin/config: ✅ 系统配置面板 6 组表单渲染 + 3 个 Toggle 交互正常 + Number 输入框正常
+  - /admin/categories: ✅ 分类管理页面 + 新建分类表单展开正常
+  - 交互测试: Config Toggle 点击切换、Config Number 输入修改、Categories 创建表单展开、Users 搜索过滤
 
 ### Notes:
 - 路由守卫由 layout.tsx 统一处理：useAuth 校验 user.role === "admin"，非管理员重定向或显示 403
