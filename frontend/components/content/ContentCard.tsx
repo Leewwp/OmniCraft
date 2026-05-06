@@ -40,6 +40,7 @@ interface ContentCardProps {
 
 function getTypeLabel(contentType: string): string {
   switch (contentType) {
+    case "article":
     case "text":
       return "文字";
     case "image":
@@ -54,6 +55,8 @@ function getTypeLabel(contentType: string): string {
       return "AI 提示词";
     case "sheet_music":
       return "乐谱";
+    case "template":
+      return "模板";
     default:
       return "其他";
   }
@@ -61,6 +64,7 @@ function getTypeLabel(contentType: string): string {
 
 function getTypeIcon(contentType: string) {
   switch (contentType) {
+    case "article":
     case "text":
       return FileText;
     case "image":
@@ -75,6 +79,8 @@ function getTypeIcon(contentType: string) {
       return Sparkles;
     case "sheet_music":
       return FileMusic;
+    case "template":
+      return Shapes;
     default:
       return Shapes;
   }

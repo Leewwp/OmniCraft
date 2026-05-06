@@ -7,6 +7,7 @@ import { IPCard } from "@/components/ip/IPCard";
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { ContentCardData } from "@/components/content/ContentCard";
 import { Button } from "@/components/ui/button";
+import { normalizeContentList } from "@/lib/content";
 
 interface IPItem {
   id: number;
@@ -99,12 +100,16 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
     query.set("sort", ipSort);
 
     const run = async () => {
-      const res = await fetch(`${apiBase}/ips?${query.toString()}`, { cache: "no-store" });
-      if (!res.ok) {
-        return;
+      try {
+        const res = await fetch(`${apiBase}/ips?${query.toString()}`, { cache: "no-store" });
+        if (!res.ok) {
+          return;
+        }
+        const data = (await res.json()) as IPResponse;
+        setIPs(data.ips || []);
+      } catch {
+        setIPs([]);
       }
-      const data = (await res.json()) as IPResponse;
-      setIPs(data.ips || []);
     };
 
     void run();
@@ -120,14 +125,18 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
     }
 
     const run = async () => {
-      const res = await fetch(`${apiBase}/contents?${query.toString()}`, {
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        return;
+      try {
+        const res = await fetch(`${apiBase}/contents?${query.toString()}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          return;
+        }
+        const data = (await res.json()) as ContentResponse;
+        setContents(normalizeContentList(data.contents));
+      } catch {
+        setContents([]);
       }
-      const data = (await res.json()) as ContentResponse;
-      setContents(data.contents || []);
     };
 
     void run();

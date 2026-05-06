@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { ContentDetail } from "@/components/content/ContentDetail";
 import { VersionHistory } from "@/components/content/VersionHistory";
+import { normalizeAttachments, normalizeContentItem, normalizeTags } from "@/lib/content";
 
 interface ContentItem {
   id: number;
@@ -44,17 +45,10 @@ function getApiBase() {
   return `${raw.replace(/\/$/, "")}/api/v1`;
 }
 
-function normalizeTags(tags: ContentResponse["tags"]): string[] {
-  if (!tags) return [];
-  return tags
-    .map((tag) => (typeof tag === "string" ? tag : tag.tag))
-    .filter((tag): tag is string => Boolean(tag));
-}
-
 async function fetchContent(apiBase: string, contentId: string): Promise<ContentResponse | null> {
   try {
     const res = await fetch(`${apiBase}/contents/${contentId}`, {
-      next: { revalidate: 30 },
+      cache: "no-store",
     });
     if (!res.ok) return null;
     return (await res.json()) as ContentResponse;
@@ -72,16 +66,16 @@ export default async function FanworkContentDetailPage({
   const apiBase = getApiBase();
   const data = await fetchContent(apiBase, contentId);
 
-  if (!data?.content) {
+  const content = normalizeContentItem(data?.content);
+  if (!data || !content) {
     notFound();
   }
 
   // Redirect original content to the original detail page
-  if (data.content.zone === "original") {
+  if (content.zone === "original") {
     notFound();
   }
 
-  const content = data.content;
   const tags = normalizeTags(data.tags);
   const contentIdNum = content.id;
   const zone = content.zone || "fanwork";
@@ -89,7 +83,7 @@ export default async function FanworkContentDetailPage({
   // Build the content detail data object
   const detailData = {
     ...content,
-    attachments: data.attachments || [],
+    attachments: normalizeAttachments(data.attachments),
     tags,
   };
 
