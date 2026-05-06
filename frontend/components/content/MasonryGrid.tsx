@@ -5,6 +5,7 @@ import { ContentCard, ContentCardData } from "@/components/content/ContentCard";
 
 interface MasonryGridProps {
   items: ContentCardData[];
+  emptyText?: string;
 }
 
 const breakpoints = {
@@ -13,11 +14,11 @@ const breakpoints = {
   700: 2,
 };
 
-export function MasonryGrid({ items }: MasonryGridProps) {
+export function MasonryGrid({ items, emptyText }: MasonryGridProps) {
   if (items.length === 0) {
     return (
       <div className="rounded-md border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-        暂无内容，稍后再来看看。
+        {emptyText || "暂无内容，稍后再来看看。"}
       </div>
     );
   }

@@ -1,29 +1,23 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
-import { ContentDetailClient } from "@/components/content/ContentDetailClient";
-
-interface ContentItem {
-  id: number;
-  title: string;
-  description?: string;
-  content_type?: string;
-  author_id?: number;
-  cover_image_url?: string;
-  allow_copy?: boolean;
-  zone?: string;
-}
-
-interface Attachment {
-  id: number;
-  file_type?: string;
-  mime_type?: string;
-  oss_key?: string;
-}
+import { ArrowRight, GitBranchPlus } from "lucide-react";
+import { ContentDetail } from "@/components/content/ContentDetail";
+import { buttonVariants } from "@/components/ui/button";
+import {
+  normalizeAttachments,
+  normalizeContentItem,
+  normalizeTags,
+  type ContentDetailData,
+} from "@/lib/content";
 
 interface ContentResponse {
-  content?: ContentItem;
-  attachments?: Attachment[];
-  tags?: Array<{ tag: string } | string>;
+  content?: unknown;
+  attachments?: unknown[];
+  tags?: unknown[];
+}
+
+interface RelatedResponse {
+  total?: number;
 }
 
 function getApiBase() {
@@ -31,24 +25,10 @@ function getApiBase() {
   return `${raw.replace(/\/$/, "")}/api/v1`;
 }
 
-function normalizeTags(tags: ContentResponse["tags"]): string[] {
-  if (!tags) {
-    return [];
-  }
-  return tags
-    .map((tag) => {
-      if (typeof tag === "string") {
-        return tag;
-      }
-      return tag.tag;
-    })
-    .filter((tag): tag is string => Boolean(tag));
-}
-
 async function fetchContent(apiBase: string, contentId: string): Promise<ContentResponse | null> {
   try {
     const res = await fetch(`${apiBase}/contents/${contentId}`, {
-      next: { revalidate: 30 },
+      cache: "no-store",
     });
     if (!res.ok) {
       return null;
@@ -59,6 +39,21 @@ async function fetchContent(apiBase: string, contentId: string): Promise<Content
   }
 }
 
+async function fetchRelatedCount(apiBase: string, contentId: string) {
+  try {
+    const res = await fetch(`${apiBase}/contents/${contentId}/related-fanworks?page=1&page_size=1`, {
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      return 0;
+    }
+    const data = (await res.json()) as RelatedResponse;
+    return data.total || 0;
+  } catch {
+    return 0;
+  }
+}
+
 export default async function OriginalDetailPage({
   params,
 }: {
@@ -66,67 +61,44 @@ export default async function OriginalDetailPage({
 }) {
   const { contentId } = await params;
   const apiBase = getApiBase();
-  const data = await fetchContent(apiBase, contentId);
+  const [rawData, relatedCount] = await Promise.all([
+    fetchContent(apiBase, contentId),
+    fetchRelatedCount(apiBase, contentId),
+  ]);
+  const content = normalizeContentItem(rawData?.content);
 
-  if (!data?.content || data.content.zone !== "original") {
+  if (!content || content.zone !== "original") {
     notFound();
   }
 
-  const tags = normalizeTags(data.tags);
+  const detailData: ContentDetailData = {
+    ...content,
+    attachments: normalizeAttachments(rawData?.attachments),
+    tags: normalizeTags(rawData?.tags),
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6">
-      <article className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
-        <header className="space-y-2">
-          <h1 className="text-2xl font-bold tracking-tight">{data.content.title}</h1>
-          <p className="text-sm text-muted-foreground">创作者：用户 #{data.content.author_id ?? "-"}</p>
-          <p className="text-xs text-muted-foreground">类型：{data.content.content_type || "other"}</p>
-        </header>
-
-        {data.content.cover_image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={data.content.cover_image_url}
-            alt={data.content.title}
-            className="max-h-96 w-full rounded-md border border-border object-cover"
-          />
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-card p-3 shadow-none">
+        {relatedCount > 0 ? (
+          <Link
+            href={`/original/${content.id}/fanworks`}
+            className={buttonVariants({ size: "sm", variant: "default" })}
+          >
+            相关二创
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         ) : null}
+        <Link
+          href={`/publish?zone=fanwork&source_original_id=${content.id}`}
+          className={buttonVariants({ size: "sm", variant: "outline" })}
+        >
+          <GitBranchPlus className="h-3.5 w-3.5" />
+          基于此原创发布二创
+        </Link>
+      </div>
 
-        <section className="rounded-md border border-border bg-muted/30 p-3">
-          <p className="text-sm leading-relaxed text-foreground/90">
-            {data.content.description || "该原创内容暂无文字说明。"}
-          </p>
-        </section>
-
-        {tags.length > 0 ? (
-          <section className="flex flex-wrap gap-2">
-            {tags.map((tag) => (
-              <Badge key={tag} variant="secondary">
-                {tag}
-              </Badge>
-            ))}
-          </section>
-        ) : null}
-
-        {data.attachments && data.attachments.length > 0 ? (
-          <section className="space-y-2 rounded-md border border-border bg-muted/20 p-3">
-            <h2 className="text-sm font-semibold">附件</h2>
-            <ul className="space-y-1 text-xs text-muted-foreground">
-              {data.attachments.map((attachment) => (
-                <li key={attachment.id}>
-                  {attachment.file_type || "file"} · {attachment.mime_type || "unknown"}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        <footer className="text-xs text-muted-foreground">
-          原创区详情页已隐藏 PR 协同创作入口。
-        </footer>
-
-        <ContentDetailClient contentId={data.content.id ?? 0} authorId={data.content.author_id ?? 0} />
-      </article>
+      <ContentDetail data={detailData} />
     </div>
   );
 }

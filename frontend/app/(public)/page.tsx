@@ -1,5 +1,6 @@
 import { HomePageClient } from "@/components/home/HomePageClient";
 import { ContentCardData } from "@/components/content/ContentCard";
+import { normalizeContentList } from "@/lib/content";
 
 interface IPItem {
   id: number;
@@ -24,7 +25,7 @@ function getApiBase() {
 async function fetchIPs(apiBase: string): Promise<IPItem[]> {
   try {
     const res = await fetch(`${apiBase}/ips?sort=hot&page_size=20`, {
-      next: { revalidate: 30 },
+      cache: "no-store",
     });
     if (!res.ok) {
       return [];
@@ -41,14 +42,14 @@ async function fetchContents(apiBase: string): Promise<ContentCardData[]> {
     const res = await fetch(
       `${apiBase}/contents?zone=fanwork&sort=hot&time_range=all&page_size=24`,
       {
-        next: { revalidate: 30 },
+        cache: "no-store",
       }
     );
     if (!res.ok) {
       return [];
     }
     const data = (await res.json()) as ContentResponse;
-    return data.contents || [];
+    return normalizeContentList(data.contents);
   } catch {
     return [];
   }

@@ -37,10 +37,10 @@ interface Attachment {
 interface ContentDetailData {
   id: number;
   title: string;
-  author?: { id: number; username: string; avatar_url?: string };
+  author?: { id?: number; username?: string; avatar_url?: string };
   author_id?: number;
   zone?: string;
-  ip?: { id: number; name: string; slug?: string };
+  ip?: { id?: number; name?: string; slug?: string };
   category?: string;
   content_type?: string;
   cover_image_url?: string;

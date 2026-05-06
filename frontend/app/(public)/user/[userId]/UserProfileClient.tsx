@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
-import { ContentCard, ContentCardData } from "@/components/content/ContentCard";
+import { ContentCardData } from "@/components/content/ContentCard";
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { Button } from "@/components/ui/button";
+import { normalizeContentList } from "@/lib/content";
 
 interface UserProfileClientProps {
   userId: number;
@@ -71,9 +72,9 @@ export function UserProfileClient({ userId, displayName }: UserProfileClientProp
           url = `/api/v1/ips/1/discussions`; // fallback
           break;
       }
-      const data = await api.get<{ contents?: ContentCardData[]; favorites?: ContentCardData[] }>(url);
+      const data = await api.get<{ contents?: unknown[]; favorites?: unknown[] }>(url);
       const list = (data as any).contents || (data as any).favorites || [];
-      setItems(list);
+      setItems(normalizeContentList(list));
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : "加载失败");
     } finally {

@@ -4,6 +4,7 @@ import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { ContentCardData } from "@/components/content/ContentCard";
 import { IPCategoryTabs } from "@/components/ip/IPCategoryTabs";
 import { getCategoryLabel } from "@/components/ip/ipCategory";
+import { normalizeContentList } from "@/lib/content";
 
 interface IPItem {
   id: number;
@@ -25,7 +26,7 @@ function getApiBase() {
 
 async function fetchIP(apiBase: string, ipId: string): Promise<IPItem | null> {
   try {
-    const res = await fetch(`${apiBase}/ips/${ipId}`, { next: { revalidate: 30 } });
+    const res = await fetch(`${apiBase}/ips/${ipId}`, { cache: "no-store" });
     if (!res.ok) {
       return null;
     }
@@ -55,13 +56,13 @@ async function fetchCategoryContents(
 
   try {
     const res = await fetch(`${apiBase}/contents?${params.toString()}`, {
-      next: { revalidate: 30 },
+      cache: "no-store",
     });
     if (!res.ok) {
       return [] as ContentCardData[];
     }
     const data = (await res.json()) as ContentResponse;
-    return data.contents || [];
+    return normalizeContentList(data.contents);
   } catch {
     return [] as ContentCardData[];
   }
