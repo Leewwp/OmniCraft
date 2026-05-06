@@ -89,31 +89,36 @@ func (h *ContentHandler) ListContents(c *gin.Context) {
 		}
 	}
 
-	var tags []string
-	if tagsStr := c.Query("tags"); tagsStr != "" {
-		tags = strings.Split(tagsStr, ",")
-	}
-
-	var contentTypes []string
-	if ctStr := c.Query("content_type"); ctStr != "" {
-		parts := strings.Split(ctStr, ",")
-		if len(parts) > 1 {
-			contentTypes = parts
+	var sourceOriginalID *int64
+	if sourceStr := c.Query("source_original_id"); sourceStr != "" {
+		if v, err := strconv.ParseInt(sourceStr, 10, 64); err == nil {
+			sourceOriginalID = &v
 		}
 	}
 
+	tags := parseCSVQuery(c.Query("tags"))
+	contentTypes := parseCSVQuery(c.Query("content_type"))
+	contentType := ""
+	if len(contentTypes) == 1 {
+		contentType = contentTypes[0]
+	}
+	if len(contentTypes) > 1 {
+		contentType = ""
+	}
+
 	filter := repository.ListContentsFilter{
-		Zone:         c.Query("zone"),
-		IPID:         ipID,
-		Category:     c.Query("category"),
-		ContentType:  c.Query("content_type"),
-		ContentTypes: contentTypes,
-		AuthorID:     authorID,
-		Tags:         tags,
-		Sort:         c.DefaultQuery("sort", "newest"),
-		TimeRange:    c.DefaultQuery("time_range", "all"),
-		Page:         page,
-		PageSize:     pageSize,
+		Zone:             c.Query("zone"),
+		IPID:             ipID,
+		Category:         c.Query("category"),
+		ContentType:      contentType,
+		ContentTypes:     contentTypes,
+		AuthorID:         authorID,
+		SourceOriginalID: sourceOriginalID,
+		Tags:             tags,
+		Sort:             c.DefaultQuery("sort", "newest"),
+		TimeRange:        c.DefaultQuery("time_range", "all"),
+		Page:             page,
+		PageSize:         pageSize,
 	}
 
 	contents, total, err := h.contentSvc.ListContents(filter)
@@ -147,6 +152,10 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, service.ErrPublishFrozen) {
 			c.JSON(http.StatusForbidden, gin.H{"code": "PUBLISH_FROZEN", "message": err.Error()})
+			return
+		}
+		if errors.Is(err, service.ErrInvalidSourceOriginal) {
+			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_SOURCE_ORIGINAL", "message": err.Error()})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": err.Error()})
@@ -183,6 +192,80 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 		"attachments": attachments,
 		"tags":        tags,
 	})
+}
+
+func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
+	sourceID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		return
+	}
+
+	source, err := h.contentSvc.GetContent(sourceID)
+	if err != nil {
+		if errors.Is(err, service.ErrContentNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		return
+	}
+	if source.Zone != "original" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "NOT_ORIGINAL", "message": "related fanworks require original content"})
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	contentTypes := parseCSVQuery(c.Query("content_type"))
+	contentType := ""
+	if len(contentTypes) == 1 {
+		contentType = contentTypes[0]
+	}
+	if len(contentTypes) > 1 {
+		contentType = ""
+	}
+
+	contents, total, err := h.contentSvc.ListContents(repository.ListContentsFilter{
+		Zone:             "fanwork",
+		SourceOriginalID: &sourceID,
+		ContentType:      contentType,
+		ContentTypes:     contentTypes,
+		Sort:             c.DefaultQuery("sort", "newest"),
+		TimeRange:        c.DefaultQuery("time_range", "all"),
+		Page:             page,
+		PageSize:         pageSize,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"source_original_id": sourceID,
+		"contents":           contents,
+		"total":              total,
+		"page":               page,
+		"page_size":          pageSize,
+	})
+}
+
+func parseCSVQuery(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value != "" {
+			values = append(values, value)
+		}
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	return values
 }
 
 func (h *ContentHandler) UpdateContent(c *gin.Context) {

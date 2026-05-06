@@ -44,6 +44,7 @@ limits:
   sheet_music_max_mb: 50
 
 reputation:
+  min_score_for_interaction: 3
   quality_content_threshold: 10
   quality_comment_threshold: 5
   repeat_violation_window_days: 7

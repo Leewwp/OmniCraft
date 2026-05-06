@@ -37,12 +37,12 @@ type Message struct {
 }
 
 type RehabCourse struct {
-	ID             int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	ViolationType  string    `gorm:"size:100;not null;uniqueIndex" json:"violation_type"`
-	ContentI18n    JSONMap   `gorm:"type:jsonb;not null;default:'{}'" json:"content_i18n"`
-	MinReadingSec  int       `gorm:"not null;default:60" json:"min_reading_sec"`
-	RewardPoints   int       `gorm:"not null;default:0" json:"reward_points"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID            int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	ViolationType string    `gorm:"size:100;not null;uniqueIndex" json:"violation_type"`
+	ContentI18n   JSONMap   `gorm:"type:jsonb;not null;default:'{}'" json:"content_i18n"`
+	MinReadingSec int       `gorm:"not null;default:60" json:"min_reading_sec"`
+	RewardPoints  int       `gorm:"not null;default:0" json:"reward_points"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type RehabCompletion struct {
@@ -50,17 +50,4 @@ type RehabCompletion struct {
 	UserID      int64     `gorm:"not null;index;uniqueIndex:idx_rehab_unique" json:"user_id"`
 	CourseID    int64     `gorm:"not null;uniqueIndex:idx_rehab_unique" json:"course_id"`
 	CompletedAt time.Time `gorm:"not null;default:NOW()" json:"completed_at"`
-}
-
-type Category struct {
-	ID        int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	Zone      string    `gorm:"size:20;not null" json:"zone"`
-	Level     string    `gorm:"size:20;not null" json:"level"`
-	ParentID  *int64    `json:"parent_id,omitempty"`
-	NameI18n  JSONMap   `gorm:"type:jsonb;not null;default:'{}'" json:"name_i18n"`
-	Slug      string    `gorm:"size:100;not null;uniqueIndex" json:"slug"`
-	SortOrder int       `gorm:"not null;default:0" json:"sort_order"`
-	IsActive  bool      `gorm:"not null;default:true" json:"is_active"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
 }

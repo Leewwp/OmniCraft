@@ -52,6 +52,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		contents.GET("", contentHandler.ListContents)
 		contents.POST("", middleware.AuthRequired(cfg), contentHandler.CreateContent)
 		contents.POST("/oss-token", middleware.AuthRequired(cfg), contentHandler.GenerateOSSToken)
+		contents.GET("/:id/related-fanworks", contentHandler.ListRelatedFanworks)
 		contents.GET("/:id", contentHandler.GetContent)
 		contents.PATCH("/:id", middleware.AuthRequired(cfg), contentHandler.UpdateContent)
 		contents.DELETE("/:id", middleware.AuthRequired(cfg), contentHandler.DeleteContent)
@@ -195,16 +196,16 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 	}
 
 	rehabHandler := NewRehabHandler(db)
-		rehab := v1.Group("/rehab", middleware.AuthRequired(cfg))
-		{
-			rehab.GET("/courses", rehabHandler.ListCourses)
-			rehab.GET("/courses/:id", rehabHandler.GetCourse)
-			rehab.POST("/courses/:id/complete", rehabHandler.CompleteCourse)
-			rehab.GET("/my-progress", rehabHandler.GetMyProgress)
-		}
+	rehab := v1.Group("/rehab", middleware.AuthRequired(cfg))
+	{
+		rehab.GET("/courses", rehabHandler.ListCourses)
+		rehab.GET("/courses/:id", rehabHandler.GetCourse)
+		rehab.POST("/courses/:id/complete", rehabHandler.CompleteCourse)
+		rehab.GET("/my-progress", rehabHandler.GetMyProgress)
+	}
 
-		adminHandler := NewAdminHandler(db, cfg)
-		admin := v1.Group("/admin", middleware.AuthRequired(cfg), middleware.AdminRequired())
+	adminHandler := NewAdminHandler(db, cfg)
+	admin := v1.Group("/admin", middleware.AuthRequired(cfg), middleware.AdminRequired())
 	{
 		admin.GET("/ips", adminHandler.ListPendingIPs)
 		admin.POST("/ips/:id/approve", adminHandler.ApproveIP)
@@ -222,13 +223,13 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		admin.PATCH("/categories/:id", catHandler.AdminUpdateCategory)
 		admin.DELETE("/categories/:id", catHandler.AdminDeleteCategory)
 		admin.PUT("/categories/reorder", catHandler.AdminReorderCategories)
-			admin.GET("/llm-configs", adminHandler.ListLLMConfigs)
-			admin.POST("/llm-configs", adminHandler.CreateLLMConfig)
-			admin.PATCH("/llm-configs/:id", adminHandler.UpdateLLMConfig)
-			admin.DELETE("/llm-configs/:id", adminHandler.DeleteLLMConfig)
-			admin.POST("/llm-configs/:id/activate", adminHandler.ActivateLLMConfig)
-			admin.POST("/llm-configs/:id/test", adminHandler.TestLLMConfig)
-		}
+		admin.GET("/llm-configs", adminHandler.ListLLMConfigs)
+		admin.POST("/llm-configs", adminHandler.CreateLLMConfig)
+		admin.PATCH("/llm-configs/:id", adminHandler.UpdateLLMConfig)
+		admin.DELETE("/llm-configs/:id", adminHandler.DeleteLLMConfig)
+		admin.POST("/llm-configs/:id/activate", adminHandler.ActivateLLMConfig)
+		admin.POST("/llm-configs/:id/test", adminHandler.TestLLMConfig)
+	}
 
 	internalHandler := NewInternalHandler(db, rdb, cfg)
 	internal := v1.Group("/internal")

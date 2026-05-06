@@ -118,6 +118,10 @@ func (h *SocialHandler) PostDiscussion(c *gin.Context) {
 	}
 	d, err := h.socialSvc.PostDiscussion(input, callerID)
 	if err != nil {
+		if err == service.ErrLowReputation {
+			c.JSON(http.StatusForbidden, gin.H{"code": "LOW_REPUTATION", "message": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": err.Error()})
 		return
 	}
@@ -151,6 +155,10 @@ func (h *SocialHandler) React(c *gin.Context) {
 	}
 	action, err := h.socialSvc.React(input, callerID)
 	if err != nil {
+		if err == service.ErrLowReputation {
+			c.JSON(http.StatusForbidden, gin.H{"code": "LOW_REPUTATION", "message": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
 		return
 	}

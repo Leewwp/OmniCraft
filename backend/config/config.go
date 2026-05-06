@@ -78,8 +78,8 @@ type GreenConfig struct {
 }
 
 type FeaturesConfig struct {
-	PaymentEnabled          bool `mapstructure:"payment_enabled"`
-	CreatorSupportEnabled   bool `mapstructure:"creator_support_enabled"`
+	PaymentEnabled        bool `mapstructure:"payment_enabled"`
+	CreatorSupportEnabled bool `mapstructure:"creator_support_enabled"`
 }
 
 type LimitsConfig struct {
@@ -94,6 +94,7 @@ type LimitsConfig struct {
 type ReputationConfig struct {
 	QualityContentThreshold     int `mapstructure:"quality_content_threshold"`
 	QualityCommentThreshold     int `mapstructure:"quality_comment_threshold"`
+	MinScoreForInteraction      int `mapstructure:"min_score_for_interaction"`
 	RepeatViolationWindowDays   int `mapstructure:"repeat_violation_window_days"`
 	RepeatViolationThreshold    int `mapstructure:"repeat_violation_threshold"`
 	RepeatViolationExtraPenalty int `mapstructure:"repeat_violation_extra_penalty"`

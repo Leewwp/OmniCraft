@@ -1,15 +1,14 @@
-CREATE TABLE IF NOT EXISTS appeals (
-    id             BIGSERIAL    PRIMARY KEY,
-    user_id        BIGINT       NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    target_type    VARCHAR(20)  NOT NULL CHECK (target_type IN ('content','comment')),
-    target_id      BIGINT       NOT NULL,
-    reason         TEXT         NOT NULL,
-    status         VARCHAR(20)  NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
-    admin_response TEXT,
-    resolved_by    BIGINT       REFERENCES users(id),
-    resolved_at    TIMESTAMPTZ,
-    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
+ALTER TABLE appeals
+    DROP CONSTRAINT IF EXISTS appeals_target_type_check;
+
+ALTER TABLE appeals
+    ADD CONSTRAINT appeals_target_type_check CHECK (target_type IN ('content','comment'));
+
+ALTER TABLE appeals
+    DROP CONSTRAINT IF EXISTS appeals_status_check;
+
+ALTER TABLE appeals
+    ADD CONSTRAINT appeals_status_check CHECK (status IN ('pending','approved','rejected'));
 
 CREATE INDEX IF NOT EXISTS idx_appeals_user ON appeals (user_id);
 CREATE INDEX IF NOT EXISTS idx_appeals_status ON appeals (status);
