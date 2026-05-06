@@ -1,6 +1,76 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
+## [2026-05-06] - Task 86: Go API + Web 前端 — 原创/二创来源联动
+
+### What was done:
+- 后端补齐 `content_items.source_original_id` 与 `description` 迁移，确保发布页 Markdown 正文、ContentItem 模型和数据库 schema 一致。
+- 扩展内容发布校验：二创可选绑定已发布原创；原创携带 `source_original_id`、绑定不存在内容、绑定非原创或未发布原创均返回错误。
+- 扩展内容列表与相关二创接口：`GET /contents?source_original_id=` 和 `GET /contents/:id/related-fanworks` 支持按来源原创查询，`content_type` 支持逗号多值并去空格。
+- 前端统一使用 `frontend/lib/content.ts` normalize 内容 DTO，兼容 snake_case 与旧 PascalCase 字段，过滤无效卡片。
+- 原创详情页复用 `ContentDetail`，显示“相关二创”和“基于此原创发布二创”入口；新增 `/original/[contentId]/fanworks` 列表页，支持排序与类型筛选。
+- 发布页支持 `zone=fanwork&source_original_id=<id>` 预填来源原创；原创区发布不会提交来源原创字段。
+- 同步 `CLAUDE.md`、`architecture.md`、`UI Design.md` 和 `task.json`，补充联动规则、API/schema、UI 行为和 Task 86。
+
+### Testing:
+- `backend go test ./internal/model`：先红后绿，覆盖迁移必须包含 `description` 和 `source_original_id`。
+- `backend go test ./internal/handler`：先红后绿，覆盖逗号多值 query 解析和去空格。
+- `backend go test ./...`：通过。
+- `backend go vet ./...`：通过。
+- `backend go build ./...`：通过。
+- `frontend npm run lint`：通过。
+- `frontend npm run build`：通过，确认 `/original/[contentId]/fanworks` 路由被注册。
+- 浏览器验证使用 `http://localhost:3000` + 临时 `http://127.0.0.1:8080` mock API：原创详情加载、相关二创按钮跳转、`/original/123/fanworks?type=image` 类型筛选、移动端 Header 菜单、发布页 `source_original_id=123` 预填均通过；控制台无错误。
+
+### Notes:
+- Docker Desktop 当前未运行，无法用 `docker compose` 启动真实 Postgres/Redis 栈；后端运行时由 Go 测试/build 验证，浏览器验收使用临时 mock API。
+- Task 64 未标记完成，因为当前原创区二级筛选仍是前端静态映射，未完全改为后端 secondary 分类动态加载。
+- 浏览器截图保存在工作区父目录：`omnicraft-related-fanworks.png`、`omnicraft-original-mobile-menu.png`、`omnicraft-publish-source-prefill.png`。
+
+---
+## [2026-05-06] - Task 33: Tauri PC 客户端 — 项目初始化
+
+### What was done:
+- 安装 Rust 工具链（rustc 1.95.0 / cargo 1.95.0，x86_64-pc-windows-gnu）
+- 手动搭建完整 Tauri v2 项目结构（CLI 需要 TTY 无法在脚本环境中使用）：
+  - 前端：package.json / vite.config.ts / tsconfig.json / index.html / src/main.tsx / src/App.tsx / src/App.css
+  - 依赖：react 18 / @tauri-apps/api 2.5 / @tauri-apps/plugin-dialog / plugin-fs / plugin-shell / plugin-notification
+- 配置 tauri.conf.json：
+  - 应用窗口 1200x800（min 800x600）
+  - CSP 安全策略：仅允许 localhost:8080 API / aliyuncs.com 图片
+  - FS scope 白名单：$HOME/.omnicraft/** / $APPDATA/omnicraft/** / $TEMP/omnicraft/**
+- 创建 capabilities/default.json：Tauri v2 权限模型（core:default + shell:allow-open + dialog + fs scope + notification）
+- 实现 src-tauri/src/main.rs：Windows 隐藏控制台窗口入口
+- 实现 src-tauri/src/lib.rs：
+  - DeployState（Mutex<Option<UrlSchemeParams>>）管理部署参数
+  - get_deploy_params Tauri command
+  - register_url_scheme()：Windows 注册表注册 omnicraft:// 协议（reg add）
+  - setup 阶段解析命令行参数提取 omnicraft://deploy?content_id=X&token=Y
+- 实现 src-tauri/src/url_scheme.rs：
+  - UrlSchemeParams 结构体（content_id + token）
+  - parse_deploy_args()：从命令行参数中解析 omnicraft:// 协议 URL
+  - 5 个单元测试覆盖：有效 URL / 无 token / 忽略 Tauri flag / 非 omnicraft URL / 空参数
+- 生成占位图标（32x32.png / 128x128.png / 128x128@2x.png / icon.ico）
+
+### Testing:
+- npm install: ✅ 78 packages
+- npx vite build: ✅ 28 modules, built in 440ms
+- npx tsc --noEmit: ✅ 零错误
+- cargo check: ✅ 零错误
+- cargo clippy: ✅ 零错误（仅 2 个 style 警告）
+- cargo fmt: ✅ 格式规范
+- go build ./...: ✅ 通过
+- go vet ./...: ✅ 零警告
+- cargo test: ⚠️ 链接失败（GNU 工具链缺少 WebView2Loader.dll，环境限制非代码问题）
+
+### Notes:
+- Rust 从 MSVC 切换到 GNU 工具链（stable-x86_64-pc-windows-gnu）以兼容 MSYS2 环境
+- Tauri v2 使用 capabilities 权限模型替代 v1 的 allowlist
+- npm create tauri-app CLI 需要 TTY，非交互环境使用手动搭建
+- url_scheme 单元测试需在 MSVC 工具链或安装了 WebView2 SDK 的环境下才能 cargo test
+- Task 34（白名单动作引擎）和 Task 35（部署流程 UI）依赖本项目初始化
+
+---
 ## [2026-05-05] - Task 32: Web 前端 — 管理员后台页面
 
 ### What was done:
