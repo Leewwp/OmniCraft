@@ -135,6 +135,20 @@
 #### P07 原创内容详情页 `/original/[contentId]`
 - **定位**：原创区内容详情，复用 P05 布局但隐藏 PR 相关 UI
 - **差异**：无「IP 来源」标签，无「PR 协同申请」按钮，无版本历史（原创区不开放 PR）
+- **原创/二创联动**：
+  - 首屏加载时请求 `GET /contents/:id/related-fanworks?page=1&page_size=1`
+  - 当 `total > 0` 时在主操作区展示「相关二创」按钮，点击进入 `/original/[contentId]/fanworks`
+  - 展示「基于此原创发布二创」入口，跳转 `/publish?zone=fanwork&source_original_id=<id>`
+  - 当无相关二创时不展示「相关二创」按钮，避免进入空列表
+
+#### P07a 相关二创列表 `/original/[contentId]/fanworks`
+- **定位**：某个原创内容的来源二创聚合页
+- **核心功能**：
+  - 顶部显示源原创标题和「返回原创详情」
+  - 排序：最新 / 最热门 / 最多点击 / 最高好评率
+  - 类型筛选：全部 / 文字 / 图片 / 视频 / 音频/乐谱 / Mod / 其他
+  - 主区域复用 MasonryGrid + ContentCard，仅展示 `source_original_id=<id>` 且已发布的二创
+- **特殊状态**：无结果时显示“暂无相关二创”；源内容不存在或不是原创时进入 404
 
 #### P08 用户主页 `/user/[userId]`
 - **定位**：创作者公开主页，展示用户完整创作档案和社交关系
@@ -206,7 +220,8 @@
     - 标题 / 简介输入
     - 标签输入（自动补全 TagInput）
     - IP 选择（仅二创区显示）
-    - 原创区分类选择（仅原创区显示）：一级分类 Select（动态加载 `GET /categories?zone=original&level=1`）+ 二级分类 Select（父级联动，动态加载 `GET /categories?zone=original&level=2&parent_id=<id>`），写入 `content_items.category`
+    - 来源原创选择（仅二创区显示，可由 `source_original_id` 查询参数预填；发布原创时不得提交该字段）
+    - 原创区分类选择（仅原创区显示）：一级分类 Select（动态加载 `GET /categories?zone=original&level=primary`）+ 二级分类 Select（父级联动，动态加载 `GET /categories?zone=original&level=secondary&parent_id=<id>`），写入 `content_items.category`
   - Agent 面板（web_agent_enabled=true 时显示）：
     - 「AI 自动填写」按钮（上传后触发 UploadAssistPanel）
     - 合规检测徽章（ComplianceCheckBadge，提交前触发）
@@ -520,7 +535,9 @@ app/
 │   ├── original/
 │   │   ├── page.tsx         # /original 原创区首页
 │   │   └── [contentId]/
-│   │       └── page.tsx     # /original/:contentId 原创内容详情
+│   │       ├── page.tsx     # /original/:contentId 原创内容详情
+│   │       └── fanworks/
+│   │           └── page.tsx # /original/:contentId/fanworks 相关二创列表
 │   ├── user/
 │   │   └── [userId]/
 │   │       └── page.tsx     # /user/:userId 用户主页
@@ -628,4 +645,3 @@ app/
 5. 包含以下信息：视觉层级 / 间距规范 / 状态变体（default/hover/active/disabled/loading/empty）/ 响应式规则 / 暗色模式适配
 6. 结果后粘贴至 C:\Users\16278\Desktop\file\code\project\OmniCraft\design\ui-spec.md，删除文件顶部的占位提示块即可。
 ```
-

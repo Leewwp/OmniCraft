@@ -100,6 +100,7 @@ app/
 │   ├── content/[contentId]/page.tsx # 内容详情页
 │   ├── original/page.tsx            # 原创区首页
 │   ├── original/[contentId]/page.tsx# 原创内容详情页
+│   ├── original/[contentId]/fanworks/page.tsx # 原创相关二创列表
 │   ├── user/[userId]/page.tsx       # 用户主页（公开可浏览）
 │   ├── search/page.tsx              # 搜索页
 │   ├── login/page.tsx               # 登录页
@@ -290,6 +291,7 @@ GET    /api/v1/contents/:id           # 内容详情
 PATCH  /api/v1/contents/:id           # 更新内容（仅作者）
 DELETE /api/v1/contents/:id           # 删除内容（仅作者）
 POST   /api/v1/contents/:id/report    # 举报内容
+GET    /api/v1/contents/:id/related-fanworks # 原创内容的相关二创列表
 
 POST   /api/v1/dashboard/contributors/:userId/block    # 作者拉黑贡献者（写 author_blocklist）
 DELETE /api/v1/dashboard/contributors/:userId/block    # 解除拉黑
@@ -358,6 +360,7 @@ GET    /api/v1/rehab/my-progress             # 我的课程完成进度
 # 标签体系 API（详见 10.1 节）
 # GET /api/v1/tags/faceted | POST /api/v1/contents/:id/tags/suggest
 # GET /api/v1/users/me/tag-groups | GET /api/v1/users/me/saved-searches 等
+GET    /api/v1/categories           # 公开分类列表（?zone=&level=&parent_id=）
 GET    /api/v1/admin/config           # 获取系统配置
 PATCH  /api/v1/admin/config           # 更新系统配置（上传限制/功能开关）
 
@@ -562,11 +565,13 @@ CREATE TABLE ip_tags (
 CREATE TABLE content_items (
     id              BIGSERIAL PRIMARY KEY,
     title           VARCHAR(500) NOT NULL,
+    description     TEXT,
     author_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     zone            VARCHAR(10) NOT NULL,   -- 'fanwork' | 'original'
     ip_id           BIGINT REFERENCES ips(id) ON DELETE SET NULL, -- 仅二创区有值
+    source_original_id BIGINT REFERENCES content_items(id) ON DELETE SET NULL, -- 二创来源原创，仅 zone='fanwork' 可用
     category        VARCHAR(50),   -- 原创区内容分类（仅 zone='original'）：'film_tv' | 'gaming' | 'literature' | 'pet' | 'food' | 'beauty_fashion' | 'home' | 'tech_digital' | 'travel' | 'sports' | 'productivity'
-    -- 应用层约束（GORM Validate Tag）：zone='original' 时 category 必填且须为上述枚举；zone='fanwork' 时 category 须为 NULL。枚举扩展时在 config/categories 种子数据中补充，不加 DB CHECK 约束（避免迁移负担）
+    -- 应用层约束（GORM Validate Tag）：zone='original' 时 category 必填且须为上述枚举；zone='fanwork' 时 category 须为 NULL。source_original_id 仅允许 fanwork 绑定已发布 original。枚举扩展时在 config/categories 种子数据中补充，不加 DB CHECK 约束（避免迁移负担）
     content_type    VARCHAR(20) NOT NULL,
     -- content_type: 'article' | 'image' | 'video' | 'audio'
     --              | 'mod' | 'prompt' | 'template' | 'sheet_music' | 'other'
@@ -594,6 +599,7 @@ CREATE INDEX idx_content_items_ip ON content_items(ip_id);
 CREATE INDEX idx_content_items_zone ON content_items(zone);
 CREATE INDEX idx_content_items_type ON content_items(content_type);
 CREATE INDEX idx_content_items_category ON content_items(category);
+CREATE INDEX idx_content_items_source_original ON content_items(source_original_id, status, created_at DESC) WHERE source_original_id IS NOT NULL;
 CREATE INDEX idx_content_items_status ON content_items(status);
 
 -- 内容附件（OSS 存储的文件）
@@ -1077,6 +1083,7 @@ Content-Type: application/json
   "author": { "id": 1, "username": "creator", "avatar_url": "..." },
   "zone": "fanwork",
   "ip": { "id": 5, "name": "原神", "slug": "genshin-impact" },
+  "source_original_id": null,
   "content_type": "article",
   "status": "published",
   "current_version_id": 7,
@@ -1092,6 +1099,38 @@ Content-Type: application/json
     "agent_enabled": false
   },
   "created_at": "2025-01-01T00:00:00Z"
+}
+```
+
+#### 发布内容（POST /api/v1/contents）
+
+`source_original_id` 为可选字段，只用于二创绑定来源原创。原创内容携带该字段返回 400；二创绑定不存在、非原创或未发布内容也返回 400。
+
+```json
+// Request
+{
+  "title": "基于某原创世界观的二创短篇",
+  "description": "Markdown 正文或简介",
+  "zone": "fanwork",
+  "ip_id": 5,
+  "source_original_id": 123,
+  "content_type": "article",
+  "tags": ["短篇"]
+}
+```
+
+#### 相关二创（GET /api/v1/contents/:id/related-fanworks）
+
+查询某个原创内容下已发布的二创内容。支持 `page`、`page_size`、`sort`、`content_type` 筛选；`content_type` 可支持逗号分隔多值，例如 `article,prompt` 或 `audio,sheet_music`。
+
+```json
+// Response 200
+{
+  "source_original_id": 123,
+  "total": 8,
+  "page": 1,
+  "page_size": 24,
+  "contents": []
 }
 ```
 

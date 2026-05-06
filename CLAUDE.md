@@ -314,6 +314,15 @@ docker compose logs -f backend     # 查看后端日志
   - 一级分类选择"美食" → 可选"图片"查看美食照片、"视频"查看烹饪视频等
   - 所有大类、二级分类、内容类型均由后端 API 动态加载，管理员后台统一管理（增删改排序），降低新增品类成本
 
+### 原创/二创来源联动规则
+
+- 第一版采用单来源模型：每个二创最多绑定一个原创内容，通过 `content_items.source_original_id` 指向源原创。
+- 只有 `zone='fanwork'` 允许填写 `source_original_id`；`zone='original'` 携带该字段必须拒绝。
+- 被绑定的源内容必须满足 `zone='original'` 且 `status='published'`；不存在、非原创、未发布内容都返回 400。
+- 旧二创内容不强制回填来源，`source_original_id = NULL` 时不会出现在相关二创列表。
+- 原创详情页只在相关二创 `total > 0` 时展示「相关二创」入口；点击进入 `/original/[contentId]/fanworks`。
+- 从原创详情发起二创发布时使用 `/publish?zone=fanwork&source_original_id=<id>` 预填来源原创。
+- 前端内容列表必须经过统一 DTO normalize，兼容 snake_case 与旧 PascalCase 字段；缺少有效 `id/title/zone` 的内容不得渲染为可点击卡片。
 
 ### 文件上传限制（从 config.yaml 读取，不要硬编码）
 - 视频：≤ 300MB，时长 ≤ 180 秒

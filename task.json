@@ -669,7 +669,7 @@
         "创建 src-tauri/src/url_scheme.rs：解析 omnicraft://deploy?content_id=xxx&token=xxx 参数",
         "验证：Tauri 应用可启动，URL Scheme 可从浏览器唤醒"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 34,
@@ -1803,6 +1803,38 @@
         "## Page: /history 浏览历史",
         "## Component: ContentCard",
         "## Component: ConfirmModal"
+      ],
+      "passes": true
+    },
+    {
+      "id": 86,
+      "title": "Go API + Web 前端 — 原创/二创来源联动",
+      "description": "实现二创绑定来源原创、原创详情显示相关二创入口、相关二创列表页和发布页来源原创预填",
+      "depends_on": [
+        4,
+        11,
+        20,
+        25,
+        64,
+        78
+      ],
+      "steps": [
+        "创建迁移文件 migrations/036_content_source_original.sql：ALTER TABLE content_items ADD COLUMN source_original_id BIGINT REFERENCES content_items(id) ON DELETE SET NULL，并创建 (source_original_id, status, created_at DESC) 条件索引",
+        "扩展 ContentItem、PublishContentInput、内容发布 service：source_original_id 仅允许 zone=fanwork 使用，被引用内容必须是 zone=original 且 status=published；原创内容携带 source_original_id 返回 400",
+        "扩展 GET /contents：支持 source_original_id 查询参数；新增 GET /contents/:id/related-fanworks?page=&page_size=&sort=&content_type= 返回指定原创下已发布二创",
+        "前端新增内容 DTO normalize 工具，兼容 snake_case 与旧 PascalCase 字段，过滤缺少有效 id/title/zone 的内容卡片；公共浏览页在契约稳定前使用 no-store 避免旧缓存污染",
+        "原创详情页复用 ContentDetail，隐藏原创区不需要的 PR/版本历史；当相关二创 total > 0 时显示「相关二创」按钮，另提供「基于此原创发布二创」入口并携带 source_original_id",
+        "新增 /original/[contentId]/fanworks 页面：显示源原创标题、返回入口、排序和内容类型筛选，复用 MasonryGrid/ContentCard，空态显示“暂无相关二创”",
+        "发布页在二创区显示来源原创选择器，可从 query 参数预填 source_original_id；原创区发布时不得提交 source_original_id",
+        "验证：后端测试覆盖来源校验和相关二创查询；前端 lint 通过；浏览器验证原创详情、相关二创按钮、fanworks 列表筛选、发布页预填和移动端 Header 入口"
+      ],
+      "ui_spec_ref": [
+        "## Page: /original/[contentId] 原创内容详情",
+        "## Page: /original/[contentId]/fanworks 相关二创列表",
+        "## Page: /publish 发布内容",
+        "## Component: ContentDetail",
+        "## Component: ContentCard",
+        "## Component: MasonryGrid"
       ],
       "passes": true
     }
