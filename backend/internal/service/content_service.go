@@ -12,9 +12,10 @@ import (
 )
 
 var (
-	ErrContentNotFound  = errors.New("content not found")
-	ErrContentForbidden = errors.New("forbidden: not content author")
-	ErrPublishFrozen    = errors.New("publish permission is temporarily frozen")
+	ErrContentNotFound       = errors.New("content not found")
+	ErrContentForbidden      = errors.New("forbidden: not content author")
+	ErrPublishFrozen         = errors.New("publish permission is temporarily frozen")
+	ErrInvalidSourceOriginal = errors.New("source original must be a published original content item")
 )
 
 type ContentService struct {
@@ -32,16 +33,18 @@ func NewContentServiceWithDeps(contentRepo *repository.ContentRepository, review
 }
 
 type PublishContentInput struct {
-	Title         string            `json:"title" binding:"required,min=1,max=500"`
-	Zone          string            `json:"zone" binding:"required,oneof=fanwork original"`
-	IPID          *int64            `json:"ip_id"`
-	Category      string            `json:"category"`
-	ContentType   string            `json:"content_type" binding:"required"`
-	CoverImageURL string            `json:"cover_image_url"`
-	IsPublic      bool              `json:"is_public"`
-	AllowCopy     bool              `json:"allow_copy"`
-	Tags          []string          `json:"tags"`
-	Attachments   []AttachmentInput `json:"attachments"`
+	Title            string            `json:"title" binding:"required,min=1,max=500"`
+	Description      string            `json:"description"`
+	Zone             string            `json:"zone" binding:"required,oneof=fanwork original"`
+	IPID             *int64            `json:"ip_id"`
+	SourceOriginalID *int64            `json:"source_original_id"`
+	Category         string            `json:"category"`
+	ContentType      string            `json:"content_type" binding:"required"`
+	CoverImageURL    string            `json:"cover_image_url"`
+	IsPublic         bool              `json:"is_public"`
+	AllowCopy        bool              `json:"allow_copy"`
+	Tags             []string          `json:"tags"`
+	Attachments      []AttachmentInput `json:"attachments"`
 }
 
 type AttachmentInput struct {
@@ -63,17 +66,34 @@ func (s *ContentService) PublishContent(input PublishContentInput, authorID int6
 		}
 	}
 
+	var sourceOriginal *model.ContentItem
+	if input.SourceOriginalID != nil {
+		source, err := s.contentRepo.FindByID(*input.SourceOriginalID)
+		if err != nil {
+			return nil, err
+		}
+		if source == nil {
+			return nil, ErrInvalidSourceOriginal
+		}
+		sourceOriginal = source
+	}
+	if err := validateSourceOriginalLink(input.Zone, sourceOriginal); err != nil {
+		return nil, err
+	}
+
 	content := &model.ContentItem{
-		Title:         input.Title,
-		AuthorID:      authorID,
-		Zone:          input.Zone,
-		IPID:          input.IPID,
-		Category:      input.Category,
-		ContentType:   input.ContentType,
-		CoverImageURL: input.CoverImageURL,
-		IsPublic:      input.IsPublic,
-		AllowCopy:     input.AllowCopy,
-		Status:        "pending",
+		Title:            input.Title,
+		Description:      input.Description,
+		AuthorID:         authorID,
+		Zone:             input.Zone,
+		IPID:             input.IPID,
+		SourceOriginalID: input.SourceOriginalID,
+		Category:         input.Category,
+		ContentType:      input.ContentType,
+		CoverImageURL:    input.CoverImageURL,
+		IsPublic:         input.IsPublic,
+		AllowCopy:        input.AllowCopy,
+		Status:           "pending",
 	}
 
 	if err := s.contentRepo.CreateContent(content); err != nil {
@@ -121,7 +141,7 @@ func (s *ContentService) PublishContent(input PublishContentInput, authorID int6
 			TargetID:    content.ID,
 			ContentType: input.ContentType,
 			Title:       input.Title,
-			Description: "",
+			Description: input.Description,
 			AuthorID:    authorID,
 			Attachments: input.Attachments,
 		}
@@ -131,6 +151,19 @@ func (s *ContentService) PublishContent(input PublishContentInput, authorID int6
 	}
 
 	return content, nil
+}
+
+func validateSourceOriginalLink(zone string, source *model.ContentItem) error {
+	if source == nil {
+		return nil
+	}
+	if zone != "fanwork" {
+		return ErrInvalidSourceOriginal
+	}
+	if source.Zone != "original" || source.Status != "published" {
+		return ErrInvalidSourceOriginal
+	}
+	return nil
 }
 
 func (s *ContentService) GetContent(id int64) (*model.ContentItem, error) {

@@ -3,28 +3,30 @@ package model
 import "time"
 
 type ContentItem struct {
-	ID            int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	Title         string    `gorm:"size:500;not null" json:"title"`
-	Description   string    `gorm:"type:text" json:"description,omitempty"`
-	AuthorID      int64     `gorm:"not null;index" json:"author_id"`
-	Author        User      `gorm:"foreignKey:AuthorID" json:"author,omitempty"`
-	Zone          string    `gorm:"size:10;not null" json:"zone"`
-	IPID          *int64    `gorm:"index" json:"ip_id,omitempty"`
-	IP            *IP       `gorm:"foreignKey:IPID" json:"ip,omitempty"`
-	Category      string    `gorm:"size:50" json:"category,omitempty"`
-	ContentType   string    `gorm:"size:20;not null" json:"content_type"`
-	CoverImageURL string    `gorm:"type:text" json:"cover_image_url,omitempty"`
-	Status        string    `gorm:"size:20;not null;default:pending" json:"status"`
-	ViewCount     int64     `gorm:"not null;default:0" json:"view_count"`
-	LikeCount     int       `gorm:"not null;default:0" json:"like_count"`
-	DislikeCount  int       `gorm:"not null;default:0" json:"dislike_count"`
-	IsPublic      bool      `gorm:"not null;default:true" json:"is_public"`
-	AllowCopy     bool      `gorm:"not null;default:true" json:"allow_copy"`
-	AgentEnabled  bool      `gorm:"not null;default:false" json:"agent_enabled"`
-	IsPaid        bool      `gorm:"not null;default:false" json:"is_paid"`
-	Price         float64   `gorm:"type:numeric(10,2);default:0" json:"price"`
-	CreatedAt     time.Time `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt     time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	ID               int64        `gorm:"primaryKey;autoIncrement" json:"id"`
+	Title            string       `gorm:"size:500;not null" json:"title"`
+	Description      string       `gorm:"type:text" json:"description,omitempty"`
+	AuthorID         int64        `gorm:"not null;index" json:"author_id"`
+	Author           User         `gorm:"foreignKey:AuthorID" json:"author,omitempty"`
+	Zone             string       `gorm:"size:10;not null" json:"zone"`
+	IPID             *int64       `gorm:"index" json:"ip_id,omitempty"`
+	IP               *IP          `gorm:"foreignKey:IPID" json:"ip,omitempty"`
+	SourceOriginalID *int64       `gorm:"index" json:"source_original_id,omitempty"`
+	SourceOriginal   *ContentItem `gorm:"foreignKey:SourceOriginalID" json:"source_original,omitempty"`
+	Category         string       `gorm:"size:50" json:"category,omitempty"`
+	ContentType      string       `gorm:"size:20;not null" json:"content_type"`
+	CoverImageURL    string       `gorm:"type:text" json:"cover_image_url,omitempty"`
+	Status           string       `gorm:"size:20;not null;default:pending" json:"status"`
+	ViewCount        int64        `gorm:"not null;default:0" json:"view_count"`
+	LikeCount        int          `gorm:"not null;default:0" json:"like_count"`
+	DislikeCount     int          `gorm:"not null;default:0" json:"dislike_count"`
+	IsPublic         bool         `gorm:"not null;default:true" json:"is_public"`
+	AllowCopy        bool         `gorm:"not null;default:true" json:"allow_copy"`
+	AgentEnabled     bool         `gorm:"not null;default:false" json:"agent_enabled"`
+	IsPaid           bool         `gorm:"not null;default:false" json:"is_paid"`
+	Price            float64      `gorm:"type:numeric(10,2);default:0" json:"price"`
+	CreatedAt        time.Time    `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt        time.Time    `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 func (ContentItem) TableName() string { return "content_items" }

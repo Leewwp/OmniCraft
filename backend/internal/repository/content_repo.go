@@ -17,18 +17,19 @@ func NewContentRepository(db *gorm.DB) *ContentRepository {
 }
 
 type ListContentsFilter struct {
-	Zone         string
-	IPID         *int64
-	Category     string
-	ContentType  string
-	ContentTypes []string
-	AuthorID     *int64
-	Status       string
-	Tags         []string
-	Sort         string
-	TimeRange    string
-	Page         int
-	PageSize     int
+	Zone             string
+	IPID             *int64
+	SourceOriginalID *int64
+	Category         string
+	ContentType      string
+	ContentTypes     []string
+	AuthorID         *int64
+	Status           string
+	Tags             []string
+	Sort             string
+	TimeRange        string
+	Page             int
+	PageSize         int
 }
 
 func (r *ContentRepository) CreateContent(content *model.ContentItem) error {
@@ -64,6 +65,9 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 	}
 	if f.IPID != nil {
 		q = q.Where("ip_id = ?", *f.IPID)
+	}
+	if f.SourceOriginalID != nil {
+		q = q.Where("source_original_id = ?", *f.SourceOriginalID)
 	}
 	if f.Category != "" {
 		q = q.Where("category = ?", f.Category)

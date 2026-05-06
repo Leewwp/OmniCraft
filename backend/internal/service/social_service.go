@@ -15,7 +15,7 @@ var (
 	ErrCommentForbidden   = errors.New("not comment author")
 )
 
-const minReputationToComment = 0
+const defaultMinScoreForInteraction = 3
 
 type SocialService struct {
 	socialRepo  *repository.SocialRepository
@@ -36,15 +36,8 @@ type PostCommentInput struct {
 }
 
 func (s *SocialService) PostComment(input PostCommentInput, authorID int64) (*model.Comment, error) {
-	user, err := s.userRepo.FindByID(authorID)
-	if err != nil || user == nil {
-		return nil, errors.New("user not found")
-	}
-	if user.IsBanned {
-		return nil, errors.New("user is banned")
-	}
-	if user.Reputation < minReputationToComment {
-		return nil, ErrLowReputation
+	if err := s.ensureCanInteract(authorID); err != nil {
+		return nil, err
 	}
 
 	comment := &model.Comment{
@@ -85,6 +78,10 @@ type PostDiscussionInput struct {
 }
 
 func (s *SocialService) PostDiscussion(input PostDiscussionInput, authorID int64) (*model.Discussion, error) {
+	if err := s.ensureCanInteract(authorID); err != nil {
+		return nil, err
+	}
+
 	d := &model.Discussion{
 		IPID:          input.IPID,
 		ContentItemID: input.ContentItemID,
@@ -118,6 +115,10 @@ type ReactInput struct {
 }
 
 func (s *SocialService) React(input ReactInput, userID int64) (string, error) {
+	if err := s.ensureCanInteract(userID); err != nil {
+		return "", err
+	}
+
 	reaction := &model.Reaction{
 		UserID:     userID,
 		TargetType: input.TargetType,
@@ -139,6 +140,27 @@ func (s *SocialService) React(input ReactInput, userID int64) (string, error) {
 	}
 
 	return action, nil
+}
+
+func (s *SocialService) ensureCanInteract(userID int64) error {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil || user == nil {
+		return errors.New("user not found")
+	}
+	if user.IsBanned {
+		return errors.New("user is banned")
+	}
+	if user.Reputation < minScoreForInteraction(s.cfg) {
+		return ErrLowReputation
+	}
+	return nil
+}
+
+func minScoreForInteraction(cfg *config.Config) int {
+	if cfg == nil || cfg.Reputation.MinScoreForInteraction <= 0 {
+		return defaultMinScoreForInteraction
+	}
+	return cfg.Reputation.MinScoreForInteraction
 }
 
 func (s *SocialService) Report(targetType string, targetID int64, reporterID int64, reason, detail string) error {

@@ -96,7 +96,7 @@ func (r *SocialRepository) ListDiscussions(ipID *int64, contentID *int64, page, 
 	}
 	q.Count(&total)
 	offset := (page - 1) * pageSize
-	err := q.Order("updated_at DESC").Offset(offset).Limit(pageSize).Find(&discussions).Error
+	err := q.Order("last_active_at DESC").Offset(offset).Limit(pageSize).Find(&discussions).Error
 	return discussions, total, err
 }
 
