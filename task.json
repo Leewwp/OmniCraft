@@ -1775,7 +1775,7 @@
         "## Component: JudgeQualBadge",
         "## Component: ContentCard"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 85,

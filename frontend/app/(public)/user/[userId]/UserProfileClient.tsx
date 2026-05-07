@@ -6,6 +6,7 @@ import { api, ApiRequestError } from "@/lib/api";
 import { ContentCardData } from "@/components/content/ContentCard";
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { Button } from "@/components/ui/button";
+import { FollowButton } from "@/components/social/FollowButton";
 import { normalizeContentList } from "@/lib/content";
 import { useTranslations } from 'next-intl';
 
@@ -21,42 +22,11 @@ export function UserProfileClient({ userId, displayName }: UserProfileClientProp
   const [items, setItems] = useState<ContentCardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [following, setFollowing] = useState(false);
-  const [followBusy, setFollowBusy] = useState(false);
-
   const isOwnProfile = user?.id === userId;
 
   useEffect(() => {
     void loadTab();
   }, [userId, tab]);
-
-  useEffect(() => {
-    if (!user || isOwnProfile) return;
-    void checkFollow();
-  }, [user, userId, isOwnProfile]);
-
-  async function checkFollow() {
-    try {
-      const data = await api.get<{ following?: { target_id: number }[] }>(`/api/v1/users/${user!.id}/following`);
-      const list = data.following || [];
-      setFollowing(list.some((f) => f.target_id === userId));
-    } catch { /* ignore */ }
-  }
-
-  async function toggleFollow() {
-    if (!user) return;
-    setFollowBusy(true);
-    try {
-      if (following) {
-        await api.delete(`/api/v1/users/${userId}/follow`);
-        setFollowing(false);
-      } else {
-        await api.post(`/api/v1/users/${userId}/follow`, {});
-        setFollowing(true);
-      }
-    } catch { /* ignore */ }
-    finally { setFollowBusy(false); }
-  }
 
   async function loadTab() {
     setError("");
@@ -88,9 +58,7 @@ export function UserProfileClient({ userId, displayName }: UserProfileClientProp
     <div className="space-y-4">
       <div className="flex items-center gap-4">
         {!isOwnProfile && (
-          <Button size="sm" variant={following ? "default" : "outline"} disabled={followBusy} onClick={() => void toggleFollow()}>
-            {following ? t('user.following') : t('user.follow')}
-          </Button>
+          <FollowButton targetType="user" targetId={userId} />
         )}
         {isOwnProfile && (
           <Button size="sm" variant="outline" onClick={() => window.location.href = "/settings"}>
