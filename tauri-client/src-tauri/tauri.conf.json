@@ -1,0 +1,62 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
+  "productName": "OmniCraft",
+  "version": "0.1.0",
+  "identifier": "com.omnicraft.app",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "title": "OmniCraft 万象工坊",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://localhost:8080 https://*.aliyuncs.com; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; font-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    },
+    "fs": {
+      "scope": {
+        "allow": [
+          {
+            "path": "$HOME/.omnicraft/**"
+          },
+          {
+            "path": "$APPDATA/omnicraft/**"
+          },
+          {
+            "path": "$TEMP/omnicraft/**"
+          }
+        ],
+        "deny": []
+      }
+    },
+    "notification": {
+      "all": true
+    }
+  }
+}
