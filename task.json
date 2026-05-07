@@ -1214,7 +1214,7 @@
         "## Component: UsageGuidePanel",
         "## Component: SearchAgentInput"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 60,
