@@ -1,7 +1,31 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
-## [2026-05-07] - Task 35: Tauri PC 客户端 — 部署流程 UI
+## [2026-05-07] - Task 36: Web 前端 — 响应式设计/移动端适配
+
+### What was done:
+- `components/layout/Header.tsx`：新增移动端搜索切换按钮（点击搜索图标展开搜索栏，autoFocus），搜索栏在移动端以可折叠行显示
+- `components/content/MasonryGrid.tsx`：新增 450px 断点设为 1 列，确保小屏手机（375px）内容卡片单列展示
+- `app/admin/layout.tsx`：新增侧边栏折叠功能（`sidebarOpen` 状态 + `PanelLeftClose`/`PanelLeft` 切换按钮），折叠后仅显示图标（52px 宽），展开时 220px 宽，导航项 title 属性提示
+- `components/content/ContentDetail.tsx`：
+  - 一键部署区域改为 `flex-col sm:flex-row`，小屏按钮堆叠到文字下方
+  - 附件下载按钮 wrap 布局
+- `components/content/VersionHistory.tsx`：移动端新增折叠/展开按钮（`ChevronDown`/`ChevronUp`），时间轴默认折叠隐藏（`hidden md:block`），节省移动端垂直空间
+
+### Testing:
+- `npm run build`：✅ Turbopack 编译成功，所有路由正确注册
+- `npx tsc --noEmit`：✅ 零错误
+- `go build ./...` / `go vet ./...`：✅ 通过
+- Playwright 浏览器测试：✅ 375px / 700px / 1100px 三个断点截图确认
+  - 375px：Header 汉堡菜单 + 搜索图标，单列内容
+  - 700px：双列 Masonry，导航栏展开
+  - 1100px：三列 Masonry，完整布局
+
+### Notes:
+- 全局扁平化无阴影设计规范保持不变，所有改动仅涉及响应式布局调整
+- Admin 侧边栏折叠状态不持久化（刷新后恢复展开），如需持久化可后续加 localStorage
+
+---
 
 ### What was done:
 - Go 后端新增 `POST /api/v1/agent/script/:id`（GET 方法，AuthRequired）：

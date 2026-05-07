@@ -726,7 +726,7 @@
         "## Global Interaction Patterns",
         "## Component: Header"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 37,

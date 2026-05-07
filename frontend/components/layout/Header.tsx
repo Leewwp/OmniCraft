@@ -46,6 +46,7 @@ export function Header() {
   const { user, logout } = useAuth();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const router = useRouter();
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -85,6 +86,7 @@ export function Header() {
         </nav>
 
         <div className="flex flex-1 items-center gap-2">
+          {/* Desktop search */}
           <div className="relative hidden max-w-sm flex-1 items-center sm:flex">
             <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground" />
             <input
@@ -92,6 +94,16 @@ export function Header() {
               placeholder="搜索 IP、内容、创作者..."
               className="w-full rounded-md border border-border bg-muted/40 py-1.5 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
+          </div>
+          {/* Mobile search toggle */}
+          <div className="flex flex-1 justify-end sm:hidden">
+            <button
+              type="button"
+              className="rounded-md p-2 hover:bg-muted"
+              onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
+            >
+              <Search className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
@@ -221,6 +233,20 @@ export function Header() {
           )}
         </div>
       </div>
+      {/* Mobile expandable search */}
+      {mobileSearchOpen && (
+        <div className="border-t border-border bg-background px-4 py-2 sm:hidden">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="search"
+              autoFocus
+              placeholder="搜索 IP、内容、创作者..."
+              className="w-full rounded-md border border-border bg-muted/40 py-1.5 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+        </div>
+      )}
     </header>
   );
 }
