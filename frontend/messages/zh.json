@@ -584,7 +584,9 @@
     "loginToComment": "请登录后参与评论",
     "noComments": "暂无评论，来抢沙发吧",
     "sendFailed": "评论发送失败",
-    "loadFailed": "加载评论失败"
+    "loadFailed": "加载评论失败",
+    "follow": "关注",
+    "following": "已关注"
   },
   "pr": {
     "submit": "提交修改申请",
@@ -607,7 +609,8 @@
     "noDescription": "暂无 IP 介绍",
     "noDescriptionShort": "暂无简介",
     "enterDiscussion": "进入讨论区",
-    "enterDetail": "进入 IP 详情"
+    "enterDetail": "进入 IP 详情",
+    "followerCount": "{count} 人关注"
   },
   "user": {
     "profile": "用户 #{id}",

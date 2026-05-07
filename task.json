@@ -1530,7 +1530,7 @@
         "## Page: /ip/[ipId] IP 详情页",
         "## Component: FollowButton"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 74,

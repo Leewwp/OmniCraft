@@ -579,7 +579,9 @@
     "loginToComment": "Please log in to comment",
     "noComments": "No comments yet. Be the first!",
     "sendFailed": "Failed to send comment",
-    "loadFailed": "Failed to load comments"
+    "loadFailed": "Failed to load comments",
+    "follow": "Follow",
+    "following": "Following"
   },
   "pr": {
     "submit": "Submit Edit Proposal",
@@ -602,7 +604,8 @@
     "noDescription": "No IP description available",
     "noDescriptionShort": "No description",
     "enterDiscussion": "Enter Discussion",
-    "enterDetail": "View IP Details"
+    "enterDetail": "View IP Details",
+    "followerCount": "{count} followers"
   },
   "user": {
     "profile": "User #{id}",
