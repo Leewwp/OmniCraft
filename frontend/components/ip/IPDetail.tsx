@@ -3,8 +3,9 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
-import { MessageSquareText } from "lucide-react";
+import { MessageSquareText, Users } from "lucide-react";
 import { IPCategoryTabs } from "@/components/ip/IPCategoryTabs";
+import { FollowButton } from "@/components/social/FollowButton";
 
 interface IPItem {
   id: number;
@@ -12,6 +13,8 @@ interface IPItem {
   description?: string;
   category?: string;
   cover_url?: string;
+  follower_count?: number;
+  is_following?: boolean;
 }
 
 interface IPDetailProps {
@@ -37,6 +40,19 @@ export function IPDetail({ ip }: IPDetailProps) {
           <p className="text-sm leading-relaxed text-foreground/90">
             {ip.description || t('ip.noDescription')}
           </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <FollowButton
+              targetType="ip"
+              targetId={ip.id}
+              initialFollowing={ip.is_following ?? false}
+            />
+            {ip.follower_count != null && ip.follower_count > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <Users className="h-3.5 w-3.5" />
+                {t('ip.followerCount', { count: ip.follower_count })}
+              </span>
+            )}
+          </div>
           <div>
             <Link
               href={`/ip/${ip.id}/discussions`}
