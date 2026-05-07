@@ -8,9 +8,17 @@
 Thumbs.db
 .vscode/
 
+# Dependencies
+node_modules/
+
 # Logs
 *.log
 .task-logs/
+
+# Rust / Tauri build artifacts
+tauri-client/src-tauri/target/
+tauri-client/dist/
+tauri-client/src-tauri/gen/
 
 # Claude Code (local overrides only — settings.json is committed)
 .claude/settings.local.json

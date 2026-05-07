@@ -1,0 +1,54 @@
+/* OmniCraft Tauri Client — Design Tokens */
+
+:root {
+  --canvas-default: #ffffff;
+  --canvas-subtle: #f6f8fa;
+  --canvas-muted: #eef1f5;
+  --border-default: #d0d7de;
+  --border-muted: #e3e8ee;
+  --fg-default: #1f2328;
+  --fg-muted: #656d76;
+  --fg-subtle: #8b949e;
+  --accent-default: #0969da;
+  --accent-subtle: #ddf4ff;
+  --card-bg: #ffffff;
+  --danger: #cf222e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas-default: #0d1117;
+    --canvas-subtle: #161b22;
+    --canvas-muted: #21262d;
+    --border-default: #30363d;
+    --border-muted: #21262d;
+    --fg-default: #e6edf3;
+    --fg-muted: #8b949e;
+    --fg-subtle: #6e7681;
+    --accent-default: #58a6ff;
+    --accent-subtle: #0c2d6b;
+    --card-bg: #161b22;
+    --danger: #f85149;
+  }
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  background-color: var(--canvas-default);
+  color: var(--fg-default);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.bg-canvas-default { background-color: var(--canvas-default); }
+.bg-canvas-subtle { background-color: var(--canvas-subtle); }
+.bg-card { background-color: var(--card-bg); }
+.border-border { border-color: var(--border-default); }
+.text-fg-default { color: var(--fg-default); }
+.text-muted-foreground { color: var(--fg-muted); }
