@@ -1,6 +1,30 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
+## [2026-05-07] - Task 51: 乐谱 Viewer（OSMD + MIDI 播放器）
+
+### What was done:
+- 重写 `components/content/SheetMusicViewer.tsx`（从简单附件列表升级为交互式乐谱查看器）：
+  - **OSMDRenderer**：动态导入 `opensheetmusicdisplay`，useEffect 初始化 OpenSheetMusicDisplay 实例，加载 OSS 签名 URL 的 MusicXML，SVG 渲染五线谱，错误覆盖层降级提示
+  - **MIDIPlayer**：动态导入 `midi-player-js`（解析 MIDI）+ `soundfont-player`（Acoustic Grand Piano 音色），`loadArrayBuffer` 加载 MIDI → `midiEvent` 回调驱动 `piano.play()`，UI 含播放/暂停按钮 + 进度条 + 当前时间/总时长
+  - **PDFViewer**：`<embed type='application/pdf'>` 全宽 500px 嵌入 + 新窗口下载链接
+  - **DownloadPrompt**（MSCZ/MSCX）：FileMusic 图标 + 文件类型标签 + 下载按钮 + "使用 MuseScore 打开"提示
+  - 主组件按 `fileTypeFor()` 判断附件类型并分派到对应渲染器
+- 安装 npm 包：`opensheetmusicdisplay`、`midi-player-js`、`soundfont-player`
+- 创建类型声明文件：`types/opensheetmusicdisplay.d.ts`、`types/soundfont-player.d.ts`（midi-player-js 已有内置声明）
+- ContentCard sheet_music 封面集成已在 Task 48 完成（SVG 五线谱占位图）
+
+### Testing:
+- `npx tsc --noEmit`：零类型错误
+- `npm run build`：Turbopack 编译成功，所有路由正确注册
+- `go build ./...` + `go vet ./...`：零错误零警告
+
+### Notes:
+- OSMD/MIDI 均通过动态 `import()`（useEffect 内异步加载）实现，避免 SSR 报错
+- MIDI 播放使用 Web Audio API（AudioContext）+ soundfont-player，需用户交互后才能播放（浏览器自动播放策略）
+- PDF 使用原生 `<embed>` 标签，MSCZ/MSCX 无法在浏览器渲染，仅提供下载
+
+---
 ## [2026-05-07] - Task 50: 标签组管理 UI
 
 ### What was done:
