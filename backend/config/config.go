@@ -26,6 +26,7 @@ type Config struct {
 	Upload     UploadConfig     `mapstructure:"upload"`
 	Agent      AgentConfig      `mapstructure:"agent"`
 	Cache      CacheConfig      `mapstructure:"cache"`
+	RateLimit  RateLimitConfig  `mapstructure:"rate_limit"`
 }
 
 type AgentConfig struct {
@@ -125,6 +126,12 @@ type CacheConfig struct {
 	IPListTTL              int `mapstructure:"ip_list_ttl"`
 	IPDetailTTL            int `mapstructure:"ip_detail_ttl"`
 	ViewCountFlushInterval int `mapstructure:"view_count_flush_interval"`
+}
+
+type RateLimitConfig struct {
+	Enabled         bool `mapstructure:"enabled"`
+	NormalPerMinute int  `mapstructure:"normal_per_minute"`
+	UploadPerHour   int  `mapstructure:"upload_per_hour"`
 }
 
 var Cfg *Config

@@ -83,6 +83,11 @@ agent:
   rate_limit_per_day: 50
   upload_assist_max_file_mb: 10
 
+rate_limit:
+  enabled: true
+  normal_per_minute: 100
+  upload_per_hour: 10
+
 cache:
   content_list_ttl: 300
   content_detail_ttl: 300

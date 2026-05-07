@@ -129,7 +129,7 @@ func (s *OSSService) validateUploadByType(fileType, mimeType string, fileSize in
 		}
 	case "mod":
 		limitMB = s.cfg.Limits.ModMaxMB
-		if mimeType != "application/zip" && mimeType != "application/x-zip-compressed" && mimeType != "application/octet-stream" {
+		if mimeType != "application/zip" && mimeType != "application/x-zip-compressed" {
 			return &UploadValidationError{Message: "mod must be a zip package"}
 		}
 	case "sheet_music":

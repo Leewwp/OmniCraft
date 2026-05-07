@@ -33,6 +33,8 @@ func main() {
 	r := gin.New()
 	r.Use(middleware.Logger())
 	r.Use(middleware.CORS())
+	r.Use(middleware.SecurityHeaders())
+	r.Use(middleware.RateLimit(rdb, &cfg.RateLimit))
 	r.Use(gin.Recovery())
 
 	r.GET("/health", func(c *gin.Context) {

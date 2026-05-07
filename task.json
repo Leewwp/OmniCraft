@@ -805,7 +805,7 @@
         "实现 CSP（Content Security Policy）响应头，防 XSS",
         "验证：SQL 注入测试无效，限流超限返回 429，登出后 token 失效"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 41,
