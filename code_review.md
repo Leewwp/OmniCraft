@@ -6,11 +6,11 @@
 |---|---|---|---|---|---|---|
 | 0 | Review baseline and metadata | Complete | 2026-05-07 12:39 +08:00 | a384a51fc280da80bd3caf3fa561be2826295639 | a384a51fc280da80bd3caf3fa561be2826295639 | Established review log and task coverage policy. |
 | 1,2,3,4,5,43,52,63,75 | Backend foundation, config, database, deployment | Pass with Follow-up | 2026-05-07 20:32 +08:00 | a384a51fc280da80bd3caf3fa561be2826295639 | a384a51fc280da80bd3caf3fa561be2826295639 | Frontend Docker build chain fixed and verified; remaining deployment follow-ups are nginx TLS/cert wiring, npm audit registry, and security hardening. |
-| 6,7,8,9,10,17,18,19,44,45,53,54,55,56,57,58,60,61,65,66,67,68,69,78,79,80,81,82 | Backend APIs, auth, moderation, admin, Agent | Not Started | - | - | - | Planned Batch 2. Task 40 remains pending and is excluded from completed-work review. |
+| 6,7,8,9,10,17,18,19,40,44,45,53,54,55,56,57,58,60,61,65,66,67,68,69,78,79,80,81,82 | Backend APIs, auth, moderation, admin, Agent | Issues Found | 2026-05-07 21:01 +08:00 | 64f4ed6dc111c95b6b4fc15e6a1d165495b64f83 | 64f4ed6dc111c95b6b4fc15e6a1d165495b64f83 | Batch 2 reviewed after Task 40 changed to `passes: true`; multiple Important issues block pass. |
 | 11,12,13,14,15,16,24,27,28,85,86 | Content, versioning, PR, social, cross-stack content flows | Not Started | - | - | - | Planned Batch 3. |
 | 20,21,22,23,25,26,29,30,31,32,70,71 | Completed frontend public, protected, admin, messaging pages | Not Started | - | - | - | Planned Batch 4. Requires browser verification. |
 | 33,34,35 | Tauri client | Not Started | - | - | - | Planned Batch 5. Task 35 is now marked complete. |
-| 36,37,38,39,40,41,42,46,47,48,49,50,51,59,62,64,72,73,74,76,77,83,84 | Pending tasks | Pending | 2026-05-07 12:39 +08:00 | a384a51fc280da80bd3caf3fa561be2826295639 | a384a51fc280da80bd3caf3fa561be2826295639 | `passes: false` in `task.json`; do not mark reviewed as completed work. |
+| 36,37,38,39,41,42,46,47,48,49,50,51,59,62,64,72,73,74,76,77,83,84 | Pending tasks | Pending | 2026-05-07 21:01 +08:00 | 64f4ed6dc111c95b6b4fc15e6a1d165495b64f83 | 64f4ed6dc111c95b6b4fc15e6a1d165495b64f83 | `passes: false` in `task.json`; Task 40 is no longer pending and is covered by Batch 2. |
 
 ## Review Entries
 
@@ -138,3 +138,46 @@
 - Decide whether to split nginx into dev/prod configs or add certbot volume support in Compose.
 - Run `npm audit` with a supported registry.
 - Consider pinning broader frontend dependency ranges if future lockfile churn is undesirable.
+
+### 2026-05-07 21:01 +08:00 - Batch 2: Backend Auth, User, Moderation, Admin, Agent
+
+**Task IDs:** 6, 7, 8, 9, 10, 17, 18, 19, 40, 44, 45, 53, 54, 55, 56, 57, 58, 60, 61, 65, 66, 67, 68, 69, 78, 79, 80, 81, 82
+
+**Reviewer:** Codex using `superpowers:requesting-code-review` process locally
+
+**Base SHA:** `64f4ed6dc111c95b6b4fc15e6a1d165495b64f83`
+
+**Head SHA:** `64f4ed6dc111c95b6b4fc15e6a1d165495b64f83`
+
+**Scope:** backend route wiring, auth/user APIs, security rate limits and headers, IP/moderation services, tag/reputation/social/admin flows, Agent/LLM APIs, messaging, rehab courses, LLM config management.
+
+**Verification:**
+- `git status --short --branch` showed branch `main` ahead of `origin/main` by 28 commits, with unrelated frontend working tree changes.
+- `git rev-parse HEAD` returned `64f4ed6dc111c95b6b4fc15e6a1d165495b64f83`.
+- Parsed `task.json` for Batch 2 task details; Task 40 now has `passes: true`.
+- `cd backend; go test ./internal/...` passed.
+- `cd backend; go test ./...` passed.
+- `cd backend; go vet ./...` passed.
+- `cd backend; go build ./...` passed.
+
+**Result:** Issues Found. Static checks pass, but this batch should not be marked passing until the Important findings below are remediated and covered by focused tests/API checks.
+
+**Findings:**
+- Critical: none found.
+- Important:
+  - Agent endpoints are not protected by the daily Agent rate limiter. `middleware.AgentRateLimit` is implemented but never registered; `/agent/upload-assist`, `/agent/compliance-check`, `/agent/search`, `/agent/usage-guide/:id`, `/agent/moderate/:id`, and `/agent/chat/stream` only use `AuthRequired`, so Task 53-58 LLM cost controls can be bypassed except for the global IP limiter.
+  - LLM provider API keys are stored as plaintext in `llm_configs.api_key_enc`. `CreateConfig` assigns the submitted `api_key` directly to `APIKeyEnc`, `UpdateConfig` forwards arbitrary updates without encryption, and list responses only mask that plaintext. This violates Task 82's AES-GCM-at-rest requirement.
+  - Password change/account deletion do not invalidate issued refresh tokens. `invalidateUserTokens` deletes keys matching `refresh_token:{user_id}:*`, but the auth flow never stores refresh tokens under that pattern; refresh-token validation only checks `blacklist:token:<raw-token>`. Existing refresh tokens can still be exchanged after password change until expiry.
+  - The tag suggestion abuse limit required by Task 45 is missing. `POST /contents/:id/tags/suggest` is routed with auth only, and `TagService.SuggestTag` writes a suggestion directly without the `tag_suggest:{user_id}:{content_id}:{date}` Redis limit or duplicate submission check.
+  - Rehab course completion can be claimed immediately. The routes expose `GET /rehab/courses`, `GET /rehab/courses/:id`, `POST /rehab/courses/:id/complete`, and progress, but no `start` endpoint; `CompleteCourse` inserts completion and awards reputation without checking a prior `started_at` or `min_reading_sec`.
+  - Admin appeal approval does not restore content. `ResolveAppeal` updates the appeal row only; when status is `approved`, it does not load the appeal target or set the banned/under-review content back to `published`, so Task 19/61's appeal workflow is functionally incomplete.
+  - `GET /ips/:id/contents` returns an empty placeholder regardless of real content. `IPHandler.GetIPContents` ignores id and pagination and responds with empty `contents`, breaking Task 10's IP detail content list.
+  - IP creation does not trigger AI review or apply banned-IP cascading. `IPService.CreateIP` creates a pending IP and returns; there is no call into the review service, and the banned-IP cascade path exists only as `BanIP` with no automatic invocation from IP AI review.
+  - Login/register-specific throttling is not implemented. Task 6 requires Redis token bucket 5 requests/minute for auth endpoints, but `/auth/register` and `/auth/login` rely only on the global 100/minute/IP middleware.
+- Minor:
+  - Agent DB-backed config is not integrated into `llm.NewProvider`; the factory still reads only `config.yaml`, so activated DB LLM configs do not affect normal Agent calls.
+  - Messaging API route names do not match Task 66's `/conversations` contract; current routes are under `/messages`.
+
+**Follow-up:**
+- Add focused tests or API checks for Agent rate limiting, tag suggestion limits, refresh-token revocation, rehab start/complete timing, appeal approval restore behavior, and IP content listing.
+- Re-run this batch after remediation before starting Batch 3.
