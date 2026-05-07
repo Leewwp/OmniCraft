@@ -30,9 +30,7 @@ pub fn parse_deploy_args(args: &[String]) -> Option<UrlSchemeParams> {
 
 fn parse_omnicraft_url(raw: &str) -> Option<UrlSchemeParams> {
     // Normalize: Windows may pass the URL without protocol separator
-    let url_str = if raw.starts_with("omnicraft:") {
-        raw.to_string()
-    } else if raw.starts_with("omnicraft://") {
+    let url_str = if raw.starts_with("omnicraft://") || raw.starts_with("omnicraft:") {
         raw.to_string()
     } else {
         return None;

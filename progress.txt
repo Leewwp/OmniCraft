@@ -1,6 +1,31 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
+## [2026-05-07] - Task 34: Tauri PC 客户端 — 白名单动作引擎
+
+### What was done:
+- 新增 `src-tauri/src/commands/` 目录，创建三个子模块：
+  - `security.rs`：HMAC-SHA256 签名验证（`verify_script_signature` Tauri command），ActionScript/Action/SignedScript 数据结构，3 个单元测试
+  - `file_ops.rs`：7 种白名单文件操作（`download_file` / `extract_archive` / `move_file` / `create_dir` / `read_config` / `write_config` + 内部 `backup_file`），路径白名单强制校验（$HOME/.omnicraft/** / $APPDATA/omnicraft/** / $TEMP/omnicraft/**），写配置自动备份到 `.omnicraft_backup/`，zip-slip 路径穿越防护，配置文件扩展名白名单 + 5MB 大小限制，8 个单元测试
+  - `env_detect.rs`：环境检测命令（`detect_environment` Tauri command），Steam 安装路径检测（Windows 注册表 + 默认路径 / macOS Library / Linux .steam），返回 EnvInfo 结构体
+- `Cargo.toml`：新增依赖 `sha2`, `hmac`, `hex`, `reqwest`（rustls-tls）, `zip`, `tokio`
+- `lib.rs`：注册 8 个新 Tauri commands（verify_script_signature + 6 文件操作 + detect_environment）
+- 修复 clippy 警告：url_scheme.rs（冗余 if 分支）、lib.rs（single_match → if let）
+
+### Testing:
+- `cargo check`: ✅ 零错误
+- `cargo clippy`: ✅ 零警告
+- `cargo test`: ⚠️ 链接失败（STATUS_ENTRYPOINT_NOT_FOUND），与 Task 33 相同的 GNU 工具链缺少 WebView2Loader 环境限制，非代码问题
+- `go build ./...`: ✅ 通过
+- `go vet ./...`: ✅ 零警告
+- `npx tsc --noEmit` (tauri-client): ✅ 零错误
+
+### Notes:
+- HMAC 密钥通过编译时环境变量 `AGENT_HMAC_SECRET` 注入，编译后不可修改
+- `backup_file` 为内部函数（非 Tauri command），禁止 LLM 直接调用（符合 CLAUDE.md 规范）
+- cargo test 需 MSVC 工具链或安装 WebView2 SDK 后运行，GNU 工具链限制仅影响测试执行不影响编译
+
+---
 ## [2026-05-06] - Task 86: Go API + Web 前端 — 原创/二创来源联动
 
 ### What was done:
