@@ -1,9 +1,12 @@
 package middleware
 
 import (
+	"context"
+	"fmt"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 
 	"omnicraft/backend/config"
 	jwtutil "omnicraft/backend/internal/pkg/jwt"
@@ -12,7 +15,7 @@ import (
 const UserIDKey = "userID"
 const UserRoleKey = "userRole"
 
-func AuthRequired(cfg *config.Config) gin.HandlerFunc {
+func AuthRequired(cfg *config.Config, rdb *redis.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -40,6 +43,16 @@ func AuthRequired(cfg *config.Config) gin.HandlerFunc {
 			c.JSON(401, gin.H{"code": "UNAUTHORIZED", "message": "invalid token type"})
 			c.Abort()
 			return
+		}
+
+		if rdb != nil {
+			blacklistKey := fmt.Sprintf("blacklist:token:%s", tokenStr)
+			val, redisErr := rdb.Get(context.Background(), blacklistKey).Result()
+			if redisErr == nil && val == "1" {
+				c.JSON(401, gin.H{"code": "UNAUTHORIZED", "message": "token has been revoked"})
+				c.Abort()
+				return
+			}
 		}
 
 		c.Set(UserIDKey, claims.UserID)

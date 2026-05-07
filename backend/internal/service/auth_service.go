@@ -159,6 +159,10 @@ func (s *AuthService) RefreshToken(refreshToken string) (*jwtutil.TokenPair, err
 		return nil, ErrTokenInvalid
 	}
 
+	if s.IsTokenBlacklisted(refreshToken) {
+		return nil, ErrTokenInvalid
+	}
+
 	user, err := s.userRepo.FindByID(int64(claims.UserID))
 	if err != nil || user == nil {
 		return nil, ErrTokenInvalid
@@ -177,5 +181,13 @@ func (s *AuthService) RefreshToken(refreshToken string) (*jwtutil.TokenPair, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tokens: %w", err)
 	}
+
+	ttl := time.Until(claims.ExpiresAt.Time)
+	if ttl > 0 {
+		ctx := context.Background()
+		key := fmt.Sprintf("blacklist:token:%s", refreshToken)
+		s.redis.Set(ctx, key, "1", ttl)
+	}
+
 	return tokens, nil
 }

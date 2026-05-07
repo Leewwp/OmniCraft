@@ -84,6 +84,14 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 			return
 		}
 	}
+
+	var body struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := c.ShouldBindJSON(&body); err == nil && body.RefreshToken != "" {
+		h.authService.Logout(body.RefreshToken)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
 }
 

@@ -1,6 +1,44 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
+## [2026-05-07] - Task 40: 安全加固
+
+### What was done:
+- Step 1 (SQL注入防护): 审计全部 repository 层查询，确认所有 SQL 均使用 GORM 参数化查询（`db.Raw("... WHERE id = ?", id)`），零裸字符串拼接
+- Step 2 (接口限流):
+  - `config/config.go`: 新增 `RateLimitConfig` 结构体（`Enabled`/`NormalPerMinute`/`UploadPerHour`）
+  - `config.yaml`: 新增 `rate_limit` 配置节（normal_per_minute: 100, upload_per_hour: 10）
+  - `internal/middleware/ratelimit.go`: 新建，实现 `RateLimit`（按 IP 每分钟固定窗口计数器）和 `UploadRateLimit`（按用户每小时固定窗口计数器），Redis 原子 INCR + TTL
+  - `main.go`: 全局注册 `RateLimit` 中间件
+  - `routes.go`: 内容发布 + OSS Token 端点追加 `UploadRateLimit` 中间件
+- Step 3 (JWT 强制失效):
+  - `internal/middleware/auth.go`: `AuthRequired` 签名改为 `(cfg, rdb)`，增加 Redis token 黑名单检查；黑名单命中返回 401 "token has been revoked"
+  - `internal/service/auth_service.go`: `RefreshToken` 增加旧 refresh token 黑名单检查 + 轮换时将旧 refresh token 写入 Redis 黑名单
+  - `internal/handler/auth.go`: `Logout` 支持请求体中的 `refresh_token` 字段，同时黑名单 refresh token
+  - `routes.go`: 全部 30+ 处 `AuthRequired(cfg)` 替换为 `AuthRequired(cfg, rdb)`
+- Step 4 (OSS 文件类型白名单):
+  - `internal/service/oss_service.go`: mod 类型 MIME 白名单移除 `application/octet-stream`，仅保留 `application/zip` 和 `application/x-zip-compressed`
+- Step 5 (CSP 响应头):
+  - `internal/middleware/security_headers.go`: 新建，设置 CSP（default-src 'self' + img-src/connect-src https:）、X-Content-Type-Options: nosniff、X-Frame-Options: DENY、X-XSS-Protection、Referrer-Policy、Permissions-Policy
+  - `main.go`: 全局注册 `SecurityHeaders` 中间件
+
+### Testing:
+- `go build ./...`: ✅ 通过
+- `go vet ./...`: ✅ 零警告
+- `go test ./...`: ✅ 全部通过（handler/model/llm/service）
+- `npm run build`: ✅ Turbopack 编译成功
+- `npx tsc --noEmit`: ✅ 零错误
+- SQL 注入审计: ✅ 全部 repository 使用参数化查询（`?` 占位符），零 `fmt.Sprintf` 拼接 SQL
+
+### Notes:
+- 限流使用固定窗口算法（非滑动窗口），边界时刻可能短暂超限，对 MVP 阶段足够
+- JWT 黑名单 key 使用完整 token 字符串，生产环境可改用 token hash（SHA-256）缩短 key 长度
+- CSP 的 `script-src 'unsafe-inline'` 为 Next.js 兼容性保留，生产环境建议启用 nonce/hash
+- mod 类型不再接受 `application/octet-stream`，客户端需确保上传时设置正确的 Content-Type
+- `OptionalAuth` 中间件暂未增加黑名单检查（该中间件仅用于可选认证场景，失败静默降级）
+- RateLimit 配置从 config.yaml > rate_limit 读取，支持热更新（PATCH /admin/config 需额外扩展）
+
+---
 ## [2026-05-07] - Task 39: 性能优化
 
 ### What was done:
