@@ -1084,3 +1084,30 @@
 - 视频封面截帧仅在 content_type=video 且 cover_image_url 为空时触发，使用 OSS 图片处理 video/snapshot 参数获取第一帧
 - 占位图 SVG 通过 encodeURIComponent 编码为 data URI，无需额外网络请求
 - OSS 未配置时不阻塞内容发布，截帧 goroutine 检测 ossSvc == nil 直接返回
+
+---
+## [2026-05-07] - Task 49: FacetedSearchSidebar 组件
+
+### What was done:
+- 创建 `components/layout/FacetedSearchSidebar.tsx`：分面标签筛选侧边栏组件
+- 大类选择器：水平 flex-wrap 按钮组，展示推荐/影视/游戏/文学/宠物/美食/美妆穿搭/家居/数码科技/旅行/运动/效率 12 个大类，点击切换（再次点击取消），切换时清空已选标签
+- 标签列表区：调用 `GET /api/v1/tags/faceted`（传入 category + selected_tags[]），展示返回的标签（name + 内容数量 badge），支持 AbortController 取消请求
+- 标签交互：点击标签加入 selected_tags → 重新请求 /tags/faceted（共现模式）→ 列表实时更新
+- 已选标签 chips：使用 TagBadge 组件展示，支持单个移除（onRemove）和全部清除
+- Advanced 折叠区：内容类型多选 + 时间范围 Select + 排序方式 Select，使用 grid-rows 动画展开/收起
+- 「保存此搜索」按钮：弹出命名输入框 Modal → 调用 `POST /api/v1/users/me/saved-searches` → Toast 成功提示
+- 侧边栏底部「我的搜索」和「我的标签组」：登录后调用 `GET /api/v1/users/me/saved-searches` 和 `GET /api/v1/users/me/tag-groups`，点击可一键应用
+- 组件通过 `onFilterChange(config)` 回调通知父页面，使用 JSON.stringify 对比避免重复触发
+- 所有样式使用 shadcn 设计 token（bg-card/bg-muted/text-primary 等），无阴影 flat design
+
+### Testing:
+- Go build: N/A（纯前端组件）
+- Go vet: N/A
+- npm run build: 通过，无错误
+- npm run lint (tsc --noEmit): 通过，无类型错误
+- Browser testing: 组件在独立 test page 中编译通过，因 dev server 路由 404 问题未能在浏览器中完整验证交互（所有页面均返回 404，为环境预存问题非本任务引入）
+
+### Notes:
+- 大类列表使用架构文档 §1.1 中定义的 12 个一级分类（原创区），未来可改为从 `GET /api/v1/categories` 动态加载
+- SearchAgentInput 未实现（非本任务范围），搜索页整合时另行引入
+- 组件状态变更通过 useEffect + prevConfigRef 防抖 emit
