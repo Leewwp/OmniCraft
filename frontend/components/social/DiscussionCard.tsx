@@ -23,14 +23,8 @@ interface DiscussionCardProps {
 
 export function DiscussionCard({ data, className }: DiscussionCardProps) {
   const t = useTranslations();
-  return (
-    <Link
-      href={`/ip/${data.ip_id || 0}/discussions/${data.id}`}
-      className={cn(
-        "block rounded-md border border-border bg-card p-4 shadow-none hover:bg-muted/20 transition-colors",
-        className,
-      )}
-    >
+  const cardContent = (
+    <>
       <h3 className="text-sm font-semibold line-clamp-1">{data.title}</h3>
       <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         {data.author?.username && (
@@ -47,6 +41,20 @@ export function DiscussionCard({ data, className }: DiscussionCardProps) {
           </span>
         )}
       </div>
-    </Link>
+    </>
   );
+
+  const cardClass = cn(
+    "block rounded-md border border-border bg-card p-4 shadow-none hover:bg-muted/20 transition-colors",
+    className,
+  );
+
+  if (data.ip_id) {
+    return (
+      <Link href={`/ip/${data.ip_id}/discussions/${data.id}`} className={cardClass}>
+        {cardContent}
+      </Link>
+    );
+  }
+  return <div className={cardClass}>{cardContent}</div>;
 }

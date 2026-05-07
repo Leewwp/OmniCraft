@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ export function FollowButton({ targetType, targetId, initialFollowing = false, c
   const t = useTranslations();
   const router = useRouter();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [following, setFollowing] = useState(initialFollowing);
   const [busy, setBusy] = useState(false);
 
@@ -29,6 +31,7 @@ export function FollowButton({ targetType, targetId, initialFollowing = false, c
       return;
     }
     setBusy(true);
+    const previousState = following;
     try {
       if (following) {
         await api.delete(`/api/v1/${targetType}s/${targetId}/follow`);
@@ -38,7 +41,8 @@ export function FollowButton({ targetType, targetId, initialFollowing = false, c
         setFollowing(true);
       }
     } catch {
-      // ignore
+      setFollowing(previousState);
+      toast("error", t("common.operationFailed"));
     } finally {
       setBusy(false);
     }
