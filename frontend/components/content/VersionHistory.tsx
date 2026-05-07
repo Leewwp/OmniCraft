@@ -1,9 +1,10 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronUp, GitBranch } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 interface Version {
   id: number;
@@ -26,6 +27,7 @@ interface VersionHistoryProps {
 }
 
 export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
+  const t = useTranslations();
   const [versions, setVersions] = useState<Version[]>([]);
   const [loading, setLoading] = useState(true);
   const [mobileExpanded, setMobileExpanded] = useState(false);
@@ -44,7 +46,7 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
       const data = await api.get<{ versions?: Version[] }>(`/api/v1/contents/${contentId}/versions`);
       setVersions(data.versions || []);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? `${e.code}: ${e.message}` : "加载版本历史失败");
+      setError(e instanceof ApiRequestError ? `${e.code}: ${e.message}` : t('content.versionLoadFailed'));
     } finally {
       setLoading(false);
     }
@@ -54,16 +56,16 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
     setBusy(true);
     try {
       const data = await api.get<VersionContent>(`/api/v1/versions/${version.id}`);
-      setPreview({ version, content: data.content || "(空内容)" });
+      setPreview({ version, content: data.content || t('common.noData') });
     } catch {
-      setError("加载版本内容失败");
+      setError(t('content.versionContentLoadFailed'));
     } finally {
       setBusy(false);
     }
   }
 
   async function rollbackToVersion(version: Version) {
-    if (!window.confirm(`确认恢复到版本 v${version.version_number} 吗？此操作将创建新版本。`)) {
+    if (!window.confirm(t('content.restoreConfirm', { version: version.version_number }))) {
       return;
     }
     setBusy(true);
@@ -73,7 +75,7 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
       });
       await loadVersions();
     } catch {
-      setError("版本回退失败");
+      setError(t('content.versionRestoreFailed'));
     } finally {
       setBusy(false);
     }
@@ -88,13 +90,13 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
   }
 
   if (versions.length === 0) {
-    return <p className="text-sm text-muted-foreground">暂无版本历史</p>;
+    return <p className="text-sm text-muted-foreground">{t('content.noVersionHistory')}</p>;
   }
 
   return (
     <div className="space-y-3 rounded-md border border-border bg-card p-4 shadow-none">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">版本历史</h3>
+        <h3 className="text-sm font-semibold">{t('content.versionHistory')}</h3>
         <button
           type="button"
           className="rounded p-1 hover:bg-muted md:hidden"
@@ -116,7 +118,7 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium">v{v.version_number}</span>
                 {v.is_latest && (
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">最新</span>
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{t('content.latest')}</span>
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -125,11 +127,11 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
               {v.message && <p className="text-xs text-foreground/80">{v.message}</p>}
               <div className="flex gap-2 pt-1">
                 <Button size="sm" variant="outline" disabled={busy} onClick={() => void previewVersion(v)}>
-                  预览
+                  {t('content.preview')}
                 </Button>
                 {isAuthor && !v.is_latest && (
                   <Button size="sm" variant="outline" disabled={busy} onClick={() => void rollbackToVersion(v)}>
-                    恢复到此版本
+                    {t('content.restoreVersion')}
                   </Button>
                 )}
               </div>
@@ -142,8 +144,8 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setPreview(null)}>
           <div className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-md border border-border bg-card p-6 shadow-md" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
-              <h4 className="text-sm font-semibold">版本 v{preview.version.version_number} 预览</h4>
-              <Button size="sm" variant="outline" onClick={() => setPreview(null)}>关闭</Button>
+              <h4 className="text-sm font-semibold">{t('content.versionPreview', { version: preview.version.version_number })}</h4>
+              <Button size="sm" variant="outline" onClick={() => setPreview(null)}>{t('common.close')}</Button>
             </div>
             <pre className="whitespace-pre-wrap rounded border border-border bg-muted/20 p-3 text-xs">{preview.content}</pre>
           </div>

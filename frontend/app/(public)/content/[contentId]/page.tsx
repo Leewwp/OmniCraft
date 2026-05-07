@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { getTranslations } from 'next-intl/server';
 import { ContentDetail } from "@/components/content/ContentDetail";
 import { VersionHistory } from "@/components/content/VersionHistory";
 import { normalizeAttachments, normalizeContentItem, normalizeTags } from "@/lib/content";
@@ -66,14 +67,15 @@ export async function generateMetadata({
   params: Promise<{ contentId: string }>;
 }): Promise<Metadata> {
   const { contentId } = await params;
+  const t = await getTranslations();
   const apiBase = getApiBase();
   const data = await fetchContent(apiBase, contentId);
   const content = normalizeContentItem(data?.content);
   if (!content) {
-    return { title: "内容未找到 — OmniCraft 万象工坊" };
+    return { title: t('content.contentNotFound') };
   }
-  const title = `${content.title} — OmniCraft`;
-  const description = content.description?.slice(0, 160) || `${content.title} - 查看详情`;
+  const title = `${content.title} — ${t('nav.siteName')}`;
+  const description = content.description?.slice(0, 160) || `${content.title} - ${t('content.viewContent')}`;
   const ogImage = content.cover_image_url || `${baseUrl}/og-default.png`;
   return {
     title,

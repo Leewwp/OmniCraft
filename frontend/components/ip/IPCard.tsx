@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { FolderOpen, Layers3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,7 @@ function saveRecentIP(item: RecentIPItem) {
 }
 
 export function IPCard({ data, className }: IPCardProps) {
+  const t = useTranslations();
   return (
     <Link
       href={`/ip/${data.id}`}
@@ -51,17 +53,17 @@ export function IPCard({ data, className }: IPCardProps) {
         </div>
         <div className="space-y-1">
           <h3 className="line-clamp-1 text-sm font-semibold text-foreground">{data.name}</h3>
-          <p className="text-xs text-muted-foreground">{data.category || "未分类"}</p>
+          <p className="text-xs text-muted-foreground">{data.category || t('ip.uncategorized')}</p>
         </div>
       </div>
 
       <p className="line-clamp-2 text-xs text-muted-foreground">
-        {data.description || "暂无简介"}
+        {data.description || t('ip.noDescriptionShort')}
       </p>
 
       <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
         <FolderOpen className="h-3.5 w-3.5" />
-        进入 IP 详情
+        {t('ip.enterDetail')}
       </div>
     </Link>
   );

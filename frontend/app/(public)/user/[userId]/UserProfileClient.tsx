@@ -7,6 +7,7 @@ import { ContentCardData } from "@/components/content/ContentCard";
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { Button } from "@/components/ui/button";
 import { normalizeContentList } from "@/lib/content";
+import { useTranslations } from 'next-intl';
 
 interface UserProfileClientProps {
   userId: number;
@@ -14,6 +15,7 @@ interface UserProfileClientProps {
 }
 
 export function UserProfileClient({ userId, displayName }: UserProfileClientProps) {
+  const t = useTranslations();
   const { user } = useAuth();
   const [tab, setTab] = useState<"contents" | "favorites" | "discussions">("contents");
   const [items, setItems] = useState<ContentCardData[]>([]);
@@ -76,7 +78,7 @@ export function UserProfileClient({ userId, displayName }: UserProfileClientProp
       const list = (data as any).contents || (data as any).favorites || [];
       setItems(normalizeContentList(list));
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "加载失败");
+      setError(e instanceof ApiRequestError ? e.message : t('common.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -87,28 +89,28 @@ export function UserProfileClient({ userId, displayName }: UserProfileClientProp
       <div className="flex items-center gap-4">
         {!isOwnProfile && (
           <Button size="sm" variant={following ? "default" : "outline"} disabled={followBusy} onClick={() => void toggleFollow()}>
-            {following ? "已关注" : "关注"}
+            {following ? t('user.following') : t('user.follow')}
           </Button>
         )}
         {isOwnProfile && (
           <Button size="sm" variant="outline" onClick={() => window.location.href = "/settings"}>
-            编辑资料
+            {t('user.editProfile')}
           </Button>
         )}
       </div>
 
       <div className="flex gap-1 border-b border-border">
-        {(["contents", "favorites", "discussions"] as const).map((t) => (
+        {(["contents", "favorites", "discussions"] as const).map((tKey) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={tKey}
+            onClick={() => setTab(tKey)}
             className={`px-4 py-2 text-sm border-b-2 transition-colors ${
-              tab === t
+              tab === tKey
                 ? "border-foreground text-foreground font-medium"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
-            {t === "contents" ? "发布" : t === "favorites" ? "收藏" : "讨论"}
+            {tKey === "contents" ? t('user.tabPublish') : tKey === "favorites" ? t('user.tabFavorites') : t('user.tabDiscussions')}
           </button>
         ))}
       </div>
@@ -116,10 +118,10 @@ export function UserProfileClient({ userId, displayName }: UserProfileClientProp
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {loading ? (
-        <div className="rounded-md border border-border bg-card p-8 text-center text-sm text-muted-foreground">加载中...</div>
+        <div className="rounded-md border border-border bg-card p-8 text-center text-sm text-muted-foreground">{t('common.loading')}</div>
       ) : items.length === 0 ? (
         <div className="rounded-md border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-          {tab === "contents" ? `${isOwnProfile ? "你" : displayName}还没有发布内容` : "暂无内容"}
+          {tab === "contents" ? (isOwnProfile ? t('user.noContentOwn') : t('user.noContent', { name: displayName })) : t('user.noContentGeneric')}
         </div>
       ) : (
         <MasonryGrid items={items} />

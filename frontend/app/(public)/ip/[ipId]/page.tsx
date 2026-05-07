@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { getTranslations } from 'next-intl/server';
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { ContentCardData } from "@/components/content/ContentCard";
 import { IPDetail } from "@/components/ip/IPDetail";
@@ -69,13 +70,14 @@ export async function generateMetadata({
   params: Promise<{ ipId: string }>;
 }): Promise<Metadata> {
   const { ipId } = await params;
+  const t = await getTranslations();
   const apiBase = getApiBase();
   const ip = await fetchIP(apiBase, ipId);
   if (!ip) {
-    return { title: "IP 未找到 — OmniCraft 万象工坊" };
+    return { title: t('content.ipNotFound') };
   }
-  const title = `${ip.name} — OmniCraft 万象工坊`;
-  const description = ip.description?.slice(0, 160) || `浏览 ${ip.name} 相关二创内容`;
+  const title = `${ip.name} — ${t('nav.siteName')}`;
+  const description = ip.description?.slice(0, 160) || t('content.browseIpContent', { name: ip.name });
   const ogImage = ip.cover_url || `${baseUrl}/og-default.png`;
   return {
     title,
@@ -97,6 +99,7 @@ export default async function IPDetailPage({
   params: Promise<{ ipId: string }>;
   searchParams: Promise<{ sort?: string }>;
 }) {
+  const t = await getTranslations();
   const { ipId } = await params;
   const query = await searchParams;
   const sort = query.sort || "hot";
@@ -115,7 +118,7 @@ export default async function IPDetailPage({
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6">
       <IPDetail ip={ip} />
       <section className="space-y-3 rounded-md border border-border bg-card p-4 shadow-none">
-        <h2 className="text-base font-semibold">全部内容</h2>
+        <h2 className="text-base font-semibold">{t('content.allContent')}</h2>
         <MasonryGrid items={contents} />
       </section>
     </div>

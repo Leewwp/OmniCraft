@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -17,6 +18,7 @@ interface AppealItem {
 }
 
 export default function AdminAppealPage() {
+  const t = useTranslations();
   const [appeals, setAppeals] = useState<AppealItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -43,11 +45,11 @@ export default function AdminAppealPage() {
       setAppeals(data.appeals || []);
       setTotal(data.total || 0);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "加载申诉列表失败");
+      setError(e instanceof ApiRequestError ? e.message : t('admin.appeals.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, t]);
 
   useEffect(() => {
     void loadAppeals();
@@ -64,7 +66,7 @@ export default function AdminAppealPage() {
       setAppeals((prev) => prev.filter((a) => a.id !== id));
       setTotal((t) => t - 1);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "处理申诉失败");
+      setError(e instanceof ApiRequestError ? e.message : t('admin.appeals.processFailed'));
     } finally {
       setBusy(false);
     }
@@ -88,9 +90,9 @@ export default function AdminAppealPage() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 shadow-none">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">申诉处理</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('admin.appeals.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            处理用户对被下架内容的申诉（共 {total} 个待处理）
+            {t('admin.appeals.subtitle', { total })}
           </p>
         </div>
       </div>
@@ -99,7 +101,7 @@ export default function AdminAppealPage() {
 
       {appeals.length === 0 ? (
         <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
-          <p className="text-sm text-muted-foreground">无待处理申诉</p>
+          <p className="text-sm text-muted-foreground">{t('admin.appeals.noAppeals')}</p>
         </div>
       ) : (
         <>
@@ -108,12 +110,12 @@ export default function AdminAppealPage() {
               <thead className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">ID</th>
-                  <th className="px-4 py-3 font-medium">申请人ID</th>
-                  <th className="px-4 py-3 font-medium">目标类型</th>
-                  <th className="px-4 py-3 font-medium">目标ID</th>
-                  <th className="px-4 py-3 font-medium">申诉原因</th>
-                  <th className="px-4 py-3 font-medium">状态</th>
-                  <th className="px-4 py-3 font-medium">操作</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.appeals.colApplicant')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.appeals.colTargetType')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.appeals.colTargetId')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.appeals.colReason')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.appeals.colStatus')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.appeals.colActions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -157,7 +159,7 @@ export default function AdminAppealPage() {
                             setConfirmOpen(true);
                           }}
                         >
-                          通过
+                          {t('admin.appeals.approve')}
                         </Button>
                         <Button
                           size="sm"
@@ -172,7 +174,7 @@ export default function AdminAppealPage() {
                             setConfirmOpen(true);
                           }}
                         >
-                          驳回
+                          {t('admin.appeals.reject')}
                         </Button>
                       </div>
                     </td>
@@ -185,14 +187,14 @@ export default function AdminAppealPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">
-                第 {page} / {totalPages} 页
+                {t('common.page', { current: page, total: totalPages })}
               </span>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                  上一页
+                  {t('common.previous')}
                 </Button>
                 <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-                  下一页
+                  {t('common.next')}
                 </Button>
               </div>
             </div>
@@ -203,18 +205,18 @@ export default function AdminAppealPage() {
       <ConfirmModal
         open={confirmOpen}
         onOpenChange={(v) => { setConfirmOpen(v); if (!v) setConfirmAction(null); }}
-        title={confirmAction?.action === "approved" ? "通过申诉" : "驳回申诉"}
+        title={confirmAction?.action === "approved" ? t('admin.appeals.approveTitle') : t('admin.appeals.rejectTitle')}
         description={
           confirmAction
             ? confirmAction.action === "approved"
-              ? `确认通过「${confirmAction.targetInfo}」的申诉吗？通过后内容将恢复上架。`
-              : `确认驳回「${confirmAction.targetInfo}」的申诉吗？驳回后维持下架状态。`
+              ? t('admin.appeals.approveConfirm', { name: confirmAction.targetInfo })
+              : t('admin.appeals.rejectConfirm', { name: confirmAction.targetInfo })
             : ""
         }
-        confirmLabel={confirmAction?.action === "approved" ? "确认通过" : "确认驳回"}
+        confirmLabel={confirmAction?.action === "approved" ? t('admin.appeals.confirmApprove') : t('admin.appeals.confirmReject')}
         confirmVariant={confirmAction?.action === "approved" ? "default" : "destructive"}
         requireReason
-        reasonLabel="处理意见"
+        reasonLabel={t('admin.appeals.opinion')}
         onConfirm={async (reason) => {
           if (confirmAction) {
             await resolveAppeal(confirmAction.appealId, confirmAction.action, reason);

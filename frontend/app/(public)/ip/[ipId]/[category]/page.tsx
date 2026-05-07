@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations } from 'next-intl/server';
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { ContentCardData } from "@/components/content/ContentCard";
 import { IPCategoryTabs } from "@/components/ip/IPCategoryTabs";
@@ -75,6 +76,7 @@ export default async function IPCategoryPage({
   params: Promise<{ ipId: string; category: string }>;
   searchParams: Promise<{ sort?: string; page?: string }>;
 }) {
+  const t = await getTranslations();
   const { ipId, category } = await params;
   const query = await searchParams;
   const sort = query.sort || "hot";
@@ -98,13 +100,13 @@ export default async function IPCategoryPage({
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold">{ip.name}</h1>
-            <p className="text-sm text-muted-foreground">类目：{getCategoryLabel(category)}</p>
+            <p className="text-sm text-muted-foreground">{t('content.categoryLabel', { category: getCategoryLabel(category) })}</p>
           </div>
           <Link
             href={`/ip/${ipId}/discussions`}
             className="rounded-md border border-border px-3 py-2 text-xs hover:bg-muted"
           >
-            讨论区
+            {t('content.discussion')}
           </Link>
         </div>
 
@@ -115,12 +117,12 @@ export default async function IPCategoryPage({
             defaultValue={sort}
             className="h-9 rounded-md border border-border bg-background px-3 text-sm"
           >
-            <option value="hot">最热门</option>
-            <option value="most_views">最多点击</option>
-            <option value="newest">最新发布</option>
-            <option value="best_rated">最高好评率</option>
+            <option value="hot">{t('content.sortHottest')}</option>
+            <option value="most_views">{t('content.sortMostViewed')}</option>
+            <option value="newest">{t('content.sortNewRelease')}</option>
+            <option value="best_rated">{t('content.sortTopRated')}</option>
           </select>
-          <span className="text-xs text-muted-foreground">第 {pageNum} 页</span>
+          <span className="text-xs text-muted-foreground">{t('common.pageNumber', { current: pageNum })}</span>
         </div>
 
         <MasonryGrid items={contents} />
@@ -131,14 +133,14 @@ export default async function IPCategoryPage({
               href={`/ip/${ipId}/${category}?sort=${sort}&page=${pageNum - 1}`}
               className="rounded-md border border-border px-3 py-2 text-xs hover:bg-muted"
             >
-              上一页
+              {t('common.previous')}
             </Link>
           ) : null}
           <Link
             href={`/ip/${ipId}/${category}?sort=${sort}&page=${pageNum + 1}`}
             className="rounded-md border border-border px-3 py-2 text-xs hover:bg-muted"
           >
-            下一页
+            {t('common.next')}
           </Link>
         </div>
       </section>

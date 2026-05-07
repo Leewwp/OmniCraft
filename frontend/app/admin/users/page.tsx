@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -16,6 +17,7 @@ interface UserItem {
 }
 
 export default function AdminUsersPage() {
+  const t = useTranslations();
   const [users, setUsers] = useState<UserItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -39,11 +41,11 @@ export default function AdminUsersPage() {
       setUsers(data.users || []);
       setTotal(data.total || 0);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "加载用户列表失败");
+      setError(e instanceof ApiRequestError ? e.message : t('admin.users.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, t]);
 
   useEffect(() => {
     void loadUsers();
@@ -58,7 +60,7 @@ export default function AdminUsersPage() {
         prev.map((u) => (u.id === id ? { ...u, is_banned: true } : u))
       );
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "封禁失败");
+      setError(e instanceof ApiRequestError ? e.message : t('admin.users.banFailed'));
     } finally {
       setBusy(false);
     }
@@ -73,7 +75,7 @@ export default function AdminUsersPage() {
         prev.map((u) => (u.id === id ? { ...u, is_banned: false } : u))
       );
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "解封失败");
+      setError(e instanceof ApiRequestError ? e.message : t('admin.users.unbanFailed'));
     } finally {
       setBusy(false);
     }
@@ -105,9 +107,9 @@ export default function AdminUsersPage() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 shadow-none">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">用户管理</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('admin.users.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            管理所有注册用户（共 {total} 人）
+            {t('admin.users.subtitle', { total })}
           </p>
         </div>
       </div>
@@ -116,7 +118,7 @@ export default function AdminUsersPage() {
         <input
           type="text"
           className="w-full max-w-sm rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          placeholder="搜索用户名或邮箱..."
+          placeholder={t('admin.users.searchPlaceholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -126,7 +128,7 @@ export default function AdminUsersPage() {
 
       {filteredUsers.length === 0 ? (
         <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
-          <p className="text-sm text-muted-foreground">无匹配用户</p>
+          <p className="text-sm text-muted-foreground">{t('admin.users.noMatch')}</p>
         </div>
       ) : (
         <>
@@ -135,12 +137,12 @@ export default function AdminUsersPage() {
               <thead className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">ID</th>
-                  <th className="px-4 py-3 font-medium">用户名</th>
-                  <th className="px-4 py-3 font-medium">邮箱</th>
-                  <th className="px-4 py-3 font-medium">信誉分</th>
-                  <th className="px-4 py-3 font-medium">角色</th>
-                  <th className="px-4 py-3 font-medium">状态</th>
-                  <th className="px-4 py-3 font-medium">操作</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.users.colUsername')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.users.colEmail')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.users.colReputation')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.users.colRole')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.users.colStatus')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.users.colActions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -171,7 +173,7 @@ export default function AdminUsersPage() {
                             : "bg-emerald-50 text-emerald-700"
                         }`}
                       >
-                        {u.is_banned ? "已封禁" : "正常"}
+                        {u.is_banned ? t('admin.users.banned') : t('admin.users.normal')}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -182,7 +184,7 @@ export default function AdminUsersPage() {
                           disabled={busy || u.role === "admin"}
                           onClick={() => void unbanUser(u.id)}
                         >
-                          解封
+                          {t('admin.users.unban')}
                         </Button>
                       ) : (
                         <Button
@@ -194,7 +196,7 @@ export default function AdminUsersPage() {
                             setConfirmOpen(true);
                           }}
                         >
-                          封禁
+                          {t('admin.users.ban')}
                         </Button>
                       )}
                     </td>
@@ -207,14 +209,14 @@ export default function AdminUsersPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">
-                第 {page} / {totalPages} 页
+                {t('common.page', { current: page, total: totalPages })}
               </span>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                  上一页
+                  {t('common.previous')}
                 </Button>
                 <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-                  下一页
+                  {t('common.next')}
                 </Button>
               </div>
             </div>
@@ -225,12 +227,12 @@ export default function AdminUsersPage() {
       <ConfirmModal
         open={confirmOpen}
         onOpenChange={(v) => { setConfirmOpen(v); if (!v) setConfirmTarget(null); }}
-        title="封禁用户"
-        description={confirmTarget ? `确认封禁「${confirmTarget.username} (${confirmTarget.email})」吗？封禁后该用户将无法登录和使用平台。` : ""}
-        confirmLabel="确认封禁"
+        title={t('admin.users.banTitle')}
+        description={confirmTarget ? t('admin.users.banConfirm', { name: `${confirmTarget.username} (${confirmTarget.email})` }) : ""}
+        confirmLabel={t('admin.users.confirmBan')}
         confirmVariant="destructive"
         requireReason
-        reasonLabel="封禁原因"
+        reasonLabel={t('admin.users.banReason')}
         onConfirm={async (reason) => {
           if (confirmTarget) {
             await banUser(confirmTarget.id, reason);

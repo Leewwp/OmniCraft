@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { ChevronRight, Filter } from "lucide-react";
 import { IPCard } from "@/components/ip/IPCard";
@@ -37,33 +38,10 @@ interface RecentIP {
 
 const RECENT_IP_KEY = "recent_ips";
 
-const contentTypeOptions = [
-  { label: "全部", value: "" },
-  { label: "文字", value: "text" },
-  { label: "图片", value: "image" },
-  { label: "视频", value: "video" },
-  { label: "音频", value: "audio" },
-  { label: "Mod", value: "mod" },
-  { label: "AI提示词", value: "prompt" },
-  { label: "乐谱", value: "sheet_music" },
-  { label: "其他", value: "other" },
-];
-
-const contentSortOptions = [
-  { label: "最热门", value: "hot" },
-  { label: "最新", value: "newest" },
-  { label: "最多点击", value: "most_views" },
-  { label: "最高好评率", value: "best_rated" },
-];
-
-const timeRangeOptions = [
-  { label: "全部", value: "all" },
-  { label: "本周", value: "week" },
-  { label: "本月", value: "month" },
-  { label: "本年", value: "year" },
-];
+const ALL_KEY = "__all__";
 
 export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePageClientProps) {
+  const t = useTranslations();
   const [recentIPs, setRecentIPs] = useState<RecentIP[]>([]);
   const [ips, setIPs] = useState<IPItem[]>(initialIPs);
   const [contents, setContents] = useState<ContentCardData[]>(initialContents);
@@ -74,9 +52,35 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
   const [contentSort, setContentSort] = useState("hot");
   const [timeRange, setTimeRange] = useState("all");
 
+  const contentTypeOptions = useMemo(() => [
+    { label: t('home.all'), value: "" },
+    { label: t('home.text'), value: "text" },
+    { label: t('home.image'), value: "image" },
+    { label: t('home.video'), value: "video" },
+    { label: t('home.audio'), value: "audio" },
+    { label: t('home.other'), value: "mod" },
+    { label: t('home.aiPrompt'), value: "prompt" },
+    { label: t('home.sheetMusic'), value: "sheet_music" },
+    { label: t('home.other'), value: "other" },
+  ], [t]);
+
+  const contentSortOptions = useMemo(() => [
+    { label: t('home.hottest'), value: "hot" },
+    { label: t('home.newest'), value: "newest" },
+    { label: t('home.mostViewed'), value: "most_views" },
+    { label: t('home.topRated'), value: "best_rated" },
+  ], [t]);
+
+  const timeRangeOptions = useMemo(() => [
+    { label: t('home.all'), value: "all" },
+    { label: t('home.thisWeek'), value: "week" },
+    { label: t('home.thisMonth'), value: "month" },
+    { label: t('home.thisYear'), value: "year" },
+  ], [t]);
+
   const ipCategories = useMemo(() => {
     const fromData = Array.from(new Set(ips.map((ip) => ip.category).filter(Boolean))) as string[];
-    return ["全部", ...fromData];
+    return [ALL_KEY, ...fromData];
   }, [ips]);
 
   useEffect(() => {
@@ -146,12 +150,12 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6">
       <section className="rounded-md border border-border bg-card p-4 shadow-none">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">最近访问 IP</h2>
+          <h2 className="text-sm font-semibold">{t('home.recentIps')}</h2>
           <Filter className="h-4 w-4 text-muted-foreground" />
         </div>
 
         {recentIPs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">暂无最近访问 IP</p>
+          <p className="text-sm text-muted-foreground">{t('home.noRecentIps')}</p>
         ) : (
           <div className="flex gap-2 overflow-x-auto pb-1">
             {recentIPs.map((item) => (
@@ -170,21 +174,21 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
 
       <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-base font-semibold">IP 浏览区</h2>
+          <h2 className="text-base font-semibold">{t('home.ipBrowseZone')}</h2>
           <select
             value={ipSort}
             onChange={(e) => setIPSort(e.target.value)}
             className="h-9 rounded-md border border-border bg-background px-3 text-sm"
           >
-            <option value="hot">最热门</option>
-            <option value="newest">最新</option>
-            <option value="most_contents">最多内容</option>
+            <option value="hot">{t('home.hottest')}</option>
+            <option value="newest">{t('home.newest')}</option>
+            <option value="most_contents">{t('home.mostContent')}</option>
           </select>
         </div>
 
         <div className="flex flex-wrap gap-2">
           {ipCategories.map((category) => {
-            const value = category === "全部" ? "" : category;
+            const value = category === ALL_KEY ? "" : category;
             const active = ipCategory === value;
             return (
               <Button
@@ -193,7 +197,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
                 variant={active ? "default" : "outline"}
                 onClick={() => setIPCategory(value)}
               >
-                {category}
+                {category === ALL_KEY ? t('home.all') : category}
               </Button>
             );
           })}
@@ -208,7 +212,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
 
       <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="text-base font-semibold">二创内容浏览区</h2>
+          <h2 className="text-base font-semibold">{t('home.fanworkBrowseZone')}</h2>
           <div className="flex flex-wrap items-center gap-2">
             {contentSortOptions.map((option) => (
               <Button

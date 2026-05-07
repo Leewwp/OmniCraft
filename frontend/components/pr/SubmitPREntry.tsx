@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface SubmitPREntryProps {
@@ -11,6 +12,7 @@ interface SubmitPREntryProps {
 }
 
 export function SubmitPREntry({ contentId, authorId, allowCopy, zone }: SubmitPREntryProps) {
+  const t = useTranslations();
   const { user } = useAuth();
 
   if (zone !== "fanwork" || !allowCopy) {
@@ -26,7 +28,7 @@ export function SubmitPREntry({ contentId, authorId, allowCopy, zone }: SubmitPR
       href={`/dashboard/pr-requests?content_id=${contentId}&create=1`}
       className="inline-flex items-center rounded-md border border-border px-3 py-2 text-xs hover:bg-muted"
     >
-      提交修改申请
+      {t('pr.submit')}
     </Link>
   );
 }

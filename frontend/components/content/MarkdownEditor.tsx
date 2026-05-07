@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import "@uiw/react-md-editor/markdown-editor.css";
 import "@uiw/react-markdown-preview/markdown.css";
@@ -13,6 +14,8 @@ interface MarkdownEditorProps {
 }
 
 export function MarkdownEditor({ value, onChange, disabled }: MarkdownEditorProps) {
+  const t = useTranslations();
+
   return (
     <div data-color-mode="light" className="rounded-md border border-border bg-card">
       <MDEditor
@@ -22,7 +25,7 @@ export function MarkdownEditor({ value, onChange, disabled }: MarkdownEditorProp
         preview="edit"
         visibleDragbar={false}
         textareaProps={{
-          placeholder: "在这里输入正文（Markdown）...",
+          placeholder: t('publish.markdownPlaceholder'),
           disabled,
         }}
       />

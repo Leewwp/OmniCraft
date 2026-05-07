@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -8,15 +9,16 @@ import { Shield, FileText, Users, AlertTriangle, Settings, Tags, ChevronRight, P
 import { cn } from "@/lib/utils";
 
 const ADMIN_NAV = [
-  { href: "/admin/ips", label: "IP 库管理", icon: Shield },
-  { href: "/admin/contents", label: "内容终审", icon: FileText },
-  { href: "/admin/users", label: "用户管理", icon: Users },
-  { href: "/admin/appeal", label: "申诉处理", icon: AlertTriangle },
-  { href: "/admin/categories", label: "分类管理", icon: Tags },
-  { href: "/admin/config", label: "系统配置", icon: Settings },
+  { href: "/admin/ips", labelKey: "navIps", icon: Shield },
+  { href: "/admin/contents", labelKey: "navContents", icon: FileText },
+  { href: "/admin/users", labelKey: "navUsers", icon: Users },
+  { href: "/admin/appeal", labelKey: "navAppeals", icon: AlertTriangle },
+  { href: "/admin/categories", labelKey: "navCategories", icon: Tags },
+  { href: "/admin/config", labelKey: "navConfig", icon: Settings },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const t = useTranslations();
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -31,7 +33,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (isLoading) {
     return (
       <div className="mx-auto w-full max-w-7xl px-4 py-6 text-sm text-muted-foreground">
-        加载中...
+        {t('common.loading')}
       </div>
     );
   }
@@ -40,9 +42,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return (
       <div className="mx-auto flex w-full max-w-lg flex-col items-center justify-center px-4 py-20 text-center">
         <Shield className="h-12 w-12 text-muted-foreground" />
-        <h1 className="mt-4 text-xl font-bold tracking-tight">403 访问被拒绝</h1>
+        <h1 className="mt-4 text-xl font-bold tracking-tight">{t('admin.accessDenied')}</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          你没有管理员权限，无法访问此页面。
+          {t('admin.accessDeniedMsg')}
         </p>
       </div>
     );
@@ -61,7 +63,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {sidebarOpen && (
             <div className="mb-3 flex items-center justify-between px-1">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                管理后台
+                {t('admin.title')}
               </p>
               <button
                 type="button"
@@ -83,11 +85,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           )}
           {ADMIN_NAV.map((item) => {
             const isActive = pathname.startsWith(item.href);
+            const label = t(`admin.${item.labelKey}`);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                title={!sidebarOpen ? item.label : undefined}
+                title={!sidebarOpen ? label : undefined}
                 className={cn(
                   "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
                   isActive
@@ -97,7 +100,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 )}
               >
                 <item.icon className="h-4 w-4 shrink-0" />
-                {sidebarOpen && <span>{item.label}</span>}
+                {sidebarOpen && <span>{label}</span>}
                 {sidebarOpen && isActive && <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" />}
               </Link>
             );
@@ -110,6 +113,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex gap-0 px-2 py-2">
           {ADMIN_NAV.map((item) => {
             const isActive = pathname.startsWith(item.href);
+            const label = t(`admin.${item.labelKey}`);
             return (
               <Link
                 key={item.href}
@@ -121,7 +125,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     : "text-foreground/60 hover:bg-muted hover:text-foreground"
                 )}
               >
-                {item.label}
+                {label}
               </Link>
             );
           })}

@@ -1,3 +1,6 @@
+"use client";
+
+import { useTranslations } from "next-intl";
 import { ShieldCheck, ShieldAlert } from "lucide-react";
 
 interface ComplianceCheckBadgeProps {
@@ -11,6 +14,7 @@ export function ComplianceCheckBadge({
   hasAttachment,
   hasTitle,
 }: ComplianceCheckBadgeProps) {
+  const t = useTranslations();
   const ready = hasTitle && hasCover && hasAttachment;
 
   return (
@@ -22,7 +26,7 @@ export function ComplianceCheckBadge({
       }`}
     >
       {ready ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
-      {ready ? "发布前检查通过" : "发布前检查未完成"}
+      {ready ? t('content.compliancePassed') : t('content.complianceFailed')}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ interface ContentItem {
 }
 
 export default function DashboardContentsPage() {
+  const t = useTranslations();
   const { user, isLoading } = useAuth();
   const [contents, setContents] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,38 +39,38 @@ export default function DashboardContentsPage() {
       );
       setContents(data.contents || []);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? `${e.code}: ${e.message}` : "加载内容列表失败");
+      setError(e instanceof ApiRequestError ? `${e.code}: ${e.message}` : t('dashboard.content.loadFailed'));
     } finally {
       setLoading(false);
     }
   }
 
   async function deleteContent(id: number) {
-    if (!window.confirm("确认删除该内容吗？此操作不可撤销。")) return;
+    if (!window.confirm(t('dashboard.content.deleteConfirm'))) return;
     setBusy(true);
     try {
       await api.delete(`/api/v1/contents/${id}`);
       setContents((prev) => prev.filter((c) => c.ID !== id));
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "删除失败");
+      setError(e instanceof ApiRequestError ? e.message : t('dashboard.content.deleteFailed'));
     } finally {
       setBusy(false);
     }
   }
 
   if (isLoading || loading) {
-    return <div className="mx-auto w-full max-w-6xl px-4 py-6 text-sm text-muted-foreground">加载中...</div>;
+    return <div className="mx-auto w-full max-w-6xl px-4 py-6 text-sm text-muted-foreground">{t('common.loading')}</div>;
   }
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6">
       <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 shadow-none">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">我的内容</h1>
-          <p className="mt-1 text-sm text-muted-foreground">共 {contents.length} 篇</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t('dashboard.content.title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('dashboard.content.count', { count: contents.length })}</p>
         </div>
         <Link href="/publish">
-          <Button size="sm">发布新内容</Button>
+          <Button size="sm">{t('dashboard.content.publishNew')}</Button>
         </Link>
       </div>
 
@@ -76,9 +78,9 @@ export default function DashboardContentsPage() {
 
       {contents.length === 0 ? (
         <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
-          <p className="text-sm text-muted-foreground">暂无内容</p>
+          <p className="text-sm text-muted-foreground">{t('dashboard.content.noContent')}</p>
           <Link href="/publish" className="mt-3 inline-block text-sm text-accent underline underline-offset-4">
-            去发布第一篇内容
+            {t('dashboard.content.publishFirst')}
           </Link>
         </div>
       ) : (
@@ -86,12 +88,12 @@ export default function DashboardContentsPage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
               <tr>
-                <th className="px-4 py-3 font-medium">标题</th>
-                <th className="px-4 py-3 font-medium">类型</th>
-                <th className="px-4 py-3 font-medium">状态</th>
-                <th className="px-4 py-3 font-medium">浏览</th>
-                <th className="px-4 py-3 font-medium">点赞</th>
-                <th className="px-4 py-3 font-medium">操作</th>
+                <th className="px-4 py-3 font-medium">{t('dashboard.content.colTitle')}</th>
+                <th className="px-4 py-3 font-medium">{t('dashboard.content.colType')}</th>
+                <th className="px-4 py-3 font-medium">{t('dashboard.content.colStatus')}</th>
+                <th className="px-4 py-3 font-medium">{t('dashboard.content.colViews')}</th>
+                <th className="px-4 py-3 font-medium">{t('dashboard.content.colLikes')}</th>
+                <th className="px-4 py-3 font-medium">{t('dashboard.content.colActions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -111,10 +113,10 @@ export default function DashboardContentsPage() {
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <Link href={`/content/${c.ID}`}>
-                        <Button size="sm" variant="outline">查看</Button>
+                        <Button size="sm" variant="outline">{t('common.view')}</Button>
                       </Link>
                       <Button size="sm" variant="outline" disabled={busy} onClick={() => void deleteContent(c.ID)}>
-                        删除
+                        {t('dashboard.content.delete')}
                       </Button>
                     </div>
                   </td>

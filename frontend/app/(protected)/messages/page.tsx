@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ interface Notification {
 }
 
 export default function MessagesPage() {
+  const t = useTranslations();
   const { user, isLoading } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,7 +34,7 @@ export default function MessagesPage() {
       const data = await api.get<{ notifications?: Notification[] }>("/api/v1/notifications");
       setNotifications(data.notifications || []);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "加载失败");
+      setError(e instanceof ApiRequestError ? e.message : t('common.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -53,7 +55,7 @@ export default function MessagesPage() {
   }
 
   if (isLoading || loading) {
-    return <div className="mx-auto w-full max-w-2xl px-4 py-6 text-sm text-muted-foreground">加载中...</div>;
+    return <div className="mx-auto w-full max-w-2xl px-4 py-6 text-sm text-muted-foreground">{t('common.loading')}</div>;
   }
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
@@ -62,12 +64,12 @@ export default function MessagesPage() {
     <div className="mx-auto w-full max-w-2xl space-y-4 px-4 py-6">
       <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 shadow-none">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">消息中心</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{unreadCount} 条未读</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t('messages.title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('messages.unreadCount', { count: unreadCount })}</p>
         </div>
         {unreadCount > 0 && (
           <Button size="sm" variant="outline" onClick={() => void markAllRead()}>
-            全部已读
+            {t('messages.markAllRead')}
           </Button>
         )}
       </div>
@@ -76,7 +78,7 @@ export default function MessagesPage() {
 
       {notifications.length === 0 ? (
         <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
-          <p className="text-sm text-muted-foreground">暂无消息</p>
+          <p className="text-sm text-muted-foreground">{t('messages.noMessages')}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -99,7 +101,7 @@ export default function MessagesPage() {
               </div>
               {!n.is_read && (
                 <Button size="sm" variant="ghost" onClick={() => void markRead(n.id)}>
-                  已读
+                  {t('messages.read')}
                 </Button>
               )}
             </div>

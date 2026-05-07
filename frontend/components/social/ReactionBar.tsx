@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { ThumbsUp, ThumbsDown, Flag, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +21,7 @@ export function ReactionBar({
   initialDislikes = 0,
   className,
 }: ReactionBarProps) {
+  const t = useTranslations();
   const { user } = useAuth();
   const [myReaction, setMyReaction] = useState<"like" | "dislike" | null>(null);
   const [likeCount, setLikeCount] = useState(initialLikes);
@@ -84,7 +86,7 @@ export function ReactionBar({
 
   async function report() {
     if (!user || reported) return;
-    const reason = window.prompt("请描述举报原因：");
+    const reason = window.prompt(t('social.reportReason'));
     if (!reason) return;
     try {
       await api.post(`/api/v1/contents/${contentId}/report`, { reason });
@@ -108,7 +110,7 @@ export function ReactionBar({
         size="sm"
         disabled={disabled || busy}
         onClick={() => react("like")}
-        title={disabled ? "信誉分不足" : "点赞"}
+        title={disabled ? t('social.lowReputation') : t('social.like')}
       >
         <ThumbsUp className="mr-1 h-3.5 w-3.5" />
         {likeCount}
@@ -119,7 +121,7 @@ export function ReactionBar({
         size="sm"
         disabled={disabled || busy}
         onClick={() => react("dislike")}
-        title={disabled ? "信誉分不足" : "点踩"}
+        title={disabled ? t('social.lowReputation') : t('social.dislike')}
       >
         <ThumbsDown className="mr-1 h-3.5 w-3.5" />
         {dislikeCount}
@@ -132,10 +134,10 @@ export function ReactionBar({
         size="sm"
         disabled={!user || reported}
         onClick={() => void report()}
-        title={reported ? "已举报" : "举报"}
+        title={reported ? t('social.reported') : t('social.report')}
       >
         <Flag className="mr-1 h-3.5 w-3.5" />
-        {reported ? "已举报" : "举报"}
+        {reported ? t('social.reported') : t('social.report')}
       </Button>
     </div>
   );

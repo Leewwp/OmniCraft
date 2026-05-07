@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
+import { useTranslations, useLocale } from "next-intl";
 import {
   Brush,
   Clock,
+  Globe,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -28,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { setLocale } from "@/lib/locale";
 
 function ThemeIcon({ theme, mounted }: { theme?: string; mounted: boolean }) {
   if (!mounted) {
@@ -43,6 +46,8 @@ function ThemeIcon({ theme, mounted }: { theme?: string; mounted: boolean }) {
 }
 
 export function Header() {
+  const t = useTranslations();
+  const locale = useLocale();
   const { user, logout } = useAuth();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const router = useRouter();
@@ -59,6 +64,11 @@ export function Header() {
     router.push(path);
   }
 
+  async function handleLocaleChange(newLocale: string) {
+    await setLocale(newLocale as "zh" | "en", user?.id);
+    window.location.reload();
+  }
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background shadow-none">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4">
@@ -67,7 +77,7 @@ export function Header() {
           className="flex items-center gap-2 font-semibold text-foreground transition-opacity hover:opacity-80"
         >
           <Brush className="h-5 w-5 text-primary" />
-          <span className="text-base">万象工坊</span>
+          <span className="text-base">{t("nav.siteName")}</span>
         </Link>
 
         <nav className="hidden items-center gap-1 sm:flex">
@@ -75,13 +85,13 @@ export function Header() {
             href="/"
             className="rounded-md px-3 py-1.5 text-sm text-foreground/80 transition-colors hover:bg-muted hover:text-foreground"
           >
-            二创区
+            {t("nav.fanworkZone")}
           </Link>
           <Link
             href="/original"
             className="rounded-md px-3 py-1.5 text-sm text-foreground/80 transition-colors hover:bg-muted hover:text-foreground"
           >
-            原创区
+            {t("nav.originalZone")}
           </Link>
         </nav>
 
@@ -91,7 +101,7 @@ export function Header() {
             <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground" />
             <input
               type="search"
-              placeholder="搜索 IP、内容、创作者..."
+              placeholder={t("common.search")}
               className="w-full rounded-md border border-border bg-muted/40 py-1.5 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
@@ -108,35 +118,61 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Language switcher */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
+            >
+              <Globe className="h-4 w-4" />
+              <span className="sr-only">{t("nav.language")}</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => handleLocaleChange("zh")}
+                className={locale === "zh" ? "bg-muted" : ""}
+              >
+                {t("nav.langZh")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleLocaleChange("en")}
+                className={locale === "en" ? "bg-muted" : ""}
+              >
+                {t("nav.langEn")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Theme switcher */}
           <DropdownMenu>
             <DropdownMenuTrigger
               className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
             >
               <ThemeIcon theme={activeTheme} mounted={mounted} />
-              <span className="sr-only">切换主题</span>
+              <span className="sr-only">{t("nav.themeSwitch")}</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setTheme("light")}>
                 <Sun className="mr-2 h-4 w-4" />
-                浅色
+                {t("nav.themeLight")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setTheme("dark")}>
                 <Moon className="mr-2 h-4 w-4" />
-                深色
+                {t("nav.themeDark")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setTheme("system")}>
                 <Monitor className="mr-2 h-4 w-4" />
-                跟随系统
+                {t("nav.themeSystem")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Mobile menu */}
           <DropdownMenu>
             <DropdownMenuTrigger
               className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8 sm:hidden")}
             >
               <Menu className="h-4 w-4" />
-              <span className="sr-only">打开菜单</span>
+              <span className="sr-only">{t("nav.openMenu")}</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
               <div className="p-1.5">
@@ -144,31 +180,34 @@ export function Header() {
                   <Search className="pointer-events-none absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
                   <input
                     type="search"
-                    placeholder="搜索 IP、内容、创作者..."
+                    placeholder={t("common.search")}
                     className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
               </div>
-              <DropdownMenuItem onClick={() => goTo("/")}>二创区</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => goTo("/original")}>原创区</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => goTo("/")}>{t("nav.fanworkZone")}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => goTo("/original")}>{t("nav.originalZone")}</DropdownMenuItem>
               <DropdownMenuSeparator />
               {user ? (
                 <>
-                  <DropdownMenuItem onClick={() => goTo(`/user/${user.id}`)}>个人主页</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => goTo("/dashboard")}>创作者后台</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => goTo("/history")}>浏览历史</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => goTo("/settings")}>账号设置</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => logout()}>退出登录</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => goTo(`/user/${user.id}`)}>{t("nav.profile")}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => goTo("/dashboard")}>{t("nav.dashboard")}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => goTo("/history")}>{t("nav.history")}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => goTo("/settings")}>{t("nav.settings")}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => goTo("/appeals")}>{t("nav.appeals")}</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => logout()}>{t("nav.logout")}</DropdownMenuItem>
                 </>
               ) : (
                 <>
-                  <DropdownMenuItem onClick={() => goTo("/login")}>登录</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => goTo("/register")}>注册</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => goTo("/login")}>{t("nav.login")}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => goTo("/register")}>{t("nav.register")}</DropdownMenuItem>
                 </>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Desktop user menu */}
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -187,23 +226,23 @@ export function Header() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => goTo(`/user/${user.id}`)}>
                   <User className="mr-2 h-4 w-4" />
-                  个人主页
+                  {t("nav.profile")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => goTo("/dashboard")}>
                   <LayoutDashboard className="mr-2 h-4 w-4" />
-                  创作者后台
+                  {t("nav.dashboard")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => goTo("/history")}>
                   <Clock className="mr-2 h-4 w-4" />
-                  浏览历史
+                  {t("nav.history")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => goTo("/settings")}>
                   <Settings className="mr-2 h-4 w-4" />
-                  账号设置
+                  {t("nav.settings")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => goTo("/appeals")}>
                   <Shield className="mr-2 h-4 w-4" />
-                  我的申诉
+                  {t("nav.appeals")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -211,7 +250,7 @@ export function Header() {
                   onClick={() => logout()}
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  退出登录
+                  {t("nav.logout")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -221,13 +260,13 @@ export function Header() {
                 href="/login"
                 className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "h-8 text-sm")}
               >
-                登录
+                {t("nav.login")}
               </Link>
               <Link
                 href="/register"
                 className={cn(buttonVariants({ size: "sm" }), "h-8 text-sm")}
               >
-                注册
+                {t("nav.register")}
               </Link>
             </div>
           )}
@@ -241,7 +280,7 @@ export function Header() {
             <input
               type="search"
               autoFocus
-              placeholder="搜索 IP、内容、创作者..."
+              placeholder={t("common.search")}
               className="w-full rounded-md border border-border bg-muted/40 py-1.5 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>

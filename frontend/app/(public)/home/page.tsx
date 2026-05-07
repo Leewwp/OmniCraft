@@ -2,8 +2,10 @@ import Link from "next/link";
 import { Brush, Sparkles, Users, Layers } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getTranslations } from 'next-intl/server';
 
-export default function HomePage() {
+export default async function HomePage() {
+  const t = await getTranslations();
   return (
     <div className="flex flex-col">
       {/* Hero */}
@@ -13,20 +15,18 @@ export default function HomePage() {
         </div>
         <div className="flex flex-col gap-3">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-            万象工坊
+            {t('nav.siteName')}
           </h1>
           <p className="max-w-xl text-lg text-muted-foreground leading-relaxed">
-            以 IP 二创内容聚合为核心，Agent 自动化为增值能力，
-            <br className="hidden sm:block" />
-            GitHub 式 PR 协同为护城河的全民创意分享平台
+            {t('home.heroTagline')}
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Link href="/register" className={cn(buttonVariants({ size: "lg" }))}>
-            立即加入
+            {t('home.ctaJoin')}
           </Link>
           <Link href="/login" className={cn(buttonVariants({ variant: "outline", size: "lg" }))}>
-            登录账号
+            {t('home.ctaLogin')}
           </Link>
         </div>
       </section>
@@ -38,27 +38,27 @@ export default function HomePage() {
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
               <Layers className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="font-semibold">IP 二创聚合</h3>
+            <h3 className="font-semibold">{t('home.featureIpfusion')}</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              围绕热门 IP 聚合二次创作，图文、视频、音乐、Mod 一网打尽
+              {t('home.featureIpfusionDesc')}
             </p>
           </div>
           <div className="flex flex-col items-center gap-3 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
               <Sparkles className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="font-semibold">Agent 自动部署</h3>
+            <h3 className="font-semibold">{t('home.featureAgent')}</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              一键部署 Mod 到游戏目录，AI 辅助创作与智能推荐
+              {t('home.featureAgentDesc')}
             </p>
           </div>
           <div className="flex flex-col items-center gap-3 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
               <Users className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="font-semibold">PR 协同创作</h3>
+            <h3 className="font-semibold">{t('home.featurePr')}</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              GitHub 式协同修改，版本管理，众裁审核，共同完善作品
+              {t('home.featurePrDesc')}
             </p>
           </div>
         </div>
@@ -66,18 +66,18 @@ export default function HomePage() {
 
       {/* CTA */}
       <section className="flex flex-col items-center gap-4 px-4 py-16 text-center">
-        <p className="text-muted-foreground text-sm">平台正在建设中，敬请期待更多功能</p>
+        <p className="text-muted-foreground text-sm">{t('home.underConstruction')}</p>
         <div className="flex items-center gap-2 text-xs text-muted-foreground/60">
-          <span>后端 API</span>
+          <span>{t('home.apiStatus')}</span>
           <span className="h-1 w-1 rounded-full bg-green-500"></span>
-          <span className="text-green-600 font-medium">运行中</span>
+          <span className="text-green-600 font-medium">{t('home.apiRunning')}</span>
           <span className="mx-2">·</span>
           <Link href="/login" className="hover:text-foreground transition-colors">
-            登录
+            {t('nav.login')}
           </Link>
           <span>·</span>
           <Link href="/register" className="hover:text-foreground transition-colors">
-            注册
+            {t('nav.register')}
           </Link>
         </div>
       </section>

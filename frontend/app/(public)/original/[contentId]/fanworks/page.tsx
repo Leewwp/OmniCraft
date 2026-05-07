@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations } from 'next-intl/server';
 import { ArrowLeft } from "lucide-react";
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { buttonVariants } from "@/components/ui/button";
@@ -20,21 +21,38 @@ interface SearchParams {
 }
 
 const TYPE_FILTERS = [
-  { key: "", label: "全部" },
-  { key: "text", label: "文字", contentType: "text,article,prompt" },
-  { key: "image", label: "图片", contentType: "image" },
-  { key: "video", label: "视频", contentType: "video" },
-  { key: "audio", label: "音频/乐谱", contentType: "audio,sheet_music" },
+  { key: "", label: "All", contentType: "text,article,prompt" },
+  { key: "text", label: "Text", contentType: "text,article,prompt" },
+  { key: "image", label: "Image", contentType: "image" },
+  { key: "video", label: "Video", contentType: "video" },
+  { key: "audio", label: "Audio/Sheet Music", contentType: "audio,sheet_music" },
   { key: "mod", label: "Mod", contentType: "mod" },
-  { key: "other", label: "其他", contentType: "other" },
+  { key: "other", label: "Other", contentType: "other" },
 ];
 
+const TYPE_FILTER_LABEL_KEY: Record<string, string> = {
+  "": "content.categoryAll",
+  text: "content.categoryText",
+  image: "content.categoryImage",
+  video: "content.categoryVideo",
+  audio: "content.categoryAudio",
+  mod: "content.categoryMod",
+  other: "content.categoryOther",
+};
+
 const SORTS = [
-  { key: "newest", label: "最新" },
-  { key: "hot", label: "最热门" },
-  { key: "most_views", label: "最多点击" },
-  { key: "best_rated", label: "最高好评率" },
+  { key: "newest", label: "Newest" },
+  { key: "hot", label: "Hottest" },
+  { key: "most_views", label: "Most Viewed" },
+  { key: "best_rated", label: "Top Rated" },
 ];
+
+const SORT_LABEL_KEY: Record<string, string> = {
+  newest: "content.sortNewest",
+  hot: "content.sortHottest",
+  most_views: "content.sortMostViewed",
+  best_rated: "content.sortTopRated",
+};
 
 function getApiBase() {
   const raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -94,6 +112,7 @@ export default async function RelatedFanworksPage({
   params: Promise<{ contentId: string }>;
   searchParams: Promise<SearchParams>;
 }) {
+  const t = await getTranslations();
   const { contentId } = await params;
   const rawSearch = await searchParams;
   const current = {
@@ -118,19 +137,19 @@ export default async function RelatedFanworksPage({
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          返回原创详情
+          {t('content.backToOriginal')}
         </Link>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">相关二创</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('content.fanworksTitle')}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {original.title} 的相关二创内容，共 {related.total} 个。
+            {t('content.fanworksDesc', { title: original.title, total: related.total })}
           </p>
         </div>
       </section>
 
       <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="text-base font-semibold">二创内容流</h2>
+          <h2 className="text-base font-semibold">{t('content.fanworkStream')}</h2>
           <div className="flex flex-wrap gap-2">
             {SORTS.map((sort) => (
               <Link
@@ -141,7 +160,7 @@ export default async function RelatedFanworksPage({
                   variant: current.sort === sort.key ? "default" : "outline",
                 })}
               >
-                {sort.label}
+                {t(SORT_LABEL_KEY[sort.key])}
               </Link>
             ))}
           </div>
@@ -157,12 +176,12 @@ export default async function RelatedFanworksPage({
                 variant: current.type === type.key ? "default" : "outline",
               })}
             >
-              {type.label}
+              {t(TYPE_FILTER_LABEL_KEY[type.key])}
             </Link>
           ))}
         </div>
 
-        <MasonryGrid items={related.contents} emptyText="暂无相关二创" />
+        <MasonryGrid items={related.contents} emptyText={t('content.noFanworks')} />
       </section>
     </div>
   );

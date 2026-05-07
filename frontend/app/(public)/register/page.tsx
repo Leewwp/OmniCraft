@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useTranslations } from 'next-intl';
 
 interface RegisterResponse {
   user: {
@@ -25,6 +26,7 @@ interface RegisterResponse {
 }
 
 export default function RegisterPage() {
+  const t = useTranslations();
   const router = useRouter();
   const { login } = useAuth();
 
@@ -37,10 +39,10 @@ export default function RegisterPage() {
 
   function validate(): boolean {
     const newErrors: Record<string, string> = {};
-    if (username.length < 2) newErrors.username = "用户名至少 2 个字符";
-    if (username.length > 64) newErrors.username = "用户名不超过 64 个字符";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = "请输入有效的邮箱地址";
-    if (password.length < 6) newErrors.password = "密码至少 6 位";
+    if (username.length < 2) newErrors.username = t('auth.errorUsernameTooShort');
+    if (username.length > 64) newErrors.username = t('auth.errorUsernameTooLong');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = t('auth.errorInvalidEmail');
+    if (password.length < 6) newErrors.password = t('auth.errorPasswordTooShort');
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
@@ -64,16 +66,16 @@ export default function RegisterPage() {
     } catch (err) {
       if (err instanceof ApiRequestError) {
         if (err.code === "USER_EXISTS") {
-          setErrors({ email: "该邮箱已被注册" });
+          setErrors({ email: t('auth.errorEmailTaken') });
         } else if (err.code === "USERNAME_TAKEN") {
-          setErrors({ username: "该用户名已被占用" });
+          setErrors({ username: t('auth.errorUsernameTaken') });
         } else if (err.code === "VALIDATION_ERROR") {
-          setErrors({ general: "请检查输入内容格式" });
+          setErrors({ general: t('auth.errorValidation') });
         } else {
-          setErrors({ general: err.message || "注册失败，请稍后重试" });
+          setErrors({ general: err.message || t('auth.errorRegisterFailed') });
         }
       } else {
-        setErrors({ general: "网络错误，请检查连接后重试" });
+        setErrors({ general: t('auth.errorNetwork') });
       }
     } finally {
       setIsLoading(false);
@@ -88,19 +90,19 @@ export default function RegisterPage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
             <Brush className="h-6 w-6 text-primary" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">加入万象工坊</h1>
-          <p className="text-sm text-muted-foreground">创建你的创作者账号</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t('auth.joinTitle')}</h1>
+          <p className="text-sm text-muted-foreground">{t('auth.registerSubtitle')}</p>
         </div>
 
         {/* Form */}
         <div className="rounded-lg border border-border bg-card p-6 shadow-none">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="username">用户名</Label>
+              <Label htmlFor="username">{t('auth.username')}</Label>
               <Input
                 id="username"
                 type="text"
-                placeholder="创作者昵称"
+                placeholder={t('auth.displayName')}
                 autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -114,7 +116,7 @@ export default function RegisterPage() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="email">邮箱</Label>
+              <Label htmlFor="email">{t('auth.email')}</Label>
               <Input
                 id="email"
                 type="email"
@@ -132,12 +134,12 @@ export default function RegisterPage() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="password">密码</Label>
+              <Label htmlFor="password">{t('auth.password')}</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="至少 6 位"
+                  placeholder={t('auth.passwordMinLength')}
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -171,15 +173,15 @@ export default function RegisterPage() {
 
             <Button type="submit" className="w-full mt-1" disabled={isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              创建账号
+              {t('auth.createAccount')}
             </Button>
           </form>
         </div>
 
         <p className="mt-4 text-center text-sm text-muted-foreground">
-          已有账号？{" "}
+          {t('auth.hasAccount')}{" "}
           <Link href="/login" className="font-medium text-primary hover:underline">
-            立即登录
+            {t('auth.loginNow')}
           </Link>
         </p>
       </div>

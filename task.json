@@ -850,7 +850,7 @@
         "创建 scripts/backup-db.sh：PostgreSQL 定时备份脚本",
         "验证：按照 README 步骤可从零完成本地开发环境搭建，docker compose up 可完整启动所有服务"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 43,
@@ -920,7 +920,7 @@
         "Go 后端错误响应只返回 code 字段（英文枚举），前端在 messages 中配置 errors.xxx 映射",
         "验证：切换 EN 后所有页面文本变为英文，切换回 ZH 恢复；刷新页面语言持久化；服务端 preferred_locale 字段同步更新"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 47,

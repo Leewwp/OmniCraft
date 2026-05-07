@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ interface Contributor {
 }
 
 export default function ContributorsPage() {
+  const t = useTranslations();
   const { user, isLoading } = useAuth();
   const [contributors, setContributors] = useState<Contributor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +43,7 @@ export default function ContributorsPage() {
               if (existing) {
                 existing.contribution_count += 1;
               } else {
-                allContributors.push({ user_id: pr.submitter_id, username: `用户 #${pr.submitter_id}`, contribution_count: 1, blocked: false });
+                allContributors.push({ user_id: pr.submitter_id, username: t('common.userLabel', { id: pr.submitter_id }), contribution_count: 1, blocked: false });
               }
             }
           }
@@ -49,15 +51,15 @@ export default function ContributorsPage() {
       }
       setContributors(allContributors);
     } catch {
-      setError("加载贡献者列表失败");
+      setError(t('dashboard.contributors.loadFailed'));
     } finally {
       setLoading(false);
     }
   }
 
   async function toggleBlock(contributor: Contributor) {
-    const action = contributor.blocked ? "解除拉黑" : "拉黑";
-    if (!window.confirm(`确认${action}该贡献者吗？`)) return;
+    const action = contributor.blocked ? t('dashboard.contributors.unblock') : t('dashboard.contributors.block');
+    if (!window.confirm(t('dashboard.contributors.confirmAction', { action }))) return;
     try {
       if (contributor.blocked) {
         await api.delete(`/api/v1/dashboard/contributors/${contributor.user_id}/block`);
@@ -68,36 +70,36 @@ export default function ContributorsPage() {
         prev.map((c) => (c.user_id === contributor.user_id ? { ...c, blocked: !c.blocked } : c))
       );
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "操作失败");
+      setError(e instanceof ApiRequestError ? e.message : t('common.operationFailed'));
     }
   }
 
   if (isLoading || loading) {
-    return <div className="mx-auto w-full max-w-4xl px-4 py-6 text-sm text-muted-foreground">加载中...</div>;
+    return <div className="mx-auto w-full max-w-4xl px-4 py-6 text-sm text-muted-foreground">{t('common.loading')}</div>;
   }
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6">
       <div className="rounded-md border border-border bg-card p-4 shadow-none">
-        <h1 className="text-2xl font-bold tracking-tight">贡献者管理</h1>
-        <p className="mt-1 text-sm text-muted-foreground">管理为你的内容做出贡献的用户</p>
+        <h1 className="text-2xl font-bold tracking-tight">{t('dashboard.contributors.title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('dashboard.contributors.subtitle')}</p>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {contributors.length === 0 ? (
         <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
-          <p className="text-sm text-muted-foreground">暂无贡献者</p>
+          <p className="text-sm text-muted-foreground">{t('dashboard.contributors.noContributors')}</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-md border border-border bg-card shadow-none">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
               <tr>
-                <th className="px-4 py-3 font-medium">用户名</th>
-                <th className="px-4 py-3 font-medium">贡献次数</th>
-                <th className="px-4 py-3 font-medium">状态</th>
-                <th className="px-4 py-3 font-medium">操作</th>
+                <th className="px-4 py-3 font-medium">{t('dashboard.contributors.colUsername')}</th>
+                <th className="px-4 py-3 font-medium">{t('dashboard.contributors.colContributions')}</th>
+                <th className="px-4 py-3 font-medium">{t('dashboard.contributors.colStatus')}</th>
+                <th className="px-4 py-3 font-medium">{t('dashboard.contributors.colActions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -107,12 +109,12 @@ export default function ContributorsPage() {
                   <td className="px-4 py-3 text-xs text-muted-foreground">{c.contribution_count}</td>
                   <td className="px-4 py-3">
                     <span className={c.blocked ? "text-destructive text-xs" : "text-emerald-600 text-xs"}>
-                      {c.blocked ? "已拉黑" : "正常"}
+                      {c.blocked ? t('dashboard.contributors.blocked') : t('dashboard.contributors.normal')}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <Button size="sm" variant={c.blocked ? "outline" : "destructive"} onClick={() => void toggleBlock(c)}>
-                      {c.blocked ? "解除拉黑" : "拉黑"}
+                      {c.blocked ? t('dashboard.contributors.unblock') : t('dashboard.contributors.block')}
                     </Button>
                   </td>
                 </tr>

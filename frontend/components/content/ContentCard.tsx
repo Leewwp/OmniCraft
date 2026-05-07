@@ -1,3 +1,6 @@
+"use client";
+
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -39,27 +42,27 @@ interface ContentCardProps {
   className?: string;
 }
 
-function getTypeLabel(contentType: string): string {
+function getTypeLabel(t: (key: string) => string, contentType: string): string {
   switch (contentType) {
     case "article":
     case "text":
-      return "文字";
+      return t('home.text');
     case "image":
-      return "图片";
+      return t('home.image');
     case "video":
-      return "视频";
+      return t('home.video');
     case "audio":
-      return "音频";
+      return t('home.audio');
     case "mod":
-      return "Mod";
+      return t('home.mod');
     case "prompt":
-      return "AI 提示词";
+      return t('home.aiPrompt');
     case "sheet_music":
-      return "乐谱";
+      return t('home.sheetMusic');
     case "template":
-      return "模板";
+      return t('home.template');
     default:
-      return "其他";
+      return t('home.other');
   }
 }
 
@@ -95,14 +98,16 @@ function getCardHref(data: ContentCardData): string {
 }
 
 export function ContentCard({ data, className }: ContentCardProps) {
+  const t = useTranslations();
   const contentType = data.content_type || "other";
   const Icon = getTypeIcon(contentType);
   const rawTags = data.tags ?? [];
   const category = data.category;
+  const typeLabel = getTypeLabel(t, contentType);
   const tagCandidates =
     rawTags.length > 0
       ? rawTags
-      : [getTypeLabel(contentType), category].filter(
+      : [typeLabel, category].filter(
           (item): item is string => Boolean(item)
         );
   const tags = tagCandidates.slice(0, 3);
@@ -132,7 +137,7 @@ export function ContentCard({ data, className }: ContentCardProps) {
           <div className="flex h-full w-full items-center justify-center text-muted-foreground">
             <div className="flex flex-col items-center gap-2">
               <Icon className="h-10 w-10" />
-              <span className="text-xs">{getTypeLabel(contentType)}</span>
+              <span className="text-xs">{typeLabel}</span>
             </div>
           </div>
         )}
@@ -144,7 +149,7 @@ export function ContentCard({ data, className }: ContentCardProps) {
             {displayTitle}
           </h3>
           <p className="text-xs text-muted-foreground">
-            {authorName || `用户 #${authorId ?? "-"}`}
+            {authorName || t('common.userLabel', { id: authorId ?? "-" })}
           </p>
         </div>
 

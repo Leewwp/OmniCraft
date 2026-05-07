@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { getTranslations } from 'next-intl/server';
 import { ArrowRight, GitBranchPlus } from "lucide-react";
 import { ContentDetail } from "@/components/content/ContentDetail";
 import { buttonVariants } from "@/components/ui/button";
@@ -63,14 +64,15 @@ export async function generateMetadata({
   params: Promise<{ contentId: string }>;
 }): Promise<Metadata> {
   const { contentId } = await params;
+  const t = await getTranslations();
   const apiBase = getApiBase();
   const rawData = await fetchContent(apiBase, contentId);
   const content = normalizeContentItem(rawData?.content);
   if (!content || content.zone !== "original") {
-    return { title: "原创内容 — OmniCraft 万象工坊" };
+    return { title: `${t('content.originalZone')} — OmniCraft` };
   }
-  const title = `${content.title} — OmniCraft 原创`;
-  const description = content.description?.slice(0, 160) || `${content.title} - 查看原创内容`;
+  const title = `${content.title} — ${t('content.originalZone')}`;
+  const description = content.description?.slice(0, 160) || `${content.title} - ${t('content.viewOriginal')}`;
   const ogImage = content.cover_image_url || `${baseUrl}/og-default.png`;
   return {
     title,
@@ -90,6 +92,7 @@ export default async function OriginalDetailPage({
 }: {
   params: Promise<{ contentId: string }>;
 }) {
+  const t = await getTranslations();
   const { contentId } = await params;
   const apiBase = getApiBase();
   const [rawData, relatedCount] = await Promise.all([
@@ -116,7 +119,7 @@ export default async function OriginalDetailPage({
             href={`/original/${content.id}/fanworks`}
             className={buttonVariants({ size: "sm", variant: "default" })}
           >
-            相关二创
+            {t('content.relatedFanworks')}
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         ) : null}
@@ -125,7 +128,7 @@ export default async function OriginalDetailPage({
           className={buttonVariants({ size: "sm", variant: "outline" })}
         >
           <GitBranchPlus className="h-3.5 w-3.5" />
-          基于此原创发布二创
+          {t('content.createFanwork')}
         </Link>
       </div>
 

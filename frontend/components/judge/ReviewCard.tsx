@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 
 interface JudgeCaseData {
@@ -22,6 +23,7 @@ interface ReviewCardProps {
 }
 
 export default function ReviewCard({ judgeCase, disabled, submitting, onVote }: ReviewCardProps) {
+  const t = useTranslations();
   const [showConfirm, setShowConfirm] = useState(false);
   const [pendingVote, setPendingVote] = useState<"approve" | "reject" | null>(null);
   const [reason, setReason] = useState("");
@@ -50,8 +52,8 @@ export default function ReviewCard({ judgeCase, disabled, submitting, onVote }: 
   }
 
   const targetTypeLabel: Record<string, string> = {
-    content: "内容",
-    comment: "评论",
+    content: t('judge.reviewCard.typeContent'),
+    comment: t('judge.reviewCard.typeComment'),
   };
 
   return (
@@ -67,15 +69,15 @@ export default function ReviewCard({ judgeCase, disabled, submitting, onVote }: 
 
       <div className="rounded-md border border-border bg-muted/30 p-3">
         <p className="text-sm text-muted-foreground">
-          该内容因被举报进入众裁审核，请根据社区规范判断是否违规。
+          {t('judge.reviewCard.introContent')}
         </p>
       </div>
 
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>当前投票进度</span>
+          <span>{t('judge.reviewCard.voteProgress')}</span>
           <span>
-            {totalVotes} / {judgeCase.min_votes} 票
+            {t('judge.reviewCard.votes', { totalVotes, minVotes: judgeCase.min_votes })}
           </span>
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -91,8 +93,8 @@ export default function ReviewCard({ judgeCase, disabled, submitting, onVote }: 
           </div>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-emerald-600">不违规 {judgeCase.vote_approve}</span>
-          <span className="text-destructive">违规 {judgeCase.vote_reject}</span>
+          <span className="text-emerald-600">{t('judge.reviewCard.approve')} {judgeCase.vote_approve}</span>
+          <span className="text-destructive">{t('judge.reviewCard.reject')} {judgeCase.vote_reject}</span>
         </div>
       </div>
 
@@ -105,7 +107,7 @@ export default function ReviewCard({ judgeCase, disabled, submitting, onVote }: 
             disabled={disabled || submitting}
             onClick={() => triggerVote("approve")}
           >
-            不违规
+            {t('judge.reviewCard.approve')}
           </Button>
           <Button
             variant="outline"
@@ -114,7 +116,7 @@ export default function ReviewCard({ judgeCase, disabled, submitting, onVote }: 
             disabled={disabled || submitting}
             onClick={() => triggerVote("reject")}
           >
-            违规
+            {t('judge.reviewCard.reject')}
           </Button>
         </div>
       )}
@@ -122,10 +124,12 @@ export default function ReviewCard({ judgeCase, disabled, submitting, onVote }: 
       {showConfirm && (
         <div className="space-y-3 rounded-md border border-border bg-muted/20 p-3">
           <p className="text-sm font-medium">
-            确认投「{pendingVote === "approve" ? "不违规" : "违规"}」
+            {t('judge.reviewCard.confirmVote', {
+              vote: pendingVote === "approve" ? t('judge.reviewCard.approve') : t('judge.reviewCard.reject'),
+            })}
           </p>
           <textarea
-            placeholder="可选：填写判定理由"
+            placeholder={t('judge.reviewCard.reasonPlaceholder')}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={2}
@@ -133,10 +137,10 @@ export default function ReviewCard({ judgeCase, disabled, submitting, onVote }: 
           />
           <div className="flex gap-2">
             <Button size="sm" disabled={submitting} onClick={confirmVote}>
-              {submitting ? "提交中..." : "确认"}
+              {submitting ? t('common.submitting') : t('judge.reviewCard.confirm')}
             </Button>
             <Button size="sm" variant="outline" onClick={cancelVote}>
-              取消
+              {t('common.cancel')}
             </Button>
           </div>
         </div>

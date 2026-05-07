@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -18,6 +19,7 @@ interface IPItem {
 }
 
 export default function AdminIPsPage() {
+  const t = useTranslations();
   const [ips, setIps] = useState<IPItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -43,11 +45,11 @@ export default function AdminIPsPage() {
       setIps(data.ips || []);
       setTotal(data.total || 0);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "加载IP列表失败");
+      setError(e instanceof ApiRequestError ? e.message : t('admin.ips.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, t]);
 
   useEffect(() => {
     void loadIPs();
@@ -60,7 +62,7 @@ export default function AdminIPsPage() {
       setIps((prev) => prev.filter((ip) => ip.id !== ipId));
       setTotal((t) => t - 1);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "操作失败");
+      setError(e instanceof ApiRequestError ? e.message : t('common.operationFailed'));
     }
   }
 
@@ -82,9 +84,9 @@ export default function AdminIPsPage() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 shadow-none">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">IP 库管理</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('admin.ips.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            审核待处理的 IP 提交（共 {total} 个待审）
+            {t('admin.ips.subtitle', { total })}
           </p>
         </div>
       </div>
@@ -93,7 +95,7 @@ export default function AdminIPsPage() {
 
       {ips.length === 0 ? (
         <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
-          <p className="text-sm text-muted-foreground">无待审核 IP</p>
+          <p className="text-sm text-muted-foreground">{t('admin.ips.noIps')}</p>
         </div>
       ) : (
         <>
@@ -101,12 +103,12 @@ export default function AdminIPsPage() {
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-3 font-medium">名称</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.ips.colName')}</th>
                   <th className="px-4 py-3 font-medium">Slug</th>
-                  <th className="px-4 py-3 font-medium">分类</th>
-                  <th className="px-4 py-3 font-medium">提交人ID</th>
-                  <th className="px-4 py-3 font-medium">状态</th>
-                  <th className="px-4 py-3 font-medium">操作</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.ips.colCategory')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.ips.colSubmitter')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.ips.colStatus')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.ips.colActions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -132,7 +134,7 @@ export default function AdminIPsPage() {
                             setConfirmOpen(true);
                           }}
                         >
-                          通过
+                          {t('admin.ips.approve')}
                         </Button>
                         <Button
                           size="sm"
@@ -143,7 +145,7 @@ export default function AdminIPsPage() {
                             setConfirmOpen(true);
                           }}
                         >
-                          拒绝
+                          {t('admin.ips.reject')}
                         </Button>
                       </div>
                     </td>
@@ -156,14 +158,14 @@ export default function AdminIPsPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">
-                第 {page} / {totalPages} 页
+                {t('common.page', { current: page, total: totalPages })}
               </span>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                  上一页
+                  {t('common.previous')}
                 </Button>
                 <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-                  下一页
+                  {t('common.next')}
                 </Button>
               </div>
             </div>
@@ -174,17 +176,17 @@ export default function AdminIPsPage() {
       <ConfirmModal
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={confirmAction?.action === "approve" ? "通过 IP 审核" : "拒绝 IP"}
+        title={confirmAction?.action === "approve" ? t('admin.ips.approveTitle') : t('admin.ips.rejectTitle')}
         description={
           confirmAction?.action === "approve"
-            ? `确认通过「${confirmAction?.title}」的审核吗？通过后 IP 将进入可发布内容库。`
-            : `确认拒绝「${confirmAction?.title}」的审核吗？拒绝后 IP 将被驳回，需重新提交。`
+            ? t('admin.ips.approveConfirm', { name: confirmAction?.title ?? "" })
+            : t('admin.ips.rejectConfirm', { name: confirmAction?.title ?? "" })
         }
-        confirmLabel={confirmAction?.action === "approve" ? "确认通过" : "确认拒绝"}
+        confirmLabel={confirmAction?.action === "approve" ? t('admin.ips.confirmApprove') : t('admin.ips.confirmReject')}
         confirmVariant={confirmAction?.action === "approve" ? "default" : "destructive"}
         requireReason={confirmAction?.action === "reject"}
-        reasonLabel="拒绝原因"
-        onConfirm={async (reason) => {
+        reasonLabel={t('admin.ips.rejectReason')}
+        onConfirm={async (_reason) => {
           if (confirmAction) {
             await handleAction(confirmAction.ipId, confirmAction.action);
           }

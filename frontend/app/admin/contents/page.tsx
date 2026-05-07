@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -19,6 +20,7 @@ interface ContentItem {
 }
 
 export default function AdminContentsPage() {
+  const t = useTranslations();
   const [contents, setContents] = useState<ContentItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -41,11 +43,11 @@ export default function AdminContentsPage() {
       setContents(data.contents || []);
       setTotal(data.total || 0);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "加载待审内容失败");
+      setError(e instanceof ApiRequestError ? e.message : t('admin.contents.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, t]);
 
   useEffect(() => {
     void loadContents();
@@ -59,7 +61,7 @@ export default function AdminContentsPage() {
       setContents((prev) => prev.filter((c) => c.id !== id));
       setTotal((t) => t - 1);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "封禁失败");
+      setError(e instanceof ApiRequestError ? e.message : t('admin.contents.banFailed'));
     } finally {
       setBusy(false);
     }
@@ -83,9 +85,9 @@ export default function AdminContentsPage() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 shadow-none">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">内容终审</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('admin.contents.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            审核被举报或 AI 标记的可疑内容（共 {total} 个待审）
+            {t('admin.contents.subtitle', { total })}
           </p>
         </div>
       </div>
@@ -94,7 +96,7 @@ export default function AdminContentsPage() {
 
       {contents.length === 0 ? (
         <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
-          <p className="text-sm text-muted-foreground">无待审内容</p>
+          <p className="text-sm text-muted-foreground">{t('admin.contents.noContents')}</p>
         </div>
       ) : (
         <>
@@ -102,13 +104,13 @@ export default function AdminContentsPage() {
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-3 font-medium">标题</th>
-                  <th className="px-4 py-3 font-medium">类型</th>
-                  <th className="px-4 py-3 font-medium">分区</th>
-                  <th className="px-4 py-3 font-medium">作者ID</th>
-                  <th className="px-4 py-3 font-medium">浏览</th>
-                  <th className="px-4 py-3 font-medium">状态</th>
-                  <th className="px-4 py-3 font-medium">操作</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.contents.colTitle')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.contents.colType')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.contents.colZone')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.contents.colAuthor')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.contents.colViews')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.contents.colStatus')}</th>
+                  <th className="px-4 py-3 font-medium">{t('admin.contents.colActions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -127,7 +129,7 @@ export default function AdminContentsPage() {
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
                         <Link href={`/content/${c.id}`} target="_blank">
-                          <Button size="sm" variant="outline">查看</Button>
+                          <Button size="sm" variant="outline">{t('common.view')}</Button>
                         </Link>
                         <Button
                           size="sm"
@@ -138,7 +140,7 @@ export default function AdminContentsPage() {
                             setConfirmOpen(true);
                           }}
                         >
-                          封禁
+                          {t('admin.contents.ban')}
                         </Button>
                       </div>
                     </td>
@@ -151,14 +153,14 @@ export default function AdminContentsPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">
-                第 {page} / {totalPages} 页
+                {t('common.page', { current: page, total: totalPages })}
               </span>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                  上一页
+                  {t('common.previous')}
                 </Button>
                 <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-                  下一页
+                  {t('common.next')}
                 </Button>
               </div>
             </div>
@@ -169,12 +171,12 @@ export default function AdminContentsPage() {
       <ConfirmModal
         open={confirmOpen}
         onOpenChange={(v) => { setConfirmOpen(v); if (!v) setConfirmTarget(null); }}
-        title="封禁内容"
-        description={confirmTarget ? `确认封禁「${confirmTarget.title}」吗？封禁后该内容将不再对用户可见，作者信誉分 -3。` : ""}
-        confirmLabel="确认封禁"
+        title={t('admin.contents.banTitle')}
+        description={confirmTarget ? t('admin.contents.banConfirm', { title: confirmTarget.title }) : ""}
+        confirmLabel={t('admin.contents.confirmBan')}
         confirmVariant="destructive"
         requireReason
-        reasonLabel="封禁原因"
+        reasonLabel={t('admin.contents.banReason')}
         onConfirm={async (_reason) => {
           if (confirmTarget) {
             await banContent(confirmTarget.id);

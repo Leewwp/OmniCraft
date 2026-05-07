@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -52,6 +53,7 @@ const defaultConfig: ConfigData = {
 };
 
 export default function AdminConfigPage() {
+  const t = useTranslations();
   const [config, setConfig] = useState<ConfigData>(defaultConfig);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -77,12 +79,12 @@ export default function AdminConfigPage() {
           });
         }
       } catch (e) {
-        setError(e instanceof ApiRequestError ? e.message : "加载配置失败");
+        setError(e instanceof ApiRequestError ? e.message : t('admin.config.loadFailed'));
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [t]);
 
   async function saveConfig(patch: Record<string, unknown>) {
     setSaving(true);
@@ -103,7 +105,7 @@ export default function AdminConfigPage() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "保存配置失败");
+      setError(e instanceof ApiRequestError ? e.message : t('admin.config.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -231,9 +233,9 @@ export default function AdminConfigPage() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 shadow-none">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">系统配置</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('admin.config.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            热更新系统配置项（重启后恢复 config.yaml 默认值）
+            {t('admin.config.subtitle')}
           </p>
         </div>
         <Button
@@ -244,13 +246,13 @@ export default function AdminConfigPage() {
             setConfirmOpen(true);
           }}
         >
-          {saving ? "保存中..." : "保存配置"}
+          {saving ? t('common.saving') : t('admin.config.saveButton')}
         </Button>
       </div>
 
       {saved && (
         <div className="rounded-md border border-emerald-500/30 bg-emerald-50 p-3 text-sm text-emerald-700 shadow-none">
-          配置已保存（热更新生效）
+          {t('admin.config.saved')}
         </div>
       )}
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -259,76 +261,76 @@ export default function AdminConfigPage() {
         {/* Limits */}
         <div className="rounded-md border border-border bg-card shadow-none">
           <div className="border-b border-border px-4 py-3">
-            <h3 className="text-sm font-semibold">上传限制 (Limits)</h3>
+            <h3 className="text-sm font-semibold">{t('admin.config.sectionLimits')}</h3>
           </div>
           <div className="px-4 py-1">
-            <FieldRow label="视频最大 (MB)" value={config.limits.video_max_mb} onChange={(v) => updateLimits("video_max_mb", v)} min={1} unit="MB" />
-            <FieldRow label="视频最大时长 (秒)" value={config.limits.video_max_sec} onChange={(v) => updateLimits("video_max_sec", v)} min={1} unit="s" />
-            <FieldRow label="图片最大 (MB)" value={config.limits.image_max_mb} onChange={(v) => updateLimits("image_max_mb", v)} min={1} unit="MB" />
-            <FieldRow label="文本最大 (MB)" value={config.limits.text_max_mb} onChange={(v) => updateLimits("text_max_mb", v)} min={1} unit="MB" />
-            <FieldRow label="Mod 最大 (MB)" value={config.limits.mod_max_mb} onChange={(v) => updateLimits("mod_max_mb", v)} min={1} unit="MB" />
-            <FieldRow label="乐谱最大 (MB)" value={config.limits.sheet_music_max_mb} onChange={(v) => updateLimits("sheet_music_max_mb", v)} min={1} unit="MB" />
+            <FieldRow label={t('admin.config.videoMaxMb')} value={config.limits.video_max_mb} onChange={(v) => updateLimits("video_max_mb", v)} min={1} unit="MB" />
+            <FieldRow label={t('admin.config.videoMaxDuration')} value={config.limits.video_max_sec} onChange={(v) => updateLimits("video_max_sec", v)} min={1} unit="s" />
+            <FieldRow label={t('admin.config.imageMaxMb')} value={config.limits.image_max_mb} onChange={(v) => updateLimits("image_max_mb", v)} min={1} unit="MB" />
+            <FieldRow label={t('admin.config.textMaxMb')} value={config.limits.text_max_mb} onChange={(v) => updateLimits("text_max_mb", v)} min={1} unit="MB" />
+            <FieldRow label={t('admin.config.modMaxMb')} value={config.limits.mod_max_mb} onChange={(v) => updateLimits("mod_max_mb", v)} min={1} unit="MB" />
+            <FieldRow label={t('admin.config.sheetMusicMaxMb')} value={config.limits.sheet_music_max_mb} onChange={(v) => updateLimits("sheet_music_max_mb", v)} min={1} unit="MB" />
           </div>
         </div>
 
         {/* Features */}
         <div className="rounded-md border border-border bg-card shadow-none">
           <div className="border-b border-border px-4 py-3">
-            <h3 className="text-sm font-semibold">功能开关 (Features)</h3>
+            <h3 className="text-sm font-semibold">{t('admin.config.sectionFeatures')}</h3>
           </div>
           <div className="px-4 py-1">
-            <ToggleRow label="支付模块" value={config.features.payment_enabled} onChange={(v) => updateFeatures("payment_enabled", v)} />
-            <ToggleRow label="创作者支持" value={config.features.creator_support_enabled} onChange={(v) => updateFeatures("creator_support_enabled", v)} />
+            <ToggleRow label={t('admin.config.paymentEnabled')} value={config.features.payment_enabled} onChange={(v) => updateFeatures("payment_enabled", v)} />
+            <ToggleRow label={t('admin.config.creatorSupport')} value={config.features.creator_support_enabled} onChange={(v) => updateFeatures("creator_support_enabled", v)} />
           </div>
         </div>
 
         {/* Reputation */}
         <div className="rounded-md border border-border bg-card shadow-none">
           <div className="border-b border-border px-4 py-3">
-            <h3 className="text-sm font-semibold">信誉分 (Reputation)</h3>
+            <h3 className="text-sm font-semibold">{t('admin.config.sectionReputation')}</h3>
           </div>
           <div className="px-4 py-1">
-            <FieldRow label="优质内容获赞阈值" value={config.reputation.quality_content_threshold} onChange={(v) => updateReputation("quality_content_threshold", v)} min={1} />
-            <FieldRow label="优质评论获赞阈值" value={config.reputation.quality_comment_threshold} onChange={(v) => updateReputation("quality_comment_threshold", v)} min={1} />
-            <FieldRow label="重复违规窗口 (天)" value={config.reputation.repeat_violation_window_days} onChange={(v) => updateReputation("repeat_violation_window_days", v)} min={1} unit="天" />
-            <FieldRow label="重复违规阈值" value={config.reputation.repeat_violation_threshold} onChange={(v) => updateReputation("repeat_violation_threshold", v)} min={1} unit="次" />
-            <FieldRow label="二次违规额外扣分" value={config.reputation.repeat_violation_extra_penalty} onChange={(v) => updateReputation("repeat_violation_extra_penalty", v)} min={0} />
+            <FieldRow label={t('admin.config.qualityContentThreshold')} value={config.reputation.quality_content_threshold} onChange={(v) => updateReputation("quality_content_threshold", v)} min={1} />
+            <FieldRow label={t('admin.config.qualityCommentThreshold')} value={config.reputation.quality_comment_threshold} onChange={(v) => updateReputation("quality_comment_threshold", v)} min={1} />
+            <FieldRow label={t('admin.config.repeatViolationWindow')} value={config.reputation.repeat_violation_window_days} onChange={(v) => updateReputation("repeat_violation_window_days", v)} min={1} unit={t('common.units.days')} />
+            <FieldRow label={t('admin.config.repeatViolationThreshold')} value={config.reputation.repeat_violation_threshold} onChange={(v) => updateReputation("repeat_violation_threshold", v)} min={1} unit={t('common.units.times')} />
+            <FieldRow label={t('admin.config.repeatViolationPenalty')} value={config.reputation.repeat_violation_extra_penalty} onChange={(v) => updateReputation("repeat_violation_extra_penalty", v)} min={0} />
           </div>
         </div>
 
         {/* Judge */}
         <div className="rounded-md border border-border bg-card shadow-none">
           <div className="border-b border-border px-4 py-3">
-            <h3 className="text-sm font-semibold">赛博判官 (Judge)</h3>
+            <h3 className="text-sm font-semibold">{t('admin.config.sectionJudge')}</h3>
           </div>
           <div className="px-4 py-1">
-            <FieldRow label="最少投票数" value={config.judge.min_votes_required} onChange={(v) => updateJudge("min_votes_required", v)} min={1} unit="票" />
-            <FieldRow label="考核通过率" value={config.judge.exam_pass_rate} onChange={(v) => updateJudge("exam_pass_rate", v)} min={0} max={1} step={0.05} />
-            <FieldRow label="判决通过阈值" value={config.judge.pass_threshold} onChange={(v) => updateJudge("pass_threshold", v)} min={0} max={1} step={0.05} />
-            <FieldRow label="撤权错误率" value={config.judge.error_rate_revoke} onChange={(v) => updateJudge("error_rate_revoke", v)} min={0} max={1} step={0.05} />
-            <FieldRow label="错误率窗口" value={config.judge.error_rate_window} onChange={(v) => updateJudge("error_rate_window", v)} min={1} unit="次" />
+            <FieldRow label={t('admin.config.minVotes')} value={config.judge.min_votes_required} onChange={(v) => updateJudge("min_votes_required", v)} min={1} unit={t('common.units.votes')} />
+            <FieldRow label={t('admin.config.examPassRate')} value={config.judge.exam_pass_rate} onChange={(v) => updateJudge("exam_pass_rate", v)} min={0} max={1} step={0.05} />
+            <FieldRow label={t('admin.config.verdictPassThreshold')} value={config.judge.pass_threshold} onChange={(v) => updateJudge("pass_threshold", v)} min={0} max={1} step={0.05} />
+            <FieldRow label={t('admin.config.revokeErrorRate')} value={config.judge.error_rate_revoke} onChange={(v) => updateJudge("error_rate_revoke", v)} min={0} max={1} step={0.05} />
+            <FieldRow label={t('admin.config.errorRateWindow')} value={config.judge.error_rate_window} onChange={(v) => updateJudge("error_rate_window", v)} min={1} unit={t('common.units.times')} />
           </div>
         </div>
 
         {/* Agent */}
         <div className="rounded-md border border-border bg-card shadow-none">
           <div className="border-b border-border px-4 py-3">
-            <h3 className="text-sm font-semibold">智能体 (Agent)</h3>
+            <h3 className="text-sm font-semibold">{t('admin.config.sectionAgent')}</h3>
           </div>
           <div className="px-4 py-1">
             <ToggleRow label="Web Agent" value={config.agent.web_agent_enabled} onChange={(v) => updateAgent("web_agent_enabled", v)} />
-            <FieldRow label="每日限流" value={config.agent.rate_limit_per_day} onChange={(v) => updateAgent("rate_limit_per_day", v)} min={1} unit="次" />
+            <FieldRow label={t('admin.config.dailyLimit')} value={config.agent.rate_limit_per_day} onChange={(v) => updateAgent("rate_limit_per_day", v)} min={1} unit={t('common.units.times')} />
           </div>
         </div>
 
         {/* Social */}
         <div className="rounded-md border border-border bg-card shadow-none">
           <div className="border-b border-border px-4 py-3">
-            <h3 className="text-sm font-semibold">社交风控 (Social)</h3>
+            <h3 className="text-sm font-semibold">{t('admin.config.sectionSocial')}</h3>
           </div>
           <div className="px-4 py-1">
-            <FieldRow label="举报自动隐藏率" value={config.social.report_auto_hide_rate} onChange={(v) => updateSocial("report_auto_hide_rate", v)} min={0} max={1} step={0.01} />
-            <FieldRow label="评论折叠阈值" value={config.social.comment_fold_threshold} onChange={(v) => updateSocial("comment_fold_threshold", v)} min={0} max={1} step={0.01} />
+            <FieldRow label={t('admin.config.reportAutoHideRate')} value={config.social.report_auto_hide_rate} onChange={(v) => updateSocial("report_auto_hide_rate", v)} min={0} max={1} step={0.01} />
+            <FieldRow label={t('admin.config.commentFoldThreshold')} value={config.social.comment_fold_threshold} onChange={(v) => updateSocial("comment_fold_threshold", v)} min={0} max={1} step={0.01} />
           </div>
         </div>
       </div>
@@ -336,9 +338,9 @@ export default function AdminConfigPage() {
       <ConfirmModal
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title="保存系统配置"
-        description="确认保存当前配置吗？修改将立即热更新生效（重启后恢复 config.yaml 默认值）。"
-        confirmLabel="确认保存"
+        title={t('admin.config.saveConfirmTitle')}
+        description={t('admin.config.saveConfirmMsg')}
+        confirmLabel={t('admin.config.confirmSave')}
         confirmVariant="default"
         onConfirm={async () => {
           if (pendingPatch) {

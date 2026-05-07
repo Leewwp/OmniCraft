@@ -1,3 +1,6 @@
+"use client";
+
+import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -34,6 +37,7 @@ function getStatusTone(status: string): "default" | "secondary" | "destructive" 
 }
 
 export function PRCard({ data, active, disabled, onSelect, onAccept, onReject }: PRCardProps) {
+  const t = useTranslations();
   return (
     <div
       className={`rounded-md border p-4 shadow-none transition-colors ${
@@ -43,11 +47,11 @@ export function PRCard({ data, active, disabled, onSelect, onAccept, onReject }:
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <p className="text-sm font-semibold">PR #{data.id}</p>
-          <p className="text-xs text-muted-foreground">内容：{data.contentTitle || `#${data.content_item_id}`}</p>
-          <p className="text-xs text-muted-foreground">提交者：用户 #{data.submitter_id}</p>
+          <p className="text-xs text-muted-foreground">{t('pr.contentLabel', { title: data.contentTitle || `#${data.content_item_id}` })}</p>
+          <p className="text-xs text-muted-foreground">{t('pr.submitterLabel', { id: data.submitter_id })}</p>
           <p className="text-xs text-muted-foreground">
-            基础版本：v{data.base_version_id}
-            {data.proposed_version_id ? ` · 提案版本：v${data.proposed_version_id}` : ""}
+            {t('pr.baseVersion', { version: data.base_version_id })}
+            {data.proposed_version_id ? t('pr.proposedVersion', { version: data.proposed_version_id }) : ""}
           </p>
         </div>
         <Badge variant={getStatusTone(data.status)}>{data.status}</Badge>
@@ -59,10 +63,10 @@ export function PRCard({ data, active, disabled, onSelect, onAccept, onReject }:
 
       <div className="mt-4 flex flex-wrap gap-2">
         <Button size="sm" variant="outline" disabled={disabled} onClick={() => onSelect?.(data.id)}>
-          查看 Diff
+          {t('pr.viewDiff')}
         </Button>
         <Button size="sm" disabled={disabled || data.status !== "open"} onClick={() => onAccept?.(data.id)}>
-          接受
+          {t('pr.accept')}
         </Button>
         <Button
           size="sm"
@@ -70,7 +74,7 @@ export function PRCard({ data, active, disabled, onSelect, onAccept, onReject }:
           disabled={disabled || data.status !== "open"}
           onClick={() => onReject?.(data.id)}
         >
-          拒绝
+          {t('pr.reject')}
         </Button>
       </div>
     </div>
