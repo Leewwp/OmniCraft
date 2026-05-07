@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { ContentCardData } from "@/components/content/ContentCard";
 import { IPDetail } from "@/components/ip/IPDetail";
@@ -19,6 +20,8 @@ interface IPResponse {
 interface ContentResponse {
   contents?: ContentCardData[];
 }
+
+const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://omnicraft.com";
 
 function getApiBase() {
   const raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -58,6 +61,33 @@ async function fetchContents(apiBase: string, ipId: string, sort: string) {
   } catch {
     return [] as ContentCardData[];
   }
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ ipId: string }>;
+}): Promise<Metadata> {
+  const { ipId } = await params;
+  const apiBase = getApiBase();
+  const ip = await fetchIP(apiBase, ipId);
+  if (!ip) {
+    return { title: "IP 未找到 — OmniCraft 万象工坊" };
+  }
+  const title = `${ip.name} — OmniCraft 万象工坊`;
+  const description = ip.description?.slice(0, 160) || `浏览 ${ip.name} 相关二创内容`;
+  const ogImage = ip.cover_url || `${baseUrl}/og-default.png`;
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      images: [{ url: ogImage, width: 1200, height: 630 }],
+      type: "website",
+    },
+    twitter: { card: "summary_large_image", title, description, images: [ogImage] },
+  };
 }
 
 export default async function IPDetailPage({

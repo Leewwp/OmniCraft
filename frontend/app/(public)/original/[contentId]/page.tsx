@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { ArrowRight, GitBranchPlus } from "lucide-react";
 import { ContentDetail } from "@/components/content/ContentDetail";
 import { buttonVariants } from "@/components/ui/button";
@@ -19,6 +20,8 @@ interface ContentResponse {
 interface RelatedResponse {
   total?: number;
 }
+
+const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://omnicraft.com";
 
 function getApiBase() {
   const raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -52,6 +55,34 @@ async function fetchRelatedCount(apiBase: string, contentId: string) {
   } catch {
     return 0;
   }
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ contentId: string }>;
+}): Promise<Metadata> {
+  const { contentId } = await params;
+  const apiBase = getApiBase();
+  const rawData = await fetchContent(apiBase, contentId);
+  const content = normalizeContentItem(rawData?.content);
+  if (!content || content.zone !== "original") {
+    return { title: "原创内容 — OmniCraft 万象工坊" };
+  }
+  const title = `${content.title} — OmniCraft 原创`;
+  const description = content.description?.slice(0, 160) || `${content.title} - 查看原创内容`;
+  const ogImage = content.cover_image_url || `${baseUrl}/og-default.png`;
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      images: [{ url: ogImage, width: 1200, height: 630 }],
+      type: "article",
+    },
+    twitter: { card: "summary_large_image", title, description, images: [ogImage] },
+  };
 }
 
 export default async function OriginalDetailPage({

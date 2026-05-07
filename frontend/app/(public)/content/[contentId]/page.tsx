@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { ContentDetail } from "@/components/content/ContentDetail";
 import { VersionHistory } from "@/components/content/VersionHistory";
 import { normalizeAttachments, normalizeContentItem, normalizeTags } from "@/lib/content";
@@ -55,6 +56,36 @@ async function fetchContent(apiBase: string, contentId: string): Promise<Content
   } catch {
     return null;
   }
+}
+
+const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://omnicraft.com";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ contentId: string }>;
+}): Promise<Metadata> {
+  const { contentId } = await params;
+  const apiBase = getApiBase();
+  const data = await fetchContent(apiBase, contentId);
+  const content = normalizeContentItem(data?.content);
+  if (!content) {
+    return { title: "内容未找到 — OmniCraft 万象工坊" };
+  }
+  const title = `${content.title} — OmniCraft`;
+  const description = content.description?.slice(0, 160) || `${content.title} - 查看详情`;
+  const ogImage = content.cover_image_url || `${baseUrl}/og-default.png`;
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      images: [{ url: ogImage, width: 1200, height: 630 }],
+      type: "article",
+    },
+    twitter: { card: "summary_large_image", title, description, images: [ogImage] },
+  };
 }
 
 export default async function FanworkContentDetailPage({
