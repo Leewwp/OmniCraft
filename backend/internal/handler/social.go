@@ -69,9 +69,13 @@ func (h *SocialHandler) DeleteComment(c *gin.Context) {
 }
 
 func (h *SocialHandler) ListComments(c *gin.Context) {
-	contentID, err := strconv.ParseInt(c.Query("content_id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "content_id required"})
+	contentIDStr := c.Query("content_item_id")
+	if contentIDStr == "" {
+		contentIDStr = c.Query("content_id")
+	}
+	contentID, err := strconv.ParseInt(contentIDStr, 10, 64)
+	if err != nil || contentID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "content_item_id required"})
 		return
 	}
 	var parentID *int64
