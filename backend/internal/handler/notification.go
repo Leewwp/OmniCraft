@@ -37,7 +37,7 @@ func (h *NotificationHandler) MarkRead(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid notification id"})
 		return
 	}
 	if err := h.notifRepo.MarkRead(id, callerID); err != nil {
