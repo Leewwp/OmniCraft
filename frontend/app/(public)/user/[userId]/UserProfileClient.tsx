@@ -45,8 +45,9 @@ export function UserProfileClient({ userId, displayName }: UserProfileClientProp
           url = `/api/v1/users/${userId}/contents?page=1&page_size=24`;
           break;
       }
-      const data = await api.get<{ contents?: unknown[]; favorites?: unknown[] }>(url);
-      const list = (data as any).contents || (data as any).favorites || [];
+      interface ProfileResponse { contents?: unknown[]; favorites?: unknown[]; discussions?: unknown[] }
+      const data = await api.get<ProfileResponse>(url);
+      const list = data.contents ?? data.favorites ?? data.discussions ?? [];
       setItems(normalizeContentList(list));
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : t('common.loadFailed'));
