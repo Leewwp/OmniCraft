@@ -73,7 +73,7 @@ func (h *DiscussionHandler) GetDiscussion(c *gin.Context) {
 
 	d, err := h.discRepo.GetByID(id)
 	if err != nil || d == nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND"})
+		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "discussion not found"})
 		return
 	}
 
@@ -120,7 +120,7 @@ func (h *DiscussionHandler) PinDiscussion(c *gin.Context) {
 
 	d, err := h.discRepo.GetByID(id)
 	if err != nil || d == nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND"})
+		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "discussion not found"})
 		return
 	}
 

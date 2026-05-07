@@ -81,7 +81,7 @@ func (h *FollowHandler) GetFollowers(c *gin.Context) {
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	users, total, err := h.followRepo.GetFollowers("user", targetID, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"users": users, "total": total})
@@ -93,7 +93,7 @@ func (h *FollowHandler) GetFollowing(c *gin.Context) {
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	follows, total, err := h.followRepo.GetFollowing(targetID, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"following": follows, "total": total})
