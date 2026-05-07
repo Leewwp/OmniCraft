@@ -740,6 +740,24 @@
     "externalLinks": "External Links",
     "addLink": "Add Link"
   },
+  "agentConfig": {
+    "title": "Agent Configuration",
+    "subtitle": "Manage LLM provider configurations. Activate, test and switch models.",
+    "addConfig": "Add Config",
+    "editConfig": "Edit Config",
+    "activeConfig": "Active Configuration",
+    "noActiveConfig": "No active LLM configuration",
+    "colName": "Name",
+    "colProvider": "Provider",
+    "colModel": "Model",
+    "colStatus": "Status",
+    "colActions": "Actions",
+    "apiBase": "API Base URL",
+    "apiKey": "API Key",
+    "apiKeyHint": "Leave empty to keep unchanged",
+    "testConnection": "Test Connection",
+    "activate": "Activate"
+  },
   "appeals": {
     "title": "My Appeals",
     "subtitle": "Submit appeals for flagged content",

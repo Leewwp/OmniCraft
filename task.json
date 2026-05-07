@@ -1743,7 +1743,7 @@
         "## Component: ActiveConfigCard",
         "## Component: ConfirmModal"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 84,
