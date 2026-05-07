@@ -3,21 +3,10 @@
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import Image from "next/image";
-import {
-  Eye,
-  Heart,
-  MessageCircle,
-  FileText,
-  Image as ImageIcon,
-  Video,
-  Music,
-  Package,
-  Sparkles,
-  FileMusic,
-  Shapes,
-} from "lucide-react";
+import { Eye, Heart, MessageCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
 
 export interface ContentCardData {
   id: number;
@@ -42,54 +31,6 @@ interface ContentCardProps {
   className?: string;
 }
 
-function getTypeLabel(t: (key: string) => string, contentType: string): string {
-  switch (contentType) {
-    case "article":
-    case "text":
-      return t('home.text');
-    case "image":
-      return t('home.image');
-    case "video":
-      return t('home.video');
-    case "audio":
-      return t('home.audio');
-    case "mod":
-      return t('home.mod');
-    case "prompt":
-      return t('home.aiPrompt');
-    case "sheet_music":
-      return t('home.sheetMusic');
-    case "template":
-      return t('home.template');
-    default:
-      return t('home.other');
-  }
-}
-
-function getTypeIcon(contentType: string) {
-  switch (contentType) {
-    case "article":
-    case "text":
-      return FileText;
-    case "image":
-      return ImageIcon;
-    case "video":
-      return Video;
-    case "audio":
-      return Music;
-    case "mod":
-      return Package;
-    case "prompt":
-      return Sparkles;
-    case "sheet_music":
-      return FileMusic;
-    case "template":
-      return Shapes;
-    default:
-      return Shapes;
-  }
-}
-
 function getCardHref(data: ContentCardData): string {
   if (data.zone === "original") {
     return `/original/${data.id}`;
@@ -100,21 +41,13 @@ function getCardHref(data: ContentCardData): string {
 export function ContentCard({ data, className }: ContentCardProps) {
   const t = useTranslations();
   const contentType = data.content_type || "other";
-  const Icon = getTypeIcon(contentType);
   const rawTags = data.tags ?? [];
-  const category = data.category;
-  const typeLabel = getTypeLabel(t, contentType);
-  const tagCandidates =
-    rawTags.length > 0
-      ? rawTags
-      : [typeLabel, category].filter(
-          (item): item is string => Boolean(item)
-        );
-  const tags = tagCandidates.slice(0, 3);
+  const tags = rawTags.slice(0, 3);
   const coverUrl = data.cover_image_url;
   const displayTitle = data.title;
   const authorName = data.author?.username ?? "";
   const authorId = data.author_id;
+  const placeholderSrc = getCoverPlaceholder(contentType, displayTitle);
 
   return (
     <Link
@@ -134,12 +67,11 @@ export function ContentCard({ data, className }: ContentCardProps) {
             sizes="(max-width: 450px) 100vw, (max-width: 700px) 50vw, (max-width: 1100px) 33vw, 25vw"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-            <div className="flex flex-col items-center gap-2">
-              <Icon className="h-10 w-10" />
-              <span className="text-xs">{typeLabel}</span>
-            </div>
-          </div>
+          <img
+            src={placeholderSrc}
+            alt={displayTitle}
+            className="h-full w-full object-cover"
+          />
         )}
       </div>
 

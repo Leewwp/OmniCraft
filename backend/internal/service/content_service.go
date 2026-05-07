@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -27,6 +28,7 @@ type ContentService struct {
 	reviewSvc   *ReviewService
 	rdb         *redis.Client
 	cacheCfg    *config.CacheConfig
+	ossSvc      *OSSService
 }
 
 func NewContentService(contentRepo *repository.ContentRepository) *ContentService {
@@ -39,6 +41,10 @@ func NewContentServiceWithDeps(contentRepo *repository.ContentRepository, review
 
 func NewContentServiceWithCache(contentRepo *repository.ContentRepository, reviewSvc *ReviewService, rdb *redis.Client, cacheCfg *config.CacheConfig) *ContentService {
 	return &ContentService{contentRepo: contentRepo, reviewSvc: reviewSvc, rdb: rdb, cacheCfg: cacheCfg}
+}
+
+func NewContentServiceWithOSS(contentRepo *repository.ContentRepository, reviewSvc *ReviewService, rdb *redis.Client, cacheCfg *config.CacheConfig, ossSvc *OSSService) *ContentService {
+	return &ContentService{contentRepo: contentRepo, reviewSvc: reviewSvc, rdb: rdb, cacheCfg: cacheCfg, ossSvc: ossSvc}
 }
 
 type PublishContentInput struct {
@@ -157,6 +163,10 @@ func (s *ContentService) PublishContent(input PublishContentInput, authorID int6
 		if err := s.reviewSvc.SubmitForAIReview(context.Background(), reviewInput); err != nil {
 			return nil, err
 		}
+	}
+
+	if input.ContentType == "video" && content.CoverImageURL == "" {
+		s.triggerVideoSnapshot(content.ID, input.Attachments)
 	}
 
 	s.invalidateContentListCache()
@@ -389,4 +399,37 @@ func (s *ContentService) invalidateContentListCache() {
 		return
 	}
 	redisclient.DeleteByPattern(context.Background(), "cache:content:list:*")
+}
+
+func (s *ContentService) triggerVideoSnapshot(contentID int64, attachments []AttachmentInput) {
+	if s.ossSvc == nil {
+		return
+	}
+
+	var videoKey string
+	for _, a := range attachments {
+		if a.FileType == "video" && a.OSSKey != "" {
+			videoKey = a.OSSKey
+			break
+		}
+	}
+	if videoKey == "" {
+		return
+	}
+
+	go func() {
+		ctx := context.Background()
+		snapshotURL, err := s.ossSvc.GenerateVideoSnapshotURL(ctx, videoKey)
+		if err != nil {
+			log.Printf("video snapshot failed for content %d: %v", contentID, err)
+			return
+		}
+		if err := s.contentRepo.UpdateContent(contentID, map[string]interface{}{
+			"cover_image_url": snapshotURL,
+		}); err != nil {
+			log.Printf("failed to update cover_image_url for content %d: %v", contentID, err)
+			return
+		}
+		s.invalidateContentCache(contentID)
+	}()
 }

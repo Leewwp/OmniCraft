@@ -979,6 +979,40 @@
 - [给未来 Agent 的重要提示]
 ---
 
+## [2026-05-07] - Task 47: UI 设计系统（GitHub 风格 Light/Dark 主题）—— 组件完善
+
+### What was done:
+- **TagBadge 组件** (`components/ui/TagBadge.tsx`)：
+  - 低饱和色标签组件，支持 blue/green/purple/orange 四种颜色变体
+  - 自动适配 light/dark 模式（通过 CSS 变量切换）
+  - 支持 onClick 和 onRemove 交互
+  - 遵循架构文档 §10.4 的精确色值：border-radius 6px (rounded-lg)，font-size 12px (text-xs)
+- **shadcn/ui CSS 变量更新** (`app/globals.css`)：
+  - 将 :root 和 .dark 块中的 --background/--foreground/--primary/--border 等变量对齐 GitHub 色板
+  - light: background #ffffff, foreground #1f2328, primary #0969da, border #d0d7de
+  - dark: background #0d1117, foreground #e6edf3, primary #2f81f7, border #30363d
+- **OmniCraft 设计令牌更新** (`app/globals.css`)：
+  - 将 canvas/border/fg/accent 令牌从 oklch 近似值更新为精确的 GitHub 十六进制色值
+  - 新增 --tag-blue-bg/fg, --tag-green-bg/fg, --tag-purple-bg/fg, --tag-orange-bg/fg 两套变量（light + dark）
+- **系统字体栈定义** (`app/globals.css`)：
+  - --font-sans 设置为 -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif
+  - 与 GitHub 字体栈保持一致
+
+### Testing:
+- `npm run build` 通过（所有页面路由编译成功）
+- `npm run lint` (tsc --noEmit) 通过，零类型错误
+- Playwright 浏览器测试验证：
+  - Light 模式：background #ffffff, foreground #1f2328, font 系统栈 ✓
+  - Dark 模式：background #0d1117, foreground #e6edf3, font 系统栈 ✓
+  - Tag 变量 light/dark 切换正确（--tag-blue-bg: #ddf4ff / #388bfd1a 等）✓
+  - Border 和 Primary 颜色在两种模式下均正确 ✓
+
+### Notes:
+- 全站页面在开发环境中均返回 404（预存在的 i18n 中间件/路由问题），不影响设计令牌和应用样式
+- TagBadge 组件尚未在任何页面中使用（等待后续任务集成）
+- 旧的 oklch 颜色值已被 GitHub 十六进制色板完全替换
+
+---
 ## 项目初始化 - 文档产出完成
 
 ### 产出文件：
@@ -1008,3 +1042,45 @@
 3. 准备一台 Linux 服务器（2C4G 起步）安装 Docker + Docker Compose
 4. 配置域名和 SSL 证书（建议 Let's Encrypt）
 5. 将所有密钥填入 .env 文件（参考 architecture.md 第 8 章）
+
+---
+## [2026-05-07] - Task 48: 封面图系统与占位图
+
+### What was done:
+- **lib/coverPlaceholder.ts**：SVG data URI 占位图系统，覆盖所有 content_type：
+  - article：基于标题 hash 的渐变色背景 + 标题前两字
+  - video：播放按钮图标 SVG（深色底）
+  - sheet_music：五线谱图案 SVG（紫色系）
+  - mod：齿轮扳手图标 SVG
+  - template：布局文档图标 SVG（绿色系）
+  - prompt：AI 芯片图标 SVG（深蓝底）
+  - 其他类型：通用文件图标 SVG
+- **ContentCard.tsx**：重构封面渲染逻辑
+  - cover_image_url 有值 → 使用 next/image 加载
+  - 为空 → 调用 getCoverPlaceholder() 返回对应的 SVG data URI
+  - 移除旧的 lucide 图标占位方案（getTypeIcon/getTypeLabel），代码更简洁
+- **MasonryGrid.tsx**：调整响应式断点
+  - 移除 450px 单列断点，移动端保持 2 列（匹配 spec：移动 2 / 平板 3 / PC 4）
+- **Go 后端视频封面异步截帧**：content_service.go
+  - 新增 triggerVideoSnapshot 异步 goroutine：发布 video 内容时检测第一个视频附件 OSS key
+  - internal/pkg/aliyun/oss.go 新增 GetVideoSnapshotURL（带 OSS video/snapshot 处理参数）
+  - internal/service/oss_service.go 新增 GenerateVideoSnapshotURL（7 天有效期签名 URL）
+  - NewContentServiceWithOSS 构造函数将 ossSvc 注入 content service
+  - content handler 使用新构造函数，OSS 未配置时优雅降级（ossSvc == nil 直接跳过）
+- **MasonryGrid 页面接入**（已验证，无需改动）：
+  - 首页（(public)/page.tsx → HomePageClient）✓
+  - 原创区（(public)/original/page.tsx）✓
+  - IP 详情页（(public)/ip/[ipId]/page.tsx）✓
+  - IP 类目页（(public)/ip/[ipId]/[category]/page.tsx）✓
+
+### Testing:
+- `go build ./...`：零错误
+- `go vet ./...`：零警告
+- `npm run build`：Turbopack 编译成功，27 条路由全部注册
+- 浏览器测试（Playwright）：页面正常加载，4 组截屏（375/700/1100/1440px）验证瀑布流断点
+- OSS 视频截帧：代码就绪，需要阿里云 OSS 配置后才能实际生效（当前 config.yaml OSS 字段为空，代码优雅降级）
+
+### Notes:
+- 视频封面截帧仅在 content_type=video 且 cover_image_url 为空时触发，使用 OSS 图片处理 video/snapshot 参数获取第一帧
+- 占位图 SVG 通过 encodeURIComponent 编码为 data URI，无需额外网络请求
+- OSS 未配置时不阻塞内容发布，截帧 goroutine 检测 ossSvc == nil 直接返回

@@ -942,7 +942,7 @@
         "## Component: TagBadge",
         "## Component: Header"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 48,
@@ -965,7 +965,7 @@
         "## Component: MasonryGrid",
         "## Component: ContentCard"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 49,
