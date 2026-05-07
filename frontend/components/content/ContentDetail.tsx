@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import {
@@ -65,17 +66,17 @@ interface ContentDetailProps {
   className?: string;
 }
 
-function getTypeLabel(contentType: string): string {
+function getTypeLabel(t: (key: string) => string, contentType: string): string {
   switch (contentType) {
-    case "article": return "文字";
-    case "image": return "图片";
-    case "video": return "视频";
-    case "audio": return "音频";
-    case "mod": return "Mod";
-    case "prompt": return "AI 提示词";
-    case "sheet_music": return "乐谱";
-    case "template": return "模板";
-    default: return "其他";
+    case "article": return t('home.text');
+    case "image": return t('home.image');
+    case "video": return t('home.video');
+    case "audio": return t('home.audio');
+    case "mod": return t('home.mod');
+    case "prompt": return t('home.aiPrompt');
+    case "sheet_music": return t('home.sheetMusic');
+    case "template": return t('home.template');
+    default: return t('home.other');
   }
 }
 
@@ -93,7 +94,7 @@ function getTypeIcon(contentType: string) {
   }
 }
 
-function CoverImage({ url, contentType, title }: { url?: string; contentType?: string; title: string }) {
+function CoverImage({ url, contentType, title, typeLabel }: { url?: string; contentType?: string; title: string; typeLabel: string }) {
   const Icon = getTypeIcon(contentType || "other");
 
   if (url) {
@@ -114,14 +115,16 @@ function CoverImage({ url, contentType, title }: { url?: string; contentType?: s
     <div className="flex h-48 w-full items-center justify-center rounded-md border border-border bg-muted/20">
       <div className="flex flex-col items-center gap-2 text-muted-foreground">
         <Icon className="h-12 w-12" />
-        <span className="text-xs">{getTypeLabel(contentType || "other")}</span>
+        <span className="text-xs">{typeLabel}</span>
       </div>
     </div>
   );
 }
 
 export function ContentDetail({ data, className }: ContentDetailProps) {
+  const t = useTranslations();
   const contentType = data.content_type || "other";
+  const typeLabel = getTypeLabel(t, contentType);
   const description = data.description || data.body || "";
   const { user } = useAuth();
   const [favorited, setFavorited] = useState(false);
@@ -167,16 +170,16 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span>
-            作者：{data.author?.username ?? `用户 #${data.author_id ?? "-"}`}
+            {t('content.author', { name: data.author?.username ?? t('common.userLabel', { id: data.author_id ?? "-" }) })}
           </span>
           {data.zone === "fanwork" && data.ip && (
             <span>
               IP：{data.ip.name}
             </span>
           )}
-          <span>类型：{getTypeLabel(contentType)}</span>
+          <span>{t('content.type', { type: typeLabel })}</span>
           {data.view_count != null && (
-            <span>{data.view_count} 次浏览</span>
+            <span>{t('content.views', { count: data.view_count })}</span>
           )}
           {data.created_at && (
             <span>
@@ -195,6 +198,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
         url={data.cover_image_url}
         contentType={contentType}
         title={data.title}
+        typeLabel={typeLabel}
       />
 
       {/* Content Body */}
@@ -215,7 +219,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
       {/* Attachments / Gallery for non-sheet-music types */}
       {data.attachments && data.attachments.length > 0 && contentType !== "sheet_music" && (
         <section className="space-y-2 rounded-md border border-border bg-card p-4 shadow-none">
-          <h2 className="text-sm font-semibold">附件</h2>
+          <h2 className="text-sm font-semibold">{t('content.attachments')}</h2>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {data.attachments.map((att) => (
               <div
@@ -267,7 +271,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
               <a key={att.id} href={att.oss_url} download target="_blank" rel="noopener noreferrer">
                 <Button variant="outline" size="sm">
                   <Download className="mr-1 h-3.5 w-3.5" />
-                  下载 {att.file_type || "文件"}
+                  {t('content.downloadFile', { type: att.file_type || "file" })}
                 </Button>
               </a>
             ))}
@@ -279,9 +283,9 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
         <div className="rounded-md border border-border bg-card p-4 shadow-none">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <p className="text-sm font-semibold">一键部署</p>
+              <p className="text-sm font-semibold">{t('content.oneClickDeploy')}</p>
               <p className="text-xs text-muted-foreground">
-                通过 OmniCraft 客户端自动安装此{contentType === "mod" ? "Mod" : "提示词"}
+                {t('content.deployViaClient', { type: contentType === "mod" ? t('home.mod') : t('home.aiPrompt') })}
               </p>
             </div>
             <a
@@ -289,7 +293,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
               className="inline-flex shrink-0 items-center justify-center rounded-md border border-border bg-accent px-3 py-2 text-xs font-medium text-accent-foreground hover:bg-accent/80"
             >
               <Rocket className="mr-1 h-3.5 w-3.5" />
-              一键部署
+              {t('content.oneClickDeploy')}
             </a>
           </div>
         </div>
@@ -304,7 +308,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
           onClick={() => void toggleFavorite()}
         >
           <Bookmark className="mr-1 h-3.5 w-3.5" />
-          {favorited ? "已收藏" : "收藏"}
+          {favorited ? t('content.favorited') : t('content.favorite')}
         </Button>
       </div>
 

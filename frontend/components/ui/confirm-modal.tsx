@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 
 interface ConfirmModalProps {
@@ -20,14 +21,18 @@ export function ConfirmModal({
   onOpenChange,
   title,
   description,
-  confirmLabel = "确认",
+  confirmLabel,
   confirmVariant = "destructive",
   requireReason = false,
-  reasonLabel = "操作原因",
+  reasonLabel,
   onConfirm,
 }: ConfirmModalProps) {
+  const t = useTranslations();
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const effectiveConfirmLabel = confirmLabel ?? t('common.confirm');
+  const effectiveReasonLabel = reasonLabel ?? t('common.operationFailed');
 
   const handleConfirm = useCallback(async () => {
     if (requireReason && !reason.trim()) return;
@@ -55,13 +60,13 @@ export function ConfirmModal({
 
         {requireReason && (
           <div className="mt-4">
-            <label className="block text-sm font-medium mb-1">{reasonLabel}</label>
+            <label className="block text-sm font-medium mb-1">{effectiveReasonLabel}</label>
             <textarea
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               rows={3}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="请输入操作原因..."
+              placeholder={t('common.operationFailed')}
               disabled={busy}
             />
           </div>
@@ -74,7 +79,7 @@ export function ConfirmModal({
             disabled={busy}
             onClick={() => onOpenChange(false)}
           >
-            取消
+            {t('common.cancel')}
           </Button>
           <Button
             variant={confirmVariant}
@@ -82,7 +87,7 @@ export function ConfirmModal({
             disabled={busy || (requireReason && !reason.trim())}
             onClick={() => void handleConfirm()}
           >
-            {busy ? "处理中..." : confirmLabel}
+            {busy ? t('common.processing') : effectiveConfirmLabel}
           </Button>
         </div>
       </div>

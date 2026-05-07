@@ -1,6 +1,64 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
+## [2026-05-07] - Task 46: Next.js i18n（next-intl，zh-CN/en-US）—— 全量翻译补全
+
+### What was done:
+- **i18n 基础设施**（从零搭建）：
+  - `i18n/routing.ts`：next-intl v4 路由配置（locales: zh/en，defaultLocale: zh，localePrefix: as-needed）
+  - `i18n/request.ts`：服务端 getRequestConfig（按需加载对应语言 messages JSON）
+  - `next.config.ts`：集成 createNextIntlPlugin
+  - `middleware.ts`：合并 i18n + auth 中间件（先 i18n locale 检测 → 再 auth 保护检查，保留 i18n cookie 传递）
+  - `app/layout.tsx`：改为 async 服务端组件，NextIntlClientProvider 包裹 children，动态 lang 属性
+  - `lib/locale.ts`：getLocale()（cookie → localStorage → 浏览器默认）和 setLocale()（cookie + localStorage + PATCH /users/:id 同步 preferred_locale）
+- **messages 文件**：
+  - `messages/zh.json`：完整中文翻译，覆盖 13 个命名空间（common/nav/auth/home/content/publish/judge/dashboard/admin/social/pr/ip/user/settings/appeals/history/messages/error）
+  - `messages/en.json`：结构完全一致的英文翻译，含所有 UI 命名空间
+  - Go 后端错误码映射至 `errors.xxx` 前端配置（INVALID_ID/USER_NOT_FOUND/DB_ERROR/FORBIDDEN/VALIDATION_ERROR 等 15+ 错误码）
+- **全局文本替换**（48 个文件）：
+  - `app/` 根文件：not-found.tsx, error.tsx, layout.tsx
+  - `app/(public)/` 12 文件：page.tsx, home/page.tsx, login/page.tsx, register/page.tsx, original/page.tsx, original/[contentId]/page.tsx, original/[contentId]/fanworks/page.tsx, content/[contentId]/page.tsx, user/[userId]/page.tsx, user/[userId]/UserProfileClient.tsx, ip/[ipId]/page.tsx, ip/[ipId]/[category]/page.tsx
+  - `app/(protected)/` 11 文件：settings, appeals, history, messages, dashboard, dashboard/contents, dashboard/contributors, dashboard/pr-requests, publish, judge/queue, judge/exam
+  - `app/admin/` 7 文件：layout, users, config, ips, contents, appeal, categories
+  - `components/` 20 文件：Header, judge/VerdictDetail, judge/ReviewCard, pr/* (4), social/* (2), ip/* (3), home/HomePageClient, ui/confirm-modal, content/* (10)
+- **Header 语言切换器**：新增 Globe 图标语言下拉（zh/EN），调用 setLocale + window.location.reload 切换
+- **服务端组件转换**：not-found.tsx/home/page.tsx/original/page.tsx 等 SSR 页面使用 getTranslations()，客户端组件使用 useTranslations()
+
+### Testing:
+- `npm run build`：Turbopack 编译成功，27 条路由全部注册，零错误
+- `npm run lint`（tsc --noEmit）：零错误
+- Chinese 字符串残留排查：app/ + components/ 仅剩 1 处（`"3D模型"` 为内容分类 proper noun，中英文一致无需翻译）
+- messages/zh.json 与 en.json 结构完全一致
+
+### Notes:
+- 语言切换后使用 window.location.reload() 刷新页面以切换 i18n 上下文（next-intl 客户端切换需重新加载 server messages）
+- setLocale() 同步 preferred_locale 到 Go 后端 PATCH /users/:id，失败时静默忽略（客户端 cookie + localStorage 为主）
+- admin config 页面的单位标签（天/次/票）通过 common.units.* 翻译键动态切换
+- 预留 `i18n/request.ts` + `i18n/routing.ts` 架构，后续可扩展更多语言
+
+---
+## [2026-05-07] - Task 42: 部署配置完善与上线准备
+
+### What was done:
+- **nginx/nginx.conf**: 完整重写，新增 HTTPS server block（SSL/TLS 1.2+ 配置 + Let's Encrypt 证书路径 + HSTS + SSL stapling）、Gzip 压缩（text/css/js/json/svg）、静态资源缓存头（`_next/static/` 365d immutable / `static/` 30d / `images/` 7d）、HTTP→HTTPS 301 重定向（保留 ACME challenge 路径）、安全响应头（Strict-Transport-Security/X-Content-Type-Options/X-Frame-Options）
+- **.env.production**: 新建生产环境变量模板，覆盖全部必需变量（DB/Redis/JWT/OSS/Green/Agent LLM/限流），所有敏感值使用 `<PLACEHOLDER>` 占位无实际密钥
+- **README.md**: 完整重写（此前仅一行占位），包含：工具链版本要求表、7 步本地开发流程、Docker Compose 部署步骤、服务端口清单、Let's Encrypt SSL 证书配置指南、8 项生产环境检查清单、环境变量必需/可选分类说明表、数据库初始化/备份使用说明、项目目录树、API 文档快速入口、Tauri 客户端开发指引
+- **scripts/init-db.sh**: 新建数据库初始化脚本，自动遍历 backend/migrations/*.sql 按序执行，支持自定义 DB_HOST/PORT/USER/PASSWORD/NAME 环境变量，含 psql 可用性检查 + 连接测试 + 逐文件错误报告，单个迁移失败不阻断后续（记录警告后继续）
+- **scripts/backup-db.sh**: 新建 PostgreSQL 定时备份脚本，pg_dump --compress=9 压缩输出，支持 BACKUP_DIR/RETAIN_COUNT 环境变量和 --retain 参数，自动轮转清理旧备份，含 pg_dump 可用性检查 + 备份大小报告
+
+### Testing:
+- `go build ./...`: ✅ 通过（后端无改动，编译正常）
+- `go vet ./...`: ✅ 零警告
+- `npm run build`: ✅ Turbopack 编译成功，27 条路由全部注册
+- nginx.conf 语法结构正确（含 events/http/server blocks + upstreams + TLS 配置）
+
+### Notes:
+- SSL 证书路径使用 `omnicraft.example.com` 占位域名，部署时需替换为实际域名
+- scripts/*.sh 需 `chmod +x` 后执行（Unix 环境）
+- Docker Compose 已配置 postgres 容器通过 /docker-entrypoint-initdb.d 自动执行迁移，init-db.sh 作为独立工具补充
+- nginx.conf 需配合 certbot 获取证书后启用 SSL server block；开发环境可注释 HTTPS server 仅使用 80 端口
+
+---
 ## [2026-05-07] - Task 41: 完整流程集成测试
 
 ### What was done:

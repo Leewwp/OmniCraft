@@ -1,23 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import ExamQuestion from "@/components/judge/ExamQuestion";
-
-const CONTENT_TYPES = [
-  { value: "article", label: "文章" },
-  { value: "image", label: "图片" },
-  { value: "video", label: "视频" },
-  { value: "audio", label: "音频" },
-  { value: "prompt", label: "提示词" },
-  { value: "comment", label: "评论" },
-  { value: "sheet_music", label: "乐谱" },
-  { value: "template", label: "模板" },
-  { value: "other", label: "其他" },
-];
 
 interface ExamQuestionData {
   id: number;
@@ -30,6 +19,7 @@ interface ExamQuestionData {
 type Phase = "select-type" | "exam" | "result";
 
 export default function JudgeExamPage() {
+  const t = useTranslations();
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
@@ -41,6 +31,18 @@ export default function JudgeExamPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ passed: boolean; score: number; total: number } | null>(null);
+
+  const CONTENT_TYPES = useMemo(() => [
+    { value: "article", label: t('judge.article') },
+    { value: "image", label: t('judge.image') },
+    { value: "video", label: t('judge.video') },
+    { value: "audio", label: t('judge.audio') },
+    { value: "prompt", label: t('judge.prompt') },
+    { value: "comment", label: t('judge.comment') },
+    { value: "sheet_music", label: t('judge.sheetMusic') },
+    { value: "template", label: t('judge.template') },
+    { value: "other", label: t('judge.other') },
+  ], [t]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -54,7 +56,7 @@ export default function JudgeExamPage() {
     try {
       const data = await api.get<{ questions: ExamQuestionData[] }>(`/api/v1/judge/exam/${category}`);
       if (!data.questions || data.questions.length === 0) {
-        setError("该类型暂无可用的考题");
+        setError(t('judge.examNoQuestions'));
         return;
       }
       setQuestions(data.questions);
@@ -62,7 +64,7 @@ export default function JudgeExamPage() {
       setCurrentIndex(0);
       setAnswers({});
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "加载考题失败");
+      setError(e instanceof ApiRequestError ? e.message : t('judge.examLoadFailed'));
     } finally {
       setLoading(false);
     }
@@ -103,7 +105,7 @@ export default function JudgeExamPage() {
       setResult({ passed: data.passed, score: data.record.score, total: data.record.total });
       setPhase("result");
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "提交失败");
+      setError(e instanceof ApiRequestError ? e.message : t('judge.examSubmitFailed'));
     } finally {
       setLoading(false);
     }
@@ -112,7 +114,7 @@ export default function JudgeExamPage() {
   if (authLoading) {
     return (
       <div className="mx-auto w-full max-w-lg px-4 py-6 text-sm text-muted-foreground">
-        加载中...
+        {t('common.loading')}
       </div>
     );
   }
@@ -124,9 +126,9 @@ export default function JudgeExamPage() {
   return (
     <div className="mx-auto w-full max-w-lg space-y-4 px-4 py-6">
       <div className="rounded-md border border-border bg-card p-4 shadow-none">
-        <h1 className="text-2xl font-bold tracking-tight">赛博判官资质考核</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t('judge.examTitle')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          通过考核后即可参与对应类型内容的众裁审核
+          {t('judge.examSubtitle')}
         </p>
       </div>
 
@@ -135,14 +137,14 @@ export default function JudgeExamPage() {
       {isReputationBlocked && (
         <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 shadow-none">
           <p className="text-sm text-destructive">
-            信誉分不足（当前 {user.reputation} 分，需要 ≥ 3 分），无法参加考核。请通过素质建设课程恢复信誉分。
+            {t('judge.lowReputationExam', { reputation: user.reputation })}
           </p>
         </div>
       )}
 
       {phase === "select-type" && (
         <div className="space-y-3 rounded-md border border-border bg-card p-4 shadow-none">
-          <p className="text-sm font-medium">选择考核内容类型</p>
+          <p className="text-sm font-medium">{t('judge.examSelectType')}</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {CONTENT_TYPES.map((ct) => (
               <button
@@ -171,10 +173,10 @@ export default function JudgeExamPage() {
           <div className="rounded-md border border-border bg-card p-3 shadow-none">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>
-                第 {currentIndex + 1} / {questions.length} 题
+                {t('judge.examQuestion', { current: currentIndex + 1, total: questions.length })}
               </span>
               <span>
-                {questions.length - Object.keys(answers).length} 题未答
+                {t('judge.examUnanswered', { count: questions.length - Object.keys(answers).length })}
               </span>
             </div>
             <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -194,11 +196,11 @@ export default function JudgeExamPage() {
 
           <div className="flex items-center justify-between gap-2">
             <Button variant="outline" size="sm" disabled={currentIndex === 0 || loading} onClick={goPrev}>
-              上一题
+              {t('judge.examPrev')}
             </Button>
             {currentIndex < questions.length - 1 ? (
               <Button size="sm" onClick={goNext}>
-                下一题
+                {t('judge.examNext')}
               </Button>
             ) : (
               <Button
@@ -206,7 +208,7 @@ export default function JudgeExamPage() {
                 disabled={Object.keys(answers).length < questions.length || loading}
                 onClick={() => void submitExam()}
               >
-                {loading ? "提交中..." : "提交答案"}
+                {loading ? t('judge.examSubmitting') : t('judge.examSubmit')}
               </Button>
             )}
           </div>
@@ -217,28 +219,28 @@ export default function JudgeExamPage() {
         <div className="space-y-4 rounded-md border border-border bg-card p-6 text-center shadow-none">
           <div className="text-3xl font-bold tracking-tight">
             {result.passed ? (
-              <span className="text-emerald-600">考核通过</span>
+              <span className="text-emerald-600">{t('judge.examPassed')}</span>
             ) : (
-              <span className="text-destructive">未通过</span>
+              <span className="text-destructive">{t('judge.examFailed')}</span>
             )}
           </div>
           <p className="text-lg text-muted-foreground">
-            得分：{result.score} / {result.total}
-            （正确率 {Math.round((result.score / result.total) * 100)}%）
+            {t('judge.examScore', { score: result.score, total: result.total })}
+            {t('judge.examAccuracy', { accuracy: Math.round((result.score / result.total) * 100) })}
           </p>
           <p className="text-sm text-muted-foreground">
             {result.passed
-              ? "你已获得该类型的判官资格，可前往审核队列参与众裁。"
-              : "正确率需达到 80% 以上，可重新选择类型再次考核。"}
+              ? t('judge.examPassedMsg')
+              : t('judge.examFailedMsg')}
           </p>
           <div className="flex justify-center gap-2">
             {!result.passed && (
               <Button variant="outline" size="sm" onClick={() => setPhase("select-type")}>
-                重新选择
+                {t('judge.examRetry')}
               </Button>
             )}
             <Button size="sm" onClick={() => router.push("/judge/queue")}>
-              前往审核队列
+              {t('judge.examGoToQueue')}
             </Button>
           </div>
         </div>
@@ -246,7 +248,7 @@ export default function JudgeExamPage() {
 
       {phase === "select-type" && loading && (
         <div className="flex items-center justify-center rounded-md border border-border bg-card p-8 shadow-none">
-          <span className="text-sm text-muted-foreground">加载考题中...</span>
+          <span className="text-sm text-muted-foreground">{t('judge.examLoading')}</span>
         </div>
       )}
     </div>

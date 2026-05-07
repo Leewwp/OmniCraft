@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,17 +46,8 @@ const SIZE_LIMITS = {
   other: 10,
 } as const;
 
-const CONTENT_TYPES = [
-  { value: "text", label: "文字" },
-  { value: "image", label: "图片" },
-  { value: "video", label: "视频" },
-  { value: "audio", label: "音频" },
-  { value: "mod", label: "Mod" },
-  { value: "sheet_music", label: "乐谱" },
-  { value: "other", label: "其他" },
-];
-
 export default function PublishPage() {
+  const t = useTranslations();
   const router = useRouter();
 
   const [title, setTitle] = useState("");
@@ -79,6 +71,16 @@ export default function PublishPage() {
   const [originals, setOriginals] = useState<OriginalItem[]>([]);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const CONTENT_TYPES = useMemo(() => [
+    { value: "text", label: t('content.categoryText') },
+    { value: "image", label: t('content.categoryImage') },
+    { value: "video", label: t('content.categoryVideo') },
+    { value: "audio", label: t('judge.audio') },
+    { value: "mod", label: "Mod" },
+    { value: "sheet_music", label: t('content.categorySheetMusic') },
+    { value: "other", label: t('content.categoryOther') },
+  ], [t]);
 
   const uploadFileType = useMemo<"image" | "video" | "text" | "mod" | "sheet_music">(() => {
     switch (contentType) {
@@ -175,19 +177,19 @@ export default function PublishPage() {
     setError("");
 
     if (!title.trim()) {
-      setError("请填写标题");
+      setError(t('publish.errorTitleRequired'));
       return;
     }
     if (zone === "fanwork" && !ipId) {
-      setError("二创区发布必须选择 IP");
+      setError(t('publish.errorIpRequired'));
       return;
     }
     if (!coverAsset) {
-      setError("请上传封面图");
+      setError(t('publish.errorCoverRequired'));
       return;
     }
     if (attachments.length === 0 && contentType !== "text" && contentType !== "other") {
-      setError("请至少上传一个内容附件");
+      setError(t('publish.errorAttachmentRequired'));
       return;
     }
 
@@ -226,7 +228,7 @@ export default function PublishPage() {
 
       router.push(zone === "original" ? `/original/${content.content.id}` : `/content/${content.content.id}`);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? `${e.code}: ${e.message}` : "发布失败，请稍后重试");
+      setError(e instanceof ApiRequestError ? `${e.code}: ${e.message}` : t('publish.errorPublishFailed'));
     } finally {
       setIsSubmitting(false);
     }
@@ -237,9 +239,9 @@ export default function PublishPage() {
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-6">
       <section className="rounded-md border border-border bg-card p-4 shadow-none">
-        <h1 className="text-2xl font-bold tracking-tight">发布内容</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t('publish.title')}</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          上传内容会进入审核流程；二创内容可以选择一个来源原创，方便读者从原创详情跳转到相关二创。
+          {t('publish.subtitle')}
         </p>
         <div className="mt-3">
           <ComplianceCheckBadge
@@ -251,28 +253,28 @@ export default function PublishPage() {
       </section>
 
       <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
-        <h2 className="text-base font-semibold">基础信息</h2>
+        <h2 className="text-base font-semibold">{t('publish.basicInfo')}</h2>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <label className="text-sm font-medium">标题</label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder="输入作品标题" />
+            <label className="text-sm font-medium">{t('publish.contentTitle')}</label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder={t('publish.titlePlaceholder')} />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">分区</label>
+            <label className="text-sm font-medium">{t('publish.zone')}</label>
             <select
               value={zone}
               onChange={(e) => setZone(e.target.value as "fanwork" | "original")}
               className="h-10 rounded-md border border-border bg-background px-3 text-sm"
             >
-              <option value="original">原创区</option>
-              <option value="fanwork">二创区</option>
+              <option value="original">{t('publish.zoneOriginal')}</option>
+              <option value="fanwork">{t('publish.zoneFanwork')}</option>
             </select>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">内容类型</label>
+            <label className="text-sm font-medium">{t('publish.contentType')}</label>
             <select
               value={contentType}
               onChange={(e) => setContentType(e.target.value)}
@@ -287,21 +289,21 @@ export default function PublishPage() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">分类（原创区）</label>
-            <Input value={category} onChange={(e) => setCategory(e.target.value)} disabled={zone !== "original"} placeholder="例如 film_tv / gaming / literature" />
+            <label className="text-sm font-medium">{t('publish.category')}</label>
+            <Input value={category} onChange={(e) => setCategory(e.target.value)} disabled={zone !== "original"} placeholder="film_tv / gaming / literature" />
           </div>
 
           {zone === "fanwork" ? (
             <>
               <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium">关联 IP</label>
-                <Input value={ipKeyword} onChange={(e) => setIPKeyword(e.target.value)} placeholder="搜索 IP 名称" />
+                <label className="text-sm font-medium">{t('publish.linkIp')}</label>
+                <Input value={ipKeyword} onChange={(e) => setIPKeyword(e.target.value)} placeholder={t('publish.searchIp')} />
                 <select
                   value={ipId}
                   onChange={(e) => setIPID(e.target.value)}
                   className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
                 >
-                  <option value="">请选择 IP</option>
+                  <option value="">{t('publish.selectIp')}</option>
                   {filteredIPs.map((ip) => (
                     <option key={ip.id} value={String(ip.id)}>
                       {ip.name}
@@ -311,16 +313,16 @@ export default function PublishPage() {
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium">来源原创（可选）</label>
-                <Input value={originalKeyword} onChange={(e) => setOriginalKeyword(e.target.value)} placeholder="搜索原创标题" />
+                <label className="text-sm font-medium">{t('publish.sourceOriginal')}</label>
+                <Input value={originalKeyword} onChange={(e) => setOriginalKeyword(e.target.value)} placeholder={t('publish.searchOriginal')} />
                 <select
                   value={sourceOriginalId}
                   onChange={(e) => setSourceOriginalId(e.target.value)}
                   className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
                 >
-                  <option value="">不关联原创来源</option>
+                  <option value="">{t('publish.noSourceOriginal')}</option>
                   {sourceOriginalId && !sourceOptionExists ? (
-                    <option value={sourceOriginalId}>当前来源 #{sourceOriginalId}</option>
+                    <option value={sourceOriginalId}>{t('common.userLabel', { id: sourceOriginalId })}</option>
                   ) : null}
                   {filteredOriginals.map((item) => (
                     <option key={item.id} value={String(item.id)}>
@@ -335,7 +337,7 @@ export default function PublishPage() {
       </section>
 
       <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
-        <h2 className="text-base font-semibold">封面上传</h2>
+        <h2 className="text-base font-semibold">{t('publish.coverUpload')}</h2>
         <FileUploader
           fileType="image"
           maxMB={SIZE_LIMITS.image}
@@ -345,7 +347,7 @@ export default function PublishPage() {
         />
         {coverAsset ? (
           <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">已上传封面：{coverAsset.fileName}</p>
+            <p className="text-xs text-muted-foreground">{t('publish.coverUploaded', { name: coverAsset.fileName })}</p>
             <div className="relative h-32 w-24">
               <Image src={coverAsset.ossKey} alt="cover preview" fill className="rounded-md border border-border object-cover" sizes="96px" />
             </div>
@@ -354,13 +356,13 @@ export default function PublishPage() {
       </section>
 
       <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
-        <h2 className="text-base font-semibold">正文编辑（Markdown）</h2>
+        <h2 className="text-base font-semibold">{t('publish.bodyEditor')}</h2>
         <MarkdownEditor value={markdown} onChange={setMarkdown} disabled={isSubmitting} />
-        <p className="text-xs text-muted-foreground">Markdown 正文会随发布内容一起保存，并进入内容审核。</p>
+        <p className="text-xs text-muted-foreground">{t('publish.bodyEditorHint')}</p>
       </section>
 
       <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
-        <h2 className="text-base font-semibold">内容附件</h2>
+        <h2 className="text-base font-semibold">{t('publish.contentAttachments')}</h2>
         <FileUploader
           fileType={uploadFileType}
           maxMB={SIZE_LIMITS[uploadFileType]}
@@ -388,9 +390,9 @@ export default function PublishPage() {
       </section>
 
       <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
-        <h2 className="text-base font-semibold">标签与辅助</h2>
+        <h2 className="text-base font-semibold">{t('publish.tagsAndMeta')}</h2>
         <div className="space-y-2">
-          <label className="text-sm font-medium">标签</label>
+          <label className="text-sm font-medium">{t('publish.tags')}</label>
           <div className="flex gap-2">
             <Input
               value={tagInput}
@@ -401,10 +403,10 @@ export default function PublishPage() {
                   addTag(tagInput);
                 }
               }}
-              placeholder="输入标签后回车"
+              placeholder={t('publish.tagPlaceholder')}
             />
             <Button type="button" variant="outline" onClick={() => addTag(tagInput)}>
-              添加
+              {t('publish.add')}
             </Button>
           </div>
           {tagSuggestions.length > 0 ? (
@@ -431,18 +433,18 @@ export default function PublishPage() {
       </section>
 
       <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
-        <h2 className="text-base font-semibold">权限设置</h2>
+        <h2 className="text-base font-semibold">{t('publish.permissions')}</h2>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />
-          公开展示
+          {t('publish.publicVisibility')}
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={allowCopy} onChange={(e) => setAllowCopy(e.target.checked)} />
-          允许复制/下载
+          {t('publish.allowCopyDownload')}
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={agentEnabled} onChange={(e) => setAgentEnabled(e.target.checked)} />
-          启用 Agent 部署入口
+          {t('publish.enableAgentDeploy')}
         </label>
       </section>
 
@@ -450,10 +452,10 @@ export default function PublishPage() {
 
       <div className="flex justify-end gap-3">
         <Button variant="outline" onClick={() => router.back()} disabled={isSubmitting}>
-          取消
+          {t('common.cancel')}
         </Button>
         <Button onClick={() => void onSubmit()} disabled={isSubmitting}>
-          {isSubmitting ? "发布中..." : "发布"}
+          {isSubmitting ? t('publish.publishing') : t('publish.publishButton')}
         </Button>
       </div>
     </div>

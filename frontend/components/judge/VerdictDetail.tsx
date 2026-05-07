@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
 
 interface CaseData {
@@ -32,6 +33,7 @@ interface VerdictDetailProps {
 }
 
 export default function VerdictDetail({ caseId }: VerdictDetailProps) {
+  const t = useTranslations();
   const [caseData, setCaseData] = useState<CaseData | null>(null);
   const [votes, setVotes] = useState<VoteWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,11 +49,11 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
       setCaseData(data.case);
       setVotes(data.votes || []);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "加载判决详情失败");
+      setError(e instanceof ApiRequestError ? e.message : t('judge.verdict.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [caseId]);
+  }, [caseId, t]);
 
   useEffect(() => {
     void loadVerdict();
@@ -76,7 +78,7 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
     } catch (e) {
       // ignore duplicates silently
       if (!(e instanceof ApiRequestError && e.status === 409)) {
-        setError(e instanceof ApiRequestError ? e.message : "操作失败");
+        setError(e instanceof ApiRequestError ? e.message : t('common.operationFailed'));
       }
     }
   }
@@ -84,7 +86,7 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center rounded-md border border-border bg-card p-8 shadow-none">
-        <span className="text-sm text-muted-foreground">加载中...</span>
+        <span className="text-sm text-muted-foreground">{t('common.loading')}</span>
       </div>
     );
   }
@@ -103,21 +105,25 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
   const approvePct = totalVotes > 0 ? Math.round((caseData.vote_approve / totalVotes) * 100) : 0;
   const rejectPct = totalVotes > 0 ? Math.round((caseData.vote_reject / totalVotes) * 100) : 0;
   const isClosed = caseData.status === "closed";
-  const verdictResult =
-    isClosed && caseData.vote_approve / Math.max(totalVotes, 1) >= 0.6 ? "不违规" : "违规";
+  const isNotViolation = isClosed && caseData.vote_approve / Math.max(totalVotes, 1) >= 0.6;
+  const verdictLabel = isNotViolation ? t('judge.reviewCard.approve') : t('judge.reviewCard.reject');
 
   const reasonsWithText = votes.filter((v) => v.reason && v.reason.trim().length > 0);
   const sortedReasons = [...reasonsWithText].sort((a, b) => b.upvotes - b.downvotes - (a.upvotes - a.downvotes));
 
   return (
     <div className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
-      <h3 className="text-sm font-semibold">判决详情</h3>
+      <h3 className="text-sm font-semibold">{t('judge.verdict.title')}</h3>
 
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>投票分布</span>
+          <span>{t('judge.verdict.voteDistribution')}</span>
           <span>
-            {totalVotes} / {caseData.min_votes} 票 {isClosed ? "（已结束）" : ""}
+            {t('judge.verdict.votes', {
+              totalVotes,
+              minVotes: caseData.min_votes,
+              closed: isClosed ? t('judge.verdict.closed') : "",
+            })}
           </span>
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -133,25 +139,25 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
           </div>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-emerald-600">不违规 {caseData.vote_approve}</span>
-          <span className="text-destructive">违规 {caseData.vote_reject}</span>
+          <span className="text-emerald-600">{t('judge.verdict.approveCount', { count: caseData.vote_approve })}</span>
+          <span className="text-destructive">{t('judge.verdict.rejectCount', { count: caseData.vote_reject })}</span>
         </div>
       </div>
 
       {isClosed && (
         <div className={`rounded-md px-3 py-2 text-sm font-medium ${
-          verdictResult === "不违规"
+          isNotViolation
             ? "bg-emerald-50 text-emerald-700"
             : "bg-destructive/10 text-destructive"
         }`}>
-          判决结果：{verdictResult}
+          {t('judge.verdict.result', { result: verdictLabel })}
         </div>
       )}
 
       {sortedReasons.length > 0 ? (
         <div className="space-y-3">
           <p className="text-xs font-medium text-muted-foreground">
-            判官理由（按赞数排序）
+            {t('judge.verdict.judgeReasons')}
           </p>
           {sortedReasons.map((v) => (
             <div
@@ -159,7 +165,7 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
               className="rounded-md border border-border bg-muted/20 p-3 shadow-none"
             >
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="font-medium">{v.judge_name || `用户#${v.judge_id}`}</span>
+                <span className="font-medium">{v.judge_name || t('common.userLabel', { id: v.judge_id })}</span>
                 <span
                   className={`rounded px-1.5 py-0.5 text-[11px] ${
                     v.vote === "approve"
@@ -167,7 +173,7 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
                       : "bg-destructive/10 text-destructive"
                   }`}
                 >
-                  {v.vote === "approve" ? "不违规" : "违规"}
+                  {v.vote === "approve" ? t('judge.reviewCard.approve') : t('judge.reviewCard.reject')}
                 </span>
                 <span className="ml-auto">{new Date(v.created_at).toLocaleString("zh-CN")}</span>
               </div>
@@ -208,7 +214,7 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
           ))}
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">暂无判官提交理由</p>
+        <p className="text-xs text-muted-foreground">{t('judge.verdict.noReasons')}</p>
       )}
     </div>
   );

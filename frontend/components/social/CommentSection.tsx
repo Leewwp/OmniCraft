@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { MessageCircle, Send, ThumbsUp, ThumbsDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,6 +24,7 @@ interface CommentSectionProps {
 }
 
 export function CommentSection({ contentId, className }: CommentSectionProps) {
+  const t = useTranslations();
   const { user } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +47,7 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
       );
       setComments(data.comments || []);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "加载评论失败");
+      setError(e instanceof ApiRequestError ? e.message : t('social.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -62,11 +64,11 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
       setComments((prev) => [...prev, data.comment]);
       setBody("");
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "评论发送失败");
+      setError(e instanceof ApiRequestError ? e.message : t('social.sendFailed'));
     } finally {
       setBusy(false);
     }
-  }, [user, body, busy, contentId]);
+  }, [user, body, busy, contentId, t]);
 
   async function reactToComment(commentId: number, reaction: "like" | "dislike") {
     if (!user) return;
@@ -83,14 +85,14 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
     <div className={cn("space-y-4", className)}>
       <div className="flex items-center gap-2">
         <MessageCircle className="h-4 w-4 text-muted-foreground" />
-        <h3 className="text-sm font-semibold">评论</h3>
+        <h3 className="text-sm font-semibold">{t('social.comments')}</h3>
       </div>
 
       {user ? (
         <div className="flex gap-2">
           <textarea
             className="min-h-[60px] flex-1 rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-            placeholder={canComment ? "写下你的评论..." : "信誉分不足，无法评论"}
+            placeholder={canComment ? t('social.commentPlaceholder') : t('social.cannotComment')}
             value={body}
             onChange={(e) => setBody(e.target.value)}
             disabled={!canComment || busy}
@@ -112,7 +114,7 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
         </div>
       ) : (
         <p className="rounded-md border border-border bg-muted/20 p-3 text-center text-xs text-muted-foreground">
-          请登录后参与评论
+          {t('social.loginToComment')}
         </p>
       )}
 
@@ -129,7 +131,7 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
         </div>
       ) : comments.length === 0 ? (
         <p className="rounded-md border border-border bg-muted/10 p-4 text-center text-xs text-muted-foreground">
-          暂无评论，来抢沙发吧
+          {t('social.noComments')}
         </p>
       ) : (
         <div className="space-y-3">
@@ -158,13 +160,14 @@ function CommentItem({
   replies: Comment[];
   onReact: (id: number, reaction: "like" | "dislike") => void;
 }) {
+  const t = useTranslations();
   const { user } = useAuth();
 
   return (
     <div className="rounded-md border border-border bg-card p-3 shadow-none">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium">
-          {comment.author?.username ?? `用户 #${comment.author_id}`}
+          {comment.author?.username ?? t('common.userLabel', { id: comment.author_id })}
         </p>
         <p className="text-[10px] text-muted-foreground">
           {new Date(comment.created_at).toLocaleDateString("zh-CN", {
@@ -201,7 +204,7 @@ function CommentItem({
             <div key={reply.id} className="rounded border border-border bg-muted/10 p-2">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium">
-                  {reply.author?.username ?? `用户 #${reply.author_id}`}
+                  {reply.author?.username ?? t('common.userLabel', { id: reply.author_id })}
                 </p>
                 <p className="text-[10px] text-muted-foreground">
                   {new Date(reply.created_at).toLocaleDateString("zh-CN")}

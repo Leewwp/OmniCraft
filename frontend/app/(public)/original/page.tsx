@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from 'next-intl/server';
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { buttonVariants } from "@/components/ui/button";
 import { normalizeContentList } from "@/lib/content";
@@ -24,37 +25,70 @@ interface SearchParams {
 }
 
 const PRIMARY_CATEGORIES = [
-  { slug: "", label: "推荐" },
-  { slug: "film_tv", label: "影视" },
-  { slug: "gaming", label: "游戏" },
-  { slug: "literature", label: "文学" },
-  { slug: "pet", label: "宠物" },
-  { slug: "food", label: "美食" },
-  { slug: "beauty_fashion", label: "美妆穿搭" },
-  { slug: "home", label: "家居" },
-  { slug: "tech_digital", label: "数码科技" },
-  { slug: "travel", label: "旅行" },
-  { slug: "sports", label: "运动" },
-  { slug: "productivity", label: "效率" },
+  { slug: "", label: "Recommended" },
+  { slug: "film_tv", label: "Film & TV" },
+  { slug: "gaming", label: "Gaming" },
+  { slug: "literature", label: "Literature" },
+  { slug: "pet", label: "Pets" },
+  { slug: "food", label: "Food" },
+  { slug: "beauty_fashion", label: "Beauty & Fashion" },
+  { slug: "home", label: "Home" },
+  { slug: "tech_digital", label: "Tech & Digital" },
+  { slug: "travel", label: "Travel" },
+  { slug: "sports", label: "Sports" },
+  { slug: "productivity", label: "Productivity" },
 ];
+
+const PRIMARY_CATEGORY_LABEL_KEY: Record<string, string> = {
+  "": "home.categoryRecommended",
+  film_tv: "home.categoryFilmTv",
+  gaming: "home.categoryGaming",
+  literature: "home.categoryLiterature",
+  pet: "home.categoryPet",
+  food: "home.categoryFood",
+  beauty_fashion: "home.categoryBeautyFashion",
+  home: "home.categoryHome",
+  tech_digital: "home.categoryTechDigital",
+  travel: "home.categoryTravel",
+  sports: "home.categorySports",
+  productivity: "home.categoryProductivity",
+};
 
 const SECONDARY_TYPES = [
-  { key: "", label: "全部" },
-  { key: "image", label: "图片", contentType: "image" },
-  { key: "video", label: "视频", contentType: "video" },
-  { key: "audio", label: "音频/乐谱", contentType: "audio,sheet_music" },
-  { key: "text", label: "文字", contentType: "article,prompt,text" },
-  { key: "template", label: "效率模板", contentType: "template" },
-  { key: "model_design", label: "模型与设计", tags: "3D模型" },
-  { key: "other", label: "其他", contentType: "other" },
+  { key: "", label: "All", contentType: "" },
+  { key: "image", label: "Image", contentType: "image" },
+  { key: "video", label: "Video", contentType: "video" },
+  { key: "audio", label: "Audio/Sheet Music", contentType: "audio,sheet_music" },
+  { key: "text", label: "Text", contentType: "article,prompt,text" },
+  { key: "template", label: "Templates", contentType: "template" },
+  { key: "model_design", label: "Models & Designs", tags: "3D模型" },
+  { key: "other", label: "Other", contentType: "other" },
 ];
 
+const SECONDARY_TYPE_LABEL_KEY: Record<string, string> = {
+  "": "content.categoryAll",
+  image: "content.categoryImage",
+  video: "content.categoryVideo",
+  audio: "content.categoryAudio",
+  text: "content.categoryText",
+  template: "content.categoryTemplate",
+  model_design: "content.categoryModel",
+  other: "content.categoryOther",
+};
+
 const SORTS = [
-  { key: "hot", label: "最热门" },
-  { key: "newest", label: "最新" },
-  { key: "most_views", label: "最多点击" },
-  { key: "best_rated", label: "最高好评率" },
+  { key: "hot", label: "Hottest" },
+  { key: "newest", label: "Newest" },
+  { key: "most_views", label: "Most Viewed" },
+  { key: "best_rated", label: "Top Rated" },
 ];
+
+const SORT_LABEL_KEY: Record<string, string> = {
+  hot: "content.sortHottest",
+  newest: "content.sortNewest",
+  most_views: "content.sortMostViewed",
+  best_rated: "content.sortTopRated",
+};
 
 function getApiBase() {
   const raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -137,6 +171,7 @@ export default async function OriginalPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  const t = await getTranslations();
   const rawSearch = await searchParams;
   const current = {
     category: rawSearch.category || "",
@@ -153,9 +188,9 @@ export default async function OriginalPage({
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6">
       <section className="space-y-3 rounded-md border border-border bg-card p-4 shadow-none">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">原创区</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('content.originalZone')}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            浏览创作者发布的原创内容。原创区不包含 IP 归属和 PR 协同修改入口。
+            {t('content.originalZoneDesc')}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -168,7 +203,7 @@ export default async function OriginalPage({
                 variant: current.category === category.slug ? "default" : "outline",
               })}
             >
-              {category.label}
+              {t(PRIMARY_CATEGORY_LABEL_KEY[category.slug] || category.label)}
             </Link>
           ))}
         </div>
@@ -176,7 +211,7 @@ export default async function OriginalPage({
 
       <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="text-base font-semibold">原创内容流</h2>
+          <h2 className="text-base font-semibold">{t('content.originalContentStream')}</h2>
           <div className="flex flex-wrap gap-2">
             {SORTS.map((sort) => (
               <Link
@@ -187,7 +222,7 @@ export default async function OriginalPage({
                   variant: current.sort === sort.key ? "default" : "outline",
                 })}
               >
-                {sort.label}
+                {t(SORT_LABEL_KEY[sort.key])}
               </Link>
             ))}
           </div>
@@ -203,12 +238,12 @@ export default async function OriginalPage({
                 variant: current.type === type.key ? "default" : "outline",
               })}
             >
-              {type.label}
+              {t(SECONDARY_TYPE_LABEL_KEY[type.key])}
             </Link>
           ))}
         </div>
 
-        <MasonryGrid items={contents} emptyText="暂无原创内容" />
+        <MasonryGrid items={contents} emptyText={t('home.noOriginalContent')} />
       </section>
     </div>
   );

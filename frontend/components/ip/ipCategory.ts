@@ -4,15 +4,15 @@ export interface CategoryOption {
 }
 
 export const ipCategoryOptions: CategoryOption[] = [
-  { key: "all", label: "全部" },
-  { key: "text", label: "文字" },
-  { key: "image", label: "图片" },
-  { key: "video", label: "视频" },
-  { key: "audio", label: "音频" },
-  { key: "mod", label: "Mod" },
-  { key: "prompt", label: "AI 提示词" },
-  { key: "sheet_music", label: "乐谱" },
-  { key: "other", label: "其他" },
+  { key: "all", label: "home.all" },
+  { key: "text", label: "home.text" },
+  { key: "image", label: "home.image" },
+  { key: "video", label: "home.video" },
+  { key: "audio", label: "home.audio" },
+  { key: "mod", label: "home.other" },
+  { key: "prompt", label: "home.aiPrompt" },
+  { key: "sheet_music", label: "home.sheetMusic" },
+  { key: "other", label: "home.other" },
 ];
 
 export function getCategoryLabel(key: string): string {

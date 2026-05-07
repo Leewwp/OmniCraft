@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ interface JudgeCaseData {
 }
 
 export default function JudgeQueuePage() {
+  const t = useTranslations();
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
@@ -50,11 +52,11 @@ export default function JudgeQueuePage() {
       setCurrentIndex(0);
       setVotedCaseId(null);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "加载队列失败");
+      setError(e instanceof ApiRequestError ? e.message : t('judge.loadQueueFailed'));
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, t]);
 
   useEffect(() => {
     if (user) {
@@ -73,7 +75,7 @@ export default function JudgeQueuePage() {
       });
       setVotedCaseId(caseId);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "投票失败");
+      setError(e instanceof ApiRequestError ? e.message : t('judge.voteFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -87,7 +89,7 @@ export default function JudgeQueuePage() {
   if (authLoading) {
     return (
       <div className="mx-auto w-full max-w-2xl px-4 py-6 text-sm text-muted-foreground">
-        加载中...
+        {t('common.loading')}
       </div>
     );
   }
@@ -100,13 +102,13 @@ export default function JudgeQueuePage() {
     <div className="mx-auto w-full max-w-2xl space-y-4 px-4 py-6">
       <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 shadow-none">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">待审内容队列</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('judge.queueTitle')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            参与众裁，维护社区内容质量
+            {t('judge.queueSubtitle')}
           </p>
         </div>
         <Button size="sm" variant="outline" onClick={() => router.push("/judge/exam")}>
-          资质考核
+          {t('judge.qualificationExam')}
         </Button>
       </div>
 
@@ -115,34 +117,34 @@ export default function JudgeQueuePage() {
       {isReputationBlocked && (
         <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 shadow-none">
           <p className="text-sm text-destructive">
-            信誉分不足（当前 {user.reputation} 分，需要 ≥ 3 分），无法参与众裁投票。
+            {t('judge.lowReputation', { reputation: user.reputation })}
           </p>
         </div>
       )}
 
       {loading ? (
         <div className="flex items-center justify-center rounded-md border border-border bg-card p-12 shadow-none">
-          <span className="text-sm text-muted-foreground">加载队列中...</span>
+          <span className="text-sm text-muted-foreground">{t('judge.loadingQueue')}</span>
         </div>
       ) : cases.length === 0 ? (
         <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
           <p className="text-sm text-muted-foreground">
-            暂无待审内容。请先通过资质考核获取判官资格，或等待新的举报内容进入队列。
+            {t('judge.noPendingContent')}
           </p>
           <Button size="sm" className="mt-4" variant="outline" onClick={() => router.push("/judge/exam")}>
-            参加考核
+            {t('judge.takeExam')}
           </Button>
         </div>
       ) : currentIndex >= cases.length ? (
         <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
           <p className="text-sm text-muted-foreground">
-            当前队列已全部审核完毕
+            {t('judge.queueCompleted')}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            共 {queueTotal} 个待审案例，你已完成当前页面的投票
+            {t('judge.queueSummary', { total: queueTotal })}
           </p>
           <Button size="sm" className="mt-4" variant="outline" onClick={() => void loadQueue()}>
-            刷新队列
+            {t('judge.refreshQueue')}
           </Button>
         </div>
       ) : (
@@ -158,10 +160,10 @@ export default function JudgeQueuePage() {
             <>
               <div className="rounded-md border border-emerald-500/30 bg-emerald-50 p-3 text-center shadow-none">
                 <p className="text-sm font-medium text-emerald-700">
-                  投票成功
+                  {t('judge.voteSuccess')}
                 </p>
                 <Button size="sm" variant="outline" className="mt-2" onClick={goNextCase}>
-                  下一个案例
+                  {t('judge.nextCase')}
                 </Button>
               </div>
               <VerdictDetail caseId={votedCaseId} />

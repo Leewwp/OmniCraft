@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { PRCard, PRCardData } from "@/components/pr/PRCard";
 import { DiffViewer } from "@/components/pr/DiffViewer";
 import { MergeEditor } from "@/components/pr/MergeEditor";
@@ -22,6 +23,7 @@ interface PRDetail extends PRCardData {
 }
 
 export default function PRRequestsPage() {
+  const t = useTranslations();
   const { user, isLoading } = useAuth();
   const [prs, setPRs] = useState<PRCardData[]>([]);
   const [activePR, setActivePR] = useState<PRDetail | null>(null);
@@ -58,11 +60,11 @@ export default function PRRequestsPage() {
         if (e instanceof ApiRequestError) {
           setError(`${e.code}: ${e.message}`);
         } else {
-          setError("加载 PR 列表失败");
+          setError(t('dashboard.pr.loadFailed'));
         }
       }
     })();
-  }, [user]);
+  }, [user, t]);
 
   async function loadPRDetail(prID: number) {
     setError("");
@@ -87,7 +89,7 @@ export default function PRRequestsPage() {
       if (e instanceof ApiRequestError) {
         setError(`${e.code}: ${e.message}`);
       } else {
-        setError("加载 PR 详情失败");
+        setError(t('dashboard.pr.loadDetailFailed'));
       }
     } finally {
       setBusy(false);
@@ -95,7 +97,7 @@ export default function PRRequestsPage() {
   }
 
   async function acceptPR(prID: number) {
-    const confirmed = window.confirm("确认接受该 PR 吗？接受后将更新版本状态。");
+    const confirmed = window.confirm(t('dashboard.pr.acceptConfirm'));
     if (!confirmed) {
       return;
     }
@@ -112,7 +114,7 @@ export default function PRRequestsPage() {
       if (e instanceof ApiRequestError) {
         setError(`${e.code}: ${e.message}`);
       } else {
-        setError("接受 PR 失败");
+        setError(t('dashboard.pr.acceptFailed'));
       }
     } finally {
       setBusy(false);
@@ -120,12 +122,12 @@ export default function PRRequestsPage() {
   }
 
   async function rejectPR(prID: number) {
-    const reason = window.prompt("请输入拒绝理由（必填）");
+    const reason = window.prompt(t('dashboard.pr.rejectReasonRequired'));
     if (!reason || !reason.trim()) {
       return;
     }
 
-    const confirmed = window.confirm("确认拒绝该 PR 吗？");
+    const confirmed = window.confirm(t('dashboard.pr.rejectConfirm'));
     if (!confirmed) {
       return;
     }
@@ -142,7 +144,7 @@ export default function PRRequestsPage() {
       if (e instanceof ApiRequestError) {
         setError(`${e.code}: ${e.message}`);
       } else {
-        setError("拒绝 PR 失败");
+        setError(t('dashboard.pr.rejectFailed'));
       }
     } finally {
       setBusy(false);
@@ -150,16 +152,16 @@ export default function PRRequestsPage() {
   }
 
   if (isLoading) {
-    return <div className="mx-auto w-full max-w-7xl px-4 py-6 text-sm text-muted-foreground">加载中...</div>;
+    return <div className="mx-auto w-full max-w-7xl px-4 py-6 text-sm text-muted-foreground">{t('common.loading')}</div>;
   }
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6">
       <section className="rounded-md border border-border bg-card p-4 shadow-none">
-        <h1 className="text-2xl font-bold tracking-tight">PR 申请管理</h1>
-        <p className="mt-1 text-sm text-muted-foreground">待处理 PR：{openCount} 个</p>
+        <h1 className="text-2xl font-bold tracking-tight">{t('dashboard.pr.title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('dashboard.pr.pendingCount', { count: openCount })}</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          手动合并 API 当前未对外开放，本页已提供 MergeEditor 供你先完成文本合并与复制。
+          {t('dashboard.pr.apiNotice')}
         </p>
       </section>
 
@@ -168,7 +170,7 @@ export default function PRRequestsPage() {
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[420px_1fr]">
         <div className="space-y-3 rounded-md border border-border bg-card p-3 shadow-none">
           {prs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">暂无待处理 PR</p>
+            <p className="text-sm text-muted-foreground">{t('dashboard.pr.noPrs')}</p>
           ) : (
             prs.map((item) => (
               <PRCard
@@ -200,12 +202,12 @@ export default function PRRequestsPage() {
                 onChange={setMergeText}
               />
               <div className="rounded-md border border-border bg-card p-3 text-xs text-muted-foreground shadow-none">
-                合并结果预览长度：{mergeText.length} 字符
+                {t('dashboard.pr.mergePreview', { length: mergeText.length })}
               </div>
             </>
           ) : (
             <div className="rounded-md border border-border bg-card p-4 text-sm text-muted-foreground shadow-none">
-              选择左侧 PR 查看 Diff 和合并编辑器。
+              {t('dashboard.pr.selectHint')}
             </div>
           )}
         </div>
@@ -213,7 +215,7 @@ export default function PRRequestsPage() {
 
       <div className="flex justify-end">
         <Button variant="outline" onClick={() => window.location.reload()}>
-          刷新列表
+          {t('dashboard.pr.refresh')}
         </Button>
       </div>
     </div>

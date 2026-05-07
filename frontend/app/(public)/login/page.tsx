@@ -9,8 +9,10 @@ import { ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useTranslations } from 'next-intl';
 
 function LoginPageContent() {
+  const t = useTranslations();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
@@ -33,14 +35,14 @@ function LoginPageContent() {
     } catch (err) {
       if (err instanceof ApiRequestError) {
         if (err.code === "INVALID_CREDENTIALS") {
-          setError("邮箱或密码不正确");
+          setError(t('auth.errorInvalidCredentials'));
         } else if (err.code === "USER_BANNED") {
-          setError("账号已被封禁，请联系管理员");
+          setError(t('auth.errorBanned'));
         } else {
-          setError(err.message || "登录失败，请稍后重试");
+          setError(err.message || t('auth.errorLoginFailed'));
         }
       } else {
-        setError("网络错误，请检查连接后重试");
+        setError(t('auth.errorNetwork'));
       }
     } finally {
       setIsLoading(false);
@@ -55,15 +57,15 @@ function LoginPageContent() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
             <Brush className="h-6 w-6 text-primary" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">欢迎回来</h1>
-          <p className="text-sm text-muted-foreground">登录你的万象工坊账号</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t('auth.welcomeBack')}</h1>
+          <p className="text-sm text-muted-foreground">{t('auth.loginTitle')}</p>
         </div>
 
         {/* Form */}
         <div className="rounded-lg border border-border bg-card p-6 shadow-none">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="email">邮箱</Label>
+              <Label htmlFor="email">{t('auth.email')}</Label>
               <Input
                 id="email"
                 type="email"
@@ -77,12 +79,12 @@ function LoginPageContent() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="password">密码</Label>
+              <Label htmlFor="password">{t('auth.password')}</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="输入密码"
+                  placeholder={t('auth.passwordPlaceholder')}
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -113,18 +115,18 @@ function LoginPageContent() {
 
             <Button type="submit" className="w-full mt-1" disabled={isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              登录
+              {t('auth.loginButton')}
             </Button>
           </form>
         </div>
 
         <p className="mt-4 text-center text-sm text-muted-foreground">
-          还没有账号？{" "}
+          {t('auth.noAccount')}{" "}
           <Link
             href="/register"
             className="font-medium text-primary hover:underline"
           >
-            立即注册
+            {t('auth.registerNow')}
           </Link>
         </p>
       </div>

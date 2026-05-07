@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import Masonry from "react-masonry-css";
 import { ContentCard, ContentCardData } from "@/components/content/ContentCard";
 
@@ -16,10 +17,12 @@ const breakpoints = {
 };
 
 export function MasonryGrid({ items, emptyText }: MasonryGridProps) {
+  const t = useTranslations();
+
   if (items.length === 0) {
     return (
       <div className="rounded-md border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-        {emptyText || "暂无内容，稍后再来看看。"}
+        {emptyText || t('content.emptyContentMsg')}
       </div>
     );
   }

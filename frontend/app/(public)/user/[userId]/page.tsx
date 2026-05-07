@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { getTranslations } from 'next-intl/server';
 import { UserProfileClient } from "./UserProfileClient";
 
 interface UserData {
@@ -31,6 +32,7 @@ export default async function UserProfilePage({
 }: {
   params: Promise<{ userId: string }>;
 }) {
+  const t = await getTranslations();
   const { userId } = await params;
   const apiBase = getApiBase();
   const user = await fetchUser(apiBase, userId);
@@ -40,7 +42,7 @@ export default async function UserProfilePage({
   }
 
   const userIdNum = user.id ?? 0;
-  const displayName = user.username ?? `用户 #${userId}`;
+  const displayName = user.username ?? t('common.userLabel', { id: userId });
   const bio = user.bio ?? "";
   const reputation = user.reputation ?? 0;
   const createdAt = user.created_at;
@@ -55,7 +57,7 @@ export default async function UserProfilePage({
           <div className="space-y-1">
             <h1 className="text-2xl font-bold tracking-tight">{displayName}</h1>
             <p className="text-sm text-muted-foreground">
-              信誉分：{reputation} · 加入于{" "}
+              {t('user.reputation', { reputation })}{" "}
               {createdAt
                 ? new Date(createdAt).toLocaleDateString("zh-CN")
                 : "-"}

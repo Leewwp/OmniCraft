@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import { MessageSquareText } from "lucide-react";
 import { IPCategoryTabs } from "@/components/ip/IPCategoryTabs";
 
@@ -16,6 +19,7 @@ interface IPDetailProps {
 }
 
 export function IPDetail({ ip }: IPDetailProps) {
+  const t = useTranslations();
   return (
     <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
       <div className="flex flex-col gap-4 md:flex-row">
@@ -23,15 +27,15 @@ export function IPDetail({ ip }: IPDetailProps) {
           {ip.cover_url ? (
             <Image src={ip.cover_url} alt={ip.name} fill className="rounded-md object-cover" sizes="208px" />
           ) : (
-            <span className="text-sm text-muted-foreground">IP 封面</span>
+            <span className="text-sm text-muted-foreground">{t('ip.cover')}</span>
           )}
         </div>
 
         <div className="flex flex-1 flex-col gap-2">
           <h1 className="text-2xl font-bold tracking-tight">{ip.name}</h1>
-          <p className="text-sm text-muted-foreground">分类：{ip.category || "未分类"}</p>
+          <p className="text-sm text-muted-foreground">{t('ip.category', { category: ip.category || t('ip.uncategorized') })}</p>
           <p className="text-sm leading-relaxed text-foreground/90">
-            {ip.description || "暂无 IP 介绍"}
+            {ip.description || t('ip.noDescription')}
           </p>
           <div>
             <Link
@@ -39,7 +43,7 @@ export function IPDetail({ ip }: IPDetailProps) {
               className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs hover:bg-muted"
             >
               <MessageSquareText className="h-3.5 w-3.5" />
-              进入讨论区
+              {t('ip.enterDiscussion')}
             </Link>
           </div>
         </div>

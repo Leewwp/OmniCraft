@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { VersionHistory } from "@/components/content/VersionHistory";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,6 +13,7 @@ interface ContentDetailClientProps {
 }
 
 export function ContentDetailClient({ contentId, authorId }: ContentDetailClientProps) {
+  const t = useTranslations();
   const { user } = useAuth();
   const [favorited, setFavorited] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
@@ -51,7 +53,7 @@ export function ContentDetailClient({ contentId, authorId }: ContentDetailClient
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button size="sm" variant={favorited ? "default" : "outline"} disabled={favBusy} onClick={() => void toggleFavorite()}>
-          {favorited ? "已收藏" : "收藏"}
+          {favorited ? t('content.favorited') : t('content.favorite')}
         </Button>
       </div>
       <VersionHistory contentId={contentId} isAuthor={isAuthor} />

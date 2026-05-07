@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -17,6 +18,7 @@ interface Category {
 }
 
 export default function AdminCategoriesPage() {
+  const t = useTranslations();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -51,11 +53,11 @@ export default function AdminCategoriesPage() {
       );
       setCategories(data.categories || []);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "加载分类失败");
+      setError(e instanceof ApiRequestError ? e.message : t('admin.categories.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadCategories();
@@ -78,7 +80,7 @@ export default function AdminCategoriesPage() {
       setCreateValues({ zone: "fanwork", level: "category", parent_id: "", name_zh: "", name_en: "", slug: "", sort_order: "0" });
       await loadCategories();
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "创建分类失败");
+      setError(e instanceof ApiRequestError ? e.message : t('admin.categories.createFailed'));
     } finally {
       setBusy(false);
     }
@@ -97,7 +99,7 @@ export default function AdminCategoriesPage() {
       setEditingId(null);
       await loadCategories();
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "更新分类失败");
+      setError(e instanceof ApiRequestError ? e.message : t('admin.categories.updateFailed'));
     } finally {
       setBusy(false);
     }
@@ -110,7 +112,7 @@ export default function AdminCategoriesPage() {
       await api.delete(`/api/v1/admin/categories/${id}`);
       await loadCategories();
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "删除分类失败");
+      setError(e instanceof ApiRequestError ? e.message : t('admin.categories.deleteFailed'));
     } finally {
       setBusy(false);
     }
@@ -136,7 +138,7 @@ export default function AdminCategoriesPage() {
     try {
       await api.put("/api/v1/admin/categories/reorder", { ids });
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "排序保存失败");
+      setError(e instanceof ApiRequestError ? e.message : t('admin.categories.sortFailed'));
       await loadCategories();
     }
   }
@@ -172,13 +174,13 @@ export default function AdminCategoriesPage() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 shadow-none">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">分类与标签管理</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('admin.categories.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            管理内容分类（共 {categories.length} 个分类）
+            {t('admin.categories.subtitle', { count: categories.length })}
           </p>
         </div>
         <Button size="sm" disabled={showCreate} onClick={() => setShowCreate(true)}>
-          新建分类
+          {t('admin.categories.newCategory')}
         </Button>
       </div>
 
@@ -187,42 +189,42 @@ export default function AdminCategoriesPage() {
       {/* Create form */}
       {showCreate && (
         <div className="rounded-md border border-border bg-card p-4 shadow-none">
-          <h3 className="mb-3 text-sm font-semibold">新建分类</h3>
+          <h3 className="mb-3 text-sm font-semibold">{t('admin.categories.newCategory')}</h3>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <label className="block text-xs font-medium mb-1">分区 (zone)</label>
+              <label className="block text-xs font-medium mb-1">{t('admin.categories.colZone')} (zone)</label>
               <select
                 className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 value={createValues.zone}
                 onChange={(e) => setCreateValues((v) => ({ ...v, zone: e.target.value }))}
               >
-                <option value="fanwork">fanwork (二创区)</option>
-                <option value="original">original (原创区)</option>
+                <option value="fanwork">{t('admin.categories.zoneFanwork')}</option>
+                <option value="original">{t('admin.categories.zoneOriginal')}</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">层级 (level)</label>
+              <label className="block text-xs font-medium mb-1">{t('admin.categories.colLevel')} (level)</label>
               <select
                 className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 value={createValues.level}
                 onChange={(e) => setCreateValues((v) => ({ ...v, level: e.target.value }))}
               >
-                <option value="category">category (一级分类)</option>
-                <option value="content_type">content_type (二级分类)</option>
+                <option value="category">{t('admin.categories.levelCategory')}</option>
+                <option value="content_type">{t('admin.categories.levelContentType')}</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">中文名称</label>
+              <label className="block text-xs font-medium mb-1">{t('admin.categories.nameZh')}</label>
               <input
                 type="text"
                 className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 value={createValues.name_zh}
                 onChange={(e) => setCreateValues((v) => ({ ...v, name_zh: e.target.value }))}
-                placeholder="推荐"
+                placeholder={t('home.hottest')}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">英文名称</label>
+              <label className="block text-xs font-medium mb-1">{t('admin.categories.nameEn')}</label>
               <input
                 type="text"
                 className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -242,7 +244,7 @@ export default function AdminCategoriesPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">排序</label>
+              <label className="block text-xs font-medium mb-1">{t('admin.categories.sort')}</label>
               <input
                 type="number"
                 className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -252,22 +254,22 @@ export default function AdminCategoriesPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">父级 ID</label>
+              <label className="block text-xs font-medium mb-1">{t('admin.categories.parentId')}</label>
               <input
                 type="number"
                 className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 value={createValues.parent_id}
                 onChange={(e) => setCreateValues((v) => ({ ...v, parent_id: e.target.value }))}
-                placeholder="留空为顶级"
+                placeholder={t('admin.categories.parentHint')}
               />
             </div>
           </div>
           <div className="mt-4 flex gap-2">
             <Button size="sm" disabled={busy} onClick={() => void createCategory()}>
-              {busy ? "创建中..." : "创建"}
+              {busy ? t('admin.categories.creating') : t('admin.categories.create')}
             </Button>
             <Button size="sm" variant="outline" onClick={() => setShowCreate(false)}>
-              取消
+              {t('common.cancel')}
             </Button>
           </div>
         </div>
@@ -275,21 +277,21 @@ export default function AdminCategoriesPage() {
 
       {categories.length === 0 ? (
         <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
-          <p className="text-sm text-muted-foreground">暂无分类，请创建第一个分类</p>
+          <p className="text-sm text-muted-foreground">{t('admin.categories.noCategories')}</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-md border border-border bg-card shadow-none">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
               <tr>
-                <th className="px-4 py-3 font-medium w-8">排序</th>
-                <th className="px-4 py-3 font-medium">名称</th>
+                <th className="px-4 py-3 font-medium w-8">{t('admin.categories.colSort')}</th>
+                <th className="px-4 py-3 font-medium">{t('admin.categories.colName')}</th>
                 <th className="px-4 py-3 font-medium">Slug</th>
-                <th className="px-4 py-3 font-medium">分区</th>
-                <th className="px-4 py-3 font-medium">层级</th>
-                <th className="px-4 py-3 font-medium">父级ID</th>
-                <th className="px-4 py-3 font-medium">状态</th>
-                <th className="px-4 py-3 font-medium">操作</th>
+                <th className="px-4 py-3 font-medium">{t('admin.categories.colZone')}</th>
+                <th className="px-4 py-3 font-medium">{t('admin.categories.colLevel')}</th>
+                <th className="px-4 py-3 font-medium">{t('admin.categories.colParent')}</th>
+                <th className="px-4 py-3 font-medium">{t('admin.categories.colStatus')}</th>
+                <th className="px-4 py-3 font-medium">{t('admin.categories.colActions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -349,16 +351,16 @@ export default function AdminCategoriesPage() {
                             cat.is_active ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"
                           }`}
                         >
-                          {cat.is_active ? "启用" : "禁用"}
+                          {cat.is_active ? t('admin.categories.enable') : t('admin.categories.disable')}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
                           <Button size="sm" disabled={busy} onClick={() => void updateCategory(cat.id)}>
-                            保存
+                            {t('admin.categories.saveSort')}
                           </Button>
                           <Button size="sm" variant="outline" onClick={cancelEdit}>
-                            取消
+                            {t('common.cancel')}
                           </Button>
                         </div>
                       </td>
@@ -381,13 +383,13 @@ export default function AdminCategoriesPage() {
                             cat.is_active ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"
                           }`}
                         >
-                          {cat.is_active ? "启用" : "禁用"}
+                          {cat.is_active ? t('admin.categories.enable') : t('admin.categories.disable')}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
                           <Button size="sm" variant="outline" onClick={() => startEdit(cat)}>
-                            编辑
+                            {t('common.edit')}
                           </Button>
                           <Button
                             size="sm"
@@ -402,7 +404,7 @@ export default function AdminCategoriesPage() {
                               setConfirmOpen(true);
                             }}
                           >
-                            删除
+                            {t('common.delete')}
                           </Button>
                         </div>
                       </td>
@@ -418,9 +420,9 @@ export default function AdminCategoriesPage() {
       <ConfirmModal
         open={confirmOpen}
         onOpenChange={(v) => { setConfirmOpen(v); if (!v) setConfirmAction(null); }}
-        title="删除分类"
-        description={confirmAction ? `确认删除分类「${confirmAction.name}」吗？如果该分类下有关联内容，删除将被拒绝。` : ""}
-        confirmLabel="确认删除"
+        title={t('admin.categories.deleteTitle')}
+        description={confirmAction ? t('admin.categories.deleteConfirm', { name: confirmAction.name }) : ""}
+        confirmLabel={t('admin.categories.confirmDelete')}
         confirmVariant="destructive"
         onConfirm={async () => {
           if (confirmAction) {

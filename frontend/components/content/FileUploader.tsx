@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,7 @@ export function FileUploader({
   disabled,
   onUploaded,
 }: FileUploaderProps) {
+  const t = useTranslations();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -87,7 +89,7 @@ export function FileUploader({
 
       for (const file of files) {
         if (file.size > maxBytes) {
-          throw new Error(`${file.name} 超过 ${maxMB}MB 限制`);
+          throw new Error(t('content.fileSizeExceeds', { name: file.name, maxMB }));
         }
 
         const token = await api.post<OSSUploadToken>("/api/v1/contents/oss-token", {
@@ -110,7 +112,7 @@ export function FileUploader({
 
       onUploaded(uploaded);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "上传失败");
+      setError(e instanceof Error ? e.message : t('content.uploadFailed'));
     } finally {
       setIsUploading(false);
       setProgress(0);
@@ -123,7 +125,7 @@ export function FileUploader({
   return (
     <div className="space-y-2 rounded-md border border-border bg-card p-3 shadow-none">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">限制：{maxMB}MB</p>
+        <p className="text-sm text-muted-foreground">{t('content.limitMb', { maxMB })}</p>
         <Button
           type="button"
           variant="outline"
@@ -132,7 +134,7 @@ export function FileUploader({
           onClick={() => inputRef.current?.click()}
         >
           <UploadCloud className="mr-2 h-4 w-4" />
-          {isUploading ? "上传中..." : "选择文件"}
+          {isUploading ? t('content.uploading') : t('content.selectFile')}
         </Button>
       </div>
 
@@ -154,7 +156,7 @@ export function FileUploader({
           <div className="h-1.5 w-full rounded bg-muted">
             <div className="h-1.5 rounded bg-primary" style={{ width: `${progress}%` }} />
           </div>
-          <p className="text-xs text-muted-foreground">上传进度 {progress}%</p>
+          <p className="text-xs text-muted-foreground">{t('content.uploadProgress', { progress })}</p>
         </div>
       ) : null}
     </div>

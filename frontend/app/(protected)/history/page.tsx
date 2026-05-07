@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Clock, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, ApiRequestError } from "@/lib/api";
@@ -25,28 +26,8 @@ interface HistoryGroup {
   records: HistoryRecord[];
 }
 
-function groupByDate(records: HistoryRecord[]): HistoryGroup[] {
-  const now = new Date();
-  const todayStr = now.toDateString();
-  const yesterdayStr = new Date(now.getTime() - 86400000).toDateString();
-
-  const groups: Record<string, HistoryRecord[]> = {};
-  for (const record of records) {
-    const d = new Date(record.viewed_at);
-    const ds = d.toDateString();
-    let label = ds;
-    if (ds === todayStr) label = "今天";
-    else if (ds === yesterdayStr) label = "昨天";
-    else label = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
-
-    if (!groups[label]) groups[label] = [];
-    groups[label].push(record);
-  }
-
-  return Object.entries(groups).map(([label, records]) => ({ label, records }));
-}
-
 export default function HistoryPage() {
+  const t = useTranslations();
   const router = useRouter();
   const [groups, setGroups] = useState<HistoryGroup[]>([]);
   const [total, setTotal] = useState(0);
@@ -54,6 +35,27 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [confirmClear, setConfirmClear] = useState(false);
   const [clearing, setClearing] = useState(false);
+
+  const groupByDate = useCallback((records: HistoryRecord[]): HistoryGroup[] => {
+    const now = new Date();
+    const todayStr = now.toDateString();
+    const yesterdayStr = new Date(now.getTime() - 86400000).toDateString();
+
+    const groups: Record<string, HistoryRecord[]> = {};
+    for (const record of records) {
+      const d = new Date(record.viewed_at);
+      const ds = d.toDateString();
+      let label = ds;
+      if (ds === todayStr) label = t('history.today');
+      else if (ds === yesterdayStr) label = t('history.yesterday');
+      else label = t('history.date', { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() });
+
+      if (!groups[label]) groups[label] = [];
+      groups[label].push(record);
+    }
+
+    return Object.entries(groups).map(([label, records]) => ({ label, records }));
+  }, [t]);
 
   const load = useCallback(
     async (p: number) => {
@@ -82,7 +84,7 @@ export default function HistoryPage() {
         setLoading(false);
       }
     },
-    [router]
+    [router, groupByDate]
   );
 
   useEffect(() => {
@@ -108,7 +110,7 @@ export default function HistoryPage() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <Clock className="w-5 h-5 text-muted-foreground" />
-          <h1 className="text-2xl font-semibold">浏览历史</h1>
+          <h1 className="text-2xl font-semibold">{t('history.title')}</h1>
           {total > 0 && (
             <span className="text-sm text-muted-foreground ml-1">({total})</span>
           )}
@@ -121,7 +123,7 @@ export default function HistoryPage() {
             className="text-destructive hover:text-destructive"
           >
             <Trash2 className="w-4 h-4 mr-1" />
-            清除全部
+            {t('history.clearAll')}
           </Button>
         )}
       </div>
@@ -145,7 +147,7 @@ export default function HistoryPage() {
       ) : groups.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-3">
           <Clock className="w-12 h-12 opacity-30" />
-          <p className="text-lg">暂无浏览记录</p>
+          <p className="text-lg">{t('history.noHistory')}</p>
         </div>
       ) : (
         <div className="space-y-8">
@@ -174,13 +176,13 @@ export default function HistoryPage() {
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-muted-foreground/50 text-xs">
-                          {record.content_item?.content_type ?? "内容"}
+                          {record.content_item?.content_type ?? t('history.contentTab')}
                         </div>
                       )}
                     </div>
                     <div className="p-2">
                       <p className="text-xs font-medium line-clamp-2 leading-tight">
-                        {record.content_item?.title ?? "未知内容"}
+                        {record.content_item?.title ?? t('history.unknownContent')}
                       </p>
                     </div>
                   </div>
@@ -197,7 +199,7 @@ export default function HistoryPage() {
                 onClick={() => setPage((p) => p + 1)}
                 disabled={loading}
               >
-                {loading ? "加载中..." : "加载更多"}
+                {loading ? t('common.loading') : t('history.loadMore')}
               </Button>
             </div>
           )}
@@ -207,9 +209,9 @@ export default function HistoryPage() {
       {confirmClear && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-background rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl border border-border">
-            <h3 className="text-lg font-semibold mb-2">确认清除历史</h3>
+            <h3 className="text-lg font-semibold mb-2">{t('history.confirmClear')}</h3>
             <p className="text-sm text-muted-foreground mb-5">
-              将清除全部浏览历史记录，此操作不可撤销。
+              {t('history.confirmClearMsg')}
             </p>
             <div className="flex gap-3 justify-end">
               <Button
@@ -218,7 +220,7 @@ export default function HistoryPage() {
                 onClick={() => setConfirmClear(false)}
                 disabled={clearing}
               >
-                取消
+                {t('common.cancel')}
               </Button>
               <Button
                 variant="destructive"
@@ -226,7 +228,7 @@ export default function HistoryPage() {
                 onClick={handleClear}
                 disabled={clearing}
               >
-                {clearing ? "清除中..." : "确认清除"}
+                {clearing ? t('history.clearing') : t('common.confirm')}
               </Button>
             </div>
           </div>
