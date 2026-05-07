@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { HomePageClient } from "@/components/home/HomePageClient";
 import { ContentCardData } from "@/components/content/ContentCard";
 import { normalizeContentList } from "@/lib/content";
@@ -54,6 +55,22 @@ async function fetchContents(apiBase: string): Promise<ContentCardData[]> {
     return [];
   }
 }
+
+export const metadata: Metadata = {
+  title: "OmniCraft 万象工坊 — 全民创意分享平台",
+  description: "二创区、原创区 — 发现、分享、共创你的热爱。Mod 下载与部署、乐谱分享、AI 辅助创作。",
+  openGraph: {
+    title: "OmniCraft 万象工坊 — 全民创意分享平台",
+    description: "发现、分享、共创你的热爱。",
+    images: [{ url: `${process.env.NEXT_PUBLIC_SITE_URL || "https://omnicraft.com"}/og-default.png`, width: 1200, height: 630 }],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "OmniCraft 万象工坊",
+    description: "发现、分享、共创你的热爱。",
+  },
+};
 
 export default async function HomePage() {
   const apiBase = getApiBase();

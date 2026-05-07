@@ -1,7 +1,28 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
-## [2026-05-07] - Task 36: Web 前端 — 响应式设计/移动端适配
+## [2026-05-07] - Task 37: Web 前端 — SEO 优化与 Open Graph
+
+### What was done:
+- 新建 `app/robots.ts`：允许爬虫访问公开页面，禁止 `/admin/`、`/api/`、`/dashboard/` 等受保护路径，指定 sitemap 地址
+- 新建 `app/sitemap.ts`：动态生成 sitemap.xml，从后端 API 拉取已发布原创内容、二创内容、IP 页面，包含 URL/lastModified/changeFrequency/priority
+- 为 4 个公开页面添加 `generateMetadata`（Open Graph + Twitter Card）：
+  - `app/(public)/page.tsx`：首页静态 metadata（title/description/og:image）
+  - `app/(public)/content/[contentId]/page.tsx`：二创详情页动态 metadata（标题/描述/封面图）
+  - `app/(public)/original/[contentId]/page.tsx`：原创详情页动态 metadata
+  - `app/(public)/ip/[ipId]/page.tsx`：IP 详情页动态 metadata
+
+### Testing:
+- `npm run build`：✅ Turbopack 编译成功，robots.txt + sitemap.xml 静态生成
+- `npx tsc --noEmit`：✅ 零错误
+- `go build ./...` / `go vet ./...`：✅ 通过
+
+### Notes:
+- OG 回退图 `og-default.png` 需部署时放置在 public/ 目录或 CDN
+- sitemap 默认拉取每种类型最多 1000 条，IP 最多 500 条
+- 后端不可用时 sitemap 静默跳过对应区块（catch 为空），不影响构建
+
+---
 
 ### What was done:
 - `components/layout/Header.tsx`：新增移动端搜索切换按钮（点击搜索图标展开搜索栏，autoFocus），搜索栏在移动端以可折叠行显示

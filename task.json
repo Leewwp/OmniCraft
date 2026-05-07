@@ -744,7 +744,7 @@
         "实现 robots.txt（允许爬虫访问公开页面，禁止 /admin、/api）",
         "验证：首页/IP 详情/内容详情的 og:title 和 og:image 正确设置，sitemap 可访问"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 38,
