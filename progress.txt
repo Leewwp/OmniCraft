@@ -1,6 +1,27 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
+## [2026-05-07] - Task 59: 前端 Agent 组件集成
+
+### What was done:
+- 创建 `components/agent/AgentChatWidget.tsx`：右下角悬浮聊天按钮，点击展开对话窗口（480x380px），调用 POST /agent/chat/stream（SSE），useSSE hook 流式接收，消息气泡（用户/助手样式），Enter 发送，未登录不渲染
+- 创建 `components/agent/ComplianceCheckBadge.tsx`：发布前合规检查徽章，调用 POST /agent/compliance-check，返回 safe（绿色 ShieldCheck）/ warning（黄色 Shield）/ violation（红色 ShieldAlert）三种状态，点击展开详情 Popover（原因 + 建议列表）
+- 创建 `components/agent/UploadAssistPanel.tsx`：AI 上传辅助面板，调用 POST /agent/upload-assist（传入 file_keys），返回 suggested_title/description/tags/category，一键填充按钮（onFill 回调），加载中 spinner
+- 创建 `components/agent/UsageGuidePanel.tsx`：内容详情页折叠卡片，懒加载（首次展开时调用 GET /agent/usage-guide/:id?stream=true），useSSE 流式渲染 Markdown，折叠/展开 Chevron 动画
+- 创建 `components/agent/SearchAgentInput.tsx`：AI/关键词双模式搜索输入框，AI 模式调用 POST /agent/search（语义搜索），关键词模式降级为普通搜索，Sparkles 图标区分 AI 模式，AbortController 取消请求
+- messages/zh.json + en.json 新增 `agent.*` 命名空间（20 个翻译键：chatTitle/chatPlaceholder/analyze/uploadAssistTitle/complianceCheck/usageGuideTitle/searchAgentPlaceholder 等）
+
+### Testing:
+- `npx -p typescript tsc --noEmit`：零类型错误
+- `npm run build`：Turbopack 编译成功，所有路由正确注册
+- `go build ./...` + `go vet ./...`：零错误零警告
+
+### Notes:
+- 组件已创建但尚未完全集成到各页面中（AgentChatWidget 需放入 layout.tsx，ComplianceCheckBadge/UploadAssistPanel 需放入 publish，UsageGuidePanel 需放入 ContentDetail，SearchAgentInput 需放入 /search）
+- useSSE.ts 已在 Task 57 中实现，本任务直接复用
+- 所有 Agent API 端点由 Task 54-58 提供，前端仅实现 UI 调用
+
+---
 ## [2026-05-07] - Task 51: 乐谱 Viewer（OSMD + MIDI 播放器）
 
 ### What was done:
