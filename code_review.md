@@ -5,7 +5,7 @@
 | Task IDs | Title / Batch | Status | Last Reviewed At | Base SHA | Head SHA | Notes |
 |---|---|---|---|---|---|---|
 | 0 | Review baseline and metadata | Complete | 2026-05-07 12:39 +08:00 | a384a51fc280da80bd3caf3fa561be2826295639 | a384a51fc280da80bd3caf3fa561be2826295639 | Established review log and task coverage policy. |
-| 1,2,3,4,5,43,52,63,75 | Backend foundation, config, database, deployment | Issues Found | 2026-05-07 12:49 +08:00 | a384a51fc280da80bd3caf3fa561be2826295639 | a384a51fc280da80bd3caf3fa561be2826295639 | Backend checks and migrations pass; deployment is blocked by frontend Docker build issues. |
+| 1,2,3,4,5,43,52,63,75 | Backend foundation, config, database, deployment | Pass with Follow-up | 2026-05-07 20:32 +08:00 | a384a51fc280da80bd3caf3fa561be2826295639 | a384a51fc280da80bd3caf3fa561be2826295639 | Frontend Docker build chain fixed and verified; remaining deployment follow-ups are nginx TLS/cert wiring, npm audit registry, and security hardening. |
 | 6,7,8,9,10,17,18,19,44,45,53,54,55,56,57,58,60,61,65,66,67,68,69,78,79,80,81,82 | Backend APIs, auth, moderation, admin, Agent | Not Started | - | - | - | Planned Batch 2. Task 40 remains pending and is excluded from completed-work review. |
 | 11,12,13,14,15,16,24,27,28,85,86 | Content, versioning, PR, social, cross-stack content flows | Not Started | - | - | - | Planned Batch 3. |
 | 20,21,22,23,25,26,29,30,31,32,70,71 | Completed frontend public, protected, admin, messaging pages | Not Started | - | - | - | Planned Batch 4. Requires browser verification. |
@@ -83,3 +83,58 @@
 - Add `output: "standalone"` to `frontend/next.config.ts` or change `frontend/Dockerfile` to use a non-standalone production strategy.
 - Add a frontend `.dockerignore`.
 - Decide whether client API calls should use a same-origin `/api` path through nginx or an explicit public API origin, then wire build-time and runtime env accordingly.
+
+### 2026-05-07 20:32 +08:00 - Batch 1 Rerun: Frontend Docker Build Chain Fix
+
+**Task IDs:** 1, 2, 3, 4, 5, 43, 52, 63, 75
+
+**Reviewer:** Codex using `superpowers:receiving-code-review` and `superpowers:requesting-code-review` process locally
+
+**Base SHA:** `a384a51fc280da80bd3caf3fa561be2826295639`
+
+**Head SHA:** `a384a51fc280da80bd3caf3fa561be2826295639`
+
+**Scope:** frontend Docker build chain, frontend lockfile/install behavior, standalone output, Docker context, Docker Compose frontend build args, backend and migration regression checks.
+
+**Changes Applied:**
+- Added `frontend/.dockerignore` to exclude `node_modules`, `.next`, build outputs, logs, local env files, and git metadata from Docker context.
+- Added `output: 'standalone'` to `frontend/next.config.ts`.
+- Changed `frontend/Dockerfile` default `NEXT_PUBLIC_API_URL` build arg to an empty string for same-origin nginx `/api` deployments.
+- Changed `frontend/lib/api.ts` from `||` to `??` so an intentionally empty `NEXT_PUBLIC_API_URL` remains same-origin instead of falling back to `http://localhost:8080`.
+- Added frontend Compose build arg `NEXT_PUBLIC_API_URL: ""` and matching runtime environment.
+- Added `@swc/helpers@^0.5.21` as a frontend dev dependency so Docker `npm ci` satisfies the optional peer required by the `next-intl` SWC toolchain.
+
+**Verification:**
+- `cd frontend; npm install --ignore-scripts` completed and restored missing local npm binaries.
+- `cd frontend; npm run lint` passed.
+- `cd frontend; npm run build` passed and produced `.next/standalone`.
+- `docker build -t omnicraft-frontend-review-check ./frontend` passed. Build context dropped from about 1.48 GB before the fix to about 329 KB on the uncached verified build.
+- `docker compose build frontend` passed.
+- `cd backend; go test ./...` passed.
+- `cd backend; go vet ./...` passed.
+- `cd backend; go build ./...` passed.
+- `docker build -t omnicraft-backend-review-check ./backend` passed.
+- Fresh PostgreSQL initdb with `pgvector/pgvector:pg16` and mounted `backend/migrations` completed successfully through migration 036.
+- `docker compose config` parsed successfully with no obsolete `version` warning after removing the top-level Compose version key.
+
+**Result:** Pass with Follow-up. The original frontend Docker build blockers are fixed and verified. Full deployment still has follow-up issues outside the frontend Docker build chain.
+
+**Resolved Findings:**
+- Resolved: stale lockfile blocked frontend `npm ci`.
+- Resolved: Dockerfile expected `.next/standalone` without Next standalone output.
+- Resolved: frontend Docker context was too large.
+- Resolved: `NEXT_PUBLIC_API_URL` is now provided at build time and supports same-origin `/api` when intentionally empty.
+
+**Remaining Issues / Optimization Points:**
+- Important: current `nginx/nginx.conf` references Let's Encrypt certificate paths under `/etc/letsencrypt/live/omnicraft.example.com`, but `docker-compose.yml` does not mount those cert files. `nginx -t` with frontend/backend host aliases fails because the certificate files are absent. Either add certbot/cert volume wiring or provide a dev HTTP-only nginx config/profile.
+- Important: `docker compose config` expands local `.env` values into command output. `.env` is gitignored, but operators should avoid pasting this command output into logs because it includes local secrets.
+- Important: `npm audit --audit-level=moderate` could not run against the configured `npmmirror` registry because the audit endpoint returns `[NOT_IMPLEMENTED]`. Re-run audit against a registry that supports npm security advisory endpoints before release.
+- Minor: nginx logs `listen ... http2` as deprecated; use the newer `http2` directive form.
+- Minor: Next build warns that the `middleware` file convention is deprecated and should move to `proxy`.
+- Minor: `npm install` on Windows reported cleanup warnings for locked native modules under `node_modules`; this did not affect Git-tracked files or verification, but a clean install may require stopping processes that hold those files.
+- Minor: the lockfile changed broadly while adding the missing SWC helper peer. Review dependency drift before committing if strict dependency minimalism is required.
+
+**Follow-up:**
+- Decide whether to split nginx into dev/prod configs or add certbot volume support in Compose.
+- Run `npm audit` with a supported registry.
+- Consider pinning broader frontend dependency ranges if future lockfile churn is undesirable.
