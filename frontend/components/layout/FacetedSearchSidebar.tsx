@@ -1,0 +1,669 @@
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  ChevronDown,
+  ChevronUp,
+  X,
+  Bookmark,
+  FolderOpen,
+  SlidersHorizontal,
+  Save,
+  Loader2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TagBadge } from "@/components/ui/TagBadge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/components/ui/Toast";
+import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
+
+// ── Types ──────────────────────────────────────────────
+
+interface FacetedTag {
+  name: string;
+  count: number;
+}
+
+interface CategoryNode {
+  id: number;
+  name: string;
+  slug?: string;
+  zone?: string;
+  level?: number;
+}
+
+interface TagGroup {
+  id: number;
+  name: string;
+  tags: string[];
+}
+
+interface SavedSearch {
+  id: number;
+  name: string;
+  config: FilterConfig;
+}
+
+export interface FilterConfig {
+  category?: string;
+  selected_tags?: string[];
+  content_types?: string[];
+  time_range?: string;
+  sort?: string;
+}
+
+export interface FacetedSearchSidebarProps {
+  className?: string;
+  onFilterChange?: (config: FilterConfig) => void;
+  data?: unknown;
+  isLoading?: boolean;
+  disabled?: boolean;
+  onAction?: (payload: unknown) => void;
+}
+
+const CONTENT_TYPE_OPTIONS = [
+  { key: "image", label: "图片" },
+  { key: "video", label: "视频" },
+  { key: "audio", label: "音频" },
+  { key: "text", label: "文字" },
+  { key: "model", label: "模型与设计" },
+  { key: "template", label: "效率模板" },
+  { key: "other", label: "其他" },
+];
+
+const TIME_RANGE_OPTIONS = [
+  { key: "", label: "不限时间" },
+  { key: "today", label: "今天" },
+  { key: "week", label: "本周" },
+  { key: "month", label: "本月" },
+  { key: "year", label: "今年" },
+];
+
+const SORT_OPTIONS = [
+  { key: "", label: "默认排序" },
+  { key: "hot", label: "热门" },
+  { key: "newest", label: "最新" },
+  { key: "most_liked", label: "最多赞" },
+  { key: "most_viewed", label: "最多浏览" },
+];
+
+const DEFAULT_CATEGORIES: CategoryNode[] = [
+  { id: 0, name: "推荐" },
+  { id: 1, name: "影视" },
+  { id: 2, name: "游戏" },
+  { id: 3, name: "文学" },
+  { id: 4, name: "宠物" },
+  { id: 5, name: "美食" },
+  { id: 6, name: "美妆穿搭" },
+  { id: 7, name: "家居" },
+  { id: 8, name: "数码科技" },
+  { id: 9, name: "旅行" },
+  { id: 10, name: "运动" },
+  { id: 11, name: "效率" },
+];
+
+// ── Component ──────────────────────────────────────────
+
+export function FacetedSearchSidebar({
+  className,
+  onFilterChange,
+  data: _data,
+  isLoading: _isLoading,
+  disabled: _disabled,
+  onAction: _onAction,
+}: FacetedSearchSidebarProps) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const [categories] = useState<CategoryNode[]>(DEFAULT_CATEGORIES);
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [availableTags, setAvailableTags] = useState<FacetedTag[]>([]);
+  const [tagsLoading, setTagsLoading] = useState(false);
+
+  const [contentTypes, setContentTypes] = useState<string[]>([]);
+  const [timeRange, setTimeRange] = useState<string>("");
+  const [sort, setSort] = useState<string>("");
+
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const [tagGroups, setTagGroups] = useState<TagGroup[]>([]);
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
+  const [groupsLoaded, setGroupsLoaded] = useState(false);
+
+  const abortRef = useRef<AbortController | null>(null);
+
+  // ── Emit filter changes ────────────────────────────
+
+  const buildConfig = useCallback((): FilterConfig => ({
+    category: selectedCategory || undefined,
+    selected_tags: selectedTags.length > 0 ? [...selectedTags] : undefined,
+    content_types: contentTypes.length > 0 ? [...contentTypes] : undefined,
+    time_range: timeRange || undefined,
+    sort: sort || undefined,
+  }), [selectedCategory, selectedTags, contentTypes, timeRange, sort]);
+
+  const prevConfigRef = useRef<string>("");
+
+  useEffect(() => {
+    const config = buildConfig();
+    const key = JSON.stringify(config);
+    if (key !== prevConfigRef.current) {
+      prevConfigRef.current = key;
+      onFilterChange?.(config);
+    }
+  }, [buildConfig, onFilterChange]);
+
+  // ── Fetch faceted tags ─────────────────────────────
+
+  const fetchTags = useCallback(async () => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setTagsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (selectedCategory) params.set("category", selectedCategory);
+      selectedTags.forEach((t) => params.append("selected_tags[]", t));
+      params.set("_t", Date.now().toString());
+
+      const data = await api.get<{ tags?: FacetedTag[] }>(
+        `/api/v1/tags/faceted?${params.toString()}`,
+      );
+      if (!controller.signal.aborted) {
+        setAvailableTags(data.tags ?? []);
+      }
+    } catch {
+      if (!controller.signal.aborted) {
+        setAvailableTags([]);
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setTagsLoading(false);
+      }
+    }
+  }, [selectedCategory, selectedTags]);
+
+  useEffect(() => {
+    fetchTags();
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, [fetchTags]);
+
+  // ── Fetch tag groups & saved searches ──────────────
+
+  useEffect(() => {
+    if (!user) {
+      setTagGroups([]);
+      setSavedSearches([]);
+      setGroupsLoaded(true);
+      return;
+    }
+
+    let cancelled = false;
+    async function load() {
+      try {
+        const [groupsRes, searchesRes] = await Promise.all([
+          api.get<{ tag_groups?: TagGroup[] }>("/api/v1/users/me/tag-groups"),
+          api.get<{ saved_searches?: SavedSearch[] }>("/api/v1/users/me/saved-searches"),
+        ]);
+        if (!cancelled) {
+          setTagGroups(groupsRes.tag_groups ?? []);
+          setSavedSearches(searchesRes.saved_searches ?? []);
+        }
+      } catch {
+        if (!cancelled) {
+          setTagGroups([]);
+          setSavedSearches([]);
+        }
+      } finally {
+        if (!cancelled) setGroupsLoaded(true);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // ── Handlers ───────────────────────────────────────
+
+  function handleCategorySelect(cat: string) {
+    const next = selectedCategory === cat ? "" : cat;
+    setSelectedCategory(next);
+    setSelectedTags([]);
+    setAvailableTags([]);
+  }
+
+  function handleTagToggle(tag: string) {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+    );
+  }
+
+  function handleRemoveTag(tag: string) {
+    setSelectedTags((prev) => prev.filter((t) => t !== tag));
+  }
+
+  function handleClearTags() {
+    setSelectedTags([]);
+  }
+
+  function handleContentTypeToggle(ct: string) {
+    setContentTypes((prev) =>
+      prev.includes(ct) ? prev.filter((t) => t !== ct) : [...prev, ct],
+    );
+  }
+
+  function handleApplyTagGroup(group: TagGroup) {
+    setSelectedTags([...group.tags]);
+    toast("success", `已应用标签组「${group.name}」`);
+  }
+
+  async function handleSaveSearch() {
+    if (!saveName.trim()) return;
+    setSaving(true);
+    try {
+      await api.post("/api/v1/users/me/saved-searches", {
+        name: saveName.trim(),
+        config: buildConfig(),
+      });
+      toast("success", "搜索已保存");
+      setSaveModalOpen(false);
+      setSaveName("");
+      const searchesRes = await api.get<{ saved_searches?: SavedSearch[] }>(
+        "/api/v1/users/me/saved-searches",
+      );
+      setSavedSearches(searchesRes.saved_searches ?? []);
+    } catch {
+      toast("error", "保存失败，请重试");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleApplySavedSearch(search: SavedSearch) {
+    if (search.config.category) setSelectedCategory(search.config.category);
+    if (search.config.selected_tags) setSelectedTags(search.config.selected_tags);
+    if (search.config.content_types) setContentTypes(search.config.content_types);
+    if (search.config.time_range) setTimeRange(search.config.time_range);
+    if (search.config.sort) setSort(search.config.sort);
+    toast("success", `已加载搜索「${search.name}」`);
+  }
+
+  // ── Derived ────────────────────────────────────────
+
+  const tagColorCycle = ["blue", "green", "purple", "orange"] as const;
+
+  // ── Render ─────────────────────────────────────────
+
+  return (
+    <aside
+      className={cn(
+        "flex flex-col border border-border rounded-md bg-card p-4 gap-4",
+        "w-full lg:w-[260px] shrink-0",
+        "shadow-none",
+        className,
+      )}
+    >
+      {/* Category tabs */}
+      <div className="flex flex-col gap-2">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          大类
+        </span>
+        <div className="flex flex-wrap gap-1.5">
+          {categories.map((cat) => {
+            const active = selectedCategory === cat.name;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => handleCategorySelect(cat.name)}
+                className={cn(
+                  "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium transition-colors duration-150",
+                  "focus:outline-none focus:ring-2 focus:ring-ring",
+                  active
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-transparent bg-muted text-muted-foreground hover:border-border hover:text-foreground",
+                )}
+              >
+                {cat.name}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Selected tags chips */}
+      {selectedTags.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              已选标签
+            </span>
+            <button
+              type="button"
+              onClick={handleClearTags}
+              className="text-xs text-primary hover:underline"
+            >
+              全部清除
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {selectedTags.map((tag, i) => (
+              <TagBadge
+                key={tag}
+                color={tagColorCycle[i % tagColorCycle.length]}
+                onRemove={() => handleRemoveTag(tag)}
+              >
+                {tag}
+              </TagBadge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Available tags */}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          标签
+        </span>
+        {tagsLoading ? (
+          <div className="space-y-1.5">
+            <Skeleton className="h-6 w-full" />
+            <Skeleton className="h-6 w-3/4" />
+            <Skeleton className="h-6 w-5/6" />
+            <Skeleton className="h-6 w-2/3" />
+          </div>
+        ) : availableTags.length === 0 ? (
+          <p className="text-xs text-muted-foreground/70 py-1">
+            {selectedCategory ? "该大类暂无标签" : "请先选择大类"}
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-1 max-h-[300px] overflow-y-auto">
+            {availableTags.map((tag) => {
+              const isSelected = selectedTags.includes(tag.name);
+              return (
+                <button
+                  key={tag.name}
+                  type="button"
+                  onClick={() => handleTagToggle(tag.name)}
+                  disabled={isSelected}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs transition-colors duration-150",
+                    "focus:outline-none focus:ring-2 focus:ring-ring",
+                    isSelected
+                      ? "border-primary bg-primary/10 text-primary cursor-default"
+                      : "border-transparent bg-muted text-muted-foreground hover:border-border hover:text-foreground cursor-pointer",
+                  )}
+                >
+                  {tag.name}
+                  <span className="tabular-nums text-[10px] text-muted-foreground/70">
+                    {tag.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Advanced section */}
+      <div className="border-t border-border pt-2">
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen(!advancedOpen)}
+          className="flex w-full items-center justify-between text-xs font-medium text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            高级筛选
+          </span>
+          {advancedOpen ? (
+            <ChevronUp className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5" />
+          )}
+        </button>
+
+        <div
+          className={cn(
+            "grid transition-all duration-300 ease-in-out",
+            advancedOpen ? "grid-rows-[1fr] opacity-100 mt-3" : "grid-rows-[0fr] opacity-0",
+          )}
+        >
+          <div className="overflow-hidden">
+            <div className="flex flex-col gap-3">
+              {/* Content type multi-select */}
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">内容类型</span>
+                <div className="flex flex-wrap gap-1">
+                  {CONTENT_TYPE_OPTIONS.map((opt) => {
+                    const active = contentTypes.includes(opt.key);
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => handleContentTypeToggle(opt.key)}
+                        className={cn(
+                          "inline-flex items-center rounded-md border px-2 py-0.5 text-xs transition-colors duration-150",
+                          "focus:outline-none focus:ring-2 focus:ring-ring",
+                          active
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-transparent text-muted-foreground hover:border-primary hover:text-foreground",
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Time range */}
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-muted-foreground">时间范围</span>
+                <select
+                  value={timeRange}
+                  onChange={(e) => setTimeRange(e.target.value)}
+                  className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {TIME_RANGE_OPTIONS.map((opt) => (
+                    <option key={opt.key} value={opt.key}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sort */}
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-muted-foreground">排序方式</span>
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {SORT_OPTIONS.map((opt) => (
+                    <option key={opt.key} value={opt.key}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Active advanced filters summary */}
+      {(contentTypes.length > 0 || timeRange || sort) && (
+        <div className="flex flex-wrap gap-1 text-xs text-muted-foreground/70">
+          {contentTypes.map((ct) => (
+            <span key={ct} className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
+              {CONTENT_TYPE_OPTIONS.find((o) => o.key === ct)?.label ?? ct}
+              <button
+                type="button"
+                onClick={() => handleContentTypeToggle(ct)}
+                className="hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+          {timeRange && (
+            <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
+              {TIME_RANGE_OPTIONS.find((o) => o.key === timeRange)?.label ?? timeRange}
+              <button
+                type="button"
+                onClick={() => setTimeRange("")}
+                className="hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          )}
+          {sort && (
+            <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
+              {SORT_OPTIONS.find((o) => o.key === sort)?.label ?? sort}
+              <button
+                type="button"
+                onClick={() => setSort("")}
+                className="hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Save search button */}
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full text-xs"
+        onClick={() => setSaveModalOpen(true)}
+      >
+        <Save className="mr-1.5 h-3.5 w-3.5" />
+        保存此搜索
+      </Button>
+
+      {/* Saved searches */}
+      {user && savedSearches.length > 0 && (
+        <div className="flex flex-col gap-1.5 border-t border-border pt-2">
+          <span className="text-xs font-medium text-muted-foreground inline-flex items-center gap-1.5">
+            <Bookmark className="h-3.5 w-3.5" />
+            我的搜索
+          </span>
+          <div className="flex flex-col gap-0.5">
+            {savedSearches.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => handleApplySavedSearch(s)}
+                className="text-xs text-left text-muted-foreground hover:text-foreground hover:bg-muted rounded px-2 py-1 transition-colors truncate"
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* My tag groups */}
+      {user && tagGroups.length > 0 && (
+        <div className="flex flex-col gap-1.5 border-t border-border pt-2">
+          <span className="text-xs font-medium text-muted-foreground inline-flex items-center gap-1.5">
+            <FolderOpen className="h-3.5 w-3.5" />
+            我的标签组
+          </span>
+          <div className="flex flex-col gap-1">
+            {tagGroups.map((group) => (
+              <button
+                key={group.id}
+                type="button"
+                onClick={() => handleApplyTagGroup(group)}
+                className="flex items-center justify-between text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded px-2 py-1 transition-colors"
+              >
+                <span className="truncate">{group.name}</span>
+                <span className="text-[10px] text-muted-foreground/70 ml-1 shrink-0">
+                  {group.tags.length}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* My tag groups empty state */}
+      {user && groupsLoaded && tagGroups.length === 0 && (
+        <div className="border-t border-border pt-2">
+          <p className="text-xs text-muted-foreground/70">暂无标签组</p>
+        </div>
+      )}
+
+      {/* Not logged in hint */}
+      {!user && (
+        <div className="border-t border-border pt-2">
+          <p className="text-xs text-muted-foreground/70">
+            登录后可保存搜索和标签组
+          </p>
+        </div>
+      )}
+
+      {/* Save search modal */}
+      {saveModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="w-full max-w-sm rounded-md border border-border bg-card p-4 shadow-md">
+            <h3 className="text-sm font-semibold text-foreground mb-3">保存搜索</h3>
+            <input
+              type="text"
+              value={saveName}
+              onChange={(e) => setSaveName(e.target.value)}
+              placeholder="输入搜索名称"
+              className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring mb-3"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSaveSearch();
+                if (e.key === "Escape") {
+                  setSaveModalOpen(false);
+                  setSaveName("");
+                }
+              }}
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSaveModalOpen(false);
+                  setSaveName("");
+                }}
+              >
+                取消
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSaveSearch}
+                disabled={!saveName.trim() || saving}
+              >
+                {saving && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                保存
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </aside>
+  );
+}
