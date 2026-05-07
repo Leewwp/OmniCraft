@@ -1285,7 +1285,7 @@
         "## Component: EmptyState",
         "## Component: SearchAgentInput"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 63,

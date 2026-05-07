@@ -688,6 +688,13 @@
     "aiSearch": "AI 搜索",
     "keywordSearch": "关键词搜索"
   },
+  "search": {
+    "saveSearch": "保存此搜索",
+    "saveNamePlaceholder": "搜索名称",
+    "noResults": "未找到匹配结果",
+    "noResultsHint": "尝试调整搜索词或移除筛选条件",
+    "startSearch": "输入关键词或自然语言描述开始搜索"
+  },
   "appeals": {
     "title": "我的申诉",
     "subtitle": "对被标记内容提出申诉",
