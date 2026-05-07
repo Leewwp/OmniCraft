@@ -1047,7 +1047,7 @@
         "## Component: SheetMusicViewer",
         "## Component: ContentCard"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 52,
