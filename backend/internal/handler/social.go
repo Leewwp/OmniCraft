@@ -9,6 +9,8 @@ import (
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -17,13 +19,14 @@ type SocialHandler struct {
 	socialSvc *service.SocialService
 }
 
-func NewSocialHandler(db *gorm.DB, cfg *config.Config) *SocialHandler {
+func NewSocialHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *SocialHandler {
 	return &SocialHandler{
-		socialSvc: service.NewSocialService(
+		socialSvc: service.NewSocialServiceWithRedis(
 			repository.NewSocialRepository(db),
 			repository.NewContentRepository(db),
 			repository.NewUserRepository(db),
 			cfg,
+			rdb,
 		),
 	}
 }

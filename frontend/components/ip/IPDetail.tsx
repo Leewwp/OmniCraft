@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { MessageSquareText } from "lucide-react";
 import { IPCategoryTabs } from "@/components/ip/IPCategoryTabs";
 
@@ -18,10 +19,9 @@ export function IPDetail({ ip }: IPDetailProps) {
   return (
     <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
       <div className="flex flex-col gap-4 md:flex-row">
-        <div className="flex h-36 w-full items-center justify-center rounded-md border border-border bg-muted/40 md:w-52">
+        <div className="flex h-36 w-full items-center justify-center rounded-md border border-border bg-muted/40 md:w-52 relative overflow-hidden">
           {ip.cover_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={ip.cover_url} alt={ip.name} className="h-full w-full rounded-md object-cover" />
+            <Image src={ip.cover_url} alt={ip.name} fill className="rounded-md object-cover" sizes="208px" />
           ) : (
             <span className="text-sm text-muted-foreground">IP 封面</span>
           )}

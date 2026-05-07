@@ -30,7 +30,7 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 	reputSvc := service.NewReputationService(db)
 	reviewSvc := service.NewReviewService(db, rdb, cfg, reputSvc)
 	return &ContentHandler{
-		contentSvc:  service.NewContentServiceWithDeps(repo, reviewSvc, rdb),
+		contentSvc:  service.NewContentServiceWithCache(repo, reviewSvc, rdb, &cfg.Cache),
 		contentRepo: repo,
 		ossSvc:      ossSvc,
 		ossInitErr:  ossErr,
@@ -183,6 +183,7 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 	}
 
 	_ = h.contentRepo.IncrViewCount(id)
+	h.contentSvc.IncrViewCount(id)
 
 	attachments, _ := h.contentRepo.GetAttachments(id)
 	tags, _ := h.contentRepo.GetTags(id)

@@ -11,6 +11,8 @@ import (
 	"omnicraft/backend/internal/pkg/database"
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/pkg/scheduler"
+	"omnicraft/backend/internal/repository"
+	"omnicraft/backend/internal/service"
 )
 
 func main() {
@@ -23,6 +25,10 @@ func main() {
 
 	scheduler.NewJudgeQuestionSync(db).Start()
 	scheduler.NewTagUsageSync(db).Start()
+
+	contentRepo := repository.NewContentRepository(db)
+	viewCountSvc := service.NewContentServiceWithCache(contentRepo, nil, rdb, &cfg.Cache)
+	scheduler.NewViewCountSync(viewCountSvc, &cfg.Cache).Start()
 
 	r := gin.New()
 	r.Use(middleware.Logger())

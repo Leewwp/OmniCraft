@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import {
   FileText,
   Image as ImageIcon,
@@ -97,12 +98,13 @@ function CoverImage({ url, contentType, title }: { url?: string; contentType?: s
 
   if (url) {
     return (
-      <div className="overflow-hidden rounded-md border border-border">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+      <div className="overflow-hidden rounded-md border border-border relative aspect-[16/9] max-h-96">
+        <Image
           src={url}
           alt={title}
-          className="max-h-96 w-full object-cover"
+          fill
+          className="object-cover"
+          sizes="(max-width: 768px) 100vw, 800px"
         />
       </div>
     );

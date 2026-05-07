@@ -4,9 +4,12 @@ import (
 	"net/http"
 	"strconv"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
+
+	"github.com/redis/go-redis/v9"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -19,6 +22,12 @@ type IPHandler struct {
 func NewIPHandler(db *gorm.DB) *IPHandler {
 	return &IPHandler{
 		ipSvc: service.NewIPService(repository.NewIPRepository(db)),
+	}
+}
+
+func NewIPHandlerWithCache(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *IPHandler {
+	return &IPHandler{
+		ipSvc: service.NewIPServiceWithCache(repository.NewIPRepository(db), rdb, &cfg.Cache),
 	}
 }
 

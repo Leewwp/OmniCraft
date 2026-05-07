@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -345,7 +346,9 @@ export default function PublishPage() {
         {coverAsset ? (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">已上传封面：{coverAsset.fileName}</p>
-            <img src={coverAsset.ossKey} alt="cover preview" className="h-32 w-24 rounded-md border border-border object-cover" />
+            <div className="relative h-32 w-24">
+              <Image src={coverAsset.ossKey} alt="cover preview" fill className="rounded-md border border-border object-cover" sizes="96px" />
+            </div>
           </div>
         ) : null}
       </section>

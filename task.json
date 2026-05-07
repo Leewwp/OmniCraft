@@ -786,7 +786,7 @@
         "实现内容浏览计数异步化：浏览事件写入 Redis incr，定时批量写回 PostgreSQL",
         "验证：首页 IP 列表响应时间 < 200ms（Redis 缓存命中），高并发下 DB 压力正常"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 40,
