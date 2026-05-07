@@ -58,7 +58,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
     { label: t('home.image'), value: "image" },
     { label: t('home.video'), value: "video" },
     { label: t('home.audio'), value: "audio" },
-    { label: t('home.other'), value: "mod" },
+    { label: t('home.mod'), value: "mod" },
     { label: t('home.aiPrompt'), value: "prompt" },
     { label: t('home.sheetMusic'), value: "sheet_music" },
     { label: t('home.other'), value: "other" },
