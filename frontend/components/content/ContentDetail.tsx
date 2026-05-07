@@ -23,7 +23,8 @@ import { SheetMusicViewer } from "@/components/content/SheetMusicViewer";
 import { ReactionBar } from "@/components/social/ReactionBar";
 import { CommentSection } from "@/components/social/CommentSection";
 import { useAuth } from "@/contexts/AuthContext";
-import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/Toast";
+import { api, ApiRequestError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface Attachment {
@@ -127,8 +128,23 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
   const typeLabel = getTypeLabel(t, contentType);
   const description = data.description || data.body || "";
   const { user } = useAuth();
+  const { toast } = useToast();
   const [favorited, setFavorited] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
+  const [tagSuggestionBusy, setTagSuggestionBusy] = useState<string | null>(null);
+
+  async function handleTagSuggestion(tag: string, action: "add" | "remove") {
+    if (!user) return;
+    setTagSuggestionBusy(`${tag}:${action}`);
+    try {
+      await api.post(`/api/v1/contents/${data.id}/tags/suggest`, { tag, action });
+      toast("success", t("content.tagSuggestionSubmitted"));
+    } catch (e) {
+      toast("error", e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+    } finally {
+      setTagSuggestionBusy(null);
+    }
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -255,9 +271,31 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
       {data.tags && data.tags.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {data.tags.map((tag) => (
-            <Badge key={tag} variant="secondary">
-              {tag}
-            </Badge>
+            <span key={tag} className="group relative inline-flex items-center">
+              <Badge variant="secondary">{tag}</Badge>
+              <span className="ml-0.5 hidden items-center gap-0 group-hover:flex">
+                <button
+                  type="button"
+                  className="inline-flex h-4 w-4 items-center justify-center rounded text-[10px] font-bold text-emerald-600 hover:bg-emerald-100 transition-colors"
+                  onClick={() => handleTagSuggestion(tag, "add")}
+                  disabled={tagSuggestionBusy === `${tag}:add`}
+                  aria-label={t("content.suggestAddTag", { tag })}
+                  title={t("content.suggestAddTagHint")}
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex h-4 w-4 items-center justify-center rounded text-[10px] font-bold text-red-500 hover:bg-red-100 transition-colors"
+                  onClick={() => handleTagSuggestion(tag, "remove")}
+                  disabled={tagSuggestionBusy === `${tag}:remove`}
+                  aria-label={t("content.suggestRemoveTag", { tag })}
+                  title={t("content.suggestRemoveTagHint")}
+                >
+                  −
+                </button>
+              </span>
+            </span>
           ))}
         </div>
       )}

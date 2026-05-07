@@ -1022,7 +1022,7 @@
         "## Page: /dashboard/tag-suggestions 标签建议审核",
         "## Component: FacetedSearchSidebar"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 51,
