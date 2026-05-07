@@ -1506,7 +1506,7 @@
         "## Component: CourseContent",
         "## Component: ReputationDetail"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 73,

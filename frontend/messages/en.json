@@ -690,6 +690,18 @@
     "noResultsHint": "Try adjusting your search terms or removing filters",
     "startSearch": "Enter keywords or a natural language query to start searching"
   },
+  "rehab": {
+    "title": "Rehabilitation Courses",
+    "subtitle": "Restore your reputation by completing courses. Each course can only be completed once.",
+    "noCourses": "No courses available",
+    "minReading": "Minimum {sec}s reading",
+    "rewardPoints": "+{pts} reputation",
+    "startLearning": "Start Learning",
+    "pleaseRead": "Please read first",
+    "readingProgress": "Read {elapsed} / {required}s",
+    "complete": "Complete",
+    "completed": "Completed"
+  },
   "appeals": {
     "title": "My Appeals",
     "subtitle": "Submit appeals for flagged content",

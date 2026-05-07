@@ -1,6 +1,38 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
+## [2026-05-07] - Task 64: Web 前端 — 原创区两级导航
+
+### What was done:
+- 重构 `app/(public)/original/page.tsx`：二级分类从硬编码改为动态从 GET /categories API 获取
+- 主/次分类标签均使用 i18n 翻译键
+- API 不可用时使用预定义硬编码降级
+- "推荐"Tab 默认使用 `sort=recommended`
+
+### Testing:
+- `tsc --noEmit` 零错误
+- `npm run build` 成功，/original 路由正常
+
+---
+## [2026-05-07] - Task 72: Web 前端 — 素质建设课程页面
+
+### What was done:
+- 创建 `app/(protected)/rehab/page.tsx`：课程列表页（单文件组件，含课程卡片 + 开始学习 + 倒计时 + 完成学习全流程）
+- 课程列表：展示违规类型标题、最低阅读时间、奖励分值、已完成/未完成状态
+- 开始学习：POST /rehab/courses/:id/start → 启动 useState 计时器（useRef 管理 interval）
+- 完成学习：倒计时 ≥ min_reading_sec 后按钮激活 → POST /rehab/courses/:id/complete → 刷新课程列表
+- 已完成课程显示绿色 Check 标签
+- messages 新增 `rehab.*` 命名空间（zh/en 各 10 个键）
+
+### Testing:
+- `npx -p typescript tsc --noEmit`：零类型错误
+- `npm run build`：编译成功，/rehab 路由注册
+
+### Notes:
+- Task 71（申诉页面）已在之前完成（passes:true），本任务为 Task 72
+- CourseCard/CourseContent/ReputationDetail 子组件未拆分（单文件实现，符合简洁原则）
+
+---
 ## [2026-05-07] - Task 62: Web 前端 — 搜索页
 
 ### What was done:

@@ -695,6 +695,18 @@
     "noResultsHint": "尝试调整搜索词或移除筛选条件",
     "startSearch": "输入关键词或自然语言描述开始搜索"
   },
+  "rehab": {
+    "title": "素质建设课程",
+    "subtitle": "通过学习课程恢复信誉分，每门课程仅可完成一次",
+    "noCourses": "暂无可用课程",
+    "minReading": "最低阅读 {sec} 秒",
+    "rewardPoints": "+{pts} 信誉分",
+    "startLearning": "开始学习",
+    "pleaseRead": "请先阅读",
+    "readingProgress": "已阅读 {elapsed} / {required} 秒",
+    "complete": "完成学习",
+    "completed": "已完成"
+  },
   "appeals": {
     "title": "我的申诉",
     "subtitle": "对被标记内容提出申诉",
