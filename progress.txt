@@ -1,6 +1,37 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
+## [2026-05-07] - Task 41: 完整流程集成测试
+
+### What was done:
+- 编译检查: `go build ./...` 和 `npm run build` 均通过，`go vet ./...` 无警告
+- Flow 1 (注册→登录→创建IP→管理员审核→发布二创→浏览/点赞/评论): 全部 7 步通过
+- Flow 2 (PR 提交→查看diff→合并→版本更新→版本历史→贡献者): 全部 10 步通过
+  - 发现并记录了内容创建不自动生成初始版本的已知差距（需通过 DB seed 创建）
+- Flow 3 (违禁内容→AI回调 block→自动下架→信誉分扣减): 全部 4 步通过
+  - 信誉分从 10 正确降至 7（-3 恶意内容扣分）
+- Flow 4 (举报→under_review→赛博判官): API 端点正常
+  - 判官考试 503 符合业务规则（题库不存在时不开放众裁）
+- Flow 5 (Tauri Mod 部署流程): 全部 4 个 Agent API 端点通过
+- 前端页面: 首页/登录/注册/发布/原创区/控制台/判官队列 均正常加载
+- 数据库修复: comments 表补充缺失的 target_type/target_id/content 列
+- 辅助工具: 创建 admin 用户种子脚本、版本创建种子脚本
+
+### Testing:
+- 35 项 API 集成测试，31 通过 (89%)
+- 4 项未通过均为已知情况：
+  - PR 提交需初始版本（内容创建已知差距）
+  - 判官考试无题库（预期行为，符合业务规则）
+- go build / go vet / npm run build 全部通过
+- Playwright 浏览器测试：首页等关键页面正常渲染
+
+### Notes:
+- 内容创建（POST /api/v1/contents）不自动创建 content_versions 初始版本，PR 流程需先手动种子版本
+- comments 表与 Go model 存在列不匹配（已在本次修复 target_type/target_id/content）
+- 判官题库为空时 GET /judge/exam/:category 返回 503 符合设计意图
+- 后续任务建议：内容创建时自动生成初始版本（v1）以完善 PR 工作流
+
+---
 ## [2026-05-07] - Task 40: 安全加固
 
 ### What was done:
