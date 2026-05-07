@@ -1552,7 +1552,7 @@
         "## Global Design Tokens",
         "## Page: /settings 账号设置"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 75,
