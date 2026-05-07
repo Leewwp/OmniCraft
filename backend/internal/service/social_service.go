@@ -1,11 +1,15 @@
 package service
 
 import (
+	"context"
 	"errors"
+	"fmt"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/repository"
+
+	"github.com/redis/go-redis/v9"
 )
 
 var (
@@ -22,10 +26,15 @@ type SocialService struct {
 	contentRepo *repository.ContentRepository
 	userRepo    *repository.UserRepository
 	cfg         *config.Config
+	rdb         *redis.Client
 }
 
 func NewSocialService(sRepo *repository.SocialRepository, cRepo *repository.ContentRepository, uRepo *repository.UserRepository, cfg *config.Config) *SocialService {
 	return &SocialService{socialRepo: sRepo, contentRepo: cRepo, userRepo: uRepo, cfg: cfg}
+}
+
+func NewSocialServiceWithRedis(sRepo *repository.SocialRepository, cRepo *repository.ContentRepository, uRepo *repository.UserRepository, cfg *config.Config, rdb *redis.Client) *SocialService {
+	return &SocialService{socialRepo: sRepo, contentRepo: cRepo, userRepo: uRepo, cfg: cfg, rdb: rdb}
 }
 
 type PostCommentInput struct {
@@ -137,6 +146,11 @@ func (s *SocialService) React(input ReactInput, userID int64) (string, error) {
 			"like_count":    likes,
 			"dislike_count": dislikes,
 		})
+
+		if s.rdb != nil && input.Reaction == "like" {
+			ctx := context.Background()
+			s.rdb.ZIncrBy(ctx, "rank:hot:contents", 3, fmt.Sprintf("%d", input.TargetID))
+		}
 	}
 
 	return action, nil

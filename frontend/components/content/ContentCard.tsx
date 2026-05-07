@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   Eye,
   Heart,
@@ -118,14 +119,14 @@ export function ContentCard({ data, className }: ContentCardProps) {
         className
       )}
     >
-      <div className="aspect-[3/4] w-full border-b border-border bg-muted/40">
+      <div className="aspect-[3/4] w-full border-b border-border bg-muted/40 relative">
         {coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={coverUrl}
             alt={displayTitle}
-            className="h-full w-full object-cover"
-            loading="lazy"
+            fill
+            className="object-cover"
+            sizes="(max-width: 450px) 100vw, (max-width: 700px) 50vw, (max-width: 1100px) 33vw, 25vw"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-muted-foreground">

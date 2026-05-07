@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Clock, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -164,11 +165,12 @@ export default function HistoryPage() {
                   >
                     <div className="aspect-[3/4] bg-muted relative overflow-hidden">
                       {record.content_item?.cover_image_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
+                        <Image
                           src={record.content_item.cover_image_url}
                           alt={record.content_item.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                          fill
+                          className="object-cover group-hover:scale-105 transition-transform duration-200"
+                          sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-muted-foreground/50 text-xs">

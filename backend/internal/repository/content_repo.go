@@ -147,6 +147,11 @@ func (r *ContentRepository) IncrViewCount(id int64) error {
 		UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error
 }
 
+func (r *ContentRepository) IncrViewCountBy(id int64, delta int64) error {
+	return r.db.Model(&model.ContentItem{}).Where("id = ?", id).
+		UpdateColumn("view_count", gorm.Expr("view_count + ?", delta)).Error
+}
+
 func (r *ContentRepository) CreateAttachments(attachments []model.ContentAttachment) error {
 	if len(attachments) == 0 {
 		return nil

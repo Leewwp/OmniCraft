@@ -25,6 +25,7 @@ type Config struct {
 	Social     SocialConfig     `mapstructure:"social"`
 	Upload     UploadConfig     `mapstructure:"upload"`
 	Agent      AgentConfig      `mapstructure:"agent"`
+	Cache      CacheConfig      `mapstructure:"cache"`
 }
 
 type AgentConfig struct {
@@ -116,6 +117,14 @@ type SocialConfig struct {
 
 type UploadConfig struct {
 	SheetMusicExtensions []string `mapstructure:"sheet_music_extensions"`
+}
+
+type CacheConfig struct {
+	ContentListTTL         int `mapstructure:"content_list_ttl"`
+	ContentDetailTTL       int `mapstructure:"content_detail_ttl"`
+	IPListTTL              int `mapstructure:"ip_list_ttl"`
+	IPDetailTTL            int `mapstructure:"ip_detail_ttl"`
+	ViewCountFlushInterval int `mapstructure:"view_count_flush_interval"`
 }
 
 var Cfg *Config

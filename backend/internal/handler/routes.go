@@ -37,7 +37,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		users.PATCH("/me/support-info", middleware.AuthRequired(cfg), userHandler.UpdateSupportInfo)
 	}
 
-	ipHandler := NewIPHandler(db)
+	ipHandler := NewIPHandlerWithCache(db, rdb, cfg)
 	ips := v1.Group("/ips")
 	{
 		ips.GET("", ipHandler.ListIPs)
@@ -82,7 +82,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		dashboard.DELETE("/contributors/:userId/block", prHandler.UnblockContributor)
 	}
 
-	socialHandler := NewSocialHandler(db, cfg)
+	socialHandler := NewSocialHandler(db, cfg, rdb)
 	social := v1.Group("/social")
 	{
 		social.GET("/comments", socialHandler.ListComments)

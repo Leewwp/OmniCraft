@@ -1,6 +1,33 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
+## [2026-05-07] - Task 39: 性能优化
+
+### What was done:
+- 前端：5 处 `<img>` 标签全部替换为 `next/image`（ContentCard / IPDetail / ContentDetail / publish / history），添加 `remotePatterns` 配置支持 OSS 远程图片，自动 WebP 转换 + 懒加载
+- Go 后端新增缓存配置节 `cache`（content_list_ttl/content_detail_ttl/ip_list_ttl/ip_detail_ttl: 300s，view_count_flush_interval: 60s）
+- `internal/pkg/redis/cache.go`：新增 SetJSON/GetJSON/DeleteByPattern/ListCacheKey 缓存辅助函数
+- `IPService`：添加 Redis 缓存支持（GetIP/ListIPs 缓存，CreateIP/ApproveIP/RejectIP/BanIP 自动 invalidate 缓存）
+- `ContentService`：添加 Redis 缓存支持（GetContent/ListContents 缓存，Publish/Update/Delete 自动 invalidate 缓存）
+- Redis Sorted Set 热门排行：浏览计数 ZINCRBY rank:hot:contents +1，点赞 ZINCRBY rank:hot:contents +3，IP 热度同理；sort=hot 时优先从 Redis 获取
+- 浏览计数异步化：IncrViewCount 不再直接写 DB，改为 Redis INCR 缓冲；新增 ViewCountSync 定时器（默认 60s）批量 GetDel 后写回 PostgreSQL
+- `ContentRepository.IncrViewCountBy`：新增批量增量方法，配合定时刷新
+- SocialService/Handler 注入 Redis 依赖，点赞时同步更新热度排行
+
+### Testing:
+- `go build ./...`：✅ 通过
+- `go vet ./...`：✅ 零警告
+- `npm run build`：✅ Turbopack 编译成功，所有路由正确注册
+- `npx tsc --noEmit`：✅ 零错误
+
+### Notes:
+- 缓存 TTL 全部从 config.yaml 读取（cache.* 节），不硬编码
+- 内容列表缓存 key 基于 filter 参数 MD5 哈希，确保不同查询参数缓存隔离
+- 缓存无效化使用 Redis SCAN + DELETE 模式匹配（非阻塞 KEYS），生产环境可进一步优化为 TAG 机制
+- ViewCountSync 启动时立即执行一次 flush，之后按配置间隔循环
+- next/image 的 sizes 属性根据 MasonryGrid 断点配置（450px/700px/1100px）设置，LCP 优化
+
+---
 ## [2026-05-07] - Task 38: 错误处理与 Loading 状态
 
 ### What was done:
