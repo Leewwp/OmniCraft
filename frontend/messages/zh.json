@@ -737,6 +737,13 @@
     "noReplies": "暂无回复，来发表第一条评论吧",
     "replyPlaceholder": "写下你的回复..."
   },
+  "support": {
+    "title": "支持创作者",
+    "donationImage": "打赏码",
+    "donationImageUrl": "打赏码图片 URL",
+    "externalLinks": "外部链接",
+    "addLink": "添加链接"
+  },
   "appeals": {
     "title": "我的申诉",
     "subtitle": "对被标记内容提出申诉",
