@@ -1334,7 +1334,7 @@
         "## Page: /original 原创区首页",
         "## Component: ContentCard"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 65,
