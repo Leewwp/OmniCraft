@@ -733,6 +733,13 @@
     "noReplies": "No replies yet. Be the first to comment!",
     "replyPlaceholder": "Write your reply..."
   },
+  "support": {
+    "title": "Support Creator",
+    "donationImage": "Donation Image",
+    "donationImageUrl": "Donation Image URL",
+    "externalLinks": "External Links",
+    "addLink": "Add Link"
+  },
   "appeals": {
     "title": "My Appeals",
     "subtitle": "Submit appeals for flagged content",

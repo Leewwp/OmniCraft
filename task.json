@@ -1625,7 +1625,7 @@
         "## Page: /user/[userId] 用户主页",
         "## Component: CreatorSupportPanel"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 78,
