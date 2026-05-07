@@ -1598,7 +1598,7 @@
         "## Component: ReplyList",
         "## Component: EmptyState"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 77,
