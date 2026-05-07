@@ -2,6 +2,9 @@ package service
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -413,4 +416,96 @@ func (s *AgentService) ChatStream(ctx context.Context, messages []llm.ChatMessag
 
 type AIReviewRecord struct {
 	model.AIReviewRecord
+}
+
+type DeployAction struct {
+	Action  string      `json:"action"`
+	Payload interface{} `json:"payload"`
+}
+
+type DeployScript struct {
+	ContentID string         `json:"content_id"`
+	Actions   []DeployAction `json:"actions"`
+}
+
+type SignedDeployScript struct {
+	Script    DeployScript `json:"script"`
+	Signature string       `json:"signature"`
+}
+
+func extFromURL(rawURL string) string {
+	parts := strings.Split(rawURL, ".")
+	if len(parts) > 1 {
+		return parts[len(parts)-1]
+	}
+	return "bin"
+}
+
+func filenameFromOSSKey(key string) string {
+	if idx := strings.LastIndexByte(key, '/'); idx >= 0 {
+		return key[idx+1:]
+	}
+	return key
+}
+
+func isArchiveFile(name string) bool {
+	lower := strings.ToLower(name)
+	return strings.HasSuffix(lower, ".zip") || strings.HasSuffix(lower, ".tar") || strings.HasSuffix(lower, ".tar.gz") || strings.HasSuffix(lower, ".rar") || strings.HasSuffix(lower, ".7z")
+}
+
+func signHMAC(payload []byte, secret string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(payload)
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func (s *AgentService) GenerateDeployScript(ctx context.Context, contentID int64) (*SignedDeployScript, error) {
+	if s.cfg.Agent.HMACSecret == "" {
+		return nil, errors.New("HMAC secret not configured")
+	}
+
+	content, err := s.contentRepo.FindByID(contentID)
+	if err != nil {
+		return nil, fmt.Errorf("content not found: %w", err)
+	}
+
+	var actions []DeployAction
+
+	if content.CoverImageURL != "" {
+		actions = append(actions, DeployAction{
+			Action:  "download_file",
+			Payload: map[string]string{"url": content.CoverImageURL, "dest": "cover." + extFromURL(content.CoverImageURL)},
+		})
+	}
+	attachments, _ := s.contentRepo.GetAttachments(contentID)
+	for _, att := range attachments {
+		fn := filenameFromOSSKey(att.OSSKey)
+		actions = append(actions, DeployAction{
+			Action:  "download_file",
+			Payload: map[string]string{"url": att.OSSKey, "dest": fn},
+		})
+		if isArchiveFile(fn) {
+			actions = append(actions, DeployAction{
+				Action:  "extract_archive",
+				Payload: map[string]string{"path": fn, "dest": "extracted"},
+			})
+		}
+	}
+
+	script := DeployScript{
+		ContentID: fmt.Sprintf("%d", contentID),
+		Actions:   actions,
+	}
+
+	payload, err := json.Marshal(script)
+	if err != nil {
+		return nil, fmt.Errorf("marshal script: %w", err)
+	}
+
+	sig := signHMAC(payload, s.cfg.Agent.HMACSecret)
+
+	return &SignedDeployScript{
+		Script:    script,
+		Signature: sig,
+	}, nil
 }

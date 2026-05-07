@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -153,6 +154,24 @@ func (h *AgentHandler) Moderate(c *gin.Context) {
 	}
 	result, err := h.agentSvc.Moderate(c.Request.Context(), id)
 	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "AGENT_ERROR", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *AgentHandler) GenerateDeployScript(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		return
+	}
+	result, err := h.agentSvc.GenerateDeployScript(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, service.ErrAgentDisabled) {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "AGENT_ERROR", "message": err.Error()})
 		return
 	}

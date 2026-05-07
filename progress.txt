@@ -1,7 +1,37 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
-## [2026-05-07] - Task 34: Tauri PC 客户端 — 白名单动作引擎
+## [2026-05-07] - Task 35: Tauri PC 客户端 — 部署流程 UI
+
+### What was done:
+- Go 后端新增 `POST /api/v1/agent/script/:id`（GET 方法，AuthRequired）：
+  - `config/config.go`：AgentConfig 新增 `HMACSecret` 字段，环境变量 `AGENT_HMAC_SECRET` 覆盖
+  - `internal/service/agent_service.go`：新增 `GenerateDeployScript` 方法，根据内容 ID 生成带签名的部署脚本（DeployScript/DeployAction/SignedDeployScript 数据结构，HMAC-SHA256 签名），包含封面下载 + 附件下载 + 压缩包解压动作；新增 `signHMAC`/`extFromURL`/`filenameFromOSSKey`/`isArchiveFile` 辅助函数
+  - `internal/handler/agent.go`：新增 `GenerateDeployScript` handler（`errors` 包导入）
+  - `internal/handler/routes.go`：注册 `GET /agent/script/:id` 路由
+- Tauri 前端 `src/App.tsx` 重写为完整部署流程 UI：
+  - 五阶段状态机：Idle → Detecting → Confirming → Executing → Done/Error
+  - Phase 1：URL Scheme 参数读取（复用 Task 33 `get_deploy_params`）
+  - Phase 2：调用 `detect_environment` 显示 Steam 路径 + 平台信息
+  - Phase 3：Tauri dialog confirm 安全确认弹窗
+  - Phase 4：调用 Go API 获取签名脚本 → `verify_script_signature` 验签 → 逐步骤执行白名单动作（带进度指示 + 实时状态反馈）
+  - Phase 5：Tauri notification 桌面通知（成功/失败），首次请求通知权限
+- 设计规格：GitHub 扁平风，1px border 无阴影，暗色模式支持（复用 App.css Design Tokens），按钮 hover 状态
+
+### Testing:
+- `go build ./...`：✅ 通过
+- `go vet ./...`：✅ 零警告
+- `cargo check`：✅ 零错误
+- `cargo clippy`：✅ 零警告
+- `npx tsc --noEmit`：✅ 零错误
+- API 路由验证：curl `/api/v1/agent/script/1` → 401（UNAUTHORIZED，路由正确注册）
+
+### Notes:
+- `/agent/script/:id` 使用 GET 方法（Tauri 客户端 fetch 更简洁），位于 AuthRequired 路由组内
+- HMAC secret 由后端签名、Tauri 验签，确保脚本未被篡改
+- 部署流程是端到端的：Web 一键部署 → URL Scheme 唤醒 Tauri → 验签 → 执行 → 通知
+
+---
 
 ### What was done:
 - 新增 `src-tauri/src/commands/` 目录，创建三个子模块：

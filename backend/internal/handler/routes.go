@@ -193,6 +193,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		agent.POST("/usage-guide/:id", agentHandler.UsageGuide)
 		agent.POST("/moderate/:id", agentHandler.Moderate)
 		agent.POST("/chat/stream", agentHandler.ChatStream)
+		agent.GET("/script/:id", agentHandler.GenerateDeployScript)
 	}
 
 	rehabHandler := NewRehabHandler(db)
