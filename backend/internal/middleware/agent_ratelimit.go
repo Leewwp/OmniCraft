@@ -14,6 +14,10 @@ import (
 
 func AgentRateLimit(rdb *redis.Client, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if rdb == nil || cfg == nil {
+			c.Next()
+			return
+		}
 		userID := GetUserID(c)
 		if userID == 0 {
 			c.Next()

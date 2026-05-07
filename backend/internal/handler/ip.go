@@ -16,18 +16,23 @@ import (
 )
 
 type IPHandler struct {
-	ipSvc *service.IPService
+	ipSvc       *service.IPService
+	contentRepo *repository.ContentRepository
 }
 
 func NewIPHandler(db *gorm.DB) *IPHandler {
 	return &IPHandler{
-		ipSvc: service.NewIPService(repository.NewIPRepository(db)),
+		ipSvc:       service.NewIPService(repository.NewIPRepository(db)),
+		contentRepo: repository.NewContentRepository(db),
 	}
 }
 
 func NewIPHandlerWithCache(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *IPHandler {
+	reputSvc := service.NewReputationService(db)
+	reviewSvc := service.NewReviewService(db, rdb, cfg, reputSvc)
 	return &IPHandler{
-		ipSvc: service.NewIPServiceWithCache(repository.NewIPRepository(db), rdb, &cfg.Cache),
+		ipSvc:       service.NewIPServiceWithReview(repository.NewIPRepository(db), rdb, &cfg.Cache, reviewSvc),
+		contentRepo: repository.NewContentRepository(db),
 	}
 }
 
@@ -115,10 +120,16 @@ func (h *IPHandler) GetIPContents(c *gin.Context) {
 		pageSize = 20
 	}
 
-	_ = id
-	_ = page
-	_ = pageSize
-	c.JSON(http.StatusOK, gin.H{"contents": []interface{}{}, "total": 0, "page": page, "page_size": pageSize})
+	items, total, err := h.contentRepo.ListContents(repository.ListContentsFilter{
+		IPID:     &id,
+		Page:     page,
+		PageSize: pageSize,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"contents": items, "total": total, "page": page, "page_size": pageSize})
 }
 
 func (h *IPHandler) GetIPDiscussions(c *gin.Context) {

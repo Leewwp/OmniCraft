@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/redis/go-redis/v9"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/repository"
@@ -18,11 +20,12 @@ type TagHandler struct {
 	tagSvc *service.TagService
 }
 
-func NewTagHandler(db *gorm.DB) *TagHandler {
+func NewTagHandler(db *gorm.DB, rdb *redis.Client) *TagHandler {
 	return &TagHandler{
 		tagSvc: service.NewTagService(
 			repository.NewTagRepository(db),
 			repository.NewContentRepository(db),
+			rdb,
 		),
 	}
 }
@@ -78,6 +81,10 @@ func (h *TagHandler) SuggestTag(c *gin.Context) {
 		return
 	}
 	if err := h.tagSvc.SuggestTag(contentID, callerID, body.Tag, body.Action); err != nil {
+		if errors.Is(err, service.ErrTagSuggestRateLimited) {
+			c.JSON(http.StatusTooManyRequests, gin.H{"code": "TAG_SUGGEST_RATE_LIMIT_EXCEEDED", "message": err.Error()})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"code": "ERROR", "message": err.Error()})
 		return
 	}

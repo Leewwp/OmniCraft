@@ -5,6 +5,8 @@ import (
 	"strconv"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
@@ -13,12 +15,12 @@ import (
 )
 
 type AdminHandler struct {
-	ipSvc         *service.IPService
-	contentRepo   *repository.ContentRepository
-	userRepo      *repository.UserRepository
-	socialRepo    *repository.SocialRepository
-	llmConfigSvc  *service.LLMConfigService
-	cfg           *config.Config
+	ipSvc        *service.IPService
+	contentRepo  *repository.ContentRepository
+	userRepo     *repository.UserRepository
+	socialRepo   *repository.SocialRepository
+	llmConfigSvc *service.LLMConfigService
+	cfg          *config.Config
 }
 
 func NewAdminHandler(db *gorm.DB, cfg *config.Config) *AdminHandler {
@@ -167,12 +169,29 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
 		return
 	}
+	db := h.userRepo.DB()
+	var appeal model.Appeal
+	if err := db.First(&appeal, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": "APPEAL_NOT_FOUND", "message": "appeal not found"})
+		return
+	}
+
 	updates := map[string]interface{}{
 		"status":         body.Status,
 		"admin_response": body.AdminResponse,
+		"resolved_by":    middleware.GetUserID(c),
 		"resolved_at":    gorm.Expr("NOW()"),
 	}
-	if err := h.userRepo.DB().Table("appeals").Where("id = ?", id).Updates(updates).Error; err != nil {
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.Appeal{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+			return err
+		}
+		targetUpdates := service.AppealTargetUpdates(appeal.TargetType, body.Status)
+		if len(targetUpdates) == 0 {
+			return nil
+		}
+		return tx.Model(&model.ContentItem{}).Where("id = ?", appeal.TargetID).Updates(targetUpdates).Error
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
 		return
 	}
@@ -288,6 +307,7 @@ func (h *AdminHandler) UpdateLLMConfig(c *gin.Context) {
 	}
 	delete(req, "id")
 	delete(req, "is_active")
+	delete(req, "api_key_enc")
 	if err := h.llmConfigSvc.UpdateConfig(id, req); err != nil {
 		if err == service.ErrConfigNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"code": "CONFIG_NOT_FOUND", "message": "config not found"})

@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -12,6 +13,8 @@ import (
 var (
 	ErrCourseNotFound   = errors.New("course not found")
 	ErrAlreadyCompleted = errors.New("course already completed")
+	ErrCourseNotStarted = errors.New("course has not been started")
+	ErrReadingTooShort  = errors.New("minimum reading time has not elapsed")
 )
 
 type RehabService struct {
@@ -48,7 +51,7 @@ func (s *RehabService) GetAvailableCourses(userID int64, locale string) ([]Rehab
 	}
 	completedMap := make(map[int64]bool)
 	for _, c := range completions {
-		completedMap[c.CourseID] = true
+		completedMap[c.CourseID] = c.CompletedAt != nil
 	}
 
 	if locale == "" {
@@ -119,16 +122,21 @@ func (s *RehabService) CompleteCourse(userID int64, courseID int64) error {
 	if completed {
 		return ErrAlreadyCompleted
 	}
+	completion, err := s.rehabRepo.GetCompletion(userID, courseID)
+	if err != nil {
+		return err
+	}
+	if err := canCompleteRehabCourse(completionStartedAt(completion), course.MinReadingSec, time.Now()); err != nil {
+		return err
+	}
 
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		completion := &model.RehabCompletion{
-			UserID:   userID,
-			CourseID: courseID,
-		}
-		if err := tx.Create(completion).Error; err != nil {
+		now := time.Now()
+		if err := tx.Model(&model.RehabCompletion{}).
+			Where("user_id = ? AND course_id = ?", userID, courseID).
+			Update("completed_at", now).Error; err != nil {
 			return err
 		}
-
 		log := &model.ReputationLog{
 			UserID: uint(userID),
 			Delta:  course.RewardPoints,
@@ -145,6 +153,40 @@ func (s *RehabService) CompleteCourse(userID int64, courseID int64) error {
 
 func (s *RehabService) GetMyProgress(userID int64) ([]RehabCourseResponse, error) {
 	return s.GetAvailableCourses(userID, "zh")
+}
+
+func (s *RehabService) StartCourse(userID int64, courseID int64) error {
+	if _, err := s.rehabRepo.GetCourseByID(courseID); err != nil {
+		return ErrCourseNotFound
+	}
+	completed, err := s.rehabRepo.IsCompleted(userID, courseID)
+	if err != nil {
+		return err
+	}
+	if completed {
+		return ErrAlreadyCompleted
+	}
+	return s.rehabRepo.StartCourse(userID, courseID)
+}
+
+func completionStartedAt(completion *model.RehabCompletion) *time.Time {
+	if completion == nil {
+		return nil
+	}
+	return completion.StartedAt
+}
+
+func canCompleteRehabCourse(startedAt *time.Time, minReadingSec int, now time.Time) error {
+	if startedAt == nil {
+		return ErrCourseNotStarted
+	}
+	if minReadingSec < 0 {
+		minReadingSec = 0
+	}
+	if now.Sub(*startedAt) < time.Duration(minReadingSec)*time.Second {
+		return ErrReadingTooShort
+	}
+	return nil
 }
 
 func toString(v interface{}) string {
