@@ -26,8 +26,9 @@ export default function DashboardPage() {
 
   async function loadStats() {
     try {
-      const data = await api.get<{ contents?: { id: number }[] }>(`/api/v1/contents?author_id=${user!.id}&page=1&page_size=1`);
-      const total = (data as any).total || (data.contents || []).length;
+      interface ContentsPage { contents?: { id: number }[]; total?: number }
+      const data = await api.get<ContentsPage>(`/api/v1/contents?author_id=${user!.id}&page=1&page_size=1`);
+      const total = data.total ?? (data.contents || []).length;
       setStats((prev) => ({ ...prev, total_contents: total }));
       // Load tag suggestion count in background
       try {

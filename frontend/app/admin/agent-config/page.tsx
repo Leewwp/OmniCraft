@@ -65,8 +65,13 @@ export default function AgentConfigPage() {
     setModalError("");
     try {
       if (editingId) {
-        const body: Record<string, unknown> = { config_name: form.config_name, provider_type: form.provider_type, api_base: form.api_base, model: form.model };
-        if (form.api_key) (body as Record<string, string>).api_key = form.api_key;
+        const body = {
+          config_name: form.config_name,
+          provider_type: form.provider_type,
+          api_base: form.api_base,
+          model: form.model,
+          ...(form.api_key ? { api_key: form.api_key } : {}),
+        };
         await api.patch(`/api/v1/admin/llm-configs/${editingId}`, body);
       } else {
         await api.post("/api/v1/admin/llm-configs", form);

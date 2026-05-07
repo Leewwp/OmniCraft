@@ -16,29 +16,38 @@ const PROTECTED_PATHS = [
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Determine response — start with next(), then optionally redirect
+  let response = NextResponse.next();
+
   // Set locale cookie from Accept-Language header if not already set
   if (!request.cookies.get('NEXT_LOCALE')) {
     const acceptLang = request.headers.get('accept-language') || '';
     const prefersZh = acceptLang.includes('zh');
-    const response = NextResponse.next();
     response.cookies.set('NEXT_LOCALE', prefersZh ? 'zh' : 'en', { path: '/' });
-    return response;
   }
 
+  // Check auth for protected paths (always, even on first request)
   const isProtected = PROTECTED_PATHS.some(
     (p) => pathname === p || pathname.startsWith(p + '/'),
   );
 
-  if (!isProtected) return NextResponse.next();
+  if (isProtected) {
+    const token = request.cookies.get('access_token')?.value;
+    if (!token) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
 
-  const token = request.cookies.get('access_token')?.value;
-  if (!token) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('redirect', pathname);
-    return NextResponse.redirect(loginUrl);
+      const redirect = NextResponse.redirect(loginUrl);
+      // Carry over the locale cookie if we just set it
+      const localeCookie = response.cookies.get('NEXT_LOCALE');
+      if (localeCookie) {
+        redirect.cookies.set('NEXT_LOCALE', localeCookie.value, localeCookie);
+      }
+      return redirect;
+    }
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {
