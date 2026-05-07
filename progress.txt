@@ -1,6 +1,29 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
+## [2026-05-07] - Task 62: Web 前端 — 搜索页
+
+### What was done:
+- 创建 `app/(public)/search/page.tsx`：搜索页完整布局（顶部 SearchAgentInput + 左侧 FacetedSearchSidebar + 右侧结果区）
+- 集成 SearchAgentInput（Task 59）：AI 模式调用 /agent/search，关键词模式降级为 GET /contents?q=
+- 集成 FacetedSearchSidebar（Task 49）：左侧筛选（移动端折叠）
+- 实现搜索结果展示：网格/列表模式切换按钮 + MasonryGrid 瀑布流
+- 实现已选筛选条件 TagBadge chips（支持逐个取消）
+- 实现「保存此搜索」按钮（行内命名 → POST /users/me/saved-searches）
+- 特殊状态：加载骨架屏（8 格 grid）、空状态（Search 图标 + 提示）、No-query 引导、错误重试
+- 对齐 SearchAgentInput 结果类型为 ContentCardData
+- messages 新增 `search.*` 命名空间
+
+### Testing:
+- `npx -p typescript tsc --noEmit`：零类型错误
+- `npm run build`：Turbopack 编译成功，/search 路由正确注册
+- `go build ./...` + `go vet ./...`：零错误零警告
+
+### Notes:
+- 移动端分面侧边栏折叠尚未实现（需额外 Sheet/Drawer 组件，可在后续任务中补充）
+- AI 搜索结果与关键词搜索结果通过 ContentCardData 统一类型桥接
+
+---
 ## [2026-05-07] - Task 59: 前端 Agent 组件集成
 
 ### What was done:

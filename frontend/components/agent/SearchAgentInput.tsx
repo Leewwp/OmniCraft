@@ -7,15 +7,8 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-interface SearchResult {
-  content_item_id: number;
-  title: string;
-  score?: number;
-  summary?: string;
-}
-
 interface SearchAgentInputProps {
-  onResults?: (results: SearchResult[], query: string) => void;
+  onResults?: (results: Record<string, unknown>[], query: string) => void;
   className?: string;
 }
 
@@ -39,7 +32,7 @@ export function SearchAgentInput({ onResults, className }: SearchAgentInputProps
 
     try {
       if (mode === "agent") {
-        const res = await api.post<{ results?: SearchResult[] }>("/api/v1/agent/search", {
+        const res = await api.post<{ results?: Record<string, unknown>[] }>("/api/v1/agent/search", {
           query: trimmed,
         });
         if (!controller.signal.aborted) {

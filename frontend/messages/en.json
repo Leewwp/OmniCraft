@@ -683,6 +683,13 @@
     "aiSearch": "AI Search",
     "keywordSearch": "Keyword Search"
   },
+  "search": {
+    "saveSearch": "Save this search",
+    "saveNamePlaceholder": "Search name",
+    "noResults": "No results found",
+    "noResultsHint": "Try adjusting your search terms or removing filters",
+    "startSearch": "Enter keywords or a natural language query to start searching"
+  },
   "appeals": {
     "title": "My Appeals",
     "subtitle": "Submit appeals for flagged content",
