@@ -46,8 +46,9 @@ type RehabCourse struct {
 }
 
 type RehabCompletion struct {
-	ID          int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID      int64     `gorm:"not null;index;uniqueIndex:idx_rehab_unique" json:"user_id"`
-	CourseID    int64     `gorm:"not null;uniqueIndex:idx_rehab_unique" json:"course_id"`
-	CompletedAt time.Time `gorm:"not null;default:NOW()" json:"completed_at"`
+	ID          int64      `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID      int64      `gorm:"not null;index;uniqueIndex:idx_rehab_unique" json:"user_id"`
+	CourseID    int64      `gorm:"not null;uniqueIndex:idx_rehab_unique" json:"course_id"`
+	StartedAt   *time.Time `json:"started_at,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
 }

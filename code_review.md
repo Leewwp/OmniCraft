@@ -6,7 +6,7 @@
 |---|---|---|---|---|---|---|
 | 0 | Review baseline and metadata | Complete | 2026-05-07 12:39 +08:00 | a384a51fc280da80bd3caf3fa561be2826295639 | a384a51fc280da80bd3caf3fa561be2826295639 | Established review log and task coverage policy. |
 | 1,2,3,4,5,43,52,63,75 | Backend foundation, config, database, deployment | Pass with Follow-up | 2026-05-07 20:32 +08:00 | a384a51fc280da80bd3caf3fa561be2826295639 | a384a51fc280da80bd3caf3fa561be2826295639 | Frontend Docker build chain fixed and verified; remaining deployment follow-ups are nginx TLS/cert wiring, npm audit registry, and security hardening. |
-| 6,7,8,9,10,17,18,19,40,44,45,53,54,55,56,57,58,60,61,65,66,67,68,69,78,79,80,81,82 | Backend APIs, auth, moderation, admin, Agent | Issues Found | 2026-05-07 21:01 +08:00 | 64f4ed6dc111c95b6b4fc15e6a1d165495b64f83 | 64f4ed6dc111c95b6b4fc15e6a1d165495b64f83 | Batch 2 reviewed after Task 40 changed to `passes: true`; multiple Important issues block pass. |
+| 6,7,8,9,10,17,18,19,40,44,45,53,54,55,56,57,58,60,61,65,66,67,68,69,78,79,80,81,82 | Backend APIs, auth, moderation, admin, Agent | Pass with Follow-up | 2026-05-07 21:27 +08:00 | d1f6731bf0e2e118f882f37f12efd1d70a76e3c1 | d1f6731bf0e2e118f882f37f12efd1d70a76e3c1 | Important Batch 2 findings remediated and backend checks pass; minor route-contract cleanup can be handled separately. |
 | 11,12,13,14,15,16,24,27,28,85,86 | Content, versioning, PR, social, cross-stack content flows | Not Started | - | - | - | Planned Batch 3. |
 | 20,21,22,23,25,26,29,30,31,32,70,71 | Completed frontend public, protected, admin, messaging pages | Not Started | - | - | - | Planned Batch 4. Requires browser verification. |
 | 33,34,35 | Tauri client | Not Started | - | - | - | Planned Batch 5. Task 35 is now marked complete. |
@@ -181,3 +181,39 @@
 **Follow-up:**
 - Add focused tests or API checks for Agent rate limiting, tag suggestion limits, refresh-token revocation, rehab start/complete timing, appeal approval restore behavior, and IP content listing.
 - Re-run this batch after remediation before starting Batch 3.
+
+### 2026-05-07 21:27 +08:00 - Batch 2 Rerun: Backend API Remediation
+
+**Task IDs:** 6, 7, 8, 9, 10, 17, 18, 19, 40, 44, 45, 53, 54, 55, 56, 57, 58, 60, 61, 65, 66, 67, 68, 69, 78, 79, 80, 81, 82
+
+**Reviewer:** Codex using `superpowers:receiving-code-review`, `superpowers:test-driven-development`, and `superpowers:requesting-code-review` process locally
+
+**Base SHA:** `d1f6731bf0e2e118f882f37f12efd1d70a76e3c1`
+
+**Head SHA:** `d1f6731bf0e2e118f882f37f12efd1d70a76e3c1`
+
+**Scope:** remediation for the nine Batch 2 findings: Agent and auth rate limiting, LLM API key encryption, refresh-token invalidation, tag suggestion abuse limits, rehab start/complete timing, appeal approval restore, IP content listing, and IP AI review cascade.
+
+**Changes Applied:**
+- Added credential-specific 5/minute Redis limiter to register/login routes.
+- Added Agent daily Redis limiter to the `/agent` route group and nil-safe limiter guards.
+- Stored refresh tokens by user-scoped SHA-256 Redis keys, required registered refresh tokens on refresh, and deleted them on logout/password change/account deletion.
+- Encrypted LLM API keys with AES-GCM before storing `llm_configs.api_key_enc`, decrypting only for connection tests/provider construction, and ignoring direct `api_key_enc` update attempts.
+- Added tag suggestion per-user/per-content/per-day Redis rate limiting.
+- Added rehab `started_at` migration/model support, `POST /rehab/courses/:id/start`, and completion checks for prior start plus minimum reading time.
+- Restored content status to `published` when admins approve content appeals.
+- Implemented `/ips/:id/contents` using real content queries instead of a placeholder response.
+- Triggered IP AI review after IP creation and added block/violation cascade to ban the IP and related content.
+- Added regression tests for route limiter wiring and service-level remediation helpers.
+
+**Verification:**
+- `cd backend; go test ./internal/handler ./internal/service` passed after the new regression tests failed on the old behavior.
+- `cd backend; go test ./...` passed.
+- `cd backend; go vet ./...` passed.
+- `cd backend; go build ./...` passed.
+
+**Result:** Pass with Follow-up. The nine Important/P1-P2 findings from the review request are remediated and verified by backend tests/build checks.
+
+**Remaining Follow-up:**
+- The earlier minor messaging route naming mismatch (`/messages` vs `/conversations`) remains a compatibility cleanup item outside the nine requested findings.
+- Browser verification was not required for this backend-only remediation batch.

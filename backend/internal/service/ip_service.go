@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/aliyun"
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/repository"
 
@@ -25,9 +27,10 @@ var (
 )
 
 type IPService struct {
-	ipRepo   *repository.IPRepository
-	rdb      *redis.Client
-	cacheCfg *config.CacheConfig
+	ipRepo    *repository.IPRepository
+	rdb       *redis.Client
+	cacheCfg  *config.CacheConfig
+	reviewSvc *ReviewService
 }
 
 func NewIPService(ipRepo *repository.IPRepository) *IPService {
@@ -36,6 +39,10 @@ func NewIPService(ipRepo *repository.IPRepository) *IPService {
 
 func NewIPServiceWithCache(ipRepo *repository.IPRepository, rdb *redis.Client, cacheCfg *config.CacheConfig) *IPService {
 	return &IPService{ipRepo: ipRepo, rdb: rdb, cacheCfg: cacheCfg}
+}
+
+func NewIPServiceWithReview(ipRepo *repository.IPRepository, rdb *redis.Client, cacheCfg *config.CacheConfig, reviewSvc *ReviewService) *IPService {
+	return &IPService{ipRepo: ipRepo, rdb: rdb, cacheCfg: cacheCfg, reviewSvc: reviewSvc}
 }
 
 type CreateIPInput struct {
@@ -72,8 +79,27 @@ func (s *IPService) CreateIP(input CreateIPInput, creatorID int64) (*model.IP, e
 	}
 
 	s.invalidateIPListCache()
+	s.submitIPForAIReview(ip, creatorID)
 
 	return ip, nil
+}
+
+func (s *IPService) submitIPForAIReview(ip *model.IP, creatorID int64) {
+	if s.reviewSvc == nil || ip == nil {
+		return
+	}
+	go func() {
+		err := s.reviewSvc.SubmitForAIReview(context.Background(), SubmitReviewInput{
+			TargetType:  "ip",
+			TargetID:    ip.ID,
+			Title:       ip.Name,
+			Description: ip.Description,
+			AuthorID:    creatorID,
+		})
+		if err != nil && !errors.Is(err, aliyun.ErrGreenNotConfigured) {
+			log.Printf("ip ai review failed for ip_id=%d: %v", ip.ID, err)
+		}
+	}()
 }
 
 func (s *IPService) GetIP(id int64) (*model.IP, error) {

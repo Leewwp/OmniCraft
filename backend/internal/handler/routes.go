@@ -18,8 +18,8 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 
 	auth := v1.Group("/auth")
 	{
-		auth.POST("/register", authHandler.Register)
-		auth.POST("/login", authHandler.Login)
+		auth.POST("/register", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), authHandler.Register)
+		auth.POST("/login", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), authHandler.Login)
 		auth.POST("/logout", authHandler.Logout)
 		auth.POST("/refresh", authHandler.Refresh)
 		auth.GET("/me", middleware.AuthRequired(cfg, rdb), authHandler.Me)
@@ -118,7 +118,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 	catHandler := NewCategoryHandler(db)
 	v1.GET("/categories", catHandler.ListCategories)
 
-	tagHandler := NewTagHandler(db)
+	tagHandler := NewTagHandler(db, rdb)
 	v1.GET("/tags/faceted", tagHandler.GetFacetedTags)
 	v1.GET("/tags/search", tagHandler.SearchTags)
 	contents.POST("/:id/tags/suggest", middleware.AuthRequired(cfg, rdb), tagHandler.SuggestTag)
@@ -185,7 +185,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 	v1.GET("/reputation-logs/me", middleware.AuthRequired(cfg, rdb), repHandler.GetMyReputationLogs)
 
 	agentHandler := NewAgentHandler(db, cfg)
-	agent := v1.Group("/agent", middleware.AuthRequired(cfg, rdb))
+	agent := v1.Group("/agent", middleware.AuthRequired(cfg, rdb), middleware.AgentRateLimit(rdb, cfg))
 	{
 		agent.POST("/upload-assist", agentHandler.UploadAssist)
 		agent.POST("/compliance-check", agentHandler.ComplianceCheck)
@@ -201,6 +201,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 	{
 		rehab.GET("/courses", rehabHandler.ListCourses)
 		rehab.GET("/courses/:id", rehabHandler.GetCourse)
+		rehab.POST("/courses/:id/start", rehabHandler.StartCourse)
 		rehab.POST("/courses/:id/complete", rehabHandler.CompleteCourse)
 		rehab.GET("/my-progress", rehabHandler.GetMyProgress)
 	}

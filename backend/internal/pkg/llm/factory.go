@@ -16,6 +16,6 @@ func NewProviderFromConfig(providerType, apiKey, apiBase, model, embedModel stri
 	case "openai_compat":
 		return NewOpenAICompatProvider(apiKey, apiBase, model, embedModel)
 	default:
-		return NewQwenProvider(model, embedModel)
+		return NewQwenProvider(apiKey, model, embedModel)
 	}
 }

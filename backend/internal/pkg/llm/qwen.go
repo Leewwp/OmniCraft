@@ -21,9 +21,12 @@ type QwenProvider struct {
 	client     *http.Client
 }
 
-func NewQwenProvider(model, embedModel string) *QwenProvider {
+func NewQwenProvider(apiKey, model, embedModel string) *QwenProvider {
+	if apiKey == "" {
+		apiKey = os.Getenv("AGENT_LLM_API_KEY")
+	}
 	return &QwenProvider{
-		apiKey:     os.Getenv("AGENT_LLM_API_KEY"),
+		apiKey:     apiKey,
 		model:      model,
 		embedModel: embedModel,
 		client:     &http.Client{},

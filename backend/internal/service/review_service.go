@@ -128,6 +128,9 @@ func (s *ReviewService) ProcessAICallback(ctx context.Context, in AICallbackInpu
 		return err
 	}
 
+	if strings.EqualFold(in.TargetType, "ip") {
+		return s.processIPReviewResult(in.TargetID, result)
+	}
 	if !strings.EqualFold(in.TargetType, "content") {
 		return nil
 	}
@@ -170,6 +173,25 @@ func (s *ReviewService) ProcessAICallback(ctx context.Context, in AICallbackInpu
 	}
 
 	return nil
+}
+
+func (s *ReviewService) processIPReviewResult(ipID int64, result string) error {
+	var ip model.IP
+	if err := s.db.First(&ip, ipID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrReviewTargetNotFound
+		}
+		return err
+	}
+	if result != "block" && result != "violation" {
+		return nil
+	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.IP{}).Where("id = ?", ipID).Update("status", "banned").Error; err != nil {
+			return err
+		}
+		return tx.Model(&model.ContentItem{}).Where("ip_id = ?", ipID).Update("status", "banned").Error
+	})
 }
 
 func (s *ReviewService) applyRepeatViolationPenalty(ctx context.Context, authorID int64) error {

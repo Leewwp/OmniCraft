@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -92,6 +94,9 @@ func (s *AuthService) Register(input RegisterInput) (*model.User, *jwtutil.Token
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate tokens: %w", err)
 	}
+	if err := s.storeRefreshToken(user.ID, tokens.RefreshToken); err != nil {
+		return nil, nil, err
+	}
 
 	return user, tokens, nil
 }
@@ -122,11 +127,17 @@ func (s *AuthService) Login(input LoginInput) (*model.User, *jwtutil.TokenPair, 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate tokens: %w", err)
 	}
+	if err := s.storeRefreshToken(user.ID, tokens.RefreshToken); err != nil {
+		return nil, nil, err
+	}
 
 	return user, tokens, nil
 }
 
 func (s *AuthService) Logout(accessToken string) error {
+	if s.redis == nil {
+		return nil
+	}
 	claims, err := jwtutil.ParseToken(accessToken, s.cfg.JWT.Secret)
 	if err != nil {
 		return nil
@@ -137,10 +148,19 @@ func (s *AuthService) Logout(accessToken string) error {
 	}
 	ctx := context.Background()
 	key := fmt.Sprintf("blacklist:token:%s", accessToken)
-	return s.redis.Set(ctx, key, "1", ttl).Err()
+	if err := s.redis.Set(ctx, key, "1", ttl).Err(); err != nil {
+		return err
+	}
+	if claims.Subject == "refresh" {
+		return s.redis.Del(ctx, buildRefreshTokenKey(int64(claims.UserID), accessToken)).Err()
+	}
+	return nil
 }
 
 func (s *AuthService) IsTokenBlacklisted(accessToken string) bool {
+	if s.redis == nil {
+		return false
+	}
 	ctx := context.Background()
 	key := fmt.Sprintf("blacklist:token:%s", accessToken)
 	val, err := s.redis.Get(ctx, key).Result()
@@ -161,6 +181,12 @@ func (s *AuthService) RefreshToken(refreshToken string) (*jwtutil.TokenPair, err
 
 	if s.IsTokenBlacklisted(refreshToken) {
 		return nil, ErrTokenInvalid
+	}
+	if s.redis != nil {
+		ok, err := s.refreshTokenExists(int64(claims.UserID), refreshToken)
+		if err != nil || !ok {
+			return nil, ErrTokenInvalid
+		}
 	}
 
 	user, err := s.userRepo.FindByID(int64(claims.UserID))
@@ -183,11 +209,39 @@ func (s *AuthService) RefreshToken(refreshToken string) (*jwtutil.TokenPair, err
 	}
 
 	ttl := time.Until(claims.ExpiresAt.Time)
-	if ttl > 0 {
+	if ttl > 0 && s.redis != nil {
 		ctx := context.Background()
 		key := fmt.Sprintf("blacklist:token:%s", refreshToken)
 		s.redis.Set(ctx, key, "1", ttl)
+		s.redis.Del(ctx, buildRefreshTokenKey(int64(claims.UserID), refreshToken))
+	}
+	if err := s.storeRefreshToken(user.ID, tokens.RefreshToken); err != nil {
+		return nil, err
 	}
 
 	return tokens, nil
+}
+
+func (s *AuthService) storeRefreshToken(userID uint, refreshToken string) error {
+	if s.redis == nil {
+		return nil
+	}
+	ttl := time.Duration(s.cfg.JWT.RefreshTokenTTL) * 24 * time.Hour
+	if ttl <= 0 {
+		ttl = 7 * 24 * time.Hour
+	}
+	return s.redis.Set(context.Background(), buildRefreshTokenKey(int64(userID), refreshToken), "1", ttl).Err()
+}
+
+func (s *AuthService) refreshTokenExists(userID int64, refreshToken string) (bool, error) {
+	if s.redis == nil {
+		return true, nil
+	}
+	exists, err := s.redis.Exists(context.Background(), buildRefreshTokenKey(userID, refreshToken)).Result()
+	return exists == 1, err
+}
+
+func buildRefreshTokenKey(userID int64, refreshToken string) string {
+	sum := sha256.Sum256([]byte(refreshToken))
+	return fmt.Sprintf("refresh_token:%d:%s", userID, hex.EncodeToString(sum[:]))
 }

@@ -14,7 +14,7 @@ import (
 
 func RateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !cfg.Enabled {
+		if rdb == nil || cfg == nil || !cfg.Enabled {
 			c.Next()
 			return
 		}
@@ -50,7 +50,7 @@ func RateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.HandlerFunc {
 
 func UploadRateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !cfg.Enabled {
+		if rdb == nil || cfg == nil || !cfg.Enabled {
 			c.Next()
 			return
 		}
@@ -80,6 +80,39 @@ func UploadRateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.Handler
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"code":    "UPLOAD_RATE_LIMIT_EXCEEDED",
 				"message": "upload limit exceeded, please try again later",
+			})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+func CredentialRateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if rdb == nil || cfg == nil || !cfg.Enabled {
+			c.Next()
+			return
+		}
+
+		limit := 5
+		ip := c.ClientIP()
+		window := time.Now().Unix() / 60
+		key := fmt.Sprintf("ratelimit:credential:%s:%d", ip, window)
+
+		ctx := context.Background()
+		count, err := rdb.Incr(ctx, key).Result()
+		if err != nil {
+			c.Next()
+			return
+		}
+		if count == 1 {
+			rdb.Expire(ctx, key, 2*time.Minute)
+		}
+		if int(count) > limit {
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"code":    "CREDENTIAL_RATE_LIMIT_EXCEEDED",
+				"message": "too many credential attempts, please try again later",
 			})
 			c.Abort()
 			return

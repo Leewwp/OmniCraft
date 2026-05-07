@@ -2,8 +2,15 @@ package service
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"omnicraft/backend/config"
@@ -37,6 +44,9 @@ type LLMConfigResponse struct {
 }
 
 func maskAPIKey(key string) string {
+	if decrypted, err := decryptLLMAPIKey(key); err == nil {
+		key = decrypted
+	}
 	if len(key) <= 8 {
 		return "****"
 	}
@@ -69,12 +79,16 @@ func (s *LLMConfigService) ListConfigs() ([]LLMConfigResponse, error) {
 }
 
 func (s *LLMConfigService) CreateConfig(name, providerType, apiBase, modelName, apiKey string) (*LLMConfigResponse, error) {
+	apiKeyEnc, err := encryptLLMAPIKey(apiKey)
+	if err != nil {
+		return nil, err
+	}
 	c := &model.LLMConfig{
 		ConfigName:   name,
 		ProviderType: providerType,
 		APIBase:      apiBase,
 		Model:        modelName,
-		APIKeyEnc:    apiKey,
+		APIKeyEnc:    apiKeyEnc,
 		ExtraParams:  model.JSONMap{},
 	}
 	if err := s.repo.Create(c); err != nil {
@@ -87,6 +101,18 @@ func (s *LLMConfigService) CreateConfig(name, providerType, apiBase, modelName, 
 func (s *LLMConfigService) UpdateConfig(id int64, updates map[string]interface{}) error {
 	if _, err := s.repo.GetByID(id); err != nil {
 		return ErrConfigNotFound
+	}
+	delete(updates, "api_key_enc")
+	if raw, ok := updates["api_key"]; ok {
+		delete(updates, "api_key")
+		apiKey, _ := raw.(string)
+		if strings.TrimSpace(apiKey) != "" {
+			apiKeyEnc, err := encryptLLMAPIKey(apiKey)
+			if err != nil {
+				return err
+			}
+			updates["api_key_enc"] = apiKeyEnc
+		}
 	}
 	return s.repo.Update(id, updates)
 }
@@ -111,7 +137,11 @@ func (s *LLMConfigService) TestConnection(id int64) (string, error) {
 		return "", ErrConfigNotFound
 	}
 
-	provider := llm.NewProviderFromConfig(c.ProviderType, c.APIKeyEnc, c.APIBase, c.Model, "")
+	apiKey, err := decryptLLMAPIKey(c.APIKeyEnc)
+	if err != nil {
+		return "", err
+	}
+	provider := llm.NewProviderFromConfig(c.ProviderType, apiKey, c.APIBase, c.Model, "")
 	req := llm.ChatRequest{
 		Messages:    []llm.ChatMessage{{Role: "user", Content: "Reply with just 'OK'"}},
 		MaxTokens:   10,
@@ -128,4 +158,64 @@ func (s *LLMConfigService) TestConnection(id int64) (string, error) {
 
 func (s *LLMConfigService) GetActiveConfig() (*model.LLMConfig, error) {
 	return s.repo.GetActive()
+}
+
+func encryptLLMAPIKey(apiKey string) (string, error) {
+	if strings.TrimSpace(apiKey) == "" {
+		return "", nil
+	}
+	block, err := aes.NewCipher(llmEncryptionKey())
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+	ciphertext := gcm.Seal(nonce, nonce, []byte(apiKey), nil)
+	return "v1:" + base64.StdEncoding.EncodeToString(ciphertext), nil
+}
+
+func decryptLLMAPIKey(apiKeyEnc string) (string, error) {
+	if strings.TrimSpace(apiKeyEnc) == "" {
+		return "", nil
+	}
+	if !strings.HasPrefix(apiKeyEnc, "v1:") {
+		return apiKeyEnc, nil
+	}
+	raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(apiKeyEnc, "v1:"))
+	if err != nil {
+		return "", err
+	}
+	block, err := aes.NewCipher(llmEncryptionKey())
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	if len(raw) < gcm.NonceSize() {
+		return "", errors.New("invalid encrypted api key")
+	}
+	nonce := raw[:gcm.NonceSize()]
+	ciphertext := raw[gcm.NonceSize():]
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", err
+	}
+	return string(plaintext), nil
+}
+
+func llmEncryptionKey() []byte {
+	secret := os.Getenv("LLM_KEY_ENCRYPTION_SECRET")
+	if secret == "" {
+		secret = os.Getenv("JWT_SECRET")
+	}
+	sum := sha256.Sum256([]byte(secret))
+	return sum[:]
 }

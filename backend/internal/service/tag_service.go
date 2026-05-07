@@ -1,26 +1,32 @@
 package service
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"time"
 
+	"github.com/redis/go-redis/v9"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/repository"
 )
 
 var (
-	ErrTagSuggestionNotFound = errors.New("tag suggestion not found")
+	ErrTagSuggestionNotFound  = errors.New("tag suggestion not found")
 	ErrTagSuggestionForbidden = errors.New("not content author")
-	ErrTagGroupNotFound      = errors.New("tag group not found")
-	ErrTagGroupForbidden     = errors.New("not tag group owner")
+	ErrTagGroupNotFound       = errors.New("tag group not found")
+	ErrTagGroupForbidden      = errors.New("not tag group owner")
+	ErrTagSuggestRateLimited  = errors.New("tag suggestion daily limit exceeded")
 )
 
 type TagService struct {
 	tagRepo     *repository.TagRepository
 	contentRepo *repository.ContentRepository
+	rdb         *redis.Client
 }
 
-func NewTagService(tagRepo *repository.TagRepository, contentRepo *repository.ContentRepository) *TagService {
-	return &TagService{tagRepo: tagRepo, contentRepo: contentRepo}
+func NewTagService(tagRepo *repository.TagRepository, contentRepo *repository.ContentRepository, rdb *redis.Client) *TagService {
+	return &TagService{tagRepo: tagRepo, contentRepo: contentRepo, rdb: rdb}
 }
 
 func (s *TagService) GetFacetedTags(category string, selectedTags []string) ([]model.Tag, error) {
@@ -39,6 +45,9 @@ func (s *TagService) SuggestTag(contentItemID int64, userID int64, tag, action s
 	if err != nil || content == nil {
 		return ErrContentNotFound
 	}
+	if err := s.checkTagSuggestRateLimit(userID, contentItemID, time.Now()); err != nil {
+		return err
+	}
 	suggestion := &model.TagSuggestion{
 		ContentItemID: contentItemID,
 		UserID:        userID,
@@ -47,6 +56,29 @@ func (s *TagService) SuggestTag(contentItemID int64, userID int64, tag, action s
 		Status:        "pending",
 	}
 	return s.tagRepo.CreateTagSuggestion(suggestion)
+}
+
+func (s *TagService) checkTagSuggestRateLimit(userID, contentItemID int64, now time.Time) error {
+	if s.rdb == nil {
+		return nil
+	}
+	ctx := context.Background()
+	key := buildTagSuggestRateLimitKey(userID, contentItemID, now)
+	count, err := s.rdb.Incr(ctx, key).Result()
+	if err != nil {
+		return nil
+	}
+	if count == 1 {
+		s.rdb.Expire(ctx, key, 48*time.Hour)
+	}
+	if count > 10 {
+		return ErrTagSuggestRateLimited
+	}
+	return nil
+}
+
+func buildTagSuggestRateLimitKey(userID, contentItemID int64, now time.Time) string {
+	return fmt.Sprintf("tag_suggest:%d:%d:%s", userID, contentItemID, now.Format("2006-01-02"))
 }
 
 func (s *TagService) ListTagSuggestions(contentItemID int64, callerID int64) ([]model.TagSuggestion, error) {
