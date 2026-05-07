@@ -831,7 +831,7 @@
         "运行 npm run build（前端），go build（后端），确保无编译错误",
         "验证：所有核心业务流程无报错，数据一致性正确"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 42,
