@@ -683,7 +683,7 @@
         "创建 src-tauri/src/commands/env_detect.rs：检测 Steam 游戏安装路径（读注册表 Windows / 文件系统 macOS）",
         "验证：调用各白名单动作正常工作，非法路径被拒绝，备份文件自动生成"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 35,

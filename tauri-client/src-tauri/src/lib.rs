@@ -1,3 +1,4 @@
+mod commands;
 mod url_scheme;
 
 use std::sync::Mutex;
@@ -83,18 +84,25 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .manage(DeployState(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![get_deploy_params])
+        .invoke_handler(tauri::generate_handler![
+            get_deploy_params,
+            commands::security::verify_script_signature,
+            commands::file_ops::download_file,
+            commands::file_ops::extract_archive,
+            commands::file_ops::move_file,
+            commands::file_ops::create_dir,
+            commands::file_ops::read_config,
+            commands::file_ops::write_config,
+            commands::env_detect::detect_environment,
+        ])
         .setup(|app| {
             // Parse URL scheme arguments passed via command line
             let args: Vec<String> = std::env::args().collect();
             let deploy_params = url_scheme::parse_deploy_args(&args);
             if deploy_params.is_some() {
                 let state = app.state::<DeployState>();
-                match state.0.lock() {
-                    Ok(mut guard) => {
-                        *guard = deploy_params;
-                    }
-                    Err(_) => {}
+                if let Ok(mut guard) = state.0.lock() {
+                    *guard = deploy_params;
                 };
             }
             Ok(())
