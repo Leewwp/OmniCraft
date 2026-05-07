@@ -738,7 +738,8 @@
     "donationImage": "Donation Image",
     "donationImageUrl": "Donation Image URL",
     "externalLinks": "External Links",
-    "addLink": "Add Link"
+    "addLink": "Add Link",
+    "invalidUrl": "URL must start with https://"
   },
   "agentConfig": {
     "title": "Agent Configuration",

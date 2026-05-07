@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
 import { ContentCardData } from "@/components/content/ContentCard";
@@ -17,6 +18,7 @@ interface UserProfileClientProps {
 
 export function UserProfileClient({ userId, displayName }: UserProfileClientProps) {
   const t = useTranslations();
+  const router = useRouter();
   const { user } = useAuth();
   const [tab, setTab] = useState<"contents" | "favorites" | "discussions">("contents");
   const [items, setItems] = useState<ContentCardData[]>([]);
@@ -63,7 +65,7 @@ export function UserProfileClient({ userId, displayName }: UserProfileClientProp
           <FollowButton targetType="user" targetId={userId} />
         )}
         {isOwnProfile && (
-          <Button size="sm" variant="outline" onClick={() => window.location.href = "/settings"}>
+          <Button size="sm" variant="outline" onClick={() => router.push("/settings")}>
             {t('user.editProfile')}
           </Button>
         )}

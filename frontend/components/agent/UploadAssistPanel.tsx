@@ -14,7 +14,7 @@ interface UploadAssistResult {
   suggested_category?: string;
 }
 
-interface UploadAssistPanelProps {
+interface AgentUploadAssistPanelProps {
   uploadedFiles: string[];
   contentId?: number;
   title?: string;
@@ -24,7 +24,7 @@ interface UploadAssistPanelProps {
   className?: string;
 }
 
-export function UploadAssistPanel({
+export function AgentUploadAssistPanel({
   uploadedFiles,
   contentId,
   title,
@@ -32,7 +32,7 @@ export function UploadAssistPanel({
   contentType,
   onFill,
   className,
-}: UploadAssistPanelProps) {
+}: AgentUploadAssistPanelProps) {
   const t = useTranslations();
   const [result, setResult] = useState<UploadAssistResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -43,7 +43,7 @@ export function UploadAssistPanel({
     setLoading(true);
     setError("");
     try {
-      const res = await api.post<{ result?: UploadAssistResult }>(
+      const data = await api.post<UploadAssistResult>(
         "/api/v1/agent/upload-assist",
         {
           title: title || "",
@@ -52,7 +52,6 @@ export function UploadAssistPanel({
           content_type: contentType || "other",
         },
       );
-      const data = res.result ?? res as unknown as UploadAssistResult;
       setResult(data);
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
