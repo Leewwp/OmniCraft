@@ -717,6 +717,22 @@
     "complete": "Complete",
     "completed": "Completed"
   },
+  "discussion": {
+    "title": "Discussions",
+    "subtitle": "Browse and participate in IP-related discussions",
+    "newPost": "New Post",
+    "search": "Search",
+    "searchPlaceholder": "Search discussion titles...",
+    "empty": "No discussions yet. Start the conversation!",
+    "notFound": "Discussion not found",
+    "titleLabel": "Title",
+    "titlePlaceholder": "Give your discussion a title",
+    "bodyLabel": "Content",
+    "bodyPlaceholder": "Write your thoughts...",
+    "replyCount": "{count} replies",
+    "noReplies": "No replies yet. Be the first to comment!",
+    "replyPlaceholder": "Write your reply..."
+  },
   "appeals": {
     "title": "My Appeals",
     "subtitle": "Submit appeals for flagged content",
