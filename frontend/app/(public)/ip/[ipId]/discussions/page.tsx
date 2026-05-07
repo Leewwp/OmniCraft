@@ -34,7 +34,7 @@ export default function DiscussionsPage() {
     setLoading(true);
     setError("");
     try {
-      const q = search.trim() ? `?q=${encodeURIComponent(search.trim())}` : "";
+      const q = search.trim() ? `/search?q=${encodeURIComponent(search.trim())}` : "";
       const res = await api.get<{ discussions?: DiscussionData[] }>(
         `/api/v1/ips/${ipId}/discussions${q}`,
       );

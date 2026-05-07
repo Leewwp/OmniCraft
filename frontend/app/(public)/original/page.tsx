@@ -198,7 +198,7 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
       {/* Content stream with secondary nav + sort */}
       <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="text-base font-semibold">{t("content.originalContentStream")}</h2>
+          <h2 className="text-base font-semibold">{t("home.originalContentStream")}</h2>
 
           {/* Sort tabs */}
           <div className="flex flex-wrap gap-2">

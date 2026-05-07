@@ -37,12 +37,11 @@ export default function DiscussionDetailPage() {
     setLoading(true);
     setError("");
     try {
-      const [discRes, repliesRes] = await Promise.all([
-        api.get<{ discussion?: DiscussionDetail }>(`/api/v1/discussions/${discussionId}`),
-        api.get<{ comments?: ReplyData[] }>(`/api/v1/discussions/${discussionId}/comments`),
-      ]);
-      setDiscussion(discRes.discussion ?? null);
-      setReplies(repliesRes.comments ?? []);
+      const res = await api.get<{ discussion?: DiscussionDetail; comments?: ReplyData[] }>(
+        `/api/v1/discussions/${discussionId}`,
+      );
+      setDiscussion(res.discussion ?? null);
+      setReplies(res.comments ?? []);
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
     } finally {

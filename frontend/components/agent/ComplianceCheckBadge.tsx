@@ -15,15 +15,17 @@ interface ComplianceResult {
 
 interface ComplianceCheckBadgeProps {
   contentId?: number;
-  fileKeys?: string[];
-  textContent?: string;
+  title?: string;
+  description?: string;
+  contentType?: string;
   className?: string;
 }
 
 export function ComplianceCheckBadge({
   contentId,
-  fileKeys,
-  textContent,
+  title,
+  description,
+  contentType,
   className,
 }: ComplianceCheckBadgeProps) {
   const t = useTranslations();
@@ -37,9 +39,9 @@ export function ComplianceCheckBadge({
     setError("");
     try {
       const res = await api.post<ComplianceResult>("/api/v1/agent/compliance-check", {
-        content_id: contentId,
-        file_keys: fileKeys,
-        text_content: textContent,
+        title: title || "",
+        description: description || "",
+        content_type: contentType || "other",
       });
       setResult(res);
     } catch (e) {
