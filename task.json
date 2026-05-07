@@ -698,7 +698,7 @@
         "Go 后端实现 POST /agent/script（根据 content_id 返回动作脚本 JSON + HMAC 签名）",
         "验证：从 Web 点击一键部署 → 唤醒 Tauri → 环境检测 → 确认 → 执行 → 通知 完整流程"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 36,

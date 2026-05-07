@@ -37,6 +37,7 @@ type AgentConfig struct {
 	EmbeddingDimensions   int    `mapstructure:"embedding_dimensions"`
 	RateLimitPerDay       int    `mapstructure:"rate_limit_per_day"`
 	UploadAssistMaxFileMB int    `mapstructure:"upload_assist_max_file_mb"`
+	HMACSecret            string `mapstructure:"hmac_secret"`
 }
 
 type ServerConfig struct {
@@ -225,5 +226,8 @@ func overrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("AGENT_LLM_API_BASE"); v != "" {
 		cfg.Agent.LLMAPIBase = v
+	}
+	if v := os.Getenv("AGENT_HMAC_SECRET"); v != "" {
+		cfg.Agent.HMACSecret = v
 	}
 }
