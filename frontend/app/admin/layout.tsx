@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Shield, FileText, Users, AlertTriangle, Settings, Tags, ChevronRight } from "lucide-react";
+import { Shield, FileText, Users, AlertTriangle, Settings, Tags, ChevronRight, PanelLeftClose, PanelLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ADMIN_NAV = [
@@ -20,6 +20,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     if (!isLoading && (!user || user.role !== "admin")) {
@@ -49,30 +50,55 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="mx-auto flex w-full max-w-7xl gap-0 px-0">
-      {/* Sidebar nav - hidden on mobile */}
-      <aside className="hidden w-[220px] shrink-0 border-r border-border bg-canvas-subtle md:block">
+      {/* Sidebar nav - collapsible on desktop, hidden on mobile */}
+      <aside
+        className={cn(
+          "hidden shrink-0 border-r border-border bg-canvas-subtle transition-all duration-200 md:block",
+          sidebarOpen ? "w-[220px]" : "w-[52px]"
+        )}
+      >
         <nav className="sticky top-14 flex flex-col gap-0.5 p-3">
-          <div className="mb-3 px-3 py-1">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              管理后台
-            </p>
-          </div>
+          {sidebarOpen && (
+            <div className="mb-3 flex items-center justify-between px-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                管理后台
+              </p>
+              <button
+                type="button"
+                className="rounded p-0.5 hover:bg-muted"
+                onClick={() => setSidebarOpen(false)}
+              >
+                <PanelLeftClose className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            </div>
+          )}
+          {!sidebarOpen && (
+            <button
+              type="button"
+              className="mb-3 self-end rounded p-1 hover:bg-muted"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <PanelLeft className="h-4 w-4 text-muted-foreground" />
+            </button>
+          )}
           {ADMIN_NAV.map((item) => {
             const isActive = pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                title={!sidebarOpen ? item.label : undefined}
                 className={cn(
                   "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
                   isActive
                     ? "bg-accent/10 text-accent font-medium"
-                    : "text-foreground/70 hover:bg-muted hover:text-foreground"
+                    : "text-foreground/70 hover:bg-muted hover:text-foreground",
+                  !sidebarOpen && "justify-center px-2"
                 )}
               >
                 <item.icon className="h-4 w-4 shrink-0" />
-                <span>{item.label}</span>
-                {isActive && <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" />}
+                {sidebarOpen && <span>{item.label}</span>}
+                {sidebarOpen && isActive && <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" />}
               </Link>
             );
           })}

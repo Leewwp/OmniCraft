@@ -12,6 +12,7 @@ const breakpoints = {
   default: 4,
   1100: 3,
   700: 2,
+  450: 1,
 };
 
 export function MasonryGrid({ items, emptyText }: MasonryGridProps) {

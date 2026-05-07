@@ -258,7 +258,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
 
       {/* Download All Button */}
       {data.allow_copy && data.attachments && data.attachments.length > 1 && (
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {data.attachments
             .filter((a) => a.oss_url)
             .map((att) => (
@@ -275,8 +275,8 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
       {/* Agent Deploy Button */}
       {data.agent_enabled && (contentType === "mod" || contentType === "prompt") && (
         <div className="rounded-md border border-border bg-card p-4 shadow-none">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <p className="text-sm font-semibold">一键部署</p>
               <p className="text-xs text-muted-foreground">
                 通过 OmniCraft 客户端自动安装此{contentType === "mod" ? "Mod" : "提示词"}
@@ -284,7 +284,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
             </div>
             <a
               href={`omnicraft://deploy?content_id=${data.id}`}
-              className="inline-flex shrink-0 items-center rounded-md border border-border bg-accent px-3 py-2 text-xs font-medium text-accent-foreground hover:bg-accent/80"
+              className="inline-flex shrink-0 items-center justify-center rounded-md border border-border bg-accent px-3 py-2 text-xs font-medium text-accent-foreground hover:bg-accent/80"
             >
               <Rocket className="mr-1 h-3.5 w-3.5" />
               一键部署

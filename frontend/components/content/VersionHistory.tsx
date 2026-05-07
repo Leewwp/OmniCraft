@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { ChevronDown, ChevronUp, GitBranch } from "lucide-react";
 
 interface Version {
   id: number;
@@ -27,6 +28,7 @@ interface VersionHistoryProps {
 export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
   const [versions, setVersions] = useState<Version[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mobileExpanded, setMobileExpanded] = useState(false);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<{ version: Version; content: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -91,9 +93,22 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
 
   return (
     <div className="space-y-3 rounded-md border border-border bg-card p-4 shadow-none">
-      <h3 className="text-sm font-semibold">版本历史</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">版本历史</h3>
+        <button
+          type="button"
+          className="rounded p-1 hover:bg-muted md:hidden"
+          onClick={() => setMobileExpanded(!mobileExpanded)}
+        >
+          {mobileExpanded ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronUp className="h-4 w-4" />
+          )}
+        </button>
+      </div>
 
-      <div className="relative ml-2 border-l-2 border-border pl-6">
+      <div className={`relative ml-2 border-l-2 border-border pl-6 ${mobileExpanded ? "" : "hidden md:block"}`}>
         {versions.map((v) => (
           <div key={v.id} className="relative mb-4">
             <div className="absolute -left-[26px] top-1 h-3 w-3 rounded-full border-2 border-border bg-card" />
