@@ -25,3 +25,6 @@ tauri-client/src-tauri/gen/
 
 # screenshot
 screenshots/
+
+# Playwright MCP test artifacts
+.playwright-mcp/

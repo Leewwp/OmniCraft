@@ -768,7 +768,7 @@
         "## Component: EmptyState",
         "## Component: ConfirmModal"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 39,

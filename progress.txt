@@ -1,6 +1,39 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
+## [2026-05-07] - Task 38: 错误处理与 Loading 状态
+
+### What was done:
+- 新建 `app/error.tsx`：全局错误边界页（"use client"，显示错误信息 + 重试按钮，AlertTriangle 图标 + destructive 色调）
+- 新建 `app/not-found.tsx`：404 页面（FileQuestion 图标 + 描述文字 + 返回首页按钮）
+- 新建 `components/ui/Toast.tsx`：全局 Toast 通知系统（ToastProvider context + useToast hook，success/error/warning/info 四种类型，右上角固定定位，4s 自动消失 + 手动关闭，滑入动画 + 暗色模式适配）
+- 增强 `components/ui/skeleton.tsx`：新增 SkeletonCard（卡片骨架）、SkeletonCircle（圆形骨架）、SkeletonText（多行文本骨架）、SkeletonDetail（详情页骨架）
+- 为 4 个页面添加 `loading.tsx` 骨架屏：
+  - `app/(public)/loading.tsx`：首页加载骨架（IP 横向区域 + Masonry 卡片网格）
+  - `app/(public)/ip/[ipId]/loading.tsx`：IP 详情加载骨架（IP 信息 + 内容卡片网格）
+  - `app/(public)/content/[contentId]/loading.tsx`：内容详情加载骨架（封面 + 标题 + 标签 + 正文 + 按钮 + 版本历史）
+  - `app/(public)/original/[contentId]/loading.tsx`：原创详情加载骨架
+- 在 `app/layout.tsx` 中引入 ToastProvider 包裹 AuthProvider
+- Go 后端新建 `internal/pkg/response/response.go`：统一响应辅助函数（Error/ErrorWithDetails/Success/ValidationError/NotFound/Unauthorized/Forbidden/Conflict/InternalError），格式 { code, message, details? }
+
+### Testing:
+- `go build ./...`：✅ 通过
+- `go vet ./...`：✅ 零警告
+- `npm run build`：✅ Turbopack 编译成功
+- `npm run lint` (tsc --noEmit)：✅ 零错误
+- Playwright 浏览器测试：✅
+  - 404 页面（/non-existent-page）：渲染 "页面未找到" + "返回首页" 链接
+  - 首页（/）：正常渲染 HomePageClient
+  - IP 详情（/ip/1）：显示 "IP 未找到" 标题（后端不可用）
+  - 内容详情（/content/1）：正常渲染内容详情组件
+
+### Notes:
+- Toast 通过 context 模式注入，任意组件可通过 `useToast().toast(type, message)` 触发
+- error.tsx 仅在生产构建中显示；开发模式下 Next.js 显示自带错误覆盖层
+- loading.tsx 自动由 Next.js App Router 在 SSR 数据获取期间渲染，无需手动触发
+- Go response helper 为可选工具，现有 handler 中的 gin.H{"code", "message"} 仍正常工作；新代码建议使用 response 包以支持 details 字段
+
+---
 ## [2026-05-07] - Task 37: Web 前端 — SEO 优化与 Open Graph
 
 ### What was done:
