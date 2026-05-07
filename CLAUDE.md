@@ -81,7 +81,7 @@ cd frontend && npm run dev &
 - **必须使用 MCP Playwright 在浏览器中测试**
 - 验证页面正常加载和渲染
 - 验证核心交互功能（表单提交、按钮点击）
-- 截图确认 UI 正确
+- 截图确认 UI 正确，截图保存至screenshots文件夹
 
 **后端 API 任务**：
 - 使用 curl 或 Playwright 调用接口验证

@@ -22,3 +22,6 @@ tauri-client/src-tauri/gen/
 
 # Claude Code (local overrides only — settings.json is committed)
 .claude/settings.local.json
+
+# screenshot
+screenshots/
