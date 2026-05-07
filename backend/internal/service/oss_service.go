@@ -149,6 +149,18 @@ func (s *OSSService) validateUploadByType(fileType, mimeType string, fileSize in
 	return nil
 }
 
+func (s *OSSService) GenerateVideoSnapshotURL(ctx context.Context, ossKey string) (string, error) {
+	_ = ctx
+	if s == nil || s.client == nil {
+		return "", ErrOSSNotConfigured
+	}
+	if strings.TrimSpace(ossKey) == "" {
+		return "", &UploadValidationError{Message: "oss_key is required"}
+	}
+	const coverExpiry = 7 * 24 * time.Hour
+	return s.client.GetVideoSnapshotURL(strings.TrimSpace(ossKey), coverExpiry, 480)
+}
+
 func (s *OSSService) isAllowedSheetMusicExt(ext string) bool {
 	for _, allowed := range s.cfg.Upload.SheetMusicExtensions {
 		if strings.EqualFold(strings.TrimSpace(allowed), strings.TrimSpace(ext)) {

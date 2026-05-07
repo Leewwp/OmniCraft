@@ -74,6 +74,18 @@ func (c *OSSClient) GetSignedURL(ossKey, method string, expires time.Duration, o
 	}
 }
 
+func (c *OSSClient) GetVideoSnapshotURL(ossKey string, expires time.Duration, width int) (string, error) {
+	expiresSec := int64(expires.Seconds())
+	if expiresSec <= 0 {
+		expiresSec = 3600
+	}
+	if width <= 0 {
+		width = 480
+	}
+	process := fmt.Sprintf("video/snapshot,t_0,f_jpg,w_%d", width)
+	return c.bucket.SignURL(ossKey, oss.HTTPGet, expiresSec, oss.Process(process))
+}
+
 func (c *OSSClient) GetSTS(regionID, roleArn, sessionName string, durationSeconds int64) (*STSToken, error) {
 	if strings.TrimSpace(regionID) == "" || strings.TrimSpace(roleArn) == "" {
 		return nil, fmt.Errorf("region and role arn are required")

@@ -30,7 +30,7 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 	reputSvc := service.NewReputationService(db)
 	reviewSvc := service.NewReviewService(db, rdb, cfg, reputSvc)
 	return &ContentHandler{
-		contentSvc:  service.NewContentServiceWithCache(repo, reviewSvc, rdb, &cfg.Cache),
+		contentSvc:  service.NewContentServiceWithOSS(repo, reviewSvc, rdb, &cfg.Cache, ossSvc),
 		contentRepo: repo,
 		ossSvc:      ossSvc,
 		ossInitErr:  ossErr,
