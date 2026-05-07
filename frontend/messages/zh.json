@@ -742,7 +742,8 @@
     "donationImage": "打赏码",
     "donationImageUrl": "打赏码图片 URL",
     "externalLinks": "外部链接",
-    "addLink": "添加链接"
+    "addLink": "添加链接",
+    "invalidUrl": "链接必须以 https:// 开头"
   },
   "agentConfig": {
     "title": "Agent 配置管理",

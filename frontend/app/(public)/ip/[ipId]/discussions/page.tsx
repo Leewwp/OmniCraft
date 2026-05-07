@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -29,14 +29,17 @@ export default function DiscussionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const searchRef = useRef(search);
+  searchRef.current = search;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (searchQuery?: string) => {
     setLoading(true);
     setError("");
     try {
-      const q = search.trim() ? `/search?q=${encodeURIComponent(search.trim())}` : "";
+      const q = (searchQuery ?? searchRef.current).trim();
+      const path = q ? `/search?q=${encodeURIComponent(q)}` : "";
       const res = await api.get<{ discussions?: DiscussionData[] }>(
-        `/api/v1/ips/${ipId}/discussions${q}`,
+        `/api/v1/ips/${ipId}/discussions${path}`,
       );
       setDiscussions(res.discussions ?? []);
     } catch (e) {
@@ -44,7 +47,7 @@ export default function DiscussionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [ipId, search, t]);
+  }, [ipId, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -73,7 +76,7 @@ export default function DiscussionsPage() {
             className="w-full rounded-md border border-border bg-background py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </div>
-        <Button size="sm" variant="outline" onClick={load}>{t("discussion.search")}</Button>
+        <Button size="sm" variant="outline" onClick={() => load()}>{t("discussion.search")}</Button>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}

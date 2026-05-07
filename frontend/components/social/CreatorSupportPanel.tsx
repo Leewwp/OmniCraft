@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Heart, ExternalLink, Upload } from "lucide-react";
+import { Heart, ExternalLink, Plus } from "lucide-react";
+
+function isValidHttpUrl(val: string) {
+  return !val || /^https?:\/\/.+/.test(val);
+}
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -27,6 +31,15 @@ export function CreatorSupportPanel({ supportInfo, isOwner, className }: Creator
   const [success, setSuccess] = useState("");
 
   async function handleSave() {
+    if (imageUrl && !isValidHttpUrl(imageUrl)) {
+      setError(t("support.invalidUrl"));
+      return;
+    }
+    const invalidLink = links.find((l) => l && !isValidHttpUrl(l));
+    if (invalidLink) {
+      setError(t("support.invalidUrl"));
+      return;
+    }
     setBusy(true);
     setError("");
     setSuccess("");
@@ -130,7 +143,7 @@ export function CreatorSupportPanel({ supportInfo, isOwner, className }: Creator
         ))}
         {links.length < 3 && (
           <Button size="sm" variant="outline" onClick={addLink}>
-            <Upload className="mr-1 h-3.5 w-3.5" />
+            <Plus className="mr-1 h-3.5 w-3.5" />
             {t("support.addLink")}
           </Button>
         )}

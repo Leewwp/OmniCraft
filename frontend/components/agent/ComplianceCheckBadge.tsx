@@ -13,7 +13,7 @@ interface ComplianceResult {
   details?: Record<string, unknown>;
 }
 
-interface ComplianceCheckBadgeProps {
+interface AgentComplianceCheckBadgeProps {
   contentId?: number;
   title?: string;
   description?: string;
@@ -21,13 +21,13 @@ interface ComplianceCheckBadgeProps {
   className?: string;
 }
 
-export function ComplianceCheckBadge({
+export function AgentComplianceCheckBadge({
   contentId,
   title,
   description,
   contentType,
   className,
-}: ComplianceCheckBadgeProps) {
+}: AgentComplianceCheckBadgeProps) {
   const t = useTranslations();
   const [result, setResult] = useState<ComplianceResult | null>(null);
   const [loading, setLoading] = useState(false);

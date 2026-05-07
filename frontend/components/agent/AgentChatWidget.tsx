@@ -75,7 +75,7 @@ export function AgentChatWidget({ className }: AgentChatWidgetProps) {
             )}
             {messages.map((m, i) => (
               <div
-                key={i}
+                key={`msg-${i}-${m.role}`}
                 className={cn(
                   "max-w-[85%] rounded-md px-3 py-2 text-sm",
                   m.role === "user"
