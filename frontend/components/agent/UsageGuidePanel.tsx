@@ -32,7 +32,7 @@ export function UsageGuidePanel({ contentId, className }: UsageGuidePanelProps) 
   function toggle() {
     if (!expanded && !loaded) {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-      start(`${apiUrl}/api/v1/agent/usage-guide/${contentId}`);
+      start(`${apiUrl}/api/v1/agent/usage-guide/${contentId}?stream=true`);
     }
     setExpanded(!expanded);
   }

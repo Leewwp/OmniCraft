@@ -17,6 +17,9 @@ interface UploadAssistResult {
 interface UploadAssistPanelProps {
   uploadedFiles: string[];
   contentId?: number;
+  title?: string;
+  description?: string;
+  contentType?: string;
   onFill?: (data: UploadAssistResult) => void;
   className?: string;
 }
@@ -24,6 +27,9 @@ interface UploadAssistPanelProps {
 export function UploadAssistPanel({
   uploadedFiles,
   contentId,
+  title,
+  description,
+  contentType,
   onFill,
   className,
 }: UploadAssistPanelProps) {
@@ -39,7 +45,12 @@ export function UploadAssistPanel({
     try {
       const res = await api.post<{ result?: UploadAssistResult }>(
         "/api/v1/agent/upload-assist",
-        { content_id: contentId, file_keys: uploadedFiles },
+        {
+          title: title || "",
+          description: description || "",
+          filename: uploadedFiles[0] || "",
+          content_type: contentType || "other",
+        },
       );
       const data = res.result ?? res as unknown as UploadAssistResult;
       setResult(data);

@@ -41,7 +41,8 @@ export function UserProfileClient({ userId, displayName }: UserProfileClientProp
           url = `/api/v1/users/${userId}/favorites`;
           break;
         case "discussions":
-          url = `/api/v1/ips/1/discussions`; // fallback
+          // GET /users/:id/discussions not yet implemented; fallback to user's content
+          url = `/api/v1/users/${userId}/contents?page=1&page_size=24`;
           break;
       }
       const data = await api.get<{ contents?: unknown[]; favorites?: unknown[] }>(url);

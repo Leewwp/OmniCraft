@@ -35,7 +35,7 @@ export function ReplyList({ discussionId, replies, onRefresh, className }: Reply
     setBusy(true);
     setError("");
     try {
-      await api.post(`/api/v1/discussions/${discussionId}/comments`, { body: body.trim() });
+      await api.post(`/api/v1/discussions/${discussionId}/comments`, { content: body.trim() });
       setBody("");
       onRefresh?.();
     } catch (e) {

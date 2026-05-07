@@ -47,7 +47,9 @@ export function AgentChatWidget({ className }: AgentChatWidgetProps) {
     setMessages((prev) => [...prev, { role: "user", content: trimmed }]);
     setInput("");
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-    start(`${apiUrl}/api/v1/agent/chat/stream`, { message: trimmed });
+    start(`${apiUrl}/api/v1/agent/chat/stream`, {
+      messages: [{ role: "user", content: trimmed }],
+    });
   }
 
   if (!user) return null;
