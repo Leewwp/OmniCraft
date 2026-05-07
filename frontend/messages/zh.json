@@ -220,7 +220,12 @@
     "modUploadTip2": "压缩包根目录建议包含 README 或 manifest 文件。",
     "modUploadTip3": "若包含依赖，请在说明文档中标注运行环境。",
     "sheetMusicUploadHint": "乐谱上传支持扩展名：mid、midi、xml、mxl、mscz、mscx、pdf。",
-    "uploadComplianceHint": "上传后文件将进入内容安全审核流程，请确保内容合规。"
+    "uploadComplianceHint": "上传后文件将进入内容安全审核流程，请确保内容合规。",
+    "suggestAddTag": "建议添加 {tag} 标签",
+    "suggestRemoveTag": "建议移除 {tag} 标签",
+    "suggestAddTagHint": "建议添加此标签",
+    "suggestRemoveTagHint": "建议移除此标签",
+    "tagSuggestionSubmitted": "标签建议已提交，等待作者审批"
   },
   "publish": {
     "title": "发布内容",
@@ -345,6 +350,9 @@
     "contributorDesc": "管理贡献者和拉黑列表",
     "publishNew": "发布新内容",
     "publishDesc": "创作并发布新的内容作品",
+    "tagSuggestions": "待审标签建议",
+    "tagSuggestionsDesc": "审核用户提交的标签添加/移除建议",
+    "pendingCount": "待处理 {count} 条",
     "content": {
       "title": "我的内容",
       "count": "共 {count} 篇",
@@ -623,7 +631,39 @@
     "bio": "个人简介",
     "saveButton": "保存修改",
     "securityTitle": "安全设置",
-    "securityHint": "密码修改和账号注销功能即将上线"
+    "securityHint": "密码修改和账号注销功能即将上线",
+    "tagGroups": "标签组管理"
+  },
+  "tagGroups": {
+    "title": "标签组管理",
+    "subtitle": "创建和管理你的标签组，在分面搜索中一键应用",
+    "newGroup": "新建标签组",
+    "editGroup": "编辑标签组",
+    "groupName": "标签组名称",
+    "groupNamePlaceholder": "为标签组命名",
+    "tags": "标签",
+    "tagPlaceholder": "输入标签后按 Enter 添加",
+    "empty": "暂无标签组",
+    "createFirst": "创建第一个标签组",
+    "deleteConfirm": "确认删除",
+    "deleteConfirmDesc": "确认删除标签组「{name}」吗？此操作不可撤销。",
+    "fillAllFields": "请填写名称并添加至少一个标签"
+  },
+  "tagSuggestions": {
+    "title": "标签建议审核",
+    "subtitle": "审核用户提交的标签添加/移除建议",
+    "contentIdLabel": "内容 ID",
+    "contentIdPlaceholder": "输入内容 ID 查看标签建议",
+    "refresh": "刷新",
+    "empty": "暂无待审核标签建议",
+    "colTag": "标签",
+    "colAction": "操作",
+    "colContent": "内容",
+    "colSuggester": "建议人",
+    "colDate": "日期",
+    "colActions": "操作",
+    "approve": "通过",
+    "reject": "拒绝"
   },
   "appeals": {
     "title": "我的申诉",

@@ -215,7 +215,12 @@
     "modUploadTip2": "Include a README or manifest file in the archive root.",
     "modUploadTip3": "If there are dependencies, note the runtime environment in the documentation.",
     "sheetMusicUploadHint": "Supported extensions: mid, midi, xml, mxl, mscz, mscx, pdf.",
-    "uploadComplianceHint": "Uploaded files will go through content moderation. Please ensure compliance."
+    "uploadComplianceHint": "Uploaded files will go through content moderation. Please ensure compliance.",
+    "suggestAddTag": "Suggest adding {tag}",
+    "suggestRemoveTag": "Suggest removing {tag}",
+    "suggestAddTagHint": "Suggest adding this tag",
+    "suggestRemoveTagHint": "Suggest removing this tag",
+    "tagSuggestionSubmitted": "Tag suggestion submitted, awaiting author review"
   },
   "publish": {
     "title": "Publish Content",
@@ -340,6 +345,9 @@
     "contributorDesc": "Manage contributors and blocklist",
     "publishNew": "Publish New",
     "publishDesc": "Create and publish new content",
+    "tagSuggestions": "Tag Suggestions",
+    "tagSuggestionsDesc": "Review tag add/remove suggestions from users",
+    "pendingCount": "{count} pending",
     "content": {
       "title": "My Content",
       "count": "{count} items",
@@ -618,7 +626,39 @@
     "bio": "Bio",
     "saveButton": "Save changes",
     "securityTitle": "Security Settings",
-    "securityHint": "Password change and account deletion coming soon"
+    "securityHint": "Password change and account deletion coming soon",
+    "tagGroups": "Tag Groups"
+  },
+  "tagGroups": {
+    "title": "Tag Groups",
+    "subtitle": "Create and manage your tag groups for quick application in faceted search",
+    "newGroup": "New Group",
+    "editGroup": "Edit Group",
+    "groupName": "Group Name",
+    "groupNamePlaceholder": "Name your tag group",
+    "tags": "Tags",
+    "tagPlaceholder": "Type a tag and press Enter to add",
+    "empty": "No tag groups yet",
+    "createFirst": "Create your first tag group",
+    "deleteConfirm": "Confirm Delete",
+    "deleteConfirmDesc": "Delete tag group \"{name}\"? This cannot be undone.",
+    "fillAllFields": "Please enter a name and at least one tag"
+  },
+  "tagSuggestions": {
+    "title": "Tag Suggestion Review",
+    "subtitle": "Review tag add/remove suggestions from users",
+    "contentIdLabel": "Content ID",
+    "contentIdPlaceholder": "Enter content ID to view suggestions",
+    "refresh": "Refresh",
+    "empty": "No pending tag suggestions",
+    "colTag": "Tag",
+    "colAction": "Action",
+    "colContent": "Content",
+    "colSuggester": "Suggester",
+    "colDate": "Date",
+    "colActions": "Actions",
+    "approve": "Approve",
+    "reject": "Reject"
   },
   "appeals": {
     "title": "My Appeals",

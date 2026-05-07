@@ -1,6 +1,29 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
+## [2026-05-07] - Task 50: 标签组管理 UI
+
+### What was done:
+- 创建 `app/(protected)/settings/tag-groups/page.tsx`：标签组管理页面，含标签组列表（名称 + TagBadge 列表 + 编辑/删除按钮）、创建/编辑 Modal（名称输入 + 逐标签输入 + TagBadge 移除）、删除二次确认 Modal、空状态引导
+- 创建 `app/(protected)/dashboard/tag-suggestions/page.tsx`：标签建议审核页面，按内容 ID 查询待审建议表格（标签/操作/内容/建议人/日期），支持 approve/reject 操作（loading spinner）
+- 增强 `components/content/ContentDetail.tsx`：标签区域增加 hover 显示 +/- 微型按钮，点击调用 POST /contents/:id/tags/suggest（action=add/remove），Toast 反馈提交结果
+- 增强 `app/(protected)/dashboard/page.tsx`：Stats 接口增加 pending_tag_suggestions 字段；概览卡片新增「待审标签建议」入口（含待处理数量 badge）
+- 清理 Task 49 测试残留目录：sb-test, sb-test2, test-sidebar（4 个临时目录）
+- messages/zh.json + en.json 新增 3 个命名空间：`tagGroups.*`, `tagSuggestions.*`, `content.suggest*` + `dashboard.tagSuggestions*`
+
+### Testing:
+- `npx tsc --noEmit`：零类型错误
+- `npm run build`：Turbopack 编译成功，/settings/tag-groups 和 /dashboard/tag-suggestions 路由正确注册
+- `go build ./...` + `go vet ./...`：零错误零警告
+- Dev server 浏览器测试：受预存 i18n middleware 路由 404 环境影响，页面无法完整验证交互（与 Task 47/49 相同的预存问题）
+
+### Notes:
+- API 端点全部由 Task 45（标签体系 Go API）提供，前端仅实现 UI 调用
+- TagBadge.tsx 为 Task 49 创建但漏提交的文件，本次一并提交
+- scripts/（init-db.sh, backup-db.sh）为 Task 42 漏提交文件，本次一并提交
+- 标签组在 FacetedSearchSidebar 底部的集成已在 Task 49 完成
+
+---
 ## [2026-05-07] - Task 46: Next.js i18n（next-intl，zh-CN/en-US）—— 全量翻译补全
 
 ### What was done:
