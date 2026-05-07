@@ -744,6 +744,24 @@
     "externalLinks": "外部链接",
     "addLink": "添加链接"
   },
+  "agentConfig": {
+    "title": "Agent 配置管理",
+    "subtitle": "管理 LLM 提供商配置，激活、测试和切换模型",
+    "addConfig": "新增配置",
+    "editConfig": "编辑配置",
+    "activeConfig": "当前激活配置",
+    "noActiveConfig": "暂无激活的 LLM 配置",
+    "colName": "配置名",
+    "colProvider": "提供商",
+    "colModel": "模型",
+    "colStatus": "状态",
+    "colActions": "操作",
+    "apiBase": "API 地址",
+    "apiKey": "API Key",
+    "apiKeyHint": "留空则不修改",
+    "testConnection": "测试连接",
+    "activate": "激活"
+  },
   "appeals": {
     "title": "我的申诉",
     "subtitle": "对被标记内容提出申诉",
