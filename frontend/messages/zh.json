@@ -796,7 +796,13 @@
     "markAllRead": "全部已读",
     "noMessages": "暂无消息",
     "read": "已读",
-    "loadFailed": "加载失败"
+    "loadFailed": "加载失败",
+    "tabNotifications": "通知",
+    "tabMessages": "私信",
+    "conversationCount": "{count} 个对话",
+    "noConversations": "暂无对话",
+    "selectConversation": "选择一个对话开始聊天",
+    "replyPlaceholder": "输入消息..."
   },
   "error": {
     "pageError": "页面出错了",

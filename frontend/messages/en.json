@@ -797,7 +797,13 @@
     "markAllRead": "Mark all read",
     "noMessages": "No messages",
     "read": "Read",
-    "loadFailed": "Failed to load"
+    "loadFailed": "Failed to load",
+    "tabNotifications": "Notifications",
+    "tabMessages": "Messages",
+    "conversationCount": "{count} conversations",
+    "noConversations": "No conversations",
+    "selectConversation": "Select a conversation to start chatting",
+    "replyPlaceholder": "Type a message..."
   },
   "error": {
     "pageError": "Something went wrong",
