@@ -70,7 +70,7 @@ export default function AdminUsersPage() {
     setBusy(true);
     setError("");
     try {
-      await api.patch(`/api/v1/users/${id}`, { is_banned: false });
+      await api.post(`/api/v1/admin/users/${id}/unban`, {});
       setUsers((prev) =>
         prev.map((u) => (u.id === id ? { ...u, is_banned: false } : u))
       );
