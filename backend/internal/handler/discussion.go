@@ -158,3 +158,20 @@ func (h *DiscussionHandler) SearchDiscussions(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"discussions": discussions})
 }
+
+func (h *DiscussionHandler) ListByUser(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
+		return
+	}
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	discussions, total, err := h.discRepo.ListByUser(userID, page, pageSize)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"discussions": discussions, "total": total})
+}

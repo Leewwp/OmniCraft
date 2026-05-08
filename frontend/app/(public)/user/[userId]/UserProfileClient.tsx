@@ -43,14 +43,14 @@ export function UserProfileClient({ userId, displayName }: UserProfileClientProp
           url = `/api/v1/users/${userId}/favorites`;
           break;
         case "discussions":
-          // GET /users/:id/discussions not yet implemented; fallback to user's content
-          url = `/api/v1/users/${userId}/contents?page=1&page_size=24`;
+          url = `/api/v1/users/${userId}/discussions?page=1&page_size=24`;
           break;
       }
       interface ProfileResponse { contents?: unknown[]; favorites?: unknown[]; discussions?: unknown[] }
       const data = await api.get<ProfileResponse>(url);
-      const list = data.contents ?? data.favorites ?? data.discussions ?? [];
-      setItems(normalizeContentList(list));
+      const raw = data.contents ?? data.favorites ?? data.discussions ?? [];
+      // Discussions return DiscussionCardData, not ContentCardData — pass through
+      setItems(tab === "discussions" ? raw as unknown as ContentCardData[] : normalizeContentList(raw));
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : t('common.loadFailed'));
     } finally {

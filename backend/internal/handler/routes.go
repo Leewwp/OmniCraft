@@ -174,6 +174,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 	ips.GET("/:id/discussions", discHandler.ListDiscussions)
 	ips.POST("/:id/discussions", middleware.AuthRequired(cfg, rdb), discHandler.CreateDiscussion)
 	ips.GET("/:id/discussions/search", discHandler.SearchDiscussions)
+		users.GET("/:id/discussions", discHandler.ListByUser)
 	discussions := v1.Group("/discussions")
 	{
 		discussions.GET("/:id", discHandler.GetDiscussion)
