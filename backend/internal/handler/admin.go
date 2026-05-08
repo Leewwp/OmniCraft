@@ -121,6 +121,19 @@ func (h *AdminHandler) BanUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "user banned"})
 }
 
+func (h *AdminHandler) UnbanUser(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
+		return
+	}
+	if err := h.userRepo.UpdateFields(id, map[string]interface{}{"is_banned": false, "ban_reason": ""}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "user unbanned"})
+}
+
 func (h *AdminHandler) ListUsers(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))

@@ -216,6 +216,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		admin.POST("/contents/:id/ban", adminHandler.BanContent)
 		admin.GET("/users", adminHandler.ListUsers)
 		admin.POST("/users/:id/ban", adminHandler.BanUser)
+		admin.POST("/users/:id/unban", adminHandler.UnbanUser)
 		admin.GET("/appeals", adminHandler.ListAppeals)
 		admin.POST("/appeals/:id", adminHandler.ResolveAppeal)
 		admin.GET("/config", adminHandler.GetConfig)
