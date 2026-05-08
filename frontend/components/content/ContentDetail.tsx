@@ -151,6 +151,11 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
     void checkFavorite();
   }, [user, data.id]);
 
+  useEffect(() => {
+    if (!user) return;
+    api.post("/api/v1/users/me/history", { content_item_id: data.id }).catch(() => {});
+  }, [user, data.id]);
+
   async function checkFavorite() {
     try {
       const favData = await api.get<{ favorites?: { content_item_id: number }[] }>(
