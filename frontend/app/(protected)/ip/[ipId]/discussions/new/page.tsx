@@ -41,7 +41,7 @@ export default function NewDiscussionPage() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <div className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
+      <div className="space-y-4 rounded-md border border-border bg-card p-4 ">
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">{t("discussion.titleLabel")}</label>
           <input

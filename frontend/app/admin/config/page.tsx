@@ -167,7 +167,7 @@ export default function AdminConfigPage() {
   if (loading) {
     return (
       <div className="space-y-4 p-6">
-        <div className="space-y-3 rounded-md border border-border bg-card p-6 shadow-none">
+        <div className="space-y-3 rounded-md border border-border bg-card p-6 ">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="h-6 w-full animate-pulse rounded bg-muted" />
           ))}
@@ -231,7 +231,7 @@ export default function AdminConfigPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 shadow-none">
+      <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 ">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t('admin.config.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -251,7 +251,7 @@ export default function AdminConfigPage() {
       </div>
 
       {saved && (
-        <div className="rounded-md border border-emerald-500/30 bg-emerald-50 p-3 text-sm text-emerald-700 shadow-none">
+        <div className="rounded-md border border-emerald-500/30 bg-emerald-50 p-3 text-sm text-emerald-700 ">
           {t('admin.config.saved')}
         </div>
       )}
@@ -259,7 +259,7 @@ export default function AdminConfigPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Limits */}
-        <div className="rounded-md border border-border bg-card shadow-none">
+        <div className="rounded-md border border-border bg-card ">
           <div className="border-b border-border px-4 py-3">
             <h3 className="text-sm font-semibold">{t('admin.config.sectionLimits')}</h3>
           </div>
@@ -274,7 +274,7 @@ export default function AdminConfigPage() {
         </div>
 
         {/* Features */}
-        <div className="rounded-md border border-border bg-card shadow-none">
+        <div className="rounded-md border border-border bg-card ">
           <div className="border-b border-border px-4 py-3">
             <h3 className="text-sm font-semibold">{t('admin.config.sectionFeatures')}</h3>
           </div>
@@ -285,7 +285,7 @@ export default function AdminConfigPage() {
         </div>
 
         {/* Reputation */}
-        <div className="rounded-md border border-border bg-card shadow-none">
+        <div className="rounded-md border border-border bg-card ">
           <div className="border-b border-border px-4 py-3">
             <h3 className="text-sm font-semibold">{t('admin.config.sectionReputation')}</h3>
           </div>
@@ -299,7 +299,7 @@ export default function AdminConfigPage() {
         </div>
 
         {/* Judge */}
-        <div className="rounded-md border border-border bg-card shadow-none">
+        <div className="rounded-md border border-border bg-card ">
           <div className="border-b border-border px-4 py-3">
             <h3 className="text-sm font-semibold">{t('admin.config.sectionJudge')}</h3>
           </div>
@@ -313,7 +313,7 @@ export default function AdminConfigPage() {
         </div>
 
         {/* Agent */}
-        <div className="rounded-md border border-border bg-card shadow-none">
+        <div className="rounded-md border border-border bg-card ">
           <div className="border-b border-border px-4 py-3">
             <h3 className="text-sm font-semibold">{t('admin.config.sectionAgent')}</h3>
           </div>
@@ -324,7 +324,7 @@ export default function AdminConfigPage() {
         </div>
 
         {/* Social */}
-        <div className="rounded-md border border-border bg-card shadow-none">
+        <div className="rounded-md border border-border bg-card ">
           <div className="border-b border-border px-4 py-3">
             <h3 className="text-sm font-semibold">{t('admin.config.sectionSocial')}</h3>
           </div>

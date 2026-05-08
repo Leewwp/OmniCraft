@@ -130,7 +130,7 @@ export default function AgentConfigPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {/* Active config card */}
-      <div className="rounded-md border border-border bg-card p-4 shadow-none">
+      <div className="rounded-md border border-border bg-card p-4 ">
         <h3 className="text-sm font-semibold">{t("agentConfig.activeConfig")}</h3>
         {activeConfig ? (
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
@@ -210,7 +210,7 @@ export default function AgentConfigPage() {
       {/* Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="w-full max-w-md rounded-md border border-border bg-card p-6 shadow-none">
+          <div className="w-full max-w-md rounded-md border border-border bg-card p-6 ">
             <h2 className="text-lg font-semibold">
               {editingId ? t("agentConfig.editConfig") : t("agentConfig.addConfig")}
             </h2>

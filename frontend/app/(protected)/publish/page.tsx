@@ -238,7 +238,7 @@ export default function PublishPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-6">
-      <section className="rounded-md border border-border bg-card p-4 shadow-none">
+      <section className="rounded-md border border-border bg-card p-4 ">
         <h1 className="text-2xl font-bold tracking-tight">{t('publish.title')}</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           {t('publish.subtitle')}
@@ -252,7 +252,7 @@ export default function PublishPage() {
         </div>
       </section>
 
-      <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
+      <section className="space-y-4 rounded-md border border-border bg-card p-4 ">
         <h2 className="text-base font-semibold">{t('publish.basicInfo')}</h2>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -336,7 +336,7 @@ export default function PublishPage() {
         </div>
       </section>
 
-      <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
+      <section className="space-y-4 rounded-md border border-border bg-card p-4 ">
         <h2 className="text-base font-semibold">{t('publish.coverUpload')}</h2>
         <FileUploader
           fileType="image"
@@ -355,13 +355,13 @@ export default function PublishPage() {
         ) : null}
       </section>
 
-      <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
+      <section className="space-y-4 rounded-md border border-border bg-card p-4 ">
         <h2 className="text-base font-semibold">{t('publish.bodyEditor')}</h2>
         <MarkdownEditor value={markdown} onChange={setMarkdown} disabled={isSubmitting} />
         <p className="text-xs text-muted-foreground">{t('publish.bodyEditorHint')}</p>
       </section>
 
-      <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
+      <section className="space-y-4 rounded-md border border-border bg-card p-4 ">
         <h2 className="text-base font-semibold">{t('publish.contentAttachments')}</h2>
         <FileUploader
           fileType={uploadFileType}
@@ -389,7 +389,7 @@ export default function PublishPage() {
         ) : null}
       </section>
 
-      <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
+      <section className="space-y-4 rounded-md border border-border bg-card p-4 ">
         <h2 className="text-base font-semibold">{t('publish.tagsAndMeta')}</h2>
         <div className="space-y-2">
           <label className="text-sm font-medium">{t('publish.tags')}</label>
@@ -432,7 +432,7 @@ export default function PublishPage() {
         <UploadAssistPanel contentType={contentType} />
       </section>
 
-      <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
+      <section className="space-y-4 rounded-md border border-border bg-card p-4 ">
         <h2 className="text-base font-semibold">{t('publish.permissions')}</h2>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />

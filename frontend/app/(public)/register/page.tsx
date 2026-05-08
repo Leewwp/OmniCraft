@@ -33,6 +33,7 @@ export default function RegisterPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -43,6 +44,7 @@ export default function RegisterPage() {
     if (username.length > 64) newErrors.username = t('auth.errorUsernameTooLong');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = t('auth.errorInvalidEmail');
     if (password.length < 6) newErrors.password = t('auth.errorPasswordTooShort');
+    if (password !== confirmPassword) newErrors.confirmPassword = t('auth.errorPasswordMismatch');
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
@@ -95,7 +97,7 @@ export default function RegisterPage() {
         </div>
 
         {/* Form */}
-        <div className="rounded-lg border border-border bg-card p-6 shadow-none">
+        <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="username">{t('auth.username')}</Label>
@@ -162,6 +164,24 @@ export default function RegisterPage() {
               </div>
               {errors.password && (
                 <p className="text-xs text-destructive">{errors.password}</p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="confirmPassword">{t('auth.confirmPassword')}</Label>
+              <Input
+                id="confirmPassword"
+                type={showPassword ? "text" : "password"}
+                placeholder={t('auth.confirmPasswordPlaceholder')}
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                disabled={isLoading}
+                className={errors.confirmPassword ? "border-destructive" : ""}
+              />
+              {errors.confirmPassword && (
+                <p className="text-xs text-destructive">{errors.confirmPassword}</p>
               )}
             </div>
 

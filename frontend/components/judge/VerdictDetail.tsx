@@ -85,7 +85,7 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center rounded-md border border-border bg-card p-8 shadow-none">
+      <div className="flex items-center justify-center rounded-md border border-border bg-card p-8 ">
         <span className="text-sm text-muted-foreground">{t('common.loading')}</span>
       </div>
     );
@@ -93,7 +93,7 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
 
   if (error) {
     return (
-      <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 shadow-none">
+      <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 ">
         <p className="text-sm text-destructive">{error}</p>
       </div>
     );
@@ -112,7 +112,7 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
   const sortedReasons = [...reasonsWithText].sort((a, b) => b.upvotes - b.downvotes - (a.upvotes - a.downvotes));
 
   return (
-    <div className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
+    <div className="space-y-4 rounded-md border border-border bg-card p-4 ">
       <h3 className="text-sm font-semibold">{t('judge.verdict.title')}</h3>
 
       <div className="space-y-2">
@@ -162,7 +162,7 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
           {sortedReasons.map((v) => (
             <div
               key={v.id}
-              className="rounded-md border border-border bg-muted/20 p-3 shadow-none"
+              className="rounded-md border border-border bg-muted/20 p-3 "
             >
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="font-medium">{v.judge_name || t('common.userLabel', { id: v.judge_id })}</span>

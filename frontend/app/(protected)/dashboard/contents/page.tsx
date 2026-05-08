@@ -64,7 +64,7 @@ export default function DashboardContentsPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6">
-      <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 shadow-none">
+      <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 ">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t('dashboard.content.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t('dashboard.content.count', { count: contents.length })}</p>
@@ -77,14 +77,14 @@ export default function DashboardContentsPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {contents.length === 0 ? (
-        <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
+        <div className="rounded-md border border-border bg-card p-12 text-center ">
           <p className="text-sm text-muted-foreground">{t('dashboard.content.noContent')}</p>
           <Link href="/publish" className="mt-3 inline-block text-sm text-accent underline underline-offset-4">
             {t('dashboard.content.publishFirst')}
           </Link>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-md border border-border bg-card shadow-none">
+        <div className="overflow-x-auto rounded-md border border-border bg-card ">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
               <tr>

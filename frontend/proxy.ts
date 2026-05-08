@@ -13,10 +13,20 @@ const PROTECTED_PATHS = [
   '/admin',
 ];
 
+function decodeJWTPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = atob(parts[1]);
+    return JSON.parse(payload);
+  } catch {
+    return null;
+  }
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Determine response — start with next(), then optionally redirect
   let response = NextResponse.next();
 
   // Set locale cookie from Accept-Language header if not already set
@@ -26,24 +36,30 @@ export function proxy(request: NextRequest) {
     response.cookies.set('NEXT_LOCALE', prefersZh ? 'zh' : 'en', { path: '/' });
   }
 
-  // Check auth for protected paths (always, even on first request)
   const isProtected = PROTECTED_PATHS.some(
     (p) => pathname === p || pathname.startsWith(p + '/'),
   );
 
-  if (isProtected) {
-    const token = request.cookies.get('access_token')?.value;
-    if (!token) {
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('redirect', pathname);
+  if (!isProtected) return response;
 
-      const redirect = NextResponse.redirect(loginUrl);
-      // Carry over the locale cookie if we just set it
-      const localeCookie = response.cookies.get('NEXT_LOCALE');
-      if (localeCookie) {
-        redirect.cookies.set('NEXT_LOCALE', localeCookie.value, localeCookie);
-      }
-      return redirect;
+  const token = request.cookies.get('access_token')?.value;
+  if (!token) {
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('redirect', pathname);
+
+    const redirect = NextResponse.redirect(loginUrl);
+    const localeCookie = response.cookies.get('NEXT_LOCALE');
+    if (localeCookie) {
+      redirect.cookies.set('NEXT_LOCALE', localeCookie.value, localeCookie);
+    }
+    return redirect;
+  }
+
+  // Role check for admin routes
+  if (pathname.startsWith('/admin')) {
+    const payload = decodeJWTPayload(token);
+    if (!payload || payload.role !== 'admin') {
+      return NextResponse.redirect(new URL('/', request.url));
     }
   }
 

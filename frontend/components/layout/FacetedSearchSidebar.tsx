@@ -311,7 +311,7 @@ export function FacetedSearchSidebar({
       className={cn(
         "flex flex-col border border-border rounded-md bg-card p-4 gap-4",
         "w-full lg:w-[260px] shrink-0",
-        "shadow-none",
+        "",
         className,
       )}
     >

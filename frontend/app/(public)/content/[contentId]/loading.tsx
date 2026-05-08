@@ -21,7 +21,7 @@ export default function ContentDetailLoading() {
       </div>
 
       {/* Versions skeleton */}
-      <div className="rounded-md border border-border bg-card p-4">
+      <div className="rounded-md border border-border bg-card p-4 shadow-sm">
         <Skeleton className="mb-3 h-5 w-32" />
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (

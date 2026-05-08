@@ -38,7 +38,7 @@ export function UsageGuidePanel({ contentId, className }: UsageGuidePanelProps) 
   }
 
   return (
-    <div className={cn("rounded-md border border-border bg-card shadow-none", className)}>
+    <div className={cn("rounded-md border border-border bg-card ", className)}>
       <button
         type="button"
         className="flex w-full items-center justify-between px-4 py-3 text-left"

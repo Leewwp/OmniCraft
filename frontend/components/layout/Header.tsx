@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { useTranslations, useLocale } from "next-intl";
 import {
+  Bell,
   Brush,
   Clock,
   Globe,
@@ -14,6 +15,7 @@ import {
   Menu,
   Monitor,
   Moon,
+  Plus,
   Search,
   Settings,
   Shield,
@@ -52,6 +54,7 @@ export function Header() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const router = useRouter();
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -64,13 +67,21 @@ export function Header() {
     router.push(path);
   }
 
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return;
+    router.push(`/search?q=${encodeURIComponent(trimmed)}`);
+    setMobileSearchOpen(false);
+  }
+
   async function handleLocaleChange(newLocale: string) {
     await setLocale(newLocale as "zh" | "en", user?.id);
     window.location.reload();
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-background shadow-none">
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4">
         <Link
           href="/"
@@ -97,14 +108,17 @@ export function Header() {
 
         <div className="flex flex-1 items-center gap-2">
           {/* Desktop search */}
-          <div className="relative hidden max-w-sm flex-1 items-center sm:flex">
+          <form onSubmit={handleSearch} className="relative hidden max-w-sm flex-1 items-center sm:flex">
             <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground" />
             <input
               type="search"
+              aria-label={t("common.search")}
               placeholder={t("common.search")}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full rounded-md border border-border bg-muted/40 py-1.5 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
-          </div>
+          </form>
           {/* Mobile search toggle */}
           <div className="flex flex-1 justify-end sm:hidden">
             <button
@@ -166,6 +180,29 @@ export function Header() {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Publish button */}
+          {user && (
+            <Link
+              href="/publish"
+              className={cn(buttonVariants({ size: "sm" }), "hidden h-8 gap-1.5 text-sm sm:inline-flex")}
+            >
+              <Plus className="h-4 w-4" />
+              {t("nav.publish")}
+            </Link>
+          )}
+
+          {/* Notification bell */}
+          {user && (
+            <button
+              type="button"
+              className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "relative h-8 w-8")}
+              aria-label={t("nav.notifications")}
+            >
+              <Bell className="h-4 w-4" />
+              <span className="sr-only">{t("nav.notifications")}</span>
+            </button>
+          )}
+
           {/* Mobile menu */}
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -176,14 +213,17 @@ export function Header() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
               <div className="p-1.5">
-                <div className="relative">
+                <form onSubmit={handleSearch} className="relative">
                   <Search className="pointer-events-none absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
                   <input
                     type="search"
+                    aria-label={t("common.search")}
                     placeholder={t("common.search")}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                   />
-                </div>
+                </form>
               </div>
               <DropdownMenuItem onClick={() => goTo("/")}>{t("nav.fanworkZone")}</DropdownMenuItem>
               <DropdownMenuItem onClick={() => goTo("/original")}>{t("nav.originalZone")}</DropdownMenuItem>
@@ -274,17 +314,20 @@ export function Header() {
       </div>
       {/* Mobile expandable search */}
       {mobileSearchOpen && (
-        <div className="border-t border-border bg-background px-4 py-2 sm:hidden">
+        <form onSubmit={handleSearch} className="border-t border-border bg-background px-4 py-2 sm:hidden">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="search"
+              aria-label={t("common.search")}
               autoFocus
               placeholder={t("common.search")}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full rounded-md border border-border bg-muted/40 py-1.5 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
-        </div>
+        </form>
       )}
     </header>
   );

@@ -61,7 +61,7 @@ export default function DiscussionDetailPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6">
-      <div className="rounded-md border border-border bg-card p-6 shadow-none">
+      <div className="rounded-md border border-border bg-card p-6 ">
         <h1 className="text-xl font-bold tracking-tight">{discussion.title}</h1>
         <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
           {discussion.author?.username && <span>{discussion.author.username}</span>}
@@ -72,7 +72,7 @@ export default function DiscussionDetailPage() {
         )}
       </div>
 
-      <div className="rounded-md border border-border bg-card p-4 shadow-none">
+      <div className="rounded-md border border-border bg-card p-4 ">
         <h2 className="mb-4 text-sm font-semibold">
           {t("discussion.replyCount", { count: replies.length })}
         </h2>

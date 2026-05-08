@@ -131,7 +131,7 @@ export default async function RelatedFanworksPage({
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6">
-      <section className="space-y-3 rounded-md border border-border bg-card p-4 shadow-none">
+      <section className="space-y-3 rounded-md border border-border bg-card p-4 ">
         <Link
           href={`/original/${original.id}`}
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -147,7 +147,7 @@ export default async function RelatedFanworksPage({
         </div>
       </section>
 
-      <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
+      <section className="space-y-4 rounded-md border border-border bg-card p-4 ">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <h2 className="text-base font-semibold">{t('content.fanworkStream')}</h2>
           <div className="flex flex-wrap gap-2">

@@ -82,7 +82,7 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
   }
 
   if (loading) {
-    return <div className="space-y-2 rounded-md border border-border bg-card p-4 shadow-none"><div className="h-8 w-48 animate-pulse rounded bg-muted" /><div className="h-4 w-64 animate-pulse rounded bg-muted" /></div>;
+    return <div className="space-y-2 rounded-md border border-border bg-card p-4 "><div className="h-8 w-48 animate-pulse rounded bg-muted" /><div className="h-4 w-64 animate-pulse rounded bg-muted" /></div>;
   }
 
   if (error) {
@@ -94,7 +94,7 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
   }
 
   return (
-    <div className="space-y-3 rounded-md border border-border bg-card p-4 shadow-none">
+    <div className="space-y-3 rounded-md border border-border bg-card p-4 ">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">{t('content.versionHistory')}</h3>
         <button

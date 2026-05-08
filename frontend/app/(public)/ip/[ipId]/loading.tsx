@@ -16,7 +16,7 @@ export default function IPDetailLoading() {
       </div>
 
       {/* Content grid skeleton */}
-      <section className="rounded-md border border-border bg-card p-4">
+      <section className="rounded-md border border-border bg-card p-4 shadow-sm">
         <Skeleton className="mb-3 h-5 w-24" />
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (

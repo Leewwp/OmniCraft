@@ -65,7 +65,7 @@ export function AgentUploadAssistPanel({
   }
 
   return (
-    <div className={cn("rounded-md border border-border bg-card p-4 shadow-none space-y-3", className)}>
+    <div className={cn("rounded-md border border-border bg-card p-4 space-y-3", className)}>
       <div className="flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-purple-500" />
         <span className="text-sm font-medium">{t("agent.uploadAssistTitle")}</span>

@@ -207,7 +207,7 @@ function MIDIPlayer({ ossUrl }: { ossUrl: string }) {
     `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
   return (
-    <div className="rounded-md border border-border bg-card p-4 shadow-none space-y-3">
+    <div className="rounded-md border border-border bg-card p-4 space-y-3">
       <div className="flex items-center gap-3">
         <Button
           variant="outline"
@@ -258,7 +258,7 @@ function PDFViewer({ ossUrl }: { ossUrl: string }) {
 function DownloadPrompt({ att }: { att: SheetMusicAttachment }) {
   const t = useTranslations();
   return (
-    <div className="rounded-md border border-border bg-card p-6 text-center shadow-none">
+    <div className="rounded-md border border-border bg-card p-6 text-center ">
       <FileMusic className="mx-auto h-10 w-10 text-muted-foreground" />
       <p className="mt-3 text-sm font-medium">
         {formatType(t, att.file_type, att.mime_type)}
@@ -367,7 +367,7 @@ export function SheetMusicViewer({ attachments, allowCopy, className }: SheetMus
 
       {/* Other attachments list */}
       {other.length > 0 && (
-        <div className="rounded-md border border-border bg-card p-4 shadow-none">
+        <div className="rounded-md border border-border bg-card p-4 ">
           <h3 className="mb-3 text-sm font-semibold">{t("content.sheetMusicAttachments")}</h3>
           <ul className="divide-y divide-border">
             {other.map((att) => (
@@ -379,7 +379,7 @@ export function SheetMusicViewer({ attachments, allowCopy, className }: SheetMus
 
       {/* Generic preview hint for types without interactive viewer */}
       {!renderable && (
-        <div className="rounded-md border border-border bg-canvas-subtle p-4 shadow-none">
+        <div className="rounded-md border border-border bg-canvas-subtle p-4 ">
           <div className="flex items-center gap-2">
             <FileMusic className="h-5 w-5 text-muted-foreground" />
             <div>

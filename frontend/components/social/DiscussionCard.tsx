@@ -45,7 +45,7 @@ export function DiscussionCard({ data, className }: DiscussionCardProps) {
   );
 
   const cardClass = cn(
-    "block rounded-md border border-border bg-card p-4 shadow-none hover:bg-muted/20 transition-colors",
+    "block rounded-md border border-border bg-card p-4 hover:bg-muted/20 transition-colors",
     className,
   );
 

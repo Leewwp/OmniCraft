@@ -125,7 +125,7 @@ export default function JudgeExamPage() {
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-4 px-4 py-6">
-      <div className="rounded-md border border-border bg-card p-4 shadow-none">
+      <div className="rounded-md border border-border bg-card p-4 ">
         <h1 className="text-2xl font-bold tracking-tight">{t('judge.examTitle')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {t('judge.examSubtitle')}
@@ -135,7 +135,7 @@ export default function JudgeExamPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {isReputationBlocked && (
-        <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 shadow-none">
+        <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 ">
           <p className="text-sm text-destructive">
             {t('judge.lowReputationExam', { reputation: user.reputation })}
           </p>
@@ -143,7 +143,7 @@ export default function JudgeExamPage() {
       )}
 
       {phase === "select-type" && (
-        <div className="space-y-3 rounded-md border border-border bg-card p-4 shadow-none">
+        <div className="space-y-3 rounded-md border border-border bg-card p-4 ">
           <p className="text-sm font-medium">{t('judge.examSelectType')}</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {CONTENT_TYPES.map((ct) => (
@@ -170,7 +170,7 @@ export default function JudgeExamPage() {
 
       {phase === "exam" && questions.length > 0 && (
         <>
-          <div className="rounded-md border border-border bg-card p-3 shadow-none">
+          <div className="rounded-md border border-border bg-card p-3 ">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>
                 {t('judge.examQuestion', { current: currentIndex + 1, total: questions.length })}
@@ -216,7 +216,7 @@ export default function JudgeExamPage() {
       )}
 
       {phase === "result" && result && (
-        <div className="space-y-4 rounded-md border border-border bg-card p-6 text-center shadow-none">
+        <div className="space-y-4 rounded-md border border-border bg-card p-6 text-center ">
           <div className="text-3xl font-bold tracking-tight">
             {result.passed ? (
               <span className="text-emerald-600">{t('judge.examPassed')}</span>
@@ -247,7 +247,7 @@ export default function JudgeExamPage() {
       )}
 
       {phase === "select-type" && loading && (
-        <div className="flex items-center justify-center rounded-md border border-border bg-card p-8 shadow-none">
+        <div className="flex items-center justify-center rounded-md border border-border bg-card p-8 ">
           <span className="text-sm text-muted-foreground">{t('judge.examLoading')}</span>
         </div>
       )}

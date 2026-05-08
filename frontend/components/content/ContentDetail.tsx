@@ -224,13 +224,13 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
 
       {/* Content Body */}
       {description && contentType === "article" && (
-        <section className="rounded-md border border-border bg-card p-4 shadow-none">
+        <section className="rounded-md border border-border bg-card p-4 ">
           <MarkdownRenderer content={description} />
         </section>
       )}
 
       {description && contentType !== "article" && contentType !== "sheet_music" && (
-        <section className="rounded-md border border-border bg-card p-4 shadow-none">
+        <section className="rounded-md border border-border bg-card p-4 ">
           <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
             {description}
           </p>
@@ -239,7 +239,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
 
       {/* Attachments / Gallery for non-sheet-music types */}
       {data.attachments && data.attachments.length > 0 && contentType !== "sheet_music" && (
-        <section className="space-y-2 rounded-md border border-border bg-card p-4 shadow-none">
+        <section className="space-y-2 rounded-md border border-border bg-card p-4 ">
           <h2 className="text-sm font-semibold">{t('content.attachments')}</h2>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {data.attachments.map((att) => (
@@ -323,7 +323,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
 
       {/* Agent Deploy Button */}
       {data.agent_enabled && (contentType === "mod" || contentType === "prompt") && (
-        <div className="rounded-md border border-border bg-card p-4 shadow-none">
+        <div className="rounded-md border border-border bg-card p-4 ">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-sm font-semibold">{t('content.oneClickDeploy')}</p>
@@ -343,7 +343,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
       )}
 
       {/* Favorite Button */}
-      <div className="flex items-center gap-2 rounded-md border border-border bg-card px-4 py-3 shadow-none">
+      <div className="flex items-center gap-2 rounded-md border border-border bg-card px-4 py-3 ">
         <Button
           variant={favorited ? "default" : "outline"}
           size="sm"
@@ -363,7 +363,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
       />
 
       {/* Comments */}
-      <section className="rounded-md border border-border bg-card p-4 shadow-none">
+      <section className="rounded-md border border-border bg-card p-4 ">
         <CommentSection contentId={data.id} />
       </section>
     </div>

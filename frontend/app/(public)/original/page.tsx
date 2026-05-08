@@ -174,7 +174,7 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6">
       {/* Primary category nav */}
-      <section className="space-y-3 rounded-md border border-border bg-card p-4 shadow-none">
+      <section className="space-y-3 rounded-md border border-border bg-card p-4 ">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t("content.originalZone")}</h1>
           <p className="mt-2 text-sm text-muted-foreground">{t("content.originalZoneDesc")}</p>
@@ -196,7 +196,7 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
       </section>
 
       {/* Content stream with secondary nav + sort */}
-      <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
+      <section className="space-y-4 rounded-md border border-border bg-card p-4 ">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <h2 className="text-base font-semibold">{t("home.originalContentStream")}</h2>
 

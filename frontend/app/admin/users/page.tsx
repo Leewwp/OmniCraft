@@ -94,7 +94,7 @@ export default function AdminUsersPage() {
   if (loading) {
     return (
       <div className="space-y-4 p-6">
-        <div className="space-y-3 rounded-md border border-border bg-card p-6 shadow-none">
+        <div className="space-y-3 rounded-md border border-border bg-card p-6 ">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="h-8 w-full animate-pulse rounded bg-muted" />
           ))}
@@ -105,7 +105,7 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 shadow-none">
+      <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 ">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t('admin.users.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -127,12 +127,12 @@ export default function AdminUsersPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {filteredUsers.length === 0 ? (
-        <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
+        <div className="rounded-md border border-border bg-card p-12 text-center ">
           <p className="text-sm text-muted-foreground">{t('admin.users.noMatch')}</p>
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-md border border-border bg-card shadow-none">
+          <div className="overflow-x-auto rounded-md border border-border bg-card ">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
                 <tr>

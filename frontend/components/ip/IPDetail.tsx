@@ -24,7 +24,7 @@ interface IPDetailProps {
 export function IPDetail({ ip }: IPDetailProps) {
   const t = useTranslations();
   return (
-    <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
+    <section className="space-y-4 rounded-md border border-border bg-card p-4 ">
       <div className="flex flex-col gap-4 md:flex-row">
         <div className="flex h-36 w-full items-center justify-center rounded-md border border-border bg-muted/40 md:w-52 relative overflow-hidden">
           {ip.cover_url ? (

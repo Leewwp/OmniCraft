@@ -84,7 +84,7 @@ export default function DiscussionsPage() {
       {loading ? (
         <div className="text-sm text-muted-foreground text-center py-8">{t("common.loading")}</div>
       ) : discussions.length === 0 ? (
-        <div className="rounded-md border border-border bg-card p-8 text-center text-sm text-muted-foreground shadow-none">
+        <div className="rounded-md border border-border bg-card p-8 text-center text-sm text-muted-foreground ">
           {t("discussion.empty")}
         </div>
       ) : (

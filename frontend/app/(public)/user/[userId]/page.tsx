@@ -49,7 +49,7 @@ export default async function UserProfilePage({
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6">
-      <div className="rounded-md border border-border bg-card p-6 shadow-none">
+      <div className="rounded-md border border-border bg-card p-6 ">
         <div className="flex items-start gap-4">
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-muted text-xl font-bold text-muted-foreground">
             {displayName.slice(0, 1)}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface Appeal {
@@ -77,7 +78,7 @@ export default function AppealsPage() {
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4 px-4 py-6">
-      <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 shadow-none">
+      <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 ">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t('appeals.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t('appeals.subtitle')}</p>
@@ -90,7 +91,7 @@ export default function AppealsPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {showForm && (
-        <div className="space-y-3 rounded-md border border-border bg-card p-4 shadow-none">
+        <div className="space-y-3 rounded-md border border-border bg-card p-4 ">
           <h3 className="text-sm font-semibold">{t('appeals.newAppeal')}</h3>
           <select
             value={form.target_type}
@@ -126,13 +127,14 @@ export default function AppealsPage() {
       )}
 
       {appeals.length === 0 && !showForm ? (
-        <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
+        <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-card p-12 text-center">
+          <FileText className="h-8 w-8 text-muted-foreground/40" />
           <p className="text-sm text-muted-foreground">{t('appeals.noAppeals')}</p>
         </div>
       ) : (
         <div className="space-y-2">
           {appeals.map((a) => (
-            <div key={a.id} className="rounded-md border border-border bg-card p-4 shadow-none">
+            <div key={a.id} className="rounded-md border border-border bg-card p-4 ">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">{a.target_type} #{a.target_id}</span>
                 <span className={`rounded px-2 py-0.5 text-xs ${

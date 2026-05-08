@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Shield, FileText, Users, AlertTriangle, Settings, Tags, ChevronRight, PanelLeftClose, PanelLeft } from "lucide-react";
+import { Footer } from "@/components/layout/Footer";
 import { cn } from "@/lib/utils";
 
 const ADMIN_NAV = [
@@ -132,10 +133,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </div>
 
-      {/* Main content */}
-      <main className="min-h-[calc(100vh-3.5rem)] w-full flex-1 overflow-auto">
-        {children}
-      </main>
+      <div className="flex flex-1 flex-col">
+        {/* Main content */}
+        <main className="flex-1 w-full overflow-auto">
+          {children}
+        </main>
+        <Footer />
+      </div>
     </div>
   );
 }

@@ -29,7 +29,7 @@ export function TagBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-medium shadow-none",
+        "inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-medium ",
         colorStyles[color],
         onClick && "cursor-pointer hover:opacity-80 transition-opacity",
         className,

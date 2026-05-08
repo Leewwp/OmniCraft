@@ -123,7 +123,7 @@ export function FileUploader({
   }
 
   return (
-    <div className="space-y-2 rounded-md border border-border bg-card p-3 shadow-none">
+    <div className="space-y-2 rounded-md border border-border bg-card p-3 ">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">{t('content.limitMb', { maxMB })}</p>
         <Button
