@@ -40,7 +40,7 @@ export function PRCard({ data, active, disabled, onSelect, onAccept, onReject }:
   const t = useTranslations();
   return (
     <div
-      className={`rounded-md border p-4 shadow-none transition-colors ${
+      className={`rounded-md border p-4 transition-colors ${
         active ? "border-primary bg-muted/30" : "border-border bg-card"
       }`}
     >

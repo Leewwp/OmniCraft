@@ -93,7 +93,7 @@ export default function SearchPage() {
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-6 px-4 py-6">
       {/* Top: Search Input */}
-      <div className="rounded-md border border-border bg-card p-4 shadow-none">
+      <div className="rounded-md border border-border bg-card p-4 ">
         <SearchAgentInput onResults={(r, q) => handleSearch(r as unknown as ContentCardData[], q)} />
       </div>
 
@@ -178,7 +178,7 @@ export default function SearchPage() {
 
           {/* Error */}
           {error && (
-            <div className="rounded-md border border-border bg-card p-4 text-center shadow-none">
+            <div className="rounded-md border border-border bg-card p-4 text-center ">
               <p className="text-sm text-destructive">{error}</p>
               <Button size="sm" variant="outline" className="mt-2" onClick={() => query && doSearch(query, filterConfig)}>
                 {t("common.retry")}
@@ -197,7 +197,7 @@ export default function SearchPage() {
 
           {/* Empty */}
           {!loading && !error && query && results.length === 0 && (
-            <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
+            <div className="rounded-md border border-border bg-card p-12 text-center ">
               <Search className="mx-auto h-10 w-10 text-muted-foreground" />
               <p className="mt-3 text-sm font-medium">{t("search.noResults")}</p>
               <p className="mt-1 text-xs text-muted-foreground">{t("search.noResultsHint")}</p>
@@ -206,7 +206,7 @@ export default function SearchPage() {
 
           {/* No query yet */}
           {!loading && !error && !query && (
-            <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
+            <div className="rounded-md border border-border bg-card p-12 text-center ">
               <Search className="mx-auto h-10 w-10 text-muted-foreground" />
               <p className="mt-3 text-sm text-muted-foreground">{t("search.startSearch")}</p>
             </div>

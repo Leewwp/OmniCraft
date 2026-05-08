@@ -94,7 +94,7 @@ export default function TagSuggestionsPage() {
       </div>
 
       {suggestions.length === 0 ? (
-        <div className="rounded-md border border-border bg-card p-8 text-center shadow-none">
+        <div className="rounded-md border border-border bg-card p-8 text-center ">
           <p className="text-sm text-muted-foreground">{t("tagSuggestions.empty")}</p>
         </div>
       ) : (

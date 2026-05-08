@@ -100,7 +100,7 @@ export default function JudgeQueuePage() {
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4 px-4 py-6">
-      <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 shadow-none">
+      <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 ">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t('judge.queueTitle')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -115,7 +115,7 @@ export default function JudgeQueuePage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {isReputationBlocked && (
-        <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 shadow-none">
+        <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 ">
           <p className="text-sm text-destructive">
             {t('judge.lowReputation', { reputation: user.reputation })}
           </p>
@@ -123,11 +123,11 @@ export default function JudgeQueuePage() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center rounded-md border border-border bg-card p-12 shadow-none">
+        <div className="flex items-center justify-center rounded-md border border-border bg-card p-12 ">
           <span className="text-sm text-muted-foreground">{t('judge.loadingQueue')}</span>
         </div>
       ) : cases.length === 0 ? (
-        <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
+        <div className="rounded-md border border-border bg-card p-12 text-center ">
           <p className="text-sm text-muted-foreground">
             {t('judge.noPendingContent')}
           </p>
@@ -136,7 +136,7 @@ export default function JudgeQueuePage() {
           </Button>
         </div>
       ) : currentIndex >= cases.length ? (
-        <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
+        <div className="rounded-md border border-border bg-card p-12 text-center ">
           <p className="text-sm text-muted-foreground">
             {t('judge.queueCompleted')}
           </p>
@@ -158,7 +158,7 @@ export default function JudgeQueuePage() {
 
           {votedCaseId && (
             <>
-              <div className="rounded-md border border-emerald-500/30 bg-emerald-50 p-3 text-center shadow-none">
+              <div className="rounded-md border border-emerald-500/30 bg-emerald-50 p-3 text-center ">
                 <p className="text-sm font-medium text-emerald-700">
                   {t('judge.voteSuccess')}
                 </p>

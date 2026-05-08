@@ -80,7 +80,7 @@ export default function ContributorsPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6">
-      <div className="rounded-md border border-border bg-card p-4 shadow-none">
+      <div className="rounded-md border border-border bg-card p-4 ">
         <h1 className="text-2xl font-bold tracking-tight">{t('dashboard.contributors.title')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t('dashboard.contributors.subtitle')}</p>
       </div>
@@ -88,11 +88,11 @@ export default function ContributorsPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {contributors.length === 0 ? (
-        <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
+        <div className="rounded-md border border-border bg-card p-12 text-center ">
           <p className="text-sm text-muted-foreground">{t('dashboard.contributors.noContributors')}</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-md border border-border bg-card shadow-none">
+        <div className="overflow-x-auto rounded-md border border-border bg-card ">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
               <tr>

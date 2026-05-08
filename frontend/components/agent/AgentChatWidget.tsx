@@ -57,7 +57,7 @@ export function AgentChatWidget({ className }: AgentChatWidgetProps) {
   return (
     <div className={cn("fixed bottom-6 right-6 z-50", className)}>
       {open && (
-        <div className="mb-3 flex h-[480px] w-[380px] flex-col rounded-md border border-border bg-card shadow-none">
+        <div className="mb-3 flex h-[480px] w-[380px] flex-col rounded-md border border-border bg-card ">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <h3 className="text-sm font-semibold">{t("agent.chatTitle")}</h3>

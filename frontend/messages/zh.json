@@ -56,7 +56,9 @@
     "appeals": "我的申诉",
     "language": "语言",
     "langZh": "中文",
-    "langEn": "English"
+    "langEn": "English",
+    "publish": "发布",
+    "notifications": "通知"
   },
   "auth": {
     "welcomeBack": "欢迎回来",
@@ -64,6 +66,7 @@
     "email": "邮箱",
     "password": "密码",
     "passwordPlaceholder": "输入密码",
+    "rememberMe": "记住登录状态",
     "loginButton": "登录",
     "noAccount": "还没有账号？",
     "registerNow": "立即注册",
@@ -83,6 +86,9 @@
     "errorUsernameTooLong": "用户名不超过 64 个字符",
     "errorInvalidEmail": "请输入有效的邮箱地址",
     "errorPasswordTooShort": "密码至少 6 位",
+    "errorPasswordMismatch": "两次输入的密码不一致",
+    "confirmPassword": "确认密码",
+    "confirmPasswordPlaceholder": "再次输入密码",
     "errorEmailTaken": "该邮箱已被注册",
     "errorUsernameTaken": "该用户名已被占用",
     "errorValidation": "请检查输入内容格式",
@@ -803,6 +809,12 @@
     "noConversations": "暂无对话",
     "selectConversation": "选择一个对话开始聊天",
     "replyPlaceholder": "输入消息..."
+  },
+  "footer": {
+    "about": "关于我们",
+    "help": "帮助中心",
+    "privacy": "隐私政策",
+    "terms": "用户协议"
   },
   "error": {
     "pageError": "页面出错了",

@@ -43,7 +43,7 @@ export function IPCard({ data, className }: IPCardProps) {
       href={`/ip/${data.id}`}
       onClick={() => saveRecentIP({ id: data.id, name: data.name })}
       className={cn(
-        "group flex min-w-64 flex-col gap-3 rounded-md border border-border bg-card p-3 shadow-none transition-colors hover:bg-muted/30",
+        "group flex min-w-64 flex-col gap-3 rounded-md border border-border bg-card p-3 transition-colors hover:bg-muted/30",
         className
       )}
     >

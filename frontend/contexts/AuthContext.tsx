@@ -33,7 +33,7 @@ export interface User {
 interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<boolean>;
 }
@@ -89,12 +89,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fetchMe();
   }, [fetchMe]);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string, rememberMe?: boolean) => {
     const data = await api.post<{
       user: User;
       tokens: { access_token: string; refresh_token: string };
     }>("/api/v1/auth/login", { email, password });
-    saveTokens(data.tokens.access_token, data.tokens.refresh_token);
+    saveTokens(data.tokens.access_token, data.tokens.refresh_token, rememberMe);
     setUser(data.user);
   }, []);
 

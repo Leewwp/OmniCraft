@@ -157,7 +157,7 @@ export default function PRRequestsPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6">
-      <section className="rounded-md border border-border bg-card p-4 shadow-none">
+      <section className="rounded-md border border-border bg-card p-4 ">
         <h1 className="text-2xl font-bold tracking-tight">{t('dashboard.pr.title')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t('dashboard.pr.pendingCount', { count: openCount })}</p>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -168,7 +168,7 @@ export default function PRRequestsPage() {
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[420px_1fr]">
-        <div className="space-y-3 rounded-md border border-border bg-card p-3 shadow-none">
+        <div className="space-y-3 rounded-md border border-border bg-card p-3 ">
           {prs.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('dashboard.pr.noPrs')}</p>
           ) : (
@@ -201,12 +201,12 @@ export default function PRRequestsPage() {
                 proposedText={proposedText}
                 onChange={setMergeText}
               />
-              <div className="rounded-md border border-border bg-card p-3 text-xs text-muted-foreground shadow-none">
+              <div className="rounded-md border border-border bg-card p-3 text-xs text-muted-foreground ">
                 {t('dashboard.pr.mergePreview', { length: mergeText.length })}
               </div>
             </>
           ) : (
-            <div className="rounded-md border border-border bg-card p-4 text-sm text-muted-foreground shadow-none">
+            <div className="rounded-md border border-border bg-card p-4 text-sm text-muted-foreground ">
               {t('dashboard.pr.selectHint')}
             </div>
           )}

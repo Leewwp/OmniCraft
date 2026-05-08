@@ -53,7 +53,7 @@ export function ContentCard({ data, className }: ContentCardProps) {
     <Link
       href={getCardHref(data)}
       className={cn(
-        "group block overflow-hidden rounded-md border border-border bg-card shadow-none transition-colors hover:bg-muted/30",
+        "group block overflow-hidden rounded-md border border-border bg-card transition-colors hover:bg-muted/30",
         className
       )}
     >

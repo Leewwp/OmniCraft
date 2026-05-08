@@ -57,7 +57,7 @@ export default function ReviewCard({ judgeCase, disabled, submitting, onVote }: 
   };
 
   return (
-    <div className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
+    <div className="space-y-4 rounded-md border border-border bg-card p-4 ">
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
           {targetTypeLabel[judgeCase.target_type] || judgeCase.target_type} #{judgeCase.target_id}

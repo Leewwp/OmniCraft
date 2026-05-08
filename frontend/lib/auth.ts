@@ -4,11 +4,12 @@ export const AUTH_KEYS = {
   USER: "user",
 } as const;
 
-export function saveTokens(accessToken: string, refreshToken: string) {
+export function saveTokens(accessToken: string, refreshToken: string, rememberMe?: boolean) {
   localStorage.setItem(AUTH_KEYS.ACCESS_TOKEN, accessToken);
   localStorage.setItem(AUTH_KEYS.REFRESH_TOKEN, refreshToken);
   // Also set cookie for middleware route protection
-  document.cookie = `access_token=${accessToken}; path=/; max-age=7200; SameSite=Lax`;
+  const maxAge = rememberMe ? 2592000 : 7200; // 30 days or 2 hours
+  document.cookie = `access_token=${accessToken}; path=/; max-age=${maxAge}; SameSite=Lax`;
 }
 
 export function getAccessToken(): string | null {

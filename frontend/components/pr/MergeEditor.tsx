@@ -23,7 +23,7 @@ export function MergeEditor({ baseText, proposedText, onChange }: MergeEditorPro
   }, [merged, onChange]);
 
   return (
-    <div className="space-y-3 rounded-md border border-border bg-card p-4 shadow-none">
+    <div className="space-y-3 rounded-md border border-border bg-card p-4 ">
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <div className="space-y-1">
           <p className="text-xs font-medium text-muted-foreground">{t('pr.originalVersion')}</p>

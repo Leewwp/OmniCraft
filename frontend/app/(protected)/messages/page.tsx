@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { Bell, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Send } from "lucide-react";
 
@@ -135,7 +136,7 @@ export default function MessagesPage() {
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4 px-4 py-6">
       {/* Header */}
-      <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 shadow-none">
+      <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 ">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t("messages.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -173,7 +174,8 @@ export default function MessagesPage() {
       {/* Notifications Tab */}
       {tab === "notifications" && (
         notifications.length === 0 ? (
-          <div className="rounded-md border border-border bg-card p-12 text-center shadow-none">
+          <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-card p-12 text-center">
+            <Bell className="h-8 w-8 text-muted-foreground/40" />
             <p className="text-sm text-muted-foreground">{t("messages.noMessages")}</p>
           </div>
         ) : (
@@ -181,7 +183,7 @@ export default function MessagesPage() {
             {notifications.map((n) => (
               <div
                 key={n.id}
-                className={`flex items-start justify-between rounded-md border p-3 shadow-none ${
+                className={`flex items-start justify-between rounded-md border p-3 ${
                   n.is_read ? "border-border bg-card" : "border-accent/30 bg-accent/5"
                 }`}
               >
@@ -210,7 +212,10 @@ export default function MessagesPage() {
           {/* Conversation list */}
           <div className="w-48 shrink-0 space-y-1 border-r border-border pr-3">
             {conversations.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-4 text-center">{t("messages.noConversations")}</p>
+              <div className="flex flex-col items-center gap-2 py-8 text-center">
+                <MessageSquare className="h-6 w-6 text-muted-foreground/30" />
+                <p className="text-xs text-muted-foreground">{t("messages.noConversations")}</p>
+              </div>
             ) : (
               conversations.map((c) => {
                 const other = c.participants?.find((p) => p.id !== user?.id);

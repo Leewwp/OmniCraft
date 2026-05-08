@@ -4,8 +4,8 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
-import { Button } from "@/components/ui/button";
 import { BookOpen, Check, Clock, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface Course {
   id: number;
@@ -111,7 +111,8 @@ export default function RehabPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {courses.length === 0 ? (
-        <div className="rounded-md border border-border bg-card p-8 text-center shadow-none">
+        <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-card p-8 text-center">
+          <BookOpen className="h-8 w-8 text-muted-foreground/40" />
           <p className="text-sm text-muted-foreground">{t("rehab.noCourses")}</p>
         </div>
       ) : (
@@ -122,7 +123,7 @@ export default function RehabPage() {
             const canComplete = isActive && elapsed >= course.min_reading_sec;
 
             return (
-              <div key={course.id} className="rounded-md border border-border bg-card p-4 shadow-none">
+              <div key={course.id} className="rounded-md border border-border bg-card p-4 ">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <h3 className="text-sm font-semibold">

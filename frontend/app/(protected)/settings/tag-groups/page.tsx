@@ -145,7 +145,7 @@ export default function TagGroupsPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {groups.length === 0 ? (
-        <div className="rounded-md border border-border bg-card p-8 text-center shadow-none">
+        <div className="rounded-md border border-border bg-card p-8 text-center ">
           <p className="text-sm text-muted-foreground">{t("tagGroups.empty")}</p>
           <Button size="sm" variant="outline" className="mt-3" onClick={openCreateModal}>
             {t("tagGroups.createFirst")}
@@ -156,7 +156,7 @@ export default function TagGroupsPage() {
           {groups.map((g) => (
             <div
               key={g.id}
-              className="rounded-md border border-border bg-card p-4 shadow-none"
+              className="rounded-md border border-border bg-card p-4 "
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
@@ -198,7 +198,7 @@ export default function TagGroupsPage() {
       {/* Create/Edit Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="w-full max-w-md rounded-md border border-border bg-card p-6 shadow-none">
+          <div className="w-full max-w-md rounded-md border border-border bg-card p-6 ">
             <h2 className="text-lg font-semibold">
               {editingGroup ? t("tagGroups.editGroup") : t("tagGroups.newGroup")}
             </h2>
@@ -271,7 +271,7 @@ export default function TagGroupsPage() {
       {/* Delete Confirm Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="w-full max-w-sm rounded-md border border-border bg-card p-6 shadow-none">
+          <div className="w-full max-w-sm rounded-md border border-border bg-card p-6 ">
             <h3 className="text-sm font-semibold">{t("tagGroups.deleteConfirm")}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               {t("tagGroups.deleteConfirmDesc", { name: deleteTarget.name })}

@@ -56,7 +56,9 @@
     "appeals": "My Appeals",
     "language": "Language",
     "langZh": "中文",
-    "langEn": "English"
+    "langEn": "English",
+    "publish": "Publish",
+    "notifications": "Notifications"
   },
   "auth": {
     "welcomeBack": "Welcome back",
@@ -64,6 +66,7 @@
     "email": "Email",
     "password": "Password",
     "passwordPlaceholder": "Enter password",
+    "rememberMe": "Remember me",
     "loginButton": "Log in",
     "noAccount": "Don't have an account?",
     "registerNow": "Sign up now",
@@ -83,6 +86,9 @@
     "errorUsernameTooLong": "Username must not exceed 64 characters",
     "errorInvalidEmail": "Please enter a valid email address",
     "errorPasswordTooShort": "Password must be at least 6 characters",
+    "errorPasswordMismatch": "Passwords do not match",
+    "confirmPassword": "Confirm password",
+    "confirmPasswordPlaceholder": "Re-enter your password",
     "errorEmailTaken": "This email is already registered",
     "errorUsernameTaken": "This username is already taken",
     "errorValidation": "Please check your input",
@@ -804,6 +810,12 @@
     "noConversations": "No conversations",
     "selectConversation": "Select a conversation to start chatting",
     "replyPlaceholder": "Type a message..."
+  },
+  "footer": {
+    "about": "About",
+    "help": "Help Center",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service"
   },
   "error": {
     "pageError": "Something went wrong",

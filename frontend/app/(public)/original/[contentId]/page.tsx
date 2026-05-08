@@ -113,7 +113,7 @@ export default async function OriginalDetailPage({
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6">
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-card p-3 shadow-none">
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-card p-3 ">
         {relatedCount > 0 ? (
           <Link
             href={`/original/${content.id}/fanworks`}

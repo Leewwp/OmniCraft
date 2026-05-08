@@ -20,6 +20,7 @@ function LoginPageContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -29,7 +30,7 @@ function LoginPageContent() {
     setIsLoading(true);
 
     try {
-      await login(email, password);
+      await login(email, password, rememberMe);
       const redirect = searchParams.get("redirect") || "/";
       router.push(redirect);
     } catch (err) {
@@ -62,7 +63,7 @@ function LoginPageContent() {
         </div>
 
         {/* Form */}
-        <div className="rounded-lg border border-border bg-card p-6 shadow-none">
+        <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="email">{t('auth.email')}</Label>
@@ -106,6 +107,16 @@ function LoginPageContent() {
                 </button>
               </div>
             </div>
+
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-border accent-primary"
+              />
+              {t('auth.rememberMe')}
+            </label>
 
             {error && (
               <p className="text-sm text-destructive" role="alert">

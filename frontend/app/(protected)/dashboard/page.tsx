@@ -48,7 +48,7 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-6">
-      <div className="rounded-md border border-border bg-card p-4 shadow-none">
+      <div className="rounded-md border border-border bg-card p-4 ">
         <h1 className="text-2xl font-bold tracking-tight">{t('dashboard.title')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t('dashboard.subtitle')}</p>
       </div>
@@ -56,38 +56,38 @@ export default function DashboardPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-md border border-border bg-card p-4 shadow-none">
+        <div className="rounded-md border border-border bg-card p-4 ">
           <p className="text-xs text-muted-foreground">{t('dashboard.myContent')}</p>
           <p className="text-2xl font-bold">{stats.total_contents}</p>
         </div>
-        <div className="rounded-md border border-border bg-card p-4 shadow-none">
+        <div className="rounded-md border border-border bg-card p-4 ">
           <p className="text-xs text-muted-foreground">{t('dashboard.totalViews')}</p>
           <p className="text-2xl font-bold">{stats.total_views}</p>
         </div>
-        <div className="rounded-md border border-border bg-card p-4 shadow-none">
+        <div className="rounded-md border border-border bg-card p-4 ">
           <p className="text-xs text-muted-foreground">{t('dashboard.pendingPrs')}</p>
           <p className="text-2xl font-bold">{stats.pending_pr_count}</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Link href="/dashboard/contents" className="rounded-md border border-border bg-card p-4 shadow-none hover:bg-muted/30 transition-colors">
+        <Link href="/dashboard/contents" className="rounded-md border border-border bg-card p-4 hover:bg-muted/30 transition-colors">
           <h3 className="text-sm font-semibold">{t('dashboard.myContent')}</h3>
           <p className="mt-1 text-xs text-muted-foreground">{t('dashboard.manageContent')}</p>
         </Link>
-        <Link href="/dashboard/pr-requests" className="rounded-md border border-border bg-card p-4 shadow-none hover:bg-muted/30 transition-colors">
+        <Link href="/dashboard/pr-requests" className="rounded-md border border-border bg-card p-4 hover:bg-muted/30 transition-colors">
           <h3 className="text-sm font-semibold">{t('dashboard.prManagement')}</h3>
           <p className="mt-1 text-xs text-muted-foreground">{t('dashboard.prDesc')}</p>
         </Link>
-        <Link href="/dashboard/contributors" className="rounded-md border border-border bg-card p-4 shadow-none hover:bg-muted/30 transition-colors">
+        <Link href="/dashboard/contributors" className="rounded-md border border-border bg-card p-4 hover:bg-muted/30 transition-colors">
           <h3 className="text-sm font-semibold">{t('dashboard.contributorManagement')}</h3>
           <p className="mt-1 text-xs text-muted-foreground">{t('dashboard.contributorDesc')}</p>
         </Link>
-        <Link href="/publish" className="rounded-md border border-border bg-card p-4 shadow-none hover:bg-muted/30 transition-colors">
+        <Link href="/publish" className="rounded-md border border-border bg-card p-4 hover:bg-muted/30 transition-colors">
           <h3 className="text-sm font-semibold">{t('dashboard.publishNew')}</h3>
           <p className="mt-1 text-xs text-muted-foreground">{t('dashboard.publishDesc')}</p>
         </Link>
-        <Link href="/dashboard/tag-suggestions" className="rounded-md border border-border bg-card p-4 shadow-none hover:bg-muted/30 transition-colors">
+        <Link href="/dashboard/tag-suggestions" className="rounded-md border border-border bg-card p-4 hover:bg-muted/30 transition-colors">
           <h3 className="text-sm font-semibold">{t('dashboard.tagSuggestions')}</h3>
           <p className="mt-1 text-xs text-muted-foreground">{t('dashboard.tagSuggestionsDesc')}</p>
           {stats.pending_tag_suggestions > 0 && (

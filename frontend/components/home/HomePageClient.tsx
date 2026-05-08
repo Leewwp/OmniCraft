@@ -148,7 +148,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6">
-      <section className="rounded-md border border-border bg-card p-4 shadow-none">
+      <section className="rounded-md border border-border bg-card p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold">{t('home.recentIps')}</h2>
           <Filter className="h-4 w-4 text-muted-foreground" />
@@ -172,7 +172,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
         )}
       </section>
 
-      <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
+      <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-base font-semibold">{t('home.ipBrowseZone')}</h2>
           <select
@@ -210,7 +210,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
         </div>
       </section>
 
-      <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
+      <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <h2 className="text-base font-semibold">{t('home.fanworkBrowseZone')}</h2>
           <div className="flex flex-wrap items-center gap-2">

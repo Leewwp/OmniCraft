@@ -6,6 +6,8 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function SettingsPage() {
   const t = useTranslations();
@@ -101,7 +103,7 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-6 px-4 py-6">
-      <div className="rounded-md border border-border bg-card p-4 shadow-none">
+      <div className="rounded-md border border-border bg-card p-4 shadow-sm">
         <h1 className="text-2xl font-bold tracking-tight">{t("settings.title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("settings.subtitle")}</p>
       </div>
@@ -110,24 +112,23 @@ export default function SettingsPage() {
       {success && <p className="text-sm text-emerald-600">{success}</p>}
 
       {/* Profile */}
-      <div className="space-y-4 rounded-md border border-border bg-card p-4 shadow-none">
+      <div className="space-y-4 rounded-md border border-border bg-card p-4 ">
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">{t("settings.username")}</label>
-          <input
+          <Input
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">{t("settings.email")}</label>
-          <input type="email" value={user?.email || ""} readOnly className="w-full rounded-md border border-border bg-muted/20 px-3 py-2 text-sm text-muted-foreground" />
+          <Input type="email" value={user?.email || ""} readOnly disabled />
           <p className="text-[11px] text-muted-foreground">{t("settings.emailHint")}</p>
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">{t("settings.bio")}</label>
-          <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+          <Textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} />
         </div>
         <Button size="sm" disabled={busy} onClick={() => void handleSave()}>
           {busy ? t("common.saving") : t("settings.saveButton")}
@@ -135,21 +136,21 @@ export default function SettingsPage() {
       </div>
 
       {/* Password change */}
-      <div className="space-y-3 rounded-md border border-border bg-card p-4 shadow-none">
+      <div className="space-y-3 rounded-md border border-border bg-card p-4 ">
         <h3 className="text-sm font-semibold">{t("settings.changePassword")}</h3>
         {pwError && <p className="text-sm text-destructive">{pwError}</p>}
         {pwSuccess && <p className="text-sm text-emerald-600">{pwSuccess}</p>}
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">{t("settings.oldPassword")}</label>
-          <input type="password" value={oldPw} onChange={(e) => setOldPw(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+          <Input type="password" value={oldPw} onChange={(e) => setOldPw(e.target.value)} />
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">{t("settings.newPassword")}</label>
-          <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+          <Input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} />
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">{t("settings.confirmPassword")}</label>
-          <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+          <Input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} />
         </div>
         <Button size="sm" disabled={pwBusy || !oldPw || !newPw} onClick={() => void handleChangePassword()}>
           {pwBusy ? t("common.saving") : t("settings.changePassword")}
@@ -157,13 +158,13 @@ export default function SettingsPage() {
       </div>
 
       {/* Account deletion (danger zone) */}
-      <div className="space-y-3 rounded-md border border-red-200 bg-red-50/30 p-4 shadow-none dark:border-red-900/30 dark:bg-red-950/10">
+      <div className="space-y-3 rounded-md border border-red-200 bg-red-50/30 p-4 dark:border-red-900/30 dark:bg-red-950/10">
         <h3 className="text-sm font-semibold text-red-700 dark:text-red-400">{t("settings.deleteAccount")}</h3>
         <p className="text-xs text-red-600/80 dark:text-red-400/70">{t("settings.deleteAccountDesc")}</p>
 
         {deleteOpen ? (
           <div className="space-y-2">
-            <input type="password" value={deletePw} onChange={(e) => setDeletePw(e.target.value)} placeholder={t("settings.enterPasswordToConfirm")} className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
+            <Input type="password" value={deletePw} onChange={(e) => setDeletePw(e.target.value)} placeholder={t("settings.enterPasswordToConfirm")} />
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               <input type="checkbox" checked={deleteConfirm} onChange={(e) => setDeleteConfirm(e.target.checked)} className="h-3.5 w-3.5" />
               {t("settings.deleteIrreversible")}

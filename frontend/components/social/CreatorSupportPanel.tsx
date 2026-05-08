@@ -75,7 +75,7 @@ export function CreatorSupportPanel({ supportInfo, isOwner, className }: Creator
     if (!hasInfo) return null;
 
     return (
-      <div className={cn("rounded-md border border-border bg-card p-4 shadow-none space-y-3", className)}>
+      <div className={cn("rounded-md border border-border bg-card p-4 space-y-3", className)}>
         <div className="flex items-center gap-2">
           <Heart className="h-4 w-4 text-red-500" />
           <span className="text-sm font-medium">{t("support.title")}</span>
@@ -105,7 +105,7 @@ export function CreatorSupportPanel({ supportInfo, isOwner, className }: Creator
 
   // Owner edit view
   return (
-    <div className={cn("rounded-md border border-border bg-card p-4 shadow-none space-y-3", className)}>
+    <div className={cn("rounded-md border border-border bg-card p-4 space-y-3", className)}>
       <div className="flex items-center gap-2">
         <Heart className="h-4 w-4 text-red-500" />
         <span className="text-sm font-medium">{t("support.title")}</span>

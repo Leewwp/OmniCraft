@@ -19,7 +19,7 @@ export default function ExamQuestion({ question, selectedKey, onSelect, disabled
   const options = Object.entries(question.question.options);
 
   return (
-    <div className="rounded-md border border-border bg-card p-6 shadow-none">
+    <div className="rounded-md border border-border bg-card p-6 ">
       <h3 className="text-sm font-semibold text-card-foreground">
         {question.question.prompt}
       </h3>

@@ -164,7 +164,7 @@ function CommentItem({
   const { user } = useAuth();
 
   return (
-    <div className="rounded-md border border-border bg-card p-3 shadow-none">
+    <div className="rounded-md border border-border bg-card p-3 ">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium">
           {comment.author?.username ?? t('common.userLabel', { id: comment.author_id })}

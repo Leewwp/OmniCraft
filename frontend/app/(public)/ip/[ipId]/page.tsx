@@ -117,7 +117,7 @@ export default async function IPDetailPage({
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6">
       <IPDetail ip={ip} />
-      <section className="space-y-3 rounded-md border border-border bg-card p-4 shadow-none">
+      <section className="space-y-3 rounded-md border border-border bg-card p-4 ">
         <h2 className="text-base font-semibold">{t('content.allContent')}</h2>
         <MasonryGrid items={contents} />
       </section>

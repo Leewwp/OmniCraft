@@ -18,7 +18,7 @@ export function DiffViewer({ baseText, proposedText }: DiffViewerProps) {
   const maxLen = Math.max(left.length, right.length);
 
   return (
-    <div className="overflow-hidden rounded-md border border-border bg-card shadow-none">
+    <div className="overflow-hidden rounded-md border border-border bg-card ">
       <div className="grid grid-cols-2 border-b border-border bg-muted/30 text-xs font-medium">
         <div className="border-r border-border px-3 py-2">{t('pr.originalVersion')}</div>
         <div className="px-3 py-2">{t('pr.prVersion')}</div>
