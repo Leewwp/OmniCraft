@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"omnicraft/backend/internal/model"
 
 	"gorm.io/gorm"
@@ -78,4 +79,29 @@ func (r *DiscussionRepository) SearchByKeyword(ipID int64, keyword string, page,
 		Offset((page-1)*pageSize).Limit(pageSize).
 		Find(&discussions).Error
 	return discussions, err
+}
+
+func (r *DiscussionRepository) ListByUser(userID int64, page, pageSize int) ([]model.Discussion, int64, error) {
+	commentSubq := r.db.Model(&model.Comment{}).
+		Select("discussion_id").
+		Where("author_id = ? AND discussion_id IS NOT NULL", userID)
+
+	base := r.db.Where(
+		"author_id = ? OR id IN (?)",
+		userID,
+		commentSubq,
+	)
+
+	var total int64
+	base.Model(&model.Discussion{}).Count(&total)
+
+	var discussions []model.Discussion
+	err := base.Preload("Author").
+		Order("last_active_at DESC").
+		Offset((page - 1) * pageSize).Limit(pageSize).
+		Find(&discussions).Error
+	if err != nil {
+		return nil, 0, fmt.Errorf("list discussions by user %d: %w", userID, err)
+	}
+	return discussions, total, nil
 }
