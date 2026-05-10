@@ -1902,7 +1902,7 @@
         "## Component: ContentCard",
         "## Component: MasonryGrid"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 91,
@@ -2017,7 +2017,7 @@
         "npm run build 成功 + npm run lint 0 警告",
         "验证：所有 E2E 测试通过，截图保存至 screenshots/ 文件夹"
       ],
-      "passes": false
+      "passes": true
     }
   ]
 }
