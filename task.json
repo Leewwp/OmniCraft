@@ -2018,6 +2018,22 @@
         "验证：所有 E2E 测试通过，截图保存至 screenshots/ 文件夹"
       ],
       "passes": true
+    },
+    {
+      "id": 97,
+      "title": "Go API + Redis — IP 分类内容数量统计",
+      "description": "实现各 IP 分类下关联二创内容数量的实时统计，使用 Redis Hash 存储计数，供前端侧边栏展示",
+      "depends_on": [15, 87],
+      "steps": [
+        "在 Redis 中创建 Hash key `ip_category_counts`，字段为 IP 分类 slug（如 game/film_tv/anime 等），值为该分类下 zone='fanwork' 且 status='published' 的内容数量",
+        "创建 internal/service/ip_stats_service.go：UpdateCategoryCounts 方法遍历 content_items 表按 IP 分类分组计数，写入 Redis `ip_category_counts` Hash",
+        "在 hot_rank_service.go 定时任务中追加调用 UpdateCategoryCounts，与热门排行同步刷新（每 10 分钟）",
+        "创建 internal/handler/ip_stats.go：GET /api/v1/ips/stats/category_counts 从 Redis 读取所有分类计数字段返回 JSON",
+        "内容发布/删除/状态变更时异步更新 Redis 计数（使用 INCR/DECR 原子操作，避免全量重算）",
+        "前端 HomePageClient 从 GET /api/v1/ips/stats/category_counts 获取实时计数替换硬编码占位数据",
+        "验证：curl /api/v1/ips/stats/category_counts 返回正确计数，发布新内容后计数实时更新，Redis 数据与数据库一致"
+      ],
+      "passes": false
     }
   ]
 }

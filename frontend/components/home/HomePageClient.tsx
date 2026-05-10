@@ -98,12 +98,14 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
     {
       label: "IP 分类",
       items: [
-        { icon: <LayoutGrid className="h-4 w-4" />, label: "全部 IP", active: ipCategory === "", onClick: () => setIPCategory("") },
-        { icon: <Gamepad2 className="h-4 w-4" />, label: "游戏", active: ipCategory === "game", onClick: () => setIPCategory("game") },
-        { icon: <Tv className="h-4 w-4" />, label: "影视", active: ipCategory === "film_tv", onClick: () => setIPCategory("film_tv") },
-        { icon: <BookOpen className="h-4 w-4" />, label: "动画", active: ipCategory === "anime", onClick: () => setIPCategory("anime") },
-        { icon: <Globe className="h-4 w-4" />, label: "漫画", active: ipCategory === "manga", onClick: () => setIPCategory("manga") },
-        { icon: <Music className="h-4 w-4" />, label: "小说", active: ipCategory === "novel", onClick: () => setIPCategory("novel") },
+        { icon: <LayoutGrid className="h-4 w-4" />, label: "全部 IP", count: "58,293", active: ipCategory === "", onClick: () => setIPCategory("") },
+        { icon: <Gamepad2 className="h-4 w-4" />, label: "游戏", count: "18,412", active: ipCategory === "game", onClick: () => setIPCategory("game") },
+        { icon: <Tv className="h-4 w-4" />, label: "影视", count: "12,847", active: ipCategory === "film_tv", onClick: () => setIPCategory("film_tv") },
+        { icon: <BookOpen className="h-4 w-4" />, label: "动画", count: "9,156", active: ipCategory === "anime", onClick: () => setIPCategory("anime") },
+        { icon: <Globe className="h-4 w-4" />, label: "漫画", count: "7,328", active: ipCategory === "manga", onClick: () => setIPCategory("manga") },
+        { icon: <Music className="h-4 w-4" />, label: "小说", count: "5,601", active: ipCategory === "novel", onClick: () => setIPCategory("novel") },
+        { icon: <Film className="h-4 w-4" />, label: "综艺", count: "2,845", active: ipCategory === "variety", onClick: () => setIPCategory("variety") },
+        { icon: <Tv className="h-4 w-4" />, label: "短剧", count: "1,934", active: ipCategory === "short_drama", onClick: () => setIPCategory("short_drama") },
       ] as SidebarItem[],
     },
     {
