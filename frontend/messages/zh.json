@@ -816,6 +816,99 @@
     "privacy": "隐私政策",
     "terms": "用户协议"
   },
+  "studio": {
+    "sidebar": {
+      "collapse": "收起侧边栏",
+      "expand": "展开侧边栏",
+      "publish": "内容发布",
+      "analytics": "数据看板",
+      "collaboration": "协作管理",
+      "publishContent": "发布创作",
+      "overview": "数据概览",
+      "followers": "粉丝分析",
+      "myContent": "我的内容",
+      "prManagement": "PR 管理",
+      "contributors": "贡献者",
+      "tagSuggestions": "标签建议",
+      "revenue": "收益数据"
+    },
+    "publish": {
+      "originalTitle": "发布原创",
+      "fanworkTitle": "发布二创",
+      "selectType": "选择内容类型开始创作",
+      "backToTypes": "返回选择类型",
+      "titleRequired": "请输入标题",
+      "categoryRequired": "请选择分类",
+      "categoryLabel": "分类",
+      "ipLabel": "关联 IP",
+      "ipSearchPlaceholder": "搜索并选择 IP...",
+      "ipHint": "输入 IP 名称进行搜索（功能开发中）",
+      "bodyLabel": "正文",
+      "coverLabel": "封面图片",
+      "attachmentsLabel": "附件",
+      "tagsLabel": "标签",
+      "tagPlaceholder": "输入标签后按回车添加...",
+      "addTag": "添加",
+      "publicVisible": "公开可见",
+      "allowPr": "允许 PR",
+      "submit": "发布创作",
+      "submitting": "发布中...",
+      "cancel": "取消",
+      "success": "发布成功！",
+      "failed": "发布失败，请重试"
+    },
+    "overview": {
+      "title": "数据概览",
+      "subtitle": "查看你的创作数据总览",
+      "totalContents": "总内容数",
+      "totalViews": "总访问量",
+      "totalLikes": "总获赞",
+      "followers": "粉丝数",
+      "changeHint": "{change}% 较上月",
+      "topContent": "热门内容 Top 5",
+      "noData": "暂无数据",
+      "pendingTasks": "待处理事项",
+      "noPending": "暂无待处理事项"
+    },
+    "followers": {
+      "title": "粉丝分析",
+      "subtitle": "了解你的粉丝增长趋势",
+      "totalFollowers": "总粉丝数",
+      "newThisMonth": "本月新增",
+      "lostThisMonth": "本月流失",
+      "chartPlaceholder": "粉丝趋势图表将在数据充足时显示 (P1)"
+    },
+    "contents": {
+      "title": "我的内容",
+      "subtitle": "管理你发布的所有内容",
+      "publishNew": "发布新内容",
+      "noContent": "你还没有发布任何内容",
+      "startCreating": "开始创作",
+      "edit": "编辑",
+      "delete": "删除"
+    },
+    "pr": {
+      "title": "PR 管理",
+      "subtitle": "管理内容协同修改请求",
+      "empty": "PR 请求将在此处显示"
+    },
+    "contributors": {
+      "title": "贡献者",
+      "subtitle": "管理对你内容的贡献者",
+      "empty": "贡献者列表将在此处显示"
+    },
+    "tags": {
+      "title": "标签建议",
+      "subtitle": "审核用户提交的标签建议",
+      "empty": "标签建议将在此处显示"
+    },
+    "revenue": {
+      "title": "收益数据",
+      "subtitle": "查看创作收益和数据分析",
+      "comingSoon": "收益功能即将开放",
+      "comingSoonDesc": "创作者激励计划正在筹备中，敬请期待"
+    }
+  },
   "error": {
     "pageError": "页面出错了",
     "pageErrorDesc": "发生了意外错误，请稍后重试",

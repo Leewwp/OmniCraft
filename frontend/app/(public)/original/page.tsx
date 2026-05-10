@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getTranslations } from 'next-intl/server';
 import { MasonryGrid } from "@/components/content/MasonryGrid";
-import { buttonVariants } from "@/components/ui/button";
+import { SortSelect } from "@/components/original/SortSelect";
 import { normalizeContentList } from "@/lib/content";
 
 interface CategoryItem {
@@ -10,64 +10,29 @@ interface CategoryItem {
   name_i18n?: Record<string, string>;
 }
 
-interface CategoryResponse {
-  categories?: CategoryItem[];
-}
-
 interface ContentResponse {
   contents?: unknown[];
 }
 
 interface SearchParams {
   category?: string;
-  type?: string;
   sort?: string;
 }
 
 const PRIMARY_CATEGORIES_FALLBACK = [
-  { slug: "", label: "Recommended", i18n: "home.categoryRecommended" },
-  { slug: "film_tv", label: "Film & TV", i18n: "home.categoryFilmTv" },
-  { slug: "gaming", label: "Gaming", i18n: "home.categoryGaming" },
-  { slug: "literature", label: "Literature", i18n: "home.categoryLiterature" },
-  { slug: "pet", label: "Pets", i18n: "home.categoryPet" },
-  { slug: "food", label: "Food", i18n: "home.categoryFood" },
-  { slug: "beauty_fashion", label: "Beauty & Fashion", i18n: "home.categoryBeautyFashion" },
-  { slug: "home", label: "Home", i18n: "home.categoryHome" },
-  { slug: "tech_digital", label: "Tech & Digital", i18n: "home.categoryTechDigital" },
-  { slug: "travel", label: "Travel", i18n: "home.categoryTravel" },
-  { slug: "sports", label: "Sports", i18n: "home.categorySports" },
-  { slug: "productivity", label: "Productivity", i18n: "home.categoryProductivity" },
+  { slug: "", label: "推荐", i18n: "home.categoryRecommended" },
+  { slug: "film_tv", label: "影视", i18n: "home.categoryFilmTv" },
+  { slug: "gaming", label: "游戏", i18n: "home.categoryGaming" },
+  { slug: "literature", label: "文学", i18n: "home.categoryLiterature" },
+  { slug: "pet", label: "宠物", i18n: "home.categoryPet" },
+  { slug: "food", label: "美食", i18n: "home.categoryFood" },
+  { slug: "beauty_fashion", label: "美妆穿搭", i18n: "home.categoryBeautyFashion" },
+  { slug: "home", label: "家居", i18n: "home.categoryHome" },
+  { slug: "tech_digital", label: "数码科技", i18n: "home.categoryTechDigital" },
+  { slug: "travel", label: "旅行", i18n: "home.categoryTravel" },
+  { slug: "sports", label: "运动", i18n: "home.categorySports" },
+  { slug: "productivity", label: "效率", i18n: "home.categoryProductivity" },
 ];
-
-const PRIMARY_CATEGORY_LABEL_KEY: Record<string, string> = Object.fromEntries(
-  PRIMARY_CATEGORIES_FALLBACK.map((c) => [c.slug, c.i18n]),
-);
-
-const SECONDARY_TYPES_FALLBACK = [
-  { key: "", label: "All", i18n: "content.categoryAll", contentType: "" },
-  { key: "image", label: "Image", i18n: "content.categoryImage", contentType: "image" },
-  { key: "video", label: "Video", i18n: "content.categoryVideo", contentType: "video" },
-  { key: "audio", label: "Audio/Sheet Music", i18n: "content.categoryAudio", contentType: "audio,sheet_music" },
-  { key: "text", label: "Text", i18n: "content.categoryText", contentType: "article,prompt,text" },
-  { key: "template", label: "Templates", i18n: "content.categoryTemplate", contentType: "template" },
-  { key: "model_design", label: "Models & Designs", i18n: "content.categoryModel", tags: "3D模型" },
-  { key: "other", label: "Other", i18n: "content.categoryOther", contentType: "other" },
-];
-
-const SECONDARY_TYPE_LABEL_KEY: Record<string, string> = Object.fromEntries(
-  SECONDARY_TYPES_FALLBACK.map((t) => [t.key, t.i18n]),
-);
-
-const SORTS = [
-  { key: "hot", label: "Hottest", i18n: "content.sortHottest" },
-  { key: "newest", label: "Newest", i18n: "content.sortNewest" },
-  { key: "most_views", label: "Most Viewed", i18n: "content.sortMostViewed" },
-  { key: "best_rated", label: "Top Rated", i18n: "content.sortTopRated" },
-];
-
-const SORT_LABEL_KEY: Record<string, string> = Object.fromEntries(
-  SORTS.map((s) => [s.key, s.i18n]),
-);
 
 function getApiBase() {
   const raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -82,7 +47,7 @@ async function fetchPrimaryCategories(apiBase: string) {
   try {
     const res = await fetch(`${apiBase}/categories?zone=original&level=primary`, { cache: "no-store" });
     if (!res.ok) return PRIMARY_CATEGORIES_FALLBACK;
-    const data = (await res.json()) as CategoryResponse;
+    const data = (await res.json()) as { categories?: CategoryItem[] };
     const categories = (data.categories || [])
       .map((item) => {
         const slug = normalizeCategorySlug(item.slug);
@@ -103,48 +68,24 @@ async function fetchPrimaryCategories(apiBase: string) {
   }
 }
 
-async function fetchSecondaryTypes(apiBase: string) {
-  try {
-    const res = await fetch(`${apiBase}/categories?zone=original&level=content_type`, { cache: "no-store" });
-    if (!res.ok) return SECONDARY_TYPES_FALLBACK;
-    const data = (await res.json()) as CategoryResponse;
-    const categories = (data.categories || []).map((item) => {
-      const fallback = SECONDARY_TYPES_FALLBACK.find((t) => t.key === item.slug);
-      return {
-        key: item.slug,
-        label: fallback?.label || item.name_i18n?.zh || item.name_i18n?.en || item.slug,
-        i18n: fallback?.i18n || "",
-        contentType: fallback?.contentType || item.slug,
-        tags: fallback?.tags,
-      };
-    });
-    return categories.length > 0 ? categories : SECONDARY_TYPES_FALLBACK;
-  } catch {
-    return SECONDARY_TYPES_FALLBACK;
-  }
-}
-
-function buildOriginalHref(next: Partial<SearchParams>, current: Required<SearchParams>) {
+function buildHref(next: Partial<SearchParams>, current: Required<SearchParams>) {
   const params = new URLSearchParams();
   const merged = { ...current, ...next };
   if (merged.category) params.set("category", merged.category);
-  if (merged.type) params.set("type", merged.type);
-  if (merged.sort && merged.sort !== "hot") params.set("sort", merged.sort);
+  if (merged.sort && merged.sort !== "recommended") params.set("sort", merged.sort);
   const query = params.toString();
   return query ? `/original?${query}` : "/original";
 }
 
-async function fetchOriginalContents(apiBase: string, search: Required<SearchParams>) {
+async function fetchContents(apiBase: string, search: Required<SearchParams>) {
+  const sortMode = !search.category && search.sort === "recommended" ? "recommended" : (search.sort || "hot");
   const params = new URLSearchParams({
     zone: "original",
-    sort: search.category === "" && search.sort === "hot" ? "recommended" : search.sort,
+    sort: sortMode,
     time_range: "all",
     page_size: "24",
   });
   if (search.category) params.set("category", search.category);
-  const selectedType = SECONDARY_TYPES_FALLBACK.find((t) => t.key === search.type);
-  if (selectedType?.contentType) params.set("content_type", selectedType.contentType);
-  if (selectedType?.tags) params.set("tags", selectedType.tags);
 
   try {
     const res = await fetch(`${apiBase}/contents?${params.toString()}`, { cache: "no-store" });
@@ -161,80 +102,72 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
   const rawSearch = await searchParams;
   const current = {
     category: rawSearch.category || "",
-    type: rawSearch.type || "",
-    sort: rawSearch.sort || "hot",
+    sort: rawSearch.sort || "recommended",
   };
   const apiBase = getApiBase();
-  const [categories, secondaryTypes, contents] = await Promise.all([
+  const [categories, contents] = await Promise.all([
     fetchPrimaryCategories(apiBase),
-    fetchSecondaryTypes(apiBase),
-    fetchOriginalContents(apiBase, current),
+    fetchContents(apiBase, current),
   ]);
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6">
-      {/* Primary category nav */}
-      <section className="space-y-3 rounded-md border border-border bg-card p-4 ">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t("content.originalZone")}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{t("content.originalZoneDesc")}</p>
+    <div className="mx-auto w-full max-w-[1440px]">
+      {/* Zone banner — clean, no border */}
+      <div className="px-6 pt-6 pb-3">
+        <div className="flex items-baseline gap-3">
+          <h1 className="text-[22px] font-bold tracking-tight text-foreground">
+            {t("content.originalZone")}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {t("content.originalZoneDesc")}
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {categories.map((category) => (
-            <Link
-              key={category.slug || "recommended"}
-              href={buildOriginalHref({ category: category.slug, type: "" }, current)}
-              className={buttonVariants({
-                size: "sm",
-                variant: current.category === category.slug ? "default" : "outline",
-              })}
-            >
-              {category.i18n ? t(category.i18n) : category.label}
-            </Link>
-          ))}
+        <div className="mt-3 flex gap-4">
+          <span className="flex items-baseline gap-1">
+            <span className="text-[15px] font-semibold text-foreground">186,247</span>
+            <span className="text-xs text-muted-foreground">内容</span>
+          </span>
+          <span className="flex items-baseline gap-1">
+            <span className="text-[15px] font-semibold text-foreground">32,814</span>
+            <span className="text-xs text-muted-foreground">创作者</span>
+          </span>
         </div>
-      </section>
+      </div>
 
-      {/* Content stream with secondary nav + sort */}
-      <section className="space-y-4 rounded-md border border-border bg-card p-4 ">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="text-base font-semibold">{t("home.originalContentStream")}</h2>
+      {/* Category tabs + sort — unified row, sticky */}
+      <div className="sticky top-[52px] z-40 bg-background px-6 py-2.5">
+        <div className="flex items-center gap-0">
+          {/* Category tabs — horizontal scroll */}
+          <div className="flex flex-1 items-center gap-1 overflow-x-auto scrollbar-none" style={{ scrollbarWidth: 'none' }}>
+            {categories.map((category) => {
+              const active = current.category === category.slug;
+              return (
+                <Link
+                  key={category.slug || "recommended"}
+                  href={buildHref({ category: category.slug }, current)}
+                  className={`flex-shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-colors whitespace-nowrap ${
+                    active
+                      ? "border-border bg-card text-foreground font-semibold"
+                      : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {category.label}
+                </Link>
+              );
+            })}
+          </div>
 
-          {/* Sort tabs */}
-          <div className="flex flex-wrap gap-2">
-            {SORTS.map((sort) => (
-              <Link
-                key={sort.key}
-                href={buildOriginalHref({ sort: sort.key }, current)}
-                className={buttonVariants({
-                  size: "sm",
-                  variant: current.sort === sort.key ? "default" : "outline",
-                })}
-              >
-                {t(sort.i18n)}
-              </Link>
-            ))}
+          {/* Sort dropdown */}
+          <div className="ml-3 flex-shrink-0">
+            <SortSelect />
           </div>
         </div>
+      </div>
 
-        {/* Secondary type nav */}
-        <div className="flex flex-wrap gap-2">
-          {secondaryTypes.map((type) => (
-            <Link
-              key={type.key || "all"}
-              href={buildOriginalHref({ type: type.key }, current)}
-              className={buttonVariants({
-                size: "sm",
-                variant: current.type === type.key ? "default" : "outline",
-              })}
-            >
-              {type.i18n ? t(type.i18n) : type.label}
-            </Link>
-          ))}
-        </div>
-
+      {/* Content masonry */}
+      <div className="px-6 pt-4 pb-16">
         <MasonryGrid items={contents} emptyText={t("home.noOriginalContent")} />
-      </section>
+      </div>
     </div>
   );
 }

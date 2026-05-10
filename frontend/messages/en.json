@@ -817,6 +817,99 @@
     "privacy": "Privacy Policy",
     "terms": "Terms of Service"
   },
+  "studio": {
+    "sidebar": {
+      "collapse": "Collapse sidebar",
+      "expand": "Expand sidebar",
+      "publish": "Publish",
+      "analytics": "Analytics",
+      "collaboration": "Collaboration",
+      "publishContent": "Publish Content",
+      "overview": "Overview",
+      "followers": "Followers",
+      "myContent": "My Content",
+      "prManagement": "PR Management",
+      "contributors": "Contributors",
+      "tagSuggestions": "Tag Suggestions",
+      "revenue": "Revenue"
+    },
+    "publish": {
+      "originalTitle": "Publish Original",
+      "fanworkTitle": "Publish Fanwork",
+      "selectType": "Select content type to start creating",
+      "backToTypes": "Back to type selection",
+      "titleRequired": "Please enter a title",
+      "categoryRequired": "Please select a category",
+      "categoryLabel": "Category",
+      "ipLabel": "Linked IP",
+      "ipSearchPlaceholder": "Search and select IP...",
+      "ipHint": "Enter IP name to search (feature in development)",
+      "bodyLabel": "Content",
+      "coverLabel": "Cover Image",
+      "attachmentsLabel": "Attachments",
+      "tagsLabel": "Tags",
+      "tagPlaceholder": "Enter tag and press Enter to add...",
+      "addTag": "Add",
+      "publicVisible": "Public",
+      "allowPr": "Allow PR",
+      "submit": "Publish",
+      "submitting": "Publishing...",
+      "cancel": "Cancel",
+      "success": "Published successfully!",
+      "failed": "Failed to publish, please try again"
+    },
+    "overview": {
+      "title": "Overview",
+      "subtitle": "View your content analytics",
+      "totalContents": "Total Contents",
+      "totalViews": "Total Views",
+      "totalLikes": "Total Likes",
+      "followers": "Followers",
+      "changeHint": "{change}% from last month",
+      "topContent": "Top 5 Content",
+      "noData": "No data",
+      "pendingTasks": "Pending Tasks",
+      "noPending": "No pending tasks"
+    },
+    "followers": {
+      "title": "Followers",
+      "subtitle": "Understand your follower growth",
+      "totalFollowers": "Total Followers",
+      "newThisMonth": "New This Month",
+      "lostThisMonth": "Lost This Month",
+      "chartPlaceholder": "Follower trends chart will be shown when data is available (P1)"
+    },
+    "contents": {
+      "title": "My Content",
+      "subtitle": "Manage all your published content",
+      "publishNew": "Publish New",
+      "noContent": "You haven't published any content yet",
+      "startCreating": "Start Creating",
+      "edit": "Edit",
+      "delete": "Delete"
+    },
+    "pr": {
+      "title": "PR Management",
+      "subtitle": "Manage content collaboration requests",
+      "empty": "PR requests will appear here"
+    },
+    "contributors": {
+      "title": "Contributors",
+      "subtitle": "Manage contributors to your content",
+      "empty": "Contributors will appear here"
+    },
+    "tags": {
+      "title": "Tag Suggestions",
+      "subtitle": "Review tag suggestions from users",
+      "empty": "Tag suggestions will appear here"
+    },
+    "revenue": {
+      "title": "Revenue",
+      "subtitle": "View your revenue and analytics",
+      "comingSoon": "Revenue feature coming soon",
+      "comingSoonDesc": "Creator incentive program is in preparation, stay tuned"
+    }
+  },
   "error": {
     "pageError": "Something went wrong",
     "pageErrorDesc": "An unexpected error occurred. Please try again later.",
