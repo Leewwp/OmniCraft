@@ -201,7 +201,7 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
                 <li key={ii}>
                   <button
                     type="button"
-                    className={itemClasses}
+                    className={cn(itemClasses, "border-0 bg-transparent")}
                     onClick={item.onClick}
                     data-label={collapsed ? item.label : undefined}
                     title={collapsed ? item.label : undefined}
