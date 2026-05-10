@@ -49,44 +49,44 @@ export function ContentCard({ data, className }: ContentCardProps) {
   const authorId = data.author_id;
   const placeholderSrc = getCoverPlaceholder(contentType, displayTitle);
 
+  const isOriginal = data.zone === "original";
+
   return (
     <Link
       href={getCardHref(data)}
       className={cn(
-        "group block overflow-hidden rounded-md border border-border bg-card transition-colors hover:bg-muted/30",
+        "group block overflow-hidden bg-card transition-all duration-200",
+        isOriginal
+          ? "rounded-lg hover:-translate-y-0.5"
+          : "rounded-lg border border-border hover:border-border/80",
         className
       )}
     >
-      <div className="aspect-[3/4] w-full border-b border-border bg-muted/40 relative">
+      <div className="relative w-full bg-muted">
         {coverUrl ? (
           <Image
             src={coverUrl}
             alt={displayTitle}
             fill
-            className="object-cover"
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             sizes="(max-width: 450px) 100vw, (max-width: 700px) 50vw, (max-width: 1100px) 33vw, 25vw"
           />
         ) : (
           <img
             src={placeholderSrc}
             alt={displayTitle}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />
         )}
       </div>
 
-      <div className="flex flex-col gap-3 p-3">
-        <div className="space-y-1">
-          <h3 className="line-clamp-2 text-sm font-semibold text-foreground">
-            {displayTitle}
-          </h3>
-          <p className="text-xs text-muted-foreground">
-            {authorName || t('common.userLabel', { id: authorId ?? "-" })}
-          </p>
-        </div>
+      <div className="flex flex-col gap-2 px-2.5 pb-3 pt-2">
+        <h3 className="line-clamp-2 text-[13.5px] font-semibold leading-snug text-foreground">
+          {displayTitle}
+        </h3>
 
-        {tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
+        {!isOriginal && tags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
             {tags.map((tag) => (
               <Badge key={tag} variant="secondary" className="text-[10px]">
                 {tag}
@@ -95,18 +95,13 @@ export function ContentCard({ data, className }: ContentCardProps) {
           </div>
         )}
 
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <Heart className="h-3.5 w-3.5" />
+        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span className="truncate">
+            {authorName || t('common.userLabel', { id: authorId ?? "-" })}
+          </span>
+          <span className="inline-flex items-center gap-1 flex-shrink-0">
+            <Heart className="h-3 w-3" />
             {data.like_count ?? 0}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <MessageCircle className="h-3.5 w-3.5" />
-            {data.comment_count ?? 0}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Eye className="h-3.5 w-3.5" />
-            {data.view_count ?? 0}
           </span>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function OldPublishPage() {
+export default function StudioPage() {
   redirect("/studio/publish/original");
 }

@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-type TagColor = "blue" | "green" | "purple" | "orange";
+type TagColor = "blue" | "green" | "purple" | "orange" | "rose" | "sky";
 
 interface TagBadgeProps {
   className?: string;
@@ -17,6 +17,10 @@ const colorStyles: Record<TagColor, string> = {
     "bg-[var(--tag-purple-bg)] text-[var(--tag-purple-fg)] border-transparent",
   orange:
     "bg-[var(--tag-orange-bg)] text-[var(--tag-orange-fg)] border-transparent",
+  rose:
+    "bg-[var(--tag-rose-bg)] text-[var(--tag-rose-fg)] border-transparent",
+  sky:
+    "bg-[var(--tag-sky-bg)] text-[var(--tag-sky-fg)] border-transparent",
 };
 
 export function TagBadge({
@@ -29,7 +33,7 @@ export function TagBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-medium ",
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ",
         colorStyles[color],
         onClick && "cursor-pointer hover:opacity-80 transition-opacity",
         className,

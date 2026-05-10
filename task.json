@@ -1837,6 +1837,187 @@
         "## Component: MasonryGrid"
       ],
       "passes": true
+    },
+    {
+      "id": 87,
+      "title": "推荐引擎 — 热门排行定时任务与 Redis 缓存",
+      "description": "实现全站内容热度计算定时任务，更新 Redis rank:hot:contents，为推荐流和二创区首页提供热门排序数据",
+      "depends_on": [11, 15],
+      "steps": [
+        "在 internal/service/content_service.go 新增 UpdateHotRank 方法：遍历近 trending_window_days 天 zone='original' + status='published' 内容，计算 hot_score = log(1 + view_count + like_count * 3) * time_decay（半衰期 hot_decay_hours 默认 48h），写入 Redis Sorted Set rank:hot:contents",
+        "新增 internal/service/hot_rank_service.go：封装定时任务逻辑（每 10 分钟执行），使用 sync.Mutex 防止重叠执行，失败时记录日志不阻断后续执行",
+        "在 cmd/server/main.go 中启动 goroutine 运行 hot_rank_service.Run()",
+        "现有 content_service.go 的 getHotContents 方法已从 rank:hot:contents 读取（Task 22 已可用），本任务确保该 Redis key 持续更新",
+        "验证：发布几篇内容后等待定时任务执行，检查 Redis rank:hot:contents 中有数据且排名合理；修改 view_count/like_count 后排名更新"
+      ],
+      "passes": false
+    },
+    {
+      "id": 88,
+      "title": "推荐引擎 —个性化推荐 API (sort=recommended)",
+      "description": "实现原创区推荐流的完整链路：用户画像构建、pgvector 向量检索、个性化+热门混合排序、分页缓存",
+      "depends_on": [87, 11],
+      "steps": [
+        "扩展 content_service.go ListContents：sort=recommended 时走推荐引擎流程（非 recommended 保持现有逻辑不变）",
+        "新增 internal/service/recommendation_service.go：BuildUserProfileVector（加权聚合浏览/收藏/点赞内容向量）→ VectorSearch（pgvector ANN 检索 topK 候选）→ ComputeFinalScore（个性化权重 0.6 + 热门度 0.4）→ SortAndPaginate",
+        "实现冷启动降级：用户互动量 < min_interaction_for_personalize（默认 10）时跳过向量检索，直接走 rank:hot:contents 热门推荐",
+        "实现未登录用户推荐：直接走纯热门推荐",
+        "Redis 缓存推荐结果：key rec:original:{user_id}:{page}，TTL refresh_interval_h（默认 2h）",
+        "所有权重和参数从 config.yaml > recommendation 读取，严禁硬编码",
+        "验证：新用户（无互动）看到热门内容；有互动历史的用户看到个性化推荐；缓存命中后相同 page 不走向量检索"
+      ],
+      "passes": false
+    },
+    {
+      "id": 89,
+      "title": "推荐引擎 — 用户画像向量自动更新",
+      "description": "确保用户画像向量随用户互动行为实时更新，保证推荐新鲜度",
+      "depends_on": [88],
+      "steps": [
+        "在内容浏览（browse_history 写入）、点赞/取消点赞（reactions 写入）、收藏/取消收藏（favorites 写入）时，异步更新用户推荐缓存",
+        "使用 Redis Pub/Sub 或 channel 通知：user:{id}:profile_updated 事件 → 异步清除 rec:original:{user_id}:* 缓存 → 下次请求重新计算",
+        "向量化补齐：每分钟检查 content_embeddings 表中缺失的新发布内容，调用 LLM embedding API 补生成（复用 §11.7 Pipeline）",
+        "验证：浏览新内容后推荐结果变化；点赞后推荐流中出现相关内容"
+      ],
+      "passes": false
+    },
+    {
+      "id": 90,
+      "title": "Web 前端 — 原创区首页重构（小红书式推荐流）",
+      "description": "将原创区首页从两级筛选目录式布局重构为小红书式单层推荐流 + 分类 Tab 布局，移除二级内容类型筛选",
+      "depends_on": [88, 20, 22],
+      "steps": [
+        "重构 app/(public)/original/page.tsx：移除二级内容类型筛选栏（SECONDARY_TYPES_FALLBACK 及相关 UI），仅保留顶部分类 Tab（推荐 + 11 个一级分类）",
+        "新增 components/original/CategoryTabs.tsx：横向滚动分类 Tab 栏（推荐默认选中 + 动态加载的 11 个分类），选中态底部 accent 色下划线，未选中态 text-fg.muted",
+        "切换分类 Tab 时：推荐 Tab 调用 sort=recommended；其他分类 Tab 调用 category=xxx&sort=hot",
+        "更新 MasonryGrid：支持 IntersectionObserver 无限滚动加载（useSWRInfinite），skeleton 加载态，底部 sentinel 触底加载更多",
+        "更新 ContentCard：zone='original' 时使用小红书简化样式（封面自适应高度 + 标题 + @作者 + 点赞数，无 IP 名/标签 Badge/评论数），hover 封面微放大 scale-105 + 浅色遮罩",
+        "更新原创区详情页 /original/[contentId]/page.tsx：移除二级 Tab 筛选残留（如有）",
+        "验证：npm run build 无错误，npm run lint 无警告；Playwright 浏览器验证推荐流正常加载、分类切换流畅、无限滚动生效、响应式 2/3/4 列瀑布流正常"
+      ],
+      "ui_spec_ref": [
+        "## Global Interaction Patterns",
+        "## Global Design Tokens",
+        "## Page: /original 原创区首页",
+        "## Component: ContentCard",
+        "## Component: MasonryGrid"
+      ],
+      "passes": false
+    },
+    {
+      "id": 91,
+      "title": "创作者工作室 — StudioLayout + StudioSidebar 布局组件",
+      "description": "实现创作者工作室的共享布局（可折叠侧边栏 + 主内容区），包含折叠展开动画、hover tooltip、响应式行为",
+      "depends_on": [20, 21],
+      "steps": [
+        "创建 components/studio/StudioLayout.tsx：flex 水平布局，左侧 StudioSidebar + 右侧主内容区（flex-1 overflow-y-auto），顶部 Header h-16 + 下方 h-[calc(100vh-64px)]",
+        "创建 components/studio/StudioSidebar.tsx：3 个分组（内容发布/数据看板/协作管理）渲染，展开态 w-56/收起态 w-16，transition-all duration-200 过渡动画",
+        "实现折叠状态管理：localStorage: studio_sidebar_collapsed 读写，折叠切换按钮（←/→ 箭头），移动端（≤700px）默认收起 + 点击展开浮层覆盖",
+        "实现收起态 hover tooltip：group hover + opacity-0 → opacity-100 + delay-300 + absolute left-full ml-2 定位",
+        "选中态高亮：当前路由匹配后 bg-accent.emphasis/10 + 左侧 3px accent 色竖线指示器",
+        "创建 app/(protected)/studio/layout.tsx：包裹 StudioLayout，JWT 验证中间件（未登录 redirect /login），app/(protected)/studio/page.tsx 默认 redirect /studio/publish/original",
+        "创建 app/(protected)/publish/page.tsx 和 app/(protected)/dashboard/page.tsx：301 redirect 到 /studio/publish/original 和 /studio/overview",
+        "验证：npm run build 无错误，Playwright 验证侧边栏展开/收起功能、移动端响应式、hover tooltip"
+      ],
+      "ui_spec_ref": [
+        "## Component: StudioSidebar",
+        "## Page: /studio 创作者工作室"
+      ],
+      "passes": true
+    },
+    {
+      "id": 92,
+      "title": "创作者工作室 — 内容类型选择与发布流程",
+      "description": "实现 ContentTypeGrid 组件和 /studio/publish/original、/studio/publish/fanwork 发布流程页面（两步：选类型 → 填表单）",
+      "depends_on": [91, 11],
+      "steps": [
+        "创建 components/studio/ContentTypeGrid.tsx：grid grid-cols-2/3/4 响应式卡片网格，卡片显示 emoji 图标 + 标题 + 描述，按 zone 读取 config type_order 排序",
+        "实现步骤 1→2 切换：选择卡片后 onSelect(type) → 主区域替换为发布表单（zone + content_type 锁定），顶部显示「← 返回选择类型」按钮",
+        "创建 app/(protected)/studio/publish/original/page.tsx：zone='original' 的发布流程，category 选择器必填，不渲染 IP/来源原创选择器",
+        "创建 app/(protected)/studio/publish/fanwork/page.tsx：zone='fanwork' 的发布流程，IP 选择器必填 + 来源原创搜索器可选",
+        "发布表单复用现有 /publish 组件逻辑（FileUploader、MarkdownEditor、TagInput、ComplianceCheckBadge、UploadAssistPanel）",
+        "发布成功 → Toast 提示 → router.push('/studio/contents')",
+        "验证：npm run build + lint 通过；Playwright 验证原创/二创类型选择网格正确排序、步骤切换流畅、IP 必填校验、发布成功后跳转正确"
+      ],
+      "ui_spec_ref": [
+        "## Component: ContentTypeGrid",
+        "## Page: /studio/publish/original 发布原创",
+        "## Page: /studio/publish/fanwork 发布二创"
+      ],
+      "passes": true
+    },
+    {
+      "id": 93,
+      "title": "创作者工作室 — 数据概览页面",
+      "description": "实现 /studio/overview 数据概览页：统计卡片 + 访问趋势图 + 内容排行 + 待处理事项",
+      "depends_on": [91, 11],
+      "steps": [
+        "迁移 app/(protected)/dashboard/page.tsx 逻辑到 app/(protected)/studio/overview/page.tsx",
+        "新增 components/studio/StatsCard.tsx：统计数值 + 标签 + 环比变化百分比 + ↑↓ 箭头颜色（增长绿/下降红）",
+        "新增 components/studio/ViewsTrendChart.tsx：recharts LineChart 近 30 天访问量趋势（从多 API 聚合数据）",
+        "新增 components/studio/ContentRankList.tsx：Top 5 内容排行（标题 + 访问量），可点击跳转详情页",
+        "新增 components/studio/PendingTasksCard.tsx：待处理 PR/标签建议列表，可点击跳转对应管理页",
+        "统计卡片 4 列 grid（total_contents/total_views/total_likes/followers），加载态 Skeleton，空态 EmptyState + CTA",
+        "验证：npm run build + lint 通过；Playwright 验证统计卡片数据正确、图表渲染、排行和待办项可点击跳转"
+      ],
+      "ui_spec_ref": [
+        "## Page: /studio/overview 数据概览"
+      ],
+      "passes": true
+    },
+    {
+      "id": 94,
+      "title": "创作者工作室 — 粉丝分析页面 + 粉丝统计 API",
+      "description": "实现 /studio/followers 粉丝分析页面和 GET /api/v1/users/:id/followers/stats 后端 API",
+      "depends_on": [91, 16],
+      "steps": [
+        "后端：新增 internal/handler/follow.go 中的 GetFollowerStats handler → GET /api/v1/users/:id/followers/stats?days=30",
+        "后端：新增 follow_service.go 中的 GetFollowerStats 方法：查询 follows 表统计总数/新增/流失趋势（按天分组），以及按 content_id 的粉丝来源分布",
+        "前端：创建 app/(protected)/studio/followers/page.tsx：粉丝总数/本月新增/本月流失 3 统计卡片",
+        "前端：新增 components/studio/FollowerTrendChart.tsx：recharts LineChart 双线图（新增粉丝数/净增粉丝数）",
+        "前端：新增 components/studio/FollowerSourceChart.tsx：recharts PieChart 粉丝来源分布",
+        "加载态 Skeleton，空态「暂无粉丝」EmptyState + 发布 CTA，错误态 Toast + 重试",
+        "验证：后端 curl 测试返回正确粉丝趋势数据；前端 Playwright 验证图表正常渲染、响应式"
+      ],
+      "ui_spec_ref": [
+        "## Page: /studio/followers 粉丝分析"
+      ],
+      "passes": true
+    },
+    {
+      "id": 95,
+      "title": "创作者工作室 — 旧路由迁移 + 内容管理/协作管理页迁移",
+      "description": "将旧 /dashboard/contents、/dashboard/pr-requests、/dashboard/contributors、/dashboard/tag-suggestions 页面迁移到 /studio/* 路径，保留旧路由 301 重定向",
+      "depends_on": [91],
+      "steps": [
+        "创建 app/(protected)/studio/contents/page.tsx：迁移 /dashboard/contents 内容（我的内容列表 + 筛选/排序/编辑/删除）",
+        "创建 app/(protected)/studio/pr-requests/page.tsx：迁移 /dashboard/pr-requests",
+        "创建 app/(protected)/studio/contributors/page.tsx：迁移 /dashboard/contributors",
+        "创建 app/(protected)/studio/tag-suggestions/page.tsx：迁移 /dashboard/tag-suggestions",
+        "创建 app/(protected)/studio/revenue/page.tsx：P1 占位页（EmptyState「收益功能即将开放」），features.creator_support_enabled=false 时显示",
+        "旧路由路由文件改为 301 redirect（已由 Task 91 step 6 处理），确保所有导航链接指向新 /studio/* 路径",
+        "更新 Header 导航链接：发布→/studio/publish/original，创作者后台→/studio/overview",
+        "验证：npm run build + lint；Playwright 验证所有页面在新路径正常加载、旧路径 301 重定向生效、Header 链接已更新"
+      ],
+      "ui_spec_ref": [
+        "## Page: /studio 创作者工作室",
+        "## Page: /studio/revenue 收益数据"
+      ],
+      "passes": true
+    },
+    {
+      "id": 96,
+      "title": "创作者工作室 — i18n 翻译 + 暗色模式兼容 + 全面测试",
+      "description": "补充工作室所有新增页面的中英文翻译、暗色模式验证、Playwright 全流程 E2E 测试",
+      "depends_on": [92, 93, 94, 95],
+      "steps": [
+        "在 frontend/messages/zh.json 和 en.json 中补充 studio.* 命名空间下的所有 UI 字符串（侧边栏分组标题、内容类型名称/描述、统计卡片标签、图表说明等）",
+        "暗色模式遍历验证：所有 /studio/* 页面在 light/dark 主题下 UI 正常（通过 Playwright 截图对比）",
+        "Playwright E2E 测试：① 侧边栏折叠展开 + hover tooltip ② 原创发布完整流程（选类型→填表→提交→跳转） ③ 二创发布流程（含 IP 必填校验） ④ 数据概览图表加载 ⑤ 粉丝分析页数据展示 ⑥ 旧路由 301 重定向",
+        "npm run build 成功 + npm run lint 0 警告",
+        "验证：所有 E2E 测试通过，截图保存至 screenshots/ 文件夹"
+      ],
+      "passes": false
     }
   ]
 }
