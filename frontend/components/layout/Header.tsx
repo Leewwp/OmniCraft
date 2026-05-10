@@ -81,8 +81,8 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-background">
-      <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4">
+    <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/95 backdrop-blur-sm">
+      <div className="mx-auto flex h-[52px] max-w-[1440px] items-center gap-3 px-5">
         <Link
           href="/"
           className="flex items-center gap-2 font-semibold text-foreground transition-opacity hover:opacity-80"
@@ -116,7 +116,7 @@ export function Header() {
               placeholder={t("common.search")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-md border border-border bg-muted/40 py-1.5 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full rounded-full border border-transparent bg-muted py-1.5 pl-9 pr-3 text-sm placeholder:text-muted-foreground/60 transition-all focus:border-ring focus:bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
             />
           </form>
           {/* Mobile search toggle */}
@@ -181,15 +181,13 @@ export function Header() {
           </DropdownMenu>
 
           {/* Publish button */}
-          {user && (
-            <Link
-              href="/publish"
-              className={cn(buttonVariants({ size: "sm" }), "hidden h-8 gap-1.5 text-sm sm:inline-flex")}
-            >
-              <Plus className="h-4 w-4" />
-              {t("nav.publish")}
-            </Link>
-          )}
+          <Link
+            href={user ? "/studio/publish/original" : "/login?redirect=/studio/publish/original"}
+            className={cn(buttonVariants({ size: "sm" }), "hidden h-8 gap-1.5 text-sm sm:inline-flex")}
+          >
+            <Plus className="h-4 w-4" />
+            {t("nav.publish")}
+          </Link>
 
           {/* Notification bell */}
           {user && (
@@ -231,7 +229,7 @@ export function Header() {
               {user ? (
                 <>
                   <DropdownMenuItem onClick={() => goTo(`/user/${user.id}`)}>{t("nav.profile")}</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => goTo("/dashboard")}>{t("nav.dashboard")}</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => goTo("/studio/overview")}>{t("nav.dashboard")}</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => goTo("/history")}>{t("nav.history")}</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => goTo("/settings")}>{t("nav.settings")}</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => goTo("/appeals")}>{t("nav.appeals")}</DropdownMenuItem>
@@ -268,7 +266,7 @@ export function Header() {
                   <User className="mr-2 h-4 w-4" />
                   {t("nav.profile")}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => goTo("/dashboard")}>
+                <DropdownMenuItem onClick={() => goTo("/studio/overview")}>
                   <LayoutDashboard className="mr-2 h-4 w-4" />
                   {t("nav.dashboard")}
                 </DropdownMenuItem>
@@ -324,7 +322,7 @@ export function Header() {
               placeholder={t("common.search")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-md border border-border bg-muted/40 py-1.5 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full rounded-full border border-transparent bg-muted py-1.5 pl-9 pr-3 text-sm placeholder:text-muted-foreground/60 transition-all focus:border-ring focus:bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
             />
           </div>
         </form>
