@@ -10,6 +10,7 @@ import {
 import { IPCard } from "@/components/ip/IPCard";
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { ContentCardData } from "@/components/content/ContentCard";
+import { useAuth } from "@/contexts/AuthContext";
 import { Sidebar, type SidebarItem, type TrendingEntry } from "@/components/layout/Sidebar";
 import { normalizeContentList } from "@/lib/content";
 
@@ -35,6 +36,7 @@ const ALL_KEY = "__all__";
 
 export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePageClientProps) {
   const t = useTranslations();
+  const { user } = useAuth();
   const [recentIPs, setRecentIPs] = useState<RecentIP[]>([]);
   const [ips, setIPs] = useState<IPItem[]>(initialIPs);
   const [contents, setContents] = useState<ContentCardData[]>(initialContents);
@@ -107,9 +109,9 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
     {
       label: "管理",
       items: [
-        { icon: <Heart className="h-4 w-4" />, label: "我的收藏", href: "/studio/contents" },
-        { icon: <FileText className="h-4 w-4" />, label: "我的创作", href: "/studio/contents" },
-        { icon: <Clock className="h-4 w-4" />, label: "浏览历史", href: "/history" },
+        { icon: <Heart className="h-4 w-4" />, label: "我的收藏", href: user ? "/studio/contents" : "/login?redirect=/studio/contents" },
+        { icon: <FileText className="h-4 w-4" />, label: "我的创作", href: user ? "/studio/contents" : "/login?redirect=/studio/contents" },
+        { icon: <Clock className="h-4 w-4" />, label: "浏览历史", href: user ? "/history" : "/login?redirect=/history" },
       ] as SidebarItem[],
     },
   ];

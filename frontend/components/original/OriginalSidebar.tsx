@@ -1,19 +1,8 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import { Heart, FileText, Clock, Zap } from "lucide-react";
+import { Heart, FileText, Clock } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Sidebar, type SidebarItem, type TrendingEntry } from "@/components/layout/Sidebar";
-
-const sidebarSections = [
-  {
-    label: "管理",
-    items: [
-      { icon: <Heart className="h-4 w-4" />, label: "我的喜欢", href: "/studio/contents" },
-      { icon: <FileText className="h-4 w-4" />, label: "我的原创", href: "/studio/contents" },
-      { icon: <Clock className="h-4 w-4" />, label: "浏览历史", href: "/history" },
-    ] as SidebarItem[],
-  },
-];
 
 const trendingTopics: TrendingEntry[] = [
   { rank: 1, name: "#春日穿搭挑战", stat: "4,823 参与", href: "/search?q=春日穿搭" },
@@ -24,9 +13,22 @@ const trendingTopics: TrendingEntry[] = [
 ];
 
 export function SidebarWrapper() {
+  const { user } = useAuth();
+
+  const sections = [
+    {
+      label: "管理",
+      items: [
+        { icon: <Heart className="h-4 w-4" />, label: "我的喜欢", href: user ? "/studio/contents" : "/login?redirect=/studio/contents" },
+        { icon: <FileText className="h-4 w-4" />, label: "我的原创", href: user ? "/studio/contents" : "/login?redirect=/studio/contents" },
+        { icon: <Clock className="h-4 w-4" />, label: "浏览历史", href: user ? "/history" : "/login?redirect=/history" },
+      ] as SidebarItem[],
+    },
+  ];
+
   return (
     <Sidebar
-      sections={sidebarSections}
+      sections={sections}
       trending={{ title: "热门话题 · 本周", entries: trendingTopics }}
     />
   );
