@@ -40,7 +40,7 @@ interface SidebarProps {
 
 function TrendingSection({ title, entries }: NonNullable<SidebarProps["trending"]>) {
   return (
-    <div className="sidebar-trending px-3.5">
+    <div className="px-3.5">
       <h4 className="pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
         {title}
       </h4>
@@ -48,19 +48,14 @@ function TrendingSection({ title, entries }: NonNullable<SidebarProps["trending"
         <Link
           key={i}
           href={entry.href || "#"}
-          className={cn(
-            "flex items-center gap-2 rounded-md px-2.5 py-1.5 transition-colors hover:bg-muted",
-            "group/trending"
-          )}
+          className="flex items-center gap-2 rounded-md px-2.5 py-1.5 transition-colors hover:bg-muted"
         >
-          <span
-            className={cn(
-              "w-[18px] flex-shrink-0 text-center text-xs font-bold text-fg-subtle",
-              entry.rank === 1 && "text-rose-500",
-              entry.rank === 2 && "text-amber-500",
-              entry.rank === 3 && "text-violet-500"
-            )}
-          >
+          <span className={cn(
+            "w-[18px] flex-shrink-0 text-center text-xs font-bold text-fg-subtle",
+            entry.rank === 1 && "text-rose-500",
+            entry.rank === 2 && "text-amber-500",
+            entry.rank === 3 && "text-violet-500"
+          )}>
             {entry.rank}
           </span>
           {entry.avatar && (
@@ -79,6 +74,18 @@ function TrendingSection({ title, entries }: NonNullable<SidebarProps["trending"
     </div>
   );
 }
+
+const itemBase =
+  "flex items-center gap-2.5 rounded-[6px] px-3 py-[7px] text-[13px] font-medium transition-all duration-100 w-full";
+
+const itemActive =
+  "bg-[#EEF2FF] text-[#4F46E5] font-semibold";
+
+const itemIdle =
+  "text-[#52525B] hover:text-[#18181B] hover:bg-[#F2F2F2]";
+
+const collapsedItem =
+  "justify-center px-[8px] py-[8px] w-auto";
 
 export function Sidebar({ sections = [], trending, className }: SidebarProps) {
   const pathname = usePathname();
@@ -100,7 +107,7 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "flex-shrink-0 overflow-y-auto overflow-x-hidden border-r border-transparent bg-background py-2 transition-[width] duration-200",
+        "flex-shrink-0 overflow-y-auto overflow-x-hidden bg-white py-2 transition-[width] duration-200",
         collapsed ? "w-[48px]" : "w-[228px]",
         className
       )}
@@ -111,7 +118,8 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
         onClick={toggle}
         title={collapsed ? "展开侧边栏" : "收起侧边栏"}
         className={cn(
-          "flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium text-fg-muted transition-colors hover:bg-muted hover:text-foreground",
+          itemBase,
+          "text-[#52525B] hover:text-[#18181B] hover:bg-[#F2F2F2]",
           collapsed
             ? "mx-auto w-9 justify-center px-0"
             : "mx-3.5 mb-2 w-[calc(100%-28px)]"
@@ -122,7 +130,7 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
         ) : (
           <>
             <PanelLeftClose className="h-4 w-4 flex-shrink-0" />
-            <span className="toggle-text">收起侧边栏</span>
+            <span>收起侧边栏</span>
           </>
         )}
       </button>
@@ -131,12 +139,10 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
       {sections.map((section, si) => (
         <div key={si}>
           {section.label && (
-            <div
-              className={cn(
-                "px-3.5 pb-1.5 pt-2 text-[10.5px] font-semibold uppercase tracking-wider text-fg-subtle",
-                collapsed && "hidden"
-              )}
-            >
+            <div className={cn(
+              "px-3.5 pb-1.5 pt-2 text-[10.5px] font-semibold uppercase tracking-wider text-[#A1A1AA]",
+              collapsed && "hidden"
+            )}>
               {section.label}
             </div>
           )}
@@ -149,23 +155,25 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
                     ? pathname === item.href || pathname.startsWith(item.href + "/")
                     : false;
 
+              const classes = cn(
+                itemBase,
+                isActive ? itemActive : itemIdle,
+                collapsed && collapsedItem
+              );
+
               const inner = (
                 <>
                   <span className="flex-shrink-0">{item.icon}</span>
                   {!collapsed && (
                     <>
-                      <span className="item-text flex-1 truncate text-[13px] font-medium">
-                        {item.label}
-                      </span>
+                      <span className="flex-1 truncate">{item.label}</span>
                       {item.count !== undefined && (
-                        <span
-                          className={cn(
-                            "ml-auto rounded-full px-1.5 py-px text-[11px] font-medium",
-                            isActive
-                              ? "bg-[#C7D2FE] text-[var(--accent-emphasis)]"
-                              : "bg-[var(--border-light)] text-fg-subtle"
-                          )}
-                        >
+                        <span className={cn(
+                          "ml-auto rounded-full px-1.5 py-px text-[11px] font-medium",
+                          isActive
+                            ? "bg-[#C7D2FE] text-[#4F46E5]"
+                            : "bg-[#F0F0EC] text-[#999993]"
+                        )}>
                           {item.count}
                         </span>
                       )}
@@ -174,20 +182,12 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
                 </>
               );
 
-              const itemClasses = cn(
-                "flex items-center gap-2.5 w-full rounded-[6px] px-3 py-1.5 text-[13px] font-medium transition-all duration-100",
-                isActive
-                  ? "bg-[var(--accent-subtle)] text-[var(--accent-emphasis)] font-semibold"
-                  : "text-fg-muted hover:bg-muted hover:text-foreground",
-                collapsed && "relative justify-center px-0 py-2 w-auto"
-              );
-
               if (item.href) {
                 return (
                   <li key={ii}>
                     <Link
                       href={item.href}
-                      className={itemClasses}
+                      className={classes}
                       data-label={collapsed ? item.label : undefined}
                       title={collapsed ? item.label : undefined}
                     >
@@ -199,15 +199,22 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
 
               return (
                 <li key={ii}>
-                  <button
-                    type="button"
-                    className={cn(itemClasses, "border-0 bg-transparent")}
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className={cn(classes, "cursor-pointer")}
                     onClick={item.onClick}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        item.onClick?.();
+                      }
+                    }}
                     data-label={collapsed ? item.label : undefined}
                     title={collapsed ? item.label : undefined}
                   >
                     {inner}
-                  </button>
+                  </span>
                 </li>
               );
             })}
@@ -218,7 +225,7 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
       {/* Trending section */}
       {trending && !collapsed && (
         <>
-          <div className="sidebar-divider my-2 h-px bg-transparent" />
+          <div className="my-2 h-px bg-transparent" />
           <TrendingSection title={trending.title} entries={trending.entries} />
         </>
       )}
