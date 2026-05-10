@@ -414,6 +414,7 @@
     "navAppeals": "申诉处理",
     "navCategories": "分类管理",
     "navConfig": "系统配置",
+    "navAgentConfig": "Agent 管理",
     "ips": {
       "title": "IP 库管理",
       "subtitle": "审核待处理的 IP 提交（共 {total} 个待审）",
