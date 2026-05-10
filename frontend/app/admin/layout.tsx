@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Shield, FileText, Users, AlertTriangle, Settings, Tags, ChevronRight, PanelLeftClose, PanelLeft } from "lucide-react";
+import { Shield, FileText, Users, AlertTriangle, Settings, Tags, Bot, ChevronRight, PanelLeftClose, PanelLeft } from "lucide-react";
 import { Footer } from "@/components/layout/Footer";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +16,7 @@ const ADMIN_NAV = [
   { href: "/admin/appeal", labelKey: "navAppeals", icon: AlertTriangle },
   { href: "/admin/categories", labelKey: "navCategories", icon: Tags },
   { href: "/admin/config", labelKey: "navConfig", icon: Settings },
+  { href: "/admin/agent-config", labelKey: "navAgentConfig", icon: Bot },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -56,7 +57,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Sidebar nav - collapsible on desktop, hidden on mobile */}
       <aside
         className={cn(
-          "hidden shrink-0 border-r border-border bg-canvas-subtle transition-all duration-200 md:block",
+          "hidden shrink-0 border-r border-transparent bg-background transition-all duration-200 md:block",
           sidebarOpen ? "w-[220px]" : "w-[52px]"
         )}
       >
@@ -95,8 +96,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 className={cn(
                   "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
                   isActive
-                    ? "bg-accent/10 text-accent font-medium"
-                    : "text-foreground/70 hover:bg-muted hover:text-foreground",
+                    ? "bg-accent-subtle text-accent-emphasis font-medium"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
                   !sidebarOpen && "justify-center px-2"
                 )}
               >
@@ -110,7 +111,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* Mobile nav tabs */}
-      <div className="w-full overflow-x-auto border-b border-border bg-canvas-subtle md:hidden">
+      <div className="w-full overflow-x-auto border-b border-border bg-background md:hidden">
         <div className="flex gap-0 px-2 py-2">
           {ADMIN_NAV.map((item) => {
             const isActive = pathname.startsWith(item.href);

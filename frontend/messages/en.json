@@ -414,6 +414,7 @@
     "navAppeals": "Appeal Handling",
     "navCategories": "Category Management",
     "navConfig": "System Config",
+    "navAgentConfig": "Agent Config",
     "ips": {
       "title": "IP Library Management",
       "subtitle": "Review pending IP submissions ({total} pending)",
