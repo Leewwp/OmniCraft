@@ -175,12 +175,11 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
               );
 
               const itemClasses = cn(
-                "flex items-center gap-2.5 rounded-[6px] px-3 py-1.5 text-[13px] font-medium transition-all duration-100",
+                "flex items-center gap-2.5 w-full rounded-[6px] px-3 py-1.5 text-[13px] font-medium transition-all duration-100",
                 isActive
                   ? "bg-[var(--accent-subtle)] text-[var(--accent-emphasis)] font-semibold"
                   : "text-fg-muted hover:bg-muted hover:text-foreground",
-                collapsed && "relative justify-center px-0 py-2",
-                item.onClick && "cursor-pointer"
+                collapsed && "relative justify-center px-0 py-2 w-auto"
               );
 
               if (item.href) {
