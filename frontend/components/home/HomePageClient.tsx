@@ -3,11 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { ChevronRight, Filter } from "lucide-react";
+import {
+  LayoutGrid, Gamepad2, Tv, BookOpen, Globe, Music, Clock, Film,
+  Heart, Settings, FileText, ChevronRight,
+} from "lucide-react";
 import { IPCard } from "@/components/ip/IPCard";
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { ContentCardData } from "@/components/content/ContentCard";
-import { Button } from "@/components/ui/button";
+import { Sidebar, type SidebarItem, type TrendingEntry } from "@/components/layout/Sidebar";
 import { normalizeContentList } from "@/lib/content";
 
 interface IPItem {
@@ -23,21 +26,11 @@ interface HomePageClientProps {
   initialContents: ContentCardData[];
 }
 
-interface IPResponse {
-  ips: IPItem[];
-}
-
-interface ContentResponse {
-  contents: ContentCardData[];
-}
-
-interface RecentIP {
-  id: number;
-  name: string;
-}
+interface IPResponse { ips: IPItem[] }
+interface ContentResponse { contents: ContentCardData[] }
+interface RecentIP { id: number; name: string }
 
 const RECENT_IP_KEY = "recent_ips";
-
 const ALL_KEY = "__all__";
 
 export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePageClientProps) {
@@ -45,12 +38,10 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
   const [recentIPs, setRecentIPs] = useState<RecentIP[]>([]);
   const [ips, setIPs] = useState<IPItem[]>(initialIPs);
   const [contents, setContents] = useState<ContentCardData[]>(initialContents);
-
   const [ipCategory, setIPCategory] = useState("");
   const [ipSort, setIPSort] = useState("hot");
   const [contentType, setContentType] = useState("");
   const [contentSort, setContentSort] = useState("hot");
-  const [timeRange, setTimeRange] = useState("all");
 
   const contentTypeOptions = useMemo(() => [
     { label: t('home.all'), value: "" },
@@ -64,195 +55,182 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
     { label: t('home.other'), value: "other" },
   ], [t]);
 
-  const contentSortOptions = useMemo(() => [
-    { label: t('home.hottest'), value: "hot" },
-    { label: t('home.newest'), value: "newest" },
-    { label: t('home.mostViewed'), value: "most_views" },
-    { label: t('home.topRated'), value: "best_rated" },
-  ], [t]);
-
-  const timeRangeOptions = useMemo(() => [
-    { label: t('home.all'), value: "all" },
-    { label: t('home.thisWeek'), value: "week" },
-    { label: t('home.thisMonth'), value: "month" },
-    { label: t('home.thisYear'), value: "year" },
-  ], [t]);
-
   const ipCategories = useMemo(() => {
-    const fromData = Array.from(new Set(ips.map((ip) => ip.category).filter(Boolean))) as string[];
-    return [ALL_KEY, ...fromData];
+    return [ALL_KEY, ...Array.from(new Set(ips.map((ip) => ip.category).filter(Boolean)))] as string[];
   }, [ips]);
 
+  // Load recent IPs
   useEffect(() => {
-    const raw = window.localStorage.getItem(RECENT_IP_KEY);
-    if (!raw) {
-      return;
-    }
     try {
-      const parsed = JSON.parse(raw) as RecentIP[];
-      setRecentIPs(parsed.slice(0, 5));
-    } catch {
-      setRecentIPs([]);
-    }
+      const raw = localStorage.getItem(RECENT_IP_KEY);
+      if (raw) setRecentIPs(JSON.parse(raw).slice(0, 6));
+    } catch { /* ignore */ }
   }, []);
 
+  // Fetch IPs
   useEffect(() => {
-    const query = new URLSearchParams();
-    if (ipCategory) {
-      query.set("category", ipCategory);
-    }
-    query.set("sort", ipSort);
-
-    const run = async () => {
-      try {
-        const res = await fetch(`${apiBase}/ips?${query.toString()}`, { cache: "no-store" });
-        if (!res.ok) {
-          return;
-        }
-        const data = (await res.json()) as IPResponse;
-        setIPs(data.ips || []);
-      } catch {
-        setIPs([]);
-      }
-    };
-
-    void run();
+    const q = new URLSearchParams();
+    if (ipCategory) q.set("category", ipCategory);
+    q.set("sort", ipSort);
+    fetch(`${apiBase}/ips?${q.toString()}`, { cache: "no-store" })
+      .then(r => r.ok ? r.json() as Promise<IPResponse> : null)
+      .then(d => { if (d) setIPs(d.ips || []); })
+      .catch(() => {});
   }, [apiBase, ipCategory, ipSort]);
 
+  // Fetch contents
   useEffect(() => {
-    const query = new URLSearchParams();
-    query.set("zone", "fanwork");
-    query.set("sort", contentSort);
-    query.set("time_range", timeRange);
-    if (contentType) {
-      query.set("content_type", contentType);
-    }
+    const q = new URLSearchParams();
+    q.set("zone", "fanwork");
+    q.set("sort", contentSort);
+    q.set("time_range", "all");
+    if (contentType) q.set("content_type", contentType);
+    fetch(`${apiBase}/contents?${q.toString()}`, { cache: "no-store" })
+      .then(r => r.ok ? r.json() as Promise<ContentResponse> : null)
+      .then(d => { if (d) setContents(normalizeContentList(d.contents)); })
+      .catch(() => {});
+  }, [apiBase, contentType, contentSort]);
 
-    const run = async () => {
-      try {
-        const res = await fetch(`${apiBase}/contents?${query.toString()}`, {
-          cache: "no-store",
-        });
-        if (!res.ok) {
-          return;
-        }
-        const data = (await res.json()) as ContentResponse;
-        setContents(normalizeContentList(data.contents));
-      } catch {
-        setContents([]);
-      }
-    };
+  // Sidebar sections
+  const sidebarSections = [
+    {
+      label: "IP 分类",
+      items: [
+        { icon: <LayoutGrid className="h-4 w-4" />, label: "全部 IP", href: "/", active: ipCategory === "" },
+        { icon: <Gamepad2 className="h-4 w-4" />, label: "游戏", href: "/?ip_category=game", active: ipCategory === "game" },
+        { icon: <Tv className="h-4 w-4" />, label: "影视", href: "/?ip_category=film_tv", active: ipCategory === "film_tv" },
+        { icon: <BookOpen className="h-4 w-4" />, label: "动画", href: "/?ip_category=anime", active: ipCategory === "anime" },
+        { icon: <Globe className="h-4 w-4" />, label: "漫画", href: "/?ip_category=manga", active: ipCategory === "manga" },
+        { icon: <Music className="h-4 w-4" />, label: "小说", href: "/?ip_category=novel", active: ipCategory === "novel" },
+      ] as SidebarItem[],
+    },
+    {
+      label: "管理",
+      items: [
+        { icon: <Heart className="h-4 w-4" />, label: "我的收藏", href: "/studio/contents" },
+        { icon: <FileText className="h-4 w-4" />, label: "我的创作", href: "/studio/contents" },
+        { icon: <Clock className="h-4 w-4" />, label: "浏览历史", href: "/history" },
+      ] as SidebarItem[],
+    },
+  ];
 
-    void run();
-  }, [apiBase, contentType, contentSort, timeRange]);
+  // Trending IPs (from top IPs)
+  const trendingEntries: TrendingEntry[] = ips.slice(0, 6).map((ip, i) => ({
+    rank: i + 1,
+    avatar: <span>{ip.name.slice(0, 2)}</span>,
+    name: ip.name,
+    stat: `${ip.description || ""}`,
+    href: `/ip/${ip.id}`,
+  }));
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6">
-      <section className="rounded-md border border-border bg-card p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">{t('home.recentIps')}</h2>
-          <Filter className="h-4 w-4 text-muted-foreground" />
+    <div className="mx-auto flex w-full max-w-[1440px] min-h-[calc(100vh-52px)]">
+      {/* Sidebar */}
+      <Sidebar
+        sections={sidebarSections}
+        trending={{ title: "热门 IP · 本周", entries: trendingEntries }}
+      />
+
+      {/* Main content */}
+      <div className="flex-1 min-w-0">
+        {/* Zone banner */}
+        <div className="px-6 pt-5 pb-3">
+          <div className="flex items-baseline gap-3">
+            <h1 className="text-[22px] font-bold tracking-tight text-foreground">二创区</h1>
+            <p className="text-sm text-muted-foreground">基于 IP 的协同创作与内容发现</p>
+          </div>
+          <div className="mt-3 flex gap-4">
+            <span className="flex items-baseline gap-1">
+              <span className="text-[15px] font-semibold text-foreground">58,293</span>
+              <span className="text-xs text-muted-foreground">内容</span>
+            </span>
+            <span className="flex items-baseline gap-1">
+              <span className="text-[15px] font-semibold text-foreground">186</span>
+              <span className="text-xs text-muted-foreground">活跃 IP</span>
+            </span>
+            <span className="flex items-baseline gap-1">
+              <span className="text-[15px] font-semibold text-foreground">8,412</span>
+              <span className="text-xs text-muted-foreground">创作者</span>
+            </span>
+          </div>
         </div>
 
-        {recentIPs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('home.noRecentIps')}</p>
-        ) : (
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {recentIPs.map((item) => (
-              <Link
-                key={item.id}
-                href={`/ip/${item.id}`}
-                className="inline-flex items-center gap-2 whitespace-nowrap rounded-md border border-border px-3 py-2 text-xs hover:bg-muted"
-              >
-                {item.name}
-                <ChevronRight className="h-3.5 w-3.5" />
+        {/* Recent IPs */}
+        {recentIPs.length > 0 && (
+          <div className="px-6 pb-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[13px] font-semibold text-muted-foreground">最近访问IP</span>
+              <Link href="/search" className="text-xs text-accent-emphasis font-medium">
+                浏览全部 IP →
               </Link>
-            ))}
+            </div>
+            <div className="flex gap-2.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+              {recentIPs.map((ip) => (
+                <Link
+                  key={ip.id}
+                  href={`/ip/${ip.id}`}
+                  className="flex-shrink-0 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:border-border/80 transition-colors"
+                >
+                  {ip.name}
+                </Link>
+              ))}
+            </div>
           </div>
         )}
-      </section>
 
-      <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-base font-semibold">{t('home.ipBrowseZone')}</h2>
-          <select
-            value={ipSort}
-            onChange={(e) => setIPSort(e.target.value)}
-            className="h-9 rounded-md border border-border bg-background px-3 text-sm"
-          >
-            <option value="hot">{t('home.hottest')}</option>
-            <option value="newest">{t('home.newest')}</option>
-            <option value="most_contents">{t('home.mostContent')}</option>
-          </select>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {ipCategories.map((category) => {
-            const value = category === ALL_KEY ? "" : category;
-            const active = ipCategory === value;
-            return (
-              <Button
-                key={category}
-                size="sm"
-                variant={active ? "default" : "outline"}
-                onClick={() => setIPCategory(value)}
-              >
-                {category === ALL_KEY ? t('home.all') : category}
-              </Button>
-            );
-          })}
-        </div>
-
-        <div className="flex gap-3 overflow-x-auto pb-2">
-          {ips.map((ip) => (
-            <IPCard key={ip.id} data={ip} />
-          ))}
-        </div>
-      </section>
-
-      <section className="space-y-4 rounded-md border border-border bg-card p-4 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="text-base font-semibold">{t('home.fanworkBrowseZone')}</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            {contentSortOptions.map((option) => (
-              <Button
-                key={option.value}
-                size="sm"
-                variant={contentSort === option.value ? "default" : "outline"}
-                onClick={() => setContentSort(option.value)}
-              >
-                {option.label}
-              </Button>
+        {/* IP horizontal scroll */}
+        <div className="px-6 pb-2">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[13px] font-semibold text-muted-foreground">推荐 IP</span>
+          </div>
+          <div className="flex gap-2.5 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
+            {ips.slice(0, 8).map((ip) => (
+              <IPCard key={ip.id} data={ip} />
             ))}
-            <select
-              value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value)}
-              className="h-9 rounded-md border border-border bg-background px-3 text-sm"
-            >
-              {timeRangeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {contentTypeOptions.map((option) => (
-            <Button
-              key={option.label}
-              size="sm"
-              variant={contentType === option.value ? "default" : "outline"}
-              onClick={() => setContentType(option.value)}
-            >
-              {option.label}
-            </Button>
-          ))}
+        {/* Content toolbar */}
+        <div className="sticky top-[52px] z-40 bg-background px-6 py-2.5">
+          <div className="flex items-center gap-0">
+            <div className="flex flex-1 items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+              {contentTypeOptions.map((opt) => {
+                const active = contentType === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setContentType(opt.value)}
+                    className={`flex-shrink-0 rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors whitespace-nowrap border ${
+                      active
+                        ? "border-border bg-muted text-foreground font-semibold"
+                        : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="ml-3 flex-shrink-0">
+              <select
+                value={contentSort}
+                onChange={(e) => setContentSort(e.target.value)}
+                className="rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="hot">{t('home.hottest')}</option>
+                <option value="newest">{t('home.newest')}</option>
+                <option value="most_views">{t('home.mostViewed')}</option>
+              </select>
+            </div>
+          </div>
         </div>
 
-        <MasonryGrid items={contents} />
-      </section>
+        {/* Masonry grid */}
+        <div className="px-6 py-4 pb-16">
+          <MasonryGrid items={contents} emptyText={t("home.noOriginalContent")} />
+        </div>
+      </div>
     </div>
   );
 }
