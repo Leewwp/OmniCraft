@@ -24,6 +24,12 @@ export interface ContentCardData {
   comment_count?: number;
   tags?: string[];
   category?: string;
+  description?: string;
+  ip?: {
+    id?: number;
+    name?: string;
+    slug?: string;
+  };
 }
 
 interface ContentCardProps {
@@ -48,8 +54,8 @@ export function ContentCard({ data, className }: ContentCardProps) {
   const authorName = data.author?.username ?? "";
   const authorId = data.author_id;
   const placeholderSrc = getCoverPlaceholder(contentType, displayTitle);
-
   const isOriginal = data.zone === "original";
+  const typeLabel = contentType === "sheet_music" ? "乐谱" : contentType === "prompt" ? "AI 提示词" : contentType === "mod" ? "Mod" : contentType === "video" ? "视频" : contentType === "audio" ? "音频" : contentType === "image" ? "图片" : "文章";
 
   return (
     <Link
@@ -62,47 +68,91 @@ export function ContentCard({ data, className }: ContentCardProps) {
         className
       )}
     >
+      {/* Cover with type badge */}
       <div className="relative w-full bg-muted">
-        {coverUrl ? (
-          <Image
-            src={coverUrl}
-            alt={displayTitle}
-            fill
-            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-            sizes="(max-width: 450px) 100vw, (max-width: 700px) 50vw, (max-width: 1100px) 33vw, 25vw"
-          />
-        ) : (
-          <img
-            src={placeholderSrc}
-            alt={displayTitle}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-          />
+        {/* Aspect ratio for cover — use natural image or default */}
+        <div className={cn(contentType === "video" ? "aspect-[16/9]" : "aspect-[3/4]")}>
+          {coverUrl ? (
+            <Image
+              src={coverUrl}
+              alt={displayTitle}
+              fill
+              className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+              sizes="(max-width: 450px) 100vw, (max-width: 700px) 50vw, (max-width: 1100px) 33vw, 25vw"
+            />
+          ) : (
+            <img
+              src={placeholderSrc}
+              alt={displayTitle}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            />
+          )}
+        </div>
+
+        {/* Type badge — fanwork only */}
+        {!isOriginal && (
+          <span className="absolute top-2 left-2 rounded-md bg-white/90 px-2 py-0.5 text-[10.5px] font-semibold text-foreground/70 backdrop-blur-sm border border-black/5">
+            {typeLabel}
+          </span>
         )}
       </div>
 
-      <div className="flex flex-col gap-2 px-2.5 pb-3 pt-2">
+      <div className="flex flex-col gap-1.5 px-2.5 pb-3 pt-2">
+        {/* Source IP line — fanwork only */}
+        {!isOriginal && data.ip?.name && (
+          <div className="flex items-center gap-1 text-[11.5px] text-muted-foreground">
+            <span className="h-3.5 w-3.5 flex-shrink-0 rounded-sm bg-muted flex items-center justify-center text-[8px] overflow-hidden">
+              {data.ip.name.slice(0, 1)}
+            </span>
+            <span>基于 <strong className="font-medium text-foreground/70">{data.ip.name}</strong></span>
+          </div>
+        )}
+
+        {/* Title */}
         <h3 className="line-clamp-2 text-[13.5px] font-semibold leading-snug text-foreground">
           {displayTitle}
         </h3>
 
-        {!isOriginal && tags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {tags.map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-[10px]">
-                {tag}
-              </Badge>
-            ))}
-          </div>
+        {/* Description — fanwork only */}
+        {!isOriginal && data.description && (
+          <p className="line-clamp-2 text-[12px] leading-relaxed text-muted-foreground">
+            {data.description}
+          </p>
         )}
 
-        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span className="truncate">
+        {/* Author + time */}
+        <div className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+          <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-accent-subtle text-[9px] font-semibold text-accent-emphasis flex-shrink-0">
+            {(authorName || "?").slice(0, 1).toUpperCase()}
+          </span>
+          <span className="font-medium text-foreground/70 truncate">
             {authorName || t('common.userLabel', { id: authorId ?? "-" })}
           </span>
-          <span className="inline-flex items-center gap-1 flex-shrink-0">
-            <Heart className="h-3 w-3" />
-            {data.like_count ?? 0}
-          </span>
+        </div>
+
+        {/* Stats row + tags */}
+        <div className="flex items-center justify-between pt-1.5 border-t border-border/50">
+          <div className="flex items-center gap-2.5 text-[11.5px] text-muted-foreground">
+            <span className="inline-flex items-center gap-0.5">
+              <Heart className="h-3 w-3" />
+              {data.like_count ?? 0}
+            </span>
+            {!isOriginal && (
+              <span className="inline-flex items-center gap-0.5">
+                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                {data.comment_count ?? 0}
+              </span>
+            )}
+          </div>
+          {!isOriginal && tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {tags.slice(0, 3).map((tag) => (
+                <Badge key={tag} variant="secondary" className="text-[10px] rounded-full px-2 py-0">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </Link>
