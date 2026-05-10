@@ -174,8 +174,11 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
 
               const itemClasses = cn(
                 "flex items-center gap-2 rounded-md px-2.5 py-1.5 transition-colors hover:bg-muted hover:text-foreground",
-                isActive && "bg-accent-subtle text-accent-emphasis",
-                collapsed && "relative justify-center px-0 py-2",
+                "border-l-[3px]",
+                isActive
+                  ? "bg-accent-subtle text-accent-emphasis border-l-accent-emphasis pl-[7px]"
+                  : "border-l-transparent",
+                collapsed && "relative justify-center px-0 py-2 border-l-0 pl-0",
                 item.onClick && "cursor-pointer"
               );
 

@@ -96,12 +96,12 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
     {
       label: "IP 分类",
       items: [
-        { icon: <LayoutGrid className="h-4 w-4" />, label: "全部 IP", href: "/", active: ipCategory === "" },
-        { icon: <Gamepad2 className="h-4 w-4" />, label: "游戏", href: "/?ip_category=game", active: ipCategory === "game" },
-        { icon: <Tv className="h-4 w-4" />, label: "影视", href: "/?ip_category=film_tv", active: ipCategory === "film_tv" },
-        { icon: <BookOpen className="h-4 w-4" />, label: "动画", href: "/?ip_category=anime", active: ipCategory === "anime" },
-        { icon: <Globe className="h-4 w-4" />, label: "漫画", href: "/?ip_category=manga", active: ipCategory === "manga" },
-        { icon: <Music className="h-4 w-4" />, label: "小说", href: "/?ip_category=novel", active: ipCategory === "novel" },
+        { icon: <LayoutGrid className="h-4 w-4" />, label: "全部 IP", active: ipCategory === "", onClick: () => setIPCategory("") },
+        { icon: <Gamepad2 className="h-4 w-4" />, label: "游戏", active: ipCategory === "game", onClick: () => setIPCategory("game") },
+        { icon: <Tv className="h-4 w-4" />, label: "影视", active: ipCategory === "film_tv", onClick: () => setIPCategory("film_tv") },
+        { icon: <BookOpen className="h-4 w-4" />, label: "动画", active: ipCategory === "anime", onClick: () => setIPCategory("anime") },
+        { icon: <Globe className="h-4 w-4" />, label: "漫画", active: ipCategory === "manga", onClick: () => setIPCategory("manga") },
+        { icon: <Music className="h-4 w-4" />, label: "小说", active: ipCategory === "novel", onClick: () => setIPCategory("novel") },
       ] as SidebarItem[],
     },
     {
@@ -158,11 +158,8 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
         {/* Recent IPs */}
         {recentIPs.length > 0 && (
           <div className="px-6 pb-3">
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2">
               <span className="text-[13px] font-semibold text-muted-foreground">最近访问IP</span>
-              <Link href="/search" className="text-xs text-accent-emphasis font-medium">
-                浏览全部 IP →
-              </Link>
             </div>
             <div className="flex gap-2.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
               {recentIPs.map((ip) => (
@@ -182,10 +179,13 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
         <div className="px-6 pb-2">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-[13px] font-semibold text-muted-foreground">推荐 IP</span>
+            <Link href="/search" className="text-xs text-accent-emphasis font-medium">
+              浏览全部 IP →
+            </Link>
           </div>
           <div className="flex gap-2.5 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
             {ips.slice(0, 8).map((ip) => (
-              <IPCard key={ip.id} data={ip} />
+              <IPCard key={ip.id} data={ip} variant="browse" />
             ))}
           </div>
         </div>
