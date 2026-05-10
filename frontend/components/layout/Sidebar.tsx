@@ -160,8 +160,10 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
                       {item.count !== undefined && (
                         <span
                           className={cn(
-                            "rounded-full bg-muted px-1.5 py-px text-[11px] font-medium text-fg-subtle",
-                            isActive && "bg-accent-subtle text-accent-emphasis"
+                            "ml-auto rounded-full px-1.5 py-px text-[11px] font-medium",
+                            isActive
+                              ? "bg-[#C7D2FE] text-[var(--accent-emphasis)]"
+                              : "bg-[var(--border-light)] text-fg-subtle"
                           )}
                         >
                           {item.count}
@@ -173,12 +175,11 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
               );
 
               const itemClasses = cn(
-                "flex items-center gap-2 rounded-md px-2.5 py-1.5 transition-colors hover:bg-muted hover:text-foreground",
-                "border-l-[3px]",
+                "flex items-center gap-2.5 rounded-[6px] px-3 py-1.5 text-[13px] font-medium transition-all duration-100",
                 isActive
-                  ? "bg-accent-subtle text-accent-emphasis border-l-accent-emphasis pl-[7px]"
-                  : "border-l-transparent",
-                collapsed && "relative justify-center px-0 py-2 border-l-0 pl-0",
+                  ? "bg-[var(--accent-subtle)] text-[var(--accent-emphasis)] font-semibold"
+                  : "text-fg-muted hover:bg-muted hover:text-foreground",
+                collapsed && "relative justify-center px-0 py-2",
                 item.onClick && "cursor-pointer"
               );
 
