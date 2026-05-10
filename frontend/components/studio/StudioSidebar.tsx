@@ -147,12 +147,11 @@ export function StudioSidebar() {
                     data-label={collapsed ? item.label : undefined}
                     title={collapsed ? item.label : undefined}
                     className={cn(
-                      "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-medium transition-colors",
+                      "flex items-center gap-2.5 rounded-[6px] px-3 py-2 text-[13px] font-medium transition-all duration-100",
                       isActive
-                        ? "bg-accent-subtle text-accent-emphasis border-l-[3px] border-l-accent-emphasis pl-[7px]"
-                        : "text-fg-muted hover:bg-muted hover:text-foreground border-l-[3px] border-l-transparent pl-[7px]",
-                      collapsed &&
-                        "justify-center px-0 py-2 border-l-0 pl-0"
+                        ? "bg-[var(--accent-subtle)] text-[var(--accent-emphasis)] font-semibold"
+                        : "text-fg-muted hover:bg-muted hover:text-foreground",
+                      collapsed && "justify-center px-0 py-2"
                     )}
                   >
                     <item.icon className="h-4 w-4 flex-shrink-0" />
