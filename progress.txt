@@ -41,6 +41,29 @@
 - Profile build gracefully degrades: any step failure → hot fallback
 - Task 89 (user profile auto-update) depends on this and can now be started
 
+## [2026-05-11] - Task 89: 推荐引擎 — 用户画像向量自动更新
+
+### What was done:
+- Added `InvalidateUserCache` to RecommendationService: deletes `rec:original:{user_id}:*` Redis keys via pattern scan
+- Added `ClearRecCache` helper to redis package for use by handlers without direct RecommendationService access
+- Updated `BrowseHistoryHandler.RecordView` and `ClearHistory`: invalidate rec cache after write
+- Updated `SocialService.React`: invalidate rec cache after like/unlike
+- Updated `SocialService.Favorite/Unfavorite`: invalidate rec cache after add/remove
+- Added `FillMissingEmbeddings` to RecommendationService: queries content_items lacking content_embeddings rows, calls LLM GetEmbedding API, stores via UpsertEmbedding (limit 50 per run)
+- Updated `HotRankService`: goroutine-based select loop runs embedding gap fill every 1 minute (separate mutex from rank update), hot rank update every 10 minutes
+- Updated `cmd/server/main.go`: creates EmbeddingRepository + LLM provider, wires into HotRankService via WithRecommendationService + WithEmbeddingProvider
+- Added `EmbeddingProvider` interface for testability
+
+### Testing:
+- `go build ./...` — passes
+- `go vet ./...` — no warnings
+- `go test ./...` — all existing tests pass
+
+### Notes:
+- Cache invalidation is synchronous (not Pub/Sub) for simplicity; a future enhancement could add async channels via goroutine
+- Embedding gap fill is best-effort: API failures skip individual items without crashing
+- Complete recommendation pipeline: Task 87 (hot rank) → Task 88 (personalized rec) → Task 89 (auto-update)
+
 ---
 ## [2026-05-07] - Task 64: Web 前端 — 原创区两级导航
 
