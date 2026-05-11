@@ -10,6 +10,7 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/aliyun"
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/repository"
 
@@ -160,7 +161,7 @@ func (s *ContentService) PublishContent(input PublishContentInput, authorID int6
 			AuthorID:    authorID,
 			Attachments: input.Attachments,
 		}
-		if err := s.reviewSvc.SubmitForAIReview(context.Background(), reviewInput); err != nil {
+		if err := s.reviewSvc.SubmitForAIReview(context.Background(), reviewInput); err != nil && !errors.Is(err, aliyun.ErrGreenNotConfigured) {
 			return nil, err
 		}
 	}

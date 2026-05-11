@@ -329,11 +329,11 @@ export function FacetedSearchSidebar({
                 type="button"
                 onClick={() => handleCategorySelect(cat.name)}
                 className={cn(
-                  "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium transition-colors duration-150",
+                  "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium transition-all duration-150 select-none active:scale-95",
                   "focus:outline-none focus:ring-2 focus:ring-ring",
                   active
                     ? "border-primary bg-primary/10 text-primary"
-                    : "border-transparent bg-muted text-muted-foreground hover:border-border hover:text-foreground",
+                    : "border-transparent bg-muted text-muted-foreground hover:border-border hover:text-foreground hover:bg-muted/80 cursor-pointer",
                 )}
               >
                 {cat.name}
@@ -399,11 +399,11 @@ export function FacetedSearchSidebar({
                   onClick={() => handleTagToggle(tag.name)}
                   disabled={isSelected}
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs transition-colors duration-150",
+                    "inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs transition-all duration-150 select-none active:scale-95",
                     "focus:outline-none focus:ring-2 focus:ring-ring",
                     isSelected
                       ? "border-primary bg-primary/10 text-primary cursor-default"
-                      : "border-transparent bg-muted text-muted-foreground hover:border-border hover:text-foreground cursor-pointer",
+                      : "border-transparent bg-muted text-muted-foreground hover:border-border hover:text-foreground hover:bg-muted/80 cursor-pointer",
                   )}
                 >
                   {tag.name}
@@ -455,11 +455,11 @@ export function FacetedSearchSidebar({
                         type="button"
                         onClick={() => handleContentTypeToggle(opt.key)}
                         className={cn(
-                          "inline-flex items-center rounded-md border px-2 py-0.5 text-xs transition-colors duration-150",
+                          "inline-flex items-center rounded-md border px-2 py-0.5 text-xs transition-all duration-150 select-none active:scale-95",
                           "focus:outline-none focus:ring-2 focus:ring-ring",
                           active
                             ? "border-primary bg-primary/10 text-primary"
-                            : "border-border bg-transparent text-muted-foreground hover:border-primary hover:text-foreground",
+                            : "border-border bg-transparent text-muted-foreground hover:border-primary hover:text-foreground hover:bg-muted/30 cursor-pointer",
                         )}
                       >
                         {opt.label}
@@ -514,7 +514,7 @@ export function FacetedSearchSidebar({
               <button
                 type="button"
                 onClick={() => handleContentTypeToggle(ct)}
-                className="hover:text-foreground"
+                className="hover:text-foreground hover:bg-muted/50 rounded-sm transition-colors"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -526,7 +526,7 @@ export function FacetedSearchSidebar({
               <button
                 type="button"
                 onClick={() => setTimeRange("")}
-                className="hover:text-foreground"
+                className="hover:text-foreground hover:bg-muted/50 rounded-sm transition-colors"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -538,7 +538,7 @@ export function FacetedSearchSidebar({
               <button
                 type="button"
                 onClick={() => setSort("")}
-                className="hover:text-foreground"
+                className="hover:text-foreground hover:bg-muted/50 rounded-sm transition-colors"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -571,7 +571,7 @@ export function FacetedSearchSidebar({
                 key={s.id}
                 type="button"
                 onClick={() => handleApplySavedSearch(s)}
-                className="text-xs text-left text-muted-foreground hover:text-foreground hover:bg-muted rounded px-2 py-1 transition-colors truncate"
+                className="text-xs text-left text-muted-foreground hover:text-foreground hover:bg-muted rounded px-2 py-1 transition-all duration-150 active:scale-[0.98] truncate"
               >
                 {s.name}
               </button>

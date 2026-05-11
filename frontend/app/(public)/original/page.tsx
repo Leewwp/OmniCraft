@@ -97,8 +97,8 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
                 const active = current.category === cat.slug;
                 return (
                   <Link key={cat.slug || "recommended"} href={buildHref({ category: cat.slug }, current)}
-                    className={`flex-shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-colors whitespace-nowrap ${
-                      active ? "border-border bg-card text-foreground font-semibold" : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted"
+                    className={`flex-shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-all duration-150 whitespace-nowrap select-none active:scale-95 ${
+                      active ? "border-border bg-card text-foreground font-semibold" : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/70 cursor-pointer"
                     }`}>{cat.label}</Link>
                 );
               })}

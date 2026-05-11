@@ -62,6 +62,19 @@ social:
   report_auto_hide_rate: 0.10
   comment_fold_threshold: 0.30
 
+recommendation:
+  enabled: true
+  hot_decay_hours: 48
+  personalization_weight: 0.6
+  min_interaction_for_personalize: 10
+  embedding_topk: 200
+  trending_window_days: 7
+  refresh_interval_h: 2
+
+publish:
+  type_order_original: ["image", "article", "video", "audio", "template", "sheet_music", "other"]
+  type_order_fanwork: ["image", "article", "video", "audio", "mod", "prompt", "sheet_music", "other"]
+
 upload:
   sheet_music_extensions:
     - ".mid"
@@ -86,7 +99,7 @@ agent:
 rate_limit:
   enabled: true
   normal_per_minute: 100
-  upload_per_hour: 10
+  upload_per_hour: 200
 
 cache:
   content_list_ttl: 300

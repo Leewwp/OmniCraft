@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { StatsCard } from "@/components/studio/StatsCard";
 import { ContentRankList } from "@/components/studio/ContentRankList";
 import { PendingTasksCard } from "@/components/studio/PendingTasksCard";
+import { ViewsTrendChart } from "@/components/studio/ViewsTrendChart";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function StudioOverviewPage() {
@@ -20,6 +21,7 @@ export default function StudioOverviewPage() {
   });
   const [topContent, setTopContent] = useState<Array<{ id: number; title: string; viewCount: number; zone?: string }>>([]);
   const [pendingTasks, setPendingTasks] = useState<Array<{ type: "pr" | "tag"; id: number; title: string }>>([]);
+  const [viewsTrend, setViewsTrend] = useState<Array<{ date: string; views: number }>>([]);
 
   useEffect(() => {
     async function fetchData() {
@@ -43,9 +45,24 @@ export default function StudioOverviewPage() {
         );
       } catch {
         // Use default stats on error
-      } finally {
-        setLoading(false);
       }
+
+      // Fetch views trend
+      try {
+        const trendRes = await api.get("/api/v1/users/me/followers/stats?days=30") as Record<string, unknown> | null;
+        if (trendRes?.daily) {
+          setViewsTrend(
+            (trendRes.daily as Array<{ date: string; views?: number; count?: number }>).map((d) => ({
+              date: d.date,
+              views: d.views ?? d.count ?? 0,
+            }))
+          );
+        }
+      } catch {
+        // chart stays empty
+      }
+
+      setLoading(false);
     }
     fetchData();
   }, []);
@@ -92,6 +109,11 @@ export default function StudioOverviewPage() {
           value={stats.followers}
           icon={<Users className="h-5 w-5" />}
         />
+      </div>
+
+      {/* Views trend chart */}
+      <div className="mb-6">
+        <ViewsTrendChart data={viewsTrend} />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

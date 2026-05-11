@@ -21,8 +21,24 @@ interface IPDetailProps {
   ip: IPItem;
 }
 
+function getIPCategoryLabel(category?: string): string {
+  switch (category) {
+    case "text": return "home.text";
+    case "image": return "home.image";
+    case "video": return "home.video";
+    case "audio": return "home.audio";
+    case "mod": return "home.mod";
+    case "prompt": return "home.aiPrompt";
+    case "sheet_music": return "home.sheetMusic";
+    case "other": return "home.other";
+    default: return "";
+  }
+}
+
 export function IPDetail({ ip }: IPDetailProps) {
   const t = useTranslations();
+  const categoryKey = getIPCategoryLabel(ip.category);
+  const categoryLabel = categoryKey ? t(categoryKey) : (ip.category || t('ip.uncategorized'));
   return (
     <section className="space-y-4 rounded-md border border-border bg-card p-4 ">
       <div className="flex flex-col gap-4 md:flex-row">
@@ -36,7 +52,7 @@ export function IPDetail({ ip }: IPDetailProps) {
 
         <div className="flex flex-1 flex-col gap-2">
           <h1 className="text-2xl font-bold tracking-tight">{ip.name}</h1>
-          <p className="text-sm text-muted-foreground">{t('ip.category', { category: ip.category || t('ip.uncategorized') })}</p>
+          <p className="text-sm text-muted-foreground">{t('ip.category', { category: categoryLabel })}</p>
           <p className="text-sm leading-relaxed text-foreground/90">
             {ip.description || t('ip.noDescription')}
           </p>

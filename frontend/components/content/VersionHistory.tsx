@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useEffect, useState } from "react";
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ interface VersionHistoryProps {
 
 export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
   const t = useTranslations();
+  const locale = useLocale();
   const [versions, setVersions] = useState<Version[]>([]);
   const [loading, setLoading] = useState(true);
   const [mobileExpanded, setMobileExpanded] = useState(false);
@@ -122,7 +123,7 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                {new Date(v.created_at).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                {new Date(v.created_at).toLocaleDateString(locale === "en" ? "en-US" : "zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
               </p>
               {v.message && <p className="text-xs text-foreground/80">{v.message}</p>}
               <div className="flex gap-2 pt-1">

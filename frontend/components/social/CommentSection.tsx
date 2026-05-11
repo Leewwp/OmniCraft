@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { MessageCircle, Send, ThumbsUp, ThumbsDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -161,6 +161,7 @@ function CommentItem({
   onReact: (id: number, reaction: "like" | "dislike") => void;
 }) {
   const t = useTranslations();
+  const locale = useLocale();
   const { user } = useAuth();
 
   return (
@@ -170,7 +171,7 @@ function CommentItem({
           {comment.author?.username ?? t('common.userLabel', { id: comment.author_id })}
         </p>
         <p className="text-[10px] text-muted-foreground">
-          {new Date(comment.created_at).toLocaleDateString("zh-CN", {
+          {new Date(comment.created_at).toLocaleDateString(locale === "en" ? "en-US" : "zh-CN", {
             year: "numeric",
             month: "2-digit",
             day: "2-digit",
@@ -182,7 +183,7 @@ function CommentItem({
       <p className="mt-1 text-sm leading-relaxed text-foreground/90">{comment.body}</p>
       <div className="mt-2 flex items-center gap-2">
         <button
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-all duration-150 hover:text-foreground hover:bg-muted/50 active:scale-90 disabled:opacity-50"
           disabled={!user}
           onClick={() => onReact(comment.id, "like")}
         >
@@ -190,7 +191,7 @@ function CommentItem({
           {comment.like_count}
         </button>
         <button
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-all duration-150 hover:text-foreground hover:bg-muted/50 active:scale-90 disabled:opacity-50"
           disabled={!user}
           onClick={() => onReact(comment.id, "dislike")}
         >
@@ -207,7 +208,7 @@ function CommentItem({
                   {reply.author?.username ?? t('common.userLabel', { id: reply.author_id })}
                 </p>
                 <p className="text-[10px] text-muted-foreground">
-                  {new Date(reply.created_at).toLocaleDateString("zh-CN")}
+                  {new Date(reply.created_at).toLocaleDateString(locale === "en" ? "en-US" : "zh-CN")}
                 </p>
               </div>
               <p className="mt-0.5 text-xs text-foreground/80">{reply.body}</p>

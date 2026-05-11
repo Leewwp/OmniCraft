@@ -1,0 +1,165 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { Bell } from "lucide-react";
+import { api, ApiRequestError } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+
+interface Notification {
+  id: number;
+  type: string;
+  channel: string;
+  body: string;
+  is_read: boolean;
+  target_type?: string;
+  target_id?: number;
+  created_at: string;
+}
+
+interface NotificationListProps {
+  initialChannel?: string;
+  onUnreadCountChange?: (count: number) => void;
+}
+
+const CHANNELS = [
+  { key: "", label: "全部" },
+  { key: "reply", label: "回复我的" },
+  { key: "like", label: "收到的赞" },
+  { key: "system", label: "系统消息" },
+];
+
+export function NotificationList({
+  initialChannel = "",
+  onUnreadCountChange,
+}: NotificationListProps) {
+  const [channel, setChannel] = useState(initialChannel);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const loadNotifications = useCallback(async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const params = channel ? `?channel=${channel}` : "";
+      const data = await api.get<{ notifications?: Notification[] }>(
+        `/api/v1/notifications${params}`
+      );
+      setNotifications(data.notifications || []);
+      if (onUnreadCountChange) {
+        const unread = (data.notifications || []).filter((n) => !n.is_read).length;
+        onUnreadCountChange(unread);
+      }
+    } catch (e) {
+      setError(e instanceof ApiRequestError ? e.message : "加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [channel, onUnreadCountChange]);
+
+  useEffect(() => {
+    void loadNotifications();
+  }, [loadNotifications]);
+
+  async function markRead(id: number) {
+    try {
+      await api.patch(`/api/v1/notifications/${id}/read`, {});
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+      );
+    } catch {
+      // ignore
+    }
+  }
+
+  async function markAllRead() {
+    try {
+      await api.post("/api/v1/notifications/read-all", {});
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    } catch {
+      // ignore
+    }
+  }
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1">
+          {CHANNELS.map((c) => (
+            <button
+              key={c.key}
+              onClick={() => setChannel(c.key)}
+              className={`rounded-md px-3 py-1 text-xs transition-colors ${
+                channel === c.key
+                  ? "bg-accent/10 text-accent font-medium"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+        {unreadCount > 0 && (
+          <Button size="sm" variant="outline" onClick={markAllRead}>
+            全部已读
+          </Button>
+        )}
+      </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {loading ? (
+        <div className="space-y-2">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-16 animate-pulse rounded-md bg-muted/60" />
+          ))}
+        </div>
+      ) : notifications.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-card px-4 py-12 text-center">
+          <Bell className="h-8 w-8 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">暂无通知</p>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          {notifications.map((n) => (
+            <div
+              key={n.id}
+              className={`flex items-start justify-between rounded-md border px-4 py-3 transition-colors ${
+                n.is_read
+                  ? "border-border bg-card"
+                  : "border-accent/30 bg-accent/5"
+              }`}
+            >
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground capitalize">
+                    {n.type}
+                  </span>
+                  {!n.is_read && (
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-accent" />
+                  )}
+                </div>
+                <p className="text-sm">{n.body}</p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(n.created_at).toLocaleString("zh-CN")}
+                </p>
+              </div>
+              {!n.is_read && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="ml-2 shrink-0"
+                  onClick={() => markRead(n.id)}
+                >
+                  已读
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

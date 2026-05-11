@@ -76,7 +76,7 @@ function TrendingSection({ title, entries }: NonNullable<SidebarProps["trending"
 }
 
 const itemBase =
-  "flex items-center gap-2.5 rounded-[6px] px-3 py-[7px] text-[13px] font-medium transition-all duration-100 w-full";
+  "flex items-center gap-2.5 rounded-[6px] px-3 py-[7px] text-[13px] font-medium transition-all duration-100 w-full select-none active:scale-[0.97]";
 
 const itemActive =
   "bg-[#EEF2FF] text-[#4F46E5] font-semibold";

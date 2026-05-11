@@ -100,7 +100,7 @@ export default async function IPCategoryPage({
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold">{ip.name}</h1>
-            <p className="text-sm text-muted-foreground">{t('content.categoryLabel', { category: getCategoryLabel(category) })}</p>
+            <p className="text-sm text-muted-foreground">{t('content.categoryLabel', { category: t(getCategoryLabel(category)) })}</p>
           </div>
           <Link
             href={`/ip/${ipId}/discussions`}

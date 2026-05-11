@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import {
@@ -124,6 +124,7 @@ function CoverImage({ url, contentType, title, typeLabel }: { url?: string; cont
 
 export function ContentDetail({ data, className }: ContentDetailProps) {
   const t = useTranslations();
+  const locale = useLocale();
   const contentType = data.content_type || "other";
   const typeLabel = getTypeLabel(t, contentType);
   const description = data.description || data.body || "";
@@ -195,7 +196,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
           </span>
           {data.zone === "fanwork" && data.ip && (
             <span>
-              IP：{data.ip.name}
+              IP: {data.ip.name}
             </span>
           )}
           <span>{t('content.type', { type: typeLabel })}</span>
@@ -204,7 +205,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
           )}
           {data.created_at && (
             <span>
-              {new Date(data.created_at).toLocaleDateString("zh-CN", {
+              {new Date(data.created_at).toLocaleDateString(locale === "en" ? "en-US" : "zh-CN", {
                 year: "numeric",
                 month: "2-digit",
                 day: "2-digit",

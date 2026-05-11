@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getTranslations } from 'next-intl/server';
+import { getTranslations, getLocale } from 'next-intl/server';
 import { UserProfileClient } from "./UserProfileClient";
 
 interface UserData {
@@ -33,6 +33,7 @@ export default async function UserProfilePage({
   params: Promise<{ userId: string }>;
 }) {
   const t = await getTranslations();
+  const locale = await getLocale();
   const { userId } = await params;
   const apiBase = getApiBase();
   const user = await fetchUser(apiBase, userId);
@@ -59,7 +60,7 @@ export default async function UserProfilePage({
             <p className="text-sm text-muted-foreground">
               {t('user.reputation', { reputation })}{" "}
               {createdAt
-                ? new Date(createdAt).toLocaleDateString("zh-CN")
+                ? new Date(createdAt).toLocaleDateString(locale === "en" ? "en-US" : "zh-CN")
                 : "-"}
             </p>
             {bio && <p className="text-sm text-foreground/80">{bio}</p>}
