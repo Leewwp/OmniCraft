@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+const SUPPORTED_LOCALES = ['zh', 'en'];
+const DEFAULT_LOCALE = 'zh';
+
 const PROTECTED_PATHS = [
   '/dashboard',
   '/judge',
@@ -24,16 +27,33 @@ function decodeJWTPayload(token: string): Record<string, unknown> | null {
   }
 }
 
+function resolveLocale(request: NextRequest): string {
+  const cookieLocale = request.cookies.get('NEXT_LOCALE')?.value;
+  if (cookieLocale && SUPPORTED_LOCALES.includes(cookieLocale)) {
+    return cookieLocale;
+  }
+
+  const acceptLang = request.headers.get('accept-language') || '';
+  if (acceptLang.includes('zh')) return 'zh';
+  if (acceptLang.includes('en')) return 'en';
+
+  return DEFAULT_LOCALE;
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  let response = NextResponse.next();
+  const locale = resolveLocale(request);
 
-  // Set locale cookie from Accept-Language header if not already set
-  if (!request.cookies.get('NEXT_LOCALE')) {
-    const acceptLang = request.headers.get('accept-language') || '';
-    const prefersZh = acceptLang.includes('zh');
-    response.cookies.set('NEXT_LOCALE', prefersZh ? 'zh' : 'en', { path: '/' });
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('X-NEXT-INTL-LOCALE', locale);
+
+  let response = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+
+  if (request.cookies.get('NEXT_LOCALE')?.value !== locale) {
+    response.cookies.set('NEXT_LOCALE', locale, { path: '/', sameSite: 'lax' });
   }
 
   const isProtected = PROTECTED_PATHS.some(
@@ -46,16 +66,9 @@ export function proxy(request: NextRequest) {
   if (!token) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
-
-    const redirect = NextResponse.redirect(loginUrl);
-    const localeCookie = response.cookies.get('NEXT_LOCALE');
-    if (localeCookie) {
-      redirect.cookies.set('NEXT_LOCALE', localeCookie.value, localeCookie);
-    }
-    return redirect;
+    return NextResponse.redirect(loginUrl);
   }
 
-  // Role check for admin routes
   if (pathname.startsWith('/admin')) {
     const payload = decodeJWTPayload(token);
     if (!payload || payload.role !== 'admin') {

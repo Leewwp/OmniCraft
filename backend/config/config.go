@@ -12,21 +12,22 @@ import (
 )
 
 type Config struct {
-	Server     ServerConfig     `mapstructure:"server"`
-	Database   DatabaseConfig   `mapstructure:"database"`
-	Redis      RedisConfig      `mapstructure:"redis"`
-	JWT        JWTConfig        `mapstructure:"jwt"`
-	OSS        OSSConfig        `mapstructure:"oss"`
-	Green      GreenConfig      `mapstructure:"green"`
-	Features   FeaturesConfig   `mapstructure:"features"`
-	Limits     LimitsConfig     `mapstructure:"limits"`
-	Reputation ReputationConfig `mapstructure:"reputation"`
-	Judge      JudgeConfig      `mapstructure:"judge"`
-	Social     SocialConfig     `mapstructure:"social"`
-	Upload     UploadConfig     `mapstructure:"upload"`
-	Agent      AgentConfig      `mapstructure:"agent"`
-	Cache      CacheConfig      `mapstructure:"cache"`
-	RateLimit  RateLimitConfig  `mapstructure:"rate_limit"`
+	Server         ServerConfig         `mapstructure:"server"`
+	Database       DatabaseConfig       `mapstructure:"database"`
+	Redis          RedisConfig          `mapstructure:"redis"`
+	JWT            JWTConfig            `mapstructure:"jwt"`
+	OSS            OSSConfig            `mapstructure:"oss"`
+	Green          GreenConfig          `mapstructure:"green"`
+	Features       FeaturesConfig       `mapstructure:"features"`
+	Limits         LimitsConfig         `mapstructure:"limits"`
+	Reputation     ReputationConfig     `mapstructure:"reputation"`
+	Judge          JudgeConfig          `mapstructure:"judge"`
+	Social         SocialConfig         `mapstructure:"social"`
+	Upload         UploadConfig         `mapstructure:"upload"`
+	Agent          AgentConfig          `mapstructure:"agent"`
+	Cache          CacheConfig          `mapstructure:"cache"`
+	RateLimit      RateLimitConfig      `mapstructure:"rate_limit"`
+	Recommendation RecommendationConfig `mapstructure:"recommendation"`
 }
 
 type AgentConfig struct {
@@ -132,6 +133,16 @@ type RateLimitConfig struct {
 	Enabled         bool `mapstructure:"enabled"`
 	NormalPerMinute int  `mapstructure:"normal_per_minute"`
 	UploadPerHour   int  `mapstructure:"upload_per_hour"`
+}
+
+type RecommendationConfig struct {
+	Enabled                      bool    `mapstructure:"enabled"`
+	HotDecayHours                float64 `mapstructure:"hot_decay_hours"`
+	PersonalizationWeight        float64 `mapstructure:"personalization_weight"`
+	MinInteractionForPersonalize int     `mapstructure:"min_interaction_for_personalize"`
+	EmbeddingTopk                int     `mapstructure:"embedding_topk"`
+	TrendingWindowDays           int     `mapstructure:"trending_window_days"`
+	RefreshIntervalH             int     `mapstructure:"refresh_interval_h"`
 }
 
 var Cfg *Config
