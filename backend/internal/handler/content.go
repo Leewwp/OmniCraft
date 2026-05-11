@@ -29,8 +29,15 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 	ossSvc, ossErr := service.NewOSSService(cfg)
 	reputSvc := service.NewReputationService(db)
 	reviewSvc := service.NewReviewService(db, rdb, cfg, reputSvc)
+
+	contentSvc := service.NewContentServiceWithOSS(repo, reviewSvc, rdb, &cfg.Cache, ossSvc)
+
+	embeddingRepo := repository.NewEmbeddingRepository(db)
+	recSvc := service.NewRecommendationService(db, embeddingRepo, repo, contentSvc, rdb, &cfg.Recommendation)
+	contentSvc.SetRecommendationService(recSvc)
+
 	return &ContentHandler{
-		contentSvc:  service.NewContentServiceWithOSS(repo, reviewSvc, rdb, &cfg.Cache, ossSvc),
+		contentSvc:  contentSvc,
 		contentRepo: repo,
 		ossSvc:      ossSvc,
 		ossInitErr:  ossErr,

@@ -1866,7 +1866,7 @@
         "所有权重和参数从 config.yaml > recommendation 读取，严禁硬编码",
         "验证：新用户（无互动）看到热门内容；有互动历史的用户看到个性化推荐；缓存命中后相同 page 不走向量检索"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 89,
