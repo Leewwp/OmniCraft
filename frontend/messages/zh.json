@@ -182,6 +182,8 @@
     "sortMostViewed": "最多点击",
     "sortTopRated": "最高好评率",
     "sortNewRelease": "最新发布",
+    "basedOnIp": "基于 {name}",
+    "sourceOriginalLabel": "来源原创",
     "viewOriginal": "查看原创内容",
     "relatedFanworks": "相关二创",
     "createFanwork": "基于此原创发布二创",
@@ -822,6 +824,12 @@
     "confirmClearMsg": "将清除全部浏览历史记录，此操作不可撤销。",
     "clearing": "清除中..."
   },
+  "notification": {
+    "all": "全部",
+    "reply": "回复我的",
+    "like": "收到的赞",
+    "system": "系统消息"
+  },
   "messages": {
     "title": "消息中心",
     "unreadCount": "{count} 条未读",
@@ -834,7 +842,8 @@
     "conversationCount": "{count} 个对话",
     "noConversations": "暂无对话",
     "selectConversation": "选择一个对话开始聊天",
-    "replyPlaceholder": "输入消息..."
+    "replyPlaceholder": "输入消息...",
+    "startConversation": "开始对话"
   },
   "footer": {
     "about": "关于我们",

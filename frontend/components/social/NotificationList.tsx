@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslations, useLocale } from "next-intl";
 import { Bell } from "lucide-react";
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -21,21 +22,23 @@ interface NotificationListProps {
   onUnreadCountChange?: (count: number) => void;
 }
 
-const CHANNELS = [
-  { key: "", label: "全部" },
-  { key: "reply", label: "回复我的" },
-  { key: "like", label: "收到的赞" },
-  { key: "system", label: "系统消息" },
-];
-
 export function NotificationList({
   initialChannel = "",
   onUnreadCountChange,
 }: NotificationListProps) {
+  const t = useTranslations();
+  const locale = useLocale();
   const [channel, setChannel] = useState(initialChannel);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const CHANNELS = [
+    { key: "", label: t('notification.all') },
+    { key: "reply", label: t('notification.reply') },
+    { key: "like", label: t('notification.like') },
+    { key: "system", label: t('notification.system') },
+  ];
 
   const loadNotifications = useCallback(async () => {
     setError("");
@@ -51,11 +54,11 @@ export function NotificationList({
         onUnreadCountChange(unread);
       }
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : "加载失败");
+      setError(e instanceof ApiRequestError ? e.message : t('common.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [channel, onUnreadCountChange]);
+  }, [channel, onUnreadCountChange, t]);
 
   useEffect(() => {
     void loadNotifications();
@@ -103,7 +106,7 @@ export function NotificationList({
         </div>
         {unreadCount > 0 && (
           <Button size="sm" variant="outline" onClick={markAllRead}>
-            全部已读
+            {t('messages.markAllRead')}
           </Button>
         )}
       </div>
@@ -119,7 +122,7 @@ export function NotificationList({
       ) : notifications.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-card px-4 py-12 text-center">
           <Bell className="h-8 w-8 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">暂无通知</p>
+          <p className="text-sm text-muted-foreground">{t('messages.noMessages')}</p>
         </div>
       ) : (
         <div className="space-y-1">
@@ -143,7 +146,7 @@ export function NotificationList({
                 </div>
                 <p className="text-sm">{n.body}</p>
                 <p className="text-xs text-muted-foreground">
-                  {new Date(n.created_at).toLocaleString("zh-CN")}
+                  {new Date(n.created_at).toLocaleString(locale === "en" ? "en-US" : "zh-CN")}
                 </p>
               </div>
               {!n.is_read && (
@@ -153,7 +156,7 @@ export function NotificationList({
                   className="ml-2 shrink-0"
                   onClick={() => markRead(n.id)}
                 >
-                  已读
+                  {t('messages.read')}
                 </Button>
               )}
             </div>

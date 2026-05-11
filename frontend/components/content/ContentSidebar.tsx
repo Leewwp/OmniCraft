@@ -70,15 +70,15 @@ export function ContentSidebar({
               <div className="mt-3 flex justify-center gap-5 border-t border-border/50 pt-3">
                 <div className="text-center">
                   <div className="text-[15px] font-bold text-foreground">{authorStats.contents}</div>
-                  <div className="text-[11px] text-muted-foreground">内容</div>
+                  <div className="text-[11px] text-muted-foreground">{t('home.contentCountLabel')}</div>
                 </div>
                 <div className="text-center">
                   <div className="text-[15px] font-bold text-foreground">{authorStats.followers.toLocaleString()}</div>
-                  <div className="text-[11px] text-muted-foreground">粉丝</div>
+                  <div className="text-[11px] text-muted-foreground">{t('studio.overview.followers')}</div>
                 </div>
                 <div className="text-center">
                   <div className="text-[15px] font-bold text-foreground">{authorStats.likes}</div>
-                  <div className="text-[11px] text-muted-foreground">获赞</div>
+                  <div className="text-[11px] text-muted-foreground">{t('studio.overview.totalLikes')}</div>
                 </div>
               </div>
             )}
@@ -87,7 +87,7 @@ export function ContentSidebar({
               size="sm"
               className="mt-3 w-full rounded-full"
             >
-              {isFollowing ? "已关注" : "关注作者"}
+              {isFollowing ? t('social.following') : t('social.follow')}
             </Button>
           </div>
         )}
@@ -96,7 +96,7 @@ export function ContentSidebar({
         {isFanwork && ip?.name && (
           <div className="rounded-xl border border-border/60 bg-card p-5 transition-colors hover:border-border">
             <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              关联 IP
+              {t('publish.linkIp')}
             </div>
             <div className="flex items-center gap-3">
               <div className="flex h-11 h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-muted text-base font-bold text-muted-foreground">
@@ -106,7 +106,7 @@ export function ContentSidebar({
                 <div className="truncate text-[14px] font-semibold text-foreground">{ip.name}</div>
                 {ipContentCount !== undefined && (
                   <div className="text-[12px] text-muted-foreground">
-                    {ipContentCount.toLocaleString()} 内容
+                    {t('ip.contentCount', { count: ipContentCount })}
                   </div>
                 )}
               </div>
@@ -116,7 +116,7 @@ export function ContentSidebar({
                 href={`/ip/${ip.id}`}
                 className="mt-3 inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[var(--accent-emphasis)] hover:gap-2 transition-all"
               >
-                进入 IP 详情 <ArrowRight className="h-3.5 w-3.5" />
+                {t('ip.enterDetail')} <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             )}
 
@@ -128,7 +128,7 @@ export function ContentSidebar({
                   className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-sky-600 transition-colors"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg>
-                  来源原创：{sourceOriginal.title.slice(0, 20)}{sourceOriginal.title.length > 20 ? "…" : ""}
+                  {t('content.sourceOriginalLabel')}：{sourceOriginal.title.slice(0, 20)}{sourceOriginal.title.length > 20 ? "…" : ""}
                 </Link>
               </div>
             )}
@@ -139,24 +139,24 @@ export function ContentSidebar({
         {isOriginal && originalId && (relatedFanworksCount ?? 0) > 0 && (
           <div className="rounded-xl border border-border/60 bg-card p-5 transition-colors hover:border-border">
             <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              关联二创
+              {t('content.relatedFanworks')}
             </div>
             <div className="mb-3 text-[13px] font-medium text-violet-600">
-              {relatedFanworksCount} 个相关二创
+              {relatedFanworksCount} {t('content.relatedFanworks')}
             </div>
             <div className="flex flex-col gap-2">
               <Link
                 href={`/original/${originalId}/fanworks`}
                 className="inline-flex items-center justify-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-[12.5px] font-medium text-violet-700 transition-all hover:bg-violet-100"
               >
-                查看全部 <ArrowRight className="h-3.5 w-3.5" />
+                {t('common.clickToView')} <ArrowRight className="h-3.5 w-3.5" />
               </Link>
               <Link
                 href={`/studio/publish/fanwork?source_original_id=${originalId}`}
                 className="inline-flex items-center justify-center gap-1.5 rounded-full bg-violet-600 px-4 py-2 text-[12.5px] font-medium text-white transition-all hover:bg-violet-700"
               >
                 <GitBranchPlus className="h-3.5 w-3.5" />
-                基于此文创作二创
+                {t('content.createFanwork')}
               </Link>
             </div>
           </div>

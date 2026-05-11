@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { MessageSquare, Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,6 +20,7 @@ interface ConversationListProps {
 }
 
 export function ConversationList({ onSelect, activeId }: ConversationListProps) {
+  const t = useTranslations();
   const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +69,7 @@ export function ConversationList({ onSelect, activeId }: ConversationListProps) 
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="搜索对话..."
+          placeholder={t('discussion.search')}
           className="w-full rounded-md border border-border bg-background py-1.5 pl-7 pr-2 text-xs focus:outline-none focus:ring-1 focus:ring-accent"
         />
       </div>
@@ -76,7 +78,7 @@ export function ConversationList({ onSelect, activeId }: ConversationListProps) 
           <div className="flex flex-col items-center gap-2 py-8 text-center">
             <MessageSquare className="h-6 w-6 text-muted-foreground/30" />
             <p className="text-xs text-muted-foreground">
-              {search.trim() ? "未找到匹配对话" : "暂无对话"}
+              {search.trim() ? t('messages.noConversations') : t('messages.noConversations')}
             </p>
           </div>
         ) : (
@@ -108,7 +110,7 @@ export function ConversationList({ onSelect, activeId }: ConversationListProps) 
                       )}
                     </div>
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {c.last_message?.text ?? "开始对话"}
+                      {c.last_message?.text ?? t('messages.startConversation')}
                     </p>
                   </div>
                 </div>

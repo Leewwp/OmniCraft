@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
 import { FileText } from "lucide-react";
@@ -18,6 +18,7 @@ interface Appeal {
 
 export default function AppealsPage() {
   const t = useTranslations();
+  const locale = useLocale();
   const { user, isLoading } = useAuth();
   const [appeals, setAppeals] = useState<Appeal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,7 +146,7 @@ export default function AppealsPage() {
               </div>
               <p className="mt-2 text-sm text-muted-foreground">{a.reason}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {new Date(a.created_at).toLocaleString("zh-CN")}
+                {new Date(a.created_at).toLocaleString(locale === "en" ? "en-US" : "zh-CN")}
               </p>
             </div>
           ))}

@@ -34,11 +34,11 @@ export default function StudioContentsPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-foreground">我的内容</h1>
-          <p className="mt-1 text-sm text-muted-foreground">管理你发布的所有内容</p>
+          <h1 className="text-xl font-bold text-foreground">{t('studio.contents.title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('studio.contents.subtitle')}</p>
         </div>
         <Link href="/studio/publish/original">
-          <Button size="sm">发布新内容</Button>
+          <Button size="sm">{t('studio.contents.publishNew')}</Button>
         </Link>
       </div>
 
@@ -48,9 +48,9 @@ export default function StudioContentsPage() {
         </div>
       ) : contents.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-12 text-center">
-          <p className="mb-4 text-muted-foreground">你还没有发布任何内容</p>
+          <p className="mb-4 text-muted-foreground">{t('studio.contents.noContent')}</p>
           <Link href="/studio/publish/original">
-            <Button>开始创作</Button>
+            <Button>{t('studio.contents.startCreating')}</Button>
           </Link>
         </div>
       ) : (
@@ -78,10 +78,10 @@ export default function StudioContentsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon-sm" title="编辑">
+                <Button variant="ghost" size="icon-sm" title={t('studio.contents.edit')}>
                   <Edit className="h-3.5 w-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon-sm" title="删除">
+                <Button variant="ghost" size="icon-sm" title={t('studio.contents.delete')}>
                   <Trash2 className="h-3.5 w-3.5 text-destructive" />
                 </Button>
               </div>

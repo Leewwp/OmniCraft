@@ -70,7 +70,7 @@ export default function StudioOverviewPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="mb-6 text-xl font-bold text-foreground">数据概览</h1>
+        <h1 className="mb-6 text-xl font-bold text-foreground">{t('studio.overview.title')}</h1>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-28 rounded-lg" />
@@ -82,30 +82,30 @@ export default function StudioOverviewPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-xl font-bold text-foreground">数据概览</h1>
-      <p className="mb-6 text-sm text-muted-foreground">查看你的创作数据总览</p>
+      <h1 className="mb-1 text-xl font-bold text-foreground">{t('studio.overview.title')}</h1>
+      <p className="mb-6 text-sm text-muted-foreground">{t('studio.overview.subtitle')}</p>
 
       {/* Stats cards */}
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatsCard
-          label="总内容数"
+          label={t('studio.overview.totalContents')}
           value={stats.totalContents}
           icon={<FileText className="h-5 w-5" />}
         />
         <StatsCard
-          label="总访问量"
+          label={t('studio.overview.totalViews')}
           value={stats.totalViews.toLocaleString()}
           change={12}
           icon={<Eye className="h-5 w-5" />}
         />
         <StatsCard
-          label="总获赞"
+          label={t('studio.overview.totalLikes')}
           value={stats.totalLikes.toLocaleString()}
           change={8}
           icon={<Heart className="h-5 w-5" />}
         />
         <StatsCard
-          label="粉丝数"
+          label={t('studio.overview.followers')}
           value={stats.followers}
           icon={<Users className="h-5 w-5" />}
         />
