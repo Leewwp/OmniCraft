@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
 	"omnicraft/backend/internal/middleware"
+	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/repository"
 
 	"github.com/gin-gonic/gin"
@@ -32,6 +34,7 @@ func (h *BrowseHistoryHandler) RecordView(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
 		return
 	}
+	redisclient.ClearRecCache(context.Background(), callerID)
 	c.JSON(http.StatusOK, gin.H{"message": "recorded"})
 }
 
@@ -54,5 +57,6 @@ func (h *BrowseHistoryHandler) ClearHistory(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
 		return
 	}
+	redisclient.ClearRecCache(context.Background(), callerID)
 	c.JSON(http.StatusOK, gin.H{"message": "cleared"})
 }

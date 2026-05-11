@@ -50,3 +50,10 @@ func ListCacheKey(prefix string, filter interface{}) string {
 	hash := md5.Sum(data)
 	return fmt.Sprintf("cache:%s:list:%x", prefix, hash)
 }
+
+func ClearRecCache(ctx context.Context, userID int64) {
+	if Client == nil {
+		return
+	}
+	DeleteByPattern(ctx, fmt.Sprintf("rec:original:%d:*", userID))
+}

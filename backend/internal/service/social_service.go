@@ -7,6 +7,7 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
+	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/repository"
 
 	"github.com/redis/go-redis/v9"
@@ -153,6 +154,7 @@ func (s *SocialService) React(input ReactInput, userID int64) (string, error) {
 		}
 	}
 
+	redisclient.ClearRecCache(context.Background(), userID)
 	return action, nil
 }
 
@@ -206,11 +208,19 @@ func (s *SocialService) Report(targetType string, targetID int64, reporterID int
 }
 
 func (s *SocialService) Favorite(userID, contentID int64) error {
-	return s.socialRepo.CreateFavorite(userID, contentID)
+	if err := s.socialRepo.CreateFavorite(userID, contentID); err != nil {
+		return err
+	}
+	redisclient.ClearRecCache(context.Background(), userID)
+	return nil
 }
 
 func (s *SocialService) Unfavorite(userID, contentID int64) error {
-	return s.socialRepo.DeleteFavorite(userID, contentID)
+	if err := s.socialRepo.DeleteFavorite(userID, contentID); err != nil {
+		return err
+	}
+	redisclient.ClearRecCache(context.Background(), userID)
+	return nil
 }
 
 func (s *SocialService) ListFavorites(userID int64, page, pageSize int) ([]model.Favorite, int64, error) {
