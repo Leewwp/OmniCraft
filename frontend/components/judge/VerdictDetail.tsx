@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
 
 interface CaseData {
@@ -34,6 +34,7 @@ interface VerdictDetailProps {
 
 export default function VerdictDetail({ caseId }: VerdictDetailProps) {
   const t = useTranslations();
+  const locale = useLocale();
   const [caseData, setCaseData] = useState<CaseData | null>(null);
   const [votes, setVotes] = useState<VoteWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
@@ -175,7 +176,7 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
                 >
                   {v.vote === "approve" ? t('judge.reviewCard.approve') : t('judge.reviewCard.reject')}
                 </span>
-                <span className="ml-auto">{new Date(v.created_at).toLocaleString("zh-CN")}</span>
+                <span className="ml-auto">{new Date(v.created_at).toLocaleString(locale === "en" ? "en-US" : "zh-CN")}</span>
               </div>
               <p className="mt-1 text-sm text-foreground">{v.reason}</p>
               <div className="mt-2 flex items-center gap-3">

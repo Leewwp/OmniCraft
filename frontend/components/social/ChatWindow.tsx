@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useTranslations, useLocale } from "next-intl";
 import { MessageSquare, Send } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,6 +26,8 @@ interface ChatWindowProps {
 }
 
 export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
+  const t = useTranslations();
+  const locale = useLocale();
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
@@ -91,7 +94,7 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
       <div className="flex h-full flex-1 items-center justify-center text-sm text-muted-foreground">
         <div className="flex flex-col items-center gap-3">
           <MessageSquare className="h-10 w-10 text-muted-foreground/30" />
-          <p>选择一个对话开始聊天</p>
+          <p>{t('messages.selectConversation')}</p>
         </div>
       </div>
     );
@@ -105,7 +108,7 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
             onClick={onBack}
             className="text-sm text-muted-foreground hover:text-foreground md:hidden"
           >
-            ← 返回
+            ← {t('common.back')}
           </button>
         )}
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold">
@@ -128,7 +131,7 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
           >
             {messages.length === 0 ? (
               <p className="text-center text-sm text-muted-foreground pt-8">
-                发送第一条消息开始对话
+                {t('messages.noMessages')}
               </p>
             ) : (
               messages.map((m) => (
@@ -148,7 +151,7 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
                     <p className="whitespace-pre-wrap break-words">{m.text}</p>
                     {m.created_at && (
                       <p className="mt-0.5 text-right text-[10px] opacity-70">
-                        {new Date(m.created_at).toLocaleTimeString("zh-CN", {
+                        {new Date(m.created_at).toLocaleTimeString(locale === "en" ? "en-US" : "zh-CN", {
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
@@ -170,7 +173,7 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
                   void sendMessage();
                 }
               }}
-              placeholder="输入消息..."
+              placeholder={t('messages.replyPlaceholder')}
               className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
             />
             <Button

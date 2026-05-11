@@ -182,6 +182,8 @@
     "sortMostViewed": "Most Viewed",
     "sortTopRated": "Top Rated",
     "sortNewRelease": "New Release",
+    "basedOnIp": "Based on {name}",
+    "sourceOriginalLabel": "Source Original",
     "viewOriginal": "View original content",
     "relatedFanworks": "Related Fanworks",
     "createFanwork": "Create fanwork based on this original",
@@ -823,6 +825,12 @@
     "confirmClearMsg": "This will clear your entire browsing history. This action cannot be undone.",
     "clearing": "Clearing..."
   },
+  "notification": {
+    "all": "All",
+    "reply": "Replies",
+    "like": "Likes",
+    "system": "System"
+  },
   "messages": {
     "title": "Messages",
     "unreadCount": "{count} unread",
@@ -835,7 +843,8 @@
     "conversationCount": "{count} conversations",
     "noConversations": "No conversations",
     "selectConversation": "Select a conversation to start chatting",
-    "replyPlaceholder": "Type a message..."
+    "replyPlaceholder": "Type a message...",
+    "startConversation": "Start a conversation"
   },
   "footer": {
     "about": "About",

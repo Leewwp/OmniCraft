@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Eye } from "lucide-react";
 
@@ -13,11 +14,12 @@ interface ContentRankListProps {
 }
 
 export function ContentRankList({ items }: ContentRankListProps) {
+  const t = useTranslations();
   return (
     <div className="rounded-lg border border-border bg-card p-5">
-      <h3 className="mb-4 text-sm font-semibold text-foreground">热门内容 Top 5</h3>
+      <h3 className="mb-4 text-sm font-semibold text-foreground">{t('studio.overview.topContent')}</h3>
       {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">暂无数据</p>
+        <p className="text-sm text-muted-foreground">{t('common.noData')}</p>
       ) : (
         <ul className="space-y-3">
           {items.map((item, i) => (

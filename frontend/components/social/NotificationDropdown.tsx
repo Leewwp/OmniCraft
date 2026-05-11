@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations, useLocale } from "next-intl";
 import { Bell } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
@@ -17,6 +18,8 @@ interface Notification {
 }
 
 export function NotificationDropdown() {
+  const t = useTranslations();
+  const locale = useLocale();
   const { user } = useAuth();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -66,7 +69,7 @@ export function NotificationDropdown() {
         className={cn(
           "relative inline-flex h-8 w-8 items-center justify-center rounded-md transition-all duration-150 hover:bg-muted active:scale-90"
         )}
-        aria-label="通知"
+        aria-label={t('nav.notifications')}
       >
         <Bell className="h-4 w-4" />
         {unreadCount > 0 && (
@@ -84,7 +87,7 @@ export function NotificationDropdown() {
           />
           <div className="absolute right-0 top-full z-50 mt-1 w-80 rounded-md border border-border bg-card shadow-md">
             <div className="flex items-center justify-between border-b border-border px-4 py-2">
-              <span className="text-sm font-medium">通知</span>
+              <span className="text-sm font-medium">{t('nav.notifications')}</span>
               <button
                 onClick={() => {
                   setOpen(false);
@@ -92,13 +95,13 @@ export function NotificationDropdown() {
                 }}
                 className="text-xs text-accent hover:underline"
               >
-                查看全部
+                {t('common.clickToView')}
               </button>
             </div>
             <div className="max-h-72 overflow-y-auto">
               {notifications.length === 0 ? (
                 <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                  暂无通知
+                  {t('messages.noMessages')}
                 </p>
               ) : (
                 notifications.map((n) => (
@@ -122,7 +125,7 @@ export function NotificationDropdown() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm">{n.body}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {new Date(n.created_at).toLocaleString("zh-CN")}
+                        {new Date(n.created_at).toLocaleString(locale === "en" ? "en-US" : "zh-CN")}
                       </p>
                     </div>
                   </button>

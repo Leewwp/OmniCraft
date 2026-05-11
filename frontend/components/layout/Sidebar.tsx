@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -88,6 +89,7 @@ const collapsedItem =
   "justify-center px-[8px] py-[8px] w-auto";
 
 export function Sidebar({ sections = [], trending, className }: SidebarProps) {
+  const t = useTranslations();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -116,7 +118,7 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
       <button
         type="button"
         onClick={toggle}
-        title={collapsed ? "展开侧边栏" : "收起侧边栏"}
+        title={collapsed ? t('studio.sidebar.expand') : t('studio.sidebar.collapse')}
         className={cn(
           itemBase,
           "text-[#52525B] hover:text-[#18181B] hover:bg-[#F2F2F2]",
@@ -130,7 +132,7 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
         ) : (
           <>
             <PanelLeftClose className="h-4 w-4 flex-shrink-0" />
-            <span>收起侧边栏</span>
+            <span>{t('studio.sidebar.collapse')}</span>
           </>
         )}
       </button>

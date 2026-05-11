@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Users, UserPlus, UserMinus } from "lucide-react";
 import { api } from "@/lib/api";
 import { StatsCard } from "@/components/studio/StatsCard";
@@ -9,6 +10,7 @@ import { FollowerSourceChart } from "@/components/studio/FollowerSourceChart";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function StudioFollowersPage() {
+  const t = useTranslations();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     total: 0,
@@ -55,7 +57,7 @@ export default function StudioFollowersPage() {
   if (loading) {
     return (
       <div>
-        <h1 className="mb-6 text-xl font-bold text-foreground">粉丝分析</h1>
+        <h1 className="mb-6 text-xl font-bold text-foreground">{t('studio.followers.title')}</h1>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-28 rounded-lg" />
@@ -67,23 +69,23 @@ export default function StudioFollowersPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-xl font-bold text-foreground">粉丝分析</h1>
-      <p className="mb-6 text-sm text-muted-foreground">了解你的粉丝增长趋势</p>
+      <h1 className="mb-1 text-xl font-bold text-foreground">{t('studio.followers.title')}</h1>
+      <p className="mb-6 text-sm text-muted-foreground">{t('studio.followers.subtitle')}</p>
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatsCard
-          label="总粉丝数"
+          label={t('studio.followers.totalFollowers')}
           value={stats.total.toLocaleString()}
           icon={<Users className="h-5 w-5" />}
         />
         <StatsCard
-          label="本月新增"
+          label={t('studio.followers.newThisMonth')}
           value={stats.newThisMonth.toLocaleString()}
           change={stats.total > 0 ? Math.round((stats.newThisMonth / stats.total) * 100) : 0}
           icon={<UserPlus className="h-5 w-5" />}
         />
         <StatsCard
-          label="本月流失"
+          label={t('studio.followers.lostThisMonth')}
           value={stats.lostThisMonth.toLocaleString()}
           change={stats.total > 0 ? -Math.round((stats.lostThisMonth / stats.total) * 100) : 0}
           icon={<UserMinus className="h-5 w-5" />}

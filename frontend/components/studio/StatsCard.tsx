@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 interface StatsCardProps {
@@ -8,6 +9,7 @@ interface StatsCardProps {
 }
 
 export function StatsCard({ label, value, change, icon }: StatsCardProps) {
+  const t = useTranslations();
   const isPositive = change !== undefined && change >= 0;
 
   return (
@@ -24,7 +26,7 @@ export function StatsCard({ label, value, change, icon }: StatsCardProps) {
             isPositive ? "text-emerald-500" : "text-rose-500"
           )}
         >
-          {isPositive ? "↑" : "↓"} {Math.abs(change)}% 较上月
+          {isPositive ? "↑" : "↓"} {t('studio.overview.changeHint', { change: Math.abs(change) })}
         </div>
       )}
     </div>

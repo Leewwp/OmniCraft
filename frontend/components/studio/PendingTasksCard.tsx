@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { GitPullRequest, Tags } from "lucide-react";
 
@@ -12,11 +13,12 @@ interface PendingTasksCardProps {
 }
 
 export function PendingTasksCard({ items }: PendingTasksCardProps) {
+  const t = useTranslations();
   return (
     <div className="rounded-lg border border-border bg-card p-5">
-      <h3 className="mb-4 text-sm font-semibold text-foreground">待处理事项</h3>
+      <h3 className="mb-4 text-sm font-semibold text-foreground">{t('studio.overview.pendingTasks')}</h3>
       {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">暂无待处理事项 🎉</p>
+        <p className="text-sm text-muted-foreground">{t('studio.overview.noPending')}</p>
       ) : (
         <ul className="space-y-2">
           {items.map((item) => (

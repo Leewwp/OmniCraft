@@ -104,7 +104,7 @@ export function ContentCard({ data, className }: ContentCardProps) {
             <span className="h-3.5 w-3.5 flex-shrink-0 rounded-sm bg-muted flex items-center justify-center text-[8px] overflow-hidden">
               {data.ip.name.slice(0, 1)}
             </span>
-            <span>基于 <strong className="font-medium text-foreground/70">{data.ip.name}</strong></span>
+            <span>{t('content.basedOnIp', { name: data.ip.name })}</span>
           </div>
         )}
 

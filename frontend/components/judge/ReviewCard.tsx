@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { Button } from "@/components/ui/button";
 
 interface JudgeCaseData {
@@ -24,6 +24,7 @@ interface ReviewCardProps {
 
 export default function ReviewCard({ judgeCase, disabled, submitting, onVote }: ReviewCardProps) {
   const t = useTranslations();
+  const locale = useLocale();
   const [showConfirm, setShowConfirm] = useState(false);
   const [pendingVote, setPendingVote] = useState<"approve" | "reject" | null>(null);
   const [reason, setReason] = useState("");
@@ -63,7 +64,7 @@ export default function ReviewCard({ judgeCase, disabled, submitting, onVote }: 
           {targetTypeLabel[judgeCase.target_type] || judgeCase.target_type} #{judgeCase.target_id}
         </span>
         <span className="text-xs text-muted-foreground">
-          {new Date(judgeCase.created_at).toLocaleString("zh-CN")}
+          {new Date(judgeCase.created_at).toLocaleString(locale === "en" ? "en-US" : "zh-CN")}
         </span>
       </div>
 
