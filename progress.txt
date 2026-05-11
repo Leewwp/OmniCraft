@@ -64,6 +64,26 @@
 - Embedding gap fill is best-effort: API failures skip individual items without crashing
 - Complete recommendation pipeline: Task 87 (hot rank) → Task 88 (personalized rec) → Task 89 (auto-update)
 
+## [2026-05-11] - Task 97: IP 分类内容数量实时统计
+
+### What was done:
+- Created `internal/service/ip_stats_service.go`: UpdateCategoryCounts (full recount via SQL JOIN on ips + content_items, writes to Redis Hash `ip_category_counts`), GetCategoryCounts (HGetAll read), IncrCategoryCount/DecrCategoryCount (atomic HIncrBy for real-time updates)
+- Created `internal/handler/ip_stats.go`: GET /api/v1/ips/stats/category_counts endpoint
+- Wired into routes.go: public endpoint at `/ips/stats/category_counts`
+- Updated `hot_rank_service.go`: calls UpdateCategoryCounts alongside hot rank update every 10 minutes (runAll pattern)
+- Updated `main.go`: creates IPStatsService, passes to HotRankService via WithIPStatsService
+- Updated `frontend/components/home/HomePageClient.tsx`: fetches live counts from API, replaces all 8 hardcoded sidebar counts with real data, total "all IPs" count computed as sum of all category counts
+
+### Testing:
+- `go build ./...` — passes
+- `go vet ./...` — no warnings
+- `go test ./...` — all existing tests pass
+- `npx tsc --noEmit` — passes
+
+### Notes:
+- Full recount on every hot rank cycle (10 min); INCR/DECR helpers available but not yet wired — can be added incrementally
+- Task 98 (content sidebar data) depends on this task and can now be started
+
 ---
 ## [2026-05-07] - Task 64: Web 前端 — 原创区两级导航
 

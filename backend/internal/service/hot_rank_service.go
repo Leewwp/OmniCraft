@@ -17,6 +17,7 @@ type HotRankService struct {
 	contentSvc *ContentService
 	recSvc     *RecommendationService
 	embedProv  EmbeddingProvider
+	ipStatsSvc *IPStatsService
 	cfg        *config.RecommendationConfig
 	mu         sync.Mutex
 	embedMu    sync.Mutex
@@ -36,6 +37,11 @@ func (s *HotRankService) WithEmbeddingProvider(prov EmbeddingProvider) *HotRankS
 	return s
 }
 
+func (s *HotRankService) WithIPStatsService(ipStatsSvc *IPStatsService) *HotRankService {
+	s.ipStatsSvc = ipStatsSvc
+	return s
+}
+
 func (s *HotRankService) Run() {
 	if s.cfg == nil || !s.cfg.Enabled {
 		log.Println("[hot_rank] recommendation engine disabled, skipping")
@@ -45,7 +51,7 @@ func (s *HotRankService) Run() {
 	rankInterval := 10 * time.Minute
 	log.Printf("[hot_rank] starting hot rank update every %v", rankInterval)
 
-	s.updateRank()
+	s.runAll()
 
 	rankTicker := time.NewTicker(rankInterval)
 	defer rankTicker.Stop()
@@ -62,11 +68,16 @@ func (s *HotRankService) Run() {
 	for {
 		select {
 		case <-rankTicker.C:
-			s.updateRank()
+			s.runAll()
 		case <-embedCh:
 			s.fillEmbeddings()
 		}
 	}
+}
+
+func (s *HotRankService) runAll() {
+	s.updateRank()
+	s.updateIPCounts()
 }
 
 func (s *HotRankService) updateRank() {
@@ -94,6 +105,17 @@ func (s *HotRankService) updateRank() {
 		return
 	}
 	log.Println("[hot_rank] hot content rank updated successfully")
+}
+
+func (s *HotRankService) updateIPCounts() {
+	if s.ipStatsSvc == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	if err := s.ipStatsSvc.UpdateCategoryCounts(ctx); err != nil {
+		log.Printf("[hot_rank] ip category count update failed: %v", err)
+	}
 }
 
 func (s *HotRankService) fillEmbeddings() {

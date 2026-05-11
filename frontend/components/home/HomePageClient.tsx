@@ -44,6 +44,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
   const [ipSort, setIPSort] = useState("hot");
   const [contentType, setContentType] = useState("");
   const [contentSort, setContentSort] = useState("hot");
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, string>>({});
 
   const contentTypeOptions = useMemo(() => [
     { label: t('home.all'), value: "" },
@@ -68,6 +69,14 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
       if (raw) setRecentIPs(JSON.parse(raw).slice(0, 6));
     } catch { /* ignore */ }
   }, []);
+
+  // Fetch category counts
+  useEffect(() => {
+    fetch(`${apiBase}/ips/stats/category_counts`, { cache: "no-store" })
+      .then(r => r.ok ? r.json() as Promise<{ category_counts?: Record<string, string> }> : null)
+      .then(d => { if (d?.category_counts) setCategoryCounts(d.category_counts); })
+      .catch(() => {});
+  }, [apiBase]);
 
   // Fetch IPs
   useEffect(() => {
@@ -94,18 +103,19 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
   }, [apiBase, contentType, contentSort]);
 
   // Sidebar sections
+  const formatCount = (v: string | undefined) => v ? parseInt(v, 10).toLocaleString() : "0";
   const sidebarSections = useMemo(() => [
     {
       label: t('home.ipClassification'),
       items: [
-        { icon: <LayoutGrid className="h-4 w-4" />, label: t('home.allIps'), count: "58,293", active: ipCategory === "", onClick: () => setIPCategory("") },
-        { icon: <Gamepad2 className="h-4 w-4" />, label: t('home.categoryGaming'), count: "18,412", active: ipCategory === "game", onClick: () => setIPCategory("game") },
-        { icon: <Tv className="h-4 w-4" />, label: t('home.categoryFilmTv'), count: "12,847", active: ipCategory === "film_tv", onClick: () => setIPCategory("film_tv") },
-        { icon: <BookOpen className="h-4 w-4" />, label: t('home.animeCategory'), count: "9,156", active: ipCategory === "anime", onClick: () => setIPCategory("anime") },
-        { icon: <Globe className="h-4 w-4" />, label: t('home.mangaCategory'), count: "7,328", active: ipCategory === "manga", onClick: () => setIPCategory("manga") },
-        { icon: <Music className="h-4 w-4" />, label: t('home.novelCategory'), count: "5,601", active: ipCategory === "novel", onClick: () => setIPCategory("novel") },
-        { icon: <Film className="h-4 w-4" />, label: t('home.varietyShowCategory'), count: "2,845", active: ipCategory === "variety", onClick: () => setIPCategory("variety") },
-        { icon: <Tv className="h-4 w-4" />, label: t('home.shortDramaCategory'), count: "1,934", active: ipCategory === "short_drama", onClick: () => setIPCategory("short_drama") },
+        { icon: <LayoutGrid className="h-4 w-4" />, label: t('home.allIps'), count: formatCount(Object.values(categoryCounts).reduce((a: number, v: string) => a + parseInt(v, 10), 0).toString()), active: ipCategory === "", onClick: () => setIPCategory("") },
+        { icon: <Gamepad2 className="h-4 w-4" />, label: t('home.categoryGaming'), count: formatCount(categoryCounts.game), active: ipCategory === "game", onClick: () => setIPCategory("game") },
+        { icon: <Tv className="h-4 w-4" />, label: t('home.categoryFilmTv'), count: formatCount(categoryCounts.film_tv), active: ipCategory === "film_tv", onClick: () => setIPCategory("film_tv") },
+        { icon: <BookOpen className="h-4 w-4" />, label: t('home.animeCategory'), count: formatCount(categoryCounts.anime), active: ipCategory === "anime", onClick: () => setIPCategory("anime") },
+        { icon: <Globe className="h-4 w-4" />, label: t('home.mangaCategory'), count: formatCount(categoryCounts.manga), active: ipCategory === "manga", onClick: () => setIPCategory("manga") },
+        { icon: <Music className="h-4 w-4" />, label: t('home.novelCategory'), count: formatCount(categoryCounts.novel), active: ipCategory === "novel", onClick: () => setIPCategory("novel") },
+        { icon: <Film className="h-4 w-4" />, label: t('home.varietyShowCategory'), count: formatCount(categoryCounts.variety), active: ipCategory === "variety", onClick: () => setIPCategory("variety") },
+        { icon: <Tv className="h-4 w-4" />, label: t('home.shortDramaCategory'), count: formatCount(categoryCounts.short_drama), active: ipCategory === "short_drama", onClick: () => setIPCategory("short_drama") },
       ] as SidebarItem[],
     },
     {
@@ -116,7 +126,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
         { icon: <Clock className="h-4 w-4" />, label: t('nav.history'), href: user ? "/history" : "/login?redirect=/history" },
       ] as SidebarItem[],
     },
-  ], [t, ipCategory, user]);
+  ], [t, ipCategory, user, categoryCounts]);
 
   // Trending IPs (from top IPs)
   const trendingEntries: TrendingEntry[] = ips.slice(0, 6).map((ip, i) => ({

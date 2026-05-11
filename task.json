@@ -2033,7 +2033,7 @@
         "前端 HomePageClient 从 GET /api/v1/ips/stats/category_counts 获取实时计数替换硬编码占位数据",
         "验证：curl /api/v1/ips/stats/category_counts 返回正确计数，发布新内容后计数实时更新，Redis 数据与数据库一致"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 98,

@@ -115,6 +115,10 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		judge.POST("/reasons/:id/vote", middleware.AuthRequired(cfg, rdb), judgeHandler.VoteReason)
 	}
 
+	ipStatsSvc := service.NewIPStatsService(db, rdb)
+	ipStatsHandler := NewIPStatsHandler(ipStatsSvc)
+	v1.GET("/ips/stats/category_counts", ipStatsHandler.GetCategoryCounts)
+
 	catHandler := NewCategoryHandler(db)
 	v1.GET("/categories", catHandler.ListCategories)
 
