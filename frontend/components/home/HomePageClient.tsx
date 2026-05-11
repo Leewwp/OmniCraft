@@ -193,7 +193,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
         <div className="px-6 pb-2">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-[13px] font-semibold text-muted-foreground">{t('home.recommendedIps')}</span>
-            <Link href="/search" className="text-xs text-accent-emphasis font-medium">
+            <Link href="/ips" className="text-xs text-accent-emphasis font-medium">
               {t('home.browseAllIps')}
             </Link>
           </div>
