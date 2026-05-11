@@ -9,36 +9,67 @@ import (
 	"omnicraft/backend/config"
 )
 
+type EmbeddingProvider interface {
+	GetEmbedding(ctx context.Context, text string) ([]float32, error)
+}
+
 type HotRankService struct {
 	contentSvc *ContentService
+	recSvc     *RecommendationService
+	embedProv  EmbeddingProvider
 	cfg        *config.RecommendationConfig
 	mu         sync.Mutex
+	embedMu    sync.Mutex
 }
 
 func NewHotRankService(contentSvc *ContentService, cfg *config.RecommendationConfig) *HotRankService {
 	return &HotRankService{contentSvc: contentSvc, cfg: cfg}
 }
 
+func (s *HotRankService) WithRecommendationService(recSvc *RecommendationService) *HotRankService {
+	s.recSvc = recSvc
+	return s
+}
+
+func (s *HotRankService) WithEmbeddingProvider(prov EmbeddingProvider) *HotRankService {
+	s.embedProv = prov
+	return s
+}
+
 func (s *HotRankService) Run() {
 	if s.cfg == nil || !s.cfg.Enabled {
-		log.Println("[hot_rank] recommendation engine disabled, skipping hot rank updates")
+		log.Println("[hot_rank] recommendation engine disabled, skipping")
 		return
 	}
 
-	interval := 10 * time.Minute
-	log.Printf("[hot_rank] starting scheduled hot rank update every %v", interval)
+	rankInterval := 10 * time.Minute
+	log.Printf("[hot_rank] starting hot rank update every %v", rankInterval)
 
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	s.updateRank()
 
-	s.update()
+	rankTicker := time.NewTicker(rankInterval)
+	defer rankTicker.Stop()
 
-	for range ticker.C {
-		s.update()
+	var embedTicker *time.Ticker
+	var embedCh <-chan time.Time
+	if s.recSvc != nil && s.embedProv != nil {
+		embedTicker = time.NewTicker(1 * time.Minute)
+		embedCh = embedTicker.C
+		defer embedTicker.Stop()
+		log.Println("[hot_rank] starting embedding gap fill every 1m")
+	}
+
+	for {
+		select {
+		case <-rankTicker.C:
+			s.updateRank()
+		case <-embedCh:
+			s.fillEmbeddings()
+		}
 	}
 }
 
-func (s *HotRankService) update() {
+func (s *HotRankService) updateRank() {
 	if !s.mu.TryLock() {
 		log.Println("[hot_rank] previous update still running, skipping")
 		return
@@ -63,4 +94,18 @@ func (s *HotRankService) update() {
 		return
 	}
 	log.Println("[hot_rank] hot content rank updated successfully")
+}
+
+func (s *HotRankService) fillEmbeddings() {
+	if !s.embedMu.TryLock() {
+		return
+	}
+	defer s.embedMu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+
+	if err := s.recSvc.FillMissingEmbeddings(ctx, s.embedProv); err != nil {
+		log.Printf("[hot_rank] embedding gap fill failed: %v", err)
+	}
 }

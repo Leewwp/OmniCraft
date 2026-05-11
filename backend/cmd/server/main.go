@@ -9,6 +9,7 @@ import (
 	"omnicraft/backend/internal/handler"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/database"
+	"omnicraft/backend/internal/pkg/llm"
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/pkg/scheduler"
 	"omnicraft/backend/internal/repository"
@@ -30,7 +31,13 @@ func main() {
 	viewCountSvc := service.NewContentServiceWithCache(contentRepo, nil, rdb, &cfg.Cache)
 	scheduler.NewViewCountSync(viewCountSvc, &cfg.Cache).Start()
 
-	hotRankSvc := service.NewHotRankService(viewCountSvc, &cfg.Recommendation)
+	embeddingRepo := repository.NewEmbeddingRepository(db)
+	recSvc := service.NewRecommendationService(db, embeddingRepo, contentRepo, viewCountSvc, rdb, &cfg.Recommendation)
+	embedProv := llm.NewProvider(cfg)
+
+	hotRankSvc := service.NewHotRankService(viewCountSvc, &cfg.Recommendation).
+		WithRecommendationService(recSvc).
+		WithEmbeddingProvider(embedProv)
 	go hotRankSvc.Run()
 
 	r := gin.New()

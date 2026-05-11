@@ -338,6 +338,54 @@ func (s *RecommendationService) RecommendForAnonymous(ctx context.Context, page,
 	return s.fallbackToHot(ctx, page, pageSize)
 }
 
+func (s *RecommendationService) InvalidateUserCache(ctx context.Context, userID int64) {
+	if s.rdb == nil {
+		return
+	}
+	redisclient.DeleteByPattern(ctx, fmt.Sprintf("rec:original:%d:*", userID))
+}
+
+func (s *RecommendationService) FillMissingEmbeddings(ctx context.Context, llmProvider interface{ GetEmbedding(ctx context.Context, text string) ([]float32, error) }) error {
+	if s.db == nil || s.embeddingRepo == nil {
+		return fmt.Errorf("db or embedding repo not available")
+	}
+
+	var missing []struct {
+		ID          int64  `gorm:"column:id"`
+		Title       string `gorm:"column:title"`
+		Description string `gorm:"column:description"`
+	}
+	s.db.Raw(`
+		SELECT ci.id, ci.title, COALESCE(ci.description, '') AS description
+		FROM content_items ci
+		LEFT JOIN content_embeddings ce ON ce.content_item_id = ci.id
+		WHERE ci.zone = 'original' AND ci.status = 'published' AND ce.content_item_id IS NULL
+		LIMIT 50
+	`).Scan(&missing)
+
+	if len(missing) == 0 {
+		return nil
+	}
+
+	log.Printf("[rec] filling %d missing content embeddings", len(missing))
+	for _, m := range missing {
+		text := m.Title
+		if m.Description != "" {
+			text += " " + m.Description
+		}
+		embedding, err := llmProvider.GetEmbedding(ctx, text)
+		if err != nil {
+			log.Printf("[rec] embedding failed for content %d: %v", m.ID, err)
+			continue
+		}
+		if err := s.embeddingRepo.UpsertEmbedding(m.ID, embedding); err != nil {
+			log.Printf("[rec] upsert embedding failed for content %d: %v", m.ID, err)
+		}
+	}
+
+	return nil
+}
+
 func sortByScore(items []ContentItemWithScore) {
 	for i := 0; i < len(items); i++ {
 		for j := i + 1; j < len(items); j++ {
