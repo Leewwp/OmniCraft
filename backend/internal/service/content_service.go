@@ -31,6 +31,7 @@ type ContentService struct {
 	rdb         *redis.Client
 	cacheCfg    *config.CacheConfig
 	ossSvc      *OSSService
+	recSvc      *RecommendationService
 }
 
 func NewContentService(contentRepo *repository.ContentRepository) *ContentService {
@@ -47,6 +48,10 @@ func NewContentServiceWithCache(contentRepo *repository.ContentRepository, revie
 
 func NewContentServiceWithOSS(contentRepo *repository.ContentRepository, reviewSvc *ReviewService, rdb *redis.Client, cacheCfg *config.CacheConfig, ossSvc *OSSService) *ContentService {
 	return &ContentService{contentRepo: contentRepo, reviewSvc: reviewSvc, rdb: rdb, cacheCfg: cacheCfg, ossSvc: ossSvc}
+}
+
+func (s *ContentService) SetRecommendationService(recSvc *RecommendationService) {
+	s.recSvc = recSvc
 }
 
 type PublishContentInput struct {
@@ -215,6 +220,9 @@ func (s *ContentService) GetContent(id int64) (*model.ContentItem, error) {
 }
 
 func (s *ContentService) ListContents(filter repository.ListContentsFilter) ([]model.ContentItem, int64, error) {
+	if filter.Sort == "recommended" && filter.Zone == "original" {
+		return s.handleRecommended(filter)
+	}
 	if s.rdb != nil && s.cacheCfg != nil && filter.Sort == "hot" && filter.Zone != "" && filter.Category == "" && filter.ContentType == "" && filter.Tags == nil && filter.TimeRange == "all" {
 		contents, err := s.getHotContents(context.Background(), filter)
 		if err == nil && len(contents) > 0 {
@@ -266,6 +274,60 @@ func (s *ContentService) ListContents(filter repository.ListContentsFilter) ([]m
 	}
 
 	return contents, total, nil
+}
+
+func (s *ContentService) handleRecommended(filter repository.ListContentsFilter) ([]model.ContentItem, int64, error) {
+	if s.recSvc == nil {
+		filter.Sort = "hot"
+		return s.ListContents(filter)
+	}
+
+	page := filter.Page
+	if page < 1 {
+		page = 1
+	}
+	pageSize := filter.PageSize
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	ctx := context.Background()
+
+	userID := filter.AuthorID
+	if userID != nil && *userID != 0 {
+		items, total, err := s.recSvc.Recommend(ctx, *userID, page, pageSize)
+		if err != nil {
+			filter.Sort = "hot"
+			return s.ListContents(filter)
+		}
+		return scoredToContentItems(items), total, nil
+	}
+
+	items, total, err := s.recSvc.RecommendForAnonymous(ctx, page, pageSize)
+	if err != nil {
+		filter.Sort = "hot"
+		return s.ListContents(filter)
+	}
+	return scoredToContentItems(items), total, nil
+}
+
+func scoredToContentItems(scored []ContentItemWithScore) []model.ContentItem {
+	items := make([]model.ContentItem, 0, len(scored))
+	for _, s := range scored {
+		items = append(items, model.ContentItem{
+			ID:            s.Item.ID,
+			Title:         s.Item.Title,
+			CoverImageURL: s.Item.CoverURL,
+			AuthorID:      s.Item.AuthorID,
+			Author:        model.User{Username: s.Item.AuthorName},
+			LikeCount:     s.Item.LikeCount,
+			ViewCount:     s.Item.ViewCount,
+			ContentType:   s.Item.ContentType,
+			Category:      s.Item.Category,
+			Zone:          s.Item.Zone,
+		})
+	}
+	return items
 }
 
 func (s *ContentService) getHotContents(ctx context.Context, filter repository.ListContentsFilter) ([]model.ContentItem, error) {

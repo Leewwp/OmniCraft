@@ -20,6 +20,27 @@
 - The `incrementHotRank` method (pre-existing, unused) was left in place; it can be wired into reaction/favorite handlers to provide real-time rank updates between scheduled refreshes
 - Task 88 (Personalized Recommendation API) depends on this task and can now be started
 
+## [2026-05-11] - Task 88: 推荐引擎 — 个性化推荐 API (sort=recommended)
+
+### What was done:
+- Created `internal/service/recommendation_service.go`: full recommendation pipeline — `BuildUserProfileVector` (weighted avg of browse ×1, favorites ×2, likes ×1.5 content embeddings), `VectorSearch` (pgvector cosine similarity ANN), `ComputeFinalScore` (α×sim + (1-α)×hot), `isColdStart` (interaction count < threshold check), `RecommendForAnonymous` (pure hot fallback)
+- Extended `content_service.go`: `ListContents` routes `sort=recommended` to recommendation engine; added `handleRecommended`, `scoredToContentItems` helpers; `SetRecommendationService` setter for dependency injection
+- Updated `handler/content.go` `NewContentHandler`: creates `EmbeddingRepository` + `RecommendationService`, wires into `ContentService`
+- Cold start: users with < `min_interaction_for_personalize` (default 10) total interactions (browse+favorites+likes) get pure hot ranking
+- Anonymous users: `RecommendForAnonymous` returns hot-ranked content
+- Redis cache: `rec:original:{user_id}:{page}` with TTL from `refresh_interval_h` (default 2h)
+- All parameters from `config.yaml > recommendation` — no hardcoded weights
+
+### Testing:
+- `go build ./...` — passes
+- `go vet ./...` — no warnings
+- `go test ./...` — all existing tests pass
+
+### Notes:
+- `parseEmbedding` handles pgvector text format (e.g. `[0.1,0.2,...]`) for profile aggregation
+- Profile build gracefully degrades: any step failure → hot fallback
+- Task 89 (user profile auto-update) depends on this and can now be started
+
 ---
 ## [2026-05-07] - Task 64: Web 前端 — 原创区两级导航
 
