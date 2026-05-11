@@ -2046,7 +2046,7 @@
         "扩展 GET /contents/:id 返回 source_original 嵌套对象：{ id, title }（当 content_items.source_original_id 非空时 JOIN content_items 获取标题），供二创详情侧边栏展示来源原创信息",
         "验证：curl /users/:id 返回 stats 和 is_following；curl /contents/:id（二创且有 source_original_id）返回 source_original 对象；关注按钮状态随登录态正确切换"
       ],
-      "passes": false
+      "passes": true
     }
   ]
 }

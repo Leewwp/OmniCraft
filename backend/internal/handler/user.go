@@ -23,6 +23,7 @@ type UserHandler struct {
 	userRepo    *repository.UserRepository
 	reputSvc    *service.ReputationService
 	contentRepo *repository.ContentRepository
+	followRepo  *repository.FollowRepository
 	authSvc     *service.AuthService
 	rdb         *redis.Client
 	cfg         *config.Config
@@ -34,6 +35,7 @@ func NewUserHandler(db *gorm.DB, authSvc *service.AuthService, rdb *redis.Client
 		userRepo:    repository.NewUserRepository(db),
 		reputSvc:    service.NewReputationService(db),
 		contentRepo: repository.NewContentRepository(db),
+		followRepo:  repository.NewFollowRepository(db),
 		authSvc:     authSvc,
 		rdb:         rdb,
 		cfg:         cfg,
@@ -59,7 +61,48 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"user": sanitizeUser(user)})
+	response := sanitizeUser(user)
+	response["stats"] = h.getUserStats(id)
+	response["is_following"] = h.checkIsFollowing(c, id)
+	response["followers_count"] = h.countFollowers(id)
+
+	c.JSON(http.StatusOK, gin.H{"user": response})
+}
+
+func (h *UserHandler) getUserStats(userID int64) gin.H {
+	var contentsCount int64
+	var likesReceived int64
+	h.contentRepo.DB().Raw(
+		"SELECT COUNT(*), COALESCE(SUM(like_count), 0) FROM content_items WHERE author_id = ? AND status = 'published'",
+		userID,
+	).Scan(&struct {
+		Count *int64
+		Likes *int64
+	}{Count: &contentsCount, Likes: &likesReceived})
+	return gin.H{
+		"contents_count": contentsCount,
+		"likes_received": likesReceived,
+	}
+}
+
+func (h *UserHandler) checkIsFollowing(c *gin.Context, targetID int64) bool {
+	callerID := middleware.GetUserID(c)
+	if callerID == 0 {
+		return false
+	}
+	following, err := h.followRepo.IsFollowing(callerID, "user", targetID)
+	if err != nil {
+		return false
+	}
+	return following
+}
+
+func (h *UserHandler) countFollowers(userID int64) int64 {
+	count, err := h.followRepo.CountFollowers("user", userID)
+	if err != nil {
+		return 0
+	}
+	return count
 }
 
 func (h *UserHandler) UpdateUser(c *gin.Context) {
