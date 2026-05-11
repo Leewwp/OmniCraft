@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"strconv"
 	"time"
 
@@ -345,9 +346,56 @@ func (s *ContentService) incrementHotRank(contentID int64, ipID *int64, delta fl
 	}
 	ctx := context.Background()
 	s.rdb.ZIncrBy(ctx, "rank:hot:contents", delta, fmt.Sprintf("%d", contentID))
-	if ipID != nil {
+	if ipID != nil && *ipID != 0 {
 		s.rdb.ZIncrBy(ctx, "rank:hot:ips", delta, fmt.Sprintf("%d", *ipID))
 	}
+}
+
+func (s *ContentService) UpdateHotRank(ctx context.Context, trendingWindowDays int, hotDecayHours float64) error {
+	if s.rdb == nil || s.contentRepo == nil {
+		return fmt.Errorf("redis or repo not available")
+	}
+
+	since := time.Now().AddDate(0, 0, -trendingWindowDays)
+	contents, _, err := s.contentRepo.ListContents(repository.ListContentsFilter{
+		Zone:     "original",
+		Status:   "published",
+		TimeRange: "all",
+		Page:     1,
+		PageSize: 10000,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list contents: %w", err)
+	}
+
+	pipe := s.rdb.Pipeline()
+	for _, c := range contents {
+		if c.CreatedAt.Before(since) {
+			continue
+		}
+		ageHours := time.Since(c.CreatedAt).Hours()
+		hotScore := computeHotScore(float64(c.ViewCount), float64(c.LikeCount), ageHours, hotDecayHours)
+		pipe.ZAdd(ctx, "rank:hot:contents", redis.Z{Score: hotScore, Member: fmt.Sprintf("%d", c.ID)})
+	}
+	_, err = pipe.Exec(ctx)
+	return err
+}
+
+func computeHotScore(views, likes, ageHours, decayHours float64) float64 {
+	if decayHours <= 0 {
+		decayHours = 48
+	}
+	popularity := 1 + views + likes*3
+	if popularity < 1 {
+		popularity = 1
+	}
+	return math.Log10(popularity) * timeDecay(ageHours, decayHours)
+}
+
+
+func timeDecay(ageHours, halfLifeHours float64) float64 {
+	exponent := -ageHours / halfLifeHours
+	return math.Pow(2, exponent)
 }
 
 func (s *ContentService) FlushViewCounts(ctx context.Context) error {
