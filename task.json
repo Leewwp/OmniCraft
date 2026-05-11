@@ -1879,7 +1879,7 @@
         "向量化补齐：每分钟检查 content_embeddings 表中缺失的新发布内容，调用 LLM embedding API 补生成（复用 §11.7 Pipeline）",
         "验证：浏览新内容后推荐结果变化；点赞后推荐流中出现相关内容"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 90,
