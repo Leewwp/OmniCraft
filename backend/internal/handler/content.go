@@ -195,11 +195,18 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 	attachments, _ := h.contentRepo.GetAttachments(id)
 	tags, _ := h.contentRepo.GetTags(id)
 
-	c.JSON(http.StatusOK, gin.H{
+	resp := gin.H{
 		"content":     content,
 		"attachments": attachments,
 		"tags":        tags,
-	})
+	}
+	if content.SourceOriginalID != nil && *content.SourceOriginalID > 0 {
+		source, srcErr := h.contentSvc.GetContent(*content.SourceOriginalID)
+		if srcErr == nil && source != nil {
+			resp["source_original"] = gin.H{"id": source.ID, "title": source.Title}
+		}
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {

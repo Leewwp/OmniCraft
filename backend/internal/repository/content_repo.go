@@ -16,6 +16,8 @@ func NewContentRepository(db *gorm.DB) *ContentRepository {
 	return &ContentRepository{db: db}
 }
 
+func (r *ContentRepository) DB() *gorm.DB { return r.db }
+
 type ListContentsFilter struct {
 	Zone             string
 	IPID             *int64

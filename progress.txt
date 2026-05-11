@@ -84,6 +84,25 @@
 - Full recount on every hot rank cycle (10 min); INCR/DECR helpers available but not yet wired — can be added incrementally
 - Task 98 (content sidebar data) depends on this task and can now be started
 
+## [2026-05-11] - Task 98: 内容详情页侧边栏数据接口补全
+
+### What was done:
+- Extended `GET /users/:id`: added `stats` object (contents_count, likes_received via content_items aggregation), `followers_count` (via follows table), `is_following` boolean (checks current logged-in user's follow status)
+- Extended `GET /contents/:id`: added `source_original` nested object {id, title} when source_original_id is set on fanwork content
+- Added `followRepo` to UserHandler struct for follow queries
+- Added `DB()` accessor on ContentRepository for raw stats queries
+
+### Testing:
+- `go build ./...` — passes
+- `go vet ./...` — no warnings
+- `go test ./...` — all existing tests pass
+
+### Notes:
+- All API responses are backward-compatible (added fields only)
+- is_following returns false for unauthenticated requests
+- source_original gracefully omitted when content has no source link
+- This completes the last remaining `passes: false` task in task.json
+
 ---
 ## [2026-05-07] - Task 64: Web 前端 — 原创区两级导航
 
