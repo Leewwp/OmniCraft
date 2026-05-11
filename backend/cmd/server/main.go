@@ -30,6 +30,9 @@ func main() {
 	viewCountSvc := service.NewContentServiceWithCache(contentRepo, nil, rdb, &cfg.Cache)
 	scheduler.NewViewCountSync(viewCountSvc, &cfg.Cache).Start()
 
+	hotRankSvc := service.NewHotRankService(viewCountSvc, &cfg.Recommendation)
+	go hotRankSvc.Run()
+
 	r := gin.New()
 	r.Use(middleware.Logger())
 	r.Use(middleware.CORS())

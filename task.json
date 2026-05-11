@@ -1850,7 +1850,7 @@
         "现有 content_service.go 的 getHotContents 方法已从 rank:hot:contents 读取（Task 22 已可用），本任务确保该 Redis key 持续更新",
         "验证：发布几篇内容后等待定时任务执行，检查 Redis rank:hot:contents 中有数据且排名合理；修改 view_count/like_count 后排名更新"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 88,
