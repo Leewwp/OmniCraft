@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { ipCategoryOptions } from "@/components/ip/ipCategory";
 
@@ -11,6 +12,7 @@ interface IPCategoryTabsProps {
 }
 
 export function IPCategoryTabs({ ipId, activeCategory = "all" }: IPCategoryTabsProps) {
+  const t = useTranslations();
   const searchParams = useSearchParams();
   const sort = searchParams.get("sort") || "hot";
 
@@ -26,7 +28,7 @@ export function IPCategoryTabs({ ipId, activeCategory = "all" }: IPCategoryTabsP
         return (
           <Link key={item.key} href={href}>
             <Button size="sm" variant={active ? "default" : "outline"}>
-              {item.label}
+              {t(item.label)}
             </Button>
           </Link>
         );

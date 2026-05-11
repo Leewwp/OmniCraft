@@ -1311,7 +1311,7 @@
     {
       "id": 64,
       "title": "Web 前端 — 原创区两级导航布局",
-      "description": "重构原创区首页为两级导航：一级分类 Tab（对应 content_items.category）+ 二级内容类型子筛选",
+      "description": "重构原创区首页为两级导航：一级分类 Tab（对应 content_items.category）+ 二级内容类型子筛选。【注意：此设计已被 Task 90 覆盖，architecture.md §10.6 已移除二级内容类型筛选，Task 90 将原创区改为小红书式单层推荐流 + 分类 Tab 布局】",
       "depends_on": [
         20,
         69,

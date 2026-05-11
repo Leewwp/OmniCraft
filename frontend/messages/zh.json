@@ -612,7 +612,8 @@
     "noDescriptionShort": "暂无简介",
     "enterDiscussion": "进入讨论区",
     "enterDetail": "进入 IP 详情",
-    "followerCount": "{count} 人关注"
+    "followerCount": "{count} 人关注",
+    "contentCount": "{count} 内容"
   },
   "user": {
     "profile": "用户 #{id}",

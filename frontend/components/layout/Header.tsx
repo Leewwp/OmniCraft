@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { setLocale } from "@/lib/locale";
+import { NotificationDropdown } from "@/components/social/NotificationDropdown";
 
 function ThemeIcon({ theme, mounted }: { theme?: string; mounted: boolean }) {
   if (!mounted) {
@@ -94,13 +95,13 @@ export function Header() {
         <nav className="hidden items-center gap-1 sm:flex">
           <Link
             href="/"
-            className="rounded-md px-3 py-1.5 text-sm text-foreground/80 transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-md px-3 py-1.5 text-sm text-foreground/80 transition-all duration-150 hover:bg-muted hover:text-foreground active:scale-95"
           >
             {t("nav.fanworkZone")}
           </Link>
           <Link
             href="/original"
-            className="rounded-md px-3 py-1.5 text-sm text-foreground/80 transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-md px-3 py-1.5 text-sm text-foreground/80 transition-all duration-150 hover:bg-muted hover:text-foreground active:scale-95"
           >
             {t("nav.originalZone")}
           </Link>
@@ -189,17 +190,8 @@ export function Header() {
             {t("nav.publish")}
           </Link>
 
-          {/* Notification bell */}
-          {user && (
-            <button
-              type="button"
-              className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "relative h-8 w-8")}
-              aria-label={t("nav.notifications")}
-            >
-              <Bell className="h-4 w-4" />
-              <span className="sr-only">{t("nav.notifications")}</span>
-            </button>
-          )}
+          {/* Notification bell with dropdown */}
+          <NotificationDropdown />
 
           {/* Mobile menu */}
           <DropdownMenu>

@@ -98,7 +98,7 @@ app/
 │   ├── ip/[ipId]/page.tsx           # IP 详情页
 │   ├── ip/[ipId]/[category]/page.tsx # IP 下某类目内容列表
 │   ├── content/[contentId]/page.tsx # 内容详情页
-│   ├── original/page.tsx            # 原创区首页
+│   ├── original/page.tsx            # 原创区首页（小红书式推荐流 + 分类 Tab）
 │   ├── original/[contentId]/page.tsx# 原创内容详情页
 │   ├── original/[contentId]/fanworks/page.tsx # 原创相关二创列表
 │   ├── user/[userId]/page.tsx       # 用户主页（公开可浏览）
@@ -108,13 +108,26 @@ app/
 ├── (protected)/                     # 需要登录
 │   ├── settings/page.tsx            # 账号设置
 │   │   └── tag-groups/page.tsx      # 标签组管理
-│   ├── publish/page.tsx             # 发布内容
-│   ├── dashboard/                   # 创作者后台
-│   │   ├── page.tsx                 # 概览
-│   │   ├── contents/page.tsx        # 我的内容
+│   ├── studio/                      # 创作者工作室（统一发布 + 数据看板 + 协作管理）
+│   │   ├── layout.tsx               # 共享布局：可折叠侧边栏 + 主内容区
+│   │   ├── page.tsx                 # 默认重定向 → publish/original
+│   │   ├── publish/
+│   │   │   ├── original/page.tsx    # 发布原创（内容类型选择 → 发布表单）
+│   │   │   └── fanwork/page.tsx     # 发布二创（内容类型选择 → 发布表单）
+│   │   ├── overview/page.tsx        # 数据概览
+│   │   ├── contents/page.tsx        # 内容管理
+│   │   ├── followers/page.tsx       # 粉丝分析（新增）
+│   │   ├── revenue/page.tsx         # 收益数据（P1 预留）
 │   │   ├── pr-requests/page.tsx     # 协同申请管理
 │   │   ├── contributors/page.tsx    # 贡献者管理
 │   │   └── tag-suggestions/page.tsx # 标签建议审核
+│   ├── publish/page.tsx             # ⚠️ 已废弃 → 重定向 /studio/publish/original
+│   ├── dashboard/                   # ⚠️ 已废弃 → 重定向 /studio/overview
+│   │   ├── page.tsx                 #   保留重定向，内容迁移至 /studio/*
+│   │   ├── contents/page.tsx
+│   │   ├── pr-requests/page.tsx
+│   │   ├── contributors/page.tsx
+│   │   └── tag-suggestions/page.tsx
 │   ├── judge/                       # 赛博判官
 │   │   ├── exam/page.tsx            # 资质考核
 │   │   └── queue/page.tsx           # 待审内容队列
@@ -140,6 +153,11 @@ components/
 │   ├── Header.tsx                   # 顶部导航（登录状态、搜索、最近IP）
 │   ├── Footer.tsx
 │   └── Sidebar.tsx                  # 标签筛选侧边栏
+├── studio/                          # 创作者工作室组件（新增）
+│   ├── StudioLayout.tsx             # 工作室共享布局：可折叠侧边栏 + 主内容区
+│   ├── StudioSidebar.tsx            # 可折叠侧边栏（展开/收起 + hover tooltip）
+│   ├── ContentTypeGrid.tsx          # 内容类型选择卡片网格（按频率排序）
+│   └── FollowerAnalytics.tsx        # 粉丝分析图表（折线图 + 统计卡片）
 ├── ip/
 │   ├── IPCard.tsx                   # IP 卡片（首页列表）
 │   ├── IPDetail.tsx                 # IP 详情布局
@@ -275,6 +293,7 @@ GET    /api/v1/users/:id/reputation   # 信誉分详情
 POST   /api/v1/users/:id/follow       # 关注用户
 DELETE /api/v1/users/:id/follow       # 取消关注用户
 GET    /api/v1/users/:id/followers    # 粉丝列表
+GET    /api/v1/users/:id/followers/stats  # 粉丝统计（总数/趋势/来源，参数 ?days=30）
 GET    /api/v1/users/:id/following    # 关注列表
 
 GET    /api/v1/ips                    # IP 列表（搜索+筛选+排序）
@@ -286,6 +305,7 @@ POST   /api/v1/ips/:id/follow         # 关注 IP
 DELETE /api/v1/ips/:id/follow         # 取消关注 IP
 
 GET    /api/v1/contents               # 内容列表（原创区/首页）
+                                          # sort: 'hot' | 'new' | 'most_views' | 'best_rated' | 'recommended'（原创区推荐流）
 POST   /api/v1/contents               # 发布内容
 GET    /api/v1/contents/:id           # 内容详情
 PATCH  /api/v1/contents/:id           # 更新内容（仅作者）
@@ -293,8 +313,8 @@ DELETE /api/v1/contents/:id           # 删除内容（仅作者）
 POST   /api/v1/contents/:id/report    # 举报内容
 GET    /api/v1/contents/:id/related-fanworks # 原创内容的相关二创列表
 
-POST   /api/v1/dashboard/contributors/:userId/block    # 作者拉黑贡献者（写 author_blocklist）
-DELETE /api/v1/dashboard/contributors/:userId/block    # 解除拉黑
+POST   /api/v1/studio/contributors/:userId/block    # 作者拉黑贡献者（写 author_blocklist）
+DELETE /api/v1/studio/contributors/:userId/block    # 解除拉黑（注：系统已迁移至 /studio/*，旧 /dashboard/contributors/* 路径保留兼容但推荐使用新路径）
 
 POST   /api/v1/appeals                  # 用户提交申诉（对被下架内容）
 GET    /api/v1/appeals/me               # 我的申诉列表
@@ -1263,6 +1283,20 @@ upload:
 social:
   report_auto_hide_rate: 0.10        # 内容举报率（举报数/点击数）≥ 此值时自动隐藏并触发众裁（PRD §6.2）
   comment_fold_threshold: 0.30       # 评论区点踩/点赞比 ≥ 此值时自动折叠评论区并触发审核（PRD §6.2）
+
+recommendation:
+  enabled: true                       # 推荐引擎全局开关
+  hot_decay_hours: 48                 # 热门度时间衰减半衰期（小时），类似 Reddit 算法
+  personalization_weight: 0.6         # 个性化权重（0~1），剩余比例分配给热门趋势
+  # 推荐公式：score = personalization_weight * sim_score + (1 - personalization_weight) * hot_score
+  min_interaction_for_personalize: 10 # 用户最少互动次数（浏览+点赞+收藏），不足时纯热门推荐
+  embedding_topk: 200                 # 向量检索候选集大小（pgvector ANN 查询 topK）
+  trending_window_days: 7             # 热门趋势计算窗口（天）
+  refresh_interval_h: 2               # 推荐缓存刷新间隔（小时）
+
+publish:
+  type_order_original: ["image", "article", "video", "audio", "template", "sheet_music", "other"]
+  type_order_fanwork: ["image", "article", "video", "audio", "mod", "prompt", "sheet_music", "other"]
 ```
 
 ---
@@ -1627,6 +1661,8 @@ colors: {
 
 #### ContentCard 规范
 
+**二创区卡片**（zone='fanwork'）：
+
 ```
 ┌─────────────────┐
 │                 │  ← 封面图（3:4 比例，object-cover）
@@ -1639,6 +1675,28 @@ colors: {
 │ [标签][标签]    │  ← 最多 3 个低饱和色标签
 └─────────────────┘
 ```
+
+**原创区卡片**（zone='original'，小红书式瀑布流）：
+
+```
+┌─────────────────┐
+│                 │  ← 封面图（自适应高度，保持原始宽高比）
+│   cover image   │    若 cover_image_url 为空 → 显示内容类型默认占位图
+│                 │
+│                 │
+├─────────────────┤
+│ 标题（2行截断） │
+│ @作者            │
+│ ❤ 88             │  ← 点赞数（小红书式：仅显示点赞数）
+└─────────────────┘
+```
+
+原创区卡片简化规则：
+- **封面图高度自适应**：图片/视频按原始宽高比渲染，不强制 3:4；文字类内容使用固定高度渐变背景 + 标题摘要
+- **无 IP 名**：原创区无 IP 概念，不显示 IP 行
+- **仅显示点赞数**：不显示评论数，降低信息密度
+- **不显示标签 Badge**：原创区卡片不展示标签，保持视觉干净
+- **悬停效果**：图片微放大 (scale-105) + 浅色遮罩层，类似小红书 hover 效果
 
 #### 封面图默认占位规则
 
@@ -1665,43 +1723,51 @@ colors: {
 
 #### 原创区首页 `/original`
 
-首页两级导航：
+参考小红书网页端设计，采用「推荐流 + 分类 Tab」单层导航结构，**无二级内容类型筛选**。
 
-1. **一级分类 Tab**（按潜在用户量排序）：推荐（默认，算法混合）/ 影视 / 游戏 / 文学 / 宠物 / 美食 / 美妆穿搭 / 家居 / 数码科技 / 旅行 / 运动 / 效率
-2. **进入具体分类后**：显示二级内容类型子筛选（全部 / 图片 / 视频 / 音频（含乐谱） / 文字 / 效率模板 / 模型与设计 / 其他）+ 排序方式
-3. 不提供分面标签筛选，保持简洁
-4. 主区域：瀑布流 ContentCard
+**布局结构**（从上到下）：
+
+1. **顶部分类 Tab 栏**：横向滚动的分类 Tab（`推荐` + 11 个一级分类），`推荐` 为默认选中
+2. **主内容区**：瀑布流 ContentCard，无限滚动加载（每页 24 条）
+
+**Tab 行为**：
+
+| Tab | 数据源 | 排序策略 |
+|-----|-------|---------|
+| 推荐（默认） | `GET /contents?zone=original&sort=recommended` | 推荐算法引擎（个性化 + 热门趋势混合，见 §12） |
+| 美食 / 影视 / 游戏 / ... | `GET /contents?zone=original&category=xxx&sort=hot` | 该分类下的热门内容（view+like 加权） |
+
+**设计要点**：
+- 所有 Tab 下**不再提供二级内容类型筛选**（不区分图文/视频/音频等）
+- 分类 Tab 从后端 `/api/v1/categories?zone=original&level=primary` 动态加载
+- 用户发布时保留自选分类（`content_items.category`），推荐算法使用该字段作为内容特征
+- 卡片采用小红书式简化设计：封面图自适应高度 + 标题（2 行截断） + @作者 + 点赞数（见 §10.5）
+
+**响应式行为**：
+- 移动 (≤700px)：2 列瀑布流，Tab 栏横向滚动
+- 平板 (≤1100px)：3 列瀑布流
+- PC (>1100px)：4 列瀑布流，最大宽度 1280px
 
 #### 内容类型统一说明
 
-**原创区内容分类体系**：
-- **一级分类**（`content_items.category` 枚举值）：影视(`film_tv`) | 游戏(`gaming`) | 文学(`literature`) | 宠物(`pet`) | 美食(`food`) | 美妆穿搭(`beauty_fashion`) | 家居(`home`) | 数码科技(`tech_digital`) | 旅行(`travel`) | 运动(`sports`) | 效率(`productivity`) — 共 11 个落库枚举
-- **前端一级 Tab（UI 层）**：`推荐（默认）` + 上述 11 个分类 —— `推荐` 为**前端伪分类**，不落库 `category` 字段；前端选中时调用 `GET /contents?zone=original&sort=recommended` 不传 `category` 参数
-- **二级分类（UI 层 Tab）**：全部 / 图片 / 视频 / 音频（含乐谱） / 文字 / 效率模板 / 模型与设计 / 其他
-- 分类体系由后端动态加载，管理员后台统一管理（增删改排序）
+**原创区内容分类**（`content_items.category`，落库枚举，按潜在用户量排序）：
+影视(`film_tv`) | 游戏(`gaming`) | 文学(`literature`) | 宠物(`pet`) | 美食(`food`) | 美妆穿搭(`beauty_fashion`) | 家居(`home`) | 数码科技(`tech_digital`) | 旅行(`travel`) | 运动(`sports`) | 效率(`productivity`) — 共 11 个枚举值
 
-**数据库映射**：
-- `content_items.content_type` 使用 VARCHAR，落库枚举仅：`article | image | video | audio | mod | prompt | template | sheet_music | other`（见 §4.2 DDL）
-- **UI 二级 Tab 与 content_type 的映射关系**：
+- **前端分类 Tab**：`推荐`（默认，算法推荐流）+ 上述 11 个分类（从 API 动态加载）
+- `推荐` 为**前端伪分类** — 不传 `category` 参数，后端走推荐引擎（see §12）
+- 分类体系由后端 `categories` 表动态加载，管理员后台统一管理（增删改排序）
+- **已移除二级内容类型筛选**（原"图文/视频/音频/文字/效率模板/模型与设计/其他"不再作为浏览筛选条件）
 
-| UI 二级 Tab | 查询策略 |
-|------------|---------|
-| 全部 | 不传 `content_type` 参数 |
-| 图片 | `content_type=image`（表情包/动图通过 `tag=GIF` / `tag=表情包` 区分） |
-| 视频 | `content_type=video` |
-| 音频（含乐谱） | `content_type IN ('audio','sheet_music')`（后端 OR 查询） |
-| 文字 | `content_type IN ('article','prompt')` |
-| 效率模板 | `content_type=template` |
-| 模型与设计 | **不传 `content_type`，改传 `tag=3D模型` 或 `tag=设计素材`**（无对应枚举值） |
-| 其他 | `content_type=other` |
+**`content_items.content_type` 保留用途**：
+- 发布时记录内容格式（用于附件渲染策略：MarkdownRenderer / SheetMusicViewer / 视频播放器等）
+- 推荐算法中作为辅助特征（非主导信号）
+- 不暴露给原创区浏览端作为筛选维度
 
 **IP 分类**（`ips.category`，二创区，按潜在用户量排序）：`gaming` | `film_tv` | `variety` | `short_drama` | `animation` | `comics` | `novel` | `celebrity_idol` | `music` | `vtuber` | `other`
 
 **分类查询规则**：
-- 原创区：通过 `content_items.category` 一级分类 + `content_items.content_type` 二级筛选（zone='original' 时有效）
+- 原创区：通过 `content_items.category` 一级分类筛选（zone='original' 时有效）；已移除 content_type 二级筛选
 - 二创区：通过 `content_items.ip_id` 关联 IP，IP 通过 `ips.category` 进行分类
-
-**原创区内容分类**（`content_items.category`，按潜在用户量排序）：`film_tv` | `gaming` | `literature` | `pet` | `food` | `beauty_fashion` | `home` | `tech_digital` | `travel` | `sports` | `productivity`
 
 ---
 
@@ -1924,6 +1990,310 @@ Redis Key: agent:rl:{user_id}:{YYYY-MM-DD}
 | `UsageGuidePanel.tsx` | 内容详情页侧边 | 「AI 使用指导」折叠卡片，按需加载 |
 
 SSE 流式渲染复用 `lib/useSSE.ts` hook（封装 `EventSource`）。
+
+---
+
+## 12. 推荐引擎（原创区推荐流）
+
+> **定位**：为原创区 `/original` 的「推荐」Tab 提供算法驱动的个性化内容推送，参考小红书推荐流的体验。本模块独立于网页端 Agent（§11），是独立的推荐子系统。
+
+### 12.1 设计目标
+
+- 用户打开原创区默认进入「推荐」Tab，看到个性化内容流
+- 新用户（< 10 次互动）看到热门趋势内容
+- 有交互历史的用户看到兴趣相关 + 热门内容混合推荐
+- 推荐结果每 2 小时刷新缓存，保证内容新鲜度
+
+### 12.2 推荐算法
+
+#### 评分公式
+
+```
+final_score = α × sim_score + (1 - α) × hot_score
+
+其中：
+  α             = config.recommendation.personalization_weight（默认 0.6）
+  sim_score     = cosine_similarity(user_profile_embedding, content_embedding)
+  hot_score     = log(1 + view_count + like_count × 3) × time_decay
+  time_decay    = 2 ^ (-age_hours / hot_decay_hours)
+```
+
+#### 冷启动（新用户 / 低互动用户）
+
+当用户 `browse_history + favorites + reactions` 总条目 < `min_interaction_for_personalize`（默认 10）时：
+- 直接使用 `rank:hot:contents` Redis Sorted Set 返回热门内容（同类于二创区首页 hot 排序）
+- 不计算个性化相似度
+
+#### 个性化推荐流程
+
+```
+用户请求 GET /contents?zone=original&sort=recommended
+  │
+  ▼
+1. 检查用户互动量 → 不足阈值 → 降级为热门推荐
+  │ 充足
+  ▼
+2. 构建用户画像向量（user_profile_embedding）
+   - 从 browse_history 取最近 50 条浏览内容的 content_embeddings 取均值
+   - 从 favorites 取收藏内容的 embedding 加权（×2）
+   - 从 reactions（like）取点赞内容的 embedding 加权（×1.5）
+  │
+  ▼
+3. pgvector 向量检索
+   - 在 content_embeddings 表中 ANN 检索 topK（默认 200）候选
+   - 过滤：zone='original', status='published', 排除已浏览/已互动内容
+  │
+  ▼
+4. 计算 final_score 并排序
+   - sim_score: 候选内容 embedding 与 user_profile_embedding 的余弦相似度
+   - hot_score: 从 Redis rank:hot:contents 获取热度分数
+   - 按 final_score DESC 排序，取 top 200
+  │
+  ▼
+5. 分页返回（page/page_size 在内存中分页）
+   - 写入 Redis 缓存（key: `rec:original:{user_id}:{page}`，TTL = refresh_interval_h）
+```
+
+### 12.3 数据依赖
+
+| 数据 | 来源 | 说明 |
+|------|------|------|
+| `content_embeddings` | pgvector 表（§11.4） | 内容向量，由内容发布/更新时异步生成（复用 §11.7 向量化 Pipeline） |
+| `browse_history` | PostgreSQL 表（§4.5） | 用户浏览历史，用于构建用户画像 |
+| `favorites` | PostgreSQL 表（§4.5） | 用户收藏，画像构建中加权 ×2 |
+| `reactions` | PostgreSQL 表（§4.5） | 用户点赞（like），画像构建中加权 ×1.5 |
+| `rank:hot:contents` | Redis Sorted Set | 全站内容热度排行，由定时任务更新 |
+
+### 12.4 API 变更
+
+`GET /api/v1/contents?zone=original&sort=recommended`
+
+- 新增 `sort=recommended` 枚举值
+- `sort=recommended` 且 `zone=original` 时走推荐引擎
+- `sort=recommended` 且 `zone != original` 时降级为 `sort=hot`
+- 无需登录也可使用（未登录用户走纯热门推荐）
+
+### 12.5 定时任务
+
+| 任务 | 频率 | 说明 |
+|------|------|------|
+| 热门排行更新 | 每 10 分钟 | 计算近 `trending_window_days` 天内容的 hot_score，更新 `rank:hot:contents` |
+| 推荐缓存刷新 | 每 `refresh_interval_h` 小时 | 清除过期推荐缓存 |
+| 向量化补齐 | 每分钟 | 检查 content_embeddings 中缺失的新内容并补生成（复用 §11.7 Pipeline） |
+
+### 12.6 配置项
+
+所有推荐参数从 `config.yaml > recommendation` 读取（见 §7），支持管理员热更新。具体参数：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `enabled` | true | 推荐引擎全局开关，关闭时 `sort=recommended` 降级为 `sort=hot` |
+| `hot_decay_hours` | 48 | 热门度半衰期 |
+| `personalization_weight` | 0.6 | 个性化 vs 热门的混合比例 |
+| `min_interaction_for_personalize` | 10 | 启用个性化的最低互动次数 |
+| `embedding_topk` | 200 | pgvector ANN 检索候选集大小 |
+| `trending_window_days` | 7 | 热门趋势计算窗口 |
+| `refresh_interval_h` | 2 | 推荐缓存刷新间隔 |
+
+---
+
+## 13. 创作者工作室（/studio）
+
+> **定位**：整合「内容发布 + 数据看板 + 协作管理」的统一创作者工作空间，参考 B 站创作中心和小红书创作者后台的设计思路。旧的 `/publish` 和 `/dashboard/*` 路由迁移至此，原路由保留重定向。
+
+### 13.1 页面布局
+
+```
+┌──────────────────────────────────────────────────────┐
+│ Header（h-16，全宽，底边框）                          │
+├──────────┬───────────────────────────────────────────┤
+│ Sidebar  │ 主内容区                                   │
+│ (w-56    │                                            │
+│  展开)   │  ┌─ 内容类型选择网格 ──────────────────┐  │
+│          │  │ [图文] [纯文字] [视频] [音频] ...     │  │
+│          │  │（按发布频率高→低，左→右排列）        │  │
+│          │  └────────────────────────────────────┘  │
+│  📝 发布 │                                            │
+│   发布原创│  ┌─ 或：发布表单 / 数据看板 / 协作管理 ─┐  │
+│   发布二创│  │  (根据侧边栏选中项动态切换)          │  │
+│          │  └────────────────────────────────────┘  │
+│  📊 看板 │                                            │
+│   概览    │                                            │
+│   内容管理│                                            │
+│   粉丝分析│                                            │
+│   收益    │                                            │
+│          │                                            │
+│  🤝 协作 │                                            │
+│   PR申请 │                                            │
+│   贡献者 │                                            │
+│   标签建议│                                            │
+│          │                                            │
+│ (收起时  │                                            │
+│  仅图标) │                                            │
+└──────────┴───────────────────────────────────────────┘
+```
+
+### 13.2 侧边栏（StudioSidebar）
+
+#### 结构
+
+| 分组 | 项 | 图标 | 目标路由 | 说明 |
+|------|-----|------|---------|------|
+| 内容发布 | 发布原创 | ✏️ | `/studio/publish/original` | 原创区内容类型选择 → 发布表单 |
+| | 发布二创 | 🎨 | `/studio/publish/fanwork` | 二创区内容类型选择 → 发布表单 |
+| 数据看板 | 概览 | 📊 | `/studio/overview` | 访问量/互动量/内容总数概览卡片 + 趋势图 |
+| | 内容管理 | 📋 | `/studio/contents` | 我的内容列表（筛选/排序/编辑/删除） |
+| | 粉丝分析 | 👥 | `/studio/followers` | 粉丝增长趋势、粉丝画像（新增） |
+| | 收益数据 | 💰 | `/studio/revenue` | P1 预留，显示「即将开放」占位 |
+| 协作管理 | PR 申请 | 🔀 | `/studio/pr-requests` | 收到的 PR 申请列表（作者视角） |
+| | 贡献者 | 👤 | `/studio/contributors` | 贡献者管理 + 黑名单 |
+| | 标签建议 | 🏷️ | `/studio/tag-suggestions` | 待审核的标签建议 |
+
+#### 折叠行为
+
+- **展开态**（默认，宽度 224px / `w-56`）：显示图标 + 标题文字，分组标题可见
+- **收起态**（宽度 64px / `w-16`）：仅显示图标，分组标题隐藏，分组之间用分隔线区分
+- **切换按钮**：侧边栏顶部/底部放置 `<` / `>` 箭头按钮
+- **Hover Tooltip**：收起态下鼠标悬停图标 → 在图标右侧弹出 tooltip（`absolute left-full ml-2`），显示该项的标题文字，延迟 300ms 出现
+- **键盘**：支持 `Tab` 在图标间切换，`Enter` 导航
+
+#### 视觉规范
+
+- 背景：`bg-canvas.subtle`，右侧 1px border `border-border.muted`
+- 选中项：`bg-accent.emphasis/10 text-accent.emphasis font-medium`，左侧 3px accent 色竖线指示器
+- 未选中项：`text-fg.muted hover:bg-canvas.default hover:text-fg.default`
+- 分组标题：`text-xs text-fg.muted uppercase tracking-wider px-3 pt-4 pb-1`（展开态可见）
+- 图标大小：20px × 20px（`w-5 h-5`）
+- 展开态项高度：40px（`h-10`），收起态项高度：48px（`h-12`，仅图标居中）
+
+### 13.3 内容发布流程
+
+#### 步骤 1：选择内容类型
+
+进入 `/studio/publish/original` 或 `/studio/publish/fanwork` 后，主区域显示内容类型选择网格。
+
+**卡片网格布局**（ContentTypeGrid）：
+
+```
+┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+│  🖼️      │ │  📝      │ │  🎬      │ │  🎵      │
+│  图文     │ │  纯文字   │ │  视频     │ │  音频     │
+│  照片+文字 │ │  长文/短文 │ │  短视频    │ │  音乐/播客 │
+│  最常用    │ │  自由创作  │ │  记录分享  │ │  声音创作  │
+└──────────┘ └──────────┘ └──────────┘ └──────────┘
+┌──────────┐ ┌──────────┐ ┌──────────┐
+│  📋      │ │  🎼      │ │  📦      │
+│  效率模板  │ │  乐谱     │ │  其他     │
+│  工具分享  │ │  音乐创作  │ │  更多格式  │
+└──────────┘ └──────────┘ └──────────┘
+```
+
+**原创区内容类型排序**（按发布频率高→低）：
+
+| 排序 | content_type | 显示名 | 图标 | 描述 |
+|------|-------------|--------|------|------|
+| 1 | `image` | 图文 | 🖼️ | 照片 + 文字描述，分享生活与创作 |
+| 2 | `article` | 纯文字 | 📝 | 长文/短文，自由表达 |
+| 3 | `video` | 视频 | 🎬 | 短视频/长视频，记录与分享 |
+| 4 | `audio` | 音频 | 🎵 | 音乐/播客/有声内容 |
+| 5 | `template` | 效率模板 | 📋 | Notion/Excel 等工具模板 |
+| 6 | `sheet_music` | 乐谱 | 🎼 | MIDI/MusicXML/PDF 乐谱 |
+| 7 | `other` | 其他 | 📦 | 其他格式内容 |
+
+**二创区内容类型排序**（按发布频率高→低）：
+
+| 排序 | content_type | 显示名 | 图标 | 描述 |
+|------|-------------|--------|------|------|
+| 1 | `image` | 图文 | 🖼️ | 二创插画/漫画/Cosplay 照片 |
+| 2 | `article` | 纯文字 | 📝 | 同人文/分析/短篇 |
+| 3 | `video` | 视频 | 🎬 | 二创剪辑/手书/MAD |
+| 4 | `audio` | 音频 | 🎵 | 翻唱/配音/广播剧 |
+| 5 | `mod` | Mod | 🎮 | 游戏模组/材质包 |
+| 6 | `prompt` | AI 提示词 | 🤖 | Stable Diffusion/ChatGPT 提示词 |
+| 7 | `sheet_music` | 乐谱 | 🎼 | 二创编曲/扒谱 |
+| 8 | `other` | 其他 | 📦 | 其他二创格式 |
+
+排序从 `config.yaml > publish.type_order_original` / `publish.type_order_fanwork` 读取，支持管理员热更新。
+
+#### 步骤 2：填写发布表单
+
+选择内容类型后，主区域切换为发布表单（zone + content_type 已锁定，不可切换）。表单复用现有 `/publish` 页面逻辑：
+
+- 标题、描述（Markdown）
+- 文件上传（FileUploader，白名单校验）
+- IP 选择器（仅二创区，必填）
+- 来源原创选择器（仅二创区，可选）
+- 标签（TagInput）
+- 权限开关（is_public / allow_copy / agent_enabled）
+- AI 辅助填写按钮（UploadAssistPanel，`web_agent_enabled=true` 时显示）
+- 合规检测 Badge（ComplianceCheckBadge）
+
+### 13.4 数据看板
+
+#### 概览（/studio/overview）
+
+参考 B 站创作中心首页，展示：
+
+```
+┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+│ 总内容数   │ │ 总访问量   │ │ 总点赞数   │ │ 粉丝数    │
+│   42      │ │  12,580   │ │   1,203   │ │   256     │
+│  ↑3 本月   │ │  ↑18% 本周 │ │  ↑5% 本月  │ │  ↑12 本月  │
+└──────────┘ └──────────┘ └──────────┘ └──────────┘
+
+┌─────────────────────────────────────────┐
+│  访问量趋势（近 30 天折线图）              │
+│  📈 recharts LineChart                  │
+└─────────────────────────────────────────┘
+
+┌──────────────────────┐ ┌──────────────────┐
+│  内容排行（Top 5）     │ │  待处理事项        │
+│  1. xxx  1,200👁️     │ │  PR 申请: 3       │
+│  2. yyy    890👁️     │ │  标签建议: 5      │
+│  ...                  │ │  举报待处理: 2    │
+└──────────────────────┘ └──────────────────┘
+```
+
+#### 粉丝分析（/studio/followers，新增）
+
+- 粉丝总数 + 新增/流失趋势折线图（近 30 天）
+- 粉丝来源分布（来自哪条内容的关注）
+- 粉丝活跃时段热力图（P1）
+- 后端新增 API：`GET /api/v1/users/:id/followers/stats?days=30`
+
+#### 收益数据（/studio/revenue，P1 预留）
+
+- 显示「收益功能即将开放，敬请期待」EmptyState
+- 未来展示：累计收益、收益趋势、提现入口
+- 依赖 `features.creator_support_enabled: true`（P1 开启）
+
+### 13.5 路由迁移对照
+
+| 旧路由 | 新路由 | 处理方式 |
+|--------|--------|---------|
+| `/publish` | `/studio/publish/original` | 301 重定向 |
+| `/dashboard` | `/studio/overview` | 301 重定向 |
+| `/dashboard/contents` | `/studio/contents` | 301 重定向 |
+| `/dashboard/pr-requests` | `/studio/pr-requests` | 301 重定向 |
+| `/dashboard/contributors` | `/studio/contributors` | 301 重定向 |
+| `/dashboard/tag-suggestions` | `/studio/tag-suggestions` | 301 重定向 |
+| — | `/studio/publish/fanwork` | 新增 |
+| — | `/studio/followers` | 新增 |
+| — | `/studio/revenue` | 新增（P1 占位） |
+
+### 13.6 配置扩展（config.yaml）
+
+```yaml
+publish:
+  type_order_original: ["image", "article", "video", "audio", "template", "sheet_music", "other"]
+  type_order_fanwork: ["image", "article", "video", "audio", "mod", "prompt", "sheet_music", "other"]
+```
+
+### 13.7 新增 API
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/v1/users/:id/followers/stats` | 粉丝统计（总数、新增趋势、来源分布），参数 `?days=30` |
 
 ---
 

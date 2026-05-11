@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Users, UserPlus, UserMinus } from "lucide-react";
 import { api } from "@/lib/api";
 import { StatsCard } from "@/components/studio/StatsCard";
+import { FollowerTrendChart } from "@/components/studio/FollowerTrendChart";
+import { FollowerSourceChart } from "@/components/studio/FollowerSourceChart";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function StudioFollowersPage() {
@@ -13,6 +15,8 @@ export default function StudioFollowersPage() {
     newThisMonth: 0,
     lostThisMonth: 0,
   });
+  const [trend, setTrend] = useState<Array<{ date: string; newFollowers: number; netGrowth: number }>>([]);
+  const [sources, setSources] = useState<Array<{ name: string; value: number }>>([]);
 
   useEffect(() => {
     async function fetchData() {
@@ -24,6 +28,20 @@ export default function StudioFollowersPage() {
             newThisMonth: (res.new_this_month as number) ?? 0,
             lostThisMonth: (res.lost_this_month as number) ?? 0,
           });
+          const daily = res.daily as Array<{ date: string; count?: number; lost?: number }> | undefined;
+          if (daily) {
+            setTrend(
+              daily.map((d) => ({
+                date: d.date || "",
+                newFollowers: d.count ?? 0,
+                netGrowth: (d.count ?? 0) - (d.lost ?? 0),
+              }))
+            );
+          }
+          const sourceData = res.sources as Array<{ name: string; value: number }> | undefined;
+          if (sourceData) {
+            setSources(sourceData);
+          }
         }
       } catch {
         // Default stats
@@ -72,10 +90,11 @@ export default function StudioFollowersPage() {
         />
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-8 text-center">
-        <p className="text-sm text-muted-foreground">
-          粉丝趋势图表将在数据充足时显示 <span className="text-amber-500">(P1)</span>
-        </p>
+      <div className="mb-6">
+        <FollowerTrendChart data={trend} />
+      </div>
+      <div>
+        <FollowerSourceChart data={sources} />
       </div>
     </div>
   );

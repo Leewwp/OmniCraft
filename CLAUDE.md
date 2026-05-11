@@ -297,22 +297,29 @@ docker compose logs -f backend     # 查看后端日志
 
 ### 原创区内容分类说明
 
-**分类体系**：一级分类（领域）+ 二级分类（内容类型）
+**分类体系**：单层分类（仅一级领域分类，已移除二级内容类型筛选）
 
 - **一级分类**（按潜在用户量排序）：
-  推荐 | 影视 | 游戏 | 文学 | 宠物 | 美食 | 美妆穿搭 | 家居 | 数码科技 | 旅行 | 运动 | 效率
+  影视 | 游戏 | 文学 | 宠物 | 美食 | 美妆穿搭 | 家居 | 数码科技 | 旅行 | 运动 | 效率
   
-  对应 `content_items.category` 枚举值
+  对应 `content_items.category` 枚举值，用户发布时自选
 
-- **二级分类**（该领域内的内容类型）：
-  全部 | 图片 | 视频 | 音频（含乐谱） | 文字 | 效率模板 | 模型与设计 | 其他
-  
-  通过 `content_items.content_type` 筛选，动态从后端 API 加载
+- **浏览体验**（小红书式推荐流）：
+  - 默认进入「推荐」Tab：算法驱动的个性化推送（兴趣猜测 + 热门趋势混合），非手动筛选选项
+  - 点击分类 Tab（如"美食"）→ 只看该分类下的热门内容
+  - **无二级内容类型筛选**（不区分图文/视频/音频等），所有内容类型混合展示
+  - 卡片采用简化设计：封面自适应高度 + 标题 + @作者 + 点赞数，无标签 Badge
 
-- **包含关系（非冲突）**：
-  - 一级分类选择"游戏" → 二级可见所有内容类型（用户可选"视频"查看该领域的游戏视频教程）
-  - 一级分类选择"美食" → 可选"图片"查看美食照片、"视频"查看烹饪视频等
-  - 所有大类、二级分类、内容类型均由后端 API 动态加载，管理员后台统一管理（增删改排序），降低新增品类成本
+- **推荐算法**（`sort=recommended`）：
+  - 新用户（< 10 次互动）：纯热门趋势推荐
+  - 有互动历史：个性化向量相似度（60%）+ 热门度（40%）混合排序
+  - 用户画像构建：浏览历史 + 收藏（x2 权重）+ 点赞（x1.5 权重）
+  - 所有参数从 `config.yaml > recommendation` 读取，严禁硬编码权重
+  - 推荐引擎详细设计见 `architecture.md`  sec 12
+
+- **发布时保留分类选择**：`content_items.category` 仍为必填，推荐算法使用该字段作为内容特征
+- **`content_type` 保留用途**：记录内容格式用于附件渲染策略（MarkdownRenderer / SheetMusicViewer 等），不对外暴露为筛选维度
+- 所有分类由后端 API 动态加载，管理员后台统一管理（增删改排序）
 
 ### 原创/二创来源联动规则
 
@@ -347,6 +354,49 @@ docker compose logs -f backend     # 查看后端日志
 ### 支付模块
 - MVP 阶段：`features.payment_enabled: false`，所有支付相关 UI 不渲染，接口返回 503
 - 不要删除支付相关代码，仅通过 feature flag 控制
+
+### 创作者工作室（/studio）
+
+> **注意**：此功能将旧的 `/publish` 和 `/dashboard/*` 路由整合为统一的创作者工作空间。旧路由保留 301 重定向，**新版以 `/studio/*` 为准**。详细设计见 `architecture.md` §13。
+
+#### 路由迁移对照
+
+| 旧路由 | 新路由 | 说明 |
+|--------|--------|------|
+| `/publish` | `/studio/publish/original` | 301 重定向 |
+| `/dashboard` | `/studio/overview` | 301 重定向 |
+| `/dashboard/contents` | `/studio/contents` | 301 重定向 |
+| `/dashboard/pr-requests` | `/studio/pr-requests` | 301 重定向 |
+| `/dashboard/contributors` | `/studio/contributors` | 301 重定向 |
+| `/dashboard/tag-suggestions` | `/studio/tag-suggestions` | 301 重定向 |
+| — | `/studio/publish/fanwork` | 新增 |
+| — | `/studio/followers` | 新增（粉丝分析） |
+| — | `/studio/revenue` | 新增（P1 预留，显示「即将开放」） |
+
+#### 侧边栏结构（可折叠，展开 w-56 / 收起 w-16）
+
+- **内容发布**：发布原创 → 内容类型选择 → 发布表单；发布二创 → 内容类型选择 → 发布表单（含 IP 选择器 + 来源原创搜索器）
+- **数据看板**：概览（统计卡片 + 趋势图）、内容管理、粉丝分析、收益数据（P1 占位）
+- **协作管理**：PR 申请、贡献者、标签建议
+
+#### 发布流程
+
+1. 点击侧边栏「发布原创」或「发布二创」→ 主区域显示 ContentTypeGrid（按 `config.yaml > publish.type_order_*` 排序）
+2. 选择内容类型 → 主区域切换为发布表单（zone + content_type 锁定）
+3. 填写表单 → 提交 → Toast 提示 → 跳转 `/studio/contents`
+
+#### 内容类型发布频率排序（静态预定义，从 config.yaml 读取）
+
+- **原创区**：图文(`image`) > 纯文字(`article`) > 视频(`video`) > 音频(`audio`) > 效率模板(`template`) > 乐谱(`sheet_music`) > 其他(`other`)
+- **二创区**：图文(`image`) > 纯文字(`article`) > 视频(`video`) > 音频(`audio`) > Mod(`mod`) > AI提示词(`prompt`) > 乐谱(`sheet_music`) > 其他(`other`)
+
+#### 实施规则
+
+- 所有 `/studio/*` 页面共享 `StudioLayout` 组件（`components/studio/StudioLayout.tsx`）
+- 侧边栏折叠状态存入 `localStorage: studio_sidebar_collapsed`
+- 发布表单复用现有 `/publish` 组件逻辑（FileUploader、MarkdownEditor、ComplianceCheckBadge 等）
+- 粉丝分析数据来自 `GET /api/v1/users/:id/followers/stats?days=30`（新增 API）
+- 收益页面在 `features.creator_support_enabled: false` 时显示占位 EmptyState
 
 ### Tauri 客户端文件操作白名单
 

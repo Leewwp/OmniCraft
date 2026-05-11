@@ -612,7 +612,8 @@
     "noDescriptionShort": "No description",
     "enterDiscussion": "Enter Discussion",
     "enterDetail": "View IP Details",
-    "followerCount": "{count} followers"
+    "followerCount": "{count} followers",
+    "contentCount": "{count} items"
   },
   "user": {
     "profile": "User #{id}",

@@ -55,7 +55,7 @@ export function ContentCard({ data, className }: ContentCardProps) {
   const authorId = data.author_id;
   const placeholderSrc = getCoverPlaceholder(contentType, displayTitle);
   const isOriginal = data.zone === "original";
-  const typeLabel = contentType === "sheet_music" ? "乐谱" : contentType === "prompt" ? "AI 提示词" : contentType === "mod" ? "Mod" : contentType === "video" ? "视频" : contentType === "audio" ? "音频" : contentType === "image" ? "图片" : "文章";
+  const typeLabel = contentType === "sheet_music" ? t('home.sheetMusic') : contentType === "prompt" ? t('home.aiPrompt') : contentType === "mod" ? t('home.mod') : contentType === "video" ? t('home.video') : contentType === "audio" ? t('home.audio') : contentType === "image" ? t('home.image') : t('home.text');
 
   return (
     <Link
@@ -63,8 +63,8 @@ export function ContentCard({ data, className }: ContentCardProps) {
       className={cn(
         "group block overflow-hidden bg-card transition-all duration-200",
         isOriginal
-          ? "rounded-lg hover:-translate-y-0.5"
-          : "rounded-lg border border-border hover:border-border/80",
+          ? "rounded-lg hover:-translate-y-0.5 hover:bg-muted/10 active:scale-[0.99]"
+          : "rounded-lg border border-border hover:border-accent/20 hover:bg-accent-subtle/5 active:scale-[0.99]",
         className
       )}
     >

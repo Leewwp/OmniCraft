@@ -30,10 +30,10 @@ export function ContentTypeGrid({
             type="button"
             onClick={() => onSelect(type.value)}
             className={cn(
-              "flex flex-col items-center gap-3 rounded-lg border p-5 text-center transition-all duration-150",
+              "flex flex-col items-center gap-3 rounded-lg border p-5 text-center transition-all duration-150 cursor-pointer select-none",
               isSelected
                 ? "border-accent-emphasis bg-accent-subtle ring-2 ring-accent-emphasis/20"
-                : "border-border bg-card hover:border-border/80 hover:bg-muted/50"
+                : "border-border bg-card hover:border-accent/20 hover:bg-accent-subtle/5 hover:-translate-y-0.5 active:scale-[0.98]"
             )}
           >
             <span className="text-3xl">{type.icon}</span>

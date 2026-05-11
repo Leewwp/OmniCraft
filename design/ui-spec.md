@@ -592,48 +592,70 @@ interface FacetedSearchSidebarProps {
 ## Page: /original 原创区首页
 
 **Key Constraints**
-- 原创区无 IP 概念，严格按照 content_items.category (推荐|影视|游戏|文学等) 分类。
+- 参考小红书网页端设计：顶部 Tab 导航 + 瀑布流内容，单层导航结构，无二级内容类型筛选。
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 推荐 Tab 为算法驱动的个性化推送（`sort=recommended`），非手动筛选选项。
 
 **视觉层级**
 - 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 分类 Tab 栏：Header 下方固定（sticky），高度 `h-12`，底部 1px border 分隔，Tab 项横向滚动
+- 主容器：居中最大宽度 1280px，页面背景 `bg-canvas.subtle`
+- 内容模块：瀑布流卡片（无外层 border 容器，卡片直接排列）
 
 **核心组件清单**
 - `Header`
-- `ContentCard`
-- `MasonryGrid`
+- `CategoryTabs`（原创区顶部分类 Tab 栏，横向滚动）
+- `ContentCard`（原创区简化样式：封面自适应高度 + 标题 + @作者 + 点赞数）
+- `MasonryGrid`（瀑布流，支持无限滚动）
+- `SkeletonCard`（内容卡片骨架屏）
+- `EmptyState`
 - `Footer`
 
+**分类 Tab 栏规范**
+- 固定项目：`推荐`（默认选中，始终在第一位）
+- 动态项目：从 `/api/v1/categories?zone=original&level=primary` 加载的 11 个一级分类
+- 每个 Tab 项: `<button>` 样式，padding `px-4 py-2`，字号 `text-sm`
+- 选中态：`text-accent.emphasis font-semibold` + 底部 2px accent 色下划线
+- 未选中态：`text-fg.muted`
+- 横向滚动容器：`overflow-x-auto whitespace-nowrap scrollbar-hide`（隐藏滚动条）
+- 无二级内容类型筛选（不区分图文/视频/音频等）
+
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：1280px，居中
+- 分类 Tab 栏：sticky top-16（Header 下方），z-10
+- 内容瀑布流：`px-4 py-6`，列数响应式 2/3/4 列
+- 卡片间距：`gap-4`
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 推荐流（或选中分类的内容流），瀑布流卡片。
+- loading: 骨架屏（SkeletonCard 灰色块，模拟卡片形状），首次加载 12 个占位。
+- empty: EmptyState"还没有内容，快来发布第一条吧" + 发布 CTA。
+- error: Toast 右上角报错 + 重试按钮。
+- 特殊状态：未登录也不影响浏览（原创区公开浏览），信誉分不足不在此拦截。
+
+**无限滚动行为**
+- 初始加载：SSR 首屏 24 条
+- 客户端滚动：IntersectionObserver 监听底部 sentinel 元素
+- 加载更多：`page=2,3,4...` 追加到现有列表（SWR useSWRInfinite）
+- 已加载全部时：显示"已经到底了"提示，不再触发请求
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 2 列瀑布流，Tab 栏 sticky 顶部，无 Header 时全宽。
+- 平板 (≤1100px): 3 列瀑布流，分类 Tab 栏横向滚动。
+- PC (>1100px): 4 列瀑布流，左对齐，分类 Tab 栏居中显示。
 
 **暗色模式适配**
 - 背景色 token: `canvas.default` -> `canvas.default.dark`
 - 边框色 token: `border.default` -> `border.default.dark`
 - 文字色 token: `fg.default` -> `fg.default.dark`
-- 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
+- 图片/图标特殊处理: 图片使用 `opacity-90` 适配暗色，占位 SVG 使用反色。
 
 **交互细节**
 - 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
-- 破坏性操作必须 ConfirmModal 二次确认。
-- 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
+- 分类 Tab 点击：切换内容流（`router.push` 更新 URL query），保留滚动位置。
+- 卡片点击：跳转内容详情页 `/original/[contentId]`。
+- 卡片 hover：封面图 scale-105 + 浅色遮罩（小红书式）。
+- 数据加载策略: SSR 首屏，客户端 SWR 无限滚动加载后续页。
 
 ## Page: /original/[contentId] 原创内容详情
 
@@ -736,6 +758,8 @@ interface FacetedSearchSidebarProps {
 - 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
 
 ## Page: /publish 发布内容
+
+> ⚠️ **已废弃**：本页面已迁移至 `/studio/publish/original` 和 `/studio/publish/fanwork`（创作者工作室发布流程）。旧路由 `/publish` 保留 301 重定向到 `/studio/publish/original`。以下规范仅供迁移参考，**以新版 §13 创作者工作室章节和 Page: /studio/* 系列的最新规格为准**。
 
 **Key Constraints**
 - 必须读取 config.yaml 的文件大小限制（视频≤300MB, 图片≤20MB, 文本≤10MB等）。
@@ -872,6 +896,8 @@ interface FacetedSearchSidebarProps {
 - 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
 
 ## Page: /dashboard 创作者后台概览
+
+> ⚠️ **已废弃**：本页面已迁移至 `/studio/overview`（创作者工作室数据概览）。旧路由 `/dashboard` 保留 301 重定向到 `/studio/overview`。以下规范仅供迁移参考，**以新版 Page: /studio/overview 的最新规格为准**。
 
 **Key Constraints**
 - 后台页面：Role 必须为 admin 且二次校验拦截，包含 ConfirmModal 二次确认。
@@ -1712,46 +1738,59 @@ interface FacetedSearchSidebarProps {
 - 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- 原创区卡片使用简化样式（无 IP 名、无标签 Badge、仅显示点赞数）。
 
 **Props 接口**
 ```ts
 interface ContentCardProps {
   className?: string;
-  data?: any;
+  item: ContentItem;           // 内容数据（必需）
+  zone: 'original' | 'fanwork'; // 区域标识，决定渲染样式
   isLoading?: boolean;
   disabled?: boolean;
   onAction?: (payload: any) => void;
 }
 ```
 
-**视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
+**视觉结构 — 二创区卡片（zone='fanwork'）**
+- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default overflow-hidden">`（无 padding，内容填满）
+- 封面区: 3:4 比例容器，`object-cover` 图片填满
+- 信息区: `p-3`，标题（`text-sm font-medium line-clamp-2`）→ 作者 + IP 名行（`text-xs text-fg.muted`）→ 互动数据行（`text-xs` ❤️ + 💬）→ 标签行（最多 3 个低饱和 TagBadge）
 - 图标: `<Icon className="text-fg.muted w-4 h-4" />`
 
+**视觉结构 — 原创区卡片（zone='original'）**
+- 外层容器: `<div className="rounded-md bg-canvas.default overflow-hidden cursor-pointer group">`（无 border，更干净的小红书风格）
+- 封面区: 自适应高度（图片按原始宽高比，`object-cover w-full`），`max-height: 400px`，`overflow-hidden`
+- 悬停遮罩: `<div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />`
+- 封面缩放: `group-hover:scale-105 transition-transform duration-300`
+- 信息区: `p-2`，标题（`text-sm font-medium line-clamp-2`）→ @作者（`text-xs text-fg.muted`）→ ❤️ 点赞数（`text-xs text-fg.muted`）
+- 无标签 Badge、无 IP 名
+
 **尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+- 二创区卡片: padding 16px (p-4)，封面固定 3:4
+- 原创区卡片: padding 8px (p-2)，封面高度自适应，最小高度 150px
+- 字号: `text-sm` (14px) 标题，`text-xs` (12px) 辅助信息
+- 间距: 元素间隙 4px (`gap-1`) 或 8px (`gap-2`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
+- default: 正常展示，原创区无外边框
+- hover: 原创区封面微放大 scale-105 + 浅色遮罩；二创区 border 颜色加深
+- active: `scale-[0.98]`
 - focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- loading: 显示 `SkeletonCard` 占位（灰色块模拟卡片形状）
+- empty: 不渲染（由父级 MasonryGrid 处理 EmptyState）
 
 **响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
+- 瀑布流列内自适应宽度，不单独控制断点。
 
 **暗色模式适配**
 - 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
 
 **关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- 整卡可点击（`<Link href={...}>` 包裹），跳转详情页。
+- Hover 触发视觉反馈（微缩放 + 遮罩）。
+- 键盘行为：支持 Tab 索引切换，Enter 选中。
 
 ## Component: MasonryGrid
 
@@ -1759,46 +1798,56 @@ interface ContentCardProps {
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- 支持无限滚动加载（IntersectionObserver + useSWRInfinite）。
 
 **Props 接口**
 ```ts
 interface MasonryGridProps {
   className?: string;
-  data?: any;
+  items: ContentItem[];
+  zone: 'original' | 'fanwork';
+  emptyText?: string;
   isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
+  isLoadingMore?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
 }
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 外层容器: `<div className="columns-2 md:columns-3 lg:columns-4 gap-4 px-4">`
+- 哨兵元素: `<div ref={sentinelRef} className="h-4" />` — IntersectionObserver 触发 onLoadMore
+- 底部提示: 加载中显示 Spinner，已到底显示 "已经到底了" 文本
+
+**无限滚动行为**
+- 使用 IntersectionObserver 监听底部 sentinel 元素
+- sentinel 进入视口 → 调用 `onLoadMore` 回调
+- 父组件负责分页逻辑（useSWRInfinite），MasonryGrid 仅发出加载信号
+- `hasMore=false` 时不触发加载
 
 **尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+- 列间距: `gap-4` (16px)
+- 列数: 2 列（移动）/ 3 列（平板）/ 4 列（PC）
+- 内容卡片由子组件 ContentCard 自行控制高度
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- default: 正常渲染内容卡片列表。
+- loading: 初始加载时显示 12 个 SkeletonCard 占位。
+- loadingMore: 底部显示 Spinner。
+- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
+- error: 底部显示 "加载失败，点击重试" 按钮。
 
 **响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
+- 移动 (≤700px): 2 列瀑布流 (`columns-2`)
+- 平板 (≤1100px): 3 列瀑布流 (`columns-3`)
+- PC (>1100px): 4 列瀑布流 (`columns-4`)
 
 **暗色模式适配**
 - 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
 
 **关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- 滚动触发加载更多（无需手动点击）。
+- 卡片点击由 ContentCard 内部 Link 处理。
 
 ## Component: TagBadge
 
@@ -3652,3 +3701,200 @@ interface JudgeQualBadgeProps {
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
 - 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+
+
+
+## Component: StudioSidebar
+
+**Key Constraints**
+- 鍒涗綔鑰呭伐浣滃鐨勫彲鎶樺彔渚ц竟鏍忥紝蹇呴』鍦?`/studio/*` 甯冨眬涓娇鐢ㄣ€?- 閬靛畧鍏ㄥ眬鎵佸钩鍖栨棤闃村奖璁捐瑙勮寖锛岄鑹插紩鐢ㄩ瀹氫箟 token銆?- 灞曞紑瀹藉害 224px (`w-56`)锛屾敹璧峰搴?64px (`w-16`)锛岃繃娓″姩鐢?`transition-all duration-200`銆?- 鏀惰捣鎬侊細浠呮樉绀哄浘鏍囷紝hover 鍥炬爣鏃跺湪鍙充晶寮瑰嚭 tooltip锛坄absolute left-full ml-2`锛屽欢杩?300ms锛夈€?
+**Props 鎺ュ彛**
+```ts
+interface StudioSidebarProps {
+  className?: string;
+  collapsed: boolean;
+  onToggle: () => void;
+  currentPath: string;
+  sections: SidebarSection[];
+}
+
+interface SidebarSection {
+  id: string;
+  title: string;
+  items: SidebarItem[];
+}
+
+interface SidebarItem {
+  key: string;
+  icon: React.ReactNode;
+  label: string;
+  href: string;
+  badge?: number;
+}
+```
+
+**瑙嗚缁撴瀯**
+- 澶栧眰瀹瑰櫒: `<aside className="h-full flex flex-col bg-canvas.subtle border-r border-border.muted transition-all duration-200" style={{ width: collapsed ? 64 : 224 }}>`
+- 椤堕儴鍒嗙粍鍖猴細Logo/鏍囬 + 鎶樺彔鍒囨崲鎸夐挳锛坄鈫恅 / `鈫抈 绠ご鍥炬爣锛?- 涓棿瀵艰埅鍖猴細鎸?section 鍒嗙粍娓叉煋
+  - 灞曞紑鎬侊細鍒嗙粍鏍囬 (`text-xs text-fg.muted uppercase tracking-wider px-3 pt-4 pb-1`) + 椤瑰垪琛?  - 鏀惰捣鎬侊細浠呭浘鏍囷紝鍒嗙粍闂?`border-t border-border.muted my-2` 鍒嗛殧
+- 姣忎釜瀵艰埅椤癸細
+  - 灞曞紑鎬侊細`h-10 px-3 flex items-center gap-3 rounded-md`锛堝浘鏍?20px + 鏂囧瓧 `text-sm` + 鍙€夋湭璇?Badge锛?  - 鏀惰捣鎬侊細`h-12 flex items-center justify-center relative group`锛堜粎鍥炬爣灞呬腑 + hover tooltip锛?- 閫変腑鎬侊細`bg-accent.emphasis/10 text-accent.emphasis font-medium` + 宸︿晶 3px accent 鑹茬珫绾匡紙`border-l-3 border-accent.emphasis`锛?- 鏈€変腑鎬侊細`text-fg.muted hover:bg-canvas.default hover:text-fg.default`
+
+**Tooltip 瑙勮寖**锛堟敹璧锋€?hover锛?- 瑙﹀彂锛歚opacity-0 group-hover:opacity-100 transition delay-300`
+- 瀹氫綅锛歚absolute left-full ml-2 top-1/2 -translate-y-1/2`
+- 鏍峰紡锛歚bg-canvas.default border border-border rounded-md px-3 py-1.5 text-sm text-fg.default whitespace-nowrap shadow-md z-50`
+
+**鐘舵€佸彉浣?*
+- default: 榛樿灞曞紑鎬侊紝褰撳墠璺敱瀵瑰簲椤归珮浜€変腑銆?- collapsed: 鏀惰捣鎬侊紝浠呭浘鏍囧彲瑙併€?- hover: 鏈€変腑椤?hover 鑳屾櫙鍙樹寒锛屾敹璧锋€佽Е鍙?tooltip銆?- active: 閫変腑椤?accent 鑹插乏渚ф寚绀哄櫒銆?- disabled: `opacity-50 cursor-not-allowed`锛堝鏀剁泭鏁版嵁 P1 鍗犱綅锛岀偣鍑讳笉璺宠浆锛夈€?
+**鍝嶅簲寮忚涓?*
+- 绉诲姩 (鈮?00px): 渚ц竟鏍忛粯璁ゆ敹璧凤紝鐐瑰嚮灞曞紑涓烘诞灞傝鐩栦富鍐呭鍖猴紙`absolute z-20 h-full`锛夛紝鐐瑰嚮涓诲唴瀹瑰尯鑷姩鏀惰捣銆?- 骞虫澘+ (鈮?01px): 渚ц竟鏍忓浐瀹氾紝灞曞紑/鏀惰捣鎸夐挳鍙銆?
+**鍏抽敭浜や簰**
+- 鎶樺彔鎸夐挳鐐瑰嚮 鈫?`onToggle()` 鈫?鐖剁粍浠舵洿鏂?`collapsed` 鐘舵€侊紝鍐欏叆 `localStorage: studio_sidebar_collapsed`銆?- 鏀惰捣鎬佸浘鏍?hover 300ms 鈫?tooltip 寮瑰嚭锛岄紶鏍囩Щ鍑?鈫?tooltip 娑堝け銆?- 閿洏锛歚Tab` 鍦ㄥ浘鏍囬棿绉诲姩锛宍Enter` 瀵艰埅鍒扮洰鏍囪矾鐢便€?
+## Component: ContentTypeGrid
+
+**Key Constraints**
+- 鍐呭绫诲瀷閫夋嫨鍗＄墖缃戞牸锛岀敤浜?`/studio/publish/*` 鍙戝竷娴佺▼姝ラ 1銆?- 鍗＄墖鎺掑垪浠?`config.yaml > publish.type_order_original` 鎴?`publish.type_order_fanwork` 璇诲彇銆?- 閬靛畧鍏ㄥ眬鎵佸钩鍖栨棤闃村奖璁捐瑙勮寖锛岄鑹插紩鐢ㄩ瀹氫箟 token銆?
+**Props 鎺ュ彛**
+```ts
+interface ContentTypeGridProps {
+  className?: string;
+  zone: 'original' | 'fanwork';
+  types: ContentTypeOption[];
+  onSelect: (type: ContentTypeOption) => void;
+}
+
+interface ContentTypeOption {
+  contentType: string;
+  icon: string;
+  label: string;
+  description: string;
+}
+```
+
+**瑙嗚缁撴瀯**
+- 澶栧眰瀹瑰櫒: `<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-6">`
+- 姣忓紶鍗＄墖: `<button className="border border-border.rounded-lg p-6 text-center hover:border-accent.emphasis hover:bg-canvas.subtle transition-all cursor-pointer group hover:-translate-y-1">`
+  - 鍥炬爣: `<span className="text-4xl mb-3 block">`锛坋moji 鍥炬爣 40px锛?  - 鏍囬: `<h3 className="text-base font-medium text-fg.default mb-1">`
+  - 鎻忚堪: `<p className="text-xs text-fg.muted">`
+
+**鐘舵€佸彉浣?*
+- default: 鐧借壊鍗＄墖 + 1px border銆?- hover: border accent 鑹?+ 杞诲井涓婃诞 `-translate-y-1` + 鑳屾櫙鍙樻祬銆?- active: `scale-95` 鐐瑰嚮鍙嶉銆?
+**鍝嶅簲寮忚涓?*
+- 绉诲姩 (鈮?00px): 2 鍒?(`grid-cols-2`)锛屽崱鐗?padding `p-4`銆?- 骞虫澘 (鈮?100px): 3 鍒?(`grid-cols-3`)銆?- PC (>1100px): 4 鍒?(`grid-cols-4`)锛屽崱鐗?padding `p-6`銆?
+**鍏抽敭浜や簰**
+- 鐐瑰嚮鍗＄墖 鈫?`onSelect(type)` 鈫?鐖剁粍浠跺垏鎹㈠埌鍙戝竷琛ㄥ崟锛堟楠?2锛夛紝zone + content_type 閿佸畾銆?- 閿洏锛歚Tab` 鍦ㄥ崱鐗囬棿绉诲姩锛宍Enter` 閫変腑銆?- 鍙戝竷琛ㄥ崟椤堕儴鎻愪緵銆屸啇 杩斿洖閫夋嫨绫诲瀷銆嶆寜閽€?
+## Page: /studio 鍒涗綔鑰呭伐浣滃
+
+**Key Constraints**
+- 鎵€鏈?`/studio/*` 瀛愰〉闈㈠叡浜?`StudioLayout`锛堜晶杈规爮 + 涓诲唴瀹瑰尯锛夈€?- 闇€瑕佺櫥褰曪紝鏈櫥褰?redirect `/login`銆?- 鍙傝€?B 绔欏垱浣滀腑蹇冨拰灏忕孩涔﹀垱浣滆€呭悗鍙拌璁°€?- 閬靛畧鍏ㄥ眬鎵佸钩鍖栨棤闃村奖璁捐瑙勮寖銆?
+**瑙嗚灞傜骇**
+- 椤堕儴锛欻eader `h-16`锛屽簳杈规 `border-b border-border.muted`
+- 涓诲鍣細`flex h-[calc(100vh-64px)]`锛圚eader 涓嬫柟鍏ㄩ珮锛夛紝鑳屾櫙 `bg-canvas.subtle`
+- 宸︿晶锛歋tudioSidebar锛堝睍寮€ `w-56` / 鏀惰捣 `w-16`锛夛紝鍙充晶 1px border 鍒嗛殧
+- 鍙充晶锛氫富鍐呭鍖?`flex-1 overflow-y-auto`锛宲adding `p-6`
+
+**鏍稿績缁勪欢娓呭崟**
+- `Header`
+- `StudioLayout`锛堝叡浜竷灞€瀹瑰櫒锛?- `StudioSidebar`锛堝彲鎶樺彔渚ц竟鏍忥級
+- `ContentTypeGrid`锛堝唴瀹圭被鍨嬮€夋嫨锛?- `FileUploader`, `MarkdownEditor`锛堝鐢級
+- `FollowerAnalytics`锛堢矇涓濆垎鏋愬浘琛級
+
+**甯冨眬瑙勮寖**
+- 渚ц竟鏍?+ 涓诲唴瀹瑰尯姘村钩鎺掑垪锛宍flex` 甯冨眬
+- 涓诲唴瀹瑰尯鍨傜洿婊氬姩锛坄overflow-y-auto`锛夛紝鏃犲灞?card 鍖呰９
+
+**鐘舵€佸彉浣?*
+- default: 榛樿杩涘叆 `/studio/publish/original`锛圕ontentTypeGrid锛夈€?- loading: 涓诲唴瀹瑰尯楠ㄦ灦灞忋€?- empty: 鏃犲唴瀹?鏃犳暟鎹椂瀵瑰簲 EmptyState銆?- error: Toast 鍙充笂瑙掓姤閿欍€?- 鐗规畩鐘舵€侊細淇¤獕鍒?< 3 鏃跺彂甯冨叆鍙?disabled + tooltip銆屼俊瑾夊垎涓嶈冻锛屾殏鏃犳硶鍙戝竷銆嶃€?
+**鍝嶅簲寮忚鍒?*
+- 绉诲姩 (鈮?00px): 渚ц竟鏍忛粯璁ゆ敹璧凤紙64px锛夛紝鐐瑰嚮灞曞紑涓烘诞灞傝鐩栵紱涓诲唴瀹瑰尯 `p-4`銆?- 骞虫澘 (鈮?100px): 渚ц竟鏍忓睍寮€锛屼富鍐呭鍖鸿嚜閫傚簲銆?- PC (>1100px): 渚ц竟鏍忓睍寮€ 224px锛屾瑙?鍐呭绠＄悊 max-w 1280px锛屽彂甯冭〃鍗?max-w 960px銆?
+**浜や簰缁嗚妭**
+- 渚ц竟鏍忔姌鍙犵姸鎬佹寔涔呭寲鍒?`localStorage: studio_sidebar_collapsed`銆?- 鍙戝竷娴佺▼锛氱被鍨嬮€夋嫨 鈫?鍙戝竷琛ㄥ崟锛堝悓椤电姸鎬佸垏鎹紝涓嶆敼鍙?URL锛夈€?- 鍙戝竷鎴愬姛鍚庤烦杞?`/studio/contents`銆?- 鏁版嵁鍔犺浇锛歋WR 瀹㈡埛绔姞杞芥瑙堢粺璁°€佺矇涓濊秼鍔跨瓑涓€у寲鏁版嵁銆?
+## Page: /studio/publish/original 鍙戝竷鍘熷垱
+
+**Key Constraints**
+- 姝ラ 1 鏄剧ず ContentTypeGrid锛堝師鍒涘尯 7 绉嶇被鍨嬶紝鎸?config.yaml > publish.type_order_original 鎺掑簭锛夈€?- 姝ラ 2 鏄剧ず鍙戝竷琛ㄥ崟锛寊one='original' + content_type 閿佸畾锛宑ategory 蹇呭～銆?- 浜屽垱涓撳睘瀛楁锛坕p_id銆乻ource_original_id锛変笉娓叉煋銆?- 鐮村潖鎬ф搷浣滈渶 ConfirmModal銆?
+**瑙嗚灞傜骇**
+- 姝ラ 1锛氬眳涓爣棰樸€岄€夋嫨鍘熷垱鍐呭绫诲瀷銆? ContentTypeGrid 缃戞牸
+- 姝ラ 2锛氭爣棰樸€屽彂甯冨師鍒?鈥?[绫诲瀷鍚峕銆? 鍙戝竷琛ㄥ崟锛坢ax-w 960px 灞呬腑锛?
+**鏍稿績缁勪欢娓呭崟**
+- `ContentTypeGrid`
+- `FileUploader`, `MarkdownEditor`, `TagInput`
+- `ComplianceCheckBadge`, `UploadAssistPanel`
+- `ConfirmModal`锛堟斁寮冪‘璁わ級
+
+**甯冨眬瑙勮寖**
+- 鍙戝竷琛ㄥ崟鍨傜洿鎺掑垪锛氭爣棰?鈫?鎻忚堪/Markdown 鈫?鏂囦欢涓婁紶 鈫?鍒嗙被閫夋嫨 鈫?鏍囩 鈫?鏉冮檺寮€鍏?鈫?鎻愪氦鎸夐挳
+
+**鐘舵€佸彉浣?*
+- default: 姝ラ 1 绫诲瀷閫夋嫨缃戞牸銆?- form: 姝ラ 2 鍙戝竷琛ㄥ崟銆?- loading: 鎻愪氦鎸夐挳鍐呭祵 Spinner銆?- error: 琛屽唴绾㈠瓧 + Toast銆?- 鐗规畩鐘舵€侊細淇¤獕鍒嗕笉瓒虫樉绀烘嫤鎴彁绀恒€?
+**鍝嶅簲寮忚鍒?*
+- 绉诲姩 (鈮?00px): 琛ㄥ崟鍏ㄥ `p-4`锛岀紪杈戝櫒楂樺害 250px銆?- 骞虫澘 (鈮?100px): 琛ㄥ崟 max-w 720px 灞呬腑銆?- PC (>1100px): 琛ㄥ崟 max-w 960px 灞呬腑銆?
+**浜や簰缁嗚妭**
+- 姝ラ 1 鈫?2锛歚onSelect(type)` 鍒囨崲鐘舵€併€?- 姝ラ 2 鈫?1锛氶《閮ㄣ€屸啇 杩斿洖閫夋嫨绫诲瀷銆嶆寜閽紙鏈夋湭淇濆瓨鍐呭鏃跺脊 ConfirmModal锛夈€?- 鍙戝竷鎴愬姛 鈫?Toast + redirect `/studio/contents`銆?
+## Page: /studio/publish/fanwork 鍙戝竷浜屽垱
+
+**Key Constraints**
+- 绫讳技鍙戝竷鍘熷垱锛孋ontentTypeGrid 鏄剧ず浜屽垱鍖?8 绉嶇被鍨嬶紙鎸?config.yaml > publish.type_order_fanwork 鎺掑簭锛夈€?- 鍙戝竷琛ㄥ崟姣斿師鍒涘尯澶?`ip_id`锛堝繀濉級鍜?`source_original_id`锛堝彲閫夛級銆?
+**瑙嗚缁撴瀯**
+- 姝ラ 1锛氭爣棰樸€岄€夋嫨浜屽垱鍐呭绫诲瀷銆? ContentTypeGrid
+- 姝ラ 2锛氭爣棰樸€屽彂甯冧簩鍒?鈥?[绫诲瀷鍚峕銆? 琛ㄥ崟锛?  - 鏍囬 鈫?鎻忚堪 鈫?鏂囦欢涓婁紶 鈫?**IP 鎼滅储閫夋嫨鍣?*锛堝繀濉級 鈫?**鏉ユ簮鍘熷垱鎼滅储鍣?*锛堝彲閫夛級 鈫?鏍囩 鈫?鏉冮檺寮€鍏?鈫?鎻愪氦
+
+**鏍稿績缁勪欢娓呭崟**
+- `ContentTypeGrid`
+- `IPSelector`锛圛P 鎼滅储涓嬫媺锛屽繀濉」锛?- `OriginalSourceSelector`锛堟潵婧愬師鍒涙悳绱紝鍙€夛級
+- 鍏朵綑涓庡彂甯冨師鍒涚浉鍚?
+**甯冨眬瑙勮寖**
+- 鍚屽彂甯冨師鍒涳紝棰濆鎻掑叆 IP 閫夋嫨鍣ㄨ鍜屾潵婧愬師鍒涙悳绱㈠櫒琛屻€?
+**浜や簰缁嗚妭**
+- IP 鏈€夋嫨鏃舵彁浜ゆ寜閽?disabled + 琛屽唴鎻愮ず銆岃閫夋嫨涓€涓?IP銆嶃€?- 鏉ユ簮鍘熷垱涓嶅瓨鍦?宸插垹闄ゆ椂鎼滅储鏃犵粨鏋滐紝鍙暀绌恒€?- 鍙戝竷鎴愬姛 鈫?Toast + redirect `/studio/contents`銆?
+## Page: /studio/overview 鏁版嵁姒傝
+
+**Key Constraints**
+- 鍙傝€?B 绔欏垱浣滀腑蹇冮椤碉細缁熻鍗＄墖 + 瓒嬪娍鍥?+ 鎺掕 + 寰呭姙浜嬮」銆?- 鏁版嵁浠庡涓?API 鑱氬悎銆?
+**瑙嗚缁撴瀯**
+- 缁熻鍗＄墖琛岋細4 鍗＄墖锛堟€诲唴瀹?鎬昏闂?鎬荤偣璧?绮変笣锛夛紝姣忓崱鐗囧惈鐜瘮鍙樺寲鐧惧垎姣?+ 涓婂崌/涓嬮檷绠ご
+- 璁块棶閲忚秼鍔匡細杩?30 澶?recharts LineChart锛屽叏瀹藉崱鐗?- 涓嬫柟鍙屾爮锛氬乏銆屽唴瀹规帓琛?Top 5銆嶏紝鍙炽€屽緟澶勭悊浜嬮」銆?
+**鏍稿績缁勪欢娓呭崟**
+- `StatsCard`锛堝惈鍙樺寲鐧惧垎姣旓級
+- `ViewsTrendChart`锛坮echarts LineChart锛?- `ContentRankList`锛圱op 5 鍒楄〃锛?- `PendingTasksCard`锛堝緟澶勭悊 PR/鏍囩寤鸿/涓炬姤鏁帮級
+
+**甯冨眬瑙勮寖**
+- 缁熻鍗＄墖锛歚grid grid-cols-2 lg:grid-cols-4 gap-4`
+- 瓒嬪娍鍥惧崱鐗囷細鍏ㄥ锛岄珮搴?300px
+- 涓嬫柟鍙屾爮锛歚grid grid-cols-1 lg:grid-cols-2 gap-6`
+
+**鐘舵€佸彉浣?*
+- default: 鏁版嵁姝ｅ父锛屽浘琛ㄥ畬鏁淬€?- loading: 鍗＄墖楠ㄦ灦灞?+ 鍥捐〃鍖虹伆鑹插潡銆?- empty: 鏂扮敤鎴枫€屾殏鏃犳暟鎹紝蹇幓鍙戝竷绗竴鏉″唴瀹瑰惂銆岴mptyState + CTA銆?- error: Toast 鎶ラ敊 + 鍗曞崱鐗囧唴鑱旈敊璇彁绀恒€?
+**鍝嶅簲寮忚鍒?*
+- 绉诲姩: 缁熻鍗＄墖 2 鍒楋紝瓒嬪娍鍥?100%锛屼笅鏂瑰崟鍒椼€?- 骞虫澘+: 缁熻鍗＄墖 4 鍒椼€?- PC: max-w 1280px銆?
+**浜や簰缁嗚妭**
+- 鍐呭鎺掕椤瑰彲鐐瑰嚮璺宠浆璇︽儏椤点€?- 寰呭鐞嗕簨椤归」鍙偣鍑昏烦杞搴旂鐞嗛〉銆?
+## Page: /studio/followers 绮変笣鍒嗘瀽
+
+**Key Constraints**
+- 鏂板椤甸潰銆傛暟鎹簮锛歚GET /api/v1/users/:id/followers/stats?days=30`銆?- 鍙傝€?B 绔欑矇涓濆垎鏋愰〉锛氭€绘暟 + 瓒嬪娍 + 鏉ユ簮銆?
+**瑙嗚缁撴瀯**
+- 缁熻鍗＄墖锛氱矇涓濇€绘暟 + 鏈湀鏂板 + 鏈湀娴佸け
+- 绮変笣澧為暱瓒嬪娍锛氳繎 30 澶╁弻绾挎姌绾垮浘锛堟柊澧?/ 鍑€澧烇級
+- 绮変笣鏉ユ簮鍒嗗竷锛氭寜鍐呭鏉ユ簮鐨勯ゼ鍥炬垨妯悜鏌辩姸鍥?
+**鏍稿績缁勪欢娓呭崟**
+- `StatsCard`
+- `FollowerTrendChart`锛坮echarts LineChart锛屽弻绾匡級
+- `FollowerSourceChart`锛坮echarts PieChart锛?
+**甯冨眬瑙勮寖**
+- 缁熻鍗＄墖锛歚grid grid-cols-3 gap-4`
+- 鍙屽浘琛細`grid grid-cols-1 lg:grid-cols-2 gap-6`
+
+**鐘舵€佸彉浣?*
+- default: 鏁版嵁姝ｅ父銆?- loading: 楠ㄦ灦灞忋€?- empty: 銆屼綘杩樻病鏈夌矇涓濓紝蹇幓鍙戝竷鍐呭鍚稿紩鍏虫敞鍚с€岴mptyState銆?- error: Toast + 閲嶈瘯鎸夐挳銆?
+**鍝嶅簲寮忚鍒?*
+- 绉诲姩: 鍗＄墖 1 鍒楋紝鍥捐〃鍗曞垪銆?- 骞虫澘+: 鍗＄墖 3 鍒楋紝鍥捐〃鍙屾爮銆?- PC: max-w 1280px銆?
+## Page: /studio/revenue 鏀剁泭鏁版嵁
+
+**Key Constraints**
+- P1 棰勭暀椤甸潰銆俙features.creator_support_enabled: false`锛堥粯璁わ級鏃舵樉绀哄崰浣嶃€?
+**瑙嗚缁撴瀯**
+- 灞呬腑 EmptyState锛氬浘鏍?+ 銆屾敹鐩婂姛鑳藉嵆灏嗗紑鏀撅紝鏁鏈熷緟銆? 璇存槑鏂囧瓧
+
+**鐘舵€佸彉浣?*
+- disabled: EmptyState锛圡VP 榛樿锛夈€?- P1 enabled: 绱鏀剁泭鍗＄墖 + 瓒嬪娍鍥?+ 鎻愮幇鎸夐挳銆?

@@ -33,9 +33,9 @@ export function TagBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ",
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium select-none",
         colorStyles[color],
-        onClick && "cursor-pointer hover:opacity-80 transition-opacity",
+        onClick && "cursor-pointer hover:brightness-95 active:scale-95 transition-all duration-150",
         className,
       )}
       onClick={onClick}

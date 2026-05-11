@@ -42,7 +42,7 @@ export function IPCard({ data, variant = "browse", className }: IPCardProps) {
         href={`/ip/${data.id}`}
         onClick={() => saveRecentIP({ id: data.id, name: data.name })}
         className={cn(
-          "group flex-shrink-0 w-[156px] rounded-lg border border-border bg-card overflow-hidden transition-colors hover:border-border/80",
+          "group flex-shrink-0 w-[156px] rounded-lg border border-border bg-card overflow-hidden transition-all duration-200 hover:border-accent/20 hover:bg-accent-subtle/5 active:scale-[0.98]",
           className
         )}
       >
@@ -64,7 +64,7 @@ export function IPCard({ data, variant = "browse", className }: IPCardProps) {
           </div>
           <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
             {data.content_count !== undefined && (
-              <span>{data.content_count.toLocaleString()} 内容</span>
+              <span>{t('ip.contentCount', { count: data.content_count })}</span>
             )}
             {data.trend !== undefined && data.trend > 0 && (
               <span className="text-emerald-500 font-medium">↗ {data.trend}%</span>
@@ -81,7 +81,7 @@ export function IPCard({ data, variant = "browse", className }: IPCardProps) {
       href={`/ip/${data.id}`}
       onClick={() => saveRecentIP({ id: data.id, name: data.name })}
       className={cn(
-        "group flex min-w-64 flex-col gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:bg-muted/30",
+        "group flex min-w-64 flex-col gap-3 rounded-lg border border-border bg-card p-3 transition-all duration-200 hover:border-accent/20 hover:bg-muted/20 active:scale-[0.99]",
         className
       )}
     >
@@ -100,7 +100,7 @@ export function IPCard({ data, variant = "browse", className }: IPCardProps) {
       </div>
       {(data.description || data.content_count) && (
         <p className="line-clamp-2 text-xs text-muted-foreground">
-          {data.description || `${data.content_count?.toLocaleString()} 内容`}
+          {data.description || (data.content_count != null ? t('ip.contentCount', { count: data.content_count }) : "")}
         </p>
       )}
       <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
