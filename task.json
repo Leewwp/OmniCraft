@@ -2034,6 +2034,19 @@
         "验证：curl /api/v1/ips/stats/category_counts 返回正确计数，发布新内容后计数实时更新，Redis 数据与数据库一致"
       ],
       "passes": false
+    },
+    {
+      "id": 98,
+      "title": "Go API — 内容详情页侧边栏所需数据接口补全",
+      "description": "为 ContentSidebar 组件补充所需的后端 API：作者统计数据、关注状态、来源原创详情嵌入",
+      "depends_on": [16, 60, 97],
+      "steps": [
+        "扩展 GET /users/:id 返回 stats 字段：contents_count（已发布内容数）、followers_count（粉丝数）、likes_received（总获赞数），用于 ContentSidebar 作者卡片统计展示",
+        "扩展 GET /users/:id 返回 is_following 布尔字段（当前登录用户是否已关注该用户），供关注按钮状态判断",
+        "扩展 GET /contents/:id 返回 source_original 嵌套对象：{ id, title }（当 content_items.source_original_id 非空时 JOIN content_items 获取标题），供二创详情侧边栏展示来源原创信息",
+        "验证：curl /users/:id 返回 stats 和 is_following；curl /contents/:id（二创且有 source_original_id）返回 source_original 对象；关注按钮状态随登录态正确切换"
+      ],
+      "passes": false
     }
   ]
 }
