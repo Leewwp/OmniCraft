@@ -1,6 +1,26 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
 ---
+
+## [2026-05-11] - Task 87: 推荐引擎 — 热门排行定时任务与 Redis 缓存
+
+### What was done:
+- Added `RecommendationConfig` struct to `config/config.go` with all fields from config.yaml (HotDecayHours, PersonalizationWeight, MinInteractionForPersonalize, EmbeddingTopk, TrendingWindowDays, RefreshIntervalH)
+- Added `UpdateHotRank` method to `internal/service/content_service.go`: iterates published original content within trending window, computes `hot_score = log(1 + view_count + likes*3) * 2^(-age/halfLife)`, writes to Redis sorted set `rank:hot:contents` via pipeline
+- Created `internal/service/hot_rank_service.go`: scheduled task running every 10 minutes, `sync.TryLock` prevents overlap, logs failures without blocking subsequent runs
+- Updated `cmd/server/main.go` to start `hotRankSvc.Run()` as a goroutine
+- `getHotContents` already reads from `rank:hot:contents` (from earlier implementation), so the hot rank data is immediately consumable
+
+### Testing:
+- `go build ./...` — passes
+- `go vet ./...` — no warnings
+- `go test ./...` — all existing tests pass
+
+### Notes:
+- The `incrementHotRank` method (pre-existing, unused) was left in place; it can be wired into reaction/favorite handlers to provide real-time rank updates between scheduled refreshes
+- Task 88 (Personalized Recommendation API) depends on this task and can now be started
+
+---
 ## [2026-05-07] - Task 64: Web 前端 — 原创区两级导航
 
 ### What was done:
