@@ -2,12 +2,14 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
-	"math"
+	"sort"
 	"time"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/model"
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/repository"
 
@@ -16,7 +18,7 @@ import (
 )
 
 type RecommendationService struct {
-	db           *gorm.DB
+	db            *gorm.DB
 	embeddingRepo *repository.EmbeddingRepository
 	contentRepo   *repository.ContentRepository
 	contentSvc    *ContentService
@@ -33,7 +35,7 @@ func NewRecommendationService(
 	cfg *config.RecommendationConfig,
 ) *RecommendationService {
 	return &RecommendationService{
-		db:           db,
+		db:            db,
 		embeddingRepo: embeddingRepo,
 		contentRepo:   contentRepo,
 		contentSvc:    contentSvc,
@@ -69,6 +71,13 @@ func (s *RecommendationService) Recommend(ctx context.Context, userID int64, pag
 		if hit, _ := redisclient.GetJSON(ctx, cacheKey, &cached); hit {
 			return cached.Items, cached.Total, nil
 		}
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
 	}
 
 	if s.isColdStart(userID, minInteraction) {
@@ -168,33 +177,38 @@ func (s *RecommendationService) buildUserProfile(ctx context.Context, userID int
 	}
 
 	var rows []embeddingRow
-
-	s.db.Raw(`
+	if err := s.db.Raw(`
 		SELECT ce.embedding::text as embedding
 		FROM browse_history bh
 		JOIN content_embeddings ce ON ce.content_item_id = bh.content_item_id
 		WHERE bh.user_id = ?
 		ORDER BY bh.viewed_at DESC
 		LIMIT 50
-	`, userID).Scan(&rows)
+	`, userID).Scan(&rows).Error; err != nil {
+		log.Printf("[rec] browse history query failed: %v", err)
+	}
 
-	favRows := []embeddingRow{}
-	s.db.Raw(`
+	var favRows []embeddingRow
+	if err := s.db.Raw(`
 		SELECT ce.embedding::text as embedding
 		FROM favorites f
 		JOIN content_embeddings ce ON ce.content_item_id = f.content_item_id
 		WHERE f.user_id = ?
 		LIMIT 50
-	`, userID).Scan(&favRows)
+	`, userID).Scan(&favRows).Error; err != nil {
+		log.Printf("[rec] favorites query failed: %v", err)
+	}
 
-	likeRows := []embeddingRow{}
-	s.db.Raw(`
+	var likeRows []embeddingRow
+	if err := s.db.Raw(`
 		SELECT ce.embedding::text as embedding
 		FROM reactions r
 		JOIN content_embeddings ce ON ce.content_item_id = r.target_id
 		WHERE r.user_id = ? AND r.target_type = 'content' AND r.reaction = 'like'
 		LIMIT 50
-	`, userID).Scan(&likeRows)
+	`, userID).Scan(&likeRows).Error; err != nil {
+		log.Printf("[rec] reactions query failed: %v", err)
+	}
 
 	if len(rows) == 0 && len(favRows) == 0 && len(likeRows) == 0 {
 		return nil, fmt.Errorf("no interaction data for user %d", userID)
@@ -203,40 +217,31 @@ func (s *RecommendationService) buildUserProfile(ctx context.Context, userID int
 	var sum []float64
 	var totalWeight float64
 
-	for _, r := range rows {
-		vec := parseEmbedding(r.Embedding)
+	accumulate := func(r embeddingRow, weight float64) {
+		vec := parseEmbeddingJSON(r.Embedding)
 		if vec == nil {
-			continue
+			return
 		}
 		if sum == nil {
 			sum = make([]float64, len(vec))
 		}
-		for i, v := range vec {
-			sum[i] += float64(v)
+		if len(vec) != len(sum) {
+			return
 		}
-		totalWeight += 1
+		for i, v := range vec {
+			sum[i] += float64(v) * weight
+		}
+		totalWeight += weight
 	}
 
+	for _, r := range rows {
+		accumulate(r, 1.0)
+	}
 	for _, r := range favRows {
-		vec := parseEmbedding(r.Embedding)
-		if vec == nil || sum == nil {
-			continue
-		}
-		for i, v := range vec {
-			sum[i] += float64(v) * 2
-		}
-		totalWeight += 2
+		accumulate(r, 2.0)
 	}
-
 	for _, r := range likeRows {
-		vec := parseEmbedding(r.Embedding)
-		if vec == nil || sum == nil {
-			continue
-		}
-		for i, v := range vec {
-			sum[i] += float64(v) * 1.5
-		}
-		totalWeight += 1.5
+		accumulate(r, 1.5)
 	}
 
 	if totalWeight == 0 || sum == nil {
@@ -252,7 +257,7 @@ func (s *RecommendationService) buildUserProfile(ctx context.Context, userID int
 }
 
 func (s *RecommendationService) computeFinalScores(ctx context.Context, contentIDs []int64, simScores map[int64]float64, alpha float64) ([]ContentItemWithScore, error) {
-	hotScores := make(map[int64]float64)
+	hotScores := make(map[int64]float64, len(contentIDs))
 	if s.rdb != nil {
 		for _, id := range contentIDs {
 			score, err := s.rdb.ZScore(ctx, "rank:hot:contents", fmt.Sprintf("%d", id)).Result()
@@ -262,25 +267,22 @@ func (s *RecommendationService) computeFinalScores(ctx context.Context, contentI
 		}
 	}
 
-	items := make([]ContentItemWithScore, 0, len(contentIDs))
-	for _, id := range contentIDs {
-		sim := simScores[id]
-		hot := hotScores[id]
+	contents, err := s.batchFetchContents(contentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("batch fetch failed: %w", err)
+	}
 
+	items := make([]ContentItemWithScore, 0, len(contents))
+	for _, content := range contents {
+		if content.Status != "published" || content.Zone != "original" {
+			continue
+		}
+
+		sim := simScores[content.ID]
+		hot := hotScores[content.ID]
 		final := alpha*sim + (1-alpha)*hot
 
-		content, err := s.contentRepo.FindByID(id)
-		if err != nil || content == nil || content.Status != "published" {
-			continue
-		}
-		if content.Zone != "original" {
-			continue
-		}
-
-		authorName := ""
-		if content.Author.Username != "" {
-			authorName = content.Author.Username
-		}
+		authorName := content.Author.Username
 
 		items = append(items, ContentItemWithScore{
 			Item: ContentItemBrief{
@@ -299,8 +301,23 @@ func (s *RecommendationService) computeFinalScores(ctx context.Context, contentI
 		})
 	}
 
-	sortByScore(items)
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].Score > items[j].Score
+	})
+
 	return items, nil
+}
+
+func (s *RecommendationService) batchFetchContents(ids []int64) ([]model.ContentItem, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var contents []model.ContentItem
+	err := s.contentRepo.DB().
+		Preload("Author").
+		Where("id IN ?", ids).
+		Find(&contents).Error
+	return contents, err
 }
 
 func (s *RecommendationService) fallbackToHot(ctx context.Context, page, pageSize int) ([]ContentItemWithScore, int64, error) {
@@ -386,55 +403,19 @@ func (s *RecommendationService) FillMissingEmbeddings(ctx context.Context, llmPr
 	return nil
 }
 
-func sortByScore(items []ContentItemWithScore) {
-	for i := 0; i < len(items); i++ {
-		for j := i + 1; j < len(items); j++ {
-			if items[j].Score > items[i].Score {
-				items[i], items[j] = items[j], items[i]
-			}
-		}
-	}
-}
-
-func parseEmbedding(s string) []float32 {
+func parseEmbeddingJSON(s string) []float32 {
 	if s == "" || s[0] != '[' {
 		return nil
 	}
-	var vals []float32
-	num := float32(0)
-	sign := float32(1)
-	inNum := false
-	afterDecimal := false
-	decDiv := float32(1)
-	for i := 1; i < len(s); i++ {
-		c := s[i]
-		switch {
-		case c >= '0' && c <= '9':
-			inNum = true
-			if afterDecimal {
-				decDiv *= 10
-				num += float32(c-'0') / decDiv
-			} else {
-				num = num*10 + float32(c-'0')
-			}
-		case c == '.':
-			afterDecimal = true
-		case c == '-':
-			sign = -1
-		case c == ',' || c == ']':
-			if inNum {
-				vals = append(vals, sign*num)
-			}
-			num = 0
-			sign = 1
-			inNum = false
-			afterDecimal = false
-			decDiv = 1
-		case c == ' ' || c == 'e' || c == 'E':
-			continue
-		}
+	var vals []float64
+	if err := json.Unmarshal([]byte(s), &vals); err != nil {
+		return nil
 	}
-	return vals
+	result := make([]float32, len(vals))
+	for i, v := range vals {
+		result[i] = float32(v)
+	}
+	return result
 }
 
 func EstimateEmbeddingDim(db *gorm.DB) int {
@@ -442,5 +423,3 @@ func EstimateEmbeddingDim(db *gorm.DB) int {
 	db.Raw("SELECT COALESCE((SELECT vector_dims(embedding) FROM content_embeddings LIMIT 1), 0)").Scan(&dim)
 	return dim
 }
-
-var _ = math.Log10
