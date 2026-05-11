@@ -1,39 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   PanelLeftClose, PanelLeft, FilePlus, LayoutDashboard,
   FileText, GitPullRequest, Users, Tags, BarChart3, DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const groups = [
-  {
-    label: "内容发布",
-    items: [
-      { icon: FilePlus, label: "发布创作", href: "/studio/publish/original" },
-    ],
-  },
-  {
-    label: "数据看板",
-    items: [
-      { icon: LayoutDashboard, label: "数据概览", href: "/studio/overview" },
-      { icon: BarChart3, label: "粉丝分析", href: "/studio/followers" },
-      { icon: FileText, label: "我的内容", href: "/studio/contents" },
-    ],
-  },
-  {
-    label: "协作管理",
-    items: [
-      { icon: GitPullRequest, label: "PR 管理", href: "/studio/pr-requests" },
-      { icon: Users, label: "贡献者", href: "/studio/contributors" },
-      { icon: Tags, label: "标签建议", href: "/studio/tag-suggestions" },
-      { icon: DollarSign, label: "收益数据", href: "/studio/revenue" },
-    ],
-  },
-];
 
 const itemBase =
   "flex items-center gap-2.5 rounded-[6px] px-3 py-2 text-[13px] font-medium transition-all duration-100 w-full select-none active:scale-[0.97]";
@@ -48,8 +23,35 @@ const collapsedItem =
   "justify-center px-[8px] py-[8px] w-auto";
 
 export function StudioSidebar() {
+  const t = useTranslations();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+
+  const groups = useMemo(() => [
+    {
+      label: t('studio.sidebar.publish'),
+      items: [
+        { icon: FilePlus, label: t('studio.sidebar.publishContent'), href: "/studio/publish/original" },
+      ],
+    },
+    {
+      label: t('studio.sidebar.analytics'),
+      items: [
+        { icon: LayoutDashboard, label: t('studio.sidebar.overview'), href: "/studio/overview" },
+        { icon: BarChart3, label: t('studio.sidebar.followers'), href: "/studio/followers" },
+        { icon: FileText, label: t('studio.sidebar.myContent'), href: "/studio/contents" },
+      ],
+    },
+    {
+      label: t('studio.sidebar.collaboration'),
+      items: [
+        { icon: GitPullRequest, label: t('studio.sidebar.prManagement'), href: "/studio/pr-requests" },
+        { icon: Users, label: t('studio.sidebar.contributors'), href: "/studio/contributors" },
+        { icon: Tags, label: t('studio.sidebar.tagSuggestions'), href: "/studio/tag-suggestions" },
+        { icon: DollarSign, label: t('studio.sidebar.revenue'), href: "/studio/revenue" },
+      ],
+    },
+  ], [t]);
 
   useEffect(() => {
     const stored = localStorage.getItem("studio_sidebar_collapsed");
@@ -75,7 +77,7 @@ export function StudioSidebar() {
       <button
         type="button"
         onClick={toggle}
-        title={collapsed ? "展开侧边栏" : "收起侧边栏"}
+        title={collapsed ? t('studio.sidebar.expand') : t('studio.sidebar.collapse')}
         className={cn(
           itemBase,
           "text-[#52525B] hover:text-[#18181B] hover:bg-[#F2F2F2]",
@@ -89,7 +91,7 @@ export function StudioSidebar() {
         ) : (
           <>
             <PanelLeftClose className="h-4 w-4 flex-shrink-0" />
-            <span>收起侧边栏</span>
+            <span>{t('studio.sidebar.collapse')}</span>
           </>
         )}
       </button>
