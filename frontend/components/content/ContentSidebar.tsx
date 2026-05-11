@@ -92,29 +92,7 @@ export function ContentSidebar({
           </div>
         )}
 
-        {/* Source Original Card — fanwork only */}
-        {isFanwork && sourceOriginal && (
-          <div className="rounded-xl border border-border/60 bg-card p-5 transition-colors hover:border-border">
-            <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              来源原创
-            </div>
-            <Link
-              href={`/original/${sourceOriginal.id}`}
-              className="group flex items-center gap-3 rounded-lg border border-sky-100 bg-sky-50/50 p-3 transition-all hover:border-sky-200 hover:bg-sky-50"
-            >
-              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sky-100 to-blue-100 text-sky-600">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg>
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-semibold text-foreground">{sourceOriginal.title}</div>
-                <div className="text-[11px] text-muted-foreground">查看原创内容</div>
-              </div>
-              <ArrowRight className="h-4 w-4 flex-shrink-0 text-sky-500 transition-transform group-hover:translate-x-0.5" />
-            </Link>
-          </div>
-        )}
-
-        {/* IP Card — fanwork only */}
+        {/* IP Card — fanwork only (primary) */}
         {isFanwork && ip?.name && (
           <div className="rounded-xl border border-border/60 bg-card p-5 transition-colors hover:border-border">
             <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -140,6 +118,19 @@ export function ContentSidebar({
               >
                 进入 IP 详情 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
+            )}
+
+            {/* Source original — subtle secondary link */}
+            {sourceOriginal && sourceOriginal.title && (
+              <div className="mt-3 border-t border-border/50 pt-3">
+                <Link
+                  href={`/original/${sourceOriginal.id}`}
+                  className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-sky-600 transition-colors"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg>
+                  来源原创：{sourceOriginal.title.slice(0, 20)}{sourceOriginal.title.length > 20 ? "…" : ""}
+                </Link>
+              </div>
             )}
           </div>
         )}
