@@ -35,9 +35,12 @@ func main() {
 	recSvc := service.NewRecommendationService(db, embeddingRepo, contentRepo, viewCountSvc, rdb, &cfg.Recommendation)
 	embedProv := llm.NewProvider(cfg)
 
+	ipStatsSvc := service.NewIPStatsService(db, rdb)
+
 	hotRankSvc := service.NewHotRankService(viewCountSvc, &cfg.Recommendation).
 		WithRecommendationService(recSvc).
-		WithEmbeddingProvider(embedProv)
+		WithEmbeddingProvider(embedProv).
+		WithIPStatsService(ipStatsSvc)
 	go hotRankSvc.Run()
 
 	r := gin.New()
