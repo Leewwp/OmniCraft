@@ -94,29 +94,29 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
   }, [apiBase, contentType, contentSort]);
 
   // Sidebar sections
-  const sidebarSections = [
+  const sidebarSections = useMemo(() => [
     {
-      label: "IP 分类",
+      label: t('home.ipClassification'),
       items: [
-        { icon: <LayoutGrid className="h-4 w-4" />, label: "全部 IP", count: "58,293", active: ipCategory === "", onClick: () => setIPCategory("") },
-        { icon: <Gamepad2 className="h-4 w-4" />, label: "游戏", count: "18,412", active: ipCategory === "game", onClick: () => setIPCategory("game") },
-        { icon: <Tv className="h-4 w-4" />, label: "影视", count: "12,847", active: ipCategory === "film_tv", onClick: () => setIPCategory("film_tv") },
-        { icon: <BookOpen className="h-4 w-4" />, label: "动画", count: "9,156", active: ipCategory === "anime", onClick: () => setIPCategory("anime") },
-        { icon: <Globe className="h-4 w-4" />, label: "漫画", count: "7,328", active: ipCategory === "manga", onClick: () => setIPCategory("manga") },
-        { icon: <Music className="h-4 w-4" />, label: "小说", count: "5,601", active: ipCategory === "novel", onClick: () => setIPCategory("novel") },
-        { icon: <Film className="h-4 w-4" />, label: "综艺", count: "2,845", active: ipCategory === "variety", onClick: () => setIPCategory("variety") },
-        { icon: <Tv className="h-4 w-4" />, label: "短剧", count: "1,934", active: ipCategory === "short_drama", onClick: () => setIPCategory("short_drama") },
+        { icon: <LayoutGrid className="h-4 w-4" />, label: t('home.allIps'), count: "58,293", active: ipCategory === "", onClick: () => setIPCategory("") },
+        { icon: <Gamepad2 className="h-4 w-4" />, label: t('home.categoryGaming'), count: "18,412", active: ipCategory === "game", onClick: () => setIPCategory("game") },
+        { icon: <Tv className="h-4 w-4" />, label: t('home.categoryFilmTv'), count: "12,847", active: ipCategory === "film_tv", onClick: () => setIPCategory("film_tv") },
+        { icon: <BookOpen className="h-4 w-4" />, label: t('home.animeCategory'), count: "9,156", active: ipCategory === "anime", onClick: () => setIPCategory("anime") },
+        { icon: <Globe className="h-4 w-4" />, label: t('home.mangaCategory'), count: "7,328", active: ipCategory === "manga", onClick: () => setIPCategory("manga") },
+        { icon: <Music className="h-4 w-4" />, label: t('home.novelCategory'), count: "5,601", active: ipCategory === "novel", onClick: () => setIPCategory("novel") },
+        { icon: <Film className="h-4 w-4" />, label: t('home.varietyShowCategory'), count: "2,845", active: ipCategory === "variety", onClick: () => setIPCategory("variety") },
+        { icon: <Tv className="h-4 w-4" />, label: t('home.shortDramaCategory'), count: "1,934", active: ipCategory === "short_drama", onClick: () => setIPCategory("short_drama") },
       ] as SidebarItem[],
     },
     {
-      label: "管理",
+      label: t('home.management'),
       items: [
-        { icon: <Heart className="h-4 w-4" />, label: "我的收藏", href: user ? "/studio/contents" : "/login?redirect=/studio/contents" },
-        { icon: <FileText className="h-4 w-4" />, label: "我的创作", href: user ? "/studio/contents" : "/login?redirect=/studio/contents" },
-        { icon: <Clock className="h-4 w-4" />, label: "浏览历史", href: user ? "/history" : "/login?redirect=/history" },
+        { icon: <Heart className="h-4 w-4" />, label: t('home.myFavorites'), href: user ? "/studio/contents" : "/login?redirect=/studio/contents" },
+        { icon: <FileText className="h-4 w-4" />, label: t('home.myCreations'), href: user ? "/studio/contents" : "/login?redirect=/studio/contents" },
+        { icon: <Clock className="h-4 w-4" />, label: t('nav.history'), href: user ? "/history" : "/login?redirect=/history" },
       ] as SidebarItem[],
     },
-  ];
+  ], [t, ipCategory, user]);
 
   // Trending IPs (from top IPs)
   const trendingEntries: TrendingEntry[] = ips.slice(0, 6).map((ip, i) => ({
@@ -132,7 +132,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
       {/* Sidebar */}
       <Sidebar
         sections={sidebarSections}
-        trending={{ title: "热门 IP · 本周", entries: trendingEntries }}
+        trending={{ title: t('home.trendingIpsThisWeek'), entries: trendingEntries }}
       />
 
       {/* Main content */}
@@ -140,21 +140,21 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
         {/* Zone banner */}
         <div className="px-6 pt-5 pb-3">
           <div className="flex items-baseline gap-3">
-            <h1 className="text-[22px] font-bold tracking-tight text-foreground">二创区</h1>
-            <p className="text-sm text-muted-foreground">基于 IP 的协同创作与内容发现</p>
+            <h1 className="text-[22px] font-bold tracking-tight text-foreground">{t('nav.fanworkZone')}</h1>
+            <p className="text-sm text-muted-foreground">{t('home.fanworkZoneSubtitle')}</p>
           </div>
           <div className="mt-3 flex gap-4">
             <span className="flex items-baseline gap-1">
               <span className="text-[15px] font-semibold text-foreground">58,293</span>
-              <span className="text-xs text-muted-foreground">内容</span>
+              <span className="text-xs text-muted-foreground">{t('home.contentCountLabel')}</span>
             </span>
             <span className="flex items-baseline gap-1">
               <span className="text-[15px] font-semibold text-foreground">186</span>
-              <span className="text-xs text-muted-foreground">活跃 IP</span>
+              <span className="text-xs text-muted-foreground">{t('home.activeIpsLabel')}</span>
             </span>
             <span className="flex items-baseline gap-1">
               <span className="text-[15px] font-semibold text-foreground">8,412</span>
-              <span className="text-xs text-muted-foreground">创作者</span>
+              <span className="text-xs text-muted-foreground">{t('home.creatorsLabel')}</span>
             </span>
           </div>
         </div>
@@ -163,7 +163,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
         {recentIPs.length > 0 && (
           <div className="px-6 pb-3">
             <div className="mb-2">
-              <span className="text-[13px] font-semibold text-muted-foreground">最近访问IP</span>
+              <span className="text-[13px] font-semibold text-muted-foreground">{t('home.recentIps')}</span>
             </div>
             <div className="flex gap-2.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
               {recentIPs.map((ip) => (
@@ -182,9 +182,9 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
         {/* IP horizontal scroll */}
         <div className="px-6 pb-2">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-[13px] font-semibold text-muted-foreground">推荐 IP</span>
+            <span className="text-[13px] font-semibold text-muted-foreground">{t('home.recommendedIps')}</span>
             <Link href="/search" className="text-xs text-accent-emphasis font-medium">
-              浏览全部 IP →
+              {t('home.browseAllIps')}
             </Link>
           </div>
           <div className="flex gap-2.5 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
