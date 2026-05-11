@@ -1,26 +1,12 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslations } from 'next-intl/server';
-import { ArrowRight, GitBranchPlus } from "lucide-react";
 import { ContentDetail } from "@/components/content/ContentDetail";
-import { buttonVariants } from "@/components/ui/button";
-import {
-  normalizeAttachments,
-  normalizeContentItem,
-  normalizeTags,
-  type ContentDetailData,
-} from "@/lib/content";
+import { ContentSidebar } from "@/components/content/ContentSidebar";
+import { normalizeAttachments, normalizeContentItem, normalizeTags } from "@/lib/content";
 
-interface ContentResponse {
-  content?: unknown;
-  attachments?: unknown[];
-  tags?: unknown[];
-}
-
-interface RelatedResponse {
-  total?: number;
-}
+interface ContentResponse { content?: unknown; attachments?: unknown[]; tags?: unknown[]; }
+interface RelatedResponse { total?: number; }
 
 const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://omnicraft.com";
 
@@ -31,108 +17,53 @@ function getApiBase() {
 
 async function fetchContent(apiBase: string, contentId: string): Promise<ContentResponse | null> {
   try {
-    const res = await fetch(`${apiBase}/contents/${contentId}`, {
-      cache: "no-store",
-    });
-    if (!res.ok) {
-      return null;
-    }
+    const res = await fetch(`${apiBase}/contents/${contentId}`, { cache: "no-store" });
+    if (!res.ok) return null;
     return (await res.json()) as ContentResponse;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 async function fetchRelatedCount(apiBase: string, contentId: string) {
   try {
-    const res = await fetch(`${apiBase}/contents/${contentId}/related-fanworks?page=1&page_size=1`, {
-      cache: "no-store",
-    });
-    if (!res.ok) {
-      return 0;
-    }
-    const data = (await res.json()) as RelatedResponse;
-    return data.total || 0;
-  } catch {
-    return 0;
-  }
+    const res = await fetch(`${apiBase}/contents/${contentId}/related-fanworks?page=1&page_size=1`, { cache: "no-store" });
+    if (!res.ok) return 0;
+    return ((await res.json()) as RelatedResponse).total || 0;
+  } catch { return 0; }
 }
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ contentId: string }>;
-}): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ contentId: string }> }): Promise<Metadata> {
   const { contentId } = await params;
   const t = await getTranslations();
-  const apiBase = getApiBase();
-  const rawData = await fetchContent(apiBase, contentId);
+  const rawData = await fetchContent(getApiBase(), contentId);
   const content = normalizeContentItem(rawData?.content);
-  if (!content || content.zone !== "original") {
-    return { title: `${t('content.originalZone')} — OmniCraft` };
-  }
+  if (!content || content.zone !== "original") return { title: `${t('content.originalZone')} — OmniCraft` };
   const title = `${content.title} — ${t('content.originalZone')}`;
-  const description = content.description?.slice(0, 160) || `${content.title} - ${t('content.viewOriginal')}`;
-  const ogImage = content.cover_image_url || `${baseUrl}/og-default.png`;
-  return {
-    title,
-    description,
-    openGraph: {
-      title,
-      description,
-      images: [{ url: ogImage, width: 1200, height: 630 }],
-      type: "article",
-    },
-    twitter: { card: "summary_large_image", title, description, images: [ogImage] },
-  };
+  const desc = content.description?.slice(0, 160) || `${content.title} - ${t('content.viewOriginal')}`;
+  return { title, description: desc, openGraph: { title, description: desc, images: [{ url: content.cover_image_url || `${baseUrl}/og-default.png`, width: 1200, height: 630 }], type: "article" }, twitter: { card: "summary_large_image", title, description: desc, images: [content.cover_image_url || `${baseUrl}/og-default.png`] } };
 }
 
-export default async function OriginalDetailPage({
-  params,
-}: {
-  params: Promise<{ contentId: string }>;
-}) {
+export default async function OriginalDetailPage({ params }: { params: Promise<{ contentId: string }> }) {
   const t = await getTranslations();
   const { contentId } = await params;
   const apiBase = getApiBase();
-  const [rawData, relatedCount] = await Promise.all([
-    fetchContent(apiBase, contentId),
-    fetchRelatedCount(apiBase, contentId),
-  ]);
+  const [rawData, relatedCount] = await Promise.all([fetchContent(apiBase, contentId), fetchRelatedCount(apiBase, contentId)]);
   const content = normalizeContentItem(rawData?.content);
-
-  if (!content || content.zone !== "original") {
-    notFound();
-  }
-
-  const detailData: ContentDetailData = {
-    ...content,
-    attachments: normalizeAttachments(rawData?.attachments),
-    tags: normalizeTags(rawData?.tags),
-  };
+  if (!content || content.zone !== "original") notFound();
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6">
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-card p-3 ">
-        {relatedCount > 0 ? (
-          <Link
-            href={`/original/${content.id}/fanworks`}
-            className={buttonVariants({ size: "sm", variant: "default" })}
-          >
-            {t('content.relatedFanworks')}
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
-        ) : null}
-        <Link
-          href={`/publish?zone=fanwork&source_original_id=${content.id}`}
-          className={buttonVariants({ size: "sm", variant: "outline" })}
-        >
-          <GitBranchPlus className="h-3.5 w-3.5" />
-          {t('content.createFanwork')}
-        </Link>
+    <div className="mx-auto flex w-full max-w-[1280px] gap-6 px-6 py-6">
+      {/* Main content */}
+      <div className="flex-1 min-w-0">
+        <ContentDetail data={{ ...content, attachments: normalizeAttachments(rawData?.attachments), tags: normalizeTags(rawData?.tags) }} />
       </div>
 
-      <ContentDetail data={detailData} />
+      {/* Right sidebar */}
+      <ContentSidebar
+        author={content.author ? { id: content.author.id, username: content.author.username } : undefined}
+        zone="original"
+        originalId={content.id}
+        relatedFanworksCount={relatedCount}
+      />
     </div>
   );
 }
