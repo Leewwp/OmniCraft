@@ -710,7 +710,14 @@
     "saveNamePlaceholder": "搜索名称",
     "noResults": "未找到匹配结果",
     "noResultsHint": "尝试调整搜索词或移除筛选条件",
-    "startSearch": "输入关键词或自然语言描述开始搜索"
+    "startSearch": "输入关键词或自然语言描述开始搜索",
+    "contentType": "内容类型",
+    "timeRange": "时间范围",
+    "sortBy": "排序方式",
+    "anyTime": "不限时间",
+    "today": "今天",
+    "defaultSort": "默认排序",
+    "mostLiked": "最多赞"
   },
   "rehab": {
     "title": "素质建设课程",
