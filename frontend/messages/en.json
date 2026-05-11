@@ -711,7 +711,14 @@
     "saveNamePlaceholder": "Search name",
     "noResults": "No results found",
     "noResultsHint": "Try adjusting your search terms or removing filters",
-    "startSearch": "Enter keywords or a natural language query to start searching"
+    "startSearch": "Enter keywords or a natural language query to start searching",
+    "contentType": "Content type",
+    "timeRange": "Time range",
+    "sortBy": "Sort by",
+    "anyTime": "Any time",
+    "today": "Today",
+    "defaultSort": "Default",
+    "mostLiked": "Most liked"
   },
   "rehab": {
     "title": "Rehabilitation Courses",

@@ -334,7 +334,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
             </div>
             <a
               href={`omnicraft://deploy?content_id=${data.id}`}
-              className="inline-flex shrink-0 items-center justify-center rounded-md border border-border bg-accent px-3 py-2 text-xs font-medium text-accent-foreground hover:bg-accent/80"
+              className="inline-flex shrink-0 items-center justify-center rounded-md border border-border bg-accent px-3 py-2 text-xs font-medium text-accent-foreground transition-all duration-150 hover:bg-accent/80 active:scale-95"
             >
               <Rocket className="mr-1 h-3.5 w-3.5" />
               {t('content.oneClickDeploy')}

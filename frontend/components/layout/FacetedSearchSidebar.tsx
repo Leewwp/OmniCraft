@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useTranslations } from "next-intl";
 import {
   ChevronDown,
   ChevronUp,
@@ -64,29 +65,29 @@ export interface FacetedSearchSidebarProps {
 }
 
 const CONTENT_TYPE_OPTIONS = [
-  { key: "image", label: "图片" },
-  { key: "video", label: "视频" },
-  { key: "audio", label: "音频" },
-  { key: "text", label: "文字" },
-  { key: "model", label: "模型与设计" },
-  { key: "template", label: "效率模板" },
-  { key: "other", label: "其他" },
+  { key: "image", label: "home.image" },
+  { key: "video", label: "home.video" },
+  { key: "audio", label: "home.audio" },
+  { key: "text", label: "home.text" },
+  { key: "model", label: "content.categoryModel" },
+  { key: "template", label: "home.template" },
+  { key: "other", label: "home.other" },
 ];
 
 const TIME_RANGE_OPTIONS = [
-  { key: "", label: "不限时间" },
-  { key: "today", label: "今天" },
-  { key: "week", label: "本周" },
-  { key: "month", label: "本月" },
-  { key: "year", label: "今年" },
+  { key: "", label: "search.anyTime" },
+  { key: "today", label: "search.today" },
+  { key: "week", label: "home.thisWeek" },
+  { key: "month", label: "home.thisMonth" },
+  { key: "year", label: "home.thisYear" },
 ];
 
 const SORT_OPTIONS = [
-  { key: "", label: "默认排序" },
-  { key: "hot", label: "热门" },
-  { key: "newest", label: "最新" },
-  { key: "most_liked", label: "最多赞" },
-  { key: "most_viewed", label: "最多浏览" },
+  { key: "", label: "search.defaultSort" },
+  { key: "hot", label: "home.hottest" },
+  { key: "newest", label: "home.newest" },
+  { key: "most_liked", label: "search.mostLiked" },
+  { key: "most_viewed", label: "home.mostViewed" },
 ];
 
 const DEFAULT_CATEGORIES: CategoryNode[] = [
@@ -114,6 +115,7 @@ export function FacetedSearchSidebar({
   disabled: _disabled,
   onAction: _onAction,
 }: FacetedSearchSidebarProps) {
+  const t = useTranslations();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -445,7 +447,7 @@ export function FacetedSearchSidebar({
             <div className="flex flex-col gap-3">
               {/* Content type multi-select */}
               <div className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-muted-foreground">内容类型</span>
+                <span className="text-xs font-medium text-muted-foreground">{t('search.contentType')}</span>
                 <div className="flex flex-wrap gap-1">
                   {CONTENT_TYPE_OPTIONS.map((opt) => {
                     const active = contentTypes.includes(opt.key);
@@ -462,7 +464,7 @@ export function FacetedSearchSidebar({
                             : "border-border bg-transparent text-muted-foreground hover:border-primary hover:text-foreground hover:bg-muted/30 cursor-pointer",
                         )}
                       >
-                        {opt.label}
+                        {t(opt.label)}
                       </button>
                     );
                   })}
@@ -471,7 +473,7 @@ export function FacetedSearchSidebar({
 
               {/* Time range */}
               <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-muted-foreground">时间范围</span>
+                <span className="text-xs font-medium text-muted-foreground">{t('search.timeRange')}</span>
                 <select
                   value={timeRange}
                   onChange={(e) => setTimeRange(e.target.value)}
@@ -479,7 +481,7 @@ export function FacetedSearchSidebar({
                 >
                   {TIME_RANGE_OPTIONS.map((opt) => (
                     <option key={opt.key} value={opt.key}>
-                      {opt.label}
+                      {t(opt.label)}
                     </option>
                   ))}
                 </select>
@@ -487,7 +489,7 @@ export function FacetedSearchSidebar({
 
               {/* Sort */}
               <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-muted-foreground">排序方式</span>
+                <span className="text-xs font-medium text-muted-foreground">{t('search.sortBy')}</span>
                 <select
                   value={sort}
                   onChange={(e) => setSort(e.target.value)}
@@ -495,7 +497,7 @@ export function FacetedSearchSidebar({
                 >
                   {SORT_OPTIONS.map((opt) => (
                     <option key={opt.key} value={opt.key}>
-                      {opt.label}
+                      {t(opt.label)}
                     </option>
                   ))}
                 </select>
@@ -510,7 +512,7 @@ export function FacetedSearchSidebar({
         <div className="flex flex-wrap gap-1 text-xs text-muted-foreground/70">
           {contentTypes.map((ct) => (
             <span key={ct} className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
-              {CONTENT_TYPE_OPTIONS.find((o) => o.key === ct)?.label ?? ct}
+              {t(CONTENT_TYPE_OPTIONS.find((o) => o.key === ct)?.label ?? "") || ct}
               <button
                 type="button"
                 onClick={() => handleContentTypeToggle(ct)}
@@ -522,7 +524,7 @@ export function FacetedSearchSidebar({
           ))}
           {timeRange && (
             <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
-              {TIME_RANGE_OPTIONS.find((o) => o.key === timeRange)?.label ?? timeRange}
+              {t(TIME_RANGE_OPTIONS.find((o) => o.key === timeRange)?.label ?? "") || timeRange}
               <button
                 type="button"
                 onClick={() => setTimeRange("")}
@@ -534,7 +536,7 @@ export function FacetedSearchSidebar({
           )}
           {sort && (
             <span className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5">
-              {SORT_OPTIONS.find((o) => o.key === sort)?.label ?? sort}
+              {t(SORT_OPTIONS.find((o) => o.key === sort)?.label ?? "") || sort}
               <button
                 type="button"
                 onClick={() => setSort("")}
