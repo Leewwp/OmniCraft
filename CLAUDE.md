@@ -435,3 +435,19 @@ docker compose logs -f backend     # 查看后端日志
 13. **Define success criteria** — 明确验证标准，分步执行并完成校验
 14. **Consult ui-spec for frontend** — 实现前端页面/组件前必须读取 `design/ui-spec.md` 对应章节（通过 `ui_spec_ref` 字段或主动 grep 检索组件名），严格遵照全局无阴影等 UI 规范。文件为空时跳过。
 15. **Design spec overrides prose** — 视觉细节以 `design/ui-spec.md` 为准，优先级高于 task steps 的文字描述
+
+---
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in the repo's GitHub Issues, managed via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Standard five-role vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.

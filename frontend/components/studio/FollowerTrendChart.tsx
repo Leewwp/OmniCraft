@@ -61,19 +61,19 @@ export function FollowerTrendChart({ data }: FollowerTrendChartProps) {
             type="monotone"
             dataKey="newFollowers"
             name="新增粉丝"
-            stroke="#0969da"
+            stroke="var(--chart-1)"
             strokeWidth={2}
             dot={false}
-            activeDot={{ r: 4, fill: "#0969da" }}
+            activeDot={{ r: 4, fill: "var(--chart-1)" }}
           />
           <Line
             type="monotone"
             dataKey="netGrowth"
             name="净增粉丝"
-            stroke="#1a7f37"
+            stroke="var(--chart-2)"
             strokeWidth={2}
             dot={false}
-            activeDot={{ r: 4, fill: "#1a7f37" }}
+            activeDot={{ r: 4, fill: "var(--chart-2)" }}
           />
         </LineChart>
       </ResponsiveContainer>

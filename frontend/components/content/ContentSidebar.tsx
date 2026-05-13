@@ -153,7 +153,7 @@ export function ContentSidebar({
               </Link>
               <Link
                 href={`/studio/publish/fanwork?source_original_id=${originalId}`}
-                className="inline-flex items-center justify-center gap-1.5 rounded-full bg-violet-600 px-4 py-2 text-[12.5px] font-medium text-white transition-all hover:bg-violet-700"
+                className="inline-flex items-center justify-center gap-1.5 rounded-full bg-primary px-4 py-2 text-[12.5px] font-medium text-primary-foreground transition-all hover:bg-primary/90"
               >
                 <GitBranchPlus className="h-3.5 w-3.5" />
                 {t('content.createFanwork')}
