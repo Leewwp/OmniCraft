@@ -7,10 +7,12 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -21,9 +23,10 @@ type AdminHandler struct {
 	socialRepo   *repository.SocialRepository
 	llmConfigSvc *service.LLMConfigService
 	cfg          *config.Config
+	rdb          *redis.Client
 }
 
-func NewAdminHandler(db *gorm.DB, cfg *config.Config) *AdminHandler {
+func NewAdminHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *AdminHandler {
 	return &AdminHandler{
 		ipSvc:        service.NewIPService(repository.NewIPRepository(db)),
 		contentRepo:  repository.NewContentRepository(db),
@@ -31,6 +34,7 @@ func NewAdminHandler(db *gorm.DB, cfg *config.Config) *AdminHandler {
 		socialRepo:   repository.NewSocialRepository(db),
 		llmConfigSvc: service.NewLLMConfigService(repository.NewLLMConfigRepository(db), cfg),
 		cfg:          cfg,
+		rdb:          rdb,
 	}
 }
 
@@ -43,7 +47,7 @@ func (h *AdminHandler) ListPendingIPs(c *gin.Context) {
 		PageSize: pageSize,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ips": ips, "total": total})
@@ -56,7 +60,7 @@ func (h *AdminHandler) ApproveIP(c *gin.Context) {
 		return
 	}
 	if err := h.ipSvc.ApproveIP(id); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "ip approved"})
@@ -69,7 +73,7 @@ func (h *AdminHandler) RejectIP(c *gin.Context) {
 		return
 	}
 	if err := h.ipSvc.RejectIP(id); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "ip rejected"})
@@ -85,7 +89,7 @@ func (h *AdminHandler) ListUnderReviewContents(c *gin.Context) {
 		PageSize: pageSize,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"contents": contents, "total": total})
@@ -98,7 +102,7 @@ func (h *AdminHandler) BanContent(c *gin.Context) {
 		return
 	}
 	if err := h.contentRepo.UpdateContent(id, map[string]interface{}{"status": "banned"}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "content banned"})
@@ -115,9 +119,15 @@ func (h *AdminHandler) BanUser(c *gin.Context) {
 	}
 	_ = c.ShouldBindJSON(&body)
 	if err := h.userRepo.UpdateFields(id, map[string]interface{}{"is_banned": true, "ban_reason": body.Reason}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to ban user"})
 		return
 	}
+	user, _ := h.userRepo.FindByID(id)
+	role := ""
+	if user != nil {
+		role = user.Role
+	}
+	middleware.SetUserStatusCache(h.rdb, id, true, role)
 	c.JSON(http.StatusOK, gin.H{"message": "user banned"})
 }
 
@@ -128,9 +138,15 @@ func (h *AdminHandler) UnbanUser(c *gin.Context) {
 		return
 	}
 	if err := h.userRepo.UpdateFields(id, map[string]interface{}{"is_banned": false, "ban_reason": ""}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to unban user"})
 		return
 	}
+	user, _ := h.userRepo.FindByID(id)
+	role := ""
+	if user != nil {
+		role = user.Role
+	}
+	middleware.SetUserStatusCache(h.rdb, id, false, role)
 	c.JSON(http.StatusOK, gin.H{"message": "user unbanned"})
 }
 
@@ -205,14 +221,39 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 		}
 		return tx.Model(&model.ContentItem{}).Where("id = ?", appeal.TargetID).Updates(targetUpdates).Error
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "appeal resolved"})
 }
 
 func (h *AdminHandler) GetConfig(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"config": h.cfg})
+	public := model.PublicConfig{
+		Features:   h.cfg.Features,
+		Limits:     h.cfg.Limits,
+		Reputation: h.cfg.Reputation,
+		Judge:      h.cfg.Judge,
+		Social:     h.cfg.Social,
+		Agent: model.PublicAgentConfig{
+			WebAgentEnabled:       h.cfg.Agent.WebAgentEnabled,
+			RateLimitPerDay:       h.cfg.Agent.RateLimitPerDay,
+			UploadAssistMaxFileMB: h.cfg.Agent.UploadAssistMaxFileMB,
+		},
+		Upload:         h.cfg.Upload,
+		Cache:          h.cfg.Cache,
+		RateLimit:      h.cfg.RateLimit,
+		Recommendation: h.cfg.Recommendation,
+	}
+	redactStatus := model.ConfigRedactStatus{
+		JWTSecretConfigured:  h.cfg.JWT.Secret != "",
+		OSSKeyConfigured:     h.cfg.OSS.AccessKeyID != "" && h.cfg.OSS.AccessKeySecret != "",
+		GreenKeyConfigured:    h.cfg.Green.AccessKeyID != "" && h.cfg.Green.AccessKeySecret != "",
+		LLMApiKeyConfigured:   h.cfg.Agent.LLMAPIKey != "",
+		HMACSecretConfigured:  h.cfg.Agent.HMACSecret != "",
+		DatabaseConfigured:    h.cfg.Database.DSN != "",
+		RedisConfigured:       h.cfg.Redis.Addr != "",
+	}
+	c.JSON(http.StatusOK, gin.H{"config": public, "secrets_status": redactStatus})
 }
 
 func (h *AdminHandler) PatchConfig(c *gin.Context) {
@@ -275,13 +316,31 @@ func (h *AdminHandler) PatchConfig(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"config": h.cfg, "message": "config updated"})
+	c.JSON(http.StatusOK, gin.H{
+		"config": model.PublicConfig{
+			Features:   h.cfg.Features,
+			Limits:     h.cfg.Limits,
+			Reputation: h.cfg.Reputation,
+			Judge:      h.cfg.Judge,
+			Social:     h.cfg.Social,
+			Agent: model.PublicAgentConfig{
+				WebAgentEnabled:       h.cfg.Agent.WebAgentEnabled,
+				RateLimitPerDay:       h.cfg.Agent.RateLimitPerDay,
+				UploadAssistMaxFileMB: h.cfg.Agent.UploadAssistMaxFileMB,
+			},
+			Upload:         h.cfg.Upload,
+			Cache:          h.cfg.Cache,
+			RateLimit:      h.cfg.RateLimit,
+			Recommendation: h.cfg.Recommendation,
+		},
+		"message": "config updated",
+	})
 }
 
 func (h *AdminHandler) ListLLMConfigs(c *gin.Context) {
 	configs, err := h.llmConfigSvc.ListConfigs()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"configs": configs})
@@ -301,7 +360,7 @@ func (h *AdminHandler) CreateLLMConfig(c *gin.Context) {
 	}
 	r, err := h.llmConfigSvc.CreateConfig(req.ConfigName, req.ProviderType, req.APIBase, req.Model, req.APIKey)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"config": r})
@@ -326,7 +385,7 @@ func (h *AdminHandler) UpdateLLMConfig(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"code": "CONFIG_NOT_FOUND", "message": "config not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "config updated"})

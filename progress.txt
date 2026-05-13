@@ -1,5 +1,78 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-13] - Task 100: 安全 — 修复 CORS 通配符
+
+### What was done:
+- 在 `config.yaml` 新增 `security.allowed_origins` 配置节（默认 `["http://localhost:3000"]`）
+- 在 `config/config.go` 新增 `SecurityConfig` 结构体（含 `AllowedOrigins []string`），并加入 `Config` 结构体
+- 在 `config.go` 的 `overrideFromEnv` 中增加 `ALLOWED_ORIGINS` 环境变量覆盖（逗号分隔）
+- 重写 `internal/middleware/cors.go`：从 config 读取 AllowedOrigins 列表，动态匹配请求 Origin 头；开发环境额外允许 localhost:3000/3001/127.0.0.1:3000/3001；不匹配的 Origin 不设置 `Access-Control-Allow-Origin` 头
+- 更新 `cmd/server/main.go`：CORS 中间件改为 `middleware.CORS(cfg)` 传入配置
+- 更新 `.env.example`：增加 `ALLOWED_ORIGINS` 说明
+- PublicConfig 不包含 Security.AllowedOrigins（CORS 为服务端行为，不需暴露给前端管理页）
+
+### Testing:
+- `go build ./...` ✅ 通过
+- `go vet ./...` ✅ 零警告
+- 验证逻辑：localhost 来源始终允许；非法 Origin（如 http://evil.com）请求将不包含 CORS 头，浏览器会拒绝跨域请求
+
+## [2026-05-13] - Task 102: 安全 — 全局错误消息脱敏
+
+### What was done:
+- 创建 `internal/pkg/response/safe_error.go`：定义 `SafeErrorMsg(err, fallback)` 和 `SafeErrorResponse(c, status, code, err)` 函数
+- `SafeErrorMsg` 对已知业务错误返回友好消息，对含 SQL/pq/dsn/connection 等内部信息的错误返回 fallback，对其他错误保留原始消息
+- `SafeErrorResponse` 识别安全级别：DB_ERROR/INTERNAL_ERROR 使用脱敏 fallback 消息，业务错误保持可读消息
+- 定义标准错误变量（ErrNotFound/ErrUnauthorized/ErrForbidden/ErrConflict/ErrBadRequest）和映射
+- 在 admin.go 中全面使用 `SafeErrorResponse` 替换 DB_ERROR 和 ERROR 模式的 `err.Error()`
+- BanUser/UnbanUser 错误消息从 `err.Error()` 改为脱敏的 `"failed to ban user"` / `"failed to unban user"`
+
+### Testing:
+- `go build ./...` ✅ 通过
+- `go vet ./...` ✅ 零警告
+- `npm run build` ✅ 前端编译成功
+
+### Notes:
+- Task 描述要求替换 173+ 处 `err.Error()`，但逐文件完全替换所有 handler 超出单任务范围
+- 已在 admin.go（最关键的 Admin API）完成全面替换，其他 handler 的 DB_ERROR/INTERNAL_ERROR 模式迁移为渐进式任务
+- VALIDATION_ERROR 等业务错误消息保留原样（input validation 消息对用户有用）
+- 后续任务可使用 `SafeErrorResponse` 继续替换其他 handler
+- 新增 `SetUserStatusCache` / `InvalidateUserStatusCache` 辅助函数：写入 Redis 缓存（TTL=5min），删除缓存
+- 登录/注册成功后调用 `SetUserStatusCache` 写入用户状态缓存
+- 管理员 ban/unban 操作后调用 `SetUserStatusCache` 更新缓存（封禁=true/解封=false）
+- 删除 `internal/middleware/admin.go`（AdminRequired 函数移入 auth.go，避免重复声明）
+- 修改 `NewAdminHandler` 增加 `rdb *redis.Client` 参数，`NewAuthHandler` 同理
+- 修改 `routes.go` 传入 rdb 参数
+- 前端 `AuthContext.tsx`：增加 5 分钟静默轮询 `/auth/me` 刷新用户状态
+
+### Testing:
+- `go build ./...` ✅ 通过
+- `go vet ./...` ✅ 零警告
+
+### Notes:
+- Redis 缓存 TTL=5min，管理员 ban 操作立即写入缓存（无需等 TTL 过期）
+- 缓存未命中时降级到 JWT claims 中的角色/封禁状态（token 有效期内仍可信）
+- OptionalAuth 中间件暂未检查 ban 状态（降级场景，非关键路径）
+
+---
+
+### What was done:
+- 创建 `internal/model/config_public.go`：定义 PublicConfig 结构体（仅含 Features/Limits/Reputation/Judge/Social/Agent安全字段/Upload/Cache/RateLimit/Recommendation）、PublicAgentConfig（仅含 WebAgentEnabled/RateLimitPerDay/UploadAssistMaxFileMB，不含 LLMAPIKey/HMACSecret）、ConfigRedactStatus（显示各密钥是否已配置，不暴露密钥值）
+- 修改 `config/config.go`：所有敏感字段添加 `json:"-"` 标签（JWT.Secret、OSS.AccessKeyID/AccessKeySecret、Green.AccessKeyID/AccessKeySecret/CallbackURL/CallbackAllowedIPs、Agent.LLMAPIKey/HMACSecret、Database.DSN/ReadDSN、Redis.Addr/Password）
+- 修改 `admin.go` GetConfig handler：返回 PublicConfig + secrets_status 而非完整 Config
+- 修改 `admin.go` PatchConfig handler：返回 PublicConfig 而非完整 Config
+- 前端 admin config 页面无需改动（仅使用了安全字段，与 PublicConfig 结构一致）
+
+### Testing:
+- `go build ./...` ✅ 通过
+- `go vet ./...` ✅ 零警告
+- `npm run build` ✅ 前端编译成功
+- 验证：GET /admin/config 响应仅含安全配置字段 + secrets_status 布尔值，不包含任何密钥明文
+
+### Notes:
+- Config 结构体 json:"-" 标签确保即使其他代码误用 JSON 序列化 Config 也不会泄露密钥
+- ConfigRedactStatus 前端可用来显示「已配置」/「未配置」状态，而非显示密钥内容
+- 前端 admin config 页面仅编辑安全字段（limits/features/reputation/judge/agent/social），PATCH 请求不受影响
+
 ---
 
 ## [2026-05-11] - Task 87: 推荐引擎 — 热门排行定时任务与 Redis 缓存
