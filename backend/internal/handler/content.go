@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -190,11 +191,21 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 		return
 	}
 
-	_ = h.contentRepo.IncrViewCount(id)
+	if err := h.contentRepo.IncrViewCount(id); err != nil {
+		slog.Error("failed to incr view count", "content_id", id, "error", err)
+	}
 	h.contentSvc.IncrViewCount(id)
 
-	attachments, _ := h.contentRepo.GetAttachments(id)
-	tags, _ := h.contentRepo.GetTags(id)
+	attachments, err := h.contentRepo.GetAttachments(id)
+	if err != nil {
+		slog.Error("failed to get attachments", "content_id", id, "error", err)
+		attachments = nil
+	}
+	tags, err := h.contentRepo.GetTags(id)
+	if err != nil {
+		slog.Error("failed to get tags", "content_id", id, "error", err)
+		tags = nil
+	}
 
 	resp := gin.H{
 		"content":     content,

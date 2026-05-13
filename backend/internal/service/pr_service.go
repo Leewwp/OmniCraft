@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"omnicraft/backend/internal/model"
@@ -101,7 +102,9 @@ func (s *PRService) AcceptPR(prID int64, callerID int64) error {
 		return err
 	}
 
-	_ = s.prRepo.UpsertContributor(pr.ContentItemID, pr.SubmitterID)
+	if err := s.prRepo.UpsertContributor(pr.ContentItemID, pr.SubmitterID); err != nil {
+		slog.Error("failed to upsert contributor on accept", "content_id", pr.ContentItemID, "submitter_id", pr.SubmitterID, "error", err)
+	}
 	return nil
 }
 
@@ -172,7 +175,9 @@ func (s *PRService) ManualMerge(prID int64, callerID int64, mergedText string) (
 	if err := s.prRepo.UpdateStatus(prID, "merged", map[string]interface{}{"resolved_at": now}); err != nil {
 		return nil, err
 	}
-	_ = s.prRepo.UpsertContributor(pr.ContentItemID, pr.SubmitterID)
+	if err := s.prRepo.UpsertContributor(pr.ContentItemID, pr.SubmitterID); err != nil {
+		slog.Error("failed to upsert contributor on merge", "content_id", pr.ContentItemID, "submitter_id", pr.SubmitterID, "error", err)
+	}
 	return v, nil
 }
 

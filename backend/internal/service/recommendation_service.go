@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"sort"
 	"time"
 
@@ -86,13 +86,13 @@ func (s *RecommendationService) Recommend(ctx context.Context, userID int64, pag
 
 	profile, err := s.buildUserProfile(ctx, userID)
 	if err != nil || len(profile) == 0 {
-		log.Printf("[rec] profile build failed for user %d: %v, falling back to hot", userID, err)
+		slog.Error("[rec] profile build failed, falling back to hot", "user_id", userID, "error", err)
 		return s.fallbackToHot(ctx, page, pageSize)
 	}
 
 	candidates, err := s.embeddingRepo.VectorSearch(profile, topK*2)
 	if err != nil {
-		log.Printf("[rec] vector search failed: %v, falling back to hot", err)
+		slog.Error("[rec] vector search failed, falling back to hot", "error", err)
 		return s.fallbackToHot(ctx, page, pageSize)
 	}
 
@@ -105,7 +105,7 @@ func (s *RecommendationService) Recommend(ctx context.Context, userID int64, pag
 
 	scored, err := s.computeFinalScores(ctx, ids, candidateScores, personalizationWeight)
 	if err != nil {
-		log.Printf("[rec] score computation failed: %v", err)
+		slog.Error("[rec] score computation failed", "error", err)
 		return s.fallbackToHot(ctx, page, pageSize)
 	}
 
@@ -127,7 +127,7 @@ func (s *RecommendationService) Recommend(ctx context.Context, userID int64, pag
 			Total int64                  `json:"total"`
 		}{Items: paged, Total: total}
 		if err := redisclient.SetJSON(ctx, cacheKey, cached, ttl); err != nil {
-			log.Printf("[rec] cache write failed: %v", err)
+			slog.Error("[rec] cache write failed", "error", err)
 		}
 	}
 
@@ -185,7 +185,7 @@ func (s *RecommendationService) buildUserProfile(ctx context.Context, userID int
 		ORDER BY bh.viewed_at DESC
 		LIMIT 50
 	`, userID).Scan(&rows).Error; err != nil {
-		log.Printf("[rec] browse history query failed: %v", err)
+		slog.Error("[rec] browse history query failed", "error", err)
 	}
 
 	var favRows []embeddingRow
@@ -196,7 +196,7 @@ func (s *RecommendationService) buildUserProfile(ctx context.Context, userID int
 		WHERE f.user_id = ?
 		LIMIT 50
 	`, userID).Scan(&favRows).Error; err != nil {
-		log.Printf("[rec] favorites query failed: %v", err)
+		slog.Error("[rec] favorites query failed", "error", err)
 	}
 
 	var likeRows []embeddingRow
@@ -207,7 +207,7 @@ func (s *RecommendationService) buildUserProfile(ctx context.Context, userID int
 		WHERE r.user_id = ? AND r.target_type = 'content' AND r.reaction = 'like'
 		LIMIT 50
 	`, userID).Scan(&likeRows).Error; err != nil {
-		log.Printf("[rec] reactions query failed: %v", err)
+		slog.Error("[rec] reactions query failed", "error", err)
 	}
 
 	if len(rows) == 0 && len(favRows) == 0 && len(likeRows) == 0 {
@@ -384,7 +384,7 @@ func (s *RecommendationService) FillMissingEmbeddings(ctx context.Context, llmPr
 		return nil
 	}
 
-	log.Printf("[rec] filling %d missing content embeddings", len(missing))
+	slog.Info("[rec] filling missing content embeddings", "count", len(missing))
 	for _, m := range missing {
 		text := m.Title
 		if m.Description != "" {
@@ -392,11 +392,11 @@ func (s *RecommendationService) FillMissingEmbeddings(ctx context.Context, llmPr
 		}
 		embedding, err := llmProvider.GetEmbedding(ctx, text)
 		if err != nil {
-			log.Printf("[rec] embedding failed for content %d: %v", m.ID, err)
+			slog.Error("[rec] embedding failed", "content_id", m.ID, "error", err)
 			continue
 		}
 		if err := s.embeddingRepo.UpsertEmbedding(m.ID, embedding); err != nil {
-			log.Printf("[rec] upsert embedding failed for content %d: %v", m.ID, err)
+			slog.Error("[rec] upsert embedding failed", "content_id", m.ID, "error", err)
 		}
 	}
 

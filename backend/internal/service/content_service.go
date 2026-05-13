@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"math"
 	"strconv"
 	"time"
@@ -12,6 +12,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/recovery"
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/repository"
 
@@ -528,19 +529,19 @@ func (s *ContentService) triggerVideoSnapshot(contentID int64, attachments []Att
 		return
 	}
 
-	go func() {
+	recovery.GoSafe(func() {
 		ctx := context.Background()
 		snapshotURL, err := s.ossSvc.GenerateVideoSnapshotURL(ctx, videoKey)
 		if err != nil {
-			log.Printf("video snapshot failed for content %d: %v", contentID, err)
+			slog.Error("video snapshot failed", "content_id", contentID, "error", err)
 			return
 		}
 		if err := s.contentRepo.UpdateContent(contentID, map[string]interface{}{
 			"cover_image_url": snapshotURL,
 		}); err != nil {
-			log.Printf("failed to update cover_image_url for content %d: %v", contentID, err)
+			slog.Error("failed to update cover_image_url", "content_id", contentID, "error", err)
 			return
 		}
 		s.invalidateContentCache(contentID)
-	}()
+	})
 }

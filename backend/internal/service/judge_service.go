@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
@@ -88,7 +89,9 @@ func (s *JudgeService) SubmitExam(input SubmitExamInput, userID int64) (*model.J
 	}
 
 	if passed {
-		_ = s.judgeRepo.CreateQualification(uint(userID), input.ContentType)
+		if err := s.judgeRepo.CreateQualification(uint(userID), input.ContentType); err != nil {
+			slog.Error("failed to create judge qualification", "user_id", userID, "content_type", input.ContentType, "error", err)
+		}
 	}
 
 	return record, passed, nil
@@ -155,10 +158,14 @@ func (s *JudgeService) SubmitVote(input SubmitVoteInput, judgeID int64) error {
 		} else {
 			newStatus = "closed_reject"
 		}
-		_ = s.judgeRepo.CloseCase(input.CaseID, newStatus, int(approve), int(reject))
+		if err := s.judgeRepo.CloseCase(input.CaseID, newStatus, int(approve), int(reject)); err != nil {
+			slog.Error("failed to close judge case", "case_id", input.CaseID, "error", err)
+		}
 	}
 
-	_ = s.checkAndRevokeIfNeeded(judgeID)
+	if err := s.checkAndRevokeIfNeeded(judgeID); err != nil {
+		slog.Error("failed to check and revoke judge", "judge_id", judgeID, "error", err)
+	}
 	return nil
 }
 

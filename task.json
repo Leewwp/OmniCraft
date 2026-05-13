@@ -2144,7 +2144,7 @@
         "在 recovery.go 中集成 Prometheus metrics 预留（goroutine_panic_total counter）",
         "验证：故意在 goroutine 中 panic，确认进程不崩溃且错误被记录"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 106,

@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -45,7 +45,7 @@ func (s *IPStatsService) UpdateCategoryCounts(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("[ip_stats] updated %d category counts", len(rows))
+	slog.Info("[ip_stats] updated category counts", "count", len(rows))
 	return nil
 }
 

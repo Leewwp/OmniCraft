@@ -2,10 +2,11 @@ package scheduler
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/service"
 )
 
@@ -28,9 +29,8 @@ func NewViewCountSync(svc *service.ContentService, cfg *config.CacheConfig) *Vie
 }
 
 func (s *ViewCountSync) Start() {
-	go func() {
-		log.Printf("[ViewCountSync] Starting with interval %v", s.interval)
-		// Flush once immediately on startup
+	recovery.GoSafe(func() {
+		slog.Info("[ViewCountSync] Starting", "interval", s.interval)
 		s.flush()
 		ticker := time.NewTicker(s.interval)
 		defer ticker.Stop()
@@ -39,11 +39,11 @@ func (s *ViewCountSync) Start() {
 			case <-ticker.C:
 				s.flush()
 			case <-s.stopCh:
-				log.Println("[ViewCountSync] Stopped")
+				slog.Info("[ViewCountSync] Stopped")
 				return
 			}
 		}
-	}()
+	})
 }
 
 func (s *ViewCountSync) Stop() {
@@ -54,6 +54,6 @@ func (s *ViewCountSync) flush() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := s.contentSvc.FlushViewCounts(ctx); err != nil {
-		log.Printf("[ViewCountSync] Flush error: %v", err)
+		slog.Error("[ViewCountSync] Flush error", "error", err)
 	}
 }

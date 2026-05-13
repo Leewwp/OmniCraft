@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -115,7 +116,9 @@ func (h *PRHandler) RejectPR(c *gin.Context) {
 	var body struct {
 		Reason string `json:"reason"`
 	}
-	_ = c.ShouldBindJSON(&body)
+	if err := c.ShouldBindJSON(&body); err != nil {
+		slog.Warn("reject pr: bind json failed, using defaults", "error", err)
+	}
 
 	if err := h.prSvc.RejectPR(id, callerID, body.Reason); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "ERROR", "message": err.Error()})
@@ -135,7 +138,9 @@ func (h *PRHandler) ManualMerge(c *gin.Context) {
 	var body struct {
 		MergedText string `json:"merged_text"`
 	}
-	_ = c.ShouldBindJSON(&body)
+	if err := c.ShouldBindJSON(&body); err != nil {
+		slog.Warn("manual merge: bind json failed, using defaults", "error", err)
+	}
 
 	version, err := h.prSvc.ManualMerge(id, callerID, body.MergedText)
 	if err != nil {
