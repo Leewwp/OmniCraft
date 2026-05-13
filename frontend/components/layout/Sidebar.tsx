@@ -80,10 +80,10 @@ const itemBase =
   "flex items-center gap-2.5 rounded-[6px] px-3 py-[7px] text-[13px] font-medium transition-all duration-100 w-full select-none active:scale-[0.97]";
 
 const itemActive =
-  "bg-[#EEF2FF] text-[#4F46E5] font-semibold";
+  "bg-accent-subtle text-accent-emphasis font-semibold";
 
 const itemIdle =
-  "text-[#52525B] hover:text-[#18181B] hover:bg-[#F2F2F2]";
+  "text-fg-muted hover:text-fg-default hover:bg-canvas-subtle";
 
 const collapsedItem =
   "justify-center px-[8px] py-[8px] w-auto";
@@ -109,7 +109,7 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "flex-shrink-0 overflow-y-auto overflow-x-hidden bg-white py-2 transition-[width] duration-200",
+        "flex-shrink-0 overflow-y-auto overflow-x-hidden bg-background py-2 transition-[width] duration-200",
         collapsed ? "w-[48px]" : "w-[228px]",
         className
       )}
@@ -121,7 +121,7 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
         title={collapsed ? t('studio.sidebar.expand') : t('studio.sidebar.collapse')}
         className={cn(
           itemBase,
-          "text-[#52525B] hover:text-[#18181B] hover:bg-[#F2F2F2]",
+          "text-fg-muted hover:text-fg-default hover:bg-canvas-subtle",
           collapsed
             ? "mx-auto w-9 justify-center px-0"
             : "mx-3.5 mb-2 w-[calc(100%-28px)]"
@@ -142,7 +142,7 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
         <div key={si}>
           {section.label && (
             <div className={cn(
-              "px-3.5 pb-1.5 pt-2 text-[10.5px] font-semibold uppercase tracking-wider text-[#A1A1AA]",
+              "px-3.5 pb-1.5 pt-2 text-[10.5px] font-semibold uppercase tracking-wider text-fg-subtle",
               collapsed && "hidden"
             )}>
               {section.label}
@@ -173,8 +173,8 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
                         <span className={cn(
                           "ml-auto rounded-full px-1.5 py-px text-[11px] font-medium",
                           isActive
-                            ? "bg-[#C7D2FE] text-[#4F46E5]"
-                            : "bg-[#F0F0EC] text-[#999993]"
+                            ? "bg-accent-emphasis/20 text-accent-emphasis"
+                            : "bg-muted text-fg-subtle"
                         )}>
                           {item.count}
                         </span>

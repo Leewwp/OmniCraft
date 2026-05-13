@@ -56,10 +56,10 @@ export function ViewsTrendChart({ data }: ViewsTrendChartProps) {
           <Line
             type="monotone"
             dataKey="views"
-            stroke="#0969da"
+            stroke="var(--chart-1)"
             strokeWidth={2}
             dot={false}
-            activeDot={{ r: 4, fill: "#0969da" }}
+            activeDot={{ r: 4, fill: "var(--chart-1)" }}
           />
         </LineChart>
       </ResponsiveContainer>

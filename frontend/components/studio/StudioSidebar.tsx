@@ -14,10 +14,10 @@ const itemBase =
   "flex items-center gap-2.5 rounded-[6px] px-3 py-2 text-[13px] font-medium transition-all duration-100 w-full select-none active:scale-[0.97]";
 
 const itemActive =
-  "bg-[#EEF2FF] text-[#4F46E5] font-semibold";
+  "bg-accent-subtle text-accent-emphasis font-semibold";
 
 const itemIdle =
-  "text-[#52525B] hover:text-[#18181B] hover:bg-[#F2F2F2]";
+  "text-fg-muted hover:text-fg-default hover:bg-canvas-subtle";
 
 const collapsedItem =
   "justify-center px-[8px] py-[8px] w-auto";
@@ -69,7 +69,7 @@ export function StudioSidebar() {
   return (
     <aside
       className={cn(
-        "flex-shrink-0 overflow-y-auto overflow-x-hidden bg-white py-3 transition-[width] duration-200",
+        "flex-shrink-0 overflow-y-auto overflow-x-hidden bg-background py-3 transition-[width] duration-200",
         collapsed ? "w-[52px]" : "w-56"
       )}
     >
@@ -80,7 +80,7 @@ export function StudioSidebar() {
         title={collapsed ? t('studio.sidebar.expand') : t('studio.sidebar.collapse')}
         className={cn(
           itemBase,
-          "text-[#52525B] hover:text-[#18181B] hover:bg-[#F2F2F2]",
+          "text-fg-muted hover:text-fg-default hover:bg-canvas-subtle",
           collapsed
             ? "mx-auto w-9 justify-center px-0"
             : "mx-3 mb-3 w-[calc(100%-24px)]"
@@ -100,7 +100,7 @@ export function StudioSidebar() {
         <div key={gi} className="mb-1">
           {group.label && (
             <div className={cn(
-              "px-3 pb-1.5 pt-2 text-[10.5px] font-semibold uppercase tracking-wider text-[#A1A1AA]",
+              "px-3 pb-1.5 pt-2 text-[10.5px] font-semibold uppercase tracking-wider text-fg-subtle",
               collapsed && "hidden"
             )}>
               {group.label}

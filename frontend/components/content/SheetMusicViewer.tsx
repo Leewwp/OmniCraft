@@ -81,9 +81,9 @@ function OSMDRenderer({ ossUrl }: { ossUrl: string }) {
   }, [ossUrl]);
 
   return (
-    <div className="relative min-h-[300px] overflow-x-auto rounded-md border border-border bg-white p-4">
+    <div className="relative min-h-[300px] overflow-x-auto rounded-md border border-border bg-card p-4">
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/80">
+        <div className="absolute inset-0 flex items-center justify-center bg-card/80">
           <p className="text-sm text-destructive">{error}</p>
         </div>
       )}

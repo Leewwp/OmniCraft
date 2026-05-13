@@ -91,7 +91,7 @@ export function ContentCard({ data, className }: ContentCardProps) {
 
         {/* Type badge — fanwork only */}
         {!isOriginal && (
-          <span className="absolute top-2 left-2 rounded-md bg-white/90 px-2 py-0.5 text-[10.5px] font-semibold text-foreground/70 backdrop-blur-sm border border-black/5">
+          <span className="absolute top-2 left-2 rounded-md bg-background/90 px-2 py-0.5 text-[10.5px] font-semibold text-foreground/70 backdrop-blur-sm border border-border/30">
             {typeLabel}
           </span>
         )}

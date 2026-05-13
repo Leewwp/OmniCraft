@@ -6,7 +6,14 @@ interface FollowerSourceChartProps {
   data: Array<{ name: string; value: number }>;
 }
 
-const COLORS = ["#0969da", "#1a7f37", "#8250df", "#bc4c00", "#bf8700", "#cf222e"];
+const CHART_VARS = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--chart-6)",
+];
 
 export function FollowerSourceChart({ data }: FollowerSourceChartProps) {
   if (data.length === 0) {
@@ -36,7 +43,7 @@ export function FollowerSourceChart({ data }: FollowerSourceChartProps) {
             {data.map((_, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={COLORS[index % COLORS.length]}
+                fill={CHART_VARS[index % CHART_VARS.length]}
               />
             ))}
           </Pie>
