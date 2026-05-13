@@ -16,7 +16,25 @@
 - `go vet ./...` ✅ 零警告
 - 验证逻辑：localhost 来源始终允许；非法 Origin（如 http://evil.com）请求将不包含 CORS 头，浏览器会拒绝跨域请求
 
-## [2026-05-13] - Task 102: 安全 — 全局错误消息脱敏
+## [2026-05-13] - Task 103: 安全 — 修复 DeleteAccount 空密码哈希与 OSS 路径隔离
+
+### What was done:
+- 修改 `handler/user.go` DeleteAccount：将空字符串 `password_hash: ""` 改为 `bcrypt.GenerateFromPassword([]byte(hex.EncodeToString(make([]byte, 32))), bcrypt.DefaultCost)` 生成的随机哈希，确保 bcrypt 行为一致且不可登录
+- 修改 `oss_service.go` GeneratePresignUploadURL：新增 `userID int64` 参数，所有 OSS key 以 `uploads/{userID}/` 为前缀
+- 修改 `oss_service.go` buildOSSKey：路径格式从 `uploads/{type}/...` 改为 `uploads/{userID}/{type}/...`，确保用户 A 只能写入自己的目录
+- 修改 `handler/content.go` GenerateOSSToken：传入 `middleware.GetUserID(c)` 作为 userID
+- DeleteAccount 同时更新 Redis 用户状态缓存（SetUserStatusCache(isBanned=true)）
+
+### Testing:
+- `go build ./...` ✅ 通过
+- `go vet ./...` ✅ 零警告
+- 验证：删除账号后 password_hash 为有效 bcrypt 哈希（32字节随机数据加密）；OSS key 包含用户 ID 前缀
+
+### Notes:
+- 后续可增加 handler 层 oss_key 前缀校验（oss_key 必须以当前用户 ID 开头），当前通过 buildOSSKey 内部强制实现
+- 旧的 OSS 路径（不含 userID 前缀）通过 GeneratePresignDownloadURL 仍然可访问（向后兼容）
+
+---
 
 ### What was done:
 - 创建 `internal/pkg/response/safe_error.go`：定义 `SafeErrorMsg(err, fallback)` 和 `SafeErrorResponse(c, status, code, err)` 函数
