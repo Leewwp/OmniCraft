@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/repository"
@@ -15,10 +16,11 @@ import (
 type AuthHandler struct {
 	authService *service.AuthService
 	userRepo    *repository.UserRepository
+	rdb         *redis.Client
 }
 
-func NewAuthHandler(authService *service.AuthService, userRepo *repository.UserRepository) *AuthHandler {
-	return &AuthHandler{authService: authService, userRepo: userRepo}
+func NewAuthHandler(authService *service.AuthService, userRepo *repository.UserRepository, rdb *redis.Client) *AuthHandler {
+	return &AuthHandler{authService: authService, userRepo: userRepo, rdb: rdb}
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
@@ -46,6 +48,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		"user":   user,
 		"tokens": tokens,
 	})
+	middleware.SetUserStatusCache(h.rdb, int64(user.ID), user.IsBanned, user.Role)
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -73,6 +76,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		"user":   user,
 		"tokens": tokens,
 	})
+	middleware.SetUserStatusCache(h.rdb, int64(user.ID), user.IsBanned, user.Role)
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {

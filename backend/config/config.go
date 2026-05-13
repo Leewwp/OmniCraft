@@ -18,11 +18,12 @@ type Config struct {
 	JWT            JWTConfig            `mapstructure:"jwt"`
 	OSS            OSSConfig            `mapstructure:"oss"`
 	Green          GreenConfig          `mapstructure:"green"`
+	Security       SecurityConfig       `mapstructure:"security"`
 	Features       FeaturesConfig       `mapstructure:"features"`
 	Limits         LimitsConfig         `mapstructure:"limits"`
 	Reputation     ReputationConfig     `mapstructure:"reputation"`
 	Judge          JudgeConfig          `mapstructure:"judge"`
-	Social         SocialConfig         `mapstructure:"social"`
+	Social         SocialConfig          `mapstructure:"social"`
 	Upload         UploadConfig         `mapstructure:"upload"`
 	Agent          AgentConfig          `mapstructure:"agent"`
 	Cache          CacheConfig          `mapstructure:"cache"`
@@ -35,12 +36,12 @@ type AgentConfig struct {
 	LLMProvider           string `mapstructure:"llm_provider"`
 	LLMModel              string `mapstructure:"llm_model"`
 	LLMAPIBase            string `mapstructure:"llm_api_base"`
-	LLMAPIKey             string `mapstructure:"llm_api_key"`
+	LLMAPIKey             string `mapstructure:"llm_api_key" json:"-"`
 	EmbeddingModel        string `mapstructure:"embedding_model"`
 	EmbeddingDimensions   int    `mapstructure:"embedding_dimensions"`
 	RateLimitPerDay       int    `mapstructure:"rate_limit_per_day"`
 	UploadAssistMaxFileMB int    `mapstructure:"upload_assist_max_file_mb"`
-	HMACSecret            string `mapstructure:"hmac_secret"`
+	HMACSecret            string `mapstructure:"hmac_secret" json:"-"`
 }
 
 type ServerConfig struct {
@@ -48,37 +49,41 @@ type ServerConfig struct {
 	Mode string `mapstructure:"mode"`
 }
 
+type SecurityConfig struct {
+	AllowedOrigins []string `mapstructure:"allowed_origins"`
+}
+
 type DatabaseConfig struct {
-	DSN     string `mapstructure:"dsn"`
-	ReadDSN string `mapstructure:"read_dsn"`
+	DSN     string `mapstructure:"dsn" json:"-"`
+	ReadDSN string `mapstructure:"read_dsn" json:"-"`
 }
 
 type RedisConfig struct {
-	Addr     string `mapstructure:"addr"`
-	Password string `mapstructure:"password"`
+	Addr     string `mapstructure:"addr" json:"-"`
+	Password string `mapstructure:"password" json:"-"`
 	DB       int    `mapstructure:"db"`
 }
 
 type JWTConfig struct {
-	Secret          string `mapstructure:"secret"`
+	Secret          string `mapstructure:"secret" json:"-"`
 	AccessTokenTTL  int    `mapstructure:"access_token_ttl"`
 	RefreshTokenTTL int    `mapstructure:"refresh_token_ttl"`
 }
 
 type OSSConfig struct {
 	Endpoint        string `mapstructure:"endpoint"`
-	AccessKeyID     string `mapstructure:"access_key_id"`
-	AccessKeySecret string `mapstructure:"access_key_secret"`
+	AccessKeyID     string `mapstructure:"access_key_id" json:"-"`
+	AccessKeySecret string `mapstructure:"access_key_secret" json:"-"`
 	BucketName      string `mapstructure:"bucket_name"`
 	Domain          string `mapstructure:"domain"`
 }
 
 type GreenConfig struct {
-	AccessKeyID        string   `mapstructure:"access_key_id"`
-	AccessKeySecret    string   `mapstructure:"access_key_secret"`
+	AccessKeyID        string   `mapstructure:"access_key_id" json:"-"`
+	AccessKeySecret    string   `mapstructure:"access_key_secret" json:"-"`
 	Region             string   `mapstructure:"region"`
-	CallbackURL        string   `mapstructure:"callback_url"`
-	CallbackAllowedIPs []string `mapstructure:"callback_allowed_ips"`
+	CallbackURL        string   `mapstructure:"callback_url" json:"-"`
+	CallbackAllowedIPs []string `mapstructure:"callback_allowed_ips" json:"-"`
 }
 
 type FeaturesConfig struct {
@@ -256,5 +261,8 @@ func overrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("AGENT_HMAC_SECRET"); v != "" {
 		cfg.Agent.HMACSecret = v
+	}
+	if v := os.Getenv("ALLOWED_ORIGINS"); v != "" {
+		cfg.Security.AllowedOrigins = strings.Split(v, ",")
 	}
 }

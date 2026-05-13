@@ -2,6 +2,10 @@ server:
   port: "8080"
   mode: "debug"
 
+security:
+  allowed_origins:
+    - "http://localhost:3000"
+
 database:
   dsn: "host=localhost port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable"
   read_dsn: ""

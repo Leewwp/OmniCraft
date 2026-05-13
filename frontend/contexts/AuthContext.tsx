@@ -87,6 +87,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchMe();
+    const interval = setInterval(() => {
+      const accessToken = getAccessToken();
+      if (accessToken) {
+        fetchMe();
+      }
+    }, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, [fetchMe]);
 
   const login = useCallback(async (email: string, password: string, rememberMe?: boolean) => {

@@ -14,7 +14,7 @@ import (
 func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *redis.Client) {
 	userRepo := repository.NewUserRepository(db)
 	authService := service.NewAuthService(userRepo, rdb, cfg)
-	authHandler := NewAuthHandler(authService, userRepo)
+	authHandler := NewAuthHandler(authService, userRepo, rdb)
 
 	auth := v1.Group("/auth")
 	{
@@ -211,7 +211,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		rehab.GET("/my-progress", rehabHandler.GetMyProgress)
 	}
 
-	adminHandler := NewAdminHandler(db, cfg)
+	adminHandler := NewAdminHandler(db, cfg, rdb)
 	admin := v1.Group("/admin", middleware.AuthRequired(cfg, rdb), middleware.AdminRequired())
 	{
 		admin.GET("/ips", adminHandler.ListPendingIPs)
