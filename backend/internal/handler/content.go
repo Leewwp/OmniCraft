@@ -60,7 +60,8 @@ func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.ossSvc.GeneratePresignUploadURL(c.Request.Context(), req)
+	userID := middleware.GetUserID(c)
+	resp, err := h.ossSvc.GeneratePresignUploadURL(c.Request.Context(), req, userID)
 	if err != nil {
 		var validationErr *service.UploadValidationError
 		if errors.As(err, &validationErr) {

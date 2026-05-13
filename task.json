@@ -2116,7 +2116,7 @@
         "在 handler 层增加路径校验：若 oss_key 不以用户 ID 开头则返回 403",
         "验证：删除账号后数据库中 password_hash 为有效 bcrypt 哈希而非空字符串；用户 A 无法向用户 B 的 OSS 路径上传文件"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 104,

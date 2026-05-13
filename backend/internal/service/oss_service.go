@@ -62,7 +62,7 @@ func NewOSSService(cfg *config.Config) (*OSSService, error) {
 	return &OSSService{cfg: cfg, client: client}, nil
 }
 
-func (s *OSSService) GeneratePresignUploadURL(ctx context.Context, req PresignUploadRequest) (*PresignUploadResponse, error) {
+func (s *OSSService) GeneratePresignUploadURL(ctx context.Context, req PresignUploadRequest, userID int64) (*PresignUploadResponse, error) {
 	_ = ctx
 	if s == nil || s.client == nil {
 		return nil, ErrOSSNotConfigured
@@ -80,7 +80,7 @@ func (s *OSSService) GeneratePresignUploadURL(ctx context.Context, req PresignUp
 		return nil, err
 	}
 
-	ossKey := s.buildOSSKey(normalizedFileType, ext)
+	ossKey := s.buildOSSKey(normalizedFileType, ext, userID)
 	const signedTTL = 15 * time.Minute
 	url, err := s.client.GetSignedURL(ossKey, http.MethodPut, signedTTL, oss.ContentType(normalizedMime))
 	if err != nil {
@@ -170,13 +170,12 @@ func (s *OSSService) isAllowedSheetMusicExt(ext string) bool {
 	return false
 }
 
-func (s *OSSService) buildOSSKey(fileType, ext string) string {
+func (s *OSSService) buildOSSKey(fileType, ext string, userID int64) string {
 	stamp := time.Now().UTC()
 	raw := make([]byte, 8)
 	if _, err := rand.Read(raw); err != nil {
-		// Fallback to timestamp-only suffix if random source fails.
-		return fmt.Sprintf("uploads/%s/%d/%02d/%02d/%d%s", fileType, stamp.Year(), stamp.Month(), stamp.Day(), stamp.UnixNano(), ext)
+		return fmt.Sprintf("uploads/%d/%s/%d/%02d/%02d/%d%s", userID, fileType, stamp.Year(), stamp.Month(), stamp.Day(), stamp.UnixNano(), ext)
 	}
 	randomPart := hex.EncodeToString(raw)
-	return fmt.Sprintf("uploads/%s/%d/%02d/%02d/%d_%s%s", fileType, stamp.Year(), stamp.Month(), stamp.Day(), stamp.Unix(), randomPart, ext)
+	return fmt.Sprintf("uploads/%d/%s/%d/%02d/%02d/%d_%s%s", userID, fileType, stamp.Year(), stamp.Month(), stamp.Day(), stamp.Unix(), randomPart, ext)
 }

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -277,6 +278,7 @@ func (h *UserHandler) DeleteAccount(c *gin.Context) {
 
 	anonName := fmt.Sprintf("已注销用户_%d", callerID)
 	anonEmail := fmt.Sprintf("deleted_%d@anon.local", callerID)
+	randomHash, _ := bcrypt.GenerateFromPassword([]byte(hex.EncodeToString(make([]byte, 32))), bcrypt.DefaultCost)
 	updates := map[string]interface{}{
 		"username":      anonName,
 		"email":         anonEmail,
@@ -284,7 +286,7 @@ func (h *UserHandler) DeleteAccount(c *gin.Context) {
 		"bio":           "",
 		"is_banned":     true,
 		"ban_reason":    "self_deleted",
-		"password_hash": "",
+		"password_hash": string(randomHash),
 	}
 
 	if err := h.userRepo.UpdateFields(callerID, updates); err != nil {
