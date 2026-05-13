@@ -2,10 +2,11 @@ package scheduler
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"time"
 
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/repository"
 
 	"gorm.io/gorm"
@@ -24,22 +25,22 @@ func NewJudgeQuestionSync(db *gorm.DB) *JudgeQuestionSync {
 }
 
 func (s *JudgeQuestionSync) Start() {
-	go func() {
+	recovery.GoSafe(func() {
 		s.Run()
 		ticker := time.NewTicker(7 * 24 * time.Hour)
 		defer ticker.Stop()
 		for range ticker.C {
 			s.Run()
 		}
-	}()
+	})
 }
 
 func (s *JudgeQuestionSync) Run() {
-	log.Println("[JudgeQuestionSync] Starting weekly question sync...")
+	slog.Info("[JudgeQuestionSync] Starting weekly question sync")
 
 	types, err := s.judgeRepo.GetDistinctCaseTypes()
 	if err != nil {
-		log.Printf("[JudgeQuestionSync] Failed to get case types: %v", err)
+		slog.Error("[JudgeQuestionSync] Failed to get case types", "error", err)
 		return
 	}
 
@@ -47,7 +48,7 @@ func (s *JudgeQuestionSync) Run() {
 	for _, contentType := range types {
 		cases, err := s.judgeRepo.ListClosedCasesForQuestioning(contentType, judgeQuestionsPerType)
 		if err != nil {
-			log.Printf("[JudgeQuestionSync] Failed to get cases for %s: %v", contentType, err)
+			slog.Error("[JudgeQuestionSync] Failed to get cases", "content_type", contentType, "error", err)
 			continue
 		}
 
@@ -77,12 +78,12 @@ func (s *JudgeQuestionSync) Run() {
 				CreatedBy:    "system",
 			}
 			if err := s.judgeRepo.CreateQuestion(q); err != nil {
-				log.Printf("[JudgeQuestionSync] Failed to create question for case %d: %v", jcase.ID, err)
+				slog.Error("[JudgeQuestionSync] Failed to create question", "case_id", jcase.ID, "error", err)
 			} else {
 				created++
 			}
 		}
 	}
 
-	log.Printf("[JudgeQuestionSync] Completed: created %d questions", created)
+	slog.Info("[JudgeQuestionSync] Completed", "questions_created", created)
 }

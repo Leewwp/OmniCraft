@@ -2,7 +2,8 @@ package redisclient
 
 import (
 	"context"
-	"log"
+	"log/slog"
+	"os"
 
 	"github.com/redis/go-redis/v9"
 
@@ -20,10 +21,11 @@ func Init(cfg *config.Config) *redis.Client {
 
 	ctx := context.Background()
 	if err := client.Ping(ctx).Err(); err != nil {
-		log.Fatalf("Failed to connect to Redis: %v", err)
+		slog.Error("Failed to connect to Redis", "error", err)
+		os.Exit(1)
 	}
 
 	Client = client
-	log.Println("Redis connected successfully")
+	slog.Info("Redis connected successfully")
 	return client
 }

@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -44,12 +44,12 @@ func (s *HotRankService) WithIPStatsService(ipStatsSvc *IPStatsService) *HotRank
 
 func (s *HotRankService) Run() {
 	if s.cfg == nil || !s.cfg.Enabled {
-		log.Println("[hot_rank] recommendation engine disabled, skipping")
+		slog.Info("[hot_rank] recommendation engine disabled, skipping")
 		return
 	}
 
 	rankInterval := 10 * time.Minute
-	log.Printf("[hot_rank] starting hot rank update every %v", rankInterval)
+	slog.Info("[hot_rank] starting hot rank update", "interval", rankInterval)
 
 	s.runAll()
 
@@ -62,7 +62,7 @@ func (s *HotRankService) Run() {
 		embedTicker = time.NewTicker(1 * time.Minute)
 		embedCh = embedTicker.C
 		defer embedTicker.Stop()
-		log.Println("[hot_rank] starting embedding gap fill every 1m")
+		slog.Info("[hot_rank] starting embedding gap fill every 1m")
 	}
 
 	for {
@@ -82,12 +82,12 @@ func (s *HotRankService) runAll() {
 
 func (s *HotRankService) updateRank() {
 	if !s.mu.TryLock() {
-		log.Println("[hot_rank] previous update still running, skipping")
+		slog.Info("[hot_rank] previous update still running, skipping")
 		return
 	}
 	defer s.mu.Unlock()
 
-	log.Println("[hot_rank] updating hot content rank...")
+	slog.Info("[hot_rank] updating hot content rank")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
@@ -101,10 +101,10 @@ func (s *HotRankService) updateRank() {
 	}
 
 	if err := s.contentSvc.UpdateHotRank(ctx, windowDays, decayHours); err != nil {
-		log.Printf("[hot_rank] update failed: %v", err)
+		slog.Error("[hot_rank] update failed", "error", err)
 		return
 	}
-	log.Println("[hot_rank] hot content rank updated successfully")
+	slog.Info("[hot_rank] hot content rank updated successfully")
 }
 
 func (s *HotRankService) updateIPCounts() {
@@ -114,7 +114,7 @@ func (s *HotRankService) updateIPCounts() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	if err := s.ipStatsSvc.UpdateCategoryCounts(ctx); err != nil {
-		log.Printf("[hot_rank] ip category count update failed: %v", err)
+		slog.Error("[hot_rank] ip category count update failed", "error", err)
 	}
 }
 
@@ -128,6 +128,6 @@ func (s *HotRankService) fillEmbeddings() {
 	defer cancel()
 
 	if err := s.recSvc.FillMissingEmbeddings(ctx, s.embedProv); err != nil {
-		log.Printf("[hot_rank] embedding gap fill failed: %v", err)
+		slog.Error("[hot_rank] embedding gap fill failed", "error", err)
 	}
 }

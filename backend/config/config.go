@@ -2,7 +2,7 @@ package config
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -162,12 +162,13 @@ func Load() *Config {
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	if err := viper.ReadInConfig(); err != nil {
-		log.Printf("Warning: config file not found, using defaults/env vars: %v", err)
+		slog.Warn("config file not found, using defaults/env vars", "error", err)
 	}
 
 	cfg := &Config{}
 	if err := viper.Unmarshal(cfg); err != nil {
-		log.Fatalf("Failed to unmarshal config: %v", err)
+		slog.Error("Failed to unmarshal config", "error", err)
+		os.Exit(1)
 	}
 
 	overrideFromEnv(cfg)
@@ -183,10 +184,10 @@ func loadDotEnvFiles() {
 			if errors.Is(err, os.ErrNotExist) {
 				continue
 			}
-			log.Printf("Warning: failed loading env file %s: %v", candidate, err)
+			slog.Warn("failed loading env file", "file", candidate, "error", err)
 			continue
 		}
-		log.Printf("Loaded environment from %s", candidate)
+		slog.Info("Loaded environment", "file", candidate)
 		return
 	}
 }

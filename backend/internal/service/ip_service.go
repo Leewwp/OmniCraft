@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -14,6 +14,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/recovery"
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/repository"
 
@@ -88,7 +89,7 @@ func (s *IPService) submitIPForAIReview(ip *model.IP, creatorID int64) {
 	if s.reviewSvc == nil || ip == nil {
 		return
 	}
-	go func() {
+	recovery.GoSafe(func() {
 		err := s.reviewSvc.SubmitForAIReview(context.Background(), SubmitReviewInput{
 			TargetType:  "ip",
 			TargetID:    ip.ID,
@@ -97,9 +98,9 @@ func (s *IPService) submitIPForAIReview(ip *model.IP, creatorID int64) {
 			AuthorID:    creatorID,
 		})
 		if err != nil && !errors.Is(err, aliyun.ErrGreenNotConfigured) {
-			log.Printf("ip ai review failed for ip_id=%d: %v", ip.ID, err)
+			slog.Error("ip ai review failed", "ip_id", ip.ID, "error", err)
 		}
-	}()
+	})
 }
 
 func (s *IPService) GetIP(id int64) (*model.IP, error) {

@@ -1,7 +1,8 @@
 package main
 
 import (
-	"log"
+	"log/slog"
+	"os"
 
 	"github.com/gin-gonic/gin"
 
@@ -10,6 +11,7 @@ import (
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/database"
 	"omnicraft/backend/internal/pkg/llm"
+	"omnicraft/backend/internal/pkg/recovery"
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/pkg/scheduler"
 	"omnicraft/backend/internal/repository"
@@ -41,14 +43,16 @@ func main() {
 		WithRecommendationService(recSvc).
 		WithEmbeddingProvider(embedProv).
 		WithIPStatsService(ipStatsSvc)
-	go hotRankSvc.Run()
+recovery.GoSafe(func() {
+		hotRankSvc.Run()
+	})
 
 	r := gin.New()
 	r.Use(middleware.Logger())
 	r.Use(middleware.CORS(cfg))
 	r.Use(middleware.SecurityHeaders())
 	r.Use(middleware.RateLimit(rdb, &cfg.RateLimit))
-	r.Use(gin.Recovery())
+	r.Use(middleware.PanicRecovery())
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "service": "omnicraft-backend"})
@@ -57,8 +61,9 @@ func main() {
 	v1 := r.Group("/api/v1")
 	handler.RegisterRoutes(v1, cfg, db, rdb)
 
-	log.Printf("OmniCraft backend starting on port %s (mode: %s)", cfg.Server.Port, cfg.Server.Mode)
+	slog.Info("OmniCraft backend starting", "port", cfg.Server.Port, "mode", cfg.Server.Mode)
 	if err := r.Run(":" + cfg.Server.Port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		slog.Error("Failed to start server", "error", err)
+		os.Exit(1)
 	}
 }

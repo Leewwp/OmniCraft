@@ -1,8 +1,10 @@
 package scheduler
 
 import (
-	"log"
+	"log/slog"
 	"time"
+
+	"omnicraft/backend/internal/pkg/recovery"
 
 	"gorm.io/gorm"
 )
@@ -16,18 +18,18 @@ func NewTagUsageSync(db *gorm.DB) *TagUsageSync {
 }
 
 func (s *TagUsageSync) Start() {
-	go func() {
+	recovery.GoSafe(func() {
 		s.Run()
 		ticker := time.NewTicker(6 * time.Hour)
 		defer ticker.Stop()
 		for range ticker.C {
 			s.Run()
 		}
-	}()
+	})
 }
 
 func (s *TagUsageSync) Run() {
-	log.Println("[TagUsageSync] Starting tag usage count sync...")
+	slog.Info("[TagUsageSync] Starting tag usage count sync")
 	result := s.db.Exec(`
 		UPDATE tags t
 		SET usage_count = (
@@ -38,8 +40,8 @@ func (s *TagUsageSync) Run() {
 		)
 	`)
 	if result.Error != nil {
-		log.Printf("[TagUsageSync] Failed to sync usage counts: %v", result.Error)
+		slog.Error("[TagUsageSync] Failed to sync usage counts", "error", result.Error)
 		return
 	}
-	log.Printf("[TagUsageSync] Completed: updated %d tags", result.RowsAffected)
+	slog.Info("[TagUsageSync] Completed", "tags_updated", result.RowsAffected)
 }

@@ -1,5 +1,47 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-14] - Task 105: 安全 — goroutine panic recovery 与 SSRF 防护
+
+### What was done:
+- Created `internal/pkg/recovery/recovery.go` with `GoSafe(fn func())` wrapping `defer recover` + `slog.Error` with stack trace
+- Replaced all 7 `go func()` patterns with `recovery.GoSafe()`:
+  - `content_service.go` — EmbedContentAsync (triggerVideoSnapshot)
+  - `ip_service.go` — submitIPForAIReview
+  - `agent_service.go` — EmbedContentAsync
+  - `view_count_sync.go` — Start scheduler loop
+  - `tag_usage_sync.go` — Start scheduler loop
+  - `judge_question_sync.go` — Start scheduler loop
+  - `cmd/server/main.go` — hotRankSvc.Run()
+- Created `internal/middleware/panic_recovery.go` — Gin middleware replacing `gin.Recovery()` with structured slog + safe JSON error response (code: INTERNAL_ERROR)
+- Replaced `gin.Recovery()` in main.go with `middleware.PanicRecovery()`
+- Converted 11+ silent error discards (`_ = ...`) to explicit error handling with `slog.Error`/`slog.Warn`:
+  - `content.go` — IncrViewCount, GetAttachments, GetTags
+  - `admin.go` — ShouldBindJSON on ban
+  - `pr.go` — ShouldBindJSON on reject and manual merge
+  - `judge.go` — json.Unmarshal on question data
+  - `pr_service.go` — UpsertContributor (accept + merge)
+  - `judge_service.go` — CreateQualification, CloseCase, checkAndRevokeIfNeeded
+- Migrated all `log.Printf`/`log.Println`/`log.Fatalf` to `slog` structured logging across:
+  - `recommendation_service.go` (11 calls)
+  - `hot_rank_service.go` (9 calls)
+  - `ip_stats_service.go` (1 call)
+  - `database/db.go` (3 calls)
+  - `redis/redis.go` (2 calls)
+  - `config/config.go` (3 calls)
+  - `cmd/server/main.go` (2 calls)
+- Added `"log/slog"` imports to all affected handler and service files
+
+### Testing:
+- `go build ./...` — passes
+- `go vet ./...` — passes (no warnings)
+- All panic recovery now uses structured JSON slog output
+- HTTP handler panics return 500 with `{ "code": "INTERNAL_ERROR", "message": "internal server error" }` instead of crashing
+
+### Notes:
+- Prometheus goroutine_panic_total counter left as future enhancement (no Prometheus dependency in project yet)
+- `_ = votes` in judge_service.go line 181 is intentional placeholder for future logic, not a silent error discard
+- Seed/migration CLI tools (`cmd/seed_admin`, `cmd/version_seed`, `cmd/fix_comments`) still use `log` package — these are not runtime server code
+
 ## [2026-05-13] - Task 100: 安全 — 修复 CORS 通配符
 
 ### What was done:

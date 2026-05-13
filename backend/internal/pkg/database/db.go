@@ -1,7 +1,8 @@
 package database
 
 import (
-	"log"
+	"log/slog"
+	"os"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -20,7 +21,8 @@ func Init(cfg *config.Config) *gorm.DB {
 		SkipDefaultTransaction: true,
 	})
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		slog.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
 	}
 
 	if cfg.Database.ReadDSN != "" {
@@ -28,18 +30,19 @@ func Init(cfg *config.Config) *gorm.DB {
 			Replicas: []gorm.Dialector{postgres.Open(cfg.Database.ReadDSN)},
 			Policy:   dbresolver.RandomPolicy{},
 		})); err != nil {
-			log.Printf("Warning: failed to configure read replica: %v", err)
+			slog.Warn("failed to configure read replica", "error", err)
 		}
 	}
 
 	sqlDB, err := db.DB()
 	if err != nil {
-		log.Fatalf("Failed to get underlying sql.DB: %v", err)
+		slog.Error("Failed to get underlying sql.DB", "error", err)
+		os.Exit(1)
 	}
 	sqlDB.SetMaxIdleConns(10)
 	sqlDB.SetMaxOpenConns(100)
 
 	DB = db
-	log.Println("Database connected successfully")
+	slog.Info("Database connected successfully")
 	return db
 }

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -44,7 +45,10 @@ func (h *JudgeHandler) GetExam(c *gin.Context) {
 	sanitized := make([]gin.H, 0, len(questions))
 	for _, q := range questions {
 		var data map[string]interface{}
-		_ = json.Unmarshal(q.QuestionData, &data)
+		if err := json.Unmarshal(q.QuestionData, &data); err != nil {
+			slog.Warn("judge question: failed to unmarshal question data", "question_id", q.ID, "error", err)
+			data = map[string]interface{}{}
+		}
 		delete(data, "correct_key")
 		sanitized = append(sanitized, gin.H{
 			"id":           q.ID,

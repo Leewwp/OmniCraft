@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -18,6 +18,7 @@ import (
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/llm"
+	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/repository"
 )
 
@@ -373,7 +374,7 @@ Respond ONLY with JSON: {"risk_level":"safe|warning|violation","violations":[],"
 			ScannedAt:   time.Now(),
 		}
 		if err := s.db.Create(&record).Error; err != nil {
-			log.Printf("failed to create ai review record for content %d: %v", contentItemID, err)
+			slog.Error("failed to create ai review record", "content_id", contentItemID, "error", err)
 		}
 	}
 
@@ -381,17 +382,17 @@ Respond ONLY with JSON: {"risk_level":"safe|warning|violation","violations":[],"
 }
 
 func (s *AgentService) EmbedContentAsync(contentItemID int64, text string) {
-	go func() {
+	recovery.GoSafe(func() {
 		ctx := context.Background()
 		embedding, err := s.llmProvider.GetEmbedding(ctx, text)
 		if err != nil {
-			log.Printf("embedding error for content %d: %v", contentItemID, err)
+			slog.Error("embedding error", "content_id", contentItemID, "error", err)
 			return
 		}
 		if err := s.embeddingRepo.UpsertEmbedding(contentItemID, embedding); err != nil {
-			log.Printf("upsert embedding error for content %d: %v", contentItemID, err)
+			slog.Error("upsert embedding error", "content_id", contentItemID, "error", err)
 		}
-	}()
+	})
 }
 
 func (s *AgentService) ChatStream(ctx context.Context, messages []llm.ChatMessage, handler func(delta string, done bool, conversationID int64) error) error {
