@@ -10,7 +10,7 @@ import { ContentCard, type ContentCardData } from "@/components/content/ContentC
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { Button } from "@/components/ui/button";
 import { TagBadge } from "@/components/ui/TagBadge";
-import { Bookmark, Grid3X3, List, Search, X } from "lucide-react";
+import { Bookmark, Grid3X3, List, Search, SlidersHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FilterConfig {
@@ -33,6 +33,7 @@ export default function SearchPage() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [saveBusy, setSaveBusy] = useState(false);
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
 
   const doSearch = useCallback(async (q: string, filter: FilterConfig) => {
     if (!q.trim()) return;
@@ -98,7 +99,31 @@ export default function SearchPage() {
       </div>
 
       <div className="flex gap-4">
-        {/* Left: FacetedSearchSidebar */}
+        {/* Mobile filter button */}
+        <div className="md:hidden mb-2">
+          <Button variant="outline" size="sm" onClick={() => setFilterDrawerOpen(true)} className="w-full">
+            <SlidersHorizontal className="mr-1.5 h-4 w-4" />
+            {t('search.filter.advancedFilter')}
+          </Button>
+        </div>
+
+        {/* Mobile filter drawer */}
+        {filterDrawerOpen && (
+          <div className="fixed inset-0 z-50 md:hidden">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setFilterDrawerOpen(false)} />
+            <div className="absolute bottom-0 left-0 right-0 max-h-[80vh] overflow-y-auto rounded-t-xl bg-background p-4 border-t border-border">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold">{t('search.filter.advancedFilter')}</span>
+                <button onClick={() => setFilterDrawerOpen(false)} className="p-1 rounded hover:bg-muted">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <FacetedSearchSidebar onFilterChange={(c) => { handleFilterChange(c); }} />
+            </div>
+          </div>
+        )}
+
+        {/* Left: FacetedSearchSidebar (desktop) */}
         <aside className="hidden w-[260px] shrink-0 md:block">
           <FacetedSearchSidebar onFilterChange={handleFilterChange} />
         </aside>
