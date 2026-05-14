@@ -449,29 +449,50 @@ func (s *ContentService) UpdateHotRank(ctx context.Context, trendingWindowDays i
 		return fmt.Errorf("redis or repo not available")
 	}
 
+	const batchSize = 500
 	since := time.Now().AddDate(0, 0, -trendingWindowDays)
-	contents, _, err := s.contentRepo.ListContents(repository.ListContentsFilter{
-		Zone:     "original",
-		Status:   "published",
-		TimeRange: "all",
-		Page:     1,
-		PageSize: 10000,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to list contents: %w", err)
-	}
+	var lastID int64
 
-	pipe := s.rdb.Pipeline()
-	for _, c := range contents {
-		if c.CreatedAt.Before(since) {
-			continue
+	for {
+		filter := repository.ListContentsFilter{
+			Zone:      "original",
+			Status:    "published",
+			TimeRange: "all",
+			Sort:      "oldest",
+			Page:      1,
+			PageSize:  batchSize,
 		}
-		ageHours := time.Since(c.CreatedAt).Hours()
-		hotScore := computeHotScore(float64(c.ViewCount), float64(c.LikeCount), ageHours, hotDecayHours)
-		pipe.ZAdd(ctx, "rank:hot:contents", redis.Z{Score: hotScore, Member: fmt.Sprintf("%d", c.ID)})
+		contents, _, err := s.contentRepo.ListContents(filter)
+		if err != nil {
+			return fmt.Errorf("failed to list contents: %w", err)
+		}
+		if len(contents) == 0 {
+			break
+		}
+
+		pipe := s.rdb.Pipeline()
+		processed := 0
+		for _, c := range contents {
+			if c.ID <= lastID {
+				continue
+			}
+			lastID = c.ID
+			processed++
+			if c.CreatedAt.Before(since) {
+				continue
+			}
+			ageHours := time.Since(c.CreatedAt).Hours()
+			hotScore := computeHotScore(float64(c.ViewCount), float64(c.LikeCount), ageHours, hotDecayHours)
+			pipe.ZAdd(ctx, "rank:hot:contents", redis.Z{Score: hotScore, Member: fmt.Sprintf("%d", c.ID)})
+		}
+		if _, err = pipe.Exec(ctx); err != nil {
+			return err
+		}
+		if processed < batchSize {
+			break
+		}
 	}
-	_, err = pipe.Exec(ctx)
-	return err
+	return nil
 }
 
 func computeHotScore(views, likes, ageHours, decayHours float64) float64 {

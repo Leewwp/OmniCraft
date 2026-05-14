@@ -48,7 +48,7 @@ func (r *ContentRepository) Transaction(fn func(tx *ContentRepository) error) er
 
 func (r *ContentRepository) FindByID(id int64) (*model.ContentItem, error) {
 	var content model.ContentItem
-	err := r.db.Preload("Author").First(&content, id).Error
+	err := r.db.Preload("Author").Where("deleted_at IS NULL").First(&content, id).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -63,7 +63,7 @@ func (r *ContentRepository) BatchGetByIDs(ids []int64) ([]model.ContentItem, err
 		return nil, nil
 	}
 	var contents []model.ContentItem
-	err := r.db.Preload("Author").Where("id IN ?", ids).Find(&contents).Error
+	err := r.db.Preload("Author").Where("id IN ? AND deleted_at IS NULL", ids).Find(&contents).Error
 	return contents, err
 }
 
@@ -71,7 +71,7 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 	var items []model.ContentItem
 	var total int64
 
-	q := r.db.Model(&model.ContentItem{}).Preload("Author")
+	q := r.db.Model(&model.ContentItem{}).Preload("Author").Where("deleted_at IS NULL")
 
 	if f.Status != "" {
 		q = q.Where("status = ?", f.Status)
@@ -158,7 +158,18 @@ func (r *ContentRepository) UpdateContent(id int64, updates map[string]interface
 }
 
 func (r *ContentRepository) DeleteContent(id int64) error {
-	return r.db.Delete(&model.ContentItem{}, id).Error
+	return r.db.Model(&model.ContentItem{}).Where("id = ?", id).
+		Update("deleted_at", time.Now()).Error
+}
+
+func (r *ContentRepository) SoftDeleteContent(id int64) error {
+	return r.db.Model(&model.ContentItem{}).Where("id = ?", id).
+		Update("deleted_at", time.Now()).Error
+}
+
+func (r *ContentRepository) RestoreContent(id int64) error {
+	return r.db.Model(&model.ContentItem{}).Where("id = ?", id).
+		Update("deleted_at", nil).Error
 }
 
 func (r *ContentRepository) IncrViewCount(id int64) error {
