@@ -9,6 +9,7 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
@@ -130,7 +131,7 @@ func (h *ContentHandler) ListContents(c *gin.Context) {
 		PageSize:         pageSize,
 	}
 
-	contents, total, err := h.contentSvc.ListContents(filter)
+	contents, total, err := h.contentSvc.ListContents(filter, middleware.GetUserID(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
 		return
@@ -212,6 +213,16 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 		"attachments": attachments,
 		"tags":        tags,
 	}
+
+	userID := middleware.GetUserID(c)
+	if userID > 0 {
+		var count int64
+		h.contentRepo.DB().Model(&model.Favorite{}).
+			Where("user_id = ? AND content_item_id = ?", userID, id).
+			Count(&count)
+		resp["is_favorited"] = count > 0
+	}
+
 	if content.SourceOriginalID != nil && *content.SourceOriginalID > 0 {
 		source, srcErr := h.contentSvc.GetContent(*content.SourceOriginalID)
 		if srcErr == nil && source != nil {
@@ -262,7 +273,7 @@ func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
 		TimeRange:        c.DefaultQuery("time_range", "all"),
 		Page:             page,
 		PageSize:         pageSize,
-	})
+	}, middleware.GetUserID(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
 		return

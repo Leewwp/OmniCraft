@@ -85,22 +85,59 @@ func AuthRequired(cfg *config.Config, rdb *redis.Client) gin.HandlerFunc {
 	}
 }
 
-func OptionalAuth(cfg *config.Config) gin.HandlerFunc {
+func OptionalAuth(cfg *config.Config, rdb *redis.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
+			c.Set(UserIDKey, int64(0))
 			c.Next()
 			return
 		}
 
 		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
-			claims, err := jwtutil.ParseToken(parts[1], cfg.JWT.Secret)
-			if err == nil && claims.Subject == "access" {
-				c.Set(UserIDKey, claims.UserID)
-				c.Set(UserRoleKey, claims.Role)
+		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+			c.Set(UserIDKey, int64(0))
+			c.Next()
+			return
+		}
+
+		tokenStr := parts[1]
+		claims, err := jwtutil.ParseToken(tokenStr, cfg.JWT.Secret)
+		if err != nil || claims.Subject != "access" {
+			c.Set(UserIDKey, int64(0))
+			c.Next()
+			return
+		}
+
+		if rdb != nil {
+			blacklistKey := fmt.Sprintf("blacklist:token:%s", tokenStr)
+			val, redisErr := rdb.Get(context.Background(), blacklistKey).Result()
+			if redisErr == nil && val == "1" {
+				c.Set(UserIDKey, int64(0))
+				c.Next()
+				return
+			}
+
+			statusKey := fmt.Sprintf("user:status:%d", claims.UserID)
+			statusStr, err := rdb.Get(context.Background(), statusKey).Result()
+			if err == nil {
+				var us userStatus
+				if json.Unmarshal([]byte(statusStr), &us) == nil {
+					if us.IsBanned {
+						c.Set(UserIDKey, int64(0))
+						c.Next()
+						return
+					}
+					c.Set(UserIDKey, claims.UserID)
+					c.Set(UserRoleKey, us.Role)
+					c.Next()
+					return
+				}
 			}
 		}
+
+		c.Set(UserIDKey, claims.UserID)
+		c.Set(UserRoleKey, claims.Role)
 		c.Next()
 	}
 }

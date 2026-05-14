@@ -327,7 +327,7 @@ func (s *RecommendationService) fallbackToHot(ctx context.Context, page, pageSiz
 		Page:     page,
 		PageSize: pageSize,
 	}
-	contents, total, err := s.contentSvc.ListContents(filter)
+	contents, total, err := s.contentSvc.ListContents(filter, 0)
 	if err != nil {
 		return nil, 0, err
 	}
