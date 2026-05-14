@@ -24,6 +24,35 @@ function getCSRFToken(): string | null {
 
 const STATE_CHANGING_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefreshToken(): Promise<boolean> {
+  const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refresh_token") : null;
+  if (!refreshToken) return false;
+  try {
+    const res = await fetch(`${API_URL}/api/v1/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) return false;
+    const data = await res.json() as { tokens: { access_token: string; refresh_token: string } };
+    localStorage.setItem("access_token", data.tokens.access_token);
+    localStorage.setItem("refresh_token", data.tokens.refresh_token);
+    document.cookie = `access_token=${data.tokens.access_token}; path=/; max-age=86400; SameSite=Lax`;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function doRefreshToken(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = tryRefreshToken().finally(() => { refreshPromise = null; });
+  }
+  return refreshPromise;
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {}
@@ -58,6 +87,26 @@ async function request<T>(
     try {
       errBody = await res.json();
     } catch {}
+
+    if (res.status === 401 && errBody.code === "TOKEN_EXPIRED" && token) {
+      const refreshed = await doRefreshToken();
+      if (refreshed) {
+        headers["Authorization"] = `Bearer ${localStorage.getItem("access_token")}`;
+        const retryRes = await fetch(`${API_URL}${path}`, { ...options, headers });
+        if (retryRes.ok) {
+          if (retryRes.status === 204) return undefined as T;
+          return retryRes.json();
+        }
+      } else {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
+        throw new ApiRequestError("TOKEN_EXPIRED", "Session expired", 401);
+      }
+    }
+
     throw new ApiRequestError(errBody.code, errBody.message, res.status);
   }
 

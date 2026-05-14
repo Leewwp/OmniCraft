@@ -118,8 +118,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await api.get<{ unread_counts: UnreadCounts }>("/api/v1/notifications/unread-count");
         if (cancelled) return;
         setUnreadCounts(data.unread_counts || { total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0 });
-      } catch {
-        // silent
+      } catch (e) {
+        console.error("[Auth] unread count poll failed", e);
       }
     }
     pollUnread();
