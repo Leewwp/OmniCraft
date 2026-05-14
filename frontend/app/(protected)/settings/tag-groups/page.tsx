@@ -16,8 +16,9 @@ interface TagGroup {
 
 export default function TagGroupsPage() {
   const t = useTranslations();
-  const { user, isLoading } = useAuth();
+  const { user } = useAuth();
   const [groups, setGroups] = useState<TagGroup[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -34,11 +35,14 @@ export default function TagGroupsPage() {
   const [deleteTarget, setDeleteTarget] = useState<TagGroup | null>(null);
 
   const loadGroups = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await api.get<{ tag_groups?: TagGroup[] }>("/api/v1/users/me/tag-groups");
       setGroups(res.tag_groups ?? []);
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
+    } finally {
+      setLoading(false);
     }
   }, [t]);
 
@@ -121,7 +125,7 @@ export default function TagGroupsPage() {
     }
   }
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="mx-auto w-full max-w-[720px] px-4 py-6 text-sm text-muted-foreground">
         {t("common.loading")}

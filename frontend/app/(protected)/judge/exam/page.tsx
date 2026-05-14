@@ -20,7 +20,7 @@ type Phase = "select-type" | "exam" | "result";
 
 export default function JudgeExamPage() {
   const t = useTranslations();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
 
   const [phase, setPhase] = useState<Phase>("select-type");
@@ -43,12 +43,6 @@ export default function JudgeExamPage() {
     { value: "template", label: t('judge.template') },
     { value: "other", label: t('judge.other') },
   ], [t]);
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push("/login");
-    }
-  }, [user, authLoading, router]);
 
   async function loadQuestions(category: string) {
     setLoading(true);
@@ -111,17 +105,7 @@ export default function JudgeExamPage() {
     }
   }
 
-  if (authLoading) {
-    return (
-      <div className="mx-auto w-full max-w-lg px-4 py-6 text-sm text-muted-foreground">
-        {t('common.loading')}
-      </div>
-    );
-  }
-
-  if (!user) return null;
-
-  const isReputationBlocked = user.reputation < 3;
+  const isReputationBlocked = user!.reputation < 3;
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-4 px-4 py-6">
@@ -137,7 +121,7 @@ export default function JudgeExamPage() {
       {isReputationBlocked && (
         <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 ">
           <p className="text-sm text-destructive">
-            {t('judge.lowReputationExam', { reputation: user.reputation })}
+            {t('judge.lowReputationExam', { reputation: user!.reputation })}
           </p>
         </div>
       )}

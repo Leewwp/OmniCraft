@@ -15,7 +15,7 @@ interface Contributor {
 
 export default function ContributorsPage() {
   const t = useTranslations();
-  const { user, isLoading } = useAuth();
+  const { user } = useAuth();
   const [contributors, setContributors] = useState<Contributor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -74,7 +74,7 @@ export default function ContributorsPage() {
     }
   }
 
-  if (isLoading || loading) {
+  if (loading) {
     return <div className="mx-auto w-full max-w-4xl px-4 py-6 text-sm text-muted-foreground">{t('common.loading')}</div>;
   }
 

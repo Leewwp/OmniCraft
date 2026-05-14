@@ -19,7 +19,7 @@ interface ContentItem {
 
 export default function DashboardContentsPage() {
   const t = useTranslations();
-  const { user, isLoading } = useAuth();
+  const { user } = useAuth();
   const [contents, setContents] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -58,7 +58,7 @@ export default function DashboardContentsPage() {
     }
   }
 
-  if (isLoading || loading) {
+  if (loading) {
     return <div className="mx-auto w-full max-w-6xl px-4 py-6 text-sm text-muted-foreground">{t('common.loading')}</div>;
   }
 

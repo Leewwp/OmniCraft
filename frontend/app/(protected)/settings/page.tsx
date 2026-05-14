@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 export default function SettingsPage() {
   const t = useTranslations();
   const router = useRouter();
-  const { user, isLoading, logout } = useAuth();
+  const { user, logout } = useAuth();
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [error, setError] = useState("");
@@ -95,10 +95,6 @@ export default function SettingsPage() {
     } finally {
       setDeleteBusy(false);
     }
-  }
-
-  if (isLoading) {
-    return <div className="mx-auto w-full max-w-lg px-4 py-6 text-sm text-muted-foreground">{t("common.loading")}</div>;
   }
 
   return (

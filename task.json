@@ -2158,7 +2158,7 @@
         "保留 admin/layout.tsx 中的角色检查（在 auth layout 基础上叠加）",
         "验证：未登录用户访问 /studio、/settings、/history 等页面时，无内容闪烁直接跳转到 /login"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 107,

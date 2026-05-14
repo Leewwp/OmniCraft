@@ -23,7 +23,7 @@ interface Completion {
 
 export default function RehabPage() {
   const t = useTranslations();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [completions, setCompletions] = useState<Completion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,7 +93,7 @@ export default function RehabPage() {
     return completions.some((c) => c.course_id === courseId && c.completed_at);
   }
 
-  if (authLoading || loading) {
+  if (loading) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-6 text-sm text-muted-foreground">
         {t("common.loading")}
