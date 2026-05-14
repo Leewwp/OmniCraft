@@ -50,6 +50,7 @@ recovery.GoSafe(func() {
 	r := gin.New()
 	r.Use(middleware.Logger())
 	r.Use(middleware.CORS(cfg))
+	r.Use(middleware.CSRF(cfg))
 	r.Use(middleware.SecurityHeaders())
 	r.Use(middleware.RateLimit(rdb, &cfg.RateLimit))
 	r.Use(middleware.PanicRecovery())

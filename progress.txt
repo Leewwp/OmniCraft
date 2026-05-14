@@ -1,5 +1,35 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-14] - Task 104: 安全 — CSRF 防护与 SameSite Cookie 策略
+
+### What was done:
+- 创建 `internal/middleware/csrf.go`：实现 CSRF 双提交 Cookie 模式（Double-Submit Cookie Pattern）
+  - GET/HEAD/OPTIONS 请求自动设置 `__Host-csrf` Cookie（SameSite=Lax, HttpOnly=false, Secure=生产环境）
+  - POST/PATCH/PUT/DELETE 请求校验 `X-CSRF-Token` 请求头与 Cookie 值匹配（常数时间比较防止时序攻击）
+  - Cookie 命名使用 `__Host-` 前缀，强制浏览器要求 Secure + Path=/
+  - 提供 `GetCSRFToken(c)` 辅助函数供 handler 层获取当前 CSRF token
+- 修改 `cmd/server/main.go`：在 CORS 中间件之后注册 CSRF 中间件
+- 修改 `internal/handler/auth.go` Me handler：响应体增加 `csrf_token` 字段，响应头增加 `X-CSRF-Token`
+- 修改 `frontend/lib/api.ts`：状态变更请求（POST/PATCH/PUT/DELETE）自动读取 `__Host-csrf` Cookie 并加入 `X-CSRF-Token` 请求头
+
+### Testing:
+- `go build ./...` — 通过
+- `go vet ./...` — 零警告
+- `npm run build` — 前端编译成功
+- `npm run lint` (tsc --noEmit) — 通过
+- curl 验证：
+  - POST 无 CSRF token → 403 `CSRF_TOKEN_INVALID` ✓
+  - POST 错误 CSRF token → 403 `CSRF_TOKEN_INVALID` ✓
+  - POST 正确 CSRF token (Cookie + Header 匹配) → 请求通过 ✓
+  - GET 请求不受 CSRF 检查影响 → 正常返回 ✓
+  - GET /auth/me → 响应体和响应头均包含 CSRF token ✓
+
+### Notes:
+- 采用双提交 Cookie 模式，无需服务端 session 存储，天然适合 SPA + JWT 架构
+- CORS 中间件已允许 `X-CSRF-Token` 请求头（Task 100 完成）
+- `hmacEqual` 使用常数时间比较防止时序攻击
+- 开发环境 `Secure=false`，生产环境（mode=release）自动启用 `Secure=true`
+
 ## [2026-05-14] - Task 105: 安全 — goroutine panic recovery 与 SSRF 防护
 
 ### What was done:
