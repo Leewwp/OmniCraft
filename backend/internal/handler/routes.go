@@ -2,22 +2,22 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
-	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/container"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 )
 
-func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *redis.Client) {
-	userRepo := repository.NewUserRepository(db)
-	authService := service.NewAuthService(userRepo, rdb, cfg)
+func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.ServiceContainer) {
+	rdb := ctr.RDB
+	db := ctr.DB
+	userRepo := ctr.UserRepo
+	authService := ctr.AuthService
 	authHandler := NewAuthHandler(authService, userRepo, rdb)
 
-	notifRepo := repository.NewNotificationRepository(db)
-	notifSvc := service.NewNotificationService(notifRepo)
+	notifSvc := ctr.NotificationService
 
 	auth := v1.Group("/auth")
 	{
@@ -71,12 +71,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		versions.GET("/:id", optAuth, versionHandler.GetVersion)
 	}
 
-	prSvc := service.NewPRService(
-		repository.NewPRRepository(db),
-		repository.NewVersionRepository(db),
-		repository.NewContentRepository(db),
-	)
-	prSvc.SetNotificationService(notifSvc)
+	prSvc := ctr.PRService
 	prHandler := &PRHandler{prSvc: prSvc}
 	pr := v1.Group("/pr")
 	{
@@ -93,14 +88,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		dashboard.DELETE("/contributors/:userId/block", prHandler.UnblockContributor)
 	}
 
-	socialSvc := service.NewSocialServiceWithRedis(
-		repository.NewSocialRepository(db),
-		repository.NewContentRepository(db),
-		repository.NewUserRepository(db),
-		cfg,
-		rdb,
-	)
-	socialSvc.SetNotificationService(notifSvc)
+	socialSvc := ctr.SocialService
 	socialHandler := &SocialHandler{socialSvc: socialSvc}
 	social := v1.Group("/social")
 	{

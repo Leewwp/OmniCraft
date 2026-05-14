@@ -2538,7 +2538,7 @@
         "确保每个 service 只初始化一次，通过依赖注入方式使用",
         "验证：每个 handler 中 RepulationService 等不再自行 new；所有 service 共享相同的 repo 实例"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 132,
