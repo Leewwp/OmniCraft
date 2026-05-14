@@ -2246,7 +2246,7 @@
         "OriginalPage.tsx：原创区统计数字同上处理",
         "验证：首页和原创区数字来自 API 而非硬编码；API 不可用时显示\"--\"而非 0"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 110,

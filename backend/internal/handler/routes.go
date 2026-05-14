@@ -123,6 +123,10 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		judge.POST("/reasons/:id/vote", middleware.AuthRequired(cfg, rdb), judgeHandler.VoteReason)
 	}
 
+	statsSvc := service.NewStatsService(db, rdb)
+	statsHandler := NewStatsHandler(statsSvc)
+	v1.GET("/stats/summary", statsHandler.GetSummary)
+
 	ipStatsSvc := service.NewIPStatsService(db, rdb)
 	ipStatsHandler := NewIPStatsHandler(ipStatsSvc)
 	v1.GET("/ips/stats/category_counts", ipStatsHandler.GetCategoryCounts)

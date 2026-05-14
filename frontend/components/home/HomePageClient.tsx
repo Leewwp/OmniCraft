@@ -13,6 +13,7 @@ import { ContentCardData } from "@/components/content/ContentCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sidebar, type SidebarItem, type TrendingEntry } from "@/components/layout/Sidebar";
 import { normalizeContentList } from "@/lib/content";
+import { api } from "@/lib/api";
 
 interface IPItem {
   id: number;
@@ -45,6 +46,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
   const [contentType, setContentType] = useState("");
   const [contentSort, setContentSort] = useState("hot");
   const [categoryCounts, setCategoryCounts] = useState<Record<string, string>>({});
+  const [statsSummary, setStatsSummary] = useState<{ users: number; ips: number; contents: number } | null>(null);
 
   const contentTypeOptions = useMemo(() => [
     { label: t('home.all'), value: "" },
@@ -68,6 +70,13 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
       const raw = localStorage.getItem(RECENT_IP_KEY);
       if (raw) setRecentIPs(JSON.parse(raw).slice(0, 6));
     } catch { /* ignore */ }
+  }, []);
+
+  // Fetch stats summary
+  useEffect(() => {
+    api.getStatsSummary()
+      .then(d => { if (d?.summary) setStatsSummary(d.summary); })
+      .catch(() => {});
   }, []);
 
   // Fetch category counts
@@ -155,15 +164,15 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
           </div>
           <div className="mt-3 flex gap-4">
             <span className="flex items-baseline gap-1">
-              <span className="text-[15px] font-semibold text-foreground">58,293</span>
+              <span className="text-[15px] font-semibold text-foreground">{statsSummary ? statsSummary.contents.toLocaleString() : "--"}</span>
               <span className="text-xs text-muted-foreground">{t('home.contentCountLabel')}</span>
             </span>
             <span className="flex items-baseline gap-1">
-              <span className="text-[15px] font-semibold text-foreground">186</span>
+              <span className="text-[15px] font-semibold text-foreground">{statsSummary ? statsSummary.ips.toLocaleString() : "--"}</span>
               <span className="text-xs text-muted-foreground">{t('home.activeIpsLabel')}</span>
             </span>
             <span className="flex items-baseline gap-1">
-              <span className="text-[15px] font-semibold text-foreground">8,412</span>
+              <span className="text-[15px] font-semibold text-foreground">{statsSummary ? statsSummary.users.toLocaleString() : "--"}</span>
               <span className="text-xs text-muted-foreground">{t('home.creatorsLabel')}</span>
             </span>
           </div>
