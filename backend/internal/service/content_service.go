@@ -340,18 +340,33 @@ func (s *ContentService) getHotContents(ctx context.Context, filter repository.L
 		return nil, err
 	}
 
-	contents := make([]model.ContentItem, 0, len(members))
+	ids := make([]int64, 0, len(members))
 	for _, member := range members {
 		var id int64
 		fmt.Sscanf(member, "%d", &id)
-		content, err := s.GetContent(id)
-		if err != nil || content == nil {
+		ids = append(ids, id)
+	}
+
+	allContents, err := s.contentRepo.BatchGetByIDs(ids)
+	if err != nil {
+		return nil, err
+	}
+
+	contentMap := make(map[int64]model.ContentItem, len(allContents))
+	for _, c := range allContents {
+		contentMap[c.ID] = c
+	}
+
+	contents := make([]model.ContentItem, 0, len(members))
+	for _, id := range ids {
+		content, ok := contentMap[id]
+		if !ok {
 			continue
 		}
 		if filter.Zone != "" && content.Zone != filter.Zone {
 			continue
 		}
-		contents = append(contents, *content)
+		contents = append(contents, content)
 	}
 
 	return contents, nil

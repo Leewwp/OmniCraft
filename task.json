@@ -2299,7 +2299,7 @@
         "Header 组件通知铃铛显示未读总数小红点，点击显示分类未读数",
         "验证：收到新通知后铃铛红点实时更新；进入会话后未读数归零"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 116,
@@ -2498,7 +2498,7 @@
         "修改 follow_repo.go GetFollowers：合并 3 次查询为 JOIN 查询",
         "验证：热门内容页面 DB 查询从 N+1 降至 1 次；用户详情页从 3 次降至 1 次"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 129,

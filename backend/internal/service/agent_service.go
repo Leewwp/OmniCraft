@@ -203,17 +203,25 @@ func (s *AgentService) NLSearch(ctx context.Context, query string) ([]ContentSum
 		return nil, err
 	}
 
-	summaries := make([]ContentSummary, 0, len(results))
+	contentIDs := make([]int64, 0, len(results))
+	scoreMap := make(map[int64]float64, len(results))
 	for _, r := range results {
-		content, err := s.contentRepo.FindByID(r.ContentItemID)
-		if err != nil || content == nil {
-			continue
-		}
+		contentIDs = append(contentIDs, r.ContentItemID)
+		scoreMap[r.ContentItemID] = r.Score
+	}
+
+	contents, err := s.contentRepo.BatchGetByIDs(contentIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	summaries := make([]ContentSummary, 0, len(contents))
+	for _, content := range contents {
 		summaries = append(summaries, ContentSummary{
 			ID:          content.ID,
 			Title:       content.Title,
 			ContentType: content.ContentType,
-			Score:       r.Score,
+			Score:       scoreMap[content.ID],
 		})
 	}
 	return summaries, nil

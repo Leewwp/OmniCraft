@@ -41,17 +41,14 @@ func (r *FollowRepository) GetFollowers(targetType string, targetID int64, page,
 	var total int64
 	r.db.Model(&model.Follow{}).Where("target_type = ? AND target_id = ?", targetType, targetID).Count(&total)
 
-	var userIDs []int64
-	r.db.Model(&model.Follow{}).Select("follower_id").
-		Where("target_type = ? AND target_id = ?", targetType, targetID).
-		Order("created_at DESC").
-		Offset((page-1)*pageSize).Limit(pageSize).
-		Pluck("follower_id", &userIDs)
-
 	var users []model.User
-	if len(userIDs) > 0 {
-		r.db.Where("id IN ?", userIDs).Find(&users)
-	}
+	r.db.Table("users").
+		Joins("JOIN follows ON follows.follower_id = users.id").
+		Where("follows.target_type = ? AND follows.target_id = ?", targetType, targetID).
+		Order("follows.created_at DESC").
+		Offset((page-1)*pageSize).Limit(pageSize).
+		Find(&users)
+
 	return users, total, nil
 }
 

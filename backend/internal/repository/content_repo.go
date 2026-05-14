@@ -50,6 +50,15 @@ func (r *ContentRepository) FindByID(id int64) (*model.ContentItem, error) {
 	return &content, nil
 }
 
+func (r *ContentRepository) BatchGetByIDs(ids []int64) ([]model.ContentItem, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var contents []model.ContentItem
+	err := r.db.Preload("Author").Where("id IN ?", ids).Find(&contents).Error
+	return contents, err
+}
+
 func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentItem, int64, error) {
 	var items []model.ContentItem
 	var total int64

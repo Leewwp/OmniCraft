@@ -63,27 +63,35 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	}
 
 	response := sanitizeUser(user)
-	response["stats"] = h.getUserStats(id)
+	stats, followersCount := h.getUserStatsAndFollowers(id)
+	response["stats"] = stats
+	response["followers_count"] = followersCount
 	response["is_following"] = h.checkIsFollowing(c, id)
-	response["followers_count"] = h.countFollowers(id)
 
 	c.JSON(http.StatusOK, gin.H{"user": response})
 }
 
-func (h *UserHandler) getUserStats(userID int64) gin.H {
+func (h *UserHandler) getUserStatsAndFollowers(userID int64) (gin.H, int64) {
 	var contentsCount int64
 	var likesReceived int64
+	var followersCount int64
+
 	h.contentRepo.DB().Raw(
-		"SELECT COUNT(*), COALESCE(SUM(like_count), 0) FROM content_items WHERE author_id = ? AND status = 'published'",
-		userID,
+		`SELECT
+			(SELECT COUNT(*) FROM content_items WHERE author_id = ? AND status = 'published') AS contents_count,
+			COALESCE((SELECT SUM(like_count) FROM content_items WHERE author_id = ? AND status = 'published'), 0) AS likes_received,
+			(SELECT COUNT(*) FROM follows WHERE target_type = 'user' AND target_id = ?) AS followers_count`,
+		userID, userID, userID,
 	).Scan(&struct {
-		Count *int64
-		Likes *int64
-	}{Count: &contentsCount, Likes: &likesReceived})
+		Count     *int64
+		Likes     *int64
+		Followers *int64
+	}{Count: &contentsCount, Likes: &likesReceived, Followers: &followersCount})
+
 	return gin.H{
 		"contents_count": contentsCount,
 		"likes_received": likesReceived,
-	}
+	}, followersCount
 }
 
 func (h *UserHandler) checkIsFollowing(c *gin.Context, targetID int64) bool {
@@ -96,14 +104,6 @@ func (h *UserHandler) checkIsFollowing(c *gin.Context, targetID int64) bool {
 		return false
 	}
 	return following
-}
-
-func (h *UserHandler) countFollowers(userID int64) int64 {
-	count, err := h.followRepo.CountFollowers("user", userID)
-	if err != nil {
-		return 0
-	}
-	return count
 }
 
 func (h *UserHandler) UpdateUser(c *gin.Context) {
