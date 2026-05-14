@@ -52,6 +52,17 @@ function buildHref(next: Partial<SearchParams>, current: Required<SearchParams>)
   return q ? `/original?${q}` : "/original";
 }
 
+interface StatsSummary { users: number; ips: number; contents: number; }
+
+async function fetchStats(apiBase: string): Promise<StatsSummary | null> {
+  try {
+    const res = await fetch(`${apiBase}/stats/summary`, { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = await res.json() as { summary: StatsSummary };
+    return data.summary || null;
+  } catch { return null; }
+}
+
 async function fetchContents(apiBase: string, search: Required<SearchParams>) {
   const sort = !search.category && search.sort === "recommended" ? "recommended" : (search.sort || "hot");
   const params = new URLSearchParams({ zone: "original", sort, time_range: "all", page_size: "24" });
@@ -68,7 +79,7 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
   const raw = await searchParams;
   const current = { category: raw.category || "", sort: raw.sort || "recommended" };
   const apiBase = getApiBase();
-  const [categories, contents] = await Promise.all([fetchCategories(apiBase), fetchContents(apiBase, current)]);
+  const [categories, contents, stats] = await Promise.all([fetchCategories(apiBase), fetchContents(apiBase, current), fetchStats(apiBase)]);
 
   return (
     <div className="mx-auto flex w-full max-w-[1440px] min-h-[calc(100vh-52px)]">
@@ -84,8 +95,8 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
             <p className="text-sm text-muted-foreground">{t("content.originalZoneDesc")}</p>
           </div>
           <div className="mt-3 flex gap-4">
-            <span className="flex items-baseline gap-1"><span className="text-[15px] font-semibold text-foreground">--</span><span className="text-xs text-muted-foreground">{t('home.contentCountLabel')}</span></span>
-            <span className="flex items-baseline gap-1"><span className="text-[15px] font-semibold text-foreground">--</span><span className="text-xs text-muted-foreground">{t('home.creatorsLabel')}</span></span>
+            <span className="flex items-baseline gap-1"><span className="text-[15px] font-semibold text-foreground">{stats ? stats.contents.toLocaleString() : "--"}</span><span className="text-xs text-muted-foreground">{t('home.contentCountLabel')}</span></span>
+            <span className="flex items-baseline gap-1"><span className="text-[15px] font-semibold text-foreground">{stats ? stats.users.toLocaleString() : "--"}</span><span className="text-xs text-muted-foreground">{t('home.creatorsLabel')}</span></span>
           </div>
         </div>
 

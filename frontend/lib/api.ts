@@ -83,4 +83,6 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(body),
     }),
+  getStatsSummary: () =>
+    request<{ summary: { users: number; ips: number; contents: number } }>("/api/v1/stats/summary"),
 };
