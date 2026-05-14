@@ -12,6 +12,7 @@ import { FileUploader } from "@/components/content/FileUploader";
 import { MarkdownEditor } from "@/components/content/MarkdownEditor";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { cn } from "@/lib/utils";
+import type { UploadedAsset } from "@/components/content/FileUploader";
 
 const ORIGINAL_CATEGORIES = [
   "film_tv", "gaming", "literature", "pet", "food",
@@ -61,6 +62,9 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
   const [agentEnabled, setAgentEnabled] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedAsset[]>([]);
+  const [coverFile, setCoverFile] = useState<UploadedAsset | null>(null);
+  const [uploadError, setUploadError] = useState("");
 
   function addTag() {
     const val = tagInput.trim();
@@ -87,6 +91,21 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
         allow_comments: allowComments,
       };
       if (zone === "original") payload.category = category;
+      if (uploadedFiles.length > 0) {
+        payload.attachments = uploadedFiles.map((f) => ({
+          oss_key: f.ossKey,
+          file_name: f.fileName,
+          file_type: f.fileType,
+          mime_type: f.mimeType,
+          file_size: f.fileSize,
+        }));
+      }
+      if (coverFile) {
+        payload.cover_oss_key = coverFile.ossKey;
+      }
+      if (zone === "fanwork" && ipSearch.trim()) {
+        payload.ip_name = ipSearch.trim();
+      }
       await api.post("/api/v1/contents", payload);
       toast("success", t('studio.publish.success'));
       router.push("/studio/contents");
@@ -175,7 +194,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
               {t(contentType === "image" ? 'studio.publish.uploadLabel.image' : contentType === "video" ? 'studio.publish.uploadLabel.video' : contentType === "audio" ? 'studio.publish.uploadLabel.audio' : contentType === "sheet_music" ? 'studio.publish.uploadLabel.sheet_music' : contentType === "mod" ? 'studio.publish.uploadLabel.mod' : 'studio.publish.uploadLabel.default')}
               <span className="text-destructive"> *</span>
             </label>
-            <FileUploader fileType={fileType} maxMB={maxMB} accept="*" onUploaded={() => {}} />
+            <FileUploader fileType={fileType} maxMB={maxMB} accept="*" onUploaded={(files) => { setUploadedFiles(files); setUploadError(""); }} />
             <p className="mt-1 text-xs text-muted-foreground">
               {contentType === "sheet_music" ? t('studio.publish.uploadHint.sheet_music') :
                contentType === "mod" ? t('studio.publish.uploadHint.mod') :
@@ -223,7 +242,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
           {/* Custom cover upload (conditional) */}
           {hasCustomCover && (
             <div className="pl-2 border-l-2 border-[var(--accent-subtle)]">
-              <FileUploader fileType="image" maxMB={20} accept="image/*" onUploaded={() => {}} />
+              <FileUploader fileType="image" maxMB={20} accept="image/*" onUploaded={(files) => { if (files.length > 0) setCoverFile(files[0]); }} />
             </div>
           )}
 
