@@ -7,14 +7,13 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/container"
 	"omnicraft/backend/internal/handler"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/database"
-	"omnicraft/backend/internal/pkg/llm"
-	"omnicraft/backend/internal/pkg/recovery"
 	redisclient "omnicraft/backend/internal/pkg/redis"
+	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/pkg/scheduler"
-	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 )
 
@@ -26,24 +25,16 @@ func main() {
 	db := database.Init(cfg)
 	rdb := redisclient.Init(cfg)
 
+	ctr := container.NewContainer(db, rdb, cfg)
+
 	scheduler.NewJudgeQuestionSync(db).Start()
 	scheduler.NewTagUsageSync(db).Start()
+	scheduler.NewViewCountSync(ctr.ContentService, &cfg.Cache).Start()
 
-	contentRepo := repository.NewContentRepository(db)
-	viewCountSvc := service.NewContentServiceWithCache(contentRepo, nil, rdb, &cfg.Cache)
-	scheduler.NewViewCountSync(viewCountSvc, &cfg.Cache).Start()
-
-	embeddingRepo := repository.NewEmbeddingRepository(db)
-	recSvc := service.NewRecommendationService(db, embeddingRepo, contentRepo, viewCountSvc, rdb, &cfg.Recommendation)
-	embedProv := llm.NewProvider(cfg)
-
-	ipStatsSvc := service.NewIPStatsService(db, rdb)
-
-	hotRankSvc := service.NewHotRankService(viewCountSvc, &cfg.Recommendation).
-		WithRecommendationService(recSvc).
-		WithEmbeddingProvider(embedProv).
-		WithIPStatsService(ipStatsSvc)
-recovery.GoSafe(func() {
+	hotRankSvc := service.NewHotRankService(ctr.ContentService, &cfg.Recommendation).
+		WithRecommendationService(ctr.RecommendationSvc).
+		WithIPStatsService(ctr.IPStatsService)
+	recovery.GoSafe(func() {
 		hotRankSvc.Run()
 	})
 
@@ -60,7 +51,7 @@ recovery.GoSafe(func() {
 	})
 
 	v1 := r.Group("/api/v1")
-	handler.RegisterRoutes(v1, cfg, db, rdb)
+	handler.RegisterRoutes(v1, cfg, ctr)
 
 	slog.Info("OmniCraft backend starting", "port", cfg.Server.Port, "mode", cfg.Server.Mode)
 	if err := r.Run(":" + cfg.Server.Port); err != nil {
