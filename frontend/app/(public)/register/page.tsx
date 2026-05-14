@@ -28,7 +28,6 @@ interface RegisterResponse {
 export default function RegisterPage() {
   const t = useTranslations();
   const router = useRouter();
-  const { login } = useAuth();
 
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -63,8 +62,7 @@ export default function RegisterPage() {
         password,
       });
       saveTokens(data.tokens.access_token, data.tokens.refresh_token);
-      await login(email, password);
-      router.push("/");
+      window.location.href = "/";
     } catch (err) {
       if (err instanceof ApiRequestError) {
         if (err.code === "USER_EXISTS") {
