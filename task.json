@@ -2173,7 +2173,7 @@
         "在 globals.css 中补充缺失的设计 token（muted-foreground-foreground 等）",
         "验证：切换暗色模式后侧栏、Studio 侧栏、Footer 全部正确显示，无白色背景或浅色文字"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 108,
