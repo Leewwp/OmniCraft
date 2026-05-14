@@ -128,5 +128,8 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"user": user})
+
+	csrfToken := middleware.GetCSRFToken(c)
+	c.Header("X-CSRF-Token", csrfToken)
+	c.JSON(http.StatusOK, gin.H{"user": user, "csrf_token": csrfToken})
 }

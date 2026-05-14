@@ -16,6 +16,14 @@ export class ApiRequestError extends Error {
   }
 }
 
+function getCSRFToken(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|;\s*)__Host-csrf=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+const STATE_CHANGING_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
+
 async function request<T>(
   path: string,
   options: RequestInit = {}
@@ -30,6 +38,14 @@ async function request<T>(
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const method = (options.method ?? "GET").toUpperCase();
+  if (STATE_CHANGING_METHODS.has(method)) {
+    const csrfToken = getCSRFToken();
+    if (csrfToken) {
+      headers["X-CSRF-Token"] = csrfToken;
+    }
   }
 
   const res = await fetch(`${API_URL}${path}`, {

@@ -2130,7 +2130,7 @@
         "Cookie 设置 SameSite=Lax，HttpOnly=false（前端需要读取 access_token），Secure=true（生产环境）",
         "验证：不带 CSRF token 的 POST 请求返回 403；正确带 CSRF token 的请求正常通过"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 105,
