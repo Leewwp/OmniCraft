@@ -256,7 +256,7 @@ func (h *FavoriteHandler) AddFavorite(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"message": "added to favorites"})
+	c.JSON(http.StatusOK, gin.H{"message": "added to favorites"})
 }
 
 func (h *FavoriteHandler) RemoveFavorite(c *gin.Context) {
