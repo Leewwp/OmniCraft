@@ -5,8 +5,16 @@ func AppealTargetUpdates(targetType, appealStatus string) map[string]interface{}
 }
 
 func appealTargetUpdates(targetType, appealStatus string) map[string]interface{} {
-	if targetType == "content" && appealStatus == "approved" {
-		return map[string]interface{}{"status": "published"}
+	if appealStatus == "rejected" {
+		return map[string]interface{}{}
+	}
+	if appealStatus == "approved" {
+		switch targetType {
+		case "content":
+			return map[string]interface{}{"status": "published"}
+		case "comment":
+			return map[string]interface{}{"status": "published"}
+		}
 	}
 	return map[string]interface{}{}
 }

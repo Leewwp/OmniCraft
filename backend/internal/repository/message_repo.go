@@ -105,3 +105,13 @@ func (r *MessageRepository) UpdateLastRead(userID, convID int64) error {
 			"unread_count": 0,
 		}).Error
 }
+
+func (r *MessageRepository) DeleteMessage(msgID, userID int64) error {
+	return r.db.Model(&model.Message{}).Where("id = ? AND sender_id = ?", msgID, userID).
+		Update("body", "[message deleted]").Error
+}
+
+func (r *MessageRepository) LeaveConversation(convID, userID int64) error {
+	return r.db.Where("conversation_id = ? AND user_id = ?", convID, userID).
+		Delete(&model.ConversationParticipant{}).Error
+}

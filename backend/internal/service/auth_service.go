@@ -250,6 +250,14 @@ func (s *AuthService) refreshTokenExists(userID int64, refreshToken string) (boo
 	return exists == 1, err
 }
 
+func (s *AuthService) ChangePassword(userID int64, newPassword string) error {
+	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+	return s.userRepo.UpdatePassword(userID, string(hashed))
+}
+
 func buildRefreshTokenKey(userID int64, refreshToken string) string {
 	sum := sha256.Sum256([]byte(refreshToken))
 	return fmt.Sprintf("refresh_token:%d:%s", userID, hex.EncodeToString(sum[:]))

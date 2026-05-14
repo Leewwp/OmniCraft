@@ -68,6 +68,36 @@ func (h *SocialHandler) DeleteComment(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }
 
+func (h *SocialHandler) EditComment(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid comment id"})
+		return
+	}
+	var body struct {
+		Body string `json:"body" binding:"required,min=1,max=5000"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		return
+	}
+	comment, err := h.socialSvc.EditComment(id, callerID, body.Body)
+	if err != nil {
+		if err == service.ErrCommentNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "comment not found"})
+			return
+		}
+		if err == service.ErrCommentForbidden {
+			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "not comment author"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"comment": comment})
+}
+
 func (h *SocialHandler) ListComments(c *gin.Context) {
 	contentIDStr := c.Query("content_item_id")
 	if contentIDStr == "" {
