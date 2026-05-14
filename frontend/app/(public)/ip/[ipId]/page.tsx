@@ -4,6 +4,7 @@ import { getTranslations } from 'next-intl/server';
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { ContentCardData } from "@/components/content/ContentCard";
 import { IPDetail } from "@/components/ip/IPDetail";
+import { RecordBrowseHistory } from "@/components/tracking/RecordBrowseHistory";
 import { normalizeContentList } from "@/lib/content";
 
 interface IPItem {
@@ -116,6 +117,7 @@ export default async function IPDetailPage({
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6">
+      <RecordBrowseHistory contentType="ip" targetId={ip.id} />
       <IPDetail ip={ip} />
       <section className="space-y-3 rounded-md border border-border bg-card p-4 ">
         <h2 className="text-base font-semibold">{t('content.allContent')}</h2>
