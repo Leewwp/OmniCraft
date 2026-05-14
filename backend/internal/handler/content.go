@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -24,6 +26,8 @@ type ContentHandler struct {
 	contentRepo *repository.ContentRepository
 	ossSvc      *service.OSSService
 	ossInitErr  error
+	rdb         *redis.Client
+	cfg         *config.Config
 }
 
 func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *ContentHandler {
@@ -43,6 +47,8 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 		contentRepo: repo,
 		ossSvc:      ossSvc,
 		ossInitErr:  ossErr,
+		rdb:         rdb,
+		cfg:         cfg,
 	}
 }
 
@@ -396,4 +402,70 @@ func (h *ContentHandler) DeleteContent(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
+}
+
+func (h *ContentHandler) DownloadContent(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+	if callerID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		return
+	}
+
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		return
+	}
+
+	content, err := h.contentRepo.FindByID(id)
+	if err != nil || content == nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+		return
+	}
+
+	if content.Status != "published" {
+		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "content not available for download"})
+		return
+	}
+
+	if !content.AllowCopy {
+		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "download not allowed"})
+		return
+	}
+
+	if h.ossSvc == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "OSS_NOT_CONFIGURED", "message": "oss service not configured"})
+		return
+	}
+
+	attachments, _ := h.contentRepo.GetAttachments(id)
+	if len(attachments) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"code": "NO_ATTACHMENTS", "message": "no downloadable files"})
+		return
+	}
+
+	// Use first primary attachment or first attachment
+	ossKey := attachments[0].OSSKey
+	for _, a := range attachments {
+		if a.IsPrimary {
+			ossKey = a.OSSKey
+			break
+		}
+	}
+
+	url, err := h.ossSvc.GeneratePresignDownloadURL(context.Background(), ossKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "OSS_ERROR", "message": "failed to generate download url"})
+		return
+	}
+
+	// Async increment download count in Redis
+	if h.rdb != nil {
+		go func() {
+			ctx := context.Background()
+			h.rdb.ZIncrBy(ctx, "rank:download_counts", 1, fmt.Sprintf("%d", id))
+		}()
+	}
+
+	c.Redirect(http.StatusFound, url)
 }

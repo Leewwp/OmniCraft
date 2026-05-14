@@ -63,6 +63,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		contents.DELETE("/:id", middleware.AuthRequired(cfg, rdb), contentHandler.DeleteContent)
 		contents.GET("/:id/versions", optAuth, NewVersionHandler(db).ListVersions)
 		contents.GET("/:id/prs", optAuth, NewPRHandler(db).ListPRs)
+			contents.GET("/:id/download", middleware.AuthRequired(cfg, rdb), contentHandler.DownloadContent)
 	}
 
 	versionHandler := NewVersionHandler(db)

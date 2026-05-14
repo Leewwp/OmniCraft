@@ -18,6 +18,7 @@ var (
 	ErrDiscussionNotFound = errors.New("discussion not found")
 	ErrLowReputation      = errors.New("reputation too low to post")
 	ErrCommentForbidden   = errors.New("not comment author")
+	ErrAlreadyReported    = errors.New("already reported this target")
 )
 
 const defaultMinScoreForInteraction = 3
