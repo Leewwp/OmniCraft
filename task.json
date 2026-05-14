@@ -2524,7 +2524,7 @@
         "修改 cache.go DeleteByPattern：使用 SCAN + DEL Pipeline（每 100 个 key 一批），或使用 UNLINK（Redis 4.0+ 异步删除）",
         "验证：token 失效不再阻塞 Redis；缓存清理操作不产生慢查询告警"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 131,

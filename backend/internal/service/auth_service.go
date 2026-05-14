@@ -230,7 +230,16 @@ func (s *AuthService) storeRefreshToken(userID uint, refreshToken string) error 
 	if ttl <= 0 {
 		ttl = 7 * 24 * time.Hour
 	}
-	return s.redis.Set(context.Background(), buildRefreshTokenKey(int64(userID), refreshToken), "1", ttl).Err()
+	ctx := context.Background()
+	uid := int64(userID)
+	key := buildRefreshTokenKey(uid, refreshToken)
+	if err := s.redis.Set(ctx, key, "1", ttl).Err(); err != nil {
+		return err
+	}
+	tokenSetKey := fmt.Sprintf("user:tokens:%d", uid)
+	s.redis.SAdd(ctx, tokenSetKey, key)
+	s.redis.Expire(ctx, tokenSetKey, ttl)
+	return nil
 }
 
 func (s *AuthService) refreshTokenExists(userID int64, refreshToken string) (bool, error) {

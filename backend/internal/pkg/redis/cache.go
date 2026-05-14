@@ -35,7 +35,14 @@ func DeleteByPattern(ctx context.Context, pattern string) error {
 			return err
 		}
 		if len(keys) > 0 {
-			Client.Del(ctx, keys...)
+			pipe := Client.Pipeline()
+			for _, key := range keys {
+				pipe.Unlink(ctx, key)
+			}
+			_, err := pipe.Exec(ctx)
+			if err != nil {
+				return err
+			}
 		}
 		cursor = nextCursor
 		if cursor == 0 {
