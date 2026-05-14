@@ -25,6 +25,7 @@ type AdminHandler struct {
 	llmConfigSvc *service.LLMConfigService
 	cfg          *config.Config
 	rdb          *redis.Client
+	notifSvc     *service.NotificationService
 }
 
 func NewAdminHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *AdminHandler {
@@ -37,6 +38,10 @@ func NewAdminHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *AdminH
 		cfg:          cfg,
 		rdb:          rdb,
 	}
+}
+
+func (h *AdminHandler) SetNotificationService(ns *service.NotificationService) {
+	h.notifSvc = ns
 }
 
 func (h *AdminHandler) ListPendingIPs(c *gin.Context) {
@@ -88,7 +93,7 @@ func (h *AdminHandler) ListUnderReviewContents(c *gin.Context) {
 		Status:   "under_review",
 		Page:     page,
 		PageSize: pageSize,
-	})
+	}, 0)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
@@ -226,6 +231,10 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 	}); err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
+	}
+	if h.notifSvc != nil {
+		adminID := middleware.GetUserID(c)
+		h.notifSvc.Notify(appeal.UserID, "system", "appeal_result", "申诉处理结果", body.AdminResponse, "appeal", appeal.ID, adminID)
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "appeal resolved"})
 }

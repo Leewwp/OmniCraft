@@ -16,6 +16,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 	authService := service.NewAuthService(userRepo, rdb, cfg)
 	authHandler := NewAuthHandler(authService, userRepo, rdb)
 
+	notifRepo := repository.NewNotificationRepository(db)
+	notifSvc := service.NewNotificationService(notifRepo)
+
 	auth := v1.Group("/auth")
 	{
 		auth.POST("/register", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), authHandler.Register)
@@ -25,13 +28,15 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		auth.GET("/me", middleware.AuthRequired(cfg, rdb), authHandler.Me)
 	}
 
+	optAuth := middleware.OptionalAuth(cfg, rdb)
+
 	userHandler := NewUserHandler(db, authService, rdb, cfg)
 	users := v1.Group("/users")
 	{
-		users.GET("/:id", userHandler.GetUser)
+		users.GET("/:id", optAuth, userHandler.GetUser)
 		users.PATCH("/:id", middleware.AuthRequired(cfg, rdb), userHandler.UpdateUser)
-		users.GET("/:id/reputation", userHandler.GetReputation)
-		users.GET("/:id/contents", userHandler.GetUserContents)
+		users.GET("/:id/reputation", optAuth, userHandler.GetReputation)
+		users.GET("/:id/contents", optAuth, userHandler.GetUserContents)
 		users.DELETE("/me", middleware.AuthRequired(cfg, rdb), userHandler.DeleteAccount)
 		users.PATCH("/me/password", middleware.AuthRequired(cfg, rdb), userHandler.ChangePassword)
 		users.PATCH("/me/support-info", middleware.AuthRequired(cfg, rdb), userHandler.UpdateSupportInfo)
@@ -40,37 +45,43 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 	ipHandler := NewIPHandlerWithCache(db, rdb, cfg)
 	ips := v1.Group("/ips")
 	{
-		ips.GET("", ipHandler.ListIPs)
+		ips.GET("", optAuth, ipHandler.ListIPs)
 		ips.POST("", middleware.AuthRequired(cfg, rdb), ipHandler.CreateIP)
-		ips.GET("/:id", ipHandler.GetIP)
-		ips.GET("/:id/contents", ipHandler.GetIPContents)
+		ips.GET("/:id", optAuth, ipHandler.GetIP)
+		ips.GET("/:id/contents", optAuth, ipHandler.GetIPContents)
 	}
 
 	contentHandler := NewContentHandler(db, cfg, rdb)
 	contents := v1.Group("/contents")
 	{
-		contents.GET("", contentHandler.ListContents)
+		contents.GET("", optAuth, contentHandler.ListContents)
 		contents.POST("", middleware.AuthRequired(cfg, rdb), middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.CreateContent)
 		contents.POST("/oss-token", middleware.AuthRequired(cfg, rdb), middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.GenerateOSSToken)
-		contents.GET("/:id/related-fanworks", contentHandler.ListRelatedFanworks)
-		contents.GET("/:id", contentHandler.GetContent)
+		contents.GET("/:id/related-fanworks", optAuth, contentHandler.ListRelatedFanworks)
+		contents.GET("/:id", optAuth, contentHandler.GetContent)
 		contents.PATCH("/:id", middleware.AuthRequired(cfg, rdb), contentHandler.UpdateContent)
 		contents.DELETE("/:id", middleware.AuthRequired(cfg, rdb), contentHandler.DeleteContent)
-		contents.GET("/:id/versions", NewVersionHandler(db).ListVersions)
-		contents.GET("/:id/prs", NewPRHandler(db).ListPRs)
+		contents.GET("/:id/versions", optAuth, NewVersionHandler(db).ListVersions)
+		contents.GET("/:id/prs", optAuth, NewPRHandler(db).ListPRs)
 	}
 
 	versionHandler := NewVersionHandler(db)
 	versions := v1.Group("/versions")
 	{
-		versions.GET("/:id", versionHandler.GetVersion)
+		versions.GET("/:id", optAuth, versionHandler.GetVersion)
 	}
 
-	prHandler := NewPRHandler(db)
+	prSvc := service.NewPRService(
+		repository.NewPRRepository(db),
+		repository.NewVersionRepository(db),
+		repository.NewContentRepository(db),
+	)
+	prSvc.SetNotificationService(notifSvc)
+	prHandler := &PRHandler{prSvc: prSvc}
 	pr := v1.Group("/pr")
 	{
 		pr.POST("", middleware.AuthRequired(cfg, rdb), prHandler.SubmitPR)
-		pr.GET("/:id", prHandler.GetPR)
+		pr.GET("/:id", optAuth, prHandler.GetPR)
 		pr.POST("/:id/accept", middleware.AuthRequired(cfg, rdb), prHandler.AcceptPR)
 		pr.POST("/:id/reject", middleware.AuthRequired(cfg, rdb), prHandler.RejectPR)
 		pr.POST("/:id/merge", middleware.AuthRequired(cfg, rdb), prHandler.ManualMerge)
@@ -82,15 +93,23 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		dashboard.DELETE("/contributors/:userId/block", prHandler.UnblockContributor)
 	}
 
-	socialHandler := NewSocialHandler(db, cfg, rdb)
+	socialSvc := service.NewSocialServiceWithRedis(
+		repository.NewSocialRepository(db),
+		repository.NewContentRepository(db),
+		repository.NewUserRepository(db),
+		cfg,
+		rdb,
+	)
+	socialSvc.SetNotificationService(notifSvc)
+	socialHandler := &SocialHandler{socialSvc: socialSvc}
 	social := v1.Group("/social")
 	{
-		social.GET("/comments", socialHandler.ListComments)
+		social.GET("/comments", optAuth, socialHandler.ListComments)
 		social.POST("/comments", middleware.AuthRequired(cfg, rdb), socialHandler.PostComment)
 		social.DELETE("/comments/:id", middleware.AuthRequired(cfg, rdb), socialHandler.DeleteComment)
-		social.GET("/discussions", socialHandler.ListDiscussions)
+		social.GET("/discussions", optAuth, socialHandler.ListDiscussions)
 		social.POST("/discussions", middleware.AuthRequired(cfg, rdb), socialHandler.PostDiscussion)
-		social.GET("/discussions/:id", socialHandler.GetDiscussion)
+		social.GET("/discussions/:id", optAuth, socialHandler.GetDiscussion)
 		social.POST("/reactions", middleware.AuthRequired(cfg, rdb), socialHandler.React)
 		social.POST("/comments/:id/report", middleware.AuthRequired(cfg, rdb), socialHandler.ReportComment)
 	}
@@ -102,16 +121,16 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		favorites.POST("", favHandler.AddFavorite)
 		favorites.DELETE("/:contentId", favHandler.RemoveFavorite)
 	}
-	users.GET("/:id/favorites", favHandler.ListUserFavorites)
+	users.GET("/:id/favorites", optAuth, favHandler.ListUserFavorites)
 
 	judgeHandler := NewJudgeHandler(db, cfg)
 	judge := v1.Group("/judge")
 	{
-		judge.GET("/exam/:category", judgeHandler.GetExam)
+		judge.GET("/exam/:category", optAuth, judgeHandler.GetExam)
 		judge.POST("/exam/submit", middleware.AuthRequired(cfg, rdb), judgeHandler.SubmitExam)
 		judge.GET("/queue", middleware.AuthRequired(cfg, rdb), judgeHandler.GetQueue)
 		judge.POST("/vote", middleware.AuthRequired(cfg, rdb), judgeHandler.SubmitVote)
-		judge.GET("/cases/:id/verdict", judgeHandler.GetVerdictDetail)
+		judge.GET("/cases/:id/verdict", optAuth, judgeHandler.GetVerdictDetail)
 		judge.POST("/reasons/:id/vote", middleware.AuthRequired(cfg, rdb), judgeHandler.VoteReason)
 	}
 
@@ -120,11 +139,11 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 	v1.GET("/ips/stats/category_counts", ipStatsHandler.GetCategoryCounts)
 
 	catHandler := NewCategoryHandler(db)
-	v1.GET("/categories", catHandler.ListCategories)
+	v1.GET("/categories", optAuth, catHandler.ListCategories)
 
 	tagHandler := NewTagHandler(db, rdb)
-	v1.GET("/tags/faceted", tagHandler.GetFacetedTags)
-	v1.GET("/tags/search", tagHandler.SearchTags)
+	v1.GET("/tags/faceted", optAuth, tagHandler.GetFacetedTags)
+	v1.GET("/tags/search", optAuth, tagHandler.SearchTags)
 	contents.POST("/:id/tags/suggest", middleware.AuthRequired(cfg, rdb), tagHandler.SuggestTag)
 	dashboard.GET("/tag-suggestions", tagHandler.ListTagSuggestions)
 	dashboard.PATCH("/tag-suggestions/:id", tagHandler.UpdateTagSuggestion)
@@ -141,10 +160,11 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 	}
 
 	followHandler := NewFollowHandler(db)
+	followHandler.SetNotificationService(notifSvc)
 	users.POST("/:id/follow", middleware.AuthRequired(cfg, rdb), followHandler.FollowUser)
 	users.DELETE("/:id/follow", middleware.AuthRequired(cfg, rdb), followHandler.UnfollowUser)
-	users.GET("/:id/followers", followHandler.GetFollowers)
-	users.GET("/:id/following", followHandler.GetFollowing)
+	users.GET("/:id/followers", optAuth, followHandler.GetFollowers)
+	users.GET("/:id/following", optAuth, followHandler.GetFollowing)
 	ips.POST("/:id/follow", middleware.AuthRequired(cfg, rdb), followHandler.FollowIP)
 	ips.DELETE("/:id/follow", middleware.AuthRequired(cfg, rdb), followHandler.UnfollowIP)
 
@@ -162,6 +182,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 	}
 
 	msgHandler := NewMessageHandler(db)
+	msgHandler.SetNotificationService(notifSvc)
 	messages := v1.Group("/messages", middleware.AuthRequired(cfg, rdb))
 	{
 		messages.GET("", msgHandler.ListConversations)
@@ -175,13 +196,13 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 	me.DELETE("/history", histHandler.ClearHistory)
 
 	discHandler := NewDiscussionHandler(db)
-	ips.GET("/:id/discussions", discHandler.ListDiscussions)
+	ips.GET("/:id/discussions", optAuth, discHandler.ListDiscussions)
 	ips.POST("/:id/discussions", middleware.AuthRequired(cfg, rdb), discHandler.CreateDiscussion)
-	ips.GET("/:id/discussions/search", discHandler.SearchDiscussions)
-		users.GET("/:id/discussions", discHandler.ListByUser)
+	ips.GET("/:id/discussions/search", optAuth, discHandler.SearchDiscussions)
+	users.GET("/:id/discussions", optAuth, discHandler.ListByUser)
 	discussions := v1.Group("/discussions")
 	{
-		discussions.GET("/:id", discHandler.GetDiscussion)
+		discussions.GET("/:id", optAuth, discHandler.GetDiscussion)
 		discussions.POST("/:id/comments", middleware.AuthRequired(cfg, rdb), discHandler.ReplyToDiscussion)
 		discussions.PATCH("/:id/pin", middleware.AuthRequired(cfg, rdb), discHandler.PinDiscussion)
 	}
@@ -212,6 +233,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 	}
 
 	adminHandler := NewAdminHandler(db, cfg, rdb)
+	adminHandler.SetNotificationService(notifSvc)
 	admin := v1.Group("/admin", middleware.AuthRequired(cfg, rdb), middleware.AdminRequired())
 	{
 		admin.GET("/ips", adminHandler.ListPendingIPs)

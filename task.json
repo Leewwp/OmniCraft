@@ -2284,7 +2284,7 @@
         "创建数据库索引加速用户通知查询：CREATE INDEX idx_notifications_user_unread ON notifications(user_id, is_read, created_at DESC)",
         "验证：评论内容后目标作者收到通知；PR 被接受后提交者收到通知；私信发送后收到方收到提醒"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 115,

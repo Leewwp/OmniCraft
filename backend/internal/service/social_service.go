@@ -28,6 +28,7 @@ type SocialService struct {
 	userRepo    *repository.UserRepository
 	cfg         *config.Config
 	rdb         *redis.Client
+	notifSvc    *NotificationService
 }
 
 func NewSocialService(sRepo *repository.SocialRepository, cRepo *repository.ContentRepository, uRepo *repository.UserRepository, cfg *config.Config) *SocialService {
@@ -36,6 +37,10 @@ func NewSocialService(sRepo *repository.SocialRepository, cRepo *repository.Cont
 
 func NewSocialServiceWithRedis(sRepo *repository.SocialRepository, cRepo *repository.ContentRepository, uRepo *repository.UserRepository, cfg *config.Config, rdb *redis.Client) *SocialService {
 	return &SocialService{socialRepo: sRepo, contentRepo: cRepo, userRepo: uRepo, cfg: cfg, rdb: rdb}
+}
+
+func (s *SocialService) SetNotificationService(ns *NotificationService) {
+	s.notifSvc = ns
 }
 
 type PostCommentInput struct {
@@ -62,6 +67,21 @@ func (s *SocialService) PostComment(input PostCommentInput, authorID int64) (*mo
 	if err := s.socialRepo.CreateComment(comment); err != nil {
 		return nil, err
 	}
+
+	if s.notifSvc != nil {
+		if input.ContentItemID != nil {
+			content, err := s.contentRepo.FindByID(*input.ContentItemID)
+			if err == nil && content != nil && content.AuthorID != authorID {
+				s.notifSvc.Notify(content.AuthorID, "reply", "comment", "新评论", input.Body, "content", content.ID, authorID)
+			}
+		} else if input.DiscussionID != nil {
+			disc, err := s.socialRepo.FindDiscussion(*input.DiscussionID)
+			if err == nil && disc != nil && disc.AuthorID != authorID {
+				s.notifSvc.Notify(disc.AuthorID, "reply", "comment", "新回复", input.Body, "discussion", disc.ID, authorID)
+			}
+		}
+	}
+
 	return comment, nil
 }
 
@@ -139,6 +159,13 @@ func (s *SocialService) React(input ReactInput, userID int64) (string, error) {
 	action, err := s.socialRepo.UpsertReaction(reaction)
 	if err != nil {
 		return "", err
+	}
+
+	if action == "created" && input.TargetType == "content" && s.notifSvc != nil {
+		content, cErr := s.contentRepo.FindByID(input.TargetID)
+		if cErr == nil && content != nil && content.AuthorID != userID {
+			s.notifSvc.Notify(content.AuthorID, "like", input.Reaction, "新的赞", "", "content", content.ID, userID)
+		}
 	}
 
 	if input.TargetType == "content" {
