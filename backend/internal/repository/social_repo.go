@@ -125,9 +125,28 @@ func (r *SocialRepository) UpsertReaction(reaction *model.Reaction) (string, err
 }
 
 func (r *SocialRepository) GetReactionCounts(targetType string, targetID int64) (int64, int64, error) {
+	var results []struct {
+		Reaction string
+		Count    int64
+	}
+	err := r.db.Model(&model.Reaction{}).
+		Select("reaction, COUNT(*) as count").
+		Where("target_type = ? AND target_id = ?", targetType, targetID).
+		Group("reaction").
+		Find(&results).Error
+	if err != nil {
+		return 0, 0, err
+	}
+
 	var likes, dislikes int64
-	r.db.Model(&model.Reaction{}).Where("target_type = ? AND target_id = ? AND reaction = ?", targetType, targetID, "like").Count(&likes)
-	r.db.Model(&model.Reaction{}).Where("target_type = ? AND target_id = ? AND reaction = ?", targetType, targetID, "dislike").Count(&dislikes)
+	for _, r := range results {
+		switch r.Reaction {
+		case "like":
+			likes = r.Count
+		case "dislike":
+			dislikes = r.Count
+		}
+	}
 	return likes, dislikes, nil
 }
 

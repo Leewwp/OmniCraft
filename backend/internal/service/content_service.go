@@ -481,6 +481,8 @@ func (s *ContentService) FlushViewCounts(ctx context.Context) error {
 	}
 
 	var cursor uint64
+	batch := make(map[int64]int64)
+
 	for {
 		keys, nextCursor, err := s.rdb.Scan(ctx, cursor, "view_count:*", 100).Result()
 		if err != nil {
@@ -499,8 +501,7 @@ func (s *ContentService) FlushViewCounts(ctx context.Context) error {
 
 			var id int64
 			fmt.Sscanf(key, "view_count:%d", &id)
-
-			s.contentRepo.IncrViewCountBy(id, count)
+			batch[id] += count
 		}
 
 		cursor = nextCursor
@@ -509,6 +510,9 @@ func (s *ContentService) FlushViewCounts(ctx context.Context) error {
 		}
 	}
 
+	if len(batch) > 0 {
+		return s.contentRepo.BatchIncrViewCounts(batch)
+	}
 	return nil
 }
 

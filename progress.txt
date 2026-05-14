@@ -1,5 +1,23 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-14] - Task 129: 推荐 Pipeline N+1 与视图刷新
+- recommendation_service.go: computeFinalScores uses Redis Pipeline (O(N)→1 round-trip)
+- content_service.go: FlushViewCounts uses batch CASE WHEN UPDATE
+- content_repo.go: Added BatchIncrViewCounts method
+- social_repo.go: GetReactionCounts uses GROUP BY (2 queries→1)
+
+## [2026-05-14] - Task 128: N+1 查询修复
+- content_repo.go/ip_repo.go: Added BatchGetByIDs methods
+- getHotContents/GetHotIPs/NLSearch: replaced loop GetContent/GetIP/FindByID
+- user.go: merged getUserStats+countFollowers into single query
+- follow_repo.go: GetFollowers uses JOIN instead of Pluck+Find
+
+## [2026-05-14] - Task 123: OptionalAuth 中间件启用
+- middleware/auth.go: Enhanced OptionalAuth with Redis blacklist/status checks
+- routes.go: Added OptionalAuth to all public GET endpoints
+- content.go: GetContent returns is_favorited; ListContents passes viewerID
+- content_service.go: handleRecommended uses viewerID instead of filter.AuthorID
+
 ## [2026-05-14] - Task 114: 通知自动创建与推送
 
 ### What was done:
