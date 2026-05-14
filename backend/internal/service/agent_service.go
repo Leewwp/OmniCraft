@@ -408,6 +408,31 @@ func (s *AgentService) ChatStream(ctx context.Context, messages []llm.ChatMessag
 		return ErrAgentDisabled
 	}
 
+	conv := &model.AgentConversation{
+		UserID:      0,
+		ContextType: "general",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+	if len(messages) > 0 && messages[0].Role == "user" {
+		if err := s.db.Create(conv).Error; err != nil {
+			slog.Error("failed to create agent conversation", "error", err)
+			conv = nil
+		}
+	}
+
+	if conv != nil {
+		for _, msg := range messages {
+			content := msg.Content
+			s.db.Create(&model.AgentMessage{
+				ConversationID: conv.ID,
+				Role:           msg.Role,
+				Content:        &content,
+				CreatedAt:      time.Now(),
+			})
+		}
+	}
+
 	req := llm.ChatRequest{
 		Messages:  messages,
 		MaxTokens: 2000,
@@ -415,11 +440,25 @@ func (s *AgentService) ChatStream(ctx context.Context, messages []llm.ChatMessag
 	}
 
 	var buf strings.Builder
+	convID := int64(0)
+	if conv != nil {
+		convID = conv.ID
+	}
+
 	err := s.llmProvider.ChatStream(ctx, req, func(delta llm.ChatDelta) error {
 		buf.WriteString(delta.Content)
-		return handler(delta.Content, delta.Done, 0)
+		if delta.Done && conv != nil {
+			assistantContent := buf.String()
+			s.db.Create(&model.AgentMessage{
+				ConversationID: conv.ID,
+				Role:           "assistant",
+				Content:        &assistantContent,
+				CreatedAt:      time.Now(),
+			})
+			s.db.Model(conv).Update("updated_at", time.Now())
+		}
+		return handler(delta.Content, delta.Done, convID)
 	})
-	_ = buf
 	return err
 }
 

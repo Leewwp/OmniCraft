@@ -16,16 +16,11 @@ func NewReputationService(db *gorm.DB) *ReputationService {
 
 func (s *ReputationService) AddReputation(userID int64, delta int, reason string, relatedID *int64) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		var relID *uint
-		if relatedID != nil {
-			v := uint(*relatedID)
-			relID = &v
-		}
 		log := model.ReputationLog{
-			UserID:    uint(userID),
+			UserID:    userID,
 			Delta:     delta,
 			Reason:    reason,
-			RelatedID: relID,
+			RelatedID: relatedID,
 		}
 		if err := tx.Create(&log).Error; err != nil {
 			return err
@@ -40,7 +35,7 @@ func (s *ReputationService) GetLogs(userID int64, page, pageSize int) ([]model.R
 	var logs []model.ReputationLog
 	var total int64
 
-	q := s.db.Model(&model.ReputationLog{}).Where("user_id = ?", uint(userID))
+	q := s.db.Model(&model.ReputationLog{}).Where("user_id = ?", userID)
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}

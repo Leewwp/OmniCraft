@@ -40,7 +40,7 @@ func (r *JudgeRepository) CheckQualification(userID int64, contentType string) (
 	return count > 0, err
 }
 
-func (r *JudgeRepository) CreateQualification(userID uint, contentType string) error {
+func (r *JudgeRepository) CreateQualification(userID int64, contentType string) error {
 	q := model.JudgeQualification{
 		UserID:      userID,
 		ContentType: contentType,

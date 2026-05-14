@@ -26,13 +26,11 @@ func (s *VersionService) CreateInitialVersion(contentID int64, authorID int64, f
 		AuthorID:      authorID,
 		VersionNumber: 1,
 		StorageType:   "full",
-		StorageKey:    "",
+		StorageKey:    fullText,
 		DiffSummary:   "initial version",
 		Status:        "active",
 		IsLatest:      true,
 	}
-
-	_ = fullText
 
 	if err := s.versionRepo.CreateVersion(v); err != nil {
 		return nil, err

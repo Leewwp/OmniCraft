@@ -138,7 +138,7 @@ func (s *RehabService) CompleteCourse(userID int64, courseID int64) error {
 			return err
 		}
 		log := &model.ReputationLog{
-			UserID: uint(userID),
+			UserID: userID,
 			Delta:  course.RewardPoints,
 			Reason: "rehab_course_completed",
 		}
@@ -146,7 +146,7 @@ func (s *RehabService) CompleteCourse(userID int64, courseID int64) error {
 			return err
 		}
 
-		return tx.Model(&model.User{}).Where("id = ?", uint(userID)).
+		return tx.Model(&model.User{}).Where("id = ?", userID).
 			Update("reputation", gorm.Expr("reputation + ?", course.RewardPoints)).Error
 	})
 }

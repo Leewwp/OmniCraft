@@ -2170,7 +2170,7 @@
         "Cookie 设置 SameSite=Lax，HttpOnly=false（前端需要读取 access_token），Secure=true（生产环境）",
         "验证：不带 CSRF token 的 POST 请求返回 403；正确带 CSRF token 的请求正常通过"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 105,
@@ -2246,7 +2246,7 @@
         "OriginalPage.tsx：原创区统计数字同上处理",
         "验证：首页和原创区数字来自 API 而非硬编码；API 不可用时显示\"--\"而非 0"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 110,
@@ -2278,7 +2278,7 @@
         "添加上传失败时的错误提示和重试机制",
         "验证：选择文件→上传→提交，后端正确收到 attachments 数据；文件类型/大小/尺寸正确传递"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 112,
@@ -2294,7 +2294,7 @@
         "聊天发送：错误时在聊天界面显示错误消息气泡",
         "验证：故意让某个 API 返回 500，确认用户看到适当提示而非静默失败"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 113,
@@ -2309,7 +2309,7 @@
         "注册成功后自动跳转到首页而非登录页",
         "验证：注册后只需一次 API 调用即完成登录；token 过期后自动刷新无需手动重新登录"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 114,
@@ -2328,7 +2328,7 @@
         "创建数据库索引加速用户通知查询：CREATE INDEX idx_notifications_user_unread ON notifications(user_id, is_read, created_at DESC)",
         "验证：评论内容后目标作者收到通知；PR 被接受后提交者收到通知；私信发送后收到方收到提醒"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 115,
@@ -2345,7 +2345,7 @@
         "Header 组件通知铃铛显示未读总数小红点，点击显示分类未读数",
         "验证：收到新通知后铃铛红点实时更新；进入会话后未读数归零"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 116,
@@ -2364,7 +2364,7 @@
         "使用 webapp-testing skill 验证桌面端和移动端消息交互",
         "验证：可以查看会话列表、进入聊天、发送消息、接收消息；移动端布局正常"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 117,
@@ -2382,7 +2382,7 @@
         "添加下拉通知面板（Header NotificationDropdown）的按频道未读计数展示",
         "验证：切换频道筛选正确；全部已读按钮生效；点击通知跳转到对应页面"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 118,
@@ -2397,7 +2397,7 @@
         "OriginalPage 内容卡片点击同理记录",
         "验证：登录后浏览内容详情，在 /history 页面可以看到浏览记录；同一内容不重复记录"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 119,
@@ -2415,7 +2415,7 @@
         "添加搜索词高亮功能：使用 ts_headline 返回高亮片段",
         "验证：搜索\"游戏攻略\"返回相关内容；登录用户排序考虑个性化因素；空查询返回热门内容"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 120,
@@ -2429,7 +2429,7 @@
         "搜索建议按使用频率排序（Redis 计数）",
         "验证：输入\"原神\"时下拉显示\"原神攻略\"、\"原神同人\"等建议；热门搜索词从 Redis 动态更新"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 121,
@@ -2449,7 +2449,7 @@
         "使用 webapp-testing skill 在各视口截图验证搜索流程",
         "验证：输入关键词显示建议；搜索历史可点击；热门搜索词展示；移动端筛选可操作"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 122,
@@ -2466,7 +2466,7 @@
         "添加迁移任务：为现有 profile 全零的用户批量生成初始 profile",
         "验证：新注册用户选择\"游戏\"、\"动漫\"后首页推荐相关内容；匿名用户看到热门排行"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 123,
@@ -2495,7 +2495,7 @@
         "创建 CronJob：定期将 Redis 下载计数刷回 DB",
         "验证：curl /contents/:id/download（AllowCopy=true）返回 302 跳转到 OSS；AllowCopy=false 返回 403；下载计数正确累加"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 125,
@@ -2512,7 +2512,7 @@
         "Tauri 客户端使用 omnicraft://download 协议拦截",
         "验证：免费可下载内容点击后触发下载；禁止下载内容显示灰色按钮；下载后计数实时更新"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 126,
@@ -2529,7 +2529,7 @@
         "Masonry 瀑布流布局与内容卡片保持一致",
         "验证：按类型筛选收藏；按时间排序；创建收藏分组并添加内容；空状态正常显示"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 127,
@@ -2544,7 +2544,7 @@
         "修改 GET /contents/:id 响应：添加 is_favorited 字段（使用 OptionalAuth 获取当前用户收藏状态）",
         "验证：重复收藏返回 200 而非 500；删除不存在的收藏返回 200；按类型筛选和分页正常工作"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 128,
@@ -2675,7 +2675,7 @@
         "创建 GET /admin/reports/stats：举报统计概览（待处理数量、按类型分布等）",
         "验证：管理员可查看/处理举报；用户搜索返回正确结果；举报列表正确分页和筛选"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 137,
@@ -2693,7 +2693,7 @@
         "注册流程调整：注册后用户 is_email_verified=false，部分功能（发布内容、关注等）需要邮箱验证",
         "验证：忘记密码流程完整；邮箱验证功能正常；未验证用户受限功能正确拦截"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 138,
@@ -2707,7 +2707,7 @@
         "新增 PATCH /admin/contents/:id/restore 端点：恢复被封禁内容",
         "验证：对评论发起申诉可正常处理；重复举报返回 409；管理员封禁内容必须填 reason"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 139,
@@ -2737,7 +2737,7 @@
         "编辑评论频率限制：每条评论最多编辑 5 次，每次编辑间隔至少 30 秒",
         "验证：编辑评论后内容更新且显示编辑标记；删除消息后仅对删除者不可见；退出会话后不再收到新消息通知"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 141,
@@ -2813,7 +2813,7 @@
         "添加 skip-to-content 链接：页面顶部添加<a href=#main-content class=sr-only>Skip to content</a>",
         "验证：导航后返回页面不重新加载已缓存数据；屏幕阅读器可正确识别所有交互元素"
       ],
-      "passes": true
+      "passes": null
     }
   ]
 }

@@ -5,7 +5,7 @@ import (
 )
 
 type User struct {
-	ID              uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	ID              int64      `gorm:"primaryKey;autoIncrement" json:"id"`
 	Email           string    `gorm:"uniqueIndex;not null;size:255" json:"email"`
 	PasswordHash    string    `gorm:"not null;size:255" json:"-"`
 	Username        string    `gorm:"uniqueIndex;not null;size:64" json:"username"`
@@ -27,7 +27,7 @@ func (User) TableName() string {
 
 type JudgeQualification struct {
 	ID          uint       `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID      uint       `gorm:"not null;index" json:"user_id"`
+	UserID      int64       `gorm:"not null;index" json:"user_id"`
 	ContentType string     `gorm:"not null;size:50" json:"content_type"`
 	QualifiedAt time.Time  `gorm:"not null;default:now()" json:"qualified_at"`
 	RevokedAt   *time.Time `json:"revoked_at,omitempty"`
@@ -40,10 +40,10 @@ func (JudgeQualification) TableName() string {
 
 type ReputationLog struct {
 	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID    uint      `gorm:"not null;index" json:"user_id"`
+	UserID    int64      `gorm:"not null;index" json:"user_id"`
 	Delta     int       `gorm:"not null" json:"delta"`
 	Reason    string    `gorm:"not null;size:100" json:"reason"`
-	RelatedID *uint     `json:"related_id,omitempty"`
+	RelatedID *int64     `json:"related_id,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -53,7 +53,7 @@ func (ReputationLog) TableName() string {
 
 type OAuthAccount struct {
 	ID          uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID      uint      `gorm:"not null;index" json:"user_id"`
+	UserID      int64      `gorm:"not null;index" json:"user_id"`
 	Provider    string    `gorm:"not null;size:20" json:"provider"`
 	ProviderUID string    `gorm:"not null;size:255" json:"provider_uid"`
 	AccessToken string    `gorm:"type:text" json:"-"`

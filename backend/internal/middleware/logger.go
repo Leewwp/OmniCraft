@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -24,13 +24,14 @@ func Logger() gin.HandlerFunc {
 			path = path + "?" + query
 		}
 
-		fmt.Printf("[%s] %d | %s | %s | %s %s\n",
-			start.Format("2006/01/02 15:04:05"),
-			statusCode,
-			latency,
-			clientIP,
-			method,
-			path,
+		requestID, _ := c.Get("request_id")
+		slog.Info("request",
+			"method", method,
+			"path", path,
+			"status", statusCode,
+			"duration_ms", latency.Milliseconds(),
+			"client_ip", clientIP,
+			"request_id", requestID,
 		)
 	}
 }
