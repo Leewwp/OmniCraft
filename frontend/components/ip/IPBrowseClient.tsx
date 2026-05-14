@@ -24,24 +24,24 @@ interface IPBrowseClientProps {
 }
 
 const IP_CATEGORIES = [
-  { slug: "", label: "全部 IP" },
-  { slug: "game", label: "游戏" },
-  { slug: "film_tv", label: "影视" },
-  { slug: "anime", label: "动画" },
-  { slug: "manga", label: "漫画" },
-  { slug: "novel", label: "小说" },
-  { slug: "music", label: "音乐" },
-  { slug: "variety", label: "综艺" },
-  { slug: "short_drama", label: "短剧" },
-  { slug: "vtuber", label: "虚拟主播" },
-  { slug: "other", label: "其他" },
+  { slug: "", labelKey: "home.allIps" },
+  { slug: "game", labelKey: "home.categoryGaming" },
+  { slug: "film_tv", labelKey: "home.categoryFilmTv" },
+  { slug: "anime", labelKey: "home.animeCategory" },
+  { slug: "manga", labelKey: "home.mangaCategory" },
+  { slug: "novel", labelKey: "home.novelCategory" },
+  { slug: "music", labelKey: "home.audio" },
+  { slug: "variety", labelKey: "home.varietyShowCategory" },
+  { slug: "short_drama", labelKey: "home.shortDramaCategory" },
+  { slug: "vtuber", labelKey: "home.other" },
+  { slug: "other", labelKey: "home.other" },
 ];
 
 const SORT_OPTIONS = [
-  { value: "hot", label: "最热门" },
-  { value: "most_contents", label: "最多内容" },
-  { value: "newest", label: "最新" },
-  { value: "name", label: "名称排序" },
+  { value: "hot", labelKey: "ip.sortHot" },
+  { value: "most_contents", labelKey: "ip.sortMostContents" },
+  { value: "newest", labelKey: "ip.sortNewest" },
+  { value: "name", labelKey: "ip.sortByName" },
 ];
 
 export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseClientProps) {
@@ -99,13 +99,13 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
     <div className="mx-auto w-full max-w-[1440px] px-6 py-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-[22px] font-bold tracking-tight text-foreground">IP 库</h1>
+        <h1 className="text-[22px] font-bold tracking-tight text-foreground">{t('ip.title')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          浏览和搜索感兴趣的知识产权作品，发现创作灵感
+          {t('ip.browseDescription')}
         </p>
         {total > 0 && (
           <p className="mt-2 text-xs text-muted-foreground">
-            共 {total} 个 IP
+            {t('ip.totalCount', { total })}
           </p>
         )}
       </div>
@@ -117,7 +117,7 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
           <Input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="搜索 IP 名称..."
+            placeholder={t('ip.searchPlaceholder')}
             className="w-full rounded-full border border-transparent bg-muted pl-9 pr-4 py-2 text-sm placeholder:text-muted-foreground/60 focus:border-ring focus:bg-background focus:ring-2 focus:ring-ring/20"
           />
         </form>
@@ -128,7 +128,7 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
             className="rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
           >
             {SORT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
             ))}
           </select>
         </div>
@@ -149,7 +149,7 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
                   : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
             >
-              {cat.label}
+              {t(cat.labelKey)}
             </button>
           );
         })}
@@ -171,16 +171,16 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
       ) : ips.length === 0 ? (
         <div className="rounded-xl border border-border bg-card p-16 text-center">
           <Search className="mx-auto mb-4 h-10 w-10 text-muted-foreground/40" />
-          <p className="text-sm font-medium text-foreground">未找到匹配的 IP</p>
+          <p className="text-sm font-medium text-foreground">{t('ip.notFound')}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            尝试更换搜索关键词或清除筛选条件
+            {t('ip.notFoundHint')}
           </p>
           <button
             type="button"
             onClick={() => { setCategory(""); setSearch(""); setSearchInput(""); }}
             className="mt-4 rounded-full bg-[var(--accent-emphasis)] px-6 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] transition-colors"
           >
-            清除所有筛选
+            {t('ip.clearAllFilters')}
           </button>
         </div>
       ) : (
@@ -204,7 +204,7 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
                 disabled={loading}
                 className="rounded-full border border-border bg-card px-8 py-2.5 text-sm font-medium text-foreground hover:border-border/80 transition-colors disabled:opacity-50"
               >
-                {loading ? "加载中..." : "加载更多"}
+                {loading ? t('common.loading') : t('ip.loadMore')}
               </button>
             </div>
           )}

@@ -84,8 +84,8 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
             <p className="text-sm text-muted-foreground">{t("content.originalZoneDesc")}</p>
           </div>
           <div className="mt-3 flex gap-4">
-            <span className="flex items-baseline gap-1"><span className="text-[15px] font-semibold text-foreground">186,247</span><span className="text-xs text-muted-foreground">内容</span></span>
-            <span className="flex items-baseline gap-1"><span className="text-[15px] font-semibold text-foreground">32,814</span><span className="text-xs text-muted-foreground">创作者</span></span>
+            <span className="flex items-baseline gap-1"><span className="text-[15px] font-semibold text-foreground">--</span><span className="text-xs text-muted-foreground">{t('home.contentCountLabel')}</span></span>
+            <span className="flex items-baseline gap-1"><span className="text-[15px] font-semibold text-foreground">--</span><span className="text-xs text-muted-foreground">{t('home.creatorsLabel')}</span></span>
           </div>
         </div>
 

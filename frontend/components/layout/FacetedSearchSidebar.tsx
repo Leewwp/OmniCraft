@@ -268,7 +268,7 @@ export function FacetedSearchSidebar({
 
   function handleApplyTagGroup(group: TagGroup) {
     setSelectedTags([...group.tags]);
-    toast("success", `已应用标签组「${group.name}」`);
+    toast("success", t('search.filter.appliedTagGroup', { name: group.name }));
   }
 
   async function handleSaveSearch() {
@@ -279,7 +279,7 @@ export function FacetedSearchSidebar({
         name: saveName.trim(),
         config: buildConfig(),
       });
-      toast("success", "搜索已保存");
+      toast("success", t('search.filter.searchSaved'));
       setSaveModalOpen(false);
       setSaveName("");
       const searchesRes = await api.get<{ saved_searches?: SavedSearch[] }>(
@@ -287,7 +287,7 @@ export function FacetedSearchSidebar({
       );
       setSavedSearches(searchesRes.saved_searches ?? []);
     } catch {
-      toast("error", "保存失败，请重试");
+      toast("error", t('search.filter.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -299,7 +299,7 @@ export function FacetedSearchSidebar({
     if (search.config.content_types) setContentTypes(search.config.content_types);
     if (search.config.time_range) setTimeRange(search.config.time_range);
     if (search.config.sort) setSort(search.config.sort);
-    toast("success", `已加载搜索「${search.name}」`);
+    toast("success", t('search.filter.loadedSearch', { name: search.name }));
   }
 
   // ── Derived ────────────────────────────────────────
@@ -320,7 +320,7 @@ export function FacetedSearchSidebar({
       {/* Category tabs */}
       <div className="flex flex-col gap-2">
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          大类
+          {t('search.filter.mainCategory')}
         </span>
         <div className="flex flex-wrap gap-1.5">
           {categories.map((cat) => {
@@ -350,14 +350,14 @@ export function FacetedSearchSidebar({
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              已选标签
+              {t('search.filter.selectedTags')}
             </span>
             <button
               type="button"
               onClick={handleClearTags}
               className="text-xs text-primary hover:underline"
             >
-              全部清除
+              {t('search.filter.clearAll')}
             </button>
           </div>
           <div className="flex flex-wrap gap-1">
@@ -377,7 +377,7 @@ export function FacetedSearchSidebar({
       {/* Available tags */}
       <div className="flex flex-col gap-1.5">
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          标签
+          {t('search.filter.tags')}
         </span>
         {tagsLoading ? (
           <div className="space-y-1.5">
@@ -388,7 +388,7 @@ export function FacetedSearchSidebar({
           </div>
         ) : availableTags.length === 0 ? (
           <p className="text-xs text-muted-foreground/70 py-1">
-            {selectedCategory ? "该大类暂无标签" : "请先选择大类"}
+            {selectedCategory ? t('search.filter.noTagsForCategory') : t('search.filter.selectCategoryFirst')}
           </p>
         ) : (
           <div className="flex flex-wrap gap-1 max-h-[300px] overflow-y-auto">
@@ -428,7 +428,7 @@ export function FacetedSearchSidebar({
         >
           <span className="inline-flex items-center gap-1.5">
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            高级筛选
+            {t('search.filter.advancedFilter')}
           </span>
           {advancedOpen ? (
             <ChevronUp className="h-3.5 w-3.5" />
@@ -557,7 +557,7 @@ export function FacetedSearchSidebar({
         onClick={() => setSaveModalOpen(true)}
       >
         <Save className="mr-1.5 h-3.5 w-3.5" />
-        保存此搜索
+        {t('search.saveSearch')}
       </Button>
 
       {/* Saved searches */}
@@ -565,7 +565,7 @@ export function FacetedSearchSidebar({
         <div className="flex flex-col gap-1.5 border-t border-border pt-2">
           <span className="text-xs font-medium text-muted-foreground inline-flex items-center gap-1.5">
             <Bookmark className="h-3.5 w-3.5" />
-            我的搜索
+            {t('search.filter.mySearches')}
           </span>
           <div className="flex flex-col gap-0.5">
             {savedSearches.map((s) => (
@@ -587,7 +587,7 @@ export function FacetedSearchSidebar({
         <div className="flex flex-col gap-1.5 border-t border-border pt-2">
           <span className="text-xs font-medium text-muted-foreground inline-flex items-center gap-1.5">
             <FolderOpen className="h-3.5 w-3.5" />
-            我的标签组
+            {t('search.filter.myTagGroups')}
           </span>
           <div className="flex flex-col gap-1">
             {tagGroups.map((group) => (
@@ -610,7 +610,7 @@ export function FacetedSearchSidebar({
       {/* My tag groups empty state */}
       {user && groupsLoaded && tagGroups.length === 0 && (
         <div className="border-t border-border pt-2">
-          <p className="text-xs text-muted-foreground/70">暂无标签组</p>
+          <p className="text-xs text-muted-foreground/70">{t('search.filter.noTagGroups')}</p>
         </div>
       )}
 
@@ -618,7 +618,7 @@ export function FacetedSearchSidebar({
       {!user && (
         <div className="border-t border-border pt-2">
           <p className="text-xs text-muted-foreground/70">
-            登录后可保存搜索和标签组
+            {t('search.filter.loginToSave')}
           </p>
         </div>
       )}
@@ -627,12 +627,12 @@ export function FacetedSearchSidebar({
       {saveModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
           <div className="w-full max-w-sm rounded-md border border-border bg-card p-4 shadow-md">
-            <h3 className="text-sm font-semibold text-foreground mb-3">保存搜索</h3>
+            <h3 className="text-sm font-semibold text-foreground mb-3">{t('search.filter.saveSearchTitle')}</h3>
             <input
               type="text"
               value={saveName}
               onChange={(e) => setSaveName(e.target.value)}
-              placeholder="输入搜索名称"
+              placeholder={t('search.filter.enterSearchName')}
               className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring mb-3"
               autoFocus
               onKeyDown={(e) => {
@@ -652,7 +652,7 @@ export function FacetedSearchSidebar({
                   setSaveName("");
                 }}
               >
-                取消
+                {t('common.cancel')}
               </Button>
               <Button
                 size="sm"
@@ -660,7 +660,7 @@ export function FacetedSearchSidebar({
                 disabled={!saveName.trim() || saving}
               >
                 {saving && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-                保存
+                {t('common.save')}
               </Button>
             </div>
           </div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { ArrowLeft, Send, ChevronDown, Image, Eye, EyeOff, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,10 +18,10 @@ const ORIGINAL_CATEGORIES = [
   "beauty_fashion", "home", "tech_digital", "travel", "sports", "productivity",
 ];
 
-const CATEGORY_LABELS: Record<string, string> = {
-  film_tv: "影视", gaming: "游戏", literature: "文学", pet: "宠物",
-  food: "美食", beauty_fashion: "美妆穿搭", home: "家居",
-  tech_digital: "数码科技", travel: "旅行", sports: "运动", productivity: "效率",
+const CATEGORY_I18N: Record<string, string> = {
+  film_tv: "home.categoryFilmTv", gaming: "home.categoryGaming", literature: "home.categoryLiterature", pet: "home.categoryPet",
+  food: "home.categoryFood", beauty_fashion: "home.categoryBeautyFashion", home: "home.categoryHome",
+  tech_digital: "home.categoryTechDigital", travel: "home.categoryTravel", sports: "home.categorySports", productivity: "home.categoryProductivity",
 };
 
 // Types that use file upload as primary content
@@ -35,6 +36,7 @@ interface PublishFormProps {
 }
 
 export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
+  const t = useTranslations();
   const router = useRouter();
   const { toast } = useToast();
   const isFilePrimary = FILE_PRIMARY_TYPES.includes(contentType);
@@ -72,9 +74,9 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) { toast("error", "请输入标题"); return; }
-    if (zone === "original" && !category) { toast("error", "请选择分类"); return; }
-    if (zone === "fanwork" && !ipSearch.trim()) { toast("error", "请选择关联 IP"); return; }
+    if (!title.trim()) { toast("error", t('studio.publish.titleRequired')); return; }
+    if (zone === "original" && !category) { toast("error", t('studio.publish.categoryRequired')); return; }
+    if (zone === "fanwork" && !ipSearch.trim()) { toast("error", t('studio.publish.ipRequired')); return; }
 
     setSubmitting(true);
     try {
@@ -86,10 +88,10 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
       };
       if (zone === "original") payload.category = category;
       await api.post("/api/v1/contents", payload);
-      toast("success", "发布成功！");
+      toast("success", t('studio.publish.success'));
       router.push("/studio/contents");
     } catch {
-      toast("error", "发布失败，请重试");
+      toast("error", t('studio.publish.failed'));
     } finally {
       setSubmitting(false);
     }
@@ -108,22 +110,22 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
       {/* Back */}
       <button type="button" onClick={onBack}
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-        <ArrowLeft className="h-4 w-4" /> 返回选择类型
+        <ArrowLeft className="h-4 w-4" /> {t('studio.publish.backToTypes')}
       </button>
 
       {/* Title — always first */}
       <div>
         <label className="mb-1.5 block text-sm font-medium text-foreground">
-          标题 <span className="text-destructive">*</span>
+          {t('publish.contentTitle')} <span className="text-destructive">*</span>
         </label>
-        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="输入作品标题..." maxLength={200} />
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('publish.titlePlaceholder')} maxLength={200} />
       </div>
 
       {/* Zone-specific: Original category */}
       {zone === "original" && (
         <div>
           <label className="mb-1.5 block text-sm font-medium text-foreground">
-            分类 <span className="text-destructive">*</span>
+            {t('studio.publish.categoryLabel')} <span className="text-destructive">*</span>
           </label>
           <div className="flex flex-wrap gap-2">
             {ORIGINAL_CATEGORIES.map((cat) => (
@@ -134,7 +136,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
                     ? "border-[var(--accent-emphasis)] bg-[var(--accent-subtle)] text-[var(--accent-emphasis)]"
                     : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground"
                 )}>
-                {CATEGORY_LABELS[cat]}
+                {t(CATEGORY_I18N[cat])}
               </button>
             ))}
           </div>
@@ -146,13 +148,13 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
         <div className="space-y-3">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-foreground">
-              关联 IP <span className="text-destructive">*</span>
+              {t('studio.publish.ipLabel')} <span className="text-destructive">*</span>
             </label>
-            <Input value={ipSearch} onChange={(e) => setIpSearch(e.target.value)} placeholder="搜索并选择 IP..." />
+            <Input value={ipSearch} onChange={(e) => setIpSearch(e.target.value)} placeholder={t('studio.publish.ipSearchPlaceholder')} />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">来源原创（可选）</label>
-            <Input value={sourceSearch} onChange={(e) => setSourceSearch(e.target.value)} placeholder="搜索原创内容标题..." />
+            <label className="mb-1.5 block text-sm font-medium text-foreground">{t('studio.publish.sourceOriginalOptional')}</label>
+            <Input value={sourceSearch} onChange={(e) => setSourceSearch(e.target.value)} placeholder={t('studio.publish.searchOriginalPlaceholder')} />
           </div>
         </div>
       )}
@@ -160,7 +162,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
       {/* Primary content area: Text types → Markdown */}
       {TEXT_PRIMARY_TYPES.includes(contentType) && (
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-foreground">正文</label>
+          <label className="mb-1.5 block text-sm font-medium text-foreground">{t('studio.publish.bodyLabel')}</label>
           <MarkdownEditor value={body} onChange={(val) => setBody(val)} />
         </div>
       )}
@@ -170,24 +172,24 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
         <div className="space-y-4">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-foreground">
-              {contentType === "image" ? "图片上传" : contentType === "video" ? "视频上传" : contentType === "audio" ? "音频上传" : contentType === "sheet_music" ? "乐谱文件" : contentType === "mod" ? "Mod 包上传" : "文件上传"}
+              {t(contentType === "image" ? 'studio.publish.uploadLabel.image' : contentType === "video" ? 'studio.publish.uploadLabel.video' : contentType === "audio" ? 'studio.publish.uploadLabel.audio' : contentType === "sheet_music" ? 'studio.publish.uploadLabel.sheet_music' : contentType === "mod" ? 'studio.publish.uploadLabel.mod' : 'studio.publish.uploadLabel.default')}
               <span className="text-destructive"> *</span>
             </label>
             <FileUploader fileType={fileType} maxMB={maxMB} accept="*" onUploaded={() => {}} />
             <p className="mt-1 text-xs text-muted-foreground">
-              {contentType === "sheet_music" ? "支持 mid, midi, xml, mxl, mscz, mscx, pdf" :
-               contentType === "mod" ? "支持 zip 压缩包，最大 500MB" :
-               contentType === "video" ? "最大 300MB，时长 ≤ 180 秒" :
-               contentType === "image" ? "最大 20MB" : ""}
+              {contentType === "sheet_music" ? t('studio.publish.uploadHint.sheet_music') :
+               contentType === "mod" ? t('studio.publish.uploadHint.mod') :
+               contentType === "video" ? t('studio.publish.uploadHint.video') :
+               contentType === "image" ? t('studio.publish.uploadHint.image') : ""}
             </p>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">简介（可选）</label>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">{t('studio.publish.descriptionOptional')}</label>
             <textarea
               value={briefDesc}
               onChange={(e) => setBriefDesc(e.target.value)}
               rows={3}
-              placeholder="简单描述一下你的作品..."
+              placeholder={t('studio.publish.bodyPlaceholder')}
               className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/20 resize-none"
             />
           </div>
@@ -198,15 +200,15 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
       <div className="rounded-xl border border-border/60 bg-card">
         <div className="flex items-center gap-2 px-5 py-3 border-b border-border/40">
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-semibold text-foreground">发布设置</span>
+          <span className="text-sm font-semibold text-foreground">{t('studio.publish.publishSettings')}</span>
         </div>
         <div className="p-5 space-y-4">
 
           {/* Cover toggle */}
           <div className="flex items-center justify-between">
             <div>
-              <span className="text-sm font-medium text-foreground">自定义封面</span>
-              <p className="text-xs text-muted-foreground">关闭时自动使用正文前 200 字生成文字封面</p>
+              <span className="text-sm font-medium text-foreground">{t('studio.publish.customCover')}</span>
+              <p className="text-xs text-muted-foreground">{t('studio.publish.coverDescription')}</p>
             </div>
             <button type="button"
               onClick={() => setHasCustomCover(!hasCustomCover)}
@@ -229,7 +231,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
           <div className="flex items-center justify-between border-t border-border/40 pt-4">
             <div className="flex items-center gap-2">
               <MessageCircle className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-foreground">允许评论</span>
+              <span className="text-sm font-medium text-foreground">{t('studio.publish.allowComment')}</span>
             </div>
             <button type="button"
               onClick={() => setAllowComments(!allowComments)}
@@ -243,12 +245,12 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
 
           {/* Tags */}
           <div className="border-t border-border/40 pt-4">
-            <label className="mb-1.5 block text-sm font-medium text-foreground">关联标签</label>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">{t('studio.publish.tagsLabel')}</label>
             <div className="flex gap-2">
               <Input value={tagInput} onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
-                placeholder="输入标签后按回车添加..." className="flex-1" />
-              <Button type="button" variant="outline" size="sm" onClick={addTag}>添加</Button>
+                placeholder={t('studio.publish.tagPlaceholder')} className="flex-1" />
+              <Button type="button" variant="outline" size="sm" onClick={addTag}>{t('studio.publish.addTag')}</Button>
             </div>
             {tags.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -263,8 +265,8 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
           {zone === "fanwork" && (
             <div className="flex items-center justify-between border-t border-border/40 pt-4">
               <div>
-                <span className="text-sm font-medium text-foreground">允许复制/PR 协同</span>
-                <p className="text-xs text-muted-foreground">允许其他创作者基于此内容提交修改建议</p>
+                <span className="text-sm font-medium text-foreground">{t('studio.publish.allowCopyPR')}</span>
+                <p className="text-xs text-muted-foreground">{t('studio.publish.allowCopyPRDesc')}</p>
               </div>
               <button type="button"
                 onClick={() => setAllowCopy(!allowCopy)}
@@ -281,7 +283,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
           <div className="flex items-center justify-between border-t border-border/40 pt-4">
             <div className="flex items-center gap-2">
               {isPublic ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
-              <span className="text-sm font-medium text-foreground">公开可见</span>
+              <span className="text-sm font-medium text-foreground">{t('studio.publish.publicVisible')}</span>
             </div>
             <button type="button"
               onClick={() => setIsPublic(!isPublic)}
@@ -297,8 +299,8 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
           {(contentType === "mod" || contentType === "prompt") && (
             <div className="flex items-center justify-between border-t border-border/40 pt-4">
               <div>
-                <span className="text-sm font-medium text-foreground">Agent 部署入口</span>
-                <p className="text-xs text-muted-foreground">允许用户通过客户端一键安装/部署</p>
+                <span className="text-sm font-medium text-foreground">{t('studio.publish.agentDeploy')}</span>
+                <p className="text-xs text-muted-foreground">{t('studio.publish.agentDeployDesc')}</p>
               </div>
               <button type="button"
                 onClick={() => setAgentEnabled(!agentEnabled)}
@@ -317,9 +319,9 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
       <div className="flex items-center gap-3 pt-2">
         <Button type="submit" size="lg" disabled={submitting} className="gap-2 rounded-full px-8">
           <Send className="h-4 w-4" />
-          {submitting ? "发布中..." : "发布"}
+          {submitting ? t('studio.publish.submitting') : t('studio.publish.submit')}
         </Button>
-        <Button type="button" variant="ghost" onClick={onBack}>取消</Button>
+        <Button type="button" variant="ghost" onClick={onBack}>{t('studio.publish.cancel')}</Button>
       </div>
     </form>
   );
