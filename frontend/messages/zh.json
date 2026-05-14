@@ -828,7 +828,14 @@
     "all": "全部",
     "reply": "回复我的",
     "like": "收到的赞",
-    "system": "系统消息"
+    "system": "系统消息",
+    "follow": "关注",
+    "pr": "PR",
+    "channelReply": "回复",
+    "channelLike": "点赞",
+    "channelFollow": "关注",
+    "channelPR": "PR",
+    "channelSystem": "系统"
   },
   "messages": {
     "title": "消息中心",

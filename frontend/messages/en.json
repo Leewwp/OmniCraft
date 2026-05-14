@@ -829,7 +829,14 @@
     "all": "All",
     "reply": "Replies",
     "like": "Likes",
-    "system": "System"
+    "system": "System",
+    "follow": "Follows",
+    "pr": "PR",
+    "channelReply": "Reply",
+    "channelLike": "Like",
+    "channelFollow": "Follow",
+    "channelPR": "PR",
+    "channelSystem": "System"
   },
   "messages": {
     "title": "Messages",

@@ -30,9 +30,19 @@ export interface User {
   created_at: string;
 }
 
+export interface UnreadCounts {
+  total: number;
+  reply: number;
+  like: number;
+  system: number;
+  pr: number;
+  follow: number;
+}
+
 interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
+  unreadCounts: UnreadCounts;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<boolean>;
@@ -43,6 +53,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({ total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0 });
 
   const refresh = useCallback(async (): Promise<boolean> => {
     const refreshToken = getRefreshToken();
@@ -96,6 +107,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval);
   }, [fetchMe]);
 
+  useEffect(() => {
+    if (!user) {
+      setUnreadCounts({ total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0 });
+      return;
+    }
+    let cancelled = false;
+    async function pollUnread() {
+      try {
+        const data = await api.get<{ unread_counts: UnreadCounts }>("/api/v1/notifications/unread-count");
+        if (cancelled) return;
+        setUnreadCounts(data.unread_counts || { total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0 });
+      } catch {
+        // silent
+      }
+    }
+    pollUnread();
+    const interval = setInterval(pollUnread, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [user]);
+
   const login = useCallback(async (email: string, password: string, rememberMe?: boolean) => {
     const data = await api.post<{
       user: User;
@@ -119,7 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, refresh }}>
+    <AuthContext.Provider value={{ user, isLoading, unreadCounts, login, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   );
