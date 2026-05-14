@@ -1,5 +1,23 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-14] - Task 123: OptionalAuth 中间件启用
+
+### What was done:
+- middleware/auth.go: Enhanced OptionalAuth with Redis blacklist and user status cache checks; revoked/banned tokens → userID=0 (anonymous)
+- handler/routes.go: Added OptionalAuth to all public GET endpoints (contents, ips, users, social, judge, tags, categories, versions, PR, followers, discussions)
+- handler/content.go: GetContent now returns is_favorited when userID>0; ListContents passes viewerID for personalization
+- service/content_service.go: ListContents/handleRecommended accept viewerID param; use it for personalized recommendations instead of filter.AuthorID
+- service/recommendation_service.go: Updated ListContents call with 0 viewerID
+- handler/admin.go: Updated ListContents call with 0 viewerID
+
+### Testing:
+- go build ./... passes
+- go vet ./... passes
+
+### Notes:
+- OptionalAuth now properly sets userID=0 for anonymous/revoked/banned users (GetUserID returns 0)
+- handleRecommended previously misused filter.AuthorID (content author filter) as personalization userID — fixed
+
 ## [2026-05-14] - Task 114: 通知自动创建与推送
 
 ### What was done:

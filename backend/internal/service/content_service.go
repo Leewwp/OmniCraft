@@ -220,9 +220,9 @@ func (s *ContentService) GetContent(id int64) (*model.ContentItem, error) {
 	return content, nil
 }
 
-func (s *ContentService) ListContents(filter repository.ListContentsFilter) ([]model.ContentItem, int64, error) {
+func (s *ContentService) ListContents(filter repository.ListContentsFilter, viewerID int64) ([]model.ContentItem, int64, error) {
 	if filter.Sort == "recommended" && filter.Zone == "original" {
-		return s.handleRecommended(filter)
+		return s.handleRecommended(filter, viewerID)
 	}
 	if s.rdb != nil && s.cacheCfg != nil && filter.Sort == "hot" && filter.Zone != "" && filter.Category == "" && filter.ContentType == "" && filter.Tags == nil && filter.TimeRange == "all" {
 		contents, err := s.getHotContents(context.Background(), filter)
@@ -277,10 +277,10 @@ func (s *ContentService) ListContents(filter repository.ListContentsFilter) ([]m
 	return contents, total, nil
 }
 
-func (s *ContentService) handleRecommended(filter repository.ListContentsFilter) ([]model.ContentItem, int64, error) {
+func (s *ContentService) handleRecommended(filter repository.ListContentsFilter, viewerID int64) ([]model.ContentItem, int64, error) {
 	if s.recSvc == nil {
 		filter.Sort = "hot"
-		return s.ListContents(filter)
+		return s.ListContents(filter, viewerID)
 	}
 
 	page := filter.Page
@@ -294,12 +294,11 @@ func (s *ContentService) handleRecommended(filter repository.ListContentsFilter)
 
 	ctx := context.Background()
 
-	userID := filter.AuthorID
-	if userID != nil && *userID != 0 {
-		items, total, err := s.recSvc.Recommend(ctx, *userID, page, pageSize)
+	if viewerID > 0 {
+		items, total, err := s.recSvc.Recommend(ctx, viewerID, page, pageSize)
 		if err != nil {
 			filter.Sort = "hot"
-			return s.ListContents(filter)
+			return s.ListContents(filter, viewerID)
 		}
 		return scoredToContentItems(items), total, nil
 	}
@@ -307,7 +306,7 @@ func (s *ContentService) handleRecommended(filter repository.ListContentsFilter)
 	items, total, err := s.recSvc.RecommendForAnonymous(ctx, page, pageSize)
 	if err != nil {
 		filter.Sort = "hot"
-		return s.ListContents(filter)
+		return s.ListContents(filter, viewerID)
 	}
 	return scoredToContentItems(items), total, nil
 }
