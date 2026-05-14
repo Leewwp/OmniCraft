@@ -22,7 +22,17 @@ export function ContentDetailClient({ contentId, authorId }: ContentDetailClient
   useEffect(() => {
     if (!user) return;
     void checkFavorite();
+    recordBrowseHistory();
   }, [user, contentId]);
+
+  function recordBrowseHistory() {
+    const key = `browse_history_${contentId}`;
+    const lastRecorded = localStorage.getItem(key);
+    const now = Date.now();
+    if (lastRecorded && now - parseInt(lastRecorded, 10) < 5 * 60 * 1000) return;
+    localStorage.setItem(key, String(now));
+    api.post(`/api/v1/users/me/history`, { content_item_id: contentId }).catch(() => {});
+  }
 
   async function checkFavorite() {
     try {
