@@ -119,43 +119,59 @@ func (s *ContentService) PublishContent(input PublishContentInput, authorID int6
 		Status:           "pending",
 	}
 
-	if err := s.contentRepo.CreateContent(content); err != nil {
-		return nil, err
-	}
+	var ossKeysToCleanup []string
 
-	if len(input.Tags) > 0 {
-		tags := make([]model.ContentTag, 0, len(input.Tags))
-		for _, tag := range input.Tags {
-			if tag != "" {
-				tags = append(tags, model.ContentTag{
-					ContentItemID: content.ID,
-					Tag:           tag,
-				})
+	err := s.contentRepo.Transaction(func(txRepo *repository.ContentRepository) error {
+		if err := txRepo.CreateContent(content); err != nil {
+			return err
+		}
+
+		if len(input.Tags) > 0 {
+			tags := make([]model.ContentTag, 0, len(input.Tags))
+			for _, tag := range input.Tags {
+				if tag != "" {
+					tags = append(tags, model.ContentTag{
+						ContentItemID: content.ID,
+						Tag:           tag,
+					})
+				}
+			}
+			if err := txRepo.CreateTags(tags); err != nil {
+				return err
 			}
 		}
-		if err := s.contentRepo.CreateTags(tags); err != nil {
-			return nil, err
-		}
-	}
 
-	if len(input.Attachments) > 0 {
-		attachments := make([]model.ContentAttachment, 0, len(input.Attachments))
+		if len(input.Attachments) > 0 {
+			attachments := make([]model.ContentAttachment, 0, len(input.Attachments))
+			for _, a := range input.Attachments {
+				attachments = append(attachments, model.ContentAttachment{
+					ContentItemID: content.ID,
+					FileType:      a.FileType,
+					OSSKey:        a.OSSKey,
+					FileSize:      a.FileSize,
+					MimeType:      a.MimeType,
+					DurationSec:   a.DurationSec,
+					Width:         a.Width,
+					Height:        a.Height,
+					IsPrimary:     a.IsPrimary,
+				})
+			}
+			if err := txRepo.CreateAttachments(attachments); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		for _, a := range input.Attachments {
-			attachments = append(attachments, model.ContentAttachment{
-				ContentItemID: content.ID,
-				FileType:      a.FileType,
-				OSSKey:        a.OSSKey,
-				FileSize:      a.FileSize,
-				MimeType:      a.MimeType,
-				DurationSec:   a.DurationSec,
-				Width:         a.Width,
-				Height:        a.Height,
-				IsPrimary:     a.IsPrimary,
-			})
+			ossKeysToCleanup = append(ossKeysToCleanup, a.OSSKey)
 		}
-		if err := s.contentRepo.CreateAttachments(attachments); err != nil {
-			return nil, err
+		if len(ossKeysToCleanup) > 0 {
+			slog.Error("transaction rolled back, OSS files need manual cleanup", "keys", ossKeysToCleanup)
 		}
+		return nil, err
 	}
 
 	if s.reviewSvc != nil {

@@ -39,6 +39,13 @@ func (r *ContentRepository) CreateContent(content *model.ContentItem) error {
 	return r.db.Create(content).Error
 }
 
+func (r *ContentRepository) Transaction(fn func(tx *ContentRepository) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		txRepo := &ContentRepository{db: tx}
+		return fn(txRepo)
+	})
+}
+
 func (r *ContentRepository) FindByID(id int64) (*model.ContentItem, error) {
 	var content model.ContentItem
 	err := r.db.Preload("Author").First(&content, id).Error
