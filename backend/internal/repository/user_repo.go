@@ -64,6 +64,10 @@ func (r *UserRepository) UpdateUser(user *model.User) error {
 	return r.db.Save(user).Error
 }
 
+func (r *UserRepository) UpdatePassword(userID int64, hashedPassword string) error {
+	return r.db.Model(&model.User{}).Where("id = ?", userID).Update("password_hash", hashedPassword).Error
+}
+
 func (r *UserRepository) DB() *gorm.DB {
 	return r.db
 }

@@ -97,6 +97,21 @@ func (s *SocialService) DeleteComment(commentID int64, callerID int64) error {
 	return s.socialRepo.DeleteComment(commentID)
 }
 
+func (s *SocialService) EditComment(commentID int64, callerID int64, newBody string) (*model.Comment, error) {
+	c, err := s.socialRepo.FindComment(commentID)
+	if err != nil || c == nil {
+		return nil, ErrCommentNotFound
+	}
+	if c.AuthorID != callerID {
+		return nil, ErrCommentForbidden
+	}
+	if err := s.socialRepo.EditComment(commentID, newBody); err != nil {
+		return nil, err
+	}
+	c.Body = newBody
+	return c, nil
+}
+
 func (s *SocialService) ListComments(contentID int64, parentID *int64, page, pageSize int) ([]model.Comment, int64, error) {
 	return s.socialRepo.ListComments(contentID, parentID, page, pageSize)
 }

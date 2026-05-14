@@ -68,6 +68,13 @@ func (r *SocialRepository) DeleteComment(id int64) error {
 	return r.db.Model(&model.Comment{}).Where("id = ?", id).Update("status", "hidden").Error
 }
 
+func (r *SocialRepository) EditComment(id int64, body string) error {
+	return r.db.Model(&model.Comment{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"body":       body,
+		"updated_at": gorm.Expr("NOW()"),
+	}).Error
+}
+
 func (r *SocialRepository) CreateDiscussion(d *model.Discussion) error {
 	return r.db.Create(d).Error
 }

@@ -107,11 +107,34 @@ func (h *AdminHandler) BanContent(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
 		return
 	}
-	if err := h.contentRepo.UpdateContent(id, map[string]interface{}{"status": "banned"}); err != nil {
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		slog.Warn("ban content: failed to bind json", "error", err)
+	}
+	updates := map[string]interface{}{"status": "banned"}
+	if body.Reason != "" {
+		updates["ban_reason"] = body.Reason
+	}
+	if err := h.contentRepo.UpdateContent(id, updates); err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "content banned"})
+}
+
+func (h *AdminHandler) RestoreContent(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
+		return
+	}
+	if err := h.contentRepo.UpdateContent(id, map[string]interface{}{"status": "published", "ban_reason": ""}); err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "content restored"})
 }
 
 func (h *AdminHandler) BanUser(c *gin.Context) {
