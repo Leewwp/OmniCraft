@@ -339,14 +339,15 @@ func invalidateUserTokens(rdb *redis.Client, userID int64) {
 		return
 	}
 	ctx := context.Background()
-	pattern := fmt.Sprintf("refresh_token:%d:*", userID)
-	keys, err := rdb.Keys(ctx, pattern).Result()
+	tokenSetKey := fmt.Sprintf("user:tokens:%d", userID)
+	members, err := rdb.SMembers(ctx, tokenSetKey).Result()
 	if err != nil {
 		return
 	}
-	if len(keys) > 0 {
-		rdb.Del(ctx, keys...)
+	if len(members) > 0 {
+		rdb.Del(ctx, members...)
 	}
+	rdb.Del(ctx, tokenSetKey)
 }
 
 func sanitizeUser(u *model.User) gin.H {

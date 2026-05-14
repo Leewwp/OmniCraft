@@ -1,5 +1,10 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-14] - Task 130: Redis KEYS 阻塞修复
+- handler/user.go: invalidateUserTokens uses SMEMBERS (O(1)) instead of KEYS (O(N))
+- service/auth_service.go: storeRefreshToken also SADDs to user:tokens:{userID} set
+- pkg/redis/cache.go: DeleteByPattern uses UNLINK Pipeline for async batch deletion
+
 ## [2026-05-14] - Task 129: 推荐 Pipeline N+1 与视图刷新
 - recommendation_service.go: computeFinalScores uses Redis Pipeline (O(N)→1 round-trip)
 - content_service.go: FlushViewCounts uses batch CASE WHEN UPDATE
