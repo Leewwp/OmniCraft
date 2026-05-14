@@ -2345,7 +2345,7 @@
         "OriginalPage 内容卡片点击同理记录",
         "验证：登录后浏览内容详情，在 /history 页面可以看到浏览记录；同一内容不重复记录"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 119,
@@ -2511,7 +2511,7 @@
         "修改 social_repo.go GetReactionCounts：合并两次 COUNT 查询为单次 GROUP BY 查询",
         "验证：推荐计算耗时从 O(N) Redis 调用降至 1 次 Pipeline；视图刷新从逐条更新降至单次 batch UPDATE"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 130,

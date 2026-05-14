@@ -258,9 +258,15 @@ func (s *RecommendationService) buildUserProfile(ctx context.Context, userID int
 
 func (s *RecommendationService) computeFinalScores(ctx context.Context, contentIDs []int64, simScores map[int64]float64, alpha float64) ([]ContentItemWithScore, error) {
 	hotScores := make(map[int64]float64, len(contentIDs))
-	if s.rdb != nil {
-		for _, id := range contentIDs {
-			score, err := s.rdb.ZScore(ctx, "rank:hot:contents", fmt.Sprintf("%d", id)).Result()
+	if s.rdb != nil && len(contentIDs) > 0 {
+		pipe := s.rdb.Pipeline()
+		cmds := make([]*redis.FloatCmd, len(contentIDs))
+		for i, id := range contentIDs {
+			cmds[i] = pipe.ZScore(ctx, "rank:hot:contents", fmt.Sprintf("%d", id))
+		}
+		_, _ = pipe.Exec(ctx)
+		for i, id := range contentIDs {
+			score, err := cmds[i].Result()
 			if err == nil {
 				hotScores[id] = score
 			}

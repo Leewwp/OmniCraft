@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"time"
 
 	"omnicraft/backend/internal/model"
@@ -161,6 +162,23 @@ func (r *ContentRepository) IncrViewCount(id int64) error {
 func (r *ContentRepository) IncrViewCountBy(id int64, delta int64) error {
 	return r.db.Model(&model.ContentItem{}).Where("id = ?", id).
 		UpdateColumn("view_count", gorm.Expr("view_count + ?", delta)).Error
+}
+
+func (r *ContentRepository) BatchIncrViewCounts(batch map[int64]int64) error {
+	if len(batch) == 0 {
+		return nil
+	}
+
+	caseStmt := "view_count = CASE id "
+	var ids []int64
+	for id, delta := range batch {
+		caseStmt += fmt.Sprintf("WHEN %d THEN view_count + %d ", id, delta)
+		ids = append(ids, id)
+	}
+	caseStmt += "ELSE view_count END"
+
+	return r.db.Model(&model.ContentItem{}).Where("id IN ?", ids).
+		UpdateColumn("view_count", gorm.Expr(caseStmt)).Error
 }
 
 func (r *ContentRepository) CreateAttachments(attachments []model.ContentAttachment) error {
