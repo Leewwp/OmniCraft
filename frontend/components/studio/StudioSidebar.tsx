@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   PanelLeftClose, PanelLeft, FilePlus, LayoutDashboard,
-  FileText, GitPullRequest, Users, Tags, BarChart3, DollarSign,
+  FileText, GitPullRequest, Users, Tags, BarChart3, DollarSign, PlusCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -66,76 +66,108 @@ export function StudioSidebar() {
     });
   }
 
+  const mobileTabs = [
+    { icon: LayoutDashboard, label: t('studio.sidebar.overview'), href: "/studio/overview" },
+    { icon: FileText, label: t('studio.sidebar.myContent'), href: "/studio/contents" },
+    { icon: PlusCircle, label: t('studio.sidebar.publishContent'), href: "/studio/publish/original" },
+    { icon: FilePlus, label: t('studio.sidebar.prManagement'), href: "/studio/pr-requests" },
+  ];
+
   return (
-    <aside
-      className={cn(
-        "flex-shrink-0 overflow-y-auto overflow-x-hidden bg-background py-3 transition-[width] duration-200",
-        collapsed ? "w-[52px]" : "w-56"
-      )}
-    >
-      {/* Toggle */}
-      <button
-        type="button"
-        onClick={toggle}
-        title={collapsed ? t('studio.sidebar.expand') : t('studio.sidebar.collapse')}
+    <>
+      {/* Desktop sidebar */}
+      <aside
         className={cn(
-          itemBase,
-          "text-fg-muted hover:text-fg-default hover:bg-canvas-subtle",
-          collapsed
-            ? "mx-auto w-9 justify-center px-0"
-            : "mx-3 mb-3 w-[calc(100%-24px)]"
+          "hidden sm:flex sm:flex-col flex-shrink-0 overflow-y-auto overflow-x-hidden bg-background py-3 transition-[width] duration-200",
+          collapsed ? "w-[52px]" : "w-56"
         )}
       >
-        {collapsed ? (
-          <PanelLeft className="h-4 w-4 flex-shrink-0" />
-        ) : (
-          <>
-            <PanelLeftClose className="h-4 w-4 flex-shrink-0" />
-            <span>{t('studio.sidebar.collapse')}</span>
-          </>
-        )}
-      </button>
-
-      {groups.map((group, gi) => (
-        <div key={gi} className="mb-1">
-          {group.label && (
-            <div className={cn(
-              "px-3 pb-1.5 pt-2 text-[10.5px] font-semibold uppercase tracking-wider text-fg-subtle",
-              collapsed && "hidden"
-            )}>
-              {group.label}
-            </div>
+        {/* Toggle */}
+        <button
+          type="button"
+          onClick={toggle}
+          title={collapsed ? t('studio.sidebar.expand') : t('studio.sidebar.collapse')}
+          className={cn(
+            itemBase,
+            "text-fg-muted hover:text-fg-default hover:bg-canvas-subtle",
+            collapsed
+              ? "mx-auto w-9 justify-center px-0"
+              : "mx-3 mb-3 w-[calc(100%-24px)]"
           )}
-          <ul className={cn("space-y-0.5", collapsed ? "px-0" : "px-3")}>
-            {group.items.map((item, ii) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== "/studio/publish/original" &&
-                  pathname.startsWith(item.href + "/"));
+        >
+          {collapsed ? (
+            <PanelLeft className="h-4 w-4 flex-shrink-0" />
+          ) : (
+            <>
+              <PanelLeftClose className="h-4 w-4 flex-shrink-0" />
+              <span>{t('studio.sidebar.collapse')}</span>
+            </>
+          )}
+        </button>
 
-              const classes = cn(
-                itemBase,
-                isActive ? itemActive : itemIdle,
-                collapsed && collapsedItem
-              );
+        {groups.map((group, gi) => (
+          <div key={gi} className="mb-1">
+            {group.label && (
+              <div className={cn(
+                "px-3 pb-1.5 pt-2 text-[10.5px] font-semibold uppercase tracking-wider text-fg-subtle",
+                collapsed && "hidden"
+              )}>
+                {group.label}
+              </div>
+            )}
+            <ul className={cn("space-y-0.5", collapsed ? "px-0" : "px-3")}>
+              {group.items.map((item, ii) => {
+                const isActive =
+                  pathname === item.href ||
+                  (item.href !== "/studio/publish/original" &&
+                    pathname.startsWith(item.href + "/"));
 
-              return (
-                <li key={ii}>
-                  <Link
-                    href={item.href}
-                    data-label={collapsed ? item.label : undefined}
-                    title={collapsed ? item.label : undefined}
-                    className={classes}
-                  >
-                    <item.icon className="h-4 w-4 flex-shrink-0" />
-                    {!collapsed && <span className="truncate">{item.label}</span>}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
-    </aside>
+                const classes = cn(
+                  itemBase,
+                  isActive ? itemActive : itemIdle,
+                  collapsed && collapsedItem
+                );
+
+                return (
+                  <li key={ii}>
+                    <Link
+                      href={item.href}
+                      data-label={collapsed ? item.label : undefined}
+                      title={collapsed ? item.label : undefined}
+                      className={classes}
+                    >
+                      <item.icon className="h-4 w-4 flex-shrink-0" />
+                      {!collapsed && <span className="truncate">{item.label}</span>}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </aside>
+
+      {/* Mobile bottom tab bar */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background flex justify-around items-center py-1.5 safe-area-bottom">
+        {mobileTabs.map((tab) => {
+          const isActive = pathname === tab.href || pathname.startsWith(tab.href + "/");
+          return (
+            <Link
+              key={tab.href}
+              href={tab.href}
+              className={cn(
+                "flex flex-col items-center gap-0.5 px-2 py-1 text-[11px] font-medium transition-colors",
+                isActive
+                  ? "text-accent-emphasis"
+                  : "text-fg-muted hover:text-fg-default"
+              )}
+            >
+              <tab.icon className="h-5 w-5" />
+              <span>{tab.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+    </>
   );
 }

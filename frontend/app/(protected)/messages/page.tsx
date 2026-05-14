@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { NotificationList } from "@/components/social/NotificationList";
 import { ConversationList } from "@/components/social/ConversationList";
@@ -39,7 +40,7 @@ export default function MessagesPage() {
         {(["notifications", "messages"] as const).map((tKey) => (
           <button
             key={tKey}
-            onClick={() => setTab(tKey)}
+            onClick={() => { setTab(tKey); setActiveConv(null); }}
             className={`px-4 py-2 text-sm border-b-2 transition-colors ${
               tab === tKey
                 ? "border-foreground text-foreground font-medium"
@@ -60,28 +61,43 @@ export default function MessagesPage() {
 
       {/* Messages Tab */}
       {tab === "messages" && (
-        <div className="flex gap-3" style={{ minHeight: 420 }}>
-          <div className="w-48 shrink-0 border-r border-border pr-3 hidden sm:block">
-            <ConversationList
-              onSelect={(c) => setActiveConv(c)}
-              activeId={activeConv?.id}
-            />
-          </div>
-          <div className="w-48 shrink-0 border-r border-border pr-3 sm:hidden">
-            {activeConv ? (
-              <ChatWindow
-                conversation={activeConv}
-                onBack={() => setActiveConv(null)}
+        <div style={{ minHeight: 420 }}>
+          {/* Desktop layout: side-by-side */}
+          <div className="hidden sm:flex gap-3">
+            <div className="w-56 shrink-0 border-r border-border pr-3">
+              <ConversationList
+                onSelect={(c) => setActiveConv(c)}
+                activeId={activeConv?.id}
               />
+            </div>
+            <div className="flex-1">
+              <ChatWindow conversation={activeConv} />
+            </div>
+          </div>
+
+          {/* Mobile layout: list or chat */}
+          <div className="sm:hidden">
+            {activeConv ? (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setActiveConv(null)}
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-3 transition-colors"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  {t("common.back")}
+                </button>
+                <ChatWindow
+                  conversation={activeConv}
+                  onBack={() => setActiveConv(null)}
+                />
+              </div>
             ) : (
               <ConversationList
                 onSelect={(c) => setActiveConv(c)}
                 activeId={undefined}
               />
             )}
-          </div>
-          <div className="hidden flex-1 sm:flex">
-            <ChatWindow conversation={activeConv} />
           </div>
         </div>
       )}
