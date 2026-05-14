@@ -25,7 +25,7 @@
         "创建 internal/middleware/cors.go CORS 中间件",
         "创建 .env.example 列出所有必需环境变量"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 2,
@@ -41,7 +41,7 @@
         "创建 k8s/ 目录，添加 README.md 说明 P2 阶段使用",
         "验证：docker compose up 可成功启动所有服务"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 3,
@@ -55,7 +55,7 @@
         "创建对应 GORM model：internal/model/user.go",
         "验证：迁移文件可在 PostgreSQL 中成功执行"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 4,
@@ -71,7 +71,7 @@
         "创建对应 GORM models：internal/model/ip.go, content.go, version.go",
         "验证：所有迁移文件成功执行，外键约束正确"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 5,
@@ -86,7 +86,7 @@
         "创建对应 GORM models：internal/model/social.go, review.go, judge.go",
         "验证：全部迁移执行成功"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 6,
@@ -101,7 +101,7 @@
         "实现限流：登录/注册接口 Redis 令牌桶 5 次/分钟",
         "验证：注册 → 登录 → 获取 /auth/me → 刷新 Token → 登出 全流程正常"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 7,
@@ -113,7 +113,7 @@
         "实现权限控制：PATCH 仅允许本人操作",
         "验证：查看用户信息、更新头像/Bio、查看信誉分日志正常"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 8,
@@ -126,7 +126,7 @@
         "实现 OSS 生命周期策略说明（写入 docs/oss-lifecycle.md）",
         "验证：调用接口获取预签名 URL，直接上传文件到 OSS，URL 有效"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 9,
@@ -143,7 +143,7 @@
         "恶意内容二次发布累计扣分（PRD §6.2）：block/violation 处理后，查询该用户近 `reputation.repeat_violation_window_days`（默认 7）日内被 block/violation 计数，达到 `repeat_violation_threshold`（默认 2）时在标准 −3 基础上额外调用 reputation_service.AddReputation(delta=`repeat_violation_extra_penalty` 默认 −1, reason='repeat_violation') 并在 Redis 写入 `publish_freeze:{user_id}` 7 日过期键；content_service.PublishContent 入口检测此键存在则拒绝发布返回 403 PUBLISH_FROZEN",
         "验证：上传测试内容触发审核，模拟回调接口写入正确状态；连续两次违规后信誉分额外扣 1 分、发布接口返回 PUBLISH_FROZEN"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 10,
@@ -157,7 +157,7 @@
         "实现 IP 创建后 AI 初审流程：AI 审核返回 block（黄赌毒/违规 IP）时，自动将 IP 状态设为 'banned'（永久封禁），关联的二创内容状态均变为 'banned'（即使内容本身审核通过也禁止展示）",
         "验证：创建 IP → AI 审核 → 管理员审核通过 → IP 上架流程正常；黄赌毒 IP 被自动 ban 后，关联内容全部下架"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 11,
@@ -176,7 +176,7 @@
         "注：video 封面异步截帧写入 cover_image_url 由 Task 48 step 3 统一实现，本任务不重复",
         "验证：发布文章（MD）、图片、Mod（zip）、乐谱（MIDI/MusicXML），time_range/tags 筛选正常"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 12,
@@ -190,7 +190,7 @@
         "创建 internal/handler/version.go：GET /contents/:id/versions, GET /versions/:id",
         "验证：发布文章后版本为 v1，手动更新后生成 diff v2，版本历史正确返回，v1 内容可正确还原"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 13,
@@ -204,7 +204,7 @@
         "在 SubmitPR 中增加 AI 合规检查：PR 提交后触发 review_service.SubmitForAIReview 检测定向引战/恶意魔改内容，高危直接驳回 PR（PRD §6.4）",
         "验证：基于 v1 提交 PR → 获取 PR 详情含 diff 信息 → 冲突检测（两个 PR 同时基于 v1）→ 恶意内容 PR 被自动驳回"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 14,
@@ -218,7 +218,7 @@
         "PR 拒绝通知机制：RejectPR 执行时自动调用 notification_service.CreateNotification(type='pr_rejected', channel='system', recipient=pr.submitter, reason=rejection_reason)，通知包含拒绝理由文本（注：channel 必须为 reply/like/system 枚举之一，pr_rejected 是 notifications.type 值）",
         "验证： PR 接受后版本链正确更新，贡献者名单出现在内容详情；拒绝 PR 后 pending 版本删除， PR 提交者收到包含拒绝理由的通知"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 15,
@@ -231,7 +231,7 @@
         "实现评论审核：AI 扫描通过后 published；扫描结果为 block 则 banned",
         "验证：发帖、回复楼中楼、删除评论流程正常；恶意内容被自动屏蔽"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 16,
@@ -246,7 +246,7 @@
         "实现评论区负面比例检测：评论区点踩/点赞比超过阈值（config.yaml > social.comment_fold_threshold，默认 0.30）时自动折叠评论区并触发审核（PRD §6.2）",
         "验证：点赞计数更新、举报触发阈值后内容自动进入审核、收藏添加/取消/列表查询正常"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 17,
@@ -259,7 +259,7 @@
         "管理员题库录入：POST /admin/judge/questions（批量录入，含答案）；seed 需覆盖全部 content_type 枚举，包含新增的 sheet_music / template / other 以适配 judge_qualifications 扩展后的枚举",
         "验证：考试流程完整（无题库时返回提示，有题库时可正常考试，通过后获得判官资质）"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 18,
@@ -273,7 +273,7 @@
         "实现题库自动更新：定时任务（每周一次），从各 content_type 的 judge_cases 中随机选 10 个多票案例生成新题",
         "验证：有资质的判官可见对应类型的待审内容，投票达阈值后自动关闭案例，结果正确"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 19,
@@ -288,7 +288,7 @@
         "实现系统配置 API：GET /admin/config（读取 config.yaml），PATCH /admin/config（热更新，支持修改 limits/features/reputation 等所有配置项）",
         "验证：管理员可完成 IP 审核、封禁内容、处理申诉、修改视频大小限制等操作"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 20,
@@ -313,7 +313,7 @@
         "## Global Design Tokens",
         "## Component: Header"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 21,
@@ -336,7 +336,7 @@
         "## Page: /login 登录页",
         "## Page: /register 注册页"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 22,
@@ -367,7 +367,7 @@
         "## Component: MasonryGrid",
         "## Component: IPCard"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 23,
@@ -398,7 +398,7 @@
         "## Component: ContentCard",
         "## Component: MasonryGrid"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 24,
@@ -436,7 +436,7 @@
         "## Component: SheetMusicViewer",
         "## Component: CommentSection"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 25,
@@ -461,7 +461,7 @@
         "## Page: /original/[contentId] 原创内容详情",
         "## Component: ContentDetail"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 26,
@@ -493,7 +493,7 @@
         "## Component: UploadAssistPanel",
         "## Component: ComplianceCheckBadge"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 27,
@@ -521,7 +521,7 @@
         "## Page: /dashboard/pr-requests PR 申请管理",
         "## Component: ConfirmModal"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 28,
@@ -542,7 +542,7 @@
         "## Global Design Tokens",
         "## Component: VersionHistory"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 29,
@@ -567,7 +567,7 @@
         "## Page: /dashboard/contents 我的内容",
         "## Page: /dashboard/contributors 贡献者管理"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 30,
@@ -591,7 +591,7 @@
         "在 Header 下拉菜单增加「个人主页」「浏览历史」「账号设置」「我的申诉」等入口，分别跳转 /user/:me/、/history、/settings、/appeals（页面由 Task 84/85/71 实现）",
         "验证：账号设置页可修改基础资料，内容详情页收藏按钮切换状态正确，Header 菜单跳转正常"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 31,
@@ -621,7 +621,7 @@
         "## Component: ReviewCard",
         "## Component: VerdictDetail"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 32,
@@ -655,7 +655,7 @@
         "## Page: /admin/categories 分类与标签管理",
         "## Component: ConfirmModal"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 33,
@@ -669,7 +669,7 @@
         "创建 src-tauri/src/url_scheme.rs：解析 omnicraft://deploy?content_id=xxx&token=xxx 参数",
         "验证：Tauri 应用可启动，URL Scheme 可从浏览器唤醒"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 34,
@@ -683,7 +683,7 @@
         "创建 src-tauri/src/commands/env_detect.rs：检测 Steam 游戏安装路径（读注册表 Windows / 文件系统 macOS）",
         "验证：调用各白名单动作正常工作，非法路径被拒绝，备份文件自动生成"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 35,
@@ -698,7 +698,7 @@
         "Go 后端实现 POST /agent/script（根据 content_id 返回动作脚本 JSON + HMAC 签名）",
         "验证：从 Web 点击一键部署 → 唤醒 Tauri → 环境检测 → 确认 → 执行 → 通知 完整流程"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 36,
@@ -726,7 +726,7 @@
         "## Global Interaction Patterns",
         "## Component: Header"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 37,
@@ -744,7 +744,7 @@
         "实现 robots.txt（允许爬虫访问公开页面，禁止 /admin、/api）",
         "验证：首页/IP 详情/内容详情的 og:title 和 og:image 正确设置，sitemap 可访问"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 38,
@@ -768,7 +768,7 @@
         "## Component: EmptyState",
         "## Component: ConfirmModal"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 39,
@@ -786,7 +786,7 @@
         "实现内容浏览计数异步化：浏览事件写入 Redis incr，定时批量写回 PostgreSQL",
         "验证：首页 IP 列表响应时间 < 200ms（Redis 缓存命中），高并发下 DB 压力正常"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 40,
@@ -805,7 +805,7 @@
         "实现 CSP（Content Security Policy）响应头，防 XSS",
         "验证：SQL 注入测试无效，限流超限返回 429，登出后 token 失效"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 41,
@@ -831,7 +831,7 @@
         "运行 npm run build（前端），go build（后端），确保无编译错误",
         "验证：所有核心业务流程无报错，数据一致性正确"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 42,
@@ -850,7 +850,7 @@
         "创建 scripts/backup-db.sh：PostgreSQL 定时备份脚本",
         "验证：按照 README 步骤可从零完成本地开发环境搭建，docker compose up 可完整启动所有服务"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 43,
@@ -868,7 +868,7 @@
         "创建定时任务骨架：internal/pkg/scheduler/tag_usage_sync.go（每日同步 content_tags 统计到 tags.usage_count）",
         "验证：全部迁移执行成功，GORM model 可正常 AutoMigrate"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 44,
@@ -886,7 +886,7 @@
         "为 GET /tags/faceted 增加 Redis 缓存（TTL 5 分钟，key 含所有参数哈希）",
         "验证：单标签/多标签共现结果正确，time_range=week 返回近 7 天内容，tag_group_id 筛选与手动多标签结果一致"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 45,
@@ -903,7 +903,7 @@
         "创建 internal/handler/user.go（扩展）：GET/POST/PATCH/DELETE /users/me/tag-groups、GET/POST/DELETE /users/me/saved-searches",
         "验证：用户提交标签建议 → 作者审批通过 → content_tags 更新；创建/编辑/删除标签组正常；保存/查询/删除搜索配置正常"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 46,
@@ -920,7 +920,7 @@
         "Go 后端错误响应只返回 code 字段（英文枚举），前端在 messages 中配置 errors.xxx 映射",
         "验证：切换 EN 后所有页面文本变为英文，切换回 ZH 恢复；刷新页面语言持久化；服务端 preferred_locale 字段同步更新"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 47,
@@ -942,7 +942,7 @@
         "## Component: TagBadge",
         "## Component: Header"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 48,
@@ -965,7 +965,7 @@
         "## Component: MasonryGrid",
         "## Component: ContentCard"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 49,
@@ -992,7 +992,7 @@
         "## Global Design Tokens",
         "## Component: FacetedSearchSidebar"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 50,
@@ -1022,7 +1022,7 @@
         "## Page: /dashboard/tag-suggestions 标签建议审核",
         "## Component: FacetedSearchSidebar"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 51,
@@ -1047,7 +1047,7 @@
         "## Component: SheetMusicViewer",
         "## Component: ContentCard"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 52,
@@ -1065,7 +1065,7 @@
         "在 config.yaml 追加 agent 节：web_agent_enabled/llm_provider/llm_model/llm_api_base/embedding_model/embedding_dimensions/rate_limit_* 全部字段，默认值 web_agent_enabled=false",
         "验证：全部迁移执行成功，pgvector 扩展已安装，GORM model 可正常 AutoMigrate，vector(1536) 列可写入测试向量"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 53,
@@ -1084,7 +1084,7 @@
         "编写单元测试 internal/pkg/llm/provider_test.go：用 httptest mock HTTP 验证 QwenProvider.Chat 和 ChatStream 正确解析响应",
         "验证：go build ./... 无错误；mock 测试通过；切换 llm_provider=openai_compat + llm_api_base=https://api.deepseek.com 可正常调用"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 54,
@@ -1102,7 +1102,7 @@
         "创建 internal/handler/agent.go：POST /api/v1/agent/upload-assist（需登录 + 限流中间件）",
         "验证：上传 .zip Mod 文件后调用接口，返回合理的标签/分类/标题；上传 .md 文件后返回对应简介建议；文件大小超限时返回 400 FILE_TOO_LARGE"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 55,
@@ -1122,7 +1122,7 @@
         "创建 internal/handler/agent.go（扩展）：POST /api/v1/agent/compliance-check（需登录 + 限流）",
         "验证：正常文件返回 safe；上传含敏感词文本返回 violation；格式不合规文件返回 file_format_error"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 56,
@@ -1141,7 +1141,7 @@
         "添加降级逻辑：若 web_agent_enabled=false 或 embedding 未就绪，返回 503 FEATURE_DISABLED",
         "验证：发布一条内容后等待向量化完成，调用 /agent/search?query=「适合新手的家具 Mod」能返回语义相关结果；纯关键词无法匹配但语义相似的内容也能被检索到"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 57,
@@ -1161,7 +1161,7 @@
         "创建 lib/useSSE.ts（前端 hook 骨架，供 Task 59 使用）：封装 EventSource，管理连接生命周期和错误处理",
         "验证：对 content_type=mod 的内容调用接口，返回包含安装步骤的 Markdown 格式指导；stream=true 时 SSE 逐 delta 推送正常"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 58,
@@ -1181,7 +1181,7 @@
         "SSE 响应格式：Content-Type: text/event-stream；每条消息 data: {\"delta\":\"...\",\"done\":false}；结束时 data: {\"done\":true,\"conversation_id\":N}",
         "验证：对含违规词的内容调用 /agent/moderate 返回 violation + 整改建议；/agent/chat/stream 流式输出正常，conversation_id 可用于后续追问"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 59,
@@ -1214,7 +1214,7 @@
         "## Component: UsageGuidePanel",
         "## Component: SearchAgentInput"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 60,
@@ -1235,7 +1235,7 @@
         "内容权限校验：is_public=false 时，仅关注者可查看（在 content_service.GetContent 中检查 follows 表）",
         "验证：关注/取关用户和 IP 正常，粉丝/关注列表分页正确，is_public=false 的内容仅关注者可访问"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 61,
@@ -1254,7 +1254,7 @@
         "扩展 internal/handler/admin.go：更新 GET /admin/appeals 从 appeals 表读取 status=pending、POST /admin/appeals/:id 更新 status 为 approved/rejected + admin_response，approved 时恢复内容 status 为 published",
         "验证：用户可对被下架内容提交申诉，管理员可批准（恢复上架）或拒绝（记录原因），重复申诉被拒绝"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 62,
@@ -1285,7 +1285,7 @@
         "## Component: EmptyState",
         "## Component: SearchAgentInput"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 63,
@@ -1306,7 +1306,7 @@
         "创建迁移脚本 migrations/029_judge_reason.sql：ALTER TABLE judge_votes ADD COLUMN reason TEXT；创建 judge_reason_votes 表（id, reason_owner_vote_id BIGINT REFERENCES judge_votes(id), voter_id BIGINT REFERENCES users(id), vote_type VARCHAR(10) CHECK (vote_type IN ('up','down')), UNIQUE(reason_owner_vote_id, voter_id)）+ 索引",
         "验证：所有迁移脚本可顺利执行（psql -f），表结构与 architecture.md 4.5/4.3 节一致，seed 数据正确插入"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 64,
@@ -1334,7 +1334,7 @@
         "## Page: /original 原创区首页",
         "## Component: ContentCard"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 65,
@@ -1351,7 +1351,7 @@
         "在已有业务逻辑中触发通知创建：评论回复 → channel=reply、点赞 → channel=like、审核结果/信誉分变动 → channel=system、PR 提交/处理 → channel=system、关注 → channel=system",
         "验证：各频道通知列表正确，标记已读功能正常，全部已读按频道过滤，未读计数准确"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 66,
@@ -1369,7 +1369,7 @@
         "私信发送时同时创建通知（可选，后续迭代）",
         "验证：创建对话幂等，发送消息正常，对话列表按最新消息排序，未读标记准确，非参与者无权访问"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 67,
@@ -1386,7 +1386,7 @@
         "校验 Task 63 migrations/026_rehab_seed.sql 已生效（本任务不新建迁移）；如需改进课程内容，在管理后台通过 content_i18n 扩展 API 更新而非新增迁移",
         "验证：课程列表基于用户扣分记录正确匹配，开始/完成学习时间校验正确，信誉分正确增加，每门课程只能完成一次"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 68,
@@ -1402,7 +1402,7 @@
         "密码修改逻辑：验证旧密码（bcrypt.CompareHashAndPassword）→ 新密码 bcrypt 加密 → 更新 password_hash → 使所有 Refresh Token 失效（删除 Redis 中该用户的所有 Refresh Token）",
         "验证：注销后无法登录，内容仍可访问但作者匿名化，密码修改后旧密码失效、新密码可登录，Refresh Token 被清除"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 69,
@@ -1418,7 +1418,7 @@
         "扩展 GET /contents 排序逻辑（基于 Task 11 的 newest/hot）：新增 most_views 排序（view_count DESC）、best_rated 排序（like_count/(like_count+dislike_count) DESC，需 ≥5 总票数有效）",
         "验证：IP 按分类筛选正确，内容按类型+分类+排序+时间范围组合筛选正确，most_views/best_rated 计算准确，分页正常"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 70,
@@ -1451,7 +1451,7 @@
         "## Component: ConversationList",
         "## Component: ChatWindow"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 71,
@@ -1476,7 +1476,7 @@
         "## Page: /appeals 我的申诉",
         "## Component: EmptyState"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 72,
@@ -1506,7 +1506,7 @@
         "## Component: CourseContent",
         "## Component: ReputationDetail"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 73,
@@ -1530,7 +1530,7 @@
         "## Page: /ip/[ipId] IP 详情页",
         "## Component: FollowButton"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 74,
@@ -1552,7 +1552,7 @@
         "## Global Design Tokens",
         "## Page: /settings 账号设置"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 75,
@@ -1567,7 +1567,7 @@
         "更新 internal/model/ 下对应 GORM 模型：LLMConfig，扩展 User（SupportInfo）",
         "验证：migrate up 无报错，新表/字段存在，partial unique index 确保仅一个 active LLM config"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 76,
@@ -1598,7 +1598,7 @@
         "## Component: ReplyList",
         "## Component: EmptyState"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 77,
@@ -1625,7 +1625,7 @@
         "## Page: /user/[userId] 用户主页",
         "## Component: CreatorSupportPanel"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 78,
@@ -1642,7 +1642,7 @@
         "扩展 internal/handler/admin.go：POST /admin/categories、PATCH /admin/categories/:id、DELETE /admin/categories/:id、PUT /admin/categories/reorder",
         "验证：前端可通过公开接口获取分类列表，管理员可 CRUD 分类，删除有关联内容的分类时被拒绝，缓存正常刷新"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 79,
@@ -1662,7 +1662,7 @@
         "补充 GET /users/:id/discussions：列出用户发帖或回复过的讨论帖（UNION discussions.author_id=uid 与 comments.author_id=uid WHERE target_type='discussion'），按最后活跃时间倒序分页，返回字段：discussion_id / title / ip_name / reply_count / last_active_at（供 Task 84 用户主页「参与的讨论」Tab）",
         "验证：讨论列表分页排序正常，发帖/回复功能正常，楼中楼嵌套正确（最多2层），置顶功能仅限IP创建者/管理员；GET /users/:id/discussions 正确返回用户参与的讨论列表"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 80,
@@ -1678,7 +1678,7 @@
         "实现 feature flag 检查：creator_support_enabled=false 时 PATCH 返回 403，GET 不返回 support_info",
         "验证：创作者可配置打赏码和外部链接，feature flag 关闭时 API 不可用，链接数量超限返回 422"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 81,
@@ -1694,7 +1694,7 @@
         "扩展 internal/handler/user.go 或新建 reputation handler：GET /reputation-logs/me（需登录，返回分页日志列表含 action, delta, reason, created_at）",
         "验证：返回当前用户信誉分变动历史，分页正常，未登录返回 401"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 82,
@@ -1712,7 +1712,7 @@
         "扩展 internal/pkg/llm/factory.go：NewProvider 优先查 DB active config，无则 fallback config.yaml",
         "验证：管理员可 CRUD 配置，API Key 加密存储不泄露明文，激活切换事务安全，测试连接返回模型响应，非管理员 403"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 83,
@@ -1743,7 +1743,7 @@
         "## Component: ActiveConfigCard",
         "## Component: ConfirmModal"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 84,
@@ -1775,7 +1775,7 @@
         "## Component: JudgeQualBadge",
         "## Component: ContentCard"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 85,
@@ -1804,7 +1804,7 @@
         "## Component: ContentCard",
         "## Component: ConfirmModal"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 86,
@@ -1836,13 +1836,16 @@
         "## Component: ContentCard",
         "## Component: MasonryGrid"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 87,
       "title": "推荐引擎 — 热门排行定时任务与 Redis 缓存",
       "description": "实现全站内容热度计算定时任务，更新 Redis rank:hot:contents，为推荐流和二创区首页提供热门排序数据",
-      "depends_on": [11, 15],
+      "depends_on": [
+        11,
+        15
+      ],
       "steps": [
         "在 internal/service/content_service.go 新增 UpdateHotRank 方法：遍历近 trending_window_days 天 zone='original' + status='published' 内容，计算 hot_score = log(1 + view_count + like_count * 3) * time_decay（半衰期 hot_decay_hours 默认 48h），写入 Redis Sorted Set rank:hot:contents",
         "新增 internal/service/hot_rank_service.go：封装定时任务逻辑（每 10 分钟执行），使用 sync.Mutex 防止重叠执行，失败时记录日志不阻断后续执行",
@@ -1850,13 +1853,16 @@
         "现有 content_service.go 的 getHotContents 方法已从 rank:hot:contents 读取（Task 22 已可用），本任务确保该 Redis key 持续更新",
         "验证：发布几篇内容后等待定时任务执行，检查 Redis rank:hot:contents 中有数据且排名合理；修改 view_count/like_count 后排名更新"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 88,
       "title": "推荐引擎 —个性化推荐 API (sort=recommended)",
       "description": "实现原创区推荐流的完整链路：用户画像构建、pgvector 向量检索、个性化+热门混合排序、分页缓存",
-      "depends_on": [87, 11],
+      "depends_on": [
+        87,
+        11
+      ],
       "steps": [
         "扩展 content_service.go ListContents：sort=recommended 时走推荐引擎流程（非 recommended 保持现有逻辑不变）",
         "新增 internal/service/recommendation_service.go：BuildUserProfileVector（加权聚合浏览/收藏/点赞内容向量）→ VectorSearch（pgvector ANN 检索 topK 候选）→ ComputeFinalScore（个性化权重 0.6 + 热门度 0.4）→ SortAndPaginate",
@@ -1866,26 +1872,32 @@
         "所有权重和参数从 config.yaml > recommendation 读取，严禁硬编码",
         "验证：新用户（无互动）看到热门内容；有互动历史的用户看到个性化推荐；缓存命中后相同 page 不走向量检索"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 89,
       "title": "推荐引擎 — 用户画像向量自动更新",
       "description": "确保用户画像向量随用户互动行为实时更新，保证推荐新鲜度",
-      "depends_on": [88],
+      "depends_on": [
+        88
+      ],
       "steps": [
         "在内容浏览（browse_history 写入）、点赞/取消点赞（reactions 写入）、收藏/取消收藏（favorites 写入）时，异步更新用户推荐缓存",
         "使用 Redis Pub/Sub 或 channel 通知：user:{id}:profile_updated 事件 → 异步清除 rec:original:{user_id}:* 缓存 → 下次请求重新计算",
         "向量化补齐：每分钟检查 content_embeddings 表中缺失的新发布内容，调用 LLM embedding API 补生成（复用 §11.7 Pipeline）",
         "验证：浏览新内容后推荐结果变化；点赞后推荐流中出现相关内容"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 90,
       "title": "Web 前端 — 原创区首页重构（小红书式推荐流）",
       "description": "将原创区首页从两级筛选目录式布局重构为小红书式单层推荐流 + 分类 Tab 布局，移除二级内容类型筛选",
-      "depends_on": [88, 20, 22],
+      "depends_on": [
+        88,
+        20,
+        22
+      ],
       "steps": [
         "重构 app/(public)/original/page.tsx：移除二级内容类型筛选栏（SECONDARY_TYPES_FALLBACK 及相关 UI），仅保留顶部分类 Tab（推荐 + 11 个一级分类）",
         "新增 components/original/CategoryTabs.tsx：横向滚动分类 Tab 栏（推荐默认选中 + 动态加载的 11 个分类），选中态底部 accent 色下划线，未选中态 text-fg.muted",
@@ -1902,13 +1914,16 @@
         "## Component: ContentCard",
         "## Component: MasonryGrid"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 91,
       "title": "创作者工作室 — StudioLayout + StudioSidebar 布局组件",
       "description": "实现创作者工作室的共享布局（可折叠侧边栏 + 主内容区），包含折叠展开动画、hover tooltip、响应式行为",
-      "depends_on": [20, 21],
+      "depends_on": [
+        20,
+        21
+      ],
       "steps": [
         "创建 components/studio/StudioLayout.tsx：flex 水平布局，左侧 StudioSidebar + 右侧主内容区（flex-1 overflow-y-auto），顶部 Header h-16 + 下方 h-[calc(100vh-64px)]",
         "创建 components/studio/StudioSidebar.tsx：3 个分组（内容发布/数据看板/协作管理）渲染，展开态 w-56/收起态 w-16，transition-all duration-200 过渡动画",
@@ -1923,13 +1938,16 @@
         "## Component: StudioSidebar",
         "## Page: /studio 创作者工作室"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 92,
       "title": "创作者工作室 — 内容类型选择与发布流程",
       "description": "实现 ContentTypeGrid 组件和 /studio/publish/original、/studio/publish/fanwork 发布流程页面（两步：选类型 → 填表单）",
-      "depends_on": [91, 11],
+      "depends_on": [
+        91,
+        11
+      ],
       "steps": [
         "创建 components/studio/ContentTypeGrid.tsx：grid grid-cols-2/3/4 响应式卡片网格，卡片显示 emoji 图标 + 标题 + 描述，按 zone 读取 config type_order 排序",
         "实现步骤 1→2 切换：选择卡片后 onSelect(type) → 主区域替换为发布表单（zone + content_type 锁定），顶部显示「← 返回选择类型」按钮",
@@ -1944,13 +1962,16 @@
         "## Page: /studio/publish/original 发布原创",
         "## Page: /studio/publish/fanwork 发布二创"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 93,
       "title": "创作者工作室 — 数据概览页面",
       "description": "实现 /studio/overview 数据概览页：统计卡片 + 访问趋势图 + 内容排行 + 待处理事项",
-      "depends_on": [91, 11],
+      "depends_on": [
+        91,
+        11
+      ],
       "steps": [
         "迁移 app/(protected)/dashboard/page.tsx 逻辑到 app/(protected)/studio/overview/page.tsx",
         "新增 components/studio/StatsCard.tsx：统计数值 + 标签 + 环比变化百分比 + ↑↓ 箭头颜色（增长绿/下降红）",
@@ -1963,13 +1984,16 @@
       "ui_spec_ref": [
         "## Page: /studio/overview 数据概览"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 94,
       "title": "创作者工作室 — 粉丝分析页面 + 粉丝统计 API",
       "description": "实现 /studio/followers 粉丝分析页面和 GET /api/v1/users/:id/followers/stats 后端 API",
-      "depends_on": [91, 16],
+      "depends_on": [
+        91,
+        16
+      ],
       "steps": [
         "后端：新增 internal/handler/follow.go 中的 GetFollowerStats handler → GET /api/v1/users/:id/followers/stats?days=30",
         "后端：新增 follow_service.go 中的 GetFollowerStats 方法：查询 follows 表统计总数/新增/流失趋势（按天分组），以及按 content_id 的粉丝来源分布",
@@ -1982,13 +2006,15 @@
       "ui_spec_ref": [
         "## Page: /studio/followers 粉丝分析"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 95,
       "title": "创作者工作室 — 旧路由迁移 + 内容管理/协作管理页迁移",
       "description": "将旧 /dashboard/contents、/dashboard/pr-requests、/dashboard/contributors、/dashboard/tag-suggestions 页面迁移到 /studio/* 路径，保留旧路由 301 重定向",
-      "depends_on": [91],
+      "depends_on": [
+        91
+      ],
       "steps": [
         "创建 app/(protected)/studio/contents/page.tsx：迁移 /dashboard/contents 内容（我的内容列表 + 筛选/排序/编辑/删除）",
         "创建 app/(protected)/studio/pr-requests/page.tsx：迁移 /dashboard/pr-requests",
@@ -2003,13 +2029,18 @@
         "## Page: /studio 创作者工作室",
         "## Page: /studio/revenue 收益数据"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 96,
       "title": "创作者工作室 — i18n 翻译 + 暗色模式兼容 + 全面测试",
       "description": "补充工作室所有新增页面的中英文翻译、暗色模式验证、Playwright 全流程 E2E 测试",
-      "depends_on": [92, 93, 94, 95],
+      "depends_on": [
+        92,
+        93,
+        94,
+        95
+      ],
       "steps": [
         "在 frontend/messages/zh.json 和 en.json 中补充 studio.* 命名空间下的所有 UI 字符串（侧边栏分组标题、内容类型名称/描述、统计卡片标签、图表说明等）",
         "暗色模式遍历验证：所有 /studio/* 页面在 light/dark 主题下 UI 正常（通过 Playwright 截图对比）",
@@ -2017,13 +2048,16 @@
         "npm run build 成功 + npm run lint 0 警告",
         "验证：所有 E2E 测试通过，截图保存至 screenshots/ 文件夹"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 97,
       "title": "Go API + Redis — IP 分类内容数量统计",
       "description": "实现各 IP 分类下关联二创内容数量的实时统计，使用 Redis Hash 存储计数，供前端侧边栏展示",
-      "depends_on": [15, 87],
+      "depends_on": [
+        15,
+        87
+      ],
       "steps": [
         "在 Redis 中创建 Hash key `ip_category_counts`，字段为 IP 分类 slug（如 game/film_tv/anime 等），值为该分类下 zone='fanwork' 且 status='published' 的内容数量",
         "创建 internal/service/ip_stats_service.go：UpdateCategoryCounts 方法遍历 content_items 表按 IP 分类分组计数，写入 Redis `ip_category_counts` Hash",
@@ -2033,20 +2067,24 @@
         "前端 HomePageClient 从 GET /api/v1/ips/stats/category_counts 获取实时计数替换硬编码占位数据",
         "验证：curl /api/v1/ips/stats/category_counts 返回正确计数，发布新内容后计数实时更新，Redis 数据与数据库一致"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 98,
       "title": "Go API — 内容详情页侧边栏所需数据接口补全",
       "description": "为 ContentSidebar 组件补充所需的后端 API：作者统计数据、关注状态、来源原创详情嵌入",
-      "depends_on": [16, 60, 97],
+      "depends_on": [
+        16,
+        60,
+        97
+      ],
       "steps": [
         "扩展 GET /users/:id 返回 stats 字段：contents_count（已发布内容数）、followers_count（粉丝数）、likes_received（总获赞数），用于 ContentSidebar 作者卡片统计展示",
         "扩展 GET /users/:id 返回 is_following 布尔字段（当前登录用户是否已关注该用户），供关注按钮状态判断",
         "扩展 GET /contents/:id 返回 source_original 嵌套对象：{ id, title }（当 content_items.source_original_id 非空时 JOIN content_items 获取标题），供二创详情侧边栏展示来源原创信息",
         "验证：curl /users/:id 返回 stats 和 is_following；curl /contents/:id（二创且有 source_original_id）返回 source_original 对象；关注按钮状态随登录态正确切换"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 99,
@@ -2060,7 +2098,7 @@
         "修改 admin.go PatchConfig handler：接受 PublicConfig 粒度的字段，返回更新后的 PublicConfig",
         "验证：curl /admin/config 不再包含任何密钥字段；curl /admin/config 修改 Features 等安全字段后正常保存"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 100,
@@ -2074,7 +2112,7 @@
         "添加 .env.example 中 ALLOWED_ORIGINS 说明",
         "验证：curl -H \"Origin: http://evil.com\" 返回无 CORS 头；curl -H \"Origin: http://localhost:3000\" 返回正确的 Access-Control-Allow-Origin"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 101,
@@ -2088,7 +2126,7 @@
         "修改 AdminRequired 中间件：在 AuthRequired 基础上，从缓存中检查 role==admin，若不匹配则返回 403",
         "验证：用户被 ban 后立即无法操作（无需等 token 过期）；admin 角色撤销后立即返回 403"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 102,
@@ -2103,7 +2141,7 @@
         "对业务已知错误（ErrContentNotFound 等）保持原始消息，对未知错误返回\"操作失败，请稍后重试\"",
         "验证：故意触发 DB 错误时，客户端收不到 SQL 或文件路径信息；正常业务错误（如内容不存在）仍返回可读消息"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 103,
@@ -2116,13 +2154,15 @@
         "在 handler 层增加路径校验：若 oss_key 不以用户 ID 开头则返回 403",
         "验证：删除账号后数据库中 password_hash 为有效 bcrypt 哈希而非空字符串；用户 A 无法向用户 B 的 OSS 路径上传文件"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 104,
       "title": "安全：添加 CSRF 防护与 SameSite Cookie 策略",
       "description": "当前无 CSRF 防护，结合 wildcard CORS 存在攻击风险（已在 task 100 修复 CORS）。为状态变更请求添加 CSRF token 机制",
-      "depends_on": [100],
+      "depends_on": [
+        100
+      ],
       "steps": [
         "引入 github.com/utrack/gin-csrf 中间件或自行实现 CSRF token 生成与校验",
         "GET /api/v1/auth/me 同时返回 CSRF token（通过 X-CSRF-Token 响应头）",
@@ -2130,7 +2170,7 @@
         "Cookie 设置 SameSite=Lax，HttpOnly=false（前端需要读取 access_token），Secure=true（生产环境）",
         "验证：不带 CSRF token 的 POST 请求返回 403；正确带 CSRF token 的请求正常通过"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 105,
@@ -2144,7 +2184,7 @@
         "在 recovery.go 中集成 Prometheus metrics 预留（goroutine_panic_total counter）",
         "验证：故意在 goroutine 中 panic，确认进程不崩溃且错误被记录"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 106,
@@ -2158,7 +2198,7 @@
         "保留 admin/layout.tsx 中的角色检查（在 auth layout 基础上叠加）",
         "验证：未登录用户访问 /studio、/settings、/history 等页面时，无内容闪烁直接跳转到 /login"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 107,
@@ -2173,7 +2213,7 @@
         "在 globals.css 中补充缺失的设计 token（muted-foreground-foreground 等）",
         "验证：切换暗色模式后侧栏、Studio 侧栏、Footer 全部正确显示，无白色背景或浅色文字"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 108,
@@ -2195,7 +2235,9 @@
       "id": 109,
       "title": "前端：动态统计数据替换硬编码数字",
       "description": "首页 hero 区统计数字（58,293/186/8,412）和原创区统计数字（186,247/32,814）是硬编码，应从 API 获取",
-      "depends_on": [68],
+      "depends_on": [
+        68
+      ],
       "steps": [
         "后端新增 GET /api/v1/stats/summary：返回 { users: N, ips: N, contents: N, works: N }，数据从 Redis 缓存读取，后台定时刷新",
         "创建 service/stats_service.go：GetSummary 从 Redis 读取，miss 时从 DB 聚合并写入（TTL=10min）",
@@ -2204,13 +2246,15 @@
         "OriginalPage.tsx：原创区统计数字同上处理",
         "验证：首页和原创区数字来自 API 而非硬编码；API 不可用时显示\"--\"而非 0"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 110,
       "title": "前端：修复移动端布局 — 消息/搜索/Studio",
       "description": "消息页移动端同时显示会话列表和聊天窗口导致布局错乱；搜索/筛选侧栏在移动端不可触达；Studio 侧栏无移动适配",
-      "depends_on": [106],
+      "depends_on": [
+        106
+      ],
       "steps": [
         "消息页重构：移动端默认显示会话列表（全屏），选中会话后切换到聊天窗口（全屏），顶部显示返回按钮返回列表；使用 state 管理当前视图",
         "搜索页重构：筛选侧栏在 md 以下屏幕改为底部抽屉（Sheet 组件），点击筛选图标弹出；侧栏内部使用可折叠分组",
@@ -2219,7 +2263,7 @@
         "使用 webapp-testing skill 在移动端视口（375x812）截图验证每个页面",
         "验证：消息页/搜索页/Studio 在移动端（375px）和桌面端（1280px）均正常可用"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 111,
@@ -2234,7 +2278,7 @@
         "添加上传失败时的错误提示和重试机制",
         "验证：选择文件→上传→提交，后端正确收到 attachments 数据；文件类型/大小/尺寸正确传递"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 112,
@@ -2250,7 +2294,7 @@
         "聊天发送：错误时在聊天界面显示错误消息气泡",
         "验证：故意让某个 API 返回 500，确认用户看到适当提示而非静默失败"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 113,
@@ -2265,7 +2309,7 @@
         "注册成功后自动跳转到首页而非登录页",
         "验证：注册后只需一次 API 调用即完成登录；token 过期后自动刷新无需手动重新登录"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 114,
@@ -2284,13 +2328,15 @@
         "创建数据库索引加速用户通知查询：CREATE INDEX idx_notifications_user_unread ON notifications(user_id, is_read, created_at DESC)",
         "验证：评论内容后目标作者收到通知；PR 被接受后提交者收到通知；私信发送后收到方收到提醒"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 115,
       "title": "后端：私信未读数与实时通知更新",
       "description": "消息未读数始终为 0（前端初始化后未更新）；通知列表不支持按频道筛选",
-      "depends_on": [114],
+      "depends_on": [
+        114
+      ],
       "steps": [
         "修改 GET /notifications/unread-count：增加按 channel 分组的未读计数，返回 {\"total\": N, \"reply\": N, \"like\": N, \"system\": N, \"pr\": N, \"follow\": N}",
         "修改 ListMessages handler：发送消息后更新 conversation_participants 的 unread_count 和 last_read_at",
@@ -2299,13 +2345,16 @@
         "Header 组件通知铃铛显示未读总数小红点，点击显示分类未读数",
         "验证：收到新通知后铃铛红点实时更新；进入会话后未读数归零"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 116,
       "title": "前端：私信会话与聊天 UI 完善",
       "description": "消息页仅显示通知列表，会话/聊天标签完全未实现。需要完整的私信交互界面",
-      "depends_on": [114, 115],
+      "depends_on": [
+        114,
+        115
+      ],
       "steps": [
         "重构 messages/page.tsx：分为两个标签页（通知 | 私信），使用 Tabs 组件",
         "实现 ConversationList 组件：从 GET /messages 获取会话列表，显示对方头像、最新消息、未读数、时间",
@@ -2315,13 +2364,16 @@
         "使用 webapp-testing skill 验证桌面端和移动端消息交互",
         "验证：可以查看会话列表、进入聊天、发送消息、接收消息；移动端布局正常"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 117,
       "title": "前端：通知中心完善",
       "description": "通知列表仅显示混合通知，无频道筛选、无批量操作、无空状态设计",
-      "depends_on": [114, 115],
+      "depends_on": [
+        114,
+        115
+      ],
       "steps": [
         "重构 NotificationList 组件：添加频道筛选标签（全部/回复/点赞/系统/PR/关注），使用 GET /notifications?channel= 参数",
         "实现全选已读功能：调用 POST /notifications/read-all?channel= 批量标记",
@@ -2330,7 +2382,7 @@
         "添加下拉通知面板（Header NotificationDropdown）的按频道未读计数展示",
         "验证：切换频道筛选正确；全部已读按钮生效；点击通知跳转到对应页面"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 118,
@@ -2345,13 +2397,15 @@
         "OriginalPage 内容卡片点击同理记录",
         "验证：登录后浏览内容详情，在 /history 页面可以看到浏览记录；同一内容不重复记录"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 119,
       "title": "后端：内容全文搜索 API",
       "description": "当前仅有 tag 过滤和 AI agent 搜索，无独立内容全文搜索端点。需要 PostgreSQL tsvector 全文检索 + GIN 索引",
-      "depends_on": [123],
+      "depends_on": [
+        123
+      ],
       "steps": [
         "创建 migrations/038_content_search.sql：在 content_items 表添加 tsvector 列 search_vector，创建 GIN 索引；创建触发器在 title/description 变更时自动更新 search_vector",
         "创建 internal/repository/search_repo.go：SearchContents(query, zone, category, contentType, tags, sort, page, limit) 使用 to_tsquery + ts_rank 查询",
@@ -2361,7 +2415,7 @@
         "添加搜索词高亮功能：使用 ts_headline 返回高亮片段",
         "验证：搜索\"游戏攻略\"返回相关内容；登录用户排序考虑个性化因素；空查询返回热门内容"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 120,
@@ -2375,13 +2429,16 @@
         "搜索建议按使用频率排序（Redis 计数）",
         "验证：输入\"原神\"时下拉显示\"原神攻略\"、\"原神同人\"等建议；热门搜索词从 Redis 动态更新"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 121,
       "title": "前端：搜索体验全面升级",
       "description": "搜索输入无防抖/建议/历史；筛选侧栏移动端不可触达；搜索体验需要全面改进",
-      "depends_on": [119, 120],
+      "depends_on": [
+        119,
+        120
+      ],
       "steps": [
         "搜索输入框添加 debounce（300ms）：输入停止 300ms 后触发搜索建议请求",
         "实现搜索建议下拉组件：搜索框下方显示前缀匹配建议，键盘上下键选择，回车确认",
@@ -2392,13 +2449,15 @@
         "使用 webapp-testing skill 在各视口截图验证搜索流程",
         "验证：输入关键词显示建议；搜索历史可点击；热门搜索词展示；移动端筛选可操作"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 122,
       "title": "后端：推荐引擎冷启动优化",
       "description": "新用户和匿名用户无个性化推荐数据，冷启动体验差",
-      "depends_on": [123],
+      "depends_on": [
+        123
+      ],
       "steps": [
         "修改注册流程：添加\"选择你感兴趣的类别\"步骤，将选择的类别标签转换为初始 profile 向量种子",
         "创建 internal/service/recommendation_service.go：GenerateInitialProfile(userID, categories[]) — 根据选择的类别查找热门标签对应向量，加权平均生成初始 profile",
@@ -2407,7 +2466,7 @@
         "添加迁移任务：为现有 profile 全零的用户批量生成初始 profile",
         "验证：新注册用户选择\"游戏\"、\"动漫\"后首页推荐相关内容；匿名用户看到热门排行"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 123,
@@ -2436,13 +2495,15 @@
         "创建 CronJob：定期将 Redis 下载计数刷回 DB",
         "验证：curl /contents/:id/download（AllowCopy=true）返回 302 跳转到 OSS；AllowCopy=false 返回 403；下载计数正确累加"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 125,
       "title": "前端：下载按钮与交互",
       "description": "内容详情页无下载入口，需要根据 AllowCopy 和付费状态展示下载按钮",
-      "depends_on": [124],
+      "depends_on": [
+        124
+      ],
       "steps": [
         "ContentDetailClient 组件添加下载按钮：位置在操作栏（点赞/收藏旁边）",
         "根据 AllowCopy 和 isPaid 状态显示不同按钮态：AllowCopy=false 显示\"不可下载\"灰色按钮；AllowCopy=true+免费 显示\"下载\"按钮；AllowCopy=true+付费 显示\"购买后下载\"按钮",
@@ -2451,13 +2512,15 @@
         "Tauri 客户端使用 omnicraft://download 协议拦截",
         "验证：免费可下载内容点击后触发下载；禁止下载内容显示灰色按钮；下载后计数实时更新"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 126,
       "title": "前端：收藏页面完善与分组",
       "description": "收藏页面仅有基础列表，缺少筛选、排序、分组和空状态设计",
-      "depends_on": [127],
+      "depends_on": [
+        127
+      ],
       "steps": [
         "重构收藏页面 /user/:id/favorites：添加类型筛选标签（全部/文章/图片/视频/音频/模组/乐谱等）",
         "添加排序选项：最近收藏/最早收藏/最多点赞",
@@ -2466,7 +2529,7 @@
         "Masonry 瀑布流布局与内容卡片保持一致",
         "验证：按类型筛选收藏；按时间排序；创建收藏分组并添加内容；空状态正常显示"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 127,
@@ -2481,7 +2544,7 @@
         "修改 GET /contents/:id 响应：添加 is_favorited 字段（使用 OptionalAuth 获取当前用户收藏状态）",
         "验证：重复收藏返回 200 而非 500；删除不存在的收藏返回 200；按类型筛选和分页正常工作"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 128,
@@ -2564,7 +2627,7 @@
         "为 GetFacetedTags 添加 limit 参数限制返回标签数量（max=500）",
         "验证：热门排行计算不出现内存暴涨；PR 列表和版本列表正确分页"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 134,
@@ -2581,7 +2644,7 @@
         "添加举报去重检查：同一用户对同一目标只能举报一次",
         "验证：发送不合规请求时返回 400 + 字段级错误信息，而非 500 或忽略"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 135,
@@ -2596,13 +2659,15 @@
         "使用 systematic-debugging skill 验证每个修复的端到端流程",
         "验证：创建内容后版本可正确读取；IP 讨论列表返回实际数据；判官误判率过高时自动吊销资质；Agent 对话可持久查看"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 136,
       "title": "补全：缺失 API — 用户搜索、内容搜索、举报管理",
       "description": "缺少用户搜索端点、内容全文搜索端点（task 119 已规划）、管理员举报处理端点",
-      "depends_on": [119],
+      "depends_on": [
+        119
+      ],
       "steps": [
         "创建 GET /users/search?q=&page=&limit=20：支持 username 和 email 模糊搜索，返回用户基本信息（不含密码/敏感数据）",
         "创建 GET /admin/reports：管理员举报列表，支持按 status/target_type 筛选和分页",
@@ -2610,7 +2675,7 @@
         "创建 GET /admin/reports/stats：举报统计概览（待处理数量、按类型分布等）",
         "验证：管理员可查看/处理举报；用户搜索返回正确结果；举报列表正确分页和筛选"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 137,
@@ -2628,7 +2693,7 @@
         "注册流程调整：注册后用户 is_email_verified=false，部分功能（发布内容、关注等）需要邮箱验证",
         "验证：忘记密码流程完整；邮箱验证功能正常；未验证用户受限功能正确拦截"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 138,
@@ -2642,7 +2707,7 @@
         "新增 PATCH /admin/contents/:id/restore 端点：恢复被封禁内容",
         "验证：对评论发起申诉可正常处理；重复举报返回 409；管理员封禁内容必须填 reason"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 139,
@@ -2658,7 +2723,7 @@
         "添加定时任务：软删除 30 天后永久删除（使用管理后台手动触发或后台 cron）",
         "验证：删除内容后不再出现在列表中；管理员可查看和恢复已删除内容；30 天后自动永久删除"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 140,
@@ -2672,7 +2737,7 @@
         "编辑评论频率限制：每条评论最多编辑 5 次，每次编辑间隔至少 30 秒",
         "验证：编辑评论后内容更新且显示编辑标记；删除消息后仅对删除者不可见；退出会话后不再收到新消息通知"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 141,
@@ -2687,7 +2752,7 @@
         "各 service 层的错误日志使用 slog.Error + 结构化字段（error=err.Error(), userID=xxx, contentID=xxx 等）",
         "验证：日志输出 JSON 格式；每个请求有唯一 Request-ID；可按 Request-ID 追踪完整请求链路"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 142,
@@ -2702,7 +2767,7 @@
         "关闭 DB 连接池、Redis 连接池",
         "验证：发送 SIGTERM 后，服务等待活跃请求完成后退出，而非立即断开连接"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 143,
@@ -2717,7 +2782,7 @@
         "添加文件锁：并发 PatchConfig 请求使用 mutex 保护文件写入",
         "验证：修改配置后重启服务，配置保留；尝试修改密钥字段时被忽略"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 144,
@@ -2733,7 +2798,7 @@
         "使用 code-refactoring skill 批量处理类型变更",
         "验证：全量 go vet 和 go test 通过；所有用户相关 API 正常工作"
       ],
-      "passes": true
+      "passes": null
     },
     {
       "id": 145,
@@ -2748,7 +2813,7 @@
         "添加 skip-to-content 链接：页面顶部添加<a href=#main-content class=sr-only>Skip to content</a>",
         "验证：导航后返回页面不重新加载已缓存数据；屏幕阅读器可正确识别所有交互元素"
       ],
-      "passes": true
+      "passes": null
     }
   ]
 }
