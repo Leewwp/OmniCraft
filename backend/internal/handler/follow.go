@@ -6,6 +6,7 @@ import (
 
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/repository"
+	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -13,10 +14,15 @@ import (
 
 type FollowHandler struct {
 	followRepo *repository.FollowRepository
+	notifSvc   *service.NotificationService
 }
 
 func NewFollowHandler(db *gorm.DB) *FollowHandler {
 	return &FollowHandler{followRepo: repository.NewFollowRepository(db)}
+}
+
+func (h *FollowHandler) SetNotificationService(ns *service.NotificationService) {
+	h.notifSvc = ns
 }
 
 func (h *FollowHandler) FollowUser(c *gin.Context) {
@@ -29,6 +35,9 @@ func (h *FollowHandler) FollowUser(c *gin.Context) {
 	if err := h.followRepo.Follow(callerID, "user", targetID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
 		return
+	}
+	if h.notifSvc != nil && callerID != targetID {
+		h.notifSvc.Notify(targetID, "follow", "follow", "你有新粉丝", "", "user", callerID, callerID)
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "followed"})
 }

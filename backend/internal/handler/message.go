@@ -6,17 +6,23 @@ import (
 
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/repository"
+	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 type MessageHandler struct {
-	msgRepo *repository.MessageRepository
+	msgRepo  *repository.MessageRepository
+	notifSvc *service.NotificationService
 }
 
 func NewMessageHandler(db *gorm.DB) *MessageHandler {
 	return &MessageHandler{msgRepo: repository.NewMessageRepository(db)}
+}
+
+func (h *MessageHandler) SetNotificationService(ns *service.NotificationService) {
+	h.notifSvc = ns
 }
 
 func (h *MessageHandler) ListConversations(c *gin.Context) {
@@ -54,6 +60,11 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
 		return
 	}
+
+	if h.notifSvc != nil {
+		h.notifSvc.Notify(body.RecipientID, "system", "message", "新私信", body.Text, "message", msg.ID, callerID)
+	}
+
 	c.JSON(http.StatusCreated, gin.H{"message": msg})
 }
 

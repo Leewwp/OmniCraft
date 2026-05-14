@@ -1,5 +1,28 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-14] - Task 114: 通知自动创建与推送
+
+### What was done:
+- 创建 `internal/service/notification_service.go`：NotificationService 提供 Notify(userID, channel, type, title, body, targetType, targetID, senderID) 方法，内部使用 recovery.GoSafe 异步创建通知
+- 创建 `migrations/038_notification_channels.sql`：扩展 notifications 表 channel CHECK 约束，增加 pr/follow 两种新频道
+- 修改 SocialService.PostComment：评论内容时通知内容作者 (channel=reply)；评论讨论时通知讨论发起者
+- 修改 SocialService.React：like 内容时通知内容作者 (channel=like)，仅在首次创建 reaction 时触发
+- 修改 PRService.AcceptPR/RejectPR/ManualMerge：通知 PR 提交者审核结果 (channel=pr)
+- 修改 FollowHandler.FollowUser：通知被关注者 (channel=follow)
+- 修改 MessageHandler.SendMessage：通知收件人 (channel=system)
+- 修改 AdminHandler.ResolveAppeal：通知申诉人结果 (channel=system)
+- 修改 routes.go：创建 NotificationService 并注入到 SocialService、PRService、FollowHandler、MessageHandler、AdminHandler
+- 所有通知创建均使用异步 goroutine，不阻塞主流程
+
+### Testing:
+- `go build ./...` — 通过
+- `go vet ./...` — 零警告
+
+### Notes:
+- 通知发送使用 recovery.GoSafe 异步，不阻塞请求响应
+- 自己评论/点赞自己的内容不会收到通知（排除自通知）
+- PR handler 改为通过构造函数注入 prSvc，而非在 handler 内部创建
+
 ## [2026-05-14] - Task 104: 安全 — CSRF 防护与 SameSite Cookie 策略
 
 ### What was done:

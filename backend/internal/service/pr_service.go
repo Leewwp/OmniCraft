@@ -21,10 +21,15 @@ type PRService struct {
 	prRepo      *repository.PRRepository
 	versionRepo *repository.VersionRepository
 	contentRepo *repository.ContentRepository
+	notifSvc    *NotificationService
 }
 
 func NewPRService(prRepo *repository.PRRepository, vRepo *repository.VersionRepository, cRepo *repository.ContentRepository) *PRService {
 	return &PRService{prRepo: prRepo, versionRepo: vRepo, contentRepo: cRepo}
+}
+
+func (s *PRService) SetNotificationService(ns *NotificationService) {
+	s.notifSvc = ns
 }
 
 type SubmitPRInput struct {
@@ -105,6 +110,15 @@ func (s *PRService) AcceptPR(prID int64, callerID int64) error {
 	if err := s.prRepo.UpsertContributor(pr.ContentItemID, pr.SubmitterID); err != nil {
 		slog.Error("failed to upsert contributor on accept", "content_id", pr.ContentItemID, "submitter_id", pr.SubmitterID, "error", err)
 	}
+
+	if s.notifSvc != nil {
+		content, _ := s.contentRepo.FindByID(pr.ContentItemID)
+		title := "PR 已通过"
+		if content != nil {
+			title = "PR 已通过：" + content.Title
+		}
+		s.notifSvc.Notify(pr.SubmitterID, "pr", "pr_accepted", title, "", "pr", prID, callerID)
+	}
 	return nil
 }
 
@@ -123,10 +137,22 @@ func (s *PRService) RejectPR(prID int64, callerID int64, reason string) error {
 	}
 
 	now := time.Now()
-	return s.prRepo.UpdateStatus(prID, "rejected", map[string]interface{}{
+	if err := s.prRepo.UpdateStatus(prID, "rejected", map[string]interface{}{
 		"reject_reason": reason,
 		"resolved_at":   now,
-	})
+	}); err != nil {
+		return err
+	}
+
+	if s.notifSvc != nil {
+		content, _ := s.contentRepo.FindByID(pr.ContentItemID)
+		title := "PR 已被拒绝"
+		if content != nil {
+			title = "PR 已被拒绝：" + content.Title
+		}
+		s.notifSvc.Notify(pr.SubmitterID, "pr", "pr_rejected", title, reason, "pr", prID, callerID)
+	}
+	return nil
 }
 
 func (s *PRService) ManualMerge(prID int64, callerID int64, mergedText string) (*model.ContentVersion, error) {
@@ -177,6 +203,10 @@ func (s *PRService) ManualMerge(prID int64, callerID int64, mergedText string) (
 	}
 	if err := s.prRepo.UpsertContributor(pr.ContentItemID, pr.SubmitterID); err != nil {
 		slog.Error("failed to upsert contributor on merge", "content_id", pr.ContentItemID, "submitter_id", pr.SubmitterID, "error", err)
+	}
+
+	if s.notifSvc != nil {
+		s.notifSvc.Notify(pr.SubmitterID, "pr", "pr_merged", "PR 已合并："+content.Title, "", "pr", prID, callerID)
 	}
 	return v, nil
 }
