@@ -351,6 +351,8 @@ func (h *AdminHandler) PatchConfig(c *gin.Context) {
 		}
 	}
 
+	_ = h.cfg.SaveOverride("data/config_override.yaml")
+
 	c.JSON(http.StatusOK, gin.H{
 		"config": model.PublicConfig{
 			Features:   h.cfg.Features,

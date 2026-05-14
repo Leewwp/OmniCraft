@@ -8,7 +8,7 @@ import (
 )
 
 type Claims struct {
-	UserID uint   `json:"user_id"`
+	UserID int64   `json:"user_id"`
 	Role   string `json:"role"`
 	jwt.RegisteredClaims
 }
@@ -21,7 +21,7 @@ type TokenPair struct {
 var ErrTokenInvalid = errors.New("token is invalid")
 var ErrTokenExpired = errors.New("token has expired")
 
-func GenerateAccessToken(userID uint, role string, secret string, ttlMinutes int) (string, error) {
+func GenerateAccessToken(userID int64, role string, secret string, ttlMinutes int) (string, error) {
 	claims := Claims{
 		UserID: userID,
 		Role:   role,
@@ -35,7 +35,7 @@ func GenerateAccessToken(userID uint, role string, secret string, ttlMinutes int
 	return token.SignedString([]byte(secret))
 }
 
-func GenerateRefreshToken(userID uint, role string, secret string, ttlDays int) (string, error) {
+func GenerateRefreshToken(userID int64, role string, secret string, ttlDays int) (string, error) {
 	claims := Claims{
 		UserID: userID,
 		Role:   role,
@@ -49,7 +49,7 @@ func GenerateRefreshToken(userID uint, role string, secret string, ttlDays int) 
 	return token.SignedString([]byte(secret))
 }
 
-func GenerateTokenPair(userID uint, role string, secret string, accessTTLMinutes int, refreshTTLDays int) (*TokenPair, error) {
+func GenerateTokenPair(userID int64, role string, secret string, accessTTLMinutes int, refreshTTLDays int) (*TokenPair, error) {
 	accessToken, err := GenerateAccessToken(userID, role, secret, accessTTLMinutes)
 	if err != nil {
 		return nil, err

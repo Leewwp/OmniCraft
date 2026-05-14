@@ -173,6 +173,12 @@ func Load() *Config {
 
 	overrideFromEnv(cfg)
 
+	OverridePath := "data/config_override.yaml"
+	if v := os.Getenv("CONFIG_OVERRIDE_PATH"); v != "" {
+		OverridePath = v
+	}
+	LoadOverride(cfg, OverridePath)
+
 	Cfg = cfg
 	return cfg
 }
@@ -265,5 +271,34 @@ func overrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("ALLOWED_ORIGINS"); v != "" {
 		cfg.Security.AllowedOrigins = strings.Split(v, ",")
+	}
+}
+
+func (c *Config) SaveOverride(path string) error {
+	v := viper.New()
+	v.Set("features", c.Features)
+	v.Set("limits", c.Limits)
+	v.Set("reputation", c.Reputation)
+	v.Set("social", c.Social)
+	v.Set("agent", map[string]interface{}{
+		"web_agent_enabled":       c.Agent.WebAgentEnabled,
+		"rate_limit_per_day":      c.Agent.RateLimitPerDay,
+		"upload_assist_max_file_mb": c.Agent.UploadAssistMaxFileMB,
+	})
+	v.Set("judge", c.Judge)
+	v.Set("recommendation", c.Recommendation)
+	v.Set("cache", c.Cache)
+	v.Set("rate_limit", c.RateLimit)
+	return v.WriteConfigAs(path)
+}
+
+func LoadOverride(base *Config, path string) {
+	v := viper.New()
+	v.SetConfigFile(path)
+	if err := v.ReadInConfig(); err != nil {
+		return
+	}
+	if err := v.Unmarshal(base); err != nil {
+		slog.Warn("failed to merge config override", "error", err)
 	}
 }

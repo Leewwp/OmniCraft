@@ -222,7 +222,7 @@ func (s *AuthService) RefreshToken(refreshToken string) (*jwtutil.TokenPair, err
 	return tokens, nil
 }
 
-func (s *AuthService) storeRefreshToken(userID uint, refreshToken string) error {
+func (s *AuthService) storeRefreshToken(userID int64, refreshToken string) error {
 	if s.redis == nil {
 		return nil
 	}
@@ -231,12 +231,11 @@ func (s *AuthService) storeRefreshToken(userID uint, refreshToken string) error 
 		ttl = 7 * 24 * time.Hour
 	}
 	ctx := context.Background()
-	uid := int64(userID)
-	key := buildRefreshTokenKey(uid, refreshToken)
+	key := buildRefreshTokenKey(userID, refreshToken)
 	if err := s.redis.Set(ctx, key, "1", ttl).Err(); err != nil {
 		return err
 	}
-	tokenSetKey := fmt.Sprintf("user:tokens:%d", uid)
+	tokenSetKey := fmt.Sprintf("user:tokens:%d", userID)
 	s.redis.SAdd(ctx, tokenSetKey, key)
 	s.redis.Expire(ctx, tokenSetKey, ttl)
 	return nil

@@ -89,7 +89,7 @@ func (s *JudgeService) SubmitExam(input SubmitExamInput, userID int64) (*model.J
 	}
 
 	if passed {
-		if err := s.judgeRepo.CreateQualification(uint(userID), input.ContentType); err != nil {
+		if err := s.judgeRepo.CreateQualification(userID, input.ContentType); err != nil {
 			slog.Error("failed to create judge qualification", "user_id", userID, "content_type", input.ContentType, "error", err)
 		}
 	}
@@ -179,7 +179,34 @@ func (s *JudgeService) checkAndRevokeIfNeeded(judgeID int64) error {
 		return nil
 	}
 
-	_ = votes
+	wrong := 0
+	for _, v := range votes {
+		judgeCase, err := s.judgeRepo.FindCase(v.CaseID)
+		if err != nil || judgeCase == nil || judgeCase.Status != "closed" {
+			continue
+		}
+		totalVotes := judgeCase.VoteApprove + judgeCase.VoteReject
+		if totalVotes == 0 {
+			continue
+		}
+		outcome := "approve"
+		if float64(judgeCase.VoteApprove)/float64(totalVotes) < 0.6 {
+			outcome = "reject"
+		}
+		if v.Vote != outcome {
+			wrong++
+		}
+	}
+
+	if len(votes) > 0 && float64(wrong)/float64(len(votes)) > 0.5 {
+		if err := s.judgeRepo.RevokeQualifications(judgeID); err != nil {
+			return err
+		}
+		if s.reputSvc != nil {
+			_ = s.reputSvc.AddReputation(judgeID, -1, "judge_error_rate", nil)
+		}
+	}
+
 	return nil
 }
 
