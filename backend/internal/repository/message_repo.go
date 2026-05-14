@@ -79,7 +79,12 @@ func (r *MessageRepository) Send(senderID, convID int64, body string) (*model.Me
 		if err := tx.Create(msg).Error; err != nil {
 			return err
 		}
-		return tx.Model(&model.Conversation{}).Where("id = ?", convID).Update("updated_at", msg.CreatedAt).Error
+		if err := tx.Model(&model.Conversation{}).Where("id = ?", convID).Update("updated_at", msg.CreatedAt).Error; err != nil {
+			return err
+		}
+		return tx.Model(&model.ConversationParticipant{}).
+			Where("conversation_id = ? AND user_id != ?", convID, senderID).
+			UpdateColumn("unread_count", gorm.Expr("unread_count + 1")).Error
 	})
 	return msg, err
 }
@@ -95,5 +100,8 @@ func (r *MessageRepository) IsParticipant(userID, convID int64) (bool, error) {
 func (r *MessageRepository) UpdateLastRead(userID, convID int64) error {
 	return r.db.Model(&model.ConversationParticipant{}).
 		Where("user_id = ? AND conversation_id = ?", userID, convID).
-		Update("last_read_at", gorm.Expr("NOW()")).Error
+		Updates(map[string]interface{}{
+			"last_read_at": gorm.Expr("NOW()"),
+			"unread_count": 0,
+		}).Error
 }

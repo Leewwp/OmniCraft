@@ -64,5 +64,10 @@ func (h *NotificationHandler) UnreadCount(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
 		return
 	}
+	var total int64
+	for _, c := range counts {
+		total += c
+	}
+	counts["total"] = total
 	c.JSON(http.StatusOK, gin.H{"unread_counts": counts})
 }

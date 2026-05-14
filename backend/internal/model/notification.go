@@ -26,6 +26,7 @@ type ConversationParticipant struct {
 	ConversationID int64      `gorm:"primaryKey" json:"conversation_id"`
 	UserID         int64      `gorm:"primaryKey" json:"user_id"`
 	LastReadAt     *time.Time `json:"last_read_at,omitempty"`
+	UnreadCount    int        `gorm:"not null;default:0" json:"unread_count"`
 }
 
 type Message struct {
