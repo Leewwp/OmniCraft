@@ -159,6 +159,10 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, db *gorm.DB, rdb *r
 		me.DELETE("/saved-searches/:id", tagHandler.DeleteSavedSearch)
 	}
 
+	searchHandler := NewSearchHandler(service.NewSearchService(repository.NewSearchRepository(db), rdb))
+	v1.GET("/search/suggestions", searchHandler.Suggestions)
+	v1.GET("/search/trending", searchHandler.Trending)
+
 	followHandler := NewFollowHandler(db)
 	followHandler.SetNotificationService(notifSvc)
 	users.POST("/:id/follow", middleware.AuthRequired(cfg, rdb), followHandler.FollowUser)
