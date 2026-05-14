@@ -1,5 +1,44 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-14] - Task 114: 通知自动创建与推送
+
+### What was done:
+- 创建 notification_service.go + migrations/038_notification_channels.sql
+- SocialService.PostComment/React、PRService.AcceptPR/RejectPR/ManualMerge、FollowHandler、MessageHandler、AdminHandler 注入通知
+- 所有通知使用 recovery.GoSafe 异步创建
+
+### Testing: go build + go vet 通过
+
+## [2026-05-14] - Task 115: 私信未读数与实时通知更新
+
+### What was done:
+- 修改 UnreadCount 返回 total 字段 + conversation_participants 新增 unread_count
+- MessageRepository 发送消息递增/进入会话重置 unread_count
+- AuthContext 新增 unreadCounts 状态 + 30s 轮询
+- NotificationDropdown 使用 unreadCounts 显示红点和分类未读数
+- i18n 更新通知频道标签
+
+### Testing: go build + go vet + tsc --noEmit 通过
+
+## [2026-05-14] - Task 128: N+1 查询修复 — 批量获取热门内容/IP/推荐/用户
+
+### What was done:
+- repository/content_repo.go: Added BatchGetByIDs method (WHERE id IN (?))
+- repository/ip_repo.go: Added BatchGetByIDs method
+- service/content_service.go: getHotContents uses BatchGetByIDs instead of loop GetContent (N+1 → 1 query)
+- service/ip_service.go: GetHotIPs uses BatchGetByIDs instead of loop GetIP (N+1 → 1 query)
+- service/agent_service.go: NLSearch uses BatchGetByIDs instead of loop FindByID (N+1 → 1 query)
+- handler/user.go: Merged getUserStats + countFollowers into single query (3→2 total: stats+followers, isFollowing)
+- repository/follow_repo.go: GetFollowers uses JOIN instead of Pluck+Find (3→2 queries)
+
+### Testing:
+- go build ./... passes
+- go vet ./... passes
+
+### Notes:
+- All list endpoints now use batch fetching where applicable
+- User profile queries reduced from 3 to 2 (is_following remains separate since it depends on viewer context)
+
 ## [2026-05-14] - Task 123: OptionalAuth 中间件启用
 
 ### What was done:

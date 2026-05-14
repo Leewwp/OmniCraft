@@ -241,17 +241,14 @@ func (s *IPService) GetHotIPs(ctx context.Context, limit int) ([]model.IP, error
 		return ips, err
 	}
 
-	ips := make([]model.IP, 0, len(members))
+	ids := make([]int64, 0, len(members))
 	for _, m := range members {
 		var id int64
 		fmt.Sscanf(m.Member.(string), "%d", &id)
-		ip, err := s.GetIP(id)
-		if err != nil || ip == nil {
-			continue
-		}
-		ips = append(ips, *ip)
+		ids = append(ids, id)
 	}
-	return ips, nil
+
+	return s.ipRepo.BatchGetByIDs(ids)
 }
 
 // Ensure json import is used for cache serialization

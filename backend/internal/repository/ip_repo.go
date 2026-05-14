@@ -39,6 +39,15 @@ func (r *IPRepository) FindByID(id int64) (*model.IP, error) {
 	return &ip, nil
 }
 
+func (r *IPRepository) BatchGetByIDs(ids []int64) ([]model.IP, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var ips []model.IP
+	err := r.db.Where("id IN ?", ids).Find(&ips).Error
+	return ips, err
+}
+
 func (r *IPRepository) FindBySlug(slug string) (*model.IP, error) {
 	var ip model.IP
 	err := r.db.Where("slug = ?", slug).First(&ip).Error
