@@ -15,18 +15,10 @@ interface Conversation {
 
 export default function MessagesPage() {
   const t = useTranslations();
-  const { user, isLoading } = useAuth();
+  const { user } = useAuth();
   const [tab, setTab] = useState<"notifications" | "messages">("notifications");
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
-
-  if (isLoading) {
-    return (
-      <div className="mx-auto w-full max-w-2xl px-4 py-6 text-sm text-muted-foreground">
-        {t("common.loading")}
-      </div>
-    );
-  }
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4 px-4 py-6">

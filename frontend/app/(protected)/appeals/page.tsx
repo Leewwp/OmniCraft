@@ -19,7 +19,7 @@ interface Appeal {
 export default function AppealsPage() {
   const t = useTranslations();
   const locale = useLocale();
-  const { user, isLoading } = useAuth();
+  const { user } = useAuth();
   const [appeals, setAppeals] = useState<Appeal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -64,7 +64,7 @@ export default function AppealsPage() {
     }
   }
 
-  if (isLoading || loading) {
+  if (loading) {
     return <div className="mx-auto w-full max-w-2xl px-4 py-6 text-sm text-muted-foreground">{t('common.loading')}</div>;
   }
 

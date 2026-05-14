@@ -24,7 +24,7 @@ interface PRDetail extends PRCardData {
 
 export default function PRRequestsPage() {
   const t = useTranslations();
-  const { user, isLoading } = useAuth();
+  const { user } = useAuth();
   const [prs, setPRs] = useState<PRCardData[]>([]);
   const [activePR, setActivePR] = useState<PRDetail | null>(null);
   const [baseText, setBaseText] = useState("");
@@ -149,10 +149,6 @@ export default function PRRequestsPage() {
     } finally {
       setBusy(false);
     }
-  }
-
-  if (isLoading) {
-    return <div className="mx-auto w-full max-w-7xl px-4 py-6 text-sm text-muted-foreground">{t('common.loading')}</div>;
   }
 
   return (

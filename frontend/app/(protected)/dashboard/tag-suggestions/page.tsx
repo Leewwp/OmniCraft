@@ -21,7 +21,7 @@ interface TagSuggestion {
 
 export default function TagSuggestionsPage() {
   const t = useTranslations();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user } = useAuth();
   const [contentId, setContentId] = useState("");
   const [suggestions, setSuggestions] = useState<TagSuggestion[]>([]);
   const [error, setError] = useState("");
@@ -58,14 +58,6 @@ export default function TagSuggestionsPage() {
     } finally {
       setBusyId(null);
     }
-  }
-
-  if (authLoading) {
-    return (
-      <div className="mx-auto w-full max-w-4xl px-4 py-6 text-sm text-muted-foreground">
-        {t("common.loading")}
-      </div>
-    );
   }
 
   return (

@@ -22,7 +22,7 @@ interface JudgeCaseData {
 
 export default function JudgeQueuePage() {
   const t = useTranslations();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
 
   const [cases, setCases] = useState<JudgeCaseData[]>([]);
@@ -32,12 +32,6 @@ export default function JudgeQueuePage() {
   const [error, setError] = useState("");
   const [votedCaseId, setVotedCaseId] = useState<number | null>(null);
   const [queueTotal, setQueueTotal] = useState(0);
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push("/login");
-    }
-  }, [user, authLoading, router]);
 
   const loadQueue = useCallback(async () => {
     if (!user) return;
@@ -86,17 +80,7 @@ export default function JudgeQueuePage() {
     setCurrentIndex((i) => i + 1);
   }
 
-  if (authLoading) {
-    return (
-      <div className="mx-auto w-full max-w-2xl px-4 py-6 text-sm text-muted-foreground">
-        {t('common.loading')}
-      </div>
-    );
-  }
-
-  if (!user) return null;
-
-  const isReputationBlocked = user.reputation < 3;
+  const isReputationBlocked = user!.reputation < 3;
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4 px-4 py-6">
@@ -117,7 +101,7 @@ export default function JudgeQueuePage() {
       {isReputationBlocked && (
         <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 ">
           <p className="text-sm text-destructive">
-            {t('judge.lowReputation', { reputation: user.reputation })}
+            {t('judge.lowReputation', { reputation: user!.reputation })}
           </p>
         </div>
       )}
