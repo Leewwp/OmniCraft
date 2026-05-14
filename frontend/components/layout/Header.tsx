@@ -124,6 +124,7 @@ export function Header() {
           <div className="flex flex-1 justify-end sm:hidden">
             <button
               type="button"
+              aria-label={t("common.search")}
               className="rounded-md p-2 hover:bg-muted"
               onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
             >

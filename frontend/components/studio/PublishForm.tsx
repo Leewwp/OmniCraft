@@ -229,7 +229,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
               <span className="text-sm font-medium text-foreground">{t('studio.publish.customCover')}</span>
               <p className="text-xs text-muted-foreground">{t('studio.publish.coverDescription')}</p>
             </div>
-            <button type="button"
+            <button type="button" role="switch" aria-checked={hasCustomCover}
               onClick={() => setHasCustomCover(!hasCustomCover)}
               className={cn(
                 "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
@@ -252,7 +252,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
               <MessageCircle className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium text-foreground">{t('studio.publish.allowComment')}</span>
             </div>
-            <button type="button"
+            <button type="button" role="switch" aria-checked={allowComments}
               onClick={() => setAllowComments(!allowComments)}
               className={cn(
                 "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
@@ -287,7 +287,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
                 <span className="text-sm font-medium text-foreground">{t('studio.publish.allowCopyPR')}</span>
                 <p className="text-xs text-muted-foreground">{t('studio.publish.allowCopyPRDesc')}</p>
               </div>
-              <button type="button"
+              <button type="button" role="switch" aria-checked={allowCopy}
                 onClick={() => setAllowCopy(!allowCopy)}
                 className={cn(
                   "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
@@ -304,7 +304,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
               {isPublic ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
               <span className="text-sm font-medium text-foreground">{t('studio.publish.publicVisible')}</span>
             </div>
-            <button type="button"
+            <button type="button" role="switch" aria-checked={isPublic}
               onClick={() => setIsPublic(!isPublic)}
               className={cn(
                 "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
@@ -321,7 +321,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
                 <span className="text-sm font-medium text-foreground">{t('studio.publish.agentDeploy')}</span>
                 <p className="text-xs text-muted-foreground">{t('studio.publish.agentDeployDesc')}</p>
               </div>
-              <button type="button"
+              <button type="button" role="switch" aria-checked={agentEnabled}
                 onClick={() => setAgentEnabled(!agentEnabled)}
                 className={cn(
                   "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
