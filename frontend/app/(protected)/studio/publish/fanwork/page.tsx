@@ -1,27 +1,36 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { ContentTypeGrid, type ContentType } from "@/components/studio/ContentTypeGrid";
 import { PublishForm } from "@/components/studio/PublishForm";
 
-const CONTENT_TYPES: ContentType[] = [
-  { value: "image", icon: "🖼️", label: "图片", description: "同人插画、Cosplay 摄影" },
-  { value: "video", icon: "🎬", label: "视频", description: "MAD、AMV、剪辑" },
-  { value: "article", icon: "📝", label: "文章", description: "同人文、考据、分析" },
-  { value: "audio", icon: "🎵", label: "音频", description: "翻唱、Remix、配音" },
-  { value: "sheet_music", icon: "🎼", label: "乐谱", description: "主题曲改编谱" },
-  { value: "mod", icon: "🧩", label: "Mod", description: "游戏模组、材质包" },
-  { value: "prompt", icon: "🤖", label: "AI 提示词", description: "角色 LoRA 提示词" },
-  { value: "other", icon: "📦", label: "其他", description: "其他二创内容" },
-];
+const CONTENT_TYPE_KEYS = [
+  { value: "image", icon: "🖼️" },
+  { value: "video", icon: "🎬" },
+  { value: "article", icon: "📝" },
+  { value: "audio", icon: "🎵" },
+  { value: "sheet_music", icon: "🎼" },
+  { value: "mod", icon: "🧩" },
+  { value: "prompt", icon: "🤖" },
+  { value: "other", icon: "📦" },
+] as const;
 
 export default function PublishFanworkPage() {
   const [selectedType, setSelectedType] = useState<string | null>(null);
+  const t = useTranslations("studio.publish");
+
+  const contentTypes: ContentType[] = CONTENT_TYPE_KEYS.map(({ value, icon }) => ({
+    value,
+    icon,
+    label: t(`typeLabel.${value}`),
+    description: t(`typeDescFanwork.${value}`),
+  }));
 
   if (selectedType) {
     return (
       <div className="max-w-2xl">
-        <h1 className="mb-6 text-xl font-bold text-foreground">发布二创</h1>
+        <h1 className="mb-6 text-xl font-bold text-foreground">{t("fanworkTitle")}</h1>
         <PublishForm
           zone="fanwork"
           contentType={selectedType}
@@ -33,10 +42,10 @@ export default function PublishFanworkPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-xl font-bold text-foreground">发布二创</h1>
-      <p className="mb-6 text-sm text-muted-foreground">选择内容类型开始创作</p>
+      <h1 className="mb-1 text-xl font-bold text-foreground">{t("fanworkTitle")}</h1>
+      <p className="mb-6 text-sm text-muted-foreground">{t("selectType")}</p>
       <ContentTypeGrid
-        types={CONTENT_TYPES}
+        types={contentTypes}
         selected={selectedType}
         onSelect={setSelectedType}
       />

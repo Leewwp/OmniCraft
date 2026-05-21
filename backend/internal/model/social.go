@@ -39,6 +39,7 @@ type Comment struct {
 	Body          string       `gorm:"type:text;not null" json:"body"`
 	Status        string       `gorm:"size:20;not null;default:published" json:"status"`
 	LikeCount     int          `gorm:"not null;default:0" json:"like_count"`
+	UpdatedAt     time.Time    `gorm:"autoUpdateTime" json:"updated_at"`
 	CreatedAt     time.Time    `gorm:"autoCreateTime" json:"created_at"`
 }
 

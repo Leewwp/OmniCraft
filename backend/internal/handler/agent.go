@@ -7,6 +7,7 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/repository"
@@ -19,6 +20,7 @@ import (
 type AgentHandler struct {
 	agentSvc *service.AgentService
 	cfg      *config.Config
+	db       *gorm.DB
 }
 
 func NewAgentHandler(db *gorm.DB, cfg *config.Config) *AgentHandler {
@@ -38,6 +40,7 @@ func NewAgentHandler(db *gorm.DB, cfg *config.Config) *AgentHandler {
 			cfg,
 		),
 		cfg: cfg,
+		db: db,
 	}
 }
 
@@ -183,6 +186,7 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": "agent not enabled"})
 		return
 	}
+	userID := middleware.GetUserID(c)
 	var body struct {
 		Messages []llm.ChatMessage `json:"messages" binding:"required"`
 	}
@@ -195,7 +199,7 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 	c.Header("Cache-Control", "no-cache")
 	c.Header("X-Accel-Buffering", "no")
 
-	err := h.agentSvc.ChatStream(c.Request.Context(), body.Messages, func(delta string, done bool, convID int64) error {
+	err := h.agentSvc.ChatStream(c.Request.Context(), userID, body.Messages, func(delta string, done bool, convID int64) error {
 		if done {
 			c.SSEvent("message", gin.H{"done": true, "conversation_id": convID})
 		} else if delta != "" {
@@ -207,4 +211,28 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 	if err != nil {
 		c.SSEvent("error", gin.H{"message": err.Error()})
 	}
+}
+
+func (h *AgentHandler) ListConversations(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	var conversations []model.AgentConversation
+	h.db.Where("user_id = ?", userID).Order("updated_at DESC").Limit(50).Find(&conversations)
+	c.JSON(http.StatusOK, gin.H{"conversations": conversations})
+}
+
+func (h *AgentHandler) GetConversationMessages(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	convID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid conversation id"})
+		return
+	}
+	var conv model.AgentConversation
+	if err := h.db.Where("id = ? AND user_id = ?", convID, userID).First(&conv).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "conversation not found"})
+		return
+	}
+	var messages []model.AgentMessage
+	h.db.Where("conversation_id = ?", convID).Order("created_at ASC").Find(&messages)
+	c.JSON(http.StatusOK, gin.H{"conversation": conv, "messages": messages})
 }

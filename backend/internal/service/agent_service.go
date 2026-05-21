@@ -403,13 +403,13 @@ func (s *AgentService) EmbedContentAsync(contentItemID int64, text string) {
 	})
 }
 
-func (s *AgentService) ChatStream(ctx context.Context, messages []llm.ChatMessage, handler func(delta string, done bool, conversationID int64) error) error {
+func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []llm.ChatMessage, handler func(delta string, done bool, conversationID int64) error) error {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return ErrAgentDisabled
 	}
 
 	conv := &model.AgentConversation{
-		UserID:      0,
+		UserID:      userID,
 		ContextType: "general",
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),

@@ -17,6 +17,7 @@ import (
 	"omnicraft/backend/internal/repository"
 
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 var (
@@ -599,4 +600,54 @@ func (s *ContentService) triggerVideoSnapshot(contentID int64, attachments []Att
 		}
 		s.invalidateContentCache(contentID)
 	})
+}
+
+func (s *ContentService) FlushDownloadCounts(ctx context.Context) error {
+	if s.rdb == nil {
+		return nil
+	}
+
+	members, err := s.rdb.ZRangeWithScores(ctx, "rank:download_counts", 0, -1).Result()
+	if err != nil {
+		return err
+	}
+
+	if len(members) == 0 {
+		return nil
+	}
+
+	batch := make(map[int64]int64)
+	for _, member := range members {
+		id, err := strconv.ParseInt(member.Member.(string), 10, 64)
+		if err != nil {
+			continue
+		}
+		batch[id] += int64(member.Score)
+	}
+
+	if len(batch) == 0 {
+		return nil
+	}
+
+	pipeline := s.rdb.Pipeline()
+	for id, delta := range batch {
+		pipeline.ZRem(ctx, "rank:download_counts", fmt.Sprintf("%d", id))
+		_ = delta
+	}
+	pipeline.Exec(ctx)
+
+	caseStmt := "download_count = CASE id "
+	var ids []int64
+	for id, delta := range batch {
+		caseStmt += fmt.Sprintf("WHEN %d THEN download_count + %d ", id, delta)
+		ids = append(ids, id)
+	}
+	caseStmt += "ELSE download_count END"
+
+	if err := s.contentRepo.DB().Model(&model.ContentItem{}).Where("id IN ?", ids).
+		UpdateColumn("download_count", gorm.Expr(caseStmt)).Error; err != nil {
+		slog.Error("[DownloadCountFlush] DB update error", "error", err)
+		return err
+	}
+	return nil
 }

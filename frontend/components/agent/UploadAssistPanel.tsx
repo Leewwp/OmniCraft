@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Sparkles, Loader2, Check } from "lucide-react";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -55,6 +56,7 @@ export function AgentUploadAssistPanel({
       setResult(data);
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+      silentError(e, { component: 'UploadAssistPanel', action: 'handleAnalyze' });
     } finally {
       setLoading(false);
     }

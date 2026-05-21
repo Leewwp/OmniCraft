@@ -222,6 +222,10 @@ func (h *SocialHandler) ReportContent(c *gin.Context) {
 		return
 	}
 	if err := h.socialSvc.Report("content", contentID, callerID, body.Reason, body.Detail); err != nil {
+		if err == service.ErrAlreadyReported {
+			c.JSON(http.StatusConflict, gin.H{"code": "ALREADY_REPORTED", "message": "you have already reported this content"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
 		return
 	}
@@ -248,6 +252,10 @@ func (h *SocialHandler) ReportComment(c *gin.Context) {
 		return
 	}
 	if err := h.socialSvc.Report("comment", commentID, callerID, body.Reason, body.Detail); err != nil {
+		if err == service.ErrAlreadyReported {
+			c.JSON(http.StatusConflict, gin.H{"code": "ALREADY_REPORTED", "message": "you have already reported this comment"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
 		return
 	}
@@ -311,10 +319,15 @@ func (h *FavoriteHandler) ListUserFavorites(c *gin.Context) {
 	}
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	favs, total, err := h.socialSvc.ListFavorites(userID, page, pageSize)
+	contentType := c.DefaultQuery("content_type", "")
+	favs, total, err := h.socialSvc.ListFavorites(userID, page, pageSize, contentType)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"favorites": favs, "total": total, "page": page, "page_size": pageSize})
+	totalPages := int64(0)
+	if pageSize > 0 {
+		totalPages = (total + int64(pageSize) - 1) / int64(pageSize)
+	}
+	c.JSON(http.StatusOK, gin.H{"favorites": favs, "total": total, "page": page, "page_size": pageSize, "total_pages": totalPages})
 }

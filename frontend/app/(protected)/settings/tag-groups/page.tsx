@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { Button } from "@/components/ui/button";
 import { Plus, Pencil, Trash2, X } from "lucide-react";
@@ -40,6 +41,7 @@ export default function TagGroupsPage() {
       const res = await api.get<{ tag_groups?: TagGroup[] }>("/api/v1/users/me/tag-groups");
       setGroups(res.tag_groups ?? []);
     } catch (e) {
+      silentError(e, { component: 'TagGroupsPage', action: 'loadGroups' });
       setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
     } finally {
       setLoading(false);
@@ -106,6 +108,7 @@ export default function TagGroupsPage() {
       setModalOpen(false);
       await loadGroups();
     } catch (e) {
+      silentError(e, { component: 'TagGroupsPage', action: 'handleSave' });
       setModalError(e instanceof ApiRequestError ? e.message : t("common.saveFailed"));
     } finally {
       setModalBusy(false);
@@ -119,6 +122,7 @@ export default function TagGroupsPage() {
       setDeleteTarget(null);
       await loadGroups();
     } catch (e) {
+      silentError(e, { component: 'TagGroupsPage', action: 'handleDelete' });
       setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
     } finally {
       setBusy(false);

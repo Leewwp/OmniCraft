@@ -120,3 +120,41 @@ func CredentialRateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.Han
 		c.Next()
 	}
 }
+
+func CommentEditRateLimit(rdb *redis.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if rdb == nil {
+			c.Next()
+			return
+		}
+
+		userID := GetUserID(c)
+		if userID == 0 {
+			c.Next()
+			return
+		}
+
+		limit := 5
+		window := time.Now().Unix() / 30
+		key := fmt.Sprintf("ratelimit:comment_edit:%d:%d", userID, window)
+
+		ctx := context.Background()
+		count, err := rdb.Incr(ctx, key).Result()
+		if err != nil {
+			c.Next()
+			return
+		}
+		if count == 1 {
+			rdb.Expire(ctx, key, 60*time.Second)
+		}
+		if int(count) > limit {
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"code":    "COMMENT_EDIT_RATE_LIMIT",
+				"message": "comment edit rate limit exceeded, please try again later",
+			})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}

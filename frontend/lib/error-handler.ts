@@ -17,11 +17,11 @@ export function handleApiError(
       return;
     }
     if (error.status === 403) {
-      options?.toast?.("error", "权限不足");
+      options?.toast?.("error", "Permission denied");
       return;
     }
     if (error.status >= 500) {
-      options?.toast?.("error", "服务器繁忙，请稍后重试");
+      options?.toast?.("error", "Server busy, please try again later");
       return;
     }
     console.error(`[api-error] ${context?.component}:${context?.action} — ${error.code}: ${error.message}`);
@@ -29,7 +29,7 @@ export function handleApiError(
   }
 
   if (error instanceof TypeError && error.message === "Failed to fetch") {
-    options?.toast?.("error", "网络连接失败，请检查网络");
+    options?.toast?.("error", "Network connection failed, please check your network");
     return;
   }
 

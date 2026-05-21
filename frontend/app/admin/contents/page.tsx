@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import Link from "next/link";
@@ -43,6 +44,7 @@ export default function AdminContentsPage() {
       setContents(data.contents || []);
       setTotal(data.total || 0);
     } catch (e) {
+      silentError(e, { component: 'AdminContentsPage', action: 'loadContents' });
       setError(e instanceof ApiRequestError ? e.message : t('admin.contents.loadFailed'));
     } finally {
       setLoading(false);
@@ -61,6 +63,7 @@ export default function AdminContentsPage() {
       setContents((prev) => prev.filter((c) => c.id !== id));
       setTotal((t) => t - 1);
     } catch (e) {
+      silentError(e, { component: 'AdminContentsPage', action: 'banContent' });
       setError(e instanceof ApiRequestError ? e.message : t('admin.contents.banFailed'));
     } finally {
       setBusy(false);

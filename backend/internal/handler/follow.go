@@ -67,6 +67,9 @@ func (h *FollowHandler) FollowIP(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
 		return
 	}
+	if h.notifSvc != nil {
+		h.notifSvc.Notify(0, "follow", "follow", "有人关注了你关注的IP", "", "ip", ipID, callerID)
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "followed"})
 }
 

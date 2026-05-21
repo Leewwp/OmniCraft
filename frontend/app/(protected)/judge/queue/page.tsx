@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import ReviewCard from "@/components/judge/ReviewCard";
@@ -46,6 +47,7 @@ export default function JudgeQueuePage() {
       setCurrentIndex(0);
       setVotedCaseId(null);
     } catch (e) {
+      silentError(e, { component: 'JudgeQueuePage', action: 'loadQueue' });
       setError(e instanceof ApiRequestError ? e.message : t('judge.loadQueueFailed'));
     } finally {
       setLoading(false);
@@ -69,6 +71,7 @@ export default function JudgeQueuePage() {
       });
       setVotedCaseId(caseId);
     } catch (e) {
+      silentError(e, { component: 'JudgeQueuePage', action: 'handleVote' });
       setError(e instanceof ApiRequestError ? e.message : t('judge.voteFailed'));
     } finally {
       setSubmitting(false);

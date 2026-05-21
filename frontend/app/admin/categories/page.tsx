@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 
@@ -53,6 +54,7 @@ export default function AdminCategoriesPage() {
       );
       setCategories(data.categories || []);
     } catch (e) {
+      silentError(e, { component: 'AdminCategoriesPage', action: 'loadCategories' });
       setError(e instanceof ApiRequestError ? e.message : t('admin.categories.loadFailed'));
     } finally {
       setLoading(false);
@@ -80,6 +82,7 @@ export default function AdminCategoriesPage() {
       setCreateValues({ zone: "fanwork", level: "category", parent_id: "", name_zh: "", name_en: "", slug: "", sort_order: "0" });
       await loadCategories();
     } catch (e) {
+      silentError(e, { component: 'AdminCategoriesPage', action: 'createCategory' });
       setError(e instanceof ApiRequestError ? e.message : t('admin.categories.createFailed'));
     } finally {
       setBusy(false);
@@ -99,6 +102,7 @@ export default function AdminCategoriesPage() {
       setEditingId(null);
       await loadCategories();
     } catch (e) {
+      silentError(e, { component: 'AdminCategoriesPage', action: 'updateCategory' });
       setError(e instanceof ApiRequestError ? e.message : t('admin.categories.updateFailed'));
     } finally {
       setBusy(false);
@@ -112,6 +116,7 @@ export default function AdminCategoriesPage() {
       await api.delete(`/api/v1/admin/categories/${id}`);
       await loadCategories();
     } catch (e) {
+      silentError(e, { component: 'AdminCategoriesPage', action: 'deleteCategory' });
       setError(e instanceof ApiRequestError ? e.message : t('admin.categories.deleteFailed'));
     } finally {
       setBusy(false);
@@ -138,6 +143,7 @@ export default function AdminCategoriesPage() {
     try {
       await api.put("/api/v1/admin/categories/reorder", { ids });
     } catch (e) {
+      silentError(e, { component: 'AdminCategoriesPage', action: 'saveReorder' });
       setError(e instanceof ApiRequestError ? e.message : t('admin.categories.sortFailed'));
       await loadCategories();
     }

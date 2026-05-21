@@ -1,4 +1,4 @@
-# OmniCraft UI 设计规格
+﻿# OmniCraft UI 设计规格
 
 > ℹ️ **生成状态**：本文件由 Gemini 批量生成，已完成初始内容填充。全局规范（Design Tokens、Interaction Patterns）和组件规范（Component 章节）可直接用于实现。以下偏差需 Agent 实现时注意：
 >
@@ -3898,3 +3898,375 @@ interface ContentTypeOption {
 
 **鐘舵€佸彉浣?*
 - disabled: EmptyState锛圡VP 榛樿锛夈€?- P1 enabled: 绱鏀剁泭鍗＄墖 + 瓒嬪娍鍥?+ 鎻愮幇鎸夐挳銆?
+
+
+---
+
+<!-- 以下是 Task 99-145 优化任务新增页面规格 -->
+
+## Page: /messages 通知中心（增强 -- Task 114-116）
+
+> 更新已有 `/messages` 页面规格，增加通知铃铛、未读计数、私信 SSE 实时消息功能。
+
+**新增/更新的核心组件**
+- `NotificationBell`（通知铃铛，置入 Header，Task 115）
+- `NotificationList`（通知列表，已有但需增加类型：comment、like、follow、system、mention、appeal_result、content_status）
+- `SSENotificationProvider`（SSE 实时推送 Provider，5 分钟间隔轮询兜底）
+
+**通知铃铛 -- NotificationBell 规格**
+- 位置：Header 右侧用户菜单前，图标 Bell + 未读计数 Badge（红色圆点或数字）
+- Badge 逻辑：`unread_count > 0` 时显示，`unread_count > 99` 时显示 `99+`
+- 点击：跳转 `/messages?tab=notifications`
+- 轮询：`GET /api/v1/notifications/unread-count`，5 分钟间隔
+- SSE：连接 `/api/v1/notifications/stream`（EventSource），实时更新未读数
+
+**通知列表增强规格**
+- 通知类型图标：comment / like / follow / system / mention / appeal_result / content_status
+- 通知内容：行动者头像 + 行动者用户名 + 通知文本 + 相对时间
+- 单条操作：hover 显示「标记已读」和「删除」按钮
+- 批量操作：顶部「全部标记已读」按钮
+- 分页：游标分页，滚动加载
+
+**私信增强规格（Task 116）**
+- 对话列表：左侧展示最近对话（对方头像 + 用户名 + 最新消息预览 + 未读数 Badge）
+- 对话窗口：右侧展示消息历史（按时间排列，自己消息靠右 bg-accent.emphasis，对方消息靠左 bg-canvas.subtle）
+- 消息输入：底部固定输入框 + 发送按钮，Enter 发送，Shift+Enter 换行
+- SSE 实时：使用 EventSource 订阅 `/api/v1/messages/stream` 实时接收新消息
+- 响应式：移动端单栏切换（列表或对话窗口全宽），平板和 PC 左右分栏
+
+## Page: /forgot-password 忘记密码（Task 117）
+
+**Key Constraints**
+- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 邮件发送限流：同一邮箱 60 秒内只能发送一次重置邮件。
+
+**视觉层级**
+- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 内容模块：邮箱输入表单卡片（带 1px border），居中展示
+
+**核心组件清单**
+- `Header`
+- `LoadingSpinner`（提交时按钮内嵌）
+- `EmptyState`（邮件发送成功提示）
+
+**布局规范**
+- 页面最大宽度：1280px
+- 表单卡片：最大宽度 400px，垂直水平居中
+- 区域间距（block）：32px (`space-y-8`)
+
+**状态变体**
+- default: 邮箱输入框 + 「发送重置链接」按钮 + 返回登录链接。
+- loading: 按钮内嵌 Spinner，输入框 disabled。
+- success: 邮件发送成功提示卡片（图标 + "重置链接已发送到您的邮箱" + 返回登录链接）。
+- error: 行内红字错误提示（邮箱格式错误、邮箱未注册、发送过于频繁等）。
+- 特殊状态：已登录用户自动跳转首页。
+
+**响应式规则**
+- 移动 (<=700px): 表单卡片全宽（margin 16px），padding 20px。
+- 平板 (<=1100px): 表单卡片最大宽度 400px，居中。
+- PC (>1100px): 表单卡片最大宽度 400px，居中，两侧留白。
+
+**暗色模式适配**
+- 背景色 token: `canvas.default` -> `canvas.default.dark`
+- 边框色 token: `border.default` -> `border.default.dark`
+- 文字色 token: `fg.default` -> `fg.default.dark`
+
+**交互细节**
+- 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
+- 破坏性操作必须 ConfirmModal 二次确认。
+- 邮箱提交后 60 秒倒计时禁用按钮，防止重复发送。
+
+## Page: /reset-password 重置密码（Task 117）
+
+**Key Constraints**
+- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- token 有效期 1 小时，过期需重新申请。
+
+**视觉层级**
+- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 内容模块：新密码 + 确认密码输入表单卡片
+
+**核心组件清单**
+- `Header`
+- `LoadingSpinner`（提交时按钮内嵌）
+
+**布局规范**
+- 页面最大宽度：1280px
+- 表单卡片：最大宽度 400px，垂直水平居中
+- 区域间距（block）：32px (`space-y-8`)
+
+**状态变体**
+- default: 新密码 + 确认密码输入框 + 「重置密码」按钮。
+- loading: 按钮内嵌 Spinner，输入框 disabled。
+- success: 密码重置成功 -> 自动登录 -> 跳转首页（3 秒倒计时提示）。
+- error: 行内红字错误提示（密码长度不足、两次密码不一致、token 无效或过期等）。
+- 特殊状态：token 无效或过期时显示「链接已失效，请重新申请重置」EmptyState + 跳转 `/forgot-password`。
+
+**响应式规则**
+- 移动 (<=700px): 表单卡片全宽（margin 16px），padding 20px。
+- 平板 (<=1100px): 表单卡片最大宽度 400px，居中。
+- PC (>1100px): 表单卡片最大宽度 400px，居中，两侧留白。
+
+**暗色模式适配**
+- 背景色 token: `canvas.default` -> `canvas.default.dark`
+- 边框色 token: `border.default` -> `border.default.dark`
+- 文字色 token: `fg.default` -> `fg.default.dark`
+
+**交互细节**
+- 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
+- 密码强度指示器：实时显示密码强度（弱/中/强），使用 `fg.danger` / `fg.muted` / `accent.emphasis` 颜色。
+- 重置成功后自动调用登录 API，无需用户再次输入密码。
+
+## Page: /collections/[collectionId] 收藏集详情（Task 122-124）
+
+**Key Constraints**
+- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 私有收藏集仅创建者可见；公开收藏集所有登录用户可浏览。
+
+**视觉层级**
+- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 内容模块：收藏集信息卡片 + 内容筛选 + 瀑布流内容列表
+
+**核心组件清单**
+- `Header`
+- `CollectionInfoCard`（封面、标题、描述、作者、内容数、可见性 Badge）
+- `ContentTypeFilter`（按 content_type 筛选：全部/图文/视频/音频/模板...）
+- `ContentCard`
+- `MasonryGrid`
+- `EmptyState`
+- `LoadingSpinner`
+
+**布局规范**
+- 页面最大宽度：1280px，居中
+- 收藏集信息卡片 -> 筛选栏 -> 瀑布流内容
+- 区域间距（block）：24px (`space-y-6`)
+- 元素间距（inline）：16px (`gap-4`)
+
+**状态变体**
+- default: 收藏集信息 + 筛选标签 + 内容瀑布流。
+- loading: 骨架屏（Skeleton 灰色块）。
+- empty: 收藏集信息 + "收藏集为空" EmptyState（创建者显示「去添加内容」CTA）。
+- error: 收藏集不存在 404 EmptyState。
+- 特殊状态：未登录访问私有收藏集 -> 403 EmptyState。
+
+**响应式规则**
+- 移动 (<=700px): 瀑布流 2 列，筛选标签横向滚动。
+- 平板 (<=1100px): 瀑布流 3 列，筛选标签横向滚动。
+- PC (>1100px): 瀑布流 4 列，筛选标签居中。
+
+**暗色模式适配**
+- 背景色 token: `canvas.default` -> `canvas.default.dark`
+- 边框色 token: `border.default` -> `border.default.dark`
+- 文字色 token: `fg.default` -> `fg.default.dark`
+- 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
+
+**交互细节**
+- 筛选标签点击：切换 content_type 过滤（`router.push` 更新 URL query）。
+- 创建者操作：收藏集信息区域显示「编辑」和「删除」按钮（删除需 ConfirmModal）。
+- 内容卡片右下角：创建者视角显示「移除」按钮（小号，低视觉权重）。
+- 添加内容：仅在创建者视角，内容详情页 ReactionBar 区显示「添加到收藏集」按钮。
+
+## Page: /user/[userId]/collections 用户收藏集列表（Task 122-123）
+
+**Key Constraints**
+- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 私有收藏集仅创建者可见。
+
+**视觉层级**
+- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 内容模块：收藏集网格列表
+
+**核心组件清单**
+- `Header`
+- `CollectionCard`（封面缩略图 + 标题 + 内容数 + 可见性 Badge）
+- `EmptyState`
+- `LoadingSpinner`
+
+**布局规范**
+- 页面最大宽度：960px，居中
+- 收藏集卡片网格：`grid grid-cols-2 md:grid-cols-3 gap-4`
+- 区域间距（block）：24px (`space-y-6`)
+
+**状态变体**
+- default: 收藏集网格列表 + 「新建收藏集」按钮（仅自己的主页显示）。
+- loading: 骨架屏（Skeleton 灰色块网格）。
+- empty: "还没有收藏集" EmptyState + 新建 CTA（自己的主页）或 空状态文本（他人主页）。
+- error: Toast 右上角报错。
+- 特殊状态：他人主页只显示公开收藏集；自己主页显示所有收藏集。
+
+**响应式规则**
+- 移动 (<=700px): 网格 2 列。
+- 平板 (<=1100px): 网格 3 列。
+- PC (>1100px): 网格 3 列，最大宽度 960px。
+
+**暗色模式适配**
+- 背景色 token: `canvas.default` -> `canvas.default.dark`
+- 边框色 token: `border.default` -> `border.default.dark`
+- 文字色 token: `fg.default` -> `fg.default.dark`
+
+**交互细节**
+- 收藏集卡片点击：跳转 `/collections/[id]`。
+- 「新建收藏集」按钮：弹出 Modal（标题输入 + 公开/私有选择 + 创建按钮）。
+- 卡片 hover：轻微上浮 `hover:-translate-y-1` + border 颜色加深。
+
+## Component: CollectionCard 收藏集卡片（Task 122-123）
+
+**Key Constraints**
+- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
+- 所有间距（gap/padding/margin）使用 Tailwind 类名。
+
+**Props 接口**
+``ts
+interface CollectionCardProps {
+  className?: string;
+  collection: {
+    id: number;
+    title: string;
+    description?: string;
+    is_public: boolean;
+    item_count: number;
+    cover_url?: string;
+    created_at: string;
+  };
+  isOwner?: boolean;
+  isLoading?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}
+``
+
+**视觉结构**
+- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default overflow-hidden cursor-pointer group">`
+- 封面区: 3:2 比例容器，`object-cover` 图片填满；无封面时使用集合 SVG 占位图
+- 信息区: `p-3`，标题（`text-sm font-medium line-clamp-1`）-> 内容数 + 可见性 Badge行（`text-xs text-fg.muted`）
+- 可见性 Badge: 公开 `text-fg.muted` + unlocked图标；私有 `text-fg.muted` + locked图标
+- 悬停: `group-hover:-translate-y-1 transition-transform duration-200`
+
+**尺寸规范**
+- 卡片: 自适应宽度，padding 12px (p-3)
+- 封面区: aspect-ratio 3:2
+- 字号: `text-sm` (14px) 标题，`text-xs` (12px) 辅助信息
+- 间距: 元素间隙 4px (`gap-1`) 或 8px (`gap-2`)
+
+**状态变体**
+- default: `bg-canvas.default text-fg.default`
+- hover: 边框颜色加深 + 轻微上浮
+- loading: SkeletonCard 占位
+- empty: 不渲染（由父级处理 EmptyState）
+
+**暗色模式适配**
+- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+
+**关键交互**
+- 整卡可点击跳转 `/collections/[id]`
+- 创建者视角：hover 时右上角显示编辑/删除按钮（低视觉权重，`opacity-0 group-hover:opacity-100`）
+
+## Component: DownloadButton 下载按钮（Task 121）
+
+**Key Constraints**
+- 信誉分 < 3 用户：下载按钮 disabled，hover tooltip 提示「信誉分不足」。
+- 封禁用户：下载按钮 disabled，tooltip 提示「账号已被封禁」。
+- 遵守全局扁平化无阴影设计规范。
+- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+
+**Props 接口**
+``ts
+interface DownloadButtonProps {
+  className?: string;
+  contentId: number;
+  contentTitle: string;
+  contentType: string;
+  isDisabled?: boolean;
+  disableReason?: string;
+  onDownloadComplete?: () => void;
+}
+``
+
+**视觉结构**
+- 按钮: `<button className="inline-flex items-center gap-2 px-4 py-2 border border-border.default rounded-md bg-canvas.default text-sm font-medium hover:bg-canvas.subtle transition-colors">`
+- 图标: `<Icon name="download" className="w-4 h-4" />`
+- 文字: "下载" 或 content_type 对应的文字（如 "下载乐谱"）
+
+**尺寸规范**
+- 按钮高度: `h-9` (36px)
+- 内间距: `px-4 py-2`
+- 字号: `text-sm` (14px)
+- 图标: `w-4 h-4` (16px)
+
+**状态变体**
+- default: `bg-canvas.default text-fg.default border-border.default`
+- hover: `hover:bg-canvas.subtle hover:border-border.emphasis`
+- active: `active:bg-canvas.muted scale-95`
+- disabled: `opacity-50 cursor-not-allowed`，hover 显示 tooltip 提示原因
+- loading: Spinner 替换图标，文字变为 "下载中..."
+
+**暗色模式适配**
+- 全局切换暗色类后组件自动映射 token 变量。
+
+**关键交互**
+- 点击 -> 调用 `GET /api/v1/contents/:id/download` -> 获取 OSS 签名 URL -> 触发浏览器下载
+- 下载完成后 `download_count + 1`（异步，不影响用户操作）
+- 信誉分不足时按钮 disabled + tooltip 显示「信誉分不足，无法下载」
+
+## Component: AddToCollectionModal 添加到收藏集（Task 122-124）
+
+**Key Constraints**
+- 遵守全局扁平化无阴影设计规范，Modal 使用 `shadow-md`（唯一允许阴影的组件）。
+- 同一收藏集内不允许重复添加同一内容。
+
+**Props 接口**
+``ts
+interface AddToCollectionModalProps {
+  className?: string;
+  contentId: number;
+  contentTitle: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onAdded?: (collectionId: number) => void;
+}
+``
+
+**视觉结构**
+- 遮罩: `<div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">`
+- Modal 容器: `<div className="bg-canvas.default rounded-lg shadow-md max-w-md w-full mx-auto p-6">`
+- 标题: `<h2 className="text-lg font-medium text-fg.default">` 添加到收藏集
+- 收藏集列表: 每项 `button border border-border.default rounded-md p-3 hover:bg-canvas.subtle flex items-center gap-3`
+  - 左侧: 收藏集标题 + 内容数
+  - 右侧: 已添加 check 标记 或 添加 plus 按钮
+- 底部: 「新建收藏集」按钮 + 「取消」按钮
+
+**尺寸规范**
+- Modal 最大宽度: 448px (`max-w-md`)
+- 内间距: `p-6` (24px)
+- 列表项间距: `gap-2` (8px)
+- 字号: `text-lg` (18px) 标题，`text-sm` (14px) 列表项，`text-xs` (12px) 辅助
+
+**状态变体**
+- default: 收藏集列表展示，可点击添加。
+- loading: 添加中 Spinner。
+- error: 数据加载失败 Toast。
+- added: 列表项显示 check 已添加标记，不可重复点击。
+- full: 收藏集列表为空时展示 EmptyState + 创建 CTA。
+
+**响应式行为**
+- 移动: Modal 全宽（m-4），`max-w-full`。
+- 平板/PC: `max-w-md` 居中。
+
+**暗色模式适配**
+- 遮罩: `bg-black/50` 不变。
+- Modal 容器: `bg-canvas.default.dark` (token 自动映射)。
+
+**关键交互**
+- 点击收藏集 -> `POST /api/v1/collections/:id/items` -> 成功后该项显示 check
+- 点击「新建收藏集」-> 弹出新建收藏集子 Modal（标题 + 公开/私有选择）
+- 重复添加：前端灰显 + 禁止点击，后端 UNIQUE 约束兜底返回 409
+- ESC 或点击遮罩 -> 关闭 Modal

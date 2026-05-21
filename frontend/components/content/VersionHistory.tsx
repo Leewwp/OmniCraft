@@ -3,6 +3,7 @@
 import { useTranslations, useLocale } from "next-intl";
 import { useEffect, useState } from "react";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
@@ -48,6 +49,7 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
       setVersions(data.versions || []);
     } catch (e) {
       setError(e instanceof ApiRequestError ? `${e.code}: ${e.message}` : t('content.versionLoadFailed'));
+      silentError(e, { component: 'VersionHistory', action: 'loadVersions' });
     } finally {
       setLoading(false);
     }
@@ -58,8 +60,9 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
     try {
       const data = await api.get<VersionContent>(`/api/v1/versions/${version.id}`);
       setPreview({ version, content: data.content || t('common.noData') });
-    } catch {
+    } catch (e) {
       setError(t('content.versionContentLoadFailed'));
+      silentError(e, { component: 'VersionHistory', action: 'previewVersion' });
     } finally {
       setBusy(false);
     }
@@ -75,8 +78,9 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
         base_version_id: version.id,
       });
       await loadVersions();
-    } catch {
+    } catch (e) {
       setError(t('content.versionRestoreFailed'));
+      silentError(e, { component: 'VersionHistory', action: 'rollbackToVersion' });
     } finally {
       setBusy(false);
     }

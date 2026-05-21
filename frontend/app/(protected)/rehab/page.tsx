@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { BookOpen, Check, Clock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -45,6 +46,7 @@ export default function RehabPage() {
       setCourses(coursesRes.courses ?? []);
       setCompletions(progressRes.completions ?? []);
     } catch (e) {
+      silentError(e, { component: 'RehabPage', action: 'loadData' });
       setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
     } finally {
       setLoading(false);
@@ -68,7 +70,8 @@ export default function RehabPage() {
         const e = Math.floor((Date.now() - start) / 1000);
         setElapsed(e);
       }, 1000);
-    } catch {
+    } catch (e) {
+      silentError(e, { component: 'RehabPage', action: 'handleStart' });
       setActiveId(null);
       setStartTime(null);
     }
@@ -83,6 +86,7 @@ export default function RehabPage() {
       setStartTime(null);
       await loadData();
     } catch (e) {
+      silentError(e, { component: 'RehabPage', action: 'handleComplete' });
       setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
     } finally {
       setCompletingId(null);

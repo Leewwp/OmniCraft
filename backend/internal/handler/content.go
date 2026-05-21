@@ -22,12 +22,13 @@ import (
 )
 
 type ContentHandler struct {
-	contentSvc  *service.ContentService
-	contentRepo *repository.ContentRepository
-	ossSvc      *service.OSSService
-	ossInitErr  error
-	rdb         *redis.Client
-	cfg         *config.Config
+	contentSvc      *service.ContentService
+	contentRepo     *repository.ContentRepository
+	browseHistoryRepo *repository.BrowseHistoryRepository
+	ossSvc          *service.OSSService
+	ossInitErr      error
+	rdb             *redis.Client
+	cfg             *config.Config
 }
 
 func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *ContentHandler {
@@ -43,12 +44,13 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 	contentSvc.SetRecommendationService(recSvc)
 
 	return &ContentHandler{
-		contentSvc:  contentSvc,
-		contentRepo: repo,
-		ossSvc:      ossSvc,
-		ossInitErr:  ossErr,
-		rdb:         rdb,
-		cfg:         cfg,
+		contentSvc:        contentSvc,
+		contentRepo:       repo,
+		browseHistoryRepo: repository.NewBrowseHistoryRepository(db),
+		ossSvc:            ossSvc,
+		ossInitErr:        ossErr,
+		rdb:               rdb,
+		cfg:               cfg,
 	}
 }
 
@@ -203,14 +205,21 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 	}
 	h.contentSvc.IncrViewCount(id)
 
+	userID := middleware.GetUserID(c)
+	if userID > 0 {
+		if err := h.browseHistoryRepo.Upsert(userID, id); err != nil {
+			slog.Error("failed to record browse history", "user_id", userID, "content_id", id, "error", err)
+		}
+	}
+
 	attachments, err := h.contentRepo.GetAttachments(id)
 	if err != nil {
 		slog.Error("failed to get attachments", "content_id", id, "error", err)
 		attachments = nil
 	}
-	tags, err := h.contentRepo.GetTags(id)
-	if err != nil {
-		slog.Error("failed to get tags", "content_id", id, "error", err)
+	tags, err2 := h.contentRepo.GetTags(id)
+	if err2 != nil {
+		slog.Error("failed to get tags", "content_id", id, "error", err2)
 		tags = nil
 	}
 
@@ -220,11 +229,11 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 		"tags":        tags,
 	}
 
-	userID := middleware.GetUserID(c)
-	if userID > 0 {
+	currentUserID := middleware.GetUserID(c)
+	if currentUserID > 0 {
 		var count int64
 		h.contentRepo.DB().Model(&model.Favorite{}).
-			Where("user_id = ? AND content_item_id = ?", userID, id).
+			Where("user_id = ? AND content_item_id = ?", currentUserID, id).
 			Count(&count)
 		resp["is_favorited"] = count > 0
 	}

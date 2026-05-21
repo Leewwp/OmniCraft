@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { Clock, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 
 interface ContentItem {
   id: number;
@@ -77,6 +78,7 @@ export default function HistoryPage() {
           });
         }
       } catch (e) {
+        silentError(e, { component: 'HistoryPage', action: 'load' });
         if (e instanceof ApiRequestError && e.status === 401) {
           router.push("/login");
         }
@@ -97,6 +99,8 @@ export default function HistoryPage() {
       await api.delete("/api/v1/users/me/history");
       setGroups([]);
       setTotal(0);
+    } catch (e) {
+      silentError(e, { component: 'HistoryPage', action: 'handleClear' });
     } finally {
       setClearing(false);
       setConfirmClear(false);

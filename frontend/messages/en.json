@@ -30,6 +30,7 @@
     "userLabel": "User #{id}",
     "unknown": "Unknown content",
     "clickToView": "View",
+    "manage": "Manage",
     "pageNumber": "Page {current}",
     "units": {
       "days": "days",
@@ -58,7 +59,9 @@
     "langZh": "中文",
     "langEn": "English",
     "publish": "Publish",
-    "notifications": "Notifications"
+    "notifications": "Notifications",
+    "favorites": "My Favorites",
+    "myOriginal": "My Originals"
   },
   "auth": {
     "welcomeBack": "Welcome back",
@@ -162,7 +165,14 @@
     "activeIpsLabel": "Active IPs",
     "creatorsLabel": "Creators",
     "recommendedIps": "Recommended IPs",
-    "browseAllIps": "Browse all IPs →"
+    "browseAllIps": "Browse all IPs →",
+    "trendingTopics": "Trending Topics · This Week",
+    "trending1": "#SpringOutfitChallenge",
+    "trending2": "#WeekendKitchenDiary",
+    "trending3": "#DeskMakeover",
+    "trending4": "#DailyCats",
+    "trending5": "#MinimalLiving",
+    "trendingParticipants": "participants"
   },
   "content": {
     "originalZone": "Original Zone",
@@ -956,6 +966,37 @@
         "mod": "Supports zip archive, max 500MB",
         "video": "Max 300MB, duration ≤ 180s",
         "image": "Max 20MB"
+      },
+      "typeLabel": {
+        "image": "Image",
+        "video": "Video",
+        "article": "Article",
+        "audio": "Audio",
+        "sheet_music": "Sheet Music",
+        "template": "Template",
+        "prompt": "AI Prompt",
+        "mod": "Mod",
+        "other": "Other"
+      },
+      "typeDescOriginal": {
+        "image": "Photography, illustrations, design works",
+        "video": "Short films, Vlogs, tutorials",
+        "article": "Essays, tutorials, stories",
+        "audio": "Music, podcasts, covers",
+        "sheet_music": "Original scores, arrangements",
+        "template": "Notion, Excel and other templates",
+        "prompt": "Prompt template sharing",
+        "other": "Other original content"
+      },
+      "typeDescFanwork": {
+        "image": "Fan art, cosplay photography",
+        "video": "MAD, AMV, edits",
+        "article": "Fan fiction, analysis, reviews",
+        "audio": "Covers, remixes, dubbing",
+        "sheet_music": "Theme song arrangements",
+        "mod": "Game mods, texture packs",
+        "prompt": "Character LoRA prompts",
+        "other": "Other fan creation content"
       }
     },
     "overview": {
@@ -971,13 +1012,23 @@
       "pendingTasks": "Pending Tasks",
       "noPending": "No pending tasks"
     },
+    "chart": {
+      "noViewsData": "Insufficient data to display trend",
+      "viewsTrendTitle": "Views Trend (Last 30 Days)"
+    },
     "followers": {
       "title": "Followers",
       "subtitle": "Understand your follower growth",
       "totalFollowers": "Total Followers",
       "newThisMonth": "New This Month",
       "lostThisMonth": "Lost This Month",
-      "chartPlaceholder": "Follower trends chart will be shown when data is available (P1)"
+      "chartPlaceholder": "Follower trends chart will be shown when data is available (P1)",
+      "noTrendData": "No follower trend data available",
+      "trendTitle": "Follower Growth Trend (Last 30 Days)",
+      "newFollowers": "New Followers",
+      "netFollowers": "Net Followers",
+      "noSourceData": "No follower source data available",
+      "sourceTitle": "Follower Source Distribution"
     },
     "contents": {
       "title": "My Content",

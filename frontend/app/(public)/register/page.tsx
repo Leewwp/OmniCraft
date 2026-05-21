@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useTranslations } from 'next-intl';
+import { silentError } from "@/lib/error-handler";
 
 interface RegisterResponse {
   user: {
@@ -64,6 +65,7 @@ export default function RegisterPage() {
       saveTokens(data.tokens.access_token, data.tokens.refresh_token);
       window.location.href = "/";
     } catch (err) {
+      silentError(err, { component: 'RegisterPage', action: 'handleSubmit' });
       if (err instanceof ApiRequestError) {
         if (err.code === "USER_EXISTS") {
           setErrors({ email: t('auth.errorEmailTaken') });

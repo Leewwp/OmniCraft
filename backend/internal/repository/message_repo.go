@@ -18,8 +18,8 @@ func (r *MessageRepository) FindOrCreateConversation(userA, userB int64) (int64,
 	var convID int64
 	err := r.db.Raw(`
 		SELECT c.id FROM conversations c
-		JOIN conversation_participants p1 ON p1.conversation_id = c.id AND p1.user_id = ?
-		JOIN conversation_participants p2 ON p2.conversation_id = c.id AND p2.user_id = ?
+		JOIN conversation_participants p1 ON p1.conversation_id = c.id AND p1.user_id = ? AND p1.left_at IS NULL
+		JOIN conversation_participants p2 ON p2.conversation_id = c.id AND p2.user_id = ? AND p2.left_at IS NULL
 		LIMIT 1
 	`, userA, userB).Scan(&convID).Error
 	if err != nil {
@@ -44,7 +44,7 @@ func (r *MessageRepository) FindOrCreateConversation(userA, userB int64) (int64,
 func (r *MessageRepository) ListConversations(userID int64, page, pageSize int) ([]model.Conversation, error) {
 	var convIDs []int64
 	r.db.Model(&model.ConversationParticipant{}).
-		Select("conversation_id").Where("user_id = ?", userID).
+		Select("conversation_id").Where("user_id = ? AND left_at IS NULL", userID).
 		Pluck("conversation_id", &convIDs)
 
 	var conversations []model.Conversation
@@ -92,7 +92,7 @@ func (r *MessageRepository) Send(senderID, convID int64, body string) (*model.Me
 func (r *MessageRepository) IsParticipant(userID, convID int64) (bool, error) {
 	var count int64
 	err := r.db.Model(&model.ConversationParticipant{}).
-		Where("user_id = ? AND conversation_id = ?", userID, convID).
+		Where("user_id = ? AND conversation_id = ? AND left_at IS NULL", userID, convID).
 		Count(&count).Error
 	return count > 0, err
 }
@@ -112,6 +112,7 @@ func (r *MessageRepository) DeleteMessage(msgID, userID int64) error {
 }
 
 func (r *MessageRepository) LeaveConversation(convID, userID int64) error {
-	return r.db.Where("conversation_id = ? AND user_id = ?", convID, userID).
-		Delete(&model.ConversationParticipant{}).Error
+	return r.db.Model(&model.ConversationParticipant{}).
+		Where("conversation_id = ? AND user_id = ?", convID, userID).
+		Update("left_at", gorm.Expr("NOW()")).Error
 }

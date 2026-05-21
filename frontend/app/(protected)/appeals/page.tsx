@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -39,6 +40,7 @@ export default function AppealsPage() {
       const data = await api.get<{ appeals?: Appeal[] }>("/api/v1/appeals/me");
       setAppeals(data.appeals || []);
     } catch (e) {
+      silentError(e, { component: 'AppealsPage', action: 'loadAppeals' });
       setError(e instanceof ApiRequestError ? e.message : t('common.loadFailed'));
     } finally {
       setLoading(false);
@@ -58,6 +60,7 @@ export default function AppealsPage() {
       setForm({ target_type: "content", target_id: "", reason: "" });
       void loadAppeals();
     } catch (e) {
+      silentError(e, { component: 'AppealsPage', action: 'submitAppeal' });
       setError(e instanceof ApiRequestError ? e.message : t('appeals.submitFailed'));
     } finally {
       setSubmitting(false);

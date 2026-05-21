@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { silentError } from "@/lib/error-handler";
 
 export default function NewDiscussionPage() {
   const t = useTranslations();
@@ -29,6 +30,7 @@ export default function NewDiscussionPage() {
       if (discId) router.push(`/ip/${ipId}/discussions/${discId}`);
       else router.push(`/ip/${ipId}/discussions`);
     } catch (e) {
+      silentError(e, { component: 'NewDiscussionPage', action: 'handleSubmit' });
       setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
     } finally {
       setBusy(false);

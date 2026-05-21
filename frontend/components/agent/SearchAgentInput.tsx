@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Search, Loader2, Sparkles, ArrowLeft } from "lucide-react";
 import { api } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +46,7 @@ export function SearchAgentInput({ onResults, className }: SearchAgentInputProps
     } catch (e) {
       if (!controller.signal.aborted) {
         setError((e as Error).message || t("common.operationFailed"));
+        silentError(e, { component: 'SearchAgentInput', action: 'handleSearch' });
       }
     } finally {
       if (!controller.signal.aborted) setLoading(false);

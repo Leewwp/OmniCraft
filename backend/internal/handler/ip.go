@@ -16,14 +16,16 @@ import (
 )
 
 type IPHandler struct {
-	ipSvc       *service.IPService
-	contentRepo *repository.ContentRepository
+	ipSvc          *service.IPService
+	contentRepo    *repository.ContentRepository
+	discussionRepo *repository.DiscussionRepository
 }
 
 func NewIPHandler(db *gorm.DB) *IPHandler {
 	return &IPHandler{
-		ipSvc:       service.NewIPService(repository.NewIPRepository(db)),
-		contentRepo: repository.NewContentRepository(db),
+		ipSvc:          service.NewIPService(repository.NewIPRepository(db)),
+		contentRepo:    repository.NewContentRepository(db),
+		discussionRepo: repository.NewDiscussionRepository(db),
 	}
 }
 
@@ -31,8 +33,9 @@ func NewIPHandlerWithCache(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *
 	reputSvc := service.NewReputationService(db)
 	reviewSvc := service.NewReviewService(db, rdb, cfg, reputSvc)
 	return &IPHandler{
-		ipSvc:       service.NewIPServiceWithReview(repository.NewIPRepository(db), rdb, &cfg.Cache, reviewSvc),
-		contentRepo: repository.NewContentRepository(db),
+		ipSvc:          service.NewIPServiceWithReview(repository.NewIPRepository(db), rdb, &cfg.Cache, reviewSvc),
+		contentRepo:    repository.NewContentRepository(db),
+		discussionRepo: repository.NewDiscussionRepository(db),
 	}
 }
 
@@ -132,13 +135,4 @@ func (h *IPHandler) GetIPContents(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"contents": items, "total": total, "page": page, "page_size": pageSize})
 }
 
-func (h *IPHandler) GetIPDiscussions(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid ip id"})
-		return
-	}
 
-	_ = id
-	c.JSON(http.StatusOK, gin.H{"discussions": []interface{}{}, "total": 0})
-}

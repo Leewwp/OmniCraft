@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useTranslations } from 'next-intl';
+import { silentError } from "@/lib/error-handler";
 
 function LoginPageContent() {
   const t = useTranslations();
@@ -34,6 +35,7 @@ function LoginPageContent() {
       const redirect = searchParams.get("redirect") || "/";
       router.push(redirect);
     } catch (err) {
+      silentError(err, { component: 'LoginPage', action: 'handleSubmit' });
       if (err instanceof ApiRequestError) {
         if (err.code === "INVALID_CREDENTIALS") {
           setError(t('auth.errorInvalidCredentials'));

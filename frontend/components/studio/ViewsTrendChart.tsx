@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import {
   LineChart,
   Line,
@@ -15,10 +16,12 @@ interface ViewsTrendChartProps {
 }
 
 export function ViewsTrendChart({ data }: ViewsTrendChartProps) {
+  const t = useTranslations("studio");
+
   if (data.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center rounded-lg border border-border bg-card text-sm text-muted-foreground">
-        数据不足，暂无法显示趋势
+        {t("chart.noViewsData")}
       </div>
     );
   }
@@ -26,7 +29,7 @@ export function ViewsTrendChart({ data }: ViewsTrendChartProps) {
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="mb-3 text-sm font-medium text-foreground">
-        访问量趋势（近 30 天）
+        {t("chart.viewsTrendTitle")}
       </h3>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={data} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>

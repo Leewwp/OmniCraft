@@ -1,19 +1,17 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change    : 1.1.0 → 1.1.1 (PATCH — design spec authority added)
+Version change    : 1.1.1 → 1.2.0 (MINOR — new principles & specifications added)
 Modified sections :
-  Principle I   — added pgvector to approved stack (zero new infra, part of PostgreSQL)
-  Principle V   — added web_agent_enabled to defined feature flags
-  Principle X   — added AGENT_LLM_API_KEY to env var list
-  New: § XIII Web Agent Constraints (LLM provider abstraction, tool whitelist,
-       SSE, pgvector pipeline, rate limiting, feature scope)
-  New: § XIV UI Design Spec Authority (design/ui-spec.md as visual authority,
-       ui_spec_ref field in task.json, CLAUDE.md Rules 14-15)
+  Principle VI   — expanded: admin config leak prevention, CORS policy, auth state check, error message sanitization
+  Principle XV    — NEW: Security Hardening (Task 99–105 specifications)
+  Principle XVI   — NEW: Performance & Reliability (Task 128–130, 135, 141–143 specifications)
+  Principle XVII  — NEW: Data Integrity & Soft Delete (Task 103, 127 specifications)
+  Principle XVIII — NEW: Request Validation & i18n (Task 108, 110 specifications)
 Templates updated :
-  ⚠ .specify/templates/plan-template.md   — PENDING (not yet created)
-  ⚠ .specify/templates/spec-template.md   — PENDING (not yet created)
-  ⚠ .specify/templates/tasks-template.md  — PENDING (not yet created)
+  ⚠ .specify/templates/plan-template.md   — PENDING
+  ⚠ .specify/templates/spec-template.md    — PENDING
+  ⚠ .specify/templates/tasks-template.md   — PENDING
 Deferred TODOs    : none
 -->
 
@@ -101,6 +99,20 @@ before merging. No library may be introduced for convenience if the standard lib
   bytes through itself
 - User passwords MUST be hashed with bcrypt (cost ≥ 12); plaintext or MD5/SHA1 storage is FORBIDDEN
 - Rate limiting MUST be applied to auth endpoints (login, register) via Redis sliding-window counter
+- **Admin config leak prevention (Task 99)**: `GET /api/v1/admin/config` responses MUST mask sensitive
+  fields (JWT secrets, OSS keys, LLM API keys) as `***REDACTED***`; the frontend Admin settings page
+  MUST NOT depend on full secret values for rendering (display masked values or "configured" status only)
+- **CORS hardening (Task 100)**: Production `AllowedOrigins` MUST be read from
+  `config.yaml > security.allowed_origins`; wildcard `*` is FORBIDDEN in production; the CORS
+  middleware MUST be mounted before route registration
+- **Auth state real-time check (Task 101)**: Protected-route auth middleware MUST check both
+  `users.is_banned` and `users.role` on every request; ban or role changes MUST take effect on
+  the next request (no reliance on client-side cache); the frontend `AuthProvider` MUST
+  silently poll `GET /api/v1/auth/me` at a 5-minute interval to refresh user state
+- **Error message sanitization (Task 102)**: `err.Error()` MUST NOT appear in API responses or
+  frontend UI; backend MUST use the standard error envelope `{ "code": "ERROR_CODE", "message":
+  "user-friendly description" }`; frontend MUST display errors via toast, never via
+  `console.error(err)` to end users
 
 ### VII. Performance Standards
 
@@ -250,6 +262,93 @@ web Agent implementation:
 - Design specifications take precedence over prose descriptions in `steps`
 - If `design/ui-spec.md` section is empty, implement based on `steps` and add comments
 
+### XV. Security Hardening
+
+Applies to Tasks 99–105. These specifications are non-negotiable for production deployment:
+
+- **Admin config leak prevention (Task 99)**: API responses containing admin configuration MUST mask
+  sensitive fields. The following categories of fields MUST be redacted in `GET /api/v1/admin/config`
+  responses: JWT signing keys, OSS access keys/secrets, LLM API keys, database passwords, and any
+  other fields tagged as `sensitive` in the configuration schema. Redacted fields MUST return the
+  literal string `***REDACTED***`. The frontend MUST function correctly with redacted values (e.g.,
+  showing "已配置" status instead of the actual key).
+- **CORS policy (Task 100)**: The origin allowlist MUST be loaded from `config.yaml > security.
+  allowed_origins` as an array. Wildcard `*` is FORBIDDEN in any non-development environment.
+  The CORS middleware MUST be registered in the Gin router before route handlers to ensure it
+  applies to all responses including error responses.
+- **Auth real-time state check (Task 101)**: The `AuthMiddleware` MUST verify `is_banned = false`
+  and `role` on every protected-route request. Ban or role changes MUST NOT require user
+  re-login to take effect. The frontend `AuthProvider` MUST poll `/api/v1/auth/me` at a
+  configurable interval (default 5 minutes) to refresh user state.
+- **Error message sanitization (Task 102)**: Direct exposure of `err.Error()` to clients is
+  FORBIDDEN. Backend MUST use the standard error envelope. Frontend MUST use toast notifications
+  for error display; `console.error` is acceptable for development only and MUST be removed
+  before production.
+- **Account deletion & OSS path isolation (Task 103)**: User deletion MUST be soft-delete only
+  (`deleted_at` timestamp). Associated content MUST be marked `author_deleted` (visible but
+  author-attributed as "已注销用户"). OSS user directories MUST follow the pattern
+  `/uploads/{user_id}/` to enable lifecycle-based cleanup without blocking the deletion API.
+- **Goroutine panic recovery (Task 104)**: The Gin HTTP server MUST include a recovery middleware
+  that catches panics in handler goroutines and returns HTTP 500. Background goroutines (embedding,
+  notifications, etc.) MUST include `defer func() { if r := recover(); r != nil { ... } }()`.
+  A panic MUST NEVER crash the server process.
+- **Protected route guard (Task 105)**: Frontend routes under `/studio/*`, `/settings/*`,
+  `/messages/*`, `/rehab/*`, `/judge/*`, `/admin/*` MUST be wrapped in a `(protected)` layout
+  group. Unauthenticated access MUST redirect to `/login?redirect=<original_path>`. Banned users
+  MUST see an EmptyState with "账号已被封禁" message and an appeal link.
+
+### XVI. Performance & Reliability
+
+Applies to Tasks 128–130, 135, 141–143. These are binding performance requirements:
+
+- **N+1 query elimination (Task 128–130)**: Hot-path list queries (content list, IP list,
+  recommendation feed) MUST use GORM `Preload()` or `Joins()` to batch-load associations.
+  The `SELECT N+1` pattern is FORBIDDEN in any handler that returns a list endpoint.
+  Affected handlers: content list, IP detail, recommendation engine, hot content queries.
+- **Structured logging (Task 141)**: All backend logging MUST use `slog` (Go 1.21+ structured
+  logging). `log.Printf` and `fmt.Println` are FORBIDDEN in production code. Log format MUST be
+  JSON with snake_case field names. Required fields: `time`, `level`, `msg`, `trace_id`. Request
+  logs MUST include `method`, `path`, `status`, `duration_ms`, `client_ip`. Sensitive fields
+  (passwords, tokens, API keys) MUST be redacted.
+- **Graceful shutdown (Task 142)**: The Go server MUST use `http.Server.Shutdown(ctx)` with a
+  timeout read from `config.yaml > server.shutdown_timeout`. During shutdown, new requests MUST
+  be rejected; in-flight requests MUST complete within the timeout. The frontend (Next.js) has
+  no special shutdown requirement in serverless mode.
+- **Frontend data caching / SWR (Task 135)**: The frontend MUST use SWR (stale-while-revalidate)
+  for all list and detail API calls. Cache keys MUST include query parameters. The `revalidate`
+  interval MUST be configurable per data type (e.g., 30s for feed, 60s for user profile).
+  Optimistic updates MUST be applied for like/bookmark operations to avoid UI flicker.
+
+### XVII. Data Integrity & Soft Delete
+
+- **Soft delete only (Task 103, 127)**: All user-facing delete operations (user account deletion,
+  content deletion by author) MUST use soft delete (`deleted_at` column). Physical deletion
+  (`DELETE FROM`) is FORBIDDEN for user-facing operations. Content soft-delete MUST set
+  `status = 'deleted'` and `deleted_at = NOW()`; queries MUST filter `deleted_at IS NULL` by
+  default. Admin purge operations are exempt but MUST be logged.
+- **Content soft-delete (Task 127)**: When a content author deletes their own content, the row
+  MUST NOT be removed. Instead, set `status = 'deleted'` and `deleted_at = NOW()`. The deleted
+  content MUST be excluded from all public list/detail queries. The author MAY view their own
+  deleted content via a special `/studio/contents?status=deleted` filter. Admin content purge
+  (permanent removal) is a separate operation requiring explicit confirmation.
+
+### XVIII. Request Validation & Internationalization
+
+- **i18n mandatory (Task 108)**: After Task 108 is complete, ALL newly added UI string literals
+  MUST be referenced via `next-intl`'s `useTranslations()`. Hardcoded Chinese or English text in
+  components is FORBIDDEN. Translation files reside in `frontend/messages/` organized by locale
+  (`zh.json`, `en.json`). New feature pages MUST namespace translation keys by page path (e.g.,
+  `messages.zh.notifications`). Missing i18n keys are treated as lint errors.
+- **Dark mode consistency (Task 107)**: ALL pages and components MUST pass dark mode rendering
+  checks. The Sidebar, StudioSidebar, and Footer components MUST use design tokens (`canvas`,
+  `border`, `fg`, `accent`, `tag` with `light`/`dark` variants) from `tailwind.config.ts`. Raw
+  hex colors in these components are FORBIDDEN. The `next-themes` provider MUST be present at the
+  root layout level.
+- **Frontend data validation (Task 110)**: Frontend API call functions MUST validate response
+  structure using a type guard or schema validation (zod). Invalid responses MUST be handled
+  gracefully (show error toast, do not crash). The `normalizeContentItem` function MUST filter
+  out items missing `id`, `title`, or `zone` before rendering.
+
 ## Business Rules Reference
 
 > Canonical source: `architecture.md §5` (reputation) and `CLAUDE.md §Key Business Rules`.
@@ -280,4 +379,4 @@ See Principle X for the authoritative rule set. All numeric thresholds MUST be r
 - **Conflict resolution**: if a task step conflicts with a principle, the principle wins; the
   conflicting step MUST be clarified before implementation begins
 
-**Version**: 1.4.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-04-17
+**Version**: 1.2.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-05-13

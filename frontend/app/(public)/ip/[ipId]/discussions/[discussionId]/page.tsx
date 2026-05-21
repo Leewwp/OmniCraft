@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
 import { ReplyList } from "@/components/social/ReplyList";
+import { silentError } from "@/lib/error-handler";
 
 interface DiscussionDetail {
   id: number;
@@ -43,6 +44,7 @@ export default function DiscussionDetailPage() {
       setDiscussion(res.discussion ?? null);
       setReplies(res.comments ?? []);
     } catch (e) {
+      silentError(e, { component: 'DiscussionDetailPage', action: 'load' });
       setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
     } finally {
       setLoading(false);

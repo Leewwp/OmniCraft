@@ -54,11 +54,11 @@ export function NotificationDropdown() {
   if (!user) return null;
 
   const channelLabels: Record<string, string> = {
-    reply: t("notification.channelReply") || "回复",
-    like: t("notification.channelLike") || "点赞",
-    follow: t("notification.channelFollow") || "关注",
-    pr: t("notification.channelPR") || "PR",
-    system: t("notification.channelSystem") || "系统",
+    reply: t("notification.channelReply"),
+    like: t("notification.channelLike"),
+    follow: t("notification.channelFollow"),
+    pr: t("notification.channelPR"),
+    system: t("notification.channelSystem"),
   };
 
   return (

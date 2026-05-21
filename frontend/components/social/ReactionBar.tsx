@@ -6,6 +6,7 @@ import { ThumbsUp, ThumbsDown, Flag, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { cn } from "@/lib/utils";
 
 interface ReactionBarProps {
@@ -43,7 +44,7 @@ export function ReactionBar({
       if (data.reaction) {
         setMyReaction(data.reaction.reaction as "like" | "dislike");
       }
-    } catch { /* user hasn't reacted */ }
+    } catch (e) { silentError(e, { component: 'ReactionBar', action: 'fetchMyReaction' }); }
   }
 
   const react = useCallback(
@@ -73,7 +74,8 @@ export function ReactionBar({
           target_id: contentId,
           reaction,
         });
-      } catch {
+      } catch (e) {
+        silentError(e, { component: 'ReactionBar', action: 'react' });
         setMyReaction(prevReaction);
         setLikeCount(prevLikes);
         setDislikeCount(prevDislikes);
@@ -95,6 +97,7 @@ export function ReactionBar({
       if (e instanceof ApiRequestError && e.status === 409) {
         setReported(true);
       }
+      silentError(e, { component: 'ReactionBar', action: 'report' });
     }
   }
 

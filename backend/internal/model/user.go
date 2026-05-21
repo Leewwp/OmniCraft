@@ -17,6 +17,7 @@ type User struct {
 	Role            string    `gorm:"not null;default:'user';size:20" json:"role"`
 	IsBanned        bool      `gorm:"not null;default:false" json:"is_banned"`
 	BanReason       string    `gorm:"type:text" json:"ban_reason,omitempty"`
+	EmailVerifiedAt *time.Time `json:"email_verified_at,omitempty"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }

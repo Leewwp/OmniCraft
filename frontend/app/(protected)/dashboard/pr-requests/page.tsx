@@ -8,6 +8,7 @@ import { MergeEditor } from "@/components/pr/MergeEditor";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 
 interface ContentItem {
   id: number;
@@ -57,6 +58,7 @@ export default function PRRequestsPage() {
 
         setPRs(allPRs.flat().sort((a, b) => b.id - a.id));
       } catch (e) {
+        silentError(e, { component: 'PRRequestsPage', action: 'loadPRs' });
         if (e instanceof ApiRequestError) {
           setError(`${e.code}: ${e.message}`);
         } else {
@@ -86,6 +88,7 @@ export default function PRRequestsPage() {
       setProposedText(right);
       setMergeText(right || left);
     } catch (e) {
+      silentError(e, { component: 'PRRequestsPage', action: 'loadPRDetail' });
       if (e instanceof ApiRequestError) {
         setError(`${e.code}: ${e.message}`);
       } else {
@@ -111,6 +114,7 @@ export default function PRRequestsPage() {
         setActivePR({ ...activePR, status: "accepted" });
       }
     } catch (e) {
+      silentError(e, { component: 'PRRequestsPage', action: 'acceptPR' });
       if (e instanceof ApiRequestError) {
         setError(`${e.code}: ${e.message}`);
       } else {
@@ -141,6 +145,7 @@ export default function PRRequestsPage() {
         setActivePR({ ...activePR, status: "rejected", reject_reason: reason.trim() });
       }
     } catch (e) {
+      silentError(e, { component: 'PRRequestsPage', action: 'rejectPR' });
       if (e instanceof ApiRequestError) {
         setError(`${e.code}: ${e.message}`);
       } else {

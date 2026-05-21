@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 
 interface Contributor {
@@ -47,10 +48,11 @@ export default function ContributorsPage() {
               }
             }
           }
-        } catch { /* skip */ }
+        } catch (e) { silentError(e, { component: 'ContributorsPage', action: 'loadPRsForContent' }); }
       }
       setContributors(allContributors);
-    } catch {
+    } catch (e) {
+      silentError(e, { component: 'ContributorsPage', action: 'loadContributors' });
       setError(t('dashboard.contributors.loadFailed'));
     } finally {
       setLoading(false);
@@ -70,6 +72,7 @@ export default function ContributorsPage() {
         prev.map((c) => (c.user_id === contributor.user_id ? { ...c, blocked: !c.blocked } : c))
       );
     } catch (e) {
+      silentError(e, { component: 'ContributorsPage', action: 'toggleBlock' });
       setError(e instanceof ApiRequestError ? e.message : t('common.operationFailed'));
     }
   }
