@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -49,6 +50,7 @@ export default function SettingsPage() {
       await api.patch(`/api/v1/users/${user.id}`, { username: username.trim(), bio: bio.trim() });
       setSuccess(t("common.saveSuccess"));
     } catch (e) {
+      silentError(e, { component: 'SettingsPage', action: 'handleSave' });
       setError(e instanceof ApiRequestError ? e.message : t("common.saveFailed"));
     } finally {
       setBusy(false);
@@ -77,6 +79,7 @@ export default function SettingsPage() {
       setNewPw("");
       setConfirmPw("");
     } catch (e) {
+      silentError(e, { component: 'SettingsPage', action: 'handleChangePassword' });
       setPwError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
     } finally {
       setPwBusy(false);
@@ -91,6 +94,7 @@ export default function SettingsPage() {
       logout?.();
       router.push("/");
     } catch (e) {
+      silentError(e, { component: 'SettingsPage', action: 'handleDeleteAccount' });
       setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
     } finally {
       setDeleteBusy(false);

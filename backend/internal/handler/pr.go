@@ -2,6 +2,7 @@ package handler
 
 import (
 	"log/slog"
+	"math"
 	"net/http"
 	"strconv"
 
@@ -81,13 +82,29 @@ func (h *PRHandler) ListPRs(c *gin.Context) {
 		return
 	}
 
-	prs, err := h.prSvc.ListPRs(contentID, c.Query("status"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	prs, total, err := h.prSvc.ListPRsPaged(contentID, c.Query("status"), page, pageSize)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"prs": prs})
+	totalPages := int(math.Ceil(float64(total) / float64(pageSize)))
+	c.JSON(http.StatusOK, gin.H{
+		"prs":         prs,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
+		"total_pages": totalPages,
+	})
 }
 
 func (h *PRHandler) AcceptPR(c *gin.Context) {

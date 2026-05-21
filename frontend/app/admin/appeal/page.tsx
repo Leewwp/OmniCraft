@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 
@@ -45,6 +46,7 @@ export default function AdminAppealPage() {
       setAppeals(data.appeals || []);
       setTotal(data.total || 0);
     } catch (e) {
+      silentError(e, { component: 'AdminAppealPage', action: 'loadAppeals' });
       setError(e instanceof ApiRequestError ? e.message : t('admin.appeals.loadFailed'));
     } finally {
       setLoading(false);
@@ -66,6 +68,7 @@ export default function AdminAppealPage() {
       setAppeals((prev) => prev.filter((a) => a.id !== id));
       setTotal((t) => t - 1);
     } catch (e) {
+      silentError(e, { component: 'AdminAppealPage', action: 'resolveAppeal' });
       setError(e instanceof ApiRequestError ? e.message : t('admin.appeals.processFailed'));
     } finally {
       setBusy(false);

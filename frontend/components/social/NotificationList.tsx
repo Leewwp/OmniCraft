@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { Bell } from "lucide-react";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 
 interface Notification {
@@ -55,6 +56,7 @@ export function NotificationList({
       }
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : t('common.loadFailed'));
+      silentError(e, { component: 'NotificationList', action: 'loadNotifications' });
     } finally {
       setLoading(false);
     }
@@ -70,8 +72,8 @@ export function NotificationList({
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
       );
-    } catch {
-      // ignore
+    } catch (e) {
+      silentError(e, { component: 'NotificationList', action: 'markRead' });
     }
   }
 
@@ -79,8 +81,8 @@ export function NotificationList({
     try {
       await api.post("/api/v1/notifications/read-all", {});
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    } catch {
-      // ignore
+    } catch (e) {
+      silentError(e, { component: 'NotificationList', action: 'markAllRead' });
     }
   }
 

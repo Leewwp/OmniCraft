@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { silentError } from "@/lib/error-handler";
 
 interface SheetMusicAttachment {
   id: number;
@@ -73,6 +74,7 @@ function OSMDRenderer({ ossUrl }: { ossUrl: string }) {
         await osmd.load(ossUrl);
         if (!cancelled) osmd.render();
       } catch (e: unknown) {
+        silentError(e, { component: 'OSMDRenderer', action: 'render' });
         if (!cancelled) setError((e as Error).message || "Failed to render sheet music");
       }
     }
@@ -146,6 +148,7 @@ function MIDIPlayer({ ossUrl }: { ossUrl: string }) {
           setLoading(false);
         }
       } catch (e: unknown) {
+        silentError(e, { component: 'MIDIPlayer', action: 'init' });
         if (!cancelled) {
           setError((e as Error).message || "Failed to load MIDI");
           setLoading(false);
@@ -156,7 +159,7 @@ function MIDIPlayer({ ossUrl }: { ossUrl: string }) {
     init();
     return () => {
       cancelled = true;
-      try { ctx.close(); } catch { /* ignore */ }
+      try { ctx.close(); } catch (e) { silentError(e, { component: 'MIDIPlayer', action: 'cleanup' }); }
     };
   }, [ossUrl]);
 

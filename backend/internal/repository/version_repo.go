@@ -37,6 +37,19 @@ func (r *VersionRepository) ListByContent(contentID int64) ([]model.ContentVersi
 	return versions, err
 }
 
+func (r *VersionRepository) ListByContentPaged(contentID int64, page, pageSize int) ([]model.ContentVersion, int64, error) {
+	var total int64
+	if err := r.db.Model(&model.ContentVersion{}).Where("content_item_id = ? AND status != ?", contentID, "pending").Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var versions []model.ContentVersion
+	err := r.db.Where("content_item_id = ? AND status != ?", contentID, "pending").
+		Order("version_number ASC").
+		Offset((page - 1) * pageSize).Limit(pageSize).
+		Find(&versions).Error
+	return versions, total, err
+}
+
 func (r *VersionRepository) GetLatest(contentID int64) (*model.ContentVersion, error) {
 	var v model.ContentVersion
 	err := r.db.Where("content_item_id = ? AND is_latest = TRUE", contentID).First(&v).Error

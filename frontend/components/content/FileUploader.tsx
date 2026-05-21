@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 
 export interface UploadedAsset {
   fileName: string;
@@ -113,6 +114,7 @@ export function FileUploader({
       onUploaded(uploaded);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('content.uploadFailed'));
+      silentError(e, { component: 'FileUploader', action: 'handleFiles' });
     } finally {
       setIsUploading(false);
       setProgress(0);

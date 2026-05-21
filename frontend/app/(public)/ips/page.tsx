@@ -19,8 +19,8 @@ function getApiBase() {
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
   return {
-    title: `IP 库 — ${t('nav.siteName')}`,
-    description: "浏览和搜索感兴趣的知识产权作品，发现创作灵感",
+    title: `${t('ip.title')} — ${t('nav.siteName')}`,
+    description: t('ip.browseDescription'),
   };
 }
 

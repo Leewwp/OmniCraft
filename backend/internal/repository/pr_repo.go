@@ -40,6 +40,29 @@ func (r *PRRepository) ListByContent(contentID int64, status string) ([]model.Pu
 	return prs, err
 }
 
+func (r *PRRepository) ListByContentPaged(contentID int64, status string, page, pageSize int) ([]model.PullRequest, int64, error) {
+	var total int64
+	q := r.db.Model(&model.PullRequest{}).Where("content_item_id = ?", contentID)
+	if status != "" {
+		q = q.Where("status = ?", status)
+	}
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var prs []model.PullRequest
+	err := r.db.Where("content_item_id = ?", contentID).
+		Scopes(func(db *gorm.DB) *gorm.DB {
+			if status != "" {
+				return db.Where("status = ?", status)
+			}
+			return db
+		}).
+		Order("created_at DESC").
+		Offset((page - 1) * pageSize).Limit(pageSize).
+		Find(&prs).Error
+	return prs, total, err
+}
+
 func (r *PRRepository) UpdateStatus(id int64, status string, extra map[string]interface{}) error {
 	updates := map[string]interface{}{"status": status}
 	for k, v := range extra {

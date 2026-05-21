@@ -196,3 +196,65 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	h.rdb.Del(ctx, key)
 	c.JSON(http.StatusOK, gin.H{"message": "password reset successfully"})
 }
+
+func (h *AuthHandler) VerifyEmail(c *gin.Context) {
+	var body struct {
+		Token string `json:"token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "token required"})
+		return
+	}
+
+	ctx := context.Background()
+	key := "verify_email:" + body.Token
+	userID, err := h.rdb.Get(ctx, key).Int64()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_TOKEN", "message": "invalid or expired verification token"})
+		return
+	}
+
+	now := time.Now()
+	if err := h.userRepo.UpdateFields(userID, map[string]interface{}{"email_verified_at": now}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to verify email"})
+		return
+	}
+
+	h.rdb.Del(ctx, key)
+	c.JSON(http.StatusOK, gin.H{"message": "email verified successfully"})
+}
+
+func (h *AuthHandler) SendVerificationEmail(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		return
+	}
+
+	user, err := h.userRepo.FindByID(userID)
+	if err != nil || user == nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+		return
+	}
+
+	if user.EmailVerifiedAt != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "ALREADY_VERIFIED", "message": "email already verified"})
+		return
+	}
+
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to generate token"})
+		return
+	}
+	token := hex.EncodeToString(tokenBytes)
+
+	ctx := context.Background()
+	key := "verify_email:" + token
+	if err := h.rdb.Set(ctx, key, userID, 24*time.Hour).Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to store token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "verification email sent", "token": token})
+}

@@ -56,7 +56,7 @@ export default function PrototypeLanding() {
                 "rounded-2xl px-10 h-12 text-[15px] font-semibold shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200"
               )}
             >
-              注册账号
+              {t("auth.registerNow")}
             </Link>
             <Link
               href="/login"
@@ -65,7 +65,7 @@ export default function PrototypeLanding() {
                 "rounded-2xl px-10 h-12 text-[15px] font-medium border-2 hover:bg-canvas-subtle transition-all duration-200"
               )}
             >
-              登录账号
+              {t("auth.loginNow")}
             </Link>
           </div>
           <div className="flex items-center gap-4 text-sm">
@@ -73,14 +73,14 @@ export default function PrototypeLanding() {
               href="/"
               className="text-fg-muted hover:text-fg-default transition-colors underline underline-offset-4"
             >
-              浏览二创区
+              {t("nav.fanworkZone")}
             </Link>
             <span className="text-fg-subtle">·</span>
             <Link
               href="/original"
               className="text-fg-muted hover:text-fg-default transition-colors underline underline-offset-4"
             >
-              浏览原创区
+              {t("nav.originalZone")}
             </Link>
           </div>
         </div>

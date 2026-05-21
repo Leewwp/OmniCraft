@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Shield, ShieldAlert, ShieldCheck, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { api } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { cn } from "@/lib/utils";
 
 interface ComplianceResult {
@@ -46,6 +47,7 @@ export function AgentComplianceCheckBadge({
       setResult(res);
     } catch (e) {
       setError((e as Error).message || "Check failed");
+      silentError(e, { component: 'ComplianceCheckBadge', action: 'check' });
     } finally {
       setLoading(false);
     }

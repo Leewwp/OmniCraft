@@ -9,6 +9,7 @@ import { api, ApiRequestError } from "@/lib/api";
 import { DiscussionCard } from "@/components/social/DiscussionCard";
 import { Button } from "@/components/ui/button";
 import { Plus, Search } from "lucide-react";
+import { silentError } from "@/lib/error-handler";
 
 interface DiscussionData {
   id: number;
@@ -43,6 +44,7 @@ export default function DiscussionsPage() {
       );
       setDiscussions(res.discussions ?? []);
     } catch (e) {
+      silentError(e, { component: 'DiscussionsPage', action: 'load' });
       setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
     } finally {
       setLoading(false);

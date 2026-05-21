@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
+	"sync"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
@@ -26,6 +28,22 @@ type AdminHandler struct {
 	cfg          *config.Config
 	rdb          *redis.Client
 	notifSvc     *service.NotificationService
+	mu           sync.Mutex
+}
+
+var sensitiveConfigFields = map[string]bool{
+	"secret": true, "access_key_id": true, "access_key_secret": true,
+	"api_key": true, "dsn": true, "hmac_secret": true, "password": true,
+}
+
+func isSensitivePatchKey(key string) bool {
+	lower := strings.ToLower(key)
+	for field := range sensitiveConfigFields {
+		if strings.Contains(lower, field) {
+			return true
+		}
+	}
+	return false
 }
 
 func NewAdminHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *AdminHandler {
@@ -99,6 +117,27 @@ func (h *AdminHandler) ListUnderReviewContents(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"contents": contents, "total": total})
+}
+
+func (h *AdminHandler) ListTrashedContents(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	var contents []model.ContentItem
+	var total int64
+	h.contentRepo.DB().Model(&model.ContentItem{}).Where("deleted_at IS NOT NULL").Count(&total)
+	h.contentRepo.DB().Preload("Author").Where("deleted_at IS NOT NULL").
+		Order("deleted_at DESC").
+		Offset((page - 1) * pageSize).Limit(pageSize).
+		Find(&contents)
+
+	c.JSON(http.StatusOK, gin.H{"contents": contents, "total": total, "page": page, "page_size": pageSize})
 }
 
 func (h *AdminHandler) BanContent(c *gin.Context) {
@@ -250,7 +289,14 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 		if len(targetUpdates) == 0 {
 			return nil
 		}
-		return tx.Model(&model.ContentItem{}).Where("id = ?", appeal.TargetID).Updates(targetUpdates).Error
+		switch appeal.TargetType {
+		case "content":
+			return tx.Model(&model.ContentItem{}).Where("id = ?", appeal.TargetID).Updates(targetUpdates).Error
+		case "comment":
+			return tx.Model(&model.Comment{}).Where("id = ?", appeal.TargetID).Updates(targetUpdates).Error
+		default:
+			return nil
+		}
 	}); err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
@@ -298,6 +344,16 @@ func (h *AdminHandler) PatchConfig(c *gin.Context) {
 		return
 	}
 
+	filterSensitivePatches(patches)
+
+	if len(patches) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "NO_ALLOWED_FIELDS", "message": "no allowed fields in request"})
+		return
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	if limits, ok := patches["limits"].(map[string]interface{}); ok {
 		if v, ok := limits["video_max_mb"].(float64); ok {
 			h.cfg.Limits.VideoMaxMB = int(v)
@@ -321,6 +377,9 @@ func (h *AdminHandler) PatchConfig(c *gin.Context) {
 	if features, ok := patches["features"].(map[string]interface{}); ok {
 		if v, ok := features["payment_enabled"].(bool); ok {
 			h.cfg.Features.PaymentEnabled = v
+		}
+		if v, ok := features["creator_support_enabled"].(bool); ok {
+			h.cfg.Features.CreatorSupportEnabled = v
 		}
 	}
 	if reputation, ok := patches["reputation"].(map[string]interface{}); ok {
@@ -350,8 +409,18 @@ func (h *AdminHandler) PatchConfig(c *gin.Context) {
 			h.cfg.Social.CommentFoldThreshold = v
 		}
 	}
+	if recommendation, ok := patches["recommendation"].(map[string]interface{}); ok {
+		if v, ok := recommendation["personalization_weight"].(float64); ok {
+			h.cfg.Recommendation.PersonalizationWeight = v
+		}
+		if v, ok := recommendation["min_interaction_for_personalize"].(float64); ok {
+			h.cfg.Recommendation.MinInteractionForPersonalize = int(v)
+		}
+	}
 
-	_ = h.cfg.SaveOverride("data/config_override.yaml")
+	if err := h.cfg.SaveOverride("data/config_override.yaml"); err != nil {
+		slog.Error("failed to save config override", "error", err)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"config": model.PublicConfig{
@@ -372,6 +441,25 @@ func (h *AdminHandler) PatchConfig(c *gin.Context) {
 		},
 		"message": "config updated",
 	})
+}
+
+func filterSensitivePatches(patches map[string]interface{}) {
+	for key := range patches {
+		if isSensitivePatchKey(key) {
+			delete(patches, key)
+			continue
+		}
+		if nested, ok := patches[key].(map[string]interface{}); ok {
+			for nestedKey := range nested {
+				if isSensitivePatchKey(nestedKey) {
+					delete(nested, nestedKey)
+				}
+			}
+			if len(nested) == 0 {
+				delete(patches, key)
+			}
+		}
+	}
 }
 
 func (h *AdminHandler) ListLLMConfigs(c *gin.Context) {

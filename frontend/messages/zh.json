@@ -29,6 +29,7 @@
     "page": "第 {current} / {total} 页",
     "userLabel": "用户 #{id}",
     "unknown": "未知内容",
+    "manage": "管理",
     "clickToView": "查看",
     "pageNumber": "第 {current} 页",
     "units": {
@@ -58,7 +59,9 @@
     "langZh": "中文",
     "langEn": "English",
     "publish": "发布",
-    "notifications": "通知"
+    "notifications": "通知",
+    "favorites": "我的喜欢",
+    "myOriginal": "我的原创"
   },
   "auth": {
     "welcomeBack": "欢迎回来",
@@ -162,7 +165,14 @@
     "activeIpsLabel": "活跃 IP",
     "creatorsLabel": "创作者",
     "recommendedIps": "推荐 IP",
-    "browseAllIps": "浏览全部 IP →"
+    "browseAllIps": "浏览全部 IP →",
+    "trendingTopics": "热门话题 · 本周",
+    "trending1": "#春日穿搭挑战",
+    "trending2": "#周末厨房日记",
+    "trending3": "#桌面改造计划",
+    "trending4": "#猫咪日常",
+    "trending5": "#极简生活",
+    "trendingParticipants": "参与"
   },
   "content": {
     "originalZone": "原创区",
@@ -955,6 +965,37 @@
         "mod": "支持 zip 压缩包，最大 500MB",
         "video": "最大 300MB，时长 ≤ 180 秒",
         "image": "最大 20MB"
+      },
+      "typeLabel": {
+        "image": "图片",
+        "video": "视频",
+        "article": "文章",
+        "audio": "音频",
+        "sheet_music": "乐谱",
+        "template": "效率模板",
+        "prompt": "AI 提示词",
+        "mod": "Mod",
+        "other": "其他"
+      },
+      "typeDescOriginal": {
+        "image": "摄影、插画、设计作品",
+        "video": "短片、Vlog、教程",
+        "article": "随笔、教程、故事",
+        "audio": "音乐、播客、翻唱",
+        "sheet_music": "原创曲谱、改编",
+        "template": "Notion、Excel 等模板",
+        "prompt": "Prompt 模板分享",
+        "other": "其他原创内容"
+      },
+      "typeDescFanwork": {
+        "image": "同人插画、Cosplay 摄影",
+        "video": "MAD、AMV、剪辑",
+        "article": "同人文、考据、分析",
+        "audio": "翻唱、Remix、配音",
+        "sheet_music": "主题曲改编谱",
+        "mod": "游戏模组、材质包",
+        "prompt": "角色 LoRA 提示词",
+        "other": "其他二创内容"
       }
     },
     "overview": {
@@ -970,13 +1011,23 @@
       "pendingTasks": "待处理事项",
       "noPending": "暂无待处理事项"
     },
+    "chart": {
+      "noViewsData": "数据不足，暂无法显示趋势",
+      "viewsTrendTitle": "访问量趋势（近 30 天）"
+    },
     "followers": {
       "title": "粉丝分析",
       "subtitle": "了解你的粉丝增长趋势",
       "totalFollowers": "总粉丝数",
       "newThisMonth": "本月新增",
       "lostThisMonth": "本月流失",
-      "chartPlaceholder": "粉丝趋势图表将在数据充足时显示 (P1)"
+      "chartPlaceholder": "粉丝趋势图表将在数据充足时显示 (P1)",
+      "noTrendData": "暂无粉丝趋势数据",
+      "trendTitle": "粉丝增长趋势（近 30 天）",
+      "newFollowers": "新增粉丝",
+      "netFollowers": "净增粉丝",
+      "noSourceData": "暂无粉丝来源数据",
+      "sourceTitle": "粉丝来源分布"
     },
     "contents": {
       "title": "我的内容",

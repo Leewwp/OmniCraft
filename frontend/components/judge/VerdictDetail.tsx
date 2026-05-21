@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 
 interface CaseData {
   id: number;
@@ -51,6 +52,7 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
       setVotes(data.votes || []);
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : t('judge.verdict.loadFailed'));
+      silentError(e, { component: 'VerdictDetail', action: 'loadVerdict' });
     } finally {
       setLoading(false);
     }
@@ -77,9 +79,9 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
         })
       );
     } catch (e) {
-      // ignore duplicates silently
       if (!(e instanceof ApiRequestError && e.status === 409)) {
         setError(e instanceof ApiRequestError ? e.message : t('common.operationFailed'));
+        silentError(e, { component: 'VerdictDetail', action: 'voteReason' });
       }
     }
   }

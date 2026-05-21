@@ -113,3 +113,7 @@ func (s *VersionService) GetVersionContent(versionID int64) (string, error) {
 func (s *VersionService) ListVersions(contentID int64) ([]model.ContentVersion, error) {
 	return s.versionRepo.ListByContent(contentID)
 }
+
+func (s *VersionService) ListVersionsPaged(contentID int64, page, pageSize int) ([]model.ContentVersion, int64, error) {
+	return s.versionRepo.ListByContentPaged(contentID, page, pageSize)
+}

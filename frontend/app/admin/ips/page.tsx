@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 
@@ -45,6 +46,7 @@ export default function AdminIPsPage() {
       setIps(data.ips || []);
       setTotal(data.total || 0);
     } catch (e) {
+      silentError(e, { component: 'AdminIPsPage', action: 'loadIPs' });
       setError(e instanceof ApiRequestError ? e.message : t('admin.ips.loadFailed'));
     } finally {
       setLoading(false);
@@ -62,6 +64,7 @@ export default function AdminIPsPage() {
       setIps((prev) => prev.filter((ip) => ip.id !== ipId));
       setTotal((t) => t - 1);
     } catch (e) {
+      silentError(e, { component: 'AdminIPsPage', action: 'handleAction' });
       setError(e instanceof ApiRequestError ? e.message : t('common.operationFailed'));
     }
   }

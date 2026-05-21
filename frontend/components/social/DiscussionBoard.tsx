@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { DiscussionCard } from "@/components/social/DiscussionCard";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -67,6 +68,7 @@ export function DiscussionBoard({ ipId, compact = false, className }: Discussion
       setDiscussions(res.discussions ?? []);
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
+      silentError(e, { component: 'DiscussionBoard', action: 'load' });
     } finally {
       setLoading(false);
     }

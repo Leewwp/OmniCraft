@@ -1,5 +1,114 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-15] - P1 Bug Fixes (跨任务修复)
+
+### What was done:
+- **P1-1**: Removed dead `GetIPDiscussions` stub from `ip.go` — the actual route uses `discHandler.ListDiscussions` which already calls `discRepo.ListByIP`
+- **P1-2**: Added pagination with `total_pages` to `ListPRs` and `ListVersions` — added `ListByContentPaged`/`ListByContentPaged` to repos, `ListPRsPaged`/`ListVersionsPaged` to services, updated handlers to return `{items, total, page, page_size, total_pages}`
+- **P1-3**: Added `GET /admin/contents/trash` endpoint — `AdminHandler.ListTrashedContents` queries `deleted_at IS NOT NULL` with pagination
+- **P1-5**: Added `DownloadCountSync` scheduler that flushes `rank:download_counts` Redis ZSET to `content_items.download_count` DB column; registered in main.go alongside ViewCountSync
+- **P1-5**: Added `download_count` field to `ContentItem` model (migration already exists in 040)
+- **P1-6**: Added `POST /auth/verify-email` (token verification) and `POST /auth/send-verification` (authenticated, generate token) endpoints; tokens stored in Redis with 24h TTL, verified users get `email_verified_at` set
+- **P1-6**: Added `EmailVerifiedAt` field to `User` model
+- **P1-7**: Added `CommentEditRateLimit` middleware (5 edits per 30s window per user, Redis-backed) on `PATCH /social/comments/:id`
+- **P1-7**: Changed `ConversationParticipant.LeftAt` from hard-delete to soft-delete (`left_at IS NULL` filter) in `FindOrCreateConversation`, `ListConversations`, `IsParticipant`, and `LeaveConversation`
+- **P1-7**: Added `UpdatedAt` field to `Comment` model (for edit tracking)
+- **P1-8**: Confirmed all `bg-white` usages are toggle knob circles (intentionally white in dark mode) — no fix needed
+
+### Files modified:
+- backend/internal/handler/ip.go — removed dead GetIPDiscussions stub
+- backend/internal/handler/version.go — added pagination params + total_pages
+- backend/internal/handler/pr.go — added pagination params + total_pages
+- backend/internal/handler/admin.go — added ListTrashedContents handler
+- backend/internal/handler/routes.go — added /admin/contents/trash + /auth/verify-email + /auth/send-verification + CommentEditRateLimit
+- backend/internal/handler/auth.go — added VerifyEmail + SendVerificationEmail handlers
+- backend/internal/repository/version_repo.go — added ListByContentPaged
+- backend/internal/repository/pr_repo.go — added ListByContentPaged
+- backend/internal/repository/message_repo.go — soft-delete via left_at, filter left_at IS NULL
+- backend/internal/service/version_service.go — added ListVersionsPaged
+- backend/internal/service/pr_service.go — added ListPRsPaged
+- backend/internal/service/content_service.go — added FlushDownloadCounts
+- backend/internal/middleware/ratelimit.go — added CommentEditRateLimit
+- backend/internal/pkg/scheduler/download_count_sync.go — new file
+- backend/internal/model/content.go — added DownloadCount field
+- backend/internal/model/user.go — added EmailVerifiedAt field
+- backend/internal/model/social.go — added UpdatedAt to Comment
+- backend/internal/model/notification.go — added LeftAt to ConversationParticipant
+- backend/cmd/server/main.go — registered DownloadCountSync scheduler
+
+### Deferred (large scope):
+- P1-9: Frontend i18n — 40+ hardcoded Chinese strings remain (separate task)
+- P1-10: Frontend error-handler integration — 73 catch blocks need handleApiError/silentError (separate task)
+
+### Testing:
+- go build ./... — PASS
+- go vet ./... — PASS
+- npm run build — PASS
+- npm run lint — PASS
+
+## [2026-05-15] - P0 #9/#10 & P1 #18 Follow-up (Error Handler + i18n)
+
+### What was done:
+- **P0 #9/#10**: Integrated `silentError` from `@/lib/error-handler` into all 73 catch blocks across 40+ frontend files. Every catch block now uses `silentError(e, { component, action })` for structured logging instead of empty catches or raw `console.error`.
+- **P1 #18 i18n**: Extracted all remaining hardcoded Chinese strings to `next-intl` translation keys:
+  - Publish pages (original/fanwork): content type labels + descriptions → `studio.publish.typeLabel.*` and `studio.publish.typeDesc*.*`
+  - Category sidebar (FacetedSearchSidebar): uses `t(home.categoryXxx)` keys
+  - Chart components (ViewsTrendChart, FollowerTrendChart, FollowerSourceChart): all Chinese labels → `studio.chart.*` and `studio.followers.*` keys
+  - OriginalSidebar: nav labels + trending section → `common.manage`, `nav.*`, `home.trendingTopics`, `home.trending*`
+  - Prototype landing: CTA buttons → `auth.registerNow`, `auth.loginNow`, `nav.fanworkZone`, `nav.originalZone`
+  - IPs page: title + description → `ip.title`, `ip.browseDescription`
+  - NotificationDropdown: removed Chinese fallback strings from `|| "回复"` etc.
+  - Error handler (`lib/error-handler.ts`): replaced Chinese strings with English equivalents (not using i18n since it's not a React component)
+  - Added 30+ new translation keys to both `zh.json` and `en.json`
+
+### Files modified:
+- All 40+ frontend page/component files (catch blocks → silentError)
+- frontend/messages/zh.json — added ~30 new i18n keys
+- frontend/messages/en.json — added ~30 new i18n keys
+- 12+ frontend component files (i18n extraction for Chinese strings)
+- frontend/lib/error-handler.ts — Chinese → English
+
+## [2026-05-15] - P0 Bug Fixes (跨任务修复)
+
+### What was done:
+- **P0-1**: CSRF middleware now skips `/api/v1/internal/*` routes to avoid blocking Aliyun AI callback
+- **P0-2**: PatchConfig now filters sensitive fields (secret, access_key_id, api_key, dsn, hmac_secret, password) and uses sync.Mutex for concurrent write protection; SaveOverride error is now logged
+- **P0-3**: RequestID middleware mounted in main.go (was defined but never used)
+- **P0-4**: Content detail handler (GetContent) now auto-records browse history for logged-in users via BrowseHistoryRepo.Upsert()
+- **P0-5**: Agent ChatStream now uses authenticated userID instead of hardcoded 0; added GET /agent/conversations and GET /agent/conversations/:id endpoints
+- **P0-6**: FollowIP handler now creates a notification (was missing)
+- **P0-7**: Report dedup — SocialService.Report checks for existing report before creating; returns ErrAlreadyReported (409); added FindReportByUserAndTarget to social_repo
+- **P0-8**: Appeal target fix — ResolveAppeal now targets `comments` table for comment-type appeals instead of always targeting `content_items`
+- **P0-9**: AuthContext now uses silentError() instead of empty catch blocks
+- **P0-10**: error-handler.ts exists (was never imported); AuthContext imports silentError for error handling
+- **P0-11**: Root layout now wraps children in `<main id="main-content">` for skip-to-content link
+- **P1**: Protected layout now checks `user.is_banned` and shows suspended account message with appeal link
+- **Migration 040**: Added report UNIQUE constraint, ban_reason on content_items, download_count, email_verified_at on users, left_at on conversation_participants, password_reset_tokens table
+
+### Files modified:
+- backend/internal/middleware/csrf.go — skip internal routes, fix cookie name for dev mode
+- backend/cmd/server/main.go — add RequestID middleware
+- backend/internal/handler/admin.go — sensitive field filter, mutex, PatchConfig error handling
+- backend/internal/handler/content.go — auto-record browse history
+- backend/internal/handler/agent.go — userID from auth, new conversation endpoints, db field
+- backend/internal/handler/routes.go — agent conversation routes
+- backend/internal/handler/follow.go — FollowIP notification
+- backend/internal/service/social_service.go — report dedup check
+- backend/internal/service/agent_service.go — ChatStream userID parameter
+- backend/internal/repository/social_repo.go — FindReportByUserAndTarget
+- backend/internal/handler/social.go — 409 response for already reported
+- frontend/contexts/AuthContext.tsx — import silentError, use in catch blocks
+- frontend/lib/error-handler.ts — (no changes, already correct)
+- frontend/app/layout.tsx — main#main-content wrapper
+- frontend/app/(protected)/layout.tsx — is_banned check
+- backend/migrations/040_p0_fixes.sql — multiple schema fixes
+
+### Testing:
+- go build ./... — PASS
+- go vet ./... — PASS
+- npm run build — PASS
+- npm run lint — PASS
+
 ## [2026-05-14] - Task 130: Redis KEYS 阻塞修复
 - handler/user.go: invalidateUserTokens uses SMEMBERS (O(1)) instead of KEYS (O(N))
 - service/auth_service.go: storeRefreshToken also SADDs to user:tokens:{userID} set

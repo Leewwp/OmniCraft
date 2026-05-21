@@ -25,6 +25,7 @@ import { CommentSection } from "@/components/social/CommentSection";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/Toast";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { cn } from "@/lib/utils";
 
 interface Attachment {
@@ -142,6 +143,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
       toast("success", t("content.tagSuggestionSubmitted"));
     } catch (e) {
       toast("error", e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+      silentError(e, { component: 'ContentDetail', action: 'handleTagSuggestion' });
     } finally {
       setTagSuggestionBusy(null);
     }
@@ -154,7 +156,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
 
   useEffect(() => {
     if (!user) return;
-    api.post("/api/v1/users/me/history", { content_item_id: data.id }).catch(() => {});
+    api.post("/api/v1/users/me/history", { content_item_id: data.id }).catch((e) => { silentError(e, { component: 'ContentDetail', action: 'recordHistory' }); });
   }, [user, data.id]);
 
   async function checkFavorite() {
@@ -164,7 +166,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
       );
       const favs = favData.favorites || [];
       setFavorited(favs.some((f) => f.content_item_id === data.id));
-    } catch { /* ignore */ }
+    } catch (e) { silentError(e, { component: 'ContentDetail', action: 'checkFavorite' }); }
   }
 
   async function toggleFavorite() {
@@ -178,7 +180,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
         await api.post("/api/v1/favorites", { content_item_id: data.id });
         setFavorited(true);
       }
-    } catch { /* ignore */ }
+    } catch (e) { silentError(e, { component: 'ContentDetail', action: 'toggleFavorite' }); }
     finally { setFavBusy(false); }
   }
 

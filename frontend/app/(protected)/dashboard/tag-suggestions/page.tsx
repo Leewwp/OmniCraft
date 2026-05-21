@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { Button } from "@/components/ui/button";
 import { Check, X, Loader2 } from "lucide-react";
@@ -39,6 +40,7 @@ export default function TagSuggestionsPage() {
       );
       setSuggestions(res.suggestions ?? []);
     } catch (e) {
+      silentError(e, { component: 'TagSuggestionsPage', action: 'loadSuggestions' });
       setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
     }
   }, [contentId, t]);
@@ -54,6 +56,7 @@ export default function TagSuggestionsPage() {
       await api.patch(`/api/v1/dashboard/tag-suggestions/${id}`, { status });
       await loadSuggestions();
     } catch (e) {
+      silentError(e, { component: 'TagSuggestionsPage', action: 'handleUpdate' });
       setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
     } finally {
       setBusyId(null);

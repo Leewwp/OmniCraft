@@ -26,6 +26,8 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		auth.POST("/logout", authHandler.Logout)
 		auth.POST("/refresh", authHandler.Refresh)
 		auth.GET("/me", middleware.AuthRequired(cfg, rdb), authHandler.Me)
+		auth.POST("/verify-email", authHandler.VerifyEmail)
+		auth.POST("/send-verification", middleware.AuthRequired(cfg, rdb), authHandler.SendVerificationEmail)
 	}
 			auth.POST("/forgot-password", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), authHandler.ForgotPassword)
 			auth.POST("/reset-password", authHandler.ResetPassword)
@@ -98,7 +100,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		social.GET("/comments", optAuth, socialHandler.ListComments)
 		social.POST("/comments", middleware.AuthRequired(cfg, rdb), socialHandler.PostComment)
 		social.DELETE("/comments/:id", middleware.AuthRequired(cfg, rdb), socialHandler.DeleteComment)
-			social.PATCH("/comments/:id", middleware.AuthRequired(cfg, rdb), socialHandler.EditComment)
+			social.PATCH("/comments/:id", middleware.AuthRequired(cfg, rdb), middleware.CommentEditRateLimit(rdb), socialHandler.EditComment)
 		social.GET("/discussions", optAuth, socialHandler.ListDiscussions)
 		social.POST("/discussions", middleware.AuthRequired(cfg, rdb), socialHandler.PostDiscussion)
 		social.GET("/discussions/:id", optAuth, socialHandler.GetDiscussion)
@@ -221,6 +223,8 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		agent.POST("/usage-guide/:id", agentHandler.UsageGuide)
 		agent.POST("/moderate/:id", agentHandler.Moderate)
 		agent.POST("/chat/stream", agentHandler.ChatStream)
+		agent.GET("/conversations", agentHandler.ListConversations)
+		agent.GET("/conversations/:id", agentHandler.GetConversationMessages)
 		agent.GET("/script/:id", agentHandler.GenerateDeployScript)
 	}
 
@@ -242,6 +246,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		admin.POST("/ips/:id/approve", adminHandler.ApproveIP)
 		admin.POST("/ips/:id/reject", adminHandler.RejectIP)
 		admin.GET("/contents", adminHandler.ListUnderReviewContents)
+		admin.GET("/contents/trash", adminHandler.ListTrashedContents)
 		admin.POST("/contents/:id/ban", adminHandler.BanContent)
 			admin.PATCH("/contents/:id/restore", adminHandler.RestoreContent)
 		admin.GET("/users", adminHandler.ListUsers)

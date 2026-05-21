@@ -6,6 +6,7 @@ import { MessageCircle, Send, ThumbsUp, ThumbsDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { cn } from "@/lib/utils";
 
 interface Comment {
@@ -48,6 +49,7 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
       setComments(data.comments || []);
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : t('social.loadFailed'));
+      silentError(e, { component: 'CommentSection', action: 'loadComments' });
     } finally {
       setLoading(false);
     }
@@ -65,6 +67,7 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
       setBody("");
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : t('social.sendFailed'));
+      silentError(e, { component: 'CommentSection', action: 'submit' });
     } finally {
       setBusy(false);
     }
@@ -78,7 +81,7 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
         target_id: commentId,
         reaction,
       });
-    } catch { /* ignore */ }
+    } catch (e) { silentError(e, { component: 'CommentSection', action: 'reactToComment' }); }
   }
 
   return (

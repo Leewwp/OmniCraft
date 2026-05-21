@@ -90,19 +90,19 @@ const SORT_OPTIONS = [
   { key: "most_viewed", label: "home.mostViewed" },
 ];
 
-const DEFAULT_CATEGORIES: CategoryNode[] = [
-  { id: 0, name: "推荐" },
-  { id: 1, name: "影视" },
-  { id: 2, name: "游戏" },
-  { id: 3, name: "文学" },
-  { id: 4, name: "宠物" },
-  { id: 5, name: "美食" },
-  { id: 6, name: "美妆穿搭" },
-  { id: 7, name: "家居" },
-  { id: 8, name: "数码科技" },
-  { id: 9, name: "旅行" },
-  { id: 10, name: "运动" },
-  { id: 11, name: "效率" },
+const DEFAULT_CATEGORIES_I18N: { id: number; nameKey: string }[] = [
+  { id: 0, nameKey: "home.categoryRecommended" },
+  { id: 1, nameKey: "home.categoryFilmTv" },
+  { id: 2, nameKey: "home.categoryGaming" },
+  { id: 3, nameKey: "home.categoryLiterature" },
+  { id: 4, nameKey: "home.categoryPet" },
+  { id: 5, nameKey: "home.categoryFood" },
+  { id: 6, nameKey: "home.categoryBeautyFashion" },
+  { id: 7, nameKey: "home.categoryHome" },
+  { id: 8, nameKey: "home.categoryTechDigital" },
+  { id: 9, nameKey: "home.categoryTravel" },
+  { id: 10, nameKey: "home.categorySports" },
+  { id: 11, nameKey: "home.categoryProductivity" },
 ];
 
 // ── Component ──────────────────────────────────────────
@@ -119,7 +119,7 @@ export function FacetedSearchSidebar({
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [categories] = useState<CategoryNode[]>(DEFAULT_CATEGORIES);
+  const [categories] = useState<CategoryNode[]>(DEFAULT_CATEGORIES_I18N.map(c => ({ id: c.id, name: t(c.nameKey) })));
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [availableTags, setAvailableTags] = useState<FacetedTag[]>([]);

@@ -223,6 +223,11 @@ func minScoreForInteraction(cfg *config.Config) int {
 }
 
 func (s *SocialService) Report(targetType string, targetID int64, reporterID int64, reason, detail string) error {
+	existing, err := s.socialRepo.FindReportByUserAndTarget(reporterID, targetType, targetID)
+	if err == nil && existing != nil {
+		return ErrAlreadyReported
+	}
+
 	report := &model.Report{
 		ReporterID: reporterID,
 		TargetType: targetType,
@@ -266,6 +271,6 @@ func (s *SocialService) Unfavorite(userID, contentID int64) error {
 	return nil
 }
 
-func (s *SocialService) ListFavorites(userID int64, page, pageSize int) ([]model.Favorite, int64, error) {
-	return s.socialRepo.ListFavoritesByUser(userID, page, pageSize)
+func (s *SocialService) ListFavorites(userID int64, page, pageSize int, contentType string) ([]model.Favorite, int64, error) {
+	return s.socialRepo.ListFavoritesByUser(userID, page, pageSize, contentType)
 }

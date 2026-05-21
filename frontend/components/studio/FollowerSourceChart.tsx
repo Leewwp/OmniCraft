@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 interface FollowerSourceChartProps {
@@ -16,10 +17,12 @@ const CHART_VARS = [
 ];
 
 export function FollowerSourceChart({ data }: FollowerSourceChartProps) {
+  const t = useTranslations("studio");
+
   if (data.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center rounded-lg border border-border bg-card text-sm text-muted-foreground">
-        暂无粉丝来源数据
+        {t("followers.noSourceData")}
       </div>
     );
   }
@@ -27,7 +30,7 @@ export function FollowerSourceChart({ data }: FollowerSourceChartProps) {
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="mb-3 text-sm font-medium text-foreground">
-        粉丝来源分布
+        {t("followers.sourceTitle")}
       </h3>
       <ResponsiveContainer width="100%" height={240}>
         <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>

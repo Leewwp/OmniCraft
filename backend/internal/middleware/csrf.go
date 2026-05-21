@@ -10,7 +10,6 @@ import (
 	"omnicraft/backend/config"
 )
 
-const csrfCookieName = "__Host-csrf"
 const csrfHeaderName = "X-CSRF-Token"
 const csrfTokenLength = 32
 
@@ -18,13 +17,25 @@ func CSRF(cfg *config.Config) gin.HandlerFunc {
 	isSecure := cfg.Server.Mode == "release"
 
 	return func(c *gin.Context) {
-		token, err := c.Cookie(csrfCookieName)
+		if isInternalPath(c.Request.URL.Path) {
+			c.Next()
+			return
+		}
+
+		token, err := c.Cookie("__Host-csrf")
 		if err != nil || token == "" {
+			token, _ = c.Cookie("csrf-token")
+		}
+		if token == "" {
 			token = generateCSRFToken()
 		}
 
+		cookieName := "csrf-token"
+		if isSecure {
+			cookieName = "__Host-csrf"
+		}
 		c.SetSameSite(http.SameSiteLaxMode)
-		c.SetCookie(csrfCookieName, token, 0, "/", "", isSecure, false)
+		c.SetCookie(cookieName, token, 0, "/", "", isSecure, false)
 
 		if c.Request.Method == http.MethodPost ||
 			c.Request.Method == http.MethodPatch ||
@@ -45,8 +56,21 @@ func CSRF(cfg *config.Config) gin.HandlerFunc {
 	}
 }
 
+func isInternalPath(path string) bool {
+	internalPrefixes := []string{"/api/v1/internal/"}
+	for _, prefix := range internalPrefixes {
+		if len(path) >= len(prefix) && path[:len(prefix)] == prefix {
+			return true
+		}
+	}
+	return false
+}
+
 func GetCSRFToken(c *gin.Context) string {
-	token, _ := c.Cookie(csrfCookieName)
+	token, _ := c.Cookie("__Host-csrf")
+	if token == "" {
+		token, _ = c.Cookie("csrf-token")
+	}
 	if token == "" {
 		token = generateCSRFToken()
 	}

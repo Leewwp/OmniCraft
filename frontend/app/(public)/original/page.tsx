@@ -8,28 +8,33 @@ import { normalizeContentList } from "@/lib/content";
 interface CategoryItem {
   id: number; slug: string; name_i18n?: Record<string, string>;
 }
+interface CategoryDisplay {
+  slug: string;
+  i18n: string;
+  name_i18n?: Record<string, string>;
+}
 interface ContentResponse { contents?: unknown[]; }
 interface SearchParams { category?: string; sort?: string; }
 
-const PRIMARY_CATEGORIES_FALLBACK = [
-  { slug: "", label: "推荐", i18n: "home.categoryRecommended" },
-  { slug: "film_tv", label: "影视", i18n: "home.categoryFilmTv" },
-  { slug: "gaming", label: "游戏", i18n: "home.categoryGaming" },
-  { slug: "literature", label: "文学", i18n: "home.categoryLiterature" },
-  { slug: "pet", label: "宠物", i18n: "home.categoryPet" },
-  { slug: "food", label: "美食", i18n: "home.categoryFood" },
-  { slug: "beauty_fashion", label: "美妆穿搭", i18n: "home.categoryBeautyFashion" },
-  { slug: "home", label: "家居", i18n: "home.categoryHome" },
-  { slug: "tech_digital", label: "数码科技", i18n: "home.categoryTechDigital" },
-  { slug: "travel", label: "旅行", i18n: "home.categoryTravel" },
-  { slug: "sports", label: "运动", i18n: "home.categorySports" },
-  { slug: "productivity", label: "效率", i18n: "home.categoryProductivity" },
+const PRIMARY_CATEGORIES_FALLBACK: CategoryDisplay[] = [
+  { slug: "", i18n: "home.categoryRecommended" },
+  { slug: "film_tv", i18n: "home.categoryFilmTv" },
+  { slug: "gaming", i18n: "home.categoryGaming" },
+  { slug: "literature", i18n: "home.categoryLiterature" },
+  { slug: "pet", i18n: "home.categoryPet" },
+  { slug: "food", i18n: "home.categoryFood" },
+  { slug: "beauty_fashion", i18n: "home.categoryBeautyFashion" },
+  { slug: "home", i18n: "home.categoryHome" },
+  { slug: "tech_digital", i18n: "home.categoryTechDigital" },
+  { slug: "travel", i18n: "home.categoryTravel" },
+  { slug: "sports", i18n: "home.categorySports" },
+  { slug: "productivity", i18n: "home.categoryProductivity" },
 ];
 
 function getApiBase() { return `${(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080").replace(/\/$/, "")}/api/v1`; }
 function normalizeSlug(s: string) { return s.endsWith("_orig") ? s.slice(0, -5) : s; }
 
-async function fetchCategories(apiBase: string) {
+async function fetchCategories(apiBase: string): Promise<CategoryDisplay[]> {
   try {
     const res = await fetch(`${apiBase}/categories?zone=original&level=primary`, { cache: "no-store" });
     if (!res.ok) return PRIMARY_CATEGORIES_FALLBACK;
@@ -37,7 +42,7 @@ async function fetchCategories(apiBase: string) {
     const cats = (data.categories || []).map(item => {
       const slug = normalizeSlug(item.slug);
       const fb = PRIMARY_CATEGORIES_FALLBACK.find(c => c.slug === slug);
-      return { slug, label: fb?.label || item.name_i18n?.zh || item.name_i18n?.en || item.slug, i18n: fb?.i18n || "" };
+      return { slug, i18n: fb?.i18n || "", name_i18n: item.name_i18n };
     }).filter(item => PRIMARY_CATEGORIES_FALLBACK.some(c => c.slug === item.slug));
     return [PRIMARY_CATEGORIES_FALLBACK[0], ...cats.filter(c => c.slug !== "")];
   } catch { return PRIMARY_CATEGORIES_FALLBACK; }
@@ -110,7 +115,7 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
                   <Link key={cat.slug || "recommended"} href={buildHref({ category: cat.slug }, current)}
                     className={`flex-shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-all duration-150 whitespace-nowrap select-none active:scale-95 ${
                       active ? "border-border bg-card text-foreground font-semibold" : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/70 cursor-pointer"
-                    }`}>{cat.label}</Link>
+                    }`}>{cat.i18n ? t(cat.i18n) : cat.name_i18n?.zh || cat.name_i18n?.en || cat.slug}</Link>
                 );
               })}
             </div>

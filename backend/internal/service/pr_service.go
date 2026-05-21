@@ -88,6 +88,10 @@ func (s *PRService) ListPRs(contentID int64, status string) ([]model.PullRequest
 	return s.prRepo.ListByContent(contentID, status)
 }
 
+func (s *PRService) ListPRsPaged(contentID int64, status string, page, pageSize int) ([]model.PullRequest, int64, error) {
+	return s.prRepo.ListByContentPaged(contentID, status, page, pageSize)
+}
+
 func (s *PRService) AcceptPR(prID int64, callerID int64) error {
 	pr, err := s.prRepo.FindByID(prID)
 	if err != nil || pr == nil {

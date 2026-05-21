@@ -338,6 +338,39 @@ docker compose logs -f backend     # 查看后端日志
 - Mod 包：≤ 500MB
 - 乐谱：≤ 50MB，允许扩展名：mid, midi, xml, mxl, mscz, mscx, pdf
 
+### 内容下载（Task 121）
+
+- 下载 API：`GET /api/v1/contents/:id/download`，需认证且校验内容 `status=published`
+- 下载计数：每次成功下载 `download_count + 1`（异步写入，不阻断下载流程）
+- 权限控制：信誉分 < 3 用户禁止下载；封禁用户禁止下载
+- 前端下载按钮位于内容详情页 ReactionBar 区域，调用后端获取 OSS 临时签名 URL 后触发浏览器下载
+
+### 收藏集（Task 122–123）
+
+- 收藏集数据模型：`collections` 表（id, user_id, title, description, is_public, created_at, updated_at），`collection_items` 关联表（collection_id, content_id, added_at, note）
+- 收藏集去重：同一收藏集内不允许添加重复内容（`collection_items` 表 UNIQUE 约束 `(collection_id, content_id)`）
+- 收藏集筛选：支持按 `content_type` 过滤收藏集内内容
+- 权限：私有收藏集仅创建者可见；公开收藏集所有用户可浏览
+- 前端入口：用户主页新增「收藏集」Tab 和内容详情页「添加到收藏集」按钮
+
+### 通知系统（Task 114–116）
+
+- 通知自动创建：后端在评论、点赞、关注、系统公告等事件发生时自动创建 `notifications` 记录
+- 通知类型枚举：`comment`、`like`、`follow`、`system`、`mention`、`appeal_result`、`content_status`
+- 前端 Entry Header 通知铃铛显示未读数（`GET /api/v1/notifications/unread-count` 轮询，5 分钟间隔）
+- 消息中心页面 `/messages` 包含通知列表和私信对话列表两个 Tab
+- 私信 UI（Task 116）：左侧对话列表 + 右侧对话窗口；Websocket 或 SSE 实现实时消息（MVP 使用 SSE）
+
+### 搜索增强（Task 119–120）
+
+- 全文搜索（Task 119）：使用 PostgreSQL `tsvector` + `tsquery` 实现中文全文搜索；迁移 038 创建 `content_search_idx` GIN 索引
+- 搜索建议/热搜（Task 120）：`search_suggestions` 表存储热门搜索词；`GET /api/v1/search/suggestions` 返回 Top 10 热搜词；前端搜索框输入时下拉显示建议
+
+### 密码重置（Task 117）
+
+- 密码重置流程：用户输入邮箱 → 后端生成重置 token（有效期 1h，存 Redis）→ 发送含 token 的重置链接到邮箱 → 用户点击链接 → 前端 `/reset-password?token=xxx` 页面 → 输入新密码 → 提交验证 token 并更新密码
+- 前端页面：`/forgot-password` 输入邮箱页 + `/reset-password` 输入新密码页
+
 ### 赛博判官
 - 题库不存在时：该类型内容不开放众裁
 - 考核通过线：≥ 80% 正确率
@@ -416,6 +449,43 @@ docker compose logs -f backend     # 查看后端日志
 - Go 下发的动作脚本必须附带 HMAC-SHA256 签名（详见 `task.json` Task 34）
 - Agent 工具白名单、限流速率等详细规范见 `architecture.md` §3.3 / §6.1
 
+### 安全规则（Task 99–105）
+
+**Task 99 — Admin Config 泄露防护**：`GET /api/v1/admin/config` 响应必须脱敏；JWT secret、OSS AccessKey/Secret、LLM API key 等敏感字段返回 `***REDACTED***`；前端 Admin 设置页不得依赖完整密钥渲染（仅显示掩码值或「已配置」状态）。
+
+**Task 100 — CORS 策略**：生产环境 CORS `AllowedOrigins` 必须从 `config.yaml > security.allowed_origins` 读取，禁止 `*` 通配符；本地开发可使用 `localhost:3000`；中间件 `CORSMiddleware` 必须在路由注册之前挂载。
+
+**Task 101 — Auth 实时状态检查**：所有受保护路由的 auth 中间件必须同时检查 `users.is_banned` 和 `users.role`；封禁或角色变更必须在下次请求时即时生效（不依赖客户端缓存）；前端还需在 `AuthProvider` 中添加 5 分钟间隔静默轮询 `/api/v1/auth/me` 以刷新用户状态。
+
+**Task 102 — 错误消息脱敏**：所有 `err.Error()` 直接暴露给客户端的地方必须替换为通用错误消息；前后端共 173+ 处需逐一排查并替换；后端使用统一错误信封 `{ "code": "ERROR_CODE", "message": "用户友好描述" }`，前端使用 toast 展示错误而非 `console.error(err)` 展示原始错误给用户。
+
+**Task 103 — 账号删除与 OSS 路径隔离**：用户删除账号时必须软删除（设置 `deleted_at`），关联内容标记为 `author_deleted`；OSS 用户目录采用 `/uploads/{user_id}/` 隔离，删除时通过生命周期规则或定时任务清理（不阻断删除操作本身）。
+
+**Task 104 — Goroutine Panic Recovery**：所有 HTTP handler 必须通过 Gin 中间件或 `recover()` 捕获 goroutine panic，返回 500 而非让进程崩溃；后台异步任务（如 embed 写入、通知发送）也必须在各自 goroutine 内添加 `defer func() { if r := recover(); r != nil { ... } }()`。
+
+**Task 105 — 受保护路由守卫**：前端所有 `/studio/*`、`/settings/*`、`/messages/*`、`/rehab/*`、`/judge/*`、`/admin/*` 路由必须包裹在 `(protected)` layout group 中；未登录访问时重定向到 `/login?redirect=原路径`；封禁用户访问受保护路由时展示「账号已被封禁」EmptyState 并提供申诉链接。
+
+### 国际化（i18n）规则
+
+- Task 108 完成后，**所有新增 UI 字符串必须通过 `next-intl` 的 `useTranslations()` 引用**，禁止硬编码中文或英文文本
+- 翻译文件位于 `frontend/messages/` 目录下，按语言代码组织（`zh.json`、`en.json`）
+- 新增功能页面的翻译 key 必须按页面路径命名空间组织（如 `messages.zh.notifications`）
+- i18n key 忘记添加的字符视为 lint 错误，`npm run lint` 必须覆盖检查
+
+### 结构化日志规则（Task 141）
+
+- 后端日志必须使用 `slog`（Go 1.21+ 标准结构化日志库），禁止 `log.Printf` / `fmt.Println` 调试输出残留
+- 日志格式统一 JSON，字段命名 snake_case
+- 必需字段：`time`、`level`、`msg`、`trace_id`（从请求上下文注入）
+- 请求日志中间件必须记录：`method`、`path`、`status`、`duration_ms`、`client_ip`
+- 敏感字段（密码、token、API key）必须标记为 `redacted`，不得出现在日志明文中
+
+### 优雅关机（Task 142）
+
+- Go 后端必须使用 `http.Server.Shutdown(ctx)` 实现优雅关机，关机超时从 `config.yaml > server.shutdown_timeout` 读取
+- 关机期间不再接受新请求，已有请求必须在超时内响应完成
+- 前端 Next.js 无需特殊关机逻辑（serverless 模式）
+
 ---
 
 ## Key Rules
@@ -435,6 +505,11 @@ docker compose logs -f backend     # 查看后端日志
 13. **Define success criteria** — 明确验证标准，分步执行并完成校验
 14. **Consult ui-spec for frontend** — 实现前端页面/组件前必须读取 `design/ui-spec.md` 对应章节（通过 `ui_spec_ref` 字段或主动 grep 检索组件名），严格遵照全局无阴影等 UI 规范。文件为空时跳过。
 15. **Design spec overrides prose** — 视觉细节以 `design/ui-spec.md` 为准，优先级高于 task steps 的文字描述
+16. **No raw error exposure** — 禁止将 `err.Error()` 直接返回给客户端或展示在前端 UI 上；必须使用脱敏的通用错误消息（Task 102）
+17. **Protected routes require auth guard** — 所有受保护路由必须包裹在 `(protected)` layout group 中，未登录时重定向 `/login`（Task 105）
+18. **Soft delete only** — 删除操作一律软删除（设置 `deleted_at`），禁止物理删除用户或内容数据（Task 103）
+19. **Structured logging** — 后端日志统一使用 `slog` JSON 格式，禁止 `log.Printf` / `fmt.Println` 调试输出（Task 141）
+20. **i18n mandatory** — 新增 UI 字符串必须通过 `next-intl` 引用，禁止硬编码中英文字符串（Task 108）
 
 ---
 

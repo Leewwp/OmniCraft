@@ -161,6 +161,15 @@ func (r *SocialRepository) CreateReport(report *model.Report) error {
 	return r.db.Create(report).Error
 }
 
+func (r *SocialRepository) FindReportByUserAndTarget(reporterID int64, targetType string, targetID int64) (*model.Report, error) {
+	var report model.Report
+	err := r.db.Where("reporter_id = ? AND target_type = ? AND target_id = ?", reporterID, targetType, targetID).First(&report).Error
+	if err != nil {
+		return nil, err
+	}
+	return &report, nil
+}
+
 func (r *SocialRepository) CountReports(targetType string, targetID int64) (int64, error) {
 	var count int64
 	err := r.db.Model(&model.Report{}).Where("target_type = ? AND target_id = ?", targetType, targetID).Count(&count).Error
@@ -177,12 +186,15 @@ func (r *SocialRepository) DeleteFavorite(userID, contentID int64) error {
 		Delete(&model.Favorite{}).Error
 }
 
-func (r *SocialRepository) ListFavoritesByUser(userID int64, page, pageSize int) ([]model.Favorite, int64, error) {
+func (r *SocialRepository) ListFavoritesByUser(userID int64, page, pageSize int, contentType string) ([]model.Favorite, int64, error) {
 	var favs []model.Favorite
 	var total int64
 	q := r.db.Model(&model.Favorite{}).Where("user_id = ?", userID)
+	if contentType != "" {
+		q = q.Joins("JOIN content_items ON content_items.id = favorites.content_item_id").Where("content_items.content_type = ?", contentType)
+	}
 	q.Count(&total)
 	offset := (page - 1) * pageSize
-	err := q.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&favs).Error
+	err := q.Order("favorites.created_at DESC").Offset(offset).Limit(pageSize).Find(&favs).Error
 	return favs, total, err
 }

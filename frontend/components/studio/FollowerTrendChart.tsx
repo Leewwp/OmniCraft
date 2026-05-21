@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import {
   LineChart,
   Line,
@@ -16,10 +17,12 @@ interface FollowerTrendChartProps {
 }
 
 export function FollowerTrendChart({ data }: FollowerTrendChartProps) {
+  const t = useTranslations("studio");
+
   if (data.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center rounded-lg border border-border bg-card text-sm text-muted-foreground">
-        暂无粉丝趋势数据
+        {t("followers.noTrendData")}
       </div>
     );
   }
@@ -27,7 +30,7 @@ export function FollowerTrendChart({ data }: FollowerTrendChartProps) {
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="mb-3 text-sm font-medium text-foreground">
-        粉丝增长趋势（近 30 天）
+        {t("followers.trendTitle")}
       </h3>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={data} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
@@ -60,7 +63,7 @@ export function FollowerTrendChart({ data }: FollowerTrendChartProps) {
           <Line
             type="monotone"
             dataKey="newFollowers"
-            name="新增粉丝"
+            name={t("followers.newFollowers")}
             stroke="var(--chart-1)"
             strokeWidth={2}
             dot={false}
@@ -69,7 +72,7 @@ export function FollowerTrendChart({ data }: FollowerTrendChartProps) {
           <Line
             type="monotone"
             dataKey="netGrowth"
-            name="净增粉丝"
+            name={t("followers.netFollowers")}
             stroke="var(--chart-2)"
             strokeWidth={2}
             dot={false}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -39,6 +40,7 @@ export default function DashboardContentsPage() {
       );
       setContents(data.contents || []);
     } catch (e) {
+      silentError(e, { component: 'DashboardContentsPage', action: 'loadContents' });
       setError(e instanceof ApiRequestError ? `${e.code}: ${e.message}` : t('dashboard.content.loadFailed'));
     } finally {
       setLoading(false);
@@ -52,6 +54,7 @@ export default function DashboardContentsPage() {
       await api.delete(`/api/v1/contents/${id}`);
       setContents((prev) => prev.filter((c) => c.ID !== id));
     } catch (e) {
+      silentError(e, { component: 'DashboardContentsPage', action: 'deleteContent' });
       setError(e instanceof ApiRequestError ? e.message : t('dashboard.content.deleteFailed'));
     } finally {
       setBusy(false);

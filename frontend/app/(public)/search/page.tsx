@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { Bookmark, Grid3X3, List, Search, SlidersHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { silentError } from "@/lib/error-handler";
 
 interface FilterConfig {
   category?: string;
@@ -53,6 +54,7 @@ export default function SearchPage() {
       );
       setResults(data.contents ?? []);
     } catch (e) {
+      silentError(e, { component: 'SearchPage', action: 'doSearch' });
       setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
     } finally {
       setLoading(false);
@@ -85,7 +87,7 @@ export default function SearchPage() {
       setSaveOpen(false);
       setSaveName("");
     } catch (e) {
-      // silently fail
+      silentError(e, { component: 'SearchPage', action: 'handleSaveSearch' });
     } finally {
       setSaveBusy(false);
     }

@@ -16,6 +16,7 @@ import {
   getRefreshToken,
   isTokenExpired,
 } from "@/lib/auth";
+import { silentError } from "@/lib/error-handler";
 
 export interface User {
   id: number;
@@ -65,7 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       saveTokens(data.tokens.access_token, data.tokens.refresh_token);
       return true;
-    } catch {
+    } catch (e) {
+      silentError(e, { component: "AuthContext", action: "refresh" });
       clearTokens();
       setUser(null);
       return false;
@@ -88,7 +90,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const data = await api.get<{ user: User }>("/api/v1/auth/me");
       setUser(data.user);
-    } catch {
+    } catch (e) {
+      silentError(e, { component: "AuthContext", action: "fetchMe" });
       clearTokens();
       setUser(null);
     } finally {
@@ -119,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         setUnreadCounts(data.unread_counts || { total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0 });
       } catch (e) {
-        console.error("[Auth] unread count poll failed", e);
+        silentError(e, { component: "AuthContext", action: "pollUnread" });
       }
     }
     pollUnread();

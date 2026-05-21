@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/social/FollowButton";
 import { normalizeContentList } from "@/lib/content";
 import { useTranslations } from 'next-intl';
+import { silentError } from "@/lib/error-handler";
 
 interface UserProfileClientProps {
   userId: number;
@@ -52,6 +53,7 @@ export function UserProfileClient({ userId, displayName }: UserProfileClientProp
       // Discussions return DiscussionCardData, not ContentCardData — pass through
       setItems(tab === "discussions" ? raw as unknown as ContentCardData[] : normalizeContentList(raw));
     } catch (e) {
+      silentError(e, { component: 'UserProfileClient', action: 'loadTab' });
       setError(e instanceof ApiRequestError ? e.message : t('common.loadFailed'));
     } finally {
       setLoading(false);

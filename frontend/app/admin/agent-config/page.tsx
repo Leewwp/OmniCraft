@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Check, Loader2, Power, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,7 @@ export default function AgentConfigPage() {
       const res = await api.get<{ configs?: LLMConfig[] }>("/api/v1/admin/llm-configs");
       setConfigs(res.configs ?? []);
     } catch (e) {
+      silentError(e, { component: 'AdminAgentConfigPage', action: 'loadConfigs' });
       setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
     } finally {
       setLoading(false);
@@ -79,6 +81,7 @@ export default function AgentConfigPage() {
       setModalOpen(false);
       await load();
     } catch (e) {
+      silentError(e, { component: 'AdminAgentConfigPage', action: 'handleSave' });
       setModalError(e instanceof ApiRequestError ? e.message : t("common.saveFailed"));
     } finally {
       setModalBusy(false);
@@ -90,6 +93,7 @@ export default function AgentConfigPage() {
       await api.delete(`/api/v1/admin/llm-configs/${id}`);
       await load();
     } catch (e) {
+      silentError(e, { component: 'AdminAgentConfigPage', action: 'handleDelete' });
       setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
     }
   }
@@ -99,6 +103,7 @@ export default function AgentConfigPage() {
       await api.post(`/api/v1/admin/llm-configs/${id}/activate`, {});
       await load();
     } catch (e) {
+      silentError(e, { component: 'AdminAgentConfigPage', action: 'handleActivate' });
       setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
     }
   }
@@ -108,7 +113,8 @@ export default function AgentConfigPage() {
     try {
       await api.post(`/api/v1/admin/llm-configs/${id}/test`, {});
       setTestResult((prev) => ({ ...prev, [id]: "ok" }));
-    } catch {
+    } catch (e) {
+      silentError(e, { component: 'AdminAgentConfigPage', action: 'handleTest' });
       setTestResult((prev) => ({ ...prev, [id]: "fail" }));
     }
   }

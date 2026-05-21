@@ -35,6 +35,7 @@ func main() {
 	scheduler.NewJudgeQuestionSync(db).Start()
 	scheduler.NewTagUsageSync(db).Start()
 	scheduler.NewViewCountSync(ctr.ContentService, &cfg.Cache).Start()
+	scheduler.NewDownloadCountSync(ctr.ContentService, &cfg.Cache).Start()
 
 	hotRankSvc := service.NewHotRankService(ctr.ContentService, &cfg.Recommendation).
 		WithRecommendationService(ctr.RecommendationSvc).
@@ -44,6 +45,7 @@ func main() {
 	})
 
 	r := gin.New()
+	r.Use(middleware.RequestID())
 	r.Use(middleware.Logger())
 	r.Use(middleware.CORS(cfg))
 	r.Use(middleware.CSRF(cfg))

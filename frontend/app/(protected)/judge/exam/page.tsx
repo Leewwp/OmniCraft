@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import ExamQuestion from "@/components/judge/ExamQuestion";
@@ -58,6 +59,7 @@ export default function JudgeExamPage() {
       setCurrentIndex(0);
       setAnswers({});
     } catch (e) {
+      silentError(e, { component: 'JudgeExamPage', action: 'loadQuestions' });
       setError(e instanceof ApiRequestError ? e.message : t('judge.examLoadFailed'));
     } finally {
       setLoading(false);
@@ -99,6 +101,7 @@ export default function JudgeExamPage() {
       setResult({ passed: data.passed, score: data.record.score, total: data.record.total });
       setPhase("result");
     } catch (e) {
+      silentError(e, { component: 'JudgeExamPage', action: 'submitExam' });
       setError(e instanceof ApiRequestError ? e.message : t('judge.examSubmitFailed'));
     } finally {
       setLoading(false);
