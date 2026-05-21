@@ -18,7 +18,7 @@ export class ApiRequestError extends Error {
 
 function getCSRFToken(): string | null {
   if (typeof document === "undefined") return null;
-  const match = document.cookie.match(/(?:^|;\s*)__Host-csrf=([^;]*)/);
+  const match = document.cookie.match(/(?:^|;\s*)(?:__Host-csrf|csrf-token)=([^;]*)/);
   return match ? decodeURIComponent(match[1]) : null;
 }
 
@@ -34,6 +34,7 @@ async function tryRefreshToken(): Promise<boolean> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refreshToken }),
+      credentials: 'include',
     });
     if (!res.ok) return false;
     const data = await res.json() as { tokens: { access_token: string; refresh_token: string } };
@@ -80,6 +81,7 @@ async function request<T>(
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers,
+    credentials: 'include',
   });
 
   if (!res.ok) {
@@ -92,7 +94,7 @@ async function request<T>(
       const refreshed = await doRefreshToken();
       if (refreshed) {
         headers["Authorization"] = `Bearer ${localStorage.getItem("access_token")}`;
-        const retryRes = await fetch(`${API_URL}${path}`, { ...options, headers });
+        const retryRes = await fetch(`${API_URL}${path}`, { ...options, headers, credentials: 'include' });
         if (retryRes.ok) {
           if (retryRes.status === 204) return undefined as T;
           return retryRes.json();
