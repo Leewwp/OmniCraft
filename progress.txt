@@ -1,5 +1,44 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-21] - Task 119: 内容全文搜索 API (tsvector + GIN)
+
+### What was done:
+- 创建 `migrations/041_content_search_vector.sql`：为 content_items 表添加 search_vector tsvector 列 + GIN 索引 + 自动更新触发器 + 回填
+- 创建 `migrations/042_ips_search_vector.sql`：为 ips 表添加 search_vector tsvector 列 + GIN 索引 + 自动更新触发器 + 回填
+- 重构 `search_repo.go`：新增 SearchContents（tsvector + ts_rank_cd + ts_headline）、SearchIPs、SearchUsers、ListReports、UpdateReportStatus、GetReportStats
+- 重构 `search_service.go`：新增 SearchContents、SearchIPs、SearchUsers 方法
+- 重构 `search.go` handler：新增 SearchContents（GET /contents/search）和 SearchUsers（GET /users/search）端点
+- 新增 admin.go handler 方法：ListReports、ResolveReport、GetReportStats
+
+### Testing:
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+
+### Notes:
+- 全文搜索使用 'simple' 词典（支持中英文），ts_rank_cd 加权排序（标题 A 权重 > 描述 B 权重 > 标签 C 权重）
+- 搜索结果包含 ts_headline 高亮摘要
+- IP 搜索同样支持全文搜索
+- 用户搜索使用 ILIKE 模糊匹配（用户名搜索不需要 tsvector）
+- 管理员举报管理 API 支持按 status/target_type 筛选和分页
+
+## [2026-05-21] - Task 136: 缺失 API — 用户搜索与举报管理
+
+### What was done:
+- 新增 `GET /users/search?q=&page=&limit=20`：用户名模糊搜索（ILIKE），返回脱敏用户信息（不含 email/password）
+- 新增 `GET /admin/reports?status=&target_type=&page=&page_size=20`：管理员举报列表，支持按状态和目标类型筛选
+- 新增 `PATCH /admin/reports/:id`：处理举报（status=resolved/dismissed + action_taken）
+- 新增 `GET /admin/reports/stats`：举报统计概览（总数、待处理、已处理、内容/评论分类统计）
+- 在 routes.go 注册所有新路由
+
+### Testing:
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+
+### Notes:
+- 用户搜索仅返回 id、username、avatar_url、reputation、role（脱敏，不含 email）
+- 举报处理支持 resolved（已处理）和 dismissed（已驳回）两种状态
+- 举报统计接口一次性返回所有分类计数
+
 ## [2026-05-15] - P1 Bug Fixes (跨任务修复)
 
 ### What was done:

@@ -559,3 +559,62 @@ func (h *AdminHandler) TestLLMConfig(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"response": response})
 }
+
+func (h *AdminHandler) ListReports(c *gin.Context) {
+	status := c.Query("status")
+	targetType := c.Query("target_type")
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	searchRepo := repository.NewSearchRepository(h.contentRepo.DB())
+	reports, total, err := searchRepo.ListReports(status, targetType, page, pageSize)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	if reports == nil {
+		reports = []model.Report{}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"reports":   reports,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
+}
+
+func (h *AdminHandler) ResolveReport(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid report id"})
+		return
+	}
+	var body struct {
+		Status       string `json:"status" binding:"required"`
+		ActionTaken  string `json:"action_taken"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "status is required"})
+		return
+	}
+	if body.Status != "resolved" && body.Status != "dismissed" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "status must be resolved or dismissed"})
+		return
+	}
+	searchRepo := repository.NewSearchRepository(h.contentRepo.DB())
+	if err := searchRepo.UpdateReportStatus(id, body.Status, body.ActionTaken); err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "report updated"})
+}
+
+func (h *AdminHandler) GetReportStats(c *gin.Context) {
+	searchRepo := repository.NewSearchRepository(h.contentRepo.DB())
+	stats, err := searchRepo.GetReportStats()
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	c.JSON(http.StatusOK, stats)
+}
