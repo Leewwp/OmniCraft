@@ -47,3 +47,23 @@ func (s *SearchService) GetTrending(limit int) ([]TrendingItem, error) {
 	}
 	return results, nil
 }
+
+func (s *SearchService) SearchContents(query, zone, category, contentType string, tagFilters []string, sort string, page, pageSize int, viewerID int64) ([]repository.ContentSearchResult, int64, error) {
+	return s.searchRepo.SearchContents(query, zone, category, contentType, tagFilters, sort, page, pageSize, viewerID)
+}
+
+func (s *SearchService) SearchIPs(query, category string, page, pageSize int) ([]interface{}, int64, error) {
+	ips, total, err := s.searchRepo.SearchIPs(query, category, page, pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+	results := make([]interface{}, len(ips))
+	for i, ip := range ips {
+		results[i] = ip
+	}
+	return results, total, nil
+}
+
+func (s *SearchService) SearchUsers(query string, page, pageSize int) ([]repository.UserSearchResult, int64, error) {
+	return s.searchRepo.SearchUsers(query, page, pageSize)
+}

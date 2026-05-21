@@ -160,6 +160,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	searchHandler := NewSearchHandler(service.NewSearchService(repository.NewSearchRepository(db), rdb))
 	v1.GET("/search/suggestions", searchHandler.Suggestions)
 	v1.GET("/search/trending", searchHandler.Trending)
+	v1.GET("/contents/search", optAuth, searchHandler.SearchContents)
 
 	followHandler := NewFollowHandler(db)
 	followHandler.SetNotificationService(notifSvc)
@@ -167,6 +168,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	users.DELETE("/:id/follow", middleware.AuthRequired(cfg, rdb), followHandler.UnfollowUser)
 	users.GET("/:id/followers", optAuth, followHandler.GetFollowers)
 	users.GET("/:id/following", optAuth, followHandler.GetFollowing)
+	users.GET("/search", optAuth, searchHandler.SearchUsers)
 	ips.POST("/:id/follow", middleware.AuthRequired(cfg, rdb), followHandler.FollowIP)
 	ips.DELETE("/:id/follow", middleware.AuthRequired(cfg, rdb), followHandler.UnfollowIP)
 
@@ -254,6 +256,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		admin.POST("/users/:id/unban", adminHandler.UnbanUser)
 		admin.GET("/appeals", adminHandler.ListAppeals)
 		admin.POST("/appeals/:id", adminHandler.ResolveAppeal)
+		admin.GET("/reports", adminHandler.ListReports)
+		admin.PATCH("/reports/:id", adminHandler.ResolveReport)
+		admin.GET("/reports/stats", adminHandler.GetReportStats)
 		admin.GET("/config", adminHandler.GetConfig)
 		admin.PATCH("/config", adminHandler.PatchConfig)
 		admin.POST("/judge/questions", judgeHandler.CreateQuestions)
