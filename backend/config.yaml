@@ -111,3 +111,17 @@ cache:
   ip_list_ttl: 300
   ip_detail_ttl: 300
   view_count_flush_interval: 60
+
+queue:
+  enabled: false
+  max_attempts: 3
+  retry_backoff_sec:
+    - 10
+    - 60
+    - 300
+  dlq_ttl_hours: 168
+  maxlen: 100000
+  worker_review: 2
+  worker_notification: 1
+  worker_embedding: 1
+  worker_count: 1

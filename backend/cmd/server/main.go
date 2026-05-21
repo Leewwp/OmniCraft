@@ -44,6 +44,9 @@ func main() {
 		hotRankSvc.Run()
 	})
 
+	// Start queue workers if enabled
+	stopWorkers := ctr.StartWorkers(context.Background())
+
 	r := gin.New()
 	r.Use(middleware.RequestID())
 	r.Use(middleware.Logger())
@@ -79,8 +82,10 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
+slog.Info("Shutting down server...")
 
-	slog.Info("Shutting down server...")
+	stopWorkers()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 

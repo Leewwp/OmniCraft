@@ -10,9 +10,11 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
+	"omnicraft/backend/internal/worker"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -28,6 +30,7 @@ type AdminHandler struct {
 	cfg          *config.Config
 	rdb          *redis.Client
 	notifSvc     *service.NotificationService
+	dlqWorker    *worker.DLQWorker
 	mu           sync.Mutex
 }
 
@@ -47,6 +50,10 @@ func isSensitivePatchKey(key string) bool {
 }
 
 func NewAdminHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *AdminHandler {
+	var dlqWorker *worker.DLQWorker
+	if rdb != nil {
+		dlqWorker = worker.NewDLQWorker(rdb)
+	}
 	return &AdminHandler{
 		ipSvc:        service.NewIPService(repository.NewIPRepository(db)),
 		contentRepo:  repository.NewContentRepository(db),
@@ -55,6 +62,7 @@ func NewAdminHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *AdminH
 		llmConfigSvc: service.NewLLMConfigService(repository.NewLLMConfigRepository(db), cfg),
 		cfg:          cfg,
 		rdb:          rdb,
+		dlqWorker:    dlqWorker,
 	}
 }
 
@@ -617,4 +625,49 @@ func (h *AdminHandler) GetReportStats(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, stats)
+}
+
+func (h *AdminHandler) GetQueueStats(c *gin.Context) {
+	topics := []string{
+		"content.review",
+		"ip.review",
+		"notification.create",
+		"count.download",
+		"content.embedding",
+	}
+	stats, err := queue.GetQueueStats(c.Request.Context(), h.rdb, topics)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "QUEUE_STATS_ERROR", err)
+		return
+	}
+
+	dlqCount, _ := queue.GetDLQStats(c.Request.Context(), h.rdb)
+	c.JSON(http.StatusOK, gin.H{
+		"topics":  stats,
+		"dlq_count": dlqCount,
+		"queue_enabled": h.cfg.Queue.Enabled,
+	})
+}
+
+func (h *AdminHandler) GetDLQEntries(c *gin.Context) {
+	limit := int64(100)
+	if l, err := strconv.ParseInt(c.DefaultQuery("limit", "100"), 10, 64); err == nil && l > 0 && l <= 1000 {
+		limit = l
+	}
+
+	if h.dlqWorker == nil {
+		c.JSON(http.StatusOK, gin.H{"entries": []worker.DLQEntry{}, "count": 0})
+		return
+	}
+
+	entries, err := h.dlqWorker.Consume(c.Request.Context(), limit)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DLQ_ERROR", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"entries": entries,
+		"count":   len(entries),
+	})
 }

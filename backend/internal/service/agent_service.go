@@ -14,11 +14,11 @@ import (
 
 	"gorm.io/gorm"
 
-	"omnicraft/backend/config"
+"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/llm"
-	"omnicraft/backend/internal/pkg/recovery"
+	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/repository"
 )
 
@@ -32,6 +32,7 @@ type AgentService struct {
 	greenClient   *aliyun.GreenClient
 	db            *gorm.DB
 	cfg           *config.Config
+	queueProducer queue.Producer
 }
 
 func NewAgentService(provider llm.LLMProvider, embeddingRepo *repository.EmbeddingRepository, contentRepo *repository.ContentRepository, greenClient *aliyun.GreenClient, db *gorm.DB, cfg *config.Config) *AgentService {
@@ -42,6 +43,7 @@ func NewAgentService(provider llm.LLMProvider, embeddingRepo *repository.Embeddi
 		greenClient:   greenClient,
 		db:            db,
 		cfg:           cfg,
+		queueProducer: queue.NewNoopProducer(),
 	}
 }
 
@@ -389,18 +391,43 @@ Respond ONLY with JSON: {"risk_level":"safe|warning|violation","violations":[],"
 	return &llmResult, nil
 }
 
+func (s *AgentService) SetQueueProducer(p queue.Producer) {
+	s.queueProducer = p
+}
+
 func (s *AgentService) EmbedContentAsync(contentItemID int64, text string) {
-	recovery.GoSafe(func() {
-		ctx := context.Background()
-		embedding, err := s.llmProvider.GetEmbedding(ctx, text)
-		if err != nil {
-			slog.Error("embedding error", "content_id", contentItemID, "error", err)
-			return
-		}
-		if err := s.embeddingRepo.UpsertEmbedding(contentItemID, embedding); err != nil {
-			slog.Error("upsert embedding error", "content_id", contentItemID, "error", err)
-		}
-	})
+	if _, ok := s.queueProducer.(*queue.NoopProducer); !ok && s.queueProducer != nil {
+		go func() {
+			payload, _ := json.Marshal(map[string]interface{}{
+				"content_id": contentItemID,
+				"text":       text,
+			})
+			if err := s.queueProducer.Publish(context.Background(), "content.embedding", payload); err != nil {
+				slog.Error("failed to publish content.embedding message", "content_id", contentItemID, "error", err)
+			}
+		}()
+	} else {
+		go func() {
+			if err := s.embedContent(context.Background(), contentItemID, text); err != nil {
+				slog.Error("embedding error", "content_id", contentItemID, "error", err)
+			}
+		}()
+	}
+}
+
+func (s *AgentService) EmbedContent(ctx context.Context, contentItemID int64, text string) error {
+	return s.embedContent(ctx, contentItemID, text)
+}
+
+func (s *AgentService) embedContent(ctx context.Context, contentItemID int64, text string) error {
+	embedding, err := s.llmProvider.GetEmbedding(ctx, text)
+	if err != nil {
+		return err
+	}
+	if err := s.embeddingRepo.UpsertEmbedding(contentItemID, embedding); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []llm.ChatMessage, handler func(delta string, done bool, conversationID int64) error) error {

@@ -14,6 +14,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/pkg/recovery"
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/repository"
@@ -28,10 +29,11 @@ var (
 )
 
 type IPService struct {
-	ipRepo    *repository.IPRepository
-	rdb       *redis.Client
-	cacheCfg  *config.CacheConfig
-	reviewSvc *ReviewService
+	ipRepo        *repository.IPRepository
+	rdb           *redis.Client
+	cacheCfg      *config.CacheConfig
+	reviewSvc     *ReviewService
+	queueProducer queue.Producer
 }
 
 func NewIPService(ipRepo *repository.IPRepository) *IPService {
@@ -44,6 +46,10 @@ func NewIPServiceWithCache(ipRepo *repository.IPRepository, rdb *redis.Client, c
 
 func NewIPServiceWithReview(ipRepo *repository.IPRepository, rdb *redis.Client, cacheCfg *config.CacheConfig, reviewSvc *ReviewService) *IPService {
 	return &IPService{ipRepo: ipRepo, rdb: rdb, cacheCfg: cacheCfg, reviewSvc: reviewSvc}
+}
+
+func (s *IPService) SetQueueProducer(p queue.Producer) {
+	s.queueProducer = p
 }
 
 type CreateIPInput struct {
@@ -89,18 +95,34 @@ func (s *IPService) submitIPForAIReview(ip *model.IP, creatorID int64) {
 	if s.reviewSvc == nil || ip == nil {
 		return
 	}
-	recovery.GoSafe(func() {
-		err := s.reviewSvc.SubmitForAIReview(context.Background(), SubmitReviewInput{
-			TargetType:  "ip",
-			TargetID:    ip.ID,
-			Title:       ip.Name,
-			Description: ip.Description,
-			AuthorID:    creatorID,
+	if _, ok := s.queueProducer.(*queue.NoopProducer); !ok && s.queueProducer != nil {
+		go func() {
+			payload, _ := json.Marshal(map[string]interface{}{
+				"action":       "submit_ai_review",
+				"target_type":  "ip",
+				"target_id":    ip.ID,
+				"title":        ip.Name,
+				"description":  ip.Description,
+				"author_id":    creatorID,
+			})
+			if err := s.queueProducer.Publish(context.Background(), "ip.review", payload); err != nil {
+				slog.Error("failed to publish ip.review message", "ip_id", ip.ID, "error", err)
+			}
+		}()
+	} else {
+		recovery.GoSafe(func() {
+			err := s.reviewSvc.SubmitForAIReview(context.Background(), SubmitReviewInput{
+				TargetType:  "ip",
+				TargetID:    ip.ID,
+				Title:       ip.Name,
+				Description: ip.Description,
+				AuthorID:    creatorID,
+			})
+			if err != nil && !errors.Is(err, aliyun.ErrGreenNotConfigured) {
+				slog.Error("ip ai review failed", "ip_id", ip.ID, "error", err)
+			}
 		})
-		if err != nil && !errors.Is(err, aliyun.ErrGreenNotConfigured) {
-			slog.Error("ip ai review failed", "ip_id", ip.ID, "error", err)
-		}
-	})
+	}
 }
 
 func (s *IPService) GetIP(id int64) (*model.IP, error) {

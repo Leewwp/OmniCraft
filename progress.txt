@@ -1,5 +1,91 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-22] - Task 150: Worker 生命周期管理、DLQ 监控与全链路集成
+
+### What was done:
+- 创建 `internal/worker/manager.go`：WorkerManager 统一管理所有 worker 的启动（Register + Start）和停止（Cancel context + Stop broker），提供 HealthCheck（预留）
+- 创建 `internal/worker/dlq_worker.go`：DLQWorker 消费 omnicraft:dead-letter stream，提供 Consume（列出最近 N 条死信）和 Replay（重放指定消息到原始 topic）两个方法
+- 修改 `container.go` StartWorkers：使用 WorkerManager 替代手动循环注册，统一管理 5 个 topic（content.review, ip.review, notification.create, count.download, content.embedding）
+- 修改 `cmd/server/main.go`：优雅关机调用 stopWorkers()，在 srv.Shutdown 之前停止所有消费者
+- 添加 GET /api/v1/admin/queue/stats 管理端点：返回各 topic 的队列深度、消费者组 lag、DLQ 数量、queue.enabled 开关状态
+- 添加 GET /api/v1/admin/queue/dlq 管理端点：列出最近 100 条死信（含 original_topic、payload、失败原因、重试次数），支持 limit 参数
+- AdminHandler 增加 dlqWorker 字段，NewAdminHandler 自动创建 DLQWorker 实例
+- 所有 queue.enabled=false 时 NoopProducer 工作正常，逻辑回退到同步 GoSafe 模式
+
+### Testing:
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+
+## [2026-05-22] - Task 149: 下载计数与 Embedding 向量队列 — B2+B3 改造
+
+### What was done:
+- 创建 `internal/worker/count_worker.go`：CountWorker 结构体，Handle 方法反序列化消息后根据 action（download/view）执行 Redis ZINCRBY 计数操作
+- 创建 `internal/worker/embedding_worker.go`：EmbeddingWorker 结构体，Handle 方法调用 AgentService.EmbedContent 执行向量化
+- 修改 `handler/content.go` DownloadContent：queue 启用时将 go func(){ rdb.ZIncrBy(...) }() 替换为 queueProducer.Publish(ctx, "count.download", payload)；queue 未启用时保持 go func 逻辑；ContentHandler 添加 queueProducer 字段和 SetQueueProducer 方法
+- 修改 `agent_service.go` EmbedContentAsync：queue 启用时将 GoSafe 替换为 queueProducer.Publish(ctx, "content.embedding", payload)；queue 未启用时保持 GoSafe 逻辑；AgentService 添加 queueProducer 字段和 SetQueueProducer 方法；新增 EmbedContent 公开方法供 EmbeddingWorker 直接调用
+- 修改 `container.go` StartWorkers：注册 count.download 和 content.embedding 两个 topic 分别绑定 CountWorker 和 EmbeddingWorker
+- 下载计数消息设计为允许可重复消费（ZINCRBY 增量操作幂等）；Embedding 消息 UpsertEmbedding 天然幂等
+- AgentHandler 添加 SetQueueProducer 方法，routes.go 中 wire queueProducer
+
+### Testing:
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+
+## [2026-05-22] - Task 148: 通知写入队列 — B1 改造
+
+### What was done:
+- 创建 `internal/worker/notification_worker.go`：NotificationWorker 结构体，Handle 方法反序列化消息后调用 NotificationRepo.Create 写 DB，失败返回 error 触发重试
+- 修改 `notification_service.go` Notify 方法：queue 启用时将 GoSafe(func(){ repo.Create(n) }) 替换为 queueProducer.Publish(ctx, "notification.create", payload)；queue 未启用时保持 GoSafe 逻辑（向后兼容）
+- 在 container.go StartWorkers 中注册 notification.create topic 和 NotificationWorker
+- 所有调用 Notify 的地方（SocialService、PRService 等）无需改动，Notify 方法内部自行判断投递方式
+
+### Testing:
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+
+## [2026-05-21] - Task 147: 内容审核异步化 — A 类改造
+
+### What was done:
+- 创建 `internal/worker/review_worker.go`：ReviewWorker 结构体，Handle 方法消费 content.review/ip.review 两种 topic，支持 submit_ai_review 和 process_ai_callback 两种 action
+- 修改 `content_service.go` PublishContent：queue 启用时将审核投递到 content.review topic（goroutine），未启用时保持同步逻辑；添加 SetQueueProducer 方法
+- 修改 `ip_service.go` CreateIP：queue 启用时将审核投递到 ip.review topic，未启用时保持 GoSafe 逻辑；添加 SetQueueProducer 方法
+- 修改 `handler/internal.go` AICallback：queue 启用时立即返回 200 给阿里云，将回调数据通过 queue.Publish 投递到审核队列；未启用时保持同步 ProcessAICallback
+- 修改 `container.go`：StartWorkers 方法注册 ReviewWorker 到 content.review 和 ip.review 两个 topic；NewContainer 中 wire queueProducer 到 ContentService/IPService/InternalHandler
+- 修改 `cmd/server/main.go`：在 srv.Shutdown 之前调用 stopWorkers() 停止所有消费者
+
+### Testing:
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+
+### Notes:
+- queue.enabled=false 时所有发布流程与改造前完全一致（同步审核）
+- queue.enabled=true 时发布立即返回 201，内容 status=pending，审核完成后状态正确变更
+- AI 回调异步处理：回调立即返回 200，worker 异步处理审核结果
+
+## [2026-05-21] - Task 146: Redis Streams 消息队列基础设施建设
+
+### What was done:
+- 创建 `internal/pkg/queue/queue.go`：定义 Message、Handler、Producer、Consumer、Broker 接口和 QueueConfig 结构体
+- 创建 `internal/pkg/queue/redis_stream.go`：RedisStreamBroker 实现 Producer+Consumer，使用 XADD/XREADGROUP/XACK/XDEL，消费者组名称格式 omnicraft-{topic}
+- 创建 `internal/pkg/queue/retry.go`：重试策略，默认 backoff [10,60,300] 秒，超过最大重试次数后移入死信队列
+- 创建 `internal/pkg/queue/idempotent.go`：幂等检查框架，使用 Redis SETNX（TTL=24h）防止消息重复消费
+- 创建 `internal/pkg/queue/observability.go`：队列深度、消费延迟、死信队列统计的 slog 结构化日志和 GetQueueStats/GetDLQStats API
+- 创建 `internal/pkg/queue/noop.go`：NoopProducer，queue.enabled=false 时仅 slog.Warn + 不投递
+- 创建 `internal/pkg/queue/queue_test.go`：miniredis 单元测试覆盖 Publish→Subscribe→ACK 完整链路、重试超限进 DLQ、幂等检查重复消息跳过、NoopProducer
+- 更新 `config/config.go`：Config.Queue 字段类型改为 queue.QueueConfig，移除本地 QueueConfig 定义
+- 更新 `config.yaml`：新增 queue 配置节（enabled=false, max_attempts=3, retry_backoff_sec=[10,60,300], dlq_ttl_hours=168, maxlen=100000, worker_count）
+- 更新 `container/container.go`：NewContainer 增加 QueueBroker/QueueProducer 字段，queue.Enabled 时创建 RedisStreamBroker，否则使用 NoopProducer
+
+### Testing:
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+- `go test ./internal/pkg/queue/ -v` — 4/4 PASS（TestPublishAndSubscribe, TestRetryAndDLQ, TestIdempotentCheck, TestNoopProducer）
+
+### Notes:
+- queue.enabled 默认 false，所有现有同步逻辑（GoSafe/fire-and-forget）暂时不变，Task 147-149 再逐步切换
+- 死信队列 stream key: omnicraft:dead-letter，DLQ 管理端点将在 Task 150 实现
+- 消费者组名称格式为 omnicraft-{topic}，确保不同 topic 使用不同消费者组
+
 ## [2026-05-21] - Task 119: 内容全文搜索 API (tsvector + GIN)
 
 ### What was done:
@@ -1751,3 +1837,24 @@
 - 大类列表使用架构文档 §1.1 中定义的 12 个一级分类（原创区），未来可改为从 `GET /api/v1/categories` 动态加载
 - SearchAgentInput 未实现（非本任务范围），搜索页整合时另行引入
 - 组件状态变更通过 useEffect + prevConfigRef 防抖 emit
+
+## [2026-05-21] - Batch fixes: Tasks 86, 93, 30, 21, 117, 126, 137
+
+### What was done:
+- **Task 86 (AgentChatWidget)**: Added `<AgentChatWidget />` to `app/layout.tsx` inside `<AuthProvider>`
+- **Task 93 fix (followers/stats)**: Added `GET /users/me/followers/stats` endpoint — repo method `GetFollowerStats`, handler `GetFollowerStats`, route registered in `me` group
+- **Task 30 (avatar upload)**: Added avatar upload section to settings page with OSS presign flow; added `refreshUser` method to AuthContext; added i18n keys (avatar, changeAvatar, avatarHint, avatarTooLarge, avatarUpdated)
+- **Task 21 (auth redirect)**: Updated `proxy.ts` to add `/studio` to PROTECTED_PATHS for server-side auth redirect
+- **Task 117 (notification center)**: Added `follow` and `pr` channel filter tabs to NotificationList; added `markAllRead` with channel parameter; added click-through navigation based on `target_type`/`target_id`; updated NotificationDropdown with same click-through
+- **Task 126 (favorites page)**: Created `studio/favorites/page.tsx` with content type filter tabs, pagination, and empty state; added i18n keys for both en/zh
+- **Task 137 (forgot/reset password + verify email)**: Created `forgot-password/page.tsx`, `reset-password/page.tsx`, `verify-email/page.tsx`; added corresponding i18n keys; added forgot-password link to login page
+- Added login page link to `/forgot-password`
+
+### Testing:
+- `go build ./...` PASS
+- `go vet ./...` PASS
+- `npm run build` PASS (all routes verified including /forgot-password, /reset-password, /verify-email, /studio/favorites)
+
+### Notes:
+- `proxy.ts` is the Next.js 16 replacement for `middleware.ts` — both cannot coexist
+- Auth context now exposes `refreshUser()` for avatar update refresh
