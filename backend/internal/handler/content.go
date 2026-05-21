@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
@@ -22,13 +24,14 @@ import (
 )
 
 type ContentHandler struct {
-	contentSvc      *service.ContentService
-	contentRepo     *repository.ContentRepository
+	contentSvc        *service.ContentService
+	contentRepo       *repository.ContentRepository
 	browseHistoryRepo *repository.BrowseHistoryRepository
-	ossSvc          *service.OSSService
-	ossInitErr      error
-	rdb             *redis.Client
-	cfg             *config.Config
+	ossSvc            *service.OSSService
+	ossInitErr       error
+	rdb               *redis.Client
+	cfg               *config.Config
+	queueProducer     queue.Producer
 }
 
 func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *ContentHandler {
@@ -43,15 +46,20 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 	recSvc := service.NewRecommendationService(db, embeddingRepo, repo, contentSvc, rdb, &cfg.Recommendation)
 	contentSvc.SetRecommendationService(recSvc)
 
-	return &ContentHandler{
+return &ContentHandler{
 		contentSvc:        contentSvc,
 		contentRepo:       repo,
 		browseHistoryRepo: repository.NewBrowseHistoryRepository(db),
 		ossSvc:            ossSvc,
-		ossInitErr:        ossErr,
+		ossInitErr:       ossErr,
 		rdb:               rdb,
 		cfg:               cfg,
+		queueProducer:     queue.NewNoopProducer(),
 	}
+}
+
+func (h *ContentHandler) SetQueueProducer(p queue.Producer) {
+	h.queueProducer = p
 }
 
 func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
@@ -468,8 +476,18 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 		return
 	}
 
-	// Async increment download count in Redis
-	if h.rdb != nil {
+	// Async increment download count
+	if _, ok := h.queueProducer.(*queue.NoopProducer); !ok && h.queueProducer != nil {
+		go func() {
+			payload, _ := json.Marshal(map[string]interface{}{
+				"content_id": id,
+				"action":    "download",
+			})
+			if err := h.queueProducer.Publish(context.Background(), "count.download", payload); err != nil {
+				slog.Error("failed to publish download count message", "content_id", id, "error", err)
+			}
+		}()
+	} else if h.rdb != nil {
 		go func() {
 			ctx := context.Background()
 			h.rdb.ZIncrBy(ctx, "rank:download_counts", 1, fmt.Sprintf("%d", id))

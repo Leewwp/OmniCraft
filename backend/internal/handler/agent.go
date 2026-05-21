@@ -10,6 +10,7 @@ import (
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/llm"
+	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
@@ -40,8 +41,12 @@ func NewAgentHandler(db *gorm.DB, cfg *config.Config) *AgentHandler {
 			cfg,
 		),
 		cfg: cfg,
-		db: db,
+		db:  db,
 	}
+}
+
+func (h *AgentHandler) SetQueueProducer(p queue.Producer) {
+	h.agentSvc.SetQueueProducer(p)
 }
 
 func (h *AgentHandler) UploadAssist(c *gin.Context) {

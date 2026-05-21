@@ -56,6 +56,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	}
 
 	contentHandler := NewContentHandler(db, cfg, rdb)
+	contentHandler.SetQueueProducer(ctr.QueueProducer)
 	contents := v1.Group("/contents")
 	{
 		contents.GET("", optAuth, contentHandler.ListContents)
@@ -146,6 +147,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	dashboard.GET("/tag-suggestions", tagHandler.ListTagSuggestions)
 	dashboard.PATCH("/tag-suggestions/:id", tagHandler.UpdateTagSuggestion)
 
+	followHandler := NewFollowHandler(db)
+	followHandler.SetNotificationService(notifSvc)
+
 	me := v1.Group("/users/me", middleware.AuthRequired(cfg, rdb))
 	{
 		me.GET("/tag-groups", tagHandler.ListTagGroups)
@@ -155,6 +159,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		me.GET("/saved-searches", tagHandler.ListSavedSearches)
 		me.POST("/saved-searches", tagHandler.CreateSavedSearch)
 		me.DELETE("/saved-searches/:id", tagHandler.DeleteSavedSearch)
+		me.GET("/followers/stats", followHandler.GetFollowerStats)
 	}
 
 	searchHandler := NewSearchHandler(service.NewSearchService(repository.NewSearchRepository(db), rdb))
@@ -162,8 +167,6 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	v1.GET("/search/trending", searchHandler.Trending)
 	v1.GET("/contents/search", optAuth, searchHandler.SearchContents)
 
-	followHandler := NewFollowHandler(db)
-	followHandler.SetNotificationService(notifSvc)
 	users.POST("/:id/follow", middleware.AuthRequired(cfg, rdb), followHandler.FollowUser)
 	users.DELETE("/:id/follow", middleware.AuthRequired(cfg, rdb), followHandler.UnfollowUser)
 	users.GET("/:id/followers", optAuth, followHandler.GetFollowers)
@@ -217,6 +220,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	v1.GET("/reputation-logs/me", middleware.AuthRequired(cfg, rdb), repHandler.GetMyReputationLogs)
 
 	agentHandler := NewAgentHandler(db, cfg)
+	agentHandler.SetQueueProducer(ctr.QueueProducer)
 	agent := v1.Group("/agent", middleware.AuthRequired(cfg, rdb), middleware.AgentRateLimit(rdb, cfg))
 	{
 		agent.POST("/upload-assist", agentHandler.UploadAssist)
@@ -272,9 +276,12 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		admin.DELETE("/llm-configs/:id", adminHandler.DeleteLLMConfig)
 		admin.POST("/llm-configs/:id/activate", adminHandler.ActivateLLMConfig)
 		admin.POST("/llm-configs/:id/test", adminHandler.TestLLMConfig)
+		admin.GET("/queue/stats", adminHandler.GetQueueStats)
+		admin.GET("/queue/dlq", adminHandler.GetDLQEntries)
 	}
 
 	internalHandler := NewInternalHandler(db, rdb, cfg)
+	internalHandler.SetQueueProducer(ctr.QueueProducer)
 	internal := v1.Group("/internal")
 	{
 		internal.POST("/ai-callback", internalHandler.AICallback)

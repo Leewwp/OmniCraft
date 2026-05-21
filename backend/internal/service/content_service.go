@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/pkg/recovery"
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/repository"
@@ -28,12 +30,13 @@ var (
 )
 
 type ContentService struct {
-	contentRepo *repository.ContentRepository
-	reviewSvc   *ReviewService
-	rdb         *redis.Client
-	cacheCfg    *config.CacheConfig
-	ossSvc      *OSSService
-	recSvc      *RecommendationService
+	contentRepo   *repository.ContentRepository
+	reviewSvc     *ReviewService
+	rdb           *redis.Client
+	cacheCfg      *config.CacheConfig
+	ossSvc        *OSSService
+	recSvc        *RecommendationService
+	queueProducer queue.Producer
 }
 
 func NewContentService(contentRepo *repository.ContentRepository) *ContentService {
@@ -54,6 +57,10 @@ func NewContentServiceWithOSS(contentRepo *repository.ContentRepository, reviewS
 
 func (s *ContentService) SetRecommendationService(recSvc *RecommendationService) {
 	s.recSvc = recSvc
+}
+
+func (s *ContentService) SetQueueProducer(p queue.Producer) {
+	s.queueProducer = p
 }
 
 type PublishContentInput struct {
@@ -185,8 +192,26 @@ func (s *ContentService) PublishContent(input PublishContentInput, authorID int6
 			AuthorID:    authorID,
 			Attachments: input.Attachments,
 		}
-		if err := s.reviewSvc.SubmitForAIReview(context.Background(), reviewInput); err != nil && !errors.Is(err, aliyun.ErrGreenNotConfigured) {
-			return nil, err
+		if _, ok := s.queueProducer.(*queue.NoopProducer); !ok && s.queueProducer != nil {
+			go func() {
+				payload, _ := json.Marshal(map[string]interface{}{
+					"action":        "submit_ai_review",
+					"target_type":   reviewInput.TargetType,
+					"target_id":     reviewInput.TargetID,
+					"content_type":  reviewInput.ContentType,
+					"title":         reviewInput.Title,
+					"description":   reviewInput.Description,
+					"author_id":      reviewInput.AuthorID,
+					"attachments":    reviewInput.Attachments,
+				})
+				if err := s.queueProducer.Publish(context.Background(), "content.review", payload); err != nil {
+					slog.Error("failed to publish content.review message", "content_id", content.ID, "error", err)
+				}
+			}()
+		} else {
+			if err := s.reviewSvc.SubmitForAIReview(context.Background(), reviewInput); err != nil && !errors.Is(err, aliyun.ErrGreenNotConfigured) {
+				return nil, err
+			}
 		}
 	}
 

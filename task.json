@@ -1,4 +1,4 @@
-﻿{
+{
   "project": "OmniCraft 涓囪薄宸ュ潑",
   "description": "浠?IP 浜屽垱鍐呭鑱氬悎涓烘牳蹇冦€丄gent 鑷姩鍖栦负澧炲€艰兘鍔涖€丟itHub 寮?PR 鍗忓悓涓烘姢鍩庢渤鐨勫叏姘戝垱鎰忓垎浜钩鍙?,
   "tech_stack": {
@@ -1836,7 +1836,7 @@
         "## Component: ContentCard",
         "## Component: MasonryGrid"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 87,
@@ -2382,7 +2382,7 @@
         "娣诲姞涓嬫媺閫氱煡闈㈡澘锛圚eader NotificationDropdown锛夌殑鎸夐閬撴湭璇昏鏁板睍绀?,
         "楠岃瘉锛氬垏鎹㈤閬撶瓫閫夋纭紱鍏ㄩ儴宸茶鎸夐挳鐢熸晥锛涚偣鍑婚€氱煡璺宠浆鍒板搴旈〉闈?
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 118,
@@ -2529,7 +2529,7 @@
         "Masonry 鐎戝竷娴佸竷灞€涓庡唴瀹瑰崱鐗囦繚鎸佷竴鑷?,
         "楠岃瘉锛氭寜绫诲瀷绛涢€夋敹钘忥紱鎸夋椂闂存帓搴忥紱鍒涘缓鏀惰棌鍒嗙粍骞舵坊鍔犲唴瀹癸紱绌虹姸鎬佹甯告樉绀?
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 127,
@@ -2693,7 +2693,7 @@
         "娉ㄥ唽娴佺▼璋冩暣锛氭敞鍐屽悗鐢ㄦ埛 is_email_verified=false锛岄儴鍒嗗姛鑳斤紙鍙戝竷鍐呭銆佸叧娉ㄧ瓑锛夐渶瑕侀偖绠遍獙璇?,
         "楠岃瘉锛氬繕璁板瘑鐮佹祦绋嬪畬鏁达紱閭楠岃瘉鍔熻兘姝ｅ父锛涙湭楠岃瘉鐢ㄦ埛鍙楅檺鍔熻兘姝ｇ‘鎷︽埅"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 138,
@@ -2812,6 +2812,108 @@
         "鏃犻殰纰嶆€т慨澶嶏細鎵€鏈夋墜鍐?toggle 娣诲姞 role=switch + aria-checked锛涘浘鏍囨寜閽坊鍔?aria-label锛涘脊绐楁坊鍔犵劍鐐归櫡闃憋紙浣跨敤 radix-ui Dialog锛夛紱鐘舵€佸窘绔犳坊鍔?pattern 鍖哄垎锛堜笉浠呮槸棰滆壊锛?,
         "娣诲姞 skip-to-content 閾炬帴锛氶〉闈㈤《閮ㄦ坊鍔?a href=#main-content class=sr-only>Skip to content</a>",
         "楠岃瘉锛氬鑸悗杩斿洖椤甸潰涓嶉噸鏂板姞杞藉凡缂撳瓨鏁版嵁锛涘睆骞曢槄璇诲櫒鍙纭瘑鍒墍鏈変氦浜掑厓绱?
+      ],
+      "passes": true
+    },
+    {
+      "id": 146,
+      "depends_on": [
+        1,
+        142
+      ],
+      "title": "鏋舵瀯锛歊edis Streams 娑堟伅闃熷垪鍩虹璁炬柦寤鸿",
+      "description": "鍒涘缓 Redis Streams 闃熷垪鎶借薄灞傦紝鍚?Producer/Consumer 鎺ュ彛銆侀噸璇曠瓥鐣ャ€佹淇￠槦鍒楋紙棰勭暀锛夈€佸箓绛夋鏌ユ鏋跺拰 feature flag 寮€鍏筹紝涓?Task 147-149 鎻愪緵鍩虹璁炬柦",
+      "steps": [
+        "鍒涘缓 internal/pkg/queue/queue.go锛氬畾涔?Message锛圛D, Topic, Payload []byte, Metadata map[string]string, Attempts int, CreatedAt锛夈€丳roducer 鎺ュ彛锛圥ublish(ctx, topic, payload) error锛夈€丆onsumer 鎺ュ彛锛圫ubscribe(ctx, topic, group string, handler Handler) error锛夈€丠andler 绫诲瀷 func(ctx context.Context, msg Message) error",
+        "鍒涘缓 internal/pkg/queue/redis_stream.go锛歊edisStreamBroker 瀹炵幇 Producer+Consumer 鎺ュ彛锛屼娇鐢?XADD/XREADGROUP/XACK/XDEL锛屾秷璐硅€呯粍鍚嶇О = omnicraft-{topic}锛屾秷鎭簭鍒楀寲浣跨敤 JSON",
+        "鍒涘缓 internal/pkg/queue/retry.go锛氶噸璇曠瓥鐣ュ疄鐜帮紝浠?config.yaml > queue.retry_backoff_sec 璇诲彇绛夊緟鏃堕棿鍒楄〃 [10, 60, 300]锛岃秴杩囨渶澶ч噸璇曟鏁板悗绉诲叆姝讳俊 stream锛坥mnicraft:dead-letter锛夊苟 slog.Error 璁板綍",
+        "鍒涘缓 internal/pkg/queue/idempotent.go锛氬箓绛夋鏌ユ鏋讹紝浣跨敤 Redis SETNX锛坘ey=queue:processed:{topic}:{msg_id}锛孴TL=24h锛夐槻姝㈡秷鎭噸澶嶆秷璐癸紝浠呭澶栭儴涓嶅彲閲嶈瘯鎿嶄綔锛堝闃块噷浜戝鏍哥粨鏋滃洖鍐?DB銆侀€氱煡鍐欏叆锛夊仛骞傜瓑淇濇姢",
+        "鍒涘缓 internal/pkg/queue/observability.go锛氶槦鍒楁繁搴︼紙XLEN锛夈€佹秷璐归€熺巼銆佸け璐ヨ鏁扮殑 slog 缁撴瀯鍖栨棩蹇楁墦鐐癸紝璁板綍 queue.name銆乹ueue.depth銆乹ueue.consumed_total銆乹ueue.failed_total 绛夊瓧娈?,
+        "鍦?config.yaml 娣诲姞 queue 閰嶇疆鑺傦細enabled锛坆oolean锛岄粯璁?false锛夈€乵ax_attempts锛堥粯璁?3锛夈€乺etry_backoff_sec锛堥粯璁?[10,60,300]锛夈€乨lq_ttl_hours锛堥粯璁?168锛夈€亀orker_count锛坈ontent_review=2, notification=1, embedding=1, count=1锛夈€乵axlen锛堥粯璁?100000锛?,
+        "鍦?config/config.go 娣诲姞 QueueConfig 缁撴瀯浣撴槧灏勶紝Load() 涓В鏋?queue 閰嶇疆",
+        "淇敼 container.go锛歂ewContainer 澧炲姞 queueProducer Producer 鍙傛暟锛坣il-safe锛夛紝褰?cfg.Queue.Enabled=false 鏃朵娇鐢?NoopProducer锛堜粎 slog.Warn + 璋冪敤鍘熷鍚屾閫昏緫鐨?fallback锛?,
+        "鍒涘缓 internal/pkg/queue/queue_test.go锛氫娇鐢?miniredis 浼?Redis 娴嬭瘯 Publish鈫扴ubscribe鈫扝andler鈫扐CK 瀹屾暣閾捐矾銆侀噸璇曡秴杩囨渶澶ф鏁拌繘 DLQ銆佸箓绛夋鏌ラ噸澶嶆秷鎭烦杩?,
+        "楠岃瘉锛歡o build ./... 鏃犻敊璇紱go vet ./... 鏃犺鍛婏紱queue_test 鍏ㄩ儴閫氳繃锛沜onfig.YAML 閰嶇疆姝ｅ父鍔犺浇锛泀ueue.enabled=false 鏃?NoopProducer 宸ヤ綔姝ｅ父"
+      ],
+      "passes": true
+    },
+    {
+      "id": 147,
+      "depends_on": [
+        146
+      ],
+      "title": "鏋舵瀯锛氬唴瀹瑰鏍稿紓姝ュ寲 鈥?A 绫绘敼閫狅紙娑堥櫎鍙戝竷闃诲锛?,
+      "description": "灏?handler/content.go PublishContent 鍜?handler/ip.go CreateIP 涓殑鍚屾 SubmitForAIReview 璋冪敤鎷嗙涓哄紓姝ラ槦鍒楁秷璐癸紝浣跨敤鎴峰彂甯冭姹傜珛鍗宠繑鍥?201锛坰tatus=pending锛夛紝鍚庡彴 review_worker 娑堣垂娑堟伅鎵ц瀹℃牳銆傚悓鏃跺鐞?AI 鍥炶皟寮傛鍖栵紙A2锛?,
+      "steps": [
+        "鍒涘缓 internal/worker/review_worker.go锛歊eviewWorker 缁撴瀯浣擄紙鍚?ReviewService銆乧fg銆乹ueueProducer 渚濊禆锛夛紝Handle(ctx, msg) 鍙嶅簭鍒楀寲娑堟伅鍚庤皟鐢?ReviewService.SubmitForAIReview锛屽け璐ユ椂杩斿洖 error 瑙﹀彂閲嶈瘯",
+        "淇敼 content_service.go PublishContent锛氬鏍歌皟鐢ㄤ粠鍚屾鏀逛负闃熷垪鎶曢€掆€斺€旇嫢 queue.Enabled锛岃皟鐢?queueProducer.Publish(ctx, \"content.review\", payload)锛涜嫢 queue.Enabled=false锛屼繚鎸佸師鍚屾閫昏緫锛堝悜鍚庡吋瀹癸級锛涙棤璁哄摢绉嶆柟寮忥紝鍐呭鍒涘缓鍚?status 璁句负 pending锛屽鏍哥粨鏋滈€氳繃鍚庣画鐘舵€佸彉鏇翠綋鐜?,
+        "淇敼 ip_service.go CreateIP锛氬悓鐞嗗皢 SubmitForAIReview 璋冪敤鏀逛负闃熷垪鎶曢€掞紙topic=ip.review锛夛紝IP 鍒濆 status 璁句负 pending",
+        "淇敼 review_service.go ProcessAICallback锛欰I 鍥炶皟 handler锛圥OST /api/v1/internal/ai-callback锛夋敼涓哄厛杩斿洖 200 缁欓樋閲屼簯锛岀劧鍚庡皢鍥炶皟鏁版嵁鎶曢€掑埌 content.review 鎴?ip.review topic锛堟牴鎹?target_type 璺敱锛夛紝鐢?worker 寮傛澶勭悊",
+        "淇敼 handler/internal.go AI callback handler锛氭帴鏀跺洖璋冨悗绔嬪嵆杩斿洖 200锛屽皢鍥炶皟鏁版嵁閫氳繃 queue.Publish 鎶曢€掑埌瀹℃牳闃熷垪锛堣嫢 queue 鍚敤锛夋垨鐩存帴鍚屾璋冪敤 ProcessAICallback锛堣嫢鏈惎鐢級",
+        "鎭㈠鏈哄埗锛歊eviewWorker 娑堣垂娑堟伅澶勭悊鍚庯紝鑻ュ鏍哥粨鏋滀负 pass锛屽皢 content/IP status 鏇存柊涓?published锛涜嫢涓?review锛屽垱寤?judge_cases 骞舵洿鏂颁负 under_review锛涜嫢涓?block锛屾墽琛屾墸淇¤獕鍒?鍐荤粨鍙戝竷鏉冮檺閫昏緫锛堜笌鐜版湁 ProcessAICallback 閫昏緫涓€鑷达級",
+        "鍓嶇閫傞厤锛氬唴瀹瑰彂甯冩垚鍔熷悗杩斿洖 201 + content status=pending锛屽墠绔湪鍐呭璇︽儏椤靛 status=pending 鏄剧ず銆屽鏍镐腑銆嶆彁绀哄窘绔狅紙榛勮壊 Badge锛夛紝涓?status=published/under_review/banned 淇濇寔瑙嗚鍖哄垎",
+        "鍓嶇閫傞厤锛欼P 鍒涘缓鎴愬姛鍚庤繑鍥?201 + IP status=pending锛屽墠绔?IP 璇︽儏椤靛 status=pending IP 鏄剧ず銆屽鏍镐腑銆嶅崰浣嶉〉",
+        "鏇存柊 api.ts锛欸ET /contents/:id 鍝嶅簲涓?status 瀛楁闇€瑕嗙洊 pending 鐘舵€佺殑鍓嶇灞曠ず",
+        "楠岃瘉锛歲ueue.enabled=false 鏃跺彂甯冩祦绋嬩笌鏀归€犲墠瀹屽叏涓€鑷达紙鍚屾瀹℃牳锛夛紱queue.enabled=true 鏃跺彂甯冪珛鍗宠繑鍥?201锛屽唴瀹?status=pending锛屽鏍稿畬鎴愬悗鐘舵€佹纭彉鏇达紙pass鈫抪ublished, block鈫抌anned, review鈫抲nder_review锛夛紱AI 鍥炶皟寮傛澶勭悊鍚庡唴瀹圭姸鎬佹纭洿鏂?
+      ],
+      "passes": true
+    },
+    {
+      "id": 148,
+      "depends_on": [
+        146
+      ],
+      "title": "鏋舵瀯锛氶€氱煡鍐欏叆闃熷垪鍖?鈥?B1 鏀归€?,
+      "description": "灏?notification_service.go 鐨?GoSafe fire-and-forget 鏀逛负闃熷垪鎶曢€掞紝纭繚閫氱煡涓嶄涪澶便€佸彲閲嶈瘯銆佸彲瑙傛祴",
+      "steps": [
+        "鍒涘缓 internal/worker/notification_worker.go锛歂otificationWorker 缁撴瀯浣擄紙鍚?NotificationRepo 渚濊禆锛夛紝Handle(ctx, msg) 鍙嶅簭鍒楀寲娑堟伅鍚庤皟鐢?NotificationRepo.Create锛堝啓 DB锛夛紝澶辫触杩斿洖 error 瑙﹀彂閲嶈瘯",
+        "淇敼 notification_service.go Notify 鏂规硶锛氬皢 GoSafe(func(){ repo.Create(n) }) 鏇挎崲涓?queueProducer.Publish(ctx, \"notification.create\", payload)锛坬ueue 鍚敤鏃讹級锛泀ueue 鏈惎鐢ㄦ椂淇濇寔 GoSafe 閫昏緫锛堝悜鍚庡吋瀹癸級",
+        "淇敼 notification_service.go锛氭墍鏈夎皟鐢?Notify 鐨勫湴鏂癸紙SocialService銆丳RService銆丷eviewService 绛夛級鏃犻渶鏀瑰姩锛孨otify 鏂规硶鍐呴儴鑷鍒ゆ柇鎶曢€掓柟寮?,
+        "娑堟伅骞傜瓑淇濇姢锛歂otificationWorker 澶勭悊娑堟伅鍓嶄娇鐢?IdempotentCheck 妫€鏌?notifications 琛ㄦ槸鍚﹀凡瀛樺湪鐩稿悓锛坲ser_id + type + target_type + target_id + created_at 鍒嗛挓绾э級璁板綍锛岄伩鍏嶅鏍搁噸璇曞鑷撮噸澶嶉€氱煡",
+        "鍦?container.go 涓敞鍐?NotificationWorker锛氬綋 queue.Enabled 鏃跺垱寤?worker 瀹炰緥骞朵紶鍏?queue broker",
+        "楠岃瘉锛歲ueue.enabled=false 鏃堕€氱煡閫昏緫涓庢敼閫犲墠瀹屽叏涓€鑷达紱queue.enabled=true 鏃讹細璇勮/鐐硅禐/鍏虫敞/PR 鐘舵€佸彉鏇村悗閫氱煡姝ｇ‘鍐欏叆 DB锛涙ā鎷?worker 澶勭悊澶辫触鍚庨噸璇曟垚鍔燂紱妯℃嫙澶勭悊宕╂簝鍚庨噸鍚?worker 娑堣垂鏈?ACK 娑堟伅鎴愬姛"
+      ],
+      "passes": true
+    },
+    {
+      "id": 149,
+      "depends_on": [
+        146
+      ],
+      "title": "鏋舵瀯锛氫笅杞借鏁颁笌 Embedding 鍚戦噺闃熷垪鍖?鈥?B2+B3 鏀归€?,
+      "description": "灏?handler/content.go 涓嬭浇璁℃暟鐨勮８ go func() 鍜?agent_service.go EmbedContentAsync 鐨?GoSafe 鏇挎崲涓洪槦鍒楁姇閫掞紝纭繚鏁版嵁涓嶄涪澶?,
+      "steps": [
+        "鍒涘缓 internal/worker/count_worker.go锛欳ountWorker 缁撴瀯浣擄紝Handle(ctx, msg) 鍙嶅簭鍒楀寲娑堟伅鍚庢牴鎹?topic 瀛愮被鍨嬫墽琛屽搴旇鏁版搷浣滐紙download 鏃?ZINCRBY rank:download_counts, view 鏃?ZINCRBY rank:view_counts锛夛紝澶辫触杩斿洖 error 瑙﹀彂閲嶈瘯",
+        "淇敼 handler/content.go DownloadContent锛氬皢 go func(){ rdb.ZIncrBy(...) }() 鏇挎崲涓?queueProducer.Publish(ctx, \"count.download\", payload)锛坬ueue 鍚敤鏃讹級锛宲ayload 鍖呭惈 content_id 鍜?action=download锛泀ueue 鏈惎鐢ㄦ椂淇濇寔鍘?go func 閫昏緫",
+        "鍒涘缓 internal/worker/embedding_worker.go锛欵mbeddingWorker 缁撴瀯浣擄紙鍚?AgentService 渚濊禆锛夛紝Handle(ctx, msg) 鍙嶅簭鍒楀寲娑堟伅鍚庤皟鐢?AgentService.EmbedContentAsync 鐨勬牳蹇冮€昏緫锛圙etEmbedding 鈫?UpsertEmbedding锛夛紝澶辫触杩斿洖 error 瑙﹀彂閲嶈瘯",
+        "淇敼 agent_service.go EmbedContentAsync锛氬皢 GoSafe(func(){...}) 鏇挎崲涓?queueProducer.Publish(ctx, \"content.embedding\", payload)锛坬ueue 鍚敤鏃讹級锛宲ayload 鍖呭惈 content_id 鍜?text锛泀ueue 鏈惎鐢ㄦ椂淇濇寔 GoSafe 閫昏緫",
+        "鍦?container.go 涓敞鍐?CountWorker 鍜?EmbeddingWorker锛氬綋 queue.Enabled 鏃跺垱寤?worker 瀹炰緥骞朵紶鍏?queue broker",
+        "涓嬭浇璁℃暟娑堟伅璁捐涓哄厑璁稿彲閲嶅娑堣垂锛堝箓绛夆€斺€擹INCRBY 鏈韩鏄閲忔搷浣滐紝閲嶈瘯浠呭鑷磋鏁扮暐楂橈紝鍙帴鍙楋級锛汦mbedding 娑堟伅 UpsertEmbedding 澶╃劧骞傜瓑",
+        "楠岃瘉锛歲ueue.enabled=false 鏃堕€昏緫涓庢敼閫犲墠涓€鑷达紱queue.enabled=true 鏃讹細澶氭涓嬭浇鍚?Redis 璁℃暟姝ｇ‘锛涘唴瀹瑰彂甯冨悗 embedding 姝ｇ‘鍐欏叆 content_embeddings 琛紱妯℃嫙 worker 宕╂簝鍚庨噸鍚紝鏈?ACK 娑堟伅琚噸鏂版秷璐?
+      ],
+      "passes": true
+    },
+    {
+      "id": 150,
+      "depends_on": [
+        146,
+        147,
+        148,
+        149,
+        142
+      ],
+      "title": "鏋舵瀯锛歐orker 鐢熷懡鍛ㄦ湡绠＄悊銆丏LQ 鐩戞帶涓庡叏閾捐矾闆嗘垚",
+      "description": "鏁村悎 Task 147-149 鐨勬墍鏈?Worker 鍒?main.go 鍚姩娴佺▼锛屽疄鐜颁紭闆呭叧鏈轰腑 Worker 鐨?drain 閫昏緫銆丏LQ 姝讳俊闃熷垪娑堣垂涓庡憡璀︺€佸姛鑳藉紑鍏充竴閿垏鎹€佺鍒扮闆嗘垚楠岃瘉",
+      "steps": [
+        "淇敼 cmd/server/main.go锛氬湪 srv.Shutdown(ctx) 涔嬪墠锛岃皟鐢?broker.Stop() 鍋滄鎵€鏈?XREADGROUP 娑堣垂寰幆锛屼娇鐢?sync.WaitGroup 绛夊緟鎵€鏈夋鍦ㄥ鐞嗙殑娑堟伅瀹屾垚锛堣秴鏃?15s 鍚庡己鍒堕€€鍑轰絾淇濈暀鏈?ACK 娑堟伅锛岀敱娑堣垂鑰呯粍 rebalance 鎺ョ锛?,
+        "鍒涘缓 internal/worker/manager.go锛歐orkerManager 缁熶竴绠＄悊鎵€鏈?worker 鐨勫惎鍔紙Subscribe锛夊拰鍋滄锛圕ancel + WaitGroup Wait锛夛紝鎻愪緵 HealthCheck() 鏂规硶杩斿洖鍚勯槦鍒楁繁搴﹀拰娑堣垂寤惰繜",
+        "淇敼 cmd/server/main.go锛氬垱寤?WorkerManager 瀹炰緥锛屾牴鎹?cfg.Queue.Enabled 鍐冲畾鏄惁鍚姩娑堣垂鑰咃紝queue.Enabled=false 鏃惰烦杩囨墍鏈?worker 鍚姩锛堜粎娉ㄥ唽 NoopProducer 鍒?container锛?,
+        "鍒涘缓 internal/worker/dlq_worker.go锛欴LQWorker 娑堣垂 omnicraft:dead-letter stream锛屽皢娑堟伅鍐呭 slog.Error 璁板綍锛堝惈 topic銆佸師濮?payload銆佸け璐ュ師鍥犮€侀噸璇曟鏁帮級锛屽苟鎻愪緵 GET /api/v1/admin/queue/dlq 绠＄悊绔偣锛堝垪鍑烘渶杩?100 鏉℃淇°€侀噸鏀炬寚瀹氭秷鎭埌鍘熷 topic锛?,
+        "娣诲姞 GET /api/v1/admin/queue/stats 绠＄悊绔偣锛氳繑鍥炲悇 topic 鐨勯槦鍒楁繁搴︼紙XLEN锛夈€佹秷璐硅€呯粍 lag锛圶PENDING锛夈€佹秷璐归€熺巼锛屾柟渚胯繍缁寸洃鎺?,
+        "鍒涘缓 internal/middleware/admin.go DLQ 鍜?queue stats 绔偣闇€ AdminRequired 涓棿浠朵繚鎶?,
+        "绔埌绔泦鎴愰獙璇佹祦绋嬶紙queue.enabled=true锛夛細鈶?鍙戝竷鍐呭 鈫?绔嬪嵆杩斿洖 201锛坰tatus=pending锛夆啋 闃块噷浜戝鏍?鈫?鍥炶皟鎶曢€?鈫?review_worker 娑堣垂 鈫?鐘舵€佸彉鏇翠负 published/banned/under_review 鈶?璇勮鍐呭 鈫?閫氱煡 worker 娑堣垂 鈫?notifications 琛ㄦ湁璁板綍 鈶?涓嬭浇鍐呭 鈫?count_worker 娑堣垂 鈫?Redis 璁℃暟姝ｇ‘ 鈶?鍙戝竷鍐呭 鈫?embedding worker 娑堣垂 鈫?content_embeddings 琛ㄦ湁璁板綍 鈶?妯℃嫙瀹℃牳 worker 宕╂簝 鈫?娑堟伅閲嶆柊鍒嗛厤缁欏叾浠栨秷璐硅€?鈫?瀹℃牳缁撴灉浠嶆纭埌杈?鈶?閰嶇疆 queue.enabled=false 鈫?鎵€鏈夐€昏緫鍥為€€鍒板悓姝?GoSafe 妯″紡",
+        "鏇存柊 progress.txt 璁板綍 Task 146-150 瀹屾垚鐘舵€佸拰鍏抽敭璁捐鍐崇瓥",
+        "楠岃瘉锛歡o build ./... 鏃犻敊璇紱go vet ./... 鏃犺鍛婏紱鎵€鏈?queue.enabled=true 闆嗘垚鍦烘櫙閫氳繃锛泀ueue.enabled=false 鍥為€€妯″紡閫氳繃锛涗紭闆呭叧鏈哄悗 worker 姝ｇ‘ drain锛汥LQ 绠＄悊绔偣鍙敤锛?admin/queue/stats 杩斿洖姝ｇ‘鐩戞帶鏁版嵁"
       ],
       "passes": true
     }

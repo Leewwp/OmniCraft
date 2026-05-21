@@ -9,6 +9,8 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
+
+	"omnicraft/backend/internal/pkg/queue"
 )
 
 type Config struct {
@@ -29,19 +31,7 @@ type Config struct {
 	Cache          CacheConfig          `mapstructure:"cache"`
 	RateLimit      RateLimitConfig      `mapstructure:"rate_limit"`
 	Recommendation RecommendationConfig `mapstructure:"recommendation"`
-}
-
-type AgentConfig struct {
-	WebAgentEnabled       bool   `mapstructure:"web_agent_enabled"`
-	LLMProvider           string `mapstructure:"llm_provider"`
-	LLMModel              string `mapstructure:"llm_model"`
-	LLMAPIBase            string `mapstructure:"llm_api_base"`
-	LLMAPIKey             string `mapstructure:"llm_api_key" json:"-"`
-	EmbeddingModel        string `mapstructure:"embedding_model"`
-	EmbeddingDimensions   int    `mapstructure:"embedding_dimensions"`
-	RateLimitPerDay       int    `mapstructure:"rate_limit_per_day"`
-	UploadAssistMaxFileMB int    `mapstructure:"upload_assist_max_file_mb"`
-	HMACSecret            string `mapstructure:"hmac_secret" json:"-"`
+Queue          queue.QueueConfig    `mapstructure:"queue"`
 }
 
 type ServerConfig struct {
@@ -124,6 +114,19 @@ type SocialConfig struct {
 
 type UploadConfig struct {
 	SheetMusicExtensions []string `mapstructure:"sheet_music_extensions"`
+}
+
+type AgentConfig struct {
+	WebAgentEnabled       bool   `mapstructure:"web_agent_enabled"`
+	LLMProvider           string `mapstructure:"llm_provider"`
+	LLMModel              string `mapstructure:"llm_model"`
+	LLMAPIBase            string `mapstructure:"llm_api_base"`
+	LLMAPIKey             string `mapstructure:"llm_api_key" json:"-"`
+	EmbeddingModel        string `mapstructure:"embedding_model"`
+	EmbeddingDimensions   int    `mapstructure:"embedding_dimensions"`
+	RateLimitPerDay       int    `mapstructure:"rate_limit_per_day"`
+	UploadAssistMaxFileMB int    `mapstructure:"upload_assist_max_file_mb"`
+	HMACSecret            string `mapstructure:"hmac_secret" json:"-"`
 }
 
 type CacheConfig struct {

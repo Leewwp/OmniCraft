@@ -1,18 +1,29 @@
 package container
 
 import (
+	"context"
+	"log/slog"
+
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/llm"
+	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
+	"omnicraft/backend/internal/worker"
 )
 
 type ServiceContainer struct {
 	DB  *gorm.DB
 	RDB *redis.Client
 	Cfg *config.Config
+
+	// Queue
+	QueueBroker   queue.Broker
+	QueueProducer queue.Producer
 
 	// Repositories
 	UserRepo          *repository.UserRepository
@@ -58,6 +69,16 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 		Cfg: cfg,
 	}
 
+	// Queue setup
+	if cfg.Queue.Enabled && rdb != nil {
+		broker := queue.NewRedisStreamBroker(rdb, &cfg.Queue)
+		c.QueueBroker = broker
+		c.QueueProducer = broker
+	} else {
+		c.QueueBroker = nil
+		c.QueueProducer = queue.NewNoopProducer()
+	}
+
 	// Repositories
 	c.UserRepo = repository.NewUserRepository(db)
 	c.ContentRepo = repository.NewContentRepository(db)
@@ -96,9 +117,47 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.RecommendationSvc = service.NewRecommendationService(db, c.EmbeddingRepo, c.ContentRepo, c.ContentService, rdb, &cfg.Recommendation)
 	c.ContentService.SetRecommendationService(c.RecommendationSvc)
 
+// Wire queue producer into services
+	c.ContentService.SetQueueProducer(c.QueueProducer)
+	c.IPService.SetQueueProducer(c.QueueProducer)
+	c.NotificationService.SetQueueProducer(c.QueueProducer)
+
+	// Create AgentService for worker use
+	provider := llm.NewProvider(cfg)
+	greenClient := aliyun.NewGreenClient(cfg.Green.AccessKeyID, cfg.Green.AccessKeySecret, cfg.Green.Region)
+	c.AgentService = service.NewAgentService(provider, c.EmbeddingRepo, c.ContentRepo, greenClient, db, cfg)
+c.AgentService.SetQueueProducer(c.QueueProducer)
+
 	// Wire notification service
 	c.SocialService.SetNotificationService(c.NotificationService)
 	c.PRService.SetNotificationService(c.NotificationService)
 
+	// Wire agent service with queue producer
+	c.AgentService.SetQueueProducer(c.QueueProducer)
+
 	return c
+}
+
+// StartWorkers starts all queue consumers when queue is enabled.
+// Returns a stop function that should be called on shutdown.
+func (c *ServiceContainer) StartWorkers(ctx context.Context) func() {
+	if c.QueueBroker == nil || !c.Cfg.Queue.Enabled {
+		return func() {}
+	}
+
+	mgr := worker.NewWorkerManager(c.QueueBroker)
+
+	mgr.Register("content.review", "omnicraft-content-review", worker.NewReviewWorker(c.ReviewService).Handle)
+	mgr.Register("ip.review", "omnicraft-ip-review", worker.NewReviewWorker(c.ReviewService).Handle)
+	mgr.Register("notification.create", "omnicraft-notification", worker.NewNotificationWorker(c.NotificationRepo).Handle)
+	mgr.Register("count.download", "omnicraft-count", worker.NewCountWorker(c.RDB).Handle)
+	mgr.Register("content.embedding", "omnicraft-embedding", worker.NewEmbeddingWorker(c.AgentService).Handle)
+
+	if err := mgr.Start(ctx); err != nil {
+		slog.Error("Failed to start workers", "error", err)
+	}
+
+	return func() {
+		mgr.Stop()
+	}
 }
