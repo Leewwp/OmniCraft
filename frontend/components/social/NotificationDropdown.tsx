@@ -14,6 +14,8 @@ interface Notification {
   channel: string;
   body: string;
   is_read: boolean;
+  target_type?: string;
+  target_id?: number;
   created_at: string;
 }
 
@@ -53,6 +55,21 @@ export function NotificationDropdown() {
 
   if (!user) return null;
 
+  function getNotificationUrl(n: Notification): string {
+    if (n.target_type && n.target_id) {
+      switch (n.target_type) {
+        case "content": return `/content/${n.target_id}`;
+        case "discussion":
+        case "comment": return `/content/${n.target_id}`;
+        case "pr": return "/studio/pr-requests";
+        case "user": return `/user/${n.target_id}`;
+        case "ip": return `/ip/${n.target_id}`;
+        default: return "/messages";
+      }
+    }
+    return "/messages";
+  }
+
   const channelLabels: Record<string, string> = {
     reply: t("notification.channelReply"),
     like: t("notification.channelLike"),
@@ -88,7 +105,7 @@ export function NotificationDropdown() {
           <div className="absolute right-0 top-full z-50 mt-1 w-80 rounded-md border border-border bg-card shadow-md">
             <div className="flex items-center justify-between border-b border-border px-4 py-2">
               <span className="text-sm font-medium">{t("nav.notifications")}</span>
-              <button
+<button
                 onClick={() => {
                   setOpen(false);
                   router.push("/messages");

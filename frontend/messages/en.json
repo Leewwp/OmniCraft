@@ -95,7 +95,27 @@
     "errorEmailTaken": "This email is already registered",
     "errorUsernameTaken": "This username is already taken",
     "errorValidation": "Please check your input",
-    "errorRegisterFailed": "Registration failed. Please try again later."
+    "errorRegisterFailed": "Registration failed. Please try again later.",
+    "forgotPassword": "Forgot Password",
+    "forgotPasswordHint": "Enter your email and we'll send you a reset link.",
+    "sendResetLink": "Send Reset Link",
+    "checkEmail": "Check Your Email",
+    "resetLinkSent": "If an account exists with that email, a reset link has been sent.",
+    "backToLogin": "Back to Login",
+    "resetPassword": "Reset Password",
+    "resetPasswordHint": "Enter your new password below.",
+    "newPassword": "New Password",
+    "invalidResetToken": "This reset link is invalid or has expired.",
+    "requestNewLink": "Request a new reset link",
+    "passwordResetSuccess": "Password Reset",
+    "passwordResetSuccessHint": "Your password has been reset successfully. You can now log in with your new password.",
+    "verifyEmail": "Verify Email",
+    "verifyEmailHint": "Enter the verification token from your email to verify your account.",
+    "verifyEmailSuccess": "Email Verified",
+    "verifyEmailSuccessHint": "Your email has been verified successfully. You can now log in.",
+    "verifyToken": "Verification Token",
+    "verifyTokenPlaceholder": "Paste the token from your email",
+    "invalidVerifyToken": "Invalid or expired verification token."
   },
   "home": {
     "heroTitle": "Discover, share, and co-create your passion.",
@@ -691,7 +711,12 @@
     "enterPasswordToConfirm": "Enter your password to confirm",
     "deleteIrreversible": "I understand this is irreversible — delete my account",
     "confirmDelete": "Confirm Deletion",
-    "tagGroups": "Tag Groups"
+    "tagGroups": "Tag Groups",
+    "avatar": "Avatar",
+    "changeAvatar": "Change Avatar",
+    "avatarHint": "JPG or PNG, max 20MB",
+    "avatarTooLarge": "Image must be smaller than 20MB",
+    "avatarUpdated": "Avatar updated"
   },
   "tagGroups": {
     "title": "Tag Groups",
@@ -1059,6 +1084,21 @@
       "subtitle": "View your revenue and analytics",
       "comingSoon": "Revenue feature coming soon",
       "comingSoonDesc": "Creator incentive program is in preparation, stay tuned"
+    },
+    "favorites": {
+      "title": "My Favorites",
+      "subtitle": "Content you've saved for later",
+      "allTypes": "All",
+      "image": "Image",
+      "article": "Article",
+      "video": "Video",
+      "audio": "Audio",
+      "template": "Template",
+      "mod": "Mod",
+      "sheetMusic": "Sheet Music",
+      "empty": "No favorites yet",
+      "emptyHint": "When you favorite content, it will appear here.",
+      "discover": "Discover content"
     }
   },
   "error": {

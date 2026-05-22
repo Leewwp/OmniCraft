@@ -95,7 +95,27 @@
     "errorEmailTaken": "该邮箱已被注册",
     "errorUsernameTaken": "该用户名已被占用",
     "errorValidation": "请检查输入内容格式",
-    "errorRegisterFailed": "注册失败，请稍后重试"
+    "errorRegisterFailed": "注册失败，请稍后重试",
+    "forgotPassword": "忘记密码",
+    "forgotPasswordHint": "输入你的邮箱，我们将发送重置链接。",
+    "sendResetLink": "发送重置链接",
+    "checkEmail": "查看你的邮箱",
+    "resetLinkSent": "如果该邮箱已注册，重置链接已发送。",
+    "backToLogin": "返回登录",
+    "resetPassword": "重置密码",
+    "resetPasswordHint": "请在下方输入新密码。",
+    "newPassword": "新密码",
+    "invalidResetToken": "重置链接无效或已过期。",
+    "requestNewLink": "重新申请重置链接",
+    "passwordResetSuccess": "密码重置成功",
+    "passwordResetSuccessHint": "你的密码已成功重置，现在可以使用新密码登录。",
+    "verifyEmail": "验证邮箱",
+    "verifyEmailHint": "输入邮箱收到的验证令牌以验证你的账号。",
+    "verifyEmailSuccess": "邮箱验证成功",
+    "verifyEmailSuccessHint": "你的邮箱已成功验证，现在可以登录了。",
+    "verifyToken": "验证令牌",
+    "verifyTokenPlaceholder": "粘贴邮箱中的验证令牌",
+    "invalidVerifyToken": "验证令牌无效或已过期。"
   },
   "home": {
     "heroTitle": "发现、分享、共创你的热爱。",
@@ -690,7 +710,12 @@
     "enterPasswordToConfirm": "输入密码确认",
     "deleteIrreversible": "我了解此操作不可逆，确认注销我的账号",
     "confirmDelete": "确认注销",
-    "tagGroups": "标签组管理"
+    "tagGroups": "标签组管理",
+    "avatar": "头像",
+    "changeAvatar": "更换头像",
+    "avatarHint": "JPG 或 PNG，最大 20MB",
+    "avatarTooLarge": "图片不能超过 20MB",
+    "avatarUpdated": "头像已更新"
   },
   "tagGroups": {
     "title": "标签组管理",
@@ -1058,6 +1083,21 @@
       "subtitle": "查看创作收益和数据分析",
       "comingSoon": "收益功能即将开放",
       "comingSoonDesc": "创作者激励计划正在筹备中，敬请期待"
+    },
+    "favorites": {
+      "title": "我的收藏",
+      "subtitle": "你保存的内容将在这里显示",
+      "allTypes": "全部",
+      "image": "图片",
+      "article": "文章",
+      "video": "视频",
+      "audio": "音频",
+      "template": "模板",
+      "mod": "Mod",
+      "sheetMusic": "乐谱",
+      "empty": "还没有收藏内容",
+      "emptyHint": "当你收藏内容时，它会出现在这里。",
+      "discover": "发现好内容"
     }
   },
   "error": {

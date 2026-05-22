@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useTranslations, useLocale } from "next-intl";
+import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
 import { api, ApiRequestError } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
@@ -29,6 +30,7 @@ export function NotificationList({
 }: NotificationListProps) {
   const t = useTranslations();
   const locale = useLocale();
+  const router = useRouter();
   const [channel, setChannel] = useState(initialChannel);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,6 +40,8 @@ export function NotificationList({
     { key: "", label: t('notification.all') },
     { key: "reply", label: t('notification.reply') },
     { key: "like", label: t('notification.like') },
+    { key: "follow", label: t('notification.channelFollow') },
+    { key: "pr", label: t('notification.channelPR') },
     { key: "system", label: t('notification.system') },
   ];
 
@@ -77,9 +81,36 @@ export function NotificationList({
     }
   }
 
+  function handleNotificationClick(n: Notification) {
+    if (!n.is_read) markRead(n.id);
+    if (n.target_type && n.target_id) {
+      switch (n.target_type) {
+        case "content":
+          router.push(`/content/${n.target_id}`);
+          break;
+        case "discussion":
+        case "comment":
+          router.push(`/content/${n.target_id}`);
+          break;
+        case "pr":
+          router.push(`/studio/pr-requests`);
+          break;
+        case "user":
+          router.push(`/user/${n.target_id}`);
+          break;
+        case "ip":
+          router.push(`/ip/${n.target_id}`);
+          break;
+        default:
+          router.push("/messages");
+      }
+    }
+  }
+
   async function markAllRead() {
     try {
-      await api.post("/api/v1/notifications/read-all", {});
+      const params = channel ? `?channel=${channel}` : "";
+      await api.post(`/api/v1/notifications/read-all${params}`, {});
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
     } catch (e) {
       silentError(e, { component: 'NotificationList', action: 'markAllRead' });
@@ -129,9 +160,11 @@ export function NotificationList({
       ) : (
         <div className="space-y-1">
           {notifications.map((n) => (
-            <div
+            <button
               key={n.id}
-              className={`flex items-start justify-between rounded-md border px-4 py-3 transition-colors ${
+              type="button"
+              onClick={() => handleNotificationClick(n)}
+              className={`flex w-full items-start justify-between rounded-md border px-4 py-3 text-left transition-colors hover:bg-muted/50 ${
                 n.is_read
                   ? "border-border bg-card"
                   : "border-accent/30 bg-accent/5"
@@ -161,7 +194,7 @@ export function NotificationList({
                   {t('messages.read')}
                 </Button>
               )}
-            </div>
+            </button>
           ))}
         </div>
       )}

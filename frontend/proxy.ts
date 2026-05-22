@@ -6,6 +6,7 @@ const DEFAULT_LOCALE = 'zh';
 
 const PROTECTED_PATHS = [
   '/dashboard',
+  '/studio',
   '/judge',
   '/publish',
   '/settings',

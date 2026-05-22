@@ -71,3 +71,78 @@ func (r *FollowRepository) CountFollowers(targetType string, targetID int64) (in
 		Count(&count).Error
 	return count, err
 }
+
+type FollowerDailyStats struct {
+	Date  string `json:"date"`
+	Count int64  `json:"count"`
+	Lost  int64  `json:"lost"`
+}
+
+type FollowerSourceStats struct {
+	Name  string `json:"name"`
+	Value int64  `json:"value"`
+}
+
+type FollowerStatsResult struct {
+	Total        int64                `json:"total"`
+	NewThisMonth int64                `json:"new_this_month"`
+	LostThisMonth int64               `json:"lost_this_month"`
+	Daily        []FollowerDailyStats `json:"daily"`
+	Sources      []FollowerSourceStats `json:"sources"`
+}
+
+func (r *FollowRepository) GetFollowerStats(userID int64, days int) (*FollowerStatsResult, error) {
+	var total int64
+	r.db.Model(&model.Follow{}).Where("target_type = 'user' AND target_id = ?", userID).Count(&total)
+
+	var newThisMonth int64
+	r.db.Model(&model.Follow{}).
+		Where("target_type = 'user' AND target_id = ? AND created_at >= NOW() - INTERVAL '30 days'", userID).
+		Count(&newThisMonth)
+
+	var lostThisMonth int64
+	r.db.Table("follows").
+		Where("target_type = 'user' AND target_id = ? AND deleted_at IS NOT NULL AND deleted_at >= NOW() - INTERVAL '30 days'", userID).
+		Count(&lostThisMonth)
+
+	var daily []FollowerDailyStats
+	r.db.Raw(`
+		SELECT d.dt::date::text AS date,
+			COALESCE(gained.cnt, 0) AS count,
+			COALESCE(lost.cnt, 0) AS lost
+		FROM generate_series(NOW() - (? || ' days')::interval, NOW(), '1 day') d(dt)
+		LEFT JOIN (
+			SELECT created_at::date AS dt, COUNT(*) AS cnt
+			FROM follows
+			WHERE target_type = 'user' AND target_id = ? AND created_at >= NOW() - (? || ' days')::interval
+			GROUP BY created_at::date
+		) gained ON gained.dt = d.dt::date
+		LEFT JOIN (
+			SELECT deleted_at::date AS dt, COUNT(*) AS cnt
+			FROM follows
+			WHERE target_type = 'user' AND target_id = ? AND deleted_at IS NOT NULL AND deleted_at >= NOW() - (? || ' days')::interval
+			GROUP BY deleted_at::date
+		) lost ON lost.dt = d.dt::date
+		ORDER BY d.dt
+	`, days, userID, days, userID, days).Scan(&daily)
+
+	var sources []FollowerSourceStats
+	r.db.Raw(`
+		SELECT COALESCE(NULLIF(ips.name, ''), 'direct') AS name, COUNT(*) AS value
+		FROM follows f
+		LEFT JOIN content_items ci ON f.follower_id = ci.user_id
+		LEFT JOIN ips ON ci.ip_id = ips.id
+		WHERE f.target_type = 'user' AND f.target_id = ?
+		GROUP BY ips.name
+		ORDER BY value DESC
+		LIMIT 5
+	`, userID).Scan(&sources)
+
+	return &FollowerStatsResult{
+		Total:         total,
+		NewThisMonth:  newThisMonth,
+		LostThisMonth: lostThisMonth,
+		Daily:         daily,
+		Sources:       sources,
+	}, nil
+}

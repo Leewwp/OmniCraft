@@ -142,6 +142,14 @@ function LoginPageContent() {
             {t('auth.registerNow')}
           </Link>
         </p>
+        <p className="mt-2 text-center text-sm text-muted-foreground">
+          <Link
+            href="/forgot-password"
+            className="font-medium text-primary hover:underline"
+          >
+            {t('auth.forgotPassword')}
+          </Link>
+        </p>
       </div>
     </div>
   );

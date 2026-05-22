@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,16 +9,20 @@ import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { User } from "lucide-react";
 
 export default function SettingsPage() {
   const t = useTranslations();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Password change
   const [oldPw, setOldPw] = useState("");
@@ -40,6 +44,37 @@ export default function SettingsPage() {
       setBio(user.bio || "");
     }
   }, [user]);
+
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    if (file.size > 20 * 1024 * 1024) {
+      setError(t("settings.avatarTooLarge"));
+      return;
+    }
+    setAvatarUploading(true);
+    setError("");
+    try {
+      const presignRes = await api.post("/api/v1/contents/oss-token", {
+        file_name: file.name,
+        file_type: "avatar",
+        mime_type: file.type,
+        file_size: file.size,
+      }) as { upload_url: string; oss_key: string };
+      await fetch(presignRes.upload_url, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      const cfgRes = await fetch("/api/v1/config/public").then(r => r.json()).catch(() => null);
+      const cdnBase = cfgRes?.oss_cdn_base || "";
+      const avatarUrl = cdnBase ? `${cdnBase}/${presignRes.oss_key}` : presignRes.oss_key;
+      await api.patch(`/api/v1/users/${user.id}`, { avatar_url: avatarUrl });
+      await refreshUser();
+      setSuccess(t("settings.avatarUpdated"));
+    } catch (e) {
+      silentError(e, { component: 'SettingsPage', action: 'handleAvatarChange' });
+      setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
 
   async function handleSave() {
     if (!user) return;
@@ -91,7 +126,7 @@ export default function SettingsPage() {
     setDeleteBusy(true);
     try {
       await api.delete("/api/v1/users/me");
-      logout?.();
+      logout();
       router.push("/");
     } catch (e) {
       silentError(e, { component: 'SettingsPage', action: 'handleDeleteAccount' });
@@ -110,6 +145,27 @@ export default function SettingsPage() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
       {success && <p className="text-sm text-emerald-600">{success}</p>}
+
+      {/* Avatar */}
+      <div className="space-y-3 rounded-md border border-border bg-card p-4">
+        <h3 className="text-sm font-semibold">{t("settings.avatar")}</h3>
+        <div className="flex items-center gap-4">
+          {user?.avatar_url ? (
+            <img src={user.avatar_url} alt="" className="h-16 w-16 rounded-full object-cover border border-border" />
+          ) : (
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted border border-border">
+              <User className="h-8 w-8 text-muted-foreground" />
+            </div>
+          )}
+          <div>
+            <Button size="sm" variant="outline" disabled={avatarUploading} onClick={() => avatarInputRef.current?.click()}>
+              {avatarUploading ? t("common.processing") : t("settings.changeAvatar")}
+            </Button>
+            <p className="mt-1 text-xs text-muted-foreground">{t("settings.avatarHint")}</p>
+            <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+          </div>
+        </div>
+      </div>
 
       {/* Profile */}
       <div className="space-y-4 rounded-md border border-border bg-card p-4 ">
