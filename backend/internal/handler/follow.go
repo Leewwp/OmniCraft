@@ -110,3 +110,21 @@ func (h *FollowHandler) GetFollowing(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"following": follows, "total": total})
 }
+
+func (h *FollowHandler) GetFollowerStats(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		return
+	}
+	days, _ := strconv.Atoi(c.DefaultQuery("days", "30"))
+	if days < 1 || days > 365 {
+		days = 30
+	}
+	stats, err := h.followRepo.GetFollowerStats(userID, days)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
+		return
+	}
+	c.JSON(http.StatusOK, stats)
+}

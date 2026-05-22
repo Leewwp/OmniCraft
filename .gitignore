@@ -22,6 +22,17 @@ tauri-client/src-tauri/gen/
 
 # Claude Code (local overrides only — settings.json is committed)
 .claude/settings.local.json
+.claude/skills/
+
+# Trae IDE
+.trae/
+
+# Build artifacts
+*.exe
+backend/server.exe
+
+# Misplaced skill directories
+Users*
 
 # screenshot
 screenshots/
