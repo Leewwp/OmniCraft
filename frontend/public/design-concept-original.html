@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>原创区 — OmniCraft 万象工坊</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ===== Design Tokens ===== */
+:root {
+  --bg-base:       #FFFFFF;
+  --bg-surface:    #FFFFFF;
+  --bg-muted:      #F5F5F5;
+  --bg-hover:      #F2F2F2;
+  --bg-sidebar:    #FFFFFF;
+  --border:        #E8E8E8;
+  --border-light:  transparent;
+  --border-hover:  #D4D4D4;
+  --text-primary:  #18181B;
+  --text-secondary:#52525B;
+  --text-tertiary: #A1A1AA;
+  --text-inverse:  #FAFAFA;
+  --accent:        #4F46E5;
+  --accent-soft:   #EEF2FF;
+  --accent-hover:  #4338CA;
+  --accent-text:   #4F46E5;
+  --rose:          #E11D48;
+  --rose-soft:     #FFF1F2;
+  --emerald:       #059669;
+  --emerald-soft:  #ECFDF5;
+  --amber:         #D97706;
+  --amber-soft:    #FFFBEB;
+  --sky:           #0284C7;
+  --sky-soft:      #F0F9FF;
+  --violet:        #7C3AED;
+  --violet-soft:   #F5F3FF;
+  --slate:         #64748B;
+  --slate-soft:    #F1F5F9;
+
+  --font-heading:  'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body:     'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono:     'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+
+  --radius-sm:     6px;
+  --radius-md:     10px;
+  --radius-lg:     14px;
+  --radius-full:   9999px;
+
+  --sidebar-w:     224px;
+  --header-h:      52px;
+  --max-width:     1440px;
+}
+
+/* ===== Reset ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body {
+  font-family: var(--font-body);
+  color: var(--text-primary);
+  background: var(--bg-base);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+img { display: block; max-width: 100%; }
+input, select { font-family: inherit; }
+ul { list-style: none; }
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; transition: background 0.3s; }
+:hover::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.08); }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.15); }
+.scroll-hide::-webkit-scrollbar { display: none; }
+.scroll-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ===== SVG Icons ===== */
+.icon { width: 16px; height: 16px; flex-shrink: 0; }
+.icon-sm { width: 13px; height: 13px; flex-shrink: 0; }
+.icon-lg { width: 20px; height: 20px; flex-shrink: 0; }
+
+/* ===== Header ===== */
+.header {
+  position: sticky; top: 0; z-index: 100;
+  height: var(--header-h);
+  background: rgba(255,255,255,0.86);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+.header-inner {
+  display: flex; align-items: center;
+  max-width: var(--max-width); margin: 0 auto; padding: 0 20px;
+  height: 100%; gap: 6px;
+}
+.header-logo {
+  display: flex; align-items: center; gap: 7px;
+  font-family: var(--font-heading); font-size: 14.5px; font-weight: 700;
+  color: var(--text-primary); letter-spacing: -0.02em;
+  flex-shrink: 0; margin-right: 4px;
+}
+.header-logo-icon {
+  width: 26px; height: 26px;
+  background: var(--accent); border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+}
+.header-nav {
+  display: flex; align-items: center; gap: 1px;
+  margin-left: 12px;
+}
+.header-nav a {
+  padding: 6px 13px; border-radius: var(--radius-sm);
+  font-size: 13.5px; color: var(--text-secondary); font-weight: 500;
+  transition: all 0.15s; white-space: nowrap;
+}
+.header-nav a:hover { color: var(--text-primary); background: var(--bg-hover); }
+.header-nav a.active { color: var(--accent-text); background: var(--accent-soft); }
+.header-nav a .nav-badge {
+  font-size: 10.5px; padding: 1px 5px; border-radius: var(--radius-full);
+  background: var(--rose-soft); color: var(--rose); margin-left: 4px; font-weight: 600;
+}
+.header-spacer { flex: 1; }
+
+.header-search {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 13px;
+  background: var(--bg-muted); border: 1px solid transparent;
+  border-radius: var(--radius-full); width: 280px;
+  transition: all 0.2s; font-size: 13px; color: var(--text-tertiary);
+}
+.header-search:focus-within {
+  background: var(--bg-surface); border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.header-search input {
+  border: none; background: none; outline: none;
+  font-size: 13px; color: var(--text-primary); width: 100%;
+}
+.header-search input::placeholder { color: var(--text-tertiary); }
+.header-search kbd {
+  display: flex; align-items: center; gap: 2px;
+  font-size: 10.5px; color: var(--text-tertiary);
+  background: var(--bg-hover); padding: 2px 6px; border-radius: 3px;
+  font-family: var(--font-mono); border: 1px solid var(--border-light);
+}
+
+.header-actions { display: flex; align-items: center; gap: 2px; margin-left: 6px; }
+.header-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: var(--radius-sm);
+  color: var(--text-secondary); transition: all 0.15s; position: relative;
+}
+.header-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.header-btn .dot {
+  position: absolute; top: 6px; right: 6px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--rose); border: 1.5px solid var(--bg-surface);
+}
+.header-publish-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 16px; margin-left: 8px;
+  background: var(--accent); color: #fff;
+  border-radius: var(--radius-full);
+  font-size: 13px; font-weight: 600;
+  transition: all 0.15s; white-space: nowrap;
+}
+.header-publish-btn:hover { background: var(--accent-hover); }
+.header-publish-btn:active { transform: scale(0.97); }
+.header-avatar {
+  width: 28px; height: 28px; border-radius: var(--radius-full);
+  background: var(--accent-soft); color: var(--accent-text);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11.5px; font-weight: 700; margin-left: 4px;
+  border: 1.5px solid var(--border-light);
+}
+
+/* ===== App Layout ===== */
+.app-layout {
+  display: flex;
+  max-width: var(--max-width); margin: 0 auto;
+  min-height: calc(100vh - var(--header-h));
+}
+
+/* ===== Sidebar ===== */
+.sidebar {
+  width: var(--sidebar-w); flex-shrink: 0;
+  background: var(--bg-sidebar);
+  padding: 8px 0 16px;
+  position: sticky; top: var(--header-h);
+  height: calc(100vh - var(--header-h));
+  overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: thin;
+  transition: width 0.2s ease;
+}
+.sidebar.collapsed {
+  width: 48px;
+}
+.sidebar-toggle {
+  display: flex; align-items: center; gap: 9px;
+  width: calc(100% - 28px); margin: 0 14px 10px;
+  padding: 7px 12px; border-radius: var(--radius-sm);
+  font-size: 13px; color: var(--text-secondary); font-weight: 500;
+  transition: all 0.12s; cursor: pointer;
+}
+.sidebar-toggle:hover { color: var(--text-primary); background: var(--bg-hover); }
+.sidebar-toggle .icon-collapse { display: block; }
+.sidebar-toggle .icon-expand { display: none; }
+.sidebar.collapsed .sidebar-toggle {
+  justify-content: center; width: 36px; margin: 0 auto 10px; padding: 7px 0;
+}
+.sidebar.collapsed .sidebar-toggle .icon-collapse { display: none; }
+.sidebar.collapsed .sidebar-toggle .icon-expand { display: block; }
+.sidebar.collapsed .sidebar-toggle .toggle-text { display: none; }
+.sidebar.collapsed .sidebar-label,
+.sidebar.collapsed .sidebar-item .item-text,
+.sidebar.collapsed .sidebar-item .count,
+.sidebar.collapsed .sidebar-item .color-dot,
+.sidebar.collapsed .sidebar-trending,
+.sidebar.collapsed .sidebar-divider { display: none; }
+.sidebar.collapsed .sidebar-item {
+  justify-content: center; padding: 8px; position: relative;
+}
+.sidebar.collapsed .sidebar-item .icon,
+.sidebar.collapsed .sidebar-item .icon-sm,
+.sidebar.collapsed .sidebar-item .icon-lg { margin: 0; }
+.sidebar.collapsed .sidebar-item:hover::after {
+  content: attr(data-label);
+  position: absolute; left: 52px; top: 50%; transform: translateY(-50%);
+  background: #1a1a1a; color: #fff;
+  padding: 4px 10px; border-radius: var(--radius-sm);
+  font-size: 12px; font-weight: 500; white-space: nowrap;
+  z-index: 200; pointer-events: none;
+}
+.sidebar.collapsed .sidebar-section { padding: 0; }
+.sidebar.collapsed .sidebar-trending { padding: 0; }
+.sidebar-section {
+  padding: 0 14px; margin-bottom: 6px;
+}
+.sidebar-label {
+  font-size: 10.5px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-tertiary);
+  padding: 8px 14px 6px; margin-top: 4px;
+}
+.sidebar-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 12px; border-radius: var(--radius-sm);
+  font-size: 13px; color: var(--text-secondary); font-weight: 500;
+  transition: all 0.12s; cursor: pointer;
+}
+.sidebar-item:hover { color: var(--text-primary); background: var(--bg-hover); }
+.sidebar-item.active { color: var(--accent-text); background: var(--accent-soft); font-weight: 600; }
+.sidebar-item .count {
+  margin-left: auto; font-size: 11px; color: var(--text-tertiary);
+  background: var(--border-light); padding: 1px 6px; border-radius: var(--radius-full);
+  font-weight: 500;
+}
+.sidebar-item.active .count { background: #C7D2FE; color: var(--accent-text); }
+
+.sidebar-item .color-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+
+.sidebar-divider { height: 1px; background: transparent; margin: 8px 14px; }
+
+.sidebar-trending { padding: 0 14px; }
+.sidebar-trending h4 {
+  font-size: 11px; font-weight: 600; color: var(--text-tertiary);
+  text-transform: uppercase; letter-spacing: 0.05em; padding: 4px 0 8px;
+}
+.trending-topic {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: var(--radius-sm);
+  cursor: pointer; transition: background 0.12s;
+}
+.trending-topic:hover { background: var(--bg-hover); }
+.trending-topic-rank {
+  width: 18px; font-size: 11.5px; font-weight: 700; color: var(--text-tertiary);
+  text-align: center; flex-shrink: 0;
+}
+.trending-topic-rank.top1 { color: var(--rose); }
+.trending-topic-rank.top2 { color: var(--amber); }
+.trending-topic-rank.top3 { color: var(--violet); }
+.trending-topic-info { min-width: 0; }
+.trending-topic-name {
+  font-size: 12.5px; font-weight: 500; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.trending-topic-stat {
+  font-size: 10.5px; color: var(--text-tertiary);
+}
+
+/* ===== Main Content Area ===== */
+.main-content {
+  flex: 1; min-width: 0;
+}
+
+/* ===== Zone Banner ===== */
+.zone-banner {
+  padding: 18px 24px 14px;
+}
+.zone-title-row {
+  display: flex; align-items: baseline; gap: 12px;
+}
+.zone-title {
+  font-family: var(--font-heading); font-size: 22px; font-weight: 700;
+  color: var(--text-primary); letter-spacing: -0.02em;
+}
+.zone-subtitle { font-size: 13px; color: var(--text-tertiary); }
+.zone-stats-row {
+  display: flex; gap: 16px; margin-top: 10px;
+}
+.zone-stat {
+  display: flex; align-items: baseline; gap: 4px;
+}
+.zone-stat-value { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+.zone-stat-label { font-size: 12px; color: var(--text-tertiary); }
+
+/* ===== Category Tabs + Toolbar (unified row) ===== */
+.cat-toolbar-row {
+  position: sticky; top: var(--header-h); z-index: 90;
+  background: var(--bg-base);
+  display: flex; align-items: center; gap: 0;
+  padding: 8px 24px;
+}
+.cat-toolbar-tabs {
+  display: flex; align-items: center; gap: 4px;
+  overflow: hidden; flex: 1; min-width: 0;
+}
+.cat-tab {
+  padding: 6px 14px; border-radius: var(--radius-full);
+  font-size: 13px; color: var(--text-secondary); font-weight: 500;
+  transition: all 0.12s; white-space: nowrap; flex-shrink: 0;
+  border: 1px solid transparent;
+}
+.cat-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+.cat-tab.active {
+  color: var(--text-primary); background: var(--bg-surface);
+  border-color: var(--border); font-weight: 600;
+}
+.cat-overflow-wrap {
+  position: relative; flex-shrink: 0;
+}
+.cat-overflow-btn {
+  padding: 6px 12px; border-radius: var(--radius-full);
+  font-size: 13px; color: var(--text-secondary); font-weight: 500;
+  transition: all 0.12s; white-space: nowrap;
+  display: none; align-items: center; gap: 4px;
+}
+.cat-overflow-btn.show { display: flex; }
+.cat-overflow-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.cat-overflow-dropdown {
+  position: absolute; top: 100%; right: 0; margin-top: 4px;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 4px; min-width: 120px;
+  display: none; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.cat-overflow-dropdown.open { display: block; }
+.cat-overflow-dropdown .cat-tab {
+  display: block; width: 100%; text-align: left; border-radius: var(--radius-sm);
+}
+
+.toolbar-sort-wrap {
+  flex-shrink: 0; margin-left: 12px;
+  display: flex; align-items: center; gap: 6px;
+}
+.toolbar-sort-wrap select {
+  padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 12px; color: var(--text-primary); background: var(--bg-surface);
+  outline: none; cursor: pointer;
+}
+
+/* ===== Masonry Grid ===== */
+.masonry-wrap { padding: 16px 24px; }
+.masonry {
+  columns: 4; column-gap: 14px;
+}
+.masonry > * { break-inside: avoid; margin-bottom: 14px; }
+
+@media (max-width: 1400px) { .masonry { columns: 3; } }
+@media (max-width: 1000px) { .masonry { columns: 2; column-gap: 10px; } .masonry > * { margin-bottom: 10px; } }
+@media (max-width: 640px)  { .masonry { columns: 2; column-gap: 8px; } .masonry > * { margin-bottom: 8px; } }
+
+/* ===== Original Content Card (borderless, Xiaohongshu-style) ===== */
+.card-og {
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+.card-og:hover { transform: translateY(-2px); }
+.card-og:active { transform: scale(0.985); }
+
+.card-og-cover {
+  position: relative; overflow: hidden;
+  background: var(--bg-muted);
+}
+.card-og-cover img {
+  width: 100%; display: block;
+  object-fit: cover; transition: transform 0.4s ease;
+}
+.card-og:hover .card-og-cover img { transform: scale(1.04); }
+.card-og-cover .cover-gradient {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.03));
+  opacity: 0; transition: opacity 0.3s;
+}
+.card-og:hover .card-og-cover .cover-gradient { opacity: 1; }
+.card-og-duration {
+  position: absolute; bottom: 8px; right: 8px;
+  padding: 2px 6px; border-radius: 4px;
+  background: rgba(0,0,0,0.65); color: #fff;
+  font-size: 10.5px; font-weight: 600;
+}
+
+.card-og-body { padding: 10px 11px 12px; }
+.card-og-title {
+  font-size: 13.5px; font-weight: 600; line-height: 1.4;
+  color: var(--text-primary);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; letter-spacing: -0.01em;
+}
+.card-og-desc {
+  font-size: 12px; color: var(--text-tertiary); line-height: 1.45;
+  margin-top: 4px;
+  display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.card-og-bottom {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 9px;
+}
+.card-og-author {
+  display: flex; align-items: center; gap: 6px;
+  min-width: 0;
+}
+.card-og-avatar {
+  width: 20px; height: 20px; border-radius: var(--radius-full);
+  background: var(--bg-muted); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; color: var(--text-tertiary); font-weight: 600;
+  overflow: hidden;
+}
+.card-og-author-name {
+  font-size: 12px; color: var(--text-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.card-og-stats {
+  display: flex; align-items: center; gap: 3px;
+  font-size: 12px; color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+/* ===== Load More ===== */
+.load-more-wrap {
+  text-align: center; padding: 24px 0 48px;
+}
+.load-more-btn {
+  padding: 8px 32px; border-radius: var(--radius-full);
+  border: 1px solid var(--border); background: var(--bg-surface);
+  font-size: 13px; color: var(--text-secondary); font-weight: 500;
+  transition: all 0.15s;
+}
+.load-more-btn:hover { border-color: var(--border-hover); color: var(--text-primary); }
+
+/* ===== Mini FABs (Back to top + Refresh) ===== */
+.mini-fabs {
+  position: fixed; bottom: 24px; right: 24px; z-index: 90;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.mini-fab {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-secondary); transition: all 0.15s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.mini-fab:hover { border-color: var(--border-hover); color: var(--text-primary); box-shadow: 0 2px 8px rgba(0,0,0,0.10); }
+.mini-fab:active { transform: scale(0.93); }
+
+/* ===== Footer ===== */
+.app-footer {
+  padding: 14px 24px;
+  font-size: 12px; color: var(--text-tertiary);
+  display: flex; align-items: center; gap: 16px;
+}
+.app-footer a:hover { color: var(--text-secondary); }
+
+/* ===== Skeleton shimmer ===== */
+@keyframes shimmer { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+.skeleton { background: var(--bg-muted); border-radius: var(--radius-sm); animation: shimmer 1.8s ease-in-out infinite; }
+
+/* ===== Responsive ===== */
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .header-search { width: 180px; }
+  .header-publish-btn span { display: none; }
+  .header-publish-btn { padding: 6px 12px; }
+  .zone-banner { padding: 14px 16px; }
+  .cat-tabs-inner { padding: 8px 16px; }
+  .content-toolbar { padding: 8px 16px; }
+  .masonry-wrap { padding: 12px 16px; }
+}
+@media (max-width: 640px) {
+  .header-search { display: none; }
+  .header-nav a:nth-child(3),
+  .header-nav a:nth-child(4) { display: none; }
+  .zone-title { font-size: 18px; }
+  .zone-stats-row { gap: 12px; }
+  .toolbar-view { display: none; }
+  .header-publish-btn { padding: 6px 10px; font-size: 12px; }
+  .mini-fabs { bottom: 16px; right: 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header class="header">
+  <div class="header-inner">
+    <a href="#" class="header-logo">
+      <div class="header-logo-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 22 8.5 12 15 2 8.5"/>
+          <polyline points="2 15.5 12 22 22 15.5"/>
+          <line x1="12" y1="15" x2="12" y2="22"/>
+        </svg>
+      </div>
+      万象工坊
+    </a>
+
+    <nav class="header-nav">
+      <a href="design-concept-original.html" class="active">原创区</a>
+      <a href="design-concept-fanwork.html">二创区<span class="nav-badge">热门</span></a>
+      <a href="#">讨论区</a>
+      <a href="#">众裁</a>
+    </nav>
+
+    <div class="header-spacer"></div>
+
+    <div class="header-search">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" placeholder="搜索创作者、内容或话题...">
+      <kbd><span>Ctrl</span>K</kbd>
+    </div>
+
+    <button class="header-publish-btn" title="发布创作">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span>发布</span>
+    </button>
+    <div class="header-actions">
+      <button class="header-btn" title="通知">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span class="dot"></span>
+      </button>
+      <button class="header-btn" title="消息">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      </button>
+      <div class="header-avatar">YN</div>
+    </div>
+  </div>
+</header>
+
+<!-- ===== APP LAYOUT ===== -->
+<div class="app-layout">
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar scroll-hide">
+    <button class="sidebar-toggle" onclick="toggleSidebar()" title="收起侧边栏">
+      <svg class="icon-collapse" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><polyline points="13 9 16 12 13 15"/></svg>
+      <svg class="icon-expand" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/><polyline points="11 9 8 12 11 15"/></svg>
+      <span class="toggle-text">收起侧边栏</span>
+    </button>
+    <div class="sidebar-label">管理</div>
+    <ul class="sidebar-section">
+      <li class="sidebar-item" data-label="我的喜欢">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+        <span class="item-text">我的喜欢</span>
+        <span class="count">38</span>
+      </li>
+      <li class="sidebar-item" data-label="我的原创">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span class="item-text">我的原创</span>
+        <span class="count">8</span>
+      </li>
+      <li class="sidebar-item" data-label="浏览历史">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <span class="item-text">浏览历史</span>
+      </li>
+    </ul>
+
+    <div class="sidebar-divider"></div>
+
+    <!-- Trending Topics -->
+    <div class="sidebar-trending" data-label="热门话题">
+      <h4>热门话题 · 本周</h4>
+      <div class="trending-topic" data-label="#春日穿搭挑战">
+        <span class="trending-topic-rank top1">1</span>
+        <div class="trending-topic-info">
+          <div class="trending-topic-name">#春日穿搭挑战</div>
+          <div class="trending-topic-stat">4,823 参与 · ↗ 45%</div>
+        </div>
+      </div>
+      <div class="trending-topic" data-label="#周末厨房日记">
+        <span class="trending-topic-rank top2">2</span>
+        <div class="trending-topic-info">
+          <div class="trending-topic-name">#周末厨房日记</div>
+          <div class="trending-topic-stat">3,216 参与 · ↗ 32%</div>
+        </div>
+      </div>
+      <div class="trending-topic" data-label="#桌面改造计划">
+        <span class="trending-topic-rank top3">3</span>
+        <div class="trending-topic-info">
+          <div class="trending-topic-name">#桌面改造计划</div>
+          <div class="trending-topic-stat">2,847 参与 · ↗ 28%</div>
+        </div>
+      </div>
+      <div class="trending-topic" data-label="#猫咪日常">
+        <span class="trending-topic-rank">4</span>
+        <div class="trending-topic-info">
+          <div class="trending-topic-name">#猫咪日常</div>
+          <div class="trending-topic-stat">2,103 参与 · ↗ 19%</div>
+        </div>
+      </div>
+      <div class="trending-topic" data-label="#极简生活">
+        <span class="trending-topic-rank">5</span>
+        <div class="trending-topic-info">
+          <div class="trending-topic-name">#极简生活</div>
+          <div class="trending-topic-stat">1,876 参与 · ↗ 15%</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main class="main-content">
+
+    <!-- Zone Banner -->
+    <div class="zone-banner">
+      <div class="zone-title-row">
+        <h1 class="zone-title">原创区</h1>
+        <span class="zone-subtitle">发现创作者的真实原创内容</span>
+      </div>
+      <div class="zone-stats-row">
+        <div class="zone-stat">
+          <span class="zone-stat-value">186,247</span>
+          <span class="zone-stat-label">内容</span>
+        </div>
+        <div class="zone-stat">
+          <span class="zone-stat-value">32,814</span>
+          <span class="zone-stat-label">创作者</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Unified Category + Sort Row -->
+    <div class="cat-toolbar-row" id="catToolbarRow">
+      <div class="cat-toolbar-tabs" id="catToolbarTabs">
+        <button class="cat-tab active">推荐</button>
+        <button class="cat-tab">影视</button>
+        <button class="cat-tab">游戏</button>
+        <button class="cat-tab">文学</button>
+        <button class="cat-tab">宠物</button>
+        <button class="cat-tab">美食</button>
+        <button class="cat-tab">美妆穿搭</button>
+        <button class="cat-tab">家居</button>
+        <button class="cat-tab">数码科技</button>
+        <button class="cat-tab">旅行</button>
+        <button class="cat-tab">运动</button>
+        <button class="cat-tab">效率</button>
+      </div>
+      <div class="cat-overflow-wrap">
+        <button class="cat-overflow-btn" id="catOverflowBtn" onclick="toggleOverflow()">
+          更多 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="cat-overflow-dropdown" id="catOverflowDropdown"></div>
+      </div>
+      <div class="toolbar-sort-wrap">
+        <select onchange="updateSort(this.value)">
+          <option value="recommended">推荐</option>
+          <option value="newest">最新发布</option>
+          <option value="hottest">最热门</option>
+          <option value="discussing">正在讨论</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Masonry Grid -->
+    <div class="masonry-wrap">
+      <div class="masonry">
+
+        <!-- Card 1: Tall image -->
+        <div class="card-og">
+          <div class="card-og-cover" style="aspect-ratio:3/4;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='400'%3E%3Cdefs%3E%3ClinearGradient id='o1' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23FEE2E2'/%3E%3Cstop offset='100%25' style='stop-color:%23FECACA'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23o1)' width='300' height='400'/%3E%3Ctext x='150' y='195' text-anchor='middle' font-size='36' fill='%23ffffff88'%3E📷%3C/text%3E%3C/svg%3E" alt="">
+            <div class="cover-gradient"></div>
+          </div>
+          <div class="card-og-body">
+            <div class="card-og-title">周末在家的慢时光：手工意面与一本好书</div>
+            <div class="card-og-desc">尝试了新的手工意面配方，搭配自制罗勒青酱</div>
+            <div class="card-og-bottom">
+              <div class="card-og-author">
+                <div class="card-og-avatar" style="background:linear-gradient(135deg,#FEE2E2,#FECACA);">安</div>
+                <span class="card-og-author-name">安的生活笔记</span>
+              </div>
+              <div class="card-og-stats">
+                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                326
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: Wide -->
+        <div class="card-og">
+          <div class="card-og-cover" style="aspect-ratio:4/3;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='225'%3E%3Cdefs%3E%3ClinearGradient id='o2' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23DBEAFE'/%3E%3Cstop offset='100%25' style='stop-color:%23BFDBFE'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23o2)' width='300' height='225'/%3E%3Ctext x='150' y='118' text-anchor='middle' font-size='30' fill='%23ffffff88'%3E💻%3C/text%3E%3C/svg%3E" alt="">
+            <div class="cover-gradient"></div>
+          </div>
+          <div class="card-og-body">
+            <div class="card-og-title">从零搭建个人博客：Next.js + Notion 的极简方案分享</div>
+            <div class="card-og-desc">零成本托管，自动同步，全栈开发者的博客最佳实践</div>
+            <div class="card-og-bottom">
+              <div class="card-og-author">
+                <div class="card-og-avatar" style="background:linear-gradient(135deg,#DBEAFE,#BFDBFE);">开</div>
+                <span class="card-og-author-name">开发者笔记</span>
+              </div>
+              <div class="card-og-stats">
+                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                1.2k
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3: Square -->
+        <div class="card-og">
+          <div class="card-og-cover" style="aspect-ratio:1/1;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cdefs%3E%3ClinearGradient id='o3' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23D1FAE5'/%3E%3Cstop offset='100%25' style='stop-color:%23A7F3D0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23o3)' width='300' height='300'/%3E%3Ctext x='150' y='150' text-anchor='middle' font-size='32' fill='%23ffffff88'%3E🌿%3C/text%3E%3C/svg%3E" alt="">
+            <div class="cover-gradient"></div>
+          </div>
+          <div class="card-og-body">
+            <div class="card-og-title">阳台改造日记：3㎡小花园的四季更迭</div>
+            <div class="card-og-desc">从光秃秃到郁郁葱葱，分享我的阳台绿植布置经验</div>
+            <div class="card-og-bottom">
+              <div class="card-og-author">
+                <div class="card-og-avatar" style="background:linear-gradient(135deg,#D1FAE5,#A7F3D0);">绿</div>
+                <span class="card-og-author-name">绿植爱好者</span>
+              </div>
+              <div class="card-og-stats">
+                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                567
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 4: Tall -->
+        <div class="card-og">
+          <div class="card-og-cover" style="aspect-ratio:3/4;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='400'%3E%3Cdefs%3E%3ClinearGradient id='o4' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23FEF3C7'/%3E%3Cstop offset='100%25' style='stop-color:%23FDE68A'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23o4)' width='300' height='400'/%3E%3Ctext x='150' y='195' text-anchor='middle' font-size='36' fill='%23ffffff88'%3E🍰%3C/text%3E%3C/svg%3E" alt="">
+            <div class="cover-gradient"></div>
+          </div>
+          <div class="card-og-body">
+            <div class="card-og-title">春日限定：草莓奶油蛋糕的详细配方与制作技巧</div>
+            <div class="card-og-desc">从海绵蛋糕底到奶油裱花，新手也能一次成功</div>
+            <div class="card-og-bottom">
+              <div class="card-og-author">
+                <div class="card-og-avatar" style="background:linear-gradient(135deg,#FEF3C7,#FDE68A);">甜</div>
+                <span class="card-og-author-name">甜蜜烘焙坊</span>
+              </div>
+              <div class="card-og-stats">
+                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                2.1k
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 5: Wide -->
+        <div class="card-og">
+          <div class="card-og-cover" style="aspect-ratio:4/3;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='225'%3E%3Cdefs%3E%3ClinearGradient id='o5' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23E0E7FF'/%3E%3Cstop offset='100%25' style='stop-color:%23C7D2FE'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23o5)' width='300' height='225'/%3E%3Ctext x='150' y='118' text-anchor='middle' font-size='30' fill='%23ffffff88'%3E🗺️%3C/text%3E%3C/svg%3E" alt="">
+            <div class="cover-gradient"></div>
+          </div>
+          <div class="card-og-body">
+            <div class="card-og-title">北欧极光旅拍：特罗姆瑟 72 小时完整攻略</div>
+            <div class="card-og-desc">包含追光技巧、住宿推荐和拍摄参数分享</div>
+            <div class="card-og-bottom">
+              <div class="card-og-author">
+                <div class="card-og-avatar" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE);">旅</div>
+                <span class="card-og-author-name">旅行摄影师</span>
+              </div>
+              <div class="card-og-stats">
+                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                892
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 6: Square -->
+        <div class="card-og">
+          <div class="card-og-cover" style="aspect-ratio:1/1;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cdefs%3E%3ClinearGradient id='o6' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23FCE7F3'/%3E%3Cstop offset='100%25' style='stop-color:%23FBCFE8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23o6)' width='300' height='300'/%3E%3Ctext x='150' y='150' text-anchor='middle' font-size='32' fill='%23ffffff88'%3E🐱%3C/text%3E%3C/svg%3E" alt="">
+            <div class="cover-gradient"></div>
+          </div>
+          <div class="card-og-body">
+            <div class="card-og-title">养猫新手指南：从选粮到日常护理的全面科普</div>
+            <div class="card-og-desc">猫咪日常护理、常见疾病预防与科学喂养建议</div>
+            <div class="card-og-bottom">
+              <div class="card-og-author">
+                <div class="card-og-avatar" style="background:linear-gradient(135deg,#FCE7F3,#FBCFE8);">猫</div>
+                <span class="card-og-author-name">铲屎官日记</span>
+              </div>
+              <div class="card-og-stats">
+                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                1.8k
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 7: Tall -->
+        <div class="card-og">
+          <div class="card-og-cover" style="aspect-ratio:3/4;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='400'%3E%3Cdefs%3E%3ClinearGradient id='o7' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23EDE9FE'/%3E%3Cstop offset='100%25' style='stop-color:%23DDD6FE'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23o7)' width='300' height='400'/%3E%3Ctext x='150' y='195' text-anchor='middle' font-size='36' fill='%23ffffff88'%3E🎮%3C/text%3E%3C/svg%3E" alt="">
+            <div class="cover-gradient"></div>
+            <span class="card-og-duration">12:34</span>
+          </div>
+          <div class="card-og-body">
+            <div class="card-og-title">独立游戏推荐：2026 年值得关注的 10 款国产新作</div>
+            <div class="card-og-desc">从 Roguelike 到叙事解谜，国产独立游戏的春天来了</div>
+            <div class="card-og-bottom">
+              <div class="card-og-author">
+                <div class="card-og-avatar" style="background:linear-gradient(135deg,#EDE9FE,#DDD6FE);">游</div>
+                <span class="card-og-author-name">游戏雷达</span>
+              </div>
+              <div class="card-og-stats">
+                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                3.4k
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 8: Wide -->
+        <div class="card-og">
+          <div class="card-og-cover" style="aspect-ratio:4/3;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='225'%3E%3Cdefs%3E%3ClinearGradient id='o8' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23FFEDD5'/%3E%3Cstop offset='100%25' style='stop-color:%23FED7AA'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23o8)' width='300' height='225'/%3E%3Ctext x='150' y='118' text-anchor='middle' font-size='30' fill='%23ffffff88'%3E👗%3C/text%3E%3C/svg%3E" alt="">
+            <div class="cover-gradient"></div>
+          </div>
+          <div class="card-og-body">
+            <div class="card-og-title">每日穿搭记录：一周通勤不重样的胶囊衣橱搭配</div>
+            <div class="card-og-desc">用 12 件基础单品搭出 7 套不同风格的通勤造型</div>
+            <div class="card-og-bottom">
+              <div class="card-og-author">
+                <div class="card-og-avatar" style="background:linear-gradient(135deg,#FFEDD5,#FED7AA);">穿</div>
+                <span class="card-og-author-name">穿搭日记</span>
+              </div>
+              <div class="card-og-stats">
+                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                756
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 9: Tall -->
+        <div class="card-og">
+          <div class="card-og-cover" style="aspect-ratio:3/4;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='400'%3E%3Cdefs%3E%3ClinearGradient id='o9' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23F1F5F9'/%3E%3Cstop offset='100%25' style='stop-color:%23E2E8F0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23o9)' width='300' height='400'/%3E%3Ctext x='150' y='195' text-anchor='middle' font-size='36' fill='%23ffffff88'%3E⚡%3C/text%3E%3C/svg%3E" alt="">
+            <div class="cover-gradient"></div>
+          </div>
+          <div class="card-og-body">
+            <div class="card-og-title">效率工具推荐：2026 年必备的 8 款生产力提升 App</div>
+            <div class="card-og-desc">覆盖笔记、任务管理、时间追踪等核心场景</div>
+            <div class="card-og-bottom">
+              <div class="card-og-author">
+                <div class="card-og-avatar" style="background:linear-gradient(135deg,#F1F5F9,#E2E8F0);">效</div>
+                <span class="card-og-author-name">效率研究所</span>
+              </div>
+              <div class="card-og-stats">
+                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                5.2k
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 10: Square -->
+        <div class="card-og">
+          <div class="card-og-cover" style="aspect-ratio:1/1;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cdefs%3E%3ClinearGradient id='o10' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23D1FAE5'/%3E%3Cstop offset='100%25' style='stop-color:%23A7F3D0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23o10)' width='300' height='300'/%3E%3Ctext x='150' y='150' text-anchor='middle' font-size='32' fill='%23ffffff88'%3E🏃%3C/text%3E%3C/svg%3E" alt="">
+            <div class="cover-gradient"></div>
+            <span class="card-og-duration">05:21</span>
+          </div>
+          <div class="card-og-body">
+            <div class="card-og-title">晨跑打卡第 100 天：从零到半马的训练心得</div>
+            <div class="card-og-desc">分享跑步装备选择、伤病预防和配速提升策略</div>
+            <div class="card-og-bottom">
+              <div class="card-og-author">
+                <div class="card-og-avatar" style="background:linear-gradient(135deg,#D1FAE5,#A7F3D0);">跑</div>
+                <span class="card-og-author-name">跑步人生</span>
+              </div>
+              <div class="card-og-stats">
+                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                1.1k
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 11: Tall -->
+        <div class="card-og">
+          <div class="card-og-cover" style="aspect-ratio:3/4;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='400'%3E%3Cdefs%3E%3ClinearGradient id='o11' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23FEE2E2'/%3E%3Cstop offset='100%25' style='stop-color:%23FECACA'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23o11)' width='300' height='400'/%3E%3Ctext x='150' y='195' text-anchor='middle' font-size='36' fill='%23ffffff88'%3E🎬%3C/text%3E%3C/svg%3E" alt="">
+            <div class="cover-gradient"></div>
+          </div>
+          <div class="card-og-body">
+            <div class="card-og-title">豆瓣 8.5+ 冷门佳片：这部电影改变了我对生活的看法</div>
+            <div class="card-og-desc">整理了最近看的 15 部小众高分电影，每部都有深度解读</div>
+            <div class="card-og-bottom">
+              <div class="card-og-author">
+                <div class="card-og-avatar" style="background:linear-gradient(135deg,#FEE2E2,#FECACA);">影</div>
+                <span class="card-og-author-name">光影随行</span>
+              </div>
+              <div class="card-og-stats">
+                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                2.7k
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 12: Wide -->
+        <div class="card-og">
+          <div class="card-og-cover" style="aspect-ratio:4/3;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='225'%3E%3Cdefs%3E%3ClinearGradient id='o12' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23EDE9FE'/%3E%3Cstop offset='100%25' style='stop-color:%23DDD6FE'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23o12)' width='300' height='225'/%3E%3Ctext x='150' y='118' text-anchor='middle' font-size='30' fill='%23ffffff88'%3E📚%3C/text%3E%3C/svg%3E" alt="">
+            <div class="cover-gradient"></div>
+          </div>
+          <div class="card-og-body">
+            <div class="card-og-title">2026 上半年阅读总结：这 12 本好书值得你花时间</div>
+            <div class="card-og-desc">涵盖科幻、历史、心理学和散文，每本都附有阅读笔记</div>
+            <div class="card-og-bottom">
+              <div class="card-og-author">
+                <div class="card-og-avatar" style="background:linear-gradient(135deg,#EDE9FE,#DDD6FE);">书</div>
+                <span class="card-og-author-name">书虫札记</span>
+              </div>
+              <div class="card-og-stats">
+                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                4.8k
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Load More -->
+      <div class="load-more-wrap">
+        <button class="load-more-btn">加载更多内容</button>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="app-footer">
+      <span>OmniCraft 万象工坊</span>
+      <a href="#">关于</a>
+      <a href="#">反馈</a>
+      <a href="#">社区规范</a>
+      <a href="#">隐私政策</a>
+      <span style="margin-left:auto;">186,247 内容 · 32,814 创作者</span>
+    </div>
+
+  </main>
+</div>
+
+<!-- ===== Mini FABs ===== -->
+<div class="mini-fabs">
+  <button class="mini-fab" title="回到顶部" onclick="window.scrollTo({top:0,behavior:'smooth'})">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="18 15 12 9 6 15"/></svg>
+  </button>
+  <button class="mini-fab" title="刷新" onclick="location.reload()">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+  </button>
+</div>
+
+<script>
+// Sidebar toggle
+function toggleSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const btn = sidebar?.querySelector('.sidebar-toggle');
+  sidebar.classList.toggle('collapsed');
+  const isCollapsed = sidebar.classList.contains('collapsed');
+  if (btn) {
+    btn.title = isCollapsed ? '展开侧边栏' : '收起侧边栏';
+    const text = btn.querySelector('.toggle-text');
+    if (text) text.textContent = isCollapsed ? '' : '收起侧边栏';
+  }
+  localStorage.setItem('sidebarCollapsed', isCollapsed);
+}
+// Restore sidebar state
+(function() {
+  if (localStorage.getItem('sidebarCollapsed') === 'true') {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+      sidebar.classList.add('collapsed');
+      const btn = sidebar.querySelector('.sidebar-toggle');
+      if (btn) {
+        btn.title = '展开侧边栏';
+        const text = btn.querySelector('.toggle-text');
+        if (text) text.textContent = '';
+      }
+    }
+  }
+})();
+
+// Category overflow detection
+function checkOverflow() {
+  const container = document.getElementById('catToolbarTabs');
+  const overflowBtn = document.getElementById('catOverflowBtn');
+  const overflowDropdown = document.getElementById('catOverflowDropdown');
+  if (!container || !overflowBtn) return;
+
+  const tabs = container.querySelectorAll('.cat-tab');
+  const containerWidth = container.clientWidth;
+  let totalWidth = 0;
+  let overflowIdx = -1;
+
+  tabs.forEach((tab, i) => {
+    totalWidth += tab.offsetWidth + 4; // 4px gap
+    if (totalWidth > containerWidth && overflowIdx === -1) {
+      overflowIdx = i;
+    }
+  });
+
+  if (overflowIdx > 0) {
+    overflowBtn.classList.add('show');
+    overflowDropdown.innerHTML = '';
+    for (let i = overflowIdx; i < tabs.length; i++) {
+      const clone = tabs[i].cloneNode(true);
+      clone.onclick = function() { selectTab(i); toggleOverflow(); };
+      overflowDropdown.appendChild(clone);
+    }
+    // Hide overflowed tabs
+    for (let i = overflowIdx; i < tabs.length; i++) {
+      tabs[i].style.display = 'none';
+    }
+  } else {
+    overflowBtn.classList.remove('show');
+    tabs.forEach(t => t.style.display = '');
+  }
+}
+
+function toggleOverflow() {
+  const dd = document.getElementById('catOverflowDropdown');
+  if (dd) dd.classList.toggle('open');
+}
+
+function selectTab(index) {
+  const container = document.getElementById('catToolbarTabs');
+  if (!container) return;
+  const tabs = container.querySelectorAll('.cat-tab');
+  tabs.forEach((t, i) => {
+    t.classList.toggle('active', i === index);
+    t.style.display = '';
+  });
+  document.getElementById('catOverflowBtn')?.classList.remove('show');
+  document.getElementById('catOverflowDropdown')?.classList.remove('open');
+}
+
+// Tab click handlers
+document.getElementById('catToolbarTabs')?.addEventListener('click', function(e) {
+  if (e.target.classList.contains('cat-tab')) {
+    const tabs = this.querySelectorAll('.cat-tab');
+    tabs.forEach(t => t.classList.remove('active'));
+    e.target.classList.add('active');
+  }
+});
+
+function updateSort(val) { /* placeholder */ }
+
+// Close dropdown on outside click
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.cat-overflow-wrap')) {
+    document.getElementById('catOverflowDropdown')?.classList.remove('open');
+  }
+});
+
+// Initial check + resize listener
+window.addEventListener('DOMContentLoaded', checkOverflow);
+window.addEventListener('resize', checkOverflow);
+checkOverflow();
+</script>
+</body>
+</html>
