@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>二创区 — OmniCraft 万象工坊</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ===== Design Tokens ===== */
+:root {
+  --bg-base:       #FFFFFF;
+  --bg-surface:    #FFFFFF;
+  --bg-muted:      #F5F5F5;
+  --bg-hover:      #F2F2F2;
+  --bg-sidebar:    #FFFFFF;
+  --border:        #E8E8E8;
+  --border-light:  transparent;
+  --border-hover:  #D4D4D4;
+  --text-primary:  #18181B;
+  --text-secondary:#52525B;
+  --text-tertiary: #A1A1AA;
+  --text-inverse:  #FAFAFA;
+  --accent:        #4F46E5;
+  --accent-soft:   #EEF2FF;
+  --accent-hover:  #4338CA;
+  --accent-text:   #4F46E5;
+  --rose:          #E11D48;
+  --rose-soft:     #FFF1F2;
+  --emerald:       #059669;
+  --emerald-soft:  #ECFDF5;
+  --amber:         #D97706;
+  --amber-soft:    #FFFBEB;
+  --sky:           #0284C7;
+  --sky-soft:      #F0F9FF;
+  --violet:        #7C3AED;
+  --violet-soft:   #F5F3FF;
+
+  --font-heading:  'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body:     'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono:     'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+
+  --radius-sm:     6px;
+  --radius-md:     10px;
+  --radius-lg:     14px;
+  --radius-full:   9999px;
+
+  --sidebar-w:     228px;
+  --header-h:      52px;
+  --max-width:     1440px;
+}
+
+/* ===== Reset ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body {
+  font-family: var(--font-body);
+  color: var(--text-primary);
+  background: var(--bg-base);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+img { display: block; max-width: 100%; }
+input, select { font-family: inherit; }
+ul { list-style: none; }
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; transition: background 0.3s; }
+:hover::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.08); }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.15); }
+.scroll-hide::-webkit-scrollbar { display: none; }
+.scroll-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ===== SVG Icons ===== */
+.icon { width: 16px; height: 16px; flex-shrink: 0; }
+.icon-sm { width: 13px; height: 13px; flex-shrink: 0; }
+.icon-lg { width: 20px; height: 20px; flex-shrink: 0; }
+
+/* ===== Header ===== */
+.header {
+  position: sticky; top: 0; z-index: 100;
+  height: var(--header-h);
+  background: rgba(255,255,255,0.86);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+.header-inner {
+  display: flex; align-items: center;
+  max-width: var(--max-width); margin: 0 auto; padding: 0 20px;
+  height: 100%; gap: 6px;
+}
+.header-logo {
+  display: flex; align-items: center; gap: 7px;
+  font-family: var(--font-heading); font-size: 14.5px; font-weight: 700;
+  color: var(--text-primary); letter-spacing: -0.02em;
+  flex-shrink: 0; margin-right: 4px;
+}
+.header-logo-icon {
+  width: 26px; height: 26px;
+  background: var(--accent); border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+}
+.header-nav {
+  display: flex; align-items: center; gap: 1px;
+  margin-left: 12px;
+}
+.header-nav a {
+  padding: 6px 13px; border-radius: var(--radius-sm);
+  font-size: 13.5px; color: var(--text-secondary); font-weight: 500;
+  transition: all 0.15s; white-space: nowrap;
+}
+.header-nav a:hover { color: var(--text-primary); background: var(--bg-hover); }
+.header-nav a.active { color: var(--accent-text); background: var(--accent-soft); }
+.header-nav a .nav-badge {
+  font-size: 10.5px; padding: 1px 5px; border-radius: var(--radius-full);
+  background: var(--rose-soft); color: var(--rose); margin-left: 4px; font-weight: 600;
+}
+.header-spacer { flex: 1; }
+
+.header-search {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 13px;
+  background: var(--bg-muted); border: 1px solid transparent;
+  border-radius: var(--radius-full); width: 280px;
+  transition: all 0.2s; font-size: 13px; color: var(--text-tertiary);
+}
+.header-search:focus-within {
+  background: var(--bg-surface); border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.header-search input {
+  border: none; background: none; outline: none;
+  font-size: 13px; color: var(--text-primary); width: 100%;
+}
+.header-search input::placeholder { color: var(--text-tertiary); }
+.header-search kbd {
+  display: flex; align-items: center; gap: 2px;
+  font-size: 10.5px; color: var(--text-tertiary);
+  background: var(--bg-hover); padding: 2px 6px; border-radius: 3px;
+  font-family: var(--font-mono); border: 1px solid var(--border-light);
+}
+
+.header-actions { display: flex; align-items: center; gap: 2px; margin-left: 6px; }
+.header-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: var(--radius-sm);
+  color: var(--text-secondary); transition: all 0.15s; position: relative;
+}
+.header-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.header-btn .dot {
+  position: absolute; top: 6px; right: 6px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--rose); border: 1.5px solid var(--bg-surface);
+}
+.header-publish-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 16px; margin-left: 8px;
+  background: var(--accent); color: #fff;
+  border-radius: var(--radius-full);
+  font-size: 13px; font-weight: 600;
+  transition: all 0.15s; white-space: nowrap;
+}
+.header-publish-btn:hover { background: var(--accent-hover); }
+.header-publish-btn:active { transform: scale(0.97); }
+.header-avatar {
+  width: 28px; height: 28px; border-radius: var(--radius-full);
+  background: var(--accent-soft); color: var(--accent-text);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11.5px; font-weight: 700; margin-left: 4px;
+  border: 1.5px solid var(--border-light);
+}
+
+/* ===== App Layout ===== */
+.app-layout {
+  display: flex;
+  max-width: var(--max-width); margin: 0 auto;
+  min-height: calc(100vh - var(--header-h));
+}
+
+/* ===== Sidebar ===== */
+.sidebar {
+  width: var(--sidebar-w); flex-shrink: 0;
+  background: var(--bg-sidebar);
+  padding: 8px 0 16px;
+  position: sticky; top: var(--header-h);
+  height: calc(100vh - var(--header-h));
+  overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: thin;
+  transition: width 0.2s ease;
+}
+.sidebar.collapsed {
+  width: 48px;
+}
+.sidebar-toggle {
+  display: flex; align-items: center; gap: 9px;
+  width: calc(100% - 28px); margin: 0 14px 10px;
+  padding: 7px 12px; border-radius: var(--radius-sm);
+  font-size: 13px; color: var(--text-secondary); font-weight: 500;
+  transition: all 0.12s; cursor: pointer;
+}
+.sidebar-toggle:hover { color: var(--text-primary); background: var(--bg-hover); }
+.sidebar-toggle .icon-collapse { display: block; }
+.sidebar-toggle .icon-expand { display: none; }
+.sidebar.collapsed .sidebar-toggle {
+  justify-content: center; width: 36px; margin: 0 auto 10px; padding: 7px 0;
+}
+.sidebar.collapsed .sidebar-toggle .icon-collapse { display: none; }
+.sidebar.collapsed .sidebar-toggle .icon-expand { display: block; }
+.sidebar.collapsed .sidebar-toggle .toggle-text { display: none; }
+.sidebar.collapsed .sidebar-label,
+.sidebar.collapsed .sidebar-item .item-text,
+.sidebar.collapsed .sidebar-item .count,
+.sidebar.collapsed .sidebar-trending,
+.sidebar.collapsed .sidebar-divider { display: none; }
+.sidebar.collapsed .sidebar-item {
+  justify-content: center; padding: 8px; position: relative;
+}
+.sidebar.collapsed .sidebar-item .icon,
+.sidebar.collapsed .sidebar-item .icon-sm,
+.sidebar.collapsed .sidebar-item .icon-lg { margin: 0; }
+.sidebar.collapsed .sidebar-item:hover::after {
+  content: attr(data-label);
+  position: absolute; left: 52px; top: 50%; transform: translateY(-50%);
+  background: #1a1a1a; color: #fff;
+  padding: 4px 10px; border-radius: var(--radius-sm);
+  font-size: 12px; font-weight: 500; white-space: nowrap;
+  z-index: 200; pointer-events: none;
+}
+.sidebar.collapsed .sidebar-section { padding: 0; }
+.sidebar.collapsed .sidebar-trending { padding: 0; }
+.sidebar-section {
+  padding: 0 14px; margin-bottom: 6px;
+}
+.sidebar-label {
+  font-size: 10.5px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-tertiary);
+  padding: 8px 14px 6px; margin-top: 4px;
+}
+.sidebar-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 12px; border-radius: var(--radius-sm);
+  font-size: 13px; color: var(--text-secondary); font-weight: 500;
+  transition: all 0.12s; cursor: pointer;
+}
+.sidebar-item:hover { color: var(--text-primary); background: var(--bg-hover); }
+.sidebar-item.active { color: var(--accent-text); background: var(--accent-soft); font-weight: 600; }
+.sidebar-item .count {
+  margin-left: auto; font-size: 11px; color: var(--text-tertiary);
+  background: var(--border-light); padding: 1px 6px; border-radius: var(--radius-full);
+  font-weight: 500;
+}
+.sidebar-item.active .count { background: #C7D2FE; color: var(--accent-text); }
+
+.sidebar-divider { height: 1px; background: transparent; margin: 8px 14px; }
+
+.sidebar-trending { padding: 0 14px; }
+.sidebar-trending h4 {
+  font-size: 11px; font-weight: 600; color: var(--text-tertiary);
+  text-transform: uppercase; letter-spacing: 0.05em; padding: 4px 0 8px;
+}
+.trending-ip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: var(--radius-sm);
+  cursor: pointer; transition: background 0.12s;
+}
+.trending-ip:hover { background: var(--bg-hover); }
+.trending-ip-rank {
+  width: 18px; font-size: 11.5px; font-weight: 700; color: var(--text-tertiary);
+  text-align: center; flex-shrink: 0;
+}
+.trending-ip-rank.top1 { color: var(--rose); }
+.trending-ip-rank.top2 { color: var(--amber); }
+.trending-ip-rank.top3 { color: var(--violet); }
+.trending-ip-avatar {
+  width: 26px; height: 26px; border-radius: var(--radius-sm);
+  background: var(--bg-muted); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: var(--text-tertiary); overflow: hidden;
+}
+.trending-ip-info { min-width: 0; }
+.trending-ip-name {
+  font-size: 12.5px; font-weight: 500; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.trending-ip-stat {
+  font-size: 10.5px; color: var(--text-tertiary);
+}
+
+/* ===== Main Content Area ===== */
+.main-content {
+  flex: 1; min-width: 0;
+  padding: 0;
+}
+
+/* ===== Zone Banner ===== */
+.zone-banner {
+  padding: 18px 24px 14px;
+}
+.zone-title-row {
+  display: flex; align-items: baseline; gap: 12px;
+}
+.zone-title {
+  font-family: var(--font-heading); font-size: 22px; font-weight: 700;
+  color: var(--text-primary); letter-spacing: -0.02em;
+}
+.zone-subtitle { font-size: 13px; color: var(--text-tertiary); }
+.zone-stats-row {
+  display: flex; gap: 16px; margin-top: 10px;
+}
+.zone-stat {
+  display: flex; align-items: baseline; gap: 4px;
+}
+.zone-stat-value { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+.zone-stat-label { font-size: 12px; color: var(--text-tertiary); }
+
+/* ===== Content Toolbar ===== */
+.content-toolbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 24px;
+  background: var(--bg-surface);
+  flex-wrap: wrap;
+}
+.toolbar-tabs {
+  display: flex; align-items: center; gap: 2px;
+}
+.toolbar-tab {
+  padding: 5px 12px; border-radius: var(--radius-sm);
+  font-size: 12.5px; color: var(--text-secondary); font-weight: 500;
+  transition: all 0.12s; white-space: nowrap;
+  border: 1px solid transparent;
+}
+.toolbar-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+.toolbar-tab.active {
+  color: var(--text-primary); background: var(--bg-muted);
+  border-color: var(--border); font-weight: 600;
+}
+.toolbar-spacer { flex: 1; }
+.toolbar-sort {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12.5px; color: var(--text-secondary);
+}
+.toolbar-sort select {
+  padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 12px; color: var(--text-primary); background: var(--bg-surface);
+  outline: none; cursor: pointer;
+}
+.toolbar-sort select:focus { border-color: var(--accent); }
+.toolbar-view {
+  display: flex; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.toolbar-view-btn {
+  padding: 5px 8px; color: var(--text-tertiary); transition: all 0.12s;
+  border-right: 1px solid var(--border);
+}
+.toolbar-view-btn:last-child { border-right: none; }
+.toolbar-view-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.toolbar-view-btn.active { color: var(--accent-text); background: var(--accent-soft); }
+
+/* ===== IP Horizontal Scroll ===== */
+.ip-scroll-wrap {
+  padding: 14px 24px;
+}
+.ip-scroll-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.ip-scroll-title {
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+}
+.ip-scroll-more {
+  font-size: 12px; color: var(--accent-text); font-weight: 500;
+}
+.ip-scroll {
+  display: flex; gap: 10px; overflow-x: auto;
+  scrollbar-width: none; padding: 2px 0;
+}
+.ip-scroll::-webkit-scrollbar { display: none; }
+.ip-card {
+  flex-shrink: 0; width: 156px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  overflow: hidden; cursor: pointer;
+  transition: border-color 0.15s;
+}
+.ip-card:hover { border-color: var(--border-hover); }
+.ip-card:active { transform: scale(0.985); }
+.ip-card-cover {
+  aspect-ratio: 16/10; overflow: hidden; background: var(--bg-muted);
+  position: relative;
+}
+.ip-card-cover img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s; }
+.ip-card:hover .ip-card-cover img { transform: scale(1.05); }
+.ip-card-badge {
+  position: absolute; bottom: 6px; right: 6px;
+  padding: 2px 6px; border-radius: var(--radius-sm);
+  background: rgba(0,0,0,0.6); color: #fff;
+  font-size: 10px; font-weight: 600;
+}
+.ip-card-name {
+  padding: 9px 10px 4px; font-size: 13px; font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ip-card-stats {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--text-tertiary);
+  padding: 0 10px 10px;
+}
+
+/* ===== Masonry Grid ===== */
+.masonry-wrap { padding: 18px 24px; }
+.masonry {
+  columns: 4; column-gap: 14px;
+}
+.masonry > * { break-inside: avoid; margin-bottom: 14px; }
+
+@media (max-width: 1400px) { .masonry { columns: 3; } }
+@media (max-width: 1000px) { .masonry { columns: 2; column-gap: 10px; } .masonry > * { margin-bottom: 10px; } }
+@media (max-width: 640px)  { .masonry { columns: 2; column-gap: 8px; } .masonry > * { margin-bottom: 8px; } }
+
+/* ===== Fanwork Card (bordered, GitHub-style) ===== */
+.card-fw {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.card-fw:hover { border-color: var(--border-hover); }
+.card-fw:active { transform: scale(0.985); }
+
+.card-fw-cover {
+  position: relative;
+  overflow: hidden; background: var(--bg-muted);
+}
+.card-fw-cover img {
+  width: 100%; display: block;
+  object-fit: cover; transition: transform 0.35s ease;
+}
+.card-fw:hover .card-fw-cover img { transform: scale(1.03); }
+.card-fw-type-badge {
+  position: absolute; top: 8px; left: 8px;
+  padding: 3px 8px; border-radius: var(--radius-sm);
+  font-size: 10.5px; font-weight: 600;
+  background: rgba(255,255,255,0.9); color: var(--text-secondary);
+  backdrop-filter: blur(6px); border: 1px solid rgba(0,0,0,0.06);
+}
+.card-fw-bookmark {
+  position: absolute; top: 8px; right: 8px;
+  width: 28px; height: 28px; border-radius: var(--radius-full);
+  background: rgba(255,255,255,0.9); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-tertiary); transition: color 0.15s;
+  border: 1px solid rgba(0,0,0,0.06);
+}
+.card-fw-bookmark:hover { color: var(--accent); }
+.card-fw-bookmark.saved { color: var(--accent); }
+
+.card-fw-body { padding: 10px 12px 12px; }
+.card-fw-source-line {
+  display: flex; align-items: center; gap: 5px;
+  margin-bottom: 6px; font-size: 11.5px; color: var(--text-tertiary);
+}
+.card-fw-source-line .source-dot {
+  width: 14px; height: 14px; border-radius: 3px;
+  background: var(--bg-muted); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px; overflow: hidden;
+}
+.card-fw-source-line strong { color: var(--text-secondary); font-weight: 500; }
+.card-fw-title {
+  font-size: 13.5px; font-weight: 600; line-height: 1.4;
+  color: var(--text-primary);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; letter-spacing: -0.01em;
+}
+.card-fw-desc {
+  font-size: 12px; color: var(--text-tertiary); line-height: 1.45;
+  margin-top: 5px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.card-fw-byline {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 8px; font-size: 11.5px; color: var(--text-tertiary);
+}
+.card-fw-avatar {
+  width: 18px; height: 18px; border-radius: var(--radius-full);
+  background: var(--accent-soft); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; color: var(--accent-text); font-weight: 600;
+}
+.card-fw-author { color: var(--text-secondary); font-weight: 500; }
+.card-fw-bottom {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 9px; padding-top: 9px;
+  border-top: 1px solid var(--border-light);
+}
+.card-fw-stats {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 11.5px; color: var(--text-tertiary);
+}
+.card-fw-stats span { display: flex; align-items: center; gap: 3px; }
+.card-fw-stats .icon-sm { width: 12.5px; height: 12.5px; }
+.card-fw-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.tag {
+  padding: 2px 7px; border-radius: var(--radius-sm);
+  font-size: 10.5px; font-weight: 600; line-height: 1.6;
+}
+.tag-indigo  { background: var(--accent-soft); color: var(--accent-text); }
+.tag-rose    { background: var(--rose-soft); color: var(--rose); }
+.tag-emerald { background: var(--emerald-soft); color: var(--emerald); }
+.tag-amber   { background: var(--amber-soft); color: var(--amber); }
+.tag-sky     { background: var(--sky-soft); color: var(--sky); }
+.tag-violet  { background: var(--violet-soft); color: var(--violet); }
+
+/* ===== PR Badge (fanwork-specific) ===== */
+.pr-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 6px; border-radius: var(--radius-sm);
+  font-size: 10.5px; font-weight: 600; line-height: 1.6;
+  background: #DBEAFE; color: #1D4ED8;
+}
+.pr-badge svg { width: 11px; height: 11px; }
+
+/* ===== Load More ===== */
+.load-more-wrap {
+  text-align: center; padding: 24px 0 48px;
+}
+.load-more-btn {
+  padding: 8px 32px; border-radius: var(--radius-full);
+  border: 1px solid var(--border); background: var(--bg-surface);
+  font-size: 13px; color: var(--text-secondary); font-weight: 500;
+  transition: all 0.15s;
+}
+.load-more-btn:hover { border-color: var(--border-hover); color: var(--text-primary); }
+
+/* ===== Mini FABs (Back to top + Refresh) ===== */
+.mini-fabs {
+  position: fixed; bottom: 24px; right: 24px; z-index: 90;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.mini-fab {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-secondary); transition: all 0.15s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.mini-fab:hover { border-color: var(--border-hover); color: var(--text-primary); box-shadow: 0 2px 8px rgba(0,0,0,0.10); }
+.mini-fab:active { transform: scale(0.93); }
+
+/* ===== Footer ===== */
+.app-footer {
+  padding: 14px 24px;
+  font-size: 12px; color: var(--text-tertiary);
+  display: flex; align-items: center; gap: 16px;
+}
+.app-footer a:hover { color: var(--text-secondary); }
+
+/* ===== Responsive ===== */
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .header-search { width: 180px; }
+  .header-publish-btn span { display: none; }
+  .header-publish-btn { padding: 6px 12px; }
+  .zone-banner { padding: 14px 16px; }
+  .content-toolbar { padding: 8px 16px; }
+  .masonry-wrap { padding: 14px 16px; }
+  .ip-scroll-wrap { padding: 10px 16px; }
+}
+@media (max-width: 640px) {
+  .header-search { display: none; }
+  .header-nav a:nth-child(3),
+  .header-nav a:nth-child(4) { display: none; }
+  .zone-title { font-size: 18px; }
+  .toolbar-tab { padding: 4px 8px; font-size: 11.5px; }
+  .toolbar-view { display: none; }
+  .header-publish-btn { padding: 6px 10px; font-size: 12px; }
+  .mini-fabs { bottom: 16px; right: 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header class="header">
+  <div class="header-inner">
+    <a href="#" class="header-logo">
+      <div class="header-logo-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 22 8.5 12 15 2 8.5"/>
+          <polyline points="2 15.5 12 22 22 15.5"/>
+          <line x1="12" y1="15" x2="12" y2="22"/>
+        </svg>
+      </div>
+      万象工坊
+    </a>
+
+    <nav class="header-nav">
+      <a href="design-concept-original.html">原创区</a>
+      <a href="design-concept-fanwork.html" class="active">二创区<span class="nav-badge">热门</span></a>
+      <a href="#">讨论区</a>
+      <a href="#">众裁</a>
+    </nav>
+
+    <div class="header-spacer"></div>
+
+    <div class="header-search">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" placeholder="搜索 IP、创作者或内容...">
+      <kbd><span>Ctrl</span>K</kbd>
+    </div>
+
+    <button class="header-publish-btn" title="发布创作">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span>发布</span>
+    </button>
+    <div class="header-actions">
+      <button class="header-btn" title="通知">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span class="dot"></span>
+      </button>
+      <button class="header-btn" title="消息">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      </button>
+      <div class="header-avatar">YN</div>
+    </div>
+  </div>
+</header>
+
+<!-- ===== APP LAYOUT ===== -->
+<div class="app-layout">
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar scroll-hide">
+    <button class="sidebar-toggle" onclick="toggleSidebar()" title="收起侧边栏">
+      <svg class="icon-collapse" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><polyline points="13 9 16 12 13 15"/></svg>
+      <svg class="icon-expand" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/><polyline points="11 9 8 12 11 15"/></svg>
+      <span class="toggle-text">收起侧边栏</span>
+    </button>
+    <div class="sidebar-label">IP 分类</div>
+    <ul class="sidebar-section">
+      <li class="sidebar-item active" data-label="全部 IP">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span class="item-text">全部 IP</span>
+        <span class="count">58,293</span>
+      </li>
+      <li class="sidebar-item" data-label="游戏">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 16V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h14a2 2 0 002-2z"/><rect x="7" y="10" width="3" height="6" rx="1"/><rect x="10.5" y="8" width="3" height="8" rx="1"/><rect x="14" y="12" width="3" height="4" rx="1"/></svg>
+        <span class="item-text">游戏</span>
+        <span class="count">18,412</span>
+      </li>
+      <li class="sidebar-item" data-label="影视">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <span class="item-text">影视</span>
+        <span class="count">12,847</span>
+      </li>
+      <li class="sidebar-item" data-label="动画">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+        <span class="item-text">动画</span>
+        <span class="count">9,156</span>
+      </li>
+      <li class="sidebar-item" data-label="漫画">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10"/><path d="M12 2a15.3 15.3 0 00-4 10 15.3 15.3 0 004 10"/></svg>
+        <span class="item-text">漫画</span>
+        <span class="count">7,328</span>
+      </li>
+      <li class="sidebar-item" data-label="小说">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        <span class="item-text">小说</span>
+        <span class="count">5,601</span>
+      </li>
+      <li class="sidebar-item" data-label="综艺">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <span class="item-text">综艺</span>
+        <span class="count">2,845</span>
+      </li>
+      <li class="sidebar-item" data-label="短剧">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><polygon points="10 9 15 12 10 15"/></svg>
+        <span class="item-text">短剧</span>
+        <span class="count">1,934</span>
+      </li>
+    </ul>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-label">管理</div>
+    <ul class="sidebar-section">
+      <li class="sidebar-item" data-label="我的收藏">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+        <span class="item-text">我的收藏</span>
+        <span class="count">24</span>
+      </li>
+      <li class="sidebar-item" data-label="我的创作">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span class="item-text">我的创作</span>
+        <span class="count">12</span>
+      </li>
+      <li class="sidebar-item" data-label="浏览历史">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <span class="item-text">浏览历史</span>
+      </li>
+    </ul>
+
+    <div class="sidebar-divider"></div>
+
+    <!-- Trending IPs -->
+    <div class="sidebar-trending" data-label="热门 IP">
+      <h4>热门 IP · 本周</h4>
+      <div class="trending-ip" data-label="原神">
+        <span class="trending-ip-rank top1">1</span>
+        <div class="trending-ip-avatar" style="background:linear-gradient(135deg,#FEE2E2,#FECACA);">原</div>
+        <div class="trending-ip-info">
+          <div class="trending-ip-name">原神</div>
+          <div class="trending-ip-stat">12,483 内容 · ↗ 23%</div>
+        </div>
+      </div>
+      <div class="trending-ip" data-label="崩坏：星穹铁道">
+        <span class="trending-ip-rank top2">2</span>
+        <div class="trending-ip-avatar" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE);">崩</div>
+        <div class="trending-ip-info">
+          <div class="trending-ip-name">崩坏：星穹铁道</div>
+          <div class="trending-ip-stat">8,912 内容 · ↗ 18%</div>
+        </div>
+      </div>
+      <div class="trending-ip" data-label="Minecraft">
+        <span class="trending-ip-rank top3">3</span>
+        <div class="trending-ip-avatar" style="background:linear-gradient(135deg,#D1FAE5,#A7F3D0);">MC</div>
+        <div class="trending-ip-info">
+          <div class="trending-ip-name">Minecraft</div>
+          <div class="trending-ip-stat">15,207 内容 · ↗ 12%</div>
+        </div>
+      </div>
+      <div class="trending-ip" data-label="明日方舟">
+        <span class="trending-ip-rank">4</span>
+        <div class="trending-ip-avatar" style="background:linear-gradient(135deg,#FCE7F3,#FBCFE8);">明</div>
+        <div class="trending-ip-info">
+          <div class="trending-ip-name">明日方舟</div>
+          <div class="trending-ip-stat">6,734 内容 · ↗ 9%</div>
+        </div>
+      </div>
+      <div class="trending-ip" data-label="黑神话：悟空">
+        <span class="trending-ip-rank">5</span>
+        <div class="trending-ip-avatar" style="background:linear-gradient(135deg,#FEF3C7,#FDE68A);">黑</div>
+        <div class="trending-ip-info">
+          <div class="trending-ip-name">黑神话：悟空</div>
+          <div class="trending-ip-stat">5,412 内容 · ↗ 31%</div>
+        </div>
+      </div>
+      <div class="trending-ip" data-label="艾尔登法环">
+        <span class="trending-ip-rank">6</span>
+        <div class="trending-ip-avatar" style="background:linear-gradient(135deg,#EDE9FE,#DDD6FE);">艾</div>
+        <div class="trending-ip-info">
+          <div class="trending-ip-name">艾尔登法环</div>
+          <div class="trending-ip-stat">3,891 内容 · ↗ 15%</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main class="main-content">
+
+    <!-- Zone Banner -->
+    <div class="zone-banner">
+      <div class="zone-title-row">
+        <h1 class="zone-title">二创区</h1>
+        <span class="zone-subtitle">基于 IP 的协同创作与内容发现</span>
+      </div>
+      <div class="zone-stats-row">
+        <div class="zone-stat">
+          <span class="zone-stat-value">58,293</span>
+          <span class="zone-stat-label">内容</span>
+        </div>
+        <div class="zone-stat">
+          <span class="zone-stat-value">186</span>
+          <span class="zone-stat-label">活跃 IP</span>
+        </div>
+        <div class="zone-stat">
+          <span class="zone-stat-value">8,412</span>
+          <span class="zone-stat-label">创作者</span>
+        </div>
+        <div class="zone-stat">
+          <span class="zone-stat-value">234</span>
+          <span class="zone-stat-label">开放 PR</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- IP Horizontal Scroll -->
+    <div class="ip-scroll-wrap">
+      <div class="ip-scroll-header">
+        <span class="ip-scroll-title">最近访问IP</span>
+        <a href="#" class="ip-scroll-more">浏览全部 IP →</a>
+      </div>
+      <div class="ip-scroll">
+        <div class="ip-card">
+          <div class="ip-card-cover">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='312' height='195'%3E%3Cdefs%3E%3ClinearGradient id='ia' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23E8ECF2'/%3E%3Cstop offset='100%25' style='stop-color:%23D5DCE6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23ia)' width='312' height='195'/%3E%3Ctext x='156' y='102' text-anchor='middle' font-size='14' fill='%23999'%3E原神%3C/text%3E%3C/svg%3E" alt="">
+            <span class="ip-card-badge">12k</span>
+          </div>
+          <div class="ip-card-name">原神</div>
+          <div class="ip-card-stats">
+            <span>12,483 内容</span>
+            <span style="color:var(--emerald);">↗ 23%</span>
+          </div>
+        </div>
+        <div class="ip-card">
+          <div class="ip-card-cover">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='312' height='195'%3E%3Cdefs%3E%3ClinearGradient id='ib' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23E0E7FF'/%3E%3Cstop offset='100%25' style='stop-color:%23C7D2FE'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23ib)' width='312' height='195'/%3E%3Ctext x='156' y='102' text-anchor='middle' font-size='14' fill='%23999'%3E星穹铁道%3C/text%3E%3C/svg%3E" alt="">
+            <span class="ip-card-badge">8.9k</span>
+          </div>
+          <div class="ip-card-name">崩坏：星穹铁道</div>
+          <div class="ip-card-stats">
+            <span>8,912 内容</span>
+            <span style="color:var(--emerald);">↗ 18%</span>
+          </div>
+        </div>
+        <div class="ip-card">
+          <div class="ip-card-cover">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='312' height='195'%3E%3Cdefs%3E%3ClinearGradient id='ic' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23D1FAE5'/%3E%3Cstop offset='100%25' style='stop-color:%23A7F3D0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23ic)' width='312' height='195'/%3E%3Ctext x='156' y='102' text-anchor='middle' font-size='14' fill='%23999'%3EMinecraft%3C/text%3E%3C/svg%3E" alt="">
+            <span class="ip-card-badge">15k</span>
+          </div>
+          <div class="ip-card-name">Minecraft</div>
+          <div class="ip-card-stats">
+            <span>15,207 内容</span>
+            <span style="color:var(--emerald);">↗ 12%</span>
+          </div>
+        </div>
+        <div class="ip-card">
+          <div class="ip-card-cover">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='312' height='195'%3E%3Cdefs%3E%3ClinearGradient id='id' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23FEF3C7'/%3E%3Cstop offset='100%25' style='stop-color:%23FDE68A'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23id)' width='312' height='195'/%3E%3Ctext x='156' y='102' text-anchor='middle' font-size='14' fill='%23999'%3E黑神话%3C/text%3E%3C/svg%3E" alt="">
+            <span class="ip-card-badge">5.4k</span>
+          </div>
+          <div class="ip-card-name">黑神话：悟空</div>
+          <div class="ip-card-stats">
+            <span>5,412 内容</span>
+            <span style="color:var(--emerald);">↗ 31%</span>
+          </div>
+        </div>
+        <div class="ip-card">
+          <div class="ip-card-cover">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='312' height='195'%3E%3Cdefs%3E%3ClinearGradient id='ie' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23EDE9FE'/%3E%3Cstop offset='100%25' style='stop-color:%23DDD6FE'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23ie)' width='312' height='195'/%3E%3Ctext x='156' y='102' text-anchor='middle' font-size='14' fill='%23999'%3E艾尔登法环%3C/text%3E%3C/svg%3E" alt="">
+            <span class="ip-card-badge">3.9k</span>
+          </div>
+          <div class="ip-card-name">艾尔登法环</div>
+          <div class="ip-card-stats">
+            <span>3,891 内容</span>
+            <span style="color:var(--emerald);">↗ 15%</span>
+          </div>
+        </div>
+        <div class="ip-card">
+          <div class="ip-card-cover">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='312' height='195'%3E%3Cdefs%3E%3ClinearGradient id='if' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23FCE7F3'/%3E%3Cstop offset='100%25' style='stop-color:%23FBCFE8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23if)' width='312' height='195'/%3E%3Ctext x='156' y='102' text-anchor='middle' font-size='14' fill='%23999'%3E明日方舟%3C/text%3E%3C/svg%3E" alt="">
+            <span class="ip-card-badge">6.7k</span>
+          </div>
+          <div class="ip-card-name">明日方舟</div>
+          <div class="ip-card-stats">
+            <span>6,734 内容</span>
+            <span style="color:var(--emerald);">↗ 9%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content Toolbar -->
+    <div class="content-toolbar">
+      <div class="toolbar-tabs">
+        <button class="toolbar-tab active">全部类型</button>
+        <button class="toolbar-tab">文章</button>
+        <button class="toolbar-tab">图片</button>
+        <button class="toolbar-tab">视频</button>
+        <button class="toolbar-tab">音频</button>
+        <button class="toolbar-tab">Mod</button>
+        <button class="toolbar-tab">乐谱</button>
+        <button class="toolbar-tab">AI 提示词</button>
+      </div>
+      <div class="toolbar-spacer"></div>
+      <div class="toolbar-sort">
+        <label>排序</label>
+        <select>
+          <option>最热门</option>
+          <option>最新发布</option>
+          <option>最多收藏</option>
+          <option>最多讨论</option>
+        </select>
+      </div>
+      <div class="toolbar-view">
+        <button class="toolbar-view-btn active" title="网格视图">
+          <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        </button>
+        <button class="toolbar-view-btn" title="列表视图">
+          <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Masonry Grid -->
+    <div class="masonry-wrap">
+      <div class="masonry">
+
+        <!-- Card 1: Article -->
+        <div class="card-fw">
+          <div class="card-fw-cover" style="aspect-ratio:3/4;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='400'%3E%3Cdefs%3E%3ClinearGradient id='f1' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23DBEAFE'/%3E%3Cstop offset='100%25' style='stop-color:%23BFDBFE'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23f1)' width='300' height='400'/%3E%3Ctext x='150' y='195' text-anchor='middle' font-family='sans-serif' font-size='32' fill='%23ffffff88'%3E📄%3C/text%3E%3Cline x1='60' y1='230' x2='240' y2='230' stroke='%23ffffff44' stroke-width='4'/%3E%3Cline x1='60' y1='250' x2='200' y2='250' stroke='%23ffffff44' stroke-width='4'/%3E%3Cline x1='60' y1='270' x2='220' y2='270' stroke='%23ffffff44' stroke-width='4'/%3E%3C/svg%3E" alt="">
+            <span class="card-fw-type-badge">文章</span>
+            <button class="card-fw-bookmark" title="收藏">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+            </button>
+          </div>
+          <div class="card-fw-body">
+            <div class="card-fw-source-line">
+              <div class="source-dot" style="background:linear-gradient(135deg,#FEE2E2,#FECACA);"></div>
+              <span>基于 <strong>原神</strong></span>
+            </div>
+            <div class="card-fw-title">提瓦特大陆旅行指南：从蒙德到枫丹的完整游记</div>
+            <div class="card-fw-desc">一本跨越七国的深度游记，记录旅途中的风土人情、地理奇观与隐藏故事线。</div>
+            <div class="card-fw-byline">
+              <div class="card-fw-avatar">TL</div>
+              <span class="card-fw-author">旅行者小洛</span>
+              <span>· 3 天前</span>
+            </div>
+            <div class="card-fw-bottom">
+              <div class="card-fw-stats">
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg> 234</span>
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> 18</span>
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> 56</span>
+              </div>
+              <div class="card-fw-tags">
+                <span class="tag tag-indigo">同人文</span>
+                <span class="tag tag-sky">长篇</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: Mod -->
+        <div class="card-fw">
+          <div class="card-fw-cover" style="aspect-ratio:4/3;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='225'%3E%3Cdefs%3E%3ClinearGradient id='f2' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23D1FAE5'/%3E%3Cstop offset='100%25' style='stop-color:%23A7F3D0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23f2)' width='300' height='225'/%3E%3Ctext x='150' y='118' text-anchor='middle' font-size='32' fill='%23ffffff88'%3E🧩%3C/text%3E%3C/svg%3E" alt="">
+            <span class="card-fw-type-badge">Mod</span>
+            <button class="card-fw-bookmark saved" title="已收藏">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+            </button>
+          </div>
+          <div class="card-fw-body">
+            <div class="card-fw-source-line">
+              <div class="source-dot" style="background:linear-gradient(135deg,#D1FAE5,#A7F3D0);"></div>
+              <span>基于 <strong>Minecraft</strong></span>
+            </div>
+            <div class="card-fw-title">Minecraft 中世纪建筑材质包 v2.1</div>
+            <div class="card-fw-desc">完整的中世纪主题材质包，包含 200+ 方块纹理重绘，兼容 1.20+ 版本。</div>
+            <div class="card-fw-byline">
+              <div class="card-fw-avatar" style="background:var(--emerald-soft);color:var(--emerald);">BC</div>
+              <span class="card-fw-author">方块工匠</span>
+              <span>· 5 天前</span>
+            </div>
+            <div class="card-fw-bottom">
+              <div class="card-fw-stats">
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg> 567</span>
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> 42</span>
+                <span class="pr-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> 3 PR</span>
+              </div>
+              <div class="card-fw-tags">
+                <span class="tag tag-emerald">材质包</span>
+                <span class="tag tag-amber">中世纪</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3: Sheet Music -->
+        <div class="card-fw">
+          <div class="card-fw-cover" style="aspect-ratio:3/4;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='400'%3E%3Cdefs%3E%3ClinearGradient id='f3' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23EDE9FE'/%3E%3Cstop offset='100%25' style='stop-color:%23DDD6FE'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23f3)' width='300' height='400'/%3E%3Ctext x='150' y='195' text-anchor='middle' font-size='32' fill='%23ffffff88'%3E🎵%3C/text%3E%3Cline x1='60' y1='230' x2='240' y2='230' stroke='%23ffffff44' stroke-width='2'/%3E%3Cline x1='60' y1='245' x2='240' y2='245' stroke='%23ffffff44' stroke-width='2'/%3E%3Cline x1='60' y1='260' x2='240' y2='260' stroke='%23ffffff44' stroke-width='2'/%3E%3Cline x1='60' y1='275' x2='240' y2='275' stroke='%23ffffff44' stroke-width='2'/%3E%3Cline x1='60' y1='290' x2='240' y2='290' stroke='%23ffffff44' stroke-width='2'/%3E%3C/svg%3E" alt="">
+            <span class="card-fw-type-badge">乐谱</span>
+            <button class="card-fw-bookmark" title="收藏">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+            </button>
+          </div>
+          <div class="card-fw-body">
+            <div class="card-fw-source-line">
+              <div class="source-dot" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE);"></div>
+              <span>基于 <strong>崩坏：星穹铁道</strong></span>
+            </div>
+            <div class="card-fw-title">星穹铁道主题曲钢琴改编谱「星际旅人」</div>
+            <div class="card-fw-desc">中级难度钢琴独奏谱，包含完整的和声标记与指法建议。</div>
+            <div class="card-fw-byline">
+              <div class="card-fw-avatar" style="background:var(--violet-soft);color:var(--violet);">SP</div>
+              <span class="card-fw-author">乐谱搬运工</span>
+              <span>· 1 周前</span>
+            </div>
+            <div class="card-fw-bottom">
+              <div class="card-fw-stats">
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg> 128</span>
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> 6</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 4: Illustration -->
+        <div class="card-fw">
+          <div class="card-fw-cover" style="aspect-ratio:3/4;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='400'%3E%3Cdefs%3E%3ClinearGradient id='f4' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23FEE2E2'/%3E%3Cstop offset='100%25' style='stop-color:%23FECACA'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23f4)' width='300' height='400'/%3E%3Ctext x='150' y='195' text-anchor='middle' font-size='32' fill='%23ffffff88'%3E🎨%3C/text%3E%3C/svg%3E" alt="">
+            <span class="card-fw-type-badge">图片</span>
+            <button class="card-fw-bookmark saved" title="已收藏">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+            </button>
+          </div>
+          <div class="card-fw-body">
+            <div class="card-fw-source-line">
+              <div class="source-dot" style="background:linear-gradient(135deg,#EDE9FE,#DDD6FE);"></div>
+              <span>基于 <strong>艾尔登法环</strong></span>
+            </div>
+            <div class="card-fw-title">艾尔登法环 Boss 同人插画集 — 破碎战争篇</div>
+            <div class="card-fw-desc">以水墨风格重新诠释交界地的半神们，9 幅完整插画收录。</div>
+            <div class="card-fw-byline">
+              <div class="card-fw-avatar" style="background:var(--rose-soft);color:var(--rose);">TP</div>
+              <span class="card-fw-author">褪色者画师</span>
+              <span>· 2 天前</span>
+            </div>
+            <div class="card-fw-bottom">
+              <div class="card-fw-stats">
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg> 891</span>
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> 35</span>
+              </div>
+              <div class="card-fw-tags">
+                <span class="tag tag-amber">插画</span>
+                <span class="tag tag-rose">Boss</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 5: Video -->
+        <div class="card-fw">
+          <div class="card-fw-cover" style="aspect-ratio:16/9;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='169'%3E%3Cdefs%3E%3ClinearGradient id='f5' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23FEF3C7'/%3E%3Cstop offset='100%25' style='stop-color:%23FDE68A'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23f5)' width='300' height='169'/%3E%3Ctext x='150' y='90' text-anchor='middle' font-size='28' fill='%23ffffff88'%3E▶%3C/text%3E%3C/svg%3E" alt="">
+            <span class="card-fw-type-badge">视频</span>
+            <button class="card-fw-bookmark" title="收藏">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+            </button>
+          </div>
+          <div class="card-fw-body">
+            <div class="card-fw-source-line">
+              <div class="source-dot" style="background:linear-gradient(135deg,#FEF3C7,#FDE68A);"></div>
+              <span>基于 <strong>黑神话：悟空</strong></span>
+            </div>
+            <div class="card-fw-title">【黑神话】无伤速通全 Boss 合集 — 天命人操作集锦</div>
+            <div class="card-fw-desc">4K 画质录制，包含全部 81 个 Boss 的无伤打法与配装方案。</div>
+            <div class="card-fw-byline">
+              <div class="card-fw-avatar" style="background:var(--amber-soft);color:var(--amber);">TM</div>
+              <span class="card-fw-author">天命人剪辑</span>
+              <span>· 1 天前</span>
+            </div>
+            <div class="card-fw-bottom">
+              <div class="card-fw-stats">
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg> 1.2k</span>
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> 67</span>
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="23 7 16 12 23 17"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg> 2.3k</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 6: AI Prompt -->
+        <div class="card-fw">
+          <div class="card-fw-cover" style="aspect-ratio:4/3;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='225'%3E%3Cdefs%3E%3ClinearGradient id='f6' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23F3E8FF'/%3E%3Cstop offset='100%25' style='stop-color:%23E9D5FF'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23f6)' width='300' height='225'/%3E%3Ctext x='150' y='118' text-anchor='middle' font-size='28' fill='%23ffffff88'%3E🤖%3C/text%3E%3C/svg%3E" alt="">
+            <span class="card-fw-type-badge">AI 提示词</span>
+            <button class="card-fw-bookmark" title="收藏">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+            </button>
+          </div>
+          <div class="card-fw-body">
+            <div class="card-fw-source-line">
+              <div class="source-dot" style="background:linear-gradient(135deg,#FEE2E2,#FECACA);"></div>
+              <span>基于 <strong>原神</strong></span>
+            </div>
+            <div class="card-fw-title">原神角色 LoRA 模型提示词合集 v3.0</div>
+            <div class="card-fw-desc">包含 42 个角色的 Stable Diffusion 提示词模板，适配 SDXL 与 SD 3。</div>
+            <div class="card-fw-byline">
+              <div class="card-fw-avatar" style="background:var(--violet-soft);color:var(--violet);">AI</div>
+              <span class="card-fw-author">AI炼丹师</span>
+              <span>· 4 天前</span>
+            </div>
+            <div class="card-fw-bottom">
+              <div class="card-fw-stats">
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg> 445</span>
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> 23</span>
+              </div>
+              <div class="card-fw-tags">
+                <span class="tag tag-violet">LoRA</span>
+                <span class="tag tag-indigo">Stable Diffusion</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 7: Article -->
+        <div class="card-fw">
+          <div class="card-fw-cover" style="aspect-ratio:3/4;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='400'%3E%3Cdefs%3E%3ClinearGradient id='f7' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23DBEAFE'/%3E%3Cstop offset='100%25' style='stop-color:%23BAE6FD'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23f7)' width='300' height='400'/%3E%3Ctext x='150' y='195' text-anchor='middle' font-size='32' fill='%23ffffff88'%3E📄%3C/text%3E%3Cline x1='60' y1='230' x2='220' y2='230' stroke='%23ffffff44' stroke-width='4'/%3E%3Cline x1='60' y1='250' x2='200' y2='250' stroke='%23ffffff44' stroke-width='4'/%3E%3C/svg%3E" alt="">
+            <span class="card-fw-type-badge">文章</span>
+            <button class="card-fw-bookmark" title="收藏">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+            </button>
+          </div>
+          <div class="card-fw-body">
+            <div class="card-fw-source-line">
+              <div class="source-dot" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE);"></div>
+              <span>基于 <strong>崩坏：星穹铁道</strong></span>
+            </div>
+            <div class="card-fw-title">星际航行日志：从黑塔空间站到匹诺康尼的深度考据</div>
+            <div class="card-fw-desc">对星穹铁道世界观设定的系统性分析，含时间线梳理与彩蛋挖掘。</div>
+            <div class="card-fw-byline">
+              <div class="card-fw-avatar" style="background:var(--sky-soft);color:var(--sky);">NS</div>
+              <span class="card-fw-author">星海考据者</span>
+              <span>· 6 天前</span>
+            </div>
+            <div class="card-fw-bottom">
+              <div class="card-fw-stats">
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg> 678</span>
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> 31</span>
+              </div>
+              <div class="card-fw-tags">
+                <span class="tag tag-sky">考据</span>
+                <span class="tag tag-indigo">世界观</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 8: Image Gallery -->
+        <div class="card-fw">
+          <div class="card-fw-cover" style="aspect-ratio:1/1;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cdefs%3E%3ClinearGradient id='f8' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23FFE4E6'/%3E%3Cstop offset='100%25' style='stop-color:%23FECDD3'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23f8)' width='300' height='300'/%3E%3Ctext x='150' y='150' text-anchor='middle' font-size='32' fill='%23ffffff88'%3E🖼️%3C/text%3E%3C/svg%3E" alt="">
+            <span class="card-fw-type-badge">图片</span>
+            <button class="card-fw-bookmark" title="收藏">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+            </button>
+          </div>
+          <div class="card-fw-body">
+            <div class="card-fw-source-line">
+              <div class="source-dot" style="background:linear-gradient(135deg,#FCE7F3,#FBCFE8);"></div>
+              <span>基于 <strong>明日方舟</strong></span>
+            </div>
+            <div class="card-fw-title">罗德岛干员日常：Q版表情包合集</div>
+            <div class="card-fw-desc">48 枚可自取使用的干员表情包，适合聊天与社交分享。</div>
+            <div class="card-fw-byline">
+              <div class="card-fw-avatar" style="background:var(--rose-soft);color:var(--rose);">DR</div>
+              <span class="card-fw-author">刀客塔画室</span>
+              <span>· 3 小时前</span>
+            </div>
+            <div class="card-fw-bottom">
+              <div class="card-fw-stats">
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg> 342</span>
+                <span><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> 12</span>
+              </div>
+              <div class="card-fw-tags">
+                <span class="tag tag-rose">表情包</span>
+                <span class="tag tag-amber">Q版</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Load More -->
+      <div class="load-more-wrap">
+        <button class="load-more-btn">加载更多内容</button>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="app-footer">
+      <span>OmniCraft 万象工坊</span>
+      <a href="#">关于</a>
+      <a href="#">反馈</a>
+      <a href="#">社区规范</a>
+      <a href="#">隐私政策</a>
+      <span style="margin-left:auto;">58,293 内容 · 186 活跃 IP</span>
+    </div>
+
+  </main>
+</div>
+
+<!-- ===== Mini FABs ===== -->
+<div class="mini-fabs">
+  <button class="mini-fab" title="回到顶部" onclick="window.scrollTo({top:0,behavior:'smooth'})">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="18 15 12 9 6 15"/></svg>
+  </button>
+  <button class="mini-fab" title="刷新" onclick="location.reload()">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+  </button>
+</div>
+
+<script>
+function toggleSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const btn = sidebar?.querySelector('.sidebar-toggle');
+  sidebar.classList.toggle('collapsed');
+  const isCollapsed = sidebar.classList.contains('collapsed');
+  if (btn) {
+    btn.title = isCollapsed ? '展开侧边栏' : '收起侧边栏';
+    const text = btn.querySelector('.toggle-text');
+    if (text) text.textContent = isCollapsed ? '' : '收起侧边栏';
+  }
+  localStorage.setItem('sidebarCollapsed', isCollapsed);
+}
+(function() {
+  if (localStorage.getItem('sidebarCollapsed') === 'true') {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+      sidebar.classList.add('collapsed');
+      const btn = sidebar.querySelector('.sidebar-toggle');
+      if (btn) {
+        btn.title = '展开侧边栏';
+        const text = btn.querySelector('.toggle-text');
+        if (text) text.textContent = '';
+      }
+    }
+  }
+})();
+</script>
+</body>
+</html>
