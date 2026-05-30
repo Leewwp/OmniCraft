@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 
 	"github.com/gin-gonic/gin"
@@ -27,7 +28,7 @@ func (h *NotificationHandler) ListNotifications(c *gin.Context) {
 
 	notifications, total, err := h.notifRepo.List(callerID, channel, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"notifications": notifications, "total": total})
@@ -41,7 +42,7 @@ func (h *NotificationHandler) MarkRead(c *gin.Context) {
 		return
 	}
 	if err := h.notifRepo.MarkRead(id, callerID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "marked read"})
@@ -51,7 +52,7 @@ func (h *NotificationHandler) MarkAllRead(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	channel := c.Query("channel")
 	if err := h.notifRepo.MarkAllRead(callerID, channel); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "all marked read"})
@@ -61,7 +62,7 @@ func (h *NotificationHandler) UnreadCount(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	counts, err := h.notifRepo.UnreadCount(callerID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	var total int64

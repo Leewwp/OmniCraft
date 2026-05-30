@@ -6,6 +6,8 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
@@ -17,6 +19,7 @@ import (
 
 type SocialHandler struct {
 	socialSvc *service.SocialService
+	db        *gorm.DB
 }
 
 func NewSocialHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *SocialHandler {
@@ -28,6 +31,7 @@ func NewSocialHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Socia
 			cfg,
 			rdb,
 		),
+		db: db,
 	}
 }
 
@@ -39,16 +43,16 @@ func (h *SocialHandler) PostComment(c *gin.Context) {
 	}
 	var input service.PostCommentInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
 	comment, err := h.socialSvc.PostComment(input, callerID)
 	if err != nil {
 		if err == service.ErrLowReputation {
-			c.JSON(http.StatusForbidden, gin.H{"code": "LOW_REPUTATION", "message": err.Error()})
+			response.Forbidden(c, "reputation score too low to perform this action")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"comment": comment})
@@ -62,7 +66,7 @@ func (h *SocialHandler) DeleteComment(c *gin.Context) {
 		return
 	}
 	if err := h.socialSvc.DeleteComment(id, callerID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
@@ -79,7 +83,7 @@ func (h *SocialHandler) EditComment(c *gin.Context) {
 		Body string `json:"body" binding:"required,min=1,max=5000"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
 	comment, err := h.socialSvc.EditComment(id, callerID, body.Body)
@@ -118,7 +122,7 @@ func (h *SocialHandler) ListComments(c *gin.Context) {
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	comments, total, err := h.socialSvc.ListComments(contentID, parentID, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"comments": comments, "total": total, "page": page, "page_size": pageSize})
@@ -136,7 +140,7 @@ func (h *SocialHandler) ListDiscussions(c *gin.Context) {
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	discussions, total, err := h.socialSvc.ListDiscussions(ipID, contentID, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"discussions": discussions, "total": total, "page": page, "page_size": pageSize})
@@ -150,16 +154,16 @@ func (h *SocialHandler) PostDiscussion(c *gin.Context) {
 	}
 	var input service.PostDiscussionInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
 	d, err := h.socialSvc.PostDiscussion(input, callerID)
 	if err != nil {
 		if err == service.ErrLowReputation {
-			c.JSON(http.StatusForbidden, gin.H{"code": "LOW_REPUTATION", "message": err.Error()})
+			response.Forbidden(c, "reputation score too low to perform this action")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"discussion": d})
@@ -187,19 +191,46 @@ func (h *SocialHandler) React(c *gin.Context) {
 	}
 	var input service.ReactInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
 	action, err := h.socialSvc.React(input, callerID)
 	if err != nil {
 		if err == service.ErrLowReputation {
-			c.JSON(http.StatusForbidden, gin.H{"code": "LOW_REPUTATION", "message": err.Error()})
+			response.Forbidden(c, "reputation score too low to perform this action")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"action": action})
+}
+
+func (h *SocialHandler) ListReactions(c *gin.Context) {
+	targetType := c.Query("target_type")
+	targetIDStr := c.Query("target_id")
+	if targetType == "" || targetIDStr == "" {
+		response.ValidationError(c, "target_type and target_id are required")
+		return
+	}
+	targetID, err := strconv.ParseInt(targetIDStr, 10, 64)
+	if err != nil {
+		response.ValidationError(c, "invalid target_id")
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	var reactions []model.Reaction
+	var total int64
+	q := h.db.Model(&model.Reaction{}).Where("target_type = ? AND target_id = ?", targetType, targetID)
+	q.Count(&total)
+	if err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&reactions).Error; err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"reactions": reactions, "total": total})
 }
 
 func (h *SocialHandler) ReportContent(c *gin.Context) {
@@ -218,7 +249,7 @@ func (h *SocialHandler) ReportContent(c *gin.Context) {
 		Detail string `json:"detail"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
 	if err := h.socialSvc.Report("content", contentID, callerID, body.Reason, body.Detail); err != nil {
@@ -226,7 +257,7 @@ func (h *SocialHandler) ReportContent(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"code": "ALREADY_REPORTED", "message": "you have already reported this content"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"message": "reported"})
@@ -248,7 +279,7 @@ func (h *SocialHandler) ReportComment(c *gin.Context) {
 		Detail string `json:"detail"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
 	if err := h.socialSvc.Report("comment", commentID, callerID, body.Reason, body.Detail); err != nil {
@@ -256,7 +287,7 @@ func (h *SocialHandler) ReportComment(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"code": "ALREADY_REPORTED", "message": "you have already reported this comment"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"message": "reported"})
@@ -287,11 +318,11 @@ func (h *FavoriteHandler) AddFavorite(c *gin.Context) {
 		ContentItemID int64 `json:"content_item_id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 	if err := h.socialSvc.Favorite(callerID, body.ContentItemID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "added to favorites"})
@@ -305,7 +336,7 @@ func (h *FavoriteHandler) RemoveFavorite(c *gin.Context) {
 		return
 	}
 	if err := h.socialSvc.Unfavorite(callerID, contentID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "removed from favorites"})
@@ -322,7 +353,7 @@ func (h *FavoriteHandler) ListUserFavorites(c *gin.Context) {
 	contentType := c.DefaultQuery("content_type", "")
 	favs, total, err := h.socialSvc.ListFavorites(userID, page, pageSize, contentType)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	totalPages := int64(0)

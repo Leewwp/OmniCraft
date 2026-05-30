@@ -14,6 +14,8 @@ import (
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/queue"
+	"omnicraft/backend/internal/pkg/recovery"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
@@ -64,17 +66,13 @@ func (h *ContentHandler) SetQueueProducer(p queue.Producer) {
 
 func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
 	if h.ossSvc == nil {
-		msg := "oss service is not configured"
-		if h.ossInitErr != nil {
-			msg = h.ossInitErr.Error()
-		}
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "OSS_NOT_CONFIGURED", "message": msg})
+		response.SafeErrorResponse(c, http.StatusServiceUnavailable, "OSS_NOT_CONFIGURED", h.ossInitErr)
 		return
 	}
 
 	var req service.PresignUploadRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
 
@@ -83,14 +81,14 @@ func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
 	if err != nil {
 		var validationErr *service.UploadValidationError
 		if errors.As(err, &validationErr) {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": validationErr.Error()})
+			response.ValidationError(c, "invalid request parameters")
 			return
 		}
 		if errors.Is(err, service.ErrOSSNotConfigured) {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "OSS_NOT_CONFIGURED", "message": err.Error()})
+			response.SafeErrorResponse(c, http.StatusServiceUnavailable, "OSS_NOT_CONFIGURED", err)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		return
 	}
 
@@ -149,7 +147,7 @@ func (h *ContentHandler) ListContents(c *gin.Context) {
 
 	contents, total, err := h.contentSvc.ListContents(filter, middleware.GetUserID(c))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 
@@ -170,21 +168,21 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 
 	var input service.PublishContentInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 
 	content, err := h.contentSvc.PublishContent(input, callerID)
 	if err != nil {
 		if errors.Is(err, service.ErrPublishFrozen) {
-			c.JSON(http.StatusForbidden, gin.H{"code": "PUBLISH_FROZEN", "message": err.Error()})
+			response.SafeErrorResponse(c, http.StatusForbidden, "PUBLISH_FROZEN", err)
 			return
 		}
 		if errors.Is(err, service.ErrInvalidSourceOriginal) {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_SOURCE_ORIGINAL", "message": err.Error()})
+			response.SafeErrorResponse(c, http.StatusBadRequest, "INVALID_SOURCE_ORIGINAL", err)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		return
 	}
 
@@ -204,7 +202,7 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 
@@ -268,7 +266,7 @@ func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	if source.Zone != "original" {
@@ -298,7 +296,7 @@ func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
 		PageSize:         pageSize,
 	}, middleware.GetUserID(c))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 
@@ -350,7 +348,7 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 		AgentEnabled  *bool   `json:"agent_enabled"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_BODY", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusBadRequest, "INVALID_BODY", err)
 		return
 	}
 
@@ -385,7 +383,7 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "not content author"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 
@@ -414,7 +412,7 @@ func (h *ContentHandler) DeleteContent(c *gin.Context) {
 			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "not content author"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 
@@ -461,7 +459,6 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 		return
 	}
 
-	// Use first primary attachment or first attachment
 	ossKey := attachments[0].OSSKey
 	for _, a := range attachments {
 		if a.IsPrimary {
@@ -476,9 +473,8 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 		return
 	}
 
-	// Async increment download count
 	if _, ok := h.queueProducer.(*queue.NoopProducer); !ok && h.queueProducer != nil {
-		go func() {
+		recovery.GoSafe(func() {
 			payload, _ := json.Marshal(map[string]interface{}{
 				"content_id": id,
 				"action":    "download",
@@ -486,12 +482,12 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 			if err := h.queueProducer.Publish(context.Background(), "count.download", payload); err != nil {
 				slog.Error("failed to publish download count message", "content_id", id, "error", err)
 			}
-		}()
+		})
 	} else if h.rdb != nil {
-		go func() {
+		recovery.GoSafe(func() {
 			ctx := context.Background()
-			h.rdb.ZIncrBy(ctx, "rank:download_counts", 1, fmt.Sprintf("%d", id))
-		}()
+			h.rdb.ZIncrBy(ctx, "rank:download:counts", 1, fmt.Sprintf("%d", id))
+		})
 	}
 
 	c.Redirect(http.StatusFound, url)

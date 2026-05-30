@@ -27,6 +27,7 @@ type Config struct {
 	Judge          JudgeConfig          `mapstructure:"judge"`
 	Social         SocialConfig          `mapstructure:"social"`
 	Upload         UploadConfig         `mapstructure:"upload"`
+	Publish        PublishConfig        `mapstructure:"publish"`
 	Agent          AgentConfig          `mapstructure:"agent"`
 	Cache          CacheConfig          `mapstructure:"cache"`
 	RateLimit      RateLimitConfig      `mapstructure:"rate_limit"`
@@ -116,6 +117,12 @@ type UploadConfig struct {
 	SheetMusicExtensions []string `mapstructure:"sheet_music_extensions"`
 }
 
+type PublishConfig struct {
+	RequireReview    bool `mapstructure:"require_review"`
+	MaxDailyPosts    int  `mapstructure:"max_daily_posts"`
+	FreezeOnViolation bool `mapstructure:"freeze_on_violation"`
+}
+
 type AgentConfig struct {
 	WebAgentEnabled       bool   `mapstructure:"web_agent_enabled"`
 	LLMProvider           string `mapstructure:"llm_provider"`
@@ -135,12 +142,21 @@ type CacheConfig struct {
 	IPListTTL              int `mapstructure:"ip_list_ttl"`
 	IPDetailTTL            int `mapstructure:"ip_detail_ttl"`
 	ViewCountFlushInterval int `mapstructure:"view_count_flush_interval"`
+	HotRankZSetTTL         int `mapstructure:"hot_rank_zset_ttl"`
+	UserStatusTTL          int `mapstructure:"user_status_ttl"`
+	TagCacheTTL            int `mapstructure:"tag_cache_ttl"`
+	EmailVerifyTTL         int `mapstructure:"email_verify_ttl"`
+	PasswordResetTTL       int `mapstructure:"password_reset_ttl"`
+	PublishFreezeTTL       int `mapstructure:"publish_freeze_ttl"`
 }
 
 type RateLimitConfig struct {
 	Enabled         bool `mapstructure:"enabled"`
 	NormalPerMinute int  `mapstructure:"normal_per_minute"`
 	UploadPerHour   int  `mapstructure:"upload_per_hour"`
+	NormalWindowSec int  `mapstructure:"normal_window_sec"`
+	UploadWindowSec int  `mapstructure:"upload_window_sec"`
+	AgentWindowSec  int  `mapstructure:"agent_window_sec"`
 }
 
 type RecommendationConfig struct {
@@ -151,6 +167,8 @@ type RecommendationConfig struct {
 	EmbeddingTopk                int     `mapstructure:"embedding_topk"`
 	TrendingWindowDays           int     `mapstructure:"trending_window_days"`
 	RefreshIntervalH             int     `mapstructure:"refresh_interval_h"`
+	RankIntervalMin              int     `mapstructure:"rank_interval_min"`
+	EmbeddingMultiplier          int     `mapstructure:"embedding_multiplier"`
 }
 
 var Cfg *Config

@@ -6,6 +6,7 @@ import (
 
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 
 	"github.com/gin-gonic/gin"
@@ -32,7 +33,7 @@ func (h *AppealHandler) SubmitAppeal(c *gin.Context) {
 		Reason     string `json:"reason" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 
@@ -50,7 +51,7 @@ func (h *AppealHandler) SubmitAppeal(c *gin.Context) {
 		Status:     "pending",
 	}
 	if err := h.appealRepo.Create(appeal); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"appeal": appeal})
@@ -63,7 +64,7 @@ func (h *AppealHandler) GetMyAppeals(c *gin.Context) {
 
 	appeals, total, err := h.appealRepo.ListByUser(callerID, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"appeals": appeals, "total": total})

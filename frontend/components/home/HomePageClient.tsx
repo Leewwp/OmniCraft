@@ -76,18 +76,16 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
   useEffect(() => {
     api.getStatsSummary()
       .then(d => { if (d?.summary) setStatsSummary(d.summary); })
-      .catch((e) => { console.error("[HomePage] stats fetch failed", e); });
+      .catch(() => {});
   }, []);
 
-  // Fetch category counts
   useEffect(() => {
     fetch(`${apiBase}/ips/stats/category_counts`, { cache: "no-store" })
       .then(r => r.ok ? r.json() as Promise<{ category_counts?: Record<string, string> }> : null)
       .then(d => { if (d?.category_counts) setCategoryCounts(d.category_counts); })
-      .catch((e) => { console.error("[HomePage] category counts fetch failed", e); });
+      .catch(() => {});
   }, [apiBase]);
 
-  // Fetch IPs
   useEffect(() => {
     const q = new URLSearchParams();
     if (ipCategory) q.set("category", ipCategory);
@@ -95,10 +93,9 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
     fetch(`${apiBase}/ips?${q.toString()}`, { cache: "no-store" })
       .then(r => r.ok ? r.json() as Promise<IPResponse> : null)
       .then(d => { if (d) setIPs(d.ips || []); })
-      .catch((e) => { console.error("[HomePage] IPs fetch failed", e); });
+      .catch(() => {});
   }, [apiBase, ipCategory, ipSort]);
 
-  // Fetch contents
   useEffect(() => {
     const q = new URLSearchParams();
     q.set("zone", "fanwork");
@@ -108,7 +105,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
     fetch(`${apiBase}/contents?${q.toString()}`, { cache: "no-store" })
       .then(r => r.ok ? r.json() as Promise<ContentResponse> : null)
       .then(d => { if (d) setContents(normalizeContentList(d.contents)); })
-      .catch((e) => { console.error("[HomePage] contents fetch failed", e); });
+      .catch(() => {});
   }, [apiBase, contentType, contentSort]);
 
   // Sidebar sections

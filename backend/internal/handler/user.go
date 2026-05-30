@@ -14,6 +14,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
@@ -58,17 +59,17 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 
-	response := sanitizeUser(user)
+	resp := sanitizeUser(user)
 	stats, followersCount := h.getUserStatsAndFollowers(id)
-	response["stats"] = stats
-	response["followers_count"] = followersCount
-	response["is_following"] = h.checkIsFollowing(c, id)
+	resp["stats"] = stats
+	resp["followers_count"] = followersCount
+	resp["is_following"] = h.checkIsFollowing(c, id)
 
-	c.JSON(http.StatusOK, gin.H{"user": response})
+	c.JSON(http.StatusOK, gin.H{"user": resp})
 }
 
 func (h *UserHandler) getUserStatsAndFollowers(userID int64) (gin.H, int64) {
@@ -127,7 +128,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		PreferredLocale *string `json:"preferred_locale"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_BODY", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusBadRequest, "INVALID_BODY", err)
 		return
 	}
 
@@ -151,7 +152,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 
 	if err := h.userRepo.UpdateFields(id, updates); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 
@@ -178,7 +179,7 @@ func (h *UserHandler) GetReputation(c *gin.Context) {
 
 	logs, total, err := h.reputSvc.GetLogs(id, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 
@@ -209,7 +210,27 @@ func (h *UserHandler) GetUserContents(c *gin.Context) {
 		PageSize:    pageSize,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"contents": items, "total": total})
+}
+
+func (h *UserHandler) GetMyContents(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	contentType := c.Query("content_type")
+
+	items, total, err := h.contentRepo.ListContents(repository.ListContentsFilter{
+		AuthorID:    &callerID,
+		ContentType: contentType,
+		Page:        page,
+		PageSize:    pageSize,
+	})
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"contents": items, "total": total})
@@ -223,7 +244,7 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		NewPassword string `json:"new_password" binding:"required,min=6,max=128"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 
@@ -245,7 +266,7 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 	}
 
 	if err := h.userRepo.UpdateFields(callerID, map[string]interface{}{"password_hash": string(hash)}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 
@@ -261,7 +282,7 @@ func (h *UserHandler) DeleteAccount(c *gin.Context) {
 		Password string `json:"password" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 
@@ -290,7 +311,7 @@ func (h *UserHandler) DeleteAccount(c *gin.Context) {
 	}
 
 	if err := h.userRepo.UpdateFields(callerID, updates); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 
@@ -312,7 +333,7 @@ func (h *UserHandler) UpdateSupportInfo(c *gin.Context) {
 		ExternalLinks    []string `json:"external_links"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 
@@ -327,7 +348,7 @@ func (h *UserHandler) UpdateSupportInfo(c *gin.Context) {
 	}
 
 	if err := h.userRepo.UpdateFields(callerID, map[string]interface{}{"support_info": info}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 

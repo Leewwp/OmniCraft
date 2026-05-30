@@ -14,7 +14,7 @@ function SkeletonCard({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="skeleton-card"
-      className={cn("animate-pulse rounded-md border border-border bg-card p-4 shadow-sm", className)}
+      className={cn("animate-pulse rounded-md border border-border bg-card p-4 shadow-none", className)}
       {...props}
     >
       <Skeleton className="mb-3 aspect-[3/4] w-full rounded-md" />

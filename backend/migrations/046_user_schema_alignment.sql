@@ -1,0 +1,2 @@
+ALTER TABLE users ALTER COLUMN avatar_url TYPE TEXT;
+ALTER TABLE users ALTER COLUMN support_info SET NOT NULL;

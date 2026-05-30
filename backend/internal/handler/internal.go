@@ -14,6 +14,8 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/pkg/queue"
+	"omnicraft/backend/internal/pkg/recovery"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/service"
 )
 
@@ -41,12 +43,12 @@ func (h *InternalHandler) AICallback(c *gin.Context) {
 
 	var input service.AICallbackInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 
 	if _, ok := h.queueProducer.(*queue.NoopProducer); !ok && h.queueProducer != nil {
-		go func() {
+		recovery.GoSafe(func() {
 			payload, _ := json.Marshal(map[string]interface{}{
 				"action":       "process_ai_callback",
 				"target_type":  input.TargetType,
@@ -61,17 +63,17 @@ func (h *InternalHandler) AICallback(c *gin.Context) {
 			if err := h.queueProducer.Publish(context.Background(), topic, payload); err != nil {
 				slog.Error("failed to publish ai callback to queue", "topic", topic, "error", err)
 			}
-		}()
+		})
 		c.JSON(http.StatusOK, gin.H{"message": "ok"})
 		return
 	}
 
 	if err := h.reviewSvc.ProcessAICallback(c.Request.Context(), input); err != nil {
 		if err == service.ErrReviewTargetNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": err.Error()})
+			response.NotFound(c, "resource not found")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		return
 	}
 

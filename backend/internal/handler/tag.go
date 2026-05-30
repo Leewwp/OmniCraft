@@ -7,8 +7,10 @@ import (
 	"strings"
 
 	"github.com/redis/go-redis/v9"
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
@@ -20,12 +22,13 @@ type TagHandler struct {
 	tagSvc *service.TagService
 }
 
-func NewTagHandler(db *gorm.DB, rdb *redis.Client) *TagHandler {
+func NewTagHandler(db *gorm.DB, rdb *redis.Client, cacheCfg *config.CacheConfig) *TagHandler {
 	return &TagHandler{
 		tagSvc: service.NewTagService(
 			repository.NewTagRepository(db),
 			repository.NewContentRepository(db),
 			rdb,
+			cacheCfg,
 		),
 	}
 }
@@ -41,7 +44,7 @@ func (h *TagHandler) GetFacetedTags(c *gin.Context) {
 
 	tags, err := h.tagSvc.GetFacetedTags(category, selectedTags)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"tags": tags})
@@ -55,7 +58,7 @@ func (h *TagHandler) SearchTags(c *gin.Context) {
 	}
 	tags, err := h.tagSvc.SearchTags(q)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"tags": tags})
@@ -77,15 +80,15 @@ func (h *TagHandler) SuggestTag(c *gin.Context) {
 		Action string `json:"action" binding:"required,oneof=add remove"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 	if err := h.tagSvc.SuggestTag(contentID, callerID, body.Tag, body.Action); err != nil {
 		if errors.Is(err, service.ErrTagSuggestRateLimited) {
-			c.JSON(http.StatusTooManyRequests, gin.H{"code": "TAG_SUGGEST_RATE_LIMIT_EXCEEDED", "message": err.Error()})
+			response.SafeErrorResponse(c, http.StatusTooManyRequests, "TAG_SUGGEST_RATE_LIMIT_EXCEEDED", err)
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"code": "ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"message": "suggestion submitted"})
@@ -100,7 +103,7 @@ func (h *TagHandler) ListTagSuggestions(c *gin.Context) {
 	}
 	suggestions, err := h.tagSvc.ListTagSuggestions(contentID, callerID)
 	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": err.Error()})
+		response.Forbidden(c, "access denied")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"suggestions": suggestions})
@@ -117,7 +120,7 @@ func (h *TagHandler) UpdateTagSuggestion(c *gin.Context) {
 		Status string `json:"status" binding:"required,oneof=approved rejected"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 	var svcErr error
@@ -127,7 +130,7 @@ func (h *TagHandler) UpdateTagSuggestion(c *gin.Context) {
 		svcErr = h.tagSvc.RejectTagSuggestion(id, callerID)
 	}
 	if svcErr != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "ERROR", "message": svcErr.Error()})
+		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", svcErr)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "updated"})
@@ -137,7 +140,7 @@ func (h *TagHandler) ListTagGroups(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	groups, err := h.tagSvc.ListTagGroups(callerID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"tag_groups": groups})
@@ -150,12 +153,12 @@ func (h *TagHandler) CreateTagGroup(c *gin.Context) {
 		Tags []string `json:"tags" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 	g, err := h.tagSvc.CreateTagGroup(callerID, body.Name, body.Tags)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"tag_group": g})
@@ -170,11 +173,11 @@ func (h *TagHandler) UpdateTagGroup(c *gin.Context) {
 	}
 	var updates map[string]interface{}
 	if err := c.ShouldBindJSON(&updates); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 	if err := h.tagSvc.UpdateTagGroup(id, callerID, updates); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "updated"})
@@ -188,7 +191,7 @@ func (h *TagHandler) DeleteTagGroup(c *gin.Context) {
 		return
 	}
 	if err := h.tagSvc.DeleteTagGroup(id, callerID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
@@ -198,7 +201,7 @@ func (h *TagHandler) ListSavedSearches(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	searches, err := h.tagSvc.ListSavedSearches(callerID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"saved_searches": searches})
@@ -211,12 +214,12 @@ func (h *TagHandler) CreateSavedSearch(c *gin.Context) {
 		Config model.JSONMap `json:"config"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 	ss, err := h.tagSvc.CreateSavedSearch(callerID, body.Name, body.Config)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"saved_search": ss})
@@ -230,7 +233,7 @@ func (h *TagHandler) DeleteSavedSearch(c *gin.Context) {
 		return
 	}
 	if err := h.tagSvc.DeleteSavedSearch(id, callerID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})

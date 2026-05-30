@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	"omnicraft/backend/internal/pkg/recovery"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -51,7 +53,7 @@ func (b *RedisStreamBroker) Subscribe(ctx context.Context, topic string, group s
 		return fmt.Errorf("ensure group %s for %s: %w", group, streamKey, err)
 	}
 
-	go func() {
+	recovery.GoSafe(func() {
 		for {
 			select {
 			case <-ctx.Done():
@@ -84,7 +86,7 @@ func (b *RedisStreamBroker) Subscribe(ctx context.Context, topic string, group s
 				}
 			}
 		}
-	}()
+	})
 
 	return nil
 }

@@ -1,3 +1,7 @@
+-- Depends on: 001_initial_schema.sql (users table must exist)
+-- Depends on: 020_ips.sql (ips table must exist for ip follow support)
+-- Modifies: follows table constraints and indexes
+
 ALTER TABLE follows
     DROP CONSTRAINT IF EXISTS follows_target_type_check;
 

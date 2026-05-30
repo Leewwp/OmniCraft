@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"sort"
 	"time"
 
@@ -61,6 +62,10 @@ func (s *RecommendationService) Recommend(ctx context.Context, userID int64, pag
 	if topK <= 0 {
 		topK = 200
 	}
+	multiplier := s.cfg.EmbeddingMultiplier
+	if multiplier <= 0 {
+		multiplier = 2
+	}
 
 	cacheKey := fmt.Sprintf("rec:original:%d:%d", userID, page)
 	if s.rdb != nil {
@@ -90,7 +95,7 @@ func (s *RecommendationService) Recommend(ctx context.Context, userID int64, pag
 		return s.fallbackToHot(ctx, page, pageSize)
 	}
 
-	candidates, err := s.embeddingRepo.VectorSearch(profile, topK*2)
+	candidates, err := s.embeddingRepo.VectorSearch(profile, topK*multiplier)
 	if err != nil {
 		slog.Error("[rec] vector search failed, falling back to hot", "error", err)
 		return s.fallbackToHot(ctx, page, pageSize)
@@ -226,6 +231,7 @@ func (s *RecommendationService) buildUserProfile(ctx context.Context, userID int
 			sum = make([]float64, len(vec))
 		}
 		if len(vec) != len(sum) {
+			slog.Warn("[rec] embedding dimension mismatch", "expected", len(sum), "got", len(vec))
 			return
 		}
 		for i, v := range vec {
@@ -251,6 +257,17 @@ func (s *RecommendationService) buildUserProfile(ctx context.Context, userID int
 	profile := make([]float32, len(sum))
 	for i, v := range sum {
 		profile[i] = float32(v / totalWeight)
+	}
+
+	var norm float64
+	for _, v := range profile {
+		norm += float64(v * v)
+	}
+	norm = math.Sqrt(norm)
+	if norm > 0 {
+		for i := range profile {
+			profile[i] = float32(float64(profile[i]) / norm)
+		}
 	}
 
 	return profile, nil

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
 	jwtutil "omnicraft/backend/internal/pkg/jwt"
@@ -22,7 +23,24 @@ type userStatus struct {
 	Role     string `json:"role"`
 }
 
-func AuthRequired(cfg *config.Config, rdb *redis.Client) gin.HandlerFunc {
+func checkUserBanFromDB(db *gorm.DB, userID int64) (bool, string, error) {
+	var result struct {
+		IsBanned bool   `gorm:"column:is_banned"`
+		Role     string `gorm:"column:role"`
+	}
+	if err := db.Table("users").Select("is_banned, role").
+		Where("id = ? AND deleted_at IS NULL", userID).Scan(&result).Error; err != nil {
+		return false, "", err
+	}
+	return result.IsBanned, result.Role, nil
+}
+
+func AuthRequired(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.HandlerFunc {
+	var dbInstance *gorm.DB
+	if len(db) > 0 {
+		dbInstance = db[0]
+	}
+
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -79,13 +97,33 @@ func AuthRequired(cfg *config.Config, rdb *redis.Client) gin.HandlerFunc {
 			}
 		}
 
+		if dbInstance != nil {
+			isBanned, role, dbErr := checkUserBanFromDB(dbInstance, claims.UserID)
+			if dbErr == nil {
+				if isBanned {
+					c.JSON(401, gin.H{"code": "USER_BANNED", "message": "account has been banned"})
+					c.Abort()
+					return
+				}
+				c.Set(UserIDKey, claims.UserID)
+				c.Set(UserRoleKey, role)
+				c.Next()
+				return
+			}
+		}
+
 		c.Set(UserIDKey, claims.UserID)
 		c.Set(UserRoleKey, claims.Role)
 		c.Next()
 	}
 }
 
-func OptionalAuth(cfg *config.Config, rdb *redis.Client) gin.HandlerFunc {
+func OptionalAuth(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.HandlerFunc {
+	var dbInstance *gorm.DB
+	if len(db) > 0 {
+		dbInstance = db[0]
+	}
+
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -136,6 +174,21 @@ func OptionalAuth(cfg *config.Config, rdb *redis.Client) gin.HandlerFunc {
 			}
 		}
 
+		if dbInstance != nil {
+			isBanned, role, dbErr := checkUserBanFromDB(dbInstance, claims.UserID)
+			if dbErr == nil {
+				if isBanned {
+					c.Set(UserIDKey, int64(0))
+					c.Next()
+					return
+				}
+				c.Set(UserIDKey, claims.UserID)
+				c.Set(UserRoleKey, role)
+				c.Next()
+				return
+			}
+		}
+
 		c.Set(UserIDKey, claims.UserID)
 		c.Set(UserRoleKey, claims.Role)
 		c.Next()
@@ -179,8 +232,9 @@ func SetUserStatusCache(rdb *redis.Client, userID int64, isBanned bool, role str
 	if err != nil {
 		return
 	}
+	ttl := 5 * time.Minute
 	statusKey := fmt.Sprintf("user:status:%d", userID)
-	rdb.Set(context.Background(), statusKey, string(data), 5*time.Minute)
+	rdb.Set(context.Background(), statusKey, string(data), ttl)
 }
 
 func InvalidateUserStatusCache(rdb *redis.Client, userID int64) {

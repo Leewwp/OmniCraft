@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
@@ -37,7 +38,7 @@ func (h *PRHandler) SubmitPR(c *gin.Context) {
 
 	var input service.SubmitPRInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
 
@@ -45,13 +46,13 @@ func (h *PRHandler) SubmitPR(c *gin.Context) {
 	if err != nil {
 		switch err {
 		case service.ErrContentNotFound:
-			c.JSON(http.StatusNotFound, gin.H{"code": "CONTENT_NOT_FOUND", "message": err.Error()})
+			response.SafeErrorResponse(c, http.StatusNotFound, "CONTENT_NOT_FOUND", err)
 		case service.ErrPRBlocked:
-			c.JSON(http.StatusForbidden, gin.H{"code": "BLOCKED", "message": err.Error()})
+			response.SafeErrorResponse(c, http.StatusForbidden, "BLOCKED", err)
 		case service.ErrPRConflict:
-			c.JSON(http.StatusConflict, gin.H{"code": "CONFLICT", "message": err.Error()})
+			response.Conflict(c, "resource conflict")
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": err.Error()})
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		}
 		return
 	}
@@ -93,7 +94,7 @@ func (h *PRHandler) ListPRs(c *gin.Context) {
 
 	prs, total, err := h.prSvc.ListPRsPaged(contentID, c.Query("status"), page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 
@@ -116,7 +117,7 @@ func (h *PRHandler) AcceptPR(c *gin.Context) {
 	}
 
 	if err := h.prSvc.AcceptPR(id, callerID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "pr accepted"})
@@ -138,7 +139,7 @@ func (h *PRHandler) RejectPR(c *gin.Context) {
 	}
 
 	if err := h.prSvc.RejectPR(id, callerID, body.Reason); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "pr rejected"})
@@ -163,11 +164,11 @@ func (h *PRHandler) ManualMerge(c *gin.Context) {
 	if err != nil {
 		switch err {
 		case service.ErrPRNotFound:
-			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": err.Error()})
+			response.SafeErrorResponse(c, http.StatusNotFound, "NOT_FOUND", err)
 		case service.ErrPRForbidden:
-			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": err.Error()})
+			response.SafeErrorResponse(c, http.StatusForbidden, "FORBIDDEN", err)
 		default:
-			c.JSON(http.StatusBadRequest, gin.H{"code": "ERROR", "message": err.Error()})
+			response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		}
 		return
 	}
@@ -182,7 +183,7 @@ func (h *PRHandler) BlockContributor(c *gin.Context) {
 		return
 	}
 	if err := h.prSvc.BlockContributor(callerID, userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "contributor blocked"})
@@ -196,7 +197,7 @@ func (h *PRHandler) UnblockContributor(c *gin.Context) {
 		return
 	}
 	if err := h.prSvc.UnblockContributor(callerID, userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "contributor unblocked"})

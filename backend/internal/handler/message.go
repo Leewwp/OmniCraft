@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
@@ -32,7 +33,7 @@ func (h *MessageHandler) ListConversations(c *gin.Context) {
 
 	convs, err := h.msgRepo.ListConversations(callerID, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"conversations": convs})
@@ -45,19 +46,19 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 		Text        string `json:"text" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 
 	convID, err := h.msgRepo.FindOrCreateConversation(callerID, body.RecipientID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 
 	msg, err := h.msgRepo.Send(callerID, convID, body.Text)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 
@@ -87,7 +88,7 @@ func (h *MessageHandler) ListMessages(c *gin.Context) {
 
 	messages, total, err := h.msgRepo.ListMessages(convID, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	h.msgRepo.UpdateLastRead(callerID, convID)

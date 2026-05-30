@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
@@ -33,7 +34,7 @@ func (h *CategoryHandler) ListCategories(c *gin.Context) {
 	}
 	cats, err := h.catSvc.GetCategories(zone, level, parentID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"categories": cats})
@@ -42,11 +43,11 @@ func (h *CategoryHandler) ListCategories(c *gin.Context) {
 func (h *CategoryHandler) AdminCreateCategory(c *gin.Context) {
 	var cat model.Category
 	if err := c.ShouldBindJSON(&cat); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 	if err := h.catSvc.AdminCreateCategory(&cat); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"category": cat})
@@ -60,11 +61,11 @@ func (h *CategoryHandler) AdminUpdateCategory(c *gin.Context) {
 	}
 	var updates map[string]interface{}
 	if err := c.ShouldBindJSON(&updates); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 	if err := h.catSvc.AdminUpdateCategory(id, updates); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "updated"})
@@ -78,10 +79,10 @@ func (h *CategoryHandler) AdminDeleteCategory(c *gin.Context) {
 	}
 	if err := h.catSvc.AdminDeleteCategory(id); err != nil {
 		if err == service.ErrCategoryHasChildren || err == service.ErrCategoryHasContent {
-			c.JSON(http.StatusConflict, gin.H{"code": "CONFLICT", "message": err.Error()})
+			response.SafeErrorResponse(c, http.StatusConflict, "CONFLICT", err)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
@@ -93,11 +94,11 @@ func (h *CategoryHandler) AdminReorderCategories(c *gin.Context) {
 		SortOrder int   `json:"sort_order"`
 	}
 	if err := c.ShouldBindJSON(&updates); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 	if err := h.catSvc.AdminReorderCategories(updates); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "reordered"})

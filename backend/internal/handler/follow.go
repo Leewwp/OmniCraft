@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
@@ -33,7 +34,7 @@ func (h *FollowHandler) FollowUser(c *gin.Context) {
 		return
 	}
 	if err := h.followRepo.Follow(callerID, "user", targetID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	if h.notifSvc != nil && callerID != targetID {
@@ -50,7 +51,7 @@ func (h *FollowHandler) UnfollowUser(c *gin.Context) {
 		return
 	}
 	if err := h.followRepo.Unfollow(callerID, "user", targetID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "unfollowed"})
@@ -64,7 +65,7 @@ func (h *FollowHandler) FollowIP(c *gin.Context) {
 		return
 	}
 	if err := h.followRepo.Follow(callerID, "ip", ipID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	if h.notifSvc != nil {
@@ -81,7 +82,7 @@ func (h *FollowHandler) UnfollowIP(c *gin.Context) {
 		return
 	}
 	if err := h.followRepo.Unfollow(callerID, "ip", ipID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "unfollowed"})

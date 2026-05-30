@@ -19,6 +19,7 @@ import (
 
 var (
 	ErrUserAlreadyExists  = errors.New("user already exists")
+	ErrUsernameTaken      = errors.New("username already taken")
 	ErrInvalidCredentials = errors.New("invalid email or password")
 	ErrUserBanned         = errors.New("user is banned")
 	ErrTokenInvalid       = errors.New("token is invalid")
@@ -63,7 +64,7 @@ func (s *AuthService) Register(input RegisterInput) (*model.User, *jwtutil.Token
 		return nil, nil, err
 	}
 	if existingByUsername != nil {
-		return nil, nil, errors.New("username already taken")
+		return nil, nil, ErrUsernameTaken
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)

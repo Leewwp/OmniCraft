@@ -34,7 +34,11 @@ func RateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.HandlerFunc {
 			return
 		}
 		if count == 1 {
-			rdb.Expire(ctx, key, 2*time.Minute)
+			windowTTL := 2 * time.Minute
+			if cfg.NormalWindowSec > 0 {
+				windowTTL = time.Duration(cfg.NormalWindowSec) * time.Second
+			}
+			rdb.Expire(ctx, key, windowTTL)
 		}
 		if int(count) > limit {
 			c.JSON(http.StatusTooManyRequests, gin.H{
@@ -74,7 +78,11 @@ func UploadRateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.Handler
 			return
 		}
 		if count == 1 {
-			rdb.Expire(ctx, key, 2*time.Hour)
+			uploadWindowTTL := 2 * time.Hour
+			if cfg.UploadWindowSec > 0 {
+				uploadWindowTTL = time.Duration(cfg.UploadWindowSec) * time.Second
+			}
+			rdb.Expire(ctx, key, uploadWindowTTL)
 		}
 		if int(count) > limit {
 			c.JSON(http.StatusTooManyRequests, gin.H{
@@ -107,7 +115,7 @@ func CredentialRateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.Han
 			return
 		}
 		if count == 1 {
-			rdb.Expire(ctx, key, 2*time.Minute)
+			rdb.Expire(ctx, key, time.Duration(cfg.NormalWindowSec)*time.Second)
 		}
 		if int(count) > limit {
 			c.JSON(http.StatusTooManyRequests, gin.H{
