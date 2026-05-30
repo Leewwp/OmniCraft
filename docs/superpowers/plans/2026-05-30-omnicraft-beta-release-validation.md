@@ -26,7 +26,7 @@
 
 - [ ] **Step 1: Confirm prerequisite task status**
 
-Verify roadmap tasks F-01 through F-06, V-01 through V-06, A-01 through A-05 and G-01 through G-05 are checked. Desktop tasks may remain unchecked only if `desktop_deploy_enabled=false`.
+Verify roadmap tasks F-01 through F-06, V-01 through V-06, A-01 through A-05, G-01 through G-05 and D-01 are checked. Desktop tasks D-02 through D-05 may remain unchecked only if `desktop_deploy_enabled=false`.
 
 - [ ] **Step 2: Initialize dependencies**
 
@@ -42,9 +42,9 @@ Expected: PostgreSQL and Redis become healthy. Stop and report blocker if requir
 
 - [ ] **Step 3: Validate migrations from an empty database**
 
-Run every `backend/migrations/*.sql` in lexical order against a disposable empty PostgreSQL database.
+Run every `backend/migrations/*.sql` in lexical order against a disposable empty PostgreSQL database. Then create a second disposable upgrade database by applying migrations `001` through `048` in lexical order, seed representative pre-Beta rows, and apply `049` through `052`. Do not depend on an undeclared external snapshot. Note: physical file creation history is irrelevant; the runner must sort migration filenames lexically and record which files were applied.
 
-Expected: all migrations succeed, including `pgvector`, `pg_trgm`, verification, feedback and audit additions.
+Expected: both empty-database and existing-database upgrade paths succeed, including `pgvector`, existing `047` trigram indexes, new content-tag fallback index, verification, feedback and audit additions.
 
 - [ ] **Step 4: Run engineering gates**
 
@@ -74,6 +74,7 @@ Review every match. Expected:
 - No refresh token in frontend storage or JSON API responses.
 - No Ed25519 private key in client code.
 - No raw token, secret, grant or cookie in logs.
+- No permanent OSS download URL exposed as a user download CTA.
 
 - [ ] **Step 6: API-test authorization matrix**
 
@@ -86,6 +87,8 @@ Verify normal, anonymous, unverified-email, low-reputation, banned-user and depe
 - Download.
 - Agent chat/search.
 - Admin routes.
+- Removed `/api/v1/agent/script/:id` prototype.
+- Disabled `POST /api/v1/deploy-grants`.
 
 Expected: protected operations reject safely with a stable error envelope.
 
@@ -99,8 +102,11 @@ Verify:
 - Forgot-password response is uniform.
 - Reset token is single use.
 - Anonymous feedback requires captcha.
+- Feedback screenshot presign requires the feedback-specific purpose flow and rejects content-upload keys.
 - Logged-in user can inspect own feedback.
-- Admin can reply and close.
+- Admin can reply, add an internal note and close; users never see internal notes.
+- Logged-in users receive site notifications and anonymous users receive email for reply/close.
+- Existing content-review, appeal-result and report-resolution notifications still reach the affected logged-in user.
 
 - [ ] **Step 8: Browser-test public journeys**
 
@@ -108,8 +114,14 @@ Use MCP Playwright:
 
 1. Footer to `/help`, `/privacy`, `/terms`, `/feedback`, `/client`.
 2. Register, verify email, login, logout.
-3. Password reset.
-4. Chinese keyword search for a no-space title.
+3. Pending verification page, resend cooldown and password reset.
+4. Chinese keyword search for a no-space title. Seed test data first:
+
+```powershell
+psql $env:DB_DSN -f backend/testdata/search_seed.sql
+```
+
+Use the deterministic `backend/testdata/search_seed.sql` created in F-05. It includes 5-10 published content items containing Chinese titles and tags plus at least one deleted and one banned-IP item to verify visibility filtering.
 5. Content detail download success and denied download.
 6. Agent off state and Agent failure downgrade.
 7. Publish assistance with explicit apply.
@@ -132,12 +144,18 @@ Save screenshots under `screenshots/beta-release-admin-*`.
 
 - [ ] **Step 10: Validate production configuration**
 
+These checks apply only to the production deployment environment. Local development using HTTP localhost is acceptable and does not need to satisfy these requirements.
+
 Confirm:
 
-- HTTPS certificate exists.
+- HTTPS certificate exists in the production environment.
 - Production `security.allowed_origins` has explicit origins and no wildcard.
 - SMTP/captcha/OSS/PostgreSQL/Redis settings are present.
+- Web and API use the approved HTTPS subdomains under `leeppp.online`; credentialed CORS permits only the exact Web origin and unsafe API requests reject other origins.
+- `client.download_enabled=false`; Web Beta does not expose a client download URL or version.
 - `desktop_deploy_enabled=false` unless R-02 is complete.
+- Direct calls to the removed legacy `/api/v1/agent/script/:id` route return `404`.
+- `POST /api/v1/deploy-grants` returns `503 FEATURE_DISABLED` while desktop deploy is off.
 - `payment_enabled=false`.
 - `creator_support_enabled=false` unless separately approved.
 
@@ -178,12 +196,15 @@ Verify:
 - Valid grant works once.
 - Replayed and expired grants fail.
 - Deep link contains grant only.
+- Grant exchange succeeds without a Web JWT, consumes the grant atomically and rejects replay.
+- Signed `script_json` bytes verify before strict deserialization; the Go/Rust fixture matches.
 - Tampered, expired and unknown-action scripts fail before any write.
 - Only Ed25519 public key ships in client.
 - New directories, new files, move targets and archive entries stay within allowlist.
 - Zip-slip fails.
 - Non-HTTPS and non-allowlisted download hosts fail.
 - WebView has no direct filesystem write capability.
+- WebView cannot invoke raw file-operation commands; only the verified-script executor is public.
 - Each action is shown before execution.
 - First failed action stops subsequent actions.
 
@@ -197,4 +218,3 @@ Record build artifact, SHA, configured API base URL, public-key ID, test results
 git add docs/review/desktop-deploy-validation-2026-05-30.md docs/superpowers/plans progress.txt
 git commit -m "Beta R-02: validate secure desktop deploy release - completed"
 ```
-

@@ -14,15 +14,16 @@
 
 ### Backend
 
-- Modify: `backend/internal/middleware/auth.go` - fail-closed authenticated status resolution.
+- Create: `backend/internal/service/runtime_status.go` - fail-closed authenticated status resolution.
 - Create: `backend/internal/middleware/interaction.go` - common verified-email, ban and reputation eligibility middleware.
+- Create: `backend/internal/repository/content_visibility.go` - one reusable content-visibility scope for keyword and Agent search.
 - Modify: `backend/internal/handler/routes.go` - mount shared guards and public config route.
 - Modify: `backend/internal/handler/auth.go` - cookie session responses.
 - Modify: `backend/internal/service/auth_service.go` - strict refresh-token Redis behavior.
 - Create: `backend/internal/handler/public_config.go` - minimal public runtime config response.
 - Modify: `backend/internal/model/config_public.go` - split public DTO from admin DTO.
 - Modify: `backend/config/config.go` and `backend/config.yaml` - desktop feature flag and public metadata.
-- Modify: `backend/internal/repository/search_repo.go` - trigram fallback and shared visibility filters.
+- Modify: `backend/internal/repository/search_repo.go` and `backend/internal/service/agent_service.go` - trigram fallback and shared visibility filters.
 - Modify: `backend/internal/service/oss_service.go` - short download TTL from config.
 - Modify: `backend/internal/handler/content.go` - explicit download authorization response.
 - Create/Modify tests beside touched Go packages.
@@ -104,9 +105,13 @@ git commit -m "Beta F-01: capture public beta baseline - completed"
 ## Task F-02: Fail Closed And Centralize Interaction Eligibility
 
 **Files:**
+- Create: `backend/internal/service/runtime_status.go`
 - Modify: `backend/internal/middleware/auth.go`
 - Create: `backend/internal/middleware/interaction.go`
 - Modify: `backend/internal/handler/routes.go`
+- Modify: `backend/internal/service/reputation_service.go`
+- Modify: `backend/internal/handler/admin.go`
+- Modify: `backend/internal/handler/user.go`
 - Create: `backend/internal/middleware/auth_test.go`
 - Create: `backend/internal/middleware/interaction_test.go`
 
@@ -117,12 +122,14 @@ Cover:
 ```go
 func TestAuthRequiredRejectsWhenRedisAndDBCannotConfirmStatus(t *testing.T) {}
 func TestAuthRequiredUsesFreshDBRoleInsteadOfJWTClaim(t *testing.T) {}
+func TestAuthRequiredRejectsMissingOrSoftDeletedUser(t *testing.T) {}
 func TestOptionalAuthDowngradesToAnonymousWhenStatusCannotBeConfirmed(t *testing.T) {}
 func TestInteractionRequiredRejectsUnverifiedEmail(t *testing.T) {}
 func TestInteractionRequiredRejectsLowReputation(t *testing.T) {}
+func TestInteractionRequiredRejectsPublishFreezeWhenPolicyRequiresIt(t *testing.T) {}
 ```
 
-Expected error envelope for unknown runtime status:
+Expected HTTP `503` error envelope for unknown runtime status:
 
 ```json
 {"code":"AUTH_STATUS_UNAVAILABLE","message":"account status is temporarily unavailable"}
@@ -141,7 +148,7 @@ Expected: `TestAuthRequiredRejectsWhenRedisAndDBCannotConfirmStatus` fails becau
 
 - [ ] **Step 3: Implement strict runtime status resolution**
 
-Use an explicit resolver:
+Use an explicit resolver in `backend/internal/service/runtime_status.go`:
 
 ```go
 type RuntimeUserStatus struct {
@@ -155,16 +162,25 @@ type RuntimeUserStatus struct {
 func ResolveRuntimeUserStatus(ctx context.Context, db *gorm.DB, rdb *redis.Client, userID int64) (*RuntimeUserStatus, error)
 ```
 
+The resolver belongs in `service` (not `middleware`) to avoid coupling the middleware package to GORM/Redis directly. The middleware calls the service-layer resolver.
+
 Rules:
 
 - Redis cache may accelerate status reads.
 - A cache miss must query PostgreSQL.
 - Redis failure plus PostgreSQL failure returns `AUTH_STATUS_UNAVAILABLE`.
-- Deleted and banned users never become authenticated.
+- Protected requests must also fail closed when access-token revocation state cannot be checked in Redis. `OptionalAuth` downgrades to anonymous in that case.
+- Missing, soft-deleted and banned users never become authenticated.
 - Role comes from runtime status, never stale JWT claims.
 - Use `cfg.Cache.UserStatusTTL`, not a hardcoded five minutes.
 - `OptionalAuth` downgrades to anonymous when status cannot be confirmed; it must not retain claim-derived permissions.
-- Invalidate or refresh cached runtime status when email verification, reputation, ban state or role changes.
+- Invalidate or refresh cached runtime status when email verification, reputation, ban state or role changes. The cache invalidation responsibility is centralized through `RuntimeStatusCache.Invalidate(userID)` in `runtime_status.go`. The following handlers must call it after their respective state changes:
+  - `verification_service.go` (email verification)
+  - `reputation_service.go` (every reputation mutation)
+  - `admin.go` (user ban/unban and any future role changes)
+  - `user.go` (account soft delete)
+- Do not use `reputation == 0` as a cache-miss sentinel. Zero is a valid score; cache lookups must distinguish missing keys from stored zero values.
+- If `cfg.Reputation.MinScoreForInteraction <= 0`, the interaction guard must fail safe with `503 CONFIG_ERROR` rather than falling back to a hardcoded threshold. A zero or negative value indicates a configuration error that must be fixed, not silently tolerated.
 
 - [ ] **Step 4: Add a shared interaction guard**
 
@@ -174,10 +190,31 @@ Create middleware configurable by required capabilities:
 type InteractionPolicy struct {
     RequireVerifiedEmail bool
     RequireReputation    bool
+    RequireNoPublishFreeze bool
 }
 ```
 
-Mount it on publish, edit/delete content, comments, reactions, reports, favorites, PR submission/accept/reject/merge, judge exams/votes/reason interactions, follows, private messages, downloads, Agent endpoints and future deploy grants. Use `cfg.Reputation.MinScoreForInteraction`.
+Use `cfg.Reputation.MinScoreForInteraction`; do not pass a hardcoded `3` from `routes.go`. Mount verified-email and reputation checks on publish, edit/delete content, comments, reactions, reports, favorites, PR submission/accept/reject/merge, judge exams/votes/reason interactions, follows, private messages, downloads, Agent endpoints and future deploy-grant issue. Apply `RequireNoPublishFreeze` to publish only. Keep content-specific checks such as ownership, `allow_copy`, content status and attachment ownership inside the relevant handler/service.
+
+The complete list of policy groups for table-driven route tests is:
+
+| Policy Group | Endpoints | Required Capabilities |
+|---|---|---|
+| `publish` | POST /contents | verified email, reputation, no publish freeze |
+| `edit_delete` | PATCH /contents/:id, DELETE /contents/:id | verified email, reputation |
+| `comments` | POST /social/comments, PATCH /social/comments/:id, DELETE /social/comments/:id, POST /discussions/:id/comments | verified email, reputation |
+| `reactions` | POST /social/reactions | verified email, reputation |
+| `favorites` | POST /favorites, DELETE /favorites/:contentId | verified email, reputation |
+| `reports` | POST /contents/:id/report, POST /social/comments/:id/report | verified email, reputation |
+| `pull_requests` | POST /pr, POST /pr/:id/accept, POST /pr/:id/reject, POST /pr/:id/merge | verified email, reputation |
+| `judge` | POST /judge/exam/submit, POST /judge/vote, POST /judge/reasons/:id/vote | verified email, reputation |
+| `follows` | POST /users/:id/follow, DELETE /users/:id/follow, POST /ips/:id/follow, DELETE /ips/:id/follow | verified email, reputation |
+| `messages` | POST /messages, GET /messages | verified email, reputation |
+| `downloads` | GET /contents/:id/download | verified email, reputation |
+| `agent` | all /agent endpoints, including POST /agent/chat/stream and POST /agent/search | verified email, reputation |
+| `deploy_grant` | POST /deploy-grants | verified email, reputation |
+
+Add table-driven route tests that exercise at least one endpoint from every policy group listed above. A middleware unit test alone is insufficient because the current defect includes incomplete route mounting.
 
 - [ ] **Step 5: Run focused and backend-wide tests**
 
@@ -203,6 +240,8 @@ git commit -m "Beta F-02: enforce fail-closed interaction eligibility - complete
 - Modify: `backend/internal/handler/auth.go`
 - Modify: `backend/internal/service/auth_service.go`
 - Modify: `backend/internal/middleware/csrf.go`
+- Modify: `backend/internal/middleware/cors.go`
+- Modify: `backend/internal/handler/routes.go`
 - Modify: `frontend/lib/api.ts`
 - Modify: `frontend/lib/auth.ts`
 - Modify: `frontend/contexts/AuthContext.tsx`
@@ -220,9 +259,11 @@ func TestLoginSetsHttpOnlyRefreshCookie(t *testing.T) {}
 func TestRefreshReadsCookieAndRotatesRefreshCookie(t *testing.T) {}
 func TestLogoutClearsRefreshCookie(t *testing.T) {}
 func TestRefreshFailsClosedWhenRedisUnavailable(t *testing.T) {}
+func TestRefreshRejectsMissingOrInvalidCSRFToken(t *testing.T) {}
+func TestCredentialedCORSAllowsConfiguredProductionOriginOnly(t *testing.T) {}
 ```
 
-Expected refresh cookie attributes in production: `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, no `Domain`, configured TTL. Use a `__Host-` cookie name in production.
+Expected refresh cookie attributes in production: `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, no `Domain`, configured TTL. Cookie name is selected automatically based on `config.yaml > server.mode`: when `mode == "release"` (the existing Gin production-mode convention), use `__Host-refresh_token` (requires HTTPS); otherwise use `refresh_token`. The same logic applies to the CSRF cookie name (`__Host-csrf` vs `csrf-token`). Do not introduce a second mode string such as `production`; derive both cookie names from one helper that reads the existing server mode.
 
 - [ ] **Step 2: Run tests and verify failure**
 
@@ -247,11 +288,23 @@ Rules:
 - Logout revokes access and refresh credentials and clears the cookie.
 - Redis unavailable during refresh must reject the refresh request.
 - Never expose refresh tokens in JSON, URLs, logs or browser storage.
-- Refresh and logout validate CSRF or trusted Origin because they consume cookies.
+- Refresh and logout use the existing double-submit CSRF middleware: the readable `csrf-token`/`__Host-csrf` cookie must match `X-CSRF-Token`. Do not introduce a second CSRF scheme.
+- Add `GET /api/v1/auth/csrf` as an idempotent bootstrap endpoint. It returns the CSRF token in the response body and ensures the readable CSRF cookie exists. The frontend API helper keeps the returned value in memory and sends it as `X-CSRF-Token` before the first unsafe request, including a fresh browser session before login or registration.
+- Credentialed CORS allows explicit configured production origins only. Localhost variants remain development-only and wildcard origins are rejected.
 
 - [ ] **Step 4: Remove frontend refresh-token storage**
 
-Delete `REFRESH_TOKEN`, `getRefreshToken()` and every `localStorage.setItem("refresh_token", ...)`. Replace access-token `localStorage` and JavaScript-written cookies with an in-memory module variable. On page reload, call refresh using the HttpOnly cookie to obtain a new short-lived access token. `frontend/proxy.ts` may inspect only the presence of the HttpOnly refresh cookie as a routing hint; it must not decode or trust stale access claims.
+Before editing the registration state, run:
+
+```powershell
+rg -n "## Page: /register" design/ui-spec.md
+```
+
+This step checks whether the registration page already has a UI spec, so the implementer understands which existing visual patterns to preserve. The actual verification UI changes belong to V-03; this task only removes refresh-token persistence and adjusts the post-registration redirect.
+
+Delete `REFRESH_TOKEN`, `getRefreshToken()` and every `localStorage.setItem("refresh_token", ...)`. Replace access-token `localStorage` and JavaScript-written cookies with an in-memory module variable. On page reload, call refresh using the HttpOnly cookie to obtain a new short-lived access token. `frontend/proxy.ts` may inspect only the presence of the HttpOnly refresh cookie as a routing hint when Web and API are served from the same host; it must not decode or trust stale access claims, including for `/admin`. When production uses a separate API hostname, remove cookie-dependent proxy routing and let `AuthProvider` plus protected layouts perform the refresh/redirect decision.
+
+**Deployment architecture note:** Production Web and API are confirmed to use separate HTTPS subdomains under `leeppp.online`. This is a same-site, cross-origin deployment. Before F-03 is marked complete, the maintainer must provide the exact Web and API hostnames. Keep the refresh and CSRF cookies host-only on the API hostname, keep `SameSite=Lax`, set `Secure`, allow only the exact Web origin through credentialed CORS, and enforce strict `Origin` validation for unsafe requests. The bootstrap response-body token allows the frontend to send `X-CSRF-Token` without reading an API-host cookie directly. Because `frontend/proxy.ts` cannot inspect an API-host cookie, remove cookie-dependent proxy routing and let `AuthProvider` plus protected layouts perform the refresh/redirect decision. Do not guess the final subdomains or silently loosen cookie policy.
 
 Update refresh calls:
 
@@ -312,16 +365,17 @@ Assert `GET /api/v1/config/public` contains only:
     "desktop_deploy_enabled": false
   },
   "captcha": {"provider": "", "site_key": ""},
-  "client": {"download_enabled": false, "download_url": "", "latest_version": ""},
-  "oss": {"cdn_base": ""}
+  "client": {"download_enabled": false, "download_url": "", "latest_version": ""}
 }
 ```
 
-Assert response text does not contain `secret`, `access_key`, `api_key`, DSN, Redis password, HMAC or private keys.
+Assert response text does not contain `secret`, `access_key`, `api_key`, DSN, Redis password, HMAC, private keys, OSS CDN fields, internal TTLs or rate-limit internals.
 
 - [ ] **Step 2: Implement DTO and public route**
 
-Do not reuse the broad admin `model.PublicConfig`; create a dedicated DTO with explicit fields only.
+Do not reuse the broad admin `model.PublicConfig`; create a dedicated DTO with explicit fields only. The backend source remains `cfg.Agent.WebAgentEnabled`, but the public DTO intentionally flattens it to `features.web_agent_enabled`. Add `features.desktop_deploy_enabled`, `captcha.provider`, `captcha.site_key`, `client.download_enabled`, `client.download_url`, and `client.latest_version` as explicit source config fields rather than overloading unrelated config structs. Keep secret captcha fields out of the public DTO.
+
+F-04 owns the initial public-safe captcha/client config shape so the endpoint compiles before V-01. V-01 extends the same captcha config with secret/provider runtime validation; it must not add a second competing struct.
 
 - [ ] **Step 3: Add frontend fetch helper**
 
@@ -357,13 +411,18 @@ git commit -m "Beta F-04: expose minimal public runtime config - completed"
 
 **Files:**
 - Create: `backend/migrations/049_search_trigram_fallback.sql`
+- Create: `backend/testdata/search_seed.sql`
+- Create: `backend/internal/repository/content_visibility.go`
 - Modify: `backend/internal/repository/search_repo.go`
 - Modify: `backend/internal/service/search_service.go`
+- Modify: `backend/internal/service/agent_service.go`
 - Create: `backend/internal/repository/search_repo_test.go`
 
 - [ ] **Step 1: Write failing repository tests**
 
 Seed published, hidden, deleted and banned-IP content with titles such as `春日穿搭指南` and tags such as `桌面改造`.
+
+Create `backend/testdata/search_seed.sql` with the same deterministic cases for R-01 browser verification. The script must include the minimum required users, IPs, content rows and tags so it can run against a migrated disposable database without manual setup.
 
 Cover:
 
@@ -371,6 +430,8 @@ Cover:
 func TestSearchContentsMatchesChineseSubstring(t *testing.T) {}
 func TestSearchContentsExcludesNonPublishedAndDeletedContent(t *testing.T) {}
 func TestAgentAndKeywordSearchShareVisibilityRules(t *testing.T) {}
+func TestSearchContentsCountsOnlyMatchedRows(t *testing.T) {}
+func TestSearchSuggestionsDoNotLeakHiddenContentTitles(t *testing.T) {}
 ```
 
 - [ ] **Step 2: Run tests and verify failure**
@@ -382,12 +443,10 @@ go test ./internal/repository -run TestSearchContents -v
 
 - [ ] **Step 3: Add trigram-backed fallback**
 
-Migration:
+Migration `047_pg_trgm_indexes.sql` already enables `pg_trgm` and creates `idx_content_items_title_trgm`. Add only the missing content-tag index:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE INDEX IF NOT EXISTS idx_content_items_title_trgm
-  ON content_items USING gin (title gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_content_tags_tag_trgm
   ON content_tags USING gin (tag gin_trgm_ops);
 ```
@@ -395,17 +454,19 @@ CREATE INDEX IF NOT EXISTS idx_content_tags_tag_trgm
 Repository behavior:
 
 - Keep `tsvector` ranking where it matches.
-- Add parameterized `ILIKE '%' || ? || '%'` fallback for Chinese title and tag substring matching.
-- Apply one reusable visibility scope to keyword and Agent result hydration: published content only, non-deleted author, non-banned IP, normal content visibility rules.
+- Add parameterized title/tag substring matching with `ILIKE ?` and a bound value such as `"%"+query+"%"`; do not concatenate user input into SQL.
+- Apply one reusable visibility scope to keyword search, suggestions and Agent result hydration: published and non-deleted content only, non-deleted and non-banned author, no banned IP, and normal `is_public`/author/follower visibility for the current viewer.
+- Fix `total` count: the current implementation counts rows before applying the text query filter. After the fix, `total` must count only rows that match the full-text or trigram query AND the visibility filters. The count query and the row query must use the same WHERE clause; the only difference is that the count query omits `LIMIT`/`OFFSET`.
 - Fix viewer context lookup to use `middleware.UserIDKey`, not a mismatched string literal.
 
 - [ ] **Step 4: Verify query plan**
 
 ```powershell
 psql $env:DB_DSN -c "EXPLAIN ANALYZE SELECT id FROM content_items WHERE title ILIKE '%穿搭%';"
+psql $env:DB_DSN -c "EXPLAIN ANALYZE SELECT content_item_id FROM content_tags WHERE tag ILIKE '%桌面%';"
 ```
 
-Expected: trigram index participates once dataset size is sufficient for the planner.
+Expected: title and content-tag trigram indexes participate once dataset size is sufficient for the planner.
 
 - [ ] **Step 5: Run backend checks**
 
@@ -438,7 +499,7 @@ git commit -m "Beta F-05: add reliable Chinese keyword search - completed"
 
 - [ ] **Step 1: Write failing API tests**
 
-Cover published success plus unauthenticated, unverified-email, banned-user, low-reputation, non-published, `allow_copy=false`, missing attachment and OSS failure paths.
+Cover published success plus unauthenticated, unverified-email, banned-user, low-reputation, non-published, banned-IP, `allow_copy=false`, missing attachment, attachment-from-another-content and OSS failure paths.
 
 - [ ] **Step 2: Add attachment-specific authorized download**
 
@@ -456,7 +517,22 @@ Return:
 
 Do not redirect. Generate a short-lived signed URL using configured TTL and increment the count asynchronously only after signing succeeds.
 
+Rules:
+
+- Add `oss.download_url_ttl_sec` with a default of `300` to `config.yaml` and `config.go`; do not leave the current one-hour hardcoded TTL. This field does not currently exist in the codebase and must be created.
+- When `attachment_id` is supplied, verify that it belongs to the requested content.
+- When `attachment_id` is omitted, select the unique attachment where `content_attachments.is_primary = true`. If no attachment has `is_primary = true`, or if multiple attachments have `is_primary = true`, return a validation error (`400 AMBIGUOUS_ATTACHMENT`) rather than selecting an arbitrary one. The caller must specify `attachment_id` explicitly in ambiguous cases.
+- Preserve asynchronous per-content download counting after URL signing succeeds.
+
 - [ ] **Step 3: Implement `DownloadButton`**
+
+Before editing UI, run:
+
+```powershell
+rg -n "## Component: ContentDetail|## Component: SheetMusicViewer|## Component: DownloadButton" design/ui-spec.md
+```
+
+If `DownloadButton` has no dedicated spec, follow `ContentDetail`, `SheetMusicViewer` and `design/design-system.md`.
 
 The component requests the API URL, then navigates the browser to `download_url`. It renders retry and `/feedback` entrypoints for signing failures. Replace direct download links in `ContentDetail.tsx` and download-only branches of `SheetMusicViewer.tsx`. Preview fetches may remain short-lived signed preview URLs only if the backend explicitly provides them as preview fields.
 
