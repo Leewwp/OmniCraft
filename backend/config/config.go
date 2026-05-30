@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -118,9 +119,11 @@ type UploadConfig struct {
 }
 
 type PublishConfig struct {
-	RequireReview    bool `mapstructure:"require_review"`
-	MaxDailyPosts    int  `mapstructure:"max_daily_posts"`
-	FreezeOnViolation bool `mapstructure:"freeze_on_violation"`
+	RequireReview     bool     `mapstructure:"require_review"`
+	MaxDailyPosts     int      `mapstructure:"max_daily_posts"`
+	FreezeOnViolation bool     `mapstructure:"freeze_on_violation"`
+	TypeOrderOriginal []string `mapstructure:"type_order_original"`
+	TypeOrderFanwork  []string `mapstructure:"type_order_fanwork"`
 }
 
 type AgentConfig struct {
@@ -231,6 +234,11 @@ func overrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("REDIS_PASSWORD"); v != "" {
 		cfg.Redis.Password = v
+	}
+	if v := os.Getenv("REDIS_DB"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.Redis.DB = n
+		}
 	}
 	if v := os.Getenv("JWT_SECRET"); v != "" {
 		cfg.JWT.Secret = v

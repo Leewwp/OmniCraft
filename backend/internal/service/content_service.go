@@ -91,7 +91,7 @@ type AttachmentInput struct {
 
 func (s *ContentService) PublishContent(input PublishContentInput, authorID int64) (*model.ContentItem, error) {
 	if s.rdb != nil {
-		freezeKey := "publish_freeze:" + strconv.FormatInt(authorID, 10)
+		freezeKey := "publish:freeze:" + strconv.FormatInt(authorID, 10)
 		if frozen, err := s.rdb.Exists(context.Background(), freezeKey).Result(); err == nil && frozen > 0 {
 			return nil, ErrPublishFrozen
 		}

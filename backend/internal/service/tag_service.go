@@ -84,7 +84,7 @@ func (s *TagService) checkTagSuggestRateLimit(userID, contentItemID int64, now t
 }
 
 func buildTagSuggestRateLimitKey(userID, contentItemID int64, now time.Time) string {
-	return fmt.Sprintf("tag_suggest:%d:%d:%s", userID, contentItemID, now.Format("2006-01-02"))
+	return fmt.Sprintf("tag:suggest:%d:%d:%s", userID, contentItemID, now.Format("2006-01-02"))
 }
 
 func (s *TagService) ListTagSuggestions(contentItemID int64, callerID int64) ([]model.TagSuggestion, error) {

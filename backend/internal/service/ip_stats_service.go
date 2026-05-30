@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const ipCategoryCountsKey = "ip_category_counts"
+const ipCategoryCountsKey = "ip:category:counts"
 
 type IPStatsService struct {
 	db  *gorm.DB

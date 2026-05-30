@@ -29,7 +29,7 @@ func AgentRateLimit(rdb *redis.Client, cfg *config.Config) gin.HandlerFunc {
 		}
 
 		date := time.Now().Format("2006-01-02")
-		key := fmt.Sprintf("agent:rl:%d:%s", userID, date)
+		key := fmt.Sprintf("agent:ratelimit:%d:%s", userID, date)
 
 		ctx := context.Background()
 		count, err := rdb.Incr(ctx, key).Result()

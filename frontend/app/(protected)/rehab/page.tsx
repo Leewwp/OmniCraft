@@ -8,6 +8,7 @@ import { silentError } from "@/lib/error-handler";
 import { BookOpen, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CourseCard } from "@/components/rehab/CourseCard";
+import { CourseContent } from "@/components/rehab/CourseContent";
 import { ReputationDetail } from "@/components/rehab/ReputationDetail";
 
 interface Course {
@@ -156,6 +157,11 @@ export default function RehabPage() {
                   </Button>
                 )}
               </CourseCard>
+              {isActive && course.content_i18n && (
+                <div className="mt-2 rounded-md border border-border bg-card/50 p-4">
+                  <CourseContent contentI18n={course.content_i18n} violationType={course.violation_type} />
+                </div>
+              )}
             );
           })}
         </div>
