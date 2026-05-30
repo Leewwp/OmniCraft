@@ -316,6 +316,7 @@ func (h *UserHandler) DeleteAccount(c *gin.Context) {
 	}
 
 	invalidateUserTokens(h.rdb, callerID)
+	middleware.InvalidateUserStatusCache(h.rdb, callerID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "account deleted successfully"})
 }

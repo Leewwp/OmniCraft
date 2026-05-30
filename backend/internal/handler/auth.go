@@ -228,6 +228,7 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 	}
 
 	h.rdb.Del(ctx, key)
+	middleware.InvalidateUserStatusCache(h.rdb, userID)
 	c.JSON(http.StatusOK, gin.H{"message": "email verified successfully"})
 }
 
