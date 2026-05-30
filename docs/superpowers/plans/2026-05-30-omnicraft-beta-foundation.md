@@ -49,7 +49,7 @@
 - Read: `docs/review/*.md`
 - Create: `docs/review/beta-baseline-2026-05-30.md`
 
-- [ ] **Step 1: Record current git state**
+- [x] **Step 1: Record current git state**
 
 Run:
 
@@ -61,7 +61,7 @@ node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync('task.json',
 
 Expected: SHA, dirty files, and Tasks 156-168 are captured without interpreting terminal mojibake as file corruption.
 
-- [ ] **Step 2: Run the historical quality gates**
+- [x] **Step 2: Run the historical quality gates**
 
 Run:
 
@@ -80,7 +80,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 Expected: record PASS/FAIL for every command. Do not repair unrelated failures in this task.
 
-- [ ] **Step 3: Validate local infrastructure configuration**
+- [x] **Step 3: Validate local infrastructure configuration**
 
 Run:
 
@@ -91,7 +91,7 @@ docker compose config
 
 Expected: compose configuration renders successfully. Record unavailable external services as blockers, not as passing checks.
 
-- [ ] **Step 4: Write the baseline report**
+- [x] **Step 4: Write the baseline report**
 
 Document: SHA, dirty files, command results, external dependencies not configured, and concrete follow-up task IDs.
 

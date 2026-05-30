@@ -1,5 +1,31 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-31] - Beta F-01: Capture A Reproducible Baseline
+
+### What was done:
+- Created `docs/review/beta-baseline-2026-05-30.md` with full baseline report
+- Recorded git state: branch `main`, SHA `85fb33fbef579fc56053f280d0d641a8897d4885`, clean working tree
+- Ran all quality gates and documented results:
+  - `go build ./...` — PASS
+  - `go vet ./...` — PASS
+  - `go test ./...` — FAIL (2 pre-existing test failures in handler and service)
+  - `npm run lint` — FAIL (rehab/page.tsx JSX syntax error)
+  - `npm run build` — FAIL (same rehab/page.tsx error)
+  - `npm run build` (tauri-client) — PASS
+  - `cargo test` (tauri-client) — FAIL (AGENT_HMAC_SECRET not set)
+  - `docker compose config` — PASS
+- Documented 6 external dependencies not configured (OSS, Green, SMTP, CAPTCHA, HMAC secret, HTTPS)
+- Updated foundation plan checkboxes for Steps 1-4
+
+### Testing:
+- Baseline report captures all gate results accurately
+- Pre-existing failures documented but not repaired (per F-01 instructions)
+
+### Notes:
+- Frontend build is blocked by a JSX syntax error in `app/(protected)/rehab/page.tsx:160`
+- Backend has 2 pre-existing test failures that should be addressed in follow-up tasks
+- Tauri cargo test requires `AGENT_HMAC_SECRET` env var at compile time
+
 ## [2026-05-22] - Task 150: Worker 生命周期管理、DLQ 监控与全链路集成
 
 ### What was done:
