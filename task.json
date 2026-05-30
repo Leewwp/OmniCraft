@@ -3209,6 +3209,92 @@
         "迁移验证：所有 migration 043-048 可从空数据库顺序执行无错误"
       ],
       "passes": null
+    },
+    {
+      "id": 169,
+      "depends_on": [151, 152, 153, 154, 155, 156, 157, 158, 160, 161, 162, 163, 164, 165, 166, 167],
+      "title": "代码审查：Spec Task 151-168 全面系统性审查",
+      "description": "对本次会话中 Task 151-168 涉及的所有代码改动进行全面审查，验证问题是否真正解决、是否引入新缺陷",
+      "steps": [
+        "审查 err.Error() 替换：handler 目录下残留 0 处，全部替换为 SafeErrorResponse 或 ValidationError",
+        "审查 CheckReputation 中间件：Redis 缓存写入缺失已修复（DB fallback 后写入缓存 5min TTL）",
+        "审查 CredentialRateLimit：NormalWindowSec=0 时 TTL=0 导致 key 永不过期已修复（默认 2min fallback）",
+        "审查 OriginalSidebar：api.getTrending() 不存在已修复为 api.get('/api/v1/search/trending')",
+        "审查 OriginalSidebar：fallbackSearches 含未定义 rank 字段已修复",
+        "审查 Redis key 命名一致性：view:count、reset:token、verify:email、rank:download:counts 全部冒号分隔",
+        "审查 ZSet TTL：rank:hot:contents、rank:hot:ips、rank:download:counts 均设置 TTL（默认 24h，可配置）",
+        "审查 Goroutine 安全：所有裸 go func() 替换为 recovery.GoSafe（content、agent、ip、internal、redis_stream）",
+        "审查 Docker 健康检查：所有 6 个服务均配置 healthcheck + resource limits",
+        "审查 Nginx：rate limiting (api_limit/auth_limit/conn_limit) + upstream max_fails + SSL 配置",
+        "审查迁移文件：043-048 全部创建，033/034 依赖注释已补充",
+        "审查前端：shadow-sm→shadow-none、console.error 清理、Rehab 子组件提取"
+      ],
+      "review_findings": [
+        {
+          "id": "R-001",
+          "severity": "critical",
+          "category": "functional_bug",
+          "description": "CredentialRateLimit 中 NormalWindowSec=0 时 time.Duration(0)*time.Second=0，导致 Redis key 永不过期，内存泄漏",
+          "file": "backend/internal/middleware/ratelimit.go:118",
+          "fix_applied": true,
+          "fix_detail": "添加 fallback 默认值 2*time.Minute，仅当 NormalWindowSec>0 时覆盖"
+        },
+        {
+          "id": "R-002",
+          "severity": "critical",
+          "category": "functional_bug",
+          "description": "OriginalSidebar 调用 api.getTrending() 但该方法在 api.ts 中不存在，运行时 TypeError",
+          "file": "frontend/components/original/OriginalSidebar.tsx:22",
+          "fix_applied": true,
+          "fix_detail": "改为 api.get('/api/v1/search/trending')，使用已有的 trending 端点"
+        },
+        {
+          "id": "R-003",
+          "severity": "important",
+          "category": "type_error",
+          "description": "fallbackSearches 数组包含 rank 字段但 TrendingSearchItem 接口未定义该字段，TypeScript 编译错误",
+          "file": "frontend/components/original/OriginalSidebar.tsx:36-41",
+          "fix_applied": true,
+          "fix_detail": "移除 fallbackSearches 中的 rank 字段，rank 由 map 时动态生成"
+        },
+        {
+          "id": "R-004",
+          "severity": "important",
+          "category": "performance",
+          "description": "CheckReputation 中间件读取 user:reputation:{id} 缓存但无任何代码写入该 key，导致每次请求都穿透到 DB",
+          "file": "backend/internal/middleware/reputation.go:25",
+          "fix_applied": true,
+          "fix_detail": "DB 查询后写入 Redis 缓存，TTL 5min"
+        },
+        {
+          "id": "R-005",
+          "severity": "minor",
+          "category": "consistency",
+          "description": "SetUserStatusCache TTL 仍硬编码 5*time.Minute，未使用 CacheConfig.UserStatusTTL 配置",
+          "file": "backend/internal/middleware/auth.go:235",
+          "fix_applied": false,
+          "fix_detail": "低优先级，5min 是合理默认值；修改签名需更新所有调用方，留待后续统一重构"
+        },
+        {
+          "id": "R-006",
+          "severity": "minor",
+          "category": "compatibility",
+          "description": "nginx.conf listen 443 ssl http2 语法在 nginx<1.25.1 不兼容（需用 http2 on 指令），但 nginx:alpine 通常 >=1.25",
+          "file": "nginx/nginx.conf:56",
+          "fix_applied": false,
+          "fix_detail": "低风险，docker-compose 使用 nginx:alpine 默认版本 >=1.25；如需兼容旧版可改回 http2 on"
+        },
+        {
+          "id": "R-007",
+          "severity": "info",
+          "category": "design",
+          "description": "OriginalSidebar 中 stat 字段使用 Math.random() 生成假数据，API 返回时应提供真实统计",
+          "file": "frontend/components/original/OriginalSidebar.tsx:35",
+          "fix_applied": false,
+          "fix_detail": "待后端 /search/trending 端点返回真实参与人数后替换"
+        }
+      ],
+      "passes": true
     }
   ]
 }
