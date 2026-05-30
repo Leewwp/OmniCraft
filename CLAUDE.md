@@ -1,5 +1,38 @@
 # OmniCraft 万象工坊 - Agent 工作指南
 
+## 2026-05-30 双轨 Beta 计划集
+
+本轮公开 Beta 加固工作使用独立计划集，不追加到历史 `task.json`：
+
+- 设计输入：`docs/superpowers/specs/2026-05-30-omnicraft-dual-track-beta-design.md`
+- 执行索引：`docs/superpowers/plans/2026-05-30-omnicraft-dual-track-beta-roadmap.md`
+- 子系统计划：
+  - `docs/superpowers/plans/2026-05-30-omnicraft-beta-foundation.md`
+  - `docs/superpowers/plans/2026-05-30-omnicraft-beta-verification-feedback.md`
+  - `docs/superpowers/plans/2026-05-30-omnicraft-beta-admin-operations.md`
+  - `docs/superpowers/plans/2026-05-30-omnicraft-beta-agent-entrypoints.md`
+  - `docs/superpowers/plans/2026-05-30-omnicraft-beta-desktop-deploy-security.md`
+  - `docs/superpowers/plans/2026-05-30-omnicraft-beta-release-validation.md`
+
+### 与 `task.json` 的差异
+
+- `task.json` 是历史 MVP 任务账本，保留已有内容和状态，不用于新增本轮 Beta 工作。
+- 双轨 Beta 计划集是 2026-05-30 之后公开 Beta 加固工作的执行来源。
+- 执行双轨 Beta 任务时，本节规则优先于下方历史工作流中“必须修改 `task.json`”的要求。
+- 历史 `passes: true` 只表示曾完成对应任务，不能替代 Beta 回归验证，尤其不能跳过历史 Task 156-168 的质量门槛。
+- 桌面端一键部署属于条件路线：在桌面安全计划和 R-02 验收完成前，必须保持 `features.desktop_deploy_enabled: false`。
+- 桌面安全计划 D-03 完成后，Ed25519 签名规则替代下方历史 HMAC-SHA256 规则；客户端只能持有公钥。
+
+### 后续 Agent 执行规则
+
+1. 先读路线图，选择依赖已完成的最小 ID 未勾选任务。
+2. 再读对应子系统计划，只实现一个编号任务。
+3. 涉及前端页面或组件时，仍须先检索并读取 `design/ui-spec.md` 对应 `## Page:` 和 `## Component:`。
+4. 完成后同步勾选子系统计划和路线图中的任务，更新 `progress.txt`。
+5. 代码、计划 checkbox、路线图 checkbox 和 `progress.txt` 必须放在同一个 commit。
+6. 不要为本轮 Beta 修改 `task.json`。只有维护者明确决定迁移计划集时，才可把任务追加回历史账本。
+7. SMTP、验证码、OSS、Redis、PostgreSQL、HTTPS 证书、Allowed Origins 或 Ed25519 密钥缺失时，按阻塞规则停止，不得伪造通过。
+
 ## 项目概览
 
 全民创意分享平台，技术栈：Next.js（前端）+ Go/Gin（后端）+ PostgreSQL + Redis + 阿里云 OSS + Tauri（PC 客户端）

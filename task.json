@@ -3008,7 +3008,7 @@
         "修改 hot_rank_service.go Run()：添加 stop channel 参数 func Run(stop <-chan struct{})，在 select 中增加 case <-stop 分支；修改 main.go 调用处传递 stop channel",
         "验证：不设置 TTL 的 ZSet key 不再存在；所有 TTL 值从配置读取；裸 goroutine 全部使用 GoSafe；优雅关机时 hot_rank goroutine 正确退出"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 157,
@@ -3021,7 +3021,7 @@
         "修改 docker-compose.yml：为 pgbouncer 添加健康检查（pg_isready -h 127.0.0.1 -p 5432）；为 backend 添加健康检查（curl -f http://localhost:8080/api/v1/stats/summary || exit 1）；为 frontend 添加健康检查（curl -f http://localhost:3000 || exit 1）；为 nginx 添加健康检查（curl -f http://localhost/api/v1/stats/summary || exit 1）",
         "验证：登录用户访问 /api/v1/stats/summary 返回含 is_following 等个性化数据；Docker compose up 后所有服务健康检查通过"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 158,
@@ -3037,7 +3037,7 @@
         "修改 components/original/OriginalSidebar.tsx：将 5 个硬编码中文搜索 query（春日穿搭/周末厨房/桌面改造/猫咪日常/极简生活）替换为从 GET /search/trending API 动态获取，API 不可用时显示空状态",
         "验证：npm run build 无错误；npm run lint 无警告；暗色模式下 tabs 和 skeleton 无阴影闪烁"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 159,
@@ -3061,7 +3061,7 @@
         "检查 Redis ZSet key 设置了合理 TTL",
         "浏览器测试：注册 → 登录 → 发布内容 → 搜索 → 点赞 → 检查信誉分变动全流程正常"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 160,
@@ -3076,7 +3076,7 @@
         "补充 .env.example：添加 AGENT_LLM_API_KEY、AGENT_LLM_PROVIDER、AGENT_LLM_MODEL、AGENT_LLM_API_BASE、AGENT_HMAC_SECRET、GREEN_CALLBACK_URL、GREEN_CALLBACK_ALLOWED_IPS、REDIS_DB 示例条目及注释",
         "验证：go build ./... 无错误；go vet ./... 无警告；config.yaml 中所有配置节（含 agent、publish、queue）均能正确加载到对应 struct"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 161,
@@ -3091,7 +3091,7 @@
         "在 RecommendationConfig struct 中添加 EmbeddingOversampleFactor int 和 RankIntervalMin int 字段及 mapstructure tag",
         "验证：grep 搜索代码确认无残留的旧 Redis key 命名；config.yaml 中 recommendation 节包含新配置项；hot rank 刷新间隔可从配置修改"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 162,
@@ -3108,7 +3108,7 @@
         "修改 docker-compose.yml：为 nginx 服务添加 SSL 证书卷挂载 ./nginx/certs:/etc/letsencrypt:ro；创建 nginx/certs 目录并添加 README.md 说明证书放置方式；添加 develop 模式下可禁用 SSL 的配置说明",
         "验证：docker compose config 验证 YAML 格式正确；nginx -t 验证配置语法正确；SSL 相关配置有开发模式兜底（证书缺失时不阻塞启动）"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 163,
@@ -3123,7 +3123,7 @@
         "修改 repository/content_repo.go：将 ORDER BY (view_count + like_count * 3) DESC 替换为 ORDER BY popularity_score DESC；将 ORDER BY (like_count::float / NULLIF(like_count + dislike_count, 0)) DESC 替换为 ORDER BY hot_score DESC",
         "验证：migration 047-048 可顺序执行无错误；ILIKE 查询使用 pg_trgm 索引（EXPLAIN ANALYZE 确认）；热门内容列表排序使用新建的物化列"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 164,
@@ -3136,7 +3136,7 @@
         "修改 service/recommendation_service.go buildUserProfile 函数：当 content_embeddings 向量维度与 profile 维度不匹配被跳过时，添加 slog.Warn 日志（包含期望维度、实际维度、content_id 等信息）",
         "验证：go build ./... 无错误；go vet ./... 无警告；rand.Read 失败时产生明确 panic 而非静默返回空 token"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 165,
@@ -3152,7 +3152,7 @@
         "在 components/rehab/ 目录创建 silentError.ts helper（若不存在），导出 silentError 函数用于静默记录错误",
         "验证：npm run build 无错误；npm run lint 无警告；rehab/page.tsx 页面功能不受影响；无 console.error 残留（grep 验证）"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 166,
@@ -3165,7 +3165,7 @@
         "修改 service/stats_service.go 或对应 repository：在统计查询中过滤 deleted_at IS NULL 条件，避免 NULL 值导致的 500 错误；对 COALESCE 或 LEFT JOIN 中可能为 NULL 的列使用 COALESCE(col, 0) 处理",
         "验证：curl GET /api/v1/social/reactions 返回 200 或空列表；curl GET /api/v1/my/contents（需登录）返回 200 或空列表；curl GET /api/v1/stats/summary 返回 200 含统计数据"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 167,
@@ -3177,7 +3177,7 @@
         "修改 backend/migrations/034_appeals.sql：在文件头部添加注释 -- NOTE: appeals table is created in migration 011_social.sql; this migration adds CHECK constraints only",
         "验证：所有 migration 文件头部的依赖注释完整"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 168,
@@ -3208,7 +3208,7 @@
         "浏览器测试：注册 → 登录 → 发布 → 搜索中文关键词 → 信誉分变动 → 素质课程 → Admin 配置页全流程正常",
         "迁移验证：所有 migration 043-048 可从空数据库顺序执行无错误"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 169,
