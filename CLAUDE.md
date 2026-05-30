@@ -1,11 +1,16 @@
 # OmniCraft 万象工坊 - Agent 工作指南
 
-## 2026-05-30 双轨 Beta 计划集
+## 任务来源与开发模式
 
-本轮公开 Beta 加固工作使用独立计划集，不追加到历史 `task.json`：
+本仓库同时支持两套任务来源。每次新 Agent 会话必须先确定当前模式，再选择任务。不要混用两套跟踪规则。
+
+### 模式 A：双轨 Beta 计划集（当前公开 Beta 加固工作）
+
+适用于 `docs/superpowers/plans/` 中的 2026-05-30 双轨 Beta 计划。用户要求继续 Beta 工作、指定 roadmap 任务，或当前分支为 `codex/beta/*` 时，使用此模式。
 
 - 设计输入：`docs/superpowers/specs/2026-05-30-omnicraft-dual-track-beta-design.md`
 - 执行索引：`docs/superpowers/plans/2026-05-30-omnicraft-dual-track-beta-roadmap.md`
+- 协作说明：`docs/superpowers/plans/2026-05-30-omnicraft-beta-implementation-notes.md`
 - 子系统计划：
   - `docs/superpowers/plans/2026-05-30-omnicraft-beta-foundation.md`
   - `docs/superpowers/plans/2026-05-30-omnicraft-beta-verification-feedback.md`
@@ -14,30 +19,43 @@
   - `docs/superpowers/plans/2026-05-30-omnicraft-beta-desktop-deploy-security.md`
   - `docs/superpowers/plans/2026-05-30-omnicraft-beta-release-validation.md`
 
-### 与 `task.json` 的差异
+规则：
 
-- `task.json` 是历史 MVP 任务账本，保留已有内容和状态，不用于新增本轮 Beta 工作。
-- 双轨 Beta 计划集是 2026-05-30 之后公开 Beta 加固工作的执行来源。
-- 执行双轨 Beta 任务时，本节规则优先于下方历史工作流中“必须修改 `task.json`”的要求。
-- 历史 `passes: true` 只表示曾完成对应任务，不能替代 Beta 回归验证，尤其不能跳过历史 Task 156-168 的质量门槛。
-- 桌面端一键部署属于条件路线：在桌面安全计划和 R-02 验收完成前，必须保持 `features.desktop_deploy_enabled: false`。
-- 桌面安全计划 D-03 完成后，Ed25519 签名规则替代下方历史 HMAC-SHA256 规则；客户端只能持有公钥。
+1. 先读 roadmap，选择依赖已完成的最小 ID 未勾选任务，再读对应子系统计划。
+2. 一个 roadmap 任务对应一个 agent 会话、一个 `codex/beta/<task-id>` 分支、一个独立 worktree 和一个 commit。
+3. 使用 `codex/beta-integration` 作为唯一集成分支。任务分支合并前必须 rebase 到最新集成分支，重新验证后执行 `git merge --ff-only`。
+4. 任务开始前按 implementation notes 预约写入范围。共享文件和代码区域不得由多个实现代理同时编辑。
+5. 实现遵循 TDD：先写失败测试并确认预期失败，再实现最小改动，最后重构。
+6. 每个任务完成后必须经过两阶段审查：先规格符合性审查，再代码质量审查。审查问题必须修复并复审。
+7. 收到 `DONE_WITH_CONCERNS` 时先处理 concerns。正确性、安全、范围或契约疑问未解决前不得进入审查或合并。
+8. 完成后同步勾选子系统计划和 roadmap checkbox，更新 `progress.txt`。本模式禁止修改 `task.json`。
+9. 历史 `passes: true` 只代表曾经完成，不能替代 Beta 回归验证，尤其不能跳过历史 Task 156-168 的质量门槛。
+10. 桌面端一键部署属于条件路线：在 D-02 至 D-05 和 R-02 完成前，必须保持 `features.desktop_deploy_enabled: false`。
 
-### 后续 Agent 执行规则
+### 模式 B：历史 `task.json` 任务账本
 
-1. 先读路线图，选择依赖已完成的最小 ID 未勾选任务。
-2. 再读对应子系统计划，只实现一个编号任务。
-3. 涉及前端页面或组件时，仍须先检索并读取 `design/ui-spec.md` 对应 `## Page:` 和 `## Component:`。
-4. 完成后同步勾选子系统计划和路线图中的任务，更新 `progress.txt`。
-5. 代码、计划 checkbox、路线图 checkbox 和 `progress.txt` 必须放在同一个 commit。
-6. 不要为本轮 Beta 修改 `task.json`。只有维护者明确决定迁移计划集时，才可把任务追加回历史账本。
-7. SMTP、验证码、OSS、Redis、PostgreSQL、HTTPS 证书、Allowed Origins 或 Ed25519 密钥缺失时，按阻塞规则停止，不得伪造通过。
+适用于维护历史 MVP、处理 `task.json` 中新增任务，或用户明确指定 `task.json` 任务时。
+
+规则：
+
+1. 读取 `task.json`，优先选择 `passes: false`、依赖已完成且 ID 最小的任务。
+2. 仔细阅读任务的 `description`、`steps`、`depends_on` 和 `ui_spec_ref`。
+3. 完成后只将该任务的 `passes: false` 改为 `passes: true`，更新 `progress.txt`。
+4. 永远不要删除任务、修改任务描述或移除历史记录。
+
+### 模式选择优先级
+
+1. 用户明确指定的任务来源或任务 ID。
+2. 当前任务分支和 worktree 的既定用途。
+3. 若用户要求继续 2026-05-30 公开 Beta 加固，使用模式 A。
+4. 其他未明确场景使用模式 B。
+5. 无法可靠判断时，先询问用户，不要擅自改动任一任务跟踪文件。
 
 ## 项目概览
 
 全民创意分享平台，技术栈：Next.js（前端）+ Go/Gin（后端）+ PostgreSQL + Redis + 阿里云 OSS + Tauri（PC 客户端）
 
-详细架构：`architecture.md` | 任务列表：`task.json`
+详细架构：`architecture.md` | Beta 路线图：`docs/superpowers/plans/2026-05-30-omnicraft-dual-track-beta-roadmap.md` | 历史任务账本：`task.json`
 
 ## 工具链版本（强制）
 
@@ -58,16 +76,24 @@ CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致
 
 每次新 Agent 会话必须严格按以下步骤执行：
 
-### Step 1: 读取任务列表
+### Step 1: 确定模式并读取任务来源
+
+**模式 A：双轨 Beta 计划集**
+
+```bash
+cat docs/superpowers/plans/2026-05-30-omnicraft-dual-track-beta-roadmap.md
+cat docs/superpowers/plans/2026-05-30-omnicraft-beta-implementation-notes.md
+```
+
+选择依赖已完成的最小 ID 未勾选任务，再读取对应子系统计划的完整任务段落。
+
+**模式 B：历史 `task.json`**
 
 ```bash
 cat task.json
 ```
 
-选择任务标准（按优先级）：
-1. 选择 `passes: false` 的任务
-2. 优先选择基础设施任务（id 较小的任务通常是依赖），确保依赖已完成
-3. 选择 ID 最小的未完成任务
+选择 `passes: false`、依赖已完成且 ID 最小的任务。
 
 ### Step 2: 初始化开发环境
 
@@ -92,9 +118,11 @@ cd frontend && npm run dev &
 
 ### Step 3: 实现任务
 
-- 仔细阅读 `task.json` 中该任务的 `description` 和 `steps`
+- 仔细阅读当前模式对应任务来源中的完整任务描述、步骤、依赖和验收标准
 - 参考 `architecture.md` 中对应模块的设计
 - 严格遵循现有代码规范和目录结构
+- 新增功能、修复缺陷和行为变更必须遵循 TDD：先写失败测试并确认预期失败，再实现最小改动
+- 模式 A 的实现代理不得静默扩大写入范围；需要改动预约范围外文件时，先报告文件、符号、原因和受影响任务
 
 **前端任务补充**：
 - 实现任何页面或组件前，必须先读取 `design/ui-spec.md` 中该任务 `ui_spec_ref` 字段列出的章节
@@ -121,11 +149,13 @@ cd frontend && npm run dev &
 - 验证正常路径和错误路径
 
 **所有任务必须通过**：
+- [ ] Go: `go test ./...` 无错误
 - [ ] Go: `go build ./...` 无错误
 - [ ] Go: `go vet ./...` 无警告
 - [ ] Next.js: `npm run build` 无错误
 - [ ] Next.js: `npm run lint` 无错误
 - [ ] 功能在浏览器/接口测试中验证通过
+- [ ] Tauri 相关任务：`npm run build`、`cargo test --manifest-path src-tauri/Cargo.toml` 无错误
 
 ### Step 5: 更新 progress.txt
 
@@ -142,22 +172,35 @@ cd frontend && npm run dev &
 - [给未来 Agent 的重要说明]
 ```
 
-### Step 6: 提交（一个 commit 包含所有改动）
+### Step 6: 更新跟踪文件并提交（一个任务一个 commit）
 
-**IMPORTANT: task.json + progress.txt + 所有代码改动必须在同一个 commit**
+**模式 A：双轨 Beta 计划集**
+
+```bash
+# 1. 勾选对应子系统计划 checkbox
+# 2. 勾选 roadmap checkbox
+# 3. 更新 progress.txt
+# 4. 精确暂存本任务文件并提交
+git add <本任务精确文件列表> docs/superpowers/plans progress.txt
+git commit -m "Beta [ID]: [任务标题] - completed"
+```
+
+本模式不要修改 `task.json`。任务分支合并前必须完成双重审查、rebase 和重新验证。
+
+**模式 B：历史 `task.json`**
 
 ```bash
 # 1. 更新 task.json 中该任务的 passes: false → passes: true
 # 2. 更新 progress.txt
-# 3. 一次性提交
-git add .
+# 3. 精确暂存本任务文件并提交
+git add <本任务精确文件列表> task.json progress.txt
 git commit -m "Task [ID]: [任务标题] - completed"
 ```
 
-**规则**：
-- 只有所有 steps 验证通过才标记 `passes: true`
-- 永远不要删除或修改任务描述
-- 永远不要从列表中移除任务
+**通用规则**：
+- 只有所有步骤和验证通过后，才能更新完成状态
+- 使用 `git add <精确文件列表>`，不要在脏工作区使用 `git add .`
+- 永远不要删除任务、修改任务描述或从任务来源中移除记录
 
 ---
 
@@ -168,10 +211,12 @@ git commit -m "Task [ID]: [任务标题] - completed"
 1. **缺少外部服务配置**：阿里云 AccessKey、OSS Bucket 未创建、Redis 连接失败
 2. **需要真实密钥**：内容安全 API、OSS 直传凭证
 3. **数据库迁移冲突**：迁移文件执行失败
+4. **Beta 发布输入缺失**：SMTP、验证码、PostgreSQL、HTTPS 证书、Allowed Origins、正式域名、法律文本版本或 Ed25519 密钥缺失
+5. **多代理契约冲突**：共享文件预约冲突、无法安全 rebase、两个任务需求语义不兼容
 
 **阻塞时禁止**：
 - ❌ 提交 git commit
-- ❌ 将 task.json 的 passes 设为 true
+- ❌ 更新当前模式的完成状态（roadmap checkbox 或 `task.json passes`）
 - ❌ 假装任务已完成
 
 **阻塞时必须**：
@@ -181,7 +226,8 @@ git commit -m "Task [ID]: [任务标题] - completed"
 ```
 🚫 任务阻塞 - 需要人工介入
 
-**当前任务**: Task [ID] - [标题]
+**当前模式**: [双轨 Beta 计划集 / 历史 task.json]
+**当前任务**: [ID] - [标题]
 
 **已完成的工作**:
 - [列出已完成内容]
@@ -203,9 +249,12 @@ git commit -m "Task [ID]: [任务标题] - completed"
 ```
 OmniCraft/
 ├── architecture.md          # 技术架构设计（必读）
-├── task.json                # 任务列表（工作来源）
+├── task.json                # 历史 MVP 任务账本
 ├── CLAUDE.md                # 本文件
 ├── progress.txt             # 进度日志
+├── docs/superpowers/
+│   ├── specs/               # 已确认的设计输入
+│   └── plans/               # Beta roadmap、子系统计划、协作说明
 ├── .specify/memory/constitution.md  # 项目宪法（设计原则和约束）
 ├── design/
 │   └── ui-spec.md           # UI 设计规格（Gemini 生成，前端 Task 实现必读）
@@ -479,7 +528,7 @@ docker compose logs -f backend     # 查看后端日志
 | `backup_file` | 系统自动 | write_config/move_file 执行前自动备份原文件到 `.omnicraft_backup/`，**禁止 LLM 直接调用** |
 
 - 所有路径必须校验在白名单目录内（`tauri.conf.json > allowlist.fs.scope`），超出立即拒绝
-- Go 下发的动作脚本必须附带 HMAC-SHA256 签名（详见 `task.json` Task 34）
+- 历史实现中 Go 下发动作脚本使用 HMAC-SHA256（详见 `task.json` Task 34）；执行 Beta 桌面安全计划时，D-03 完成后必须替换为 Ed25519，客户端只能持有公钥
 - Agent 工具白名单、限流速率等详细规范见 `architecture.md` §3.3 / §6.1
 
 ### 安全规则（Task 99–105）
@@ -527,8 +576,8 @@ docker compose logs -f backend     # 查看后端日志
 2. **Test before marking complete** — 所有 steps 验证通过才标记完成
 3. **Browser testing for UI** — 新建或大幅修改页面必须浏览器测试
 4. **Document in progress.txt** — 帮助后续 Agent 理解工作内容
-5. **One commit per task** — 代码 + progress.txt + task.json 同一个 commit
-6. **Never remove tasks** — 只改 passes: false → true，不删任务
+5. **One commit per task** — 代码 + `progress.txt` + 当前模式跟踪文件放入同一个 commit
+6. **Never remove tasks** — Beta 模式勾选 checkbox；历史模式只改 `passes: false → true`；两种模式都不删任务
 7. **Stop if blocked** — 需要人工介入时输出阻塞信息并停止
 8. **Read config, not hardcode** — 所有限制从 config.yaml 读取
 9. **Clarify before coding** — 明确假设与疑问，不擅自解读需求、不隐藏困惑
@@ -543,6 +592,11 @@ docker compose logs -f backend     # 查看后端日志
 18. **Soft delete only** — 删除操作一律软删除（设置 `deleted_at`），禁止物理删除用户或内容数据（Task 103）
 19. **Structured logging** — 后端日志统一使用 `slog` JSON 格式，禁止 `log.Printf` / `fmt.Println` 调试输出（Task 141）
 20. **i18n mandatory** — 新增 UI 字符串必须通过 `next-intl` 引用，禁止硬编码中英文字符串（Task 108）
+21. **Select task source first** — 会话开始先确定 Beta roadmap 或历史 `task.json` 模式，禁止混用完成状态
+22. **TDD for behavior changes** — 新增功能、修复缺陷和行为变更必须先验证失败测试，再实现
+23. **Exact staging only** — 使用 `git add <精确文件列表>`，避免把其他代理或用户改动混入提交
+24. **Beta worktree isolation** — Beta 任务使用独立 `codex/beta/<task-id>` worktree，通过 `codex/beta-integration` 串行集成
+25. **Beta review gates** — Beta 任务合并前必须完成规格符合性审查、代码质量审查，并处理 `DONE_WITH_CONCERNS`
 
 ---
 
