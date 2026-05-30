@@ -40,7 +40,7 @@ func TestRefreshTokenStorageKeyDoesNotExposeRawToken(t *testing.T) {
 func TestTagSuggestionRateLimitKeyScopesUserContentAndDate(t *testing.T) {
 	date := time.Date(2026, 5, 7, 1, 2, 3, 0, time.UTC)
 	got := buildTagSuggestRateLimitKey(10, 20, date)
-	want := "tag_suggest:10:20:2026-05-07"
+	want := "tag:suggest:10:20:2026-05-07"
 	if got != want {
 		t.Fatalf("buildTagSuggestRateLimitKey() = %q, want %q", got, want)
 	}

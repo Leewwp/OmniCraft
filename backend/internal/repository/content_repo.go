@@ -131,7 +131,7 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 		q = q.Order("view_count DESC")
 	case "best_rated":
 		q = q.Where("(like_count + dislike_count) >= 5").
-			Order("(like_count::float / NULLIF(like_count + dislike_count, 0)) DESC NULLS LAST")
+			Order("rating_score DESC NULLS LAST")
 	default:
 		q = q.Order("created_at DESC")
 	}

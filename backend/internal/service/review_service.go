@@ -315,5 +315,5 @@ func normalizeReviewResult(result string) string {
 }
 
 func buildPublishFreezeKey(userID int64) string {
-	return "publish_freeze:" + strconv.FormatInt(userID, 10)
+	return "publish:freeze:" + strconv.FormatInt(userID, 10)
 }
