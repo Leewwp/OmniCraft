@@ -45,6 +45,8 @@
 rg -n "## Component: AgentChatWidget|## Component: ContentDetail|## Page: /studio/publish" design/ui-spec.md
 ```
 
+**File conflict note:** `ContentDetail.tsx` is modified by F-06, G-01, G-04 and D-05. Execute dependent tasks after rebasing onto the integrated branch. Before editing `ContentDetail.tsx`, re-read the current file state to ensure you are working with the latest merged version.
+
 - [ ] **Step 2: Implement feature gate**
 
 ```tsx
@@ -64,6 +66,7 @@ Read `getPublicConfig()` with disabled-by-default fallback.
 - Hide global chat when `features.web_agent_enabled=false`.
 - Hide AI search mode when `features.web_agent_enabled=false`.
 - Hide publish `agent_enabled` toggle and detail-page one-click deploy when `features.desktop_deploy_enabled=false`.
+- Hide global chat and AI-search selection for anonymous or unverified-email users. The backend interaction guard remains authoritative.
 - Keep backend feature checks authoritative even when frontend hides UI.
 
 - [ ] **Step 4: Run checks and browser-test**
@@ -103,11 +106,11 @@ Seed vector-search hits containing published, deleted, banned-IP and private con
 const [mode, setMode] = useState<"keyword" | "agent">("keyword");
 ```
 
-Anonymous users must stay on keyword mode. Logged-in users may explicitly select Agent mode when the public feature flag is on.
+Anonymous users and unverified-email users must stay on keyword mode. Logged-in verified users may explicitly select Agent mode when the public feature flag is on.
 
 - [ ] **Step 3: Add downgrade behavior**
 
-When Agent search fails or is rate limited:
+When Agent search returns `401`, `403`, `429`, `503` or a network error:
 
 - Show an i18n notice.
 - Execute normal keyword search with the same query.
@@ -137,6 +140,8 @@ git commit -m "Beta G-02: add keyword-first Agent search downgrade - completed"
 ## Task G-03: Make Global Chat Contextual And Recoverable
 
 **Files:**
+- Modify: `backend/config/config.go`
+- Modify: `backend/config.yaml`
 - Create: `frontend/lib/agent-context.ts`
 - Modify: `frontend/components/agent/AgentChatWidget.tsx`
 - Modify: `frontend/lib/useSSE.ts`
@@ -161,7 +166,7 @@ Do not send cookies, tokens, local paths or raw page HTML.
 
 - [ ] **Step 2: Send bounded conversation history**
 
-The existing widget sends only the newest message. Send a bounded current-page message window plus safe page context. Persisting cross-page Agent chat is P1.
+The existing widget sends only the newest message. Send at most the latest 10 current-page messages plus safe page context. Cap each message at the backend-configured length limit (`agent.max_user_message_chars`, default `4000`) and reject unsupported roles. **Beta chat scope:** Agent chat state is per-page-mount lifecycle. Navigating away from the page clears the conversation history. Cross-page chat persistence is P1 and is listed in the roadmap's "Deferred P1 Scope".
 
 - [ ] **Step 3: Add quick prompts and downgrade CTA**
 
@@ -170,11 +175,20 @@ When Agent fails or rate limits:
 - Keep the user's text visible.
 - Show retry.
 - Link to `/help`.
+- Link to `/feedback`.
 - Where relevant, offer normal search or normal download.
+
+Add the frozen quick-prompt intents below. Render their labels through `next-intl`; do not hardcode these English strings in TSX:
+
+- `page_help`
+- `download_help`
+- `publish_help`
+- `desktop_client_help`
+- `report_problem`
 
 - [ ] **Step 4: Add backend validation**
 
-Validate message count, role allowlist, per-message length and page-context fields. Reject unsupported role/tool payloads. Beta chat must never execute tools.
+Validate message count, role allowlist, per-message length and page-context fields. Reject unsupported role/tool payloads and unknown context fields. Beta chat must never execute tools, write content or return permanent OSS URLs.
 
 - [ ] **Step 5: Run checks and browser-test**
 
@@ -218,9 +232,9 @@ Show usage-guide entry only when:
 
 - Web Agent is enabled.
 - Content is published and viewable.
-- Content type benefits from a guide.
+- Content type is `mod` or `sheet_music` for the Beta allowlist. Add more types only through an explicit product decision.
 
-The panel must display retry and `/help` fallback.
+The panel must display retry, `/help` and `/feedback` fallback. Render Markdown through the existing safe `MarkdownRenderer`; do not enable raw HTML.
 
 - [ ] **Step 3: Run checks and browser-test**
 
@@ -245,6 +259,9 @@ git commit -m "Beta G-04: mount content usage guide - completed"
 - Modify: `frontend/components/studio/PublishForm.tsx`
 - Modify: `frontend/components/agent/UploadAssistPanel.tsx`
 - Modify: `frontend/components/agent/ComplianceCheckBadge.tsx`
+- Modify: `backend/internal/handler/agent.go`
+- Modify: `backend/internal/service/agent_service.go`
+- Create: `backend/internal/service/agent_publish_assist_test.go`
 - Modify: `frontend/messages/zh.json`
 - Modify: `frontend/messages/en.json`
 
@@ -256,29 +273,36 @@ rg -n "## Component: UploadAssistPanel|## Component: ComplianceCheckBadge|## Pag
 
 - [ ] **Step 2: Mount upload assistance**
 
-Place metadata suggestions after upload and before submit. Suggestions must be previewed and applied only when the user clicks an explicit apply button.
+Place metadata suggestions after upload and before submit. Reuse the `frontend/components/agent/*` panels, not the similarly named static `frontend/components/content/*` hints. Suggestions must be previewed and applied only when the user clicks an explicit apply button. Preserve an undo snapshot so the user can revert the applied suggestion. **Undo implementation:** Use `useRef` to store a `structuredClone(formState)` snapshot immediately before applying a suggestion. The apply button saves the snapshot to the ref; the undo button restores form state from the ref. Only one level of undo is required for Beta.
 
 - [ ] **Step 3: Mount compliance hint**
 
-Show pre-submit compliance status. A hint may warn or block submit according to backend response, but it may not silently rewrite title, description or tags.
+Show pre-submit compliance status using a stable backend enum: `safe`, `warning`, or `violation`. Apply `safe` suggestions only after the user's explicit apply click; require explicit acknowledgement before applying a `warning`; block application and final submit for `violation`. A hint may not silently rewrite title, description or tags. Final publish still goes through the existing content-review path.
 
-- [ ] **Step 4: Add graceful fallback**
+- [ ] **Step 4: Validate suggestions as untrusted input**
+
+Validate suggestion field lengths, tag count/tag lengths and category enum in the backend before returning structured suggestions. Validate again before applying to form state. Add tests for oversized text, invalid category, excessive tags and unknown fields.
+
+- [ ] **Step 5: Add graceful fallback**
 
 When Agent is off or unavailable, the normal publishing form must remain usable.
 
-- [ ] **Step 5: Run checks and browser-test**
+- [ ] **Step 6: Run checks and browser-test**
 
 ```powershell
-cd frontend
+cd backend
+go test ./internal/service -run TestAgentPublishAssist -v
+go test ./...
+cd ..\frontend
 npm run lint
 npm run build
 ```
 
 Use MCP Playwright to upload, inspect suggestion, apply it, undo/edit it, and submit with Agent unavailable. Save screenshots under `screenshots/beta-g05-*`.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```powershell
-git add frontend screenshots docs/superpowers/plans progress.txt
+git add backend frontend screenshots docs/superpowers/plans progress.txt
 git commit -m "Beta G-05: mount user-confirmed publish assistance - completed"
 ```
