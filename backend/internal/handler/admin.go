@@ -3,6 +3,7 @@ package handler
 import (
 	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -273,7 +274,7 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 		AdminResponse string `json:"admin_response"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request body")
 		return
 	}
 	db := h.userRepo.DB()
@@ -348,7 +349,7 @@ func (h *AdminHandler) GetConfig(c *gin.Context) {
 func (h *AdminHandler) PatchConfig(c *gin.Context) {
 	var patches map[string]interface{}
 	if err := c.ShouldBindJSON(&patches); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_BODY", "message": err.Error()})
+		response.ValidationError(c, "invalid request body")
 		return
 	}
 
@@ -426,7 +427,11 @@ func (h *AdminHandler) PatchConfig(c *gin.Context) {
 		}
 	}
 
-	if err := h.cfg.SaveOverride("data/config_override.yaml"); err != nil {
+	overridePath := "data/config_override.yaml"
+	if v := os.Getenv("CONFIG_OVERRIDE_PATH"); v != "" {
+		overridePath = v
+	}
+	if err := h.cfg.SaveOverride(overridePath); err != nil {
 		slog.Error("failed to save config override", "error", err)
 	}
 
@@ -488,7 +493,7 @@ func (h *AdminHandler) CreateLLMConfig(c *gin.Context) {
 		APIKey       string `json:"api_key"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request body")
 		return
 	}
 	r, err := h.llmConfigSvc.CreateConfig(req.ConfigName, req.ProviderType, req.APIBase, req.Model, req.APIKey)
@@ -507,7 +512,7 @@ func (h *AdminHandler) UpdateLLMConfig(c *gin.Context) {
 	}
 	var req map[string]interface{}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request body")
 		return
 	}
 	delete(req, "id")
@@ -560,12 +565,12 @@ func (h *AdminHandler) TestLLMConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid config id"})
 		return
 	}
-	response, err := h.llmConfigSvc.TestConnection(id)
+	resp, err := h.llmConfigSvc.TestConnection(id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "TEST_FAILED", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "TEST_FAILED", err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"response": response})
+	c.JSON(http.StatusOK, gin.H{"response": resp})
 }
 
 func (h *AdminHandler) ListReports(c *gin.Context) {

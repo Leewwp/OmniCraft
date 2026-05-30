@@ -193,7 +193,7 @@ func (s *ContentService) PublishContent(input PublishContentInput, authorID int6
 			Attachments: input.Attachments,
 		}
 		if _, ok := s.queueProducer.(*queue.NoopProducer); !ok && s.queueProducer != nil {
-			go func() {
+			recovery.GoSafe(func() {
 				payload, _ := json.Marshal(map[string]interface{}{
 					"action":        "submit_ai_review",
 					"target_type":   reviewInput.TargetType,
@@ -207,7 +207,7 @@ func (s *ContentService) PublishContent(input PublishContentInput, authorID int6
 				if err := s.queueProducer.Publish(context.Background(), "content.review", payload); err != nil {
 					slog.Error("failed to publish content.review message", "content_id", content.ID, "error", err)
 				}
-			}()
+			})
 		} else {
 			if err := s.reviewSvc.SubmitForAIReview(context.Background(), reviewInput); err != nil && !errors.Is(err, aliyun.ErrGreenNotConfigured) {
 				return nil, err
@@ -453,9 +453,10 @@ func (s *ContentService) DeleteContent(id int64, authorID int64) error {
 func (s *ContentService) IncrViewCount(id int64) {
 	if s.rdb != nil {
 		ctx := context.Background()
-		contentKey := fmt.Sprintf("view_count:%d", id)
+		contentKey := fmt.Sprintf("view:count:%d", id)
 		s.rdb.Incr(ctx, contentKey)
 		s.rdb.ZIncrBy(ctx, "rank:hot:contents", 1, fmt.Sprintf("%d", id))
+		s.setRankZSetTTL(ctx)
 	}
 }
 
@@ -468,6 +469,7 @@ func (s *ContentService) incrementHotRank(contentID int64, ipID *int64, delta fl
 	if ipID != nil && *ipID != 0 {
 		s.rdb.ZIncrBy(ctx, "rank:hot:ips", delta, fmt.Sprintf("%d", *ipID))
 	}
+	s.setRankZSetTTL(ctx)
 }
 
 func (s *ContentService) UpdateHotRank(ctx context.Context, trendingWindowDays int, hotDecayHours float64) error {
@@ -518,7 +520,21 @@ func (s *ContentService) UpdateHotRank(ctx context.Context, trendingWindowDays i
 			break
 		}
 	}
+	s.setRankZSetTTL(ctx)
 	return nil
+}
+
+func (s *ContentService) setRankZSetTTL(ctx context.Context) {
+	if s.rdb == nil {
+		return
+	}
+	ttl := 24 * time.Hour
+	if s.cacheCfg != nil && s.cacheCfg.HotRankZSetTTL > 0 {
+		ttl = time.Duration(s.cacheCfg.HotRankZSetTTL) * time.Second
+	}
+	s.rdb.Expire(ctx, "rank:hot:contents", ttl)
+	s.rdb.Expire(ctx, "rank:hot:ips", ttl)
+	s.rdb.Expire(ctx, "rank:download:counts", ttl)
 }
 
 func computeHotScore(views, likes, ageHours, decayHours float64) float64 {
@@ -547,7 +563,7 @@ func (s *ContentService) FlushViewCounts(ctx context.Context) error {
 	batch := make(map[int64]int64)
 
 	for {
-		keys, nextCursor, err := s.rdb.Scan(ctx, cursor, "view_count:*", 100).Result()
+		keys, nextCursor, err := s.rdb.Scan(ctx, cursor, "view:count:*", 100).Result()
 		if err != nil {
 			return err
 		}
@@ -563,7 +579,7 @@ func (s *ContentService) FlushViewCounts(ctx context.Context) error {
 			}
 
 			var id int64
-			fmt.Sscanf(key, "view_count:%d", &id)
+			fmt.Sscanf(key, "view:count:%d", &id)
 			batch[id] += count
 		}
 
@@ -632,7 +648,7 @@ func (s *ContentService) FlushDownloadCounts(ctx context.Context) error {
 		return nil
 	}
 
-	members, err := s.rdb.ZRangeWithScores(ctx, "rank:download_counts", 0, -1).Result()
+	members, err := s.rdb.ZRangeWithScores(ctx, "rank:download:counts", 0, -1).Result()
 	if err != nil {
 		return err
 	}
@@ -656,7 +672,7 @@ func (s *ContentService) FlushDownloadCounts(ctx context.Context) error {
 
 	pipeline := s.rdb.Pipeline()
 	for id, delta := range batch {
-		pipeline.ZRem(ctx, "rank:download_counts", fmt.Sprintf("%d", id))
+		pipeline.ZRem(ctx, "rank:download:counts", fmt.Sprintf("%d", id))
 		_ = delta
 	}
 	pipeline.Exec(ctx)

@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -28,7 +29,7 @@ func (h *ReputationHandler) GetMyReputationLogs(c *gin.Context) {
 
 	logs, total, err := h.reputationSvc.GetLogs(callerID, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"logs": logs, "total": total})

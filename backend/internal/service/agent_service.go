@@ -19,6 +19,7 @@ import (
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/pkg/queue"
+	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/repository"
 )
 
@@ -397,7 +398,7 @@ func (s *AgentService) SetQueueProducer(p queue.Producer) {
 
 func (s *AgentService) EmbedContentAsync(contentItemID int64, text string) {
 	if _, ok := s.queueProducer.(*queue.NoopProducer); !ok && s.queueProducer != nil {
-		go func() {
+		recovery.GoSafe(func() {
 			payload, _ := json.Marshal(map[string]interface{}{
 				"content_id": contentItemID,
 				"text":       text,
@@ -405,13 +406,13 @@ func (s *AgentService) EmbedContentAsync(contentItemID int64, text string) {
 			if err := s.queueProducer.Publish(context.Background(), "content.embedding", payload); err != nil {
 				slog.Error("failed to publish content.embedding message", "content_id", contentItemID, "error", err)
 			}
-		}()
+		})
 	} else {
-		go func() {
+		recovery.GoSafe(func() {
 			if err := s.embedContent(context.Background(), contentItemID, text); err != nil {
 				slog.Error("embedding error", "content_id", contentItemID, "error", err)
 			}
-		}()
+		})
 	}
 }
 
@@ -486,6 +487,13 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []
 		}
 		return handler(delta.Content, delta.Done, convID)
 	})
+
+	if err != nil && conv != nil {
+		slog.Error("[agent] ChatStream failed, cleaning up orphaned conversation", "conversation_id", conv.ID, "error", err)
+		s.db.Where("conversation_id = ?", conv.ID).Delete(&model.AgentMessage{})
+		s.db.Delete(conv)
+	}
+
 	return err
 }
 

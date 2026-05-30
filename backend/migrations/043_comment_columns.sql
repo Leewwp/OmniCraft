@@ -1,0 +1,5 @@
+ALTER TABLE comments ADD COLUMN IF NOT EXISTS target_type VARCHAR(20);
+ALTER TABLE comments ADD COLUMN IF NOT EXISTS target_id BIGINT;
+ALTER TABLE comments ADD COLUMN IF NOT EXISTS content TEXT;
+ALTER TABLE comments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+CREATE INDEX IF NOT EXISTS idx_comments_target ON comments(target_type, target_id);

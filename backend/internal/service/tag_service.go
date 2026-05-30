@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/repository"
 )
@@ -23,10 +24,11 @@ type TagService struct {
 	tagRepo     *repository.TagRepository
 	contentRepo *repository.ContentRepository
 	rdb         *redis.Client
+	cfg         *config.CacheConfig
 }
 
-func NewTagService(tagRepo *repository.TagRepository, contentRepo *repository.ContentRepository, rdb *redis.Client) *TagService {
-	return &TagService{tagRepo: tagRepo, contentRepo: contentRepo, rdb: rdb}
+func NewTagService(tagRepo *repository.TagRepository, contentRepo *repository.ContentRepository, rdb *redis.Client, cfg *config.CacheConfig) *TagService {
+	return &TagService{tagRepo: tagRepo, contentRepo: contentRepo, rdb: rdb, cfg: cfg}
 }
 
 func (s *TagService) GetFacetedTags(category string, selectedTags []string) ([]model.Tag, error) {
@@ -69,7 +71,11 @@ func (s *TagService) checkTagSuggestRateLimit(userID, contentItemID int64, now t
 		return nil
 	}
 	if count == 1 {
-		s.rdb.Expire(ctx, key, 48*time.Hour)
+		tagTTL := 48 * time.Hour
+		if s.cfg != nil && s.cfg.TagCacheTTL > 0 {
+			tagTTL = time.Duration(s.cfg.TagCacheTTL) * time.Second
+		}
+		s.rdb.Expire(ctx, key, tagTTL)
 	}
 	if count > 10 {
 		return ErrTagSuggestRateLimited

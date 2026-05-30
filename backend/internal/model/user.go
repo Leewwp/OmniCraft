@@ -9,11 +9,11 @@ type User struct {
 	Email           string    `gorm:"uniqueIndex;not null;size:255" json:"email"`
 	PasswordHash    string    `gorm:"not null;size:255" json:"-"`
 	Username        string    `gorm:"uniqueIndex;not null;size:64" json:"username"`
-	AvatarURL       string    `gorm:"size:2048" json:"avatar_url"`
+	AvatarURL       string    `gorm:"type:text" json:"avatar_url"`
 	Bio             string    `gorm:"type:text" json:"bio"`
 	Reputation      int       `gorm:"not null;default:10" json:"reputation"`
-	PreferredLocale string    `gorm:"size:10;default:'zh'"  json:"preferred_locale"`
-	SupportInfo     JSONMap   `gorm:"type:jsonb;default:'{}'" json:"support_info,omitempty"`
+	PreferredLocale string    `gorm:"size:10;default:'zh-CN'"  json:"preferred_locale"`
+	SupportInfo     JSONMap   `gorm:"type:jsonb;not null;default:'{}'" json:"support_info,omitempty"`
 	Role            string    `gorm:"not null;default:'user';size:20" json:"role"`
 	IsBanned        bool      `gorm:"not null;default:false" json:"is_banned"`
 	BanReason       string    `gorm:"type:text" json:"ban_reason,omitempty"`

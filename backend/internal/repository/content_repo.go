@@ -126,7 +126,7 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 
 	switch f.Sort {
 	case "hot":
-		q = q.Order("(view_count + like_count * 3) DESC")
+		q = q.Order("hot_score DESC NULLS LAST, (view_count + like_count * 3) DESC")
 	case "most_views":
 		q = q.Order("view_count DESC")
 	case "best_rated":

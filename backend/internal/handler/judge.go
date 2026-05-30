@@ -9,6 +9,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
@@ -38,7 +39,7 @@ func (h *JudgeHandler) GetExam(c *gin.Context) {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "INSUFFICIENT_QUESTIONS", "message": "not enough questions available for this category"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 
@@ -67,12 +68,12 @@ func (h *JudgeHandler) SubmitExam(c *gin.Context) {
 	}
 	var input service.SubmitExamInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 	record, passed, err := h.judgeSvc.SubmitExam(input, callerID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"record": record, "passed": passed})
@@ -88,7 +89,7 @@ func (h *JudgeHandler) GetQueue(c *gin.Context) {
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	cases, total, err := h.judgeSvc.GetJudgeQueue(callerID, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"cases": cases, "total": total, "page": page, "page_size": pageSize})
@@ -102,15 +103,15 @@ func (h *JudgeHandler) SubmitVote(c *gin.Context) {
 	}
 	var input service.SubmitVoteInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 	if err := h.judgeSvc.SubmitVote(input, callerID); err != nil {
 		if err == service.ErrAlreadyVoted {
-			c.JSON(http.StatusConflict, gin.H{"code": "ALREADY_VOTED", "message": err.Error()})
+			response.SafeErrorResponse(c, http.StatusConflict, "ALREADY_VOTED", err)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "vote submitted"})
@@ -145,7 +146,7 @@ func (h *JudgeHandler) VoteReason(c *gin.Context) {
 		VoteType string `json:"vote_type" binding:"required,oneof=up down"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 	rv := model.JudgeReasonVote{
@@ -154,7 +155,7 @@ func (h *JudgeHandler) VoteReason(c *gin.Context) {
 		VoteType:          body.VoteType,
 	}
 	if err := h.judgeRepo.CreateReasonVote(&rv); err != nil {
-		c.JSON(http.StatusConflict, gin.H{"code": "ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusConflict, "ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "reason vote submitted"})
@@ -163,12 +164,12 @@ func (h *JudgeHandler) VoteReason(c *gin.Context) {
 func (h *JudgeHandler) CreateQuestions(c *gin.Context) {
 	var questions []model.JudgeQuestion
 	if err := c.ShouldBindJSON(&questions); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 	for i := range questions {
 		if err := h.judgeRepo.CreateQuestion(&questions[i]); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 			return
 		}
 	}

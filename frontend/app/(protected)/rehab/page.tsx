@@ -5,8 +5,10 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
-import { BookOpen, Check, Clock, Loader2 } from "lucide-react";
+import { BookOpen, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CourseCard } from "@/components/rehab/CourseCard";
+import { ReputationDetail } from "@/components/rehab/ReputationDetail";
 
 interface Course {
   id: number;
@@ -64,7 +66,6 @@ export default function RehabPage() {
     setElapsed(0);
     try {
       await api.post(`/api/v1/rehab/courses/${courseId}/start`, {});
-      // Start countdown
       const start = Date.now();
       timerRef.current = setInterval(() => {
         const e = Math.floor((Date.now() - start) / 1000);
@@ -127,65 +128,34 @@ export default function RehabPage() {
             const canComplete = isActive && elapsed >= course.min_reading_sec;
 
             return (
-              <div key={course.id} className="rounded-md border border-border bg-card p-4 ">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold">
-                      {course.content_i18n?.zh || course.violation_type}
-                    </h3>
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {t("rehab.minReading", { sec: course.min_reading_sec })}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <BookOpen className="h-3 w-3" />
-                        {t("rehab.rewardPoints", { pts: course.reward_points })}
-                      </span>
-                    </div>
-
-                    {isActive && (
-                      <div className="mt-3 space-y-1">
-                        <div className="relative h-2 w-full rounded-full bg-muted/40">
-                          <div
-                            className="absolute inset-y-0 left-0 rounded-full bg-accent transition-[width] duration-1000"
-                            style={{
-                              width: `${Math.min((elapsed / course.min_reading_sec) * 100, 100)}%`,
-                            }}
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {t("rehab.readingProgress", { elapsed, required: course.min_reading_sec })}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="shrink-0">
-                    {done ? (
-                      <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                        <Check className="h-3 w-3" />
-                        {t("rehab.completed")}
-                      </span>
-                    ) : isActive ? (
-                      <Button
-                        size="sm"
-                        onClick={() => handleComplete(course.id)}
-                        disabled={!canComplete || completingId === course.id}
-                      >
-                        {completingId === course.id ? (
-                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                        ) : null}
-                        {canComplete ? t("rehab.complete") : t("rehab.pleaseRead")}
-                      </Button>
-                    ) : (
-                      <Button size="sm" onClick={() => handleStart(course.id, course.min_reading_sec)}>
-                        {t("rehab.startLearning")}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
+              <CourseCard
+                key={course.id}
+                violationType={course.violation_type}
+                contentI18n={course.content_i18n}
+                minReadingSec={course.min_reading_sec}
+                rewardPoints={course.reward_points}
+                isActive={isActive}
+                elapsed={elapsed}
+              >
+                {done ? (
+                  <ReputationDetail rewardPoints={course.reward_points} completed />
+                ) : isActive ? (
+                  <Button
+                    size="sm"
+                    onClick={() => handleComplete(course.id)}
+                    disabled={!canComplete || completingId === course.id}
+                  >
+                    {completingId === course.id ? (
+                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                    ) : null}
+                    {canComplete ? t("rehab.complete") : t("rehab.pleaseRead")}
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={() => handleStart(course.id, course.min_reading_sec)}>
+                    {t("rehab.startLearning")}
+                  </Button>
+                )}
+              </CourseCard>
             );
           })}
         </div>

@@ -42,13 +42,16 @@ func (s *HotRankService) WithIPStatsService(ipStatsSvc *IPStatsService) *HotRank
 	return s
 }
 
-func (s *HotRankService) Run() {
+func (s *HotRankService) Run(stop ...<-chan struct{}) {
 	if s.cfg == nil || !s.cfg.Enabled {
 		slog.Info("[hot_rank] recommendation engine disabled, skipping")
 		return
 	}
 
 	rankInterval := 10 * time.Minute
+	if s.cfg != nil && s.cfg.RankIntervalMin > 0 {
+		rankInterval = time.Duration(s.cfg.RankIntervalMin) * time.Minute
+	}
 	slog.Info("[hot_rank] starting hot rank update", "interval", rankInterval)
 
 	s.runAll()
@@ -65,12 +68,20 @@ func (s *HotRankService) Run() {
 		slog.Info("[hot_rank] starting embedding gap fill every 1m")
 	}
 
+	var stopCh <-chan struct{}
+	if len(stop) > 0 {
+		stopCh = stop[0]
+	}
+
 	for {
 		select {
 		case <-rankTicker.C:
 			s.runAll()
 		case <-embedCh:
 			s.fillEmbeddings()
+		case <-stopCh:
+			slog.Info("[hot_rank] received stop signal, shutting down")
+			return
 		}
 	}
 }

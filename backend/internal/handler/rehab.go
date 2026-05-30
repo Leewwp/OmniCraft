@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -26,7 +27,7 @@ func (h *RehabHandler) ListCourses(c *gin.Context) {
 	locale := c.DefaultQuery("locale", "zh")
 	courses, err := h.rehabSvc.GetAvailableCourses(userID, locale)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"courses": courses})
@@ -45,7 +46,7 @@ func (h *RehabHandler) GetCourse(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"code": "COURSE_NOT_FOUND", "message": "course not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"course": course})
@@ -69,7 +70,7 @@ func (h *RehabHandler) CompleteCourse(c *gin.Context) {
 		case service.ErrReadingTooShort:
 			c.JSON(http.StatusTooEarly, gin.H{"code": "READING_TIME_TOO_SHORT", "message": "minimum reading time has not elapsed"})
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		}
 		return
 	}
@@ -90,7 +91,7 @@ func (h *RehabHandler) StartCourse(c *gin.Context) {
 		case service.ErrAlreadyCompleted:
 			c.JSON(http.StatusConflict, gin.H{"code": "ALREADY_COMPLETED", "message": "course already completed"})
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		}
 		return
 	}
@@ -101,7 +102,7 @@ func (h *RehabHandler) GetMyProgress(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	courses, err := h.rehabSvc.GetMyProgress(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"courses": courses})

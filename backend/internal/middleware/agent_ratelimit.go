@@ -38,7 +38,11 @@ func AgentRateLimit(rdb *redis.Client, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 		if count == 1 {
-			rdb.Expire(ctx, key, 25*time.Hour)
+			agentWindowTTL := 25 * time.Hour
+			if cfg.RateLimit.AgentWindowSec > 0 {
+				agentWindowTTL = time.Duration(cfg.RateLimit.AgentWindowSec) * time.Second
+			}
+			rdb.Expire(ctx, key, agentWindowTTL)
 		}
 		if int(count) > limit {
 			c.JSON(http.StatusTooManyRequests, gin.H{

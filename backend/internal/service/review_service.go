@@ -224,7 +224,7 @@ func (s *ReviewService) applyRepeatViolationPenalty(ctx context.Context, authorI
 	}
 
 	// Apply extra penalty when the threshold is first reached.
-	if count != int64(threshold) {
+	if count < int64(threshold) {
 		return nil
 	}
 
@@ -236,7 +236,11 @@ func (s *ReviewService) applyRepeatViolationPenalty(ctx context.Context, authorI
 
 	if s.rdb != nil {
 		freezeKey := buildPublishFreezeKey(authorID)
-		if err := s.rdb.Set(ctx, freezeKey, "1", 7*24*time.Hour).Err(); err != nil {
+		freezeTTL := 7 * 24 * time.Hour
+		if s.cfg != nil && s.cfg.Cache.PublishFreezeTTL > 0 {
+			freezeTTL = time.Duration(s.cfg.Cache.PublishFreezeTTL) * time.Second
+		}
+		if err := s.rdb.Set(ctx, freezeKey, "1", freezeTTL).Err(); err != nil {
 			return err
 		}
 	}

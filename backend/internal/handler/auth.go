@@ -12,7 +12,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 )
@@ -21,16 +23,17 @@ type AuthHandler struct {
 	authService *service.AuthService
 	userRepo    *repository.UserRepository
 	rdb         *redis.Client
+	cfg         *config.Config
 }
 
-func NewAuthHandler(authService *service.AuthService, userRepo *repository.UserRepository, rdb *redis.Client) *AuthHandler {
-	return &AuthHandler{authService: authService, userRepo: userRepo, rdb: rdb}
+func NewAuthHandler(authService *service.AuthService, userRepo *repository.UserRepository, rdb *redis.Client, cfg *config.Config) *AuthHandler {
+	return &AuthHandler{authService: authService, userRepo: userRepo, rdb: rdb, cfg: cfg}
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
 	var input service.RegisterInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 
@@ -40,7 +43,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"code": "USER_EXISTS", "message": "email already registered"})
 			return
 		}
-		if err.Error() == "username already taken" {
+		if errors.Is(err, service.ErrUsernameTaken) {
 			c.JSON(http.StatusConflict, gin.H{"code": "USERNAME_TAKEN", "message": "username already taken"})
 			return
 		}
@@ -58,7 +61,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var input service.LoginInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 
@@ -108,7 +111,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		RefreshToken string `json:"refresh_token" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 
@@ -161,8 +164,12 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 	token := hex.EncodeToString(tokenBytes)
 
 	ctx := context.Background()
-	key := "reset_token:" + token
-	if err := h.rdb.Set(ctx, key, user.ID, time.Hour).Err(); err != nil {
+	key := "reset:token:" + token
+	ttl := time.Hour
+	if h.cfg != nil && h.cfg.Cache.EmailVerifyTTL > 0 {
+		ttl = time.Duration(h.cfg.Cache.EmailVerifyTTL) * time.Second
+	}
+	if err := h.rdb.Set(ctx, key, user.ID, ttl).Err(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to store reset token"})
 		return
 	}
@@ -181,7 +188,7 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	}
 
 	ctx := context.Background()
-	key := "reset_token:" + body.Token
+	key := "reset:token:" + body.Token
 	userID, err := h.rdb.Get(ctx, key).Int64()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_TOKEN", "message": "invalid or expired reset token"})
@@ -207,7 +214,7 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 	}
 
 	ctx := context.Background()
-	key := "verify_email:" + body.Token
+	key := "verify:email:" + body.Token
 	userID, err := h.rdb.Get(ctx, key).Int64()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_TOKEN", "message": "invalid or expired verification token"})
@@ -250,8 +257,12 @@ func (h *AuthHandler) SendVerificationEmail(c *gin.Context) {
 	token := hex.EncodeToString(tokenBytes)
 
 	ctx := context.Background()
-	key := "verify_email:" + token
-	if err := h.rdb.Set(ctx, key, userID, 24*time.Hour).Err(); err != nil {
+	key := "verify:email:" + token
+	ttl := 24 * time.Hour
+	if h.cfg != nil && h.cfg.Cache.PasswordResetTTL > 0 {
+		ttl = time.Duration(h.cfg.Cache.PasswordResetTTL) * time.Second
+	}
+	if err := h.rdb.Set(ctx, key, userID, ttl).Err(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to store token"})
 		return
 	}

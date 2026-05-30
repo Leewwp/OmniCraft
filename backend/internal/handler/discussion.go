@@ -6,6 +6,7 @@ import (
 
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 
 	"github.com/gin-gonic/gin"
@@ -34,7 +35,7 @@ func (h *DiscussionHandler) ListDiscussions(c *gin.Context) {
 
 	discussions, total, err := h.discRepo.ListByIP(ipID, sort, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"discussions": discussions, "total": total})
@@ -49,7 +50,7 @@ func (h *DiscussionHandler) CreateDiscussion(c *gin.Context) {
 		Body  string `json:"body" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 
@@ -60,7 +61,7 @@ func (h *DiscussionHandler) CreateDiscussion(c *gin.Context) {
 		Body:     body.Body,
 	}
 	if err := h.discRepo.Create(d); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"discussion": d})
@@ -79,7 +80,7 @@ func (h *DiscussionHandler) GetDiscussion(c *gin.Context) {
 
 	comments, total, err := h.socialRepo.ListCommentsByTarget("discussion", id, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"discussion": d, "comments": comments, "total": total})
@@ -94,7 +95,7 @@ func (h *DiscussionHandler) ReplyToDiscussion(c *gin.Context) {
 		ParentID *int64 `json:"parent_id"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 
@@ -107,7 +108,7 @@ func (h *DiscussionHandler) ReplyToDiscussion(c *gin.Context) {
 		ParentID:     body.ParentID,
 	}
 	if err := h.socialRepo.CreateComment(comment); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	h.discRepo.IncrementReplyCount(discID)
@@ -170,7 +171,7 @@ func (h *DiscussionHandler) ListByUser(c *gin.Context) {
 
 	discussions, total, err := h.discRepo.ListByUser(userID, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"discussions": discussions, "total": total})

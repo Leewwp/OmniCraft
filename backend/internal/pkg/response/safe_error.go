@@ -57,8 +57,18 @@ func SafeErrorResponse(c *gin.Context, status int, code string, err error) {
 }
 
 var safeMessages = map[string]string{
-	"DB_ERROR":           "database operation failed, please try again later",
-	"INTERNAL_ERROR":     "an unexpected error occurred, please try again later",
-	"OSS_NOT_CONFIGURED": "file storage is not configured",
-	"TEST_FAILED":        "connection test failed",
+	"DB_ERROR":                 "database operation failed, please try again later",
+	"INTERNAL_ERROR":           "an unexpected error occurred, please try again later",
+	"OSS_NOT_CONFIGURED":       "file storage is not configured",
+	"TEST_FAILED":              "connection test failed",
+	"AGENT_ERROR":              "agent service unavailable",
+	"VALIDATION_ERROR":         "invalid request parameters",
+	"INVALID_BODY":             "invalid request body",
+	"INVALID_SOURCE_ORIGINAL":  "invalid source original content",
+	"PUBLISH_FROZEN":           "publishing is temporarily frozen",
+	"LOW_REPUTATION":           "reputation score too low to perform this action",
+	"BLOCKED":                  "you have been blocked from this action",
+	"CONFLICT":                 "resource conflict",
+	"ERROR":                    "an error occurred, please try again later",
+	"CONTENT_NOT_FOUND":        "content not found",
 }

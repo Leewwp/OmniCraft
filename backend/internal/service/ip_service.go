@@ -96,7 +96,7 @@ func (s *IPService) submitIPForAIReview(ip *model.IP, creatorID int64) {
 		return
 	}
 	if _, ok := s.queueProducer.(*queue.NoopProducer); !ok && s.queueProducer != nil {
-		go func() {
+		recovery.GoSafe(func() {
 			payload, _ := json.Marshal(map[string]interface{}{
 				"action":       "submit_ai_review",
 				"target_type":  "ip",
@@ -108,7 +108,7 @@ func (s *IPService) submitIPForAIReview(ip *model.IP, creatorID int64) {
 			if err := s.queueProducer.Publish(context.Background(), "ip.review", payload); err != nil {
 				slog.Error("failed to publish ip.review message", "ip_id", ip.ID, "error", err)
 			}
-		}()
+		})
 	} else {
 		recovery.GoSafe(func() {
 			err := s.reviewSvc.SubmitForAIReview(context.Background(), SubmitReviewInput{

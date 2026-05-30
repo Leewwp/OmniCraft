@@ -2932,7 +2932,7 @@
         "全局 grep 验证：grep -r 'err.Error()' backend/internal/handler/ 返回 0 结果（或仅剩 SafeErrorResponse 内部使用）",
         "验证：go build ./... 无错误；go vet ./... 无警告"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 152,
@@ -2949,7 +2949,7 @@
         "修复 review_service.go:227 的 count != threshold bug → count >= threshold",
         "验证：信誉分 < 3 用户 POST /contents 返回 403；加分/扣分规则可正确触发；重复举报不重复加分"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 153,
@@ -2962,22 +2962,24 @@
         "修改 routes.go：将 agent.POST('/usage-guide/:id') 改为 agent.GET('/usage-guide/:id')，同时保留对 ?stream=true 参数的 SSE 支持",
         "验证：Redis宕机时封禁用户请求返回 401；DB fallback 正确工作；GET /agent/usage-guide/:id 可用"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 154,
       "depends_on": [],
-      "title": "数据库：Schema 修复 — Comment 缺失列 + PreferredLocale 默认值 + 索引补全",
-      "description": "Comment 模型有 4 个字段无迁移（target_type, target_id, content, updated_at）；users.preferred_locale 默认值 model 'zh' 与 migration 'zh-CN' 不一致；follows/content_items 缺少关键复合索引；search_repo.go 有 SQL 注入漏洞",
+      "title": "数据库：Schema 修复 — Comment 缺失列 + PreferredLocale 默认值 + 索引补全 + 字段类型对齐",
+      "description": "Comment 模型有 4 个字段无迁移（target_type, target_id, content, updated_at）；users.preferred_locale 默认值 model 'zh' 与 migration 'zh-CN' 不一致；users.avatar_url 类型不一致（migration TEXT vs model VARCHAR(2048)）；users.support_info 缺少 NOT NULL 约束；follows/content_items 缺少关键复合索引；search_repo.go 有 SQL 注入漏洞",
       "steps": [
         "创建 migrations/043_comment_columns.sql：ALTER TABLE comments ADD COLUMN IF NOT EXISTS target_type VARCHAR(20); ADD COLUMN IF NOT EXISTS content TEXT; ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(); ADD COLUMN IF NOT EXISTS target_id BIGINT; CREATE INDEX IF NOT EXISTS idx_comments_target ON comments(target_type, target_id)",
         "创建 migrations/044_indexes_and_fixes.sql：CREATE INDEX IF NOT EXISTS idx_follows_target_created ON follows(target_type, target_id, created_at DESC); CREATE INDEX IF NOT EXISTS idx_content_items_zone_status ON content_items(zone, status); CREATE INDEX IF NOT EXISTS idx_browse_history_user_viewed ON browse_history(user_id, viewed_at DESC); CREATE INDEX IF NOT EXISTS idx_reactions_user_type ON reactions(user_id, target_type, reaction)",
         "修改 model/user.go：将 PreferredLocale 的 gorm tag 从 default:'zh' 改为 default:'zh-CN' 与 migration 一致",
         "修改 repository/search_repo.go SearchContents 函数：将 zone/category/contentType 字符串拼接改为参数化查询（使用 placeholders ? 和 args[]）",
         "修改 repository/search_repo.go SearchContents 函数：将 N+1 Author 加载（循环 db.Where）改为 Preload 或 BatchGetByIDs",
-        "验证：所有 migration 可顺序执行无错误；preferred_locale 新注册用户默认 'zh-CN'；search/search?q=测试 不再存在 SQL 注入风险"
+        "创建 migrations/046_user_schema_alignment.sql：ALTER TABLE users ALTER COLUMN avatar_url TYPE TEXT; ALTER TABLE users ALTER COLUMN support_info SET NOT NULL; （对齐 model 与 migration 的 avatar_url 类型为 TEXT，补全 support_info NOT NULL 约束）",
+        "修改 model/user.go：将 User.AvatarURL 的 gorm tag 从 size:2048 改为 type:text 与 migration 对齐；将 User.SupportInfo 的 gorm tag 添加 not null 约束",
+        "验证：所有 migration 可顺序执行无错误；preferred_locale 新注册用户默认 'zh-CN'；avatar_url 类型对齐为 TEXT；support_info 字段有 NOT NULL 约束；search/search?q=测试 不再存在 SQL 注入风险"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 155,
@@ -2991,7 +2993,7 @@
         "修改 recommendation_service.go buildUserProfile 函数：在加权平均后添加 L2 归一化（计算向量模长，除以模长使 ||profile|| = 1）",
         "验证：中文搜索 '游戏' 能匹配标题包含 '游戏攻略' 的内容；修改 tag 后 search_vector 正确更新；推荐引擎 L2 归一化后余弦相似度计算更准确"
       ],
-      "passes": null
+      "passes": true
     },
     {
       "id": 156,
@@ -3058,6 +3060,153 @@
         "检查所有 migration 043-045 可顺序执行无错误",
         "检查 Redis ZSet key 设置了合理 TTL",
         "浏览器测试：注册 → 登录 → 发布内容 → 搜索 → 点赞 → 检查信誉分变动全流程正常"
+      ],
+      "passes": null
+    },
+    {
+      "id": 160,
+      "depends_on": [],
+      "title": "后端：配置结构补全 — AgentConfig/PublishConfig struct + .env.example 补全",
+      "description": "代码审查发现 AgentConfig struct 在 config.go 中声明但类型定义不存在，导致编译阻塞（D1）；PublishConfig 无 Go struct 导致 config.yaml publish 块静默丢弃（D2）；.env.example 缺少 7 个环境变量示例条目（D7）；Redis DB 无 env var 覆盖（D15）；agent.embedding_model/embedding_dimensions 为孤儿字段（D16）",
+      "steps": [
+        "验证 config/config.go 中 AgentConfig struct 是否存在：若不存在则创建，包含 WebAgentEnabled bool、LLMAPIKey string（json:\"-\"）、LLMProvider string、LLMModel string、LLMAPIBase string、HMACSecret string（json:\"-\"）、EmbeddingModel string、EmbeddingDimensions int、RateLimitPerDay int 等字段，确保与 config.yaml agent 节对应",
+        "验证 config/config.go 中 PublishConfig struct 是否存在：若不存在则创建，包含 TypeOrderOriginal string、TypeOrderFanwork string 等字段，与 config.yaml publish 节对应（参考 CLAUDE.md 发布频率排序要求）",
+        "若 QueueConfig 的 WorkerCount 字段与 config.yaml 结构不匹配（嵌套 map vs 平铺字段），修复对齐：将 WorkerReview/WorkerNotif/WorkerEmbedding/WorkerCount 映射改为支持 config.yaml 嵌套 mapstructure 或改 config.yaml 为平铺 key",
+        "修改 config.go overrideFromEnv() 或初始化逻辑：添加 REDIS_DB、AGENT_LLM_API_KEY、AGENT_LLM_PROVIDER、AGENT_LLM_MODEL、AGENT_LLM_API_BASE、AGENT_HMAC_SECRET、GREEN_CALLBACK_URL、GREEN_CALLBACK_ALLOWED_IPS 共 8 个环境变量覆盖",
+        "补充 .env.example：添加 AGENT_LLM_API_KEY、AGENT_LLM_PROVIDER、AGENT_LLM_MODEL、AGENT_LLM_API_BASE、AGENT_HMAC_SECRET、GREEN_CALLBACK_URL、GREEN_CALLBACK_ALLOWED_IPS、REDIS_DB 示例条目及注释",
+        "验证：go build ./... 无错误；go vet ./... 无警告；config.yaml 中所有配置节（含 agent、publish、queue）均能正确加载到对应 struct"
+      ],
+      "passes": null
+    },
+    {
+      "id": 161,
+      "depends_on": [],
+      "title": "后端：Redis key 规范化 + 推荐引擎硬编码参数配置化",
+      "description": "7 处 Redis key 命名不规范（混用 _ 和 :）；推荐引擎 topK×2 硬编码乘数和 10min 排行刷新间隔未配置化（R1, R2, D10, D11）",
+      "steps": [
+        "修改 7 处 Redis key 命名：reset_token:{token} → reset:token:{token}、verify_email:{token} → verify:email:{token}、publish_freeze:{userID} → publish:freeze:{userID}、tag_suggest:{uid}:{cid}:{date} → tag:suggest:{uid}:{cid}:{date}、ip_category_counts → ip:category:counts、rank:download_counts → rank:download:counts、agent:rl:{uid}:{date} → agent:ratelimit:{uid}:{date}",
+        "修改 recommendation_service.go：将硬编码 topK*2 乘数移至 RecommendationConfig.EmbeddingOversampleFactor（默认值 2），从 config.yaml recommendation 节读取",
+        "修改 hot_rank_service.go：将硬编码 rankInterval = 10 * time.Minute 改为从 RecommendationConfig.RankIntervalMin（默认 10）读取",
+        "在 config.yaml recommendation 节中添加 embedding_oversample_factor: 2 和 rank_interval_min: 10 配置项",
+        "在 RecommendationConfig struct 中添加 EmbeddingOversampleFactor int 和 RankIntervalMin int 字段及 mapstructure tag",
+        "验证：grep 搜索代码确认无残留的旧 Redis key 命名；config.yaml 中 recommendation 节包含新配置项；hot rank 刷新间隔可从配置修改"
+      ],
+      "passes": null
+    },
+    {
+      "id": 162,
+      "depends_on": [],
+      "title": "基础设施：Docker/Nginx 加固 + SSL 证书配置",
+      "description": "Docker Compose 缺少 pgbouncer/backend/frontend/nginx 健康检查（D5 部分已在 Task 157 补了 backend/frontend/nginx，pgbouncer 未补）；SSL 证书未挂载导致 nginx 无法启动（D5）；nginx 无 rate limiting（D6）；容器无 CPU/内存限制（D11）；backend→pgbouncer 仅 service_started 非 service_healthy（D12）；http2 on; 弃用语法（D13）；upstream 无 max_fails/fail_timeout（D14）",
+      "steps": [
+        "修改 docker-compose.yml：为 pgbouncer 添加健康检查 healthcheck: test: pg_isready -h 127.0.0.1 -p 5432，interval 10s，retries 5",
+        "修改 docker-compose.yml：backend→pgbouncer depends_on 从 condition: service_started 改为 condition: service_healthy",
+        "修改 docker-compose.yml：为 postgres、redis、backend、frontend 服务添加 deploy.resources.limits 内存限制（postgres 2GB、redis 512MB、backend 1GB、frontend 512MB）",
+        "修改 nginx/nginx.conf：将弃用的 http2 on; 改为 listen 443 ssl http2;（合并到 listen 指令）",
+        "修改 nginx/nginx.conf：在 upstream backend 和 upstream frontend 中添加 max_fails=3 fail_timeout=30s",
+        "修改 nginx/nginx.conf：添加 rate limiting 配置 limit_req_zone $binary_remote_addr zone=api_limit:10m rate=30r/s; 在 /api/ location 中应用 limit_req zone=api_limit burst=50 nodelay;",
+        "修改 docker-compose.yml：为 nginx 服务添加 SSL 证书卷挂载 ./nginx/certs:/etc/letsencrypt:ro；创建 nginx/certs 目录并添加 README.md 说明证书放置方式；添加 develop 模式下可禁用 SSL 的配置说明",
+        "验证：docker compose config 验证 YAML 格式正确；nginx -t 验证配置语法正确；SSL 相关配置有开发模式兜底（证书缺失时不阻塞启动）"
+      ],
+      "passes": null
+    },
+    {
+      "id": 163,
+      "depends_on": [
+        154
+      ],
+      "title": "数据库：pg_trgm GIN 索引 + 计算列排序优化",
+      "description": "DB 审查发现 users/tags/content_items 的 ILIKE 查询缺少 pg_trgm GIN 索引（D8）；content_repo.go 中 ORDER BY (view_count + like_count * 3) 和 ORDER BY (like_count::float / NULLIF(...)) 计算列排序无法使用索引，大数据量退化为全表扫描（D9）",
+      "steps": [
+        "安装 pg_trgm 扩展：创建 migrations/047_pg_trgm_indexes.sql，包含 CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE INDEX IF NOT EXISTS idx_users_username_trgm ON users USING gin (username gin_trgm_ops); CREATE INDEX IF NOT EXISTS idx_tags_name_trgm ON tags USING gin (name gin_trgm_ops); CREATE INDEX IF NOT EXISTS idx_content_items_title_trgm ON content_items USING gin (title gin_trgm_ops);",
+        "创建 migrations/048_computed_columns.sql：为 content_items 添加物化排序列 popularity_score NUMERIC 和 hot_score NUMERIC；添加触发器或定时任务更新这两个列：popularity_score = like_count * 3 + view_count；hot_score = like_count::float / NULLIF(like_count + dislike_count, 0)；在排序查询中使用 ORDER BY popularity_score DESC 或 hot_score DESC 替代计算公式",
+        "修改 repository/content_repo.go：将 ORDER BY (view_count + like_count * 3) DESC 替换为 ORDER BY popularity_score DESC；将 ORDER BY (like_count::float / NULLIF(like_count + dislike_count, 0)) DESC 替换为 ORDER BY hot_score DESC",
+        "验证：migration 047-048 可顺序执行无错误；ILIKE 查询使用 pg_trgm 索引（EXPLAIN ANALYZE 确认）；热门内容列表排序使用新建的物化列"
+      ],
+      "passes": null
+    },
+    {
+      "id": 164,
+      "depends_on": [],
+      "title": "后端：CSRF rand.Read 检查 + Agent ChatStream 孤立记录清理 + 维度不匹配日志",
+      "description": "csrf.go:82 的 rand.Read 返回值未检查（S1）；Agent ChatStream 失败后残留孤立 conversation 和 message 记录（R4）；推荐引擎 buildUserProfile 维度不匹配静默跳过无 slog.Warn（R3）",
+      "steps": [
+        "修改 middleware/csrf.go：在 crypto/rand.Read 调用后添加返回值检查，若 n != len(bytes) 或 err != nil 则 panic（CSRF token 生成失败属于不可恢复错误）",
+        "修改 service/agent_service.go ChatStream 函数：在 LLM 调用失败时，删除已持久化的 conversation 和 message 记录（使用事务回滚或显式 DELETE）；添加错误日志记录孤立记录清理",
+        "修改 service/recommendation_service.go buildUserProfile 函数：当 content_embeddings 向量维度与 profile 维度不匹配被跳过时，添加 slog.Warn 日志（包含期望维度、实际维度、content_id 等信息）",
+        "验证：go build ./... 无错误；go vet ./... 无警告；rand.Read 失败时产生明确 panic 而非静默返回空 token"
+      ],
+      "passes": null
+    },
+    {
+      "id": 165,
+      "depends_on": [],
+      "title": "前端：Rehab 子组件提取 + FollowerAnalytics 命名对齐 + console 清理",
+      "description": "architecture.md §3.1 要求的 CourseCard.tsx/CourseContent.tsx/ReputationDetail.tsx 缺失（功能内联在 rehab/page.tsx 中）；FollowerAnalytics.tsx 不存在（已拆分为 FollowerTrendChart + FollowerSourceChart）；HomePageClient.tsx 有 4 处 console.error（F3）",
+      "steps": [
+        "从 rehab/page.tsx 中提取课程卡片逻辑到 components/rehab/CourseCard.tsx：封装课程名称、描述、进度条、开始/继续按钮",
+        "从 rehab/page.tsx 中提取课程内容展示逻辑到 components/rehab/CourseContent.tsx：封装课程阅读内容、计时器、完成按钮",
+        "从 rehab/page.tsx 中提取信誉分详情展示逻辑到 components/rehab/ReputationDetail.tsx：封装信誉分变动历史列表、当前分数展示",
+        "更新 architecture.md §3.1 组件树：将 FollowerAnalytics.tsx 替换为 FollowerTrendChart.tsx + FollowerSourceChart.tsx",
+        "修改 components/home/HomePageClient.tsx：将 4 处 console.error 替换为统一的 silentError() helper 或直接移除（保留错误处理逻辑，仅移除 console 输出）",
+        "在 components/rehab/ 目录创建 silentError.ts helper（若不存在），导出 silentError 函数用于静默记录错误",
+        "验证：npm run build 无错误；npm run lint 无警告；rehab/page.tsx 页面功能不受影响；无 console.error 残留（grep 验证）"
+      ],
+      "passes": null
+    },
+    {
+      "id": 166,
+      "depends_on": [],
+      "title": "后端：E2E 残留 API 修复 — reactions 端点 + my/contents 路由 + stats NULL 处理",
+      "description": "E2E 测试发现 3 个 API 问题：GET /api/v1/social/reactions 返回 404（E1）；GET /api/v1/my/contents 返回 404（E2）；GET /api/v1/stats/summary 对含 NULL deleted_at 的记录返回 500（E3）",
+      "steps": [
+        "修改 routes.go：将 GET social/reactions 端点注册为公开列表端点（OptionalAuth），与 GET /social/comments 列表端点对齐；若 handler 不存在则实现 GetReactions handler",
+        "修改 routes.go：将 GET /my/contents 端点路由修正为正确路径（当前路由可能是 GET /users/me/contents 或 GET /dashboard/contents），确认前端调用的路径与后端注册路径一致；若路径不一致，添加 301 重定向或修正前端 API 调用",
+        "修改 service/stats_service.go 或对应 repository：在统计查询中过滤 deleted_at IS NULL 条件，避免 NULL 值导致的 500 错误；对 COALESCE 或 LEFT JOIN 中可能为 NULL 的列使用 COALESCE(col, 0) 处理",
+        "验证：curl GET /api/v1/social/reactions 返回 200 或空列表；curl GET /api/v1/my/contents（需登录）返回 200 或空列表；curl GET /api/v1/stats/summary 返回 200 含统计数据"
+      ],
+      "passes": null
+    },
+    {
+      "id": 167,
+      "depends_on": [],
+      "title": "数据库迁移注释补充（Admin queue 路由已注册✓）",
+      "description": "migration 033/034 缺少依赖注释（依赖 011 创建的表，A1）；Task 150 创建的 Admin queue 端点已在 routes.go 中注册（A2 已完成）",
+      "steps": [
+        "修改 backend/migrations/033_follows.sql：在文件头部添加注释 -- NOTE: follows table is created in migration 011_social.sql; this migration adds CHECK constraints only",
+        "修改 backend/migrations/034_appeals.sql：在文件头部添加注释 -- NOTE: appeals table is created in migration 011_social.sql; this migration adds CHECK constraints only",
+        "验证：所有 migration 文件头部的依赖注释完整"
+      ],
+      "passes": null
+    },
+    {
+      "id": 168,
+      "depends_on": [
+        156,
+        157,
+        160,
+        161,
+        162,
+        163,
+        164,
+        165,
+        166,
+        167
+      ],
+      "title": "集成验证：第二轮审查修复全流程回归测试",
+      "description": "对 Task 156-167 的所有修复进行集成回归测试，确保无回归并覆盖全部审查问题",
+      "steps": [
+        "运行 go build ./... 和 go vet ./... 确保零错误零警告",
+        "运行 npm run build 和 npm run lint 确保前端零错误",
+        "curl 验证：AgentConfig 和 PublishConfig 配置正确加载（GET /api/v1/admin/config 返回含 agent/publish 节的脱敏配置）",
+        "curl 验证：Redis key 命名已统一为冒号分隔（grep 验证无残留旧命名）",
+        "curl 验证：pg_trgm 索引已创建（\\di idx_users_username_trgm 验证）",
+        "curl 验证：GET /api/v1/social/reactions 返回 200；GET /api/v1/my/contents 返回 200",
+        "curl 验证：GET /api/v1/stats/summary 不再 500（NULL 处理正确）",
+        "Docker compose config 验证：所有健康检查和资源限制配置正确",
+        "nginx -t 验证：配置含 rate limiting 和 upstream max_fails 无语法错误",
+        "浏览器测试：注册 → 登录 → 发布 → 搜索中文关键词 → 信誉分变动 → 素质课程 → Admin 配置页全流程正常",
+        "迁移验证：所有 migration 043-048 可从空数据库顺序执行无错误"
       ],
       "passes": null
     }

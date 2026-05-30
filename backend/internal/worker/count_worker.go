@@ -40,7 +40,7 @@ func (w *CountWorker) Handle(ctx context.Context, msg queue.Message) error {
 
 	switch payload.Action {
 	case "download":
-		key := "rank:download_counts"
+		key := "rank:download:counts"
 		member := fmt.Sprintf("%d", payload.ContentID)
 		if err := w.rdb.ZIncrBy(ctx, key, 1, member).Err(); err != nil {
 			slog.Error("count_worker: failed to increment download count",
@@ -48,7 +48,7 @@ func (w *CountWorker) Handle(ctx context.Context, msg queue.Message) error {
 			return err
 		}
 	case "view":
-		key := "rank:view_counts"
+		key := "rank:view:counts"
 		member := fmt.Sprintf("%d", payload.ContentID)
 		if err := w.rdb.ZIncrBy(ctx, key, 1, member).Err(); err != nil {
 			slog.Error("count_worker: failed to increment view count",

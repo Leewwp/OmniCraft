@@ -11,6 +11,7 @@ import (
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/pkg/queue"
+	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
@@ -61,13 +62,13 @@ func (h *AgentHandler) UploadAssist(c *gin.Context) {
 		ContentType string `json:"content_type"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
 	callerID := middleware.GetUserID(c)
 	result, err := h.agentSvc.UploadAssist(c.Request.Context(), callerID, body.Title, body.Description, body.Filename, body.ContentType)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "AGENT_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, result)
@@ -84,12 +85,12 @@ func (h *AgentHandler) ComplianceCheck(c *gin.Context) {
 		ContentType string `json:"content_type"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
 	result, err := h.agentSvc.ComplianceCheck(c.Request.Context(), body.Title, body.Description, body.ContentType)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "AGENT_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, result)
@@ -104,12 +105,12 @@ func (h *AgentHandler) NLSearch(c *gin.Context) {
 		Query string `json:"query" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
 	results, err := h.agentSvc.NLSearch(c.Request.Context(), body.Query)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "AGENT_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"results": results})
@@ -141,14 +142,14 @@ func (h *AgentHandler) UsageGuide(c *gin.Context) {
 			return nil
 		})
 		if err != nil {
-			c.SSEvent("error", gin.H{"message": err.Error()})
+			c.SSEvent("error", gin.H{"message": "service error"})
 		}
 		return
 	}
 
 	result, err := h.agentSvc.UsageGuide(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "AGENT_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, result)
@@ -162,7 +163,7 @@ func (h *AgentHandler) Moderate(c *gin.Context) {
 	}
 	result, err := h.agentSvc.Moderate(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "AGENT_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, result)
@@ -177,10 +178,10 @@ func (h *AgentHandler) GenerateDeployScript(c *gin.Context) {
 	result, err := h.agentSvc.GenerateDeployScript(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, service.ErrAgentDisabled) {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": err.Error()})
+			response.SafeErrorResponse(c, http.StatusServiceUnavailable, "FEATURE_DISABLED", err)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "AGENT_ERROR", "message": err.Error()})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
 		return
 	}
 	c.JSON(http.StatusOK, result)
@@ -196,7 +197,7 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		Messages []llm.ChatMessage `json:"messages" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": err.Error()})
+		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 
@@ -214,7 +215,7 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		return nil
 	})
 	if err != nil {
-		c.SSEvent("error", gin.H{"message": err.Error()})
+		c.SSEvent("error", gin.H{"message": "service error"})
 	}
 }
 

@@ -94,18 +94,23 @@ func (r *SearchRepository) SearchContents(query string, zone, category, contentT
 	var results []ContentSearchResult
 	if query != "" {
 		tsQuery := toTSQuery(query)
-		args := []interface{}{tsQuery, query, tsQuery, pageSize, offset}
+		args := []interface{}{tsQuery, query, tsQuery}
 		whereClause := "content_items.status = 'published' AND content_items.deleted_at IS NULL AND content_items.search_vector @@ to_tsquery('simple', ?)"
 		filterClause := ""
 		if zone != "" {
-			filterClause += " AND content_items.zone = '" + zone + "'"
+			filterClause += " AND content_items.zone = ?"
+			args = append(args, zone)
 		}
 		if category != "" {
-			filterClause += " AND content_items.category = '" + category + "'"
+			filterClause += " AND content_items.category = ?"
+			args = append(args, category)
 		}
 		if contentType != "" {
-			filterClause += " AND content_items.content_type = '" + contentType + "'"
+			filterClause += " AND content_items.content_type = ?"
+			args = append(args, contentType)
 		}
+
+		args = append(args, pageSize, offset)
 
 		sql := `SELECT content_items.*, 
 			ts_rank_cd(content_items.search_vector, to_tsquery('simple', ?)) AS score,
@@ -120,9 +125,24 @@ func (r *SearchRepository) SearchContents(query string, zone, category, contentT
 			return nil, 0, err
 		}
 
-		// Load authors separately
-		for i := range results {
-			r.db.Where("id = ?", results[i].AuthorID).First(&results[i].Author)
+		authorIDs := make([]int64, 0, len(results))
+		for _, res := range results {
+			if res.AuthorID != 0 {
+				authorIDs = append(authorIDs, res.AuthorID)
+			}
+		}
+		if len(authorIDs) > 0 {
+			var authors []model.User
+			r.db.Where("id IN ?", authorIDs).Find(&authors)
+			authorMap := make(map[int64]model.User, len(authors))
+			for _, a := range authors {
+				authorMap[a.ID] = a
+			}
+			for i := range results {
+				if a, ok := authorMap[results[i].AuthorID]; ok {
+					results[i].Author = a
+				}
+			}
 		}
 	} else {
 		switch sort {

@@ -40,7 +40,7 @@ func (s *StatsService) GetSummary(ctx context.Context) (StatsSummary, error) {
 	}
 
 	var summary StatsSummary
-	if err := s.db.WithContext(ctx).Table("users").Where("deleted_at IS NULL").Count(&summary.Users).Error; err != nil {
+	if err := s.db.WithContext(ctx).Table("users").Where("deleted_at IS NULL AND is_banned = false").Count(&summary.Users).Error; err != nil {
 		return summary, fmt.Errorf("count users: %w", err)
 	}
 	if err := s.db.WithContext(ctx).Table("ips").Where("status = ?", "published").Count(&summary.IPs).Error; err != nil {

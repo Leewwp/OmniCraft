@@ -79,7 +79,10 @@ func GetCSRFToken(c *gin.Context) string {
 
 func generateCSRFToken() string {
 	b := make([]byte, csrfTokenLength)
-	rand.Read(b)
+	n, err := rand.Read(b)
+	if err != nil || n != csrfTokenLength {
+		panic("csrf: failed to generate random bytes")
+	}
 	return hex.EncodeToString(b)
 }
 
