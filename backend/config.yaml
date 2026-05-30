@@ -111,6 +111,8 @@ cache:
   ip_list_ttl: 300
   ip_detail_ttl: 300
   view_count_flush_interval: 60
+  user_status_ttl: 300
+  publish_freeze_ttl: 604800
 
 queue:
   enabled: false

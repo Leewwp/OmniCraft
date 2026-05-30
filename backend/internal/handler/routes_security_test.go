@@ -10,9 +10,9 @@ import (
 func TestAgentRoutesUseAgentRateLimit(t *testing.T) {
 	source := readRoutesSource(t)
 
-	want := `agent := v1.Group("/agent", middleware.AuthRequired(cfg, rdb), middleware.AgentRateLimit(rdb, cfg))`
+	want := `agent := v1.Group("/agent", authReq, agentGuard, middleware.AgentRateLimit(rdb, cfg))`
 	if !strings.Contains(source, want) {
-		t.Fatalf("agent routes must include group-level AgentRateLimit")
+		t.Fatalf("agent routes must include group-level AgentRateLimit and agentGuard")
 	}
 }
 

@@ -201,12 +201,7 @@ func (h *AdminHandler) BanUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to ban user"})
 		return
 	}
-	user, _ := h.userRepo.FindByID(id)
-	role := ""
-	if user != nil {
-		role = user.Role
-	}
-	middleware.SetUserStatusCache(h.rdb, id, true, role)
+	middleware.InvalidateUserStatusCache(h.rdb, id)
 	c.JSON(http.StatusOK, gin.H{"message": "user banned"})
 }
 
@@ -220,12 +215,7 @@ func (h *AdminHandler) UnbanUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to unban user"})
 		return
 	}
-	user, _ := h.userRepo.FindByID(id)
-	role := ""
-	if user != nil {
-		role = user.Role
-	}
-	middleware.SetUserStatusCache(h.rdb, id, false, role)
+	middleware.InvalidateUserStatusCache(h.rdb, id)
 	c.JSON(http.StatusOK, gin.H{"message": "user unbanned"})
 }
 

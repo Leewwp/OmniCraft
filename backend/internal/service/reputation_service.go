@@ -3,19 +3,38 @@ package service
 import (
 	"omnicraft/backend/internal/model"
 
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
+
+	"omnicraft/backend/config"
 )
 
 type ReputationService struct {
-	db *gorm.DB
+	db    *gorm.DB
+	rdb   *redis.Client
+	cfg   *config.Config
+	cache *RuntimeStatusCache
 }
 
 func NewReputationService(db *gorm.DB) *ReputationService {
 	return &ReputationService{db: db}
 }
 
+func NewReputationServiceWithCache(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ReputationService {
+	return &ReputationService{
+		db:    db,
+		rdb:   rdb,
+		cfg:   cfg,
+		cache: NewRuntimeStatusCache(rdb, cfg),
+	}
+}
+
+func (s *ReputationService) SetCache(cache *RuntimeStatusCache) {
+	s.cache = cache
+}
+
 func (s *ReputationService) AddReputation(userID int64, delta int, reason string, relatedID *int64) error {
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	err := s.db.Transaction(func(tx *gorm.DB) error {
 		log := model.ReputationLog{
 			UserID:    userID,
 			Delta:     delta,
@@ -29,6 +48,10 @@ func (s *ReputationService) AddReputation(userID int64, delta int, reason string
 			Where("id = ?", userID).
 			UpdateColumn("reputation", gorm.Expr("reputation + ?", delta)).Error
 	})
+	if err == nil && s.cache != nil {
+		s.cache.Invalidate(userID)
+	}
+	return err
 }
 
 func (s *ReputationService) GetLogs(userID int64, page, pageSize int) ([]model.ReputationLog, int64, error) {

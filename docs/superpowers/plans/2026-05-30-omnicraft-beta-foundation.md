@@ -115,7 +115,7 @@ git commit -m "Beta F-01: capture public beta baseline - completed"
 - Create: `backend/internal/middleware/auth_test.go`
 - Create: `backend/internal/middleware/interaction_test.go`
 
-- [ ] **Step 1: Write failing middleware tests**
+- [x] **Step 1: Write failing middleware tests**
 
 Cover:
 
@@ -135,7 +135,7 @@ Expected HTTP `503` error envelope for unknown runtime status:
 {"code":"AUTH_STATUS_UNAVAILABLE","message":"account status is temporarily unavailable"}
 ```
 
-- [ ] **Step 2: Run the tests and verify failure**
+- [x] **Step 2: Run the tests and verify failure**
 
 Run:
 
@@ -146,7 +146,7 @@ go test ./internal/middleware -run "TestAuthRequired|TestInteractionRequired" -v
 
 Expected: `TestAuthRequiredRejectsWhenRedisAndDBCannotConfirmStatus` fails because current code falls back to JWT claims.
 
-- [ ] **Step 3: Implement strict runtime status resolution**
+- [x] **Step 3: Implement strict runtime status resolution**
 
 Use an explicit resolver in `backend/internal/service/runtime_status.go`:
 
@@ -182,7 +182,7 @@ Rules:
 - Do not use `reputation == 0` as a cache-miss sentinel. Zero is a valid score; cache lookups must distinguish missing keys from stored zero values.
 - If `cfg.Reputation.MinScoreForInteraction <= 0`, the interaction guard must fail safe with `503 CONFIG_ERROR` rather than falling back to a hardcoded threshold. A zero or negative value indicates a configuration error that must be fixed, not silently tolerated.
 
-- [ ] **Step 4: Add a shared interaction guard**
+- [x] **Step 4: Add a shared interaction guard**
 
 Create middleware configurable by required capabilities:
 
@@ -216,7 +216,7 @@ The complete list of policy groups for table-driven route tests is:
 
 Add table-driven route tests that exercise at least one endpoint from every policy group listed above. A middleware unit test alone is insufficient because the current defect includes incomplete route mounting.
 
-- [ ] **Step 5: Run focused and backend-wide tests**
+- [x] **Step 5: Run focused and backend-wide tests**
 
 ```powershell
 go test ./internal/middleware ./internal/handler ./internal/service -v
@@ -225,7 +225,7 @@ go vet ./...
 go build ./...
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add backend docs/superpowers/plans progress.txt

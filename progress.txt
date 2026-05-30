@@ -1,5 +1,35 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-31] - Beta F-02: Fail Closed And Centralize Interaction Eligibility
+
+### What was done:
+- Created `backend/internal/service/runtime_status.go`: RuntimeUserStatus struct, RuntimeStatusCache (Redis-backed with TTL from config), ResolveRuntimeUserStatus (cache → DB, fail-closed on both unavailable)
+- Rewrote `backend/internal/middleware/auth.go`: AuthRequired now uses ResolveRuntimeUserStatus instead of JWT claim fallback; returns 503 AUTH_STATUS_UNAVAILABLE when Redis+DB both fail, 401 USER_BANNED for banned users, 401 for not-found/deleted users; OptionalAuth downgrades to userID=0 (anonymous) when status cannot be confirmed
+- Created `backend/internal/middleware/interaction.go`: InteractionRequired middleware with configurable InteractionPolicy (RequireVerifiedEmail, RequireReputation, RequireNoPublishFreeze); checks email verification, reputation threshold (from config), and publish freeze (Redis key)
+- Rewrote `backend/internal/handler/routes.go`: Replaced hardcoded reputationCheck with 12 named interaction guards covering 13 endpoint groups (publish, edit_delete, comments, reactions, favorites, reports, pull_requests, judge, follows, messages, downloads, agent, deploy_grant)
+- Modified `backend/internal/service/reputation_service.go`: Added cache invalidation after every reputation mutation via RuntimeStatusCache.Invalidate
+- Modified `backend/internal/handler/admin.go`: BanUser/UnbanUser now invalidate cache instead of setting it
+- Modified `backend/internal/handler/user.go`: DeleteAccount invalidates status cache after soft delete
+- Modified `backend/internal/handler/auth.go`: VerifyEmail invalidates status cache after email verification
+- Modified `backend/config.yaml`: Added user_status_ttl (300s) and publish_freeze_ttl (604800s) to cache section
+- Created `backend/internal/middleware/auth_test.go`: 6 tests covering fail-closed auth (503 on Redis+DB down, DB role overrides JWT, missing/deleted user 401, banned user 401, OptionalAuth downgrade, OptionalAuth DB confirm)
+- Created `backend/internal/middleware/interaction_test.go`: 10 tests covering unverified email, low reputation, publish freeze, valid user, config error, banned user, soft-deleted user, unauthenticated, zero reputation sentinel, table-driven policy tests
+- Modified `backend/internal/handler/routes_security_test.go`: Updated agent route group string match for new guard
+- Added `github.com/glebarez/sqlite` (pure-Go) for test DB to avoid CGO build failures
+
+### Testing:
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+- `go test ./internal/middleware/...` — 16/16 PASS (6 auth + 10 interaction)
+- `go test ./...` — All pass except pre-existing TestApprovedAppealRestoresContentStatus (documented in F-01 baseline)
+
+### Notes:
+- Cache uses Redis HASH `user:status:{userID}` with fields id/role/is_banned/email_verified/reputation; TTL from config (default 5 min)
+- reputation == 0 is valid; cache distinguishes missing keys from stored zero values
+- MinScoreForInteraction must be > 0; zero or negative triggers 503 CONFIG_ERROR (fail-closed on misconfiguration)
+- Pure-Go SQLite (glebarez/sqlite) used only in tests; production uses PostgreSQL
+- Old CheckReputation middleware still exists but is no longer referenced in routes.go
+
 ## [2026-05-31] - Beta F-01: Capture A Reproducible Baseline
 
 ### What was done:
