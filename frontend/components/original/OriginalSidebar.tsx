@@ -13,16 +13,24 @@ interface TrendingSearchItem {
   nameKey: string;
 }
 
+const FALLBACK_SEARCHES: TrendingSearchItem[] = [
+  { nameKey: "home.trending1", stat: "4,823", query: "春日穿搭" },
+  { nameKey: "home.trending2", stat: "3,216", query: "周末厨房" },
+  { nameKey: "home.trending3", stat: "2,847", query: "桌面改造" },
+  { nameKey: "home.trending4", stat: "2,103", query: "猫咪日常" },
+  { nameKey: "home.trending5", stat: "1,876", query: "极简生活" },
+];
+
 export function SidebarWrapper() {
   const { user } = useAuth();
   const t = useTranslations();
   const [trendingSearches, setTrendingSearches] = useState<TrendingSearchItem[]>([]);
 
   useEffect(() => {
-    api.getTrending()
+    api.get<{ items?: Array<{ name?: string; id?: string | number }> }>("/api/v1/search/trending")
       .then((data) => {
         if (data && Array.isArray(data.items) && data.items.length > 0) {
-          const items: TrendingSearchItem[] = data.items.slice(0, 5).map((item: { name?: string; id?: string | number }, i: number) => ({
+          const items: TrendingSearchItem[] = data.items.slice(0, 5).map((item, i) => ({
             query: item.name || String(item.id || ""),
             stat: String(Math.floor(Math.random() * 4000 + 1000)),
             nameKey: `home.trending${i + 1}`,
@@ -33,15 +41,7 @@ export function SidebarWrapper() {
       .catch(() => {});
   }, []);
 
-  const fallbackSearches: TrendingSearchItem[] = [
-    { rank: 1, nameKey: "home.trending1", stat: "4,823", query: "春日穿搭" },
-    { rank: 2, nameKey: "home.trending2", stat: "3,216", query: "周末厨房" },
-    { rank: 3, nameKey: "home.trending3", stat: "2,847", query: "桌面改造" },
-    { rank: 4, nameKey: "home.trending4", stat: "2,103", query: "猫咪日常" },
-    { rank: 5, nameKey: "home.trending5", stat: "1,876", query: "极简生活" },
-  ];
-
-  const activeSearches = trendingSearches.length > 0 ? trendingSearches : fallbackSearches;
+  const activeSearches = trendingSearches.length > 0 ? trendingSearches : FALLBACK_SEARCHES;
 
   const trendingTopics: TrendingEntry[] = activeSearches.map((item, i) => ({
     rank: i + 1,

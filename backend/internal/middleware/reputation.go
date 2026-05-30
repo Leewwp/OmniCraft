@@ -3,6 +3,7 @@ package middleware
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -36,6 +37,9 @@ func CheckReputation(db *gorm.DB, rdb *redis.Client, minScore int64) gin.Handler
 				return
 			}
 			reputation = user.Reputation
+			if rdb != nil {
+				rdb.Set(c.Request.Context(), fmt.Sprintf("user:reputation:%v", userID), reputation, 5*time.Minute)
+			}
 		}
 
 		if reputation < minScore {

@@ -115,7 +115,11 @@ func CredentialRateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.Han
 			return
 		}
 		if count == 1 {
-			rdb.Expire(ctx, key, time.Duration(cfg.NormalWindowSec)*time.Second)
+			credWindowTTL := 2 * time.Minute
+			if cfg.NormalWindowSec > 0 {
+				credWindowTTL = time.Duration(cfg.NormalWindowSec) * time.Second
+			}
+			rdb.Expire(ctx, key, credWindowTTL)
 		}
 		if int(count) > limit {
 			c.JSON(http.StatusTooManyRequests, gin.H{
