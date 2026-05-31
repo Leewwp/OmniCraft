@@ -187,28 +187,34 @@ Security-sensitive conflicts include auth cookies, Redis fail-closed behavior, A
 
 ## 7. Technical Risks
 
-### 7.1 Human Decisions Required Before Execution
+### 7.1 Confirmed Maintainer Decisions
 
-- Provide the exact production Web and API subdomain names for `F-03`. The deployment is confirmed as separate HTTPS subdomains under `leeppp.online`, so F-03 must use API-host-only cookies, `SameSite=Lax`, `Secure`, strict `Origin` validation and credentialed CORS for only the exact Web origin.
+- Production Web origin: `https://app.leeppp.online`.
+- Production API origin: `https://api.leeppp.online`.
+- CAPTCHA provider: Alibaba Cloud CAPTCHA 2.0. Keep the backend `CaptchaVerifier` interface provider-agnostic, expose only `provider`, `prefix`, `scene_id` and `region` publicly, and keep RAM AccessKeys in private runtime configuration.
+- Initial Web Beta does not advertise desktop one-click deployment. Keep `features.desktop_deploy_enabled=false`, complete D-01 for the Web Beta safety gate, and defer D-02 through D-05 plus R-02 until a later desktop release decision.
+- Web Beta does not expose a desktop-client download. Keep `client.download_enabled=false`; defer platform, installation, URL and version facts until a later client-release decision.
+
+### 7.2 Remaining Human Decisions Required Before Execution
+
 - Provide approved `/terms` and `/privacy` copy plus the exact version identifiers used by `legal.current_terms_version` and `legal.current_privacy_version`. Do not draft legal text during implementation.
-- Web Beta is confirmed not to expose a desktop-client download. Keep `client.download_enabled=false`; defer platform, installation, URL and version facts until a later client-release decision.
-- Confirm whether the desktop Beta must support overlapping Ed25519 key rotation. The current plan supports one active embedded public key and requires a rebuilt client for rotation.
-- Provide the desktop release `VITE_API_BASE_URL` and exact OSS hostnames for `DEPLOY_ALLOWED_DOWNLOAD_HOSTS`. D-04 and R-02 cannot freeze the release CSP or native download allowlist without them.
+- Deferred until desktop deploy is advertised: confirm whether overlapping Ed25519 key rotation is required. The current plan supports one active embedded public key and requires a rebuilt client for rotation.
+- Deferred until desktop deploy is advertised: provide the desktop release `VITE_API_BASE_URL` and exact OSS hostnames for `DEPLOY_ALLOWED_DOWNLOAD_HOSTS`.
 
-### 7.2 External Blockers
+### 7.3 External Blockers
 
-- Real SMTP and captcha credentials are required before verification is Beta-ready. Local logger or bypass modes are development-only.
+- Real SMTP credentials and Alibaba Cloud CAPTCHA 2.0 `prefix`, `scene_id`, region and RAM AccessKeys are required before verification is Beta-ready. Local logger or bypass modes are development-only.
 - Redis must be available for protected auth state, verification tokens, refresh rotation, password reset tokens and desktop one-use grants.
 - Production HTTPS and explicit allowed origins are required before public release.
 - Desktop one-click deployment stays disabled until private-key provisioning, public-key embedding and the full `D-02` through `D-05` chain pass.
 
-### 7.3 Migration And Data Risks
+### 7.4 Migration And Data Risks
 
 - Execute migrations in lexical filename order. The reserved Beta migrations are `049` through `052`.
 - Validate both a fresh database and a representative upgrade database built by applying existing migrations `001` through `048` before the Beta migrations.
 - Keep search seed data deterministic and owned by `F-05`; release validation consumes that seed instead of creating an ad hoc dataset.
 
-### 7.4 Regression Hotspots
+### 7.5 Regression Hotspots
 
 - Auth: fresh browser CSRF bootstrap, cookie refresh rotation, logout, stale JWT rejection, Redis outage and banned-user behavior.
 - Admin: the route-group move must preserve `/admin/*` URLs while inheriting the shared protected layout.

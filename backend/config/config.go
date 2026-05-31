@@ -30,10 +30,12 @@ type Config struct {
 	Upload         UploadConfig         `mapstructure:"upload"`
 	Publish        PublishConfig        `mapstructure:"publish"`
 	Agent          AgentConfig          `mapstructure:"agent"`
+	Captcha        CaptchaConfig        `mapstructure:"captcha"`
+	Client         ClientConfig         `mapstructure:"client"`
 	Cache          CacheConfig          `mapstructure:"cache"`
 	RateLimit      RateLimitConfig      `mapstructure:"rate_limit"`
 	Recommendation RecommendationConfig `mapstructure:"recommendation"`
-Queue          queue.QueueConfig    `mapstructure:"queue"`
+	Queue          queue.QueueConfig    `mapstructure:"queue"`
 }
 
 type ServerConfig struct {
@@ -81,6 +83,7 @@ type GreenConfig struct {
 type FeaturesConfig struct {
 	PaymentEnabled        bool `mapstructure:"payment_enabled"`
 	CreatorSupportEnabled bool `mapstructure:"creator_support_enabled"`
+	DesktopDeployEnabled  bool `mapstructure:"desktop_deploy_enabled"`
 }
 
 type LimitsConfig struct {
@@ -137,6 +140,21 @@ type AgentConfig struct {
 	RateLimitPerDay       int    `mapstructure:"rate_limit_per_day"`
 	UploadAssistMaxFileMB int    `mapstructure:"upload_assist_max_file_mb"`
 	HMACSecret            string `mapstructure:"hmac_secret" json:"-"`
+}
+
+type CaptchaConfig struct {
+	Provider        string `mapstructure:"provider"`
+	Prefix          string `mapstructure:"prefix"`
+	SceneID         string `mapstructure:"scene_id"`
+	Region          string `mapstructure:"region"`
+	AccessKeyID     string `mapstructure:"access_key_id" json:"-"`
+	AccessKeySecret string `mapstructure:"access_key_secret" json:"-"`
+}
+
+type ClientConfig struct {
+	DownloadEnabled bool   `mapstructure:"download_enabled"`
+	DownloadURL     string `mapstructure:"download_url"`
+	LatestVersion   string `mapstructure:"latest_version"`
 }
 
 type CacheConfig struct {

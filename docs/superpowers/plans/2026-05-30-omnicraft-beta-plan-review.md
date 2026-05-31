@@ -1,6 +1,8 @@
 # OmniCraft Beta 计划集审查报告
 
 > 审查日期：2026-05-30 | 审查范围：`docs/superpowers/plans/` 下 7 个 2026-05-30 开头的计划文件
+>
+> 历史说明（2026-05-31）：本报告保留审查当日的通用 Captcha 字段提案。维护者已经确定使用阿里云验证码 2.0，后续实现以路线图中的 `captcha.provider`、`captcha.prefix`、`captcha.scene_id`、`captcha.region` 和私有 AccessKey 配置为准。
 
 ## 审查概览
 

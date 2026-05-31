@@ -1,0 +1,125 @@
+package handler
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+
+	"omnicraft/backend/config"
+)
+
+func setupPublicConfigTestRouter(t *testing.T) *gin.Engine {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{
+		Server: config.ServerConfig{Port: "8080", Mode: "debug"},
+		Features: config.FeaturesConfig{
+			PaymentEnabled:        false,
+			CreatorSupportEnabled: false,
+			DesktopDeployEnabled:  false,
+		},
+		Agent: config.AgentConfig{
+			WebAgentEnabled: false,
+		},
+		Captcha: config.CaptchaConfig{
+			Provider: "aliyun_v2",
+			Prefix:  "",
+			SceneID: "",
+			Region:  "cn",
+		},
+		Client: config.ClientConfig{
+			DownloadEnabled: false,
+			DownloadURL:     "",
+			LatestVersion:   "",
+		},
+	}
+
+	r := gin.New()
+	handler := NewPublicConfigHandler(cfg)
+	v1 := r.Group("/api/v1")
+	{
+		v1.GET("/config/public", handler.GetPublicConfig)
+	}
+
+	return r
+}
+
+func TestPublicConfigAllowlist(t *testing.T) {
+	r := setupPublicConfigTestRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/config/public", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	features, ok := resp["features"].(map[string]interface{})
+	if !ok {
+		t.Fatal("response must contain 'features' object")
+	}
+	for _, key := range []string{"web_agent_enabled", "payment_enabled", "creator_support_enabled", "desktop_deploy_enabled"} {
+		if _, has := features[key]; !has {
+			t.Errorf("features must contain '%s'", key)
+		}
+	}
+
+	captcha, ok := resp["captcha"].(map[string]interface{})
+	if !ok {
+		t.Fatal("response must contain 'captcha' object")
+	}
+	for _, key := range []string{"provider", "prefix", "scene_id", "region"} {
+		if _, has := captcha[key]; !has {
+			t.Errorf("captcha must contain '%s'", key)
+		}
+	}
+
+	client, ok := resp["client"].(map[string]interface{})
+	if !ok {
+		t.Fatal("response must contain 'client' object")
+	}
+	for _, key := range []string{"download_enabled", "download_url", "latest_version"} {
+		if _, has := client[key]; !has {
+			t.Errorf("client must contain '%s'", key)
+		}
+	}
+
+	body := w.Body.String()
+	forbidden := []string{"secret", "access_key", "api_key", "dsn", "password", "hmac", "private", "cdn", "ttl", "rate_limit", "threshold", "min_score"}
+	for _, word := range forbidden {
+		if strings.Contains(strings.ToLower(body), strings.ToLower(word)) {
+			t.Errorf("public config must not contain '%s'", word)
+		}
+	}
+
+	if _, has := resp["limits"]; has {
+		t.Error("public config must not expose 'limits'")
+	}
+	if _, has := resp["reputation"]; has {
+		t.Error("public config must not expose 'reputation'")
+	}
+	if _, has := resp["judge"]; has {
+		t.Error("public config must not expose 'judge'")
+	}
+	if _, has := resp["social"]; has {
+		t.Error("public config must not expose 'social'")
+	}
+	if _, has := resp["cache"]; has {
+		t.Error("public config must not expose 'cache'")
+	}
+	if _, has := resp["rate_limit"]; has {
+		t.Error("public config must not expose 'rate_limit'")
+	}
+	if _, has := resp["recommendation"]; has {
+		t.Error("public config must not expose 'recommendation'")
+	}
+}

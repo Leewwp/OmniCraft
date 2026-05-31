@@ -76,7 +76,7 @@ flowchart TD
 
 | ID | Task | Plan | Depends On | Track | Status |
 |---|---|---|---|---|---|
-| F-01 | Re-run historical quality gates and capture baseline | foundation | - | Shared | `[ ]` |
+| F-01 | Re-run historical quality gates and capture baseline | foundation | - | Shared | `[x]` |
 | F-02 | Make protected actions fail closed and centralize interaction eligibility | foundation | F-01 | Shared | `[ ]` |
 | F-03 | Move refresh session to HttpOnly cookie and remove browser-readable tokens | foundation | F-02 | Shared | `[ ]` |
 | F-04 | Add minimal public runtime config DTO and endpoint | foundation | F-03 | Shared | `[ ]` |
@@ -126,6 +126,8 @@ These decisions remove ambiguities discovered during plan review. Subsystem plan
 |---|---|
 | Web Beta desktop posture | G-01 hides one-click deploy UI while the public flag is off. D-01 is mandatory for R-01 and removes the unsafe `/api/v1/agent/script/:id` prototype entirely. Shipping Web Beta with D-02 through D-05 incomplete is allowed only when `features.desktop_deploy_enabled=false`. |
 | Web Beta client distribution posture | Web Beta does not expose a desktop-client download. Keep `client.download_enabled=false`, omit download URL/version values from the public response when empty, and render `/client` as an unavailable/information state until a later client-release decision. |
+| Production Web/API topology | The confirmed production Web origin is `https://app.leeppp.online`. The confirmed API origin is `https://api.leeppp.online`. F-03 must use API-host-only cookies, `SameSite=Lax`, `Secure`, strict `Origin` validation and credentialed CORS for only `https://app.leeppp.online`. |
+| Captcha provider | Web Beta uses Alibaba Cloud CAPTCHA 2.0 behind the provider-agnostic `CaptchaVerifier` interface. Public config exposes only `provider`, `prefix`, `scene_id` and `region`. Server credentials remain private runtime configuration. Local development may use `bypass`; release mode must require `aliyun_v2`. |
 | Public runtime config | Add a new allowlisted `/api/v1/config/public` DTO. Do not reuse the existing broad Admin `model.PublicConfig`. Map `agent.web_agent_enabled` into public `features.web_agent_enabled`; do not expose OSS CDN fields, TTLs, rate-limit internals or secrets. |
 | Feedback routes | Public submission is `/feedback`; authenticated tracking is `/feedback/mine`; owned detail is `/feedback/[feedbackId]`. Do not create both `(public)/feedback/page.tsx` and `(protected)/feedback/page.tsx`, because both resolve to `/feedback`. |
 | Feedback storage | Keep `feedback_tickets`, `feedback_replies` and `feedback_attachments` separate. Screenshot upload uses a feedback-specific presign endpoint and OSS prefix, never the content-upload prefix without purpose validation. |
@@ -151,9 +153,12 @@ The Beta plans introduce the following `config.yaml` fields. This table is the a
 | `smtp.user` | V-01 | smtp | string | "" |
 | `smtp.password` | V-01 | smtp | string | "" |
 | `smtp.from_address` | V-01 | smtp | string | "" |
-| `captcha.provider` | F-04/V-01 | captcha | string | "" |
-| `captcha.site_key` | F-04/V-01 | captcha | string | "" |
-| `captcha.secret` | V-01 | captcha | string | "" |
+| `captcha.provider` | F-04/V-01 | captcha | string | "bypass" in local development only; release uses "aliyun_v2" |
+| `captcha.prefix` | F-04/V-01 | captcha | string | "" |
+| `captcha.scene_id` | F-04/V-01 | captcha | string | "" |
+| `captcha.region` | F-04/V-01 | captcha | string | "cn" |
+| `captcha.access_key_id` | V-01 | captcha | string | "" |
+| `captcha.access_key_secret` | V-01 | captcha | string | "" |
 | `verification.email_ttl_sec` | V-01 | verification | int | 3600 |
 | `verification.reset_ttl_sec` | V-01 | verification | int | 3600 |
 | `verification.resend_cooldown_sec` | V-01 | verification | int | 60 |
@@ -183,6 +188,8 @@ These values are not `config.yaml` fields. Keep server runtime secret overrides 
 | `VITE_API_BASE_URL` | D-04 | Tauri WebView build | Confirmed HTTPS API base URL for release |
 | `DEPLOY_ALLOWED_DOWNLOAD_HOSTS` | D-04 | Tauri build | Comma-separated exact OSS download hostnames |
 | `DEPLOY_DOWNLOAD_TIMEOUT_SEC` | D-04 | Tauri build | Native download timeout; default `30` |
+| `CAPTCHA_ACCESS_KEY_ID` | V-01 | backend runtime | Alibaba Cloud CAPTCHA 2.0 RAM AccessKey ID override; never expose in public config |
+| `CAPTCHA_ACCESS_KEY_SECRET` | V-01 | backend runtime | Alibaba Cloud CAPTCHA 2.0 RAM AccessKey secret override; never expose or log |
 
 ## Cross-Plan File Conflict Matrix
 
@@ -225,16 +232,26 @@ Do not pull these into Beta tasks: full collection model, announcement editor, m
 
 After R-01, schedule separately if capacity remains: `/reports/me`, anonymous feedback status links backed by hashed high-entropy tokens, stronger empty-state CTAs, download-failure client-install guidance, optional feedback status emails for logged-in users, and richer dashboard trends.
 
-## Human Decisions Required Before Execution
+## Confirmed Maintainer Decisions
+
+Confirmed on 2026-05-31:
+
+| Decision | Confirmed value | Effect |
+|---|---|---|
+| Production Web origin | `https://app.leeppp.online` | F-03 may freeze cookie, CSRF and CORS behavior against this exact Web origin. |
+| Production API origin | `https://api.leeppp.online` | F-03 uses API-host-only refresh and CSRF cookies. |
+| Captcha provider | Alibaba Cloud CAPTCHA 2.0 | F-04/V-01 use the `aliyun_v2` provider contract while preserving a provider-agnostic service interface. |
+| Initial Web Beta desktop posture | Desktop one-click deployment remains disabled | Keep `features.desktop_deploy_enabled=false`; complete D-01 for Web Beta, defer D-02 through D-05 and R-02 until a later desktop release decision. |
+
+## Remaining Human Decisions Required Before Execution
 
 Do not guess these values during implementation:
 
 | Decision | Blocks | Required maintainer answer |
 |---|---|---|
-| Production Web/API subdomain names | F-03 | Web and API are confirmed to use separate HTTPS subdomains under `leeppp.online`. Provide the exact Web and API hostnames so host-only cookies, strict `Origin` validation and credentialed CORS can be frozen. |
 | Approved legal copy and versions | V-02, V-04, R-01 | Provide the approved `/terms` and `/privacy` static content plus the exact `legal.current_terms_version` and `legal.current_privacy_version` identifiers. Do not invent legal text or release version values. |
-| Desktop key rotation posture | D-04/R-02 only when desktop deploy is advertised | Is one active Ed25519 key per client release sufficient for Beta, or must the client accept an overlapping old/new keyring during rotation? |
-| Desktop production network allowlist | D-04/R-02 only when desktop deploy is advertised | Provide the final HTTPS API base URL and exact OSS download hostnames to embed in the Tauri release build and CSP. |
+| Desktop key rotation posture | Deferred: D-04/R-02 only when desktop deploy is advertised later | Is one active Ed25519 key per client release sufficient, or must the client accept an overlapping old/new keyring during rotation? |
+| Desktop production network allowlist | Deferred: D-04/R-02 only when desktop deploy is advertised later | Provide the final HTTPS API base URL and exact OSS download hostnames to embed in the Tauri release build and CSP. |
 
 ## Commit Convention
 
