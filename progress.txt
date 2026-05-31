@@ -1,5 +1,37 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-06-01] - Beta G-05: Mount User-Confirmed Publish Assistance
+
+### What was done:
+- Mounted `AgentUploadAssistPanel` in `frontend/components/studio/PublishForm.tsx`:
+  - Placed after file upload section for file-primary content types
+  - Wrapped in `AgentFeatureGate capability="webAgent"` — hidden when Agent is disabled
+  - Connected `onFill` callback to `handleAssistFill` which applies suggestions to form state
+- Added undo snapshot mechanism:
+  - `undoSnapshot` ref stores `{ title, briefDesc, body, tags, category }` before applying suggestions
+  - "Undo AI suggestion" button restores form state from snapshot
+  - Only one level of undo (Beta scope)
+- Mounted `AgentComplianceCheckBadge` before submit button:
+  - Wrapped in `AgentFeatureGate capability="webAgent"`
+  - `complianceViolation` state blocks submit button when risk_level is "violation"
+  - Shows `complianceBlockSubmit` error message
+- Created `backend/internal/service/agent_publish_assist_test.go` with 7 tests:
+  - UploadAssist field validation, ComplianceCheck risk_level, structured result fields
+  - Handler existence, route registration for both endpoints
+- Added i18n keys: `undoSuggestion`, `complianceBlockSubmit` in both zh.json and en.json
+
+### Testing:
+- `go test ./internal/service -run "TestUploadAssist|TestComplianceCheck" -v`: 7/7 PASS
+- `go build ./...`: passed
+- `npm run lint`: passed
+- `npm run build`: passed
+
+### Notes:
+- Both `AgentUploadAssistPanel` and `AgentComplianceCheckBadge` were previously orphan components — now properly mounted in PublishForm
+- Backend endpoints `POST /api/v1/agent/upload-assist` and `POST /api/v1/agent/compliance-check` already existed and are fully implemented
+- When Agent is disabled, the normal publishing form remains fully usable (graceful fallback)
+- The `content/UploadAssistPanel.tsx` and `content/ComplianceCheckBadge.tsx` static stubs remain in place for non-Agent scenarios
+
 ## [2026-06-01] - Beta G-04: Mount Usage Guide On Content Detail
 
 ### What was done:

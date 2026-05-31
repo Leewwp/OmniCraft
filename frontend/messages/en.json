@@ -878,6 +878,8 @@
     "quickPrompt_publish_help": "Publish help",
     "quickPrompt_desktop_client_help": "Client help",
     "quickPrompt_report_problem": "Report problem",
+    "undoSuggestion": "Undo AI suggestion",
+    "complianceBlockSubmit": "Compliance check failed. Please revise your content before submitting.",
     "analyze": "AI Auto Analyze",
     "uploadAssistTitle": "AI Upload Assist",
     "uploadAssistDesc": "AI will analyze your uploaded files and suggest titles, tags and categories",
