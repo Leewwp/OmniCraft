@@ -7,7 +7,7 @@ export default function AdminIndexPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/admin/ips");
+    router.replace("/admin/dashboard");
   }, [router]);
 
   return null;

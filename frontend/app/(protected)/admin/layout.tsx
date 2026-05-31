@@ -5,11 +5,13 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Shield, FileText, Users, AlertTriangle, Settings, Tags, Bot, MessageSquare, ListOrdered, ChevronRight, PanelLeftClose, PanelLeft } from "lucide-react";
+import { Shield, FileText, Users, AlertTriangle, Settings, Tags, Bot, MessageSquare, ListOrdered, LayoutDashboard, Flag, ChevronRight, PanelLeftClose, PanelLeft } from "lucide-react";
 import { Footer } from "@/components/layout/Footer";
 import { cn } from "@/lib/utils";
 
 const ADMIN_NAV = [
+  { href: "/admin/dashboard", labelKey: "navDashboard", icon: LayoutDashboard },
+  { href: "/admin/reports", labelKey: "navReports", icon: Flag },
   { href: "/admin/ips", labelKey: "navIps", icon: Shield },
   { href: "/admin/contents", labelKey: "navContents", icon: FileText },
   { href: "/admin/users", labelKey: "navUsers", icon: Users },
