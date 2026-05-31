@@ -47,6 +47,7 @@ type ServiceContainer struct {
 	EmbeddingRepo     *repository.EmbeddingRepository
 	LLMConfigRepo     *repository.LLMConfigRepository
 	SearchRepo        *repository.SearchRepository
+	FeedbackRepo      *repository.FeedbackRepository
 
 	// Services
 	AuthService         *service.AuthService
@@ -63,6 +64,7 @@ type ServiceContainer struct {
 	NotificationService *service.NotificationService
 	PRService           *service.PRService
 	SearchService       *service.SearchService
+	FeedbackService     *service.FeedbackService
 }
 
 func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceContainer {
@@ -102,6 +104,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.EmbeddingRepo = repository.NewEmbeddingRepository(db)
 	c.LLMConfigRepo = repository.NewLLMConfigRepository(db)
 	c.SearchRepo = repository.NewSearchRepository(db)
+	c.FeedbackRepo = repository.NewFeedbackRepository(db)
 
 	// Services
 	c.AuthService = service.NewAuthService(c.UserRepo, rdb, cfg)
@@ -128,6 +131,12 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.NotificationService = service.NewNotificationService(c.NotificationRepo)
 	c.PRService = service.NewPRService(c.PRRepo, c.VersionRepo, c.ContentRepo)
 	c.SearchService = service.NewSearchService(c.SearchRepo, rdb)
+
+	uploadGrantTTL := 300
+	if cfg.Feedback.UploadGrantTTLSec > 0 {
+		uploadGrantTTL = cfg.Feedback.UploadGrantTTLSec
+	}
+	c.FeedbackService = service.NewFeedbackService(c.FeedbackRepo, c.UserRepo, rdb, captchaVerifier, uploadGrantTTL)
 
 	// Wire recommendation into content service
 	c.RecommendationSvc = service.NewRecommendationService(db, c.EmbeddingRepo, c.ContentRepo, c.ContentService, rdb, &cfg.Recommendation)

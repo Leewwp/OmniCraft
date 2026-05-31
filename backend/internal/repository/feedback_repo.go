@@ -1,0 +1,82 @@
+package repository
+
+import (
+	"omnicraft/backend/internal/model"
+
+	"gorm.io/gorm"
+)
+
+type FeedbackRepository struct {
+	db *gorm.DB
+}
+
+func NewFeedbackRepository(db *gorm.DB) *FeedbackRepository {
+	return &FeedbackRepository{db: db}
+}
+
+func (r *FeedbackRepository) CreateTicket(t *model.FeedbackTicket) error {
+	return r.db.Create(t).Error
+}
+
+func (r *FeedbackRepository) FindTicketByID(id int64) (*model.FeedbackTicket, error) {
+	var t model.FeedbackTicket
+	err := r.db.Preload("Replies", func(db *gorm.DB) *gorm.DB {
+		return db.Where("is_internal_note = false").Order("created_at ASC")
+	}).Preload("Attachments").First(&t, id).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (r *FeedbackRepository) FindTicketByIDForAdmin(id int64) (*model.FeedbackTicket, error) {
+	var t model.FeedbackTicket
+	err := r.db.Preload("Replies", func(db *gorm.DB) *gorm.DB {
+		return db.Order("created_at ASC")
+	}).Preload("Attachments").First(&t, id).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (r *FeedbackRepository) ListByUser(userID int64, page, pageSize int) ([]model.FeedbackTicket, int64, error) {
+	var total int64
+	r.db.Model(&model.FeedbackTicket{}).Where("user_id = ?", userID).Count(&total)
+	var tickets []model.FeedbackTicket
+	err := r.db.Where("user_id = ?", userID).
+		Order("created_at DESC").
+		Offset((page - 1) * pageSize).Limit(pageSize).
+		Find(&tickets).Error
+	return tickets, total, err
+}
+
+func (r *FeedbackRepository) UpdateTicket(t *model.FeedbackTicket) error {
+	return r.db.Save(t).Error
+}
+
+func (r *FeedbackRepository) CreateReply(rep *model.FeedbackReply) error {
+	return r.db.Create(rep).Error
+}
+
+func (r *FeedbackRepository) CreateAttachment(a *model.FeedbackAttachment) error {
+	return r.db.Create(a).Error
+}
+
+func (r *FeedbackRepository) FindAttachmentByOSSKey(ossKey string) (*model.FeedbackAttachment, error) {
+	var a model.FeedbackAttachment
+	err := r.db.Where("oss_key = ?", ossKey).First(&a).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &a, nil
+}

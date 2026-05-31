@@ -37,6 +37,7 @@ type Config struct {
 	Verification   VerificationConfig   `mapstructure:"verification"`
 	Legal          LegalConfig          `mapstructure:"legal"`
 	Client         ClientConfig         `mapstructure:"client"`
+	Feedback       FeedbackConfig       `mapstructure:"feedback"`
 	Cache          CacheConfig          `mapstructure:"cache"`
 	RateLimit      RateLimitConfig      `mapstructure:"rate_limit"`
 	Recommendation RecommendationConfig `mapstructure:"recommendation"`
@@ -160,6 +161,10 @@ type ClientConfig struct {
 	DownloadEnabled bool   `mapstructure:"download_enabled"`
 	DownloadURL     string `mapstructure:"download_url"`
 	LatestVersion   string `mapstructure:"latest_version"`
+}
+
+type FeedbackConfig struct {
+	UploadGrantTTLSec int `mapstructure:"upload_grant_ttl_sec"`
 }
 
 type WebConfig struct {

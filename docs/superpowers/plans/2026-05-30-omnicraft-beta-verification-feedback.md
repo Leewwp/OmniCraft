@@ -342,7 +342,7 @@ git commit -m "Beta V-04: add help legal and client pages - completed"
 - Create: `backend/internal/service/feedback_service_test.go`
 - Create: `backend/internal/handler/feedback_test.go`
 
-- [ ] **Step 1: Add migration**
+- [x] **Step 1: Add migration**
 
 ```sql
 CREATE TABLE feedback_tickets (
@@ -386,11 +386,11 @@ CREATE TABLE feedback_attachments (
 
 Add CHECK constraints for the frozen categories (`web_bug`, `desktop_deploy`, `content_or_community`, `account_or_security`, `agent_quality`, `feature_request`, `other`) and statuses (`open`, `in_progress`, `resolved`, `closed`).
 
-- [ ] **Step 2: Write failing API tests**
+- [x] **Step 2: Write failing API tests**
 
 Cover logged-in and anonymous submissions, captcha requirement for anonymous users, feedback-specific screenshot presign and issued-key consumption, MIME/size validation, diagnostic allowlist stripping, user ownership checks, hidden internal notes and notification/mail behavior.
 
-- [ ] **Step 3: Implement service rules**
+- [x] **Step 3: Implement service rules**
 
 Diagnostic allowlist:
 
@@ -415,7 +415,7 @@ On Admin reply or close, reuse `NotificationService` for logged-in users. Send e
 Require `contact_email` for anonymous submissions. Logged-in users may omit it and use their account email for optional delivery.
 Only Admin callers may create `is_internal_note=true` replies. User-facing detail responses must always filter internal notes.
 
-- [ ] **Step 4: Mount routes**
+- [x] **Step 4: Mount routes**
 
 ```text
 POST /api/v1/feedback
@@ -427,7 +427,7 @@ GET  /api/v1/feedback/:id
 Use optional auth for submit and required auth for user list/detail.
 Register `/feedback/me` before `/feedback/:id` and return only owned tickets plus non-internal replies to user-facing callers.
 
-- [ ] **Step 5: Run checks**
+- [x] **Step 5: Run checks**
 
 ```powershell
 cd backend
@@ -436,7 +436,7 @@ go vet ./...
 go build ./...
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add backend docs/superpowers/plans progress.txt
