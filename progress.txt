@@ -1,5 +1,25 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-31] - Beta G-01: Gate Global Agent Chat And Desktop Deploy UI
+
+### What was done:
+- Created `frontend/components/agent/AgentFeatureGate.tsx` — reads `fetchPublicConfig()` with disabled-by-default fallback; supports `webAgent` (requires flag + logged-in + email verified) and `desktopDeploy` (requires flag) capabilities; optional `fallback` prop for graceful degradation
+- Modified `frontend/app/layout.tsx` — wrapped `<AgentChatWidget />` with `<AgentFeatureGate capability="webAgent">`
+- Modified `frontend/components/content/ContentDetail.tsx` — wrapped Agent Deploy Button with `<AgentFeatureGate capability="desktopDeploy">`
+- Modified `frontend/components/studio/PublishForm.tsx` — wrapped agent_enabled toggle with `<AgentFeatureGate capability="desktopDeploy">`
+- Modified `frontend/app/(public)/search/page.tsx` — wrapped `<SearchAgentInput>` with `<AgentFeatureGate capability="webAgent">` and added keyword search fallback
+
+### Testing:
+- `npm run lint` (tsc --noEmit): passed
+- `npm run build`: passed (55 pages generated)
+
+### Notes:
+- AgentFeatureGate uses disabled-by-default: if fetchPublicConfig fails, all agent features are hidden
+- webAgent requires: flag enabled + user logged in + email verified
+- desktopDeploy requires: flag enabled (no auth check — deploy button is visible to all when enabled)
+- Search page falls back to simple keyword input when webAgent is unavailable
+- G-02 will further refine SearchAgentInput to default to keyword mode and add Agent failure downgrade
+
 ## [2026-05-31] - Beta A-02: Audit Existing Sensitive Admin Mutations
 
 ### What was done:

@@ -39,7 +39,7 @@
 - Modify: `frontend/messages/zh.json`
 - Modify: `frontend/messages/en.json`
 
-- [ ] **Step 1: Read UI specs**
+- [x] **Step 1: Read UI specs**
 
 ```powershell
 rg -n "## Component: AgentChatWidget|## Component: ContentDetail|## Page: /studio/publish" design/ui-spec.md
@@ -47,21 +47,23 @@ rg -n "## Component: AgentChatWidget|## Component: ContentDetail|## Page: /studi
 
 **File conflict note:** `ContentDetail.tsx` is modified by F-06, G-01, G-04 and D-05. Execute dependent tasks after rebasing onto the integrated branch. Before editing `ContentDetail.tsx`, re-read the current file state to ensure you are working with the latest merged version.
 
-- [ ] **Step 2: Implement feature gate**
+- [x] **Step 2: Implement feature gate**
 
 ```tsx
 export function AgentFeatureGate({
   capability,
   children,
+  fallback,
 }: {
   capability: "webAgent" | "desktopDeploy";
   children: React.ReactNode;
+  fallback?: React.ReactNode;
 }) {}
 ```
 
-Read `getPublicConfig()` with disabled-by-default fallback.
+Read `fetchPublicConfig()` with disabled-by-default fallback. Added optional `fallback` prop for graceful degradation.
 
-- [ ] **Step 3: Gate entrypoints**
+- [x] **Step 3: Gate entrypoints**
 
 - Hide global chat when `features.web_agent_enabled=false`.
 - Hide AI search mode when `features.web_agent_enabled=false`.
@@ -69,7 +71,7 @@ Read `getPublicConfig()` with disabled-by-default fallback.
 - Hide global chat and AI-search selection for anonymous or unverified-email users. The backend interaction guard remains authoritative.
 - Keep backend feature checks authoritative even when frontend hides UI.
 
-- [ ] **Step 4: Run checks and browser-test**
+- [x] **Step 4: Run checks and browser-test**
 
 ```powershell
 cd frontend
