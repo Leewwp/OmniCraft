@@ -484,6 +484,8 @@
     "navContents": "内容终审",
     "navUsers": "用户管理",
     "navAppeals": "申诉处理",
+    "navFeedback": "反馈管理",
+    "navQueue": "队列监控",
     "navCategories": "分类管理",
     "navConfig": "系统配置",
     "navAgentConfig": "Agent 管理",
@@ -643,6 +645,37 @@
       "confirmSave": "确认保存",
       "loadFailed": "加载配置失败",
       "saveFailed": "保存配置失败"
+    },
+    "feedback": {
+      "title": "反馈管理",
+      "loadFailed": "加载反馈列表失败",
+      "allStatuses": "全部状态",
+      "allCategories": "全部分类",
+      "noTickets": "暂无反馈工单",
+      "contactEmail": "联系邮箱",
+      "diagnostics": "诊断信息",
+      "screenshots": "截图附件",
+      "replies": "回复记录",
+      "admin": "管理员",
+      "user": "用户",
+      "internalNote": "内部备注",
+      "noReplies": "暂无回复",
+      "replyPlaceholder": "输入回复内容...",
+      "markInternalNote": "标记为内部备注（用户不可见）",
+      "sendReply": "发送回复"
+    },
+    "queue": {
+      "title": "队列监控",
+      "stats": "队列状态",
+      "noStats": "暂无队列数据",
+      "topic": "主题",
+      "depth": "深度",
+      "lag": "延迟",
+      "failures": "失败数",
+      "dlq": "死信队列",
+      "noDLQ": "死信队列为空",
+      "loadFailed": "加载队列数据失败",
+      "readOnlyNote": "Beta 阶段队列页面为只读模式，不支持重放操作。"
     }
   },
   "social": {

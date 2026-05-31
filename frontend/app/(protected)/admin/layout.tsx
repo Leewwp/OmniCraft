@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Shield, FileText, Users, AlertTriangle, Settings, Tags, Bot, ChevronRight, PanelLeftClose, PanelLeft } from "lucide-react";
+import { Shield, FileText, Users, AlertTriangle, Settings, Tags, Bot, MessageSquare, ListOrdered, ChevronRight, PanelLeftClose, PanelLeft } from "lucide-react";
 import { Footer } from "@/components/layout/Footer";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +14,9 @@ const ADMIN_NAV = [
   { href: "/admin/contents", labelKey: "navContents", icon: FileText },
   { href: "/admin/users", labelKey: "navUsers", icon: Users },
   { href: "/admin/appeal", labelKey: "navAppeals", icon: AlertTriangle },
+  { href: "/admin/feedback", labelKey: "navFeedback", icon: MessageSquare },
   { href: "/admin/categories", labelKey: "navCategories", icon: Tags },
+  { href: "/admin/queue", labelKey: "navQueue", icon: ListOrdered },
   { href: "/admin/config", labelKey: "navConfig", icon: Settings },
   { href: "/admin/agent-config", labelKey: "navAgentConfig", icon: Bot },
 ];
@@ -27,7 +29,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
-    if (!isLoading && (!user || user.role !== "admin")) {
+    if (!isLoading && user && user.role !== "admin") {
       router.replace("/");
     }
   }, [user, isLoading, router]);
@@ -54,7 +56,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="mx-auto flex w-full max-w-7xl gap-0 px-0">
-      {/* Sidebar nav - collapsible on desktop, hidden on mobile */}
       <aside
         className={cn(
           "hidden shrink-0 border-r border-transparent bg-background transition-all duration-200 md:block",
@@ -110,7 +111,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
       </aside>
 
-      {/* Mobile nav tabs */}
       <div className="w-full overflow-x-auto border-b border-border bg-background md:hidden">
         <div className="flex gap-0 px-2 py-2">
           {ADMIN_NAV.map((item) => {
@@ -135,7 +135,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
 
       <div className="flex flex-1 flex-col">
-        {/* Main content */}
         <main className="flex-1 w-full overflow-auto">
           {children}
         </main>
