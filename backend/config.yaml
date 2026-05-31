@@ -2,6 +2,9 @@ server:
   port: "8080"
   mode: "debug"
 
+web:
+  public_base_url: "http://localhost:3000"
+
 security:
   allowed_origins:
     - "http://localhost:3000"
@@ -52,6 +55,25 @@ client:
   download_enabled: false
   download_url: ""
   latest_version: ""
+
+smtp:
+  mode: "logger"
+  host: ""
+  port: 587
+  user: ""
+  password: ""
+  from_address: ""
+
+verification:
+  email_ttl_sec: 3600
+  reset_ttl_sec: 3600
+  resend_cooldown_sec: 60
+  login_captcha_threshold: 3
+  password_min_length: 8
+
+legal:
+  current_terms_version: ""
+  current_privacy_version: ""
 
 limits:
   video_max_mb: 300

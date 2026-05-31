@@ -62,7 +62,7 @@
 - Create: `backend/internal/service/verification_service.go`
 - Create: `backend/internal/service/verification_service_test.go`
 
-- [ ] **Step 1: Add schema**
+- [x] **Step 1: Add schema**
 
 ```sql
 ALTER TABLE users
@@ -87,7 +87,7 @@ The per-user keys enable bidirectional lookup and single-active-token enforcemen
 
 Email normalization uses `strings.ToLower(strings.TrimSpace(email))`. For non-ASCII local parts (extremely rare), Beta preserves them as-is without Unicode NFC/NFD normalization. Redis rate-limit keys use SHA-256 of the normalized address rather than the raw email so Redis key names do not expose PII.
 
-- [ ] **Step 2: Add provider interfaces and fakes**
+- [x] **Step 2: Add provider interfaces and fakes**
 
 ```go
 type MailSender interface {
@@ -102,11 +102,11 @@ type CaptchaVerifier interface {
 
 Use fakes in unit tests. Use no-op providers only in explicit local development mode. A Beta release configuration without real providers must return a startup/configuration error. Extend the F-04 captcha config rather than defining a duplicate struct. Alibaba Cloud CAPTCHA 2.0 is the confirmed Beta provider; keep the `CaptchaVerifier` interface provider-agnostic and isolate Alibaba Cloud SDK details inside the adapter. Add these exact config fields: `web.public_base_url`, `smtp.mode`, `smtp.host`, `smtp.port`, `smtp.user`, `smtp.password`, `smtp.from_address`, `captcha.provider`, `captcha.prefix`, `captcha.scene_id`, `captcha.region`, `captcha.access_key_id`, `captcha.access_key_secret`, `verification.email_ttl_sec`, `verification.reset_ttl_sec`, `verification.resend_cooldown_sec`, `verification.login_captcha_threshold`, and `verification.password_min_length`. Support `CAPTCHA_ACCESS_KEY_ID` and `CAPTCHA_ACCESS_KEY_SECRET` environment overrides. Public config exposes only `provider`, `prefix`, `scene_id` and `region`. `smtp.mode=logger` and `captcha.provider=bypass` are local-development-only values and must be rejected when `server.mode == "release"`; release mode requires `captcha.provider=aliyun_v2`.
 
-- [ ] **Step 3: Add verification service tests**
+- [x] **Step 3: Add verification service tests**
 
 Cover hashed storage, single use, previous-link invalidation, correct TTL separation, resend cooldown and provider failure.
 
-- [ ] **Step 4: Implement `VerificationService`**
+- [x] **Step 4: Implement `VerificationService`**
 
 Expose:
 
@@ -117,7 +117,7 @@ func (s *VerificationService) SendPasswordReset(ctx context.Context, email strin
 func (s *VerificationService) ResetPassword(ctx context.Context, rawToken, newPassword string) error
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 ```powershell
 cd backend
@@ -127,7 +127,7 @@ go vet ./...
 go build ./...
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add backend .env.example docs/superpowers/plans progress.txt

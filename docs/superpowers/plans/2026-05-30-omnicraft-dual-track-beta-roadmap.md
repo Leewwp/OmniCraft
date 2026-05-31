@@ -82,7 +82,7 @@ flowchart TD
 | F-04 | Add minimal public runtime config DTO and endpoint | foundation | F-03 | Shared | `[x]` |
 | F-05 | Make Chinese keyword search reliable with trigram fallback and visibility filters | foundation | F-02 | Track A | `[ ]` |
 | F-06 | Route all attachment downloads through the authorized download API | foundation | F-02 | Track A | `[ ]` |
-| V-01 | Add verification schema, mail adapter, captcha adapter and config | verification-feedback | F-03 | Track A | `[ ]` |
+| V-01 | Add verification schema, mail adapter, captcha adapter and config | verification-feedback | F-03 | Track A | `[x]` |
 | V-02 | Implement verification, resend and reset token lifecycle | verification-feedback | V-01 | Track A | `[ ]` |
 | V-03 | Enforce verified-email restrictions and agreement acceptance in UI | verification-feedback | V-02 | Track A | `[ ]` |
 | V-04 | Add help, privacy, terms and client information pages | verification-feedback | V-03 | Track A | `[ ]` |
