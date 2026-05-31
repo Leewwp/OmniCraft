@@ -47,7 +47,7 @@
 - Create: `backend/internal/service/admin_audit_service_test.go`
 - Modify: `backend/internal/container/container.go`
 
-- [ ] **Step 1: Add migration**
+- [x] **Step 1: Add migration**
 
 ```sql
 CREATE TABLE admin_audit_logs (
@@ -65,11 +65,11 @@ CREATE INDEX idx_admin_audit_logs_created_at ON admin_audit_logs(created_at DESC
 CREATE INDEX idx_admin_audit_logs_action ON admin_audit_logs(action);
 ```
 
-- [ ] **Step 2: Write failing allowlist tests**
+- [x] **Step 2: Write failing allowlist tests**
 
 Cover stripping `token`, `cookie`, `password`, `api_key`, `secret`, `grant`, local paths and request headers from metadata.
 
-- [ ] **Step 3: Implement service**
+- [x] **Step 3: Implement service**
 
 ```go
 func (s *AdminAuditService) Record(ctx context.Context, entry RecordAdminAuditInput) error
@@ -118,7 +118,7 @@ Any metadata key not in the action's allowlist is silently stripped before persi
 - For external checks such as LLM connection tests, record sanitized success/failure after the check. If audit persistence is unavailable, return `500 AUDIT_WRITE_FAILED` and do not report the external operation as an audited success.
 - Record rejected or failed attempts as best-effort `result=failed` audit rows with a sanitized reason code. Never include raw provider or database errors in metadata.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```powershell
 cd backend
@@ -128,7 +128,7 @@ go vet ./...
 go build ./...
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add backend docs/superpowers/plans progress.txt

@@ -48,6 +48,7 @@ type ServiceContainer struct {
 	LLMConfigRepo     *repository.LLMConfigRepository
 	SearchRepo        *repository.SearchRepository
 	FeedbackRepo      *repository.FeedbackRepository
+	AdminAuditRepo    *repository.AdminAuditRepository
 
 	// Services
 	AuthService         *service.AuthService
@@ -65,6 +66,7 @@ type ServiceContainer struct {
 	PRService           *service.PRService
 	SearchService       *service.SearchService
 	FeedbackService     *service.FeedbackService
+	AdminAuditService   *service.AdminAuditService
 }
 
 func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceContainer {
@@ -105,6 +107,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.LLMConfigRepo = repository.NewLLMConfigRepository(db)
 	c.SearchRepo = repository.NewSearchRepository(db)
 	c.FeedbackRepo = repository.NewFeedbackRepository(db)
+	c.AdminAuditRepo = repository.NewAdminAuditRepository(db)
 
 	// Services
 	c.AuthService = service.NewAuthService(c.UserRepo, rdb, cfg)
@@ -137,6 +140,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 		uploadGrantTTL = cfg.Feedback.UploadGrantTTLSec
 	}
 	c.FeedbackService = service.NewFeedbackService(c.FeedbackRepo, c.UserRepo, rdb, captchaVerifier, uploadGrantTTL)
+	c.AdminAuditService = service.NewAdminAuditService(c.AdminAuditRepo, db)
 
 	// Wire recommendation into content service
 	c.RecommendationSvc = service.NewRecommendationService(db, c.EmbeddingRepo, c.ContentRepo, c.ContentService, rdb, &cfg.Recommendation)
