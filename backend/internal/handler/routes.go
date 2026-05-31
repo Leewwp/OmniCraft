@@ -15,7 +15,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	db := ctr.DB
 	userRepo := ctr.UserRepo
 	authService := ctr.AuthService
-	authHandler := NewAuthHandler(authService, userRepo, rdb, cfg)
+	authHandler := NewAuthHandler(authService, ctr.VerificationService, userRepo, rdb, cfg)
 
 	notifSvc := ctr.NotificationService
 
@@ -84,7 +84,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		auth.GET("/me", authReq, authHandler.Me)
 		auth.GET("/csrf", authHandler.CSRFToken)
 		auth.POST("/verify-email", authHandler.VerifyEmail)
-		auth.POST("/send-verification", authReq, authHandler.SendVerificationEmail)
+		auth.POST("/resend-verification", authHandler.ResendVerification)
 	}
 	auth.POST("/forgot-password", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), authHandler.ForgotPassword)
 	auth.POST("/reset-password", authHandler.ResetPassword)

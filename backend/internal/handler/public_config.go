@@ -28,10 +28,16 @@ type PublicClientDTO struct {
 	LatestVersion   string `json:"latest_version"`
 }
 
+type PublicLegalDTO struct {
+	CurrentTermsVersion   string `json:"current_terms_version"`
+	CurrentPrivacyVersion string `json:"current_privacy_version"`
+}
+
 type PublicConfigResponse struct {
 	Features PublicFeaturesDTO `json:"features"`
 	Captcha  PublicCaptchaDTO  `json:"captcha"`
 	Client   PublicClientDTO   `json:"client"`
+	Legal    PublicLegalDTO    `json:"legal"`
 }
 
 type PublicConfigHandler struct {
@@ -60,6 +66,10 @@ func (h *PublicConfigHandler) GetPublicConfig(c *gin.Context) {
 			DownloadEnabled: h.cfg.Client.DownloadEnabled,
 			DownloadURL:     h.cfg.Client.DownloadURL,
 			LatestVersion:   h.cfg.Client.LatestVersion,
+		},
+		Legal: PublicLegalDTO{
+			CurrentTermsVersion:   h.cfg.Legal.CurrentTermsVersion,
+			CurrentPrivacyVersion: h.cfg.Legal.CurrentPrivacyVersion,
 		},
 	}
 	c.JSON(http.StatusOK, resp)

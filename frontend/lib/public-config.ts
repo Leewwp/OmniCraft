@@ -20,10 +20,16 @@ export interface PublicClient {
   latest_version: string;
 }
 
+export interface PublicLegal {
+  current_terms_version: string;
+  current_privacy_version: string;
+}
+
 export interface PublicConfig {
   features: PublicFeatures;
   captcha: PublicCaptcha;
   client: PublicClient;
+  legal: PublicLegal;
 }
 
 let cachedConfig: PublicConfig | null = null;

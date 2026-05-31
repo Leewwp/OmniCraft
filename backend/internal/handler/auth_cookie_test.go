@@ -65,7 +65,8 @@ func setupAuthCookieTestRouter(t *testing.T) (*gin.Engine, *config.Config, *gorm
 
 	userRepo := repository.NewUserRepository(db)
 	authService := service.NewAuthService(userRepo, rdb, cfg)
-	authHandler := NewAuthHandler(authService, userRepo, rdb, cfg)
+	verificationService := service.NewVerificationService(userRepo, rdb, nil, cfg)
+	authHandler := NewAuthHandler(authService, verificationService, userRepo, rdb, cfg)
 
 	authReq := middleware.AuthRequired(cfg, rdb, db)
 
