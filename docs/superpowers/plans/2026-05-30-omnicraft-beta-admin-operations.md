@@ -146,7 +146,7 @@ git commit -m "Beta A-01: add append-only admin audit logs - completed"
 - Modify: `backend/internal/service/category_service.go`
 - Create: `backend/internal/handler/admin_audit_test.go`
 
-- [ ] **Step 1: Write failing handler tests**
+- [x] **Step 1: Write failing handler tests**
 
 Verify audit rows are created for:
 
@@ -161,7 +161,7 @@ Verify audit rows are created for:
 - Judge question creation.
 - Future feedback resolution.
 
-- [ ] **Step 2: Add a handler helper**
+- [x] **Step 2: Add a handler helper**
 
 ```go
 func (h *AdminHandler) auditOrFail(c *gin.Context, action, targetType, targetID string, metadata map[string]any) bool
@@ -171,11 +171,11 @@ The helper writes a sanitized entry. Mutation handlers must use `RecordTx` insid
 
 Wire one `AdminAuditService` from `ServiceContainer` into `AdminHandler`, `CategoryHandler` and `JudgeHandler`. Add transaction-aware repository/service entrypoints where existing handlers delegate writes, especially category mutations. Refactor `category_service.go` to accept an optional `*gorm.DB` transaction parameter so the audit service can write the audit row within the same transaction as the category mutation. If the transaction parameter is nil, the service creates its own `db` session as before. Do not instantiate an unrelated audit service per handler.
 
-- [ ] **Step 3: Keep admin config masked**
+- [x] **Step 3: Keep admin config masked**
 
 Confirm `GET /api/v1/admin/config` exposes booleans or masks for credentials. Do not return complete secrets and do not make frontend rendering depend on them.
 
-- [ ] **Step 4: Run checks**
+- [x] **Step 4: Run checks**
 
 ```powershell
 cd backend
@@ -184,7 +184,7 @@ go vet ./...
 go build ./...
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add backend docs/superpowers/plans progress.txt

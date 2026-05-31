@@ -1,5 +1,23 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-31] - Beta A-02: Audit Existing Sensitive Admin Mutations
+
+### What was done:
+- Modified `backend/internal/handler/admin.go`: Added `auditSvc` field, updated `NewAdminHandler` to accept `AdminAuditService`, added `auditOrFail` helper method, added audit records for: ApproveIP, RejectIP, BanContent, RestoreContent, BanUser, UnbanUser, ResolveAppeal, PatchConfig, CreateLLMConfig, UpdateLLMConfig, DeleteLLMConfig, ActivateLLMConfig, TestLLMConfig, ResolveReport
+- Modified `backend/internal/handler/category.go`: Added `auditSvc` field, updated `NewCategoryHandler` to accept `AdminAuditService`, added audit records for: AdminCreateCategory, AdminUpdateCategory, AdminDeleteCategory, AdminReorderCategories
+- Modified `backend/internal/handler/judge.go`: Added `auditSvc` field, updated `NewJudgeHandler` to accept `AdminAuditService`, added audit records for: CreateQuestions
+- Modified `backend/internal/handler/routes.go`: Updated NewAdminHandler, NewCategoryHandler, NewJudgeHandler calls to pass `ctr.AdminAuditService`
+
+### Testing:
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+
+### Notes:
+- `auditOrFail` in AdminHandler returns false on audit write failure, blocking the response with 500 AUDIT_WRITE_FAILED
+- Category and Judge handlers use best-effort audit (non-blocking) since they don't use transactions yet
+- All audit metadata follows the allowlist defined in A-01's `auditMetadataAllowlist`
+- Admin config GET endpoint already masks secrets via `ConfigRedactStatus` (confirmed in Step 3)
+
 ## [2026-05-31] - Beta A-01: Add Append-Only Admin Audit Logs
 
 ### What was done:

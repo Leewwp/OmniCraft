@@ -18,16 +18,18 @@ import (
 )
 
 type JudgeHandler struct {
-	judgeSvc *service.JudgeService
+	judgeSvc  *service.JudgeService
 	judgeRepo *repository.JudgeRepository
+	auditSvc  *service.AdminAuditService
 }
 
-func NewJudgeHandler(db *gorm.DB, cfg *config.Config) *JudgeHandler {
+func NewJudgeHandler(db *gorm.DB, cfg *config.Config, auditSvc *service.AdminAuditService) *JudgeHandler {
 	judgeRepo := repository.NewJudgeRepository(db)
 	reputSvc := service.NewReputationService(db)
 	return &JudgeHandler{
 		judgeSvc:  service.NewJudgeService(judgeRepo, reputSvc, cfg),
 		judgeRepo: judgeRepo,
+		auditSvc:  auditSvc,
 	}
 }
 
@@ -171,6 +173,18 @@ func (h *JudgeHandler) CreateQuestions(c *gin.Context) {
 		if err := h.judgeRepo.CreateQuestion(&questions[i]); err != nil {
 			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 			return
+		}
+	}
+	if h.auditSvc != nil {
+		for _, q := range questions {
+			h.auditSvc.Record(c.Request.Context(), service.RecordAdminAuditInput{
+				AdminUserID: c.GetInt64("user_id"),
+				Action:      "judge_question_create",
+				TargetType:  "judge_question",
+				TargetID:    strconv.FormatInt(q.ID, 10),
+				Metadata:    map[string]any{"question_id": q.ID, "content_type": q.ContentType},
+				Result:      "success",
+			})
 		}
 	}
 	c.JSON(http.StatusCreated, gin.H{"created": len(questions)})
