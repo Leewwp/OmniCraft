@@ -488,6 +488,7 @@
     "navReports": "举报处理",
     "navFeedback": "反馈管理",
     "navQueue": "队列监控",
+    "navAuditLogs": "审计日志",
     "navCategories": "分类管理",
     "navConfig": "系统配置",
     "navAgentConfig": "Agent 管理",
@@ -714,6 +715,13 @@
       "noDLQ": "死信队列为空",
       "loadFailed": "加载队列数据失败",
       "readOnlyNote": "Beta 阶段队列页面为只读模式，不支持重放操作。"
+    },
+    "auditLogs": {
+      "title": "审计日志",
+      "loadFailed": "加载审计日志失败",
+      "allActions": "全部操作",
+      "noLogs": "暂无审计记录",
+      "noMetadata": "无元数据"
     }
   },
   "social": {

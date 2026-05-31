@@ -92,7 +92,7 @@ flowchart TD
 | A-02 | Audit existing sensitive admin mutations | admin-operations | A-01 | Track A | `[x]` |
 | A-03 | Add admin dashboard and reports pages | admin-operations | A-04 | Track A | `[x]` |
 | A-04 | Add admin feedback and queue pages | admin-operations | A-02, V-05 | Track A | `[x]` |
-| A-05 | Add audit-log page and complete admin navigation | admin-operations | A-03, A-04 | Track A | `[ ]` |
+| A-05 | Add audit-log page and complete admin navigation | admin-operations | A-03, A-04 | Track A | `[x]` |
 | G-01 | Gate global Agent chat and deploy UI with public config | agent-entrypoints | F-04 | Track B | `[x]` |
 | G-02 | Default anonymous search to keyword mode and downgrade Agent failures | agent-entrypoints | F-05, G-01 | Track B | `[ ]` |
 | G-03 | Make global chat contextual and recoverable | agent-entrypoints | G-01 | Track B | `[ ]` |

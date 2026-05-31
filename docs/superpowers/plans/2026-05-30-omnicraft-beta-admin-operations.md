@@ -346,7 +346,7 @@ git commit -m "Beta A-04: add admin feedback and queue pages - completed"
 - Modify: `frontend/messages/zh.json`
 - Modify: `frontend/messages/en.json`
 
-- [ ] **Step 1: Add list API**
+- [x] **Step 1: Add list API**
 
 Before editing Admin navigation UI, run:
 
@@ -362,15 +362,15 @@ GET /api/v1/admin/audit-logs?action=&admin_user_id=&from=&to=&page=&page_size=
 
 Return sanitized metadata only.
 
-- [ ] **Step 2: Add page and navigation**
+- [x] **Step 2: Add page and navigation**
 
 Admin sidebar must reach dashboard, reports, feedback, queue and audit logs in addition to existing pages. Add mobile navigation entries.
 
-- [ ] **Step 3: Verify access boundaries**
+- [x] **Step 3: Verify access boundaries**
 
 Admin routes require runtime admin role from `AuthRequired` plus `AdminRequired`; do not rely on JWT claims or frontend redirects.
 
-- [ ] **Step 4: Run checks and browser-test**
+- [x] **Step 4: Run checks and browser-test**
 
 ```powershell
 cd backend
@@ -384,7 +384,7 @@ npm run build
 
 Use MCP Playwright to navigate every admin sidebar entry and inspect one audit record. Save `screenshots/beta-a05-admin-nav.png`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add backend frontend screenshots docs/superpowers/plans progress.txt
