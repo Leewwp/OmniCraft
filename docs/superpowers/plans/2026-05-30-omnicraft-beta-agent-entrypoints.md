@@ -81,7 +81,7 @@ npm run build
 
 Use MCP Playwright with public config flags off and on. Save screenshots under `screenshots/beta-g01-*`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add frontend screenshots docs/superpowers/plans progress.txt
@@ -98,11 +98,11 @@ git commit -m "Beta G-01: gate Agent and desktop entrypoints - completed"
 - Modify: `backend/internal/service/agent_service.go`
 - Create: `backend/internal/service/agent_visibility_test.go`
 
-- [ ] **Step 1: Write backend visibility test**
+- [x] **Step 1: Write backend visibility test**
 
 Seed vector-search hits containing published, deleted, banned-IP and private content. Assert NL search returns only content allowed by the shared visibility scope introduced in F-05.
 
-- [ ] **Step 2: Change search defaults**
+- [x] **Step 2: Change search defaults**
 
 ```ts
 const [mode, setMode] = useState<"keyword" | "agent">("keyword");
@@ -110,7 +110,7 @@ const [mode, setMode] = useState<"keyword" | "agent">("keyword");
 
 Anonymous users and unverified-email users must stay on keyword mode. Logged-in verified users may explicitly select Agent mode when the public feature flag is on.
 
-- [ ] **Step 3: Add downgrade behavior**
+- [x] **Step 3: Add downgrade behavior**
 
 When Agent search returns `401`, `403`, `429`, `503` or a network error:
 
@@ -119,7 +119,7 @@ When Agent search returns `401`, `403`, `429`, `503` or a network error:
 - Preserve category, tag and sort filters.
 - Never leave the page with an empty failed state if keyword search is available.
 
-- [ ] **Step 4: Run checks and browser-test**
+- [x] **Step 4: Run checks and browser-test**
 
 ```powershell
 cd backend
@@ -132,7 +132,7 @@ npm run build
 
 Use MCP Playwright as anonymous and logged-in users, then simulate Agent failure. Save screenshots under `screenshots/beta-g02-*`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add backend frontend screenshots docs/superpowers/plans progress.txt

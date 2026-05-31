@@ -878,6 +878,8 @@
     "noGuideAvailable": "暂无使用指导",
     "searchAgentPlaceholder": "用自然语言搜索，如「适合新手的家具 Mod」...",
     "searchKeywordPlaceholder": "输入关键词搜索...",
+    "searchAgentNoResults": "AI 搜索未找到结果，已切换为关键词搜索",
+    "searchAgentDowngrade": "AI 搜索暂时不可用，已切换为关键词搜索",
     "aiSearch": "AI 搜索",
     "keywordSearch": "关键词搜索"
   },
