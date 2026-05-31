@@ -444,14 +444,26 @@ func (s *AgentService) embedContent(ctx context.Context, contentItemID int64, te
 	return nil
 }
 
-func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []llm.ChatMessage, handler func(delta string, done bool, conversationID int64) error) error {
+func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []llm.ChatMessage, pageCtx *model.AgentPageContext, handler func(delta string, done bool, conversationID int64) error) error {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return ErrAgentDisabled
 	}
 
+	contextType := "general"
+	var contextID *int64
+	if pageCtx != nil {
+		if pageCtx.ContentID != nil {
+			contextType = "content"
+			contextID = pageCtx.ContentID
+		} else if pageCtx.Route != "" {
+			contextType = "page"
+		}
+	}
+
 	conv := &model.AgentConversation{
 		UserID:      userID,
-		ContextType: "general",
+		ContextType: contextType,
+		ContextID:   contextID,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -474,8 +486,28 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []
 		}
 	}
 
+	llmMessages := messages
+	if pageCtx != nil {
+		var contextParts []string
+		contextParts = append(contextParts, fmt.Sprintf("Current page: %s", pageCtx.Route))
+		if pageCtx.ContentTitle != "" {
+			contextParts = append(contextParts, fmt.Sprintf("Content title: %s", pageCtx.ContentTitle))
+		}
+		if pageCtx.ContentType != "" {
+			contextParts = append(contextParts, fmt.Sprintf("Content type: %s", pageCtx.ContentType))
+		}
+		if pageCtx.ContentID != nil {
+			contextParts = append(contextParts, fmt.Sprintf("Content ID: %d", *pageCtx.ContentID))
+		}
+		systemMsg := llm.ChatMessage{
+			Role:    "system",
+			Content: "[Page Context] " + strings.Join(contextParts, "; "),
+		}
+		llmMessages = append([]llm.ChatMessage{systemMsg}, llmMessages...)
+	}
+
 	req := llm.ChatRequest{
-		Messages:  messages,
+		Messages:  llmMessages,
 		MaxTokens: 2000,
 		Stream:    true,
 	}

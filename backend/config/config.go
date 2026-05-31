@@ -147,6 +147,8 @@ type AgentConfig struct {
 	RateLimitPerDay       int    `mapstructure:"rate_limit_per_day"`
 	UploadAssistMaxFileMB int    `mapstructure:"upload_assist_max_file_mb"`
 	HMACSecret            string `mapstructure:"hmac_secret" json:"-"`
+	MaxUserMessageChars   int    `mapstructure:"max_user_message_chars"`
+	ChatMaxContextMsgs    int    `mapstructure:"chat_max_context_messages"`
 }
 
 type CaptchaConfig struct {

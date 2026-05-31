@@ -1,5 +1,43 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-06-01] - Beta G-03: Make Global Chat Contextual And Recoverable
+
+### What was done:
+- Created `frontend/lib/agent-context.ts` with `AgentPageContext` interface, `buildPageContext()`, `sanitizePageContext()`, and `QUICK_PROMPTS` constants
+- Added `MaxUserMessageChars` (default 4000) and `ChatMaxContextMsgs` (default 10) to `backend/config/config.go` and `config.yaml`
+- Added `AgentPageContext` model to `backend/internal/model/agent.go`
+- Modified `ChatStream` handler in `backend/internal/handler/agent.go`:
+  - Added `ChatContextDTO` for page context in request body
+  - Added role allowlist validation (`user`, `assistant` only)
+  - Added per-message length truncation to `MaxUserMessageChars`
+  - Added context window limit to `ChatMaxContextMsgs` (keeps last N messages)
+  - Added `truncateStr` helper for context field length limits
+- Modified `ChatStream` service in `backend/internal/service/agent_service.go`:
+  - Added `pageCtx *model.AgentPageContext` parameter
+  - Sets `contextType` and `contextID` on conversation from page context
+  - Injects page context as system message prefix into LLM request
+- Rewrote `frontend/components/agent/AgentChatWidget.tsx`:
+  - Sends last 10 messages as conversation history (not just current message)
+  - Sends sanitized page context with each request
+  - Added quick prompt buttons (page_help, download_help, publish_help, desktop_client_help, report_problem)
+  - Added downgrade CTA: retry button, /help link, /feedback link
+  - Added error state display with amber downgrade notice
+  - Added `contentId`, `contentTitle`, `contentType` props for content-specific context
+- Created `backend/internal/service/agent_chat_test.go` with 8 tests covering page context, context type, system context injection, config fields, role allowlist, message truncation, and context window limit
+- Added i18n keys: chatError, chatDowngradeNotice, retry, helpLink, feedbackLink, quickPrompt_* in both zh.json and en.json
+
+### Testing:
+- `go test ./internal/service -run TestChatStream -v`: 8/8 PASS
+- `go build ./...`: passed
+- `go vet ./...`: passed
+- `npm run lint`: passed
+- `npm run build`: passed
+
+### Notes:
+- Beta chat scope is per-page-mount lifecycle; navigating away clears history (cross-page persistence is P1 deferred)
+- The `usePathname` import in AgentChatWidget is kept for future use but not directly used in `buildPageContext()` (which reads `window.location.pathname` directly)
+- Backend never executes tools, writes content, or returns permanent OSS URLs in chat responses
+
 ## [2026-06-01] - Beta G-02: Default Search To Keyword And Degrade Agent Failures
 
 ### What was done:

@@ -95,7 +95,7 @@ flowchart TD
 | A-05 | Add audit-log page and complete admin navigation | admin-operations | A-03, A-04 | Track A | `[x]` |
 | G-01 | Gate global Agent chat and deploy UI with public config | agent-entrypoints | F-04 | Track B | `[x]` |
 | G-02 | Default anonymous search to keyword mode and downgrade Agent failures | agent-entrypoints | F-05, G-01 | Track B | `[x]` |
-| G-03 | Make global chat contextual and recoverable | agent-entrypoints | G-01 | Track B | `[ ]` |
+| G-03 | Make global chat contextual and recoverable | agent-entrypoints | G-01 | Track B | `[x]` |
 | G-04 | Mount usage guide on content detail | agent-entrypoints | G-03 | Track B | `[ ]` |
 | G-05 | Mount user-confirmed publish assistance | agent-entrypoints | G-01 | Track B | `[ ]` |
 | D-01 | Remove the unsafe desktop deploy prototype route | desktop-deploy-security | G-01 | Shared Web Beta gate | `[x]` |

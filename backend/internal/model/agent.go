@@ -19,3 +19,10 @@ type AgentMessage struct {
 	ToolCalls      JSONMap   `gorm:"type:jsonb" json:"tool_calls,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
 }
+
+type AgentPageContext struct {
+	Route        string `json:"route"`
+	ContentID    *int64 `json:"content_id,omitempty"`
+	ContentTitle string `json:"content_title,omitempty"`
+	ContentType  string `json:"content_type,omitempty"`
+}

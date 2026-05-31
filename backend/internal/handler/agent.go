@@ -177,17 +177,52 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	var body struct {
 		Messages []llm.ChatMessage `json:"messages" binding:"required"`
+		Context  *ChatContextDTO   `json:"context,omitempty"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.ValidationError(c, "invalid request parameters")
 		return
 	}
 
+	maxMsgLen := h.cfg.Agent.MaxUserMessageChars
+	if maxMsgLen <= 0 {
+		maxMsgLen = 4000
+	}
+	maxCtxMsgs := h.cfg.Agent.ChatMaxContextMsgs
+	if maxCtxMsgs <= 0 {
+		maxCtxMsgs = 10
+	}
+
+	allowedRoles := map[string]bool{"user": true, "assistant": true}
+	filtered := make([]llm.ChatMessage, 0, len(body.Messages))
+	for _, msg := range body.Messages {
+		if !allowedRoles[msg.Role] {
+			continue
+		}
+		if len(msg.Content) > maxMsgLen {
+			msg.Content = msg.Content[:maxMsgLen]
+		}
+		filtered = append(filtered, msg)
+	}
+	if len(filtered) > maxCtxMsgs {
+		filtered = filtered[len(filtered)-maxCtxMsgs:]
+	}
+
+	var pageCtx *model.AgentPageContext
+	if body.Context != nil {
+		pageCtx = &model.AgentPageContext{
+			Route:         truncateStr(body.Context.Route, 200),
+			ContentID:     body.Context.ContentID,
+			ContentTitle:  truncateStr(body.Context.ContentTitle, 200),
+			ContentType:   truncateStr(body.Context.ContentType, 50),
+		}
+	}
+
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("X-Accel-Buffering", "no")
 
-	err := h.agentSvc.ChatStream(c.Request.Context(), userID, body.Messages, func(delta string, done bool, convID int64) error {
+	err := h.agentSvc.ChatStream(c.Request.Context(), userID, filtered, pageCtx, func(delta string, done bool, convID int64) error {
 		if done {
 			c.SSEvent("message", gin.H{"done": true, "conversation_id": convID})
 		} else if delta != "" {
@@ -199,6 +234,20 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 	if err != nil {
 		c.SSEvent("error", gin.H{"message": "service error"})
 	}
+}
+
+type ChatContextDTO struct {
+	Route        string `json:"route"`
+	ContentID    *int64 `json:"content_id,omitempty"`
+	ContentTitle string `json:"content_title,omitempty"`
+	ContentType  string `json:"content_type,omitempty"`
+}
+
+func truncateStr(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen]
 }
 
 func (h *AgentHandler) ListConversations(c *gin.Context) {
