@@ -98,7 +98,7 @@ flowchart TD
 | G-03 | Make global chat contextual and recoverable | agent-entrypoints | G-01 | Track B | `[ ]` |
 | G-04 | Mount usage guide on content detail | agent-entrypoints | G-03 | Track B | `[ ]` |
 | G-05 | Mount user-confirmed publish assistance | agent-entrypoints | G-01 | Track B | `[ ]` |
-| D-01 | Remove the unsafe desktop deploy prototype route | desktop-deploy-security | G-01 | Shared Web Beta gate | `[ ]` |
+| D-01 | Remove the unsafe desktop deploy prototype route | desktop-deploy-security | G-01 | Shared Web Beta gate | `[x]` |
 | D-02 | Add short-lived single-use deploy grants | desktop-deploy-security | D-01, F-06 | Desktop conditional | `[ ]` |
 | D-03 | Replace HMAC with Ed25519 signed canonical scripts | desktop-deploy-security | D-02 | Desktop | `[ ]` |
 | D-04 | Harden Rust schema, URL handling, filesystem and capabilities | desktop-deploy-security | D-03 | Desktop | `[ ]` |

@@ -297,7 +297,6 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		agent.POST("/chat/stream", agentHandler.ChatStream)
 		agent.GET("/conversations", agentHandler.ListConversations)
 		agent.GET("/conversations/:id", agentHandler.GetConversationMessages)
-		agent.GET("/script/:id", agentHandler.GenerateDeployScript)
 	}
 
 	rehabHandler := NewRehabHandler(db)

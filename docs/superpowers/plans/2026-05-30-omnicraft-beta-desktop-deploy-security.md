@@ -51,7 +51,7 @@
 - Create: `backend/internal/handler/agent_deploy_disabled_test.go`
 - Modify: `.env.example`
 
-- [ ] **Step 1: Confirm the feature flag defaults off**
+- [x] **Step 1: Confirm the feature flag defaults off**
 
 ```yaml
 features:
@@ -60,7 +60,7 @@ features:
 
 F-04 introduces the flag and public DTO. This task verifies the backend source, environment override behavior and disabled-by-default production value rather than creating a second competing config shape.
 
-- [ ] **Step 2: Confirm prototype UI is hidden**
+- [x] **Step 2: Confirm prototype UI is hidden**
 
 Before editing UI, run:
 
@@ -70,7 +70,7 @@ rg -n "## Component: ContentDetail|## Page: /studio/publish" design/ui-spec.md
 
 G-01 owns the Web UI gate. Confirm one-click deploy links and creator enablement toggles are absent while the flag is false. `/client` may remain as an information/manual-download page. Do not duplicate the G-01 component edits in this task.
 
-- [ ] **Step 3: Remove the unsafe backend route**
+- [x] **Step 3: Remove the unsafe backend route**
 
 Remove the `/api/v1/agent/script/:id` registration from `routes.go` and delete its handler function. It is an unsafe prototype, not a supported API. Add a direct route test:
 
@@ -80,7 +80,7 @@ GET /api/v1/agent/script/:id -> 404
 
 The future supported deploy API is `/api/v1/deploy-grants`; when that feature is disabled, that endpoint returns `503 FEATURE_DISABLED`. Do not preserve the legacy script route solely to return a feature-flag error.
 
-- [ ] **Step 4: Run checks and browser-test**
+- [x] **Step 4: Run checks and browser-test**
 
 ```powershell
 cd backend
@@ -94,7 +94,7 @@ npm run build
 
 Use MCP Playwright and save `screenshots/beta-d01-desktop-hidden.png`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add backend .env.example screenshots docs/superpowers/plans progress.txt
