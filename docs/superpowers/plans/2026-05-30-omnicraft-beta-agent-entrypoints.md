@@ -153,7 +153,7 @@ git commit -m "Beta G-02: add keyword-first Agent search downgrade - completed"
 - Modify: `frontend/messages/zh.json`
 - Modify: `frontend/messages/en.json`
 
-- [ ] **Step 1: Define safe page context**
+- [x] **Step 1: Define safe page context**
 
 ```ts
 export interface AgentPageContext {
@@ -166,11 +166,11 @@ export interface AgentPageContext {
 
 Do not send cookies, tokens, local paths or raw page HTML.
 
-- [ ] **Step 2: Send bounded conversation history**
+- [x] **Step 2: Send bounded conversation history**
 
 The existing widget sends only the newest message. Send at most the latest 10 current-page messages plus safe page context. Cap each message at the backend-configured length limit (`agent.max_user_message_chars`, default `4000`) and reject unsupported roles. **Beta chat scope:** Agent chat state is per-page-mount lifecycle. Navigating away from the page clears the conversation history. Cross-page chat persistence is P1 and is listed in the roadmap's "Deferred P1 Scope".
 
-- [ ] **Step 3: Add quick prompts and downgrade CTA**
+- [x] **Step 3: Add quick prompts and downgrade CTA**
 
 When Agent fails or rate limits:
 
@@ -188,11 +188,11 @@ Add the frozen quick-prompt intents below. Render their labels through `next-int
 - `desktop_client_help`
 - `report_problem`
 
-- [ ] **Step 4: Add backend validation**
+- [x] **Step 4: Add backend validation**
 
 Validate message count, role allowlist, per-message length and page-context fields. Reject unsupported role/tool payloads and unknown context fields. Beta chat must never execute tools, write content or return permanent OSS URLs.
 
-- [ ] **Step 5: Run checks and browser-test**
+- [x] **Step 5: Run checks and browser-test**
 
 ```powershell
 cd backend
@@ -207,7 +207,7 @@ npm run build
 
 Use MCP Playwright to send multiple messages, inspect fallback state and save `screenshots/beta-g03-chat.png`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add backend frontend screenshots docs/superpowers/plans progress.txt

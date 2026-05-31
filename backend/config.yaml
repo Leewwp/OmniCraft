@@ -139,6 +139,8 @@ agent:
   embedding_dimensions: 1536
   rate_limit_per_day: 50
   upload_assist_max_file_mb: 10
+  max_user_message_chars: 4000
+  chat_max_context_messages: 10
 
 rate_limit:
   enabled: true
