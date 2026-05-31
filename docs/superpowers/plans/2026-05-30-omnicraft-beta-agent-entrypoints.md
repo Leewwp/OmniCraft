@@ -222,13 +222,13 @@ git commit -m "Beta G-03: add contextual recoverable Agent chat - completed"
 - Modify: `frontend/messages/zh.json`
 - Modify: `frontend/messages/en.json`
 
-- [ ] **Step 1: Read specs**
+- [x] **Step 1: Read specs**
 
 ```powershell
 rg -n "## Component: ContentDetail|## Component: UsageGuidePanel" design/ui-spec.md
 ```
 
-- [ ] **Step 2: Mount the existing panel**
+- [x] **Step 2: Mount the existing panel**
 
 Show usage-guide entry only when:
 
@@ -238,7 +238,7 @@ Show usage-guide entry only when:
 
 The panel must display retry, `/help` and `/feedback` fallback. Render Markdown through the existing safe `MarkdownRenderer`; do not enable raw HTML.
 
-- [ ] **Step 3: Run checks and browser-test**
+- [x] **Step 3: Run checks and browser-test**
 
 ```powershell
 cd frontend
@@ -248,7 +248,7 @@ npm run build
 
 Use MCP Playwright to open a mod or sheet-music detail page and request a guide. Save `screenshots/beta-g04-usage-guide.png`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```powershell
 git add frontend screenshots docs/superpowers/plans progress.txt

@@ -1,5 +1,30 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-06-01] - Beta G-04: Mount Usage Guide On Content Detail
+
+### What was done:
+- Mounted `UsageGuidePanel` in `frontend/components/content/ContentDetail.tsx`:
+  - Wrapped in `AgentFeatureGate capability="webAgent"` — hidden when Agent is disabled
+  - Limited to `mod` and `sheet_music` content types per Beta allowlist
+  - Only shown for `status === "published"` content
+- Enhanced `UsageGuidePanel` with fallback CTA:
+  - Added error state with `guideError` i18n message
+  - Added retry button (`RotateCcw` icon)
+  - Added `/help` link (`HelpCircle` icon)
+  - Added `/feedback` link (`Flag` icon)
+  - Extracted `fetchGuide()` function for retry support
+- Added `guideError` i18n key in both zh.json and en.json
+
+### Testing:
+- `npm run lint`: passed
+- `npm run build`: passed
+- `go build ./...`: passed
+
+### Notes:
+- UsageGuidePanel was previously an orphan component — now properly mounted in ContentDetail
+- Backend `GET /api/v1/agent/usage-guide/:id` endpoint already exists and is fully implemented
+- The panel uses `MarkdownRenderer` for safe rendering — no raw HTML enabled
+
 ## [2026-06-01] - Beta G-03: Make Global Chat Contextual And Recoverable
 
 ### What was done:

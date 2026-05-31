@@ -891,6 +891,7 @@
     "usageGuideTitle": "AI 使用指导",
     "loadingGuide": "正在生成使用指导...",
     "noGuideAvailable": "暂无使用指导",
+    "guideError": "使用指导生成失败，请稍后重试",
     "searchAgentPlaceholder": "用自然语言搜索，如「适合新手的家具 Mod」...",
     "searchKeywordPlaceholder": "输入关键词搜索...",
     "searchAgentNoResults": "AI 搜索未找到结果，已切换为关键词搜索",

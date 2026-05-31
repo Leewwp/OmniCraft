@@ -892,6 +892,7 @@
     "usageGuideTitle": "AI Usage Guide",
     "loadingGuide": "Generating usage guide...",
     "noGuideAvailable": "No usage guide available",
+    "guideError": "Failed to generate usage guide. Please try again later.",
     "searchAgentPlaceholder": "Search naturally, e.g. \"beginner furniture mods\"...",
     "searchKeywordPlaceholder": "Search by keyword...",
     "searchAgentNoResults": "AI search found no results, switched to keyword search",
