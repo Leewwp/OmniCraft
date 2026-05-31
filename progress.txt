@@ -1,5 +1,26 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-31] - Beta V-06: Add Feedback Pages And Entry Points
+
+### What was done:
+- Created `frontend/components/feedback/FeedbackForm.tsx`: Shared feedback form component with category select, title, description, contact email (required for anonymous), screenshot upload via `/api/v1/feedback/attachments/presign`, diagnostic opt-in with privacy hint, CaptchaWidget for anonymous users
+- Created `frontend/app/(public)/feedback/page.tsx`: Public feedback submission page (anonymous + logged-in)
+- Created `frontend/app/(protected)/feedback/mine/page.tsx`: User's feedback ticket list with status badges, category labels, and links to detail
+- Created `frontend/app/(protected)/feedback/[feedbackId]/page.tsx`: Feedback ticket detail page with status, description, diagnostics, attachments, reply history (internal notes filtered out)
+- Updated `frontend/app/(public)/client/page.tsx`: Added feedback link CTA
+- Updated `frontend/app/(protected)/settings/page.tsx`: Added feedback link in legal section
+- Updated `frontend/messages/zh.json` and `frontend/messages/en.json`: Added ~50 new translation keys for feedback namespace
+
+### Testing:
+- `npm run lint` — PASS
+- `npm run build` — PASS (all new routes: /feedback, /feedback/[feedbackId], /feedback/mine)
+
+### Notes:
+- Anonymous feedback cannot be tracked online (Beta limitation); logged-in users can view their tickets at /feedback/mine
+- Feedback form uses feedback-specific presign endpoint, not the content upload endpoint
+- Diagnostic info is opt-in and only includes app_version, platform, route, error_code
+- Footer already has /feedback link from V-04
+
 ## [2026-05-31] - Beta V-05: Add Feedback Data Model And User/Anonymous API
 
 ### What was done:

@@ -454,7 +454,7 @@ git commit -m "Beta V-05: add feedback ticket API - completed"
 - Modify: `frontend/messages/zh.json`
 - Modify: `frontend/messages/en.json`
 
-- [ ] **Step 1: Implement shared feedback form**
+- [x] **Step 1: Implement shared feedback form**
 
 Before editing UI, run:
 
@@ -466,15 +466,15 @@ If no dedicated spec exists, follow `design/design-system.md`.
 
 Fields: category, title, description, contact email, optional screenshot, captcha for anonymous users, explicit diagnostic-summary opt-in and privacy hint. Upload screenshot through `/api/v1/feedback/attachments/presign`, not `/api/v1/contents/oss-token`.
 
-- [ ] **Step 2: Implement user list and detail pages**
+- [x] **Step 2: Implement user list and detail pages**
 
 Authenticated users can view `/feedback/mine`, open `/feedback/[feedbackId]`, inspect current status and see non-internal reply history. Keep anonymous submissions intentionally non-trackable in Beta. **Beta follow-up note:** After Beta, allow anonymous users to view their ticket status via a high-entropy token link received at submission time. The server must store only the token hash. This is recorded in the roadmap's "Non-Blocking Beta Follow-Ups" section.
 
-- [ ] **Step 3: Add Footer and client entrypoints**
+- [x] **Step 3: Add Footer and client entrypoints**
 
 Footer must link to `/feedback`. The desktop client plan adds its own feedback CTA.
 
-- [ ] **Step 4: Run checks and browser-test**
+- [x] **Step 4: Run checks and browser-test**
 
 ```powershell
 cd frontend
@@ -484,7 +484,7 @@ npm run build
 
 Use MCP Playwright to submit anonymous and authenticated feedback, inspect user list/detail, and save screenshots under `screenshots/beta-v06-*`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add frontend screenshots docs/superpowers/plans progress.txt
