@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 import { SheetMusicViewer } from "@/components/content/SheetMusicViewer";
 import { DownloadButton } from "@/components/content/DownloadButton";
+import { UsageGuidePanel } from "@/components/agent/UsageGuidePanel";
 import { ReactionBar } from "@/components/social/ReactionBar";
 import { CommentSection } from "@/components/social/CommentSection";
 import { useAuth } from "@/contexts/AuthContext";
@@ -347,6 +348,13 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
           </div>
         </div>
       )}
+      </AgentFeatureGate>
+
+      {/* AI Usage Guide */}
+      <AgentFeatureGate capability="webAgent">
+        {(contentType === "mod" || contentType === "sheet_music") && data.status === "published" && (
+          <UsageGuidePanel contentId={data.id} />
+        )}
       </AgentFeatureGate>
 
       {/* Favorite Button */}
