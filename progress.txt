@@ -1,5 +1,26 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-31] - Beta A-01: Add Append-Only Admin Audit Logs
+
+### What was done:
+- Created `backend/migrations/052_admin_audit_logs.sql`: admin_audit_logs table with indexes on created_at (DESC) and action
+- Created `backend/internal/model/admin_audit.go`: AdminAuditLog model with fields id, admin_user_id, action, target_type, target_id, trace_id, metadata (JSONMap), result, created_at
+- Created `backend/internal/repository/admin_audit_repo.go`: Create, CreateTx (transaction-aware), List with filtering (action, admin_user_id, from/to time range, pagination)
+- Created `backend/internal/service/admin_audit_service.go`: Record, RecordTx, List methods; metadata allowlist filtering per action; sensitive key detection (case-insensitive); slog error logging on audit write failure
+- Created `backend/internal/service/admin_audit_service_test.go`: 7 tests covering allowlist stripping, sensitive key removal, case-insensitive detection, nil input, config_patch masking, isSensitiveKey unit tests
+- Updated `backend/internal/container/container.go`: Added AdminAuditRepo and AdminAuditService wiring
+
+### Testing:
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+- `go test ./internal/service/... -run "TestFilter|TestIsSensitive" -v` — 7/7 PASS
+
+### Notes:
+- Audit logs are append-only; no update/delete APIs exposed
+- Metadata filtering uses per-action allowlist + global sensitive key detection
+- RecordTx supports transactional audit writes alongside domain mutations (for A-02)
+- Sensitive key patterns: token, cookie, password, api_key, secret, grant, access_key, private_key, authorization, header
+
 ## [2026-05-31] - Beta V-06: Add Feedback Pages And Entry Points
 
 ### What was done:
