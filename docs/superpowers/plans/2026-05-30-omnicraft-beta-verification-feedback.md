@@ -148,7 +148,7 @@ git commit -m "Beta V-01: add verification providers and token lifecycle - compl
 - Create: `backend/internal/handler/auth_verification_test.go`
 - Modify: `frontend/lib/public-config.ts`
 
-- [ ] **Step 1: Write failing handler tests**
+- [x] **Step 1: Write failing handler tests**
 
 Cover:
 
@@ -162,7 +162,7 @@ Cover:
 - Password minimum length matches configured policy.
 - Login requires captcha only after the configured failed-login threshold and clears the failure counter after success.
 
-- [ ] **Step 2: Update registration contract**
+- [x] **Step 2: Update registration contract**
 
 Input:
 
@@ -187,7 +187,7 @@ Response:
 
 Return HTTP `202`. Do not create an interactive browser session before verification. Do not place the full email address in a redirect URL, browser history or server logs.
 
-- [ ] **Step 3: Add resend route and captcha checks**
+- [x] **Step 3: Add resend route and captcha checks**
 
 Mount:
 
@@ -199,11 +199,11 @@ Require `email` and `captcha_token`, return a uniform response, and enforce cool
 
 Forgot-password also accepts `email` and `captcha_token`, returns the same response for known and unknown emails, and never exposes a token. Reset-password accepts only `token` and `new_password`; after a successful reset it MUST establish the cookie/access-token session required by the existing `design/ui-spec.md` auto-login state and MUST NOT return a refresh token in JSON.
 
-- [ ] **Step 4: Add login captcha threshold**
+- [x] **Step 4: Add login captcha threshold**
 
 After configured failed-login threshold, require captcha. Keep normal login friction low before threshold.
 
-- [ ] **Step 5: Run checks**
+- [x] **Step 5: Run checks**
 
 ```powershell
 cd backend
@@ -212,11 +212,11 @@ go vet ./...
 go build ./...
 ```
 
-- [ ] **Step 6: Stop when Beta credentials are unavailable**
+- [x] **Step 6: Stop when Beta credentials are unavailable**
 
 If real SMTP or captcha credentials are absent at the Beta verification point, record the blocker in `progress.txt`. Unit tests and local development may use fakes, but do not mark the Beta verification task complete and do not commit it as completed until real credentials are provisioned. `server.mode == "release"` must reject logger/bypass providers during startup.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add backend frontend docs/superpowers/plans progress.txt

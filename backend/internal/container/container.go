@@ -9,7 +9,9 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/captcha"
 	"omnicraft/backend/internal/pkg/llm"
+	"omnicraft/backend/internal/pkg/mail"
 	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -48,6 +50,7 @@ type ServiceContainer struct {
 
 	// Services
 	AuthService         *service.AuthService
+	VerificationService *service.VerificationService
 	ContentService      *service.ContentService
 	IPService           *service.IPService
 	SocialService       *service.SocialService
@@ -102,6 +105,19 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 
 	// Services
 	c.AuthService = service.NewAuthService(c.UserRepo, rdb, cfg)
+
+	var mailSender mail.MailSender
+	if cfg.SMTP.Mode == "smtp" {
+		mailSender = mail.NewSMTPSender(cfg.SMTP)
+	} else {
+		mailSender = mail.NewLoggerSender()
+	}
+
+	captchaVerifier := captcha.NewCaptchaVerifier(cfg.Captcha)
+	c.VerificationService = service.NewVerificationService(c.UserRepo, rdb, mailSender, cfg)
+
+	_ = captchaVerifier
+
 	c.IPService = service.NewIPService(c.IPRepo)
 	c.ReputationService = service.NewReputationService(db)
 	c.ReviewService = service.NewReviewService(db, rdb, cfg, c.ReputationService)

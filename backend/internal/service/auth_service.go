@@ -40,66 +40,67 @@ func NewAuthService(userRepo *repository.UserRepository, rdb *redis.Client, cfg 
 }
 
 type RegisterInput struct {
-	Email    string `json:"email" binding:"required,email"`
-	Username string `json:"username" binding:"required,min=2,max=64"`
-	Password string `json:"password" binding:"required,min=6,max=128"`
+	Email                   string `json:"email" binding:"required,email"`
+	Username                string `json:"username" binding:"required,min=2,max=64"`
+	Password                string `json:"password" binding:"required,min=6,max=128"`
+	CaptchaToken            string `json:"captcha_token"`
+	AcceptedTermsVersion    string `json:"accepted_terms_version"`
+	AcceptedPrivacyVersion  string `json:"accepted_privacy_version"`
 }
 
 type LoginInput struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Email        string `json:"email" binding:"required,email"`
+	Password     string `json:"password" binding:"required"`
+	CaptchaToken string `json:"captcha_token"`
 }
 
-func (s *AuthService) Register(input RegisterInput) (*model.User, *jwtutil.TokenPair, error) {
+func (s *AuthService) Register(input RegisterInput) (*model.User, error) {
 	existingByEmail, err := s.userRepo.FindByEmail(input.Email)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if existingByEmail != nil {
-		return nil, nil, ErrUserAlreadyExists
+		return nil, ErrUserAlreadyExists
 	}
 
 	existingByUsername, err := s.userRepo.FindByUsername(input.Username)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if existingByUsername != nil {
-		return nil, nil, ErrUsernameTaken
+		return nil, ErrUsernameTaken
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to hash password: %w", err)
+		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
 	user := &model.User{
-		Email:           input.Email,
-		Username:        input.Username,
-		PasswordHash:    string(hash),
-		Reputation:      10,
-		Role:            "user",
-		PreferredLocale: "zh-CN",
+		Email:                  input.Email,
+		Username:               input.Username,
+		PasswordHash:           string(hash),
+		Reputation:             10,
+		Role:                   "user",
+		PreferredLocale:        "zh-CN",
+		AcceptedTermsVersion:   input.AcceptedTermsVersion,
+		AcceptedPrivacyVersion: input.AcceptedPrivacyVersion,
+	}
+
+	if input.AcceptedTermsVersion != "" {
+		now := time.Now()
+		user.AcceptedTermsAt = &now
+	}
+	if input.AcceptedPrivacyVersion != "" {
+		now := time.Now()
+		user.AcceptedPrivacyAt = &now
 	}
 
 	if err := s.userRepo.CreateUser(user); err != nil {
-		return nil, nil, fmt.Errorf("failed to create user: %w", err)
+		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	tokens, err := jwtutil.GenerateTokenPair(
-		user.ID,
-		user.Role,
-		s.cfg.JWT.Secret,
-		s.cfg.JWT.AccessTokenTTL,
-		s.cfg.JWT.RefreshTokenTTL,
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate tokens: %w", err)
-	}
-	if err := s.storeRefreshToken(user.ID, tokens.RefreshToken); err != nil {
-		return nil, nil, err
-	}
-
-	return user, tokens, nil
+	return user, nil
 }
 
 func (s *AuthService) Login(input LoginInput) (*model.User, *jwtutil.TokenPair, error) {

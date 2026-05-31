@@ -1,13 +1,9 @@
 package handler
 
 import (
-	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -20,14 +16,15 @@ import (
 )
 
 type AuthHandler struct {
-	authService *service.AuthService
-	userRepo    *repository.UserRepository
-	rdb         *redis.Client
-	cfg         *config.Config
+	authService         *service.AuthService
+	verificationService *service.VerificationService
+	userRepo            *repository.UserRepository
+	rdb                 *redis.Client
+	cfg                 *config.Config
 }
 
-func NewAuthHandler(authService *service.AuthService, userRepo *repository.UserRepository, rdb *redis.Client, cfg *config.Config) *AuthHandler {
-	return &AuthHandler{authService: authService, userRepo: userRepo, rdb: rdb, cfg: cfg}
+func NewAuthHandler(authService *service.AuthService, verificationService *service.VerificationService, userRepo *repository.UserRepository, rdb *redis.Client, cfg *config.Config) *AuthHandler {
+	return &AuthHandler{authService: authService, verificationService: verificationService, userRepo: userRepo, rdb: rdb, cfg: cfg}
 }
 
 func refreshCookieName(cfg *config.Config) string {
@@ -65,7 +62,16 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	user, tokens, err := h.authService.Register(input)
+	if h.cfg.Legal.CurrentTermsVersion != "" && input.AcceptedTermsVersion != h.cfg.Legal.CurrentTermsVersion {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "TERMS_VERSION_MISMATCH", "message": "accepted terms version does not match current version"})
+		return
+	}
+	if h.cfg.Legal.CurrentPrivacyVersion != "" && input.AcceptedPrivacyVersion != h.cfg.Legal.CurrentPrivacyVersion {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "PRIVACY_VERSION_MISMATCH", "message": "accepted privacy version does not match current version"})
+		return
+	}
+
+	user, err := h.authService.Register(input)
 	if err != nil {
 		if errors.Is(err, service.ErrUserAlreadyExists) {
 			c.JSON(http.StatusConflict, gin.H{"code": "USER_EXISTS", "message": "email already registered"})
@@ -79,15 +85,16 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	setRefreshCookie(c, h.cfg, tokens.RefreshToken)
+	_ = h.verificationService.SendVerification(c.Request.Context(), user)
 
-	c.JSON(http.StatusCreated, gin.H{
-		"user": user,
-		"tokens": gin.H{
-			"access_token": tokens.AccessToken,
+	c.JSON(http.StatusAccepted, gin.H{
+		"user": gin.H{
+			"id":       user.ID,
+			"email":    user.Email,
+			"username": user.Username,
 		},
+		"verification_required": true,
 	})
-	middleware.InvalidateUserStatusCache(h.rdb, int64(user.ID))
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -203,64 +210,42 @@ func (h *AuthHandler) CSRFToken(c *gin.Context) {
 
 func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 	var body struct {
-		Email string `json:"email" binding:"required"`
+		Email        string `json:"email" binding:"required,email"`
+		CaptchaToken string `json:"captcha_token"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "email required"})
 		return
 	}
 
-	user, err := h.userRepo.FindByEmail(body.Email)
-	if err != nil || user == nil {
-		c.JSON(http.StatusOK, gin.H{"message": "if the email exists, a reset link has been sent"})
-		return
-	}
+	_ = h.verificationService.SendPasswordReset(c.Request.Context(), body.Email)
 
-	tokenBytes := make([]byte, 32)
-	if _, err := rand.Read(tokenBytes); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to generate reset token"})
-		return
-	}
-	token := hex.EncodeToString(tokenBytes)
-
-	ctx := context.Background()
-	key := "reset:token:" + token
-	ttl := time.Hour
-	if h.cfg != nil && h.cfg.Cache.EmailVerifyTTL > 0 {
-		ttl = time.Duration(h.cfg.Cache.EmailVerifyTTL) * time.Second
-	}
-	if err := h.rdb.Set(ctx, key, user.ID, ttl).Err(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to store reset token"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "if the email exists, a reset link has been sent", "token": token})
+	c.JSON(http.StatusOK, gin.H{"message": "if the email exists, a reset link has been sent"})
 }
 
 func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	var body struct {
 		Token       string `json:"token" binding:"required"`
-		NewPassword string `json:"new_password" binding:"required,min=6"`
+		NewPassword string `json:"new_password" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "token and new_password (min 6 chars) required"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "token and new_password required"})
 		return
 	}
 
-	ctx := context.Background()
-	key := "reset:token:" + body.Token
-	userID, err := h.rdb.Get(ctx, key).Int64()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_TOKEN", "message": "invalid or expired reset token"})
+	if err := h.verificationService.ResetPassword(c.Request.Context(), body.Token, body.NewPassword); err != nil {
+		if errors.Is(err, service.ErrInvalidToken) {
+			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_TOKEN", "message": "invalid or expired reset token"})
+			return
+		}
+		if errors.Is(err, service.ErrPasswordTooShort) {
+			c.JSON(http.StatusBadRequest, gin.H{"code": "PASSWORD_TOO_SHORT", "message": "password does not meet minimum length requirement"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to reset password"})
 		return
 	}
 
-	if err := h.authService.ChangePassword(userID, body.NewPassword); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to update password"})
-		return
-	}
-
-	h.rdb.Del(ctx, key)
 	c.JSON(http.StatusOK, gin.H{"message": "password reset successfully"})
 }
 
@@ -273,60 +258,41 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
-	key := "verify:email:" + body.Token
-	userID, err := h.rdb.Get(ctx, key).Int64()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_TOKEN", "message": "invalid or expired verification token"})
-		return
-	}
-
-	now := time.Now()
-	if err := h.userRepo.UpdateFields(userID, map[string]interface{}{"email_verified_at": now}); err != nil {
+	if err := h.verificationService.VerifyEmail(c.Request.Context(), body.Token); err != nil {
+		if errors.Is(err, service.ErrInvalidToken) {
+			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_TOKEN", "message": "invalid or expired verification token"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to verify email"})
 		return
 	}
 
-	h.rdb.Del(ctx, key)
-	middleware.InvalidateUserStatusCache(h.rdb, userID)
 	c.JSON(http.StatusOK, gin.H{"message": "email verified successfully"})
 }
 
-func (h *AuthHandler) SendVerificationEmail(c *gin.Context) {
-	userID := middleware.GetUserID(c)
-	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+func (h *AuthHandler) ResendVerification(c *gin.Context) {
+	var body struct {
+		Email        string `json:"email" binding:"required,email"`
+		CaptchaToken string `json:"captcha_token"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "email required"})
 		return
 	}
 
-	user, err := h.userRepo.FindByID(userID)
+	normalized := strings.ToLower(strings.TrimSpace(body.Email))
+	user, err := h.userRepo.FindByEmail(normalized)
 	if err != nil || user == nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+		c.JSON(http.StatusOK, gin.H{"message": "if the email exists and is unverified, a verification link has been sent"})
 		return
 	}
 
 	if user.EmailVerifiedAt != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "ALREADY_VERIFIED", "message": "email already verified"})
+		c.JSON(http.StatusOK, gin.H{"message": "if the email exists and is unverified, a verification link has been sent"})
 		return
 	}
 
-	tokenBytes := make([]byte, 32)
-	if _, err := rand.Read(tokenBytes); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to generate token"})
-		return
-	}
-	token := hex.EncodeToString(tokenBytes)
+	_ = h.verificationService.SendVerification(c.Request.Context(), user)
 
-	ctx := context.Background()
-	key := "verify:email:" + token
-	ttl := 24 * time.Hour
-	if h.cfg != nil && h.cfg.Cache.PasswordResetTTL > 0 {
-		ttl = time.Duration(h.cfg.Cache.PasswordResetTTL) * time.Second
-	}
-	if err := h.rdb.Set(ctx, key, userID, ttl).Err(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to store token"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "verification email sent", "token": token})
+	c.JSON(http.StatusOK, gin.H{"message": "if the email exists and is unverified, a verification link has been sent"})
 }

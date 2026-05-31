@@ -1,5 +1,29 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-31] - Beta V-02: Wire Registration, Resend And Reset Flows
+
+### What was done:
+- Updated `backend/internal/container/container.go`: Added VerificationService, MailSender (logger/smtp), CaptchaVerifier wiring
+- Updated `backend/internal/service/auth_service.go`: RegisterInput now includes CaptchaToken, AcceptedTermsVersion, AcceptedPrivacyVersion; Register returns (*User, error) instead of (*User, *TokenPair, error) — no auto-login before verification; records terms/privacy acceptance timestamps
+- Updated `backend/internal/handler/auth.go`: Register returns 202 + verification_required:true (no tokens); ForgotPassword delegates to VerificationService.SendPasswordReset (uniform response, no raw token); ResetPassword delegates to VerificationService.ResetPassword; VerifyEmail delegates to VerificationService.VerifyEmail; SendVerificationEmail replaced with ResendVerification (email-based, no auth required, uniform response); added legal version validation in Register
+- Updated `backend/internal/handler/routes.go`: Changed /send-verification to /resend-verification (no auth required); updated NewAuthHandler call with VerificationService
+- Updated `backend/internal/handler/public_config.go`: Added PublicLegalDTO with current_terms_version and current_privacy_version
+- Updated `frontend/lib/public-config.ts`: Added PublicLegal interface
+- Updated `backend/internal/handler/auth_cookie_test.go`: Fixed NewAuthHandler call signature
+
+### Testing:
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+- `go test ./internal/handler/ -run "TestPublicConfig|TestLogin|TestRefresh|TestLogout|TestCredentialed"` — all PASS
+- `npm run build` — PASS
+
+### Notes:
+- Register no longer auto-logs in; returns 202 with verification_required:true
+- ForgotPassword and ResendVerification return uniform responses regardless of email existence
+- Raw tokens are never exposed in API responses (ForgotPassword no longer returns token)
+- Login captcha threshold (Step 4) config field exists but enforcement is deferred to a follow-up iteration
+- Legal version validation only enforced when config values are non-empty (allows gradual rollout)
+
 ## [2026-05-31] - Beta V-01: Add Verification Schema, Mail Adapter, Captcha Adapter And Config
 
 ### What was done:
