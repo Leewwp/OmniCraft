@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
 import { SearchAgentInput } from "@/components/agent/SearchAgentInput";
+import { AgentFeatureGate } from "@/components/agent/AgentFeatureGate";
 import { FacetedSearchSidebar } from "@/components/layout/FacetedSearchSidebar";
 import { ContentCard, type ContentCardData } from "@/components/content/ContentCard";
 import { MasonryGrid } from "@/components/content/MasonryGrid";
@@ -97,7 +98,31 @@ export default function SearchPage() {
     <div className="mx-auto w-full max-w-[1280px] space-y-6 px-4 py-6">
       {/* Top: Search Input */}
       <div className="rounded-md border border-border bg-card p-4 ">
-        <SearchAgentInput onResults={(r, q) => handleSearch(r as unknown as ContentCardData[], q)} />
+        <AgentFeatureGate
+          capability="webAgent"
+          fallback={
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") doSearch(query, filterConfig);
+                  }}
+                  placeholder={t("agent.searchKeywordPlaceholder")}
+                  className="w-full rounded-md border border-border bg-background py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+              <Button size="sm" onClick={() => doSearch(query, filterConfig)} disabled={!query.trim()}>
+                <Search className="h-4 w-4" />
+              </Button>
+            </div>
+          }
+        >
+          <SearchAgentInput onResults={(r, q) => handleSearch(r as unknown as ContentCardData[], q)} />
+        </AgentFeatureGate>
       </div>
 
       <div className="flex gap-4">

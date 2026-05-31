@@ -27,6 +27,7 @@ import { useToast } from "@/components/ui/Toast";
 import { api, ApiRequestError } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { cn } from "@/lib/utils";
+import { AgentFeatureGate } from "@/components/agent/AgentFeatureGate";
 
 interface Attachment {
   id: number;
@@ -325,6 +326,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
       )}
 
       {/* Agent Deploy Button */}
+      <AgentFeatureGate capability="desktopDeploy">
       {data.agent_enabled && (contentType === "mod" || contentType === "prompt") && (
         <div className="rounded-md border border-border bg-card p-4 ">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -344,6 +346,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
           </div>
         </div>
       )}
+      </AgentFeatureGate>
 
       {/* Favorite Button */}
       <div className="flex items-center gap-2 rounded-md border border-border bg-card px-4 py-3 ">

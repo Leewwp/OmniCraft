@@ -12,6 +12,7 @@ import { FileUploader } from "@/components/content/FileUploader";
 import { MarkdownEditor } from "@/components/content/MarkdownEditor";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { cn } from "@/lib/utils";
+import { AgentFeatureGate } from "@/components/agent/AgentFeatureGate";
 import type { UploadedAsset } from "@/components/content/FileUploader";
 
 const ORIGINAL_CATEGORIES = [
@@ -315,6 +316,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
           </div>
 
           {/* Agent deploy (mod/prompt only) */}
+          <AgentFeatureGate capability="desktopDeploy">
           {(contentType === "mod" || contentType === "prompt") && (
             <div className="flex items-center justify-between border-t border-border/40 pt-4">
               <div>
@@ -331,6 +333,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
               </button>
             </div>
           )}
+          </AgentFeatureGate>
         </div>
       </div>
 

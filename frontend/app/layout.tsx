@@ -6,6 +6,7 @@ import { ThemeProvider } from 'next-themes';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/components/ui/Toast';
 import { AgentChatWidget } from '@/components/agent/AgentChatWidget';
+import { AgentFeatureGate } from '@/components/agent/AgentFeatureGate';
 import './globals.css';
 
 const geistSans = Geist({
@@ -56,7 +57,9 @@ export default async function RootLayout({
                 <main id="main-content" className="flex-1">
                   {children}
                 </main>
-                <AgentChatWidget />
+                <AgentFeatureGate capability="webAgent">
+                  <AgentChatWidget />
+                </AgentFeatureGate>
               </AuthProvider>
             </ToastProvider>
           </ThemeProvider>
