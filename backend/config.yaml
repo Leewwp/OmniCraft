@@ -38,6 +38,7 @@ green:
 
 features:
   payment_enabled: false
+  desktop_deploy_enabled: false
 
 limits:
   video_max_mb: 300
