@@ -287,7 +287,7 @@ git commit -m "Beta V-03: add account verification UI - completed"
 - Modify: `frontend/messages/zh.json`
 - Modify: `frontend/messages/en.json`
 
-- [ ] **Step 1: Define page content**
+- [x] **Step 1: Define page content**
 
 Before editing UI, run:
 
@@ -306,11 +306,11 @@ Use versioned static content:
 - `/terms`: version and effective date matching backend config.
 - `/client`: supported platforms, installation, permission explanation, download link, manual fallback, common errors, feedback link, and an explicit notice that one-click deploy is unavailable unless secure desktop deploy is enabled.
 
-- [ ] **Step 2: Implement pages and Footer routes**
+- [x] **Step 2: Implement pages and Footer routes**
 
 Replace the existing placeholder Footer `/` links with exact routes: `/help`, `/privacy`, `/terms`, `/feedback`, and `/client`. Preserve any existing non-placeholder route unless it conflicts with the UI spec.
 
-- [ ] **Step 3: Run checks and browser-test**
+- [x] **Step 3: Run checks and browser-test**
 
 ```powershell
 cd frontend
@@ -320,7 +320,7 @@ npm run build
 
 Use MCP Playwright to click Footer links and save `screenshots/beta-v04-footer.png`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```powershell
 git add frontend screenshots docs/superpowers/plans progress.txt

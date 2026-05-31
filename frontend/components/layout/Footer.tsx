@@ -16,17 +16,20 @@ export function Footer() {
           <span>&copy; {year} OmniCraft</span>
         </div>
         <nav className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-          <Link href="/" className="hover:text-foreground transition-colors">
-            {t("footer.about")}
-          </Link>
-          <Link href="/" className="hover:text-foreground transition-colors">
+          <Link href="/help" className="hover:text-foreground transition-colors">
             {t("footer.help")}
           </Link>
-          <Link href="/" className="hover:text-foreground transition-colors">
+          <Link href="/privacy" className="hover:text-foreground transition-colors">
             {t("footer.privacy")}
           </Link>
-          <Link href="/" className="hover:text-foreground transition-colors">
+          <Link href="/terms" className="hover:text-foreground transition-colors">
             {t("footer.terms")}
+          </Link>
+          <Link href="/feedback" className="hover:text-foreground transition-colors">
+            {t("footer.feedback")}
+          </Link>
+          <Link href="/client" className="hover:text-foreground transition-colors">
+            {t("footer.client")}
           </Link>
         </nav>
       </div>

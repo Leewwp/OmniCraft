@@ -1,5 +1,25 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-31] - Beta V-04: Add Help, Legal And Client Information Pages
+
+### What was done:
+- Created `frontend/app/(public)/help/page.tsx`: Help center with FAQ sections (registration, publishing, downloads, favorites, reports, reputation, AI assistant, client), collapsible Q&A items, feedback link
+- Created `frontend/app/(public)/privacy/page.tsx`: Privacy policy page with sections for data processing, cookies, uploads, logs, feedback diagnostics, and account deletion
+- Created `frontend/app/(public)/terms/page.tsx`: Terms of service page with sections for acceptance, account responsibility, content rules, community guidelines, IP rights, liability, and changes
+- Created `frontend/app/(public)/client/page.tsx`: Client information page showing unavailable state (desktop_deploy_enabled=false), feature preview, and feedback CTA
+- Updated `frontend/components/layout/Footer.tsx`: Replaced placeholder `/` links with actual routes `/help`, `/privacy`, `/terms`, `/feedback`, `/client`; added feedback and client links
+- Updated `frontend/messages/zh.json` and `frontend/messages/en.json`: Added ~90 new translation keys for help, privacy, terms, client sections and footer links
+
+### Testing:
+- `npm run lint` — PASS
+- `npm run build` — PASS (all new routes visible: /help, /privacy, /terms, /client)
+
+### Notes:
+- Legal text content is placeholder — requires approved legal copy from maintainer before Beta launch
+- Client page shows unavailable state as per `client.download_enabled=false`
+- Footer now has 5 navigation links (help, privacy, terms, feedback, client)
+- V-04 plan notes: "Do not draft legal text" — current content describes platform features/policies but is not formal legal copy
+
 ## [2026-05-31] - Beta V-03: Add Verification UI And Terms Acceptance
 
 ### What was done:
