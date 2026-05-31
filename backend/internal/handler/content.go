@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
@@ -459,15 +460,46 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 		return
 	}
 
-	ossKey := attachments[0].OSSKey
-	for _, a := range attachments {
-		if a.IsPrimary {
-			ossKey = a.OSSKey
-			break
+	var target *model.ContentAttachment
+	attachmentIDStr := c.Query("attachment_id")
+	if attachmentIDStr != "" {
+		attachmentID, err := strconv.ParseInt(attachmentIDStr, 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ATTACHMENT_ID", "message": "invalid attachment_id"})
+			return
+		}
+		for i := range attachments {
+			if attachments[i].ID == attachmentID {
+				target = &attachments[i]
+				break
+			}
+		}
+		if target == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": "ATTACHMENT_MISMATCH", "message": "attachment does not belong to this content"})
+			return
+		}
+	} else {
+		var primaries []int
+		for i := range attachments {
+			if attachments[i].IsPrimary {
+				primaries = append(primaries, i)
+			}
+		}
+		if len(primaries) == 1 {
+			target = &attachments[primaries[0]]
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"code": "AMBIGUOUS_ATTACHMENT", "message": "specify attachment_id; cannot determine a unique primary attachment"})
+			return
 		}
 	}
 
-	url, err := h.ossSvc.GeneratePresignDownloadURL(context.Background(), ossKey)
+	ttlSec := h.cfg.OSS.DownloadURLTTL
+	if ttlSec <= 0 {
+		ttlSec = 300
+	}
+	ttl := time.Duration(ttlSec) * time.Second
+
+	url, err := h.ossSvc.GeneratePresignDownloadURL(context.Background(), target.OSSKey, ttl)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "OSS_ERROR", "message": "failed to generate download url"})
 		return
@@ -490,5 +522,8 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 		})
 	}
 
-	c.Redirect(http.StatusFound, url)
+	c.JSON(http.StatusOK, gin.H{
+		"download_url": url,
+		"expires_in":   ttlSec,
+	})
 }

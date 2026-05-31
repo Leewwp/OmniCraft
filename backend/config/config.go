@@ -76,6 +76,7 @@ type OSSConfig struct {
 	AccessKeySecret string `mapstructure:"access_key_secret" json:"-"`
 	BucketName      string `mapstructure:"bucket_name"`
 	Domain          string `mapstructure:"domain"`
+	DownloadURLTTL  int    `mapstructure:"download_url_ttl_sec"`
 }
 
 type GreenConfig struct {

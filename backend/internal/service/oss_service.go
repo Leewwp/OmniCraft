@@ -94,7 +94,7 @@ func (s *OSSService) GeneratePresignUploadURL(ctx context.Context, req PresignUp
 	}, nil
 }
 
-func (s *OSSService) GeneratePresignDownloadURL(ctx context.Context, ossKey string) (string, error) {
+func (s *OSSService) GeneratePresignDownloadURL(ctx context.Context, ossKey string, ttl time.Duration) (string, error) {
 	_ = ctx
 	if s == nil || s.client == nil {
 		return "", ErrOSSNotConfigured
@@ -102,8 +102,10 @@ func (s *OSSService) GeneratePresignDownloadURL(ctx context.Context, ossKey stri
 	if strings.TrimSpace(ossKey) == "" {
 		return "", &UploadValidationError{Message: "oss_key is required"}
 	}
-
-	return s.client.GetSignedURL(strings.TrimSpace(ossKey), http.MethodGet, time.Hour)
+	if ttl <= 0 {
+		ttl = 5 * time.Minute
+	}
+	return s.client.GetSignedURL(strings.TrimSpace(ossKey), http.MethodGet, ttl)
 }
 
 func (s *OSSService) validateUploadByType(fileType, mimeType string, fileSize int64, durationSec *int, ext string) error {

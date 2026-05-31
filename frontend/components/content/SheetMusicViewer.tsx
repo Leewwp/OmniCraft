@@ -4,13 +4,13 @@ import { useTranslations } from "next-intl";
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   FileMusic,
-  Download,
   Music,
   FileText,
   Play,
   Pause,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DownloadButton } from "@/components/content/DownloadButton";
 import { cn } from "@/lib/utils";
 import { silentError } from "@/lib/error-handler";
 
@@ -24,6 +24,7 @@ interface SheetMusicAttachment {
 }
 
 interface SheetMusicViewerProps {
+  contentId: number;
   attachments: SheetMusicAttachment[];
   allowCopy?: boolean;
   className?: string;
@@ -258,7 +259,7 @@ function PDFViewer({ ossUrl }: { ossUrl: string }) {
 }
 
 /* ── DownloadPrompt (MSCZ / MSCX) ──────────── */
-function DownloadPrompt({ att }: { att: SheetMusicAttachment }) {
+function DownloadPrompt({ att, contentId }: { att: SheetMusicAttachment; contentId: number }) {
   const t = useTranslations();
   return (
     <div className="rounded-md border border-border bg-card p-6 text-center ">
@@ -269,20 +270,13 @@ function DownloadPrompt({ att }: { att: SheetMusicAttachment }) {
       <p className="mt-1 text-xs text-muted-foreground">
         {t("content.sheetMusicPreviewHint")}
       </p>
-      {att.oss_url && (
-        <a
-          href={att.oss_url}
-          download
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-3 inline-block"
-        >
-          <Button size="sm">
-            <Download className="mr-1 h-3.5 w-3.5" />
-            {t("content.download")}
-          </Button>
-        </a>
-      )}
+      <div className="mt-3 inline-block">
+        <DownloadButton
+          contentId={contentId}
+          attachmentId={att.id}
+          contentType="sheet_music"
+        />
+      </div>
     </div>
   );
 }
@@ -291,10 +285,12 @@ function DownloadPrompt({ att }: { att: SheetMusicAttachment }) {
 function AttachmentRow({
   att,
   allowCopy,
+  contentId,
   t,
 }: {
   att: SheetMusicAttachment;
   allowCopy: boolean;
+  contentId: number;
   t: (key: string) => string;
 }) {
   const Icon = att.file_type === "sheet_music_xml" || att.file_type === "sheet_music_midi"
@@ -317,20 +313,20 @@ function AttachmentRow({
           )}
         </div>
       </div>
-      {allowCopy && att.oss_url && (
-        <a href={att.oss_url} download target="_blank" rel="noopener noreferrer">
-          <Button variant="outline" size="sm">
-            <Download className="mr-1 h-3.5 w-3.5" />
-            {t("content.download")}
-          </Button>
-        </a>
+      {allowCopy && (
+        <DownloadButton
+          contentId={contentId}
+          attachmentId={att.id}
+          contentType="sheet_music"
+          size="sm"
+        />
       )}
     </li>
   );
 }
 
 /* ── Main SheetMusicViewer ─────────────────── */
-export function SheetMusicViewer({ attachments, allowCopy, className }: SheetMusicViewerProps) {
+export function SheetMusicViewer({ contentId, attachments, allowCopy, className }: SheetMusicViewerProps) {
   const t = useTranslations();
 
   if (!attachments || attachments.length === 0) {
@@ -365,7 +361,7 @@ export function SheetMusicViewer({ attachments, allowCopy, className }: SheetMus
         <PDFViewer ossUrl={renderable.oss_url} />
       )}
       {renderable && (fileTypeFor(renderable) === "mscz" || fileTypeFor(renderable) === "mscx") && (
-        <DownloadPrompt att={renderable} />
+        <DownloadPrompt att={renderable} contentId={contentId} />
       )}
 
       {/* Other attachments list */}
@@ -374,7 +370,7 @@ export function SheetMusicViewer({ attachments, allowCopy, className }: SheetMus
           <h3 className="mb-3 text-sm font-semibold">{t("content.sheetMusicAttachments")}</h3>
           <ul className="divide-y divide-border">
             {other.map((att) => (
-              <AttachmentRow key={att.id} att={att} allowCopy={!!allowCopy} t={t} />
+              <AttachmentRow key={att.id} att={att} allowCopy={!!allowCopy} contentId={contentId} t={t} />
             ))}
           </ul>
         </div>
