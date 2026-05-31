@@ -414,7 +414,7 @@ git commit -m "Beta F-04: expose minimal public runtime config - completed"
 - Modify: `backend/internal/service/agent_service.go`
 - Create: `backend/internal/repository/search_repo_test.go`
 
-- [ ] **Step 1: Write failing repository tests**
+- [x] **Step 1: Write failing repository tests**
 
 Seed published, hidden, deleted and banned-IP content with titles such as `春日穿搭指南` and tags such as `桌面改造`.
 
@@ -430,14 +430,14 @@ func TestSearchContentsCountsOnlyMatchedRows(t *testing.T) {}
 func TestSearchSuggestionsDoNotLeakHiddenContentTitles(t *testing.T) {}
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 ```powershell
 cd backend
 go test ./internal/repository -run TestSearchContents -v
 ```
 
-- [ ] **Step 3: Add trigram-backed fallback**
+- [x] **Step 3: Add trigram-backed fallback**
 
 Migration `047_pg_trgm_indexes.sql` already enables `pg_trgm` and creates `idx_content_items_title_trgm`. Add only the missing content-tag index:
 
@@ -455,7 +455,7 @@ Repository behavior:
 - Fix `total` count: the current implementation counts rows before applying the text query filter. After the fix, `total` must count only rows that match the full-text or trigram query AND the visibility filters. The count query and the row query must use the same WHERE clause; the only difference is that the count query omits `LIMIT`/`OFFSET`.
 - Fix viewer context lookup to use `middleware.UserIDKey`, not a mismatched string literal.
 
-- [ ] **Step 4: Verify query plan**
+- [x] **Step 4: Verify query plan**
 
 ```powershell
 psql $env:DB_DSN -c "EXPLAIN ANALYZE SELECT id FROM content_items WHERE title ILIKE '%穿搭%';"
@@ -464,7 +464,7 @@ psql $env:DB_DSN -c "EXPLAIN ANALYZE SELECT content_item_id FROM content_tags WH
 
 Expected: title and content-tag trigram indexes participate once dataset size is sufficient for the planner.
 
-- [ ] **Step 5: Run backend checks**
+- [x] **Step 5: Run backend checks**
 
 ```powershell
 go test ./...
@@ -472,7 +472,7 @@ go vet ./...
 go build ./...
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add backend docs/superpowers/plans progress.txt

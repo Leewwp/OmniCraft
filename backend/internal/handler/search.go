@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
@@ -74,7 +75,7 @@ func (h *SearchHandler) SearchContents(c *gin.Context) {
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
 	// Get viewerID from context (0 if anonymous)
-	viewerID, _ := c.Get("user_id")
+	viewerID, _ := c.Get(middleware.UserIDKey)
 	var vid int64
 	if id, ok := viewerID.(int64); ok {
 		vid = id
