@@ -205,7 +205,7 @@ git commit -m "Beta A-02: audit sensitive admin mutations - completed"
 - Modify: `frontend/messages/zh.json`
 - Modify: `frontend/messages/en.json`
 
-- [ ] **Step 1: Inspect visual authority**
+- [x] **Step 1: Inspect visual authority**
 
 ```powershell
 rg -n "## Page: /admin|## Component:" design/ui-spec.md
@@ -213,11 +213,11 @@ rg -n "## Page: /admin|## Component:" design/ui-spec.md
 
 Reuse existing admin page density and no-shadow design. New admin routes without dedicated specs follow existing `/admin/contents` patterns.
 
-- [ ] **Step 2: Confirm protected admin routing and redirect admin index**
+- [x] **Step 2: Confirm protected admin routing and redirect admin index**
 
 `A-04` moves the existing Admin route subtree into `frontend/app/(protected)/admin/`, preserving the `/admin/*` URLs. Confirm the moved routes still use the nested Admin layout role check after the shared protected layout handles unauthenticated and banned users. Make `/admin` redirect to `/admin/dashboard`.
 
-- [ ] **Step 3: Implement dashboard**
+- [x] **Step 3: Implement dashboard**
 
 Use existing stats APIs first. The expected API sources for dashboard metrics are:
 
@@ -231,7 +231,7 @@ Use existing stats APIs first. The expected API sources for dashboard metrics ar
 
 A-04 owns the Admin feedback listing API consumed by the open-feedback metric. If another required API is missing, add it in A-03 rather than silently omitting the metric. Missing optional metrics render an explicit unavailable state, not fake numbers.
 
-- [ ] **Step 4: Implement reports page**
+- [x] **Step 4: Implement reports page**
 
 Use:
 
@@ -253,7 +253,7 @@ npm run build
 
 Use MCP Playwright as admin to visit dashboard and resolve a report. Verify normal users cannot access the pages. Save screenshots under `screenshots/beta-a03-*`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add frontend screenshots docs/superpowers/plans progress.txt

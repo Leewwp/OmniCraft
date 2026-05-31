@@ -1,5 +1,25 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-31] - Beta A-03: Add Admin Dashboard And Reports Pages
+
+### What was done:
+- Modified `frontend/app/(protected)/admin/page.tsx` — redirect `/admin` to `/admin/dashboard` instead of `/admin/ips`
+- Updated admin layout sidebar — added Dashboard and Reports nav items at the top
+- Created `frontend/components/admin/AdminMetricCard.tsx` — reusable metric card with variant support (default/warning/danger)
+- Created `frontend/components/admin/AdminFilterBar.tsx` — reusable filter bar component
+- Created `frontend/app/(protected)/admin/dashboard/page.tsx` — dashboard with 4 metric cards (pending reports, open feedback, pending appeals, queue failures) and quick links
+- Created `frontend/app/(protected)/admin/reports/page.tsx` — report list with status/type filters, detail view, uphold/dismiss actions with required explanation via ConfirmModal
+- Added i18n keys for admin dashboard and reports pages in zh.json and en.json
+
+### Testing:
+- `npm run lint` (tsc --noEmit): passed
+- `npm run build`: passed (59 pages generated, including /admin/dashboard and /admin/reports)
+
+### Notes:
+- Dashboard uses existing admin APIs: reports/stats, queue/stats, feedback?status=open, appeals?status=pending
+- Reports page uses ConfirmModal with requireReason for mandatory explanation on uphold/dismiss
+- A-05 (audit-log page and complete admin navigation) can now proceed as it depends on A-03 + A-04
+
 ## [2026-05-31] - Beta A-04: Add Admin Feedback And Queue Pages
 
 ### What was done:
