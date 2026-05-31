@@ -1,5 +1,28 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-31] - Beta V-03: Add Verification UI And Terms Acceptance
+
+### What was done:
+- Created `frontend/components/verification/CaptchaWidget.tsx`: Reusable captcha component, loads Alibaba Cloud CAPTCHA 2.0 SDK dynamically, falls back to "bypass" token in dev mode
+- Rewrote `frontend/app/(public)/register/page.tsx`: Removed auto-login after registration, added CaptchaWidget, terms/privacy checkboxes with links to /terms and /privacy, fetches legal versions from public config, redirects to /verify-email/pending on success, password minimum 8 chars
+- Created `frontend/app/(public)/verify-email/pending/page.tsx`: Masked email display, resend with cooldown (60s), CaptchaWidget, email input for resend
+- Rewrote `frontend/app/(public)/verify-email/page.tsx`: Auto-verifies from URL token query parameter, shows loading/success/failure states
+- Rewrote `frontend/app/(public)/forgot-password/page.tsx`: Added CaptchaWidget, cooldown countdown (60s), sends captcha_token with request
+- Rewrote `frontend/app/(public)/reset-password/page.tsx`: Added password strength indicator (weak/medium/strong), password minimum 8 chars, handles PASSWORD_TOO_SHORT and INVALID_TOKEN error codes
+- Updated `frontend/app/(protected)/settings/page.tsx`: Added email verified/unverified state display (CheckCircle/AlertCircle icons), captcha-protected resend button for unverified users with cooldown, legal section with links to /terms and /privacy, password minimum updated to 8 chars
+- Updated `frontend/contexts/AuthContext.tsx`: Added email_verified_at field to User interface
+- Updated `frontend/messages/zh.json` and `frontend/messages/en.json`: Added 29 new translation keys for verification, captcha, terms, privacy, strength indicator, settings verification state, legal section; updated password minimum from 6 to 8 chars
+
+### Testing:
+- `npm run lint` — PASS
+- `npm run build` — PASS
+
+### Notes:
+- Browser testing (Step 6) deferred — requires running backend with database
+- CaptchaWidget uses "bypass" mode when captcha provider is "bypass" or unavailable (dev mode)
+- Settings page shows amber warning card for unverified users with captcha-protected resend
+- Legal section in settings links to /terms and /privacy (pages to be created in V-04)
+
 ## [2026-05-31] - Beta V-02: Wire Registration, Resend And Reset Flows
 
 ### What was done:

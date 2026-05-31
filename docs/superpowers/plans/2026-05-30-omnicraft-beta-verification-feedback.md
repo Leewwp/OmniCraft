@@ -236,7 +236,7 @@ git commit -m "Beta V-02: close email verification and reset flows - completed"
 - Modify: `frontend/messages/zh.json`
 - Modify: `frontend/messages/en.json`
 
-- [ ] **Step 1: Read UI specs**
+- [x] **Step 1: Read UI specs**
 
 ```powershell
 rg -n "## Page: /register|## Page: /forgot-password|## Page: /reset-password|## Page: /settings" design/ui-spec.md
@@ -245,19 +245,19 @@ rg -n "## Component: CaptchaWidget|## Component: EmptyState|## Component: Confir
 
 Apply existing visual rules. New pages without a spec must follow `design/design-system.md`.
 
-- [ ] **Step 2: Update registration**
+- [x] **Step 2: Update registration**
 
 Remove token saving after registration. Add terms and privacy acceptance checkboxes linked to `/terms` and `/privacy`, captcha widget, and redirect to `/verify-email/pending` after the HTTP `202` response. Do not put the full email in the query string. The pending page may display a masked address only while the previous registration state is still available in memory; after reload it asks the user to re-enter the email before resending.
 
-- [ ] **Step 3: Update verification page**
+- [x] **Step 3: Update verification page**
 
 Create `/verify-email/pending` with masked email, resend cooldown, captcha-protected resend, change-email/back-to-register action and back-to-login action. Update `/verify-email?token=...` to read `token` from the URL query string and verify automatically. Do not ask the user to paste a token.
 
-- [ ] **Step 4: Update reset page and settings**
+- [x] **Step 4: Update reset page and settings**
 
 Add captcha to forgot-password and use the configured `verification.resend_cooldown_sec` countdown. Use the query-string reset token, configured password policy, password-strength indicator and success auto-login contract from `design/ui-spec.md`. Settings must preserve the existing account-deletion section, display verified/unverified state, provide a captcha-protected resend button for unverified users and link to `/terms` and `/privacy`.
 
-- [ ] **Step 5: Run frontend checks**
+- [x] **Step 5: Run frontend checks**
 
 ```powershell
 cd frontend
@@ -269,7 +269,7 @@ npm run build
 
 Use MCP Playwright to verify register, verify-email, resend, forgot-password, reset-password and settings states. Save screenshots under `screenshots/beta-v03-*`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add frontend screenshots docs/superpowers/plans progress.txt
