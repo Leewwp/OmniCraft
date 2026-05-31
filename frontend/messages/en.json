@@ -488,6 +488,7 @@
     "navReports": "Reports",
     "navFeedback": "Feedback Management",
     "navQueue": "Queue Monitor",
+    "navAuditLogs": "Audit Logs",
     "navCategories": "Category Management",
     "navConfig": "System Config",
     "navAgentConfig": "Agent Config",
@@ -714,6 +715,13 @@
       "noDLQ": "DLQ is empty",
       "loadFailed": "Failed to load queue data",
       "readOnlyNote": "Queue page is read-only during Beta. Replay controls are not available."
+    },
+    "auditLogs": {
+      "title": "Audit Logs",
+      "loadFailed": "Failed to load audit logs",
+      "allActions": "All Actions",
+      "noLogs": "No audit records",
+      "noMetadata": "No metadata"
     }
   },
   "social": {

@@ -313,6 +313,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	adminHandler := NewAdminHandler(db, cfg, rdb, ctr.AdminAuditService)
 	adminHandler.SetNotificationService(notifSvc)
 	adminFeedbackHandler := NewAdminFeedbackHandler(ctr.FeedbackService, ctr.AdminAuditService)
+	adminAuditHandler := NewAdminAuditHandler(ctr.AdminAuditService)
 	admin := v1.Group("/admin", authReq, middleware.AdminRequired())
 	{
 		admin.GET("/ips", adminHandler.ListPendingIPs)
@@ -349,6 +350,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		admin.GET("/feedback/:id", adminFeedbackHandler.GetFeedback)
 		admin.PATCH("/feedback/:id", adminFeedbackHandler.PatchFeedback)
 		admin.POST("/feedback/:id/replies", adminFeedbackHandler.ReplyFeedback)
+		admin.GET("/audit-logs", adminAuditHandler.ListAuditLogs)
 	}
 
 	internalHandler := NewInternalHandler(db, rdb, cfg)

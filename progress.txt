@@ -1,5 +1,23 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-31] - Beta A-05: Add Audit Page And Complete Admin Navigation
+
+### What was done:
+- Created `backend/internal/handler/admin_audit.go` — AdminAuditHandler with ListAuditLogs endpoint (action/admin_user_id/from/to/pagination filters)
+- Registered `GET /api/v1/admin/audit-logs` route in `backend/internal/handler/routes.go`
+- Created `frontend/app/(protected)/admin/audit-logs/page.tsx` — audit log listing with action filter, expandable metadata rows, pagination
+- Updated admin layout sidebar — added Audit Logs nav item (icon: ScrollText)
+- Added i18n keys for admin audit logs page in zh.json and en.json (navAuditLogs, admin.auditLogs section)
+
+### Testing:
+- `go build ./...`: passed
+- Pending: `npm run lint`, `npm run build`
+
+### Notes:
+- A-05 completes the admin-operations subsystem (A-01 through A-05 all done)
+- Admin sidebar now has all required navigation: Dashboard, Reports, IPs, Contents, Users, Appeals, Feedback, Categories, Queue, Audit Logs, Config, Agent Config
+- Audit log page uses expandable rows to display sanitized metadata from the append-only audit trail
+
 ## [2026-05-31] - Beta A-03: Add Admin Dashboard And Reports Pages
 
 ### What was done:
