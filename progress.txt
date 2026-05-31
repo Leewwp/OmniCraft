@@ -1,5 +1,31 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-31] - Beta V-05: Add Feedback Data Model And User/Anonymous API
+
+### What was done:
+- Created `backend/migrations/051_feedback.sql`: feedback_tickets, feedback_replies, feedback_attachments tables with CHECK constraints for categories, statuses, priorities
+- Created `backend/internal/model/feedback.go`: FeedbackTicket, FeedbackReply, FeedbackAttachment models
+- Created `backend/internal/repository/feedback_repo.go`: CRUD operations, user ticket listing, admin ticket view with all replies, OSS key lookup
+- Created `backend/internal/service/feedback_service.go`: SubmitTicket (with anonymous captcha, diagnostic allowlist filtering, contact email required for anonymous), PresignUpload (image-only, size validation, Redis grant), ListUserTickets, GetTicketForUser (ownership check)
+- Created `backend/internal/handler/feedback.go`: SubmitTicket, PresignUpload, ListMyTickets, GetTicket handlers with proper error codes
+- Updated `backend/internal/container/container.go`: Added FeedbackRepo, FeedbackService wiring
+- Updated `backend/internal/handler/routes.go`: Added /feedback routes (POST /, POST /attachments/presign, GET /me, GET /:id)
+- Updated `backend/config/config.go`: Added FeedbackConfig struct with UploadGrantTTLSec
+- Updated `backend/config.yaml`: Added feedback section with upload_grant_ttl_sec: 300
+
+### Testing:
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+- `go test ./internal/handler/... ./internal/repository/...` — PASS
+- Pre-existing test failure in `internal/service` (TestApprovedAppealRestoresContentStatus) is unrelated to V-05
+
+### Notes:
+- Anonymous feedback requires captcha verification and contact email
+- Diagnostic summary is filtered to only allow app_version, platform, route, error_code keys
+- Screenshot uploads limited to image MIME types under 20MB
+- Upload grants stored in Redis with configurable TTL (default 300s)
+- User-facing ticket detail filters out internal notes (admin view includes all)
+
 ## [2026-05-31] - Beta V-04: Add Help, Legal And Client Information Pages
 
 ### What was done:

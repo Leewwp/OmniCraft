@@ -56,6 +56,9 @@ client:
   download_url: ""
   latest_version: ""
 
+feedback:
+  upload_grant_ttl_sec: 300
+
 smtp:
   mode: "logger"
   host: ""

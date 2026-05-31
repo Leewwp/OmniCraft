@@ -232,6 +232,15 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	ips.POST("/:id/follow", authReq, followsGuard, followHandler.FollowIP)
 	ips.DELETE("/:id/follow", authReq, followsGuard, followHandler.UnfollowIP)
 
+	feedbackHandler := NewFeedbackHandler(ctr.FeedbackService)
+	feedback := v1.Group("/feedback")
+	{
+		feedback.POST("", optAuth, feedbackHandler.SubmitTicket)
+		feedback.POST("/attachments/presign", optAuth, feedbackHandler.PresignUpload)
+		feedback.GET("/me", authReq, feedbackHandler.ListMyTickets)
+		feedback.GET("/:id", authReq, feedbackHandler.GetTicket)
+	}
+
 	appealHandler := NewAppealHandler(db)
 	v1.POST("/appeals", authReq, appealHandler.SubmitAppeal)
 	v1.GET("/appeals/me", authReq, appealHandler.GetMyAppeals)
