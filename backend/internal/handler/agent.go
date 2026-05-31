@@ -107,7 +107,8 @@ func (h *AgentHandler) NLSearch(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
-	results, err := h.agentSvc.NLSearch(c.Request.Context(), body.Query)
+	viewerID := middleware.GetUserID(c)
+	results, err := h.agentSvc.NLSearch(c.Request.Context(), body.Query, viewerID)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
 		return

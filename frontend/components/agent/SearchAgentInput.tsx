@@ -1,25 +1,32 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { Search, Loader2, Sparkles, ArrowLeft } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, ApiRequestError } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface SearchAgentInputProps {
   onResults?: (results: Record<string, unknown>[], query: string) => void;
+  onKeywordFallback?: (query: string) => void;
   className?: string;
 }
 
-export function SearchAgentInput({ onResults, className }: SearchAgentInputProps) {
+export function SearchAgentInput({ onResults, onKeywordFallback, className }: SearchAgentInputProps) {
   const t = useTranslations();
-  const [mode, setMode] = useState<"keyword" | "agent">("agent");
+  const [mode, setMode] = useState<"keyword" | "agent">("keyword");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [downgradeNotice, setDowngradeNotice] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+
+  const doKeywordSearch = useCallback((q: string) => {
+    onResults?.([], q);
+    onKeywordFallback?.(q);
+  }, [onResults, onKeywordFallback]);
 
   async function handleSearch() {
     const trimmed = query.trim();
@@ -27,6 +34,7 @@ export function SearchAgentInput({ onResults, className }: SearchAgentInputProps
 
     setLoading(true);
     setError("");
+    setDowngradeNotice("");
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -37,15 +45,31 @@ export function SearchAgentInput({ onResults, className }: SearchAgentInputProps
           query: trimmed,
         });
         if (!controller.signal.aborted) {
-          onResults?.(res.results ?? [], trimmed);
+          const results = res.results ?? [];
+          if (results.length > 0) {
+            onResults?.(results, trimmed);
+          } else {
+            setDowngradeNotice(t("agent.searchAgentNoResults"));
+            doKeywordSearch(trimmed);
+          }
         }
       } else {
-        // Keyword search fallback — redirect or pass to parent
-        onResults?.([], trimmed);
+        doKeywordSearch(trimmed);
       }
     } catch (e) {
       if (!controller.signal.aborted) {
-        setError((e as Error).message || t("common.operationFailed"));
+        if (e instanceof ApiRequestError) {
+          const downgradeCodes = ["UNAUTHORIZED", "FORBIDDEN", "TOKEN_EXPIRED", "FEATURE_DISABLED", "AGENT_ERROR"];
+          if (downgradeCodes.includes(e.code) || e.status === 429 || e.status >= 500) {
+            setDowngradeNotice(t("agent.searchAgentDowngrade"));
+            doKeywordSearch(trimmed);
+          } else {
+            setError(e.message);
+          }
+        } else {
+          setDowngradeNotice(t("agent.searchAgentDowngrade"));
+          doKeywordSearch(trimmed);
+        }
         silentError(e, { component: 'SearchAgentInput', action: 'handleSearch' });
       }
     } finally {
@@ -110,6 +134,9 @@ export function SearchAgentInput({ onResults, className }: SearchAgentInputProps
         </button>
       </div>
 
+      {downgradeNotice && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">{downgradeNotice}</p>
+      )}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );

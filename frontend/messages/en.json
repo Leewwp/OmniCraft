@@ -879,6 +879,8 @@
     "noGuideAvailable": "No usage guide available",
     "searchAgentPlaceholder": "Search naturally, e.g. \"beginner furniture mods\"...",
     "searchKeywordPlaceholder": "Search by keyword...",
+    "searchAgentNoResults": "AI search found no results, switched to keyword search",
+    "searchAgentDowngrade": "AI search temporarily unavailable, switched to keyword search",
     "aiSearch": "AI Search",
     "keywordSearch": "Keyword Search"
   },

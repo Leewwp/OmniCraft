@@ -191,7 +191,7 @@ type ContentSummary struct {
 	Tags        []string `json:"tags"`
 }
 
-func (s *AgentService) NLSearch(ctx context.Context, query string) ([]ContentSummary, error) {
+func (s *AgentService) NLSearch(ctx context.Context, query string, viewerID int64) ([]ContentSummary, error) {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return nil, ErrAgentDisabled
 	}
@@ -218,8 +218,21 @@ func (s *AgentService) NLSearch(ctx context.Context, query string) ([]ContentSum
 		return nil, err
 	}
 
-	summaries := make([]ContentSummary, 0, len(contents))
-	for _, content := range contents {
+	visibleContents := make([]model.ContentItem, 0, len(contents))
+	for _, c := range contents {
+		if c.Status != "published" {
+			continue
+		}
+		if c.Author.IsBanned {
+			continue
+		}
+		if c.IsPublic || c.AuthorID == viewerID {
+			visibleContents = append(visibleContents, c)
+		}
+	}
+
+	summaries := make([]ContentSummary, 0, len(visibleContents))
+	for _, content := range visibleContents {
 		summaries = append(summaries, ContentSummary{
 			ID:          content.ID,
 			Title:       content.Title,

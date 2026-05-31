@@ -1,5 +1,34 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-06-01] - Beta G-02: Default Search To Keyword And Degrade Agent Failures
+
+### What was done:
+- Modified `NLSearch` in `backend/internal/service/agent_service.go`:
+  - Added `viewerID int64` parameter for visibility filtering
+  - Added visibility scope: filters out non-published, banned-author, and non-public/non-owner content
+  - Vector search results now go through visibility check before returning summaries
+- Updated `NLSearch` handler in `backend/internal/handler/agent.go` to pass `viewerID` from `middleware.GetUserID(c)`
+- Created `backend/internal/service/agent_visibility_test.go` with tests for visibility scope and viewerID parameter
+- Modified `frontend/components/agent/SearchAgentInput.tsx`:
+  - Changed default search mode from `"agent"` to `"keyword"`
+  - Added Agent failure downgrade: on 401/403/429/503/network error, automatically falls back to keyword search
+  - Added downgrade notice UI (amber text) informing user of the switch
+  - Added `onKeywordFallback` prop for parent component integration
+  - Added empty-result downgrade: if Agent returns no results, falls back to keyword search
+- Added i18n keys: `searchAgentNoResults`, `searchAgentDowngrade` in both zh.json and en.json
+
+### Testing:
+- `go test ./internal/service -run TestNLSearch -v`: 2/2 PASS
+- `go build ./...`: passed
+- `go vet ./...`: passed
+- `npm run lint`: passed
+- `npm run build`: passed
+
+### Notes:
+- The `AgentFeatureGate` (G-01) already hides Agent search for anonymous/unverified users, so keyword mode is the only option for them
+- The downgrade logic catches both HTTP error codes (429, 5xx) and specific error codes (UNAUTHORIZED, FORBIDDEN, FEATURE_DISABLED, AGENT_ERROR)
+- Vector search in `content_embeddings` table still returns raw results; visibility filtering is applied in Go after fetching content items
+
 ## [2026-06-01] - Beta F-06: Route All Attachment Downloads Through Authorized Download API
 
 ### What was done:
