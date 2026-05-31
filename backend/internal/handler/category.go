@@ -14,12 +14,14 @@ import (
 )
 
 type CategoryHandler struct {
-	catSvc *service.CategoryService
+	catSvc   *service.CategoryService
+	auditSvc *service.AdminAuditService
 }
 
-func NewCategoryHandler(db *gorm.DB) *CategoryHandler {
+func NewCategoryHandler(db *gorm.DB, auditSvc *service.AdminAuditService) *CategoryHandler {
 	return &CategoryHandler{
-		catSvc: service.NewCategoryService(repository.NewCategoryRepository(db)),
+		catSvc:   service.NewCategoryService(repository.NewCategoryRepository(db)),
+		auditSvc: auditSvc,
 	}
 }
 
@@ -50,6 +52,16 @@ func (h *CategoryHandler) AdminCreateCategory(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	if h.auditSvc != nil {
+		h.auditSvc.Record(c.Request.Context(), service.RecordAdminAuditInput{
+			AdminUserID: c.GetInt64("user_id"),
+			Action:      "category_create",
+			TargetType:  "category",
+			TargetID:    strconv.FormatInt(cat.ID, 10),
+			Metadata:    map[string]any{"name": cat.Slug, "slug": cat.Slug, "display_order": cat.SortOrder},
+			Result:      "success",
+		})
+	}
 	c.JSON(http.StatusCreated, gin.H{"category": cat})
 }
 
@@ -68,6 +80,16 @@ func (h *CategoryHandler) AdminUpdateCategory(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		return
 	}
+	if h.auditSvc != nil {
+		h.auditSvc.Record(c.Request.Context(), service.RecordAdminAuditInput{
+			AdminUserID: c.GetInt64("user_id"),
+			Action:      "category_update",
+			TargetType:  "category",
+			TargetID:    strconv.FormatInt(id, 10),
+			Metadata:    map[string]any{"category_id": id},
+			Result:      "success",
+		})
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "updated"})
 }
 
@@ -85,6 +107,16 @@ func (h *CategoryHandler) AdminDeleteCategory(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	if h.auditSvc != nil {
+		h.auditSvc.Record(c.Request.Context(), service.RecordAdminAuditInput{
+			AdminUserID: c.GetInt64("user_id"),
+			Action:      "category_delete",
+			TargetType:  "category",
+			TargetID:    strconv.FormatInt(id, 10),
+			Metadata:    map[string]any{"category_id": id},
+			Result:      "success",
+		})
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }
 
@@ -100,6 +132,15 @@ func (h *CategoryHandler) AdminReorderCategories(c *gin.Context) {
 	if err := h.catSvc.AdminReorderCategories(updates); err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
+	}
+	if h.auditSvc != nil {
+		h.auditSvc.Record(c.Request.Context(), service.RecordAdminAuditInput{
+			AdminUserID: c.GetInt64("user_id"),
+			Action:      "category_reorder",
+			TargetType:  "category",
+			Metadata:    map[string]any{"order": len(updates)},
+			Result:      "success",
+		})
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "reordered"})
 }

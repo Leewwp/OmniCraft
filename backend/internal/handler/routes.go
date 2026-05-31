@@ -174,7 +174,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	}
 	users.GET("/:id/favorites", optAuth, favHandler.ListUserFavorites)
 
-	judgeHandler := NewJudgeHandler(db, cfg)
+	judgeHandler := NewJudgeHandler(db, cfg, ctr.AdminAuditService)
 	judge := v1.Group("/judge")
 	{
 		judge.GET("/exam/:category", optAuth, judgeHandler.GetExam)
@@ -193,7 +193,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	ipStatsHandler := NewIPStatsHandler(ipStatsSvc)
 	v1.GET("/ips/stats/category_counts", optAuth, ipStatsHandler.GetCategoryCounts)
 
-	catHandler := NewCategoryHandler(db)
+	catHandler := NewCategoryHandler(db, ctr.AdminAuditService)
 	v1.GET("/categories", optAuth, catHandler.ListCategories)
 
 	tagHandler := NewTagHandler(db, rdb, &cfg.Cache)
@@ -310,7 +310,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		rehab.GET("/my-progress", rehabHandler.GetMyProgress)
 	}
 
-	adminHandler := NewAdminHandler(db, cfg, rdb)
+	adminHandler := NewAdminHandler(db, cfg, rdb, ctr.AdminAuditService)
 	adminHandler.SetNotificationService(notifSvc)
 	admin := v1.Group("/admin", authReq, middleware.AdminRequired())
 	{

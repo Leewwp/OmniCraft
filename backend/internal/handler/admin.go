@@ -28,6 +28,7 @@ type AdminHandler struct {
 	userRepo     *repository.UserRepository
 	socialRepo   *repository.SocialRepository
 	llmConfigSvc *service.LLMConfigService
+	auditSvc     *service.AdminAuditService
 	cfg          *config.Config
 	rdb          *redis.Client
 	notifSvc     *service.NotificationService
@@ -50,7 +51,7 @@ func isSensitivePatchKey(key string) bool {
 	return false
 }
 
-func NewAdminHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *AdminHandler {
+func NewAdminHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client, auditSvc *service.AdminAuditService) *AdminHandler {
 	var dlqWorker *worker.DLQWorker
 	if rdb != nil {
 		dlqWorker = worker.NewDLQWorker(rdb)
@@ -61,6 +62,7 @@ func NewAdminHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *AdminH
 		userRepo:     repository.NewUserRepository(db),
 		socialRepo:   repository.NewSocialRepository(db),
 		llmConfigSvc: service.NewLLMConfigService(repository.NewLLMConfigRepository(db), cfg),
+		auditSvc:     auditSvc,
 		cfg:          cfg,
 		rdb:          rdb,
 		dlqWorker:    dlqWorker,
@@ -96,6 +98,9 @@ func (h *AdminHandler) ApproveIP(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		return
 	}
+	if !h.auditOrFail(c, "ip_approve", "ip", strconv.FormatInt(id, 10), map[string]any{"ip_id": id, "decision": "approved"}) {
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "ip approved"})
 }
 
@@ -107,6 +112,9 @@ func (h *AdminHandler) RejectIP(c *gin.Context) {
 	}
 	if err := h.ipSvc.RejectIP(id); err != nil {
 		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
+		return
+	}
+	if !h.auditOrFail(c, "ip_reject", "ip", strconv.FormatInt(id, 10), map[string]any{"ip_id": id, "decision": "rejected"}) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "ip rejected"})
@@ -169,6 +177,9 @@ func (h *AdminHandler) BanContent(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	if !h.auditOrFail(c, "content_ban", "content", strconv.FormatInt(id, 10), map[string]any{"content_id": id, "reason": body.Reason}) {
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "content banned"})
 }
 
@@ -180,6 +191,9 @@ func (h *AdminHandler) RestoreContent(c *gin.Context) {
 	}
 	if err := h.contentRepo.UpdateContent(id, map[string]interface{}{"status": "published", "ban_reason": ""}); err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	if !h.auditOrFail(c, "content_restore", "content", strconv.FormatInt(id, 10), map[string]any{"content_id": id}) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "content restored"})
@@ -202,6 +216,9 @@ func (h *AdminHandler) BanUser(c *gin.Context) {
 		return
 	}
 	middleware.InvalidateUserStatusCache(h.rdb, id)
+	if !h.auditOrFail(c, "user_ban", "user", strconv.FormatInt(id, 10), map[string]any{"target_user_id": id, "reason": body.Reason}) {
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "user banned"})
 }
 
@@ -216,6 +233,9 @@ func (h *AdminHandler) UnbanUser(c *gin.Context) {
 		return
 	}
 	middleware.InvalidateUserStatusCache(h.rdb, id)
+	if !h.auditOrFail(c, "user_unban", "user", strconv.FormatInt(id, 10), map[string]any{"target_user_id": id}) {
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "user unbanned"})
 }
 
@@ -303,6 +323,9 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 	if h.notifSvc != nil {
 		adminID := middleware.GetUserID(c)
 		h.notifSvc.Notify(appeal.UserID, "system", "appeal_result", "申诉处理结果", body.AdminResponse, "appeal", appeal.ID, adminID)
+	}
+	if !h.auditOrFail(c, "appeal_resolve", "appeal", strconv.FormatInt(id, 10), map[string]any{"appeal_id": id, "decision": body.Status, "reason": body.AdminResponse}) {
+		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "appeal resolved"})
 }
@@ -425,6 +448,10 @@ func (h *AdminHandler) PatchConfig(c *gin.Context) {
 		slog.Error("failed to save config override", "error", err)
 	}
 
+	if !h.auditOrFail(c, "config_patch", "config", "", map[string]any{"field": "multiple", "old_value_masked": "***", "new_value_masked": "***"}) {
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"config": model.PublicConfig{
 			Features:   h.cfg.Features,
@@ -491,6 +518,9 @@ func (h *AdminHandler) CreateLLMConfig(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	if !h.auditOrFail(c, "llm_config_create", "llm_config", strconv.FormatInt(r.ID, 10), map[string]any{"provider": req.ProviderType, "model": req.Model}) {
+		return
+	}
 	c.JSON(http.StatusCreated, gin.H{"config": r})
 }
 
@@ -516,6 +546,9 @@ func (h *AdminHandler) UpdateLLMConfig(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	if !h.auditOrFail(c, "llm_config_update", "llm_config", strconv.FormatInt(id, 10), map[string]any{"config_id": id}) {
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "config updated"})
 }
 
@@ -533,6 +566,9 @@ func (h *AdminHandler) DeleteLLMConfig(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"code": "CONFIG_NOT_FOUND", "message": "config not found"})
 		return
 	}
+	if !h.auditOrFail(c, "llm_config_delete", "llm_config", strconv.FormatInt(id, 10), map[string]any{"config_id": id}) {
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "config deleted"})
 }
 
@@ -544,6 +580,9 @@ func (h *AdminHandler) ActivateLLMConfig(c *gin.Context) {
 	}
 	if err := h.llmConfigSvc.ActivateConfig(id); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"code": "CONFIG_NOT_FOUND", "message": "config not found"})
+		return
+	}
+	if !h.auditOrFail(c, "llm_config_activate", "llm_config", strconv.FormatInt(id, 10), map[string]any{"config_id": id}) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "config activated"})
@@ -560,6 +599,7 @@ func (h *AdminHandler) TestLLMConfig(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "TEST_FAILED", err)
 		return
 	}
+	_ = h.auditOrFail(c, "llm_config_test", "llm_config", strconv.FormatInt(id, 10), map[string]any{"config_id": id})
 	c.JSON(http.StatusOK, gin.H{"response": resp})
 }
 
@@ -607,6 +647,9 @@ func (h *AdminHandler) ResolveReport(c *gin.Context) {
 	searchRepo := repository.NewSearchRepository(h.contentRepo.DB())
 	if err := searchRepo.UpdateReportStatus(id, body.Status, body.ActionTaken); err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	if !h.auditOrFail(c, "report_resolve", "report", strconv.FormatInt(id, 10), map[string]any{"report_id": id, "decision": body.Status, "reason": body.ActionTaken}) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "report updated"})
@@ -665,4 +708,25 @@ func (h *AdminHandler) GetDLQEntries(c *gin.Context) {
 		"entries": entries,
 		"count":   len(entries),
 	})
+}
+
+func (h *AdminHandler) auditOrFail(c *gin.Context, action, targetType, targetID string, metadata map[string]any) bool {
+	if h.auditSvc == nil {
+		return true
+	}
+	adminID := middleware.GetUserID(c)
+	entry := service.RecordAdminAuditInput{
+		AdminUserID: adminID,
+		Action:      action,
+		TargetType:  targetType,
+		TargetID:    targetID,
+		TraceID:     c.GetString("trace_id"),
+		Metadata:    metadata,
+		Result:      "success",
+	}
+	if err := h.auditSvc.Record(c.Request.Context(), entry); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+		return false
+	}
+	return true
 }
