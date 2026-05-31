@@ -484,6 +484,8 @@
     "navContents": "Content Review",
     "navUsers": "User Management",
     "navAppeals": "Appeal Handling",
+    "navFeedback": "Feedback Management",
+    "navQueue": "Queue Monitor",
     "navCategories": "Category Management",
     "navConfig": "System Config",
     "navAgentConfig": "Agent Config",
@@ -643,6 +645,37 @@
       "confirmSave": "Confirm save",
       "loadFailed": "Failed to load config",
       "saveFailed": "Failed to save config"
+    },
+    "feedback": {
+      "title": "Feedback Management",
+      "loadFailed": "Failed to load feedback tickets",
+      "allStatuses": "All Statuses",
+      "allCategories": "All Categories",
+      "noTickets": "No feedback tickets",
+      "contactEmail": "Contact Email",
+      "diagnostics": "Diagnostics",
+      "screenshots": "Screenshots",
+      "replies": "Replies",
+      "admin": "Admin",
+      "user": "User",
+      "internalNote": "Internal Note",
+      "noReplies": "No replies yet",
+      "replyPlaceholder": "Type your reply...",
+      "markInternalNote": "Mark as internal note (hidden from user)",
+      "sendReply": "Send Reply"
+    },
+    "queue": {
+      "title": "Queue Monitor",
+      "stats": "Queue Stats",
+      "noStats": "No queue data available",
+      "topic": "Topic",
+      "depth": "Depth",
+      "lag": "Lag",
+      "failures": "Failures",
+      "dlq": "Dead Letter Queue",
+      "noDLQ": "DLQ is empty",
+      "loadFailed": "Failed to load queue data",
+      "readOnlyNote": "Queue page is read-only during Beta. Replay controls are not available."
     }
   },
   "social": {

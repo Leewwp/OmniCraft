@@ -186,6 +186,115 @@ func (s *FeedbackService) GetTicketForUser(ctx context.Context, ticketID, userID
 	return ticket, nil
 }
 
+func (s *FeedbackService) ListAdminFeedback(ctx context.Context, filter repository.AdminFeedbackFilter) ([]model.FeedbackTicket, int64, error) {
+	if filter.Page < 1 {
+		filter.Page = 1
+	}
+	if filter.PageSize < 1 || filter.PageSize > 100 {
+		filter.PageSize = 20
+	}
+	return s.repo.ListAdminFeedback(filter)
+}
+
+func (s *FeedbackService) GetTicketForAdmin(ctx context.Context, ticketID int64) (*model.FeedbackTicket, error) {
+	ticket, err := s.repo.FindTicketByIDForAdmin(ticketID)
+	if err != nil {
+		return nil, err
+	}
+	if ticket == nil {
+		return nil, errors.New("TICKET_NOT_FOUND")
+	}
+	return ticket, nil
+}
+
+type AdminPatchFeedbackInput struct {
+	Status         string
+	Priority       string
+	AssigneeAdminID *int64
+}
+
+func (s *FeedbackService) PatchTicket(ctx context.Context, ticketID int64, input AdminPatchFeedbackInput) (*model.FeedbackTicket, error) {
+	ticket, err := s.repo.FindTicketByIDForAdmin(ticketID)
+	if err != nil {
+		return nil, err
+	}
+	if ticket == nil {
+		return nil, errors.New("TICKET_NOT_FOUND")
+	}
+
+	validStatuses := map[string]bool{"open": true, "in_progress": true, "closed": true, "reopened": true}
+	if input.Status != "" {
+		if !validStatuses[input.Status] {
+			return nil, errors.New("INVALID_STATUS")
+		}
+		ticket.Status = input.Status
+		if input.Status == "closed" && ticket.ResolvedAt == nil {
+			now := time.Now()
+			ticket.ResolvedAt = &now
+		}
+		if input.Status == "reopened" {
+			ticket.ResolvedAt = nil
+		}
+	}
+
+	validPriorities := map[string]bool{"low": true, "normal": true, "high": true, "urgent": true}
+	if input.Priority != "" {
+		if !validPriorities[input.Priority] {
+			return nil, errors.New("INVALID_PRIORITY")
+		}
+		ticket.Priority = input.Priority
+	}
+
+	if input.AssigneeAdminID != nil {
+		ticket.AssigneeAdminID = input.AssigneeAdminID
+	}
+
+	if err := s.repo.UpdateTicket(ticket); err != nil {
+		return nil, err
+	}
+	return ticket, nil
+}
+
+type AdminReplyInput struct {
+	TicketID       int64
+	AuthorAdminID  int64
+	Body           string
+	IsInternalNote bool
+}
+
+func (s *FeedbackService) AdminReply(ctx context.Context, input AdminReplyInput) (*model.FeedbackReply, error) {
+	if input.Body == "" {
+		return nil, errors.New("BODY_REQUIRED")
+	}
+	if len(input.Body) > 5000 {
+		return nil, errors.New("BODY_TOO_LONG")
+	}
+
+	ticket, err := s.repo.FindTicketByIDForAdmin(input.TicketID)
+	if err != nil {
+		return nil, err
+	}
+	if ticket == nil {
+		return nil, errors.New("TICKET_NOT_FOUND")
+	}
+
+	reply := &model.FeedbackReply{
+		TicketID:       input.TicketID,
+		AuthorAdminID:  &input.AuthorAdminID,
+		Body:           input.Body,
+		IsInternalNote: input.IsInternalNote,
+	}
+
+	if err := s.repo.CreateReply(reply); err != nil {
+		return nil, err
+	}
+	return reply, nil
+}
+
+func (s *FeedbackService) CountOpenTickets(ctx context.Context) (int64, error) {
+	return s.repo.CountByStatus("open")
+}
+
 func filterDiagnostics(raw map[string]interface{}) model.JSONMap {
 	if raw == nil {
 		return model.JSONMap{}

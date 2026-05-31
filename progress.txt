@@ -1,5 +1,30 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-31] - Beta A-04: Add Admin Feedback And Queue Pages
+
+### What was done:
+- Moved `frontend/app/admin/` to `frontend/app/(protected)/admin/` — admin pages now inherit shared protected layout (login redirect + banned check)
+- Updated admin layout sidebar: added Feedback and Queue nav items, removed redundant Footer
+- Created `backend/internal/handler/admin_feedback.go` — AdminFeedbackHandler with ListFeedback, GetFeedback, PatchFeedback, ReplyFeedback endpoints
+- Extended `backend/internal/repository/feedback_repo.go` — added ListAdminFeedback (with status/category/priority/assignee filters), CountByStatus
+- Extended `backend/internal/service/feedback_service.go` — added ListAdminFeedback, GetTicketForAdmin, PatchTicket (status/priority/assignee), AdminReply, CountOpenTickets
+- Registered 4 admin feedback routes in `backend/internal/handler/routes.go`: GET/PATCH /admin/feedback/:id, GET /admin/feedback, POST /admin/feedback/:id/replies
+- Created `frontend/app/(protected)/admin/feedback/page.tsx` — ticket list with filters, detail view with replies, internal notes, status/priority controls, reply form
+- Created `frontend/app/(protected)/admin/queue/page.tsx` — read-only queue stats table and DLQ entries display
+- Added i18n keys for admin feedback and queue pages in zh.json and en.json
+
+### Testing:
+- `go build ./...`: passed
+- `go vet ./...`: passed
+- `npm run lint` (tsc --noEmit): passed
+- `npm run build`: passed (57 pages generated, including /admin/feedback and /admin/queue)
+
+### Notes:
+- Admin feedback API includes audit logging for PATCH (status/priority changes) and POST (replies) operations
+- Internal notes are visible to admins only; user-facing ticket detail (V-06) filters them out via backend
+- Queue page is read-only during Beta — no replay controls
+- A-03 (dashboard and reports) can now proceed as it depends on A-04's feedback API
+
 ## [2026-05-31] - Beta G-01: Gate Global Agent Chat And Desktop Deploy UI
 
 ### What was done:

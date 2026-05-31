@@ -80,3 +80,44 @@ func (r *FeedbackRepository) FindAttachmentByOSSKey(ossKey string) (*model.Feedb
 	}
 	return &a, nil
 }
+
+type AdminFeedbackFilter struct {
+	Status     string
+	Category   string
+	Priority   string
+	AssigneeID *int64
+	Page       int
+	PageSize   int
+}
+
+func (r *FeedbackRepository) ListAdminFeedback(filter AdminFeedbackFilter) ([]model.FeedbackTicket, int64, error) {
+	q := r.db.Model(&model.FeedbackTicket{})
+	if filter.Status != "" {
+		q = q.Where("status = ?", filter.Status)
+	}
+	if filter.Category != "" {
+		q = q.Where("category = ?", filter.Category)
+	}
+	if filter.Priority != "" {
+		q = q.Where("priority = ?", filter.Priority)
+	}
+	if filter.AssigneeID != nil {
+		q = q.Where("assignee_admin_id = ?", *filter.AssigneeID)
+	}
+
+	var total int64
+	q.Count(&total)
+
+	var tickets []model.FeedbackTicket
+	err := q.Preload("Attachments").
+		Order("created_at DESC").
+		Offset((filter.Page - 1) * filter.PageSize).Limit(filter.PageSize).
+		Find(&tickets).Error
+	return tickets, total, err
+}
+
+func (r *FeedbackRepository) CountByStatus(status string) (int64, error) {
+	var count int64
+	err := r.db.Model(&model.FeedbackTicket{}).Where("status = ?", status).Count(&count).Error
+	return count, err
+}

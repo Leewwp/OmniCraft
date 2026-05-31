@@ -243,7 +243,7 @@ PATCH /api/v1/admin/reports/:id
 
 Support status/type filters, report detail, resolve action and empty states. Report detail must show target, reporter, evidence/reason, current state and resolution explanation. PATCH requires an explicit resolution status and action/explanation; do not permit an empty resolve action.
 
-- [ ] **Step 5: Run checks and browser-test**
+- [x] **Step 5: Run checks and browser-test**
 
 ```powershell
 cd frontend
@@ -274,11 +274,11 @@ git commit -m "Beta A-03: add admin dashboard and reports pages - completed"
 - Modify: `frontend/messages/zh.json`
 - Modify: `frontend/messages/en.json`
 
-- [ ] **Step 1: Move the existing Admin subtree below the protected route group**
+- [x] **Step 1: Move the existing Admin subtree below the protected route group**
 
 Move `frontend/app/admin/*` to `frontend/app/(protected)/admin/*` without changing public URLs. Keep the nested Admin layout role check in `frontend/app/(protected)/admin/layout.tsx`, but rely on the parent `(protected)` layout for the shared login redirect and banned-account EmptyState.
 
-- [ ] **Step 2: Add feedback admin API**
+- [x] **Step 2: Add feedback admin API**
 
 Before editing Admin UI, run:
 
@@ -299,11 +299,11 @@ POST  /api/v1/admin/feedback/:id/replies
 
 Allow status, category, priority and assignment filters. PATCH changes assignment, priority or status. POST creates a user-visible reply or `is_internal_note=true` note. Audit every PATCH and POST. Closing a ticket sets `resolved_at`; reopening clears it. User-visible reply/close triggers the V-05 notification/mail rules.
 
-- [ ] **Step 3: Implement feedback page**
+- [x] **Step 3: Implement feedback page**
 
 Render ticket filters, detail, sanitized diagnostic summary, screenshot preview, reply, internal note, priority, assignment and close action. Internal notes must never appear in user-facing ticket detail.
 
-- [ ] **Step 4: Implement read-only queue page**
+- [x] **Step 4: Implement read-only queue page**
 
 Use existing:
 
@@ -314,7 +314,7 @@ GET /api/v1/admin/queue/dlq
 
 Render topic, queue depth, lag, failure count, recent DLQ entries and trace ID. Do not add replay controls in Beta.
 
-- [ ] **Step 5: Run checks and browser-test**
+- [x] **Step 5: Run checks and browser-test**
 
 ```powershell
 cd backend
@@ -328,7 +328,7 @@ npm run build
 
 Use MCP Playwright to resolve feedback and inspect queue state. Save screenshots under `screenshots/beta-a04-*`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add backend frontend screenshots docs/superpowers/plans progress.txt

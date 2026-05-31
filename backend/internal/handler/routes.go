@@ -312,6 +312,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 
 	adminHandler := NewAdminHandler(db, cfg, rdb, ctr.AdminAuditService)
 	adminHandler.SetNotificationService(notifSvc)
+	adminFeedbackHandler := NewAdminFeedbackHandler(ctr.FeedbackService, ctr.AdminAuditService)
 	admin := v1.Group("/admin", authReq, middleware.AdminRequired())
 	{
 		admin.GET("/ips", adminHandler.ListPendingIPs)
@@ -344,6 +345,10 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		admin.POST("/llm-configs/:id/test", adminHandler.TestLLMConfig)
 		admin.GET("/queue/stats", adminHandler.GetQueueStats)
 		admin.GET("/queue/dlq", adminHandler.GetDLQEntries)
+		admin.GET("/feedback", adminFeedbackHandler.ListFeedback)
+		admin.GET("/feedback/:id", adminFeedbackHandler.GetFeedback)
+		admin.PATCH("/feedback/:id", adminFeedbackHandler.PatchFeedback)
+		admin.POST("/feedback/:id/replies", adminFeedbackHandler.ReplyFeedback)
 	}
 
 	internalHandler := NewInternalHandler(db, rdb, cfg)
