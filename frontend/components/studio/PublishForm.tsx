@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, Send, ChevronDown, Image, Eye, EyeOff, MessageCircle } from "lucide-react";
+import { ArrowLeft, Send, ChevronDown, Image, Eye, EyeOff, MessageCircle, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
@@ -13,6 +13,8 @@ import { MarkdownEditor } from "@/components/content/MarkdownEditor";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { cn } from "@/lib/utils";
 import { AgentFeatureGate } from "@/components/agent/AgentFeatureGate";
+import { AgentUploadAssistPanel } from "@/components/agent/UploadAssistPanel";
+import { AgentComplianceCheckBadge } from "@/components/agent/ComplianceCheckBadge";
 import type { UploadedAsset } from "@/components/content/FileUploader";
 
 const ORIGINAL_CATEGORIES = [
@@ -66,6 +68,10 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedAsset[]>([]);
   const [coverFile, setCoverFile] = useState<UploadedAsset | null>(null);
   const [uploadError, setUploadError] = useState("");
+  const [complianceViolation, setComplianceViolation] = useState(false);
+
+  const undoSnapshot = useRef<{ title: string; briefDesc: string; body: string; tags: string[]; category: string } | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
 
   function addTag() {
     const val = tagInput.trim();
@@ -76,6 +82,44 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
   }
 
   const description = isFilePrimary ? briefDesc : body;
+
+  function handleAssistFill(data: { suggested_title?: string; suggested_description?: string; suggested_tags?: string[]; suggested_category?: string }) {
+    undoSnapshot.current = { title, briefDesc, body, tags, category };
+    setCanUndo(true);
+    if (data.suggested_title) setTitle(data.suggested_title);
+    if (data.suggested_description) {
+      if (isFilePrimary) setBriefDesc(data.suggested_description);
+      else setBody(data.suggested_description);
+    }
+    if (data.suggested_tags && data.suggested_tags.length > 0) {
+      setTags((prev) => {
+        const merged = [...prev];
+        for (const tag of data.suggested_tags!) {
+          if (!merged.includes(tag) && merged.length < 10) merged.push(tag);
+        }
+        return merged;
+      });
+    }
+    if (data.suggested_category && zone === "original" && ORIGINAL_CATEGORIES.includes(data.suggested_category)) {
+      setCategory(data.suggested_category);
+    }
+  }
+
+  function handleUndo() {
+    if (!undoSnapshot.current) return;
+    const snap = undoSnapshot.current;
+    setTitle(snap.title);
+    setBriefDesc(snap.briefDesc);
+    setBody(snap.body);
+    setTags(snap.tags);
+    setCategory(snap.category);
+    undoSnapshot.current = null;
+    setCanUndo(false);
+  }
+
+  function handleComplianceResult(result: { risk_level: "safe" | "warning" | "violation" }) {
+    setComplianceViolation(result.risk_level === "violation");
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -216,6 +260,25 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
         </div>
       )}
 
+      {/* AI Upload Assist */}
+      {isFilePrimary && (
+        <AgentFeatureGate capability="webAgent">
+          <AgentUploadAssistPanel
+            uploadedFiles={uploadedFiles.map((f) => f.fileName)}
+            title={title}
+            description={description}
+            contentType={contentType}
+            onFill={handleAssistFill}
+          />
+          {canUndo && (
+            <Button type="button" variant="ghost" size="sm" className="mt-2 text-xs" onClick={handleUndo}>
+              <Undo2 className="mr-1 h-3 w-3" />
+              {t("agent.undoSuggestion")}
+            </Button>
+          )}
+        </AgentFeatureGate>
+      )}
+
       {/* ──── Publishing Settings Panel ──── */}
       <div className="rounded-xl border border-border/60 bg-card">
         <div className="flex items-center gap-2 px-5 py-3 border-b border-border/40">
@@ -337,9 +400,23 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
         </div>
       </div>
 
+      {/* AI Compliance Check */}
+      <AgentFeatureGate capability="webAgent">
+        <div className="flex items-center gap-3">
+          <AgentComplianceCheckBadge
+            title={title}
+            description={description}
+            contentType={contentType}
+          />
+          {complianceViolation && (
+            <p className="text-xs text-destructive">{t("agent.complianceBlockSubmit")}</p>
+          )}
+        </div>
+      </AgentFeatureGate>
+
       {/* Bottom actions */}
       <div className="flex items-center gap-3 pt-2">
-        <Button type="submit" size="lg" disabled={submitting} className="gap-2 rounded-full px-8">
+        <Button type="submit" size="lg" disabled={submitting || complianceViolation} className="gap-2 rounded-full px-8">
           <Send className="h-4 w-4" />
           {submitting ? t('studio.publish.submitting') : t('studio.publish.submit')}
         </Button>

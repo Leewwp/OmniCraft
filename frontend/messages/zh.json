@@ -877,6 +877,8 @@
     "quickPrompt_publish_help": "发布帮助",
     "quickPrompt_desktop_client_help": "客户端帮助",
     "quickPrompt_report_problem": "报告问题",
+    "undoSuggestion": "撤销 AI 建议",
+    "complianceBlockSubmit": "合规检查未通过，请修改内容后再提交",
     "analyze": "AI 自动分析",
     "uploadAssistTitle": "AI 上传辅助",
     "uploadAssistDesc": "AI 将分析你的上传文件，自动生成标题、标签和分类建议",

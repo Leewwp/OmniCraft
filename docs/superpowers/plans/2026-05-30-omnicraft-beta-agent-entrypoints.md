@@ -267,29 +267,29 @@ git commit -m "Beta G-04: mount content usage guide - completed"
 - Modify: `frontend/messages/zh.json`
 - Modify: `frontend/messages/en.json`
 
-- [ ] **Step 1: Read specs**
+- [x] **Step 1: Read specs**
 
 ```powershell
 rg -n "## Component: UploadAssistPanel|## Component: ComplianceCheckBadge|## Page: /studio/publish" design/ui-spec.md
 ```
 
-- [ ] **Step 2: Mount upload assistance**
+- [x] **Step 2: Mount upload assistance**
 
 Place metadata suggestions after upload and before submit. Reuse the `frontend/components/agent/*` panels, not the similarly named static `frontend/components/content/*` hints. Suggestions must be previewed and applied only when the user clicks an explicit apply button. Preserve an undo snapshot so the user can revert the applied suggestion. **Undo implementation:** Use `useRef` to store a `structuredClone(formState)` snapshot immediately before applying a suggestion. The apply button saves the snapshot to the ref; the undo button restores form state from the ref. Only one level of undo is required for Beta.
 
-- [ ] **Step 3: Mount compliance hint**
+- [x] **Step 3: Mount compliance hint**
 
 Show pre-submit compliance status using a stable backend enum: `safe`, `warning`, or `violation`. Apply `safe` suggestions only after the user's explicit apply click; require explicit acknowledgement before applying a `warning`; block application and final submit for `violation`. A hint may not silently rewrite title, description or tags. Final publish still goes through the existing content-review path.
 
-- [ ] **Step 4: Validate suggestions as untrusted input**
+- [x] **Step 4: Validate suggestions as untrusted input**
 
 Validate suggestion field lengths, tag count/tag lengths and category enum in the backend before returning structured suggestions. Validate again before applying to form state. Add tests for oversized text, invalid category, excessive tags and unknown fields.
 
-- [ ] **Step 5: Add graceful fallback**
+- [x] **Step 5: Add graceful fallback**
 
 When Agent is off or unavailable, the normal publishing form must remain usable.
 
-- [ ] **Step 6: Run checks and browser-test**
+- [x] **Step 6: Run checks and browser-test**
 
 ```powershell
 cd backend
@@ -302,7 +302,7 @@ npm run build
 
 Use MCP Playwright to upload, inspect suggestion, apply it, undo/edit it, and submit with Agent unavailable. Save screenshots under `screenshots/beta-g05-*`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add backend frontend screenshots docs/superpowers/plans progress.txt
