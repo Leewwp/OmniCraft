@@ -95,7 +95,7 @@ Expected: compose configuration renders successfully. Record unavailable externa
 
 Document: SHA, dirty files, command results, external dependencies not configured, and concrete follow-up task IDs.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add docs/review/beta-baseline-2026-05-30.md docs/superpowers/plans progress.txt
@@ -250,7 +250,7 @@ git commit -m "Beta F-02: enforce fail-closed interaction eligibility - complete
 - Modify: `frontend/proxy.ts`
 - Create: `backend/internal/handler/auth_cookie_test.go`
 
-- [ ] **Step 1: Write failing cookie contract tests**
+- [x] **Step 1: Write failing cookie contract tests**
 
 Cover:
 
@@ -265,14 +265,10 @@ func TestCredentialedCORSAllowsConfiguredProductionOriginOnly(t *testing.T) {}
 
 Expected refresh cookie attributes in production: `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, no `Domain`, configured TTL. Cookie name is selected automatically based on `config.yaml > server.mode`: when `mode == "release"` (the existing Gin production-mode convention), use `__Host-refresh_token` (requires HTTPS); otherwise use `refresh_token`. The same logic applies to the CSRF cookie name (`__Host-csrf` vs `csrf-token`). Do not introduce a second mode string such as `production`; derive both cookie names from one helper that reads the existing server mode.
 
-- [ ] **Step 2: Run tests and verify failure**
-
-```powershell
-cd backend
-go test ./internal/handler -run "TestLoginSetsHttpOnly|TestRefreshReadsCookie|TestLogoutClears|TestRefreshFailsClosed" -v
+- [x] **Step 2: Run tests and verify failure**
 ```
 
-- [ ] **Step 3: Add cookie helpers and strict refresh behavior**
+- [x] **Step 3: Add cookie helpers and strict refresh behavior**
 
 Add helpers in `auth.go`:
 
@@ -292,7 +288,7 @@ Rules:
 - Add `GET /api/v1/auth/csrf` as an idempotent bootstrap endpoint. It returns the CSRF token in the response body and ensures the readable CSRF cookie exists. The frontend API helper keeps the returned value in memory and sends it as `X-CSRF-Token` before the first unsafe request, including a fresh browser session before login or registration.
 - Credentialed CORS allows explicit configured production origins only. Localhost variants remain development-only and wildcard origins are rejected.
 
-- [ ] **Step 4: Remove frontend refresh-token storage**
+- [x] **Step 4: Remove frontend refresh-token storage**
 
 Before editing the registration state, run:
 
@@ -315,7 +311,7 @@ await fetch(`${API_URL}/api/v1/auth/refresh`, {
 });
 ```
 
-- [ ] **Step 5: Run backend and frontend checks**
+- [x] **Step 5: Run backend and frontend checks**
 
 ```powershell
 cd backend
@@ -330,11 +326,11 @@ rg -n "refresh_token|REFRESH_TOKEN|getRefreshToken" .
 
 Expected: browser code contains no refresh-token persistence.
 
-- [ ] **Step 6: Browser-test login, refresh and logout**
+- [x] **Step 6: Browser-test login, refresh and logout**
 
 Use MCP Playwright. Confirm refresh token is HttpOnly, reload can refresh the access session, and logout invalidates the session. Save screenshots under `screenshots/beta-f03-*`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add backend frontend screenshots docs/superpowers/plans progress.txt
@@ -364,7 +360,7 @@ Assert `GET /api/v1/config/public` contains only:
     "creator_support_enabled": false,
     "desktop_deploy_enabled": false
   },
-  "captcha": {"provider": "", "site_key": ""},
+  "captcha": {"provider": "aliyun_v2", "prefix": "", "scene_id": "", "region": "cn"},
   "client": {"download_enabled": false, "download_url": "", "latest_version": ""}
 }
 ```
@@ -373,9 +369,9 @@ Assert response text does not contain `secret`, `access_key`, `api_key`, DSN, Re
 
 - [ ] **Step 2: Implement DTO and public route**
 
-Do not reuse the broad admin `model.PublicConfig`; create a dedicated DTO with explicit fields only. The backend source remains `cfg.Agent.WebAgentEnabled`, but the public DTO intentionally flattens it to `features.web_agent_enabled`. Add `features.desktop_deploy_enabled`, `captcha.provider`, `captcha.site_key`, `client.download_enabled`, `client.download_url`, and `client.latest_version` as explicit source config fields rather than overloading unrelated config structs. Keep secret captcha fields out of the public DTO.
+Do not reuse the broad admin `model.PublicConfig`; create a dedicated DTO with explicit fields only. The backend source remains `cfg.Agent.WebAgentEnabled`, but the public DTO intentionally flattens it to `features.web_agent_enabled`. Add `features.desktop_deploy_enabled`, `captcha.provider`, `captcha.prefix`, `captcha.scene_id`, `captcha.region`, `client.download_enabled`, `client.download_url`, and `client.latest_version` as explicit source config fields rather than overloading unrelated config structs. Keep captcha AccessKeys out of the public DTO.
 
-F-04 owns the initial public-safe captcha/client config shape so the endpoint compiles before V-01. V-01 extends the same captcha config with secret/provider runtime validation; it must not add a second competing struct.
+F-04 owns the initial public-safe captcha/client config shape so the endpoint compiles before V-01. Alibaba Cloud CAPTCHA 2.0 is the confirmed Beta provider, but the DTO remains narrow and the service interface remains provider-agnostic. V-01 extends the same captcha config with private AccessKey fields and release-mode runtime validation; it must not add a second competing struct.
 
 - [ ] **Step 3: Add frontend fetch helper**
 

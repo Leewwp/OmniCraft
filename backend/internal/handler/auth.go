@@ -30,6 +30,34 @@ func NewAuthHandler(authService *service.AuthService, userRepo *repository.UserR
 	return &AuthHandler{authService: authService, userRepo: userRepo, rdb: rdb, cfg: cfg}
 }
 
+func refreshCookieName(cfg *config.Config) string {
+	if cfg.Server.Mode == "release" {
+		return "__Host-refresh_token"
+	}
+	return "refresh_token"
+}
+
+func setRefreshCookie(c *gin.Context, cfg *config.Config, token string) {
+	name := refreshCookieName(cfg)
+	isSecure := cfg.Server.Mode == "release"
+	ttl := cfg.JWT.RefreshTokenTTL
+	if ttl <= 0 {
+		ttl = 7
+	}
+	maxAge := ttl * 24 * 60 * 60
+
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(name, token, maxAge, "/", "", isSecure, true)
+}
+
+func clearRefreshCookie(c *gin.Context, cfg *config.Config) {
+	name := refreshCookieName(cfg)
+	isSecure := cfg.Server.Mode == "release"
+
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(name, "", -1, "/", "", isSecure, true)
+}
+
 func (h *AuthHandler) Register(c *gin.Context) {
 	var input service.RegisterInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -51,11 +79,15 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	setRefreshCookie(c, h.cfg, tokens.RefreshToken)
+
 	c.JSON(http.StatusCreated, gin.H{
-		"user":   user,
-		"tokens": tokens,
+		"user": user,
+		"tokens": gin.H{
+			"access_token": tokens.AccessToken,
+		},
 	})
-	middleware.SetUserStatusCache(h.rdb, int64(user.ID), user.IsBanned, user.Role)
+	middleware.InvalidateUserStatusCache(h.rdb, int64(user.ID))
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -79,11 +111,15 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	setRefreshCookie(c, h.cfg, tokens.RefreshToken)
+
 	c.JSON(http.StatusOK, gin.H{
-		"user":   user,
-		"tokens": tokens,
+		"user": user,
+		"tokens": gin.H{
+			"access_token": tokens.AccessToken,
+		},
 	})
-	middleware.SetUserStatusCache(h.rdb, int64(user.ID), user.IsBanned, user.Role)
+	middleware.InvalidateUserStatusCache(h.rdb, int64(user.ID))
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
@@ -96,6 +132,11 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		}
 	}
 
+	cookieToken, err := c.Cookie(refreshCookieName(h.cfg))
+	if err == nil && cookieToken != "" {
+		h.authService.Logout(cookieToken)
+	}
+
 	var body struct {
 		RefreshToken string `json:"refresh_token"`
 	}
@@ -103,24 +144,38 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		h.authService.Logout(body.RefreshToken)
 	}
 
+	clearRefreshCookie(c, h.cfg)
 	c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
 }
 
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	var body struct {
-		RefreshToken string `json:"refresh_token" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&body); err != nil {
-		response.ValidationError(c, "invalid request parameters")
-		return
+	refreshToken, _ := c.Cookie(refreshCookieName(h.cfg))
+
+	if refreshToken == "" {
+		var body struct {
+			RefreshToken string `json:"refresh_token"`
+		}
+		if err := c.ShouldBindJSON(&body); err != nil || body.RefreshToken == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"code": "INVALID_TOKEN", "message": "missing refresh token"})
+			return
+		}
+		refreshToken = body.RefreshToken
 	}
 
-	tokens, err := h.authService.RefreshToken(body.RefreshToken)
+	tokens, err := h.authService.RefreshToken(refreshToken)
 	if err != nil {
+		clearRefreshCookie(c, h.cfg)
 		c.JSON(http.StatusUnauthorized, gin.H{"code": "INVALID_TOKEN", "message": "invalid or expired refresh token"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"tokens": tokens})
+
+	setRefreshCookie(c, h.cfg, tokens.RefreshToken)
+
+	c.JSON(http.StatusOK, gin.H{
+		"tokens": gin.H{
+			"access_token": tokens.AccessToken,
+		},
+	})
 }
 
 func (h *AuthHandler) Me(c *gin.Context) {
@@ -139,6 +194,11 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	csrfToken := middleware.GetCSRFToken(c)
 	c.Header("X-CSRF-Token", csrfToken)
 	c.JSON(http.StatusOK, gin.H{"user": user, "csrf_token": csrfToken})
+}
+
+func (h *AuthHandler) CSRFToken(c *gin.Context) {
+	csrfToken := middleware.GetCSRFToken(c)
+	c.JSON(http.StatusOK, gin.H{"csrf_token": csrfToken})
 }
 
 func (h *AuthHandler) ForgotPassword(c *gin.Context) {
