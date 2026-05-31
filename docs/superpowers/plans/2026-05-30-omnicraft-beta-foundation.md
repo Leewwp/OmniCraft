@@ -348,7 +348,7 @@ git commit -m "Beta F-03: move refresh sessions to HttpOnly cookies - completed"
 - Create: `backend/internal/handler/public_config_test.go`
 - Create: `frontend/lib/public-config.ts`
 
-- [ ] **Step 1: Write a failing allowlist test**
+- [x] **Step 1: Write a failing allowlist test**
 
 Assert `GET /api/v1/config/public` contains only:
 
@@ -367,13 +367,13 @@ Assert `GET /api/v1/config/public` contains only:
 
 Assert response text does not contain `secret`, `access_key`, `api_key`, DSN, Redis password, HMAC, private keys, OSS CDN fields, internal TTLs or rate-limit internals.
 
-- [ ] **Step 2: Implement DTO and public route**
+- [x] **Step 2: Implement DTO and public route**
 
 Do not reuse the broad admin `model.PublicConfig`; create a dedicated DTO with explicit fields only. The backend source remains `cfg.Agent.WebAgentEnabled`, but the public DTO intentionally flattens it to `features.web_agent_enabled`. Add `features.desktop_deploy_enabled`, `captcha.provider`, `captcha.prefix`, `captcha.scene_id`, `captcha.region`, `client.download_enabled`, `client.download_url`, and `client.latest_version` as explicit source config fields rather than overloading unrelated config structs. Keep captcha AccessKeys out of the public DTO.
 
 F-04 owns the initial public-safe captcha/client config shape so the endpoint compiles before V-01. Alibaba Cloud CAPTCHA 2.0 is the confirmed Beta provider, but the DTO remains narrow and the service interface remains provider-agnostic. V-01 extends the same captcha config with private AccessKey fields and release-mode runtime validation; it must not add a second competing struct.
 
-- [ ] **Step 3: Add frontend fetch helper**
+- [x] **Step 3: Add frontend fetch helper**
 
 Expose:
 
@@ -383,7 +383,7 @@ export async function getPublicConfig(): Promise<PublicRuntimeConfig>
 
 Use a stable fallback with all optional capabilities disabled.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```powershell
 cd backend
@@ -396,7 +396,7 @@ npm run lint
 npm run build
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add backend frontend docs/superpowers/plans progress.txt

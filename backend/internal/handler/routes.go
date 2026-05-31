@@ -72,6 +72,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		RequireReputation:    true,
 	})
 
+	publicConfigHandler := NewPublicConfigHandler(cfg)
+	v1.GET("/config/public", publicConfigHandler.GetPublicConfig)
+
 	auth := v1.Group("/auth")
 	{
 		auth.POST("/register", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), authHandler.Register)
