@@ -80,7 +80,7 @@ flowchart TD
 | F-02 | Make protected actions fail closed and centralize interaction eligibility | foundation | F-01 | Shared | `[x]` |
 | F-03 | Move refresh session to HttpOnly cookie and remove browser-readable tokens | foundation | F-02 | Shared | `[x]` |
 | F-04 | Add minimal public runtime config DTO and endpoint | foundation | F-03 | Shared | `[x]` |
-| F-05 | Make Chinese keyword search reliable with trigram fallback and visibility filters | foundation | F-02 | Track A | `[ ]` |
+| F-05 | Make Chinese keyword search reliable with trigram fallback and visibility filters | foundation | F-02 | Track A | `[x]` |
 | F-06 | Route all attachment downloads through the authorized download API | foundation | F-02 | Track A | `[ ]` |
 | V-01 | Add verification schema, mail adapter, captcha adapter and config | verification-feedback | F-03 | Track A | `[x]` |
 | V-02 | Implement verification, resend and reset token lifecycle | verification-feedback | V-01 | Track A | `[x]` |

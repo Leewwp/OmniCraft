@@ -1,5 +1,35 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-31] - Beta F-05: Make Chinese Keyword Search Reliable
+
+### What was done:
+- Created `backend/migrations/049_search_trigram_fallback.sql` — adds `idx_content_tags_tag_trgm` GIN trigram index on `content_tags.tag`
+- Created `backend/internal/repository/content_visibility.go` — reusable `ApplyContentVisibilityScope` and `ContentVisibilityWhere` functions for shared content visibility rules (published, non-deleted, non-banned author, is_public or author match)
+- Rewrote `backend/internal/repository/search_repo.go`:
+  - Added ILIKE fallback for Chinese substring matching on title and content_tags
+  - Fixed `total` count to apply text query filter BEFORE counting (was counting all published content regardless of search query)
+  - Applied `ContentVisibilityScope` to both query and no-query search paths
+  - Extracted `searchContentsWithQuery` helper for cleaner code
+  - Extracted `hydrateAuthors` helper
+  - Added ILIKE fallback to IP search
+  - Fixed `SearchSuggestions` to filter out hidden/banned content
+- Fixed `backend/internal/handler/search.go` — changed `c.Get("user_id")` to `c.Get(middleware.UserIDKey)` for correct viewer context
+- Created `backend/internal/repository/search_repo_test.go` — unit tests for toTSQuery, splitAndNormalize, ContentVisibilityWhere
+- Created `backend/testdata/search_seed.sql` — deterministic seed data for R-01 browser verification
+
+### Testing:
+- `go build ./...`: passed
+- `go vet ./...`: passed
+- `go test ./internal/repository -v`: all 9 tests PASS
+- `npm run lint`: passed
+- `npm run build`: passed
+- Pre-existing `TestApprovedAppealRestoresContentStatus` failure in service package is NOT related to F-05
+
+### Notes:
+- The `simple` text search dictionary doesn't segment Chinese, so `to_tsquery('simple', '春日穿搭')` fails to match Chinese text. The ILIKE fallback ensures Chinese substring search works reliably.
+- `ContentVisibilityWhere` uses `fmt.Sprintf` with `viewerID` (int64) which is safe from SQL injection since it's a numeric value, not user input.
+- F-05 unblocks G-02 (search degrade) which depends on F-05 + G-01.
+
 ## [2026-05-31] - Beta A-05: Add Audit Page And Complete Admin Navigation
 
 ### What was done:
