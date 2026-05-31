@@ -2,18 +2,28 @@
 
 import { Suspense, useState, FormEvent } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError } from "@/lib/api";
+import { api, ApiRequestError, setAccessToken } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Brush } from "lucide-react";
+
+function getPasswordStrength(password: string): { label: string; color: string } {
+  if (password.length < 8) return { label: "weak", color: "bg-destructive" };
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasDigit = /\d/.test(password);
+  const hasSpecial = /[^A-Za-z0-9]/.test(password);
+  const score = [hasUpper, hasLower, hasDigit, hasSpecial].filter(Boolean).length;
+  if (score >= 3 && password.length >= 10) return { label: "strong", color: "bg-primary" };
+  if (score >= 2) return { label: "medium", color: "bg-yellow-500" };
+  return { label: "weak", color: "bg-destructive" };
+}
 
 function ResetPasswordContent() {
   const t = useTranslations();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
 
@@ -23,6 +33,8 @@ function ResetPasswordContent() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
+  const strength = getPasswordStrength(newPassword);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
@@ -30,8 +42,8 @@ function ResetPasswordContent() {
       setError(t("auth.passwordMismatch"));
       return;
     }
-    if (newPassword.length < 6) {
-      setError(t("auth.passwordTooShort"));
+    if (newPassword.length < 8) {
+      setError(t("auth.errorPasswordTooShort"));
       return;
     }
     if (!token) {
@@ -44,7 +56,17 @@ function ResetPasswordContent() {
       setSuccess(true);
     } catch (err) {
       silentError(err, { component: "ResetPasswordPage", action: "handleSubmit" });
-      setError(err instanceof ApiRequestError ? err.message : t("common.operationFailed"));
+      if (err instanceof ApiRequestError) {
+        if (err.code === "PASSWORD_TOO_SHORT") {
+          setError(t("auth.errorPasswordTooShort"));
+        } else if (err.code === "INVALID_TOKEN") {
+          setError(t("auth.invalidResetToken"));
+        } else {
+          setError(err.message || t("common.operationFailed"));
+        }
+      } else {
+        setError(t("common.operationFailed"));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -54,20 +76,13 @@ function ResetPasswordContent() {
     return (
       <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm text-center">
-          <div className="mb-8 flex flex-col items-center gap-2">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <Brush className="h-6 w-6 text-primary" />
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight">{t("auth.passwordResetSuccess")}</h1>
-          </div>
-          <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
-            <p className="text-sm text-muted-foreground">{t("auth.passwordResetSuccessHint")}</p>
-          </div>
-          <p className="mt-4 text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight">{t("auth.passwordResetSuccess")}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{t("auth.passwordResetSuccessHint")}</p>
+          <div className="mt-6">
             <Link href="/login" className="font-medium text-primary hover:underline">
               {t("auth.backToLogin")}
             </Link>
-          </p>
+          </div>
         </div>
       </div>
     );
@@ -77,14 +92,12 @@ function ResetPasswordContent() {
     return (
       <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm text-center">
-          <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
-            <p className="text-sm text-muted-foreground">{t("auth.invalidResetToken")}</p>
-          </div>
-          <p className="mt-4 text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">{t("auth.invalidResetToken")}</p>
+          <div className="mt-4">
             <Link href="/forgot-password" className="font-medium text-primary hover:underline">
               {t("auth.requestNewLink")}
             </Link>
-          </p>
+          </div>
         </div>
       </div>
     );
@@ -94,14 +107,11 @@ function ResetPasswordContent() {
     <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-2">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <Brush className="h-6 w-6 text-primary" />
-          </div>
           <h1 className="text-2xl font-semibold tracking-tight">{t("auth.resetPassword")}</h1>
           <p className="text-sm text-muted-foreground">{t("auth.resetPasswordHint")}</p>
         </div>
 
-        <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+        <div className="rounded-lg border border-border bg-card p-6">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="newPassword">{t("auth.newPassword")}</Label>
@@ -112,8 +122,18 @@ function ResetPasswordContent() {
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
                 disabled={isLoading}
-                minLength={6}
+                minLength={8}
               />
+              {newPassword.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
+                    <div className={`h-full rounded-full transition-all ${strength.color}`} style={{ width: strength.label === "weak" ? "33%" : strength.label === "medium" ? "66%" : "100%" }} />
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {t(`auth.strength_${strength.label}`)}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="confirmPassword">{t("auth.confirmPassword")}</Label>
@@ -124,7 +144,7 @@ function ResetPasswordContent() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 disabled={isLoading}
-                minLength={6}
+                minLength={8}
               />
             </div>
             {error && <p className="text-sm text-destructive" role="alert">{error}</p>}

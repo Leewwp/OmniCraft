@@ -9,7 +9,8 @@ import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { User } from "lucide-react";
+import CaptchaWidget from "@/components/verification/CaptchaWidget";
+import { User, CheckCircle, AlertCircle, ExternalLink } from "lucide-react";
 
 export default function SettingsPage() {
   const t = useTranslations();
@@ -24,7 +25,11 @@ export default function SettingsPage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  // Password change
+  const [resendBusy, setResendBusy] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [resendSuccess, setResendSuccess] = useState(false);
+
   const [oldPw, setOldPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
@@ -32,11 +37,12 @@ export default function SettingsPage() {
   const [pwSuccess, setPwSuccess] = useState("");
   const [pwBusy, setPwBusy] = useState(false);
 
-  // Account deletion
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletePw, setDeletePw] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
+
+  const isVerified = !!user?.email_verified_at;
 
   useEffect(() => {
     if (user) {
@@ -44,6 +50,12 @@ export default function SettingsPage() {
       setBio(user.bio || "");
     }
   }, [user]);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => setResendCooldown((s) => s - 1), 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -92,12 +104,33 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleResendVerification() {
+    if (!user || !captchaToken) return;
+    setResendBusy(true);
+    setResendSuccess(false);
+    setError("");
+    try {
+      await api.post("/api/v1/auth/resend-verification", {
+        email: user.email,
+        captcha_token: captchaToken,
+      });
+      setResendSuccess(true);
+      setResendCooldown(60);
+      setCaptchaToken(null);
+    } catch (e) {
+      silentError(e, { component: 'SettingsPage', action: 'handleResendVerification' });
+      setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+    } finally {
+      setResendBusy(false);
+    }
+  }
+
   async function handleChangePassword() {
     if (newPw !== confirmPw) {
       setPwError(t("settings.passwordMismatch"));
       return;
     }
-    if (newPw.length < 6) {
+    if (newPw.length < 8) {
       setPwError(t("settings.passwordTooShort"));
       return;
     }
@@ -146,7 +179,6 @@ export default function SettingsPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
       {success && <p className="text-sm text-emerald-600">{success}</p>}
 
-      {/* Avatar */}
       <div className="space-y-3 rounded-md border border-border bg-card p-4">
         <h3 className="text-sm font-semibold">{t("settings.avatar")}</h3>
         <div className="flex items-center gap-4">
@@ -167,7 +199,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Profile */}
       <div className="space-y-4 rounded-md border border-border bg-card p-4 ">
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">{t("settings.username")}</label>
@@ -179,7 +210,20 @@ export default function SettingsPage() {
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">{t("settings.email")}</label>
-          <Input type="email" value={user?.email || ""} readOnly disabled />
+          <div className="flex items-center gap-2">
+            <Input type="email" value={user?.email || ""} readOnly disabled className="flex-1" />
+            {isVerified ? (
+              <span className="inline-flex items-center gap-1 text-xs text-emerald-600 whitespace-nowrap">
+                <CheckCircle className="h-3.5 w-3.5" />
+                {t("settings.emailVerified")}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-xs text-amber-600 whitespace-nowrap">
+                <AlertCircle className="h-3.5 w-3.5" />
+                {t("settings.emailUnverified")}
+              </span>
+            )}
+          </div>
           <p className="text-[11px] text-muted-foreground">{t("settings.emailHint")}</p>
         </div>
         <div className="space-y-1">
@@ -191,7 +235,41 @@ export default function SettingsPage() {
         </Button>
       </div>
 
-      {/* Password change */}
+      {!isVerified && (
+        <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50/30 p-4 dark:border-amber-900/30 dark:bg-amber-950/10">
+          <h3 className="text-sm font-semibold text-amber-700 dark:text-amber-400">{t("settings.verifyEmailTitle")}</h3>
+          <p className="text-xs text-amber-600/80 dark:text-amber-400/70">{t("settings.verifyEmailDesc")}</p>
+          {resendSuccess && (
+            <p className="text-xs text-emerald-600">{t("auth.verificationResent")}</p>
+          )}
+          <CaptchaWidget onToken={setCaptchaToken} onError={() => setCaptchaToken(null)} />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={resendBusy || resendCooldown > 0 || !captchaToken}
+            onClick={() => void handleResendVerification()}
+          >
+            {resendCooldown > 0
+              ? t("auth.resendCooldown", { seconds: resendCooldown })
+              : resendBusy
+                ? t("common.processing")
+                : t("auth.resendVerification")}
+          </Button>
+        </div>
+      )}
+
+      <div className="space-y-2 rounded-md border border-border bg-card p-4">
+        <h3 className="text-sm font-semibold">{t("settings.legalTitle")}</h3>
+        <div className="flex flex-col gap-1">
+          <a href="/terms" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+            {t("auth.termsOfService")} <ExternalLink className="h-3 w-3" />
+          </a>
+          <a href="/privacy" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+            {t("auth.privacyPolicy")} <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+      </div>
+
       <div className="space-y-3 rounded-md border border-border bg-card p-4 ">
         <h3 className="text-sm font-semibold">{t("settings.changePassword")}</h3>
         {pwError && <p className="text-sm text-destructive">{pwError}</p>}
@@ -213,7 +291,6 @@ export default function SettingsPage() {
         </Button>
       </div>
 
-      {/* Account deletion (danger zone) */}
       <div className="space-y-3 rounded-md border border-red-200 bg-red-50/30 p-4 dark:border-red-900/30 dark:bg-red-950/10">
         <h3 className="text-sm font-semibold text-red-700 dark:text-red-400">{t("settings.deleteAccount")}</h3>
         <p className="text-xs text-red-600/80 dark:text-red-400/70">{t("settings.deleteAccountDesc")}</p>

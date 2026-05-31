@@ -1,65 +1,66 @@
 "use client";
 
-import { Suspense, useState, FormEvent } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Brush } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 function VerifyEmailContent() {
   const t = useTranslations();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
 
-  const [manualToken, setManualToken] = useState(token);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError("");
-    const verifyToken = manualToken.trim();
-    if (!verifyToken) {
+  useEffect(() => {
+    if (!token) {
       setError(t("auth.invalidVerifyToken"));
+      setIsLoading(false);
       return;
     }
-    setIsLoading(true);
-    try {
-      await api.post("/api/v1/auth/verify-email", { token: verifyToken });
-      setSuccess(true);
-    } catch (err) {
-      silentError(err, { component: "VerifyEmailPage", action: "handleSubmit" });
-      setError(err instanceof ApiRequestError ? err.message : t("common.operationFailed"));
-    } finally {
-      setIsLoading(false);
+
+    async function verify() {
+      try {
+        await api.post("/api/v1/auth/verify-email", { token });
+        setSuccess(true);
+      } catch (err) {
+        silentError(err, { component: "VerifyEmailPage", action: "autoVerify" });
+        setError(err instanceof ApiRequestError ? err.message : t("common.operationFailed"));
+      } finally {
+        setIsLoading(false);
+      }
     }
+
+    verify();
+  }, [token, t]);
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4 py-12">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">{t("auth.verifyingEmail")}</p>
+        </div>
+      </div>
+    );
   }
 
   if (success) {
     return (
       <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm text-center">
-          <div className="mb-8 flex flex-col items-center gap-2">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <Brush className="h-6 w-6 text-primary" />
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight">{t("auth.verifyEmailSuccess")}</h1>
-          </div>
-          <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
-            <p className="text-sm text-muted-foreground">{t("auth.verifyEmailSuccessHint")}</p>
-          </div>
-          <p className="mt-4 text-sm text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight">{t("auth.verifyEmailSuccess")}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{t("auth.verifyEmailSuccessHint")}</p>
+          <div className="mt-6">
             <Link href="/login" className="font-medium text-primary hover:underline">
               {t("auth.backToLogin")}
             </Link>
-          </p>
+          </div>
         </div>
       </div>
     );
@@ -67,40 +68,17 @@ function VerifyEmailContent() {
 
   return (
     <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center gap-2">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <Brush className="h-6 w-6 text-primary" />
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("auth.verifyEmail")}</h1>
-          <p className="text-sm text-muted-foreground">{t("auth.verifyEmailHint")}</p>
-        </div>
-
-        <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="token">{t("auth.verifyToken")}</Label>
-              <Input
-                id="token"
-                type="text"
-                value={manualToken}
-                onChange={(e) => setManualToken(e.target.value)}
-                placeholder={t("auth.verifyTokenPlaceholder")}
-                disabled={isLoading}
-              />
-            </div>
-            {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? t("common.processing") : t("auth.verifyEmail")}
-            </Button>
-          </form>
-        </div>
-
-        <p className="mt-4 text-center text-sm text-muted-foreground">
+      <div className="w-full max-w-sm text-center">
+        <h1 className="text-2xl font-semibold tracking-tight">{t("auth.verifyEmailFailed")}</h1>
+        <p className="mt-2 text-sm text-destructive">{error || t("auth.invalidVerifyToken")}</p>
+        <div className="mt-6 flex flex-col gap-2">
+          <Link href="/verify-email/pending" className="font-medium text-primary hover:underline">
+            {t("auth.resendVerification")}
+          </Link>
           <Link href="/login" className="font-medium text-primary hover:underline">
             {t("auth.backToLogin")}
           </Link>
-        </p>
+        </div>
       </div>
     </div>
   );
