@@ -79,6 +79,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		auth.POST("/logout", authHandler.Logout)
 		auth.POST("/refresh", authHandler.Refresh)
 		auth.GET("/me", authReq, authHandler.Me)
+		auth.GET("/csrf", authHandler.CSRFToken)
 		auth.POST("/verify-email", authHandler.VerifyEmail)
 		auth.POST("/send-verification", authReq, authHandler.SendVerificationEmail)
 	}

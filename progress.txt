@@ -1,5 +1,33 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-31] - Beta F-03: Move Browser Refresh Sessions To HttpOnly Cookies
+
+### What was done:
+- Rewrote `backend/internal/handler/auth.go`: Login/Register set HttpOnly refresh cookie instead of returning refresh_token in JSON; Refresh reads from cookie first, falls back to JSON body; Logout clears cookie and revokes cookie token; added CSRFToken handler for bootstrap endpoint
+- Added `refreshCookieName`, `setRefreshCookie`, `clearRefreshCookie` helpers with mode-aware naming (__Host-refresh_token in release, refresh_token in debug)
+- Created `backend/internal/handler/auth_cookie_test.go`: 6 cookie contract tests + CORS test with 3 sub-cases using miniredis for Redis emulation
+- Modified `backend/internal/handler/routes.go`: Added GET /api/v1/auth/csrf bootstrap endpoint
+- Rewrote `frontend/lib/auth.ts`: Removed localStorage refresh_token persistence, replaced with in-memory access token module variable
+- Rewrote `frontend/lib/api.ts`: Refresh uses cookie (credentials: include), CSRF bootstrap via GET /api/v1/auth/csrf, in-memory access token and CSRF token
+- Rewrote `frontend/contexts/AuthContext.tsx`: Cookie-based refresh flow, setAccessToken/getAccessToken from api.ts
+- Modified `frontend/lib/useSSE.ts`: Read access token from in-memory module instead of localStorage
+- Rewrote `frontend/proxy.ts`: Removed cookie-dependent routing (decodeJWTPayload, access_token cookie check, admin role check); AuthProvider handles auth state
+- Modified `frontend/app/(public)/register/page.tsx`: Updated RegisterResponse type (no refresh_token), use setAccessToken
+
+### Testing:
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+- `go test ./internal/handler` — 6/6 cookie tests PASS, all existing handler tests PASS
+- `go test ./...` — All pass except pre-existing TestApprovedAppealRestoresContentStatus
+- Frontend lint errors are pre-existing (rehab/page.tsx), not introduced by F-03
+
+### Notes:
+- Cookie naming: __Host-refresh_token in release mode (requires HTTPS), refresh_token in debug mode
+- Cookie attributes: HttpOnly, Secure (release), SameSite=Lax, Path=/
+- CSRF bootstrap: GET /api/v1/auth/csrf returns csrf_token in response body and sets readable csrf cookie
+- Production CORS: only https://app.leeppp.online and configured origins allowed with credentials
+- proxy.ts no longer inspects cookies for routing; AuthProvider + protected layouts handle auth state
+
 ## [2026-05-31] - Beta F-02: Fail Closed And Centralize Interaction Eligibility
 
 ### What was done:

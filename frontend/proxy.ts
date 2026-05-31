@@ -17,17 +17,6 @@ const PROTECTED_PATHS = [
   '/admin',
 ];
 
-function decodeJWTPayload(token: string): Record<string, unknown> | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const payload = atob(parts[1]);
-    return JSON.parse(payload);
-  } catch {
-    return null;
-  }
-}
-
 function resolveLocale(request: NextRequest): string {
   const cookieLocale = request.cookies.get('NEXT_LOCALE')?.value;
   if (cookieLocale && SUPPORTED_LOCALES.includes(cookieLocale)) {
@@ -62,20 +51,6 @@ export function proxy(request: NextRequest) {
   );
 
   if (!isProtected) return response;
-
-  const token = request.cookies.get('access_token')?.value;
-  if (!token) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('redirect', pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  if (pathname.startsWith('/admin')) {
-    const payload = decodeJWTPayload(token);
-    if (!payload || payload.role !== 'admin') {
-      return NextResponse.redirect(new URL('/', request.url));
-    }
-  }
 
   return response;
 }

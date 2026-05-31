@@ -4,7 +4,7 @@ import { useState, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Brush, Eye, EyeOff, Loader2 } from "lucide-react";
-import { api, ApiRequestError } from "@/lib/api";
+import { api, ApiRequestError, setAccessToken } from "@/lib/api";
 import { saveTokens } from "@/lib/auth";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,6 @@ interface RegisterResponse {
   };
   tokens: {
     access_token: string;
-    refresh_token: string;
   };
 }
 
@@ -62,7 +61,8 @@ export default function RegisterPage() {
         email,
         password,
       });
-      saveTokens(data.tokens.access_token, data.tokens.refresh_token);
+      saveTokens(data.tokens.access_token);
+      setAccessToken(data.tokens.access_token);
       window.location.href = "/";
     } catch (err) {
       silentError(err, { component: 'RegisterPage', action: 'handleSubmit' });

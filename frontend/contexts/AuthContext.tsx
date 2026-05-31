@@ -8,12 +8,10 @@ import {
   useCallback,
   ReactNode,
 } from "react";
-import { api, ApiRequestError } from "@/lib/api";
+import { api, ApiRequestError, setAccessToken, getAccessToken } from "@/lib/api";
 import {
   saveTokens,
   clearTokens,
-  getAccessToken,
-  getRefreshToken,
   isTokenExpired,
 } from "@/lib/auth";
 import { silentError } from "@/lib/error-handler";
@@ -58,18 +56,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({ total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0 });
 
   const refresh = useCallback(async (): Promise<boolean> => {
-    const refreshToken = getRefreshToken();
-    if (!refreshToken) return false;
     try {
-      const data = await api.post<{ tokens: { access_token: string; refresh_token: string } }>(
+      const data = await api.post<{ tokens: { access_token: string } }>(
         "/api/v1/auth/refresh",
-        { refresh_token: refreshToken }
+        {}
       );
-      saveTokens(data.tokens.access_token, data.tokens.refresh_token);
+      saveTokens(data.tokens.access_token);
+      setAccessToken(data.tokens.access_token);
       return true;
     } catch (e) {
       silentError(e, { component: "AuthContext", action: "refresh" });
       clearTokens();
+      setAccessToken(null);
       setUser(null);
       return false;
     }
@@ -79,10 +77,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const accessToken = getAccessToken();
       if (!accessToken) {
-        setIsLoading(false);
-        return;
-      }
-      if (isTokenExpired(accessToken)) {
+        const ok = await refresh();
+        if (!ok) {
+          setIsLoading(false);
+          return;
+        }
+      } else if (isTokenExpired(accessToken)) {
         const ok = await refresh();
         if (!ok) {
           setIsLoading(false);
@@ -94,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       silentError(e, { component: "AuthContext", action: "fetchMe" });
       clearTokens();
+      setAccessToken(null);
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -103,10 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetchMe();
     const interval = setInterval(() => {
-      const accessToken = getAccessToken();
-      if (accessToken) {
-        fetchMe();
-      }
+      fetchMe();
     }, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [fetchMe]);
@@ -134,12 +132,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [user]);
 
-  const login = useCallback(async (email: string, password: string, rememberMe?: boolean) => {
+  const login = useCallback(async (email: string, password: string, _rememberMe?: boolean) => {
     const data = await api.post<{
       user: User;
-      tokens: { access_token: string; refresh_token: string };
+      tokens: { access_token: string };
     }>("/api/v1/auth/login", { email, password });
-    saveTokens(data.tokens.access_token, data.tokens.refresh_token, rememberMe);
+    saveTokens(data.tokens.access_token);
+    setAccessToken(data.tokens.access_token);
     setUser(data.user);
   }, []);
 
@@ -152,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } finally {
       clearTokens();
+      setAccessToken(null);
       setUser(null);
     }
   }, []);

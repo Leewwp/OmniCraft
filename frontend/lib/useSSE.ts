@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { getAccessToken } from "@/lib/api";
 
 interface UseSSEOptions {
   onMessage?: (data: string) => void;
@@ -30,10 +31,7 @@ export function useSSE(defaultOptions?: UseSSEOptions): UseSSEReturn {
       abortRef.current = controller;
       setStreaming(true);
 
-      const token =
-        typeof window !== "undefined"
-          ? localStorage.getItem("access_token")
-          : null;
+      const token = getAccessToken();
 
       fetch(url, {
         method: "POST",

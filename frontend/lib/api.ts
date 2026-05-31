@@ -16,9 +16,28 @@ export class ApiRequestError extends Error {
   }
 }
 
-function getCSRFToken(): string | null {
+let inMemoryCsrfToken: string | null = null;
+
+async function fetchCSRFToken(): Promise<string> {
+  if (inMemoryCsrfToken) return inMemoryCsrfToken;
+  try {
+    const res = await fetch(`${API_URL}/api/v1/auth/csrf`, {
+      credentials: "include",
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { csrf_token: string };
+      inMemoryCsrfToken = data.csrf_token;
+      return inMemoryCsrfToken;
+    }
+  } catch {}
+  return "";
+}
+
+function getCSRFTokenFromCookie(): string | null {
   if (typeof document === "undefined") return null;
-  const match = document.cookie.match(/(?:^|;\s*)(?:__Host-csrf|csrf-token)=([^;]*)/);
+  const match = document.cookie.match(
+    /(?:^|;\s*)(?:__Host-csrf|csrf-token)=([^;]*)/
+  );
   return match ? decodeURIComponent(match[1]) : null;
 }
 
@@ -26,21 +45,32 @@ const STATE_CHANGING_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 
 let refreshPromise: Promise<boolean> | null = null;
 
+let inMemoryAccessToken: string | null = null;
+
+export function setAccessToken(token: string | null) {
+  inMemoryAccessToken = token;
+}
+
+export function getAccessToken(): string | null {
+  return inMemoryAccessToken;
+}
+
 async function tryRefreshToken(): Promise<boolean> {
-  const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refresh_token") : null;
-  if (!refreshToken) return false;
   try {
+    const csrfToken = await fetchCSRFToken();
     const res = await fetch(`${API_URL}/api/v1/auth/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-      credentials: 'include',
+      headers: {
+        "Content-Type": "application/json",
+        ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+      },
+      credentials: "include",
     });
     if (!res.ok) return false;
-    const data = await res.json() as { tokens: { access_token: string; refresh_token: string } };
-    localStorage.setItem("access_token", data.tokens.access_token);
-    localStorage.setItem("refresh_token", data.tokens.refresh_token);
-    document.cookie = `access_token=${data.tokens.access_token}; path=/; max-age=86400; SameSite=Lax`;
+    const data = (await res.json()) as {
+      tokens: { access_token: string };
+    };
+    inMemoryAccessToken = data.tokens.access_token;
     return true;
   } catch {
     return false;
@@ -49,7 +79,9 @@ async function tryRefreshToken(): Promise<boolean> {
 
 async function doRefreshToken(): Promise<boolean> {
   if (!refreshPromise) {
-    refreshPromise = tryRefreshToken().finally(() => { refreshPromise = null; });
+    refreshPromise = tryRefreshToken().finally(() => {
+      refreshPromise = null;
+    });
   }
   return refreshPromise;
 }
@@ -58,8 +90,7 @@ async function request<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+  const token = inMemoryAccessToken;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -72,7 +103,8 @@ async function request<T>(
 
   const method = (options.method ?? "GET").toUpperCase();
   if (STATE_CHANGING_METHODS.has(method)) {
-    const csrfToken = getCSRFToken();
+    const csrfToken =
+      inMemoryCsrfToken || getCSRFTokenFromCookie();
     if (csrfToken) {
       headers["X-CSRF-Token"] = csrfToken;
     }
@@ -81,7 +113,7 @@ async function request<T>(
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers,
-    credentials: 'include',
+    credentials: "include",
   });
 
   if (!res.ok) {
@@ -93,15 +125,18 @@ async function request<T>(
     if (res.status === 401 && errBody.code === "TOKEN_EXPIRED" && token) {
       const refreshed = await doRefreshToken();
       if (refreshed) {
-        headers["Authorization"] = `Bearer ${localStorage.getItem("access_token")}`;
-        const retryRes = await fetch(`${API_URL}${path}`, { ...options, headers, credentials: 'include' });
+        headers["Authorization"] = `Bearer ${inMemoryAccessToken}`;
+        const retryRes = await fetch(`${API_URL}${path}`, {
+          ...options,
+          headers,
+          credentials: "include",
+        });
         if (retryRes.ok) {
           if (retryRes.status === 204) return undefined as T;
           return retryRes.json();
         }
       } else {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
+        inMemoryAccessToken = null;
         if (typeof window !== "undefined") {
           window.location.href = "/login";
         }
@@ -135,5 +170,7 @@ export const api = {
       body: JSON.stringify(body),
     }),
   getStatsSummary: () =>
-    request<{ summary: { users: number; ips: number; contents: number } }>("/api/v1/stats/summary"),
+    request<{
+      summary: { users: number; ips: number; contents: number };
+    }>("/api/v1/stats/summary"),
 };
