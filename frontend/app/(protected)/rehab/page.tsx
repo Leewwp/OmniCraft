@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, Fragment } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
@@ -129,8 +129,8 @@ export default function RehabPage() {
             const canComplete = isActive && elapsed >= course.min_reading_sec;
 
             return (
+              <Fragment key={course.id}>
               <CourseCard
-                key={course.id}
                 violationType={course.violation_type}
                 contentI18n={course.content_i18n}
                 minReadingSec={course.min_reading_sec}
@@ -162,6 +162,7 @@ export default function RehabPage() {
                   <CourseContent contentI18n={course.content_i18n} violationType={course.violation_type} />
                 </div>
               )}
+              </Fragment>
             );
           })}
         </div>

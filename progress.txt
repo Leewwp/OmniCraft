@@ -1,5 +1,28 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-31] - Beta F-04: Add Minimal Public Runtime Config DTO And Endpoint
+
+### What was done:
+- Added `CaptchaConfig` and `ClientConfig` types to `backend/config/config.go` with `json:"-"` on AccessKey fields
+- Added `DesktopDeployEnabled` field to `FeaturesConfig` in `backend/config/config.go`
+- Added `captcha:` and `client:` sections to `backend/config.yaml` with bypass provider and disabled defaults
+- Created `backend/internal/handler/public_config.go`: Dedicated narrow DTO (PublicFeaturesDTO, PublicCaptchaDTO, PublicClientDTO) and handler that maps from config.Config
+- Created `backend/internal/handler/public_config_test.go`: Allowlist test verifying only features/captcha/client exposed, no secrets/broad sections
+- Added `GET /api/v1/config/public` route in `backend/internal/handler/routes.go`
+- Created `frontend/lib/public-config.ts`: PublicConfig types and fetchPublicConfig with caching
+- Fixed pre-existing JSX Fragment error in `frontend/app/(protected)/rehab/page.tsx`
+
+### Testing:
+- `go test ./internal/handler -run TestPublicConfig -v` — PASS
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+- `npm run build` — PASS (after fixing pre-existing rehab page error)
+
+### Notes:
+- Public config endpoint does NOT reuse the broad admin `model.PublicConfig`; uses dedicated DTO with explicit allowlisted fields only
+- Captcha AccessKeyID/AccessKeySecret are `json:"-"` and never exposed in public response
+- Frontend helper caches config in module variable; `clearPublicConfigCache()` for reset
+
 ## [2026-05-31] - Beta F-03: Move Browser Refresh Sessions To HttpOnly Cookies
 
 ### What was done:

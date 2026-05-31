@@ -40,6 +40,19 @@ features:
   payment_enabled: false
   desktop_deploy_enabled: false
 
+captcha:
+  provider: "bypass"
+  prefix: ""
+  scene_id: ""
+  region: "cn"
+  access_key_id: ""
+  access_key_secret: ""
+
+client:
+  download_enabled: false
+  download_url: ""
+  latest_version: ""
+
 limits:
   video_max_mb: 300
   video_max_sec: 180
