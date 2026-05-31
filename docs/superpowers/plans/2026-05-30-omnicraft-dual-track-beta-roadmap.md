@@ -87,7 +87,7 @@ flowchart TD
 | V-03 | Enforce verified-email restrictions and agreement acceptance in UI | verification-feedback | V-02 | Track A | `[x]` |
 | V-04 | Add help, privacy, terms and client information pages | verification-feedback | V-03 | Track A | `[x]` |
 | V-05 | Add feedback data model and user/anonymous API | verification-feedback | V-01 | Track A | `[x]` |
-| V-06 | Add feedback pages and Footer/client entrypoints | verification-feedback | V-04, V-05 | Track A | `[ ]` |
+| V-06 | Add feedback pages and Footer/client entrypoints | verification-feedback | V-04, V-05 | Track A | `[x]` |
 | A-01 | Add append-only admin audit log | admin-operations | F-02 | Track A | `[ ]` |
 | A-02 | Audit existing sensitive admin mutations | admin-operations | A-01 | Track A | `[ ]` |
 | A-03 | Add admin dashboard and reports pages | admin-operations | A-04 | Track A | `[ ]` |

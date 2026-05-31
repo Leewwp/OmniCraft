@@ -267,6 +267,9 @@ export default function SettingsPage() {
           <a href="/privacy" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
             {t("auth.privacyPolicy")} <ExternalLink className="h-3 w-3" />
           </a>
+          <a href="/feedback" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+            {t("footer.feedback")} <ExternalLink className="h-3 w-3" />
+          </a>
         </div>
       </div>
 

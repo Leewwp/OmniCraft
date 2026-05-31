@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { MonitorSmartphone } from "lucide-react";
 
@@ -40,6 +41,9 @@ export default function ClientPage() {
         <section className="rounded-lg border border-border bg-card p-4">
           <h2 className="text-sm font-semibold">{t("client.feedbackTitle")}</h2>
           <p className="mt-2 text-sm text-muted-foreground">{t("client.feedbackDesc")}</p>
+          <Link href="/feedback" className="mt-2 inline-block text-sm text-primary hover:underline">
+            {t("feedback.submit")}
+          </Link>
         </section>
       </div>
     </div>
