@@ -1,5 +1,26 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-06-01] - Beta D-01: Disable Unsafe Desktop Deploy Prototype
+
+### What was done:
+- Removed `/api/v1/agent/script/:id` route registration from `backend/internal/handler/routes.go`
+- Deleted `GenerateDeployScript` handler method from `backend/internal/handler/agent.go`
+- Removed unused `errors` import from `agent.go`
+- Created `backend/internal/handler/agent_deploy_disabled_test.go` with two tests: `TestDeployScriptRouteRemoved` and `TestDeployScriptHandlerRemoved`
+- Confirmed `features.desktop_deploy_enabled: false` in `backend/config.yaml`
+- Confirmed G-01 AgentFeatureGate already hides deploy UI when flag is off
+
+### Testing:
+- `go test ./internal/handler -run TestDeployScript -v`: both tests PASS
+- `go build ./...`: passed
+- `go vet ./...`: passed
+- `npm run lint`: passed
+- `npm run build`: passed
+
+### Notes:
+- D-02 through D-05 are deferred per maintainer decision (desktop deploy remains disabled for Web Beta)
+- The `GenerateDeployScript` service method in `agent_service.go` was intentionally kept — it will be refactored when D-02/D-03 are implemented later
+
 ## [2026-05-31] - Beta F-05: Make Chinese Keyword Search Reliable
 
 ### What was done:
