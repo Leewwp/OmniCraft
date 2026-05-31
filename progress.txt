@@ -1,5 +1,31 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-05-31] - Beta V-01: Add Verification Schema, Mail Adapter, Captcha Adapter And Config
+
+### What was done:
+- Created `backend/migrations/050_verification_and_terms.sql`: Added accepted_terms_version, accepted_terms_at, accepted_privacy_version, accepted_privacy_at columns to users table
+- Updated `backend/internal/model/user.go`: Added terms/privacy acceptance fields to User struct
+- Added config types to `backend/config/config.go`: WebConfig, SMTPConfig, VerificationConfig, LegalConfig; added env overrides for CAPTCHA_ACCESS_KEY_ID, CAPTCHA_ACCESS_KEY_SECRET, SMTP_PASSWORD; added `ValidateRelease()` method that rejects bypass/logger providers in release mode
+- Updated `backend/config.yaml`: Added web, smtp, verification, legal sections with sensible defaults
+- Created `backend/internal/pkg/mail/sender.go`: MailSender interface + LoggerSender (dev-only)
+- Created `backend/internal/pkg/mail/smtp.go`: SMTPSender implementation with real SMTP delivery
+- Created `backend/internal/pkg/captcha/verifier.go`: CaptchaVerifier interface + BypassVerifier + AliyunV2Verifier (Alibaba Cloud CAPTCHA 2.0 adapter)
+- Created `backend/internal/service/verification_service.go`: VerificationService with hashed token storage, single-use enforcement, previous-link invalidation, resend cooldown, configurable TTL, password minimum length, constant-time digest comparison
+- Created `backend/internal/service/verification_service_test.go`: 11 tests covering hashed storage, single use, previous-link invalidation, resend cooldown, already-verified, unknown email, password too short, mail sender failure
+
+### Testing:
+- 11/11 verification service tests PASS
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+
+### Notes:
+- Tokens are stored as SHA-256 digests in Redis, never raw tokens
+- Redis keys use bidirectional lookup: `verify:email:<digest>` → user_id and `verify:email:user:<id>` → active digest
+- Previous verification/reset links are atomically invalidated when new ones are issued
+- Release mode validation: `captcha.provider=bypass` and `smtp.mode=logger` are rejected in release mode
+- Alibaba Cloud CAPTCHA 2.0 adapter is provider-agnostic behind CaptchaVerifier interface
+- Real SMTP/CAPTCHA credentials still needed for production Beta — currently using logger/bypass for local development
+
 ## [2026-05-31] - Beta F-04: Add Minimal Public Runtime Config DTO And Endpoint
 
 ### What was done:

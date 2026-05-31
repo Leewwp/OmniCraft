@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 
 type Config struct {
 	Server         ServerConfig         `mapstructure:"server"`
+	Web            WebConfig            `mapstructure:"web"`
 	Database       DatabaseConfig       `mapstructure:"database"`
 	Redis          RedisConfig          `mapstructure:"redis"`
 	JWT            JWTConfig            `mapstructure:"jwt"`
@@ -30,7 +32,10 @@ type Config struct {
 	Upload         UploadConfig         `mapstructure:"upload"`
 	Publish        PublishConfig        `mapstructure:"publish"`
 	Agent          AgentConfig          `mapstructure:"agent"`
+	SMTP           SMTPConfig           `mapstructure:"smtp"`
 	Captcha        CaptchaConfig        `mapstructure:"captcha"`
+	Verification   VerificationConfig   `mapstructure:"verification"`
+	Legal          LegalConfig          `mapstructure:"legal"`
 	Client         ClientConfig         `mapstructure:"client"`
 	Cache          CacheConfig          `mapstructure:"cache"`
 	RateLimit      RateLimitConfig      `mapstructure:"rate_limit"`
@@ -155,6 +160,32 @@ type ClientConfig struct {
 	DownloadEnabled bool   `mapstructure:"download_enabled"`
 	DownloadURL     string `mapstructure:"download_url"`
 	LatestVersion   string `mapstructure:"latest_version"`
+}
+
+type WebConfig struct {
+	PublicBaseURL string `mapstructure:"public_base_url"`
+}
+
+type SMTPConfig struct {
+	Mode        string `mapstructure:"mode"`
+	Host        string `mapstructure:"host"`
+	Port        int    `mapstructure:"port"`
+	User        string `mapstructure:"user"`
+	Password    string `mapstructure:"password" json:"-"`
+	FromAddress string `mapstructure:"from_address"`
+}
+
+type VerificationConfig struct {
+	EmailTTLSec         int `mapstructure:"email_ttl_sec"`
+	ResetTTLSec         int `mapstructure:"reset_ttl_sec"`
+	ResendCooldownSec   int `mapstructure:"resend_cooldown_sec"`
+	LoginCaptchaThreshold int `mapstructure:"login_captcha_threshold"`
+	PasswordMinLength   int `mapstructure:"password_min_length"`
+}
+
+type LegalConfig struct {
+	CurrentTermsVersion   string `mapstructure:"current_terms_version"`
+	CurrentPrivacyVersion string `mapstructure:"current_privacy_version"`
 }
 
 type CacheConfig struct {
@@ -319,6 +350,15 @@ func overrideFromEnv(cfg *Config) {
 	if v := os.Getenv("ALLOWED_ORIGINS"); v != "" {
 		cfg.Security.AllowedOrigins = strings.Split(v, ",")
 	}
+	if v := os.Getenv("CAPTCHA_ACCESS_KEY_ID"); v != "" {
+		cfg.Captcha.AccessKeyID = v
+	}
+	if v := os.Getenv("CAPTCHA_ACCESS_KEY_SECRET"); v != "" {
+		cfg.Captcha.AccessKeySecret = v
+	}
+	if v := os.Getenv("SMTP_PASSWORD"); v != "" {
+		cfg.SMTP.Password = v
+	}
 }
 
 func (c *Config) SaveOverride(path string) error {
@@ -348,4 +388,21 @@ func LoadOverride(base *Config, path string) {
 	if err := v.Unmarshal(base); err != nil {
 		slog.Warn("failed to merge config override", "error", err)
 	}
+}
+
+func (c *Config) ValidateRelease() error {
+	if c.Server.Mode != "release" {
+		return nil
+	}
+	var errs []string
+	if c.Captcha.Provider == "bypass" || c.Captcha.Provider == "" {
+		errs = append(errs, "captcha.provider must not be 'bypass' in release mode; use 'aliyun_v2'")
+	}
+	if c.SMTP.Mode == "logger" || c.SMTP.Mode == "" {
+		errs = append(errs, "smtp.mode must not be 'logger' in release mode; use 'smtp'")
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("release mode configuration error: %s", strings.Join(errs, "; "))
+	}
+	return nil
 }
