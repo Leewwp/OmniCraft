@@ -12,7 +12,6 @@ import {
   Sparkles,
   FileMusic,
   Shapes,
-  Download,
   Rocket,
   Bookmark,
 } from "lucide-react";
@@ -20,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 import { SheetMusicViewer } from "@/components/content/SheetMusicViewer";
+import { DownloadButton } from "@/components/content/DownloadButton";
 import { ReactionBar } from "@/components/social/ReactionBar";
 import { CommentSection } from "@/components/social/CommentSection";
 import { useAuth } from "@/contexts/AuthContext";
@@ -255,12 +255,13 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
                   {att.file_type || "file"}
                   {att.file_size != null && ` (${(att.file_size / 1024).toFixed(1)} KB)`}
                 </span>
-                {data.allow_copy && att.oss_url && (
-                  <a href={att.oss_url} download target="_blank" rel="noopener noreferrer">
-                    <Button variant="outline" size="sm">
-                      <Download className="h-3 w-3" />
-                    </Button>
-                  </a>
+                {data.allow_copy && (
+                  <DownloadButton
+                    contentId={data.id}
+                    attachmentId={att.id}
+                    contentType={att.file_type}
+                    size="sm"
+                  />
                 )}
               </div>
             ))}
@@ -271,6 +272,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
       {/* Sheet Music Viewer */}
       {contentType === "sheet_music" && (
         <SheetMusicViewer
+          contentId={data.id}
           attachments={data.attachments || []}
           allowCopy={data.allow_copy}
         />
@@ -312,16 +314,15 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
       {/* Download All Button */}
       {data.allow_copy && data.attachments && data.attachments.length > 1 && (
         <div className="flex flex-wrap gap-2">
-          {data.attachments
-            .filter((a) => a.oss_url)
-            .map((att) => (
-              <a key={att.id} href={att.oss_url} download target="_blank" rel="noopener noreferrer">
-                <Button variant="outline" size="sm">
-                  <Download className="mr-1 h-3.5 w-3.5" />
-                  {t('content.downloadFile', { type: att.file_type || "file" })}
-                </Button>
-              </a>
-            ))}
+          {data.attachments.map((att) => (
+            <DownloadButton
+              key={att.id}
+              contentId={data.id}
+              attachmentId={att.id}
+              contentType={att.file_type}
+              size="sm"
+            />
+          ))}
         </div>
       )}
 

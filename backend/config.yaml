@@ -29,6 +29,7 @@ oss:
   access_key_secret: ""
   bucket_name: ""
   domain: ""
+  download_url_ttl_sec: 300
 
 green:
   access_key_id: ""

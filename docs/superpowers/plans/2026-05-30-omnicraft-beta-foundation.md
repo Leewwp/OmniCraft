@@ -493,11 +493,11 @@ git commit -m "Beta F-05: add reliable Chinese keyword search - completed"
 - Modify: `frontend/messages/zh.json`
 - Modify: `frontend/messages/en.json`
 
-- [ ] **Step 1: Write failing API tests**
+- [x] **Step 1: Write failing API tests**
 
 Cover published success plus unauthenticated, unverified-email, banned-user, low-reputation, non-published, banned-IP, `allow_copy=false`, missing attachment, attachment-from-another-content and OSS failure paths.
 
-- [ ] **Step 2: Add attachment-specific authorized download**
+- [x] **Step 2: Add attachment-specific authorized download**
 
 Use:
 
@@ -520,7 +520,7 @@ Rules:
 - When `attachment_id` is omitted, select the unique attachment where `content_attachments.is_primary = true`. If no attachment has `is_primary = true`, or if multiple attachments have `is_primary = true`, return a validation error (`400 AMBIGUOUS_ATTACHMENT`) rather than selecting an arbitrary one. The caller must specify `attachment_id` explicitly in ambiguous cases.
 - Preserve asynchronous per-content download counting after URL signing succeeds.
 
-- [ ] **Step 3: Implement `DownloadButton`**
+- [x] **Step 3: Implement `DownloadButton`**
 
 Before editing UI, run:
 
@@ -532,7 +532,7 @@ If `DownloadButton` has no dedicated spec, follow `ContentDetail`, `SheetMusicVi
 
 The component requests the API URL, then navigates the browser to `download_url`. It renders retry and `/feedback` entrypoints for signing failures. Replace direct download links in `ContentDetail.tsx` and download-only branches of `SheetMusicViewer.tsx`. Preview fetches may remain short-lived signed preview URLs only if the backend explicitly provides them as preview fields.
 
-- [ ] **Step 4: Confirm direct OSS download links are removed**
+- [x] **Step 4: Confirm direct OSS download links are removed**
 
 ```powershell
 cd frontend
@@ -541,7 +541,7 @@ rg -n "href=\\{.*oss_url|download.*oss_url" components app
 
 Expected: no user download CTA uses `oss_url`.
 
-- [ ] **Step 5: Run checks and browser-test**
+- [x] **Step 5: Run checks and browser-test**
 
 ```powershell
 cd ..\backend
@@ -555,7 +555,7 @@ npm run build
 
 Use MCP Playwright to download an allowed attachment and verify a denied path. Save `screenshots/beta-f06-download.png`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add backend frontend screenshots docs/superpowers/plans progress.txt
