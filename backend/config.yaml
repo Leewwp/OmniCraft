@@ -1,6 +1,7 @@
 server:
   port: "8080"
   mode: "debug"
+  shutdown_timeout: 15
 
 web:
   public_base_url: "http://localhost:3000"

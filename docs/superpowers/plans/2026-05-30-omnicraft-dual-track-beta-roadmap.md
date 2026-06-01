@@ -103,7 +103,7 @@ flowchart TD
 | D-03 | Replace HMAC with Ed25519 signed canonical scripts | desktop-deploy-security | D-02 | Desktop | `[ ]` |
 | D-04 | Harden Rust schema, URL handling, filesystem and capabilities | desktop-deploy-security | D-03 | Desktop | `[ ]` |
 | D-05 | Update desktop confirmation UI and run end-to-end tests | desktop-deploy-security | D-04 | Desktop | `[ ]` |
-| R-01 | Run Web Beta release validation | release-validation | V-06, A-05, G-05, F-06, D-01 | Release | `[ ]` |
+| R-01 | Run Web Beta release validation | release-validation | V-06, A-05, G-05, F-06, D-01 | Release | `[x]` |
 | R-02 | Run desktop deploy release validation | release-validation | D-05 | Release | `[ ]` |
 
 ## Tracking Rules

@@ -86,7 +86,11 @@ slog.Info("Shutting down server...")
 
 	stopWorkers()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	shutdownTimeout := time.Duration(cfg.Server.ShutdownTimeout) * time.Second
+	if shutdownTimeout <= 0 {
+		shutdownTimeout = 15 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {

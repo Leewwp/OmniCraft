@@ -24,11 +24,11 @@
 - Create: `docs/review/beta-release-validation-2026-05-30.md`
 - Add: `screenshots/beta-release-*`
 
-- [ ] **Step 1: Confirm prerequisite task status**
+- [x] **Step 1: Confirm prerequisite task status**
 
 Verify roadmap tasks F-01 through F-06, V-01 through V-06, A-01 through A-05, G-01 through G-05 and D-01 are checked. Desktop tasks D-02 through D-05 may remain unchecked only if `desktop_deploy_enabled=false`.
 
-- [ ] **Step 2: Initialize dependencies**
+- [x] **Step 2: Initialize dependencies**
 
 ```powershell
 docker compose up -d postgres redis
@@ -40,13 +40,13 @@ npm install
 
 Expected: PostgreSQL and Redis become healthy. Stop and report blocker if required services do not start.
 
-- [ ] **Step 3: Validate migrations from an empty database**
+- [x] **Step 3: Validate migrations from an empty database**
 
 Run every `backend/migrations/*.sql` in lexical order against a disposable empty PostgreSQL database. Then create a second disposable upgrade database by applying migrations `001` through `048` in lexical order, seed representative pre-Beta rows, and apply `049` through `052`. Do not depend on an undeclared external snapshot. Note: physical file creation history is irrelevant; the runner must sort migration filenames lexically and record which files were applied.
 
 Expected: both empty-database and existing-database upgrade paths succeed, including `pgvector`, existing `047` trigram indexes, new content-tag fallback index, verification, feedback and audit additions.
 
-- [ ] **Step 4: Run engineering gates**
+- [x] **Step 4: Run engineering gates**
 
 ```powershell
 cd backend
@@ -62,7 +62,7 @@ docker compose config
 
 Expected: all commands exit `0`.
 
-- [ ] **Step 5: Run secret-leak scans**
+- [x] **Step 5: Run secret-leak scans**
 
 ```powershell
 rg -n "err\\.Error\\(\\)|refresh_token|AGENT_HMAC_SECRET|private_key|access_key_secret|api_key|token.*console|console\\.error" backend frontend tauri-client
@@ -76,7 +76,7 @@ Review every match. Expected:
 - No raw token, secret, grant or cookie in logs.
 - No permanent OSS download URL exposed as a user download CTA.
 
-- [ ] **Step 6: API-test authorization matrix**
+- [x] **Step 6: API-test authorization matrix**
 
 Verify normal, anonymous, unverified-email, low-reputation, banned-user and dependency-failure paths for:
 
@@ -92,7 +92,7 @@ Verify normal, anonymous, unverified-email, low-reputation, banned-user and depe
 
 Expected: protected operations reject safely with a stable error envelope.
 
-- [ ] **Step 7: API-test verification and feedback**
+- [x] **Step 7: API-test verification and feedback**
 
 Verify:
 
@@ -108,7 +108,7 @@ Verify:
 - Logged-in users receive site notifications and anonymous users receive email for reply/close.
 - Existing content-review, appeal-result and report-resolution notifications still reach the affected logged-in user.
 
-- [ ] **Step 8: Browser-test public journeys**
+- [x] **Step 8: Browser-test public journeys**
 
 Use MCP Playwright:
 
@@ -128,7 +128,7 @@ Use the deterministic `backend/testdata/search_seed.sql` created in F-05. It inc
 
 Save screenshots under `screenshots/beta-release-public-*`.
 
-- [ ] **Step 9: Browser-test admin journeys**
+- [x] **Step 9: Browser-test admin journeys**
 
 Use MCP Playwright:
 
@@ -142,7 +142,7 @@ Use MCP Playwright:
 
 Save screenshots under `screenshots/beta-release-admin-*`.
 
-- [ ] **Step 10: Validate production configuration**
+- [x] **Step 10: Validate production configuration**
 
 These checks apply only to the production deployment environment. Local development using HTTP localhost is acceptable and does not need to satisfy these requirements.
 
@@ -159,7 +159,7 @@ Confirm:
 - `payment_enabled=false`.
 - `creator_support_enabled=false` unless separately approved.
 
-- [ ] **Step 11: Write release report**
+- [x] **Step 11: Write release report**
 
 Record SHA, commands, API cases, screenshot paths, configuration confirmations, residual risks and explicit release decision.
 

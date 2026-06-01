@@ -12,8 +12,6 @@ func appealTargetUpdates(targetType, appealStatus string) map[string]interface{}
 		switch targetType {
 		case "content":
 			return map[string]interface{}{"status": "published"}
-		case "comment":
-			return map[string]interface{}{"status": "published"}
 		}
 	}
 	return map[string]interface{}{}

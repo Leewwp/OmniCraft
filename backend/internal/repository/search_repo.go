@@ -159,7 +159,7 @@ func (r *SearchRepository) searchContentsWithQuery(query, zone, category, conten
 		return nil, 0, err
 	}
 
-	dataArgs := append([]interface{}{tsQuery, query, tsQuery}, args...)
+	dataArgs := append([]interface{}{tsQuery, query}, args...)
 	dataArgs = append(dataArgs, tsQuery, ilikePattern, ilikePattern, pageSize, offset)
 
 	dataSQL := fmt.Sprintf(`SELECT content_items.*,

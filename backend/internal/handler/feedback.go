@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/service"
 	"strconv"
 
@@ -31,7 +32,7 @@ func (h *FeedbackHandler) SubmitTicket(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get(middleware.UserIDKey)
 	var uid *int64
 	if exists {
 		id := userID.(int64)
@@ -85,7 +86,7 @@ func (h *FeedbackHandler) PresignUpload(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get(middleware.UserIDKey)
 	var uid *int64
 	if exists {
 		id := userID.(int64)
@@ -124,7 +125,7 @@ func (h *FeedbackHandler) PresignUpload(c *gin.Context) {
 }
 
 func (h *FeedbackHandler) ListMyTickets(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get(middleware.UserIDKey)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "Authentication required"})
 		return
@@ -154,7 +155,7 @@ func (h *FeedbackHandler) ListMyTickets(c *gin.Context) {
 }
 
 func (h *FeedbackHandler) GetTicket(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get(middleware.UserIDKey)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "Authentication required"})
 		return
