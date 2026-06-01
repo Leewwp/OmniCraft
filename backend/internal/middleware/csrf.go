@@ -64,6 +64,15 @@ func isInternalPath(path string) bool {
 			return true
 		}
 	}
+	if path == "/api/v1/deploy-grants" {
+		return true
+	}
+	if len(path) >= len("/api/v1/payments/") && path[:len("/api/v1/payments/")] == "/api/v1/payments/" {
+		return true
+	}
+	if path == "/api/v1/payments" {
+		return true
+	}
 	return false
 }
 

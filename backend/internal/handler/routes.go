@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 
 	"omnicraft/backend/config"
@@ -358,4 +360,12 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	{
 		internal.POST("/ai-callback", internalHandler.AICallback)
 	}
+
+	v1.POST("/deploy-grants", func(c *gin.Context) {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": "desktop deploy is not enabled"})
+	})
+
+	v1.Any("/payments/*path", func(c *gin.Context) {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": "payment is not enabled"})
+	})
 }

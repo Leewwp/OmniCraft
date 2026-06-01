@@ -163,7 +163,7 @@ Confirm:
 
 Record SHA, commands, API cases, screenshot paths, configuration confirmations, residual risks and explicit release decision.
 
-- [ ] **Step 12: Commit**
+- [x] **Step 12: Commit**
 
 ```powershell
 git add docs/review/beta-release-validation-2026-05-30.md screenshots docs/superpowers/plans progress.txt
