@@ -1,4 +1,9 @@
-CREATE EXTENSION IF NOT EXISTS pg_jieba SCHEMA public;
+DO $$
+BEGIN
+  CREATE EXTENSION IF NOT EXISTS pg_jieba SCHEMA public;
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'pg_jieba extension not available, falling back to simple config';
+END $$;
 
 ALTER TABLE content_items ADD COLUMN IF NOT EXISTS search_vector tsvector;
 
@@ -32,20 +37,29 @@ CREATE TRIGGER content_items_search_vector_trigger
   BEFORE INSERT OR UPDATE OF title, description ON content_items
   FOR EACH ROW EXECUTE FUNCTION content_items_search_vector_update();
 
-UPDATE content_items SET search_vector =
-  CASE WHEN EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_jieba') THEN
-    setweight(to_tsvector('jiebacfg', COALESCE(title, '')), 'A') ||
-    setweight(to_tsvector('jiebacfg', COALESCE(description, '')), 'B') ||
-    setweight(to_tsvector('jiebacfg', COALESCE(
-      (SELECT string_agg(ct.tag, ' ') FROM content_tags ct WHERE ct.content_item_id = content_items.id),
-      ''
-    )), 'C')
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_jieba') THEN
+    EXECUTE $q$
+      UPDATE content_items SET search_vector =
+        setweight(to_tsvector('jiebacfg', COALESCE(title, '')), 'A') ||
+        setweight(to_tsvector('jiebacfg', COALESCE(description, '')), 'B') ||
+        setweight(to_tsvector('jiebacfg', COALESCE(
+          (SELECT string_agg(ct.tag, ' ') FROM content_tags ct WHERE ct.content_item_id = content_items.id),
+          ''
+        )), 'C')
+      WHERE search_vector IS NULL
+    $q$;
   ELSE
-    setweight(to_tsvector('simple', COALESCE(title, '')), 'A') ||
-    setweight(to_tsvector('simple', COALESCE(description, '')), 'B') ||
-    setweight(to_tsvector('simple', COALESCE(
-      (SELECT string_agg(ct.tag, ' ') FROM content_tags ct WHERE ct.content_item_id = content_items.id),
-      ''
-    )), 'C')
-  END
-WHERE search_vector IS NULL;
+    EXECUTE $q$
+      UPDATE content_items SET search_vector =
+        setweight(to_tsvector('simple', COALESCE(title, '')), 'A') ||
+        setweight(to_tsvector('simple', COALESCE(description, '')), 'B') ||
+        setweight(to_tsvector('simple', COALESCE(
+          (SELECT string_agg(ct.tag, ' ') FROM content_tags ct WHERE ct.content_item_id = content_items.id),
+          ''
+        )), 'C')
+      WHERE search_vector IS NULL
+    $q$;
+  END IF;
+END $$;

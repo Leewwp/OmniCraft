@@ -45,8 +45,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port string `mapstructure:"port"`
-	Mode string `mapstructure:"mode"`
+	Port           string `mapstructure:"port"`
+	Mode           string `mapstructure:"mode"`
+	ShutdownTimeout int   `mapstructure:"shutdown_timeout"`
 }
 
 type SecurityConfig struct {

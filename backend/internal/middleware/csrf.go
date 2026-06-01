@@ -36,6 +36,7 @@ func CSRF(cfg *config.Config) gin.HandlerFunc {
 		}
 		c.SetSameSite(http.SameSiteLaxMode)
 		c.SetCookie(cookieName, token, 0, "/", "", isSecure, false)
+		c.Set("csrfToken", token)
 
 		if c.Request.Method == http.MethodPost ||
 			c.Request.Method == http.MethodPatch ||
@@ -67,6 +68,11 @@ func isInternalPath(path string) bool {
 }
 
 func GetCSRFToken(c *gin.Context) string {
+	if val, exists := c.Get("csrfToken"); exists {
+		if s, ok := val.(string); ok && s != "" {
+			return s
+		}
+	}
 	token, _ := c.Cookie("__Host-csrf")
 	if token == "" {
 		token, _ = c.Cookie("csrf-token")

@@ -30,20 +30,29 @@ CREATE TRIGGER ips_search_vector_trigger
   BEFORE INSERT OR UPDATE OF name, description ON ips
   FOR EACH ROW EXECUTE FUNCTION ips_search_vector_update();
 
-UPDATE ips SET search_vector =
-  CASE WHEN EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_jieba') THEN
-    setweight(to_tsvector('jiebacfg', COALESCE(name, '')), 'A') ||
-    setweight(to_tsvector('jiebacfg', COALESCE(description, '')), 'B') ||
-    setweight(to_tsvector('jiebacfg', COALESCE(
-      (SELECT string_agg(it.tag, ' ') FROM ip_tags it WHERE it.ip_id = ips.id),
-      ''
-    )), 'C')
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_jieba') THEN
+    EXECUTE $q$
+      UPDATE ips SET search_vector =
+        setweight(to_tsvector('jiebacfg', COALESCE(name, '')), 'A') ||
+        setweight(to_tsvector('jiebacfg', COALESCE(description, '')), 'B') ||
+        setweight(to_tsvector('jiebacfg', COALESCE(
+          (SELECT string_agg(it.tag, ' ') FROM ip_tags it WHERE it.ip_id = ips.id),
+          ''
+        )), 'C')
+      WHERE search_vector IS NULL
+    $q$;
   ELSE
-    setweight(to_tsvector('simple', COALESCE(name, '')), 'A') ||
-    setweight(to_tsvector('simple', COALESCE(description, '')), 'B') ||
-    setweight(to_tsvector('simple', COALESCE(
-      (SELECT string_agg(it.tag, ' ') FROM ip_tags it WHERE it.ip_id = ips.id),
-      ''
-    )), 'C')
-  END
-WHERE search_vector IS NULL;
+    EXECUTE $q$
+      UPDATE ips SET search_vector =
+        setweight(to_tsvector('simple', COALESCE(name, '')), 'A') ||
+        setweight(to_tsvector('simple', COALESCE(description, '')), 'B') ||
+        setweight(to_tsvector('simple', COALESCE(
+          (SELECT string_agg(it.tag, ' ') FROM ip_tags it WHERE it.ip_id = ips.id),
+          ''
+        )), 'C')
+      WHERE search_vector IS NULL
+    $q$;
+  END IF;
+END $$;
