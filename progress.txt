@@ -2456,3 +2456,37 @@
 ### Notes:
 - Release validation report documents SHA, all test results, bugs found, residual risks, and release decision
 - Step 12 checkbox now checked in sub-plan
+
+## [2026-06-01] - Beta R-01: Validate Web Beta Release
+
+### What was done:
+- Validated all 52 migrations from empty database (fixed pg_jieba compatibility in 041/042)
+- Validated upgrade path: pre-Beta (001-048) to Beta (049-052) migrations
+- Applied Beta migrations 041-052 to application database
+- Engineering gates: go build/vet/test, npm build/lint all pass
+- Fixed appeal_helpers.go: comment appeal should not use content updates
+- Fixed search_repo.go: parameter binding error (extra tsQuery in dataArgs)
+- Fixed csrf.go: token mismatch between cookie and body (added context storage)
+- Fixed feedback.go: wrong context key "user_id" to middleware.UserIDKey
+- Added shutdown_timeout config field (Task 142 graceful shutdown)
+- Secret leak scan: no real keys exposed, .env in .gitignore
+- API authorization matrix: all protected endpoints correctly reject unauthenticated requests
+- Authenticated API tests: all endpoints return expected status codes
+- Browser tests: 8/8 pass (homepage, login, register, search, feedback, terms, privacy, help)
+- Production config: CORS non-wildcard, feature flags correct, shutdown_timeout configurable
+
+### Testing:
+- go build/vet/test: PASS
+- npm build/lint: PASS
+- Migration validation (empty + upgrade): PASS
+- API authorization matrix: PASS
+- Authenticated API endpoints: PASS
+- Browser Playwright tests: 8/8 PASS
+- Secret leak scan: CLEAN
+
+### Notes:
+- pg_jieba extension not available in Docker image; migrations 041/042 now gracefully fallback to 'simple' config
+- Desktop deploy feature flag confirmed: features.desktop_deploy_enabled=false
+- CSRF fix ensures cookie and body tokens always match via Gin context
+- Release validation report: docs/review/beta-release-validation-2026-05-30.md
+- Release decision: APPROVED for Web Beta
