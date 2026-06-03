@@ -44,6 +44,10 @@ func (s *SMTPSender) SendPasswordReset(ctx context.Context, to, link string) err
 	return s.sendMail(to, subject, body)
 }
 
+func (s *SMTPSender) SendFeedbackUpdate(ctx context.Context, to, subject, body string) error {
+	return s.sendMail(to, subject, body)
+}
+
 func (s *SMTPSender) sendMail(to, subject, body string) error {
 	addr := fmt.Sprintf("%s:%d", s.host, s.port)
 	from := s.from

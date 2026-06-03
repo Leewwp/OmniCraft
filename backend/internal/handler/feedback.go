@@ -19,13 +19,14 @@ func NewFeedbackHandler(feedbackService *service.FeedbackService) *FeedbackHandl
 
 func (h *FeedbackHandler) SubmitTicket(c *gin.Context) {
 	var req struct {
-		ContactEmail      string                 `json:"contact_email"`
-		Category          string                 `json:"category"`
-		Title             string                 `json:"title"`
-		Description       string                 `json:"description"`
-		DiagnosticSummary map[string]interface{} `json:"diagnostic_summary"`
-		CaptchaToken      string                 `json:"captcha_token"`
-		AttachmentKeys    []string               `json:"attachment_oss_keys"`
+		ContactEmail      string                                 `json:"contact_email"`
+		Category          string                                 `json:"category"`
+		Title             string                                 `json:"title"`
+		Description       string                                 `json:"description"`
+		DiagnosticSummary map[string]interface{}                 `json:"diagnostic_summary"`
+		CaptchaToken      string                                 `json:"captcha_token"`
+		AttachmentKeys    []string                               `json:"attachment_oss_keys"`
+		Attachments       []service.FeedbackAttachmentGrantInput `json:"attachment_grants"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_BODY", "message": "Invalid request body"})
@@ -36,7 +37,9 @@ func (h *FeedbackHandler) SubmitTicket(c *gin.Context) {
 	var uid *int64
 	if exists {
 		id := userID.(int64)
-		uid = &id
+		if id > 0 {
+			uid = &id
+		}
 	}
 
 	input := service.SubmitTicketInput{
@@ -48,6 +51,7 @@ func (h *FeedbackHandler) SubmitTicket(c *gin.Context) {
 		DiagnosticSummary: req.DiagnosticSummary,
 		CaptchaToken:      req.CaptchaToken,
 		AttachmentOSSKeys: req.AttachmentKeys,
+		Attachments:       req.Attachments,
 	}
 
 	ticket, err := h.feedbackService.SubmitTicket(c.Request.Context(), input)
@@ -65,6 +69,8 @@ func (h *FeedbackHandler) SubmitTicket(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"code": "CAPTCHA_REQUIRED", "message": "Captcha verification is required for anonymous submissions"})
 		case "CAPTCHA_VERIFICATION_FAILED":
 			c.JSON(http.StatusBadRequest, gin.H{"code": "CAPTCHA_FAILED", "message": "Captcha verification failed"})
+		case "INVALID_ATTACHMENT_GRANT":
+			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ATTACHMENT_GRANT", "message": "Invalid or expired attachment upload grant"})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to submit feedback"})
 		}
@@ -76,9 +82,9 @@ func (h *FeedbackHandler) SubmitTicket(c *gin.Context) {
 
 func (h *FeedbackHandler) PresignUpload(c *gin.Context) {
 	var req struct {
-		FileName    string `json:"file_name"`
-		MimeType    string `json:"mime_type"`
-		SizeBytes   int64  `json:"size_bytes"`
+		FileName     string `json:"file_name"`
+		MimeType     string `json:"mime_type"`
+		SizeBytes    int64  `json:"size_bytes"`
 		CaptchaToken string `json:"captcha_token"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -90,7 +96,9 @@ func (h *FeedbackHandler) PresignUpload(c *gin.Context) {
 	var uid *int64
 	if exists {
 		id := userID.(int64)
-		uid = &id
+		if id > 0 {
+			uid = &id
+		}
 	}
 
 	input := service.PresignUploadInput{
@@ -119,9 +127,32 @@ func (h *FeedbackHandler) PresignUpload(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"grant_id": grantID,
-		"oss_key":  ossKey,
+		"grant_id":   grantID,
+		"oss_key":    ossKey,
+		"upload_url": "/api/v1/feedback/attachments/staging/" + grantID,
 	})
+}
+
+func (h *FeedbackHandler) StageUpload(c *gin.Context) {
+	grantID := c.Param("grant_id")
+	if grantID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ATTACHMENT_GRANT", "message": "Invalid attachment upload grant"})
+		return
+	}
+	if err := h.feedbackService.StageAttachmentUpload(c.Request.Context(), grantID, c.Request.Body); err != nil {
+		if err.Error() == "FILE_TOO_LARGE" {
+			c.JSON(http.StatusBadRequest, gin.H{"code": "FILE_TOO_LARGE", "message": "Screenshot must be smaller than the granted upload size"})
+			return
+		}
+		if err.Error() != "INVALID_ATTACHMENT_GRANT" {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to stage feedback attachment"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ATTACHMENT_GRANT", "message": "Invalid or expired attachment upload grant"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }
 
 func (h *FeedbackHandler) ListMyTickets(c *gin.Context) {
@@ -147,9 +178,9 @@ func (h *FeedbackHandler) ListMyTickets(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"items": tickets,
-		"total": total,
-		"page":  page,
+		"items":     tickets,
+		"total":     total,
+		"page":      page,
 		"page_size": pageSize,
 	})
 }

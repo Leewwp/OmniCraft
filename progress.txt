@@ -2569,3 +2569,23 @@
 ### Notes:
 - Mode A Web Beta hotfix only; `task.json` was not modified and no roadmap checkbox was updated.
 - Public config still exposes only captcha provider, prefix, scene_id, and region; AccessKeys remain private runtime configuration.
+
+## [2026-06-03] - Beta Repair Task 3: Feedback and report workflows
+
+### What was done:
+- Fixed anonymous feedback handling so `OptionalAuth` user ID `0` is treated as anonymous and persisted with `NULL user_id`.
+- Reworked feedback screenshot upload grants to return `grant_id`, `oss_key`, and `upload_url`; browser uploads now hit a mounted backend staging route and ticket submission consumes grants once.
+- Added `reports.action_taken` and feedback `reopened` status schema repair migration, and updated the report model so admin report resolution can persist action details.
+- Wired feedback public replies/status updates to user notifications or anonymous contact-email updates; mail failures now return a visible retryable admin error.
+- Updated the feedback form to submit attachment grants instead of raw OSS keys.
+
+### Testing:
+- `go test ./...` PASS
+- `go vet ./...` PASS
+- `go build ./...` PASS
+- `npm run lint` PASS
+- `npm run build` PASS
+
+### Notes:
+- Local Beta feedback attachment staging writes upload bodies under `backend/data/feedback-staging` by grant ID until production OSS signing is available.
+- Subagent review was not spawned because the current tool contract only permits spawning when the user explicitly asks for sub-agents; performed local specification and code-quality self-review instead.

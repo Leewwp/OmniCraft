@@ -80,8 +80,8 @@ func (h *AdminFeedbackHandler) PatchFeedback(c *gin.Context) {
 	}
 
 	var req struct {
-		Status         string `json:"status"`
-		Priority       string `json:"priority"`
+		Status          string `json:"status"`
+		Priority        string `json:"priority"`
 		AssigneeAdminID *int64 `json:"assignee_admin_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -90,8 +90,8 @@ func (h *AdminFeedbackHandler) PatchFeedback(c *gin.Context) {
 	}
 
 	input := service.AdminPatchFeedbackInput{
-		Status:         req.Status,
-		Priority:       req.Priority,
+		Status:          req.Status,
+		Priority:        req.Priority,
 		AssigneeAdminID: req.AssigneeAdminID,
 	}
 
@@ -104,6 +104,8 @@ func (h *AdminFeedbackHandler) PatchFeedback(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_STATUS", "message": "Invalid status value"})
 		case "INVALID_PRIORITY":
 			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_PRIORITY", "message": "Invalid priority value"})
+		case "FEEDBACK_NOTIFICATION_FAILED":
+			c.JSON(http.StatusBadGateway, gin.H{"code": "FEEDBACK_NOTIFICATION_FAILED", "message": "Feedback update notification failed; please retry"})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to update feedback ticket"})
 		}
@@ -181,6 +183,8 @@ func (h *AdminFeedbackHandler) ReplyFeedback(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "Reply body is required"})
 		case "BODY_TOO_LONG":
 			c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "Reply body must not exceed 5000 characters"})
+		case "FEEDBACK_NOTIFICATION_FAILED":
+			c.JSON(http.StatusBadGateway, gin.H{"code": "FEEDBACK_NOTIFICATION_FAILED", "message": "Feedback reply notification failed; please retry"})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to create reply"})
 		}
@@ -195,8 +199,8 @@ func (h *AdminFeedbackHandler) ReplyFeedback(c *gin.Context) {
 			TargetID:    strconv.FormatInt(ticketID, 10),
 			TraceID:     c.GetString("trace_id"),
 			Metadata: map[string]any{
-				"ticket_id":         ticketID,
-				"is_internal_note":  req.IsInternalNote,
+				"ticket_id":        ticketID,
+				"is_internal_note": req.IsInternalNote,
 			},
 			Result: "success",
 		}

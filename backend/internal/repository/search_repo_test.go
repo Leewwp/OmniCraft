@@ -1,8 +1,15 @@
 package repository
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
+
+	"omnicraft/backend/internal/model"
 )
 
 func TestToTSQuery_SplitsWords(t *testing.T) {
@@ -84,5 +91,71 @@ func TestContentVisibilityWhere_AnonymousViewer(t *testing.T) {
 func TestApplyContentVisibilityScope_ReturnsGormQuery(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping DB-dependent test in short mode")
+	}
+}
+
+func TestWebBetaReviewRepairMigrationAddsFeedbackAndReportSchema(t *testing.T) {
+	migrationPath := filepath.Join("..", "..", "migrations", "053_web_beta_review_repairs.sql")
+	data, err := os.ReadFile(migrationPath)
+	if err != nil {
+		t.Fatalf("read repair migration: %v", err)
+	}
+	sql := string(data)
+
+	required := []string{
+		"ADD COLUMN IF NOT EXISTS action_taken",
+		"feedback_tickets_status_check",
+		"'reopened'",
+	}
+	for _, req := range required {
+		if !strings.Contains(sql, req) {
+			t.Fatalf("repair migration missing %q:\n%s", req, sql)
+		}
+	}
+}
+
+func TestUpdateReportStatusPersistsActionTaken(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.User{}, &model.Report{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	reporter := model.User{
+		Email:        "reporter@example.com",
+		Username:     "reporter",
+		PasswordHash: "hash",
+		Reputation:   10,
+		Role:         "user",
+	}
+	if err := db.Create(&reporter).Error; err != nil {
+		t.Fatalf("create reporter: %v", err)
+	}
+	report := model.Report{
+		ReporterID: reporter.ID,
+		TargetType: "content",
+		TargetID:   100,
+		Reason:     "spam",
+		Status:     "pending",
+	}
+	if err := db.Create(&report).Error; err != nil {
+		t.Fatalf("create report: %v", err)
+	}
+
+	repo := NewSearchRepository(db)
+	if err := repo.UpdateReportStatus(report.ID, "resolved", "content hidden"); err != nil {
+		t.Fatalf("UpdateReportStatus: %v", err)
+	}
+
+	var updated model.Report
+	if err := db.First(&updated, report.ID).Error; err != nil {
+		t.Fatalf("load report: %v", err)
+	}
+	if updated.Status != "resolved" {
+		t.Fatalf("status = %q, want resolved", updated.Status)
+	}
+	if updated.ActionTaken != "content hidden" {
+		t.Fatalf("action_taken = %q, want content hidden", updated.ActionTaken)
 	}
 }
