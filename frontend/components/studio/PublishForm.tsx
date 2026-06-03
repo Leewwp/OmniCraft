@@ -32,6 +32,8 @@ const CATEGORY_I18N: Record<string, string> = {
 const FILE_PRIMARY_TYPES = ["image", "video", "audio", "sheet_music", "mod", "template"];
 // Types that use text editor as primary
 const TEXT_PRIMARY_TYPES = ["article", "prompt", "other"];
+const MAX_SUGGESTED_TITLE_LENGTH = 500;
+const MAX_SUGGESTED_DESCRIPTION_LENGTH = 2000;
 
 interface PublishFormProps {
   zone: "original" | "fanwork";
@@ -68,7 +70,8 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedAsset[]>([]);
   const [coverFile, setCoverFile] = useState<UploadedAsset | null>(null);
   const [uploadError, setUploadError] = useState("");
-  const [complianceViolation, setComplianceViolation] = useState(false);
+  const [complianceRisk, setComplianceRisk] = useState<"safe" | "warning" | "violation" | null>(null);
+  const [warningAcknowledged, setWarningAcknowledged] = useState(false);
 
   const undoSnapshot = useRef<{ title: string; briefDesc: string; body: string; tags: string[]; category: string } | null>(null);
   const [canUndo, setCanUndo] = useState(false);
@@ -82,14 +85,25 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
   }
 
   const description = isFilePrimary ? briefDesc : body;
+  const complianceViolation = complianceRisk === "violation";
+  const warningNeedsAcknowledgement = complianceRisk === "warning" && !warningAcknowledged;
 
   function handleAssistFill(data: { suggested_title?: string; suggested_description?: string; suggested_tags?: string[]; suggested_category?: string }) {
+    if (complianceViolation) {
+      toast("error", t("agent.uploadAssistBlockedByViolation"));
+      return;
+    }
+    if (warningNeedsAcknowledgement) {
+      toast("error", t("agent.warningAckRequired"));
+      return;
+    }
     undoSnapshot.current = { title, briefDesc, body, tags, category };
     setCanUndo(true);
-    if (data.suggested_title) setTitle(data.suggested_title);
+    if (data.suggested_title) setTitle(data.suggested_title.slice(0, MAX_SUGGESTED_TITLE_LENGTH));
     if (data.suggested_description) {
-      if (isFilePrimary) setBriefDesc(data.suggested_description);
-      else setBody(data.suggested_description);
+      const suggestedDescription = data.suggested_description.slice(0, MAX_SUGGESTED_DESCRIPTION_LENGTH);
+      if (isFilePrimary) setBriefDesc(suggestedDescription);
+      else setBody(suggestedDescription);
     }
     if (data.suggested_tags && data.suggested_tags.length > 0) {
       setTags((prev) => {
@@ -118,7 +132,8 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
   }
 
   function handleComplianceResult(result: { risk_level: "safe" | "warning" | "violation" }) {
-    setComplianceViolation(result.risk_level === "violation");
+    setComplianceRisk(result.risk_level);
+    setWarningAcknowledged(false);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -126,6 +141,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
     if (!title.trim()) { toast("error", t('studio.publish.titleRequired')); return; }
     if (zone === "original" && !category) { toast("error", t('studio.publish.categoryRequired')); return; }
     if (zone === "fanwork" && !ipSearch.trim()) { toast("error", t('studio.publish.ipRequired')); return; }
+    if (complianceViolation) { toast("error", t("agent.complianceBlockSubmit")); return; }
 
     setSubmitting(true);
     try {
@@ -269,7 +285,26 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
             description={description}
             contentType={contentType}
             onFill={handleAssistFill}
+            applyDisabled={complianceViolation || warningNeedsAcknowledgement}
+            applyDisabledReason={
+              complianceViolation
+                ? t("agent.uploadAssistBlockedByViolation")
+                : warningNeedsAcknowledgement
+                  ? t("agent.warningAckRequired")
+                  : undefined
+            }
           />
+          {complianceRisk === "warning" && (
+            <label className="mt-2 flex items-start gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-3.5 w-3.5 rounded border-border"
+                checked={warningAcknowledged}
+                onChange={(event) => setWarningAcknowledged(event.target.checked)}
+              />
+              <span>{t("agent.warningAckLabel")}</span>
+            </label>
+          )}
           {canUndo && (
             <Button type="button" variant="ghost" size="sm" className="mt-2 text-xs" onClick={handleUndo}>
               <Undo2 className="mr-1 h-3 w-3" />
@@ -407,6 +442,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
             title={title}
             description={description}
             contentType={contentType}
+            onResult={handleComplianceResult}
           />
           {complianceViolation && (
             <p className="text-xs text-destructive">{t("agent.complianceBlockSubmit")}</p>

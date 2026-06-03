@@ -14,7 +14,7 @@ import (
 
 	"gorm.io/gorm"
 
-"omnicraft/backend/config"
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/llm"
@@ -34,10 +34,11 @@ type AgentService struct {
 	db            *gorm.DB
 	cfg           *config.Config
 	queueProducer queue.Producer
+	vectorSearch  func(embedding []float32, topK int) ([]repository.EmbeddingSearchResult, error)
 }
 
 func NewAgentService(provider llm.LLMProvider, embeddingRepo *repository.EmbeddingRepository, contentRepo *repository.ContentRepository, greenClient *aliyun.GreenClient, db *gorm.DB, cfg *config.Config) *AgentService {
-	return &AgentService{
+	svc := &AgentService{
 		llmProvider:   provider,
 		embeddingRepo: embeddingRepo,
 		contentRepo:   contentRepo,
@@ -46,6 +47,10 @@ func NewAgentService(provider llm.LLMProvider, embeddingRepo *repository.Embeddi
 		cfg:           cfg,
 		queueProducer: queue.NewNoopProducer(),
 	}
+	if embeddingRepo != nil {
+		svc.vectorSearch = embeddingRepo.VectorSearch
+	}
+	return svc
 }
 
 type UploadAssistResult struct {
@@ -89,7 +94,73 @@ Respond ONLY with valid JSON: {"suggested_tags":[],"suggested_category":"","sugg
 			SuggestedDescription: description,
 		}
 	}
+	result = sanitizeUploadAssistResult(result)
 	return &result, nil
+}
+
+const (
+	uploadAssistMaxTags        = 10
+	uploadAssistMaxTagLength   = 32
+	uploadAssistMaxTitleLength = 500
+	uploadAssistMaxDescLength  = 2000
+)
+
+var allowedUploadAssistCategories = map[string]bool{
+	"film_tv":        true,
+	"gaming":         true,
+	"literature":     true,
+	"pet":            true,
+	"food":           true,
+	"beauty_fashion": true,
+	"home":           true,
+	"tech_digital":   true,
+	"travel":         true,
+	"sports":         true,
+	"productivity":   true,
+}
+
+func sanitizeUploadAssistResult(result UploadAssistResult) UploadAssistResult {
+	result.SuggestedTitle = truncateRunes(strings.TrimSpace(result.SuggestedTitle), uploadAssistMaxTitleLength)
+	result.SuggestedDescription = truncateRunes(strings.TrimSpace(result.SuggestedDescription), uploadAssistMaxDescLength)
+
+	if !allowedUploadAssistCategories[strings.TrimSpace(result.SuggestedCategory)] {
+		result.SuggestedCategory = ""
+	}
+
+	tags := make([]string, 0, minInt(len(result.SuggestedTags), uploadAssistMaxTags))
+	seen := make(map[string]bool, len(result.SuggestedTags))
+	for _, tag := range result.SuggestedTags {
+		cleaned := truncateRunes(strings.TrimSpace(tag), uploadAssistMaxTagLength)
+		if cleaned == "" || seen[cleaned] {
+			continue
+		}
+		tags = append(tags, cleaned)
+		seen[cleaned] = true
+		if len(tags) == uploadAssistMaxTags {
+			break
+		}
+	}
+	result.SuggestedTags = tags
+
+	return result
+}
+
+func truncateRunes(value string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	runes := []rune(value)
+	if len(runes) <= max {
+		return value
+	}
+	return string(runes[:max])
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 type ComplianceResult struct {
@@ -201,7 +272,10 @@ func (s *AgentService) NLSearch(ctx context.Context, query string, viewerID int6
 		return nil, err
 	}
 
-	results, err := s.embeddingRepo.VectorSearch(embedding, 20)
+	if s.vectorSearch == nil {
+		return nil, errors.New("vector search unavailable")
+	}
+	results, err := s.vectorSearch(embedding, 20)
 	if err != nil {
 		return nil, err
 	}
@@ -213,26 +287,13 @@ func (s *AgentService) NLSearch(ctx context.Context, query string, viewerID int6
 		scoreMap[r.ContentItemID] = r.Score
 	}
 
-	contents, err := s.contentRepo.BatchGetByIDs(contentIDs)
+	contents, err := s.listVisibleNLSearchContents(contentIDs, viewerID)
 	if err != nil {
 		return nil, err
 	}
 
-	visibleContents := make([]model.ContentItem, 0, len(contents))
-	for _, c := range contents {
-		if c.Status != "published" {
-			continue
-		}
-		if c.Author.IsBanned {
-			continue
-		}
-		if c.IsPublic || c.AuthorID == viewerID {
-			visibleContents = append(visibleContents, c)
-		}
-	}
-
-	summaries := make([]ContentSummary, 0, len(visibleContents))
-	for _, content := range visibleContents {
+	summaries := make([]ContentSummary, 0, len(contents))
+	for _, content := range contents {
 		summaries = append(summaries, ContentSummary{
 			ID:          content.ID,
 			Title:       content.Title,
@@ -241,6 +302,36 @@ func (s *AgentService) NLSearch(ctx context.Context, query string, viewerID int6
 		})
 	}
 	return summaries, nil
+}
+
+func (s *AgentService) listVisibleNLSearchContents(contentIDs []int64, viewerID int64) ([]model.ContentItem, error) {
+	if len(contentIDs) == 0 {
+		return nil, nil
+	}
+	if s.contentRepo == nil {
+		return nil, errors.New("content repository unavailable")
+	}
+	var contents []model.ContentItem
+	// Shared visibility enforces published status, IsBanned author exclusion, IsPublic/viewerID access, and banned-IP exclusion.
+	err := repository.ApplyContentVisibilityScope(s.contentRepo.DB().Model(&model.ContentItem{}), viewerID).
+		Where("content_items.id IN ?", contentIDs).
+		Find(&contents).Error
+	if err != nil {
+		return nil, err
+	}
+
+	order := make(map[int64]int, len(contentIDs))
+	for i, id := range contentIDs {
+		order[id] = i
+	}
+	for i := 0; i < len(contents); i++ {
+		for j := i + 1; j < len(contents); j++ {
+			if order[contents[j].ID] < order[contents[i].ID] {
+				contents[i], contents[j] = contents[j], contents[i]
+			}
+		}
+	}
+	return contents, nil
 }
 
 type UsageGuideResult struct {

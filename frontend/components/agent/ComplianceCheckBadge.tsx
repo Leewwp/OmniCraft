@@ -20,6 +20,7 @@ interface AgentComplianceCheckBadgeProps {
   description?: string;
   contentType?: string;
   className?: string;
+  onResult?: (result: ComplianceResult) => void;
 }
 
 export function AgentComplianceCheckBadge({
@@ -28,6 +29,7 @@ export function AgentComplianceCheckBadge({
   description,
   contentType,
   className,
+  onResult,
 }: AgentComplianceCheckBadgeProps) {
   const t = useTranslations();
   const [result, setResult] = useState<ComplianceResult | null>(null);
@@ -45,6 +47,7 @@ export function AgentComplianceCheckBadge({
         content_type: contentType || "other",
       });
       setResult(res);
+      onResult?.(res);
     } catch (e) {
       setError((e as Error).message || "Check failed");
       silentError(e, { component: 'ComplianceCheckBadge', action: 'check' });

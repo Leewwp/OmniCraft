@@ -211,10 +211,10 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 	var pageCtx *model.AgentPageContext
 	if body.Context != nil {
 		pageCtx = &model.AgentPageContext{
-			Route:         truncateStr(body.Context.Route, 200),
-			ContentID:     body.Context.ContentID,
-			ContentTitle:  truncateStr(body.Context.ContentTitle, 200),
-			ContentType:   truncateStr(body.Context.ContentType, 50),
+			Route:        truncateStr(body.Context.Route, 200),
+			ContentID:    body.Context.ContentID,
+			ContentTitle: truncateStr(body.Context.ContentTitle, 200),
+			ContentType:  truncateStr(body.Context.ContentType, 50),
 		}
 	}
 
@@ -251,6 +251,10 @@ func truncateStr(s string, maxLen int) string {
 }
 
 func (h *AgentHandler) ListConversations(c *gin.Context) {
+	if !h.cfg.Agent.WebAgentEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": "web agent is disabled"})
+		return
+	}
 	userID := middleware.GetUserID(c)
 	var conversations []model.AgentConversation
 	h.db.Where("user_id = ?", userID).Order("updated_at DESC").Limit(50).Find(&conversations)
@@ -258,6 +262,10 @@ func (h *AgentHandler) ListConversations(c *gin.Context) {
 }
 
 func (h *AgentHandler) GetConversationMessages(c *gin.Context) {
+	if !h.cfg.Agent.WebAgentEnabled {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": "web agent is disabled"})
+		return
+	}
 	userID := middleware.GetUserID(c)
 	convID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
