@@ -2610,3 +2610,25 @@
 
 ### Notes:
 - `npm run build` initially failed because `next/font/google` could not fetch Geist/Geist Mono in the restricted network environment; the local system font stack now matches the UI spec and removes that production-build dependency.
+
+## [2026-06-03] - Beta Repair Task 5: Agent validation and feature-flag consistency
+
+### What was done:
+- Added backend upload-assist output sanitation for tag count, tag length, title length, description length, duplicate/blank tags, and invalid categories.
+- Updated Agent NLSearch to reuse shared content visibility semantics, including private content ownership, banned/deleted authors, soft-deleted content, and banned IP exclusion.
+- Added feature-flag checks to Agent conversation list/detail endpoints so disabled Web Agent returns `FEATURE_DISABLED`.
+- Updated publish upload-assist UI so compliance violations block applying AI suggestions and submission, warnings require explicit acknowledgement before applying suggestions, and suggested title/description values are length-bounded.
+- Added i18n keys for the new Agent publish safeguards.
+
+### Testing:
+- `go test ./internal/service -run "TestAgent|TestUploadAssist|TestNLSearch" -v` PASS
+- `go test ./internal/handler -run TestAgent -v` PASS
+- `go test ./...` PASS
+- `go vet ./...` PASS
+- `go build ./...` PASS
+- `npm run lint` PASS
+- `npm run build` PASS
+
+### Notes:
+- `go mod tidy` was attempted during initialization but repeatedly timed out or hit Go cache permission issues; Task 5 adds no Go dependencies and full backend gates passed with an explicit writable `GOCACHE`.
+- Subagent review was not spawned because the current tool contract only permits spawning when the user explicitly asks for sub-agents; performed local specification and code-quality self-review instead.

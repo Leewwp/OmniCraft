@@ -22,6 +22,8 @@ interface AgentUploadAssistPanelProps {
   description?: string;
   contentType?: string;
   onFill?: (data: UploadAssistResult) => void;
+  applyDisabled?: boolean;
+  applyDisabledReason?: string;
   className?: string;
 }
 
@@ -32,6 +34,8 @@ export function AgentUploadAssistPanel({
   description,
   contentType,
   onFill,
+  applyDisabled,
+  applyDisabledReason,
   className,
 }: AgentUploadAssistPanelProps) {
   const t = useTranslations();
@@ -63,6 +67,7 @@ export function AgentUploadAssistPanel({
   }
 
   function handleFill() {
+    if (applyDisabled) return;
     if (result && onFill) onFill(result);
   }
 
@@ -106,7 +111,10 @@ export function AgentUploadAssistPanel({
               ))}
             </div>
           )}
-          <Button size="sm" variant="outline" onClick={handleFill}>
+          {applyDisabled && applyDisabledReason && (
+            <p className="text-xs text-destructive">{applyDisabledReason}</p>
+          )}
+          <Button size="sm" variant="outline" onClick={handleFill} disabled={applyDisabled}>
             <Check className="mr-1 h-3.5 w-3.5" />
             {t("agent.autoFill")}
           </Button>
