@@ -31,7 +31,7 @@ type ContentHandler struct {
 	contentRepo       *repository.ContentRepository
 	browseHistoryRepo *repository.BrowseHistoryRepository
 	ossSvc            *service.OSSService
-	ossInitErr       error
+	ossInitErr        error
 	rdb               *redis.Client
 	cfg               *config.Config
 	queueProducer     queue.Producer
@@ -49,12 +49,12 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 	recSvc := service.NewRecommendationService(db, embeddingRepo, repo, contentSvc, rdb, &cfg.Recommendation)
 	contentSvc.SetRecommendationService(recSvc)
 
-return &ContentHandler{
+	return &ContentHandler{
 		contentSvc:        contentSvc,
 		contentRepo:       repo,
 		browseHistoryRepo: repository.NewBrowseHistoryRepository(db),
 		ossSvc:            ossSvc,
-		ossInitErr:       ossErr,
+		ossInitErr:        ossErr,
 		rdb:               rdb,
 		cfg:               cfg,
 		queueProducer:     queue.NewNoopProducer(),
@@ -444,6 +444,18 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 		return
 	}
 
+	var visibleCount int64
+	if err := repository.ApplyContentVisibilityScope(h.contentRepo.DB().Model(&model.ContentItem{}), callerID).
+		Where("content_items.id = ?", id).
+		Count(&visibleCount).Error; err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	if visibleCount == 0 {
+		c.JSON(http.StatusForbidden, gin.H{"code": "CONTENT_UNAVAILABLE", "message": "content is unavailable"})
+		return
+	}
+
 	if !content.AllowCopy {
 		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "download not allowed"})
 		return
@@ -509,7 +521,7 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 		recovery.GoSafe(func() {
 			payload, _ := json.Marshal(map[string]interface{}{
 				"content_id": id,
-				"action":    "download",
+				"action":     "download",
 			})
 			if err := h.queueProducer.Publish(context.Background(), "count.download", payload); err != nil {
 				slog.Error("failed to publish download count message", "content_id", id, "error", err)

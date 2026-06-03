@@ -240,8 +240,15 @@ function MIDIPlayer({ ossUrl }: { ossUrl: string }) {
 }
 
 /* ── PDFViewer ─────────────────────────────── */
-function PDFViewer({ ossUrl }: { ossUrl: string }) {
-  const t = useTranslations();
+function PDFViewer({
+  ossUrl,
+  contentId,
+  attachmentId,
+}: {
+  ossUrl: string;
+  contentId: number;
+  attachmentId: number;
+}) {
   return (
     <div className="space-y-2">
       <embed
@@ -249,11 +256,14 @@ function PDFViewer({ ossUrl }: { ossUrl: string }) {
         type="application/pdf"
         className="h-[500px] w-full rounded-md border border-border"
       />
-      <a href={ossUrl} target="_blank" rel="noopener noreferrer" className="inline-block">
-        <Button variant="outline" size="sm">
-          {t("content.download")}
-        </Button>
-      </a>
+      <div className="inline-block">
+        <DownloadButton
+          contentId={contentId}
+          attachmentId={attachmentId}
+          contentType="sheet_music"
+          size="sm"
+        />
+      </div>
     </div>
   );
 }
@@ -358,7 +368,7 @@ export function SheetMusicViewer({ contentId, attachments, allowCopy, className 
         <MIDIPlayer ossUrl={renderable.oss_url} />
       )}
       {renderable && renderable.oss_url && fileTypeFor(renderable) === "pdf" && (
-        <PDFViewer ossUrl={renderable.oss_url} />
+        <PDFViewer ossUrl={renderable.oss_url} contentId={contentId} attachmentId={renderable.id} />
       )}
       {renderable && (fileTypeFor(renderable) === "mscz" || fileTypeFor(renderable) === "mscx") && (
         <DownloadPrompt att={renderable} contentId={contentId} />
