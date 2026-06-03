@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -63,35 +64,165 @@ func TestSplitAndNormalize_ChineseWithSpaces(t *testing.T) {
 	}
 }
 
-func TestContentVisibilityWhere_ContainsRequiredClauses(t *testing.T) {
-	clause := ContentVisibilityWhere(42)
+func TestContentVisibilitySQL_ContainsRequiredClausesAndArgs(t *testing.T) {
+	clause, args := ContentVisibilitySQL(42)
 
 	required := []string{
-		"content_items.status = 'published'",
+		"content_items.status = ?",
 		"content_items.deleted_at IS NULL",
 		"is_banned = true",
 		"deleted_at IS NOT NULL",
-		"content_items.is_public = true",
-		"content_items.author_id = 42",
+		"content_items.ip_id IS NULL",
+		"ips WHERE status = ?",
+		"content_items.is_public = ?",
+		"content_items.author_id = ?",
 	}
 	for _, req := range required {
 		if !strings.Contains(clause, req) {
 			t.Errorf("visibility clause missing required: %q\nGot: %s", req, clause)
 		}
 	}
-}
-
-func TestContentVisibilityWhere_AnonymousViewer(t *testing.T) {
-	clause := ContentVisibilityWhere(0)
-	if !strings.Contains(clause, "content_items.author_id = 0") {
-		t.Error("anonymous viewer should have author_id = 0, meaning only public content is visible")
+	if strings.Contains(clause, "42") {
+		t.Fatalf("visibility clause must not interpolate viewer id directly: %s", clause)
+	}
+	if len(args) != 4 {
+		t.Fatalf("args length = %d, want 4: %#v", len(args), args)
+	}
+	if args[0] != "published" || args[1] != "banned" || args[2] != true || args[3] != int64(42) {
+		t.Fatalf("unexpected visibility args: %#v", args)
 	}
 }
 
-func TestApplyContentVisibilityScope_ReturnsGormQuery(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping DB-dependent test in short mode")
+func TestContentVisibilitySQL_AnonymousViewerUsesArgs(t *testing.T) {
+	clause, args := ContentVisibilitySQL(0)
+	if strings.Contains(clause, "content_items.author_id = 0") {
+		t.Fatal("anonymous viewer id must be passed as an argument, not interpolated")
 	}
+	if len(args) != 4 || args[3] != int64(0) {
+		t.Fatalf("anonymous viewer arg mismatch: %#v", args)
+	}
+}
+
+func TestContentVisibilityScope_ExcludesHiddenContent(t *testing.T) {
+	db := setupContentVisibilityTestDB(t)
+	viewer := createVisibilityUser(t, db, "viewer@example.com", "viewer", false)
+	other := createVisibilityUser(t, db, "other@example.com", "other", false)
+	bannedAuthor := createVisibilityUser(t, db, "banned@example.com", "banned", true)
+	deletedAuthor := createVisibilityUser(t, db, "deleted@example.com", "deleted", false)
+	if err := db.Exec("UPDATE users SET deleted_at = ? WHERE id = ?", time.Now(), deletedAuthor.ID).Error; err != nil {
+		t.Fatalf("mark deleted author: %v", err)
+	}
+	approvedIP := createVisibilityIP(t, db, "approved-ip", "approved")
+	bannedIP := createVisibilityIP(t, db, "banned-ip", "banned")
+
+	createVisibilityContent(t, db, "visible public", other.ID, nil, true, nil)
+	createVisibilityContent(t, db, "private other", other.ID, nil, false, nil)
+	createVisibilityContent(t, db, "private viewer", viewer.ID, nil, false, nil)
+	createVisibilityContent(t, db, "banned author", bannedAuthor.ID, nil, true, nil)
+	createVisibilityContent(t, db, "deleted author", deletedAuthor.ID, nil, true, nil)
+	createVisibilityContent(t, db, "approved ip", other.ID, &approvedIP.ID, true, nil)
+	createVisibilityContent(t, db, "banned ip", other.ID, &bannedIP.ID, true, nil)
+	createVisibilityContent(t, db, "soft deleted", other.ID, nil, true, ptrTime(time.Now()))
+
+	var results []model.ContentItem
+	if err := ApplyContentVisibilityScope(db.Model(&model.ContentItem{}), viewer.ID).
+		Order("content_items.title ASC").
+		Find(&results).Error; err != nil {
+		t.Fatalf("query visible content: %v", err)
+	}
+
+	titles := make(map[string]bool, len(results))
+	for _, item := range results {
+		titles[item.Title] = true
+	}
+	for _, want := range []string{"approved ip", "private viewer", "visible public"} {
+		if !titles[want] {
+			t.Fatalf("expected %q in visible results, got %#v", want, titles)
+		}
+	}
+	for _, hidden := range []string{"banned author", "banned ip", "deleted author", "private other", "soft deleted"} {
+		if titles[hidden] {
+			t.Fatalf("expected %q to be hidden, got %#v", hidden, titles)
+		}
+	}
+}
+
+func setupContentVisibilityTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.User{}, &model.IP{}, &model.ContentItem{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	for _, stmt := range []string{
+		"ALTER TABLE users ADD COLUMN deleted_at DATETIME",
+		"ALTER TABLE content_items ADD COLUMN deleted_at DATETIME",
+	} {
+		if err := db.Exec(stmt).Error; err != nil {
+			t.Fatalf("schema patch %q: %v", stmt, err)
+		}
+	}
+	return db
+}
+
+func createVisibilityUser(t *testing.T, db *gorm.DB, email, username string, banned bool) model.User {
+	t.Helper()
+	user := model.User{
+		Email:        email,
+		Username:     username,
+		PasswordHash: "hash",
+		Reputation:   10,
+		Role:         "user",
+		IsBanned:     banned,
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user %s: %v", username, err)
+	}
+	return user
+}
+
+func createVisibilityIP(t *testing.T, db *gorm.DB, slug, status string) model.IP {
+	t.Helper()
+	ip := model.IP{Name: slug, Slug: slug, Status: status}
+	if err := db.Create(&ip).Error; err != nil {
+		t.Fatalf("create ip %s: %v", slug, err)
+	}
+	return ip
+}
+
+func createVisibilityContent(t *testing.T, db *gorm.DB, title string, authorID int64, ipID *int64, public bool, deletedAt *time.Time) model.ContentItem {
+	t.Helper()
+	item := model.ContentItem{
+		Title:       title,
+		AuthorID:    authorID,
+		IPID:        ipID,
+		Zone:        "original",
+		Category:    "game",
+		ContentType: "article",
+		Status:      "published",
+		IsPublic:    public,
+		AllowCopy:   true,
+	}
+	if err := db.Create(&item).Error; err != nil {
+		t.Fatalf("create content %s: %v", title, err)
+	}
+	if !public {
+		if err := db.Exec("UPDATE content_items SET is_public = ? WHERE id = ?", false, item.ID).Error; err != nil {
+			t.Fatalf("mark private content %s: %v", title, err)
+		}
+	}
+	if deletedAt != nil {
+		if err := db.Exec("UPDATE content_items SET deleted_at = ? WHERE id = ?", *deletedAt, item.ID).Error; err != nil {
+			t.Fatalf("soft delete content %s: %v", title, err)
+		}
+	}
+	return item
+}
+
+func ptrTime(v time.Time) *time.Time {
+	return &v
 }
 
 func TestWebBetaReviewRepairMigrationAddsFeedbackAndReportSchema(t *testing.T) {

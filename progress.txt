@@ -2589,3 +2589,24 @@
 ### Notes:
 - Local Beta feedback attachment staging writes upload bodies under `backend/data/feedback-staging` by grant ID until production OSS signing is available.
 - Subagent review was not spawned because the current tool contract only permits spawning when the user explicitly asks for sub-agents; performed local specification and code-quality self-review instead.
+
+## [2026-06-03] - Beta Repair Task 4: Search visibility, download authorization, and sheet music CTA
+
+### What was done:
+- Added banned-IP exclusion to shared content visibility rules and replaced raw viewer ID SQL interpolation with a parameterized visibility helper.
+- Updated raw search paths and search suggestions to use the same hidden-content rules for banned IPs, banned/deleted authors, soft-deleted content, and private content.
+- Hardened content downloads so hidden content is rejected with `CONTENT_UNAVAILABLE` before OSS signing.
+- Replaced direct PDF sheet music download links with the authorized `DownloadButton` endpoint flow while keeping PDF preview embed behavior.
+- Removed the frontend build-time Google Fonts dependency and switched remaining font variables to local system stacks so production builds work without external font fetches.
+
+### Testing:
+- `go test ./internal/repository -run "TestSearch|TestContentVisibility" -v` PASS
+- `go test ./internal/handler -run TestDownload -v` PASS
+- `go test ./...` PASS
+- `go vet ./...` PASS
+- `go build ./...` PASS
+- `npm run lint` PASS
+- `npm run build` PASS
+
+### Notes:
+- `npm run build` initially failed because `next/font/google` could not fetch Geist/Geist Mono in the restricted network environment; the local system font stack now matches the UI spec and removes that production-build dependency.

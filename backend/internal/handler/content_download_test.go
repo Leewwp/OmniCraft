@@ -5,10 +5,18 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
+
+	"omnicraft/backend/config"
+	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/model"
 )
 
 func TestDownloadContent_ReturnsJSONNotRedirect(t *testing.T) {
@@ -149,4 +157,136 @@ func TestDownloadContent_EndToEnd_Unauthenticated(t *testing.T) {
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d", w.Code)
 	}
+}
+
+func TestDownloadContent_RejectsAuthorBannedBeforeOSS(t *testing.T) {
+	router, db := setupDownloadVisibilityRouter(t)
+	author := createDownloadUser(t, db, "author-banned@example.com", "author-banned", true)
+	content := createDownloadContent(t, db, author.ID, nil)
+
+	rec := requestDownload(t, router, content.ID)
+
+	assertContentUnavailable(t, rec)
+}
+
+func TestDownloadContent_RejectsAuthorDeletedBeforeOSS(t *testing.T) {
+	router, db := setupDownloadVisibilityRouter(t)
+	author := createDownloadUser(t, db, "author-deleted@example.com", "author-deleted", false)
+	if err := db.Exec("UPDATE users SET deleted_at = ? WHERE id = ?", time.Now(), author.ID).Error; err != nil {
+		t.Fatalf("mark author deleted: %v", err)
+	}
+	content := createDownloadContent(t, db, author.ID, nil)
+
+	rec := requestDownload(t, router, content.ID)
+
+	assertContentUnavailable(t, rec)
+}
+
+func TestDownloadContent_RejectsBannedIPBeforeOSS(t *testing.T) {
+	router, db := setupDownloadVisibilityRouter(t)
+	author := createDownloadUser(t, db, "author-ip@example.com", "author-ip", false)
+	bannedIP := model.IP{Name: "Banned IP", Slug: "banned-ip", Status: "banned"}
+	if err := db.Create(&bannedIP).Error; err != nil {
+		t.Fatalf("create banned ip: %v", err)
+	}
+	content := createDownloadContent(t, db, author.ID, &bannedIP.ID)
+
+	rec := requestDownload(t, router, content.ID)
+
+	assertContentUnavailable(t, rec)
+}
+
+func setupDownloadVisibilityRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.User{}, &model.IP{}, &model.ContentItem{}, &model.ContentAttachment{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	for _, stmt := range []string{
+		"ALTER TABLE users ADD COLUMN deleted_at DATETIME",
+		"ALTER TABLE content_items ADD COLUMN deleted_at DATETIME",
+	} {
+		if err := db.Exec(stmt).Error; err != nil {
+			t.Fatalf("schema patch %q: %v", stmt, err)
+		}
+	}
+
+	handler := NewContentHandler(db, &config.Config{}, nil)
+	router := gin.New()
+	router.GET("/contents/:id/download", func(c *gin.Context) {
+		c.Set(middleware.UserIDKey, int64(999))
+		handler.DownloadContent(c)
+	})
+	return router, db
+}
+
+func createDownloadUser(t *testing.T, db *gorm.DB, email, username string, banned bool) model.User {
+	t.Helper()
+	user := model.User{
+		Email:        email,
+		Username:     username,
+		PasswordHash: "hash",
+		Reputation:   10,
+		Role:         "user",
+		IsBanned:     banned,
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user %s: %v", username, err)
+	}
+	return user
+}
+
+func createDownloadContent(t *testing.T, db *gorm.DB, authorID int64, ipID *int64) model.ContentItem {
+	t.Helper()
+	content := model.ContentItem{
+		Title:       "downloadable",
+		AuthorID:    authorID,
+		IPID:        ipID,
+		Zone:        "original",
+		Category:    "game",
+		ContentType: "sheet_music",
+		Status:      "published",
+		IsPublic:    true,
+		AllowCopy:   true,
+	}
+	if err := db.Create(&content).Error; err != nil {
+		t.Fatalf("create content: %v", err)
+	}
+	attachment := model.ContentAttachment{
+		ContentItemID: content.ID,
+		FileType:      "sheet_music_pdf",
+		OSSKey:        "uploads/1/sheet.pdf",
+		MimeType:      "application/pdf",
+		IsPrimary:     true,
+	}
+	if err := db.Create(&attachment).Error; err != nil {
+		t.Fatalf("create attachment: %v", err)
+	}
+	return content
+}
+
+func requestDownload(t *testing.T, router *gin.Engine, contentID int64) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/contents/"+strconvFormatInt(contentID)+"/download", nil)
+	router.ServeHTTP(rec, req)
+	return rec
+}
+
+func assertContentUnavailable(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403; body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "CONTENT_UNAVAILABLE") {
+		t.Fatalf("expected CONTENT_UNAVAILABLE response, got %s", rec.Body.String())
+	}
+}
+
+func strconvFormatInt(v int64) string {
+	return strconv.FormatInt(v, 10)
 }

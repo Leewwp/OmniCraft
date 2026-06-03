@@ -41,11 +41,12 @@ func (r *SearchRepository) SearchSuggestions(prefix string, limit int) ([]Search
 			FROM content_items ci
 			WHERE ci.title ILIKE ? AND ci.status = 'published' AND ci.deleted_at IS NULL
 				AND ci.author_id NOT IN (SELECT id FROM users WHERE is_banned = true OR deleted_at IS NOT NULL)
+				AND (ci.ip_id IS NULL OR ci.ip_id NOT IN (SELECT id FROM ips WHERE status = ?))
 				AND ci.is_public = true
 		) s
 		ORDER BY score DESC
 		LIMIT ?
-	`, prefix+"%", prefix+"%", limit).Rows()
+	`, prefix+"%", prefix+"%", "banned", limit).Rows()
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +123,7 @@ func (r *SearchRepository) searchContentsWithQuery(query, zone, category, conten
 	tsQuery := toTSQuery(query)
 	ilikePattern := "%" + query + "%"
 
-	visibilityClause := ContentVisibilityWhere(viewerID)
+	visibilityClause, visibilityArgs := ContentVisibilitySQL(viewerID)
 
 	filterClause := ""
 	args := []interface{}{}
@@ -152,14 +153,18 @@ func (r *SearchRepository) searchContentsWithQuery(query, zone, category, conten
 			OR EXISTS (SELECT 1 FROM content_tags ct2 WHERE ct2.content_item_id = content_items.id AND ct2.tag ILIKE ?)
 		)`, visibilityClause, filterClause)
 
-	countArgs := append(args, tsQuery, ilikePattern, ilikePattern)
+	countArgs := append([]interface{}{}, visibilityArgs...)
+	countArgs = append(countArgs, args...)
+	countArgs = append(countArgs, tsQuery, ilikePattern, ilikePattern)
 
 	var total int64
 	if err := r.db.Raw(countSQL, countArgs...).Scan(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	dataArgs := append([]interface{}{tsQuery, query}, args...)
+	dataArgs := []interface{}{tsQuery, query}
+	dataArgs = append(dataArgs, visibilityArgs...)
+	dataArgs = append(dataArgs, args...)
 	dataArgs = append(dataArgs, tsQuery, ilikePattern, ilikePattern, pageSize, offset)
 
 	dataSQL := fmt.Sprintf(`SELECT content_items.*,
