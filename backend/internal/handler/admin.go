@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -21,6 +23,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
+
+var errAdminAuditWriteFailed = errors.New("admin audit write failed")
 
 type AdminHandler struct {
 	ipSvc        *service.IPService
@@ -94,13 +98,24 @@ func (h *AdminHandler) ApproveIP(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid ip id"})
 		return
 	}
-	if err := h.ipSvc.ApproveIP(id); err != nil {
+	entry := h.auditEntry(c, "ip_approve", "ip", strconv.FormatInt(id, 10), map[string]any{"ip_id": id, "decision": "approved"})
+	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
+		var ip model.IP
+		if err := tx.First(&ip, id).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return service.ErrIPNotFound
+			}
+			return err
+		}
+		return tx.Model(&model.IP{}).Where("id = ?", id).Update("status", "approved").Error
+	}); err != nil {
+		if h.respondAuditTxError(c, err, http.StatusBadRequest, "ERROR", "failed to approve ip") {
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		return
 	}
-	if !h.auditOrFail(c, "ip_approve", "ip", strconv.FormatInt(id, 10), map[string]any{"ip_id": id, "decision": "approved"}) {
-		return
-	}
+	h.ipSvc.InvalidateIPCacheForAdmin(id)
 	c.JSON(http.StatusOK, gin.H{"message": "ip approved"})
 }
 
@@ -110,13 +125,24 @@ func (h *AdminHandler) RejectIP(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid ip id"})
 		return
 	}
-	if err := h.ipSvc.RejectIP(id); err != nil {
+	entry := h.auditEntry(c, "ip_reject", "ip", strconv.FormatInt(id, 10), map[string]any{"ip_id": id, "decision": "rejected"})
+	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
+		var ip model.IP
+		if err := tx.First(&ip, id).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return service.ErrIPNotFound
+			}
+			return err
+		}
+		return tx.Model(&model.IP{}).Where("id = ?", id).Update("status", "rejected").Error
+	}); err != nil {
+		if h.respondAuditTxError(c, err, http.StatusBadRequest, "ERROR", "failed to reject ip") {
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		return
 	}
-	if !h.auditOrFail(c, "ip_reject", "ip", strconv.FormatInt(id, 10), map[string]any{"ip_id": id, "decision": "rejected"}) {
-		return
-	}
+	h.ipSvc.InvalidateIPCacheForAdmin(id)
 	c.JSON(http.StatusOK, gin.H{"message": "ip rejected"})
 }
 
@@ -173,11 +199,14 @@ func (h *AdminHandler) BanContent(c *gin.Context) {
 	if body.Reason != "" {
 		updates["ban_reason"] = body.Reason
 	}
-	if err := h.contentRepo.UpdateContent(id, updates); err != nil {
+	entry := h.auditEntry(c, "content_ban", "content", strconv.FormatInt(id, 10), map[string]any{"content_id": id, "reason": body.Reason})
+	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
+		return tx.Model(&model.ContentItem{}).Where("id = ?", id).Updates(updates).Error
+	}); err != nil {
+		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to ban content") {
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
-		return
-	}
-	if !h.auditOrFail(c, "content_ban", "content", strconv.FormatInt(id, 10), map[string]any{"content_id": id, "reason": body.Reason}) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "content banned"})
@@ -189,11 +218,14 @@ func (h *AdminHandler) RestoreContent(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
 		return
 	}
-	if err := h.contentRepo.UpdateContent(id, map[string]interface{}{"status": "published", "ban_reason": ""}); err != nil {
+	entry := h.auditEntry(c, "content_restore", "content", strconv.FormatInt(id, 10), map[string]any{"content_id": id})
+	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
+		return tx.Model(&model.ContentItem{}).Where("id = ?", id).Updates(map[string]interface{}{"status": "published", "ban_reason": ""}).Error
+	}); err != nil {
+		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to restore content") {
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
-		return
-	}
-	if !h.auditOrFail(c, "content_restore", "content", strconv.FormatInt(id, 10), map[string]any{"content_id": id}) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "content restored"})
@@ -211,14 +243,17 @@ func (h *AdminHandler) BanUser(c *gin.Context) {
 	if err := c.ShouldBindJSON(&body); err != nil {
 		slog.Warn("ban user: failed to bind json", "error", err)
 	}
-	if err := h.userRepo.UpdateFields(id, map[string]interface{}{"is_banned": true, "ban_reason": body.Reason}); err != nil {
+	entry := h.auditEntry(c, "user_ban", "user", strconv.FormatInt(id, 10), map[string]any{"target_user_id": id, "reason": body.Reason})
+	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
+		return tx.Model(&model.User{}).Where("id = ?", id).Updates(map[string]interface{}{"is_banned": true, "ban_reason": body.Reason}).Error
+	}); err != nil {
+		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to ban user") {
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to ban user"})
 		return
 	}
 	middleware.InvalidateUserStatusCache(h.rdb, id)
-	if !h.auditOrFail(c, "user_ban", "user", strconv.FormatInt(id, 10), map[string]any{"target_user_id": id, "reason": body.Reason}) {
-		return
-	}
 	c.JSON(http.StatusOK, gin.H{"message": "user banned"})
 }
 
@@ -228,14 +263,17 @@ func (h *AdminHandler) UnbanUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
 		return
 	}
-	if err := h.userRepo.UpdateFields(id, map[string]interface{}{"is_banned": false, "ban_reason": ""}); err != nil {
+	entry := h.auditEntry(c, "user_unban", "user", strconv.FormatInt(id, 10), map[string]any{"target_user_id": id})
+	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
+		return tx.Model(&model.User{}).Where("id = ?", id).Updates(map[string]interface{}{"is_banned": false, "ban_reason": ""}).Error
+	}); err != nil {
+		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to unban user") {
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to unban user"})
 		return
 	}
 	middleware.InvalidateUserStatusCache(h.rdb, id)
-	if !h.auditOrFail(c, "user_unban", "user", strconv.FormatInt(id, 10), map[string]any{"target_user_id": id}) {
-		return
-	}
 	c.JSON(http.StatusOK, gin.H{"message": "user unbanned"})
 }
 
@@ -300,7 +338,8 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 		"resolved_by":    middleware.GetUserID(c),
 		"resolved_at":    gorm.Expr("NOW()"),
 	}
-	if err := db.Transaction(func(tx *gorm.DB) error {
+	entry := h.auditEntry(c, "appeal_resolve", "appeal", strconv.FormatInt(id, 10), map[string]any{"appeal_id": id, "decision": body.Status, "reason": body.AdminResponse})
+	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
 		if err := tx.Model(&model.Appeal{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 			return err
 		}
@@ -317,15 +356,15 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 			return nil
 		}
 	}); err != nil {
+		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to resolve appeal") {
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	if h.notifSvc != nil {
 		adminID := middleware.GetUserID(c)
 		h.notifSvc.Notify(appeal.UserID, "system", "appeal_result", "申诉处理结果", body.AdminResponse, "appeal", appeal.ID, adminID)
-	}
-	if !h.auditOrFail(c, "appeal_resolve", "appeal", strconv.FormatInt(id, 10), map[string]any{"appeal_id": id, "decision": body.Status, "reason": body.AdminResponse}) {
-		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "appeal resolved"})
 }
@@ -350,11 +389,11 @@ func (h *AdminHandler) GetConfig(c *gin.Context) {
 	redactStatus := model.ConfigRedactStatus{
 		JWTSecretConfigured:  h.cfg.JWT.Secret != "",
 		OSSKeyConfigured:     h.cfg.OSS.AccessKeyID != "" && h.cfg.OSS.AccessKeySecret != "",
-		GreenKeyConfigured:    h.cfg.Green.AccessKeyID != "" && h.cfg.Green.AccessKeySecret != "",
-		LLMApiKeyConfigured:   h.cfg.Agent.LLMAPIKey != "",
-		HMACSecretConfigured:  h.cfg.Agent.HMACSecret != "",
-		DatabaseConfigured:    h.cfg.Database.DSN != "",
-		RedisConfigured:       h.cfg.Redis.Addr != "",
+		GreenKeyConfigured:   h.cfg.Green.AccessKeyID != "" && h.cfg.Green.AccessKeySecret != "",
+		LLMApiKeyConfigured:  h.cfg.Agent.LLMAPIKey != "",
+		HMACSecretConfigured: h.cfg.Agent.HMACSecret != "",
+		DatabaseConfigured:   h.cfg.Database.DSN != "",
+		RedisConfigured:      h.cfg.Redis.Addr != "",
 	}
 	c.JSON(http.StatusOK, gin.H{"config": public, "secrets_status": redactStatus})
 }
@@ -513,12 +552,21 @@ func (h *AdminHandler) CreateLLMConfig(c *gin.Context) {
 		response.ValidationError(c, "invalid request body")
 		return
 	}
-	r, err := h.llmConfigSvc.CreateConfig(req.ConfigName, req.ProviderType, req.APIBase, req.Model, req.APIKey)
-	if err != nil {
+	var r *service.LLMConfigResponse
+	entry := h.auditEntry(c, "llm_config_create", "llm_config", "", map[string]any{"provider": req.ProviderType, "model": req.Model})
+	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
+		var txErr error
+		r, txErr = h.llmConfigSvc.CreateConfigTx(tx, req.ConfigName, req.ProviderType, req.APIBase, req.Model, req.APIKey)
+		if txErr != nil {
+			return txErr
+		}
+		entry.TargetID = strconv.FormatInt(r.ID, 10)
+		return nil
+	}); err != nil {
+		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to create config") {
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
-		return
-	}
-	if !h.auditOrFail(c, "llm_config_create", "llm_config", strconv.FormatInt(r.ID, 10), map[string]any{"provider": req.ProviderType, "model": req.Model}) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"config": r})
@@ -538,15 +586,18 @@ func (h *AdminHandler) UpdateLLMConfig(c *gin.Context) {
 	delete(req, "id")
 	delete(req, "is_active")
 	delete(req, "api_key_enc")
-	if err := h.llmConfigSvc.UpdateConfig(id, req); err != nil {
+	entry := h.auditEntry(c, "llm_config_update", "llm_config", strconv.FormatInt(id, 10), map[string]any{"config_id": id})
+	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
+		return h.llmConfigSvc.UpdateConfigTx(tx, id, req)
+	}); err != nil {
+		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to update config") {
+			return
+		}
 		if err == service.ErrConfigNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"code": "CONFIG_NOT_FOUND", "message": "config not found"})
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
-		return
-	}
-	if !h.auditOrFail(c, "llm_config_update", "llm_config", strconv.FormatInt(id, 10), map[string]any{"config_id": id}) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "config updated"})
@@ -558,15 +609,18 @@ func (h *AdminHandler) DeleteLLMConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid config id"})
 		return
 	}
-	if err := h.llmConfigSvc.DeleteConfig(id); err != nil {
+	entry := h.auditEntry(c, "llm_config_delete", "llm_config", strconv.FormatInt(id, 10), map[string]any{"config_id": id})
+	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
+		return h.llmConfigSvc.DeleteConfigTx(tx, id)
+	}); err != nil {
+		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to delete config") {
+			return
+		}
 		if err == repository.ErrActiveConfigCannotDelete {
 			c.JSON(http.StatusConflict, gin.H{"code": "ACTIVE_CONFIG", "message": "cannot delete active config"})
 			return
 		}
 		c.JSON(http.StatusNotFound, gin.H{"code": "CONFIG_NOT_FOUND", "message": "config not found"})
-		return
-	}
-	if !h.auditOrFail(c, "llm_config_delete", "llm_config", strconv.FormatInt(id, 10), map[string]any{"config_id": id}) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "config deleted"})
@@ -578,11 +632,14 @@ func (h *AdminHandler) ActivateLLMConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid config id"})
 		return
 	}
-	if err := h.llmConfigSvc.ActivateConfig(id); err != nil {
+	entry := h.auditEntry(c, "llm_config_activate", "llm_config", strconv.FormatInt(id, 10), map[string]any{"config_id": id})
+	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
+		return h.llmConfigSvc.ActivateConfigTx(tx, id)
+	}); err != nil {
+		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to activate config") {
+			return
+		}
 		c.JSON(http.StatusNotFound, gin.H{"code": "CONFIG_NOT_FOUND", "message": "config not found"})
-		return
-	}
-	if !h.auditOrFail(c, "llm_config_activate", "llm_config", strconv.FormatInt(id, 10), map[string]any{"config_id": id}) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "config activated"})
@@ -633,8 +690,8 @@ func (h *AdminHandler) ResolveReport(c *gin.Context) {
 		return
 	}
 	var body struct {
-		Status       string `json:"status" binding:"required"`
-		ActionTaken  string `json:"action_taken"`
+		Status      string `json:"status" binding:"required"`
+		ActionTaken string `json:"action_taken"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "status is required"})
@@ -644,12 +701,17 @@ func (h *AdminHandler) ResolveReport(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "status must be resolved or dismissed"})
 		return
 	}
-	searchRepo := repository.NewSearchRepository(h.contentRepo.DB())
-	if err := searchRepo.UpdateReportStatus(id, body.Status, body.ActionTaken); err != nil {
+	entry := h.auditEntry(c, "report_resolve", "report", strconv.FormatInt(id, 10), map[string]any{"report_id": id, "decision": body.Status, "reason": body.ActionTaken})
+	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
+		return tx.Model(&model.Report{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"status":       body.Status,
+			"action_taken": body.ActionTaken,
+		}).Error
+	}); err != nil {
+		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to update report") {
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
-		return
-	}
-	if !h.auditOrFail(c, "report_resolve", "report", strconv.FormatInt(id, 10), map[string]any{"report_id": id, "decision": body.Status, "reason": body.ActionTaken}) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "report updated"})
@@ -681,8 +743,8 @@ func (h *AdminHandler) GetQueueStats(c *gin.Context) {
 
 	dlqCount, _ := queue.GetDLQStats(c.Request.Context(), h.rdb)
 	c.JSON(http.StatusOK, gin.H{
-		"topics":  stats,
-		"dlq_count": dlqCount,
+		"topics":        stats,
+		"dlq_count":     dlqCount,
 		"queue_enabled": h.cfg.Queue.Enabled,
 	})
 }
@@ -714,9 +776,17 @@ func (h *AdminHandler) auditOrFail(c *gin.Context, action, targetType, targetID 
 	if h.auditSvc == nil {
 		return true
 	}
-	adminID := middleware.GetUserID(c)
-	entry := service.RecordAdminAuditInput{
-		AdminUserID: adminID,
+	entry := h.auditEntry(c, action, targetType, targetID, metadata)
+	if err := h.auditSvc.Record(c.Request.Context(), entry); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+		return false
+	}
+	return true
+}
+
+func (h *AdminHandler) auditEntry(c *gin.Context, action, targetType, targetID string, metadata map[string]any) service.RecordAdminAuditInput {
+	return service.RecordAdminAuditInput{
+		AdminUserID: middleware.GetUserID(c),
 		Action:      action,
 		TargetType:  targetType,
 		TargetID:    targetID,
@@ -724,9 +794,31 @@ func (h *AdminHandler) auditOrFail(c *gin.Context, action, targetType, targetID 
 		Metadata:    metadata,
 		Result:      "success",
 	}
-	if err := h.auditSvc.Record(c.Request.Context(), entry); err != nil {
+}
+
+func (h *AdminHandler) withAuditTx(c *gin.Context, entry *service.RecordAdminAuditInput, mutate func(tx *gorm.DB) error) error {
+	db := h.contentRepo.DB()
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := mutate(tx); err != nil {
+			return err
+		}
+		if h.auditSvc == nil {
+			return nil
+		}
+		if err := h.auditSvc.RecordTx(c.Request.Context(), tx, *entry); err != nil {
+			return fmt.Errorf("%w: %v", errAdminAuditWriteFailed, err)
+		}
+		return nil
+	})
+}
+
+func (h *AdminHandler) respondAuditTxError(c *gin.Context, err error, status int, code, message string) bool {
+	if errors.Is(err, errAdminAuditWriteFailed) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+		return true
+	}
+	if status > 0 && code != "" && message != "" && !strings.Contains(err.Error(), "AUDIT_WRITE_FAILED") {
 		return false
 	}
-	return true
+	return false
 }

@@ -2632,3 +2632,23 @@
 ### Notes:
 - `go mod tidy` was attempted during initialization but repeatedly timed out or hit Go cache permission issues; Task 5 adds no Go dependencies and full backend gates passed with an explicit writable `GOCACHE`.
 - Subagent review was not spawned because the current tool contract only permits spawning when the user explicitly asks for sub-agents; performed local specification and code-quality self-review instead.
+
+## [2026-06-03] - Beta Repair Task 6: Admin audit transaction integrity
+
+### What was done:
+- Refactored sensitive admin DB mutations so success audit rows are written in the same transaction as the domain mutation.
+- Covered content ban, admin feedback patch, category creation, judge question creation, and LLM config creation with rollback-on-audit-failure regression tests.
+- Moved admin feedback notifications/emails to run after the DB mutation and audit transaction commits.
+- Added narrow transaction-aware repository/service variants for feedback and LLM config flows.
+- Updated category and judge admin audit rows to use `middleware.GetUserID(c)` and include `trace_id`.
+
+### Testing:
+- `go test ./internal/handler -run "TestAdminAudit|TestAdmin|TestCategory|TestJudge|TestFeedback" -v` PASS
+- `go test ./internal/service -run TestFilterMetadata -v` PASS
+- `go test ./...` PASS
+- `go vet ./...` PASS
+- `go build ./...` PASS
+
+### Notes:
+- External feedback notification/email side effects now occur after the local DB/audit transaction commits.
+- Existing unrelated `.agents/skills/ui-ux-pro-max/scripts/__pycache__/*.pyc` dirty files were left untouched and were not staged.

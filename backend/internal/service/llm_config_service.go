@@ -17,6 +17,8 @@ import (
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/repository"
+
+	"gorm.io/gorm"
 )
 
 var (
@@ -79,6 +81,16 @@ func (s *LLMConfigService) ListConfigs() ([]LLMConfigResponse, error) {
 }
 
 func (s *LLMConfigService) CreateConfig(name, providerType, apiBase, modelName, apiKey string) (*LLMConfigResponse, error) {
+	return s.createConfig(name, providerType, apiBase, modelName, apiKey)
+}
+
+func (s *LLMConfigService) CreateConfigTx(tx *gorm.DB, name, providerType, apiBase, modelName, apiKey string) (*LLMConfigResponse, error) {
+	txSvc := *s
+	txSvc.repo = s.repo.WithTx(tx)
+	return txSvc.createConfig(name, providerType, apiBase, modelName, apiKey)
+}
+
+func (s *LLMConfigService) createConfig(name, providerType, apiBase, modelName, apiKey string) (*LLMConfigResponse, error) {
 	apiKeyEnc, err := encryptLLMAPIKey(apiKey)
 	if err != nil {
 		return nil, err
@@ -99,6 +111,16 @@ func (s *LLMConfigService) CreateConfig(name, providerType, apiBase, modelName, 
 }
 
 func (s *LLMConfigService) UpdateConfig(id int64, updates map[string]interface{}) error {
+	return s.updateConfig(id, updates)
+}
+
+func (s *LLMConfigService) UpdateConfigTx(tx *gorm.DB, id int64, updates map[string]interface{}) error {
+	txSvc := *s
+	txSvc.repo = s.repo.WithTx(tx)
+	return txSvc.updateConfig(id, updates)
+}
+
+func (s *LLMConfigService) updateConfig(id int64, updates map[string]interface{}) error {
 	if _, err := s.repo.GetByID(id); err != nil {
 		return ErrConfigNotFound
 	}
@@ -118,6 +140,16 @@ func (s *LLMConfigService) UpdateConfig(id int64, updates map[string]interface{}
 }
 
 func (s *LLMConfigService) DeleteConfig(id int64) error {
+	return s.deleteConfig(id)
+}
+
+func (s *LLMConfigService) DeleteConfigTx(tx *gorm.DB, id int64) error {
+	txSvc := *s
+	txSvc.repo = s.repo.WithTx(tx)
+	return txSvc.deleteConfig(id)
+}
+
+func (s *LLMConfigService) deleteConfig(id int64) error {
 	if _, err := s.repo.GetByID(id); err != nil {
 		return ErrConfigNotFound
 	}
@@ -125,6 +157,19 @@ func (s *LLMConfigService) DeleteConfig(id int64) error {
 }
 
 func (s *LLMConfigService) ActivateConfig(id int64) error {
+	return s.activateConfig(id)
+}
+
+func (s *LLMConfigService) ActivateConfigTx(tx *gorm.DB, id int64) error {
+	txSvc := *s
+	txSvc.repo = s.repo.WithTx(tx)
+	if _, err := txSvc.repo.GetByID(id); err != nil {
+		return ErrConfigNotFound
+	}
+	return txSvc.repo.ActivateTx(id)
+}
+
+func (s *LLMConfigService) activateConfig(id int64) error {
 	if _, err := s.repo.GetByID(id); err != nil {
 		return ErrConfigNotFound
 	}

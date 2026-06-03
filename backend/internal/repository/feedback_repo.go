@@ -14,6 +14,10 @@ func NewFeedbackRepository(db *gorm.DB) *FeedbackRepository {
 	return &FeedbackRepository{db: db}
 }
 
+func (r *FeedbackRepository) WithTx(tx *gorm.DB) *FeedbackRepository {
+	return &FeedbackRepository{db: tx}
+}
+
 func (r *FeedbackRepository) CreateTicket(t *model.FeedbackTicket) error {
 	return r.db.Create(t).Error
 }

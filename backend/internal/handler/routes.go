@@ -314,7 +314,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 
 	adminHandler := NewAdminHandler(db, cfg, rdb, ctr.AdminAuditService)
 	adminHandler.SetNotificationService(notifSvc)
-	adminFeedbackHandler := NewAdminFeedbackHandler(ctr.FeedbackService, ctr.AdminAuditService)
+	adminFeedbackHandler := NewAdminFeedbackHandler(db, ctr.FeedbackService, ctr.AdminAuditService)
 	adminAuditHandler := NewAdminAuditHandler(ctr.AdminAuditService)
 	admin := v1.Group("/admin", authReq, middleware.AdminRequired())
 	{
