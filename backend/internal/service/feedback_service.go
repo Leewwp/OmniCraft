@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 var allowedDiagnosticKeys = map[string]struct{}{
@@ -348,6 +349,23 @@ type AdminPatchFeedbackInput struct {
 }
 
 func (s *FeedbackService) PatchTicket(ctx context.Context, ticketID int64, input AdminPatchFeedbackInput) (*model.FeedbackTicket, error) {
+	ticket, err := s.patchTicket(ctx, ticketID, input)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.NotifyPatchTicket(ctx, ticket, input); err != nil {
+		return nil, err
+	}
+	return ticket, nil
+}
+
+func (s *FeedbackService) PatchTicketTx(ctx context.Context, tx *gorm.DB, ticketID int64, input AdminPatchFeedbackInput) (*model.FeedbackTicket, error) {
+	txSvc := *s
+	txSvc.repo = s.repo.WithTx(tx)
+	return txSvc.patchTicket(ctx, ticketID, input)
+}
+
+func (s *FeedbackService) patchTicket(ctx context.Context, ticketID int64, input AdminPatchFeedbackInput) (*model.FeedbackTicket, error) {
 	ticket, err := s.repo.FindTicketByIDForAdmin(ticketID)
 	if err != nil {
 		return nil, err
@@ -386,12 +404,16 @@ func (s *FeedbackService) PatchTicket(ctx context.Context, ticketID int64, input
 	if err := s.repo.UpdateTicket(ticket); err != nil {
 		return nil, err
 	}
+	return ticket, nil
+}
+
+func (s *FeedbackService) NotifyPatchTicket(ctx context.Context, ticket *model.FeedbackTicket, input AdminPatchFeedbackInput) error {
 	if input.Status == "closed" || input.Status == "reopened" {
 		if err := s.notifyFeedbackUpdate(ctx, ticket, 0, "feedback_status", "Feedback status updated", fmt.Sprintf("Feedback ticket status changed to %s.", ticket.Status)); err != nil {
-			return nil, err
+			return err
 		}
 	}
-	return ticket, nil
+	return nil
 }
 
 type AdminReplyInput struct {
@@ -402,19 +424,36 @@ type AdminReplyInput struct {
 }
 
 func (s *FeedbackService) AdminReply(ctx context.Context, input AdminReplyInput) (*model.FeedbackReply, error) {
+	reply, ticket, err := s.adminReply(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.NotifyAdminReply(ctx, ticket, input); err != nil {
+		return nil, err
+	}
+	return reply, nil
+}
+
+func (s *FeedbackService) AdminReplyTx(ctx context.Context, tx *gorm.DB, input AdminReplyInput) (*model.FeedbackReply, *model.FeedbackTicket, error) {
+	txSvc := *s
+	txSvc.repo = s.repo.WithTx(tx)
+	return txSvc.adminReply(ctx, input)
+}
+
+func (s *FeedbackService) adminReply(ctx context.Context, input AdminReplyInput) (*model.FeedbackReply, *model.FeedbackTicket, error) {
 	if input.Body == "" {
-		return nil, errors.New("BODY_REQUIRED")
+		return nil, nil, errors.New("BODY_REQUIRED")
 	}
 	if len(input.Body) > 5000 {
-		return nil, errors.New("BODY_TOO_LONG")
+		return nil, nil, errors.New("BODY_TOO_LONG")
 	}
 
 	ticket, err := s.repo.FindTicketByIDForAdmin(input.TicketID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if ticket == nil {
-		return nil, errors.New("TICKET_NOT_FOUND")
+		return nil, nil, errors.New("TICKET_NOT_FOUND")
 	}
 
 	reply := &model.FeedbackReply{
@@ -425,14 +464,18 @@ func (s *FeedbackService) AdminReply(ctx context.Context, input AdminReplyInput)
 	}
 
 	if err := s.repo.CreateReply(reply); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	return reply, ticket, nil
+}
+
+func (s *FeedbackService) NotifyAdminReply(ctx context.Context, ticket *model.FeedbackTicket, input AdminReplyInput) error {
 	if !input.IsInternalNote {
 		if err := s.notifyFeedbackUpdate(ctx, ticket, input.AuthorAdminID, "feedback_reply", "Feedback reply received", input.Body); err != nil {
-			return nil, err
+			return err
 		}
 	}
-	return reply, nil
+	return nil
 }
 
 func (s *FeedbackService) notifyFeedbackUpdate(ctx context.Context, ticket *model.FeedbackTicket, senderID int64, notifType, subject, body string) error {

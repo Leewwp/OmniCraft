@@ -98,12 +98,12 @@ func (s *IPService) submitIPForAIReview(ip *model.IP, creatorID int64) {
 	if _, ok := s.queueProducer.(*queue.NoopProducer); !ok && s.queueProducer != nil {
 		recovery.GoSafe(func() {
 			payload, _ := json.Marshal(map[string]interface{}{
-				"action":       "submit_ai_review",
-				"target_type":  "ip",
-				"target_id":    ip.ID,
-				"title":        ip.Name,
-				"description":  ip.Description,
-				"author_id":    creatorID,
+				"action":      "submit_ai_review",
+				"target_type": "ip",
+				"target_id":   ip.ID,
+				"title":       ip.Name,
+				"description": ip.Description,
+				"author_id":   creatorID,
 			})
 			if err := s.queueProducer.Publish(context.Background(), "ip.review", payload); err != nil {
 				slog.Error("failed to publish ip.review message", "ip_id", ip.ID, "error", err)
@@ -213,6 +213,11 @@ func (s *IPService) BanIP(id int64) error {
 	s.invalidateIPCache(id)
 	s.invalidateIPListCache()
 	return nil
+}
+
+func (s *IPService) InvalidateIPCacheForAdmin(id int64) {
+	s.invalidateIPCache(id)
+	s.invalidateIPListCache()
 }
 
 func (s *IPService) invalidateIPCache(id int64) {

@@ -18,6 +18,10 @@ func NewLLMConfigRepository(db *gorm.DB) *LLMConfigRepository {
 	return &LLMConfigRepository{db: db}
 }
 
+func (r *LLMConfigRepository) WithTx(tx *gorm.DB) *LLMConfigRepository {
+	return &LLMConfigRepository{db: tx}
+}
+
 func (r *LLMConfigRepository) List() ([]model.LLMConfig, error) {
 	var configs []model.LLMConfig
 	err := r.db.Order("id ASC").Find(&configs).Error
@@ -61,6 +65,17 @@ func (r *LLMConfigRepository) Delete(id int64) error {
 	return r.db.Delete(&model.LLMConfig{}, id).Error
 }
 
+func (r *LLMConfigRepository) DeleteTx(id int64) error {
+	c, err := r.GetByID(id)
+	if err != nil {
+		return err
+	}
+	if c.IsActive {
+		return ErrActiveConfigCannotDelete
+	}
+	return r.db.Delete(&model.LLMConfig{}, id).Error
+}
+
 func (r *LLMConfigRepository) Activate(id int64) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&model.LLMConfig{}).Where("is_active = ?", true).Update("is_active", false).Error; err != nil {
@@ -68,4 +83,11 @@ func (r *LLMConfigRepository) Activate(id int64) error {
 		}
 		return tx.Model(&model.LLMConfig{}).Where("id = ?", id).Update("is_active", true).Error
 	})
+}
+
+func (r *LLMConfigRepository) ActivateTx(id int64) error {
+	if err := r.db.Model(&model.LLMConfig{}).Where("is_active = ?", true).Update("is_active", false).Error; err != nil {
+		return err
+	}
+	return r.db.Model(&model.LLMConfig{}).Where("id = ?", id).Update("is_active", true).Error
 }

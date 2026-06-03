@@ -21,6 +21,7 @@ type JudgeHandler struct {
 	judgeSvc  *service.JudgeService
 	judgeRepo *repository.JudgeRepository
 	auditSvc  *service.AdminAuditService
+	db        *gorm.DB
 }
 
 func NewJudgeHandler(db *gorm.DB, cfg *config.Config, auditSvc *service.AdminAuditService) *JudgeHandler {
@@ -30,6 +31,7 @@ func NewJudgeHandler(db *gorm.DB, cfg *config.Config, auditSvc *service.AdminAud
 		judgeSvc:  service.NewJudgeService(judgeRepo, reputSvc, cfg),
 		judgeRepo: judgeRepo,
 		auditSvc:  auditSvc,
+		db:        db,
 	}
 }
 
@@ -169,23 +171,36 @@ func (h *JudgeHandler) CreateQuestions(c *gin.Context) {
 		response.ValidationError(c, "invalid request parameters")
 		return
 	}
-	for i := range questions {
-		if err := h.judgeRepo.CreateQuestion(&questions[i]); err != nil {
-			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
-			return
-		}
-	}
-	if h.auditSvc != nil {
-		for _, q := range questions {
-			h.auditSvc.Record(c.Request.Context(), service.RecordAdminAuditInput{
-				AdminUserID: c.GetInt64("user_id"),
+	adminID := middleware.GetUserID(c)
+	traceID := c.GetString("trace_id")
+	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		for i := range questions {
+			if err := tx.Create(&questions[i]).Error; err != nil {
+				return err
+			}
+			if h.auditSvc == nil {
+				continue
+			}
+			if err := h.auditSvc.RecordTx(c.Request.Context(), tx, service.RecordAdminAuditInput{
+				AdminUserID: adminID,
 				Action:      "judge_question_create",
 				TargetType:  "judge_question",
-				TargetID:    strconv.FormatInt(q.ID, 10),
-				Metadata:    map[string]any{"question_id": q.ID, "content_type": q.ContentType},
+				TargetID:    strconv.FormatInt(questions[i].ID, 10),
+				TraceID:     traceID,
+				Metadata:    map[string]any{"question_id": questions[i].ID, "content_type": questions[i].ContentType},
 				Result:      "success",
-			})
+			}); err != nil {
+				return errAdminAuditWriteFailed
+			}
 		}
+		return nil
+	}); err != nil {
+		if err == errAdminAuditWriteFailed {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+			return
+		}
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"created": len(questions)})
 }

@@ -1,22 +1,26 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type AdminFeedbackHandler struct {
 	feedbackSvc *service.FeedbackService
 	auditSvc    *service.AdminAuditService
+	db          *gorm.DB
 }
 
-func NewAdminFeedbackHandler(feedbackSvc *service.FeedbackService, auditSvc *service.AdminAuditService) *AdminFeedbackHandler {
-	return &AdminFeedbackHandler{feedbackSvc: feedbackSvc, auditSvc: auditSvc}
+func NewAdminFeedbackHandler(db *gorm.DB, feedbackSvc *service.FeedbackService, auditSvc *service.AdminAuditService) *AdminFeedbackHandler {
+	return &AdminFeedbackHandler{db: db, feedbackSvc: feedbackSvc, auditSvc: auditSvc}
 }
 
 func (h *AdminFeedbackHandler) ListFeedback(c *gin.Context) {
@@ -95,8 +99,25 @@ func (h *AdminFeedbackHandler) PatchFeedback(c *gin.Context) {
 		AssigneeAdminID: req.AssigneeAdminID,
 	}
 
-	ticket, err := h.feedbackSvc.PatchTicket(c.Request.Context(), ticketID, input)
+	var ticket *model.FeedbackTicket
+	err = h.withAuditTx(c, service.RecordAdminAuditInput{
+		AdminUserID: middleware.GetUserID(c),
+		Action:      feedbackPatchAuditAction(req.Status),
+		TargetType:  "feedback_ticket",
+		TargetID:    strconv.FormatInt(ticketID, 10),
+		TraceID:     c.GetString("trace_id"),
+		Metadata:    feedbackPatchAuditMetadata(ticketID, req.Status, req.Priority, req.AssigneeAdminID),
+		Result:      "success",
+	}, func(tx *gorm.DB) error {
+		var txErr error
+		ticket, txErr = h.feedbackSvc.PatchTicketTx(c.Request.Context(), tx, ticketID, input)
+		return txErr
+	})
 	if err != nil {
+		if errors.Is(err, errAdminAuditWriteFailed) {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+			return
+		}
 		switch err.Error() {
 		case "TICKET_NOT_FOUND":
 			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "Feedback ticket not found"})
@@ -112,38 +133,13 @@ func (h *AdminFeedbackHandler) PatchFeedback(c *gin.Context) {
 		return
 	}
 
-	metadata := map[string]any{
-		"ticket_id": ticketID,
-	}
-	if req.Status != "" {
-		metadata["status"] = req.Status
-	}
-	if req.Priority != "" {
-		metadata["priority"] = req.Priority
-	}
-	action := "feedback_priority"
-	if req.Status != "" {
-		action = "feedback_close"
-		if req.Status == "reopened" {
-			action = "feedback_reopen"
-		}
-	}
-
-	if h.auditSvc != nil {
-		adminID := middleware.GetUserID(c)
-		entry := service.RecordAdminAuditInput{
-			AdminUserID: adminID,
-			Action:      action,
-			TargetType:  "feedback_ticket",
-			TargetID:    strconv.FormatInt(ticketID, 10),
-			TraceID:     c.GetString("trace_id"),
-			Metadata:    metadata,
-			Result:      "success",
-		}
-		if err := h.auditSvc.Record(c.Request.Context(), entry); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+	if err := h.feedbackSvc.NotifyPatchTicket(c.Request.Context(), ticket, input); err != nil {
+		if err.Error() == "FEEDBACK_NOTIFICATION_FAILED" {
+			c.JSON(http.StatusBadGateway, gin.H{"code": "FEEDBACK_NOTIFICATION_FAILED", "message": "Feedback update notification failed; please retry"})
 			return
 		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to update feedback ticket"})
+		return
 	}
 
 	c.JSON(http.StatusOK, ticket)
@@ -174,8 +170,29 @@ func (h *AdminFeedbackHandler) ReplyFeedback(c *gin.Context) {
 		IsInternalNote: req.IsInternalNote,
 	}
 
-	reply, err := h.feedbackSvc.AdminReply(c.Request.Context(), input)
+	var reply *model.FeedbackReply
+	var ticket *model.FeedbackTicket
+	err = h.withAuditTx(c, service.RecordAdminAuditInput{
+		AdminUserID: adminID,
+		Action:      "feedback_reply",
+		TargetType:  "feedback_ticket",
+		TargetID:    strconv.FormatInt(ticketID, 10),
+		TraceID:     c.GetString("trace_id"),
+		Metadata: map[string]any{
+			"ticket_id":        ticketID,
+			"is_internal_note": req.IsInternalNote,
+		},
+		Result: "success",
+	}, func(tx *gorm.DB) error {
+		var txErr error
+		reply, ticket, txErr = h.feedbackSvc.AdminReplyTx(c.Request.Context(), tx, input)
+		return txErr
+	})
 	if err != nil {
+		if errors.Is(err, errAdminAuditWriteFailed) {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+			return
+		}
 		switch err.Error() {
 		case "TICKET_NOT_FOUND":
 			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "Feedback ticket not found"})
@@ -191,24 +208,53 @@ func (h *AdminFeedbackHandler) ReplyFeedback(c *gin.Context) {
 		return
 	}
 
-	if h.auditSvc != nil {
-		entry := service.RecordAdminAuditInput{
-			AdminUserID: adminID,
-			Action:      "feedback_reply",
-			TargetType:  "feedback_ticket",
-			TargetID:    strconv.FormatInt(ticketID, 10),
-			TraceID:     c.GetString("trace_id"),
-			Metadata: map[string]any{
-				"ticket_id":        ticketID,
-				"is_internal_note": req.IsInternalNote,
-			},
-			Result: "success",
-		}
-		if err := h.auditSvc.Record(c.Request.Context(), entry); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
+	if err := h.feedbackSvc.NotifyAdminReply(c.Request.Context(), ticket, input); err != nil {
+		if err.Error() == "FEEDBACK_NOTIFICATION_FAILED" {
+			c.JSON(http.StatusBadGateway, gin.H{"code": "FEEDBACK_NOTIFICATION_FAILED", "message": "Feedback reply notification failed; please retry"})
 			return
 		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to create reply"})
+		return
 	}
 
 	c.JSON(http.StatusCreated, reply)
+}
+
+func (h *AdminFeedbackHandler) withAuditTx(c *gin.Context, entry service.RecordAdminAuditInput, mutate func(tx *gorm.DB) error) error {
+	return h.db.Transaction(func(tx *gorm.DB) error {
+		if err := mutate(tx); err != nil {
+			return err
+		}
+		if h.auditSvc == nil {
+			return nil
+		}
+		if err := h.auditSvc.RecordTx(c.Request.Context(), tx, entry); err != nil {
+			return errAdminAuditWriteFailed
+		}
+		return nil
+	})
+}
+
+func feedbackPatchAuditAction(status string) string {
+	if status == "" {
+		return "feedback_priority"
+	}
+	if status == "reopened" {
+		return "feedback_reopen"
+	}
+	return "feedback_close"
+}
+
+func feedbackPatchAuditMetadata(ticketID int64, status, priority string, assigneeID *int64) map[string]any {
+	metadata := map[string]any{"ticket_id": ticketID}
+	if status != "" {
+		metadata["status"] = status
+	}
+	if priority != "" {
+		metadata["priority"] = priority
+	}
+	if assigneeID != nil {
+		metadata["assignee_admin_id"] = *assigneeID
+	}
+	return metadata
 }
