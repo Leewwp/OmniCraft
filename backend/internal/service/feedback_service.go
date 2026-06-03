@@ -4,11 +4,15 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/captcha"
 	"omnicraft/backend/internal/repository"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -16,9 +20,9 @@ import (
 
 var allowedDiagnosticKeys = map[string]struct{}{
 	"app_version": {},
-	"platform":   {},
-	"route":      {},
-	"error_code": {},
+	"platform":    {},
+	"route":       {},
+	"error_code":  {},
 }
 
 var validCategories = map[string]bool{
@@ -32,6 +36,13 @@ type FeedbackService struct {
 	rdb             *redis.Client
 	captchaVerifier captcha.CaptchaVerifier
 	uploadGrantTTL  int
+	notificationSvc *NotificationService
+	mailSender      FeedbackMailSender
+	stagingDir      string
+}
+
+type FeedbackMailSender interface {
+	SendFeedbackUpdate(ctx context.Context, to, subject, body string) error
 }
 
 func NewFeedbackService(
@@ -47,18 +58,45 @@ func NewFeedbackService(
 		rdb:             rdb,
 		captchaVerifier: captchaVerifier,
 		uploadGrantTTL:  uploadGrantTTL,
+		stagingDir:      filepath.Join("data", "feedback-staging"),
+	}
+}
+
+func (s *FeedbackService) SetNotificationService(notificationSvc *NotificationService) {
+	s.notificationSvc = notificationSvc
+}
+
+func (s *FeedbackService) SetFeedbackMailSender(mailSender FeedbackMailSender) {
+	s.mailSender = mailSender
+}
+
+func (s *FeedbackService) SetAttachmentStagingDir(stagingDir string) {
+	if stagingDir != "" {
+		s.stagingDir = stagingDir
 	}
 }
 
 type SubmitTicketInput struct {
-	UserID             *int64
-	ContactEmail       string
-	Category           string
-	Title              string
-	Description        string
-	DiagnosticSummary  map[string]interface{}
-	CaptchaToken       string
-	AttachmentOSSKeys  []string
+	UserID            *int64
+	ContactEmail      string
+	Category          string
+	Title             string
+	Description       string
+	DiagnosticSummary map[string]interface{}
+	CaptchaToken      string
+	AttachmentOSSKeys []string
+	Attachments       []FeedbackAttachmentGrantInput
+}
+
+type FeedbackAttachmentGrantInput struct {
+	GrantID string `json:"grant_id"`
+	OSSKey  string `json:"oss_key"`
+}
+
+type feedbackUploadGrant struct {
+	OSSKey    string `json:"oss_key"`
+	MimeType  string `json:"mime_type"`
+	SizeBytes int64  `json:"size_bytes"`
 }
 
 func (s *FeedbackService) SubmitTicket(ctx context.Context, input SubmitTicketInput) (*model.FeedbackTicket, error) {
@@ -88,29 +126,46 @@ func (s *FeedbackService) SubmitTicket(ctx context.Context, input SubmitTicketIn
 
 	filteredDiag := filterDiagnostics(input.DiagnosticSummary)
 
+	if len(input.Attachments) == 0 && len(input.AttachmentOSSKeys) > 0 {
+		for _, ossKey := range input.AttachmentOSSKeys {
+			input.Attachments = append(input.Attachments, FeedbackAttachmentGrantInput{OSSKey: ossKey})
+		}
+	}
+
+	consumedAttachments := make([]feedbackUploadGrant, 0, len(input.Attachments))
+	for _, attachment := range input.Attachments {
+		grant, err := s.consumeAttachmentGrant(ctx, attachment)
+		if err != nil {
+			return nil, err
+		}
+		consumedAttachments = append(consumedAttachments, grant)
+	}
+
 	ticket := &model.FeedbackTicket{
-		UserID:             input.UserID,
-		ContactEmail:       input.ContactEmail,
-		Category:           input.Category,
-		Title:              input.Title,
-		Description:        input.Description,
-		DiagnosticSummary:  filteredDiag,
-		Status:             "open",
-		Priority:           "normal",
+		UserID:            input.UserID,
+		ContactEmail:      input.ContactEmail,
+		Category:          input.Category,
+		Title:             input.Title,
+		Description:       input.Description,
+		DiagnosticSummary: filteredDiag,
+		Status:            "open",
+		Priority:          "normal",
 	}
 
 	if err := s.repo.CreateTicket(ticket); err != nil {
 		return nil, err
 	}
 
-	for _, ossKey := range input.AttachmentOSSKeys {
-		att, err := s.repo.FindAttachmentByOSSKey(ossKey)
-		if err != nil || att == nil {
-			continue
+	for _, grant := range consumedAttachments {
+		att := &model.FeedbackAttachment{
+			TicketID:  ticket.ID,
+			OSSKey:    grant.OSSKey,
+			FileType:  "screenshot",
+			MimeType:  grant.MimeType,
+			SizeBytes: grant.SizeBytes,
 		}
-		att.TicketID = ticket.ID
 		if err := s.repo.CreateAttachment(att); err != nil {
-			continue
+			return nil, err
 		}
 	}
 
@@ -118,10 +173,10 @@ func (s *FeedbackService) SubmitTicket(ctx context.Context, input SubmitTicketIn
 }
 
 type PresignUploadInput struct {
-	UserID      *int64
-	FileName    string
-	MimeType    string
-	SizeBytes   int64
+	UserID       *int64
+	FileName     string
+	MimeType     string
+	SizeBytes    int64
 	CaptchaToken string
 }
 
@@ -148,24 +203,103 @@ func (s *FeedbackService) PresignUpload(ctx context.Context, input PresignUpload
 	grantID := generateFeedbackGrantID()
 	ossKey := fmt.Sprintf("feedback-staging/%s/%s", grantID, input.FileName)
 
-	grantKey := fmt.Sprintf("feedback:upload_grant:%s", grantID)
+	grantKey := feedbackUploadGrantKey(grantID)
 	if s.rdb != nil {
-		if err := s.rdb.Set(ctx, grantKey, ossKey, time.Duration(s.uploadGrantTTL)*time.Second).Err(); err != nil {
+		grant := feedbackUploadGrant{
+			OSSKey:    ossKey,
+			MimeType:  input.MimeType,
+			SizeBytes: input.SizeBytes,
+		}
+		grantJSON, err := json.Marshal(grant)
+		if err != nil {
+			return "", "", err
+		}
+		if err := s.rdb.Set(ctx, grantKey, grantJSON, time.Duration(s.uploadGrantTTL)*time.Second).Err(); err != nil {
 			return "", "", err
 		}
 	}
 
-	att := &model.FeedbackAttachment{
-		OSSKey:    ossKey,
-		FileType:  "screenshot",
-		MimeType:  input.MimeType,
-		SizeBytes: input.SizeBytes,
+	return grantID, ossKey, nil
+}
+
+func (s *FeedbackService) HasAttachmentGrant(ctx context.Context, grantID string) bool {
+	_, err := s.loadAttachmentGrant(ctx, grantID)
+	return err == nil
+}
+
+func (s *FeedbackService) StageAttachmentUpload(ctx context.Context, grantID string, body io.Reader) error {
+	grant, err := s.loadAttachmentGrant(ctx, grantID)
+	if err != nil {
+		return err
 	}
-	if err := s.repo.CreateAttachment(att); err != nil {
-		return "", "", err
+	if body == nil {
+		return errors.New("INVALID_ATTACHMENT_GRANT")
+	}
+	if err := os.MkdirAll(s.stagingDir, 0o755); err != nil {
+		return err
 	}
 
-	return grantID, ossKey, nil
+	stagingPath := filepath.Join(s.stagingDir, grantID+".bin")
+	file, err := os.Create(stagingPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	written, err := io.Copy(file, io.LimitReader(body, grant.SizeBytes+1))
+	if err != nil {
+		return err
+	}
+	if grant.SizeBytes >= 0 && written > grant.SizeBytes {
+		_ = file.Close()
+		_ = os.Remove(stagingPath)
+		return errors.New("FILE_TOO_LARGE")
+	}
+	return nil
+}
+
+func (s *FeedbackService) consumeAttachmentGrant(ctx context.Context, input FeedbackAttachmentGrantInput) (feedbackUploadGrant, error) {
+	if input.GrantID == "" || input.OSSKey == "" || s.rdb == nil {
+		return feedbackUploadGrant{}, errors.New("INVALID_ATTACHMENT_GRANT")
+	}
+
+	grantKey := feedbackUploadGrantKey(input.GrantID)
+	raw, err := s.rdb.GetDel(ctx, grantKey).Result()
+	if err != nil {
+		return feedbackUploadGrant{}, errors.New("INVALID_ATTACHMENT_GRANT")
+	}
+
+	var grant feedbackUploadGrant
+	if err := json.Unmarshal([]byte(raw), &grant); err != nil {
+		grant = feedbackUploadGrant{OSSKey: raw}
+	}
+	if grant.OSSKey != input.OSSKey {
+		return feedbackUploadGrant{}, errors.New("INVALID_ATTACHMENT_GRANT")
+	}
+	if grant.MimeType == "" {
+		grant.MimeType = "application/octet-stream"
+	}
+	return grant, nil
+}
+
+func (s *FeedbackService) loadAttachmentGrant(ctx context.Context, grantID string) (feedbackUploadGrant, error) {
+	if grantID == "" || s.rdb == nil {
+		return feedbackUploadGrant{}, errors.New("INVALID_ATTACHMENT_GRANT")
+	}
+
+	raw, err := s.rdb.Get(ctx, feedbackUploadGrantKey(grantID)).Result()
+	if err != nil {
+		return feedbackUploadGrant{}, errors.New("INVALID_ATTACHMENT_GRANT")
+	}
+
+	var grant feedbackUploadGrant
+	if err := json.Unmarshal([]byte(raw), &grant); err != nil {
+		grant = feedbackUploadGrant{OSSKey: raw}
+	}
+	if grant.OSSKey == "" {
+		return feedbackUploadGrant{}, errors.New("INVALID_ATTACHMENT_GRANT")
+	}
+	return grant, nil
 }
 
 func (s *FeedbackService) ListUserTickets(ctx context.Context, userID int64, page, pageSize int) ([]model.FeedbackTicket, int64, error) {
@@ -208,8 +342,8 @@ func (s *FeedbackService) GetTicketForAdmin(ctx context.Context, ticketID int64)
 }
 
 type AdminPatchFeedbackInput struct {
-	Status         string
-	Priority       string
+	Status          string
+	Priority        string
 	AssigneeAdminID *int64
 }
 
@@ -252,6 +386,11 @@ func (s *FeedbackService) PatchTicket(ctx context.Context, ticketID int64, input
 	if err := s.repo.UpdateTicket(ticket); err != nil {
 		return nil, err
 	}
+	if input.Status == "closed" || input.Status == "reopened" {
+		if err := s.notifyFeedbackUpdate(ctx, ticket, 0, "feedback_status", "Feedback status updated", fmt.Sprintf("Feedback ticket status changed to %s.", ticket.Status)); err != nil {
+			return nil, err
+		}
+	}
 	return ticket, nil
 }
 
@@ -288,7 +427,31 @@ func (s *FeedbackService) AdminReply(ctx context.Context, input AdminReplyInput)
 	if err := s.repo.CreateReply(reply); err != nil {
 		return nil, err
 	}
+	if !input.IsInternalNote {
+		if err := s.notifyFeedbackUpdate(ctx, ticket, input.AuthorAdminID, "feedback_reply", "Feedback reply received", input.Body); err != nil {
+			return nil, err
+		}
+	}
 	return reply, nil
+}
+
+func (s *FeedbackService) notifyFeedbackUpdate(ctx context.Context, ticket *model.FeedbackTicket, senderID int64, notifType, subject, body string) error {
+	if ticket == nil {
+		return nil
+	}
+	if ticket.UserID != nil && *ticket.UserID > 0 {
+		if s.notificationSvc != nil {
+			s.notificationSvc.Notify(*ticket.UserID, "system", notifType, subject, body, "feedback_ticket", ticket.ID, senderID)
+		}
+		return nil
+	}
+	if ticket.ContactEmail == "" || s.mailSender == nil {
+		return nil
+	}
+	if err := s.mailSender.SendFeedbackUpdate(ctx, ticket.ContactEmail, subject, body); err != nil {
+		return errors.New("FEEDBACK_NOTIFICATION_FAILED")
+	}
+	return nil
 }
 
 func (s *FeedbackService) CountOpenTickets(ctx context.Context) (int64, error) {
@@ -312,4 +475,8 @@ func generateFeedbackGrantID() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+func feedbackUploadGrantKey(grantID string) string {
+	return fmt.Sprintf("feedback:upload_grant:%s", grantID)
 }

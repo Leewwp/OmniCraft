@@ -239,6 +239,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	{
 		feedback.POST("", optAuth, feedbackHandler.SubmitTicket)
 		feedback.POST("/attachments/presign", optAuth, feedbackHandler.PresignUpload)
+		feedback.PUT("/attachments/staging/:grant_id", optAuth, feedbackHandler.StageUpload)
 		feedback.GET("/me", authReq, feedbackHandler.ListMyTickets)
 		feedback.GET("/:id", authReq, feedbackHandler.GetTicket)
 	}

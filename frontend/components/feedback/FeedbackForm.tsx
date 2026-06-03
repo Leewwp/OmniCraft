@@ -37,7 +37,7 @@ export default function FeedbackForm({ onSuccess }: FeedbackFormProps) {
   const [includeDiagnostics, setIncludeDiagnostics] = useState(false);
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotUploading, setScreenshotUploading] = useState(false);
-  const [screenshotKey, setScreenshotKey] = useState<string | null>(null);
+  const [screenshotGrant, setScreenshotGrant] = useState<{ grant_id: string; oss_key: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -56,7 +56,7 @@ export default function FeedbackForm({ onSuccess }: FeedbackFormProps) {
       return;
     }
     setScreenshotFile(file);
-    setScreenshotKey(null);
+    setScreenshotGrant(null);
     setError("");
 
     setScreenshotUploading(true);
@@ -66,15 +66,18 @@ export default function FeedbackForm({ onSuccess }: FeedbackFormProps) {
         mime_type: file.type,
         size_bytes: file.size,
         captcha_token: user ? undefined : captchaToken,
-      })) as { grant_id: string; oss_key: string };
+      })) as { grant_id: string; oss_key: string; upload_url: string };
 
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/${presignRes.oss_key}`, {
+      const uploadURL = presignRes.upload_url.startsWith("http")
+        ? presignRes.upload_url
+        : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}${presignRes.upload_url}`;
+      await fetch(uploadURL, {
         method: "PUT",
         body: file,
         headers: { "Content-Type": file.type },
       });
 
-      setScreenshotKey(presignRes.oss_key);
+      setScreenshotGrant({ grant_id: presignRes.grant_id, oss_key: presignRes.oss_key });
     } catch (e) {
       silentError(e, { component: "FeedbackForm", action: "handleScreenshotSelect" });
       setError(e instanceof ApiRequestError ? e.message : t("feedback.screenshotUploadFailed"));
@@ -121,7 +124,7 @@ export default function FeedbackForm({ onSuccess }: FeedbackFormProps) {
         diagnostic_summary: diagnosticSummary,
         captcha_token: user ? undefined : captchaToken,
         contact_email: user ? undefined : contactEmail.trim(),
-        attachment_oss_keys: screenshotKey ? [screenshotKey] : [],
+        attachment_grants: screenshotGrant ? [screenshotGrant] : [],
       };
 
       const res = (await api.post("/api/v1/feedback", payload)) as { id: number };
@@ -206,12 +209,12 @@ export default function FeedbackForm({ onSuccess }: FeedbackFormProps) {
               <span className="max-w-[200px] truncate">{screenshotFile.name}</span>
               {screenshotUploading ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-              ) : screenshotKey ? (
+              ) : screenshotGrant ? (
                 <span className="text-xs text-emerald-600">✓</span>
               ) : null}
               <button
                 type="button"
-                onClick={() => { setScreenshotFile(null); setScreenshotKey(null); }}
+                onClick={() => { setScreenshotFile(null); setScreenshotGrant(null); }}
                 className="text-muted-foreground hover:text-foreground"
               >
                 <X className="h-3.5 w-3.5" />

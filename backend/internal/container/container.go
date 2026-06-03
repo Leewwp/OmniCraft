@@ -114,10 +114,15 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.AuthService = service.NewAuthService(c.UserRepo, rdb, cfg)
 
 	var mailSender mail.MailSender
+	var feedbackMailSender service.FeedbackMailSender
 	if cfg.SMTP.Mode == "smtp" {
-		mailSender = mail.NewSMTPSender(cfg.SMTP)
+		sender := mail.NewSMTPSender(cfg.SMTP)
+		mailSender = sender
+		feedbackMailSender = sender
 	} else {
-		mailSender = mail.NewLoggerSender()
+		sender := mail.NewLoggerSender()
+		mailSender = sender
+		feedbackMailSender = sender
 	}
 
 	captchaVerifier := captcha.NewCaptchaVerifier(cfg.Captcha)
@@ -140,6 +145,8 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 		uploadGrantTTL = cfg.Feedback.UploadGrantTTLSec
 	}
 	c.FeedbackService = service.NewFeedbackService(c.FeedbackRepo, c.UserRepo, rdb, captchaVerifier, uploadGrantTTL)
+	c.FeedbackService.SetNotificationService(c.NotificationService)
+	c.FeedbackService.SetFeedbackMailSender(feedbackMailSender)
 	c.AdminAuditService = service.NewAdminAuditService(c.AdminAuditRepo, db)
 
 	// Wire recommendation into content service
