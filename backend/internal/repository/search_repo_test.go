@@ -147,6 +147,17 @@ func TestContentVisibilityScope_ExcludesHiddenContent(t *testing.T) {
 	}
 }
 
+func TestSearchSuggestionsDoesNotFilterTagsByMissingStatus(t *testing.T) {
+	data, err := os.ReadFile("search_repo.go")
+	if err != nil {
+		t.Fatalf("read search repo: %v", err)
+	}
+	sql := string(data)
+	if strings.Contains(sql, "FROM tags WHERE name ILIKE ? AND status") {
+		t.Fatal("SearchSuggestions must not filter tags by tags.status; the tags table has no status column")
+	}
+}
+
 func setupContentVisibilityTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
