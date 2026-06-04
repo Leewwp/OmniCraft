@@ -35,7 +35,7 @@ func (r *SearchRepository) SearchSuggestions(prefix string, limit int) ([]Search
 
 	rows, err := r.db.Raw(`
 		SELECT text, score FROM (
-			SELECT name AS text, usage_count AS score FROM tags WHERE name ILIKE ? AND status = 'active'
+			SELECT name AS text, usage_count AS score FROM tags WHERE name ILIKE ?
 			UNION ALL
 			SELECT ci.title AS text, ci.view_count AS score
 			FROM content_items ci

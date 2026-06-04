@@ -2652,3 +2652,71 @@
 ### Notes:
 - External feedback notification/email side effects now occur after the local DB/audit transaction commits.
 - Existing unrelated `.agents/skills/ui-ux-pro-max/scripts/__pycache__/*.pyc` dirty files were left untouched and were not staged.
+## [2026-06-03] - Beta repair Task 1: Auth, Captcha, Release Guard, And Cookie-Only Session
+
+### What was done:
+- Added fail-closed Redis blacklist handling for protected auth routes while preserving OptionalAuth anonymous downgrade behavior.
+- Added release-mode CORS hardening so localhost origins are injected only outside release mode.
+- Added publish-freeze Redis fail-closed behavior for publish-only interaction guards.
+- Injected CaptchaVerifier into AuthHandler and enforced captcha on register, forgot-password, resend-verification, and login after failure threshold.
+- Removed refresh-token JSON body fallback from refresh/logout so refresh sessions are cookie-only.
+- Added release startup validation and safe fallback behavior for unknown internal errors.
+
+### Testing:
+- `go test ./internal/middleware ./internal/handler ./internal/pkg/response ./config -v` PASS.
+- `go test ./...` PASS.
+- `go vet ./...` PASS.
+- `go build ./...` PASS.
+- `npm run lint` PASS.
+- `npm run build` PASS.
+
+### Notes:
+- This repair batch follows the 2026-06-03 web beta review repair plan and does not modify `task.json`.
+- Beta roadmap checkboxes were not updated because the repair plan explicitly says not to update roadmap checkboxes until maintainers decide how the repair batches map to Beta tracking.
+- Existing dirty `.agents/skills/ui-ux-pro-max/scripts/__pycache__/*.pyc` files were left untouched and are not part of this task.
+
+## [2026-06-03] - Beta repair Task 2: Verification Cache, Token Atomicity, Resend Cooldown, And Reset Auto-Login
+
+### What was done:
+- Added runtime status cache invalidation after successful email verification.
+- Added Redis Lua-based atomic consumption for email verification and password reset tokens.
+- Added explicit nil-Redis handling for verification/reset token flows.
+- Added reset-password auto-login by returning user ID from reset flow and issuing a cookie-backed refresh session plus JSON access token.
+- Added regression tests for cache invalidation, concurrent double-submit attempts, resend cooldown response, and reset session creation.
+
+### Testing:
+- `go test ./internal/service -run "TestVerification|TestResetPassword" -v` PASS.
+- `go test ./internal/handler -run "TestAuth|TestResend|TestReset" -v` PASS.
+- `go test ./...` PASS.
+- `go vet ./...` PASS.
+- `go build ./...` PASS.
+- `npm run lint` PASS.
+- `npm run build` PASS.
+
+### Notes:
+- `backend/internal/service/auth_service.go` was added to the Task 2 write set to provide a narrow `IssueTokenPairForUser` helper required by the reset auto-login contract.
+- Resend cooldown handler behavior was already implemented in Task 1; Task 2 adds explicit regression coverage for it.
+- Existing dirty `.agents/skills/ui-ux-pro-max/scripts/__pycache__/*.pyc` files were left untouched and are not part of this task.
+
+## [2026-06-04] - Beta Repair Validation Blocker Analysis And Search Suggestion Fix
+
+### What was done:
+- Analyzed the failed Task 7 repair validation before rerunning it and found the validation branch was missing Task 1 and Task 2 repair commits.
+- Cherry-picked the missing auth/session and verification lifecycle repair commits onto the validation-blocker repair branch.
+- Fixed `SearchSuggestions` so tag suggestions no longer query the nonexistent `tags.status` column.
+- Added a regression test that guards against reintroducing the invalid `tags.status` filter.
+
+### Testing:
+- `go test ./internal/repository -run "TestSearchSuggestionsDoesNotFilterTagsByMissingStatus|TestContentVisibility|TestUpdateReportStatus|TestWebBeta" -v` PASS.
+- `go test ./internal/handler -run "TestRegister|TestForgot|TestResend|TestRefresh|TestLogout|TestLoginCaptcha|TestAuth" -v` PASS.
+- `go test ./internal/service -run "TestVerify|TestReset|TestVerification" -v` PASS.
+- `go test ./...` PASS.
+- `go vet ./...` PASS.
+- `go build ./...` PASS.
+- `npm run lint` PASS.
+- `npm run build` PASS.
+
+### Notes:
+- The previous Task 7 captcha/session failures were branch-composition failures, not new auth regressions: the validation branch included Task 3-6 but not Task 1-2.
+- The previous admin report/schema failures also require applying `backend/migrations/053_web_beta_review_repairs.sql` to the existing local PostgreSQL volume before rerunning validation.
+- Existing dirty `.agents/skills/ui-ux-pro-max/scripts/__pycache__/*.pyc` files were left untouched and are not part of this task.
