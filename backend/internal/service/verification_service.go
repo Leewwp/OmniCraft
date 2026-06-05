@@ -27,6 +27,20 @@ var (
 	ErrUserNotFound     = errors.New("user not found")
 )
 
+var consumeTokenScript = redis.NewScript(`
+local user_id = redis.call("GET", KEYS[1])
+if not user_id then
+	return nil
+end
+local user_digest_key = ARGV[1] .. user_id
+local stored_digest = redis.call("GET", user_digest_key)
+if stored_digest ~= ARGV[2] then
+	return nil
+end
+redis.call("DEL", KEYS[1], user_digest_key)
+return user_id
+`)
+
 type VerificationService struct {
 	userRepo   *repository.UserRepository
 	rdb        *redis.Client
@@ -107,27 +121,10 @@ func (s *VerificationService) SendVerification(ctx context.Context, user *model.
 
 func (s *VerificationService) VerifyEmail(ctx context.Context, rawToken string) error {
 	digest := sha256Hex(rawToken)
-	digestKey := fmt.Sprintf("verify:email:%s", digest)
-
-	userID, err := s.rdb.Get(ctx, digestKey).Int64()
+	userID, err := s.consumeTokenAtomic(ctx, "verify:email", digest)
 	if err != nil {
-		return ErrInvalidToken
+		return err
 	}
-
-	userDigestKey := fmt.Sprintf("verify:email:user:%d", userID)
-	storedDigest, err := s.rdb.Get(ctx, userDigestKey).Result()
-	if err != nil {
-		return ErrInvalidToken
-	}
-
-	if !constantTimeEqual(storedDigest, digest) {
-		return ErrInvalidToken
-	}
-
-	pipe := s.rdb.Pipeline()
-	pipe.Del(ctx, digestKey)
-	pipe.Del(ctx, userDigestKey)
-	pipe.Exec(ctx)
 
 	now := time.Now()
 	if err := s.userRepo.UpdateFields(userID, map[string]interface{}{
@@ -135,6 +132,7 @@ func (s *VerificationService) VerifyEmail(ctx context.Context, rawToken string) 
 	}); err != nil {
 		return fmt.Errorf("failed to verify email: %w", err)
 	}
+	NewRuntimeStatusCache(s.rdb, s.cfg).Invalidate(userID)
 
 	return nil
 }
@@ -197,27 +195,10 @@ func (s *VerificationService) ResetPassword(ctx context.Context, rawToken, newPa
 	}
 
 	digest := sha256Hex(rawToken)
-	digestKey := fmt.Sprintf("reset:password:%s", digest)
-
-	userID, err := s.rdb.Get(ctx, digestKey).Int64()
+	userID, err := s.consumeTokenAtomic(ctx, "reset:password", digest)
 	if err != nil {
-		return 0, ErrInvalidToken
+		return 0, err
 	}
-
-	userDigestKey := fmt.Sprintf("reset:password:user:%d", userID)
-	storedDigest, err := s.rdb.Get(ctx, userDigestKey).Result()
-	if err != nil {
-		return 0, ErrInvalidToken
-	}
-
-	if !constantTimeEqual(storedDigest, digest) {
-		return 0, ErrInvalidToken
-	}
-
-	pipe := s.rdb.Pipeline()
-	pipe.Del(ctx, digestKey)
-	pipe.Del(ctx, userDigestKey)
-	pipe.Exec(ctx)
 
 	if err := s.userRepo.UpdateFields(userID, map[string]interface{}{
 		"password_hash": hashPassword(newPassword),
@@ -225,6 +206,19 @@ func (s *VerificationService) ResetPassword(ctx context.Context, rawToken, newPa
 		return 0, fmt.Errorf("failed to update password: %w", err)
 	}
 
+	return userID, nil
+}
+
+func (s *VerificationService) consumeTokenAtomic(ctx context.Context, prefix, digest string) (int64, error) {
+	if s.rdb == nil {
+		return 0, ErrInvalidToken
+	}
+	digestKey := fmt.Sprintf("%s:%s", prefix, digest)
+	userDigestKeyPrefix := fmt.Sprintf("%s:user:", prefix)
+	userID, err := consumeTokenScript.Run(ctx, s.rdb, []string{digestKey}, userDigestKeyPrefix, digest).Int64()
+	if err != nil {
+		return 0, ErrInvalidToken
+	}
 	return userID, nil
 }
 
