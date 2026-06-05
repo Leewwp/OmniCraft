@@ -48,7 +48,23 @@ func (noopMailSender) SendPasswordReset(context.Context, string, string) error {
 
 var _ mail.MailSender = noopMailSender{}
 
+type failingMailSender struct{}
+
+func (failingMailSender) SendVerification(context.Context, string, string) error {
+	return errors.New("smtp send failed")
+}
+
+func (failingMailSender) SendPasswordReset(context.Context, string, string) error {
+	return errors.New("smtp send failed")
+}
+
+var _ mail.MailSender = failingMailSender{}
+
 func setupAuthHandlerTest(t *testing.T, verifier *fakeCaptchaVerifier) (*gin.Engine, *gorm.DB, *redis.Client, *config.Config, *miniredis.Miniredis) {
+	return setupAuthHandlerTestWithMail(t, verifier, noopMailSender{})
+}
+
+func setupAuthHandlerTestWithMail(t *testing.T, verifier *fakeCaptchaVerifier, mailSender mail.MailSender) (*gin.Engine, *gorm.DB, *redis.Client, *config.Config, *miniredis.Miniredis) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
@@ -80,7 +96,7 @@ func setupAuthHandlerTest(t *testing.T, verifier *fakeCaptchaVerifier) (*gin.Eng
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	userRepo := repository.NewUserRepository(db)
 	authService := service.NewAuthService(userRepo, rdb, cfg)
-	verificationService := service.NewVerificationService(userRepo, rdb, noopMailSender{}, cfg)
+	verificationService := service.NewVerificationService(userRepo, rdb, mailSender, cfg)
 	authHandler := NewAuthHandler(authService, verificationService, userRepo, verifier, rdb, cfg)
 
 	r := gin.New()
@@ -128,6 +144,21 @@ func TestRegisterRequiresAndVerifiesCaptcha(t *testing.T) {
 	okRec := httptest.NewRecorder()
 	r.ServeHTTP(okRec, okReq)
 	require.Equal(t, http.StatusAccepted, okRec.Code)
+	require.Equal(t, []string{"captcha-ok"}, verifier.calls)
+}
+
+func TestRegisterReturnsServiceUnavailableWhenVerificationEmailFails(t *testing.T) {
+	verifier := &fakeCaptchaVerifier{}
+	r, _, _, _, mr := setupAuthHandlerTestWithMail(t, verifier, failingMailSender{})
+	defer mr.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"email":"mailfail@test.com","username":"mailfail","password":"password123","captcha_token":"captcha-ok"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	require.Contains(t, rec.Body.String(), "EMAIL_SEND_FAILED")
 	require.Equal(t, []string{"captcha-ok"}, verifier.calls)
 }
 
