@@ -152,6 +152,8 @@ Additional validation on `codex/beta/repair-validation-blockers`:
 
 - Added an explicit `features.creator_support_enabled: false` default in `backend/config.yaml`.
 - Added `TestDefaultConfigDeclaresCreatorSupportDisabled` to guard against silently relying on the Go zero value for this release flag.
+- Added `TestValidateReleaseRejectsDefaultJWTSecret`; release mode now rejects the default `dev-secret-change-in-production` JWT secret.
+- Added `TestSTSTokenJSONDoesNotExposeAccessKeySecret`; `STSToken.AccessKeySecret` now uses `json:"-"`.
 - Restored the `docs/review/web-beta-review-*`, review repair plan, and `e2e/` evidence files that had been dropped from the aggregate repair branch.
 - Confirmed local Docker already had healthy shared `omnicraft-postgres` and `omnicraft-redis` containers. `docker compose up -d postgres redis` from this worktree could not create duplicate fixed-name containers, so existing healthy services were used instead.
 - Confirmed migration repair schema exists in the local database: `reports.action_taken` and `feedback_tickets_status_check`.
@@ -165,6 +167,8 @@ Commands rerun:
 ```powershell
 cd backend
 go test ./config -run TestDefaultConfigDeclaresCreatorSupportDisabled -v
+go test ./config -run "TestValidateReleaseRejectsDefaultJWTSecret|TestValidateReleaseRejectsBypassCaptchaAndLoggerSMTP" -v
+go test ./internal/pkg/aliyun -run TestSTSTokenJSONDoesNotExposeAccessKeySecret -v
 go test ./...
 go vet ./...
 go build ./...
@@ -173,4 +177,4 @@ npm run build
 npm run lint
 ```
 
-All listed commands passed on 2026-06-05.
+All listed commands passed on 2026-06-05. The release secret scan was rerun; remaining matches are reviewed development placeholders, tests, redaction logic, ordinary refresh-cookie identifiers, frontend error logging, or deferred Tauri HMAC scope while desktop deployment remains disabled.

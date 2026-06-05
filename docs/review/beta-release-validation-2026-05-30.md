@@ -215,6 +215,8 @@ Additional 2026-06-05 checks:
 
 - `features.desktop_deploy_enabled=false`, `client.download_enabled=false`, and `features.payment_enabled=false` remain unchanged.
 - `features.creator_support_enabled=false` is now explicitly declared in `backend/config.yaml`.
+- Release startup validation now rejects the default `dev-secret-change-in-production` JWT secret in `server.mode=release`.
+- `STSToken.AccessKeySecret` now uses `json:"-"`, with regression coverage proving JSON output omits the secret field and value.
 - The aggregate repair branch restores the Web Beta review reports, repair plan, and E2E evidence files instead of deleting them.
 - `reports.action_taken` and `feedback_tickets_status_check` are present in the local validation database after migration 053.
 - Disposable local PostgreSQL migration replay passed for both an empty database and an upgrade path that applied `001` through `048` before `049` and later migrations.
@@ -224,6 +226,8 @@ Commands rerun:
 ```powershell
 cd backend
 go test ./config -run TestDefaultConfigDeclaresCreatorSupportDisabled -v
+go test ./config -run "TestValidateReleaseRejectsDefaultJWTSecret|TestValidateReleaseRejectsBypassCaptchaAndLoggerSMTP" -v
+go test ./internal/pkg/aliyun -run TestSTSTokenJSONDoesNotExposeAccessKeySecret -v
 go test ./...
 go vet ./...
 go build ./...
