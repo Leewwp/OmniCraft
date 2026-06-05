@@ -77,7 +77,7 @@ export default function RegisterPage() {
 
       if (data.verification_required) {
         const masked = email.replace(/^(.{2})(.*)(@.*)$/, (_, a, b, c) => a + "*".repeat(Math.min(b.length, 4)) + c);
-        router.push(`/verify-email/pending?email=${encodeURIComponent(masked)}`);
+        router.push(`/verify-email/pending?email=${encodeURIComponent(email)}&masked=${encodeURIComponent(masked)}`);
       } else {
         router.push("/login");
       }
