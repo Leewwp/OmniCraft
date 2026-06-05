@@ -82,14 +82,22 @@ func setupVerificationTest(t *testing.T) (*VerificationService, *fakeMailSender,
 	cfg := &config.Config{
 		Web: config.WebConfig{PublicBaseURL: "https://app.leeppp.online"},
 		Verification: config.VerificationConfig{
-			EmailTTLSec:       3600,
-			ResetTTLSec:       3600,
-			ResendCooldownSec: 60,
-			PasswordMinLength: 8,
+			EmailTTLSec:           3600,
+			ResetTTLSec:           3600,
+			ResendCooldownSec:     60,
+			PasswordMinLength:     8,
+			RegisterPendingTTLSec: 86400,
+		},
+		JWT: config.JWTConfig{
+			Secret:          "test-secret",
+			AccessTokenTTL:  120,
+			RefreshTokenTTL: 7,
 		},
 	}
 
+	authService := NewAuthService(userRepo, rdb, cfg)
 	svc := NewVerificationService(userRepo, rdb, fakeMail, cfg)
+	svc.SetAuthService(authService)
 	return svc, fakeMail, mr
 }
 

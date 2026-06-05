@@ -75,6 +75,7 @@ verification:
   resend_cooldown_sec: 60
   login_captcha_threshold: 3
   password_min_length: 8
+  register_pending_ttl_sec: 86400
 
 legal:
   current_terms_version: ""

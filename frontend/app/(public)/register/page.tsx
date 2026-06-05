@@ -88,6 +88,8 @@ export default function RegisterPage() {
           setErrors({ email: t("auth.errorEmailTaken") });
         } else if (err.code === "USERNAME_TAKEN") {
           setErrors({ username: t("auth.errorUsernameTaken") });
+        } else if (err.code === "EMAIL_SEND_FAILED") {
+          setErrors({ general: t("auth.errorEmailSendFailed") });
         } else if (err.code === "TERMS_VERSION_MISMATCH") {
           setErrors({ terms: t("auth.errorTermsVersionMismatch") });
         } else if (err.code === "PRIVACY_VERSION_MISMATCH") {

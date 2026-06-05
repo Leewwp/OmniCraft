@@ -31,6 +31,8 @@ type AuthHandler struct {
 }
 
 func NewAuthHandler(authService *service.AuthService, verificationService *service.VerificationService, userRepo *repository.UserRepository, captchaVerifier captcha.CaptchaVerifier, rdb *redis.Client, cfg *config.Config) *AuthHandler {
+	// Wire up the circular dependency: VerificationService needs AuthService for pending registration flow
+	verificationService.SetAuthService(authService)
 	return &AuthHandler{authService: authService, verificationService: verificationService, userRepo: userRepo, captchaVerifier: captchaVerifier, rdb: rdb, cfg: cfg}
 }
 
@@ -147,7 +149,8 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	user, err := h.authService.Register(input)
+	// Store registration data in Redis (NOT in DB yet)
+	regID, err := h.authService.RegisterPending(c.Request.Context(), input)
 	if err != nil {
 		if errors.Is(err, service.ErrUserAlreadyExists) {
 			c.JSON(http.StatusConflict, gin.H{"code": "USER_EXISTS", "message": "email already registered"})
@@ -161,18 +164,22 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	if err := h.verificationService.SendVerification(c.Request.Context(), user); err != nil {
-		slog.Error("failed to send verification email", "user_id", user.ID, "email", user.Email, "error", err)
+	// Send verification email for the pending registration
+	normalizedEmail := strings.ToLower(strings.TrimSpace(input.Email))
+	if err := h.verificationService.SendVerificationForPending(c.Request.Context(), regID, normalizedEmail); err != nil {
+		slog.Error("failed to send verification email", "reg_id", regID, "email", normalizedEmail, "error", err)
+		// Clean up pending registration since email failed
+		pending, _ := h.authService.GetPendingRegistration(c.Request.Context(), regID)
+		if pending != nil {
+			_ = h.authService.DeletePendingRegistration(c.Request.Context(), regID, pending)
+		}
 		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "EMAIL_SEND_FAILED", "message": "verification email could not be sent"})
 		return
 	}
 
 	c.JSON(http.StatusAccepted, gin.H{
-		"user": gin.H{
-			"id":       user.ID,
-			"email":    user.Email,
-			"username": user.Username,
-		},
+		"email":                  normalizedEmail,
+		"username":              input.Username,
 		"verification_required": true,
 	})
 }
@@ -201,6 +208,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		}
 		if errors.Is(err, service.ErrUserBanned) {
 			c.JSON(http.StatusForbidden, gin.H{"code": "USER_BANNED", "message": "account has been banned"})
+			return
+		}
+		if errors.Is(err, service.ErrEmailNotVerified) {
+			c.JSON(http.StatusForbidden, gin.H{"code": "EMAIL_NOT_VERIFIED", "message": "email verification required before login"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to login"})
@@ -383,6 +394,23 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 	}
 
 	normalized := strings.ToLower(strings.TrimSpace(body.Email))
+
+	// First check Redis for pending registration
+	regID, pending, err := h.authService.FindPendingByEmail(c.Request.Context(), normalized)
+	if err == nil && pending != nil {
+		if err := h.verificationService.SendVerificationForPending(c.Request.Context(), regID, pending.Email); err != nil {
+			if errors.Is(err, service.ErrResendCooldown) {
+				c.JSON(http.StatusTooManyRequests, gin.H{"code": "RESEND_COOLDOWN", "message": "please wait before requesting another verification email"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to send verification email"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "if the email exists and is unverified, a verification link has been sent"})
+		return
+	}
+
+	// Fall back to DB for legacy unverified users
 	user, err := h.userRepo.FindByEmail(normalized)
 	if err != nil || user == nil {
 		c.JSON(http.StatusOK, gin.H{"message": "if the email exists and is unverified, a verification link has been sent"})

@@ -97,12 +97,14 @@ func insertCookieTestUser(t *testing.T, db *gorm.DB, email, username, password s
 	if err != nil {
 		t.Fatalf("bcrypt: %v", err)
 	}
+	now := time.Now()
 	user := &model.User{
-		Email:        email,
-		Username:     username,
-		PasswordHash: string(hash),
-		Reputation:   10,
-		Role:         "user",
+		Email:           email,
+		Username:        username,
+		PasswordHash:    string(hash),
+		Reputation:      10,
+		Role:            "user",
+		EmailVerifiedAt: &now,
 	}
 	if err := db.Create(user).Error; err != nil {
 		t.Fatalf("create user: %v", err)

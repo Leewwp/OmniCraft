@@ -84,6 +84,7 @@ func setupAuthHandlerTestWithMail(t *testing.T, verifier *fakeCaptchaVerifier, m
 			ResendCooldownSec:     60,
 			LoginCaptchaThreshold: 3,
 			PasswordMinLength:     8,
+			RegisterPendingTTLSec: 86400,
 		},
 		Reputation: config.ReputationConfig{MinScoreForInteraction: 3},
 		Cache:      config.CacheConfig{UserStatusTTL: 300},
@@ -149,7 +150,7 @@ func TestRegisterRequiresAndVerifiesCaptcha(t *testing.T) {
 
 func TestRegisterReturnsServiceUnavailableWhenVerificationEmailFails(t *testing.T) {
 	verifier := &fakeCaptchaVerifier{}
-	r, _, _, _, mr := setupAuthHandlerTestWithMail(t, verifier, failingMailSender{})
+	r, db, _, _, mr := setupAuthHandlerTestWithMail(t, verifier, failingMailSender{})
 	defer mr.Close()
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"email":"mailfail@test.com","username":"mailfail","password":"password123","captcha_token":"captcha-ok"}`))
@@ -160,6 +161,85 @@ func TestRegisterReturnsServiceUnavailableWhenVerificationEmailFails(t *testing.
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 	require.Contains(t, rec.Body.String(), "EMAIL_SEND_FAILED")
 	require.Equal(t, []string{"captcha-ok"}, verifier.calls)
+
+	// Verify no user was created in DB when email send fails
+	var count int64
+	db.Model(&model.User{}).Where("email = ?", "mailfail@test.com").Count(&count)
+	require.Equal(t, int64(0), count, "no user should exist in DB when email send fails")
+}
+
+func TestRegisterDoesNotCreateUserInDBBeforeVerification(t *testing.T) {
+	verifier := &fakeCaptchaVerifier{}
+	r, db, _, _, mr := setupAuthHandlerTest(t, verifier)
+	defer mr.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"email":"pending@test.com","username":"pendinguser","password":"password123","captcha_token":"captcha-ok"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusAccepted, rec.Code)
+	require.Contains(t, rec.Body.String(), "verification_required")
+
+	// Verify no user was created in DB yet
+	var count int64
+	db.Model(&model.User{}).Where("email = ?", "pending@test.com").Count(&count)
+	require.Equal(t, int64(0), count, "user should NOT exist in DB before email verification")
+}
+
+func TestRegisterDuplicateEmailAfterFailedSend(t *testing.T) {
+	verifier := &fakeCaptchaVerifier{}
+	r, _, _, _, mr := setupAuthHandlerTestWithMail(t, verifier, failingMailSender{})
+	defer mr.Close()
+
+	// First attempt: email send fails, pending data is cleaned up
+	req1 := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"email":"retry@test.com","username":"retryuser","password":"password123","captcha_token":"captcha-ok"}`))
+	req1.Header.Set("Content-Type", "application/json")
+	rec1 := httptest.NewRecorder()
+	r.ServeHTTP(rec1, req1)
+	require.Equal(t, http.StatusServiceUnavailable, rec1.Code)
+
+	// Second attempt: should succeed (pending data was cleaned up)
+	// But email still fails, so we get 503 again - but NOT 409 USER_EXISTS
+	req2 := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"email":"retry@test.com","username":"retryuser","password":"password123","captcha_token":"captcha-ok"}`))
+	req2.Header.Set("Content-Type", "application/json")
+	rec2 := httptest.NewRecorder()
+	r.ServeHTTP(rec2, req2)
+	require.Equal(t, http.StatusServiceUnavailable, rec2.Code)
+	require.Contains(t, rec2.Body.String(), "EMAIL_SEND_FAILED")
+	require.NotContains(t, rec2.Body.String(), "USER_EXISTS")
+}
+
+func TestLoginBlocksUnverifiedUser(t *testing.T) {
+	verifier := &fakeCaptchaVerifier{}
+	r, db, _, _, mr := setupAuthHandlerTest(t, verifier)
+	defer mr.Close()
+
+	// Create an unverified user directly in DB (legacy scenario)
+	createAuthHandlerTestUser(t, db, "unverified@test.com", "password123", false)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"email":"unverified@test.com","password":"password123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Contains(t, rec.Body.String(), "EMAIL_NOT_VERIFIED")
+}
+
+func TestLoginSucceedsForVerifiedUser(t *testing.T) {
+	verifier := &fakeCaptchaVerifier{}
+	r, db, _, _, mr := setupAuthHandlerTest(t, verifier)
+	defer mr.Close()
+
+	createAuthHandlerTestUser(t, db, "verified@test.com", "password123", true)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"email":"verified@test.com","password":"password123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
 }
 
 func TestForgotPasswordRequiresAndVerifiesCaptcha(t *testing.T) {

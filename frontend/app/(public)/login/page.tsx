@@ -41,6 +41,8 @@ function LoginPageContent() {
           setError(t('auth.errorInvalidCredentials'));
         } else if (err.code === "USER_BANNED") {
           setError(t('auth.errorBanned'));
+        } else if (err.code === "EMAIL_NOT_VERIFIED") {
+          setError(t('auth.errorEmailNotVerified'));
         } else {
           setError(err.message || t('auth.errorLoginFailed'));
         }

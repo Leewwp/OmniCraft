@@ -185,11 +185,12 @@ type SMTPConfig struct {
 }
 
 type VerificationConfig struct {
-	EmailTTLSec         int `mapstructure:"email_ttl_sec"`
-	ResetTTLSec         int `mapstructure:"reset_ttl_sec"`
-	ResendCooldownSec   int `mapstructure:"resend_cooldown_sec"`
-	LoginCaptchaThreshold int `mapstructure:"login_captcha_threshold"`
-	PasswordMinLength   int `mapstructure:"password_min_length"`
+	EmailTTLSec             int `mapstructure:"email_ttl_sec"`
+	ResetTTLSec             int `mapstructure:"reset_ttl_sec"`
+	ResendCooldownSec       int `mapstructure:"resend_cooldown_sec"`
+	LoginCaptchaThreshold   int `mapstructure:"login_captcha_threshold"`
+	PasswordMinLength       int `mapstructure:"password_min_length"`
+	RegisterPendingTTLSec   int `mapstructure:"register_pending_ttl_sec"`
 }
 
 type LegalConfig struct {

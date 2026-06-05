@@ -68,6 +68,34 @@ func (r *UserRepository) UpdatePassword(userID int64, hashedPassword string) err
 	return r.db.Model(&model.User{}).Where("id = ?", userID).Update("password_hash", hashedPassword).Error
 }
 
+func (r *UserRepository) FindByEmailVerified(email string) (*model.User, error) {
+	var user model.User
+	err := r.db.Where("email = ? AND email_verified_at IS NOT NULL", email).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *UserRepository) FindByUsernameVerified(username string) (*model.User, error) {
+	var user model.User
+	err := r.db.Where("username = ? AND email_verified_at IS NOT NULL", username).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *UserRepository) HardDeleteUnverifiedUser(id int64) error {
+	return r.db.Unscoped().Where("id = ? AND email_verified_at IS NULL", id).Delete(&model.User{}).Error
+}
+
 func (r *UserRepository) DB() *gorm.DB {
 	return r.db
 }
