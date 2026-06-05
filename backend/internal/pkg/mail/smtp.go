@@ -2,10 +2,16 @@ package mail
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/smtp"
 
 	"omnicraft/backend/config"
+)
+
+var (
+	sendSMTPPlain       = smtp.SendMail
+	sendSMTPImplicitTLS = sendMailImplicitTLS
 )
 
 type SMTPSender struct {
@@ -51,5 +57,49 @@ func (s *SMTPSender) sendMail(to, subject, body string) error {
 	)
 
 	auth := smtp.PlainAuth("", s.user, s.password, s.host)
-	return smtp.SendMail(addr, auth, from, []string{to}, []byte(msg))
+	if s.port == 465 {
+		return sendSMTPImplicitTLS(addr, s.host, auth, from, []string{to}, []byte(msg))
+	}
+	return sendSMTPPlain(addr, auth, from, []string{to}, []byte(msg))
+}
+
+func sendMailImplicitTLS(addr, serverName string, auth smtp.Auth, from string, to []string, msg []byte) error {
+	conn, err := tls.Dial("tcp", addr, &tls.Config{ServerName: serverName, MinVersion: tls.VersionTLS12})
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	client, err := smtp.NewClient(conn, serverName)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	if auth != nil {
+		if err := client.Auth(auth); err != nil {
+			return err
+		}
+	}
+	if err := client.Mail(from); err != nil {
+		return err
+	}
+	for _, recipient := range to {
+		if err := client.Rcpt(recipient); err != nil {
+			return err
+		}
+	}
+
+	writer, err := client.Data()
+	if err != nil {
+		return err
+	}
+	if _, err := writer.Write(msg); err != nil {
+		_ = writer.Close()
+		return err
+	}
+	if err := writer.Close(); err != nil {
+		return err
+	}
+	return client.Quit()
 }
