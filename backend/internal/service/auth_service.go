@@ -40,12 +40,12 @@ func NewAuthService(userRepo *repository.UserRepository, rdb *redis.Client, cfg 
 }
 
 type RegisterInput struct {
-	Email                   string `json:"email" binding:"required,email"`
-	Username                string `json:"username" binding:"required,min=2,max=64"`
-	Password                string `json:"password" binding:"required,min=6,max=128"`
-	CaptchaToken            string `json:"captcha_token"`
-	AcceptedTermsVersion    string `json:"accepted_terms_version"`
-	AcceptedPrivacyVersion  string `json:"accepted_privacy_version"`
+	Email                  string `json:"email" binding:"required,email"`
+	Username               string `json:"username" binding:"required,min=2,max=64"`
+	Password               string `json:"password" binding:"required,min=6,max=128"`
+	CaptchaToken           string `json:"captcha_token"`
+	AcceptedTermsVersion   string `json:"accepted_terms_version"`
+	AcceptedPrivacyVersion string `json:"accepted_privacy_version"`
 }
 
 type LoginInput struct {
@@ -119,6 +119,15 @@ func (s *AuthService) Login(input LoginInput) (*model.User, *jwtutil.TokenPair, 
 		return nil, nil, ErrInvalidCredentials
 	}
 
+	tokens, err := s.IssueTokenPairForUser(user)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return user, tokens, nil
+}
+
+func (s *AuthService) IssueTokenPairForUser(user *model.User) (*jwtutil.TokenPair, error) {
 	tokens, err := jwtutil.GenerateTokenPair(
 		user.ID,
 		user.Role,
@@ -127,13 +136,13 @@ func (s *AuthService) Login(input LoginInput) (*model.User, *jwtutil.TokenPair, 
 		s.cfg.JWT.RefreshTokenTTL,
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate tokens: %w", err)
+		return nil, fmt.Errorf("failed to generate tokens: %w", err)
 	}
 	if err := s.storeRefreshToken(user.ID, tokens.RefreshToken); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return user, tokens, nil
+	return tokens, nil
 }
 
 func (s *AuthService) Logout(accessToken string) error {

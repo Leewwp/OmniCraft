@@ -76,10 +76,10 @@ func setupVerificationTest(t *testing.T) (*VerificationService, *fakeMailSender,
 	cfg := &config.Config{
 		Web: config.WebConfig{PublicBaseURL: "https://app.leeppp.online"},
 		Verification: config.VerificationConfig{
-			EmailTTLSec:         3600,
-			ResetTTLSec:         3600,
-			ResendCooldownSec:   60,
-			PasswordMinLength:   8,
+			EmailTTLSec:       3600,
+			ResetTTLSec:       3600,
+			ResendCooldownSec: 60,
+			PasswordMinLength: 8,
 		},
 	}
 
@@ -229,11 +229,11 @@ func TestResetPasswordSingleUse(t *testing.T) {
 	sent := fakeMail.getSent()
 	rawToken := extractTokenFromLink(sent[0], "token=")
 
-	if err := svc.ResetPassword(ctx, rawToken, "newpassword123"); err != nil {
+	if _, err := svc.ResetPassword(ctx, rawToken, "newpassword123"); err != nil {
 		t.Fatalf("ResetPassword first use: %v", err)
 	}
 
-	if err := svc.ResetPassword(ctx, rawToken, "anotherpass456"); err != ErrInvalidToken {
+	if _, err := svc.ResetPassword(ctx, rawToken, "anotherpass456"); err != ErrInvalidToken {
 		t.Errorf("second use: got %v, want ErrInvalidToken", err)
 	}
 }
@@ -249,7 +249,7 @@ func TestResetPasswordTooShort(t *testing.T) {
 	sent := fakeMail.getSent()
 	rawToken := extractTokenFromLink(sent[0], "token=")
 
-	if err := svc.ResetPassword(ctx, rawToken, "short"); err != ErrPasswordTooShort {
+	if _, err := svc.ResetPassword(ctx, rawToken, "short"); err != ErrPasswordTooShort {
 		t.Errorf("got %v, want ErrPasswordTooShort", err)
 	}
 }
@@ -266,11 +266,11 @@ func TestResetPasswordInvalidatesPreviousLink(t *testing.T) {
 	svc.SendPasswordReset(ctx, user.Email)
 	secondToken := extractTokenFromLink(fakeMail.getSent()[1], "token=")
 
-	if err := svc.ResetPassword(ctx, firstToken, "newpassword123"); err != ErrInvalidToken {
+	if _, err := svc.ResetPassword(ctx, firstToken, "newpassword123"); err != ErrInvalidToken {
 		t.Errorf("old reset token should be invalid: got %v", err)
 	}
 
-	if err := svc.ResetPassword(ctx, secondToken, "newpassword123"); err != nil {
+	if _, err := svc.ResetPassword(ctx, secondToken, "newpassword123"); err != nil {
 		t.Errorf("new reset token should work: %v", err)
 	}
 }

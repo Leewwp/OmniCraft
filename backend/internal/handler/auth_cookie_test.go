@@ -1,9 +1,13 @@
 package handler
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -78,6 +82,7 @@ func setupAuthCookieTestRouter(t *testing.T) (*gin.Engine, *config.Config, *gorm
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/logout", authHandler.Logout)
 			auth.POST("/refresh", authHandler.Refresh)
+			auth.POST("/reset-password", authHandler.ResetPassword)
 			auth.GET("/me", authReq, authHandler.Me)
 			auth.GET("/csrf", authHandler.CSRFToken)
 		}
@@ -278,6 +283,62 @@ func TestRefreshRejectsJSONBodyRefreshTokenWithoutCookie(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("refresh without cookie must reject JSON refresh_token, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestResetPasswordSetsSessionCookieAndAccessToken(t *testing.T) {
+	r, _, db, rdb, mr := setupAuthCookieTestRouter(t)
+	defer mr.Close()
+	user := insertCookieTestUser(t, db, "resetlogin@test.com", "resetloginuser", "password123")
+
+	rawToken := "reset-token-for-auto-login"
+	sum := sha256.Sum256([]byte(rawToken))
+	digest := hex.EncodeToString(sum[:])
+	ctx := context.Background()
+	if err := rdb.Set(ctx, "reset:password:"+digest, user.ID, 0).Err(); err != nil {
+		t.Fatalf("seed reset token: %v", err)
+	}
+	if err := rdb.Set(ctx, "reset:password:user:"+strconv.FormatInt(user.ID, 10), digest, 0).Err(); err != nil {
+		t.Fatalf("seed reset digest: %v", err)
+	}
+
+	csrfToken := fetchCSRFToken(t, r)
+	body := `{"token":"` + rawToken + `","new_password":"newpassword123"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/reset-password", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-CSRF-Token", csrfToken)
+	req.AddCookie(&http.Cookie{Name: "csrf-token", Value: csrfToken})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("reset password: expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	tokens, ok := resp["tokens"].(map[string]interface{})
+	if !ok {
+		t.Fatal("reset password response must include tokens object")
+	}
+	if _, has := tokens["access_token"]; !has {
+		t.Fatal("reset password response must include tokens.access_token")
+	}
+	if _, has := tokens["refresh_token"]; has {
+		t.Fatal("reset password response must not include refresh_token in JSON")
+	}
+
+	foundRefreshCookie := false
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "refresh_token" || c.Name == "__Host-refresh_token" {
+			foundRefreshCookie = true
+			if !c.HttpOnly {
+				t.Fatalf("reset password refresh cookie must be HttpOnly")
+			}
+		}
+	}
+	if !foundRefreshCookie {
+		t.Fatal("reset password must set refresh cookie")
 	}
 }
 
