@@ -15,7 +15,7 @@ import (
 
 type STSToken struct {
 	AccessKeyID     string `json:"access_key_id"`
-	AccessKeySecret string `json:"access_key_secret"`
+	AccessKeySecret string `json:"-"`
 	SecurityToken   string `json:"security_token"`
 	Expiration      string `json:"expiration"`
 }

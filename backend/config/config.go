@@ -28,7 +28,7 @@ type Config struct {
 	Limits         LimitsConfig         `mapstructure:"limits"`
 	Reputation     ReputationConfig     `mapstructure:"reputation"`
 	Judge          JudgeConfig          `mapstructure:"judge"`
-	Social         SocialConfig          `mapstructure:"social"`
+	Social         SocialConfig         `mapstructure:"social"`
 	Upload         UploadConfig         `mapstructure:"upload"`
 	Publish        PublishConfig        `mapstructure:"publish"`
 	Agent          AgentConfig          `mapstructure:"agent"`
@@ -45,9 +45,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port           string `mapstructure:"port"`
-	Mode           string `mapstructure:"mode"`
-	ShutdownTimeout int   `mapstructure:"shutdown_timeout"`
+	Port            string `mapstructure:"port"`
+	Mode            string `mapstructure:"mode"`
+	ShutdownTimeout int    `mapstructure:"shutdown_timeout"`
 }
 
 type SecurityConfig struct {
@@ -378,8 +378,8 @@ func (c *Config) SaveOverride(path string) error {
 	v.Set("reputation", c.Reputation)
 	v.Set("social", c.Social)
 	v.Set("agent", map[string]interface{}{
-		"web_agent_enabled":       c.Agent.WebAgentEnabled,
-		"rate_limit_per_day":      c.Agent.RateLimitPerDay,
+		"web_agent_enabled":         c.Agent.WebAgentEnabled,
+		"rate_limit_per_day":        c.Agent.RateLimitPerDay,
 		"upload_assist_max_file_mb": c.Agent.UploadAssistMaxFileMB,
 	})
 	v.Set("judge", c.Judge)
@@ -410,6 +410,9 @@ func (c *Config) ValidateRelease() error {
 	}
 	if c.SMTP.Mode == "logger" || c.SMTP.Mode == "" {
 		errs = append(errs, "smtp.mode must not be 'logger' in release mode; use 'smtp'")
+	}
+	if c.JWT.Secret == "" || c.JWT.Secret == "dev-secret-change-in-production" {
+		errs = append(errs, "jwt.secret must be a production secret in release mode")
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("release mode configuration error: %s", strings.Join(errs, "; "))
