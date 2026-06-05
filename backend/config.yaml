@@ -43,6 +43,7 @@ green:
 
 features:
   payment_enabled: false
+  creator_support_enabled: false
   desktop_deploy_enabled: false
 
 captcha:

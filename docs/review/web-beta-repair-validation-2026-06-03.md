@@ -145,3 +145,29 @@ The known Task 7 blockers from the failed validation pass have been resolved:
 - Existing local PostgreSQL schema was updated with migration 053.
 - Search suggestions no longer query `tags.status`.
 - Captcha/session, anonymous feedback, admin report audit, search, disabled deploy/payments, and browser rendering evidence all pass in the repaired branch.
+
+## 2026-06-05 Evidence Addendum
+
+Additional validation on `codex/beta/repair-validation-blockers`:
+
+- Added an explicit `features.creator_support_enabled: false` default in `backend/config.yaml`.
+- Added `TestDefaultConfigDeclaresCreatorSupportDisabled` to guard against silently relying on the Go zero value for this release flag.
+- Restored the `docs/review/web-beta-review-*`, review repair plan, and `e2e/` evidence files that had been dropped from the aggregate repair branch.
+- Confirmed local Docker already had healthy shared `omnicraft-postgres` and `omnicraft-redis` containers. `docker compose up -d postgres redis` from this worktree could not create duplicate fixed-name containers, so existing healthy services were used instead.
+- Confirmed migration repair schema exists in the local database: `reports.action_taken` and `feedback_tickets_status_check`.
+- Confirmed migrations `041_content_search_vector.sql` and `042_ips_search_vector.sql` include pg_jieba fallback behavior, and `053_web_beta_review_repairs.sql` is idempotent.
+
+Commands rerun:
+
+```powershell
+cd backend
+go test ./config -run TestDefaultConfigDeclaresCreatorSupportDisabled -v
+go test ./...
+go vet ./...
+go build ./...
+cd ..\frontend
+npm run build
+npm run lint
+```
+
+All listed commands passed on 2026-06-05.

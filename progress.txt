@@ -2743,3 +2743,25 @@
 - Task 7 does not update Beta roadmap checkboxes; the repair plan says maintainers must decide how repair batches map to Beta tracking.
 - Screenshots are normally ignored by `.gitignore`, so this task force-stages only the exact Task 7 evidence files.
 - Production deployment remains blocked on real SMTP, Alibaba CAPTCHA/OSS/Green credentials, HTTPS/origins, production secrets, and legal version inputs.
+
+## [2026-06-05] - Beta Repair Follow-up: Release Evidence Completeness And Creator Support Flag
+
+### What was done:
+- Added `features.creator_support_enabled: false` explicitly to `backend/config.yaml` while keeping desktop deploy, client download, and payment disabled.
+- Added `TestDefaultConfigDeclaresCreatorSupportDisabled` so release evidence does not rely on the Go zero value for creator support.
+- Restored Web Beta review reports, the review repair plan, and E2E evidence files that had been deleted from the aggregate repair branch.
+- Updated `docs/review/web-beta-repair-validation-2026-06-03.md` and `docs/review/beta-release-validation-2026-05-30.md` with 2026-06-05 validation results and remaining production-only blockers.
+
+### Testing:
+- `go test ./config -run TestDefaultConfigDeclaresCreatorSupportDisabled -v` failed before the config change, then passed after adding the explicit flag.
+- `go test ./...` PASS.
+- `go vet ./...` PASS.
+- `go build ./...` PASS.
+- `npm run build` PASS.
+- `npm run lint` PASS.
+- Migration spot-check: local PostgreSQL contains `reports.action_taken` and `feedback_tickets_status_check`; migrations 041/042 retain pg_jieba fallback and 053 is idempotent.
+
+### Notes:
+- `docker compose up -d postgres redis` from this worktree could not create duplicate fixed-name containers because healthy shared `omnicraft-postgres` and `omnicraft-redis` containers were already running; validation used those existing services.
+- Existing dirty `.agents/skills/ui-ux-pro-max/scripts/__pycache__/*.pyc` files were left untouched and are not part of this task.
+- Production deployment remains blocked on real SMTP, Alibaba CAPTCHA/OSS/Green credentials, HTTPS/origins, production secrets, and approved legal version inputs. Desktop one-click deployment, Tauri client distribution, and payment remain disabled.
