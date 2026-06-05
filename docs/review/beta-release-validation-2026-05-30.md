@@ -217,6 +217,7 @@ Additional 2026-06-05 checks:
 - `features.creator_support_enabled=false` is now explicitly declared in `backend/config.yaml`.
 - The aggregate repair branch restores the Web Beta review reports, repair plan, and E2E evidence files instead of deleting them.
 - `reports.action_taken` and `feedback_tickets_status_check` are present in the local validation database after migration 053.
+- Disposable local PostgreSQL migration replay passed for both an empty database and an upgrade path that applied `001` through `048` before `049` and later migrations.
 
 Commands rerun:
 

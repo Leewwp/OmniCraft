@@ -2760,6 +2760,7 @@
 - `npm run build` PASS.
 - `npm run lint` PASS.
 - Migration spot-check: local PostgreSQL contains `reports.action_taken` and `feedback_tickets_status_check`; migrations 041/042 retain pg_jieba fallback and 053 is idempotent.
+- Disposable local migration replay PASS: all migrations against an empty database, and upgrade path `001` through `048` followed by `049` and later migrations.
 
 ### Notes:
 - `docker compose up -d postgres redis` from this worktree could not create duplicate fixed-name containers because healthy shared `omnicraft-postgres` and `omnicraft-redis` containers were already running; validation used those existing services.

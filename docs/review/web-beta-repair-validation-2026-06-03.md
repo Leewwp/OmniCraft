@@ -156,6 +156,9 @@ Additional validation on `codex/beta/repair-validation-blockers`:
 - Confirmed local Docker already had healthy shared `omnicraft-postgres` and `omnicraft-redis` containers. `docker compose up -d postgres redis` from this worktree could not create duplicate fixed-name containers, so existing healthy services were used instead.
 - Confirmed migration repair schema exists in the local database: `reports.action_taken` and `feedback_tickets_status_check`.
 - Confirmed migrations `041_content_search_vector.sql` and `042_ips_search_vector.sql` include pg_jieba fallback behavior, and `053_web_beta_review_repairs.sql` is idempotent.
+- Replayed migrations against disposable local PostgreSQL databases:
+  - Empty database: all `backend/migrations/*.sql` in lexical order passed.
+  - Upgrade database: `001` through `048`, then `049` and later migrations in lexical order passed.
 
 Commands rerun:
 
