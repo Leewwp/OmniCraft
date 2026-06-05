@@ -2434,6 +2434,25 @@
 
 
 
+## [2026-06-05] - Task 1: Auth, Captcha, Release Guard, And Cookie-Only Session
+
+### What was done:
+- Hardened `AuthRequired` so Redis blacklist lookup failures return 503 `AUTH_STATUS_UNAVAILABLE`.
+- Wired `CaptchaVerifier` into `AuthHandler` and enforced captcha for register, forgot-password, resend verification, and login after the Redis-backed failure threshold.
+- Added release startup validation via `cfg.ValidateRelease()` and release-mode CORS no longer auto-allows localhost/127.0.0.1.
+- Removed JSON body refresh token fallbacks from refresh/logout, changed `SafeErrorMsg` fallback behavior, and made publish-freeze checks fail closed when Redis is unavailable.
+- Added regression tests for each Task 1 subproblem in middleware, handler, response, config, and server startup test files.
+
+### Testing:
+- `go test ./internal/middleware ./internal/handler ./internal/pkg/response ./config` - PASS
+- `go test ./...` - PASS
+- `go vet ./...` - PASS
+- `go build ./...` - PASS
+
+### Notes:
+- Mode A Task 1 code repair only; no roadmap checkbox was updated and `task.json` was not modified.
+- Desktop deploy, client download, and payment feature flags were not enabled.
+
 ## [2026-06-01] - Beta R-01 Supplement: Release validation report and missing endpoints
 
 ### What was done:

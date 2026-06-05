@@ -67,6 +67,7 @@ type ServiceContainer struct {
 	SearchService       *service.SearchService
 	FeedbackService     *service.FeedbackService
 	AdminAuditService   *service.AdminAuditService
+	CaptchaVerifier     captcha.CaptchaVerifier
 }
 
 func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceContainer {
@@ -120,9 +121,8 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	}
 
 	captchaVerifier := captcha.NewCaptchaVerifier(cfg.Captcha)
+	c.CaptchaVerifier = captchaVerifier
 	c.VerificationService = service.NewVerificationService(c.UserRepo, rdb, mailSender, cfg)
-
-	_ = captchaVerifier
 
 	c.IPService = service.NewIPService(c.IPRepo)
 	c.ReputationService = service.NewReputationService(db)
@@ -146,7 +146,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.RecommendationSvc = service.NewRecommendationService(db, c.EmbeddingRepo, c.ContentRepo, c.ContentService, rdb, &cfg.Recommendation)
 	c.ContentService.SetRecommendationService(c.RecommendationSvc)
 
-// Wire queue producer into services
+	// Wire queue producer into services
 	c.ContentService.SetQueueProducer(c.QueueProducer)
 	c.IPService.SetQueueProducer(c.QueueProducer)
 	c.NotificationService.SetQueueProducer(c.QueueProducer)
@@ -155,7 +155,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	provider := llm.NewProvider(cfg)
 	greenClient := aliyun.NewGreenClient(cfg.Green.AccessKeyID, cfg.Green.AccessKeySecret, cfg.Green.Region)
 	c.AgentService = service.NewAgentService(provider, c.EmbeddingRepo, c.ContentRepo, greenClient, db, cfg)
-c.AgentService.SetQueueProducer(c.QueueProducer)
+	c.AgentService.SetQueueProducer(c.QueueProducer)
 
 	// Wire notification service
 	c.SocialService.SetNotificationService(c.NotificationService)

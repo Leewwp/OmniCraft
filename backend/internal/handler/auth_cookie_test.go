@@ -18,9 +18,9 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	jwtutil "omnicraft/backend/internal/pkg/jwt"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
-	jwtutil "omnicraft/backend/internal/pkg/jwt"
 )
 
 func setupAuthCookieTestRouter(t *testing.T) (*gin.Engine, *config.Config, *gorm.DB, *redis.Client, *miniredis.Miniredis) {
@@ -66,7 +66,7 @@ func setupAuthCookieTestRouter(t *testing.T) (*gin.Engine, *config.Config, *gorm
 	userRepo := repository.NewUserRepository(db)
 	authService := service.NewAuthService(userRepo, rdb, cfg)
 	verificationService := service.NewVerificationService(userRepo, rdb, nil, cfg)
-	authHandler := NewAuthHandler(authService, verificationService, userRepo, rdb, cfg)
+	authHandler := NewAuthHandler(authService, verificationService, userRepo, nil, rdb, cfg)
 
 	authReq := middleware.AuthRequired(cfg, rdb, db)
 
@@ -239,6 +239,48 @@ func TestRefreshReadsCookieAndRotatesRefreshCookie(t *testing.T) {
 	}
 }
 
+func TestRefreshRejectsJSONBodyRefreshTokenWithoutCookie(t *testing.T) {
+	r, _, db, _, mr := setupAuthCookieTestRouter(t)
+	defer mr.Close()
+	insertCookieTestUser(t, db, "jsonrefresh@test.com", "jsonrefreshuser", "password123")
+
+	csrfToken := fetchCSRFToken(t, r)
+
+	loginBody := `{"email":"jsonrefresh@test.com","password":"password123"}`
+	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(loginBody))
+	loginReq.Header.Set("Content-Type", "application/json")
+	loginReq.Header.Set("X-CSRF-Token", csrfToken)
+	loginReq.AddCookie(&http.Cookie{Name: "csrf-token", Value: csrfToken})
+	loginW := httptest.NewRecorder()
+	r.ServeHTTP(loginW, loginReq)
+	if loginW.Code != http.StatusOK {
+		t.Fatalf("login: expected 200, got %d body=%s", loginW.Code, loginW.Body.String())
+	}
+
+	var refreshToken string
+	for _, c := range loginW.Result().Cookies() {
+		if c.Name == "refresh_token" || c.Name == "__Host-refresh_token" {
+			refreshToken = c.Value
+		}
+	}
+	if refreshToken == "" {
+		t.Fatal("login must set refresh cookie")
+	}
+
+	csrfToken2 := fetchCSRFToken(t, r)
+	refreshBody := `{"refresh_token":"` + refreshToken + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", strings.NewReader(refreshBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-CSRF-Token", csrfToken2)
+	req.AddCookie(&http.Cookie{Name: "csrf-token", Value: csrfToken2})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("refresh without cookie must reject JSON refresh_token, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestLogoutClearsRefreshCookie(t *testing.T) {
 	r, cfg, db, _, mr := setupAuthCookieTestRouter(t)
 	defer mr.Close()
@@ -274,6 +316,34 @@ func TestLogoutClearsRefreshCookie(t *testing.T) {
 	}
 	if !cleared {
 		t.Error("logout must clear the refresh cookie (set MaxAge < 0 or Expires in the past)")
+	}
+}
+
+func TestLogoutIgnoresJSONBodyRefreshToken(t *testing.T) {
+	r, cfg, db, _, mr := setupAuthCookieTestRouter(t)
+	defer mr.Close()
+	user := insertCookieTestUser(t, db, "bodylogout@test.com", "bodylogoutuser", "password123")
+
+	pair, err := jwtutil.GenerateTokenPair(user.ID, user.Role, cfg.JWT.Secret, 120, 7)
+	if err != nil {
+		t.Fatalf("generate token: %v", err)
+	}
+
+	csrfToken := fetchCSRFToken(t, r)
+	reqBody := `{"refresh_token":"` + pair.RefreshToken + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", strings.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-CSRF-Token", csrfToken)
+	req.AddCookie(&http.Cookie{Name: "csrf-token", Value: csrfToken})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("logout: expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	if mr.Exists("blacklist:token:" + pair.RefreshToken) {
+		t.Fatal("logout must not revoke a refresh token supplied only in the JSON body")
 	}
 }
 

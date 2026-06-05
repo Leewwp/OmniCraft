@@ -59,6 +59,11 @@ func AuthRequired(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.Han
 				c.Abort()
 				return
 			}
+			if redisErr != nil && redisErr != redis.Nil {
+				c.JSON(503, gin.H{"code": "AUTH_STATUS_UNAVAILABLE", "message": "account status is temporarily unavailable"})
+				c.Abort()
+				return
+			}
 		}
 
 		cache := service.NewRuntimeStatusCache(rdb, cfg)

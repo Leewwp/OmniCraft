@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -69,7 +70,13 @@ func InteractionRequired(cfg *config.Config, db *gorm.DB, rdb *redis.Client, pol
 		}
 
 		if policy.RequireNoPublishFreeze {
-			if isPublishFrozen(c, rdb, userID) {
+			frozen, freezeErr := isPublishFrozen(c, rdb, userID)
+			if freezeErr != nil {
+				c.JSON(http.StatusServiceUnavailable, gin.H{"code": "AUTH_STATUS_UNAVAILABLE", "message": "account status is temporarily unavailable"})
+				c.Abort()
+				return
+			}
+			if frozen {
 				c.JSON(http.StatusForbidden, gin.H{"code": "PUBLISH_FROZEN", "message": "publishing is temporarily frozen due to recent violations"})
 				c.Abort()
 				return
@@ -80,11 +87,17 @@ func InteractionRequired(cfg *config.Config, db *gorm.DB, rdb *redis.Client, pol
 	}
 }
 
-func isPublishFrozen(c *gin.Context, rdb *redis.Client, userID int64) bool {
+func isPublishFrozen(c *gin.Context, rdb *redis.Client, userID int64) (bool, error) {
 	if rdb == nil {
-		return false
+		return false, errors.New("redis unavailable")
 	}
 	key := fmt.Sprintf("user:publish_freeze:%d", userID)
 	_, err := rdb.Get(c.Request.Context(), key).Result()
-	return err == nil
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, redis.Nil) {
+		return false, nil
+	}
+	return false, err
 }
