@@ -202,3 +202,37 @@ Screenshots saved to `screenshots/r01_*.png`.
 **APPROVED for Web Beta release.**
 
 All prerequisite tasks complete, all engineering gates pass, no secret leaks, authorization matrix correct, feature flags properly disable desktop deploy and payment, and residual risks are documented and mitigated.
+
+---
+
+## 12. 2026-06-05 Repair Validation Addendum
+
+The 2026-06-03 review summary superseded the original local R-01 decision with `GO-WITH-BLOCKERS`.
+The blocker repair branch `codex/beta/repair-validation-blockers` now includes the code repairs and evidence in
+`docs/review/web-beta-repair-validation-2026-06-03.md`.
+
+Additional 2026-06-05 checks:
+
+- `features.desktop_deploy_enabled=false`, `client.download_enabled=false`, and `features.payment_enabled=false` remain unchanged.
+- `features.creator_support_enabled=false` is now explicitly declared in `backend/config.yaml`.
+- The aggregate repair branch restores the Web Beta review reports, repair plan, and E2E evidence files instead of deleting them.
+- `reports.action_taken` and `feedback_tickets_status_check` are present in the local validation database after migration 053.
+
+Commands rerun:
+
+```powershell
+cd backend
+go test ./config -run TestDefaultConfigDeclaresCreatorSupportDisabled -v
+go test ./...
+go vet ./...
+go build ./...
+cd ..\frontend
+npm run build
+npm run lint
+```
+
+Result: all listed commands passed.
+
+Production deployment remains blocked until real SMTP, Alibaba CAPTCHA/OSS/Green credentials, production PostgreSQL/Redis,
+HTTPS certificate, production allowed origins, strong JWT secret, and approved legal version inputs are provided.
+Desktop one-click deployment, Tauri client distribution, and payment remain disabled.
