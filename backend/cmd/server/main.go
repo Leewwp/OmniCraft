@@ -16,14 +16,18 @@ import (
 	"omnicraft/backend/internal/handler"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/database"
-	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/pkg/recovery"
+	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/pkg/scheduler"
 	"omnicraft/backend/internal/service"
 )
 
 func main() {
 	cfg := config.Load()
+	if err := cfg.ValidateRelease(); err != nil {
+		slog.Error("invalid release configuration", "error", err)
+		os.Exit(1)
+	}
 
 	gin.SetMode(cfg.Server.Mode)
 
@@ -82,7 +86,7 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-slog.Info("Shutting down server...")
+	slog.Info("Shutting down server...")
 
 	stopWorkers()
 

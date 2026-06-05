@@ -21,9 +21,11 @@ func CORS(cfg *config.Config) gin.HandlerFunc {
 		"http://127.0.0.1:3000",
 		"http://127.0.0.1:3001",
 	}
-	for _, v := range localhostVariants {
-		if !allowed[v] {
-			allowed[v] = true
+	if cfg.Server.Mode != "release" {
+		for _, v := range localhostVariants {
+			if !allowed[v] {
+				allowed[v] = true
+			}
 		}
 	}
 

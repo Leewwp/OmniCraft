@@ -1,15 +1,20 @@
 package handler
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/pkg/captcha"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -19,12 +24,13 @@ type AuthHandler struct {
 	authService         *service.AuthService
 	verificationService *service.VerificationService
 	userRepo            *repository.UserRepository
+	captchaVerifier     captcha.CaptchaVerifier
 	rdb                 *redis.Client
 	cfg                 *config.Config
 }
 
-func NewAuthHandler(authService *service.AuthService, verificationService *service.VerificationService, userRepo *repository.UserRepository, rdb *redis.Client, cfg *config.Config) *AuthHandler {
-	return &AuthHandler{authService: authService, verificationService: verificationService, userRepo: userRepo, rdb: rdb, cfg: cfg}
+func NewAuthHandler(authService *service.AuthService, verificationService *service.VerificationService, userRepo *repository.UserRepository, captchaVerifier captcha.CaptchaVerifier, rdb *redis.Client, cfg *config.Config) *AuthHandler {
+	return &AuthHandler{authService: authService, verificationService: verificationService, userRepo: userRepo, captchaVerifier: captchaVerifier, rdb: rdb, cfg: cfg}
 }
 
 func refreshCookieName(cfg *config.Config) string {
@@ -55,10 +61,79 @@ func clearRefreshCookie(c *gin.Context, cfg *config.Config) {
 	c.SetCookie(name, "", -1, "/", "", isSecure, true)
 }
 
+func (h *AuthHandler) verifyCaptcha(c *gin.Context, token string) bool {
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "CAPTCHA_REQUIRED", "message": "captcha verification required"})
+		return false
+	}
+	if h.captchaVerifier != nil {
+		if err := h.captchaVerifier.Verify(c.Request.Context(), token, c.ClientIP()); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": "CAPTCHA_FAILED", "message": "captcha verification failed"})
+			return false
+		}
+	}
+	return true
+}
+
+func (h *AuthHandler) loginCaptchaKey(email string) string {
+	normalized := strings.ToLower(strings.TrimSpace(email))
+	sum := sha256.Sum256([]byte(normalized))
+	return "captcha:login-failures:" + hex.EncodeToString(sum[:])
+}
+
+func (h *AuthHandler) loginCaptchaTTL() time.Duration {
+	ttl := time.Duration(h.cfg.Verification.ResendCooldownSec) * time.Second
+	if ttl <= 0 {
+		ttl = 15 * time.Minute
+	}
+	return ttl
+}
+
+func (h *AuthHandler) captchaRequiredForLogin(c *gin.Context, email string) (bool, bool) {
+	threshold := h.cfg.Verification.LoginCaptchaThreshold
+	if threshold <= 0 || h.rdb == nil {
+		return false, true
+	}
+	raw, err := h.rdb.Get(c.Request.Context(), h.loginCaptchaKey(email)).Result()
+	if err == redis.Nil {
+		return false, true
+	}
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "AUTH_STATUS_UNAVAILABLE", "message": "account status is temporarily unavailable"})
+		return false, false
+	}
+	failures, err := strconv.Atoi(raw)
+	if err != nil {
+		failures = 0
+	}
+	return failures >= threshold, true
+}
+
+func (h *AuthHandler) recordLoginFailure(c *gin.Context, email string) {
+	if h.rdb == nil {
+		return
+	}
+	key := h.loginCaptchaKey(email)
+	count := h.rdb.Incr(c.Request.Context(), key)
+	if count.Err() == nil {
+		h.rdb.Expire(c.Request.Context(), key, h.loginCaptchaTTL())
+	}
+}
+
+func (h *AuthHandler) clearLoginFailures(c *gin.Context, email string) {
+	if h.rdb == nil {
+		return
+	}
+	h.rdb.Del(c.Request.Context(), h.loginCaptchaKey(email))
+}
+
 func (h *AuthHandler) Register(c *gin.Context) {
 	var input service.RegisterInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.ValidationError(c, "invalid request parameters")
+		return
+	}
+	if !h.verifyCaptcha(c, input.CaptchaToken) {
 		return
 	}
 
@@ -104,9 +179,18 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	captchaRequired, ok := h.captchaRequiredForLogin(c, input.Email)
+	if !ok {
+		return
+	}
+	if captchaRequired && !h.verifyCaptcha(c, input.CaptchaToken) {
+		return
+	}
+
 	user, tokens, err := h.authService.Login(input)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
+			h.recordLoginFailure(c, input.Email)
 			c.JSON(http.StatusUnauthorized, gin.H{"code": "INVALID_CREDENTIALS", "message": "invalid email or password"})
 			return
 		}
@@ -118,6 +202,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	h.clearLoginFailures(c, input.Email)
 	setRefreshCookie(c, h.cfg, tokens.RefreshToken)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -144,13 +229,6 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		h.authService.Logout(cookieToken)
 	}
 
-	var body struct {
-		RefreshToken string `json:"refresh_token"`
-	}
-	if err := c.ShouldBindJSON(&body); err == nil && body.RefreshToken != "" {
-		h.authService.Logout(body.RefreshToken)
-	}
-
 	clearRefreshCookie(c, h.cfg)
 	c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
 }
@@ -159,14 +237,8 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	refreshToken, _ := c.Cookie(refreshCookieName(h.cfg))
 
 	if refreshToken == "" {
-		var body struct {
-			RefreshToken string `json:"refresh_token"`
-		}
-		if err := c.ShouldBindJSON(&body); err != nil || body.RefreshToken == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"code": "INVALID_TOKEN", "message": "missing refresh token"})
-			return
-		}
-		refreshToken = body.RefreshToken
+		c.JSON(http.StatusUnauthorized, gin.H{"code": "INVALID_TOKEN", "message": "missing refresh token"})
+		return
 	}
 
 	tokens, err := h.authService.RefreshToken(refreshToken)
@@ -215,6 +287,9 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "email required"})
+		return
+	}
+	if !h.verifyCaptcha(c, body.CaptchaToken) {
 		return
 	}
 
@@ -277,6 +352,9 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "email required"})
+		return
+	}
+	if !h.verifyCaptcha(c, body.CaptchaToken) {
 		return
 	}
 

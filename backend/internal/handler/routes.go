@@ -17,7 +17,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	db := ctr.DB
 	userRepo := ctr.UserRepo
 	authService := ctr.AuthService
-	authHandler := NewAuthHandler(authService, ctr.VerificationService, userRepo, rdb, cfg)
+	authHandler := NewAuthHandler(authService, ctr.VerificationService, userRepo, ctr.CaptchaVerifier, rdb, cfg)
 
 	notifSvc := ctr.NotificationService
 

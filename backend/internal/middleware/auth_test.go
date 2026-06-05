@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -103,6 +104,33 @@ func TestAuthRequiredRejectsWhenRedisAndDBCannotConfirmStatus(t *testing.T) {
 	var body map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &body)
 	assert.Equal(t, "AUTH_STATUS_UNAVAILABLE", body["code"])
+}
+
+func TestAuthRequiredFailsClosedWhenRedisBlacklistCheckFails(t *testing.T) {
+	cfg := makeTestConfig()
+	db := setupTestDB(t)
+	insertTestUser(db, 1, "user", false, true, 10, nil)
+	token := makeTestToken(cfg, 1, "user")
+	rdb := redis.NewClient(&redis.Options{
+		Addr:        "127.0.0.1:1",
+		DialTimeout: 10 * time.Millisecond,
+		ReadTimeout: 10 * time.Millisecond,
+	})
+	t.Cleanup(func() { _ = rdb.Close() })
+
+	r := setupTestRouter()
+	r.Use(AuthRequired(cfg, rdb, db))
+	r.GET("/test", func(c *gin.Context) {
+		c.JSON(200, gin.H{"ok": true})
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, 503, w.Code)
+	assert.Contains(t, w.Body.String(), "AUTH_STATUS_UNAVAILABLE")
 }
 
 func TestAuthRequiredUsesFreshDBRoleInsteadOfJWTClaim(t *testing.T) {

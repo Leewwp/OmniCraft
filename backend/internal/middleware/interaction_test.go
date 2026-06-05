@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 
@@ -82,6 +84,39 @@ func TestInteractionRequiredRejectsLowReputation(t *testing.T) {
 func TestInteractionRequiredRejectsPublishFreezeWhenPolicyRequiresIt(t *testing.T) {
 	_, db, cfg := setupInteractionTestEnv(t)
 	insertTestUser(db, 1, "user", false, true, 10, nil)
+	mr, err := miniredis.Run()
+	assert.NoError(t, err)
+	defer mr.Close()
+	mr.Set("user:publish_freeze:1", "1")
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer rdb.Close()
+
+	policy := InteractionPolicy{
+		RequireVerifiedEmail:   true,
+		RequireReputation:      true,
+		RequireNoPublishFreeze: true,
+	}
+
+	r := setupTestRouter()
+	r.Use(func(c *gin.Context) {
+		c.Set(UserIDKey, int64(1))
+		c.Next()
+	})
+	r.Use(InteractionRequired(cfg, db, rdb, policy))
+	r.POST("/test", func(c *gin.Context) {
+		c.JSON(200, gin.H{"ok": true})
+	})
+
+	req := httptest.NewRequest("POST", "/test", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, 403, w.Code)
+}
+
+func TestInteractionRequiredFailsClosedWhenPublishFreezeStatusUnavailable(t *testing.T) {
+	_, db, cfg := setupInteractionTestEnv(t)
+	insertTestUser(db, 1, "user", false, true, 10, nil)
 
 	policy := InteractionPolicy{
 		RequireVerifiedEmail:   true,
@@ -103,7 +138,10 @@ func TestInteractionRequiredRejectsPublishFreezeWhenPolicyRequiresIt(t *testing.
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	assert.True(t, w.Code == 200 || w.Code == 403)
+	assert.Equal(t, 503, w.Code)
+	var body map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &body)
+	assert.Equal(t, "AUTH_STATUS_UNAVAILABLE", body["code"])
 }
 
 func TestInteractionRequiredAllowsValidUser(t *testing.T) {
@@ -272,6 +310,11 @@ func TestInteractionRequiredZeroReputationIsNotSentinel(t *testing.T) {
 func TestInteractionPolicyTableDriven(t *testing.T) {
 	_, db, cfg := setupInteractionTestEnv(t)
 	insertTestUser(db, 1, "user", false, true, 10, nil)
+	mr, err := miniredis.Run()
+	assert.NoError(t, err)
+	defer mr.Close()
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer rdb.Close()
 
 	tests := []struct {
 		name     string
@@ -314,7 +357,7 @@ func TestInteractionPolicyTableDriven(t *testing.T) {
 				c.Set(UserIDKey, int64(1))
 				c.Next()
 			})
-			r.Use(InteractionRequired(cfg, db, nil, tt.policy))
+			r.Use(InteractionRequired(cfg, db, rdb, tt.policy))
 			r.POST("/test", func(c *gin.Context) {
 				c.JSON(200, gin.H{"ok": true})
 			})
