@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -69,6 +70,11 @@ func setupVerificationTest(t *testing.T) (*VerificationService, *fakeMailSender,
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("sqlite db handle: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
 	db.AutoMigrate(&model.User{})
 
 	userRepo := repository.NewUserRepository(db)
@@ -151,6 +157,55 @@ func TestVerifyEmailSingleUse(t *testing.T) {
 	if err := svc.VerifyEmail(ctx, rawToken); err != ErrInvalidToken {
 		t.Errorf("second use: got %v, want ErrInvalidToken", err)
 	}
+}
+
+func TestVerifyEmailInvalidatesRuntimeUserStatusCache(t *testing.T) {
+	svc, fakeMail, _ := setupVerificationTest(t)
+	userRepo := svc.userRepo
+	user := createTestUser(t, userRepo)
+
+	ctx := context.Background()
+	cache := NewRuntimeStatusCache(svc.rdb, svc.cfg)
+	cache.Set(user.ID, &RuntimeUserStatus{
+		ID:              user.ID,
+		Role:            user.Role,
+		IsBanned:        user.IsBanned,
+		EmailVerifiedAt: nil,
+		Reputation:      user.Reputation,
+	})
+	if _, ok := cache.Get(user.ID); !ok {
+		t.Fatal("expected runtime status cache to be populated before verification")
+	}
+
+	if err := svc.SendVerification(ctx, user); err != nil {
+		t.Fatalf("SendVerification: %v", err)
+	}
+	rawToken := extractTokenFromLink(fakeMail.getSent()[0], "token=")
+
+	if err := svc.VerifyEmail(ctx, rawToken); err != nil {
+		t.Fatalf("VerifyEmail: %v", err)
+	}
+
+	if _, ok := cache.Get(user.ID); ok {
+		t.Fatal("expected VerifyEmail to invalidate cached runtime user status")
+	}
+}
+
+func TestVerifyEmailConcurrentDoubleSubmitConsumesTokenOnce(t *testing.T) {
+	svc, fakeMail, _ := setupVerificationTest(t)
+	userRepo := svc.userRepo
+	user := createTestUser(t, userRepo)
+
+	ctx := context.Background()
+	if err := svc.SendVerification(ctx, user); err != nil {
+		t.Fatalf("SendVerification: %v", err)
+	}
+	rawToken := extractTokenFromLink(fakeMail.getSent()[0], "token=")
+	barrier := newRedisGetBarrier(fmt.Sprintf("verify:email:user:%d", user.ID))
+	svc.rdb.AddHook(barrier)
+
+	errs := runConcurrentVerifyEmail(ctx, svc, rawToken, barrier)
+	assertExactlyOneSuccessAndOneInvalidToken(t, errs)
 }
 
 func TestVerifyEmailInvalidatesPreviousLink(t *testing.T) {
@@ -236,6 +291,23 @@ func TestResetPasswordSingleUse(t *testing.T) {
 	if _, err := svc.ResetPassword(ctx, rawToken, "anotherpass456"); err != ErrInvalidToken {
 		t.Errorf("second use: got %v, want ErrInvalidToken", err)
 	}
+}
+
+func TestResetPasswordConcurrentDoubleSubmitConsumesTokenOnce(t *testing.T) {
+	svc, fakeMail, _ := setupVerificationTest(t)
+	userRepo := svc.userRepo
+	user := createTestUser(t, userRepo)
+
+	ctx := context.Background()
+	if err := svc.SendPasswordReset(ctx, user.Email); err != nil {
+		t.Fatalf("SendPasswordReset: %v", err)
+	}
+	rawToken := extractTokenFromLink(fakeMail.getSent()[0], "token=")
+	barrier := newRedisGetBarrier(fmt.Sprintf("reset:password:user:%d", user.ID))
+	svc.rdb.AddHook(barrier)
+
+	errs := runConcurrentResetPassword(ctx, svc, rawToken, barrier)
+	assertExactlyOneSuccessAndOneInvalidToken(t, errs)
 }
 
 func TestResetPasswordTooShort(t *testing.T) {
@@ -324,4 +396,130 @@ func extractTokenFromLink(link, param string) string {
 		return ""
 	}
 	return link[idx+len(param):]
+}
+
+type redisGetBarrier struct {
+	targetKey string
+	hits      chan struct{}
+	release   chan struct{}
+	once      sync.Once
+}
+
+func newRedisGetBarrier(targetKey string) *redisGetBarrier {
+	return &redisGetBarrier{
+		targetKey: targetKey,
+		hits:      make(chan struct{}, 2),
+		release:   make(chan struct{}),
+	}
+}
+
+func (b *redisGetBarrier) DialHook(next redis.DialHook) redis.DialHook {
+	return next
+}
+
+func (b *redisGetBarrier) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		err := next(ctx, cmd)
+		if err != nil || strings.ToLower(cmd.FullName()) != "get" || len(cmd.Args()) < 2 {
+			return err
+		}
+		if fmt.Sprint(cmd.Args()[1]) != b.targetKey {
+			return err
+		}
+		b.hits <- struct{}{}
+		<-b.release
+		return err
+	}
+}
+
+func (b *redisGetBarrier) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return next
+}
+
+func (b *redisGetBarrier) releaseWhenReadyOrDone(done <-chan struct{}) {
+	defer b.once.Do(func() { close(b.release) })
+	hits := 0
+	timer := time.NewTimer(200 * time.Millisecond)
+	defer timer.Stop()
+	for hits < 2 {
+		select {
+		case <-b.hits:
+			hits++
+		case <-done:
+			return
+		case <-timer.C:
+			return
+		}
+	}
+}
+
+func runConcurrentVerifyEmail(ctx context.Context, svc *VerificationService, rawToken string, barrier *redisGetBarrier) []error {
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	done := make(chan struct{})
+
+	wg.Add(2)
+	for i := range errs {
+		go func(i int) {
+			defer wg.Done()
+			errs[i] = svc.VerifyEmail(ctx, rawToken)
+		}(i)
+	}
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	barrier.releaseWhenReadyOrDone(done)
+	return waitForConcurrentResults(done, errs)
+}
+
+func runConcurrentResetPassword(ctx context.Context, svc *VerificationService, rawToken string, barrier *redisGetBarrier) []error {
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	done := make(chan struct{})
+
+	wg.Add(2)
+	for i := range errs {
+		go func(i int) {
+			defer wg.Done()
+			_, errs[i] = svc.ResetPassword(ctx, rawToken, fmt.Sprintf("newpassword%d", i+123))
+		}(i)
+	}
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	barrier.releaseWhenReadyOrDone(done)
+	return waitForConcurrentResults(done, errs)
+}
+
+func waitForConcurrentResults(done <-chan struct{}, errs []error) []error {
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		panic("concurrent token consumption test timed out")
+	}
+	return errs
+}
+
+func assertExactlyOneSuccessAndOneInvalidToken(t *testing.T, errs []error) {
+	t.Helper()
+	sort.Slice(errs, func(i, j int) bool {
+		return fmt.Sprint(errs[i]) < fmt.Sprint(errs[j])
+	})
+	successes := 0
+	invalids := 0
+	for _, err := range errs {
+		switch err {
+		case nil:
+			successes++
+		case ErrInvalidToken:
+			invalids++
+		default:
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	if successes != 1 || invalids != 1 {
+		t.Fatalf("got successes=%d invalid_tokens=%d, want exactly one each; errs=%v", successes, invalids, errs)
+	}
 }

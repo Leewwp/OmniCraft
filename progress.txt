@@ -2528,3 +2528,22 @@
 - CSRF fix ensures cookie and body tokens always match via Gin context
 - Release validation report: docs/review/beta-release-validation-2026-05-30.md
 - Release decision: APPROVED for Web Beta
+
+## [2026-06-05] - Task 2 Follow-up: Verification cache and token lifecycle
+
+### What was done:
+- Added failing-then-passing service regressions for VerifyEmail RuntimeUserStatus cache invalidation.
+- Added concurrent double-submit regressions for VerifyEmail and ResetPassword so exactly one request consumes a token and the other returns ErrInvalidToken.
+- Replaced verification/reset token read-then-delete flow with Redis Lua atomic consume logic that validates the digest key and per-user digest key before deleting both.
+- Invalidated RuntimeUserStatus cache after successful email verification updates email_verified_at.
+
+### Testing:
+- `go test ./internal/service -run "TestVerifyEmail|TestResetPassword" -v` - FAIL before implementation on new regressions, PASS after implementation.
+- `go test ./internal/handler -run "TestAuth|TestResend|TestReset" -v` - PASS.
+- `go test ./...` - PASS.
+- `go vet ./...` - PASS.
+- `go build ./...` - PASS.
+
+### Notes:
+- Mode A Web Beta repair Task 2 follow-up only; `task.json` was not modified and no roadmap checkbox was updated.
+- Desktop deploy, client download, and payment feature flags were not enabled.
