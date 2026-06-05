@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -160,7 +161,11 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	_ = h.verificationService.SendVerification(c.Request.Context(), user)
+	if err := h.verificationService.SendVerification(c.Request.Context(), user); err != nil {
+		slog.Error("failed to send verification email", "user_id", user.ID, "email", user.Email, "error", err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "EMAIL_SEND_FAILED", "message": "verification email could not be sent"})
+		return
+	}
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"user": gin.H{
