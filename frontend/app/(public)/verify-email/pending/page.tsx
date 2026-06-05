@@ -7,18 +7,15 @@ import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import CaptchaWidget from "@/components/verification/CaptchaWidget";
+import { Loader2 } from "lucide-react";
 
 function PendingContent() {
   const t = useTranslations();
   const searchParams = useSearchParams();
-  const maskedEmail = searchParams.get("email") || "";
+  const email = searchParams.get("email") || "";
+  const maskedEmail = searchParams.get("masked") || email;
 
-  const [email, setEmail] = useState("");
-  const [captchaToken, setCaptchaToken] = useState("");
-  const [cooldown, setCooldown] = useState(0);
+  const [cooldown, setCooldown] = useState(60);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -30,27 +27,34 @@ function PendingContent() {
   }, [cooldown]);
 
   const handleResend = useCallback(async () => {
-    const targetEmail = email.trim();
-    if (!targetEmail) {
+    if (!email) {
       setError(t("auth.errorEmailRequired"));
       return;
     }
     setError("");
+    setMessage("");
     setIsLoading(true);
     try {
       await api.post("/api/v1/auth/resend-verification", {
-        email: targetEmail,
-        captcha_token: captchaToken || undefined,
+        email,
       });
       setMessage(t("auth.verificationResent"));
       setCooldown(60);
     } catch (err) {
       silentError(err, { component: "VerifyEmailPending", action: "handleResend" });
-      setError(err instanceof ApiRequestError ? err.message : t("common.operationFailed"));
+      if (err instanceof ApiRequestError) {
+        if (err.code === "RESEND_COOLDOWN") {
+          setError(t("auth.errorResendCooldown"));
+        } else {
+          setError(err.message || t("common.operationFailed"));
+        }
+      } else {
+        setError(t("common.operationFailed"));
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [email, captchaToken, t]);
+  }, [email, t]);
 
   return (
     <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4 py-12">
@@ -66,20 +70,6 @@ function PendingContent() {
           <p className="mb-4 text-sm text-muted-foreground">{t("auth.verificationPendingHint")}</p>
 
           <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5 text-left">
-              <Label htmlFor="resend-email">{t("auth.resendToEmail")}</Label>
-              <Input
-                id="resend-email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-
-            <CaptchaWidget onToken={setCaptchaToken} />
-
             {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
             {message && <p className="text-sm text-primary">{message}</p>}
 
@@ -88,11 +78,13 @@ function PendingContent() {
               className="w-full"
               disabled={isLoading || cooldown > 0}
             >
-              {cooldown > 0
-                ? t("auth.resendCooldown", { seconds: cooldown })
-                : isLoading
-                  ? t("common.processing")
-                  : t("auth.resendVerification")}
+              {isLoading ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t("common.processing")}</>
+              ) : cooldown > 0 ? (
+                t("auth.resendCooldown", { seconds: cooldown })
+              ) : (
+                t("auth.resendVerification")
+              )}
             </Button>
           </div>
         </div>

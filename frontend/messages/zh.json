@@ -96,6 +96,7 @@
     "errorUsernameTaken": "该用户名已被占用",
     "errorEmailNotVerified": "邮箱未验证，请先验证邮箱后再登录",
     "errorEmailSendFailed": "验证邮件发送失败，请稍后重试",
+    "errorResendCooldown": "请求过于频繁，请稍后再试",
     "errorValidation": "请检查输入内容格式",
     "errorRegisterFailed": "注册失败，请稍后重试",
     "forgotPassword": "忘记密码",
