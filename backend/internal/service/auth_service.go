@@ -2,10 +2,13 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -23,7 +26,22 @@ var (
 	ErrInvalidCredentials = errors.New("invalid email or password")
 	ErrUserBanned         = errors.New("user is banned")
 	ErrTokenInvalid       = errors.New("token is invalid")
+	ErrEmailNotVerified   = errors.New("email not verified")
 )
+
+// PendingRegistration holds registration data stored in Redis before email verification.
+type PendingRegistration struct {
+	Email                  string `json:"email"`
+	Username               string `json:"username"`
+	PasswordHash           string `json:"password_hash"`
+	Reputation             int    `json:"reputation"`
+	Role                   string `json:"role"`
+	PreferredLocale        string `json:"preferred_locale"`
+	AcceptedTermsVersion   string `json:"accepted_terms_version,omitempty"`
+	AcceptedTermsAt        int64  `json:"accepted_terms_at,omitempty"`
+	AcceptedPrivacyVersion string `json:"accepted_privacy_version,omitempty"`
+	AcceptedPrivacyAt      int64  `json:"accepted_privacy_at,omitempty"`
+}
 
 type AuthService struct {
 	userRepo *repository.UserRepository
@@ -54,30 +72,48 @@ type LoginInput struct {
 	CaptchaToken string `json:"captcha_token"`
 }
 
-func (s *AuthService) Register(input RegisterInput) (*model.User, error) {
-	existingByEmail, err := s.userRepo.FindByEmail(input.Email)
+// RegisterPending stores registration data in Redis and returns a registration ID.
+// The user is NOT created in the database until email verification succeeds.
+func (s *AuthService) RegisterPending(ctx context.Context, input RegisterInput) (string, error) {
+	normalizedEmail := normalizeEmail(input.Email)
+	lowerUsername := strings.ToLower(input.Username)
+
+	// Check DB: only verified users occupy email/username
+	existingByEmail, err := s.userRepo.FindByEmailVerified(normalizedEmail)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	if existingByEmail != nil {
-		return nil, ErrUserAlreadyExists
+		return "", ErrUserAlreadyExists
 	}
 
-	existingByUsername, err := s.userRepo.FindByUsername(input.Username)
+	existingByUsername, err := s.userRepo.FindByUsernameVerified(lowerUsername)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	if existingByUsername != nil {
-		return nil, ErrUsernameTaken
+		return "", ErrUsernameTaken
+	}
+
+	// Check Redis: pending registrations also occupy email/username
+	if s.redis != nil {
+		emailKey := fmt.Sprintf("register:email:%s", sha256Hex(normalizedEmail))
+		if exists, _ := s.redis.Exists(ctx, emailKey).Result(); exists == 1 {
+			return "", ErrUserAlreadyExists
+		}
+		usernameKey := fmt.Sprintf("register:username:%s", sha256Hex(lowerUsername))
+		if exists, _ := s.redis.Exists(ctx, usernameKey).Result(); exists == 1 {
+			return "", ErrUsernameTaken
+		}
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, fmt.Errorf("failed to hash password: %w", err)
+		return "", fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	user := &model.User{
-		Email:                  input.Email,
+	pending := &PendingRegistration{
+		Email:                  normalizedEmail,
 		Username:               input.Username,
 		PasswordHash:           string(hash),
 		Reputation:             10,
@@ -86,14 +122,144 @@ func (s *AuthService) Register(input RegisterInput) (*model.User, error) {
 		AcceptedTermsVersion:   input.AcceptedTermsVersion,
 		AcceptedPrivacyVersion: input.AcceptedPrivacyVersion,
 	}
-
 	if input.AcceptedTermsVersion != "" {
-		now := time.Now()
-		user.AcceptedTermsAt = &now
+		pending.AcceptedTermsAt = time.Now().Unix()
 	}
 	if input.AcceptedPrivacyVersion != "" {
-		now := time.Now()
-		user.AcceptedPrivacyAt = &now
+		pending.AcceptedPrivacyAt = time.Now().Unix()
+	}
+
+	// Generate registration ID
+	regIDBytes := make([]byte, 16)
+	if _, err := rand.Read(regIDBytes); err != nil {
+		return "", fmt.Errorf("failed to generate registration ID: %w", err)
+	}
+	regID := hex.EncodeToString(regIDBytes)
+
+	if err := s.storePendingRegistration(ctx, regID, pending); err != nil {
+		return "", err
+	}
+
+	return regID, nil
+}
+
+// storePendingRegistration stores the pending registration data and email/username mappings in Redis.
+func (s *AuthService) storePendingRegistration(ctx context.Context, regID string, pending *PendingRegistration) error {
+	if s.redis == nil {
+		return fmt.Errorf("redis is required for pending registration")
+	}
+
+	ttlSec := s.cfg.Verification.RegisterPendingTTLSec
+	if ttlSec <= 0 {
+		ttlSec = 86400
+	}
+	ttl := time.Duration(ttlSec) * time.Second
+
+	data, err := json.Marshal(pending)
+	if err != nil {
+		return fmt.Errorf("failed to marshal pending registration: %w", err)
+	}
+
+	pendingKey := fmt.Sprintf("register:pending:%s", regID)
+	emailKey := fmt.Sprintf("register:email:%s", sha256Hex(pending.Email))
+	usernameKey := fmt.Sprintf("register:username:%s", sha256Hex(strings.ToLower(pending.Username)))
+
+	pipe := s.redis.Pipeline()
+	pipe.Set(ctx, pendingKey, data, ttl)
+	pipe.Set(ctx, emailKey, regID, ttl)
+	pipe.Set(ctx, usernameKey, regID, ttl)
+	if _, err := pipe.Exec(ctx); err != nil {
+		return fmt.Errorf("failed to store pending registration: %w", err)
+	}
+
+	return nil
+}
+
+// GetPendingRegistration retrieves pending registration data from Redis.
+func (s *AuthService) GetPendingRegistration(ctx context.Context, regID string) (*PendingRegistration, error) {
+	if s.redis == nil {
+		return nil, fmt.Errorf("redis is required for pending registration")
+	}
+
+	pendingKey := fmt.Sprintf("register:pending:%s", regID)
+	data, err := s.redis.Get(ctx, pendingKey).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var pending PendingRegistration
+	if err := json.Unmarshal(data, &pending); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal pending registration: %w", err)
+	}
+
+	return &pending, nil
+}
+
+// DeletePendingRegistration removes pending registration data and email/username mappings from Redis.
+func (s *AuthService) DeletePendingRegistration(ctx context.Context, regID string, pending *PendingRegistration) error {
+	if s.redis == nil {
+		return nil
+	}
+
+	pendingKey := fmt.Sprintf("register:pending:%s", regID)
+	emailKey := fmt.Sprintf("register:email:%s", sha256Hex(pending.Email))
+	usernameKey := fmt.Sprintf("register:username:%s", sha256Hex(strings.ToLower(pending.Username)))
+
+	return s.redis.Del(ctx, pendingKey, emailKey, usernameKey).Err()
+}
+
+// FindPendingByEmail looks up a pending registration by email in Redis.
+func (s *AuthService) FindPendingByEmail(ctx context.Context, email string) (string, *PendingRegistration, error) {
+	if s.redis == nil {
+		return "", nil, nil
+	}
+
+	normalizedEmail := normalizeEmail(email)
+	emailKey := fmt.Sprintf("register:email:%s", sha256Hex(normalizedEmail))
+	regID, err := s.redis.Get(ctx, emailKey).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return "", nil, nil
+		}
+		return "", nil, err
+	}
+
+	pending, err := s.GetPendingRegistration(ctx, regID)
+	if err != nil {
+		return "", nil, err
+	}
+	if pending == nil {
+		return "", nil, nil
+	}
+
+	return regID, pending, nil
+}
+
+// CreateUserFromPending creates a verified user in DB from pending registration data.
+func (s *AuthService) CreateUserFromPending(pending *PendingRegistration) (*model.User, error) {
+	user := &model.User{
+		Email:                  pending.Email,
+		Username:               pending.Username,
+		PasswordHash:           pending.PasswordHash,
+		Reputation:             pending.Reputation,
+		Role:                   pending.Role,
+		PreferredLocale:        pending.PreferredLocale,
+		AcceptedTermsVersion:   pending.AcceptedTermsVersion,
+		AcceptedPrivacyVersion: pending.AcceptedPrivacyVersion,
+	}
+
+	now := time.Now()
+	user.EmailVerifiedAt = &now
+	if pending.AcceptedTermsAt > 0 {
+		t := time.Unix(pending.AcceptedTermsAt, 0)
+		user.AcceptedTermsAt = &t
+	}
+	if pending.AcceptedPrivacyAt > 0 {
+		t := time.Unix(pending.AcceptedPrivacyAt, 0)
+		user.AcceptedPrivacyAt = &t
 	}
 
 	if err := s.userRepo.CreateUser(user); err != nil {
@@ -104,7 +270,8 @@ func (s *AuthService) Register(input RegisterInput) (*model.User, error) {
 }
 
 func (s *AuthService) Login(input LoginInput) (*model.User, *jwtutil.TokenPair, error) {
-	user, err := s.userRepo.FindByEmail(input.Email)
+	normalizedEmail := normalizeEmail(input.Email)
+	user, err := s.userRepo.FindByEmail(normalizedEmail)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -113,6 +280,9 @@ func (s *AuthService) Login(input LoginInput) (*model.User, *jwtutil.TokenPair, 
 	}
 	if user.IsBanned {
 		return nil, nil, ErrUserBanned
+	}
+	if user.EmailVerifiedAt == nil {
+		return nil, nil, ErrEmailNotVerified
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
@@ -271,4 +441,13 @@ func (s *AuthService) ChangePassword(userID int64, newPassword string) error {
 func buildRefreshTokenKey(userID int64, refreshToken string) string {
 	sum := sha256.Sum256([]byte(refreshToken))
 	return fmt.Sprintf("refresh_token:%d:%s", userID, hex.EncodeToString(sum[:]))
+}
+
+func sha256Hex(s string) string {
+	h := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(h[:])
+}
+
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
 }

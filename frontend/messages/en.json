@@ -94,6 +94,8 @@
     "confirmPasswordPlaceholder": "Re-enter your password",
     "errorEmailTaken": "This email is already registered",
     "errorUsernameTaken": "This username is already taken",
+    "errorEmailNotVerified": "Email not verified. Please verify your email before logging in.",
+    "errorEmailSendFailed": "Failed to send verification email. Please try again later.",
     "errorValidation": "Please check your input",
     "errorRegisterFailed": "Registration failed. Please try again later.",
     "forgotPassword": "Forgot Password",

@@ -94,6 +94,8 @@
     "confirmPasswordPlaceholder": "再次输入密码",
     "errorEmailTaken": "该邮箱已被注册",
     "errorUsernameTaken": "该用户名已被占用",
+    "errorEmailNotVerified": "邮箱未验证，请先验证邮箱后再登录",
+    "errorEmailSendFailed": "验证邮件发送失败，请稍后重试",
     "errorValidation": "请检查输入内容格式",
     "errorRegisterFailed": "注册失败，请稍后重试",
     "forgotPassword": "忘记密码",
