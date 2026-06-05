@@ -18,16 +18,18 @@ export class ApiRequestError extends Error {
 
 let inMemoryCsrfToken: string | null = null;
 
-async function fetchCSRFToken(): Promise<string> {
-  if (inMemoryCsrfToken) return inMemoryCsrfToken;
+async function fetchCSRFToken(forceRefresh = false): Promise<string> {
+  if (inMemoryCsrfToken && !forceRefresh) return inMemoryCsrfToken;
   try {
     const res = await fetch(`${API_URL}/api/v1/auth/csrf`, {
       credentials: "include",
     });
     if (res.ok) {
       const data = (await res.json()) as { csrf_token: string };
-      inMemoryCsrfToken = data.csrf_token;
-      return inMemoryCsrfToken;
+      if (data.csrf_token) {
+        inMemoryCsrfToken = data.csrf_token;
+        return inMemoryCsrfToken;
+      }
     }
   } catch {}
   return "";
@@ -42,6 +44,25 @@ function getCSRFTokenFromCookie(): string | null {
 }
 
 const STATE_CHANGING_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
+
+async function ensureCSRFHeader(
+  headers: Record<string, string>,
+  forceRefresh = false
+) {
+  const csrfToken = forceRefresh
+    ? await fetchCSRFToken(true)
+    : inMemoryCsrfToken || getCSRFTokenFromCookie() || (await fetchCSRFToken());
+
+  if (!csrfToken) {
+    throw new ApiRequestError(
+      "CSRF_TOKEN_UNAVAILABLE",
+      "security token unavailable, please refresh and try again",
+      0
+    );
+  }
+
+  headers["X-CSRF-Token"] = csrfToken;
+}
 
 let refreshPromise: Promise<boolean> | null = null;
 
@@ -103,11 +124,7 @@ async function request<T>(
 
   const method = (options.method ?? "GET").toUpperCase();
   if (STATE_CHANGING_METHODS.has(method)) {
-    const csrfToken =
-      inMemoryCsrfToken || getCSRFTokenFromCookie();
-    if (csrfToken) {
-      headers["X-CSRF-Token"] = csrfToken;
-    }
+    await ensureCSRFHeader(headers);
   }
 
   const res = await fetch(`${API_URL}${path}`, {
@@ -121,6 +138,31 @@ async function request<T>(
     try {
       errBody = await res.json();
     } catch {}
+
+    if (
+      res.status === 403 &&
+      errBody.code === "CSRF_TOKEN_INVALID" &&
+      STATE_CHANGING_METHODS.has(method)
+    ) {
+      inMemoryCsrfToken = null;
+      await ensureCSRFHeader(headers, true);
+      const retryRes = await fetch(`${API_URL}${path}`, {
+        ...options,
+        headers,
+        credentials: "include",
+      });
+      if (retryRes.ok) {
+        if (retryRes.status === 204) return undefined as T;
+        return retryRes.json();
+      }
+
+      try {
+        errBody = await retryRes.json();
+      } catch {
+        errBody = { code: "UNKNOWN_ERROR", message: retryRes.statusText };
+      }
+      throw new ApiRequestError(errBody.code, errBody.message, retryRes.status);
+    }
 
     if (res.status === 401 && errBody.code === "TOKEN_EXPIRED" && token) {
       const refreshed = await doRefreshToken();
