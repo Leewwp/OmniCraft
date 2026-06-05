@@ -13,6 +13,7 @@ The immediate product goal is to bring Web Beta to a production-launchable state
 - `features.desktop_deploy_enabled=false`
 - `client.download_enabled=false`
 - `features.payment_enabled=false`
+- `features.creator_support_enabled=false`
 
 Tauri desktop distribution, one-click deploy, payment, and production infrastructure automation are later tracks, not part of this Web Beta optimization roadmap.
 
@@ -26,6 +27,8 @@ An implementation agent is actively repairing production-readiness blockers acro
 - Batch 4: P2 security and quality fixes around content visibility, downloads, feedback upload grants, OSS serialization, creator-support flag clarity, audit metadata, UploadAssist validation, token atomicity, and Agent feature flag checks.
 
 This roadmap must not modify implementation files in `backend/`, `frontend/`, or `tauri-client/` while that repair work is active. It must not modify `task.json`, Beta checkboxes, `progress.txt`, or release validation evidence unless it is later converted into an approved implementation plan.
+
+For coordination purposes, repair work is still active while any `codex/beta/repair-*` branch or worktree is unfinished, while the repair validation evidence task is incomplete, or while the maintainer has not accepted the repaired R-01/Web Beta release decision. Optimization items may only become implementation work after those repair branches have landed and been revalidated, or after a maintainer assigns a clearly non-overlapping write set.
 
 ## Evidence Sources
 
@@ -55,6 +58,14 @@ Supporting evidence:
 
 The review summary currently reports `GO-WITH-BLOCKERS`: the architecture is sound and prior gates passed, but P0/P1 code defects and production infrastructure gaps prevent launch.
 
+When evidence sources disagree, use this priority order:
+
+1. `AGENTS.md`, the 2026-05-30 Beta roadmap contracts, and the 2026-06-03 repair plan.
+2. Web Beta review reports and repair validation evidence.
+3. `architecture.md` and older historical audits.
+
+This matters most for desktop deploy. Older architecture text may still mention legacy Agent script routes, but the active Beta contract requires `/api/v1/agent/script/:id` to remain removed and return 404 until a later desktop track replaces it with the deploy-grant and Ed25519 flow.
+
 ## Prioritization Model
 
 Use four priority levels:
@@ -82,13 +93,15 @@ Recommended handling:
 
 - Treat the active Batch 1-4 repair work as the occupied implementation path.
 - Do not create parallel tasks against the same files.
-- After implementation finishes, re-run R-01 release validation rather than relying on the older approved report.
+- After implementation finishes, run the repair evidence task and re-run R-01 release validation rather than relying on the older approved report.
+- Treat migration `041`/`042` corrective work as a conditional launch blocker if any target staging or production database may have run the old rewritten migration state.
 
 Success criteria:
 
 - P0 findings are fixed with regression tests.
 - Known failed E2E journeys pass or are clearly marked as external-service blocked.
 - Release validation report is updated with real commands, screenshot paths, residual risks, and a new decision.
+- `features.desktop_deploy_enabled=false`, `client.download_enabled=false`, `features.payment_enabled=false`, and `features.creator_support_enabled=false` are all explicit in the relevant runtime configuration or public release evidence.
 
 ### Phase 1: Core Web User Paths
 
@@ -109,7 +122,7 @@ Evidence-backed opportunities:
 - Masked email persisted in URL query string after register redirect.
 - `fetchPublicConfig` throws instead of returning safe defaults.
 - Search has missing DB-backed integration tests.
-- Anonymous Agent search UI may be visible without a clear downgrade.
+- Anonymous Agent search evidence is internally inconsistent across Review 08 and current code. Re-test anonymous search in the browser before creating any UI change task.
 - Direct or stale download paths must be eliminated from user-facing CTAs.
 
 Suggested future tasks:
@@ -194,7 +207,7 @@ Evidence-backed opportunities:
 
 - `/client` can overstate unavailable desktop features; copy should match `client.download_enabled=false`.
 - Feedback diagnostics currently use raw `navigator.userAgent` as platform; structured fields would be cleaner.
-- SearchAgentInput visible to anonymous users may be confusing if disabled or non-functional.
+- SearchAgentInput's anonymous visibility should be treated as a verification item first, not a presumed bug, because current search routing may already wrap it in the Agent feature gate.
 - Screenshot evidence exists in some folders but release report references should be made reproducible.
 
 Suggested future tasks:
@@ -213,7 +226,7 @@ Evidence-backed opportunities:
 - Missing search integration tests.
 - Agent visibility tests should move beyond source-string scanning.
 - Public config tests should verify legal DTO and secret absence more explicitly.
-- Migration 041/042 corrective strategy needs clean evidence if any target database might have run the old migration.
+- Migration 041/042 corrective strategy needs clean evidence. If any target database might have run the old migration, this moves from quality follow-up to Phase 0 launch blocker.
 
 Later tracks:
 
@@ -240,12 +253,15 @@ Priority: Must | Should | Could | Later
 Source:
 User/System Impact:
 Affected Area:
+Depends On:
+Reserved Files / Write Set:
 Suggested Action:
 Verification:
+Launch Gate Impact:
 Conflict Notes:
 ```
 
-`Conflict Notes` must state whether the item overlaps the active implementation batches. If it does, future agents should wait for that work to land and revalidate before editing.
+`Depends On` must name prerequisite repair batches, roadmap IDs, external decisions, or validation reports. `Reserved Files / Write Set` must be precise enough for the Mode A reservation process. `Launch Gate Impact` must say whether the item blocks production Web Beta, only blocks desktop/client/payment/creator tracks, or is non-blocking polish. `Conflict Notes` must state whether the item overlaps the active implementation batches or any `codex/beta/repair-*` worktree. If it does, future agents should wait for that work to land and revalidate before editing.
 
 ## Non-Goals
 
@@ -260,9 +276,9 @@ This roadmap does not:
 
 ## Approval And Next Step
 
-After human review, this design can be converted into an implementation plan only if the active production-readiness repair work has either completed or the maintainer assigns a non-overlapping follow-up task.
+After human review, this design can be converted into an implementation plan only if the active production-readiness repair branches have landed, repair validation evidence has been accepted, R-01 has a fresh decision, and the maintainer assigns a follow-up task with non-overlapping dependencies and write set.
 
-The safest immediate next step is to let the active Batch 1-4 implementation finish, then use this roadmap as the checklist for:
+The safest immediate next step is to let the active Batch 1-4 implementation and repair validation finish, then use this roadmap as the checklist for:
 
 1. R-01 revalidation.
 2. post-blocker Web user-path review.

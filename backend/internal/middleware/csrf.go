@@ -22,19 +22,29 @@ func CSRF(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		token, err := c.Cookie("__Host-csrf")
-		if err != nil || token == "" {
-			token, _ = c.Cookie("csrf-token")
-		}
+		// Always read from "csrf-token" cookie.
+		// In cross-domain setups (app.xxx → api.xxx), the browser will only
+		// send back a cookie with SameSite=None; the old __Host-csrf cookie
+		// (SameSite=Lax) is never returned by the browser on cross-origin
+		// fetch requests, so we stop reading it.
+		token, _ := c.Cookie("csrf-token")
 		if token == "" {
 			token = generateCSRFToken()
 		}
 
+		// Use a single cookie name "csrf-token" for all modes.
+		// The __Host- prefix is incompatible with SameSite=None (RFC 6265bis
+		// requires __Host- cookies to have no Domain attribute and the
+		// browser semantics favour SameSite=Strict/Lax).  Since production
+		// needs SameSite=None for cross-domain credential flows, we drop
+		// the __Host- prefix entirely.
 		cookieName := "csrf-token"
+
 		if isSecure {
-			cookieName = "__Host-csrf"
+			c.SetSameSite(http.SameSiteNoneMode)
+		} else {
+			c.SetSameSite(http.SameSiteLaxMode)
 		}
-		c.SetSameSite(http.SameSiteLaxMode)
 		c.SetCookie(cookieName, token, 0, "/", "", isSecure, false)
 		c.Set("csrfToken", token)
 
@@ -82,10 +92,7 @@ func GetCSRFToken(c *gin.Context) string {
 			return s
 		}
 	}
-	token, _ := c.Cookie("__Host-csrf")
-	if token == "" {
-		token, _ = c.Cookie("csrf-token")
-	}
+	token, _ := c.Cookie("csrf-token")
 	if token == "" {
 		token = generateCSRFToken()
 	}
