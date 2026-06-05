@@ -20,11 +20,11 @@ import (
 )
 
 var (
-	ErrAlreadyVerified      = errors.New("email already verified")
-	ErrInvalidToken         = errors.New("invalid or expired token")
-	ErrResendCooldown       = errors.New("resend cooldown active")
-	ErrPasswordTooShort     = errors.New("password too short")
-	ErrUserNotFound         = errors.New("user not found")
+	ErrAlreadyVerified  = errors.New("email already verified")
+	ErrInvalidToken     = errors.New("invalid or expired token")
+	ErrResendCooldown   = errors.New("resend cooldown active")
+	ErrPasswordTooShort = errors.New("password too short")
+	ErrUserNotFound     = errors.New("user not found")
 )
 
 type VerificationService struct {
@@ -187,13 +187,13 @@ func (s *VerificationService) SendPasswordReset(ctx context.Context, email strin
 	return nil
 }
 
-func (s *VerificationService) ResetPassword(ctx context.Context, rawToken, newPassword string) error {
+func (s *VerificationService) ResetPassword(ctx context.Context, rawToken, newPassword string) (int64, error) {
 	minLen := s.cfg.Verification.PasswordMinLength
 	if minLen <= 0 {
 		minLen = 8
 	}
 	if len(newPassword) < minLen {
-		return ErrPasswordTooShort
+		return 0, ErrPasswordTooShort
 	}
 
 	digest := sha256Hex(rawToken)
@@ -201,17 +201,17 @@ func (s *VerificationService) ResetPassword(ctx context.Context, rawToken, newPa
 
 	userID, err := s.rdb.Get(ctx, digestKey).Int64()
 	if err != nil {
-		return ErrInvalidToken
+		return 0, ErrInvalidToken
 	}
 
 	userDigestKey := fmt.Sprintf("reset:password:user:%d", userID)
 	storedDigest, err := s.rdb.Get(ctx, userDigestKey).Result()
 	if err != nil {
-		return ErrInvalidToken
+		return 0, ErrInvalidToken
 	}
 
 	if !constantTimeEqual(storedDigest, digest) {
-		return ErrInvalidToken
+		return 0, ErrInvalidToken
 	}
 
 	pipe := s.rdb.Pipeline()
@@ -222,10 +222,10 @@ func (s *VerificationService) ResetPassword(ctx context.Context, rawToken, newPa
 	if err := s.userRepo.UpdateFields(userID, map[string]interface{}{
 		"password_hash": hashPassword(newPassword),
 	}); err != nil {
-		return fmt.Errorf("failed to update password: %w", err)
+		return 0, fmt.Errorf("failed to update password: %w", err)
 	}
 
-	return nil
+	return userID, nil
 }
 
 func sha256Hex(s string) string {

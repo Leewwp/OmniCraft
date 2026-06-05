@@ -2434,6 +2434,25 @@
 
 
 
+## [2026-06-05] - Task 1 Follow-up: Resend cooldown and reset session completion
+
+### What was done:
+- Fixed `ResendVerification` to return 429 `RESEND_COOLDOWN` for existing unverified users during resend cooldown instead of swallowing `ErrResendCooldown`.
+- Implemented reset-password auto-login: successful reset now issues an access token, sets an HttpOnly refresh cookie, and still omits `refresh_token` from JSON.
+- Added regression tests for resend cooldown and reset-password cookie-only session behavior.
+- Updated verification reset service to return the reset user ID so the auth handler can establish a session after password reset.
+
+### Testing:
+- `go test ./internal/handler -run "TestResendVerification|TestResetPassword|Test.*Cookie" -v` - PASS
+- `go test ./...` - PASS
+- `go vet ./...` - PASS
+- `go build ./...` - PASS
+
+### Notes:
+- Mode A Task 1 follow-up only; `task.json` was not modified and no roadmap checkbox was updated.
+- Desktop deploy, client download, and payment feature flags were not enabled.
+- Residual Web Beta blockers remain outside Task 1, including Task 2 verification lifecycle items such as token atomicity/cache invalidation.
+
 ## [2026-06-05] - Task 1: Auth, Captcha, Release Guard, And Cookie-Only Session
 
 ### What was done:

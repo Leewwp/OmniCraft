@@ -308,7 +308,8 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	if err := h.verificationService.ResetPassword(c.Request.Context(), body.Token, body.NewPassword); err != nil {
+	userID, err := h.verificationService.ResetPassword(c.Request.Context(), body.Token, body.NewPassword)
+	if err != nil {
 		if errors.Is(err, service.ErrInvalidToken) {
 			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_TOKEN", "message": "invalid or expired reset token"})
 			return
@@ -321,7 +322,25 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "password reset successfully"})
+	user, err := h.userRepo.FindByID(userID)
+	if err != nil || user == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to establish session"})
+		return
+	}
+	tokens, err := h.authService.IssueTokenPairForUser(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to establish session"})
+		return
+	}
+
+	setRefreshCookie(c, h.cfg, tokens.RefreshToken)
+	middleware.InvalidateUserStatusCache(h.rdb, int64(user.ID))
+	c.JSON(http.StatusOK, gin.H{
+		"message": "password reset successfully",
+		"tokens": gin.H{
+			"access_token": tokens.AccessToken,
+		},
+	})
 }
 
 func (h *AuthHandler) VerifyEmail(c *gin.Context) {
@@ -370,7 +389,14 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 		return
 	}
 
-	_ = h.verificationService.SendVerification(c.Request.Context(), user)
+	if err := h.verificationService.SendVerification(c.Request.Context(), user); err != nil {
+		if errors.Is(err, service.ErrResendCooldown) {
+			c.JSON(http.StatusTooManyRequests, gin.H{"code": "RESEND_COOLDOWN", "message": "please wait before requesting another verification email"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to send verification email"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "if the email exists and is unverified, a verification link has been sent"})
 }

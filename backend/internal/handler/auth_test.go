@@ -172,6 +172,28 @@ func TestResendVerificationRequiresAndVerifiesCaptcha(t *testing.T) {
 	require.Equal(t, []string{"captcha-ok"}, verifier.calls)
 }
 
+func TestResendVerificationReturns429DuringCooldown(t *testing.T) {
+	verifier := &fakeCaptchaVerifier{}
+	r, db, _, _, mr := setupAuthHandlerTest(t, verifier)
+	defer mr.Close()
+	createAuthHandlerTestUser(t, db, "resend@test.com", "password123", false)
+
+	body := `{"email":"resend@test.com","captcha_token":"captcha-ok"}`
+	firstReq := httptest.NewRequest(http.MethodPost, "/auth/resend-verification", strings.NewReader(body))
+	firstReq.Header.Set("Content-Type", "application/json")
+	firstRec := httptest.NewRecorder()
+	r.ServeHTTP(firstRec, firstReq)
+	require.Equal(t, http.StatusOK, firstRec.Code)
+
+	secondReq := httptest.NewRequest(http.MethodPost, "/auth/resend-verification", strings.NewReader(body))
+	secondReq.Header.Set("Content-Type", "application/json")
+	secondRec := httptest.NewRecorder()
+	r.ServeHTTP(secondRec, secondReq)
+
+	require.Equal(t, http.StatusTooManyRequests, secondRec.Code)
+	require.Contains(t, secondRec.Body.String(), "RESEND_COOLDOWN")
+}
+
 func TestLoginRequiresCaptchaAfterFailureThreshold(t *testing.T) {
 	verifier := &fakeCaptchaVerifier{}
 	r, db, rdb, _, mr := setupAuthHandlerTest(t, verifier)
