@@ -2547,3 +2547,25 @@
 ### Notes:
 - Mode A Web Beta repair Task 2 follow-up only; `task.json` was not modified and no roadmap checkbox was updated.
 - Desktop deploy, client download, and payment feature flags were not enabled.
+
+## [2026-06-06] - Beta Hotfix: Aliyun CAPTCHA 2.0 registration verification and users soft delete migration
+
+### What was done:
+- Replaced the legacy CAPTCHA verifier request with Aliyun CAPTCHA 2.0 `VerifyIntelligentCaptcha` parameters using `SceneId` and `CaptchaVerifyParam`.
+- Added focused verifier tests for empty tokens, request construction, Aliyun rejection, and Aliyun success.
+- Updated `CaptchaWidget` to initialize Aliyun CAPTCHA 2.0 with `initAliyunCaptcha` and pass the raw `captchaVerifyParam` to `onToken`.
+- Added a frontend regression test that prevents reverting to the old `sessionId|sig|token|ncsig` token assembly.
+- Added migration `054_users_soft_delete.sql` to create `users.deleted_at` and its index.
+
+### Testing:
+- `go test ./internal/pkg/captcha` - PASS.
+- `go test ./internal/handler -run "TestRegister|TestResendVerification|TestPublicConfigAllowlist"` - PASS before unrelated feedback/service dirty edits were present; final rerun is blocked by unrelated `feedback_service.go` compile errors.
+- `npm test` - PASS.
+- `npm run lint` - PASS.
+- `go build ./...` and `go vet ./...` - PASS before unrelated feedback/service dirty edits were present.
+- `npm run build` - PASS.
+- `go test ./...` - FAIL on feedback/search tests outside this hotfix path (`user_id:0`, missing `reports.action_taken` in sqlite test schema, feedback attachment/notification cases).
+
+### Notes:
+- Mode A Web Beta hotfix only; `task.json` was not modified and no roadmap checkbox was updated.
+- Public config still exposes only captcha provider, prefix, scene_id, and region; AccessKeys remain private runtime configuration.
