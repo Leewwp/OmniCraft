@@ -47,6 +47,9 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
   const [contentSort, setContentSort] = useState("hot");
   const [categoryCounts, setCategoryCounts] = useState<Record<string, string>>({});
   const [statsSummary, setStatsSummary] = useState<{ users: number; ips: number; contents: number } | null>(null);
+  const [contentError, setContentError] = useState(false);
+  const [ipError, setIpError] = useState(false);
+  const [ipCountsError, setIpCountsError] = useState(false);
 
   const contentTypeOptions = useMemo(() => [
     { label: t('home.all'), value: "" },
@@ -81,9 +84,16 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
 
   useEffect(() => {
     fetch(`${apiBase}/ips/stats/category_counts`, { cache: "no-store" })
-      .then(r => r.ok ? r.json() as Promise<{ category_counts?: Record<string, string> }> : null)
-      .then(d => { if (d?.category_counts) setCategoryCounts(d.category_counts); })
-      .catch(() => {});
+      .then(r => r.ok ? r.json() as Promise<{ category_counts?: Record<string, string> }> : Promise.reject())
+      .then(d => {
+        if (d?.category_counts) {
+          setCategoryCounts(d.category_counts);
+          setIpCountsError(false);
+        }
+      })
+      .catch(() => {
+        setIpCountsError(true);
+      });
   }, [apiBase]);
 
   useEffect(() => {
@@ -91,9 +101,14 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
     if (ipCategory) q.set("category", ipCategory);
     q.set("sort", ipSort);
     fetch(`${apiBase}/ips?${q.toString()}`, { cache: "no-store" })
-      .then(r => r.ok ? r.json() as Promise<IPResponse> : null)
-      .then(d => { if (d) setIPs(d.ips || []); })
-      .catch(() => {});
+      .then(r => r.ok ? r.json() as Promise<IPResponse> : Promise.reject())
+      .then(d => {
+        setIPs(d.ips || []);
+        setIpError(false);
+      })
+      .catch(() => {
+        setIpError(true);
+      });
   }, [apiBase, ipCategory, ipSort]);
 
   useEffect(() => {
@@ -103,9 +118,14 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
     q.set("time_range", "all");
     if (contentType) q.set("content_type", contentType);
     fetch(`${apiBase}/contents?${q.toString()}`, { cache: "no-store" })
-      .then(r => r.ok ? r.json() as Promise<ContentResponse> : null)
-      .then(d => { if (d) setContents(normalizeContentList(d.contents)); })
-      .catch(() => {});
+      .then(r => r.ok ? r.json() as Promise<ContentResponse> : Promise.reject())
+      .then(d => {
+        setContents(normalizeContentList(d.contents));
+        setContentError(false);
+      })
+      .catch(() => {
+        setContentError(true);
+      });
   }, [apiBase, contentType, contentSort]);
 
   // Sidebar sections
@@ -147,19 +167,20 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
     <div className="mx-auto flex w-full max-w-[1440px] min-h-[calc(100vh-52px)]">
       {/* Sidebar */}
       <Sidebar
+        className="hidden md:block"
         sections={sidebarSections}
         trending={{ title: t('home.trendingIpsThisWeek'), entries: trendingEntries }}
       />
 
       {/* Main content */}
-      <div className="flex-1 min-w-0">
+      <div data-testid="home-main-content" className="min-w-0 flex-1">
         {/* Zone banner */}
         <div className="px-6 pt-5 pb-3">
           <div className="flex items-baseline gap-3">
             <h1 className="text-[22px] font-bold tracking-tight text-foreground">{t('nav.fanworkZone')}</h1>
             <p className="text-sm text-muted-foreground">{t('home.fanworkZoneSubtitle')}</p>
           </div>
-          <div className="mt-3 flex gap-4">
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
             <span className="flex items-baseline gap-1">
               <span className="text-[15px] font-semibold text-foreground">{statsSummary ? statsSummary.contents.toLocaleString() : "--"}</span>
               <span className="text-xs text-muted-foreground">{t('home.contentCountLabel')}</span>
@@ -208,12 +229,17 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
               <IPCard key={ip.id} data={ip} variant="browse" />
             ))}
           </div>
+          {(ipError || (ipCountsError && ips.length === 0)) && (
+            <div className="rounded-md border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+              {t("home.ipLoadFailed")}
+            </div>
+          )}
         </div>
 
         {/* Content toolbar */}
-        <div className="sticky top-[52px] z-40 bg-background px-6 py-2.5">
-          <div className="flex items-center gap-0">
-            <div className="flex flex-1 items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+        <div className="sticky top-[52px] z-40 bg-background px-4 py-2.5 md:px-6">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
               {contentTypeOptions.map((opt) => {
                 const active = contentType === opt.value;
                 return (
@@ -232,7 +258,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
                 );
               })}
             </div>
-            <div className="ml-3 flex-shrink-0">
+            <div className="shrink-0">
               <select
                 value={contentSort}
                 onChange={(e) => setContentSort(e.target.value)}
@@ -248,7 +274,13 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
 
         {/* Masonry grid */}
         <div className="px-6 py-4 pb-16">
-          <MasonryGrid items={contents} emptyText={t("home.noOriginalContent")} />
+          {contentError ? (
+            <div className="rounded-md border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+              {t("home.contentLoadFailed")}
+            </div>
+          ) : (
+            <MasonryGrid items={contents} emptyText={t("home.noOriginalContent")} />
+          )}
         </div>
       </div>
     </div>
