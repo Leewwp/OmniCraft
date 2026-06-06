@@ -4,6 +4,16 @@ import { useEffect, useRef, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { fetchPublicConfig } from "@/lib/public-config";
 
+declare global {
+  interface Window {
+    AliyunCaptchaConfig?: {
+      region?: string;
+      prefix?: string;
+    };
+    initAliyunCaptcha?: (options: AliyunCaptchaOptions) => void;
+  }
+}
+
 interface CaptchaWidgetProps {
   onToken: (token: string) => void;
   onError?: (error: string) => void;
@@ -13,6 +23,7 @@ export default function CaptchaWidget({ onToken, onError }: CaptchaWidgetProps) 
   const t = useTranslations();
   const containerRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
+  const elementId = useRef(`aliyun-captcha-${Math.random().toString(36).slice(2)}`);
 
   const initCaptcha = useCallback(async () => {
     if (initialized.current) return;
@@ -28,9 +39,13 @@ export default function CaptchaWidget({ onToken, onError }: CaptchaWidgetProps) 
       if (config.captcha.provider === "aliyun_v2") {
         const scriptId = "aliyun-captcha-sdk";
         if (!document.getElementById(scriptId)) {
+          window.AliyunCaptchaConfig = {
+            region: config.captcha.region || "cn",
+            prefix: config.captcha.prefix,
+          };
           const script = document.createElement("script");
           script.id = scriptId;
-          script.src = `https://o.alicdn.com/captcha-frontend/aliyunCaptcha/aliyun-captcha.js`;
+          script.src = "https://o.alicdn.com/captcha-frontend/aliyunCaptcha/AliyunCaptcha.js";
           script.async = true;
           document.head.appendChild(script);
           await new Promise<void>((resolve, reject) => {
@@ -39,31 +54,35 @@ export default function CaptchaWidget({ onToken, onError }: CaptchaWidgetProps) 
           });
         }
 
-        const w = window as unknown as Record<string, unknown>;
-        const AWSC = w.AWSC as AliyunCaptchaSDK | undefined;
-        if (!AWSC) {
-          onError?.("Captcha SDK not available");
+        if (!window.initAliyunCaptcha) {
+          onError?.(t("auth.captchaFailed"));
           return;
         }
 
-        AWSC.use("nc", function (_: unknown, module: AliyunCaptchaModule) {
-          const nc = module.init({
-            appkey: config.captcha.prefix,
-            scene: config.captcha.scene_id,
-            renderTo: containerRef.current,
-            success: function (data: { sessionId?: string; sig?: string; token?: string; ncsig?: string }) {
-              const tokenStr = [data.sessionId, data.sig, data.token, data.ncsig].filter(Boolean).join("|");
-              onToken(tokenStr);
-            },
-            fail: function () {
-              onError?.(t("auth.captchaFailed"));
-            },
-          });
-          nc.reset();
+        window.initAliyunCaptcha({
+          SceneId: config.captcha.scene_id,
+          prefix: config.captcha.prefix,
+          mode: "embed",
+          element: `#${elementId.current}`,
+          language: config.captcha.region === "cn" ? "cn" : "en",
+          captchaVerifyCallback: async (captchaVerifyParam: string) => {
+            onToken(captchaVerifyParam);
+            return {
+              captchaResult: true,
+              bizResult: true,
+            };
+          },
+          onBizResultCallback: () => undefined,
+          getInstance: () => undefined,
+          slideStyle: {
+            width: 320,
+            height: 40,
+          },
         });
       }
     } catch {
-      onToken("bypass");
+      initialized.current = false;
+      onError?.(t("auth.captchaFailed"));
     }
   }, [onToken, onError, t]);
 
@@ -71,19 +90,23 @@ export default function CaptchaWidget({ onToken, onError }: CaptchaWidgetProps) 
     initCaptcha();
   }, [initCaptcha]);
 
-  return <div ref={containerRef} className="captcha-widget" />;
+  return <div id={elementId.current} ref={containerRef} className="captcha-widget" />;
 }
 
-interface AliyunCaptchaSDK {
-  use: (type: string, callback: (mode: unknown, module: AliyunCaptchaModule) => void) => void;
-}
-
-interface AliyunCaptchaModule {
-  init: (options: {
-    appkey: string;
-    scene: string;
-    renderTo: HTMLDivElement | null;
-    success: (data: { sessionId?: string; sig?: string; token?: string; ncsig?: string }) => void;
-    fail: () => void;
-  }) => { reset: () => void };
+interface AliyunCaptchaOptions {
+  SceneId: string;
+  prefix: string;
+  mode: "embed" | "popup";
+  element: string;
+  language: "cn" | "en";
+  captchaVerifyCallback: (captchaVerifyParam: string) => Promise<{
+    captchaResult: boolean;
+    bizResult: boolean;
+  }>;
+  onBizResultCallback: () => void;
+  getInstance: (instance: unknown) => void;
+  slideStyle: {
+    width: number;
+    height: number;
+  };
 }
