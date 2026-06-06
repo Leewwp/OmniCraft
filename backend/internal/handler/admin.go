@@ -698,6 +698,11 @@ func (h *AdminHandler) ResolveReport(c *gin.Context) {
 		return
 	}
 	if body.Status != "resolved" && body.Status != "dismissed" {
+		h.auditFailed(c, "report_resolve", "report", strconv.FormatInt(id, 10), map[string]any{
+			"report_id": id,
+			"decision":  body.Status,
+			"reason":    "VALIDATION_ERROR",
+		})
 		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "status must be resolved or dismissed"})
 		return
 	}
@@ -793,6 +798,17 @@ func (h *AdminHandler) auditEntry(c *gin.Context, action, targetType, targetID s
 		TraceID:     c.GetString("trace_id"),
 		Metadata:    metadata,
 		Result:      "success",
+	}
+}
+
+func (h *AdminHandler) auditFailed(c *gin.Context, action, targetType, targetID string, metadata map[string]any) {
+	if h.auditSvc == nil {
+		return
+	}
+	entry := h.auditEntry(c, action, targetType, targetID, metadata)
+	entry.Result = "failed"
+	if err := h.auditSvc.Record(c.Request.Context(), entry); err != nil {
+		slog.Warn("failed to record admin audit failure", "action", action, "target_type", targetType, "error", err)
 	}
 }
 

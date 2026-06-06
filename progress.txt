@@ -2815,3 +2815,20 @@
 - No `task.json` changes were made.
 - `features.desktop_deploy_enabled=false`, `client.download_enabled=false`, and `features.payment_enabled=false` remain unchanged.
 - Residual risk: PDF embed preview still consumes `oss_url`; if those URLs are long-lived raw OSS URLs, preview authorization should be handled by a separate follow-up task as requested.
+
+## [2026-06-06] - Web Beta Integration Review: Admin audit failed-attempt self-check
+
+### What was done:
+- Rebased `codex/beta-integration` onto `origin/main` so main-only CAPTCHA, CSRF, SMTP, deployment docs, and soft-delete migration fixes are preserved before final integration.
+- Reviewed Task 1-7 repair coverage against `docs/superpowers/plans/2026-06-03-omnicraft-web-beta-review-repair-plan.md`.
+- Found a Task 6 coverage gap: success audit writes were transactional, but a representative validation failure after admin identity was known did not write a sanitized `result: failed` audit row.
+- Added failed-attempt audit recording for invalid admin report resolution status with sanitized `reason=VALIDATION_ERROR` metadata.
+- Added regression coverage to ensure raw request text such as `action_taken` is not copied into failed-attempt audit metadata.
+
+### Testing:
+- `go test ./internal/handler -run TestAdminResolveReportInvalidStatusRecordsFailedAudit -v` failed before the fix with zero audit rows, then passed after implementation.
+- `go test ./internal/handler -run "TestAdmin.*Audit|TestAdminResolveReportInvalidStatusRecordsFailedAudit|TestAdminFeedback" -v` PASS.
+
+### Notes:
+- `task.json` was not modified.
+- `features.desktop_deploy_enabled=false`, `client.download_enabled=false`, and `features.payment_enabled=false` remain unchanged.

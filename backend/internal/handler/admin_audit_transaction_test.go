@@ -211,6 +211,57 @@ func TestAdminCreateLLMConfigRollsBackWhenAuditWriteFails(t *testing.T) {
 	}
 }
 
+func TestAdminResolveReportInvalidStatusRecordsFailedAudit(t *testing.T) {
+	router, db := setupAdminReportAuditRouter(t)
+	report := model.Report{
+		ReporterID: 1,
+		TargetType: "content",
+		TargetID:   42,
+		Reason:     "spam",
+		Status:     "pending",
+	}
+	if err := db.Create(&report).Error; err != nil {
+		t.Fatalf("create report: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/admin/reports/"+strconv.FormatInt(report.ID, 10)+"/resolve", bytes.NewReader([]byte(`{"status":"invalid","action_taken":"secret raw db text"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body = %s", rec.Code, rec.Body.String())
+	}
+
+	var logs []model.AdminAuditLog
+	if err := db.Find(&logs).Error; err != nil {
+		t.Fatalf("list audit logs: %v", err)
+	}
+	if len(logs) != 1 {
+		t.Fatalf("audit log count = %d, want 1", len(logs))
+	}
+	log := logs[0]
+	if log.Result != "failed" {
+		t.Fatalf("audit result = %q, want failed", log.Result)
+	}
+	if log.Action != "report_resolve" {
+		t.Fatalf("audit action = %q, want report_resolve", log.Action)
+	}
+	if log.TargetID != strconv.FormatInt(report.ID, 10) {
+		t.Fatalf("audit target id = %q, want report id", log.TargetID)
+	}
+	if log.TraceID != "trace-admin-audit-test" {
+		t.Fatalf("trace id = %q, want trace-admin-audit-test", log.TraceID)
+	}
+	metadata := log.Metadata
+	if metadata["reason"] != "VALIDATION_ERROR" {
+		t.Fatalf("metadata reason = %v, want VALIDATION_ERROR", metadata["reason"])
+	}
+	if _, ok := metadata["action_taken"]; ok {
+		t.Fatalf("metadata must not contain raw action_taken: %v", metadata)
+	}
+}
+
 func setupAdminAuditRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -229,6 +280,28 @@ func setupAdminAuditRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 		c.Set(middleware.UserIDKey, int64(99))
 		c.Set("trace_id", "trace-admin-audit-test")
 		handler.BanContent(c)
+	})
+	return router, db
+}
+
+func setupAdminReportAuditRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.Report{}, &model.AdminAuditLog{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
+	handler := NewAdminHandler(db, &config.Config{}, nil, auditSvc)
+	router := gin.New()
+	router.POST("/admin/reports/:id/resolve", func(c *gin.Context) {
+		c.Set(middleware.UserIDKey, int64(99))
+		c.Set("trace_id", "trace-admin-audit-test")
+		handler.ResolveReport(c)
 	})
 	return router, db
 }
