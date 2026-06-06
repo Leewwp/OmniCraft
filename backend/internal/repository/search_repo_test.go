@@ -147,6 +147,90 @@ func TestContentVisibilityScope_ExcludesHiddenContent(t *testing.T) {
 	}
 }
 
+func TestSearchContentsKeywordAppliesSharedVisibility(t *testing.T) {
+	db := setupContentVisibilityTestDB(t)
+	viewer := createVisibilityUser(t, db, "search-viewer@example.com", "search-viewer", false)
+	other := createVisibilityUser(t, db, "search-other@example.com", "search-other", false)
+	bannedAuthor := createVisibilityUser(t, db, "search-banned@example.com", "search-banned", true)
+	deletedAuthor := createVisibilityUser(t, db, "search-deleted@example.com", "search-deleted", false)
+	if err := db.Exec("UPDATE users SET deleted_at = ? WHERE id = ?", time.Now(), deletedAuthor.ID).Error; err != nil {
+		t.Fatalf("mark deleted author: %v", err)
+	}
+	bannedIP := createVisibilityIP(t, db, "search-banned-ip", "banned")
+
+	createVisibilityContent(t, db, "Needle visible public", other.ID, nil, true, nil)
+	createVisibilityContent(t, db, "Needle private viewer", viewer.ID, nil, false, nil)
+	createVisibilityContent(t, db, "Needle private other", other.ID, nil, false, nil)
+	createVisibilityContent(t, db, "Needle banned author", bannedAuthor.ID, nil, true, nil)
+	createVisibilityContent(t, db, "Needle deleted author", deletedAuthor.ID, nil, true, nil)
+	createVisibilityContent(t, db, "Needle banned ip", other.ID, &bannedIP.ID, true, nil)
+	createVisibilityContent(t, db, "Needle soft deleted", other.ID, nil, true, ptrTime(time.Now()))
+
+	results, total, err := NewSearchRepository(db).SearchContents("Needle", "", "", "", nil, "relevance", 1, 20, viewer.ID)
+	if err != nil {
+		t.Fatalf("SearchContents: %v", err)
+	}
+
+	titles := contentSearchResultTitles(results)
+	for _, want := range []string{"Needle private viewer", "Needle visible public"} {
+		if !titles[want] {
+			t.Fatalf("expected %q in keyword search results, got %#v", want, titles)
+		}
+	}
+	for _, hidden := range []string{"Needle banned author", "Needle banned ip", "Needle deleted author", "Needle private other", "Needle soft deleted"} {
+		if titles[hidden] {
+			t.Fatalf("expected %q to be hidden from keyword search, got %#v", hidden, titles)
+		}
+	}
+	if total != int64(len(results)) || total != 2 {
+		t.Fatalf("total = %d, results = %d, want 2 visible keyword matches", total, len(results))
+	}
+}
+
+func TestSearchSuggestionsApplySharedVisibility(t *testing.T) {
+	db := setupContentVisibilityTestDB(t)
+	viewer := createVisibilityUser(t, db, "suggest-viewer@example.com", "suggest-viewer", false)
+	other := createVisibilityUser(t, db, "suggest-other@example.com", "suggest-other", false)
+	bannedAuthor := createVisibilityUser(t, db, "suggest-banned@example.com", "suggest-banned", true)
+	bannedIP := createVisibilityIP(t, db, "suggest-banned-ip", "banned")
+
+	createVisibilityContent(t, db, "Needle visible public", other.ID, nil, true, nil)
+	createVisibilityContent(t, db, "Needle private viewer", viewer.ID, nil, false, nil)
+	createVisibilityContent(t, db, "Needle private other", other.ID, nil, false, nil)
+	createVisibilityContent(t, db, "Needle banned author", bannedAuthor.ID, nil, true, nil)
+	createVisibilityContent(t, db, "Needle banned ip", other.ID, &bannedIP.ID, true, nil)
+	createVisibilityContent(t, db, "Needle soft deleted", other.ID, nil, true, ptrTime(time.Now()))
+
+	suggestions, err := NewSearchRepository(db).SearchSuggestions("Needle", 20, viewer.ID)
+	if err != nil {
+		t.Fatalf("SearchSuggestions: %v", err)
+	}
+
+	texts := searchSuggestionTexts(suggestions)
+	for _, want := range []string{"Needle private viewer", "Needle visible public"} {
+		if !texts[want] {
+			t.Fatalf("expected %q in suggestions, got %#v", want, texts)
+		}
+	}
+	for _, hidden := range []string{"Needle banned author", "Needle banned ip", "Needle private other", "Needle soft deleted"} {
+		if texts[hidden] {
+			t.Fatalf("expected %q to be hidden from suggestions, got %#v", hidden, texts)
+		}
+	}
+
+	anonymousSuggestions, err := NewSearchRepository(db).SearchSuggestions("Needle", 20, 0)
+	if err != nil {
+		t.Fatalf("anonymous SearchSuggestions: %v", err)
+	}
+	anonymousTexts := searchSuggestionTexts(anonymousSuggestions)
+	if anonymousTexts["Needle private viewer"] {
+		t.Fatalf("anonymous suggestions must not include viewer-private content: %#v", anonymousTexts)
+	}
+	if !anonymousTexts["Needle visible public"] {
+		t.Fatalf("anonymous suggestions should still include public content: %#v", anonymousTexts)
+	}
+}
+
 func TestSearchSuggestionsDoesNotFilterTagsByMissingStatus(t *testing.T) {
 	data, err := os.ReadFile("search_repo.go")
 	if err != nil {
@@ -164,7 +248,7 @@ func setupContentVisibilityTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.User{}, &model.IP{}, &model.ContentItem{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.IP{}, &model.ContentItem{}, &model.ContentTag{}, &model.Tag{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	for _, stmt := range []string{
@@ -234,6 +318,22 @@ func createVisibilityContent(t *testing.T, db *gorm.DB, title string, authorID i
 
 func ptrTime(v time.Time) *time.Time {
 	return &v
+}
+
+func contentSearchResultTitles(results []ContentSearchResult) map[string]bool {
+	titles := make(map[string]bool, len(results))
+	for _, item := range results {
+		titles[item.Title] = true
+	}
+	return titles
+}
+
+func searchSuggestionTexts(results []SearchSuggestion) map[string]bool {
+	texts := make(map[string]bool, len(results))
+	for _, item := range results {
+		texts[item.Text] = true
+	}
+	return texts
 }
 
 func TestWebBetaReviewRepairMigrationAddsFeedbackAndReportSchema(t *testing.T) {

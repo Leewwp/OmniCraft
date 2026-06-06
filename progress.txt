@@ -2791,3 +2791,27 @@
 - No real secrets were added.
 - `features.desktop_deploy_enabled=false`, `client.download_enabled=false`, and `features.payment_enabled=false` remain unchanged.
 - Existing dirty `.agents/skills/ui-ux-pro-max/scripts/__pycache__/*.pyc` files were left untouched and are not part of this task.
+
+## [2026-06-06] - Beta repair Task 4: Search Visibility, Download Authorization, And Sheet Music CTA
+
+### What was done:
+- Added DB-backed repository regression coverage for keyword search and suggestion search using the shared content visibility rules.
+- Updated search suggestions to accept the viewer ID from optional auth and reuse the parameterized `ContentVisibilitySQL` helper, so public content and the viewer's private content are visible while soft-deleted content, banned/deleted authors, banned IP content, and other users' private content stay hidden.
+- Kept the PostgreSQL full-text keyword path for production and added an sqlite-compatible keyword path for repository tests.
+- Verified the existing download authorization path rejects banned author, deleted author, and banned IP content before OSS signing.
+- Verified `SheetMusicViewer` already uses `DownloadButton` for PDF downloads in this integration base; the PDF embed preview remains unchanged.
+
+### Testing:
+- `go test ./internal/repository -run "TestSearch|TestContentVisibility" -v` PASS after red/green cycle.
+- `go test ./internal/handler -run TestDownload -v` PASS.
+- `go test ./...` PASS.
+- `go vet ./...` PASS.
+- `go build ./...` PASS.
+- `npm run lint` PASS.
+- `npm run build` PASS.
+
+### Notes:
+- `backend/internal/service/search_service.go` and `backend/internal/handler/search.go` were included as narrow plumbing changes so `/api/v1/search/suggestions` can apply viewer-aware visibility instead of only repository-internal tests seeing the viewer ID.
+- No `task.json` changes were made.
+- `features.desktop_deploy_enabled=false`, `client.download_enabled=false`, and `features.payment_enabled=false` remain unchanged.
+- Residual risk: PDF embed preview still consumes `oss_url`; if those URLs are long-lived raw OSS URLs, preview authorization should be handled by a separate follow-up task as requested.

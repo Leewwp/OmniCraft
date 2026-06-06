@@ -27,26 +27,34 @@ type ContentSearchResult struct {
 	Headline string  `json:"headline,omitempty"`
 }
 
-func (r *SearchRepository) SearchSuggestions(prefix string, limit int) ([]SearchSuggestion, error) {
+func (r *SearchRepository) SearchSuggestions(prefix string, limit int, viewerID int64) ([]SearchSuggestion, error) {
 	if limit <= 0 {
 		limit = 10
 	}
 	var results []SearchSuggestion
+	visibilityClause, visibilityArgs := ContentVisibilitySQL(viewerID)
+	likeOp := "ILIKE"
+	if r.db.Dialector.Name() == "sqlite" {
+		likeOp = "LIKE"
+	}
 
-	rows, err := r.db.Raw(`
+	sql := fmt.Sprintf(`
 		SELECT text, score FROM (
-			SELECT name AS text, usage_count AS score FROM tags WHERE name ILIKE ?
+			SELECT name AS text, usage_count AS score FROM tags WHERE name %s ?
 			UNION ALL
-			SELECT ci.title AS text, ci.view_count AS score
-			FROM content_items ci
-			WHERE ci.title ILIKE ? AND ci.status = 'published' AND ci.deleted_at IS NULL
-				AND ci.author_id NOT IN (SELECT id FROM users WHERE is_banned = true OR deleted_at IS NOT NULL)
-				AND (ci.ip_id IS NULL OR ci.ip_id NOT IN (SELECT id FROM ips WHERE status = ?))
-				AND ci.is_public = true
+			SELECT content_items.title AS text, content_items.view_count AS score
+			FROM content_items
+			WHERE content_items.title %s ? AND %s
 		) s
 		ORDER BY score DESC
 		LIMIT ?
-	`, prefix+"%", prefix+"%", "banned", limit).Rows()
+	`, likeOp, likeOp, visibilityClause)
+
+	queryArgs := []interface{}{prefix + "%", prefix + "%"}
+	queryArgs = append(queryArgs, visibilityArgs...)
+	queryArgs = append(queryArgs, limit)
+
+	rows, err := r.db.Raw(sql, queryArgs...).Rows()
 	if err != nil {
 		return nil, err
 	}
@@ -120,30 +128,16 @@ func (r *SearchRepository) SearchContents(query string, zone, category, contentT
 }
 
 func (r *SearchRepository) searchContentsWithQuery(query, zone, category, contentType string, tagFilters []string, page, pageSize, offset int, viewerID int64) ([]ContentSearchResult, int64, error) {
+	if r.db.Dialector.Name() == "sqlite" {
+		return r.searchContentsWithQueryLike(query, zone, category, contentType, tagFilters, pageSize, offset, viewerID)
+	}
+
 	tsQuery := toTSQuery(query)
 	ilikePattern := "%" + query + "%"
 
 	visibilityClause, visibilityArgs := ContentVisibilitySQL(viewerID)
 
-	filterClause := ""
-	args := []interface{}{}
-
-	if zone != "" {
-		filterClause += " AND content_items.zone = ?"
-		args = append(args, zone)
-	}
-	if category != "" {
-		filterClause += " AND content_items.category = ?"
-		args = append(args, category)
-	}
-	if contentType != "" {
-		filterClause += " AND content_items.content_type = ?"
-		args = append(args, contentType)
-	}
-	if len(tagFilters) > 0 {
-		filterClause += " AND EXISTS (SELECT 1 FROM content_tags ct WHERE ct.content_item_id = content_items.id AND ct.tag IN (?))"
-		args = append(args, tagFilters)
-	}
+	filterClause, args := contentSearchFilterClause(zone, category, contentType, tagFilters)
 
 	countSQL := fmt.Sprintf(`SELECT COUNT(*) FROM content_items
 		WHERE %s%s
@@ -189,6 +183,68 @@ func (r *SearchRepository) searchContentsWithQuery(query, zone, category, conten
 	r.hydrateAuthors(results)
 
 	return results, total, nil
+}
+
+func (r *SearchRepository) searchContentsWithQueryLike(query, zone, category, contentType string, tagFilters []string, pageSize, offset int, viewerID int64) ([]ContentSearchResult, int64, error) {
+	likePattern := "%" + query + "%"
+	visibilityClause, visibilityArgs := ContentVisibilitySQL(viewerID)
+	filterClause, args := contentSearchFilterClause(zone, category, contentType, tagFilters)
+	matchClause := `(LOWER(content_items.title) LIKE LOWER(?) OR EXISTS (SELECT 1 FROM content_tags ct2 WHERE ct2.content_item_id = content_items.id AND LOWER(ct2.tag) LIKE LOWER(?)))`
+
+	countSQL := fmt.Sprintf(`SELECT COUNT(*) FROM content_items
+		WHERE %s%s AND %s`, visibilityClause, filterClause, matchClause)
+
+	countArgs := append([]interface{}{}, visibilityArgs...)
+	countArgs = append(countArgs, args...)
+	countArgs = append(countArgs, likePattern, likePattern)
+
+	var total int64
+	if err := r.db.Raw(countSQL, countArgs...).Scan(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	dataSQL := fmt.Sprintf(`SELECT content_items.*, 1 AS score, content_items.title AS headline
+		FROM content_items
+		WHERE %s%s AND %s
+		ORDER BY content_items.created_at DESC
+		LIMIT ? OFFSET ?`, visibilityClause, filterClause, matchClause)
+
+	dataArgs := append([]interface{}{}, visibilityArgs...)
+	dataArgs = append(dataArgs, args...)
+	dataArgs = append(dataArgs, likePattern, likePattern, pageSize, offset)
+
+	var results []ContentSearchResult
+	if err := r.db.Raw(dataSQL, dataArgs...).Scan(&results).Error; err != nil {
+		return nil, 0, err
+	}
+
+	r.hydrateAuthors(results)
+
+	return results, total, nil
+}
+
+func contentSearchFilterClause(zone, category, contentType string, tagFilters []string) (string, []interface{}) {
+	filterClause := ""
+	args := []interface{}{}
+
+	if zone != "" {
+		filterClause += " AND content_items.zone = ?"
+		args = append(args, zone)
+	}
+	if category != "" {
+		filterClause += " AND content_items.category = ?"
+		args = append(args, category)
+	}
+	if contentType != "" {
+		filterClause += " AND content_items.content_type = ?"
+		args = append(args, contentType)
+	}
+	if len(tagFilters) > 0 {
+		filterClause += " AND EXISTS (SELECT 1 FROM content_tags ct WHERE ct.content_item_id = content_items.id AND ct.tag IN (?))"
+		args = append(args, tagFilters)
+	}
+
+	return filterClause, args
 }
 
 func (r *SearchRepository) hydrateAuthors(results []ContentSearchResult) {
