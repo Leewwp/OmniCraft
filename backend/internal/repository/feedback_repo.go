@@ -22,6 +22,21 @@ func (r *FeedbackRepository) CreateTicket(t *model.FeedbackTicket) error {
 	return r.db.Create(t).Error
 }
 
+func (r *FeedbackRepository) CreateTicketWithAttachments(t *model.FeedbackTicket, attachments []model.FeedbackAttachment) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(t).Error; err != nil {
+			return err
+		}
+		for i := range attachments {
+			attachments[i].TicketID = t.ID
+			if err := tx.Create(&attachments[i]).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func (r *FeedbackRepository) FindTicketByID(id int64) (*model.FeedbackTicket, error) {
 	var t model.FeedbackTicket
 	err := r.db.Preload("Replies", func(db *gorm.DB) *gorm.DB {

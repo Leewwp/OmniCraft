@@ -144,7 +144,11 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	if cfg.Feedback.UploadGrantTTLSec > 0 {
 		uploadGrantTTL = cfg.Feedback.UploadGrantTTLSec
 	}
-	c.FeedbackService = service.NewFeedbackService(c.FeedbackRepo, c.UserRepo, rdb, captchaVerifier, uploadGrantTTL)
+	feedbackOSSSigner, err := service.NewOSSService(cfg)
+	if err != nil {
+		slog.Warn("Feedback screenshot OSS presign is unavailable", "error", err)
+	}
+	c.FeedbackService = service.NewFeedbackService(c.FeedbackRepo, c.UserRepo, rdb, captchaVerifier, uploadGrantTTL, feedbackOSSSigner)
 	c.FeedbackService.SetNotificationService(c.NotificationService)
 	c.FeedbackService.SetFeedbackMailSender(feedbackMailSender)
 	c.AdminAuditService = service.NewAdminAuditService(c.AdminAuditRepo, db)

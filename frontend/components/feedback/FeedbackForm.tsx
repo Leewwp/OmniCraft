@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import CaptchaWidget from "@/components/verification/CaptchaWidget";
-import { Upload, X, Loader2 } from "lucide-react";
+import { Check, Upload, X, Loader2 } from "lucide-react";
 
 const CATEGORIES = [
   "web_bug",
@@ -68,14 +68,14 @@ export default function FeedbackForm({ onSuccess }: FeedbackFormProps) {
         captcha_token: user ? undefined : captchaToken,
       })) as { grant_id: string; oss_key: string; upload_url: string };
 
-      const uploadURL = presignRes.upload_url.startsWith("http")
-        ? presignRes.upload_url
-        : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}${presignRes.upload_url}`;
-      await fetch(uploadURL, {
+      const uploadRes = await fetch(presignRes.upload_url, {
         method: "PUT",
         body: file,
         headers: { "Content-Type": file.type },
       });
+      if (!uploadRes.ok) {
+        throw new Error("feedback screenshot upload failed");
+      }
 
       setScreenshotGrant({ grant_id: presignRes.grant_id, oss_key: presignRes.oss_key });
     } catch (e) {
@@ -210,7 +210,7 @@ export default function FeedbackForm({ onSuccess }: FeedbackFormProps) {
               {screenshotUploading ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
               ) : screenshotGrant ? (
-                <span className="text-xs text-emerald-600">✓</span>
+                <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
               ) : null}
               <button
                 type="button"

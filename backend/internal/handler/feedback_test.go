@@ -39,10 +39,14 @@ func setupFeedbackHandlerTest(t *testing.T) (*gin.Engine, *gorm.DB) {
 		c.Set(middleware.UserIDKey, int64(0))
 		feedbackHandler.SubmitTicket(c)
 	})
+	r.POST("/feedback/attachments/presign", func(c *gin.Context) {
+		c.Set(middleware.UserIDKey, int64(42))
+		feedbackHandler.PresignUpload(c)
+	})
 	return r, db
 }
 
-func TestSubmitTicketTreatsUserIDZeroAsAnonymous(t *testing.T) {
+func TestFeedbackSubmitTicketTreatsUserIDZeroAsAnonymous(t *testing.T) {
 	r, db := setupFeedbackHandlerTest(t)
 
 	payload := map[string]any{
@@ -72,5 +76,22 @@ func TestSubmitTicketTreatsUserIDZeroAsAnonymous(t *testing.T) {
 	}
 	if ticket.UserID != nil {
 		t.Fatalf("anonymous ticket user_id = %d, want NULL", *ticket.UserID)
+	}
+}
+
+func TestFeedbackPresignUploadReturnsOSSNotConfiguredWhenSignerMissing(t *testing.T) {
+	r, _ := setupFeedbackHandlerTest(t)
+
+	body := bytes.NewBufferString(`{"file_name":"shot.png","mime_type":"image/png","size_bytes":512}`)
+	req := httptest.NewRequest(http.MethodPost, "/feedback/attachments/presign", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"code":"OSS_NOT_CONFIGURED"`)) {
+		t.Fatalf("body = %s, want OSS_NOT_CONFIGURED", rec.Body.String())
 	}
 }

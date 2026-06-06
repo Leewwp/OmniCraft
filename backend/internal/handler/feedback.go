@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/service"
@@ -19,14 +20,17 @@ func NewFeedbackHandler(feedbackService *service.FeedbackService) *FeedbackHandl
 
 func (h *FeedbackHandler) SubmitTicket(c *gin.Context) {
 	var req struct {
-		ContactEmail      string                                 `json:"contact_email"`
-		Category          string                                 `json:"category"`
-		Title             string                                 `json:"title"`
-		Description       string                                 `json:"description"`
-		DiagnosticSummary map[string]interface{}                 `json:"diagnostic_summary"`
-		CaptchaToken      string                                 `json:"captcha_token"`
-		AttachmentKeys    []string                               `json:"attachment_oss_keys"`
-		Attachments       []service.FeedbackAttachmentGrantInput `json:"attachment_grants"`
+		ContactEmail      string                 `json:"contact_email"`
+		Category          string                 `json:"category"`
+		Title             string                 `json:"title"`
+		Description       string                 `json:"description"`
+		DiagnosticSummary map[string]interface{} `json:"diagnostic_summary"`
+		CaptchaToken      string                 `json:"captcha_token"`
+		AttachmentKeys    []string               `json:"attachment_oss_keys"`
+		AttachmentGrants  []struct {
+			GrantID string `json:"grant_id"`
+			OSSKey  string `json:"oss_key"`
+		} `json:"attachment_grants"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_BODY", "message": "Invalid request body"})
@@ -36,10 +40,17 @@ func (h *FeedbackHandler) SubmitTicket(c *gin.Context) {
 	userID, exists := c.Get(middleware.UserIDKey)
 	var uid *int64
 	if exists {
-		id := userID.(int64)
-		if id > 0 {
+		if id, ok := userID.(int64); ok && id > 0 {
 			uid = &id
 		}
+	}
+
+	attachmentGrants := make([]service.FeedbackAttachmentGrantInput, 0, len(req.AttachmentGrants))
+	for _, grant := range req.AttachmentGrants {
+		attachmentGrants = append(attachmentGrants, service.FeedbackAttachmentGrantInput{
+			GrantID: grant.GrantID,
+			OSSKey:  grant.OSSKey,
+		})
 	}
 
 	input := service.SubmitTicketInput{
@@ -51,7 +62,7 @@ func (h *FeedbackHandler) SubmitTicket(c *gin.Context) {
 		DiagnosticSummary: req.DiagnosticSummary,
 		CaptchaToken:      req.CaptchaToken,
 		AttachmentOSSKeys: req.AttachmentKeys,
-		Attachments:       req.Attachments,
+		AttachmentGrants:  attachmentGrants,
 	}
 
 	ticket, err := h.feedbackService.SubmitTicket(c.Request.Context(), input)
@@ -69,8 +80,10 @@ func (h *FeedbackHandler) SubmitTicket(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"code": "CAPTCHA_REQUIRED", "message": "Captcha verification is required for anonymous submissions"})
 		case "CAPTCHA_VERIFICATION_FAILED":
 			c.JSON(http.StatusBadRequest, gin.H{"code": "CAPTCHA_FAILED", "message": "Captcha verification failed"})
-		case "INVALID_ATTACHMENT_GRANT":
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ATTACHMENT_GRANT", "message": "Invalid or expired attachment upload grant"})
+		case "UPLOAD_GRANT_INVALID":
+			c.JSON(http.StatusBadRequest, gin.H{"code": "UPLOAD_GRANT_INVALID", "message": "Screenshot upload grant is invalid or has already been used"})
+		case "UPLOAD_GRANT_STORE_UNAVAILABLE":
+			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "UPLOAD_GRANT_UNAVAILABLE", "message": "Screenshot upload grants are temporarily unavailable"})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to submit feedback"})
 		}
@@ -95,8 +108,7 @@ func (h *FeedbackHandler) PresignUpload(c *gin.Context) {
 	userID, exists := c.Get(middleware.UserIDKey)
 	var uid *int64
 	if exists {
-		id := userID.(int64)
-		if id > 0 {
+		if id, ok := userID.(int64); ok && id > 0 {
 			uid = &id
 		}
 	}
@@ -109,7 +121,7 @@ func (h *FeedbackHandler) PresignUpload(c *gin.Context) {
 		CaptchaToken: req.CaptchaToken,
 	}
 
-	grantID, ossKey, err := h.feedbackService.PresignUpload(c.Request.Context(), input)
+	grant, err := h.feedbackService.PresignUpload(c.Request.Context(), input)
 	if err != nil {
 		switch err.Error() {
 		case "CAPTCHA_REQUIRED_FOR_ANONYMOUS":
@@ -120,39 +132,24 @@ func (h *FeedbackHandler) PresignUpload(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_MIME_TYPE", "message": "Only image uploads are supported for feedback screenshots"})
 		case "FILE_TOO_LARGE":
 			c.JSON(http.StatusBadRequest, gin.H{"code": "FILE_TOO_LARGE", "message": "Screenshot must be smaller than 20MB"})
+		case "UPLOAD_GRANT_STORE_UNAVAILABLE":
+			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "UPLOAD_GRANT_UNAVAILABLE", "message": "Screenshot upload grants are temporarily unavailable"})
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to generate upload grant"})
+			if errors.Is(err, service.ErrOSSNotConfigured) {
+				c.JSON(http.StatusServiceUnavailable, gin.H{"code": "OSS_NOT_CONFIGURED", "message": "OSS upload is not configured"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to generate upload grant"})
+			}
 		}
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"grant_id":   grantID,
-		"oss_key":    ossKey,
-		"upload_url": "/api/v1/feedback/attachments/staging/" + grantID,
+		"grant_id":   grant.GrantID,
+		"oss_key":    grant.OSSKey,
+		"upload_url": grant.UploadURL,
+		"expires_in": grant.ExpiresIn,
 	})
-}
-
-func (h *FeedbackHandler) StageUpload(c *gin.Context) {
-	grantID := c.Param("grant_id")
-	if grantID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ATTACHMENT_GRANT", "message": "Invalid attachment upload grant"})
-		return
-	}
-	if err := h.feedbackService.StageAttachmentUpload(c.Request.Context(), grantID, c.Request.Body); err != nil {
-		if err.Error() == "FILE_TOO_LARGE" {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "FILE_TOO_LARGE", "message": "Screenshot must be smaller than the granted upload size"})
-			return
-		}
-		if err.Error() != "INVALID_ATTACHMENT_GRANT" {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to stage feedback attachment"})
-			return
-		}
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ATTACHMENT_GRANT", "message": "Invalid or expired attachment upload grant"})
-		return
-	}
-
-	c.Status(http.StatusNoContent)
 }
 
 func (h *FeedbackHandler) ListMyTickets(c *gin.Context) {
