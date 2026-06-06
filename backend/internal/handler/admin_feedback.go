@@ -125,8 +125,8 @@ func (h *AdminFeedbackHandler) PatchFeedback(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_STATUS", "message": "Invalid status value"})
 		case "INVALID_PRIORITY":
 			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_PRIORITY", "message": "Invalid priority value"})
-		case "FEEDBACK_NOTIFICATION_FAILED":
-			c.JSON(http.StatusBadGateway, gin.H{"code": "FEEDBACK_NOTIFICATION_FAILED", "message": "Feedback update notification failed; please retry"})
+		case "FEEDBACK_DELIVERY_FAILED":
+			c.JSON(http.StatusBadGateway, gin.H{"code": "FEEDBACK_DELIVERY_FAILED", "message": "Feedback update delivery failed; please retry"})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to update feedback ticket"})
 		}
@@ -134,8 +134,8 @@ func (h *AdminFeedbackHandler) PatchFeedback(c *gin.Context) {
 	}
 
 	if err := h.feedbackSvc.NotifyPatchTicket(c.Request.Context(), ticket, input); err != nil {
-		if err.Error() == "FEEDBACK_NOTIFICATION_FAILED" {
-			c.JSON(http.StatusBadGateway, gin.H{"code": "FEEDBACK_NOTIFICATION_FAILED", "message": "Feedback update notification failed; please retry"})
+		if err.Error() == "FEEDBACK_DELIVERY_FAILED" {
+			c.JSON(http.StatusBadGateway, gin.H{"code": "FEEDBACK_DELIVERY_FAILED", "message": "Feedback update delivery failed; please retry"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to update feedback ticket"})
@@ -200,8 +200,8 @@ func (h *AdminFeedbackHandler) ReplyFeedback(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "Reply body is required"})
 		case "BODY_TOO_LONG":
 			c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "Reply body must not exceed 5000 characters"})
-		case "FEEDBACK_NOTIFICATION_FAILED":
-			c.JSON(http.StatusBadGateway, gin.H{"code": "FEEDBACK_NOTIFICATION_FAILED", "message": "Feedback reply notification failed; please retry"})
+		case "FEEDBACK_DELIVERY_FAILED":
+			c.JSON(http.StatusBadGateway, gin.H{"code": "FEEDBACK_DELIVERY_FAILED", "message": "Feedback reply delivery failed; please retry"})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to create reply"})
 		}
@@ -209,8 +209,8 @@ func (h *AdminFeedbackHandler) ReplyFeedback(c *gin.Context) {
 	}
 
 	if err := h.feedbackSvc.NotifyAdminReply(c.Request.Context(), ticket, input); err != nil {
-		if err.Error() == "FEEDBACK_NOTIFICATION_FAILED" {
-			c.JSON(http.StatusBadGateway, gin.H{"code": "FEEDBACK_NOTIFICATION_FAILED", "message": "Feedback reply notification failed; please retry"})
+		if err.Error() == "FEEDBACK_DELIVERY_FAILED" {
+			c.JSON(http.StatusBadGateway, gin.H{"code": "FEEDBACK_DELIVERY_FAILED", "message": "Feedback reply delivery failed; please retry"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to create reply"})

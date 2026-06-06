@@ -256,7 +256,7 @@ func TestWebBetaReviewRepairMigrationAddsFeedbackAndReportSchema(t *testing.T) {
 	}
 }
 
-func TestUpdateReportStatusPersistsActionTaken(t *testing.T) {
+func TestReportUpdateStatusPersistsActionTaken(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)

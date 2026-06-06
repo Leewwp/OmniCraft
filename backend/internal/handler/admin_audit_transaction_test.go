@@ -2,6 +2,8 @@ package handler
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -89,6 +91,33 @@ func TestAdminPatchFeedbackRollsBackWhenAuditWriteFails(t *testing.T) {
 	}
 	if reloaded.Status != "open" {
 		t.Fatalf("feedback status = %q, want open", reloaded.Status)
+	}
+}
+
+func TestAdminFeedbackPatchReturnsDeliveryFailedWhenAnonymousEmailFails(t *testing.T) {
+	router, db := setupAdminFeedbackDeliveryRouter(t)
+	ticket := model.FeedbackTicket{
+		ContactEmail: "anon@example.com",
+		Category:     "web_bug",
+		Title:        "Bug",
+		Description:  "Bug report",
+		Status:       "open",
+		Priority:     "normal",
+	}
+	if err := db.Create(&ticket).Error; err != nil {
+		t.Fatalf("create ticket: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPatch, "/admin/feedback/"+strconv.FormatInt(ticket.ID, 10), bytes.NewReader([]byte(`{"status":"closed"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502; body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "FEEDBACK_DELIVERY_FAILED") {
+		t.Fatalf("response missing FEEDBACK_DELIVERY_FAILED: %s", rec.Body.String())
 	}
 }
 
@@ -247,6 +276,28 @@ func setupAdminFeedbackAuditRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 		handler.PatchFeedback(c)
 	})
 	return router, db
+}
+
+func setupAdminFeedbackDeliveryRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
+	t.Helper()
+	router, db := setupAdminFeedbackAuditRouter(t)
+	feedbackSvc := service.NewFeedbackService(repository.NewFeedbackRepository(db), repository.NewUserRepository(db), nil, nil, 300)
+	feedbackSvc.SetFeedbackMailSender(failingFeedbackMailSender{})
+	auditSvc := service.NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
+	handler := NewAdminFeedbackHandler(db, feedbackSvc, auditSvc)
+	router = gin.New()
+	router.PATCH("/admin/feedback/:id", func(c *gin.Context) {
+		c.Set(middleware.UserIDKey, int64(99))
+		c.Set("trace_id", "trace-admin-feedback-delivery-test")
+		handler.PatchFeedback(c)
+	})
+	return router, db
+}
+
+type failingFeedbackMailSender struct{}
+
+func (failingFeedbackMailSender) SendFeedbackUpdate(context.Context, string, string, string) error {
+	return errors.New("mail failed")
 }
 
 func setupCategoryAuditRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
