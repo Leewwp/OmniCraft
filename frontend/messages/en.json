@@ -186,6 +186,8 @@
     "fanworkBrowseZone": "Fan Creation Browse Zone",
     "originalContentStream": "Original Content Stream",
     "noOriginalContent": "No original content",
+    "ipLoadFailed": "IP content could not be loaded. Please try again later.",
+    "contentLoadFailed": "Content could not be loaded. Please try again later.",
     "heroTagline": "A creative sharing platform centered on IP fan creation aggregation, with Agent automation as value-added capability and GitHub-style PR collaboration as moat.",
     "categoryRecommended": "Recommended",
     "categoryFilmTv": "Film & TV",
