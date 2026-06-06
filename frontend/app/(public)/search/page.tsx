@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
@@ -36,6 +36,19 @@ export default function SearchPage() {
   const [saveName, setSaveName] = useState("");
   const [saveBusy, setSaveBusy] = useState(false);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const openFilterButtonRef = useRef<HTMLButtonElement | null>(null);
+  const closeFilterButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (filterDrawerOpen) {
+      closeFilterButtonRef.current?.focus();
+    }
+  }, [filterDrawerOpen]);
+
+  function closeFilterDrawer() {
+    setFilterDrawerOpen(false);
+    requestAnimationFrame(() => openFilterButtonRef.current?.focus());
+  }
 
   const doSearch = useCallback(async (q: string, filter: FilterConfig) => {
     if (!q.trim()) return;
@@ -125,10 +138,17 @@ export default function SearchPage() {
         </AgentFeatureGate>
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex flex-col gap-4 md:flex-row">
         {/* Mobile filter button */}
-        <div className="md:hidden mb-2">
-          <Button variant="outline" size="sm" onClick={() => setFilterDrawerOpen(true)} className="w-full">
+        <div className="md:hidden">
+          <Button
+            ref={openFilterButtonRef}
+            variant="outline"
+            size="sm"
+            onClick={() => setFilterDrawerOpen(true)}
+            className="w-full"
+            aria-label={t("search.filter.openAdvancedFilter")}
+          >
             <SlidersHorizontal className="mr-1.5 h-4 w-4" />
             {t('search.filter.advancedFilter')}
           </Button>
@@ -137,11 +157,32 @@ export default function SearchPage() {
         {/* Mobile filter drawer */}
         {filterDrawerOpen && (
           <div className="fixed inset-0 z-50 md:hidden">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setFilterDrawerOpen(false)} />
-            <div className="absolute bottom-0 left-0 right-0 max-h-[80vh] overflow-y-auto rounded-t-xl bg-background p-4 border-t border-border">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-semibold">{t('search.filter.advancedFilter')}</span>
-                <button onClick={() => setFilterDrawerOpen(false)} className="p-1 rounded hover:bg-muted">
+            <button
+              type="button"
+              aria-label={t("common.close")}
+              className="absolute inset-0 bg-black/40"
+              onClick={closeFilterDrawer}
+            />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="mobile-filter-title"
+              className="absolute bottom-0 left-0 right-0 max-h-[85vh] overflow-y-auto rounded-t-lg border-t border-border bg-background p-4"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") closeFilterDrawer();
+              }}
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <span id="mobile-filter-title" className="text-sm font-semibold">
+                  {t('search.filter.advancedFilter')}
+                </span>
+                <button
+                  type="button"
+                  ref={closeFilterButtonRef}
+                  onClick={closeFilterDrawer}
+                  className="rounded-md p-1 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring"
+                  aria-label={t("common.close")}
+                >
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -156,7 +197,7 @@ export default function SearchPage() {
         </aside>
 
         {/* Right: Results */}
-        <main className="min-w-0 flex-1 space-y-4">
+        <main data-testid="search-results-panel" className="min-w-0 flex-1 space-y-4">
           {/* Toolbar */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
