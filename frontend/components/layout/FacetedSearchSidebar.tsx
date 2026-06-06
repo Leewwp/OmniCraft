@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/Toast";
 import { api } from "@/lib/api";
+import { normalizeSearchFilters, type SearchFilterConfig } from "@/lib/search-filters";
 import { cn } from "@/lib/utils";
 
 // ── Types ──────────────────────────────────────────────
@@ -47,13 +48,7 @@ interface SavedSearch {
   config: FilterConfig;
 }
 
-export interface FilterConfig {
-  category?: string;
-  selected_tags?: string[];
-  content_types?: string[];
-  time_range?: string;
-  sort?: string;
-}
+export interface FilterConfig extends SearchFilterConfig {}
 
 export interface FacetedSearchSidebarProps {
   className?: string;
@@ -144,9 +139,9 @@ export function FacetedSearchSidebar({
 
   const buildConfig = useCallback((): FilterConfig => ({
     category: selectedCategory || undefined,
-    selected_tags: selectedTags.length > 0 ? [...selectedTags] : undefined,
-    content_types: contentTypes.length > 0 ? [...contentTypes] : undefined,
-    time_range: timeRange || undefined,
+    selectedTags: selectedTags.length > 0 ? [...selectedTags] : undefined,
+    contentTypes: contentTypes.length > 0 ? [...contentTypes] : undefined,
+    timeRange: timeRange || undefined,
     sort: sort || undefined,
   }), [selectedCategory, selectedTags, contentTypes, timeRange, sort]);
 
@@ -294,11 +289,12 @@ export function FacetedSearchSidebar({
   }
 
   function handleApplySavedSearch(search: SavedSearch) {
-    if (search.config.category) setSelectedCategory(search.config.category);
-    if (search.config.selected_tags) setSelectedTags(search.config.selected_tags);
-    if (search.config.content_types) setContentTypes(search.config.content_types);
-    if (search.config.time_range) setTimeRange(search.config.time_range);
-    if (search.config.sort) setSort(search.config.sort);
+    const config = normalizeSearchFilters(search.config);
+    setSelectedCategory(config.category ?? "");
+    setSelectedTags(config.selectedTags);
+    setContentTypes(config.contentTypes);
+    setTimeRange(config.timeRange ?? "");
+    setSort(config.sort ?? "");
     toast("success", t('search.filter.loadedSearch', { name: search.name }));
   }
 
@@ -475,6 +471,7 @@ export function FacetedSearchSidebar({
               <div className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-muted-foreground">{t('search.timeRange')}</span>
                 <select
+                  aria-label={t('search.timeRange')}
                   value={timeRange}
                   onChange={(e) => setTimeRange(e.target.value)}
                   className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
@@ -491,6 +488,7 @@ export function FacetedSearchSidebar({
               <div className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-muted-foreground">{t('search.sortBy')}</span>
                 <select
+                  aria-label={t('search.sortBy')}
                   value={sort}
                   onChange={(e) => setSort(e.target.value)}
                   className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"

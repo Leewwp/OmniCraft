@@ -4,6 +4,12 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { normalizeContentList } from "@/lib/content";
+import {
+  buildContentSearchPath,
+  normalizeSearchFilters,
+  type SearchFilterConfig,
+} from "@/lib/search-filters";
 import { SearchAgentInput } from "@/components/agent/SearchAgentInput";
 import { AgentFeatureGate } from "@/components/agent/AgentFeatureGate";
 import { FacetedSearchSidebar } from "@/components/layout/FacetedSearchSidebar";
@@ -15,14 +21,6 @@ import { Bookmark, Grid3X3, List, Search, SlidersHorizontal, X } from "lucide-re
 import { cn } from "@/lib/utils";
 import { silentError } from "@/lib/error-handler";
 
-interface FilterConfig {
-  category?: string;
-  selectedTags?: string[];
-  contentTypes?: string[];
-  timeRange?: string;
-  sort?: string;
-}
-
 export default function SearchPage() {
   const t = useTranslations();
   const { user } = useAuth();
@@ -31,13 +29,14 @@ export default function SearchPage() {
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [filterConfig, setFilterConfig] = useState<FilterConfig>({});
+  const [filterConfig, setFilterConfig] = useState<SearchFilterConfig>({});
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [saveBusy, setSaveBusy] = useState(false);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const openFilterButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeFilterButtonRef = useRef<HTMLButtonElement | null>(null);
+  const normalizedFilters = normalizeSearchFilters(filterConfig);
 
   useEffect(() => {
     if (filterDrawerOpen) {
@@ -50,23 +49,15 @@ export default function SearchPage() {
     requestAnimationFrame(() => openFilterButtonRef.current?.focus());
   }
 
-  const doSearch = useCallback(async (q: string, filter: FilterConfig) => {
+  const doSearch = useCallback(async (q: string, filter: SearchFilterConfig) => {
     if (!q.trim()) return;
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams();
-      params.set("q", q);
-      if (filter.category) params.set("category", filter.category);
-      if (filter.selectedTags?.length) params.set("tags", filter.selectedTags.join(","));
-      if (filter.contentTypes?.length) params.set("content_type", filter.contentTypes.join(","));
-      if (filter.timeRange) params.set("time_range", filter.timeRange);
-      if (filter.sort) params.set("sort", filter.sort);
-
-      const data = await api.get<{ contents?: ContentCardData[]; total?: number }>(
-        `/api/v1/contents?${params.toString()}`,
+      const data = await api.get<{ items?: unknown[]; contents?: unknown[]; total?: number }>(
+        buildContentSearchPath(q, filter),
       );
-      setResults(data.contents ?? []);
+      setResults(normalizeContentList(data.items ?? data.contents ?? []));
     } catch (e) {
       silentError(e, { component: 'SearchPage', action: 'doSearch' });
       setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
@@ -81,13 +72,14 @@ export default function SearchPage() {
       setResults(r);
     } else {
       // Fallback to keyword search
-      doSearch(q, filterConfig);
+      void doSearch(q, filterConfig);
     }
   }
 
-  function handleFilterChange(config: FilterConfig) {
-    setFilterConfig(config);
-    if (query) doSearch(query, config);
+  function handleFilterChange(config: SearchFilterConfig) {
+    const nextConfig = normalizeSearchFilters(config);
+    setFilterConfig(nextConfig);
+    if (query) void doSearch(query, nextConfig);
   }
 
   async function handleSaveSearch() {
@@ -122,13 +114,18 @@ export default function SearchPage() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") doSearch(query, filterConfig);
+                    if (e.key === "Enter") void doSearch(query, filterConfig);
                   }}
                   placeholder={t("agent.searchKeywordPlaceholder")}
                   className="w-full rounded-md border border-border bg-background py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 />
               </div>
-              <Button size="sm" onClick={() => doSearch(query, filterConfig)} disabled={!query.trim()}>
+              <Button
+                size="sm"
+                onClick={() => void doSearch(query, filterConfig)}
+                disabled={!query.trim()}
+                aria-label={t("discussion.search")}
+              >
                 <Search className="h-4 w-4" />
               </Button>
             </div>
@@ -220,25 +217,45 @@ export default function SearchPage() {
             </div>
 
             {/* Active filter chips */}
-            {filterConfig.category && (
-              <TagBadge color="purple" onRemove={() => handleFilterChange({ ...filterConfig, category: undefined })}>
-                {filterConfig.category}
+            {normalizedFilters.category && (
+              <TagBadge color="purple" onRemove={() => handleFilterChange({ ...normalizedFilters, category: "" })}>
+                {normalizedFilters.category}
               </TagBadge>
             )}
-            {filterConfig.selectedTags?.map((tag) => (
+            {normalizedFilters.selectedTags.map((tag) => (
               <TagBadge
                 key={tag}
                 color="blue"
                 onRemove={() =>
                   handleFilterChange({
-                    ...filterConfig,
-                    selectedTags: filterConfig.selectedTags?.filter((t) => t !== tag),
+                    ...normalizedFilters,
+                    selectedTags: normalizedFilters.selectedTags.filter((t) => t !== tag),
                   })
                 }
               >
                 {tag}
               </TagBadge>
             ))}
+
+            {normalizedFilters.contentTypes.map((contentType) => (
+              <TagBadge
+                key={contentType}
+                color="green"
+                onRemove={() =>
+                  handleFilterChange({
+                    ...normalizedFilters,
+                    contentTypes: normalizedFilters.contentTypes.filter((item) => item !== contentType),
+                  })
+                }
+              >
+                {contentType}
+              </TagBadge>
+            ))}
+            {normalizedFilters.timeRange && (
+              <TagBadge color="orange" onRemove={() => handleFilterChange({ ...normalizedFilters, timeRange: "" })}>
+                {normalizedFilters.timeRange}
+              </TagBadge>
+            )}
 
             {/* Save search */}
             {user && query && (
@@ -273,7 +290,7 @@ export default function SearchPage() {
           {error && (
             <div className="rounded-md border border-border bg-card p-4 text-center ">
               <p className="text-sm text-destructive">{error}</p>
-              <Button size="sm" variant="outline" className="mt-2" onClick={() => query && doSearch(query, filterConfig)}>
+              <Button size="sm" variant="outline" className="mt-2" onClick={() => query && void doSearch(query, filterConfig)}>
                 {t("common.retry")}
               </Button>
             </div>
