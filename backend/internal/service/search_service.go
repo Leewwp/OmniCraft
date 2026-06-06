@@ -17,8 +17,8 @@ func NewSearchService(searchRepo *repository.SearchRepository, rdb *redis.Client
 	return &SearchService{searchRepo: searchRepo, rdb: rdb}
 }
 
-func (s *SearchService) GetSuggestions(prefix string, limit int) ([]repository.SearchSuggestion, error) {
-	return s.searchRepo.SearchSuggestions(prefix, limit)
+func (s *SearchService) GetSuggestions(prefix string, limit int, viewerID int64) ([]repository.SearchSuggestion, error) {
+	return s.searchRepo.SearchSuggestions(prefix, limit, viewerID)
 }
 
 type TrendingItem struct {

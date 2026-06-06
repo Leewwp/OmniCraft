@@ -27,7 +27,7 @@ func (h *SearchHandler) Suggestions(c *gin.Context) {
 		return
 	}
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
-	suggestions, err := h.searchSvc.GetSuggestions(q, limit)
+	suggestions, err := h.searchSvc.GetSuggestions(q, limit, middleware.GetUserID(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "search failed"})
 		return
