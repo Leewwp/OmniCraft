@@ -337,7 +337,7 @@ func searchSuggestionTexts(results []SearchSuggestion) map[string]bool {
 }
 
 func TestWebBetaReviewRepairMigrationAddsFeedbackAndReportSchema(t *testing.T) {
-	migrationPath := filepath.Join("..", "..", "migrations", "053_web_beta_review_repairs.sql")
+	migrationPath := filepath.Join("..", "..", "migrations", "055_web_beta_review_repairs.sql")
 	data, err := os.ReadFile(migrationPath)
 	if err != nil {
 		t.Fatalf("read repair migration: %v", err)

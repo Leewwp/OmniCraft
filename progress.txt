@@ -2718,14 +2718,14 @@
 
 ### Notes:
 - The previous Task 7 captcha/session failures were branch-composition failures, not new auth regressions: the validation branch included Task 3-6 but not Task 1-2.
-- The previous admin report/schema failures also require applying `backend/migrations/053_web_beta_review_repairs.sql` to the existing local PostgreSQL volume before rerunning validation.
+- The previous admin report/schema failures also require applying `backend/migrations/055_web_beta_review_repairs.sql` to the existing local PostgreSQL volume before rerunning validation.
 - Existing dirty `.agents/skills/ui-ux-pro-max/scripts/__pycache__/*.pyc` files were left untouched and are not part of this task.
 
 ## [2026-06-04] - Beta Repair Task 7: Evidence Revalidation And Browser Regression
 
 ### What was done:
 - Re-ran backend and frontend gates from the repaired validation branch.
-- Re-applied migration 053 to the local PostgreSQL validation database and refreshed the local admin seed user.
+- Re-applied migration 055 to the local PostgreSQL validation database and refreshed the local admin seed user.
 - Validated repaired auth/session/captcha, anonymous feedback, admin report audit, search suggestions, disabled deploy/payment routes, and public feature flags through API requests.
 - Saved Playwright screenshots for register, login, feedback, admin reports, search, and content detail pages.
 - Added `docs/review/web-beta-repair-validation-2026-06-03.md` and structured screenshot evidence under `screenshots/review-web-beta/repair-validation/`.
@@ -2832,3 +2832,34 @@
 ### Notes:
 - `task.json` was not modified.
 - `features.desktop_deploy_enabled=false`, `client.download_enabled=false`, and `features.payment_enabled=false` remain unchanged.
+
+## [2026-06-07] - Web Beta Final Integration Review And Fresh Validation
+
+### What was done:
+- Continued final integration on `C:\tmp\omnicraft-worktrees\beta-integration` while keeping the main project directory on `main`.
+- Re-reviewed `origin/main..HEAD` for security regressions, raw error exposure, token/secret exposure, feature flags, migration ordering/idempotency, frontend direct OSS links, admin audit transaction integrity, and Task 1-7 repair coverage.
+- Confirmed Task 1-7 have corresponding commits, code/tests, and evidence; no Task 5-7 evidence gap remains.
+- Fixed the final migration reconciliation finding by renaming `backend/migrations/053_web_beta_review_repairs.sql` to `backend/migrations/055_web_beta_review_repairs.sql`, avoiding duplicate `053_*.sql` numbering after rebase onto `origin/main`.
+- Updated migration test/docs references to `055_web_beta_review_repairs.sql`.
+- Re-ran browser regression against local backend/frontend and saved screenshots under `screenshots/final-integration-20260607-055/`.
+
+### Testing:
+- `go test ./...` PASS.
+- `go vet ./...` PASS.
+- `go build ./...` PASS.
+- `npm test` PASS.
+- `npm run lint` PASS.
+- `npm run build` PASS.
+- Migration empty replay PASS on `omnicraft_verify_empty_20260607_055`, 55 migration files.
+- Migration upgrade replay PASS on `omnicraft_verify_upgrade_20260607_055`, `001` through `048` followed by `049` through `055`.
+- Migration idempotence PASS for `041_content_search_vector.sql`, `042_ips_search_vector.sql`, `053_content_items_soft_delete.sql`, `054_users_soft_delete.sql`, and `055_web_beta_review_repairs.sql`.
+- Browser `/feedback` PASS: form, category control, and submit button render.
+- Browser `/search` PASS after submitting `validation`: result links to `/original/86`.
+- Browser `/original/86` PASS: one `Download Sheet Music` button, no OSS direct links, no `omnicraft://` links.
+
+### Notes:
+- Review finding status: admin failed-attempt audit fixed in `2eb6b02`; sheet-music CTA fixed in `4759a12`; duplicate migration numbering fixed in this final integration update.
+- `features.desktop_deploy_enabled=false`, `client.download_enabled=false`, `features.payment_enabled=false`, and `features.creator_support_enabled=false` remain unchanged.
+- Production deployment remains externally blocked on real SMTP, Alibaba CAPTCHA/OSS/Green credentials, production PostgreSQL/Redis/HTTPS/origins, a strong JWT secret, and approved legal terms/privacy version inputs.
+- `task.json` was not modified.
+- The in-app browser screenshot API timed out on `Page.captureScreenshot`; DOM verification succeeded there, and screenshot capture used the Playwright MCP fallback.

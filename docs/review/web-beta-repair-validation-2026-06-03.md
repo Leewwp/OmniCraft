@@ -15,7 +15,7 @@
 - Local dependencies:
   - `omnicraft-postgres` healthy on `localhost:5432`
   - `omnicraft-redis` healthy on `localhost:6379`
-- Local migration `backend/migrations/053_web_beta_review_repairs.sql` was applied before validation. It is idempotent and confirmed `reports.action_taken` and `feedback_tickets_status_check` exist.
+- Local migration `backend/migrations/055_web_beta_review_repairs.sql` was applied before validation. It is idempotent and confirmed `reports.action_taken` and `feedback_tickets_status_check` exist.
 
 ## Repairs Covered
 
@@ -66,7 +66,7 @@ Note: the first `npm run lint` attempt ran before `.next/types` existed and fail
 Local validation setup:
 
 ```powershell
-Get-Content backend\migrations\053_web_beta_review_repairs.sql | docker exec -i omnicraft-postgres psql -U omnicraft -d omnicraft
+Get-Content backend\migrations\055_web_beta_review_repairs.sql | docker exec -i omnicraft-postgres psql -U omnicraft -d omnicraft
 cd backend && go run cmd/seed_admin/main.go
 cd backend && go run cmd/server/main.go
 cd frontend && npm run dev
@@ -142,7 +142,7 @@ PASS for local Web Beta repair revalidation.
 The known Task 7 blockers from the failed validation pass have been resolved:
 
 - Missing Task 1/2 repair commits were incorporated into the validation branch.
-- Existing local PostgreSQL schema was updated with migration 053.
+- Existing local PostgreSQL schema was updated with migration 055.
 - Search suggestions no longer query `tags.status`.
 - Captcha/session, anonymous feedback, admin report audit, search, disabled deploy/payments, and browser rendering evidence all pass in the repaired branch.
 
@@ -157,7 +157,7 @@ Additional validation on `codex/beta/repair-validation-blockers`:
 - Restored the `docs/review/web-beta-review-*`, review repair plan, and `e2e/` evidence files that had been dropped from the aggregate repair branch.
 - Confirmed local Docker already had healthy shared `omnicraft-postgres` and `omnicraft-redis` containers. `docker compose up -d postgres redis` from this worktree could not create duplicate fixed-name containers, so existing healthy services were used instead.
 - Confirmed migration repair schema exists in the local database: `reports.action_taken` and `feedback_tickets_status_check`.
-- Confirmed migrations `041_content_search_vector.sql` and `042_ips_search_vector.sql` include pg_jieba fallback behavior, and `053_web_beta_review_repairs.sql` is idempotent.
+- Confirmed migrations `041_content_search_vector.sql` and `042_ips_search_vector.sql` include pg_jieba fallback behavior, and `055_web_beta_review_repairs.sql` is idempotent.
 - Replayed migrations against disposable local PostgreSQL databases:
   - Empty database: all `backend/migrations/*.sql` in lexical order passed.
   - Upgrade database: `001` through `048`, then `049` and later migrations in lexical order passed.
@@ -178,3 +178,84 @@ npm run lint
 ```
 
 All listed commands passed on 2026-06-05. The release secret scan was rerun; remaining matches are reviewed development placeholders, tests, redaction logic, ordinary refresh-cookie identifiers, frontend error logging, or deferred Tauri HMAC scope while desktop deployment remains disabled.
+
+## 2026-06-07 Final Integration Addendum
+
+Branch: `codex/beta-integration`
+
+Review findings and status:
+
+- Important: Task 6 success audit writes were transactional, but invalid admin report resolution did not write a sanitized failed-attempt audit row. Fixed in `2eb6b02` with `TestAdminResolveReportInvalidStatusRecordsFailedAudit`.
+- Important: Task 4 sheet-music detail page could omit the authorized download CTA when the attachment had `oss_key` but no preview `oss_url`. Fixed in `4759a12` with `frontend/tests/sheet-music-viewer-download.test.mjs`.
+- Important: Rebase reconciliation produced duplicate `053_*.sql` migration numbering and no `055_*.sql`. Fixed during final integration by renaming the repair migration to `backend/migrations/055_web_beta_review_repairs.sql` and updating references.
+
+Task 1-7 coverage check:
+
+| Repair task | Integration status | Evidence |
+| --- | --- | --- |
+| Task 1 Auth/Captcha/Release Guard/Cookie Session | Covered | Auth/session/captcha tests and release guard tests pass in full backend gate. |
+| Task 2 Verification Cache/Token Atomicity | Covered | Verification/reset focused tests remain covered by full backend gate. |
+| Task 3 Feedback/Upload Grants/Notifications/Report Resolution | Covered | Feedback service/handler tests, migration 055 replay, and browser `/feedback` render pass. |
+| Task 4 Search Visibility/Download Authorization/Sheet Music CTA | Covered | Search/download handler/repository tests pass; browser search links to `/original/86`; sheet music detail renders `Download Sheet Music` through `DownloadButton`. |
+| Task 5 Agent Output Validation/Feature Flags | Covered | Agent service/handler tests pass; disabled Web Agent behavior covered by handler tests. |
+| Task 6 Admin Audit Transaction Integrity | Covered | Admin audit transaction tests pass, including failed-attempt audit self-check. |
+| Task 7 Evidence Revalidation/Browser Regression | Covered | Fresh 2026-06-07 backend, frontend, migration, and browser checks recorded below. |
+
+Fresh commands rerun from `C:\tmp\omnicraft-worktrees\beta-integration` on 2026-06-07:
+
+```powershell
+cd backend
+$env:GOCACHE='C:\tmp\omnicraft-go-cache'; go test ./...
+$env:GOCACHE='C:\tmp\omnicraft-go-cache'; go vet ./...
+$env:GOCACHE='C:\tmp\omnicraft-go-cache'; go build ./...
+
+cd ..\frontend
+npm test
+npm run lint
+npm run build
+```
+
+Result: all listed commands passed.
+
+Migration replay:
+
+- Empty database replay passed on `omnicraft_verify_empty_20260607_055`, applying 55 migration files in lexical order.
+- Upgrade replay passed on `omnicraft_verify_upgrade_20260607_055`, applying `001` through `048`, then `049` through `055`.
+- Idempotence reapply passed on:
+  - `041_content_search_vector.sql`
+  - `042_ips_search_vector.sql`
+  - `053_content_items_soft_delete.sql`
+  - `054_users_soft_delete.sql`
+  - `055_web_beta_review_repairs.sql`
+- `pg_jieba` is unavailable in the local PostgreSQL image; `041` falls back to `simple` config as designed.
+
+Browser regression:
+
+- `/feedback`: form, category control, and submit button render.
+- `/search`: submitting keyword `validation` through the page input returns a result linking to `/original/86`.
+- `/original/86`: renders exactly one `Download Sheet Music` button, with no direct OSS links and no `omnicraft://` links.
+
+Screenshots:
+
+- `screenshots/final-integration-20260607-055/feedback-page.png`
+- `screenshots/final-integration-20260607-055/search-validation.png`
+- `screenshots/final-integration-20260607-055/sheet-music-detail-download-cta.png`
+
+Feature flags:
+
+- `features.desktop_deploy_enabled=false`
+- `client.download_enabled=false`
+- `features.payment_enabled=false`
+- `features.creator_support_enabled=false`
+
+Remaining external blockers:
+
+- Production SMTP provider and credentials.
+- Alibaba Cloud CAPTCHA 2.0 credentials.
+- Alibaba Cloud OSS bucket and credentials.
+- Alibaba Cloud Green/content-safety credentials.
+- Production PostgreSQL/Redis configuration, including SSL/auth/TLS requirements.
+- HTTPS certificate, production API/app origins, and `security.allowed_origins`.
+- Strong production `JWT_SECRET`.
+- Approved legal terms/privacy version IDs and approved legal copy.
+- Desktop Ed25519 keys remain relevant only if the desktop deployment track resumes; desktop deploy and client download stay disabled.

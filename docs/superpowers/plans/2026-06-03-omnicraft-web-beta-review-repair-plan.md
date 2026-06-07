@@ -102,7 +102,7 @@ Verified corrections to the review summary:
   - Keep audit handling aligned with the Admin audit transaction task.
 - `backend/internal/repository/search_repo.go`
   - Stop updating a nonexistent `action_taken` column unless migration adds it.
-- `backend/migrations/053_web_beta_review_repairs.sql`
+- `backend/migrations/055_web_beta_review_repairs.sql`
   - Add `reports.action_taken` if keeping the API contract.
   - Fix `feedback_tickets.status` check to include `reopened`, or change service/UI to avoid `reopened`.
   - Add any corrective migration for previously rewritten 041/042 only if target environments may have run the old migration.
@@ -535,7 +535,7 @@ git commit -m "Beta repair: fix verification token lifecycle"
 - Modify: `backend/internal/repository/feedback_repo.go`
 - Modify: `backend/internal/handler/admin_feedback.go`
 - Modify: `backend/internal/repository/search_repo.go`
-- Create: `backend/migrations/053_web_beta_review_repairs.sql`
+- Create: `backend/migrations/055_web_beta_review_repairs.sql`
 - Test: `backend/internal/handler/feedback_test.go`
 - Test: `backend/internal/service/feedback_service_test.go`
 - Test: `backend/internal/handler/admin_feedback_test.go`
@@ -586,7 +586,7 @@ Expected initial result: FAIL because `reports.action_taken` does not exist.
 
 - [ ] **Step 4: Add migration for report action**
 
-Create `backend/migrations/053_web_beta_review_repairs.sql`:
+Create `backend/migrations/055_web_beta_review_repairs.sql`:
 
 ```sql
 ALTER TABLE reports
@@ -703,7 +703,7 @@ Expected: all PASS.
 - [ ] **Step 12: Commit Task 3**
 
 ```powershell
-git add backend/internal/handler/feedback.go backend/internal/handler/feedback_test.go backend/internal/service/feedback_service.go backend/internal/service/feedback_service_test.go backend/internal/repository/feedback_repo.go backend/internal/handler/admin_feedback.go backend/internal/handler/admin_feedback_test.go backend/internal/repository/search_repo.go backend/internal/repository/search_repo_test.go backend/migrations/053_web_beta_review_repairs.sql
+git add backend/internal/handler/feedback.go backend/internal/handler/feedback_test.go backend/internal/service/feedback_service.go backend/internal/service/feedback_service_test.go backend/internal/repository/feedback_repo.go backend/internal/handler/admin_feedback.go backend/internal/handler/admin_feedback_test.go backend/internal/repository/search_repo.go backend/internal/repository/search_repo_test.go backend/migrations/055_web_beta_review_repairs.sql
 git commit -m "Beta repair: restore feedback and report workflows"
 ```
 
@@ -1287,4 +1287,3 @@ These are not code defects, but they block production deployment:
 - Approved legal terms/privacy version IDs and approved page copy.
 - Alibaba Cloud Green/content safety credentials.
 - Desktop Ed25519 keys only if D-02 through D-05/R-02 are resumed later.
-
