@@ -218,7 +218,7 @@ Additional 2026-06-05 checks:
 - Release startup validation now rejects the default `dev-secret-change-in-production` JWT secret in `server.mode=release`.
 - `STSToken.AccessKeySecret` now uses `json:"-"`, with regression coverage proving JSON output omits the secret field and value.
 - The aggregate repair branch restores the Web Beta review reports, repair plan, and E2E evidence files instead of deleting them.
-- `reports.action_taken` and `feedback_tickets_status_check` are present in the local validation database after migration 053.
+- `reports.action_taken` and `feedback_tickets_status_check` are present in the local validation database after migration 055.
 - Disposable local PostgreSQL migration replay passed for both an empty database and an upgrade path that applied `001` through `048` before `049` and later migrations.
 
 Commands rerun:
@@ -241,3 +241,29 @@ Result: all listed commands passed.
 Production deployment remains blocked until real SMTP, Alibaba CAPTCHA/OSS/Green credentials, production PostgreSQL/Redis,
 HTTPS certificate, production allowed origins, strong JWT secret, and approved legal version inputs are provided.
 Desktop one-click deployment, Tauri client distribution, and payment remain disabled.
+
+---
+
+## 13. 2026-06-07 Final Integration Revalidation
+
+The final `codex/beta-integration` pass repaired the remaining integration review findings before main merge preparation:
+
+- Admin failed-attempt audit evidence added in `2eb6b02`.
+- Sheet-music authorized download CTA restored in `4759a12`.
+- Migration reconciliation fixed duplicate `053_*.sql` numbering by moving the review repair migration to `055_web_beta_review_repairs.sql`.
+
+Fresh validation passed on 2026-06-07:
+
+- Backend: `go test ./...`, `go vet ./...`, `go build ./...`.
+- Frontend: `npm test`, `npm run lint`, `npm run build`.
+- Migrations: empty replay of all 55 migration files; upgrade replay `001`-`048` then `049`-`055`; idempotence reapply for `041`, `042`, `053`, `054`, and `055`.
+- Browser: `/feedback`, search keyword `validation`, and `/original/86` sheet-music download CTA verified with screenshots under `screenshots/final-integration-20260607-055/`.
+
+Feature flags remain closed for deferred tracks:
+
+- `features.desktop_deploy_enabled=false`
+- `client.download_enabled=false`
+- `features.payment_enabled=false`
+- `features.creator_support_enabled=false`
+
+No open Critical or Important code-review findings remain in the local integration branch. Production deployment remains externally blocked on real SMTP, Alibaba CAPTCHA/OSS/Green credentials, production PostgreSQL/Redis/HTTPS/origins, a strong JWT secret, and approved legal version inputs.
