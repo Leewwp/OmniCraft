@@ -1241,6 +1241,7 @@
       "categoryLabel": "Category",
       "ipLabel": "Linked IP",
       "ipSearchPlaceholder": "Search and select IP...",
+      "ipSearching": "Searching IP...",
       "ipHint": "Enter IP name to search (feature in development)",
       "bodyLabel": "Content",
       "bodyPlaceholder": "Briefly describe your work...",

@@ -1241,6 +1241,7 @@
       "categoryLabel": "分类",
       "ipLabel": "关联 IP",
       "ipSearchPlaceholder": "搜索并选择 IP...",
+      "ipSearching": "正在搜索 IP...",
       "ipHint": "输入 IP 名称进行搜索（功能开发中）",
       "bodyLabel": "正文",
       "bodyPlaceholder": "简单描述一下你的作品...",
