@@ -14,6 +14,21 @@ assert.match(
   /captchaVerifyParam/,
   "CaptchaWidget must pass captchaVerifyParam to onToken",
 );
+assert.match(
+  source,
+  /button:\s*`#\$\{buttonId\}`/,
+  "CaptchaWidget must pass a stable button selector to Alibaba Cloud CAPTCHA 2.0",
+);
+assert.match(
+  source,
+  /if\s*\(\s*config\.captcha\.provider\s*===\s*"bypass"\s*\)[\s\S]*onToken\("bypass"\)/,
+  "CaptchaWidget may only issue a bypass token when the public config provider is bypass",
+);
+assert.doesNotMatch(
+  source,
+  /config\.captcha\.provider\s*===\s*"aliyun_v2"[\s\S]*onToken\("bypass"\)/,
+  "CaptchaWidget must not fall back to bypass for aliyun_v2",
+);
 assert.doesNotMatch(
   source,
   /sessionId[\s\S]*sig[\s\S]*ncsig|ncsig[\s\S]*sessionId/,

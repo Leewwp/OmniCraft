@@ -23,6 +23,9 @@ interface RegisterResponse {
   verification_required: boolean;
 }
 
+const REGISTER_CAPTCHA_CONTAINER_ID = "register-captcha-container";
+const REGISTER_SUBMIT_BUTTON_ID = "register-submit-button";
+
 export default function RegisterPage() {
   const t = useTranslations();
   const router = useRouter();
@@ -66,6 +69,11 @@ export default function RegisterPage() {
 
     try {
       const config = await fetchPublicConfig();
+      if (config.captcha.provider === "aliyun_v2" && !captchaToken) {
+        setErrors({ captcha: t("auth.errorCaptchaRequired") });
+        return;
+      }
+
       const data = await api.post<RegisterResponse>("/api/v1/auth/register", {
         username,
         email,
@@ -189,7 +197,25 @@ export default function RegisterPage() {
               {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword}</p>}
             </div>
 
-            <CaptchaWidget onToken={setCaptchaToken} />
+            <CaptchaWidget
+              containerId={REGISTER_CAPTCHA_CONTAINER_ID}
+              buttonId={REGISTER_SUBMIT_BUTTON_ID}
+              onToken={(token) => {
+                setCaptchaToken(token);
+                if (token) {
+                  setErrors((currentErrors) => {
+                    const nextErrors = { ...currentErrors };
+                    delete nextErrors.captcha;
+                    return nextErrors;
+                  });
+                }
+              }}
+              onError={(error) => {
+                setCaptchaToken("");
+                setErrors((currentErrors) => ({ ...currentErrors, captcha: error }));
+              }}
+            />
+            {errors.captcha && <p className="text-xs text-destructive">{errors.captcha}</p>}
 
             <label className="flex items-start gap-2 text-sm">
               <input
@@ -229,7 +255,7 @@ export default function RegisterPage() {
               <p className="text-sm text-destructive" role="alert">{errors.general}</p>
             )}
 
-            <Button type="submit" className="w-full mt-1" disabled={isLoading}>
+            <Button id={REGISTER_SUBMIT_BUTTON_ID} type="submit" className="w-full mt-1" disabled={isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {t("auth.createAccount")}
             </Button>
