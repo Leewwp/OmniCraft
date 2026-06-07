@@ -36,7 +36,8 @@
       "days": "天",
       "times": "次",
       "votes": "票"
-    }
+    },
+    "rateLimited": "操作过于频繁，请稍后再试"
   },
   "nav": {
     "siteName": "万象工坊",
@@ -145,7 +146,11 @@
     "strength_weak": "弱",
     "strength_medium": "中",
     "strength_strong": "强",
-    "backToRegister": "返回注册"
+    "backToRegister": "返回注册",
+    "showPassword": "显示密码",
+    "hidePassword": "隐藏密码",
+    "captchaLoading": "验证码加载中...",
+    "errorSessionExpired": "登录状态已过期，请重新登录"
   },
   "home": {
     "heroTitle": "发现、分享、共创你的热爱。",

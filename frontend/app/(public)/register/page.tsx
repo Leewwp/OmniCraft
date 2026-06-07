@@ -7,10 +7,12 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { api, ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useTranslations } from "next-intl";
 import { silentError } from "@/lib/error-handler";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { fetchPublicConfig } from "@/lib/public-config";
 import CaptchaWidget from "@/components/verification/CaptchaWidget";
 
@@ -115,10 +117,10 @@ export default function RegisterPage() {
         } else if (err.code === "PRIVACY_VERSION_MISMATCH") {
           setErrors({ privacy: t("auth.errorPrivacyVersionMismatch") });
         } else {
-          setErrors({ general: err.message || t("auth.errorRegisterFailed") });
+          setErrors({ general: t(getUserFacingErrorKey(err, "auth.errorRegisterFailed")) });
         }
       } else {
-        setErrors({ general: t("auth.errorNetwork") });
+        setErrors({ general: t(getUserFacingErrorKey(err, "auth.errorRegisterFailed")) });
       }
     } finally {
       setIsLoading(false);
@@ -135,8 +137,8 @@ export default function RegisterPage() {
 
         <div className="rounded-lg border border-border bg-card p-6">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="username">{t("auth.username")}</Label>
+            <Field>
+              <FieldLabel htmlFor="username">{t("auth.username")}</FieldLabel>
               <Input
                 id="username"
                 type="text"
@@ -146,13 +148,14 @@ export default function RegisterPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 disabled={isLoading}
-                className={errors.username ? "border-destructive" : ""}
+                aria-invalid={Boolean(errors.username)}
+                aria-describedby={errors.username ? "username-error" : undefined}
               />
-              {errors.username && <p className="text-xs text-destructive">{errors.username}</p>}
-            </div>
+              {errors.username && <FieldError id="username-error">{errors.username}</FieldError>}
+            </Field>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="email">{t("auth.email")}</Label>
+            <Field>
+              <FieldLabel htmlFor="email">{t("auth.email")}</FieldLabel>
               <Input
                 id="email"
                 type="email"
@@ -162,13 +165,14 @@ export default function RegisterPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isLoading}
-                className={errors.email ? "border-destructive" : ""}
+                aria-invalid={Boolean(errors.email)}
+                aria-describedby={errors.email ? "email-error" : undefined}
               />
-              {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
-            </div>
+              {errors.email && <FieldError id="email-error">{errors.email}</FieldError>}
+            </Field>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="password">{t("auth.password")}</Label>
+            <Field>
+              <FieldLabel htmlFor="password">{t("auth.password")}</FieldLabel>
               <div className="relative">
                 <Input
                   id="password"
@@ -179,22 +183,25 @@ export default function RegisterPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   disabled={isLoading}
-                  className={`pr-10 ${errors.password ? "border-destructive" : ""}`}
+                  className="pr-10"
+                  aria-invalid={Boolean(errors.password)}
+                  aria-describedby={errors.password ? "password-error" : undefined}
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={showPassword ? t("auth.hidePassword") : t("auth.showPassword")}
+                  aria-pressed={showPassword}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   onClick={() => setShowPassword(!showPassword)}
-                  tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
-            </div>
+              {errors.password && <FieldError id="password-error">{errors.password}</FieldError>}
+            </Field>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="confirmPassword">{t("auth.confirmPassword")}</Label>
+            <Field>
+              <FieldLabel htmlFor="confirmPassword">{t("auth.confirmPassword")}</FieldLabel>
               <Input
                 id="confirmPassword"
                 type={showPassword ? "text" : "password"}
@@ -204,10 +211,11 @@ export default function RegisterPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 disabled={isLoading}
-                className={errors.confirmPassword ? "border-destructive" : ""}
+                aria-invalid={Boolean(errors.confirmPassword)}
+                aria-describedby={errors.confirmPassword ? "confirm-password-error" : undefined}
               />
-              {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword}</p>}
-            </div>
+              {errors.confirmPassword && <FieldError id="confirm-password-error">{errors.confirmPassword}</FieldError>}
+            </Field>
 
             <CaptchaWidget
               key={captchaResetKey}
@@ -232,12 +240,13 @@ export default function RegisterPage() {
             {errors.captcha && <p className="text-xs text-destructive">{errors.captcha}</p>}
 
             <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={acceptedTerms}
                 onChange={(e) => setAcceptedTerms(e.target.checked)}
                 className="mt-0.5"
                 disabled={isLoading}
+                aria-invalid={Boolean(errors.terms)}
+                aria-describedby={errors.terms ? "terms-error" : undefined}
               />
               <span>
                 {t("auth.acceptTerms")}{" "}
@@ -246,15 +255,16 @@ export default function RegisterPage() {
                 </Link>
               </span>
             </label>
-            {errors.terms && <p className="text-xs text-destructive">{errors.terms}</p>}
+            {errors.terms && <FieldError id="terms-error">{errors.terms}</FieldError>}
 
             <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={acceptedPrivacy}
                 onChange={(e) => setAcceptedPrivacy(e.target.checked)}
                 className="mt-0.5"
                 disabled={isLoading}
+                aria-invalid={Boolean(errors.privacy)}
+                aria-describedby={errors.privacy ? "privacy-error" : undefined}
               />
               <span>
                 {t("auth.acceptPrivacy")}{" "}
@@ -263,7 +273,7 @@ export default function RegisterPage() {
                 </Link>
               </span>
             </label>
-            {errors.privacy && <p className="text-xs text-destructive">{errors.privacy}</p>}
+            {errors.privacy && <FieldError id="privacy-error">{errors.privacy}</FieldError>}
 
             {errors.general && (
               <p className="text-sm text-destructive" role="alert">{errors.general}</p>

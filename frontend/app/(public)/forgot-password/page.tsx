@@ -3,11 +3,12 @@
 import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { Button } from "@/components/ui/button";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import CaptchaWidget from "@/components/verification/CaptchaWidget";
 
 function ForgotPasswordContent() {
@@ -49,7 +50,7 @@ function ForgotPasswordContent() {
         resetCaptcha();
       }
       silentError(err, { component: "ForgotPasswordPage", action: "handleSubmit" });
-      setError(err instanceof ApiRequestError ? err.message : t("common.operationFailed"));
+      setError(t(getUserFacingErrorKey(err)));
     } finally {
       setIsLoading(false);
     }
@@ -86,8 +87,8 @@ function ForgotPasswordContent() {
 
         <div className="rounded-lg border border-border bg-card p-6">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="email">{t("auth.email")}</Label>
+            <Field>
+              <FieldLabel htmlFor="email">{t("auth.email")}</FieldLabel>
               <Input
                 id="email"
                 type="email"
@@ -96,12 +97,14 @@ function ForgotPasswordContent() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isLoading}
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? "email-error" : undefined}
               />
-            </div>
+              {error && <FieldError id="email-error">{error}</FieldError>}
+            </Field>
 
             <CaptchaWidget key={captchaResetKey} onToken={setCaptchaToken} />
 
-            {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? t("common.processing") : t("auth.sendResetLink")}
             </Button>

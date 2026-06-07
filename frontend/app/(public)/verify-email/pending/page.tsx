@@ -4,8 +4,9 @@ import { Suspense, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
@@ -42,15 +43,7 @@ function PendingContent() {
       setCooldown(60);
     } catch (err) {
       silentError(err, { component: "VerifyEmailPending", action: "handleResend" });
-      if (err instanceof ApiRequestError) {
-        if (err.code === "RESEND_COOLDOWN") {
-          setError(t("auth.errorResendCooldown"));
-        } else {
-          setError(err.message || t("common.operationFailed"));
-        }
-      } else {
-        setError(t("common.operationFailed"));
-      }
+      setError(t(getUserFacingErrorKey(err)));
     } finally {
       setIsLoading(false);
     }
@@ -70,16 +63,19 @@ function PendingContent() {
           <p className="mb-4 text-sm text-muted-foreground">{t("auth.verificationPendingHint")}</p>
 
           <div className="flex flex-col gap-3">
-            {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+            {error && (
+              <p className="text-sm text-destructive" role="alert">
+                {error}
+              </p>
+            )}
             {message && <p className="text-sm text-primary">{message}</p>}
 
-            <Button
-              onClick={handleResend}
-              className="w-full"
-              disabled={isLoading || cooldown > 0}
-            >
+            <Button onClick={handleResend} className="w-full" disabled={isLoading || cooldown > 0}>
               {isLoading ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t("common.processing")}</>
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t("common.processing")}
+                </>
               ) : cooldown > 0 ? (
                 t("auth.resendCooldown", { seconds: cooldown })
               ) : (
@@ -104,9 +100,7 @@ function PendingContent() {
 
 export default function VerifyEmailPendingPage() {
   return (
-    <Suspense
-      fallback={<div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center" />}
-    >
+    <Suspense fallback={<div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center" />}>
       <PendingContent />
     </Suspense>
   );

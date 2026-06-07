@@ -4,11 +4,12 @@ import { Suspense, useState, FormEvent } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError, setAccessToken } from "@/lib/api";
+import { api, ApiRequestError } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { Button } from "@/components/ui/button";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 function getPasswordStrength(password: string): { label: string; color: string } {
   if (password.length < 8) return { label: "weak", color: "bg-destructive" };
@@ -62,10 +63,10 @@ function ResetPasswordContent() {
         } else if (err.code === "INVALID_TOKEN") {
           setError(t("auth.invalidResetToken"));
         } else {
-          setError(err.message || t("common.operationFailed"));
+          setError(t(getUserFacingErrorKey(err)));
         }
       } else {
-        setError(t("common.operationFailed"));
+        setError(t(getUserFacingErrorKey(err)));
       }
     } finally {
       setIsLoading(false);
@@ -113,8 +114,8 @@ function ResetPasswordContent() {
 
         <div className="rounded-lg border border-border bg-card p-6">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="newPassword">{t("auth.newPassword")}</Label>
+            <Field>
+              <FieldLabel htmlFor="newPassword">{t("auth.newPassword")}</FieldLabel>
               <Input
                 id="newPassword"
                 type="password"
@@ -123,6 +124,8 @@ function ResetPasswordContent() {
                 required
                 disabled={isLoading}
                 minLength={8}
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? "reset-password-error" : undefined}
               />
               {newPassword.length > 0 && (
                 <div className="flex items-center gap-2">
@@ -134,9 +137,9 @@ function ResetPasswordContent() {
                   </span>
                 </div>
               )}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="confirmPassword">{t("auth.confirmPassword")}</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="confirmPassword">{t("auth.confirmPassword")}</FieldLabel>
               <Input
                 id="confirmPassword"
                 type="password"
@@ -145,9 +148,11 @@ function ResetPasswordContent() {
                 required
                 disabled={isLoading}
                 minLength={8}
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? "reset-password-error" : undefined}
               />
-            </div>
-            {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+            </Field>
+            {error && <FieldError id="reset-password-error" className="text-sm">{error}</FieldError>}
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? t("common.processing") : t("auth.resetPassword")}
             </Button>
