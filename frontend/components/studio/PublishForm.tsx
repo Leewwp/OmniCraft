@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { ArrowLeft, Send, ChevronDown, Image, Eye, EyeOff, MessageCircle, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { FileUploader } from "@/components/content/FileUploader";
@@ -15,6 +16,8 @@ import { cn } from "@/lib/utils";
 import { AgentFeatureGate } from "@/components/agent/AgentFeatureGate";
 import { AgentUploadAssistPanel } from "@/components/agent/UploadAssistPanel";
 import { AgentComplianceCheckBadge } from "@/components/agent/ComplianceCheckBadge";
+import { IPPicker } from "@/components/studio/IPPicker";
+import { SourceOriginalPicker } from "@/components/studio/SourceOriginalPicker";
 import type { UploadedAsset } from "@/components/content/FileUploader";
 
 const ORIGINAL_CATEGORIES = [
@@ -41,6 +44,10 @@ interface PublishFormProps {
   onBack: () => void;
 }
 
+function FieldError({ children }: { children: React.ReactNode }) {
+  return <p className="mt-1 text-xs text-destructive">{children}</p>;
+}
+
 export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
   const t = useTranslations();
   const router = useRouter();
@@ -54,8 +61,9 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
 
   // Zone-specific
   const [category, setCategory] = useState("");
-  const [ipSearch, setIpSearch] = useState("");
-  const [sourceSearch, setSourceSearch] = useState("");
+  const [selectedIP, setSelectedIP] = useState<{ id: number; name: string } | null>(null);
+  const [sourceOriginal, setSourceOriginal] = useState<{ id: number; title: string } | null>(null);
+  const [ipError, setIpError] = useState("");
 
   // Settings
   const [tags, setTags] = useState<string[]>([]);
@@ -140,7 +148,12 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
     e.preventDefault();
     if (!title.trim()) { toast("error", t('studio.publish.titleRequired')); return; }
     if (zone === "original" && !category) { toast("error", t('studio.publish.categoryRequired')); return; }
-    if (zone === "fanwork" && !ipSearch.trim()) { toast("error", t('studio.publish.ipRequired')); return; }
+    if (zone === "fanwork" && !selectedIP) {
+      const message = t('studio.publish.ipRequired');
+      setIpError(message);
+      toast("error", message);
+      return;
+    }
     if (complianceViolation) { toast("error", t("agent.complianceBlockSubmit")); return; }
 
     setSubmitting(true);
@@ -164,8 +177,11 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
       if (coverFile) {
         payload.cover_oss_key = coverFile.ossKey;
       }
-      if (zone === "fanwork" && ipSearch.trim()) {
-        payload.ip_name = ipSearch.trim();
+      if (zone === "fanwork" && selectedIP) {
+        payload.ip_id = selectedIP.id;
+      }
+      if (zone === "fanwork" && sourceOriginal) {
+        payload.source_original_id = sourceOriginal.id;
       }
       await api.post("/api/v1/contents", payload);
       toast("success", t('studio.publish.success'));
@@ -230,11 +246,27 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
             <label className="mb-1.5 block text-sm font-medium text-foreground">
               {t('studio.publish.ipLabel')} <span className="text-destructive">*</span>
             </label>
-            <Input value={ipSearch} onChange={(e) => setIpSearch(e.target.value)} placeholder={t('studio.publish.ipSearchPlaceholder')} />
+            <IPPicker
+              value={selectedIP}
+              onChange={(next) => {
+                setSelectedIP(next);
+                if (next) setIpError("");
+              }}
+              placeholder={t('studio.publish.ipSearchPlaceholder')}
+              searchLabel={t('studio.publish.ipLabel')}
+              loadingLabel={t('studio.publish.ipSearching')}
+            />
+            {ipError && <FieldError>{ipError}</FieldError>}
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-foreground">{t('studio.publish.sourceOriginalOptional')}</label>
-            <Input value={sourceSearch} onChange={(e) => setSourceSearch(e.target.value)} placeholder={t('studio.publish.searchOriginalPlaceholder')} />
+            <SourceOriginalPicker
+              value={sourceOriginal}
+              onChange={setSourceOriginal}
+              placeholder={t('studio.publish.searchOriginalPlaceholder')}
+              searchLabel={t('studio.publish.sourceOriginalOptional')}
+              loadingLabel={t('common.loading')}
+            />
           </div>
         </div>
       )}
@@ -328,14 +360,12 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
               <span className="text-sm font-medium text-foreground">{t('studio.publish.customCover')}</span>
               <p className="text-xs text-muted-foreground">{t('studio.publish.coverDescription')}</p>
             </div>
-            <button type="button" role="switch" aria-checked={hasCustomCover}
-              onClick={() => setHasCustomCover(!hasCustomCover)}
-              className={cn(
-                "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                hasCustomCover ? "bg-[var(--accent-emphasis)]" : "bg-muted-foreground/25"
-              )}>
-              <span className={cn("inline-block h-4 w-4 rounded-full bg-white transition-transform", hasCustomCover ? "translate-x-6" : "translate-x-1")} />
-            </button>
+            <Switch
+              checked={hasCustomCover}
+              onCheckedChange={setHasCustomCover}
+              aria-label={t('studio.publish.customCover')}
+              className={hasCustomCover ? "bg-[var(--accent-emphasis)]" : undefined}
+            />
           </div>
 
           {/* Custom cover upload (conditional) */}
@@ -351,14 +381,12 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
               <MessageCircle className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium text-foreground">{t('studio.publish.allowComment')}</span>
             </div>
-            <button type="button" role="switch" aria-checked={allowComments}
-              onClick={() => setAllowComments(!allowComments)}
-              className={cn(
-                "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                allowComments ? "bg-[var(--accent-emphasis)]" : "bg-muted-foreground/25"
-              )}>
-              <span className={cn("inline-block h-4 w-4 rounded-full bg-white transition-transform", allowComments ? "translate-x-6" : "translate-x-1")} />
-            </button>
+            <Switch
+              checked={allowComments}
+              onCheckedChange={setAllowComments}
+              aria-label={t('studio.publish.allowComment')}
+              className={allowComments ? "bg-[var(--accent-emphasis)]" : undefined}
+            />
           </div>
 
           {/* Tags */}
@@ -386,14 +414,12 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
                 <span className="text-sm font-medium text-foreground">{t('studio.publish.allowCopyPR')}</span>
                 <p className="text-xs text-muted-foreground">{t('studio.publish.allowCopyPRDesc')}</p>
               </div>
-              <button type="button" role="switch" aria-checked={allowCopy}
-                onClick={() => setAllowCopy(!allowCopy)}
-                className={cn(
-                  "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                  allowCopy ? "bg-[var(--accent-emphasis)]" : "bg-muted-foreground/25"
-                )}>
-                <span className={cn("inline-block h-4 w-4 rounded-full bg-white transition-transform", allowCopy ? "translate-x-6" : "translate-x-1")} />
-              </button>
+              <Switch
+                checked={allowCopy}
+                onCheckedChange={setAllowCopy}
+                aria-label={t('studio.publish.allowCopyPR')}
+                className={allowCopy ? "bg-[var(--accent-emphasis)]" : undefined}
+              />
             </div>
           )}
 
@@ -403,14 +429,12 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
               {isPublic ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
               <span className="text-sm font-medium text-foreground">{t('studio.publish.publicVisible')}</span>
             </div>
-            <button type="button" role="switch" aria-checked={isPublic}
-              onClick={() => setIsPublic(!isPublic)}
-              className={cn(
-                "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                isPublic ? "bg-[var(--accent-emphasis)]" : "bg-muted-foreground/25"
-              )}>
-              <span className={cn("inline-block h-4 w-4 rounded-full bg-white transition-transform", isPublic ? "translate-x-6" : "translate-x-1")} />
-            </button>
+            <Switch
+              checked={isPublic}
+              onCheckedChange={setIsPublic}
+              aria-label={t('studio.publish.publicVisible')}
+              className={isPublic ? "bg-[var(--accent-emphasis)]" : undefined}
+            />
           </div>
 
           {/* Agent deploy (mod/prompt only) */}
@@ -421,14 +445,12 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
                 <span className="text-sm font-medium text-foreground">{t('studio.publish.agentDeploy')}</span>
                 <p className="text-xs text-muted-foreground">{t('studio.publish.agentDeployDesc')}</p>
               </div>
-              <button type="button" role="switch" aria-checked={agentEnabled}
-                onClick={() => setAgentEnabled(!agentEnabled)}
-                className={cn(
-                  "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                  agentEnabled ? "bg-[var(--accent-emphasis)]" : "bg-muted-foreground/25"
-                )}>
-                <span className={cn("inline-block h-4 w-4 rounded-full bg-white transition-transform", agentEnabled ? "translate-x-6" : "translate-x-1")} />
-              </button>
+              <Switch
+                checked={agentEnabled}
+                onCheckedChange={setAgentEnabled}
+                aria-label={t('studio.publish.agentDeploy')}
+                className={agentEnabled ? "bg-[var(--accent-emphasis)]" : undefined}
+              />
             </div>
           )}
           </AgentFeatureGate>
@@ -445,7 +467,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
             onResult={handleComplianceResult}
           />
           {complianceViolation && (
-            <p className="text-xs text-destructive">{t("agent.complianceBlockSubmit")}</p>
+            <FieldError>{t("agent.complianceBlockSubmit")}</FieldError>
           )}
         </div>
       </AgentFeatureGate>
