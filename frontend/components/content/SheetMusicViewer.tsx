@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   FileMusic,
   Music,
@@ -244,10 +244,12 @@ function PDFViewer({
   ossUrl,
   contentId,
   attachmentId,
+  allowCopy,
 }: {
   ossUrl: string;
   contentId: number;
   attachmentId: number;
+  allowCopy: boolean;
 }) {
   return (
     <div className="space-y-2">
@@ -256,37 +258,39 @@ function PDFViewer({
         type="application/pdf"
         className="h-[500px] w-full rounded-md border border-border"
       />
-      <div className="inline-block">
-        <DownloadButton
-          contentId={contentId}
-          attachmentId={attachmentId}
-          contentType="sheet_music"
-          size="sm"
-        />
-      </div>
+      {allowCopy && (
+        <div className="inline-block">
+          <DownloadButton
+            contentId={contentId}
+            attachmentId={attachmentId}
+            contentType="sheet_music"
+            size="sm"
+          />
+        </div>
+      )}
     </div>
   );
 }
 
-/* ── DownloadPrompt (MSCZ / MSCX) ──────────── */
-function DownloadPrompt({ att, contentId }: { att: SheetMusicAttachment; contentId: number }) {
-  const t = useTranslations();
+/* Authorized download CTA for previewed files */
+function PreviewDownloadButton({
+  att,
+  allowCopy,
+  contentId,
+}: {
+  att: SheetMusicAttachment;
+  allowCopy: boolean;
+  contentId: number;
+}) {
+  if (!allowCopy) return null;
+
   return (
-    <div className="rounded-md border border-border bg-card p-6 text-center ">
-      <FileMusic className="mx-auto h-10 w-10 text-muted-foreground" />
-      <p className="mt-3 text-sm font-medium">
-        {formatType(t, att.file_type, att.mime_type)}
-      </p>
-      <p className="mt-1 text-xs text-muted-foreground">
-        {t("content.sheetMusicPreviewHint")}
-      </p>
-      <div className="mt-3 inline-block">
-        <DownloadButton
-          contentId={contentId}
-          attachmentId={att.id}
-          contentType="sheet_music"
-        />
-      </div>
+    <div className="inline-block">
+      <DownloadButton
+        contentId={contentId}
+        attachmentId={att.id}
+        contentType="sheet_music"
+      />
     </div>
   );
 }
@@ -352,34 +356,41 @@ export function SheetMusicViewer({ contentId, attachments, allowCopy, className 
     );
   }
 
-  // Find the primary renderable attachment
-  const renderable = attachments.find(
-    (a) => fileTypeFor(a) === "musicxml" || fileTypeFor(a) === "midi" || fileTypeFor(a) === "pdf",
-  );
-  const other = attachments.filter((a) => a !== renderable);
+  // Inline preview requires a URL that the browser can fetch. OSS-key-only attachments still need a download CTA.
+  const previewable = attachments.find((a) => {
+    const type = fileTypeFor(a);
+    return Boolean(a.oss_url) && (type === "musicxml" || type === "midi" || type === "pdf");
+  });
+  const previewableType = previewable ? fileTypeFor(previewable) : "";
+  const downloadOnlyAttachments = attachments.filter((a) => a !== previewable);
 
   return (
     <div className={cn("space-y-4", className)}>
       {/* Primary interactive viewer */}
-      {renderable && renderable.oss_url && fileTypeFor(renderable) === "musicxml" && (
-        <OSMDRenderer ossUrl={renderable.oss_url} />
+      {previewable && previewable.oss_url && previewableType === "musicxml" && (
+        <OSMDRenderer ossUrl={previewable.oss_url} />
       )}
-      {renderable && renderable.oss_url && fileTypeFor(renderable) === "midi" && (
-        <MIDIPlayer ossUrl={renderable.oss_url} />
+      {previewable && previewable.oss_url && previewableType === "midi" && (
+        <MIDIPlayer ossUrl={previewable.oss_url} />
       )}
-      {renderable && renderable.oss_url && fileTypeFor(renderable) === "pdf" && (
-        <PDFViewer ossUrl={renderable.oss_url} contentId={contentId} attachmentId={renderable.id} />
+      {previewable && previewable.oss_url && previewableType === "pdf" && (
+        <PDFViewer
+          ossUrl={previewable.oss_url}
+          contentId={contentId}
+          attachmentId={previewable.id}
+          allowCopy={!!allowCopy}
+        />
       )}
-      {renderable && (fileTypeFor(renderable) === "mscz" || fileTypeFor(renderable) === "mscx") && (
-        <DownloadPrompt att={renderable} contentId={contentId} />
+      {previewable && (previewableType === "musicxml" || previewableType === "midi") && (
+        <PreviewDownloadButton att={previewable} allowCopy={!!allowCopy} contentId={contentId} />
       )}
 
       {/* Other attachments list */}
-      {other.length > 0 && (
+      {downloadOnlyAttachments.length > 0 && (
         <div className="rounded-md border border-border bg-card p-4 ">
           <h3 className="mb-3 text-sm font-semibold">{t("content.sheetMusicAttachments")}</h3>
           <ul className="divide-y divide-border">
-            {other.map((att) => (
+            {downloadOnlyAttachments.map((att) => (
               <AttachmentRow key={att.id} att={att} allowCopy={!!allowCopy} contentId={contentId} t={t} />
             ))}
           </ul>
@@ -387,7 +398,7 @@ export function SheetMusicViewer({ contentId, attachments, allowCopy, className 
       )}
 
       {/* Generic preview hint for types without interactive viewer */}
-      {!renderable && (
+      {!previewable && (
         <div className="rounded-md border border-border bg-canvas-subtle p-4 ">
           <div className="flex items-center gap-2">
             <FileMusic className="h-5 w-5 text-muted-foreground" />
