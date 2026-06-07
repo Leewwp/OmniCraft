@@ -72,6 +72,8 @@
     "passwordPlaceholder": "Enter password",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
+    "showConfirmPassword": "Show confirm password",
+    "hideConfirmPassword": "Hide confirm password",
     "rememberMe": "Remember me",
     "loginButton": "Log in",
     "noAccount": "Don't have an account?",

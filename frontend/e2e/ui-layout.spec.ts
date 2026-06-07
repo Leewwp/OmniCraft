@@ -35,3 +35,45 @@ test("search stacks controls vertically and opens an accessible mobile filter di
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
 });
+
+test("register exposes independent keyboard-accessible password reveal controls", async ({ page }) => {
+  await mockPublicApis(page);
+  await page.goto("/register");
+
+  const passwordInput = page.locator("#password");
+  const confirmPasswordInput = page.locator("#confirmPassword");
+  const passwordReveal = page.getByRole("button", {
+    name: /^(Show password|显示密码)$/i,
+  });
+  const confirmPasswordReveal = page.getByRole("button", {
+    name: /Confirm password|确认密码/i,
+  });
+  const revealButtons = page.locator("button[aria-pressed]");
+
+  await expect(passwordReveal).toHaveAttribute("aria-pressed", "false");
+  await expect(confirmPasswordReveal).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("button", {
+    name: /Show password|显示密码|Hide password|隐藏密码/i,
+  })).toHaveCount(1);
+  await expect(revealButtons).toHaveCount(2);
+
+  await passwordReveal.click();
+  await expect(passwordInput).toHaveAttribute("type", "text");
+  await expect(confirmPasswordInput).toHaveAttribute("type", "password");
+
+  await confirmPasswordReveal.click();
+  await expect(passwordInput).toHaveAttribute("type", "text");
+  await expect(confirmPasswordInput).toHaveAttribute("type", "text");
+
+  await page.getByRole("button", { name: /^(Hide password|隐藏密码)$/i }).click();
+  await expect(passwordInput).toHaveAttribute("type", "password");
+  await expect(confirmPasswordInput).toHaveAttribute("type", "text");
+
+  await passwordInput.focus();
+  await page.keyboard.press("Tab");
+  await expect(revealButtons.nth(0)).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(confirmPasswordInput).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(revealButtons.nth(1)).toBeFocused();
+});
