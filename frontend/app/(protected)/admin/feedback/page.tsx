@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { MessageSquare, Eye, ArrowLeft, Send, Lock } from "lucide-react";
 
@@ -234,28 +235,34 @@ export default function AdminFeedbackPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <select
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
-            value={selectedTicket.status}
-            onChange={(e) => handlePatchStatus(e.target.value)}
-            disabled={patchBusy}
-          >
-            <option value="open">open</option>
-            <option value="in_progress">in_progress</option>
-            <option value="closed">closed</option>
-            <option value="reopened">reopened</option>
-          </select>
-          <select
-            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
-            value={selectedTicket.priority}
-            onChange={(e) => handlePatchPriority(e.target.value)}
-            disabled={patchBusy}
-          >
-            <option value="low">low</option>
-            <option value="normal">normal</option>
-            <option value="high">high</option>
-            <option value="urgent">urgent</option>
-          </select>
+          <div className="w-fit min-w-40">
+            <Select
+              aria-label={t("admin.feedback.status")}
+              className="px-3 py-1.5 text-sm"
+              value={selectedTicket.status}
+              onChange={(e) => handlePatchStatus(e.target.value)}
+              disabled={patchBusy}
+            >
+              <option value="open">open</option>
+              <option value="in_progress">in_progress</option>
+              <option value="closed">closed</option>
+              <option value="reopened">reopened</option>
+            </Select>
+          </div>
+          <div className="w-fit min-w-40">
+            <Select
+              aria-label={t("admin.feedback.priority")}
+              className="px-3 py-1.5 text-sm"
+              value={selectedTicket.priority}
+              onChange={(e) => handlePatchPriority(e.target.value)}
+              disabled={patchBusy}
+            >
+              <option value="low">low</option>
+              <option value="normal">normal</option>
+              <option value="high">high</option>
+              <option value="urgent">urgent</option>
+            </Select>
+          </div>
         </div>
 
         <div className="space-y-3">
@@ -325,31 +332,37 @@ export default function AdminFeedbackPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="flex items-center gap-3">
-        <select
-          className="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
-          value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-        >
-          <option value="">{t("admin.feedback.allStatuses")}</option>
-          <option value="open">open</option>
-          <option value="in_progress">in_progress</option>
-          <option value="closed">closed</option>
-          <option value="reopened">reopened</option>
-        </select>
-        <select
-          className="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
-          value={categoryFilter}
-          onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
-        >
-          <option value="">{t("admin.feedback.allCategories")}</option>
-          <option value="web_bug">web_bug</option>
-          <option value="desktop_deploy">desktop_deploy</option>
-          <option value="content_or_community">content_or_community</option>
-          <option value="account_or_security">account_or_security</option>
-          <option value="agent_quality">agent_quality</option>
-          <option value="feature_request">feature_request</option>
-          <option value="other">other</option>
-        </select>
+        <div className="w-fit min-w-40">
+          <Select
+            aria-label={t("admin.feedback.allStatuses")}
+            className="px-3 py-1.5 text-sm"
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          >
+            <option value="">{t("admin.feedback.allStatuses")}</option>
+            <option value="open">open</option>
+            <option value="in_progress">in_progress</option>
+            <option value="closed">closed</option>
+            <option value="reopened">reopened</option>
+          </Select>
+        </div>
+        <div className="w-fit min-w-40">
+          <Select
+            aria-label={t("admin.feedback.allCategories")}
+            className="px-3 py-1.5 text-sm"
+            value={categoryFilter}
+            onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+          >
+            <option value="">{t("admin.feedback.allCategories")}</option>
+            <option value="web_bug">web_bug</option>
+            <option value="desktop_deploy">desktop_deploy</option>
+            <option value="content_or_community">content_or_community</option>
+            <option value="account_or_security">account_or_security</option>
+            <option value="agent_quality">agent_quality</option>
+            <option value="feature_request">feature_request</option>
+            <option value="other">other</option>
+          </Select>
+        </div>
       </div>
 
       {tickets.length === 0 ? (
