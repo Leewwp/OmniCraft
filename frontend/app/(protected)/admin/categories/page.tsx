@@ -6,6 +6,8 @@ import { api, ApiRequestError } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 interface Category {
   id: number;
@@ -21,6 +23,7 @@ interface Category {
 export default function AdminCategoriesPage() {
   const t = useTranslations();
   const [categories, setCategories] = useState<Category[]>([]);
+  const [parentCategories, setParentCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -49,10 +52,14 @@ export default function AdminCategoriesPage() {
     setLoading(true);
     setError("");
     try {
-      const data = await api.get<{ categories: Category[] }>(
-        "/api/v1/categories?zone=fanwork&level=category"
-      );
+      const [data, parentsData] = await Promise.all([
+        api.get<{ categories: Category[] }>(
+          "/api/v1/categories?zone=fanwork&level=category"
+        ),
+        api.get<{ categories: Category[] }>("/api/v1/categories"),
+      ]);
       setCategories(data.categories || []);
+      setParentCategories(parentsData.categories || []);
     } catch (e) {
       silentError(e, { component: 'AdminCategoriesPage', action: 'loadCategories' });
       setError(e instanceof ApiRequestError ? e.message : t('admin.categories.loadFailed'));
@@ -164,6 +171,10 @@ export default function AdminCategoriesPage() {
     setEditValues({});
   }
 
+  const parentOptions = parentCategories.filter(
+    (cat) => cat.zone === createValues.zone && cat.level === "category",
+  );
+
   if (loading) {
     return (
       <div className="space-y-4 p-6">
@@ -199,25 +210,27 @@ export default function AdminCategoriesPage() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <label className="block text-xs font-medium mb-1">{t('admin.categories.colZone')} (zone)</label>
-              <select
-                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              <Select
+                aria-label={t('admin.categories.colZone')}
+                className="px-2 py-1.5 text-sm"
                 value={createValues.zone}
-                onChange={(e) => setCreateValues((v) => ({ ...v, zone: e.target.value }))}
+                onChange={(e) => setCreateValues((v) => ({ ...v, zone: e.target.value, parent_id: "" }))}
               >
                 <option value="fanwork">{t('admin.categories.zoneFanwork')}</option>
                 <option value="original">{t('admin.categories.zoneOriginal')}</option>
-              </select>
+              </Select>
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">{t('admin.categories.colLevel')} (level)</label>
-              <select
-                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              <Select
+                aria-label={t('admin.categories.colLevel')}
+                className="px-2 py-1.5 text-sm"
                 value={createValues.level}
                 onChange={(e) => setCreateValues((v) => ({ ...v, level: e.target.value }))}
               >
                 <option value="category">{t('admin.categories.levelCategory')}</option>
                 <option value="content_type">{t('admin.categories.levelContentType')}</option>
-              </select>
+              </Select>
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">{t('admin.categories.nameZh')}</label>
@@ -251,23 +264,30 @@ export default function AdminCategoriesPage() {
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">{t('admin.categories.sort')}</label>
-              <input
-                type="number"
-                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              <Input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                aria-label={t('admin.categories.sort')}
                 value={createValues.sort_order}
-                onChange={(e) => setCreateValues((v) => ({ ...v, sort_order: e.target.value }))}
-                min={0}
+                onChange={(e) => setCreateValues((v) => ({ ...v, sort_order: e.target.value.replace(/\D/g, '') }))}
               />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">{t('admin.categories.parentId')}</label>
-              <input
-                type="number"
-                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              <Select
+                aria-label={t('admin.categories.parentId')}
+                className="px-2 py-1.5 text-sm"
                 value={createValues.parent_id}
                 onChange={(e) => setCreateValues((v) => ({ ...v, parent_id: e.target.value }))}
-                placeholder={t('admin.categories.parentHint')}
-              />
+              >
+                <option value="">{t('admin.categories.parentHint')}</option>
+                {parentOptions.map((cat) => (
+                  <option key={cat.id} value={String(cat.id)}>
+                    {(cat.name_i18n as Record<string, string>)?.zh || cat.slug}
+                  </option>
+                ))}
+              </Select>
             </div>
           </div>
           <div className="mt-4 flex gap-2">
@@ -305,6 +325,17 @@ export default function AdminCategoriesPage() {
                 <tr key={cat.id} className="border-b border-border hover:bg-muted/20">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
+                      {editingId === cat.id && (
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          aria-label={t('admin.categories.sort')}
+                          className="h-8 w-16 px-1.5 py-1 text-xs"
+                          value={editValues.sort_order || ""}
+                          onChange={(e) => setEditValues((v) => ({ ...v, sort_order: e.target.value.replace(/\D/g, '') }))}
+                        />
+                      )}
                       <button
                         className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-30"
                         disabled={idx === 0}

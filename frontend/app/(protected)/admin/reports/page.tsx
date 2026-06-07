@@ -199,6 +199,7 @@ export default function AdminReportsPage() {
             key: "status",
             value: statusFilter,
             onChange: (v) => { setStatusFilter(v); setPage(1); },
+            ariaLabel: t("admin.reports.statusLabel"),
             allLabel: t("admin.reports.allStatuses"),
             options: [
               { value: "pending", label: "pending" },
@@ -210,6 +211,7 @@ export default function AdminReportsPage() {
             key: "type",
             value: typeFilter,
             onChange: (v) => { setTypeFilter(v); setPage(1); },
+            ariaLabel: t("admin.reports.typeLabel"),
             allLabel: t("admin.reports.allTypes"),
             options: [
               { value: "content", label: "content" },

@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { ScrollText, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -80,28 +81,31 @@ export default function AdminAuditLogsPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="flex items-center gap-3">
-        <select
-          className="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
-          value={actionFilter}
-          onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}
-        >
-          <option value="">{t("admin.auditLogs.allActions")}</option>
-          <option value="content_ban">content_ban</option>
-          <option value="content_restore">content_restore</option>
-          <option value="user_ban">user_ban</option>
-          <option value="user_unban">user_unban</option>
-          <option value="ip_approve">ip_approve</option>
-          <option value="ip_reject">ip_reject</option>
-          <option value="appeal_resolve">appeal_resolve</option>
-          <option value="report_resolve">report_resolve</option>
-          <option value="config_patch">config_patch</option>
-          <option value="category_create">category_create</option>
-          <option value="category_update">category_update</option>
-          <option value="category_delete">category_delete</option>
-          <option value="feedback_reply">feedback_reply</option>
-          <option value="feedback_close">feedback_close</option>
-          <option value="feedback_reopen">feedback_reopen</option>
-        </select>
+        <div className="w-fit min-w-40">
+          <Select
+            aria-label={t("admin.auditLogs.allActions")}
+            className="px-3 py-1.5 text-sm"
+            value={actionFilter}
+            onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}
+          >
+            <option value="">{t("admin.auditLogs.allActions")}</option>
+            <option value="content_ban">content_ban</option>
+            <option value="content_restore">content_restore</option>
+            <option value="user_ban">user_ban</option>
+            <option value="user_unban">user_unban</option>
+            <option value="ip_approve">ip_approve</option>
+            <option value="ip_reject">ip_reject</option>
+            <option value="appeal_resolve">appeal_resolve</option>
+            <option value="report_resolve">report_resolve</option>
+            <option value="config_patch">config_patch</option>
+            <option value="category_create">category_create</option>
+            <option value="category_update">category_update</option>
+            <option value="category_delete">category_delete</option>
+            <option value="feedback_reply">feedback_reply</option>
+            <option value="feedback_close">feedback_close</option>
+            <option value="feedback_reopen">feedback_reopen</option>
+          </Select>
+        </div>
       </div>
 
       {logs.length === 0 ? (

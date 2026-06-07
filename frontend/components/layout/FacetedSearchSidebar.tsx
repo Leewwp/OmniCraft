@@ -13,6 +13,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
@@ -470,35 +471,35 @@ export function FacetedSearchSidebar({
               {/* Time range */}
               <div className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-muted-foreground">{t('search.timeRange')}</span>
-                <select
+                <Select
                   aria-label={t('search.timeRange')}
                   value={timeRange}
                   onChange={(e) => setTimeRange(e.target.value)}
-                  className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="h-8 rounded-md bg-card px-2 py-1.5 text-xs"
                 >
                   {TIME_RANGE_OPTIONS.map((opt) => (
                     <option key={opt.key} value={opt.key}>
                       {t(opt.label)}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               {/* Sort */}
               <div className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-muted-foreground">{t('search.sortBy')}</span>
-                <select
+                <Select
                   aria-label={t('search.sortBy')}
                   value={sort}
                   onChange={(e) => setSort(e.target.value)}
-                  className="w-full rounded-md border border-border bg-card px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="h-8 rounded-md bg-card px-2 py-1.5 text-xs"
                 >
                   {SORT_OPTIONS.map((opt) => (
                     <option key={opt.key} value={opt.key}>
                       {t(opt.label)}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
             </div>
           </div>
