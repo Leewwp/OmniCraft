@@ -5,11 +5,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Brush, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { ApiRequestError } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useTranslations } from 'next-intl';
+import { useTranslations } from "next-intl";
 import { silentError } from "@/lib/error-handler";
 
 function LoginPageContent() {
@@ -35,20 +36,8 @@ function LoginPageContent() {
       const redirect = searchParams.get("redirect") || "/";
       router.push(redirect);
     } catch (err) {
-      silentError(err, { component: 'LoginPage', action: 'handleSubmit' });
-      if (err instanceof ApiRequestError) {
-        if (err.code === "INVALID_CREDENTIALS") {
-          setError(t('auth.errorInvalidCredentials'));
-        } else if (err.code === "USER_BANNED") {
-          setError(t('auth.errorBanned'));
-        } else if (err.code === "EMAIL_NOT_VERIFIED") {
-          setError(t('auth.errorEmailNotVerified'));
-        } else {
-          setError(err.message || t('auth.errorLoginFailed'));
-        }
-      } else {
-        setError(t('auth.errorNetwork'));
-      }
+      silentError(err, { component: "LoginPage", action: "handleSubmit" });
+      setError(t(getUserFacingErrorKey(err, "auth.errorLoginFailed")));
     } finally {
       setIsLoading(false);
     }
@@ -57,20 +46,18 @@ function LoginPageContent() {
   return (
     <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <div className="mb-8 flex flex-col items-center gap-2">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
             <Brush className="h-6 w-6 text-primary" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t('auth.welcomeBack')}</h1>
-          <p className="text-sm text-muted-foreground">{t('auth.loginTitle')}</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("auth.welcomeBack")}</h1>
+          <p className="text-sm text-muted-foreground">{t("auth.loginTitle")}</p>
         </div>
 
-        {/* Form */}
-        <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+        <div className="rounded-lg border border-border bg-card p-6">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="email">{t('auth.email')}</Label>
+            <Field>
+              <FieldLabel htmlFor="email">{t("auth.email")}</FieldLabel>
               <Input
                 id="email"
                 type="email"
@@ -81,15 +68,15 @@ function LoginPageContent() {
                 required
                 disabled={isLoading}
               />
-            </div>
+            </Field>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="password">{t('auth.password')}</Label>
+            <Field>
+              <FieldLabel htmlFor="password">{t("auth.password")}</FieldLabel>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder={t('auth.passwordPlaceholder')}
+                  placeholder={t("auth.passwordPlaceholder")}
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -99,9 +86,10 @@ function LoginPageContent() {
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={showPassword ? t("auth.hidePassword") : t("auth.showPassword")}
+                  aria-pressed={showPassword}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   onClick={() => setShowPassword(!showPassword)}
-                  tabIndex={-1}
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4" />
@@ -110,16 +98,15 @@ function LoginPageContent() {
                   )}
                 </button>
               </div>
-            </div>
+            </Field>
 
-            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
-              <input
-                type="checkbox"
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+              <Checkbox
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
                 className="h-3.5 w-3.5 rounded border-border accent-primary"
               />
-              {t('auth.rememberMe')}
+              {t("auth.rememberMe")}
             </label>
 
             {error && (
@@ -128,28 +115,22 @@ function LoginPageContent() {
               </p>
             )}
 
-            <Button type="submit" className="w-full mt-1" disabled={isLoading}>
+            <Button type="submit" className="mt-1 w-full" disabled={isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t('auth.loginButton')}
+              {t("auth.loginButton")}
             </Button>
           </form>
         </div>
 
         <p className="mt-4 text-center text-sm text-muted-foreground">
-          {t('auth.noAccount')}{" "}
-          <Link
-            href="/register"
-            className="font-medium text-primary hover:underline"
-          >
-            {t('auth.registerNow')}
+          {t("auth.noAccount")}{" "}
+          <Link href="/register" className="font-medium text-primary hover:underline">
+            {t("auth.registerNow")}
           </Link>
         </p>
         <p className="mt-2 text-center text-sm text-muted-foreground">
-          <Link
-            href="/forgot-password"
-            className="font-medium text-primary hover:underline"
-          >
-            {t('auth.forgotPassword')}
+          <Link href="/forgot-password" className="font-medium text-primary hover:underline">
+            {t("auth.forgotPassword")}
           </Link>
         </p>
       </div>
@@ -159,9 +140,7 @@ function LoginPageContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense
-      fallback={<div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center" />}
-    >
+    <Suspense fallback={<div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center" />}>
       <LoginPageContent />
     </Suspense>
   );
