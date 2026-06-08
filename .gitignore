@@ -64,3 +64,6 @@ screenshots/
 *.tmp
 *.temp
 *.bak
+
+# Local agent/skill caches
+.agents/
