@@ -84,7 +84,7 @@ export function NotificationDropdown() {
         type="button"
         onClick={() => setOpen(!open)}
         className={cn(
-          "relative inline-flex h-8 w-8 items-center justify-center rounded-md transition-all duration-150 hover:bg-muted active:scale-90"
+          "relative inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors duration-150 hover:bg-muted active:bg-muted"
         )}
         aria-label={t("nav.notifications")}
       >
