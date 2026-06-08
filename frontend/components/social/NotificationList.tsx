@@ -4,9 +4,12 @@ import { useState, useEffect, useCallback } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 
 interface Notification {
   id: number;
@@ -59,7 +62,7 @@ export function NotificationList({
         onUnreadCountChange(unread);
       }
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : t('common.loadFailed'));
+      setError(t(getUserFacingErrorKey(e, "common.loadFailed")));
       silentError(e, { component: 'NotificationList', action: 'loadNotifications' });
     } finally {
       setLoading(false);
@@ -149,14 +152,16 @@ export function NotificationList({
       {loading ? (
         <div className="space-y-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded-md bg-muted/60" />
+            <Skeleton key={i} className="h-16 w-full" />
           ))}
         </div>
       ) : notifications.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-card px-4 py-12 text-center">
-          <Bell className="h-8 w-8 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">{t('messages.noMessages')}</p>
-        </div>
+        <EmptyState
+          icon={Bell}
+          title={t("messages.noMessages")}
+          description={t("messages.noNotificationsHint")}
+          className="px-4 py-12"
+        />
       ) : (
         <div className="space-y-1">
           {notifications.map((n) => (

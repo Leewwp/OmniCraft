@@ -4,9 +4,12 @@ import { useState, useEffect, useCallback } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { MessageCircle, Send, ThumbsUp, ThumbsDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 
 interface Comment {
@@ -48,7 +51,7 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
       );
       setComments(data.comments || []);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : t('social.loadFailed'));
+      setError(t(getUserFacingErrorKey(e, "social.loadFailed")));
       silentError(e, { component: 'CommentSection', action: 'loadComments' });
     } finally {
       setLoading(false);
@@ -66,7 +69,7 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
       setComments((prev) => [...prev, data.comment]);
       setBody("");
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : t('social.sendFailed'));
+      setError(t(getUserFacingErrorKey(e, "social.sendFailed")));
       silentError(e, { component: 'CommentSection', action: 'submit' });
     } finally {
       setBusy(false);
@@ -127,15 +130,18 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <div key={i} className="animate-pulse space-y-2 rounded-md border border-border p-3">
-              <div className="h-3 w-24 rounded bg-muted" />
-              <div className="h-4 w-full rounded bg-muted/50" />
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-4 w-full" />
             </div>
           ))}
         </div>
       ) : comments.length === 0 ? (
-        <p className="rounded-md border border-border bg-muted/10 p-4 text-center text-xs text-muted-foreground">
-          {t('social.noComments')}
-        </p>
+        <EmptyState
+          icon={MessageCircle}
+          title={t("social.noComments")}
+          description={t("social.noCommentsHint")}
+          className="p-4"
+        />
       ) : (
         <div className="space-y-3">
           {comments

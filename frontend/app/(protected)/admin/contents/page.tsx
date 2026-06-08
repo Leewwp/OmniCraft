@@ -2,10 +2,14 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
+import { ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
 interface ContentItem {
@@ -45,7 +49,7 @@ export default function AdminContentsPage() {
       setTotal(data.total || 0);
     } catch (e) {
       silentError(e, { component: 'AdminContentsPage', action: 'loadContents' });
-      setError(e instanceof ApiRequestError ? e.message : t('admin.contents.loadFailed'));
+      setError(t(getUserFacingErrorKey(e, "admin.contents.loadFailed")));
     } finally {
       setLoading(false);
     }
@@ -64,7 +68,7 @@ export default function AdminContentsPage() {
       setTotal((t) => t - 1);
     } catch (e) {
       silentError(e, { component: 'AdminContentsPage', action: 'banContent' });
-      setError(e instanceof ApiRequestError ? e.message : t('admin.contents.banFailed'));
+      setError(t(getUserFacingErrorKey(e, "admin.contents.banFailed")));
     } finally {
       setBusy(false);
     }
@@ -77,7 +81,7 @@ export default function AdminContentsPage() {
       <div className="space-y-4 p-6">
         <div className="space-y-3 rounded-md border border-border bg-card p-6 ">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-8 w-full animate-pulse rounded bg-muted" />
+            <Skeleton key={i} className="h-8 w-full" />
           ))}
         </div>
       </div>
@@ -98,9 +102,12 @@ export default function AdminContentsPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {contents.length === 0 ? (
-        <div className="rounded-md border border-border bg-card p-12 text-center ">
-          <p className="text-sm text-muted-foreground">{t('admin.contents.noContents')}</p>
-        </div>
+        <EmptyState
+          icon={ShieldCheck}
+          title={t("admin.contents.noContents")}
+          description={t("admin.contents.noContentsHint")}
+          className="p-12"
+        />
       ) : (
         <>
           <div className="overflow-x-auto rounded-md border border-border bg-card ">

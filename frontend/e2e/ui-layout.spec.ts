@@ -36,6 +36,29 @@ test("search stacks controls vertically and opens an accessible mobile filter di
   await expect(dialog).toBeHidden();
 });
 
+test("search hides raw API failure details and keeps retry visible", async ({ page }) => {
+  await mockPublicApis(page);
+  await page.route("**/api/v1/contents/search?**", (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({
+        code: "DB_ERROR",
+        message: "secret database stack trace",
+      }),
+    }),
+  );
+  await page.goto("/search");
+
+  await page.getByPlaceholder(/Search by keyword|输入关键词搜索/i).fill("atlas");
+  await page.getByRole("button", { name: /^(Search|搜索)$/i }).click();
+
+  await expect(page.getByText(/Failed to load|加载失败/)).toBeVisible();
+  await expect(page.getByRole("button", { name: /Retry|重试/i })).toBeVisible();
+  await expect(page.getByText("secret database stack trace")).toHaveCount(0);
+  await expect(page.getByText("DB_ERROR")).toHaveCount(0);
+});
+
 test("register exposes independent keyboard-accessible password reveal controls", async ({ page }) => {
   await mockPublicApis(page);
   await page.goto("/register");

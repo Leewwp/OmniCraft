@@ -4,13 +4,15 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { DiscussionCard } from "@/components/social/DiscussionCard";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Search, ArrowRight, MessageSquareText } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 
 interface DiscussionData {
   id: number;
@@ -67,7 +69,7 @@ export function DiscussionBoard({ ipId, compact = false, className }: Discussion
       );
       setDiscussions(res.discussions ?? []);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
+      setError(t(getUserFacingErrorKey(e, "common.loadFailed")));
       silentError(e, { component: 'DiscussionBoard', action: 'load' });
     } finally {
       setLoading(false);
@@ -156,18 +158,22 @@ export function DiscussionBoard({ ipId, compact = false, className }: Discussion
       {loading ? (
         <BoardSkeleton />
       ) : displayedDiscussions.length === 0 ? (
-        <div className="rounded-md border border-border bg-card px-4 py-10 text-center">
-          <MessageSquareText className="mx-auto h-8 w-8 text-muted-foreground/60" />
-          <p className="mt-3 text-sm text-muted-foreground">{t("discussion.empty")}</p>
-          {!compact && user && (
-            <Link href={`/ip/${ipId}/discussions/new`}>
-              <Button size="sm" variant="outline" className="mt-3">
-                <Plus className="mr-1 h-4 w-4" />
-                {t("discussion.newPost")}
-              </Button>
-            </Link>
-          )}
-        </div>
+        <EmptyState
+          icon={MessageSquareText}
+          title={t("discussion.empty")}
+          description={t("discussion.emptyHint")}
+          className="px-4 py-10"
+          action={
+            !compact && user ? (
+              <Link href={`/ip/${ipId}/discussions/new`}>
+                <Button size="sm" variant="outline">
+                  <Plus className="mr-1 h-4 w-4" />
+                  {t("discussion.newPost")}
+                </Button>
+              </Link>
+            ) : null
+          }
+        />
       ) : (
         <div className="space-y-3">
           {displayedDiscussions.map((d) => (

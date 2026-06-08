@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { normalizeContentList } from "@/lib/content";
 import {
   buildContentSearchPath,
@@ -16,10 +16,13 @@ import { FacetedSearchSidebar } from "@/components/layout/FacetedSearchSidebar";
 import { ContentCard, type ContentCardData } from "@/components/content/ContentCard";
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { Bookmark, Grid3X3, List, Search, SlidersHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { silentError } from "@/lib/error-handler";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 
 export default function SearchPage() {
   const t = useTranslations();
@@ -60,7 +63,7 @@ export default function SearchPage() {
       setResults(normalizeContentList(data.items ?? data.contents ?? []));
     } catch (e) {
       silentError(e, { component: 'SearchPage', action: 'doSearch' });
-      setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
+      setError(t(getUserFacingErrorKey(e, "common.loadFailed")));
     } finally {
       setLoading(false);
     }
@@ -300,26 +303,29 @@ export default function SearchPage() {
           {loading && (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="aspect-[3/4] animate-pulse rounded-md bg-muted/30" />
+                <Skeleton key={i} className="aspect-[3/4] w-full" />
               ))}
             </div>
           )}
 
           {/* Empty */}
           {!loading && !error && query && results.length === 0 && (
-            <div className="rounded-md border border-border bg-card p-12 text-center ">
-              <Search className="mx-auto h-10 w-10 text-muted-foreground" />
-              <p className="mt-3 text-sm font-medium">{t("search.noResults")}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{t("search.noResultsHint")}</p>
-            </div>
+            <EmptyState
+              icon={Search}
+              title={t("search.noResults")}
+              description={t("search.noResultsHint")}
+              className="p-12"
+            />
           )}
 
           {/* No query yet */}
           {!loading && !error && !query && (
-            <div className="rounded-md border border-border bg-card p-12 text-center ">
-              <Search className="mx-auto h-10 w-10 text-muted-foreground" />
-              <p className="mt-3 text-sm text-muted-foreground">{t("search.startSearch")}</p>
-            </div>
+            <EmptyState
+              icon={Search}
+              title={t("search.startSearch")}
+              description={t("search.startSearchHint")}
+              className="p-12"
+            />
           )}
 
           {/* Results */}

@@ -3,9 +3,13 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
+import { FileText } from "lucide-react";
 import Link from "next/link";
 
 interface ContentItem {
@@ -41,7 +45,7 @@ export default function DashboardContentsPage() {
       setContents(data.contents || []);
     } catch (e) {
       silentError(e, { component: 'DashboardContentsPage', action: 'loadContents' });
-      setError(e instanceof ApiRequestError ? `${e.code}: ${e.message}` : t('dashboard.content.loadFailed'));
+      setError(t(getUserFacingErrorKey(e, "dashboard.content.loadFailed")));
     } finally {
       setLoading(false);
     }
@@ -55,14 +59,26 @@ export default function DashboardContentsPage() {
       setContents((prev) => prev.filter((c) => c.ID !== id));
     } catch (e) {
       silentError(e, { component: 'DashboardContentsPage', action: 'deleteContent' });
-      setError(e instanceof ApiRequestError ? e.message : t('dashboard.content.deleteFailed'));
+      setError(t(getUserFacingErrorKey(e, "dashboard.content.deleteFailed")));
     } finally {
       setBusy(false);
     }
   }
 
   if (loading) {
-    return <div className="mx-auto w-full max-w-6xl px-4 py-6 text-sm text-muted-foreground">{t('common.loading')}</div>;
+    return (
+      <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6">
+        <div className="rounded-md border border-border bg-card p-4">
+          <Skeleton className="h-7 w-40" />
+          <Skeleton className="mt-2 h-4 w-24" />
+        </div>
+        <div className="space-y-3 rounded-md border border-border bg-card p-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-8 w-full" />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -80,12 +96,17 @@ export default function DashboardContentsPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {contents.length === 0 ? (
-        <div className="rounded-md border border-border bg-card p-12 text-center ">
-          <p className="text-sm text-muted-foreground">{t('dashboard.content.noContent')}</p>
-          <Link href="/publish" className="mt-3 inline-block text-sm text-accent underline underline-offset-4">
-            {t('dashboard.content.publishFirst')}
-          </Link>
-        </div>
+        <EmptyState
+          icon={FileText}
+          title={t("dashboard.content.noContent")}
+          description={t("dashboard.content.noContentHint")}
+          className="p-12"
+          action={
+            <Link href="/publish">
+              <Button size="sm" variant="outline">{t('dashboard.content.publishFirst')}</Button>
+            </Link>
+          }
+        />
       ) : (
         <div className="overflow-x-auto rounded-md border border-border bg-card ">
           <table className="w-full text-left text-sm">
