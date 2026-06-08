@@ -2908,7 +2908,7 @@
 ### Notes:
 - The earlier parallel `npm run lint` run overlapped with `next build` rebuilding `.next/types` and failed with transient missing generated type files; rerunning lint after build completed passed.
 - `task.json` was not modified.
-## [2026-06-08] - UI Detail Repair Task 11: Final Cross-Viewport Verification Blocked
+## [2026-06-08] - UI Detail Repair Task 11: Final Cross-Viewport Verification
 
 ### What was done:
 - Began Task 11 final verification from `docs/superpowers/plans/2026-06-05-omnicraft-ui-detail-repair-plan.md`.
@@ -2943,3 +2943,26 @@
 - `npm run test:e2e` PASS: 18 passed.
 - `npm run lint` PASS.
 - `npm run build` PASS.
+
+### Final verification:
+- Re-ran the Task 11 static gates after the blocker fix:
+  - `npm run lint` PASS.
+  - `npm run build` PASS.
+  - `npm run test:e2e` PASS: 18 passed.
+- Started the local frontend and backend for screenshot verification. Existing healthy `omnicraft-postgres` and `omnicraft-redis` containers were reused because this worktree's `docker compose up -d postgres redis` could not create duplicate fixed-name containers.
+- Seeded and used the real local admin account `admintest@omnicraft.com` from `backend/cmd/seed_admin` for protected desktop screenshots.
+- Saved final screenshots under `frontend/screenshots/ui-detail-repair/`:
+  - `home-mobile.png` (390px wide).
+  - `search-mobile.png` (390px wide).
+  - `login-desktop.png` (1280px wide).
+  - `register-mobile.png` (390px wide).
+  - `publish-fanwork-desktop.png` (1280px wide, authenticated).
+  - `admin-categories-desktop.png` (1280px wide, authenticated admin).
+- Checked the planned public routes at desktop `1280x800` and mobile `390x844`; no horizontal overflow was detected.
+- Checked protected desktop routes `/studio/publish/original`, `/studio/publish/fanwork`, and `/admin/categories` with the seeded admin session; no horizontal overflow was detected.
+- Checked protected mobile routes `/studio/publish/original`, `/studio/publish/fanwork`, and `/admin/categories` with fresh seeded-admin login contexts; all loaded authenticated pages and no horizontal overflow was detected.
+
+### Final notes:
+- Protected desktop and mobile verification completed with a real local account.
+- A previous single-context mobile hard-reload check hit refresh-token rotation after repeated protected reloads; the final route checks used fresh login contexts per protected route and loaded the authenticated pages successfully.
+- Remaining raw `ApiRequestError.message` usages outside the repaired core paths should be handled by a separate security/error-copy cleanup task.
