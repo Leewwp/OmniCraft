@@ -53,6 +53,7 @@ captcha:
   region: "cn"
   access_key_id: ""
   access_key_secret: ""
+  ticket_ttl_sec: 300
 
 client:
   download_enabled: false

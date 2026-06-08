@@ -25,6 +25,7 @@ interface RegisterResponse {
 
 const REGISTER_CAPTCHA_CONTAINER_ID = "register-captcha-container";
 const REGISTER_SUBMIT_BUTTON_ID = "register-submit-button";
+const REGISTER_CAPTCHA_BUTTON_ID = "register-captcha-button";
 
 export default function RegisterPage() {
   const t = useTranslations();
@@ -199,7 +200,7 @@ export default function RegisterPage() {
 
             <CaptchaWidget
               containerId={REGISTER_CAPTCHA_CONTAINER_ID}
-              buttonId={REGISTER_SUBMIT_BUTTON_ID}
+              buttonId={REGISTER_CAPTCHA_BUTTON_ID}
               onToken={(token) => {
                 setCaptchaToken(token);
                 if (token) {
@@ -215,6 +216,7 @@ export default function RegisterPage() {
                 setErrors((currentErrors) => ({ ...currentErrors, captcha: error }));
               }}
             />
+            <button id={REGISTER_CAPTCHA_BUTTON_ID} type="button" className="hidden" aria-hidden="true" tabIndex={-1} />
             {errors.captcha && <p className="text-xs text-destructive">{errors.captcha}</p>}
 
             <label className="flex items-start gap-2 text-sm">

@@ -18,9 +18,11 @@ test("register page does not send a register request when aliyun_v2 captcha toke
 });
 
 test("register page exposes stable captcha and submit button ids", () => {
-  assert.match(registerSource, /buttonId=\{REGISTER_SUBMIT_BUTTON_ID\}/);
-  assert.match(registerSource, /id=\{REGISTER_SUBMIT_BUTTON_ID\}/);
+  assert.match(registerSource, /buttonId=\{REGISTER_CAPTCHA_BUTTON_ID\}/);
+  assert.doesNotMatch(registerSource, /buttonId=\{REGISTER_SUBMIT_BUTTON_ID\}/);
+  assert.match(registerSource, /id=\{REGISTER_CAPTCHA_BUTTON_ID\}/);
   assert.match(registerSource, /const REGISTER_SUBMIT_BUTTON_ID = "register-submit-button"/);
+  assert.match(registerSource, /const REGISTER_CAPTCHA_BUTTON_ID = "register-captcha-button"/);
   assert.match(registerSource, /containerId=\{REGISTER_CAPTCHA_CONTAINER_ID\}/);
   assert.match(registerSource, /const REGISTER_CAPTCHA_CONTAINER_ID = "register-captcha-container"/);
 });

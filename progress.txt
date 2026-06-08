@@ -2863,3 +2863,28 @@
 - Production deployment remains externally blocked on real SMTP, Alibaba CAPTCHA/OSS/Green credentials, production PostgreSQL/Redis/HTTPS/origins, a strong JWT secret, and approved legal terms/privacy version inputs.
 - `task.json` was not modified.
 - The in-app browser screenshot API timed out on `Page.captureScreenshot`; DOM verification succeeded there, and screenshot capture used the Playwright MCP fallback.
+
+## [2026-06-08] - Direct Bugfix: Aliyun CAPTCHA 2.0 Server Ticket Handoff
+
+### What was done:
+- Added `POST /api/v1/captcha/verify`, which verifies the raw Aliyun `captchaVerifyParam` server-side and issues a short-lived Redis-backed captcha ticket.
+- Updated auth and feedback captcha submission verification so Aliyun mode consumes one-time server-issued tickets instead of reusing Aliyun callback parameters.
+- Fixed Aliyun verifier response parsing for `Code: "Success"` with nested `Result.VerifyResult` / `Result.VerifyCode`.
+- Updated `CaptchaWidget` to call the backend verify endpoint inside `captchaVerifyCallback`, return Aliyun control results from the backend outcome, and disable `autoRefresh`.
+- Decoupled the register page Aliyun button binding from the real submit button to remove the verification/submit race.
+- Reset anonymous feedback CAPTCHA after screenshot presign consumes a ticket, avoiding a follow-up submit failure.
+
+### Testing:
+- `go test ./internal/pkg/captcha ./internal/handler` PASS after red/green cycle.
+- `go test ./...` PASS.
+- `go build ./...` PASS.
+- `go vet ./...` PASS.
+- `npm test` PASS.
+- `npm run lint` PASS.
+- `npm run build` PASS.
+- Browser smoke via headless Chrome CDP on `http://localhost:3001/register` PASS; screenshot saved to `screenshots/captcha-register-cdp.png`.
+
+### Notes:
+- Local browser smoke used bypass CAPTCHA config; live Aliyun checkbox completion still requires production Aliyun SDK/network credentials.
+- CAPTCHA logs record code, request ID, verify result, and verify code; no access keys or raw captcha parameters are logged.
+- `task.json` was not modified.

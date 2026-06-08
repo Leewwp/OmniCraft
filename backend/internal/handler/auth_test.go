@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -21,6 +22,7 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/captcha"
 	"omnicraft/backend/internal/pkg/mail"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -88,6 +90,7 @@ func setupAuthHandlerTestWithMail(t *testing.T, verifier *fakeCaptchaVerifier, m
 		},
 		Reputation: config.ReputationConfig{MinScoreForInteraction: 3},
 		Cache:      config.CacheConfig{UserStatusTTL: 300},
+		Captcha:    config.CaptchaConfig{Provider: "aliyun_v2", TicketTTLSec: 120},
 	}
 
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -98,7 +101,9 @@ func setupAuthHandlerTestWithMail(t *testing.T, verifier *fakeCaptchaVerifier, m
 	userRepo := repository.NewUserRepository(db)
 	authService := service.NewAuthService(userRepo, rdb, cfg)
 	verificationService := service.NewVerificationService(userRepo, rdb, mailSender, cfg)
-	authHandler := NewAuthHandler(authService, verificationService, userRepo, verifier, rdb, cfg)
+	ticketStore := captcha.NewTicketStore(rdb, cfg.Captcha.TicketTTLSec)
+	submissionVerifier := captcha.NewTicketAwareVerifier(cfg.Captcha.Provider, verifier, ticketStore)
+	authHandler := NewAuthHandler(authService, verificationService, userRepo, submissionVerifier, rdb, cfg)
 
 	r := gin.New()
 	auth := r.Group("/auth")
@@ -106,7 +111,25 @@ func setupAuthHandlerTestWithMail(t *testing.T, verifier *fakeCaptchaVerifier, m
 	auth.POST("/login", authHandler.Login)
 	auth.POST("/forgot-password", authHandler.ForgotPassword)
 	auth.POST("/resend-verification", authHandler.ResendVerification)
+	captchaHandler := NewCaptchaHandler(verifier, ticketStore)
+	r.POST("/captcha/verify", captchaHandler.Verify)
 	return r, db, rdb, cfg, mr
+}
+
+func issueCaptchaTicket(t *testing.T, r *gin.Engine, captchaVerifyParam string) string {
+	t.Helper()
+	verifyReq := httptest.NewRequest(http.MethodPost, "/captcha/verify", strings.NewReader(`{"captcha_verify_param":"`+captchaVerifyParam+`"}`))
+	verifyReq.Header.Set("Content-Type", "application/json")
+	verifyRec := httptest.NewRecorder()
+	r.ServeHTTP(verifyRec, verifyReq)
+	require.Equal(t, http.StatusOK, verifyRec.Code)
+
+	var verifyBody struct {
+		CaptchaToken string `json:"captcha_token"`
+	}
+	require.NoError(t, json.Unmarshal(verifyRec.Body.Bytes(), &verifyBody))
+	require.NotEmpty(t, verifyBody.CaptchaToken)
+	return verifyBody.CaptchaToken
 }
 
 func createAuthHandlerTestUser(t *testing.T, db *gorm.DB, email, password string, verified bool) *model.User {
@@ -140,12 +163,14 @@ func TestRegisterRequiresAndVerifiesCaptcha(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, missingRec.Code)
 	require.Contains(t, missingRec.Body.String(), "CAPTCHA_REQUIRED")
 
-	okReq := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"email":"new@test.com","username":"newuser","password":"password123","captcha_token":"captcha-ok"}`))
+	captchaToken := issueCaptchaTicket(t, r, "aliyun-callback-param")
+
+	okReq := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"email":"new@test.com","username":"newuser","password":"password123","captcha_token":"`+captchaToken+`"}`))
 	okReq.Header.Set("Content-Type", "application/json")
 	okRec := httptest.NewRecorder()
 	r.ServeHTTP(okRec, okReq)
 	require.Equal(t, http.StatusAccepted, okRec.Code)
-	require.Equal(t, []string{"captcha-ok"}, verifier.calls)
+	require.Equal(t, []string{"aliyun-callback-param"}, verifier.calls)
 }
 
 func TestRegisterReturnsServiceUnavailableWhenVerificationEmailFails(t *testing.T) {
@@ -153,14 +178,15 @@ func TestRegisterReturnsServiceUnavailableWhenVerificationEmailFails(t *testing.
 	r, db, _, _, mr := setupAuthHandlerTestWithMail(t, verifier, failingMailSender{})
 	defer mr.Close()
 
-	req := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"email":"mailfail@test.com","username":"mailfail","password":"password123","captcha_token":"captcha-ok"}`))
+	captchaToken := issueCaptchaTicket(t, r, "mailfail-param")
+	req := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"email":"mailfail@test.com","username":"mailfail","password":"password123","captcha_token":"`+captchaToken+`"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 	require.Contains(t, rec.Body.String(), "EMAIL_SEND_FAILED")
-	require.Equal(t, []string{"captcha-ok"}, verifier.calls)
+	require.Equal(t, []string{"mailfail-param"}, verifier.calls)
 
 	// Verify no user was created in DB when email send fails
 	var count int64
@@ -173,7 +199,8 @@ func TestRegisterDoesNotCreateUserInDBBeforeVerification(t *testing.T) {
 	r, db, _, _, mr := setupAuthHandlerTest(t, verifier)
 	defer mr.Close()
 
-	req := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"email":"pending@test.com","username":"pendinguser","password":"password123","captcha_token":"captcha-ok"}`))
+	captchaToken := issueCaptchaTicket(t, r, "pending-param")
+	req := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"email":"pending@test.com","username":"pendinguser","password":"password123","captcha_token":"`+captchaToken+`"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -193,7 +220,8 @@ func TestRegisterDuplicateEmailAfterFailedSend(t *testing.T) {
 	defer mr.Close()
 
 	// First attempt: email send fails, pending data is cleaned up
-	req1 := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"email":"retry@test.com","username":"retryuser","password":"password123","captcha_token":"captcha-ok"}`))
+	captchaToken1 := issueCaptchaTicket(t, r, "retry-param-1")
+	req1 := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"email":"retry@test.com","username":"retryuser","password":"password123","captcha_token":"`+captchaToken1+`"}`))
 	req1.Header.Set("Content-Type", "application/json")
 	rec1 := httptest.NewRecorder()
 	r.ServeHTTP(rec1, req1)
@@ -201,7 +229,8 @@ func TestRegisterDuplicateEmailAfterFailedSend(t *testing.T) {
 
 	// Second attempt: should succeed (pending data was cleaned up)
 	// But email still fails, so we get 503 again - but NOT 409 USER_EXISTS
-	req2 := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"email":"retry@test.com","username":"retryuser","password":"password123","captcha_token":"captcha-ok"}`))
+	captchaToken2 := issueCaptchaTicket(t, r, "retry-param-2")
+	req2 := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"email":"retry@test.com","username":"retryuser","password":"password123","captcha_token":"`+captchaToken2+`"}`))
 	req2.Header.Set("Content-Type", "application/json")
 	rec2 := httptest.NewRecorder()
 	r.ServeHTTP(rec2, req2)
@@ -260,7 +289,7 @@ func TestForgotPasswordRequiresAndVerifiesCaptcha(t *testing.T) {
 	r.ServeHTTP(badRec, badReq)
 	require.Equal(t, http.StatusBadRequest, badRec.Code)
 	require.Contains(t, badRec.Body.String(), "CAPTCHA_FAILED")
-	require.Equal(t, []string{"captcha-bad"}, verifier.calls)
+	require.Empty(t, verifier.calls)
 }
 
 func TestResendVerificationRequiresAndVerifiesCaptcha(t *testing.T) {
@@ -275,12 +304,13 @@ func TestResendVerificationRequiresAndVerifiesCaptcha(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, missingRec.Code)
 	require.Contains(t, missingRec.Body.String(), "CAPTCHA_REQUIRED")
 
-	okReq := httptest.NewRequest(http.MethodPost, "/auth/resend-verification", strings.NewReader(`{"email":"missing@test.com","captcha_token":"captcha-ok"}`))
+	captchaToken := issueCaptchaTicket(t, r, "resend-param")
+	okReq := httptest.NewRequest(http.MethodPost, "/auth/resend-verification", strings.NewReader(`{"email":"missing@test.com","captcha_token":"`+captchaToken+`"}`))
 	okReq.Header.Set("Content-Type", "application/json")
 	okRec := httptest.NewRecorder()
 	r.ServeHTTP(okRec, okReq)
 	require.Equal(t, http.StatusOK, okRec.Code)
-	require.Equal(t, []string{"captcha-ok"}, verifier.calls)
+	require.Equal(t, []string{"resend-param"}, verifier.calls)
 }
 
 func TestResendVerificationReturns429DuringCooldown(t *testing.T) {
@@ -289,14 +319,17 @@ func TestResendVerificationReturns429DuringCooldown(t *testing.T) {
 	defer mr.Close()
 	createAuthHandlerTestUser(t, db, "resend@test.com", "password123", false)
 
-	body := `{"email":"resend@test.com","captcha_token":"captcha-ok"}`
-	firstReq := httptest.NewRequest(http.MethodPost, "/auth/resend-verification", strings.NewReader(body))
+	captchaToken1 := issueCaptchaTicket(t, r, "resend-cooldown-param-1")
+	body1 := `{"email":"resend@test.com","captcha_token":"` + captchaToken1 + `"}`
+	firstReq := httptest.NewRequest(http.MethodPost, "/auth/resend-verification", strings.NewReader(body1))
 	firstReq.Header.Set("Content-Type", "application/json")
 	firstRec := httptest.NewRecorder()
 	r.ServeHTTP(firstRec, firstReq)
 	require.Equal(t, http.StatusOK, firstRec.Code)
 
-	secondReq := httptest.NewRequest(http.MethodPost, "/auth/resend-verification", strings.NewReader(body))
+	captchaToken2 := issueCaptchaTicket(t, r, "resend-cooldown-param-2")
+	body2 := `{"email":"resend@test.com","captcha_token":"` + captchaToken2 + `"}`
+	secondReq := httptest.NewRequest(http.MethodPost, "/auth/resend-verification", strings.NewReader(body2))
 	secondReq.Header.Set("Content-Type", "application/json")
 	secondRec := httptest.NewRecorder()
 	r.ServeHTTP(secondRec, secondReq)

@@ -159,6 +159,7 @@ type CaptchaConfig struct {
 	Region          string `mapstructure:"region"`
 	AccessKeyID     string `mapstructure:"access_key_id" json:"-"`
 	AccessKeySecret string `mapstructure:"access_key_secret" json:"-"`
+	TicketTTLSec    int    `mapstructure:"ticket_ttl_sec"`
 }
 
 type ClientConfig struct {
@@ -185,12 +186,12 @@ type SMTPConfig struct {
 }
 
 type VerificationConfig struct {
-	EmailTTLSec             int `mapstructure:"email_ttl_sec"`
-	ResetTTLSec             int `mapstructure:"reset_ttl_sec"`
-	ResendCooldownSec       int `mapstructure:"resend_cooldown_sec"`
-	LoginCaptchaThreshold   int `mapstructure:"login_captcha_threshold"`
-	PasswordMinLength       int `mapstructure:"password_min_length"`
-	RegisterPendingTTLSec   int `mapstructure:"register_pending_ttl_sec"`
+	EmailTTLSec           int `mapstructure:"email_ttl_sec"`
+	ResetTTLSec           int `mapstructure:"reset_ttl_sec"`
+	ResendCooldownSec     int `mapstructure:"resend_cooldown_sec"`
+	LoginCaptchaThreshold int `mapstructure:"login_captcha_threshold"`
+	PasswordMinLength     int `mapstructure:"password_min_length"`
+	RegisterPendingTTLSec int `mapstructure:"register_pending_ttl_sec"`
 }
 
 type LegalConfig struct {
@@ -365,6 +366,11 @@ func overrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("CAPTCHA_ACCESS_KEY_SECRET"); v != "" {
 		cfg.Captcha.AccessKeySecret = v
+	}
+	if v := os.Getenv("CAPTCHA_TICKET_TTL_SEC"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.Captcha.TicketTTLSec = n
+		}
 	}
 	if v := os.Getenv("SMTP_PASSWORD"); v != "" {
 		cfg.SMTP.Password = v

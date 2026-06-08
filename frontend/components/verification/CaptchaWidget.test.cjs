@@ -11,8 +11,23 @@ assert.match(
 );
 assert.match(
   source,
-  /captchaVerifyParam/,
-  "CaptchaWidget must pass captchaVerifyParam to onToken",
+  /api\.post<CaptchaVerifyResponse>\("\/api\/v1\/captcha\/verify"/,
+  "CaptchaWidget must send captchaVerifyParam to the backend captcha verify endpoint",
+);
+assert.match(
+  source,
+  /captcha_verify_param:\s*captchaVerifyParam/,
+  "CaptchaWidget must submit the raw Aliyun captchaVerifyParam to the backend",
+);
+assert.match(
+  source,
+  /onToken\(verifyResult\.captcha_token\)/,
+  "CaptchaWidget must pass the server-issued captcha_token to onToken",
+);
+assert.doesNotMatch(
+  source,
+  /onToken\(captchaVerifyParam\)/,
+  "CaptchaWidget must not treat the Aliyun callback param as the application token",
 );
 assert.match(
   source,
@@ -33,4 +48,9 @@ assert.doesNotMatch(
   source,
   /sessionId[\s\S]*sig[\s\S]*ncsig|ncsig[\s\S]*sessionId/,
   "CaptchaWidget must not rebuild legacy sessionId|sig|token|ncsig tokens",
+);
+assert.match(
+  source,
+  /autoRefresh:\s*false/,
+  "CaptchaWidget must disable Aliyun autoRefresh after successful verification",
 );

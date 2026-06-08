@@ -122,6 +122,34 @@ func TestAliyunV2VerifierReturnsNilWhenAliyunSucceeds(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestAliyunV2VerifierAcceptsSuccessResultResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]interface{}{
+			"Code":      "Success",
+			"Message":   "success",
+			"RequestId": "req-success",
+			"Result": map[string]interface{}{
+				"VerifyResult": true,
+				"VerifyCode":   "T001",
+			},
+		}))
+	}))
+	defer server.Close()
+
+	verifier := NewAliyunV2Verifier(config.CaptchaConfig{
+		AccessKeyID:     "ak",
+		AccessKeySecret: "secret",
+		SceneID:         "scene-id",
+		Region:          "cn",
+	})
+	verifier.endpoint = server.URL
+
+	err := verifier.Verify(context.Background(), "captcha-verify-param", "")
+
+	require.NoError(t, err)
+}
+
 func firstParam(r *http.Request, key string) string {
 	values := r.Form[key]
 	if len(values) == 0 {
