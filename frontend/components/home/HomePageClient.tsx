@@ -207,7 +207,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
                 <Link
                   key={ip.id}
                   href={`/ip/${ip.id}`}
-                  className="flex-shrink-0 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-all duration-200 hover:border-accent/20 hover:bg-accent-subtle/5 hover:-translate-y-0.5 active:scale-[0.97]"
+                  className="flex-shrink-0 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors duration-200 hover:border-accent/20 hover:bg-accent-subtle/5 active:bg-accent-subtle/10"
                 >
                   {ip.name}
                 </Link>
@@ -247,7 +247,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
                     key={opt.value}
                     type="button"
                     onClick={() => setContentType(opt.value)}
-                    className={`flex-shrink-0 rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-all duration-150 whitespace-nowrap border select-none active:scale-95 ${
+                    className={`flex-shrink-0 rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150 whitespace-nowrap border select-none active:bg-muted ${
                       active
                         ? "border-border bg-muted text-foreground font-semibold"
                         : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/70 cursor-pointer"
