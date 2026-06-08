@@ -1,8 +1,10 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { FileText } from "lucide-react";
 import Masonry from "react-masonry-css";
 import { ContentCard, ContentCardData } from "@/components/content/ContentCard";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface MasonryGridProps {
   items: ContentCardData[];
@@ -20,9 +22,12 @@ export function MasonryGrid({ items, emptyText }: MasonryGridProps) {
 
   if (items.length === 0) {
     return (
-      <div className="rounded-md border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-        {emptyText || t('content.emptyContentMsg')}
-      </div>
+      <EmptyState
+        icon={FileText}
+        title={emptyText || t("content.emptyContentMsg")}
+        description={t("content.emptyContentHint")}
+        className="p-8"
+      />
     );
   }
 

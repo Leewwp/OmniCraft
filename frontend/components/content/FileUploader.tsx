@@ -6,6 +6,7 @@ import { UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 
 export interface UploadedAsset {
   fileName: string;
@@ -30,6 +31,8 @@ interface FileUploaderProps {
   disabled?: boolean;
   onUploaded: (files: UploadedAsset[]) => void;
 }
+
+class FileValidationError extends Error {}
 
 function uploadWithXHR(
   uploadURL: string,
@@ -90,7 +93,7 @@ export function FileUploader({
 
       for (const file of files) {
         if (file.size > maxBytes) {
-          throw new Error(t('content.fileSizeExceeds', { name: file.name, maxMB }));
+          throw new FileValidationError(t('content.fileSizeExceeds', { name: file.name, maxMB }));
         }
 
         const token = await api.post<OSSUploadToken>("/api/v1/contents/oss-token", {
@@ -113,7 +116,11 @@ export function FileUploader({
 
       onUploaded(uploaded);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('content.uploadFailed'));
+      setError(
+        e instanceof FileValidationError
+          ? e.message
+          : t(getUserFacingErrorKey(e, "content.uploadFailed")),
+      );
       silentError(e, { component: 'FileUploader', action: 'handleFiles' });
     } finally {
       setIsUploading(false);
