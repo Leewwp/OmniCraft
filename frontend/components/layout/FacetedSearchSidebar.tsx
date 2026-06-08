@@ -53,6 +53,7 @@ export interface FilterConfig extends SearchFilterConfig {}
 
 export interface FacetedSearchSidebarProps {
   className?: string;
+  defaultAdvancedOpen?: boolean;
   onFilterChange?: (config: FilterConfig) => void;
   data?: unknown;
   isLoading?: boolean;
@@ -105,6 +106,7 @@ const DEFAULT_CATEGORIES_I18N: { id: number; nameKey: string }[] = [
 
 export function FacetedSearchSidebar({
   className,
+  defaultAdvancedOpen = false,
   onFilterChange,
   data: _data,
   isLoading: _isLoading,
@@ -125,7 +127,7 @@ export function FacetedSearchSidebar({
   const [timeRange, setTimeRange] = useState<string>("");
   const [sort, setSort] = useState<string>("");
 
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(defaultAdvancedOpen);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -434,13 +436,8 @@ export function FacetedSearchSidebar({
           )}
         </button>
 
-        <div
-          className={cn(
-            "grid transition-all duration-300 ease-in-out",
-            advancedOpen ? "grid-rows-[1fr] opacity-100 mt-3" : "grid-rows-[0fr] opacity-0",
-          )}
-        >
-          <div className="overflow-hidden">
+        {advancedOpen && (
+          <div className="mt-3">
             <div className="flex flex-col gap-3">
               {/* Content type multi-select */}
               <div className="flex flex-col gap-1.5">
@@ -503,7 +500,7 @@ export function FacetedSearchSidebar({
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Active advanced filters summary */}

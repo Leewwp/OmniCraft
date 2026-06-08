@@ -58,7 +58,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl gap-0 px-0">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-0 px-0 md:flex-row">
       <aside
         className={cn(
           "hidden shrink-0 border-r border-transparent bg-background transition-all duration-200 md:block",
@@ -137,7 +137,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <main className="flex-1 w-full overflow-auto">
           {children}
         </main>

@@ -2908,3 +2908,38 @@
 ### Notes:
 - The earlier parallel `npm run lint` run overlapped with `next build` rebuilding `.next/types` and failed with transient missing generated type files; rerunning lint after build completed passed.
 - `task.json` was not modified.
+## [2026-06-08] - UI Detail Repair Task 11: Final Cross-Viewport Verification Blocked
+
+### What was done:
+- Began Task 11 final verification from `docs/superpowers/plans/2026-06-05-omnicraft-ui-detail-repair-plan.md`.
+- Confirmed worktree path `C:/tmp/omnicraft-worktrees/ui-detail-repair` and branch `codex/ui-detail-repair`.
+- Ran the static frontend gates before attempting browser screenshots.
+
+### Testing:
+- `npm run lint` PASS.
+- `npm run build` PASS.
+- `npm run test:e2e` FAIL: 15 passed, 3 failed, all in the `mobile-chrome` project.
+- Failed tests:
+  - `admin-control-semantics.spec.ts` search advanced selects: duplicate mobile/desktop `Time range` labels caused a strict locator violation.
+  - `admin-control-semantics.spec.ts` admin category controls: mobile click on `New Category` timed out because the page header/content intercepted pointer events.
+  - `search-filter-contract.spec.ts` search filter contract: mobile click on `Image` timed out because the filter sidebar content intercepted pointer events.
+
+### Notes:
+- Task 11 is blocked before screenshots/progress completion because the required full `npm run test:e2e` gate failed.
+- Protected-route screenshots and final verification were not attempted after the failing e2e gate.
+- No Task 11 final verification commit was created.
+
+### Follow-up fix:
+- Reproduced all three mobile failures individually.
+- Fixed `FacetedSearchSidebar` so collapsed advanced controls are not left in the DOM, preventing hidden duplicate labels and pointer interception.
+- Opened the search mobile drawer with advanced controls visible by default, matching the mobile advanced filter entry point.
+- Fixed the admin layout mobile flow so the top tab navigation stacks above content, and made the category page header wrap before the action button.
+- Updated the search filter contract e2e test to scope filter interactions to the mobile dialog when present and close it via Escape before submitting the underlying search form.
+
+### Follow-up testing:
+- `npm run test:e2e -- --project=mobile-chrome e2e/admin-control-semantics.spec.ts -g "search advanced selects"` PASS.
+- `npm run test:e2e -- --project=mobile-chrome e2e/search-filter-contract.spec.ts` PASS.
+- `npm run test:e2e -- --project=mobile-chrome e2e/admin-control-semantics.spec.ts -g "admin filters"` PASS.
+- `npm run test:e2e` PASS: 18 passed.
+- `npm run lint` PASS.
+- `npm run build` PASS.

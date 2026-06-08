@@ -16,8 +16,15 @@ test("search sends selected filters in backend query parameter names", async ({ 
 
   await page.goto("/search");
   await page.getByRole("button", { name: /Advanced filter|Advanced filters/i }).click();
-  await page.getByRole("button", { name: /Image/i }).click();
-  await page.getByLabel(/Time range/i).selectOption("week");
+  const filterDialog = page.getByRole("dialog", { name: /Advanced filters/i });
+  const hasFilterDialog = await filterDialog.isVisible().catch(() => false);
+  const filterScope = hasFilterDialog ? filterDialog : page;
+  await filterScope.getByRole("button", { name: /Image/i }).click();
+  await filterScope.getByLabel(/Time range/i).selectOption("week");
+  if (hasFilterDialog) {
+    await page.keyboard.press("Escape");
+    await expect(filterDialog).toBeHidden();
+  }
   await page.getByPlaceholder(/keyword/i).fill("layout repair");
   await page.getByRole("button", { name: /^Search$/i }).click();
 

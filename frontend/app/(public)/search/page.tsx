@@ -186,7 +186,7 @@ export default function SearchPage() {
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <FacetedSearchSidebar onFilterChange={(c) => { handleFilterChange(c); }} />
+              <FacetedSearchSidebar defaultAdvancedOpen onFilterChange={(c) => { handleFilterChange(c); }} />
             </div>
           </div>
         )}

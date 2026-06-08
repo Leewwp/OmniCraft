@@ -189,14 +189,14 @@ export default function AdminCategoriesPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 ">
-        <div>
+      <div className="flex flex-col gap-3 rounded-md border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between ">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight">{t('admin.categories.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {t('admin.categories.subtitle', { count: categories.length })}
           </p>
         </div>
-        <Button size="sm" disabled={showCreate} onClick={() => setShowCreate(true)}>
+        <Button size="sm" className="self-start sm:self-auto" disabled={showCreate} onClick={() => setShowCreate(true)}>
           {t('admin.categories.newCategory')}
         </Button>
       </div>
