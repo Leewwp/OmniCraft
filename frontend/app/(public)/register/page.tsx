@@ -40,6 +40,7 @@ export default function RegisterPage() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
   const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -61,12 +62,18 @@ export default function RegisterPage() {
     return Object.keys(newErrors).length === 0;
   }
 
+  function resetCaptcha() {
+    setCaptchaToken("");
+    setCaptchaResetKey((key) => key + 1);
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!validate()) return;
 
     setErrors({});
     setIsLoading(true);
+    let submittedCaptcha = false;
 
     try {
       const config = await fetchPublicConfig();
@@ -75,6 +82,7 @@ export default function RegisterPage() {
         return;
       }
 
+      submittedCaptcha = !!captchaToken;
       const data = await api.post<RegisterResponse>("/api/v1/auth/register", {
         username,
         email,
@@ -91,6 +99,9 @@ export default function RegisterPage() {
         router.push("/login");
       }
     } catch (err) {
+      if (submittedCaptcha) {
+        resetCaptcha();
+      }
       silentError(err, { component: "RegisterPage", action: "handleSubmit" });
       if (err instanceof ApiRequestError) {
         if (err.code === "USER_EXISTS") {
@@ -199,6 +210,7 @@ export default function RegisterPage() {
             </div>
 
             <CaptchaWidget
+              key={captchaResetKey}
               containerId={REGISTER_CAPTCHA_CONTAINER_ID}
               buttonId={REGISTER_CAPTCHA_BUTTON_ID}
               onToken={(token) => {

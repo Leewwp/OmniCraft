@@ -14,6 +14,7 @@ function ForgotPasswordContent() {
   const t = useTranslations();
   const [email, setEmail] = useState("");
   const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [cooldown, setCooldown] = useState(0);
@@ -25,11 +26,18 @@ function ForgotPasswordContent() {
     return () => clearTimeout(timer);
   }, [cooldown]);
 
+  function resetCaptcha() {
+    setCaptchaToken("");
+    setCaptchaResetKey((key) => key + 1);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setIsLoading(true);
+    let submittedCaptcha = false;
     try {
+      submittedCaptcha = !!captchaToken;
       await api.post("/api/v1/auth/forgot-password", {
         email: email.trim(),
         captcha_token: captchaToken || undefined,
@@ -37,6 +45,9 @@ function ForgotPasswordContent() {
       setSent(true);
       setCooldown(60);
     } catch (err) {
+      if (submittedCaptcha) {
+        resetCaptcha();
+      }
       silentError(err, { component: "ForgotPasswordPage", action: "handleSubmit" });
       setError(err instanceof ApiRequestError ? err.message : t("common.operationFailed"));
     } finally {
@@ -88,7 +99,7 @@ function ForgotPasswordContent() {
               />
             </div>
 
-            <CaptchaWidget onToken={setCaptchaToken} />
+            <CaptchaWidget key={captchaResetKey} onToken={setCaptchaToken} />
 
             {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
             <Button type="submit" className="w-full" disabled={isLoading}>

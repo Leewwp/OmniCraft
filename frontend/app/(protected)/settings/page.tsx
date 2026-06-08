@@ -28,6 +28,7 @@ export default function SettingsPage() {
   const [resendBusy, setResendBusy] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [resendCaptchaResetKey, setResendCaptchaResetKey] = useState(0);
   const [resendSuccess, setResendSuccess] = useState(false);
 
   const [oldPw, setOldPw] = useState("");
@@ -104,6 +105,11 @@ export default function SettingsPage() {
     }
   }
 
+  function resetResendCaptcha() {
+    setCaptchaToken(null);
+    setResendCaptchaResetKey((key) => key + 1);
+  }
+
   async function handleResendVerification() {
     if (!user || !captchaToken) return;
     setResendBusy(true);
@@ -116,11 +122,11 @@ export default function SettingsPage() {
       });
       setResendSuccess(true);
       setResendCooldown(60);
-      setCaptchaToken(null);
     } catch (e) {
       silentError(e, { component: 'SettingsPage', action: 'handleResendVerification' });
       setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
     } finally {
+      resetResendCaptcha();
       setResendBusy(false);
     }
   }
@@ -242,7 +248,7 @@ export default function SettingsPage() {
           {resendSuccess && (
             <p className="text-xs text-emerald-600">{t("auth.verificationResent")}</p>
           )}
-          <CaptchaWidget onToken={setCaptchaToken} onError={() => setCaptchaToken(null)} />
+          <CaptchaWidget key={resendCaptchaResetKey} onToken={setCaptchaToken} onError={() => setCaptchaToken(null)} />
           <Button
             size="sm"
             variant="outline"
