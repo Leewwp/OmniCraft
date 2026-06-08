@@ -2888,3 +2888,23 @@
 - Local browser smoke used bypass CAPTCHA config; live Aliyun checkbox completion still requires production Aliyun SDK/network credentials.
 - CAPTCHA logs record code, request ID, verify result, and verify code; no access keys or raw captcha parameters are logged.
 - `task.json` was not modified.
+
+## [2026-06-08] - Direct Bugfix Follow-up: Reset One-time CAPTCHA Tickets After Failed Submissions
+
+### What was done:
+- Added regression coverage for one-time CAPTCHA ticket reset behavior across register, forgot password, resend verification, and anonymous feedback submission flows.
+- Updated register, forgot-password, settings resend-verification, and anonymous feedback forms to clear consumed captcha tokens and remount `CaptchaWidget` after a submit attempt can consume a ticket.
+- Preserved local client-side validation behavior so CAPTCHA is not reset before a request is made.
+
+### Testing:
+- `node --test tests/captcha-ticket-reset.test.mjs` failed before implementation, then PASS after implementation.
+- `npm test` PASS.
+- `npm run lint` PASS after rerun once `next build` finished regenerating `.next/types`.
+- `npm run build` PASS.
+- `go test -count=1 ./...` PASS.
+- `go build ./...` PASS.
+- `go vet ./...` PASS.
+
+### Notes:
+- The earlier parallel `npm run lint` run overlapped with `next build` rebuilding `.next/types` and failed with transient missing generated type files; rerunning lint after build completed passed.
+- `task.json` was not modified.

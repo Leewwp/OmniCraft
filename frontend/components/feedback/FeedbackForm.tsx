@@ -144,6 +144,7 @@ export default function FeedbackForm({ onSuccess }: FeedbackFormProps) {
       silentError(e, { component: "FeedbackForm", action: "handleSubmit" });
       setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
     } finally {
+      resetAnonymousCaptcha();
       setBusy(false);
     }
   }
