@@ -15,3 +15,15 @@ test("feedback screenshot upload checks OSS PUT before storing grant", () => {
   assert.ok(fetchIndex < okCheckIndex, "upload response should be checked after PUT");
   assert.ok(okCheckIndex < setGrantIndex, "grant must not be stored before response.ok is checked");
 });
+
+test("anonymous feedback refreshes captcha after screenshot presign consumes a ticket", () => {
+  assert.match(source, /const \[captchaResetKey, setCaptchaResetKey\]/);
+  assert.match(source, /function resetAnonymousCaptcha\(\)/);
+  assert.match(source, /<CaptchaWidget key=\{captchaResetKey\}/);
+
+  const presignIndex = source.indexOf('api.post("/api/v1/feedback/attachments/presign"');
+  const resetIndex = source.indexOf("resetAnonymousCaptcha();", presignIndex);
+
+  assert.notEqual(presignIndex, -1, "FeedbackForm should request a screenshot presign grant");
+  assert.ok(resetIndex > presignIndex, "FeedbackForm should reset anonymous captcha after presign consumes the ticket");
+});

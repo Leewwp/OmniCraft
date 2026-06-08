@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
+import { api } from "@/lib/api";
 import { fetchPublicConfig } from "@/lib/public-config";
 
 declare global {
@@ -22,6 +23,11 @@ interface CaptchaWidgetProps {
 }
 
 type CaptchaStatus = "loading" | "ready" | "verified" | "failed";
+
+interface CaptchaVerifyResponse {
+  captcha_result: boolean;
+  captcha_token: string;
+}
 
 export default function CaptchaWidget({ onToken, onError, containerId, buttonId = "captcha-submit-button" }: CaptchaWidgetProps) {
   const t = useTranslations();
@@ -89,13 +95,30 @@ export default function CaptchaWidget({ onToken, onError, containerId, buttonId 
           button: `#${buttonId}`,
           language: config.captcha.region === "cn" ? "cn" : "en",
           captchaVerifyCallback: async (captchaVerifyParam: string) => {
-            onToken(captchaVerifyParam);
-            setStatus("verified");
-            setMessage(t("auth.captchaVerified"));
-            return {
-              captchaResult: true,
-              bizResult: true,
-            };
+            try {
+              const verifyResult = await api.post<CaptchaVerifyResponse>("/api/v1/captcha/verify", {
+                captcha_verify_param: captchaVerifyParam,
+              });
+              if (!verifyResult.captcha_result || !verifyResult.captcha_token) {
+                throw new Error("captcha verification failed");
+              }
+              onToken(verifyResult.captcha_token);
+              setStatus("verified");
+              setMessage(t("auth.captchaVerified"));
+              return {
+                captchaResult: true,
+                bizResult: true,
+              };
+            } catch {
+              onToken("");
+              setStatus("failed");
+              setMessage(t("auth.captchaFailed"));
+              onError?.(t("auth.captchaFailed"));
+              return {
+                captchaResult: false,
+                bizResult: false,
+              };
+            }
           },
           onBizResultCallback: () => {
             setStatus("verified");
@@ -107,6 +130,7 @@ export default function CaptchaWidget({ onToken, onError, containerId, buttonId 
             height: 40,
           },
           immediate: true,
+          autoRefresh: false,
         });
         return;
       }
@@ -157,4 +181,5 @@ interface AliyunCaptchaOptions {
     height: number;
   };
   immediate: boolean;
+  autoRefresh: boolean;
 }

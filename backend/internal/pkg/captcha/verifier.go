@@ -114,14 +114,15 @@ func (v *AliyunV2Verifier) Verify(ctx context.Context, token, remoteIP string) e
 	}
 	aliyunResp := parseAliyunCaptchaVerifyResponse(body)
 
-	if aliyunResp.Code != "" && !strings.EqualFold(aliyunResp.Code, "OK") && aliyunResp.Code != "200" {
+	if !isAliyunCaptchaSuccessCode(aliyunResp.Code) {
 		slog.Warn("captcha verify api error", "code", aliyunResp.Code, "request_id", aliyunResp.RequestID, "message", aliyunResp.Message)
 		return fmt.Errorf("captcha verification failed")
 	}
 	if !aliyunResp.verifyResult() {
-		slog.Warn("captcha verify rejected token", "code", aliyunResp.Code, "request_id", aliyunResp.RequestID)
+		slog.Warn("captcha verify rejected token", "code", aliyunResp.Code, "request_id", aliyunResp.RequestID, "verify_code", aliyunResp.verifyCode())
 		return fmt.Errorf("captcha verification failed")
 	}
+	slog.Info("captcha verify success", "code", aliyunResp.Code, "request_id", aliyunResp.RequestID, "verify_result", true, "verify_code", aliyunResp.verifyCode())
 
 	return nil
 }
@@ -131,6 +132,7 @@ type aliyunCaptchaVerifyResponse struct {
 	Message   string                 `json:"Message"`
 	RequestID string                 `json:"RequestId"`
 	Data      map[string]interface{} `json:"Data"`
+	Result    map[string]interface{} `json:"Result"`
 }
 
 func parseAliyunCaptchaVerifyResponse(body map[string]interface{}) aliyunCaptchaVerifyResponse {
@@ -139,11 +141,17 @@ func parseAliyunCaptchaVerifyResponse(body map[string]interface{}) aliyunCaptcha
 		Message:   stringFromAliyunMap(body, "Message"),
 		RequestID: stringFromAliyunMap(body, "RequestId"),
 		Data:      map[string]interface{}{},
+		Result:    map[string]interface{}{},
 	}
 	if data, ok := body["Data"].(map[string]interface{}); ok {
 		resp.Data = data
 	}
-	for _, key := range []string{"CaptchaVerifyResult", "VerifyResult", "Result"} {
+	if result, ok := body["Result"].(map[string]interface{}); ok {
+		resp.Result = result
+	} else if value, ok := body["Result"]; ok {
+		resp.Data["Result"] = value
+	}
+	for _, key := range []string{"CaptchaVerifyResult", "VerifyResult", "VerifyCode"} {
 		if value, ok := body[key]; ok {
 			resp.Data[key] = value
 		}
@@ -152,20 +160,47 @@ func parseAliyunCaptchaVerifyResponse(body map[string]interface{}) aliyunCaptcha
 }
 
 func (r aliyunCaptchaVerifyResponse) verifyResult() bool {
-	if r.Data == nil {
-		return false
-	}
-	for _, key := range []string{"CaptchaVerifyResult", "VerifyResult", "Result"} {
-		if value, ok := r.Data[key]; ok {
-			switch typed := value.(type) {
-			case bool:
-				return typed
-			case string:
-				return strings.EqualFold(typed, "true") || strings.EqualFold(typed, "pass")
+	for _, values := range []map[string]interface{}{r.Result, r.Data} {
+		for _, key := range []string{"CaptchaVerifyResult", "VerifyResult", "Result"} {
+			if value, ok := values[key]; ok {
+				return boolFromAliyunValue(value)
 			}
 		}
 	}
 	return false
+}
+
+func (r aliyunCaptchaVerifyResponse) verifyCode() string {
+	for _, values := range []map[string]interface{}{r.Result, r.Data} {
+		for _, key := range []string{"VerifyCode", "CaptchaVerifyCode"} {
+			if value, ok := values[key]; ok {
+				return stringFromAliyunValue(value)
+			}
+		}
+	}
+	return ""
+}
+
+func isAliyunCaptchaSuccessCode(code string) bool {
+	switch strings.ToLower(strings.TrimSpace(code)) {
+	case "", "ok", "200", "success":
+		return true
+	default:
+		return false
+	}
+}
+
+func boolFromAliyunValue(value interface{}) bool {
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	case string:
+		return strings.EqualFold(typed, "true") || strings.EqualFold(typed, "pass")
+	case float64:
+		return typed == 1
+	default:
+		return false
+	}
 }
 
 func aliyunCaptchaEndpoint(region string) string {
@@ -231,6 +266,10 @@ func stringFromAliyunMap(body map[string]interface{}, key string) string {
 	if !ok {
 		return ""
 	}
+	return stringFromAliyunValue(value)
+}
+
+func stringFromAliyunValue(value interface{}) string {
 	switch typed := value.(type) {
 	case string:
 		return typed

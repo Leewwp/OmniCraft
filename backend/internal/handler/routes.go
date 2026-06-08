@@ -76,6 +76,8 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 
 	publicConfigHandler := NewPublicConfigHandler(cfg)
 	v1.GET("/config/public", publicConfigHandler.GetPublicConfig)
+	captchaHandler := NewCaptchaHandler(ctr.CaptchaProvider, ctr.CaptchaTickets)
+	v1.POST("/captcha/verify", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), captchaHandler.Verify)
 
 	auth := v1.Group("/auth")
 	{

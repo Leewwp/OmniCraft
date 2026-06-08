@@ -68,6 +68,8 @@ type ServiceContainer struct {
 	FeedbackService     *service.FeedbackService
 	AdminAuditService   *service.AdminAuditService
 	CaptchaVerifier     captcha.CaptchaVerifier
+	CaptchaProvider     captcha.CaptchaVerifier
+	CaptchaTickets      *captcha.TicketStore
 }
 
 func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceContainer {
@@ -125,8 +127,11 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 		feedbackMailSender = sender
 	}
 
-	captchaVerifier := captcha.NewCaptchaVerifier(cfg.Captcha)
-	c.CaptchaVerifier = captchaVerifier
+	captchaProvider := captcha.NewCaptchaVerifier(cfg.Captcha)
+	captchaTickets := captcha.NewTicketStore(rdb, cfg.Captcha.TicketTTLSec)
+	c.CaptchaProvider = captchaProvider
+	c.CaptchaTickets = captchaTickets
+	c.CaptchaVerifier = captcha.NewTicketAwareVerifier(cfg.Captcha.Provider, captchaProvider, captchaTickets)
 	c.VerificationService = service.NewVerificationService(c.UserRepo, rdb, mailSender, cfg)
 
 	c.IPService = service.NewIPService(c.IPRepo)
@@ -148,7 +153,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	if err != nil {
 		slog.Warn("Feedback screenshot OSS presign is unavailable", "error", err)
 	}
-	c.FeedbackService = service.NewFeedbackService(c.FeedbackRepo, c.UserRepo, rdb, captchaVerifier, uploadGrantTTL, feedbackOSSSigner)
+	c.FeedbackService = service.NewFeedbackService(c.FeedbackRepo, c.UserRepo, rdb, c.CaptchaVerifier, uploadGrantTTL, feedbackOSSSigner)
 	c.FeedbackService.SetNotificationService(c.NotificationService)
 	c.FeedbackService.SetFeedbackMailSender(feedbackMailSender)
 	c.AdminAuditService = service.NewAdminAuditService(c.AdminAuditRepo, db)

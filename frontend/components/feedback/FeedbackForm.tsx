@@ -34,6 +34,7 @@ export default function FeedbackForm({ onSuccess }: FeedbackFormProps) {
   const [description, setDescription] = useState("");
   const [contactEmail, setContactEmail] = useState(user?.email || "");
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
   const [includeDiagnostics, setIncludeDiagnostics] = useState(false);
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotUploading, setScreenshotUploading] = useState(false);
@@ -47,6 +48,13 @@ export default function FeedbackForm({ onSuccess }: FeedbackFormProps) {
       setContactEmail(user.email);
     }
   }, [user]);
+
+  function resetAnonymousCaptcha() {
+    if (!user) {
+      setCaptchaToken(null);
+      setCaptchaResetKey((key) => key + 1);
+    }
+  }
 
   async function handleScreenshotSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -67,6 +75,7 @@ export default function FeedbackForm({ onSuccess }: FeedbackFormProps) {
         size_bytes: file.size,
         captcha_token: user ? undefined : captchaToken,
       })) as { grant_id: string; oss_key: string; upload_url: string };
+      resetAnonymousCaptcha();
 
       const uploadRes = await fetch(presignRes.upload_url, {
         method: "PUT",
@@ -82,6 +91,7 @@ export default function FeedbackForm({ onSuccess }: FeedbackFormProps) {
       silentError(e, { component: "FeedbackForm", action: "handleScreenshotSelect" });
       setError(e instanceof ApiRequestError ? e.message : t("feedback.screenshotUploadFailed"));
       setScreenshotFile(null);
+      resetAnonymousCaptcha();
     } finally {
       setScreenshotUploading(false);
     }
@@ -252,7 +262,7 @@ export default function FeedbackForm({ onSuccess }: FeedbackFormProps) {
 
       {!user && (
         <div className="space-y-2">
-          <CaptchaWidget onToken={setCaptchaToken} onError={() => setCaptchaToken(null)} />
+          <CaptchaWidget key={captchaResetKey} onToken={setCaptchaToken} onError={() => setCaptchaToken(null)} />
         </div>
       )}
 
