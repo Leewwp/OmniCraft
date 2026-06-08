@@ -21,6 +21,14 @@ export async function mockPublicApis(page: Page) {
     }),
   );
 
+  await page.route("**/api/v1/auth/csrf", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ csrf_token: "test-csrf-token" }),
+    }),
+  );
+
   await page.route("**/api/v1/auth/refresh", (route) =>
     route.fulfill({
       status: 401,
