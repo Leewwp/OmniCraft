@@ -177,7 +177,7 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-6 px-4 py-6">
-      <div className="rounded-md border border-border bg-card p-4 shadow-sm">
+      <div className="rounded-md border border-border bg-card p-4">
         <h1 className="text-2xl font-bold tracking-tight">{t("settings.title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("settings.subtitle")}</p>
       </div>

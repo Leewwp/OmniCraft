@@ -212,7 +212,7 @@ export default function HistoryPage() {
 
       {confirmClear && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl border border-border">
+          <div className="bg-background rounded-lg p-6 max-w-sm w-full mx-4 shadow-md border border-border">
             <h3 className="text-lg font-semibold mb-2">{t('history.confirmClear')}</h3>
             <p className="text-sm text-muted-foreground mb-5">
               {t('history.confirmClearMsg')}

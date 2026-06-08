@@ -32,9 +32,9 @@ export default function PrototypeLanding() {
 
   return (
     <div className="flex flex-col">
-      {/* Hero — warm gradient, V2 text layout, V3 components */}
+      {/* Hero — flat accent wash, V2 text layout, V3 components */}
       <section className="relative flex flex-col items-center justify-center gap-8 px-6 py-28 text-center overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-accent-subtle/40 via-background to-background pointer-events-none" />
+        <div className="absolute inset-0 bg-accent-subtle/20 pointer-events-none" />
 
         <div className="relative z-10 flex flex-col gap-4 max-w-2xl">
           <h1 className="text-5xl font-bold tracking-tight text-fg-default sm:text-6xl lg:text-7xl">
@@ -46,14 +46,14 @@ export default function PrototypeLanding() {
           </p>
         </div>
 
-        {/* CTAs — prominent rounded buttons */}
+        {/* CTAs — prominent flat buttons */}
         <div className="relative z-10 flex flex-col items-center gap-4">
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/register"
               className={cn(
                 buttonVariants({ size: "lg" }),
-                "rounded-2xl px-10 h-12 text-[15px] font-semibold shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200"
+                "rounded-lg px-10 h-12 text-[15px] font-semibold hover:bg-primary/90 active:bg-primary/80 transition-colors duration-200"
               )}
             >
               {t("auth.registerNow")}
@@ -62,7 +62,7 @@ export default function PrototypeLanding() {
               href="/login"
               className={cn(
                 buttonVariants({ variant: "outline", size: "lg" }),
-                "rounded-2xl px-10 h-12 text-[15px] font-medium border-2 hover:bg-canvas-subtle transition-all duration-200"
+                "rounded-lg px-10 h-12 text-[15px] font-medium border-2 hover:bg-canvas-subtle active:bg-muted transition-colors duration-200"
               )}
             >
               {t("auth.loginNow")}
@@ -86,7 +86,7 @@ export default function PrototypeLanding() {
         </div>
       </section>
 
-      {/* Features — rounded cards */}
+      {/* Features — flat cards */}
       <section className="px-6 py-16">
         <div className="mx-auto grid max-w-3xl gap-4 sm:grid-cols-3">
           {[
@@ -96,9 +96,9 @@ export default function PrototypeLanding() {
           ].map((f, i) => (
             <div
               key={i}
-              className="flex flex-col items-center gap-3 rounded-3xl bg-canvas-subtle px-6 py-8 text-center transition-all duration-300 hover:bg-accent-subtle/30 hover:-translate-y-1"
+              className="flex flex-col items-center gap-3 rounded-lg bg-canvas-subtle px-6 py-8 text-center transition-colors duration-200 hover:bg-accent-subtle/30"
             >
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent-subtle">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-accent-subtle">
                 <f.icon className="h-5 w-5 text-accent-emphasis" />
               </div>
               <h3 className="font-semibold text-fg-default">{f.title}</h3>
@@ -110,7 +110,7 @@ export default function PrototypeLanding() {
 
       {/* Status */}
       <section className="px-6 py-16 text-center">
-        <div className="mx-auto max-w-md rounded-3xl border border-border-muted bg-gradient-to-b from-canvas-subtle to-background p-8">
+        <div className="mx-auto max-w-md rounded-lg border border-border-muted bg-canvas-subtle p-8">
           <p className="text-sm text-fg-muted mb-4">
             {t("home.underConstruction")}
           </p>

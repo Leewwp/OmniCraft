@@ -63,8 +63,8 @@ export function ContentCard({ data, className }: ContentCardProps) {
       className={cn(
         "group block overflow-hidden bg-card transition-all duration-200",
         isOriginal
-          ? "rounded-lg hover:-translate-y-0.5 hover:bg-muted/10 active:scale-[0.99]"
-          : "rounded-lg border border-border hover:border-accent/20 hover:bg-accent-subtle/5 active:scale-[0.99]",
+          ? "rounded-lg hover:bg-muted/10 active:bg-muted/20"
+          : "rounded-lg border border-border hover:border-accent/20 hover:bg-accent-subtle/5 active:bg-accent-subtle/10",
         className
       )}
     >
@@ -91,7 +91,7 @@ export function ContentCard({ data, className }: ContentCardProps) {
 
         {/* Type badge — fanwork only */}
         {!isOriginal && (
-          <span className="absolute top-2 left-2 rounded-md bg-background/90 px-2 py-0.5 text-[10.5px] font-semibold text-foreground/70 backdrop-blur-sm border border-border/30">
+          <span className="absolute top-2 left-2 rounded-md bg-background px-2 py-0.5 text-[10.5px] font-semibold text-foreground/70 border border-border/30">
             {typeLabel}
           </span>
         )}
