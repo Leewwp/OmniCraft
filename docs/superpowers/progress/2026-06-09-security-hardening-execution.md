@@ -253,6 +253,54 @@ golang.org/x/net: at least v0.53.0.
   - Release validation uses string checks for HTTPS/local URLs, matching the plan. It does not parse all URL edge cases beyond the specified helper behavior.
 - Next precise action: exact-stage the changed Plan 2 files and commit `Security: harden release configuration gates`.
 
+## Post-Commit Update - 2026-06-09 12:58 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-release-gates-config-hardening.md`
+- Current Task / Step: Plan 2 committed; handoff snapshot appended.
+- Changed files:
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - `git commit -m "Security: harden release configuration gates"`: exit 0.
+  - `git rev-parse --short HEAD`: `24fd2a0`.
+  - `git status --short --branch`: clean after Plan 2 implementation commit.
+- Current commit hash: `24fd2a0`.
+- Blockers or remaining risks:
+  - URL release validation is intentionally helper-based and follows the plan's string-prefix checks.
+- Next precise action: commit this ledger update, then request Plan 2 code review before entering Plan 3.
+
+## Handoff Snapshot - Release Gates And Config Hardening - 2026-06-09 12:58
+- Completed:
+  - Added release-mode validation coverage for complete production config and unsafe/missing production inputs.
+  - Strengthened centralized `Config.ValidateRelease()`.
+  - Confirmed server startup validates config after load and before DB/Redis initialization.
+  - Updated deploy docs to reflect startup validation and added release gate checklists.
+  - Added missing placeholder-only env names to `.env.example`.
+- Commits:
+  - `24fd2a0 Security: harden release configuration gates`
+- Verification:
+  - Red phase: `go test ./config -run ValidateRelease -count=1` failed before implementation on the newly added negative release cases.
+  - Green phase: `go test ./config -run ValidateRelease -count=1` passed.
+  - `go test ./cmd/server -count=1` passed.
+  - `go test ./...`, `go build ./...`, and `go vet ./...` passed.
+  - `Test-Path` checks for single-server nginx and compose templates returned `True`.
+  - `.env.example` placeholder rg check found all required names.
+  - Diff review found placeholders/test fixtures only, no real credentials.
+- Changed files:
+  - `backend/config/config.go`
+  - `backend/config/config_test.go`
+  - `backend/cmd/server/main_test.go`
+  - `docs/deploy/production-config-template.md`
+  - `docs/deploy/single-server-beta-runbook.md`
+  - `.env.example`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Known risks:
+  - Release URL checks use the plan's string-prefix helper behavior rather than full URL parsing.
+- Next plan:
+  - `docs/superpowers/plans/2026-06-08-omnicraft-abuse-control-no-load-testing.md`
+- Resume instructions:
+  - Re-read `AGENTS.md`, `git status --short --branch`, `git log --oneline -n 10`, this progress ledger, and the third plan file before changing code.
+  - Continue on branch `codex/security-hardening-execution`.
+  - Do not modify `task.json` or Beta roadmap checkboxes.
+
 ## Task Update - 2026-06-09 12:49 +08:00
 - Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-release-gates-config-hardening.md`
 - Current Task / Step: Plan 2 startup checks complete; beginning Task 1 Step 1.
