@@ -149,3 +149,51 @@ golang.org/x/net: at least v0.53.0.
   - `cargo audit` unavailable locally; must be run in CI or an environment with cargo-audit before desktop release.
   - Staticcheck still has pre-existing baseline warnings documented above; no new dependency-upgrade warnings were introduced or fixed.
 - Next precise action: stage exact files and commit with final audit summaries in the commit body.
+
+## Post-Commit Update - 2026-06-09 12:39 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-dependency-vulnerability-upgrades.md`
+- Current Task / Step: Task 6 committed; plan handoff snapshot appended.
+- Changed files:
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - `git commit -m "Security: upgrade vulnerable runtime dependencies" ...`: exit 0.
+  - `git rev-parse --short HEAD`: `1409933`.
+  - `git status --short --branch`: clean after implementation commit.
+- Current commit hash: `1409933`.
+- Blockers or remaining risks:
+  - `cargo audit` unavailable locally; run before desktop release.
+  - Existing staticcheck baseline warnings remain documented and unchanged.
+- Next precise action: commit this progress/handoff ledger update, then read the second plan file before starting release gates and config hardening.
+
+## Handoff Snapshot - Dependency Vulnerability Upgrades - 2026-06-09 12:39
+- Completed:
+  - Captured backend and frontend vulnerability baselines.
+  - Upgraded backend Go toolchain and vulnerable modules.
+  - Updated backend Docker builder image to Go 1.25.11.
+  - Upgraded frontend Next.js and safe transitive npm dependencies.
+  - Added minimal scoped npm override for `next -> postcss@8.5.15` per maintainer approval.
+  - Audited Tauri npm dependencies without touching desktop security-chain code.
+  - Ran staticcheck and documented unchanged baseline warnings.
+- Commits:
+  - `1409933 Security: upgrade vulnerable runtime dependencies`
+- Verification:
+  - `backend`: `go test ./...`, `go build ./...`, `go vet ./...`, and `govulncheck` all exit 0; govulncheck reports no reachable vulnerabilities.
+  - `frontend`: `npm audit --omit=dev` exits 0; `npm run lint`, `npm run test`, and `npm run build` exit 0.
+  - `tauri-client`: `npm audit --omit=dev` exits 0.
+  - `staticcheck`: exits 1 only for the documented pre-existing baseline warnings.
+- Changed files:
+  - `backend/go.mod`
+  - `backend/go.sum`
+  - `backend/Dockerfile`
+  - `frontend/package.json`
+  - `frontend/package-lock.json`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Known risks:
+  - `cargo audit` is unavailable in this environment and still needs CI or local cargo-audit verification before desktop release.
+  - Staticcheck baseline warnings remain out of scope for this dependency-only plan.
+- Next plan:
+  - `docs/superpowers/plans/2026-06-08-omnicraft-release-gates-config-hardening.md`
+- Resume instructions:
+  - Re-read `AGENTS.md`, `git status --short --branch`, `git log --oneline -n 10`, this progress ledger, and the second plan file before changing code.
+  - Continue on branch `codex/security-hardening-execution` in this worktree.
+  - Do not modify `task.json` or Beta roadmap checkboxes.
