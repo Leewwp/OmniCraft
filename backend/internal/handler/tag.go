@@ -19,10 +19,11 @@ import (
 )
 
 type TagHandler struct {
-	tagSvc *service.TagService
+	tagSvc        *service.TagService
+	maxQueryChars int
 }
 
-func NewTagHandler(db *gorm.DB, rdb *redis.Client, cacheCfg *config.CacheConfig) *TagHandler {
+func NewTagHandler(db *gorm.DB, rdb *redis.Client, cacheCfg *config.CacheConfig, maxQueryChars int) *TagHandler {
 	return &TagHandler{
 		tagSvc: service.NewTagService(
 			repository.NewTagRepository(db),
@@ -30,6 +31,7 @@ func NewTagHandler(db *gorm.DB, rdb *redis.Client, cacheCfg *config.CacheConfig)
 			rdb,
 			cacheCfg,
 		),
+		maxQueryChars: maxQueryChars,
 	}
 }
 
@@ -54,6 +56,9 @@ func (h *TagHandler) SearchTags(c *gin.Context) {
 	q := c.Query("q")
 	if q == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "MISSING_QUERY", "message": "q is required"})
+		return
+	}
+	if rejectLongQuery(c, q, h.maxQueryChars) {
 		return
 	}
 	tags, err := h.tagSvc.SearchTags(q)

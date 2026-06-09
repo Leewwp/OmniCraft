@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -14,10 +15,11 @@ import (
 
 type SearchHandler struct {
 	searchSvc *service.SearchService
+	cfg       *config.Config
 }
 
-func NewSearchHandler(searchSvc *service.SearchService) *SearchHandler {
-	return &SearchHandler{searchSvc: searchSvc}
+func NewSearchHandler(searchSvc *service.SearchService, cfg *config.Config) *SearchHandler {
+	return &SearchHandler{searchSvc: searchSvc, cfg: cfg}
 }
 
 func (h *SearchHandler) Suggestions(c *gin.Context) {
@@ -26,7 +28,10 @@ func (h *SearchHandler) Suggestions(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"suggestions": []repository.SearchSuggestion{}})
 		return
 	}
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if rejectLongQuery(c, q, h.maxQueryChars()) {
+		return
+	}
+	limit := clampLimit(c.DefaultQuery("limit", "10"), 10, h.maxSearchLimit())
 	suggestions, err := h.searchSvc.GetSuggestions(q, limit, middleware.GetUserID(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "search failed"})
@@ -39,7 +44,7 @@ func (h *SearchHandler) Suggestions(c *gin.Context) {
 }
 
 func (h *SearchHandler) Trending(c *gin.Context) {
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	limit := clampLimit(c.DefaultQuery("limit", "20"), 20, h.maxSearchLimit())
 	items, err := h.searchSvc.GetTrending(limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "search failed"})
@@ -53,6 +58,9 @@ func (h *SearchHandler) Trending(c *gin.Context) {
 
 func (h *SearchHandler) SearchContents(c *gin.Context) {
 	query := c.Query("q")
+	if rejectLongQuery(c, query, h.maxQueryChars()) {
+		return
+	}
 	zone := c.Query("zone")
 	category := c.Query("category")
 	contentType := c.Query("content_type")
@@ -72,7 +80,10 @@ func (h *SearchHandler) SearchContents(c *gin.Context) {
 	}
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	if page <= 0 {
+		page = 1
+	}
+	pageSize := clampLimit(c.DefaultQuery("limit", "20"), 20, h.maxSearchLimit())
 
 	// Get viewerID from context (0 if anonymous)
 	viewerID, _ := c.Get(middleware.UserIDKey)
@@ -108,8 +119,14 @@ func (h *SearchHandler) SearchUsers(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"users": []repository.UserSearchResult{}, "total": 0})
 		return
 	}
+	if rejectLongQuery(c, q, h.maxQueryChars()) {
+		return
+	}
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	if page <= 0 {
+		page = 1
+	}
+	pageSize := clampLimit(c.DefaultQuery("limit", "20"), 20, h.maxSearchLimit())
 
 	users, total, err := h.searchSvc.SearchUsers(q, page, pageSize)
 	if err != nil {
@@ -120,4 +137,46 @@ func (h *SearchHandler) SearchUsers(c *gin.Context) {
 		users = []repository.UserSearchResult{}
 	}
 	c.JSON(http.StatusOK, gin.H{"users": users, "total": total})
+}
+
+const defaultMaxQueryChars = 120
+const defaultMaxSearchLimit = 50
+
+func clampLimit(raw string, def, max int) int {
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return def
+	}
+	if max <= 0 {
+		max = defaultMaxSearchLimit
+	}
+	if n > max {
+		return max
+	}
+	return n
+}
+
+func rejectLongQuery(c *gin.Context, q string, max int) bool {
+	if max <= 0 {
+		max = defaultMaxQueryChars
+	}
+	if len([]rune(q)) > max {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "QUERY_TOO_LONG", "message": "search query is too long"})
+		return true
+	}
+	return false
+}
+
+func (h *SearchHandler) maxQueryChars() int {
+	if h == nil || h.cfg == nil {
+		return defaultMaxQueryChars
+	}
+	return h.cfg.RateLimit.MaxQueryChars
+}
+
+func (h *SearchHandler) maxSearchLimit() int {
+	if h == nil || h.cfg == nil {
+		return defaultMaxSearchLimit
+	}
+	return h.cfg.RateLimit.MaxSearchLimit
 }

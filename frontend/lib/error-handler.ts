@@ -20,6 +20,10 @@ export function handleApiError(
       options?.toast?.("error", "Permission denied");
       return;
     }
+    if (error.status === 429) {
+      options?.toast?.("warning", "Too many requests. Please try again later.");
+      return;
+    }
     if (error.status >= 500) {
       options?.toast?.("error", "Server busy, please try again later");
       return;

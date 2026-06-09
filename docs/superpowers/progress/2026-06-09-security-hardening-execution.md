@@ -328,3 +328,217 @@ golang.org/x/net: at least v0.53.0.
 - Current commit hash: `011a564`.
 - Blockers or remaining risks: none before Task 1.
 - Next precise action: add release validation happy path and negative tests to `backend/config/config_test.go`, then run `go test ./config -run ValidateRelease -count=1` expecting negative cases to fail before implementation.
+
+## Task Update - 2026-06-09 13:05 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-abuse-control-no-load-testing.md`
+- Current Task / Step: Startup checks complete; beginning Task 1 Step 1.
+- Changed files:
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Re-read `AGENTS.md`, `git status --short --branch`, `git log --oneline -n 10`, this progress ledger, the third plan file, and `git worktree list --porcelain`.
+  - `git status --short --branch`: clean on `codex/security-hardening-execution`.
+  - `git log --oneline -n 10`: latest commit is `eeddc89 Docs: record release gate review`.
+  - `git worktree list --porcelain`: confirmed current path is an independent worktree on `codex/security-hardening-execution`; main worktree remains separate at `C:/Users/16278/Desktop/file/code/project/OmniCraft`.
+- Current commit hash: `eeddc89`.
+- Blockers or remaining risks: none before Plan 3 Task 1. Load/stress testing remains explicitly out of scope.
+- Next precise action: add `TestDefaultConfigHasAbuseControlLimits` to `backend/config/config_test.go`, then run `go test ./config -run AbuseControl -count=1` expecting failure before config fields/defaults are added.
+
+## Task Update - 2026-06-09 13:08 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-abuse-control-no-load-testing.md`
+- Current Task / Step: Task 1 complete; beginning Task 2 Step 1.
+- Changed files:
+  - `backend/config/config_test.go`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Added `TestDefaultConfigHasAbuseControlLimits` to assert `backend/config.yaml` declares abuse-control defaults.
+  - `go test ./config -run AbuseControl -count=1`: exit 1 as expected before implementation. Failure: `config.yaml must declare credential_per_minute`.
+- Current commit hash: `eeddc89`.
+- Blockers or remaining risks: none. Red test confirms missing config fields/defaults before Task 2.
+- Next precise action: extend `RateLimitConfig`, add default values under `rate_limit`, confirm `Config.SaveOverride` already persists `rate_limit`, then rerun `go test ./config -run AbuseControl -count=1`.
+
+## Task Update - 2026-06-09 13:11 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-abuse-control-no-load-testing.md`
+- Current Task / Step: Task 2 complete; beginning Task 3 Step 1.
+- Changed files:
+  - `backend/config/config.go`
+  - `backend/config/config_test.go`
+  - `backend/config.yaml`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Extended `RateLimitConfig` with `credential_per_minute`, `search_per_minute`, `max_json_body_bytes`, `max_query_chars`, and `max_search_limit`.
+  - Added conservative default values under `backend/config.yaml > rate_limit`.
+  - Confirmed `Config.SaveOverride` still contains `v.Set("rate_limit", c.RateLimit)`, so no extra persistence changes were needed.
+  - `gofmt -w backend/config/config.go backend/config/config_test.go`: exit 0.
+  - `go test ./config -run AbuseControl -count=1`: exit 0.
+- Current commit hash: `eeddc89`.
+- Blockers or remaining risks: none for Task 2.
+- Next precise action: add `body_limit_test.go`, run `go test ./internal/middleware -run BodyLimit -count=1` expecting `BodyLimit` to be undefined, then implement middleware and wire it in `backend/cmd/server/main.go`.
+
+## Task Update - 2026-06-09 13:15 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-abuse-control-no-load-testing.md`
+- Current Task / Step: Task 3 complete; beginning Task 4 Step 1.
+- Changed files:
+  - `backend/internal/middleware/body_limit.go`
+  - `backend/internal/middleware/body_limit_test.go`
+  - `backend/cmd/server/main.go`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Added `TestBodyLimitRejectsOversizedJSON`.
+  - `go test ./internal/middleware -run BodyLimit -count=1`: first run exited 1 as expected with `undefined: BodyLimit`.
+  - Implemented `middleware.BodyLimit(maxBytes int64)` with a `ContentLength` pre-check and `http.MaxBytesReader`.
+  - Wired body limit before CSRF in `backend/cmd/server/main.go`, defaulting to 1 MiB when config is unset.
+  - `gofmt -w backend/internal/middleware/body_limit.go backend/internal/middleware/body_limit_test.go backend/cmd/server/main.go`: exit 0.
+  - `go test ./internal/middleware -run BodyLimit -count=1`: exit 0.
+- Current commit hash: `eeddc89`.
+- Blockers or remaining risks: none for Task 3.
+- Next precise action: inspect `backend/internal/middleware/ratelimit.go` and existing route registration, add a failing credential account-key limiter test, then harden `CredentialRateLimit`.
+
+## Task Update - 2026-06-09 13:20 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-abuse-control-no-load-testing.md`
+- Current Task / Step: Task 4 complete; beginning Task 5 Step 1.
+- Changed files:
+  - `backend/internal/middleware/ratelimit.go`
+  - `backend/internal/middleware/ratelimit_test.go`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Added `TestCredentialRateLimitUsesAccountKey`.
+  - `go test ./internal/middleware -run CredentialRateLimit -count=1`: first run exited 1 as expected; the third same-account request from a different IP returned 200 under the old IP-only limiter.
+  - Added normalized email extraction with SHA-256 account-key hashing and restored the request body for downstream handlers.
+  - Updated `CredentialRateLimit` to use `credential_per_minute`, limit by both IP and account key, and fail closed with `RATE_LIMIT_UNAVAILABLE` when Redis is unavailable.
+  - `gofmt -w backend/internal/middleware/ratelimit.go backend/internal/middleware/ratelimit_test.go`: exit 0.
+  - `go test ./internal/middleware -run CredentialRateLimit -count=1`: exit 0.
+- Current commit hash: `eeddc89`.
+- Blockers or remaining risks: none for Task 4.
+- Next precise action: inspect `backend/internal/handler/search.go`, `tag.go`, and constructor call sites; add isolated failing tests for `rejectLongQuery` and `clampLimit`.
+
+## Task Update - 2026-06-09 13:25 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-abuse-control-no-load-testing.md`
+- Current Task / Step: Task 5 complete; beginning Task 6 Step 1.
+- Changed files:
+  - `backend/internal/handler/search.go`
+  - `backend/internal/handler/search_abuse_test.go`
+  - `backend/internal/handler/tag.go`
+  - `backend/internal/handler/routes.go`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Added isolated helper tests for long query rejection and limit clamping.
+  - `go test ./internal/handler -run "Search.*Abuse|Search.*Limit" -count=1`: first run exited 1 as expected with undefined `rejectLongQuery` and `clampLimit`.
+  - Added `clampLimit`, `rejectLongQuery`, and default max constants.
+  - Updated `SearchHandler` to carry config and cap Suggestions, Trending, SearchContents, and SearchUsers.
+  - Updated `TagHandler` to carry `maxQueryChars` and reject oversized tag search queries without adding a new tag limit parameter.
+  - `gofmt -w backend/internal/handler/search.go backend/internal/handler/tag.go backend/internal/handler/routes.go backend/internal/handler/search_abuse_test.go`: exit 0.
+  - `go test ./internal/handler -run "Search.*Abuse|Search.*Limit" -count=1`: exit 0.
+- Current commit hash: `eeddc89`.
+- Blockers or remaining risks: none for Task 5.
+- Next precise action: add a focused red test for `RedisFixedWindowLimit`, implement it in `ratelimit.go`, wire it onto search endpoints in `routes.go`, then run route and limiter focused tests.
+
+## Task Update - 2026-06-09 13:29 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-abuse-control-no-load-testing.md`
+- Current Task / Step: Task 6 complete; beginning Task 7 Step 1.
+- Changed files:
+  - `backend/internal/middleware/ratelimit.go`
+  - `backend/internal/middleware/ratelimit_test.go`
+  - `backend/internal/handler/routes.go`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Added `TestRedisFixedWindowLimit`.
+  - `go test ./internal/middleware -run RedisFixedWindowLimit -count=1`: first run exited 1 as expected with undefined `RedisFixedWindowLimit`.
+  - Implemented `RedisFixedWindowLimit` with disabled behavior for `limit <= 0`, fail-open/fail-closed Redis handling, IP fixed-window keys, and 429 `RATE_LIMIT_EXCEEDED`.
+  - Wired the search limiter onto `/search/suggestions`, `/search/trending`, `/contents/search`, and `/users/search`.
+  - `gofmt -w backend/internal/middleware/ratelimit.go backend/internal/middleware/ratelimit_test.go backend/internal/handler/routes.go`: exit 0.
+  - `go test ./internal/handler -run Routes -count=1`: exit 0.
+  - `go test ./internal/middleware -run RedisFixedWindowLimit -count=1`: exit 0.
+- Current commit hash: `eeddc89`.
+- Blockers or remaining risks: none for Task 6.
+- Next precise action: add `security.trusted_proxies` config support, wire Gin `SetTrustedProxies` before route registration, and add/update `main_test.go` source-order coverage.
+
+## Task Update - 2026-06-09 13:34 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-abuse-control-no-load-testing.md`
+- Current Task / Step: Task 7 complete; beginning Task 8 Step 1.
+- Changed files:
+  - `backend/config/config.go`
+  - `backend/config.yaml`
+  - `backend/cmd/server/main.go`
+  - `backend/cmd/server/main_test.go`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Added `SecurityConfig.TrustedProxies` and default development `security.trusted_proxies: ["127.0.0.1"]`.
+  - Added `TestMainSetsTrustedProxiesBeforeRegisterRoutes`.
+  - `go test ./cmd/server ./config -count=1`: first run exited 1 as expected; server test reported `main must configure Gin trusted proxies`.
+  - Wired `r.SetTrustedProxies(cfg.Security.TrustedProxies)` immediately after `gin.New()` and before route registration; release mode with no configured proxies calls `SetTrustedProxies(nil)`.
+  - `gofmt -w backend/config/config.go backend/cmd/server/main.go backend/cmd/server/main_test.go`: exit 0.
+  - `go test ./cmd/server ./config -count=1`: exit 0.
+- Current commit hash: `eeddc89`.
+- Blockers or remaining risks: none for Task 7. Production proxy CIDRs remain operator-provided and are not guessed in code.
+- Next precise action: inspect frontend error handling for existing 429 behavior, add the scoped central 429 copy branch, then run `npm run lint` and `npm run test`.
+
+## Task Update - 2026-06-09 13:40 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-abuse-control-no-load-testing.md`
+- Current Task / Step: Task 8 complete; beginning Task 9 Step 1.
+- Changed files:
+  - `frontend/lib/error-handler.ts`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - `rg -n "429|RATE_LIMIT|Server busy|ApiRequestError" frontend/lib frontend/components frontend/app`: found existing central handler and scattered `ApiRequestError` usage; no central 429 normalization branch existed.
+  - Added a central 429 branch after 403 and before 5xx in `frontend/lib/error-handler.ts`, returning warning toast copy: `Too many requests. Please try again later.`
+  - Did not edit translation files, per plan.
+  - `npm run lint`: exit 0.
+  - `npm run test`: exit 0, 10 tests passed.
+- Current commit hash: `eeddc89`.
+- Blockers or remaining risks: no focused behavioral unit test exists for `handleApiError`; existing frontend lint/test suite passed after the scoped change.
+- Next precise action: inspect `docs/deploy/nginx.omnicraft.single-server.conf`, add route-level limit zones and auth/search locations, then run `nginx -t` in Docker only if Docker is available.
+
+## Task Update - 2026-06-09 13:43 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-abuse-control-no-load-testing.md`
+- Current Task / Step: Task 9 complete; beginning Task 10 Step 1.
+- Changed files:
+  - `docs/deploy/nginx.omnicraft.single-server.conf`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Read `docs/deploy/nginx.omnicraft.single-server.conf`.
+  - Added `api_limit`, `auth_limit`, `search_limit`, and `conn_limit` zones before server blocks.
+  - Added explicit auth and search regex locations before the API catch-all location.
+  - `docker version --format '{{.Server.Version}}'`: exit 0, Docker server `28.4.0` available.
+  - Initial `docker run ... nginx -t`: exit 1 because standalone container could not resolve upstream host `frontend`.
+  - Retried with temporary `--add-host frontend/backend`: exit 1 because the standalone container lacked the production certificate files referenced by the template.
+  - Confirmed nginx image lacked `openssl`; then ran a one-shot container that temporarily installed openssl, generated disposable self-signed cert files inside the container, supplied upstream hosts, and ran `nginx -t`: exit 0. Output included deprecation warnings for existing `listen ... http2`, then `syntax is ok` and `test is successful`.
+- Current commit hash: `eeddc89`.
+- Blockers or remaining risks:
+  - Existing nginx `listen ... http2` deprecation warnings remain out of scope; syntax check succeeds.
+- Next precise action: run focused abuse-control tests, backend full `go test/build/vet`, frontend lint/test, and no-load-artifact checks.
+
+## Task Update - 2026-06-09 13:24 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-abuse-control-no-load-testing.md`
+- Current Task / Step: Task 10 verification complete; preparing exact commit.
+- Changed files:
+  - `backend/config/config.go`
+  - `backend/config/config_test.go`
+  - `backend/config.yaml`
+  - `backend/internal/middleware/ratelimit.go`
+  - `backend/internal/middleware/ratelimit_test.go`
+  - `backend/internal/middleware/body_limit.go`
+  - `backend/internal/middleware/body_limit_test.go`
+  - `backend/cmd/server/main.go`
+  - `backend/cmd/server/main_test.go`
+  - `backend/internal/handler/search.go`
+  - `backend/internal/handler/search_abuse_test.go`
+  - `backend/internal/handler/tag.go`
+  - `backend/internal/handler/routes.go`
+  - `frontend/lib/error-handler.ts`
+  - `docs/deploy/nginx.omnicraft.single-server.conf`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - `go test ./internal/middleware ./internal/handler -run "RateLimit|Search|Abuse|BodyLimit" -count=1`: exit 0.
+  - `go test ./...`: exit 0.
+  - `go build ./...`: exit 0.
+  - `go vet ./...`: exit 0.
+  - `npm run lint`: exit 0.
+  - `npm run test`: exit 0, 10 tests passed.
+  - `git status --short`: showed only Plan 3 modified/new files plus this ledger.
+  - `rg -n "k6|vegeta|locust" .`: returned existing checksum/plan-text matches, not new load-test artifacts.
+  - `git diff -- . | rg -n "k6|vegeta|locust"`: exit 1, no matches in current diff.
+- Current commit hash: `eeddc89`.
+- Blockers or remaining risks:
+  - Existing nginx `listen ... http2` deprecation warnings remain out of scope.
+  - No focused unit test was added for the frontend central 429 branch because the plan's exact file list did not include a new frontend test file; existing frontend lint/test passed.
+- Next precise action: review diff, exact-stage Plan 3 files and this ledger, then commit `Security: harden abuse controls`.

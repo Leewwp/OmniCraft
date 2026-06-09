@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -23,6 +24,13 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 
 	optAuth := middleware.OptionalAuth(cfg, rdb, db)
 	authReq := middleware.AuthRequired(cfg, rdb, db)
+	searchLimiter := middleware.RedisFixedWindowLimit(
+		rdb,
+		"ratelimit:search",
+		cfg.RateLimit.SearchPerMinute,
+		time.Minute,
+		false,
+	)
 
 	publishGuard := middleware.InteractionRequired(cfg, db, rdb, middleware.InteractionPolicy{
 		RequireVerifiedEmail:   true,
@@ -200,7 +208,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	catHandler := NewCategoryHandler(db, ctr.AdminAuditService)
 	v1.GET("/categories", optAuth, catHandler.ListCategories)
 
-	tagHandler := NewTagHandler(db, rdb, &cfg.Cache)
+	tagHandler := NewTagHandler(db, rdb, &cfg.Cache, cfg.RateLimit.MaxQueryChars)
 	v1.GET("/tags/faceted", optAuth, tagHandler.GetFacetedTags)
 	v1.GET("/tags/search", optAuth, tagHandler.SearchTags)
 	contents.POST("/:id/tags/suggest", authReq, tagHandler.SuggestTag)
@@ -223,16 +231,16 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		me.GET("/contents", userHandler.GetMyContents)
 	}
 
-	searchHandler := NewSearchHandler(service.NewSearchService(repository.NewSearchRepository(db), rdb))
-	v1.GET("/search/suggestions", optAuth, searchHandler.Suggestions)
-	v1.GET("/search/trending", optAuth, searchHandler.Trending)
-	v1.GET("/contents/search", optAuth, searchHandler.SearchContents)
+	searchHandler := NewSearchHandler(service.NewSearchService(repository.NewSearchRepository(db), rdb), cfg)
+	v1.GET("/search/suggestions", optAuth, searchLimiter, searchHandler.Suggestions)
+	v1.GET("/search/trending", optAuth, searchLimiter, searchHandler.Trending)
+	v1.GET("/contents/search", optAuth, searchLimiter, searchHandler.SearchContents)
 
 	users.POST("/:id/follow", authReq, followsGuard, followHandler.FollowUser)
 	users.DELETE("/:id/follow", authReq, followsGuard, followHandler.UnfollowUser)
 	users.GET("/:id/followers", optAuth, followHandler.GetFollowers)
 	users.GET("/:id/following", optAuth, followHandler.GetFollowing)
-	users.GET("/search", optAuth, searchHandler.SearchUsers)
+	users.GET("/search", optAuth, searchLimiter, searchHandler.SearchUsers)
 	ips.POST("/:id/follow", authReq, followsGuard, followHandler.FollowIP)
 	ips.DELETE("/:id/follow", authReq, followsGuard, followHandler.UnfollowIP)
 
