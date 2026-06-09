@@ -926,3 +926,33 @@ golang.org/x/net: at least v0.53.0.
   - Re-read `AGENTS.md`, `git status --short --branch`, `git log --oneline -n 10`, this progress ledger, and any current plan file before changing code.
   - Continue on branch `codex/security-hardening-execution`.
   - Do not modify `task.json` or Beta roadmap checkboxes.
+
+## Final Verification - 2026-06-09 14:45 +08:00
+- Current plan file: all four requested security hardening plans.
+- Current Task / Step: Final all-plan verification after Plan 4 handoff.
+- Changed files:
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Plan 4 code review request sent to read-only review thread for range `1157728..3b58a80`. The review thread completed without a final findings message and reported `systemError` at thread status, so no actionable review findings were produced by that tool. Local diff review found no Critical/Important issue beyond the known `cover_oss_key` residual risk already recorded.
+  - `go test ./...` from `backend/`: exit 0.
+  - `go build ./...` from `backend/`: exit 0.
+  - `go vet ./...` from `backend/`: exit 0.
+  - `go run golang.org/x/vuln/cmd/govulncheck@latest ./...` from `backend/`: exit 0. Reported no reachable vulnerabilities; 0 affected vulnerabilities.
+  - `go run honnef.co/go/tools/cmd/staticcheck@latest ./...` from `backend/`: exit 1 with the same documented baseline warnings: `admin_audit_transaction_test.go SA4006`, `green.go U1000`, `idempotent.go SA1019`, `content_service.go SA1019/U1000`, `verification_service.go U1000`, `manager.go U1000`, `review_worker.go U1000`.
+  - `npm audit --registry=https://registry.npmjs.org --omit=dev` from `frontend/`: exit 0, `found 0 vulnerabilities`.
+  - `npm run lint` from `frontend/`: exit 0.
+  - `npm run test` from `frontend/`: exit 0, 12 tests passed.
+  - `npm run build` from `frontend/`: exit 0, Next.js 16.2.7 production build succeeded.
+  - `npm audit --registry=https://registry.npmjs.org --omit=dev` from `tauri-client/`: exit 0, `found 0 vulnerabilities`.
+  - `cargo audit --version` from `tauri-client/`: exit 1, `cargo audit` is not installed.
+  - `rg -n "href=.*oss_url|href=.*download_url|oss_url" frontend/components frontend/app frontend/lib`: exit 0. No direct raw OSS/download href matches; remaining `oss_url` uses are preview-only fields and renderers.
+  - `git status --short --branch`: clean on `codex/security-hardening-execution` before this ledger update.
+- Current commit hash: `3b58a80`.
+- Blockers or remaining risks:
+  - No active blocker.
+  - `cargo audit` remains unavailable locally and should be run in CI or a Rust toolchain environment before desktop release.
+  - Staticcheck baseline warnings remain out of scope and unchanged.
+  - Production `security.trusted_proxies` still requires an operator-provided nginx container IP/CIDR.
+  - `cover_oss_key` remains a raw-key path outside the attachment grant flow.
+  - Real OSS object metadata verification requires production OSS credentials and uploaded object existence; unit tests use fakes.
+- Next precise action: exact-stage this final ledger update, commit it, then provide the final summary with commit list, verification results, remaining risks, blocker status, and manual recommendations.
