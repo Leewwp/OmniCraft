@@ -226,6 +226,7 @@ type RateLimitConfig struct {
 	MaxJSONBodyBytes    int64 `mapstructure:"max_json_body_bytes"`
 	MaxQueryChars       int   `mapstructure:"max_query_chars"`
 	MaxSearchLimit      int   `mapstructure:"max_search_limit"`
+	MaxSearchPage       int   `mapstructure:"max_search_page"`
 }
 
 type RecommendationConfig struct {

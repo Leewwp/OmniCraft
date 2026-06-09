@@ -177,6 +177,7 @@ func TestDefaultConfigHasAbuseControlLimits(t *testing.T) {
 		"search_per_minute",
 		"max_json_body_bytes",
 		"max_query_chars",
+		"max_search_page",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("config.yaml must declare %s", want)

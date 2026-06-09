@@ -157,6 +157,7 @@ rate_limit:
   max_json_body_bytes: 1048576
   max_query_chars: 120
   max_search_limit: 50
+  max_search_page: 100
 
 cache:
   content_list_ttl: 300
