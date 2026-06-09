@@ -647,3 +647,22 @@ golang.org/x/net: at least v0.53.0.
   - Existing nginx `listen ... http2` deprecation warnings remain out of scope.
   - Frontend 429 branch still has no focused unit test; existing frontend lint/test passed.
 - Next precise action: exact-stage the six review-fix files plus this ledger and commit `Security: tighten abuse control review findings`.
+
+## Post-Commit Update - 2026-06-09 13:42 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-abuse-control-no-load-testing.md`
+- Current Task / Step: Plan 3 review fixes committed; preparing Plan 4 startup reread.
+- Changed files:
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - `git add backend/config/config.go backend/config/config_test.go backend/config.yaml backend/internal/handler/search.go backend/internal/handler/search_abuse_test.go docs/deploy/nginx.omnicraft.single-server.conf docs/superpowers/progress/2026-06-09-security-hardening-execution.md`: exit 0.
+  - `git diff --cached --check`: exit 0.
+  - `git commit -m "Security: tighten abuse control review findings"`: exit 0.
+  - `git rev-parse --short HEAD`: `244ce81`.
+  - `git status --short --branch`: clean on `codex/security-hardening-execution`.
+  - Closed read-only review agent after recording findings and fixes.
+- Current commit hash: `244ce81`.
+- Blockers or remaining risks:
+  - Production `security.trusted_proxies` still requires an operator-provided nginx container IP or Docker network CIDR; this is documented rather than guessed.
+  - Existing nginx `listen ... http2` deprecation warnings remain out of scope.
+  - Frontend 429 branch still has no focused unit test; existing frontend lint/test passed.
+- Next precise action: commit this ledger update, then re-read `AGENTS.md`, `git status --short --branch`, `git log --oneline -n 10`, this progress ledger, and `docs/superpowers/plans/2026-06-08-omnicraft-oss-upload-download-hardening.md` before changing code for Plan 4.
