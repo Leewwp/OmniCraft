@@ -197,3 +197,25 @@ golang.org/x/net: at least v0.53.0.
   - Re-read `AGENTS.md`, `git status --short --branch`, `git log --oneline -n 10`, this progress ledger, and the second plan file before changing code.
   - Continue on branch `codex/security-hardening-execution` in this worktree.
   - Do not modify `task.json` or Beta roadmap checkboxes.
+
+## Review Fix - 2026-06-09 12:47 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-dependency-vulnerability-upgrades.md`
+- Current Task / Step: Code quality review follow-up before entering second plan.
+- Changed files:
+  - `frontend/package.json`
+  - `frontend/package-lock.json`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - External reviewer reported P2: `next` and `overrides.next["."]` were `^16.2.7`, which could drift from the audited patch target.
+  - Verified with `Select-String` that both fields were range versions.
+  - Updated `frontend/package.json` so both direct `next` and `overrides.next["."]` are exact `16.2.7`; kept scoped `overrides.next.postcss = "8.5.15"`.
+  - `npm install`: exit 0.
+  - `npm audit --registry=https://registry.npmjs.org --omit=dev`: exit 0, `found 0 vulnerabilities`.
+  - `npm ls next postcss --omit=dev --json`: exit 0. Shows `next@16.2.7` and `postcss@8.5.15` resolved via override.
+  - `npm run lint`: exit 0.
+  - `npm run test`: exit 0, 10 tests passed.
+  - `npm run build`: exit 0, Next.js 16.2.7 production build succeeded.
+- Current commit hash: pending review-fix commit.
+- Blockers or remaining risks:
+  - Same as prior handoff: `cargo audit` unavailable locally; existing staticcheck baseline warnings remain.
+- Next precise action: exact-stage `frontend/package.json`, `frontend/package-lock.json`, and this ledger; commit the review fix; then start reading the second plan file.
