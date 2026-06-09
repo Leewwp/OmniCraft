@@ -854,3 +854,75 @@ golang.org/x/net: at least v0.53.0.
 - Blockers or remaining risks:
   - `cover_oss_key` remains a raw-key path outside the attachment grant flow. This is recorded as a remaining risk rather than silently expanding the plan.
 - Next precise action: exact-stage the Plan 4 changed files and commit `Security: harden OSS upload and download flow`.
+
+## Post-Commit Update - 2026-06-09 14:29 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-oss-upload-download-hardening.md`
+- Current Task / Step: Plan 4 implementation committed; handoff snapshot appended.
+- Changed files:
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - `git add <exact Plan 4 file list> docs/superpowers/progress/2026-06-09-security-hardening-execution.md`: exit 0.
+  - `git diff --cached --check`: exit 0.
+  - `git commit -m "Security: harden OSS upload and download flow"`: exit 0.
+  - `git rev-parse --short HEAD`: `7ce8191`.
+  - `git status --short --branch`: clean on `codex/security-hardening-execution`.
+- Current commit hash: `7ce8191`.
+- Blockers or remaining risks:
+  - `cover_oss_key` remains a raw-key path outside the attachment grant flow.
+- Next precise action: commit this progress/handoff ledger update, then request Plan 4 code review.
+
+## Handoff Snapshot - OSS Upload And Download Hardening - 2026-06-09 14:29
+- Completed:
+  - Added Redis-backed content upload grants bound to user, purpose, OSS key, file type, MIME type, and declared size.
+  - Returned `grant_id` from content presign and failed closed when grant storage is unavailable.
+  - Required content publish attachments to provide one-time content grants, overwriting caller-provided OSS key, file size, and MIME type from the consumed grant.
+  - Verified uploaded object metadata through the OSS service before creating attachment rows.
+  - Preserved feedback-specific grant namespace and added feedback-specific OSS prefix signing.
+  - Added content/feedback namespace isolation tests and anonymous feedback captcha regression coverage.
+  - Extended `ContentDownload` tests so the plan's focused command actually exercises auth, visibility, ownership, `allow_copy`, attachment ownership, and JSON response behavior.
+  - Kept frontend download CTAs routed through `DownloadButton` and the backend download endpoint.
+  - Propagated content upload `grant_id` from `FileUploader` to `PublishForm` attachments.
+  - Updated OSS lifecycle documentation with real upload prefixes, upload grant rules, and private bucket requirements.
+- Commits:
+  - `7ce8191 Security: harden OSS upload and download flow`
+- Verification:
+  - `go test ./internal/service -run "UploadGrant|OSS|Publish|Feedback" -count=1`: passed.
+  - `go test ./internal/handler -run "ContentDownload|OSS|Feedback" -count=1`: passed.
+  - `go test ./...`: passed.
+  - `go build ./...`: passed.
+  - `go vet ./...`: passed.
+  - `npm run lint`: passed.
+  - `npm run test`: passed, 12 tests.
+  - `npm run build`: passed.
+  - `rg -n "href=.*oss_url|href=.*download_url|oss_url" frontend/components frontend/app frontend/lib`: no direct raw OSS/download href matches; remaining `oss_url` usages are preview-only.
+  - `git diff --check`: passed.
+- Changed files:
+  - `backend/internal/service/upload_grant_service.go`
+  - `backend/internal/service/upload_grant_service_test.go`
+  - `backend/internal/service/oss_service.go`
+  - `backend/internal/pkg/aliyun/oss.go`
+  - `backend/internal/handler/content.go`
+  - `backend/internal/handler/content_upload_grant_test.go`
+  - `backend/internal/service/content_service.go`
+  - `backend/internal/service/content_upload_grant_test.go`
+  - `backend/internal/service/feedback_service.go`
+  - `backend/internal/service/feedback_service_test.go`
+  - `backend/internal/handler/content_download_test.go`
+  - `frontend/components/content/FileUploader.tsx`
+  - `frontend/components/studio/PublishForm.tsx`
+  - `frontend/components/content/ContentDetail.tsx`
+  - `frontend/components/content/SheetMusicViewer.tsx`
+  - `frontend/lib/content.ts`
+  - `frontend/app/(public)/content/[contentId]/page.tsx`
+  - `frontend/tests/content-upload-grant.test.mjs`
+  - `docs/oss-lifecycle.md`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Known risks:
+  - `cover_oss_key` still uses the historical raw-key path and is not converted to a grant in this plan.
+  - Real OSS object metadata verification requires production OSS credentials and object existence; unit tests use fakes and do not call Aliyun.
+- Next plan:
+  - All four requested plan files have implementation commits. Run final all-plan verification and summarize remaining risks.
+- Resume instructions:
+  - Re-read `AGENTS.md`, `git status --short --branch`, `git log --oneline -n 10`, this progress ledger, and any current plan file before changing code.
+  - Continue on branch `codex/security-hardening-execution`.
+  - Do not modify `task.json` or Beta roadmap checkboxes.
