@@ -609,3 +609,41 @@ golang.org/x/net: at least v0.53.0.
   - Re-read `AGENTS.md`, `git status --short --branch`, `git log --oneline -n 10`, this progress ledger, and the fourth plan file before changing code.
   - Continue on branch `codex/security-hardening-execution`.
   - Do not modify `task.json` or Beta roadmap checkboxes.
+
+## Review Fix - 2026-06-09 13:40 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-abuse-control-no-load-testing.md`
+- Current Task / Step: Plan 3 code review follow-up before entering Plan 4.
+- Changed files:
+  - `backend/config/config.go`
+  - `backend/config/config_test.go`
+  - `backend/config.yaml`
+  - `backend/internal/handler/search.go`
+  - `backend/internal/handler/search_abuse_test.go`
+  - `docs/deploy/nginx.omnicraft.single-server.conf`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Read `superpowers:receiving-code-review` guidance before acting on reviewer feedback.
+  - Read reviewer output for Plan 3 range `eeddc89..7da3442`.
+  - Reviewed `backend/internal/repository/search_repo.go`: confirmed `SearchContents` and `SearchUsers` compute `OFFSET` from unbounded positive `page`.
+  - Added red test `TestSearchPageClamp`; first focused handler run exited 1 with `undefined: clampPage`.
+  - Added `rate_limit.max_search_page` default `100`, `RateLimitConfig.MaxSearchPage`, config default coverage, `clampPage`, and handler usage for content/user search page parameters.
+  - Added nginx template comment instructing operators to set backend `security.trusted_proxies` to the actual nginx container IP or operator-owned Docker network CIDR; did not guess a production subnet in code or config.
+  - `go test ./internal/handler -run "Search.*Abuse|Search.*Limit|Search.*Page" -count=1`: exit 0.
+  - `go test ./config -run AbuseControl -count=1`: exit 0.
+  - `Select-String -Path docs/deploy/nginx.omnicraft.single-server.conf -Pattern "security.trusted_proxies|Docker network CIDR|127.0.0.1"`: exit 0, comment present.
+  - `docker run ... nginx -t` with temporary upstream host entries and disposable certs: exit 0, syntax OK; existing `listen ... http2` deprecation warnings remain.
+  - `go test ./internal/middleware ./internal/handler -run "RateLimit|Search|Abuse|BodyLimit" -count=1`: exit 0.
+  - `go test ./cmd/server ./config -count=1`: exit 0.
+  - `go test ./...`: exit 0.
+  - `go build ./...`: exit 0.
+  - `go vet ./...`: exit 0.
+  - `npm run lint`: exit 0.
+  - `npm run test`: exit 0, 10 tests passed.
+  - `git diff --check`: exit 0.
+  - `git diff -- . | rg -n "k6|vegeta|locust"`: exit 1, no current-diff matches.
+- Current commit hash: pending review-fix commit after `963386b`.
+- Blockers or remaining risks:
+  - Production `security.trusted_proxies` still requires an operator-provided nginx container IP or Docker network CIDR; this is documented rather than guessed.
+  - Existing nginx `listen ... http2` deprecation warnings remain out of scope.
+  - Frontend 429 branch still has no focused unit test; existing frontend lint/test passed.
+- Next precise action: exact-stage the six review-fix files plus this ledger and commit `Security: tighten abuse control review findings`.

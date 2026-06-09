@@ -79,10 +79,7 @@ func (h *SearchHandler) SearchContents(c *gin.Context) {
 		tagFilters = strings.Split(tags, ",")
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	if page <= 0 {
-		page = 1
-	}
+	page := clampPage(c.DefaultQuery("page", "1"), h.maxSearchPage())
 	pageSize := clampLimit(c.DefaultQuery("limit", "20"), 20, h.maxSearchLimit())
 
 	// Get viewerID from context (0 if anonymous)
@@ -122,10 +119,7 @@ func (h *SearchHandler) SearchUsers(c *gin.Context) {
 	if rejectLongQuery(c, q, h.maxQueryChars()) {
 		return
 	}
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	if page <= 0 {
-		page = 1
-	}
+	page := clampPage(c.DefaultQuery("page", "1"), h.maxSearchPage())
 	pageSize := clampLimit(c.DefaultQuery("limit", "20"), 20, h.maxSearchLimit())
 
 	users, total, err := h.searchSvc.SearchUsers(q, page, pageSize)
@@ -141,6 +135,7 @@ func (h *SearchHandler) SearchUsers(c *gin.Context) {
 
 const defaultMaxQueryChars = 120
 const defaultMaxSearchLimit = 50
+const defaultMaxSearchPage = 100
 
 func clampLimit(raw string, def, max int) int {
 	n, err := strconv.Atoi(raw)
@@ -167,6 +162,20 @@ func rejectLongQuery(c *gin.Context, q string, max int) bool {
 	return false
 }
 
+func clampPage(raw string, max int) int {
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return 1
+	}
+	if max <= 0 {
+		max = defaultMaxSearchPage
+	}
+	if n > max {
+		return max
+	}
+	return n
+}
+
 func (h *SearchHandler) maxQueryChars() int {
 	if h == nil || h.cfg == nil {
 		return defaultMaxQueryChars
@@ -179,4 +188,11 @@ func (h *SearchHandler) maxSearchLimit() int {
 		return defaultMaxSearchLimit
 	}
 	return h.cfg.RateLimit.MaxSearchLimit
+}
+
+func (h *SearchHandler) maxSearchPage() int {
+	if h == nil || h.cfg == nil {
+		return defaultMaxSearchPage
+	}
+	return h.cfg.RateLimit.MaxSearchPage
 }

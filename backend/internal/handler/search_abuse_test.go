@@ -46,3 +46,23 @@ func TestSearchLimitClamp(t *testing.T) {
 		})
 	}
 }
+
+func TestSearchPageClamp(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want int
+	}{
+		{name: "too large", raw: "100000", want: 100},
+		{name: "zero", raw: "0", want: 1},
+		{name: "not number", raw: "not-a-number", want: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := clampPage(tt.raw, 100); got != tt.want {
+				t.Fatalf("clampPage(%q, 100) = %d, want %d", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
