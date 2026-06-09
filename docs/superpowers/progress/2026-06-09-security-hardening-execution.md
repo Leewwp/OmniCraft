@@ -219,3 +219,50 @@ golang.org/x/net: at least v0.53.0.
 - Blockers or remaining risks:
   - Same as prior handoff: `cargo audit` unavailable locally; existing staticcheck baseline warnings remain.
 - Next precise action: exact-stage `frontend/package.json`, `frontend/package-lock.json`, and this ledger; commit the review fix; then start reading the second plan file.
+
+## Task Update - 2026-06-09 12:57 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-release-gates-config-hardening.md`
+- Current Task / Step: Tasks 1-5 complete; commit preparation.
+- Changed files:
+  - `backend/config/config.go`
+  - `backend/config/config_test.go`
+  - `backend/cmd/server/main_test.go`
+  - `docs/deploy/production-config-template.md`
+  - `docs/deploy/single-server-beta-runbook.md`
+  - `.env.example`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Added complete release config helper and release validation tests.
+  - `go test ./config -run ValidateRelease -count=1` before implementation: exit 1 as expected. Negative release cases and missing `LLM_KEY_ENCRYPTION_SECRET` failed against the old implementation.
+  - Expanded `Config.ValidateRelease()` with release-only gates for HTTPS public URL, allowed origins, database/Redis/JWT/OSS/Green/CAPTCHA/SMTP/legal inputs, desktop deploy disabled, optional web-agent requirements, `LLM_KEY_ENCRYPTION_SECRET`, and rate limit sanity.
+  - Replaced server source-order test so it checks `cfg.ValidateRelease()` after config load and before `database.Init` and `redisclient.Init`.
+  - Updated deploy docs with a Release Gate Checklist and replaced the stale caveat claiming `ValidateRelease()` was not called at startup.
+  - `Test-Path docs/deploy/nginx.omnicraft.single-server.conf`: `True`.
+  - `Test-Path docs/deploy/docker-compose.single-server.yml`: `True`.
+  - Initial `.env.example` placeholder check failed; added empty placeholders for `LLM_KEY_ENCRYPTION_SECRET`, `CAPTCHA_ACCESS_KEY_ID`, `CAPTCHA_ACCESS_KEY_SECRET`, and `SMTP_PASSWORD`.
+  - `rg -n "LLM_KEY_ENCRYPTION_SECRET|CAPTCHA_ACCESS_KEY_ID|CAPTCHA_ACCESS_KEY_SECRET|SMTP_PASSWORD" .env.example`: exit 0, all four placeholders present.
+  - `gofmt -w backend/config/config.go backend/config/config_test.go backend/cmd/server/main_test.go`: exit 0.
+  - `go test ./config -run ValidateRelease -count=1`: exit 0.
+  - `go test ./cmd/server -count=1`: exit 0.
+  - `go test ./...`: exit 0.
+  - `go build ./...`: exit 0.
+  - `go vet ./...`: exit 0.
+  - `git diff -- backend/config/config.go backend/config/config_test.go backend/cmd/server/main_test.go docs/deploy/production-config-template.md docs/deploy/single-server-beta-runbook.md .env.example`: reviewed; contains validation code, tests, docs, and placeholder-only `.env.example` additions. No real credentials.
+- Current commit hash: pending Plan 2 commit.
+- Blockers or remaining risks:
+  - Release validation uses string checks for HTTPS/local URLs, matching the plan. It does not parse all URL edge cases beyond the specified helper behavior.
+- Next precise action: exact-stage the changed Plan 2 files and commit `Security: harden release configuration gates`.
+
+## Task Update - 2026-06-09 12:49 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-release-gates-config-hardening.md`
+- Current Task / Step: Plan 2 startup checks complete; beginning Task 1 Step 1.
+- Changed files:
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - `git status --short --branch`: clean on `codex/security-hardening-execution`.
+  - `git log --oneline -n 10`: latest commits are `011a564`, `4bb67df`, `1409933`, then baseline `85e2871`.
+  - Read this ledger and the second plan file.
+  - Inspected `backend/config/config.go`, `backend/config/config_test.go`, `backend/cmd/server/main_test.go`, and deploy docs for existing release validation shape.
+- Current commit hash: `011a564`.
+- Blockers or remaining risks: none before Task 1.
+- Next precise action: add release validation happy path and negative tests to `backend/config/config_test.go`, then run `go test ./config -run ValidateRelease -count=1` expecting negative cases to fail before implementation.

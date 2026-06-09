@@ -406,20 +406,129 @@ func LoadOverride(base *Config, path string) {
 	}
 }
 
+func requireNonEmpty(errs *[]string, field, value string) {
+	if strings.TrimSpace(value) == "" {
+		*errs = append(*errs, field+" is required in release mode")
+	}
+}
+
+func isLocalURL(raw string) bool {
+	lower := strings.ToLower(strings.TrimSpace(raw))
+	return strings.HasPrefix(lower, "http://localhost") ||
+		strings.HasPrefix(lower, "https://localhost") ||
+		strings.HasPrefix(lower, "http://127.0.0.1") ||
+		strings.HasPrefix(lower, "https://127.0.0.1")
+}
+
+func requireHTTPSURL(errs *[]string, field, raw string) {
+	requireNonEmpty(errs, field, raw)
+	if strings.TrimSpace(raw) == "" {
+		return
+	}
+	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(raw)), "https://") {
+		*errs = append(*errs, field+" must use https in release mode")
+	}
+	if isLocalURL(raw) {
+		*errs = append(*errs, field+" must not use localhost in release mode")
+	}
+}
+
+func requireAllowedOrigins(errs *[]string, origins []string) {
+	if len(origins) == 0 {
+		*errs = append(*errs, "security.allowed_origins is required in release mode")
+		return
+	}
+	for _, origin := range origins {
+		trimmed := strings.TrimSpace(origin)
+		if trimmed == "" {
+			*errs = append(*errs, "security.allowed_origins must not contain empty origins")
+			continue
+		}
+		if trimmed == "*" {
+			*errs = append(*errs, "security.allowed_origins must not contain wildcard origins in release mode")
+		}
+		if !strings.HasPrefix(strings.ToLower(trimmed), "https://") {
+			*errs = append(*errs, "security.allowed_origins entries must use https in release mode")
+		}
+		if isLocalURL(trimmed) {
+			*errs = append(*errs, "security.allowed_origins must not contain localhost origins in release mode")
+		}
+	}
+}
+
 func (c *Config) ValidateRelease() error {
 	if c.Server.Mode != "release" {
 		return nil
 	}
 	var errs []string
-	if c.Captcha.Provider == "bypass" || c.Captcha.Provider == "" {
+
+	requireHTTPSURL(&errs, "web.public_base_url", c.Web.PublicBaseURL)
+	requireAllowedOrigins(&errs, c.Security.AllowedOrigins)
+
+	requireNonEmpty(&errs, "database.dsn", c.Database.DSN)
+	if strings.Contains(strings.ToLower(c.Database.DSN), "password=omnicraft") {
+		errs = append(errs, "database.dsn must not use the default development password in release mode")
+	}
+	requireNonEmpty(&errs, "redis.addr", c.Redis.Addr)
+	requireNonEmpty(&errs, "redis.password", c.Redis.Password)
+
+	if strings.TrimSpace(c.JWT.Secret) == "" || c.JWT.Secret == "dev-secret-change-in-production" || len(c.JWT.Secret) < 32 {
+		errs = append(errs, "jwt.secret must be a production secret of at least 32 characters in release mode")
+	}
+
+	requireHTTPSURL(&errs, "oss.endpoint", c.OSS.Endpoint)
+	requireNonEmpty(&errs, "oss.access_key_id", c.OSS.AccessKeyID)
+	requireNonEmpty(&errs, "oss.access_key_secret", c.OSS.AccessKeySecret)
+	requireNonEmpty(&errs, "oss.bucket_name", c.OSS.BucketName)
+	requireHTTPSURL(&errs, "oss.domain", c.OSS.Domain)
+	if c.OSS.DownloadURLTTL <= 0 || c.OSS.DownloadURLTTL > 3600 {
+		errs = append(errs, "oss.download_url_ttl_sec must be between 1 and 3600 in release mode")
+	}
+
+	requireNonEmpty(&errs, "green.access_key_id", c.Green.AccessKeyID)
+	requireNonEmpty(&errs, "green.access_key_secret", c.Green.AccessKeySecret)
+	requireNonEmpty(&errs, "green.region", c.Green.Region)
+	requireHTTPSURL(&errs, "green.callback_url", c.Green.CallbackURL)
+	if len(c.Green.CallbackAllowedIPs) == 0 {
+		errs = append(errs, "green.callback_allowed_ips is required in release mode")
+	}
+
+	if c.Captcha.Provider == "bypass" || strings.TrimSpace(c.Captcha.Provider) == "" {
 		errs = append(errs, "captcha.provider must not be 'bypass' in release mode; use 'aliyun_v2'")
 	}
-	if c.SMTP.Mode == "logger" || c.SMTP.Mode == "" {
+	requireNonEmpty(&errs, "captcha.prefix", c.Captcha.Prefix)
+	requireNonEmpty(&errs, "captcha.scene_id", c.Captcha.SceneID)
+	requireNonEmpty(&errs, "captcha.access_key_id", c.Captcha.AccessKeyID)
+	requireNonEmpty(&errs, "captcha.access_key_secret", c.Captcha.AccessKeySecret)
+
+	if c.SMTP.Mode == "logger" || strings.TrimSpace(c.SMTP.Mode) == "" {
 		errs = append(errs, "smtp.mode must not be 'logger' in release mode; use 'smtp'")
 	}
-	if c.JWT.Secret == "" || c.JWT.Secret == "dev-secret-change-in-production" {
-		errs = append(errs, "jwt.secret must be a production secret in release mode")
+	requireNonEmpty(&errs, "smtp.host", c.SMTP.Host)
+	requireNonEmpty(&errs, "smtp.user", c.SMTP.User)
+	requireNonEmpty(&errs, "smtp.password", c.SMTP.Password)
+	requireNonEmpty(&errs, "smtp.from_address", c.SMTP.FromAddress)
+
+	requireNonEmpty(&errs, "legal.current_terms_version", c.Legal.CurrentTermsVersion)
+	requireNonEmpty(&errs, "legal.current_privacy_version", c.Legal.CurrentPrivacyVersion)
+
+	if c.Features.DesktopDeployEnabled {
+		errs = append(errs, "features.desktop_deploy_enabled must remain false until desktop security gates are complete")
 	}
+
+	if c.Agent.WebAgentEnabled {
+		requireNonEmpty(&errs, "agent.llm_api_key", c.Agent.LLMAPIKey)
+		if c.Agent.RateLimitPerDay <= 0 {
+			errs = append(errs, "agent.rate_limit_per_day must be positive when web agent is enabled")
+		}
+	}
+
+	requireNonEmpty(&errs, "LLM_KEY_ENCRYPTION_SECRET", os.Getenv("LLM_KEY_ENCRYPTION_SECRET"))
+
+	if c.RateLimit.Enabled && c.RateLimit.NormalPerMinute <= 0 {
+		errs = append(errs, "rate_limit.normal_per_minute must be positive when rate limiting is enabled")
+	}
+
 	if len(errs) > 0 {
 		return fmt.Errorf("release mode configuration error: %s", strings.Join(errs, "; "))
 	}

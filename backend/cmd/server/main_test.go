@@ -4,19 +4,37 @@ import (
 	"os"
 	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
-func TestMainCallsValidateReleaseAfterLoadingConfig(t *testing.T) {
+func TestMainCallsValidateReleaseAfterLoadAndBeforeExternalInit(t *testing.T) {
 	src, err := os.ReadFile("main.go")
-	require.NoError(t, err)
-
-	source := string(src)
-	loadIndex := strings.Index(source, "cfg := config.Load()")
-	validateIndex := strings.Index(source, "cfg.ValidateRelease()")
-
-	require.NotEqual(t, -1, loadIndex, "main must load config")
-	require.NotEqual(t, -1, validateIndex, "main must call cfg.ValidateRelease()")
-	require.Greater(t, validateIndex, loadIndex, "release validation must happen after config load")
+	if err != nil {
+		t.Fatalf("read main.go: %v", err)
+	}
+	text := string(src)
+	loadIdx := strings.Index(text, "cfg := config.Load()")
+	validateIdx := strings.Index(text, "cfg.ValidateRelease()")
+	dbIdx := strings.Index(text, "database.Init")
+	if loadIdx < 0 {
+		t.Fatal("main must load config")
+	}
+	if validateIdx < 0 {
+		t.Fatal("main must call cfg.ValidateRelease()")
+	}
+	if validateIdx < loadIdx {
+		t.Fatal("ValidateRelease must run after config load")
+	}
+	if dbIdx < 0 {
+		t.Fatal("main must initialize database")
+	}
+	if validateIdx > dbIdx {
+		t.Fatal("ValidateRelease must run before database initialization")
+	}
+	redisIdx := strings.Index(text, "redisclient.Init")
+	if redisIdx < 0 {
+		t.Fatal("main must initialize redis")
+	}
+	if validateIdx > redisIdx {
+		t.Fatal("ValidateRelease must run before redis initialization")
+	}
 }
