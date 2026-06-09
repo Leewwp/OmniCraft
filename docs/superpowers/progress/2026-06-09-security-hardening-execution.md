@@ -542,3 +542,70 @@ golang.org/x/net: at least v0.53.0.
   - Existing nginx `listen ... http2` deprecation warnings remain out of scope.
   - No focused unit test was added for the frontend central 429 branch because the plan's exact file list did not include a new frontend test file; existing frontend lint/test passed.
 - Next precise action: review diff, exact-stage Plan 3 files and this ledger, then commit `Security: harden abuse controls`.
+
+## Post-Commit Update - 2026-06-09 13:26 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-abuse-control-no-load-testing.md`
+- Current Task / Step: Plan 3 implementation committed; handoff snapshot appended.
+- Changed files:
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - `git diff --check`: exit 0.
+  - `git add <exact Plan 3 file list> docs/superpowers/progress/2026-06-09-security-hardening-execution.md`: exit 0.
+  - `git diff --cached --check`: exit 0.
+  - `git commit -m "Security: harden abuse controls"`: exit 0.
+  - `git rev-parse --short HEAD`: `7da3442`.
+  - `git status --short --branch`: clean on `codex/security-hardening-execution`.
+- Current commit hash: `7da3442`.
+- Blockers or remaining risks:
+  - Existing nginx `listen ... http2` deprecation warnings remain out of scope.
+  - No focused unit test was added for the frontend central 429 branch because the plan's exact file list did not include a new frontend test file; existing frontend lint/test passed.
+- Next precise action: commit this progress/handoff ledger update, then request Plan 3 code quality review before entering Plan 4.
+
+## Handoff Snapshot - Abuse Control No Load Testing - 2026-06-09 13:26
+- Completed:
+  - Added abuse-control config fields/defaults for credential/search limits, JSON body size, query length, and search result caps.
+  - Added JSON request body limit middleware and mounted it before CSRF.
+  - Hardened credential rate limiting by both IP and normalized account key, with fail-closed Redis behavior.
+  - Added reusable Redis fixed-window limiter and applied it to expensive search endpoints.
+  - Capped search and tag query inputs, and clamped search limits.
+  - Configured Gin trusted proxies from config before route registration.
+  - Normalized frontend 429 handling in the central error handler.
+  - Aligned nginx single-server template with auth/search limit zones and route-specific locations.
+- Commits:
+  - `7da3442 Security: harden abuse controls`
+- Verification:
+  - Red phase examples: config abuse defaults failed before defaults; body limit failed before middleware; credential account-key test failed against IP-only limiter; search helper test failed before helpers; fixed-window limiter test failed before helper; trusted proxy source test failed before wiring.
+  - `go test ./internal/middleware ./internal/handler -run "RateLimit|Search|Abuse|BodyLimit" -count=1`: passed.
+  - `go test ./...`: passed.
+  - `go build ./...`: passed.
+  - `go vet ./...`: passed.
+  - `npm run lint`: passed.
+  - `npm run test`: passed, 10 tests.
+  - `nginx -t` in Docker: passed after supplying temporary upstream host entries and disposable self-signed certs inside the one-shot container.
+  - `git diff -- . | rg -n "k6|vegeta|locust"`: no matches in current diff.
+- Changed files:
+  - `backend/config/config.go`
+  - `backend/config/config_test.go`
+  - `backend/config.yaml`
+  - `backend/internal/middleware/ratelimit.go`
+  - `backend/internal/middleware/ratelimit_test.go`
+  - `backend/internal/middleware/body_limit.go`
+  - `backend/internal/middleware/body_limit_test.go`
+  - `backend/cmd/server/main.go`
+  - `backend/cmd/server/main_test.go`
+  - `backend/internal/handler/search.go`
+  - `backend/internal/handler/search_abuse_test.go`
+  - `backend/internal/handler/tag.go`
+  - `backend/internal/handler/routes.go`
+  - `frontend/lib/error-handler.ts`
+  - `docs/deploy/nginx.omnicraft.single-server.conf`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Known risks:
+  - Existing nginx `listen ... http2` deprecation warnings are not fixed in this plan.
+  - Frontend 429 branch is covered by TypeScript and existing tests, but not by a focused error-handler unit test.
+- Next plan:
+  - `docs/superpowers/plans/2026-06-08-omnicraft-oss-upload-download-hardening.md`
+- Resume instructions:
+  - Re-read `AGENTS.md`, `git status --short --branch`, `git log --oneline -n 10`, this progress ledger, and the fourth plan file before changing code.
+  - Continue on branch `codex/security-hardening-execution`.
+  - Do not modify `task.json` or Beta roadmap checkboxes.
