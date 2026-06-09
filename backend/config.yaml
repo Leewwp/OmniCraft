@@ -9,6 +9,8 @@ web:
 security:
   allowed_origins:
     - "http://localhost:3000"
+  trusted_proxies:
+    - "127.0.0.1"
 
 database:
   dsn: "host=localhost port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable"
@@ -150,6 +152,11 @@ rate_limit:
   enabled: true
   normal_per_minute: 100
   upload_per_hour: 200
+  credential_per_minute: 5
+  search_per_minute: 30
+  max_json_body_bytes: 1048576
+  max_query_chars: 120
+  max_search_limit: 50
 
 cache:
   content_list_ttl: 300

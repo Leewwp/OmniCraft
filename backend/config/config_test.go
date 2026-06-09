@@ -163,3 +163,23 @@ func TestDefaultConfigDeclaresCreatorSupportDisabled(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, strings.ReplaceAll(string(raw), "\t", "  "), "creator_support_enabled: false")
 }
+
+func TestDefaultConfigHasAbuseControlLimits(t *testing.T) {
+	raw, err := os.ReadFile("../config.yaml")
+	if err != nil {
+		t.Fatalf("read config.yaml: %v", err)
+	}
+	text := string(raw)
+	for _, want := range []string{
+		"normal_per_minute",
+		"upload_per_hour",
+		"credential_per_minute",
+		"search_per_minute",
+		"max_json_body_bytes",
+		"max_query_chars",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("config.yaml must declare %s", want)
+		}
+	}
+}

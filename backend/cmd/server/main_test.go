@@ -38,3 +38,22 @@ func TestMainCallsValidateReleaseAfterLoadAndBeforeExternalInit(t *testing.T) {
 		t.Fatal("ValidateRelease must run before redis initialization")
 	}
 }
+
+func TestMainSetsTrustedProxiesBeforeRegisterRoutes(t *testing.T) {
+	src, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatalf("read main.go: %v", err)
+	}
+	text := string(src)
+	proxyIdx := strings.Index(text, "SetTrustedProxies")
+	routesIdx := strings.Index(text, "handler.RegisterRoutes")
+	if proxyIdx < 0 {
+		t.Fatal("main must configure Gin trusted proxies")
+	}
+	if routesIdx < 0 {
+		t.Fatal("main must register routes")
+	}
+	if proxyIdx > routesIdx {
+		t.Fatal("trusted proxies must be configured before route registration")
+	}
+}

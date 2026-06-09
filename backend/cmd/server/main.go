@@ -52,9 +52,22 @@ func main() {
 	stopWorkers := ctr.StartWorkers(context.Background())
 
 	r := gin.New()
+	if len(cfg.Security.TrustedProxies) > 0 {
+		if err := r.SetTrustedProxies(cfg.Security.TrustedProxies); err != nil {
+			slog.Error("invalid trusted proxies", "error", err)
+			os.Exit(1)
+		}
+	} else if cfg.Server.Mode == "release" {
+		_ = r.SetTrustedProxies(nil)
+	}
+	bodyLimit := cfg.RateLimit.MaxJSONBodyBytes
+	if bodyLimit <= 0 {
+		bodyLimit = 1 << 20
+	}
 	r.Use(middleware.RequestID())
 	r.Use(middleware.Logger())
 	r.Use(middleware.CORS(cfg))
+	r.Use(middleware.BodyLimit(bodyLimit))
 	r.Use(middleware.CSRF(cfg))
 	r.Use(middleware.SecurityHeaders())
 	r.Use(middleware.RateLimit(rdb, &cfg.RateLimit))

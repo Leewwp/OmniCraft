@@ -52,6 +52,7 @@ type ServerConfig struct {
 
 type SecurityConfig struct {
 	AllowedOrigins []string `mapstructure:"allowed_origins"`
+	TrustedProxies []string `mapstructure:"trusted_proxies"`
 }
 
 type DatabaseConfig struct {
@@ -214,12 +215,17 @@ type CacheConfig struct {
 }
 
 type RateLimitConfig struct {
-	Enabled         bool `mapstructure:"enabled"`
-	NormalPerMinute int  `mapstructure:"normal_per_minute"`
-	UploadPerHour   int  `mapstructure:"upload_per_hour"`
-	NormalWindowSec int  `mapstructure:"normal_window_sec"`
-	UploadWindowSec int  `mapstructure:"upload_window_sec"`
-	AgentWindowSec  int  `mapstructure:"agent_window_sec"`
+	Enabled             bool  `mapstructure:"enabled"`
+	NormalPerMinute     int   `mapstructure:"normal_per_minute"`
+	UploadPerHour       int   `mapstructure:"upload_per_hour"`
+	NormalWindowSec     int   `mapstructure:"normal_window_sec"`
+	UploadWindowSec     int   `mapstructure:"upload_window_sec"`
+	AgentWindowSec      int   `mapstructure:"agent_window_sec"`
+	CredentialPerMinute int   `mapstructure:"credential_per_minute"`
+	SearchPerMinute     int   `mapstructure:"search_per_minute"`
+	MaxJSONBodyBytes    int64 `mapstructure:"max_json_body_bytes"`
+	MaxQueryChars       int   `mapstructure:"max_query_chars"`
+	MaxSearchLimit      int   `mapstructure:"max_search_limit"`
 }
 
 type RecommendationConfig struct {
