@@ -27,6 +27,11 @@ type OSSClient struct {
 	accessKeySecret string
 }
 
+type ObjectMeta struct {
+	ContentLength int64
+	ContentType   string
+}
+
 func NewOSSClient(endpoint, accessKeyID, accessKeySecret, bucketName string) (*OSSClient, error) {
 	if strings.TrimSpace(endpoint) == "" || strings.TrimSpace(accessKeyID) == "" || strings.TrimSpace(accessKeySecret) == "" || strings.TrimSpace(bucketName) == "" {
 		return nil, fmt.Errorf("oss config is incomplete")
@@ -72,6 +77,18 @@ func (c *OSSClient) GetSignedURL(ossKey, method string, expires time.Duration, o
 	default:
 		return "", fmt.Errorf("unsupported sign method: %s", method)
 	}
+}
+
+func (c *OSSClient) GetObjectMeta(ossKey string) (*ObjectMeta, error) {
+	props, err := c.bucket.GetObjectDetailedMeta(ossKey)
+	if err != nil {
+		return nil, err
+	}
+	length, _ := strconv.ParseInt(props.Get("Content-Length"), 10, 64)
+	return &ObjectMeta{
+		ContentLength: length,
+		ContentType:   props.Get("Content-Type"),
+	}, nil
 }
 
 func (c *OSSClient) GetVideoSnapshotURL(ossKey string, expires time.Duration, width int) (string, error) {

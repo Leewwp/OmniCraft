@@ -18,6 +18,7 @@ interface SheetMusicAttachment {
   id: number;
   file_type?: string;
   mime_type?: string;
+  // Preview-only URL for inline renderers; downloads must go through DownloadButton/backend auth.
   oss_url?: string;
   oss_key?: string;
   file_size?: number;

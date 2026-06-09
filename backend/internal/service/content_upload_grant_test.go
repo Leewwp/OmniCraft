@@ -1,0 +1,232 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/alicebob/miniredis/v2"
+	"github.com/glebarez/sqlite"
+	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
+
+	"omnicraft/backend/internal/model"
+	redisclient "omnicraft/backend/internal/pkg/redis"
+	"omnicraft/backend/internal/repository"
+)
+
+func TestPublishContentRequiresUploadGrant(t *testing.T) {
+	svc, _, _, cleanup := newContentGrantPublishService(t)
+	defer cleanup()
+
+	_, err := svc.PublishContent(baseGrantPublishInput(AttachmentInput{
+		FileType: "image",
+		OSSKey:   "uploads/42/image/forged.png",
+		MimeType: "image/png",
+	}), 42)
+
+	if err != ErrUploadGrantInvalid {
+		t.Fatalf("missing grant err = %v, want ErrUploadGrantInvalid", err)
+	}
+}
+
+func TestPublishContentRejectsWrongUserAndPurposeGrants(t *testing.T) {
+	svc, grants, _, cleanup := newContentGrantPublishService(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	otherUserGrant, err := grants.Issue(ctx, UploadGrant{
+		UserID:   7,
+		Purpose:  "content",
+		OSSKey:   "uploads/7/image/file.png",
+		FileType: "image",
+		MimeType: "image/png",
+		FileSize: 123,
+	})
+	if err != nil {
+		t.Fatalf("issue other user grant: %v", err)
+	}
+	_, err = svc.PublishContent(baseGrantPublishInput(AttachmentInput{
+		GrantID:  otherUserGrant.ID,
+		FileType: "image",
+		MimeType: "image/png",
+	}), 42)
+	if err != ErrUploadGrantInvalid {
+		t.Fatalf("wrong user err = %v, want ErrUploadGrantInvalid", err)
+	}
+
+	feedbackGrant, err := grants.Issue(ctx, UploadGrant{
+		UserID:   42,
+		Purpose:  "feedback",
+		OSSKey:   "feedback/42/image/file.png",
+		FileType: "image",
+		MimeType: "image/png",
+		FileSize: 123,
+	})
+	if err != nil {
+		t.Fatalf("issue feedback grant: %v", err)
+	}
+	_, err = svc.PublishContent(baseGrantPublishInput(AttachmentInput{
+		GrantID:  feedbackGrant.ID,
+		FileType: "image",
+		MimeType: "image/png",
+	}), 42)
+	if err != ErrUploadGrantInvalid {
+		t.Fatalf("wrong purpose err = %v, want ErrUploadGrantInvalid", err)
+	}
+}
+
+func TestPublishContentRejectsFeedbackGrantNamespace(t *testing.T) {
+	svc, _, _, cleanup := newContentGrantPublishService(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	feedbackSvc := NewFeedbackService(nil, nil, svc.rdb, nil, 300, fakeFeedbackOSSSigner{})
+	feedbackGrant, err := feedbackSvc.PresignUpload(ctx, PresignUploadInput{
+		UserID:    ptrInt64(42),
+		FileName:  "shot.png",
+		MimeType:  "image/png",
+		SizeBytes: 512,
+	})
+	if err != nil {
+		t.Fatalf("feedback presign: %v", err)
+	}
+
+	_, err = svc.PublishContent(baseGrantPublishInput(AttachmentInput{
+		GrantID:  feedbackGrant.GrantID,
+		FileType: "image",
+		MimeType: "image/png",
+	}), 42)
+	if err != ErrUploadGrantInvalid {
+		t.Fatalf("feedback namespace err = %v, want ErrUploadGrantInvalid", err)
+	}
+}
+
+func TestPublishContentConsumesUploadGrantOnce(t *testing.T) {
+	svc, grants, verifier, cleanup := newContentGrantPublishService(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	grant, err := grants.Issue(ctx, UploadGrant{
+		UserID:   42,
+		Purpose:  "content",
+		OSSKey:   "uploads/42/image/file.png",
+		FileType: "image",
+		MimeType: "image/png",
+		FileSize: 123,
+	})
+	if err != nil {
+		t.Fatalf("issue grant: %v", err)
+	}
+
+	input := baseGrantPublishInput(AttachmentInput{
+		GrantID:  grant.ID,
+		FileType: "image",
+		OSSKey:   "uploads/42/image/forged.png",
+		MimeType: "image/png",
+	})
+	content, err := svc.PublishContent(input, 42)
+	if err != nil {
+		t.Fatalf("first publish: %v", err)
+	}
+	if content == nil || content.ID == 0 {
+		t.Fatalf("content not created: %#v", content)
+	}
+	if verifier.calls != 1 {
+		t.Fatalf("verifier calls = %d, want 1", verifier.calls)
+	}
+	if verifier.lastGrant.OSSKey != grant.OSSKey {
+		t.Fatalf("verified OSSKey = %q, want %q", verifier.lastGrant.OSSKey, grant.OSSKey)
+	}
+
+	_, err = svc.PublishContent(input, 42)
+	if err != ErrUploadGrantInvalid {
+		t.Fatalf("reuse grant err = %v, want ErrUploadGrantInvalid", err)
+	}
+}
+
+func TestPublishContentRejectsUploadedObjectMismatch(t *testing.T) {
+	svc, grants, verifier, cleanup := newContentGrantPublishService(t)
+	defer cleanup()
+	ctx := context.Background()
+	verifier.err = errors.New("uploaded file size does not match grant")
+
+	grant, err := grants.Issue(ctx, UploadGrant{
+		UserID:   42,
+		Purpose:  "content",
+		OSSKey:   "uploads/42/image/file.png",
+		FileType: "image",
+		MimeType: "image/png",
+		FileSize: 123,
+	})
+	if err != nil {
+		t.Fatalf("issue grant: %v", err)
+	}
+
+	_, err = svc.PublishContent(baseGrantPublishInput(AttachmentInput{
+		GrantID:  grant.ID,
+		FileType: "image",
+		MimeType: "image/png",
+	}), 42)
+	if err == nil || !strings.Contains(err.Error(), "uploaded file size does not match grant") {
+		t.Fatalf("publish err = %v, want uploaded object mismatch", err)
+	}
+	if verifier.calls != 1 {
+		t.Fatalf("verifier calls = %d, want 1", verifier.calls)
+	}
+}
+
+func newContentGrantPublishService(t *testing.T) (*ContentService, *UploadGrantService, *fakeUploadedObjectVerifier, func()) {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.ContentItem{}, &model.ContentAttachment{}, &model.ContentTag{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("miniredis: %v", err)
+	}
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	previousRedisClient := redisclient.Client
+	redisclient.Client = rdb
+	grants := NewUploadGrantService(rdb, 5*time.Minute)
+	verifier := &fakeUploadedObjectVerifier{}
+	svc := NewContentServiceWithDeps(repository.NewContentRepository(db), nil, rdb).
+		WithUploadGrantService(grants).
+		WithUploadedObjectVerifier(verifier)
+	return svc, grants, verifier, func() {
+		redisclient.Client = previousRedisClient
+		_ = rdb.Close()
+		mr.Close()
+	}
+}
+
+type fakeUploadedObjectVerifier struct {
+	calls     int
+	lastGrant UploadGrant
+	err       error
+}
+
+func (f *fakeUploadedObjectVerifier) VerifyUploadedObject(ctx context.Context, grant UploadGrant) error {
+	_ = ctx
+	f.calls++
+	f.lastGrant = grant
+	return f.err
+}
+
+func baseGrantPublishInput(attachment AttachmentInput) PublishContentInput {
+	return PublishContentInput{
+		Title:       "grant publish",
+		Zone:        "original",
+		Category:    "game",
+		ContentType: "image",
+		IsPublic:    true,
+		AllowCopy:   true,
+		Attachments: []AttachmentInput{attachment},
+	}
+}

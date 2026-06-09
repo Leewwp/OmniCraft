@@ -167,6 +167,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
       if (zone === "original") payload.category = category;
       if (uploadedFiles.length > 0) {
         payload.attachments = uploadedFiles.map((f) => ({
+          grant_id: f.grantId,
           oss_key: f.ossKey,
           file_name: f.fileName,
           file_type: f.fileType,
