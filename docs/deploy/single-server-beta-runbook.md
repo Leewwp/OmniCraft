@@ -129,6 +129,17 @@ agent:
   chat_max_context_messages: 10
 ```
 
+## Release Gate Checklist
+
+- `server.mode: "release"` is set through `CONFIG_OVERRIDE_PATH`.
+- `web.public_base_url` and all `security.allowed_origins` entries use HTTPS production domains.
+- `JWT_SECRET`, `REDIS_PASSWORD`, `POSTGRES_PASSWORD`, `LLM_KEY_ENCRYPTION_SECRET`, OSS keys, Green keys, CAPTCHA keys, and SMTP password are real secrets stored outside Git.
+- `captcha.provider` is not `bypass`.
+- `smtp.mode` is not `logger`.
+- `legal.current_terms_version` and `legal.current_privacy_version` are non-empty.
+- `features.desktop_deploy_enabled` remains `false`.
+- `features.payment_enabled` remains `false` unless payment is separately approved.
+
 ## 5. Install TLS Certificate
 
 Before starting the production nginx container, issue a certificate on the host:

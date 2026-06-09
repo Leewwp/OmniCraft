@@ -115,6 +115,17 @@ agent:
   chat_max_context_messages: 10
 ```
 
+## Release Gate Checklist
+
+- `server.mode: "release"` is set through `CONFIG_OVERRIDE_PATH`.
+- `web.public_base_url` and all `security.allowed_origins` entries use HTTPS production domains.
+- `JWT_SECRET`, `REDIS_PASSWORD`, `POSTGRES_PASSWORD`, `LLM_KEY_ENCRYPTION_SECRET`, OSS keys, Green keys, CAPTCHA keys, and SMTP password are real secrets stored outside Git.
+- `captcha.provider` is not `bypass`.
+- `smtp.mode` is not `logger`.
+- `legal.current_terms_version` and `legal.current_privacy_version` are non-empty.
+- `features.desktop_deploy_enabled` remains `false`.
+- `features.payment_enabled` remains `false` unless payment is separately approved.
+
 ## Frontend Build Environment
 
 `NEXT_PUBLIC_API_URL` is used at build time by the frontend Dockerfile.
@@ -172,8 +183,8 @@ openssl s_client -connect api.leeppp.online:443 -servername api.leeppp.online
 - `.env.production` is stale for OSS. Use `OSS_ACCESS_KEY_ID`,
   `OSS_ACCESS_KEY_SECRET`, and `OSS_DOMAIN`, not `ALIYUN_ACCESS_KEY_ID`,
   `ALIYUN_ACCESS_KEY_SECRET`, or `OSS_CDN_DOMAIN`.
-- `ValidateRelease()` exists but is not currently called at backend startup.
-  Verify release-only constraints explicitly until that code is repaired.
+- `ValidateRelease()` runs during backend startup. A release-mode backend must fail
+  fast when required production inputs are missing or unsafe.
 - The current CAPTCHA adapter should be tested against Alibaba Cloud before
   release; if verification fails with valid credentials, the adapter may need
   request-signing work.
