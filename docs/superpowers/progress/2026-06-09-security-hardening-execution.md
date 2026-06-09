@@ -666,3 +666,191 @@ golang.org/x/net: at least v0.53.0.
   - Existing nginx `listen ... http2` deprecation warnings remain out of scope.
   - Frontend 429 branch still has no focused unit test; existing frontend lint/test passed.
 - Next precise action: commit this ledger update, then re-read `AGENTS.md`, `git status --short --branch`, `git log --oneline -n 10`, this progress ledger, and `docs/superpowers/plans/2026-06-08-omnicraft-oss-upload-download-hardening.md` before changing code for Plan 4.
+
+## Task Update - 2026-06-09 13:44 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-oss-upload-download-hardening.md`
+- Current Task / Step: Startup checks complete; beginning Task 1 Step 1.
+- Changed files:
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Re-read `AGENTS.md`, `git status --short --branch`, `git log --oneline -n 10`, this progress ledger, and the fourth plan file before changing code.
+  - `git status --short --branch`: clean on `codex/security-hardening-execution`.
+  - `git log --oneline -n 10`: latest commits include `1157728 Docs: record abuse control review fixes`, `244ce81 Security: tighten abuse control review findings`, `963386b Docs: record abuse control hardening handoff`, and `7da3442 Security: harden abuse controls`.
+  - Read Plan 4 scope: OSS upload/download hardening only; do not change Tauri desktop security chain, do not enable desktop deploy, do not update `task.json` or Beta roadmap checkboxes.
+- Current commit hash: `1157728`.
+- Blockers or remaining risks: none before Plan 4 Task 1.
+- Next precise action: create `backend/internal/service/upload_grant_service_test.go`, run `go test ./internal/service -run UploadGrant -count=1` expecting failure because `UploadGrantService` does not exist, then implement the Redis-backed grant service.
+
+## Task Update - 2026-06-09 13:50 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-oss-upload-download-hardening.md`
+- Current Task / Step: Tasks 1 and 2 complete; beginning Task 3 Step 1.
+- Changed files:
+  - `backend/internal/service/upload_grant_service.go`
+  - `backend/internal/service/upload_grant_service_test.go`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Added `TestUploadGrantConsumeRequiresSameUserAndPurpose`.
+  - `go test ./internal/service -run UploadGrant -count=1`: first run exited 1 as expected with undefined `UploadGrantService`, `NewUploadGrantService`, `UploadGrant`, and `ErrUploadGrantInvalid`.
+  - Implemented Redis-backed `UploadGrantService`, `UploadGrant`, `ErrUploadGrantInvalid`, and `ErrUploadGrantUnavailable`.
+  - First implementation used the plan's get-then-delete Lua script and failed the test because wrong user/purpose attempts deleted the grant before validation.
+  - Diagnosed root cause and changed `Consume` to Redis `WATCH`: read grant, validate user and purpose, then delete only on a valid consume.
+  - `gofmt -w backend/internal/service/upload_grant_service.go backend/internal/service/upload_grant_service_test.go`: exit 0.
+  - `go test ./internal/service -run UploadGrant -count=1`: exit 0.
+- Current commit hash: `1157728`.
+- Blockers or remaining risks: none for Tasks 1 and 2.
+- Next precise action: inspect `backend/internal/service/oss_service.go` and `backend/internal/handler/content.go`, add `grant_id` to content presign response, wire `UploadGrantService` in `NewContentHandler`, and add focused handler test for Redis grant storage.
+
+## Task Update - 2026-06-09 13:54 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-oss-upload-download-hardening.md`
+- Current Task / Step: Task 3 complete; beginning Task 4 Step 1.
+- Changed files:
+  - `backend/internal/service/oss_service.go`
+  - `backend/internal/handler/content.go`
+  - `backend/internal/handler/content_upload_grant_test.go`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Added `GrantID` to `PresignUploadResponse`.
+  - Added `TestGenerateOSSTokenReturnsUploadGrant`.
+  - `go test ./internal/handler -run "OSS|UploadGrant|Content" -count=1`: first run exited 1 as expected because the response had no `grant_id`.
+  - Wired `UploadGrantService` directly in `NewContentHandler(db, cfg, rdb)` using `feedback.upload_grant_ttl_sec` with a 5 minute fallback.
+  - `GenerateOSSToken` now issues a `Purpose: "content"` grant after URL signing and returns `503 UPLOAD_GRANT_UNAVAILABLE` if Redis grant storage is unavailable.
+  - `gofmt -w backend/internal/service/oss_service.go backend/internal/handler/content.go backend/internal/handler/content_upload_grant_test.go`: exit 0.
+  - `go test ./internal/handler -run "OSS|UploadGrant|Content" -count=1`: exit 0.
+- Current commit hash: `1157728`.
+- Blockers or remaining risks: none for Task 3.
+- Next precise action: inspect publish attachment DTO and content service publish flow, add service tests for missing/wrong/reused grants, then require grant consumption before creating attachments.
+
+## Task Update - 2026-06-09 14:02 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-oss-upload-download-hardening.md`
+- Current Task / Step: Tasks 4 and 5 complete; beginning Task 6 Step 1.
+- Changed files:
+  - `backend/internal/service/content_service.go`
+  - `backend/internal/service/content_upload_grant_test.go`
+  - `backend/internal/handler/content.go`
+  - `backend/internal/pkg/aliyun/oss.go`
+  - `backend/internal/service/oss_service.go`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - `rg -n "PublishContentInput|AttachmentInput|OSSKey|oss_key|PublishContent" backend/internal/service backend/internal/model backend/internal/handler`: inspected publish DTO and raw `oss_key` usage.
+  - Added service tests for missing grant, wrong-user grant, feedback-purpose grant, valid one-time grant consume, grant reuse, and uploaded-object verifier mismatch.
+  - `go test ./internal/service -run "UploadGrant|Publish" -count=1`: first run exited 1 as expected with missing `AttachmentInput.GrantID` and `WithUploadGrantService`.
+  - Added `AttachmentInput.GrantID`, `ContentService.WithUploadGrantService`, `PublishContentWithContext`, and grant consume logic that overwrites caller-provided `oss_key`, `file_size`, and `mime_type` with grant values.
+  - Updated `ContentHandler.CreateContent` to call `PublishContentWithContext` and map upload grant errors to `UPLOAD_GRANT_INVALID` or `UPLOAD_GRANT_UNAVAILABLE`.
+  - Added `aliyun.OSSClient.GetObjectMeta`, `OSSService.VerifyUploadedObject`, `UploadedObjectVerifier`, and `ContentService.WithUploadedObjectVerifier`.
+  - Wired the real OSS service as verifier in `NewContentHandler`; unit tests use a fake verifier and do not call Aliyun.
+  - `gofmt -w backend/internal/pkg/aliyun/oss.go backend/internal/service/oss_service.go backend/internal/service/content_service.go backend/internal/service/content_upload_grant_test.go backend/internal/handler/content.go`: exit 0.
+  - `go test ./internal/service -run "OSS|UploadGrant|Publish" -count=1`: exit 0.
+- Current commit hash: `1157728`.
+- Blockers or remaining risks: none for Tasks 4 and 5.
+- Next precise action: inspect feedback upload grant code and add purpose-isolation tests without migrating feedback to the shared content grant service.
+
+## Task Update - 2026-06-09 14:14 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-oss-upload-download-hardening.md`
+- Current Task / Step: Task 6 complete; beginning Task 7 Step 1.
+- Changed files:
+  - `backend/internal/service/feedback_service.go`
+  - `backend/internal/service/feedback_service_test.go`
+  - `backend/internal/service/oss_service.go`
+  - `backend/internal/service/content_upload_grant_test.go`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - `rg -n "feedback:upload_grant|UploadGrant|PresignUpload|AttachmentOSSKeys|Consume|grant_id|captcha|screenshot|uploads/" backend/internal/service/feedback_service.go backend/internal/handler/feedback.go`: confirmed feedback grants use `feedback:upload_grant:<grant_id>`, anonymous presign/submission captcha checks exist, and feedback attachment consumption uses `FeedbackService.consumeUploadGrant`.
+  - `go test ./internal/service ./internal/handler -run "Feedback|UploadGrant" -count=1`: first run exited 1 as expected. New feedback-prefix assertion failed because feedback presign still returned `uploads/42/image/shot.png`; reverse namespace test also exposed a test fixture Redis setup gap.
+  - Diagnosed the fixture panic: `ContentService.invalidateContentListCache` checks `s.rdb` but calls package-level `redisclient.Client`; production startup initializes that global, while the test fixture did not.
+  - Added tests proving content grants cannot attach to feedback tickets, real feedback grants cannot publish content, anonymous feedback presign still requires captcha, and feedback presign uses `uploads/{user_id}/feedback/...`.
+  - Added `GenerateFeedbackPresignUploadURL` to the feedback signer interface and `OSSService`; it validates screenshots with image rules but builds `feedback` OSS keys without expanding normal content upload file types.
+  - `gofmt -w backend/internal/service/feedback_service.go backend/internal/service/feedback_service_test.go backend/internal/service/oss_service.go backend/internal/service/content_upload_grant_test.go`: exit 0.
+  - `go test ./internal/service ./internal/handler -run "Feedback|UploadGrant" -count=1` from `backend/`: exit 0.
+- Current commit hash: `1157728`.
+- Blockers or remaining risks: none for Task 6.
+- Next precise action: extend/classify content download authorization tests, audit frontend for direct OSS/download links, and keep actual downloads through the backend endpoint only.
+
+## Task Update - 2026-06-09 14:23 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-oss-upload-download-hardening.md`
+- Current Task / Step: Task 7 complete; beginning Task 8 Step 1.
+- Changed files:
+  - `backend/internal/handler/content_download_test.go`
+  - `frontend/components/content/FileUploader.tsx`
+  - `frontend/components/studio/PublishForm.tsx`
+  - `frontend/components/content/ContentDetail.tsx`
+  - `frontend/components/content/SheetMusicViewer.tsx`
+  - `frontend/lib/content.ts`
+  - `frontend/app/(public)/content/[contentId]/page.tsx`
+  - `frontend/tests/content-upload-grant.test.mjs`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - `go test ./internal/handler -run ContentDownload -count=1`: initially exited 0 with `[no tests to run]`, revealing that existing `DownloadContent_*` tests did not match the plan's required command.
+  - Added/renamed `ContentDownload` tests for direct unauthenticated 401, route auth and downloadsGuard source checks, banned/deleted author and banned-IP unavailability, `allow_copy=false`, private content author-only access, attachment ownership mismatch, and JSON `{download_url, expires_in}` response without redirect.
+  - `gofmt -w internal/handler/content_download_test.go` from `backend/`: exit 0.
+  - `go test ./internal/handler -run ContentDownload -count=1` from `backend/`: exit 0.
+  - `rg -n "oss_url|download_url|href=.*oss|DownloadButton" frontend/components frontend/app frontend/lib`: exit 0 with no raw OSS anchor/download CTA; `download_url` appears in `DownloadButton` response handling and public config type, while `oss_url` is preview-only.
+  - Added red frontend contract test `frontend/tests/content-upload-grant.test.mjs`; first `node tests/content-upload-grant.test.mjs` exited 1 because `FileUploader` dropped `grant_id` and `PublishForm` submitted attachments without `grant_id`.
+  - Added `grantId` to `UploadedAsset`, `grant_id` to `OSSUploadToken`, persisted `token.grant_id`, and submitted `grant_id: f.grantId` for publish attachments.
+  - Added preview-only comments beside remaining `oss_url` attachment fields.
+  - `node tests/content-upload-grant.test.mjs`: exit 0, 2 tests passed.
+  - `npm run lint`: exit 0.
+  - `npm run test`: exit 0, 12 tests passed.
+- Current commit hash: `1157728`.
+- Blockers or remaining risks:
+  - `cover_oss_key` still uses the historical raw key path and is not converted to a grant in this plan; attachment publish paths now require grants. Treat cover upload hardening as a future scoped follow-up unless the plan is amended.
+- Next precise action: update `docs/oss-lifecycle.md` with real `uploads/{user_id}/{file_type}/...` prefix, upload grant rules, and private bucket reminder.
+
+## Task Update - 2026-06-09 14:24 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-oss-upload-download-hardening.md`
+- Current Task / Step: Task 8 complete; beginning Task 9 Step 1.
+- Changed files:
+  - `docs/oss-lifecycle.md`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Read `docs/oss-lifecycle.md`.
+  - Updated upload path documentation from `uploads/{file_type}/...` to `uploads/{user_id}/{file_type}/...`.
+  - Added upload grant rules covering presigned PUT URLs, grant IDs, binding fields, one-time consumption, and content/feedback non-interchangeability.
+  - Added explicit private bucket reminder: public read ACLs are not part of the authorization model.
+  - Reworded deleted asset lifecycle note from hard-delete language to soft-deleted/banned content cleanup job language.
+  - `rg -n "uploads/\{file_type\}|uploads/\{user_id\}/\{file_type\}|Upload Grant Rules|bucket must remain private|Public read ACLs|uploads/\{user_id\}/video" docs/oss-lifecycle.md`: exit 0, found new prefix/rules/private bucket lines and no old prefix match.
+- Current commit hash: `1157728`.
+- Blockers or remaining risks:
+  - Same Task 7 note: `cover_oss_key` raw-key hardening is not included in this plan's attachment grant path.
+- Next precise action: run Plan 4 full backend verification, frontend lint/test/build, direct-link grep, diff checks, exact-stage changed files, and commit `Security: harden OSS upload and download flow`.
+
+## Task Update - 2026-06-09 14:27 +08:00
+- Current plan file: `docs/superpowers/plans/2026-06-08-omnicraft-oss-upload-download-hardening.md`
+- Current Task / Step: Task 9 verification complete; preparing exact commit.
+- Changed files:
+  - `backend/internal/service/upload_grant_service.go`
+  - `backend/internal/service/upload_grant_service_test.go`
+  - `backend/internal/service/oss_service.go`
+  - `backend/internal/pkg/aliyun/oss.go`
+  - `backend/internal/handler/content.go`
+  - `backend/internal/handler/content_upload_grant_test.go`
+  - `backend/internal/service/content_service.go`
+  - `backend/internal/service/content_upload_grant_test.go`
+  - `backend/internal/service/feedback_service.go`
+  - `backend/internal/service/feedback_service_test.go`
+  - `backend/internal/handler/content_download_test.go`
+  - `frontend/components/content/FileUploader.tsx`
+  - `frontend/components/studio/PublishForm.tsx`
+  - `frontend/components/content/DownloadButton.tsx` (inspected; no code change)
+  - `frontend/components/content/ContentDetail.tsx`
+  - `frontend/components/content/SheetMusicViewer.tsx`
+  - `frontend/lib/content.ts`
+  - `frontend/app/(public)/content/[contentId]/page.tsx`
+  - `frontend/tests/content-upload-grant.test.mjs`
+  - `docs/oss-lifecycle.md`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - `go test ./internal/service -run "UploadGrant|OSS|Publish|Feedback" -count=1`: exit 0.
+  - `go test ./internal/handler -run "ContentDownload|OSS|Feedback" -count=1`: exit 0.
+  - `go test ./...`: exit 0.
+  - `go build ./...`: exit 0.
+  - `go vet ./...`: exit 0.
+  - `npm run lint`: exit 0.
+  - `npm run test`: exit 0, 12 tests passed.
+  - `npm run build`: exit 0, Next.js 16.2.7 production build succeeded.
+  - `rg -n "href=.*oss_url|href=.*download_url|oss_url" frontend/components frontend/app frontend/lib`: exit 0. No `href=.*oss_url` or `href=.*download_url` matches; `oss_url` appears only as preview-only fields/usages in `ContentDetail`, `SheetMusicViewer`, `frontend/lib/content.ts`, and the public content page.
+  - `git diff --check`: exit 0.
+  - `git diff --stat`: reviewed Plan 4 implementation/doc/progress changes only.
+- Current commit hash: pending Plan 4 implementation commit.
+- Blockers or remaining risks:
+  - `cover_oss_key` remains a raw-key path outside the attachment grant flow. This is recorded as a remaining risk rather than silently expanding the plan.
+- Next precise action: exact-stage the Plan 4 changed files and commit `Security: harden OSS upload and download flow`.

@@ -32,6 +32,7 @@ type ContentHandler struct {
 	browseHistoryRepo *repository.BrowseHistoryRepository
 	ossSvc            *service.OSSService
 	ossInitErr        error
+	uploadGrants      *service.UploadGrantService
 	rdb               *redis.Client
 	cfg               *config.Config
 	queueProducer     queue.Producer
@@ -43,7 +44,14 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 	reputSvc := service.NewReputationService(db)
 	reviewSvc := service.NewReviewService(db, rdb, cfg, reputSvc)
 
-	contentSvc := service.NewContentServiceWithOSS(repo, reviewSvc, rdb, &cfg.Cache, ossSvc)
+	grantTTL := time.Duration(cfg.Feedback.UploadGrantTTLSec) * time.Second
+	if grantTTL <= 0 {
+		grantTTL = 5 * time.Minute
+	}
+	uploadGrants := service.NewUploadGrantService(rdb, grantTTL)
+	contentSvc := service.NewContentServiceWithOSS(repo, reviewSvc, rdb, &cfg.Cache, ossSvc).
+		WithUploadGrantService(uploadGrants).
+		WithUploadedObjectVerifier(ossSvc)
 
 	embeddingRepo := repository.NewEmbeddingRepository(db)
 	recSvc := service.NewRecommendationService(db, embeddingRepo, repo, contentSvc, rdb, &cfg.Recommendation)
@@ -55,6 +63,7 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 		browseHistoryRepo: repository.NewBrowseHistoryRepository(db),
 		ossSvc:            ossSvc,
 		ossInitErr:        ossErr,
+		uploadGrants:      uploadGrants,
 		rdb:               rdb,
 		cfg:               cfg,
 		queueProducer:     queue.NewNoopProducer(),
@@ -92,6 +101,20 @@ func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		return
 	}
+
+	grant, err := h.uploadGrants.Issue(c.Request.Context(), service.UploadGrant{
+		UserID:   userID,
+		Purpose:  "content",
+		OSSKey:   resp.OSSKey,
+		FileType: req.FileType,
+		MimeType: req.MimeType,
+		FileSize: req.FileSize,
+	})
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusServiceUnavailable, "UPLOAD_GRANT_UNAVAILABLE", err)
+		return
+	}
+	resp.GrantID = grant.ID
 
 	c.JSON(http.StatusOK, resp)
 }
@@ -173,7 +196,7 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 		return
 	}
 
-	content, err := h.contentSvc.PublishContent(input, callerID)
+	content, err := h.contentSvc.PublishContentWithContext(c.Request.Context(), input, callerID)
 	if err != nil {
 		if errors.Is(err, service.ErrPublishFrozen) {
 			response.SafeErrorResponse(c, http.StatusForbidden, "PUBLISH_FROZEN", err)
@@ -181,6 +204,14 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 		}
 		if errors.Is(err, service.ErrInvalidSourceOriginal) {
 			response.SafeErrorResponse(c, http.StatusBadRequest, "INVALID_SOURCE_ORIGINAL", err)
+			return
+		}
+		if errors.Is(err, service.ErrUploadGrantInvalid) {
+			response.SafeErrorResponse(c, http.StatusBadRequest, "UPLOAD_GRANT_INVALID", err)
+			return
+		}
+		if errors.Is(err, service.ErrUploadGrantUnavailable) {
+			response.SafeErrorResponse(c, http.StatusServiceUnavailable, "UPLOAD_GRANT_UNAVAILABLE", err)
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)

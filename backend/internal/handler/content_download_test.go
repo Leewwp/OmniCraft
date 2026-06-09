@@ -19,42 +19,42 @@ import (
 	"omnicraft/backend/internal/model"
 )
 
-func TestDownloadContent_ReturnsJSONNotRedirect(t *testing.T) {
+func TestContentDownload_ReturnsJSONNotRedirect(t *testing.T) {
 	source := readHandlerSource(t, "content.go")
 	if strings.Contains(source, "c.Redirect(") {
 		t.Fatal("DownloadContent must return JSON {download_url, expires_in}, not c.Redirect")
 	}
 }
 
-func TestDownloadContent_SupportsAttachmentID(t *testing.T) {
+func TestContentDownload_SupportsAttachmentID(t *testing.T) {
 	source := readHandlerSource(t, "content.go")
 	if !strings.Contains(source, "attachment_id") {
 		t.Fatal("DownloadContent must accept attachment_id query parameter")
 	}
 }
 
-func TestDownloadContent_RejectsAmbiguousWithoutAttachmentID(t *testing.T) {
+func TestContentDownload_RejectsAmbiguousWithoutAttachmentID(t *testing.T) {
 	source := readHandlerSource(t, "content.go")
 	if !strings.Contains(source, "AMBIGUOUS_ATTACHMENT") {
 		t.Fatal("DownloadContent must return AMBIGUOUS_ATTACHMENT when multiple or no primary attachments exist and attachment_id is omitted")
 	}
 }
 
-func TestDownloadContent_RejectsAttachmentFromOtherContent(t *testing.T) {
+func TestContentDownload_RejectsAttachmentFromOtherContent(t *testing.T) {
 	source := readHandlerSource(t, "content.go")
 	if !strings.Contains(source, "ATTACHMENT_MISMATCH") {
 		t.Fatal("DownloadContent must verify attachment belongs to the requested content")
 	}
 }
 
-func TestDownloadContent_UsesConfigurableTTL(t *testing.T) {
+func TestContentDownload_UsesConfigurableTTL(t *testing.T) {
 	source := readHandlerSource(t, "content.go")
 	if !strings.Contains(source, "DownloadURLTTL") && !strings.Contains(source, "download_url_ttl") {
 		t.Fatal("DownloadContent must use configurable download URL TTL from config, not hardcoded value")
 	}
 }
 
-func TestDownloadContent_ResponseSchema(t *testing.T) {
+func TestContentDownload_ResponseSchema(t *testing.T) {
 	resp := map[string]interface{}{
 		"download_url": "https://example.com/file.zip",
 		"expires_in":   300,
@@ -75,7 +75,7 @@ func TestDownloadContent_ResponseSchema(t *testing.T) {
 	}
 }
 
-func TestDownloadRouteRequiresAuth(t *testing.T) {
+func TestContentDownloadRouteRequiresAuth(t *testing.T) {
 	routes := readRoutesSource(t)
 	if !strings.Contains(routes, "download") {
 		t.Skip("no download route found")
@@ -90,7 +90,7 @@ func TestDownloadRouteRequiresAuth(t *testing.T) {
 	}
 }
 
-func TestDownloadRouteRequiresInteractionGuard(t *testing.T) {
+func TestContentDownloadRouteRequiresInteractionGuard(t *testing.T) {
 	routes := readRoutesSource(t)
 	if !strings.Contains(routes, "download") {
 		t.Skip("no download route found")
@@ -141,7 +141,7 @@ func init() {
 	gin.SetMode(gin.TestMode)
 }
 
-func TestDownloadContent_EndToEnd_Unauthenticated(t *testing.T) {
+func TestContentDownload_EndToEnd_Unauthenticated(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping end-to-end test in short mode")
 	}
@@ -159,7 +159,7 @@ func TestDownloadContent_EndToEnd_Unauthenticated(t *testing.T) {
 	}
 }
 
-func TestDownloadContent_RejectsAuthorBannedBeforeOSS(t *testing.T) {
+func TestContentDownload_RejectsAuthorBannedBeforeOSS(t *testing.T) {
 	router, db := setupDownloadVisibilityRouter(t)
 	author := createDownloadUser(t, db, "author-banned@example.com", "author-banned", true)
 	content := createDownloadContent(t, db, author.ID, nil)
@@ -169,7 +169,7 @@ func TestDownloadContent_RejectsAuthorBannedBeforeOSS(t *testing.T) {
 	assertContentUnavailable(t, rec)
 }
 
-func TestDownloadContent_RejectsAuthorDeletedBeforeOSS(t *testing.T) {
+func TestContentDownload_RejectsAuthorDeletedBeforeOSS(t *testing.T) {
 	router, db := setupDownloadVisibilityRouter(t)
 	author := createDownloadUser(t, db, "author-deleted@example.com", "author-deleted", false)
 	if err := db.Exec("UPDATE users SET deleted_at = ? WHERE id = ?", time.Now(), author.ID).Error; err != nil {
@@ -182,7 +182,7 @@ func TestDownloadContent_RejectsAuthorDeletedBeforeOSS(t *testing.T) {
 	assertContentUnavailable(t, rec)
 }
 
-func TestDownloadContent_RejectsBannedIPBeforeOSS(t *testing.T) {
+func TestContentDownload_RejectsBannedIPBeforeOSS(t *testing.T) {
 	router, db := setupDownloadVisibilityRouter(t)
 	author := createDownloadUser(t, db, "author-ip@example.com", "author-ip", false)
 	bannedIP := model.IP{Name: "Banned IP", Slug: "banned-ip", Status: "banned"}
@@ -196,7 +196,105 @@ func TestDownloadContent_RejectsBannedIPBeforeOSS(t *testing.T) {
 	assertContentUnavailable(t, rec)
 }
 
+func TestContentDownload_DirectHandlerRequiresAuthenticatedUser(t *testing.T) {
+	router, db := setupDownloadRouter(t, 0, true)
+	author := createDownloadUser(t, db, "author-auth@example.com", "author-auth", false)
+	content := createDownloadContent(t, db, author.ID, nil)
+
+	rec := requestDownload(t, router, content.ID)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401; body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestContentDownload_BlocksAllowCopyFalse(t *testing.T) {
+	router, db := setupDownloadRouter(t, 999, true)
+	author := createDownloadUser(t, db, "author-copy@example.com", "author-copy", false)
+	content := createDownloadContent(t, db, author.ID, nil)
+	if err := db.Model(&model.ContentItem{}).Where("id = ?", content.ID).Update("allow_copy", false).Error; err != nil {
+		t.Fatalf("disable allow_copy: %v", err)
+	}
+
+	rec := requestDownload(t, router, content.ID)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403; body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "download not allowed") {
+		t.Fatalf("body = %s, want allow_copy denial", rec.Body.String())
+	}
+}
+
+func TestContentDownload_RejectsAttachmentIDFromOtherContent(t *testing.T) {
+	router, db := setupDownloadRouter(t, 999, true)
+	author := createDownloadUser(t, db, "author-attachment@example.com", "author-attachment", false)
+	content := createDownloadContent(t, db, author.ID, nil)
+	other := createDownloadContent(t, db, author.ID, nil)
+	var otherAttachment model.ContentAttachment
+	if err := db.Where("content_item_id = ?", other.ID).First(&otherAttachment).Error; err != nil {
+		t.Fatalf("load other attachment: %v", err)
+	}
+
+	rec := requestDownloadPath(t, router, content.ID, "?attachment_id="+strconvFormatInt(otherAttachment.ID))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "ATTACHMENT_MISMATCH") {
+		t.Fatalf("body = %s, want ATTACHMENT_MISMATCH", rec.Body.String())
+	}
+}
+
+func TestContentDownload_PrivateContentOnlyDownloadableByAuthor(t *testing.T) {
+	router, db := setupDownloadRouter(t, 999, true)
+	author := createDownloadUser(t, db, "author-private@example.com", "author-private", false)
+	content := createDownloadContent(t, db, author.ID, nil)
+	if err := db.Model(&model.ContentItem{}).Where("id = ?", content.ID).Update("is_public", false).Error; err != nil {
+		t.Fatalf("mark private: %v", err)
+	}
+
+	nonAuthorRec := requestDownload(t, router, content.ID)
+	assertContentUnavailable(t, nonAuthorRec)
+
+	authorRouter, _ := setupDownloadRouterWithDB(t, db, author.ID, true)
+	authorRec := requestDownload(t, authorRouter, content.ID)
+	if authorRec.Code != http.StatusOK {
+		t.Fatalf("author status = %d, want 200; body = %s", authorRec.Code, authorRec.Body.String())
+	}
+}
+
+func TestContentDownload_ResponseIncludesSignedURLAndExpiresIn(t *testing.T) {
+	router, db := setupDownloadRouter(t, 999, true)
+	author := createDownloadUser(t, db, "author-response@example.com", "author-response", false)
+	content := createDownloadContent(t, db, author.ID, nil)
+
+	rec := requestDownload(t, router, content.ID)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("Location") != "" {
+		t.Fatalf("download response must be JSON, got redirect Location %q", rec.Header().Get("Location"))
+	}
+	var body struct {
+		DownloadURL string `json:"download_url"`
+		ExpiresIn   int    `json:"expires_in"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v; body = %s", err, rec.Body.String())
+	}
+	if body.DownloadURL == "" || body.ExpiresIn <= 0 {
+		t.Fatalf("response = %#v, want download_url and positive expires_in", body)
+	}
+}
+
 func setupDownloadVisibilityRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
+	t.Helper()
+	return setupDownloadRouter(t, 999, false)
+}
+
+func setupDownloadRouter(t *testing.T, userID int64, withOSS bool) (*gin.Engine, *gorm.DB) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -215,10 +313,25 @@ func setupDownloadVisibilityRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 		}
 	}
 
-	handler := NewContentHandler(db, &config.Config{}, nil)
+	return setupDownloadRouterWithDB(t, db, userID, withOSS)
+}
+
+func setupDownloadRouterWithDB(t *testing.T, db *gorm.DB, userID int64, withOSS bool) (*gin.Engine, *gorm.DB) {
+	t.Helper()
+	cfg := &config.Config{}
+	if withOSS {
+		cfg.OSS.Endpoint = "https://oss-cn-hangzhou.aliyuncs.com"
+		cfg.OSS.AccessKeyID = "test-access-key-id"
+		cfg.OSS.AccessKeySecret = "test-access-key-secret"
+		cfg.OSS.BucketName = "test-bucket"
+		cfg.OSS.DownloadURLTTL = 300
+	}
+	handler := NewContentHandler(db, cfg, nil)
 	router := gin.New()
 	router.GET("/contents/:id/download", func(c *gin.Context) {
-		c.Set(middleware.UserIDKey, int64(999))
+		if userID > 0 {
+			c.Set(middleware.UserIDKey, userID)
+		}
 		handler.DownloadContent(c)
 	})
 	return router, db
@@ -271,8 +384,13 @@ func createDownloadContent(t *testing.T, db *gorm.DB, authorID int64, ipID *int6
 
 func requestDownload(t *testing.T, router *gin.Engine, contentID int64) *httptest.ResponseRecorder {
 	t.Helper()
+	return requestDownloadPath(t, router, contentID, "")
+}
+
+func requestDownloadPath(t *testing.T, router *gin.Engine, contentID int64, query string) *httptest.ResponseRecorder {
+	t.Helper()
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/contents/"+strconvFormatInt(contentID)+"/download", nil)
+	req := httptest.NewRequest(http.MethodGet, "/contents/"+strconvFormatInt(contentID)+"/download"+query, nil)
 	router.ServeHTTP(rec, req)
 	return rec
 }

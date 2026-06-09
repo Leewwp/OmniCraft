@@ -13,6 +13,7 @@ export interface UploadedAsset {
   fileType: string;
   mimeType: string;
   ossKey: string;
+  grantId: string;
   fileSize: number;
   isPrimary?: boolean;
 }
@@ -20,6 +21,7 @@ export interface UploadedAsset {
 interface OSSUploadToken {
   upload_url: string;
   oss_key: string;
+  grant_id: string;
   expires_in: number;
 }
 
@@ -110,6 +112,7 @@ export function FileUploader({
           fileType,
           mimeType: file.type || "application/octet-stream",
           ossKey: token.oss_key,
+          grantId: token.grant_id,
           fileSize: file.size,
         });
       }

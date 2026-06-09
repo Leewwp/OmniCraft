@@ -30,13 +30,19 @@ var (
 )
 
 type ContentService struct {
-	contentRepo   *repository.ContentRepository
-	reviewSvc     *ReviewService
-	rdb           *redis.Client
-	cacheCfg      *config.CacheConfig
-	ossSvc        *OSSService
-	recSvc        *RecommendationService
-	queueProducer queue.Producer
+	contentRepo            *repository.ContentRepository
+	reviewSvc              *ReviewService
+	rdb                    *redis.Client
+	cacheCfg               *config.CacheConfig
+	ossSvc                 *OSSService
+	uploadGrants           *UploadGrantService
+	uploadedObjectVerifier UploadedObjectVerifier
+	recSvc                 *RecommendationService
+	queueProducer          queue.Producer
+}
+
+type UploadedObjectVerifier interface {
+	VerifyUploadedObject(ctx context.Context, grant UploadGrant) error
 }
 
 func NewContentService(contentRepo *repository.ContentRepository) *ContentService {
@@ -63,6 +69,16 @@ func (s *ContentService) SetQueueProducer(p queue.Producer) {
 	s.queueProducer = p
 }
 
+func (s *ContentService) WithUploadGrantService(grants *UploadGrantService) *ContentService {
+	s.uploadGrants = grants
+	return s
+}
+
+func (s *ContentService) WithUploadedObjectVerifier(verifier UploadedObjectVerifier) *ContentService {
+	s.uploadedObjectVerifier = verifier
+	return s
+}
+
 type PublishContentInput struct {
 	Title            string            `json:"title" binding:"required,min=1,max=500"`
 	Description      string            `json:"description"`
@@ -79,6 +95,7 @@ type PublishContentInput struct {
 }
 
 type AttachmentInput struct {
+	GrantID     string `json:"grant_id"`
 	FileType    string `json:"file_type"`
 	OSSKey      string `json:"oss_key"`
 	FileSize    *int64 `json:"file_size"`
@@ -90,9 +107,13 @@ type AttachmentInput struct {
 }
 
 func (s *ContentService) PublishContent(input PublishContentInput, authorID int64) (*model.ContentItem, error) {
+	return s.PublishContentWithContext(context.Background(), input, authorID)
+}
+
+func (s *ContentService) PublishContentWithContext(ctx context.Context, input PublishContentInput, authorID int64) (*model.ContentItem, error) {
 	if s.rdb != nil {
 		freezeKey := "publish:freeze:" + strconv.FormatInt(authorID, 10)
-		if frozen, err := s.rdb.Exists(context.Background(), freezeKey).Result(); err == nil && frozen > 0 {
+		if frozen, err := s.rdb.Exists(ctx, freezeKey).Result(); err == nil && frozen > 0 {
 			return nil, ErrPublishFrozen
 		}
 	}
@@ -151,7 +172,30 @@ func (s *ContentService) PublishContent(input PublishContentInput, authorID int6
 
 		if len(input.Attachments) > 0 {
 			attachments := make([]model.ContentAttachment, 0, len(input.Attachments))
-			for _, a := range input.Attachments {
+			for i := range input.Attachments {
+				a := &input.Attachments[i]
+				if a.GrantID == "" {
+					return ErrUploadGrantInvalid
+				}
+				if s.uploadGrants == nil {
+					return ErrUploadGrantUnavailable
+				}
+				grant, err := s.uploadGrants.Consume(ctx, a.GrantID, authorID, "content")
+				if err != nil {
+					return err
+				}
+				if grant.FileType != a.FileType {
+					return ErrUploadGrantInvalid
+				}
+				if s.uploadedObjectVerifier == nil {
+					return ErrOSSNotConfigured
+				}
+				if err := s.uploadedObjectVerifier.VerifyUploadedObject(ctx, *grant); err != nil {
+					return err
+				}
+				a.OSSKey = grant.OSSKey
+				a.FileSize = &grant.FileSize
+				a.MimeType = grant.MimeType
 				attachments = append(attachments, model.ContentAttachment{
 					ContentItemID: content.ID,
 					FileType:      a.FileType,
@@ -195,14 +239,14 @@ func (s *ContentService) PublishContent(input PublishContentInput, authorID int6
 		if _, ok := s.queueProducer.(*queue.NoopProducer); !ok && s.queueProducer != nil {
 			recovery.GoSafe(func() {
 				payload, _ := json.Marshal(map[string]interface{}{
-					"action":        "submit_ai_review",
-					"target_type":   reviewInput.TargetType,
-					"target_id":     reviewInput.TargetID,
-					"content_type":  reviewInput.ContentType,
-					"title":         reviewInput.Title,
-					"description":   reviewInput.Description,
-					"author_id":      reviewInput.AuthorID,
-					"attachments":    reviewInput.Attachments,
+					"action":       "submit_ai_review",
+					"target_type":  reviewInput.TargetType,
+					"target_id":    reviewInput.TargetID,
+					"content_type": reviewInput.ContentType,
+					"title":        reviewInput.Title,
+					"description":  reviewInput.Description,
+					"author_id":    reviewInput.AuthorID,
+					"attachments":  reviewInput.Attachments,
 				})
 				if err := s.queueProducer.Publish(context.Background(), "content.review", payload); err != nil {
 					slog.Error("failed to publish content.review message", "content_id", content.ID, "error", err)
@@ -547,7 +591,6 @@ func computeHotScore(views, likes, ageHours, decayHours float64) float64 {
 	}
 	return math.Log10(popularity) * timeDecay(ageHours, decayHours)
 }
-
 
 func timeDecay(ageHours, halfLifeHours float64) float64 {
 	exponent := -ageHours / halfLifeHours

@@ -39,6 +39,7 @@ type PresignUploadResponse struct {
 	UploadURL string `json:"upload_url"`
 	OSSKey    string `json:"oss_key"`
 	ExpiresIn int64  `json:"expires_in"`
+	GrantID   string `json:"grant_id"`
 }
 
 type OSSService struct {
@@ -94,6 +95,36 @@ func (s *OSSService) GeneratePresignUploadURL(ctx context.Context, req PresignUp
 	}, nil
 }
 
+func (s *OSSService) GenerateFeedbackPresignUploadURL(ctx context.Context, req PresignUploadRequest, userID int64) (*PresignUploadResponse, error) {
+	_ = ctx
+	if s == nil || s.client == nil {
+		return nil, ErrOSSNotConfigured
+	}
+
+	normalizedMime := strings.ToLower(strings.TrimSpace(req.MimeType))
+	ext := strings.ToLower(filepath.Ext(req.FileName))
+
+	if req.FileSize <= 0 {
+		return nil, &UploadValidationError{Message: "file_size must be greater than 0"}
+	}
+	if err := s.validateUploadByType("image", normalizedMime, req.FileSize, req.DurationSec, ext); err != nil {
+		return nil, err
+	}
+
+	ossKey := s.buildOSSKey("feedback", ext, userID)
+	const signedTTL = 15 * time.Minute
+	url, err := s.client.GetSignedURL(ossKey, http.MethodPut, signedTTL, oss.ContentType(normalizedMime))
+	if err != nil {
+		return nil, err
+	}
+
+	return &PresignUploadResponse{
+		UploadURL: url,
+		OSSKey:    ossKey,
+		ExpiresIn: int64(signedTTL.Seconds()),
+	}, nil
+}
+
 func (s *OSSService) GeneratePresignDownloadURL(ctx context.Context, ossKey string, ttl time.Duration) (string, error) {
 	_ = ctx
 	if s == nil || s.client == nil {
@@ -106,6 +137,24 @@ func (s *OSSService) GeneratePresignDownloadURL(ctx context.Context, ossKey stri
 		ttl = 5 * time.Minute
 	}
 	return s.client.GetSignedURL(strings.TrimSpace(ossKey), http.MethodGet, ttl)
+}
+
+func (s *OSSService) VerifyUploadedObject(ctx context.Context, grant UploadGrant) error {
+	_ = ctx
+	if s == nil || s.client == nil {
+		return ErrOSSNotConfigured
+	}
+	meta, err := s.client.GetObjectMeta(grant.OSSKey)
+	if err != nil {
+		return err
+	}
+	if meta.ContentLength != grant.FileSize {
+		return &UploadValidationError{Message: "uploaded file size does not match grant"}
+	}
+	if !strings.EqualFold(strings.TrimSpace(meta.ContentType), strings.TrimSpace(grant.MimeType)) {
+		return &UploadValidationError{Message: "uploaded content type does not match grant"}
+	}
+	return nil
 }
 
 func (s *OSSService) validateUploadByType(fileType, mimeType string, fileSize int64, durationSec *int, ext string) error {

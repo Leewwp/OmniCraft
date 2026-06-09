@@ -45,6 +45,7 @@ type FeedbackMailSender interface {
 
 type feedbackOSSSigner interface {
 	GeneratePresignUploadURL(ctx context.Context, req PresignUploadRequest, userID int64) (*PresignUploadResponse, error)
+	GenerateFeedbackPresignUploadURL(ctx context.Context, req PresignUploadRequest, userID int64) (*PresignUploadResponse, error)
 }
 
 func NewFeedbackService(
@@ -195,7 +196,7 @@ func (s *FeedbackService) PresignUpload(ctx context.Context, input PresignUpload
 	if input.UserID != nil {
 		userIDForPath = *input.UserID
 	}
-	presign, err := s.ossSigner.GeneratePresignUploadURL(ctx, PresignUploadRequest{
+	presign, err := s.ossSigner.GenerateFeedbackPresignUploadURL(ctx, PresignUploadRequest{
 		FileName: input.FileName,
 		FileType: "image",
 		MimeType: input.MimeType,

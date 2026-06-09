@@ -28,6 +28,14 @@ func (fakeFeedbackOSSSigner) GeneratePresignUploadURL(_ context.Context, req Pre
 	}, nil
 }
 
+func (fakeFeedbackOSSSigner) GenerateFeedbackPresignUploadURL(_ context.Context, req PresignUploadRequest, userID int64) (*PresignUploadResponse, error) {
+	return &PresignUploadResponse{
+		UploadURL: "https://oss.example.com/upload",
+		OSSKey:    fmt.Sprintf("uploads/%d/feedback/%s", userID, req.FileName),
+		ExpiresIn: 900,
+	}, nil
+}
+
 func setupFeedbackServiceTest(t *testing.T) (*FeedbackService, *gorm.DB, *miniredis.Miniredis) {
 	t.Helper()
 
@@ -86,9 +94,22 @@ func TestFeedbackPresignUploadReturnsOSSURLAndGrant(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotEmpty(t, grant.GrantID)
-	require.Equal(t, "uploads/42/image/shot.png", grant.OSSKey)
+	require.Equal(t, "uploads/42/feedback/shot.png", grant.OSSKey)
 	require.Equal(t, "https://oss.example.com/upload", grant.UploadURL)
 	require.Equal(t, int64(900), grant.ExpiresIn)
+}
+
+func TestFeedbackPresignUploadRequiresCaptchaForAnonymous(t *testing.T) {
+	svc, _, _ := setupFeedbackServiceTest(t)
+
+	grant, err := svc.PresignUpload(context.Background(), PresignUploadInput{
+		FileName:  "shot.png",
+		MimeType:  "image/png",
+		SizeBytes: 512,
+	})
+
+	require.Nil(t, grant)
+	require.EqualError(t, err, "CAPTCHA_REQUIRED_FOR_ANONYMOUS")
 }
 
 func TestFeedbackPresignUploadRequiresConfiguredOSS(t *testing.T) {
@@ -186,6 +207,36 @@ func TestFeedbackUploadGrantMismatchDoesNotConsumeOriginalGrant(t *testing.T) {
 	var attached int64
 	require.NoError(t, db.Model(&model.FeedbackAttachment{}).Where("oss_key = ?", grant.OSSKey).Count(&attached).Error)
 	require.Equal(t, int64(1), attached)
+}
+
+func TestContentUploadGrantCannotBeUsedAsFeedbackAttachment(t *testing.T) {
+	svc, _, mr := setupFeedbackServiceTest(t)
+	ctx := context.Background()
+
+	contentGrants := NewUploadGrantService(svc.rdb, time.Minute)
+	contentGrant, err := contentGrants.Issue(ctx, UploadGrant{
+		UserID:   42,
+		Purpose:  "content",
+		OSSKey:   "uploads/42/image/file.png",
+		FileType: "image",
+		MimeType: "image/png",
+		FileSize: 512,
+	})
+	require.NoError(t, err)
+
+	_, err = svc.SubmitTicket(ctx, SubmitTicketInput{
+		UserID:      ptrInt64(42),
+		Category:    "web_bug",
+		Title:       "Broken page",
+		Description: "Content grants must not attach to feedback tickets.",
+		AttachmentGrants: []FeedbackAttachmentGrantInput{{
+			GrantID: contentGrant.ID,
+			OSSKey:  contentGrant.OSSKey,
+		}},
+	})
+
+	require.EqualError(t, err, "UPLOAD_GRANT_INVALID")
+	require.True(t, mr.Exists("upload:grant:"+contentGrant.ID))
 }
 
 func TestFeedbackAdminPublicReplyNotifiesLoggedInTicketOwner(t *testing.T) {
