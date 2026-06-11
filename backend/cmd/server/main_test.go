@@ -4,6 +4,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"omnicraft/backend/config"
 )
 
 func TestMainCallsValidateReleaseAfterLoadAndBeforeExternalInit(t *testing.T) {
@@ -55,5 +57,16 @@ func TestMainSetsTrustedProxiesBeforeRegisterRoutes(t *testing.T) {
 	}
 	if proxyIdx > routesIdx {
 		t.Fatal("trusted proxies must be configured before route registration")
+	}
+}
+
+func TestResolveJSONBodyLimitDefaultsToTextUploadLimit(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Limits.TextMaxMB = 10
+
+	got := resolveJSONBodyLimit(cfg)
+	want := int64(10 * 1024 * 1024)
+	if got != want {
+		t.Fatalf("resolveJSONBodyLimit() = %d, want %d", got, want)
 	}
 }

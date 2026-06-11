@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 func TestValidateReleaseRejectsBypassCaptchaAndLoggerSMTP(t *testing.T) {
@@ -183,4 +184,22 @@ func TestDefaultConfigHasAbuseControlLimits(t *testing.T) {
 			t.Fatalf("config.yaml must declare %s", want)
 		}
 	}
+}
+
+func TestDefaultConfigJSONBodyLimitAllowsTextUploads(t *testing.T) {
+	raw, err := os.ReadFile("../config.yaml")
+	require.NoError(t, err)
+
+	var cfg struct {
+		Limits struct {
+			TextMaxMB int `yaml:"text_max_mb"`
+		} `yaml:"limits"`
+		RateLimit struct {
+			MaxJSONBodyBytes int64 `yaml:"max_json_body_bytes"`
+		} `yaml:"rate_limit"`
+	}
+	require.NoError(t, yaml.Unmarshal(raw, &cfg))
+
+	minBodyBytes := int64(cfg.Limits.TextMaxMB) * 1024 * 1024
+	require.GreaterOrEqual(t, cfg.RateLimit.MaxJSONBodyBytes, minBodyBytes)
 }

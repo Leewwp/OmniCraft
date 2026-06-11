@@ -149,6 +149,7 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 	}
 
 	var ossKeysToCleanup []string
+	var consumedGrants []UploadGrant
 
 	err := s.contentRepo.Transaction(func(txRepo *repository.ContentRepository) error {
 		if err := txRepo.CreateContent(content); err != nil {
@@ -184,6 +185,7 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 				if err != nil {
 					return err
 				}
+				consumedGrants = append(consumedGrants, *grant)
 				if grant.FileType != a.FileType {
 					return ErrUploadGrantInvalid
 				}
@@ -191,7 +193,7 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 					return ErrOSSNotConfigured
 				}
 				if err := s.uploadedObjectVerifier.VerifyUploadedObject(ctx, *grant); err != nil {
-					return err
+					return fmt.Errorf("%w: %v", ErrUploadGrantInvalid, err)
 				}
 				a.OSSKey = grant.OSSKey
 				a.FileSize = &grant.FileSize
@@ -217,6 +219,7 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 	})
 
 	if err != nil {
+		s.restoreUploadGrants(ctx, consumedGrants)
 		for _, a := range input.Attachments {
 			ossKeysToCleanup = append(ossKeysToCleanup, a.OSSKey)
 		}
@@ -266,6 +269,17 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 	s.invalidateContentListCache()
 
 	return content, nil
+}
+
+func (s *ContentService) restoreUploadGrants(ctx context.Context, grants []UploadGrant) {
+	if s.uploadGrants == nil {
+		return
+	}
+	for _, grant := range grants {
+		if err := s.uploadGrants.Restore(ctx, grant); err != nil {
+			slog.Error("failed to restore upload grant after publish failure", "grant_id", grant.ID, "error", err)
+		}
+	}
 }
 
 func validateSourceOriginalLink(zone string, source *model.ContentItem) error {

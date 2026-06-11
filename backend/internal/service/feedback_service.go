@@ -2,11 +2,12 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/captcha"
 	"omnicraft/backend/internal/repository"
@@ -139,12 +140,13 @@ func (s *FeedbackService) SubmitTicket(ctx context.Context, input SubmitTicketIn
 		Priority:          "normal",
 	}
 
-	attachments, err := s.consumeAttachmentGrants(ctx, input)
+	attachments, consumedGrants, err := s.consumeAttachmentGrants(ctx, input)
 	if err != nil {
 		return nil, err
 	}
 
 	if err := s.repo.CreateTicketWithAttachments(ticket, attachments); err != nil {
+		s.restoreFeedbackUploadGrants(ctx, consumedGrants)
 		return nil, err
 	}
 
@@ -206,7 +208,10 @@ func (s *FeedbackService) PresignUpload(ctx context.Context, input PresignUpload
 		return nil, err
 	}
 
-	grantID := generateFeedbackGrantID()
+	grantID, err := generateFeedbackGrantID()
+	if err != nil {
+		return nil, err
+	}
 	grant := feedbackUploadGrant{
 		OSSKey:    presign.OSSKey,
 		MimeType:  input.MimeType,
@@ -440,33 +445,43 @@ func filterDiagnostics(raw map[string]interface{}) model.JSONMap {
 	return filtered
 }
 
-func generateFeedbackGrantID() string {
+func generateFeedbackGrantID() (string, error) {
 	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
+	if _, err := io.ReadFull(uploadGrantEntropyReader, b); err != nil {
+		return "", fmt.Errorf("%w: entropy unavailable", ErrUploadGrantUnavailable)
+	}
+	return hex.EncodeToString(b), nil
 }
 
 func feedbackUploadGrantKey(grantID string) string {
 	return fmt.Sprintf("feedback:upload_grant:%s", grantID)
 }
 
-func (s *FeedbackService) consumeAttachmentGrants(ctx context.Context, input SubmitTicketInput) ([]model.FeedbackAttachment, error) {
+type consumedFeedbackUploadGrant struct {
+	GrantID string
+	Grant   feedbackUploadGrant
+}
+
+func (s *FeedbackService) consumeAttachmentGrants(ctx context.Context, input SubmitTicketInput) ([]model.FeedbackAttachment, []consumedFeedbackUploadGrant, error) {
 	if len(input.AttachmentOSSKeys) > 0 && len(input.AttachmentGrants) == 0 {
-		return nil, errors.New("UPLOAD_GRANT_INVALID")
+		return nil, nil, errors.New("UPLOAD_GRANT_INVALID")
 	}
 	if len(input.AttachmentGrants) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if s.rdb == nil {
-		return nil, errors.New("UPLOAD_GRANT_STORE_UNAVAILABLE")
+		return nil, nil, errors.New("UPLOAD_GRANT_STORE_UNAVAILABLE")
 	}
 
 	attachments := make([]model.FeedbackAttachment, 0, len(input.AttachmentGrants))
+	consumed := make([]consumedFeedbackUploadGrant, 0, len(input.AttachmentGrants))
 	for _, grantInput := range input.AttachmentGrants {
 		grant, err := s.consumeUploadGrant(ctx, grantInput.GrantID, grantInput.OSSKey)
 		if err != nil {
-			return nil, err
+			s.restoreFeedbackUploadGrants(ctx, consumed)
+			return nil, nil, err
 		}
+		consumed = append(consumed, consumedFeedbackUploadGrant{GrantID: grantInput.GrantID, Grant: *grant})
 		attachments = append(attachments, model.FeedbackAttachment{
 			OSSKey:    grant.OSSKey,
 			FileType:  "screenshot",
@@ -474,7 +489,7 @@ func (s *FeedbackService) consumeAttachmentGrants(ctx context.Context, input Sub
 			SizeBytes: grant.SizeBytes,
 		})
 	}
-	return attachments, nil
+	return attachments, consumed, nil
 }
 
 func (s *FeedbackService) consumeUploadGrant(ctx context.Context, grantID, ossKey string) (*feedbackUploadGrant, error) {
@@ -513,6 +528,25 @@ return val
 		grant.MimeType = "application/octet-stream"
 	}
 	return &grant, nil
+}
+
+func (s *FeedbackService) restoreFeedbackUploadGrants(ctx context.Context, grants []consumedFeedbackUploadGrant) {
+	if s.rdb == nil {
+		return
+	}
+	ttl := time.Duration(s.uploadGrantTTL) * time.Second
+	if ttl <= 0 {
+		ttl = 5 * time.Minute
+	}
+	for _, consumed := range grants {
+		payload, err := json.Marshal(consumed.Grant)
+		if err != nil {
+			continue
+		}
+		if err := s.rdb.SetNX(ctx, feedbackUploadGrantKey(consumed.GrantID), payload, ttl).Err(); err != nil {
+			slog.Error("failed to restore feedback upload grant after ticket failure", "grant_id", consumed.GrantID, "error", err)
+		}
+	}
 }
 
 func feedbackActionStatus(status string) string {

@@ -956,3 +956,44 @@ golang.org/x/net: at least v0.53.0.
   - `cover_oss_key` remains a raw-key path outside the attachment grant flow.
   - Real OSS object metadata verification requires production OSS credentials and uploaded object existence; unit tests use fakes.
 - Next precise action: exact-stage this final ledger update, commit it, then provide the final summary with commit list, verification results, remaining risks, blocker status, and manual recommendations.
+
+## Review Fix - 2026-06-11 20:44 +08:00
+- Current plan file: all four requested security hardening plans; post-review fix before merge.
+- Current Task / Step: Repair code review findings on branch `codex/security-hardening-execution`.
+- Changed files:
+  - `backend/internal/service/content_service.go`
+  - `backend/internal/service/content_upload_grant_test.go`
+  - `backend/internal/service/feedback_service.go`
+  - `backend/internal/service/feedback_service_test.go`
+  - `backend/internal/service/upload_grant_service.go`
+  - `backend/cmd/server/main.go`
+  - `backend/cmd/server/main_test.go`
+  - `backend/config.yaml`
+  - `backend/config/config_test.go`
+  - `frontend/lib/error-handler.ts`
+  - `frontend/tests/error-handler-i18n.test.mjs`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Added red tests for content upload grant restoration after OSS metadata mismatch, feedback grant restoration after ticket creation failure, content grant entropy failure, JSON body limit alignment, and frontend 429 i18n.
+  - `go test ./internal/service -run TestPublishContentRejectsUploadedObjectMismatch -count=1 -v`: first red run failed because retrying the same grant returned `upload grant invalid or expired`.
+  - `go test ./internal/service -run TestFeedbackUploadGrantRestoredWhenTicketCreateFails -count=1 -v`: first red run failed because retrying the same feedback grant returned `UPLOAD_GRANT_INVALID`.
+  - `go test ./internal/service -run TestUploadGrantIssueFailsClosedWhenEntropyUnavailable -count=1 -v`: first red run failed at compile time because no injectable entropy reader existed.
+  - `go test ./config -run TestDefaultConfigJSONBodyLimitAllowsTextUploads -count=1 -v`: first red run failed because `max_json_body_bytes` was `1048576`, below the 10MB text upload limit.
+  - `go test ./cmd/server -run TestResolveJSONBodyLimitDefaultsToTextUploadLimit -count=1 -v`: first red run failed because `resolveJSONBodyLimit` did not exist.
+  - `node tests/error-handler-i18n.test.mjs`: first red run failed on the hardcoded 429 copy `Too many requests. Please try again later.`
+  - `go test ./internal/service -run TestFeedbackPresignUploadFailsClosedWhenEntropyUnavailable -count=1 -v`: first red run failed because feedback presign still succeeded when the shared entropy reader was forced to fail.
+  - Implemented grant restoration for failed content publish and failed feedback ticket creation, mapped uploaded-object verification failures to `ErrUploadGrantInvalid`, made content and feedback grant ID generation fail closed on entropy failure, raised JSON body limit defaults to the configured text upload limit, and switched the 429 frontend handler to the shared `common.rateLimited` i18n key.
+  - Focused green checks: `go test ./internal/service -run "UploadGrant|Publish|Feedback" -count=1 -v`, `go test ./config -run TestDefaultConfigJSONBodyLimitAllowsTextUploads -count=1 -v`, `go test ./cmd/server -run TestResolveJSONBodyLimitDefaultsToTextUploadLimit -count=1 -v`, and `node tests/error-handler-i18n.test.mjs` all exited 0.
+  - Full verification:
+    - `go test ./...` from `backend/`: exit 0.
+    - `go build ./...` from `backend/`: exit 0.
+    - `go vet ./...` from `backend/`: exit 0.
+    - `npm run lint` from `frontend/`: exit 0.
+    - `npm run test` from `frontend/`: exit 0, 13 tests passed.
+    - `npm run build` from `frontend/`: exit 0.
+    - `git diff --check`: exit 0.
+- Current commit hash: pending review-fix commit on top of `3b58a80`.
+- Blockers or remaining risks:
+  - No active blocker for these review findings.
+  - Previously recorded release risks still stand: `cargo audit` unavailable locally, staticcheck baseline warnings remain out of scope, operator must configure production trusted proxies, and `cover_oss_key` remains outside the attachment grant flow.
+- Next precise action: exact-stage only the review-fix files above and commit `Security: repair upload grant review findings`.
