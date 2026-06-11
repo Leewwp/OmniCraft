@@ -8,7 +8,10 @@ interface ErrorContext {
 export function handleApiError(
   error: unknown,
   context?: ErrorContext,
-  options?: { toast?: (type: "error" | "warning", msg: string) => void }
+  options?: {
+    toast?: (type: "error" | "warning", msg: string) => void;
+    translate?: (key: string) => string;
+  }
 ): void {
   if (error instanceof ApiRequestError) {
     if (error.status === 401) {
@@ -21,7 +24,8 @@ export function handleApiError(
       return;
     }
     if (error.status === 429) {
-      options?.toast?.("warning", "Too many requests. Please try again later.");
+      const rateLimitMessage = options?.translate?.("common.rateLimited") ?? "common.rateLimited";
+      options?.toast?.("warning", rateLimitMessage);
       return;
     }
     if (error.status >= 500) {

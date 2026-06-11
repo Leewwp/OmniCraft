@@ -60,10 +60,7 @@ func main() {
 	} else if cfg.Server.Mode == "release" {
 		_ = r.SetTrustedProxies(nil)
 	}
-	bodyLimit := cfg.RateLimit.MaxJSONBodyBytes
-	if bodyLimit <= 0 {
-		bodyLimit = 1 << 20
-	}
+	bodyLimit := resolveJSONBodyLimit(cfg)
 	r.Use(middleware.RequestID())
 	r.Use(middleware.Logger())
 	r.Use(middleware.CORS(cfg))
@@ -123,4 +120,20 @@ func main() {
 	}
 
 	slog.Info("Server exited")
+}
+
+func resolveJSONBodyLimit(cfg *config.Config) int64 {
+	const fallbackTextLimitBytes int64 = 10 * 1024 * 1024
+	if cfg == nil {
+		return fallbackTextLimitBytes
+	}
+	bodyLimit := cfg.RateLimit.MaxJSONBodyBytes
+	textLimit := int64(cfg.Limits.TextMaxMB) * 1024 * 1024
+	if textLimit <= 0 {
+		textLimit = fallbackTextLimitBytes
+	}
+	if bodyLimit < textLimit {
+		return textLimit
+	}
+	return bodyLimit
 }

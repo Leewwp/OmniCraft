@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"errors"
-	"strings"
+	"io"
 	"testing"
 	"time"
 
@@ -151,7 +151,7 @@ func TestPublishContentRejectsUploadedObjectMismatch(t *testing.T) {
 	svc, grants, verifier, cleanup := newContentGrantPublishService(t)
 	defer cleanup()
 	ctx := context.Background()
-	verifier.err = errors.New("uploaded file size does not match grant")
+	verifier.err = &UploadValidationError{Message: "uploaded file size does not match grant"}
 
 	grant, err := grants.Issue(ctx, UploadGrant{
 		UserID:   42,
@@ -170,11 +170,41 @@ func TestPublishContentRejectsUploadedObjectMismatch(t *testing.T) {
 		FileType: "image",
 		MimeType: "image/png",
 	}), 42)
-	if err == nil || !strings.Contains(err.Error(), "uploaded file size does not match grant") {
-		t.Fatalf("publish err = %v, want uploaded object mismatch", err)
+	if !errors.Is(err, ErrUploadGrantInvalid) {
+		t.Fatalf("publish err = %v, want ErrUploadGrantInvalid", err)
 	}
 	if verifier.calls != 1 {
 		t.Fatalf("verifier calls = %d, want 1", verifier.calls)
+	}
+	verifier.err = nil
+	_, err = svc.PublishContent(baseGrantPublishInput(AttachmentInput{
+		GrantID:  grant.ID,
+		FileType: "image",
+		MimeType: "image/png",
+	}), 42)
+	if err != nil {
+		t.Fatalf("retry after uploaded object mismatch should reuse restored grant: %v", err)
+	}
+}
+
+func TestUploadGrantIssueFailsClosedWhenEntropyUnavailable(t *testing.T) {
+	_, grants, _, cleanup := newContentGrantPublishService(t)
+	defer cleanup()
+
+	previousReader := uploadGrantEntropyReader
+	uploadGrantEntropyReader = failingReader{}
+	t.Cleanup(func() { uploadGrantEntropyReader = previousReader })
+
+	_, err := grants.Issue(context.Background(), UploadGrant{
+		UserID:   42,
+		Purpose:  "content",
+		OSSKey:   "uploads/42/image/file.png",
+		FileType: "image",
+		MimeType: "image/png",
+		FileSize: 123,
+	})
+	if !errors.Is(err, ErrUploadGrantUnavailable) {
+		t.Fatalf("Issue err = %v, want ErrUploadGrantUnavailable", err)
 	}
 }
 
@@ -204,6 +234,12 @@ func newContentGrantPublishService(t *testing.T) (*ContentService, *UploadGrantS
 		_ = rdb.Close()
 		mr.Close()
 	}
+}
+
+type failingReader struct{}
+
+func (failingReader) Read(_ []byte) (int, error) {
+	return 0, io.ErrUnexpectedEOF
 }
 
 type fakeUploadedObjectVerifier struct {

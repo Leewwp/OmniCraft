@@ -154,7 +154,7 @@ rate_limit:
   upload_per_hour: 200
   credential_per_minute: 5
   search_per_minute: 30
-  max_json_body_bytes: 1048576
+  max_json_body_bytes: 10485760
   max_query_chars: 120
   max_search_limit: 50
   max_search_page: 100

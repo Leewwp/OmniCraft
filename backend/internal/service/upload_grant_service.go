@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -14,6 +15,8 @@ import (
 
 var ErrUploadGrantInvalid = errors.New("upload grant invalid or expired")
 var ErrUploadGrantUnavailable = errors.New("upload grant store unavailable")
+
+var uploadGrantEntropyReader io.Reader = rand.Reader
 
 type UploadGrant struct {
 	ID       string `json:"id"`
@@ -41,7 +44,11 @@ func (s *UploadGrantService) Issue(ctx context.Context, grant UploadGrant) (*Upl
 	if s == nil || s.rdb == nil {
 		return nil, ErrUploadGrantUnavailable
 	}
-	grant.ID = randomGrantID()
+	grantID, err := randomGrantID()
+	if err != nil {
+		return nil, err
+	}
+	grant.ID = grantID
 	raw, err := json.Marshal(grant)
 	if err != nil {
 		return nil, err
@@ -94,14 +101,28 @@ func (s *UploadGrantService) Consume(ctx context.Context, id string, userID int6
 	return consumed, nil
 }
 
+func (s *UploadGrantService) Restore(ctx context.Context, grant UploadGrant) error {
+	if s == nil || s.rdb == nil {
+		return ErrUploadGrantUnavailable
+	}
+	if grant.ID == "" {
+		return ErrUploadGrantInvalid
+	}
+	raw, err := json.Marshal(grant)
+	if err != nil {
+		return err
+	}
+	return s.rdb.SetNX(ctx, uploadGrantKey(grant.ID), raw, s.ttl).Err()
+}
+
 func uploadGrantKey(id string) string {
 	return fmt.Sprintf("upload:grant:%s", id)
 }
 
-func randomGrantID() string {
+func randomGrantID() (string, error) {
 	raw := make([]byte, 32)
-	if _, err := rand.Read(raw); err != nil {
-		return fmt.Sprintf("%d", time.Now().UnixNano())
+	if _, err := io.ReadFull(uploadGrantEntropyReader, raw); err != nil {
+		return "", fmt.Errorf("%w: entropy unavailable", ErrUploadGrantUnavailable)
 	}
-	return hex.EncodeToString(raw)
+	return hex.EncodeToString(raw), nil
 }

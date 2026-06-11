@@ -127,6 +127,24 @@ func TestFeedbackPresignUploadRequiresConfiguredOSS(t *testing.T) {
 	require.ErrorIs(t, err, ErrOSSNotConfigured)
 }
 
+func TestFeedbackPresignUploadFailsClosedWhenEntropyUnavailable(t *testing.T) {
+	svc, _, _ := setupFeedbackServiceTest(t)
+
+	previousReader := uploadGrantEntropyReader
+	uploadGrantEntropyReader = failingReader{}
+	t.Cleanup(func() { uploadGrantEntropyReader = previousReader })
+
+	grant, err := svc.PresignUpload(context.Background(), PresignUploadInput{
+		UserID:    ptrInt64(42),
+		FileName:  "shot.png",
+		MimeType:  "image/png",
+		SizeBytes: 512,
+	})
+
+	require.Nil(t, grant)
+	require.ErrorIs(t, err, ErrUploadGrantUnavailable)
+}
+
 func TestFeedbackUploadGrantIsConsumedOnce(t *testing.T) {
 	svc, db, _ := setupFeedbackServiceTest(t)
 	ctx := context.Background()
@@ -207,6 +225,45 @@ func TestFeedbackUploadGrantMismatchDoesNotConsumeOriginalGrant(t *testing.T) {
 	var attached int64
 	require.NoError(t, db.Model(&model.FeedbackAttachment{}).Where("oss_key = ?", grant.OSSKey).Count(&attached).Error)
 	require.Equal(t, int64(1), attached)
+}
+
+func TestFeedbackUploadGrantRestoredWhenTicketCreateFails(t *testing.T) {
+	svc, db, _ := setupFeedbackServiceTest(t)
+	ctx := context.Background()
+
+	grant, err := svc.PresignUpload(ctx, PresignUploadInput{
+		UserID:    ptrInt64(42),
+		FileName:  "shot.png",
+		MimeType:  "image/png",
+		SizeBytes: 512,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, db.Migrator().DropTable(&model.FeedbackTicket{}))
+	_, err = svc.SubmitTicket(ctx, SubmitTicketInput{
+		UserID:      ptrInt64(42),
+		Category:    "web_bug",
+		Title:       "Broken page",
+		Description: "The beta page failed",
+		AttachmentGrants: []FeedbackAttachmentGrantInput{{
+			GrantID: grant.GrantID,
+			OSSKey:  grant.OSSKey,
+		}},
+	})
+	require.Error(t, err)
+
+	require.NoError(t, db.AutoMigrate(&model.FeedbackTicket{}))
+	_, err = svc.SubmitTicket(ctx, SubmitTicketInput{
+		UserID:      ptrInt64(42),
+		Category:    "web_bug",
+		Title:       "Retry ticket",
+		Description: "The same screenshot grant should still be usable after a DB failure.",
+		AttachmentGrants: []FeedbackAttachmentGrantInput{{
+			GrantID: grant.GrantID,
+			OSSKey:  grant.OSSKey,
+		}},
+	})
+	require.NoError(t, err)
 }
 
 func TestContentUploadGrantCannotBeUsedAsFeedbackAttachment(t *testing.T) {
