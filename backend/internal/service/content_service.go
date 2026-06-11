@@ -193,7 +193,11 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 					return ErrOSSNotConfigured
 				}
 				if err := s.uploadedObjectVerifier.VerifyUploadedObject(ctx, *grant); err != nil {
-					return fmt.Errorf("%w: %v", ErrUploadGrantInvalid, err)
+					var validationErr *UploadValidationError
+					if errors.As(err, &validationErr) {
+						return fmt.Errorf("%w: %v", ErrUploadGrantInvalid, err)
+					}
+					return err
 				}
 				a.OSSKey = grant.OSSKey
 				a.FileSize = &grant.FileSize
