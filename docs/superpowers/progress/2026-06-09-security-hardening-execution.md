@@ -997,3 +997,31 @@ golang.org/x/net: at least v0.53.0.
   - No active blocker for these review findings.
   - Previously recorded release risks still stand: `cargo audit` unavailable locally, staticcheck baseline warnings remain out of scope, operator must configure production trusted proxies, and `cover_oss_key` remains outside the attachment grant flow.
 - Next precise action: exact-stage only the review-fix files above and commit `Security: repair upload grant review findings`.
+
+## Review Fix Follow-up - 2026-06-12 01:40 +08:00
+- Current plan file: all four requested security hardening plans; post-review follow-up before merge.
+- Current Task / Step: Repair remaining OSS verifier error mapping gap after independent completion audit.
+- Changed files:
+  - `backend/internal/service/content_service.go`
+  - `backend/internal/service/content_upload_grant_test.go`
+  - `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`
+- Commands and result summary:
+  - Added `TestPublishContentPreservesVerifierInfrastructureErrors` to prove that OSS metadata infrastructure failures must not be remapped to `ErrUploadGrantInvalid`, while the consumed grant is still restored for retry.
+  - `go test ./internal/service -run TestPublishContentPreservesVerifierInfrastructureErrors -count=1 -v`: first red run failed because the service returned `upload grant invalid or expired: oss metadata lookup failed`.
+  - Updated `PublishContentWithContext` to wrap only `UploadValidationError` as `ErrUploadGrantInvalid`; other verifier errors now bubble up unchanged so the handler can keep them on the 5xx path.
+  - Focused green checks:
+    - `go test ./internal/service -run "TestPublishContentPreservesVerifierInfrastructureErrors|TestPublishContentRejectsUploadedObjectMismatch" -count=1 -v`: exit 0.
+    - `go test ./internal/service -run "TestPublishContent|TestFeedbackUploadGrantRestoredWhenTicketCreateFails|TestFeedbackPresignUploadFailsClosedWhenEntropyUnavailable|TestUploadGrantIssueFailsClosedWhenEntropyUnavailable" -count=1 -v`: exit 0.
+  - Full verification:
+    - `go test ./...` from `backend/`: exit 0.
+    - `go build ./...` from `backend/`: exit 0.
+    - `go vet ./...` from `backend/`: exit 0.
+    - `npm.cmd install` from `frontend/`: exit 0 in this fresh worktree to restore local `node_modules`.
+    - `npm.cmd run lint` from `frontend/`: exit 0.
+    - `npm.cmd run test` from `frontend/`: exit 0, 13 tests passed.
+    - `npm.cmd run build` from `frontend/`: exit 0.
+- Current commit hash: pending follow-up fix commit on top of `85221e9`.
+- Blockers or remaining risks:
+  - No active blocker for this follow-up fix.
+  - Previously recorded release risks still stand: `cargo audit` unavailable locally, staticcheck baseline warnings remain out of scope, operator must configure production trusted proxies, and `cover_oss_key` remains outside the attachment grant flow.
+- Next precise action: exact-stage the follow-up fix, commit it, then fast-forward merge the verified branch into `main`.

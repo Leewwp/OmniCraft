@@ -187,6 +187,50 @@ func TestPublishContentRejectsUploadedObjectMismatch(t *testing.T) {
 	}
 }
 
+func TestPublishContentPreservesVerifierInfrastructureErrors(t *testing.T) {
+	svc, grants, verifier, cleanup := newContentGrantPublishService(t)
+	defer cleanup()
+	ctx := context.Background()
+	verifier.err = errors.New("oss metadata lookup failed")
+
+	grant, err := grants.Issue(ctx, UploadGrant{
+		UserID:   42,
+		Purpose:  "content",
+		OSSKey:   "uploads/42/image/file.png",
+		FileType: "image",
+		MimeType: "image/png",
+		FileSize: 123,
+	})
+	if err != nil {
+		t.Fatalf("issue grant: %v", err)
+	}
+
+	_, err = svc.PublishContent(baseGrantPublishInput(AttachmentInput{
+		GrantID:  grant.ID,
+		FileType: "image",
+		MimeType: "image/png",
+	}), 42)
+	if err == nil {
+		t.Fatal("publish err = nil, want verifier infrastructure error")
+	}
+	if errors.Is(err, ErrUploadGrantInvalid) {
+		t.Fatalf("publish err = %v, should not map verifier infrastructure failure to ErrUploadGrantInvalid", err)
+	}
+	if verifier.calls != 1 {
+		t.Fatalf("verifier calls = %d, want 1", verifier.calls)
+	}
+
+	verifier.err = nil
+	_, err = svc.PublishContent(baseGrantPublishInput(AttachmentInput{
+		GrantID:  grant.ID,
+		FileType: "image",
+		MimeType: "image/png",
+	}), 42)
+	if err != nil {
+		t.Fatalf("retry after verifier infrastructure failure should reuse restored grant: %v", err)
+	}
+}
+
 func TestUploadGrantIssueFailsClosedWhenEntropyUnavailable(t *testing.T) {
 	_, grants, _, cleanup := newContentGrantPublishService(t)
 	defer cleanup()
