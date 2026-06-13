@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+#[cfg(test)]
+use serial_test::serial;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnvInfo {
     pub steam_paths: Vec<String>,
@@ -108,5 +111,85 @@ mod tests {
         assert!(result.is_ok());
         let env = result.unwrap();
         assert_eq!(env.platform, std::env::consts::OS);
+    }
+
+    #[test]
+    fn test_detect_environment_with_custom_home() {
+        let custom = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+        let original = std::env::var(custom).ok();
+        let test_path = "/tmp/tst_omnicraft_custom_home";
+
+        std::env::set_var(custom, test_path);
+        let result = detect_environment();
+
+        // Restore before asserting so cleanup always runs
+        match original {
+            Some(val) => std::env::set_var(custom, val),
+            None => std::env::remove_var(custom),
+        }
+
+        let env = result.expect("detect_environment should return Ok");
+        assert!(
+            env.home_dir.contains("tst_omnicraft_custom_home"),
+            "home_dir should reflect the custom path, got: {}",
+            env.home_dir,
+        );
+    }
+
+    #[test]
+    fn test_detect_environment_handles_empty_vars() {
+        let home_key = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+        let orig_home = std::env::var(home_key).ok();
+        let orig_home_alt = if cfg!(windows) { std::env::var("HOME").ok() } else { None };
+        let orig_appdata = std::env::var("APPDATA").ok();
+
+        // Remove both HOME and USERPROFILE so detect_environment hits unwrap_or_default
+        std::env::remove_var(home_key);
+        if cfg!(windows) {
+            std::env::remove_var("HOME");
+        }
+        std::env::remove_var("APPDATA");
+
+        let result = detect_environment();
+
+        // Restore before asserting
+        match orig_home {
+            Some(val) => std::env::set_var(home_key, val),
+            None => std::env::remove_var(home_key),
+        }
+        if cfg!(windows) {
+            match orig_home_alt {
+                Some(val) => std::env::set_var("HOME", val),
+                None => std::env::remove_var("HOME"),
+            }
+        }
+        match orig_appdata {
+            Some(val) => std::env::set_var("APPDATA", val),
+            None => std::env::remove_var("APPDATA"),
+        }
+
+        assert!(result.is_ok(), "detect_environment should return Ok even with empty vars");
+        let env = result.unwrap();
+        // home_dir should fall back to empty string, not cause an error
+        assert_eq!(
+            env.home_dir, "",
+            "home_dir should be empty when HOME/USERPROFILE are unset, got: {}",
+            env.home_dir,
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn test_detect_environment_steam_paths_is_vec() {
+        let result = detect_environment();
+        assert!(result.is_ok(), "detect_environment should return Ok");
+        let env = result.unwrap();
+        // steam_paths should always be a Vec<String>, even if empty
+        assert!(
+            env.steam_paths.iter().all(|p| !p.is_empty()),
+            "steam_paths entries should not be empty strings",
+        );
+        // Verify it's indeed a Vec by checking len() works and it's not an error
+        let _len = env.steam_paths.len();
     }
 }

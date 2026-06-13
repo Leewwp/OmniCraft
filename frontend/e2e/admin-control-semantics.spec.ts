@@ -1,11 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
+import { mockApiRoute } from "./helpers/mock-api-guard";
 import { mockPublicApis } from "./helpers/mock-public-apis";
 
 async function mockAdminSession(page: Page) {
   await mockPublicApis(page);
   const categoryCreates: unknown[] = [];
 
-  await page.route("**/api/v1/auth/refresh", (route) =>
+  await mockApiRoute(page, "**/api/v1/auth/refresh", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -13,7 +14,7 @@ async function mockAdminSession(page: Page) {
     }),
   );
 
-  await page.route("**/api/v1/auth/me", (route) =>
+  await mockApiRoute(page, "**/api/v1/auth/me", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -35,7 +36,7 @@ async function mockAdminSession(page: Page) {
     }),
   );
 
-  await page.route("**/api/v1/notifications/unread-count", (route) =>
+  await mockApiRoute(page, "**/api/v1/notifications/unread-count", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -68,7 +69,7 @@ async function mockAdminSession(page: Page) {
     ],
   };
 
-  await page.route("**/api/v1/categories", (route) =>
+  await mockApiRoute(page, "**/api/v1/categories", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -76,7 +77,7 @@ async function mockAdminSession(page: Page) {
     }),
   );
 
-  await page.route("**/api/v1/categories?**", (route) =>
+  await mockApiRoute(page, "**/api/v1/categories?**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -84,15 +85,15 @@ async function mockAdminSession(page: Page) {
     }),
   );
 
-  await page.route("**/api/v1/admin/audit-logs?**", (route) =>
+  await mockApiRoute(page, "**/api/v1/admin/audit-logs?**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ items: [], total: 0 }),
+      body: JSON.stringify({ items: [], total: 0, page: 1, page_size: 20 }),
     }),
   );
 
-  await page.route("**/api/v1/admin/feedback?**", (route) =>
+  await mockApiRoute(page, "**/api/v1/admin/feedback?**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -117,11 +118,13 @@ async function mockAdminSession(page: Page) {
           },
         ],
         total: 1,
+        page: 1,
+        page_size: 20,
       }),
     }),
   );
 
-  await page.route("**/api/v1/admin/feedback/77", (route) =>
+  await mockApiRoute(page, "**/api/v1/admin/feedback/77", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -145,15 +148,15 @@ async function mockAdminSession(page: Page) {
     }),
   );
 
-  await page.route("**/api/v1/admin/reports?**", (route) =>
+  await mockApiRoute(page, "**/api/v1/admin/reports?**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ items: [], total: 0 }),
+      body: JSON.stringify({ reports: [], total: 0, page: 1, page_size: 20 }),
     }),
   );
 
-  await page.route("**/api/v1/admin/categories", async (route) => {
+  await mockApiRoute(page, "**/api/v1/admin/categories", async (route) => {
     categoryCreates.push(route.request().postDataJSON());
     await route.fulfill({
       status: 200,
@@ -165,7 +168,8 @@ async function mockAdminSession(page: Page) {
   return { categoryCreates };
 }
 
-test("search advanced selects use the canonical select primitive", async ({ page }) => {
+// Mocked UI semantics coverage only. Real admin/category semantics are verified in Go tests.
+test("mocked search advanced selects use the canonical select primitive", async ({ page }) => {
   await mockPublicApis(page);
   await page.goto("/search");
   await page.getByRole("button", { name: /Advanced filter|Advanced filters/i }).click();
@@ -174,7 +178,7 @@ test("search advanced selects use the canonical select primitive", async ({ page
   await expect(page.getByLabel(/Sort by/i)).toHaveAttribute("data-slot", "select");
 });
 
-test("admin filters and category numeric-like fields use deliberate controls", async ({ page }) => {
+test("mocked admin filters and category numeric-like fields use deliberate controls", async ({ page }) => {
   const { categoryCreates } = await mockAdminSession(page);
 
   await page.goto("/admin/audit-logs");

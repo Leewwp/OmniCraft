@@ -16,7 +16,58 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile-chrome", use: { ...devices["Pixel 5"] } },
+    {
+      name: "desktop",
+      use: { ...devices["Desktop Chrome"] },
+      testIgnore: [
+        "**/contract-smoke.spec.ts",
+        "**/*.mock.spec.ts",
+        "**/*.integration.spec.ts",
+      ],
+    },
+    {
+      name: "mobile-chrome",
+      use: { ...devices["Pixel 5"] },
+      testIgnore: [
+        "**/contract-smoke.spec.ts",
+        "**/*.mock.spec.ts",
+        "**/*.integration.spec.ts",
+      ],
+    },
+    {
+      name: "mocked",
+      use: { ...devices["Desktop Chrome"] },
+      testMatch: ["**/contract-smoke.spec.ts", "**/*.mock.spec.ts"],
+      workers: 1,
+      // No backend server — mock server is managed by individual spec files.
+      // This project overrides the top-level webServer so only the frontend is started.
+      webServer: {
+        command: "npm run dev -- --hostname 127.0.0.1 --port 3000",
+        url: "http://127.0.0.1:3000",
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+      },
+    },
+    {
+      name: "cross-stack",
+      use: { ...devices["Desktop Chrome"] },
+      testMatch: ["**/*.integration.spec.ts"],
+      workers: 1,
+      // Starts both backend and frontend servers for full-stack integration tests.
+      webServer: [
+        {
+          command: "cd ../backend && go run cmd/server/main.go",
+          url: "http://127.0.0.1:8080/health",
+          reuseExistingServer: !process.env.CI,
+          timeout: 60_000,
+        },
+        {
+          command: "npm run dev -- --hostname 127.0.0.1 --port 3000",
+          url: "http://127.0.0.1:3000",
+          reuseExistingServer: !process.env.CI,
+          timeout: 120_000,
+        },
+      ],
+    },
   ],
 });

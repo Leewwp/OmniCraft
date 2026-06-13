@@ -17,6 +17,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	jwtutil "omnicraft/backend/internal/pkg/jwt"
 )
 
 func TestContentDownload_ReturnsJSONNotRedirect(t *testing.T) {
@@ -54,54 +55,50 @@ func TestContentDownload_UsesConfigurableTTL(t *testing.T) {
 	}
 }
 
-func TestContentDownload_ResponseSchema(t *testing.T) {
-	resp := map[string]interface{}{
-		"download_url": "https://example.com/file.zip",
-		"expires_in":   300,
+func TestContentDownloadProtectedRouteRequiresAuth(t *testing.T) {
+	router, contentID, _ := setupProtectedDownloadRoute(t, downloadRouteUserState{Verified: true, Reputation: 10})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/contents/"+strconvFormatInt(contentID)+"/download", nil)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401; body = %s", rec.Code, rec.Body.String())
 	}
-	data, err := json.Marshal(resp)
-	if err != nil {
-		t.Fatalf("marshal response: %v", err)
-	}
-	var parsed map[string]interface{}
-	if err := json.Unmarshal(data, &parsed); err != nil {
-		t.Fatalf("unmarshal response: %v", err)
-	}
-	if _, ok := parsed["download_url"]; !ok {
-		t.Fatal("response must contain download_url")
-	}
-	if _, ok := parsed["expires_in"]; !ok {
-		t.Fatal("response must contain expires_in")
+	if !strings.Contains(rec.Body.String(), "UNAUTHORIZED") {
+		t.Fatalf("body = %s, want UNAUTHORIZED", rec.Body.String())
 	}
 }
 
-func TestContentDownloadRouteRequiresAuth(t *testing.T) {
-	routes := readRoutesSource(t)
-	if !strings.Contains(routes, "download") {
-		t.Skip("no download route found")
+func TestContentDownloadProtectedRouteRejectsUnverifiedUser(t *testing.T) {
+	router, contentID, token := setupProtectedDownloadRoute(t, downloadRouteUserState{Verified: false, Reputation: 10})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/contents/"+strconvFormatInt(contentID)+"/download", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403; body = %s", rec.Code, rec.Body.String())
 	}
-	lines := strings.Split(routes, "\n")
-	for _, line := range lines {
-		if strings.Contains(line, "download") && strings.Contains(line, "GET") {
-			if !strings.Contains(line, "authReq") && !strings.Contains(line, "AuthRequired") {
-				t.Fatalf("download route must require authentication: %s", line)
-			}
-		}
+	if !strings.Contains(rec.Body.String(), "EMAIL_NOT_VERIFIED") {
+		t.Fatalf("body = %s, want EMAIL_NOT_VERIFIED", rec.Body.String())
 	}
 }
 
-func TestContentDownloadRouteRequiresInteractionGuard(t *testing.T) {
-	routes := readRoutesSource(t)
-	if !strings.Contains(routes, "download") {
-		t.Skip("no download route found")
+func TestContentDownloadProtectedRouteRejectsLowReputationUser(t *testing.T) {
+	router, contentID, token := setupProtectedDownloadRoute(t, downloadRouteUserState{Verified: true, Reputation: 2})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/contents/"+strconvFormatInt(contentID)+"/download", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403; body = %s", rec.Code, rec.Body.String())
 	}
-	lines := strings.Split(routes, "\n")
-	for _, line := range lines {
-		if strings.Contains(line, "download") && strings.Contains(line, "GET") {
-			if !strings.Contains(line, "downloadsGuard") && !strings.Contains(line, "InteractionRequired") {
-				t.Fatalf("download route must require interaction guard (verified email + reputation): %s", line)
-			}
-		}
+	if !strings.Contains(rec.Body.String(), "INSUFFICIENT_REPUTATION") {
+		t.Fatalf("body = %s, want INSUFFICIENT_REPUTATION", rec.Body.String())
 	}
 }
 
@@ -139,24 +136,6 @@ func readConfigSource(t *testing.T) string {
 
 func init() {
 	gin.SetMode(gin.TestMode)
-}
-
-func TestContentDownload_EndToEnd_Unauthenticated(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping end-to-end test in short mode")
-	}
-	router := gin.New()
-	router.GET("/api/v1/contents/:id/download", func(c *gin.Context) {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
-	})
-
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/api/v1/contents/1/download", nil)
-	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
 }
 
 func TestContentDownload_RejectsAuthorBannedBeforeOSS(t *testing.T) {
@@ -304,12 +283,15 @@ func setupDownloadRouter(t *testing.T, userID int64, withOSS bool) (*gin.Engine,
 	if err := db.AutoMigrate(&model.User{}, &model.IP{}, &model.ContentItem{}, &model.ContentAttachment{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	for _, stmt := range []string{
-		"ALTER TABLE users ADD COLUMN deleted_at DATETIME",
-		"ALTER TABLE content_items ADD COLUMN deleted_at DATETIME",
+	for _, check := range []struct {
+		table  any
+		column string
+	}{
+		{table: &model.User{}, column: "deleted_at"},
+		{table: &model.ContentItem{}, column: "deleted_at"},
 	} {
-		if err := db.Exec(stmt).Error; err != nil {
-			t.Fatalf("schema patch %q: %v", stmt, err)
+		if !db.Migrator().HasColumn(check.table, check.column) {
+			t.Fatalf("expected AutoMigrate to own %s", check.column)
 		}
 	}
 
@@ -335,6 +317,68 @@ func setupDownloadRouterWithDB(t *testing.T, db *gorm.DB, userID int64, withOSS 
 		handler.DownloadContent(c)
 	})
 	return router, db
+}
+
+type downloadRouteUserState struct {
+	Verified   bool
+	Reputation int
+}
+
+func setupProtectedDownloadRoute(t *testing.T, state downloadRouteUserState) (*gin.Engine, int64, string) {
+	t.Helper()
+
+	gin.SetMode(gin.TestMode)
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.User{}, &model.IP{}, &model.ContentItem{}, &model.ContentAttachment{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.JWT.Secret = "download-test-secret"
+	cfg.Reputation.MinScoreForInteraction = 3
+	cfg.OSS.Endpoint = "https://oss-cn-hangzhou.aliyuncs.com"
+	cfg.OSS.AccessKeyID = "test-access-key-id"
+	cfg.OSS.AccessKeySecret = "test-access-key-secret"
+	cfg.OSS.BucketName = "test-bucket"
+	cfg.OSS.DownloadURLTTL = 300
+
+	handler := NewContentHandler(db, cfg, nil)
+	authReq := middleware.AuthRequired(cfg, nil, db)
+	downloadsGuard := middleware.InteractionRequired(cfg, db, nil, middleware.InteractionPolicy{
+		RequireVerifiedEmail: true,
+		RequireReputation:    true,
+	})
+
+	router := gin.New()
+	router.GET("/api/v1/contents/:id/download", authReq, downloadsGuard, handler.DownloadContent)
+
+	author := createDownloadUser(t, db, "route-author@example.com", "route-author", false)
+	content := createDownloadContent(t, db, author.ID, nil)
+
+	now := time.Now()
+	viewer := model.User{
+		Email:        "route-viewer@example.com",
+		Username:     "route-viewer",
+		PasswordHash: "hash",
+		Reputation:   state.Reputation,
+		Role:         "user",
+	}
+	if state.Verified {
+		viewer.EmailVerifiedAt = &now
+	}
+	if err := db.Create(&viewer).Error; err != nil {
+		t.Fatalf("create viewer: %v", err)
+	}
+
+	pair, err := jwtutil.GenerateTokenPair(viewer.ID, viewer.Role, cfg.JWT.Secret, 120, 7)
+	if err != nil {
+		t.Fatalf("generate token: %v", err)
+	}
+
+	return router, content.ID, pair.AccessToken
 }
 
 func createDownloadUser(t *testing.T, db *gorm.DB, email, username string, banned bool) model.User {

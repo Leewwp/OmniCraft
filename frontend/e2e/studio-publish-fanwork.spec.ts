@@ -1,10 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
+import { mockApiRoute } from "./helpers/mock-api-guard";
 import { mockPublicApis } from "./helpers/mock-public-apis";
 
 async function mockCreatorSession(page: Page) {
   await mockPublicApis(page);
 
-  await page.route("**/api/v1/auth/refresh", (route) =>
+  await mockApiRoute(page, "**/api/v1/auth/refresh", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -12,7 +13,7 @@ async function mockCreatorSession(page: Page) {
     }),
   );
 
-  await page.route("**/api/v1/auth/me", (route) =>
+  await mockApiRoute(page, "**/api/v1/auth/me", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -34,7 +35,7 @@ async function mockCreatorSession(page: Page) {
     }),
   );
 
-  await page.route("**/api/v1/notifications/unread-count", (route) =>
+  await mockApiRoute(page, "**/api/v1/notifications/unread-count", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -43,14 +44,15 @@ async function mockCreatorSession(page: Page) {
   );
 }
 
-test("fanwork publish selects IP and source original IDs before submitting", async ({ page }) => {
+// Mocked UI/payload coverage only. Real fanwork publish semantics are verified in Go tests.
+test("mocked fanwork publish payload includes IP and source original IDs before submitting", async ({ page }) => {
   await mockCreatorSession(page);
 
   const sourceSearchUrls: string[] = [];
   const legacyContentSearchUrls: string[] = [];
   const contentCreates: unknown[] = [];
 
-  await page.route("**/api/v1/ips?**", (route) =>
+  await mockApiRoute(page, "**/api/v1/ips?**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -58,7 +60,7 @@ test("fanwork publish selects IP and source original IDs before submitting", asy
     }),
   );
 
-  await page.route("**/api/v1/contents/search?**", (route) => {
+  await mockApiRoute(page, "**/api/v1/contents/search?**", (route) => {
     sourceSearchUrls.push(route.request().url());
     return route.fulfill({
       status: 200,
@@ -67,14 +69,14 @@ test("fanwork publish selects IP and source original IDs before submitting", asy
     });
   });
 
-  await page.route("**/api/v1/contents?**", (route) => {
+  await mockApiRoute(page, "**/api/v1/contents?**", (route) => {
     if (route.request().method() === "GET") {
       legacyContentSearchUrls.push(route.request().url());
     }
     return route.fallback();
   });
 
-  await page.route("**/api/v1/contents", async (route) => {
+  await mockApiRoute(page, "**/api/v1/contents", async (route) => {
     contentCreates.push(route.request().postDataJSON());
     await route.fulfill({
       status: 200,
@@ -108,10 +110,10 @@ test("fanwork publish selects IP and source original IDs before submitting", asy
   expect(legacyContentSearchUrls).toHaveLength(0);
 });
 
-test("fanwork pickers preserve edited query after clearing a selected option", async ({ page }) => {
+test("mocked fanwork pickers preserve edited query after clearing a selected option", async ({ page }) => {
   await mockCreatorSession(page);
 
-  await page.route("**/api/v1/ips?**", (route) =>
+  await mockApiRoute(page, "**/api/v1/ips?**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -119,7 +121,7 @@ test("fanwork pickers preserve edited query after clearing a selected option", a
     }),
   );
 
-  await page.route("**/api/v1/contents/search?**", (route) =>
+  await mockApiRoute(page, "**/api/v1/contents/search?**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",

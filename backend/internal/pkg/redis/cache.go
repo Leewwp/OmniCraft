@@ -28,6 +28,9 @@ func GetJSON(ctx context.Context, key string, dest interface{}) (bool, error) {
 }
 
 func DeleteByPattern(ctx context.Context, pattern string) error {
+	if Client == nil {
+		return nil
+	}
 	var cursor uint64
 	for {
 		keys, nextCursor, err := Client.Scan(ctx, cursor, pattern, 100).Result()

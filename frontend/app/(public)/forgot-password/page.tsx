@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, type ComponentType } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
@@ -9,9 +9,13 @@ import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import CaptchaWidget from "@/components/verification/CaptchaWidget";
+import { CaptchaWidget, type CaptchaWidgetProps } from "@/components/verification/CaptchaWidget";
 
-function ForgotPasswordContent() {
+interface ForgotPasswordContentProps {
+  CaptchaComponent?: ComponentType<CaptchaWidgetProps>;
+}
+
+export function ForgotPasswordContent({ CaptchaComponent = CaptchaWidget }: ForgotPasswordContentProps) {
   const t = useTranslations();
   const [email, setEmail] = useState("");
   const [captchaToken, setCaptchaToken] = useState("");
@@ -103,7 +107,7 @@ function ForgotPasswordContent() {
               {error && <FieldError id="email-error">{error}</FieldError>}
             </Field>
 
-            <CaptchaWidget key={captchaResetKey} onToken={setCaptchaToken} />
+            <CaptchaComponent key={captchaResetKey} onToken={setCaptchaToken} />
 
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? t("common.processing") : t("auth.sendResetLink")}

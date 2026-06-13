@@ -153,12 +153,15 @@ func setupAgentVisibilityDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(&model.User{}, &model.IP{}, &model.ContentItem{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	for _, stmt := range []string{
-		"ALTER TABLE users ADD COLUMN deleted_at DATETIME",
-		"ALTER TABLE content_items ADD COLUMN deleted_at DATETIME",
+	for _, check := range []struct {
+		table  any
+		column string
+	}{
+		{table: &model.User{}, column: "deleted_at"},
+		{table: &model.ContentItem{}, column: "deleted_at"},
 	} {
-		if err := db.Exec(stmt).Error; err != nil {
-			t.Fatalf("schema patch %q: %v", stmt, err)
+		if !db.Migrator().HasColumn(check.table, check.column) {
+			t.Fatalf("expected AutoMigrate to own %s", check.column)
 		}
 	}
 	return db

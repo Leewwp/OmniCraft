@@ -96,6 +96,120 @@ func TestRetryAndDLQ(t *testing.T) {
 	}
 }
 
+func TestRetryAndDLQ_PayloadAndMetadataPreserved(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer rdb.Close()
+
+	cfg := &QueueConfig{
+		Enabled:         true,
+		MaxAttempts:     2,
+		RetryBackoffSec: []int{0, 0},
+		MaxLen:          100000,
+	}
+
+	broker := NewRedisStreamBroker(rdb, cfg)
+	defer broker.Stop()
+
+	// Handler that always fails so retries exhaust
+	handler := func(ctx context.Context, msg Message) error {
+		return fmt.Errorf("permanent failure")
+	}
+
+	topic := "test.dlq-payload"
+	group := "omnicraft-dlq-test"
+
+	err := broker.Subscribe(context.Background(), topic, group, handler)
+	if err != nil {
+		t.Fatalf("subscribe failed: %v", err)
+	}
+
+	// Publish a message with a known payload
+	originalPayload, _ := json.Marshal(map[string]string{"order": "abc-123", "action": "process"})
+	err = broker.Publish(context.Background(), topic, originalPayload)
+	if err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+
+	// Wait for retries to exhaust and DLQ write
+	time.Sleep(3 * time.Second)
+
+	// 1. Read from the DLQ stream
+	dlqKey := "omnicraft:dead-letter"
+	dlqEntries, err := rdb.XRange(context.Background(), dlqKey, "-", "+").Result()
+	if err != nil {
+		t.Fatalf("reading DLQ stream: %v", err)
+	}
+	if len(dlqEntries) == 0 {
+		t.Fatal("expected at least one entry in DLQ, got none")
+	}
+
+	// 2. Verify DLQ entry contents
+	latestEntry := dlqEntries[len(dlqEntries)-1]
+	dataStr, ok := latestEntry.Values["data"].(string)
+	if !ok {
+		t.Fatal("DLQ entry missing 'data' field")
+	}
+
+	var dlqData map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &dlqData); err != nil {
+		t.Fatalf("unmarshal DLQ data: %v", err)
+	}
+
+	// Verify original payload
+	payloadStr, _ := dlqData["payload"].(string)
+	if payloadStr != string(originalPayload) {
+		t.Errorf("DLQ payload mismatch: expected %s, got %s", string(originalPayload), payloadStr)
+	}
+	var payloadParsed map[string]string
+	if err := json.Unmarshal([]byte(payloadStr), &payloadParsed); err != nil {
+		t.Fatalf("unmarshal DLQ payload inner: %v", err)
+	}
+	if payloadParsed["order"] != "abc-123" || payloadParsed["action"] != "process" {
+		t.Errorf("DLQ payload content mismatch: got %v", payloadParsed)
+	}
+
+	// Verify original topic name
+	originalTopic, _ := dlqData["original_topic"].(string)
+	if originalTopic != topic {
+		t.Errorf("DLQ original_topic mismatch: expected %s, got %s", topic, originalTopic)
+	}
+
+	// Verify error message
+	errMsg, _ := dlqData["error"].(string)
+	if errMsg != "permanent failure" {
+		t.Errorf("DLQ error mismatch: expected 'permanent failure', got %s", errMsg)
+	}
+
+	// Verify failed_at timestamp exists and is parseable
+	failedAt, _ := dlqData["failed_at"].(string)
+	if failedAt == "" {
+		t.Error("DLQ entry missing failed_at timestamp")
+	}
+	if _, err := time.Parse(time.RFC3339, failedAt); err != nil {
+		t.Errorf("DLQ failed_at is not a valid RFC3339 timestamp: %s", failedAt)
+	}
+
+	// Verify attempts count (loop runs 0..maxAttempts-1, so total = maxAttempts)
+	expectedAttempts := cfg.MaxAttempts
+	attempts, _ := dlqData["attempts"].(float64)
+	if attempts != float64(expectedAttempts) {
+		t.Errorf("DLQ attempts mismatch: expected %d, got %v", expectedAttempts, attempts)
+	}
+
+	// 3. Verify original stream has no pending messages for the consumer group
+	streamKey := fmt.Sprintf("omnicraft:%s", topic)
+	groups, err := rdb.XInfoGroups(context.Background(), streamKey).Result()
+	if err != nil {
+		t.Fatalf("xinfo groups: %v", err)
+	}
+	for _, g := range groups {
+		if g.Name == group && g.Pending > 0 {
+			t.Errorf("expected 0 pending messages in consumer group %s, got %d", group, g.Pending)
+		}
+	}
+}
+
 func TestIdempotentCheck(t *testing.T) {
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})

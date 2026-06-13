@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, type ComponentType } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
@@ -14,7 +14,8 @@ import { useTranslations } from "next-intl";
 import { silentError } from "@/lib/error-handler";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { fetchPublicConfig } from "@/lib/public-config";
-import CaptchaWidget from "@/components/verification/CaptchaWidget";
+import { CaptchaWidget, type CaptchaWidgetProps } from "@/components/verification/CaptchaWidget";
+import type { User } from "@/contexts/AuthContext";
 
 interface RegisterResponse {
   user: {
@@ -29,11 +30,18 @@ const REGISTER_CAPTCHA_CONTAINER_ID = "register-captcha-container";
 const REGISTER_SUBMIT_BUTTON_ID = "register-submit-button";
 const REGISTER_CAPTCHA_BUTTON_ID = "register-captcha-button";
 
-export default function RegisterPage() {
-  const t = useTranslations();
-  const router = useRouter();
-  const { user } = useAuth();
+interface RegisterPageContentProps {
+  user: User | null;
+  router: Pick<ReturnType<typeof useRouter>, "push" | "replace">;
+  CaptchaComponent?: ComponentType<CaptchaWidgetProps>;
+}
 
+export function RegisterPageContent({
+  user,
+  router,
+  CaptchaComponent = CaptchaWidget,
+}: RegisterPageContentProps) {
+  const t = useTranslations();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -230,7 +238,7 @@ export default function RegisterPage() {
               {errors.confirmPassword && <FieldError id="confirm-password-error">{errors.confirmPassword}</FieldError>}
             </Field>
 
-            <CaptchaWidget
+            <CaptchaComponent
               key={captchaResetKey}
               containerId={REGISTER_CAPTCHA_CONTAINER_ID}
               buttonId={REGISTER_CAPTCHA_BUTTON_ID}
@@ -308,4 +316,11 @@ export default function RegisterPage() {
       </div>
     </div>
   );
+}
+
+export default function RegisterPage() {
+  const router = useRouter();
+  const { user } = useAuth();
+
+  return <RegisterPageContent user={user} router={router} />;
 }

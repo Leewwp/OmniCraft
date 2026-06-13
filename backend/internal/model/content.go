@@ -26,6 +26,7 @@ type ContentItem struct {
 	IsPaid           bool         `gorm:"not null;default:false" json:"is_paid"`
 	Price            float64      `gorm:"type:numeric(10,2);default:0" json:"price"`
 	DownloadCount    int          `gorm:"not null;default:0" json:"download_count"`
+	DeletedAt        *time.Time   `gorm:"index" json:"deleted_at,omitempty"`
 	CreatedAt        time.Time    `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt        time.Time    `gorm:"autoUpdateTime" json:"updated_at"`
 }

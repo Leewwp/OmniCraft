@@ -1,7 +1,10 @@
 import type { Page } from "@playwright/test";
+import { installMockedApiGuard, mockApiRoute } from "./mock-api-guard";
 
 export async function mockPublicApis(page: Page) {
-  await page.route("**/api/v1/config/public", (route) =>
+  await installMockedApiGuard(page);
+
+  await mockApiRoute(page, "**/api/v1/config/public", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -12,7 +15,8 @@ export async function mockPublicApis(page: Page) {
           creator_support_enabled: false,
           payment_enabled: false,
         },
-        captcha: { provider: "bypass" },
+        captcha: { provider: "bypass", prefix: "", scene_id: "", region: "cn" },
+        client: { download_enabled: false, download_url: "", latest_version: "" },
         legal: {
           current_terms_version: "test",
           current_privacy_version: "test",
@@ -21,7 +25,7 @@ export async function mockPublicApis(page: Page) {
     }),
   );
 
-  await page.route("**/api/v1/auth/csrf", (route) =>
+  await mockApiRoute(page, "**/api/v1/auth/csrf", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -29,7 +33,7 @@ export async function mockPublicApis(page: Page) {
     }),
   );
 
-  await page.route("**/api/v1/auth/refresh", (route) =>
+  await mockApiRoute(page, "**/api/v1/auth/refresh", (route) =>
     route.fulfill({
       status: 401,
       contentType: "application/json",
@@ -37,7 +41,7 @@ export async function mockPublicApis(page: Page) {
     }),
   );
 
-  await page.route("**/api/v1/ips/stats/category_counts", (route) =>
+  await mockApiRoute(page, "**/api/v1/ips/stats/category_counts", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -45,7 +49,7 @@ export async function mockPublicApis(page: Page) {
     }),
   );
 
-  await page.route("**/api/v1/ips?**", (route) =>
+  await mockApiRoute(page, "**/api/v1/ips?**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -53,23 +57,23 @@ export async function mockPublicApis(page: Page) {
     }),
   );
 
-  await page.route("**/api/v1/contents/search?**", (route) =>
+  await mockApiRoute(page, "**/api/v1/contents/search?**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ items: [], total: 0 }),
+      body: JSON.stringify({ items: [], total: 0, page: 1, page_size: 20, total_pages: 0, time_range: "all" }),
     }),
   );
 
-  await page.route("**/api/v1/contents?**", (route) =>
+  await mockApiRoute(page, "**/api/v1/contents?**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ contents: [], total: 0 }),
+      body: JSON.stringify({ contents: [], total: 0, page: 1, page_size: 20 }),
     }),
   );
 
-  await page.route("**/api/v1/stats/summary", (route) =>
+  await mockApiRoute(page, "**/api/v1/stats/summary", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -77,7 +81,7 @@ export async function mockPublicApis(page: Page) {
     }),
   );
 
-  await page.route("**/api/v1/tags/faceted?**", (route) =>
+  await mockApiRoute(page, "**/api/v1/tags/faceted?**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
