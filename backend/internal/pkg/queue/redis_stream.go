@@ -96,7 +96,8 @@ func (b *RedisStreamBroker) handleMessage(ctx context.Context, topic, group stri
 	maxAttempts := b.cfg.MaxAttempts
 
 	var lastErr error
-	for attempt := 0; attempt <= maxAttempts; attempt++ {
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		msg.Attempts = attempt + 1
 		logQueueEvent("consume_start", topic, msg.ID, attempt)
 		if err := handler(ctx, msg); err != nil {
 			lastErr = err
@@ -119,14 +120,14 @@ func (b *RedisStreamBroker) handleMessage(ctx context.Context, topic, group stri
 	}
 
 	slog.Error("handler exhausted retries, sending to DLQ",
-		"topic", topic, "msg_id", msg.ID, "attempts", maxAttempts, "last_error", lastErr)
+		"topic", topic, "msg_id", msg.ID, "attempts", msg.Attempts, "last_error", lastErr)
 	b.sendToDLQ(ctx, msg, lastErr)
 	b.rdb.XAck(ctx, streamKey(topic), group, msg.ID)
 }
 
 func (b *RedisStreamBroker) sendToDLQ(ctx context.Context, msg Message, err error) {
 	dlqKey := "omnicraft:dead-letter"
-	payload, _ := json.Marshal(map[string]interface{}{
+	payload, marshalErr := json.Marshal(map[string]interface{}{
 		"original_topic": msg.Topic,
 		"original_id":    msg.ID,
 		"payload":        string(msg.Payload),
@@ -135,14 +136,23 @@ func (b *RedisStreamBroker) sendToDLQ(ctx context.Context, msg Message, err erro
 		"error":          err.Error(),
 		"failed_at":      time.Now().Format(time.RFC3339),
 	})
-	b.rdb.XAdd(ctx, &redis.XAddArgs{
+	if marshalErr != nil {
+		slog.Error("failed to marshal DLQ payload", "topic", msg.Topic, "error", marshalErr)
+		return
+	}
+	if _, xaddErr := b.rdb.XAdd(ctx, &redis.XAddArgs{
 		Stream: dlqKey,
 		MaxLen: 10000,
 		Approx: true,
 		Values: map[string]interface{}{
 			"data": string(payload),
 		},
-	})
+	}).Result(); xaddErr != nil {
+		slog.Error("failed to write message to DLQ",
+			"topic", msg.Topic,
+			"msg_id", msg.ID,
+			"error", xaddErr)
+	}
 }
 
 func (b *RedisStreamBroker) ensureGroup(ctx context.Context, streamKey, group string) error {

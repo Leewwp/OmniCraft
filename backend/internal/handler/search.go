@@ -89,7 +89,7 @@ func (h *SearchHandler) SearchContents(c *gin.Context) {
 		vid = id
 	}
 
-	results, total, err := h.searchSvc.SearchContents(query, zone, category, contentType, tagFilters, sort, page, pageSize, vid)
+	results, total, err := h.searchSvc.SearchContents(query, zone, category, contentType, tagFilters, sort, timeRange, page, pageSize, vid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "search failed"})
 		return

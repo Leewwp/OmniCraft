@@ -1,8 +1,23 @@
-"""OmniCraft Test Data Seeder — uses only stdlib (urllib)."""
-import json, sys, urllib.request, urllib.error
+"""OmniCraft Test Data Seeder — uses only stdlib (urllib).
 
-BASE = "http://localhost:8080/api/v1"
+Environment variables:
+  SEED_BASE_URL  - API base URL (default: http://localhost:8080/api/v1)
+  SEED_EMAIL     - Login email (default: demo@omnicraft.com)
+  SEED_PASSWORD  - Login password (default: demo123456)
+
+Features:
+  - Credentials from environment variables (TST-045)
+  - Fatal exit on critical API failures (TST-031)
+  - Idempotent: skips already-existing IPs by name (TST-032)
+  - Verification pass after seeding (TST-032)
+"""
+import json, os, sys, urllib.request, urllib.error, urllib.parse
+
+BASE = os.environ.get("SEED_BASE_URL", "http://localhost:8080/api/v1")
+SEED_EMAIL = os.environ.get("SEED_EMAIL", "demo@omnicraft.com")
+SEED_PASSWORD = os.environ.get("SEED_PASSWORD", "demo123456")
 TOKEN = None
+
 
 def api(method, path, data=None):
     url = f"{BASE}{path}"
@@ -13,29 +28,38 @@ def api(method, path, data=None):
     req = urllib.request.Request(url, data=body, method=method.upper(), headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
-            resp = json.loads(r.read())
-            return resp
+            return json.loads(r.read())
     except urllib.error.HTTPError as e:
         err_body = ""
         try: err_body = e.read().decode()[:250]
-        except: pass
+        except Exception: pass
         print(f"  ERR {e.code}: {err_body}")
         return None
     except Exception as e:
         print(f"  EXC: {e}")
         return None
 
+
+def api_fatal(method, path, data=None, label=""):
+    """Call api() and exit on failure — used for critical operations (TST-031)."""
+    result = api(method, path, data)
+    if result is None:
+        desc = label or f"{method} {path}"
+        print(f"FATAL: {desc} failed, aborting.", file=sys.stderr)
+        sys.exit(1)
+    return result
+
+
 # Login
 print("=== Logging in ===")
-r = api("POST", "/auth/login", {"email": "demo@omnicraft.com", "password": "demo123456"})
-if not r:
-    print("Login failed!")
-    sys.exit(1)
+r = api_fatal("POST", "/auth/login",
+              {"email": SEED_EMAIL, "password": SEED_PASSWORD},
+              label=f"Login as {SEED_EMAIL}")
 TOKEN = r["tokens"]["access_token"]
 UID = r["user"]["id"]
 print(f"Logged in as uid={UID} role={r['user']['role']}")
 
-# === IPs ===
+# === IPs (idempotent: skip if already exists by name) ===
 ip_data = [
     ("原神", "米哈游开发的开放世界冒险游戏，以提瓦特大陆为舞台。", "gaming", ["开放世界","RPG","米哈游"]),
     ("崩坏：星穹铁道", "米哈游科幻题材回合制RPG，星际旅行和银河冒险。", "gaming", ["回合制","RPG","科幻","米哈游"]),
@@ -47,9 +71,20 @@ ip_data = [
     ("原神-枫丹", "原神第四国度，水之国枫丹，蒸汽朋克与魔术的世界。", "gaming", ["原神","枫丹","蒸汽朋克"]),
 ]
 
+# Fetch existing IPs for idempotency
+existing_ips_resp = api("GET", "/ips?page_size=100")
+existing_ips = {}
+if existing_ips_resp:
+    for ip in existing_ips_resp.get("ips", existing_ips_resp.get("data", [])):
+        existing_ips[ip["name"]] = ip["id"]
+
 ips = {}
 print("\n=== Creating IPs ===")
 for name, desc, cat, tags in ip_data:
+    if name in existing_ips:
+        ips[name] = existing_ips[name]
+        print(f"  SKIP: {name} already exists (id={existing_ips[name]})")
+        continue
     r = api("POST", "/ips", {"name": name, "description": desc, "category": cat, "tags": tags})
     if r:
         iid = r["ip"]["id"]
@@ -60,6 +95,8 @@ for name, desc, cat, tags in ip_data:
             ar = api("POST", f"/admin/ips/{iid}/approve")
             if ar:
                 print(f"    -> approved")
+    else:
+        print(f"  FAILED: {name}")
 
 # === Original Contents ===
 originals = {}
@@ -109,6 +146,8 @@ for title, desc, cat, ctype, tags in orig_data:
         oid = r.get("content", r).get("id")
         originals[title[:30]] = oid
         print(f"  [{oid}] {title[:55]}... ({ctype})")
+    else:
+        print(f"  FAILED: {title[:55]}...")
 
 # === Fanworks ===
 fanwork_data = [
@@ -143,6 +182,9 @@ fanwork_data = [
 
 print("\n=== Creating Fanworks ===")
 for title, desc, ip_name, ctype, tags, src_key in fanwork_data:
+    if ip_name not in ips:
+        print(f"  SKIP: IP {ip_name} not found")
+        continue
     body = {"title": title, "description": desc, "zone": "fanwork",
             "ip_id": ips[ip_name], "content_type": ctype, "tags": tags}
     if src_key:
@@ -154,6 +196,21 @@ for title, desc, ip_name, ctype, tags, src_key in fanwork_data:
     if r:
         fid = r.get("content", r).get("id")
         print(f"  [{fid}] {title[:55]}... ({ctype}) @ {ip_name}")
+    else:
+        print(f"  FAILED: {title[:40]}")
+
+# === Verification pass (TST-032) ===
+print("\n=== Verifying seed data ===")
+verify_ips = api("GET", "/ips?page_size=100")
+verify_ip_count = len(verify_ips.get("ips", verify_ips.get("data", []))) if verify_ips else 0
+print(f"  IPs in database: {verify_ip_count}")
+
+verify_contents = api("GET", "/contents?page_size=1")
+verify_total = verify_contents.get("total", 0) if verify_contents else 0
+print(f"  Total contents: {verify_total}")
+
+if verify_ip_count == 0:
+    print("WARNING: No IPs found after seeding — data may not have been written")
 
 print(f"\n=== Done ===")
 print(f"IPs: {len(ips)} | Originals: {len(originals)} | Fanworks: {len(fanwork_data)}")

@@ -20,7 +20,8 @@ export function handleApiError(
       return;
     }
     if (error.status === 403) {
-      options?.toast?.("error", "Permission denied");
+      const forbiddenMessage = options?.translate?.("common.forbidden") ?? "Permission denied";
+      options?.toast?.("error", forbiddenMessage);
       return;
     }
     if (error.status === 429) {
@@ -29,7 +30,8 @@ export function handleApiError(
       return;
     }
     if (error.status >= 500) {
-      options?.toast?.("error", "Server busy, please try again later");
+      const serverErrorMessage = options?.translate?.("common.serverError") ?? "Server busy, please try again later";
+      options?.toast?.("error", serverErrorMessage);
       return;
     }
     console.error(`[api-error] ${context?.component}:${context?.action} — ${error.code}: ${error.message}`);
@@ -37,7 +39,8 @@ export function handleApiError(
   }
 
   if (error instanceof TypeError && error.message === "Failed to fetch") {
-    options?.toast?.("error", "Network connection failed, please check your network");
+    const networkErrorMessage = options?.translate?.("common.networkError") ?? "Network connection failed, please check your network";
+    options?.toast?.("error", networkErrorMessage);
     return;
   }
 

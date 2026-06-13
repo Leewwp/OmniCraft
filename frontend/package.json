@@ -7,8 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "tsc --noEmit",
-    "test": "node lib/api.csrf.test.cjs && node components/verification/CaptchaWidget.test.cjs && node --test tests/*.test.mjs",
-    "test:e2e": "playwright test"
+    "test": "node lib/api.csrf.test.cjs && node --test tests/*.test.mjs && node --import tsx --test lib/api.cookie.test.ts tests/error-handler-i18n.test.ts tests/sheet-music-viewer-download.test.tsx tests/register-captcha.test.tsx tests/captcha-ticket-reset.test.tsx tests/feedback-form-upload.test.tsx tests/content-upload-grant.test.tsx components/verification/CaptchaWidget.test.tsx",
+    "test:e2e": "playwright test",
+    "test:e2e:release-manual": "powershell -ExecutionPolicy Bypass -File ..\\scripts\\run-root-python-e2e.ps1"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
@@ -42,10 +43,14 @@
     "@playwright/test": "^1.60.0",
     "@swc/helpers": "^0.5.21",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/react": "^16.3.2",
+    "@types/jsdom": "^28.0.3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "jsdom": "^29.1.1",
     "tailwindcss": "^4",
+    "tsx": "^4.22.4",
     "typescript": "^5"
   }
 }

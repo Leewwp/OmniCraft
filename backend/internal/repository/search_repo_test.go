@@ -1,8 +1,6 @@
 package repository
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -166,7 +164,7 @@ func TestSearchContentsKeywordAppliesSharedVisibility(t *testing.T) {
 	createVisibilityContent(t, db, "Needle banned ip", other.ID, &bannedIP.ID, true, nil)
 	createVisibilityContent(t, db, "Needle soft deleted", other.ID, nil, true, ptrTime(time.Now()))
 
-	results, total, err := NewSearchRepository(db).SearchContents("Needle", "", "", "", nil, "relevance", 1, 20, viewer.ID)
+	results, total, err := NewSearchRepository(db).SearchContents("Needle", "", "", "", nil, "relevance", "all", 1, 20, viewer.ID)
 	if err != nil {
 		t.Fatalf("SearchContents: %v", err)
 	}
@@ -184,6 +182,48 @@ func TestSearchContentsKeywordAppliesSharedVisibility(t *testing.T) {
 	}
 	if total != int64(len(results)) || total != 2 {
 		t.Fatalf("total = %d, results = %d, want 2 visible keyword matches", total, len(results))
+	}
+}
+
+func TestSearchContentsFiltersByContentTypeAndTimeRange(t *testing.T) {
+	db := setupContentVisibilityTestDB(t)
+	viewer := createVisibilityUser(t, db, "filter-viewer@example.com", "filter-viewer", false)
+	author := createVisibilityUser(t, db, "filter-author@example.com", "filter-author", false)
+
+	recentImage := createVisibilityContent(t, db, "Needle recent image", author.ID, nil, true, nil)
+	if err := db.Model(&model.ContentItem{}).Where("id = ?", recentImage.ID).Update("content_type", "image").Error; err != nil {
+		t.Fatalf("set recent image type: %v", err)
+	}
+
+	oldImage := createVisibilityContent(t, db, "Needle old image", author.ID, nil, true, nil)
+	if err := db.Model(&model.ContentItem{}).Where("id = ?", oldImage.ID).Updates(map[string]any{
+		"content_type": "image",
+		"created_at":   time.Now().AddDate(0, 0, -10),
+	}).Error; err != nil {
+		t.Fatalf("set old image attrs: %v", err)
+	}
+
+	recentArticle := createVisibilityContent(t, db, "Needle recent article", author.ID, nil, true, nil)
+	if err := db.Model(&model.ContentItem{}).Where("id = ?", recentArticle.ID).Update("content_type", "article").Error; err != nil {
+		t.Fatalf("set recent article type: %v", err)
+	}
+
+	results, total, err := NewSearchRepository(db).SearchContents("Needle", "", "", "image", nil, "relevance", "week", 1, 20, viewer.ID)
+	if err != nil {
+		t.Fatalf("SearchContents with filters: %v", err)
+	}
+
+	if total != 1 {
+		t.Fatalf("total = %d, want 1", total)
+	}
+	if len(results) != 1 {
+		t.Fatalf("len(results) = %d, want 1", len(results))
+	}
+	if results[0].Title != "Needle recent image" {
+		t.Fatalf("result title = %q, want Needle recent image", results[0].Title)
+	}
+	if results[0].ContentType != "image" {
+		t.Fatalf("result content_type = %q, want image", results[0].ContentType)
 	}
 }
 
@@ -231,14 +271,30 @@ func TestSearchSuggestionsApplySharedVisibility(t *testing.T) {
 	}
 }
 
-func TestSearchSuggestionsDoesNotFilterTagsByMissingStatus(t *testing.T) {
-	data, err := os.ReadFile("search_repo.go")
-	if err != nil {
-		t.Fatalf("read search repo: %v", err)
+func TestSearchSuggestionsIncludesTagsWithoutRequiringMissingStatusColumn(t *testing.T) {
+	db := setupContentVisibilityTestDB(t)
+	viewer := createVisibilityUser(t, db, "tag-viewer@example.com", "tag-viewer", false)
+	other := createVisibilityUser(t, db, "tag-other@example.com", "tag-other", false)
+	createVisibilityContent(t, db, "Needle visible public", other.ID, nil, true, nil)
+
+	tags := []model.Tag{
+		{Name: "Needle-tag-high", Category: "general", UsageCount: 50},
+		{Name: "Needle-tag-low", Category: "general", UsageCount: 5},
 	}
-	sql := string(data)
-	if strings.Contains(sql, "FROM tags WHERE name ILIKE ? AND status") {
-		t.Fatal("SearchSuggestions must not filter tags by tags.status; the tags table has no status column")
+	if err := db.Create(&tags).Error; err != nil {
+		t.Fatalf("create tags: %v", err)
+	}
+
+	suggestions, err := NewSearchRepository(db).SearchSuggestions("Needle", 10, viewer.ID)
+	if err != nil {
+		t.Fatalf("SearchSuggestions: %v", err)
+	}
+
+	texts := searchSuggestionTexts(suggestions)
+	for _, want := range []string{"Needle-tag-high", "Needle-tag-low", "Needle visible public"} {
+		if !texts[want] {
+			t.Fatalf("expected %q in suggestions, got %#v", want, texts)
+		}
 	}
 }
 
@@ -251,12 +307,15 @@ func setupContentVisibilityTestDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(&model.User{}, &model.IP{}, &model.ContentItem{}, &model.ContentTag{}, &model.Tag{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	for _, stmt := range []string{
-		"ALTER TABLE users ADD COLUMN deleted_at DATETIME",
-		"ALTER TABLE content_items ADD COLUMN deleted_at DATETIME",
+	for _, check := range []struct {
+		table  any
+		column string
+	}{
+		{table: &model.User{}, column: "deleted_at"},
+		{table: &model.ContentItem{}, column: "deleted_at"},
 	} {
-		if err := db.Exec(stmt).Error; err != nil {
-			t.Fatalf("schema patch %q: %v", stmt, err)
+		if !db.Migrator().HasColumn(check.table, check.column) {
+			t.Fatalf("expected AutoMigrate to own %s", check.column)
 		}
 	}
 	return db
@@ -334,26 +393,6 @@ func searchSuggestionTexts(results []SearchSuggestion) map[string]bool {
 		texts[item.Text] = true
 	}
 	return texts
-}
-
-func TestWebBetaReviewRepairMigrationAddsFeedbackAndReportSchema(t *testing.T) {
-	migrationPath := filepath.Join("..", "..", "migrations", "055_web_beta_review_repairs.sql")
-	data, err := os.ReadFile(migrationPath)
-	if err != nil {
-		t.Fatalf("read repair migration: %v", err)
-	}
-	sql := string(data)
-
-	required := []string{
-		"ADD COLUMN IF NOT EXISTS action_taken",
-		"feedback_tickets_status_check",
-		"'reopened'",
-	}
-	for _, req := range required {
-		if !strings.Contains(sql, req) {
-			t.Fatalf("repair migration missing %q:\n%s", req, sql)
-		}
-	}
 }
 
 func TestReportUpdateStatusPersistsActionTaken(t *testing.T) {

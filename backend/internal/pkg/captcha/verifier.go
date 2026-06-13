@@ -183,7 +183,7 @@ func (r aliyunCaptchaVerifyResponse) verifyCode() string {
 
 func isAliyunCaptchaSuccessCode(code string) bool {
 	switch strings.ToLower(strings.TrimSpace(code)) {
-	case "", "ok", "200", "success":
+	case "ok":
 		return true
 	default:
 		return false
@@ -191,16 +191,8 @@ func isAliyunCaptchaSuccessCode(code string) bool {
 }
 
 func boolFromAliyunValue(value interface{}) bool {
-	switch typed := value.(type) {
-	case bool:
-		return typed
-	case string:
-		return strings.EqualFold(typed, "true") || strings.EqualFold(typed, "pass")
-	case float64:
-		return typed == 1
-	default:
-		return false
-	}
+	typed, ok := value.(bool)
+	return ok && typed
 }
 
 func aliyunCaptchaEndpoint(region string) string {

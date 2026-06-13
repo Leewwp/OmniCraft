@@ -1,18 +1,70 @@
-"""Browser test for OmniCraft seeded test data."""
+"""Browser smoke test for OmniCraft seeded test data.
+
+Environment variables:
+  OMNICRAFT_API_URL - Backend API URL (default: http://localhost:8080/api/v1)
+  OMNICRAFT_WEB_URL - Frontend URL (default: http://localhost:3000)
+
+Exit codes:
+  0 - all pages loaded without errors
+  1 - one or more errors collected
+"""
 from playwright.sync_api import sync_playwright
+import json
 import os
+import sys
+import urllib.request
+import urllib.error
 
 SCREENSHOTS = os.path.join(os.path.dirname(os.path.dirname(__file__)), "screenshots")
 os.makedirs(SCREENSHOTS, exist_ok=True)
 
-PAGES = [
-    ("Original Home", "http://localhost:3000/original"),
-    ("Fanwork Home", "http://localhost:3000"),
-    ("IP Detail - Genshin", "http://localhost:3000/ip/27"),
-    ("Original Content Detail", "http://localhost:3000/original/63"),
-    ("Fanwork Content Detail", "http://localhost:3000/content/77"),
-]
+API_URL = os.environ.get("OMNICRAFT_API_URL", "http://localhost:8080/api/v1")
+WEB_URL = os.environ.get("OMNICRAFT_WEB_URL", "http://localhost:3000")
 
+
+def api_get(path):
+    """GET from API, return parsed JSON or None."""
+    url = f"{API_URL}{path}"
+    try:
+        with urllib.request.urlopen(url, timeout=10) as r:
+            return json.loads(r.read())
+    except Exception as e:
+        print(f"  API lookup failed: {e}")
+        return None
+
+
+def resolve_page_urls():
+    """Build page list with dynamic IDs from the API instead of hard-coded ones."""
+    pages = [
+        ("Original Home", f"{WEB_URL}/original"),
+        ("Fanwork Home", WEB_URL),
+    ]
+
+    # Resolve IP detail URL dynamically
+    ip_data = api_get("/ips?page_size=1&category=gaming")
+    if ip_data:
+        ips = ip_data.get("ips", ip_data.get("data", []))
+        if ips:
+            pages.append(("IP Detail", f"{WEB_URL}/ip/{ips[0]['id']}"))
+
+    # Resolve original content detail URL dynamically
+    orig_data = api_get("/contents?zone=original&page_size=1")
+    if orig_data:
+        contents = orig_data.get("contents", orig_data.get("data", []))
+        if contents:
+            pages.append(("Original Content Detail", f"{WEB_URL}/original/{contents[0]['id']}"))
+
+    # Resolve fanwork content detail URL dynamically
+    fw_data = api_get("/contents?zone=fanwork&page_size=1")
+    if fw_data:
+        contents = fw_data.get("contents", fw_data.get("data", []))
+        if contents:
+            pages.append(("Fanwork Content Detail", f"{WEB_URL}/content/{contents[0]['id']}"))
+
+    return pages
+
+
+PAGES = resolve_page_urls()
 errors = []
 
 with sync_playwright() as p:
@@ -24,7 +76,7 @@ with sync_playwright() as p:
     page = context.new_page()
 
     # Capture console errors
-    page.on("console", lambda msg: errors.append(f"[{msg.type}] {msg.text}") if msg.type in ("error", "warning") else None)
+    page.on("console", lambda msg: errors.append(f"[{msg.type}] {msg.text}") if msg.type == "error" else None)
     page.on("pageerror", lambda err: errors.append(f"[PAGE ERROR] {err}"))
 
     for name, url in PAGES:
@@ -43,8 +95,6 @@ with sync_playwright() as p:
 
             # Quick content check
             cards = page.locator("[class*='card'], [class*='Card'], [class*='masonry']").count()
-            content_el = page.locator("text=原神, text=流浪地球, text=黑神话, text=饭团, text=橘猫, text=枫丹").first
-            has_content = content_el.is_visible() if content_el else False
             print(f"  Content elements found: {cards}")
         except Exception as e:
             print(f"  ERROR: {e}")
@@ -63,3 +113,7 @@ if errors:
     with open(os.path.join(SCREENSHOTS, "errors.txt"), "w") as f:
         for e in errors:
             f.write(e + "\n")
+
+# Exit non-zero if errors were collected (TST-029)
+if errors:
+    sys.exit(1)

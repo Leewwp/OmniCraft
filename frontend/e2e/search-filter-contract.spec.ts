@@ -1,11 +1,13 @@
 import { expect, test } from "@playwright/test";
+import { mockApiRoute } from "./helpers/mock-api-guard";
 import { mockPublicApis } from "./helpers/mock-public-apis";
 
-test("search sends selected filters in backend query parameter names", async ({ page }) => {
+// Mocked request-shape coverage only. Real backend search semantics are verified in Go tests.
+test("mocked search request-shape sends selected filters in backend query parameter names", async ({ page }) => {
   await mockPublicApis(page);
   const contentRequests: string[] = [];
 
-  await page.route("**/api/v1/contents/search?**", (route) => {
+  await mockApiRoute(page, "**/api/v1/contents/search?**", (route) => {
     contentRequests.push(route.request().url());
     return route.fulfill({
       status: 200,

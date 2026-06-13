@@ -15,7 +15,7 @@ declare global {
   }
 }
 
-interface CaptchaWidgetProps {
+export interface CaptchaWidgetProps {
   onToken: (token: string) => void;
   onError?: (error: string) => void;
   containerId?: string;
@@ -29,7 +29,7 @@ interface CaptchaVerifyResponse {
   captcha_token: string;
 }
 
-export default function CaptchaWidget({ onToken, onError, containerId, buttonId = "captcha-submit-button" }: CaptchaWidgetProps) {
+export function CaptchaWidget({ onToken, onError, containerId, buttonId = "captcha-submit-button" }: CaptchaWidgetProps) {
   const t = useTranslations();
   const initialized = useRef(false);
   const generatedElementId = useRef(`aliyun-captcha-${Math.random().toString(36).slice(2)}`);
@@ -162,6 +162,8 @@ export default function CaptchaWidget({ onToken, onError, containerId, buttonId 
     </div>
   );
 }
+
+export default CaptchaWidget;
 
 interface AliyunCaptchaOptions {
   SceneId: string;

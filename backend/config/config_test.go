@@ -5,9 +5,35 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 )
+
+// validateReleaseErrPrefix is the stable error prefix returned by
+// Config.ValidateRelease(). ValidateRelease() returns a plain fmt.Errorf
+// (not a structured AppError), so we cannot use errors.As to unwrap a code
+// field. Instead, we assert on two things: (1) the stable prefix that
+// identifies the error category, and (2) the field-path substring that
+// identifies the specific validation rule. This is more robust than a
+// single strings.Contains on an arbitrary human-readable substring because
+// the prefix acts as a stable error-code-like identifier even though the
+// production code does not yet use a structured error type.
+const validateReleaseErrPrefix = "release mode configuration error"
+
+func loadDefaultConfigForTest(t *testing.T) *Config {
+	t.Helper()
+
+	raw, err := os.ReadFile("../config.yaml")
+	require.NoError(t, err)
+
+	v := viper.New()
+	v.SetConfigType("yaml")
+	require.NoError(t, v.ReadConfig(strings.NewReader(string(raw))))
+
+	var cfg Config
+	require.NoError(t, v.Unmarshal(&cfg))
+	return &cfg
+}
 
 func TestValidateReleaseRejectsBypassCaptchaAndLoggerSMTP(t *testing.T) {
 	cfg := &Config{}
@@ -15,7 +41,11 @@ func TestValidateReleaseRejectsBypassCaptchaAndLoggerSMTP(t *testing.T) {
 	cfg.Captcha.Provider = "bypass"
 	cfg.SMTP.Mode = "logger"
 
-	require.Error(t, cfg.ValidateRelease())
+	err := cfg.ValidateRelease()
+	require.Error(t, err)
+	// Assert stable error-category prefix (acts as structured code substitute).
+	require.True(t, strings.HasPrefix(err.Error(), validateReleaseErrPrefix),
+		"error = %q, want prefix %q", err.Error(), validateReleaseErrPrefix)
 }
 
 func TestValidateReleaseRejectsDefaultJWTSecret(t *testing.T) {
@@ -25,7 +55,12 @@ func TestValidateReleaseRejectsDefaultJWTSecret(t *testing.T) {
 	cfg.SMTP.Mode = "smtp"
 	cfg.JWT.Secret = "dev-secret-change-in-production"
 
-	require.ErrorContains(t, cfg.ValidateRelease(), "jwt.secret")
+	err := cfg.ValidateRelease()
+	require.Error(t, err)
+	// Assert stable error-category prefix (acts as structured code substitute).
+	require.True(t, strings.HasPrefix(err.Error(), validateReleaseErrPrefix),
+		"error = %q, want prefix %q", err.Error(), validateReleaseErrPrefix)
+	require.ErrorContains(t, err, "jwt.secret")
 }
 
 func validReleaseConfigForTest() *Config {
@@ -140,6 +175,13 @@ func TestValidateReleaseRejectsIncompleteProductionConfig(t *testing.T) {
 			if err == nil {
 				t.Fatal("ValidateRelease() error = nil, want error")
 			}
+			// Assert the stable error-category prefix first; this acts as a
+			// structured error-code substitute since ValidateRelease returns
+			// plain fmt.Errorf, not a typed error with a Code field.
+			if !strings.HasPrefix(err.Error(), validateReleaseErrPrefix) {
+				t.Fatalf("ValidateRelease() error = %q, want prefix %q", err.Error(), validateReleaseErrPrefix)
+			}
+			// Then assert the specific field-path identifier is present.
 			if !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("ValidateRelease() error = %q, want substring %q", err.Error(), tc.want)
 			}
@@ -154,52 +196,34 @@ func TestValidateReleaseRejectsMissingLLMKeyEncryptionSecret(t *testing.T) {
 	if err == nil {
 		t.Fatal("ValidateRelease() error = nil, want error")
 	}
+	// Assert stable error-category prefix (acts as structured code substitute).
+	if !strings.HasPrefix(err.Error(), validateReleaseErrPrefix) {
+		t.Fatalf("ValidateRelease() error = %q, want prefix %q", err.Error(), validateReleaseErrPrefix)
+	}
 	if !strings.Contains(err.Error(), "LLM_KEY_ENCRYPTION_SECRET") {
-		t.Fatalf("ValidateRelease() error = %q, want LLM_KEY_ENCRYPTION_SECRET", err.Error())
+		t.Fatalf("ValidateRelease() error = %q, want substring LLM_KEY_ENCRYPTION_SECRET", err.Error())
 	}
 }
 
 func TestDefaultConfigDeclaresCreatorSupportDisabled(t *testing.T) {
-	raw, err := os.ReadFile("../config.yaml")
-	require.NoError(t, err)
-	require.Contains(t, strings.ReplaceAll(string(raw), "\t", "  "), "creator_support_enabled: false")
+	cfg := loadDefaultConfigForTest(t)
+	require.False(t, cfg.Features.CreatorSupportEnabled)
 }
 
 func TestDefaultConfigHasAbuseControlLimits(t *testing.T) {
-	raw, err := os.ReadFile("../config.yaml")
-	if err != nil {
-		t.Fatalf("read config.yaml: %v", err)
-	}
-	text := string(raw)
-	for _, want := range []string{
-		"normal_per_minute",
-		"upload_per_hour",
-		"credential_per_minute",
-		"search_per_minute",
-		"max_json_body_bytes",
-		"max_query_chars",
-		"max_search_page",
-	} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("config.yaml must declare %s", want)
-		}
-	}
+	cfg := loadDefaultConfigForTest(t)
+
+	require.Positive(t, cfg.RateLimit.NormalPerMinute)
+	require.Positive(t, cfg.RateLimit.UploadPerHour)
+	require.Positive(t, cfg.RateLimit.CredentialPerMinute)
+	require.Positive(t, cfg.RateLimit.SearchPerMinute)
+	require.Positive(t, cfg.RateLimit.MaxJSONBodyBytes)
+	require.Positive(t, cfg.RateLimit.MaxQueryChars)
+	require.Positive(t, cfg.RateLimit.MaxSearchPage)
 }
 
 func TestDefaultConfigJSONBodyLimitAllowsTextUploads(t *testing.T) {
-	raw, err := os.ReadFile("../config.yaml")
-	require.NoError(t, err)
-
-	var cfg struct {
-		Limits struct {
-			TextMaxMB int `yaml:"text_max_mb"`
-		} `yaml:"limits"`
-		RateLimit struct {
-			MaxJSONBodyBytes int64 `yaml:"max_json_body_bytes"`
-		} `yaml:"rate_limit"`
-	}
-	require.NoError(t, yaml.Unmarshal(raw, &cfg))
-
+	cfg := loadDefaultConfigForTest(t)
 	minBodyBytes := int64(cfg.Limits.TextMaxMB) * 1024 * 1024
 	require.GreaterOrEqual(t, cfg.RateLimit.MaxJSONBodyBytes, minBodyBytes)
 }

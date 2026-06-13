@@ -62,6 +62,23 @@ fn canonical_or_abs(path: &Path) -> PathBuf {
     path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
 }
 
+/// Resolve `.` and `..` components without requiring the path to exist on disk.
+/// This is essential for zip-slip protection: extracted files don't exist yet,
+/// so `canonicalize()` would fail and fall back to the raw (unsafe) path.
+fn normalize_path(path: &Path) -> PathBuf {
+    let mut components = Vec::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::ParentDir => {
+                components.pop();
+            }
+            std::path::Component::CurDir => {}
+            c => components.push(c.as_os_str()),
+        }
+    }
+    PathBuf::from_iter(components)
+}
+
 // ── Tauri commands ────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -194,8 +211,8 @@ pub fn extract_archive(archive_path: String, dest_dir: String) -> Result<FileOpR
 
         // Zip-slip protection: ensure extracted path stays within dest
         let entry_path = dest_canonical.join(&entry_name);
-        let entry_canonical = canonical_or_abs(&entry_path);
-        if !entry_canonical.starts_with(&dest_canonical) {
+        let entry_normalized = normalize_path(&entry_path);
+        if !entry_normalized.starts_with(&dest_canonical) {
             return Err(format!("zip entry '{}' would escape target directory", entry_name));
         }
 
@@ -427,6 +444,151 @@ mod tests {
         assert!(backup_dir.exists());
         let entries: Vec<_> = std::fs::read_dir(&backup_dir).unwrap().collect();
         assert!(!entries.is_empty());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_extract_archive_rejects_zip_slip() {
+        use std::io::Write;
+
+        let dir = temp_dir().join("zipslip_test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Build a malicious zip with a path traversal entry
+        let zip_path = dir.join("evil.zip");
+        let zip_file = std::fs::File::create(&zip_path).unwrap();
+        let mut zip_writer = zip::ZipWriter::new(zip_file);
+        let options = zip::write::SimpleFileOptions::default();
+
+        // Entry with path traversal (zip-slip)
+        zip_writer
+            .start_file("../../../tmp/evil.txt", options)
+            .unwrap();
+        zip_writer.write_all(b"pwned").unwrap();
+        zip_writer.finish().unwrap();
+
+        let extract_dir = dir.join("extract");
+        std::fs::create_dir_all(&extract_dir).unwrap();
+
+        let result = extract_archive(
+            zip_path.to_string_lossy().to_string(),
+            extract_dir.to_string_lossy().to_string(),
+        );
+
+        assert!(result.is_err(), "zip-slip should be rejected");
+        let err_msg = result.unwrap_err().to_lowercase();
+        assert!(
+            err_msg.contains("escape") || err_msg.contains("target directory"),
+            "error message should mention escape or target directory, got: {}",
+            err_msg
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_move_file_overwrite_creates_backup_with_original_content() {
+        let dir = temp_dir().join("move_overwrite_test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Create target file with known content
+        let dst = dir.join("target.txt");
+        std::fs::write(&dst, "original").unwrap();
+
+        // Create source file
+        let src = dir.join("source.txt");
+        std::fs::write(&src, "replacement").unwrap();
+
+        let result = move_file(
+            src.to_string_lossy().to_string(),
+            dst.to_string_lossy().to_string(),
+        );
+        assert!(result.is_ok(), "move_file should succeed: {:?}", result);
+
+        // Destination should now have replacement content
+        let dst_content = std::fs::read_to_string(&dst).unwrap();
+        assert_eq!(dst_content, "replacement");
+
+        // Backup should exist with original content
+        let backup_dir = dir.join(".omnicraft_backup");
+        assert!(backup_dir.exists(), "backup directory should exist");
+
+        let backup_content: String = std::fs::read_dir(&backup_dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .find(|e| {
+                e.path()
+                    .extension()
+                    .map(|ext| ext == "bak")
+                    .unwrap_or(false)
+            })
+            .map(|e| std::fs::read_to_string(e.path()).unwrap())
+            .expect("should find a .bak file");
+
+        assert_eq!(
+            backup_content, "original",
+            "backup should contain original content"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_backup_file_internal_fails_gracefully_on_readonly_dir() {
+        let dir = temp_dir().join("readonly_backup_test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Create a file to back up
+        let file_path = dir.join("important.txt");
+        std::fs::write(&file_path, "data").unwrap();
+
+        // Pre-create the backup directory and make it read-only
+        let backup_dir = dir.join(".omnicraft_backup");
+        std::fs::create_dir_all(&backup_dir).unwrap();
+
+        // On Windows, remove write permission from the backup directory
+        #[cfg(windows)]
+        {
+            // Make backup dir read-only by removing all write permissions
+            let mut perms = std::fs::metadata(&backup_dir).unwrap().permissions();
+            perms.set_readonly(true);
+            std::fs::set_permissions(&backup_dir, perms).unwrap();
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&backup_dir).unwrap().permissions();
+            perms.set_mode(0o555); // read+execute only
+            std::fs::set_permissions(&backup_dir, perms).unwrap();
+        }
+
+        let result = backup_file_internal(&file_path);
+
+        // Restore permissions so cleanup can succeed
+        #[cfg(windows)]
+        {
+            let mut perms = std::fs::metadata(&backup_dir).unwrap().permissions();
+            perms.set_readonly(false);
+            let _ = std::fs::set_permissions(&backup_dir, perms);
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&backup_dir).unwrap().permissions();
+            perms.set_mode(0o755);
+            let _ = std::fs::set_permissions(&backup_dir, perms);
+        }
+
+        assert!(
+            result.is_err(),
+            "backup_file_internal should return an error on read-only backup dir, not panic"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }

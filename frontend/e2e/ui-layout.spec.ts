@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { mockApiRoute } from "./helpers/mock-api-guard";
 import { mockPublicApis } from "./helpers/mock-public-apis";
 
 test("home uses full-width content and hides desktop sidebar on mobile", async ({ page }) => {
@@ -38,7 +39,7 @@ test("search stacks controls vertically and opens an accessible mobile filter di
 
 test("search hides raw API failure details and keeps retry visible", async ({ page }) => {
   await mockPublicApis(page);
-  await page.route("**/api/v1/contents/search?**", (route) =>
+  await mockApiRoute(page, "**/api/v1/contents/search?**", (route) =>
     route.fulfill({
       status: 500,
       contentType: "application/json",

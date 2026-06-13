@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
@@ -19,6 +20,16 @@ type CategoryHandler struct {
 	catSvc   *service.CategoryService
 	auditSvc *service.AdminAuditService
 	db       *gorm.DB
+}
+
+type categoryCreateRequest struct {
+	Zone      string        `json:"zone" binding:"required,oneof=fanwork original"`
+	Level     string        `json:"level" binding:"required"`
+	ParentID  *int64        `json:"parent_id"`
+	NameI18n  model.JSONMap `json:"name_i18n" binding:"required"`
+	Slug      string        `json:"slug" binding:"required"`
+	SortOrder int           `json:"sort_order"`
+	IsActive  bool          `json:"is_active"`
 }
 
 func NewCategoryHandler(db *gorm.DB, auditSvc *service.AdminAuditService) *CategoryHandler {
@@ -47,8 +58,25 @@ func (h *CategoryHandler) ListCategories(c *gin.Context) {
 }
 
 func (h *CategoryHandler) AdminCreateCategory(c *gin.Context) {
-	var cat model.Category
-	if err := c.ShouldBindJSON(&cat); err != nil {
+	var req categoryCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, "invalid request parameters")
+		return
+	}
+	if len(req.NameI18n) == 0 {
+		response.ValidationError(c, "invalid request parameters")
+		return
+	}
+	cat := model.Category{
+		Zone:      req.Zone,
+		Level:     strings.TrimSpace(req.Level),
+		ParentID:  req.ParentID,
+		NameI18n:  req.NameI18n,
+		Slug:      strings.TrimSpace(req.Slug),
+		SortOrder: req.SortOrder,
+		IsActive:  req.IsActive,
+	}
+	if cat.Level == "" || cat.Slug == "" {
 		response.ValidationError(c, "invalid request parameters")
 		return
 	}

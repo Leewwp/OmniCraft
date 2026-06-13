@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ComponentType } from "react";
 import { useTranslations } from "next-intl";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, type User } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import CaptchaWidget from "@/components/verification/CaptchaWidget";
+import { CaptchaWidget, type CaptchaWidgetProps } from "@/components/verification/CaptchaWidget";
 import { Check, Upload, X, Loader2 } from "lucide-react";
 
 const CATEGORIES = [
@@ -25,9 +25,17 @@ interface FeedbackFormProps {
   onSuccess?: (ticketId: number) => void;
 }
 
-export default function FeedbackForm({ onSuccess }: FeedbackFormProps) {
+interface FeedbackFormInnerProps extends FeedbackFormProps {
+  user: User | null;
+  CaptchaComponent?: ComponentType<CaptchaWidgetProps>;
+}
+
+export function FeedbackFormInner({
+  onSuccess,
+  user,
+  CaptchaComponent = CaptchaWidget,
+}: FeedbackFormInnerProps) {
   const t = useTranslations();
-  const { user } = useAuth();
 
   const [category, setCategory] = useState<string>("");
   const [title, setTitle] = useState("");
@@ -263,7 +271,7 @@ export default function FeedbackForm({ onSuccess }: FeedbackFormProps) {
 
       {!user && (
         <div className="space-y-2">
-          <CaptchaWidget key={captchaResetKey} onToken={setCaptchaToken} onError={() => setCaptchaToken(null)} />
+          <CaptchaComponent key={captchaResetKey} onToken={setCaptchaToken} onError={() => setCaptchaToken(null)} />
         </div>
       )}
 
@@ -272,4 +280,9 @@ export default function FeedbackForm({ onSuccess }: FeedbackFormProps) {
       </Button>
     </form>
   );
+}
+
+export default function FeedbackForm({ onSuccess }: FeedbackFormProps) {
+  const { user } = useAuth();
+  return <FeedbackFormInner onSuccess={onSuccess} user={user} />;
 }

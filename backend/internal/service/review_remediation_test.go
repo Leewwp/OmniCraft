@@ -1,10 +1,14 @@
 package service
 
 import (
-	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"gorm.io/gorm"
+
+	"omnicraft/backend/internal/testutil"
 )
 
 func TestLLMAPIKeyEncryptionRoundTripDoesNotStorePlaintext(t *testing.T) {
@@ -74,15 +78,51 @@ func TestApprovedAppealRestoresContentStatus(t *testing.T) {
 	}
 }
 
-func TestRehabStartedAtMigrationExists(t *testing.T) {
-	bytes, err := os.ReadFile("../../migrations/037_rehab_started_at.sql")
-	if err != nil {
-		t.Fatalf("read migration: %v", err)
+func TestRehabStartedAtMigrationBackfillsColumnAndRelaxesNullability(t *testing.T) {
+	db := testutil.OpenEphemeralPostgres(t)
+	requireRehabCompletionsBaseTable(t, db)
+
+	completedAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	if err := db.Exec(`INSERT INTO rehab_completions (completed_at) VALUES (?)`, completedAt).Error; err != nil {
+		t.Fatalf("seed rehab completion: %v", err)
 	}
-	sql := strings.ToLower(string(bytes))
-	for _, want := range []string{"started_at", "drop not null"} {
-		if !strings.Contains(sql, want) {
-			t.Fatalf("migration 037 must include %q, got:\n%s", want, sql)
-		}
+
+	testutil.ApplyMigrationFile(t, db, filepath.Join("..", "..", "migrations", "037_rehab_started_at.sql"))
+
+	dataType, nullable := testutil.ColumnMetadata(t, db, "rehab_completions", "started_at")
+	if dataType != "timestamp with time zone" || !nullable {
+		t.Fatalf("started_at column = (%s, nullable=%v), want timestamptz nullable", dataType, nullable)
+	}
+
+	_, nullable = testutil.ColumnMetadata(t, db, "rehab_completions", "completed_at")
+	if !nullable {
+		t.Fatal("completed_at should be nullable after migration 037")
+	}
+
+	var row struct {
+		StartedAt   time.Time
+		CompletedAt *time.Time
+	}
+	if err := db.Raw(`SELECT started_at, completed_at FROM rehab_completions LIMIT 1`).Scan(&row).Error; err != nil {
+		t.Fatalf("load rehab completion: %v", err)
+	}
+	if !row.StartedAt.Equal(completedAt) {
+		t.Fatalf("started_at = %s, want %s", row.StartedAt, completedAt)
+	}
+	if row.CompletedAt == nil || !row.CompletedAt.Equal(completedAt) {
+		t.Fatalf("completed_at = %v, want %s", row.CompletedAt, completedAt)
+	}
+}
+
+func requireRehabCompletionsBaseTable(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	if err := db.Exec(`
+		CREATE TABLE rehab_completions (
+			id BIGSERIAL PRIMARY KEY,
+			completed_at TIMESTAMPTZ NOT NULL
+		)
+	`).Error; err != nil {
+		t.Fatalf("create rehab_completions base table: %v", err)
 	}
 }

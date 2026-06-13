@@ -1,351 +1,410 @@
 """
-OmniCraft Search & Download E2E Test
-Uses Playwright for browser tests + requests for API calls
+Manual cross-stack search and download validation.
+
+This script is intentionally strict:
+- fixture/env gaps are failures
+- every protected-path assertion checks the exact contract
+- screenshots are evidence only, never the pass condition
 """
-import sys
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import hmac
 import json
+import os
+import sys
 import time
+from pathlib import Path
+from typing import Any
+from urllib.parse import parse_qs, urlparse
+
 import requests
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
-BASE_URL_API = "http://localhost:8080"
-BASE_URL_FRONT = "http://localhost:3000"
-SCREENSHOT_DIR = r"c:\Users\16278\Desktop\file\code\project\OmniCraft\screenshots\review-web-beta\09-cross-stack-e2e"
 
-results = {}
+BASE_URL_API = os.getenv("OMNICRAFT_API_URL", "http://localhost:8080").rstrip("/")
+BASE_URL_FRONT = os.getenv("OMNICRAFT_FRONTEND_URL", "http://localhost:3000").rstrip("/")
+SCREENSHOT_DIR = Path(
+    os.getenv(
+        "OMNICRAFT_SCREENSHOT_DIR",
+        r"c:\Users\16278\Desktop\file\code\project\OmniCraft\screenshots\review-web-beta\09-cross-stack-e2e",
+    )
+)
 
-def record(step, passed, detail=""):
+SEARCH_QUERY = os.getenv("OMNICRAFT_SEARCH_QUERY", "").strip()
+EXPECTED_RESULT_TITLE = os.getenv("OMNICRAFT_EXPECTED_RESULT_TITLE", "").strip()
+FORBIDDEN_SEARCH_TITLES = [
+    item.strip()
+    for item in os.getenv("OMNICRAFT_FORBIDDEN_SEARCH_TITLES", "").split(",")
+    if item.strip()
+]
+
+DOWNLOAD_CONTENT_ID = os.getenv("OMNICRAFT_DOWNLOAD_CONTENT_ID", "").strip()
+DOWNLOAD_ATTACHMENT_ID = os.getenv("OMNICRAFT_DOWNLOAD_ATTACHMENT_ID", "").strip()
+MISSING_CONTENT_ID = int(os.getenv("OMNICRAFT_MISSING_CONTENT_ID", "999999999"))
+
+VERIFIED_EMAIL = os.getenv("OMNICRAFT_VERIFIED_USER_EMAIL", "").strip()
+VERIFIED_PASSWORD = os.getenv("OMNICRAFT_VERIFIED_USER_PASSWORD", "").strip()
+VERIFIED_BEARER_TOKEN = os.getenv("OMNICRAFT_VERIFIED_BEARER_TOKEN", "").strip()
+
+UNVERIFIED_BEARER_TOKEN = os.getenv("OMNICRAFT_UNVERIFIED_BEARER_TOKEN", "").strip()
+LOW_REPUTATION_BEARER_TOKEN = os.getenv("OMNICRAFT_LOW_REPUTATION_BEARER_TOKEN", "").strip()
+JWT_SECRET = os.getenv("OMNICRAFT_JWT_SECRET", "").strip()
+
+UNVERIFIED_USER_ID = os.getenv("OMNICRAFT_UNVERIFIED_USER_ID", "").strip()
+LOW_REPUTATION_USER_ID = os.getenv("OMNICRAFT_LOW_REPUTATION_USER_ID", "").strip()
+
+EXPECTED_NOAUTH_STATUS = int(os.getenv("OMNICRAFT_EXPECTED_NOAUTH_STATUS", "401"))
+EXPECTED_NOAUTH_CODE = os.getenv("OMNICRAFT_EXPECTED_NOAUTH_CODE", "UNAUTHORIZED").strip()
+EXPECTED_UNVERIFIED_STATUS = int(os.getenv("OMNICRAFT_EXPECTED_UNVERIFIED_STATUS", "403"))
+EXPECTED_UNVERIFIED_CODE = os.getenv("OMNICRAFT_EXPECTED_UNVERIFIED_CODE", "EMAIL_NOT_VERIFIED").strip()
+EXPECTED_LOW_REPUTATION_STATUS = int(os.getenv("OMNICRAFT_EXPECTED_LOW_REPUTATION_STATUS", "403"))
+EXPECTED_LOW_REPUTATION_CODE = os.getenv(
+    "OMNICRAFT_EXPECTED_LOW_REPUTATION_CODE", "INSUFFICIENT_REPUTATION"
+).strip()
+EXPECTED_MISSING_STATUS = int(os.getenv("OMNICRAFT_EXPECTED_MISSING_STATUS", "404"))
+EXPECTED_MISSING_CODE = os.getenv("OMNICRAFT_EXPECTED_MISSING_CODE", "NOT_FOUND").strip()
+
+results: dict[str, dict[str, str]] = {}
+
+
+def record(step: str, passed: bool, detail: str = "") -> None:
     status = "PASS" if passed else "FAIL"
     results[step] = {"status": status, "detail": detail}
     print(f"  [{status}] {step}: {detail}")
 
 
-# ─────────────────────────────────────────────
-# STEP 1: Register & Login via API (with CSRF)
-# ─────────────────────────────────────────────
-print("\n=== STEP 1: Register & Login ===")
+def fail(message: str) -> None:
+    raise RuntimeError(message)
 
-# Use a session to persist cookies (including CSRF cookie)
-session = requests.Session()
 
-# First, make a GET request to any endpoint to obtain the CSRF cookie
-r = session.get(f"{BASE_URL_API}/api/v1/contents/search?q=test", timeout=10)
-print(f"  CSRF cookie fetch: {r.status_code}")
+def require_value(name: str, value: str) -> str:
+    if value:
+        return value
+    fail(f"missing required environment variable: {name}")
+    return ""
 
-csrf_token = session.cookies.get("csrf-token", "")
-print(f"  CSRF token from cookie: {csrf_token[:20]}..." if csrf_token else "  CSRF token: MISSING")
 
-# Now register with CSRF token
-register_payload = {
-    "username": "search_tester_09",
-    "email": "search09@test.com",
-    "password": "TestPass123!",
-    "captcha_token": "bypass"
-}
-headers_with_csrf = {"X-CSRF-Token": csrf_token}
-
-r = session.post(
-    f"{BASE_URL_API}/api/v1/auth/register",
-    json=register_payload,
-    headers=headers_with_csrf,
-    timeout=10
-)
-print(f"  Register response: {r.status_code} {r.text[:300]}")
-
-# Refresh CSRF token after register (middleware sets new one)
-csrf_token = session.cookies.get("csrf-token", csrf_token)
-headers_with_csrf = {"X-CSRF-Token": csrf_token}
-
-# Login
-login_payload = {
-    "email": "search09@test.com",
-    "password": "TestPass123!"
-}
-r = session.post(
-    f"{BASE_URL_API}/api/v1/auth/login",
-    json=login_payload,
-    headers=headers_with_csrf,
-    timeout=10
-)
-print(f"  Login response: {r.status_code} {r.text[:500]}")
-
-access_token = None
-if r.status_code == 200:
+def require_int(name: str, value: str) -> int:
+    raw = require_value(name, value)
     try:
-        body = r.json()
-        # Response structure: {"user": ..., "tokens": {"access_token": "..."}}
-        access_token = body.get("tokens", {}).get("access_token")
-        if not access_token:
-            access_token = body.get("access_token") or body.get("token")
-    except Exception as e:
-        print(f"  Error parsing login response: {e}")
+        return int(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"{name} must be an integer, got {raw!r}") from exc
 
-    # Also check Set-Cookie
-    if not access_token:
-        for cookie in session.cookies:
-            if cookie.name in ("token", "access_token"):
-                access_token = cookie.value
-                break
 
-record("1-Register-Login", r.status_code == 200 and access_token is not None,
-       f"status={r.status_code}, token={'present' if access_token else 'MISSING'}")
+def base64url_encode(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
-auth_headers = {}
-if access_token:
-    auth_headers["Authorization"] = f"Bearer {access_token}"
-    auth_headers["X-CSRF-Token"] = session.cookies.get("csrf-token", "")
 
-# ─────────────────────────────────────────────
-# STEP 2-3: Navigate to search page & screenshot
-# ─────────────────────────────────────────────
-print("\n=== STEP 2-3: Search Page Screenshot ===")
-
-with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True)
-    context = browser.new_context(viewport={"width": 1280, "height": 900})
-    page = context.new_page()
-
-    # If we have a token, set it as cookie so the user is logged in
-    if access_token:
-        context.add_cookies([{
-            "name": "token",
-            "value": access_token,
-            "domain": "localhost",
-            "path": "/"
-        }])
-
-    try:
-        page.goto(f"{BASE_URL_FRONT}/search", wait_until="networkidle", timeout=30000)
-        time.sleep(2)
-        page.screenshot(path=f"{SCREENSHOT_DIR}\\12-search-page.png")
-        record("2-3-Search-Page", True, "Screenshot saved")
-    except Exception as e:
-        try:
-            page.screenshot(path=f"{SCREENSHOT_DIR}\\12-search-page.png")
-        except:
-            pass
-        record("2-3-Search-Page", False, str(e)[:200])
-
-    # ─────────────────────────────────────────────
-    # STEP 4: Chinese keyword search
-    # ─────────────────────────────────────────────
-    print("\n=== STEP 4: Chinese Keyword Search ===")
-
-    try:
-        # Try multiple selectors for the search input
-        search_input = None
-        selectors = [
-            'input[type="search"]',
-            'input[placeholder*="搜索"]',
-            'input[placeholder*="search"]',
-            'input[placeholder*="Search"]',
-            'input[name="q"]',
-            'input[name="query"]',
-            'input[role="searchbox"]',
-            'input[type="text"]',
+def mint_access_token(user_id: int, role: str) -> str:
+    if not JWT_SECRET:
+        fail("missing OMNICRAFT_JWT_SECRET for local token minting")
+    header = {"alg": "HS256", "typ": "JWT"}
+    now = int(time.time())
+    payload = {"user_id": user_id, "role": role, "sub": "access", "iat": now, "exp": now + 3600}
+    signing_input = ".".join(
+        [
+            base64url_encode(json.dumps(header, separators=(",", ":")).encode("utf-8")),
+            base64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8")),
         ]
-        for sel in selectors:
-            try:
-                search_input = page.locator(sel).first
-                if search_input.is_visible(timeout=2000):
-                    print(f"  Found search input with selector: {sel}")
-                    break
-            except:
-                continue
+    )
+    signature = hmac.new(JWT_SECRET.encode("utf-8"), signing_input.encode("ascii"), hashlib.sha256).digest()
+    return signing_input + "." + base64url_encode(signature)
 
-        if search_input:
-            search_input.fill("春日")
-            time.sleep(0.5)
 
-            # Try pressing Enter
-            search_input.press("Enter")
-            time.sleep(3)
+def get_fixture_token(token_env: str, user_id_env: str, label: str, role: str = "user") -> str:
+    direct = os.getenv(token_env, "").strip()
+    if direct:
+        return direct
+    user_id_raw = os.getenv(user_id_env, "").strip()
+    if user_id_raw:
+        return mint_access_token(require_int(user_id_env, user_id_raw), role)
+    fail(f"{label} fixture requires {token_env} or {user_id_env} + OMNICRAFT_JWT_SECRET")
+    return ""
 
-            # Wait for navigation or results
-            try:
-                page.wait_for_load_state("networkidle", timeout=10000)
-            except:
-                pass
 
-            page.screenshot(path=f"{SCREENSHOT_DIR}\\13-search-chinese-results.png")
+def ensure_dir(path: Path) -> None:
+    path.mkdir(parents=True, exist_ok=True)
 
-            # Check if page loaded without error
-            body_text = page.inner_text("body")
-            has_error = "500" in body_text and "error" in body_text.lower()
-            has_results = "春日" in body_text or "结果" in body_text or "result" in body_text.lower() or "没有" in body_text or "no " in body_text.lower()
 
-            record("4-Chinese-Search", not has_error,
-                   f"Page loaded, has_results_indicator={has_results}, body_len={len(body_text)}")
-        else:
-            # Maybe the search page has a different layout - use URL param approach
-            page.goto(f"{BASE_URL_FRONT}/search?q=春日", wait_until="networkidle", timeout=15000)
-            time.sleep(2)
-            page.screenshot(path=f"{SCREENSHOT_DIR}\\13-search-chinese-results.png")
-            body_text = page.inner_text("body")
-            has_error = "500" in body_text and "error" in body_text.lower()
-            record("4-Chinese-Search", not has_error,
-                   f"Used URL param approach, body_len={len(body_text)}")
+def fetch_csrf(session: requests.Session) -> str:
+    resp = session.get(f"{BASE_URL_API}/api/v1/auth/csrf", timeout=15)
+    if resp.status_code != 200:
+        fail(f"GET /api/v1/auth/csrf returned {resp.status_code}: {resp.text[:200]}")
+    data = resp.json()
+    token = data.get("csrf_token")
+    if not token:
+        fail("/api/v1/auth/csrf response is missing csrf_token")
+    return token
 
-    except Exception as e:
+
+def login_verified_user() -> tuple[requests.Session, str]:
+    if VERIFIED_BEARER_TOKEN:
+        session = requests.Session()
+        csrf_token = fetch_csrf(session)
+        session.headers.update({"X-CSRF-Token": csrf_token})
+        record("1-Verified-Login", True, "using explicit bearer token fixture")
+        return session, VERIFIED_BEARER_TOKEN
+
+    email = require_value("OMNICRAFT_VERIFIED_USER_EMAIL", VERIFIED_EMAIL)
+    password = require_value("OMNICRAFT_VERIFIED_USER_PASSWORD", VERIFIED_PASSWORD)
+    session = requests.Session()
+    csrf_token = fetch_csrf(session)
+    resp = session.post(
+        f"{BASE_URL_API}/api/v1/auth/login",
+        json={"email": email, "password": password},
+        headers={"X-CSRF-Token": csrf_token},
+        timeout=15,
+    )
+    if resp.status_code != 200:
+        fail(f"verified user login failed: {resp.status_code} {resp.text[:200]}")
+    data = resp.json()
+    token = (data.get("tokens") or {}).get("access_token")
+    if not token:
+        fail("verified user login response is missing tokens.access_token")
+    record("1-Verified-Login", True, f"logged in as {email}")
+    return session, token
+
+
+def request_json(
+    session: requests.Session,
+    method: str,
+    path: str,
+    *,
+    token: str | None = None,
+    params: dict[str, Any] | None = None,
+    json_body: dict[str, Any] | None = None,
+) -> requests.Response:
+    headers: dict[str, str] = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    if method.upper() in {"POST", "PATCH", "PUT", "DELETE"}:
+        csrf = session.headers.get("X-CSRF-Token")
+        if not csrf:
+            csrf = fetch_csrf(session)
+            session.headers.update({"X-CSRF-Token": csrf})
+        headers["X-CSRF-Token"] = csrf
+    return session.request(
+        method,
+        f"{BASE_URL_API}{path}",
+        params=params,
+        json=json_body,
+        headers=headers,
+        timeout=15,
+    )
+
+
+def expect_error_contract(
+    resp: requests.Response, *, expected_status: int, expected_code: str, label: str
+) -> None:
+    if resp.status_code != expected_status:
+        fail(f"{label} returned {resp.status_code}, expected {expected_status}: {resp.text[:200]}")
+    try:
+        body = resp.json()
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"{label} returned non-JSON body: {resp.text[:200]}") from exc
+    code = body.get("code")
+    if code != expected_code:
+        fail(f"{label} returned code={code!r}, expected {expected_code!r}")
+
+
+def build_download_path(content_id: int, attachment_id: int) -> str:
+    return f"/api/v1/contents/{content_id}/download?attachment_id={attachment_id}"
+
+
+def run_search_page_validation(query: str, expected_title: str, forbidden_titles: list[str]) -> None:
+    ensure_dir(SCREENSHOT_DIR)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1280, "height": 900})
         try:
-            page.screenshot(path=f"{SCREENSHOT_DIR}\\13-search-chinese-results.png")
-        except:
-            pass
-        record("4-Chinese-Search", False, str(e)[:200])
+            page.goto(f"{BASE_URL_FRONT}/search", wait_until="networkidle", timeout=30000)
+            search_input = None
+            selectors = [
+                'input[type="search"]',
+                'input[name="q"]',
+                'input[role="searchbox"]',
+                'input[placeholder*="搜索"]',
+                'input[placeholder*="Search"]',
+            ]
+            for selector in selectors:
+                locator = page.locator(selector).first
+                if locator.count() > 0 and locator.is_visible(timeout=2000):
+                    search_input = locator
+                    break
+            if search_input is None:
+                fail("search page did not expose a visible search input")
 
-    browser.close()
+            record("2-Search-Page-Landmarks", True, "search input is visible before interaction")
 
-# ─────────────────────────────────────────────
-# STEP 5: API search - verify no hidden/deleted content
-# ─────────────────────────────────────────────
-print("\n=== STEP 5: API Search - Hidden Content Check ===")
+            with page.expect_response(
+                lambda resp: "/api/v1/contents/search" in resp.url
+                and parse_qs(urlparse(resp.url).query).get("q", []) == [query],
+                timeout=15000,
+            ) as response_info:
+                search_input.fill(query)
+                search_input.press("Enter")
 
-try:
-    # Correct endpoint: /api/v1/contents/search
-    r = requests.get(f"{BASE_URL_API}/api/v1/contents/search", params={"q": "春日"}, timeout=10)
-    print(f"  Search API response: {r.status_code}")
+            response = response_info.value
+            if response.status != 200:
+                fail(f"search request returned HTTP {response.status}")
+            response_body = response.json()
+            items = response_body.get("items")
+            if not isinstance(items, list):
+                fail("search response is missing an items list")
+            if not any(isinstance(item, dict) and item.get("title") == expected_title for item in items):
+                fail(f"search response did not contain expected title {expected_title!r}")
 
-    if r.status_code == 200:
-        body = r.json()
-        items = body.get("items") or []
-        total = body.get("total", 0)
+            parsed_query = parse_qs(urlparse(response.url).query).get("q", [])
+            if parsed_query != [query]:
+                fail(f"browser search request used q={parsed_query!r}, expected {[query]!r}")
 
-        non_published = []
-        for item in items:
-            if isinstance(item, dict):
-                status = item.get("status", "published")
-                if status != "published":
-                    non_published.append({"id": item.get("id"), "status": status})
+            page.wait_for_timeout(1200)
+            try:
+                page.wait_for_selector(f"text={expected_title}", timeout=10000)
+            except PlaywrightTimeoutError as exc:
+                raise RuntimeError(f"search UI did not render expected title {expected_title!r}") from exc
 
-        record("5-Hidden-Content-Check", len(non_published) == 0,
-               f"Total={total}, items={len(items)}, non_published={len(non_published)}")
-        if non_published:
-            print(f"  WARNING: Found non-published items: {non_published}")
-    else:
-        record("5-Hidden-Content-Check", False, f"API returned {r.status_code}: {r.text[:200]}")
-except Exception as e:
-    record("5-Hidden-Content-Check", False, str(e)[:200])
+            body_text = page.inner_text("body")
+            for forbidden_title in forbidden_titles:
+                if forbidden_title and forbidden_title in body_text:
+                    fail(f"search UI rendered forbidden title {forbidden_title!r}")
 
-# ─────────────────────────────────────────────
-# STEP 6: Download without login (should be 401)
-# ─────────────────────────────────────────────
-print("\n=== STEP 6: Download Without Auth ===")
+            page.screenshot(path=str(SCREENSHOT_DIR / "12-search-page.png"), full_page=True)
+            record(
+                "4-Browser-Search",
+                True,
+                f"captured q={query!r} request and rendered {expected_title!r}",
+            )
+        finally:
+            browser.close()
 
-content_id_for_download = None
 
-try:
-    # Find a content ID via search
-    r = requests.get(f"{BASE_URL_API}/api/v1/contents/search", params={"q": "test"}, timeout=10)
-    if r.status_code == 200:
-        body = r.json()
-        items = body.get("items", [])
-        if items and len(items) > 0:
-            first = items[0] if isinstance(items[0], dict) else {}
-            content_id_for_download = first.get("id") or first.get("ID")
-            print(f"  Found content ID from search: {content_id_for_download}")
+def run_api_search_validation(session: requests.Session, query: str, expected_title: str, forbidden_titles: list[str]) -> None:
+    resp = request_json(session, "GET", "/api/v1/contents/search", params={"q": query})
+    if resp.status_code != 200:
+        fail(f"API search returned {resp.status_code}: {resp.text[:200]}")
+    body = resp.json()
+    items = body.get("items")
+    total = body.get("total")
+    if not isinstance(items, list):
+        fail("API search response is missing items list")
+    if not isinstance(total, int):
+        fail("API search response is missing integer total")
+    if not any(isinstance(item, dict) and item.get("title") == expected_title for item in items):
+        fail(f"API search did not return expected title {expected_title!r}")
+    titles = [item.get("title") for item in items if isinstance(item, dict)]
+    for forbidden_title in forbidden_titles:
+        if forbidden_title in titles:
+            fail(f"API search returned forbidden title {forbidden_title!r}")
+    record("5-API-Search-Visibility", True, f"total={total}, expected title present, forbidden titles absent")
 
-    # Also try the contents list endpoint
-    if not content_id_for_download:
-        r = requests.get(f"{BASE_URL_API}/api/v1/contents", params={"page": 1, "page_size": 5}, timeout=10)
-        if r.status_code == 200:
-            body = r.json()
-            items = body.get("data", body.get("items", []))
-            if isinstance(items, dict):
-                items = items.get("items", items.get("list", []))
-            if items and len(items) > 0:
-                first = items[0] if isinstance(items[0], dict) else {}
-                content_id_for_download = first.get("id") or first.get("ID")
-                print(f"  Found content ID from /contents: {content_id_for_download}")
 
-    if content_id_for_download:
-        r = requests.get(f"{BASE_URL_API}/api/v1/contents/{content_id_for_download}/download", timeout=10)
-        print(f"  Download without auth: {r.status_code} {r.text[:300]}")
-        is_unauthorized = r.status_code in (401, 403)
-        record("6-Download-NoAuth", is_unauthorized,
-               f"status={r.status_code} (expected 401/403)")
-    else:
-        # No content found - try with a dummy ID
-        r = requests.get(f"{BASE_URL_API}/api/v1/contents/1/download", timeout=10)
-        print(f"  Download with dummy ID, no auth: {r.status_code} {r.text[:300]}")
-        is_unauthorized = r.status_code in (401, 403, 404)
-        record("6-Download-NoAuth", is_unauthorized,
-               f"No content found, tested with ID=1, status={r.status_code}")
+def run_download_negative(session: requests.Session, path: str) -> None:
+    resp = session.get(f"{BASE_URL_API}{path}", timeout=15)
+    expect_error_contract(
+        resp,
+        expected_status=EXPECTED_NOAUTH_STATUS,
+        expected_code=EXPECTED_NOAUTH_CODE,
+        label="unauthenticated download",
+    )
+    record("6-Download-NoAuth", True, f"status={EXPECTED_NOAUTH_STATUS}, code={EXPECTED_NOAUTH_CODE}")
 
-except Exception as e:
-    record("6-Download-NoAuth", False, str(e)[:200])
 
-# ─────────────────────────────────────────────
-# STEP 7: Download with logged-in user
-# ─────────────────────────────────────────────
-print("\n=== STEP 7: Download With Auth ===")
-
-cid = content_id_for_download or 1
-if access_token:
+def run_download_success(session: requests.Session, token: str, path: str) -> None:
+    resp = request_json(session, "GET", path, token=token)
+    if resp.status_code != 200:
+        fail(f"verified download returned {resp.status_code}: {resp.text[:200]}")
+    if resp.headers.get("Location"):
+        fail("verified download must return JSON, not a redirect")
     try:
-        r = requests.get(
-            f"{BASE_URL_API}/api/v1/contents/{cid}/download",
-            headers=auth_headers,
-            timeout=10
-        )
-        print(f"  Download with auth: {r.status_code} {r.text[:500]}")
+        body = resp.json()
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"verified download returned non-JSON body: {resp.text[:200]}") from exc
+    download_url = body.get("download_url")
+    expires_in = body.get("expires_in")
+    if not isinstance(download_url, str) or not download_url:
+        fail(f"download response is missing download_url: {body!r}")
+    if not isinstance(expires_in, int) or expires_in <= 0:
+        fail(f"download response is missing positive expires_in: {body!r}")
+    record("7-Download-Verified", True, f"received signed url with expires_in={expires_in}")
 
-        # 200 = success (signed URL or download info)
-        # 404 = content not found or no attachments
-        # 403 = forbidden (verification required, reputation, etc.)
-        is_valid = r.status_code in (200, 403, 404)
-        record("7-Download-WithAuth", is_valid,
-               f"status={r.status_code}, response={r.text[:200]}")
-    except Exception as e:
-        record("7-Download-WithAuth", False, str(e)[:200])
-else:
-    record("7-Download-WithAuth", False, "No access token available")
 
-# ─────────────────────────────────────────────
-# STEP 8: Download for unverified user (should be rejected)
-# ─────────────────────────────────────────────
-print("\n=== STEP 8: Download - Unverified User Check ===")
+def run_download_rejection(session: requests.Session, path: str, token: str, *, step: str, status: int, code: str) -> None:
+    resp = request_json(session, "GET", path, token=token)
+    expect_error_contract(resp, expected_status=status, expected_code=code, label=step)
+    record(step, True, f"status={status}, code={code}")
 
-if access_token:
+
+def main() -> int:
     try:
-        r = requests.get(
-            f"{BASE_URL_API}/api/v1/contents/{cid}/download",
-            headers=auth_headers,
-            timeout=10
+        query = require_value("OMNICRAFT_SEARCH_QUERY", SEARCH_QUERY)
+        expected_title = require_value("OMNICRAFT_EXPECTED_RESULT_TITLE", EXPECTED_RESULT_TITLE)
+        content_id = require_int("OMNICRAFT_DOWNLOAD_CONTENT_ID", DOWNLOAD_CONTENT_ID)
+        attachment_id = require_int("OMNICRAFT_DOWNLOAD_ATTACHMENT_ID", DOWNLOAD_ATTACHMENT_ID)
+        download_path = build_download_path(content_id, attachment_id)
+
+        verified_session, verified_token = login_verified_user()
+        run_search_page_validation(query, expected_title, FORBIDDEN_SEARCH_TITLES)
+        run_api_search_validation(verified_session, query, expected_title, FORBIDDEN_SEARCH_TITLES)
+        run_download_negative(requests.Session(), download_path)
+        run_download_success(verified_session, verified_token, download_path)
+
+        unverified_token = get_fixture_token(
+            "OMNICRAFT_UNVERIFIED_BEARER_TOKEN",
+            "OMNICRAFT_UNVERIFIED_USER_ID",
+            "unverified download",
         )
-        print(f"  Download unverified user: {r.status_code} {r.text[:500]}")
+        low_rep_token = get_fixture_token(
+            "OMNICRAFT_LOW_REPUTATION_BEARER_TOKEN",
+            "OMNICRAFT_LOW_REPUTATION_USER_ID",
+            "low reputation download",
+        )
 
-        # The test user is likely unverified, so we expect 403 or similar
-        # But if the API doesn't enforce verification, 200 is also acceptable
-        # We just document what happens
-        is_rejected = r.status_code in (403, 401)
-        detail = f"status={r.status_code}"
-        if is_rejected:
-            detail += " (correctly rejected)"
-        elif r.status_code == 200:
-            detail += " (WARNING: unverified user can download)"
-        elif r.status_code == 404:
-            detail += " (content not found, cannot verify rejection)"
-        else:
-            detail += f" (body={r.text[:100]})"
+        run_download_rejection(
+            verified_session,
+            download_path,
+            unverified_token,
+            step="8-Download-Unverified",
+            status=EXPECTED_UNVERIFIED_STATUS,
+            code=EXPECTED_UNVERIFIED_CODE,
+        )
+        run_download_rejection(
+            verified_session,
+            download_path,
+            low_rep_token,
+            step="9-Download-LowReputation",
+            status=EXPECTED_LOW_REPUTATION_STATUS,
+            code=EXPECTED_LOW_REPUTATION_CODE,
+        )
+        missing_path = build_download_path(MISSING_CONTENT_ID, attachment_id)
+        run_download_rejection(
+            verified_session,
+            missing_path,
+            verified_token,
+            step="10-Download-MissingContent",
+            status=EXPECTED_MISSING_STATUS,
+            code=EXPECTED_MISSING_CODE,
+        )
+    except Exception as exc:
+        record("setup-or-run", False, str(exc))
 
-        record("8-Download-Unverified", True, detail)  # Always pass - we document the behavior
-    except Exception as e:
-        record("8-Download-Unverified", False, str(e)[:200])
-else:
-    record("8-Download-Unverified", False, "No access token available")
+    print("\n" + "=" * 60)
+    print("TEST SUMMARY")
+    print("=" * 60)
+    total = len(results)
+    passed = sum(1 for value in results.values() if value["status"] == "PASS")
+    failed = total - passed
+    for step, info in results.items():
+        print(f"  [{info['status']}] {step}: {info['detail']}")
+    print(f"\nTotal: {total} | Passed: {passed} | Failed: {failed}")
+    print("=" * 60)
+    return 0 if failed == 0 else 1
 
-# ─────────────────────────────────────────────
-# SUMMARY
-# ─────────────────────────────────────────────
-print("\n" + "=" * 60)
-print("TEST SUMMARY")
-print("=" * 60)
-total = len(results)
-passed = sum(1 for v in results.values() if v["status"] == "PASS")
-failed = total - passed
-for step, info in results.items():
-    print(f"  [{info['status']}] {step}: {info['detail']}")
-print(f"\nTotal: {total} | Passed: {passed} | Failed: {failed}")
-print("=" * 60)
 
-sys.exit(0 if failed == 0 else 1)
+if __name__ == "__main__":
+    sys.exit(main())

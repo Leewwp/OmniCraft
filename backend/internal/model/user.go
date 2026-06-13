@@ -5,25 +5,26 @@ import (
 )
 
 type User struct {
-	ID              int64      `gorm:"primaryKey;autoIncrement" json:"id"`
-	Email           string    `gorm:"uniqueIndex;not null;size:255" json:"email"`
-	PasswordHash    string    `gorm:"not null;size:255" json:"-"`
-	Username        string    `gorm:"uniqueIndex;not null;size:64" json:"username"`
-	AvatarURL       string    `gorm:"type:text" json:"avatar_url"`
-	Bio             string    `gorm:"type:text" json:"bio"`
-	Reputation      int       `gorm:"not null;default:10" json:"reputation"`
-	PreferredLocale string    `gorm:"size:10;default:'zh-CN'"  json:"preferred_locale"`
-	SupportInfo     JSONMap   `gorm:"type:jsonb;not null;default:'{}'" json:"support_info,omitempty"`
-	Role            string    `gorm:"not null;default:'user';size:20" json:"role"`
-	IsBanned        bool      `gorm:"not null;default:false" json:"is_banned"`
-	BanReason       string    `gorm:"type:text" json:"ban_reason,omitempty"`
-	EmailVerifiedAt         *time.Time `json:"email_verified_at,omitempty"`
-	AcceptedTermsVersion    string     `gorm:"size:32" json:"accepted_terms_version,omitempty"`
-	AcceptedTermsAt         *time.Time `json:"accepted_terms_at,omitempty"`
-	AcceptedPrivacyVersion  string     `gorm:"size:32" json:"accepted_privacy_version,omitempty"`
-	AcceptedPrivacyAt       *time.Time `json:"accepted_privacy_at,omitempty"`
-	CreatedAt               time.Time  `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID                     int64      `gorm:"primaryKey;autoIncrement" json:"id"`
+	Email                  string     `gorm:"uniqueIndex;not null;size:255" json:"email"`
+	PasswordHash           string     `gorm:"not null;size:255" json:"-"`
+	Username               string     `gorm:"uniqueIndex;not null;size:64" json:"username"`
+	AvatarURL              string     `gorm:"type:text" json:"avatar_url"`
+	Bio                    string     `gorm:"type:text" json:"bio"`
+	Reputation             int        `gorm:"not null;default:10" json:"reputation"`
+	PreferredLocale        string     `gorm:"size:10;default:'zh-CN'"  json:"preferred_locale"`
+	SupportInfo            JSONMap    `gorm:"type:jsonb;not null;default:'{}'" json:"support_info,omitempty"`
+	Role                   string     `gorm:"not null;default:'user';size:20" json:"role"`
+	IsBanned               bool       `gorm:"not null;default:false" json:"is_banned"`
+	BanReason              string     `gorm:"type:text" json:"ban_reason,omitempty"`
+	EmailVerifiedAt        *time.Time `json:"email_verified_at,omitempty"`
+	AcceptedTermsVersion   string     `gorm:"size:32" json:"accepted_terms_version,omitempty"`
+	AcceptedTermsAt        *time.Time `json:"accepted_terms_at,omitempty"`
+	AcceptedPrivacyVersion string     `gorm:"size:32" json:"accepted_privacy_version,omitempty"`
+	AcceptedPrivacyAt      *time.Time `json:"accepted_privacy_at,omitempty"`
+	DeletedAt              *time.Time `gorm:"index" json:"deleted_at,omitempty"`
+	CreatedAt              time.Time  `json:"created_at"`
+	UpdatedAt              time.Time  `json:"updated_at"`
 }
 
 func (User) TableName() string {
@@ -32,7 +33,7 @@ func (User) TableName() string {
 
 type JudgeQualification struct {
 	ID          uint       `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID      int64       `gorm:"not null;index" json:"user_id"`
+	UserID      int64      `gorm:"not null;index" json:"user_id"`
 	ContentType string     `gorm:"not null;size:50" json:"content_type"`
 	QualifiedAt time.Time  `gorm:"not null;default:now()" json:"qualified_at"`
 	RevokedAt   *time.Time `json:"revoked_at,omitempty"`
@@ -45,10 +46,10 @@ func (JudgeQualification) TableName() string {
 
 type ReputationLog struct {
 	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID    int64      `gorm:"not null;index" json:"user_id"`
+	UserID    int64     `gorm:"not null;index" json:"user_id"`
 	Delta     int       `gorm:"not null" json:"delta"`
 	Reason    string    `gorm:"not null;size:100" json:"reason"`
-	RelatedID *int64     `json:"related_id,omitempty"`
+	RelatedID *int64    `json:"related_id,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -58,7 +59,7 @@ func (ReputationLog) TableName() string {
 
 type OAuthAccount struct {
 	ID          uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID      int64      `gorm:"not null;index" json:"user_id"`
+	UserID      int64     `gorm:"not null;index" json:"user_id"`
 	Provider    string    `gorm:"not null;size:20" json:"provider"`
 	ProviderUID string    `gorm:"not null;size:255" json:"provider_uid"`
 	AccessToken string    `gorm:"type:text" json:"-"`

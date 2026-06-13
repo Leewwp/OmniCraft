@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"time"
 
 	"omnicraft/backend/internal/model"
 
@@ -70,7 +71,7 @@ func (r *SearchRepository) SearchSuggestions(prefix string, limit int, viewerID 
 	return results, nil
 }
 
-func (r *SearchRepository) SearchContents(query string, zone, category, contentType string, tagFilters []string, sort string, page, pageSize int, viewerID int64) ([]ContentSearchResult, int64, error) {
+func (r *SearchRepository) SearchContents(query string, zone, category, contentType string, tagFilters []string, sort, timeRange string, page, pageSize int, viewerID int64) ([]ContentSearchResult, int64, error) {
 	if pageSize <= 0 || pageSize > 50 {
 		pageSize = 20
 	}
@@ -80,7 +81,7 @@ func (r *SearchRepository) SearchContents(query string, zone, category, contentT
 	offset := (page - 1) * pageSize
 
 	if query != "" {
-		return r.searchContentsWithQuery(query, zone, category, contentType, tagFilters, page, pageSize, offset, viewerID)
+		return r.searchContentsWithQuery(query, zone, category, contentType, tagFilters, timeRange, page, pageSize, offset, viewerID)
 	}
 
 	baseQuery := ApplyContentVisibilityScope(r.db.Model(&model.ContentItem{}), viewerID)
@@ -93,6 +94,9 @@ func (r *SearchRepository) SearchContents(query string, zone, category, contentT
 	}
 	if contentType != "" {
 		baseQuery = baseQuery.Where("content_items.content_type = ?", contentType)
+	}
+	if since, ok := searchTimeRangeSince(timeRange); ok {
+		baseQuery = baseQuery.Where("content_items.created_at >= ?", since)
 	}
 	if len(tagFilters) > 0 {
 		baseQuery = baseQuery.
@@ -127,9 +131,9 @@ func (r *SearchRepository) SearchContents(query string, zone, category, contentT
 	return results, total, nil
 }
 
-func (r *SearchRepository) searchContentsWithQuery(query, zone, category, contentType string, tagFilters []string, page, pageSize, offset int, viewerID int64) ([]ContentSearchResult, int64, error) {
+func (r *SearchRepository) searchContentsWithQuery(query, zone, category, contentType string, tagFilters []string, timeRange string, page, pageSize, offset int, viewerID int64) ([]ContentSearchResult, int64, error) {
 	if r.db.Dialector.Name() == "sqlite" {
-		return r.searchContentsWithQueryLike(query, zone, category, contentType, tagFilters, pageSize, offset, viewerID)
+		return r.searchContentsWithQueryLike(query, zone, category, contentType, tagFilters, timeRange, pageSize, offset, viewerID)
 	}
 
 	tsQuery := toTSQuery(query)
@@ -137,7 +141,7 @@ func (r *SearchRepository) searchContentsWithQuery(query, zone, category, conten
 
 	visibilityClause, visibilityArgs := ContentVisibilitySQL(viewerID)
 
-	filterClause, args := contentSearchFilterClause(zone, category, contentType, tagFilters)
+	filterClause, args := contentSearchFilterClause(zone, category, contentType, tagFilters, timeRange)
 
 	countSQL := fmt.Sprintf(`SELECT COUNT(*) FROM content_items
 		WHERE %s%s
@@ -185,10 +189,10 @@ func (r *SearchRepository) searchContentsWithQuery(query, zone, category, conten
 	return results, total, nil
 }
 
-func (r *SearchRepository) searchContentsWithQueryLike(query, zone, category, contentType string, tagFilters []string, pageSize, offset int, viewerID int64) ([]ContentSearchResult, int64, error) {
+func (r *SearchRepository) searchContentsWithQueryLike(query, zone, category, contentType string, tagFilters []string, timeRange string, pageSize, offset int, viewerID int64) ([]ContentSearchResult, int64, error) {
 	likePattern := "%" + query + "%"
 	visibilityClause, visibilityArgs := ContentVisibilitySQL(viewerID)
-	filterClause, args := contentSearchFilterClause(zone, category, contentType, tagFilters)
+	filterClause, args := contentSearchFilterClause(zone, category, contentType, tagFilters, timeRange)
 	matchClause := `(LOWER(content_items.title) LIKE LOWER(?) OR EXISTS (SELECT 1 FROM content_tags ct2 WHERE ct2.content_item_id = content_items.id AND LOWER(ct2.tag) LIKE LOWER(?)))`
 
 	countSQL := fmt.Sprintf(`SELECT COUNT(*) FROM content_items
@@ -223,7 +227,7 @@ func (r *SearchRepository) searchContentsWithQueryLike(query, zone, category, co
 	return results, total, nil
 }
 
-func contentSearchFilterClause(zone, category, contentType string, tagFilters []string) (string, []interface{}) {
+func contentSearchFilterClause(zone, category, contentType string, tagFilters []string, timeRange string) (string, []interface{}) {
 	filterClause := ""
 	args := []interface{}{}
 
@@ -239,12 +243,34 @@ func contentSearchFilterClause(zone, category, contentType string, tagFilters []
 		filterClause += " AND content_items.content_type = ?"
 		args = append(args, contentType)
 	}
+	if since, ok := searchTimeRangeSince(timeRange); ok {
+		filterClause += " AND content_items.created_at >= ?"
+		args = append(args, since)
+	}
 	if len(tagFilters) > 0 {
 		filterClause += " AND EXISTS (SELECT 1 FROM content_tags ct WHERE ct.content_item_id = content_items.id AND ct.tag IN (?))"
 		args = append(args, tagFilters)
 	}
 
 	return filterClause, args
+}
+
+func searchTimeRangeSince(timeRange string) (time.Time, bool) {
+	now := time.Now()
+	switch timeRange {
+	case "", "all":
+		return time.Time{}, false
+	case "day":
+		return now.AddDate(0, 0, -1), true
+	case "week":
+		return now.AddDate(0, 0, -7), true
+	case "month":
+		return now.AddDate(0, -1, 0), true
+	case "year":
+		return now.AddDate(-1, 0, 0), true
+	default:
+		return time.Time{}, false
+	}
 }
 
 func (r *SearchRepository) hydrateAuthors(results []ContentSearchResult) {

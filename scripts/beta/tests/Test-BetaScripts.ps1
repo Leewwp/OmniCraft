@@ -65,10 +65,105 @@ $allScriptText = ($powerShellScripts | ForEach-Object {
     Get-Content -Raw -LiteralPath $_.FullName
 }) -join "`n"
 
-Assert-NotContains $allScriptText "(?m)^\s*(?:&\s*)?git\s+add\s+\.\s*$" "Scripts must not stage the entire worktree"
-Assert-NotContains $allScriptText "reset\s+--hard" "Scripts must not hard reset branches"
-Assert-NotContains $allScriptText "push\s+(-f|--force)" "Scripts must not force push"
-Assert-NotContains $allScriptText "dangerously-skip-permissions" "Scripts must not bypass Claude permissions"
+# DESTRUCTIVE-GUARD registry: structured data array for discoverable, extensible safety checks.
+# Each entry defines a regex pattern that must NOT appear in any beta script,
+# along with a category label for static-lint tooling and a human-readable message.
+$destructiveGuards = @(
+    @{
+        Pattern  = "(?m)^\s*(?:&\s*)?git\s+add\s+\.\s*$"
+        Category = "git-safety"
+        Message  = "Scripts must not stage the entire worktree"
+    },
+    @{
+        Pattern  = "reset\s+--hard"
+        Category = "branch-protection"
+        Message  = "Scripts must not hard reset branches"
+    },
+    @{
+        Pattern  = "push\s+(-f|--force(?:-with-lease)?)"
+        Category = "force-push"
+        Message  = "Scripts must not force push"
+    },
+    @{
+        Pattern  = "dangerously-skip-permissions"
+        Category = "permission-bypass"
+        Message  = "Scripts must not bypass Claude permissions"
+    }
+)
+
+foreach ($guard in $destructiveGuards) {
+    # DESTRUCTIVE-GUARD: <$($guard.Category)>
+    Assert-NotContains $allScriptText $guard.Pattern "[$($guard.Category)] $($guard.Message)"
+}
+
+# --- Executable path coverage: Common.ps1 exported functions ---
+$commonPath = Join-Path $betaRoot "Common.ps1"
+$commonTokens = $null
+$commonParseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile(
+    $commonPath,
+    [ref]$commonTokens,
+    [ref]$commonParseErrors
+)
+Assert-True ($commonParseErrors.Count -eq 0) "Common.ps1 has PowerShell parse errors"
+
+$commonAst = [System.Management.Automation.Language.Parser]::ParseFile(
+    $commonPath,
+    [ref]$null,
+    [ref]$null
+)
+$exportedFunctions = @(
+    "Resolve-AbsolutePath",
+    "Get-DefaultRepoRoot",
+    "Get-DefaultIntegrationPath",
+    "Get-DefaultTaskPath",
+    "Get-OrchestrationRoot",
+    "Invoke-Git",
+    "Invoke-CheckedProcess",
+    "Assert-CommandAvailable",
+    "Assert-GitRepository",
+    "Get-GitStatusLines",
+    "Assert-CleanWorktree",
+    "Get-CurrentBranch",
+    "Test-LocalBranchExists",
+    "Get-BetaTaskCatalog",
+    "Get-BetaTask",
+    "Get-RoadmapPath",
+    "Test-RoadmapTaskChecked",
+    "Assert-TaskDependenciesIntegrated",
+    "Get-TaskPlanSection",
+    "Get-ReservationDirectory",
+    "Get-SafeLockName",
+    "New-TaskReservations",
+    "Remove-TaskReservations",
+    "Install-WorkspaceDependencies",
+    "Test-ApprovedMarker"
+)
+$definedNames = @($commonAst.EndBlock.Statements |
+    Where-Object { $_ -is [System.Management.Automation.Language.FunctionDefinitionAst] } |
+    ForEach-Object { $_.Name })
+foreach ($fn in $exportedFunctions) {
+    Assert-True ($definedNames -contains $fn) "Common.ps1 must export function: $fn"
+}
+
+# --- Executable path coverage: beta-tasks.psd1 data integrity ---
+$catalogPath = Join-Path $betaRoot "beta-tasks.psd1"
+$catalog = Import-PowerShellDataFile -LiteralPath $catalogPath
+Assert-True ($catalog.Count -gt 0) "beta-tasks.psd1 must not be empty"
+
+$expectedTaskIdPrefixes = @("F-", "V-", "A-", "G-", "D-", "R-")
+$catalogKeys = @($catalog.Keys)
+foreach ($prefix in $expectedTaskIdPrefixes) {
+    Assert-True (@($catalogKeys | Where-Object { $_ -like "$prefix*" }).Count -gt 0) "beta-tasks.psd1 must contain tasks with prefix: $prefix"
+}
+
+$requiredTaskFields = @("Plan", "DependsOn", "Locks")
+foreach ($taskId in $catalogKeys) {
+    $taskEntry = $catalog[$taskId]
+    foreach ($field in $requiredTaskFields) {
+        Assert-True ($taskEntry.ContainsKey($field)) "beta-tasks.psd1 task $taskId must have field: $field"
+    }
+}
 
 $bootstrap = Get-Content -Raw -LiteralPath (Join-Path $betaRoot "bootstrap.ps1")
 $runTask = Get-Content -Raw -LiteralPath (Join-Path $betaRoot "run-task.ps1")
@@ -91,7 +186,7 @@ Assert-Contains $integrate "go.+test.+\./\.\.\." "integrate.ps1 must run backend
 Assert-Contains $integrate "npm.+run.+lint" "integrate.ps1 must run frontend lint"
 Assert-Contains $integrate "npm.+run.+build" "integrate.ps1 must run frontend build"
 
-$catalog = Import-PowerShellDataFile -LiteralPath (Join-Path $betaRoot "beta-tasks.psd1")
+# $catalog already imported above for executable-path-coverage checks
 $roadmap = Get-Content -Raw -Encoding utf8 -LiteralPath (
     Join-Path $repoRoot "docs/superpowers/plans/2026-05-30-omnicraft-dual-track-beta-roadmap.md"
 )

@@ -1,33 +1,220 @@
 package handler
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/alicebob/miniredis/v2"
+	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+
+	"omnicraft/backend/config"
+	"omnicraft/backend/internal/container"
+	"omnicraft/backend/internal/model"
+	jwtutil "omnicraft/backend/internal/pkg/jwt"
+	"omnicraft/backend/internal/pkg/mail"
+	"omnicraft/backend/internal/pkg/queue"
+	"omnicraft/backend/internal/repository"
+	"omnicraft/backend/internal/service"
 )
 
-func TestAgentRoutesUseAgentRateLimit(t *testing.T) {
-	source := readRoutesSource(t)
+func TestCredentialRoutesAreRateLimitedWhileCSRFRouteIsNot(t *testing.T) {
+	t.Run("register", func(t *testing.T) {
+		assertCredentialRouteRateLimited(t, "/api/v1/auth/register", `{"email":"register-rate@example.com"}`)
+	})
+	t.Run("login", func(t *testing.T) {
+		assertCredentialRouteRateLimited(t, "/api/v1/auth/login", `{"email":"login-rate@example.com"}`)
+	})
+	t.Run("forgot-password", func(t *testing.T) {
+		assertCredentialRouteRateLimited(t, "/api/v1/auth/forgot-password", `{"email":"forgot-rate@example.com"}`)
+	})
 
-	want := `agent := v1.Group("/agent", authReq, agentGuard, middleware.AgentRateLimit(rdb, cfg))`
-	if !strings.Contains(source, want) {
-		t.Fatalf("agent routes must include group-level AgentRateLimit and agentGuard")
+	router, _, cleanup := buildRoutesSecurityRouter(t)
+	defer cleanup()
+
+	for i := 0; i < 3; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/csrf", nil)
+		req.RemoteAddr = "198.51.100.80:12345"
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("csrf request %d status = %d, want 200; body = %s", i+1, rec.Code, rec.Body.String())
+		}
+		if strings.Contains(rec.Body.String(), "RATE_LIMIT") {
+			t.Fatalf("csrf request %d body = %s, route should not be credential-rate-limited", i+1, rec.Body.String())
+		}
 	}
 }
 
-func TestAuthCredentialRoutesUseCredentialRateLimit(t *testing.T) {
-	source := readRoutesSource(t)
+func TestAgentChatRouteAppliesRuntimeAgentRateLimit(t *testing.T) {
+	router, cfg, cleanup := buildRoutesSecurityRouter(t)
+	defer cleanup()
 
-	if strings.Contains(source, `auth.POST("/register", authHandler.Register)`) {
-		t.Fatalf("register route is missing CredentialRateLimit")
+	token := makeRoutesSecurityToken(cfg, 1, "user")
+	body := `{"messages":`
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/agent/chat/stream", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.RemoteAddr = "198.51.100.90:12345"
+
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if i == 0 {
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("first agent request status = %d, want 400; body = %s", rec.Code, rec.Body.String())
+			}
+			if !strings.Contains(rec.Body.String(), "VALIDATION_ERROR") {
+				t.Fatalf("first agent request body = %s, want validation error before rate limit trips", rec.Body.String())
+			}
+			continue
+		}
+
+		if rec.Code != http.StatusTooManyRequests {
+			t.Fatalf("second agent request status = %d, want 429; body = %s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "AGENT_RATE_LIMIT_EXCEEDED") {
+			t.Fatalf("second agent request body = %s, want AGENT_RATE_LIMIT_EXCEEDED", rec.Body.String())
+		}
 	}
-	if strings.Contains(source, `auth.POST("/login", authHandler.Login)`) {
-		t.Fatalf("login route is missing CredentialRateLimit")
+}
+
+func assertCredentialRouteRateLimited(t *testing.T, path, body string) {
+	t.Helper()
+
+	router, _, cleanup := buildRoutesSecurityRouter(t)
+	defer cleanup()
+
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "198.51.100.70:12345"
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		if i == 0 {
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("%s first request status = %d, want 400; body = %s", path, rec.Code, rec.Body.String())
+			}
+			continue
+		}
+
+		if rec.Code != http.StatusTooManyRequests {
+			t.Fatalf("%s second request status = %d, want 429; body = %s", path, rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "CREDENTIAL_RATE_LIMIT_EXCEEDED") {
+			t.Fatalf("%s second request body = %s, want CREDENTIAL_RATE_LIMIT_EXCEEDED", path, rec.Body.String())
+		}
 	}
-	if !strings.Contains(source, `middleware.CredentialRateLimit(rdb, &cfg.RateLimit)`) {
-		t.Fatalf("auth credential routes must include middleware.CredentialRateLimit")
+}
+
+func buildRoutesSecurityRouter(t *testing.T) (*gin.Engine, *config.Config, func()) {
+	t.Helper()
+
+	gin.SetMode(gin.TestMode)
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("miniredis: %v", err)
 	}
+
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		mr.Close()
+		t.Fatalf("sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.User{}); err != nil {
+		_ = rdb.Close()
+		mr.Close()
+		t.Fatalf("migrate users: %v", err)
+	}
+
+	verifiedAt := time.Now()
+	user := model.User{
+		ID:              1,
+		Email:           "agent-route@example.com",
+		PasswordHash:    "hash",
+		Username:        "agent-route",
+		Role:            "user",
+		Reputation:      10,
+		EmailVerifiedAt: &verifiedAt,
+	}
+	if err := db.Create(&user).Error; err != nil {
+		_ = rdb.Close()
+		mr.Close()
+		t.Fatalf("create route test user: %v", err)
+	}
+
+	cfg := &config.Config{
+		JWT: config.JWTConfig{
+			Secret:          "route-security-secret",
+			AccessTokenTTL:  7200,
+			RefreshTokenTTL: 604800,
+		},
+		Server: config.ServerConfig{
+			Mode: "debug",
+		},
+		RateLimit: config.RateLimitConfig{
+			Enabled:             true,
+			CredentialPerMinute: 1,
+			NormalWindowSec:     60,
+			AgentWindowSec:      60,
+		},
+		Agent: config.AgentConfig{
+			WebAgentEnabled: true,
+			RateLimitPerDay: 1,
+		},
+		Reputation: config.ReputationConfig{
+			MinScoreForInteraction: 3,
+		},
+		Cache: config.CacheConfig{
+			UserStatusTTL:    300,
+			PublishFreezeTTL: 604800,
+		},
+	}
+
+	userRepo := repository.NewUserRepository(db)
+	authSvc := service.NewAuthService(userRepo, rdb, cfg)
+	verificationSvc := service.NewVerificationService(userRepo, rdb, mail.NewLoggerSender(), cfg)
+	ctr := &container.ServiceContainer{
+		DB:                  db,
+		RDB:                 rdb,
+		Cfg:                 cfg,
+		UserRepo:            userRepo,
+		AuthService:         authSvc,
+		VerificationService: verificationSvc,
+		QueueProducer:       queue.NewNoopProducer(),
+	}
+
+	router := gin.New()
+	v1 := router.Group("/api/v1")
+	RegisterRoutes(v1, cfg, ctr)
+
+	cleanup := func() {
+		_ = rdb.Close()
+		mr.Close()
+	}
+	return router, cfg, cleanup
+}
+
+func makeRoutesSecurityToken(cfg *config.Config, userID int64, role string) string {
+	pair, err := jwtutil.GenerateTokenPair(userID, role, cfg.JWT.Secret, 120, 7)
+	if err != nil {
+		panic(err)
+	}
+	return pair.AccessToken
 }
 
 func readRoutesSource(t *testing.T) string {

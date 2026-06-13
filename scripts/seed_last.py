@@ -1,7 +1,17 @@
-import json, urllib.request
+"""Create additional fanwork for testing.
 
-BASE = "http://localhost:8080/api/v1"
+Environment variables:
+  SEED_BASE_URL  - API base URL (default: http://localhost:8080/api/v1)
+  SEED_EMAIL     - Login email (default: demo@omnicraft.com)
+  SEED_PASSWORD  - Login password (default: demo123456)
+"""
+import json, os, sys, urllib.request
+
+BASE = os.environ.get("SEED_BASE_URL", "http://localhost:8080/api/v1")
+SEED_EMAIL = os.environ.get("SEED_EMAIL", "demo@omnicraft.com")
+SEED_PASSWORD = os.environ.get("SEED_PASSWORD", "demo123456")
 TOKEN = None
+
 
 def api(method, path, data=None):
     url = f"{BASE}{path}"
@@ -16,7 +26,20 @@ def api(method, path, data=None):
         print(f"  ERR: {e}")
         return None
 
-r = api("POST", "/auth/login", {"email": "demo@omnicraft.com", "password": "demo123456"})
+
+def api_fatal(method, path, data=None, label=""):
+    """Call api() and exit on failure — used for critical operations (TST-031)."""
+    result = api(method, path, data)
+    if result is None:
+        desc = label or f"{method} {path}"
+        print(f"FATAL: {desc} failed, aborting.", file=sys.stderr)
+        sys.exit(1)
+    return result
+
+
+r = api_fatal("POST", "/auth/login",
+              {"email": SEED_EMAIL, "password": SEED_PASSWORD},
+              label=f"Login as {SEED_EMAIL}")
 TOKEN = r["tokens"]["access_token"]
 
 # Get 明日方舟 IP id

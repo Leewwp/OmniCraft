@@ -1,71 +1,120 @@
 package service
 
 import (
-	"os"
-	"strings"
+	"context"
+	"errors"
 	"testing"
+
+	"omnicraft/backend/config"
+	"omnicraft/backend/internal/pkg/llm"
 )
 
-func TestUploadAssistValidatesFieldLengths(t *testing.T) {
-	source := readAgentServiceSource(t)
-	if !strings.Contains(source, "UploadAssist") {
-		t.Skip("UploadAssist not found in agent_service.go")
-	}
+type fakeAgentErrorProvider struct {
+	err error
 }
 
-func TestComplianceCheckReturnsRiskLevel(t *testing.T) {
-	source := readAgentServiceSource(t)
-	if !strings.Contains(source, "ComplianceCheck") {
-		t.Skip("ComplianceCheck not found in agent_service.go")
-	}
-	if !strings.Contains(source, "risk_level") && !strings.Contains(source, "RiskLevel") {
-		t.Fatal("ComplianceCheck must return a risk_level field (safe/warning/violation)")
-	}
+func (p *fakeAgentErrorProvider) Chat(_ context.Context, _ llm.ChatRequest) (*llm.ChatResponse, error) {
+	return nil, p.err
 }
 
-func TestUploadAssistResultHasStructuredFields(t *testing.T) {
-	source := readAgentServiceSource(t)
-	required := []string{"SuggestedTitle", "SuggestedDescription", "SuggestedTags", "SuggestedCategory"}
-	for _, field := range required {
-		if !strings.Contains(source, field) {
-			t.Fatalf("UploadAssistResult must contain field %s", field)
-		}
-	}
+func (p *fakeAgentErrorProvider) ChatStream(_ context.Context, _ llm.ChatRequest, handler func(delta llm.ChatDelta) error) error {
+	return handler(llm.ChatDelta{Done: true})
 }
 
-func TestComplianceCheckHandlerExists(t *testing.T) {
-	handlerSrc := readHandlerSource(t)
-	if !strings.Contains(handlerSrc, "ComplianceCheck") {
-		t.Fatal("AgentHandler must have a ComplianceCheck method")
-	}
+func (p *fakeAgentErrorProvider) GetEmbedding(_ context.Context, _ string) ([]float32, error) {
+	return []float32{0.1}, nil
 }
 
-func TestUploadAssistHandlerExists(t *testing.T) {
-	handlerSrc := readHandlerSource(t)
-	if !strings.Contains(handlerSrc, "UploadAssist") {
-		t.Fatal("AgentHandler must have an UploadAssist method")
-	}
-}
+func TestUploadAssistInvalidJSONFallsBackToOriginalMetadata(t *testing.T) {
+	svc := NewAgentService(
+		&fakeAgentLLMProvider{chatContent: "not-json"},
+		nil,
+		nil,
+		nil,
+		nil,
+		&config.Config{Agent: config.AgentConfig{WebAgentEnabled: true}},
+	)
 
-func TestUploadAssistRouteRegistered(t *testing.T) {
-	routesSrc := readRoutesSource(t)
-	if !strings.Contains(routesSrc, "upload-assist") {
-		t.Fatal("upload-assist route must be registered")
-	}
-}
-
-func TestComplianceCheckRouteRegistered(t *testing.T) {
-	routesSrc := readRoutesSource(t)
-	if !strings.Contains(routesSrc, "compliance-check") {
-		t.Fatal("compliance-check route must be registered")
-	}
-}
-
-func readRoutesSource(t *testing.T) string {
-	t.Helper()
-	data, err := os.ReadFile("../handler/routes.go")
+	result, err := svc.UploadAssist(context.Background(), 7, "Original Title", "Original Description", "cover.png", "gaming")
 	if err != nil {
-		t.Fatalf("read routes.go: %v", err)
+		t.Fatalf("UploadAssist: %v", err)
 	}
-	return string(data)
+
+	if result.SuggestedTitle != "Original Title" {
+		t.Fatalf("SuggestedTitle = %q, want original title", result.SuggestedTitle)
+	}
+	if result.SuggestedDescription != "Original Description" {
+		t.Fatalf("SuggestedDescription = %q, want original description", result.SuggestedDescription)
+	}
+	if result.SuggestedCategory != "gaming" {
+		t.Fatalf("SuggestedCategory = %q, want gaming fallback", result.SuggestedCategory)
+	}
+	if len(result.SuggestedTags) != 0 {
+		t.Fatalf("SuggestedTags = %#v, want empty fallback", result.SuggestedTags)
+	}
+}
+
+func TestUploadAssistReturnsProviderError(t *testing.T) {
+	svc := NewAgentService(
+		&fakeAgentErrorProvider{err: errors.New("llm unavailable")},
+		nil,
+		nil,
+		nil,
+		nil,
+		&config.Config{Agent: config.AgentConfig{WebAgentEnabled: true}},
+	)
+
+	_, err := svc.UploadAssist(context.Background(), 7, "Original Title", "Original Description", "cover.png", "gaming")
+	if err == nil || err.Error() != "llm unavailable" {
+		t.Fatalf("UploadAssist error = %v, want llm unavailable", err)
+	}
+}
+
+func TestComplianceCheckParsesStructuredRiskLevel(t *testing.T) {
+	svc := NewAgentService(
+		&fakeAgentLLMProvider{chatContent: `{"risk_level":"warning","reason":"possible copyright issue","suggestions":["add attribution"]}`},
+		nil,
+		nil,
+		nil,
+		nil,
+		&config.Config{Agent: config.AgentConfig{WebAgentEnabled: true}},
+	)
+
+	result, err := svc.ComplianceCheck(context.Background(), "Title", "Description", "article")
+	if err != nil {
+		t.Fatalf("ComplianceCheck: %v", err)
+	}
+
+	if result.RiskLevel != "warning" {
+		t.Fatalf("RiskLevel = %q, want warning", result.RiskLevel)
+	}
+	if result.Reason != "possible copyright issue" {
+		t.Fatalf("Reason = %q, want parsed reason", result.Reason)
+	}
+	if len(result.Suggestions) != 1 || result.Suggestions[0] != "add attribution" {
+		t.Fatalf("Suggestions = %#v, want parsed suggestions", result.Suggestions)
+	}
+}
+
+func TestComplianceCheckInvalidJSONFallsBackToSafeReason(t *testing.T) {
+	svc := NewAgentService(
+		&fakeAgentLLMProvider{chatContent: "manual review recommended"},
+		nil,
+		nil,
+		nil,
+		nil,
+		&config.Config{Agent: config.AgentConfig{WebAgentEnabled: true}},
+	)
+
+	result, err := svc.ComplianceCheck(context.Background(), "Title", "Description", "article")
+	if err != nil {
+		t.Fatalf("ComplianceCheck: %v", err)
+	}
+
+	if result.RiskLevel != "safe" {
+		t.Fatalf("RiskLevel = %q, want safe fallback", result.RiskLevel)
+	}
+	if result.Reason != "manual review recommended" {
+		t.Fatalf("Reason = %q, want raw fallback", result.Reason)
+	}
 }

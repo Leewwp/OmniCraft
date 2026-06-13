@@ -1,8 +1,17 @@
-"""Create missing IP and fanworks."""
-import json, urllib.request
+"""Create missing IP and fanworks.
 
-BASE = "http://localhost:8080/api/v1"
+Environment variables:
+  SEED_BASE_URL  - API base URL (default: http://localhost:8080/api/v1)
+  SEED_EMAIL     - Login email (default: demo@omnicraft.com)
+  SEED_PASSWORD  - Login password (default: demo123456)
+"""
+import json, os, sys, urllib.request
+
+BASE = os.environ.get("SEED_BASE_URL", "http://localhost:8080/api/v1")
+SEED_EMAIL = os.environ.get("SEED_EMAIL", "demo@omnicraft.com")
+SEED_PASSWORD = os.environ.get("SEED_PASSWORD", "demo123456")
 TOKEN = None
+
 
 def api(method, path, data=None):
     url = f"{BASE}{path}"
@@ -18,21 +27,37 @@ def api(method, path, data=None):
         print(f"  ERR: {e}")
         return None
 
+
+def api_fatal(method, path, data=None, label=""):
+    """Call api() and exit on failure — used for critical operations (TST-031)."""
+    result = api(method, path, data)
+    if result is None:
+        desc = label or f"{method} {path}"
+        print(f"FATAL: {desc} failed, aborting.", file=sys.stderr)
+        sys.exit(1)
+    return result
+
+
 # Login
 print("Logging in...")
-r = api("POST", "/auth/login", {"email": "demo@omnicraft.com", "password": "demo123456"})
+r = api_fatal("POST", "/auth/login",
+              {"email": SEED_EMAIL, "password": SEED_PASSWORD},
+              label=f"Login as {SEED_EMAIL}")
 TOKEN = r["tokens"]["access_token"]
 print(f"Logged in as uid={r['user']['id']}")
 
 # Get existing IPs ID mapping
 print("\nGetting IPs...")
 r = api("GET", "/ips?page_size=50")
+if r is None:
+    print("FATAL: cannot fetch IPs from API", file=sys.stderr)
+    sys.exit(1)
 ips = {ip["name"]: ip["id"] for ip in r.get("ips", r.get("data", []))}
 print(f"Found {len(ips)} IPs")
 for n, i in ips.items():
     print(f"  [{i}] {n}")
 
-# Create missing 明日方舟 IP
+# Create missing 明日方舟 IP (idempotent)
 if "明日方舟" not in ips:
     print("\nCreating 明日方舟 IP...")
     r = api("POST", "/ips", {
@@ -47,9 +72,14 @@ if "明日方舟" not in ips:
         api("POST", f"/admin/ips/{ip_id}/approve")
         print(f"  Approved")
         ips["明日方舟"] = ip_id
+else:
+    print("\n  SKIP: 明日方舟 already exists")
 
 # Get content IDs for source linking
-r = api("GET", "/contents?author_id=42&page_size=50")
+r = api("GET", f"/contents?author_id={UID}&page_size=50")
+if r is None:
+    print("FATAL: cannot fetch contents from API", file=sys.stderr)
+    sys.exit(1)
 contents = {}
 src_id = None
 for c in r.get("contents", r.get("data", [])):
