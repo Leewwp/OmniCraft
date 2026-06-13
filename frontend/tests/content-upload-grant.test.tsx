@@ -4,6 +4,8 @@ import React from "react";
 
 import { cleanup, fireEvent, installDom, renderWithIntl, waitFor } from "./runtime-test-helpers";
 
+import type { UploadedAsset } from "@/components/content/FileUploader";
+
 test.afterEach(() => {
   cleanup();
 });
@@ -39,7 +41,8 @@ function installMockXHR(status = 200) {
     }
   }
 
-  (globalThis as unknown as { XMLHttpRequest: typeof MockXHR }).XMLHttpRequest = MockXHR as unknown as typeof XMLHttpRequest;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis as any).XMLHttpRequest = MockXHR;
 
   return function restore() {
     (globalThis as unknown as { XMLHttpRequest: typeof OriginalXHR }).XMLHttpRequest = OriginalXHR;
@@ -54,7 +57,7 @@ test("FileUploader stores grant_id from upload token response and passes it thro
   const FileUploader = uploaderModule.FileUploader;
 
   const originalPost = apiModule.api.post;
-  const uploadedAssets: uploaderModule.UploadedAsset[] = [];
+  const uploadedAssets: UploadedAsset[] = [];
 
   apiModule.api.post = (async (path: string, _body: unknown) => {
     if (path === "/api/v1/contents/oss-token") {
@@ -105,7 +108,7 @@ test("FileUploader handles missing grant_id gracefully (grantId is undefined)", 
   const FileUploader = uploaderModule.FileUploader;
 
   const originalPost = apiModule.api.post;
-  const uploadedAssets: uploaderModule.UploadedAsset[] = [];
+  const uploadedAssets: UploadedAsset[] = [];
 
   apiModule.api.post = (async (path: string, _body: unknown) => {
     if (path === "/api/v1/contents/oss-token") {
