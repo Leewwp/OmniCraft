@@ -30,11 +30,13 @@
 7. 收到 `DONE_WITH_CONCERNS` 时先处理 concerns。正确性、安全、范围或契约疑问未解决前不得进入审查或合并。
 8. 完成后同步勾选子系统计划和 roadmap checkbox，更新 `progress.txt`。本模式禁止修改 `task.json`。
 9. 历史 `passes: true` 只代表曾经完成，不能替代 Beta 回归验证，尤其不能跳过历史 Task 156-168 的质量门槛。
-10. 桌面端一键部署属于条件路线：在 D-02 至 D-05 和 R-02 完成前，必须保持 `features.desktop_deploy_enabled: false`。
+10. 桌面端一键部署：D-02 至 D-05 完成后开启 `features.desktop_deploy_enabled: true`；R-02 验证通过前不得发布到生产环境。
 
 ### 模式 B：历史 `task.json` 任务账本
 
 适用于维护历史 MVP、处理 `task.json` 中新增任务，或用户明确指定 `task.json` 任务时。
+
+> **注意**：`task.json` 中 100+ 个历史任务已全部完成（`passes: true`），仅作历史记录保留。新工作请参考模式 A（Beta 路线图）。仅在用户明确指定历史任务 ID 时使用此模式。
 
 规则：
 
@@ -252,12 +254,18 @@ OmniCraft/
 ├── task.json                # 历史 MVP 任务账本
 ├── AGENTS.md                # 本文件
 ├── progress.txt             # 进度日志
-├── docs/superpowers/
-│   ├── specs/               # 已确认的设计输入
-│   └── plans/               # Beta roadmap、子系统计划、协作说明
+├── docs/
+│   ├── archive/             # 已归档文档（不再作为开发参考）
+│   ├── superpowers/
+│   │   ├── specs/           # 已确认的设计输入
+│   │   └── plans/           # Beta roadmap、子系统计划、协作说明
+│   └── 2026-06-24-*.md      # 设计审查报告（问题清单 + 决策记录）
 ├── .specify/memory/constitution.md  # 项目宪法（设计原则和约束）
 ├── design/
-│   └── ui-spec.md           # UI 设计规格（Gemini 生成，前端 Task 实现必读）
+│   ├── design-system.md     # 设计系统（色彩/字体/间距，唯一设计权威）
+│   ├── ui-spec.md           # UI 规格书（页面和组件规格，前端 Task 实现必读）
+│   ├── ui-design-prompt.md  # UI 设计生成提示词
+│   └── doc-review-prompt.md # 文档校验提示词
 ├── backend/                 # Go 后端
 │   ├── cmd/server/main.go
 │   ├── internal/
@@ -424,7 +432,7 @@ docker compose logs -f backend     # 查看后端日志
 
 - 下载 API：`GET /api/v1/contents/:id/download`，需认证且校验内容 `status=published`
 - 下载计数：每次成功下载 `download_count + 1`（异步写入，不阻断下载流程）
-- 权限控制：信誉分 < 3 用户禁止下载；封禁用户禁止下载
+- 权限控制：信誉分 < `config.yaml > reputation.min_score_for_interaction`（默认 3）用户禁止下载；封禁用户禁止下载。**所有信誉分门槛统一使用 `min_score_for_interaction`**（发布、评论、众裁、点赞、下载等），不再为下载单独定义阈值
 - 前端下载按钮位于内容详情页 ReactionBar 区域，调用后端获取 OSS 临时签名 URL 后触发浏览器下载
 
 ### 收藏集（Task 122–123）
@@ -488,7 +496,7 @@ docker compose logs -f backend     # 查看后端日志
 | — | `/studio/followers` | 新增（粉丝分析） |
 | — | `/studio/revenue` | 新增（P1 预留，显示「即将开放」） |
 
-#### 侧边栏结构（可折叠，展开 w-56 / 收起 w-16）
+#### 侧边栏结构（可折叠，展开 228px / 收起 48px）
 
 - **内容发布**：发布原创 → 内容类型选择 → 发布表单；发布二创 → 内容类型选择 → 发布表单（含 IP 选择器 + 来源原创搜索器）
 - **数据看板**：概览（统计卡片 + 趋势图）、内容管理、粉丝分析、收益数据（P1 占位）
@@ -589,7 +597,7 @@ docker compose logs -f backend     # 查看后端日志
 15. **Design spec overrides prose** — 视觉细节以 `design/ui-spec.md` 为准，优先级高于 task steps 的文字描述
 16. **No raw error exposure** — 禁止将 `err.Error()` 直接返回给客户端或展示在前端 UI 上；必须使用脱敏的通用错误消息（Task 102）
 17. **Protected routes require auth guard** — 所有受保护路由必须包裹在 `(protected)` layout group 中，未登录时重定向 `/login`（Task 105）
-18. **Soft delete only** — 删除操作一律软删除（设置 `deleted_at`），禁止物理删除用户或内容数据（Task 103）
+18. **Soft delete preferred** — 删除操作以软删除为主（设置 `deleted_at`），保留数据用于审计和分析；仅对确无分析价值的数据（如浏览历史、已读通知）使用物理删除（Task 103，DEC-031）
 19. **Structured logging** — 后端日志统一使用 `slog` JSON 格式，禁止 `log.Printf` / `fmt.Println` 调试输出（Task 141）
 20. **i18n mandatory** — 新增 UI 字符串必须通过 `next-intl` 引用，禁止硬编码中英文字符串（Task 108）
 21. **Select task source first** — 会话开始先确定 Beta roadmap 或历史 `task.json` 模式，禁止混用完成状态

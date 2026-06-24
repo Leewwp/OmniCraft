@@ -35,12 +35,15 @@ OmniCraft（万象工坊）是一个创意内容社区平台，支持二创（�
 |------|------|------|
 | 1 | `OmniCraft（万象工坊）V0.3 正式版产品需求文档.md` | **PRD**：产品需求文档，定义所有功能需求、业务规则、用户角色、Feature Flag |
 | 2 | `architecture.md` | **技术架构**：系统架构、数据库 DDL（§4）、API 设计（§5-§8）、安全策略、配置治理、分类枚举定义（§10） |
-| 3 | `CLAUDE.md` | **编码规范与 Agent 工作流**：Go/TS 编码标准、安全白名单、Agent 工具调用约束、业务规则速查 |
-| 4 | `UI Design.md` | **UI 设计规范**：页面列表（P01-P21+）、组件定义、设计系统（色彩/字体/间距/暗色模式）、响应式断点、交互模式 |
-| 5 | `task.json` | **任务列表**：83+ 个开发任务，每个含 id/title/description/steps/ui_spec_ref/passes/depends_on，是开发执行的唯一真实来源 |
+| 3 | `CLAUDE.md` / `AGENTS.md` | **编码规范与 Agent 工作流**：Go/TS 编码标准、安全白名单、Agent 工具调用约束、业务规则速查 |
+| 4 | `design/design-system.md` + `design/ui-spec.md` | **UI 设计规范**：design-system.md 定义设计 Token（色彩/字体/间距/暗色模式），ui-spec.md 定义页面和组件规格（唯一视觉权威） |
+| 5 | `task.json` | **历史任务列表**：100+ 个开发任务，已 100% 完成，仅作历史记录。新工作参考 Beta 路线图 |
 | 6 | `progress.txt` | **进度记录**：已完成任务的进度追踪 |
-| 7 | `design/ui-spec.md` | **UI 规格书**：前端页面和组件的详细规格（可能为占位符状态） |
-| 8 | `docs edited history.md` | **修改历史**：已完成的文档修复记录，**校验时必须参考此文件以避免重复报告已修复的问题** |
+| 7 | `docs edited history.md` | **修改历史**：已完成的文档修复记录，**校验时必须参考此文件以避免重复报告已修复的问题** |
+
+> **已归档文档**（不再作为校验参考）：
+> - `docs/archive/UI Design.md` — 早期 UI 设计文档，已被 `design/ui-spec.md` 取代
+> - `docs/archive/homepage-v0.html` — 早期首页设计概念，已被实际实现取代
 
 ### 校验任务
 
@@ -50,7 +53,7 @@ OmniCraft（万象工坊）是一个创意内容社区平台，支持二创（�
 - PRD 定义的每项功能是否在 architecture.md 有对应的技术实现设计（API、DB Schema、配置项）
 - architecture.md 的 DB Schema（§4）字段类型、枚举值、索引是否与 PRD 业务规则匹配
 - Feature Flag 名称和默认值在 PRD、architecture.md、CLAUDE.md 中是否一致
-- 分类枚举（IP 分类、内容类型、原创区大类）在 architecture.md §10、task.json、UI Design.md 中是否一致
+- 分类枚举（IP 分类、内容类型、原创区大类）在 architecture.md §10、task.json、design/ui-spec.md 中是否一致
 
 #### 2. CLAUDE.md 编码规范校验
 - 编码标准是否与 architecture.md 的技术选型匹配（Go 版本、包管理、目录结构）
@@ -63,18 +66,18 @@ OmniCraft（万象工坊）是一个创意内容社区平台，支持二创（�
 - 每个任务的 steps 是否足够具体，能否直接指导开发（无歧义）
 - 任务间的 `depends_on` 依赖链是否正确（无循环依赖、无遗漏前置依赖）
 - 检查是否存在"低 ID 任务依赖高 ID 任务但缺少 depends_on"的情况
-- 新增的 Task 84（用户主页）和 Task 85（浏览历史）是否完整覆盖 UI Design.md 对应页面定义
+- 新增的 Task 84（用户主页）和 Task 85（浏览历史）是否完整覆盖 design/ui-spec.md 对应页面定义
 
 #### 4. progress.txt 一致性
 - progress.txt 中标记完成的任务是否与 task.json 中 `passes: true` 的任务一致
 - 是否有 task.json 中已标记完成但 progress.txt 未记录的任务（或反之）
 
-#### 5. UI Design.md 完整性
-- UI Design.md 中每个页面（P01-Pxx）是否都有对应的 task.json 任务
-- task.json 中每个前端任务的 `ui_spec_ref` 引用的章节是否在 UI Design.md 中存在
+#### 5. ui-spec.md 完整性
+- `design/ui-spec.md` 中每个页面/组件定义是否都有对应的 task.json 任务
+- task.json 中每个前端任务的 `ui_spec_ref` 引用的章节是否在 `design/ui-spec.md` 中存在
 - 页面间的跳转路由是否一致（如用户主页 → 设置页、内容详情 → 用户主页等）
 - 响应式断点（移动 ≤ 700px / 平板 ≤ 1100px / PC > 1100px）在所有文件中是否一致
-- 设计系统的 Token（颜色、字体、间距）是否与 CLAUDE.md 或 architecture.md 的约定一致
+- 设计系统的 Token（颜色、字体、间距）在 `design/design-system.md`、`architecture.md`、实际实现之间是否一致
 
 #### 6. 交互设计合理性
 - 是否存在违反常见人机交互原则的设计（如缺少加载状态、缺少错误反馈、缺少空状态）
