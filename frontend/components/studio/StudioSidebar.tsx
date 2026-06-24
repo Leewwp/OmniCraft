@@ -79,7 +79,7 @@ export function StudioSidebar() {
       <aside
         className={cn(
           "hidden sm:flex sm:flex-col flex-shrink-0 overflow-y-auto overflow-x-hidden bg-background py-3 transition-[width] duration-200",
-          collapsed ? "w-[52px]" : "w-56"
+          collapsed ? "w-12" : "w-[228px]"
         )}
       >
         {/* Toggle */}

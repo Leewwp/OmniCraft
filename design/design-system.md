@@ -165,7 +165,7 @@ AppLayout (flex)
 
 ```
 AdminLayout
-├── Sidebar (220px, collapsible)
+├── Sidebar (228px, collapsible)
 └── Main
     ├── Page Header
     └── Content Area (table/list/cards)
@@ -175,7 +175,7 @@ AdminLayout
 
 ```
 StudioLayout
-├── StudioSidebar (220px, collapsible)
+├── StudioSidebar (228px, collapsible)
 └── Main
     ├── Page Header + Stats
     └── Content Area

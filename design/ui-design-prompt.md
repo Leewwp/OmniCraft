@@ -1,12 +1,14 @@
 # 任务：为 OmniCraft 项目生成完整的 UI 设计规格文档
 
+> ⚠️ **归档说明**：本文档中所有对 `UI Design.md` 的引用均指向已归档文件（现位于 `docs/archive/UI Design.md`）。该文件仅作历史参考，**不再作为视觉权威**。当前视觉权威为 `design/design-system.md` 与 `design/ui-spec.md`。下方涉及 `UI Design.md` 的章节编号、页面描述等内容保留以供历史追溯，但实现时应以 `design/design-system.md` 为准。
+
 你是一名资深 UI/UX 设计师，需要为 OmniCraft（万象工坊）的前端实现填充完整的视觉设计规格。该规格文档将作为 AI 编程 Agent 实现前端代码的**唯一视觉权威**，必须可执行、可检索、无歧义。
 
 ## 一、必读上下文文件（按顺序通读）
 
 1. `OmniCraft（万象工坊）V0.3 正式版产品需求文档.md` —— 业务功能与用户角色
 2. [architecture.md](cci:7://file:///c:/Users/16278/Desktop/file/code/project/OmniCraft/architecture.md:0:0-0:0) §3.1（Web 前端路由清单与组件树）+ §10（V0.3.1 增强：颜色 token、瀑布流、内容浏览布局）+ §11.9（Agent 组件定位）
-3. `UI Design.md` —— **本文档是规格的输入清单**，列出了所有 P01-P29 页面、所有组件类别（§3.1-3.11）、设计风格基准、响应式断点
+3. `UI Design.md`（**已归档至 `docs/archive/UI Design.md`**，仅作历史参考）—— **本文档是规格的输入清单**，列出了所有 P01-P29 页面、所有组件类别（§3.1-3.11）、设计风格基准、响应式断点
 4. [CLAUDE.md](cci:7://file:///c:/Users/16278/Desktop/file/code/project/OmniCraft/CLAUDE.md:0:0-0:0)「关键业务规则」+「Tauri 客户端文件操作白名单」—— 用于推断按钮/状态/权限相关 UI 的展示逻辑
 5. [task.json](cci:7://file:///c:/Users/16278/Desktop/file/code/project/OmniCraft/task.json:0:0-0:0) —— 检查每个前端 task 的 `ui_spec_ref` 字段，**你生成的章节标题必须与这些引用完全一致**
 6. [design/ui-spec.md](cci:7://file:///c:/Users/16278/Desktop/file/code/project/OmniCraft/design/ui-spec.md:0:0-0:0) —— **当前文件**，已有 79 个空白 heading 占位符，你只需填充每个 heading 下方的内容（不要修改 heading 本身、不要新增/删除 heading）
@@ -138,6 +140,8 @@ interface XxxProps {
 ## 五、参考清单（互查）
 
 填写每个 heading 时按下列优先级查阅参考：
+
+> 📌 **注意**：下表中所有 `UI Design.md` 引用均指向已归档文件（`docs/archive/UI Design.md`），仅作历史参考。实现时如与 `design/design-system.md` 冲突，以 `design/design-system.md` 为准。
 
 | heading 类型 | 主参考 | 次参考 |
 |------|------|------|
