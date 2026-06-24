@@ -1233,14 +1233,15 @@ features:
   agent_enabled: true          # Agent 部署功能
   judge_enabled: true          # 赛博判官
   creator_support_enabled: false  # 创作者支持模块（P1 开启）
+  desktop_deploy_enabled: false   # 桌面端一键部署（D-02~D-05 完成后开启）
 
 limits:
-  video_max_size_mb: 300       # 视频最大文件大小（MB）
-  video_max_duration_sec: 180  # 视频最大时长（秒）
-  image_max_size_mb: 20
-  text_max_size_mb: 10
-  mod_archive_max_size_mb: 500 # Mod 打包最大大小
-  sheet_music_max_size_mb: 50  # 乐谱文件最大大小（含 MIDI/MusicXML/MSCZ/PDF）
+  video_max_mb: 300            # 视频最大文件大小（MB）
+  video_max_sec: 180           # 视频最大时长（秒）
+  image_max_mb: 20
+  text_max_mb: 10
+  mod_max_mb: 500              # Mod 打包最大大小
+  sheet_music_max_mb: 50       # 乐谱文件最大大小（含 MIDI/MusicXML/MSCZ/PDF）
   sheet_music_allowed_ext: ["mid", "midi", "xml", "mxl", "mscz", "mscx", "pdf"]
 
 reputation:
@@ -1252,15 +1253,15 @@ reputation:
   malicious_report_tag: -1         # 恶意举报标签
   judge_error: -1                  # 判官错误
   # 正向事件（按内容分类：内容相关 +3、评论相关 +2、标签/判官相关 +1）
-  quality_content_threshold: 50    # 优质内容点赞阈值
+  quality_content_threshold: 10    # 优质内容点赞阈值
   quality_content_bonus: 3         # 优质内容加分值
-  quality_comment_threshold: 20    # 优质评论点赞阈值
+  quality_comment_threshold: 5     # 优质评论点赞阈值
   quality_comment_bonus: 2         # 优质评论加分值
   contribution_accepted: 3         # PR 被接受加分（内容相关）
   valid_report: 1                  # 有效举报加分（标签相关）
   judge_accuracy_bonus: 1          # 赛博判官高准确率奖励
   rehab_course_completed: 1        # 完成素质建设课程加分
-  min_score_for_publish: 3         # 低于此分禁止发布/互动
+  min_score_for_interaction: 3     # 低于此分禁止发布/互动/下载（统一门槛）
   # 恶意内容二次发布累计扣分（PRD §6.2）
   repeat_violation_window_days: 7        # 滑动窗口天数
   repeat_violation_threshold: 2          # 窗口内 block/violation 计数阈值
@@ -1602,52 +1603,28 @@ components/content/SheetMusicViewer.tsx
 
 ---
 
-### 10.4 UI 设计规范（GitHub 风格）
+### 10.4 UI 设计规范
 
-#### 颜色体系（Tailwind 扩展）
+> **权威来源**：UI 设计规范的唯一权威为 [`design/design-system.md`](./design/design-system.md) 和 [`design/ui-spec.md`](./design/ui-spec.md)。
+> 本节仅列出设计系统概要，详细色值、字体、间距、组件规范请查阅上述文件。
+> `docs/archive/UI Design.md` 和 `docs/archive/homepage-v0.html` 已归档，不再作为设计参考。
 
-```js
-// tailwind.config.ts 扩展
-colors: {
-  canvas: {
-    default: { light: '#ffffff', dark: '#0d1117' },
-    subtle:  { light: '#f6f8fa', dark: '#161b22' },
-    inset:   { light: '#e6edf3', dark: '#010409' },
-  },
-  border: {
-    default: { light: '#d0d7de', dark: '#30363d' },
-    muted:   { light: '#d8dee4', dark: '#21262d' },
-  },
-  fg: {
-    default: { light: '#1f2328', dark: '#e6edf3' },
-    muted:   { light: '#636c76', dark: '#848d97' },
-  },
-  accent: {
-    emphasis: { light: '#0969da', dark: '#2f81f7' },
-  },
-  // 标签低饱和配色
-  tag: {
-    blue:   { bg: { light: '#ddf4ff', dark: '#388bfd1a' }, fg: { light: '#0969da', dark: '#79c0ff' } },
-    green:  { bg: { light: '#dafbe1', dark: '#2ea0431a' }, fg: { light: '#1a7f37', dark: '#56d364' } },
-    purple: { bg: { light: '#fbefff', dark: '#a371f71a' }, fg: { light: '#8250df', dark: '#d2a8ff' } },
-    orange: { bg: { light: '#fff1e5', dark: '#d1242f1a' }, fg: { light: '#bc4c00', dark: '#ffa657' } },
-  },
-}
-```
+#### 设计系统概要
+
+- **主色调**：Indigo `#4F46E5`（详见 `design-system.md`）
+- **背景色**：`#FFFFFF`（亮色）/ 暗色模式见 `design-system.md`
+- **Header 高度**：52px
+- **字体**：系统字体栈（详见 `design-system.md`）
+- **主题切换**：用户首选主题存入 `localStorage: theme = 'light' | 'dark' | 'system'`，Header 右上角提供切换按钮，不与语言偏好存入服务端（纯客户端偏好）
 
 #### 组件规范
 
 - **标签 Badge**：低饱和色、圆角 6px、字号 12px
-- **按钮**：Solid（accent 色）/ Outline（border 色）/ Ghost（无边框）三种变体
-- **卡片**：1px border，hover 时 border 加深，无 box-shadow（GitHub 风格扁平）
-- **字体**：`font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial`
+- **按钮**：Solid（主色）/ Outline（border 色）/ Ghost（无边框）三种变体
+- **卡片**：1px border，hover 时 border 加深，无 box-shadow（扁平风格）
 - **暗色模式**：通过 `class="dark"` on `<html>` 切换（shadcn/ui 内置支持）
 
-#### 主题切换
-
-- 用户首选主题存入 `localStorage: theme = 'light' | 'dark' | 'system'`
-- Header 右上角提供主题切换图标按钮（太阳/月亮）
-- 不与语言偏好存入服务端（纯客户端偏好）
+> 详细组件规范、色值 Token、间距体系请查阅 [`design/design-system.md`](./design/design-system.md)。
 
 ---
 
@@ -2105,10 +2082,10 @@ final_score = α × sim_score + (1 - α) × hot_score
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│ Header（h-16，全宽，底边框）                          │
+│ Header（h-13/52px，全宽，底边框）                     │
 ├──────────┬───────────────────────────────────────────┤
 │ Sidebar  │ 主内容区                                   │
-│ (w-56    │                                            │
+│ (228px   │                                            │
 │  展开)   │  ┌─ 内容类型选择网格 ──────────────────┐  │
 │          │  │ [图文] [纯文字] [视频] [音频] ...     │  │
 │          │  │（按发布频率高→低，左→右排列）        │  │
@@ -2151,8 +2128,8 @@ final_score = α × sim_score + (1 - α) × hot_score
 
 #### 折叠行为
 
-- **展开态**（默认，宽度 224px / `w-56`）：显示图标 + 标题文字，分组标题可见
-- **收起态**（宽度 64px / `w-16`）：仅显示图标，分组标题隐藏，分组之间用分隔线区分
+- **展开态**（默认，宽度 228px）：显示图标 + 标题文字，分组标题可见
+- **收起态**（宽度 48px）：仅显示图标，分组标题隐藏，分组之间用分隔线区分
 - **切换按钮**：侧边栏顶部/底部放置 `<` / `>` 箭头按钮
 - **Hover Tooltip**：收起态下鼠标悬停图标 → 在图标右侧弹出 tooltip（`absolute left-full ml-2`），显示该项的标题文字，延迟 300ms 出现
 - **键盘**：支持 `Tab` 在图标间切换，`Enter` 导航
