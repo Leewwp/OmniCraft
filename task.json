@@ -1579,7 +1579,7 @@
       ],
       "steps": [
         "创建 app/(public)/ip/[ipId]/discussions/page.tsx：讨论区列表页（SSR 获取讨论列表，按最新回复排序，分页，显示帖子标题/作者/回复数/最后回复时间）",
-        "讨论列表页工具栏右侧增加搜索输入框（UI Design.md P04a）：本地节流 300ms 后调用 GET /ips/:id/discussions/search?q=<keyword>（Task 79 提供），q 为空时返回默认列表，有结果时高亮匹配词、无结果时显示「未找到相关讨论」 EmptyState",
+        "讨论列表页工具栏右侧增加搜索输入框（[已归档] UI Design.md P04a）：本地节流 300ms 后调用 GET /ips/:id/discussions/search?q=<keyword>（Task 79 提供），q 为空时返回默认列表，有结果时高亮匹配词、无结果时显示「未找到相关讨论」 EmptyState",
         "创建 app/(public)/ip/[ipId]/discussions/[discussionId]/page.tsx：讨论详情页（帖子内容 + 回复列表，支持楼中楼回复，分页加载）",
         "创建 app/(protected)/ip/[ipId]/discussions/new/page.tsx：发帖页面（标题 + Markdown 编辑器，提交后跳转到帖子详情）",
         "创建 components/social/DiscussionCard.tsx：讨论帖卡片组件（帖子标题、作者头像/名称、回复数、最后回复时间）",

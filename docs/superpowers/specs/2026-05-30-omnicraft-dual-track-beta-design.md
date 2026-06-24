@@ -69,7 +69,7 @@ OmniCraft 不应只被表达成内容社区，也不应只被表达成 Agent 工
 - `OmniCraft（万象工坊）V0.3 正式版产品需求文档.md`
 - `design/ui-spec.md`
 - `design/design-system.md`
-- `UI Design.md`
+- `UI Design.md`（已归档至 `docs/archive/`，仅作历史参考）
 - `docs/PLAN.md`
 - `docs/async-queue-analysis.md`
 - `docs/review/frontend-audit-2026-05-22.md`

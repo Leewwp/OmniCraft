@@ -1,11 +1,11 @@
-﻿# OmniCraft UI 设计规格
+# OmniCraft UI 设计规格
 
 > ℹ️ **生成状态**：本文件由 Gemini 批量生成，已完成初始内容填充。全局规范（Design Tokens、Interaction Patterns）和组件规范（Component 章节）可直接用于实现。以下偏差需 Agent 实现时注意：
 >
-> 1. **部分页面「核心组件清单」仍为模板默认值**（`EmptyState/LoadingSpinner`），Agent 应参考对应 Task 的 `ui_spec_ref` 和 `UI Design.md` 页面小节获取真实组件列表。
+> 1. **部分页面「核心组件清单」仍为模板默认值**（`EmptyState/LoadingSpinner`），Agent 应参考对应 Task 的 `ui_spec_ref` 和 `design/design-system.md` 组件规范获取真实组件列表。
 > 2. **表单类页面的「响应式规则」已修正**（login/register/settings/judge exam/rehab/messages/appeals 等 15 个页面），但个别页面可能仍有遗留。
 >
-> Agent 在实现前端时，优先以 `## Component:` 具体组件的规范和 `UI Design.md` 对应页面为准；发现不一致时以设计规范为准。
+> Agent 在实现前端时，优先以 `## Component:` 具体组件的规范和 `design/design-system.md` 为准；发现不一致时以设计规范为准。（注：历史 `UI Design.md` 已归档至 `docs/archive/`，不再作为视觉权威。）
 
 ---
 
@@ -3707,7 +3707,7 @@ interface JudgeQualBadgeProps {
 ## Component: StudioSidebar
 
 **Key Constraints**
-- 鍒涗綔鑰呭伐浣滃鐨勫彲鎶樺彔渚ц竟鏍忥紝蹇呴』鍦?`/studio/*` 甯冨眬涓娇鐢ㄣ€?- 閬靛畧鍏ㄥ眬鎵佸钩鍖栨棤闃村奖璁捐瑙勮寖锛岄鑹插紩鐢ㄩ瀹氫箟 token銆?- 灞曞紑瀹藉害 224px (`w-56`)锛屾敹璧峰搴?64px (`w-16`)锛岃繃娓″姩鐢?`transition-all duration-200`銆?- 鏀惰捣鎬侊細浠呮樉绀哄浘鏍囷紝hover 鍥炬爣鏃跺湪鍙充晶寮瑰嚭 tooltip锛坄absolute left-full ml-2`锛屽欢杩?300ms锛夈€?
+- 鍒涗綔鑰呭伐浣滃鐨勫彲鎶樺彔渚ц竟鏍忥紝蹇呴』鍦?`/studio/*` 甯冨眬涓娇鐢ㄣ€?- 閬靛畧鍏ㄥ眬鎵佸钩鍖栨棤闃村奖璁捐瑙勮寖锛岄鑹插紩鐢ㄩ瀹氫箟 token銆?- 灞曞紑瀹藉害 228px (`w-[228px]`)锛屾敹璧峰搴?48px (`w-12`)锛岃繃娓″姩鐢?`transition-all duration-200`銆?- 鏀惰捣鎬侊細浠呮樉绀哄浘鏍囷紝hover 鍥炬爣鏃跺湪鍙充晶寮瑰嚭 tooltip锛坄absolute left-full ml-2`锛屽欢杩?300ms锛夈€?
 **Props 鎺ュ彛**
 ```ts
 interface StudioSidebarProps {
@@ -3788,9 +3788,9 @@ interface ContentTypeOption {
 **Key Constraints**
 - 鎵€鏈?`/studio/*` 瀛愰〉闈㈠叡浜?`StudioLayout`锛堜晶杈规爮 + 涓诲唴瀹瑰尯锛夈€?- 闇€瑕佺櫥褰曪紝鏈櫥褰?redirect `/login`銆?- 鍙傝€?B 绔欏垱浣滀腑蹇冨拰灏忕孩涔﹀垱浣滆€呭悗鍙拌璁°€?- 閬靛畧鍏ㄥ眬鎵佸钩鍖栨棤闃村奖璁捐瑙勮寖銆?
 **瑙嗚灞傜骇**
-- 椤堕儴锛欻eader `h-16`锛屽簳杈规 `border-b border-border.muted`
-- 涓诲鍣細`flex h-[calc(100vh-64px)]`锛圚eader 涓嬫柟鍏ㄩ珮锛夛紝鑳屾櫙 `bg-canvas.subtle`
-- 宸︿晶锛歋tudioSidebar锛堝睍寮€ `w-56` / 鏀惰捣 `w-16`锛夛紝鍙充晶 1px border 鍒嗛殧
+- 椤堕儴锛欻eader `h-13`锛屽簳杈规 `border-b border-border.muted`
+- 涓诲鍣細`flex h-[calc(100vh-52px)]`锛圚eader 涓嬫柟鍏ㄩ珮锛夛紝鑳屾櫙 `bg-canvas.subtle`
+- 宸︿晶锛歋tudioSidebar锛堝睍寮€ `w-[228px]` / 鏀惰捣 `w-12`锛夛紝鍙充晶 1px border 鍒嗛殧
 - 鍙充晶锛氫富鍐呭鍖?`flex-1 overflow-y-auto`锛宲adding `p-6`
 
 **鏍稿績缁勪欢娓呭崟**
@@ -3806,7 +3806,7 @@ interface ContentTypeOption {
 **鐘舵€佸彉浣?*
 - default: 榛樿杩涘叆 `/studio/publish/original`锛圕ontentTypeGrid锛夈€?- loading: 涓诲唴瀹瑰尯楠ㄦ灦灞忋€?- empty: 鏃犲唴瀹?鏃犳暟鎹椂瀵瑰簲 EmptyState銆?- error: Toast 鍙充笂瑙掓姤閿欍€?- 鐗规畩鐘舵€侊細淇¤獕鍒?< 3 鏃跺彂甯冨叆鍙?disabled + tooltip銆屼俊瑾夊垎涓嶈冻锛屾殏鏃犳硶鍙戝竷銆嶃€?
 **鍝嶅簲寮忚鍒?*
-- 绉诲姩 (鈮?00px): 渚ц竟鏍忛粯璁ゆ敹璧凤紙64px锛夛紝鐐瑰嚮灞曞紑涓烘诞灞傝鐩栵紱涓诲唴瀹瑰尯 `p-4`銆?- 骞虫澘 (鈮?100px): 渚ц竟鏍忓睍寮€锛屼富鍐呭鍖鸿嚜閫傚簲銆?- PC (>1100px): 渚ц竟鏍忓睍寮€ 224px锛屾瑙?鍐呭绠＄悊 max-w 1280px锛屽彂甯冭〃鍗?max-w 960px銆?
+- 绉诲姩 (鈮?00px): 渚ц竟鏍忛粯璁ゆ敹璧凤紙48px锛夛紝鐐瑰嚮灞曞紑涓烘诞灞傝鐩栵紱涓诲唴瀹瑰尯 `p-4`銆?- 骞虫澘 (鈮?100px): 渚ц竟鏍忓睍寮€锛屼富鍐呭鍖鸿嚜閫傚簲銆?- PC (>1100px): 渚ц竟鏍忓睍寮€ 228px锛屾瑙?鍐呭绠＄悊 max-w 1280px锛屽彂甯冭〃鍗?max-w 960px銆?
 **浜や簰缁嗚妭**
 - 渚ц竟鏍忔姌鍙犵姸鎬佹寔涔呭寲鍒?`localStorage: studio_sidebar_collapsed`銆?- 鍙戝竷娴佺▼锛氱被鍨嬮€夋嫨 鈫?鍙戝竷琛ㄥ崟锛堝悓椤电姸鎬佸垏鎹紝涓嶆敼鍙?URL锛夈€?- 鍙戝竷鎴愬姛鍚庤烦杞?`/studio/contents`銆?- 鏁版嵁鍔犺浇锛歋WR 瀹㈡埛绔姞杞芥瑙堢粺璁°€佺矇涓濊秼鍔跨瓑涓€у寲鏁版嵁銆?
 ## Page: /studio/publish/original 鍙戝竷鍘熷垱

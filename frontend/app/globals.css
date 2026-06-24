@@ -80,6 +80,7 @@
   --border: #e8e8e8;
   --input: #e8e8e8;
   --ring: #4f46e5;
+  /* Chart colors — 独立于品牌主色，沿用 GitHub 数据可视化色板以保证图表可读性；与 --primary (#4f46e5) 无关，不应据此推断品牌色 */
   --chart-1: #0969da;
   --chart-2: #1a7f37;
   --chart-3: #8250df;
