@@ -129,7 +129,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：带 1px 边框的卡片容器
 
@@ -175,7 +175,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：搜索栏 + 分面侧边栏 + 搜索结果瀑布流
 
@@ -224,7 +224,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：登录表单卡片（带 1px border），居中展示
 
@@ -269,7 +269,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：注册表单卡片（带 1px border），居中展示
 
@@ -315,7 +315,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：带 1px 边框的卡片容器
 
@@ -361,7 +361,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：带 1px 边框的卡片容器
 
@@ -408,7 +408,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：搜索栏 + 讨论列表 + 发帖入口
 
@@ -455,7 +455,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：讨论主帖 + 回复列表，各模块带 1px border
 
@@ -502,7 +502,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：发帖表单卡片（标题 + 内容 + 提交按钮）
 
@@ -546,7 +546,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：详情内容卡片 + 评论区 + 版本历史，各模块带 1px border
 
@@ -597,7 +597,7 @@ interface FacetedSearchSidebarProps {
 - 推荐 Tab 为算法驱动的个性化推送（`sort=recommended`），非手动筛选选项。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 分类 Tab 栏：Header 下方固定（sticky），高度 `h-12`，底部 1px border 分隔，Tab 项横向滚动
 - 主容器：居中最大宽度 1280px，页面背景 `bg-canvas.subtle`
 - 内容模块：瀑布流卡片（无外层 border 容器，卡片直接排列）
@@ -667,7 +667,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：详情内容卡片 + 评论区，各模块带 1px border
 
@@ -714,7 +714,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：用户信息卡片 + 内容 Tab 切换区（发布/收藏/讨论）
 
@@ -767,7 +767,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：带 1px 边框的卡片容器
 
@@ -813,7 +813,7 @@ interface FacetedSearchSidebarProps {
 - 密码修改/注销等破坏性操作需 ConfirmModal 二次确认。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：设置分组卡片（个人信息 / 安全设置 / 危险操作），每组带 1px border
 
@@ -857,7 +857,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：标签组列表卡片 + 新建/编辑表单区
 
@@ -904,7 +904,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：带 1px 边框的卡片容器
 
@@ -949,7 +949,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：带 1px 边框的卡片容器
 
@@ -994,7 +994,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：带 1px 边框的卡片容器
 
@@ -1039,7 +1039,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：带 1px 边框的卡片容器
 
@@ -1084,7 +1084,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：标签建议审核表格 + 操作列
 
@@ -1133,7 +1133,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：考题卡片（题目 + 选项 + 提交按钮）
 
@@ -1179,7 +1179,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：待审案例卡片队列
 
@@ -1225,7 +1225,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：按日期分组的浏览历史列表
 
@@ -1271,7 +1271,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：申诉列表卡片 + 新建申诉表单
 
@@ -1316,7 +1316,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：通知列表 + 私信对话列表，Tab 切换
 
@@ -1364,7 +1364,7 @@ interface FacetedSearchSidebarProps {
 - 每门课程仅能完成一次，最低阅读 3 分钟（180 秒）。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：课程列表卡片 + 课程内容详情区
 
@@ -1409,7 +1409,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：待审核 IP 表格 + 操作列
 
@@ -1456,7 +1456,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：待审内容表格 + 操作列
 
@@ -1503,7 +1503,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：用户表格 + 搜索筛选 + 操作列
 
@@ -1550,7 +1550,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：申诉列表 + 申诉详情侧栏 + 处理操作
 
@@ -1597,7 +1597,7 @@ interface FacetedSearchSidebarProps {
 - 热更新配置，重启后恢复 config.yaml 默认值。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：配置分组表单（limits/features/reputation/agent/social/labels）
 
@@ -1641,7 +1641,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：分类树形列表 + 标签管理
 
@@ -1690,7 +1690,7 @@ interface FacetedSearchSidebarProps {
 - 绝无 box-shadow（GitHub 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：当前生效配置卡片 + LLM 配置表格
 
@@ -3942,7 +3942,7 @@ interface ContentTypeOption {
 - 邮件发送限流：同一邮箱 60 秒内只能发送一次重置邮件。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：邮箱输入表单卡片（带 1px border），居中展示
 
@@ -3986,7 +3986,7 @@ interface ContentTypeOption {
 - token 有效期 1 小时，过期需重新申请。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：新密码 + 确认密码输入表单卡片
 
@@ -4029,7 +4029,7 @@ interface ContentTypeOption {
 - 私有收藏集仅创建者可见；公开收藏集所有登录用户可浏览。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：收藏集信息卡片 + 内容筛选 + 瀑布流内容列表
 
@@ -4080,7 +4080,7 @@ interface ContentTypeOption {
 - 私有收藏集仅创建者可见。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-16`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
 - 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
 - 内容模块：收藏集网格列表
 
