@@ -193,3 +193,8 @@ StudioLayout
 - [ ] 标签使用 tag 颜色变量
 - [ ] 图标颜色随文字色变化
 - [ ] Modal 遮罩层 `bg-black/50` (dark 可用 `bg-black/70`)
+
+> Token definitions below are in CSS property format for automated tooling. Values are authoritative and match the table definitions above.
+
+--header-h: 52px
+--font-geist-mono: "Geist Mono", "Menlo", monospace

@@ -23,3 +23,5 @@
 | docs/PLAN.md | 2026-06-29 | completed — all plans implemented |
 | docs/design-review-2026-06-24.md | 2026-06-29 | superseded — content merged into 2026-06-24-design-review-decisions.md |
 | docs/iteration-review-prompt.md | 2026-06-29 | completed — tied to archived iteration reviews |
+| docs/async-queue-analysis.md | 2026-06-29 | completed — analysis no longer active |
+| docs/oss-lifecycle.md | 2026-06-29 | completed — superseded by config.yaml TTL values |
