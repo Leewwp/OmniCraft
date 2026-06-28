@@ -1,13 +1,13 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change    : 1.1.1 → 1.2.0 (MINOR — new principles & specifications added)
+Version change    : 1.2.0 → 1.3.0 (MINOR — UI design update, soft-delete policy clarification, toolchain bump)
+Version chain     : 1.0.0 → 1.1.0 → 1.1.1 → 1.2.0 → 1.3.0
 Modified sections :
-  Principle VI   — expanded: admin config leak prevention, CORS policy, auth state check, error message sanitization
-  Principle XV    — NEW: Security Hardening (Task 99–105 specifications)
-  Principle XVI   — NEW: Performance & Reliability (Task 128–130, 135, 141–143 specifications)
-  Principle XVII  — NEW: Data Integrity & Soft Delete (Task 103, 127 specifications)
-  Principle XVIII — NEW: Request Validation & i18n (Task 108, 110 specifications)
+  Principle VIII  — updated UI design reference from GitHub visual language to Indigo-based flat design
+  Principle XVII  — updated soft-delete policy from "only" to "preferred" per DEC-031; physical deletion now permitted for low-analytic-value data
+  Principle XIII  — fixed `features.web_agent_enabled` → `agent.web_agent_enabled` (field path correction)
+  Toolchain       — PostgreSQL minimum version raised from 15+ to 16+
 Templates updated :
   ✅ .specify/templates/plan-template.md   — 1.3.0 变更已传播（此标记为手动确认，模板本身为通用结构无需修改）
   ✅ .specify/templates/spec-template.md    — 同上
@@ -152,7 +152,7 @@ The UI design system uses an **Indigo-based flat design** with 1px borders and n
 
 Agents executing implementation tasks MUST follow this sequence without deviation:
 
-1. Determine the active work mode per `CLAUDE.md` (Beta roadmap mode A or task.json mode B); select the appropriate task source and the next available task
+1. Determine the active work mode per `CLAUDE.md` (or `AGENTS.md` for non-Claude agents) (Beta roadmap mode A or task.json mode B); select the appropriate task source and the next available task
 2. Verify the dev environment is running before writing any code
 3. Implement exactly the steps listed in the task; clarify ambiguity **before** coding, never after
 4. Run ALL mandatory gates: `go build ./...`, `go vet ./...`, `npm run build`, `npm run lint`;
@@ -162,7 +162,7 @@ Agents executing implementation tasks MUST follow this sequence without deviatio
 7. Commit `task.json` + `progress.txt` + all code changes in a **single atomic commit** with message
    `Task [ID]: [title] - completed`
 
-Blocked tasks MUST emit the standard blocker template from `CLAUDE.md` and MUST NOT be marked
+Blocked tasks MUST emit the standard blocker template from `CLAUDE.md` (or `AGENTS.md` for non-Claude agents) and MUST NOT be marked
 complete. `git commit` is FORBIDDEN while a task is in a blocked state.
 
 ### X. Business Rule Enforcement
@@ -353,7 +353,7 @@ Applies to Tasks 128–130, 135, 141–143. These are binding performance requir
 
 ## Business Rules Reference
 
-> Canonical source: `architecture.md §5` (reputation) and `CLAUDE.md §Key Business Rules`.
+> Canonical source: `architecture.md §5` (reputation) and `CLAUDE.md §Key Business Rules` (same content in `AGENTS.md`).
 > This section summarises; `architecture.md` governs in case of wording conflict.
 
 See Principle X for the authoritative rule set. All numeric thresholds MUST be read from
@@ -361,9 +361,9 @@ See Principle X for the authoritative rule set. All numeric thresholds MUST be r
 
 ## Agent Workflow Reference
 
-> Canonical source: `CLAUDE.md`.
-> The 13 Key Rules listed in `CLAUDE.md §Key Rules` are binding and incorporated by reference.
-> In case of conflict between `CLAUDE.md` and this constitution, the **most restrictive**
+> Canonical source: `CLAUDE.md` (same content in `AGENTS.md` for non-Claude agents).
+> The 13 Key Rules listed in `CLAUDE.md §Key Rules` / `AGENTS.md §Key Rules` are binding and incorporated by reference.
+> In case of conflict between `CLAUDE.md` / `AGENTS.md` and this constitution, the **most restrictive**
 > interpretation applies.
 
 ## Governance
@@ -382,6 +382,34 @@ See Principle X for the authoritative rule set. All numeric thresholds MUST be r
   conflicting step MUST be clarified before implementation begins
 
 **Version**: 1.3.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-06-28
+
+### 1.0.0 Changelog (2026-04-15)
+
+- **Initial ratification**: Core principles I-VIII established (Tech Stack, Code Quality, Database Integrity, Configuration over Hardcode, Feature Flag Governance, Security Non-Negotiables, Performance Standards, UI Design Conformance).
+- **Governance**: Amendment procedure, compliance review, template propagation, conflict resolution rules established.
+- **Business Rules Reference**: Reputation system, user roles, cyber judge, upload limits documented.
+- **Agent Workflow Reference**: Initial workflow discipline and key rules.
+
+### 1.1.0 Changelog (2026-05-XX)
+
+- **Principle IX**: NEW — Agent Workflow Discipline (work mode determination, dev environment, task steps, verification gates, blocker protocol).
+- **Principle X**: NEW — Business Rule Enforcement (locked reputation rules, role definitions, cyber judge, upload limits).
+- **Principle XI**: NEW — Minimal & Surgical Changes (task-scoped implementation only, no unsolicited refactoring).
+- **Principle XII**: NEW — Testing Discipline (Playwright for UI, curl/Go test for backend, coverage requirements).
+- **Principle XIII**: NEW — Web Agent Constraints (LLM provider abstraction, tool whitelist, SSE, rate limiting, vector pipeline, MVP scope).
+- **Principle XIV**: NEW — UI Design Spec Authority (ui_spec.md as sole visual authority for frontend implementation).
+
+### 1.1.1 Changelog (2026-06-XX)
+
+- Minor wording clarifications and cross-reference corrections across multiple principles.
+
+### 1.2.0 Changelog (2026-06-XX)
+
+- **Principle VI**: Expanded with Task 99–105 specifications (admin config leak prevention, CORS hardening, auth state real-time check, error message sanitization).
+- **Principle XV**: NEW — Security Hardening (admin config, CORS policy, auth state check, error sanitization, account deletion & OSS isolation, goroutine panic recovery, protected route guard).
+- **Principle XVI**: NEW — Performance & Reliability (N+1 query elimination, structured logging, graceful shutdown, SWR frontend caching).
+- **Principle XVII**: NEW — Data Integrity & Soft Delete (soft-delete preferred per DEC-031, content soft-delete on author deletion).
+- **Principle XVIII**: NEW — Request Validation & i18n (i18n mandatory after Task 108, dark mode consistency, frontend data validation with type guards/zod).
 
 ### 1.3.0 Changelog (2026-06-28)
 
