@@ -833,7 +833,7 @@ func (h *AdminHandler) respondAuditTxError(c *gin.Context, err error, status int
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "AUDIT_WRITE_FAILED", "message": "audit write failed"})
 		return true
 	}
-	if status > 0 && code != "" && message != "" && !strings.Contains(err.Error(), "AUDIT_WRITE_FAILED") {
+	if status > 0 && code != "" && message != "" {
 		return false
 	}
 	return false
