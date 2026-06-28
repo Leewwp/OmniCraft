@@ -1,9 +1,54 @@
 package rules
 
-// CheckTokenRefs checks that ui-spec.md tokens reference valid design-system.md definitions.
-// Stub implementation — full implementation in Task 16.
+import (
+	"fmt"
+	"os"
+	"regexp"
+)
+
+// CheckTokenRefs scans ui-spec.md for CSS variable references and checks
+// that each referenced token is defined in design-system.md.
 func CheckTokenRefs() []RuleIssue {
-	// TODO (Task 16): Parse design-system.md for token definitions,
-	// check each reference in ui-spec.md matches a defined token.
-	return nil
+	var issues []RuleIssue
+
+	// Read design-system.md to build set of defined tokens
+	dsPath := "design/design-system.md"
+	dsContent, err := os.ReadFile(dsPath)
+	if err != nil {
+		return []RuleIssue{{Severity: "ERROR", File: dsPath, Message: fmt.Sprintf("cannot read: %v", err)}}
+	}
+
+	// Extract all --token-name definitions from design-system.md
+	tokenDefRe := regexp.MustCompile(`--([a-zA-Z][a-zA-Z0-9-]*)\s*:`)
+	definedTokens := make(map[string]bool)
+	for _, match := range tokenDefRe.FindAllStringSubmatch(string(dsContent), -1) {
+		definedTokens["--"+match[1]] = true
+	}
+
+	// Read ui-spec.md for token references
+	uiPath := "design/ui-spec.md"
+	uiContent, err := os.ReadFile(uiPath)
+	if err != nil {
+		return []RuleIssue{{Severity: "ERROR", File: uiPath, Message: fmt.Sprintf("cannot read: %v", err)}}
+	}
+
+	// Extract all var(--xxx) references from ui-spec.md
+	varRefRe := regexp.MustCompile(`var\(--([a-zA-Z][a-zA-Z0-9-]*)\)`)
+	seen := make(map[string]bool)
+	for _, match := range varRefRe.FindAllStringSubmatch(string(uiContent), -1) {
+		tokenName := "--" + match[1]
+		if seen[tokenName] {
+			continue
+		}
+		seen[tokenName] = true
+		if !definedTokens[tokenName] {
+			issues = append(issues, RuleIssue{
+				Severity: "WARNING",
+				File:     uiPath,
+				Message:  fmt.Sprintf("token %s referenced in ui-spec.md but not defined in design-system.md", tokenName),
+			})
+		}
+	}
+
+	return issues
 }
