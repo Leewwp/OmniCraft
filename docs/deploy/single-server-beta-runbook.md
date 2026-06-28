@@ -55,7 +55,11 @@ GREEN_CALLBACK_ALLOWED_IPS=<comma-separated-ip-list>
 CAPTCHA_ACCESS_KEY_ID=<captcha-access-key-id>
 CAPTCHA_ACCESS_KEY_SECRET=<captcha-access-key-secret>
 
+SMTP_HOST=<smtp-host>
+SMTP_PORT=587
+SMTP_USERNAME=<smtp-username>
 SMTP_PASSWORD=<smtp-password>
+SMTP_FROM_EMAIL=noreply@example.com
 
 AGENT_LLM_PROVIDER=openai_compat
 AGENT_LLM_MODEL=
