@@ -852,13 +852,23 @@ Web 页面不能把 JWT 放入深链。新增短期、单次 deploy grant：
 | 绑定 | 用户 ID、内容 ID、用途、创建时间 |
 | 权限 | 申请和兑换时都重新检查 |
 
-深链格式建议：
+深链格式（当前实现——P0 MVP）：
+
+```text
+omnicraft://deploy?content_id=<contentId>&token=<opaque-token>
+```
+
+- `content_id`: 将要部署的内容 ID（必填）
+- `token`: 一次性部署授权 token（可选，未来 D-03 后启用 Ed25519 签名验证时改为必填）
+
+深链格式（计划升级——D-03 后启用）：
 
 ```text
 omnicraft://deploy?grant=<opaque-token>
 ```
 
-不要把 Web access token、refresh token 或长期凭证写入 URL。
+- 升级后将 `content_id` 置于 grant 令牌的 payload 内，URL 只传递单次使用 grant
+- 不要把 Web access token、refresh token 或长期凭证写入 URL。
 
 ### 12.3 脚本结构
 
