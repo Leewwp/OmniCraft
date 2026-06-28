@@ -52,6 +52,7 @@
 | `--canvas-default` | `#FFFFFF` | `#0D1117` | 卡片/容器背景 |
 | `--canvas-subtle` | `#F5F5F5` | `#161B22` | 微妙背景 |
 | `--border-default` | `#E8E8E8` | `#30363D` | 默认边框 |
+| `--border-destructive` | `#E11D48` | `#F87171` | 错误/危险边框 |
 | `--fg-muted` | `#52525B` | `#848D97` | 柔和前景 |
 | `--accent-emphasis` | `#4F46E5` | `#6366F1` | 强调色 |
 | `--accent-subtle` | `#EEF2FF` | `#6366F11A` | 柔和强调色 |

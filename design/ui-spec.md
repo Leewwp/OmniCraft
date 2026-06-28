@@ -13,12 +13,14 @@
 
 ## Global Design Tokens
 
-- **颜色 token**：直接复用 `architecture.md` §10.4 的 `colors.canvas / border / fg / accent / tag`，配置 light/dark。
-- **字体**：font-family: `-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial`，无自定义字体。字号阶梯：text-xs 12 / text-sm 14 / text-base 16 / text-lg 18 / text-xl 20 / text-2xl 24 / text-3xl 30
+> **来源**: 以下所有 token 值以 `design/design-system.md` 为准，是本文件的唯一设计权威。
+
+- **颜色 token**：使用 `design/design-system.md` 定义的 CSS 自定义属性，以 `var(--xxx)` 格式引用：`--background`、`--foreground`、`--primary`、`--border` 等基础色，以及 `--canvas-default`、`--canvas-subtle`、`--border-default`、`--fg-muted`、`--accent-emphasis`、`--accent-subtle` 等自定义 token。标签颜色使用预设的 6 色体系 (blue/green/purple/orange/rose/sky)。所有颜色支持 light/dark 双模式，暗色模式通过根级 `.dark` 类自动切换。
+- **字体**：font-family: `--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif`，包含中文字体回退。等宽字体 `--font-mono: var(--font-geist-mono)`。字号阶梯：text-xs 12 / text-sm 14 / text-base 16 / text-lg 18 / text-xl 20 / text-2xl 24 / text-3xl 30
 - **间距阶梯**：space-1 4px / space-2 8px / space-3 12px / space-4 16px / space-6 24px / space-8 32px / space-12 48px
-- **圆角**：rounded-sm 4 / rounded 6（默认）/ rounded-md 8 / rounded-lg 12（标签）/ rounded-full
+- **圆角**：rounded-sm (3px) 小元素 / rounded-md (4px) 按钮/输入框 / rounded-lg (8px) 卡片/容器默认 / rounded-xl (12px) 大卡片 / rounded-full (9999px) 标签/药丸按钮。核心原则：统一圆角，`rounded-lg` (8px) 为默认，标签用 `rounded-full`。
 - **动效**：transition duration-150 ease-out（默认）；duration-300 ease-in-out（Modal/Sheet）
-- **阴影**：**强制 box-shadow:none**，仅 Modal/Popover/Dropdown 用 `shadow-md`
+- **阴影**：**强制 box-shadow:none**（无阴影全局原则），仅 Modal/Popover/Dropdown 使用 `shadow-md`
 
 ## Global Interaction Patterns
 
@@ -32,48 +34,61 @@
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- 固定高度 `h-[var(--header-h)]` (52px)，sticky 顶部。
+- 底边框 `border-b border-border-default`，1px 分隔。
+- 背景 `bg-canvas-default`，全宽布局。
 
 **Props 接口**
 ```ts
 interface HeaderProps {
   className?: string;
-  data?: any;
-  isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
+  currentUser?: {
+    id: number;
+    username: string;
+    avatarUrl?: string;
+    role: string;
+  } | null;
+  unreadNotificationCount?: number;
+  agentEnabled?: boolean;
 }
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
+- 外层容器: `<header className="sticky top-0 z-40 h-[var(--header-h)] bg-canvas-default border-b border-border-default">`
+- 内部布局: `<div className="max-w-7xl mx-auto h-full flex items-center justify-between px-4">`
+- 左侧: Logo + 主导航链接（首页 / 原创 / 二创），水平排列 `gap-6`
+- 中间: 搜索栏（SearchAgentInput 或基础搜索框），最大宽度 480px
+- 右侧: 发布按钮（primary 色）+ 通知铃铛（NotificationBell）+ 用户菜单（Avatar 下拉）
+  - 未登录: 登录/注册按钮
+  - 已登录: Avatar + 用户名下拉（设置/我的内容/退出）
 
 **尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+- Header 高度: `var(--header-h)` = 52px
+- Logo: `h-8` (32px)
+- 导航链接: `text-sm` (14px)
+- 搜索框: `max-w-[480px]`
+- 内边距: `px-4` (16px)
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
+- default: 正常展示 Logo + 导航 + 搜索 + 用户区。
+- sticky: 滚动时固定顶部，z-40 确保在其他内容上方。
+- 登录态: 右侧显示用户菜单。
+- 未登录态: 右侧显示登录/注册按钮。
+- 无阴影（全局原则）。
 
 **响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
+- 移动 (≤700px): 导航链接折叠为汉堡菜单，搜索框缩小或隐藏。
+- 平板 (≤1100px): 导航链接文字缩小，搜索框自适应。
+- PC (>1100px): 默认布局。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
+- 全局切换暗色类后 token 自动映射。
 
 **关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- 导航链接点击: 路由跳转，选中项高亮。
+- 搜索框聚焦: 展开建议下拉。
+- 发布按钮: 跳转 `/studio/publish/original`（已登录）或 `/login`（未登录）。
+- 用户菜单: 点击 Avatar 展开下拉，点击外部关闭。
 
 ## Component: FacetedSearchSidebar
 
@@ -1852,49 +1867,44 @@ interface MasonryGridProps {
 ## Component: TagBadge
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- 使用预设 6 色体系 (blue/green/purple/orange/rose/sky)，颜色值参考 design-system.md 标签颜色表。
+- 遵守全局扁平化无阴影设计规范。
+- 标签默认无边框，使用纯色背景 + 对应文字色。
 
 **Props 接口**
 ```ts
 interface TagBadgeProps {
   className?: string;
-  data?: any;
-  isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
+  label: string;
+  color?: 'blue' | 'green' | 'purple' | 'orange' | 'rose' | 'sky';
+  size?: 'sm' | 'md';
+  removable?: boolean;
+  onRemove?: (label: string) => void;
 }
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
+- 容器: `<span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium tag-{color}">`
+- 文字: 标签文本 `{label}`
+- 可选的移除按钮: `<button className="ml-0.5 hover:opacity-70" onClick={onRemove}>` ✕
 
 **尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+- sm: `px-1.5 py-0.5 text-[10px]`
+- md: `px-2 py-0.5 text-xs`（默认）
+- 圆角: `rounded-full`（始终为药丸形）
+
+**颜色映射**
+- blue: `bg-[#EEF2FF] text-[#4F46E5]` / dark `bg-[#6366F11A] text-[#A5B4FC]`
+- green: `bg-[#ECFDF5] text-[#059669]` / dark `bg-[#0596691A] text-[#6EE7B7]`
+- purple: `bg-[#F5F3FF] text-[#7C3AED]` / dark `bg-[#7C3AED1A] text-[#C4B5FD]`
+- orange: `bg-[#FFFBEB] text-[#D97706]` / dark `bg-[#D977061A] text-[#FCD34D]`
+- rose: `bg-[#FFF1F2] text-[#E11D48]` / dark `bg-[#E11D481A] text-[#FDA4AF]`
+- sky: `bg-[#F0F9FF] text-[#0284C7]` / dark `bg-[#0284C71A] text-[#7DD3FC]`
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
-
-**响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
-
-**暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
-
-**关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- default: 按 color 显示对应颜色组合。
+- removable: 文字右侧显示 ✕ 按钮，hover 时颜色加深。
+- 无 active/disabled/focus/loading 状态（标签静态展示）。
 
 ## Component: IPCard
 
@@ -1995,50 +2005,58 @@ interface IPCategoryTabsProps {
 ## Component: ContentDetail
 
 **Key Constraints**
-- ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
-- 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- 根据 `contentType` 渲染不同的内容展示器（MarkdownRenderer / SheetMusicViewer 等）。
+- 标题、作者信息、分类标签在一体化卡片中展示。
+- 遵守全局扁平化无阴影设计规范。
 
 **Props 接口**
 ```ts
 interface ContentDetailProps {
   className?: string;
-  data?: any;
+  content: {
+    id: number;
+    title: string;
+    description: string;
+    contentType: string;
+    category: string;
+    zone: 'original' | 'fanwork';
+    status: string;
+    author: { id: number; username: string; avatarUrl?: string };
+    tags?: { id: number; name: string }[];
+    body?: string;
+    mediaUrls?: string[];
+    createdAt: string;
+    updatedAt?: string;
+    sourceOriginalId?: number;
+  };
   isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
 }
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
+- 外层容器: `<div className="border border-border-default rounded-lg bg-canvas-default overflow-hidden">`
+- 头部区: `p-6 pb-4 border-b border-border-default`
+  - 分类标签: `<TagBadge color="blue" label={category} />`
+  - 标题: `<h1 className="text-2xl font-semibold text-foreground mt-2">{title}</h1>`
+  - 作者行: Avatar + 用户名 + 发布时间，`text-sm text-fg-muted`
+- 内容区: `p-6`
+  - Markdown 正文渲染（MarkdownRenderer）
+  - 乐谱渲染（SheetMusicViewer）— 仅 `contentType='sheet_music'`
+  - 媒体展示（图片/视频/音频播放器）— 根据 contentType 选择
+- 底部操作栏: `<ReactionBar />` 组件
 
 **尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+- 内间距: `p-6` (24px)
+- 标题: `text-2xl` (24px)
+- 正文: `text-base` (16px) leading-relaxed
+- 分类标签: `text-xs`
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
-
-**响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
-
-**暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
-
-**关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- default: 完整展示内容详情。
+- loading: 骨架屏（标题块 + 内容块 Skeleton）。
+- empty/404: 内容不存在 EmptyState。
+- error: 内容被 ban 时显示对应限制 EmptyState。
+- 无 hover/active/focus/disabled 状态（内容静态展示）。
 
 ## Component: MarkdownRenderer
 
@@ -2233,96 +2251,123 @@ interface DiffViewerProps {
 ## Component: ReactionBar
 
 **Key Constraints**
-- 信誉分 < 3 用户：发布/评论/点赞按钮 disabled，hover tooltip 提示「信誉分不足」。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- 信誉分 < 3 用户：点赞/点踩/收藏按钮 disabled，hover tooltip 提示「信誉分不足」。
+- 遵守全局扁平化无阴影设计规范，使用 1px border 容器。
+- 内容类型为 mod/prompt 时显示「一键部署」按钮（需 `agent_enabled=true`）。
 
 **Props 接口**
 ```ts
 interface ReactionBarProps {
   className?: string;
-  data?: any;
-  isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
+  contentId: number;
+  contentType: string;
+  likes: number;
+  dislikes: number;
+  favorites: number;
+  downloads: number;
+  userReaction?: 'like' | 'dislike' | null;
+  isFavorited: boolean;
+  agentEnabled?: boolean;
+  isDownloadable?: boolean;
+  isDisabled?: boolean;
+  disableReason?: string;
+  onLike: () => void;
+  onDislike: () => void;
+  onFavorite: () => void;
+  onShare?: () => void;
 }
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
+- 外层容器: `<div className="flex items-center gap-1 border border-border-default rounded-md bg-canvas-default px-3 py-2">`
+- 操作按钮组: 水平排列 `gap-1`，每个操作包含图标 + 计数文字
+  - 点赞按钮: `<button className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm hover:bg-canvas-subtle transition-colors">` — `Icon.thumbsUp` + 计数
+  - 点踩按钮: 类似点赞，可与点赞互斥
+  - 收藏按钮: `<button>` — `Icon.heart` + `isFavorited ? 'text-destructive fill-current' : 'text-fg-muted'` + 计数
+  - 分享按钮: `<button>` — `Icon.share` 无计数
+  - 下载按钮: `<DownloadButton />` — 只有 `isDownloadable` 为 true 时渲染
+  - 一键部署按钮: 只有 `agentEnabled && contentType IN ('mod','prompt')` 时渲染
 
-**尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+**颜色规范**
+- 未激活: `text-fg-muted hover:text-foreground`
+- 已点赞: `text-accent-emphasis`
+- 已收藏: `text-destructive`
+- 已点踩: `text-fg-muted`（计数仍显示，无强调色）
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
+- default: 显示所有操作按钮及其计数。
+- liked: 点赞按钮 accent 色高亮，再次点击取消。
+- disliked: 点踩按钮 muted 色，与点赞互斥。
+- favorited: 收藏按钮 destructive 色高亮，再次点击取消。
+- disabled: `opacity-50 cursor-not-allowed` + tooltip 提示原因。
+- loading: 对应按钮内嵌 Spinner 替换图标。
 
 **响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
-
-**暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
-
-**关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- 移动 (≤700px): 按钮无文字仅图标，紧凑排列 `gap-0.5`。
+- 平板+ (≥701px): 图标 + 文字显示，`gap-1`。
 
 ## Component: CommentSection
 
 **Key Constraints**
 - 信誉分 < 3 用户：发布/评论/点赞按钮 disabled，hover tooltip 提示「信誉分不足」。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- 遵守全局扁平化无阴影设计规范，使用 1px border 容器。
+- 支持楼中楼回复（ReplyList 子组件）。
 
 **Props 接口**
 ```ts
 interface CommentSectionProps {
   className?: string;
-  data?: any;
+  contentId: number;
+  comments: Comment[];
+  totalComments: number;
+  currentUserId?: number;
   isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
+  isDisabled?: boolean;
+  disableReason?: string;
+  onAddComment: (text: string) => Promise<void>;
+  onDeleteComment: (commentId: number) => void;
+  onLikeComment: (commentId: number) => void;
+}
+
+interface Comment {
+  id: number;
+  author: { id: number; username: string; avatarUrl?: string };
+  text: string;
+  createdAt: string;
+  likeCount: number;
+  isLiked?: boolean;
+  replyCount?: number;
+  replies?: Comment[];
 }
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default">`
+- 标题行: `<h3 className="text-base font-medium text-foreground px-4 pt-4 pb-2">` 评论 (N)
+- 评论输入区（顶部）: `<div className="px-4 pb-4 border-b border-border-default">`
+  - Avatar + `<textarea className="w-full border border-border-default rounded-md p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-accent-emphasis" rows={3} placeholder="写下你的评论...">`
+  - 底部行: 字数计数 + 「发布」按钮（primary 色）
+- 评论列表: `<div className="divide-y divide-border-default">`
+  - 每条评论: `px-4 py-3`
+    - 头像 + 用户名 + 相对时间
+    - 评论内容 `text-sm text-foreground`
+    - 操作栏: 点赞按钮 + 回复按钮 + 删除按钮（仅作者可见）
+    - 回复列表: 嵌套的 CommentSection（简化版，仅回复列表）
+  - 加载更多: 底部「加载更多」按钮或 IntersectionObserver 触发
 
 **尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+- 内间距: `px-4 py-3`
+- 头像: `w-8 h-8` (32px)
+- 评论输入框: 最小高度 80px (3 行)
+- 字号: `text-sm` (14px) 评论内容，`text-xs` (12px) 辅助信息
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
-
-**响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
-
-**暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
-
-**关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- default: 评论列表 + 输入框。
+- loading: 骨架屏评论块占位。
+- empty: "暂无评论，快来抢沙发吧" EmptyState + 输入框。
+- disabled: 输入框 + 点赞按钮 disabled + tooltip「信誉分不足」。
+- error: 发布失败 Toast + 保留输入内容。
+- deleted: 评论显示「该评论已被删除」占位文本。
 
 ## Component: VersionHistory
 
@@ -2521,97 +2566,86 @@ interface ReviewCardProps {
 ## Component: EmptyState
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- 遵守全局扁平化无阴影设计规范。
+- 居中展示，图标 + 标题 + 说明 + 可选 CTA，不留空白区域。
+- 无边框容器，使用纯文本 + 图标布局。
 
 **Props 接口**
 ```ts
 interface EmptyStateProps {
   className?: string;
-  data?: any;
-  isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
+  icon?: React.ReactNode;
+  title: string;
+  description?: string;
+  action?: {
+    label: string;
+    href?: string;
+    onClick?: () => void;
+  };
 }
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
+- 外层容器: `<div className="flex flex-col items-center justify-center py-16 px-4 text-center">`
+- 图标区: `<div className="text-fg-muted mb-4">{icon}</div>` — 64x64 居中图标（默认使用 Inbox 或对应主题图标）
+- 标题: `<h3 className="text-base font-medium text-foreground mb-2">{title}</h3>`
+- 说明: `<p className="text-sm text-fg-muted max-w-sm">{description}</p>`
+- CTA: 可选 `<Link href={action.href} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity">`
 
 **尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+- 图标: 64x64 (w-16 h-16)
+- 标题: `text-base` (16px) 加粗
+- 说明: `text-sm` (14px)
+- CTA 高度: `h-9` (36px)
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
-
-**响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
-
-**暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
-
-**关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- default: 图标 + 标题 + 说明 + 可选 CTA。
+- 无 hover/active/disabled/loading 状态（静态展示，CTA 按钮遵循 Button 规范）。
 
 ## Component: ConfirmModal
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- Modal 是唯一允许 `shadow-md` 的组件（全局无阴影例外）。
+- 遮罩层 `bg-black/50 backdrop-blur-sm`。
+- ESC 和点击遮罩关闭。
 
 **Props 接口**
 ```ts
 interface ConfirmModalProps {
   className?: string;
-  data?: any;
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  variant?: 'default' | 'destructive';
   isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
+  onConfirm: () => void;
 }
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
+- 遮罩: `<div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={onClose} />`
+- Modal 容器: `<div className="fixed inset-0 z-50 flex items-center justify-center p-4">`
+- 卡片: `<div className="bg-canvas-default rounded-lg shadow-md max-w-sm w-full mx-auto p-6">`
+- 标题: `<h2 className="text-lg font-medium text-foreground mb-2">{title}</h2>`
+- 消息: `<p className="text-sm text-fg-muted mb-6">{message}</p>`
+- 按钮行: `<div className="flex justify-end gap-3">`
+  - 取消按钮: `<button className="px-4 py-2 text-sm font-medium text-foreground bg-canvas-default border border-border-default rounded-md hover:bg-canvas-subtle">`
+  - 确认按钮: variant 为 destructive 时使用 `bg-destructive text-destructive-foreground`，default 使用 `bg-primary text-primary-foreground`
 
 **尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+- Modal 最大宽度: 384px (`max-w-sm`)
+- 内间距: `p-6` (24px)
+- 按钮高度: `h-9` (36px)
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
-
-**响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
-
-**暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
-
-**关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
-- 破坏性或协同操作必须包含 ConfirmModal 二次确认弹窗。
+- default: 白色背景 + 确认/取消按钮。
+- destructive: 确认按钮使用危险色 (`bg-destructive`)。
+- loading: 确认按钮内嵌 Spinner，取消按钮 disabled。
+- 遮罩点击: 关闭 Modal。
+- ESC: 关闭 Modal。
 
 ## Component: AgentChatWidget
 
@@ -2854,48 +2888,38 @@ interface SearchAgentInputProps {
 
 **Key Constraints**
 - FollowButton 未登录时：点击跳转 `/login`，不显示已关注状态。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- 遵守全局扁平化无阴影设计规范。
 
 **Props 接口**
 ```ts
 interface FollowButtonProps {
   className?: string;
-  data?: any;
+  userId: number;
+  isFollowing: boolean;
+  followerCount?: number;
+  showCount?: boolean;
   isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
+  size?: 'sm' | 'md';
+  onToggle: (userId: number, newState: boolean) => void;
 }
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
+- 按钮容器: `<button className="inline-flex items-center justify-center gap-1.5 rounded-md text-sm font-medium transition-colors">`
+- 未关注态: `bg-primary text-primary-foreground px-4 py-2 hover:opacity-90` — 显示 "+ 关注"
+- 已关注态: `border border-border-default bg-canvas-default text-foreground px-4 py-2 hover:bg-canvas-subtle hover:text-destructive hover:border-destructive` — 显示 "已关注"（hover 显示 "取消关注"）
 
 **尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+- md: `h-9 px-4 py-2 text-sm`（默认）
+- sm: `h-7 px-3 py-1 text-xs`
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
-
-**响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
-
-**暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
-
-**关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- default: 未关注时 primary 色按钮；已关注时 outline 按钮。
+- hover 未关注: `opacity-90` 加深。
+- hover 已关注: 背景变 subtle + 边框/文字变 destructive 色（提示取消关注）。
+- loading: 按钮内嵌 Spinner，文字变为处理中。
+- disabled: `opacity-50 cursor-not-allowed`（信誉分不足或未登录）。
+- 未登录: 点击跳转 `/login`，无 loading 状态。
 
 ## Component: NotificationDropdown
 
@@ -4348,3 +4372,185 @@ interface AddToCollectionModalProps {
 - 点击「新建收藏集」-> 弹出新建收藏集子 Modal（标题 + 公开/私有选择）
 - 重复添加：前端灰显 + 禁止点击，后端 UNIQUE 约束兜底返回 409
 - ESC 或点击遮罩 -> 关闭 Modal
+
+## Component: LoadingSpinner 加载旋转器
+
+**Key Constraints**
+- 遵守全局扁平化无阴影设计规范。
+- 行内使用，不占据额外块级空间。
+- 颜色继承当前文字色。
+
+**Props 接口**
+```ts
+interface LoadingSpinnerProps {
+  className?: string;
+  size?: 'sm' | 'md' | 'lg';
+  color?: 'foreground' | 'muted';
+}
+```
+
+**视觉结构**
+- `<svg className="animate-spin" width={size} height={size}>` + `<circle>` 描边动画
+- 默认 `text-foreground`，轻量场景用 `text-muted-foreground`
+- 尺寸: sm 16px / md 20px / lg 28px
+
+**状态变体**
+- default: 正常旋转动画。
+- 无 hover/active/disabled 状态（装饰性元素）。
+
+## Component: SkeletonCard 骨架屏卡片
+
+**Key Constraints**
+- 遵守全局扁平化无阴影设计规范。
+- 仅用于内容加载占位，不可交互。
+
+**Props 接口**
+```ts
+interface SkeletonCardProps {
+  className?: string;
+  zone?: 'original' | 'fanwork';
+  count?: number; // 占位卡片数量，默认 1
+}
+```
+
+**视觉结构**
+- 外层容器: `<div className="rounded-md bg-canvas-default overflow-hidden">`
+- 封面区: `<div className="bg-canvas-subtle animate-pulse" style={{ aspectRatio: zone === 'fanwork' ? '3/4' : 'auto', minHeight: 150 }} />`
+- 信息区: `p-3 space-y-2`
+  - 标题行: `<div className="h-4 bg-canvas-subtle rounded-sm w-3/4 animate-pulse" />`
+  - 描述行: `<div className="h-3 bg-canvas-subtle rounded-sm w-1/2 animate-pulse" />`
+
+**尺寸规范**
+- 二创区: 封面固定 3:4 比例
+- 原创区: 封面最小高度 150px，无固定比例
+
+## Component: Toast 消息提示
+
+**Key Constraints**
+- 位置固定右上角，z-50。
+- 自动消失 4s，支持手动关闭。
+- 遵守全局扁平化无阴影设计规范（Toast 容器无阴影只使用 1px border）。
+
+**Props 接口**
+```ts
+interface ToastProps {
+  id: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  message: string;
+  duration?: number;
+  onClose: (id: string) => void;
+}
+```
+
+**视觉结构**
+- 容器: `<div className="flex items-center gap-3 px-4 py-3 border border-border-default rounded-md bg-canvas-default text-sm">`
+- 图标: type 对应图标（success=check-circle, error=x-circle, info=info, warning=alert-triangle）
+- 文字: `flex-1 text-foreground`
+- 关闭按钮: `<button className="text-fg-muted hover:text-foreground">`
+
+**状态变体**
+- success: `border-border` + 绿色图标 (`text-green-600`)
+- error: `border-border-destructive` + 红色图标 (`text-destructive`)
+- info: `border-border` + 蓝色图标 (`text-accent-emphasis`)
+- warning: `border-border` + 橙色图标 (`text-orange-500`)
+- 入场动效: `animate-in slide-in-from-right duration-200`
+
+## Component: Footer 页脚
+
+**Key Constraints**
+- 遵守全局扁平化无阴影设计规范。
+- 页脚内容：版权信息 + 可选链接。
+
+**Props 接口**
+```ts
+interface FooterProps {
+  className?: string;
+}
+```
+
+**视觉结构**
+- 外层容器: `<footer className="border-t border-border bg-canvas-default py-8 px-4">`
+- 内部: 居中容器 `max-w-7xl mx-auto text-center`
+- 版权文字: `<p className="text-sm text-fg-muted">` © OmniCraft 2026
+- 可选链接行: `flex justify-center gap-6`，链接使用 `text-sm text-fg-muted hover:text-foreground`
+
+**暗色模式适配**
+- 全局切换暗色类后 token 自动映射。
+
+## Component: StatsCard 统计卡片
+
+**Key Constraints**
+- 遵守全局扁平化无阴影设计规范，使用 1px border。
+- 仅用于数据概览页面（/studio/overview, /studio/followers）。
+
+**Props 接口**
+```ts
+interface StatsCardProps {
+  className?: string;
+  label: string;
+  value: number | string;
+  change?: number; // 环比变化百分比，正数增长负数下降
+  icon?: React.ReactNode;
+  isLoading?: boolean;
+}
+```
+
+**视觉结构**
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
+- 图标区: 左侧/上方图标 `text-fg-muted w-8 h-8`
+- 数值: `<p className="text-2xl font-semibold text-foreground">`
+- 标签: `<p className="text-sm text-fg-muted">`
+- 变化百分比: 正数 `<span className="text-green-600 text-xs">↑ +N%</span>`，负数 `<span className="text-destructive text-xs">↓ -N%</span>`
+
+**状态变体**
+- default: 数值 + 标签 + 可选变化率。
+- loading: `<div className="h-8 w-20 bg-canvas-subtle rounded-sm animate-pulse" />` 占位数值。
+
+## Component: NotificationBell 通知铃铛
+
+**Key Constraints**
+- 位置：Header 右侧，用户菜单前。
+- 5 分钟轮询 `GET /api/v1/notifications/unread-count`。
+- 可选 SSE 实时推送连接。
+
+**Props 接口**
+```ts
+interface NotificationBellProps {
+  className?: string;
+  unreadCount: number;
+  onClick: () => void;
+}
+```
+
+**视觉结构**
+- 按钮容器: `<button className="relative p-2 text-fg-muted hover:text-foreground transition-colors">`
+- 铃铛图标: `<Icon name="bell" className="w-5 h-5" />`
+- Badge 容器: `<span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-[11px] font-medium text-white">`
+- Badge 逻辑: `unreadCount > 0` 显示，`> 99` 显示 `99+`
+
+**响应式行为**
+- 移动端无变化（固定显示在 Header 右侧）。
+
+## Component: SortSelect 排序选择器
+
+**Key Constraints**
+- 遵守全局扁平化无阴影设计规范。
+- 下拉选择器，用于内容列表的排序切换。
+
+**Props 接口**
+```ts
+interface SortSelectProps {
+  className?: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+}
+```
+
+**视觉结构**
+- 外层容器: `<select className="border border-border-default rounded-md bg-canvas-default px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent-emphasis">`
+- 每个选项: `<option value={value} className="text-foreground bg-canvas-default">`
+
+**状态变体**
+- default: 选中当前排序值。
+- focus: `ring-2 ring-accent-emphasis`。
