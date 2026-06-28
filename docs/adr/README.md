@@ -1,0 +1,10 @@
+# Architecture Decision Records (ADR)
+
+## 命名规则
+`NNNN-<kebab-case-title>.md`（NNNN 为 4 位递增编号）
+
+## 索引
+
+| 编号 | 标题 | 状态 | 日期 |
+|------|------|------|------|
+| — | — | — | — |
