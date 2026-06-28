@@ -1,5 +1,7 @@
 # Issue tracker: GitHub
 
+> 📌 说明：GitHub Issues 在本项目中仅用于社区反馈和外部 bug 追踪。主要开发工作流基于 Beta roadmap（`docs/superpowers/plans/`）和 `task.json`。详见 `CLAUDE.md`。
+
 Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
 
 ## Conventions

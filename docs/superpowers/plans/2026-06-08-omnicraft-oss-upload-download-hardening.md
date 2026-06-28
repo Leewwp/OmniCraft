@@ -1,5 +1,7 @@
 # OmniCraft OSS Upload And Download Hardening Implementation Plan
 
+> ✅ **完成状态**: 本计划全部步骤已于 2026-06-09 执行完毕。执行记录见 `docs/superpowers/progress/2026-06-09-security-hardening-execution.md`。以下步骤仅保留原始计划结构作历史参考。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Prevent forged upload references, reduce file-abuse risk, keep OSS private, and ensure downloads always pass through backend authorization.

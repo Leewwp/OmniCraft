@@ -1,5 +1,7 @@
 # OmniCraft Code Review Implementation Plan
 
+> ⚠️ **历史文档**: 本文档统计截至 2026-05-07（86 total, 24 passes: false）。当前 task.json 中 100+ 任务已全部 passes: true。保留本文档仅作流程参考。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:requesting-code-review to review each batch. If later executing remediation work, use superpowers:subagent-driven-development or superpowers:executing-plans task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a repeatable batch code-review workflow for OmniCraft that maps review coverage to `task.json`, records results in `code_review.md`, and avoids reviewing the same task twice without a reason.

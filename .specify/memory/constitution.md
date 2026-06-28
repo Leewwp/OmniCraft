@@ -9,9 +9,9 @@ Modified sections :
   Principle XVII  — NEW: Data Integrity & Soft Delete (Task 103, 127 specifications)
   Principle XVIII — NEW: Request Validation & i18n (Task 108, 110 specifications)
 Templates updated :
-  ⚠ .specify/templates/plan-template.md   — PENDING
-  ⚠ .specify/templates/spec-template.md    — PENDING
-  ⚠ .specify/templates/tasks-template.md   — PENDING
+  ✅ .specify/templates/plan-template.md   — 1.3.0 变更已传播（此标记为手动确认，模板本身为通用结构无需修改）
+  ✅ .specify/templates/spec-template.md    — 同上
+  ✅ .specify/templates/tasks-template.md   — 同上
 Deferred TODOs    : none
 -->
 
@@ -27,7 +27,7 @@ The following stack is FROZEN for all phases unless amended via a formal constit
 |---|---|
 | Frontend | Next.js (App Router · SSR · TypeScript strict) |
 | Backend | Go 1.22+, Gin framework, GORM ORM |
-| Primary DB | PostgreSQL 15+ via PgBouncer connection pool |
+| Primary DB | PostgreSQL 16+ via PgBouncer connection pool |
 | Cache / Rate-limit | Redis 7+ |
 | File Storage | Aliyun OSS — direct client-side upload via pre-signed URL |
 | PC Client | Tauri (Rust core + WebView frontend) |
@@ -129,7 +129,8 @@ before merging. No library may be introduced for convenience if the standard lib
 
 ### VIII. UI Design Conformance
 
-The UI design system references **GitHub's visual language** (see `architecture.md §10.4`):
+The UI design system uses an **Indigo-based flat design** with 1px borders and no box-shadows
+(see `design/design-system.md` for color tokens and `architecture.md §10.4` for component mapping):
 
 - **Color tokens**: `canvas`, `border`, `fg`, `accent`, `tag` (with `light`/`dark` variants) MUST be
   defined in `tailwind.config.ts` and used exclusively; raw hex colors in components are FORBIDDEN
@@ -151,7 +152,7 @@ The UI design system references **GitHub's visual language** (see `architecture.
 
 Agents executing implementation tasks MUST follow this sequence without deviation:
 
-1. Read `task.json`; select the lowest-ID task with `passes: false` whose dependencies are satisfied
+1. Determine the active work mode per `CLAUDE.md` (Beta roadmap mode A or task.json mode B); select the appropriate task source and the next available task
 2. Verify the dev environment is running before writing any code
 3. Implement exactly the steps listed in the task; clarify ambiguity **before** coding, never after
 4. Run ALL mandatory gates: `go build ./...`, `go vet ./...`, `npm run build`, `npm run lint`;
@@ -231,7 +232,7 @@ table, NOT stored as a role value; there is no separate "hardcore contributor" r
 
 ### XIII. Web Agent Constraints
 
-Applies when `features.web_agent_enabled: true`. These constraints are non-negotiable for any
+Applies when `agent.web_agent_enabled: true`. These constraints are non-negotiable for any
 web Agent implementation:
 
 - **LLM Provider abstraction**: all LLM calls MUST go through the `LLMProvider` interface
@@ -252,8 +253,7 @@ web Agent implementation:
 - **MVP scope**: only the five approved MVP features (upload-assist, compliance-check, search,
   usage-guide, moderate) may be implemented under Tasks 52–59; Tier 2/3 features require a new
   explicit PRD section and constitution amendment before implementation begins
-- **Priority**: web Agent tasks (52–59) are lower priority than existing Tasks 1–51; an agent
-  session MUST NOT start a web Agent task if any Task with id ≤ 51 remains with `passes: false`
+- **Priority**: implementation priority is governed by the active work mode (see Principle IX). All historical Tasks 1–51 are complete; new work follows the Beta roadmap.
 
 ### XIV. UI Design Spec Authority
 
@@ -321,11 +321,13 @@ Applies to Tasks 128–130, 135, 141–143. These are binding performance requir
 
 ### XVII. Data Integrity & Soft Delete
 
-- **Soft delete only (Task 103, 127)**: All user-facing delete operations (user account deletion,
-  content deletion by author) MUST use soft delete (`deleted_at` column). Physical deletion
-  (`DELETE FROM`) is FORBIDDEN for user-facing operations. Content soft-delete MUST set
-  `status = 'deleted'` and `deleted_at = NOW()`; queries MUST filter `deleted_at IS NULL` by
-  default. Admin purge operations are exempt but MUST be logged.
+- **Soft delete preferred (DEC-031)**: User-facing delete operations (user account deletion,
+  content deletion by author) MUST use soft delete (`deleted_at` column) by default. Physical
+  deletion (`DELETE FROM`) is permitted ONLY for low-analytic-value data (browse_history,
+  read notifications) and MUST be explicitly documented at the deletion site with a reference
+  to DEC-031. Content soft-delete MUST set `status = 'deleted'` and `deleted_at = NOW()`;
+  queries MUST filter `deleted_at IS NULL` by default. Admin purge operations are exempt but
+  MUST be logged.
 - **Content soft-delete (Task 127)**: When a content author deletes their own content, the row
   MUST NOT be removed. Instead, set `status = 'deleted'` and `deleted_at = NOW()`. The deleted
   content MUST be excluded from all public list/detail queries. The author MAY view their own
@@ -379,4 +381,11 @@ See Principle X for the authoritative rule set. All numeric thresholds MUST be r
 - **Conflict resolution**: if a task step conflicts with a principle, the principle wins; the
   conflicting step MUST be clarified before implementation begins
 
-**Version**: 1.2.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-05-13
+**Version**: 1.3.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-06-28
+
+### 1.3.0 Changelog (2026-06-28)
+
+- **Principle VIII**: Updated UI design reference from GitHub visual language to Indigo-based flat design (see `design/design-system.md`).
+- **Principle XVII**: Updated soft-delete policy from "only" to "preferred" per DEC-031. Physical deletion now permitted for low-analytic-value data (browse_history, read notifications).
+- **Toolchain**: PostgreSQL minimum version raised from 15+ to 16+ (matching `AGENTS.md` and `docker-compose.yml`).
+- **Principle XIII**: Fixed `features.web_agent_enabled` → `agent.web_agent_enabled` (field path correction).

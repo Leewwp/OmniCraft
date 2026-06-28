@@ -1,5 +1,9 @@
 # OmniCraft 项目文档审查报告
 
+> 📦 本文档内容已并入合并版 `2026-06-24-design-review-decisions.md`。本文件仅保留作详细原始记录。
+>
+> ⚠️ **行号偏移说明**：本文档中引用的行号基于 2026-06-24 时的文件版本。经过后续文档修复（2026-06-28），多数文件的行号已发生变化。引用具体行号时请以实际文件内容为准。
+>
 > **审查日期**:2026-06-24
 > **审查范围**:architecture.md、design/ui-spec.md、design/design-system.md、design/UI Design.md、design/homepage-v0.html、task.json、config.yaml、Beta 路线图、前端/后端实际实现
 > **审查目的**:全面发现文档中的设计缺陷、功能问题、多端使用问题及文档间不一致
@@ -227,8 +231,8 @@ smtp:
 
 ### 6.3 私信系统无实时推送
 
-- MVP 使用 SSE
-- **问题**:私信体验不如 WebSocket 实时,且 SSE 连接管理在移动端浏览器不稳定
+- 当前纯 HTTP 短轮询（5 分钟间隔），无实时推送（DEC-007 计划 Beta 前实现 SSE）
+- **问题**:私信体验不如 WebSocket 实时，且 SSE 连接管理在移动端浏览器不稳定
 
 ### 6.4 Tauri 客户端与 Web 端账号同步
 

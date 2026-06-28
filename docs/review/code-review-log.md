@@ -1,5 +1,7 @@
 # OmniCraft Code Review Log
 
+> **说明**：部分批次 Base SHA / Head SHA 标记为 `—`，系因对应审查在独立 worktree 或多人协作环境中执行，审查时 HEAD 已不在当前仓库历史中。这些批次的审查结论仍有效——SHA 缺失仅影响事后精确复现审查环境，不影响发现本身。
+
 ## Coverage Index
 
 | Task IDs | Title / Batch | Status | Last Reviewed At | Base SHA | Head SHA | Notes |

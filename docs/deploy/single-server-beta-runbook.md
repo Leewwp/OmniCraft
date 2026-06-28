@@ -183,7 +183,7 @@ docker compose --env-file .env -f docker-compose.single-server.yml ps
 
 ```bash
 curl -I https://app.leeppp.online
-curl https://api.leeppp.online/health
+curl https://api.leeppp.online/healthz
 curl https://api.leeppp.online/api/v1/config/public
 docker compose --env-file .env -f docker-compose.single-server.yml logs --tail=100 backend
 ```

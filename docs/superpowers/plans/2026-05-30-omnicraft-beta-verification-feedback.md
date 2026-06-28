@@ -265,7 +265,7 @@ npm run lint
 npm run build
 ```
 
-- [ ] **Step 6: Browser-test**
+- [x] **Step 6: Browser-test**
 
 Use MCP Playwright to verify register, verify-email, resend, forgot-password, reset-password and settings states. Save screenshots under `screenshots/beta-v03-*`.
 

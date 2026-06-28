@@ -192,8 +192,8 @@ worker 在收到 SIGTERM 时：
 
 | 当前 (PostgreSQL tsvector) | 未来 (Elasticsearch) |
 |---------------------------|---------------------|
-| `simple` 字典，中文分词弱 | IK Analyzer 分词 |
-| GIN 索引，单表内搜索 | 倒排索引 + 分布式搜索 |
+| `jiebacfg` 字典（索引侧），查询侧仍 `simple` 待统一（见 DEC-001） | IK Analyzer 分词 |
+| GIN 索引 (jieba 分词)，单表内搜索 | 倒排索引 + 分布式搜索 |
 | 无聚合分析 | 搜索热词、聚合统计、搜索建议 |
 | 内容表增加负担 | 读写分离，搜索独立扩展 |
 

@@ -1,5 +1,7 @@
 # OmniCraft 双轨 Beta 后续工作清单
 
+> ⚠️ **历史文档**：本文档撰写于 2026-05-31。截至当前，F-01 至 R-01 全部已完成。后续工作请参阅 Beta roadmap。
+>
 > 日期：2026-05-31  
 > 用途：给维护者阅读的后续工作摘要。下次继续开发时，先读本文，再读 `docs/superpowers/plans/2026-05-30-omnicraft-dual-track-beta-roadmap.md`。
 

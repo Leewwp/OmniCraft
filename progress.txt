@@ -3200,3 +3200,18 @@ Code review of all Batch 12 changes identified 14 issues (2 Critical, 8 Major, 4
 - TST-027 and TST-038 remain intentionally deferred (unrelated to this review).
 - All changes are review-driven maintenance; no Beta roadmap or task.json updates.
 - This work remains review-driven maintenance from `docs/review/test-script-review-2026-06-12-status-matrix.md`; no Beta roadmap checkbox or `task.json` status was changed.
+
+## [2026-06-09] - 安全加固批量执行
+
+### What was done:
+- 执行 4 份安全加固计划：滥用控制、依赖漏洞升级、OSS 上传下载加固、发布门禁与配置加固
+- 详细执行记录见 docs/superpowers/progress/2026-06-09-security-hardening-execution.md
+- 提交哈希: 1409933, 24fd2a0, 7da3442, 7ce8191
+
+### Testing:
+- go test ./... 通过
+- npm run build 通过
+
+### Notes:
+- 本次执行使用独立 worktree 和分支 codex/security-hardening-execution
+- 不涉及 task.json 或 Beta roadmap checkbox 变更

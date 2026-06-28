@@ -1,5 +1,7 @@
 # Web Beta Repair Validation - 2026-06-03
 
+> 📌 Production blockers 权威清单见 [review summary](web-beta-review-summary.md)。本报告中的 blockers 表格为修复当时的快照。
+
 ## Baseline
 
 - Validation date: 2026-06-04

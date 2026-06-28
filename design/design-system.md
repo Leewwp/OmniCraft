@@ -147,7 +147,7 @@
 ### 公共页面布局
 
 ```
-Header (sticky, h-14)
+Header (sticky, h-[var(--header-h)])
 ├── Logo + Nav
 ├── Search
 ├── Publish Button (primary)

@@ -104,7 +104,15 @@ app/
 │   ├── user/[userId]/page.tsx       # 用户主页（公开可浏览）
 │   ├── search/page.tsx              # 搜索页
 │   ├── login/page.tsx               # 登录页
-│   └── register/page.tsx            # 注册页
+│   ├── register/page.tsx            # 注册页
+│   ├── forgot-password/page.tsx     # 忘记密码
+│   ├── reset-password/page.tsx      # 重置密码
+│   ├── verify-email/page.tsx        # 邮箱验证
+│   ├── terms/page.tsx               # 用户协议
+│   ├── privacy/page.tsx             # 隐私政策
+│   ├── help/page.tsx                # 帮助中心
+│   ├── client/page.tsx              # 桌面客户端下载
+│   └── home/page.tsx                # 旧首页（重定向）
 ├── (protected)/                     # 需要登录
 │   ├── settings/page.tsx            # 账号设置
 │   │   └── tag-groups/page.tsx      # 标签组管理
@@ -134,7 +142,11 @@ app/
 │   ├── history/page.tsx             # 浏览历史
 │   ├── appeals/page.tsx             # 我的申诉
 │   ├── messages/page.tsx            # 消息中心（通知 + 私信）
-│   └── rehab/page.tsx               # 素质建设课程
+│   ├── rehab/page.tsx               # 素质建设课程
+│   ├── feedback/page.tsx            # 用户反馈
+│   └── studio/favorites/page.tsx    # 我的收藏（收藏集列表）
+├── (protected)/                     # 需要登录（续）
+│   └── collections/[id]/page.tsx    # 收藏集详情
 └── admin/                           # 管理员后台
     ├── ips/page.tsx                 # IP 库管理
     ├── contents/page.tsx            # 内容终审
@@ -142,7 +154,12 @@ app/
     ├── appeal/page.tsx              # 申诉处理
     ├── config/page.tsx              # 系统配置
     ├── categories/page.tsx          # 分类与标签管理
-    └── agent-config/page.tsx        # Agent / LLM 配置管理
+    ├── agent-config/page.tsx        # Agent / LLM 配置管理
+    ├── dashboard/page.tsx           # 管理后台首页
+    ├── reports/page.tsx             # 举报管理
+    ├── feedback/page.tsx            # 反馈工单管理
+    ├── audit-logs/page.tsx          # 审计日志
+    └── queue/page.tsx               # 异步任务队列
 ```
 
 #### 关键组件树
@@ -157,7 +174,8 @@ components/
 │   ├── StudioLayout.tsx             # 工作室共享布局：可折叠侧边栏 + 主内容区
 │   ├── StudioSidebar.tsx            # 可折叠侧边栏（展开/收起 + hover tooltip）
 │   ├── ContentTypeGrid.tsx          # 内容类型选择卡片网格（按频率排序）
-│   └── FollowerAnalytics.tsx        # 粉丝分析图表（折线图 + 统计卡片）
+│   ├── FollowerTrendChart.tsx       # 粉丝增长趋势图（折线图）
+│   └── FollowerSourceChart.tsx      # 粉丝来源分布图（饼图）
 ├── ip/
 │   ├── IPCard.tsx                   # IP 卡片（首页列表）
 │   ├── IPDetail.tsx                 # IP 详情布局
@@ -266,11 +284,23 @@ backend/
 │   │   ├── embedding_repo.go
 │   │   └── llm_config_repo.go
 │   ├── model/                       # GORM 模型（对应数据库表）
+│   ├── container/                    # 依赖注入容器（统一管理服务实例）
+│   ├── worker/                       # 后台异步任务 Worker
+│   ├── testutil/                     # 测试工具（Mock DB/Redis/OSS）
 │   └── pkg/
 │       ├── aliyun/                  # 阿里云 SDK 封装（OSS、内容安全）
+│       ├── captcha/                 # 阿里云验证码 2.0 SDK 封装
+│       ├── database/                # 数据库连接管理（GORM + dbresolver）
 │       ├── diffengine/              # diff-match-patch 封装
+│       ├── jwt/                     # JWT 工具
 │       ├── llm/                     # LLM Provider 抽象层（Qwen/OpenAI 兼容）
-│       └── jwt/                     # JWT 工具
+│       ├── logger/                  # 结构化日志（slog JSON）
+│       ├── mail/                    # SMTP 邮件发送
+│       ├── queue/                   # 异步任务队列
+│       ├── recovery/                # Goroutine panic recovery 包装
+│       ├── redis/                   # Redis 客户端管理
+│       ├── response/                # 统一错误响应信封 + 脱敏
+│       └── scheduler/               # 定时任务调度
 ├── migrations/                      # SQL 迁移文件
 ├── config.yaml                      # 默认配置
 └── docker-compose.yml
@@ -345,8 +375,8 @@ POST   /api/v1/judge/exam/submit      # 提交考题答案
 GET    /api/v1/judge/queue            # 待审内容队列
 POST   /api/v1/judge/vote             # 提交众裁投票
 
-POST   /api/v1/agent/script           # 获取 Agent 执行脚本（Tauri 调用）
-POST   /api/v1/agent/verify           # 验证脚本签名
+POST   /api/v1/agent/script           # [未实现] 获取 Agent 执行脚本（Tauri 调用，D-03 后启用）
+POST   /api/v1/agent/verify           # [未实现] 验证脚本签名（Tauri 调用，D-03 后启用）
 
 GET    /api/v1/admin/ips              # 管理员：IP 审核列表
 POST   /api/v1/admin/ips/:id/approve  # 审核通过
@@ -398,6 +428,61 @@ POST   /api/v1/admin/llm-configs/:id/activate   # 切换激活配置
 POST   /api/v1/admin/llm-configs/:id/test       # 测试连接
 
 GET    /api/v1/reputation-logs/me          # 我的信誉分变动日志
+
+# 内容搜索与下载
+GET    /api/v1/contents/search              # 全文搜索（OptionalAuth）
+GET    /api/v1/search/suggestions           # 搜索建议（前缀匹配）
+GET    /api/v1/search/trending              # 热门搜索词
+GET    /api/v1/users/search                 # 用户搜索
+GET    /api/v1/contents/:id/download        # 内容下载（返回 OSS 签名 URL）
+
+# 密码重置与邮箱验证
+POST   /api/v1/auth/forgot-password         # 发送密码重置邮件
+POST   /api/v1/auth/reset-password          # 密码重置（token 校验）
+POST   /api/v1/auth/verify-email            # 邮箱验证
+
+# 验证码
+POST   /api/v1/captcha/verify               # 验证码校验
+
+# 公共配置
+GET    /api/v1/config/public                # 公共运行时配置（前端功能开关）
+
+# 用户反馈
+POST   /api/v1/feedback                     # 提交反馈工单
+POST   /api/v1/feedback/attachments/presign # 上传附件预签名 URL
+GET    /api/v1/feedback/me                  # 我的反馈列表
+GET    /api/v1/feedback/:id                 # 查看反馈工单详情
+
+# 评论编辑与消息管理
+PATCH  /api/v1/social/comments/:id          # 编辑评论
+DELETE /api/v1/messages/:id                 # 软删除消息
+DELETE /api/v1/conversations/:id            # 退出/删除会话
+
+# 平台统计
+GET    /api/v1/stats/summary                # 平台统计数据
+
+# Agent 对话持久化
+GET    /api/v1/agent/conversations          # 对话列表
+GET    /api/v1/agent/conversations/:id      # 对话详情
+
+# 管理员扩展
+GET    /api/v1/admin/reports                # 举报列表
+PATCH  /api/v1/admin/reports/:id            # 处理举报
+GET    /api/v1/admin/reports/stats          # 举报统计
+GET    /api/v1/admin/contents/trash         # 已软删除内容列表
+PATCH  /api/v1/admin/contents/:id/restore   # 恢复软删除内容
+GET    /api/v1/admin/feedback               # 反馈工单列表
+GET    /api/v1/admin/feedback/:id           # 查看单条反馈
+PATCH  /api/v1/admin/feedback/:id           # 更新反馈状态/优先级
+POST   /api/v1/admin/feedback/:id/replies   # 管理员回复反馈
+GET    /api/v1/admin/audit-logs             # 管理员审计日志
+GET    /api/v1/admin/queue                  # 异步任务队列状态
+
+# 内部回调
+POST   /api/v1/internal/ai-callback         # 阿里云内容安全回调
+
+# 桌面端部署
+POST   /api/v1/deploy-grants                # 桌面端部署授权
 ```
 
 ### 3.3 Tauri PC 客户端
@@ -429,7 +514,7 @@ tauri-client/
 | `create_dir` | 创建目录 | 仅白名单目录内 |
 | `read_config` | 读取配置文件 | 仅指定扩展名 |
 | `write_config` | 写入配置文件 | 仅指定扩展名，大小限制 |
-| `backup_file` | 备份原文件（自动，不可跳过） | 原文件同目录 `.bak` |
+| `backup_file` | 备份原文件（自动，不可跳过） | `.omnicraft_backup/` |
 
 #### URL Scheme 协议
 
@@ -516,10 +601,10 @@ CREATE TABLE reputation_logs (
     user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     delta           INT NOT NULL,
     reason          VARCHAR(100) NOT NULL,
-    -- reason: 'malicious_report_tag' | 'malicious_comment' | 'malicious_contribution'
-    --         | 'malicious_report_comment' | 'judge_error' | 'quality_content'
-    --         | 'quality_comment' | 'contribution_accepted' | 'valid_report'
-    --         | 'judge_accuracy_bonus' | 'rehab_course_completed'
+    -- reason: 'quality_content' | 'pr_merged' | 'quality_comment' | 'tag_recognized'
+    --         | 'judge_accuracy' | 'rehab_course' | 'valid_report'
+    --         | 'malicious_content' | 'malicious_pr' | 'malicious_comment'
+    --         | 'malicious_report' | 'malicious_tag_report' | 'judge_error'
     related_id      BIGINT,   -- 关联内容/评论/PR 的 ID
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -621,6 +706,8 @@ CREATE INDEX idx_content_items_type ON content_items(content_type);
 CREATE INDEX idx_content_items_category ON content_items(category);
 CREATE INDEX idx_content_items_source_original ON content_items(source_original_id, status, created_at DESC) WHERE source_original_id IS NOT NULL;
 CREATE INDEX idx_content_items_status ON content_items(status);
+
+-- 注：download_count 由 Redis ZSET 维护（异步写入），非数据库列。
 
 -- 内容附件（OSS 存储的文件）
 CREATE TABLE content_attachments (
@@ -833,7 +920,7 @@ CREATE TABLE notifications (
     id              BIGSERIAL PRIMARY KEY,
     user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     type            VARCHAR(30) NOT NULL,
-    -- type: 'reply' | 'like' | 'system' | 'pr_submitted' | 'pr_resolved' | 'content_reviewed' | 'judge_result' | 'follow'
+    -- type: 'comment' | 'like' | 'follow' | 'system' | 'mention' | 'appeal_result' | 'content_status'
     channel         VARCHAR(20) NOT NULL,
     -- channel: 'reply'（回复我的）| 'like'（收到的赞）| 'system'（系统消息）
     title           VARCHAR(500),
@@ -877,9 +964,9 @@ CREATE TABLE messages (
 
 CREATE INDEX idx_messages_conversation ON messages(conversation_id, created_at);
 
--- 注：以下两条索引由独立迁移 migrations/035_conversation_indexes.sql 创建（Task 66 step 1），
---     不与 messages/conversations 表 DDL（migrations/024_conversations.sql, Task 63）同时执行。
-CREATE INDEX idx_messages_sender ON messages(sender_id);
+-- 注：以下两条索引由独立迁移 migrations/056_conversation_indexes.sql 创建，
+--     不与 messages/conversations 表 DDL（migrations/017_conversations.sql）同时执行。
+CREATE INDEX idx_messages_sender ON messages(sender_id, created_at DESC);
 CREATE INDEX idx_conversations_updated ON conversations(updated_at DESC);
 
 -- 素质建设课程表（AI 根据系统扣分逻辑生成教学内容，按违规类型分类）
@@ -1079,6 +1166,89 @@ extra_params: { "temperature": 0.7, "max_tokens": 1000 }
 
 ---
 
+### 4.11 用户反馈 (Feedback)
+
+```sql
+CREATE TABLE feedback_tickets (
+    id                BIGSERIAL PRIMARY KEY,
+    user_id           BIGINT REFERENCES users(id),
+    contact_email     VARCHAR(255),
+    category          VARCHAR(32) NOT NULL CHECK (category IN (
+                        'web_bug', 'desktop_deploy', 'content_or_community',
+                        'account_or_security', 'agent_quality', 'feature_request', 'other'
+                      )),
+    title             VARCHAR(160) NOT NULL,
+    description       TEXT NOT NULL,
+    diagnostic_summary JSONB NOT NULL DEFAULT '{}',
+    status            VARCHAR(24) NOT NULL DEFAULT 'open' CHECK (status IN (
+                        'open', 'in_progress', 'resolved', 'closed'
+                      )),
+    priority          VARCHAR(24) NOT NULL DEFAULT 'normal' CHECK (priority IN (
+                        'low', 'normal', 'high', 'urgent'
+                      )),
+    assignee_admin_id BIGINT REFERENCES users(id),
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    resolved_at       TIMESTAMPTZ
+);
+
+CREATE TABLE feedback_replies (
+    id                BIGSERIAL PRIMARY KEY,
+    ticket_id         BIGINT NOT NULL REFERENCES feedback_tickets(id) ON DELETE CASCADE,
+    author_user_id    BIGINT REFERENCES users(id),
+    author_admin_id   BIGINT REFERENCES users(id),
+    body              TEXT NOT NULL,
+    is_internal_note  BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (author_user_id IS NOT NULL OR author_admin_id IS NOT NULL),
+    CHECK (NOT (author_user_id IS NOT NULL AND author_admin_id IS NOT NULL))
+);
+
+CREATE TABLE feedback_attachments (
+    id            BIGSERIAL PRIMARY KEY,
+    ticket_id     BIGINT NOT NULL REFERENCES feedback_tickets(id) ON DELETE CASCADE,
+    oss_key       TEXT NOT NULL,
+    file_type     VARCHAR(32) NOT NULL,
+    mime_type     VARCHAR(100) NOT NULL,
+    size_bytes    BIGINT NOT NULL,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_feedback_tickets_user_id ON feedback_tickets(user_id);
+CREATE INDEX idx_feedback_tickets_status ON feedback_tickets(status);
+CREATE INDEX idx_feedback_replies_ticket_id ON feedback_replies(ticket_id);
+CREATE INDEX idx_feedback_attachments_ticket_id ON feedback_attachments(ticket_id);
+```
+
+- 用户通过 `/feedback` 页面提交反馈工单（web_bug / feature_request 等类别）。
+- 管理员在 `/admin/feedback` 查看、分配、回复工单。
+- `feedback_attachments` 存储 OSS 对象键（截图/日志等）。
+
+### 4.12 管理员审计日志 (Admin Audit Logs)
+
+```sql
+CREATE TABLE admin_audit_logs (
+    id              BIGSERIAL PRIMARY KEY,
+    admin_user_id   BIGINT NOT NULL REFERENCES users(id),
+    action          VARCHAR(96) NOT NULL,
+    target_type     VARCHAR(48) NOT NULL,
+    target_id       VARCHAR(96),
+    trace_id        VARCHAR(96),
+    metadata        JSONB NOT NULL DEFAULT '{}',
+    result          VARCHAR(24) NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_admin_audit_logs_created_at ON admin_audit_logs(created_at DESC);
+CREATE INDEX idx_admin_audit_logs_action ON admin_audit_logs(action);
+```
+
+- 所有管理员敏感操作（封禁用户、删除内容、修改配置等）自动记录审计日志。
+- `metadata` 为 JSONB 字段存储操作上下文（如修改前后的值）。
+- `trace_id` 关联请求日志便于排查。
+
+---
+
 ## 5. API 设计详细说明
 
 ### 5.1 通用规范
@@ -1211,7 +1381,7 @@ Content-Type: application/json
 ### 6.3 Agent 安全
 
 - Tauri 端所有本地操作通过 Rust 层白名单校验，WebView 无法直接调用系统 API
-- Go 下发的动作脚本带 HMAC-SHA256 签名，Tauri 验签后执行
+- Go 下发的动作脚本当前使用 HMAC-SHA256 签名（D-03 完成后改为 Ed25519），Tauri 验签后执行
 - 白名单目录通过 `tauri.conf.json` 写死，运行时不可修改
 
 ### 6.4 内容安全
@@ -1222,82 +1392,175 @@ Content-Type: application/json
 
 ---
 
-## 7. 配置化开关（Feature Flag）
+## 7. 配置化开关与参数（config.yaml）
 
-所有可动态调整的参数集中在 `config.yaml`，通过管理员 API 热更新：
+所有可动态调整的参数集中在 `config.yaml`，通过管理员 API 热更新。
+字段名与 `config/config.go` 中结构体的 `mapstructure` tag 一一对应。
 
 ```yaml
 features:
-  payment_enabled: false       # 支付模块全局开关（MVP 关闭）
-  ad_enabled: false            # 广告（永久关闭）
-  agent_enabled: true          # Agent 部署功能
-  judge_enabled: true          # 赛博判官
-  creator_support_enabled: false  # 创作者支持模块（P1 开启）
-  desktop_deploy_enabled: false   # 桌面端一键部署（D-02~D-05 完成后开启）
+  payment_enabled: false             # 支付模块全局开关（MVP 关闭）
+  creator_support_enabled: false     # 创作者支持模块（P1 开启）
+  desktop_deploy_enabled: false      # 桌面端一键部署（D-02~D-05 完成后开启）
 
 limits:
-  video_max_mb: 300            # 视频最大文件大小（MB）
-  video_max_sec: 180           # 视频最大时长（秒）
+  video_max_mb: 300                  # 视频最大文件大小（MB）
+  video_max_sec: 180                 # 视频最大时长（秒）
   image_max_mb: 20
   text_max_mb: 10
-  mod_max_mb: 500              # Mod 打包最大大小
-  sheet_music_max_mb: 50       # 乐谱文件最大大小（含 MIDI/MusicXML/MSCZ/PDF）
-  sheet_music_allowed_ext: ["mid", "midi", "xml", "mxl", "mscz", "mscx", "pdf"]
+  mod_max_mb: 500                    # Mod 打包最大大小
+  sheet_music_max_mb: 50             # 乐谱文件最大大小
 
 reputation:
-  initial_score: 10
-  # 负向事件（按内容分类：内容相关 -3、评论相关 -2、标签/判官相关 -1）
-  malicious_contribution: -3       # 发布恶意/抄袭内容、恶意贡献（PR）
-  malicious_comment: -2            # 发布恶意评论
-  malicious_report_comment: -2     # 恶意举报正常评论
-  malicious_report_tag: -1         # 恶意举报标签
-  judge_error: -1                  # 判官错误
-  # 正向事件（按内容分类：内容相关 +3、评论相关 +2、标签/判官相关 +1）
-  quality_content_threshold: 10    # 优质内容点赞阈值
-  quality_content_bonus: 3         # 优质内容加分值
-  quality_comment_threshold: 5     # 优质评论点赞阈值
-  quality_comment_bonus: 2         # 优质评论加分值
-  contribution_accepted: 3         # PR 被接受加分（内容相关）
-  valid_report: 1                  # 有效举报加分（标签相关）
-  judge_accuracy_bonus: 1          # 赛博判官高准确率奖励
-  rehab_course_completed: 1        # 完成素质建设课程加分
-  min_score_for_interaction: 3     # 低于此分禁止发布/互动/下载（统一门槛）
-  # 恶意内容二次发布累计扣分（PRD §6.2）
-  repeat_violation_window_days: 7        # 滑动窗口天数
-  repeat_violation_threshold: 2          # 窗口内 block/violation 计数阈值
-  repeat_violation_extra_penalty: -1     # 超阈后额外扣分
-  publish_freeze_seconds: 604800         # 超阈后发布冻结时长（7 日）
+  min_score_for_interaction: 3       # 低于此分禁止发布/互动/下载（统一门槛）
+  quality_content_threshold: 10      # 优质内容点赞阈值
+  quality_comment_threshold: 5       # 优质评论点赞阈值
+  repeat_violation_window_days: 7   # 滑动窗口天数
+  repeat_violation_threshold: 2      # 窗口内违规计数阈值
+  repeat_violation_extra_penalty: -1 # 超阈后额外扣分
+  # 以下 score_* 字段控制实际加减分值（0 = 使用 reputation_service.go 内置默认值）
+  score_quality_content: 3
+  score_pr_merged: 3
+  score_quality_comment: 2
+  score_tag_recognized: 1
+  score_judge_accuracy: 1
+  score_rehab_course: 1
+  score_valid_report: 1
+  score_malicious_content: -3
+  score_malicious_pr: -3
+  score_malicious_comment: -2
+  score_malicious_report: -2
+  score_malicious_tag_report: -1
+  score_judge_error: -1
 
 judge:
-  pass_score_rate: 0.8        # 考核通过分率（80%）
-  revoke_error_rate: 0.5      # 错误率超过此值撤权
-  revoke_min_votes: 10        # 触发撤权检查的最小判定次数
-  min_votes: 20               # 众裁最小投票数（MVP 默认 20，目标 100）
-  weekly_question_update: true
-  question_pool_size: 10      # 每次自动更新的题目数
-
-upload:
-  oss_bucket: "omnicraft-prod"
-  oss_region: "cn-hangzhou"
-  presign_expire_sec: 3600
+  min_votes_required: 20             # 众裁最小投票数
+  pass_threshold: 0.60               # 判决通过线（不违规比例 ≥ 60% 恢复展示）
+  exam_pass_rate: 0.80               # 考核通过分率（80%）
+  error_rate_revoke: 0.50            # 错误率超过此值撤权
+  error_rate_window: 10              # 触发撤权检查的最小判定次数
 
 social:
-  report_auto_hide_rate: 0.10        # 内容举报率（举报数/点击数）≥ 此值时自动隐藏并触发众裁（PRD §6.2）
-  comment_fold_threshold: 0.30       # 评论区点踩/点赞比 ≥ 此值时自动折叠评论区并触发审核（PRD §6.2）
+  report_auto_hide_rate: 0.10       # 内容举报率阈值（自动隐藏 + 触发众裁）
+  comment_fold_threshold: 0.30      # 评论区点踩/点赞比阈值（自动折叠）
 
 recommendation:
-  enabled: true                       # 推荐引擎全局开关
-  hot_decay_hours: 48                 # 热门度时间衰减半衰期（小时），类似 Reddit 算法
-  personalization_weight: 0.6         # 个性化权重（0~1），剩余比例分配给热门趋势
-  # 推荐公式：score = personalization_weight * sim_score + (1 - personalization_weight) * hot_score
-  min_interaction_for_personalize: 10 # 用户最少互动次数（浏览+点赞+收藏），不足时纯热门推荐
-  embedding_topk: 200                 # 向量检索候选集大小（pgvector ANN 查询 topK）
-  trending_window_days: 7             # 热门趋势计算窗口（天）
-  refresh_interval_h: 2               # 推荐缓存刷新间隔（小时）
+  enabled: true
+  hot_decay_hours: 48
+  personalization_weight: 0.6
+  min_interaction_for_personalize: 10
+  embedding_topk: 200
+  trending_window_days: 7
+  refresh_interval_h: 2
 
 publish:
   type_order_original: ["image", "article", "video", "audio", "template", "sheet_music", "other"]
   type_order_fanwork: ["image", "article", "video", "audio", "mod", "prompt", "sheet_music", "other"]
+
+upload:
+  sheet_music_extensions: [".mid", ".midi", ".xml", ".mxl", ".mscz", ".mscx", ".pdf"]
+
+# --- 以下配置段在 config.yaml 存在但 §7 历史版本未文档化 ---
+# 字段名与 config/config.go 结构体 mapstructure tag 对齐。
+# ⚠️ 权威来源：config.go 中各 Config 结构体的 mapstructure tag 为字段名唯一权威。
+#    本文档 §7 为可读性摘要，不保证与 config.go 100% 同步。开发时以 config.go 为准。
+#    若发现文档字段与 config.go 不一致，以 config.go 为准并请更新本文档。
+
+oss:
+  # 凭证通过环境变量注入（OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET）
+  endpoint: "https://oss-cn-hangzhou.aliyuncs.com"
+  bucket_name: "omnicraft-prod"
+  domain: ""                          # OSS Bucket 域名（或 CDN 加速域名）
+  download_url_ttl_sec: 300          # 下载签名 URL 有效期（秒）
+
+green:
+  # 凭证通过环境变量 GREEN_ACCESS_KEY_ID / GREEN_ACCESS_KEY_SECRET 注入
+  region: "cn-shanghai"
+
+agent:
+  web_agent_enabled: false           # 网页端 Agent 总开关（默认关闭）
+  llm_provider: "openai_compat"
+  llm_model: "deepseek-chat"
+  llm_api_base: "https://api.deepseek.com"
+  llm_api_key: ""                    # 通过 env AGENT_LLM_API_KEY 注入
+  embedding_model: "text-embedding-3-small"
+  embedding_dimensions: 1536
+  rate_limit_per_day: 50
+  upload_assist_max_file_mb: 10
+  max_user_message_chars: 4000
+  chat_max_context_messages: 10
+  hmac_secret: ""                    # Tauri Agent HMAC 签名密钥
+
+captcha:
+  provider: "aliyun"
+  prefix: ""
+  scene_id: ""
+  region: "cn-shanghai"
+  ticket_ttl_sec: 300
+
+smtp:
+  mode: "logger"                     # "live" | "logger"（开发模式用 logger bypass）
+  host: ""
+  port: 587
+  user: ""
+  password: ""                       # 通过 env SMTP_PASSWORD 注入
+  from_address: ""
+
+verification:
+  email_ttl_sec: 3600               # 邮箱验证链接有效期
+  reset_ttl_sec: 3600               # 密码重置 token 有效期
+  resend_cooldown_sec: 60           # 重发冷却时间
+  login_captcha_threshold: 3        # 连续登录失败触发验证码的阈值
+  password_min_length: 8
+  register_pending_ttl_sec: 86400   # 注册未验证自动清理时间
+
+legal:
+  current_terms_version: ""         # 当前用户协议版本号
+  current_privacy_version: ""       # 当前隐私政策版本号
+
+cache:
+  # Redis 缓存 TTL 配置（CacheConfig）；非"向量嵌入缓存"
+  content_list_ttl: 30              # 内容列表缓存（秒）
+  content_detail_ttl: 300           # 内容详情缓存（秒）
+  ip_list_ttl: 60                   # IP 列表缓存（秒）
+  ip_detail_ttl: 600                # IP 详情缓存（秒）
+  view_count_flush_interval: 30     # 浏览计数刷入 DB 间隔（秒）
+  user_status_ttl: 300              # 用户运行时状态缓存（秒）
+  tag_cache_ttl: 600                # 标签缓存（秒）
+  publish_freeze_ttl: 604800        # 发布冻结时长（秒，默认 7 天）
+
+queue:
+  enabled: false                     # 异步任务队列（MVP 关闭）
+  max_attempts: 3                    # 最大重试次数
+  retry_backoff_sec: [60, 120, 300] # 重试退避间隔（秒，数组）
+  dlq_ttl_hours: 72                  # 死信队列保留时间（小时）
+  maxlen: 100000                     # Stream 最大长度
+  worker_review: 1                   # 审核 Worker 并发数
+  worker_notification: 1             # 通知 Worker 并发数
+
+rate_limit:
+  enabled: true
+  normal_per_minute: 60             # 普通请求每 IP 每分钟
+  upload_per_hour: 10               # 上传每 IP 每小时
+  credential_per_minute: 5          # 认证类请求每账号每分钟
+  search_per_minute: 30             # 搜索每 IP 每分钟
+  max_json_body_bytes: 1048576      # JSON Body 最大字节数（1MB）
+  max_query_chars: 256              # 查询字符串最大字符数
+  max_search_limit: 50              # 搜索单页最大条数
+
+web:
+  public_base_url: "https://app.leeppp.online"
+
+security:
+  allowed_origins:                   # CORS 白名单（生产环境必填，禁止 *）
+    - "https://app.leeppp.online"
+  trusted_proxies:                   # 信任的代理 IP（用于 X-Forwarded-For 解析）
+    - "10.0.0.0/8"
+
+client:
+  download_enabled: false            # 桌面客户端下载入口
+  download_url: ""
+  latest_version: ""
 ```
 
 ---
@@ -1321,15 +1584,17 @@ JWT_ACCESS_EXPIRE=7200            # 秒
 JWT_REFRESH_EXPIRE=604800         # 秒
 
 # 阿里云 OSS
-ALIYUN_ACCESS_KEY_ID=
-ALIYUN_ACCESS_KEY_SECRET=
-OSS_BUCKET=omnicraft-prod
+OSS_ACCESS_KEY_ID=
+OSS_ACCESS_KEY_SECRET=
+OSS_BUCKET_NAME=omnicraft-prod
 OSS_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com
-OSS_CDN_DOMAIN=                   # 可选，CDN 加速域名
+OSS_DOMAIN=                        # OSS Bucket 域名（或 CDN 加速域名）
 
 # 阿里云内容安全
-ALIYUN_GREEN_ENDPOINT=green-cip.cn-hangzhou.aliyuncs.com
-ALIYUN_GREEN_CALLBACK_URL=
+GREEN_ACCESS_KEY_ID=
+GREEN_ACCESS_KEY_SECRET=
+GREEN_REGION=cn-shanghai
+GREEN_CALLBACK_URL=
 
 # Agent 签名
 AGENT_HMAC_SECRET=<随机 32 字节>
@@ -1337,7 +1602,7 @@ AGENT_HMAC_SECRET=<随机 32 字节>
 # 应用
 APP_ENV=production                # development | production
 APP_PORT=8080
-FRONTEND_URL=https://omnicraft.com
+FRONTEND_URL=https://app.leeppp.online     # 当前生产环境实际域名
 ```
 
 ### 8.2 Docker Compose 服务清单
@@ -1376,7 +1641,7 @@ services:
   │     3. 开启逻辑复制追追量数据（停机窗口 < 30 分钟）
   │     4. 修改 DB_DSN 指向 RDS，重启服务
   ├── 迁移到 K8s（k8s/ 目录预留 Deployment 配置）
-  └── CDN 加速 OSS（填写 OSS_CDN_DOMAIN 环境变量即可）
+  └── CDN 加速 OSS（填写 OSS_DOMAIN 环境变量即可）
 ```
 
 ### 9.2 K8s 预留目录结构
@@ -1801,19 +2066,22 @@ type LLMProvider interface {
 
 ### 11.3 配置扩展（config.yaml）
 
+> 完整字段列表以 `config/config.go > AgentConfig` 结构体为准。以下为关键字段摘要：
+
 ```yaml
 agent:
   web_agent_enabled: false          # 网页端 Agent 总开关（独立于 Tauri agent_enabled）
   llm_provider: qwen                # qwen | openai_compat
   llm_model: qwen-turbo             # 模型名称（随 provider 变）
-  llm_api_base: ""                  # 留空则使用 provider 默认 endpoint；可覆盖为 DeepSeek/Ollama 地址
-  llm_api_key: ""                   # 从 env: AGENT_LLM_API_KEY 注入，此处留空
-  embedding_model: text-embedding-v3 # 用于向量化的 embedding 模型
+  llm_api_base: ""                  # 留空则使用 provider 默认 endpoint
+  llm_api_key: ""                   # 从 env: AGENT_LLM_API_KEY 注入
+  embedding_model: text-embedding-v3
   embedding_dimensions: 1536
-  rate_limit_free_per_day: 20       # 普通用户每日 Agent 调用上限
-  rate_limit_creator_per_day: 100   # 创作者（有发布内容）每日上限
-  rate_limit_admin: -1              # 管理员无限制
-  upload_assist_max_file_mb: 50     # 上传自动包装时读取的文件大小上限
+  rate_limit_per_day: 50
+  upload_assist_max_file_mb: 10
+  max_user_message_chars: 4000      # 用户消息最大字符数
+  chat_max_context_messages: 10     # 对话上下文最大消息数
+  hmac_secret: ""                   # Tauri Agent HMAC 签名密钥
 ```
 
 **环境变量**（不写入 config.yaml）：
@@ -2378,12 +2646,17 @@ publish:
 
 ### 15.9 数据库 Schema 变更汇总（Task 99-145 新增）
 
+> 注：以下为原始计划编号。实际迁移文件编号因并行开发已发生偏移，最新编号见 `backend/migrations/` 目录（001-056）。
+> 关键错位：计划 038=全文搜索 → 实际 038=notification_channels, 041=content_search_vector；
+> 计划 039=密码重置 → 实际 039=conversation_unread_count；
+> 计划 041=内容软删除 → 实际 053=content_items_soft_delete。
+
 ```sql
--- 038: 全文搜索
+-- 全文搜索（实际迁移 041_content_search_vector.sql）
 ALTER TABLE content_items ADD COLUMN search_vector tsvector;
 CREATE INDEX idx_content_items_search ON content_items USING GIN(search_vector);
 
--- 039: 密码重置
+-- 密码重置（实际迁移 050_verification_and_terms.sql，与其他验证功能合并）
 CREATE TABLE password_reset_tokens (
     id          BIGSERIAL PRIMARY KEY,
     user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -2393,69 +2666,21 @@ CREATE TABLE password_reset_tokens (
 );
 CREATE INDEX idx_password_reset_token ON password_reset_tokens(token, expires_at);
 
--- 040: 邮箱验证
+-- 邮箱验证（实际迁移 050_verification_and_terms.sql）
 ALTER TABLE users ADD COLUMN email_verified_at TIMESTAMPTZ;
 
--- 041: 内容软删除
+-- 内容软删除（实际迁移 053_content_items_soft_delete.sql）
 ALTER TABLE content_items ADD COLUMN deleted_at TIMESTAMPTZ;
 CREATE INDEX idx_content_items_deleted ON content_items(deleted_at) WHERE deleted_at IS NOT NULL;
 
--- 042: User.ID 类型统一（uint → int64）
+-- User.ID 类型统一（uint → int64）
 -- 注意：此迁移需要将 users.id 从 SERIAL 改为 BIGSERIAL（若当前为 INTEGER）
 -- 所有引用 users.id 的外键列同步改为 BIGINT
 ```
 
 ### 15.10 新增 API 路由汇总（Task 99-145）
 
-```
-# 统一请求校验
-(所有 POST/PATCH 端点) — go-playground/validator/v10 struct tag 校验
-
-# 安全
-POST   /auth/forgot-password           # 发送密码重置邮件
-POST   /auth/reset-password            # 密码重置（token 校验）
-POST   /auth/verify-email              # 邮箱验证
-
-# 搜索
-GET    /contents/search                # 全文搜索（OptionalAuth）
-GET    /search/suggestions             # 搜索建议（前缀匹配）
-GET    /search/trending                 # 热门搜索词
-GET    /users/search                    # 用户搜索
-
-# 内容下载
-GET    /contents/:id/download           # 下载（AllowCopy=true 时返回 OSS 签名 URL）
-
-# 收藏
-POST   /favorites                       # 幂等收藏（已收藏返回 200）
-DELETE /favorites/:contentId             # 安全删除（不存在返回 200）
-GET    /users/:id/favorites?content_type=&page=&limit=  # 分页+类型筛选
-
-# 通知（自动创建）
-GET    /notifications?channel=           # 按频道筛选
-GET    /notifications/unread-count       # 按频道分组未读计数
-
-# 评论编辑
-PATCH  /social/comments/:id             # 评论编辑
-
-# 消息管理
-DELETE /messages/:id                     # 软删除消息
-DELETE /conversations/:id                # 退出会话
-
-# 统计
-GET    /stats/summary                   # 平台统计（用户数/IP数/内容数/作品数）
-
-# 管理员
-GET    /admin/contents/trash             # 已软删除内容列表
-PATCH  /admin/contents/:id/restore      # 恢复软删除内容
-GET    /admin/reports                     # 举报列表
-PATCH  /admin/reports/:id               # 处理举报
-GET    /admin/reports/stats               # 举报统计
-PATCH  /admin/contents/:id/ban           # 封禁内容（增加 reason 字段）
-
-# Agent 对话持久化
-GET    /agent/conversations              # 对话列表
-GET    /agent/conversations/:id          # 对话详情
-```
+> 路由已合并至 §3.2 API 路由清单。本节仅保留作为 Task 99-145 的历史范围参考。
 
 ### 15.11 结构化日志与优雅关机
 

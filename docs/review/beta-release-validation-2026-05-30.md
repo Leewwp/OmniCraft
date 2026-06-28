@@ -3,7 +3,7 @@
 **Date:** 2026-06-01
 **Validator:** Automated agent session
 **Base SHA:** 071fd5ec4c85270d37169d6e4740da3cdb8890e8
-**Decision:** ✅ PASS — Web Beta release gate satisfied
+**Decision:** ✅ PASS — Web Beta release gate satisfied（⚠️ 已被 2026-06-03 review summary 的 GO-WITH-BLOCKERS 结论取代；本报告为当时快照）
 
 ---
 

@@ -61,6 +61,8 @@ The baseline reported 2 pre-existing Go test failures and 1 frontend build failu
 
 ### P1-2: Browser-test screenshots missing from repository
 
+> ✅ 已于 2026-06-04 修复（见 `web-beta-repair-validation-2026-06-03.md`）。
+
 **Referenced in:** `docs/review/beta-release-validation-2026-05-30.md` line 155
 
 The validation report claims "Screenshots saved to `screenshots/r01_*.png`" and Step 8 references `screenshots/beta-release-public-*`. The `screenshots/` directory does not exist in the repository. No screenshot files were found via glob search.
