@@ -308,194 +308,176 @@ backend/
 
 #### 完整 API 路由清单
 
-```
-POST   /api/v1/auth/register          # 注册
-POST   /api/v1/auth/login             # 登录
-POST   /api/v1/auth/logout            # 登出
-POST   /api/v1/auth/refresh           # 刷新 Token
-GET    /api/v1/auth/me                # 当前用户信息
-GET    /api/v1/auth/csrf              # 获取 CSRF Token
-POST   /api/v1/auth/forgot-password   # 发送密码重置邮件
-POST   /api/v1/auth/reset-password    # 密码重置（token 校验）
-POST   /api/v1/auth/verify-email      # 邮箱验证
-POST   /api/v1/auth/resend-verification # 重新发送验证邮件
+<!-- AUTO-GENERATED: §3.2 API 路由清单 | source: backend/internal/handler/routes.go | DO NOT EDIT MANUALLY -->
 
-GET    /api/v1/users/:id              # 用户主页
-PATCH  /api/v1/users/:id              # 更新用户信息
-GET    /api/v1/users/:id/contents     # 用户发布的内容
-GET    /api/v1/users/:id/favorites    # 用户收藏列表
-GET    /api/v1/users/:id/reputation   # 信誉分详情
-POST   /api/v1/users/:id/follow       # 关注用户
-DELETE /api/v1/users/:id/follow       # 取消关注用户
-GET    /api/v1/users/:id/followers    # 粉丝列表
-GET    /api/v1/users/:id/followers/stats  # 粉丝统计（总数/趋势/来源，参数 ?days=30）
-GET    /api/v1/users/:id/following    # 关注列表
-DELETE /api/v1/users/me               # 账号注销（软删除/匿名化，需双重验证）
-PATCH  /api/v1/users/me/password      # 修改密码（旧密码验证 + bcrypt 加密）
-PATCH  /api/v1/users/me/support-info  # 更新创作者支持信息
-GET    /api/v1/users/me/contents      # 我的内容列表
-GET    /api/v1/users/me/followers/stats # 我的粉丝统计
-POST   /api/v1/users/me/history       # 记录浏览历史
-GET    /api/v1/users/me/history       # 浏览历史列表
-DELETE /api/v1/users/me/history       # 清空浏览历史
+| 方法 | 路径 | 处理器 |
+|------|------|--------|
+| `DELETE` | `/api/v1/admin/categories/:id` | catHandler.AdminDeleteCategory |
+| `DELETE` | `/api/v1/admin/llm-configs/:id` | adminHandler.DeleteLLMConfig |
+| `DELETE` | `/api/v1/contents/:id` | contentHandler.DeleteContent |
+| `DELETE` | `/api/v1/dashboard/contributors/:userId/block` | prHandler.UnblockContributor |
+| `DELETE` | `/api/v1/favorites/:contentId` | favHandler.RemoveFavorite |
+| `DELETE` | `/api/v1/ips/:id/follow` | followHandler.UnfollowIP |
+| `DELETE` | `/api/v1/messages/:id` | msgHandler.DeleteMessage |
+| `DELETE` | `/api/v1/messages/conversations/:id` | msgHandler.LeaveConversation |
+| `DELETE` | `/api/v1/social/comments/:id` | socialHandler.DeleteComment |
+| `DELETE` | `/api/v1/users/:id/follow` | followHandler.UnfollowUser |
+| `DELETE` | `/api/v1/users/me` | userHandler.DeleteAccount |
+| `DELETE` | `/api/v1/users/me/history` | histHandler.ClearHistory |
+| `DELETE` | `/api/v1/users/me/saved-searches/:id` | tagHandler.DeleteSavedSearch |
+| `DELETE` | `/api/v1/users/me/tag-groups/:id` | tagHandler.DeleteTagGroup |
+| `GET` | `/api/v1/admin/appeals` | adminHandler.ListAppeals |
+| `GET` | `/api/v1/admin/audit-logs` | adminAuditHandler.ListAuditLogs |
+| `GET` | `/api/v1/admin/config` | adminHandler.GetConfig |
+| `GET` | `/api/v1/admin/contents` | adminHandler.ListUnderReviewContents |
+| `GET` | `/api/v1/admin/contents/trash` | adminHandler.ListTrashedContents |
+| `GET` | `/api/v1/admin/feedback` | adminFeedbackHandler.ListFeedback |
+| `GET` | `/api/v1/admin/feedback/:id` | adminFeedbackHandler.GetFeedback |
+| `GET` | `/api/v1/admin/ips` | adminHandler.ListPendingIPs |
+| `GET` | `/api/v1/admin/llm-configs` | adminHandler.ListLLMConfigs |
+| `GET` | `/api/v1/admin/queue/dlq` | adminHandler.GetDLQEntries |
+| `GET` | `/api/v1/admin/queue/stats` | adminHandler.GetQueueStats |
+| `GET` | `/api/v1/admin/reports` | adminHandler.ListReports |
+| `GET` | `/api/v1/admin/reports/stats` | adminHandler.GetReportStats |
+| `GET` | `/api/v1/admin/users` | adminHandler.ListUsers |
+| `GET` | `/api/v1/agent/conversations` | agentHandler.ListConversations |
+| `GET` | `/api/v1/agent/conversations/:id` | agentHandler.GetConversationMessages |
+| `GET` | `/api/v1/agent/usage-guide/:id` | agentHandler.UsageGuide |
+| `GET` | `/api/v1/appeals/me` | appealHandler.GetMyAppeals |
+| `GET` | `/api/v1/auth/csrf` | authHandler.CSRFToken |
+| `GET` | `/api/v1/auth/me` | authHandler.Me |
+| `GET` | `/api/v1/categories` | catHandler.ListCategories |
+| `GET` | `/api/v1/config/public` | publicConfigHandler.GetPublicConfig |
+| `GET` | `/api/v1/contents` | contentHandler.ListContents |
+| `GET` | `/api/v1/contents/:id` | contentHandler.GetContent |
+| `GET` | `/api/v1/contents/:id/download` | contentHandler.DownloadContent |
+| `GET` | `/api/v1/contents/:id/prs` | NewPRHandler(...).ListPRs |
+| `GET` | `/api/v1/contents/:id/related-fanworks` | contentHandler.ListRelatedFanworks |
+| `GET` | `/api/v1/contents/:id/versions` | NewVersionHandler(...).ListVersions |
+| `GET` | `/api/v1/contents/search` | searchHandler.SearchContents |
+| `GET` | `/api/v1/dashboard/tag-suggestions` | tagHandler.ListTagSuggestions |
+| `GET` | `/api/v1/discussions/:id` | discHandler.GetDiscussion |
+| `GET` | `/api/v1/feedback/:id` | feedbackHandler.GetTicket |
+| `GET` | `/api/v1/feedback/me` | feedbackHandler.ListMyTickets |
+| `GET` | `/api/v1/ips` | ipHandler.ListIPs |
+| `GET` | `/api/v1/ips/:id` | ipHandler.GetIP |
+| `GET` | `/api/v1/ips/:id/contents` | ipHandler.GetIPContents |
+| `GET` | `/api/v1/ips/:id/discussions` | discHandler.ListDiscussions |
+| `GET` | `/api/v1/ips/:id/discussions/search` | discHandler.SearchDiscussions |
+| `GET` | `/api/v1/ips/stats/category_counts` | ipStatsHandler.GetCategoryCounts |
+| `GET` | `/api/v1/judge/cases/:id/verdict` | judgeHandler.GetVerdictDetail |
+| `GET` | `/api/v1/judge/exam/:category` | judgeHandler.GetExam |
+| `GET` | `/api/v1/judge/queue` | judgeHandler.GetQueue |
+| `GET` | `/api/v1/messages` | msgHandler.ListConversations |
+| `GET` | `/api/v1/messages/:id` | msgHandler.ListMessages |
+| `GET` | `/api/v1/notifications` | notifHandler.ListNotifications |
+| `GET` | `/api/v1/notifications/unread-count` | notifHandler.UnreadCount |
+| `GET` | `/api/v1/pr/:id` | prHandler.GetPR |
+| `GET` | `/api/v1/rehab/courses` | rehabHandler.ListCourses |
+| `GET` | `/api/v1/rehab/courses/:id` | rehabHandler.GetCourse |
+| `GET` | `/api/v1/rehab/my-progress` | rehabHandler.GetMyProgress |
+| `GET` | `/api/v1/reputation-logs/me` | repHandler.GetMyReputationLogs |
+| `GET` | `/api/v1/search/suggestions` | searchHandler.Suggestions |
+| `GET` | `/api/v1/search/trending` | searchHandler.Trending |
+| `GET` | `/api/v1/social/comments` | socialHandler.ListComments |
+| `GET` | `/api/v1/social/discussions` | socialHandler.ListDiscussions |
+| `GET` | `/api/v1/social/discussions/:id` | socialHandler.GetDiscussion |
+| `GET` | `/api/v1/social/reactions` | socialHandler.ListReactions |
+| `GET` | `/api/v1/stats/summary` | statsHandler.GetSummary |
+| `GET` | `/api/v1/tags/faceted` | tagHandler.GetFacetedTags |
+| `GET` | `/api/v1/tags/search` | tagHandler.SearchTags |
+| `GET` | `/api/v1/users/:id` | userHandler.GetUser |
+| `GET` | `/api/v1/users/:id/contents` | userHandler.GetUserContents |
+| `GET` | `/api/v1/users/:id/discussions` | discHandler.ListByUser |
+| `GET` | `/api/v1/users/:id/favorites` | favHandler.ListUserFavorites |
+| `GET` | `/api/v1/users/:id/followers` | followHandler.GetFollowers |
+| `GET` | `/api/v1/users/:id/following` | followHandler.GetFollowing |
+| `GET` | `/api/v1/users/:id/reputation` | userHandler.GetReputation |
+| `GET` | `/api/v1/users/me/contents` | userHandler.GetMyContents |
+| `GET` | `/api/v1/users/me/followers/stats` | followHandler.GetFollowerStats |
+| `GET` | `/api/v1/users/me/history` | histHandler.GetHistory |
+| `GET` | `/api/v1/users/me/saved-searches` | tagHandler.ListSavedSearches |
+| `GET` | `/api/v1/users/me/tag-groups` | tagHandler.ListTagGroups |
+| `GET` | `/api/v1/users/search` | searchHandler.SearchUsers |
+| `GET` | `/api/v1/versions/:id` | versionHandler.GetVersion |
+| `PATCH` | `/api/v1/admin/categories/:id` | catHandler.AdminUpdateCategory |
+| `PATCH` | `/api/v1/admin/config` | adminHandler.PatchConfig |
+| `PATCH` | `/api/v1/admin/contents/:id/restore` | adminHandler.RestoreContent |
+| `PATCH` | `/api/v1/admin/feedback/:id` | adminFeedbackHandler.PatchFeedback |
+| `PATCH` | `/api/v1/admin/llm-configs/:id` | adminHandler.UpdateLLMConfig |
+| `PATCH` | `/api/v1/admin/reports/:id` | adminHandler.ResolveReport |
+| `PATCH` | `/api/v1/contents/:id` | contentHandler.UpdateContent |
+| `PATCH` | `/api/v1/dashboard/tag-suggestions/:id` | tagHandler.UpdateTagSuggestion |
+| `PATCH` | `/api/v1/discussions/:id/pin` | discHandler.PinDiscussion |
+| `PATCH` | `/api/v1/notifications/:id/read` | notifHandler.MarkRead |
+| `PATCH` | `/api/v1/social/comments/:id` | socialHandler.EditComment |
+| `PATCH` | `/api/v1/users/:id` | userHandler.UpdateUser |
+| `PATCH` | `/api/v1/users/me/password` | userHandler.ChangePassword |
+| `PATCH` | `/api/v1/users/me/support-info` | userHandler.UpdateSupportInfo |
+| `PATCH` | `/api/v1/users/me/tag-groups/:id` | tagHandler.UpdateTagGroup |
+| `POST` | `/api/v1/admin/appeals/:id` | adminHandler.ResolveAppeal |
+| `POST` | `/api/v1/admin/categories` | catHandler.AdminCreateCategory |
+| `POST` | `/api/v1/admin/contents/:id/ban` | adminHandler.BanContent |
+| `POST` | `/api/v1/admin/feedback/:id/replies` | adminFeedbackHandler.ReplyFeedback |
+| `POST` | `/api/v1/admin/ips/:id/approve` | adminHandler.ApproveIP |
+| `POST` | `/api/v1/admin/ips/:id/reject` | adminHandler.RejectIP |
+| `POST` | `/api/v1/admin/judge/questions` | judgeHandler.CreateQuestions |
+| `POST` | `/api/v1/admin/llm-configs` | adminHandler.CreateLLMConfig |
+| `POST` | `/api/v1/admin/llm-configs/:id/activate` | adminHandler.ActivateLLMConfig |
+| `POST` | `/api/v1/admin/llm-configs/:id/test` | adminHandler.TestLLMConfig |
+| `POST` | `/api/v1/admin/users/:id/ban` | adminHandler.BanUser |
+| `POST` | `/api/v1/admin/users/:id/unban` | adminHandler.UnbanUser |
+| `POST` | `/api/v1/agent/chat/stream` | agentHandler.ChatStream |
+| `POST` | `/api/v1/agent/compliance-check` | agentHandler.ComplianceCheck |
+| `POST` | `/api/v1/agent/moderate/:id` | agentHandler.Moderate |
+| `POST` | `/api/v1/agent/search` | agentHandler.NLSearch |
+| `POST` | `/api/v1/agent/upload-assist` | agentHandler.UploadAssist |
+| `POST` | `/api/v1/appeals` | appealHandler.SubmitAppeal |
+| `POST` | `/api/v1/auth/forgot-password` | authHandler.ForgotPassword |
+| `POST` | `/api/v1/auth/login` | authHandler.Login |
+| `POST` | `/api/v1/auth/logout` | authHandler.Logout |
+| `POST` | `/api/v1/auth/refresh` | authHandler.Refresh |
+| `POST` | `/api/v1/auth/register` | authHandler.Register |
+| `POST` | `/api/v1/auth/resend-verification` | authHandler.ResendVerification |
+| `POST` | `/api/v1/auth/reset-password` | authHandler.ResetPassword |
+| `POST` | `/api/v1/auth/verify-email` | authHandler.VerifyEmail |
+| `POST` | `/api/v1/captcha/verify` | captchaHandler.Verify |
+| `POST` | `/api/v1/contents` | contentHandler.CreateContent |
+| `POST` | `/api/v1/contents/:id/report` | socialHandler.ReportContent |
+| `POST` | `/api/v1/contents/:id/tags/suggest` | tagHandler.SuggestTag |
+| `POST` | `/api/v1/contents/oss-token` | contentHandler.GenerateOSSToken |
+| `POST` | `/api/v1/dashboard/contributors/:userId/block` | prHandler.BlockContributor |
+| `POST` | `/api/v1/deploy-grants` | inline handler |
+| `POST` | `/api/v1/discussions/:id/comments` | discHandler.ReplyToDiscussion |
+| `POST` | `/api/v1/favorites` | favHandler.AddFavorite |
+| `POST` | `/api/v1/feedback` | feedbackHandler.SubmitTicket |
+| `POST` | `/api/v1/feedback/attachments/presign` | feedbackHandler.PresignUpload |
+| `POST` | `/api/v1/internal/ai-callback` | internalHandler.AICallback |
+| `POST` | `/api/v1/ips` | ipHandler.CreateIP |
+| `POST` | `/api/v1/ips/:id/discussions` | discHandler.CreateDiscussion |
+| `POST` | `/api/v1/ips/:id/follow` | followHandler.FollowIP |
+| `POST` | `/api/v1/judge/exam/submit` | judgeHandler.SubmitExam |
+| `POST` | `/api/v1/judge/reasons/:id/vote` | judgeHandler.VoteReason |
+| `POST` | `/api/v1/judge/vote` | judgeHandler.SubmitVote |
+| `POST` | `/api/v1/messages` | msgHandler.SendMessage |
+| `POST` | `/api/v1/notifications/read-all` | notifHandler.MarkAllRead |
+| `POST` | `/api/v1/pr` | prHandler.SubmitPR |
+| `POST` | `/api/v1/pr/:id/accept` | prHandler.AcceptPR |
+| `POST` | `/api/v1/pr/:id/merge` | prHandler.ManualMerge |
+| `POST` | `/api/v1/pr/:id/reject` | prHandler.RejectPR |
+| `POST` | `/api/v1/rehab/courses/:id/complete` | rehabHandler.CompleteCourse |
+| `POST` | `/api/v1/rehab/courses/:id/start` | rehabHandler.StartCourse |
+| `POST` | `/api/v1/social/comments` | socialHandler.PostComment |
+| `POST` | `/api/v1/social/comments/:id/report` | socialHandler.ReportComment |
+| `POST` | `/api/v1/social/discussions` | socialHandler.PostDiscussion |
+| `POST` | `/api/v1/social/reactions` | socialHandler.React |
+| `POST` | `/api/v1/users/:id/follow` | followHandler.FollowUser |
+| `POST` | `/api/v1/users/me/history` | histHandler.RecordView |
+| `POST` | `/api/v1/users/me/saved-searches` | tagHandler.CreateSavedSearch |
+| `POST` | `/api/v1/users/me/tag-groups` | tagHandler.CreateTagGroup |
+| `PUT` | `/api/v1/admin/categories/reorder` | catHandler.AdminReorderCategories |
 
-GET    /api/v1/ips                    # IP 列表（搜索+筛选+排序）
-POST   /api/v1/ips                    # 创建 IP（提交审核）
-GET    /api/v1/ips/:id                # IP 详情
-GET    /api/v1/ips/:id/contents       # IP 下的内容列表（分类+排序）
-GET    /api/v1/ips/:id/discussions    # IP 讨论区
-POST   /api/v1/ips/:id/discussions    # 在 IP 下发帖
-GET    /api/v1/ips/:id/discussions/search # 搜索 IP 内讨论
-POST   /api/v1/ips/:id/follow         # 关注 IP
-DELETE /api/v1/ips/:id/follow         # 取消关注 IP
-GET    /api/v1/ips/stats/category_counts # IP 分类统计
-
-GET    /api/v1/contents               # 内容列表（原创区/首页）
-                                          # sort: 'hot' | 'new' | 'most_views' | 'best_rated' | 'recommended'（原创区推荐流）
-POST   /api/v1/contents               # 发布内容
-GET    /api/v1/contents/:id           # 内容详情
-PATCH  /api/v1/contents/:id           # 更新内容（仅作者）
-DELETE /api/v1/contents/:id           # 删除内容（仅作者）
-POST   /api/v1/contents/:id/report    # 举报内容
-GET    /api/v1/contents/:id/related-fanworks # 原创内容的相关二创列表
-
-POST   /api/v1/studio/contributors/:userId/block    # 作者拉黑贡献者（写 author_blocklist）
-DELETE /api/v1/studio/contributors/:userId/block    # 解除拉黑（注：系统已迁移至 /studio/*，旧 /dashboard/contributors/* 路径保留兼容但推荐使用新路径）
-
-POST   /api/v1/appeals                  # 用户提交申诉（对被下架内容）
-GET    /api/v1/appeals/me               # 我的申诉列表
-GET    /api/v1/contents/:id/versions  # 版本历史
-POST   /api/v1/contents/oss-token     # 获取 OSS 预签名上传 URL
-
-GET    /api/v1/versions/:id           # 版本详情（含 diff）
-POST   /api/v1/pr                     # 提交 PR（修改申请）
-GET    /api/v1/pr/:id                 # PR 详情（含 diff 对比）
-POST   /api/v1/pr/:id/accept          # 接受 PR
-POST   /api/v1/pr/:id/reject          # 拒绝 PR
-POST   /api/v1/pr/:id/merge           # 手动合并（含合并结果提交）
-GET    /api/v1/contents/:id/prs       # 内容的 PR 列表
-
-GET    /api/v1/social/comments         # 评论列表
-POST   /api/v1/social/comments        # 发布评论
-PATCH  /api/v1/social/comments/:id    # 编辑评论
-DELETE /api/v1/social/comments/:id    # 删除评论
-POST   /api/v1/social/comments/:id/report # 举报评论
-POST   /api/v1/social/reactions       # 点赞/点踩
-GET    /api/v1/social/reactions       # 获取 reactions 列表
-POST   /api/v1/favorites              # 收藏内容
-DELETE /api/v1/favorites/:contentId   # 取消收藏
-GET    /api/v1/users/:id/favorites    # 用户收藏列表（分页）
-GET    /api/v1/social/discussions     # 讨论帖列表
-POST   /api/v1/social/discussions     # 发帖
-GET    /api/v1/social/discussions/:id # 帖子详情
-GET    /api/v1/users/:id/discussions  # 用户讨论列表
-POST   /api/v1/discussions/:id/comments # 回复讨论帖
-PATCH  /api/v1/discussions/:id/pin   # 置顶/取消置顶讨论帖
-
-GET    /api/v1/judge/exam/:category          # 获取考题（按内容类型）
-POST   /api/v1/judge/exam/submit             # 提交考题答案
-GET    /api/v1/judge/queue                   # 待审内容队列
-POST   /api/v1/judge/vote                    # 提交众裁投票
-GET    /api/v1/judge/cases/:id/verdict       # 获取判决定案详情（含投票分布）
-POST   /api/v1/judge/reasons/:id/vote        # 点赞/点踩判官提交的判定理由
-
-POST   /api/v1/agent/script                  # [未实现] 获取 Agent 执行脚本（Tauri 调用，D-03 后启用）
-POST   /api/v1/agent/verify                  # [未实现] 验证脚本签名（Tauri 调用，D-03 后启用）
-
-GET    /api/v1/admin/ips                     # 管理员：IP 审核列表
-POST   /api/v1/admin/ips/:id/approve         # 审核通过
-POST   /api/v1/admin/ips/:id/reject          # 审核拒绝
-GET    /api/v1/admin/contents                # 终审内容列表
-POST   /api/v1/admin/contents/:id/ban        # 封禁内容
-GET    /api/v1/admin/contents/trash          # 已软删除内容列表
-PATCH  /api/v1/admin/contents/:id/restore    # 恢复软删除内容
-GET    /api/v1/admin/users                   # 用户列表
-POST   /api/v1/admin/users/:id/ban           # 封禁用户
-POST   /api/v1/admin/users/:id/unban         # 解封用户
-GET    /api/v1/admin/appeals                 # 申诉列表（读取 appeals 表 status=pending）
-POST   /api/v1/admin/appeals/:id             # 处理申诉（approved/rejected，approved 则恢复内容）
-GET    /api/v1/admin/reports                 # 举报列表
-PATCH  /api/v1/admin/reports/:id             # 处理举报
-GET    /api/v1/admin/reports/stats           # 举报统计
-GET    /api/v1/admin/config                  # 获取系统配置
-PATCH  /api/v1/admin/config                  # 更新系统配置
-POST   /api/v1/admin/judge/questions         # 创建考题
-GET    /api/v1/admin/categories              # 分类列表
-POST   /api/v1/admin/categories              # 新增分类
-PATCH  /api/v1/admin/categories/:id          # 编辑分类
-DELETE /api/v1/admin/categories/:id          # 删除分类
-PUT    /api/v1/admin/categories/reorder      # 排序
-GET    /api/v1/admin/llm-configs             # LLM 配置列表
-POST   /api/v1/admin/llm-configs             # 新增 LLM 配置
-PATCH  /api/v1/admin/llm-configs/:id         # 编辑 LLM 配置
-DELETE /api/v1/admin/llm-configs/:id         # 删除 LLM 配置
-POST   /api/v1/admin/llm-configs/:id/activate # 切换激活配置
-POST   /api/v1/admin/llm-configs/:id/test    # 测试连接
-GET    /api/v1/admin/feedback                # 反馈工单列表
-GET    /api/v1/admin/feedback/:id            # 查看单条反馈
-PATCH  /api/v1/admin/feedback/:id            # 更新反馈状态/优先级
-POST   /api/v1/admin/feedback/:id/replies    # 管理员回复反馈
-GET    /api/v1/admin/audit-logs              # 管理员审计日志
-GET    /api/v1/admin/queue/stats             # 异步任务队列状态
-GET    /api/v1/admin/queue/dlq               # 死信队列
-
-GET    /api/v1/notifications                 # 通知列表（?channel=reply|like|system）
-PATCH  /api/v1/notifications/:id/read        # 标记通知已读
-POST   /api/v1/notifications/read-all        # 全部已读（?channel=xxx）
-GET    /api/v1/notifications/unread-count    # 各频道未读计数
-
-GET    /api/v1/conversations                 # 我的对话列表
-POST   /api/v1/conversations                 # 创建对话（发起私信）
-GET    /api/v1/conversations/:id/messages    # 对话消息列表
-POST   /api/v1/conversations/:id/messages    # 发送消息
-PATCH  /api/v1/conversations/:id/read        # 标记对话已读
-
-GET    /api/v1/rehab/courses                 # 获取可用课程列表（基于用户扣分记录）
-GET    /api/v1/rehab/courses/:id             # 课程详情（含 AI 生成教学内容）
-POST   /api/v1/rehab/courses/:id/start       # 开始学习（记录 started_at）
-POST   /api/v1/rehab/courses/:id/complete    # 完成学习（校验阅读时间 ≥ 180s，加信誉分）
-GET    /api/v1/rehab/my-progress             # 我的课程完成进度
-
-GET    /api/v1/categories           # 公开分类列表（?zone=&level=&parent_id=）
-
-GET    /api/v1/reputation-logs/me          # 我的信誉分变动日志
-
-# 内容搜索与下载
-GET    /api/v1/contents/search              # 全文搜索（OptionalAuth）
-GET    /api/v1/search/suggestions           # 搜索建议（前缀匹配）
-GET    /api/v1/search/trending              # 热门搜索词
-GET    /api/v1/users/search                 # 用户搜索
-GET    /api/v1/contents/:id/download        # 内容下载（返回 OSS 签名 URL）
-
-# 验证码
-POST   /api/v1/captcha/verify               # 验证码校验
-
-# 公共配置
-GET    /api/v1/config/public                # 公共运行时配置（前端功能开关）
-
-# 用户反馈（用户端）
-POST   /api/v1/feedback                     # 提交反馈工单
-POST   /api/v1/feedback/attachments/presign # 上传附件预签名 URL
-GET    /api/v1/feedback/me                  # 我的反馈列表
-GET    /api/v1/feedback/:id                 # 查看反馈工单详情
-
-# 消息管理
-DELETE /api/v1/messages/:id                 # 软删除消息
-DELETE /api/v1/conversations/:id            # 退出/删除会话
-
-# 平台统计
-GET    /api/v1/stats/summary                # 平台统计数据
-
-# Agent 对话持久化
-GET    /api/v1/agent/conversations          # 对话列表
-GET    /api/v1/agent/conversations/:id      # 对话详情
-
-# 内部回调
-POST   /api/v1/internal/ai-callback         # 阿里云内容安全回调
-
-# 桌面端部署
-POST   /api/v1/deploy-grants                # 桌面端部署授权
-```
+<!-- END AUTO-GENERATED: §3.2 -->
 
 ### 3.3 Tauri PC 客户端
 
@@ -573,727 +555,590 @@ omnicraft://deploy?content_id=xxx&token=yyy
 
 ## 4. 数据库 Schema（PostgreSQL DDL）
 
-### 4.1 用户与权限
-
-```sql
--- 用户表
-CREATE TABLE users (
-    id              BIGSERIAL PRIMARY KEY,
-    email           VARCHAR(255) UNIQUE NOT NULL,
-    password_hash   VARCHAR(255) NOT NULL,
-    username        VARCHAR(64) UNIQUE NOT NULL,
-    avatar_url      TEXT,
-    bio             TEXT,
-    reputation      INT NOT NULL DEFAULT 10,
-    preferred_locale VARCHAR(10) NOT NULL DEFAULT 'zh-CN',  -- 'zh-CN' | 'en-US'
-    role            VARCHAR(20) NOT NULL DEFAULT 'user',
-    -- role: 'user' | 'creator' | 'admin'（判官身份由 judge_qualifications 表管理，不作为 role 值）
-    is_banned       BOOLEAN NOT NULL DEFAULT FALSE,
-    ban_reason      TEXT,
-    support_info    JSONB DEFAULT '{}',    -- 创作者支持信息：{ "donation_image_url": "...", "external_links": [{"title":"...","url":"..."}] }
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 判官资质表（记录各内容类型的判官权限）
-CREATE TABLE judge_qualifications (
-    id              BIGSERIAL PRIMARY KEY,
-    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    content_type    VARCHAR(50) NOT NULL,
-    -- content_type: 'article' | 'image' | 'video' | 'audio' | 'prompt' | 'comment' | 'mod'
-    --             | 'sheet_music' | 'template' | 'other'
-    -- 与 content_items.content_type 对齐，额外含 'comment' 用于评论众裁
-    qualified_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    revoked_at      TIMESTAMPTZ,
-    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
-    UNIQUE(user_id, content_type)
-);
-
--- 信誉分变动日志
-CREATE TABLE reputation_logs (
-    id              BIGSERIAL PRIMARY KEY,
-    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    delta           INT NOT NULL,
-    reason          VARCHAR(100) NOT NULL,
-    -- reason: 'quality_content' | 'pr_merged' | 'quality_comment' | 'tag_recognized'
-    --         | 'judge_accuracy' | 'rehab_course' | 'valid_report'
-    --         | 'malicious_content' | 'malicious_pr' | 'malicious_comment'
-    --         | 'malicious_report' | 'malicious_tag_report' | 'judge_error'
-    related_id      BIGINT,   -- 关联内容/评论/PR 的 ID
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- OAuth 预留表（P1 使用）
-CREATE TABLE oauth_accounts (
-    id              BIGSERIAL PRIMARY KEY,
-    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    provider        VARCHAR(20) NOT NULL,  -- 'github' | 'wechat'
-    provider_uid    VARCHAR(255) NOT NULL,
-    access_token    TEXT,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(provider, provider_uid)
-);
-```
-
-### 4.2 IP 库
-
-```sql
--- IP 表
-CREATE TABLE ips (
-    id              BIGSERIAL PRIMARY KEY,
-    name            VARCHAR(255) NOT NULL,
-    slug            VARCHAR(255) UNIQUE NOT NULL,  -- URL 友好名称
-    description     TEXT,
-    cover_url       TEXT,
-    category        VARCHAR(50),   -- 'gaming' | 'film_tv' | 'variety' | 'short_drama' | 'animation' | 'comics' | 'novel' | 'celebrity_idol' | 'music' | 'vtuber' | 'other'
-    creator_id      BIGINT REFERENCES users(id) ON DELETE SET NULL,
-    status          VARCHAR(20) NOT NULL DEFAULT 'pending',
-    -- status: 'pending' | 'approved' | 'rejected' | 'banned'
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_ips_status ON ips(status);
-CREATE INDEX idx_ips_category ON ips(category);
-CREATE INDEX idx_ips_name ON ips USING GIN(to_tsvector('simple', name));
-
--- IP 审核日志
-CREATE TABLE ip_review_logs (
-    id              BIGSERIAL PRIMARY KEY,
-    ip_id           BIGINT NOT NULL REFERENCES ips(id) ON DELETE CASCADE,
-    reviewer_id     BIGINT REFERENCES users(id) ON DELETE SET NULL,
-    action          VARCHAR(20) NOT NULL,  -- 'ai_scan' | 'judge_vote' | 'admin_approve' | 'admin_reject'
-    reason          TEXT,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_ip_review_logs_ip ON ip_review_logs(ip_id, created_at DESC);
-
--- IP 标签
-CREATE TABLE ip_tags (
-    ip_id           BIGINT NOT NULL REFERENCES ips(id) ON DELETE CASCADE,
-    tag             VARCHAR(50) NOT NULL,
-    PRIMARY KEY(ip_id, tag)
-);
-```
-
-### 4.3 内容（统一多类型）
-
-```sql
--- 内容主表（二创区 + 原创区统一）
-CREATE TABLE content_items (
-    id              BIGSERIAL PRIMARY KEY,
-    title           VARCHAR(500) NOT NULL,
-    description     TEXT,
-    author_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    zone            VARCHAR(10) NOT NULL,   -- 'fanwork' | 'original'
-    ip_id           BIGINT REFERENCES ips(id) ON DELETE SET NULL, -- 仅二创区有值
-    source_original_id BIGINT REFERENCES content_items(id) ON DELETE SET NULL, -- 二创来源原创，仅 zone='fanwork' 可用
-    category        VARCHAR(50),   -- 原创区内容分类（仅 zone='original'）：'film_tv' | 'gaming' | 'literature' | 'pet' | 'food' | 'beauty_fashion' | 'home' | 'tech_digital' | 'travel' | 'sports' | 'productivity'
-    -- 应用层约束（GORM Validate Tag）：zone='original' 时 category 必填且须为上述枚举；zone='fanwork' 时 category 须为 NULL。source_original_id 仅允许 fanwork 绑定已发布 original。枚举扩展时在 config/categories 种子数据中补充，不加 DB CHECK 约束（避免迁移负担）
-    content_type    VARCHAR(20) NOT NULL,
-    -- content_type: 'article' | 'image' | 'video' | 'audio'
-    --              | 'mod' | 'prompt' | 'template' | 'sheet_music' | 'other'
-    -- 注：表情包/动图归为 'image' 类型，通过标签筛选区分（tag='GIF' / tag='表情包'）
-    -- 注：MIDI/MusicXML/MSCZ/MSCX/乐谱 PDF 使用 'sheet_music'；纯音频（mp3/wav/flac）使用 'audio'
-    cover_image_url TEXT,                -- 封面图 OSS key（未上传则由前端显示类型默认占位图）
-    status          VARCHAR(20) NOT NULL DEFAULT 'pending',
-    -- status: 'pending' | 'published' | 'hidden' | 'banned' | 'under_review'
-    view_count      BIGINT NOT NULL DEFAULT 0,
-    like_count      INT NOT NULL DEFAULT 0,
-    dislike_count   INT NOT NULL DEFAULT 0,
-    -- 权限开关
-    is_public       BOOLEAN NOT NULL DEFAULT TRUE,   -- 公开/仅关注者
-    allow_copy      BOOLEAN NOT NULL DEFAULT TRUE,   -- 允许复制导出
-    agent_enabled   BOOLEAN NOT NULL DEFAULT FALSE,  -- 开启 Agent 部署
-    -- 支付预埋（MVP 全隐藏）
-    is_paid         BOOLEAN NOT NULL DEFAULT FALSE,
-    price           NUMERIC(10,2) DEFAULT 0,
-    ban_reason      TEXT,                   -- 封禁原因（migration 040）
-    download_count  INTEGER NOT NULL DEFAULT 0,  -- 下载计数（migration 040 新增列；数据库与 Redis ZSET 双写，异步刷入）
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    deleted_at      TIMESTAMPTZ              -- 软删除时间（migration 053）
-);
-
-CREATE INDEX idx_content_items_author ON content_items(author_id);
-CREATE INDEX idx_content_items_ip ON content_items(ip_id);
-CREATE INDEX idx_content_items_zone ON content_items(zone);
-CREATE INDEX idx_content_items_type ON content_items(content_type);
-CREATE INDEX idx_content_items_category ON content_items(category);
-CREATE INDEX idx_content_items_source_original ON content_items(source_original_id, status, created_at DESC) WHERE source_original_id IS NOT NULL;
-CREATE INDEX idx_content_items_status ON content_items(status);
-
--- 注：description 与 source_original_id 由 migration 036 通过 ALTER TABLE 添加。
--- 注：deleted_at 由 migration 053 通过 ALTER TABLE 添加。
-
--- 内容附件（OSS 存储的文件）
-CREATE TABLE content_attachments (
-    id              BIGSERIAL PRIMARY KEY,
-    content_item_id BIGINT NOT NULL REFERENCES content_items(id) ON DELETE CASCADE,
-    file_type       VARCHAR(20) NOT NULL, -- 'markdown' | 'image' | 'video' | 'audio' | 'archive'
-                                          -- | 'sheet_music_midi' | 'sheet_music_xml' | 'sheet_music_mscz' | 'sheet_music_mscx' | 'other'
-    oss_key         TEXT NOT NULL,        -- OSS 对象 key（相对路径）
-    file_size       BIGINT,               -- 字节数
-    mime_type       VARCHAR(100),
-    duration_sec    INT,                  -- 视频/音频时长（秒）
-    width           INT,                  -- 图片/视频宽度
-    height          INT,                  -- 图片/视频高度
-    is_primary      BOOLEAN DEFAULT TRUE, -- 主文件（Mod 含多个文件时）
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 内容标签
-CREATE TABLE content_tags (
-    content_item_id BIGINT NOT NULL REFERENCES content_items(id) ON DELETE CASCADE,
-    tag             VARCHAR(50) NOT NULL,
-    PRIMARY KEY(content_item_id, tag)
-);
-```
-
-### 4.4 版本管理（协同 PR 引擎）
-
-```sql
--- 内容版本表
-CREATE TABLE content_versions (
-    id                  BIGSERIAL PRIMARY KEY,
-    content_item_id     BIGINT NOT NULL REFERENCES content_items(id) ON DELETE CASCADE,
-    parent_version_id   BIGINT REFERENCES content_versions(id) ON DELETE SET NULL,
-    author_id           BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    version_number      INT NOT NULL,        -- 当前版本序号（正式版）
-    storage_type        VARCHAR(10) NOT NULL, -- 'diff' | 'full'
-    storage_key         TEXT,                -- OSS key（diff patch 文件或全量文件）
-    diff_summary        TEXT,                -- 人类可读的修改摘要（自动生成）
-    status              VARCHAR(20) NOT NULL DEFAULT 'active',
-    -- status: 'active'（正式版）| 'pending'（待审 PR）| 'rejected'（已拒绝）| 'superseded'（被新版本替代）
-    is_latest           BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(content_item_id, version_number)
-);
-
-CREATE INDEX idx_versions_content ON content_versions(content_item_id);
-CREATE INDEX idx_versions_status ON content_versions(status);
--- 获取最新版本的部分索引（高频查询）
-CREATE INDEX idx_versions_content_latest ON content_versions(content_item_id) WHERE is_latest = TRUE;
-
--- PR 申请表
-CREATE TABLE pull_requests (
-    id                  BIGSERIAL PRIMARY KEY,
-    content_item_id     BIGINT NOT NULL REFERENCES content_items(id) ON DELETE CASCADE,
-    submitter_id        BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    base_version_id     BIGINT NOT NULL REFERENCES content_versions(id), -- 基于哪个版本修改
-    proposed_version_id BIGINT REFERENCES content_versions(id),          -- 生成的 pending 版本
-    status              VARCHAR(20) NOT NULL DEFAULT 'open',
-    -- status: 'open' | 'accepted' | 'rejected' | 'merged' | 'conflict'
-    message             TEXT,                -- 提交说明
-    reject_reason       TEXT,
-    resolved_at         TIMESTAMPTZ,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_pr_content ON pull_requests(content_item_id, status);
-CREATE INDEX idx_pr_submitter ON pull_requests(submitter_id);
-
--- 贡献者荣誉名单
-CREATE TABLE content_contributors (
-    content_item_id BIGINT NOT NULL REFERENCES content_items(id) ON DELETE CASCADE,
-    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    pr_count        INT NOT NULL DEFAULT 1,
-    first_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY(content_item_id, user_id)
-);
-
--- 作者拉黑的贡献者
-CREATE TABLE author_blocklist (
-    author_id   BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    blocked_id  BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY(author_id, blocked_id)
-);
-```
-
-### 4.5 社交互动
-
-> 注：DDL 顺序已调整为先创建被引用表（discussions）再创建引用表（comments），确保迁移脚本可顺序执行。
-
-```sql
--- 讨论帖（贴吧式，挂在 IP 或原创区）
-CREATE TABLE discussions (
-    id              BIGSERIAL PRIMARY KEY,
-    ip_id           BIGINT REFERENCES ips(id) ON DELETE CASCADE,
-    content_item_id BIGINT REFERENCES content_items(id) ON DELETE CASCADE,
-    -- content_item_id 为 P1 预留字段；P0 所有讨论均通过 ip_id 关联，content_item_id 固定为 NULL
-    author_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    title           VARCHAR(500) NOT NULL,
-    body            TEXT,
-    status          VARCHAR(20) NOT NULL DEFAULT 'published',
-    view_count      BIGINT NOT NULL DEFAULT 0,
-    reply_count     INT NOT NULL DEFAULT 0,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_discussions_ip ON discussions(ip_id, updated_at DESC);
-CREATE INDEX idx_discussions_author ON discussions(author_id);
-
--- 评论表（支持楼中楼）
-CREATE TABLE comments (
-    id              BIGSERIAL PRIMARY KEY,
-    content_item_id BIGINT REFERENCES content_items(id) ON DELETE CASCADE,
-    discussion_id   BIGINT REFERENCES discussions(id) ON DELETE CASCADE,
-    parent_id       BIGINT REFERENCES comments(id) ON DELETE CASCADE,
-    author_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    body            TEXT NOT NULL,   -- 支持简单 Markdown
-    status          VARCHAR(20) NOT NULL DEFAULT 'published',
-    -- status: 'published' | 'hidden' | 'banned'
-    like_count      INT NOT NULL DEFAULT 0,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_comments_content ON comments(content_item_id);
-CREATE INDEX idx_comments_discussion ON comments(discussion_id);
-CREATE INDEX idx_comments_author ON comments(author_id);
-CREATE INDEX idx_comments_parent ON comments(parent_id);
-
--- 点赞/点踩（防重复，支持内容+评论）
-CREATE TABLE reactions (
-    id              BIGSERIAL PRIMARY KEY,
-    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    target_type     VARCHAR(20) NOT NULL,  -- 'content' | 'comment'
-    target_id       BIGINT NOT NULL,
-    reaction        VARCHAR(10) NOT NULL,  -- 'like' | 'dislike'
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(user_id, target_type, target_id)
-);
-
--- 举报表
-CREATE TABLE reports (
-    id              BIGSERIAL PRIMARY KEY,
-    reporter_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    target_type     VARCHAR(20) NOT NULL,  -- 'content' | 'comment' | 'ip'
-    target_id       BIGINT NOT NULL,
-    reason          VARCHAR(100) NOT NULL,
-    detail          TEXT,
-    status          VARCHAR(20) NOT NULL DEFAULT 'pending',
-    -- status: 'pending' | 'valid' | 'invalid'
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_reports_target ON reports(target_type, target_id);
-CREATE INDEX idx_reports_reporter ON reports(reporter_id);
-CREATE INDEX idx_reports_status ON reports(status, created_at DESC);
-
--- 申诉表（用户对被下架内容提起申诉）
-CREATE TABLE appeals (
-    id              BIGSERIAL PRIMARY KEY,
-    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    target_type     VARCHAR(20) NOT NULL,  -- 'content' | 'comment'
-    target_id       BIGINT NOT NULL,
-    reason          TEXT NOT NULL,
-    status          VARCHAR(20) NOT NULL DEFAULT 'pending',
-    -- status: 'pending' | 'approved' | 'rejected'
-    admin_response  TEXT,
-    resolved_by     BIGINT REFERENCES users(id) ON DELETE SET NULL,
-    resolved_at     TIMESTAMPTZ,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_appeals_user ON appeals(user_id);
-CREATE INDEX idx_appeals_status ON appeals(status);
-
--- 收藏
-CREATE TABLE favorites (
-    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    content_item_id BIGINT NOT NULL REFERENCES content_items(id) ON DELETE CASCADE,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY(user_id, content_item_id)
-);
-
--- 浏览历史（仅记录内容浏览；UI 的 /history 页面按日期分组展示）
-CREATE TABLE browse_history (
-    id              BIGSERIAL PRIMARY KEY,
-    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    content_item_id BIGINT NOT NULL REFERENCES content_items(id) ON DELETE CASCADE,
-    viewed_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(user_id, content_item_id)   -- upsert：同一内容重复浏览时更新 viewed_at
-);
-
-CREATE INDEX idx_browse_history_user ON browse_history(user_id, viewed_at DESC);
-
--- 关注关系表（支持关注创作者和关注 IP）
-CREATE TABLE follows (
-    id              BIGSERIAL PRIMARY KEY,
-    follower_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    target_type     VARCHAR(20) NOT NULL,  -- 'user' | 'ip'
-    target_id       BIGINT NOT NULL,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(follower_id, target_type, target_id)
-);
-
-CREATE INDEX idx_follows_follower ON follows(follower_id);
-CREATE INDEX idx_follows_target ON follows(target_type, target_id);
-
--- 通知表（回复我的 / 收到的赞 / 系统消息）
-CREATE TABLE notifications (
-    id              BIGSERIAL PRIMARY KEY,
-    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    type            VARCHAR(30) NOT NULL,
-    -- type: 'comment' | 'like' | 'follow' | 'system' | 'mention' | 'appeal_result' | 'content_status'
-    channel         VARCHAR(20) NOT NULL,
-    -- channel: 'reply'（回复我的）| 'like'（收到的赞）| 'system'（系统消息）
-    title           VARCHAR(500),
-    body            TEXT,
-    target_type     VARCHAR(20),   -- 'content' | 'comment' | 'pr' | 'user'
-    target_id       BIGINT,
-    sender_id       BIGINT REFERENCES users(id) ON DELETE SET NULL,
-    is_read         BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_notifications_user ON notifications(user_id, is_read, created_at DESC);
-CREATE INDEX idx_notifications_channel ON notifications(user_id, channel, created_at DESC);
-
--- 私信对话表
-CREATE TABLE conversations (
-    id              BIGSERIAL PRIMARY KEY,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 对话参与者
-CREATE TABLE conversation_participants (
-    conversation_id BIGINT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    last_read_at    TIMESTAMPTZ,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY(conversation_id, user_id)
-);
-
-CREATE INDEX idx_conv_participants_user ON conversation_participants(user_id);
-
--- 私信消息表
-CREATE TABLE messages (
-    id              BIGSERIAL PRIMARY KEY,
-    conversation_id BIGINT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-    sender_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    body            TEXT NOT NULL,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_messages_conversation ON messages(conversation_id, created_at);
-
--- 注：以下两条索引由独立迁移 migrations/056_conversation_indexes.sql 创建，
---     不与 messages/conversations 表 DDL（migrations/017_conversations.sql）同时执行。
-CREATE INDEX idx_messages_sender ON messages(sender_id, created_at DESC);
-CREATE INDEX idx_conversations_updated ON conversations(updated_at DESC);
-
--- 素质建设课程表（AI 根据系统扣分逻辑生成教学内容，按违规类型分类）
-CREATE TABLE rehab_courses (
-    id              BIGSERIAL PRIMARY KEY,
-    violation_type  VARCHAR(50) NOT NULL UNIQUE,
-    -- violation_type: 'malicious_report_tag' | 'malicious_comment' | 'malicious_contribution' | 'malicious_report_comment' | 'judge_error'
-    content_i18n    JSONB NOT NULL,   -- { "zh-CN": "<Markdown>", "en-US": "<Markdown>" }（AI 生成，未来可拓展视频教学）
-    min_reading_sec INT NOT NULL DEFAULT 180,  -- 最低阅读时间（秒），默认 3 分钟
-    reward_points   INT NOT NULL DEFAULT 1,    -- 完成后恢复的信誉分
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 用户课程完成记录（每门课程每人只能完成一次）
-CREATE TABLE rehab_completions (
-    id              BIGSERIAL PRIMARY KEY,
-    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    course_id       BIGINT NOT NULL REFERENCES rehab_courses(id) ON DELETE CASCADE,
-    started_at      TIMESTAMPTZ NOT NULL,
-    completed_at    TIMESTAMPTZ,
-    points_awarded  INT NOT NULL DEFAULT 0,
-    UNIQUE(user_id, course_id)
-);
-
-CREATE INDEX idx_rehab_completions_user ON rehab_completions(user_id);
-```
-
-### 4.6 审核与赛博判官
-
-```sql
--- AI 审核记录
-CREATE TABLE ai_review_records (
-    id              BIGSERIAL PRIMARY KEY,
-    target_type     VARCHAR(20) NOT NULL,  -- 'content' | 'comment' | 'ip'
-    target_id       BIGINT NOT NULL,
-    provider        VARCHAR(50) NOT NULL DEFAULT 'aliyun',
-    result          VARCHAR(20) NOT NULL,  -- 'pass' | 'block' | 'review'
-    raw_response    JSONB,  -- 原始响应（provider 自身格式，不做结构约定）
-    scanned_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_ai_review_target ON ai_review_records(target_type, target_id, scanned_at DESC);
-
--- 赛博判官题库
-CREATE TABLE judge_questions (
-    id              BIGSERIAL PRIMARY KEY,
-    content_type    VARCHAR(50) NOT NULL,  -- 对应内容类型
-    source_case_id  BIGINT,               -- 来源的真实审核案例 ID（自动更新时用）
-    question_data   JSONB NOT NULL,
-    -- question_data 结构：{
-    --   "stem": "题干（Markdown，可含图片 URL）",
-    --   "options": [{"key":"A","text":"选项内容"}, ...],   // 4 个选项
-    --   "correct_key": "A",                                  // 正确选项 key
-    --   "explanation": "答案解析（Markdown）"
-    -- }
-    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
-    created_by      VARCHAR(20) NOT NULL DEFAULT 'admin',  -- 'admin' | 'auto'
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_judge_questions_type_active ON judge_questions(content_type, is_active);
-
--- 众裁案例表
-CREATE TABLE judge_cases (
-    id              BIGSERIAL PRIMARY KEY,
-    target_type     VARCHAR(20) NOT NULL,
-    target_id       BIGINT NOT NULL,
-    status          VARCHAR(20) NOT NULL DEFAULT 'open',
-    -- status: 'open' | 'closed_approve' | 'closed_reject'
-    vote_approve    INT NOT NULL DEFAULT 0,
-    vote_reject     INT NOT NULL DEFAULT 0,
-    min_votes       INT NOT NULL DEFAULT 20,  -- 最小投票数，默认从 config.yaml > judge.min_votes 读取，DB 字段作 case 级覆盖
-    closed_at       TIMESTAMPTZ,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_judge_cases_status ON judge_cases(status, created_at DESC);
-CREATE INDEX idx_judge_cases_target ON judge_cases(target_type, target_id);
-
--- 众裁投票记录
-CREATE TABLE judge_votes (
-    id              BIGSERIAL PRIMARY KEY,
-    case_id         BIGINT NOT NULL REFERENCES judge_cases(id) ON DELETE CASCADE,
-    judge_id        BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    vote            VARCHAR(10) NOT NULL,  -- 'approve' | 'reject'
-    reason          TEXT,                  -- 判官可选择性提交判定理由
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(case_id, judge_id)
-);
-
--- 判定理由投票（点赞/点踩其他判官的理由）
-CREATE TABLE judge_reason_votes (
-    id                      BIGSERIAL PRIMARY KEY,
-    reason_owner_vote_id    BIGINT NOT NULL REFERENCES judge_votes(id) ON DELETE CASCADE,
-    voter_id                BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    vote_type               VARCHAR(10) NOT NULL CHECK (vote_type IN ('up', 'down')),
-    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(reason_owner_vote_id, voter_id)
-);
-
-CREATE INDEX idx_judge_reason_votes_owner ON judge_reason_votes(reason_owner_vote_id);
-
--- 考核记录
-CREATE TABLE judge_exam_records (
-    id              BIGSERIAL PRIMARY KEY,
-    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    content_type    VARCHAR(50) NOT NULL,
-    score           INT NOT NULL,         -- 答对题数
-    total           INT NOT NULL,         -- 总题数
-    passed          BOOLEAN NOT NULL,
-    taken_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_judge_exam_user_type ON judge_exam_records(user_id, content_type, taken_at DESC);
-```
-
-### 4.7 分类管理
-
-```sql
--- 动态分类表（管理员可增删改排序）
-CREATE TABLE categories (
-    id              BIGSERIAL PRIMARY KEY,
-    zone            VARCHAR(20) NOT NULL,    -- 'fanwork' | 'original'
-    level           VARCHAR(20) NOT NULL,    -- 'ip_category' | 'content_type' | 'primary' | 'secondary'
-    parent_id       BIGINT REFERENCES categories(id) ON DELETE SET NULL,
-    name_i18n       JSONB NOT NULL,          -- { "zh-CN": "游戏", "en-US": "Gaming" }
-    slug            VARCHAR(100) UNIQUE NOT NULL,
-    sort_order      INT NOT NULL DEFAULT 0,
-    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 高频查询索引
-CREATE INDEX idx_categories_zone_level ON categories(zone, level, sort_order);
-CREATE INDEX idx_categories_zone_level_active ON categories(zone, level) WHERE is_active = TRUE;
-
--- 层级导航索引
-CREATE INDEX idx_categories_parent ON categories(parent_id);
-CREATE INDEX idx_categories_parent_active ON categories(parent_id, sort_order) WHERE is_active = TRUE;
-
--- 全文搜索优化（如需搜索分类名称）
--- CREATE INDEX idx_categories_name_gin ON categories USING GIN(name_i18n);
-```
-
-### 4.8 Agent 管理
-
-```sql
--- LLM 配置表（管理员可视化管理 LLM 提供商）
-CREATE TABLE llm_configs (
-    id              BIGSERIAL PRIMARY KEY,
-    config_name     VARCHAR(100) NOT NULL UNIQUE,    -- 配置名称（如 "通义千问-生产"、"DeepSeek-测试"）
-    provider_type   VARCHAR(50) NOT NULL,            -- 'qwen' | 'openai_compat'
-    api_base        VARCHAR(500) NOT NULL,           -- API 地址
-    model           VARCHAR(100) NOT NULL,           -- 模型名称
-    api_key_enc     TEXT NOT NULL,                   -- 加密存储的 API Key
-    is_active       BOOLEAN NOT NULL DEFAULT FALSE,  -- 是否为当前激活配置
-    extra_params    JSONB DEFAULT '{}',              -- 预留扩展参数（temperature/max_tokens 等）
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- 确保全局仅一个激活配置
-CREATE UNIQUE INDEX idx_llm_configs_active ON llm_configs(is_active) WHERE is_active = TRUE;
-```
-
----
-
-### 4.9 国际化字段规范（JSONB i18n）
-
-所有系统中的多语言字符串字段遵循统一的 JSONB 结构约定：
-
-```javascript
-// 短字符串字段（用于分类、标签、枚举值等）
-name_i18n: { "zh-CN": "游戏", "en-US": "Gaming" }
-
-// 长内容字段（用于教学内容、描述等）
-content_i18n: { "zh-CN": "<Markdown内容>", "en-US": "<Markdown内容>" }
-
-// 任意扩展参数字段
-extra_params: { "temperature": 0.7, "max_tokens": 1000 }
-```
-
-应用层在读取时按用户 preferred_locale（默认 'zh-CN'）安全访问，缺失语言版本时 fallback 到 'zh-CN'。
-
----
-
-### 4.10 IP 被永久封禁时的关联内容处理
-
-当 IP 因黄赌毒或其他黄金规则违规被 AI 审核或管理员标记为 'banned' 时：
-
-- IP 表：`ips.status = 'banned'`
-- 关联的二创内容：`content_items.status = 'banned'`（即使内容本身通过了 AI 审核，也一并下架）
-- 数据库实现：通过在 `ip_service.BanIP()` 或 AI 回调处理逻辑中执行级联更新，将所有关联内容的 status 设为 'banned'
-- 用户感知：这些内容在浏览页面中直接隐藏不显示，内容作者可通过 REST API 查询 status=banned 后发起申诉
-
----
-
-### 4.11 用户反馈 (Feedback)
-
-```sql
-CREATE TABLE feedback_tickets (
-    id                BIGSERIAL PRIMARY KEY,
-    user_id           BIGINT REFERENCES users(id),
-    contact_email     VARCHAR(255),
-    category          VARCHAR(32) NOT NULL CHECK (category IN (
-                        'web_bug', 'desktop_deploy', 'content_or_community',
-                        'account_or_security', 'agent_quality', 'feature_request', 'other'
-                      )),
-    title             VARCHAR(160) NOT NULL,
-    description       TEXT NOT NULL,
-    diagnostic_summary JSONB NOT NULL DEFAULT '{}',
-    status            VARCHAR(24) NOT NULL DEFAULT 'open' CHECK (status IN (
-                        'open', 'in_progress', 'resolved', 'closed'
-                      )),
-    priority          VARCHAR(24) NOT NULL DEFAULT 'normal' CHECK (priority IN (
-                        'low', 'normal', 'high', 'urgent'
-                      )),
-    assignee_admin_id BIGINT REFERENCES users(id),
-    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    resolved_at       TIMESTAMPTZ
-);
-
-CREATE TABLE feedback_replies (
-    id                BIGSERIAL PRIMARY KEY,
-    ticket_id         BIGINT NOT NULL REFERENCES feedback_tickets(id) ON DELETE CASCADE,
-    author_user_id    BIGINT REFERENCES users(id),
-    author_admin_id   BIGINT REFERENCES users(id),
-    body              TEXT NOT NULL,
-    is_internal_note  BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CHECK (author_user_id IS NOT NULL OR author_admin_id IS NOT NULL),
-    CHECK (NOT (author_user_id IS NOT NULL AND author_admin_id IS NOT NULL))
-);
-
-CREATE TABLE feedback_attachments (
-    id            BIGSERIAL PRIMARY KEY,
-    ticket_id     BIGINT NOT NULL REFERENCES feedback_tickets(id) ON DELETE CASCADE,
-    oss_key       TEXT NOT NULL,
-    file_type     VARCHAR(32) NOT NULL,
-    mime_type     VARCHAR(100) NOT NULL,
-    size_bytes    BIGINT NOT NULL,
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_feedback_tickets_user_id ON feedback_tickets(user_id);
-CREATE INDEX idx_feedback_tickets_status ON feedback_tickets(status);
-CREATE INDEX idx_feedback_replies_ticket_id ON feedback_replies(ticket_id);
-CREATE INDEX idx_feedback_attachments_ticket_id ON feedback_attachments(ticket_id);
-```
-
-- 用户通过 `/feedback` 页面提交反馈工单（web_bug / feature_request 等类别）。
-- 管理员在 `/admin/feedback` 查看、分配、回复工单。
-- `feedback_attachments` 存储 OSS 对象键（截图/日志等）。
-
-### 4.12 管理员审计日志 (Admin Audit Logs)
-
-```sql
-CREATE TABLE admin_audit_logs (
-    id              BIGSERIAL PRIMARY KEY,
-    admin_user_id   BIGINT NOT NULL REFERENCES users(id),
-    action          VARCHAR(96) NOT NULL,
-    target_type     VARCHAR(48) NOT NULL,
-    target_id       VARCHAR(96),
-    trace_id        VARCHAR(96),
-    metadata        JSONB NOT NULL DEFAULT '{}',
-    result          VARCHAR(24) NOT NULL,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_admin_audit_logs_created_at ON admin_audit_logs(created_at DESC);
-CREATE INDEX idx_admin_audit_logs_action ON admin_audit_logs(action);
-```
-
-- 所有管理员敏感操作（封禁用户、删除内容、修改配置等）自动记录审计日志。
-- `metadata` 为 JSONB 字段存储操作上下文（如修改前后的值）。
-- `trace_id` 关联请求日志便于排查。
-
-### 4.13 收藏集 (Collections)
-
-> **状态**: 设计已确认，代码尚未实现。见 DEC-010。
-
-```sql
-CREATE TABLE collections (
-    id              BIGSERIAL PRIMARY KEY,
-    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    title           VARCHAR(255) NOT NULL,
-    description     TEXT,
-    is_public       BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_collections_user ON collections(user_id);
-
-CREATE TABLE collection_items (
-    id              BIGSERIAL PRIMARY KEY,
-    collection_id   BIGINT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
-    content_id      BIGINT NOT NULL REFERENCES content_items(id) ON DELETE CASCADE,
-    added_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    note            TEXT,
-    UNIQUE(collection_id, content_id)
-);
-
-CREATE INDEX idx_collection_items_collection ON collection_items(collection_id, added_at DESC);
-CREATE INDEX idx_collection_items_content ON collection_items(content_id);
-```
+<!-- AUTO-GENERATED: §4 数据库 Schema | source: backend/migrations/ | DO NOT EDIT MANUALLY -->
+
+### admin_audit_logs
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `admin_user_id` | `BIGINT` | NOT NULL -> users.id | admin_user_id |
+| `action` | `VARCHAR(96)` | NOT NULL | action |
+| `target_type` | `VARCHAR(48)` | NOT NULL | target_type |
+| `target_id` | `VARCHAR(96)` | - | target_id |
+| `trace_id` | `VARCHAR(96)` | - | trace_id |
+| `metadata` | `JSONB` | NOT NULL DEFAULT '{}' | metadata |
+| `result` | `VARCHAR(24)` | NOT NULL | result |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### agent_conversations
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `context_type` | `VARCHAR(50)` | NOT NULL DEFAULT '' | context_type |
+| `context_id` | `BIGINT` | - | context_id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+
+### agent_messages
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `conversation_id` | `BIGINT` | NOT NULL -> agent_conversations.id | conversation_id |
+| `role` | `VARCHAR(20)` | NOT NULL | role |
+| `content` | `TEXT` | - | content |
+| `tool_calls` | `JSONB` | - | tool_calls |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### ai_review_records
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `target_type` | `VARCHAR(20)` | NOT NULL | target_type |
+| `target_id` | `BIGINT` | NOT NULL | target_id |
+| `provider` | `VARCHAR(50)` | NOT NULL DEFAULT 'aliyun' | provider |
+| `result` | `VARCHAR(20)` | NOT NULL | result |
+| `raw_response` | `JSONB` | - | raw_response |
+| `scanned_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | scanned_at |
+
+### appeals
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `target_type` | `VARCHAR(20)` | NOT NULL | target_type |
+| `target_id` | `BIGINT` | NOT NULL | target_id |
+| `reason` | `TEXT` | NOT NULL | reason |
+| `status` | `VARCHAR(20)` | NOT NULL DEFAULT 'pending' | status |
+| `admin_response` | `TEXT` | - | admin_response |
+| `resolved_by` | `BIGINT` | -> users.id | resolved_by |
+| `resolved_at` | `TIMESTAMPTZ` | - | resolved_at |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### author_blocklist
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `author_id` | `BIGINT` | NOT NULL -> users.id | author_id |
+| `blocked_id` | `BIGINT` | NOT NULL -> users.id | blocked_id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### browse_history
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `user_id` | `BIGINT` | NOT NULL UNIQUE -> users.id | user_id |
+| `content_item_id` | `BIGINT` | NOT NULL UNIQUE -> content_items.id | content_item_id |
+| `viewed_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | viewed_at |
+
+### categories
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `zone` | `VARCHAR(20)` | NOT NULL | zone |
+| `level` | `VARCHAR(20)` | NOT NULL | level |
+| `parent_id` | `BIGINT` | -> categories.id | parent_id |
+| `name_i18n` | `JSONB` | NOT NULL DEFAULT '{}' | name_i18n |
+| `slug` | `VARCHAR(100)` | NOT NULL UNIQUE | slug |
+| `sort_order` | `INT` | NOT NULL DEFAULT 0 | sort_order |
+| `is_active` | `BOOLEAN` | NOT NULL DEFAULT TRUE | is_active |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+
+### comments
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `content_item_id` | `BIGINT` | -> content_items.id | content_item_id |
+| `discussion_id` | `BIGINT` | -> discussions.id | discussion_id |
+| `parent_id` | `BIGINT` | -> comments.id | parent_id |
+| `author_id` | `BIGINT` | NOT NULL -> users.id | author_id |
+| `body` | `TEXT` | NOT NULL | body |
+| `status` | `VARCHAR(20)` | NOT NULL DEFAULT 'published' | status |
+| `like_count` | `INT` | NOT NULL DEFAULT 0 | like_count |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### content_attachments
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `content_item_id` | `BIGINT` | NOT NULL -> content_items.id | content_item_id |
+| `file_type` | `VARCHAR(30)` | NOT NULL | file_type |
+| `oss_key` | `TEXT` | NOT NULL | oss_key |
+| `file_size` | `BIGINT` | - | file_size |
+| `mime_type` | `VARCHAR(100)` | - | mime_type |
+| `duration_sec` | `INT` | - | duration_sec |
+| `width` | `INT` | - | width |
+| `height` | `INT` | - | height |
+| `is_primary` | `BOOLEAN` | DEFAULT TRUE | is_primary |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### content_contributors
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `content_item_id` | `BIGINT` | NOT NULL -> content_items.id | content_item_id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `pr_count` | `INT` | NOT NULL DEFAULT 1 | pr_count |
+| `first_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | first_at |
+
+### content_embeddings
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `content_item_id` | `BIGINT` | PK -> content_items.id | content_item_id |
+| `embedding` | `vector(1536)` | NOT NULL | embedding |
+| `embedded_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | embedded_at |
+
+### content_items
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `title` | `VARCHAR(500)` | NOT NULL | title |
+| `author_id` | `BIGINT` | NOT NULL -> users.id | author_id |
+| `zone` | `VARCHAR(10)` | NOT NULL | zone |
+| `ip_id` | `BIGINT` | -> ips.id | ip_id |
+| `category` | `VARCHAR(50)` | - | category |
+| `content_type` | `VARCHAR(20)` | NOT NULL | content_type |
+| `cover_image_url` | `TEXT` | - | cover_image_url |
+| `status` | `VARCHAR(20)` | NOT NULL DEFAULT 'pending' | status |
+| `view_count` | `BIGINT` | NOT NULL DEFAULT 0 | view_count |
+| `like_count` | `INT` | NOT NULL DEFAULT 0 | like_count |
+| `dislike_count` | `INT` | NOT NULL DEFAULT 0 | dislike_count |
+| `is_public` | `BOOLEAN` | NOT NULL DEFAULT TRUE | is_public |
+| `allow_copy` | `BOOLEAN` | NOT NULL DEFAULT TRUE | allow_copy |
+| `agent_enabled` | `BOOLEAN` | NOT NULL DEFAULT FALSE | agent_enabled |
+| `is_paid` | `BOOLEAN` | NOT NULL DEFAULT FALSE | is_paid |
+| `price` | `NUMERIC(10,2)` | DEFAULT 0 | price |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+
+### content_tags
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `content_item_id` | `BIGINT` | NOT NULL -> content_items.id | content_item_id |
+| `tag` | `VARCHAR(50)` | NOT NULL | tag |
+
+### content_versions
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `content_item_id` | `BIGINT` | NOT NULL UNIQUE -> content_items.id | content_item_id |
+| `parent_version_id` | `BIGINT` | -> content_versions.id | parent_version_id |
+| `author_id` | `BIGINT` | NOT NULL -> users.id | author_id |
+| `version_number` | `INT` | NOT NULL UNIQUE | version_number |
+| `storage_type` | `VARCHAR(10)` | NOT NULL | storage_type |
+| `storage_key` | `TEXT` | - | storage_key |
+| `diff_summary` | `TEXT` | - | diff_summary |
+| `status` | `VARCHAR(20)` | NOT NULL DEFAULT 'active' | status |
+| `is_latest` | `BOOLEAN` | NOT NULL DEFAULT FALSE | is_latest |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### conversation_participants
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `conversation_id` | `BIGINT` | NOT NULL -> conversations.id | conversation_id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `last_read_at` | `TIMESTAMPTZ` | - | last_read_at |
+
+### conversations
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+
+### discussions
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `ip_id` | `BIGINT` | -> ips.id | ip_id |
+| `content_item_id` | `BIGINT` | -> content_items.id | content_item_id |
+| `author_id` | `BIGINT` | NOT NULL -> users.id | author_id |
+| `title` | `VARCHAR(500)` | NOT NULL | title |
+| `body` | `TEXT` | - | body |
+| `status` | `VARCHAR(20)` | NOT NULL DEFAULT 'published' | status |
+| `view_count` | `BIGINT` | NOT NULL DEFAULT 0 | view_count |
+| `reply_count` | `INT` | NOT NULL DEFAULT 0 | reply_count |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+
+### favorites
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `content_item_id` | `BIGINT` | NOT NULL -> content_items.id | content_item_id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### feedback_attachments
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `ticket_id` | `BIGINT` | NOT NULL -> feedback_tickets.id | ticket_id |
+| `oss_key` | `TEXT` | NOT NULL | oss_key |
+| `file_type` | `VARCHAR(32)` | NOT NULL | file_type |
+| `mime_type` | `VARCHAR(100)` | NOT NULL | mime_type |
+| `size_bytes` | `BIGINT` | NOT NULL | size_bytes |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### feedback_replies
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `ticket_id` | `BIGINT` | NOT NULL -> feedback_tickets.id | ticket_id |
+| `author_user_id` | `BIGINT` | -> users.id | author_user_id |
+| `author_admin_id` | `BIGINT` | -> users.id | author_admin_id |
+| `body` | `TEXT` | NOT NULL | body |
+| `is_internal_note` | `BOOLEAN` | NOT NULL DEFAULT FALSE | is_internal_note |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### feedback_tickets
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `user_id` | `BIGINT` | -> users.id | user_id |
+| `contact_email` | `VARCHAR(255)` | - | contact_email |
+| `category` | `VARCHAR(32)` | NOT NULL | category |
+| `title` | `VARCHAR(160)` | NOT NULL | title |
+| `description` | `TEXT` | NOT NULL | description |
+| `diagnostic_summary` | `JSONB` | NOT NULL DEFAULT '{}' | diagnostic_summary |
+| `status` | `VARCHAR(24)` | NOT NULL DEFAULT 'open' | status |
+| `priority` | `VARCHAR(24)` | NOT NULL DEFAULT 'normal' | priority |
+| `assignee_admin_id` | `BIGINT` | -> users.id | assignee_admin_id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+| `resolved_at` | `TIMESTAMPTZ` | - | resolved_at |
+
+### follows
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `follower_id` | `BIGINT` | NOT NULL UNIQUE -> users.id | follower_id |
+| `target_type` | `VARCHAR(20)` | NOT NULL UNIQUE | target_type |
+| `target_id` | `BIGINT` | NOT NULL UNIQUE | target_id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### ip_review_logs
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `ip_id` | `BIGINT` | NOT NULL -> ips.id | ip_id |
+| `reviewer_id` | `BIGINT` | -> users.id | reviewer_id |
+| `action` | `VARCHAR(20)` | NOT NULL | action |
+| `reason` | `TEXT` | - | reason |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### ip_tags
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `ip_id` | `BIGINT` | NOT NULL -> ips.id | ip_id |
+| `tag` | `VARCHAR(50)` | NOT NULL | tag |
+
+### ips
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `name` | `VARCHAR(255)` | NOT NULL | name |
+| `slug` | `VARCHAR(255)` | NOT NULL UNIQUE | slug |
+| `description` | `TEXT` | - | description |
+| `cover_url` | `TEXT` | - | cover_url |
+| `category` | `VARCHAR(50)` | - | category |
+| `creator_id` | `BIGINT` | -> users.id | creator_id |
+| `status` | `VARCHAR(20)` | NOT NULL DEFAULT 'pending' | status |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+
+### judge_cases
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `target_type` | `VARCHAR(20)` | NOT NULL | target_type |
+| `target_id` | `BIGINT` | NOT NULL | target_id |
+| `status` | `VARCHAR(20)` | NOT NULL DEFAULT 'open' | status |
+| `vote_approve` | `INT` | NOT NULL DEFAULT 0 | vote_approve |
+| `vote_reject` | `INT` | NOT NULL DEFAULT 0 | vote_reject |
+| `min_votes` | `INT` | NOT NULL DEFAULT 20 | min_votes |
+| `closed_at` | `TIMESTAMPTZ` | - | closed_at |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### judge_exam_records
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `content_type` | `VARCHAR(50)` | NOT NULL | content_type |
+| `score` | `INT` | NOT NULL | score |
+| `total` | `INT` | NOT NULL | total |
+| `passed` | `BOOLEAN` | NOT NULL | passed |
+| `taken_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | taken_at |
+
+### judge_qualifications
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `user_id` | `BIGINT` | NOT NULL UNIQUE -> users.id | user_id |
+| `content_type` | `VARCHAR(50)` | NOT NULL UNIQUE | content_type |
+| `qualified_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | qualified_at |
+| `revoked_at` | `TIMESTAMPTZ` | - | revoked_at |
+| `is_active` | `BOOLEAN` | NOT NULL DEFAULT TRUE | is_active |
+
+### judge_questions
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `content_type` | `VARCHAR(50)` | NOT NULL | content_type |
+| `source_case_id` | `BIGINT` | - | source_case_id |
+| `question_data` | `JSONB` | NOT NULL | question_data |
+| `is_active` | `BOOLEAN` | NOT NULL DEFAULT TRUE | is_active |
+| `created_by` | `VARCHAR(20)` | NOT NULL DEFAULT 'admin' | created_by |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### judge_reason_votes
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `reason_owner_vote_id` | `BIGINT` | NOT NULL UNIQUE -> judge_votes.id | reason_owner_vote_id |
+| `voter_id` | `BIGINT` | NOT NULL UNIQUE -> users.id | voter_id |
+| `vote_type` | `VARCHAR(10)` | NOT NULL | vote_type |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### judge_votes
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `case_id` | `BIGINT` | NOT NULL UNIQUE -> judge_cases.id | case_id |
+| `judge_id` | `BIGINT` | NOT NULL UNIQUE -> users.id | judge_id |
+| `vote` | `VARCHAR(10)` | NOT NULL | vote |
+| `reason` | `TEXT` | - | reason |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### llm_configs
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `config_name` | `VARCHAR(100)` | NOT NULL | config_name |
+| `provider_type` | `VARCHAR(50)` | NOT NULL | provider_type |
+| `api_base` | `VARCHAR(500)` | - | api_base |
+| `model` | `VARCHAR(100)` | NOT NULL | model |
+| `api_key_enc` | `TEXT` | - | api_key_enc |
+| `is_active` | `BOOLEAN` | NOT NULL DEFAULT FALSE | is_active |
+| `extra_params` | `JSONB` | NOT NULL DEFAULT '{}' | extra_params |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+
+### messages
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `conversation_id` | `BIGINT` | NOT NULL -> conversations.id | conversation_id |
+| `sender_id` | `BIGINT` | NOT NULL -> users.id | sender_id |
+| `body` | `TEXT` | NOT NULL | body |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### notifications
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `type` | `VARCHAR(50)` | NOT NULL | type |
+| `channel` | `VARCHAR(20)` | NOT NULL | channel |
+| `title` | `VARCHAR(500)` | - | title |
+| `body` | `TEXT` | - | body |
+| `target_type` | `VARCHAR(50)` | - | target_type |
+| `target_id` | `BIGINT` | - | target_id |
+| `sender_id` | `BIGINT` | -> users.id | sender_id |
+| `is_read` | `BOOLEAN` | NOT NULL DEFAULT FALSE | is_read |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### oauth_accounts
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `provider` | `VARCHAR(20)` | NOT NULL UNIQUE | provider |
+| `provider_uid` | `VARCHAR(255)` | NOT NULL UNIQUE | provider_uid |
+| `access_token` | `TEXT` | - | access_token |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### password_reset_tokens
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `token` | `VARCHAR(255)` | NOT NULL UNIQUE | token |
+| `expires_at` | `TIMESTAMPTZ` | NOT NULL | expires_at |
+| `used_at` | `TIMESTAMPTZ` | - | used_at |
+| `created_at` | `TIMESTAMPTZ` | DEFAULT NOW() | created_at |
+
+### pull_requests
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `content_item_id` | `BIGINT` | NOT NULL -> content_items.id | content_item_id |
+| `submitter_id` | `BIGINT` | NOT NULL -> users.id | submitter_id |
+| `base_version_id` | `BIGINT` | NOT NULL -> content_versions.id | base_version_id |
+| `proposed_version_id` | `BIGINT` | -> content_versions.id | proposed_version_id |
+| `status` | `VARCHAR(20)` | NOT NULL DEFAULT 'open' | status |
+| `message` | `TEXT` | - | message |
+| `reject_reason` | `TEXT` | - | reject_reason |
+| `resolved_at` | `TIMESTAMPTZ` | - | resolved_at |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### reactions
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `user_id` | `BIGINT` | NOT NULL UNIQUE -> users.id | user_id |
+| `target_type` | `VARCHAR(20)` | NOT NULL UNIQUE | target_type |
+| `target_id` | `BIGINT` | NOT NULL UNIQUE | target_id |
+| `reaction` | `VARCHAR(10)` | NOT NULL | reaction |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### rehab_completions
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `user_id` | `BIGINT` | NOT NULL UNIQUE -> users.id | user_id |
+| `course_id` | `BIGINT` | NOT NULL UNIQUE -> rehab_courses.id | course_id |
+| `completed_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | completed_at |
+
+### rehab_courses
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `violation_type` | `VARCHAR(100)` | NOT NULL UNIQUE | violation_type |
+| `content_i18n` | `JSONB` | NOT NULL DEFAULT '{}' | content_i18n |
+| `min_reading_sec` | `INT` | NOT NULL DEFAULT 60 | min_reading_sec |
+| `reward_points` | `INT` | NOT NULL DEFAULT 0 | reward_points |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### reports
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `reporter_id` | `BIGINT` | NOT NULL -> users.id | reporter_id |
+| `target_type` | `VARCHAR(20)` | NOT NULL | target_type |
+| `target_id` | `BIGINT` | NOT NULL | target_id |
+| `reason` | `VARCHAR(100)` | NOT NULL | reason |
+| `detail` | `TEXT` | - | detail |
+| `status` | `VARCHAR(20)` | NOT NULL DEFAULT 'pending' | status |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### reputation_logs
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `delta` | `INT` | NOT NULL | delta |
+| `reason` | `VARCHAR(100)` | NOT NULL | reason |
+| `related_id` | `BIGINT` | - | related_id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### saved_searches
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `name` | `VARCHAR(200)` | NOT NULL | name |
+| `config` | `JSONB` | NOT NULL DEFAULT '{}' | config |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### tag_groups
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `name` | `VARCHAR(100)` | NOT NULL | name |
+| `tags` | `TEXT[]` | NOT NULL DEFAULT '{}' | tags |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+
+### tag_suggestions
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `content_item_id` | `BIGINT` | NOT NULL UNIQUE -> content_items.id | content_item_id |
+| `user_id` | `BIGINT` | NOT NULL UNIQUE -> users.id | user_id |
+| `tag` | `VARCHAR(100)` | NOT NULL UNIQUE | tag |
+| `action` | `VARCHAR(10)` | NOT NULL UNIQUE | action |
+| `status` | `VARCHAR(20)` | NOT NULL DEFAULT 'pending' | status |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
+### tags
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `name` | `VARCHAR(100)` | NOT NULL UNIQUE | name |
+| `category` | `VARCHAR(50)` | NOT NULL DEFAULT '' | category |
+| `usage_count` | `INT` | NOT NULL DEFAULT 0 | usage_count |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+
+### users
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `email` | `VARCHAR(255)` | NOT NULL UNIQUE | email |
+| `password_hash` | `VARCHAR(255)` | NOT NULL | password_hash |
+| `username` | `VARCHAR(64)` | NOT NULL UNIQUE | username |
+| `avatar_url` | `TEXT` | - | avatar_url |
+| `bio` | `TEXT` | - | bio |
+| `reputation` | `INT` | NOT NULL DEFAULT 10 | reputation |
+| `preferred_locale` | `VARCHAR(10)` | NOT NULL DEFAULT 'zh-CN' | preferred_locale |
+| `role` | `VARCHAR(20)` | NOT NULL DEFAULT 'user' | role |
+| `is_banned` | `BOOLEAN` | NOT NULL DEFAULT FALSE | is_banned |
+| `ban_reason` | `TEXT` | - | ban_reason |
+| `support_info` | `JSONB` | DEFAULT '{}' | support_info |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+
+
+<!-- END AUTO-GENERATED: §4 -->
 
 ---
 
@@ -1445,190 +1290,149 @@ Content-Type: application/json
 所有可动态调整的参数集中在 `config.yaml`，通过管理员 API 热更新。
 字段名与 `config/config.go` 中结构体的 `mapstructure` tag 一一对应。
 
-```yaml
-server:
-  port: "8080"                        # 监听端口
-  mode: "development"                 # development | release
-  shutdown_timeout: 15                # 优雅关机超时（秒）
+<!-- AUTO-GENERATED: §7 配置字段注册表 | source: backend/config/config.go | DO NOT EDIT MANUALLY -->
 
-features:
-  payment_enabled: false             # 支付模块全局开关（MVP 关闭）
-  creator_support_enabled: false     # 创作者支持模块（P1 开启）
-  desktop_deploy_enabled: false      # 桌面端一键部署（D-02~D-05 完成后开启）
+| 配置路径 | 类型 | 说明 |
+|----------|------|------|
+| `agent.chat_max_context_messages` | `int` | ChatMaxContextMsgs |
+| `agent.embedding_dimensions` | `int` | EmbeddingDimensions |
+| `agent.embedding_model` | `string` | EmbeddingModel |
+| `agent.hmac_secret` | `string` | HMACSecret |
+| `agent.llm_api_base` | `string` | LLMAPIBase |
+| `agent.llm_api_key` | `string` | LLMAPIKey |
+| `agent.llm_model` | `string` | LLMModel |
+| `agent.llm_provider` | `string` | LLMProvider |
+| `agent.max_user_message_chars` | `int` | MaxUserMessageChars |
+| `agent.rate_limit_per_day` | `int` | RateLimitPerDay |
+| `agent.upload_assist_max_file_mb` | `int` | UploadAssistMaxFileMB |
+| `agent.web_agent_enabled` | `bool` | WebAgentEnabled |
+| `cache.content_detail_ttl` | `int` | ContentDetailTTL |
+| `cache.content_list_ttl` | `int` | ContentListTTL |
+| `cache.email_verify_ttl` | `int` | EmailVerifyTTL |
+| `cache.hot_rank_zset_ttl` | `int` | HotRankZSetTTL |
+| `cache.ip_detail_ttl` | `int` | IPDetailTTL |
+| `cache.ip_list_ttl` | `int` | IPListTTL |
+| `cache.password_reset_ttl` | `int` | PasswordResetTTL |
+| `cache.publish_freeze_ttl` | `int` | PublishFreezeTTL |
+| `cache.tag_cache_ttl` | `int` | TagCacheTTL |
+| `cache.user_status_ttl` | `int` | UserStatusTTL |
+| `cache.view_count_flush_interval` | `int` | ViewCountFlushInterval |
+| `captcha.access_key_id` | `string` | AccessKeyID |
+| `captcha.access_key_secret` | `string` | AccessKeySecret |
+| `captcha.prefix` | `string` | Prefix |
+| `captcha.provider` | `string` | Provider |
+| `captcha.region` | `string` | Region |
+| `captcha.scene_id` | `string` | SceneID |
+| `captcha.ticket_ttl_sec` | `int` | TicketTTLSec |
+| `client.download_enabled` | `bool` | DownloadEnabled |
+| `client.download_url` | `string` | DownloadURL |
+| `client.latest_version` | `string` | LatestVersion |
+| `database.dsn` | `string` | DSN |
+| `database.read_dsn` | `string` | ReadDSN |
+| `features.creator_support_enabled` | `bool` | CreatorSupportEnabled |
+| `features.desktop_deploy_enabled` | `bool` | DesktopDeployEnabled |
+| `features.payment_enabled` | `bool` | PaymentEnabled |
+| `feedback.upload_grant_ttl_sec` | `int` | UploadGrantTTLSec |
+| `green.access_key_id` | `string` | AccessKeyID |
+| `green.access_key_secret` | `string` | AccessKeySecret |
+| `green.callback_allowed_ips` | `[]string` | CallbackAllowedIPs |
+| `green.callback_url` | `string` | CallbackURL |
+| `green.region` | `string` | Region |
+| `judge.error_rate_revoke` | `float64` | ErrorRateRevoke |
+| `judge.error_rate_window` | `int` | ErrorRateWindow |
+| `judge.exam_pass_rate` | `float64` | ExamPassRate |
+| `judge.min_votes_required` | `int` | MinVotesRequired |
+| `judge.pass_threshold` | `float64` | PassThreshold |
+| `jwt.access_token_ttl` | `int` | AccessTokenTTL |
+| `jwt.refresh_token_ttl` | `int` | RefreshTokenTTL |
+| `jwt.secret` | `string` | Secret |
+| `legal.current_privacy_version` | `string` | CurrentPrivacyVersion |
+| `legal.current_terms_version` | `string` | CurrentTermsVersion |
+| `limits.image_max_mb` | `int` | ImageMaxMB |
+| `limits.mod_max_mb` | `int` | ModMaxMB |
+| `limits.sheet_music_max_mb` | `int` | SheetMusicMaxMB |
+| `limits.text_max_mb` | `int` | TextMaxMB |
+| `limits.video_max_mb` | `int` | VideoMaxMB |
+| `limits.video_max_sec` | `int` | VideoMaxSec |
+| `oss.access_key_id` | `string` | AccessKeyID |
+| `oss.access_key_secret` | `string` | AccessKeySecret |
+| `oss.bucket_name` | `string` | BucketName |
+| `oss.domain` | `string` | Domain |
+| `oss.download_url_ttl_sec` | `int` | DownloadURLTTL |
+| `oss.endpoint` | `string` | Endpoint |
+| `publish.freeze_on_violation` | `bool` | FreezeOnViolation |
+| `publish.max_daily_posts` | `int` | MaxDailyPosts |
+| `publish.require_review` | `bool` | RequireReview |
+| `publish.type_order_fanwork` | `[]string` | TypeOrderFanwork |
+| `publish.type_order_original` | `[]string` | TypeOrderOriginal |
+| `queue` | `queue.QueueConfig` | Queue |
+| `rate_limit.agent_window_sec` | `int` | AgentWindowSec |
+| `rate_limit.credential_per_minute` | `int` | CredentialPerMinute |
+| `rate_limit.enabled` | `bool` | Enabled |
+| `rate_limit.max_json_body_bytes` | `int64` | MaxJSONBodyBytes |
+| `rate_limit.max_query_chars` | `int` | MaxQueryChars |
+| `rate_limit.max_search_limit` | `int` | MaxSearchLimit |
+| `rate_limit.max_search_page` | `int` | MaxSearchPage |
+| `rate_limit.normal_per_minute` | `int` | NormalPerMinute |
+| `rate_limit.normal_window_sec` | `int` | NormalWindowSec |
+| `rate_limit.search_per_minute` | `int` | SearchPerMinute |
+| `rate_limit.upload_per_hour` | `int` | UploadPerHour |
+| `rate_limit.upload_window_sec` | `int` | UploadWindowSec |
+| `recommendation.embedding_multiplier` | `int` | EmbeddingMultiplier |
+| `recommendation.embedding_topk` | `int` | EmbeddingTopk |
+| `recommendation.enabled` | `bool` | Enabled |
+| `recommendation.hot_decay_hours` | `float64` | HotDecayHours |
+| `recommendation.min_interaction_for_personalize` | `int` | MinInteractionForPersonalize |
+| `recommendation.personalization_weight` | `float64` | PersonalizationWeight |
+| `recommendation.rank_interval_min` | `int` | RankIntervalMin |
+| `recommendation.refresh_interval_h` | `int` | RefreshIntervalH |
+| `recommendation.trending_window_days` | `int` | TrendingWindowDays |
+| `redis.addr` | `string` | Addr |
+| `redis.db` | `int` | DB |
+| `redis.password` | `string` | Password |
+| `reputation.min_score_for_interaction` | `int` | MinScoreForInteraction |
+| `reputation.quality_comment_threshold` | `int` | QualityCommentThreshold |
+| `reputation.quality_content_threshold` | `int` | QualityContentThreshold |
+| `reputation.repeat_violation_extra_penalty` | `int` | RepeatViolationExtraPenalty |
+| `reputation.repeat_violation_threshold` | `int` | RepeatViolationThreshold |
+| `reputation.repeat_violation_window_days` | `int` | RepeatViolationWindowDays |
+| `reputation.score_judge_accuracy` | `int` | ScoreJudgeAccuracy |
+| `reputation.score_judge_error` | `int` | ScoreJudgeError |
+| `reputation.score_malicious_comment` | `int` | ScoreMaliciousComment |
+| `reputation.score_malicious_content` | `int` | ScoreMaliciousContent |
+| `reputation.score_malicious_pr` | `int` | ScoreMaliciousPR |
+| `reputation.score_malicious_report` | `int` | ScoreMaliciousReport |
+| `reputation.score_malicious_tag_report` | `int` | ScoreMaliciousTagReport |
+| `reputation.score_pr_merged` | `int` | ScorePRMerged |
+| `reputation.score_quality_comment` | `int` | ScoreQualityComment |
+| `reputation.score_quality_content` | `int` | Score values (positive = award, negative = penalty).
+Zero means "use the hardcoded default in reputation_service.go". |
+| `reputation.score_rehab_course` | `int` | ScoreRehabCourse |
+| `reputation.score_tag_recognized` | `int` | ScoreTagRecognized |
+| `reputation.score_valid_report` | `int` | ScoreValidReport |
+| `security.allowed_origins` | `[]string` | AllowedOrigins |
+| `security.trusted_proxies` | `[]string` | TrustedProxies |
+| `server.mode` | `string` | Mode |
+| `server.port` | `string` | Port |
+| `server.shutdown_timeout` | `int` | ShutdownTimeout |
+| `smtp.from_address` | `string` | FromAddress |
+| `smtp.host` | `string` | Host |
+| `smtp.mode` | `string` | Mode |
+| `smtp.password` | `string` | Password |
+| `smtp.port` | `int` | Port |
+| `smtp.user` | `string` | User |
+| `social.comment_fold_threshold` | `float64` | CommentFoldThreshold |
+| `social.report_auto_hide_rate` | `float64` | ReportAutoHideRate |
+| `upload.sheet_music_extensions` | `[]string` | SheetMusicExtensions |
+| `verification.email_ttl_sec` | `int` | EmailTTLSec |
+| `verification.login_captcha_threshold` | `int` | LoginCaptchaThreshold |
+| `verification.password_min_length` | `int` | PasswordMinLength |
+| `verification.register_pending_ttl_sec` | `int` | RegisterPendingTTLSec |
+| `verification.resend_cooldown_sec` | `int` | ResendCooldownSec |
+| `verification.reset_ttl_sec` | `int` | ResetTTLSec |
+| `web.public_base_url` | `string` | PublicBaseURL |
 
-limits:
-  video_max_mb: 300                  # 视频最大文件大小（MB）
-  video_max_sec: 180                 # 视频最大时长（秒）
-  image_max_mb: 20
-  text_max_mb: 10
-  mod_max_mb: 500                    # Mod 打包最大大小
-  sheet_music_max_mb: 50             # 乐谱文件最大大小
-
-reputation:
-  min_score_for_interaction: 3       # 低于此分禁止发布/互动/下载（统一门槛）
-  quality_content_threshold: 10      # 优质内容点赞阈值
-  quality_comment_threshold: 5       # 优质评论点赞阈值
-  repeat_violation_window_days: 7   # 滑动窗口天数
-  repeat_violation_threshold: 2      # 窗口内违规计数阈值
-  repeat_violation_extra_penalty: -1 # 超阈后额外扣分
-  # 以下 score_* 字段控制实际加减分值（0 = 使用 reputation_service.go 内置默认值）
-  score_quality_content: 3
-  score_pr_merged: 3
-  score_quality_comment: 2
-  score_tag_recognized: 1
-  score_judge_accuracy: 1
-  score_rehab_course: 1
-  score_valid_report: 1
-  score_malicious_content: -3
-  score_malicious_pr: -3
-  score_malicious_comment: -2
-  score_malicious_report: -2
-  score_malicious_tag_report: -1
-  score_judge_error: -1
-
-judge:
-  min_votes_required: 20             # 众裁最小投票数
-  pass_threshold: 0.60               # 判决通过线（不违规比例 ≥ 60% 恢复展示）
-  exam_pass_rate: 0.80               # 考核通过分率（80%）
-  error_rate_revoke: 0.50            # 错误率超过此值撤权
-  error_rate_window: 10              # 触发撤权检查的最小判定次数
-
-social:
-  report_auto_hide_rate: 0.10       # 内容举报率阈值（自动隐藏 + 触发众裁）
-  comment_fold_threshold: 0.30      # 评论区点踩/点赞比阈值（自动折叠）
-
-recommendation:
-  enabled: true
-  hot_decay_hours: 48
-  personalization_weight: 0.6
-  min_interaction_for_personalize: 10
-  embedding_topk: 200
-  trending_window_days: 7
-  refresh_interval_h: 2
-  rank_interval_min: 10                 # 热门排行更新间隔（分钟）
-  embedding_multiplier: 1               # 内容向量化权重乘数
-
-publish:
-  type_order_original: ["image", "article", "video", "audio", "template", "sheet_music", "other"]
-  type_order_fanwork: ["image", "article", "video", "audio", "mod", "prompt", "sheet_music", "other"]
-  require_review: false                  # 发布是否需要审核（P0 直接发布，P1 开启）
-  max_daily_posts: 50                    # 每日发布上限
-  freeze_on_violation: true              # 违规后是否冻结发布权限
-
-upload:
-  sheet_music_extensions: [".mid", ".midi", ".xml", ".mxl", ".mscz", ".mscx", ".pdf"]
-
-feedback:
-  upload_grant_ttl_sec: 300              # 反馈附件上传授权有效期（秒）
-
-# --- 以下配置段在 config.yaml 存在 ---
-
-oss:
-  # 凭证通过环境变量注入（OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET）
-  endpoint: "https://oss-cn-hangzhou.aliyuncs.com"
-  bucket_name: "omnicraft-prod"
-  domain: ""                          # OSS Bucket 域名（或 CDN 加速域名）
-  download_url_ttl_sec: 300          # 下载签名 URL 有效期（秒）
-
-green:
-  # 凭证通过环境变量 GREEN_ACCESS_KEY_ID / GREEN_ACCESS_KEY_SECRET 注入
-  region: "cn-shanghai"
-  callback_url: ""                       # 阿里云内容安全异步回调地址
-  callback_allowed_ips: []               # 回调来源 IP 白名单
-
-agent:
-  web_agent_enabled: false           # 网页端 Agent 总开关（默认关闭）
-  llm_provider: "openai_compat"
-  llm_model: "deepseek-chat"
-  llm_api_base: "https://api.deepseek.com"
-  llm_api_key: ""                    # 通过 env AGENT_LLM_API_KEY 注入
-  embedding_model: "text-embedding-3-small"
-  embedding_dimensions: 1536
-  rate_limit_per_day: 50
-  upload_assist_max_file_mb: 10
-  max_user_message_chars: 4000
-  chat_max_context_messages: 10
-  hmac_secret: ""                    # Tauri Agent HMAC 签名密钥
-
-captcha:
-  provider: "aliyun"
-  # 凭证通过环境变量 CAPTCHA_ACCESS_KEY_ID / CAPTCHA_ACCESS_KEY_SECRET 注入
-  prefix: ""
-  scene_id: ""
-  region: "cn-shanghai"
-  ticket_ttl_sec: 300
-
-smtp:
-  mode: "logger"                     # "live" | "logger"（开发模式用 logger bypass）
-  host: ""
-  port: 587
-  user: ""
-  password: ""                       # 通过 env SMTP_PASSWORD 注入
-  from_address: ""
-
-verification:
-  email_ttl_sec: 3600               # 邮箱验证链接有效期
-  reset_ttl_sec: 3600               # 密码重置 token 有效期
-  resend_cooldown_sec: 60           # 重发冷却时间
-  login_captcha_threshold: 3        # 连续登录失败触发验证码的阈值
-  password_min_length: 8
-  register_pending_ttl_sec: 86400   # 注册未验证自动清理时间
-
-legal:
-  current_terms_version: ""         # 当前用户协议版本号
-  current_privacy_version: ""       # 当前隐私政策版本号
-
-cache:
-  # Redis 缓存 TTL 配置（CacheConfig）；非"向量嵌入缓存"
-  content_list_ttl: 30              # 内容列表缓存（秒）
-  content_detail_ttl: 300           # 内容详情缓存（秒）
-  ip_list_ttl: 60                   # IP 列表缓存（秒）
-  ip_detail_ttl: 600                # IP 详情缓存（秒）
-  view_count_flush_interval: 30     # 浏览计数刷入 DB 间隔（秒）
-  hot_rank_zset_ttl: 600            # 热门排行 ZSET TTL（秒）
-  user_status_ttl: 300              # 用户运行时状态缓存（秒）
-  tag_cache_ttl: 600                # 标签缓存（秒）
-  email_verify_ttl: 3600            # 邮箱验证链接有效期（秒）
-  password_reset_ttl: 3600          # 密码重置 token 有效期（秒）
-  publish_freeze_ttl: 604800        # 发布冻结时长（秒，默认 7 天）
-
-queue:
-  enabled: false                     # 异步任务队列（MVP 关闭）
-  max_attempts: 3                    # 最大重试次数
-  retry_backoff_sec: [60, 120, 300] # 重试退避间隔（秒，数组）
-  dlq_ttl_hours: 72                  # 死信队列保留时间（小时）
-  maxlen: 100000                     # Stream 最大长度
-  worker_review: 1                   # 审核 Worker 并发数
-  worker_notification: 1             # 通知 Worker 并发数
-
-rate_limit:
-  enabled: true
-  normal_per_minute: 60             # 普通请求每 IP 每分钟
-  normal_window_sec: 60             # 普通请求窗口大小（秒）
-  upload_per_hour: 10               # 上传每 IP 每小时
-  upload_window_sec: 3600           # 上传窗口大小（秒）
-  agent_window_sec: 86400           # Agent 请求窗口大小（秒）
-  credential_per_minute: 5          # 认证类请求每账号每分钟
-  search_per_minute: 30             # 搜索每 IP 每分钟
-  max_json_body_bytes: 1048576      # JSON Body 最大字节数（1MB）
-  max_query_chars: 256              # 查询字符串最大字符数
-  max_search_limit: 50              # 搜索单页最大条数
-  max_search_page: 100              # 搜索最大页数
-
-web:
-  public_base_url: "https://app.leeppp.online"
-
-security:
-  allowed_origins:                   # CORS 白名单（生产环境必填，禁止 *）
-    - "https://app.leeppp.online"
-  trusted_proxies:                   # 信任的代理 IP（用于 X-Forwarded-For 解析）
-    - "10.0.0.0/8"
-
-client:
-  download_enabled: false            # 桌面客户端下载入口
-  download_url: ""
-  latest_version: ""
-```
+<!-- END AUTO-GENERATED: §7 -->
 
 ---
 
