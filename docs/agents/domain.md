@@ -18,8 +18,8 @@ Single-context repo (this repo):
 /
 ├── CONTEXT.md
 ├── docs/adr/
-│   ├── 0001-event-sourced-orders.md
-│   └── 0002-postgres-for-write-model.md
+│   ├── 0001-use-postgresql-for-primary-storage.md  # （以下为通用模板示例，非本项目实际 ADR）
+│   └── 0002-adopt-soft-delete-strategy.md
 └── src/
 ```
 

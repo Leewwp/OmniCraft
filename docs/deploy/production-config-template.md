@@ -55,6 +55,7 @@ AGENT_LLM_MODEL=<model-name>
 AGENT_LLM_API_BASE=<https-api-base>
 AGENT_LLM_API_KEY=<llm-api-key>
 
+# 注意：这是容器内路径（非宿主机路径），通过 docker-compose volume 映射宿主路径到此路径
 CONFIG_OVERRIDE_PATH=/var/lib/omnicraft/config_override.yaml
 ```
 
@@ -171,7 +172,7 @@ Resolve-DnsName app.leeppp.online
 Resolve-DnsName api.leeppp.online
 
 curl.exe -I https://app.leeppp.online
-curl.exe https://api.leeppp.online/health
+curl.exe https://api.leeppp.online/healthz
 curl.exe https://api.leeppp.online/api/v1/config/public
 
 openssl s_client -connect app.leeppp.online:443 -servername app.leeppp.online

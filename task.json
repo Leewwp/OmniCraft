@@ -1361,7 +1361,7 @@
         63
       ],
       "steps": [
-        "创建迁移文件 migrations/035_conversation_indexes.sql：补充 CREATE INDEX idx_conversations_updated ON conversations(updated_at DESC) 和 CREATE INDEX idx_messages_sender ON messages(sender_id)（与 architecture.md §4.5 补充说明对齐）",
+        "创建迁移文件 migrations/056_conversation_indexes.sql：补充 CREATE INDEX idx_conversations_updated ON conversations(updated_at DESC) 和 CREATE INDEX idx_messages_sender ON messages(sender_id, created_at DESC)（与 architecture.md §4.5 补充说明对齐，注：编号从 035 改为 056 以匹配实际迁移序列）",
         "创建 internal/model/conversation.go：Conversation、ConversationParticipant、Message 模型，对应 conversations/conversation_participants/messages 表",
         "创建 internal/repository/message_repo.go：CreateConversation/GetConversationsByUser（分页，按 updated_at 排序）/GetMessages（分页，按 created_at）/CreateMessage/MarkConversationRead/GetUnreadMessageCount",
         "创建 internal/service/message_service.go：StartConversation(ctx, senderID, receiverID)（幂等：已有对话则返回已有的）、SendMessage(ctx, conversationID, senderID, body)（更新 conversation.updated_at）、GetMyConversations(ctx, userID)（含最后消息预览 + 未读标记）、GetMessages(ctx, conversationID, userID)（校验参与者权限）、MarkRead(ctx, conversationID, userID)",

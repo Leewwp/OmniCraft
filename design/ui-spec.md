@@ -47,9 +47,9 @@ interface HeaderProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -57,19 +57,19 @@ interface HeaderProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -94,9 +94,9 @@ interface FacetedSearchSidebarProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -104,19 +104,19 @@ interface FacetedSearchSidebarProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -126,11 +126,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：带 1px 边框的卡片容器
 
 **核心组件清单**
@@ -158,9 +158,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -172,11 +172,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 必须引入 SearchAgentInput 进行自然语言检索，失败时降级。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：搜索栏 + 分面侧边栏 + 搜索结果瀑布流
 
 **核心组件清单**
@@ -203,13 +203,13 @@ interface FacetedSearchSidebarProps {
 
 **响应式规则**
 - 移动 (≤700px): 分面侧边栏折叠为 Sheet 抽屉（85vw 左侧滑入），搜索结果瀑布流 2 列。
-- 平板 (≤1100px): 左侧侧边栏 220px + 右侧瀑布流 3 列。
+- 平板 (≤1100px): 左侧侧边栏 228px + 右侧瀑布流 3 列。
 - PC (>1100px): 左侧侧边栏 260px + 右侧瀑布流 4 列。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -221,11 +221,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：登录表单卡片（带 1px border），居中展示
 
 **核心组件清单**
@@ -252,9 +252,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 登录卡片最大宽度 400px，居中，两侧留白。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -266,11 +266,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：注册表单卡片（带 1px border），居中展示
 
 **核心组件清单**
@@ -296,9 +296,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 注册卡片最大宽度 400px，居中，两侧留白。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -312,11 +312,11 @@ interface FacetedSearchSidebarProps {
 - 二创区页面/组件：依托于 ips.category 进行展示或跳转。
 - ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
 - 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：带 1px 边框的卡片容器
 
 **核心组件清单**
@@ -344,9 +344,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -358,11 +358,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 二创区页面/组件：依托于 ips.category 进行展示或跳转。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：带 1px 边框的卡片容器
 
 **核心组件清单**
@@ -390,9 +390,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -405,11 +405,11 @@ interface FacetedSearchSidebarProps {
 **Key Constraints**
 - 二创区页面/组件：依托于 ips.category 进行展示或跳转。
 - 信誉分 < 3 用户：发布/评论/点赞按钮 disabled，hover tooltip 提示「信誉分不足」。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：搜索栏 + 讨论列表 + 发帖入口
 
 **核心组件清单**
@@ -436,9 +436,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 内容区最大宽度 960px，居中。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -452,11 +452,11 @@ interface FacetedSearchSidebarProps {
 - 二创区页面/组件：依托于 ips.category 进行展示或跳转。
 - 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
 - 信誉分 < 3 用户：发布/评论/点赞按钮 disabled，hover tooltip 提示「信誉分不足」。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：讨论主帖 + 回复列表，各模块带 1px border
 
 **核心组件清单**
@@ -485,9 +485,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 内容区最大宽度 960px，居中。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -499,11 +499,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 二创区页面/组件：依托于 ips.category 进行展示或跳转。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：发帖表单卡片（标题 + 内容 + 提交按钮）
 
 **核心组件清单**
@@ -528,9 +528,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 表单最大宽度 720px，居中。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -543,11 +543,11 @@ interface FacetedSearchSidebarProps {
 **Key Constraints**
 - ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
 - 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：详情内容卡片 + 评论区 + 版本历史，各模块带 1px border
 
 **核心组件清单**
@@ -579,9 +579,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 内容区最大宽度 960px，居中，评论区侧栏吸附。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -593,13 +593,13 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 参考小红书网页端设计：顶部 Tab 导航 + 瀑布流内容，单层导航结构，无二级内容类型筛选。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 推荐 Tab 为算法驱动的个性化推送（`sort=recommended`），非手动筛选选项。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
 - 分类 Tab 栏：Header 下方固定（sticky），高度 `h-12`，底部 1px border 分隔，Tab 项横向滚动
-- 主容器：居中最大宽度 1280px，页面背景 `bg-canvas.subtle`
+- 主容器：居中最大宽度 1280px，页面背景 `bg-canvas-subtle`
 - 内容模块：瀑布流卡片（无外层 border 容器，卡片直接排列）
 
 **核心组件清单**
@@ -615,8 +615,8 @@ interface FacetedSearchSidebarProps {
 - 固定项目：`推荐`（默认选中，始终在第一位）
 - 动态项目：从 `/api/v1/categories?zone=original&level=primary` 加载的 11 个一级分类
 - 每个 Tab 项: `<button>` 样式，padding `px-4 py-2`，字号 `text-sm`
-- 选中态：`text-accent.emphasis font-semibold` + 底部 2px accent 色下划线
-- 未选中态：`text-fg.muted`
+- 选中态：`text-accent-emphasis font-semibold` + 底部 2px accent 色下划线
+- 未选中态：`text-fg-muted`
 - 横向滚动容器：`overflow-x-auto whitespace-nowrap scrollbar-hide`（隐藏滚动条）
 - 无二级内容类型筛选（不区分图文/视频/音频等）
 
@@ -645,9 +645,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 4 列瀑布流，左对齐，分类 Tab 栏居中显示。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片使用 `opacity-90` 适配暗色，占位 SVG 使用反色。
 
 **交互细节**
@@ -664,11 +664,11 @@ interface FacetedSearchSidebarProps {
 - 隐藏 PR 入口（原创区无协同机制）。
 - ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
 - 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：详情内容卡片 + 评论区，各模块带 1px border
 
 **核心组件清单**
@@ -697,9 +697,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 内容区最大宽度 960px，居中。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -711,11 +711,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：用户信息卡片 + 内容 Tab 切换区（发布/收藏/讨论）
 
 **核心组件清单**
@@ -747,9 +747,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 内容区最大宽度 960px，用户信息左侧吸附，Tab 内容瀑布流 4 列。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -764,11 +764,11 @@ interface FacetedSearchSidebarProps {
 **Key Constraints**
 - 必须读取 config.yaml 的文件大小限制（视频≤300MB, 图片≤20MB, 文本≤10MB等）。
 - 破坏性操作（如放弃上传或退出）需弹 ConfirmModal。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：带 1px 边框的卡片容器
 
 **核心组件清单**
@@ -795,9 +795,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 表单最大宽度 960px，居中，两侧留白。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -809,12 +809,12 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 密码修改/注销等破坏性操作需 ConfirmModal 二次确认。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：设置分组卡片（个人信息 / 安全设置 / 危险操作），每组带 1px border
 
 **核心组件清单**
@@ -840,9 +840,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 设置区最大宽度 720px，居中，两侧留白。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -854,11 +854,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：标签组列表卡片 + 新建/编辑表单区
 
 **核心组件清单**
@@ -885,9 +885,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 内容区最大宽度 720px，居中。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -901,11 +901,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 后台页面：Role 必须为 admin 且二次校验拦截，包含 ConfirmModal 二次确认。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：带 1px 边框的卡片容器
 
 **核心组件清单**
@@ -932,9 +932,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 表格最大宽度 1280px，概览卡片 4 列。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -946,11 +946,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：带 1px 边框的卡片容器
 
 **核心组件清单**
@@ -977,9 +977,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 表格最大宽度 1280px。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -991,11 +991,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：带 1px 边框的卡片容器
 
 **核心组件清单**
@@ -1022,9 +1022,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 表格最大宽度 1280px。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -1036,11 +1036,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：带 1px 边框的卡片容器
 
 **核心组件清单**
@@ -1067,9 +1067,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 表格最大宽度 1280px。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -1081,11 +1081,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：标签建议审核表格 + 操作列
 
 **核心组件清单**
@@ -1112,12 +1112,12 @@ interface FacetedSearchSidebarProps {
 **响应式规则**
 - 移动 (≤700px): 表格水平滚动，操作按钮展开式，管理导航折叠。
 - 平板 (≤1100px): 表格自适应宽度。
-- PC (>1100px): 左侧管理导航 220px + 右侧表格自适应。
+- PC (>1100px): 左侧管理导航 228px + 右侧表格自适应。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -1130,11 +1130,11 @@ interface FacetedSearchSidebarProps {
 **Key Constraints**
 - 赛博判官业务规则：只有具有对应类型的判官权限（judge_qualifications）或通过考核才能操作。
 - 信誉分必须 >= 3 才能行使众裁权利，否则禁用功能。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：考题卡片（题目 + 选项 + 提交按钮）
 
 **核心组件清单**
@@ -1161,9 +1161,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 考题区最大宽度 640px，居中。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -1176,11 +1176,11 @@ interface FacetedSearchSidebarProps {
 **Key Constraints**
 - 赛博判官业务规则：只有具有对应类型的判官权限（judge_qualifications）或通过考核才能操作。
 - 信誉分必须 >= 3 才能行使众裁权利，否则禁用功能。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：待审案例卡片队列
 
 **核心组件清单**
@@ -1208,9 +1208,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 案例区最大宽度 720px，居中。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -1222,11 +1222,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：按日期分组的浏览历史列表
 
 **核心组件清单**
@@ -1254,9 +1254,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 内容区最大宽度 720px，居中。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -1268,11 +1268,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：申诉列表卡片 + 新建申诉表单
 
 **核心组件清单**
@@ -1299,9 +1299,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 内容区最大宽度 720px，居中。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -1313,11 +1313,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：通知列表 + 私信对话列表，Tab 切换
 
 **核心组件清单**
@@ -1346,9 +1346,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 左侧列表 300px + 右侧聊天区自适应。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -1360,12 +1360,12 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 每门课程仅能完成一次，最低阅读 3 分钟（180 秒）。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：课程列表卡片 + 课程内容详情区
 
 **核心组件清单**
@@ -1392,9 +1392,9 @@ interface FacetedSearchSidebarProps {
 - PC (>1100px): 内容区最大宽度 720px，居中。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -1406,11 +1406,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 后台页面：Role 必须为 admin 且二次校验拦截，包含 ConfirmModal 二次确认。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：待审核 IP 表格 + 操作列
 
 **核心组件清单**
@@ -1436,12 +1436,12 @@ interface FacetedSearchSidebarProps {
 **响应式规则**
 - 移动 (≤700px): 表格水平滚动，管理导航折叠为顶部 Tab。
 - 平板 (≤1100px): 表格自适应宽度。
-- PC (>1100px): 左侧管理导航 220px + 右侧表格自适应。
+- PC (>1100px): 左侧管理导航 228px + 右侧表格自适应。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -1453,11 +1453,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 后台页面：Role 必须为 admin 且二次校验拦截，包含 ConfirmModal 二次确认。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：待审内容表格 + 操作列
 
 **核心组件清单**
@@ -1483,12 +1483,12 @@ interface FacetedSearchSidebarProps {
 **响应式规则**
 - 移动 (≤700px): 表格水平滚动，管理导航折叠为顶部 Tab。
 - 平板 (≤1100px): 表格自适应宽度，管理导航左侧 180px。
-- PC (>1100px): 左侧管理导航 220px + 右侧表格自适应。
+- PC (>1100px): 左侧管理导航 228px + 右侧表格自适应。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -1500,11 +1500,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 后台页面：Role 必须为 admin 且二次校验拦截，包含 ConfirmModal 二次确认。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：用户表格 + 搜索筛选 + 操作列
 
 **核心组件清单**
@@ -1530,12 +1530,12 @@ interface FacetedSearchSidebarProps {
 **响应式规则**
 - 移动 (≤700px): 表格水平滚动，管理导航折叠为顶部 Tab。
 - 平板 (≤1100px): 表格自适应宽度。
-- PC (>1100px): 左侧管理导航 220px + 右侧表格自适应。
+- PC (>1100px): 左侧管理导航 228px + 右侧表格自适应。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -1547,11 +1547,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 后台页面：Role 必须为 admin 且二次校验拦截，包含 ConfirmModal 二次确认。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：申诉列表 + 申诉详情侧栏 + 处理操作
 
 **核心组件清单**
@@ -1576,12 +1576,12 @@ interface FacetedSearchSidebarProps {
 **响应式规则**
 - 移动 (≤700px): 表格水平滚动，管理导航折叠为顶部 Tab。
 - 平板 (≤1100px): 表格自适应宽度。
-- PC (>1100px): 左侧管理导航 220px + 右侧表格自适应。
+- PC (>1100px): 左侧管理导航 228px + 右侧表格自适应。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -1593,12 +1593,12 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 后台页面：Role 必须为 admin 且二次校验拦截，包含 ConfirmModal 二次确认。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 热更新配置，重启后恢复 config.yaml 默认值。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：配置分组表单（limits/features/reputation/agent/social/labels）
 
 **核心组件清单**
@@ -1621,12 +1621,12 @@ interface FacetedSearchSidebarProps {
 **响应式规则**
 - 移动 (≤700px): 表单全宽（margin 16px），管理导航折叠。
 - 平板 (≤1100px): 配置区最大宽度 640px，居中。
-- PC (>1100px): 左侧管理导航 220px + 右侧配置表单 500px。
+- PC (>1100px): 左侧管理导航 228px + 右侧配置表单 500px。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -1638,11 +1638,11 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 后台页面：Role 必须为 admin 且二次校验拦截，包含 ConfirmModal 二次确认。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：分类树形列表 + 标签管理
 
 **核心组件清单**
@@ -1669,12 +1669,12 @@ interface FacetedSearchSidebarProps {
 **响应式规则**
 - 移动 (≤700px): 分类树折叠，管理导航折叠为顶部 Tab。
 - 平板 (≤1100px): 树形列表自适应。
-- PC (>1100px): 左侧管理导航 220px + 右侧分类管理区自适应。
+- PC (>1100px): 左侧管理导航 228px + 右侧分类管理区自适应。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -1687,11 +1687,11 @@ interface FacetedSearchSidebarProps {
 **Key Constraints**
 - 后台页面：Role 必须为 admin 且二次校验拦截，包含 ConfirmModal 二次确认。
 - 只有 config 中 `agent.web_agent_enabled=true` 且用户已登录才可见该功能。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：当前生效配置卡片 + LLM 配置表格
 
 **核心组件清单**
@@ -1718,12 +1718,12 @@ interface FacetedSearchSidebarProps {
 **响应式规则**
 - 移动 (≤700px): 表格水平滚动，管理导航折叠为顶部 Tab。
 - 平板 (≤1100px): 表格自适应宽度。
-- PC (>1100px): 左侧管理导航 220px + 右侧配置区自适应。
+- PC (>1100px): 左侧管理导航 228px + 右侧配置区自适应。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -1753,17 +1753,17 @@ interface ContentCardProps {
 ```
 
 **视觉结构 — 二创区卡片（zone='fanwork'）**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default overflow-hidden">`（无 padding，内容填满）
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default overflow-hidden">`（无 padding，内容填满）
 - 封面区: 3:4 比例容器，`object-cover` 图片填满
-- 信息区: `p-3`，标题（`text-sm font-medium line-clamp-2`）→ 作者 + IP 名行（`text-xs text-fg.muted`）→ 互动数据行（`text-xs` ❤️ + 💬）→ 标签行（最多 3 个低饱和 TagBadge）
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 信息区: `p-3`，标题（`text-sm font-medium line-clamp-2`）→ 作者 + IP 名行（`text-xs text-fg-muted`）→ 互动数据行（`text-xs` ❤️ + 💬）→ 标签行（最多 3 个低饱和 TagBadge）
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **视觉结构 — 原创区卡片（zone='original'）**
-- 外层容器: `<div className="rounded-md bg-canvas.default overflow-hidden cursor-pointer group">`（无 border，更干净的小红书风格）
+- 外层容器: `<div className="rounded-md bg-canvas-default overflow-hidden cursor-pointer group">`（无 border，更干净的小红书风格）
 - 封面区: 自适应高度（图片按原始宽高比，`object-cover w-full`），`max-height: 400px`，`overflow-hidden`
 - 悬停遮罩: `<div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />`
 - 封面缩放: `group-hover:scale-105 transition-transform duration-300`
-- 信息区: `p-2`，标题（`text-sm font-medium line-clamp-2`）→ @作者（`text-xs text-fg.muted`）→ ❤️ 点赞数（`text-xs text-fg.muted`）
+- 信息区: `p-2`，标题（`text-sm font-medium line-clamp-2`）→ @作者（`text-xs text-fg-muted`）→ ❤️ 点赞数（`text-xs text-fg-muted`）
 - 无标签 Badge、无 IP 名
 
 **尺寸规范**
@@ -1776,7 +1776,7 @@ interface ContentCardProps {
 - default: 正常展示，原创区无外边框
 - hover: 原创区封面微放大 scale-105 + 浅色遮罩；二创区 border 颜色加深
 - active: `scale-[0.98]`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 显示 `SkeletonCard` 占位（灰色块模拟卡片形状）
 - empty: 不渲染（由父级 MasonryGrid 处理 EmptyState）
@@ -1785,7 +1785,7 @@ interface ContentCardProps {
 - 瀑布流列内自适应宽度，不单独控制断点。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 整卡可点击（`<Link href={...}>` 包裹），跳转详情页。
@@ -1843,7 +1843,7 @@ interface MasonryGridProps {
 - PC (>1100px): 4 列瀑布流 (`columns-4`)
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 滚动触发加载更多（无需手动点击）。
@@ -1868,9 +1868,9 @@ interface TagBadgeProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -1878,19 +1878,19 @@ interface TagBadgeProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -1917,9 +1917,9 @@ interface IPCardProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -1927,19 +1927,19 @@ interface IPCardProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -1964,9 +1964,9 @@ interface IPCategoryTabsProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -1974,19 +1974,19 @@ interface IPCategoryTabsProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2012,9 +2012,9 @@ interface ContentDetailProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2022,19 +2022,19 @@ interface ContentDetailProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2059,9 +2059,9 @@ interface MarkdownRendererProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2069,19 +2069,19 @@ interface MarkdownRendererProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2106,9 +2106,9 @@ interface SheetMusicViewerProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2116,19 +2116,19 @@ interface SheetMusicViewerProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2154,9 +2154,9 @@ interface PRCardProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2164,19 +2164,19 @@ interface PRCardProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2202,9 +2202,9 @@ interface DiffViewerProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2212,19 +2212,19 @@ interface DiffViewerProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2249,9 +2249,9 @@ interface ReactionBarProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2259,19 +2259,19 @@ interface ReactionBarProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2296,9 +2296,9 @@ interface CommentSectionProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2306,19 +2306,19 @@ interface CommentSectionProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2343,9 +2343,9 @@ interface VersionHistoryProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2353,19 +2353,19 @@ interface VersionHistoryProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2391,9 +2391,9 @@ interface FileUploaderProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2401,19 +2401,19 @@ interface FileUploaderProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2440,9 +2440,9 @@ interface ExamQuestionProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2450,19 +2450,19 @@ interface ExamQuestionProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2490,9 +2490,9 @@ interface ReviewCardProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2500,19 +2500,19 @@ interface ReviewCardProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2537,9 +2537,9 @@ interface EmptyStateProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2547,19 +2547,19 @@ interface EmptyStateProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2584,9 +2584,9 @@ interface ConfirmModalProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2594,19 +2594,19 @@ interface ConfirmModalProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2632,9 +2632,9 @@ interface AgentChatWidgetProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2642,19 +2642,19 @@ interface AgentChatWidgetProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2680,9 +2680,9 @@ interface UploadAssistPanelProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2690,19 +2690,19 @@ interface UploadAssistPanelProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2727,9 +2727,9 @@ interface ComplianceCheckBadgeProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2737,19 +2737,19 @@ interface ComplianceCheckBadgeProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2774,9 +2774,9 @@ interface UsageGuidePanelProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2784,19 +2784,19 @@ interface UsageGuidePanelProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2822,9 +2822,9 @@ interface SearchAgentInputProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2832,19 +2832,19 @@ interface SearchAgentInputProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2869,9 +2869,9 @@ interface FollowButtonProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2879,19 +2879,19 @@ interface FollowButtonProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2916,9 +2916,9 @@ interface NotificationDropdownProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2926,19 +2926,19 @@ interface NotificationDropdownProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -2963,9 +2963,9 @@ interface NotificationListProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -2973,19 +2973,19 @@ interface NotificationListProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -3010,9 +3010,9 @@ interface ConversationListProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -3020,19 +3020,19 @@ interface ConversationListProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -3057,9 +3057,9 @@ interface ChatWindowProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -3067,19 +3067,19 @@ interface ChatWindowProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -3105,9 +3105,9 @@ interface CourseCardProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -3115,19 +3115,19 @@ interface CourseCardProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -3153,9 +3153,9 @@ interface CourseContentProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -3163,19 +3163,19 @@ interface CourseContentProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -3200,9 +3200,9 @@ interface ReputationDetailProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -3210,19 +3210,19 @@ interface ReputationDetailProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -3248,9 +3248,9 @@ interface DiscussionCardProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -3258,19 +3258,19 @@ interface DiscussionCardProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -3295,9 +3295,9 @@ interface ReplyListProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -3305,19 +3305,19 @@ interface ReplyListProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -3342,9 +3342,9 @@ interface VerdictDetailProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -3352,19 +3352,19 @@ interface VerdictDetailProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -3389,9 +3389,9 @@ interface LLMConfigTableProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -3399,19 +3399,19 @@ interface LLMConfigTableProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -3436,9 +3436,9 @@ interface LLMConfigModalProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -3446,19 +3446,19 @@ interface LLMConfigModalProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -3484,9 +3484,9 @@ interface ActiveConfigCardProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -3494,19 +3494,19 @@ interface ActiveConfigCardProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -3532,9 +3532,9 @@ interface UserProfileCardProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -3542,19 +3542,19 @@ interface UserProfileCardProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -3579,9 +3579,9 @@ interface FollowerListModalProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -3589,19 +3589,19 @@ interface FollowerListModalProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -3626,9 +3626,9 @@ interface CreatorSupportPanelProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -3636,19 +3636,19 @@ interface CreatorSupportPanelProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -3674,9 +3674,9 @@ interface JudgeQualBadgeProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default p-4">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
 - 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg.muted w-4 h-4" />`
+- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
 - 默认尺寸: height 自适应，padding 16px (p-4)
@@ -3684,19 +3684,19 @@ interface JudgeQualBadgeProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
-- hover: `hover:bg-canvas.subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas.muted scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent.default`
+- default: `bg-canvas-default text-foreground`
+- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
+- active: `active:bg-canvas-subtle scale-95`
+- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border.danger` 或局部 EmptyState
+- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
@@ -3707,8 +3707,11 @@ interface JudgeQualBadgeProps {
 ## Component: StudioSidebar
 
 **Key Constraints**
-- 鍒涗綔鑰呭伐浣滃鐨勫彲鎶樺彔渚ц竟鏍忥紝蹇呴』鍦?`/studio/*` 甯冨眬涓娇鐢ㄣ€?- 閬靛畧鍏ㄥ眬鎵佸钩鍖栨棤闃村奖璁捐瑙勮寖锛岄鑹插紩鐢ㄩ瀹氫箟 token銆?- 灞曞紑瀹藉害 228px (`w-[228px]`)锛屾敹璧峰搴?48px (`w-12`)锛岃繃娓″姩鐢?`transition-all duration-200`銆?- 鏀惰捣鎬侊細浠呮樉绀哄浘鏍囷紝hover 鍥炬爣鏃跺湪鍙充晶寮瑰嚭 tooltip锛坄absolute left-full ml-2`锛屽欢杩?300ms锛夈€?
-**Props 鎺ュ彛**
+- 创作者工作室的可折叠侧边栏，必须在 `/studio/*` 布局中使用。
+- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 展开宽度 228px (`w-[228px]`)，收起宽度 48px (`w-12`)，过渡动画 `transition-all duration-200`。
+- 收起态：仅显示图标，hover 图标时在右侧弹出 tooltip（`absolute left-full ml-2`，延迟 300ms）。
+**Props 接口**
 ```ts
 interface StudioSidebarProps {
   className?: string;
@@ -3733,28 +3736,44 @@ interface SidebarItem {
 }
 ```
 
-**瑙嗚缁撴瀯**
-- 澶栧眰瀹瑰櫒: `<aside className="h-full flex flex-col bg-canvas.subtle border-r border-border.muted transition-all duration-200" style={{ width: collapsed ? 64 : 224 }}>`
-- 椤堕儴鍒嗙粍鍖猴細Logo/鏍囬 + 鎶樺彔鍒囨崲鎸夐挳锛坄鈫恅 / `鈫抈 绠ご鍥炬爣锛?- 涓棿瀵艰埅鍖猴細鎸?section 鍒嗙粍娓叉煋
-  - 灞曞紑鎬侊細鍒嗙粍鏍囬 (`text-xs text-fg.muted uppercase tracking-wider px-3 pt-4 pb-1`) + 椤瑰垪琛?  - 鏀惰捣鎬侊細浠呭浘鏍囷紝鍒嗙粍闂?`border-t border-border.muted my-2` 鍒嗛殧
-- 姣忎釜瀵艰埅椤癸細
-  - 灞曞紑鎬侊細`h-10 px-3 flex items-center gap-3 rounded-md`锛堝浘鏍?20px + 鏂囧瓧 `text-sm` + 鍙€夋湭璇?Badge锛?  - 鏀惰捣鎬侊細`h-12 flex items-center justify-center relative group`锛堜粎鍥炬爣灞呬腑 + hover tooltip锛?- 閫変腑鎬侊細`bg-accent.emphasis/10 text-accent.emphasis font-medium` + 宸︿晶 3px accent 鑹茬珫绾匡紙`border-l-3 border-accent.emphasis`锛?- 鏈€変腑鎬侊細`text-fg.muted hover:bg-canvas.default hover:text-fg.default`
+**视觉结构**
+- 外层容器: `<aside className="h-full flex flex-col bg-canvas-subtle border-r border-border transition-all duration-200" style={{ width: collapsed ? 48 : 228 }}>`
+- 顶部分组区：Logo/标题 + 折叠切换按钮（`→` / `←` 箭头图标）
+- 中间导航区：按 section 分组渲染
+  - 展开态：分组标题 (`text-xs text-fg-muted uppercase tracking-wider px-3 pt-4 pb-1`) + 项列表
+  - 收起态：仅图标，分组间 `border-t border-border my-2` 分隔
+- 每个导航项：
+  - 展开态：`h-10 px-3 flex items-center gap-3 rounded-md`（图标 20px + 文字 `text-sm` + 可选未读 Badge）
+  - 收起态：`h-12 flex items-center justify-center relative group`（仅图标居中 + hover tooltip）
+  - 选中态：`bg-accent-emphasis/10 text-accent-emphasis font-medium` + 左侧 3px accent 色竖线（`border-l-3 border-accent-emphasis`）
+  - 未选中态：`text-fg-muted hover:bg-canvas-default hover:text-foreground`
 
-**Tooltip 瑙勮寖**锛堟敹璧锋€?hover锛?- 瑙﹀彂锛歚opacity-0 group-hover:opacity-100 transition delay-300`
-- 瀹氫綅锛歚absolute left-full ml-2 top-1/2 -translate-y-1/2`
-- 鏍峰紡锛歚bg-canvas.default border border-border rounded-md px-3 py-1.5 text-sm text-fg.default whitespace-nowrap shadow-md z-50`
+**Tooltip 规范**（收起态 hover）
+- 触发：`opacity-0 group-hover:opacity-100 transition delay-300`
+- 定位：`absolute left-full ml-2 top-1/2 -translate-y-1/2`
+- 样式：`bg-canvas-default border border-border rounded-md px-3 py-1.5 text-sm text-foreground whitespace-nowrap shadow-md z-50`
 
-**鐘舵€佸彉浣?*
-- default: 榛樿灞曞紑鎬侊紝褰撳墠璺敱瀵瑰簲椤归珮浜€変腑銆?- collapsed: 鏀惰捣鎬侊紝浠呭浘鏍囧彲瑙併€?- hover: 鏈€変腑椤?hover 鑳屾櫙鍙樹寒锛屾敹璧锋€佽Е鍙?tooltip銆?- active: 閫変腑椤?accent 鑹插乏渚ф寚绀哄櫒銆?- disabled: `opacity-50 cursor-not-allowed`锛堝鏀剁泭鏁版嵁 P1 鍗犱綅锛岀偣鍑讳笉璺宠浆锛夈€?
-**鍝嶅簲寮忚涓?*
-- 绉诲姩 (鈮?00px): 渚ц竟鏍忛粯璁ゆ敹璧凤紝鐐瑰嚮灞曞紑涓烘诞灞傝鐩栦富鍐呭鍖猴紙`absolute z-20 h-full`锛夛紝鐐瑰嚮涓诲唴瀹瑰尯鑷姩鏀惰捣銆?- 骞虫澘+ (鈮?01px): 渚ц竟鏍忓浐瀹氾紝灞曞紑/鏀惰捣鎸夐挳鍙銆?
-**鍏抽敭浜や簰**
-- 鎶樺彔鎸夐挳鐐瑰嚮 鈫?`onToggle()` 鈫?鐖剁粍浠舵洿鏂?`collapsed` 鐘舵€侊紝鍐欏叆 `localStorage: studio_sidebar_collapsed`銆?- 鏀惰捣鎬佸浘鏍?hover 300ms 鈫?tooltip 寮瑰嚭锛岄紶鏍囩Щ鍑?鈫?tooltip 娑堝け銆?- 閿洏锛歚Tab` 鍦ㄥ浘鏍囬棿绉诲姩锛宍Enter` 瀵艰埅鍒扮洰鏍囪矾鐢便€?
+**状态变体**
+- default: 默认展开态，当前路由对应项高亮选中。
+- collapsed: 收起态，仅图标可见。
+- hover: 未选中项 hover 背景变亮，收起态触发 tooltip。
+- active: 选中项 accent 色左侧指示器。
+- disabled: `opacity-50 cursor-not-allowed`（如收益数据 P1 占位，点击不跳转）。
+**响应式行为**
+- 移动 (≤700px): 侧边栏默认收起，点击展开为浮层覆盖主内容区（`absolute z-20 h-full`），点击主内容区自动收起。
+- 平板+ (≥701px): 侧边栏固定，展开/收起按钮可见。
+**关键交互**
+- 折叠按钮点击 → `onToggle()` → 父组件更新 `collapsed` 状态，写入 `localStorage: studio_sidebar_collapsed`。
+- 收起态图标 hover 300ms → tooltip 弹出，鼠标移出 → tooltip 消失。
+- 键盘：`Tab` 在图标间移动，`Enter` 导航到目标路由。
+
 ## Component: ContentTypeGrid
 
 **Key Constraints**
-- 鍐呭绫诲瀷閫夋嫨鍗＄墖缃戞牸锛岀敤浜?`/studio/publish/*` 鍙戝竷娴佺▼姝ラ 1銆?- 鍗＄墖鎺掑垪浠?`config.yaml > publish.type_order_original` 鎴?`publish.type_order_fanwork` 璇诲彇銆?- 閬靛畧鍏ㄥ眬鎵佸钩鍖栨棤闃村奖璁捐瑙勮寖锛岄鑹插紩鐢ㄩ瀹氫箟 token銆?
-**Props 鎺ュ彛**
+- 内容类型选择卡片网格，用于 `/studio/publish/*` 发布流程步骤 1。
+- 卡片排列从 `config.yaml > publish.type_order_original` 或 `publish.type_order_fanwork` 读取。
+- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+**Props 接口**
 ```ts
 interface ContentTypeGridProps {
   className?: string;
@@ -3771,134 +3790,193 @@ interface ContentTypeOption {
 }
 ```
 
-**瑙嗚缁撴瀯**
-- 澶栧眰瀹瑰櫒: `<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-6">`
-- 姣忓紶鍗＄墖: `<button className="border border-border.rounded-lg p-6 text-center hover:border-accent.emphasis hover:bg-canvas.subtle transition-all cursor-pointer group hover:-translate-y-1">`
-  - 鍥炬爣: `<span className="text-4xl mb-3 block">`锛坋moji 鍥炬爣 40px锛?  - 鏍囬: `<h3 className="text-base font-medium text-fg.default mb-1">`
-  - 鎻忚堪: `<p className="text-xs text-fg.muted">`
+**视觉结构**
+- 外层容器: `<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-6">`
+- 每张卡片: `<button className="border border-border rounded-lg p-6 text-center hover:border-accent-emphasis hover:bg-canvas-subtle transition-all cursor-pointer group hover:-translate-y-1">`
+  - 图标: `<span className="text-4xl mb-3 block">`（emoji 图标 40px）
+  - 标题: `<h3 className="text-base font-medium text-foreground mb-1">`
+  - 描述: `<p className="text-xs text-fg-muted">`
 
-**鐘舵€佸彉浣?*
-- default: 鐧借壊鍗＄墖 + 1px border銆?- hover: border accent 鑹?+ 杞诲井涓婃诞 `-translate-y-1` + 鑳屾櫙鍙樻祬銆?- active: `scale-95` 鐐瑰嚮鍙嶉銆?
-**鍝嶅簲寮忚涓?*
-- 绉诲姩 (鈮?00px): 2 鍒?(`grid-cols-2`)锛屽崱鐗?padding `p-4`銆?- 骞虫澘 (鈮?100px): 3 鍒?(`grid-cols-3`)銆?- PC (>1100px): 4 鍒?(`grid-cols-4`)锛屽崱鐗?padding `p-6`銆?
-**鍏抽敭浜や簰**
-- 鐐瑰嚮鍗＄墖 鈫?`onSelect(type)` 鈫?鐖剁粍浠跺垏鎹㈠埌鍙戝竷琛ㄥ崟锛堟楠?2锛夛紝zone + content_type 閿佸畾銆?- 閿洏锛歚Tab` 鍦ㄥ崱鐗囬棿绉诲姩锛宍Enter` 閫変腑銆?- 鍙戝竷琛ㄥ崟椤堕儴鎻愪緵銆屸啇 杩斿洖閫夋嫨绫诲瀷銆嶆寜閽€?
-## Page: /studio 鍒涗綔鑰呭伐浣滃
+**状态变体**
+- default: 白色卡片 + 1px border。
+- hover: border accent 色 + 轻微上浮 `-translate-y-1` + 背景变浅。
+- active: `scale-95` 点击反馈。
+**响应式行为**
+- 移动 (≤700px): 2 列 (`grid-cols-2`)，卡片 padding `p-4`。
+- 平板 (≤1100px): 3 列 (`grid-cols-3`)。
+- PC (>1100px): 4 列 (`grid-cols-4`)，卡片 padding `p-6`。
+**关键交互**
+- 点击卡片 → `onSelect(type)` → 父组件切换到发布表单（步骤 2），zone + content_type 锁定。
+- 键盘：`Tab` 在卡片间移动，`Enter` 选中。
+- 发布表单顶部提供「← 返回选择类型」按钮。
+
+## Page: /studio 创作者工作室
 
 **Key Constraints**
-- 鎵€鏈?`/studio/*` 瀛愰〉闈㈠叡浜?`StudioLayout`锛堜晶杈规爮 + 涓诲唴瀹瑰尯锛夈€?- 闇€瑕佺櫥褰曪紝鏈櫥褰?redirect `/login`銆?- 鍙傝€?B 绔欏垱浣滀腑蹇冨拰灏忕孩涔﹀垱浣滆€呭悗鍙拌璁°€?- 閬靛畧鍏ㄥ眬鎵佸钩鍖栨棤闃村奖璁捐瑙勮寖銆?
-**瑙嗚灞傜骇**
-- 椤堕儴锛欻eader `h-13`锛屽簳杈规 `border-b border-border.muted`
-- 涓诲鍣細`flex h-[calc(100vh-52px)]`锛圚eader 涓嬫柟鍏ㄩ珮锛夛紝鑳屾櫙 `bg-canvas.subtle`
-- 宸︿晶锛歋tudioSidebar锛堝睍寮€ `w-[228px]` / 鏀惰捣 `w-12`锛夛紝鍙充晶 1px border 鍒嗛殧
-- 鍙充晶锛氫富鍐呭鍖?`flex-1 overflow-y-auto`锛宲adding `p-6`
+- 所有 `/studio/*` 子页面共享 `StudioLayout`（侧边栏 + 主内容区）。
+- 需要登录，未登录 redirect `/login`。
+- 参考 B 站创作中心和 Reddit 创作者后台设计。
+- 遵守全局扁平化无阴影设计规范。
+**视觉层级**
+- 顶部：Header `h-[var(--header-h)]`，底边框 `border-b border-border`
+- 主容器：`flex h-[calc(100vh-52px)]`（Header 下方全高），背景 `bg-canvas-subtle`
+- 左侧：StudioSidebar（展开 `w-[228px]` / 收起 `w-12`），右侧 1px border 分隔
+- 右侧：主内容区 `flex-1 overflow-y-auto`，padding `p-6`
 
-**鏍稿績缁勪欢娓呭崟**
+**核心组件清单**
 - `Header`
-- `StudioLayout`锛堝叡浜竷灞€瀹瑰櫒锛?- `StudioSidebar`锛堝彲鎶樺彔渚ц竟鏍忥級
-- `ContentTypeGrid`锛堝唴瀹圭被鍨嬮€夋嫨锛?- `FileUploader`, `MarkdownEditor`锛堝鐢級
-- `FollowerAnalytics`锛堢矇涓濆垎鏋愬浘琛級
+- `StudioLayout`（共享布局容器）
+- `StudioSidebar`（可折叠侧边栏）
+- `ContentTypeGrid`（内容类型选择）
+- `FileUploader`, `MarkdownEditor`（复用）
+- `FollowerTrendChart`, `FollowerSourceChart`（粉丝分析图表）
 
-**甯冨眬瑙勮寖**
-- 渚ц竟鏍?+ 涓诲唴瀹瑰尯姘村钩鎺掑垪锛宍flex` 甯冨眬
-- 涓诲唴瀹瑰尯鍨傜洿婊氬姩锛坄overflow-y-auto`锛夛紝鏃犲灞?card 鍖呰９
+**布局规范**
+- 侧边栏 + 主内容区水平排列，`flex` 布局
+- 主内容区垂直滚动（`overflow-y-auto`），无外层 card 包裹
 
-**鐘舵€佸彉浣?*
-- default: 榛樿杩涘叆 `/studio/publish/original`锛圕ontentTypeGrid锛夈€?- loading: 涓诲唴瀹瑰尯楠ㄦ灦灞忋€?- empty: 鏃犲唴瀹?鏃犳暟鎹椂瀵瑰簲 EmptyState銆?- error: Toast 鍙充笂瑙掓姤閿欍€?- 鐗规畩鐘舵€侊細淇¤獕鍒?< 3 鏃跺彂甯冨叆鍙?disabled + tooltip銆屼俊瑾夊垎涓嶈冻锛屾殏鏃犳硶鍙戝竷銆嶃€?
-**鍝嶅簲寮忚鍒?*
-- 绉诲姩 (鈮?00px): 渚ц竟鏍忛粯璁ゆ敹璧凤紙48px锛夛紝鐐瑰嚮灞曞紑涓烘诞灞傝鐩栵紱涓诲唴瀹瑰尯 `p-4`銆?- 骞虫澘 (鈮?100px): 渚ц竟鏍忓睍寮€锛屼富鍐呭鍖鸿嚜閫傚簲銆?- PC (>1100px): 渚ц竟鏍忓睍寮€ 228px锛屾瑙?鍐呭绠＄悊 max-w 1280px锛屽彂甯冭〃鍗?max-w 960px銆?
-**浜や簰缁嗚妭**
-- 渚ц竟鏍忔姌鍙犵姸鎬佹寔涔呭寲鍒?`localStorage: studio_sidebar_collapsed`銆?- 鍙戝竷娴佺▼锛氱被鍨嬮€夋嫨 鈫?鍙戝竷琛ㄥ崟锛堝悓椤电姸鎬佸垏鎹紝涓嶆敼鍙?URL锛夈€?- 鍙戝竷鎴愬姛鍚庤烦杞?`/studio/contents`銆?- 鏁版嵁鍔犺浇锛歋WR 瀹㈡埛绔姞杞芥瑙堢粺璁°€佺矇涓濊秼鍔跨瓑涓€у寲鏁版嵁銆?
-## Page: /studio/publish/original 鍙戝竷鍘熷垱
+**状态变体**
+- default: 默认进入 `/studio/publish/original`（ContentTypeGrid）。
+- loading: 主内容区骨架屏。
+- empty: 无内容/无数据时对应 EmptyState。
+- error: Toast 右上角报错。
+- 特殊状态：信誉分 < 3 时发布入口 disabled + tooltip「信誉分不足，暂时无法发布」。
+**响应式规则**
+- 移动 (≤700px): 侧边栏默认收起（48px），点击展开为浮层覆盖；主内容区 `p-4`。
+- 平板 (≤1100px): 侧边栏展开，主内容区自适应。
+- PC (>1100px): 侧边栏展开 228px，概览/内容管理 max-w 1280px，发布表单 max-w 960px。
+**交互细节**
+- 侧边栏折叠状态持久化到 `localStorage: studio_sidebar_collapsed`。
+- 发布流程：类型选择 → 发布表单（同页状态切换，不改 URL）。
+- 发布成功后跳转 `/studio/contents`。
+- 数据加载：SWR 客户端加载概览统计、粉丝趋势等个性化数据。
+
+## Page: /studio/publish/original 发布原创
 
 **Key Constraints**
-- 姝ラ 1 鏄剧ず ContentTypeGrid锛堝師鍒涘尯 7 绉嶇被鍨嬶紝鎸?config.yaml > publish.type_order_original 鎺掑簭锛夈€?- 姝ラ 2 鏄剧ず鍙戝竷琛ㄥ崟锛寊one='original' + content_type 閿佸畾锛宑ategory 蹇呭～銆?- 浜屽垱涓撳睘瀛楁锛坕p_id銆乻ource_original_id锛変笉娓叉煋銆?- 鐮村潖鎬ф搷浣滈渶 ConfirmModal銆?
-**瑙嗚灞傜骇**
-- 姝ラ 1锛氬眳涓爣棰樸€岄€夋嫨鍘熷垱鍐呭绫诲瀷銆? ContentTypeGrid 缃戞牸
-- 姝ラ 2锛氭爣棰樸€屽彂甯冨師鍒?鈥?[绫诲瀷鍚峕銆? 鍙戝竷琛ㄥ崟锛坢ax-w 960px 灞呬腑锛?
-**鏍稿績缁勪欢娓呭崟**
+- 步骤 1 显示 ContentTypeGrid（原创区 7 种类型，按 config.yaml > publish.type_order_original 排序）。
+- 步骤 2 显示发布表单，zone='original' + content_type 锁定，category 必填。
+- 二创专属字段（ip_id、source_original_id）不渲染。
+- 破坏性操作需 ConfirmModal。
+**视觉层级**
+- 步骤 1：居中标题「选择原创内容类型」+ ContentTypeGrid 网格
+- 步骤 2：标题「发布原创 — [类型名]」+ 发布表单（max-w 960px 居中）
+**核心组件清单**
 - `ContentTypeGrid`
 - `FileUploader`, `MarkdownEditor`, `TagInput`
 - `ComplianceCheckBadge`, `UploadAssistPanel`
-- `ConfirmModal`锛堟斁寮冪‘璁わ級
+- `ConfirmModal`（放弃确认）
 
-**甯冨眬瑙勮寖**
-- 鍙戝竷琛ㄥ崟鍨傜洿鎺掑垪锛氭爣棰?鈫?鎻忚堪/Markdown 鈫?鏂囦欢涓婁紶 鈫?鍒嗙被閫夋嫨 鈫?鏍囩 鈫?鏉冮檺寮€鍏?鈫?鎻愪氦鎸夐挳
+**布局规范**
+- 发布表单垂直排列：标题 → 描述/Markdown → 文件上传 → 分类选择 → 标签 → 权限开关 → 提交按钮
 
-**鐘舵€佸彉浣?*
-- default: 姝ラ 1 绫诲瀷閫夋嫨缃戞牸銆?- form: 姝ラ 2 鍙戝竷琛ㄥ崟銆?- loading: 鎻愪氦鎸夐挳鍐呭祵 Spinner銆?- error: 琛屽唴绾㈠瓧 + Toast銆?- 鐗规畩鐘舵€侊細淇¤獕鍒嗕笉瓒虫樉绀烘嫤鎴彁绀恒€?
-**鍝嶅簲寮忚鍒?*
-- 绉诲姩 (鈮?00px): 琛ㄥ崟鍏ㄥ `p-4`锛岀紪杈戝櫒楂樺害 250px銆?- 骞虫澘 (鈮?100px): 琛ㄥ崟 max-w 720px 灞呬腑銆?- PC (>1100px): 琛ㄥ崟 max-w 960px 灞呬腑銆?
-**浜や簰缁嗚妭**
-- 姝ラ 1 鈫?2锛歚onSelect(type)` 鍒囨崲鐘舵€併€?- 姝ラ 2 鈫?1锛氶《閮ㄣ€屸啇 杩斿洖閫夋嫨绫诲瀷銆嶆寜閽紙鏈夋湭淇濆瓨鍐呭鏃跺脊 ConfirmModal锛夈€?- 鍙戝竷鎴愬姛 鈫?Toast + redirect `/studio/contents`銆?
-## Page: /studio/publish/fanwork 鍙戝竷浜屽垱
+**状态变体**
+- default: 步骤 1 类型选择网格。
+- form: 步骤 2 发布表单。
+- loading: 提交按钮内嵌 Spinner。
+- error: 行内红字 + Toast。
+- 特殊状态：信誉分不足显示拦截提示。
+**响应式规则**
+- 移动 (≤700px): 表单全宽 `p-4`，编辑器高度 250px。
+- 平板 (≤1100px): 表单 max-w 720px 居中。
+- PC (>1100px): 表单 max-w 960px 居中。
+**交互细节**
+- 步骤 1 → 2：`onSelect(type)` 切换状态。
+- 步骤 2 → 1：顶部「← 返回选择类型」按钮（有未保存内容时弹 ConfirmModal）。
+- 发布成功 → Toast + redirect `/studio/contents`。
+
+## Page: /studio/publish/fanwork 发布二创
 
 **Key Constraints**
-- 绫讳技鍙戝竷鍘熷垱锛孋ontentTypeGrid 鏄剧ず浜屽垱鍖?8 绉嶇被鍨嬶紙鎸?config.yaml > publish.type_order_fanwork 鎺掑簭锛夈€?- 鍙戝竷琛ㄥ崟姣斿師鍒涘尯澶?`ip_id`锛堝繀濉級鍜?`source_original_id`锛堝彲閫夛級銆?
-**瑙嗚缁撴瀯**
-- 姝ラ 1锛氭爣棰樸€岄€夋嫨浜屽垱鍐呭绫诲瀷銆? ContentTypeGrid
-- 姝ラ 2锛氭爣棰樸€屽彂甯冧簩鍒?鈥?[绫诲瀷鍚峕銆? 琛ㄥ崟锛?  - 鏍囬 鈫?鎻忚堪 鈫?鏂囦欢涓婁紶 鈫?**IP 鎼滅储閫夋嫨鍣?*锛堝繀濉級 鈫?**鏉ユ簮鍘熷垱鎼滅储鍣?*锛堝彲閫夛級 鈫?鏍囩 鈫?鏉冮檺寮€鍏?鈫?鎻愪氦
+- 类似发布原创，ContentTypeGrid 显示二创区 8 种类型（按 config.yaml > publish.type_order_fanwork 排序）。
+- 发布表单比原创区多 `ip_id`（必填）和 `source_original_id`（可选）。
+**视觉结构**
+- 步骤 1：标题「选择二创内容类型」+ ContentTypeGrid
+- 步骤 2：标题「发布二创 — [类型名]」+ 表单
+  - 标题 → 描述 → 文件上传 → **IP 搜索选择器**（必填）→ **来源原创搜索器**（可选）→ 标签 → 权限开关 → 提交
 
-**鏍稿績缁勪欢娓呭崟**
+**核心组件清单**
 - `ContentTypeGrid`
-- `IPSelector`锛圛P 鎼滅储涓嬫媺锛屽繀濉」锛?- `OriginalSourceSelector`锛堟潵婧愬師鍒涙悳绱紝鍙€夛級
-- 鍏朵綑涓庡彂甯冨師鍒涚浉鍚?
-**甯冨眬瑙勮寖**
-- 鍚屽彂甯冨師鍒涳紝棰濆鎻掑叆 IP 閫夋嫨鍣ㄨ鍜屾潵婧愬師鍒涙悳绱㈠櫒琛屻€?
-**浜や簰缁嗚妭**
-- IP 鏈€夋嫨鏃舵彁浜ゆ寜閽?disabled + 琛屽唴鎻愮ず銆岃閫夋嫨涓€涓?IP銆嶃€?- 鏉ユ簮鍘熷垱涓嶅瓨鍦?宸插垹闄ゆ椂鎼滅储鏃犵粨鏋滐紝鍙暀绌恒€?- 鍙戝竷鎴愬姛 鈫?Toast + redirect `/studio/contents`銆?
-## Page: /studio/overview 鏁版嵁姒傝
+- `IPSelector`（IP 搜索下拉，必填项）
+- `OriginalSourceSelector`（来源原创搜索，可选）
+- 其余与发布原创相同
+**布局规范**
+- 同发布原创，额外插入 IP 选择器行和来源原创搜索器行。
+**交互细节**
+- IP 未选择时提交按钮 disabled + 行内提示「请选择一个 IP」。
+- 来源原创不存在/已删除时搜索无结果，可留空。
+- 发布成功 → Toast + redirect `/studio/contents`。
+
+## Page: /studio/overview 数据概览
 
 **Key Constraints**
-- 鍙傝€?B 绔欏垱浣滀腑蹇冮椤碉細缁熻鍗＄墖 + 瓒嬪娍鍥?+ 鎺掕 + 寰呭姙浜嬮」銆?- 鏁版嵁浠庡涓?API 鑱氬悎銆?
-**瑙嗚缁撴瀯**
-- 缁熻鍗＄墖琛岋細4 鍗＄墖锛堟€诲唴瀹?鎬昏闂?鎬荤偣璧?绮変笣锛夛紝姣忓崱鐗囧惈鐜瘮鍙樺寲鐧惧垎姣?+ 涓婂崌/涓嬮檷绠ご
-- 璁块棶閲忚秼鍔匡細杩?30 澶?recharts LineChart锛屽叏瀹藉崱鐗?- 涓嬫柟鍙屾爮锛氬乏銆屽唴瀹规帓琛?Top 5銆嶏紝鍙炽€屽緟澶勭悊浜嬮」銆?
-**鏍稿績缁勪欢娓呭崟**
-- `StatsCard`锛堝惈鍙樺寲鐧惧垎姣旓級
-- `ViewsTrendChart`锛坮echarts LineChart锛?- `ContentRankList`锛圱op 5 鍒楄〃锛?- `PendingTasksCard`锛堝緟澶勭悊 PR/鏍囩寤鸿/涓炬姤鏁帮級
+- 参考 B 站创作中心首页：统计卡片 + 趋势图 + 排行 + 待办事项。
+- 数据从多个 API 聚合。
+**视觉结构**
+- 统计卡片行：4 卡片（总内容/总访问/总点赞/粉丝），每卡片含环比变化百分比 + 上升/下降箭头
+- 访问量趋势：近 30 天 recharts LineChart，全宽卡片
+- 下方双栏：左「内容排行 Top 5」，右「待处理事项」
+**核心组件清单**
+- `StatsCard`（含变化百分比）
+- `ViewsTrendChart`（recharts LineChart）
+- `ContentRankList`（Top 5 列表）
+- `PendingTasksCard`（待处理 PR/标签建议/举报数）
 
-**甯冨眬瑙勮寖**
-- 缁熻鍗＄墖锛歚grid grid-cols-2 lg:grid-cols-4 gap-4`
-- 瓒嬪娍鍥惧崱鐗囷細鍏ㄥ锛岄珮搴?300px
-- 涓嬫柟鍙屾爮锛歚grid grid-cols-1 lg:grid-cols-2 gap-6`
+**布局规范**
+- 统计卡片：`grid grid-cols-2 lg:grid-cols-4 gap-4`
+- 趋势图卡片：全宽，高度 300px
+- 下方双栏：`grid grid-cols-1 lg:grid-cols-2 gap-6`
 
-**鐘舵€佸彉浣?*
-- default: 鏁版嵁姝ｅ父锛屽浘琛ㄥ畬鏁淬€?- loading: 鍗＄墖楠ㄦ灦灞?+ 鍥捐〃鍖虹伆鑹插潡銆?- empty: 鏂扮敤鎴枫€屾殏鏃犳暟鎹紝蹇幓鍙戝竷绗竴鏉″唴瀹瑰惂銆岴mptyState + CTA銆?- error: Toast 鎶ラ敊 + 鍗曞崱鐗囧唴鑱旈敊璇彁绀恒€?
-**鍝嶅簲寮忚鍒?*
-- 绉诲姩: 缁熻鍗＄墖 2 鍒楋紝瓒嬪娍鍥?100%锛屼笅鏂瑰崟鍒椼€?- 骞虫澘+: 缁熻鍗＄墖 4 鍒椼€?- PC: max-w 1280px銆?
-**浜や簰缁嗚妭**
-- 鍐呭鎺掕椤瑰彲鐐瑰嚮璺宠浆璇︽儏椤点€?- 寰呭鐞嗕簨椤归」鍙偣鍑昏烦杞搴旂鐞嗛〉銆?
-## Page: /studio/followers 绮変笣鍒嗘瀽
+**状态变体**
+- default: 数据正常，图表完整。
+- loading: 卡片骨架屏 + 图表区灰色块。
+- empty: 新用户「暂无数据，快去发布第一条内容吧」EmptyState + CTA。
+- error: Toast 报错 + 单卡片内联错误提示。
+**响应式规则**
+- 移动: 统计卡片 2 列，趋势图 100%，下方单列。
+- 平板+: 统计卡片 4 列。
+- PC: max-w 1280px。
+**交互细节**
+- 内容排行项可点击跳转详情页。
+- 待处理事项项可点击跳转对应管理页。
+
+## Page: /studio/followers 粉丝分析
 
 **Key Constraints**
-- 鏂板椤甸潰銆傛暟鎹簮锛歚GET /api/v1/users/:id/followers/stats?days=30`銆?- 鍙傝€?B 绔欑矇涓濆垎鏋愰〉锛氭€绘暟 + 瓒嬪娍 + 鏉ユ簮銆?
-**瑙嗚缁撴瀯**
-- 缁熻鍗＄墖锛氱矇涓濇€绘暟 + 鏈湀鏂板 + 鏈湀娴佸け
-- 绮変笣澧為暱瓒嬪娍锛氳繎 30 澶╁弻绾挎姌绾垮浘锛堟柊澧?/ 鍑€澧烇級
-- 绮変笣鏉ユ簮鍒嗗竷锛氭寜鍐呭鏉ユ簮鐨勯ゼ鍥炬垨妯悜鏌辩姸鍥?
-**鏍稿績缁勪欢娓呭崟**
+- 新增页面。数据源：`GET /api/v1/users/:id/followers/stats?days=30`。
+- 参考 B 站粉丝分析页：总数 + 趋势 + 来源。
+**视觉结构**
+- 统计卡片：粉丝总数 + 本月新增 + 本月流失
+- 粉丝增长趋势：近 30 天双线折线图（新增 / 净增）
+- 粉丝来源分布：按内容来源的饼图或横向柱状图
+**核心组件清单**
 - `StatsCard`
-- `FollowerTrendChart`锛坮echarts LineChart锛屽弻绾匡級
-- `FollowerSourceChart`锛坮echarts PieChart锛?
-**甯冨眬瑙勮寖**
-- 缁熻鍗＄墖锛歚grid grid-cols-3 gap-4`
-- 鍙屽浘琛細`grid grid-cols-1 lg:grid-cols-2 gap-6`
+- `FollowerTrendChart`（recharts LineChart，双线）
+- `FollowerSourceChart`（recharts PieChart）
+**布局规范**
+- 统计卡片：`grid grid-cols-3 gap-4`
+- 双图表：`grid grid-cols-1 lg:grid-cols-2 gap-6`
 
-**鐘舵€佸彉浣?*
-- default: 鏁版嵁姝ｅ父銆?- loading: 楠ㄦ灦灞忋€?- empty: 銆屼綘杩樻病鏈夌矇涓濓紝蹇幓鍙戝竷鍐呭鍚稿紩鍏虫敞鍚с€岴mptyState銆?- error: Toast + 閲嶈瘯鎸夐挳銆?
-**鍝嶅簲寮忚鍒?*
-- 绉诲姩: 鍗＄墖 1 鍒楋紝鍥捐〃鍗曞垪銆?- 骞虫澘+: 鍗＄墖 3 鍒楋紝鍥捐〃鍙屾爮銆?- PC: max-w 1280px銆?
-## Page: /studio/revenue 鏀剁泭鏁版嵁
+**状态变体**
+- default: 数据正常。
+- loading: 骨架屏。
+- empty: 「你还没有粉丝，快去发布内容吸引关注吧」EmptyState。
+- error: Toast + 重试按钮。
+**响应式规则**
+- 移动: 卡片 1 列，图表单列。
+- 平板+: 卡片 3 列，图表双栏。
+- PC: max-w 1280px。
+
+## Page: /studio/revenue 收益数据
 
 **Key Constraints**
-- P1 棰勭暀椤甸潰銆俙features.creator_support_enabled: false`锛堥粯璁わ級鏃舵樉绀哄崰浣嶃€?
-**瑙嗚缁撴瀯**
-- 灞呬腑 EmptyState锛氬浘鏍?+ 銆屾敹鐩婂姛鑳藉嵆灏嗗紑鏀撅紝鏁鏈熷緟銆? 璇存槑鏂囧瓧
+- P1 预留页面。`features.creator_support_enabled: false`（默认）时显示占位。
+**视觉结构**
+- 居中 EmptyState：图标 + 「收益功能即将开放，敬请期待」说明文字
 
-**鐘舵€佸彉浣?*
-- disabled: EmptyState锛圡VP 榛樿锛夈€?- P1 enabled: 绱鏀剁泭鍗＄墖 + 瓒嬪娍鍥?+ 鎻愮幇鎸夐挳銆?
-
+**状态变体**
+- disabled: EmptyState（MVP 默认）。
+- P1 enabled: 累计收益卡片 + 趋势图 + 提现按钮。
 
 ---
 
@@ -3929,7 +4007,7 @@ interface ContentTypeOption {
 
 **私信增强规格（Task 116）**
 - 对话列表：左侧展示最近对话（对方头像 + 用户名 + 最新消息预览 + 未读数 Badge）
-- 对话窗口：右侧展示消息历史（按时间排列，自己消息靠右 bg-accent.emphasis，对方消息靠左 bg-canvas.subtle）
+- 对话窗口：右侧展示消息历史（按时间排列，自己消息靠右 bg-accent-emphasis，对方消息靠左 bg-canvas-subtle）
 - 消息输入：底部固定输入框 + 发送按钮，Enter 发送，Shift+Enter 换行
 - SSE 实时：使用 EventSource 订阅 `/api/v1/messages/stream` 实时接收新消息
 - 响应式：移动端单栏切换（列表或对话窗口全宽），平板和 PC 左右分栏
@@ -3938,12 +4016,12 @@ interface ContentTypeOption {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 邮件发送限流：同一邮箱 60 秒内只能发送一次重置邮件。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：邮箱输入表单卡片（带 1px border），居中展示
 
 **核心组件清单**
@@ -3969,9 +4047,9 @@ interface ContentTypeOption {
 - PC (>1100px): 表单卡片最大宽度 400px，居中，两侧留白。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 
 **交互细节**
 - 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
@@ -3982,12 +4060,12 @@ interface ContentTypeOption {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - token 有效期 1 小时，过期需重新申请。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：新密码 + 确认密码输入表单卡片
 
 **核心组件清单**
@@ -4012,25 +4090,25 @@ interface ContentTypeOption {
 - PC (>1100px): 表单卡片最大宽度 400px，居中，两侧留白。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 
 **交互细节**
 - 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
-- 密码强度指示器：实时显示密码强度（弱/中/强），使用 `fg.danger` / `fg.muted` / `accent.emphasis` 颜色。
+- 密码强度指示器：实时显示密码强度（弱/中/强），使用 `fg.danger` / `fg-muted` / `accent-emphasis` 颜色。
 - 重置成功后自动调用登录 API，无需用户再次输入密码。
 
 ## Page: /collections/[collectionId] 收藏集详情（Task 122-124）
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 私有收藏集仅创建者可见；公开收藏集所有登录用户可浏览。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：收藏集信息卡片 + 内容筛选 + 瀑布流内容列表
 
 **核心组件清单**
@@ -4061,9 +4139,9 @@ interface ContentTypeOption {
 - PC (>1100px): 瀑布流 4 列，筛选标签居中。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
@@ -4076,12 +4154,12 @@ interface ContentTypeOption {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 私有收藏集仅创建者可见。
 
 **视觉层级**
-- 顶部区域：导航栏 `h-13`，背景 `bg-canvas.default`，底边框 `border-b border-border.muted`
-- 主容器：居中最大宽度，页面背景 `bg-canvas.subtle`
+- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
+- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
 - 内容模块：收藏集网格列表
 
 **核心组件清单**
@@ -4108,9 +4186,9 @@ interface ContentTypeOption {
 - PC (>1100px): 网格 3 列，最大宽度 960px。
 
 **暗色模式适配**
-- 背景色 token: `canvas.default` -> `canvas.default.dark`
-- 边框色 token: `border.default` -> `border.default.dark`
-- 文字色 token: `fg.default` -> `fg.default.dark`
+- 背景色 token: `canvas-default` -> `canvas-default.dark`
+- 边框色 token: `border-default` -> `border-default.dark`
+- 文字色 token: `foreground` -> `foreground.dark`
 
 **交互细节**
 - 收藏集卡片点击：跳转 `/collections/[id]`。
@@ -4145,10 +4223,10 @@ interface CollectionCardProps {
 ``
 
 **视觉结构**
-- 外层容器: `<div className="border border-border.default rounded-md bg-canvas.default overflow-hidden cursor-pointer group">`
+- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default overflow-hidden cursor-pointer group">`
 - 封面区: 3:2 比例容器，`object-cover` 图片填满；无封面时使用集合 SVG 占位图
-- 信息区: `p-3`，标题（`text-sm font-medium line-clamp-1`）-> 内容数 + 可见性 Badge行（`text-xs text-fg.muted`）
-- 可见性 Badge: 公开 `text-fg.muted` + unlocked图标；私有 `text-fg.muted` + locked图标
+- 信息区: `p-3`，标题（`text-sm font-medium line-clamp-1`）-> 内容数 + 可见性 Badge行（`text-xs text-fg-muted`）
+- 可见性 Badge: 公开 `text-fg-muted` + unlocked图标；私有 `text-fg-muted` + locked图标
 - 悬停: `group-hover:-translate-y-1 transition-transform duration-200`
 
 **尺寸规范**
@@ -4158,13 +4236,13 @@ interface CollectionCardProps {
 - 间距: 元素间隙 4px (`gap-1`) 或 8px (`gap-2`)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default`
+- default: `bg-canvas-default text-foreground`
 - hover: 边框颜色加深 + 轻微上浮
 - loading: SkeletonCard 占位
 - empty: 不渲染（由父级处理 EmptyState）
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas.default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
 - 整卡可点击跳转 `/collections/[id]`
@@ -4176,7 +4254,7 @@ interface CollectionCardProps {
 - 信誉分 < 3 用户：下载按钮 disabled，hover tooltip 提示「信誉分不足」。
 - 封禁用户：下载按钮 disabled，tooltip 提示「账号已被封禁」。
 - 遵守全局扁平化无阴影设计规范。
-- 绝无 box-shadow（GitHub 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **Props 接口**
 ``ts
@@ -4192,7 +4270,7 @@ interface DownloadButtonProps {
 ``
 
 **视觉结构**
-- 按钮: `<button className="inline-flex items-center gap-2 px-4 py-2 border border-border.default rounded-md bg-canvas.default text-sm font-medium hover:bg-canvas.subtle transition-colors">`
+- 按钮: `<button className="inline-flex items-center gap-2 px-4 py-2 border border-border-default rounded-md bg-canvas-default text-sm font-medium hover:bg-canvas-subtle transition-colors">`
 - 图标: `<Icon name="download" className="w-4 h-4" />`
 - 文字: "下载" 或 content_type 对应的文字（如 "下载乐谱"）
 
@@ -4203,9 +4281,9 @@ interface DownloadButtonProps {
 - 图标: `w-4 h-4` (16px)
 
 **状态变体**
-- default: `bg-canvas.default text-fg.default border-border.default`
-- hover: `hover:bg-canvas.subtle hover:border-border.emphasis`
-- active: `active:bg-canvas.muted scale-95`
+- default: `bg-canvas-default text-foreground border-border-default`
+- hover: `hover:bg-canvas-subtle hover:border-border.emphasis`
+- active: `active:bg-canvas-subtle scale-95`
 - disabled: `opacity-50 cursor-not-allowed`，hover 显示 tooltip 提示原因
 - loading: Spinner 替换图标，文字变为 "下载中..."
 
@@ -4237,9 +4315,9 @@ interface AddToCollectionModalProps {
 
 **视觉结构**
 - 遮罩: `<div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">`
-- Modal 容器: `<div className="bg-canvas.default rounded-lg shadow-md max-w-md w-full mx-auto p-6">`
-- 标题: `<h2 className="text-lg font-medium text-fg.default">` 添加到收藏集
-- 收藏集列表: 每项 `button border border-border.default rounded-md p-3 hover:bg-canvas.subtle flex items-center gap-3`
+- Modal 容器: `<div className="bg-canvas-default rounded-lg shadow-md max-w-md w-full mx-auto p-6">`
+- 标题: `<h2 className="text-lg font-medium text-foreground">` 添加到收藏集
+- 收藏集列表: 每项 `button border border-border-default rounded-md p-3 hover:bg-canvas-subtle flex items-center gap-3`
   - 左侧: 收藏集标题 + 内容数
   - 右侧: 已添加 check 标记 或 添加 plus 按钮
 - 底部: 「新建收藏集」按钮 + 「取消」按钮
@@ -4263,7 +4341,7 @@ interface AddToCollectionModalProps {
 
 **暗色模式适配**
 - 遮罩: `bg-black/50` 不变。
-- Modal 容器: `bg-canvas.default.dark` (token 自动映射)。
+- Modal 容器: `bg-canvas-default.dark` (token 自动映射)。
 
 **关键交互**
 - 点击收藏集 -> `POST /api/v1/collections/:id/items` -> 成功后该项显示 check

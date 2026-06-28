@@ -71,6 +71,18 @@ func (s *ReputationService) GetLogs(userID int64, page, pageSize int) ([]model.R
 	return logs, total, nil
 }
 
+// score returns the configured score value, falling back to fallback when the
+// service has no config reference (cfg is nil) or the configured value is zero.
+func (s *ReputationService) score(fallback int, getCfg func() int) int {
+	if s.cfg == nil {
+		return fallback
+	}
+	if v := getCfg(); v != 0 {
+		return v
+	}
+	return fallback
+}
+
 func (s *ReputationService) AwardQualityContent(userID int64, contentID int64, likeCount int, threshold int) error {
 	if likeCount < threshold {
 		return nil
@@ -82,11 +94,11 @@ func (s *ReputationService) AwardQualityContent(userID int64, contentID int64, l
 	if count > 0 {
 		return nil
 	}
-	return s.AddReputation(userID, 3, "quality_content", &contentID)
+	return s.AddReputation(userID, s.score(3, func() int { return s.cfg.Reputation.ScoreQualityContent }), "quality_content", &contentID)
 }
 
 func (s *ReputationService) AwardPRMerged(userID int64, prID int64) error {
-	return s.AddReputation(userID, 3, "pr_merged", &prID)
+	return s.AddReputation(userID, s.score(3, func() int { return s.cfg.Reputation.ScorePRMerged }), "pr_merged", &prID)
 }
 
 func (s *ReputationService) AwardQualityComment(userID int64, commentID int64, likeCount int, threshold int) error {
@@ -100,15 +112,15 @@ func (s *ReputationService) AwardQualityComment(userID int64, commentID int64, l
 	if count > 0 {
 		return nil
 	}
-	return s.AddReputation(userID, 2, "quality_comment", &commentID)
+	return s.AddReputation(userID, s.score(2, func() int { return s.cfg.Reputation.ScoreQualityComment }), "quality_comment", &commentID)
 }
 
 func (s *ReputationService) AwardTagRecognized(userID int64, tagSuggestionID int64) error {
-	return s.AddReputation(userID, 1, "tag_recognized", &tagSuggestionID)
+	return s.AddReputation(userID, s.score(1, func() int { return s.cfg.Reputation.ScoreTagRecognized }), "tag_recognized", &tagSuggestionID)
 }
 
 func (s *ReputationService) AwardJudgeAccuracy(userID int64, caseID int64) error {
-	return s.AddReputation(userID, 1, "judge_accuracy", &caseID)
+	return s.AddReputation(userID, s.score(1, func() int { return s.cfg.Reputation.ScoreJudgeAccuracy }), "judge_accuracy", &caseID)
 }
 
 func (s *ReputationService) AwardRehabCourse(userID int64, courseID int64) error {
@@ -119,27 +131,27 @@ func (s *ReputationService) AwardRehabCourse(userID int64, courseID int64) error
 	if count > 0 {
 		return nil
 	}
-	return s.AddReputation(userID, 1, "rehab_course", &courseID)
+	return s.AddReputation(userID, s.score(1, func() int { return s.cfg.Reputation.ScoreRehabCourse }), "rehab_course", &courseID)
 }
 
 func (s *ReputationService) PenalizeMaliciousContent(userID int64, contentID int64) error {
-	return s.AddReputation(userID, -3, "malicious_content", &contentID)
+	return s.AddReputation(userID, s.score(-3, func() int { return s.cfg.Reputation.ScoreMaliciousContent }), "malicious_content", &contentID)
 }
 
 func (s *ReputationService) PenalizeMaliciousPR(userID int64, prID int64) error {
-	return s.AddReputation(userID, -3, "malicious_pr", &prID)
+	return s.AddReputation(userID, s.score(-3, func() int { return s.cfg.Reputation.ScoreMaliciousPR }), "malicious_pr", &prID)
 }
 
 func (s *ReputationService) PenalizeMaliciousComment(userID int64, commentID int64) error {
-	return s.AddReputation(userID, -2, "malicious_comment", &commentID)
+	return s.AddReputation(userID, s.score(-2, func() int { return s.cfg.Reputation.ScoreMaliciousComment }), "malicious_comment", &commentID)
 }
 
 func (s *ReputationService) PenalizeMaliciousReport(userID int64, reportID int64) error {
-	return s.AddReputation(userID, -2, "malicious_report", &reportID)
+	return s.AddReputation(userID, s.score(-2, func() int { return s.cfg.Reputation.ScoreMaliciousReport }), "malicious_report", &reportID)
 }
 
 func (s *ReputationService) PenalizeMaliciousTagReport(userID int64, tagID int64) error {
-	return s.AddReputation(userID, -1, "malicious_tag_report", &tagID)
+	return s.AddReputation(userID, s.score(-1, func() int { return s.cfg.Reputation.ScoreMaliciousTagReport }), "malicious_tag_report", &tagID)
 }
 
 func (s *ReputationService) AwardValidReport(reporterID int64, contentID int64) error {
@@ -150,7 +162,7 @@ func (s *ReputationService) AwardValidReport(reporterID int64, contentID int64) 
 	if count > 0 {
 		return nil
 	}
-	return s.AddReputation(reporterID, 1, "valid_report", &contentID)
+	return s.AddReputation(reporterID, s.score(1, func() int { return s.cfg.Reputation.ScoreValidReport }), "valid_report", &contentID)
 }
 
 func (s *ReputationService) CancelJudgeErrorPenalty(userID int64, caseID int64) error {

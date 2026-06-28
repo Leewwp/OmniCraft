@@ -20,6 +20,14 @@
 
 ## Task R-01: Validate Web Beta
 
+> **Migration Numbering Note**: 本文档步骤中引用的迁移编号基于 2026-05-30 计划。实际迁移文件编号因并行开发已发生偏移：
+> - 计划 038=全文搜索 → 实际 038=notification_channels, 041=content_search_vector
+> - 计划 039=密码重置 → 实际 039=conversation_unread_count
+> - 计划 041=内容软删除 → 实际 053=content_items_soft_delete
+> - 修复 plan 使用的编号：053=content_items_soft_delete, 054=users_soft_delete, 055=web_beta_review_repairs
+> - 历史错位：033-034（follows 与 appeals 拆分）、041-042（search_vector 与 ips_search_vector 拆分后编号重排）
+> R-01 验证时请以实际迁移文件为准。
+
 **Files:**
 - Create: `docs/review/beta-release-validation-2026-05-30.md`
 - Add: `screenshots/beta-release-*`

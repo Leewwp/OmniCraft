@@ -1,8 +1,12 @@
 # OmniCraft Web Beta Review Summary
 
+> 📌 **权威来源**：本文档是 production-only blockers 的权威清单。其他审查报告中的 blockers 表格均为当时快照，以本文档为准。
+
 **Generated**: 2026-06-03
 **Source HEAD**: `15dc57fe362a382f3559165ca9767354c38a2317`
 **Branch**: `main` (ahead 30 commits from origin)
+
+> **状态说明（2026-06-28）**：以下 P0/P1/P2/P3 findings 的修复状态因时间跨度较大，未做逐项回填。各 finding 的实际修复状态请交叉对比 `web-beta-repair-validation-2026-06-03.md` 和后续 review 报告。
 
 ---
 

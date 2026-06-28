@@ -28,7 +28,9 @@ An implementation agent is actively repairing production-readiness blockers acro
 
 This roadmap must not modify implementation files in `backend/`, `frontend/`, or `tauri-client/` while that repair work is active. It must not modify `task.json`, Beta checkboxes, `progress.txt`, or release validation evidence unless it is later converted into an approved implementation plan.
 
-For coordination purposes, repair work is still active while any `codex/beta/repair-*` branch or worktree is unfinished, while the repair validation evidence task is incomplete, or while the maintainer has not accepted the repaired R-01/Web Beta release decision. Optimization items may only become implementation work after those repair branches have landed and been revalidated, or after a maintainer assigns a clearly non-overlapping write set.
+**状态更新（2026-06-28）**：Batch 1-7 已全部执行完毕，相关 repair 分支已合并。本文档保留作未来功能优化参考。
+
+For coordination purposes, repair work was previously active while `codex/beta/repair-*` branches were unfinished. Optimization items may now proceed as implementation work after maintainer assignment.
 
 ## Evidence Sources
 

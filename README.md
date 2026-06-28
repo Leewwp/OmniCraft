@@ -118,7 +118,7 @@ docker compose logs -f
 | frontend | 3000 | Next.js SSR |
 | backend | 8080 | Go API |
 | postgres | 5432 | PostgreSQL 16 (pgvector) |
-| pgbouncer | 6432 | 数据库连接池 |
+| pgbouncer | 6432 | 数据库连接池（宿主机端口 6432 → 容器内 5432） |
 | redis | 6379 | Redis 7 |
 
 ### 首次部署步骤
@@ -280,7 +280,10 @@ OmniCraft/
 │   └── src/
 ├── k8s/                     # K8s 配置（P2 预留）
 └── design/
-    └── ui-spec.md           # UI 设计规格
+    ├── design-system.md     # 设计系统（色彩/字体/间距，唯一设计权威）
+    ├── ui-spec.md           # UI 规格书（页面和组件规格）
+    ├── ui-design-prompt.md  # UI 设计生成提示词
+    └── doc-review-prompt.md # 文档校验提示词
 ```
 
 ---

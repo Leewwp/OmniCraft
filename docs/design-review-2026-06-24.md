@@ -1,5 +1,7 @@
 ﻿# OmniCraft 设计审查报告
 
+> 📦 本文档内容已并入合并版 `2026-06-24-design-review-decisions.md`。本文件仅保留作详细原始记录。
+>
 > **日期**：2026-06-24
 > **审查范围**：`architecture.md`、`CLAUDE.md`、`design/ui-spec.md`、`task.json`、Beta 设计规格等核心文档
 > **审查角度**：架构设计、功能完整性、UI/UX 交互、多端兼容、安全合规

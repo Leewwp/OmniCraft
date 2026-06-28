@@ -111,6 +111,22 @@ type ReputationConfig struct {
 	RepeatViolationWindowDays   int `mapstructure:"repeat_violation_window_days"`
 	RepeatViolationThreshold    int `mapstructure:"repeat_violation_threshold"`
 	RepeatViolationExtraPenalty int `mapstructure:"repeat_violation_extra_penalty"`
+
+	// Score values (positive = award, negative = penalty).
+	// Zero means "use the hardcoded default in reputation_service.go".
+	ScoreQualityContent     int `mapstructure:"score_quality_content"`
+	ScorePRMerged           int `mapstructure:"score_pr_merged"`
+	ScoreQualityComment     int `mapstructure:"score_quality_comment"`
+	ScoreTagRecognized      int `mapstructure:"score_tag_recognized"`
+	ScoreJudgeAccuracy      int `mapstructure:"score_judge_accuracy"`
+	ScoreRehabCourse        int `mapstructure:"score_rehab_course"`
+	ScoreValidReport        int `mapstructure:"score_valid_report"`
+	ScoreMaliciousContent   int `mapstructure:"score_malicious_content"`
+	ScoreMaliciousPR        int `mapstructure:"score_malicious_pr"`
+	ScoreMaliciousComment   int `mapstructure:"score_malicious_comment"`
+	ScoreMaliciousReport    int `mapstructure:"score_malicious_report"`
+	ScoreMaliciousTagReport int `mapstructure:"score_malicious_tag_report"`
+	ScoreJudgeError         int `mapstructure:"score_judge_error"`
 }
 
 type JudgeConfig struct {

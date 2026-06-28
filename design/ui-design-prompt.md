@@ -1,6 +1,6 @@
 # 任务：为 OmniCraft 项目生成完整的 UI 设计规格文档
 
-> ⚠️ **归档说明**：本文档中所有对 `UI Design.md` 的引用均指向已归档文件（现位于 `docs/archive/UI Design.md`）。该文件仅作历史参考，**不再作为视觉权威**。当前视觉权威为 `design/design-system.md` 与 `design/ui-spec.md`。下方涉及 `UI Design.md` 的章节编号、页面描述等内容保留以供历史追溯，但实现时应以 `design/design-system.md` 为准。
+> ⚠️ **归档说明**：本文档中所有对 `design-system.md` 的引用均指向已归档文件（现位于 `docs/archive/design-system.md`）。该文件仅作历史参考，**不再作为视觉权威**。当前视觉权威为 `design/design-system.md` 与 `design/ui-spec.md`。下方涉及 `design-system.md` 的章节编号、页面描述等内容保留以供历史追溯，但实现时应以 `design/design-system.md` 为准。
 
 你是一名资深 UI/UX 设计师，需要为 OmniCraft（万象工坊）的前端实现填充完整的视觉设计规格。该规格文档将作为 AI 编程 Agent 实现前端代码的**唯一视觉权威**，必须可执行、可检索、无歧义。
 
@@ -8,19 +8,19 @@
 
 1. `OmniCraft（万象工坊）V0.3 正式版产品需求文档.md` —— 业务功能与用户角色
 2. [architecture.md](cci:7://file:///c:/Users/16278/Desktop/file/code/project/OmniCraft/architecture.md:0:0-0:0) §3.1（Web 前端路由清单与组件树）+ §10（V0.3.1 增强：颜色 token、瀑布流、内容浏览布局）+ §11.9（Agent 组件定位）
-3. `UI Design.md`（**已归档至 `docs/archive/UI Design.md`**，仅作历史参考）—— **本文档是规格的输入清单**，列出了所有 P01-P29 页面、所有组件类别（§3.1-3.11）、设计风格基准、响应式断点
+3. `design-system.md`（**已归档至 `docs/archive/design-system.md`**，仅作历史参考）—— **本文档是规格的输入清单**，列出了所有 P01-P29 页面、所有组件类别（§3.1-3.11）、设计风格基准、响应式断点
 4. [CLAUDE.md](cci:7://file:///c:/Users/16278/Desktop/file/code/project/OmniCraft/CLAUDE.md:0:0-0:0)「关键业务规则」+「Tauri 客户端文件操作白名单」—— 用于推断按钮/状态/权限相关 UI 的展示逻辑
 5. [task.json](cci:7://file:///c:/Users/16278/Desktop/file/code/project/OmniCraft/task.json:0:0-0:0) —— 检查每个前端 task 的 `ui_spec_ref` 字段，**你生成的章节标题必须与这些引用完全一致**
 6. [design/ui-spec.md](cci:7://file:///c:/Users/16278/Desktop/file/code/project/OmniCraft/design/ui-spec.md:0:0-0:0) —— **当前文件**，已有 79 个空白 heading 占位符，你只需填充每个 heading 下方的内容（不要修改 heading 本身、不要新增/删除 heading）
 
 ## 二、设计风格基准（不可偏离）
 
-- **风格定位**：GitHub 黑白底色 + 低饱和强调色 + Steam 创意工坊聚合风 + 小红书瀑布流
+- **风格定位**：Indigo 极简底色 + 低饱和强调色 + Steam 创意工坊聚合风 + 小红书瀑布流
 - **核心特征**：
-  - 1px border 卡片，**绝无 box-shadow**（GitHub 扁平风）
+  - 1px border 卡片，**绝无 box-shadow**（Indigo 扁平风）
   - 系统字体栈 `-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial`，无自定义字体
-  - 标签使用低饱和色（4 色：blue/green/purple/orange，已在 architecture.md §10.4 定义）
-  - 圆角统一 6px（按钮/卡片/输入框）；标签徽章圆角 12px
+  - 标签使用低饱和色（6 色：blue/green/purple/orange/rose/sky，已在 design-system.md 定义）
+  - 圆角阶梯：3px（小元素）/ 4px（按钮/输入框）/ 8px（卡片/容器）/ 12px（大卡片/标签徽章）
   - 暗色模式：`<html class="dark">` 切换，所有颜色 token 必须有 light/dark 双值
   - 图标全用 Lucide React 线条风格，**禁止 Emoji 装饰**
   - 加载用骨架屏（Skeleton），按钮内联 Spinner，**禁止全屏遮罩 loading**
@@ -78,7 +78,7 @@
 ```
 **Key Constraints**（3-5 条）
 
-**Props 接口**（TypeScript 风格，名称要与 architecture.md §3.1 组件树或 UI Design.md §三 描述对齐）
+**Props 接口**（TypeScript 风格，名称要与 architecture.md §3.1 组件树或 design-system.md §三 描述对齐）
 ```ts
 interface XxxProps {
   // ...
@@ -108,10 +108,10 @@ interface XxxProps {
 
 ### Global Design Tokens 模板（已存在的 heading）
 完整列出：
-- **颜色 token**：直接复用 [architecture.md](cci:7://file:///c:/Users/16278/Desktop/file/code/project/OmniCraft/architecture.md:0:0-0:0) §10.4 的 `colors.canvas / border / fg / accent / tag`，按 light/dark 列表（Tailwind 配置可直接复制粘贴）
+- **颜色 token**：直接复用 [design-system.md](cci:7://file:///c:/Users/16278/Desktop/file/code/project/OmniCraft/design/design-system.md:0:0-0:0) 的颜色 token，按 light/dark 列表（Tailwind 配置可直接复制粘贴）
 - **字体**：font-family + 字号阶梯（text-xs 12 / text-sm 14 / text-base 16 / text-lg 18 / text-xl 20 / text-2xl 24 / text-3xl 30）
 - **间距阶梯**：space-1 4px / space-2 8px / space-3 12px / space-4 16px / space-6 24px / space-8 32px / space-12 48px
-- **圆角**：rounded-sm 4 / rounded 6（默认）/ rounded-md 8 / rounded-lg 12（标签）/ rounded-full
+- **圆角**：rounded-sm 3px / rounded-md 4px / rounded-lg 8px / rounded-xl 12px（标签/大卡片）/ rounded-full
 - **动效**：transition duration-150 ease-out（默认）；duration-300 ease-in-out（Modal/Sheet）
 - **阴影**：**强制 box-shadow:none**，仅 Modal/Popover/Dropdown 用 `shadow-md`
 
@@ -141,21 +141,21 @@ interface XxxProps {
 
 填写每个 heading 时按下列优先级查阅参考：
 
-> 📌 **注意**：下表中所有 `UI Design.md` 引用均指向已归档文件（`docs/archive/UI Design.md`），仅作历史参考。实现时如与 `design/design-system.md` 冲突，以 `design/design-system.md` 为准。
+> 📌 **注意**：下表中所有 `design-system.md` 引用均指向已归档文件（`docs/archive/design-system.md`），仅作历史参考。实现时如与 `design/design-system.md` 冲突，以 `design/design-system.md` 为准。
 
 | heading 类型 | 主参考 | 次参考 |
 |------|------|------|
-| `## Page: /xxx` | UI Design.md §二（P01-P29 描述） | architecture.md §3.1 路由清单 |
-| `## Component: Header / Footer / Sidebar / *Nav` | UI Design.md §3.1 布局组件 | task.json Task 20/29/32 |
-| `## Component: ContentCard / IPCard / *Detail / *Renderer / *Viewer / *Uploader / *History` | UI Design.md §3.3-3.4 | architecture.md §10.5 ContentCard 规范 |
-| `## Component: PR* / Diff* / Merge*` | UI Design.md §3.5 | task.json Task 13/14/27 |
-| `## Component: Follow* / Reaction* / Notification* / Conversation* / Chat* / Comment* / Discussion* / Reply* / UserProfileCard / FollowerListModal / CreatorSupportPanel` | UI Design.md §3.6 + P08/P28/P04a-c | task.json Task 70/76/77/84 |
-| `## Component: Exam* / Review* / JudgeQual* / VerdictDetail` | UI Design.md §3.7 + P19/P20 | CLAUDE.md「赛博判官」业务规则 |
-| `## Component: Tag*` | UI Design.md §3.8 | architecture.md §10.1 |
-| `## Component: AgentChatWidget / UploadAssist* / ComplianceCheck* / UsageGuide* / SearchAgent*` | UI Design.md §3.9 | architecture.md §11.9 |
-| `## Component: Course* / ReputationDetail` | UI Design.md §3.10 + P29 | CLAUDE.md「信誉分体系」 |
-| `## Component: LLMConfig* / ActiveConfig*` | UI Design.md §3.11 + P26b | task.json Task 83 |
-| `## Component: TagBadge / MasonryGrid / ReputationBadge / SortTabs / TimeRangePicker / EmptyState / LoadingSpinner / ConfirmModal / InfiniteScroll` | UI Design.md §3.2 通用 UI | shadcn/ui 文档 |
+| `## Page: /xxx` | design-system.md §二（P01-P29 描述） | architecture.md §3.1 路由清单 |
+| `## Component: Header / Footer / Sidebar / *Nav` | design-system.md §3.1 布局组件 | task.json Task 20/29/32 |
+| `## Component: ContentCard / IPCard / *Detail / *Renderer / *Viewer / *Uploader / *History` | design-system.md §3.3-3.4 | architecture.md §10.5 ContentCard 规范 |
+| `## Component: PR* / Diff* / Merge*` | design-system.md §3.5 | task.json Task 13/14/27 |
+| `## Component: Follow* / Reaction* / Notification* / Conversation* / Chat* / Comment* / Discussion* / Reply* / UserProfileCard / FollowerListModal / CreatorSupportPanel` | design-system.md §3.6 + P08/P28/P04a-c | task.json Task 70/76/77/84 |
+| `## Component: Exam* / Review* / JudgeQual* / VerdictDetail` | design-system.md §3.7 + P19/P20 | CLAUDE.md「赛博判官」业务规则 |
+| `## Component: Tag*` | design-system.md §3.8 | architecture.md §10.1 |
+| `## Component: AgentChatWidget / UploadAssist* / ComplianceCheck* / UsageGuide* / SearchAgent*` | design-system.md §3.9 | architecture.md §11.9 |
+| `## Component: Course* / ReputationDetail` | design-system.md §3.10 + P29 | CLAUDE.md「信誉分体系」 |
+| `## Component: LLMConfig* / ActiveConfig*` | design-system.md §3.11 + P26b | task.json Task 83 |
+| `## Component: TagBadge / MasonryGrid / ReputationBadge / SortTabs / TimeRangePicker / EmptyState / LoadingSpinner / ConfirmModal / InfiniteScroll` | design-system.md §3.2 通用 UI | shadcn/ui 文档 |
 
 ## 六、交付要求
 

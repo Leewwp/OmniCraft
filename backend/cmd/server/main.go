@@ -70,7 +70,7 @@ func main() {
 	r.Use(middleware.RateLimit(rdb, &cfg.RateLimit))
 	r.Use(middleware.PanicRecovery())
 
-	r.GET("/health", func(c *gin.Context) {
+	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "service": "omnicraft-backend"})
 	})
 

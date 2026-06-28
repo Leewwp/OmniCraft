@@ -100,6 +100,19 @@ reputation:
   repeat_violation_window_days: 7
   repeat_violation_threshold: 2
   repeat_violation_extra_penalty: -1
+  score_quality_content: 3
+  score_pr_merged: 3
+  score_quality_comment: 2
+  score_tag_recognized: 1
+  score_judge_accuracy: 1
+  score_rehab_course: 1
+  score_valid_report: 1
+  score_malicious_content: -3
+  score_malicious_pr: -3
+  score_malicious_comment: -2
+  score_malicious_report: -2
+  score_malicious_tag_report: -1
+  score_judge_error: -1
 
 judge:
   min_votes_required: 20
@@ -136,7 +149,7 @@ upload:
     - ".pdf"
     
 agent:
-  web_agent_enabled: true
+  web_agent_enabled: false
   llm_provider: "openai_compat"        # 或 "qwen"
   llm_model: "deepseek-chat"           # 按实际选择
   llm_api_base: "https://api.deepseek.com"

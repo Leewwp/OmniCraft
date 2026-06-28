@@ -1,14 +1,16 @@
-# OSS Lifecycle Strategy
+# OSS Lifecycle Strategy / OSS 生命周期策略
 
-This document defines the object lifecycle policy used by OmniCraft for uploaded content and temporary collaboration artifacts.
+> 本文档定义 OmniCraft 上传内容和临时协作产物的 OSS 对象生命周期策略。具体配置值以 `config.yaml` 为准，本文档中的 TTL 值仅供参考。
+
+This document defines the object lifecycle policy used by OmniCraft for uploaded content and temporary collaboration artifacts. Actual TTL values are governed by `config.yaml`; values in this document are for reference only.
 
 ## Bucket Baseline
 
 - Bucket ACL: private
 - Access model: signed URL only
 - Upload path prefix: `uploads/{user_id}/{file_type}/{yyyy}/{mm}/{dd}/...`
-- Download URL validity: 1 hour
-- Upload URL validity: 15 minutes
+- Download URL validity: 5 minutes (`download_url_ttl_sec: 300` in config.yaml)
+- Upload presign URL validity: 1 hour (`presign_expire_sec: 3600` in config.yaml)
 
 The bucket must remain private. Public read ACLs are not part of the application authorization model.
 

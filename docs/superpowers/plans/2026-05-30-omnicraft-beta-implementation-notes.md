@@ -9,6 +9,12 @@
 3. Keep Web Beta safety tasks separate from the optional desktop one-click deployment track. `D-01` is a Web Beta gate; `D-02` through `D-05` remain disabled until their full security chain passes.
 4. Follow the repository `AGENTS.md` for initialization, verification, `progress.txt` updates and one-task commits. For this separate Beta plan set, update the subsystem-plan checkbox and roadmap checkbox instead of `task.json`; the roadmap keeps `task.json` as the historical MVP ledger unless a maintainer explicitly migrates the Beta tasks later.
 5. Stop on unresolved product or deployment decisions. Do not hide uncertainty behind an implementation default.
+6. **Completion sync (mandatory)**: When merging a task branch into `codex/beta-integration`:
+   - Verify the corresponding subsystem-plan step checkbox is `[x]`; if not, update it.
+   - Verify `progress.txt` contains an entry for the task; if not, append one following the `CLAUDE.md` template.
+   - Verify the roadmap checkbox (in `dual-track-beta-roadmap.md`) matches the task's actual completion status.
+   - Sync is part of the merge checklist — a merge with unsynced status is incomplete.
+7. **Documentation repair cross-check**: After any documentation repair session (e.g., `docs/iteration-review/*.md`), verify that the repaired document sections remain aligned with the corresponding source-of-truth files (config structs in `config.go`, actual migration files, `routes.go`, UI components in `frontend/`). Ghost fields and stale route references introduced during repair are regressions.
 
 ## 2. Multi-Agent Collaboration
 
