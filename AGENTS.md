@@ -97,6 +97,8 @@ cat task.json
 
 选择 `passes: false`、依赖已完成且 ID 最小的任务。
 
+- 若遇到两份文档内容矛盾 → 查阅上方文档权威源表格，以权威文档为准。将矛盾记录为 issue，**不做自行发挥**。
+
 ### Step 2: 初始化开发环境
 
 **后端**（首次或新依赖）：
@@ -138,6 +140,8 @@ cd frontend && npm run dev &
 - Next.js：TypeScript strict mode，组件使用 function 声明，Tailwind CSS 样式，禁止 any 类型
 - 数据库操作：所有查询使用 GORM 参数化，禁止 SQL 字符串拼接
 
+- 若修改了 config.go / migrations / routes.go → 在提交前运行 `go run tools/doc-validator/main.go --fix`。**注意**：doc-validator 在 Phase 3 实现前不可用，在此之前 Agent 改为手工确认 architecture.md 对应区段是否需要同步更新，并在 commit message 中注明已检查。
+
 ### Step 4: 测试（强制要求）
 
 **UI 相关任务**（新建页面、修改核心交互）：
@@ -173,6 +177,8 @@ cd frontend && npm run dev &
 ### Notes:
 - [给未来 Agent 的重要说明]
 ```
+
+- 若创建了新 .md 文件 → 放在 docs/working/ 目录下，按规范格式命名，在文件头部注明创建日期和预计失效日期；禁止在 docs/ 根目录创建新 .md 文件。
 
 ### Step 6: 更新跟踪文件并提交（一个任务一个 commit）
 
@@ -287,6 +293,13 @@ OmniCraft/
 │   └── src/
 └── k8s/                     # K8s 配置（P2 预留）
 ```
+
+## 文件命名与存放规范
+
+- 新建 .md 文件放在 docs/working/ 目录下，文件名格式 YYYY-MM-DD-<scope>-<type>.md
+- 禁止在 docs/ 根目录创建新 .md 文件（docs/GLOSSARY.md 除外）
+- 禁止创建与已有权威文档同领域的第二份文档
+- 临时文档在头部注明预计失效日期（默认 +2 月）
 
 ## 常用命令
 
@@ -575,6 +588,40 @@ docker compose logs -f backend     # 查看后端日志
 - Go 后端必须使用 `http.Server.Shutdown(ctx)` 实现优雅关机，关机超时从 `config.yaml > server.shutdown_timeout` 读取
 - 关机期间不再接受新请求，已有请求必须在超时内响应完成
 - 前端 Next.js 无需特殊关机逻辑（serverless 模式）
+
+---
+
+## 文档权威源（冲突时以此为准）
+
+> **完整权威文档登记表和冲突解决规则**以
+> `docs/superpowers/specs/2026-06-29-omnicraft-documentation-governance-design.md` §4 为准。
+> Agent 遇到文档矛盾时必须查阅该文档获取完整规则，以下为快速参考摘要。
+
+### 权威文档快速索引
+
+| 领域 | 唯一权威文档 |
+|------|------------|
+| 设计原则与不可妥协约束 | .specify/memory/constitution.md |
+| 系统架构（API / Schema / 配置架构） | architecture.md |
+| Agent 工作流与业务规则（Claude Code） | CLAUDE.md |
+| Agent 工作流与业务规则（其他 Agent） | AGENTS.md |
+| 视觉设计 token | design/design-system.md |
+| UI 组件和页面规格 | design/ui-spec.md |
+| 运行时配置真实值 | backend/config.yaml |
+| 数据库 Schema 真实定义 | backend/migrations/*.sql |
+| 功能设计输入 | docs/superpowers/specs/*.md |
+| Beta 路线图和实施计划 | docs/superpowers/plans/*.md |
+| 部署运维 | docs/deploy/single-server-beta-runbook.md |
+| 术语定义 | docs/GLOSSARY.md |
+
+### 冲突解决优先级（摘要）
+
+1. 宪法（不可妥协约束）> 一切
+2. 生产代码（config.yaml / migrations / routes.go）> 文档
+3. architecture.md > design/ > specs/ > plans/
+4. 同目录多份文档：日期最新优先
+
+**遇到矛盾 → 查设计规格 §4 → 记录为 issue，不做自行发挥。**
 
 ---
 
