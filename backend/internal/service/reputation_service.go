@@ -165,6 +165,10 @@ func (s *ReputationService) AwardValidReport(reporterID int64, contentID int64) 
 	return s.AddReputation(reporterID, s.score(1, func() int { return s.cfg.Reputation.ScoreValidReport }), "valid_report", &contentID)
 }
 
+func (s *ReputationService) PenalizeJudgeError(userID int64, caseID int64) error {
+	return s.AddReputation(userID, s.score(-1, func() int { return s.cfg.Reputation.ScoreJudgeError }), "judge_error", &caseID)
+}
+
 func (s *ReputationService) CancelJudgeErrorPenalty(userID int64, caseID int64) error {
 	return s.db.Model(&model.ReputationLog{}).
 		Where("user_id = ? AND reason = 'judge_error' AND related_id = ?", userID, caseID).
