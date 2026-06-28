@@ -314,6 +314,11 @@ POST   /api/v1/auth/login             # 登录
 POST   /api/v1/auth/logout            # 登出
 POST   /api/v1/auth/refresh           # 刷新 Token
 GET    /api/v1/auth/me                # 当前用户信息
+GET    /api/v1/auth/csrf              # 获取 CSRF Token
+POST   /api/v1/auth/forgot-password   # 发送密码重置邮件
+POST   /api/v1/auth/reset-password    # 密码重置（token 校验）
+POST   /api/v1/auth/verify-email      # 邮箱验证
+POST   /api/v1/auth/resend-verification # 重新发送验证邮件
 
 GET    /api/v1/users/:id              # 用户主页
 PATCH  /api/v1/users/:id              # 更新用户信息
@@ -325,14 +330,25 @@ DELETE /api/v1/users/:id/follow       # 取消关注用户
 GET    /api/v1/users/:id/followers    # 粉丝列表
 GET    /api/v1/users/:id/followers/stats  # 粉丝统计（总数/趋势/来源，参数 ?days=30）
 GET    /api/v1/users/:id/following    # 关注列表
+DELETE /api/v1/users/me               # 账号注销（软删除/匿名化，需双重验证）
+PATCH  /api/v1/users/me/password      # 修改密码（旧密码验证 + bcrypt 加密）
+PATCH  /api/v1/users/me/support-info  # 更新创作者支持信息
+GET    /api/v1/users/me/contents      # 我的内容列表
+GET    /api/v1/users/me/followers/stats # 我的粉丝统计
+POST   /api/v1/users/me/history       # 记录浏览历史
+GET    /api/v1/users/me/history       # 浏览历史列表
+DELETE /api/v1/users/me/history       # 清空浏览历史
 
 GET    /api/v1/ips                    # IP 列表（搜索+筛选+排序）
 POST   /api/v1/ips                    # 创建 IP（提交审核）
 GET    /api/v1/ips/:id                # IP 详情
 GET    /api/v1/ips/:id/contents       # IP 下的内容列表（分类+排序）
 GET    /api/v1/ips/:id/discussions    # IP 讨论区
+POST   /api/v1/ips/:id/discussions    # 在 IP 下发帖
+GET    /api/v1/ips/:id/discussions/search # 搜索 IP 内讨论
 POST   /api/v1/ips/:id/follow         # 关注 IP
 DELETE /api/v1/ips/:id/follow         # 取消关注 IP
+GET    /api/v1/ips/stats/category_counts # IP 分类统计
 
 GET    /api/v1/contents               # 内容列表（原创区/首页）
                                           # sort: 'hot' | 'new' | 'most_views' | 'best_rated' | 'recommended'（原创区推荐流）
@@ -359,36 +375,69 @@ POST   /api/v1/pr/:id/reject          # 拒绝 PR
 POST   /api/v1/pr/:id/merge           # 手动合并（含合并结果提交）
 GET    /api/v1/contents/:id/prs       # 内容的 PR 列表
 
+GET    /api/v1/social/comments         # 评论列表
 POST   /api/v1/social/comments        # 发布评论
+PATCH  /api/v1/social/comments/:id    # 编辑评论
 DELETE /api/v1/social/comments/:id    # 删除评论
 POST   /api/v1/social/comments/:id/report # 举报评论
 POST   /api/v1/social/reactions       # 点赞/点踩
+GET    /api/v1/social/reactions       # 获取 reactions 列表
 POST   /api/v1/favorites              # 收藏内容
 DELETE /api/v1/favorites/:contentId   # 取消收藏
 GET    /api/v1/users/:id/favorites    # 用户收藏列表（分页）
 GET    /api/v1/social/discussions     # 讨论帖列表
 POST   /api/v1/social/discussions     # 发帖
 GET    /api/v1/social/discussions/:id # 帖子详情
+GET    /api/v1/users/:id/discussions  # 用户讨论列表
+POST   /api/v1/discussions/:id/comments # 回复讨论帖
+PATCH  /api/v1/discussions/:id/pin   # 置顶/取消置顶讨论帖
 
-GET    /api/v1/judge/exam/:category   # 获取考题（按内容类型）
-POST   /api/v1/judge/exam/submit      # 提交考题答案
-GET    /api/v1/judge/queue            # 待审内容队列
-POST   /api/v1/judge/vote             # 提交众裁投票
+GET    /api/v1/judge/exam/:category          # 获取考题（按内容类型）
+POST   /api/v1/judge/exam/submit             # 提交考题答案
+GET    /api/v1/judge/queue                   # 待审内容队列
+POST   /api/v1/judge/vote                    # 提交众裁投票
+GET    /api/v1/judge/cases/:id/verdict       # 获取判决定案详情（含投票分布）
+POST   /api/v1/judge/reasons/:id/vote        # 点赞/点踩判官提交的判定理由
 
-POST   /api/v1/agent/script           # [未实现] 获取 Agent 执行脚本（Tauri 调用，D-03 后启用）
-POST   /api/v1/agent/verify           # [未实现] 验证脚本签名（Tauri 调用，D-03 后启用）
+POST   /api/v1/agent/script                  # [未实现] 获取 Agent 执行脚本（Tauri 调用，D-03 后启用）
+POST   /api/v1/agent/verify                  # [未实现] 验证脚本签名（Tauri 调用，D-03 后启用）
 
-GET    /api/v1/admin/ips              # 管理员：IP 审核列表
-POST   /api/v1/admin/ips/:id/approve  # 审核通过
-POST   /api/v1/admin/ips/:id/reject   # 审核拒绝
-GET    /api/v1/admin/contents         # 终审内容列表
-POST   /api/v1/admin/contents/:id/ban # 封禁内容
-POST   /api/v1/admin/users/:id/ban    # 封禁用户（黑名单）
-GET    /api/v1/admin/appeals          # 申诉列表（读取 appeals 表 status=pending）
-POST   /api/v1/admin/appeals/:id      # 处理申诉（approved/rejected，approved 则恢复内容）
-
-DELETE /api/v1/users/me                   # 账号注销（软删除/匿名化，需双重验证）
-PATCH  /api/v1/users/me/password             # 修改密码（旧密码验证 + bcrypt 加密）
+GET    /api/v1/admin/ips                     # 管理员：IP 审核列表
+POST   /api/v1/admin/ips/:id/approve         # 审核通过
+POST   /api/v1/admin/ips/:id/reject          # 审核拒绝
+GET    /api/v1/admin/contents                # 终审内容列表
+POST   /api/v1/admin/contents/:id/ban        # 封禁内容
+GET    /api/v1/admin/contents/trash          # 已软删除内容列表
+PATCH  /api/v1/admin/contents/:id/restore    # 恢复软删除内容
+GET    /api/v1/admin/users                   # 用户列表
+POST   /api/v1/admin/users/:id/ban           # 封禁用户
+POST   /api/v1/admin/users/:id/unban         # 解封用户
+GET    /api/v1/admin/appeals                 # 申诉列表（读取 appeals 表 status=pending）
+POST   /api/v1/admin/appeals/:id             # 处理申诉（approved/rejected，approved 则恢复内容）
+GET    /api/v1/admin/reports                 # 举报列表
+PATCH  /api/v1/admin/reports/:id             # 处理举报
+GET    /api/v1/admin/reports/stats           # 举报统计
+GET    /api/v1/admin/config                  # 获取系统配置
+PATCH  /api/v1/admin/config                  # 更新系统配置
+POST   /api/v1/admin/judge/questions         # 创建考题
+GET    /api/v1/admin/categories              # 分类列表
+POST   /api/v1/admin/categories              # 新增分类
+PATCH  /api/v1/admin/categories/:id          # 编辑分类
+DELETE /api/v1/admin/categories/:id          # 删除分类
+PUT    /api/v1/admin/categories/reorder      # 排序
+GET    /api/v1/admin/llm-configs             # LLM 配置列表
+POST   /api/v1/admin/llm-configs             # 新增 LLM 配置
+PATCH  /api/v1/admin/llm-configs/:id         # 编辑 LLM 配置
+DELETE /api/v1/admin/llm-configs/:id         # 删除 LLM 配置
+POST   /api/v1/admin/llm-configs/:id/activate # 切换激活配置
+POST   /api/v1/admin/llm-configs/:id/test    # 测试连接
+GET    /api/v1/admin/feedback                # 反馈工单列表
+GET    /api/v1/admin/feedback/:id            # 查看单条反馈
+PATCH  /api/v1/admin/feedback/:id            # 更新反馈状态/优先级
+POST   /api/v1/admin/feedback/:id/replies    # 管理员回复反馈
+GET    /api/v1/admin/audit-logs              # 管理员审计日志
+GET    /api/v1/admin/queue/stats             # 异步任务队列状态
+GET    /api/v1/admin/queue/dlq               # 死信队列
 
 GET    /api/v1/notifications                 # 通知列表（?channel=reply|like|system）
 PATCH  /api/v1/notifications/:id/read        # 标记通知已读
@@ -407,25 +456,7 @@ POST   /api/v1/rehab/courses/:id/start       # 开始学习（记录 started_at�
 POST   /api/v1/rehab/courses/:id/complete    # 完成学习（校验阅读时间 ≥ 180s，加信誉分）
 GET    /api/v1/rehab/my-progress             # 我的课程完成进度
 
-# 标签体系 API（详见 10.1 节）
-# GET /api/v1/tags/faceted | POST /api/v1/contents/:id/tags/suggest
-# GET /api/v1/users/me/tag-groups | GET /api/v1/users/me/saved-searches 等
 GET    /api/v1/categories           # 公开分类列表（?zone=&level=&parent_id=）
-GET    /api/v1/admin/config           # 获取系统配置
-PATCH  /api/v1/admin/config           # 更新系统配置（上传限制/功能开关）
-
-GET    /api/v1/admin/categories            # 分类列表（?zone=&level=）
-POST   /api/v1/admin/categories            # 新增分类
-PATCH  /api/v1/admin/categories/:id        # 编辑分类
-DELETE /api/v1/admin/categories/:id        # 删除分类（存在子分类或关联内容时禁止）
-PUT    /api/v1/admin/categories/reorder    # 排序
-
-GET    /api/v1/admin/llm-configs           # LLM 配置列表
-POST   /api/v1/admin/llm-configs           # 新增 LLM 配置
-PATCH  /api/v1/admin/llm-configs/:id       # 编辑 LLM 配置
-DELETE /api/v1/admin/llm-configs/:id       # 删除 LLM 配置（非 active 才可删）
-POST   /api/v1/admin/llm-configs/:id/activate   # 切换激活配置
-POST   /api/v1/admin/llm-configs/:id/test       # 测试连接
 
 GET    /api/v1/reputation-logs/me          # 我的信誉分变动日志
 
@@ -436,25 +467,19 @@ GET    /api/v1/search/trending              # 热门搜索词
 GET    /api/v1/users/search                 # 用户搜索
 GET    /api/v1/contents/:id/download        # 内容下载（返回 OSS 签名 URL）
 
-# 密码重置与邮箱验证
-POST   /api/v1/auth/forgot-password         # 发送密码重置邮件
-POST   /api/v1/auth/reset-password          # 密码重置（token 校验）
-POST   /api/v1/auth/verify-email            # 邮箱验证
-
 # 验证码
 POST   /api/v1/captcha/verify               # 验证码校验
 
 # 公共配置
 GET    /api/v1/config/public                # 公共运行时配置（前端功能开关）
 
-# 用户反馈
+# 用户反馈（用户端）
 POST   /api/v1/feedback                     # 提交反馈工单
 POST   /api/v1/feedback/attachments/presign # 上传附件预签名 URL
 GET    /api/v1/feedback/me                  # 我的反馈列表
 GET    /api/v1/feedback/:id                 # 查看反馈工单详情
 
-# 评论编辑与消息管理
-PATCH  /api/v1/social/comments/:id          # 编辑评论
+# 消息管理
 DELETE /api/v1/messages/:id                 # 软删除消息
 DELETE /api/v1/conversations/:id            # 退出/删除会话
 
@@ -464,19 +489,6 @@ GET    /api/v1/stats/summary                # 平台统计数据
 # Agent 对话持久化
 GET    /api/v1/agent/conversations          # 对话列表
 GET    /api/v1/agent/conversations/:id      # 对话详情
-
-# 管理员扩展
-GET    /api/v1/admin/reports                # 举报列表
-PATCH  /api/v1/admin/reports/:id            # 处理举报
-GET    /api/v1/admin/reports/stats          # 举报统计
-GET    /api/v1/admin/contents/trash         # 已软删除内容列表
-PATCH  /api/v1/admin/contents/:id/restore   # 恢复软删除内容
-GET    /api/v1/admin/feedback               # 反馈工单列表
-GET    /api/v1/admin/feedback/:id           # 查看单条反馈
-PATCH  /api/v1/admin/feedback/:id           # 更新反馈状态/优先级
-POST   /api/v1/admin/feedback/:id/replies   # 管理员回复反馈
-GET    /api/v1/admin/audit-logs             # 管理员审计日志
-GET    /api/v1/admin/queue                  # 异步任务队列状态
 
 # 内部回调
 POST   /api/v1/internal/ai-callback         # 阿里云内容安全回调
@@ -519,10 +531,12 @@ tauri-client/
 #### URL Scheme 协议
 
 ```
-omnicraft://deploy?content_id=xxx&token=yyy&action_script=zzz
+omnicraft://deploy?content_id=xxx&token=yyy
+
+计划升级（D-03 后）：omnicraft://deploy?grant=<opaque-token>
 ```
 
-流程：Web 点击「一键部署」→ 浏览器唤醒 Tauri → 验证 token → 拉取平台签名脚本 → 执行白名单动作 → 桌面通知结果
+流程：Web 点击「一键部署」→ 浏览器唤醒 Tauri → Rust 层解析 deploy args 提取 content_id + token → WebView 根据 content_id 调用 Go API 获取签名动作脚本 → 执行白名单动作 → 桌面通知结果
 
 ### 3.4 AI/审核子系统
 
@@ -695,8 +709,11 @@ CREATE TABLE content_items (
     -- 支付预埋（MVP 全隐藏）
     is_paid         BOOLEAN NOT NULL DEFAULT FALSE,
     price           NUMERIC(10,2) DEFAULT 0,
+    ban_reason      TEXT,                   -- 封禁原因（migration 040）
+    download_count  INTEGER NOT NULL DEFAULT 0,  -- 下载计数（migration 040 新增列；数据库与 Redis ZSET 双写，异步刷入）
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at      TIMESTAMPTZ              -- 软删除时间（migration 053）
 );
 
 CREATE INDEX idx_content_items_author ON content_items(author_id);
@@ -707,7 +724,8 @@ CREATE INDEX idx_content_items_category ON content_items(category);
 CREATE INDEX idx_content_items_source_original ON content_items(source_original_id, status, created_at DESC) WHERE source_original_id IS NOT NULL;
 CREATE INDEX idx_content_items_status ON content_items(status);
 
--- 注：download_count 由 Redis ZSET 维护（异步写入），非数据库列。
+-- 注：description 与 source_original_id 由 migration 036 通过 ALTER TABLE 添加。
+-- 注：deleted_at 由 migration 053 通过 ALTER TABLE 添加。
 
 -- 内容附件（OSS 存储的文件）
 CREATE TABLE content_attachments (
@@ -1247,6 +1265,36 @@ CREATE INDEX idx_admin_audit_logs_action ON admin_audit_logs(action);
 - `metadata` 为 JSONB 字段存储操作上下文（如修改前后的值）。
 - `trace_id` 关联请求日志便于排查。
 
+### 4.13 收藏集 (Collections)
+
+> **状态**: 设计已确认，代码尚未实现。见 DEC-010。
+
+```sql
+CREATE TABLE collections (
+    id              BIGSERIAL PRIMARY KEY,
+    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title           VARCHAR(255) NOT NULL,
+    description     TEXT,
+    is_public       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_collections_user ON collections(user_id);
+
+CREATE TABLE collection_items (
+    id              BIGSERIAL PRIMARY KEY,
+    collection_id   BIGINT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+    content_id      BIGINT NOT NULL REFERENCES content_items(id) ON DELETE CASCADE,
+    added_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    note            TEXT,
+    UNIQUE(collection_id, content_id)
+);
+
+CREATE INDEX idx_collection_items_collection ON collection_items(collection_id, added_at DESC);
+CREATE INDEX idx_collection_items_content ON collection_items(content_id);
+```
+
 ---
 
 ## 5. API 设计详细说明
@@ -1398,6 +1446,11 @@ Content-Type: application/json
 字段名与 `config/config.go` 中结构体的 `mapstructure` tag 一一对应。
 
 ```yaml
+server:
+  port: "8080"                        # 监听端口
+  mode: "development"                 # development | release
+  shutdown_timeout: 15                # 优雅关机超时（秒）
+
 features:
   payment_enabled: false             # 支付模块全局开关（MVP 关闭）
   creator_support_enabled: false     # 创作者支持模块（P1 开启）
@@ -1452,19 +1505,23 @@ recommendation:
   embedding_topk: 200
   trending_window_days: 7
   refresh_interval_h: 2
+  rank_interval_min: 10                 # 热门排行更新间隔（分钟）
+  embedding_multiplier: 1               # 内容向量化权重乘数
 
 publish:
   type_order_original: ["image", "article", "video", "audio", "template", "sheet_music", "other"]
   type_order_fanwork: ["image", "article", "video", "audio", "mod", "prompt", "sheet_music", "other"]
+  require_review: false                  # 发布是否需要审核（P0 直接发布，P1 开启）
+  max_daily_posts: 50                    # 每日发布上限
+  freeze_on_violation: true              # 违规后是否冻结发布权限
 
 upload:
   sheet_music_extensions: [".mid", ".midi", ".xml", ".mxl", ".mscz", ".mscx", ".pdf"]
 
-# --- 以下配置段在 config.yaml 存在但 §7 历史版本未文档化 ---
-# 字段名与 config/config.go 结构体 mapstructure tag 对齐。
-# ⚠️ 权威来源：config.go 中各 Config 结构体的 mapstructure tag 为字段名唯一权威。
-#    本文档 §7 为可读性摘要，不保证与 config.go 100% 同步。开发时以 config.go 为准。
-#    若发现文档字段与 config.go 不一致，以 config.go 为准并请更新本文档。
+feedback:
+  upload_grant_ttl_sec: 300              # 反馈附件上传授权有效期（秒）
+
+# --- 以下配置段在 config.yaml 存在 ---
 
 oss:
   # 凭证通过环境变量注入（OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET）
@@ -1476,6 +1533,8 @@ oss:
 green:
   # 凭证通过环境变量 GREEN_ACCESS_KEY_ID / GREEN_ACCESS_KEY_SECRET 注入
   region: "cn-shanghai"
+  callback_url: ""                       # 阿里云内容安全异步回调地址
+  callback_allowed_ips: []               # 回调来源 IP 白名单
 
 agent:
   web_agent_enabled: false           # 网页端 Agent 总开关（默认关闭）
@@ -1493,6 +1552,7 @@ agent:
 
 captcha:
   provider: "aliyun"
+  # 凭证通过环境变量 CAPTCHA_ACCESS_KEY_ID / CAPTCHA_ACCESS_KEY_SECRET 注入
   prefix: ""
   scene_id: ""
   region: "cn-shanghai"
@@ -1525,8 +1585,11 @@ cache:
   ip_list_ttl: 60                   # IP 列表缓存（秒）
   ip_detail_ttl: 600                # IP 详情缓存（秒）
   view_count_flush_interval: 30     # 浏览计数刷入 DB 间隔（秒）
+  hot_rank_zset_ttl: 600            # 热门排行 ZSET TTL（秒）
   user_status_ttl: 300              # 用户运行时状态缓存（秒）
   tag_cache_ttl: 600                # 标签缓存（秒）
+  email_verify_ttl: 3600            # 邮箱验证链接有效期（秒）
+  password_reset_ttl: 3600          # 密码重置 token 有效期（秒）
   publish_freeze_ttl: 604800        # 发布冻结时长（秒，默认 7 天）
 
 queue:
@@ -1541,12 +1604,16 @@ queue:
 rate_limit:
   enabled: true
   normal_per_minute: 60             # 普通请求每 IP 每分钟
+  normal_window_sec: 60             # 普通请求窗口大小（秒）
   upload_per_hour: 10               # 上传每 IP 每小时
+  upload_window_sec: 3600           # 上传窗口大小（秒）
+  agent_window_sec: 86400           # Agent 请求窗口大小（秒）
   credential_per_minute: 5          # 认证类请求每账号每分钟
   search_per_minute: 30             # 搜索每 IP 每分钟
   max_json_body_bytes: 1048576      # JSON Body 最大字节数（1MB）
   max_query_chars: 256              # 查询字符串最大字符数
   max_search_limit: 50              # 搜索单页最大条数
+  max_search_page: 100              # 搜索最大页数
 
 web:
   public_base_url: "https://app.leeppp.online"
@@ -2649,9 +2716,15 @@ publish:
 > 注：以下为原始计划编号。实际迁移文件编号因并行开发已发生偏移，最新编号见 `backend/migrations/` 目录（001-056）。
 > 关键错位：计划 038=全文搜索 → 实际 038=notification_channels, 041=content_search_vector；
 > 计划 039=密码重置 → 实际 039=conversation_unread_count；
+> 计划 040=P0 修复（含 download_count/ban_reason/email_verified_at）；
 > 计划 041=内容软删除 → 实际 053=content_items_soft_delete。
 
 ```sql
+-- P0 修复（实际迁移 040_p0_fixes.sql）
+ALTER TABLE content_items ADD COLUMN ban_reason TEXT;
+ALTER TABLE content_items ADD COLUMN download_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN email_verified_at TIMESTAMPTZ;
+
 -- 全文搜索（实际迁移 041_content_search_vector.sql）
 ALTER TABLE content_items ADD COLUMN search_vector tsvector;
 CREATE INDEX idx_content_items_search ON content_items USING GIN(search_vector);
@@ -2665,8 +2738,6 @@ CREATE TABLE password_reset_tokens (
     used_at     TIMESTAMPTZ
 );
 CREATE INDEX idx_password_reset_token ON password_reset_tokens(token, expires_at);
-
--- 邮箱验证（实际迁移 050_verification_and_terms.sql）
 ALTER TABLE users ADD COLUMN email_verified_at TIMESTAMPTZ;
 
 -- 内容软删除（实际迁移 053_content_items_soft_delete.sql）
