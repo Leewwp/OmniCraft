@@ -1,4 +1,5 @@
 # 文档治理实施 — 最终验证记录
+**预计失效日期**: 2026-08-29
 
 **验证日期**: 2026-06-29
 **验证人**: Agent (Task 17 — final integration verification)
