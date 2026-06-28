@@ -15,7 +15,7 @@
 
 > **来源**: 以下所有 token 值以 `design/design-system.md` 为准，是本文件的唯一设计权威。
 
-- **颜色 token**：使用 `design/design-system.md` 定义的 CSS 自定义属性，以 `var(--xxx)` 格式引用：`--background`、`--foreground`、`--primary`、`--border` 等基础色，以及 `--canvas-default`、`--canvas-subtle`、`--border-default`、`--fg-muted`、`--accent-emphasis`、`--accent-subtle` 等自定义 token。标签颜色使用预设的 6 色体系 (blue/green/purple/orange/rose/sky)。所有颜色支持 light/dark 双模式，暗色模式通过根级 `.dark` 类自动切换。
+- **颜色 token**：使用 `design/design-system.md` 定义的 CSS 自定义属性，以 `--xxx` 格式引用（`--` 前缀的 CSS 自定义属性），使用时通过 `var()` 读取值：`--background`、`--foreground`、`--primary`、`--border` 等基础色，以及 `--canvas-default`、`--canvas-subtle`、`--border-default`、`--fg-muted`、`--accent-emphasis`、`--accent-subtle` 等自定义 token。标签颜色使用预设的 6 色体系 (blue/green/purple/orange/rose/sky)。所有颜色支持 light/dark 双模式，暗色模式通过根级 `.dark` 类自动切换。
 - **字体**：font-family: `--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif`，包含中文字体回退。等宽字体 `--font-mono: var(--font-geist-mono)`。字号阶梯：text-xs 12 / text-sm 14 / text-base 16 / text-lg 18 / text-xl 20 / text-2xl 24 / text-3xl 30
 - **间距阶梯**：space-1 4px / space-2 8px / space-3 12px / space-4 16px / space-6 24px / space-8 32px / space-12 48px
 - **圆角**：rounded-sm (3px) 小元素 / rounded-md (4px) 按钮/输入框 / rounded-lg (8px) 卡片/容器默认 / rounded-xl (12px) 大卡片 / rounded-full (9999px) 标签/药丸按钮。核心原则：统一圆角，`rounded-lg` (8px) 为默认，标签用 `rounded-full`。
