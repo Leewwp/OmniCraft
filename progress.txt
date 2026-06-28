@@ -3270,3 +3270,20 @@ Code review of all Batch 12 changes identified 14 issues (2 Critical, 8 Major, 4
 - Document authority table references docs/superpowers/specs/2026-06-29-omnicraft-documentation-governance-design.md §4 as full authority
 - File naming conventions require new .md files in docs/working/ with YYYY-MM-DD-<scope>-<type>.md format
 - This is a pure documentation task (no build/test needed)
+
+## [2026-06-29] - Task 12: Fix FS-001~003 + CF-001 — Feature spec gaps and config alignment
+
+### What was done:
+- FS-001 (CLAUDE.md): Added implementation status note to collections section — `> **实现状态**: 设计已确认（DEC-010），代码尚未实现。collections 和 collection_items 表 DDL 见 architecture.md §4.13。`  — architecture.md §4.13 already had this note, CLAUDE.md was missing it
+- FS-002 (CLAUDE.md): Fixed search_suggestions description — was incorrectly referencing a `search_suggestions` table that does not exist. Replaced with accurate description based on architecture.md §15.5: suggestions come from tags/content_items prefix matching, trending from Redis hot_rank
+- FS-003 (CLAUDE.md): Fixed judge error_rate_window value — was incorrectly stating `N > 10`, changed to `N >= 10 (从 config.yaml > judge.error_rate_window 读取)` to match config.yaml's `error_rate_window: 10`
+- CF-001: Verified features registry is consistent — all three flags (`payment_enabled`, `creator_support_enabled`, `desktop_deploy_enabled`) exist in backend/config.yaml, architecture.md §7, Go config struct, and frontend code with matching defaults. No changes needed.
+
+### Testing:
+- No code changes — documentation alignment only
+- Verified all three CLAUDE.md changes via Read
+
+### Notes:
+- config.yaml is authoritative for runtime defaults per document authority table
+- architecture.md §4.13 already had correct implementation status note for collections — CLAUDE.md was out of sync
+- No `search_suggestions` migration table exists; suggestions are computed from prefix matching on tags and content_items titles

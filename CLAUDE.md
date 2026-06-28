@@ -450,6 +450,8 @@ docker compose logs -f backend     # 查看后端日志
 
 ### 收藏集（Task 122–123）
 
+> **实现状态**: 设计已确认（DEC-010），代码尚未实现。collections 和 collection_items 表 DDL 见 architecture.md §4.13。
+
 - 收藏集数据模型：`collections` 表（id, user_id, title, description, is_public, created_at, updated_at），`collection_items` 关联表（collection_id, content_id, added_at, note）
 - 收藏集去重：同一收藏集内不允许添加重复内容（`collection_items` 表 UNIQUE 约束 `(collection_id, content_id)`）
 - 收藏集筛选：支持按 `content_type` 过滤收藏集内内容
@@ -467,7 +469,7 @@ docker compose logs -f backend     # 查看后端日志
 ### 搜索增强（Task 119–120）
 
 - 全文搜索（Task 119）：使用 PostgreSQL `tsvector` + `tsquery` 实现中文全文搜索；迁移 038 创建 `content_search_idx` GIN 索引
-- 搜索建议/热搜（Task 120）：`search_suggestions` 表存储热门搜索词；`GET /api/v1/search/suggestions` 返回 Top 10 热搜词；前端搜索框输入时下拉显示建议
+- 搜索建议/热搜（Task 120）：搜索建议通过 tags 和 content_items 的前缀匹配实时计算（详情见 architecture.md §15.5）；热门搜索词从 Redis hot_rank 数据提取；`GET /api/v1/search/suggestions` 返回 Top 10 热搜词；前端搜索框输入时下拉显示建议
 
 ### 密码重置（Task 117）
 
@@ -477,7 +479,7 @@ docker compose logs -f backend     # 查看后端日志
 ### 赛博判官
 - 题库不存在时：该类型内容不开放众裁
 - 考核通过线：≥ 80% 正确率
-- 错误率撤权：最近 N 次（N > 10）判定中错误率 > 50%，撤权 + 扣 1 信誉分
+- 错误率撤权：最近 N 次（N >= 10，从 config.yaml > judge.error_rate_window 读取）判定中错误率 > 50%，撤权 + 扣 1 信誉分
 - 判决结束条件：总投票人数 ≥ 阈值（MVP 默认 20，可配置，目标 100）
 - 判决结果：「不违规」比例 ≥ 60% → 恢复展示；< 60% → 有争议，不予展示（管理员可手动恢复）
 - 判决详情页：投票后展示当前投票分布 + 其他判官提交的理由列表（可点赞/点踩，按赞数排序）
