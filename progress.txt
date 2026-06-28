@@ -242,6 +242,32 @@
 - Reports page uses ConfirmModal with requireReason for mandatory explanation on uphold/dismiss
 - A-05 (audit-log page and complete admin navigation) can now proceed as it depends on A-03 + A-04
 
+## [2026-06-29] - Task P3-1/P3-2: Implement doc-validator core tool
+
+### What was done:
+- Created tools/doc-validator/ Go CLI tool with --fix and --check modes
+- rules/config_sync.go: Parse config.go with Go AST, extract 90+ config fields with mapstructure tags, flatten nested structs to dot paths, generate markdown table for architecture.md section 7
+- rules/schema_sync.go: Parse 56 migration SQL files, extract CREATE TABLE statements with columns/constraints/references, generate documentation tables for section 4
+- rules/route_sync.go: Parse routes.go with Go AST, extract 130+ routes with method/path/handler, generate route table for section 3.2
+- rules/token_refs.go, rules/cross_refs.go: Stub implementations (full in Task 16)
+- Added AUTO-GENERATED HTML comment markers to architecture.md around sections 3.2, 4, and 7
+- README.md with usage and check descriptions
+
+### Testing:
+- go build ./...: passed
+- go vet ./...: passed
+- go run . --fix: Regenerated all three auto-generated sections
+- go run . --check: "All checks passed" (6 checks)
+- Second go run . --fix: "no changes needed" (idempotent)
+- go run . --check after second fix: still "All checks passed"
+
+### Notes:
+- Config parsing uses Go AST (go/ast, go/parser) for accurate struct field extraction
+- Route parsing walks AST call expressions to find Gin .GET/.POST/.PUT/.PATCH/.DELETE calls
+- Schema parsing uses regex-based SQL extraction with parenthesized block matching
+- Token refs, cross refs, and expired docs checks are stubs for Task 16
+- All tool logic uses only Go standard library (no external dependencies)
+
 ## [2026-05-31] - Beta A-04: Add Admin Feedback And Queue Pages
 
 ### What was done:
