@@ -1016,7 +1016,7 @@
 - 后续可增加 handler 层 oss_key 前缀校验（oss_key 必须以当前用户 ID 开头），当前通过 buildOSSKey 内部强制实现
 - 旧的 OSS 路径（不含 userID 前缀）通过 GeneratePresignDownloadURL 仍然可访问（向后兼容）
 
----
+## [2026-05-13] - Task 102: 安全 — 全局错误消息脱敏
 
 ### What was done:
 - 创建 `internal/pkg/response/safe_error.go`：定义 `SafeErrorMsg(err, fallback)` 和 `SafeErrorResponse(c, status, code, err)` 函数
@@ -1036,6 +1036,10 @@
 - 已在 admin.go（最关键的 Admin API）完成全面替换，其他 handler 的 DB_ERROR/INTERNAL_ERROR 模式迁移为渐进式任务
 - VALIDATION_ERROR 等业务错误消息保留原样（input validation 消息对用户有用）
 - 后续任务可使用 `SafeErrorResponse` 继续替换其他 handler
+
+## [2026-05-13] - Task 101: 安全 — Auth 实时状态检查
+
+### What was done:
 - 新增 `SetUserStatusCache` / `InvalidateUserStatusCache` 辅助函数：写入 Redis 缓存（TTL=5min），删除缓存
 - 登录/注册成功后调用 `SetUserStatusCache` 写入用户状态缓存
 - 管理员 ban/unban 操作后调用 `SetUserStatusCache` 更新缓存（封禁=true/解封=false）
@@ -1053,7 +1057,7 @@
 - 缓存未命中时降级到 JWT claims 中的角色/封禁状态（token 有效期内仍可信）
 - OptionalAuth 中间件暂未检查 ban 状态（降级场景，非关键路径）
 
----
+## [2026-05-13] - Task 99: 安全 — Admin Config 泄露防护
 
 ### What was done:
 - 创建 `internal/model/config_public.go`：定义 PublicConfig 结构体（仅含 Features/Limits/Reputation/Judge/Social/Agent安全字段/Upload/Cache/RateLimit/Recommendation）、PublicAgentConfig（仅含 WebAgentEnabled/RateLimitPerDay/UploadAssistMaxFileMB，不含 LLMAPIKey/HMACSecret）、ConfigRedactStatus（显示各密钥是否已配置，不暴露密钥值）
@@ -1508,7 +1512,7 @@
 - sitemap 默认拉取每种类型最多 1000 条，IP 最多 500 条
 - 后端不可用时 sitemap 静默跳过对应区块（catch 为空），不影响构建
 
----
+## [2026-05-07] - Task 36: 响应式设计与移动端适配
 
 ### What was done:
 - `components/layout/Header.tsx`：新增移动端搜索切换按钮（点击搜索图标展开搜索栏，autoFocus），搜索栏在移动端以可折叠行显示
@@ -1532,7 +1536,7 @@
 - 全局扁平化无阴影设计规范保持不变，所有改动仅涉及响应式布局调整
 - Admin 侧边栏折叠状态不持久化（刷新后恢复展开），如需持久化可后续加 localStorage
 
----
+## [2026-05-06] - Task 35: Tauri PC 客户端 — 部署流程 UI
 
 ### What was done:
 - Go 后端新增 `POST /api/v1/agent/script/:id`（GET 方法，AuthRequired）：
@@ -1562,7 +1566,7 @@
 - HMAC secret 由后端签名、Tauri 验签，确保脚本未被篡改
 - 部署流程是端到端的：Web 一键部署 → URL Scheme 唤醒 Tauri → 验签 → 执行 → 通知
 
----
+## [2026-05-06] - Task 34: Tauri PC 客户端 — 白名单动作引擎
 
 ### What was done:
 - 新增 `src-tauri/src/commands/` 目录，创建三个子模块：
@@ -3215,3 +3219,54 @@ Code review of all Batch 12 changes identified 14 issues (2 Critical, 8 Major, 4
 ### Notes:
 - 本次执行使用独立 worktree 和分支 codex/security-hardening-execution
 - 不涉及 task.json 或 Beta roadmap checkbox 变更
+
+## [2026-06-29] - 文档治理：TT-001 catch-up — Task 151-169 progress.txt 记录补全
+
+### What was done:
+- 补全 Task 151-169 的 progress.txt 记录缺口
+- 确认以下任务已完成 (passes: true) 但此前未在 progress.txt 中单独记录：
+  Task 151: 全局 err.Error() 脱敏
+  Task 152: 信誉分 < 3 权限限制补全 + 信誉分规则实现
+  Task 153: Auth 中间件 Redis fallback + Agent usage-guide HTTP 方法修复
+  Task 154: 数据库 Schema 修复 — Comment 缺失列 + 索引补全 + 字段类型对齐
+  Task 155: 中文全文检索修复 + 标签变更触发搜索索引更新
+  Task 156: Redis ZSet 内存回收 + 硬编码 TTL 迁移到配置 + Goroutine 安全补全
+  Task 157: Config override 环境变量一致性 + Docker 健康检查 + OptionalAuth 补全
+  Task 158: 前端 Shadow 规范修复 + OriginalSidebar 硬编码搜索词迁移
+  Task 159: 集成验证 — 安全 + 数据库 + 搜索修复全流程回归测试
+  Task 160: 配置结构补全 — AgentConfig/PublishConfig struct + .env.example 补全
+  Task 161: Redis key 规范化 + 推荐引擎硬编码参数配置化
+  Task 162: Docker/Nginx 加固 + SSL 证书配置
+  Task 163: pg_trgm GIN 索引 + 计算列排序优化
+  Task 164: CSRF rand.Read 检查 + Agent ChatStream 孤立记录清理 + 维度不匹配日志
+  Task 165: 前端 Rehab 子组件提取 + FollowerAnalytics 命名对齐 + console 清理
+  Task 166: E2E 残留 API 修复 — reactions 端点 + my/contents 路由 + stats NULL 处理
+  Task 167: 数据库迁移注释补充
+  Task 168: 集成验证 — 第二轮审查修复全流程回归测试
+  Task 169: 代码审查 — Spec Task 151-168 全面系统性审查
+
+### Testing:
+- 不适用（本记录为治理审计，不涉及功能改动）
+
+### Notes:
+- 上述任务在 task.json 中均已标记 passes: true，但 progress.txt 未记录执行详情
+- 历史任务精确执行日期不可追溯，以治理审计日期 (2026-06-29) 标注
+- 如需查看各任务完整 scope，请参考 task.json 中对应 ID 的 description 和 steps 字段
+
+## [2026-06-29] - Task 9: Update CLAUDE.md and AGENTS.md with document authority table and rules
+
+### What was done:
+- Inserted document authority quick-reference table before "## Key Rules" in both CLAUDE.md and AGENTS.md
+- Inserted file naming conventions section after project structure in both files
+- Added Rule 3 at end of Step 1: document conflict resolution guideline
+- Added Rule 1 at end of Step 3: doc-validator / manual confirmation rule for config/migrations/routes changes
+- Added Rule 2 before Step 6: new .md file naming and placement rule
+
+### Testing:
+- Verified all 5 insertions in CLAUDE.md: authority table, naming conventions, 3 agent rules
+- Verified all 5 insertions in AGENTS.md: same changes mirrored
+
+### Notes:
+- Document authority table references docs/superpowers/specs/2026-06-29-omnicraft-documentation-governance-design.md §4 as full authority
+- File naming conventions require new .md files in docs/working/ with YYYY-MM-DD-<scope>-<type>.md format
+- This is a pure documentation task (no build/test needed)

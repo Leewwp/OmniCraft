@@ -8,6 +8,7 @@
     "storage": "阿里云 OSS + Redis + PostgreSQL",
     "deploy": "Docker Compose (P0) → K8s (P2)"
   },
+  "_comment": "passes: true 表示该任务曾经验证通过，不代表当前 Beta 回归状态。Beta 任务状态以 docs/superpowers/plans/ 下 checkbox 为准。Beta 模式不得修改 task.json 中的 passes 字段。",
   "tasks": [
     {
       "id": 1,
