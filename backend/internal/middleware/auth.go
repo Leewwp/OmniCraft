@@ -51,6 +51,18 @@ func AuthRequired(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.Han
 			return
 		}
 
+		redisAvailable := rdb != nil
+		dbAvailable := dbInstance != nil
+
+		if !redisAvailable && !dbAvailable {
+			c.JSON(503, gin.H{
+				"code":    "AUTH_STATUS_UNAVAILABLE",
+				"message": "auth service is temporarily unavailable, please try again later",
+			})
+			c.Abort()
+			return
+		}
+
 		if rdb != nil {
 			blacklistKey := fmt.Sprintf("blacklist:token:%s", tokenStr)
 			val, redisErr := rdb.Get(c.Request.Context(), blacklistKey).Result()
