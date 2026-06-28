@@ -33,41 +33,49 @@ func (r *SearchRepository) SearchSuggestions(prefix string, limit int, viewerID 
 		limit = 10
 	}
 	var results []SearchSuggestion
-	visibilityClause, visibilityArgs := ContentVisibilitySQL(viewerID)
-	likeOp := "ILIKE"
+	likePattern := prefix + "%"
+
+	var sql string
 	if r.db.Dialector.Name() == "sqlite" {
-		likeOp = "LIKE"
+		sql = `
+			SELECT text, score FROM (
+				SELECT name AS text, usage_count AS score FROM tags WHERE name LIKE ?
+				UNION ALL
+				SELECT content_items.title AS text, content_items.view_count AS score
+				FROM content_items
+				WHERE content_items.title LIKE ?
+				AND content_items.status = ?
+				AND content_items.deleted_at IS NULL
+				AND content_items.author_id NOT IN (SELECT id FROM users WHERE is_banned = true OR deleted_at IS NOT NULL)
+				AND (content_items.ip_id IS NULL OR content_items.ip_id NOT IN (SELECT id FROM ips WHERE status = ?))
+				AND (content_items.is_public = ? OR content_items.author_id = ?)
+			) s
+			ORDER BY score DESC
+			LIMIT ?
+		`
+	} else {
+		sql = `
+			SELECT text, score FROM (
+				SELECT name AS text, usage_count AS score FROM tags WHERE name ILIKE ?
+				UNION ALL
+				SELECT content_items.title AS text, content_items.view_count AS score
+				FROM content_items
+				WHERE content_items.title ILIKE ?
+				AND content_items.status = ?
+				AND content_items.deleted_at IS NULL
+				AND content_items.author_id NOT IN (SELECT id FROM users WHERE is_banned = true OR deleted_at IS NOT NULL)
+				AND (content_items.ip_id IS NULL OR content_items.ip_id NOT IN (SELECT id FROM ips WHERE status = ?))
+				AND (content_items.is_public = ? OR content_items.author_id = ?)
+			) s
+			ORDER BY score DESC
+			LIMIT ?
+		`
 	}
 
-	sql := fmt.Sprintf(`
-		SELECT text, score FROM (
-			SELECT name AS text, usage_count AS score FROM tags WHERE name %s ?
-			UNION ALL
-			SELECT content_items.title AS text, content_items.view_count AS score
-			FROM content_items
-			WHERE content_items.title %s ? AND %s
-		) s
-		ORDER BY score DESC
-		LIMIT ?
-	`, likeOp, likeOp, visibilityClause)
-
-	queryArgs := []interface{}{prefix + "%", prefix + "%"}
-	queryArgs = append(queryArgs, visibilityArgs...)
-	queryArgs = append(queryArgs, limit)
-
-	rows, err := r.db.Raw(sql, queryArgs...).Rows()
-	if err != nil {
+	if err := r.db.Raw(sql, likePattern, likePattern, "published", "banned", true, viewerID, limit).Scan(&results).Error; err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var s SearchSuggestion
-		if err := rows.Scan(&s.Text, &s.Score); err != nil {
-			continue
-		}
-		results = append(results, s)
-	}
 	return results, nil
 }
 
@@ -139,48 +147,53 @@ func (r *SearchRepository) searchContentsWithQuery(query, zone, category, conten
 	tsQuery := toTSQuery(query)
 	ilikePattern := "%" + query + "%"
 
-	visibilityClause, visibilityArgs := ContentVisibilitySQL(viewerID)
+	// Build base query with visibility scope and filters
+	q := ApplyContentVisibilityScope(r.db.Model(&model.ContentItem{}), viewerID)
 
-	filterClause, args := contentSearchFilterClause(zone, category, contentType, tagFilters, timeRange)
+	if zone != "" {
+		q = q.Where("content_items.zone = ?", zone)
+	}
+	if category != "" {
+		q = q.Where("content_items.category = ?", category)
+	}
+	if contentType != "" {
+		q = q.Where("content_items.content_type = ?", contentType)
+	}
+	if since, ok := searchTimeRangeSince(timeRange); ok {
+		q = q.Where("content_items.created_at >= ?", since)
+	}
+	if len(tagFilters) > 0 {
+		q = q.Where(`
+			EXISTS (SELECT 1 FROM content_tags ct WHERE ct.content_item_id = content_items.id AND ct.tag IN ?)
+		`, tagFilters)
+	}
 
-	countSQL := fmt.Sprintf(`SELECT COUNT(*) FROM content_items
-		WHERE %s%s
-		AND (
-			content_items.search_vector @@ to_tsquery('simple', ?)
-			OR content_items.title ILIKE ?
-			OR EXISTS (SELECT 1 FROM content_tags ct2 WHERE ct2.content_item_id = content_items.id AND ct2.tag ILIKE ?)
-		)`, visibilityClause, filterClause)
+	// Full-text search conditions
+	searchCond := `
+		content_items.search_vector @@ to_tsquery('simple', ?)
+		OR content_items.title ILIKE ?
+		OR EXISTS (SELECT 1 FROM content_tags ct2 WHERE ct2.content_item_id = content_items.id AND ct2.tag ILIKE ?)
+	`
 
-	countArgs := append([]interface{}{}, visibilityArgs...)
-	countArgs = append(countArgs, args...)
-	countArgs = append(countArgs, tsQuery, ilikePattern, ilikePattern)
-
+	// Count
+	countQuery := q.Where(searchCond, tsQuery, ilikePattern, ilikePattern)
 	var total int64
-	if err := r.db.Raw(countSQL, countArgs...).Scan(&total).Error; err != nil {
+	if err := countQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	dataArgs := []interface{}{tsQuery, query}
-	dataArgs = append(dataArgs, visibilityArgs...)
-	dataArgs = append(dataArgs, args...)
-	dataArgs = append(dataArgs, tsQuery, ilikePattern, ilikePattern, pageSize, offset)
-
-	dataSQL := fmt.Sprintf(`SELECT content_items.*,
+	// Data query with score and headline
+	var results []ContentSearchResult
+	if err := q.Select(`
+		content_items.*,
 		COALESCE(ts_rank_cd(content_items.search_vector, to_tsquery('simple', ?)), 0) AS score,
 		ts_headline('simple', COALESCE(content_items.title, '') || ' ' || COALESCE(content_items.description, ''),
 			phraseto_tsquery('simple', ?), 'MaxWords=35,MinWords=10,ShortWord=3,MaxFragments=3,FragmentDelimiter=...') AS headline
-		FROM content_items
-		WHERE %s%s
-		AND (
-			content_items.search_vector @@ to_tsquery('simple', ?)
-			OR content_items.title ILIKE ?
-			OR EXISTS (SELECT 1 FROM content_tags ct2 WHERE ct2.content_item_id = content_items.id AND ct2.tag ILIKE ?)
-		)
-		ORDER BY score DESC
-		LIMIT ? OFFSET ?`, visibilityClause, filterClause)
-
-	var results []ContentSearchResult
-	if err := r.db.Raw(dataSQL, dataArgs...).Scan(&results).Error; err != nil {
+	`, tsQuery, query).
+		Where(searchCond, tsQuery, ilikePattern, ilikePattern).
+		Order("score DESC").
+		Offset(offset).Limit(pageSize).
+		Find(&results).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -191,68 +204,49 @@ func (r *SearchRepository) searchContentsWithQuery(query, zone, category, conten
 
 func (r *SearchRepository) searchContentsWithQueryLike(query, zone, category, contentType string, tagFilters []string, timeRange string, pageSize, offset int, viewerID int64) ([]ContentSearchResult, int64, error) {
 	likePattern := "%" + query + "%"
-	visibilityClause, visibilityArgs := ContentVisibilitySQL(viewerID)
-	filterClause, args := contentSearchFilterClause(zone, category, contentType, tagFilters, timeRange)
-	matchClause := `(LOWER(content_items.title) LIKE LOWER(?) OR EXISTS (SELECT 1 FROM content_tags ct2 WHERE ct2.content_item_id = content_items.id AND LOWER(ct2.tag) LIKE LOWER(?)))`
+	matchCond := `(LOWER(content_items.title) LIKE LOWER(?) OR EXISTS (SELECT 1 FROM content_tags ct2 WHERE ct2.content_item_id = content_items.id AND LOWER(ct2.tag) LIKE LOWER(?)))`
 
-	countSQL := fmt.Sprintf(`SELECT COUNT(*) FROM content_items
-		WHERE %s%s AND %s`, visibilityClause, filterClause, matchClause)
+	// Build base query with visibility scope and filters
+	q := ApplyContentVisibilityScope(r.db.Model(&model.ContentItem{}), viewerID)
 
-	countArgs := append([]interface{}{}, visibilityArgs...)
-	countArgs = append(countArgs, args...)
-	countArgs = append(countArgs, likePattern, likePattern)
+	if zone != "" {
+		q = q.Where("content_items.zone = ?", zone)
+	}
+	if category != "" {
+		q = q.Where("content_items.category = ?", category)
+	}
+	if contentType != "" {
+		q = q.Where("content_items.content_type = ?", contentType)
+	}
+	if since, ok := searchTimeRangeSince(timeRange); ok {
+		q = q.Where("content_items.created_at >= ?", since)
+	}
+	if len(tagFilters) > 0 {
+		q = q.Where(`
+			EXISTS (SELECT 1 FROM content_tags ct WHERE ct.content_item_id = content_items.id AND ct.tag IN ?)
+		`, tagFilters)
+	}
 
+	// Count
+	countQuery := q.Where(matchCond, likePattern, likePattern)
 	var total int64
-	if err := r.db.Raw(countSQL, countArgs...).Scan(&total).Error; err != nil {
+	if err := countQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	dataSQL := fmt.Sprintf(`SELECT content_items.*, 1 AS score, content_items.title AS headline
-		FROM content_items
-		WHERE %s%s AND %s
-		ORDER BY content_items.created_at DESC
-		LIMIT ? OFFSET ?`, visibilityClause, filterClause, matchClause)
-
-	dataArgs := append([]interface{}{}, visibilityArgs...)
-	dataArgs = append(dataArgs, args...)
-	dataArgs = append(dataArgs, likePattern, likePattern, pageSize, offset)
-
+	// Data
 	var results []ContentSearchResult
-	if err := r.db.Raw(dataSQL, dataArgs...).Scan(&results).Error; err != nil {
+	if err := q.Select("content_items.*, 1 AS score, content_items.title AS headline").
+		Where(matchCond, likePattern, likePattern).
+		Order("content_items.created_at DESC").
+		Offset(offset).Limit(pageSize).
+		Find(&results).Error; err != nil {
 		return nil, 0, err
 	}
 
 	r.hydrateAuthors(results)
 
 	return results, total, nil
-}
-
-func contentSearchFilterClause(zone, category, contentType string, tagFilters []string, timeRange string) (string, []interface{}) {
-	filterClause := ""
-	args := []interface{}{}
-
-	if zone != "" {
-		filterClause += " AND content_items.zone = ?"
-		args = append(args, zone)
-	}
-	if category != "" {
-		filterClause += " AND content_items.category = ?"
-		args = append(args, category)
-	}
-	if contentType != "" {
-		filterClause += " AND content_items.content_type = ?"
-		args = append(args, contentType)
-	}
-	if since, ok := searchTimeRangeSince(timeRange); ok {
-		filterClause += " AND content_items.created_at >= ?"
-		args = append(args, since)
-	}
-	if len(tagFilters) > 0 {
-		filterClause += " AND EXISTS (SELECT 1 FROM content_tags ct WHERE ct.content_item_id = content_items.id AND ct.tag IN (?))"
-		args = append(args, tagFilters)
-	}
-
-	return filterClause, args
 }
 
 func searchTimeRangeSince(timeRange string) (time.Time, bool) {
