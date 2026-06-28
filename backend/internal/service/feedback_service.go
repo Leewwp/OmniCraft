@@ -17,6 +17,26 @@ import (
 	"gorm.io/gorm"
 )
 
+// Feedback-specific sentinel errors for handler comparison via errors.Is().
+var (
+	ErrFeedbackInvalidCategory        = errors.New("INVALID_CATEGORY")
+	ErrFeedbackTitleAndDescriptionReq = errors.New("TITLE_AND_DESCRIPTION_REQUIRED")
+	ErrFeedbackTitleTooLong           = errors.New("TITLE_TOO_LONG")
+	ErrFeedbackContactEmailRequired   = errors.New("CONTACT_EMAIL_REQUIRED_FOR_ANONYMOUS")
+	ErrFeedbackCaptchaRequired        = errors.New("CAPTCHA_REQUIRED_FOR_ANONYMOUS")
+	ErrFeedbackCaptchaFailed          = errors.New("CAPTCHA_VERIFICATION_FAILED")
+	ErrFeedbackInvalidMimeType        = errors.New("INVALID_MIME_TYPE")
+	ErrFeedbackFileTooLarge           = errors.New("FILE_TOO_LARGE")
+	ErrFeedbackTicketNotFound         = errors.New("TICKET_NOT_FOUND")
+	ErrFeedbackForbidden              = errors.New("FORBIDDEN")
+	ErrFeedbackInvalidStatus          = errors.New("INVALID_STATUS")
+	ErrFeedbackInvalidPriority        = errors.New("INVALID_PRIORITY")
+	ErrFeedbackBodyRequired           = errors.New("BODY_REQUIRED")
+	ErrFeedbackBodyTooLong            = errors.New("BODY_TOO_LONG")
+	ErrFeedbackDeliveryFailed         = errors.New("FEEDBACK_DELIVERY_FAILED")
+	ErrFeedbackUploadGrantInvalid     = errors.New("UPLOAD_GRANT_INVALID")
+)
+
 var allowedDiagnosticKeys = map[string]struct{}{
 	"app_version": {},
 	"platform":    {},
@@ -104,25 +124,25 @@ type feedbackUploadGrant struct {
 
 func (s *FeedbackService) SubmitTicket(ctx context.Context, input SubmitTicketInput) (*model.FeedbackTicket, error) {
 	if !validCategories[input.Category] {
-		return nil, errors.New("INVALID_CATEGORY")
+		return nil, ErrFeedbackInvalidCategory
 	}
 	if input.Title == "" || input.Description == "" {
-		return nil, errors.New("TITLE_AND_DESCRIPTION_REQUIRED")
+		return nil, ErrFeedbackTitleAndDescriptionReq
 	}
 	if len(input.Title) > 160 {
-		return nil, errors.New("TITLE_TOO_LONG")
+		return nil, ErrFeedbackTitleTooLong
 	}
 
 	if input.UserID == nil {
 		if input.ContactEmail == "" {
-			return nil, errors.New("CONTACT_EMAIL_REQUIRED_FOR_ANONYMOUS")
+			return nil, ErrFeedbackContactEmailRequired
 		}
 		if input.CaptchaToken == "" {
-			return nil, errors.New("CAPTCHA_REQUIRED_FOR_ANONYMOUS")
+			return nil, ErrFeedbackCaptchaRequired
 		}
 		if s.captchaVerifier != nil {
 			if err := s.captchaVerifier.Verify(ctx, input.CaptchaToken, ""); err != nil {
-				return nil, errors.New("CAPTCHA_VERIFICATION_FAILED")
+				return nil, ErrFeedbackCaptchaFailed
 			}
 		}
 	}
@@ -170,11 +190,11 @@ type PresignFeedbackUploadGrant struct {
 
 func (s *FeedbackService) PresignUpload(ctx context.Context, input PresignUploadInput) (*PresignFeedbackUploadGrant, error) {
 	if input.UserID == nil && input.CaptchaToken == "" {
-		return nil, errors.New("CAPTCHA_REQUIRED_FOR_ANONYMOUS")
+		return nil, ErrFeedbackCaptchaRequired
 	}
 	if input.UserID == nil && s.captchaVerifier != nil {
 		if err := s.captchaVerifier.Verify(ctx, input.CaptchaToken, ""); err != nil {
-			return nil, errors.New("CAPTCHA_VERIFICATION_FAILED")
+			return nil, ErrFeedbackCaptchaFailed
 		}
 	}
 
@@ -182,16 +202,16 @@ func (s *FeedbackService) PresignUpload(ctx context.Context, input PresignUpload
 		"image/jpeg": true, "image/png": true, "image/gif": true, "image/webp": true,
 	}
 	if !validImageMime[input.MimeType] {
-		return nil, errors.New("INVALID_MIME_TYPE")
+		return nil, ErrFeedbackInvalidMimeType
 	}
 	if input.SizeBytes > 20*1024*1024 {
-		return nil, errors.New("FILE_TOO_LARGE")
+		return nil, ErrFeedbackFileTooLarge
 	}
 	if s.ossSigner == nil {
 		return nil, ErrOSSNotConfigured
 	}
 	if s.rdb == nil {
-		return nil, errors.New("UPLOAD_GRANT_STORE_UNAVAILABLE")
+		return nil, ErrUploadGrantUnavailable
 	}
 
 	userIDForPath := int64(0)
@@ -242,10 +262,10 @@ func (s *FeedbackService) GetTicketForUser(ctx context.Context, ticketID, userID
 		return nil, err
 	}
 	if ticket == nil {
-		return nil, errors.New("TICKET_NOT_FOUND")
+		return nil, ErrFeedbackTicketNotFound
 	}
 	if ticket.UserID == nil || *ticket.UserID != userID {
-		return nil, errors.New("FORBIDDEN")
+		return nil, ErrFeedbackForbidden
 	}
 	return ticket, nil
 }
@@ -266,7 +286,7 @@ func (s *FeedbackService) GetTicketForAdmin(ctx context.Context, ticketID int64)
 		return nil, err
 	}
 	if ticket == nil {
-		return nil, errors.New("TICKET_NOT_FOUND")
+		return nil, ErrFeedbackTicketNotFound
 	}
 	return ticket, nil
 }
@@ -300,13 +320,13 @@ func (s *FeedbackService) patchTicket(ctx context.Context, ticketID int64, input
 		return nil, err
 	}
 	if ticket == nil {
-		return nil, errors.New("TICKET_NOT_FOUND")
+		return nil, ErrFeedbackTicketNotFound
 	}
 
 	validStatuses := map[string]bool{"open": true, "in_progress": true, "resolved": true, "closed": true, "reopened": true}
 	if input.Status != "" {
 		if !validStatuses[input.Status] {
-			return nil, errors.New("INVALID_STATUS")
+			return nil, ErrFeedbackInvalidStatus
 		}
 		ticket.Status = input.Status
 		if input.Status == "closed" && ticket.ResolvedAt == nil {
@@ -321,7 +341,7 @@ func (s *FeedbackService) patchTicket(ctx context.Context, ticketID int64, input
 	validPriorities := map[string]bool{"low": true, "normal": true, "high": true, "urgent": true}
 	if input.Priority != "" {
 		if !validPriorities[input.Priority] {
-			return nil, errors.New("INVALID_PRIORITY")
+			return nil, ErrFeedbackInvalidPriority
 		}
 		ticket.Priority = input.Priority
 	}
@@ -371,10 +391,10 @@ func (s *FeedbackService) AdminReplyTx(ctx context.Context, tx *gorm.DB, input A
 
 func (s *FeedbackService) adminReply(ctx context.Context, input AdminReplyInput) (*model.FeedbackReply, *model.FeedbackTicket, error) {
 	if input.Body == "" {
-		return nil, nil, errors.New("BODY_REQUIRED")
+		return nil, nil, ErrFeedbackBodyRequired
 	}
 	if len(input.Body) > 5000 {
-		return nil, nil, errors.New("BODY_TOO_LONG")
+		return nil, nil, ErrFeedbackBodyTooLong
 	}
 
 	ticket, err := s.repo.FindTicketByIDForAdmin(input.TicketID)
@@ -382,7 +402,7 @@ func (s *FeedbackService) adminReply(ctx context.Context, input AdminReplyInput)
 		return nil, nil, err
 	}
 	if ticket == nil {
-		return nil, nil, errors.New("TICKET_NOT_FOUND")
+		return nil, nil, ErrFeedbackTicketNotFound
 	}
 
 	reply := &model.FeedbackReply{
@@ -423,7 +443,7 @@ func (s *FeedbackService) deliverAdminFeedbackUpdate(ctx context.Context, ticket
 	}
 	subject, body := feedbackEmailText(action, ticket)
 	if err := s.mailSender.SendFeedbackUpdate(ctx, ticket.ContactEmail, subject, body); err != nil {
-		return errors.New("FEEDBACK_DELIVERY_FAILED")
+		return ErrFeedbackDeliveryFailed
 	}
 	return nil
 }
@@ -464,13 +484,13 @@ type consumedFeedbackUploadGrant struct {
 
 func (s *FeedbackService) consumeAttachmentGrants(ctx context.Context, input SubmitTicketInput) ([]model.FeedbackAttachment, []consumedFeedbackUploadGrant, error) {
 	if len(input.AttachmentOSSKeys) > 0 && len(input.AttachmentGrants) == 0 {
-		return nil, nil, errors.New("UPLOAD_GRANT_INVALID")
+		return nil, nil, ErrFeedbackUploadGrantInvalid
 	}
 	if len(input.AttachmentGrants) == 0 {
 		return nil, nil, nil
 	}
 	if s.rdb == nil {
-		return nil, nil, errors.New("UPLOAD_GRANT_STORE_UNAVAILABLE")
+		return nil, nil, ErrUploadGrantUnavailable
 	}
 
 	attachments := make([]model.FeedbackAttachment, 0, len(input.AttachmentGrants))
@@ -494,7 +514,7 @@ func (s *FeedbackService) consumeAttachmentGrants(ctx context.Context, input Sub
 
 func (s *FeedbackService) consumeUploadGrant(ctx context.Context, grantID, ossKey string) (*feedbackUploadGrant, error) {
 	if grantID == "" || ossKey == "" {
-		return nil, errors.New("UPLOAD_GRANT_INVALID")
+		return nil, ErrFeedbackUploadGrantInvalid
 	}
 	script := redis.NewScript(`
 local val = redis.call("GET", KEYS[1])
@@ -511,18 +531,18 @@ return val
 	result, err := script.Run(ctx, s.rdb, []string{feedbackUploadGrantKey(grantID)}, ossKey).Result()
 	if err != nil {
 		if err == redis.Nil {
-			return nil, errors.New("UPLOAD_GRANT_INVALID")
+			return nil, ErrFeedbackUploadGrantInvalid
 		}
 		return nil, err
 	}
 	raw, ok := result.(string)
 	if !ok || raw == "" {
-		return nil, errors.New("UPLOAD_GRANT_INVALID")
+		return nil, ErrFeedbackUploadGrantInvalid
 	}
 
 	var grant feedbackUploadGrant
 	if err := json.Unmarshal([]byte(raw), &grant); err != nil {
-		return nil, errors.New("UPLOAD_GRANT_INVALID")
+		return nil, ErrFeedbackUploadGrantInvalid
 	}
 	if grant.MimeType == "" {
 		grant.MimeType = "application/octet-stream"
