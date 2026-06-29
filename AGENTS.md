@@ -140,7 +140,7 @@ cd frontend && npm run dev &
 - Next.js：TypeScript strict mode，组件使用 function 声明，Tailwind CSS 样式，禁止 any 类型
 - 数据库操作：所有查询使用 GORM 参数化，禁止 SQL 字符串拼接
 
-- 若修改了 config.go / migrations / routes.go → 在提交前运行 `go run tools/doc-validator/main.go --fix`。**注意**：doc-validator 在 Phase 3 实现前不可用，在此之前 Agent 改为手工确认 architecture.md 对应区段是否需要同步更新，并在 commit message 中注明已检查。
+- 若修改了 config.go / migrations / routes.go → 在提交前运行 `cd tools/doc-validator && go run . --fix`。
 
 ### Step 4: 测试（强制要求）
 
