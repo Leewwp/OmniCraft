@@ -77,7 +77,7 @@ func runFix() {
 		fmt.Fprintf(os.Stderr, "schema sync: %v\n", err)
 	}
 	if err := rules.SyncRouteList(); err != nil {
-		fmt.Fprintf(os.Stderr, "schema sync: %v\n", err)
+		fmt.Fprintf(os.Stderr, "route sync: %v\n", err)
 	}
 	fmt.Println("Done. Review changes to architecture.md before committing.")
 }
