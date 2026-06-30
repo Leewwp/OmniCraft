@@ -1,0 +1,650 @@
+# OmniCraft Community Content Series Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** 增加公开内容系列能力，让创作者把原创或二创内容组织成有序系列，并在内容详情页展示上一章/下一章导航。
+
+**Architecture:** 新增 `content_series` 与 `content_series_items` 多对多模型；后端只允许系列 owner 管理，添加内容时允许 owner 自己发布的内容或 owner 已确认贡献的内容；前端新增公开 `/series/[id]` 页面、Studio 系列管理页和 `SeriesNav`。首版只做公开系列，不引入私有系列权限分支。
+
+**Tech Stack:** Go/Gin/GORM/PostgreSQL, Next.js App Router, next-intl, React Testing Library, Playwright.
+
+---
+
+## Cross-Plan Coordination
+
+- Shared-file integration and migration order for the six community plans is: messages-notifications (`057`) -> browse-history (no migration) -> collections (`058`) -> content-series (`059`) -> source-linkage (`060`) -> collaboration-invites (`061`).
+- `frontend/app/(protected)/messages/page.tsx`, `frontend/components/social/ChatWindow.tsx`, and `frontend/components/social/ConversationList.tsx` must land in messages-notifications before collaboration-invites extends typed invite cards.
+- `frontend/components/content/ContentDetail.tsx` changes from collections must already be present; this plan then adds `SeriesNav`; source-linkage adds attribution/related rows after this plan.
+- `frontend/components/studio/PublishForm.tsx` changes must land source-linkage before collaboration-invites; this plan must not edit `PublishForm.tsx`.
+- `backend/config/config.go` and `backend/config.yaml` changes from browse-history and collaboration-invites must be implemented serially and rebased before verification.
+- Before any UI code, grep `design/ui-spec.md` for the exact `## Page:` / `## Component:` sections named by this plan and follow those sections as the visual authority. As of 2026-06-30, `/series/[id]`, `/studio/series`, `SeriesNav`, `ContentDetail`, `StudioSidebar`, `ContentCard`, `ConfirmModal`, and `Toast` are present; do not rewrite `design/ui-spec.md` unless an implementation-time check proves a required section is absent or stale.
+- Expected-result convention: any "Run and confirm red" step expects FAIL for the behavior under test; any "Verify green" / "Run ... tests" step expects PASS. If the observed result differs, stop and update the plan before proceeding.
+- Before implementation, run `git status --short`, reserve exact files, and stage only exact touched files. Do not use directory-level staging such as `git add backend`, `git add frontend`, `git add design`, `git add screenshots`, or `git add docs/superpowers/plans`.
+- Staging note: the sample `git add` command at the end must be reduced to files actually changed in that implementation. Omit `design/ui-spec.md` when it was only read/verified; omit generated docs such as `architecture.md` unless `doc-validator` changed them during this task.
+
+---
+
+## File Structure
+
+### Backend
+
+- Create: `backend/migrations/059_create_content_series.sql` or next available migration number at implementation time.
+- Create: `backend/internal/model/series.go`
+- Create: `backend/internal/repository/series_repo.go`
+- Create: `backend/internal/service/series_service.go`
+- Create: `backend/internal/handler/series.go`
+- Create: `backend/internal/model/series_migration_test.go`
+- Create: `backend/internal/service/series_service_test.go`
+- Create: `backend/internal/handler/series_test.go`
+- Modify: `backend/internal/handler/routes.go` - 注册 `/series` routes。
+- Modify: `backend/internal/handler/content.go` - 内容详情返回紧凑 `series_memberships`。
+- Modify: `backend/internal/repository/content_repo.go` only if needed for content detail series lookup.
+
+### Frontend
+
+- Create: `frontend/app/(public)/series/[id]/page.tsx`
+- Create: `frontend/app/(protected)/studio/series/page.tsx`
+- Create: `frontend/components/content/SeriesNav.tsx`
+- Create: `frontend/e2e/content-series.spec.ts`
+- Modify: `frontend/components/content/ContentDetail.tsx`
+- Modify: `frontend/lib/content.ts`
+- Modify: `frontend/components/studio/StudioSidebar.tsx`
+- Modify: `frontend/messages/zh.json`, `frontend/messages/en.json`
+- Read before UI code: `design/ui-spec.md` sections for `/series/[id]`, `/studio/series`, `SeriesNav`, `ContentDetail`, and `StudioSidebar`.
+
+---
+
+## Task 1: Add Migration And Models
+
+**Files:**
+- Create: `backend/migrations/059_create_content_series.sql`
+- Create: `backend/internal/model/series.go`
+- Test: `backend/internal/model/series_migration_test.go`
+
+- [ ] **Step 1: Re-check migration number**
+
+Run:
+
+```powershell
+Get-ChildItem backend\migrations | Sort-Object Name | Select-Object -Last 10 -ExpandProperty Name
+```
+
+If previous community migrations have not landed, choose the next available number rather than blindly using `059`.
+
+- [ ] **Step 2: Write failing migration test**
+
+Assert:
+
+- `content_series` exists
+- `content_series_items` exists
+- `content_series.zone` has `original/fanwork` check
+- `content_series.owner_id` references `users(id)`
+- `content_series_items.series_id` cascades on delete
+- `content_series_items.content_item_id` references `content_items(id)`
+- unique `(series_id, content_item_id)` exists
+- indexes exist on owner, series, and content lookup
+
+- [ ] **Step 3: Implement migration**
+
+DDL must include:
+
+```sql
+CREATE TABLE content_series (...);
+CREATE TABLE content_series_items (...);
+CREATE INDEX idx_content_series_owner ON content_series(owner_id);
+CREATE INDEX idx_series_items_series ON content_series_items(series_id);
+CREATE INDEX idx_series_items_content ON content_series_items(content_item_id);
+```
+
+- [ ] **Step 4: Add model structs**
+
+Create:
+
+```go
+type ContentSeries struct {
+    ID int64
+    Title string
+    Description string
+    CoverContentID *int64
+    OwnerID int64
+    Zone string
+}
+
+type ContentSeriesItem struct {
+    ID int64
+    SeriesID int64
+    ContentItemID int64
+    SortOrder int
+}
+```
+
+- [ ] **Step 5: Verify migration**
+
+Run:
+
+```powershell
+cd backend
+go test ./internal/model -run TestContentSeriesMigration -v
+```
+
+---
+
+## Task 2: Implement Series Repository And Service Rules
+
+**Files:**
+- Create: `backend/internal/repository/series_repo.go`
+- Create: `backend/internal/service/series_service.go`
+- Test: `backend/internal/service/series_service_test.go`
+
+- [ ] **Step 1: Write failing service tests**
+
+Cover:
+
+```go
+func TestSeriesCreateAndListOwned(t *testing.T) {}
+func TestSeriesAddOwnerAuthoredContent(t *testing.T) {}
+func TestSeriesAddContributorContent(t *testing.T) {}
+func TestSeriesRejectsUnrelatedContent(t *testing.T) {}
+func TestSeriesRejectsZoneMismatch(t *testing.T) {}
+func TestSeriesRejectsDuplicateItem(t *testing.T) {}
+func TestSeriesAddItemAppendsAfterMaxSortOrder(t *testing.T) {}
+func TestSeriesRejectsCoverNotInSeries(t *testing.T) {}
+func TestSeriesReorderIsTransactional(t *testing.T) {}
+func TestSeriesReorderRejectsMissingOrForeignItems(t *testing.T) {}
+```
+
+- [ ] **Step 2: Run and confirm red**
+
+Run:
+
+```powershell
+cd backend
+go test ./internal/service -run TestSeries -v
+```
+
+- [ ] **Step 3: Implement repository methods**
+
+Required methods:
+
+```go
+CreateSeries(ctx, series)
+ListSeriesByOwner(ctx, ownerID, zone)
+GetSeriesDetail(ctx, seriesID)
+UpdateSeries(ctx, seriesID, ownerID, patch)
+DeleteSeries(ctx, seriesID, ownerID)
+AddItem(ctx, seriesID, ownerID, contentID)
+RemoveItem(ctx, seriesID, ownerID, itemID)
+ReorderItems(ctx, seriesID, ownerID, itemIDs)
+ListMembershipsForContent(ctx, contentID)
+```
+
+`AddItem` must append by setting `sort_order = COALESCE(MAX(sort_order), -1) + 1` within the target series. Do not rely on the database default `0` except for the first item.
+
+- [ ] **Step 4: Implement ownership and addable-content rule**
+
+Adding content is allowed only when:
+
+```text
+content_items.author_id = series.owner_id
+OR EXISTS content_contributors WHERE content_item_id = content.id AND user_id = series.owner_id
+```
+
+Do not let a contributor manage someone else's series.
+
+When adding, calculate the append `sort_order` in the same transaction as the insert so concurrent adds cannot create duplicate or unstable ordering.
+
+- [ ] **Step 5: Implement reorder transaction**
+
+Use `db.Transaction`. Lock series items for the target `series_id` before update:
+
+```sql
+SELECT id FROM content_series_items WHERE series_id = ? FOR UPDATE
+```
+
+Reject the request if `item_ids` is missing any existing item or contains an item from another series.
+
+- [ ] **Step 6: Verify service**
+
+Run:
+
+```powershell
+cd backend
+go test ./internal/service -run TestSeries -v
+```
+
+---
+
+## Task 3: Add Series API Routes
+
+**Files:**
+- Create: `backend/internal/handler/series.go`
+- Modify: `backend/internal/handler/routes.go`
+- Test: `backend/internal/handler/series_test.go`
+
+- [ ] **Step 1: Add failing route tests**
+
+Routes:
+
+```text
+POST   /api/v1/series
+GET    /api/v1/series
+GET    /api/v1/series/:id
+PUT    /api/v1/series/:id
+DELETE /api/v1/series/:id
+POST   /api/v1/series/:id/items
+DELETE /api/v1/series/:id/items/:itemId
+PUT    /api/v1/series/:id/items/reorder
+```
+
+- [ ] **Step 2: Assert response shapes**
+
+`GET /api/v1/series/:id` returns:
+
+```json
+{
+  "series": {
+    "id": 1,
+    "title": "...",
+    "description": "...",
+    "zone": "original",
+    "owner": {"id": 1, "username": "..."},
+    "cover": "https://...",
+    "item_count": 12
+  },
+  "items": [
+    {"id": 10, "sort_order": 0, "content": {"id": 100, "title": "..."}}
+  ]
+}
+```
+
+The backend resolves `cover` in this order:
+
+1. `cover_content_id` first image when valid
+2. smallest `sort_order` content cover
+3. `null`
+
+- [ ] **Step 3: Implement handler and error mapping**
+
+Exact errors:
+
+- `SERIES_NOT_FOUND` -> 404
+- `NOT_SERIES_OWNER` -> 403
+- `CONTENT_NOT_OWNED_OR_CONTRIBUTED` -> 400
+- `ZONE_MISMATCH` -> 400
+- `DUPLICATE_SERIES_ITEM` -> 409
+- `COVER_NOT_IN_SERIES` -> 400
+
+- [ ] **Step 4: Register routes**
+
+Use auth-if-present middleware for public detail:
+
+```go
+v1.GET("/series/:id", optAuth, seriesHandler.GetSeries)
+```
+
+Use auth and interaction guard for mutations.
+
+- [ ] **Step 5: Verify handler**
+
+Run:
+
+```powershell
+cd backend
+go test ./internal/handler -run TestSeries -v
+```
+
+---
+
+## Task 4: Add Series Memberships To Content Detail
+
+**Files:**
+- Modify: `backend/internal/handler/content.go`
+- Modify: `backend/internal/repository/content_repo.go` or use `SeriesRepository`
+- Modify: `frontend/lib/content.ts`
+- Test: `backend/internal/handler/series_test.go`
+
+- [ ] **Step 1: Add failing content-detail test**
+
+Create a content item that belongs to two series. Assert `GET /api/v1/contents/:id` returns:
+
+```json
+"series_memberships": [
+  {
+    "series_id": 1,
+    "series_title": "...",
+    "current_index": 3,
+    "total": 12,
+    "previous": {"id": 101, "title": "..."},
+    "next": {"id": 103, "title": "..."}
+  }
+]
+```
+
+Limit to the first three memberships for UI tabs.
+`current_index` is 1-based for display (`第 3 / 共 12`), while `content_series_items.sort_order` remains zero-based and backend-owned. Do not make the frontend add 1, or the first/last disabled logic will drift.
+
+- [ ] **Step 2: Implement backend membership lookup**
+
+For each series containing the content, compute previous/next by `sort_order`. Return only published, non-deleted content entries for navigation.
+
+- [ ] **Step 3: Extend frontend normalizer**
+
+In `frontend/lib/content.ts`, add `series_memberships` with snake_case/PascalCase tolerance. Invalid previous/next objects missing `id` or `title` must become `undefined`.
+
+- [ ] **Step 4: Verify backend**
+
+Run:
+
+```powershell
+cd backend
+go test ./internal/handler -run TestContentDetailSeriesMemberships -v
+```
+
+---
+
+## Task 5: Add UI Spec And SeriesNav Component
+
+**Files:**
+- Read: `design/ui-spec.md`
+- Create: `frontend/components/content/SeriesNav.tsx`
+- Modify: `frontend/components/content/ContentDetail.tsx`
+- Modify: `frontend/messages/zh.json`
+- Modify: `frontend/messages/en.json`
+- Test: add to `frontend/tests/series-nav.test.tsx`
+
+- [ ] **Step 1: Confirm UI spec before component code**
+
+Run:
+
+```powershell
+rg -n "## Component: SeriesNav|## Page: /series/\\[id\\]|## Page: /studio/series" design/ui-spec.md
+```
+
+Expected: all three sections exist. If a future branch lacks one, stop and repair UI spec in an explicitly scoped docs/design step before coding. `SeriesNav` must be visually restrained and positioned below body content and above comments.
+
+- [ ] **Step 2: Write failing component tests**
+
+Cover:
+
+- single series renders title and chapter position
+- first item disables previous with "已是第一章"
+- last item disables next with "已是最后一章"
+- multiple series renders up to three tabs
+- catalog link points to `/series/:id`
+
+- [ ] **Step 3: Implement `SeriesNav`**
+
+Props:
+
+```ts
+interface SeriesNavProps {
+  memberships: SeriesMembership[];
+}
+```
+
+Use `Link` for valid previous/next/catalog targets. Use icon buttons or compact text links, not oversized cards.
+
+- [ ] **Step 4: Insert in `ContentDetail.tsx`**
+
+Place `SeriesNav` after main body/attachments and before comments. If `ReactionBar` placement conflicts with UI spec, follow `design/ui-spec.md`.
+
+- [ ] **Step 5: Run tests**
+
+Run:
+
+```powershell
+cd frontend
+npm run test -- tests/series-nav.test.tsx
+```
+
+---
+
+## Task 6: Confirm Public Series UI Spec And API Helper
+
+**Files:**
+- Read: `design/ui-spec.md`
+- Modify: `frontend/lib/content.ts`
+- Modify: `frontend/messages/zh.json`
+- Modify: `frontend/messages/en.json`
+- Test: add to `frontend/tests/series-nav.test.tsx` or create `frontend/tests/series-api.test.tsx`
+
+- [ ] **Step 1: Confirm UI spec before page code**
+
+Run:
+
+```powershell
+rg -n "## Page: /series/\\[id\\]|## Component: SeriesNav" design/ui-spec.md
+```
+
+Both sections must exist before page implementation starts.
+
+- [ ] **Step 2: Add failing API-helper/normalizer tests**
+
+Assert:
+
+- `frontend/lib/content.ts` normalizes `series_memberships` from snake_case and PascalCase inputs.
+- invalid previous/next entries missing `id` or `title` normalize to `undefined`.
+- the series detail helper, if added, calls `GET /api/v1/series/:id`.
+
+- [ ] **Step 3: Implement minimal helper/normalizer work**
+
+Keep helper code focused: do not build UI in this task. Add i18n keys under `series.detail.*` and `series.nav.*`.
+
+- [ ] **Step 4: Run focused tests**
+
+Run:
+
+```powershell
+cd frontend
+npm run test -- tests/series-nav.test.tsx
+```
+
+Expected: PASS.
+
+---
+
+## Task 7: Add Public Series Detail Page
+
+**Files:**
+- Create: `frontend/app/(public)/series/[id]/page.tsx`
+- Modify: `frontend/messages/zh.json`
+- Modify: `frontend/messages/en.json`
+- Test: `frontend/e2e/content-series.spec.ts`
+
+- [ ] **Step 1: Add failing page/e2e assertions**
+
+Assert logged-out access, title/owner/item count rendering, ordered item links, empty state, and not-found state.
+
+- [ ] **Step 2: Implement public route**
+
+Route must live at:
+
+```text
+frontend/app/(public)/series/[id]/page.tsx
+```
+
+- [ ] **Step 3: Render backend detail**
+
+Fetch `GET /api/v1/series/:id`. Render cover, title, owner, item count, and ordered list by `sort_order`.
+
+- [ ] **Step 4: Handle empty and not found states**
+
+- no items: show empty series state
+- 404: show not found / EmptyState
+- network error: show localized load failure
+
+- [ ] **Step 5: Add Playwright assertions**
+
+Check logged-out access, ordered items, item links, and not-found state.
+
+---
+
+## Task 8: Build Studio Series Management API And Tests
+
+**Files:**
+- Create: `frontend/tests/studio-series-page.test.tsx`
+- Modify: `frontend/messages/zh.json`
+- Modify: `frontend/messages/en.json`
+
+- [ ] **Step 1: Confirm UI spec before page code**
+
+Run:
+
+```powershell
+rg -n "## Page: /studio/series" design/ui-spec.md
+```
+
+The section must specify list, detail, create, edit, item add/remove, up/down reorder, loading, empty, error, a11y, i18n, and screenshot checkpoints.
+
+- [ ] **Step 2: Add failing page tests**
+
+Assert:
+
+- list fetch calls `GET /api/v1/series`
+- create submits `POST /api/v1/series`
+- edit submits `PUT /api/v1/series/:id`
+- delete submits `DELETE /api/v1/series/:id`
+- add item submits `POST /api/v1/series/:id/items`
+- remove item submits `DELETE /api/v1/series/:id/items/:itemId`
+- reorder buttons submit `PUT /api/v1/series/:id/items/reorder` with full `item_ids`
+
+- [ ] **Step 3: Add i18n keys**
+
+Add namespaces `series.studio.*`, `series.studio.form.*`, `series.studio.items.*`, `series.studio.toast.*`, and `series.studio.a11y.*`.
+
+- [ ] **Step 4: Run focused tests and confirm red**
+
+Run:
+
+```powershell
+cd frontend
+npm run test -- tests/studio-series-page.test.tsx
+```
+
+Expected: FAIL until the page is implemented.
+
+---
+
+## Task 9: Add Studio Series Management UI
+
+**Files:**
+- Create: `frontend/app/(protected)/studio/series/page.tsx`
+- Modify: `frontend/components/studio/StudioSidebar.tsx`
+- Modify: `frontend/messages/zh.json`
+- Modify: `frontend/messages/en.json`
+- Test: `frontend/tests/studio-series-page.test.tsx`
+- Test: `frontend/e2e/content-series.spec.ts`
+
+- [ ] **Step 1: Add sidebar entry**
+
+Add "内容系列管理" under creator/studio content management. Use a stable icon from `lucide-react`; do not use a text-only pill if an icon button pattern exists.
+
+- [ ] **Step 2: Implement list/create/edit**
+
+The page must allow:
+
+- list my series
+- create series with title, description, zone
+- edit title/description/cover
+- delete series
+
+- [ ] **Step 3: Implement item management**
+
+Allow:
+
+- search/select owner-authored or contributor content
+- add item
+- remove item
+- reorder with up/down buttons
+- drag handles are out-of-scope for this implementation; do not render drag affordances or include drag/drop code
+
+Every reorder operation calls:
+
+```text
+PUT /api/v1/series/:id/items/reorder
+{"item_ids":[...]}
+```
+
+- [ ] **Step 4: Add Playwright studio flow**
+
+Create a series, add two contents, move second up, verify reorder API payload, remove item, delete series.
+
+---
+
+## Task 10: Verification And Documentation Sync
+
+**Files:**
+- Modify if generated: `architecture.md`
+- Screenshot outputs listed in Step 4.
+
+- [ ] **Step 1: Run backend gates**
+
+Run:
+
+```powershell
+cd backend
+go test ./internal/model -run TestContentSeriesMigration -v
+go test ./internal/service -run TestSeries -v
+go test ./internal/handler -run "TestSeries|TestContentDetailSeries" -v
+go test ./...
+go vet ./...
+go build ./...
+```
+
+- [ ] **Step 2: Run frontend gates**
+
+Run:
+
+```powershell
+cd frontend
+npm run test
+npm run lint
+npm run build
+npm run test:e2e -- content-series.spec.ts
+```
+
+- [ ] **Step 3: Run doc-validator**
+
+Because this plan changes migrations and routes:
+
+```powershell
+cd tools/doc-validator
+go run . --fix
+```
+
+- [ ] **Step 4: Browser verification**
+
+1. Open content in one series; verify `SeriesNav`.
+2. Open first and last item; verify disabled previous/next states.
+3. Open content in multiple series; verify tabs.
+4. Open `/series/:id` logged out; verify list and links.
+5. Open `/studio/series`; create, add, reorder, remove, delete.
+6. Save screenshots:
+   - `screenshots/community-content-series-nav-desktop.png`
+   - `screenshots/community-content-series-nav-mobile.png`
+   - `screenshots/community-content-series-detail-desktop.png`
+   - `screenshots/community-content-series-detail-mobile.png`
+   - `screenshots/community-content-series-studio-desktop.png`
+   - `screenshots/community-content-series-studio-mobile.png`
+
+- [ ] **Step 5: Commit when implementing**
+
+```powershell
+git add -- backend/migrations/059_create_content_series.sql backend/internal/model/series.go backend/internal/model/series_migration_test.go backend/internal/repository/series_repo.go backend/internal/service/series_service.go backend/internal/service/series_service_test.go backend/internal/handler/series.go backend/internal/handler/series_test.go backend/internal/handler/content.go backend/internal/handler/routes.go "frontend/app/(public)/series/[id]/page.tsx" "frontend/app/(protected)/studio/series/page.tsx" frontend/components/content/SeriesNav.tsx frontend/components/content/ContentDetail.tsx frontend/lib/content.ts frontend/components/studio/StudioSidebar.tsx frontend/messages/zh.json frontend/messages/en.json frontend/tests/series-nav.test.tsx frontend/tests/studio-series-page.test.tsx frontend/e2e/content-series.spec.ts design/ui-spec.md screenshots/community-content-series-nav-desktop.png screenshots/community-content-series-nav-mobile.png screenshots/community-content-series-detail-desktop.png screenshots/community-content-series-detail-mobile.png screenshots/community-content-series-studio-desktop.png screenshots/community-content-series-studio-mobile.png architecture.md docs/superpowers/plans/2026-06-30-omnicraft-community-content-series.md progress.txt
+git commit -m "Community 4: content series"
+```
+
+---
+
+## Plan Self-Check
+
+- [ ] Plan explicitly says first release is public series only.
+- [ ] Ownership rule distinguishes owner management from contributor addability.
+- [ ] New series items append after the current maximum `sort_order`.
+- [ ] Reorder step requires a transaction, row lock, and full item-set validation.
+- [ ] Cover fallback order is backend-defined.
+- [ ] Content detail response includes enough data for previous/next without extra client guessing.
+- [ ] UI spec sections are verified before UI code, and no UI details are invented outside `design/ui-spec.md`.
+- [ ] Studio management uses tested up/down reorder buttons; drag handles are explicitly out-of-scope.
+- [ ] Browser verification covers first, last, multiple-series, public detail, and studio management.
+- [ ] `doc-validator` is required because routes and migrations change.
