@@ -101,7 +101,10 @@ app/
 │   ├── original/page.tsx            # 原创区首页（小红书式推荐流 + 分类 Tab）
 │   ├── original/[contentId]/page.tsx# 原创内容详情页
 │   ├── original/[contentId]/fanworks/page.tsx # 原创相关二创列表
+│   ├── collections/[id]/page.tsx    # 收藏集详情（公开收藏集可浏览）
+│   ├── series/[id]/page.tsx         # 内容系列详情（公开可浏览）
 │   ├── user/[userId]/page.tsx       # 用户主页（公开可浏览）
+│   ├── user/[userId]/collections/page.tsx # 用户收藏集列表（公开可浏览）
 │   ├── search/page.tsx              # 搜索页
 │   ├── login/page.tsx               # 登录页
 │   ├── register/page.tsx            # 注册页
@@ -124,7 +127,9 @@ app/
 │   │   │   └── fanwork/page.tsx     # 发布二创（内容类型选择 → 发布表单）
 │   │   ├── overview/page.tsx        # 数据概览
 │   │   ├── contents/page.tsx        # 内容管理
+│   │   ├── favorites/page.tsx       # 收藏集管理
 │   │   ├── followers/page.tsx       # 粉丝分析（新增）
+│   │   ├── series/page.tsx          # 内容系列管理
 │   │   ├── revenue/page.tsx         # 收益数据（P1 预留）
 │   │   ├── pr-requests/page.tsx     # 协同申请管理
 │   │   ├── contributors/page.tsx    # 贡献者管理
@@ -143,10 +148,7 @@ app/
 │   ├── appeals/page.tsx             # 我的申诉
 │   ├── messages/page.tsx            # 消息中心（通知 + 私信）
 │   ├── rehab/page.tsx               # 素质建设课程
-│   ├── feedback/page.tsx            # 用户反馈
-│   └── studio/favorites/page.tsx    # 我的收藏（收藏集列表）
-├── (protected)/                     # 需要登录（续）
-│   └── collections/[id]/page.tsx    # 收藏集详情
+│   └── feedback/page.tsx            # 用户反馈
 └── admin/                           # 管理员后台
     ├── ips/page.tsx                 # IP 库管理
     ├── contents/page.tsx            # 内容终审
@@ -2259,7 +2261,9 @@ final_score = α × sim_score + (1 - α) × hot_score
 | | 发布二创 | 🎨 | `/studio/publish/fanwork` | 二创区内容类型选择 → 发布表单 |
 | 数据看板 | 概览 | 📊 | `/studio/overview` | 访问量/互动量/内容总数概览卡片 + 趋势图 |
 | | 内容管理 | 📋 | `/studio/contents` | 我的内容列表（筛选/排序/编辑/删除） |
+| | 收藏集 | ⭐ | `/studio/favorites` | 收藏集列表、公开/私有设置和默认收藏集管理 |
 | | 粉丝分析 | 👥 | `/studio/followers` | 粉丝增长趋势、粉丝画像（新增） |
+| | 内容系列 | 🧭 | `/studio/series` | 内容系列创建、排序和条目管理 |
 | | 收益数据 | 💰 | `/studio/revenue` | P1 预留，显示「即将开放」占位 |
 | 协作管理 | PR 申请 | 🔀 | `/studio/pr-requests` | 收到的 PR 申请列表（作者视角） |
 | | 贡献者 | 👤 | `/studio/contributors` | 贡献者管理 + 黑名单 |
@@ -2395,6 +2399,7 @@ final_score = α × sim_score + (1 - α) × hot_score
 | `/dashboard/tag-suggestions` | `/studio/tag-suggestions` | 301 重定向 |
 | — | `/studio/publish/fanwork` | 新增 |
 | — | `/studio/followers` | 新增 |
+| — | `/studio/series` | 新增 |
 | — | `/studio/revenue` | 新增（P1 占位） |
 
 ### 13.6 配置扩展（config.yaml）
