@@ -4,7 +4,7 @@
 
 **Goal:** 将浏览足迹增强为配置驱动的 7 天保留、可筛选分页、可批量删除、可展示失效内容占位的完整体验。
 
-**Architecture:** 后端在查询层和清理任务层同时执行保留期策略；API 在一个 Beta 兼容窗口内同时返回 `items` 和旧 `history` 字段；前端 `/history` 改为筛选芯片、日期范围、批量管理和灰色失效占位卡片。定时清理使用 `time.AfterFunc` 自循环，不改造全局 scheduler 框架。
+**Architecture:** 后端在查询层和清理任务层同时执行保留期策略；API 在一个 Beta 兼容窗口内同时返回 `items` 和旧 `history` 字段；前端 `/history` 改为筛选芯片、日期范围、批量管理和灰色失效占位卡片。定时清理使用 `time.AfterFunc` 自循环，不改造全局 scheduler 框架，但必须把新 scheduler 实例保存到 `main.go` 并在 graceful shutdown 时调用 `Stop()`。
 
 **Tech Stack:** Go/Gin/GORM/PostgreSQL, Next.js App Router, next-intl, React Testing Library, Playwright.
 
@@ -12,6 +12,7 @@
 
 ## Cross-Plan Coordination
 
+- Execution source: this is part of the 2026-06-30 community feature plan family, derived from `docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md`. It is not a historical `task.json` task and not a 2026-05-30 Beta roadmap checkbox; executing it requires an explicit user request naming this plan or the community feature family.
 - Shared-file integration and migration order for the six community plans is: messages-notifications (`057`) -> browse-history (no migration) -> collections (`058`) -> content-series (`059`) -> source-linkage (`060`) -> collaboration-invites (`061`).
 - `frontend/app/(protected)/messages/page.tsx`, `frontend/components/social/ChatWindow.tsx`, and `frontend/components/social/ConversationList.tsx` must land in messages-notifications before collaboration-invites extends typed invite cards.
 - `frontend/components/content/ContentDetail.tsx` changes must land collections before content-series before source-linkage.
@@ -19,6 +20,7 @@
 - `backend/config/config.go` and `backend/config.yaml` changes from this plan and collaboration-invites must be implemented serially and rebased before verification.
 - Before any UI code, grep `design/ui-spec.md` for the exact `## Page:` / `## Component:` sections named by this plan and follow those sections as the visual authority. As of 2026-06-30, `/history`, `ContentCard`, `SkeletonCard`, `ConfirmModal`, `EmptyState`, `LoadingSpinner`, and `Toast` are present; do not rewrite `design/ui-spec.md` unless an implementation-time check proves a required section is absent or stale.
 - Expected-result convention: any "Run and confirm red" step expects FAIL for the behavior under test; any "Verify green" / "Run ... tests" step expects PASS. If the observed result differs, stop and update the plan before proceeding.
+- Frontend focused test convention: current `frontend/package.json` defines `npm run test` as a fixed suite, so focused TS/TSX tests in this plan use `node --import tsx --test <file>` directly. Do not write `npm run test -- <file>` unless the package script is changed first.
 - Before implementation, run `git status --short`, reserve exact files, and stage only exact touched files. Do not use directory-level staging such as `git add backend`, `git add frontend`, `git add design`, `git add screenshots`, or `git add docs/superpowers/plans`.
 - Staging note: the sample `git add` command at the end must be reduced to files actually changed in that implementation. Omit `design/ui-spec.md` when it was only read/verified; omit generated docs such as `architecture.md` unless `doc-validator` changed them during this task.
 
@@ -34,6 +36,7 @@
 - Modify: `backend/internal/repository/browse_history_repo.go` - 条件查询、保留期过滤、失效内容 DTO、批量删除、过期删除。
 - Create: `backend/internal/pkg/scheduler/browse_history_cleanup.go` - Asia/Shanghai 每日清理任务。
 - Modify: `backend/cmd/server/main.go` - 启动清理任务。
+- Create: `backend/config/config_test.go` (if no config test file exists; otherwise extend existing).
 - Create: `backend/internal/handler/browse_history_test.go`
 - Create: `backend/internal/repository/browse_history_repo_test.go`
 - Create: `backend/internal/pkg/scheduler/browse_history_cleanup_test.go`
@@ -157,6 +160,7 @@ type BrowseHistoryListOptions struct {
     StartDate     *time.Time
     EndDate       *time.Time
     RetentionDays int
+    Now           time.Time
     Page          int
     PageSize      int
 }
@@ -176,9 +180,10 @@ type BrowseHistoryItemDTO struct {
 Rules:
 
 - always `WHERE browse_history.user_id = ?`
-- always `WHERE viewed_at >= now - retentionDays`
+- always `WHERE viewed_at >= cutoff`, where `cutoff = Now - retentionDays`; `Now` comes from `BrowseHistoryListOptions.Now` or an injected repository clock. Do not use SQL `NOW()` directly for list filtering, because retention-boundary tests must run against a fixed clock.
 - when `content_type` is present, the query joins `content_items`
 - when date range query params are present, the handler parses them and passes concrete times to repo
+- date ranges are half-open intervals in Asia/Shanghai: `start_date=2026-06-01` means `viewed_at >= 2026-06-01 00:00:00 +08:00`; `end_date=2026-06-03` means `viewed_at < 2026-06-04 00:00:00 +08:00`
 - response item has `Content = nil` for unpublished or soft-deleted content
 - response item also has `ContentItem = Content` for legacy `content_item` consumers
 - `total` counts only retained, filtered history rows
@@ -189,10 +194,11 @@ Add:
 
 ```go
 func (r *BrowseHistoryRepository) DeleteByUserAndIDs(userID int64, ids []int64) error
-func (r *BrowseHistoryRepository) DeleteExpired(retentionDays int) (int64, error)
+func (r *BrowseHistoryRepository) DeleteExpired(retentionDays int, now time.Time) (int64, error)
 ```
 
 `DeleteByUserAndIDs` must include `WHERE user_id = ? AND id IN ?`.
+`DeleteExpired` must calculate the cutoff from the provided `now` value or an injected scheduler clock; tests must set a fixed time and cover the exact retention boundary.
 
 - [ ] **Step 6: Verify repository green**
 
@@ -250,6 +256,15 @@ Clamp pagination:
 - default `page=1`
 - default `page_size=20`
 - max `page_size=100`
+
+Date parsing semantics:
+
+- `start_date` and `end_date` accept only `YYYY-MM-DD`
+- interpret both dates in `Asia/Shanghai`, matching the confirmed production server time zone
+- pass `StartDate` as inclusive midnight of `start_date`
+- pass `EndDate` as exclusive midnight of the day after `end_date`
+- reject `start_date > end_date` with `400 INVALID_DATE`
+- log/return times in UTC timestamps; do not expose server local time strings in the API response
 
 - [ ] **Step 4: Implement compatible response**
 
@@ -316,19 +331,28 @@ Use the spec's option B:
 
 - load `Asia/Shanghai`
 - parse `cleanup_time` as `HH:MM`
-- compute next run from current time in that location
+- compute next run from an injected/testable clock in that location; production default is `time.Now`
 - call `time.AfterFunc(delay, func(){ cleanup(); scheduleNext() })`
-- include `Stop()` to stop the timer
+- include `Stop()` to stop the current timer; tests must prove calling `Stop()` prevents the next cleanup callback
 
-The cleanup function calls repository `DeleteExpired(retentionDays)`.
+The cleanup function calls repository `DeleteExpired(retentionDays, now)` using the same injected/testable clock value that drove the current cleanup run.
 
 - [ ] **Step 4: Wire in main**
 
-In `backend/cmd/server/main.go`, after existing scheduler starts:
+In `backend/cmd/server/main.go`, after existing scheduler starts, save the instance:
 
 ```go
-scheduler.NewBrowseHistoryCleanup(db, &cfg.BrowseHistory).Start()
+browseHistoryCleanup := scheduler.NewBrowseHistoryCleanup(db, &cfg.BrowseHistory)
+browseHistoryCleanup.Start()
 ```
+
+During graceful shutdown, after `stopWorkers()` and before closing database/Redis connections, call:
+
+```go
+browseHistoryCleanup.Stop()
+```
+
+Do not start this scheduler as an anonymous temporary value; otherwise the process cannot stop its timer on shutdown.
 
 - [ ] **Step 5: Verify scheduler green**
 
@@ -384,6 +408,8 @@ api.deleteWithBody(path, body)
 
 or a generic request helper. Do not break existing `api.delete(path)` callers.
 
+> **HTTP 兼容性说明**：`fetch` API 支持 DELETE 请求携带 body，但如果项目中的 `api` 封装或中间代理不支持 DELETE + body，回退方案为 `api.request("DELETE", path, { body })`。实施时需验证目标浏览器和中间件环境对 DELETE-with-body 的支持。
+
 - [ ] **Step 4: Implement page UI**
 
 UI states:
@@ -402,7 +428,7 @@ Run:
 
 ```powershell
 cd frontend
-npm run test -- tests/history-page.test.tsx
+node --import tsx --test tests/history-page.test.tsx
 ```
 
 ---
@@ -455,6 +481,7 @@ Use Playwright:
 2. Visit `/history`; verify cards render.
 3. Filter by `article` and verify network query includes `content_type=article`.
 4. Select date range and verify query includes `start_date` / `end_date`.
+   - Verify a same-day filter sends `start_date=YYYY-MM-DD&end_date=YYYY-MM-DD` and the backend treats it as a one-day Asia/Shanghai half-open range.
 5. Toggle batch mode, delete selected records, verify only selected records disappear.
 6. Clear all and verify empty state.
 7. Seed one unpublished/deleted content history record; verify gray non-clickable placeholder.
@@ -463,7 +490,8 @@ Use Playwright:
 - [ ] **Step 5: Commit when implementing**
 
 ```powershell
-git add -- backend/config/config.go backend/config.yaml backend/internal/handler/browse_history.go backend/internal/handler/browse_history_test.go backend/internal/repository/browse_history_repo.go backend/internal/repository/browse_history_repo_test.go backend/internal/pkg/scheduler/browse_history_cleanup.go backend/internal/pkg/scheduler/browse_history_cleanup_test.go backend/cmd/server/main.go "frontend/app/(protected)/history/page.tsx" frontend/lib/api.ts frontend/messages/zh.json frontend/messages/en.json frontend/tests/history-page.test.tsx frontend/e2e/history.spec.ts design/ui-spec.md screenshots/community-browse-history-desktop.png screenshots/community-browse-history-mobile.png architecture.md docs/superpowers/plans/2026-06-30-omnicraft-community-browse-history.md progress.txt
+git add -- backend/config/config.go backend/config.yaml backend/internal/handler/browse_history.go backend/internal/handler/browse_history_test.go backend/internal/repository/browse_history_repo.go backend/internal/repository/browse_history_repo_test.go backend/internal/pkg/scheduler/browse_history_cleanup.go backend/internal/pkg/scheduler/browse_history_cleanup_test.go backend/cmd/server/main.go "frontend/app/(protected)/history/page.tsx" frontend/lib/api.ts frontend/messages/zh.json frontend/messages/en.json frontend/tests/history-page.test.tsx frontend/e2e/history.spec.ts screenshots/community-browse-history-desktop.png screenshots/community-browse-history-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-browse-history.md progress.txt
+# Also add architecture.md if doc-validator --fix modified it during this task.
 git commit -m "Community 2: browse history enhancement"
 ```
 
@@ -479,5 +507,6 @@ git commit -m "Community 2: browse history enhancement"
 - [ ] Invalid content returns `content: null` instead of deleting the history row.
 - [ ] DELETE semantics explicitly distinguish selected IDs, empty IDs, no body, and too many IDs.
 - [ ] Scheduler uses `time.AfterFunc` self-rescheduling and Asia/Shanghai.
+- [ ] `main.go` stores the browse-history scheduler instance and calls `Stop()` during graceful shutdown.
 - [ ] Frontend plan includes API helper work for DELETE bodies.
 - [ ] `doc-validator` is required because `config.go` changes.

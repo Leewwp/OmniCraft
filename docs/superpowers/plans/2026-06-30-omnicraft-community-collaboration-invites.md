@@ -4,7 +4,7 @@
 
 **Goal:** 支持发布后邀请联合创作者，被邀请者通过私信卡片接受或拒绝，接受后幂等加入 `content_contributors`。
 
-**Architecture:** 新增 `collaboration_invites` 表、`users.accept_collab_invites` 和 `messages.msg_type/metadata`；发送邀请走完整防骚扰链路（权限、信誉、Redis 日限、同用户日限、双向拉黑、接收开关、 active duplicate）；邀请通过现有 1:1 私信会话发送 typed message 卡片。接受邀请使用独立幂等插入，不复用 PR 的 contributor upsert，避免错误增加 `pr_count`。
+**Architecture:** 新增 `collaboration_invites` 表、`users.accept_collab_invites` 和 `messages.msg_type/metadata`；发送邀请走完整防骚扰链路（权限、信誉、Redis 日限、同用户日限、双向拉黑、接收开关、active duplicate）；邀请通过现有 1:1 私信会话发送 typed message 卡片。邀请卡片不是普通文本私信，允许冷启动创建会话并豁免普通文本的 `DM_REPLY_REQUIRED`，但不得绕过本计划的协作邀请防骚扰链路。接受邀请使用独立幂等插入，不复用 PR 的 contributor upsert，避免错误增加 `pr_count`。邀请过期 scheduler 使用 `time.AfterFunc` 自循环，并必须在 graceful shutdown 时停止。
 
 **Tech Stack:** Go/Gin/GORM/PostgreSQL/Redis, Next.js App Router, next-intl, React Testing Library, Playwright.
 
@@ -12,6 +12,7 @@
 
 ## Cross-Plan Coordination
 
+- Execution source: this is part of the 2026-06-30 community feature plan family, derived from `docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md`. It is not a historical `task.json` task and not a 2026-05-30 Beta roadmap checkbox; executing it requires an explicit user request naming this plan or the community feature family.
 - Shared-file integration and migration order for the six community plans is: messages-notifications (`057`) -> browse-history (no migration) -> collections (`058`) -> content-series (`059`) -> source-linkage (`060`) -> collaboration-invites (`061`).
 - `frontend/app/(protected)/messages/page.tsx`, `frontend/components/social/ChatWindow.tsx`, and `frontend/components/social/ConversationList.tsx` must already use the messages-notifications contract before this plan adds typed invite cards.
 - `frontend/components/content/ContentDetail.tsx` changes must land collections before content-series before source-linkage.
@@ -19,6 +20,7 @@
 - `backend/config/config.go` and `backend/config.yaml` changes from browse-history and this plan must be implemented serially and rebased before verification.
 - Before any UI code, grep `design/ui-spec.md` for the exact `## Page:` / `## Component:` sections named by this plan and follow those sections as the visual authority. As of 2026-06-30, `CollabUserPicker`, `CollabInviteCard`, `/messages`, `/settings`, and `/studio/publish/fanwork` are present; do not rewrite `design/ui-spec.md` unless an implementation-time check proves a required section is absent or stale.
 - Expected-result convention: any "Run and confirm red" step expects FAIL for the behavior under test; any "Verify green" / "Run ... tests" step expects PASS. If the observed result differs, stop and update the plan before proceeding.
+- Frontend focused test convention: current `frontend/package.json` defines `npm run test` as a fixed suite, so focused TS/TSX tests in this plan use `node --import tsx --test <file>` directly. Do not write `npm run test -- <file>` unless the package script is changed first.
 - Before implementation, run `git status --short`, reserve exact files, and stage only exact touched files. Do not use directory-level staging such as `git add backend`, `git add frontend`, `git add design`, `git add screenshots`, or `git add docs/superpowers/plans`.
 - Staging note: the sample `git add` command at the end must be reduced to files actually changed in that implementation. Omit `design/ui-spec.md` when it was only read/verified; omit generated docs such as `architecture.md` unless `doc-validator` changed them during this task.
 
@@ -31,6 +33,7 @@ This plan depends on the messages foundation from `2026-06-30-omnicraft-communit
 - frontend message components must use `/api/v1/messages`
 - `ChatWindow` must be ready to render typed messages
 - cold-start DM rules must already be in place
+- typed collaboration invite cards are explicitly exempt from the normal text-message cold-start guard (`DM_REPLY_REQUIRED`) because the invite endpoint has its own permission, reputation, Redis rate-limit, blocklist, recipient preference, and duplicate checks. This exemption is scoped to `msg_type='collab_invite'`; normal text messages must still return `DM_REPLY_REQUIRED` until the recipient replies.
 
 Do not implement this plan before the messages plan. If execution order is accidentally reversed, stop and either complete the messages plan first or split out a separate prerequisite task; do not silently fold message API corrections into this task.
 
@@ -180,8 +183,12 @@ Cover all exact outcomes:
 - active duplicate for same content/invitee -> `INVITE_ALREADY_EXISTS`
 - expired invite for same content/invitee can be invited again as a new row
 - success creates invite, typed message, and backfills `message_id`
+- success can create the first 1:1 conversation and `msg_type='collab_invite'` message even when a normal text DM would return `DM_REPLY_REQUIRED`
+- normal text send still returns `DM_REPLY_REQUIRED` in the same cold-start relationship until the recipient replies
 - Redis unavailable during rate-limit reservation aborts before DB write and returns a generic service-unavailable error
 - DB failure after Redis reservation best-effort compensates counters/keys and logs any compensation failure
+
+> **实施决策**：Redis 不可用时采用 fail-closed 策略（拒绝邀请操作）。这是最安全的选择，确保防骚扰链路在存储不可用时不会出现缺口。如果产品要求不同降级行为（如降级为仅 DB 校验），需单独讨论并修改设计规格。
 
 - [ ] **Step 2: Run and confirm red**
 
@@ -203,6 +210,12 @@ collab_invite_user:{inviter_id}:{invitee_id}:{YYYY-MM-DD}
 
 Both expire after 86400 seconds. Use `SET NX EX` for the per-invitee key.
 
+Daily key date semantics:
+
+- `YYYY-MM-DD` is the `Asia/Shanghai` calendar date, matching the product's user-visible "today" and the production server timezone.
+- Compute it from an injected/testable clock in the service where possible; tests must cover requests immediately before and after Asia/Shanghai midnight.
+- Do not use UTC dates for these keys unless the design spec is explicitly changed first.
+
 Reservation strategy:
 
 1. Run cheap DB/user/content validation before consuming Redis quota.
@@ -219,6 +232,8 @@ func (r *MessageRepository) SendTyped(senderID, convID int64, body, msgType stri
 ```
 
 Keep existing `Send` as a wrapper for `msgType="text"` and empty metadata.
+
+`SendTyped` is for trusted service-level typed messages only. The collaboration invite service may call it after its anti-abuse chain passes, and this path is exempt from the regular text `DM_REPLY_REQUIRED` guard. Do not expose a generic handler that lets clients choose arbitrary `msg_type`; normal user-authored text messages must continue through the existing cold-start guard.
 
 Metadata must include only:
 
@@ -290,18 +305,29 @@ Lock row, verify invitee and pending status, update status to `declined`, set `r
 - [ ] **Step 4: Add expiry scheduler tests**
 
 Scheduler marks `pending` invites older than configured days as `expired`. It does not change accepted or declined invites.
+Tests must also prove the scheduler computes day boundaries using the configured expiration duration, and `Stop()` cancels the pending timer callback.
 
 - [ ] **Step 5: Implement expiry scheduler**
 
 Use the same `time.AfterFunc` self-rescheduling approach as browse history cleanup unless a shared helper already exists by implementation time.
+Expose `Stop()` on the scheduler and make it idempotent.
 
 - [ ] **Step 6: Wire scheduler**
 
-In `backend/cmd/server/main.go`:
+In `backend/cmd/server/main.go`, save the instance:
 
 ```go
-scheduler.NewCollabInviteExpiry(db, &cfg.Collaboration).Start()
+collabInviteExpiry := scheduler.NewCollabInviteExpiry(db, &cfg.Collaboration)
+collabInviteExpiry.Start()
 ```
+
+During graceful shutdown, after `stopWorkers()` and before closing database/Redis connections, call:
+
+```go
+collabInviteExpiry.Stop()
+```
+
+Do not start this scheduler as an anonymous temporary value; otherwise the process cannot stop its timer on shutdown.
 
 - [ ] **Step 7: Verify**
 
@@ -397,10 +423,10 @@ go test ./internal/handler -run TestCollabInvite -v
 Run:
 
 ```powershell
-rg -n "## Component: CollabInviteCard|## Component: CollabUserPicker" design/ui-spec.md
+rg -n "## Component: CollabInviteCard|## Component: CollabUserPicker|## Page: /settings|## Page: /messages" design/ui-spec.md
 ```
 
-Expected: both component specs are present. If a future branch lacks one, stop and repair UI spec in an explicitly scoped docs/design step before UI work.
+Expected: invite card, user picker, `/settings`, and `/messages` sections are present. `/settings` must describe the `accept_collab_invites` switch, saving state, i18n keys, and screenshot checkpoints. If a future branch lacks one, stop and repair UI spec in an explicitly scoped docs/design step before UI work.
 
 - [ ] **Step 2: Add failing invite-card tests**
 
@@ -425,10 +451,13 @@ Assert settings page:
 - initializes from `user.accept_collab_invites`
 - sends PATCH with `accept_collab_invites`
 - calls `refreshUser()` after save
+- rolls back to the previous server value and shows localized feedback if save fails
+- keeps password/delete-account settings unaffected while the collaboration switch is saving
 
 - [ ] **Step 5: Implement settings UI**
 
 Use an existing `Switch` component. No hardcoded visible strings.
+The switch belongs in its own "联合创作邀请" settings group described by `design/ui-spec.md`; do not hide it inside dangerous actions or password settings.
 
 - [ ] **Step 6: Run frontend tests**
 
@@ -436,7 +465,7 @@ Run:
 
 ```powershell
 cd frontend
-npm run test -- tests/collab-invite-card.test.tsx tests/settings-collab-invites.test.tsx
+node --import tsx --test tests/collab-invite-card.test.tsx tests/settings-collab-invites.test.tsx
 ```
 
 ---
@@ -486,7 +515,7 @@ Run:
 
 ```powershell
 cd frontend
-npm run test -- tests/publish-collab-picker.test.tsx
+node --import tsx --test tests/publish-collab-picker.test.tsx
 ```
 
 Expected: picker-only tests PASS before editing `PublishForm.tsx`.
@@ -531,7 +560,7 @@ Run:
 
 ```powershell
 cd frontend
-npm run test -- tests/publish-collab-picker.test.tsx
+node --import tsx --test tests/publish-collab-picker.test.tsx
 ```
 
 ---
@@ -565,7 +594,7 @@ cd frontend
 npm run test
 npm run lint
 npm run build
-npm run test:e2e -- collab-invite-flow.spec.ts
+npx playwright test e2e/collab-invite-flow.spec.ts
 ```
 
 - [ ] **Step 3: Run doc-validator**
@@ -591,11 +620,14 @@ go run . --fix
    - `screenshots/community-collab-invite-pending.png`
    - `screenshots/community-collab-invite-states.png`
    - `screenshots/community-collab-invite-mobile.png`
+   - `screenshots/community-collab-settings-desktop.png`
+   - `screenshots/community-collab-settings-mobile.png`
 
 - [ ] **Step 5: Commit when implementing**
 
 ```powershell
-git add -- backend/migrations/061_collaboration_invites.sql backend/internal/model/collab_invite.go backend/internal/model/user.go backend/internal/model/notification.go backend/internal/repository/collab_invite_repo.go backend/internal/repository/message_repo.go backend/internal/repository/content_repo.go backend/internal/service/collab_invite_service.go backend/internal/service/collab_invite_service_test.go backend/internal/handler/collab_invite.go backend/internal/handler/collab_invite_test.go backend/internal/handler/user.go backend/internal/handler/auth.go backend/internal/handler/routes.go backend/internal/pkg/scheduler/collab_invite_expiry.go backend/internal/pkg/scheduler/collab_invite_expiry_test.go backend/config/config.go backend/config.yaml backend/cmd/server/main.go frontend/components/content/CollabUserPicker.tsx frontend/components/social/CollabInviteCard.tsx frontend/tests/collab-invite-card.test.tsx frontend/tests/settings-collab-invites.test.tsx frontend/tests/publish-collab-picker.test.tsx frontend/e2e/collab-invite-flow.spec.ts frontend/contexts/AuthContext.tsx "frontend/app/(protected)/settings/page.tsx" frontend/components/studio/PublishForm.tsx frontend/components/social/ChatWindow.tsx frontend/components/social/ConversationList.tsx frontend/messages/zh.json frontend/messages/en.json design/ui-spec.md screenshots/community-collab-picker-desktop.png screenshots/community-collab-picker-mobile.png screenshots/community-collab-invite-pending.png screenshots/community-collab-invite-states.png screenshots/community-collab-invite-mobile.png architecture.md docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md progress.txt
+git add -- backend/migrations/061_collaboration_invites.sql backend/internal/model/collab_invite.go backend/internal/model/user.go backend/internal/model/notification.go backend/internal/repository/collab_invite_repo.go backend/internal/repository/message_repo.go backend/internal/repository/content_repo.go backend/internal/service/collab_invite_service.go backend/internal/service/collab_invite_service_test.go backend/internal/handler/collab_invite.go backend/internal/handler/collab_invite_test.go backend/internal/handler/user.go backend/internal/handler/auth.go backend/internal/handler/routes.go backend/internal/pkg/scheduler/collab_invite_expiry.go backend/internal/pkg/scheduler/collab_invite_expiry_test.go backend/config/config.go backend/config.yaml backend/cmd/server/main.go frontend/components/content/CollabUserPicker.tsx frontend/components/social/CollabInviteCard.tsx frontend/tests/collab-invite-card.test.tsx frontend/tests/settings-collab-invites.test.tsx frontend/tests/publish-collab-picker.test.tsx frontend/e2e/collab-invite-flow.spec.ts frontend/contexts/AuthContext.tsx "frontend/app/(protected)/settings/page.tsx" frontend/components/studio/PublishForm.tsx frontend/components/social/ChatWindow.tsx frontend/components/social/ConversationList.tsx frontend/messages/zh.json frontend/messages/en.json screenshots/community-collab-picker-desktop.png screenshots/community-collab-picker-mobile.png screenshots/community-collab-invite-pending.png screenshots/community-collab-invite-states.png screenshots/community-collab-invite-mobile.png screenshots/community-collab-settings-desktop.png screenshots/community-collab-settings-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md progress.txt
+# Also add architecture.md if doc-validator --fix modified it during this task.
 git commit -m "Community 6: collaboration invites"
 ```
 
@@ -608,10 +640,12 @@ git commit -m "Community 6: collaboration invites"
 - [ ] Migration number is `061`, after source-linkage `060`.
 - [ ] Anti-abuse chain lists all seven checks and exact error codes.
 - [ ] Redis keys and TTL are specified.
+- [ ] Redis daily key date uses Asia/Shanghai and tests cover midnight boundaries.
 - [ ] Redis reservation and DB failure compensation behavior is specified and tested.
 - [ ] Accept path uses independent idempotent contributor insert and does not increment `pr_count`.
 - [ ] Invite metadata is explicitly safe and minimal.
 - [ ] User setting spans migration, model, PATCH, auth/me, AuthContext, and settings UI.
 - [ ] `CollabUserPicker` uses existing `GET /api/v1/users/search?q=<query>&limit=8` and only safe user fields.
 - [ ] Scheduler expiration and re-invite partial unique index are both covered.
+- [ ] `main.go` stores the collaboration expiry scheduler instance and calls `Stop()` during graceful shutdown.
 - [ ] Browser verification covers pending, accepted, declined, expired, and settings states.

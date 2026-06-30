@@ -90,7 +90,7 @@ OmniCraft 已完成 MVP 开发，Web Beta 加固主线已基本完成；桌面�
 - 后续使用 `superpowers:writing-plans` 时，应拆成 6 份实现计划；每份计划只覆盖一个子系统，并显式列出 TDD 步骤、浏览器验证步骤和迁移验证步骤。
 - 本文档中的路径采用仓库根目录相对路径。后端文件必须带 `backend/` 前缀，前端文件必须带 `frontend/` 前缀，避免把 Next.js route group 文件创建到错误目录。
 - UI 细节以 `design/ui-spec.md` 为视觉权威。若本文新增组件或页面在 `design/ui-spec.md` 中不存在，对应实现计划必须先补 UI spec，再写代码。
-- 已知需要在实现前补充/修订的 UI spec 包括：`/admin/notifications`、`/series/[id]`、`/studio/series`、`CollectionPicker`、`SeriesNav`、`CollabUserPicker`、`CollabInviteCard`、`RelatedFanworks`、`SourceAttribution`；`/collections/[collectionId]` 已有规格但需按附录 F 修正公开浏览范围。
+- 已知需要在实现前补充/修订的 UI spec 包括：`/admin/notifications`、`/series/[id]`、`/studio/series`、`CollectionPicker`、`SeriesNav`、`CollabUserPicker`、`CollabInviteCard`、`RelatedFanworks`、`SourceAttribution`；`/collections/[id]` 已有规格但需按附录 F 修正公开浏览范围。
 - 若实施计划修改 `backend/config/config.go`、`backend/migrations/*.sql` 或 `backend/internal/handler/routes.go`，提交前必须运行 `cd tools/doc-validator && go run . --fix` 并提交自动文档更新。
 - API 分页统一优先使用现有项目约定 `page` + `page_size`。为兼容文档早期草案，后端可接受 `limit` 作为 `page_size` 的别名，但响应字段统一返回 `page_size`。
 
@@ -831,7 +831,7 @@ CREATE UNIQUE INDEX idx_collab_invites_active ON collaboration_invites (content_
 | 过期后前端 | 邀请卡片灰色显示「已过期」，无操作按钮 |
 | 过期提醒 | 不发送即将过期提醒；仅在邀请卡片中展示过期状态 |
 | 过期后重新邀请 | 允许邀请者重新发送（走完整 7 步校验链，视为新邀请）。**注意**：需要将 UNIQUE 约束改为 PostgreSQL 部分唯一索引 `CREATE UNIQUE INDEX idx_collab_invites_active ON collaboration_invites (content_id, invitee_id) WHERE status IN ('pending', 'accepted')`，否则旧 expired 记录仍会阻止新邀请插入 |
-| 迁移文件 | `060_collaboration_invites.sql` 的 CREATE TABLE 语句中**不使用**行内 `UNIQUE (content_id, invitee_id)` 约束；表创建后用 `CREATE UNIQUE INDEX idx_collab_invites_active ON collaboration_invites (content_id, invitee_id) WHERE status IN ('pending', 'accepted')` 建立部分唯一索引 |
+| 迁移文件 | `061_collaboration_invites.sql` 的 CREATE TABLE 语句中**不使用**行内 `UNIQUE (content_id, invitee_id)` 约束；表创建后用 `CREATE UNIQUE INDEX idx_collab_invites_active ON collaboration_invites (content_id, invitee_id) WHERE status IN ('pending', 'accepted')` 建立部分唯一索引 |
 
 #### users 表新增字段
 
@@ -917,7 +917,7 @@ ALTER TABLE messages ADD COLUMN metadata JSONB NOT NULL DEFAULT '{}';
 
 - 查询同时包含 inviter_id 和 invitee_id 两个 participant 的 conversation_id（JOIN conversation_participants 自连接，按 conversation_id GROUP BY HAVING COUNT(DISTINCT user_id) = 2）
 - 若已存在 → 复用该会话；若不存在 → 新建 conversation + 插入两条 conversation_participants 记录
-- 现有表无 (user_a, user_b) 复合查找索引；建议在 `060_collaboration_invites.sql` 迁移中补充 `idx_conv_participants_user_pair` 加速查找（非强制，可按用户量评估）
+- 现有表无 (user_a, user_b) 复合查找索引；建议在 `061_collaboration_invites.sql` 迁移中补充 `idx_conv_participants_user_pair` 加速查找（非强制，可按用户量评估）
 
 ### 5.4 私信邀请卡片 UI
 
@@ -952,7 +952,7 @@ ALTER TABLE messages ADD COLUMN metadata JSONB NOT NULL DEFAULT '{}';
 
 | 层 | 文件路径 | 改动类型 |
 |----|---------|---------|
-| 后端 Migration | `backend/migrations/060_collaboration_invites.sql` | **新增**建表 + users.accept_collab_invites + messages.msg_type/metadata |
+| 后端 Migration | `backend/migrations/061_collaboration_invites.sql` | **新增**建表 + users.accept_collab_invites + messages.msg_type/metadata |
 | 后端 Model | `backend/internal/model/collab_invite.go` | **新增** |
 | 后端 Handler | `backend/internal/handler/collab_invite.go` | **新增** |
 | 后端 Service | `backend/internal/service/collab_invite_service.go` | **新增**（含防骚扰校验链） |
@@ -1046,7 +1046,7 @@ ip_id: set                source_original_id: set    source_fanwork_id: set
 
 - 增加 `source_fanwork_id` 可选字段
 - 执行上述校验规则
-- GET content 响应 DTO 增加 `source_fanwork_id` 字段；若来源可见，响应顶层额外返回 `source_fanwork: { id, title }`，与现有 `source_original: { id, title }` 保持一致
+- GET content 响应 DTO 增加 `source_fanwork_id` 字段；若来源可见，响应顶层额外返回 `source_fanwork: { id, title, zone }`，并将现有 `source_original` 摘要统一为 `{ id, title, zone }`
 - 前端 `frontend/lib/content.ts` 的 normalize 需兼容 snake_case 与 PascalCase，新增 `source_fanwork_id`，缺少有效 id/title/zone 的内容不得渲染为可点击卡片
 
 #### 错误码
@@ -1095,7 +1095,7 @@ ip_id: set                source_original_id: set    source_fanwork_id: set
 
 | 层 | 文件路径 | 改动类型 |
 |----|---------|---------|
-| 后端 Migration | `backend/migrations/061_add_source_fanwork_id.sql` | **新增** |
+| 后端 Migration | `backend/migrations/060_add_source_fanwork_id.sql` | **新增** |
 | 后端 Model | `backend/internal/model/content.go` | 新增 SourceFanworkID / SourceFanwork 字段 |
 | 后端 Handler | `backend/internal/handler/content.go` | 更新发布/查询校验，返回 source_fanwork 摘要 |
 | 后端 Service | `backend/internal/service/content_service.go` | 更新校验逻辑 + 链式查询 |
@@ -1164,8 +1164,8 @@ browse_history:
 | 私信+通知 | `057_add_broadcast_channel.sql` | 解除并重建 notifications.channel_check 约束，新增 'broadcast' 值 |
 | 收藏集 | `058_create_collections.sql` | 创建 collections + collection_items 表 + 旧 favorites 数据迁移 + is_default 默认集约束 |
 | 内容系列 | `059_create_content_series.sql` | 创建 content_series + content_series_items 表 |
-| 联合创作 | `060_collaboration_invites.sql` | 创建 collaboration_invites 表 + users.accept_collab_invites + messages.msg_type/metadata + 部分唯一索引（WHERE status IN ('pending','accepted')） |
-| 联动增强 | `061_add_source_fanwork_id.sql` | content_items 新增 source_fanwork_id 列 |
+| 联动增强 | `060_add_source_fanwork_id.sql` | content_items 新增 source_fanwork_id 列 |
+| 联合创作 | `061_collaboration_invites.sql` | 创建 collaboration_invites 表 + users.accept_collab_invites + messages.msg_type/metadata + 部分唯一索引（WHERE status IN ('pending','accepted')） |
 
 ## 附录 D：实施范围外（明确不做）
 
@@ -1185,7 +1185,7 @@ browse_history:
 | `backend/migrations/` | 1、3、4、5、6 | migration 编号冲突 | 每个计划开始时重新查看最大编号；不得复用已存在编号 |
 | `frontend/messages/zh.json` / `frontend/messages/en.json` | 1-6 | i18n key 合并冲突 | 按页面/组件命名空间追加 key；禁止硬编码新增 UI 文案 |
 | `frontend/components/content/ContentDetail.tsx` | 3、4、6 | 收藏入口、系列导航、来源展示插入点冲突 | 按顺序集成；每次改动后浏览器验证内容详情页 |
-| `frontend/components/studio/PublishForm.tsx` | 5、6 | 联合创作者选择和来源字段同时改发布表单 | 先实现 §6 来源字段，再实现 §5 联合创作者选择，或在计划中显式预约写入范围 |
+| `frontend/components/studio/PublishForm.tsx` | 6、5 | 来源字段和联合创作者选择同时改发布表单 | 严格按 source-linkage -> collaboration-invites 集成；先实现 §6 来源字段，再实现 §5 联合创作者选择，两个计划不得同时编辑该文件 |
 | `frontend/app/(protected)/messages/page.tsx` / `frontend/components/social/ChatWindow.tsx` / `frontend/components/social/ConversationList.tsx` | 1、5 | 私信布局、旧 API 纠偏和邀请卡片共用消息模型 | §1 先修 API 和布局，统一改用 `/api/v1/messages` 体系；§5 再扩展 msg_type/metadata 渲染 |
 | `design/ui-spec.md` | 1、2、3、4、5、6 | 新页面/组件视觉规范缺失 | 对应实现计划先补相关 `## Page:` / `## Component:` 段落，再编码 |
 

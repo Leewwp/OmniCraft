@@ -826,6 +826,7 @@ interface FacetedSearchSidebarProps {
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 密码修改/注销等破坏性操作需 ConfirmModal 二次确认。
+- 联合创作邀请接收开关属于账号偏好设置，必须与 `users.accept_collab_invites` / `GET /api/v1/auth/me` 保持一致；默认值为开启。
 
 **视觉层级**
 - 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
@@ -835,6 +836,7 @@ interface FacetedSearchSidebarProps {
 **核心组件清单**
 - `Header`
 - `ConfirmModal`（密码修改确认、账号注销确认）
+- `Switch`（接收联合创作邀请）
 - `EmptyState`
 - `LoadingSpinner`
 
@@ -845,6 +847,9 @@ interface FacetedSearchSidebarProps {
 
 **状态变体**
 - default: 头像、用户名、邮箱（只读）、Bio 编辑表单。
+- collaboration-default: 「联合创作邀请」设置组展示 `accept_collab_invites` 开关，说明关闭后其他用户无法向你发送联合创作邀请。
+- collaboration-saving: 开关保存时当前行 disabled，显示局部保存状态；其他设置组不应被整页锁定。
+- collaboration-error: 保存失败时恢复到上一次服务端值，并显示 localized Toast + 行内错误。
 - loading: 保存按钮内嵌 Spinner。
 - error: 行内红字错误提示（字段校验失败、旧密码错误等）。
 - 特殊状态：未登录拦截跳转 /login。
@@ -864,6 +869,16 @@ interface FacetedSearchSidebarProps {
 - 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
 - 破坏性操作必须 ConfirmModal 二次确认。
 - 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
+- 联合创作开关保存调用 `PATCH /api/v1/users/:id`，请求体只包含 `accept_collab_invites` 及当前表单实际变更字段；保存成功后必须刷新 `AuthContext` / `/api/v1/auth/me`。
+- 开关必须可键盘操作，使用显式 label，不得只使用颜色表示开启/关闭。
+
+**i18n key namespace**
+- 建议 namespace：`settings.*`。
+- 联合创作设置覆盖：`settings.collaboration.title`、`settings.collaboration.description`、`settings.collaboration.acceptInvites.label`、`settings.collaboration.acceptInvites.help`、`settings.collaboration.toast.*`、`settings.collaboration.error.*`、`settings.collaboration.a11y.*`。
+
+**Playwright 截图检查点**
+- `screenshots/community-collab-settings-desktop.png`：设置页联合创作邀请分组，开关开启。
+- `screenshots/community-collab-settings-mobile.png`：移动端设置页，开关 44px 触控目标可见。
 
 ## Page: /settings/tag-groups 标签组管理
 
@@ -1238,35 +1253,42 @@ interface FacetedSearchSidebarProps {
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
+- 页面位于 `(protected)` route group；未登录访问由受保护布局重定向到 `/login?redirect=/history`。
+- 保留期、分页大小、筛选条件均来自 API 响应或 URL query，组件内不得硬编码保留天数。
 
-**视觉层级**
-- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
-- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
-- 内容模块：按日期分组的浏览历史列表
+**目标与放置**
+- 目标：让用户在配置驱动的保留窗口内快速找回看过的内容，并支持 content_type、日期范围、批量删除和失效内容识别。
+- 放置：`frontend/app/(protected)/history/page.tsx`，使用全局 `Header`；页面主体不嵌入 Studio/Admin 布局。
+- 失效历史项保留浏览时间，但内容区显示不可点击灰色占位，避免用户以为数据丢失。
 
 **核心组件清单**
 - `Header`
-- `ContentCard`
+- `ContentCard`（published 内容）
+- `SkeletonCard`
 - `ConfirmModal`（清除全部确认）
 - `EmptyState`
 - `LoadingSpinner`
+- `Toast`
 
 **布局规范**
-- 页面最大宽度：720px，居中
-- 日期分组标题 + 卡片列表，每页 30 条滚动加载
-- 区域间距（block）：24px (`space-y-6`)
+- PC (>1100px)：页面最大宽度 `960px`，居中；顶部为一行工具栏（content_type chips、日期范围、批量模式按钮），下方按日期分组纵向列表；列表项使用紧凑横向卡片，不使用瀑布流。
+- 平板 (701-1100px)：最大宽度 `720px`；筛选 chips 可横向滚动，日期范围换到第二行；批量操作固定在工具栏末尾。
+- 移动 (<=700px)：主体 `px-4 py-4`；工具栏拆成纵向两组，content_type chips 横向滚动；历史项单列全宽；批量操作条吸附在列表上方而非底部浮层。
+- 日期分组标题使用 `text-xs text-fg-muted`，列表项间距 `gap-3`，分组间距 `space-y-6`。
 
 **状态变体**
-- default: 按日期分组（今天/昨天/日期）展示浏览过的内容卡片。
-- loading: 骨架屏（Skeleton 灰色块）。
-- empty: "暂无浏览记录" EmptyState + 探索首页 CTA。
-- error: Toast 右上角报错。
-- 特殊状态：未登录拦截跳转 /login。
+- default：按日期分组展示 `items`；优先读取新字段 `items`，兼容旧 `history` / `content_item`。
+- loading：首屏展示工具栏骨架 + 5 条 `SkeletonCard`，保留稳定高度，避免筛选栏加载时位移。
+- empty：保留工具栏，内容区显示 `EmptyState` + 回到首页 CTA；文案来自 `history.empty.*`。
+- error：Toast 报错；若已有成功数据，保留旧数据并在工具栏下显示轻量内联错误提示。
+- success：删除选中或清空成功后显示 Toast，并局部刷新列表；批量模式自动退出。
+- disabled：批量模式无选中项时删除按钮 disabled；失效内容卡片 disabled 且不可聚焦为链接。
+- expired/unavailable item：`content: null` 时渲染灰色占位卡片，标题/说明使用 `history.unavailable.*`，整卡不可点击。
 
 **响应式规则**
-- 移动 (≤700px): 列表全宽（margin 16px）。
-- 平板 (≤1100px): 内容区最大宽度 640px，居中。
-- PC (>1100px): 内容区最大宽度 720px，居中。
+- PC：工具栏一行，历史项为 `grid grid-cols-[auto_1fr_auto]`（批量复选框 / 内容摘要 / 时间与操作）。
+- 平板：工具栏两行，列表项仍横向但封面缩小。
+- 移动：列表项改为封面在上、信息在下；复选框保持左上角固定 44px 命中区。
 
 **暗色模式适配**
 - 背景色 token: `canvas-default` -> `canvas-default.dark`
@@ -1275,9 +1297,33 @@ interface FacetedSearchSidebarProps {
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
-- 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
-- 破坏性操作必须 ConfirmModal 二次确认。
-- 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
+- content_type chip：点击后更新 URL query `content_type` 并重新请求；再次点击当前 chip 回到全部。
+- 日期范围：两个日期输入按 `start_date`、`end_date` 写入 query；无效日期使用内联错误，不发请求。
+- 批量模式：点击批量按钮后列表项显示复选框；`Delete` 操作必须弹 `ConfirmModal`；清空全部也必须二次确认。
+- 焦点顺序：页面标题 -> content_type chips -> start_date -> end_date -> 批量模式 -> 列表项/复选框 -> 分页或加载更多 -> 清空全部。
+- 键盘：chips 和列表操作支持 `Tab`、`Enter`/`Space`；日期输入有可见 label；Esc 关闭 ConfirmModal。
+- 数据加载策略：SSR 输出页面框架，客户端使用 SWR 按 query 加载；分页使用 `page` + `page_size`，兼容 `limit` 仅在 API 层处理。
+
+**可访问性**
+- 所有正文与背景对比度不低于 4.5:1；失效占位使用 `text-fg-muted` 时必须配合足够深的边框/背景 token。
+- 所有可点击控件触控目标不小于 44px；横向 chips 之间至少 `gap-2`。
+- 批量复选框必须有 `aria-label`，包含内容标题或失效项日期。
+- 工具栏使用 `aria-label={t('history.toolbar.ariaLabel')}`；日期范围使用关联 `<label>`。
+
+**i18n key namespace**
+- 建议 namespace：`history.*`。
+- 需要覆盖：`history.filters.*`、`history.dateRange.*`、`history.bulk.*`、`history.empty.*`、`history.error.*`、`history.unavailable.*`、`history.toast.*`、`history.a11y.*`。
+- 组件内不得硬编码中文/英文文案；保留天数由 API `retention_days` 插值。
+
+**与现有组件关系**
+- `ContentCard` 只用于有效 published 内容；失效项不得伪装为 ContentCard 链接。
+- 删除确认复用 `ConfirmModal`，Toast 复用全局提示模式。
+- 不依赖 `ContentDetail`，但跳转目标必须匹配内容详情现有路由 normalize 规则。
+
+**Playwright 截图检查点**
+- `screenshots/community-browse-history-desktop.png`：PC 宽度，含筛选工具栏、日期分组、有效内容和失效占位。
+- `screenshots/community-browse-history-mobile.png`：移动宽度，chips 横向滚动、批量复选框 44px 命中区可见。
+- 交互检查：content_type query、日期 query、删除选中 ConfirmModal、清空后 EmptyState、网络错误保留旧数据。
 
 ## Page: /appeals 我的申诉
 
@@ -1328,48 +1374,64 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
+- 绝无 box-shadow（Indigo 扁平风），使用 1px border；Modal/Popover 遵守全局例外。
+- 本轮 scope：通知列表、私信会话列表、`ChatWindow`、广播通知视觉标记、5 分钟未读数轮询兜底。
+- Future/out-of-scope：`/api/v1/notifications/stream` 和 `/api/v1/messages/stream` SSE 实时推送；本轮不得为了 SSE 新增 provider、路由或浏览器验证。
 
-**视觉层级**
-- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
-- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
-- 内容模块：通知列表 + 私信对话列表，Tab 切换
+**目标与放置**
+- 目标：把通知和私信收敛到同一个双栏消息中心，保留通知时间线、私信会话、未读状态和系统广播的可扫描差异。
+- 放置：`frontend/app/(protected)/messages/page.tsx`；未登录访问由 protected layout 重定向。
+- Header 通知铃铛继续轮询 `GET /api/v1/notifications/unread-count`，点击跳转 `/messages?tab=notifications`。
 
 **核心组件清单**
 - `Header`
 - `NotificationList`
 - `ConversationList`
 - `ChatWindow`
+- `CollabInviteCard`（后续 collaboration-invites 计划扩展 typed message）
+- `MarkdownRenderer`（广播正文）
 - `EmptyState`
 - `LoadingSpinner`
+- `Toast`
 
 **布局规范**
-- 页面最大宽度：960px，居中
-- 左侧对话列表 + 右侧聊天窗口（桌面端），移动端单栏切换
-- 区域间距（block）：16px (`space-y-4`)
+- PC (>1100px)：页面最大宽度 `1180px`，主内容为 `grid-cols-[320px_minmax(0,1fr)]`；左栏为通知/私信 segmented tabs + 对应列表，右栏为通知详情或 `ChatWindow`。
+- 平板 (701-1100px)：左栏 `280px`，右栏自适应；列表项 unread badge 不得改变行高。
+- 移动 (<=700px)：单栏 list/detail drill-in；顶部保留通知/私信 segmented tabs；进入聊天后提供返回列表按钮。
+- 列表项高度稳定：通知项最小 `72px`，会话项最小 `64px`；头像、红点、badge 使用固定尺寸。
+- 禁止页面 section 再包卡片；列表项可使用 1px border 分隔。
 
 **状态变体**
-- default: 通知/私信 Tab + 列表 + 聊天窗口。
-- loading: 骨架屏（Skeleton 灰色块）。
-- empty: "暂无消息" EmptyState。
-- error: Toast 右上角报错。
-- 特殊状态：未登录拦截；hover 显示单条标记已读/删除操作。
+- default：通知 Tab 显示混合时间线；私信 Tab 显示左侧会话列表和右侧聊天窗口。
+- loading：列表 skeleton x6；右侧 detail skeleton 保持宽高，不跳动。
+- empty：通知为空和私信为空分别使用 localized EmptyState。
+- error：Toast + 局部重试按钮；保留上一份成功数据。
+- unread：通知和会话列表项显示红点/数字 badge；已读项降低辅助文字对比但仍满足可读性。
+- broadcast：`channel === "broadcast"` 的系统通知使用蓝色左边框、system icon 和 Markdown 摘要；不可只靠颜色区分，需有广播文本/aria-label。
+- direct-message：`ChatWindow` 中本人消息靠右，对方消息靠左，输入框固定在窗口底部。
+- typed-message：非 `text` 类型消息由 `ChatWindow` 分支渲染；未知 `msg_type` 显示安全 fallback 文本，不渲染原始 metadata。
 
 **响应式规则**
-- 移动 (≤700px): 单栏切换（列表或聊天窗口全宽），底部 Tab 切换通知/私信。
-- 平板 (≤1100px): 左侧列表 240px + 右侧聊天区自适应。
-- PC (>1100px): 左侧列表 300px + 右侧聊天区自适应。
+- 移动 (<=700px)：列表和聊天/通知详情互斥显示；所有可点击项触控目标不小于 44px。
+- 平板 (<=1100px)：左栏固定 280px，右栏 min-width 0，长标题 line-clamp。
+- PC (>1100px)：左栏 320px，右栏自适应；消息气泡最大宽度 `min(70%, 620px)`。
 
-**暗色模式适配**
-- 背景色 token: `canvas-default` -> `canvas-default.dark`
-- 边框色 token: `border-default` -> `border-default.dark`
-- 文字色 token: `foreground` -> `foreground.dark`
-- 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
+**可访问性**
+- 通知/私信切换使用 `role="tablist"` 或语义按钮组；当前项使用 `aria-current` 或 `aria-selected`。
+- 会话列表项和通知列表项可键盘聚焦；Enter/Space 打开。
+- `ChatWindow` 消息列表使用 `aria-live="polite"`，发送失败 Toast 不抢焦点。
+- 删除/清空类动作必须使用 `ConfirmModal`，打开时焦点锁定，Esc 关闭。
+- Markdown 链接可聚焦；广播图片有安全 fallback alt。
 
-**交互细节**
-- 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
-- 破坏性操作必须 ConfirmModal 二次确认。
-- 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
+**i18n key namespace**
+- 建议 namespace：`messages.*`。
+- 覆盖：`messages.tabs.*`、`messages.notifications.*`、`messages.conversations.*`、`messages.chat.*`、`messages.broadcast.*`、`messages.empty.*`、`messages.error.*`、`messages.a11y.*`。
+- 不在 TSX 中硬编码“通知/私信/暂无消息/系统广播/发送失败”等文案。
+
+**Playwright 截图检查点**
+- `screenshots/community-messages-notifications-desktop.png`：PC 双栏，通知 Tab 选中，含 broadcast 蓝色标记和 unread 状态。
+- `screenshots/community-messages-notifications-mobile.png`：移动单栏，私信列表进入 `ChatWindow` 后可返回。
+- 交互检查：tab 切换、通知标记已读、DM 冷启动错误 Toast、输入发送、未知 typed message fallback。
 
 ## Page: /rehab 素质建设课程
 
@@ -1648,6 +1710,68 @@ interface FacetedSearchSidebarProps {
 - 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
 - 破坏性操作必须 ConfirmModal 二次确认。
 - 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
+
+## Page: /admin/notifications 管理员系统通知广播
+
+**Key Constraints**
+- 后台页面：Role 必须为 admin；页面只负责系统广播编辑与发送，不提供撤回入口。
+- 广播正文允许 Markdown 图片和链接，但预览和发送后的通知详情必须复用安全 Markdown 渲染链路，禁止原始 HTML 绕过消毒。
+- 遵守全局扁平化无阴影规范；除 ConfirmModal/Dropdown 外不得使用 shadow。
+
+**目标与放置**
+- 目标：让管理员创建面向全站活跃用户的系统通知广播，并在发送前明确预览、确认不可撤回和展示收件人数结果。
+- 放置：`frontend/app/(protected)/admin/notifications/page.tsx`，使用现有 AdminLayout/AdminNav；不进入普通 `Header` 通知下拉的编辑入口。
+- 视觉角色：后台表单工具页，信息密度适中，可扫描，不使用营销式 hero、装饰卡片或横幅。
+
+**核心组件清单**
+- `AdminNav`
+- `MarkdownEditor`
+- `MarkdownRenderer`
+- `ConfirmModal`
+- `Toast`
+- `LoadingSpinner`
+
+**布局规范**
+- PC (>1100px)：AdminLayout 左侧 228px 导航；主区最大宽度 `1180px`，使用两列 `grid-cols-[minmax(420px,1fr)_minmax(360px,0.9fr)]`，左侧编辑表单，右侧实时预览。
+- 平板 (701-1100px)：两列改为上下堆叠；预览区在编辑区下方，保持 `border border-border-default rounded-lg`。
+- 移动 (<=700px)：AdminNav 折叠为顶部或抽屉；表单单列；MarkdownEditor 高度降到 `280px`；发送按钮全宽但仍在正常文档流中。
+- 页面区块间距 `space-y-6`；表单字段使用显式 label，字段说明为 `text-xs text-fg-muted`。
+
+**状态变体**
+- default：标题输入、Markdown 正文编辑器、预览、发送按钮均可用。
+- loading：初始化或发送中显示局部 Spinner；发送中标题/正文/按钮 disabled，预览保持最后输入内容。
+- empty：预览为空时显示轻量 EmptyState，占位文案走 `adminNotifications.preview.empty.*`。
+- error：字段校验错误显示在字段下方；API 错误 Toast；失败后保留用户输入。
+- success：发送成功后 Toast 显示 `recipient_count` 和 `broadcast_at`；表单可选择保留内容但发送按钮恢复可用。
+- disabled：非 admin 或权限刷新失败显示 403 EmptyState；发送按钮在标题/正文为空、超长、发送中时 disabled。
+
+**核心交互与焦点顺序**
+- 焦点顺序：页面标题 -> 标题输入 -> 正文编辑器 -> 预览区域跳转链接 -> 发送按钮 -> 清空/返回等次要动作。
+- 标题输入实时显示字数，约束 1-120 字符；正文实时显示字数，约束 1-5000 字符。
+- 点击发送：先前端校验 -> 打开 ConfirmModal -> 确认后调用 `POST /api/v1/admin/notifications/broadcast`，请求体固定 `channel: "broadcast"`。
+- ConfirmModal 必须提示不可撤回、将面向活跃用户发送；键盘 Esc 关闭，Enter 不应误触发送，需聚焦确认按钮后 Space/Enter。
+- 预览区使用 `MarkdownRenderer`，链接在预览中可聚焦但不自动打开新窗口；图片需有安全 fallback。
+
+**可访问性**
+- 正文、字段错误、按钮文字与背景对比度不低于 4.5:1。
+- 所有按钮、Tab、预览链接触控目标不小于 44px。
+- 图标按钮必须有 `aria-label`；预览区域使用 `aria-live="polite"` 但避免每次键入都朗读完整 Markdown。
+- ConfirmModal 使用 `role="dialog"`、`aria-modal="true"`，打开时焦点锁定在弹窗内。
+
+**i18n key namespace**
+- 建议 namespace：`adminNotifications.*`。
+- 覆盖：`adminNotifications.form.*`、`adminNotifications.preview.*`、`adminNotifications.confirm.*`、`adminNotifications.toast.*`、`adminNotifications.validation.*`、`adminNotifications.a11y.*`。
+- 不在 TSX 中硬编码中文/英文按钮、字段、错误、成功文案。
+
+**与现有组件关系**
+- 复用 `MarkdownRenderer` 的安全渲染规则；若存在 `MarkdownEditor`，沿用发布页编辑器交互，不新增第二套 Markdown 工具。
+- 成功发送后的用户侧展示由 `NotificationList` 负责，本页只显示发送结果，不渲染用户通知列表。
+- 使用 AdminLayout/AdminNav 的现有导航密度和 1px 边框语言，不创建独立后台设计系统。
+
+**Playwright 截图检查点**
+- `screenshots/community-messages-notifications-admin-desktop.png`：PC 双列编辑 + 预览，发送确认弹窗打开。
+- `screenshots/community-messages-notifications-admin-mobile.png`：移动单列表单，预览在下方且按钮 44px。
+- 交互检查：空表单校验、Markdown 预览、安全链接、确认后成功 Toast 包含收件人数、API 失败保留输入。
 
 ## Page: /admin/categories 分类与标签管理
 
@@ -2028,6 +2152,17 @@ interface ContentDetailProps {
     createdAt: string;
     updatedAt?: string;
     sourceOriginalId?: number;
+    sourceOriginal?: { id: number; title: string; zone: 'original' };
+    sourceFanworkId?: number;
+    sourceFanwork?: { id: number; title: string; zone: 'fanwork' };
+    seriesMemberships?: Array<{
+      seriesId: number;
+      seriesTitle: string;
+      currentIndex: number;
+      total: number;
+      previous?: { id: number; title: string };
+      next?: { id: number; title: string };
+    }>;
   };
   isLoading?: boolean;
 }
@@ -2039,11 +2174,13 @@ interface ContentDetailProps {
   - 分类标签: `<TagBadge color="blue" label={category} />`
   - 标题: `<h1 className="text-2xl font-semibold text-foreground mt-2">{title}</h1>`
   - 作者行: Avatar + 用户名 + 发布时间，`text-sm text-fg-muted`
+  - 可选 `SourceAttribution`: fanwork 且存在内容级来源时显示，置于作者行之后
 - 内容区: `p-6`
   - Markdown 正文渲染（MarkdownRenderer）
   - 乐谱渲染（SheetMusicViewer）— 仅 `contentType='sheet_music'`
   - 媒体展示（图片/视频/音频播放器）— 根据 contentType 选择
 - 底部操作栏: `<ReactionBar />` 组件
+- 正文后扩展区: `<SeriesNav />`（如有） -> `<RelatedFanworks />`（如有） -> `<CommentSection />`
 
 **尺寸规范**
 - 内间距: `p-6` (24px)
@@ -2057,6 +2194,199 @@ interface ContentDetailProps {
 - empty/404: 内容不存在 EmptyState。
 - error: 内容被 ban 时显示对应限制 EmptyState。
 - 无 hover/active/focus/disabled 状态（内容静态展示）。
+
+## Component: SeriesNav 内容系列导航
+
+**Key Constraints**
+- 视觉必须克制，定位在 `ContentDetail` 正文/附件与评论区之间，不得喧宾夺主。
+- 单个内容最多展示 3 个 series membership；超出由后端/normalizer 截断或前端只展示前三个。
+- 上一篇/下一篇不可用时必须显示 disabled 状态，不渲染无效链接。
+
+**目标与放置**
+- 目标：帮助用户在同一内容系列内跳到上一项、下一项或系列目录。
+- 放置：`frontend/components/content/SeriesNav.tsx`，由 `ContentDetail` 在正文和 `CommentSection` 之间渲染。
+- 多个系列时使用紧凑 tabs 或 segmented control 切换，不使用大卡片组。
+
+**Props 接口**
+```ts
+interface SeriesNavProps {
+  memberships: Array<{
+    seriesId: number;
+    seriesTitle: string;
+    currentIndex: number;
+    total: number;
+    previous?: { id: number; title: string };
+    next?: { id: number; title: string };
+  }>;
+}
+```
+
+**布局规范**
+- PC (>1100px)：外层 `border border-border-default rounded-lg bg-canvas-default p-4`，单行布局：系列信息在左，上一项/目录/下一项在右。
+- 平板 (701-1100px)：系列信息单行，导航按钮换到下一行 `grid grid-cols-3 gap-2`。
+- 移动 (<=700px)：全宽单列；tabs 横向滚动；上一项/下一项按钮分两行或两列，保证标题不溢出。
+- 按钮使用 `outline`/`ghost` 变体和 lucide `ChevronLeft`、`List`、`ChevronRight` 图标；文字 `text-sm`，辅助位置 `text-xs text-fg-muted`。
+
+**状态变体**
+- default：显示当前系列标题、当前位置、上一项、目录、下一项。
+- loading：通常随 `ContentDetail` 骨架一起加载；独立加载时显示一条高度稳定的 skeleton。
+- empty：无 memberships 时不渲染组件，不占位。
+- error：membership 数据无效时不渲染对应 tab，并可在开发日志中记录；用户界面不显示破碎导航。
+- success：本组件无写操作。
+- disabled：当前为第一项时上一项 disabled；当前为最后一项时下一项 disabled；disabled 按钮保留说明文本和 `aria-disabled`。
+
+**核心交互与焦点顺序**
+- 焦点顺序：series tabs（如有）-> 上一项 -> 目录 -> 下一项。
+- tabs 支持键盘左右切换；Enter/Space 激活 tab。
+- 上一项/下一项是 `Link`，仅在目标对象有有效 `id` 和 `title` 时渲染。
+- 目录链接指向 `/series/[id]`。
+
+**可访问性**
+- 对比度不低于 4.5:1；disabled 文案不得低于可读阈值。
+- 所有导航按钮触控目标不小于 44px。
+- 图标按钮必须有 `aria-label`，包含方向和目标标题或 disabled 原因。
+- tabs 使用 `role="tablist"` / `role="tab"`，当前 tab 标记 `aria-selected="true"`。
+
+**i18n key namespace**
+- 建议 namespace：`series.nav.*`。
+- 覆盖：`series.nav.position`、`series.nav.previous.*`、`series.nav.next.*`、`series.nav.catalog`、`series.nav.disabled.*`、`series.nav.a11y.*`。
+- 不硬编码“上一章/下一章/目录”等可见文案；位置数字可由 translation 插值。
+
+**与现有组件关系**
+- `ContentDetail` 渲染顺序建议：`SourceAttribution`（如有）-> 正文/附件 -> `ReactionBar` -> `SeriesNav` -> `RelatedFanworks` -> `CommentSection`。
+- 数据来自 `frontend/lib/content.ts` normalize 后的 `series_memberships`。
+- 不依赖 `StudioLayout`；管理入口在 `/studio/series`。
+
+**Playwright 截图检查点**
+- `screenshots/community-content-series-nav-desktop.png`：中间项显示上一项/目录/下一项。
+- `screenshots/community-content-series-nav-mobile.png`：移动 tabs 和 disabled 状态不溢出。
+- 交互检查：第一项 disabled previous、最后项 disabled next、多系列 tabs、目录链接到 `/series/:id`。
+
+## Component: SourceAttribution 灵感来源归因
+
+**Key Constraints**
+- 仅展示一层来源链；不得递归展示来源的来源。
+- 只在 fanwork 且存在内容级来源时渲染；仅 IP 来源时不渲染此行。
+- 视觉为标题元信息下方的小字链接，不能抢占内容标题或作者信息层级。
+
+**目标与放置**
+- 目标：在二创详情页轻量说明灵感来自某个原创或二创内容，并处理来源下架情况。
+- 放置：`ContentDetail` 头部区标题/作者元信息之后、正文之前；由 `frontend/components/content/SourceAttribution.tsx` 渲染。
+- 与 `RelatedFanworks` 配合：归因说明“来自哪里”，RelatedFanworks 展示“基于当前内容产生了什么”。
+
+**Props 接口**
+```ts
+interface SourceAttributionProps {
+  zone: 'original' | 'fanwork';
+  sourceOriginalId?: number;
+  sourceOriginal?: { id: number; title: string; zone: 'original' };
+  sourceFanworkId?: number;
+  sourceFanwork?: { id: number; title: string; zone: 'fanwork' };
+}
+```
+
+**布局规范**
+- PC/平板：单行 `inline-flex items-center gap-1 text-xs text-fg-muted`，最大宽度跟随内容头部；来源标题超长时 `line-clamp-1`。
+- 移动：允许换行到两行，但不能覆盖标题或作者行；触控链接高度至少 44px，可通过 `py-2` 扩大命中区。
+- 可使用 lucide `Link` 或 `GitBranch` 小图标 `w-3.5 h-3.5`，颜色随 `text-fg-muted`。
+
+**状态变体**
+- default：来源 summary 有效时渲染低权重链接。
+- loading：随 `ContentDetail` 头部骨架一起加载；不单独闪烁。
+- empty：original 内容、IP-only fanwork 或无来源字段时不渲染。
+- error/unavailable：存在 source ID 但 summary 缺失时渲染灰色不可点击文本，使用 `sourceAttribution.unavailable` key。
+- success：无写操作。
+- disabled：不可用来源不聚焦为链接，使用 `aria-disabled` 或纯文本。
+
+**核心交互与焦点顺序**
+- 来源有效时，链接位于作者信息之后、正文之前的焦点顺序。
+- `source_original` 链接到原创详情路由；`source_fanwork` 链接到二创内容详情路由。
+- 无效来源不响应点击，不显示 hover pointer。
+
+**可访问性**
+- 链接文本与背景对比度不低于 4.5:1；使用 underline 或 hover/focus 下划线辅助识别，不只靠颜色。
+- 链接触控目标不小于 44px。
+- 图标 `aria-hidden="true"`；链接 `aria-label` 包含来源类型和标题。
+- 不可用来源使用普通文本，不放入 Tab 顺序。
+
+**i18n key namespace**
+- 建议 namespace：`sourceAttribution.*`。
+- 覆盖：`sourceAttribution.original`、`sourceAttribution.fanwork`、`sourceAttribution.unavailable`、`sourceAttribution.a11y.*`。
+- 不硬编码“灵感来源/内容已下架”等文案。
+
+**与现有组件关系**
+- 数据来自 `frontend/lib/content.ts` normalize 的 `source_original` / `source_fanwork`。
+- `PublishForm`/`SourceContentPicker` 负责创建来源字段；本组件只读展示。
+- 必须嵌入 `ContentDetail`，不单独创建页面区块。
+
+**Playwright 截图检查点**
+- `screenshots/community-source-attribution-desktop.png`：fanwork with original source 显示轻量链接。
+- `screenshots/community-source-attribution-unavailable.png`：summary 缺失时灰色不可点击文本。
+- 交互检查：IP-only fanwork 不渲染、source_fanwork 链接到内容详情、键盘可聚焦有效链接。
+
+## Component: RelatedFanworks 相关二创/衍生作品行
+
+**Key Constraints**
+- 只展示当前内容的一层相关作品：original -> related fanworks；fanwork -> derivative works。
+- total 为 0 时隐藏组件，不留空白标题。
+- 横向作品行最多展示 8 张卡片；更多内容通过查看全部入口进入列表页。
+
+**目标与放置**
+- 目标：在内容详情页正文后、评论前，以低视觉权重展示相关二创或衍生作品，鼓励继续浏览或开始创作。
+- 放置：`frontend/components/content/RelatedFanworks.tsx`，由原创详情页和二创详情页调用。
+- 对外文案中 fanwork 的下一层统一称为 `derivatives` 对应 i18n key，不使用“三创”固定文案。
+
+**Props 接口**
+```ts
+interface RelatedFanworksProps {
+  sourceContentId: number;
+  sourceZone: 'original' | 'fanwork';
+  titleKey: string;
+  createHref?: string;
+  viewAllHref?: string;
+}
+```
+
+**布局规范**
+- PC (>1100px)：区块标题行左侧为标题和数量，右侧为查看全部/开始创作；下方横向滚动行，卡片宽 `180px`，间距 `gap-3`。
+- 平板 (701-1100px)：卡片宽 `160px`，标题行保持一行，动作按钮可换行到右侧下一行。
+- 移动 (<=700px)：卡片宽 `148px`，横向滚动使用 3px 极简滚动条；动作入口在标题下方以低权重按钮显示。
+- 外层只使用一个 `border border-border-default rounded-lg bg-canvas-default p-4` 容器，内部不得再包卡片容器。
+
+**状态变体**
+- default：加载 page=1&page_size=8 后展示横向卡片行。
+- loading：标题骨架 + 横向卡片 skeleton x4，保留高度。
+- empty：total=0 时不渲染。
+- error：局部内联错误 + 重试按钮；不使用全页 EmptyState。
+- success：无写操作；点击开始创作只是路由跳转。
+- disabled：createHref 不存在或用户不可发布时隐藏或 disabled 创作入口；查看全部仅在 `total > 8` 时显示。
+
+**核心交互与焦点顺序**
+- 焦点顺序：区块标题后的查看全部 -> 开始创作 -> 横向卡片链接。
+- 横向区域支持键盘 Tab 访问每张卡片；不要求自定义左右键滚动，但不能造成焦点不可见。
+- original 的开始创作链接指向 `/studio/publish/fanwork?source_original_id=<id>`；fanwork 的衍生创作可指向 `source_fanwork_id` 预填。
+- 卡片使用 `ContentCard` 小号变体：封面、标题、作者、点赞数；缺少有效 `id/title/zone` 的数据不得渲染为可点击卡片。
+
+**可访问性**
+- 标题、链接、按钮对比度不低于 4.5:1；横向滚动不隐藏焦点环。
+- 卡片和操作按钮触控目标不小于 44px。
+- 横向列表使用 `aria-label` 区分 related fanworks 与 derivative works。
+- 查看全部/开始创作图标按钮必须有可读文本或 `aria-label`。
+
+**i18n key namespace**
+- 建议 namespace：`relatedFanworks.*`。
+- 覆盖：`relatedFanworks.original.*`、`relatedFanworks.derivatives.*`、`relatedFanworks.actions.*`、`relatedFanworks.error.*`、`relatedFanworks.a11y.*`。
+- 不硬编码“相关二创/衍生作品/查看全部/开始创作”等文案。
+
+**与现有组件关系**
+- 嵌入 `ContentDetail` 评论区上方；与 `SeriesNav` 同级，不互相嵌套。
+- 卡片复用 `ContentCard` 小号变体和 content normalize 规则。
+- `PublishForm` 通过 `SourceContentPicker` 预填 source 字段；本组件只提供入口 href。
+
+**Playwright 截图检查点**
+- `screenshots/community-related-fanworks-desktop.png`：原创详情页有 8 张以内相关二创、查看全部和开始创作入口。
+- `screenshots/community-derivatives-mobile.png`：二创详情页衍生作品横向滚动，不出现“三创”硬编码文案。
+- 交互检查：total=0 隐藏、total>8 显示查看全部、创建链接 query 正确、无效卡片不渲染。
 
 ## Component: MarkdownRenderer
 
@@ -2971,143 +3301,295 @@ interface NotificationDropdownProps {
 ## Component: NotificationList
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- 用于 `/messages` 左栏通知时间线；不是 Header 下拉通知组件。
+- 遵守全局扁平化无阴影设计规范，列表容器和列表项均使用 1px border / divider，不使用 shadow。
+- `channel === "broadcast"` 的系统广播必须同时使用文本、图标或 aria-label 与普通通知区分，不得只靠蓝色边框。
+- Markdown 正文摘要必须走安全 Markdown 渲染/摘要链路，不渲染原始 HTML。
 
 **Props 接口**
 ```ts
+type NotificationChannel = 'reply' | 'like' | 'system' | 'pr' | 'follow' | 'broadcast';
+
+interface NotificationListItem {
+  id: number;
+  type: string;
+  channel: NotificationChannel;
+  title: string;
+  body?: string;
+  is_read: boolean;
+  target_type?: string;
+  target_id?: number;
+  created_at: string;
+  sender?: {
+    id: number;
+    username: string;
+    avatar_url?: string;
+  };
+}
+
 interface NotificationListProps {
   className?: string;
-  data?: any;
+  notifications: NotificationListItem[];
+  selectedId?: number;
   isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
+  error?: string;
+  onSelect?: (notification: NotificationListItem) => void;
+  onMarkRead?: (notificationId: number) => void;
+  onRetry?: () => void;
 }
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
+- 外层容器是纵向列表，不包二层卡片；列表项之间使用 `border-b border-border-default` 或 `divide-y`。
+- 每项结构：左侧 channel icon / broadcast marker，中央标题、摘要、时间，右侧 unread dot 或 mark-read icon button。
+- 广播项：左边框 `border-l-2 border-accent-emphasis`，标题前显示 localized `messages.broadcast.label`，摘要最多两行。
+- 普通通知：无左强调边框；未读项使用更高字重和 unread dot。
 
 **尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+- 列表项最小高度 `72px`，`px-3 py-3`，触控目标不小于 44px。
+- 标题 `text-sm font-medium`，摘要和时间 `text-xs text-fg-muted`。
+- unread dot 固定 `w-2 h-2`，不得改变行高。
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
+- default: 按 `created_at` 倒序展示通知。
+- unread: 标题加粗，显示 unread dot；已读项不降低到不可读对比度。
+- selected: 当前详情在右栏展示时，列表项使用 tokenized accent border 或背景。
+- broadcast: 见视觉结构；广播摘要可展开到右栏详情，但列表内仍保持两行。
+- loading: skeleton 列表 x6，保持列表宽度不变。
+- empty: `EmptyState`，文案来自 `messages.notifications.empty.*`。
+- error: 局部错误 + retry button；若父页面已有旧数据，保留旧数据并在顶部显示轻量错误提示。
 
 **响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
+- PC/平板：在 `/messages` 左栏内占满宽度。
+- 移动：作为单栏列表显示；点击通知进入详情视图并提供返回。
 
 **暗色模式适配**
 - 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- 点击/Enter/Space 打开详情或跳转目标；缺少有效 target 的通知只打开详情，不创建断链。
+- 标记已读 icon button 必须有 `aria-label`，不能吞掉列表项点击事件。
+- 所有可见文案走 `messages.notifications.*` / `messages.broadcast.*`。
 
 ## Component: ConversationList
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- 用于 `/messages` 私信 Tab 的会话列表；数据来源为 `GET /api/v1/messages`，不得再调用旧 `/api/v1/conversations`。
+- 遵守扁平 1px divider 设计；头像、未读数、最后消息摘要必须有稳定尺寸，避免 unread 状态导致布局跳动。
+- typed message 只显示安全摘要，不在会话列表展开 `CollabInviteCard`。
 
 **Props 接口**
 ```ts
+interface ConversationParticipant {
+  id: number;
+  username: string;
+  avatar_url?: string;
+}
+
+interface ConversationSummary {
+  id: number;
+  participants: ConversationParticipant[];
+  last_message?: {
+    id: number;
+    text?: string;
+    body?: string;
+    msg_type?: 'text' | 'collab_invite';
+    created_at: string;
+    sender_id: number;
+  };
+  unread_count: number;
+  updated_at: string;
+}
+
 interface ConversationListProps {
   className?: string;
-  data?: any;
+  conversations: ConversationSummary[];
+  selectedConversationId?: number;
   isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
+  error?: string;
+  onSelect: (conversation: ConversationSummary) => void;
+  onRetry?: () => void;
 }
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
+- 外层为纵向列表，`divide-y divide-border-default`。
+- 每项：Avatar 固定 40px，中央用户名/最后消息/时间，右侧 unread badge。
+- 多 participant 时显示第一个对方用户名；MVP 只支持 1:1，会话为空 participant 时显示安全 fallback。
+- `msg_type='collab_invite'` 摘要使用 localized `messages.conversations.collabInviteSummary`。
 
 **尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+- 列表项最小高度 `64px`，`px-3 py-3`。
+- Avatar `w-10 h-10`，unread badge 最小 `min-w-5 h-5`。
+- 最后消息摘要 `line-clamp-1`，不得撑宽左栏。
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
+- default: 会话按 `updated_at` 倒序。
+- selected: 当前会话使用 `bg-canvas-subtle` 和左侧 accent marker。
+- unread: unread badge 显示数量，超过 99 显示 `99+`。
+- loading: skeleton 会话 x6。
+- empty: localized EmptyState，可引导从用户主页/内容页发起私信。
+- error: 局部错误 + retry button。
 
 **响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
+- PC/平板：在左栏固定宽度内渲染。
+- 移动：点击会话进入 `ChatWindow` 单栏详情，列表隐藏；返回按钮由父页面或 ChatWindow header 提供。
 
 **暗色模式适配**
 - 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- 点击/Enter/Space 选择会话；不得用 hover-only 控件承载核心操作。
+- `onSelect` 收到完整 conversation summary，`ChatWindow` 通过 participants 推导 recipient_id。
+- 所有可见文案走 `messages.conversations.*`。
 
 ## Component: ChatWindow
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- 用于 `/messages` 私信详情；读取 `GET /api/v1/messages/:id`，发送 `POST /api/v1/messages`。
+- 正常 text message 渲染为消息气泡；`msg_type='collab_invite'` 渲染 `CollabInviteCard`；未知 typed message 显示安全 fallback。
+- 输入框固定在窗口底部，但不得遮挡消息列表；移动端使用正常文档流或 sticky 区域。
+- 不渲染原始 metadata；只把经过 normalizer 验证的邀请字段传给子组件。
 
 **Props 接口**
 ```ts
+interface ChatMessage {
+  id: number;
+  sender_id: number;
+  text?: string;
+  body?: string;
+  msg_type?: 'text' | 'collab_invite';
+  metadata?: {
+    invite_id?: number;
+    content_id?: number;
+    content_title?: string;
+    inviter_id?: number;
+    inviter_username?: string;
+  };
+  created_at: string;
+}
+
 interface ChatWindowProps {
   className?: string;
-  data?: any;
+  conversation: ConversationSummary;
+  messages: ChatMessage[];
+  currentUserId: number;
   isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
+  isSending?: boolean;
+  error?: string;
+  onSend: (payload: { recipient_id: number; text: string }) => Promise<void> | void;
+  onBack?: () => void;
+  onRetry?: () => void;
 }
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
+- 外层为 `flex flex-col min-h-0 border border-border-default rounded-md bg-canvas-default`。
+- Header：对方头像/用户名，移动端可显示返回 icon button。
+- 消息列表：`flex-1 overflow-y-auto px-4 py-3 space-y-3`，`aria-live="polite"`。
+- 本人 text 气泡靠右，使用 primary/accent subtle；对方 text 气泡靠左，使用 canvas-subtle。
+- 输入区：`border-t border-border-default p-3`，textarea/input + send icon button。
 
 **尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+- PC 消息气泡最大宽度 `min(70%, 620px)`；移动端最大宽度 `86%`。
+- 输入框最小高度 44px；发送按钮触控目标 44px。
+- 邀请卡片宽度跟随消息列，不超过 text 气泡最大宽度。
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
+- default: 渲染已有 messages，初次进入滚动到底部。
+- loading: header skeleton + 消息气泡 skeleton x6，输入区 disabled。
+- empty: 显示 localized 空对话提示，输入区仍可用。
+- sending: 发送按钮 disabled 并显示 spinner；输入内容保留直到请求成功。
+- error: 局部重试按钮；发送失败用 Toast，不抢焦点。
+- cold-start-error: 后端返回 `DM_REPLY_REQUIRED` 时显示 localized Toast，不清空输入。
+- typed-unknown: 显示 `messages.chat.unsupportedMessage`，不显示 metadata。
 
 **响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
+- PC/平板：填满右栏高度，`min-width: 0`，长文本换行。
+- 移动：单栏全宽，header 返回按钮可见；输入区不遮挡系统导航。
 
 **暗色模式适配**
 - 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- Enter 发送、Shift+Enter 换行；空白内容禁用发送。
+- 发送 payload 使用 `{ recipient_id, text }`，recipient 从当前会话 participant 中排除 currentUserId 后得到。
+- 新消息到达时，如果用户接近底部则自动滚到底；用户正在查看旧消息时不强制跳动。
+- 所有可见文案走 `messages.chat.*`、`messages.error.*`、`messages.a11y.*`。
+
+## Component: CollabInviteCard 联合创作邀请卡片
+
+**Key Constraints**
+- 仅在 `ChatWindow` 渲染 `message.msg_type === "collab_invite"` 时使用；普通 text message 继续使用消息气泡。
+- 必须清楚区分 `pending`、`accepted`、`declined`、`expired`，但不得设计成广告横幅或高饱和 CTA。
+- 邀请最终状态以后端 invite DTO 为准，前端本地状态只做乐观/即时更新。
+
+**目标与放置**
+- 目标：让被邀请者在私信里理解邀请来源、关联内容，并接受或拒绝联合创作。
+- 放置：`frontend/components/social/CollabInviteCard.tsx`，嵌入 `ChatWindow` 消息流；`ConversationList` 只显示简短摘要，不展开卡片。
+- 与 `CollabUserPicker` 关系：Picker 负责发送邀请，InviteCard 负责接收方响应。
+
+**Props 接口**
+```ts
+interface CollabInviteCardProps {
+  invite: {
+    id: number;
+    status: 'pending' | 'accepted' | 'declined' | 'expired';
+    contentId: number;
+    contentTitle: string;
+    inviterUsername: string;
+  };
+  isCurrentUserInvitee: boolean;
+  onAccept: (inviteId: number) => Promise<void>;
+  onDecline: (inviteId: number) => Promise<void>;
+}
+```
+
+**布局规范**
+- PC (>1100px)：卡片最大宽度 `420px`，位于消息列内，与对方消息左对齐；`border border-border-default rounded-lg bg-canvas-default p-4`。
+- 平板 (701-1100px)：最大宽度 `min(420px, 80%)`，按钮保持一行。
+- 移动 (<=700px)：宽度 `100%`，按钮可两列或纵向；每个按钮高度至少 44px。
+- 内容结构：小号类型行 -> 邀请描述 -> 内容标题链接/摘要 -> 状态说明 -> 操作区。
+- 状态标识使用低饱和 TagBadge 语义：pending blue、accepted green、declined rose/neutral、expired muted；必须配合文本。
+
+**状态变体**
+- pending：接收方看到接受/拒绝按钮；非接收方只看到等待状态。
+- accepted：只读成功状态，按钮隐藏；可显示内容链接。
+- declined：只读拒绝状态，按钮隐藏。
+- expired：灰色只读状态，按钮隐藏，整体 `bg-canvas-subtle` 但文字仍可读。
+- loading：点击接受/拒绝后，仅对应按钮显示 Spinner，另一按钮 disabled。
+- error：响应失败时卡片内显示短错误 + Toast；卡片状态回到操作前。
+- disabled：用户不是 invitee、状态非 pending、请求中或账号受限时操作 disabled。
+- empty/invalid：metadata 缺少 invite_id/content_id/content_title 时不渲染操作卡，回退为安全文本消息摘要。
+
+**核心交互与焦点顺序**
+- 焦点顺序：内容链接 -> 接受按钮 -> 拒绝按钮；非 pending 状态只有内容链接可聚焦。
+- 接受：调用 `/api/v1/collab-invites/:id/accept`，成功后状态变为 returned invite.status。
+- 拒绝：调用 `/api/v1/collab-invites/:id/decline`，成功后状态变为 returned invite.status。
+- 不在卡片内放二次确认；接受/拒绝是可明确理解的小范围操作。
+- 键盘：Enter/Space 触发按钮；焦点环必须在消息流中可见。
+
+**可访问性**
+- 状态文本与背景对比度不低于 4.5:1；不能只靠 TagBadge 颜色表达状态。
+- 操作按钮触控目标不小于 44px。
+- 接受/拒绝按钮 `aria-label` 包含内容标题；loading 时设置 `aria-busy="true"`。
+- 卡片容器可使用 `role="group"` 和 `aria-labelledby` 指向邀请标题。
+
+**i18n key namespace**
+- 建议 namespace：`collabInviteCard.*`。
+- 覆盖：`collabInviteCard.status.*`、`collabInviteCard.actions.*`、`collabInviteCard.errors.*`、`collabInviteCard.summary.*`、`collabInviteCard.a11y.*`。
+- 不硬编码 pending/accepted/declined/expired 的可见文案。
+
+**与现有组件关系**
+- `ChatWindow` 根据 msg_type 分支渲染本组件；消息列表布局、滚动和输入框仍归 ChatWindow 管理。
+- `ConversationList` 对 typed message 只显示 i18n 摘要和状态，不嵌入完整卡片。
+- 接受后 contributor 状态由后端写入；`ContentDetail` 后续可显示贡献者，但本卡不直接修改内容详情状态。
+
+**Playwright 截图检查点**
+- `screenshots/community-collab-invite-pending.png`：pending 卡片含接受/拒绝，视觉不像广告横幅。
+- `screenshots/community-collab-invite-states.png`：accepted、declined、expired 三种只读状态可区分。
+- `screenshots/community-collab-invite-mobile.png`：移动端按钮 44px，文本不溢出。
+- 交互检查：接受成功、拒绝成功、过期不可操作、API 失败回退、普通消息不受影响。
 
 ## Component: CourseCard
 
@@ -3834,6 +4316,133 @@ interface ContentTypeOption {
 - 键盘：`Tab` 在卡片间移动，`Enter` 选中。
 - 发布表单顶部提供「← 返回选择类型」按钮。
 
+## Component: SourceContentPicker 来源内容选择器
+
+**Key Constraints**
+- Canonical 组件名为 `SourceContentPicker`；旧原创来源选择器和 fanwork 专用来源选择器命名应收敛为此组件的不同 `sourceKind` 配置。
+- 仅用于 fanwork 发布/编辑流程；original zone 表单不得渲染此组件。
+- 同一表单中 `source_original_id` 与 `source_fanwork_id` 互斥，选择一类来源必须清除另一类来源。
+
+**目标与放置**
+- 目标：让发布二创时可选择原创来源或二创来源，并支持 URL query 预填来源摘要。
+- 放置：`PublishForm` 中 IP 选择器之后、标签/权限之前；如果同时存在 IP，来源仍可选但两个来源 ID 不可共存。
+- 与 `SourceAttribution` 关系：本组件写入来源字段，`SourceAttribution` 在详情页只读展示。
+
+**Props 接口**
+```ts
+interface SourceContentPickerProps {
+  sourceKind: 'original' | 'fanwork';
+  selected?: { id: number; title: string; zone: 'original' | 'fanwork' };
+  disabled?: boolean;
+  onSelect: (content?: { id: number; title: string; zone: 'original' | 'fanwork' }) => void;
+}
+```
+
+**布局规范**
+- PC (>1100px)：表单行内区域宽度跟随 PublishForm；搜索输入 + 结果 Popover，已选来源以紧凑 summary row 展示。
+- 平板 (701-1100px)：输入和已选 summary 单列；Popover 宽度等于输入。
+- 移动 (<=700px)：结果使用底部 Sheet 或全宽下拉，避免窄屏 Popover 溢出；已选 summary 保持 44px 高度。
+- 结果项展示封面缩略图（可选）、标题、作者、zone badge，使用 1px border 或列表分隔线，不使用嵌套卡片。
+
+**状态变体**
+- default：输入可搜索，未选择时显示 placeholder 文案 key。
+- loading：搜索中在输入右侧显示 Spinner，结果区域 skeleton x3。
+- empty：无搜索结果显示局部 EmptyState。
+- error：搜索失败显示内联错误和重试按钮；不清除已选来源。
+- success：选择成功后 summary row 展示来源标题和清除按钮；清除按钮调用 `onSelect(undefined)`。
+- disabled：PublishForm 提交中、zone 非 fanwork、用户无发布权限时输入和清除按钮 disabled。
+- prefilled：URL query 带 `source_original_id` 或 `source_fanwork_id` 时先加载 summary；加载失败显示 unavailable 内联错误并允许清除。
+
+**核心交互与焦点顺序**
+- 焦点顺序：source kind label -> 搜索输入 -> 结果项 -> 已选 summary 清除按钮 -> 下一个表单字段。
+- 输入 debounce 搜索；original 调用 original 内容搜索，fanwork 调用 fanwork 内容搜索；结果必须只包含 published 内容。
+- 选择 original 后调用父级清除 fanwork；选择 fanwork 后清除 original；清除当前选择时调用 `onSelect(undefined)`。
+- 键盘：输入聚焦后 `ArrowDown` 进入结果，`Enter` 选择，Esc 关闭结果层，清除按钮可 Tab 聚焦。
+
+**可访问性**
+- 输入有 `<label>` 和 `aria-describedby`，说明 fanwork 至少需要 IP 或来源之一。
+- 结果列表使用 combobox/listbox 语义或等价 aria；当前高亮项用 `aria-activedescendant`。
+- 所有结果项和清除按钮触控目标不小于 44px。
+- 文本对比度不低于 4.5:1；错误提示不只靠红色，需有文本说明。
+
+**i18n key namespace**
+- 建议 namespace：`sourceContentPicker.*`。
+- 覆盖：`sourceContentPicker.original.*`、`sourceContentPicker.fanwork.*`、`sourceContentPicker.search.*`、`sourceContentPicker.prefill.*`、`sourceContentPicker.error.*`、`sourceContentPicker.a11y.*`。
+- 不硬编码“来源原创/来源二创/搜索/清除”等文案。
+
+**与现有组件关系**
+- 嵌入 `PublishForm`；不得单独提交内容，只通过父表单写入 `source_original_id` 或 `source_fanwork_id`。
+- 与 `ContentTypeGrid` 无直接交互，ContentTypeGrid 只选择内容类型。
+- 与 `RelatedFanworks` 的开始创作链接配合，支持 query 预填来源。
+
+**Playwright 截图检查点**
+- `screenshots/community-source-picker-desktop.png`：PublishForm 中 original/fanwork 来源选择、互斥清除。
+- `screenshots/community-source-picker-mobile.png`：移动 Sheet 结果列表不溢出。
+- 交互检查：IP-only 可提交、original-source 可提交、fanwork-source 可提交、无 IP/来源禁用提交、两个来源 ID 不会同时进入 payload。
+
+## Component: CollabUserPicker 联合创作者选择器
+
+**Key Constraints**
+- 用于发布成功后发送联合创作邀请；不能把被选用户提前写入内容作者或 contributor 列表。
+- 搜索结果只显示安全用户字段：id、username、avatar_url。
+- 选择器不得绕过后端防骚扰链路；前端只做重复选择和基础可用性提示。
+
+**目标与放置**
+- 目标：让创作者在 `PublishForm` 中选择一个或多个待邀请用户，并在内容创建成功后逐个发送邀请。
+- 放置：`PublishForm` 的主要内容字段之后、提交操作之前；source-linkage 字段之后再显示。
+- 与 `ChatWindow`/`CollabInviteCard` 关系：本组件触发邀请发送，真正响应发生在私信卡片中。
+
+**Props 接口**
+```ts
+interface CollabUserPickerProps {
+  selectedUsers: Array<{ id: number; username: string; avatarUrl?: string }>;
+  disabled?: boolean;
+  onChange: (users: Array<{ id: number; username: string; avatarUrl?: string }>) => void;
+}
+```
+
+**布局规范**
+- PC (>1100px)：表单内单列；已选用户以紧凑 chips 列表展示，搜索输入下方弹出结果 Popover。
+- 平板 (701-1100px)：chips 自动换行，结果 Popover 等宽。
+- 移动 (<=700px)：搜索结果使用全宽下拉或底部 Sheet；chips 每行可换行，移除按钮保持 44px 命中区。
+- 不使用大头像墙；头像 24-32px，信息密度与 PublishForm 其他字段一致。
+
+**状态变体**
+- default：搜索输入可用，已选用户 chips 可移除。
+- loading：搜索中显示 Spinner，结果 skeleton x3。
+- empty：无结果显示局部 EmptyState。
+- error：搜索失败显示内联错误 + 重试，不清空已选。
+- success：发布后邀请发送成功可由父级 Toast 汇总；本组件不单独显示成功 banner。
+- disabled：提交中、用户信誉不足、内容创建失败、发布权限不足时禁用搜索和移除。
+- duplicate：重复用户不可添加，结果项显示 disabled 状态并说明已选择。
+
+**核心交互与焦点顺序**
+- 焦点顺序：字段 label -> 已选 chips 的移除按钮 -> 搜索输入 -> 结果项 -> 下一个表单字段。
+- 输入 username 搜索；点击/Enter 选择；选择后输入清空并保持焦点。
+- chips 移除按钮可键盘触发；本轮不实现 Backspace 删除最后一个 chip，避免新增未测试键盘路径。
+- 发布成功后父级按 selectedUsers 逐个调用邀请 API；单个邀请失败只产生 warning toast，不回滚内容发布。
+
+**可访问性**
+- 输入使用 combobox/listbox 语义或等价 aria；结果项有 `aria-selected`。
+- chips 移除按钮必须有 `aria-label`，包含用户名。
+- 所有结果项、chips、移除按钮触控目标不小于 44px。
+- 对比度不低于 4.5:1；duplicate/disabled 状态不只靠颜色。
+
+**i18n key namespace**
+- 建议 namespace：`collabUserPicker.*`。
+- 覆盖：`collabUserPicker.label`、`collabUserPicker.search.*`、`collabUserPicker.selected.*`、`collabUserPicker.error.*`、`collabUserPicker.disabled.*`、`collabUserPicker.a11y.*`。
+- 不硬编码“搜索用户/已选择/移除/邀请失败”等文案。
+
+**与现有组件关系**
+- 嵌入 `PublishForm`；不参与 `ContentDetail` 展示。
+- 邀请发送结果最终在 `ChatWindow` 中以 `CollabInviteCard` 展示。
+- 与 `SourceContentPicker` 同属 PublishForm 扩展字段，视觉密度和表单 label 规则保持一致。
+
+**Playwright 截图检查点**
+- `screenshots/community-collab-picker-desktop.png`：PublishForm 中搜索结果、已选 chips、重复 disabled。
+- `screenshots/community-collab-picker-mobile.png`：移动结果层不溢出，chips 可移除。
+- 交互检查：搜索用户、选择、重复不可加、移除、发布成功后邀请失败 warning 不阻断发布成功。
+
 ## Page: /studio 创作者工作室
 
 **Key Constraints**
@@ -3913,23 +4522,70 @@ interface ContentTypeOption {
 
 **Key Constraints**
 - 类似发布原创，ContentTypeGrid 显示二创区 8 种类型（按 config.yaml > publish.type_order_fanwork 排序）。
-- 发布表单比原创区多 `ip_id`（必填）和 `source_original_id`（可选）。
-**视觉结构**
-- 步骤 1：标题「选择二创内容类型」+ ContentTypeGrid
-- 步骤 2：标题「发布二创 — [类型名]」+ 表单
-  - 标题 → 描述 → 文件上传 → **IP 搜索选择器**（必填）→ **来源原创搜索器**（可选）→ 标签 → 权限开关 → 提交
+- 发布表单比原创区多 fanwork 来源选择区；`ip_id`、`source_original_id`、`source_fanwork_id` 三者至少填写一个。
+- `source_original_id` 与 `source_fanwork_id` 互斥；选择任一内容来源时必须清除另一个内容来源。
+- 本计划阶段中 `SourceContentPicker` 负责来源字段；`CollabUserPicker` 由后续 collaboration-invites 计划追加，必须位于来源字段之后、提交按钮之前。
+
+**目标与放置**
+- 目标：让创作者发布二创时明确选择内容类型，并在 IP、原创来源、二创来源三类灵感来源中至少提供一类。
+- 放置：`frontend/app/(protected)/studio/publish/fanwork/page.tsx`，使用 `StudioLayout`；未登录和封禁状态由 protected route group 兜底。
+- Query prefill：`?source_original_id=<id>` 预填原创来源，`?source_fanwork_id=<id>` 预填二创来源；两者同时存在时前端保留 `source_original_id`、清除 `source_fanwork_id` 并显示 localized warning。
 
 **核心组件清单**
 - `ContentTypeGrid`
-- `IPSelector`（IP 搜索下拉，必填项）
-- `OriginalSourceSelector`（来源原创搜索，可选）
+- `IPSelector`（IP 搜索下拉）
+- `SourceContentPicker`（原创来源/二创来源统一选择器）
+- `CollabUserPicker`（future/additive，由 collaboration-invites 计划实现）
+- `FileUploader`
+- `MarkdownEditor`
+- `TagInput`
+- `ComplianceCheckBadge`
+- `ConfirmModal`（放弃未保存内容）
 - 其余与发布原创相同
+
 **布局规范**
-- 同发布原创，额外插入 IP 选择器行和来源原创搜索器行。
+- 同发布原创，额外插入来源选择区；来源选择区字段之间使用 `space-y-3`，不要卡片套卡片。
+- PC (>1100px)：表单最大宽度 `960px`；来源区是普通表单 fieldset，不做独立浮动卡片。
+- 平板 (701-1100px)：表单最大宽度 `720px`；来源选择器结果层等宽。
+- 移动 (<=700px)：表单 `p-4`，来源选择器结果使用底部 Sheet 或全宽下拉；提交按钮保持 44px 高度。
+
+**状态变体**
+- default：步骤 1 显示 ContentTypeGrid；选择类型后显示步骤 2 fanwork 表单。
+- loading：提交中按钮内嵌 Spinner，来源选择器和内容字段 disabled。
+- prefill-loading：query prefill 正在加载来源 summary，来源区显示 skeleton row。
+- prefill-error：query prefill id 不存在、不可见或 zone 不匹配时显示内联 warning，可清除后继续填写。
+- validation：IP、原创来源、二创来源均为空时显示来源区行内错误并禁用提交。
+- error：API 错误 Toast + 字段级错误；保留用户输入。
+- success：发布成功 Toast + redirect `/studio/contents`。
+- disabled：信誉分不足、账号封禁、无发布权限时显示 protected EmptyState 或禁用表单。
+
 **交互细节**
-- IP 未选择时提交按钮 disabled + 行内提示「请选择一个 IP」。
-- 来源原创不存在/已删除时搜索无结果，可留空。
+- IP、原创来源、二创来源三者均为空时提交按钮 disabled，并在来源选择区显示 i18n 校验说明。
+- 选择原创来源会清除二创来源；选择二创来源会清除原创来源。
+- 来源内容不存在/已删除时预填失败，显示可清除的内联错误。
 - 发布成功 → Toast + redirect `/studio/contents`。
+
+**可访问性**
+- 来源区使用 `fieldset` + `legend` 或等价语义，说明“IP 或灵感来源至少填写一项”。
+- `SourceContentPicker` 的两个实例 label 必须不同，分别通过 i18n 表示原创来源和二创来源。
+- Query prefill warning 使用 `role="status"`；提交 validation 使用 `aria-describedby` 关联到来源区。
+- 所有来源选择、清除、提交、返回按钮触控目标不小于 44px。
+- 未保存内容返回类型选择时打开 `ConfirmModal`，焦点锁定，Esc 关闭。
+
+**i18n key namespace**
+- 建议 namespace：`studio.publish.fanwork.*`。
+- 覆盖：`studio.publish.fanwork.typeGrid.*`、`studio.publish.fanwork.source.*`、`studio.publish.fanwork.prefill.*`、`studio.publish.fanwork.validation.*`、`studio.publish.fanwork.toast.*`、`studio.publish.fanwork.a11y.*`。
+- 不在页面组件中硬编码 IP/来源/二创/预填失败/至少一项等文案。
+
+**与现有组件关系**
+- `SourceContentPicker` 是来源字段 canonical 组件；本页不得引入 fanwork 专用来源 picker。
+- `CollabUserPicker` 是 collaboration-invites 计划的 additive component；source-linkage 实现不得提前发送协作邀请。
+- `RelatedFanworks` 的“开始创作”入口通过 query prefill 进入本页。
+
+**Playwright 截图检查点**
+- `screenshots/community-source-picker-desktop.png`：PC 表单含 IP、原创来源、二创来源，互斥清除可见。
+- `screenshots/community-source-picker-mobile.png`：移动来源选择结果层不溢出，validation 文案不遮挡提交按钮。
+- 交互检查：IP-only、original-source-only、fanwork-source-only 均可提交；无 IP/来源禁用提交；query prefill 成功和失败状态均覆盖。
 
 ## Page: /studio/overview 数据概览
 
@@ -3963,6 +4619,134 @@ interface ContentTypeOption {
 **交互细节**
 - 内容排行项可点击跳转详情页。
 - 待处理事项项可点击跳转对应管理页。
+
+## Page: /studio/series 内容系列管理
+
+**Key Constraints**
+- 所有 `/studio/*` 页面共享 `StudioLayout`；本页必须使用 `StudioSidebar` 的既有折叠行为和宽度 token。
+- 首版只管理公开系列，不提供私有/草稿系列开关。
+- 系列 owner 才能创建、编辑、删除、添加、移除和排序系列项。
+
+**目标与放置**
+- 目标：让创作者创建系列、编辑元信息、添加自己发布或已确认贡献的内容，并用上/下移动或可测试排序控件维护顺序。
+- 放置：`frontend/app/(protected)/studio/series/page.tsx`，StudioSidebar 内容管理分组内新增入口。
+- 与 `PublishForm` 关系：发布时不强制选择系列；系列归档是发布后的管理动作。
+
+**核心组件清单**
+- `StudioLayout`
+- `StudioSidebar`
+- `ContentCard`（可添加内容搜索结果的紧凑形态）
+- `ConfirmModal`
+- `EmptyState`
+- `LoadingSpinner`
+- `Toast`
+
+**布局规范**
+- PC (>1100px)：主区最大宽度 `1280px`；左侧为 series 列表栏 `320px`，右侧为详情/编辑区 `minmax(0,1fr)`；两栏同级，使用 1px border 分隔，不嵌套卡片。
+- 平板 (701-1100px)：列表栏宽 `280px`，详情区自适应；添加内容搜索结果单列。
+- 移动 (<=700px)：StudioSidebar 默认收起；本页采用列表/详情两步视图，选中 series 后详情全屏显示，顶部提供返回列表图标按钮。
+- 详情区结构：元信息表单 -> 已添加内容有序列表 -> 添加内容搜索区。
+
+**状态变体**
+- default：左侧列出我的系列，右侧显示选中系列详情和 items。
+- loading：列表和详情分别显示骨架，避免整页空白。
+- empty：无系列时显示 EmptyState + 创建按钮；选中系列无 items 时显示局部 EmptyState。
+- error：Toast + 局部错误；列表加载失败不显示详情区假数据。
+- success：创建、保存、添加、移除、重排、删除成功均使用 Toast；保存后保持当前选中系列。
+- disabled：保存中禁用表单；删除默认不可用状态不适用；无权限/信誉不足时创建和管理控件 disabled 或由受保护布局拦截。
+
+**核心交互与焦点顺序**
+- 焦点顺序：StudioSidebar -> 页面标题 -> 创建按钮 -> series 列表 -> 元信息表单 -> items 上/下移动按钮 -> 移除按钮 -> 添加内容搜索 -> 保存/删除。
+- 创建 series：打开内联表单或 Modal；必填 title 和 zone，zone 创建后不可变更。
+- 添加内容：搜索 owner 自己发布或 owner 已确认贡献的内容；选中后追加到末尾。
+- 排序：首版优先使用上移/下移按钮；若实现拖拽，必须保留键盘排序按钮。
+- 删除 series：ConfirmModal 二次确认；删除成功后返回列表第一项或 EmptyState。
+
+**可访问性**
+- 所有控件触控目标不小于 44px；排序按钮使用 lucide 图标并提供 `aria-label`。
+- 列表项选中状态使用 `aria-current` 或 `aria-selected`，不能只靠颜色。
+- 表单字段有 `<label>`；错误提示与字段通过 `aria-describedby` 关联。
+- 对比度不低于 4.5:1；禁用态说明仍需可读。
+
+**i18n key namespace**
+- 建议 namespace：`studio.series.*`。
+- 覆盖：`studio.series.list.*`、`studio.series.form.*`、`studio.series.items.*`、`studio.series.search.*`、`studio.series.confirm.*`、`studio.series.toast.*`、`studio.series.a11y.*`。
+- 不硬编码“创建系列/上移/下移/删除”等文案。
+
+**与现有组件关系**
+- 必须挂在 `StudioLayout`，入口由 `StudioSidebar` 提供。
+- 内容搜索结果复用内容摘要/ContentCard 视觉，不新建营销卡片。
+- `SeriesNav` 在 `ContentDetail` 中消费本页创建的系列 membership；本页不渲染 `SeriesNav`。
+
+**Playwright 截图检查点**
+- `screenshots/community-content-series-studio-desktop.png`：PC 两栏，列表、详情、排序按钮、添加搜索区。
+- `screenshots/community-content-series-studio-mobile.png`：移动列表/详情切换，StudioSidebar 收起。
+- 交互检查：创建系列、添加两条内容、上移/下移排序 payload、移除 item、删除 series、空状态。
+
+## Page: /studio/favorites 收藏集管理
+
+**Key Constraints**
+- 所有 `/studio/*` 页面共享 `StudioLayout`；本页必须使用 `StudioSidebar` 的既有折叠行为和宽度 token。
+- 页面放在 `frontend/app/(protected)/studio/favorites/page.tsx`；未登录、封禁和信誉限制由 protected route group 与后端权限兜底。
+- 收藏集按 `zone` 分区管理；原创收藏集和二创收藏集必须分开展示、创建和筛选。
+- 默认收藏集 `is_default=true` 不可删除；UI 删除按钮必须 disabled，并通过 tooltip 或行内说明解释。
+- 收藏集可见性、默认保护、owner 权限和内容可见性最终以后端 API 为准，前端不得拿全量数据后自行隐藏私有数据。
+
+**目标与放置**
+- 目标：让创作者管理自己的原创/二创收藏集，创建、编辑、删除普通收藏集，并快速进入收藏集详情页查看内容。
+- 放置：StudioSidebar 内容管理分组内新增「收藏集」入口；页面主区不使用公共 Header。
+- 数据源：`GET /api/v1/collections`（需要认证，未传 `owner_id` 时列出当前用户全部收藏集）；创建、编辑、删除分别调用对应 collections API。
+
+**核心组件清单**
+- `StudioLayout`
+- `StudioSidebar`
+- `CollectionCard`
+- `ConfirmModal`
+- `EmptyState`
+- `LoadingSpinner` / `SkeletonCard`
+- `Toast`
+
+**布局规范**
+- PC (>1100px)：主区最大宽度 `1280px`，顶部为标题 + 新建按钮；下方使用两个同级 zone section，分别为原创收藏集和二创收藏集，每个 section 使用 `grid grid-cols-3 gap-4`。
+- 平板 (701-1100px)：主区最大宽度 `960px`，两个 zone section 单列堆叠，卡片网格 `grid-cols-2`。
+- 移动 (<=700px)：主区 `p-4`，StudioSidebar 默认收起；顶部操作换行，新建按钮全宽；每个 zone section 使用 2 列紧凑网格。
+- 两个 zone section 是页面同级区块，禁止把整个页面包成大卡片；`CollectionCard` 只用于单个收藏集。
+
+**状态变体**
+- default：展示原创/二创两组收藏集；默认收藏集排在各自 zone 第一项。
+- loading：页面标题保留，两个 zone section 各显示 `SkeletonCard` x3，网格尺寸稳定。
+- empty：某个 zone 没有普通收藏集时仍显示默认收藏集；若 API 返回空列表，显示全页 EmptyState + 创建/修复默认收藏集入口。
+- error：Toast + 局部重试按钮；不得展示过期缓存中的私有收藏集作为“成功”状态。
+- success：创建、编辑、删除成功均 Toast，并重新验证列表数据；删除成功后焦点返回对应 zone 的新建按钮或第一张卡片。
+- disabled：默认收藏集删除 disabled；保存中禁用对应表单和按钮；非 owner 场景理论上不会进入本页，若后端返回 403 显示 EmptyState。
+
+**核心交互与焦点顺序**
+- 焦点顺序：StudioSidebar -> 页面标题 -> 新建原创按钮 -> 原创收藏集卡片 -> 新建二创按钮 -> 二创收藏集卡片。
+- 新建收藏集：选择 zone 后打开 Modal 或内联表单；必填 title，description 和 is_public 可选；zone 创建后不可变更。
+- 编辑收藏集：从 `CollectionCard` action 打开编辑表单；仅允许修改 title、description、is_public、sort_order。
+- 删除收藏集：普通收藏集必须 ConfirmModal 二次确认；默认收藏集删除按钮不可触发请求。
+- 卡片主区域点击跳转 `/collections/[id]`；owner action 按钮必须阻止冒泡，不能误触跳转。
+
+**可访问性**
+- zone section 使用明确 heading，并将网格 `aria-labelledby` 指向对应 heading。
+- `CollectionCard` 主链接和编辑/删除 action 是独立可聚焦元素；键盘用户可完成创建、编辑、删除和进入详情。
+- 默认收藏集删除禁用说明不能只靠颜色；删除按钮有 `aria-disabled` 或 disabled 属性。
+- 所有按钮和卡片 action 触控目标不小于 44px；ConfirmModal 焦点锁定，Esc 可关闭。
+
+**i18n key namespace**
+- 建议 namespace：`studio.favorites.*`。
+- 覆盖：`studio.favorites.header.*`、`studio.favorites.zone.*`、`studio.favorites.actions.*`、`studio.favorites.form.*`、`studio.favorites.default.*`、`studio.favorites.empty.*`、`studio.favorites.error.*`、`studio.favorites.toast.*`、`studio.favorites.a11y.*`。
+- 不硬编码“原创收藏集/二创收藏集/默认收藏集/公开/私有/删除”等文案。
+
+**与现有组件关系**
+- 收藏集卡片复用 `CollectionCard`；不要为 Studio 管理页另建第二套收藏集卡片视觉。
+- 公共详情仍由 `/collections/[id]` 负责；本页只做 owner 管理入口和跳转。
+- 内容详情的添加收藏弹窗使用 `CollectionPicker`；本页不承担给当前内容添加到收藏集的弹窗。
+
+**Playwright 截图检查点**
+- `screenshots/community-collections-studio-desktop.png`：PC 两个 zone section、默认收藏集、普通收藏集 owner actions。
+- `screenshots/community-collections-studio-mobile.png`：移动两列网格、新建按钮全宽、默认删除 disabled。
+- 交互检查：创建 original/fanwork 收藏集、编辑名称/可见性、默认收藏集删除 disabled、普通收藏集删除 ConfirmModal、卡片跳转 `/collections/[id]`。
 
 ## Page: /studio/followers 粉丝分析
 
@@ -4005,36 +4789,6 @@ interface ContentTypeOption {
 ---
 
 <!-- 以下是 Task 99-145 优化任务新增页面规格 -->
-
-## Page: /messages 通知中心（增强 -- Task 114-116）
-
-> 更新已有 `/messages` 页面规格，增加通知铃铛、未读计数、私信 SSE 实时消息功能。
-
-**新增/更新的核心组件**
-- `NotificationBell`（通知铃铛，置入 Header，Task 115）
-- `NotificationList`（通知列表，已有但需增加类型：comment、like、follow、system、mention、appeal_result、content_status）
-- `SSENotificationProvider`（SSE 实时推送 Provider，5 分钟间隔轮询兜底）
-
-**通知铃铛 -- NotificationBell 规格**
-- 位置：Header 右侧用户菜单前，图标 Bell + 未读计数 Badge（红色圆点或数字）
-- Badge 逻辑：`unread_count > 0` 时显示，`unread_count > 99` 时显示 `99+`
-- 点击：跳转 `/messages?tab=notifications`
-- 轮询：`GET /api/v1/notifications/unread-count`，5 分钟间隔
-- SSE：连接 `/api/v1/notifications/stream`（EventSource），实时更新未读数
-
-**通知列表增强规格**
-- 通知类型图标：comment / like / follow / system / mention / appeal_result / content_status
-- 通知内容：行动者头像 + 行动者用户名 + 通知文本 + 相对时间
-- 单条操作：hover 显示「标记已读」和「删除」按钮
-- 批量操作：顶部「全部标记已读」按钮
-- 分页：游标分页，滚动加载
-
-**私信增强规格（Task 116）**
-- 对话列表：左侧展示最近对话（对方头像 + 用户名 + 最新消息预览 + 未读数 Badge）
-- 对话窗口：右侧展示消息历史（按时间排列，自己消息靠右 bg-accent-emphasis，对方消息靠左 bg-canvas-subtle）
-- 消息输入：底部固定输入框 + 发送按钮，Enter 发送，Shift+Enter 换行
-- SSE 实时：使用 EventSource 订阅 `/api/v1/messages/stream` 实时接收新消息
-- 响应式：移动端单栏切换（列表或对话窗口全宽），平板和 PC 左右分栏
 
 ## Page: /forgot-password 忘记密码（Task 117）
 
@@ -4123,17 +4877,78 @@ interface ContentTypeOption {
 - 密码强度指示器：实时显示密码强度（弱/中/强），使用 `fg.danger` / `fg-muted` / `accent-emphasis` 颜色。
 - 重置成功后自动调用登录 API，无需用户再次输入密码。
 
-## Page: /collections/[collectionId] 收藏集详情（Task 122-124）
+## Page: /series/[id] 内容系列详情
+
+**Key Constraints**
+- 首版只展示公开系列；页面位于 `(public)` route group，未登录用户可浏览。
+- 系列内容顺序完全以后端 `sort_order` 为准，前端不得重新排序或猜测封面。
+- 遵守扁平、克制的信息页风格；不得使用大 hero、装饰背景或营销型 CTA。
+
+**目标与放置**
+- 目标：展示一个创作者整理的有序内容系列，让用户按顺序进入每个内容详情。
+- 放置：`frontend/app/(public)/series/[id]/page.tsx`；从 `SeriesNav` 的目录链接、作者主页或分享链接进入。
+- 与 `ContentDetail` 关系：这是系列目录页，不重复渲染内容正文。
+
+**核心组件清单**
+- `Header`
+- `ContentCard`（紧凑列表/网格变体）
+- `EmptyState`
+- `SkeletonCard`
+- `Toast`
+
+**布局规范**
+- PC (>1100px)：主容器最大宽度 `1080px`，顶部为紧凑 series summary（封面 220x140、标题、作者、zone、item_count、描述），下方为有序内容列表；列表使用单列 table-like rows 或 2 列紧凑卡片，优先可扫描。
+- 平板 (701-1100px)：summary 保持横向，列表单列；内容标题和序号不截断关键字。
+- 移动 (<=700px)：summary 单列，封面 16:9；列表单列，每项触控区域不小于 44px。
+- 序号显示为低权重 `text-xs text-fg-muted`，不作为主要视觉装饰。
+
+**状态变体**
+- default：显示 series summary + ordered items；每项可进入对应内容详情。
+- loading：summary 骨架 + 列表骨架 x6。
+- empty：series summary 保留，列表区域显示 EmptyState。
+- error：404 使用 EmptyState；网络错误 Toast + 重试按钮。
+- success：本页无写操作；从管理页跳转回来不显示额外成功状态。
+- disabled：后端返回不可见或无效内容时不渲染可点击项；不要显示断链卡片。
+
+**核心交互与焦点顺序**
+- 焦点顺序：Header -> series summary 中作者链接 -> 内容列表第一项 -> 后续内容项 -> 返回顶部/分页。
+- 内容项点击或 Enter 跳转详情；不得在整页上增加拖拽或管理控件。
+- 如果后端后续返回分页，分页控件位于列表底部并使用 `page` + `page_size`。
+
+**可访问性**
+- 正文与背景对比度不低于 4.5:1；序号辅助信息也需可读。
+- 内容项主链接触控目标不小于 44px。
+- 列表容器使用 `aria-label={t('series.detail.items.ariaLabel')}`；封面图 alt 使用系列标题。
+- 不只靠颜色表达 zone 或当前状态；使用文本 Badge。
+
+**i18n key namespace**
+- 建议 namespace：`series.detail.*`。
+- 覆盖：`series.detail.header.*`、`series.detail.items.*`、`series.detail.empty.*`、`series.detail.error.*`、`series.detail.a11y.*`。
+- 不在页面硬编码“目录/共 N 项/暂无内容”等文案。
+
+**与现有组件关系**
+- 内容列表可复用 `ContentCard` 的紧凑变体；不要引入新的卡片视觉系统。
+- `SeriesNav` 从内容详情跳转到本页；本页不展示 `SeriesNav` 以免导航重复。
+- 不依赖 `StudioLayout`；管理操作只出现在 `/studio/series`。
+
+**Playwright 截图检查点**
+- `screenshots/community-content-series-detail-desktop.png`：未登录打开公开系列，summary + 有序列表。
+- `screenshots/community-content-series-detail-mobile.png`：移动单列，内容项触控高度达标。
+- 交互检查：404 EmptyState、空系列 EmptyState、列表顺序按 sort_order、内容链接可键盘打开。
+
+## Page: /collections/[id] 收藏集详情（Task 122-124）
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
-- 私有收藏集仅创建者可见；公开收藏集所有登录用户可浏览。
+- 私有收藏集仅创建者可见；公开收藏集允许未登录用户浏览 published 内容。
+- 页面必须放在 `(public)` route group；是否可见由后端 detail API 兜底，不在前端猜测私有权限。
+- 收藏集按 `zone` 创建后不可变更；内容卡片只渲染后端返回的 published 内容。
 
-**视觉层级**
-- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
-- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
-- 内容模块：收藏集信息卡片 + 内容筛选 + 瀑布流内容列表
+**目标与放置**
+- 目标：展示一个收藏集的公开信息、筛选后的内容列表，以及创建者可用的管理操作。
+- 放置：`frontend/app/(public)/collections/[id]/page.tsx`；从用户主页收藏集列表、`CollectionPicker` 和内容详情入口跳转进入。
+- 视觉角色：公共内容浏览页，信息层级弱于内容详情页，不使用 hero；收藏集信息区是页面摘要，不是营销头图。
 
 **核心组件清单**
 - `Header`
@@ -4143,19 +4958,22 @@ interface ContentTypeOption {
 - `MasonryGrid`
 - `EmptyState`
 - `LoadingSpinner`
+- `ConfirmModal`（创建者删除收藏集/移除内容）
+- `Toast`
 
 **布局规范**
-- 页面最大宽度：1280px，居中
-- 收藏集信息卡片 -> 筛选栏 -> 瀑布流内容
-- 区域间距（block）：24px (`space-y-6`)
-- 元素间距（inline）：16px (`gap-4`)
+- PC (>1100px)：页面最大宽度 `1280px`，`px-6 py-6`；顶部信息区为单个横向 summary block（封面或默认缩略区域 160x106 + 文本 + owner 操作），下方为筛选栏和 4 列 MasonryGrid。
+- 平板 (701-1100px)：信息区保持横向但封面缩小；内容网格 3 列；筛选标签横向滚动。
+- 移动 (<=700px)：信息区单列，封面 16:9；网格 2 列；筛选栏横向滚动并贴近网格，不加额外卡片包裹。
+- 区域间距 `space-y-6`；信息区、筛选栏、网格是同级区块，禁止卡片套卡片。
 
 **状态变体**
-- default: 收藏集信息 + 筛选标签 + 内容瀑布流。
-- loading: 骨架屏（Skeleton 灰色块）。
-- empty: 收藏集信息 + "收藏集为空" EmptyState（创建者显示「去添加内容」CTA）。
-- error: 收藏集不存在 404 EmptyState。
-- 特殊状态：未登录访问私有收藏集 -> 403 EmptyState。
+- default：收藏集信息 + content_type 筛选 + 内容网格；公开收藏集未登录也可浏览。
+- loading：信息区骨架 + 筛选栏骨架 + 网格 `SkeletonCard` x8，尺寸稳定。
+- empty：保留收藏集信息区；内容区显示 EmptyState。创建者看到添加内容 CTA，非创建者仅看到说明。
+- error：404/403 使用 EmptyState，不泄露私有收藏集标题；网络错误 Toast + 可重试按钮。
+- success：编辑信息、移除内容、删除收藏集成功后 Toast；删除收藏集成功跳转用户收藏集列表。
+- disabled：非 owner 隐藏编辑/删除/移除控件；默认收藏集删除按钮 disabled 并提供 tooltip/说明。
 
 **响应式规则**
 - 移动 (<=700px): 瀑布流 2 列，筛选标签横向滚动。
@@ -4169,10 +4987,33 @@ interface ContentTypeOption {
 - 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
 
 **交互细节**
-- 筛选标签点击：切换 content_type 过滤（`router.push` 更新 URL query）。
-- 创建者操作：收藏集信息区域显示「编辑」和「删除」按钮（删除需 ConfirmModal）。
-- 内容卡片右下角：创建者视角显示「移除」按钮（小号，低视觉权重）。
-- 添加内容：仅在创建者视角，内容详情页 ReactionBar 区显示「添加到收藏集」按钮。
+- 筛选标签点击：切换 `content_type` 过滤并更新 URL query；当前筛选使用 `aria-current="true"`。
+- 内容卡片点击：跳转对应内容详情；后端未返回的内容不渲染占位。
+- 创建者操作：信息区提供编辑、删除；删除需 ConfirmModal。默认收藏集不可删除。
+- 内容移除：owner 视角在卡片 hover/focus 时显示低权重移除按钮；移动端始终显示图标按钮，避免 hover 依赖。
+- 焦点顺序：Header -> 收藏集标题区 -> owner 操作 -> 筛选标签 -> 内容卡片 -> 卡片内移除操作 -> 分页/加载更多。
+- 键盘：筛选标签、编辑/删除、移除按钮均可 Tab 聚焦，Enter/Space 触发；ConfirmModal 焦点锁定。
+
+**可访问性**
+- 文字/背景对比度不低于 4.5:1；可见性 Badge 不能只靠颜色区分，需有文本或 `aria-label`。
+- 所有按钮和内容卡片可点击区域触控目标不小于 44px。
+- 封面图片使用收藏集标题作为 alt；无封面时占位图 `aria-hidden="true"`。
+- 网格区域使用 `aria-label={t('collections.detail.grid.ariaLabel')}`，筛选栏使用 `role="tablist"` 或一组语义按钮。
+
+**i18n key namespace**
+- 建议 namespace：`collections.detail.*`。
+- 覆盖：`collections.detail.header.*`、`collections.detail.filters.*`、`collections.detail.ownerActions.*`、`collections.detail.empty.*`、`collections.detail.error.*`、`collections.detail.toast.*`、`collections.detail.a11y.*`。
+- 不在页面组件中硬编码公开/私有、空状态、错误、按钮文案。
+
+**与现有组件关系**
+- 内容网格复用 `MasonryGrid` + `ContentCard`；不要为收藏集另建内容卡片体系。
+- 收藏入口从 `ContentDetail`/`ReactionBar` 打开 `CollectionPicker`；收藏集详情页本身不承担添加当前内容的弹窗。
+- 与旧添加收藏弹窗关系：`CollectionPicker` 是后续 canonical 名称，旧 modal 只能作为其内部呈现或兼容导出。
+
+**Playwright 截图检查点**
+- `screenshots/community-collections-desktop.png`：公开收藏集未登录访问，信息区、筛选栏、4 列内容网格。
+- `screenshots/community-collections-owner-mobile.png`：owner 移动端，编辑/移除控件可见且 44px。
+- 交互检查：公开未登录可访问、私有非 owner 显示 EmptyState、筛选更新 query、owner 移除内容、默认收藏集删除 disabled。
 
 ## Page: /user/[userId]/collections 用户收藏集列表（Task 122-123）
 
@@ -4180,34 +5021,39 @@ interface ContentTypeOption {
 - 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 私有收藏集仅创建者可见。
+- 页面位于 `(public)` route group；未登录访问他人页面可浏览公开收藏集，自己的页面由登录状态决定 owner controls。
+- 可见性过滤必须由后端 `GET /api/v1/collections?owner_id=:userId` 兜底，前端不得通过拿到全量后自行隐藏私有收藏集。
 
-**视觉层级**
-- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
-- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
-- 内容模块：收藏集网格列表
+**目标与放置**
+- 目标：在用户主页外提供可分享的收藏集列表页，让访客浏览公开收藏集，owner 管理自己的公开/私有收藏集。
+- 放置：`frontend/app/(public)/user/[userId]/collections/page.tsx`；从用户主页「收藏集」Tab、收藏集详情 owner 链接和公开分享入口进入。
+- 页面是公共浏览页，不使用 Studio/Admin 布局。
 
 **核心组件清单**
 - `Header`
 - `CollectionCard`（封面缩略图 + 标题 + 内容数 + 可见性 Badge）
 - `EmptyState`
-- `LoadingSpinner`
+- `SkeletonCard`
+- `ConfirmModal`（owner 删除收藏集）
+- `Toast`
 
 **布局规范**
-- 页面最大宽度：960px，居中
-- 收藏集卡片网格：`grid grid-cols-2 md:grid-cols-3 gap-4`
-- 区域间距（block）：24px (`space-y-6`)
+- PC (>1100px)：页面最大宽度 `960px`，`px-6 py-6`；顶部为用户摘要行（头像、用户名、公开收藏集数），右侧 owner 新建按钮；下方 `grid grid-cols-3 gap-4`。
+- 平板 (701-1100px)：最大宽度 `840px`，网格 3 列；顶部操作可换行。
+- 移动 (<=700px)：主体 `px-4 py-4`，顶部摘要单列，网格 2 列；新建按钮全宽但不浮动。
+- 区域间距 `space-y-6`；不要把整个页面包进大卡片。
 
 **状态变体**
-- default: 收藏集网格列表 + 「新建收藏集」按钮（仅自己的主页显示）。
-- loading: 骨架屏（Skeleton 灰色块网格）。
-- empty: "还没有收藏集" EmptyState + 新建 CTA（自己的主页）或 空状态文本（他人主页）。
-- error: Toast 右上角报错。
-- 特殊状态：他人主页只显示公开收藏集；自己主页显示所有收藏集。
+- default：收藏集网格列表；owner 看到公开与私有收藏集，非 owner/匿名只看到公开收藏集。
+- owner-empty：EmptyState + 新建收藏集 CTA。
+- visitor-empty：只读 EmptyState，不展示创建 CTA。
+- loading：用户摘要骨架 + `CollectionCard` skeleton x6，稳定网格高度。
+- error：Toast + 局部重试按钮；404 用户不存在时显示 non-leaking EmptyState。
+- disabled：默认收藏集删除 disabled；非 owner 不渲染编辑/删除。
 
 **响应式规则**
-- 移动 (<=700px): 网格 2 列。
-- 平板 (<=1100px): 网格 3 列。
-- PC (>1100px): 网格 3 列，最大宽度 960px。
+- 移动：卡片触控区域不小于 44px；owner 操作图标按钮始终可见，避免 hover-only。
+- 平板/PC：卡片可在 hover/focus 时展示 owner 操作，但键盘 focus 必须可见。
 
 **暗色模式适配**
 - 背景色 token: `canvas-default` -> `canvas-default.dark`
@@ -4217,7 +5063,104 @@ interface ContentTypeOption {
 **交互细节**
 - 收藏集卡片点击：跳转 `/collections/[id]`。
 - 「新建收藏集」按钮：弹出 Modal（标题输入 + 公开/私有选择 + 创建按钮）。
-- 卡片 hover：轻微上浮 `hover:-translate-y-1` + border 颜色加深。
+- 卡片 owner 操作：编辑打开表单/Modal，删除必须 ConfirmModal；默认收藏集删除按钮 disabled 并显示说明。
+- `GET /api/v1/collections?owner_id=:userId` 返回空列表时按 owner/visitor 分支显示空态。
+- 焦点顺序：Header -> 用户摘要链接/信息 -> 新建按钮（owner only） -> 收藏集卡片 -> 卡片 owner actions -> 分页/加载更多。
+
+**可访问性**
+- 收藏集卡片主链接和 owner action 必须是独立可聚焦元素；点击整卡时不得吞掉 action 按钮事件。
+- 公开/私有 Badge 必须有文本或 aria-label，不能只靠颜色。
+- 网格使用 `aria-label={t('collections.userList.grid.ariaLabel')}`。
+- 所有图标按钮提供 `aria-label`；删除确认弹窗使用 `role="dialog"` 和焦点锁定。
+
+**i18n key namespace**
+- 建议 namespace：`collections.userList.*`。
+- 覆盖：`collections.userList.header.*`、`collections.userList.actions.*`、`collections.userList.empty.*`、`collections.userList.error.*`、`collections.userList.toast.*`、`collections.userList.a11y.*`。
+
+**Playwright 截图检查点**
+- `screenshots/community-collections-user-list-desktop.png`：PC 访客视角，只显示公开收藏集网格。
+- `screenshots/community-collections-user-list-owner-mobile.png`：移动 owner 视角，私有 Badge、新建按钮和 owner 操作可见。
+- 交互检查：匿名访客访问公开列表、他人私有不泄露、owner 创建/删除默认保护、卡片跳转 `/collections/[id]`。
+
+## Component: CollectionInfoCard 收藏集信息摘要
+
+**Key Constraints**
+- 仅用于 `/collections/[id]` 顶部摘要；不是通用页面 section wrapper。
+- 保持 1px border 扁平设计，无 box-shadow；封面、文本、owner 操作在同一个 summary block 内。
+- 不泄露私有收藏集信息；当后端返回 403/404 时父页面直接显示 EmptyState，不渲染本组件。
+
+**Props 接口**
+```ts
+interface CollectionInfoCardProps {
+  collection: {
+    id: number;
+    title: string;
+    description?: string;
+    zone: 'original' | 'fanwork';
+    is_public: boolean;
+    is_default: boolean;
+    item_count: number;
+    owner: { id: number; username: string; avatar_url?: string };
+    cover_url?: string;
+  };
+  isOwner?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}
+```
+
+**布局规范**
+- PC (>1100px)：横向 `grid-cols-[160px_minmax(0,1fr)_auto]`；封面 160x106，文本区 line-clamp，owner 操作右侧对齐。
+- 平板 (701-1100px)：封面 132x88，操作按钮仍在右侧但可换行。
+- 移动 (<=700px)：单列；封面 16:9；操作按钮在标题下方一行，触控目标 44px。
+
+**状态变体**
+- default：标题、描述、作者、zone、公开/私有、内容数均显示。
+- owner：显示编辑、删除；默认收藏集删除 disabled。
+- non-owner：隐藏编辑、删除。
+- no-cover：使用低对比默认缩略区域，`aria-hidden="true"`。
+
+**可访问性**
+- 封面图片 alt 使用收藏集标题；默认缩略图隐藏于辅助技术。
+- 公开/私有状态用文本和图标双重表达，不只靠颜色。
+- 删除按钮必须触发 `ConfirmModal`，焦点锁定。
+
+**i18n key namespace**
+- `collections.info.*`，覆盖 badge、actions、a11y、default-protected tooltip。
+
+## Component: ContentTypeFilter 内容类型筛选
+
+**Key Constraints**
+- 用于收藏集详情内容列表筛选；不作为全站内容分类 tab 的替代。
+- 筛选值固定为 `all`, `image`, `article`, `video`, `audio`, `template`, `sheet_music`, `mod`, `prompt`, `other`。
+- 点击后更新 URL query `content_type` 并触发数据重新加载；不做客户端私有过滤。
+
+**Props 接口**
+```ts
+interface ContentTypeFilterProps {
+  value: string;
+  counts?: Record<string, number>;
+  onChange: (value: string) => void;
+}
+```
+
+**布局规范**
+- PC (>1100px)：横向按钮组，允许换行但不改变网格列宽。
+- 平板/移动：横向滚动 chips，左右 padding 与页面内容对齐；滚动条不遮挡内容。
+- 每个筛选按钮高度至少 36px；移动端触控目标 44px。
+
+**状态变体**
+- default：未选中项使用 `border-border-default`。
+- selected：当前项使用 `aria-current="true"` 或 `aria-selected="true"`，并使用 tokenized accent border。
+- loading：禁用所有项但保持当前选中态。
+- zero-count：可点击但显示计数 0；后端返回空列表后由父页面 EmptyState 处理。
+
+**可访问性**
+- 使用 `role="tablist"`/`role="tab"` 或语义按钮组。
+- 当前筛选状态不能只靠颜色；添加文本状态或 `aria-current`。
+
+**i18n key namespace**
+- `collections.filters.*`，覆盖每个 content type label、all label、a11y label。
 
 ## Component: CollectionCard 收藏集卡片（Task 122-123）
 
@@ -4227,7 +5170,7 @@ interface ContentTypeOption {
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
 **Props 接口**
-``ts
+```ts
 interface CollectionCardProps {
   className?: string;
   collection: {
@@ -4244,7 +5187,7 @@ interface CollectionCardProps {
   onEdit?: () => void;
   onDelete?: () => void;
 }
-``
+```
 
 **视觉结构**
 - 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default overflow-hidden cursor-pointer group">`
@@ -4272,6 +5215,73 @@ interface CollectionCardProps {
 - 整卡可点击跳转 `/collections/[id]`
 - 创建者视角：hover 时右上角显示编辑/删除按钮（低视觉权重，`opacity-0 group-hover:opacity-100`）
 
+## Component: CollectionPicker 收藏集选择器
+
+**Key Constraints**
+- Canonical 组件名为 `CollectionPicker`；现有旧添加收藏弹窗可作为兼容包装或内部实现，但新代码只能引用 `CollectionPicker`。
+- 仅展示与当前内容 `zone` 匹配的收藏集；是否已添加由列表 API 的 `contains_item` / `item_id` 决定，不通过制造重复请求判断。
+- Modal/Popover 可使用 `shadow-md`，其余内部列表项保持 1px border、无阴影。
+
+**目标与放置**
+- 目标：从内容详情页把当前内容添加到同 zone 收藏集，支持已添加状态、移除、搜索和内联新建收藏集。
+- 放置：由 `ContentDetail` 或 `ReactionBar` 的收藏/添加按钮打开；不在 `/collections/[id]` 详情页内默认打开。
+- 与发布流程无关，不依赖 `PublishForm`。
+
+**Props 接口**
+```ts
+interface CollectionPickerProps {
+  contentId: number;
+  contentTitle: string;
+  zone: 'original' | 'fanwork';
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onChanged?: () => void;
+}
+```
+
+**布局规范**
+- PC (>1100px)：居中 Modal，宽度 `480px`，最大高度 `min(70vh, 640px)`；顶部标题/说明，正文为可滚动收藏集列表，底部为新建表单/取消。
+- 平板 (701-1100px)：Modal 宽度 `min(92vw, 480px)`，列表高度限制不超过视口 60%。
+- 移动 (<=700px)：底部 Sheet 形式，圆角只在顶部 `rounded-lg`；列表占可用高度，底部操作固定在 Sheet 内，不遮挡系统导航。
+- 收藏集列表项：`button` 或 `div + button` 结构，`border border-border-default rounded-md p-3`，标题、item_count、公开状态、已添加状态清晰排列。
+
+**状态变体**
+- default：显示同 zone 收藏集列表；已添加项显示只读状态和可选移除操作。
+- loading：Modal 骨架列表 x5，保持标题和关闭按钮可见。
+- empty：该 zone 无收藏集时显示 EmptyState + 内联新建入口。
+- error：加载失败显示内联错误和重试按钮，同时 Toast 报错。
+- success：添加/移除/新建成功后行内状态即时更新并 Toast；不强制关闭 Modal。
+- disabled：当前用户未登录、信誉不足、内容不可收藏、请求进行中时相关按钮 disabled。
+- search：收藏集数量超过 10 时显示搜索框；无匹配结果显示局部 EmptyState。
+
+**核心交互与焦点顺序**
+- 打开后焦点落在关闭按钮或标题后的搜索框；关闭后焦点返回触发按钮。
+- 焦点顺序：关闭 -> 搜索 -> 收藏集列表项 -> 已添加项移除按钮 -> 新建入口 -> 取消。
+- 点击未添加项：调用添加接口；点击已添加项的移除按钮：使用 `item_id` 调用移除接口。
+- 内联新建：展开标题、描述、公开开关和创建按钮；创建成功后新集合进入列表并可直接添加当前内容。
+- 键盘：`ArrowDown/ArrowUp` 可在列表项内移动焦点（可选），`Enter/Space` 执行当前主操作，Esc 关闭。
+
+**可访问性**
+- Modal 使用 `role="dialog"`、`aria-modal="true"`、`aria-labelledby`；移动 Sheet 同样保持 dialog 语义。
+- 所有按钮和列表项主操作触控目标不小于 44px。
+- 已添加、公开/私有状态不能只靠颜色；使用文本、图标 aria-label 或 `aria-pressed`。
+- 正文对比度不低于 4.5:1；disabled 状态即使降低透明度也需保留可读说明。
+
+**i18n key namespace**
+- 建议 namespace：`collections.picker.*`。
+- 覆盖：`collections.picker.title`、`collections.picker.search.*`、`collections.picker.actions.*`、`collections.picker.create.*`、`collections.picker.states.*`、`collections.picker.errors.*`、`collections.picker.a11y.*`。
+- 不硬编码“已添加/新建/公开/私有”等可见文案。
+
+**与现有组件关系**
+- 由 `ContentDetail`/`ReactionBar` 触发；成功后可通知父级刷新收藏状态。
+- 可复用 `ConfirmModal` 做移除确认，但不要在 Modal 中再嵌套卡片容器。
+- 与 `CollectionCard` 只共享收藏集摘要数据，不复用展示卡片布局。
+
+**Playwright 截图检查点**
+- `screenshots/community-collections-picker-desktop.png`：PC Modal，包含搜索、已添加、未添加和新建入口。
+- `screenshots/community-collections-picker-mobile.png`：移动 Sheet，列表滚动和底部操作可见。
+- 交互检查：只列同 zone 收藏集、contains_item 状态、创建后添加、移除使用 item_id、无重复请求。
+
 ## Component: DownloadButton 下载按钮（Task 121）
 
 **Key Constraints**
@@ -4281,7 +5291,7 @@ interface CollectionCardProps {
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **Props 接口**
-``ts
+```ts
 interface DownloadButtonProps {
   className?: string;
   contentId: number;
@@ -4291,7 +5301,7 @@ interface DownloadButtonProps {
   disableReason?: string;
   onDownloadComplete?: () => void;
 }
-``
+```
 
 **视觉结构**
 - 按钮: `<button className="inline-flex items-center gap-2 px-4 py-2 border border-border-default rounded-md bg-canvas-default text-sm font-medium hover:bg-canvas-subtle transition-colors">`
@@ -4319,15 +5329,15 @@ interface DownloadButtonProps {
 - 下载完成后 `download_count + 1`（异步，不影响用户操作）
 - 信誉分不足时按钮 disabled + tooltip 显示「信誉分不足，无法下载」
 
-## Component: AddToCollectionModal 添加到收藏集（Task 122-124）
+## Component: Legacy Add-To-Collection Modal Compatibility（Deprecated）
 
 **Key Constraints**
 - 遵守全局扁平化无阴影设计规范，Modal 使用 `shadow-md`（唯一允许阴影的组件）。
 - 同一收藏集内不允许重复添加同一内容。
 
 **Props 接口**
-``ts
-interface AddToCollectionModalProps {
+```ts
+interface LegacyCollectionPickerWrapperProps {
   className?: string;
   contentId: number;
   contentTitle: string;
@@ -4335,7 +5345,7 @@ interface AddToCollectionModalProps {
   onClose: () => void;
   onAdded?: (collectionId: number) => void;
 }
-``
+```
 
 **视觉结构**
 - 遮罩: `<div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">`

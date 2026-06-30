@@ -2,7 +2,7 @@
 
 ## 任务来源与开发模式
 
-本仓库同时支持两套任务来源。每次新 Agent 会话必须先确定当前模式，再选择任务。不要混用两套跟踪规则。
+本仓库同时支持三套任务来源。每次新 Agent 会话必须先确定当前模式，再选择任务。不要混用多套跟踪规则。
 
 ### 模式 A：双轨 Beta 计划集（当前公开 Beta 加固工作）
 
@@ -36,7 +36,7 @@
 
 适用于维护历史 MVP、处理 `task.json` 中新增任务，或用户明确指定 `task.json` 任务时。
 
-> **注意**：`task.json` 中 100+ 个历史任务已全部完成（`passes: true`），仅作历史记录保留。新工作请参考模式 A（Beta 路线图）。仅在用户明确指定历史任务 ID 时使用此模式。
+> **注意**：`task.json` 中 100+ 个历史任务已全部完成（`passes: true`），仅作历史记录保留。新工作请按用户指定使用模式 A（Beta 路线图）或模式 C（社区功能计划）。仅在用户明确指定历史任务 ID 时使用此模式。
 
 规则：
 
@@ -45,19 +45,43 @@
 3. 完成后只将该任务的 `passes: false` 改为 `passes: true`，更新 `progress.txt`。
 4. 永远不要删除任务、修改任务描述或移除历史记录。
 
+### 模式 C：2026-06-30 社区功能计划集
+
+适用于 `docs/superpowers/plans/` 中的 2026-06-30 社区功能计划。用户要求实现消息通知、浏览历史、收藏集、内容系列、来源联动或协作邀请时，使用此模式。
+
+- 设计输入：`docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md`
+- 计划文件（建议执行顺序）：
+  1. `docs/superpowers/plans/2026-06-30-omnicraft-community-messages-notifications.md`
+  2. `docs/superpowers/plans/2026-06-30-omnicraft-community-browse-history.md`
+  3. `docs/superpowers/plans/2026-06-30-omnicraft-community-collections.md`
+  4. `docs/superpowers/plans/2026-06-30-omnicraft-community-content-series.md`
+  5. `docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md`
+  6. `docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md`
+
+规则：
+
+1. 先读设计输入，再读目标计划全文；不得只按计划片段实现。
+2. 一个计划文件对应一个 agent 会话、一个 `codex/community/<plan-slug>` 分支、一个独立 worktree 和一个 commit。
+3. 本模式不使用 Beta roadmap checkbox，不修改 `task.json`。
+4. 实现遵循 TDD：先写失败测试并确认预期失败，再实现最小改动，最后重构。
+5. 每个计划完成后必须经过两阶段审查：先规格符合性审查，再代码质量审查。审查问题必须修复并复审。
+6. 多代理并行时必须先明确每个代理的文件范围；共享文件（routes、config、DTO、UI spec、翻译文件、迁移序号）必须串行预约，禁止静默抢写。
+7. 完成后更新计划内 checkbox 和 `progress.txt`，精确暂存本计划涉及文件并提交。
+
 ### 模式选择优先级
 
 1. 用户明确指定的任务来源或任务 ID。
 2. 当前任务分支和 worktree 的既定用途。
 3. 若用户要求继续 2026-05-30 公开 Beta 加固，使用模式 A。
-4. 其他未明确场景使用模式 B。
-5. 无法可靠判断时，先询问用户，不要擅自改动任一任务跟踪文件。
+4. 若用户要求实现 2026-06-30 社区功能计划，使用模式 C。
+5. 其他未明确场景使用模式 B。
+6. 无法可靠判断时，先询问用户，不要擅自改动任一任务跟踪文件。
 
 ## 项目概览
 
 全民创意分享平台，技术栈：Next.js（前端）+ Go/Gin（后端）+ PostgreSQL + Redis + 阿里云 OSS + Tauri（PC 客户端）
 
-详细架构：`architecture.md` | Beta 路线图：`docs/superpowers/plans/2026-05-30-omnicraft-dual-track-beta-roadmap.md` | 历史任务账本：`task.json`
+详细架构：`architecture.md` | Beta 路线图：`docs/superpowers/plans/2026-05-30-omnicraft-dual-track-beta-roadmap.md` | 社区功能设计：`docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md` | 历史任务账本：`task.json`
 
 ## 工具链版本（强制）
 
@@ -96,6 +120,15 @@ cat task.json
 ```
 
 选择 `passes: false`、依赖已完成且 ID 最小的任务。
+
+**模式 C：2026-06-30 社区功能计划集**
+
+```bash
+cat docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md
+cat docs/superpowers/plans/2026-06-30-omnicraft-community-<plan>.md
+```
+
+选择用户指定的社区计划；若未指定，按模式 C 的建议顺序选择尚未完成的最早计划。
 
 - 若遇到两份文档内容矛盾 → 查阅上方文档权威源表格，以权威文档为准。将矛盾记录为 issue，**不做自行发挥**。
 
@@ -205,6 +238,18 @@ git add <本任务精确文件列表> task.json progress.txt
 git commit -m "Task [ID]: [任务标题] - completed"
 ```
 
+**模式 C：2026-06-30 社区功能计划集**
+
+```bash
+# 1. 勾选对应社区计划 checkbox
+# 2. 更新 progress.txt
+# 3. 精确暂存本计划文件并提交
+git add <本计划精确文件列表> docs/superpowers/plans/2026-06-30-omnicraft-community-<plan>.md progress.txt
+git commit -m "Community [plan-slug]: completed"
+```
+
+本模式不要修改 `task.json`，也不要勾选 Beta roadmap。任务分支合并前必须完成双重审查、rebase 和重新验证。
+
 **通用规则**：
 - 只有所有步骤和验证通过后，才能更新完成状态
 - 使用 `git add <精确文件列表>`，不要在脏工作区使用 `git add .`
@@ -224,7 +269,7 @@ git commit -m "Task [ID]: [任务标题] - completed"
 
 **阻塞时禁止**：
 - ❌ 提交 git commit
-- ❌ 更新当前模式的完成状态（roadmap checkbox 或 `task.json passes`）
+- ❌ 更新当前模式的完成状态（roadmap checkbox、社区计划 checkbox 或 `task.json passes`）
 - ❌ 假装任务已完成
 
 **阻塞时必须**：
@@ -234,7 +279,7 @@ git commit -m "Task [ID]: [任务标题] - completed"
 ```
 🚫 任务阻塞 - 需要人工介入
 
-**当前模式**: [双轨 Beta 计划集 / 历史 task.json]
+**当前模式**: [双轨 Beta 计划集 / 历史 task.json / 2026-06-30 社区功能计划集]
 **当前任务**: [ID] - [标题]
 
 **已完成的工作**:
@@ -264,7 +309,7 @@ OmniCraft/
 │   ├── archive/             # 已归档文档（不再作为开发参考）
 │   ├── superpowers/
 │   │   ├── specs/           # 已确认的设计输入
-│   │   └── plans/           # Beta roadmap、子系统计划、协作说明
+│   │   └── plans/           # Beta roadmap、社区功能计划、子系统计划、协作说明
 │   └── 2026-06-24-*.md      # 设计审查报告（问题清单 + 决策记录）
 ├── .specify/memory/constitution.md  # 项目宪法（设计原则和约束）
 ├── design/
@@ -426,12 +471,13 @@ docker compose logs -f backend     # 查看后端日志
 
 ### 原创/二创来源联动规则
 
-- 第一版采用单来源模型：每个二创最多绑定一个原创内容，通过 `content_items.source_original_id` 指向源原创。
-- 只有 `zone='fanwork'` 允许填写 `source_original_id`；`zone='original'` 携带该字段必须拒绝。
-- 被绑定的源内容必须满足 `zone='original'` 且 `status='published'`；不存在、非原创、未发布内容都返回 400。
-- 旧二创内容不强制回填来源，`source_original_id = NULL` 时不会出现在相关二创列表。
+- 二创来源采用三选一模型：`ip_id`、`source_original_id`、`source_fanwork_id` 至少填写一个；`source_original_id` 与 `source_fanwork_id` 互斥。
+- 只有 `zone='fanwork'` 允许填写 `ip_id`、`source_original_id` 或 `source_fanwork_id`；`zone='original'` 携带任一来源字段必须拒绝。
+- `source_original_id` 指向的源内容必须满足 `zone='original'` 且 `status='published'`；`source_fanwork_id` 指向的源内容必须满足 `zone='fanwork'` 且 `status='published'`。
+- 旧二创内容不强制回填来源，`source_original_id = NULL` 且 `source_fanwork_id = NULL` 时不会出现在来源链列表。
 - 原创详情页只在相关二创 `total > 0` 时展示「相关二创」入口；点击进入 `/original/[contentId]/fanworks`。
-- 从原创详情发起二创发布时使用 `/publish?zone=fanwork&source_original_id=<id>` 预填来源原创。
+- 从原创详情发起二创发布时使用 `/studio/publish/fanwork?source_original_id=<id>` 预填来源原创；从二创详情发起衍生创作时使用 `/studio/publish/fanwork?source_fanwork_id=<id>` 预填来源二创。
+- 内容详情 DTO 可返回 `source_original: { id, title, zone }` 或 `source_fanwork: { id, title, zone }` 摘要；来源不可见时仅返回对应 id 或 null，不渲染可点击卡片。
 - 前端内容列表必须经过统一 DTO normalize，兼容 snake_case 与旧 PascalCase 字段；缺少有效 `id/title/zone` 的内容不得渲染为可点击卡片。
 
 ### 文件上传限制（从 config.yaml 读取，不要硬编码）
@@ -632,7 +678,7 @@ docker compose logs -f backend     # 查看后端日志
 3. **Browser testing for UI** — 新建或大幅修改页面必须浏览器测试
 4. **Document in progress.txt** — 帮助后续 Agent 理解工作内容
 5. **One commit per task** — 代码 + `progress.txt` + 当前模式跟踪文件放入同一个 commit
-6. **Never remove tasks** — Beta 模式勾选 checkbox；历史模式只改 `passes: false → true`；两种模式都不删任务
+6. **Never remove tasks** — Beta 模式勾选 roadmap checkbox；社区模式勾选对应计划 checkbox；历史模式只改 `passes: false → true`；三种模式都不删任务
 7. **Stop if blocked** — 需要人工介入时输出阻塞信息并停止
 8. **Read config, not hardcode** — 所有限制从 config.yaml 读取
 9. **Clarify before coding** — 明确假设与疑问，不擅自解读需求、不隐藏困惑
@@ -647,11 +693,11 @@ docker compose logs -f backend     # 查看后端日志
 18. **Soft delete preferred** — 删除操作以软删除为主（设置 `deleted_at`），保留数据用于审计和分析；仅对确无分析价值的数据（如浏览历史、已读通知）使用物理删除（Task 103，DEC-031）
 19. **Structured logging** — 后端日志统一使用 `slog` JSON 格式，禁止 `log.Printf` / `fmt.Println` 调试输出（Task 141）
 20. **i18n mandatory** — 新增 UI 字符串必须通过 `next-intl` 引用，禁止硬编码中英文字符串（Task 108）
-21. **Select task source first** — 会话开始先确定 Beta roadmap 或历史 `task.json` 模式，禁止混用完成状态
+21. **Select task source first** — 会话开始先确定 Beta roadmap、社区功能计划或历史 `task.json` 模式，禁止混用完成状态
 22. **TDD for behavior changes** — 新增功能、修复缺陷和行为变更必须先验证失败测试，再实现
 23. **Exact staging only** — 使用 `git add <精确文件列表>`，避免把其他代理或用户改动混入提交
-24. **Beta worktree isolation** — Beta 任务使用独立 `codex/beta/<task-id>` worktree，通过 `codex/beta-integration` 串行集成
-25. **Beta review gates** — Beta 任务合并前必须完成规格符合性审查、代码质量审查，并处理 `DONE_WITH_CONCERNS`
+24. **Worktree isolation** — Beta 任务使用独立 `codex/beta/<task-id>` worktree；社区计划使用独立 `codex/community/<plan-slug>` worktree
+25. **Review gates** — Beta 和社区计划合并前必须完成规格符合性审查、代码质量审查，并处理 `DONE_WITH_CONCERNS`
 
 ---
 
