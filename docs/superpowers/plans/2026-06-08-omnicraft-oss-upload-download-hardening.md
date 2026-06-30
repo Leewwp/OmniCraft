@@ -478,7 +478,7 @@ func (c *OSSClient) GetObjectMeta(ossKey string) (*ObjectMeta, error) {
 }
 ```
 
-Reuse existing `strconv` import if available; otherwise add it.
+Reuse an existing `strconv` import when the file already imports it; otherwise add the import.
 
 - [ ] **Step 2: Add service wrapper**
 

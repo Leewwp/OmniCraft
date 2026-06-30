@@ -1280,7 +1280,7 @@ These are not code defects, but they block production deployment:
 - Alibaba Cloud CAPTCHA 2.0 credentials.
 - Alibaba Cloud OSS bucket and credentials.
 - Production PostgreSQL DSN with SSL.
-- Production Redis with auth/TLS if available.
+- Production Redis with auth and TLS enabled where the managed Redis provider supports it.
 - HTTPS certificate and Nginx/API deployment for `api.leeppp.online`.
 - `security.allowed_origins` set to `https://app.leeppp.online`.
 - Strong `JWT_SECRET`.
