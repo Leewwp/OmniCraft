@@ -12,14 +12,16 @@
 
 ## Cross-Plan Coordination
 
+- Execution source: this is part of the 2026-06-30 community feature plan family, derived from `docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md`. It is not a historical `task.json` task and not a 2026-05-30 Beta roadmap checkbox; executing it requires an explicit user request naming this plan or the community feature family.
 - Shared-file integration and migration order for the six community plans is: messages-notifications (`057`) -> browse-history (no migration) -> collections (`058`) -> content-series (`059`) -> source-linkage (`060`) -> collaboration-invites (`061`).
 - `frontend/app/(protected)/messages/page.tsx`, `frontend/components/social/ChatWindow.tsx`, and `frontend/components/social/ConversationList.tsx` must land in messages-notifications before collaboration-invites extends typed invite cards.
 - `frontend/components/content/ContentDetail.tsx` changes from this plan must land before content-series and source-linkage add their own detail-page sections.
 - `frontend/components/studio/PublishForm.tsx` changes must land source-linkage before collaboration-invites; this plan must not edit `PublishForm.tsx`.
 - `backend/config/config.go` and `backend/config.yaml` changes from browse-history and collaboration-invites must be implemented serially and rebased before verification.
-- Before any UI code, grep `design/ui-spec.md` for the exact `## Page:` / `## Component:` sections named by this plan and follow those sections as the visual authority. As of 2026-06-30, `/collections/[id]`, `/user/[userId]/collections`, `CollectionPicker`, `CollectionInfoCard`, `ContentTypeFilter`, `CollectionCard`, `MasonryGrid`, `ContentCard`, `ConfirmModal`, and `Toast` are present; do not rewrite `design/ui-spec.md` unless an implementation-time check proves a required section is absent or stale.
+- Before any UI code, grep `design/ui-spec.md` for the exact `## Page:` / `## Component:` sections named by this plan and follow those sections as the visual authority. As of 2026-06-30, `## Page: /studio/favorites`, `## Page: /collections/[id]`, `## Page: /user/[userId]/collections`, `## Component: CollectionPicker`, `## Component: CollectionInfoCard`, `## Component: ContentTypeFilter`, `## Component: CollectionCard`, `## Component: MasonryGrid`, `## Component: ContentCard`, `## Component: ConfirmModal`, and `## Component: Toast` are present as standalone sections. Do not rewrite existing `design/ui-spec.md` sections unless an implementation-time check proves one is absent or stale.
 - Authority note: `architecture.md` still lists `collections/[id]` under `(protected)`, but the community design spec and current UI spec require `frontend/app/(public)/collections/[id]/page.tsx` so public collections are browseable when logged out. Treat this as known documentation drift and implement the public route unless architecture is updated before execution.
 - Expected-result convention: any "Run and confirm red" step expects FAIL for the behavior under test; any "Verify green" / "Run ... tests" step expects PASS. If the observed result differs, stop and update the plan before proceeding.
+- Frontend focused test convention: current `frontend/package.json` defines `npm run test` as a fixed suite, so focused TS/TSX tests in this plan use `node --import tsx --test <file>` directly. Do not write `npm run test -- <file>` unless the package script is changed first.
 - Before implementation, run `git status --short`, reserve exact files, and stage only exact touched files. Do not use directory-level staging such as `git add backend`, `git add frontend`, `git add design`, `git add screenshots`, or `git add docs/superpowers/plans`.
 - Staging note: the sample `git add` command at the end must be reduced to files actually changed in that implementation. Omit `design/ui-spec.md` when it was only read/verified; omit generated docs such as `architecture.md` unless `doc-validator` changed them during this task.
 
@@ -41,7 +43,7 @@
 - Modify: `backend/internal/repository/social_repo.go`, `backend/internal/service/social_service.go`, `backend/internal/handler/social.go` - 旧 favorites 接口双写兼容。
 - Modify: `backend/internal/service/recommendation_service.go` - 推荐画像改读去重并集。
 - Modify: `backend/internal/handler/content.go` - 内容详情收藏状态兼容新默认收藏集。
-- Extend: `GET /api/v1/collections` - 支持 `owner_id` 可选查询参数；未传时列出当前用户收藏集，传入时由后端按 viewer 身份过滤公开/私有收藏集，供 `/user/[userId]/collections` 使用。
+- Extend: `GET /api/v1/collections` - 支持 `owner_id` 可选查询参数；未传时列出当前登录用户收藏集，匿名请求返回 `401 AUTH_REQUIRED`；传入 `owner_id` 时使用 auth-if-present，由后端按 viewer 身份过滤公开/私有收藏集，供 `/user/[userId]/collections` 使用。
 
 ### Frontend
 
@@ -59,7 +61,7 @@
 - Modify: `frontend/app/(protected)/studio/favorites/page.tsx`
 - Modify: `frontend/components/content/ContentDetail.tsx`
 - Modify: `frontend/components/content/ContentDetailClient.tsx`
-- Read: `design/ui-spec.md` - 对照 `/collections/[id]`、`/user/[userId]/collections`、`CollectionPicker`、`CollectionInfoCard`、`ContentTypeFilter`、`CollectionCard`；当前计划不应主动修改 UI spec。
+- Read: `design/ui-spec.md` - 对照 `/studio/favorites`、`/collections/[id]`、`/user/[userId]/collections`、`CollectionPicker`、`CollectionInfoCard`、`ContentTypeFilter`、`CollectionCard`；当前计划不应主动修改 UI spec，除非实现时发现对应 section 缺失或过期。
 - Modify: `frontend/messages/zh.json`, `frontend/messages/en.json`
 
 ---
@@ -69,7 +71,7 @@
 **Files:**
 - Create: `backend/migrations/058_create_collections.sql`
 - Create: `backend/internal/model/collection.go`
-- Test: `backend/internal/model/content_migration_test.go` or `backend/internal/model/collection_migration_test.go`
+- Test: `backend/internal/model/collection_migration_test.go`
 
 - [ ] **Step 1: Re-check migration number**
 
@@ -217,6 +219,14 @@ cd backend
 go test ./internal/repository -run TestCollectionRepo -v
 ```
 
+- [ ] **Step 6: Integrate with user registration**
+
+`EnsureDefaultCollection` must be called during new user registration so that users created after migration also have default collections. Integration points:
+
+1. In the user registration handler (`POST /api/v1/auth/register`) or the user service create method, after the user record is created, call `EnsureDefaultCollection(ctx, userID, "original")` and `EnsureDefaultCollection(ctx, userID, "fanwork")`.
+2. The calls should be non-fatal: if default collection creation fails, log an error with `slog` but do not block registration (the lazy-init pattern in `AddItem` can also trigger `EnsureDefaultCollection` as a safety net).
+3. Add a test that verifies a newly registered user has two default collections (one per zone) after registration completes.
+
 ---
 
 ## Task 3: Implement Service Compatibility With Favorites
@@ -300,6 +310,10 @@ Tests must verify:
 
 - public detail can be accessed without auth
 - private detail returns `404 COLLECTION_NOT_FOUND` for non-owner
+- `GET /api/v1/collections?owner_id=:userId` without auth returns only public collections
+- `GET /api/v1/collections?owner_id=:userId` with auth as non-owner returns only public collections
+- `GET /api/v1/collections` without auth and without `owner_id` returns `401 AUTH_REQUIRED`
+- `GET /api/v1/collections` with auth and without `owner_id` returns the current user's public and private collections
 - mutations require auth and owner
 - creation requires reputation via existing route guard
 - `GET /api/v1/collections?zone=fanwork&content_item_id=123` returns same-zone collection summaries with `contains_item` and `item_id`
@@ -346,8 +360,8 @@ List response shape:
 
 List query semantics:
 
-- No `owner_id`: authenticated user's own collections only; optional `zone` and `content_item_id` are supported for `CollectionPicker`.
-- With `owner_id`: public endpoint behavior for `/user/[userId]/collections`; anonymous/non-owner viewers receive only `is_public=true` collections, owner receives both public and private collections.
+- No `owner_id`: authenticated user's own collections only; optional `zone` and `content_item_id` are supported for `CollectionPicker`. Anonymous requests without `owner_id` return `401 AUTH_REQUIRED`.
+- With `owner_id`: public endpoint behavior for `/user/[userId]/collections`; use auth-if-present so anonymous/non-owner viewers receive only `is_public=true` collections, while the owner receives both public and private collections.
 - When `content_item_id` is supplied, the handler must first verify the content exists and use its `zone` to keep the collection list same-zone even if the query omits `zone`.
 
 Validation rules:
@@ -362,11 +376,14 @@ Handler tests must assert both shapes.
 
 - [ ] **Step 4: Register routes**
 
-Public detail uses auth-if-present middleware:
+List and public detail use auth-if-present middleware:
 
 ```go
+v1.GET("/collections", optAuth, collectionHandler.ListCollections)
 v1.GET("/collections/:id", optAuth, collectionHandler.GetCollection)
 ```
+
+Inside `ListCollections`, absence of `owner_id` requires an authenticated viewer. Presence of `owner_id` must not require login; it filters by owner visibility as described above.
 
 Mutations use auth and interaction guard.
 
@@ -481,7 +498,7 @@ Run:
 
 ```powershell
 cd frontend
-npm run test -- tests/collection-picker.test.tsx
+node --import tsx --test tests/collection-picker.test.tsx
 ```
 
 Expected: helper tests PASS.
@@ -496,6 +513,7 @@ Expected: helper tests PASS.
 - Modify: `frontend/components/content/ContentDetail.tsx`
 - Modify: `frontend/components/content/ContentDetailClient.tsx`
 - Modify: `frontend/app/(protected)/studio/favorites/page.tsx`
+- Read: `design/ui-spec.md` — verify `## Page: /studio/favorites` before changing the page
 - Modify: `frontend/messages/zh.json`
 - Modify: `frontend/messages/en.json`
 - Test: `frontend/tests/collection-picker.test.tsx`
@@ -526,25 +544,37 @@ Assert:
 - update selected state without a full page reload
 - use i18n for every visible string
 
+> **已知限制**：`contains_item` 状态在每次打开 `CollectionPicker` 时实时查询。如果用户在两个标签页中对同一内容操作收藏集，可能出现短暂不一致。这是可接受的竞态——后端 UNIQUE 约束保证最终一致性。
+
 - [ ] **Step 3: Update content detail entry**
 
 `ContentDetail` / `ContentDetailClient` must open `CollectionPicker` from the existing favorite/add-to-collection action. Keep legacy `/favorites` compatibility behavior in backend; do not keep a direct one-click favorite toggle as the primary new UI.
 
-- [ ] **Step 4: Update `/studio/favorites`**
+- [ ] **Step 4: Verify `/studio/favorites` UI spec section**
 
-`/studio/favorites` must show original and fanwork zones separately, use `CollectionCard`, provide create/edit/delete collection actions, and protect default collections from deletion in UI as well as backend.
+Before modifying the page, verify the existing `## Page: /studio/favorites` section in `design/ui-spec.md` specifies:
+- zone-separated collection grid layout
+- `CollectionCard` usage and edit/delete controls per card
+- default collection protection (delete disabled)
+- create-collection entry point
+- loading, empty, error, a11y, i18n, and screenshot checkpoints
+If an implementation branch is missing this section or it is stale, stop and repair the UI spec in a separate docs/design step before writing TSX.
 
-- [ ] **Step 5: Add i18n keys**
+- [ ] **Step 5: Update `/studio/favorites`**
 
-Add all visible strings under `collections.picker.*`, `collections.card.*`, and `studioFavorites.*` in both `frontend/messages/zh.json` and `frontend/messages/en.json`.
+`/studio/favorites` must show original and fanwork zones separately, use `CollectionCard`, provide create/edit/delete collection actions, and protect default collections from deletion in UI as well as backend. Follow the UI spec verified in Step 4.
 
-- [ ] **Step 6: Run frontend tests**
+- [ ] **Step 6: Add i18n keys**
+
+Add all visible strings under `collections.picker.*`, `collections.card.*`, and `studio.favorites.*` in both `frontend/messages/zh.json` and `frontend/messages/en.json`.
+
+- [ ] **Step 7: Run frontend tests**
 
 Run:
 
 ```powershell
 cd frontend
-npm run test -- tests/collection-picker.test.tsx
+node --import tsx --test tests/collection-picker.test.tsx
 ```
 
 ---
@@ -652,7 +682,7 @@ Run:
 
 ```powershell
 cd frontend
-npm run test -- tests/user-collections-page.test.tsx
+node --import tsx --test tests/user-collections-page.test.tsx
 ```
 
 ---
@@ -686,7 +716,7 @@ cd frontend
 npm run test
 npm run lint
 npm run build
-npm run test:e2e -- collections.spec.ts
+npx playwright test e2e/collections.spec.ts
 ```
 
 - [ ] **Step 3: Run doc-validator**
@@ -708,16 +738,18 @@ go run . --fix
 6. Private `/collections/:id` is hidden from non-owner.
 7. `/user/:userId/collections` shows public collections to logged-out users.
 8. Save screenshots:
-   - `screenshots/community-collections-detail-desktop.png`
+   - `screenshots/community-collections-desktop.png`
    - `screenshots/community-collections-owner-mobile.png`
    - `screenshots/community-collections-picker-desktop.png`
    - `screenshots/community-collections-picker-mobile.png`
    - `screenshots/community-collections-user-list-desktop.png`
+   - `screenshots/community-collections-user-list-owner-mobile.png`
 
 - [ ] **Step 5: Commit when implementing**
 
 ```powershell
-git add -- backend/migrations/058_create_collections.sql backend/internal/model/collection.go backend/internal/model/collection_migration_test.go backend/internal/repository/collection_repo.go backend/internal/repository/collection_repo_test.go backend/internal/service/collection_service.go backend/internal/service/collection_service_test.go backend/internal/handler/collection.go backend/internal/handler/collection_test.go backend/internal/handler/routes.go backend/internal/repository/social_repo.go backend/internal/service/social_service.go backend/internal/handler/social.go backend/internal/service/recommendation_service.go backend/internal/service/recommendation_service_test.go backend/internal/handler/content.go frontend/lib/collections.ts frontend/components/content/CollectionPicker.tsx frontend/components/content/CollectionCard.tsx frontend/components/content/CollectionInfoCard.tsx frontend/components/content/ContentTypeFilter.tsx "frontend/app/(protected)/studio/favorites/page.tsx" "frontend/app/(public)/collections/[id]/page.tsx" "frontend/app/(public)/user/[userId]/collections/page.tsx" frontend/components/content/ContentDetail.tsx frontend/components/content/ContentDetailClient.tsx frontend/messages/zh.json frontend/messages/en.json frontend/tests/collection-picker.test.tsx frontend/tests/collection-detail.test.tsx frontend/tests/user-collections-page.test.tsx frontend/e2e/collections.spec.ts design/ui-spec.md screenshots/community-collections-detail-desktop.png screenshots/community-collections-owner-mobile.png screenshots/community-collections-picker-desktop.png screenshots/community-collections-picker-mobile.png screenshots/community-collections-user-list-desktop.png architecture.md docs/superpowers/plans/2026-06-30-omnicraft-community-collections.md progress.txt
+git add -- backend/migrations/058_create_collections.sql backend/internal/model/collection.go backend/internal/model/collection_migration_test.go backend/internal/repository/collection_repo.go backend/internal/repository/collection_repo_test.go backend/internal/service/collection_service.go backend/internal/service/collection_service_test.go backend/internal/handler/collection.go backend/internal/handler/collection_test.go backend/internal/handler/routes.go backend/internal/repository/social_repo.go backend/internal/service/social_service.go backend/internal/service/recommendation_service.go backend/internal/service/recommendation_service_test.go backend/internal/handler/content.go frontend/lib/collections.ts frontend/components/content/CollectionPicker.tsx frontend/components/content/CollectionCard.tsx frontend/components/content/CollectionInfoCard.tsx frontend/components/content/ContentTypeFilter.tsx "frontend/app/(protected)/studio/favorites/page.tsx" "frontend/app/(public)/collections/[id]/page.tsx" "frontend/app/(public)/user/[userId]/collections/page.tsx" frontend/components/content/ContentDetail.tsx frontend/components/content/ContentDetailClient.tsx frontend/messages/zh.json frontend/messages/en.json frontend/tests/collection-picker.test.tsx frontend/tests/collection-detail.test.tsx frontend/tests/user-collections-page.test.tsx frontend/e2e/collections.spec.ts screenshots/community-collections-desktop.png screenshots/community-collections-owner-mobile.png screenshots/community-collections-picker-desktop.png screenshots/community-collections-picker-mobile.png screenshots/community-collections-user-list-desktop.png screenshots/community-collections-user-list-owner-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-collections.md progress.txt
+# Also add architecture.md if doc-validator --fix modified it during this task.
 git commit -m "Community 3: collections folder system"
 ```
 

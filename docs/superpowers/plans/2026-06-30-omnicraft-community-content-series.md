@@ -12,6 +12,7 @@
 
 ## Cross-Plan Coordination
 
+- Execution source: this is part of the 2026-06-30 community feature plan family, derived from `docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md`. It is not a historical `task.json` task and not a 2026-05-30 Beta roadmap checkbox; executing it requires an explicit user request naming this plan or the community feature family.
 - Shared-file integration and migration order for the six community plans is: messages-notifications (`057`) -> browse-history (no migration) -> collections (`058`) -> content-series (`059`) -> source-linkage (`060`) -> collaboration-invites (`061`).
 - `frontend/app/(protected)/messages/page.tsx`, `frontend/components/social/ChatWindow.tsx`, and `frontend/components/social/ConversationList.tsx` must land in messages-notifications before collaboration-invites extends typed invite cards.
 - `frontend/components/content/ContentDetail.tsx` changes from collections must already be present; this plan then adds `SeriesNav`; source-linkage adds attribution/related rows after this plan.
@@ -19,6 +20,7 @@
 - `backend/config/config.go` and `backend/config.yaml` changes from browse-history and collaboration-invites must be implemented serially and rebased before verification.
 - Before any UI code, grep `design/ui-spec.md` for the exact `## Page:` / `## Component:` sections named by this plan and follow those sections as the visual authority. As of 2026-06-30, `/series/[id]`, `/studio/series`, `SeriesNav`, `ContentDetail`, `StudioSidebar`, `ContentCard`, `ConfirmModal`, and `Toast` are present; do not rewrite `design/ui-spec.md` unless an implementation-time check proves a required section is absent or stale.
 - Expected-result convention: any "Run and confirm red" step expects FAIL for the behavior under test; any "Verify green" / "Run ... tests" step expects PASS. If the observed result differs, stop and update the plan before proceeding.
+- Frontend focused test convention: current `frontend/package.json` defines `npm run test` as a fixed suite, so focused TS/TSX tests in this plan use `node --import tsx --test <file>` directly. Do not write `npm run test -- <file>` unless the package script is changed first.
 - Before implementation, run `git status --short`, reserve exact files, and stage only exact touched files. Do not use directory-level staging such as `git add backend`, `git add frontend`, `git add design`, `git add screenshots`, or `git add docs/superpowers/plans`.
 - Staging note: the sample `git add` command at the end must be reduced to files actually changed in that implementation. Omit `design/ui-spec.md` when it was only read/verified; omit generated docs such as `architecture.md` unless `doc-validator` changed them during this task.
 
@@ -148,7 +150,9 @@ func TestSeriesRejectsUnrelatedContent(t *testing.T) {}
 func TestSeriesRejectsZoneMismatch(t *testing.T) {}
 func TestSeriesRejectsDuplicateItem(t *testing.T) {}
 func TestSeriesAddItemAppendsAfterMaxSortOrder(t *testing.T) {}
+func TestSeriesAddItemConcurrentAppendKeepsStableUniqueSortOrder(t *testing.T) {}
 func TestSeriesRejectsCoverNotInSeries(t *testing.T) {}
+func TestSeriesCoverFallsBackWhenCoverContentDeleted(t *testing.T) {}
 func TestSeriesReorderIsTransactional(t *testing.T) {}
 func TestSeriesReorderRejectsMissingOrForeignItems(t *testing.T) {}
 ```
@@ -178,7 +182,7 @@ ReorderItems(ctx, seriesID, ownerID, itemIDs)
 ListMembershipsForContent(ctx, contentID)
 ```
 
-`AddItem` must append by setting `sort_order = COALESCE(MAX(sort_order), -1) + 1` within the target series. Do not rely on the database default `0` except for the first item.
+`AddItem` must append by setting `sort_order = COALESCE(MAX(sort_order), -1) + 1` within the target series. Do not rely on the database default `0` except for the first item. The append path must lock the parent `content_series` row in the same transaction before reading `MAX(sort_order)`, so concurrent appends to an empty or non-empty series cannot produce duplicate or unstable ordering.
 
 - [ ] **Step 4: Implement ownership and addable-content rule**
 
@@ -191,7 +195,13 @@ OR EXISTS content_contributors WHERE content_item_id = content.id AND user_id = 
 
 Do not let a contributor manage someone else's series.
 
-When adding, calculate the append `sort_order` in the same transaction as the insert so concurrent adds cannot create duplicate or unstable ordering.
+When adding, calculate the append `sort_order` in the same transaction as the insert. First lock the target parent row:
+
+```sql
+SELECT id FROM content_series WHERE id = ? FOR UPDATE
+```
+
+Then compute `MAX(sort_order)` for that series and insert the new item. Tests must simulate concurrent append requests and prove the resulting `sort_order` values are unique and contiguous.
 
 - [ ] **Step 5: Implement reorder transaction**
 
@@ -299,7 +309,7 @@ go test ./internal/handler -run TestSeries -v
 
 **Files:**
 - Modify: `backend/internal/handler/content.go`
-- Modify: `backend/internal/repository/content_repo.go` or use `SeriesRepository`
+- Modify: `backend/internal/repository/series_repo.go` — add `ListMembershipsForContent(ctx, contentID)` here (natural home for series queries; covered by existing `series_repo` tests in Task 2). If the query must instead live in `content_repo.go`, add `backend/internal/repository/content_repo_test.go` with `TestContentRepoListSeriesMemberships`.
 - Modify: `frontend/lib/content.ts`
 - Test: `backend/internal/handler/series_test.go`
 
@@ -394,7 +404,7 @@ Run:
 
 ```powershell
 cd frontend
-npm run test -- tests/series-nav.test.tsx
+node --import tsx --test tests/series-nav.test.tsx
 ```
 
 ---
@@ -436,7 +446,7 @@ Run:
 
 ```powershell
 cd frontend
-npm run test -- tests/series-nav.test.tsx
+node --import tsx --test tests/series-nav.test.tsx
 ```
 
 Expected: PASS.
@@ -479,7 +489,7 @@ Check logged-out access, ordered items, item links, and not-found state.
 
 ---
 
-## Task 8: Build Studio Series Management API And Tests
+## Task 8: Write Studio Series Management Frontend Tests
 
 **Files:**
 - Create: `frontend/tests/studio-series-page.test.tsx`
@@ -496,29 +506,40 @@ rg -n "## Page: /studio/series" design/ui-spec.md
 
 The section must specify list, detail, create, edit, item add/remove, up/down reorder, loading, empty, error, a11y, i18n, and screenshot checkpoints.
 
-- [ ] **Step 2: Add failing page tests**
+- [ ] **Step 2: Add failing list/create tests**
 
 Assert:
 
 - list fetch calls `GET /api/v1/series`
 - create submits `POST /api/v1/series`
+
+- [ ] **Step 3: Add failing edit/delete tests**
+
+Assert:
+
 - edit submits `PUT /api/v1/series/:id`
 - delete submits `DELETE /api/v1/series/:id`
+
+- [ ] **Step 4: Add failing item-management tests**
+
+Assert:
+
 - add item submits `POST /api/v1/series/:id/items`
 - remove item submits `DELETE /api/v1/series/:id/items/:itemId`
 - reorder buttons submit `PUT /api/v1/series/:id/items/reorder` with full `item_ids`
+- drag/drop affordances are not rendered in this implementation
 
-- [ ] **Step 3: Add i18n keys**
+- [ ] **Step 5: Add i18n keys**
 
 Add namespaces `series.studio.*`, `series.studio.form.*`, `series.studio.items.*`, `series.studio.toast.*`, and `series.studio.a11y.*`.
 
-- [ ] **Step 4: Run focused tests and confirm red**
+- [ ] **Step 6: Run focused tests and confirm red**
 
 Run:
 
 ```powershell
 cd frontend
-npm run test -- tests/studio-series-page.test.tsx
+node --import tsx --test tests/studio-series-page.test.tsx
 ```
 
 Expected: FAIL until the page is implemented.
@@ -539,22 +560,32 @@ Expected: FAIL until the page is implemented.
 
 Add "内容系列管理" under creator/studio content management. Use a stable icon from `lucide-react`; do not use a text-only pill if an icon button pattern exists.
 
-- [ ] **Step 2: Implement list/create/edit**
+- [ ] **Step 2: Implement list and create**
 
 The page must allow:
 
 - list my series
 - create series with title, description, zone
+
+- [ ] **Step 3: Implement edit and delete**
+
+The page must allow:
+
 - edit title/description/cover
 - delete series
 
-- [ ] **Step 3: Implement item management**
+- [ ] **Step 4: Implement add/remove item management**
 
 Allow:
 
 - search/select owner-authored or contributor content
 - add item
 - remove item
+
+- [ ] **Step 5: Implement reorder buttons**
+
+Allow:
+
 - reorder with up/down buttons
 - drag handles are out-of-scope for this implementation; do not render drag affordances or include drag/drop code
 
@@ -565,7 +596,18 @@ PUT /api/v1/series/:id/items/reorder
 {"item_ids":[...]}
 ```
 
-- [ ] **Step 4: Add Playwright studio flow**
+- [ ] **Step 6: Run focused studio tests**
+
+Run:
+
+```powershell
+cd frontend
+node --import tsx --test tests/studio-series-page.test.tsx
+```
+
+Expected: PASS.
+
+- [ ] **Step 7: Add Playwright studio flow**
 
 Create a series, add two contents, move second up, verify reorder API payload, remove item, delete series.
 
@@ -600,7 +642,7 @@ cd frontend
 npm run test
 npm run lint
 npm run build
-npm run test:e2e -- content-series.spec.ts
+npx playwright test e2e/content-series.spec.ts
 ```
 
 - [ ] **Step 3: Run doc-validator**
@@ -630,7 +672,8 @@ go run . --fix
 - [ ] **Step 5: Commit when implementing**
 
 ```powershell
-git add -- backend/migrations/059_create_content_series.sql backend/internal/model/series.go backend/internal/model/series_migration_test.go backend/internal/repository/series_repo.go backend/internal/service/series_service.go backend/internal/service/series_service_test.go backend/internal/handler/series.go backend/internal/handler/series_test.go backend/internal/handler/content.go backend/internal/handler/routes.go "frontend/app/(public)/series/[id]/page.tsx" "frontend/app/(protected)/studio/series/page.tsx" frontend/components/content/SeriesNav.tsx frontend/components/content/ContentDetail.tsx frontend/lib/content.ts frontend/components/studio/StudioSidebar.tsx frontend/messages/zh.json frontend/messages/en.json frontend/tests/series-nav.test.tsx frontend/tests/studio-series-page.test.tsx frontend/e2e/content-series.spec.ts design/ui-spec.md screenshots/community-content-series-nav-desktop.png screenshots/community-content-series-nav-mobile.png screenshots/community-content-series-detail-desktop.png screenshots/community-content-series-detail-mobile.png screenshots/community-content-series-studio-desktop.png screenshots/community-content-series-studio-mobile.png architecture.md docs/superpowers/plans/2026-06-30-omnicraft-community-content-series.md progress.txt
+git add -- backend/migrations/059_create_content_series.sql backend/internal/model/series.go backend/internal/model/series_migration_test.go backend/internal/repository/series_repo.go backend/internal/service/series_service.go backend/internal/service/series_service_test.go backend/internal/handler/series.go backend/internal/handler/series_test.go backend/internal/handler/content.go backend/internal/handler/routes.go "frontend/app/(public)/series/[id]/page.tsx" "frontend/app/(protected)/studio/series/page.tsx" frontend/components/content/SeriesNav.tsx frontend/components/content/ContentDetail.tsx frontend/lib/content.ts frontend/components/studio/StudioSidebar.tsx frontend/messages/zh.json frontend/messages/en.json frontend/tests/series-nav.test.tsx frontend/tests/studio-series-page.test.tsx frontend/e2e/content-series.spec.ts screenshots/community-content-series-nav-desktop.png screenshots/community-content-series-nav-mobile.png screenshots/community-content-series-detail-desktop.png screenshots/community-content-series-detail-mobile.png screenshots/community-content-series-studio-desktop.png screenshots/community-content-series-studio-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-content-series.md progress.txt
+# Also add architecture.md if doc-validator --fix modified it during this task.
 git commit -m "Community 4: content series"
 ```
 
@@ -646,5 +689,6 @@ git commit -m "Community 4: content series"
 - [ ] Content detail response includes enough data for previous/next without extra client guessing.
 - [ ] UI spec sections are verified before UI code, and no UI details are invented outside `design/ui-spec.md`.
 - [ ] Studio management uses tested up/down reorder buttons; drag handles are explicitly out-of-scope.
+- [ ] Studio management task is split into list/create, edit/delete, item add/remove, and reorder verification.
 - [ ] Browser verification covers first, last, multiple-series, public detail, and studio management.
 - [ ] `doc-validator` is required because routes and migrations change.

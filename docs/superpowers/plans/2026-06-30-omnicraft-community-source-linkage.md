@@ -12,13 +12,16 @@
 
 ## Cross-Plan Coordination
 
+- Execution source: this is part of the 2026-06-30 community feature plan family, derived from `docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md`. It is not a historical `task.json` task and not a 2026-05-30 Beta roadmap checkbox; executing it requires an explicit user request naming this plan or the community feature family.
 - Shared-file integration and migration order for the six community plans is: messages-notifications (`057`) -> browse-history (no migration) -> collections (`058`) -> content-series (`059`) -> source-linkage (`060`) -> collaboration-invites (`061`).
 - `frontend/app/(protected)/messages/page.tsx`, `frontend/components/social/ChatWindow.tsx`, and `frontend/components/social/ConversationList.tsx` must land in messages-notifications before collaboration-invites extends typed invite cards.
 - `frontend/components/content/ContentDetail.tsx` changes from collections and content-series must already be present; this plan adds source attribution and related/derivative rows after them.
 - `frontend/components/studio/PublishForm.tsx` source fields in this plan must land before collaboration-invites adds the collaborator picker.
 - `backend/config/config.go` and `backend/config.yaml` changes from browse-history and collaboration-invites must be implemented serially and rebased before verification.
 - Before any UI code, grep `design/ui-spec.md` for the exact `## Page:` / `## Component:` sections named by this plan and follow those sections as the visual authority. As of 2026-06-30, `/studio/publish/fanwork`, `SourceContentPicker`, `RelatedFanworks`, `SourceAttribution`, `ContentDetail`, and `ContentCard` are present; do not rewrite `design/ui-spec.md` unless an implementation-time check proves a required section is absent or stale.
+- Authority alignment note: `AGENTS.md`, `CLAUDE.md`, and `architecture.md` must describe the same fanwork three-source model as `docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md`. Task 0 verifies that alignment first; only update those co-authoritative docs if the implementation branch still contains stale single-source prose.
 - Expected-result convention: any "Run and confirm red" step expects FAIL for the behavior under test; any "Verify green" / "Run ... tests" step expects PASS. If the observed result differs, stop and update the plan before proceeding.
+- Frontend focused test convention: current `frontend/package.json` defines `npm run test` as a fixed suite, so focused TS/TSX tests in this plan use `node --import tsx --test <file>` directly. Do not write `npm run test -- <file>` unless the package script is changed first.
 - Before implementation, run `git status --short`, reserve exact files, and stage only exact touched files. Do not use directory-level staging such as `git add backend`, `git add frontend`, `git add design`, `git add screenshots`, or `git add docs/superpowers/plans`.
 - Staging note: the sample `git add` command at the end must be reduced to files actually changed in that implementation. Omit `design/ui-spec.md` when it was only read/verified; omit generated docs such as `architecture.md` unless `doc-validator` changed them during this task.
 
@@ -28,6 +31,7 @@
 
 ### Backend
 
+- Read/modify if stale: `AGENTS.md`, `CLAUDE.md`, `architecture.md` - 先验证来源规则和发布/详情 API 文档是否已与本计划的 fanwork 三选一来源模型一致；仅当分支仍有旧单来源规则时再更新。
 - Create: `backend/migrations/060_add_source_fanwork_id.sql`.
 - Modify: `backend/internal/model/content.go`
 - Modify: `backend/internal/repository/content_repo.go`
@@ -54,6 +58,45 @@
 - Modify: `frontend/messages/zh.json`, `frontend/messages/en.json`
 - Read before UI code: `design/ui-spec.md` sections for `/studio/publish/fanwork`, `SourceContentPicker`, `RelatedFanworks`, `SourceAttribution`, `ContentDetail`, and `ContentCard`.
 - Test: `frontend/e2e/studio-publish-fanwork.spec.ts`
+
+---
+
+## Task 0: Align Authoritative Source-Linkage Documentation
+
+**Files:**
+- Read/modify if stale: `AGENTS.md`
+- Read/modify if stale: `CLAUDE.md`
+- Read/modify if stale: `architecture.md`
+- Read: `docs/superpowers/specs/2026-06-29-omnicraft-documentation-governance-design.md`
+
+- [ ] **Step 1: Confirm conflict scope**
+
+Read the current "原创/二创来源联动规则" sections in `AGENTS.md` and `CLAUDE.md`, and the publish/content-detail/related-fanworks sections in `architecture.md`. Confirm whether they already describe the fanwork three-source model. If they still describe a single-source `source_original_id` model, continue with Steps 2-3; if already aligned, record that Task 0 is verification-only and do not edit these files.
+
+- [ ] **Step 2: Update agent business rules**
+
+If stale prose remains, in both `AGENTS.md` and `CLAUDE.md`, replace the old single-source bullets with the community design model:
+
+- `zone='original'` rejects both `source_original_id` and `source_fanwork_id`
+- `zone='fanwork'` requires at least one of `ip_id`, `source_original_id`, or `source_fanwork_id`
+- `source_original_id` and `source_fanwork_id` are mutually exclusive
+- `source_original_id` must point to `zone='original' AND status='published'`
+- `source_fanwork_id` must point to `zone='fanwork' AND status='published'`
+- legacy fanworks without content sources remain valid historical rows
+
+- [ ] **Step 3: Update architecture API/schema prose**
+
+If stale prose remains, update `architecture.md` in hand-written prose sections (outside any `<!-- AUTO-GENERATED START -->` / `<!-- AUTO-GENERATED END -->` blocks managed by `doc-validator`) so that content detail and publish examples mention `source_fanwork_id`, `source_fanwork`, fanwork-source related rows, and the same exact error codes used in this plan. If `architecture.md` does not use explicit auto-generated markers, treat sections whose headings match route/schema table patterns (e.g. "## API Routes", "## Database Schema") as likely auto-generated and avoid hand-editing their structured content. Do not hand-edit auto-generated schema/route sections; if later code changes require generated updates, Task 8 runs `doc-validator`.
+
+- [ ] **Step 4: Verify no stale source rule remains**
+
+Run:
+
+```powershell
+rg -n "单来源模型|最多绑定一个原创|只有 `zone='fanwork'` 允许填写 `source_original_id`|/publish\\?zone=fanwork&source_original_id" AGENTS.md CLAUDE.md architecture.md
+```
+
+Expected: no stale old-model prose remains except in explicitly labeled historical notes.
 
 ---
 
@@ -355,7 +398,7 @@ Run:
 
 ```powershell
 cd frontend
-npm run test -- tests/studio-publish-fanwork.test.tsx
+node --import tsx --test tests/studio-publish-fanwork.test.tsx
 ```
 
 Expected: picker tests PASS before editing `PublishForm.tsx`.
@@ -508,13 +551,15 @@ Fanwork detail:
 - show derivative `RelatedFanworks` below body and above comments; do not create a new derivative-list page in this plan, so omit `viewAllHref` unless such a route already exists
 - do not add recursive source-chain UI
 
+> **首版范围裁剪**：衍生作品"查看全部"列表页（类似 `/original/[contentId]/fanworks`）延后到后续版本。首版仅展示 `RelatedFanworks` 横向滚动卡片行（最多 8 张），不提供 `viewAllHref`。
+
 - [ ] **Step 6: Run focused component tests**
 
 Run:
 
 ```powershell
 cd frontend
-npm run test -- tests/source-linkage-components.test.tsx
+node --import tsx --test tests/source-linkage-components.test.tsx
 ```
 
 ---
@@ -588,7 +633,7 @@ go run . --fix
 - [ ] **Step 6: Commit when implementing**
 
 ```powershell
-git add -- backend/migrations/060_add_source_fanwork_id.sql backend/internal/model/content.go backend/internal/model/content_migration_test.go backend/internal/repository/content_repo.go backend/internal/service/content_service.go backend/internal/service/content_source_test.go backend/internal/handler/content.go backend/internal/handler/content_publish_route_test.go backend/internal/pkg/response/safe_error.go frontend/components/content/RelatedFanworks.tsx frontend/components/content/SourceAttribution.tsx frontend/components/studio/SourceContentPicker.tsx frontend/lib/content.ts frontend/components/studio/PublishForm.tsx "frontend/app/(protected)/studio/publish/fanwork/page.tsx" "frontend/app/(public)/content/[contentId]/page.tsx" "frontend/app/(public)/original/[contentId]/page.tsx" "frontend/app/(public)/original/[contentId]/fanworks/page.tsx" frontend/components/content/ContentDetail.tsx frontend/components/content/ContentSidebar.tsx frontend/messages/zh.json frontend/messages/en.json frontend/tests/studio-publish-fanwork.test.tsx frontend/tests/source-linkage-components.test.tsx frontend/e2e/studio-publish-fanwork.spec.ts design/ui-spec.md screenshots/community-source-picker-desktop.png screenshots/community-source-picker-mobile.png screenshots/community-source-attribution-desktop.png screenshots/community-source-attribution-unavailable.png screenshots/community-related-fanworks-desktop.png screenshots/community-derivatives-mobile.png architecture.md docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md progress.txt
+git add -- AGENTS.md CLAUDE.md architecture.md backend/migrations/060_add_source_fanwork_id.sql backend/internal/model/content.go backend/internal/model/content_migration_test.go backend/internal/repository/content_repo.go backend/internal/service/content_service.go backend/internal/service/content_source_test.go backend/internal/handler/content.go backend/internal/handler/content_publish_route_test.go backend/internal/pkg/response/safe_error.go frontend/components/content/RelatedFanworks.tsx frontend/components/content/SourceAttribution.tsx frontend/components/studio/SourceContentPicker.tsx frontend/lib/content.ts frontend/components/studio/PublishForm.tsx "frontend/app/(protected)/studio/publish/fanwork/page.tsx" "frontend/app/(public)/content/[contentId]/page.tsx" "frontend/app/(public)/original/[contentId]/page.tsx" "frontend/app/(public)/original/[contentId]/fanworks/page.tsx" frontend/components/content/ContentDetail.tsx frontend/components/content/ContentSidebar.tsx frontend/messages/zh.json frontend/messages/en.json frontend/tests/studio-publish-fanwork.test.tsx frontend/tests/source-linkage-components.test.tsx frontend/e2e/studio-publish-fanwork.spec.ts screenshots/community-source-picker-desktop.png screenshots/community-source-picker-mobile.png screenshots/community-source-attribution-desktop.png screenshots/community-source-attribution-unavailable.png screenshots/community-related-fanworks-desktop.png screenshots/community-derivatives-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md progress.txt
 git commit -m "Community 5: original fanwork source linkage"
 ```
 
@@ -597,6 +642,7 @@ git commit -m "Community 5: original fanwork source linkage"
 ## Plan Self-Check
 
 - [ ] All five new source validation errors are named with exact conditions.
+- [ ] `AGENTS.md`, `CLAUDE.md`, and `architecture.md` no longer describe the stale single-source-only model.
 - [ ] Historical fanwork rows without sources are not retroactively blocked.
 - [ ] Model, migration, input DTO, repository filter, handler response, frontend normalize, publish UI, and detail UI are all included.
 - [ ] Related API behavior differs correctly for original source and fanwork source.
