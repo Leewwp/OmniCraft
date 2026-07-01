@@ -3,7 +3,7 @@
 创建日期：2026-06-30
 预计失效日期：2026-08-30
 适用范围：`docs/superpowers/plans/2026-06-30-omnicraft-community-*.md` 六个社区功能计划的分轮开发、审查、集成。
-当前状态：开发尚未开始；计划文档和权威规则已在 commit `a6171ab` 修复对齐。
+当前状态：计划一 Messages And Notifications 已完成，完成 commit `f9f536d`；下一步按顺序进入计划二 Browse History。计划文档和权威规则已在 commit `a6171ab` 修复对齐。
 
 ---
 
@@ -67,8 +67,8 @@ Get-Content AGENTS.md
 
 | 顺序 | 计划文件 | 分支建议 | 迁移 | 当前状态 | 主要交付 |
 |---|---|---|---|---|---|
-| 1 | `…community-messages-notifications.md` | `codex/community/messages-notifications` | `057_add_broadcast_channel.sql` | 未开始 | 私信冷启动、消息 API、通知广播、管理员广播页、消息中心 UI |
-| 2 | `…community-browse-history.md` | `codex/community/browse-history` | 无新迁移 | 未开始 | 浏览历史筛选/删除/保留期、每日清理 scheduler、历史页 UI |
+| 1 | `…community-messages-notifications.md` | `codex/community/messages-notifications` | `057_add_broadcast_channel.sql` | 已完成：`f9f536d` | 私信冷启动、消息 API、通知广播、管理员广播页、消息中心 UI |
+| 2 | `…community-browse-history.md` | `codex/community/browse-history` | 无新迁移 | 下一步 | 浏览历史筛选/删除/保留期、每日清理 scheduler、历史页 UI |
 | 3 | `…community-collections.md` | `codex/community/collections` | `058_create_collections.sql` | 未开始 | 收藏集模型、旧 favorites 兼容、推荐兼容、收藏集详情、Studio 收藏集管理 |
 | 4 | `…community-content-series.md` | `codex/community/content-series` | `059_create_content_series.sql` | 未开始 | 内容系列模型、系列 API、详情页 SeriesNav、公开系列页、Studio 系列管理 |
 | 5 | `…community-source-linkage.md` | `codex/community/source-linkage` | `060_add_source_fanwork_id.sql` | 未开始 | 二创来源链、`source_fanwork_id`、来源归因、相关二创/衍生作品、二创发布来源选择 |
@@ -235,6 +235,21 @@ docker compose up -d postgres redis
 ## 8. 计划一：Messages And Notifications
 
 计划文件：`docs/superpowers/plans/2026-06-30-omnicraft-community-messages-notifications.md`
+
+**完成状态**：已完成，commit `f9f536d`（`Community messages-notifications: completed`）。
+
+**完成摘要**：
+- 后端完成 DM cold-start 保护、稳定 `/api/v1/messages` DTO、通知 `broadcast` channel、管理员广播 service/handler/audit 链路。
+- 前端完成 `/admin/notifications` 管理员广播页、`/messages` 消息中心通知/私信 UI 更新、广播 Markdown 安全渲染、未读数稳定更新和移动端聊天体验。
+- 最终审查修复了并发首发私信绕过 cold-start guard 的竞态：Postgres 使用事务级 advisory lock；非 Postgres fallback 使用进程内 pair mutex 覆盖完整 transaction。
+- 计划 checkbox 和 `progress.txt` 已更新；未修改 `task.json`，未勾选 Beta roadmap。
+
+**完成验证**：
+- Backend：`go test ./...`、`go vet ./...`、`go build ./...` 通过。
+- Frontend：`npm run test`、`node --import tsx --test tests/messages-components.test.tsx`、`node --import tsx --test tests/admin-notifications-page.test.tsx`、`npm run lint`、`npm run build` 通过。
+- Doc sync：`cd tools/doc-validator && go run . --fix` 通过。
+- Browser verification：Playwright MCP 使用 mocked APIs 验证管理员广播、普通用户广播展示、移动端消息中心和 `DM_REPLY_REQUIRED`；截图位于 `screenshots/community-messages-notifications-*.png`。
+- 已完成规格符合性审查和代码质量复审；最终无剩余 Critical/Important issue。
 
 **目标**：
 - 私信 cold-start：第一条允许，未回复前第二条拒绝 `DM_REPLY_REQUIRED`。
