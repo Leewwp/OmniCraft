@@ -361,6 +361,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		admin.GET("/feedback/:id", adminFeedbackHandler.GetFeedback)
 		admin.PATCH("/feedback/:id", adminFeedbackHandler.PatchFeedback)
 		admin.POST("/feedback/:id/replies", adminFeedbackHandler.ReplyFeedback)
+		admin.POST("/notifications/broadcast", adminHandler.BroadcastNotification)
 		admin.GET("/audit-logs", adminAuditHandler.ListAuditLogs)
 	}
 

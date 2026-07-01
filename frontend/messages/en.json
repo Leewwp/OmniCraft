@@ -8,6 +8,7 @@
     "saveFailed": "Failed to save",
     "cancel": "Cancel",
     "confirm": "Confirm",
+    "reason": "Reason",
     "delete": "Delete",
     "edit": "Edit",
     "view": "View",
@@ -1061,7 +1062,8 @@
     "channelLike": "Like",
     "channelFollow": "Follow",
     "channelPR": "PR",
-    "channelSystem": "System"
+    "channelSystem": "System",
+    "channelBroadcast": "Broadcast"
   },
   "messages": {
     "title": "Messages",
@@ -1077,7 +1079,14 @@
     "noConversations": "No conversations",
     "selectConversation": "Select a conversation to start chatting",
     "replyPlaceholder": "Type a message...",
-    "startConversation": "Start a conversation"
+    "startConversation": "Start a conversation",
+    "dmReplyRequired": "Wait for the recipient to reply before sending another message.",
+    "sendMessage": "Send message",
+    "broadcastLabel": "Broadcast",
+    "systemLabel": "System",
+    "notificationOpensTarget": "Opens related item",
+    "notificationNoTarget": "No related item",
+    "unreadIndicator": "Unread"
   },
   "footer": {
     "about": "About",
@@ -1396,6 +1405,44 @@
       "empty": "No favorites yet",
       "emptyHint": "When you favorite content, it will appear here.",
       "discover": "Discover content"
+    }
+  },
+  "adminNotifications": {
+    "title": "System broadcast",
+    "subtitle": "Send a Markdown notification to active users.",
+    "form": {
+      "titleLabel": "Title",
+      "titlePlaceholder": "Maintenance notice",
+      "titleHint": "1-120 characters",
+      "titleCount": "{count}/120",
+      "bodyLabel": "Body",
+      "bodyHint": "Markdown supported, 1-5000 characters",
+      "bodyCount": "{count}/5000",
+      "send": "Send broadcast",
+      "sending": "Sending..."
+    },
+    "preview": {
+      "title": "Preview",
+      "emptyTitle": "Nothing to preview",
+      "emptyDescription": "Write a title and Markdown body to preview the notification."
+    },
+    "confirm": {
+      "title": "Send broadcast?",
+      "description": "Broadcast notifications are sent to active users and cannot be recalled.",
+      "confirm": "Send broadcast"
+    },
+    "toast": {
+      "success": "Broadcast sent to {count} users at {time}.",
+      "failure": "Failed to send broadcast. Please try again."
+    },
+    "validation": {
+      "titleRequired": "Title is required.",
+      "bodyRequired": "Body is required.",
+      "titleTooLong": "Title must be 120 characters or fewer.",
+      "bodyTooLong": "Body must be 5000 characters or fewer."
+    },
+    "a11y": {
+      "preview": "Broadcast notification preview"
     }
   },
   "error": {

@@ -8,6 +8,7 @@
     "saveFailed": "保存失败",
     "cancel": "取消",
     "confirm": "确认",
+    "reason": "原因",
     "delete": "删除",
     "edit": "编辑",
     "view": "查看",
@@ -1061,7 +1062,8 @@
     "channelLike": "点赞",
     "channelFollow": "关注",
     "channelPR": "PR",
-    "channelSystem": "系统"
+    "channelSystem": "系统",
+    "channelBroadcast": "广播"
   },
   "messages": {
     "title": "消息中心",
@@ -1077,7 +1079,14 @@
     "noConversations": "暂无对话",
     "selectConversation": "选择一个对话开始聊天",
     "replyPlaceholder": "输入消息...",
-    "startConversation": "开始对话"
+    "startConversation": "开始对话",
+    "dmReplyRequired": "\u5bf9\u65b9\u5c1a\u672a\u56de\u590d\uff0c\u8bf7\u7b49\u5f85\u56de\u590d\u540e\u518d\u53d1\u9001\u65b0\u6d88\u606f",
+    "sendMessage": "\u53d1\u9001\u6d88\u606f",
+    "broadcastLabel": "广播",
+    "systemLabel": "系统",
+    "notificationOpensTarget": "可打开相关项",
+    "notificationNoTarget": "无相关项",
+    "unreadIndicator": "未读"
   },
   "footer": {
     "about": "关于我们",
@@ -1396,6 +1405,44 @@
       "empty": "还没有收藏内容",
       "emptyHint": "当你收藏内容时，它会出现在这里。",
       "discover": "发现好内容"
+    }
+  },
+  "adminNotifications": {
+    "title": "系统广播",
+    "subtitle": "向活跃用户发送 Markdown 通知。",
+    "form": {
+      "titleLabel": "标题",
+      "titlePlaceholder": "维护公告",
+      "titleHint": "1-120 个字符",
+      "titleCount": "{count}/120",
+      "bodyLabel": "正文",
+      "bodyHint": "支持 Markdown，1-5000 个字符",
+      "bodyCount": "{count}/5000",
+      "send": "发送广播",
+      "sending": "发送中..."
+    },
+    "preview": {
+      "title": "预览",
+      "emptyTitle": "暂无预览内容",
+      "emptyDescription": "填写标题和 Markdown 正文后可预览通知。"
+    },
+    "confirm": {
+      "title": "发送广播？",
+      "description": "广播通知会发送给活跃用户，且发送后无法撤回。",
+      "confirm": "发送广播"
+    },
+    "toast": {
+      "success": "广播已发送给 {count} 位用户，发送时间 {time}。",
+      "failure": "广播发送失败，请重试。"
+    },
+    "validation": {
+      "titleRequired": "请输入标题。",
+      "bodyRequired": "请输入正文。",
+      "titleTooLong": "标题不能超过 120 个字符。",
+      "bodyTooLong": "正文不能超过 5000 个字符。"
+    },
+    "a11y": {
+      "preview": "广播通知预览"
     }
   },
   "error": {

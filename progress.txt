@@ -3313,3 +3313,45 @@ Code review of all Batch 12 changes identified 14 issues (2 Critical, 8 Major, 4
 - config.yaml is authoritative for runtime defaults per document authority table
 - architecture.md §4.13 already had correct implementation status note for collections — CLAUDE.md was out of sync
 - No `search_suggestions` migration table exists; suggestions are computed from prefix matching on tags and content_items titles
+
+## [2026-07-01] - Community messages-notifications: completed
+
+### What was done:
+- Added DM cold-start protection, stable message DTO contracts, and `/api/v1/messages` frontend usage.
+- Added migration 057 for `notifications.channel = broadcast`.
+- Added broadcast notification repository/service support with active-recipient filtering, transactional batch creation, and safe admin audit metadata.
+- Added `POST /api/v1/admin/notifications/broadcast` and the admin broadcast page with Markdown editor, safe preview, confirmation modal, and localized toasts.
+- Updated `/messages` notification/message UI with broadcast styling, safe Markdown rendering, valid-target navigation, stable unread counts, and mobile chat behavior.
+- Added focused backend/frontend tests, mocked Playwright verification, screenshots, and generated `architecture.md` route documentation.
+
+### Testing:
+- Backend: `go test ./...`, `go vet ./...`, `go build ./...` all passed.
+- Frontend: `npm run test`, `node --import tsx --test tests/messages-components.test.tsx`, `node --import tsx --test tests/admin-notifications-page.test.tsx`, `npm run lint`, and `npm run build` all passed.
+- Doc sync: `cd tools/doc-validator && go run . --fix` passed and updated `architecture.md` with the admin broadcast route.
+- Browser verification: used Playwright MCP against local dev server with mocked APIs; verified admin broadcast form, Markdown preview, ConfirmModal Esc/confirm flow, recipient-count toast, broadcast notification rendering, mobile chat, and `DM_REPLY_REQUIRED`; saved four screenshots under `screenshots/community-messages-notifications-*.png`.
+
+### Notes:
+- `npm run test:e2e -- messages-notifications.spec.ts` could not start because existing `frontend/playwright.config.ts` waits for backend `/health`, while the backend exposes `/healthz`; browser verification was completed with Playwright MCP instead.
+- This is Mode C community plan work. No `task.json` or Beta roadmap checkbox was changed.
+
+## [2026-07-01] - Community messages-notifications: review repair
+
+### What was done:
+- Fixed the final review finding where concurrent first DMs for a new sender/recipient pair could create duplicate conversations and bypass the cold-start reply guard.
+- Added a Postgres concurrency regression test that aligns concurrent conversation creation attempts and requires exactly one successful first DM.
+- Added transaction-scoped Postgres advisory locking before conversation lookup/creation, with an in-process pair lock fallback for non-Postgres tests/dev.
+- Addressed review follow-up by holding the non-Postgres fallback mutex around the full transaction and replacing the optional second-arrival race probe with an advisory-lock wait test against `pg_locks`, filtered to the exact pair advisory key.
+
+### Testing:
+- Confirmed the new regression test failed before the fix: 5 successful concurrent sends instead of 1.
+- `go test ./internal/repository -run "TestSendWithColdStartGuard" -count=1 -v -timeout=120s` passed.
+- `go test ./internal/repository -count=1 -v -timeout=120s` passed.
+- `go test ./internal/handler -run TestMessageColdStart -count=1 -v -timeout=120s` passed.
+- `go test ./internal/handler -run TestAdminNotificationBroadcast -count=1 -v -timeout=120s` passed.
+- `go test ./internal/service -run TestBroadcast -count=1 -v -timeout=120s` passed.
+- Backend gates passed: `go test ./...`, `go vet ./...`, `go build ./...`.
+- Frontend gates passed: `npm run test`, `node --import tsx --test tests/messages-components.test.tsx`, `node --import tsx --test tests/admin-notifications-page.test.tsx`, `npm run lint`, `npm run build`.
+- Doc sync passed: `cd tools/doc-validator && go run . --fix` reported no changes needed.
+
+### Notes:
+- The repair keeps Mode C tracking only; no `task.json` or Beta roadmap checkbox was changed.
