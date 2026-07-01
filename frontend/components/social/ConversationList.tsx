@@ -9,8 +9,9 @@ import { useAuth } from "@/contexts/AuthContext";
 interface Conversation {
   id: number;
   participants?: { id?: number; username?: string; avatar_url?: string }[];
-  last_message?: { text?: string; created_at?: string };
+  last_message?: { text?: string; body?: string; created_at?: string };
   created_at?: string;
+  unread_count?: number;
   unread?: boolean;
 }
 
@@ -29,7 +30,7 @@ export function ConversationList({ onSelect, activeId }: ConversationListProps) 
   const loadConversations = useCallback(async () => {
     try {
       const data = await api.get<{ conversations?: Conversation[] }>(
-        "/api/v1/conversations"
+        "/api/v1/messages"
       );
       setConversations(data.conversations || []);
     } catch {
@@ -84,6 +85,7 @@ export function ConversationList({ onSelect, activeId }: ConversationListProps) 
         ) : (
           filtered.map((c) => {
             const other = c.participants?.find((p) => p.id !== user?.id);
+            const unread = Boolean(c.unread || (c.unread_count ?? 0) > 0);
             return (
               <button
                 key={c.id}
@@ -97,20 +99,22 @@ export function ConversationList({ onSelect, activeId }: ConversationListProps) 
                     {(other?.username ?? "#").slice(0, 1).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <span
                         className={`truncate text-sm ${
-                          c.unread ? "font-semibold text-foreground" : "text-foreground"
+                          unread ? "font-semibold text-foreground" : "text-foreground"
                         }`}
                       >
                         {other?.username ?? `#${c.id}`}
                       </span>
-                      {c.unread && (
-                        <span className="h-2 w-2 shrink-0 rounded-full bg-accent" />
+                      {unread && (
+                        <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-[10px] font-medium leading-none text-white">
+                          {Math.min(c.unread_count ?? 1, 99)}
+                        </span>
                       )}
                     </div>
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {c.last_message?.text ?? t('messages.startConversation')}
+                      {c.last_message?.text ?? c.last_message?.body ?? t('messages.startConversation')}
                     </p>
                   </div>
                 </div>

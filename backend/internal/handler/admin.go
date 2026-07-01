@@ -77,6 +77,48 @@ func (h *AdminHandler) SetNotificationService(ns *service.NotificationService) {
 	h.notifSvc = ns
 }
 
+type broadcastRequest struct {
+	Title   string `json:"title"`
+	Body    string `json:"body"`
+	Channel string `json:"channel"`
+}
+
+func (h *AdminHandler) BroadcastNotification(c *gin.Context) {
+	if h.notifSvc == nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", errors.New("notification service unavailable"))
+		return
+	}
+
+	var req broadcastRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, "invalid request body")
+		return
+	}
+
+	recipientCount, broadcastAt, err := h.notifSvc.BroadcastSystemNotification(
+		c.Request.Context(),
+		req.Title,
+		req.Body,
+		req.Channel,
+		middleware.GetUserID(c),
+	)
+	if err != nil {
+		if errors.Is(err, service.ErrBroadcastValidation) {
+			response.ValidationError(c, "invalid request parameters")
+			return
+		}
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": gin.H{
+			"recipient_count": recipientCount,
+			"broadcast_at":    broadcastAt,
+		},
+	})
+}
+
 func (h *AdminHandler) ListPendingIPs(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))

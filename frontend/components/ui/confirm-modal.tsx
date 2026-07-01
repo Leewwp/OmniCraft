@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useId, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 
@@ -28,11 +28,26 @@ export function ConfirmModal({
   onConfirm,
 }: ConfirmModalProps) {
   const t = useTranslations();
+  const titleId = useId();
+  const descriptionId = useId();
+  const reasonId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const busyRef = useRef(false);
+  const onOpenChangeRef = useRef(onOpenChange);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
 
   const effectiveConfirmLabel = confirmLabel ?? t('common.confirm');
-  const effectiveReasonLabel = reasonLabel ?? t('common.operationFailed');
+  const effectiveReasonLabel = reasonLabel ?? t('common.reason');
+
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
+
+  useEffect(() => {
+    onOpenChangeRef.current = onOpenChange;
+  }, [onOpenChange]);
 
   const handleConfirm = useCallback(async () => {
     if (requireReason && !reason.trim()) return;
@@ -46,6 +61,57 @@ export function ConfirmModal({
     }
   }, [reason, requireReason, onConfirm, onOpenChange]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    previouslyFocusedRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    const focusTimer = window.setTimeout(() => {
+      const focusable = getFocusableElements(dialogRef.current);
+      (focusable[0] ?? dialogRef.current)?.focus();
+    }, 0);
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!dialogRef.current) return;
+
+      if (event.key === "Escape" && !busyRef.current) {
+        event.preventDefault();
+        onOpenChangeRef.current(false);
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const focusable = getFocusableElements(dialogRef.current);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocusedRef.current?.focus();
+    };
+  }, [open]);
+
   if (!open) return null;
 
   return (
@@ -54,19 +120,30 @@ export function ConfirmModal({
         className="fixed inset-0 bg-black/50"
         onClick={() => !busy && onOpenChange(false)}
       />
-      <div className="relative z-50 w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-md">
-        <h3 className="text-lg font-semibold">{title}</h3>
-        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        tabIndex={-1}
+        className="relative z-50 w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-md"
+      >
+        <h3 id={titleId} className="text-lg font-semibold">{title}</h3>
+        <p id={descriptionId} className="mt-2 text-sm text-muted-foreground">{description}</p>
 
         {requireReason && (
           <div className="mt-4">
-            <label className="block text-sm font-medium mb-1">{effectiveReasonLabel}</label>
+            <label htmlFor={reasonId} className="block text-sm font-medium mb-1">
+              {effectiveReasonLabel}
+            </label>
             <textarea
+              id={reasonId}
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               rows={3}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder={t('common.operationFailed')}
+              placeholder={effectiveReasonLabel}
               disabled={busy}
             />
           </div>
@@ -92,5 +169,22 @@ export function ConfirmModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function getFocusableElements(root: HTMLElement | null): HTMLElement[] {
+  if (!root) return [];
+
+  return Array.from(
+    root.querySelectorAll<HTMLElement>(
+      [
+        "a[href]",
+        "button:not([disabled])",
+        "textarea:not([disabled])",
+        "input:not([disabled])",
+        "select:not([disabled])",
+        '[tabindex]:not([tabindex="-1"])',
+      ].join(","),
+    ),
   );
 }

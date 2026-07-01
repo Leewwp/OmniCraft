@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"context"
+
 	"omnicraft/backend/internal/model"
 
 	"gorm.io/gorm"
@@ -18,6 +20,34 @@ func (r *NotificationRepository) Create(n *model.Notification) error {
 	return r.db.Create(n).Error
 }
 
+func (r *NotificationRepository) ListActiveRecipientIDs() ([]int64, error) {
+	return r.ListActiveRecipientIDsWithContext(context.Background())
+}
+
+func (r *NotificationRepository) ListActiveRecipientIDsWithContext(ctx context.Context) ([]int64, error) {
+	var ids []int64
+	err := r.db.WithContext(ctx).Model(&model.User{}).
+		Where("is_banned = ? AND deleted_at IS NULL", false).
+		Order("id ASC").
+		Pluck("id", &ids).Error
+	return ids, err
+}
+
+func (r *NotificationRepository) Transaction(ctx context.Context, fn func(tx *gorm.DB) error) error {
+	return r.db.WithContext(ctx).Transaction(fn)
+}
+
+func (r *NotificationRepository) CreateBroadcastBatch(rows []model.Notification) error {
+	return r.CreateBroadcastBatchTx(context.Background(), r.db, rows)
+}
+
+func (r *NotificationRepository) CreateBroadcastBatchTx(ctx context.Context, tx *gorm.DB, rows []model.Notification) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	return tx.WithContext(ctx).CreateInBatches(rows, 500).Error
+}
+
 func (r *NotificationRepository) List(userID int64, channel string, page, pageSize int) ([]model.Notification, int64, error) {
 	var total int64
 	q := r.db.Model(&model.Notification{}).Where("user_id = ?", userID)
@@ -28,7 +58,7 @@ func (r *NotificationRepository) List(userID int64, channel string, page, pageSi
 
 	var notifications []model.Notification
 	err := q.Order("created_at DESC").
-		Offset((page-1)*pageSize).Limit(pageSize).
+		Offset((page - 1) * pageSize).Limit(pageSize).
 		Find(&notifications).Error
 	return notifications, total, err
 }

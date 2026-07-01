@@ -157,6 +157,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.FeedbackService.SetNotificationService(c.NotificationService)
 	c.FeedbackService.SetFeedbackMailSender(feedbackMailSender)
 	c.AdminAuditService = service.NewAdminAuditService(c.AdminAuditRepo, db)
+	c.NotificationService.SetAdminAuditService(c.AdminAuditService)
 
 	// Wire recommendation into content service
 	c.RecommendationSvc = service.NewRecommendationService(db, c.EmbeddingRepo, c.ContentRepo, c.ContentService, rdb, &cfg.Recommendation)

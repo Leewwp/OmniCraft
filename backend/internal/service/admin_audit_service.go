@@ -12,30 +12,39 @@ import (
 )
 
 var auditMetadataAllowlist = map[string][]string{
-	"content_ban":         {"content_id", "reason", "author_id"},
-	"content_restore":    {"content_id", "reason"},
-	"user_ban":           {"target_user_id", "reason"},
-	"user_unban":         {"target_user_id", "reason"},
-	"ip_approve":         {"ip_id", "decision"},
-	"ip_reject":          {"ip_id", "decision"},
-	"appeal_resolve":     {"appeal_id", "decision", "reason"},
-	"report_resolve":     {"report_id", "decision", "reason"},
-	"config_patch":       {"field", "old_value_masked", "new_value_masked"},
-	"category_create":    {"name", "slug", "display_order"},
-	"category_update":    {"category_id", "name", "slug", "display_order"},
-	"category_delete":    {"category_id", "name"},
-	"category_reorder":   {"order"},
-	"llm_config_create":  {"provider", "model"},
-	"llm_config_update":  {"config_id", "provider", "model"},
-	"llm_config_delete":  {"config_id", "provider", "model"},
-	"llm_config_activate": {"config_id"},
-	"llm_config_test":    {"config_id"},
+	"content_ban":           {"content_id", "reason", "author_id"},
+	"content_restore":       {"content_id", "reason"},
+	"user_ban":              {"target_user_id", "reason"},
+	"user_unban":            {"target_user_id", "reason"},
+	"ip_approve":            {"ip_id", "decision"},
+	"ip_reject":             {"ip_id", "decision"},
+	"appeal_resolve":        {"appeal_id", "decision", "reason"},
+	"report_resolve":        {"report_id", "decision", "reason"},
+	"config_patch":          {"field", "old_value_masked", "new_value_masked"},
+	"category_create":       {"name", "slug", "display_order"},
+	"category_update":       {"category_id", "name", "slug", "display_order"},
+	"category_delete":       {"category_id", "name"},
+	"category_reorder":      {"order"},
+	"llm_config_create":     {"provider", "model"},
+	"llm_config_update":     {"config_id", "provider", "model"},
+	"llm_config_delete":     {"config_id", "provider", "model"},
+	"llm_config_activate":   {"config_id"},
+	"llm_config_test":       {"config_id"},
 	"judge_question_create": {"question_id", "content_type"},
-	"feedback_reply":     {"ticket_id", "is_internal_note"},
-	"feedback_close":     {"ticket_id", "reason"},
-	"feedback_reopen":    {"ticket_id"},
-	"feedback_priority":  {"ticket_id", "priority"},
-	"feedback_assign":    {"ticket_id", "assignee_admin_id"},
+	"feedback_reply":        {"ticket_id", "is_internal_note"},
+	"feedback_close":        {"ticket_id", "reason"},
+	"feedback_reopen":       {"ticket_id"},
+	"feedback_priority":     {"ticket_id", "priority"},
+	"feedback_assign":       {"ticket_id", "assignee_admin_id"},
+	"broadcast_notification": {
+		"recipient_count",
+		"title_length",
+		"body_length",
+		"filter",
+		"validation_error_code",
+		"validation_fields",
+		"error_code",
+	},
 }
 
 var sensitiveKeyPatterns = []string{
@@ -82,7 +91,7 @@ func (s *AdminAuditService) Record(ctx context.Context, entry RecordAdminAuditIn
 		Metadata:    filtered,
 		Result:      entry.Result,
 	}
-	if err := s.repo.Create(log); err != nil {
+	if err := s.db.WithContext(ctx).Create(log).Error; err != nil {
 		slog.Error("audit write failed",
 			slog.String("action", entry.Action),
 			slog.String("target_type", entry.TargetType),
@@ -104,7 +113,7 @@ func (s *AdminAuditService) RecordTx(ctx context.Context, tx *gorm.DB, entry Rec
 		Metadata:    filtered,
 		Result:      entry.Result,
 	}
-	if err := s.repo.CreateTx(tx, log); err != nil {
+	if err := tx.WithContext(ctx).Create(log).Error; err != nil {
 		slog.Error("audit write in tx failed",
 			slog.String("action", entry.Action),
 			slog.String("target_type", entry.TargetType),

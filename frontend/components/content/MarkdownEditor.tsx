@@ -11,9 +11,21 @@ interface MarkdownEditorProps {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  id?: string;
+  ariaDescribedBy?: string;
+  ariaInvalid?: boolean;
+  ariaLabel?: string;
 }
 
-export function MarkdownEditor({ value, onChange, disabled }: MarkdownEditorProps) {
+export function MarkdownEditor({
+  value,
+  onChange,
+  disabled,
+  id,
+  ariaDescribedBy,
+  ariaInvalid,
+  ariaLabel,
+}: MarkdownEditorProps) {
   const t = useTranslations();
 
   return (
@@ -25,6 +37,10 @@ export function MarkdownEditor({ value, onChange, disabled }: MarkdownEditorProp
         preview="edit"
         visibleDragbar={false}
         textareaProps={{
+          id,
+          "aria-describedby": ariaDescribedBy,
+          "aria-invalid": ariaInvalid,
+          "aria-label": ariaLabel,
           placeholder: t('publish.markdownPlaceholder'),
           disabled,
         }}

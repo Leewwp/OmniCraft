@@ -1,20 +1,23 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
-import { Bell } from "lucide-react";
+import { Bell, Megaphone } from "lucide-react";
 import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
+import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
+import { cn } from "@/lib/utils";
 
 interface Notification {
   id: number;
   type: string;
   channel: string;
+  title?: string;
   body: string;
   is_read: boolean;
   target_type?: string;
@@ -38,6 +41,7 @@ export function NotificationList({
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const requestIdRef = useRef(0);
 
   const CHANNELS = [
     { key: "", label: t('notification.all') },
@@ -46,9 +50,12 @@ export function NotificationList({
     { key: "follow", label: t('notification.channelFollow') },
     { key: "pr", label: t('notification.channelPR') },
     { key: "system", label: t('notification.system') },
+    { key: "broadcast", label: t('notification.channelBroadcast') },
   ];
 
   const loadNotifications = useCallback(async () => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     setError("");
     setLoading(true);
     try {
@@ -56,16 +63,16 @@ export function NotificationList({
       const data = await api.get<{ notifications?: Notification[] }>(
         `/api/v1/notifications${params}`
       );
-      setNotifications(data.notifications || []);
-      if (onUnreadCountChange) {
-        const unread = (data.notifications || []).filter((n) => !n.is_read).length;
-        onUnreadCountChange(unread);
-      }
+      if (requestIdRef.current !== requestId) return;
+      const nextNotifications = data.notifications || [];
+      setNotifications(nextNotifications);
+      onUnreadCountChange?.(countUnread(nextNotifications));
     } catch (e) {
+      if (requestIdRef.current !== requestId) return;
       setError(t(getUserFacingErrorKey(e, "common.loadFailed")));
       silentError(e, { component: 'NotificationList', action: 'loadNotifications' });
     } finally {
-      setLoading(false);
+      if (requestIdRef.current === requestId) setLoading(false);
     }
   }, [channel, onUnreadCountChange, t]);
 
@@ -76,9 +83,11 @@ export function NotificationList({
   async function markRead(id: number) {
     try {
       await api.patch(`/api/v1/notifications/${id}/read`, {});
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
-      );
+      setNotifications((prev) => {
+        const next = prev.map((n) => (n.id === id ? { ...n, is_read: true } : n));
+        onUnreadCountChange?.(countUnread(next));
+        return next;
+      });
     } catch (e) {
       silentError(e, { component: 'NotificationList', action: 'markRead' });
     }
@@ -86,35 +95,19 @@ export function NotificationList({
 
   function handleNotificationClick(n: Notification) {
     if (!n.is_read) markRead(n.id);
-    if (n.target_type && n.target_id) {
-      switch (n.target_type) {
-        case "content":
-          router.push(`/content/${n.target_id}`);
-          break;
-        case "discussion":
-        case "comment":
-          router.push(`/content/${n.target_id}`);
-          break;
-        case "pr":
-          router.push(`/studio/pr-requests`);
-          break;
-        case "user":
-          router.push(`/user/${n.target_id}`);
-          break;
-        case "ip":
-          router.push(`/ip/${n.target_id}`);
-          break;
-        default:
-          router.push("/messages");
-      }
-    }
+    const href = getNotificationHref(n);
+    if (href) router.push(href);
   }
 
   async function markAllRead() {
     try {
       const params = channel ? `?channel=${channel}` : "";
       await api.post(`/api/v1/notifications/read-all${params}`, {});
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setNotifications((prev) => {
+        const next = prev.map((n) => ({ ...n, is_read: true }));
+        onUnreadCountChange?.(0);
+        return next;
+      });
     } catch (e) {
       silentError(e, { component: 'NotificationList', action: 'markAllRead' });
     }
@@ -125,7 +118,7 @@ export function NotificationList({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
           {CHANNELS.map((c) => (
             <button
               key={c.key}
@@ -163,46 +156,122 @@ export function NotificationList({
           className="px-4 py-12"
         />
       ) : (
-        <div className="space-y-1">
-          {notifications.map((n) => (
-            <button
-              key={n.id}
-              type="button"
-              onClick={() => handleNotificationClick(n)}
-              className={`flex w-full items-start justify-between rounded-md border px-4 py-3 text-left transition-colors hover:bg-muted/50 ${
-                n.is_read
-                  ? "border-border bg-card"
-                  : "border-accent/30 bg-accent/5"
-              }`}
-            >
-              <div className="min-w-0 flex-1 space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground capitalize">
-                    {n.type}
-                  </span>
-                  {!n.is_read && (
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-accent" />
-                  )}
+        <div className="divide-y divide-border rounded-md border border-border bg-card">
+          {notifications.map((n) => {
+            const href = getNotificationHref(n);
+            const canNavigate = Boolean(href);
+            const isBroadcast = n.channel === "broadcast";
+            const isSystemLike = isBroadcast || n.channel === "system";
+            const channelLabel = getChannelLabel(n.channel, n.type, t);
+            const targetLabel = canNavigate ? t("messages.notificationOpensTarget") : t("messages.notificationNoTarget");
+            const itemClassName = cn(
+              "flex w-full items-start justify-between gap-3 border-l-4 px-4 py-3 text-left transition-colors",
+              "min-h-[84px]",
+              canNavigate ? "cursor-pointer hover:bg-muted/50" : "cursor-default",
+              isSystemLike ? "border-l-blue-500" : "border-l-transparent",
+              n.is_read ? "bg-card" : "bg-accent/5",
+            );
+            const content = (
+              <>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
+                      {isBroadcast && <Megaphone className="h-3 w-3" aria-hidden="true" />}
+                      {channelLabel}
+                    </span>
+                    {!n.is_read && (
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-accent" aria-label={t("messages.unreadIndicator")} />
+                    )}
+                  </div>
+                  {n.title && <p className="text-sm font-medium text-foreground">{n.title}</p>}
+                  <MarkdownRenderer
+                    content={n.body}
+                    className="prose-p:my-0 prose-strong:text-foreground text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(n.created_at).toLocaleString(locale === "en" ? "en-US" : "zh-CN")}
+                  </p>
                 </div>
-                <p className="text-sm">{n.body}</p>
-                <p className="text-xs text-muted-foreground">
-                  {new Date(n.created_at).toLocaleString(locale === "en" ? "en-US" : "zh-CN")}
-                </p>
+                {!n.is_read && !canNavigate && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="ml-2 min-h-11 shrink-0"
+                    onClick={() => markRead(n.id)}
+                  >
+                    {t('messages.read')}
+                  </Button>
+                )}
+              </>
+            );
+
+            return canNavigate ? (
+              <button
+                key={n.id}
+                type="button"
+                aria-label={`${channelLabel}. ${targetLabel}`}
+                onClick={() => handleNotificationClick(n)}
+                className={itemClassName}
+              >
+                {content}
+              </button>
+            ) : (
+              <div
+                key={n.id}
+                aria-label={`${channelLabel}. ${targetLabel}`}
+                className={itemClassName}
+              >
+                {content}
               </div>
-              {!n.is_read && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="ml-2 shrink-0"
-                  onClick={() => markRead(n.id)}
-                >
-                  {t('messages.read')}
-                </Button>
-              )}
-            </button>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
   );
+}
+
+function getNotificationHref(n: Notification): string | null {
+  if (!n.target_type || !isValidTargetId(n.target_id)) return null;
+  switch (n.target_type) {
+    case "content":
+    case "discussion":
+    case "comment":
+      return `/content/${n.target_id}`;
+    case "pr":
+      return "/studio/pr-requests";
+    case "user":
+      return `/user/${n.target_id}`;
+    case "ip":
+      return `/ip/${n.target_id}`;
+    default:
+      return null;
+  }
+}
+
+function isValidTargetId(targetId?: number): targetId is number {
+  return typeof targetId === "number" && Number.isSafeInteger(targetId) && targetId > 0;
+}
+
+function countUnread(notifications: Notification[]): number {
+  return notifications.filter((n) => !n.is_read).length;
+}
+
+function getChannelLabel(channel: string, type: string, t: ReturnType<typeof useTranslations>): string {
+  switch (channel) {
+    case "broadcast":
+      return t("messages.broadcastLabel");
+    case "system":
+      return t("messages.systemLabel");
+    case "reply":
+      return t("notification.channelReply");
+    case "like":
+      return t("notification.channelLike");
+    case "follow":
+      return t("notification.channelFollow");
+    case "pr":
+      return t("notification.channelPR");
+    default:
+      return type;
+  }
 }

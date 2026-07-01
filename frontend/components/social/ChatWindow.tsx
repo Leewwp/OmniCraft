@@ -2,21 +2,23 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { MessageSquare, Send } from "lucide-react";
-import { api } from "@/lib/api";
+import { ArrowLeft, MessageSquare, Send } from "lucide-react";
+import { ApiRequestError, api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/Toast";
 
 interface Conversation {
   id: number;
   participants?: { id?: number; username?: string; avatar_url?: string }[];
-  last_message?: { text?: string; created_at?: string };
+  last_message?: { text?: string; body?: string; created_at?: string };
 }
 
 interface Message {
   id: number;
   sender_id: number;
-  text: string;
+  text?: string;
+  body?: string;
   created_at?: string;
 }
 
@@ -29,9 +31,11 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
   const t = useTranslations();
   const locale = useLocale();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -50,10 +54,10 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
     async function load() {
       try {
         const data = await api.get<{ messages?: Message[] }>(
-          `/api/v1/conversations/${conversation!.id}/messages`
+          `/api/v1/messages/${conversation!.id}`
         );
         if (cancelled) return;
-        setMessages(data.messages || []);
+        setMessages(normalizeLoadedMessages(data.messages || []));
       } catch {
         // ignore
       } finally {
@@ -69,21 +73,28 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
   }, [messages, scrollToBottom]);
 
   async function sendMessage() {
-    if (!text.trim() || !conversation || !user) return;
+    if (isSending || !text.trim() || !conversation || !user) return;
     const body = text.trim();
-    setText("");
     const recipient = conversation.participants?.find((p) => p.id !== user.id);
+    if (!recipient?.id) return;
+    setIsSending(true);
     try {
-      await api.post(`/api/v1/conversations/${conversation.id}/messages`, {
+      const data = await api.post<{ message?: Message }>("/api/v1/messages", {
+        recipient_id: recipient.id,
         text: body,
       });
+      setText((current) => (current.trim() === body ? "" : current));
       setMessages((prev) => [
         ...prev,
-        { id: Date.now(), sender_id: user.id!, text: body },
+        normalizeMessage(data.message ?? { id: Date.now(), sender_id: user.id!, text: body, body }),
       ]);
       scrollToBottom();
-    } catch {
-      // ignore
+    } catch (err) {
+      if (err instanceof ApiRequestError && err.code === "DM_REPLY_REQUIRED") {
+        toast("warning", t("messages.dmReplyRequired"));
+      }
+    } finally {
+      setIsSending(false);
     }
   }
 
@@ -105,10 +116,12 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
       <div className="flex items-center gap-3 border-b border-border px-4 py-3">
         {onBack && (
           <button
+            type="button"
             onClick={onBack}
-            className="text-sm text-muted-foreground hover:text-foreground md:hidden"
+            className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground md:hidden"
           >
-            ← {t('common.back')}
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            {t('common.back')}
           </button>
         )}
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold">
@@ -127,6 +140,7 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
         <>
           <div
             ref={scrollRef}
+            aria-live="polite"
             className="flex-1 overflow-y-auto px-4 py-3 space-y-2"
           >
             {messages.length === 0 ? (
@@ -148,7 +162,7 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
                         : "bg-muted/40"
                     }`}
                   >
-                    <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                    <p className="whitespace-pre-wrap break-words">{m.text ?? m.body ?? ""}</p>
                     {m.created_at && (
                       <p className="mt-0.5 text-right text-[10px] opacity-70">
                         {new Date(m.created_at).toLocaleTimeString(locale === "en" ? "en-US" : "zh-CN", {
@@ -178,9 +192,10 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
             />
             <Button
               size="sm"
-              className="h-8 w-8 p-0"
+              className="h-11 w-11 p-0"
+              aria-label={t("messages.sendMessage")}
               onClick={() => void sendMessage()}
-              disabled={!text.trim()}
+              disabled={isSending || !text.trim()}
             >
               <Send className="h-4 w-4" />
             </Button>
@@ -189,4 +204,26 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
       )}
     </div>
   );
+}
+
+function normalizeLoadedMessages(messages: Message[]): Message[] {
+  return messages.map(normalizeMessage).sort(compareMessagesChronologically);
+}
+
+function normalizeMessage(message: Message): Message {
+  const text = message.text ?? message.body ?? "";
+  return { ...message, text, body: message.body ?? text };
+}
+
+function compareMessagesChronologically(a: Message, b: Message): number {
+  const aTime = parseMessageTime(a.created_at);
+  const bTime = parseMessageTime(b.created_at);
+  if (aTime !== bTime) return aTime - bTime;
+  return a.id - b.id;
+}
+
+function parseMessageTime(value?: string): number {
+  if (!value) return 0;
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? 0 : timestamp;
 }

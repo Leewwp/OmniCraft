@@ -65,7 +65,7 @@
 - Read: `backend/internal/handler/message.go`
 - Read: `backend/internal/repository/message_repo.go`
 
-- [ ] **Step 1: Add cold-start route tests**
+- [x] **Step 1: Add cold-start route tests**
 
 Create table-driven tests covering these exact scenarios:
 
@@ -82,7 +82,7 @@ The second test must assert:
 {"code":"DM_REPLY_REQUIRED","message":"对方尚未回复，请等待回复后再发送新消息"}
 ```
 
-- [ ] **Step 2: Run tests and confirm red**
+- [x] **Step 2: Run tests and confirm red**
 
 Run:
 
@@ -93,7 +93,7 @@ go test ./internal/handler -run TestMessageColdStart -v
 
 Expected: the second unanswered message is currently accepted, so at least one test fails.
 
-- [ ] **Step 3: Add repository helpers**
+- [x] **Step 3: Add repository helpers**
 
 Implement:
 
@@ -104,7 +104,7 @@ func (r *MessageRepository) LastMessageSender(convID int64) (*int64, error)
 
 Both helpers must use parameterized GORM/SQL and must not assume conversation IDs are globally visible to non-participants.
 
-- [ ] **Step 4: Implement cold-start guard**
+- [x] **Step 4: Implement cold-start guard**
 
 In `MessageHandler.SendMessage`, after `FindOrCreateConversation` and before `Send`:
 
@@ -114,7 +114,7 @@ In `MessageHandler.SendMessage`, after `FindOrCreateConversation` and before `Se
 4. If latest sender exists and equals `callerID`, return `403 DM_REPLY_REQUIRED`.
 5. Otherwise send normally.
 
-- [ ] **Step 5: Verify green**
+- [x] **Step 5: Verify green**
 
 Run:
 
@@ -137,7 +137,7 @@ Expected: all cold-start tests PASS.
 - Test: `backend/internal/handler/message_test.go`
 - Test: `frontend/tests/messages-components.test.tsx`
 
-- [ ] **Step 1: Add DTO contract tests**
+- [x] **Step 1: Add DTO contract tests**
 
 Extend `message_test.go` to assert `GET /api/v1/messages` returns:
 
@@ -159,7 +159,7 @@ Extend `message_test.go` to assert `GET /api/v1/messages` returns:
 
 Also assert `GET /api/v1/messages/:id` returns messages with both `text` and `body` during the compatibility window.
 
-- [ ] **Step 2: Run tests and confirm red**
+- [x] **Step 2: Run tests and confirm red**
 
 Run:
 
@@ -170,11 +170,11 @@ go test ./internal/handler -run TestMessageAPIContract -v
 
 Expected: current code returns raw conversations and message `body` only.
 
-- [ ] **Step 3: Implement conversation summary query**
+- [x] **Step 3: Implement conversation summary query**
 
 Add a repository method that returns conversation IDs for the caller, preloads active participants, last message, unread count from `conversation_participants`, and `updated_at`. Keep one query path for list pagination and one for count if a total is needed later.
 
-- [ ] **Step 4: Return DTOs from handlers**
+- [x] **Step 4: Return DTOs from handlers**
 
 Do not expose raw GORM models for the new message-center contract. Add local DTO structs in `message.go` or a focused internal helper:
 
@@ -190,7 +190,7 @@ type MessageDTO struct {
 
 > **字段语义说明**：`Text` 是 `Body` 的纯别名（`Text == Body`），仅在 Beta 兼容窗口期内同时返回。兼容窗口结束后移除 `Body`，统一使用 `Text`。`text` 字段设计为面向新前端，`body` 兼容旧调用方；两端点在兼容期内返回完全相同的值。
 
-- [ ] **Step 5: Update frontend API paths**
+- [x] **Step 5: Update frontend API paths**
 
 In `ConversationList.tsx`, replace `/api/v1/conversations` with `/api/v1/messages`.
 
@@ -201,7 +201,7 @@ In `ChatWindow.tsx`, replace:
 
 Use the selected conversation's participant list to identify `recipient_id`.
 
-- [ ] **Step 6: Add frontend component tests**
+- [x] **Step 6: Add frontend component tests**
 
 In `frontend/tests/messages-components.test.tsx`, mock `api.get` / `api.post` and assert:
 
@@ -210,7 +210,7 @@ In `frontend/tests/messages-components.test.tsx`, mock `api.get` / `api.post` an
 - sending calls `POST /api/v1/messages`
 - `DM_REPLY_REQUIRED` displays localized toast
 
-- [ ] **Step 7: Run focused tests**
+- [x] **Step 7: Run focused tests**
 
 Run:
 
@@ -231,7 +231,7 @@ Expected: PASS.
 - Create: `backend/migrations/057_add_broadcast_channel.sql`
 - Test: migration smoke via backend model/handler tests
 
-- [ ] **Step 1: Re-check migration number**
+- [x] **Step 1: Re-check migration number**
 
 Run:
 
@@ -241,7 +241,7 @@ Get-ChildItem backend\migrations | Sort-Object Name | Select-Object -Last 5 -Exp
 
 Expected today: latest is `056_conversation_indexes.sql`. If a newer migration exists, use the next available number and update this plan's references while implementing.
 
-- [ ] **Step 2: Write idempotent migration**
+- [x] **Step 2: Write idempotent migration**
 
 Migration must:
 
@@ -255,7 +255,7 @@ COMMIT;
 
 Do not remove existing channels.
 
-- [ ] **Step 3: Verify migration is referenced by tests**
+- [x] **Step 3: Verify migration is referenced by tests**
 
 Add or update a backend test that inserts a `notifications.channel='broadcast'` row after migrations are applied.
 
@@ -270,7 +270,7 @@ Add or update a backend test that inserts a `notifications.channel='broadcast'` 
 - Modify: `backend/internal/container/container.go`
 - Test: `backend/internal/service/notification_service_test.go`
 
-- [ ] **Step 1: Add failing service tests**
+- [x] **Step 1: Add failing service tests**
 
 Cover:
 
@@ -282,7 +282,7 @@ func TestBroadcastSystemNotificationAuditMetadataDoesNotStoreFullBody(t *testing
 func TestBroadcastNotificationAuditAllowlistDropsUnexpectedBodyField(t *testing.T) {}
 ```
 
-- [ ] **Step 2: Run and confirm red**
+- [x] **Step 2: Run and confirm red**
 
 Run:
 
@@ -293,7 +293,7 @@ go test ./internal/service -run TestBroadcastSystemNotification -v
 
 Expected: missing method failures.
 
-- [ ] **Step 3: Add repository methods**
+- [x] **Step 3: Add repository methods**
 
 Implement:
 
@@ -306,7 +306,7 @@ func (r *NotificationRepository) CreateBroadcastBatch(rows []model.Notification)
 
 `CreateBroadcastBatch` must call `CreateInBatches(rows, 500)`.
 
-- [ ] **Step 4: Register audit metadata allowlist**
+- [x] **Step 4: Register audit metadata allowlist**
 
 In `backend/internal/service/admin_audit_service.go`, add an explicit allowlist entry:
 
@@ -324,7 +324,7 @@ In `backend/internal/service/admin_audit_service.go`, add an explicit allowlist 
 
 Tests must prove that accidental metadata keys such as `body`, `title`, `markdown`, `html`, or `recipients` are dropped. Do not rely on the default "drop sensitive key patterns only" branch for this action.
 
-- [ ] **Step 5: Wire audit service dependency**
+- [x] **Step 5: Wire audit service dependency**
 
 Extend `NotificationService` with an `auditSvc *AdminAuditService` dependency or a focused setter:
 
@@ -334,7 +334,7 @@ func (s *NotificationService) SetAdminAuditService(auditSvc *AdminAuditService)
 
 Wire it in `backend/internal/container/container.go` after both services are constructed. The broadcast handler must call `NotificationService.BroadcastSystemNotification`; it must not perform audit writes itself except through that service method.
 
-- [ ] **Step 6: Add service method**
+- [x] **Step 6: Add service method**
 
 Implement:
 
@@ -357,7 +357,7 @@ Always write an `admin_audit_logs` row through the existing admin audit service/
 - Rejected validation audit row: `result='rejected'`, metadata with validation error code, field names, `title_length`, `body_length`; never store the full Markdown body. These rows are written by `NotificationService.BroadcastSystemNotification`, not by the handler.
 - Failed service audit row: `result='failed'`, metadata with safe error code and counts only; never store the full Markdown body.
 
-- [ ] **Step 7: Verify green**
+- [x] **Step 7: Verify green**
 
 Run:
 
@@ -375,7 +375,7 @@ go test ./internal/service -run TestBroadcastSystemNotification -v
 - Modify: `backend/internal/handler/routes.go`
 - Test: `backend/internal/handler/admin_notification_broadcast_test.go`
 
-- [ ] **Step 1: Add failing route tests**
+- [x] **Step 1: Add failing route tests**
 
 Cover:
 
@@ -388,7 +388,7 @@ Cover:
 - invalid `channel` returns `400 VALIDATION_ERROR`
 - success, failed, and rejected attempts write audit rows with no full body
 
-- [ ] **Step 2: Run and confirm red**
+- [x] **Step 2: Run and confirm red**
 
 Run:
 
@@ -397,7 +397,7 @@ cd backend
 go test ./internal/handler -run TestAdminNotificationBroadcast -v
 ```
 
-- [ ] **Step 3: Implement request parsing and service-owned validation**
+- [x] **Step 3: Implement request parsing and service-owned validation**
 
 Request body:
 
@@ -411,7 +411,7 @@ type broadcastRequest struct {
 
 The handler may trim for response consistency, but it must not return early for invalid `Title`, `Body`, or `Channel` after authentication succeeds. It must call `NotificationService.BroadcastSystemNotification(ctx, title, body, channel, actorID)` so the service can write success, failed, or rejected audit rows from one place. Map the service's validation error to `400 VALIDATION_ERROR`. Do not trust arbitrary channel values; the service accepts only `Channel == ""` or `Channel == "broadcast"`.
 
-- [ ] **Step 4: Register route**
+- [x] **Step 4: Register route**
 
 In the admin route group:
 
@@ -419,7 +419,7 @@ In the admin route group:
 admin.POST("/notifications/broadcast", adminHandler.BroadcastNotification)
 ```
 
-- [ ] **Step 5: Run handler tests**
+- [x] **Step 5: Run handler tests**
 
 Run:
 
@@ -441,7 +441,7 @@ Expected: PASS.
 - Test: `frontend/tests/admin-notifications-page.test.tsx`
 - Read before implementation: `design/ui-spec.md`
 
-- [ ] **Step 1: Confirm UI spec before UI code**
+- [x] **Step 1: Confirm UI spec before UI code**
 
 Run:
 
@@ -451,7 +451,7 @@ rg -n "## Page: /admin/notifications|## Component: MarkdownRenderer" design/ui-s
 
 Expected: both sections are present. `MarkdownEditor` has no standalone `## Component:` block but is specified inline within `## Page: /admin/notifications` (Markdown 编辑器交互) and `## Page: /studio/publish/*` (发布页编辑器)；use those page-level specs as the visual authority for editor behavior. If an implementation-time branch lacks `/admin/notifications`, stop and update the UI spec in a separate, explicitly scoped docs/design step before writing TSX; do not invent form layout, preview behavior, or confirmation states directly in code.
 
-- [ ] **Step 2: Add failing frontend tests**
+- [x] **Step 2: Add failing frontend tests**
 
 Assert:
 
@@ -465,7 +465,7 @@ Assert:
 - success toast includes recipient count
 - API error shows localized failure toast
 
-- [ ] **Step 3: Implement page**
+- [x] **Step 3: Implement page**
 
 Use:
 
@@ -477,7 +477,7 @@ Use:
 
 No hardcoded Chinese or English strings; every visible string must use `useTranslations()`.
 
-- [ ] **Step 4: Run frontend tests**
+- [x] **Step 4: Run frontend tests**
 
 Run:
 
@@ -502,7 +502,7 @@ Expected: PASS.
 - Test: `frontend/tests/messages-components.test.tsx`
 - Test: `frontend/e2e/messages-notifications.spec.ts`
 
-- [ ] **Step 1: Add component tests for broadcast styling**
+- [x] **Step 1: Add component tests for broadcast styling**
 
 Assert a notification with `channel: "broadcast"`:
 
@@ -511,11 +511,11 @@ Assert a notification with `channel: "broadcast"`:
 - renders Markdown body through safe renderer
 - remains clickable only when it has a valid target
 
-- [ ] **Step 2: Implement NotificationList changes**
+- [x] **Step 2: Implement NotificationList changes**
 
 Add `broadcast` to channel handling or render it under all/system filters. At minimum distinguish broadcast/system notifications visually with a blue left border.
 
-- [ ] **Step 3: Keep layout stable**
+- [x] **Step 3: Keep layout stable**
 
 Messages page must provide:
 
@@ -524,7 +524,7 @@ Messages page must provide:
 - no nested UI cards inside cards
 - stable sidebar width so unread badges do not shift layout
 
-- [ ] **Step 4: Run frontend tests**
+- [x] **Step 4: Run frontend tests**
 
 Run:
 
@@ -542,7 +542,7 @@ node --import tsx --test tests/messages-components.test.tsx
 - Modify: `progress.txt` only when executing this plan as an implementation task
 - Screenshot outputs: `screenshots/community-messages-notifications-*.png`
 
-- [ ] **Step 1: Run backend full gates**
+- [x] **Step 1: Run backend full gates**
 
 Run:
 
@@ -555,7 +555,7 @@ go build ./...
 
 Expected: all PASS.
 
-- [ ] **Step 2: Run frontend full gates**
+- [x] **Step 2: Run frontend full gates**
 
 Run:
 
@@ -568,7 +568,7 @@ npm run build
 
 Expected: all PASS.
 
-- [ ] **Step 3: Run doc-validator**
+- [x] **Step 3: Run doc-validator**
 
 Because this plan changes `backend/migrations/*.sql` and `backend/internal/handler/routes.go`, run:
 
@@ -579,7 +579,7 @@ go run . --fix
 
 Expected: generated docs update cleanly or tool reports no changes needed.
 
-- [ ] **Step 4: Browser verification**
+- [x] **Step 4: Browser verification**
 
 Use Playwright against a running local stack:
 
@@ -594,7 +594,7 @@ Use Playwright against a running local stack:
    - `screenshots/community-messages-notifications-desktop.png`
    - `screenshots/community-messages-notifications-mobile.png`
 
-- [ ] **Step 5: Commit when implementing**
+- [x] **Step 5: Commit when implementing**
 
 ```powershell
 git add -- backend/migrations/057_add_broadcast_channel.sql backend/internal/handler/message.go backend/internal/handler/message_test.go backend/internal/repository/message_repo.go backend/internal/service/notification_service.go backend/internal/service/notification_service_test.go backend/internal/service/admin_audit_service.go backend/internal/repository/notification_repo.go backend/internal/container/container.go backend/internal/handler/notification.go backend/internal/handler/admin.go backend/internal/handler/admin_notification_broadcast_test.go backend/internal/handler/routes.go "frontend/app/(protected)/admin/notifications/page.tsx" "frontend/app/(protected)/messages/page.tsx" frontend/components/social/ChatWindow.tsx frontend/components/social/ConversationList.tsx frontend/components/social/NotificationList.tsx frontend/messages/zh.json frontend/messages/en.json frontend/tests/messages-components.test.tsx frontend/tests/admin-notifications-page.test.tsx frontend/e2e/messages-notifications.spec.ts screenshots/community-messages-notifications-admin-desktop.png screenshots/community-messages-notifications-admin-mobile.png screenshots/community-messages-notifications-desktop.png screenshots/community-messages-notifications-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-messages-notifications.md progress.txt
@@ -606,14 +606,14 @@ git commit -m "Community 1: messages and notifications enhancement"
 
 ## Plan Self-Check
 
-- [ ] Every backend behavior has an exact route, file, test, and expected error code.
-- [ ] DM cold-start rules cover first send, repeated unanswered send, recipient reply, and unlocked conversation.
-- [ ] Broadcast path explicitly filters banned and soft-deleted users.
-- [ ] Broadcast writes mandatory `admin_audit_logs` rows for success, rejected validation, and failed send paths.
-- [ ] Broadcast audit metadata excludes full Markdown body.
-- [ ] Migration preserves existing notification channels and adds only `broadcast`.
-- [ ] Frontend plan names the old API paths to remove and the new API paths to use.
-- [ ] Markdown rendering is explicitly routed through existing safe renderer.
-- [ ] Admin broadcast confirmation uses `ConfirmModal`, not the browser-native confirm API, and tests cover open, irreversible warning, focus lock, Esc close, and confirm API call.
-- [ ] Browser verification includes both admin broadcast and normal user receipt.
-- [ ] `doc-validator` is required because both routes and migrations change.
+- [x] Every backend behavior has an exact route, file, test, and expected error code.
+- [x] DM cold-start rules cover first send, repeated unanswered send, recipient reply, and unlocked conversation.
+- [x] Broadcast path explicitly filters banned and soft-deleted users.
+- [x] Broadcast writes mandatory `admin_audit_logs` rows for success, rejected validation, and failed send paths.
+- [x] Broadcast audit metadata excludes full Markdown body.
+- [x] Migration preserves existing notification channels and adds only `broadcast`.
+- [x] Frontend plan names the old API paths to remove and the new API paths to use.
+- [x] Markdown rendering is explicitly routed through existing safe renderer.
+- [x] Admin broadcast confirmation uses `ConfirmModal`, not the browser-native confirm API, and tests cover open, irreversible warning, focus lock, Esc close, and confirm API call.
+- [x] Browser verification includes both admin broadcast and normal user receipt.
+- [x] `doc-validator` is required because both routes and migrations change.

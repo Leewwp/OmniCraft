@@ -1,10 +1,13 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -16,6 +19,28 @@ import (
 type MessageHandler struct {
 	msgRepo  *repository.MessageRepository
 	notifSvc *service.NotificationService
+}
+
+type MessageDTO struct {
+	ID        int64  `json:"id"`
+	SenderID  int64  `json:"sender_id"`
+	Text      string `json:"text"`
+	Body      string `json:"body"`
+	CreatedAt string `json:"created_at"`
+}
+
+type ConversationParticipantDTO struct {
+	ID        int64  `json:"id"`
+	Username  string `json:"username"`
+	AvatarURL string `json:"avatar_url"`
+}
+
+type ConversationDTO struct {
+	ID           int64                        `json:"id"`
+	Participants []ConversationParticipantDTO `json:"participants"`
+	LastMessage  *MessageDTO                  `json:"last_message"`
+	UnreadCount  int                          `json:"unread_count"`
+	UpdatedAt    string                       `json:"updated_at"`
 }
 
 func NewMessageHandler(db *gorm.DB) *MessageHandler {
@@ -30,13 +55,23 @@ func (h *MessageHandler) ListConversations(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
 
-	convs, err := h.msgRepo.ListConversations(callerID, page, pageSize)
+	summaries, err := h.msgRepo.ListConversationSummaries(callerID, page, pageSize)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"conversations": convs})
+	c.JSON(http.StatusOK, gin.H{
+		"conversations": conversationDTOs(summaries),
+		"page":          page,
+		"page_size":     pageSize,
+	})
 }
 
 func (h *MessageHandler) SendMessage(c *gin.Context) {
@@ -50,13 +85,11 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 		return
 	}
 
-	convID, err := h.msgRepo.FindOrCreateConversation(callerID, body.RecipientID)
-	if err != nil {
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+	msg, err := h.msgRepo.SendWithColdStartGuard(callerID, body.RecipientID, body.Text)
+	if errors.Is(err, repository.ErrDMReplyRequired) {
+		response.Error(c, http.StatusForbidden, "DM_REPLY_REQUIRED", "对方尚未回复，请等待回复后再发送新消息")
 		return
 	}
-
-	msg, err := h.msgRepo.Send(callerID, convID, body.Text)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
@@ -66,7 +99,7 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 		h.notifSvc.Notify(body.RecipientID, "system", "message", "新私信", body.Text, "message", msg.ID, callerID)
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": msg})
+	c.JSON(http.StatusCreated, gin.H{"message": messageDTO(*msg)})
 }
 
 func (h *MessageHandler) ListMessages(c *gin.Context) {
@@ -92,7 +125,7 @@ func (h *MessageHandler) ListMessages(c *gin.Context) {
 		return
 	}
 	h.msgRepo.UpdateLastRead(callerID, convID)
-	c.JSON(http.StatusOK, gin.H{"messages": messages, "total": total})
+	c.JSON(http.StatusOK, gin.H{"messages": messageDTOs(messages), "total": total})
 }
 
 func (h *MessageHandler) DeleteMessage(c *gin.Context) {
@@ -121,4 +154,56 @@ func (h *MessageHandler) LeaveConversation(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "left conversation"})
+}
+
+func conversationDTOs(summaries []repository.ConversationSummary) []ConversationDTO {
+	dtos := make([]ConversationDTO, 0, len(summaries))
+	for _, summary := range summaries {
+		dto := ConversationDTO{
+			ID:           summary.ID,
+			Participants: participantDTOs(summary.Participants),
+			UnreadCount:  summary.UnreadCount,
+			UpdatedAt:    formatMessageTime(summary.UpdatedAt),
+		}
+		if summary.LastMessage != nil {
+			message := messageDTO(*summary.LastMessage)
+			dto.LastMessage = &message
+		}
+		dtos = append(dtos, dto)
+	}
+	return dtos
+}
+
+func participantDTOs(participants []repository.ConversationParticipantSummary) []ConversationParticipantDTO {
+	dtos := make([]ConversationParticipantDTO, 0, len(participants))
+	for _, participant := range participants {
+		dtos = append(dtos, ConversationParticipantDTO{
+			ID:        participant.ID,
+			Username:  participant.Username,
+			AvatarURL: participant.AvatarURL,
+		})
+	}
+	return dtos
+}
+
+func messageDTOs(messages []model.Message) []MessageDTO {
+	dtos := make([]MessageDTO, 0, len(messages))
+	for _, message := range messages {
+		dtos = append(dtos, messageDTO(message))
+	}
+	return dtos
+}
+
+func messageDTO(message model.Message) MessageDTO {
+	return MessageDTO{
+		ID:        message.ID,
+		SenderID:  message.SenderID,
+		Text:      message.Body,
+		Body:      message.Body,
+		CreatedAt: formatMessageTime(message.CreatedAt),
+	}
+}
+
+func formatMessageTime(value time.Time) string {
+	return value.Format(time.RFC3339Nano)
 }
