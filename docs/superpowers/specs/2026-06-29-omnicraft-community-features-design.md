@@ -1158,6 +1158,7 @@ browse_history:
 ## 附录 C：新增数据库迁移文件一览
 
 > **编号说明**：当前 `backend/migrations/` 最大编号为 `056_conversation_indexes.sql`，本设计建议从 `057_` 起连续编号。若实施前已有新的 migration 合入，按当时目录最大编号继续递增；每个迁移文件需在事务内完成 schema 变更并幂等可重放。
+> **回滚说明**：每个新增迁移文件都必须包含 `-- ROLLBACK:` 注释块，说明本地测试环境如何撤销该迁移。已进入共享环境或生产环境的迁移不得自动执行破坏性回滚；需要优先评估向前修复或数据保留方案。
 
 | 子系统 | Migration | 说明 |
 |--------|-----------|------|
@@ -1166,6 +1167,20 @@ browse_history:
 | 内容系列 | `059_create_content_series.sql` | 创建 content_series + content_series_items 表 |
 | 联动增强 | `060_add_source_fanwork_id.sql` | content_items 新增 source_fanwork_id 列 |
 | 联合创作 | `061_collaboration_invites.sql` | 创建 collaboration_invites 表 + users.accept_collab_invites + messages.msg_type/metadata + 部分唯一索引（WHERE status IN ('pending','accepted')） |
+
+## 附录 C.1：首版数据量和性能预期
+
+这些数字用于指导首版索引、分页、批处理和浏览器验证规模，不是产品硬上限。若实际运营数据超过预期，应新增性能优化任务而不是在当前计划中临时扩大范围。
+
+| 场景 | 首版预期 | 实现含义 |
+|------|----------|----------|
+| 单次管理员广播收件人 | ≤ 10,000 活跃用户 | 后端批量写入，批大小 500；管理员页面只展示摘要，不预览收件人列表 |
+| 单用户浏览历史保留窗口 | 7 天内 ≤ 2,000 条 | 必须分页；清理任务按配置时间每日运行 |
+| 单用户收藏集数量 | ≤ 100 个 | 收藏集列表分页；默认 original/fanwork 收藏集不计入删除范围 |
+| 单收藏集条目数量 | ≤ 1,000 条 | 详情页分页；推荐画像读取去重并集时避免全量加载到前端 |
+| 单内容系列条目数量 | ≤ 500 条 | 详情页和 Studio 管理页分页或虚拟化可后续优化；首版 reorder API 仍提交完整 `item_ids` |
+| 单内容相关/衍生作品展示 | inline 最多 8 张卡片 | 详情页避免深度递归；完整列表页按计划裁剪规则延后 |
+| 单用户每日协作邀请 | 默认 20 次 | Redis 日限必须 fail-closed；前端发布后邀请失败不回滚已发布内容 |
 
 ## 附录 D：实施范围外（明确不做）
 

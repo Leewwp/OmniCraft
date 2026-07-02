@@ -49,6 +49,8 @@
 
 **关键禁令**：不要修改 `task.json`，不要勾选 Beta roadmap checkbox。
 
+**命令约定**：本文档命令以 Windows PowerShell 为主，因为当前工作区运行在 Windows。若使用 Git Bash，可使用等价 POSIX 命令；例如 `Get-ChildItem backend\migrations | Sort-Object Name | Select-Object -Last 5 -ExpandProperty Name` 等价于 `ls backend/migrations/ | sort | tail -5`。不论 shell 类型如何，执行前后都要核对当前目录和 `git status --short`。
+
 每次新 agent 会话必须先读：
 
 ```powershell
@@ -74,7 +76,7 @@ Get-Content AGENTS.md
 | 5 | `…community-source-linkage.md` | `codex/community/source-linkage` | `060_add_source_fanwork_id.sql` | 未开始 | 二创来源链、`source_fanwork_id`、来源归因、相关二创/衍生作品、二创发布来源选择 |
 | 6 | `…community-collaboration-invites.md` | `codex/community/collaboration-invites` | `061_collaboration_invites.sql` | 未开始 | 联合创作邀请、防骚扰链路、邀请私信卡片、设置开关、发布后邀请 |
 
-> **迁移编号说明**：以上迁移编号（057-061）基于 `a6171ab` 快照。每个计划开始前必须先 `ls backend/migrations/ | sort` 确认最大编号。若编号已被占用，停止并更新本表及对应计划文件中的迁移引用，详见 §14.2。
+> **迁移编号说明**：以上迁移编号（057-061）基于 `a6171ab` 快照。每个计划开始前必须先查看最近迁移：PowerShell 用 `Get-ChildItem backend\migrations | Sort-Object Name | Select-Object -Last 5 -ExpandProperty Name`，Git Bash 用 `ls backend/migrations/ | sort | tail -5`。若编号已被占用，停止并更新本表及对应计划文件中的迁移引用，详见 §14.2。
 
 每完成一个计划，更新该计划内 checkbox、`progress.txt`，并记录最终 commit hash。
 
@@ -130,9 +132,13 @@ go vet ./...
 ```powershell
 Set-Location frontend
 npm.cmd install
+npm.cmd ls tsx
+npx.cmd tsx --version
 npm.cmd run lint
 npm.cmd run build
 ```
+
+`npm.cmd ls tsx` 或 `npx.cmd tsx --version` 任一失败都说明 focused TS/TSX 测试环境不可用。先修复 `frontend` 依赖或计划中的测试命令，再开始写前端测试；不要把 `node --import tsx --test ...` 失败误判为业务测试失败。
 
 服务依赖：
 ```powershell
@@ -163,12 +169,16 @@ docker compose up -d postgres redis
 9. 更新计划 checkbox 和 `progress.txt`。
 10. 精确暂存文件，生成一个最终计划 commit。
 
+**focused gates 定义**：只运行本计划直接覆盖的最小测试集合，例如 `go test ./internal/handler -run TestBrowseHistory -v`、`go test ./internal/service -run TestSeries -v`、`node --import tsx --test tests/history-page.test.tsx`。focused gates 不能替代 full gates；它们只用于快速确认当前切片已闭环。
+
 ### 子代理返回特殊状态的处理
 
 | 返回状态 | 含义 | 处理方式 |
 |----------|------|----------|
 | `DONE_WITH_CONCERNS` | 任务完成但有疑虑 | **必须先读 concerns**。正确性、安全、范围、数据契约或迁移疑问未解决前，不得进入审查或合并 |
 | `BLOCKED` | 遇到阻塞 | **不要用同一 prompt 盲目重试**。先判断：上下文不足？任务太大？计划错误？环境缺失？→ 拆分或升级处理 |
+
+`BLOCKED` 必须按 `AGENTS.md` 的「任务阻塞 - 需要人工介入」模板输出：当前模式、当前任务、已完成工作、阻塞原因、需要人工操作、解除阻塞后的继续命令。控制 agent 记录到 `progress.txt` 后等待人工输入，不得更新 checkbox、不得提交。
 
 ---
 
@@ -229,6 +239,58 @@ docker compose up -d postgres redis
 |------|----------|------|
 | `GET /api/v1/collections`（无 `owner_id`） | **必须登录** | 匿名返回 `401 AUTH_REQUIRED` |
 | `GET /api/v1/collections?owner_id=:userId` | **可选登录** | 有有效 token → 以该用户身份（owner 看全部，非 owner 只看公开）；无 token → 匿名（只看公开） |
+
+### 7.4 社区功能错误码汇总
+
+实现时必须复用下表错误码，不得在 handler 中临时发明同义码。若实施分支发现计划遗漏错误码，先更新目标计划和本表，再写代码。
+
+| 子系统 | 错误码 | HTTP | 首次定义位置 |
+|---|---|---|---|
+| messages-notifications | `DM_REPLY_REQUIRED` | 403 | 计划一 Task 1 |
+| messages-notifications | `VALIDATION_ERROR` | 400 | 计划一 Task 5 |
+| browse-history | `INVALID_CONTENT_TYPE` | 400 | 计划二 Task 3 |
+| browse-history | `INVALID_DATE` | 400 | 计划二 Task 3 |
+| browse-history | `TOO_MANY_IDS` | 400 | 计划二 Task 3 |
+| collections | `COLLECTION_NOT_FOUND` | 404 | 计划三 Task 2/4 |
+| collections | `ZONE_MISMATCH` | 400 | 计划三 Task 2 |
+| collections | `DUPLICATE_COLLECTION_ITEM` | 409 | 计划三 Task 2 |
+| collections | `DEFAULT_COLLECTION_PROTECTED` | 400 | 计划三 Task 2 |
+| collections | `ZONE_IMMUTABLE` | 400 | 计划三 Task 2 |
+| collections | `INVALID_CONTENT` | 400 | 计划三 Task 2 |
+| content-series | `SERIES_NOT_FOUND` | 404 | 计划四 Task 3 |
+| content-series | `NOT_SERIES_OWNER` | 403 | 计划四 Task 3 |
+| content-series | `CONTENT_NOT_OWNED_OR_CONTRIBUTED` | 400 | 计划四 Task 3 |
+| content-series | `ZONE_MISMATCH` | 400 | 计划四 Task 3 |
+| content-series | `DUPLICATE_SERIES_ITEM` | 409 | 计划四 Task 3 |
+| content-series | `COVER_NOT_IN_SERIES` | 400 | 计划四 Task 3 |
+| source-linkage | `FANWORK_SOURCE_REQUIRED` | 400 | 计划五 Task 2 |
+| source-linkage | `SOURCE_NOT_ALLOWED_FOR_ORIGINAL` | 400 | 计划五 Task 2 |
+| source-linkage | `MULTIPLE_SOURCE_CONFLICT` | 400 | 计划五 Task 2 |
+| source-linkage | `SOURCE_ORIGINAL_UNAVAILABLE` | 400 | 计划五 Task 2 |
+| source-linkage | `SOURCE_FANWORK_UNAVAILABLE` | 400 | 计划五 Task 2 |
+| collaboration-invites | `INVITE_BLOCKED` | 403 | 计划六 Task 2 |
+| collaboration-invites | `INVITE_DAILY_LIMIT` | 429 | 计划六 Task 2 |
+| collaboration-invites | `INVITE_DUPLICATE_USER` | 409 | 计划六 Task 2 |
+| collaboration-invites | `INVITE_NOT_ACCEPTING` | 403 | 计划六 Task 2 |
+| collaboration-invites | `INVITE_ALREADY_EXISTS` | 409 | 计划六 Task 2 |
+| collaboration-invites | `INVITE_EXPIRED` | 400 | 计划六 Task 3 |
+
+### 7.5 新增前端组件和 UI spec 覆盖清单
+
+每个实现分支写 UI 代码前，先用 `rg` 检查对应 `design/ui-spec.md` 段落。若缺失，先做单独的 docs/design 修复，不要在 TSX 中临场发明视觉结构。
+
+| 计划 | 组件/页面 | UI spec 段落 | 目标文件 |
+|---|---|---|---|
+| messages-notifications | `/messages` | `## Page: /messages` | `frontend/app/(protected)/messages/page.tsx` |
+| messages-notifications | `/admin/notifications` | `## Page: /admin/notifications` | `frontend/app/(protected)/admin/notifications/page.tsx` |
+| messages-notifications | `NotificationList`, `ConversationList`, `ChatWindow` | `## Component: ...` | `frontend/components/social/*.tsx` |
+| browse-history | `/history` | `## Page: /history` | `frontend/app/(protected)/history/page.tsx` |
+| collections | `CollectionPicker`, `CollectionCard`, `CollectionInfoCard`, `ContentTypeFilter` | `## Component: ...` | `frontend/components/content/*.tsx` |
+| collections | `/collections/[id]`, `/user/[userId]/collections` | `## Page: ...` | `frontend/app/(public)/**/page.tsx` |
+| content-series | `SeriesNav` | `## Component: SeriesNav` | `frontend/components/content/SeriesNav.tsx` |
+| content-series | `/series/[id]`, `/studio/series` | `## Page: ...` | `frontend/app/(public)/series/[id]/page.tsx`, `frontend/app/(protected)/studio/series/page.tsx` |
+| source-linkage | `SourceContentPicker`, `SourceAttribution`, `RelatedFanworks` | `## Component: ...` | `frontend/components/studio/SourceContentPicker.tsx`, `frontend/components/content/*.tsx` |
+| collaboration-invites | `CollabUserPicker`, `CollabInviteCard` | `## Component: ...` | `frontend/components/content/CollabUserPicker.tsx`, `frontend/components/social/CollabInviteCard.tsx` |
 
 ---
 
@@ -457,7 +519,7 @@ UI 相关计划必须运行浏览器验证并保存计划要求的截图到 `scr
 每个计划开始前必须先确认迁移编号：
 
 ```powershell
-ls backend/migrations/ | Select-Object -Last 5
+Get-ChildItem backend\migrations | Sort-Object Name | Select-Object -Last 5 -ExpandProperty Name
 ```
 
 若预期编号（如 057）已被占用：
@@ -466,6 +528,19 @@ ls backend/migrations/ | Select-Object -Last 5
 3. 更新本文档 §2 表格中的迁移列。
 4. 更新对应计划文件中的迁移编号引用。
 5. 单独提交迁移编号修正（不混入功能代码）。
+
+### 14.3 回滚一个已合并计划
+
+若某个社区计划合并到 `codex/community-integration` 后发现严重问题，不要手动反向编辑散落文件。标准流程：
+
+1. 保持在 `codex/community-integration`，确认 `git status --short` 干净。
+2. 找到该计划唯一提交，例如 `git log --oneline --decorate -20`。
+3. 执行 `git revert <commit>`，让 Git 生成反向提交；如果涉及迁移，先确认该迁移是否已在共享数据库执行。
+4. 重新运行被回滚计划之前和之后受影响的 focused gates，再跑 full gates。
+5. 在 `progress.txt` 记录回滚原因、回滚提交、验证命令和结果。
+6. 若后续要重做该计划，从最新 `codex/community-integration` 重新开分支，不复用已回滚分支的旧工作区状态。
+
+迁移回滚原则：已在共享或生产数据库执行的迁移不得自动 `DROP TABLE` 或删除列；计划中的 `-- ROLLBACK:` 注释只作为人工演练和本地测试参考。真实共享环境回滚必须先评估数据保留和向前修复路径。
 
 ---
 
@@ -483,4 +558,4 @@ ls backend/migrations/ | Select-Object -Last 5
 2. `docs/superpowers/plans/2026-06-08-omnicraft-dependency-vulnerability-upgrades.md` — cargo audit 措辞澄清
 3. `docs/superpowers/plans/2026-06-08-omnicraft-oss-upload-download-hardening.md` — strconv 措辞澄清
 
-**处理建议**：开始社区 worktree 前 `git stash` 或单独提交为 docs cleanup，不要混入社区功能实现分支。
+**处理建议**：开始社区 worktree 前先确认 `git status --short`。若这些旧文档仍有未提交改动，优先单独提交为 docs cleanup；若只是临时保存，可用 `git stash push --include-untracked -m "pre-community-doc-cleanup"`。只有明确要丢弃这些措辞澄清时，才对精确文件执行 `git checkout -- <file>`，不要对整个工作区执行批量还原。

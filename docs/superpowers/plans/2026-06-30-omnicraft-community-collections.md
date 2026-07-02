@@ -102,9 +102,11 @@ Migration must:
 3. Create two default collections per user, one for `original`, one for `fanwork`.
    - Use deterministic titles until users rename them: `默认原创收藏` for `original`, `默认二创收藏` for `fanwork`.
    - Set default collection `sort_order = 0`; user-created collections append after defaults by `max(sort_order)+1`.
+   - This migration backfills all existing users. `EnsureDefaultCollection` in Task 2 only covers users created after the migration and lazy-init safety nets.
 4. Backfill old `favorites` by joining `content_items.zone`.
 5. Keep `favorites` table intact.
 6. Use `ON CONFLICT DO NOTHING` for idempotent replay.
+7. Include a `-- ROLLBACK:` comment block documenting local-test rollback steps; do not automatically drop migrated data in shared environments.
 
 - [ ] **Step 4: Add models**
 
@@ -224,8 +226,9 @@ go test ./internal/repository -run TestCollectionRepo -v
 `EnsureDefaultCollection` must be called during new user registration so that users created after migration also have default collections. Integration points:
 
 1. In the user registration handler (`POST /api/v1/auth/register`) or the user service create method, after the user record is created, call `EnsureDefaultCollection(ctx, userID, "original")` and `EnsureDefaultCollection(ctx, userID, "fanwork")`.
-2. The calls should be non-fatal: if default collection creation fails, log an error with `slog` but do not block registration (the lazy-init pattern in `AddItem` can also trigger `EnsureDefaultCollection` as a safety net).
-3. Add a test that verifies a newly registered user has two default collections (one per zone) after registration completes.
+2. `EnsureDefaultCollection` must be idempotent and safe under retry/concurrent registration flows. Use `INSERT ... ON CONFLICT DO NOTHING` or the GORM equivalent targeting the default-collection unique index so repeated calls do not create duplicates.
+3. The calls should be non-fatal: if default collection creation fails, log an error with `slog` but do not block registration (the lazy-init pattern in `AddItem` can also trigger `EnsureDefaultCollection` as a safety net).
+4. Add a test that verifies a newly registered user has two default collections (one per zone) after registration completes.
 
 ---
 
@@ -331,6 +334,7 @@ Request bodies:
 ```
 
 Detail response includes `collection`, `items`, `total`, `page`, `page_size`.
+Collection list/detail pagination defaults are `page=1`, `page_size=20`, with max `page_size=100`. If a later UI needs a denser gallery default, update handler tests and frontend helper tests together.
 
 List response shape:
 
@@ -545,6 +549,7 @@ Assert:
 - use i18n for every visible string
 
 > **已知限制**：`contains_item` 状态在每次打开 `CollectionPicker` 时实时查询。如果用户在两个标签页中对同一内容操作收藏集，可能出现短暂不一致。这是可接受的竞态——后端 UNIQUE 约束保证最终一致性。
+> **前端防御**：`CollectionPicker` 可以在成功响应后做乐观更新，但不能仅凭本地状态隐藏后端错误。重复添加、跨 zone 和权限错误必须展示 toast，并以下次打开时的实时查询结果为准。
 
 - [ ] **Step 3: Update content detail entry**
 

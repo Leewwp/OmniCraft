@@ -173,7 +173,7 @@ type BrowseHistoryItemDTO struct {
 }
 ```
 
-`ContentItem` is a temporary compatibility alias for the current frontend's `history[*].content_item` shape. Keep it equal to `Content`, including `null` for unavailable content, during the Beta compatibility window.
+`ContentItem` is a temporary compatibility alias for the current frontend's `history[*].content_item` shape. Keep it equal to `Content`, including `null` for unavailable content, during the Beta compatibility window. Deprecation condition: after the Collections plan has landed and the frontend reads the new `items` array everywhere, remove the top-level `history` array and per-item `content_item` alias in a separate cleanup task.
 
 - [ ] **Step 4: Implement filtered list**
 
@@ -250,6 +250,8 @@ Accepted `content_type` values:
 ```text
 image, article, video, audio, template, sheet_music, mod, prompt, other
 ```
+
+This is the content format enum used for attachment/rendering behavior, not the public category taxonomy from `AGENTS.md` ("影视 / 游戏 / 文学 / ..."). Do not call the category-management API for this filter. If the implementation already has a centralized content-type/config helper, use it; otherwise keep this exact enum local and covered by handler tests.
 
 Clamp pagination:
 
@@ -334,6 +336,7 @@ Use the spec's option B:
 - compute next run from an injected/testable clock in that location; production default is `time.Now`
 - call `time.AfterFunc(delay, func(){ cleanup(); scheduleNext() })`
 - include `Stop()` to stop the current timer; tests must prove calling `Stop()` prevents the next cleanup callback
+- compute the first run from the next configured wall-clock time in Asia/Shanghai: if the process starts at 02:50 and `cleanup_time = "03:00"`, the first run is 10 minutes later; if it starts at 03:01, the first run is the next day's 03:00
 
 The cleanup function calls repository `DeleteExpired(retentionDays, now)` using the same injected/testable clock value that drove the current cleanup run.
 
@@ -408,7 +411,7 @@ api.deleteWithBody(path, body)
 
 or a generic request helper. Do not break existing `api.delete(path)` callers.
 
-> **HTTP 兼容性说明**：`fetch` API 支持 DELETE 请求携带 body，但如果项目中的 `api` 封装或中间代理不支持 DELETE + body，回退方案为 `api.request("DELETE", path, { body })`。实施时需验证目标浏览器和中间件环境对 DELETE-with-body 的支持。
+> **HTTP 兼容性说明**：`fetch` API 支持 DELETE 请求携带 body，但如果项目中的 `api` 封装或中间代理不支持 DELETE + body，回退方案为 `api.request("DELETE", path, { body })`。实施时需验证目标浏览器和中间件环境对 DELETE-with-body 的支持；若运行环境或代理层实测拒绝 DELETE body，再更新计划并新增兼容端点 `POST /api/v1/users/me/history/delete`，不要在未验证前提前扩展 API surface。
 
 - [ ] **Step 4: Implement page UI**
 

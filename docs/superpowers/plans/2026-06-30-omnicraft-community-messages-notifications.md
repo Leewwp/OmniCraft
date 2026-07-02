@@ -157,7 +157,7 @@ Extend `message_test.go` to assert `GET /api/v1/messages` returns:
 }
 ```
 
-Also assert `GET /api/v1/messages/:id` returns messages with both `text` and `body` during the compatibility window.
+Also assert `GET /api/v1/messages/:id` returns messages with both `text` and `body` during the compatibility window. Message list pagination defaults to `page=1`, `page_size=20`, and clamps `page_size` to a maximum of `100`.
 
 - [x] **Step 2: Run tests and confirm red**
 
@@ -188,7 +188,7 @@ type MessageDTO struct {
 }
 ```
 
-> **字段语义说明**：`Text` 是 `Body` 的纯别名（`Text == Body`），仅在 Beta 兼容窗口期内同时返回。兼容窗口结束后移除 `Body`，统一使用 `Text`。`text` 字段设计为面向新前端，`body` 兼容旧调用方；两端点在兼容期内返回完全相同的值。
+> **字段语义说明**：`Text` 是 `Body` 的纯别名（`Text == Body`），仅在 Beta 兼容窗口期内同时返回。兼容窗口截止条件为：计划三 Collections 合入后，前端和测试中已无任何 `body` 字段引用；两者都满足时可由单独 cleanup 任务移除 `Body`，统一使用 `Text`。`text` 字段设计为面向新前端，`body` 兼容旧调用方；两端点在兼容期内返回完全相同的值。
 
 - [x] **Step 5: Update frontend API paths**
 
@@ -254,6 +254,7 @@ COMMIT;
 ```
 
 Do not remove existing channels.
+Include a `-- ROLLBACK:` comment block that documents how to restore the previous notification channel CHECK constraint in local-test environments. Do not auto-run rollback in shared environments after broadcast data may exist.
 
 - [x] **Step 3: Verify migration is referenced by tests**
 
@@ -342,7 +343,7 @@ Implement:
 func (s *NotificationService) BroadcastSystemNotification(ctx context.Context, title, body, channel string, actorID int64) (recipientCount int, broadcastAt time.Time, err error)
 ```
 
-This service method owns final broadcast validation. It must trim/validate `title`, `body`, and `channel` before creating notifications. If validation fails, it must write the rejected `admin_audit_logs` row through `AdminAuditService`, return a safe validation error that the handler maps to `400 VALIDATION_ERROR`, and create no notifications.
+This service method owns final broadcast validation. It must trim/validate `title`, `body`, and `channel` before creating notifications. If `channel == ""`, normalize it to `"broadcast"` before validation and persistence; any non-empty value other than `"broadcast"` is invalid. If validation fails, it must write the rejected `admin_audit_logs` row through `AdminAuditService`, return a safe validation error that the handler maps to `400 VALIDATION_ERROR`, and create no notifications.
 
 Each notification uses:
 

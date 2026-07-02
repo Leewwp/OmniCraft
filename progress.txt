@@ -1,5 +1,20 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-07-02] - Community Docs: Review Follow-up Repairs
+
+### What was done:
+- Reviewed the attached community documentation audit against the current `codex/community-integration` branch.
+- Repaired true documentation gaps in the community development guide, community design spec, and six community plan files.
+- Added explicit guidance for migration numbering checks, `tsx` focused-test readiness, focused gates, BLOCKED output, rollback flow, shared error-code registry, UI spec coverage, performance expectations, migration rollback comments, pagination defaults, compatibility windows, and concurrency/transaction edge cases.
+
+### Testing:
+- Verified changes with targeted `git diff` and `rg` checks across the community docs.
+- No code tests were run because this task only changes Markdown documentation.
+
+### Notes:
+- Several audit findings were already covered locally or were terminology mismatches; most notably `content_type` is a content format enum and not the public category taxonomy from `AGENTS.md`.
+- `task.json` and Beta roadmap checkboxes were not modified.
+
 ## [2026-06-01] - Beta G-05: Mount User-Confirmed Publish Assistance
 
 ### What was done:
