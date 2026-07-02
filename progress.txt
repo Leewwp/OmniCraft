@@ -3370,3 +3370,22 @@ Code review of all Batch 12 changes identified 14 issues (2 Critical, 8 Major, 4
 
 ### Notes:
 - The repair keeps Mode C tracking only; no `task.json` or Beta roadmap checkbox was changed.
+
+## [2026-07-02] - Community browse-history: completed
+
+### What was done:
+- Added `browse_history.retention_days` and `cleanup_time` config mapping/defaults and synced generated config docs in `architecture.md`.
+- Enhanced browse history repository and handler contracts with config-driven retention, `items` + legacy `history` compatibility, `content` + legacy `content_item` aliases, content-type/date filters, selected-delete and clear-all semantics, and unavailable-content placeholders.
+- Added daily browse-history cleanup scheduler using Asia/Shanghai wall-clock time, `time.AfterFunc` self-rescheduling, and graceful shutdown `Stop()`.
+- Refactored `/history` UI with filter chips, date range fields, batch delete, clear-all confirmation, retained data on refresh errors, localized copy, and gray non-clickable unavailable records.
+- Added focused backend and frontend tests for config, repository, handler, scheduler, and history page behavior.
+
+### Testing:
+- Focused: `go test ./config -run TestBrowseHistoryConfig -v`; `go test ./internal/repository -run TestBrowseHistory -v`; `go test ./internal/handler -run TestBrowseHistory -v`; `go test ./internal/pkg/scheduler -run TestBrowseHistoryCleanup -v`; `node --import tsx --test tests/history-page.test.tsx`.
+- Full gates: `go test ./...`; `go vet ./...`; `go build ./...`; `npm run test`; `npm run lint`; `npm run build`.
+- Doc sync: `cd tools/doc-validator && go run . --fix` passed and updated `architecture.md` config mapping.
+- Browser verification: logged into local dev as `admintest@omnicraft.com`, verified `/history` rendered retained items plus unavailable placeholder, `content_type=video` filtering, same-day `start_date`/`end_date` query behavior, selected delete, clear-all empty state, and saved desktop/mobile screenshots under `screenshots/community-browse-history-*.png`.
+
+### Notes:
+- Mode C tracking only: no `task.json` or Beta roadmap checkbox was changed.
+- Subagent review/implementation attempts were made, but the local subagent service repeatedly returned `503 Service Unavailable`; controller completed local review and verification gates instead.

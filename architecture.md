@@ -1314,6 +1314,8 @@ Content-Type: application/json
 | `agent.rate_limit_per_day` | `int` | RateLimitPerDay |
 | `agent.upload_assist_max_file_mb` | `int` | UploadAssistMaxFileMB |
 | `agent.web_agent_enabled` | `bool` | WebAgentEnabled |
+| `browse_history.cleanup_time` | `string` | CleanupTime |
+| `browse_history.retention_days` | `int` | RetentionDays |
 | `cache.content_detail_ttl` | `int` | ContentDetailTTL |
 | `cache.content_list_ttl` | `int` | ContentListTTL |
 | `cache.email_verify_ttl` | `int` | EmailVerifyTTL |

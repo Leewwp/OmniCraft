@@ -277,7 +277,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		messages.DELETE("/conversations/:id", msgHandler.LeaveConversation)
 	}
 
-	histHandler := NewBrowseHistoryHandler(db)
+	histHandler := NewBrowseHistoryHandler(db, cfg)
 	me.POST("/history", histHandler.RecordView)
 	me.GET("/history", histHandler.GetHistory)
 	me.DELETE("/history", histHandler.ClearHistory)

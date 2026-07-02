@@ -1049,7 +1049,57 @@
     "unknownContent": "Unknown content",
     "confirmClear": "Confirm clear history",
     "confirmClearMsg": "This will clear your entire browsing history. This action cannot be undone.",
-    "clearing": "Clearing..."
+    "clearing": "Clearing...",
+    "filters": {
+      "all": "All",
+      "article": "Article",
+      "image": "Image",
+      "video": "Video",
+      "audio": "Audio",
+      "template": "Template",
+      "sheet_music": "Sheet music",
+      "mod": "Mod",
+      "prompt": "Prompt",
+      "other": "Other"
+    },
+    "dateRange": {
+      "start": "Start date",
+      "end": "End date",
+      "retention": "Showing records from the last {days} days.",
+      "retentionUnknown": "Showing recent browsing records."
+    },
+    "bulk": {
+      "enter": "Batch manage",
+      "exit": "Exit batch",
+      "deleteSelected": "Delete selected ({count})",
+      "select": "Select {title}",
+      "selectUnavailable": "Select unavailable item from {date}",
+      "confirmSelectedTitle": "Delete selected records?",
+      "confirmSelectedDescription": "Selected browsing records will be removed.",
+      "confirmAllTitle": "Clear browsing history?",
+      "confirmAllDescription": "All browsing records will be removed.",
+      "confirmDelete": "Delete"
+    },
+    "empty": {
+      "title": "No browsing history",
+      "description": "Go discover something interesting.",
+      "action": "Go home"
+    },
+    "error": {
+      "load": "Failed to load browsing history.",
+      "inline": "Could not refresh. Showing the last successful result."
+    },
+    "unavailable": {
+      "title": "Content unavailable",
+      "description": "This content was deleted or unpublished."
+    },
+    "toast": {
+      "deleted": "Browsing history updated.",
+      "deleteFailed": "Failed to update browsing history."
+    },
+    "a11y": {
+      "toolbar": "Browsing history filters"
+    }
   },
   "notification": {
     "all": "All",

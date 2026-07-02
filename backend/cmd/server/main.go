@@ -40,6 +40,8 @@ func main() {
 	scheduler.NewTagUsageSync(db).Start()
 	scheduler.NewViewCountSync(ctr.ContentService, &cfg.Cache).Start()
 	scheduler.NewDownloadCountSync(ctr.ContentService, &cfg.Cache).Start()
+	browseHistoryCleanup := scheduler.NewBrowseHistoryCleanup(db, &cfg.BrowseHistory)
+	browseHistoryCleanup.Start()
 
 	hotRankSvc := service.NewHotRankService(ctr.ContentService, &cfg.Recommendation).
 		WithRecommendationService(ctr.RecommendationSvc).
@@ -99,6 +101,7 @@ func main() {
 	slog.Info("Shutting down server...")
 
 	stopWorkers()
+	browseHistoryCleanup.Stop()
 
 	shutdownTimeout := time.Duration(cfg.Server.ShutdownTimeout) * time.Second
 	if shutdownTimeout <= 0 {

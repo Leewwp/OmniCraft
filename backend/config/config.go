@@ -29,6 +29,7 @@ type Config struct {
 	Reputation     ReputationConfig     `mapstructure:"reputation"`
 	Judge          JudgeConfig          `mapstructure:"judge"`
 	Social         SocialConfig         `mapstructure:"social"`
+	BrowseHistory  BrowseHistoryConfig  `mapstructure:"browse_history"`
 	Upload         UploadConfig         `mapstructure:"upload"`
 	Publish        PublishConfig        `mapstructure:"publish"`
 	Agent          AgentConfig          `mapstructure:"agent"`
@@ -140,6 +141,11 @@ type JudgeConfig struct {
 type SocialConfig struct {
 	ReportAutoHideRate   float64 `mapstructure:"report_auto_hide_rate"`
 	CommentFoldThreshold float64 `mapstructure:"comment_fold_threshold"`
+}
+
+type BrowseHistoryConfig struct {
+	RetentionDays int    `mapstructure:"retention_days"`
+	CleanupTime   string `mapstructure:"cleanup_time"`
 }
 
 type UploadConfig struct {
