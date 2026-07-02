@@ -6,6 +6,7 @@
 - Verified `codex/community/browse-history` against the community design spec, plan file, UI spec, and current validation gates.
 - Fixed `/history` so it initializes `content_type`, `start_date`, and `end_date` from URL query parameters.
 - Added inline validation for invalid date ranges (`start_date > end_date`) so the page does not send an invalid request.
+- Fixed mobile history filter chips so labels stay on one line and scroll horizontally instead of wrapping into vertical text.
 - Added focused frontend tests for URL-query initialization and invalid date range behavior, plus localized error text.
 
 ### Testing:
