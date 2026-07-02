@@ -73,7 +73,7 @@
 - Create: `backend/internal/model/collection.go`
 - Test: `backend/internal/model/collection_migration_test.go`
 
-- [ ] **Step 1: Re-check migration number**
+- [x] **Step 1: Re-check migration number**
 
 Run:
 
@@ -83,7 +83,7 @@ Get-ChildItem backend\migrations | Sort-Object Name | Select-Object -Last 10 -Ex
 
 If `058_` already exists, use the next available number and update implementation references.
 
-- [ ] **Step 2: Write failing migration test**
+- [x] **Step 2: Write failing migration test**
 
 Assert after applying the migration:
 
@@ -93,7 +93,7 @@ Assert after applying the migration:
 - `UNIQUE (collection_id, content_item_id)` exists
 - `collections.zone` only allows `original` or `fanwork`
 
-- [ ] **Step 3: Create migration**
+- [x] **Step 3: Create migration**
 
 Migration must:
 
@@ -108,7 +108,7 @@ Migration must:
 6. Use `ON CONFLICT DO NOTHING` for idempotent replay.
 7. Include a `-- ROLLBACK:` comment block documenting local-test rollback steps; do not automatically drop migrated data in shared environments.
 
-- [ ] **Step 4: Add models**
+- [x] **Step 4: Add models**
 
 Create:
 
@@ -133,7 +133,7 @@ type CollectionItem struct {
 }
 ```
 
-- [ ] **Step 5: Verify migration tests**
+- [x] **Step 5: Verify migration tests**
 
 Run:
 
@@ -150,7 +150,7 @@ go test ./internal/model -run TestCollectionMigration -v
 - Create: `backend/internal/repository/collection_repo.go`
 - Test: `backend/internal/repository/collection_repo_test.go`
 
-- [ ] **Step 1: Write failing repository tests**
+- [x] **Step 1: Write failing repository tests**
 
 Cover:
 
@@ -166,7 +166,7 @@ func TestCollectionRepoDetailFiltersUnavailableContent(t *testing.T) {}
 func TestCollectionRepoListCollectionsMarksContainsItem(t *testing.T) {}
 ```
 
-- [ ] **Step 2: Run and confirm red**
+- [x] **Step 2: Run and confirm red**
 
 Run:
 
@@ -175,7 +175,7 @@ cd backend
 go test ./internal/repository -run TestCollectionRepo -v
 ```
 
-- [ ] **Step 3: Implement repository methods**
+- [x] **Step 3: Implement repository methods**
 
 Required methods:
 
@@ -201,7 +201,7 @@ ItemID       *int64 `json:"item_id,omitempty"`
 
 `ItemID` is the `collection_items.id` row to remove/update if the content is already in that collection.
 
-- [ ] **Step 4: Encode exact errors**
+- [x] **Step 4: Encode exact errors**
 
 Map repository/service errors to these codes later:
 
@@ -212,7 +212,7 @@ Map repository/service errors to these codes later:
 - `ZONE_IMMUTABLE`
 - `INVALID_CONTENT`
 
-- [ ] **Step 5: Verify green**
+- [x] **Step 5: Verify green**
 
 Run:
 
@@ -221,7 +221,7 @@ cd backend
 go test ./internal/repository -run TestCollectionRepo -v
 ```
 
-- [ ] **Step 6: Integrate with user registration**
+- [x] **Step 6: Integrate with user registration**
 
 `EnsureDefaultCollection` must be called during new user registration so that users created after migration also have default collections. Integration points:
 
@@ -241,7 +241,7 @@ go test ./internal/repository -run TestCollectionRepo -v
 - Modify: `backend/internal/handler/social.go`
 - Test: `backend/internal/service/collection_service_test.go`
 
-- [ ] **Step 1: Add failing service tests**
+- [x] **Step 1: Add failing service tests**
 
 Cover:
 
@@ -251,7 +251,7 @@ Cover:
 - old `Unfavorite` does not remove the same content from user-created collections
 - collection add clears recommendation cache as old favorite did
 
-- [ ] **Step 2: Run and confirm red**
+- [x] **Step 2: Run and confirm red**
 
 Run:
 
@@ -260,11 +260,11 @@ cd backend
 go test ./internal/service -run "TestCollectionService|TestFavoriteCompatibility" -v
 ```
 
-- [ ] **Step 3: Add collection service**
+- [x] **Step 3: Add collection service**
 
 The collection service owns zone validation, default collection creation, and visible-content filtering. It should call the existing content repository rather than duplicating content visibility rules.
 
-- [ ] **Step 4: Adapt legacy favorites**
+- [x] **Step 4: Adapt legacy favorites**
 
 Keep old endpoints:
 
@@ -274,7 +274,7 @@ Keep old endpoints:
 
 During rollback window, writes are double-write. Reads may continue from old `favorites` for compatibility, but recommendation must read the de-duped union.
 
-- [ ] **Step 5: Verify service tests**
+- [x] **Step 5: Verify service tests**
 
 Run:
 
@@ -292,7 +292,7 @@ go test ./internal/service -run "TestCollectionService|TestFavoriteCompatibility
 - Modify: `backend/internal/handler/routes.go`
 - Test: `backend/internal/handler/collection_test.go`
 
-- [ ] **Step 1: Add failing handler tests**
+- [x] **Step 1: Add failing handler tests**
 
 Test all routes:
 
@@ -307,7 +307,7 @@ DELETE /api/v1/collections/:id/items/:itemId
 PUT    /api/v1/collections/:id/items/:itemId
 ```
 
-- [ ] **Step 2: Assert permission behavior**
+- [x] **Step 2: Assert permission behavior**
 
 Tests must verify:
 
@@ -324,7 +324,7 @@ Tests must verify:
 - `GET /api/v1/collections/:id?page=1&page_size=20&content_type=article` filters collection contents by `content_type`
 - blank title, title longer than 200 characters, invalid zone, and client attempts to set `is_default` all return validation errors
 
-- [ ] **Step 3: Implement handler**
+- [x] **Step 3: Implement handler**
 
 Request bodies:
 
@@ -378,7 +378,7 @@ Validation rules:
 
 Handler tests must assert both shapes.
 
-- [ ] **Step 4: Register routes**
+- [x] **Step 4: Register routes**
 
 List and public detail use auth-if-present middleware:
 
@@ -391,7 +391,7 @@ Inside `ListCollections`, absence of `owner_id` requires an authenticated viewer
 
 Mutations use auth and interaction guard.
 
-- [ ] **Step 5: Verify handler tests**
+- [x] **Step 5: Verify handler tests**
 
 Run:
 
@@ -408,7 +408,7 @@ go test ./internal/handler -run TestCollection -v
 - Modify: `backend/internal/service/recommendation_service.go`
 - Test: `backend/internal/service/recommendation_service_test.go`
 
-- [ ] **Step 1: Add failing recommendation tests**
+- [x] **Step 1: Add failing recommendation tests**
 
 Cover:
 
@@ -416,7 +416,7 @@ Cover:
 - item present in both `favorites` and `collection_items` is counted once
 - content type/category weights remain consistent with old favorites behavior
 
-- [ ] **Step 2: Run and confirm red**
+- [x] **Step 2: Run and confirm red**
 
 Run:
 
@@ -425,7 +425,7 @@ cd backend
 go test ./internal/service -run "TestRecommendation.*Favorite|TestRecommendation.*Collection" -v
 ```
 
-- [ ] **Step 3: Implement de-duped union query**
+- [x] **Step 3: Implement de-duped union query**
 
 Replace direct `favorites` reads with a query equivalent to:
 
@@ -440,7 +440,7 @@ SELECT DISTINCT content_item_id FROM (
 ) x
 ```
 
-- [ ] **Step 4: Verify recommendation tests**
+- [x] **Step 4: Verify recommendation tests**
 
 Run:
 
@@ -458,7 +458,7 @@ go test ./internal/service -run "TestRecommendation.*Favorite|TestRecommendation
 - Read: `design/ui-spec.md`
 - Test: `frontend/tests/collection-picker.test.tsx`
 
-- [ ] **Step 1: Confirm UI spec before UI code**
+- [x] **Step 1: Confirm UI spec before UI code**
 
 Run:
 
@@ -468,7 +468,7 @@ rg -n "## Page: /collections/\\[id\\]|## Page: /user/\\[userId\\]/collections|##
 
 Expected: all sections are present. If a future branch lacks one, stop and repair UI spec in an explicitly scoped docs/design step before UI code. Implementation must use `CollectionPicker` as the canonical component name. The legacy add-to-collection modal export is deprecated and may only remain as a compatibility wrapper or internal implementation detail; new imports must reference `CollectionPicker`.
 
-- [ ] **Step 2: Add failing API-helper tests**
+- [x] **Step 2: Add failing API-helper tests**
 
 Assert `frontend/lib/collections.ts` functions call:
 
@@ -480,7 +480,7 @@ Assert `frontend/lib/collections.ts` functions call:
 - `PUT /api/v1/collections/:id`
 - `DELETE /api/v1/collections/:id`
 
-- [ ] **Step 3: Implement API helper**
+- [x] **Step 3: Implement API helper**
 
 Create typed functions in `frontend/lib/collections.ts`:
 
@@ -496,7 +496,7 @@ deleteCollection(id)
 
 Normalize list summaries so `contains_item` is always boolean and `item_id` is present only when the backend returns a numeric collection item id.
 
-- [ ] **Step 4: Run focused helper tests**
+- [x] **Step 4: Run focused helper tests**
 
 Run:
 
@@ -522,7 +522,7 @@ Expected: helper tests PASS.
 - Modify: `frontend/messages/en.json`
 - Test: `frontend/tests/collection-picker.test.tsx`
 
-- [ ] **Step 1: Add failing component tests**
+- [x] **Step 1: Add failing component tests**
 
 Assert:
 
@@ -535,7 +535,7 @@ Assert:
 - content detail opens picker instead of direct favorite toggle
 - no new code imports the legacy add-to-collection modal export
 
-- [ ] **Step 2: Implement `CollectionPicker`**
+- [x] **Step 2: Implement `CollectionPicker`**
 
 `CollectionPicker` must:
 
@@ -551,11 +551,11 @@ Assert:
 > **已知限制**：`contains_item` 状态在每次打开 `CollectionPicker` 时实时查询。如果用户在两个标签页中对同一内容操作收藏集，可能出现短暂不一致。这是可接受的竞态——后端 UNIQUE 约束保证最终一致性。
 > **前端防御**：`CollectionPicker` 可以在成功响应后做乐观更新，但不能仅凭本地状态隐藏后端错误。重复添加、跨 zone 和权限错误必须展示 toast，并以下次打开时的实时查询结果为准。
 
-- [ ] **Step 3: Update content detail entry**
+- [x] **Step 3: Update content detail entry**
 
 `ContentDetail` / `ContentDetailClient` must open `CollectionPicker` from the existing favorite/add-to-collection action. Keep legacy `/favorites` compatibility behavior in backend; do not keep a direct one-click favorite toggle as the primary new UI.
 
-- [ ] **Step 4: Verify `/studio/favorites` UI spec section**
+- [x] **Step 4: Verify `/studio/favorites` UI spec section**
 
 Before modifying the page, verify the existing `## Page: /studio/favorites` section in `design/ui-spec.md` specifies:
 - zone-separated collection grid layout
@@ -565,15 +565,15 @@ Before modifying the page, verify the existing `## Page: /studio/favorites` sect
 - loading, empty, error, a11y, i18n, and screenshot checkpoints
 If an implementation branch is missing this section or it is stale, stop and repair the UI spec in a separate docs/design step before writing TSX.
 
-- [ ] **Step 5: Update `/studio/favorites`**
+- [x] **Step 5: Update `/studio/favorites`**
 
 `/studio/favorites` must show original and fanwork zones separately, use `CollectionCard`, provide create/edit/delete collection actions, and protect default collections from deletion in UI as well as backend. Follow the UI spec verified in Step 4.
 
-- [ ] **Step 6: Add i18n keys**
+- [x] **Step 6: Add i18n keys**
 
 Add all visible strings under `collections.picker.*`, `collections.card.*`, and `studio.favorites.*` in both `frontend/messages/zh.json` and `frontend/messages/en.json`.
 
-- [ ] **Step 7: Run frontend tests**
+- [x] **Step 7: Run frontend tests**
 
 Run:
 
@@ -595,7 +595,7 @@ node --import tsx --test tests/collection-picker.test.tsx
 - Test: `frontend/tests/collection-detail.test.tsx`
 - Test: `frontend/e2e/collections.spec.ts`
 
-- [ ] **Step 1: Add failing detail tests**
+- [x] **Step 1: Add failing detail tests**
 
 Assert:
 
@@ -606,7 +606,7 @@ Assert:
 - owner controls render only for owner
 - default collection delete action is disabled
 
-- [ ] **Step 2: Implement route in public group**
+- [x] **Step 2: Implement route in public group**
 
 Route path must be:
 
@@ -616,25 +616,25 @@ frontend/app/(public)/collections/[id]/page.tsx
 
 Do not place this page under `(protected)` because public collections are viewable by logged-out users.
 
-- [ ] **Step 3: Implement `CollectionInfoCard`**
+- [x] **Step 3: Implement `CollectionInfoCard`**
 
 `CollectionInfoCard` is in scope for this plan. It renders the page summary block specified in `design/ui-spec.md`; it is not a generic card wrapper for the page section.
 
-- [ ] **Step 4: Implement `ContentTypeFilter`**
+- [x] **Step 4: Implement `ContentTypeFilter`**
 
 `ContentTypeFilter` is in scope for this plan. It supports `all`, `image`, `article`, `video`, `audio`, `template`, `sheet_music`, `mod`, `prompt`, and `other`, and it updates `content_type` query params without hardcoded visible strings.
 
-- [ ] **Step 5: Fetch backend detail**
+- [x] **Step 5: Fetch backend detail**
 
 Use `GET /api/v1/collections/:id?page=1&page_size=...`. Render only content returned by backend; do not attempt client-side private filtering.
 
-- [ ] **Step 6: Handle error states**
+- [x] **Step 6: Handle error states**
 
 - `404 COLLECTION_NOT_FOUND`: EmptyState / not found style
 - `403`: EmptyState if backend returns forbidden
 - no items: empty collection state
 
-- [ ] **Step 7: Add Playwright checks**
+- [x] **Step 7: Add Playwright checks**
 
 Mock or seed:
 
@@ -656,7 +656,7 @@ Mock or seed:
 - Test: `frontend/tests/user-collections-page.test.tsx`
 - Test: `frontend/e2e/collections.spec.ts`
 
-- [ ] **Step 1: Add failing page tests**
+- [x] **Step 1: Add failing page tests**
 
 Assert:
 
@@ -667,7 +667,7 @@ Assert:
 - empty other-user page shows read-only EmptyState
 - cards link to `/collections/:id`
 
-- [ ] **Step 2: Implement route**
+- [x] **Step 2: Implement route**
 
 Route path must be:
 
@@ -677,11 +677,11 @@ frontend/app/(public)/user/[userId]/collections/page.tsx
 
 The page uses `GET /api/v1/collections?owner_id=:userId`. Task 4 includes this handler contract; do not defer `owner_id` support to the page implementation, because the UI spec requires a public user collection list and visibility must be enforced server-side.
 
-- [ ] **Step 3: Implement list UI**
+- [x] **Step 3: Implement list UI**
 
 Use `CollectionCard`, not `CollectionInfoCard`. Keep the page as a simple grid with no nested cards and i18n under `collections.userList.*`.
 
-- [ ] **Step 4: Run focused page tests**
+- [x] **Step 4: Run focused page tests**
 
 Run:
 
@@ -698,7 +698,7 @@ node --import tsx --test tests/user-collections-page.test.tsx
 - Modify if generated: `architecture.md`
 - Screenshot outputs listed in Step 4.
 
-- [ ] **Step 1: Run backend gates**
+- [x] **Step 1: Run backend gates**
 
 Run:
 
@@ -712,7 +712,7 @@ go vet ./...
 go build ./...
 ```
 
-- [ ] **Step 2: Run frontend gates**
+- [x] **Step 2: Run frontend gates**
 
 Run:
 
@@ -724,7 +724,7 @@ npm run build
 npx playwright test e2e/collections.spec.ts
 ```
 
-- [ ] **Step 3: Run doc-validator**
+- [x] **Step 3: Run doc-validator**
 
 Because this plan changes migrations and routes:
 
@@ -733,7 +733,7 @@ cd tools/doc-validator
 go run . --fix
 ```
 
-- [ ] **Step 4: Browser verification**
+- [x] **Step 4: Browser verification**
 
 1. Logged-in user creates original and fanwork collections in `/studio/favorites`.
 2. User edits title, public flag, and sort order.
@@ -750,7 +750,7 @@ go run . --fix
    - `screenshots/community-collections-user-list-desktop.png`
    - `screenshots/community-collections-user-list-owner-mobile.png`
 
-- [ ] **Step 5: Commit when implementing**
+- [x] **Step 5: Commit when implementing**
 
 ```powershell
 git add -- backend/migrations/058_create_collections.sql backend/internal/model/collection.go backend/internal/model/collection_migration_test.go backend/internal/repository/collection_repo.go backend/internal/repository/collection_repo_test.go backend/internal/service/collection_service.go backend/internal/service/collection_service_test.go backend/internal/handler/collection.go backend/internal/handler/collection_test.go backend/internal/handler/routes.go backend/internal/repository/social_repo.go backend/internal/service/social_service.go backend/internal/service/recommendation_service.go backend/internal/service/recommendation_service_test.go backend/internal/handler/content.go frontend/lib/collections.ts frontend/components/content/CollectionPicker.tsx frontend/components/content/CollectionCard.tsx frontend/components/content/CollectionInfoCard.tsx frontend/components/content/ContentTypeFilter.tsx "frontend/app/(protected)/studio/favorites/page.tsx" "frontend/app/(public)/collections/[id]/page.tsx" "frontend/app/(public)/user/[userId]/collections/page.tsx" frontend/components/content/ContentDetail.tsx frontend/components/content/ContentDetailClient.tsx frontend/messages/zh.json frontend/messages/en.json frontend/tests/collection-picker.test.tsx frontend/tests/collection-detail.test.tsx frontend/tests/user-collections-page.test.tsx frontend/e2e/collections.spec.ts screenshots/community-collections-desktop.png screenshots/community-collections-owner-mobile.png screenshots/community-collections-picker-desktop.png screenshots/community-collections-picker-mobile.png screenshots/community-collections-user-list-desktop.png screenshots/community-collections-user-list-owner-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-collections.md progress.txt
@@ -762,16 +762,16 @@ git commit -m "Community 3: collections folder system"
 
 ## Plan Self-Check
 
-- [ ] Plan preserves old `favorites` API during rollback window.
-- [ ] Plan explicitly double-writes old favorite actions to default collections.
-- [ ] Recommendation compatibility uses de-duped union, not only one table.
-- [ ] Public collection route is under `(public)`, with backend permission enforcement.
-- [ ] Default collections are protected from deletion.
-- [ ] Default collections have deterministic titles and sort order.
-- [ ] Collection list API can mark whether the current content is already contained in each collection.
-- [ ] Collection list response shape for absent `content_item_id` is fixed as `contains_item:false` on every item with no `item_id`.
-- [ ] `CollectionPicker` is canonical; the legacy add-to-collection modal export is deprecated and not imported by new code.
-- [ ] `CollectionInfoCard`, `ContentTypeFilter`, and `/user/[userId]/collections` are in scope with tests and screenshots.
-- [ ] Zone mismatch behavior and `ZONE_IMMUTABLE` are explicitly tested.
-- [ ] Migration is idempotent and does not drop `favorites`.
-- [ ] Browser verification covers public, private, owner, and non-owner states.
+- [x] Plan preserves old `favorites` API during rollback window.
+- [x] Plan explicitly double-writes old favorite actions to default collections.
+- [x] Recommendation compatibility uses de-duped union, not only one table.
+- [x] Public collection route is under `(public)`, with backend permission enforcement.
+- [x] Default collections are protected from deletion.
+- [x] Default collections have deterministic titles and sort order.
+- [x] Collection list API can mark whether the current content is already contained in each collection.
+- [x] Collection list response shape for absent `content_item_id` is fixed as `contains_item:false` on every item with no `item_id`.
+- [x] `CollectionPicker` is canonical; the legacy add-to-collection modal export is deprecated and not imported by new code.
+- [x] `CollectionInfoCard`, `ContentTypeFilter`, and `/user/[userId]/collections` are in scope with tests and screenshots.
+- [x] Zone mismatch behavior and `ZONE_IMMUTABLE` are explicitly tested.
+- [x] Migration is idempotent and does not drop `favorites`.
+- [x] Browser verification covers public, private, owner, and non-owner states.

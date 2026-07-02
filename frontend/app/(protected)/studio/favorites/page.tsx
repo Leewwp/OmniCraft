@@ -1,157 +1,305 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { FolderPlus, Loader2, RefreshCw } from "lucide-react";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
-import { Heart, Eye, Loader2 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { api } from "@/lib/api";
+import { CollectionCard } from "@/components/content/CollectionCard";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/Toast";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  createCollection,
+  deleteCollection,
+  listCollections,
+  updateCollection,
+  type CollectionSummary,
+} from "@/lib/collections";
 
-const CONTENT_TYPES = [
-  { key: "", labelKey: "studio.favorites.allTypes" },
-  { key: "image", labelKey: "studio.favorites.image" },
-  { key: "article", labelKey: "studio.favorites.article" },
-  { key: "video", labelKey: "studio.favorites.video" },
-  { key: "audio", labelKey: "studio.favorites.audio" },
-  { key: "template", labelKey: "studio.favorites.template" },
-  { key: "mod", labelKey: "studio.favorites.mod" },
-  { key: "sheet_music", labelKey: "studio.favorites.sheetMusic" },
-];
+type CollectionZone = "original" | "fanwork";
 
-interface FavoriteItem {
-  id: number;
+type FormState = {
+  mode: "create" | "edit";
+  zone: CollectionZone;
+  collection?: CollectionSummary;
   title: string;
-  content_type: string;
-  zone: string;
-  cover_url?: string;
-  like_count: number;
-  view_count: number;
-  author?: { username: string };
-  created_at: string;
-}
+  description: string;
+  isPublic: boolean;
+  sortOrder: number;
+};
+
+const zones: CollectionZone[] = ["original", "fanwork"];
 
 export default function StudioFavoritesPage() {
   const t = useTranslations();
   const { user } = useAuth();
-  const [contentType, setContentType] = useState("");
-  const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const { toast } = useToast();
+  const [collections, setCollections] = useState<CollectionSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const pageSize = 20;
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(false);
+  const [form, setForm] = useState<FormState | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CollectionSummary | null>(null);
 
   useEffect(() => {
     if (!user) return;
-    setLoading(true);
-    const params = new URLSearchParams({
-      page: String(page),
-      page_size: String(pageSize),
-    });
-    if (contentType) params.set("content_type", contentType);
-    api.get(`/api/v1/users/${user.id}/favorites?${params}`)
-      .then((res) => {
-        const data = res as Record<string, unknown>;
-        setFavorites((data.favorites as FavoriteItem[]) || []);
-        setTotal((data.total as number) || 0);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [user, contentType, page]);
+    void loadCollections();
+  }, [user]);
 
-  const totalPages = Math.ceil(total / pageSize);
+  const grouped = useMemo(
+    () => ({
+      original: sortCollections(collections.filter((collection) => collection.zone === "original")),
+      fanwork: sortCollections(collections.filter((collection) => collection.zone === "fanwork")),
+    }),
+    [collections],
+  );
+
+  async function loadCollections() {
+    setLoading(true);
+    setError(false);
+    try {
+      const response = await listCollections();
+      setCollections(response.collections);
+    } catch {
+      setError(true);
+      toast("error", t("studio.favorites.toast.loadFailed"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function openCreate(zone: CollectionZone) {
+    setForm({
+      mode: "create",
+      zone,
+      title: "",
+      description: "",
+      isPublic: false,
+      sortOrder: 0,
+    });
+  }
+
+  function openEdit(collection: CollectionSummary) {
+    setForm({
+      mode: "edit",
+      zone: collection.zone === "fanwork" ? "fanwork" : "original",
+      collection,
+      title: collection.title,
+      description: collection.description ?? "",
+      isPublic: collection.is_public ?? false,
+      sortOrder: collection.sort_order ?? 0,
+    });
+  }
+
+  async function handleSave() {
+    if (!form || !form.title.trim()) return;
+    setSaving(true);
+    try {
+      if (form.mode === "create") {
+        const created = await createCollection({
+          title: form.title.trim(),
+          description: form.description.trim(),
+          zone: form.zone,
+          is_public: form.isPublic,
+        });
+        setCollections((current) => [
+          ...current,
+          { ...created, contains_item: false, item_count: created.item_count ?? 0 },
+        ]);
+        toast("success", t("studio.favorites.toast.created"));
+      } else if (form.collection) {
+        const updated = await updateCollection(form.collection.id, {
+          title: form.title.trim(),
+          description: form.description.trim(),
+          is_public: form.isPublic,
+          sort_order: form.sortOrder,
+        });
+        setCollections((current) =>
+          current.map((collection) =>
+            collection.id === form.collection?.id
+              ? { ...collection, ...updated, contains_item: collection.contains_item, item_id: collection.item_id }
+              : collection,
+          ),
+        );
+        toast("success", t("studio.favorites.toast.updated"));
+      }
+      setForm(null);
+      void loadCollections();
+    } catch {
+      toast("error", t("studio.favorites.toast.saveFailed"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget || deleteTarget.is_default) return;
+    try {
+      await deleteCollection(deleteTarget.id);
+      setCollections((current) => current.filter((collection) => collection.id !== deleteTarget.id));
+      toast("success", t("studio.favorites.toast.deleted"));
+      setDeleteTarget(null);
+      void loadCollections();
+    } catch {
+      toast("error", t("studio.favorites.toast.deleteFailed"));
+    }
+  }
 
   return (
-    <div>
-      <h1 className="mb-1 text-xl font-bold text-foreground">{t('studio.favorites.title')}</h1>
-      <p className="mb-6 text-sm text-muted-foreground">{t('studio.favorites.subtitle')}</p>
+    <div className="w-full max-w-[1280px] space-y-8">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-foreground">{t("studio.favorites.header.title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("studio.favorites.header.subtitle")}</p>
+        </div>
+        <Button type="button" variant="outline" onClick={() => void loadCollections()} disabled={loading}>
+          <RefreshCw className="h-4 w-4" />
+          {t("studio.favorites.actions.refresh")}
+        </Button>
+      </header>
 
-      <div className="mb-4 flex gap-1 flex-wrap">
-        {CONTENT_TYPES.map((ct) => (
-          <button
-            key={ct.key}
-            onClick={() => { setContentType(ct.key); setPage(1); }}
-            className={`rounded-md px-3 py-1 text-xs transition-colors ${
-              contentType === ct.key
-                ? "bg-accent/10 text-accent font-medium"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            {t(ct.labelKey)}
-          </button>
-        ))}
-      </div>
+      {error && !loading && (
+        <EmptyState
+          icon={FolderPlus}
+          title={t("studio.favorites.error.title")}
+          description={t("studio.favorites.error.description")}
+          action={
+            <Button type="button" variant="outline" onClick={() => void loadCollections()}>
+              {t("common.retry")}
+            </Button>
+          }
+        />
+      )}
 
-      {loading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="h-48 rounded-lg" />
+      {!error && (
+        <div className="space-y-8">
+          {zones.map((zone) => (
+            <section key={zone} aria-labelledby={`studio-favorites-${zone}`} className="space-y-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 id={`studio-favorites-${zone}`} className="text-base font-semibold text-foreground">
+                    {t(`studio.favorites.zone.${zone}.title`)}
+                  </h2>
+                  <p className="text-xs text-muted-foreground">{t(`studio.favorites.zone.${zone}.description`)}</p>
+                </div>
+                <Button type="button" className="w-full sm:w-auto" onClick={() => openCreate(zone)}>
+                  <FolderPlus className="h-4 w-4" />
+                  {t("studio.favorites.actions.create")}
+                </Button>
+              </div>
+
+              {loading ? (
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {[0, 1, 2].map((item) => (
+                    <Skeleton key={item} className="h-52 rounded-md border border-border" />
+                  ))}
+                </div>
+              ) : grouped[zone].length === 0 ? (
+                <EmptyState
+                  icon={FolderPlus}
+                  title={t("studio.favorites.empty.zoneTitle")}
+                  description={t("studio.favorites.empty.zoneDescription")}
+                  action={
+                    <Button type="button" onClick={() => openCreate(zone)}>
+                      {t("studio.favorites.actions.create")}
+                    </Button>
+                  }
+                />
+              ) : (
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-2 xl:grid-cols-3" aria-labelledby={`studio-favorites-${zone}`}>
+                  {grouped[zone].map((collection) => (
+                    <CollectionCard
+                      key={collection.id}
+                      collection={collection}
+                      isOwner
+                      onEdit={() => openEdit(collection)}
+                      onDelete={() => {
+                        if (!collection.is_default) setDeleteTarget(collection);
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
           ))}
         </div>
-      ) : favorites.length === 0 ? (
-        <div className="rounded-lg border border-border bg-card p-12 text-center">
-          <Heart className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
-          <p className="mb-2 text-sm font-medium text-foreground">{t('studio.favorites.empty')}</p>
-          <p className="text-sm text-muted-foreground">{t('studio.favorites.emptyHint')}</p>
-          <Link href="/" className="mt-4 inline-block text-sm text-accent hover:underline">
-            {t('studio.favorites.discover')}
-          </Link>
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {favorites.map((item) => (
-              <Link
-                key={item.id}
-                href={`/content/${item.id}`}
-                className="group rounded-md border border-border bg-card transition-colors hover:bg-muted/50"
-              >
-                <div className="flex flex-col gap-2 p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-foreground line-clamp-1 group-hover:underline">
-                      {item.title}
-                    </span>
-                    <span className="ml-2 shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground uppercase">
-                      {item.content_type}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    {item.author && <span>@{item.author.username}</span>}
-                    <span className="flex items-center gap-1">
-                      <Heart className="h-3 w-3" /> {item.like_count}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Eye className="h-3 w-3" /> {item.view_count}
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-
-          {totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-50"
-              >
-                {t('common.previous')}
-              </button>
-              <span className="text-sm text-muted-foreground">
-                {page} / {totalPages}
-              </span>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-50"
-              >
-                {t('common.next')}
-              </button>
-            </div>
-          )}
-        </>
       )}
+
+      {form && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-lg border border-border bg-card p-5 shadow-md">
+            <h2 className="text-base font-semibold text-foreground">
+              {form.mode === "create" ? t("studio.favorites.form.createTitle") : t("studio.favorites.form.editTitle")}
+            </h2>
+            <div className="mt-4 space-y-3">
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-foreground">{t("studio.favorites.form.title")}</span>
+                <Input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} disabled={saving} />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-foreground">{t("studio.favorites.form.description")}</span>
+                <Textarea
+                  value={form.description}
+                  onChange={(event) => setForm({ ...form, description: event.target.value })}
+                  disabled={saving}
+                  rows={3}
+                />
+              </label>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={form.isPublic}
+                  onChange={(event) => setForm({ ...form, isPublic: event.target.checked })}
+                  disabled={saving}
+                />
+                {t("studio.favorites.form.isPublic")}
+              </label>
+              {form.mode === "edit" && (
+                <label className="block space-y-1">
+                  <span className="text-xs font-medium text-foreground">{t("studio.favorites.form.sortOrder")}</span>
+                  <Input
+                    type="number"
+                    value={form.sortOrder}
+                    onChange={(event) => setForm({ ...form, sortOrder: Number(event.target.value) })}
+                    disabled={saving}
+                  />
+                </label>
+              )}
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setForm(null)} disabled={saving}>
+                {t("common.cancel")}
+              </Button>
+              <Button type="button" onClick={() => void handleSave()} disabled={saving || !form.title.trim()}>
+                {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {t("common.save")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title={t("studio.favorites.delete.title")}
+        description={t("studio.favorites.delete.description", { title: deleteTarget?.title ?? "" })}
+        confirmLabel={t("studio.favorites.delete.confirm")}
+        onConfirm={handleDelete}
+      />
     </div>
   );
+}
+
+function sortCollections(collections: CollectionSummary[]) {
+  return [...collections].sort((left, right) => {
+    if (left.is_default !== right.is_default) return left.is_default ? -1 : 1;
+    return (left.sort_order ?? 0) - (right.sort_order ?? 0) || left.id - right.id;
+  });
 }

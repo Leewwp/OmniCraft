@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 import { SheetMusicViewer } from "@/components/content/SheetMusicViewer";
 import { DownloadButton } from "@/components/content/DownloadButton";
+import { CollectionPicker } from "@/components/content/CollectionPicker";
 import { UsageGuidePanel } from "@/components/agent/UsageGuidePanel";
 import { ReactionBar } from "@/components/social/ReactionBar";
 import { CommentSection } from "@/components/social/CommentSection";
@@ -134,8 +135,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
   const description = data.description || data.body || "";
   const { user } = useAuth();
   const { toast } = useToast();
-  const [favorited, setFavorited] = useState(false);
-  const [favBusy, setFavBusy] = useState(false);
+  const [collectionPickerOpen, setCollectionPickerOpen] = useState(false);
   const [tagSuggestionBusy, setTagSuggestionBusy] = useState<string | null>(null);
 
   async function handleTagSuggestion(tag: string, action: "add" | "remove") {
@@ -154,38 +154,10 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
 
   useEffect(() => {
     if (!user) return;
-    void checkFavorite();
-  }, [user, data.id]);
-
-  useEffect(() => {
-    if (!user) return;
     api.post("/api/v1/users/me/history", { content_item_id: data.id }).catch((e) => { silentError(e, { component: 'ContentDetail', action: 'recordHistory' }); });
   }, [user, data.id]);
 
-  async function checkFavorite() {
-    try {
-      const favData = await api.get<{ favorites?: { content_item_id: number }[] }>(
-        `/api/v1/users/${user!.id}/favorites`
-      );
-      const favs = favData.favorites || [];
-      setFavorited(favs.some((f) => f.content_item_id === data.id));
-    } catch (e) { silentError(e, { component: 'ContentDetail', action: 'checkFavorite' }); }
-  }
-
-  async function toggleFavorite() {
-    if (!user) return;
-    setFavBusy(true);
-    try {
-      if (favorited) {
-        await api.delete(`/api/v1/favorites/${data.id}`);
-        setFavorited(false);
-      } else {
-        await api.post("/api/v1/favorites", { content_item_id: data.id });
-        setFavorited(true);
-      }
-    } catch (e) { silentError(e, { component: 'ContentDetail', action: 'toggleFavorite' }); }
-    finally { setFavBusy(false); }
-  }
+  const collectionZone = data.zone === "fanwork" ? "fanwork" : "original";
 
   return (
     <div className={cn("space-y-6", className)}>
@@ -358,17 +330,24 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
         )}
       </AgentFeatureGate>
 
-      {/* Favorite Button */}
+      {/* Collection Picker Button */}
       <div className="flex items-center gap-2 rounded-md border border-border bg-card px-4 py-3 ">
         <Button
-          variant={favorited ? "default" : "outline"}
+          variant="outline"
           size="sm"
-          disabled={!user || favBusy}
-          onClick={() => void toggleFavorite()}
+          disabled={!user}
+          onClick={() => setCollectionPickerOpen(true)}
         >
           <Bookmark className="mr-1 h-3.5 w-3.5" />
-          {favorited ? t('content.favorited') : t('content.favorite')}
+          {t("collections.picker.actions.open")}
         </Button>
+        <CollectionPicker
+          contentId={data.id}
+          contentTitle={data.title}
+          zone={collectionZone}
+          open={collectionPickerOpen}
+          onOpenChange={setCollectionPickerOpen}
+        />
       </div>
 
       {/* Reaction Bar */}

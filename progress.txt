@@ -3409,3 +3409,25 @@ Code review of all Batch 12 changes identified 14 issues (2 Critical, 8 Major, 4
 ### Notes:
 - Mode C tracking only: no `task.json` or Beta roadmap checkbox was changed.
 - Subagent review/implementation attempts were made, but the local subagent service repeatedly returned `503 Service Unavailable`; controller completed local review and verification gates instead.
+
+## [2026-07-03] - Community collections: completed
+
+### What was done:
+- Added migration 058 plus collection models, repository, service, and `/api/v1/collections` handlers for zone-scoped collection folders, default original/fanwork collections, item notes, public/private visibility, owner-only mutations, and fixed `contains_item` list response shape.
+- Preserved old `/favorites` rollback-window behavior with transactional double-write/delete against default collections, default collection creation on registration, and recommendation profile compatibility using a de-duplicated favorites + collection_items union.
+- Added `CollectionPicker`, `CollectionCard`, `CollectionInfoCard`, `ContentTypeFilter`, public `/collections/[id]`, public `/user/[userId]/collections`, and updated `/studio/favorites` and content detail entry points to use the new collection flow with localized copy.
+- Synced generated architecture route docs and fixed Playwright readiness to use backend `/healthz`.
+- Completed local two-stage review after subagent review attempts failed with `503 Service Unavailable`; no blocking spec or code-quality findings remained.
+
+### Testing:
+- Backend focused: `go test ./internal/model -run TestCollectionMigration -v`; `go test ./internal/repository -run TestCollectionRepo -v`; `go test ./internal/service -run 'Test(Collection|FavoriteCompatibility|Recommendation|AuthServiceCreateUserFromPending)' -v`; `go test ./internal/handler -run TestCollection -v`.
+- Backend full gates: `go test ./...`; `go vet ./...`; `go build ./...`.
+- Frontend focused: `node --import tsx --test tests/collection-picker.test.tsx`; `node --import tsx --test tests/collection-detail.test.tsx`; `node --import tsx --test tests/user-collections-page.test.tsx`.
+- Frontend full gates: `npm run test`; `npm run lint`; `npm run build`; `npx playwright test e2e/collections.spec.ts` (12 passed across desktop/mobile).
+- Doc sync: `cd tools/doc-validator && go run . --fix` passed with no remaining route/schema/config changes.
+- Browser screenshots saved locally under `screenshots/community-collections-desktop.png`, `screenshots/community-collections-owner-mobile.png`, `screenshots/community-collections-picker-desktop.png`, `screenshots/community-collections-picker-mobile.png`, `screenshots/community-collections-user-list-desktop.png`, and `screenshots/community-collections-user-list-owner-mobile.png`.
+
+### Notes:
+- Mode C tracking only: no `task.json` or Beta roadmap checkbox was changed.
+- Subagent spec and code-quality review attempts both returned local `503 Service Unavailable`, so controller completed local review and fresh verification gates instead.
+- `frontend/test-results/.last-run.json` is a generated Playwright artifact and must not be staged.

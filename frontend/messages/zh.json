@@ -321,6 +321,156 @@
     "suggestRemoveTagHint": "建议移除此标签",
     "tagSuggestionSubmitted": "标签建议已提交，等待作者审批"
   },
+  "collections": {
+    "picker": {
+      "title": "添加到收藏集",
+      "description": "将 {title} 保存到{zone}收藏集。",
+      "zone": {
+        "original": "原创",
+        "fanwork": "二创"
+      },
+      "search": {
+        "label": "搜索收藏集",
+        "placeholder": "搜索收藏集",
+        "empty": "没有匹配的收藏集"
+      },
+      "actions": {
+        "open": "添加到收藏集",
+        "add": "添加",
+        "remove": "移除",
+        "removeFrom": "从 {title} 移除",
+        "new": "新建收藏集",
+        "close": "关闭"
+      },
+      "create": {
+        "title": "收藏集标题",
+        "titlePlaceholder": "收藏集名称",
+        "description": "描述",
+        "descriptionPlaceholder": "可选说明",
+        "isPublic": "公开收藏集",
+        "submit": "创建并添加"
+      },
+      "states": {
+        "loading": "正在加载收藏集",
+        "empty": "暂无收藏集",
+        "added": "已添加",
+        "private": "私有",
+        "public": "公开",
+        "default": "默认",
+        "itemCount": "{count} 个内容"
+      },
+      "errors": {
+        "load": "收藏集加载失败",
+        "create": "创建收藏集失败",
+        "add": "添加内容失败",
+        "remove": "移除内容失败"
+      },
+      "toast": {
+        "added": "已添加到收藏集",
+        "removed": "已从收藏集移除",
+        "created": "收藏集已创建"
+      }
+    },
+    "card": {
+      "public": "公开",
+      "private": "私有",
+      "default": "默认",
+      "itemCount": "{count} 个内容",
+      "edit": "编辑 {title}",
+      "delete": "删除 {title}",
+      "deleteDisabled": "默认收藏集不可删除"
+    },
+    "detail": {
+      "empty": {
+        "title": "收藏集暂无内容",
+        "description": "这里还没有可浏览的已发布内容。"
+      },
+      "error": {
+        "title": "收藏集不可访问",
+        "description": "该收藏集为私有或已不存在。"
+      },
+      "ownerActions": {
+        "edit": "编辑收藏集",
+        "delete": "删除收藏集",
+        "deleteTitle": "删除收藏集？",
+        "deleteDescription": "将移除 {title}，已收藏内容不会被删除。",
+        "deleteConfirm": "删除"
+      },
+      "a11y": {
+        "grid": "收藏集内容"
+      }
+    },
+    "info": {
+      "public": "公开",
+      "private": "私有",
+      "default": "默认",
+      "original": "原创",
+      "fanwork": "二创",
+      "itemCount": "{count} 个内容",
+      "author": "{name}",
+      "noDescription": "暂无描述",
+      "defaultDeleteDisabled": "默认收藏集不可删除"
+    },
+    "filters": {
+      "label": "内容类型",
+      "all": "全部",
+      "image": "图文",
+      "article": "文章",
+      "video": "视频",
+      "audio": "音频",
+      "template": "模板",
+      "sheet_music": "乐谱",
+      "mod": "Mod",
+      "prompt": "提示词",
+      "other": "其他"
+    },
+    "userList": {
+      "header": {
+        "title": "{name} \u7684\u6536\u85cf\u96c6",
+        "subtitle": "{count} \u4e2a\u53ef\u89c1\u6536\u85cf\u96c6"
+      },
+      "actions": {
+        "create": "\u65b0\u5efa\u6536\u85cf\u96c6",
+        "refresh": "\u5237\u65b0"
+      },
+      "form": {
+        "createTitle": "\u521b\u5efa\u6536\u85cf\u96c6",
+        "editTitle": "\u7f16\u8f91\u6536\u85cf\u96c6",
+        "zone": "\u5206\u533a",
+        "original": "\u539f\u521b",
+        "fanwork": "\u4e8c\u521b",
+        "title": "\u6807\u9898",
+        "description": "\u63cf\u8ff0",
+        "isPublic": "\u516c\u5f00\u6536\u85cf\u96c6"
+      },
+      "empty": {
+        "ownerTitle": "\u6682\u65e0\u6536\u85cf\u96c6",
+        "ownerDescription": "\u521b\u5efa\u6536\u85cf\u96c6\u6765\u6574\u7406\u5df2\u4fdd\u5b58\u7684\u5185\u5bb9\u3002",
+        "visitorTitle": "\u6682\u65e0\u516c\u5f00\u6536\u85cf\u96c6",
+        "visitorDescription": "\u8be5\u7528\u6237\u5c1a\u672a\u5206\u4eab\u4efb\u4f55\u6536\u85cf\u96c6\u3002"
+      },
+      "error": {
+        "title": "\u6536\u85cf\u96c6\u4e0d\u53ef\u7528",
+        "description": "\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002"
+      },
+      "delete": {
+        "title": "\u5220\u9664\u6536\u85cf\u96c6\uff1f",
+        "description": "\u5c06\u79fb\u9664 {title}\uff0c\u5df2\u6536\u85cf\u5185\u5bb9\u4e0d\u4f1a\u88ab\u5220\u9664\u3002",
+        "confirm": "\u5220\u9664"
+      },
+      "toast": {
+        "loadFailed": "\u6536\u85cf\u96c6\u52a0\u8f7d\u5931\u8d25",
+        "created": "\u6536\u85cf\u96c6\u5df2\u521b\u5efa",
+        "updated": "\u6536\u85cf\u96c6\u5df2\u66f4\u65b0",
+        "deleted": "\u6536\u85cf\u96c6\u5df2\u5220\u9664",
+        "saveFailed": "\u6536\u85cf\u96c6\u4fdd\u5b58\u5931\u8d25",
+        "deleteFailed": "\u6536\u85cf\u96c6\u5220\u9664\u5931\u8d25"
+      },
+      "a11y": {
+        "grid": "\u7528\u6237\u6536\u85cf\u96c6"
+      }
+    }
+  },
   "publish": {
     "title": "发布内容",
     "subtitle": "上传内容会进入审核流程；二创内容可以选择一个来源原创，方便读者从原创详情跳转到相关二创。",
@@ -1445,17 +1595,56 @@
     "favorites": {
       "title": "我的收藏",
       "subtitle": "你保存的内容将在这里显示",
-      "allTypes": "全部",
-      "image": "图片",
-      "article": "文章",
-      "video": "视频",
-      "audio": "音频",
-      "template": "模板",
-      "mod": "Mod",
-      "sheetMusic": "乐谱",
-      "empty": "还没有收藏内容",
-      "emptyHint": "当你收藏内容时，它会出现在这里。",
-      "discover": "发现好内容"
+      "header": {
+        "title": "收藏集文件夹",
+        "subtitle": "分开管理原创与二创收藏集。"
+      },
+      "zone": {
+        "original": {
+          "title": "原创收藏集",
+          "description": "用于整理原创区内容的文件夹。"
+        },
+        "fanwork": {
+          "title": "二创收藏集",
+          "description": "用于整理二创与衍生内容的文件夹。"
+        }
+      },
+      "actions": {
+        "create": "新建收藏集",
+        "refresh": "刷新"
+      },
+      "form": {
+        "createTitle": "创建收藏集",
+        "editTitle": "编辑收藏集",
+        "title": "标题",
+        "description": "描述",
+        "isPublic": "公开收藏集",
+        "sortOrder": "排序"
+      },
+      "default": {
+        "deleteDisabled": "默认收藏集不可删除"
+      },
+      "empty": {
+        "zoneTitle": "该分区暂无收藏集",
+        "zoneDescription": "创建一个文件夹来整理保存的内容。"
+      },
+      "error": {
+        "title": "收藏集加载失败",
+        "description": "请重试后再管理私有收藏集。"
+      },
+      "delete": {
+        "title": "删除收藏集？",
+        "description": "将移除 {title}。已收藏内容不会被删除。",
+        "confirm": "删除"
+      },
+      "toast": {
+        "loadFailed": "收藏集加载失败",
+        "created": "收藏集已创建",
+        "updated": "收藏集已更新",
+        "deleted": "收藏集已删除",
+        "saveFailed": "收藏集保存失败",
+        "deleteFailed": "收藏集删除失败"
+      }
     }
   },
   "adminNotifications": {

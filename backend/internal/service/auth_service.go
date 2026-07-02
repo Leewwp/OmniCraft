@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -44,17 +45,30 @@ type PendingRegistration struct {
 }
 
 type AuthService struct {
-	userRepo *repository.UserRepository
-	redis    *redis.Client
-	cfg      *config.Config
+	userRepo              *repository.UserRepository
+	redis                 *redis.Client
+	cfg                   *config.Config
+	defaultCollectionRepo defaultCollectionEnsurer
 }
 
 func NewAuthService(userRepo *repository.UserRepository, rdb *redis.Client, cfg *config.Config) *AuthService {
-	return &AuthService{
+	service := &AuthService{
 		userRepo: userRepo,
 		redis:    rdb,
 		cfg:      cfg,
 	}
+	if userRepo != nil {
+		service.defaultCollectionRepo = repository.NewCollectionRepository(userRepo.DB())
+	}
+	return service
+}
+
+type defaultCollectionEnsurer interface {
+	EnsureDefaultCollection(ctx context.Context, userID int64, zone string) (*model.Collection, error)
+}
+
+func (s *AuthService) SetCollectionRepository(repo defaultCollectionEnsurer) {
+	s.defaultCollectionRepo = repo
 }
 
 type RegisterInput struct {
@@ -265,8 +279,25 @@ func (s *AuthService) CreateUserFromPending(pending *PendingRegistration) (*mode
 	if err := s.userRepo.CreateUser(user); err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
+	s.ensureDefaultCollectionsForUser(user.ID)
 
 	return user, nil
+}
+
+func (s *AuthService) ensureDefaultCollectionsForUser(userID int64) {
+	if s.defaultCollectionRepo == nil {
+		return
+	}
+	ctx := context.Background()
+	for _, zone := range []string{"original", "fanwork"} {
+		if _, err := s.defaultCollectionRepo.EnsureDefaultCollection(ctx, userID, zone); err != nil {
+			slog.Error("failed to ensure default collection for new user",
+				"user_id", userID,
+				"zone", zone,
+				"error", err,
+			)
+		}
+	}
 }
 
 func (s *AuthService) Login(input LoginInput) (*model.User, *jwtutil.TokenPair, error) {
