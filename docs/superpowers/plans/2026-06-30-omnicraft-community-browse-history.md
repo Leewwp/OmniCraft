@@ -59,7 +59,7 @@
 - Modify: `backend/config.yaml`
 - Test: add to an existing config test file or create `backend/config/config_test.go`
 
-- [ ] **Step 1: Write failing config test**
+- [x] **Step 1: Write failing config test**
 
 Add a test that loads `backend/config.yaml` and asserts:
 
@@ -68,7 +68,7 @@ if cfg.BrowseHistory.RetentionDays != 7 { t.Fatalf(...) }
 if cfg.BrowseHistory.CleanupTime != "03:00" { t.Fatalf(...) }
 ```
 
-- [ ] **Step 2: Run and confirm red**
+- [x] **Step 2: Run and confirm red**
 
 Run:
 
@@ -79,7 +79,7 @@ go test ./config -run TestBrowseHistoryConfig -v
 
 Expected: compile failure or zero-value failure because `BrowseHistoryConfig` does not exist yet.
 
-- [ ] **Step 3: Implement config structs**
+- [x] **Step 3: Implement config structs**
 
 Add:
 
@@ -98,7 +98,7 @@ BrowseHistory BrowseHistoryConfig `mapstructure:"browse_history"`
 
 Do not add this config to `SaveOverride`, admin config DTOs, or public config.
 
-- [ ] **Step 4: Add YAML defaults**
+- [x] **Step 4: Add YAML defaults**
 
 Add:
 
@@ -108,7 +108,7 @@ browse_history:
   cleanup_time: "03:00"
 ```
 
-- [ ] **Step 5: Verify green**
+- [x] **Step 5: Verify green**
 
 Run:
 
@@ -125,7 +125,7 @@ go test ./config -run TestBrowseHistoryConfig -v
 - Modify: `backend/internal/repository/browse_history_repo.go`
 - Test: `backend/internal/repository/browse_history_repo_test.go`
 
-- [ ] **Step 1: Write failing repository tests**
+- [x] **Step 1: Write failing repository tests**
 
 Cover:
 
@@ -140,7 +140,7 @@ func TestBrowseHistoryDeleteExpiredUsesRetentionDays(t *testing.T) {}
 
 Unavailable content means `content_items.status != 'published'` or `content_items.deleted_at IS NOT NULL`.
 
-- [ ] **Step 2: Run and confirm red**
+- [x] **Step 2: Run and confirm red**
 
 Run:
 
@@ -149,7 +149,7 @@ cd backend
 go test ./internal/repository -run TestBrowseHistory -v
 ```
 
-- [ ] **Step 3: Add query options and DTO**
+- [x] **Step 3: Add query options and DTO**
 
 Define focused repository types:
 
@@ -175,7 +175,7 @@ type BrowseHistoryItemDTO struct {
 
 `ContentItem` is a temporary compatibility alias for the current frontend's `history[*].content_item` shape. Keep it equal to `Content`, including `null` for unavailable content, during the Beta compatibility window. Deprecation condition: after the Collections plan has landed and the frontend reads the new `items` array everywhere, remove the top-level `history` array and per-item `content_item` alias in a separate cleanup task.
 
-- [ ] **Step 4: Implement filtered list**
+- [x] **Step 4: Implement filtered list**
 
 Rules:
 
@@ -188,7 +188,7 @@ Rules:
 - response item also has `ContentItem = Content` for legacy `content_item` consumers
 - `total` counts only retained, filtered history rows
 
-- [ ] **Step 5: Implement delete methods**
+- [x] **Step 5: Implement delete methods**
 
 Add:
 
@@ -200,7 +200,7 @@ func (r *BrowseHistoryRepository) DeleteExpired(retentionDays int, now time.Time
 `DeleteByUserAndIDs` must include `WHERE user_id = ? AND id IN ?`.
 `DeleteExpired` must calculate the cutoff from the provided `now` value or an injected scheduler clock; tests must set a fixed time and cover the exact retention boundary.
 
-- [ ] **Step 6: Verify repository green**
+- [x] **Step 6: Verify repository green**
 
 Run:
 
@@ -217,7 +217,7 @@ go test ./internal/repository -run TestBrowseHistory -v
 - Modify: `backend/internal/handler/browse_history.go`
 - Test: `backend/internal/handler/browse_history_test.go`
 
-- [ ] **Step 1: Add failing handler tests**
+- [x] **Step 1: Add failing handler tests**
 
 Cover:
 
@@ -234,7 +234,7 @@ Cover:
 - `DELETE` with no body clears all rows
 - more than 100 IDs returns `400 TOO_MANY_IDS`
 
-- [ ] **Step 2: Run and confirm red**
+- [x] **Step 2: Run and confirm red**
 
 Run:
 
@@ -243,7 +243,7 @@ cd backend
 go test ./internal/handler -run TestBrowseHistory -v
 ```
 
-- [ ] **Step 3: Parse and validate query parameters**
+- [x] **Step 3: Parse and validate query parameters**
 
 Accepted `content_type` values:
 
@@ -268,7 +268,7 @@ Date parsing semantics:
 - reject `start_date > end_date` with `400 INVALID_DATE`
 - log/return times in UTC timestamps; do not expose server local time strings in the API response
 
-- [ ] **Step 4: Implement compatible response**
+- [x] **Step 4: Implement compatible response**
 
 Return:
 
@@ -285,11 +285,11 @@ Return:
 
 Do not remove `history` or per-item `content_item` in this implementation. `retention_days` must come from config, not a hardcoded handler constant.
 
-- [ ] **Step 5: Implement DELETE body handling**
+- [x] **Step 5: Implement DELETE body handling**
 
 Use `ShouldBindJSON` carefully so empty/no body does not become a 400. Treat no body and `ids: []` as clear-all. Treat `ids` length greater than 100 as a validation error.
 
-- [ ] **Step 6: Verify handler green**
+- [x] **Step 6: Verify handler green**
 
 Run:
 
@@ -307,7 +307,7 @@ go test ./internal/handler -run TestBrowseHistory -v
 - Modify: `backend/cmd/server/main.go`
 - Test: `backend/internal/pkg/scheduler/browse_history_cleanup_test.go`
 
-- [ ] **Step 1: Add failing scheduler tests**
+- [x] **Step 1: Add failing scheduler tests**
 
 Cover:
 
@@ -318,7 +318,7 @@ func TestBrowseHistoryCleanupDeletesExpiredRowsAndReschedules(t *testing.T) {}
 func TestBrowseHistoryCleanupInvalidConfigFallsBackAndLogs(t *testing.T) {}
 ```
 
-- [ ] **Step 2: Run and confirm red**
+- [x] **Step 2: Run and confirm red**
 
 Run:
 
@@ -327,7 +327,7 @@ cd backend
 go test ./internal/pkg/scheduler -run TestBrowseHistoryCleanup -v
 ```
 
-- [ ] **Step 3: Implement scheduler**
+- [x] **Step 3: Implement scheduler**
 
 Use the spec's option B:
 
@@ -340,7 +340,7 @@ Use the spec's option B:
 
 The cleanup function calls repository `DeleteExpired(retentionDays, now)` using the same injected/testable clock value that drove the current cleanup run.
 
-- [ ] **Step 4: Wire in main**
+- [x] **Step 4: Wire in main**
 
 In `backend/cmd/server/main.go`, after existing scheduler starts, save the instance:
 
@@ -357,7 +357,7 @@ browseHistoryCleanup.Stop()
 
 Do not start this scheduler as an anonymous temporary value; otherwise the process cannot stop its timer on shutdown.
 
-- [ ] **Step 5: Verify scheduler green**
+- [x] **Step 5: Verify scheduler green**
 
 Run:
 
@@ -377,7 +377,7 @@ go test ./internal/pkg/scheduler -run TestBrowseHistoryCleanup -v
 - Modify: `frontend/messages/en.json`
 - Test: `frontend/tests/history-page.test.tsx`
 
-- [ ] **Step 1: Confirm UI spec**
+- [x] **Step 1: Confirm UI spec**
 
 Run:
 
@@ -387,7 +387,7 @@ rg -n "## Page: /history" design/ui-spec.md
 
 Expected: `/history` exists and covers filter chips, date range, batch delete, unavailable item, loading, empty, error, a11y, i18n, and screenshot checkpoints. If any of those states are missing in a future branch, stop and repair UI spec in an explicitly scoped docs/design step before changing UI code.
 
-- [ ] **Step 2: Add failing frontend tests**
+- [x] **Step 2: Add failing frontend tests**
 
 Assert:
 
@@ -401,7 +401,7 @@ Assert:
 - selecting two cards and deleting calls DELETE with `{ ids: [...] }`
 - network error shows toast and keeps last successful data
 
-- [ ] **Step 3: Add DELETE body helper**
+- [x] **Step 3: Add DELETE body helper**
 
 Because current `api.delete(path)` accepts no body, add one of:
 
@@ -413,7 +413,7 @@ or a generic request helper. Do not break existing `api.delete(path)` callers.
 
 > **HTTP 兼容性说明**：`fetch` API 支持 DELETE 请求携带 body，但如果项目中的 `api` 封装或中间代理不支持 DELETE + body，回退方案为 `api.request("DELETE", path, { body })`。实施时需验证目标浏览器和中间件环境对 DELETE-with-body 的支持；若运行环境或代理层实测拒绝 DELETE body，再更新计划并新增兼容端点 `POST /api/v1/users/me/history/delete`，不要在未验证前提前扩展 API surface。
 
-- [ ] **Step 4: Implement page UI**
+- [x] **Step 4: Implement page UI**
 
 UI states:
 
@@ -425,7 +425,7 @@ UI states:
 
 No hardcoded UI strings; add keys under `history.*`.
 
-- [ ] **Step 5: Run frontend tests**
+- [x] **Step 5: Run frontend tests**
 
 Run:
 
@@ -442,7 +442,7 @@ node --import tsx --test tests/history-page.test.tsx
 - Modify if generated: `architecture.md`
 - Screenshot outputs: `screenshots/community-browse-history-*.png`
 
-- [ ] **Step 1: Run backend gates**
+- [x] **Step 1: Run backend gates**
 
 Run:
 
@@ -456,7 +456,7 @@ go vet ./...
 go build ./...
 ```
 
-- [ ] **Step 2: Run frontend gates**
+- [x] **Step 2: Run frontend gates**
 
 Run:
 
@@ -467,7 +467,7 @@ npm run lint
 npm run build
 ```
 
-- [ ] **Step 3: Run doc-validator**
+- [x] **Step 3: Run doc-validator**
 
 Because this plan changes `backend/config/config.go`, run:
 
@@ -476,7 +476,7 @@ cd tools/doc-validator
 go run . --fix
 ```
 
-- [ ] **Step 4: Browser verification**
+- [x] **Step 4: Browser verification**
 
 Use Playwright:
 
@@ -490,7 +490,7 @@ Use Playwright:
 7. Seed one unpublished/deleted content history record; verify gray non-clickable placeholder.
 8. Save screenshots under `screenshots/`.
 
-- [ ] **Step 5: Commit when implementing**
+- [x] **Step 5: Commit when implementing**
 
 ```powershell
 git add -- backend/config/config.go backend/config.yaml backend/internal/handler/browse_history.go backend/internal/handler/browse_history_test.go backend/internal/repository/browse_history_repo.go backend/internal/repository/browse_history_repo_test.go backend/internal/pkg/scheduler/browse_history_cleanup.go backend/internal/pkg/scheduler/browse_history_cleanup_test.go backend/cmd/server/main.go "frontend/app/(protected)/history/page.tsx" frontend/lib/api.ts frontend/messages/zh.json frontend/messages/en.json frontend/tests/history-page.test.tsx frontend/e2e/history.spec.ts screenshots/community-browse-history-desktop.png screenshots/community-browse-history-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-browse-history.md progress.txt
@@ -502,14 +502,14 @@ git commit -m "Community 2: browse history enhancement"
 
 ## Plan Self-Check
 
-- [ ] Retention period is config-driven; no SQL or frontend hardcodes the number 7 except default config and translated explanatory copy fed by config where possible.
-- [ ] Query layer and scheduler layer both enforce retention.
-- [ ] API response preserves old `history` and adds new `items`.
-- [ ] API response preserves legacy per-item `content_item` until old history consumers are migrated.
-- [ ] API response exposes config-derived `retention_days` for UI copy.
-- [ ] Invalid content returns `content: null` instead of deleting the history row.
-- [ ] DELETE semantics explicitly distinguish selected IDs, empty IDs, no body, and too many IDs.
-- [ ] Scheduler uses `time.AfterFunc` self-rescheduling and Asia/Shanghai.
-- [ ] `main.go` stores the browse-history scheduler instance and calls `Stop()` during graceful shutdown.
-- [ ] Frontend plan includes API helper work for DELETE bodies.
-- [ ] `doc-validator` is required because `config.go` changes.
+- [x] Retention period is config-driven; no SQL or frontend hardcodes the number 7 except default config and translated explanatory copy fed by config where possible.
+- [x] Query layer and scheduler layer both enforce retention.
+- [x] API response preserves old `history` and adds new `items`.
+- [x] API response preserves legacy per-item `content_item` until old history consumers are migrated.
+- [x] API response exposes config-derived `retention_days` for UI copy.
+- [x] Invalid content returns `content: null` instead of deleting the history row.
+- [x] DELETE semantics explicitly distinguish selected IDs, empty IDs, no body, and too many IDs.
+- [x] Scheduler uses `time.AfterFunc` self-rescheduling and Asia/Shanghai.
+- [x] `main.go` stores the browse-history scheduler instance and calls `Stop()` during graceful shutdown.
+- [x] Frontend plan includes API helper work for DELETE bodies.
+- [x] `doc-validator` is required because `config.go` changes.

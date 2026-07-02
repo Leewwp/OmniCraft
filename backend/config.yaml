@@ -125,6 +125,10 @@ social:
   report_auto_hide_rate: 0.10
   comment_fold_threshold: 0.30
 
+browse_history:
+  retention_days: 7
+  cleanup_time: "03:00"
+
 recommendation:
   enabled: true
   hot_decay_hours: 48

@@ -227,3 +227,10 @@ func TestDefaultConfigJSONBodyLimitAllowsTextUploads(t *testing.T) {
 	minBodyBytes := int64(cfg.Limits.TextMaxMB) * 1024 * 1024
 	require.GreaterOrEqual(t, cfg.RateLimit.MaxJSONBodyBytes, minBodyBytes)
 }
+
+func TestBrowseHistoryConfig(t *testing.T) {
+	cfg := loadDefaultConfigForTest(t)
+
+	require.Equal(t, 7, cfg.BrowseHistory.RetentionDays)
+	require.Equal(t, "03:00", cfg.BrowseHistory.CleanupTime)
+}
