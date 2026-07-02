@@ -1,5 +1,24 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
+## [2026-07-02] - Community browse-history: review repair
+
+### What was done:
+- Verified `codex/community/browse-history` against the community design spec, plan file, UI spec, and current validation gates.
+- Fixed `/history` so it initializes `content_type`, `start_date`, and `end_date` from URL query parameters.
+- Added inline validation for invalid date ranges (`start_date > end_date`) so the page does not send an invalid request.
+- Added focused frontend tests for URL-query initialization and invalid date range behavior, plus localized error text.
+
+### Testing:
+- `node --import tsx --test tests/history-page.test.tsx`: passed.
+- `npm run test`: passed.
+- `npm run lint`: passed.
+- `npm run build`: passed.
+- Prior review verification in this session also passed backend `go test ./...`, `go vet ./...`, `go build ./...`, focused browse-history backend tests, and `tools/doc-validator --fix`.
+
+### Notes:
+- Existing screenshot artifacts remain under `screenshots/community-browse-history-*.png`; this repair changes query/date validation behavior and does not alter the primary layout.
+- `task.json` and Beta roadmap checkboxes were not modified.
+
 ## [2026-07-02] - Community Docs: Review Follow-up Repairs
 
 ### What was done:
