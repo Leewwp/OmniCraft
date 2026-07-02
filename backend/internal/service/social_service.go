@@ -11,6 +11,7 @@ import (
 	"omnicraft/backend/internal/repository"
 
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 var (
@@ -24,24 +25,49 @@ var (
 const defaultMinScoreForInteraction = 3
 
 type SocialService struct {
-	socialRepo  *repository.SocialRepository
-	contentRepo *repository.ContentRepository
-	userRepo    *repository.UserRepository
-	cfg         *config.Config
-	rdb         *redis.Client
-	notifSvc    *NotificationService
+	socialRepo    *repository.SocialRepository
+	contentRepo   *repository.ContentRepository
+	userRepo      *repository.UserRepository
+	cfg           *config.Config
+	rdb           *redis.Client
+	notifSvc      *NotificationService
+	collectionSvc *CollectionService
 }
 
 func NewSocialService(sRepo *repository.SocialRepository, cRepo *repository.ContentRepository, uRepo *repository.UserRepository, cfg *config.Config) *SocialService {
-	return &SocialService{socialRepo: sRepo, contentRepo: cRepo, userRepo: uRepo, cfg: cfg}
+	return &SocialService{
+		socialRepo:    sRepo,
+		contentRepo:   cRepo,
+		userRepo:      uRepo,
+		cfg:           cfg,
+		collectionSvc: newDefaultCollectionService(cRepo),
+	}
 }
 
 func NewSocialServiceWithRedis(sRepo *repository.SocialRepository, cRepo *repository.ContentRepository, uRepo *repository.UserRepository, cfg *config.Config, rdb *redis.Client) *SocialService {
-	return &SocialService{socialRepo: sRepo, contentRepo: cRepo, userRepo: uRepo, cfg: cfg, rdb: rdb}
+	return &SocialService{
+		socialRepo:    sRepo,
+		contentRepo:   cRepo,
+		userRepo:      uRepo,
+		cfg:           cfg,
+		rdb:           rdb,
+		collectionSvc: newDefaultCollectionService(cRepo),
+	}
 }
 
 func (s *SocialService) SetNotificationService(ns *NotificationService) {
 	s.notifSvc = ns
+}
+
+func (s *SocialService) SetCollectionService(collectionSvc *CollectionService) {
+	s.collectionSvc = collectionSvc
+}
+
+func newDefaultCollectionService(contentRepo *repository.ContentRepository) *CollectionService {
+	if contentRepo == nil {
+		return nil
+	}
+	return NewCollectionService(repository.NewCollectionRepository(contentRepo.DB()), contentRepo)
 }
 
 type PostCommentInput struct {
@@ -256,19 +282,57 @@ func (s *SocialService) Report(targetType string, targetID int64, reporterID int
 }
 
 func (s *SocialService) Favorite(userID, contentID int64) error {
-	if err := s.socialRepo.CreateFavorite(userID, contentID); err != nil {
+	ctx := context.Background()
+	if err := s.runFavoriteTransaction(ctx, func(txSocialRepo *repository.SocialRepository, txCollectionSvc *CollectionService) error {
+		if err := txSocialRepo.CreateFavorite(userID, contentID); err != nil {
+			return err
+		}
+		if txCollectionSvc != nil {
+			if err := txCollectionSvc.addToDefaultCollection(ctx, userID, contentID, "", false); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
 		return err
 	}
-	redisclient.ClearRecCache(context.Background(), userID)
+	redisclient.ClearRecCache(ctx, userID)
 	return nil
 }
 
 func (s *SocialService) Unfavorite(userID, contentID int64) error {
-	if err := s.socialRepo.DeleteFavorite(userID, contentID); err != nil {
+	ctx := context.Background()
+	if err := s.runFavoriteTransaction(ctx, func(txSocialRepo *repository.SocialRepository, txCollectionSvc *CollectionService) error {
+		if err := txSocialRepo.DeleteFavorite(userID, contentID); err != nil {
+			return err
+		}
+		if txCollectionSvc != nil {
+			if err := txCollectionSvc.removeDefaultItemByContentID(ctx, userID, contentID, false); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
 		return err
 	}
-	redisclient.ClearRecCache(context.Background(), userID)
+	redisclient.ClearRecCache(ctx, userID)
 	return nil
+}
+
+func (s *SocialService) runFavoriteTransaction(ctx context.Context, fn func(*repository.SocialRepository, *CollectionService) error) error {
+	if s.socialRepo == nil || s.socialRepo.DB() == nil {
+		return errors.New("social repository unavailable")
+	}
+	return s.socialRepo.DB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var txCollectionSvc *CollectionService
+		if s.collectionSvc != nil {
+			txCollectionSvc = NewCollectionService(
+				repository.NewCollectionRepository(tx),
+				repository.NewContentRepository(tx),
+			)
+		}
+		return fn(repository.NewSocialRepository(tx), txCollectionSvc)
+	})
 }
 
 func (s *SocialService) ListFavorites(userID int64, page, pageSize int, contentType string) ([]model.Favorite, int64, error) {

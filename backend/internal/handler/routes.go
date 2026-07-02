@@ -179,6 +179,16 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	contents.POST("/:id/report", authReq, reportsGuard, socialHandler.ReportContent)
 
 	favHandler := NewFavoriteHandler(db, cfg)
+	collectionHandler := NewCollectionHandler(db)
+	v1.GET("/collections", optAuth, collectionHandler.ListCollections)
+	v1.GET("/collections/:id", optAuth, collectionHandler.GetCollection)
+	v1.POST("/collections", authReq, favoritesGuard, collectionHandler.CreateCollection)
+	v1.PUT("/collections/:id", authReq, favoritesGuard, collectionHandler.UpdateCollection)
+	v1.DELETE("/collections/:id", authReq, favoritesGuard, collectionHandler.DeleteCollection)
+	v1.POST("/collections/:id/items", authReq, favoritesGuard, collectionHandler.AddItem)
+	v1.DELETE("/collections/:id/items/:itemId", authReq, favoritesGuard, collectionHandler.RemoveItem)
+	v1.PUT("/collections/:id/items/:itemId", authReq, favoritesGuard, collectionHandler.UpdateItem)
+
 	favorites := v1.Group("/favorites", authReq)
 	{
 		favorites.POST("", favoritesGuard, favHandler.AddFavorite)

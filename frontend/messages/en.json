@@ -320,6 +320,156 @@
     "suggestRemoveTagHint": "Suggest removing this tag",
     "tagSuggestionSubmitted": "Tag suggestion submitted, awaiting author review"
   },
+  "collections": {
+    "picker": {
+      "title": "Add to collection",
+      "description": "Save {title} to an {zone} collection.",
+      "zone": {
+        "original": "original",
+        "fanwork": "fan creation"
+      },
+      "search": {
+        "label": "Search collections",
+        "placeholder": "Search collections",
+        "empty": "No matching collections"
+      },
+      "actions": {
+        "open": "Add to collection",
+        "add": "Add",
+        "remove": "Remove",
+        "removeFrom": "Remove from {title}",
+        "new": "New collection",
+        "close": "Close"
+      },
+      "create": {
+        "title": "Collection title",
+        "titlePlaceholder": "Collection name",
+        "description": "Description",
+        "descriptionPlaceholder": "Optional note",
+        "isPublic": "Public collection",
+        "submit": "Create and add"
+      },
+      "states": {
+        "loading": "Loading collections",
+        "empty": "No collections yet",
+        "added": "Added",
+        "private": "Private",
+        "public": "Public",
+        "default": "Default",
+        "itemCount": "{count} items"
+      },
+      "errors": {
+        "load": "Failed to load collections",
+        "create": "Failed to create collection",
+        "add": "Failed to add content",
+        "remove": "Failed to remove content"
+      },
+      "toast": {
+        "added": "Added to collection",
+        "removed": "Removed from collection",
+        "created": "Collection created"
+      }
+    },
+    "card": {
+      "public": "Public",
+      "private": "Private",
+      "default": "Default",
+      "itemCount": "{count} items",
+      "edit": "Edit {title}",
+      "delete": "Delete {title}",
+      "deleteDisabled": "Default collections cannot be deleted"
+    },
+    "detail": {
+      "empty": {
+        "title": "Empty collection",
+        "description": "No published content has been saved here yet."
+      },
+      "error": {
+        "title": "Collection unavailable",
+        "description": "This collection is private or no longer exists."
+      },
+      "ownerActions": {
+        "edit": "Edit collection",
+        "delete": "Delete collection",
+        "deleteTitle": "Delete collection?",
+        "deleteDescription": "{title} will be removed. Saved content will not be deleted.",
+        "deleteConfirm": "Delete"
+      },
+      "a11y": {
+        "grid": "Collection contents"
+      }
+    },
+    "info": {
+      "public": "Public",
+      "private": "Private",
+      "default": "Default",
+      "original": "Original",
+      "fanwork": "Fan creation",
+      "itemCount": "{count} items",
+      "author": "{name}",
+      "noDescription": "No description",
+      "defaultDeleteDisabled": "Default collections cannot be deleted"
+    },
+    "filters": {
+      "label": "Content type",
+      "all": "All",
+      "image": "Image",
+      "article": "Article",
+      "video": "Video",
+      "audio": "Audio",
+      "template": "Template",
+      "sheet_music": "Sheet music",
+      "mod": "Mod",
+      "prompt": "Prompt",
+      "other": "Other"
+    },
+    "userList": {
+      "header": {
+        "title": "{name}'s collections",
+        "subtitle": "{count} visible collections"
+      },
+      "actions": {
+        "create": "New collection",
+        "refresh": "Refresh"
+      },
+      "form": {
+        "createTitle": "Create collection",
+        "editTitle": "Edit collection",
+        "zone": "Zone",
+        "original": "Original",
+        "fanwork": "Fan creation",
+        "title": "Title",
+        "description": "Description",
+        "isPublic": "Public collection"
+      },
+      "empty": {
+        "ownerTitle": "No collections yet",
+        "ownerDescription": "Create a collection to organize saved content.",
+        "visitorTitle": "No public collections",
+        "visitorDescription": "This user has not shared any collections yet."
+      },
+      "error": {
+        "title": "Collections unavailable",
+        "description": "Please try again later."
+      },
+      "delete": {
+        "title": "Delete collection?",
+        "description": "{title} will be removed. Saved content is not deleted.",
+        "confirm": "Delete"
+      },
+      "toast": {
+        "loadFailed": "Failed to load collections",
+        "created": "Collection created",
+        "updated": "Collection updated",
+        "deleted": "Collection deleted",
+        "saveFailed": "Failed to save collection",
+        "deleteFailed": "Failed to delete collection"
+      },
+      "a11y": {
+        "grid": "User collections"
+      }
+    }
+  },
   "publish": {
     "title": "Publish Content",
     "subtitle": "Uploaded content will go through review. Fanwork can optionally link to a source original for easier discovery.",
@@ -1445,17 +1595,56 @@
     "favorites": {
       "title": "My Favorites",
       "subtitle": "Content you've saved for later",
-      "allTypes": "All",
-      "image": "Image",
-      "article": "Article",
-      "video": "Video",
-      "audio": "Audio",
-      "template": "Template",
-      "mod": "Mod",
-      "sheetMusic": "Sheet Music",
-      "empty": "No favorites yet",
-      "emptyHint": "When you favorite content, it will appear here.",
-      "discover": "Discover content"
+      "header": {
+        "title": "Collection folders",
+        "subtitle": "Manage original and fan creation collections separately."
+      },
+      "zone": {
+        "original": {
+          "title": "Original collections",
+          "description": "Folders for original-zone content."
+        },
+        "fanwork": {
+          "title": "Fan creation collections",
+          "description": "Folders for fanwork and derivative content."
+        }
+      },
+      "actions": {
+        "create": "New collection",
+        "refresh": "Refresh"
+      },
+      "form": {
+        "createTitle": "Create collection",
+        "editTitle": "Edit collection",
+        "title": "Title",
+        "description": "Description",
+        "isPublic": "Public collection",
+        "sortOrder": "Sort order"
+      },
+      "default": {
+        "deleteDisabled": "Default collections cannot be deleted"
+      },
+      "empty": {
+        "zoneTitle": "No collections in this zone",
+        "zoneDescription": "Create a folder to organize saved content."
+      },
+      "error": {
+        "title": "Collections could not be loaded",
+        "description": "Please retry before managing private collections."
+      },
+      "delete": {
+        "title": "Delete collection?",
+        "description": "{title} will be removed. Saved content is not deleted.",
+        "confirm": "Delete"
+      },
+      "toast": {
+        "loadFailed": "Failed to load collections",
+        "created": "Collection created",
+        "updated": "Collection updated",
+        "deleted": "Collection deleted",
+        "saveFailed": "Failed to save collection",
+        "deleteFailed": "Failed to delete collection"
+      }
     }
   },
   "adminNotifications": {

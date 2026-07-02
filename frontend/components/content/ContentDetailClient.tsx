@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { VersionHistory } from "@/components/content/VersionHistory";
+import { CollectionPicker } from "@/components/content/CollectionPicker";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
@@ -9,19 +10,19 @@ import { useEffect, useState } from "react";
 
 interface ContentDetailClientProps {
   contentId: number;
+  contentTitle?: string;
+  zone?: "original" | "fanwork";
   authorId?: number;
 }
 
-export function ContentDetailClient({ contentId, authorId }: ContentDetailClientProps) {
+export function ContentDetailClient({ contentId, contentTitle, zone = "original", authorId }: ContentDetailClientProps) {
   const t = useTranslations();
   const { user } = useAuth();
-  const [favorited, setFavorited] = useState(false);
-  const [favBusy, setFavBusy] = useState(false);
+  const [collectionPickerOpen, setCollectionPickerOpen] = useState(false);
   const isAuthor = user?.id === authorId;
 
   useEffect(() => {
     if (!user) return;
-    void checkFavorite();
     recordBrowseHistory();
   }, [user, contentId]);
 
@@ -34,37 +35,19 @@ export function ContentDetailClient({ contentId, authorId }: ContentDetailClient
     api.post(`/api/v1/users/me/history`, { content_item_id: contentId }).catch(() => {});
   }
 
-  async function checkFavorite() {
-    try {
-      const data = await api.get<{ favorites?: { content_item_id: number }[] }>(
-        `/api/v1/users/${user!.id}/favorites`
-      );
-      const favs = data.favorites || [];
-      setFavorited(favs.some((f) => f.content_item_id === contentId));
-    } catch { /* ignore */ }
-  }
-
-  async function toggleFavorite() {
-    if (!user) return;
-    setFavBusy(true);
-    try {
-      if (favorited) {
-        await api.delete(`/api/v1/favorites/${contentId}`);
-        setFavorited(false);
-      } else {
-        await api.post("/api/v1/favorites", { content_item_id: contentId });
-        setFavorited(true);
-      }
-    } catch { /* ignore */ }
-    finally { setFavBusy(false); }
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Button size="sm" variant={favorited ? "default" : "outline"} disabled={favBusy} onClick={() => void toggleFavorite()}>
-          {favorited ? t('content.favorited') : t('content.favorite')}
+        <Button size="sm" variant="outline" disabled={!user} onClick={() => setCollectionPickerOpen(true)}>
+          {t("collections.picker.actions.open")}
         </Button>
+        <CollectionPicker
+          contentId={contentId}
+          contentTitle={contentTitle ?? t("common.unknown")}
+          zone={zone}
+          open={collectionPickerOpen}
+          onOpenChange={setCollectionPickerOpen}
+        />
       </div>
       <VersionHistory contentId={contentId} isAuthor={isAuthor} />
     </div>

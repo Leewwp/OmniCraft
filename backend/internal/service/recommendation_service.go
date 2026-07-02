@@ -163,12 +163,20 @@ func (s *RecommendationService) isColdStart(userID int64, threshold int) bool {
 	}
 	var count int64
 	s.db.Raw(`SELECT COUNT(*) FROM (
-		SELECT content_item_id FROM browse_history WHERE user_id = ? LIMIT ?
-		UNION
-		SELECT content_item_id FROM favorites WHERE user_id = ? LIMIT ?
-		UNION
-		SELECT target_id FROM reactions WHERE user_id = ? AND target_type = 'content' AND reaction = 'like' LIMIT ?
-	) t`, userID, threshold, userID, threshold, userID, threshold).Scan(&count)
+		SELECT content_item_id FROM (
+			SELECT content_item_id FROM browse_history WHERE user_id = ?
+			UNION
+			SELECT content_item_id FROM favorites WHERE user_id = ?
+			UNION
+			SELECT ci.content_item_id
+			FROM collection_items ci
+			JOIN collections c ON c.id = ci.collection_id
+			WHERE c.user_id = ? AND c.deleted_at IS NULL
+			UNION
+			SELECT target_id AS content_item_id FROM reactions WHERE user_id = ? AND target_type = 'content' AND reaction = 'like'
+		) interactions
+		LIMIT ?
+	) t`, userID, userID, userID, userID, threshold).Scan(&count)
 	return count < int64(threshold)
 }
 
@@ -183,7 +191,7 @@ func (s *RecommendationService) buildUserProfile(ctx context.Context, userID int
 
 	var rows []embeddingRow
 	if err := s.db.Raw(`
-		SELECT ce.embedding::text as embedding
+		SELECT CAST(ce.embedding AS text) AS embedding
 		FROM browse_history bh
 		JOIN content_embeddings ce ON ce.content_item_id = bh.content_item_id
 		WHERE bh.user_id = ?
@@ -195,18 +203,24 @@ func (s *RecommendationService) buildUserProfile(ctx context.Context, userID int
 
 	var favRows []embeddingRow
 	if err := s.db.Raw(`
-		SELECT ce.embedding::text as embedding
-		FROM favorites f
-		JOIN content_embeddings ce ON ce.content_item_id = f.content_item_id
-		WHERE f.user_id = ?
+		SELECT CAST(ce.embedding AS text) AS embedding
+		FROM (
+			SELECT content_item_id FROM favorites WHERE user_id = ?
+			UNION
+			SELECT ci.content_item_id
+			FROM collection_items ci
+			JOIN collections c ON c.id = ci.collection_id
+			WHERE c.user_id = ? AND c.deleted_at IS NULL
+		) favorite_sources
+		JOIN content_embeddings ce ON ce.content_item_id = favorite_sources.content_item_id
 		LIMIT 50
-	`, userID).Scan(&favRows).Error; err != nil {
+	`, userID, userID).Scan(&favRows).Error; err != nil {
 		slog.Error("[rec] favorites query failed", "error", err)
 	}
 
 	var likeRows []embeddingRow
 	if err := s.db.Raw(`
-		SELECT ce.embedding::text as embedding
+		SELECT CAST(ce.embedding AS text) AS embedding
 		FROM reactions r
 		JOIN content_embeddings ce ON ce.content_item_id = r.target_id
 		WHERE r.user_id = ? AND r.target_type = 'content' AND r.reaction = 'like'
@@ -385,7 +399,9 @@ func (s *RecommendationService) InvalidateUserCache(ctx context.Context, userID 
 	redisclient.DeleteByPattern(ctx, fmt.Sprintf("rec:original:%d:*", userID))
 }
 
-func (s *RecommendationService) FillMissingEmbeddings(ctx context.Context, llmProvider interface{ GetEmbedding(ctx context.Context, text string) ([]float32, error) }) error {
+func (s *RecommendationService) FillMissingEmbeddings(ctx context.Context, llmProvider interface {
+	GetEmbedding(ctx context.Context, text string) ([]float32, error)
+}) error {
 	if s.db == nil || s.embeddingRepo == nil {
 		return fmt.Errorf("db or embedding repo not available")
 	}

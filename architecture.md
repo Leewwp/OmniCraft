@@ -316,6 +316,8 @@ backend/
 |------|------|--------|
 | `DELETE` | `/api/v1/admin/categories/:id` | catHandler.AdminDeleteCategory |
 | `DELETE` | `/api/v1/admin/llm-configs/:id` | adminHandler.DeleteLLMConfig |
+| `DELETE` | `/api/v1/collections/:id` | collectionHandler.DeleteCollection |
+| `DELETE` | `/api/v1/collections/:id/items/:itemId` | collectionHandler.RemoveItem |
 | `DELETE` | `/api/v1/contents/:id` | contentHandler.DeleteContent |
 | `DELETE` | `/api/v1/dashboard/contributors/:userId/block` | prHandler.UnblockContributor |
 | `DELETE` | `/api/v1/favorites/:contentId` | favHandler.RemoveFavorite |
@@ -349,6 +351,8 @@ backend/
 | `GET` | `/api/v1/auth/csrf` | authHandler.CSRFToken |
 | `GET` | `/api/v1/auth/me` | authHandler.Me |
 | `GET` | `/api/v1/categories` | catHandler.ListCategories |
+| `GET` | `/api/v1/collections` | collectionHandler.ListCollections |
+| `GET` | `/api/v1/collections/:id` | collectionHandler.GetCollection |
 | `GET` | `/api/v1/config/public` | publicConfigHandler.GetPublicConfig |
 | `GET` | `/api/v1/contents` | contentHandler.ListContents |
 | `GET` | `/api/v1/contents/:id` | contentHandler.GetContent |
@@ -445,6 +449,8 @@ backend/
 | `POST` | `/api/v1/auth/reset-password` | authHandler.ResetPassword |
 | `POST` | `/api/v1/auth/verify-email` | authHandler.VerifyEmail |
 | `POST` | `/api/v1/captcha/verify` | captchaHandler.Verify |
+| `POST` | `/api/v1/collections` | collectionHandler.CreateCollection |
+| `POST` | `/api/v1/collections/:id/items` | collectionHandler.AddItem |
 | `POST` | `/api/v1/contents` | contentHandler.CreateContent |
 | `POST` | `/api/v1/contents/:id/report` | socialHandler.ReportContent |
 | `POST` | `/api/v1/contents/:id/tags/suggest` | tagHandler.SuggestTag |
@@ -479,6 +485,8 @@ backend/
 | `POST` | `/api/v1/users/me/saved-searches` | tagHandler.CreateSavedSearch |
 | `POST` | `/api/v1/users/me/tag-groups` | tagHandler.CreateTagGroup |
 | `PUT` | `/api/v1/admin/categories/reorder` | catHandler.AdminReorderCategories |
+| `PUT` | `/api/v1/collections/:id` | collectionHandler.UpdateCollection |
+| `PUT` | `/api/v1/collections/:id/items/:itemId` | collectionHandler.UpdateItem |
 
 <!-- END AUTO-GENERATED: §3.2 -->
 
@@ -652,6 +660,32 @@ omnicraft://deploy?content_id=xxx&token=yyy
 | `slug` | `VARCHAR(100)` | NOT NULL UNIQUE | slug |
 | `sort_order` | `INT` | NOT NULL DEFAULT 0 | sort_order |
 | `is_active` | `BOOLEAN` | NOT NULL DEFAULT TRUE | is_active |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+
+### collection_items
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `collection_id` | `BIGINT` | NOT NULL UNIQUE -> collections.id | collection_id |
+| `content_item_id` | `BIGINT` | NOT NULL UNIQUE -> content_items.id | content_item_id |
+| `note` | `TEXT` | NOT NULL DEFAULT '' | note |
+| `added_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | added_at |
+
+### collections
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `title` | `VARCHAR(200)` | NOT NULL | title |
+| `description` | `TEXT` | NOT NULL DEFAULT '' | description |
+| `zone` | `VARCHAR(10)` | NOT NULL | zone |
+| `is_default` | `BOOLEAN` | NOT NULL DEFAULT FALSE | is_default |
+| `is_public` | `BOOLEAN` | NOT NULL DEFAULT FALSE | is_public |
+| `sort_order` | `INT` | NOT NULL DEFAULT 0 | sort_order |
+| `deleted_at` | `TIMESTAMPTZ` | - | deleted_at |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
 

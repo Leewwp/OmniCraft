@@ -15,6 +15,10 @@ func NewSocialRepository(db *gorm.DB) *SocialRepository {
 	return &SocialRepository{db: db}
 }
 
+func (r *SocialRepository) DB() *gorm.DB {
+	return r.db
+}
+
 func (r *SocialRepository) CreateComment(c *model.Comment) error {
 	return r.db.Create(c).Error
 }
