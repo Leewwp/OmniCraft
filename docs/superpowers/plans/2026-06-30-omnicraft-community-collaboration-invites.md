@@ -125,6 +125,7 @@ WHERE status IN ('pending', 'accepted');
 - [ ] **Step 3: Implement migration**
 
 Do not create a normal `UNIQUE (content_id, invitee_id)` constraint; expired invites must allow re-invite.
+Include a `-- ROLLBACK:` comment block for local-test rollback, covering `collaboration_invites`, `users.accept_collab_invites`, and `messages.msg_type/metadata`. Do not automatically drop these fields in shared environments after invites/messages may exist.
 
 - [ ] **Step 4: Add config**
 
@@ -254,7 +255,7 @@ On success:
 3. create `msg_type='collab_invite'` message
 4. update invite `message_id`
 
-Use a DB transaction for DB writes. Redis counters should be applied in an order that avoids allowing spam if DB succeeds but counter fails; document and test the chosen rollback/compensation behavior.
+Use a DB transaction for DB writes. The find/create conversation step must be atomic inside that transaction, using either `INSERT ... ON CONFLICT DO NOTHING` on the canonical participant pair or a PostgreSQL advisory lock for the pair before lookup/create. Redis counters should be applied in an order that avoids allowing spam if DB succeeds but counter fails; document and test the chosen rollback/compensation behavior.
 
 - [ ] **Step 6: Verify send service**
 
@@ -294,7 +295,7 @@ Use:
 1. `SELECT ... FOR UPDATE` invite row
 2. check status `pending`
 3. check not expired by `collaboration.invite_expire_days`
-4. insert into `content_contributors(content_item_id, user_id, pr_count, first_at)` with upsert; set `pr_count=0` for collaboration-created rows and do not update/increment `pr_count` for existing contributor rows
+4. insert into `content_contributors(content_item_id, user_id, pr_count, first_at)` with `ON CONFLICT (content_item_id, user_id) DO NOTHING`; set `pr_count=0` for collaboration-created rows and do not update/increment `pr_count` or overwrite `first_at` for existing contributor rows
 5. update status to `accepted`, set `responded_at`
 6. return latest DTO
 
@@ -359,6 +360,8 @@ POST /api/v1/contents/:id/collab-invites
 POST /api/v1/collab-invites/:id/accept
 POST /api/v1/collab-invites/:id/decline
 ```
+
+For `POST /api/v1/contents/:id/collab-invites`, `:id` is always `content_item_id`, not `content_series_id` or invite ID. Tests must cover that a nonexistent content item returns the content-not-found path before creating any invite.
 
 Also test `PATCH /api/v1/users/:id` can update `accept_collab_invites` for the current user, and `GET /api/v1/auth/me` returns it.
 
@@ -552,7 +555,7 @@ POST /api/v1/contents/:id/collab-invites
 
 for each selected invitee.
 
-Do not block content creation if one invite fails after content was created. Show a warning toast listing failed usernames.
+Each invite request should use a 5-second client-side timeout. Do not auto-retry failed invite calls; retries can create confusing duplicate UX and are already guarded server-side. Do not block content creation if one invite fails after content was created. Show a warning toast listing failed usernames.
 
 - [ ] **Step 3: Run tests**
 

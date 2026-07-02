@@ -71,7 +71,7 @@
 
 - [ ] **Step 1: Confirm conflict scope**
 
-Read the current "原创/二创来源联动规则" sections in `AGENTS.md` and `CLAUDE.md`, and the publish/content-detail/related-fanworks sections in `architecture.md`. Confirm whether they already describe the fanwork three-source model. If they still describe a single-source `source_original_id` model, continue with Steps 2-3; if already aligned, record that Task 0 is verification-only and do not edit these files.
+Read the current "原创/二创来源联动规则" sections in `AGENTS.md` and `CLAUDE.md`, the publish/content-detail/related-fanworks sections in `architecture.md`, and `design/ui-spec.md` sections for `SourceAttribution` and `RelatedFanworks`. Confirm whether they already describe the fanwork three-source model and the UI labels/links for original sources vs fanwork derivative rows. If they still describe a single-source `source_original_id` model, continue with Steps 2-3; if already aligned, record that Task 0 is verification-only and do not edit these files.
 
 - [ ] **Step 2: Update agent business rules**
 
@@ -138,6 +138,8 @@ CREATE INDEX IF NOT EXISTS idx_content_items_source_fanwork
   ON content_items (source_fanwork_id, status, created_at DESC)
   WHERE source_fanwork_id IS NOT NULL;
 ```
+
+Include a `-- ROLLBACK:` comment block for local-test rollback, covering dropping the partial index and removing `source_fanwork_id` only when no shared data depends on it. In shared environments prefer a forward fix over destructive rollback.
 
 - [ ] **Step 4: Add model fields**
 

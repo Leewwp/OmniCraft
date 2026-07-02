@@ -98,6 +98,8 @@ CREATE INDEX idx_series_items_series ON content_series_items(series_id);
 CREATE INDEX idx_series_items_content ON content_series_items(content_item_id);
 ```
 
+`content_series` must include `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()` and `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`. `content_series_items` must include an `added_at TIMESTAMPTZ NOT NULL DEFAULT NOW()` field. The migration file must also include a `-- ROLLBACK:` comment block for local-test rollback guidance; do not auto-drop shared data.
+
 - [ ] **Step 4: Add model structs**
 
 Create:
@@ -203,6 +205,8 @@ SELECT id FROM content_series WHERE id = ? FOR UPDATE
 
 Then compute `MAX(sort_order)` for that series and insert the new item. Tests must simulate concurrent append requests and prove the resulting `sort_order` values are unique and contiguous.
 
+Locking the parent `content_series` row is the serialization point for appends. After that lock is acquired, reading `MAX(sort_order)` from `content_series_items` in the same transaction is sufficient for PostgreSQL consistency; do not add table-wide locks on `content_series_items`.
+
 - [ ] **Step 5: Implement reorder transaction**
 
 Use `db.Transaction`. Lock series items for the target `series_id` before update:
@@ -212,6 +216,8 @@ SELECT id FROM content_series_items WHERE series_id = ? FOR UPDATE
 ```
 
 Reject the request if `item_ids` is missing any existing item or contains an item from another series.
+
+During reorder, concurrent `AddItem` or `RemoveItem` operations for the same series are expected to wait behind the transaction lock and then retry/observe the updated order. This is acceptable; do not return a spurious conflict solely because the lock is waiting.
 
 - [ ] **Step 6: Verify service**
 
@@ -380,6 +386,7 @@ Cover:
 - first item disables previous with "已是第一章"
 - last item disables next with "已是最后一章"
 - multiple series renders up to three tabs
+- when membership count is greater than three, render the first three tabs plus a compact `更多(N)` link to the current series catalog route
 - catalog link points to `/series/:id`
 
 - [ ] **Step 3: Implement `SeriesNav`**
@@ -392,7 +399,7 @@ interface SeriesNavProps {
 }
 ```
 
-Use `Link` for valid previous/next/catalog targets. Use icon buttons or compact text links, not oversized cards.
+Use `Link` for valid previous/next/catalog targets. Use icon buttons or compact text links, not oversized cards. If there are more than three memberships, keep layout stable by showing the first three tabs and a `更多(N)` link; `N` is the hidden membership count and the link points to `/series/:id` for the currently selected/current content series.
 
 - [ ] **Step 4: Insert in `ContentDetail.tsx`**
 
