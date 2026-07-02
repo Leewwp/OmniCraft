@@ -56,23 +56,35 @@ const contentTypes = [
   "other",
 ] as const;
 
+type ContentTypeFilter = (typeof contentTypes)[number];
+
 export default function HistoryPage() {
   const t = useTranslations();
   const { toast } = useToast();
+  const initialFilters = useMemo(readInitialFilters, []);
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [retentionDays, setRetentionDays] = useState<number | null>(null);
-  const [contentType, setContentType] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [contentType, setContentType] = useState(initialFilters.contentType);
+  const [startDate, setStartDate] = useState(initialFilters.startDate);
+  const [endDate, setEndDate] = useState(initialFilters.endDate);
   const [loading, setLoading] = useState(true);
   const [inlineError, setInlineError] = useState(false);
+  const [dateError, setDateError] = useState(false);
   const [batchMode, setBatchMode] = useState(false);
   const [selectedIDs, setSelectedIDs] = useState<number[]>([]);
   const [confirmMode, setConfirmMode] = useState<"selected" | "all" | null>(null);
   const recordsRef = useRef<HistoryRecord[]>([]);
 
   const load = useCallback(async () => {
+    if (startDate && endDate && startDate > endDate) {
+      setDateError(true);
+      setInlineError(false);
+      setLoading(false);
+      return;
+    }
+    setDateError(false);
+
     const params = new URLSearchParams({ page: "1", page_size: "20" });
     if (contentType) params.set("content_type", contentType);
     if (startDate) params.set("start_date", startDate);
@@ -178,6 +190,7 @@ export default function HistoryPage() {
             />
           </label>
         </div>
+        {dateError && <p className="mt-3 text-sm text-destructive">{t("history.error.invalidDateRange")}</p>}
       </section>
 
       {batchMode && (
@@ -268,6 +281,23 @@ function FilterButton({ active, onClick, children }: { active: boolean; onClick:
       {children}
     </button>
   );
+}
+
+function readInitialFilters() {
+  if (typeof window === "undefined") {
+    return { contentType: "", startDate: "", endDate: "" };
+  }
+  const params = new URLSearchParams(window.location.search);
+  const contentType = params.get("content_type") ?? "";
+  return {
+    contentType: isContentTypeFilter(contentType) ? contentType : "",
+    startDate: params.get("start_date") ?? "",
+    endDate: params.get("end_date") ?? "",
+  };
+}
+
+function isContentTypeFilter(value: string): value is ContentTypeFilter {
+  return contentTypes.includes(value as ContentTypeFilter);
 }
 
 function HistoryRow({

@@ -65,6 +65,7 @@ const messages = {
     error: {
       load: "Failed to load browsing history.",
       inline: "Could not refresh. Showing the last successful result.",
+      invalidDateRange: "Start date must be before end date.",
     },
     unavailable: {
       title: "Content unavailable",
@@ -158,6 +159,42 @@ test("history filters call the API with content type and date query", async () =
   });
 });
 
+test("history page initializes filters from URL query", async () => {
+  installHistoryDom("/history?content_type=video&start_date=2026-07-01&end_date=2026-07-02");
+  const calls = installHistoryApiMock({
+    response: { items: [historyItem(1, "Video title", "video")], history: [], total: 1, page: 1, page_size: 20, retention_days: 7 },
+  });
+
+  const view = await renderHistoryPage();
+
+  await waitFor(() => {
+    assert.ok(view.getByText("Video title"));
+    assert.ok(calls.get[0].path.includes("content_type=video"));
+    assert.ok(calls.get[0].path.includes("start_date=2026-07-01"));
+    assert.ok(calls.get[0].path.includes("end_date=2026-07-02"));
+  });
+});
+
+test("history page rejects invalid date ranges without requesting", async () => {
+  installHistoryDom();
+  const calls = installHistoryApiMock({
+    response: { items: [historyItem(1, "Stable title", "article")], history: [], total: 1, page: 1, page_size: 20, retention_days: 7 },
+  });
+  const view = await renderHistoryPage();
+  await waitFor(() => assert.ok(view.getByText("Stable title")));
+
+  fireEvent.change(view.getByLabelText("End date"), { target: { value: "2026-07-02" } });
+  await waitFor(() => assert.ok(calls.get.some((call) => call.path.includes("end_date=2026-07-02"))));
+  const validRangeCalls = calls.get.length;
+
+  fireEvent.change(view.getByLabelText("Start date"), { target: { value: "2026-07-03" } });
+
+  await waitFor(() => {
+    assert.ok(view.getByText("Start date must be before end date."));
+    assert.equal(calls.get.length, validRangeCalls);
+  });
+});
+
 test("history batch delete sends selected ids in a DELETE body", async () => {
   installHistoryDom();
   const calls = installHistoryApiMock({
@@ -231,8 +268,9 @@ const testRouter = {
   replace() {},
 };
 
-function installHistoryDom() {
+function installHistoryDom(path = "/history") {
   const dom = installDom();
+  dom.window.history.replaceState({}, "", path);
   Object.defineProperty(globalThis, "requestAnimationFrame", {
     configurable: true,
     writable: true,

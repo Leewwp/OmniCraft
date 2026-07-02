@@ -1087,7 +1087,8 @@
     },
     "error": {
       "load": "Failed to load browsing history.",
-      "inline": "Could not refresh. Showing the last successful result."
+      "inline": "Could not refresh. Showing the last successful result.",
+      "invalidDateRange": "Start date must be before end date."
     },
     "unavailable": {
       "title": "Content unavailable",
