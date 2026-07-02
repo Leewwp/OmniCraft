@@ -276,7 +276,7 @@ function FilterButton({ active, onClick, children }: { active: boolean; onClick:
     <button
       type="button"
       onClick={onClick}
-      className={`min-h-11 rounded-md border px-3 text-sm ${active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
+      className={`min-h-11 shrink-0 whitespace-nowrap rounded-md border px-3 text-sm ${active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}
     >
       {children}
     </button>
