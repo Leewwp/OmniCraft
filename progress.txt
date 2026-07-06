@@ -3431,3 +3431,17 @@ Code review of all Batch 12 changes identified 14 issues (2 Critical, 8 Major, 4
 - Mode C tracking only: no `task.json` or Beta roadmap checkbox was changed.
 - Subagent spec and code-quality review attempts both returned local `503 Service Unavailable`, so controller completed local review and fresh verification gates instead.
 - `frontend/test-results/.last-run.json` is a generated Playwright artifact and must not be staged.
+
+## [2026-07-06] - Community collections: merged into main and docs synced
+
+### What was done:
+- Fast-forward merged `codex/community/collections` into `main`, bringing in community plan 3 commit `0c74996`.
+- Updated `docs/working/2026-06-30-community-features-development-guide.md` to mark plan 3 Collections as complete and merged, and to set plan 4 Content Series as the next step.
+
+### Testing:
+- Verified `main` branch merge state with `git merge --ff-only codex/community/collections`.
+- Reconfirmed fresh validation evidence from the plan 3 worktree: focused backend tests, `go build ./...`, `npm run build`, and `npx playwright test e2e/collections.spec.ts` all passed before merge.
+- Verified post-edit repository diff only contains the intended doc-state updates.
+
+### Notes:
+- This follow-up sync is status maintenance on `main`; no `task.json` or Beta roadmap checkbox was changed.

@@ -3,7 +3,7 @@
 创建日期：2026-06-30
 预计失效日期：2026-08-30
 适用范围：`docs/superpowers/plans/2026-06-30-omnicraft-community-*.md` 六个社区功能计划的分轮开发、审查、集成。
-当前状态：计划一 Messages And Notifications 已完成，完成 commit `f9f536d`；计划二 Browse History 已完成，完成 commit `b1fba4e`，审查修复 commit `8523fe6` / `0933feb`；下一步按顺序进入计划三 Collections。计划文档和权威规则已在 commit `a6171ab` 修复对齐。
+当前状态：计划一 Messages And Notifications 已完成，完成 commit `f9f536d`；计划二 Browse History 已完成，完成 commit `b1fba4e`，审查修复 commit `8523fe6` / `0933feb`；计划三 Collections 已完成并已合入 `main`，完成 commit `0c74996`；下一步按顺序进入计划四 Content Series。计划文档和权威规则已在 commit `a6171ab` 修复对齐。
 
 ---
 
@@ -71,7 +71,7 @@ Get-Content AGENTS.md
 |---|---|---|---|---|---|
 | 1 | `…community-messages-notifications.md` | `codex/community/messages-notifications` | `057_add_broadcast_channel.sql` | 已完成：`f9f536d` | 私信冷启动、消息 API、通知广播、管理员广播页、消息中心 UI |
 | 2 | `…community-browse-history.md` | `codex/community/browse-history` | 无新迁移 | 已完成：`b1fba4e`；修复：`8523fe6`/`0933feb` | 浏览历史筛选/删除/保留期、每日清理 scheduler、历史页 UI |
-| 3 | `…community-collections.md` | `codex/community/collections` | `058_create_collections.sql` | 下一步 | 收藏集模型、旧 favorites 兼容、推荐兼容、收藏集详情、Studio 收藏集管理 |
+| 3 | `…community-collections.md` | `codex/community/collections` | `058_create_collections.sql` | 已完成：`0c74996`，已合入 `main` | 收藏集模型、旧 favorites 兼容、推荐兼容、收藏集详情、Studio 收藏集管理 |
 | 4 | `…community-content-series.md` | `codex/community/content-series` | `059_create_content_series.sql` | 未开始 | 内容系列模型、系列 API、详情页 SeriesNav、公开系列页、Studio 系列管理 |
 | 5 | `…community-source-linkage.md` | `codex/community/source-linkage` | `060_add_source_fanwork_id.sql` | 未开始 | 二创来源链、`source_fanwork_id`、来源归因、相关二创/衍生作品、二创发布来源选择 |
 | 6 | `…community-collaboration-invites.md` | `codex/community/collaboration-invites` | `061_collaboration_invites.sql` | 未开始 | 联合创作邀请、防骚扰链路、邀请私信卡片、设置开关、发布后邀请 |
@@ -383,6 +383,8 @@ docker compose up -d postgres redis
 ## 10. 计划三：Collections
 
 计划文件：`docs/superpowers/plans/2026-06-30-omnicraft-community-collections.md`
+
+**状态**：已完成并已合入 `main`，功能提交为 `0c74996`。
 
 **目标**：
 - 将旧收藏升级为按 zone 分区的收藏集。
