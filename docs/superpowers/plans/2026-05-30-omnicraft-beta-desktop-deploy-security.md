@@ -8,6 +8,8 @@
 
 **Tech Stack:** Go/Gin/Redis/OSS presigned URLs, Ed25519, Tauri 2, Rust, React/Vite.
 
+> **2026-07-16 release decision:** D-02 through D-05 and R-02 are required for the portfolio release's Desktop Agent claim. They may remain incomplete for a Web-only Beta only while `features.desktop_deploy_enabled=false`. The current HMAC/direct-WebView prototype is evidence of an intentionally disabled unsafe state, not a shippable fallback.
+
 ---
 
 ## File Structure

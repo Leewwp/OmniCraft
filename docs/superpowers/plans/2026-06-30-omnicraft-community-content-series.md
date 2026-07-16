@@ -38,7 +38,7 @@
 - Create: `backend/internal/model/series_migration_test.go`
 - Create: `backend/internal/service/series_service_test.go`
 - Create: `backend/internal/handler/series_test.go`
-- Modify: `backend/internal/handler/routes.go` - 注册 `/series` routes。
+- Modify: the current sole route owner: `backend/internal/handler/routes.go`, or `backend/internal/router/routes.go` after hardening Task 3. Never recreate the deleted handler route owner.
 - Modify: `backend/internal/handler/content.go` - 内容详情返回紧凑 `series_memberships`。
 - Modify: `backend/internal/repository/content_repo.go` only if needed for content detail series lookup.
 
@@ -83,6 +83,7 @@ Assert:
 - `content_series.owner_id` references `users(id)`
 - `content_series_items.series_id` cascades on delete
 - `content_series_items.content_item_id` references `content_items(id)`
+- `content_series.cover_content_id` references `content_items(id)` with `ON DELETE SET NULL`
 - unique `(series_id, content_item_id)` exists
 - indexes exist on owner, series, and content lookup
 
@@ -98,7 +99,7 @@ CREATE INDEX idx_series_items_series ON content_series_items(series_id);
 CREATE INDEX idx_series_items_content ON content_series_items(content_item_id);
 ```
 
-`content_series` must include `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()` and `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`. `content_series_items` must include an `added_at TIMESTAMPTZ NOT NULL DEFAULT NOW()` field. The migration file must also include a `-- ROLLBACK:` comment block for local-test rollback guidance; do not auto-drop shared data.
+`content_series.cover_content_id` is a nullable FK to `content_items(id) ON DELETE SET NULL`. `content_series` must include `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()` and `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`. `content_series_items` must include an `added_at TIMESTAMPTZ NOT NULL DEFAULT NOW()` field. The migration file must also include a `-- ROLLBACK:` comment block for local-test rollback guidance; do not auto-drop shared data.
 
 - [ ] **Step 4: Add model structs**
 
@@ -150,6 +151,7 @@ func TestSeriesAddOwnerAuthoredContent(t *testing.T) {}
 func TestSeriesAddContributorContent(t *testing.T) {}
 func TestSeriesRejectsUnrelatedContent(t *testing.T) {}
 func TestSeriesRejectsZoneMismatch(t *testing.T) {}
+func TestSeriesRejectsDeletedBannedOrAuthorDeletedContent(t *testing.T) {}
 func TestSeriesRejectsDuplicateItem(t *testing.T) {}
 func TestSeriesAddItemAppendsAfterMaxSortOrder(t *testing.T) {}
 func TestSeriesAddItemConcurrentAppendKeepsStableUniqueSortOrder(t *testing.T) {}
@@ -197,6 +199,8 @@ OR EXISTS content_contributors WHERE content_item_id = content.id AND user_id = 
 
 Do not let a contributor manage someone else's series.
 
+The target content must not be soft-deleted and must have a series-eligible status. The current content state machine creates submissions as `pending` (there is no separate `draft`/`pending_review` status). Owner management may add `pending` or `published` content so a series can be prepared before release; `under_review`, `banned`, and `author_deleted` content are not addable. Public series detail and previous/next navigation return only `published` non-deleted content. Tests must prove a pending item can be managed in Studio without leaking through the public detail response.
+
 When adding, calculate the append `sort_order` in the same transaction as the insert. First lock the target parent row:
 
 ```sql
@@ -234,7 +238,7 @@ go test ./internal/service -run TestSeries -v
 
 **Files:**
 - Create: `backend/internal/handler/series.go`
-- Modify: `backend/internal/handler/routes.go`
+- Modify: current sole route owner (`backend/internal/handler/routes.go` or `backend/internal/router/routes.go`)
 - Test: `backend/internal/handler/series_test.go`
 
 - [ ] **Step 1: Add failing route tests**
@@ -278,6 +282,8 @@ The backend resolves `cover` in this order:
 1. `cover_content_id` first image when valid
 2. smallest `sort_order` content cover
 3. `null`
+
+Public detail filters items through the shared content-visibility rule. `item_count` is the count of visible published items for anonymous/non-owner viewers; the authenticated owner Studio endpoint may return a separate management count. Do not leak pending titles through the public response.
 
 - [ ] **Step 3: Implement handler and error mapping**
 
@@ -336,12 +342,12 @@ Create a content item that belongs to two series. Assert `GET /api/v1/contents/:
 ]
 ```
 
-Limit to the first three memberships for UI tabs.
+Return all compact memberships for the current content, ordered by series update time then series ID. The UI renders the first three as tabs and places remaining memberships in an overflow menu; the backend must not truncate to three. Because the full list is returned, `memberships.length` is the single total and no redundant `series_memberships_total` field is added.
 `current_index` is 1-based for display (`第 3 / 共 12`), while `content_series_items.sort_order` remains zero-based and backend-owned. Do not make the frontend add 1, or the first/last disabled logic will drift.
 
 - [ ] **Step 2: Implement backend membership lookup**
 
-For each series containing the content, compute previous/next by `sort_order`. Return only published, non-deleted content entries for navigation.
+For each series containing the content, compute previous/next by `sort_order`. Return only published, non-deleted content entries for public navigation. If the current content is not publicly visible, do not expose memberships through the public content-detail path.
 
 - [ ] **Step 3: Extend frontend normalizer**
 
@@ -386,7 +392,7 @@ Cover:
 - first item disables previous with "已是第一章"
 - last item disables next with "已是最后一章"
 - multiple series renders up to three tabs
-- when membership count is greater than three, render the first three tabs plus a compact `更多(N)` link to the current series catalog route
+- when membership count is greater than three, render the first three tabs plus a compact `更多(N)` menu listing every remaining series
 - catalog link points to `/series/:id`
 
 - [ ] **Step 3: Implement `SeriesNav`**
@@ -399,7 +405,7 @@ interface SeriesNavProps {
 }
 ```
 
-Use `Link` for valid previous/next/catalog targets. Use icon buttons or compact text links, not oversized cards. If there are more than three memberships, keep layout stable by showing the first three tabs and a `更多(N)` link; `N` is the hidden membership count and the link points to `/series/:id` for the currently selected/current content series.
+Use `Link` for valid previous/next/catalog targets. Use icon buttons or compact text links, not oversized cards. If there are more than three memberships, keep layout stable by showing the first three tabs and a keyboard-accessible `更多(N)` menu; each overflow item links to its own `/series/:id`. `N` equals `memberships.length - 3`.
 
 - [ ] **Step 4: Insert in `ContentDetail.tsx`**
 
@@ -679,7 +685,8 @@ go run . --fix
 - [ ] **Step 5: Commit when implementing**
 
 ```powershell
-git add -- backend/migrations/059_create_content_series.sql backend/internal/model/series.go backend/internal/model/series_migration_test.go backend/internal/repository/series_repo.go backend/internal/service/series_service.go backend/internal/service/series_service_test.go backend/internal/handler/series.go backend/internal/handler/series_test.go backend/internal/handler/content.go backend/internal/handler/routes.go "frontend/app/(public)/series/[id]/page.tsx" "frontend/app/(protected)/studio/series/page.tsx" frontend/components/content/SeriesNav.tsx frontend/components/content/ContentDetail.tsx frontend/lib/content.ts frontend/components/studio/StudioSidebar.tsx frontend/messages/zh.json frontend/messages/en.json frontend/tests/series-nav.test.tsx frontend/tests/studio-series-page.test.tsx frontend/e2e/content-series.spec.ts screenshots/community-content-series-nav-desktop.png screenshots/community-content-series-nav-mobile.png screenshots/community-content-series-detail-desktop.png screenshots/community-content-series-detail-mobile.png screenshots/community-content-series-studio-desktop.png screenshots/community-content-series-studio-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-content-series.md progress.txt
+$routeOwner = if (Test-Path backend/internal/router/routes.go) { 'backend/internal/router/routes.go' } else { 'backend/internal/handler/routes.go' }
+git add -- backend/migrations/059_create_content_series.sql backend/internal/model/series.go backend/internal/model/series_migration_test.go backend/internal/repository/series_repo.go backend/internal/service/series_service.go backend/internal/service/series_service_test.go backend/internal/handler/series.go backend/internal/handler/series_test.go backend/internal/handler/content.go $routeOwner "frontend/app/(public)/series/[id]/page.tsx" "frontend/app/(protected)/studio/series/page.tsx" frontend/components/content/SeriesNav.tsx frontend/components/content/ContentDetail.tsx frontend/lib/content.ts frontend/components/studio/StudioSidebar.tsx frontend/messages/zh.json frontend/messages/en.json frontend/tests/series-nav.test.tsx frontend/tests/studio-series-page.test.tsx frontend/e2e/content-series.spec.ts screenshots/community-content-series-nav-desktop.png screenshots/community-content-series-nav-mobile.png screenshots/community-content-series-detail-desktop.png screenshots/community-content-series-detail-mobile.png screenshots/community-content-series-studio-desktop.png screenshots/community-content-series-studio-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-content-series.md progress.txt
 # Also add architecture.md if doc-validator --fix modified it during this task.
 git commit -m "Community 4: content series"
 ```
@@ -694,6 +701,9 @@ git commit -m "Community 4: content series"
 - [ ] Reorder step requires a transaction, row lock, and full item-set validation.
 - [ ] Cover fallback order is backend-defined.
 - [ ] Content detail response includes enough data for previous/next without extra client guessing.
+- [ ] Public series and navigation never leak pending, under-review, banned, author-deleted, or soft-deleted content.
+- [ ] Cover foreign key uses `ON DELETE SET NULL` and cover fallback remains valid.
+- [ ] Membership response is not truncated before the UI builds its `更多(N)` overflow menu.
 - [ ] UI spec sections are verified before UI code, and no UI details are invented outside `design/ui-spec.md`.
 - [ ] Studio management uses tested up/down reorder buttons; drag handles are explicitly out-of-scope.
 - [ ] Studio management task is split into list/create, edit/delete, item add/remove, and reorder verification.

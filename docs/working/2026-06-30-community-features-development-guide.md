@@ -1,9 +1,9 @@
 # 2026-06-30 Community Features Development Guide
 
-创建日期：2026-06-30
-预计失效日期：2026-08-30
+**创建日期**: 2026-06-30
+**预计失效日期**: 2026-08-30
 适用范围：`docs/superpowers/plans/2026-06-30-omnicraft-community-*.md` 六个社区功能计划的分轮开发、审查、集成。
-当前状态：计划一 Messages And Notifications 已完成，完成 commit `f9f536d`；计划二 Browse History 已完成，完成 commit `b1fba4e`，审查修复 commit `8523fe6` / `0933feb`；计划三 Collections 已完成并已合入 `main`，完成 commit `0c74996`；下一步按顺序进入计划四 Content Series。计划文档和权威规则已在 commit `a6171ab` 修复对齐。
+当前状态：计划一至三的原始范围已完成，但 2026-07-16 审查分别追加了 broadcast idempotency、显式 clear-all/多实例 cleanup、默认收藏自愈/legacy cutover 跟进任务，完成状态不得覆盖这些新未勾选任务；计划四至六尚未开始并已按审查结果修订。社区主序仍从 Content Series 继续，Web Agent 产品化与 Desktop Beta 安全链路使用各自计划独立推进。
 
 ---
 
@@ -20,6 +20,7 @@
 - docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md
 - 本轮目标计划文件：<填入六份计划之一>
 - design/ui-spec.md 中目标计划提到的 Page/Component
+- 若目标是计划一至三的 follow-up：读取计划末尾新增的 2026-07-16 Follow-Up Task，不重复执行已勾选原任务
 
 要求：
 - 使用 using-git-worktrees 创建或进入本计划隔离 worktree（默认路径 C:\tmp\omnicraft-worktrees\<branch-slug>）。
@@ -69,9 +70,9 @@ Get-Content AGENTS.md
 
 | 顺序 | 计划文件 | 分支建议 | 迁移 | 当前状态 | 主要交付 |
 |---|---|---|---|---|---|
-| 1 | `…community-messages-notifications.md` | `codex/community/messages-notifications` | `057_add_broadcast_channel.sql` | 已完成：`f9f536d` | 私信冷启动、消息 API、通知广播、管理员广播页、消息中心 UI |
-| 2 | `…community-browse-history.md` | `codex/community/browse-history` | 无新迁移 | 已完成：`b1fba4e`；修复：`8523fe6`/`0933feb` | 浏览历史筛选/删除/保留期、每日清理 scheduler、历史页 UI |
-| 3 | `…community-collections.md` | `codex/community/collections` | `058_create_collections.sql` | 已完成：`0c74996`，已合入 `main` | 收藏集模型、旧 favorites 兼容、推荐兼容、收藏集详情、Studio 收藏集管理 |
+| 1 | `…community-messages-notifications.md` | `codex/community/messages-notifications` | 原范围 `057_add_broadcast_channel.sql`；跟进预留 `062_notification_broadcast_idempotency.sql` | 原范围完成：`f9f536d`；Task 9 待完成 | 私信/广播主流程 + durable broadcast idempotency follow-up |
+| 2 | `…community-browse-history.md` | `codex/community/browse-history` | 无新迁移 | 原范围完成：`b1fba4e`；修复：`8523fe6`/`0933feb`；Task 7 待完成 | 浏览历史主流程 + 显式 clear-all/多实例 leader lock follow-up |
+| 3 | `…community-collections.md` | `codex/community/collections` | `058_create_collections.sql` | 原范围完成：`0c74996`；Task 11 待完成 | 收藏集主流程 + 默认集自愈/reconciliation/cutover follow-up |
 | 4 | `…community-content-series.md` | `codex/community/content-series` | `059_create_content_series.sql` | 未开始 | 内容系列模型、系列 API、详情页 SeriesNav、公开系列页、Studio 系列管理 |
 | 5 | `…community-source-linkage.md` | `codex/community/source-linkage` | `060_add_source_fanwork_id.sql` | 未开始 | 二创来源链、`source_fanwork_id`、来源归因、相关二创/衍生作品、二创发布来源选择 |
 | 6 | `…community-collaboration-invites.md` | `codex/community/collaboration-invites` | `061_collaboration_invites.sql` | 未开始 | 联合创作邀请、防骚扰链路、邀请私信卡片、设置开关、发布后邀请 |
@@ -79,6 +80,13 @@ Get-Content AGENTS.md
 > **迁移编号说明**：以上迁移编号（057-061）基于 `a6171ab` 快照。每个计划开始前必须先查看最近迁移：PowerShell 用 `Get-ChildItem backend\migrations | Sort-Object Name | Select-Object -Last 5 -ExpandProperty Name`，Git Bash 用 `ls backend/migrations/ | sort | tail -5`。若编号已被占用，停止并更新本表及对应计划文件中的迁移引用，详见 §14.2。
 
 每完成一个计划，更新该计划内 checkbox、`progress.txt`，并记录最终 commit hash。
+
+### 2.1 2026-07-16 优先级补充
+
+- P0：先保证 Web Agent 产品化计划与 Desktop D-02～D-05/R-02 的安全门有明确执行窗口；Desktop 功能保持关闭直到门禁完成。
+- 社区串行主序不变：Content Series -> Source Linkage -> Collaboration Invites，避免共享 `ContentDetail` / `PublishForm` / routes / translations 冲突。
+- 计划一至三 follow-up 可以作为独立修复提交；广播幂等跟进预留迁移 062，不得抢占计划四至六的 059–061。实施前仍须检查实际迁移目录并预约共享 migration 范围。
+- 不得因为原始计划已标记完成而自动勾选新增 follow-up；新增任务必须重新执行 TDD、双重审查和全量验证。
 
 ---
 

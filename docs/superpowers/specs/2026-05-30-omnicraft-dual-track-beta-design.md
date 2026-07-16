@@ -751,14 +751,14 @@ Beta 规则：
 此前讨论过以下工具概念：
 
 - `explain_site_feature`
-- `search_contents`
+- `search_content`
 - `get_content_detail`
 - `get_usage_guide`
 - `prepare_download`
 - `prepare_deploy`
 - `create_feedback_draft`
 
-这些工具适合作为 P1 的 allowlist tool dispatcher 方向，但不应在 Beta 中直接让 LLM 自由调用。
+这些是 2026-05-30 阶段讨论过的概念，不应在 Beta 中直接让 LLM 自由调用。2026-07-16 产品化决策已将模型可选择的首版工具收敛为 `search_content`、`get_content_detail`、`get_usage_guide`、`suggest_publish_metadata`；下载/部署继续由 Desktop grant + 原生确认链路负责，反馈仍走普通业务 API。以 `docs/superpowers/specs/2026-07-16-omnicraft-dual-surface-agent-productization-design.md` 为后续实现权威。
 
 Beta 使用更简单的受控方式：
 
