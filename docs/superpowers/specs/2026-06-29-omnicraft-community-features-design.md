@@ -91,7 +91,7 @@ OmniCraft 已完成 MVP 开发，Web Beta 加固主线已基本完成；桌面�
 - 本文档中的路径采用仓库根目录相对路径。后端文件必须带 `backend/` 前缀，前端文件必须带 `frontend/` 前缀，避免把 Next.js route group 文件创建到错误目录。
 - UI 细节以 `design/ui-spec.md` 为视觉权威。若本文新增组件或页面在 `design/ui-spec.md` 中不存在，对应实现计划必须先补 UI spec，再写代码。
 - 已知需要在实现前补充/修订的 UI spec 包括：`/admin/notifications`、`/series/[id]`、`/studio/series`、`CollectionPicker`、`SeriesNav`、`CollabUserPicker`、`CollabInviteCard`、`RelatedFanworks`、`SourceAttribution`；`/collections/[id]` 已有规格但需按附录 F 修正公开浏览范围。
-- 若实施计划修改 `backend/config/config.go`、`backend/migrations/*.sql` 或 `backend/internal/handler/routes.go`，提交前必须运行 `cd tools/doc-validator && go run . --fix` 并提交自动文档更新。
+- 若实施计划修改 `backend/config/config.go`、`backend/migrations/*.sql` 或当前唯一 route owner（初始为 `backend/internal/handler/routes.go`，hardening Task 3 后为 `backend/internal/router/routes.go`），提交前必须运行 `cd tools/doc-validator && go run . --fix` 并提交自动文档更新。
 - API 分页统一优先使用现有项目约定 `page` + `page_size`。为兼容文档早期草案，后端可接受 `limit` 作为 `page_size` 的别名，但响应字段统一返回 `page_size`。
 
 ### 0.4 设计原则
@@ -275,6 +275,7 @@ OmniCraft 已完成 MVP 开发，Web Beta 加固主线已基本完成；桌面�
 | 约束 | 说明 |
 |------|------|
 | 广播不可撤回 | 通知一旦逐用户创建即不可撤回；前端需二次确认后才能发送 |
+| 广播幂等 | 请求必须携带 `Idempotency-Key`；同一管理员、同一 key、同一规范化正文的重试返回原结果，不得重复创建逐用户通知；同 key 不同正文返回 409。key 哈希、payload 哈希和安全响应摘要持久化到数据库，并与逐用户通知及成功审计在同一事务提交；Redis 不作为幂等事实源。 |
 | 冷启动限制 | 详见 §1.2（纯业务逻辑，不改表） |
 | 广播权限与批量 | 详见 §1.3（仅 admin、CreateInBatches 每批 500） |
 | 系统通知视觉区分 | 详见 §1.4（蓝色左边框） |
@@ -286,7 +287,7 @@ OmniCraft 已完成 MVP 开发，Web Beta 加固主线已基本完成；桌面�
 | 后端 Handler | `backend/internal/handler/message.go` | 增加冷启动校验 |
 | 后端 Handler | `backend/internal/handler/notification.go` | 新增 Broadcast 处理器 |
 | 后端 Handler | `backend/internal/handler/admin.go` | 注册广播路由 |
-| 后端 Handler | `backend/internal/handler/routes.go` | 挂载 `/api/v1/admin/notifications/broadcast` |
+| 后端 Router | 当前唯一 route owner | 挂载 `/api/v1/admin/notifications/broadcast`；hardening Task 3 后使用 `internal/router/routes.go` |
 | 后端 Repo | `backend/internal/repository/message_repo.go` | 增加对方消息计数查询 |
 | 后端 Service | `backend/internal/service/notification_service.go` | 新增 Broadcast 业务方法 |
 | 后端 Repo | `backend/internal/repository/notification_repo.go` | 新增批量插入方法 |
@@ -379,10 +380,11 @@ OmniCraft 已完成 MVP 开发，Web Beta 加固主线已基本完成；桌面�
 // 删除指定记录
 { "ids": [1234, 1235, 1236] }
 
-// 清空全部（保持现有行为兼容）
-{ "ids": [] }
-// 或不传 body
+// 清空全部（必须显式确认模式）
+{ "clear_all": true }
 ```
+
+缺失 body、空对象或 `{ "ids": [] }` 均返回 `400 CLEAR_CONFIRMATION_REQUIRED`；`clear_all:true` 与非空 `ids` 同时出现返回 `400 DELETE_MODE_CONFLICT`。该规则防止代理/中间件意外丢弃 DELETE body 后清空全部数据。
 
 ### 2.4 前端页面设计
 
@@ -415,8 +417,9 @@ OmniCraft 已完成 MVP 开发，Web Beta 加固主线已基本完成；桌面�
 | 已失效内容处理 | status != 'published' 或 deleted_at IS NOT NULL 的内容返回 content: null，前端灰色占位不可点击 |
 | 权限隔离 | 仅查询/删除自己 history，禁止跨用户访问 |
 | 批量删除上限 | 单次请求 ids 数组上限 100 条，防止误操作 |
-| 清空全部语义 | { "ids": [] } 等同于清空全部；建议前端二次确认 |
+| 清空全部语义 | 仅 `{ "clear_all": true }` 清空全部；前端必须 ConfirmModal 二次确认，空/缺失 body 不执行删除 |
 | 时间语义 | 保留期按数据库 `viewed_at` 与服务器当前时间计算；清理任务的 `cleanup_time` 固定按 Asia/Shanghai 解释，日志中记录下一次计划执行时间 |
+| 多实例清理 | 每次清理在删除事务内使用 `pg_try_advisory_xact_lock` 竞争 leader；未获锁的副本记录 skipped 并正常重排下次执行 |
 
 ### 2.6 涉及文件清单
 
@@ -438,7 +441,7 @@ OmniCraft 已完成 MVP 开发，Web Beta 加固主线已基本完成；桌面�
 
 ### 3.1 背景
 
-当前系统仅有简单的二元「收藏」功能（favorites 表：user_id → content_item_id），无法满足用户按主题分类整理收藏内容的需求。AGENTS.md / CLAUDE.md 中已记录收藏集相关业务规则，代码尚未实现 collections + collection_items 模型。
+本功能最初用于替代只能表达二元关系的 `favorites`。截至 2026-07-16，迁移 `058_create_collections.sql`、`collections` / `collection_items` 模型和原计划 Tasks 1–10 已实现并合入 `main`；旧 `favorites` 仍处于兼容窗口，默认集自愈、对账证据和最终 cutover 条件由收藏集计划 Task 11 继续跟踪。
 
 ### 3.2 数据模型
 
@@ -494,11 +497,10 @@ CREATE INDEX idx_collection_items_collection ON collection_items(collection_id);
 
 #### 数据迁移策略
 
-- 迁移脚本将旧 `favorites` 表数据迁移至新模型
-- 每个用户自动创建两个 `is_default=TRUE` 的「默认收藏集」（原创区 + 二创区）
-- 旧收藏记录按 `content_items.zone` 归入对应默认收藏集
-- 迁移完成后保留 `favorites` 表 30 天作为回滚窗口，之后再由独立清理任务/人工迁移删除；本轮 implementation plan 不直接 DROP 旧表
-- 推荐系统当前仍直接读取 `favorites` 表构建用户画像。实施收藏集时必须避免新收藏行为从推荐画像中丢失：推荐做法是在 30 天回滚窗口内让 `POST /api/v1/favorites` 继续映射到对应默认收藏集并保持 `favorites` 表同步，同时将推荐查询改为读取 `collection_items` 与历史 `favorites` 的去重并集；若选择只改推荐查询或只做双写，implementation plan 必须显式说明取舍和回滚方式。
+- 迁移 `058_create_collections.sql` 已将旧 `favorites` 数据复制到新模型，并按 `content_items.zone` 归入原创区或二创区默认集。
+- 注册和首次使用路径负责幂等创建两个 `is_default=TRUE` 的默认收藏集；注册辅助写失败不回滚已验证账号，缺失默认集由 Task 11 补齐 own-list 自愈和 reconciliation 证据。
+- 兼容窗口内旧 favorite mutation 与默认收藏集保持双写，推荐读取 `collection_items` 与历史 `favorites` 的去重并集，避免新收藏行为从画像中丢失。
+- 至少保留 `favorites` 30 天作为回滚窗口；删除不能只按日历到期触发，还必须满足：所有受支持客户端不再调用旧 mutation、只读 reconciliation 连续 7 天零漂移、推荐在只读 `collection_items` 模式下通过回归、回滚版本不再依赖旧表。最终删除由独立 forward-only 清理计划执行。
 
 ### 3.3 业务约束
 
@@ -510,6 +512,8 @@ CREATE INDEX idx_collection_items_collection ON collection_items(collection_id);
 | 公开/私有 | 公开收藏集任何人可浏览（内容过滤 status=published）；私有收藏集仅所有者可见 |
 | 内容可见性 | 收藏集内被下架/删除的内容自动过滤，不在详情页展示 |
 | 旧收藏兼容 | 回滚窗口内不得破坏现有 `/api/v1/favorites` 和 `/api/v1/users/:id/favorites` 调用；旧接口应映射到默认收藏集或继续读写兼容表，避免详情页收藏按钮、用户主页和推荐画像失效 |
+| 默认集自愈 | 注册后的默认集创建可非致命，但首次 authenticated own-list 和 add-to-default 必须幂等补齐；公开 owner_id 查询不得产生写入 |
+| 兼容对账 | 提供默认只读 reconciliation，报告 legacy/default 两侧缺失、逻辑重复和缺少默认集；`--apply` 只能幂等补齐，不删除任一侧 |
 
 ### 3.4 API 设计
 
@@ -628,7 +632,7 @@ CREATE INDEX idx_collection_items_collection ON collection_items(collection_id);
 | 后端 Handler | `backend/internal/handler/collection.go` | **新增** |
 | 后端 Service | `backend/internal/service/collection_service.go` | **新增** |
 | 后端 Repo | `backend/internal/repository/collection_repo.go` | **新增** |
-| 后端 Router | `backend/internal/handler/routes.go` | 注册新路由 |
+| 后端 Router | 当前唯一 route owner | 注册新路由；hardening Task 3 后使用 `internal/router/routes.go` |
 | 前端页面 | `frontend/app/(protected)/studio/favorites/page.tsx` | 重构为收藏集管理页 |
 | 前端页面 | `frontend/app/(public)/collections/[id]/page.tsx` | **新增**收藏集详情页 |
 | 前端组件 | `frontend/components/content/CollectionPicker.tsx` | **新增**收藏集选择弹窗 |
@@ -664,7 +668,7 @@ CREATE INDEX idx_content_series_owner ON content_series(owner_id);
 
 | 字段 | 说明 |
 |------|------|
-| `cover_content_id` | 可选。后端 GET /series/:id 响应中的 `cover` 字段逻辑：① 若 `cover_content_id` 非空且对应内容存在 → 返回该内容的首图（cover_image_url）；② 否则 → 返回 `sort_order` 最小的内容的封面；③ 内容系列无内容时 → `cover: null`。**前端直接使用 `cover` 字段，不做封面来源判断。** |
+| `cover_content_id` | 可选 FK，引用 `content_items(id) ON DELETE SET NULL`。后端 GET /series/:id 响应中的 `cover` 字段逻辑：① 若 cover 内容仍在系列且可见 → 返回首图；② 否则返回 `sort_order` 最小的可见内容封面；③ 无可见内容时 `cover: null`。前端直接使用 `cover` 字段。 |
 | `zone` | 内容系列只能包含该 zone 的内容 |
 
 #### content_series_items 表（新建）
@@ -693,6 +697,7 @@ CREATE INDEX idx_series_items_content ON content_series_items(content_item_id);
 | Zone 一致 | 内容系列 zone 固定，不能混入跨区内容 |
 | 公开性 | 首版只做公开系列，所有内容系列对所有用户可见；私有系列延后 |
 | 删除级联 | 删除内容系列 → 级联删除其中的条目关系（不删除内容本身） |
+| 管理与公开可见性 | 当前状态机没有独立 draft/pending_review；owner 可把自己/已贡献的 `pending`、`published` 内容加入系列预排，`under_review` 不可加入；匿名/非 owner 的系列详情、item_count 和前后导航只返回 published、非删除、非 banned/author_deleted 内容 |
 
 ### 4.4 API 设计
 
@@ -745,7 +750,7 @@ CREATE INDEX idx_series_items_content ON content_series_items(content_item_id);
 +-------------------------------------------------+
 ```
 
-- 内容属于多个内容系列时，以 Tab 切换（最多展示 3 个 Tab）
+- 内容属于多个内容系列时，前三个以 Tab 切换；其余通过可键盘访问的 `更多(N)` 菜单逐项链接到对应系列。后端返回全部紧凑 membership，不得在 normalizer 中先截断；前端以 `memberships.length` 作为唯一总数，不新增冗余 total 字段。
 - 处于内容系列第一项时「上一章」灰显 + 「已是第一章」
 - 处于内容系列最后一项时「下一章」灰显 + 「已是最后一章」
 - 点击「查看完整内容系列目录」→ 跳转到内容系列详情页
@@ -778,7 +783,7 @@ CREATE INDEX idx_series_items_content ON content_series_items(content_item_id);
 | 后端 Handler | `backend/internal/handler/series.go` | **新增** |
 | 后端 Service | `backend/internal/service/series_service.go` | **新增** |
 | 后端 Repo | `backend/internal/repository/series_repo.go` | **新增** |
-| 后端 Router | `backend/internal/handler/routes.go` | 注册新路由 |
+| 后端 Router | 当前唯一 route owner | 注册新路由；hardening Task 3 后使用 `internal/router/routes.go` |
 | 前端页面 | `frontend/app/(public)/series/[id]/page.tsx` | **新增**内容系列详情页 |
 | 前端页面 | `frontend/app/(protected)/studio/series/page.tsx` | **新增**内容系列管理页 |
 | 前端组件 | `frontend/components/content/SeriesNav.tsx` | **新增**内容系列导航栏 |
@@ -827,10 +832,10 @@ CREATE UNIQUE INDEX idx_collab_invites_active ON collaboration_invites (content_
 | 项目 | 规则 |
 |------|------|
 | 过期时长 | config.yaml > collaboration.invite_expire_days 天（默认 7 天） |
-| 触发方式 | scheduler 定时任务每日扫描 status='pending' 且 created_at 早于 invite_expire_days 天前的记录，批量 UPDATE status='expired' |
+| 触发方式 | scheduler 定时任务每日扫描 status='pending' 且 created_at 早于 invite_expire_days 天前的记录；更新事务先竞争 PostgreSQL advisory leader lock，避免多副本重复执行 |
 | 过期后前端 | 邀请卡片灰色显示「已过期」，无操作按钮 |
 | 过期提醒 | 不发送即将过期提醒；仅在邀请卡片中展示过期状态 |
-| 过期后重新邀请 | 允许邀请者重新发送（走完整 7 步校验链，视为新邀请）。**注意**：需要将 UNIQUE 约束改为 PostgreSQL 部分唯一索引 `CREATE UNIQUE INDEX idx_collab_invites_active ON collaboration_invites (content_id, invitee_id) WHERE status IN ('pending', 'accepted')`，否则旧 expired 记录仍会阻止新邀请插入 |
+| 过期后重新邀请 | 允许邀请者重新发送（走完整 8 阶段校验链，视为新邀请）。**注意**：需要将 UNIQUE 约束改为 PostgreSQL 部分唯一索引 `CREATE UNIQUE INDEX idx_collab_invites_active ON collaboration_invites (content_id, invitee_id) WHERE status IN ('pending', 'accepted')`，否则旧 expired 记录仍会阻止新邀请插入 |
 | 迁移文件 | `061_collaboration_invites.sql` 的 CREATE TABLE 语句中**不使用**行内 `UNIQUE (content_id, invitee_id)` 约束；表创建后用 `CREATE UNIQUE INDEX idx_collab_invites_active ON collaboration_invites (content_id, invitee_id) WHERE status IN ('pending', 'accepted')` 建立部分唯一索引 |
 
 #### users 表新增字段
@@ -864,17 +869,18 @@ ALTER TABLE messages ADD COLUMN metadata JSONB NOT NULL DEFAULT '{}';
 
 校验链（按顺序）：
 
-1. 内容存在且当前用户是 author 或已确认的 contributor → 否则 403
-2. 当前用户信誉分 >= config.yaml reputation.min_score_for_interaction → 否则 403
-3. 今天已发送邀请数 < `config.yaml > collaboration.invite_daily_limit`（默认 20）→ 否则 429「今日邀请次数已达上限」
-4. 今天未对该 invitee 发过邀请 → 否则 409「今日已向该用户发送过邀请」
-5. inviter 与 invitee 之间不存在任意方向的拉黑关系（author_blocklist 双向检查）
+1. 内容存在、未软删除、状态为 `pending` 或 `published`，且当前用户是 author 或已确认 contributor；`under_review`/`banned`/`author_deleted` 均不可邀请 → 否则 403/404
+2. invitee 是未封禁、未删除的普通用户，且不是 inviter、内容 author 或现有 contributor；先做容量预检，最终容量在创建事务中锁定内容行后复核
+3. 当前用户信誉分 >= config.yaml reputation.min_score_for_interaction → 否则 403
+4. 今天已发送邀请数 < `config.yaml > collaboration.invite_daily_limit`（默认 20）→ 否则 429「今日邀请次数已达上限」
+5. 今天未对该 invitee 发过邀请 → 否则 409「今日已向该用户发送过邀请」
+6. inviter 与 invitee 之间不存在任意方向的拉黑关系（author_blocklist 双向检查）
    - 检查 (author_id=inviter, blocked_id=invitee) 或 (author_id=invitee, blocked_id=inviter)
    - 任一方向命中即拒绝 403 INVITE_BLOCKED
-6. invitee.accept_collab_invites == TRUE → 否则 403「该用户已关闭联合创作邀请接收」
-7. 该内容尚未向该 invitee 发过邀请（UNIQUE 约束）→ 否则 409
+7. invitee.accept_collab_invites == TRUE → 否则 403「该用户已关闭联合创作邀请接收」
+8. 该内容尚未向该 invitee 发过 active 邀请（部分唯一索引）→ 否则 409
 
-全部通过 → 创建 collaboration_invites 记录 → 查找或创建 invitee_inviter 私信会话 → 创建消息 `msg_type='collab_invite'`、`body='联合创作邀请'`、`metadata` 摘要 → 回填 collaboration_invites.message_id。
+全部通过 → 在事务中锁定内容行，重新校验内容/邀请对象，并计算“已确认 contributor + 非 contributor 的 active pending invite”；加入本次邀请后不得超过 `max_contributors_per_item` → 创建 collaboration_invites 记录 → 查找或创建 invitee_inviter 私信会话 → 创建消息 `msg_type='collab_invite'`、`body='联合创作邀请'`、`metadata` 摘要 → 回填 collaboration_invites.message_id。内容行锁保证同一内容的并发邀请不能超额预占可接受名额。
 
 #### 响应邀请接口
 
@@ -884,11 +890,12 @@ ALTER TABLE messages ADD COLUMN metadata JSONB NOT NULL DEFAULT '{}';
 | `POST` | `/api/v1/collab-invites/:id/decline` | 拒绝邀请，更新 status/responded_at | 需要，仅 invitee |
 
 接受邀请必须在数据库事务内完成：
-1. `SELECT ... FOR UPDATE` 锁定 collaboration_invites 行
+1. `SELECT ... FOR UPDATE` 锁定 collaboration_invites 行，并锁定其 content_items 父行
 2. 校验 status='pending' 且未过期
-3. 插入 `content_contributors(content_item_id, user_id)`，使用 upsert 保证幂等
-4. 更新 invite status='accepted' 与 responded_at
-5. 返回最新 invite DTO；前端据此将卡片变为「已接受」
+3. invitee 尚非 contributor 时，在内容锁下复核 contributor 数；达到 `max_contributors_per_item` 则返回 `CONTRIBUTOR_LIMIT_REACHED` 并保持 invite pending
+4. 插入 `content_contributors(content_item_id, user_id)`，使用 upsert 保证幂等
+5. 更新 invite status='accepted' 与 responded_at
+6. 返回最新 invite DTO；前端据此将卡片变为「已接受」
 
 #### 错误码
 
@@ -901,15 +908,22 @@ ALTER TABLE messages ADD COLUMN metadata JSONB NOT NULL DEFAULT '{}';
 | `INVITE_BLOCKED` | 403 | inviter 与 invitee 存在任意方向的拉黑关系（author_blocklist 双向检查） |
 | `INVITE_NOT_ACCEPTING` | 403 | invitee.accept_collab_invites 为 FALSE |
 | `INVITE_ALREADY_EXISTS` | 409 | 该内容已向该 invitee 发送过邀请（UNIQUE 约束冲突） |
+| `INVITE_SELF_NOT_ALLOWED` | 400 | inviter 与 invitee 相同 |
+| `INVITE_AUTHOR_NOT_ALLOWED` | 400 | invitee 是内容作者 |
+| `INVITE_ALREADY_CONTRIBUTOR` | 409 | invitee 已是内容 contributor |
+| `INVITEE_UNAVAILABLE` | 404 | invitee 被封禁、删除或不可用 |
+| `CONTENT_UNAVAILABLE` | 404 | 内容被删除、banned 或 author_deleted |
+| `CONTRIBUTOR_LIMIT_REACHED` | 409 | 已达到 `max_contributors_per_item` |
 | `INVITE_EXPIRED` | 400 | 邀请已过期，无法执行 accept/decline |
 | `INVITE_NOT_FOUND` | 404 | 邀请记录不存在 |
 
 #### 发送频率限制实现
 
-使用 Redis 计数器：
+使用 Redis 原子 reservation：
 - Key: `collab_invite_count:{inviter_id}:{YYYY-MM-DD}`，每次发送 +1，EXPIRE 86400 秒
 - 每日上限 20（从 `config.yaml > collaboration.invite_daily_limit` 读取）
 - 同用户每日限邀：`collab_invite_user:{inviter_id}:{invitee_id}:{YYYY-MM-DD}`，SET NX EX 86400
+- 日计数和同用户 key 必须由一个 Lua 脚本原子检查/预留；DB 失败后的补偿同样使用带 reservation token 的 Lua，不能由分离的 GET/INCR/SET/DECR 组成
 
 #### 1:1 会话查找实现说明
 
@@ -961,9 +975,10 @@ ALTER TABLE messages ADD COLUMN metadata JSONB NOT NULL DEFAULT '{}';
 | 后端 Handler | `backend/internal/handler/message.go` | 消息创建支持 msg_type/metadata |
 | 后端 Model | `backend/internal/model/user.go` | 增加 accept_collab_invites 字段映射 |
 | 后端 Handler | `backend/internal/handler/user.go` | 允许用户更新 accept_collab_invites，并在用户 DTO 中返回 |
-| 后端 Router | `backend/internal/handler/routes.go` | 注册新路由 |
+| 后端 Router | 当前唯一 route owner | 注册新路由；hardening Task 3 后使用 `internal/router/routes.go` |
 | 后端 Config | `backend/config.yaml` | 新增 collaboration 配置段 |
-| 后端 Config | `backend/config/config.go` | 新增 CollaborationConfig 结构体及 Config 字段映射；首版仅从 `backend/config.yaml` 加载，不纳入 Admin 配置页或 SaveOverride |
+| 后端 Config | `backend/config/config.go` | 新增 CollaborationConfig 结构体及 Config 字段映射；不纳入 Admin 配置页或 SaveOverride；PublicConfig 仅暴露安全的 max_invitees_per_publish |
+| 后端 Public Config | `backend/internal/handler/public_config.go` | 新增 `collaboration.max_invitees_per_publish`，不暴露日限、过期或 contributor cap |
 | 前端组件 | `frontend/components/content/CollabUserPicker.tsx` | **新增**联合创作者搜索选择 |
 | 前端组件 | `frontend/components/social/CollabInviteCard.tsx` | **新增**私信邀请卡片 |
 | 前端页面 | `frontend/app/(protected)/settings/page.tsx` | 新增邀请接收开关 |
@@ -1015,6 +1030,9 @@ zone = 'fanwork':
   若 source_fanwork_id IS NOT NULL:
      → 目标 content 必须 zone='fanwork' AND status='published'
      → 否则 400 "来源二创内容不存在或不可用"
+
+  更新已有内容的 ip_id/source_original_id/source_fanwork_id 时:
+     → 首版来源归因创建后不可变，返回 400 SOURCE_IMMUTABLE
 ```
 
 #### 来源链示意图
@@ -1032,7 +1050,7 @@ ip_id: set                source_original_id: set    source_fanwork_id: set
 
 | 参数 | 类型 | 必需 | 说明 |
 |------|------|------|------|
-| `content_type` | string | 否 | 按内容类型筛选 |
+| `content_type` | string | 否 | 按内容类型筛选；允许逗号分隔 allowlisted 多值，如 `article,prompt` |
 | `sort` | string | 否 | `hot`（热度默认）/ `new`（最新） |
 | `page` | int | 否 | 分页页码 |
 | `page_size` | int | 否 | 每页条数，默认 24，最大 100 |
@@ -1058,6 +1076,7 @@ ip_id: set                source_original_id: set    source_fanwork_id: set
 | `MULTIPLE_SOURCE_CONFLICT` | 400 | 同时指定 source_original_id 与 source_fanwork_id |
 | `SOURCE_ORIGINAL_UNAVAILABLE` | 400 | source_original_id 指向的内容非 zone='original' AND status='published' |
 | `SOURCE_FANWORK_UNAVAILABLE` | 400 | source_fanwork_id 指向的内容非 zone='fanwork' AND status='published' |
+| `SOURCE_IMMUTABLE` | 400 | 更新接口尝试修改 ip_id/source_original_id/source_fanwork_id；首版来源归因创建后不可变 |
 
 ### 6.4 前端设计（克制原则，不喧宾夺主）
 
@@ -1142,6 +1161,8 @@ ip_id: set                source_original_id: set    source_fanwork_id: set
 collaboration:
   invite_daily_limit: 20           # 每人每天最多发送邀请数
   invite_expire_days: 7            # 邀请未响应过期天数
+  max_invitees_per_publish: 5      # 单次发布 UI 最多选择邀请人数
+  max_contributors_per_item: 10    # 单内容 contributor 上限
 
 # 浏览历史
 browse_history:
@@ -1150,10 +1171,10 @@ browse_history:
 ```
 
 > **config.go 结构体改动说明**：以上新增配置需在 `backend/config/config.go` 中映射为对应结构体与字段：
-> - `CollaborationConfig` 结构体：字段 `InviteDailyLimit int`、`InviteExpireDays int`，挂载到 `Config.Collaboration`
+> - `CollaborationConfig` 结构体：字段 `InviteDailyLimit int`、`InviteExpireDays int`、`MaxInviteesPerPublish int`、`MaxContributorsPerItem int`，挂载到 `Config.Collaboration`
 > - `BrowseHistoryConfig` 结构体：字段 `RetentionDays int`、`CleanupTime string`，挂载到 `Config.BrowseHistory`
 > - 字段名遵循 Go 命名规范（驼峰），YAML tag 使用下划线小写；yaml.Unmarshal 自动完成映射
-> - 首版不将 `collaboration` 与 `browse_history` 暴露到 Admin 配置页，也不纳入 `SaveOverride` 写出的配置覆盖文件；实现计划不得修改 `backend/internal/model/config_public.go` 或 `backend/internal/handler/admin.go` 来支持这两个配置段的后台编辑。后续若确有运营调整需求，再单独设计 Admin 配置暴露范围与审计规则。
+> - 首版不将 `collaboration` 与 `browse_history` 暴露到 Admin 配置页，也不纳入 `SaveOverride` 写出的配置覆盖文件。面向普通前端的 `GET /api/v1/config/public` 只新增 `collaboration.max_invitees_per_publish`；不得暴露日限、过期时长或 contributor cap。后续若确有运营调整需求，再单独设计 Admin 配置暴露范围与审计规则。
 
 ## 附录 C：新增数据库迁移文件一览
 
@@ -1164,6 +1185,7 @@ browse_history:
 |--------|-----------|------|
 | 私信+通知 | `057_add_broadcast_channel.sql` | 解除并重建 notifications.channel_check 约束，新增 'broadcast' 值 |
 | 收藏集 | `058_create_collections.sql` | 创建 collections + collection_items 表 + 旧 favorites 数据迁移 + is_default 默认集约束 |
+| 广播幂等跟进 | `062_notification_broadcast_idempotency.sql` | 创建 notification_broadcast_requests；唯一约束 `(actor_id, key_hash)`，只保存 payload 哈希与安全响应摘要，不保存广播正文。若实施时 062 已被占用则顺延并同步引用 |
 | 内容系列 | `059_create_content_series.sql` | 创建 content_series + content_series_items 表 |
 | 联动增强 | `060_add_source_fanwork_id.sql` | content_items 新增 source_fanwork_id 列 |
 | 联合创作 | `061_collaboration_invites.sql` | 创建 collaboration_invites 表 + users.accept_collab_invites + messages.msg_type/metadata + 部分唯一索引（WHERE status IN ('pending','accepted')） |
@@ -1195,8 +1217,8 @@ browse_history:
 
 | 文件 | 涉及子系统 | 冲突风险 | 处理规则 |
 |------|------------|----------|----------|
-| `backend/internal/handler/routes.go` | 1、3、4、5 | 多计划注册路由 | 串行编辑；每个计划实现前重读最新 routes.go；提交前跑路由/handler 测试 |
-| `backend/config/config.go` / `backend/config.yaml` | 2、5 | 新增配置段和结构体映射 | 串行编辑；更新附录 B；首版不改 PublicConfig/PatchConfig/SaveOverride；提交前跑 config 测试和 doc-validator |
+| 当前唯一 route owner：`backend/internal/handler/routes.go`，hardening Task 3 后为 `backend/internal/router/routes.go` | 1、3、4、5、6 | 多计划注册路由 | 串行编辑；实现前探测当前 owner，不得重建已删除文件；提交前跑路由/handler 测试 |
+| `backend/config/config.go` / `backend/config.yaml` | 2、5 | 新增配置段和结构体映射 | 串行编辑；更新附录 B；只允许 collaboration publish-selection cap 进入 PublicConfig，不改 PatchConfig/SaveOverride；提交前跑 config/public-config 测试和 doc-validator |
 | `backend/migrations/` | 1、3、4、5、6 | migration 编号冲突 | 每个计划开始时重新查看最大编号；不得复用已存在编号 |
 | `frontend/messages/zh.json` / `frontend/messages/en.json` | 1-6 | i18n key 合并冲突 | 按页面/组件命名空间追加 key；禁止硬编码新增 UI 文案 |
 | `frontend/components/content/ContentDetail.tsx` | 3、4、6 | 收藏入口、系列导航、来源展示插入点冲突 | 按顺序集成；每次改动后浏览器验证内容详情页 |

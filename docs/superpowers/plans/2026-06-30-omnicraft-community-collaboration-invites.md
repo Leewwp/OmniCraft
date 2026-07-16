@@ -63,7 +63,8 @@ This plan also depends on the publish-form source fields from `2026-06-30-omnicr
 - Modify: `backend/internal/repository/message_repo.go` - add typed send helper.
 - Modify: `backend/internal/repository/content_repo.go` - contributor/owner invite eligibility helpers.
 - Modify: `backend/internal/handler/user.go`, `backend/internal/handler/auth.go` - include/update `accept_collab_invites`.
-- Modify: `backend/internal/handler/routes.go`
+- Modify: `backend/internal/handler/public_config.go`, `backend/internal/handler/public_config_test.go` - expose only the safe publish-selection cap.
+- Modify: current sole route owner (`backend/internal/handler/routes.go` or `backend/internal/router/routes.go` after hardening Task 3); never recreate the old owner.
 - Modify: `backend/config/config.go`, `backend/config.yaml`
 - Modify: `backend/cmd/server/main.go`
 
@@ -78,6 +79,7 @@ This plan also depends on the publish-form source fields from `2026-06-30-omnicr
 - Modify: `frontend/contexts/AuthContext.tsx`
 - Modify: `frontend/app/(protected)/settings/page.tsx`
 - Modify: `frontend/components/studio/PublishForm.tsx`
+- Modify: `frontend/lib/public-config.ts` - type and fetch `collaboration.max_invitees_per_publish`; do not hardcode 5.
 - Modify: `frontend/components/social/ChatWindow.tsx`
 - Modify: `frontend/components/social/ConversationList.tsx`
 - Modify: `frontend/messages/zh.json`, `frontend/messages/en.json`
@@ -133,8 +135,10 @@ Add:
 
 ```go
 type CollaborationConfig struct {
-    InviteDailyLimit int `mapstructure:"invite_daily_limit"`
-    InviteExpireDays int `mapstructure:"invite_expire_days"`
+    InviteDailyLimit       int `mapstructure:"invite_daily_limit"`
+    InviteExpireDays       int `mapstructure:"invite_expire_days"`
+    MaxInviteesPerPublish  int `mapstructure:"max_invitees_per_publish"`
+    MaxContributorsPerItem int `mapstructure:"max_contributors_per_item"`
 }
 ```
 
@@ -144,9 +148,11 @@ Mount as `Config.Collaboration`. Add YAML defaults:
 collaboration:
   invite_daily_limit: 20
   invite_expire_days: 7
+  max_invitees_per_publish: 5
+  max_contributors_per_item: 10
 ```
 
-Do not add this config to `SaveOverride`, admin config, or public config.
+Do not add collaboration settings to `SaveOverride` or admin config. Expose only `max_invitees_per_publish` through `GET /api/v1/config/public` as `collaboration.max_invitees_per_publish`; daily limits, expiry and contributor capacity remain server-only. Add allowlist tests proving no other collaboration field leaks.
 
 - [ ] **Step 5: Verify**
 
@@ -156,6 +162,7 @@ Run:
 cd backend
 go test ./internal/model -run TestCollaborationInviteMigration -v
 go test ./config -run TestCollaborationConfig -v
+go test ./internal/handler -run TestPublicConfig.*Collaboration -v
 ```
 
 ---
@@ -175,6 +182,13 @@ Cover all exact outcomes:
 
 - owner can invite
 - confirmed contributor can invite
+- inviter cannot invite self -> `INVITE_SELF_NOT_ALLOWED`
+- content author cannot be invited -> `INVITE_AUTHOR_NOT_ALLOWED`
+- existing contributor cannot be invited -> `INVITE_ALREADY_CONTRIBUTOR`
+- banned or soft-deleted invitee -> `INVITEE_UNAVAILABLE`
+- banned, author-deleted, or soft-deleted content -> `CONTENT_UNAVAILABLE`
+- contributor cap reached -> `CONTRIBUTOR_LIMIT_REACHED`
+- concurrent sends cannot make confirmed contributors plus active pending invites exceed the configured cap
 - non-owner/non-contributor -> `NOT_CONTENT_OWNER`
 - low reputation -> `REPUTATION_TOO_LOW`
 - daily count >= limit -> `INVITE_DAILY_LIMIT`
@@ -209,7 +223,7 @@ collab_invite_count:{inviter_id}:{YYYY-MM-DD}
 collab_invite_user:{inviter_id}:{invitee_id}:{YYYY-MM-DD}
 ```
 
-Both expire after 86400 seconds. Use `SET NX EX` for the per-invitee key.
+Both keys expire after 86400 seconds. The per-invitee key alone may use `SET NX EX`, but the complete quota reservation must not be implemented as unrelated `GET`/`INCR`/`SET` calls.
 
 Daily key date semantics:
 
@@ -220,9 +234,11 @@ Daily key date semantics:
 Reservation strategy:
 
 1. Run cheap DB/user/content validation before consuming Redis quota.
-2. Reserve Redis daily count and per-invitee key before DB writes; fail closed if Redis is unavailable.
+2. Reserve Redis daily count and per-invitee key atomically with one Lua script before DB writes; the script must reject duplicate invitees and counts above the configured daily limit without leaving a partial reservation.
 3. If the DB transaction fails after Redis reservation, best-effort `DECR` the daily count and `DEL` the per-invitee key, then return the DB error.
 4. Tests must prove the failure path does not create an invite row or typed message.
+
+Compensation must also be a bounded atomic Lua operation: never decrement below zero, remove the counter when it reaches zero, and delete the per-invitee reservation only when it belongs to the current reservation token.
 
 - [ ] **Step 4: Implement typed message send**
 
@@ -257,6 +273,10 @@ On success:
 
 Use a DB transaction for DB writes. The find/create conversation step must be atomic inside that transaction, using either `INSERT ... ON CONFLICT DO NOTHING` on the canonical participant pair or a PostgreSQL advisory lock for the pair before lookup/create. Redis counters should be applied in an order that avoids allowing spam if DB succeeds but counter fails; document and test the chosen rollback/compensation behavior.
 
+Before Redis reservation, cheaply validate that the content is not soft-deleted and is in `pending` or `published`; the current state machine has no separate `draft`/`pending_review` status. Pending content may be referenced by the minimal invite metadata, but `under_review`, `banned`, and `author_deleted` content is rejected. Validate the invitee is active, is not the author, and is not already a contributor.
+
+Inside the database transaction, lock the `content_items` row and authoritatively recheck content availability, existing contributor status, and capacity. Count confirmed contributors plus active `pending` invites for distinct non-contributors; creating this invite must not make that total exceed `max_contributors_per_item`. This serializes concurrent sends for the same content and prevents creating more simultaneously acceptable invitations than available slots.
+
 - [ ] **Step 6: Verify send service**
 
 Run:
@@ -287,17 +307,20 @@ Cover:
 - accepted/declined invite cannot be re-accepted
 - accept inserts `content_contributors` idempotently
 - accept does not increment `pr_count`
+- concurrent accepts never exceed `max_contributors_per_item`
+- accept returns `CONTRIBUTOR_LIMIT_REACHED` and leaves the invite pending when no slot remains
 
 - [ ] **Step 2: Implement accept transaction**
 
 Use:
 
-1. `SELECT ... FOR UPDATE` invite row
+1. `SELECT ... FOR UPDATE` invite row, then lock its `content_items` parent row
 2. check status `pending`
 3. check not expired by `collaboration.invite_expire_days`
-4. insert into `content_contributors(content_item_id, user_id, pr_count, first_at)` with `ON CONFLICT (content_item_id, user_id) DO NOTHING`; set `pr_count=0` for collaboration-created rows and do not update/increment `pr_count` or overwrite `first_at` for existing contributor rows
-5. update status to `accepted`, set `responded_at`
-6. return latest DTO
+4. if the invitee is not already a contributor, count contributors under the content lock and reject with `CONTRIBUTOR_LIMIT_REACHED` when the configured cap is reached; leave the invitation pending
+5. insert into `content_contributors(content_item_id, user_id, pr_count, first_at)` with `ON CONFLICT (content_item_id, user_id) DO NOTHING`; set `pr_count=0` for collaboration-created rows and do not update/increment `pr_count` or overwrite `first_at` for existing contributor rows
+6. update status to `accepted`, set `responded_at`
+7. return latest DTO
 
 - [ ] **Step 3: Implement decline transaction**
 
@@ -306,12 +329,13 @@ Lock row, verify invitee and pending status, update status to `declined`, set `r
 - [ ] **Step 4: Add expiry scheduler tests**
 
 Scheduler marks `pending` invites older than configured days as `expired`. It does not change accepted or declined invites.
-Tests must also prove the scheduler computes day boundaries using the configured expiration duration, and `Stop()` cancels the pending timer callback.
+Tests must also prove the scheduler computes day boundaries using the configured expiration duration, `Stop()` cancels the pending timer callback, and two scheduler instances cannot expire the same batch concurrently.
 
 - [ ] **Step 5: Implement expiry scheduler**
 
 Use the same `time.AfterFunc` self-rescheduling approach as browse history cleanup unless a shared helper already exists by implementation time.
 Expose `Stop()` on the scheduler and make it idempotent.
+Acquire a transaction-scoped PostgreSQL advisory leader lock before the expiry update. A replica that cannot acquire the lock records a skipped run and reschedules normally.
 
 - [ ] **Step 6: Wire scheduler**
 
@@ -346,7 +370,7 @@ go test ./internal/pkg/scheduler -run TestCollabInviteExpiry -v
 
 **Files:**
 - Create: `backend/internal/handler/collab_invite.go`
-- Modify: `backend/internal/handler/routes.go`
+- Modify: current sole route owner (`backend/internal/handler/routes.go` or `backend/internal/router/routes.go`)
 - Modify: `backend/internal/handler/user.go`
 - Modify: `backend/internal/handler/auth.go`
 - Test: `backend/internal/handler/collab_invite_test.go`
@@ -502,6 +526,9 @@ Assert:
 - picker drops results without numeric `id` or non-empty `username`
 - selected collaborators can be removed
 - duplicate selected users cannot be added
+- no more than `collaboration.max_invitees_per_publish` users can be selected
+- `CollabUserPicker` receives that public value as `maxSelected`; backend validation remains authoritative
+- while public config is unavailable, collaborator selection stays unavailable with localized explanation, but the user can still publish content without invitations
 - loading, empty, and error states render localized text
 
 - [ ] **Step 3: Implement `CollabUserPicker`**
@@ -555,7 +582,7 @@ POST /api/v1/contents/:id/collab-invites
 
 for each selected invitee.
 
-Each invite request should use a 5-second client-side timeout. Do not auto-retry failed invite calls; retries can create confusing duplicate UX and are already guarded server-side. Do not block content creation if one invite fails after content was created. Show a warning toast listing failed usernames.
+Each invite request should use a 5-second client-side timeout. Execute at most three invite requests concurrently and never exceed the public `max_invitees_per_publish` value supplied as `maxSelected`; do not serialize five independent 5-second timeouts. Do not auto-retry failed invite calls; retries can create confusing duplicate UX and are already guarded server-side. Do not block content creation if one invite fails after content was created. Show a warning toast listing failed usernames and provide a link to the published content so invites can be managed later.
 
 - [ ] **Step 3: Run tests**
 
@@ -629,7 +656,9 @@ go run . --fix
 - [ ] **Step 5: Commit when implementing**
 
 ```powershell
-git add -- backend/migrations/061_collaboration_invites.sql backend/internal/model/collab_invite.go backend/internal/model/user.go backend/internal/model/notification.go backend/internal/repository/collab_invite_repo.go backend/internal/repository/message_repo.go backend/internal/repository/content_repo.go backend/internal/service/collab_invite_service.go backend/internal/service/collab_invite_service_test.go backend/internal/handler/collab_invite.go backend/internal/handler/collab_invite_test.go backend/internal/handler/user.go backend/internal/handler/auth.go backend/internal/handler/routes.go backend/internal/pkg/scheduler/collab_invite_expiry.go backend/internal/pkg/scheduler/collab_invite_expiry_test.go backend/config/config.go backend/config.yaml backend/cmd/server/main.go frontend/components/content/CollabUserPicker.tsx frontend/components/social/CollabInviteCard.tsx frontend/tests/collab-invite-card.test.tsx frontend/tests/settings-collab-invites.test.tsx frontend/tests/publish-collab-picker.test.tsx frontend/e2e/collab-invite-flow.spec.ts frontend/contexts/AuthContext.tsx "frontend/app/(protected)/settings/page.tsx" frontend/components/studio/PublishForm.tsx frontend/components/social/ChatWindow.tsx frontend/components/social/ConversationList.tsx frontend/messages/zh.json frontend/messages/en.json screenshots/community-collab-picker-desktop.png screenshots/community-collab-picker-mobile.png screenshots/community-collab-invite-pending.png screenshots/community-collab-invite-states.png screenshots/community-collab-invite-mobile.png screenshots/community-collab-settings-desktop.png screenshots/community-collab-settings-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md progress.txt
+$routeOwner = if (Test-Path backend/internal/router/routes.go) { 'backend/internal/router/routes.go' } else { 'backend/internal/handler/routes.go' }
+git add -- backend/migrations/061_collaboration_invites.sql backend/internal/model/collab_invite.go backend/internal/model/user.go backend/internal/model/notification.go backend/internal/repository/collab_invite_repo.go backend/internal/repository/message_repo.go backend/internal/repository/content_repo.go backend/internal/service/collab_invite_service.go backend/internal/service/collab_invite_service_test.go backend/internal/handler/collab_invite.go backend/internal/handler/collab_invite_test.go backend/internal/handler/user.go backend/internal/handler/auth.go backend/internal/handler/public_config.go backend/internal/handler/public_config_test.go $routeOwner backend/internal/pkg/scheduler/collab_invite_expiry.go backend/internal/pkg/scheduler/collab_invite_expiry_test.go backend/config/config.go backend/config.yaml backend/cmd/server/main.go frontend/components/content/CollabUserPicker.tsx frontend/components/social/CollabInviteCard.tsx frontend/tests/collab-invite-card.test.tsx frontend/tests/settings-collab-invites.test.tsx frontend/tests/publish-collab-picker.test.tsx frontend/e2e/collab-invite-flow.spec.ts frontend/contexts/AuthContext.tsx "frontend/app/(protected)/settings/page.tsx" frontend/components/studio/PublishForm.tsx frontend/components/social/ChatWindow.tsx frontend/components/social/ConversationList.tsx frontend/messages/zh.json frontend/messages/en.json screenshots/community-collab-picker-desktop.png screenshots/community-collab-picker-mobile.png screenshots/community-collab-invite-pending.png screenshots/community-collab-invite-states.png screenshots/community-collab-invite-mobile.png screenshots/community-collab-settings-desktop.png screenshots/community-collab-settings-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md progress.txt
+git add -- frontend/lib/public-config.ts
 # Also add architecture.md if doc-validator --fix modified it during this task.
 git commit -m "Community 6: collaboration invites"
 ```
@@ -641,14 +670,19 @@ git commit -m "Community 6: collaboration invites"
 - [ ] Dependency on message-system correction is explicit.
 - [ ] Dependency on source-linkage `PublishForm.tsx` changes is explicit.
 - [ ] Migration number is `061`, after source-linkage `060`.
-- [ ] Anti-abuse chain lists all seven checks and exact error codes.
+- [ ] Anti-abuse chain lists all eight ordered stages and exact error codes.
+- [ ] Anti-abuse chain also rejects self/author/existing-contributor/unavailable-user/unavailable-content/capacity cases.
 - [ ] Redis keys and TTL are specified.
 - [ ] Redis daily key date uses Asia/Shanghai and tests cover midnight boundaries.
 - [ ] Redis reservation and DB failure compensation behavior is specified and tested.
+- [ ] Redis quota reservation and compensation are atomic Lua operations with concurrency tests.
 - [ ] Accept path uses independent idempotent contributor insert and does not increment `pr_count`.
 - [ ] Invite metadata is explicitly safe and minimal.
 - [ ] User setting spans migration, model, PATCH, auth/me, AuthContext, and settings UI.
 - [ ] `CollabUserPicker` uses existing `GET /api/v1/users/search?q=<query>&limit=8` and only safe user fields.
 - [ ] Scheduler expiration and re-invite partial unique index are both covered.
+- [ ] Scheduler expiration uses a transaction-scoped leader lock across replicas.
+- [ ] Publish UI enforces the configured selection cap and bounded concurrency.
+- [ ] Public config exposes only `max_invitees_per_publish`; picker receives it as `maxSelected`, and server-side capacity checks remain authoritative.
 - [ ] `main.go` stores the collaboration expiry scheduler instance and calls `Stop()` during graceful shutdown.
 - [ ] Browser verification covers pending, accepted, declined, expired, and settings states.

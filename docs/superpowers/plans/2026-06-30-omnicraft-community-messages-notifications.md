@@ -605,6 +605,81 @@ git commit -m "Community 1: messages and notifications enhancement"
 
 ---
 
+## Task 9: Follow-Up — Make Irreversible Broadcasts Idempotent
+
+> **Review finding (2026-07-16):** DM cold-start concurrency was rechecked and is already protected by `withConversationPairTransaction`, a conversation row lock, and `TestSendWithColdStartGuardSerializesConcurrentNewPair`; no additional DM-lock task is required. The remaining confirmed risk is duplicate admin broadcast delivery when a client retries an ambiguous request.
+
+**Files:**
+- Create: `backend/migrations/062_notification_broadcast_idempotency.sql` (059–061 remain reserved by community plans 4–6; if 062 is occupied at implementation time, take the next free number and synchronize all references)
+- Create: `backend/internal/model/notification_broadcast_request.go`
+- Modify: `backend/internal/repository/notification_repo.go`
+- Modify: `backend/internal/service/notification_service.go`
+- Modify: `backend/internal/service/notification_service_test.go`
+- Modify: `backend/internal/handler/admin.go`
+- Modify: `backend/internal/handler/admin_notification_broadcast_test.go`
+- Modify: `frontend/app/(protected)/admin/notifications/page.tsx`
+- Modify: `frontend/tests/admin-notifications-page.test.tsx`
+
+- [ ] **Step 1: Add failing backend idempotency tests**
+
+Cover:
+
+- missing `Idempotency-Key` returns `400 IDEMPOTENCY_KEY_REQUIRED`;
+- first request reserves the key and creates one notification per active user in one database transaction;
+- retry with the same key and same normalized payload returns the stored `recipient_count`/`broadcast_at` without inserting again;
+- same key with a different title/body returns `409 IDEMPOTENCY_KEY_REUSED`;
+- concurrent requests with the same key serialize on the database uniqueness boundary and only one creates notifications;
+- a failure at any point rolls back the request record, notifications, and success audit together, so a retry can safely own the key.
+
+- [ ] **Step 2: Confirm red**
+
+```powershell
+cd backend
+go test ./internal/service ./internal/handler -run "TestBroadcast.*Idempot|TestAdminNotificationBroadcast.*Idempot" -v
+```
+
+- [ ] **Step 3: Add a durable idempotency record**
+
+Create a table with a unique `(actor_id, key_hash)` constraint and fields for `payload_hash`, `recipient_count`, `broadcast_at`, and timestamps. Hash the normalized key and normalized title/body/channel payload separately. Never store the raw key, title, or Markdown body in the request record. Reserve migration 062 so this follow-up does not steal 059–061 from the three pending community plans; re-check the migration directory immediately before implementation.
+
+- [ ] **Step 4: Reserve and complete inside the broadcast transaction**
+
+The first transaction owns a newly inserted request row, creates the per-user notifications, writes the success audit, and stores the response summary before commit. A unique-key conflict must wait for/read the committed request: matching payload replays its response; a different payload returns `IDEMPOTENCY_KEY_REUSED`. Do not use Redis as the source of truth and do not leave a committed `pending` row that requires manual repair after a rolled-back broadcast.
+
+- [ ] **Step 5: Require and return idempotency metadata**
+
+The handler reads the `Idempotency-Key` header, passes it into the service, and returns `replayed: true|false`. Audit metadata may include a hashed key fingerprint and replay status, never the raw key or body.
+
+- [ ] **Step 6: Add frontend key lifecycle**
+
+Generate one UUID when the confirmation dialog opens, reuse it for retries of that exact draft, and rotate it after success or after the title/body changes. Do not generate a new key for an automatic network retry.
+
+- [ ] **Step 7: Verify focused and full gates**
+
+```powershell
+cd backend
+go test ./internal/service ./internal/handler -run "TestBroadcast|TestAdminNotificationBroadcast" -v
+go test ./...
+go vet ./...
+go build ./...
+cd ../frontend
+node --import tsx --test tests/admin-notifications-page.test.tsx
+npm run lint
+npm run build
+cd ../tools/doc-validator
+go run . --fix
+```
+
+- [ ] **Step 8: Browser verification**
+
+Send a broadcast, replay the same captured request/key, and prove each recipient still has exactly one notification while the second response reports `replayed: true`.
+
+- [ ] **Step 9: Update only the follow-up state and commit**
+
+Check only Task 9 steps, append a Task 9 entry to `progress.txt`, stage the exact migration/model/repository/service/handler/frontend/test/plan files actually changed, and commit `Community messages: durable broadcast idempotency`. Do not rewrite the original completed Task 1–8 history or any Beta/task.json state.
+
+---
+
 ## Plan Self-Check
 
 - [x] Every backend behavior has an exact route, file, test, and expected error code.
@@ -618,3 +693,4 @@ git commit -m "Community 1: messages and notifications enhancement"
 - [x] Admin broadcast confirmation uses `ConfirmModal`, not the browser-native confirm API, and tests cover open, irreversible warning, focus lock, Esc close, and confirm API call.
 - [x] Browser verification includes both admin broadcast and normal user receipt.
 - [x] `doc-validator` is required because both routes and migrations change.
+- [ ] Follow-up broadcast requests are idempotent across ambiguous client retries.

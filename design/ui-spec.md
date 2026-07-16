@@ -1825,7 +1825,7 @@ interface FacetedSearchSidebarProps {
 
 **Key Constraints**
 - 后台页面：Role 必须为 admin 且二次校验拦截，包含 ConfirmModal 二次确认。
-- 只有 config 中 `agent.web_agent_enabled=true` 且用户已登录才可见该功能。
+- 仅 admin 可见，但不依赖 `agent.web_agent_enabled=true`；管理员必须能在功能关闭时配置 Provider、执行连接/评测检查并查看“尚未开放”状态。该页面本身不得提供绕过发布门直接开启生产功能的快捷操作。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -2199,13 +2199,13 @@ interface ContentDetailProps {
 
 **Key Constraints**
 - 视觉必须克制，定位在 `ContentDetail` 正文/附件与评论区之间，不得喧宾夺主。
-- 单个内容最多展示 3 个 series membership；超出由后端/normalizer 截断或前端只展示前三个。
+- 默认展示前 3 个 series membership；后端返回全部紧凑 membership，超出的项目进入 `更多(N)` overflow menu，不得在 normalizer 中提前截断。
 - 上一篇/下一篇不可用时必须显示 disabled 状态，不渲染无效链接。
 
 **目标与放置**
 - 目标：帮助用户在同一内容系列内跳到上一项、下一项或系列目录。
 - 放置：`frontend/components/content/SeriesNav.tsx`，由 `ContentDetail` 在正文和 `CommentSection` 之间渲染。
-- 多个系列时使用紧凑 tabs 或 segmented control 切换，不使用大卡片组。
+- 多个系列时使用紧凑 tabs 或 segmented control 切换，不使用大卡片组；第 4 个及以后通过可键盘访问的 overflow menu 列出。
 
 **Props 接口**
 ```ts
@@ -2236,10 +2236,12 @@ interface SeriesNavProps {
 - disabled：当前为第一项时上一项 disabled；当前为最后一项时下一项 disabled；disabled 按钮保留说明文本和 `aria-disabled`。
 
 **核心交互与焦点顺序**
-- 焦点顺序：series tabs（如有）-> 上一项 -> 目录 -> 下一项。
+- 焦点顺序：series tabs（如有）-> `更多(N)` trigger（如有）-> 上一项 -> 目录 -> 下一项。
 - tabs 支持键盘左右切换；Enter/Space 激活 tab。
+- `更多(N)` 使用 Popover/Menu 语义，N 为 `memberships.length - 3`；菜单中每个系列分别链接 `/series/:id`。打开后用上/下方向键移动，Esc 关闭并把焦点返回 trigger。
 - 上一项/下一项是 `Link`，仅在目标对象有有效 `id` 和 `title` 时渲染。
 - 目录链接指向 `/series/[id]`。
+- 所有 trigger、tab 和链接必须使用设计系统的可见 focus ring；hover/active 不能导致布局位移。
 
 **可访问性**
 - 对比度不低于 4.5:1；disabled 文案不得低于可读阈值。
@@ -2988,10 +2990,26 @@ interface ConfirmModalProps {
 ```ts
 interface AgentChatWidgetProps {
   className?: string;
-  data?: any;
-  isLoading?: boolean;
+  context?: {
+    type: 'global' | 'content' | 'search' | 'publish';
+    contentId?: number;
+  };
   disabled?: boolean;
-  onAction?: (payload: any) => void;
+  initialConversationId?: number;
+  onCitationOpen?: (citation: AgentCitation) => void;
+}
+
+interface AgentCitation {
+  contentId: number;
+  title: string;
+  zone: 'original' | 'fanwork';
+  excerpt?: string;
+}
+
+interface AgentToolStatus {
+  name: 'search_content' | 'get_content_detail' | 'get_usage_guide' | 'suggest_publish_metadata';
+  status: 'running' | 'success' | 'failed';
+  label: string;
 }
 ```
 
@@ -3006,13 +3024,16 @@ interface AgentChatWidgetProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
+- closed：仅显示带 `aria-label` 的 Agent 入口按钮；功能关闭或未登录时不渲染。
+- empty：展开后显示能力说明、隐私提示、建议问题和输入框。
+- streaming：回答增量渲染，显示停止按钮；可视文本持续更新，但 `aria-live="polite"` 按完整短句/节流批次播报，不能逐 token 打断读屏。
+- tool-running：显示短状态，例如“正在检索内容”，不得展示原始参数或 chain-of-thought。
+- grounded-success：回答下方展示引用列表；站内事实回答至少一个有效引用。
+- no-evidence：显示“未找到足够依据”和普通关键词搜索 CTA，不伪造回答。
+- degraded：Provider 不可用但搜索可用时，显示降级说明和搜索结果，不渲染模型总结。
+- stopped：保留已收到的内容并显示“已停止生成”；允许重新发送。
+- error：显示稳定的本地化错误与重试；保留用户输入和上一份成功回答。
+- disabled：请求中仅禁用会产生冲突的动作，停止和关闭仍可用。
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
@@ -3021,8 +3042,29 @@ interface AgentChatWidgetProps {
 - 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- Enter 发送，Shift+Enter 换行；流式时发送按钮切换为停止。
+- 引用必须是站内有效 `id/title/zone` 形成的可聚焦链接；无效引用只显示不可点击 fallback 或直接丢弃。
+- 工具状态只展示名称、用户友好结果和耗时摘要；不展示 system prompt、工具 JSON 或内部推理。
+- Esc 关闭浮层并把焦点返回入口按钮；重新打开恢复当前会话。
+- “开始新对话”不删除旧会话且无需确认；“清空当前历史”使用 `ConfirmModal` 并调用 owner-scoped `DELETE /api/v1/agent/conversations/:id`。取消不发请求；成功聚焦新输入框；失败保留当前消息并把焦点返回 trigger。该删除不会同时删除服务器脱敏 trace、审计或聚合用量记录。
+- 仅当用户停留在消息底部附近时自动跟随流式内容；用户向上阅读后停止抢滚动，并显示可聚焦的“跳到最新”按钮。
+- 所有可交互元素使用设计系统可见 focus ring；动画遵守 `prefers-reduced-motion`，流式文本本身不使用逐 token 位移动画。
+
+**可访问性与响应式**
+- PC：右下角面板宽 `min(420px, calc(100vw - 32px))`，最大高 `min(720px, calc(100vh - 96px))`。
+- 移动：占满安全区域内可用宽高，顶部固定标题/关闭，底部固定输入区。
+- 所有按钮触控目标不少于 44px；引用关系不能只靠颜色表达。
+- 对话列表使用语义列表；流式内容不在每个 token 到达时抢焦点。
+- 在 320/375/414/768/1024/1440px 检查无横向溢出；长标题、URL 和错误码必须可换行或截断且保留可访问名称。
+
+**i18n key namespace**
+- `agent.chat.*`、`agent.tools.*`、`agent.citations.*`、`agent.noEvidence.*`、`agent.degraded.*`、`agent.errors.*`、`agent.a11y.*`。
+
+**Playwright 截图检查点**
+- `screenshots/web-agent-grounded-desktop.png`
+- `screenshots/web-agent-citations-mobile.png`
+- `screenshots/web-agent-no-evidence.png`
+- `screenshots/web-agent-degraded-search.png`
 
 ## Component: UploadAssistPanel
 
@@ -3034,12 +3076,23 @@ interface AgentChatWidgetProps {
 
 **Props 接口**
 ```ts
-interface UploadAssistPanelProps {
+interface UploadAssistResult {
+  suggestedTitle?: string;
+  suggestedDescription?: string;
+  suggestedTags?: string[];
+  suggestedCategory?: string;
+}
+
+interface AgentUploadAssistPanelProps {
+  uploadedFiles: string[];
+  contentId?: number;
+  title?: string;
+  description?: string;
+  contentType?: string;
   className?: string;
-  data?: any;
-  isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
+  onFill?: (result: UploadAssistResult) => void;
+  applyDisabled?: boolean;
+  applyDisabledReason?: string;
 }
 ```
 
@@ -3081,12 +3134,20 @@ interface UploadAssistPanelProps {
 
 **Props 接口**
 ```ts
-interface ComplianceCheckBadgeProps {
+interface ComplianceResult {
+  riskLevel: 'safe' | 'warning' | 'violation';
+  reason?: string;
+  suggestions?: string[];
+  details?: Record<string, unknown>;
+}
+
+interface AgentComplianceCheckBadgeProps {
+  contentId?: number;
+  title?: string;
+  description?: string;
+  contentType?: string;
   className?: string;
-  data?: any;
-  isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
+  onResult?: (result: ComplianceResult) => void;
 }
 ```
 
@@ -3129,11 +3190,8 @@ interface ComplianceCheckBadgeProps {
 **Props 接口**
 ```ts
 interface UsageGuidePanelProps {
+  contentId: number;
   className?: string;
-  data?: any;
-  isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
 }
 ```
 
@@ -3169,7 +3227,7 @@ interface UsageGuidePanelProps {
 ## Component: SearchAgentInput
 
 **Key Constraints**
-- 只有 config 中 `agent.web_agent_enabled=true` 且用户已登录才可见该功能。
+- 搜索输入本体始终可见并提供 keyword 模式；只有 config 中 `agent.web_agent_enabled=true` 且用户已登录时才显示 Agent 模式切换和 Agent 专属状态。ChatWidget 在功能关闭/未登录时隐藏，但不得连带隐藏基础搜索。
 - 必须引入 SearchAgentInput 进行自然语言检索，失败时降级。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
@@ -3178,10 +3236,14 @@ interface UsageGuidePanelProps {
 ```ts
 interface SearchAgentInputProps {
   className?: string;
-  data?: any;
+  value: string;
+  onValueChange: (value: string) => void;
+  onSubmit: (query: string) => void;
+  onCancel?: () => void;
+  mode: 'keyword' | 'agent';
+  onModeChange?: (mode: 'keyword' | 'agent') => void;
   isLoading?: boolean;
   disabled?: boolean;
-  onAction?: (payload: any) => void;
 }
 ```
 
@@ -3196,13 +3258,12 @@ interface SearchAgentInputProps {
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
+- keyword：默认可靠模式，调用普通搜索。
+- agent：仅在登录且 feature enabled 时可选，显示 Agent 标识和引用说明。
+- loading：输入保留，按钮显示进度并提供取消。
+- degraded：自动切回/展示关键词结果，并明确说明 Agent 暂不可用。
+- error：局部错误 + 重试；不清空 query。
+- disabled：保持原因说明，不能只降低透明度。
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
@@ -3211,8 +3272,13 @@ interface SearchAgentInputProps {
 - 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- Enter 提交当前模式；Esc 取消建议或流式请求。
+- Agent 结果必须显示引用；无引用回答转为 no-evidence/关键词降级。
+- 未登录或 feature disabled 时始终使用 keyword，不显示不可用的假入口。
+- 输入框具有可见 label 或等价可访问名称；模式切换、提交、取消均有可见 focus ring，状态不能只靠颜色表达。
+
+**i18n key namespace**
+- `agent.search.*`、`agent.search.mode.*`、`agent.search.degraded.*`、`agent.search.a11y.*`。
 
 ## Component: FollowButton
 
@@ -4396,10 +4462,13 @@ interface SourceContentPickerProps {
 ```ts
 interface CollabUserPickerProps {
   selectedUsers: Array<{ id: number; username: string; avatarUrl?: string }>;
+  maxSelected: number;
   disabled?: boolean;
   onChange: (users: Array<{ id: number; username: string; avatarUrl?: string }>) => void;
 }
 ```
+
+`maxSelected` comes from public config `collaboration.max_invitees_per_publish`; show a localized limit message when reached. The backend remains authoritative and must reject over-limit requests even if the prop is stale or bypassed.
 
 **布局规范**
 - PC (>1100px)：表单内单列；已选用户以紧凑 chips 列表展示，搜索输入下方弹出结果 Popover。

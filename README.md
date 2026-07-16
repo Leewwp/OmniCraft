@@ -194,7 +194,7 @@ docker compose up -d
 | `AGENT_LLM_API_KEY` | LLM API Key（DeepSeek / 通义千问） | — |
 | `AGENT_LLM_API_BASE` | LLM API 地址 | `https://api.deepseek.com` |
 | `AGENT_LLM_MODEL` | LLM 模型名称 | `deepseek-chat` |
-| `AGENT_HMAC_SECRET` | Agent 脚本签名密钥 | — |
+| `AGENT_HMAC_SECRET` | 已禁用 Desktop 原型的兼容构建变量；不得用于生产发布，D-03 后由 Ed25519 配置替代 | — |
 | `GREEN_CALLBACK_URL` | 内容安全审核回调地址 | — |
 | `FRONTEND_URL` | 前端 URL（用于 CORS/OAuth） | `http://localhost:3000` |
 
@@ -322,4 +322,6 @@ pnpm tauri dev
 pnpm tauri build
 ```
 
-客户端通过 `omnicraft://` URL Scheme 与 Web 前端联动，实现一键部署功能。
+客户端通过 `omnicraft://` URL Scheme 与 Web 前端联动。当前仓库仅完成了不安全原型的关闭（D-01）；HMAC 验签和 WebView 直接文件命令仍属于禁止发布的旧实现。`features.desktop_deploy_enabled` 必须保持 `false`，直至 D-02～D-05 与 R-02 完成短时单次 grant、Ed25519 canonical script、严格 Rust schema/路径边界、原生确认和端到端安全验证。
+
+Web/桌面 Agent 的产品边界见 `docs/superpowers/specs/2026-07-16-omnicraft-dual-surface-agent-productization-design.md`。Web Agent 产品化计划见 `docs/superpowers/plans/2026-07-16-omnicraft-web-agent-productization.md`。

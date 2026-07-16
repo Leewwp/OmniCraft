@@ -760,6 +760,90 @@ git commit -m "Community 3: collections folder system"
 
 ---
 
+## Task 11: Follow-Up — Self-Heal Defaults And Define Legacy Favorites Cutover
+
+> **Review finding (2026-07-16):** registration intentionally logs and continues when default-collection creation fails, while the add path lazily self-heals. The own-collection list path does not document equivalent repair. The dual-write/union compatibility window also has no measurable exit criteria, so it could become permanent data-drift debt.
+
+**Files:**
+- Modify: `backend/internal/service/collection_service.go`
+- Modify: `backend/internal/service/collection_service_test.go`
+- Modify: `backend/internal/handler/collection.go`
+- Modify: `backend/internal/handler/collection_test.go`
+- Create: `backend/cmd/collection-reconcile/main.go`
+- Create: `backend/cmd/collection-reconcile/main_test.go`
+- Modify: `frontend/lib/collections.ts` and remaining legacy favorite callers found by `rg`
+- Modify: `README.md` or the deployment runbook section that documents maintenance commands
+
+- [ ] **Step 1: Add failing self-heal tests**
+
+Simulate successful user creation followed by failure to create one or both defaults. The first authenticated `GET /api/v1/collections` without `owner_id` must idempotently ensure both defaults before returning. Public `owner_id` reads must remain read-only and must not create rows for another user.
+
+- [ ] **Step 2: Confirm red**
+
+```powershell
+cd backend
+go test ./internal/service ./internal/handler -run "TestCollection.*SelfHeal|TestCollection.*Default" -v
+```
+
+- [ ] **Step 3: Implement owner-only lazy repair**
+
+Keep registration non-fatal so a transient auxiliary failure does not invalidate a verified account. Repair only on authenticated own-list and add-to-default paths; log structured `user_id`, `zone`, and safe error code.
+
+- [ ] **Step 4: Write failing reconciliation-command tests**
+
+The command must report, per user and zone:
+
+- legacy favorites missing from the default collection;
+- default-collection items missing from legacy favorites during the dual-write window;
+- duplicate logical items after union;
+- users missing a default collection.
+
+Default mode is read-only. `--apply` may repair missing compatibility rows idempotently and must refuse to delete either side.
+
+- [ ] **Step 5: Implement reconciliation and operational output**
+
+Emit aggregate counts and a non-zero exit code when drift remains in read-only verification mode. Do not log private notes or full user profiles.
+
+- [ ] **Step 6: Remove new frontend dependencies on legacy favorites**
+
+Run:
+
+```powershell
+rg -n "/api/v1/favorites|/favorites" frontend --glob '!messages/*.json'
+```
+
+New collection UI must use `/collections`. Existing compatibility endpoints remain available only for old clients during the cutover window.
+
+- [ ] **Step 7: Record cutover exit criteria**
+
+The legacy write path may be removed only when all are true:
+
+1. no supported frontend/client build calls legacy favorite mutation endpoints;
+2. reconciliation reports zero drift for seven consecutive daily checks;
+3. a rollback release no longer depends on the old table;
+4. recommendation tests pass when reading `collection_items` alone;
+5. removal is executed by a separate forward-only cleanup plan and migration.
+
+- [ ] **Step 8: Verify gates**
+
+```powershell
+cd backend
+go test ./internal/service ./internal/handler ./cmd/collection-reconcile -run "TestCollection|TestReconcile" -v
+go test ./...
+go vet ./...
+go build ./...
+cd ../frontend
+npm run test
+npm run lint
+npm run build
+```
+
+- [ ] **Step 9: Update only the follow-up state and commit**
+
+Check only Task 11 steps, append a Task 11 follow-up entry to `progress.txt`, stage exact service/handler/reconciliation/frontend/doc/plan files, and commit `Community collections: reconcile legacy cutover`. Do not alter original Task 1–10 completion history or any Beta/task.json state.
+
+---
+
 ## Plan Self-Check
 
 - [x] Plan preserves old `favorites` API during rollback window.
@@ -775,3 +859,5 @@ git commit -m "Community 3: collections folder system"
 - [x] Zone mismatch behavior and `ZONE_IMMUTABLE` are explicitly tested.
 - [x] Migration is idempotent and does not drop `favorites`.
 - [x] Browser verification covers public, private, owner, and non-owner states.
+- [ ] Follow-up own-list self-heals missing default collections without mutating public reads.
+- [ ] Follow-up compatibility window has reconciliation evidence and explicit exit criteria.

@@ -200,9 +200,9 @@ SourceFanworkID *int64 `json:"source_fanwork_id"`
 
 - [ ] **Step 4: Implement validation**
 
-Create a single validation helper that receives zone, `ipID`, source original, and source fanwork. Return typed errors that handler can map to the exact codes.
+Create a single create-time validation helper that receives zone, `ipID`, source original, and source fanwork. Return typed errors that handler can map to the exact codes.
 
-Do not enforce this rule for existing historical rows; only new publish/update payloads pass through this validation.
+Source attribution is immutable after creation in the first release. Existing sources always point to an already-created content while the new content has no ID yet, so create cannot introduce a direct or transitive cycle. Do not add an unreachable recursive CTE. `PATCH /contents/:id` must detect any `ip_id`, `source_original_id`, or `source_fanwork_id` field and return `400 SOURCE_IMMUTABLE` rather than silently ignoring it. Unrelated updates and historical rows remain unaffected.
 
 - [ ] **Step 5: Persist source fanwork**
 
@@ -236,6 +236,7 @@ Extend `content_publish_route_test.go` to assert:
 - both source IDs fail
 - `GET /contents/:id` returns `source_fanwork: { id, title, zone: "fanwork" }` when visible
 - `GET /contents/:id` still returns `source_original: { id, title, zone: "original" }` for original-source fanworks
+- `PATCH /contents/:id` with `ip_id`, `source_original_id`, or `source_fanwork_id` returns `400 SOURCE_IMMUTABLE` and preserves the stored attribution
 
 - [ ] **Step 2: Run and confirm red**
 
@@ -243,7 +244,7 @@ Run:
 
 ```powershell
 cd backend
-go test ./internal/handler -run TestCreateContentRoute -v
+go test ./internal/handler -run "TestCreateContentRoute|TestUpdateContent.*SourceImmutable" -v
 ```
 
 - [ ] **Step 3: Map exact error codes**
@@ -255,6 +256,7 @@ Handler mapping:
 - `MULTIPLE_SOURCE_CONFLICT` -> 400
 - `SOURCE_ORIGINAL_UNAVAILABLE` -> 400
 - `SOURCE_FANWORK_UNAVAILABLE` -> 400
+- `SOURCE_IMMUTABLE` -> 400 on content update attempts
 
 - [ ] **Step 4: Add source fanwork summary**
 
@@ -302,6 +304,8 @@ Cover:
 - fanwork content returns rows where `source_fanwork_id = :id`
 - non-published and deleted children are excluded
 - `content_type` filter works
+- comma-separated `content_type` values such as `article,prompt` use an allowlisted parameterized `IN` query
+- invalid or empty multi-value entries return `400 INVALID_CONTENT_TYPE`
 - `sort=hot` default orders by hot score / popularity
 - `sort=new` orders by newest
 - `limit` aliases `page_size`
@@ -325,6 +329,8 @@ SourceFanworkID *int64
 ```
 
 Apply `WHERE source_fanwork_id = ?` when present.
+
+Reuse the centralized content visibility scope for both source lookup and returned children. Do not copy a partial `status='published'` predicate that can drift from soft-delete/author-deleted/banned rules.
 
 - [ ] **Step 4: Modify handler logic**
 
@@ -375,6 +381,8 @@ Assert:
 
 - `sourceKind="original"` searches `GET /api/v1/contents/search?zone=original&q=<query>&limit=8`
 - `sourceKind="fanwork"` searches `GET /api/v1/contents/search?zone=fanwork&q=<query>&limit=8`
+- anonymous and authenticated searches return only source-selectable published, non-deleted content visible to that viewer
+- banned, author-deleted, soft-deleted, and under-review rows never appear as picker results
 - result rows require `id`, `title`, and matching `zone`
 - selecting a result emits the selected content summary
 - clearing selection emits `undefined`
@@ -643,7 +651,7 @@ git commit -m "Community 5: original fanwork source linkage"
 
 ## Plan Self-Check
 
-- [ ] All five new source validation errors are named with exact conditions.
+- [ ] All six source errors, including update-time `SOURCE_IMMUTABLE`, are named with exact conditions.
 - [ ] `AGENTS.md`, `CLAUDE.md`, and `architecture.md` no longer describe the stale single-source-only model.
 - [ ] Historical fanwork rows without sources are not retroactively blocked.
 - [ ] Model, migration, input DTO, repository filter, handler response, frontend normalize, publish UI, and detail UI are all included.
@@ -651,6 +659,9 @@ git commit -m "Community 5: original fanwork source linkage"
 - [ ] Source summaries include `id`, `title`, and `zone` before frontend renders clickable attribution.
 - [ ] `SourceContentPicker` is canonical and no fanwork-specific picker file is created.
 - [ ] Fanwork source search uses `GET /api/v1/contents/search?zone=fanwork&q=<query>&limit=8`.
+- [ ] Source search reuses shared visibility and never exposes unavailable content.
+- [ ] Related-fanworks multi-value `content_type` follows the authoritative architecture contract.
+- [ ] Source attribution is create-only; update payloads receive `SOURCE_IMMUTABLE` instead of being silently ignored.
 - [ ] UI labels use "衍生作品" instead of "三创".
 - [ ] Source attribution has unavailable-source behavior and does not render for IP-only fanwork.
 - [ ] Publish UI prevents both source IDs from being submitted together.

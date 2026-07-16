@@ -2,7 +2,7 @@
 
 ## 任务来源与开发模式
 
-本仓库同时支持三套任务来源。每次新 Agent 会话必须先确定当前模式，再选择任务。不要混用多套跟踪规则。
+本仓库同时支持四套任务来源。每次新 Agent 会话必须先确定当前模式，再选择任务。不要混用多套跟踪规则。
 
 ### 模式 A：双轨 Beta 计划集（当前公开 Beta 加固工作）
 
@@ -36,7 +36,7 @@
 
 适用于维护历史 MVP、处理 `task.json` 中新增任务，或用户明确指定 `task.json` 任务时。
 
-> **注意**：`task.json` 中 100+ 个历史任务已全部完成（`passes: true`），仅作历史记录保留。新工作请按用户指定使用模式 A（Beta 路线图）或模式 C（社区功能计划）。仅在用户明确指定历史任务 ID 时使用此模式。
+> **注意**：`task.json` 中 100+ 个历史任务已全部完成（`passes: true`），仅作历史记录保留。新工作请按用户指定使用模式 A（Beta 路线图）、模式 C（社区功能计划）或模式 D（项目卓越/Web Agent）。仅在用户明确指定历史任务 ID 时使用此模式。
 
 规则：
 
@@ -68,14 +68,31 @@
 6. 多代理并行时必须先明确每个代理的文件范围；共享文件（routes、config、DTO、UI spec、翻译文件、迁移序号）必须串行预约，禁止静默抢写。
 7. 完成后更新计划内 checkbox 和 `progress.txt`，精确暂存本计划涉及文件并提交。
 
+### 模式 D：2026-07 项目卓越与 Web Agent 产品化
+
+适用于以下两份计划；用户指定项目工程加固、验证门、文档治理、HTTP composition root 或 Web Agent 产品化时使用：
+
+- 工程加固：`docs/superpowers/plans/2026-07-08-omnicraft-project-excellence-hardening.md`
+- Agent 设计：`docs/superpowers/specs/2026-07-16-omnicraft-dual-surface-agent-productization-design.md`
+- Web Agent：`docs/superpowers/plans/2026-07-16-omnicraft-web-agent-productization.md`
+
+规则：
+
+1. 一个编号 Task 对应一个 Agent 会话、一个独立 worktree、一个分支和一个 commit；分支分别使用 `codex/excellence/<task-id>` 或 `codex/web-agent/<task-id>`。
+2. 按计划依赖顺序执行；同一计划内共享 service/config/route/UI/翻译文件必须串行预约。Hardening Task 3 前后，所有计划都必须探测当前唯一 route owner，不得重建已删除的 `handler/routes.go`。
+3. 实现遵循 TDD和两阶段审查；完成当前 Task 的全部验证后，只勾选该 Task 的步骤，更新 `progress.txt` 并精确提交。
+4. 本模式不修改 `task.json`、Beta roadmap 或社区计划完成状态。Desktop D-02～D-05/R-02 仍属于模式 A；不得在模式 D 复制或代替其安全任务。
+5. Web Agent 真实 Provider smoke 缺少密钥时按阻塞规则记录，仓库默认开关保持关闭；确定性 fake-provider 测试仍必须完成。
+
 ### 模式选择优先级
 
 1. 用户明确指定的任务来源或任务 ID。
 2. 当前任务分支和 worktree 的既定用途。
 3. 若用户要求继续 2026-05-30 公开 Beta 加固，使用模式 A。
 4. 若用户要求实现 2026-06-30 社区功能计划，使用模式 C。
-5. 其他未明确场景使用模式 B。
-6. 无法可靠判断时，先询问用户，不要擅自改动任一任务跟踪文件。
+5. 若用户要求执行 2026-07 工程加固或 Web Agent 产品化，使用模式 D。
+6. 其他未明确场景使用模式 B。
+7. 无法可靠判断时，先询问用户，不要擅自改动任一任务跟踪文件。
 
 ## 项目概览
 
@@ -129,6 +146,17 @@ cat docs/superpowers/plans/2026-06-30-omnicraft-community-<plan>.md
 ```
 
 选择用户指定的社区计划；若未指定，按模式 C 的建议顺序选择尚未完成的最早计划。
+
+**模式 D：项目卓越与 Web Agent 产品化**
+
+```bash
+cat docs/superpowers/plans/2026-07-08-omnicraft-project-excellence-hardening.md
+# Web Agent 任务还必须读取：
+cat docs/superpowers/specs/2026-07-16-omnicraft-dual-surface-agent-productization-design.md
+cat docs/superpowers/plans/2026-07-16-omnicraft-web-agent-productization.md
+```
+
+只选择用户指定计划中依赖已满足的一个编号 Task。Desktop Agent 安全任务切回模式 A 执行。
 
 - 若遇到两份文档内容矛盾 → 查阅上方文档权威源表格，以权威文档为准。将矛盾记录为 issue，**不做自行发挥**。
 
@@ -250,6 +278,18 @@ git commit -m "Community [plan-slug]: completed"
 
 本模式不要修改 `task.json`，也不要勾选 Beta roadmap。任务分支合并前必须完成双重审查、rebase 和重新验证。
 
+**模式 D：项目卓越与 Web Agent 产品化**
+
+```bash
+# 1. 只勾选当前编号 Task 已实际完成的步骤
+# 2. 更新 progress.txt
+# 3. 精确暂存当前 Task 文件和对应计划，不触碰 A/B/C 跟踪状态
+git add <本任务精确文件列表> <当前模式D计划文件> progress.txt
+git commit -m "Productization [plan]-[task-id]: completed"
+```
+
+本模式不要修改 `task.json`、Beta roadmap 或社区计划 checkbox。真实 Provider/发布输入缺失时不得勾选 release task 或开启 feature flag。
+
 **通用规则**：
 - 只有所有步骤和验证通过后，才能更新完成状态
 - 使用 `git add <精确文件列表>`，不要在脏工作区使用 `git add .`
@@ -279,7 +319,7 @@ git commit -m "Community [plan-slug]: completed"
 ```
 🚫 任务阻塞 - 需要人工介入
 
-**当前模式**: [双轨 Beta 计划集 / 历史 task.json / 2026-06-30 社区功能计划集]
+**当前模式**: [双轨 Beta 计划集 / 历史 task.json / 2026-06-30 社区功能计划集 / 项目卓越与 Web Agent 产品化]
 **当前任务**: [ID] - [标题]
 
 **已完成的工作**:
@@ -472,6 +512,7 @@ docker compose logs -f backend     # 查看后端日志
 ### 原创/二创来源联动规则
 
 - 二创来源采用三选一模型：`ip_id`、`source_original_id`、`source_fanwork_id` 至少填写一个；`source_original_id` 与 `source_fanwork_id` 互斥。
+- 首版来源归因仅在创建时设置；`ip_id`、`source_original_id`、`source_fanwork_id` 创建后不可变，更新请求携带任一来源字段返回 `400 SOURCE_IMMUTABLE`。
 - 只有 `zone='fanwork'` 允许填写 `ip_id`、`source_original_id` 或 `source_fanwork_id`；`zone='original'` 携带任一来源字段必须拒绝。
 - `source_original_id` 指向的源内容必须满足 `zone='original'` 且 `status='published'`；`source_fanwork_id` 指向的源内容必须满足 `zone='fanwork'` 且 `status='published'`。
 - 旧二创内容不强制回填来源，`source_original_id = NULL` 且 `source_fanwork_id = NULL` 时不会出现在来源链列表。
@@ -496,8 +537,9 @@ docker compose logs -f backend     # 查看后端日志
 
 ### 收藏集（Task 122–123）
 
-- 收藏集数据模型：`collections` 表（id, user_id, title, description, is_public, created_at, updated_at），`collection_items` 关联表（collection_id, content_id, added_at, note）
-- 收藏集去重：同一收藏集内不允许添加重复内容（`collection_items` 表 UNIQUE 约束 `(collection_id, content_id)`）
+- **实现状态**：迁移 `058_create_collections.sql` 和原计划 Tasks 1–10 已完成；默认集自愈、legacy reconciliation/cutover 仍以计划 Task 11 为准，未完成前保留旧 `favorites` 兼容路径。
+- 收藏集数据模型：`collections` 表（id, user_id, title, description, zone, is_default, is_public, sort_order, created_at, updated_at），`collection_items` 关联表（collection_id, content_item_id, added_at, note）
+- 收藏集去重：同一收藏集内不允许添加重复内容（`collection_items` 表 UNIQUE 约束 `(collection_id, content_item_id)`）
 - 收藏集筛选：支持按 `content_type` 过滤收藏集内内容
 - 权限：私有收藏集仅创建者可见；公开收藏集所有用户可浏览
 - 前端入口：用户主页新增「收藏集」Tab 和内容详情页「添加到收藏集」按钮
@@ -513,7 +555,7 @@ docker compose logs -f backend     # 查看后端日志
 ### 搜索增强（Task 119–120）
 
 - 全文搜索（Task 119）：使用 PostgreSQL `tsvector` + `tsquery` 实现中文全文搜索；迁移 038 创建 `content_search_idx` GIN 索引
-- 搜索建议/热搜（Task 120）：`search_suggestions` 表存储热门搜索词；`GET /api/v1/search/suggestions` 返回 Top 10 热搜词；前端搜索框输入时下拉显示建议
+- 搜索建议/热搜（Task 120）：搜索建议通过 tags 和 content_items 的前缀匹配实时计算（详见 architecture.md §15.5）；热门搜索词从 Redis hot_rank 数据提取；`GET /api/v1/search/suggestions` 返回 Top 10 建议词；前端搜索框输入时下拉显示建议
 
 ### 密码重置（Task 117）
 
@@ -523,7 +565,7 @@ docker compose logs -f backend     # 查看后端日志
 ### 赛博判官
 - 题库不存在时：该类型内容不开放众裁
 - 考核通过线：≥ 80% 正确率
-- 错误率撤权：最近 N 次（N > 10）判定中错误率 > 50%，撤权 + 扣 1 信誉分
+- 错误率撤权：最近 N 次（配置窗口从 config.yaml > judge.error_rate_window 读取且最小为 10；累计有效判定需 > 10）判定中错误率 > 50%，撤权 + 扣 1 信誉分
 - 判决结束条件：总投票人数 ≥ 阈值（MVP 默认 20，可配置，目标 100）
 - 判决结果：「不违规」比例 ≥ 60% → 恢复展示；< 60% → 有争议，不予展示（管理员可手动恢复）
 - 判决详情页：投票后展示当前投票分布 + 其他判官提交的理由列表（可点赞/点踩，按赞数排序）
@@ -579,6 +621,16 @@ docker compose logs -f backend     # 查看后端日志
 - 发布表单复用现有 `/publish` 组件逻辑（FileUploader、MarkdownEditor、ComplianceCheckBadge 等）
 - 粉丝分析数据来自 `GET /api/v1/users/:id/followers/stats?days=30`（新增 API）
 - 收益页面在 `features.creator_support_enabled: false` 时显示占位 EmptyState
+
+### 双端 Agent 产品化与发布边界（2026-07-16）
+
+- Web Agent 是作品集主线能力：涉及站内事实的回答必须包含后端重新校验过的公开内容引用；无足够依据时拒答或降级普通关键词搜索，不得编造引用。
+- Web Agent 默认只检索 viewer 可见的 published 内容；私有草稿、上传文件和个人数据仅在用户显式选择且业务 API 再次授权后进入上下文。
+- 模型输出是不可信建议，不能直接成为权限决定或写操作；工具名、参数、调用轮数、内容可见性和预算均由服务端确定性校验。
+- `agent.web_agent_enabled` 仓库默认保持 `false`；真实 Provider、原子限流/预算、引用评测、错误降级和浏览器证据通过后，生产配置才可开启。
+- 当前 Tauri HMAC + WebView 直接文件命令属于禁用原型，不是可发布能力。D-02～D-05 与 R-02 未完成前必须保持 `features.desktop_deploy_enabled=false`，不得宣传客户端 Agent 可执行本地下载/配置。
+- Desktop 发布后也只能执行 Ed25519 验签后的严格动作 schema；WebView/LLM 不得直接调用文件原语，敏感写/移动必须原生二次确认。
+- 详细设计：`docs/superpowers/specs/2026-07-16-omnicraft-dual-surface-agent-productization-design.md`。
 
 ### Tauri 客户端文件操作白名单
 

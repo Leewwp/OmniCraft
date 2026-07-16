@@ -29,7 +29,7 @@ Historical `passes: true` values are evidence of prior completion only. They do 
 | 2 | `docs/superpowers/plans/2026-05-30-omnicraft-beta-verification-feedback.md` | email/captcha adapters, account verification, terms acceptance, help/legal/client pages, feedback loop | Yes |
 | 3 | `docs/superpowers/plans/2026-05-30-omnicraft-beta-admin-operations.md` | admin audit log, dashboard, reports, feedback, queue, navigation | Yes |
 | 4 | `docs/superpowers/plans/2026-05-30-omnicraft-beta-agent-entrypoints.md` | public feature flags, chat/search downgrade, usage guide, upload assist, compliance confirmation | Yes |
-| 5 | `docs/superpowers/plans/2026-05-30-omnicraft-beta-desktop-deploy-security.md` | mandatory prototype shutdown plus optional deploy grant, Ed25519 signing, Tauri command hardening and client flow | D-01 is required; D-02 through D-05 are conditional before advertising one-click deploy |
+| 5 | `docs/superpowers/plans/2026-05-30-omnicraft-beta-desktop-deploy-security.md` | mandatory prototype shutdown plus deploy grant, Ed25519 signing, Tauri command hardening and client flow | D-01 protects Web Beta; D-02 through D-05 and R-02 are required before the portfolio release advertises Desktop Agent/local execution |
 | 6 | `docs/superpowers/plans/2026-05-30-omnicraft-beta-release-validation.md` | cross-stack release gates, external dependency checklist, browser evidence | Yes |
 
 ## Dependency Graph
@@ -99,7 +99,7 @@ flowchart TD
 | G-04 | Mount usage guide on content detail | agent-entrypoints | G-03 | Track B | `[x]` |
 | G-05 | Mount user-confirmed publish assistance | agent-entrypoints | G-01 | Track B | `[x]` |
 | D-01 | Remove the unsafe desktop deploy prototype route | desktop-deploy-security | G-01 | Shared Web Beta gate | `[x]` |
-| D-02 | Add short-lived single-use deploy grants | desktop-deploy-security | D-01, F-06 | Desktop conditional | `[ ]` |
+| D-02 | Add short-lived single-use deploy grants | desktop-deploy-security | D-01, F-06 | Desktop portfolio release | `[ ]` |
 | D-03 | Replace HMAC with Ed25519 signed canonical scripts | desktop-deploy-security | D-02 | Desktop | `[ ]` |
 | D-04 | Harden Rust schema, URL handling, filesystem and capabilities | desktop-deploy-security | D-03 | Desktop | `[ ]` |
 | D-05 | Update desktop confirmation UI and run end-to-end tests | desktop-deploy-security | D-04 | Desktop | `[ ]` |
@@ -124,7 +124,7 @@ These decisions remove ambiguities discovered during plan review. Subsystem plan
 
 | Area | Frozen execution contract |
 |---|---|
-| Web Beta desktop posture | G-01 hides one-click deploy UI while the public flag is off. D-01 is mandatory for R-01 and removes the unsafe `/api/v1/agent/script/:id` prototype entirely. Shipping Web Beta with D-02 through D-05 incomplete is allowed only when `features.desktop_deploy_enabled=false`. |
+| Web Beta desktop posture | G-01 hides one-click deploy UI while the public flag is off. D-01 is mandatory for R-01 and removes the unsafe `/api/v1/agent/script/:id` prototype entirely. A Web-only Beta may run with D-02 through D-05 incomplete only when `features.desktop_deploy_enabled=false`; the portfolio release must not advertise Desktop Agent/local execution until D-02 through D-05 and R-02 pass. |
 | Web Beta client distribution posture | Web Beta does not expose a desktop-client download. Keep `client.download_enabled=false`, omit download URL/version values from the public response when empty, and render `/client` as an unavailable/information state until a later client-release decision. |
 | Production Web/API topology | The confirmed production Web origin is `https://app.leeppp.online`. The confirmed API origin is `https://api.leeppp.online`. F-03 must use API-host-only cookies, `SameSite=Lax`, `Secure`, strict `Origin` validation and credentialed CORS for only `https://app.leeppp.online`. |
 | Captcha provider | Web Beta uses Alibaba Cloud CAPTCHA 2.0 behind the provider-agnostic `CaptchaVerifier` interface. Public config exposes only `provider`, `prefix`, `scene_id` and `region`. Server credentials remain private runtime configuration. Local development may use `bypass`; release mode must require `aliyun_v2`. |
@@ -241,7 +241,7 @@ Confirmed on 2026-05-31:
 | Production Web origin | `https://app.leeppp.online` | F-03 may freeze cookie, CSRF and CORS behavior against this exact Web origin. |
 | Production API origin | `https://api.leeppp.online` | F-03 uses API-host-only refresh and CSRF cookies. |
 | Captcha provider | Alibaba Cloud CAPTCHA 2.0 | F-04/V-01 use the `aliyun_v2` provider contract while preserving a provider-agnostic service interface. |
-| Initial Web Beta desktop posture | Desktop one-click deployment remains disabled | Keep `features.desktop_deploy_enabled=false`; complete D-01 for Web Beta, defer D-02 through D-05 and R-02 until a later desktop release decision. |
+| 2026-07-16 portfolio desktop posture | Desktop Agent is a required portfolio capability, but remains disabled until safe | Keep `features.desktop_deploy_enabled=false`; execute D-02 through D-05 and R-02 before advertising download/config automation. No unsafe demo exception. |
 
 ## Remaining Human Decisions Required Before Execution
 
