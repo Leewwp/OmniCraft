@@ -3505,3 +3505,22 @@ Code review of all Batch 12 changes identified 14 issues (2 Critical, 8 Major, 4
 ### Notes:
 - Route composition remains behavior-preserving; no route method/path was added or removed, and the old handler route owner no longer exists.
 - Mode D tracking only: no `task.json`, Beta roadmap, or community-plan completion state was changed.
+
+## [2026-07-17] - Hardening Task 4: Centralize Interaction Policy Archetypes
+
+### What was done:
+- Audited all current interaction guards and confirmed the only policy-value difference is publishing's additional no-publish-freeze requirement; standard interactions require verified email and minimum reputation.
+- Added fresh-value `standardVerifiedInteractionPolicy` and `publishingInteractionPolicy` archetypes, with publishing composed from standard plus the freeze check.
+- Kept all 12 route-specific guard variables and preserved operation-specific upload, comment-edit, Agent rate limits, middleware ordering, and handler/service business rules.
+- Added tests for exact archetype values, every guard-to-policy mapping, and representative real route attachments.
+
+### Testing:
+- TDD RED: `go test ./internal/router -run "TestInteractionPolicy|TestRoutePolicy" -v` failed because both named archetype functions were missing.
+- Focused GREEN and router regression: the same focused command and `go test ./internal/router -v` passed.
+- Mechanical audit compared all 193 route registration lines before and after; order and arguments were identical.
+- Full gates passed: backend `go test ./...`, `go vet ./...`, `go build ./...`; frontend `npm.cmd run verify`; doc-validator `go test ./...`, `go run . --fix`, and strict release profile.
+- Specification and code-quality reviewers both returned `APPROVED`.
+
+### Notes:
+- This is behavior-preserving policy deduplication, not a replacement for route-specific or handler/service authorization rules.
+- Mode D tracking only: no `task.json`, Beta roadmap, or community-plan completion state was changed.

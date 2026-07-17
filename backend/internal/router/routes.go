@@ -31,55 +31,18 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		false,
 	)
 
-	publishGuard := middleware.InteractionRequired(cfg, db, rdb, middleware.InteractionPolicy{
-		RequireVerifiedEmail:   true,
-		RequireReputation:      true,
-		RequireNoPublishFreeze: true,
-	})
-	editDeleteGuard := middleware.InteractionRequired(cfg, db, rdb, middleware.InteractionPolicy{
-		RequireVerifiedEmail: true,
-		RequireReputation:    true,
-	})
-	commentsGuard := middleware.InteractionRequired(cfg, db, rdb, middleware.InteractionPolicy{
-		RequireVerifiedEmail: true,
-		RequireReputation:    true,
-	})
-	reactionsGuard := middleware.InteractionRequired(cfg, db, rdb, middleware.InteractionPolicy{
-		RequireVerifiedEmail: true,
-		RequireReputation:    true,
-	})
-	favoritesGuard := middleware.InteractionRequired(cfg, db, rdb, middleware.InteractionPolicy{
-		RequireVerifiedEmail: true,
-		RequireReputation:    true,
-	})
-	reportsGuard := middleware.InteractionRequired(cfg, db, rdb, middleware.InteractionPolicy{
-		RequireVerifiedEmail: true,
-		RequireReputation:    true,
-	})
-	prGuard := middleware.InteractionRequired(cfg, db, rdb, middleware.InteractionPolicy{
-		RequireVerifiedEmail: true,
-		RequireReputation:    true,
-	})
-	judgeGuard := middleware.InteractionRequired(cfg, db, rdb, middleware.InteractionPolicy{
-		RequireVerifiedEmail: true,
-		RequireReputation:    true,
-	})
-	followsGuard := middleware.InteractionRequired(cfg, db, rdb, middleware.InteractionPolicy{
-		RequireVerifiedEmail: true,
-		RequireReputation:    true,
-	})
-	messagesGuard := middleware.InteractionRequired(cfg, db, rdb, middleware.InteractionPolicy{
-		RequireVerifiedEmail: true,
-		RequireReputation:    true,
-	})
-	downloadsGuard := middleware.InteractionRequired(cfg, db, rdb, middleware.InteractionPolicy{
-		RequireVerifiedEmail: true,
-		RequireReputation:    true,
-	})
-	agentGuard := middleware.InteractionRequired(cfg, db, rdb, middleware.InteractionPolicy{
-		RequireVerifiedEmail: true,
-		RequireReputation:    true,
-	})
+	publishGuard := middleware.InteractionRequired(cfg, db, rdb, publishingInteractionPolicy())
+	editDeleteGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
+	commentsGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
+	reactionsGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
+	favoritesGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
+	reportsGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
+	prGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
+	judgeGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
+	followsGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
+	messagesGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
+	downloadsGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
+	agentGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
 
 	publicConfigHandler := handler.NewPublicConfigHandler(cfg)
 	v1.GET("/config/public", publicConfigHandler.GetPublicConfig)
