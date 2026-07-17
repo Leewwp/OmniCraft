@@ -3445,3 +3445,22 @@ Code review of all Batch 12 changes identified 14 issues (2 Critical, 8 Major, 4
 
 ### Notes:
 - This follow-up sync is status maintenance on `main`; no `task.json` or Beta roadmap checkbox was changed.
+
+## [2026-07-17] - Hardening Task 1: Make Frontend Unit Tests Discoverable And Complete
+
+### What was done:
+- Added a cross-platform Node test runner that recursively discovers all supported `*.test.*` unit files, excludes generated/E2E directories, normalizes and sorts paths, and separates native from TS/TSX execution.
+- Added runner contract tests for discovery, exclusions, grouping, failure propagation, serial TS/TSX execution, and unknown-mode rejection.
+- Replaced the fixed frontend test list with `test:unit`, `test:contracts`, `verify`, and `verify:release` scripts while preserving existing package scripts.
+- Serialized TS/TSX test files after the newly complete concurrent gate exposed a resource-contention flake in JSDOM-heavy tests.
+
+### Testing:
+- TDD RED: `node --test scripts/run-tests.test.mjs` failed with `ERR_MODULE_NOT_FOUND` before the runner existed; the serial-execution contract later failed before its implementation.
+- Focused GREEN: `node --test scripts/run-tests.test.mjs` passed 6 tests.
+- Frontend gate: `npm.cmd run verify` passed TypeScript lint, 82 discovered unit assertions, and the Next.js production build.
+- Backend regression: `go test ./...` passed after PostgreSQL and Redis were healthy; `go vet ./...` and `go build ./...` passed with VCS stamping disabled for the external worktree environment.
+- Review: specification compliance reviewer returned `APPROVED`; local code-quality review, syntax checks, package-script completeness check, and `git diff --check` found no blocking issues.
+
+### Notes:
+- The complete default unit gate now surfaces pre-existing React `act(...)` and intentional error-path console output from previously omitted tests; these tests pass and cleanup belongs to a separate focused task.
+- Mode D tracking only: no `task.json`, Beta roadmap, or community-plan completion state was changed.

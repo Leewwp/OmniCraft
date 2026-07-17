@@ -38,7 +38,7 @@
 - Create: `frontend/scripts/run-tests.test.mjs`
 - Modify: `frontend/package.json`
 
-- [ ] **Step 1: Write failing discovery tests**
+- [x] **Step 1: Write failing discovery tests**
 
 Cover these contracts in `run-tests.test.mjs`:
 
@@ -49,7 +49,7 @@ Cover these contracts in `run-tests.test.mjs`:
 - return a non-zero result when a child test command fails;
 - never require shell glob expansion.
 
-- [ ] **Step 2: Confirm red**
+- [x] **Step 2: Confirm red**
 
 ```powershell
 cd frontend
@@ -58,7 +58,7 @@ node --test scripts/run-tests.test.mjs
 
 Expected: FAIL because `run-tests.mjs` does not exist.
 
-- [ ] **Step 3: Implement the runner**
+- [x] **Step 3: Implement the runner**
 
 Requirements:
 
@@ -69,14 +69,14 @@ Requirements:
 - throw/return failures from library functions; call `process.exitCode = 1` only in the CLI entrypoint;
 - reject unknown modes. The only initial mode is `unit`.
 
-- [ ] **Step 4: Confirm runner tests green**
+- [x] **Step 4: Confirm runner tests green**
 
 ```powershell
 cd frontend
 node --test scripts/run-tests.test.mjs
 ```
 
-- [ ] **Step 5: Update package scripts without replacing unrelated keys**
+- [x] **Step 5: Update package scripts without replacing unrelated keys**
 
 Merge these keys into `frontend/package.json`:
 
@@ -92,7 +92,7 @@ Merge these keys into `frontend/package.json`:
 
 Run `git diff -- frontend/package.json` and prove no existing script key was dropped.
 
-- [ ] **Step 6: Run the complete unit gate**
+- [x] **Step 6: Run the complete unit gate**
 
 ```powershell
 cd frontend
@@ -101,7 +101,7 @@ npm.cmd test
 
 Expected: output includes every currently checked-in unit test, including the six files omitted by the old fixed list.
 
-- [ ] **Step 7: Run the frontend verification gate**
+- [x] **Step 7: Run the frontend verification gate**
 
 ```powershell
 cd frontend
@@ -110,7 +110,7 @@ npm.cmd run verify
 
 Expected: TypeScript, all discovered unit tests, and Next.js build PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```powershell
 git add frontend/package.json frontend/scripts/run-tests.mjs frontend/scripts/run-tests.test.mjs
