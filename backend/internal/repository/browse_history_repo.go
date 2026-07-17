@@ -13,6 +13,11 @@ type BrowseHistoryRepository struct {
 	db *gorm.DB
 }
 
+// browseHistoryCleanupAdvisoryLockID is the stable application lock used by
+// every API replica before deleting expired browse-history rows. The lock is
+// transaction-scoped, so PostgreSQL releases it on both commit and rollback.
+const browseHistoryCleanupAdvisoryLockID int64 = 0x4f4d4e4948495354 // "OMNIHIST"
+
 type BrowseHistoryListOptions struct {
 	UserID        int64
 	ContentType   string
@@ -139,4 +144,28 @@ func (r *BrowseHistoryRepository) DeleteExpired(retentionDays int, now time.Time
 	cutoff := now.AddDate(0, 0, -retentionDays)
 	result := r.db.Where("viewed_at < ?", cutoff).Delete(&model.BrowseHistory{})
 	return result.RowsAffected, result.Error
+}
+
+func (r *BrowseHistoryRepository) DeleteExpiredIfLeader(retentionDays int, now time.Time) (deleted int64, acquired bool, err error) {
+	if now.IsZero() {
+		now = time.Now()
+	}
+	cutoff := now.AddDate(0, 0, -retentionDays)
+	acquired = true
+
+	err = r.db.Transaction(func(tx *gorm.DB) error {
+		if tx.Dialector.Name() == "postgres" {
+			if lockErr := tx.Raw("SELECT pg_try_advisory_xact_lock(?)", browseHistoryCleanupAdvisoryLockID).Scan(&acquired).Error; lockErr != nil {
+				return lockErr
+			}
+			if !acquired {
+				return nil
+			}
+		}
+
+		result := tx.Where("viewed_at < ?", cutoff).Delete(&model.BrowseHistory{})
+		deleted = result.RowsAffected
+		return result.Error
+	})
+	return deleted, acquired, err
 }

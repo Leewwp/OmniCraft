@@ -224,6 +224,35 @@ test("history batch delete sends selected ids in a DELETE body", async () => {
   });
 });
 
+test("history clear-all waits for confirmation and sends the explicit clear tag", async () => {
+  installHistoryDom();
+  const calls = installHistoryApiMock({
+    response: {
+      items: [historyItem(1, "Protected title", "article")],
+      history: [],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      retention_days: 7,
+    },
+  });
+  const view = await renderHistoryPage();
+
+  await waitFor(() => assert.ok(view.getByText("Protected title")));
+  fireEvent.click(view.getByRole("button", { name: "Clear all" }));
+
+  assert.equal(calls.deleteWithBody.length, 0, "opening the confirmation must not delete history");
+
+  fireEvent.click(await findDialogConfirmButton(view));
+
+  await waitFor(() => {
+    assert.deepEqual(calls.deleteWithBody.at(-1), {
+      path: "/api/v1/users/me/history",
+      body: { clear_all: true },
+    });
+  });
+});
+
 test("history page keeps last successful data when refresh fails", async () => {
   installHistoryDom();
   let failNext = false;

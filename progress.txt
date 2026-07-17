@@ -3582,3 +3582,21 @@ Code review of all Batch 12 changes identified 14 issues (2 Critical, 8 Major, 4
 ### Notes:
 - Implementation commits already present on `main`: `9006a18`, `fe34360`, and `7d297f8`.
 - This maintenance entry changes documentation only; it does not modify `task.json`, Beta/community/Web Agent completion state, or the Production Readiness plan.
+## [2026-07-18] - Community Browse History Task 7 Follow-Up: Harden Clear And Cleanup
+
+### What was done:
+- Replaced implicit destructive DELETE behavior with explicit `{ "ids": [...] }` and `{ "clear_all": true }` modes; missing/empty bodies and empty IDs now fail safely, while conflicting modes return a dedicated error.
+- Added a transaction-scoped PostgreSQL advisory leader lock around expired-history deletion so concurrent API replicas do not run the same cleanup transaction.
+- Updated the History page to preserve confirmation before clear-all and send the explicit clear tag; added desktop/mobile Playwright contracts and deterministic screenshots.
+
+### Testing:
+- TDD RED confirmed missing body, empty object, empty IDs, unknown-length stripped body, and conflicting modes were previously accepted or mapped incorrectly; focused handler tests pass after the fix.
+- PostgreSQL concurrency tests prove one of two cleanup instances executes while the other skips, and prove lock release after both successful commit and forced rollback.
+- Backend `go test ./...`, `go vet ./...`, and `go build -buildvcs=false ./...` passed.
+- Frontend `npm.cmd test` (75 TS/TSX assertions plus native runner tests), `npm.cmd run lint`, and `npm.cmd run build` passed.
+- Playwright desktop/mobile verification passed 4/4 for selected deletion, cancelled clear-all, confirmed clear-all, and stripped-body rejection; screenshots were visually inspected.
+
+### Notes:
+- The advisory lock ID is stable and held only inside the delete transaction; it is never retained between scheduler runs.
+- Existing frontend next-intl environment and React `act(...)` test warnings remain baseline debt for the UI hardening plan; no new warning class was introduced.
+- Only Browse History Task 7 follow-up state was updated; `task.json`, Beta roadmap, and unrelated community plan state were not changed.

@@ -70,22 +70,37 @@ func (h *BrowseHistoryHandler) ClearHistory(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 
 	var body struct {
-		IDs []int64 `json:"ids"`
+		IDs      *[]int64 `json:"ids"`
+		ClearAll *bool    `json:"clear_all"`
 	}
-	err := c.ShouldBindJSON(&body)
-	if err != nil && !errors.Is(err, io.EOF) {
+	if err := c.ShouldBindJSON(&body); err != nil {
+		if errors.Is(err, io.EOF) {
+			response.Error(c, http.StatusBadRequest, "CLEAR_CONFIRMATION_REQUIRED", "explicit clear confirmation is required")
+			return
+		}
 		response.ValidationError(c, "invalid request body")
 		return
 	}
-	if len(body.IDs) > 100 {
+	if body.IDs != nil && len(*body.IDs) > 100 {
 		response.Error(c, http.StatusBadRequest, "TOO_MANY_IDS", "too many browse history ids")
 		return
 	}
+	clearAll := body.ClearAll != nil && *body.ClearAll
+	hasIDs := body.IDs != nil && len(*body.IDs) > 0
+	if clearAll && hasIDs {
+		response.Error(c, http.StatusBadRequest, "DELETE_MODE_CONFLICT", "choose either selected ids or clear all")
+		return
+	}
+	if !clearAll && !hasIDs {
+		response.Error(c, http.StatusBadRequest, "CLEAR_CONFIRMATION_REQUIRED", "explicit clear confirmation is required")
+		return
+	}
 
-	if len(body.IDs) == 0 {
+	var err error
+	if clearAll {
 		err = h.histRepo.DeleteByUser(callerID)
 	} else {
-		err = h.histRepo.DeleteByUserAndIDs(callerID, body.IDs)
+		err = h.histRepo.DeleteByUserAndIDs(callerID, *body.IDs)
 	}
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)

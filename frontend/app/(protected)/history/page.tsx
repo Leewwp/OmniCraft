@@ -118,9 +118,10 @@ export default function HistoryPage() {
 
   const groups = useMemo(() => groupByDate(records, t), [records, t]);
 
-  async function deleteHistory(ids: number[]) {
+  async function deleteHistory(mode: "selected" | "all") {
     try {
-      await api.deleteWithBody("/api/v1/users/me/history", { ids });
+      const body = mode === "selected" ? { ids: selectedIDs } : { clear_all: true };
+      await api.deleteWithBody("/api/v1/users/me/history", body);
       toast("success", t("history.toast.deleted"));
       setSelectedIDs([]);
       setBatchMode(false);
@@ -265,7 +266,9 @@ export default function HistoryPage() {
         title={confirmMode === "selected" ? t("history.bulk.confirmSelectedTitle") : t("history.bulk.confirmAllTitle")}
         description={confirmMode === "selected" ? t("history.bulk.confirmSelectedDescription") : t("history.bulk.confirmAllDescription")}
         confirmLabel={t("history.bulk.confirmDelete")}
-        onConfirm={() => deleteHistory(confirmMode === "selected" ? selectedIDs : [])}
+        onConfirm={() => {
+          if (confirmMode) return deleteHistory(confirmMode);
+        }}
       />
     </main>
   );

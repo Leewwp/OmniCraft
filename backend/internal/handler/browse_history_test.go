@@ -121,7 +121,7 @@ func TestBrowseHistoryGetPaginationAndValidation(t *testing.T) {
 	assertBrowseHistoryError(t, reversedDate, http.StatusBadRequest, "INVALID_DATE")
 }
 
-func TestBrowseHistoryDeleteSelectedAndClearAll(t *testing.T) {
+func TestBrowseHistoryDeleteSelectedAndExplicitClearAll(t *testing.T) {
 	router, db := setupBrowseHistoryHandlerRouter(t)
 	author := seedBrowseHistoryHandlerUser(t, db, 10, "history-author-delete")
 	viewer := seedBrowseHistoryHandlerUser(t, db, 20, "history-viewer-delete")
@@ -136,19 +136,69 @@ func TestBrowseHistoryDeleteSelectedAndClearAll(t *testing.T) {
 	}
 	assertBrowseHistoryRowCount(t, db, viewer.ID, 1)
 
-	clearEmptyIDs := requestBrowseHistory(t, router, viewer.ID, http.MethodDelete, "/api/v1/users/me/history", `{"ids":[]}`)
-	if clearEmptyIDs.Code != http.StatusOK {
-		t.Fatalf("clear empty ids status = %d, want 200; body = %s", clearEmptyIDs.Code, clearEmptyIDs.Body.String())
+	clearAll := requestBrowseHistory(t, router, viewer.ID, http.MethodDelete, "/api/v1/users/me/history", `{"clear_all":true}`)
+	if clearAll.Code != http.StatusOK {
+		t.Fatalf("explicit clear-all status = %d, want 200; body = %s", clearAll.Code, clearAll.Body.String())
 	}
 	assertBrowseHistoryRowCount(t, db, viewer.ID, 0)
+}
 
-	content := seedBrowseHistoryHandlerContent(t, db, 200, author.ID, "Another", "article", "published", nil)
-	seedBrowseHistoryHandlerRow(t, db, 10, viewer.ID, content.ID, time.Now().Add(-time.Hour))
-	clearNoBody := requestBrowseHistory(t, router, viewer.ID, http.MethodDelete, "/api/v1/users/me/history", "")
-	if clearNoBody.Code != http.StatusOK {
-		t.Fatalf("clear no body status = %d, want 200; body = %s", clearNoBody.Code, clearNoBody.Body.String())
+func TestBrowseHistoryDeleteRequiresExplicitMode(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "missing body", body: ""},
+		{name: "empty object", body: `{}`},
+		{name: "empty ids", body: `{"ids":[]}`},
 	}
-	assertBrowseHistoryRowCount(t, db, viewer.ID, 0)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router, db := setupBrowseHistoryHandlerRouter(t)
+			author := seedBrowseHistoryHandlerUser(t, db, 10, "history-author-explicit-"+strings.ReplaceAll(tt.name, " ", "-"))
+			viewer := seedBrowseHistoryHandlerUser(t, db, 20, "history-viewer-explicit-"+strings.ReplaceAll(tt.name, " ", "-"))
+			content := seedBrowseHistoryHandlerContent(t, db, 200, author.ID, "Protected", "article", "published", nil)
+			seedBrowseHistoryHandlerRow(t, db, 10, viewer.ID, content.ID, time.Now().Add(-time.Hour))
+
+			rec := requestBrowseHistory(t, router, viewer.ID, http.MethodDelete, "/api/v1/users/me/history", tt.body)
+
+			assertBrowseHistoryError(t, rec, http.StatusBadRequest, "CLEAR_CONFIRMATION_REQUIRED")
+			assertBrowseHistoryRowCount(t, db, viewer.ID, 1)
+		})
+	}
+}
+
+func TestBrowseHistoryDeleteTreatsStrippedUnknownLengthBodyAsMissing(t *testing.T) {
+	router, db := setupBrowseHistoryHandlerRouter(t)
+	author := seedBrowseHistoryHandlerUser(t, db, 10, "history-author-stripped")
+	viewer := seedBrowseHistoryHandlerUser(t, db, 20, "history-viewer-stripped")
+	content := seedBrowseHistoryHandlerContent(t, db, 200, author.ID, "Protected", "article", "published", nil)
+	seedBrowseHistoryHandlerRow(t, db, 10, viewer.ID, content.ID, time.Now().Add(-time.Hour))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/users/me/history", strings.NewReader(""))
+	req.ContentLength = -1
+	req.TransferEncoding = []string{"chunked"}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Test-User-ID", strconv.FormatInt(viewer.ID, 10))
+	router.ServeHTTP(rec, req)
+
+	assertBrowseHistoryError(t, rec, http.StatusBadRequest, "CLEAR_CONFIRMATION_REQUIRED")
+	assertBrowseHistoryRowCount(t, db, viewer.ID, 1)
+}
+
+func TestBrowseHistoryDeleteRejectsConflictingModes(t *testing.T) {
+	router, db := setupBrowseHistoryHandlerRouter(t)
+	author := seedBrowseHistoryHandlerUser(t, db, 10, "history-author-conflict")
+	viewer := seedBrowseHistoryHandlerUser(t, db, 20, "history-viewer-conflict")
+	content := seedBrowseHistoryHandlerContent(t, db, 200, author.ID, "Protected", "article", "published", nil)
+	seedBrowseHistoryHandlerRow(t, db, 10, viewer.ID, content.ID, time.Now().Add(-time.Hour))
+
+	rec := requestBrowseHistory(t, router, viewer.ID, http.MethodDelete, "/api/v1/users/me/history", `{"ids":[10],"clear_all":true}`)
+
+	assertBrowseHistoryError(t, rec, http.StatusBadRequest, "DELETE_MODE_CONFLICT")
+	assertBrowseHistoryRowCount(t, db, viewer.ID, 1)
 }
 
 func TestBrowseHistoryDeleteRejectsTooManyIDs(t *testing.T) {
