@@ -3545,3 +3545,22 @@ Code review of all Batch 12 changes identified 14 issues (2 Critical, 8 Major, 4
 ### Notes:
 - The aggregate verifier is intended as the stable CI entry for later Ops work; it does not replace screenshots, real-provider smoke, package signing, or release evidence.
 - Mode D tracking only: no `task.json`, Beta roadmap, or community-plan completion state was changed.
+
+## [2026-07-18] - Ops-00: Production Readiness 规格与执行计划
+
+### What was done:
+- Added the independent Production Readiness design covering CI, forward-only migrations, backup/recovery, observability, alerting, security scans, SBOM/provenance, load testing, production configuration, deployment rollback, and desktop signing.
+- Added the Ops-00～Ops-09 execution plan with exact files, serial branch/dependency rules, TDD/verification commands, evidence summaries, acceptance criteria, and release blockers.
+- Registered independent Mode E in `AGENTS.md` and `CLAUDE.md`; explicitly excluded Hardening Task 6 and protected `task.json`, Beta/community state, and Web Agent state.
+- Coordinated the UI Polish plan: U-01/U-05 may run after UI-plan registration; U-11 depends on this coordination input; U-12 waits for Ops-01 because it shares verifier/package paths.
+
+### Testing:
+- `go test ./...` in `tools/doc-validator`: passed.
+- `go run . --check --profile release`: passed with all checks passed.
+- `git diff --check`: passed.
+- Three rounds of specification/plan review were completed; third-round findings were incorporated before user approval on 2026-07-18.
+
+### Notes:
+- This is a planning-only Ops-00 commit; no Ops-01～Ops-09 implementation has started.
+- No production database snapshot or real provider credentials were required for Ops-00.
+- `task.json`, Beta roadmap, community completion state, and Web Agent completion state were not modified.

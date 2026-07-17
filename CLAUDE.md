@@ -2,7 +2,7 @@
 
 ## 任务来源与开发模式
 
-本仓库同时支持四套任务来源。每次新 Agent 会话必须先确定当前模式，再选择任务。不要混用多套跟踪规则。
+本仓库同时支持五套任务来源。每次新 Agent 会话必须先确定当前模式，再选择任务。不要混用多套跟踪规则。
 
 ### 模式 A：双轨 Beta 计划集（当前公开 Beta 加固工作）
 
@@ -84,6 +84,22 @@
 4. 本模式不修改 `task.json`、Beta roadmap 或社区计划完成状态。Desktop D-02～D-05/R-02 仍属于模式 A；不得在模式 D 复制或代替其安全任务。
 5. Web Agent 真实 Provider smoke 缺少密钥时按阻塞规则记录，仓库默认开关保持关闭；确定性 fake-provider 测试仍必须完成。
 
+### 模式 E：Production Readiness 与运营发布能力
+
+适用于 CI、增量数据库迁移、备份恢复、日志指标、告警、安全扫描、SBOM、负载测试、生产配置、部署回滚或桌面制品签名：
+
+- 设计输入：`docs/superpowers/specs/2026-07-17-omnicraft-production-readiness-design.md`
+- 执行计划：`docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md`
+
+规则：
+
+1. 一个 Ops-XX 对应一个 Agent 会话、独立 worktree、`codex/ops/ops-XX` 分支和一个 commit；Ops-00 通过后使用 `codex/ops-integration` 作为唯一集成分支。
+2. 严格按计划依赖和文件预约执行。任务分支合并前必须 rebase 到最新集成分支，重新验证后 `git merge --ff-only`。
+3. 实现遵循 TDD和两阶段审查；操作脚本/YAML 除合同测试外必须运行真实工具或演练，不能只做静态 lint。
+4. 本模式不是 Hardening Task 6，不得在工程加固计划中新增或恢复 Task 6。
+5. 本模式不修改 `task.json`、Beta roadmap、社区计划或 Web Agent 完成状态。Desktop D-02～D-05/R-02 仍属于模式 A，Ops-09 不得复制或绕过这些安全任务。
+6. 普通 PR 禁止注入生产密钥；外部输入缺失时继续完成 deterministic gates，只将需要真实环境的 release 证据标记为阻塞。
+
 ### 模式选择优先级
 
 1. 用户明确指定的任务来源或任务 ID。
@@ -91,8 +107,9 @@
 3. 若用户要求继续 2026-05-30 公开 Beta 加固，使用模式 A。
 4. 若用户要求实现 2026-06-30 社区功能计划，使用模式 C。
 5. 若用户要求执行 2026-07 工程加固或 Web Agent 产品化，使用模式 D。
-6. 其他未明确场景使用模式 B。
-7. 无法可靠判断时，先询问用户，不要擅自改动任一任务跟踪文件。
+6. 若用户要求执行 Production Readiness、CI、数据库升级/恢复或运营发布能力，使用模式 E。
+7. 其他未明确场景使用模式 B。
+8. 无法可靠判断时，先询问用户，不要擅自改动任一任务跟踪文件。
 
 ## 项目概览
 
@@ -159,6 +176,15 @@ cat docs/superpowers/plans/2026-07-16-omnicraft-web-agent-productization.md
 只选择用户指定计划中依赖已满足的一个编号 Task。Desktop Agent 安全任务切回模式 A 执行。
 
 - 若遇到两份文档内容矛盾 → 查阅上方文档权威源表格，以权威文档为准。将矛盾记录为 issue，**不做自行发挥**。
+
+**模式 E：Production Readiness 与运营发布能力**
+
+```bash
+cat docs/superpowers/specs/2026-07-17-omnicraft-production-readiness-design.md
+cat docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md
+```
+
+只选择依赖已满足的一个 Ops-XX。先确认 `codex/ops-integration` 基线和共享 CI/迁移/compose/release/Tauri 文件预约；真实凭证缺失不允许降低确定性门。
 
 ### Step 2: 初始化开发环境
 
@@ -292,6 +318,18 @@ git commit -m "Productization [plan]-[task-id]: completed"
 
 本模式不要修改 `task.json`、Beta roadmap 或社区计划 checkbox。真实 Provider/发布输入缺失时不得勾选 release task 或开启 feature flag。
 
+**模式 E：Production Readiness 与运营发布能力**
+
+```bash
+# 1. 只勾选当前 Ops-XX 已实际完成的步骤
+# 2. 更新 progress.txt
+# 3. 精确暂存当前 Ops 文件、权威计划和证据索引
+git add <本任务精确文件列表> docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md progress.txt
+git commit -m "Ops XX: <任务标题>"
+```
+
+本模式禁止修改 `task.json` 或恢复 Hardening Task 6。真实演练输入缺失时不得勾选对应 release 证据，也不得用说明文字替代演练。
+
 **通用规则**：
 - 只有所有步骤和验证通过后，才能更新完成状态
 - 使用 `git add <精确文件列表>`，不要在脏工作区使用 `git add .`
@@ -321,7 +359,7 @@ git commit -m "Productization [plan]-[task-id]: completed"
 ```
 🚫 任务阻塞 - 需要人工介入
 
-**当前模式**: [双轨 Beta 计划集 / 历史 task.json / 2026-06-30 社区功能计划集 / 项目卓越与 Web Agent 产品化]
+**当前模式**: [双轨 Beta 计划集 / 历史 task.json / 2026-06-30 社区功能计划集 / 项目卓越与 Web Agent 产品化 / Production Readiness]
 **当前任务**: [ID] - [标题]
 
 **已完成的工作**:
