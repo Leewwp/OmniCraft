@@ -335,11 +335,11 @@ git commit -m "Refactor: centralize interaction policy archetypes"
 - Modify: `README.md`
 - Modify: `AGENTS.md` and `CLAUDE.md` only if their command guidance needs synchronization
 
-- [ ] **Step 1: Write failing script-contract tests**
+- [x] **Step 1: Write failing script-contract tests**
 
 The tests must prove non-zero external command exit codes stop the script, locations are restored after failures, `-Release` adds Playwright, and `-Tauri` adds Tauri frontend/Rust gates.
 
-- [ ] **Step 2: Implement fail-fast verification script**
+- [x] **Step 2: Implement fail-fast verification script**
 
 Default gates:
 
@@ -354,23 +354,23 @@ Optional switches:
 
 Use a helper that checks `$LASTEXITCODE` after every external command. `$ErrorActionPreference = "Stop"` alone is not sufficient.
 
-- [ ] **Step 3: Verify the script tests fail before implementation and pass after implementation**
+- [x] **Step 3: Verify the script tests fail before implementation and pass after implementation**
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/verify-project.tests.ps1
 ```
 
-- [ ] **Step 4: Run the aggregate default gate**
+- [x] **Step 4: Run the aggregate default gate**
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/verify-project.ps1
 ```
 
-- [ ] **Step 5: Document verification tiers**
+- [x] **Step 5: Document verification tiers**
 
 README must distinguish default engineering verification, release/browser verification, Tauri verification, and archive-hygiene checks. Aggregate commands do not replace required screenshots or external-service verification.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Commit message: `Chore: add project verification gate`.
 

@@ -3524,3 +3524,24 @@ Code review of all Batch 12 changes identified 14 issues (2 Critical, 8 Major, 4
 ### Notes:
 - This is behavior-preserving policy deduplication, not a replacement for route-specific or handler/service authorization rules.
 - Mode D tracking only: no `task.json`, Beta roadmap, or community-plan completion state was changed.
+
+## [2026-07-17] - Hardening Task 5: Add Project-Level Verification Commands
+
+### What was done:
+- Added a PowerShell project verifier with explicit default, full, and release tiers plus an orthogonal Tauri option.
+- Default runs backend `test/vet/build`, frontend `unit/lint/build`, doc-validator tests, and strict release profile as separate fail-fast child commands.
+- Full adds mocked Playwright contracts; release adds the complete Playwright suite; Tauri adds its frontend build and Rust tests. Full and release are mutually exclusive.
+- Added isolated fake-command contract tests for exact command order, tier additions, first-failure stop, caller-location restoration, standalone non-zero exit propagation, and default repository resolution under Windows PowerShell `-File`.
+- Documented tier prerequisites, archive hygiene, and evidence limits in README; synchronized the stable command entry in AGENTS.md and CLAUDE.md.
+
+### Testing:
+- TDD RED: contract tests initially failed because `verify-project.ps1` did not exist.
+- Contract GREEN: `powershell -ExecutionPolicy Bypass -File scripts/verify-project.tests.ps1` passed all default/full/release/Tauri and failure-path checks.
+- Real default gate: `powershell -ExecutionPolicy Bypass -File scripts/verify-project.ps1` passed all backend, frontend, and release-document subcommands.
+- Systematic regression: the first real CLI run reproduced an empty `$PSScriptRoot` during parameter binding; a standalone `-File` regression test failed, then passed after moving default `RepoRoot` resolution into the script body.
+- Full/release command plans were verified deterministically with fake commands; real browser suites remain subject to their documented service, browser, data, and external-input prerequisites. Tauri was not executed because Task 5 does not modify desktop files.
+- Specification and code-quality reviewers both returned `APPROVED`.
+
+### Notes:
+- The aggregate verifier is intended as the stable CI entry for later Ops work; it does not replace screenshots, real-provider smoke, package signing, or release evidence.
+- Mode D tracking only: no `task.json`, Beta roadmap, or community-plan completion state was changed.

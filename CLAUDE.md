@@ -224,6 +224,8 @@ cd frontend && npm run dev &
 - [ ] 功能在浏览器/接口测试中验证通过
 - [ ] Tauri 相关任务：`npm run build`、`cargo test --manifest-path src-tauri/Cargo.toml` 无错误
 
+默认项目级入口为 `powershell -ExecutionPolicy Bypass -File scripts/verify-project.ps1`。`-Full` 在默认门上增加 mocked Playwright contracts，`-Release` 增加完整 Playwright E2E；两者互斥。桌面端任务额外使用可叠加的 `-Tauri`。聚合入口不替代 UI 截图、真实外部服务 smoke 或发布证据。
+
 ### Step 5: 更新 progress.txt
 
 ```
