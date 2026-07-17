@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
@@ -21,7 +22,7 @@ export function UserProfileClient({ userId, displayName }: UserProfileClientProp
   const t = useTranslations();
   const router = useRouter();
   const { user } = useAuth();
-  const [tab, setTab] = useState<"contents" | "favorites" | "discussions">("contents");
+  const [tab, setTab] = useState<"contents" | "discussions">("contents");
   const [items, setItems] = useState<ContentCardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -40,16 +41,13 @@ export function UserProfileClient({ userId, displayName }: UserProfileClientProp
         case "contents":
           url = `/api/v1/users/${userId}/contents?page=1&page_size=24`;
           break;
-        case "favorites":
-          url = `/api/v1/users/${userId}/favorites`;
-          break;
         case "discussions":
           url = `/api/v1/users/${userId}/discussions?page=1&page_size=24`;
           break;
       }
-      interface ProfileResponse { contents?: unknown[]; favorites?: unknown[]; discussions?: unknown[] }
+      interface ProfileResponse { contents?: unknown[]; discussions?: unknown[] }
       const data = await api.get<ProfileResponse>(url);
-      const raw = data.contents ?? data.favorites ?? data.discussions ?? [];
+      const raw = data.contents ?? data.discussions ?? [];
       // Discussions return DiscussionCardData, not ContentCardData — pass through
       setItems(tab === "discussions" ? raw as unknown as ContentCardData[] : normalizeContentList(raw));
     } catch (e) {
@@ -74,19 +72,33 @@ export function UserProfileClient({ userId, displayName }: UserProfileClientProp
       </div>
 
       <div className="flex gap-1 border-b border-border">
-        {(["contents", "favorites", "discussions"] as const).map((tKey) => (
-          <button
-            key={tKey}
-            onClick={() => setTab(tKey)}
-            className={`px-4 py-2 text-sm border-b-2 transition-colors ${
-              tab === tKey
-                ? "border-foreground text-foreground font-medium"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tKey === "contents" ? t('user.tabPublish') : tKey === "favorites" ? t('user.tabFavorites') : t('user.tabDiscussions')}
-          </button>
-        ))}
+        {(["contents", "collections", "discussions"] as const).map((tKey) => {
+          if (tKey === "collections") {
+            return (
+              <Link
+                key={tKey}
+                href={`/user/${userId}/collections`}
+                className="border-b-2 border-transparent px-4 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {t('user.tabCollections')}
+              </Link>
+            );
+          }
+          return (
+            <button
+              key={tKey}
+              type="button"
+              onClick={() => setTab(tKey)}
+              className={`border-b-2 px-4 py-2 text-sm transition-colors ${
+                tab === tKey
+                  ? "border-foreground text-foreground font-medium"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tKey === "contents" ? t('user.tabPublish') : t('user.tabDiscussions')}
+            </button>
+          );
+        })}
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}

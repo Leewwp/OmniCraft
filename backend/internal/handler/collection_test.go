@@ -62,6 +62,8 @@ func TestCollectionListVisibilityAndOwnerSemantics(t *testing.T) {
 	other := seedCollectionHandlerUser(t, db, 20, "list-other", collectionHandlerUserState{Verified: true, Reputation: 10})
 	publicCollection := seedCollectionHandlerCollection(t, db, 100, owner.ID, "Public list", "original", false, true, 1)
 	privateCollection := seedCollectionHandlerCollection(t, db, 101, owner.ID, "Private list", "original", false, false, 2)
+	seedCollectionHandlerCollection(t, db, 102, owner.ID, "Default original", "original", true, false, 0)
+	seedCollectionHandlerCollection(t, db, 103, owner.ID, "Default fanwork", "fanwork", true, false, 0)
 
 	anonymousNoOwner := requestCollection(t, router, "", http.MethodGet, "/api/v1/collections", "")
 	assertCollectionError(t, anonymousNoOwner, http.StatusUnauthorized, "AUTH_REQUIRED")
@@ -74,10 +76,39 @@ func TestCollectionListVisibilityAndOwnerSemantics(t *testing.T) {
 	assertCollectionListIDs(t, nonOwner, []int64{publicCollection.ID})
 
 	ownerWithOwnerID := requestCollection(t, router, collectionHandlerToken(t, cfg, owner.ID, owner.Role), http.MethodGet, "/api/v1/collections?owner_id=10", "")
-	assertCollectionListIDs(t, ownerWithOwnerID, []int64{publicCollection.ID, privateCollection.ID})
+	assertCollectionListIDs(t, ownerWithOwnerID, []int64{102, 103, publicCollection.ID, privateCollection.ID})
 
 	ownerImplicit := requestCollection(t, router, collectionHandlerToken(t, cfg, owner.ID, owner.Role), http.MethodGet, "/api/v1/collections", "")
-	assertCollectionListIDs(t, ownerImplicit, []int64{publicCollection.ID, privateCollection.ID})
+	assertCollectionListIDs(t, ownerImplicit, []int64{102, 103, publicCollection.ID, privateCollection.ID})
+}
+
+func TestCollectionOwnListSelfHealsDefaultsWhileOwnerIDReadStaysReadOnly(t *testing.T) {
+	t.Run("implicit own list self-heals both defaults", func(t *testing.T) {
+		router, db, cfg := setupCollectionHandlerRouter(t)
+		owner := seedCollectionHandlerUser(t, db, 10, "self-heal-handler-owner", collectionHandlerUserState{Verified: true, Reputation: 10})
+
+		rec := requestCollection(t, router, collectionHandlerToken(t, cfg, owner.ID, owner.Role), http.MethodGet, "/api/v1/collections", "")
+
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		var payload collectionListPayload
+		decodeCollectionJSON(t, rec, &payload)
+		require.Len(t, payload.Items, 2)
+		require.ElementsMatch(t, []string{"original", "fanwork"}, []string{payload.Items[0].Zone, payload.Items[1].Zone})
+		assertCollectionHandlerDefaultCount(t, db, owner.ID, 2)
+	})
+
+	t.Run("explicit owner id read never repairs another user", func(t *testing.T) {
+		router, db, _ := setupCollectionHandlerRouter(t)
+		owner := seedCollectionHandlerUser(t, db, 10, "read-only-handler-owner", collectionHandlerUserState{Verified: true, Reputation: 10})
+
+		rec := requestCollection(t, router, "", http.MethodGet, "/api/v1/collections?owner_id=10", "")
+
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		var payload collectionListPayload
+		decodeCollectionJSON(t, rec, &payload)
+		require.Empty(t, payload.Items)
+		assertCollectionHandlerDefaultCount(t, db, owner.ID, 0)
+	})
 }
 
 func TestCollectionListContainsItemUsesContentZoneAndDetectsConflicts(t *testing.T) {
@@ -86,6 +117,8 @@ func TestCollectionListContainsItemUsesContentZoneAndDetectsConflicts(t *testing
 	seedCollectionHandlerCollection(t, db, 100, owner.ID, "Original collection", "original", false, false, 1)
 	withItem := seedCollectionHandlerCollection(t, db, 101, owner.ID, "Fanwork has item", "fanwork", false, false, 1)
 	withoutItem := seedCollectionHandlerCollection(t, db, 102, owner.ID, "Fanwork empty", "fanwork", false, false, 2)
+	defaultOriginal := seedCollectionHandlerCollection(t, db, 103, owner.ID, "Default original", "original", true, false, 0)
+	defaultFanwork := seedCollectionHandlerCollection(t, db, 104, owner.ID, "Default fanwork", "fanwork", true, false, 0)
 	content := seedCollectionHandlerContent(t, db, 123, owner.ID, "Fanwork", "fanwork", "image", "published", true)
 	item := seedCollectionHandlerItem(t, db, 301, withItem.ID, content.ID, "keeper")
 	token := collectionHandlerToken(t, cfg, owner.ID, owner.Role)
@@ -95,7 +128,7 @@ func TestCollectionListContainsItemUsesContentZoneAndDetectsConflicts(t *testing
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	var payload collectionListPayload
 	decodeCollectionJSON(t, rec, &payload)
-	require.Len(t, payload.Items, 2)
+	require.Len(t, payload.Items, 3)
 	seen := map[int64]collectionSummaryPayload{}
 	for _, summary := range payload.Items {
 		require.Equal(t, "fanwork", summary.Zone)
@@ -106,6 +139,9 @@ func TestCollectionListContainsItemUsesContentZoneAndDetectsConflicts(t *testing
 	require.Equal(t, item.ID, *seen[withItem.ID].ItemID)
 	require.False(t, seen[withoutItem.ID].ContainsItem)
 	require.Nil(t, seen[withoutItem.ID].ItemID)
+	require.NotContains(t, seen, defaultOriginal.ID)
+	require.False(t, seen[defaultFanwork.ID].ContainsItem)
+	require.Nil(t, seen[defaultFanwork.ID].ItemID)
 
 	conflict := requestCollection(t, router, token, http.MethodGet, "/api/v1/collections?zone=original&content_item_id=123", "")
 	assertCollectionError(t, conflict, http.StatusBadRequest, "ZONE_MISMATCH")
@@ -271,6 +307,7 @@ func setupCollectionHandlerRouter(t *testing.T) (*gin.Engine, *gorm.DB, *config.
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
 	require.NoError(t, db.AutoMigrate(&model.User{}, &model.IP{}, &model.ContentItem{}, &model.Collection{}, &model.CollectionItem{}))
+	require.NoError(t, db.Exec(`CREATE UNIQUE INDEX idx_collections_one_default_per_zone ON collections (user_id, zone) WHERE is_default = TRUE`).Error)
 
 	cfg := &config.Config{}
 	cfg.JWT.Secret = "collection-handler-secret"
@@ -427,6 +464,15 @@ func assertCollectionListIDs(t *testing.T, rec *httptest.ResponseRecorder, want 
 		got = append(got, item.ID)
 	}
 	require.ElementsMatch(t, want, got)
+}
+
+func assertCollectionHandlerDefaultCount(t *testing.T, db *gorm.DB, userID, want int64) {
+	t.Helper()
+	var count int64
+	require.NoError(t, db.Model(&model.Collection{}).
+		Where("user_id = ? AND is_default = ? AND deleted_at IS NULL", userID, true).
+		Count(&count).Error)
+	require.Equal(t, want, count)
 }
 
 func assertCollectionListContainsDefaults(t *testing.T, rec *httptest.ResponseRecorder) {

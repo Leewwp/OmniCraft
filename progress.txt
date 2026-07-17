@@ -3600,3 +3600,22 @@ Code review of all Batch 12 changes identified 14 issues (2 Critical, 8 Major, 4
 - The advisory lock ID is stable and held only inside the delete transaction; it is never retained between scheduler runs.
 - Existing frontend next-intl environment and React `act(...)` test warnings remain baseline debt for the UI hardening plan; no new warning class was introduced.
 - Only Browse History Task 7 follow-up state was updated; `task.json`, Beta roadmap, and unrelated community plan state were not changed.
+
+## [2026-07-18] - Community Collections Task 11 Follow-Up: Reconcile Legacy Cutover
+
+### What was done:
+- Added owner-only lazy repair so authenticated implicit collection lists idempotently restore both default zones, while every explicit `owner_id` read remains mutation-free.
+- Added safe structured repair logs shared by own-list and add-to-default paths, with `user_id`, `zone`, and bounded error codes only.
+- Added the `collection-reconcile` maintenance command with per-user/zone drift reports, read-only exit semantics, only-add idempotent repair, duplicate preservation, explicit `DB_DSN` precedence, and a mandatory stopped-writer maintenance-window confirmation for `--apply`.
+- Replaced the user-profile legacy favorites API tab with a semantic link to `/user/[userId]/collections`, added localized labels, documented the five legacy cutover exit criteria, and saved browser evidence for the source and destination pages.
+
+### Testing:
+- TDD RED/GREEN covered own-list repair, public-read immutability, add-to-default safe logging, four reconciliation drift classes, read-only non-mutation, only-add/idempotent apply, duplicate preservation, invalid arguments, explicit DSN precedence, and the maintenance-window write gate.
+- Real PostgreSQL drills confirmed read-only drift totals, unconfirmed apply made zero changes, confirmed apply repaired 1 default collection/2 collection items/1 favorite, and the second confirmed apply reported zero repairs; both temporary databases were removed.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-project.ps1` passed backend test/vet/build, 76 frontend unit tests, TypeScript lint, Next.js production build, doc-validator tests, and the release documentation profile.
+- In-app Playwright verified the localized Collection link, pointer navigation to `/user/19/collections`, successful public empty state after migration 058, and zero browser console errors; specification and code-quality re-reviews both returned PASS.
+
+### Notes:
+- `--apply` is intentionally refused unless all application writers are stopped and `--maintenance-window-confirmed` is supplied; this prevents reconciliation from racing a user's favorite/unfavorite transaction.
+- Remaining `/studio/favorites` strings are the collection manager's historical route name, not calls to the legacy favorites API.
+- Only Collections Task 11 follow-up state was updated; `task.json`, Beta roadmap, and unrelated community plans were not changed.

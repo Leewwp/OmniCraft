@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 
 	"omnicraft/backend/internal/model"
 	redisclient "omnicraft/backend/internal/pkg/redis"
@@ -18,6 +20,39 @@ func NewCollectionService(collectionRepo *repository.CollectionRepository, conte
 	return &CollectionService{
 		collectionRepo: collectionRepo,
 		contentRepo:    contentRepo,
+	}
+}
+
+func (s *CollectionService) ListOwnCollections(ctx context.Context, ownerID int64, zone string, containsContentItemID *int64) ([]repository.CollectionSummary, error) {
+	for _, defaultZone := range []string{"original", "fanwork"} {
+		if _, err := s.ensureDefaultCollection(ctx, ownerID, defaultZone); err != nil {
+			return nil, fmt.Errorf("ensure %s default collection: %w", defaultZone, err)
+		}
+	}
+	return s.collectionRepo.ListCollectionsForViewer(ctx, ownerID, ownerID, zone, containsContentItemID)
+}
+
+func (s *CollectionService) ensureDefaultCollection(ctx context.Context, ownerID int64, zone string) (*model.Collection, error) {
+	collection, err := s.collectionRepo.EnsureDefaultCollection(ctx, ownerID, zone)
+	if err != nil {
+		slog.Error("collection default repair failed",
+			"user_id", ownerID,
+			"zone", zone,
+			"error_code", collectionDefaultRepairErrorCode(err),
+		)
+		return nil, err
+	}
+	return collection, nil
+}
+
+func collectionDefaultRepairErrorCode(err error) string {
+	switch {
+	case errors.Is(err, repository.ErrZoneMismatch):
+		return repository.ErrZoneMismatch.Error()
+	case errors.Is(err, repository.ErrCollectionNotFound):
+		return repository.ErrCollectionNotFound.Error()
+	default:
+		return "COLLECTION_DEFAULT_REPAIR_FAILED"
 	}
 }
 
@@ -67,7 +102,7 @@ func (s *CollectionService) addToDefaultCollection(ctx context.Context, ownerID,
 		return repository.ErrInvalidContent
 	}
 
-	collection, err := s.collectionRepo.EnsureDefaultCollection(ctx, ownerID, content.Zone)
+	collection, err := s.ensureDefaultCollection(ctx, ownerID, content.Zone)
 	if err != nil {
 		return err
 	}

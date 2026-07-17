@@ -243,6 +243,34 @@ DB_HOST=prod-db.example.com DB_PASSWORD=secret ./scripts/init-db.sh
 
 迁移文件位于 `backend/migrations/`，按编号顺序执行。Docker Compose 会在 postgres 容器首次启动时自动执行迁移。
 
+### 收藏集与旧收藏对账
+
+迁移 `058_create_collections.sql` 后，在保留旧 `favorites` 双写兼容期间运行：
+
+```bash
+cd backend
+DB_DSN="host=localhost port=5432 user=omnicraft password=... dbname=omnicraft sslmode=disable" \
+  go run ./cmd/collection-reconcile
+```
+
+命令默认只读，按用户与内容分区输出缺失默认集、双向缺失项和重复逻辑项；零漂移退出 `0`，存在漂移退出 `1`，参数、连接或执行错误退出 `2`。确认报告后可执行只增不删的幂等修复：
+
+```bash
+# 1. 先停止所有会写入 favorites / collection_items 的后端实例或进入等效写停维护窗口
+# 2. 在同一 DB_DSN 上执行修复；显式进程环境变量优先于工作目录中的 .env
+go run ./cmd/collection-reconcile --apply --maintenance-window-confirmed
+```
+
+`--apply` 缺少 `--maintenance-window-confirmed` 时会在任何数据库写入前退出 `2`。该确认表示所有应用写入者已停止；仅限制流量但仍允许收藏变更不满足条件。修复结束并再次只读检查为零漂移后，方可恢复后端实例。
+
+旧 `favorites` 写路径只能在以下条件全部满足后，由单独的前向清理计划和迁移移除：
+
+1. 所有受支持的前端和客户端构建均不再调用旧收藏变更接口；
+2. 对账命令连续七次每日检查均报告零漂移；
+3. 可回滚版本不再依赖旧表；
+4. 推荐系统仅从 `collection_items` 读取时相关测试仍通过；
+5. 删除由独立、可审查的前向清理计划与迁移执行。
+
 ---
 
 ## 数据库备份

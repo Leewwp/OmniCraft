@@ -774,22 +774,22 @@ git commit -m "Community 3: collections folder system"
 - Modify: `frontend/lib/collections.ts` and remaining legacy favorite callers found by `rg`
 - Modify: `README.md` or the deployment runbook section that documents maintenance commands
 
-- [ ] **Step 1: Add failing self-heal tests**
+- [x] **Step 1: Add failing self-heal tests**
 
 Simulate successful user creation followed by failure to create one or both defaults. The first authenticated `GET /api/v1/collections` without `owner_id` must idempotently ensure both defaults before returning. Public `owner_id` reads must remain read-only and must not create rows for another user.
 
-- [ ] **Step 2: Confirm red**
+- [x] **Step 2: Confirm red**
 
 ```powershell
 cd backend
 go test ./internal/service ./internal/handler -run "TestCollection.*SelfHeal|TestCollection.*Default" -v
 ```
 
-- [ ] **Step 3: Implement owner-only lazy repair**
+- [x] **Step 3: Implement owner-only lazy repair**
 
 Keep registration non-fatal so a transient auxiliary failure does not invalidate a verified account. Repair only on authenticated own-list and add-to-default paths; log structured `user_id`, `zone`, and safe error code.
 
-- [ ] **Step 4: Write failing reconciliation-command tests**
+- [x] **Step 4: Write failing reconciliation-command tests**
 
 The command must report, per user and zone:
 
@@ -800,11 +800,11 @@ The command must report, per user and zone:
 
 Default mode is read-only. `--apply` may repair missing compatibility rows idempotently and must refuse to delete either side.
 
-- [ ] **Step 5: Implement reconciliation and operational output**
+- [x] **Step 5: Implement reconciliation and operational output**
 
 Emit aggregate counts and a non-zero exit code when drift remains in read-only verification mode. Do not log private notes or full user profiles.
 
-- [ ] **Step 6: Remove new frontend dependencies on legacy favorites**
+- [x] **Step 6: Remove new frontend dependencies on legacy favorites**
 
 Run:
 
@@ -814,7 +814,7 @@ rg -n "/api/v1/favorites|/favorites" frontend --glob '!messages/*.json'
 
 New collection UI must use `/collections`. Existing compatibility endpoints remain available only for old clients during the cutover window.
 
-- [ ] **Step 7: Record cutover exit criteria**
+- [x] **Step 7: Record cutover exit criteria**
 
 The legacy write path may be removed only when all are true:
 
@@ -824,7 +824,7 @@ The legacy write path may be removed only when all are true:
 4. recommendation tests pass when reading `collection_items` alone;
 5. removal is executed by a separate forward-only cleanup plan and migration.
 
-- [ ] **Step 8: Verify gates**
+- [x] **Step 8: Verify gates**
 
 ```powershell
 cd backend
@@ -838,7 +838,7 @@ npm run lint
 npm run build
 ```
 
-- [ ] **Step 9: Update only the follow-up state and commit**
+- [x] **Step 9: Update only the follow-up state and commit**
 
 Check only Task 11 steps, append a Task 11 follow-up entry to `progress.txt`, stage exact service/handler/reconciliation/frontend/doc/plan files, and commit `Community collections: reconcile legacy cutover`. Do not alter original Task 1–10 completion history or any Beta/task.json state.
 
@@ -859,5 +859,5 @@ Check only Task 11 steps, append a Task 11 follow-up entry to `progress.txt`, st
 - [x] Zone mismatch behavior and `ZONE_IMMUTABLE` are explicitly tested.
 - [x] Migration is idempotent and does not drop `favorites`.
 - [x] Browser verification covers public, private, owner, and non-owner states.
-- [ ] Follow-up own-list self-heals missing default collections without mutating public reads.
-- [ ] Follow-up compatibility window has reconciliation evidence and explicit exit criteria.
+- [x] Follow-up own-list self-heals missing default collections without mutating public reads.
+- [x] Follow-up compatibility window has reconciliation evidence and explicit exit criteria.

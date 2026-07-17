@@ -963,6 +963,7 @@
     "editProfile": "Edit Profile",
     "tabPublish": "Published",
     "tabFavorites": "Favorites",
+    "tabCollections": "Collections",
     "tabDiscussions": "Discussions",
     "noContent": "{name} hasn't published anything yet",
     "noContentOwn": "You haven't published anything yet",

@@ -50,7 +50,9 @@ func NewCollectionHandler(db *gorm.DB) *CollectionHandler {
 func (h *CollectionHandler) ListCollections(c *gin.Context) {
 	viewerID := middleware.GetUserID(c)
 	ownerID := viewerID
-	if rawOwnerID := c.Query("owner_id"); rawOwnerID != "" {
+	rawOwnerID := c.Query("owner_id")
+	explicitOwnerID := rawOwnerID != ""
+	if explicitOwnerID {
 		parsed, ok := parseCollectionInt64(c, rawOwnerID, "owner_id")
 		if !ok {
 			return
@@ -71,7 +73,15 @@ func (h *CollectionHandler) ListCollections(c *gin.Context) {
 		containsContentItemID = &parsed
 	}
 
-	items, err := h.collectionRepo.ListCollectionsForViewer(c.Request.Context(), ownerID, viewerID, zone, containsContentItemID)
+	var (
+		items []repository.CollectionSummary
+		err   error
+	)
+	if explicitOwnerID {
+		items, err = h.collectionRepo.ListCollectionsForViewer(c.Request.Context(), ownerID, viewerID, zone, containsContentItemID)
+	} else {
+		items, err = h.collectionSvc.ListOwnCollections(c.Request.Context(), ownerID, zone, containsContentItemID)
+	}
 	if err != nil {
 		h.writeCollectionError(c, err)
 		return
