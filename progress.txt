@@ -3485,3 +3485,23 @@ Code review of all Batch 12 changes identified 14 issues (2 Critical, 8 Major, 4
 ### Notes:
 - `docs/working/2026-06-30-community-features-development-guide.md` already had the exact required metadata, so no redundant rewrite was made.
 - Mode D tracking only: no `task.json`, Beta roadmap, or community-plan completion state was changed.
+
+## [2026-07-17] - Hardening Task 3: Establish A Dedicated HTTP Composition Root
+
+### What was done:
+- Moved the sole `RegisterRoutes` owner from `backend/internal/handler/routes.go` to `backend/internal/router/routes.go`, updated `main.go`, and preserved trusted-proxy, CORS, global middleware, route, authentication, and interaction-guard ordering.
+- Added container ownership for `StatsService` and reused the existing `IPStatsService`, `SearchService`, `PRService`, and `SocialService`; added thin service-backed PR/social handler constructors so the router creates no repositories or domain services.
+- Moved route security/deploy tests into the router package and added sole-owner, composition, representative route, credential/agent rate-limit, and disabled desktop/payment 503 contract coverage.
+- Updated doc-validator route extraction to the new owner, added legacy-marker replacement coverage, and regenerated the `architecture.md` route source marker/table.
+
+### Testing:
+- TDD RED: the main ownership test failed on the missing router import; router tests failed on missing `RegisterRoutes`; container and handler-constructor tests failed on their missing seams; route-sync failed while looking for the deleted handler owner.
+- Focused GREEN: `go test ./internal/container ./internal/handler ./internal/router ./cmd/server -v` passed, including the existing credential/agent middleware behavior and exact disabled-route 503 contracts.
+- Backend full gates: `go test ./...`, `go vet ./...`, and `go build ./...` passed.
+- Doc gates: `go test ./...`, `go run . --fix`, and `go run . --check --profile release` passed; release reported zero issues.
+- Project regression: `npm.cmd run verify` passed frontend TypeScript lint, all discovered unit tests, and the Next.js production build.
+- Mechanical route audit compared all 193 registration lines in order; after the required PR-handler container reuse equivalence, URL and middleware arguments were identical. Specification and code-quality reviewers both returned `APPROVED`.
+
+### Notes:
+- Route composition remains behavior-preserving; no route method/path was added or removed, and the old handler route owner no longer exists.
+- Mode D tracking only: no `task.json`, Beta roadmap, or community-plan completion state was changed.

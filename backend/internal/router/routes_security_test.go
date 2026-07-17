@@ -1,4 +1,4 @@
-package handler
+package router
 
 import (
 	"net/http"
@@ -86,6 +86,35 @@ func TestAgentChatRouteAppliesRuntimeAgentRateLimit(t *testing.T) {
 		if !strings.Contains(rec.Body.String(), "AGENT_RATE_LIMIT_EXCEEDED") {
 			t.Fatalf("second agent request body = %s, want AGENT_RATE_LIMIT_EXCEEDED", rec.Body.String())
 		}
+	}
+}
+
+func TestDisabledDesktopAndPaymentRoutesReturnExistingContract(t *testing.T) {
+	router, _, cleanup := buildRoutesSecurityRouter(t)
+	defer cleanup()
+
+	tests := []struct {
+		method  string
+		path    string
+		message string
+	}{
+		{method: http.MethodPost, path: "/api/v1/deploy-grants", message: "desktop deploy is not enabled"},
+		{method: http.MethodPost, path: "/api/v1/payments/checkout", message: "payment is not enabled"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusServiceUnavailable {
+				t.Fatalf("status = %d, want 503; body = %s", rec.Code, rec.Body.String())
+			}
+			if body := rec.Body.String(); !strings.Contains(body, `"code":"FEATURE_DISABLED"`) || !strings.Contains(body, tt.message) {
+				t.Fatalf("body = %s, want FEATURE_DISABLED and %q", body, tt.message)
+			}
+		})
 	}
 }
 

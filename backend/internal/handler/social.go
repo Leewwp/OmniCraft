@@ -23,16 +23,17 @@ type SocialHandler struct {
 }
 
 func NewSocialHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *SocialHandler {
-	return &SocialHandler{
-		socialSvc: service.NewSocialServiceWithRedis(
-			repository.NewSocialRepository(db),
-			repository.NewContentRepository(db),
-			repository.NewUserRepository(db),
-			cfg,
-			rdb,
-		),
-		db: db,
-	}
+	return NewSocialHandlerWithService(service.NewSocialServiceWithRedis(
+		repository.NewSocialRepository(db),
+		repository.NewContentRepository(db),
+		repository.NewUserRepository(db),
+		cfg,
+		rdb,
+	), db)
+}
+
+func NewSocialHandlerWithService(socialSvc *service.SocialService, db *gorm.DB) *SocialHandler {
+	return &SocialHandler{socialSvc: socialSvc, db: db}
 }
 
 func (h *SocialHandler) PostComment(c *gin.Context) {

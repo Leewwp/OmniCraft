@@ -310,7 +310,7 @@ backend/
 
 #### 完整 API 路由清单
 
-<!-- AUTO-GENERATED: §3.2 API 路由清单 | source: backend/internal/handler/routes.go | DO NOT EDIT MANUALLY -->
+<!-- AUTO-GENERATED: §3.2 API 路由清单 | source: backend/internal/router/routes.go | DO NOT EDIT MANUALLY -->
 
 | 方法 | 路径 | 处理器 |
 |------|------|--------|
@@ -357,9 +357,9 @@ backend/
 | `GET` | `/api/v1/contents` | contentHandler.ListContents |
 | `GET` | `/api/v1/contents/:id` | contentHandler.GetContent |
 | `GET` | `/api/v1/contents/:id/download` | contentHandler.DownloadContent |
-| `GET` | `/api/v1/contents/:id/prs` | NewPRHandler(...).ListPRs |
+| `GET` | `/api/v1/contents/:id/prs` | prHandler.ListPRs |
 | `GET` | `/api/v1/contents/:id/related-fanworks` | contentHandler.ListRelatedFanworks |
-| `GET` | `/api/v1/contents/:id/versions` | NewVersionHandler(...).ListVersions |
+| `GET` | `/api/v1/contents/:id/versions` | handler.NewVersionHandler(...).ListVersions |
 | `GET` | `/api/v1/contents/search` | searchHandler.SearchContents |
 | `GET` | `/api/v1/dashboard/tag-suggestions` | tagHandler.ListTagSuggestions |
 | `GET` | `/api/v1/discussions/:id` | discHandler.GetDiscussion |

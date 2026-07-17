@@ -225,26 +225,26 @@ git commit -m "Chore: split current and archive documentation checks"
 - Delete after verification: `backend/internal/handler/routes.go`
 - Generated: `architecture.md`
 
-- [ ] **Step 1: Freeze route behavior with failing ownership tests**
+- [x] **Step 1: Freeze route behavior with failing ownership tests**
 
 Tests must require `main.go` to call `router.RegisterRoutes`, retain trusted-proxy/CORS ordering, preserve representative public/protected/admin/disabled routes, and reject a second route owner in the handler package.
 
-- [ ] **Step 2: Confirm red**
+- [x] **Step 2: Confirm red**
 
 ```powershell
 cd backend
 go test ./cmd/server -run TestMainRegistersRoutesThroughRouterPackage -v
 ```
 
-- [ ] **Step 3: Complete reusable dependencies in the service container**
+- [x] **Step 3: Complete reusable dependencies in the service container**
 
 Before moving routes, identify every `repository.New...` or `service.New...` currently called inside `handler/routes.go`. Add the reusable dependency to `ServiceContainer` and its constructor/tests. The new router package may construct HTTP handlers from container-owned dependencies, but must not create repositories or domain services ad hoc.
 
-- [ ] **Step 4: Move route composition**
+- [x] **Step 4: Move route composition**
 
 Create `internal/router/routes.go`, preserve route paths and middleware order, import handler constructors explicitly, and update `main.go`.
 
-- [ ] **Step 5: Move route-level tests and add composition checks**
+- [x] **Step 5: Move route-level tests and add composition checks**
 
 In addition to existing security tests, assert source-level or constructor-level invariants:
 
@@ -252,18 +252,18 @@ In addition to existing security tests, assert source-level or constructor-level
 - all disabled desktop/payment routes retain 503 behavior;
 - protected routes retain auth and interaction middleware.
 
-- [ ] **Step 6: Update doc-validator route ownership before deleting the old file**
+- [x] **Step 6: Update doc-validator route ownership before deleting the old file**
 
 Change `route_sync.go` and the generated marker source from `internal/handler/routes.go` to `internal/router/routes.go`. Tests must prove `--fix` replaces the existing generated section instead of appending a duplicate.
 
-- [ ] **Step 7: Delete the old route owner and verify focused tests**
+- [x] **Step 7: Delete the old route owner and verify focused tests**
 
 ```powershell
 cd backend
 go test ./internal/handler ./internal/router ./cmd/server -v
 ```
 
-- [ ] **Step 8: Refresh generated architecture and run full backend gates**
+- [x] **Step 8: Refresh generated architecture and run full backend gates**
 
 ```powershell
 cd tools/doc-validator
@@ -275,7 +275,7 @@ go vet ./...
 go build ./...
 ```
 
-- [ ] **Step 9: Commit exact moved/generated files**
+- [x] **Step 9: Commit exact moved/generated files**
 
 Commit message: `Refactor: establish HTTP composition root`.
 
