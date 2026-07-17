@@ -86,10 +86,41 @@ pnpm dev            # 或 npm run dev
 # 前端运行在 http://localhost:3000
 ```
 
-### 7. 验证
+### 7. 项目验证
 
-- 打开 http://localhost:3000 查看前端
-- API 健康检查：http://localhost:8080/health
+项目统一验证入口会在任一子命令失败时立即停止，并向调用方返回非零退出码。
+
+```powershell
+# Default：日常确定性工程门
+powershell -ExecutionPolicy Bypass -File scripts/verify-project.ps1
+
+# Full：Default + mocked Playwright contracts
+powershell -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -Full
+
+# Release：Default + 完整 Playwright E2E
+powershell -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -Release
+```
+
+| 层级 | 覆盖范围 | 前置条件 |
+|------|----------|----------|
+| `default` | 后端 `test/vet/build`、前端 `unit/lint/build`、doc-validator tests 与严格 `release` profile | Go、Node.js 和已安装的锁定依赖 |
+| `full` | `default` + mocked Playwright contract suite | Playwright 浏览器、PostgreSQL、Redis 和可启动的本地前后端配置 |
+| `release` | `default` + desktop/mobile/mocked/cross-stack 完整 Playwright suite | 发布候选配置、Playwright 浏览器、PostgreSQL、Redis、测试数据及计划要求的外部服务 |
+
+`-Full` 与 `-Release` 是互斥层级。Tauri 是可叠加维度；修改桌面端时增加 `-Tauri`，也可与 `-Full` 或 `-Release` 组合：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -Tauri
+```
+
+归档链接债务保持可见，但不阻塞当前发布真相：
+
+```powershell
+cd tools/doc-validator
+go run . --check --profile archive
+```
+
+聚合命令不能替代任务要求的浏览器截图、真实外部服务 smoke、Tauri 安装包验证或人工发布证据。
 
 ---
 
