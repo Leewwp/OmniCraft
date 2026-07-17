@@ -20,13 +20,15 @@ type PRHandler struct {
 }
 
 func NewPRHandler(db *gorm.DB) *PRHandler {
-	return &PRHandler{
-		prSvc: service.NewPRService(
-			repository.NewPRRepository(db),
-			repository.NewVersionRepository(db),
-			repository.NewContentRepository(db),
-		),
-	}
+	return NewPRHandlerWithService(service.NewPRService(
+		repository.NewPRRepository(db),
+		repository.NewVersionRepository(db),
+		repository.NewContentRepository(db),
+	))
+}
+
+func NewPRHandlerWithService(prSvc *service.PRService) *PRHandler {
+	return &PRHandler{prSvc: prSvc}
 }
 
 func (h *PRHandler) SubmitPR(c *gin.Context) {

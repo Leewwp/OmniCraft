@@ -13,12 +13,12 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/container"
-	"omnicraft/backend/internal/handler"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/database"
 	"omnicraft/backend/internal/pkg/recovery"
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/pkg/scheduler"
+	"omnicraft/backend/internal/router"
 	"omnicraft/backend/internal/service"
 )
 
@@ -77,7 +77,7 @@ func main() {
 	})
 
 	v1 := r.Group("/api/v1")
-	handler.RegisterRoutes(v1, cfg, ctr)
+	router.RegisterRoutes(v1, cfg, ctr)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Server.Port,

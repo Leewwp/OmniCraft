@@ -60,6 +60,7 @@ type ServiceContainer struct {
 	ReviewService       *service.ReviewService
 	JudgeService        *service.JudgeService
 	RecommendationSvc   *service.RecommendationService
+	StatsService        *service.StatsService
 	IPStatsService      *service.IPStatsService
 	AgentService        *service.AgentService
 	NotificationService *service.NotificationService
@@ -140,6 +141,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.JudgeService = service.NewJudgeService(c.JudgeRepo, c.ReputationService, cfg)
 	c.ContentService = service.NewContentServiceWithOSS(c.ContentRepo, c.ReviewService, rdb, &cfg.Cache, nil)
 	c.SocialService = service.NewSocialServiceWithRedis(c.SocialRepo, c.ContentRepo, c.UserRepo, cfg, rdb)
+	c.StatsService = service.NewStatsService(db, rdb)
 	c.IPStatsService = service.NewIPStatsService(db, rdb)
 	c.NotificationService = service.NewNotificationService(c.NotificationRepo)
 	c.PRService = service.NewPRService(c.PRRepo, c.VersionRepo, c.ContentRepo)

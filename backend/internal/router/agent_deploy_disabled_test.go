@@ -1,4 +1,4 @@
-package handler
+package router
 
 import (
 	"os"
@@ -19,7 +19,7 @@ func TestDeployScriptRouteRemoved(t *testing.T) {
 }
 
 func TestDeployScriptHandlerRemoved(t *testing.T) {
-	bytes, err := os.ReadFile(filepath.Join(".", "agent.go"))
+	bytes, err := os.ReadFile(filepath.Join("..", "handler", "agent.go"))
 	if err != nil {
 		t.Fatalf("read agent.go: %v", err)
 	}

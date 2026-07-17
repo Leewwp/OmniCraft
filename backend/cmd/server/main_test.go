@@ -41,22 +41,32 @@ func TestMainCallsValidateReleaseAfterLoadAndBeforeExternalInit(t *testing.T) {
 	}
 }
 
-func TestMainSetsTrustedProxiesBeforeRegisterRoutes(t *testing.T) {
+func TestMainRegistersRoutesThroughRouterPackage(t *testing.T) {
 	src, err := os.ReadFile("main.go")
 	if err != nil {
 		t.Fatalf("read main.go: %v", err)
 	}
 	text := string(src)
+	if !strings.Contains(text, `"omnicraft/backend/internal/router"`) {
+		t.Fatal("main must import the dedicated router package")
+	}
+	if strings.Contains(text, `"omnicraft/backend/internal/handler"`) {
+		t.Fatal("main must not import handler as the route composition owner")
+	}
 	proxyIdx := strings.Index(text, "SetTrustedProxies")
-	routesIdx := strings.Index(text, "handler.RegisterRoutes")
+	corsIdx := strings.Index(text, "r.Use(middleware.CORS(cfg))")
+	routesIdx := strings.Index(text, "router.RegisterRoutes")
 	if proxyIdx < 0 {
 		t.Fatal("main must configure Gin trusted proxies")
 	}
-	if routesIdx < 0 {
-		t.Fatal("main must register routes")
+	if corsIdx < 0 {
+		t.Fatal("main must retain CORS middleware")
 	}
-	if proxyIdx > routesIdx {
-		t.Fatal("trusted proxies must be configured before route registration")
+	if routesIdx < 0 {
+		t.Fatal("main must register routes through router.RegisterRoutes")
+	}
+	if !(proxyIdx < corsIdx && corsIdx < routesIdx) {
+		t.Fatal("trusted proxies must precede CORS, and CORS must precede route registration")
 	}
 }
 
