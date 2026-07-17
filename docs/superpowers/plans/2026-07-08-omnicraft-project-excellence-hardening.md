@@ -288,7 +288,7 @@ Commit message: `Refactor: establish HTTP composition root`.
 - Create: `backend/internal/router/policies_test.go`
 - Modify: `backend/internal/router/routes.go`
 
-- [ ] **Step 1: Write failing policy and route-attachment tests**
+- [x] **Step 1: Write failing policy and route-attachment tests**
 
 Define only the distinct policy archetypes currently required:
 
@@ -297,18 +297,18 @@ Define only the distinct policy archetypes currently required:
 
 Tests must check both the policy values and representative routes that use each archetype. Do not encode twelve identical policy structs merely because there are twelve route groups.
 
-- [ ] **Step 2: Confirm red**
+- [x] **Step 2: Confirm red**
 
 ```powershell
 cd backend
 go test ./internal/router -run "TestInteractionPolicy|TestRoutePolicy" -v
 ```
 
-- [ ] **Step 3: Implement named archetypes and route-specific guards**
+- [x] **Step 3: Implement named archetypes and route-specific guards**
 
 Keep route-specific guard variable names for readability, but construct them from the two canonical archetypes. If a route genuinely needs a third policy, add it only with a failing behavior test and documented reason.
 
-- [ ] **Step 4: Run router and backend gates**
+- [x] **Step 4: Run router and backend gates**
 
 ```powershell
 cd backend
@@ -318,7 +318,7 @@ go vet ./...
 go build ./...
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add backend/internal/router/policies.go backend/internal/router/policies_test.go backend/internal/router/routes.go
