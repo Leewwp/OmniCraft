@@ -3464,3 +3464,24 @@ Code review of all Batch 12 changes identified 14 issues (2 Critical, 8 Major, 4
 ### Notes:
 - The complete default unit gate now surfaces pre-existing React `act(...)` and intentional error-path console output from previously omitted tests; these tests pass and cleanup belongs to a separate focused task.
 - Mode D tracking only: no `task.json`, Beta roadmap, or community-plan completion state was changed.
+
+## [2026-07-17] - Hardening Task 2: Split Doc Validator Profiles Without Hiding Current Debt
+
+### What was done:
+- Added explicit `release`, `archive`, and `all` validation profiles with `release` as the default and unknown-profile rejection.
+- Kept config, schema, route, token, active cross-reference, and working-document expiry checks in the release gate while excluding only `docs/archive/**` cross-reference debt.
+- Added archive-only cross-reference checking and an aggregate all profile, with the active profile printed in command output.
+- Replaced the permissive bare-file-URI regex with strict absolute Windows/POSIX file URI parsing that ignores bare prose and preserves balanced parentheses in paths.
+- Added profile, scope, file URI, Markdown-anchor, and archive isolation regression tests; documented profile usage and release semantics.
+
+### Testing:
+- Reproduced the baseline: 122 issues, consisting of 121 archive findings and one active false bare `file:///` match.
+- TDD RED: cross-reference tests failed because `CrossRefOptions` did not exist; profile tests failed because `resolveProfile` did not exist; balanced-parentheses URI test failed before the scanner fix.
+- `go test ./... -v`, `go vet ./...`, and `go build ./...` passed in `tools/doc-validator`.
+- Default and explicit `release` profiles passed with zero issues; unknown profile rejection passed.
+- `archive` and `all` remained non-zero with 115 visible historical issues. Six former findings were invalid partial-path matches around `(protected)`, not hidden debt.
+- Remote specification reviewer timed out; local specification and code-quality reviews found no blocking issues.
+
+### Notes:
+- `docs/working/2026-06-30-community-features-development-guide.md` already had the exact required metadata, so no redundant rewrite was made.
+- Mode D tracking only: no `task.json`, Beta roadmap, or community-plan completion state was changed.
