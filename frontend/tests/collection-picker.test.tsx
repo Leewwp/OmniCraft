@@ -263,6 +263,18 @@ test("Studio favorites page uses CollectionCard and collection APIs instead of t
   assert.doesNotMatch(source, /\/api\/v1\/users\/\$\{user\.id\}\/favorites/);
 });
 
+test("User profile exposes collection folders as a semantic link without loading the legacy favorites API", () => {
+  const source = fs.readFileSync(
+    new URL("../app/(public)/user/[userId]/UserProfileClient.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /<Link[\s\S]*href=\{`\/user\/\$\{userId\}\/collections`\}/);
+  assert.doesNotMatch(source, /router\.push\(`\/user\/\$\{userId\}\/collections`\)/);
+  assert.match(source, /user\.tabCollections/);
+  assert.doesNotMatch(source, /\/api\/v1\/users\/\$\{userId\}\/favorites/);
+});
+
 test("new Task 7 code does not import the legacy add-to-collection modal", () => {
   const ownedFiles = [
     "../components/content/CollectionPicker.tsx",

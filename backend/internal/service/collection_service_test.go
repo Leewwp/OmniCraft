@@ -1,7 +1,11 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -143,6 +147,67 @@ func TestCollectionServiceAddItemClearsRecommendationCache(t *testing.T) {
 	}
 	if !mr.Exists(otherCacheKey) {
 		t.Fatalf("other user recommendation cache key %q was removed", otherCacheKey)
+	}
+}
+
+func TestCollectionServiceSelfHealsDefaultsOnOwnList(t *testing.T) {
+	db := setupCollectionServiceDB(t)
+	user := seedCollectionServiceUser(t, db, 10, "self-heal-owner")
+	svc := NewCollectionService(repository.NewCollectionRepository(db), repository.NewContentRepository(db))
+
+	items, err := svc.ListOwnCollections(context.Background(), user.ID, "", nil)
+	if err != nil {
+		t.Fatalf("ListOwnCollections() error = %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("ListOwnCollections() items = %d, want two defaults", len(items))
+	}
+	assertCollectionServiceDefaultZones(t, db, user.ID, []string{"fanwork", "original"})
+
+	items, err = svc.ListOwnCollections(context.Background(), user.ID, "", nil)
+	if err != nil {
+		t.Fatalf("second ListOwnCollections() error = %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("second ListOwnCollections() items = %d, want two defaults", len(items))
+	}
+	assertCollectionServiceDefaultZones(t, db, user.ID, []string{"fanwork", "original"})
+}
+
+func TestCollectionServiceAddToDefaultLogsSafeRepairFailure(t *testing.T) {
+	db := setupCollectionServiceDB(t)
+	user := seedCollectionServiceUser(t, db, 10, "repair-log-owner")
+	author := seedCollectionServiceUser(t, db, 20, "repair-log-author")
+	content := seedCollectionServiceContent(t, db, 100, author.ID, "original", "article")
+	svc := NewCollectionService(repository.NewCollectionRepository(db), repository.NewContentRepository(db))
+	if err := db.Migrator().DropTable(&model.CollectionItem{}, &model.Collection{}); err != nil {
+		t.Fatalf("drop collection tables: %v", err)
+	}
+
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
+	err := svc.AddToDefaultCollection(context.Background(), user.ID, content.ID, "private note")
+	if err == nil {
+		t.Fatal("AddToDefaultCollection() error = nil, want repair failure")
+	}
+
+	var entry map[string]any
+	if decodeErr := json.Unmarshal(logs.Bytes(), &entry); decodeErr != nil {
+		t.Fatalf("decode structured repair log: %v; output=%q", decodeErr, logs.String())
+	}
+	if entry["msg"] != "collection default repair failed" || entry["user_id"] != float64(user.ID) || entry["zone"] != "original" {
+		t.Fatalf("unexpected repair log fields: %#v", entry)
+	}
+	if entry["error_code"] != "COLLECTION_DEFAULT_REPAIR_FAILED" {
+		t.Fatalf("repair error_code = %#v, want safe fallback", entry["error_code"])
+	}
+	for _, privateValue := range []string{"no such table", "private note", user.Email, author.Email} {
+		if strings.Contains(logs.String(), privateValue) {
+			t.Fatalf("repair log leaked %q: %s", privateValue, logs.String())
+		}
 	}
 }
 
@@ -292,6 +357,27 @@ func assertCollectionServiceCollectionItemCount(t *testing.T, db *gorm.DB, colle
 	}
 	if count != want {
 		t.Fatalf("collection item count collection=%d content=%d = %d, want %d", collectionID, contentID, count, want)
+	}
+}
+
+func assertCollectionServiceDefaultZones(t *testing.T, db *gorm.DB, userID int64, want []string) {
+	t.Helper()
+	var collections []model.Collection
+	if err := db.Where("user_id = ? AND is_default = ? AND deleted_at IS NULL", userID, true).
+		Order("zone ASC").Find(&collections).Error; err != nil {
+		t.Fatalf("load default collections: %v", err)
+	}
+	got := make([]string, 0, len(collections))
+	for _, collection := range collections {
+		got = append(got, collection.Zone)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("default zones = %v, want %v", got, want)
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			t.Fatalf("default zones = %v, want %v", got, want)
+		}
 	}
 }
 
