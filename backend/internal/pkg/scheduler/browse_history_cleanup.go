@@ -21,6 +21,11 @@ type BrowseHistoryCleanup struct {
 	stopped bool
 }
 
+type browseHistoryCleanupRunResult struct {
+	Deleted        int64
+	AcquiredLeader bool
+}
+
 func NewBrowseHistoryCleanup(db *gorm.DB, cfg *config.BrowseHistoryConfig) *BrowseHistoryCleanup {
 	var repo *repository.BrowseHistoryRepository
 	if db != nil {
@@ -52,17 +57,27 @@ func (s *BrowseHistoryCleanup) Stop() {
 }
 
 func (s *BrowseHistoryCleanup) runOnce() (int64, error) {
+	result, err := s.runOnceWithStatus()
+	return result.Deleted, err
+}
+
+func (s *BrowseHistoryCleanup) runOnceWithStatus() (browseHistoryCleanupRunResult, error) {
 	if s.repo == nil {
-		return 0, nil
+		return browseHistoryCleanupRunResult{}, nil
 	}
 	now := s.now().In(s.location())
-	deleted, err := s.repo.DeleteExpired(s.retentionDays(), now)
+	deleted, acquired, err := s.repo.DeleteExpiredIfLeader(s.retentionDays(), now)
+	result := browseHistoryCleanupRunResult{Deleted: deleted, AcquiredLeader: acquired}
 	if err != nil {
 		slog.Error("[BrowseHistoryCleanup] cleanup failed", "error", err)
-		return deleted, err
+		return result, err
+	}
+	if !acquired {
+		slog.Info("[BrowseHistoryCleanup] cleanup skipped", "reason", "leader lock not acquired")
+		return result, nil
 	}
 	slog.Info("[BrowseHistoryCleanup] cleanup completed", "deleted", deleted)
-	return deleted, nil
+	return result, nil
 }
 
 func (s *BrowseHistoryCleanup) scheduleNext() {

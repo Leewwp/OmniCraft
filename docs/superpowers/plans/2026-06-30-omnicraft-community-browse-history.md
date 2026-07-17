@@ -515,7 +515,7 @@ git commit -m "Community 2: browse history enhancement"
 - Modify: `frontend/tests/history-page.test.tsx`
 - Modify: `frontend/e2e/history.spec.ts`
 
-- [ ] **Step 1: Add failing destructive-contract tests**
+- [x] **Step 1: Add failing destructive-contract tests**
 
 The DELETE body becomes an explicit tagged choice:
 
@@ -532,30 +532,30 @@ Assert:
 - `clear_all:true` together with non-empty `ids` returns `400 DELETE_MODE_CONFLICT`;
 - more than 100 IDs still returns `400 TOO_MANY_IDS`.
 
-- [ ] **Step 2: Confirm red**
+- [x] **Step 2: Confirm red**
 
 ```powershell
 cd backend
 go test ./internal/handler -run TestBrowseHistoryDelete -v
 ```
 
-- [ ] **Step 3: Implement explicit delete parsing**
+- [x] **Step 3: Implement explicit delete parsing**
 
 Use pointer/presence-aware request fields so omitted `ids` is distinguishable from an empty array. Do not infer clear-all from an empty or missing body.
 
-- [ ] **Step 4: Update frontend calls**
+- [x] **Step 4: Update frontend calls**
 
 Batch delete sends `{ ids }`. The ConfirmModal-backed clear-all action sends `{ clear_all: true }`. Tests must prove the clear-all request is not issued before confirmation.
 
-- [ ] **Step 5: Add failing multi-replica scheduler tests**
+- [x] **Step 5: Add failing multi-replica scheduler tests**
 
 Run two cleanup instances against the same Postgres database and fixed clock. Assert only one acquires the leader lock and performs `DeleteExpired`; the other records a skipped run without error. Also cover lock release after success and failure.
 
-- [ ] **Step 6: Add a transaction-scoped PostgreSQL advisory lock**
+- [x] **Step 6: Add a transaction-scoped PostgreSQL advisory lock**
 
 Use `pg_try_advisory_xact_lock` with one documented stable application lock ID inside the same transaction as `DeleteExpired`. Do not keep a session-level lock across timer sleeps. SQLite/unit fallbacks may inject a leader-elector interface, but the Postgres integration test is authoritative.
 
-- [ ] **Step 7: Verify focused and full gates**
+- [x] **Step 7: Verify focused and full gates**
 
 ```powershell
 cd backend
@@ -570,11 +570,11 @@ npm run lint
 npm run build
 ```
 
-- [ ] **Step 8: Browser verification**
+- [x] **Step 8: Browser verification**
 
 Verify selected deletion, cancelled clear-all, confirmed clear-all, and a deliberately stripped request body returning `CLEAR_CONFIRMATION_REQUIRED` without deleting data.
 
-- [ ] **Step 9: Update only the follow-up state and commit**
+- [x] **Step 9: Update only the follow-up state and commit**
 
 Check only Task 7 steps, append a Task 7 follow-up entry to `progress.txt`, stage exact handler/repository/scheduler/frontend/test/plan files, and commit `Community history: harden clear and cleanup`. Do not alter original Task 1–6 completion history or any Beta/task.json state.
 
@@ -593,5 +593,5 @@ Check only Task 7 steps, append a Task 7 follow-up entry to `progress.txt`, stag
 - [x] `main.go` stores the browse-history scheduler instance and calls `Stop()` during graceful shutdown.
 - [x] Frontend plan includes API helper work for DELETE bodies.
 - [x] `doc-validator` is required because `config.go` changes.
-- [ ] Follow-up clear-all requires an explicit tagged request and UI confirmation.
-- [ ] Follow-up scheduler permits only one cleanup execution across replicas.
+- [x] Follow-up clear-all requires an explicit tagged request and UI confirmation.
+- [x] Follow-up scheduler permits only one cleanup execution across replicas.
