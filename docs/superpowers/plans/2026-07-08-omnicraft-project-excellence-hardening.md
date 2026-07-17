@@ -129,7 +129,7 @@ git commit -m "Chore: make frontend unit tests discoverable"
 - Modify: `tools/doc-validator/README.md`
 - Modify: `docs/working/2026-06-30-community-features-development-guide.md`
 
-- [ ] **Step 1: Write failing cross-reference tests**
+- [x] **Step 1: Write failing cross-reference tests**
 
 Add tests proving:
 
@@ -140,14 +140,14 @@ Add tests proving:
 - prose containing only a bare file URI scheme, without an absolute path, is ignored;
 - Markdown links still support anchors without treating the anchor as part of the filename.
 
-- [ ] **Step 2: Confirm red**
+- [x] **Step 2: Confirm red**
 
 ```powershell
 cd tools/doc-validator
 go test ./rules -run "TestCheckCrossRefs|TestFileReference" -v
 ```
 
-- [ ] **Step 3: Add explicit cross-reference options and strict file URI parsing**
+- [x] **Step 3: Add explicit cross-reference options and strict file URI parsing**
 
 Introduce:
 
@@ -160,11 +160,11 @@ type CrossRefOptions struct {
 
 The file-URI matcher must require an absolute Windows drive path or an absolute POSIX path after the scheme. Do not silence arbitrary active-document failures.
 
-- [ ] **Step 4: Write failing profile tests**
+- [x] **Step 4: Write failing profile tests**
 
 Cover default `release`, explicit `archive`, explicit `all`, and unknown-profile rejection.
 
-- [ ] **Step 5: Implement profiles**
+- [x] **Step 5: Implement profiles**
 
 - `release`: config/schema/route/token/current cross-reference checks plus working-document expiry checks; excludes archive cross-references.
 - `archive`: archive cross-references only; non-release-blocking.
@@ -172,7 +172,7 @@ Cover default `release`, explicit `archive`, explicit `all`, and unknown-profile
 
 Print the active profile in command output.
 
-- [ ] **Step 6: Normalize the verified malformed working header**
+- [x] **Step 6: Normalize the verified malformed working header**
 
 Change only the top metadata of `docs/working/2026-06-30-community-features-development-guide.md` to:
 
@@ -183,14 +183,14 @@ Change only the top metadata of `docs/working/2026-06-30-community-features-deve
 
 The other current working documents already use the validator-compatible expiry format and must not be rewritten without a new finding.
 
-- [ ] **Step 7: Run tool tests**
+- [x] **Step 7: Run tool tests**
 
 ```powershell
 cd tools/doc-validator
 go test ./... -v
 ```
 
-- [ ] **Step 8: Verify profiles against the repository**
+- [x] **Step 8: Verify profiles against the repository**
 
 ```powershell
 cd tools/doc-validator
@@ -200,7 +200,7 @@ go run . --check --profile archive
 
 Expected: release PASS. Archive may fail while historical links remain, and that debt stays visible in archive output.
 
-- [ ] **Step 9: Update README and commit**
+- [x] **Step 9: Update README and commit**
 
 Document all profiles and explicitly state that release excludes only archive debt.
 

@@ -7,24 +7,41 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
+)
+
+type CrossRefOptions struct {
+	IncludeArchive bool
+	OnlyArchive    bool
+}
+
+var (
+	markdownLinkPattern = regexp.MustCompile(`\[([^\]]*)\]\(([^)]+\.md[^)]*)\)`)
 )
 
 // CheckCrossRefs scans all .md files for file links and checks that
 // target files exist on disk.
-func CheckCrossRefs() []RuleIssue {
+func CheckCrossRefs(options CrossRefOptions) []RuleIssue {
 	var issues []RuleIssue
 
-	// Regex for markdown links: [text](path)
-	linkRe := regexp.MustCompile(`\[([^\]]*)\]\(([^)]+\.md[^)]*)\)`)
-	// Regex for file:/// references
-	fileRefRe := regexp.MustCompile(`file:///([^\s<>"'\\)]+)`)
-
-	// Walk docs/, design/, .specify/ for .md files
 	dirsToScan := []string{"docs", "design", ".specify"}
+	if options.OnlyArchive {
+		dirsToScan = []string{filepath.Join("docs", "archive")}
+	}
 
 	for _, dir := range dirsToScan {
 		filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() || !strings.HasSuffix(path, ".md") {
+			if err != nil || info == nil {
+				return nil
+			}
+			if info.IsDir() {
+				if !options.IncludeArchive && !options.OnlyArchive && isArchivePath(path) {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !strings.HasSuffix(path, ".md") {
 				return nil
 			}
 
@@ -34,7 +51,7 @@ func CheckCrossRefs() []RuleIssue {
 			}
 
 			// Check markdown links
-			for _, match := range linkRe.FindAllStringSubmatch(string(content), -1) {
+			for _, match := range markdownLinkPattern.FindAllStringSubmatch(string(content), -1) {
 				target := match[2]
 				// Remove anchor part (#section)
 				if idx := strings.Index(target, "#"); idx >= 0 {
@@ -56,8 +73,8 @@ func CheckCrossRefs() []RuleIssue {
 			}
 
 			// Check file:/// references
-			for _, match := range fileRefRe.FindAllStringSubmatch(string(content), -1) {
-				ref := match[1]
+			for _, uriPath := range fileURIPaths(string(content)) {
+				ref := absoluteFileURIPath(uriPath)
 				if _, err := os.Stat(ref); os.IsNotExist(err) {
 					issues = append(issues, RuleIssue{
 						Severity: "WARNING",
@@ -72,6 +89,84 @@ func CheckCrossRefs() []RuleIssue {
 	}
 
 	return issues
+}
+
+func isArchivePath(path string) bool {
+	archiveRoot := filepath.Clean(filepath.Join("docs", "archive"))
+	cleanPath := filepath.Clean(path)
+	return cleanPath == archiveRoot || strings.HasPrefix(cleanPath, archiveRoot+string(os.PathSeparator))
+}
+
+func absoluteFileURIPath(uriPath string) string {
+	if len(uriPath) >= 3 && uriPath[1] == ':' && uriPath[2] == '/' {
+		return filepath.FromSlash(uriPath)
+	}
+	return filepath.FromSlash("/" + uriPath)
+}
+
+func fileURIPaths(content string) []string {
+	const prefix = "file:///"
+	var paths []string
+
+	for searchStart := 0; searchStart < len(content); {
+		relativeStart := strings.Index(content[searchStart:], prefix)
+		if relativeStart < 0 {
+			break
+		}
+		pathStart := searchStart + relativeStart + len(prefix)
+		uriPath, consumed, ok := parseFileURIPath(content[pathStart:])
+		if ok {
+			paths = append(paths, uriPath)
+		}
+		if consumed == 0 {
+			_, consumed = utf8.DecodeRuneInString(content[pathStart:])
+			if consumed == 0 {
+				break
+			}
+		}
+		searchStart = pathStart + consumed
+	}
+
+	return paths
+}
+
+func parseFileURIPath(text string) (string, int, bool) {
+	if text == "" || !validFileURIPathStart(text) {
+		return "", 0, false
+	}
+
+	parentheses := 0
+	end := 0
+	for offset, r := range text {
+		if unicode.IsSpace(r) || strings.ContainsRune("<>\"'`", r) {
+			break
+		}
+		if r == '(' {
+			parentheses++
+		} else if r == ')' {
+			if parentheses == 0 {
+				break
+			}
+			parentheses--
+		}
+		end = offset + utf8.RuneLen(r)
+	}
+	if end == 0 {
+		return "", 0, false
+	}
+	return text[:end], end, true
+}
+
+func validFileURIPathStart(text string) bool {
+	if len(text) >= 3 && isASCIILetter(text[0]) && text[1] == ':' && text[2] == '/' {
+		return true
+	}
+	r, _ := utf8.DecodeRuneInString(text)
+	return unicode.IsLetter(r) || unicode.IsNumber(r) || strings.ContainsRune("._~%-", r)
+}
+
+func isASCIILetter(value byte) bool {
+	return value >= 'A' && value <= 'Z' || value >= 'a' && value <= 'z'
 }
 
 // CheckExpiredDocs scans docs/working/ for documents past their expiry date.

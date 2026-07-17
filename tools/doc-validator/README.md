@@ -5,15 +5,33 @@ OmniCraft document validation and auto-generation tool.
 ## Usage
 
 ```bash
-# Auto-fix architecture.md auto-generated sections
-go run tools/doc-validator --fix
+cd tools/doc-validator
 
-# Full consistency check
-go run tools/doc-validator --check
+# Auto-fix architecture.md auto-generated sections
+go run . --fix
+
+# Release-blocking checks (default profile)
+go run . --check --profile release
 
 # Check only git diff files
-go run tools/doc-validator --check --diff
+go run . --check --diff --profile release
+
+# Historical archive cross-reference hygiene (non-release-blocking)
+go run . --check --profile archive
+
+# Release checks plus archive cross-references
+go run . --check --profile all
 ```
+
+## Validation Profiles
+
+| Profile | Scope | Release blocking |
+|---------|-------|------------------|
+| `release` (default) | Config, schema, routes, design tokens, active-document cross-references, and working-document expiry | Yes |
+| `archive` | Cross-references originating under `docs/archive/**` only | No |
+| `all` | Complete `release` checks plus archive cross-references | No; diagnostic aggregate (use `release` for the release gate) |
+
+The `release` profile excludes only cross-reference debt originating in `docs/archive/**`. Current documents under `docs/`, `design/`, `.specify/`, `docs/superpowers/specs/`, `docs/superpowers/plans/`, and `docs/working/` remain strictly checked.
 
 ## Checks
 
@@ -23,7 +41,7 @@ go run tools/doc-validator --check --diff
 | schema sync | architecture.md §4 ↔ migrations/*.sql |
 | route sync | architecture.md §3.2 ↔ routes.go |
 | token refs | ui-spec.md tokens ↔ design-system.md definitions |
-| cross refs | File links validity |
+| cross refs | File-link validity, scoped by the selected validation profile |
 | expired docs | docs/working/ expiry dates |
 
 ## Auto-Generated Sections
