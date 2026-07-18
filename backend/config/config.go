@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -291,9 +293,94 @@ func Load() *Config {
 		OverridePath = v
 	}
 	LoadOverride(cfg, OverridePath)
+	if err := applyTestMode(cfg); err != nil {
+		slog.Error("invalid test mode configuration", "error", err)
+		os.Exit(1)
+	}
 
 	Cfg = cfg
 	return cfg
+}
+
+func applyTestMode(cfg *Config) error {
+	if os.Getenv("OMNICRAFT_TEST_MODE") != "1" {
+		return nil
+	}
+
+	// Read replicas must never be used by tests, even if a normal config
+	// source supplied one before test-mode validation fails.
+	cfg.Database.ReadDSN = ""
+
+	dsn := strings.TrimSpace(os.Getenv("OMNICRAFT_TEST_DB_DSN"))
+	if dsn == "" {
+		return fmt.Errorf("OMNICRAFT_TEST_DB_DSN is required when OMNICRAFT_TEST_MODE=1")
+	}
+	host, database, err := testDatabaseDSNHostAndName(dsn)
+	if err != nil {
+		return fmt.Errorf("invalid OMNICRAFT_TEST_DB_DSN: %w", err)
+	}
+	if !isLoopbackDatabaseHost(host) {
+		return fmt.Errorf("OMNICRAFT_TEST_DB_DSN host %q must be loopback", host)
+	}
+	if !strings.HasPrefix(database, "omnicraft_test_") || len(database) == len("omnicraft_test_") {
+		return fmt.Errorf("OMNICRAFT_TEST_DB_DSN database %q must use the omnicraft_test_ prefix", database)
+	}
+	if err := validateTestRedisAddr(cfg.Redis.Addr); err != nil {
+		return err
+	}
+
+	redisDBRaw := strings.TrimSpace(os.Getenv("OMNICRAFT_TEST_REDIS_DB"))
+	redisDB, err := strconv.Atoi(redisDBRaw)
+	if err != nil || redisDB <= 0 {
+		return fmt.Errorf("OMNICRAFT_TEST_REDIS_DB must be a valid integer and non-zero")
+	}
+
+	cfg.Database.DSN = dsn
+	cfg.Redis.DB = redisDB
+	return nil
+}
+
+func testDatabaseDSNHostAndName(dsn string) (string, string, error) {
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		parsed, err := url.Parse(dsn)
+		if err != nil {
+			return "", "", err
+		}
+		return parsed.Hostname(), strings.TrimPrefix(parsed.EscapedPath(), "/"), nil
+	}
+
+	values := make(map[string]string)
+	for _, part := range strings.Fields(dsn) {
+		key, value, ok := strings.Cut(part, "=")
+		if ok {
+			values[strings.ToLower(key)] = strings.Trim(value, "'")
+		}
+	}
+	return values["host"], values["dbname"], nil
+}
+
+func isLoopbackDatabaseHost(host string) bool {
+	trimmed := strings.Trim(strings.TrimSpace(host), "[]")
+	if strings.EqualFold(trimmed, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(trimmed)
+	return ip != nil && ip.IsLoopback()
+}
+
+func validateTestRedisAddr(raw string) error {
+	host, port, err := net.SplitHostPort(strings.TrimSpace(raw))
+	if err != nil {
+		return fmt.Errorf("redis.addr %q must be a valid loopback host:port in test mode", raw)
+	}
+	if !isLoopbackDatabaseHost(host) {
+		return fmt.Errorf("redis.addr host %q must be loopback in test mode", host)
+	}
+	portNumber, err := strconv.Atoi(port)
+	if err != nil || portNumber <= 0 || portNumber > 65535 {
+		return fmt.Errorf("redis.addr port %q must be valid in test mode", port)
+	}
+	return nil
 }
 
 func loadDotEnvFiles() {

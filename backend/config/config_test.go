@@ -234,3 +234,95 @@ func TestBrowseHistoryConfig(t *testing.T) {
 	require.Equal(t, 7, cfg.BrowseHistory.RetentionDays)
 	require.Equal(t, "03:00", cfg.BrowseHistory.CleanupTime)
 }
+
+func TestApplyTestModeReplacesNormalDatabaseConfigurationAfterOverrides(t *testing.T) {
+	t.Setenv("OMNICRAFT_TEST_MODE", "1")
+	t.Setenv("OMNICRAFT_TEST_DB_DSN", "host=127.0.0.1 port=5432 user=omnicraft password=omnicraft dbname=omnicraft_test_cross_stack sslmode=disable")
+	t.Setenv("OMNICRAFT_TEST_REDIS_DB", "15")
+
+	cfg := &Config{
+		Database: DatabaseConfig{DSN: "host=db.example.com dbname=production", ReadDSN: "host=replica.example.com dbname=production"},
+		Redis:    RedisConfig{Addr: "127.0.0.1:6379", DB: 0},
+	}
+
+	require.NoError(t, applyTestMode(cfg))
+	require.Equal(t, "host=127.0.0.1 port=5432 user=omnicraft password=omnicraft dbname=omnicraft_test_cross_stack sslmode=disable", cfg.Database.DSN)
+	require.Empty(t, cfg.Database.ReadDSN)
+	require.Equal(t, 15, cfg.Redis.DB)
+}
+
+func TestApplyTestModeRejectsUnsafeTestConfiguration(t *testing.T) {
+	tests := []struct {
+		name     string
+		dsn      string
+		redisDB  string
+		wantPart string
+	}{
+		{"remote database", "host=db.example.com dbname=omnicraft_test_cross_stack", "15", "loopback"},
+		{"normal database name", "host=127.0.0.1 dbname=omnicraft", "15", "omnicraft_test_"},
+		{"redis db zero", "host=127.0.0.1 dbname=omnicraft_test_cross_stack", "0", "non-zero"},
+		{"invalid redis db", "host=127.0.0.1 dbname=omnicraft_test_cross_stack", "not-a-number", "valid integer"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("OMNICRAFT_TEST_MODE", "1")
+			t.Setenv("OMNICRAFT_TEST_DB_DSN", tt.dsn)
+			t.Setenv("OMNICRAFT_TEST_REDIS_DB", tt.redisDB)
+
+			err := applyTestMode(&Config{Redis: RedisConfig{Addr: "127.0.0.1:6379"}})
+			require.Error(t, err)
+			require.ErrorContains(t, err, tt.wantPart)
+		})
+	}
+}
+
+func TestApplyTestModeRequiresLoopbackRedisWithValidPort(t *testing.T) {
+	tests := []struct {
+		name      string
+		redisAddr string
+		wantErr   bool
+	}{
+		{"localhost", "localhost:6379", false},
+		{"ipv4 loopback", "127.0.0.1:6379", false},
+		{"ipv6 loopback", "[::1]:6379", false},
+		{"remote host", "redis.example.com:6379", true},
+		{"empty address", "", true},
+		{"missing port", "127.0.0.1", true},
+		{"invalid port", "127.0.0.1:not-a-port", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("OMNICRAFT_TEST_MODE", "1")
+			t.Setenv("OMNICRAFT_TEST_DB_DSN", "host=127.0.0.1 dbname=omnicraft_test_cross_stack")
+			t.Setenv("OMNICRAFT_TEST_REDIS_DB", "15")
+
+			err := applyTestMode(&Config{Redis: RedisConfig{Addr: tt.redisAddr}})
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("applyTestMode() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestApplyTestModeRequiresExplicitTestInputs(t *testing.T) {
+	t.Setenv("OMNICRAFT_TEST_MODE", "1")
+	t.Setenv("OMNICRAFT_TEST_DB_DSN", "")
+	t.Setenv("OMNICRAFT_TEST_REDIS_DB", "")
+
+	err := applyTestMode(&Config{})
+	require.ErrorContains(t, err, "OMNICRAFT_TEST_DB_DSN")
+}
+
+func TestApplyTestModeLeavesNormalConfigurationUnchanged(t *testing.T) {
+	t.Setenv("OMNICRAFT_TEST_MODE", "")
+	t.Setenv("OMNICRAFT_TEST_DB_DSN", "host=127.0.0.1 dbname=omnicraft_test_ignored")
+	t.Setenv("OMNICRAFT_TEST_REDIS_DB", "15")
+
+	cfg := &Config{Database: DatabaseConfig{DSN: "host=db.example.com dbname=production", ReadDSN: "host=replica.example.com dbname=production"}, Redis: RedisConfig{DB: 0}}
+	require.NoError(t, applyTestMode(cfg))
+	require.Equal(t, "host=db.example.com dbname=production", cfg.Database.DSN)
+	require.Equal(t, "host=replica.example.com dbname=production", cfg.Database.ReadDSN)
+	require.Equal(t, 0, cfg.Redis.DB)
+}

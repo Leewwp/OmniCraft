@@ -19,21 +19,21 @@ Expires: 2026-09-18
 - Modify: `backend/internal/testutil/postgres.go`
 - Modify: `backend/internal/testutil/postgres_test.go`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Add table-driven tests for a validator that accepts loopback `postgres` admin DSNs and rejects remote hosts and `dbname=omnicraft`.
 
-- [ ] **Step 2: Run the focused test red**
+- [x] **Step 2: Run the focused test red**
 
 Run: `$env:GOCACHE='C:\tmp\omnicraft-go-cache-local-validation'; go test ./internal/testutil -run TestValidateEphemeralPostgresAdminDSN -count=1`
 
 Expected: FAIL because the validator does not exist.
 
-- [ ] **Step 3: Implement the minimum validator**
+- [x] **Step 3: Implement the minimum validator**
 
 Validate the resolved connection settings before `OpenEphemeralPostgres` opens a connection. Permit only `127.0.0.1`, `localhost`, or `::1`, require database `postgres`, and preserve the existing default DSN.
 
-- [ ] **Step 4: Run focused and dependent Go tests**
+- [x] **Step 4: Run focused and dependent Go tests**
 
 Run the focused validator test, then `go test ./internal/model ./internal/repository -count=1` with the isolated cache and a safe local test admin DSN.
 
@@ -43,21 +43,21 @@ Run the focused validator test, then `go test ./internal/model ./internal/reposi
 - Modify: `backend/config/config.go`
 - Modify: `backend/config/config_test.go`
 
-- [ ] **Step 1: Write failing configuration tests**
+- [x] **Step 1: Write failing configuration tests**
 
 Prove test-only PostgreSQL and Redis overrides applied after every normal configuration source, including config overrides, are accepted only in test mode. PostgreSQL must target loopback and name an ephemeral `omnicraft_test_` database; Redis must target loopback and use a non-zero dedicated DB. Prove ordinary development database/Redis DB 0 and remote hosts are rejected, and prove a configured `DB_READ_DSN` is cleared in test mode.
 
-- [ ] **Step 2: Run the configuration test red**
+- [x] **Step 2: Run the configuration test red**
 
 Run: `$env:GOCACHE='C:\tmp\omnicraft-go-cache-local-validation'; go test ./config -run TestLoadTestDatabaseOverride -count=1`
 
 Expected: FAIL because no safe test-stack override exists.
 
-- [ ] **Step 3: Implement the minimum test-only override**
+- [x] **Step 3: Implement the minimum test-only override**
 
 After all dotenv, environment, and config-override processing, allow `OMNICRAFT_TEST_MODE=1` plus `OMNICRAFT_TEST_DB_DSN` and `OMNICRAFT_TEST_REDIS_DB` to override backend dependencies only when they meet the local ephemeral PostgreSQL and non-zero Redis rules. Clear `cfg.Database.ReadDSN` unconditionally in test mode so no replica can target a non-test database. Reject invalid values before database or Redis initialization.
 
-- [ ] **Step 4: Run the focused test green**
+- [x] **Step 4: Run the focused test green**
 
 Run the focused configuration test with the isolated Go cache.
 
