@@ -1,7 +1,7 @@
 # Local Test Validation Repair Design
 
-Created: 2026-07-18  
-Expires: 2026-09-18
+**创建日期**: 2026-07-18
+**预计失效日期**: 2026-09-18
 
 ## Purpose
 

@@ -3564,3 +3564,21 @@ Code review of all Batch 12 changes identified 14 issues (2 Critical, 8 Major, 4
 - This is a planning-only Ops-00 commit; no Ops-01～Ops-09 implementation has started.
 - No production database snapshot or real provider credentials were required for Ops-00.
 - `task.json`, Beta roadmap, community completion state, and Web Agent completion state were not modified.
+
+## [2026-07-18] - Local test validation repair: documentation sync
+
+### What was done:
+- Synchronized `docs/working/2026-07-18-local-test-validation-repair-plan.md` with the implementation already merged on `main`.
+- Marked the preflight/readiness/layer-runner implementation and contract verification complete, along with the originating session’s Docker recovery and isolated-layer execution evidence.
+- Kept the full repository regression checkbox open because the fresh `scripts/verify-project.ps1` run exceeded 240 seconds in `go test ./...` and did not produce a PASS result.
+
+### Testing:
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test/preflight.tests.ps1`: passed.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test/readiness.tests.ps1`: passed.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test/run-test-layer.tests.ps1`: passed.
+- `node scripts/playwright-config.test.mjs`: 3 tests passed.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-project.ps1`: timed out after 240 seconds in the `go test ./...` child process; the process tree started by this check was stopped and no PASS was recorded.
+
+### Notes:
+- Implementation commits already present on `main`: `9006a18`, `fe34360`, and `7d297f8`.
+- This maintenance entry changes documentation only; it does not modify `task.json`, Beta/community/Web Agent completion state, or the Production Readiness plan.

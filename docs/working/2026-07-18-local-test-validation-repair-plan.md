@@ -8,8 +8,8 @@
 
 **Tech Stack:** Playwright, Next.js, Go testing/GORM, PowerShell, Docker Compose.
 
-Created: 2026-07-18  
-Expires: 2026-09-18
+**创建日期**: 2026-07-18
+**预计失效日期**: 2026-09-18
 
 ---
 
@@ -103,21 +103,21 @@ Expected: PASS.
 - Create: `scripts/test/run-test-layer.tests.ps1`
 - Modify: `frontend/package.json`
 
-- [ ] **Step 1: Write failing PowerShell contract tests**
+- [x] **Step 1: Write failing PowerShell contract tests**
 
 Cover unsafe PostgreSQL/Redis input rejection, absent 5432/6379 bindings returning `BLOCKED` and non-zero, redacted output, mocked-layer isolation, a zero-test cross-stack result returning `FAIL`, and a required cross-stack layer not being converted to PASS when preflight fails. Cover an already-listening 3000 or 8080 returning `BLOCKED`; cover creation, migration, injection, and final cleanup of a unique ephemeral database plus a dedicated non-zero Redis DB for cross-stack execution.
 
-- [ ] **Step 2: Run the runner tests red**
+- [x] **Step 2: Run the runner tests red**
 
 Run: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test/preflight.tests.ps1`
 
 Expected: FAIL because the scripts do not exist.
 
-- [ ] **Step 3: Implement preflight, readiness, and runner**
+- [x] **Step 3: Implement preflight, readiness, and runner**
 
 Preflight inspects only the current local Compose project and services, validates Docker health/host port bindings, Go/cache safety, safe test DSNs, a dedicated non-zero Redis test DB, and empty 3000/8080 test ports, then returns structured `PASS|FAIL|BLOCKED`. It prints the precise non-destructive recovery command for port drift: `docker compose up -d --force-recreate postgres redis`; it never executes destructive Docker commands. For CrossStack, the runner creates and migrates a unique local temporary database through the Compose PostgreSQL service, clears a dedicated Redis test DB, starts Go and Next itself with safe test-only overrides applied after all ordinary config sources and with read replicas disabled, records their process IDs, then calls the no-webserver Playwright configuration. `finally` cleanup stops only those owned processes, drops only the generated temporary database, and clears only the dedicated Redis DB. Readiness checks backend and frontend only after their processes start. The runner uses the mocked Playwright command for `MockedBrowser`, Go for `GoUnit`, safe PostgreSQL-dependent tests for `PostgresIntegration`, and the real cross-stack config for `CrossStack`.
 
-- [ ] **Step 4: Run PowerShell tests green**
+- [x] **Step 4: Run PowerShell tests green**
 
 Run each `scripts/test/*.tests.ps1` file.
 
@@ -126,11 +126,11 @@ Run each `scripts/test/*.tests.ps1` file.
 **Files:**
 - No repository source changes required.
 
-- [ ] **Step 1: Recover declared Docker data services safely**
+- [x] **Step 1: Recover declared Docker data services safely**
 
 Run `docker compose up -d --force-recreate postgres redis`, then confirm Compose health and loopback bindings for 5432/6379. Do not run `down -v` or delete volumes.
 
-- [ ] **Step 2: Run isolated layers**
+- [x] **Step 2: Run isolated layers**
 
 Run the mocked browser layer without Go/PostgreSQL, Go unit, PostgreSQL integration, and cross-stack layers separately. A missing external prerequisite is reported as `BLOCKED`, not converted into a pass.
 
@@ -141,3 +141,9 @@ Run frontend unit/lint/build, focused Go tests, `go vet ./...`, and `go build ./
 - [ ] **Step 4: Review and commit**
 
 Perform specification and code-quality review, update this plan’s completed checkboxes only if every required deterministic check passed, and create one precise implementation commit. Do not update UI/community/Ops task status.
+
+### Verification note (2026-07-18)
+
+- Task 4 was implemented and merged through `7d297f8`; its preflight, readiness, layer-runner, and Playwright configuration contract suites pass.
+- Task 5 steps 1–2 were completed in the originating session: Docker PostgreSQL/Redis host bindings were restored without volume deletion, and the mocked browser, Go unit, PostgreSQL integration, and real cross-stack layers were independently exercised. The originating session also audited cleanup of its temporary PostgreSQL database, Redis DB 15, and owned application processes.
+- Task 5 step 3 remains open. A fresh run of `scripts/verify-project.ps1` exceeded 240 seconds in the `go test ./...` child process and therefore produced no PASS evidence. The runner process tree was stopped and no completion status was inferred.
