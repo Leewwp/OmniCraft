@@ -72,21 +72,21 @@ Run the focused configuration test with the isolated Go cache.
 - Create: `frontend/e2e/cross-stack-health.integration.spec.ts`
 - Create: `frontend/scripts/playwright-config.test.mjs`
 
-- [ ] **Step 1: Write a failing configuration contract test**
+- [x] **Step 1: Write a failing configuration contract test**
 
 Test the standard mocked npm entry point and mocked config source: it must name the mocked config and contain only a Next web server. Test the cross-stack config source selects only `*.integration.spec.ts`, starts no web servers, and has at least one matching integration spec. Test the runner rejects a zero-test Playwright result.
 
-- [ ] **Step 2: Run the configuration test red**
+- [x] **Step 2: Run the configuration test red**
 
 Run: `node frontend/scripts/playwright-config.test.mjs`
 
 Expected: FAIL because the scripts still select the shared configuration.
 
-- [ ] **Step 3: Implement explicit configurations**
+- [x] **Step 3: Implement explicit configurations**
 
 Move the shared browser defaults into a reusable local helper or retain them in the legacy config only where needed. Point `test:contracts` to the mocked config and add `test:cross-stack` for the real config. Ensure the contract-smoke server remains exclusive to mocked execution and cannot collide with a real Go backend. Add a real `cross-stack-health.integration.spec.ts` with no route mocks or in-process API server; it loads the browser frontend and asserts a safe real backend API response.
 
-- [ ] **Step 4: Run the configuration test green**
+- [x] **Step 4: Run the configuration test green**
 
 Run: `node frontend/scripts/playwright-config.test.mjs`
 
