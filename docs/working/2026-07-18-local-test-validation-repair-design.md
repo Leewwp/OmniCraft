@@ -27,11 +27,13 @@ Make local test outcomes honest and repeatable without changing CI, production-r
 
 `playwright.cross-stack.config.ts` is used only after local prerequisites pass. It launches the real Go backend and Next.js and selects integration specs. Cross-stack specs must not use `page.route`, an in-process mock API server, or other API substitutes.
 
+The legacy npm entry points are migrated deliberately: `test:contracts` must select the mocked configuration, while the real cross-stack entry point must select the cross-stack configuration through the layer runner. A regression test proves that the ordinary mocked command never starts the Go web server.
+
 ### Environment gates
 
 The runner has two phases:
 
-1. Preflight checks Docker and Compose availability, service health, actual localhost port bindings for PostgreSQL and Redis, a writable isolated Go build cache, a usable Go standard library, and safe local test connection settings.
+1. Preflight checks Docker and Compose availability, service health, actual localhost port bindings for PostgreSQL and Redis, a writable isolated Go build cache, a usable Go standard library, and safe local test connection settings. The PostgreSQL admin DSN must target loopback only and its `postgres` administration database; non-loopback hosts and the development database name `omnicraft` are rejected before any temporary database can be created or dropped.
 2. Readiness runs after the backend and frontend start, checking process ownership, backend `/healthz`, frontend reachability, and selected real API endpoints.
 
 Any unmet prerequisite returns a non-zero result and produces `BLOCKED`; tests do not start in that case.
@@ -42,8 +44,8 @@ Each layer reports one of `PASS`, `FAIL`, or `BLOCKED` with its executed command
 
 ## Safety
 
-- Real database integration uses only a local loopback PostgreSQL test DSN and unique temporary test databases.
-- Scripts only inspect or start the named Compose data services; they must not run `down -v`, remove volumes, or clear a development database.
+- Real database integration uses only a local loopback PostgreSQL test DSN and unique temporary test databases. Tests prove that an unsafe admin DSN is rejected.
+- When the declared Compose port mappings do not match the running containers, the recovery path verifies the named Compose project/services, runs `docker compose up -d --force-recreate postgres redis`, preserves named volumes, and rechecks host-port bindings. Scripts must not run `down -v`, remove volumes, or clear a development database.
 - Connection strings and environment diagnostics are redacted.
 
 ## Verification
