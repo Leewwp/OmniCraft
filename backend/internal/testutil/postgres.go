@@ -1,7 +1,9 @@
 package testutil
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"net/url"
@@ -10,7 +12,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-	"time"
 
 	_ "github.com/lib/pq"
 	"gorm.io/driver/postgres"
@@ -18,6 +19,14 @@ import (
 )
 
 const defaultAdminDSN = "host=127.0.0.1 port=5432 user=omnicraft password=omnicraft dbname=postgres sslmode=disable"
+
+func newEphemeralDatabaseName() (string, error) {
+	var entropy [16]byte
+	if _, err := rand.Read(entropy[:]); err != nil {
+		return "", fmt.Errorf("generate ephemeral database name: %w", err)
+	}
+	return "omnicraft_test_" + hex.EncodeToString(entropy[:]), nil
+}
 
 func OpenEphemeralPostgres(t *testing.T) *gorm.DB {
 	t.Helper()
@@ -38,7 +47,10 @@ func OpenEphemeralPostgres(t *testing.T) *gorm.DB {
 		t.Fatalf("ping postgres admin connection: %v", err)
 	}
 
-	dbName := fmt.Sprintf("omnicraft_test_%d", time.Now().UnixNano())
+	dbName, err := newEphemeralDatabaseName()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := adminDB.Exec(`CREATE DATABASE "` + dbName + `"`); err != nil {
 		t.Fatalf("create temp database %s: %v", dbName, err)
 	}

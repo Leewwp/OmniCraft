@@ -1,6 +1,51 @@
 package testutil
 
-import "testing"
+import (
+	"regexp"
+	"sync"
+	"testing"
+)
+
+func TestNewEphemeralDatabaseNameIsSafeAndUniqueUnderConcurrency(t *testing.T) {
+	const workers = 256
+	validName := regexp.MustCompile(`^omnicraft_test_[a-f0-9]{32}$`)
+	names := make(chan string, workers)
+	errors := make(chan error, workers)
+
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			name, err := newEphemeralDatabaseName()
+			if err != nil {
+				errors <- err
+				return
+			}
+			names <- name
+		}()
+	}
+	wg.Wait()
+	close(names)
+	close(errors)
+
+	for err := range errors {
+		t.Fatalf("newEphemeralDatabaseName: %v", err)
+	}
+	seen := make(map[string]struct{}, workers)
+	for name := range names {
+		if !validName.MatchString(name) {
+			t.Fatalf("database name %q is not a safe fixed-width identifier", name)
+		}
+		if _, exists := seen[name]; exists {
+			t.Fatalf("duplicate database name %q", name)
+		}
+		seen[name] = struct{}{}
+	}
+	if len(seen) != workers {
+		t.Fatalf("generated %d unique names, want %d", len(seen), workers)
+	}
+}
 
 func TestValidateEphemeralAdminDSNRequiresLoopbackPostgresDatabase(t *testing.T) {
 	tests := []struct {
