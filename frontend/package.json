@@ -9,8 +9,9 @@
     "lint": "tsc --noEmit",
     "test": "node scripts/run-tests.mjs unit",
     "test:unit": "node scripts/run-tests.mjs unit",
-    "test:contracts": "playwright test --project=mocked",
-    "test:e2e": "playwright test",
+    "test:contracts": "playwright test --config=playwright.mocked.config.ts",
+    "test:cross-stack": "playwright test --config=playwright.cross-stack.config.ts",
+    "test:e2e": "npm run test:cross-stack",
     "test:e2e:release-manual": "powershell -ExecutionPolicy Bypass -File ..\\scripts\\run-root-python-e2e.ps1",
     "verify": "npm run lint && npm run test:unit && npm run build",
     "verify:release": "npm run verify && npm run test:e2e"

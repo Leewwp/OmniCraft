@@ -6,7 +6,7 @@ let backendServer: ReturnType<typeof createServer> | null = null;
 function json(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, {
     "content-type": "application/json",
-    "access-control-allow-origin": "http://127.0.0.1:3000",
+    "access-control-allow-origin": "http://127.0.0.1:3001",
     "access-control-allow-credentials": "true",
     "access-control-allow-headers": "Content-Type, X-CSRF-Token, Authorization",
     "access-control-allow-methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
@@ -15,12 +15,12 @@ function json(res: ServerResponse, status: number, body: unknown) {
 }
 
 function handleApi(req: IncomingMessage, res: ServerResponse) {
-  const url = new URL(req.url ?? "/", "http://127.0.0.1:8080");
+  const url = new URL(req.url ?? "/", "http://127.0.0.1:18080");
   const pathname = url.pathname;
 
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
-      "access-control-allow-origin": "http://127.0.0.1:3000",
+      "access-control-allow-origin": "http://127.0.0.1:3001",
       "access-control-allow-credentials": "true",
       "access-control-allow-headers": "Content-Type, X-CSRF-Token, Authorization",
       "access-control-allow-methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
@@ -113,7 +113,7 @@ test.describe("real HTTP contract smoke", () => {
     backendServer = createServer(handleApi);
     await new Promise<void>((resolve, reject) => {
       backendServer?.once("error", reject);
-      backendServer?.listen(8080, () => resolve());
+      backendServer?.listen(18080, () => resolve());
     });
   });
 
