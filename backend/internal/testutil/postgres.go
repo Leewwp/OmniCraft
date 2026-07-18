@@ -3,6 +3,7 @@ package testutil
 import (
 	"database/sql"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -24,6 +25,9 @@ func OpenEphemeralPostgres(t *testing.T) *gorm.DB {
 	adminDSN := os.Getenv("OMNICRAFT_TEST_POSTGRES_ADMIN_DSN")
 	if strings.TrimSpace(adminDSN) == "" {
 		adminDSN = defaultAdminDSN
+	}
+	if err := validateEphemeralAdminDSN(adminDSN); err != nil {
+		t.Fatalf("unsafe postgres admin DSN: %v", err)
 	}
 
 	adminDB, err := sql.Open("postgres", adminDSN)
@@ -60,6 +64,54 @@ func OpenEphemeralPostgres(t *testing.T) *gorm.DB {
 	})
 
 	return db
+}
+
+func validateEphemeralAdminDSN(dsn string) error {
+	host, database, err := postgresDSNHostAndDatabase(dsn)
+	if err != nil {
+		return err
+	}
+	if !isLoopbackPostgresHost(host) {
+		return fmt.Errorf("postgres admin DSN host %q must be loopback", host)
+	}
+	if database != "postgres" {
+		return fmt.Errorf("postgres admin DSN database %q must be postgres", database)
+	}
+	return nil
+}
+
+func postgresDSNHostAndDatabase(dsn string) (string, string, error) {
+	trimmed := strings.TrimSpace(dsn)
+	if strings.HasPrefix(trimmed, "postgres://") || strings.HasPrefix(trimmed, "postgresql://") {
+		parsed, err := url.Parse(trimmed)
+		if err != nil {
+			return "", "", fmt.Errorf("parse postgres URL: %w", err)
+		}
+		return parsed.Hostname(), strings.TrimPrefix(parsed.EscapedPath(), "/"), nil
+	}
+
+	values := postgresDSNKeywordValues(trimmed)
+	return values["host"], values["dbname"], nil
+}
+
+func postgresDSNKeywordValues(dsn string) map[string]string {
+	values := make(map[string]string)
+	for _, part := range strings.Fields(dsn) {
+		key, value, ok := strings.Cut(part, "=")
+		if ok {
+			values[strings.ToLower(key)] = strings.Trim(value, "'")
+		}
+	}
+	return values
+}
+
+func isLoopbackPostgresHost(host string) bool {
+	trimmed := strings.Trim(strings.TrimSpace(host), "[]")
+	if strings.EqualFold(trimmed, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(trimmed)
+	return ip != nil && ip.IsLoopback()
 }
 
 func ApplyMigrationFile(t *testing.T, db *gorm.DB, path string) {
@@ -177,13 +229,13 @@ func rewriteDSNDatabase(dsn, dbName string) string {
 
 func splitSQLStatements(sqlText string) []string {
 	var (
-		statements        []string
-		current           strings.Builder
-		inSingleQuote     bool
-		inDoubleQuote     bool
-		inLineComment     bool
-		inBlockComment    bool
-		dollarQuoteTag    string
+		statements     []string
+		current        strings.Builder
+		inSingleQuote  bool
+		inDoubleQuote  bool
+		inLineComment  bool
+		inBlockComment bool
+		dollarQuoteTag string
 	)
 
 	for i := 0; i < len(sqlText); i++ {
