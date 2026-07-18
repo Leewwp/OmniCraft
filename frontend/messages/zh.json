@@ -1443,10 +1443,27 @@
       "overview": "数据概览",
       "followers": "粉丝分析",
       "myContent": "我的内容",
+      "series": "内容系列",
       "prManagement": "PR 管理",
       "contributors": "贡献者",
       "tagSuggestions": "标签建议",
       "revenue": "收益数据"
+    },
+    "series": {
+      "title": "内容系列管理",
+      "subtitle": "整理公开内容并维护章节顺序。",
+      "create": "创建系列",
+      "delete": "删除系列",
+      "empty": { "title": "还没有内容系列", "description": "创建一个系列，把相关内容按顺序整理起来。" },
+      "list": { "ariaLabel": "我的内容系列" },
+      "detail": { "ariaLabel": "系列详情" },
+      "form": { "title": "系列标题", "description": "系列简介", "zone": "分区", "cover": "系列封面", "coverAutomatic": "自动使用首项封面", "createSubmit": "创建", "save": "保存修改" },
+      "items": { "title": "已添加内容", "ariaLabel": "系列内容排序列表", "empty": "系列中还没有内容", "add": "添加" },
+      "search": { "title": "添加内容", "label": "搜索可添加内容", "placeholder": "按标题搜索自己的内容..." },
+      "confirm": { "deleteTitle": "删除系列？", "deleteDescription": "删除“{title}”后，系列顺序会被移除，但不会删除内容。" },
+      "toast": { "created": "系列已创建", "saved": "系列已保存", "deleted": "系列已删除", "itemAdded": "内容已添加", "itemRemoved": "内容已移除", "reordered": "顺序已更新" },
+      "error": { "loadFailed": "系列加载失败，请重试。", "saveFailed": "保存失败，请重试。", "deleteFailed": "删除失败，请重试。", "itemFailed": "内容操作失败，请重试。" },
+      "a11y": { "backToList": "返回系列列表", "moveUp": "将 {title} 上移", "moveDown": "将 {title} 下移", "removeItem": "从系列移除 {title}" }
     },
     "publish": {
       "originalTitle": "发布原创",
@@ -1684,6 +1701,49 @@
     },
     "a11y": {
       "preview": "广播通知预览"
+    }
+  },
+  "series": {
+    "nav": {
+      "tabsLabel": "所属内容系列",
+      "position": "第 {current} / 共 {total}",
+      "previous": "上一章：{title}",
+      "next": "下一章：{title}",
+      "catalog": "系列目录",
+      "more": "更多({count})",
+      "first": "已是第一章",
+      "last": "已是最后一章",
+      "previousA11y": "上一章：{title}",
+      "nextA11y": "下一章：{title}",
+      "firstA11y": "上一章不可用，已是第一章",
+      "lastA11y": "下一章不可用，已是最后一章",
+      "catalogA11y": "查看 {title} 系列目录"
+    },
+    "detail": {
+      "header": {
+        "zoneOriginal": "原创",
+        "zoneFanwork": "二创",
+        "itemCount": "共 {count} 项",
+        "owner": "作者：{username}"
+      },
+      "items": {
+        "title": "系列内容",
+        "ariaLabel": "系列内容列表",
+        "itemLabel": "第 {index} 项"
+      },
+      "empty": {
+        "title": "系列暂无公开内容",
+        "description": "该系列还没有可展示的内容。"
+      },
+      "error": {
+        "title": "系列不存在或暂不可见",
+        "description": "该系列可能已被删除，或内容暂不可见。",
+        "loadFailed": "系列加载失败，请重试。"
+      },
+      "a11y": {
+        "cover": "{title} 系列封面",
+        "retry": "重试加载系列"
+      }
     }
   },
   "error": {

@@ -324,6 +324,8 @@ backend/
 | `DELETE` | `/api/v1/ips/:id/follow` | followHandler.UnfollowIP |
 | `DELETE` | `/api/v1/messages/:id` | msgHandler.DeleteMessage |
 | `DELETE` | `/api/v1/messages/conversations/:id` | msgHandler.LeaveConversation |
+| `DELETE` | `/api/v1/series/:id` | seriesHandler.DeleteSeries |
+| `DELETE` | `/api/v1/series/:id/items/:itemId` | seriesHandler.RemoveItem |
 | `DELETE` | `/api/v1/social/comments/:id` | socialHandler.DeleteComment |
 | `DELETE` | `/api/v1/users/:id/follow` | followHandler.UnfollowUser |
 | `DELETE` | `/api/v1/users/me` | userHandler.DeleteAccount |
@@ -385,6 +387,9 @@ backend/
 | `GET` | `/api/v1/reputation-logs/me` | repHandler.GetMyReputationLogs |
 | `GET` | `/api/v1/search/suggestions` | searchHandler.Suggestions |
 | `GET` | `/api/v1/search/trending` | searchHandler.Trending |
+| `GET` | `/api/v1/series` | seriesHandler.ListSeries |
+| `GET` | `/api/v1/series/:id` | seriesHandler.GetSeries |
+| `GET` | `/api/v1/series/candidates` | seriesHandler.ListCandidates |
 | `GET` | `/api/v1/social/comments` | socialHandler.ListComments |
 | `GET` | `/api/v1/social/discussions` | socialHandler.ListDiscussions |
 | `GET` | `/api/v1/social/discussions/:id` | socialHandler.GetDiscussion |
@@ -476,6 +481,8 @@ backend/
 | `POST` | `/api/v1/pr/:id/reject` | prHandler.RejectPR |
 | `POST` | `/api/v1/rehab/courses/:id/complete` | rehabHandler.CompleteCourse |
 | `POST` | `/api/v1/rehab/courses/:id/start` | rehabHandler.StartCourse |
+| `POST` | `/api/v1/series` | seriesHandler.CreateSeries |
+| `POST` | `/api/v1/series/:id/items` | seriesHandler.AddItem |
 | `POST` | `/api/v1/social/comments` | socialHandler.PostComment |
 | `POST` | `/api/v1/social/comments/:id/report` | socialHandler.ReportComment |
 | `POST` | `/api/v1/social/discussions` | socialHandler.PostDiscussion |
@@ -487,6 +494,8 @@ backend/
 | `PUT` | `/api/v1/admin/categories/reorder` | catHandler.AdminReorderCategories |
 | `PUT` | `/api/v1/collections/:id` | collectionHandler.UpdateCollection |
 | `PUT` | `/api/v1/collections/:id/items/:itemId` | collectionHandler.UpdateItem |
+| `PUT` | `/api/v1/series/:id` | seriesHandler.UpdateSeries |
+| `PUT` | `/api/v1/series/:id/items/reorder` | seriesHandler.ReorderItems |
 
 <!-- END AUTO-GENERATED: §3.2 -->
 
@@ -644,9 +653,10 @@ omnicraft://deploy?content_id=xxx&token=yyy
 | 列名 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | `id` | `BIGSERIAL` | PK | id |
-| `user_id` | `BIGINT` | NOT NULL UNIQUE -> users.id | user_id |
-| `content_item_id` | `BIGINT` | NOT NULL UNIQUE -> content_items.id | content_item_id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `content_item_id` | `BIGINT` | NOT NULL -> content_items.id | content_item_id |
 | `viewed_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | viewed_at |
+| — | — | UNIQUE (`user_id`, `content_item_id`) | table constraint |
 
 ### categories
 
@@ -668,10 +678,11 @@ omnicraft://deploy?content_id=xxx&token=yyy
 | 列名 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | `id` | `BIGSERIAL` | PK | id |
-| `collection_id` | `BIGINT` | NOT NULL UNIQUE -> collections.id | collection_id |
-| `content_item_id` | `BIGINT` | NOT NULL UNIQUE -> content_items.id | content_item_id |
+| `collection_id` | `BIGINT` | NOT NULL -> collections.id | collection_id |
+| `content_item_id` | `BIGINT` | NOT NULL -> content_items.id | content_item_id |
 | `note` | `TEXT` | NOT NULL DEFAULT '' | note |
 | `added_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | added_at |
+| — | — | UNIQUE (`collection_id`, `content_item_id`) | table constraint |
 
 ### collections
 
@@ -760,6 +771,30 @@ omnicraft://deploy?content_id=xxx&token=yyy
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
 
+### content_series
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `title` | `VARCHAR(200)` | NOT NULL | title |
+| `description` | `TEXT` | NOT NULL DEFAULT '' | description |
+| `cover_content_id` | `BIGINT` | -> content_items.id | cover_content_id |
+| `owner_id` | `BIGINT` | NOT NULL -> users.id | owner_id |
+| `zone` | `VARCHAR(10)` | NOT NULL | zone |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+
+### content_series_items
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `series_id` | `BIGINT` | NOT NULL -> content_series.id | series_id |
+| `content_item_id` | `BIGINT` | NOT NULL -> content_items.id | content_item_id |
+| `sort_order` | `INT` | NOT NULL DEFAULT 0 | sort_order |
+| `added_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | added_at |
+| — | — | UNIQUE (`series_id`, `content_item_id`) | table constraint |
+
 ### content_tags
 
 | 列名 | 类型 | 约束 | 说明 |
@@ -772,16 +807,17 @@ omnicraft://deploy?content_id=xxx&token=yyy
 | 列名 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | `id` | `BIGSERIAL` | PK | id |
-| `content_item_id` | `BIGINT` | NOT NULL UNIQUE -> content_items.id | content_item_id |
+| `content_item_id` | `BIGINT` | NOT NULL -> content_items.id | content_item_id |
 | `parent_version_id` | `BIGINT` | -> content_versions.id | parent_version_id |
 | `author_id` | `BIGINT` | NOT NULL -> users.id | author_id |
-| `version_number` | `INT` | NOT NULL UNIQUE | version_number |
+| `version_number` | `INT` | NOT NULL | version_number |
 | `storage_type` | `VARCHAR(10)` | NOT NULL | storage_type |
 | `storage_key` | `TEXT` | - | storage_key |
 | `diff_summary` | `TEXT` | - | diff_summary |
 | `status` | `VARCHAR(20)` | NOT NULL DEFAULT 'active' | status |
 | `is_latest` | `BOOLEAN` | NOT NULL DEFAULT FALSE | is_latest |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| — | — | UNIQUE (`content_item_id`, `version_number`) | table constraint |
 
 ### conversation_participants
 
@@ -870,10 +906,11 @@ omnicraft://deploy?content_id=xxx&token=yyy
 | 列名 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | `id` | `BIGSERIAL` | PK | id |
-| `follower_id` | `BIGINT` | NOT NULL UNIQUE -> users.id | follower_id |
-| `target_type` | `VARCHAR(20)` | NOT NULL UNIQUE | target_type |
-| `target_id` | `BIGINT` | NOT NULL UNIQUE | target_id |
+| `follower_id` | `BIGINT` | NOT NULL -> users.id | follower_id |
+| `target_type` | `VARCHAR(20)` | NOT NULL | target_type |
+| `target_id` | `BIGINT` | NOT NULL | target_id |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| — | — | UNIQUE (`follower_id`, `target_type`, `target_id`) | table constraint |
 
 ### ip_review_logs
 
@@ -939,11 +976,12 @@ omnicraft://deploy?content_id=xxx&token=yyy
 | 列名 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | `id` | `BIGSERIAL` | PK | id |
-| `user_id` | `BIGINT` | NOT NULL UNIQUE -> users.id | user_id |
-| `content_type` | `VARCHAR(50)` | NOT NULL UNIQUE | content_type |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `content_type` | `VARCHAR(50)` | NOT NULL | content_type |
 | `qualified_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | qualified_at |
 | `revoked_at` | `TIMESTAMPTZ` | - | revoked_at |
 | `is_active` | `BOOLEAN` | NOT NULL DEFAULT TRUE | is_active |
+| — | — | UNIQUE (`user_id`, `content_type`) | table constraint |
 
 ### judge_questions
 
@@ -962,21 +1000,23 @@ omnicraft://deploy?content_id=xxx&token=yyy
 | 列名 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | `id` | `BIGSERIAL` | PK | id |
-| `reason_owner_vote_id` | `BIGINT` | NOT NULL UNIQUE -> judge_votes.id | reason_owner_vote_id |
-| `voter_id` | `BIGINT` | NOT NULL UNIQUE -> users.id | voter_id |
+| `reason_owner_vote_id` | `BIGINT` | NOT NULL -> judge_votes.id | reason_owner_vote_id |
+| `voter_id` | `BIGINT` | NOT NULL -> users.id | voter_id |
 | `vote_type` | `VARCHAR(10)` | NOT NULL | vote_type |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| — | — | UNIQUE (`reason_owner_vote_id`, `voter_id`) | table constraint |
 
 ### judge_votes
 
 | 列名 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | `id` | `BIGSERIAL` | PK | id |
-| `case_id` | `BIGINT` | NOT NULL UNIQUE -> judge_cases.id | case_id |
-| `judge_id` | `BIGINT` | NOT NULL UNIQUE -> users.id | judge_id |
+| `case_id` | `BIGINT` | NOT NULL -> judge_cases.id | case_id |
+| `judge_id` | `BIGINT` | NOT NULL -> users.id | judge_id |
 | `vote` | `VARCHAR(10)` | NOT NULL | vote |
 | `reason` | `TEXT` | - | reason |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| — | — | UNIQUE (`case_id`, `judge_id`) | table constraint |
 
 ### llm_configs
 
@@ -1025,10 +1065,11 @@ omnicraft://deploy?content_id=xxx&token=yyy
 |------|------|------|------|
 | `id` | `BIGSERIAL` | PK | id |
 | `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
-| `provider` | `VARCHAR(20)` | NOT NULL UNIQUE | provider |
-| `provider_uid` | `VARCHAR(255)` | NOT NULL UNIQUE | provider_uid |
+| `provider` | `VARCHAR(20)` | NOT NULL | provider |
+| `provider_uid` | `VARCHAR(255)` | NOT NULL | provider_uid |
 | `access_token` | `TEXT` | - | access_token |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| — | — | UNIQUE (`provider`, `provider_uid`) | table constraint |
 
 ### password_reset_tokens
 
@@ -1061,20 +1102,22 @@ omnicraft://deploy?content_id=xxx&token=yyy
 | 列名 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | `id` | `BIGSERIAL` | PK | id |
-| `user_id` | `BIGINT` | NOT NULL UNIQUE -> users.id | user_id |
-| `target_type` | `VARCHAR(20)` | NOT NULL UNIQUE | target_type |
-| `target_id` | `BIGINT` | NOT NULL UNIQUE | target_id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `target_type` | `VARCHAR(20)` | NOT NULL | target_type |
+| `target_id` | `BIGINT` | NOT NULL | target_id |
 | `reaction` | `VARCHAR(10)` | NOT NULL | reaction |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| — | — | UNIQUE (`user_id`, `target_type`, `target_id`) | table constraint |
 
 ### rehab_completions
 
 | 列名 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | `id` | `BIGSERIAL` | PK | id |
-| `user_id` | `BIGINT` | NOT NULL UNIQUE -> users.id | user_id |
-| `course_id` | `BIGINT` | NOT NULL UNIQUE -> rehab_courses.id | course_id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `course_id` | `BIGINT` | NOT NULL -> rehab_courses.id | course_id |
 | `completed_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | completed_at |
+| — | — | UNIQUE (`user_id`, `course_id`) | table constraint |
 
 ### rehab_courses
 
@@ -1137,12 +1180,13 @@ omnicraft://deploy?content_id=xxx&token=yyy
 | 列名 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | `id` | `BIGSERIAL` | PK | id |
-| `content_item_id` | `BIGINT` | NOT NULL UNIQUE -> content_items.id | content_item_id |
-| `user_id` | `BIGINT` | NOT NULL UNIQUE -> users.id | user_id |
-| `tag` | `VARCHAR(100)` | NOT NULL UNIQUE | tag |
-| `action` | `VARCHAR(10)` | NOT NULL UNIQUE | action |
+| `content_item_id` | `BIGINT` | NOT NULL -> content_items.id | content_item_id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `tag` | `VARCHAR(100)` | NOT NULL | tag |
+| `action` | `VARCHAR(10)` | NOT NULL | action |
 | `status` | `VARCHAR(20)` | NOT NULL DEFAULT 'pending' | status |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| — | — | UNIQUE (`content_item_id`, `user_id`, `tag`, `action`) | table constraint |
 
 ### tags
 

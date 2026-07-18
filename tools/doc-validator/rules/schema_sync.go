@@ -11,8 +11,9 @@ import (
 
 // TableDef represents a parsed SQL table definition.
 type TableDef struct {
-	Name    string
-	Columns []ColumnDef
+	Name              string
+	Columns           []ColumnDef
+	UniqueConstraints [][]string
 }
 
 // ColumnDef represents a single column in a table.
@@ -123,8 +124,14 @@ func parseTableBody(tableName, body string) TableDef {
 		}
 		if m := uniqueRe.FindStringSubmatch(trimmed); m != nil {
 			cols := strings.Split(m[1], ",")
+			for i := range cols {
+				cols[i] = strings.TrimSpace(cols[i])
+			}
+			if len(cols) > 1 {
+				td.UniqueConstraints = append(td.UniqueConstraints, cols)
+				continue
+			}
 			for _, c := range cols {
-				c = strings.TrimSpace(c)
 				for i, col := range td.Columns {
 					if col.Name == c {
 						td.Columns[i].Unique = true
@@ -211,6 +218,13 @@ func generateSchemaTable(tables []TableDef) string {
 			}
 			comment = strings.ReplaceAll(comment, "|", "\\|")
 			b.WriteString(fmt.Sprintf("| `%s` | `%s` | %s | %s |\n", col.Name, col.Type, constraints, comment))
+		}
+		for _, columns := range td.UniqueConstraints {
+			quoted := make([]string, 0, len(columns))
+			for _, column := range columns {
+				quoted = append(quoted, "`"+column+"`")
+			}
+			b.WriteString(fmt.Sprintf("| — | — | UNIQUE (%s) | table constraint |\n", strings.Join(quoted, ", ")))
 		}
 		b.WriteString("\n")
 	}

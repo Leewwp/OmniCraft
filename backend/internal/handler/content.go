@@ -29,6 +29,7 @@ import (
 type ContentHandler struct {
 	contentSvc        *service.ContentService
 	contentRepo       *repository.ContentRepository
+	seriesSvc         *service.SeriesService
 	browseHistoryRepo *repository.BrowseHistoryRepository
 	ossSvc            *service.OSSService
 	ossInitErr        error
@@ -60,6 +61,7 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 	return &ContentHandler{
 		contentSvc:        contentSvc,
 		contentRepo:       repo,
+		seriesSvc:         service.NewSeriesService(repository.NewSeriesRepository(db)),
 		browseHistoryRepo: repository.NewBrowseHistoryRepository(db),
 		ossSvc:            ossSvc,
 		ossInitErr:        ossErr,
@@ -260,11 +262,17 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 		slog.Error("failed to get tags", "content_id", id, "error", err2)
 		tags = nil
 	}
+	seriesMemberships, err := h.seriesSvc.ListMembershipsForContent(c.Request.Context(), id)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
 
 	resp := gin.H{
-		"content":     content,
-		"attachments": attachments,
-		"tags":        tags,
+		"content":            content,
+		"attachments":        attachments,
+		"tags":               tags,
+		"series_memberships": seriesMemberships,
 	}
 
 	currentUserID := middleware.GetUserID(c)

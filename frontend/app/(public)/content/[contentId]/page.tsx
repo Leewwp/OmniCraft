@@ -4,7 +4,7 @@ import { getTranslations } from 'next-intl/server';
 import { ContentDetail } from "@/components/content/ContentDetail";
 import { ContentSidebar } from "@/components/content/ContentSidebar";
 import { VersionHistory } from "@/components/content/VersionHistory";
-import { normalizeAttachments, normalizeContentItem, normalizeTags } from "@/lib/content";
+import { normalizeContentDetailResponse } from "@/lib/content";
 
 interface ContentItem {
   id: number;
@@ -65,7 +65,7 @@ export async function generateMetadata({ params }: { params: Promise<{ contentId
   const { contentId } = await params;
   const t = await getTranslations();
   const data = await fetchContent(getApiBase(), contentId);
-  const content = normalizeContentItem(data?.content);
+  const content = normalizeContentDetailResponse(data).content;
   if (!content) return { title: t('content.contentNotFound') };
   const title = `${content.title} — ${t('nav.siteName')}`;
   const desc = content.description?.slice(0, 160) || `${content.title} - ${t('content.viewContent')}`;
@@ -76,11 +76,12 @@ export default async function FanworkContentDetailPage({ params }: { params: Pro
   const { contentId } = await params;
   const apiBase = getApiBase();
   const data = await fetchContent(apiBase, contentId);
-  const content = normalizeContentItem(data?.content);
+  const normalized = normalizeContentDetailResponse(data);
+  const content = normalized.content;
   if (!data || !content) notFound();
   if (content.zone === "original") notFound();
 
-  const tags = normalizeTags(data.tags);
+  const tags = normalized.tags;
   const zone = content.zone || "fanwork";
   const sourceOriginal = data.source_original || (content.source_original_id ? { id: content.source_original_id, title: "" } : null);
 
@@ -89,7 +90,7 @@ export default async function FanworkContentDetailPage({ params }: { params: Pro
       {/* Main content area */}
       <div className="flex-1 min-w-0">
         <ContentDetail
-          data={{ ...content, attachments: normalizeAttachments(data.attachments), tags }}
+          data={{ ...content, attachments: normalized.attachments, tags }}
         />
         {zone === "fanwork" && <VersionHistory contentId={content.id} />}
       </div>

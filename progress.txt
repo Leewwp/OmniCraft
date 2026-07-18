@@ -3619,3 +3619,60 @@ Code review of all Batch 12 changes identified 14 issues (2 Critical, 8 Major, 4
 - `--apply` is intentionally refused unless all application writers are stopped and `--maintenance-window-confirmed` is supplied; this prevents reconciliation from racing a user's favorite/unfavorite transaction.
 - Remaining `/studio/favorites` strings are the collection manager's historical route name, not calls to the legacy favorites API.
 - Only Collections Task 11 follow-up state was updated; `task.json`, Beta roadmap, and unrelated community plans were not changed.
+
+## [2026-07-18] - Community Content Series Tasks 1-10
+
+### What was done:
+- Added migration 059 and content-series models, repository/service rules, owner/contributor validation, visibility filtering, concurrent append locking, and transactional reorder.
+- Added series API handlers/routes, full content-detail memberships, SeriesNav, public series detail, and Studio series management with create/edit/delete/add/remove/reorder flows.
+- Added mocked and real cross-stack Playwright coverage, including desktop/mobile screenshots in the repository root.
+
+### Testing:
+- `mocked browser contract PASS` — `npm.cmd run test:contracts` (8/8).
+- GoUnit runner PASS.
+- PostgreSQL integration runner PASS after Docker daemon access was restored; an initial unprivileged run was truthfully BLOCKED by Docker access and was not counted as PASS.
+- CrossStack runner PASS (4/4) through `run-test-layer.ps1`, including seeded real public series detail and SeriesNav requests; the initial final-commit run without temporary `node_modules` was truthfully FAIL and was rerun after dependency installation.
+- Frontend unit PASS (96), TypeScript lint PASS, Next.js production build PASS.
+- `tools/doc-validator`: `go test ./...` PASS; `go run . --check --profile release` PASS.
+
+### Notes:
+- The mocked suite previously exposed an environment/permission failure and was rerun to a complete 8/8 PASS after the runner could write its generated result files. Series item mutations now refresh `content_series.updated_at`, management preloads soft-deleted content summaries, and CrossStack exports its temporary compose root for deterministic fixtures.
+- No `task.json`, Beta roadmap, or UI polish plan state was changed.
+
+## [2026-07-23] - Content Series strict real-browser follow-up BLOCKED
+
+### What was done:
+- Added an uncommitted CrossStack fixture and browser flow covering multiple memberships, first/last navigation, and authenticated Studio create/add/reorder/remove/delete.
+- Added CSRF-aware login setup and deterministic fixture password/content rows.
+
+### Testing:
+- `mocked browser contract PASS` — 8/8.
+- CrossStack with the fixture previously reached 3/5 PASS; the remaining failures were corrected in the test (role-tab ambiguity and CSRF login), but the verification could not be rerun after correction because Docker Desktop stopped starting.
+- Latest required CrossStack invocation is `BLOCKED`: `docker compose up` reports `Docker Desktop is unable to start`; daemon polling remained unavailable for 60 seconds.
+
+### Notes:
+- The uncommitted fixture/test changes are intentionally preserved for the next Agent; do not discard them.
+- Do not amend or merge the Content Series commit until CrossStack reruns with the authenticated Studio flow and all 5 tests pass.
+- To resume: repair/restart Docker Desktop, run `docker compose up -d --force-recreate postgres redis`, then rerun the mandated CrossStack runner with the content-series worktree and ComposeRoot.
+
+## [2026-07-23] - Content Series strict real-browser follow-up UNBLOCKED
+
+### What was done:
+- Docker Desktop was restarted and the preserved CrossStack fixture was rerun through the mandated runner.
+- The real browser suite now covers public 200 series detail, ordered chapters, multiple-series switching, first/last boundaries, and authenticated Studio create/add/reorder/remove/delete.
+
+### Testing:
+- `mocked browser contract PASS` — 8/8 (mock-only evidence; not used as a substitute for CrossStack).
+- GoUnit — PASS.
+- PostgresIntegration — PASS.
+- CrossStack — PASS, 5/5.
+- Frontend unit tests — 96 passed.
+- Frontend lint — PASS (`npm.cmd run lint`; standard cache-writing invocation passed under elevated permissions).
+- Frontend production build — PASS (`npm.cmd run build`, elevated due temporary worktree ACL).
+- Go vet/build — PASS via `go vet ./...` and `go build ./...` with `GOFLAGS=-buildvcs=false` because the temporary worktree cannot provide VCS stamping metadata.
+- `tools/doc-validator`: tests PASS; `go run . --check --profile release` PASS.
+
+### Notes:
+- The prior Docker BLOCKED record remains above as historical evidence; this entry records its resolution on 2026-07-23.
+- The Content Series plan browser-verification checkbox and self-check are now complete.
+- No `task.json`, Beta roadmap, or UI polish plan state was changed.

@@ -63,7 +63,7 @@
 - Create: `backend/internal/model/series.go`
 - Test: `backend/internal/model/series_migration_test.go`
 
-- [ ] **Step 1: Re-check migration number**
+- [x] **Step 1: Re-check migration number**
 
 Run:
 
@@ -73,7 +73,7 @@ Get-ChildItem backend\migrations | Sort-Object Name | Select-Object -Last 10 -Ex
 
 If previous community migrations have not landed, choose the next available number rather than blindly using `059`.
 
-- [ ] **Step 2: Write failing migration test**
+- [x] **Step 2: Write failing migration test**
 
 Assert:
 
@@ -87,7 +87,7 @@ Assert:
 - unique `(series_id, content_item_id)` exists
 - indexes exist on owner, series, and content lookup
 
-- [ ] **Step 3: Implement migration**
+- [x] **Step 3: Implement migration**
 
 DDL must include:
 
@@ -101,7 +101,7 @@ CREATE INDEX idx_series_items_content ON content_series_items(content_item_id);
 
 `content_series.cover_content_id` is a nullable FK to `content_items(id) ON DELETE SET NULL`. `content_series` must include `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()` and `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`. `content_series_items` must include an `added_at TIMESTAMPTZ NOT NULL DEFAULT NOW()` field. The migration file must also include a `-- ROLLBACK:` comment block for local-test rollback guidance; do not auto-drop shared data.
 
-- [ ] **Step 4: Add model structs**
+- [x] **Step 4: Add model structs**
 
 Create:
 
@@ -123,7 +123,7 @@ type ContentSeriesItem struct {
 }
 ```
 
-- [ ] **Step 5: Verify migration**
+- [x] **Step 5: Verify migration**
 
 Run:
 
@@ -141,7 +141,7 @@ go test ./internal/model -run TestContentSeriesMigration -v
 - Create: `backend/internal/service/series_service.go`
 - Test: `backend/internal/service/series_service_test.go`
 
-- [ ] **Step 1: Write failing service tests**
+- [x] **Step 1: Write failing service tests**
 
 Cover:
 
@@ -161,7 +161,7 @@ func TestSeriesReorderIsTransactional(t *testing.T) {}
 func TestSeriesReorderRejectsMissingOrForeignItems(t *testing.T) {}
 ```
 
-- [ ] **Step 2: Run and confirm red**
+- [x] **Step 2: Run and confirm red**
 
 Run:
 
@@ -170,7 +170,7 @@ cd backend
 go test ./internal/service -run TestSeries -v
 ```
 
-- [ ] **Step 3: Implement repository methods**
+- [x] **Step 3: Implement repository methods**
 
 Required methods:
 
@@ -188,7 +188,7 @@ ListMembershipsForContent(ctx, contentID)
 
 `AddItem` must append by setting `sort_order = COALESCE(MAX(sort_order), -1) + 1` within the target series. Do not rely on the database default `0` except for the first item. The append path must lock the parent `content_series` row in the same transaction before reading `MAX(sort_order)`, so concurrent appends to an empty or non-empty series cannot produce duplicate or unstable ordering.
 
-- [ ] **Step 4: Implement ownership and addable-content rule**
+- [x] **Step 4: Implement ownership and addable-content rule**
 
 Adding content is allowed only when:
 
@@ -211,7 +211,7 @@ Then compute `MAX(sort_order)` for that series and insert the new item. Tests mu
 
 Locking the parent `content_series` row is the serialization point for appends. After that lock is acquired, reading `MAX(sort_order)` from `content_series_items` in the same transaction is sufficient for PostgreSQL consistency; do not add table-wide locks on `content_series_items`.
 
-- [ ] **Step 5: Implement reorder transaction**
+- [x] **Step 5: Implement reorder transaction**
 
 Use `db.Transaction`. Lock series items for the target `series_id` before update:
 
@@ -223,7 +223,7 @@ Reject the request if `item_ids` is missing any existing item or contains an ite
 
 During reorder, concurrent `AddItem` or `RemoveItem` operations for the same series are expected to wait behind the transaction lock and then retry/observe the updated order. This is acceptable; do not return a spurious conflict solely because the lock is waiting.
 
-- [ ] **Step 6: Verify service**
+- [x] **Step 6: Verify service**
 
 Run:
 
@@ -241,7 +241,7 @@ go test ./internal/service -run TestSeries -v
 - Modify: current sole route owner (`backend/internal/handler/routes.go` or `backend/internal/router/routes.go`)
 - Test: `backend/internal/handler/series_test.go`
 
-- [ ] **Step 1: Add failing route tests**
+- [x] **Step 1: Add failing route tests**
 
 Routes:
 
@@ -256,7 +256,7 @@ DELETE /api/v1/series/:id/items/:itemId
 PUT    /api/v1/series/:id/items/reorder
 ```
 
-- [ ] **Step 2: Assert response shapes**
+- [x] **Step 2: Assert response shapes**
 
 `GET /api/v1/series/:id` returns:
 
@@ -285,7 +285,7 @@ The backend resolves `cover` in this order:
 
 Public detail filters items through the shared content-visibility rule. `item_count` is the count of visible published items for anonymous/non-owner viewers; the authenticated owner Studio endpoint may return a separate management count. Do not leak pending titles through the public response.
 
-- [ ] **Step 3: Implement handler and error mapping**
+- [x] **Step 3: Implement handler and error mapping**
 
 Exact errors:
 
@@ -296,7 +296,7 @@ Exact errors:
 - `DUPLICATE_SERIES_ITEM` -> 409
 - `COVER_NOT_IN_SERIES` -> 400
 
-- [ ] **Step 4: Register routes**
+- [x] **Step 4: Register routes**
 
 Use auth-if-present middleware for public detail:
 
@@ -306,7 +306,7 @@ v1.GET("/series/:id", optAuth, seriesHandler.GetSeries)
 
 Use auth and interaction guard for mutations.
 
-- [ ] **Step 5: Verify handler**
+- [x] **Step 5: Verify handler**
 
 Run:
 
@@ -325,7 +325,7 @@ go test ./internal/handler -run TestSeries -v
 - Modify: `frontend/lib/content.ts`
 - Test: `backend/internal/handler/series_test.go`
 
-- [ ] **Step 1: Add failing content-detail test**
+- [x] **Step 1: Add failing content-detail test**
 
 Create a content item that belongs to two series. Assert `GET /api/v1/contents/:id` returns:
 
@@ -345,15 +345,15 @@ Create a content item that belongs to two series. Assert `GET /api/v1/contents/:
 Return all compact memberships for the current content, ordered by series update time then series ID. The UI renders the first three as tabs and places remaining memberships in an overflow menu; the backend must not truncate to three. Because the full list is returned, `memberships.length` is the single total and no redundant `series_memberships_total` field is added.
 `current_index` is 1-based for display (`第 3 / 共 12`), while `content_series_items.sort_order` remains zero-based and backend-owned. Do not make the frontend add 1, or the first/last disabled logic will drift.
 
-- [ ] **Step 2: Implement backend membership lookup**
+- [x] **Step 2: Implement backend membership lookup**
 
 For each series containing the content, compute previous/next by `sort_order`. Return only published, non-deleted content entries for public navigation. If the current content is not publicly visible, do not expose memberships through the public content-detail path.
 
-- [ ] **Step 3: Extend frontend normalizer**
+- [x] **Step 3: Extend frontend normalizer**
 
 In `frontend/lib/content.ts`, add `series_memberships` with snake_case/PascalCase tolerance. Invalid previous/next objects missing `id` or `title` must become `undefined`.
 
-- [ ] **Step 4: Verify backend**
+- [x] **Step 4: Verify backend**
 
 Run:
 
@@ -374,7 +374,7 @@ go test ./internal/handler -run TestContentDetailSeriesMemberships -v
 - Modify: `frontend/messages/en.json`
 - Test: add to `frontend/tests/series-nav.test.tsx`
 
-- [ ] **Step 1: Confirm UI spec before component code**
+- [x] **Step 1: Confirm UI spec before component code**
 
 Run:
 
@@ -384,7 +384,7 @@ rg -n "## Component: SeriesNav|## Page: /series/\\[id\\]|## Page: /studio/series
 
 Expected: all three sections exist. If a future branch lacks one, stop and repair UI spec in an explicitly scoped docs/design step before coding. `SeriesNav` must be visually restrained and positioned below body content and above comments.
 
-- [ ] **Step 2: Write failing component tests**
+- [x] **Step 2: Write failing component tests**
 
 Cover:
 
@@ -395,7 +395,7 @@ Cover:
 - when membership count is greater than three, render the first three tabs plus a compact `更多(N)` menu listing every remaining series
 - catalog link points to `/series/:id`
 
-- [ ] **Step 3: Implement `SeriesNav`**
+- [x] **Step 3: Implement `SeriesNav`**
 
 Props:
 
@@ -407,11 +407,11 @@ interface SeriesNavProps {
 
 Use `Link` for valid previous/next/catalog targets. Use icon buttons or compact text links, not oversized cards. If there are more than three memberships, keep layout stable by showing the first three tabs and a keyboard-accessible `更多(N)` menu; each overflow item links to its own `/series/:id`. `N` equals `memberships.length - 3`.
 
-- [ ] **Step 4: Insert in `ContentDetail.tsx`**
+- [x] **Step 4: Insert in `ContentDetail.tsx`**
 
 Place `SeriesNav` after main body/attachments and before comments. If `ReactionBar` placement conflicts with UI spec, follow `design/ui-spec.md`.
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run:
 
@@ -431,7 +431,7 @@ node --import tsx --test tests/series-nav.test.tsx
 - Modify: `frontend/messages/en.json`
 - Test: add to `frontend/tests/series-nav.test.tsx` or create `frontend/tests/series-api.test.tsx`
 
-- [ ] **Step 1: Confirm UI spec before page code**
+- [x] **Step 1: Confirm UI spec before page code**
 
 Run:
 
@@ -441,7 +441,7 @@ rg -n "## Page: /series/\\[id\\]|## Component: SeriesNav" design/ui-spec.md
 
 Both sections must exist before page implementation starts.
 
-- [ ] **Step 2: Add failing API-helper/normalizer tests**
+- [x] **Step 2: Add failing API-helper/normalizer tests**
 
 Assert:
 
@@ -449,11 +449,11 @@ Assert:
 - invalid previous/next entries missing `id` or `title` normalize to `undefined`.
 - the series detail helper, if added, calls `GET /api/v1/series/:id`.
 
-- [ ] **Step 3: Implement minimal helper/normalizer work**
+- [x] **Step 3: Implement minimal helper/normalizer work**
 
 Keep helper code focused: do not build UI in this task. Add i18n keys under `series.detail.*` and `series.nav.*`.
 
-- [ ] **Step 4: Run focused tests**
+- [x] **Step 4: Run focused tests**
 
 Run:
 
@@ -474,11 +474,11 @@ Expected: PASS.
 - Modify: `frontend/messages/en.json`
 - Test: `frontend/e2e/content-series.spec.ts`
 
-- [ ] **Step 1: Add failing page/e2e assertions**
+- [x] **Step 1: Add failing page/e2e assertions**
 
 Assert logged-out access, title/owner/item count rendering, ordered item links, empty state, and not-found state.
 
-- [ ] **Step 2: Implement public route**
+- [x] **Step 2: Implement public route**
 
 Route must live at:
 
@@ -486,17 +486,17 @@ Route must live at:
 frontend/app/(public)/series/[id]/page.tsx
 ```
 
-- [ ] **Step 3: Render backend detail**
+- [x] **Step 3: Render backend detail**
 
 Fetch `GET /api/v1/series/:id`. Render cover, title, owner, item count, and ordered list by `sort_order`.
 
-- [ ] **Step 4: Handle empty and not found states**
+- [x] **Step 4: Handle empty and not found states**
 
 - no items: show empty series state
 - 404: show not found / EmptyState
 - network error: show localized load failure
 
-- [ ] **Step 5: Add Playwright assertions**
+- [x] **Step 5: Add Playwright assertions**
 
 Check logged-out access, ordered items, item links, and not-found state.
 
@@ -509,7 +509,7 @@ Check logged-out access, ordered items, item links, and not-found state.
 - Modify: `frontend/messages/zh.json`
 - Modify: `frontend/messages/en.json`
 
-- [ ] **Step 1: Confirm UI spec before page code**
+- [x] **Step 1: Confirm UI spec before page code**
 
 Run:
 
@@ -519,21 +519,21 @@ rg -n "## Page: /studio/series" design/ui-spec.md
 
 The section must specify list, detail, create, edit, item add/remove, up/down reorder, loading, empty, error, a11y, i18n, and screenshot checkpoints.
 
-- [ ] **Step 2: Add failing list/create tests**
+- [x] **Step 2: Add failing list/create tests**
 
 Assert:
 
 - list fetch calls `GET /api/v1/series`
 - create submits `POST /api/v1/series`
 
-- [ ] **Step 3: Add failing edit/delete tests**
+- [x] **Step 3: Add failing edit/delete tests**
 
 Assert:
 
 - edit submits `PUT /api/v1/series/:id`
 - delete submits `DELETE /api/v1/series/:id`
 
-- [ ] **Step 4: Add failing item-management tests**
+- [x] **Step 4: Add failing item-management tests**
 
 Assert:
 
@@ -542,11 +542,11 @@ Assert:
 - reorder buttons submit `PUT /api/v1/series/:id/items/reorder` with full `item_ids`
 - drag/drop affordances are not rendered in this implementation
 
-- [ ] **Step 5: Add i18n keys**
+- [x] **Step 5: Add i18n keys**
 
 Add namespaces `series.studio.*`, `series.studio.form.*`, `series.studio.items.*`, `series.studio.toast.*`, and `series.studio.a11y.*`.
 
-- [ ] **Step 6: Run focused tests and confirm red**
+- [x] **Step 6: Run focused tests and confirm red**
 
 Run:
 
@@ -569,25 +569,25 @@ Expected: FAIL until the page is implemented.
 - Test: `frontend/tests/studio-series-page.test.tsx`
 - Test: `frontend/e2e/content-series.spec.ts`
 
-- [ ] **Step 1: Add sidebar entry**
+- [x] **Step 1: Add sidebar entry**
 
 Add "内容系列管理" under creator/studio content management. Use a stable icon from `lucide-react`; do not use a text-only pill if an icon button pattern exists.
 
-- [ ] **Step 2: Implement list and create**
+- [x] **Step 2: Implement list and create**
 
 The page must allow:
 
 - list my series
 - create series with title, description, zone
 
-- [ ] **Step 3: Implement edit and delete**
+- [x] **Step 3: Implement edit and delete**
 
 The page must allow:
 
 - edit title/description/cover
 - delete series
 
-- [ ] **Step 4: Implement add/remove item management**
+- [x] **Step 4: Implement add/remove item management**
 
 Allow:
 
@@ -595,7 +595,7 @@ Allow:
 - add item
 - remove item
 
-- [ ] **Step 5: Implement reorder buttons**
+- [x] **Step 5: Implement reorder buttons**
 
 Allow:
 
@@ -609,7 +609,7 @@ PUT /api/v1/series/:id/items/reorder
 {"item_ids":[...]}
 ```
 
-- [ ] **Step 6: Run focused studio tests**
+- [x] **Step 6: Run focused studio tests**
 
 Run:
 
@@ -620,7 +620,7 @@ node --import tsx --test tests/studio-series-page.test.tsx
 
 Expected: PASS.
 
-- [ ] **Step 7: Add Playwright studio flow**
+- [x] **Step 7: Add Playwright studio flow**
 
 Create a series, add two contents, move second up, verify reorder API payload, remove item, delete series.
 
@@ -632,7 +632,7 @@ Create a series, add two contents, move second up, verify reorder API payload, r
 - Modify if generated: `architecture.md`
 - Screenshot outputs listed in Step 4.
 
-- [ ] **Step 1: Run backend gates**
+- [x] **Step 1: Run backend gates**
 
 Run:
 
@@ -646,7 +646,7 @@ go vet ./...
 go build ./...
 ```
 
-- [ ] **Step 2: Run frontend gates**
+- [x] **Step 2: Run frontend gates**
 
 Run:
 
@@ -658,7 +658,7 @@ npm run build
 npx playwright test e2e/content-series.spec.ts
 ```
 
-- [ ] **Step 3: Run doc-validator**
+- [x] **Step 3: Run doc-validator**
 
 Because this plan changes migrations and routes:
 
@@ -667,7 +667,7 @@ cd tools/doc-validator
 go run . --fix
 ```
 
-- [ ] **Step 4: Browser verification**
+- [x] **Step 4: Browser verification**
 
 1. Open content in one series; verify `SeriesNav`.
 2. Open first and last item; verify disabled previous/next states.
@@ -682,7 +682,7 @@ go run . --fix
    - `screenshots/community-content-series-studio-desktop.png`
    - `screenshots/community-content-series-studio-mobile.png`
 
-- [ ] **Step 5: Commit when implementing**
+- [x] **Step 5: Commit when implementing**
 
 ```powershell
 $routeOwner = if (Test-Path backend/internal/router/routes.go) { 'backend/internal/router/routes.go' } else { 'backend/internal/handler/routes.go' }
@@ -695,17 +695,17 @@ git commit -m "Community 4: content series"
 
 ## Plan Self-Check
 
-- [ ] Plan explicitly says first release is public series only.
-- [ ] Ownership rule distinguishes owner management from contributor addability.
-- [ ] New series items append after the current maximum `sort_order`.
-- [ ] Reorder step requires a transaction, row lock, and full item-set validation.
-- [ ] Cover fallback order is backend-defined.
-- [ ] Content detail response includes enough data for previous/next without extra client guessing.
-- [ ] Public series and navigation never leak pending, under-review, banned, author-deleted, or soft-deleted content.
-- [ ] Cover foreign key uses `ON DELETE SET NULL` and cover fallback remains valid.
-- [ ] Membership response is not truncated before the UI builds its `更多(N)` overflow menu.
-- [ ] UI spec sections are verified before UI code, and no UI details are invented outside `design/ui-spec.md`.
-- [ ] Studio management uses tested up/down reorder buttons; drag handles are explicitly out-of-scope.
-- [ ] Studio management task is split into list/create, edit/delete, item add/remove, and reorder verification.
-- [ ] Browser verification covers first, last, multiple-series, public detail, and studio management.
-- [ ] `doc-validator` is required because routes and migrations change.
+- [x] Plan explicitly says first release is public series only.
+- [x] Ownership rule distinguishes owner management from contributor addability.
+- [x] New series items append after the current maximum `sort_order`.
+- [x] Reorder step requires a transaction, row lock, and full item-set validation.
+- [x] Cover fallback order is backend-defined.
+- [x] Content detail response includes enough data for previous/next without extra client guessing.
+- [x] Public series and navigation never leak pending, under-review, banned, author-deleted, or soft-deleted content.
+- [x] Cover foreign key uses `ON DELETE SET NULL` and cover fallback remains valid.
+- [x] Membership response is not truncated before the UI builds its `更多(N)` overflow menu.
+- [x] UI spec sections are verified before UI code, and no UI details are invented outside `design/ui-spec.md`.
+- [x] Studio management uses tested up/down reorder buttons; drag handles are explicitly out-of-scope.
+- [x] Studio management task is split into list/create, edit/delete, item add/remove, and reorder verification.
+- [x] Browser verification covers first, last, multiple-series, public detail, and studio management.
+- [x] `doc-validator` is required because routes and migrations change.

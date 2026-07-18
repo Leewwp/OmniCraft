@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { getTranslations } from 'next-intl/server';
 import { ContentDetail } from "@/components/content/ContentDetail";
 import { ContentSidebar } from "@/components/content/ContentSidebar";
-import { normalizeAttachments, normalizeContentItem, normalizeTags } from "@/lib/content";
+import { normalizeContentDetailResponse } from "@/lib/content";
 
 interface ContentResponse { content?: unknown; attachments?: unknown[]; tags?: unknown[]; }
 interface RelatedResponse { total?: number; }
@@ -35,7 +35,7 @@ export async function generateMetadata({ params }: { params: Promise<{ contentId
   const { contentId } = await params;
   const t = await getTranslations();
   const rawData = await fetchContent(getApiBase(), contentId);
-  const content = normalizeContentItem(rawData?.content);
+  const content = normalizeContentDetailResponse(rawData).content;
   if (!content || content.zone !== "original") return { title: `${t('content.originalZone')} — OmniCraft` };
   const title = `${content.title} — ${t('content.originalZone')}`;
   const desc = content.description?.slice(0, 160) || `${content.title} - ${t('content.viewOriginal')}`;
@@ -47,14 +47,15 @@ export default async function OriginalDetailPage({ params }: { params: Promise<{
   const { contentId } = await params;
   const apiBase = getApiBase();
   const [rawData, relatedCount] = await Promise.all([fetchContent(apiBase, contentId), fetchRelatedCount(apiBase, contentId)]);
-  const content = normalizeContentItem(rawData?.content);
+  const normalized = normalizeContentDetailResponse(rawData);
+  const content = normalized.content;
   if (!content || content.zone !== "original") notFound();
 
   return (
     <div className="mx-auto flex w-full max-w-[1280px] gap-6 px-6 py-6">
       {/* Main content */}
       <div className="flex-1 min-w-0">
-        <ContentDetail data={{ ...content, attachments: normalizeAttachments(rawData?.attachments), tags: normalizeTags(rawData?.tags) }} />
+        <ContentDetail data={{ ...content, attachments: normalized.attachments, tags: normalized.tags }} />
       </div>
 
       {/* Right sidebar */}
