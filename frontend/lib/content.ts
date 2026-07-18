@@ -12,6 +12,7 @@ export interface ContentDetailData extends ContentCardData {
   agent_enabled?: boolean;
   dislike_count?: number;
   attachments?: AttachmentData[];
+  series_memberships?: SeriesMembership[];
   created_at?: string;
   updated_at?: string;
 }
@@ -25,6 +26,28 @@ export interface AttachmentData {
   oss_url?: string;
   file_size?: number;
   is_primary?: boolean;
+}
+
+export interface SeriesContentSummary {
+  id: number;
+  title: string;
+}
+
+export interface SeriesMembership {
+  series_id: number;
+  series_title: string;
+  series_zone?: "original" | "fanwork";
+  current_index: number;
+  total: number;
+  previous?: SeriesContentSummary;
+  next?: SeriesContentSummary;
+}
+
+export interface NormalizedContentDetailResponse {
+  content: ContentDetailData | null;
+  attachments: AttachmentData[];
+  tags: string[];
+  series_memberships: SeriesMembership[];
 }
 
 type RawObject = Record<string, unknown>;
@@ -50,6 +73,11 @@ function stringValue(value: unknown): string | undefined {
 
 function boolValue(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
+}
+
+function positiveInteger(value: unknown): number | undefined {
+  const parsed = numberValue(value);
+  return parsed !== undefined && Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function pick<T>(raw: RawObject, snake: string, pascal: string): T | undefined {
@@ -104,6 +132,53 @@ function normalizeAttachment(value: unknown): AttachmentData | null {
   };
 }
 
+function normalizeSeriesContentSummary(value: unknown): SeriesContentSummary | undefined {
+  const raw = asObject(value);
+  if (!raw) {
+    return undefined;
+  }
+  const id = positiveInteger(raw.id ?? raw.ID);
+  const title = stringValue(raw.title ?? raw.Title);
+  if (!id || !title?.trim()) {
+    return undefined;
+  }
+  return { id, title };
+}
+
+function normalizeSeriesMembership(value: unknown): SeriesMembership | null {
+  const raw = asObject(value);
+  if (!raw) {
+    return null;
+  }
+  const seriesId = positiveInteger(raw.series_id ?? raw.SeriesID);
+  const seriesTitle = stringValue(raw.series_title ?? raw.SeriesTitle);
+  const rawZone = raw.series_zone ?? raw.SeriesZone;
+  const seriesZone = rawZone === "original" || rawZone === "fanwork" ? rawZone : undefined;
+  const currentIndex = positiveInteger(raw.current_index ?? raw.CurrentIndex);
+  const total = positiveInteger(raw.total ?? raw.Total);
+  if (!seriesId || !seriesTitle?.trim() || !currentIndex || !total || currentIndex > total) {
+    return null;
+  }
+  return {
+    series_id: seriesId,
+    series_title: seriesTitle,
+    ...(seriesZone ? { series_zone: seriesZone } : {}),
+    current_index: currentIndex,
+    total,
+    previous: normalizeSeriesContentSummary(raw.previous ?? raw.Previous),
+    next: normalizeSeriesContentSummary(raw.next ?? raw.Next),
+  };
+}
+
+export function normalizeSeriesMemberships(value: unknown): SeriesMembership[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => normalizeSeriesMembership(item))
+    .filter((item): item is SeriesMembership => Boolean(item));
+}
+
 export function normalizeTags(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -154,6 +229,7 @@ export function normalizeContentItem(value: unknown): ContentDetailData | null {
     is_public: boolValue(pick(raw, "is_public", "IsPublic")),
     allow_copy: boolValue(pick(raw, "allow_copy", "AllowCopy")),
     agent_enabled: boolValue(pick(raw, "agent_enabled", "AgentEnabled")),
+    series_memberships: normalizeSeriesMemberships(pick(raw, "series_memberships", "SeriesMemberships")),
     created_at: stringValue(pick(raw, "created_at", "CreatedAt")),
     updated_at: stringValue(pick(raw, "updated_at", "UpdatedAt")),
   };
@@ -168,6 +244,17 @@ export function normalizeContentList(value: unknown): ContentCardData[] {
     .filter((item): item is ContentCardData => Boolean(item));
 }
 
+export function normalizeContentListResponse(value: unknown): ContentCardData[] {
+  if (Array.isArray(value)) {
+    return normalizeContentList(value);
+  }
+  const raw = asObject(value);
+  if (!raw) {
+    return [];
+  }
+  return normalizeContentList(raw.contents ?? raw.Contents ?? raw.items ?? raw.Items ?? raw.data ?? raw.Data);
+}
+
 export function normalizeAttachments(value: unknown): AttachmentData[] {
   if (!Array.isArray(value)) {
     return [];
@@ -175,4 +262,25 @@ export function normalizeAttachments(value: unknown): AttachmentData[] {
   return value
     .map((item) => normalizeAttachment(item))
     .filter((item): item is AttachmentData => Boolean(item));
+}
+
+export function normalizeContentDetailResponse(value: unknown): NormalizedContentDetailResponse {
+  const raw = asObject(value);
+  if (!raw) {
+    return { content: null, attachments: [], tags: [], series_memberships: [] };
+  }
+
+  const content = normalizeContentItem(pick(raw, "content", "Content"));
+  const topLevelMemberships = pick<unknown>(raw, "series_memberships", "SeriesMemberships");
+  const seriesMemberships =
+    topLevelMemberships === undefined
+      ? (content?.series_memberships ?? [])
+      : normalizeSeriesMemberships(topLevelMemberships);
+
+  return {
+    content: content ? { ...content, series_memberships: seriesMemberships } : null,
+    attachments: normalizeAttachments(pick(raw, "attachments", "Attachments")),
+    tags: normalizeTags(pick(raw, "tags", "Tags")),
+    series_memberships: seriesMemberships,
+  };
 }

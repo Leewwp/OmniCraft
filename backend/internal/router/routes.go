@@ -36,6 +36,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	commentsGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
 	reactionsGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
 	favoritesGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
+	seriesGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
 	reportsGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
 	prGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
 	judgeGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
@@ -149,6 +150,17 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	v1.POST("/collections/:id/items", authReq, favoritesGuard, collectionHandler.AddItem)
 	v1.DELETE("/collections/:id/items/:itemId", authReq, favoritesGuard, collectionHandler.RemoveItem)
 	v1.PUT("/collections/:id/items/:itemId", authReq, favoritesGuard, collectionHandler.UpdateItem)
+
+	seriesHandler := handler.NewSeriesHandler(db)
+	v1.POST("/series", authReq, seriesGuard, seriesHandler.CreateSeries)
+	v1.GET("/series", authReq, seriesHandler.ListSeries)
+	v1.GET("/series/candidates", authReq, seriesHandler.ListCandidates)
+	v1.GET("/series/:id", optAuth, seriesHandler.GetSeries)
+	v1.PUT("/series/:id", authReq, seriesGuard, seriesHandler.UpdateSeries)
+	v1.DELETE("/series/:id", authReq, seriesGuard, seriesHandler.DeleteSeries)
+	v1.POST("/series/:id/items", authReq, seriesGuard, seriesHandler.AddItem)
+	v1.DELETE("/series/:id/items/:itemId", authReq, seriesGuard, seriesHandler.RemoveItem)
+	v1.PUT("/series/:id/items/reorder", authReq, seriesGuard, seriesHandler.ReorderItems)
 
 	favorites := v1.Group("/favorites", authReq)
 	{

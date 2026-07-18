@@ -30,6 +30,8 @@ import { api, ApiRequestError } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { cn } from "@/lib/utils";
 import { AgentFeatureGate } from "@/components/agent/AgentFeatureGate";
+import { SeriesNav } from "@/components/content/SeriesNav";
+import type { SeriesMembership } from "@/lib/content";
 
 interface Attachment {
   id: number;
@@ -65,6 +67,7 @@ interface ContentDetailData {
   tags?: string[];
   created_at?: string;
   updated_at?: string;
+  series_memberships?: SeriesMembership[];
 }
 
 interface ContentDetailProps {
@@ -356,6 +359,10 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
         initialLikes={data.like_count ?? 0}
         initialDislikes={data.dislike_count ?? 0}
       />
+
+      {data.series_memberships && data.series_memberships.length > 0 && (
+        <SeriesNav memberships={data.series_memberships} />
+      )}
 
       {/* Comments */}
       <section className="rounded-md border border-border bg-card p-4 ">

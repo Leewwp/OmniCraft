@@ -48,3 +48,24 @@ func TestRouterSourcePreservesRepresentativeRouteContracts(t *testing.T) {
 		}
 	}
 }
+
+func TestSeriesMutationRoutesUseAuthAndStandardInteractionGuard(t *testing.T) {
+	source := readRoutesSource(t)
+	contracts := []string{
+		`seriesGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())`,
+		`v1.POST("/series", authReq, seriesGuard, seriesHandler.CreateSeries)`,
+		`v1.PUT("/series/:id", authReq, seriesGuard, seriesHandler.UpdateSeries)`,
+		`v1.DELETE("/series/:id", authReq, seriesGuard, seriesHandler.DeleteSeries)`,
+		`v1.POST("/series/:id/items", authReq, seriesGuard, seriesHandler.AddItem)`,
+		`v1.DELETE("/series/:id/items/:itemId", authReq, seriesGuard, seriesHandler.RemoveItem)`,
+		`v1.PUT("/series/:id/items/reorder", authReq, seriesGuard, seriesHandler.ReorderItems)`,
+		`v1.GET("/series", authReq, seriesHandler.ListSeries)`,
+		`v1.GET("/series/candidates", authReq, seriesHandler.ListCandidates)`,
+		`v1.GET("/series/:id", optAuth, seriesHandler.GetSeries)`,
+	}
+	for _, contract := range contracts {
+		if !strings.Contains(source, contract) {
+			t.Errorf("router source missing series route contract %q", contract)
+		}
+	}
+}

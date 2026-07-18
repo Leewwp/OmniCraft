@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   PanelLeftClose, PanelLeft, FilePlus, LayoutDashboard,
-  FileText, GitPullRequest, Users, Tags, BarChart3, DollarSign, PlusCircle,
+  FileText, GitPullRequest, Users, Tags, BarChart3, DollarSign, PlusCircle, BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +40,7 @@ export function StudioSidebar() {
         { icon: LayoutDashboard, label: t('studio.sidebar.overview'), href: "/studio/overview" },
         { icon: BarChart3, label: t('studio.sidebar.followers'), href: "/studio/followers" },
         { icon: FileText, label: t('studio.sidebar.myContent'), href: "/studio/contents" },
+        { icon: BookOpen, label: t('studio.sidebar.series'), href: "/studio/series" },
       ],
     },
     {
@@ -70,7 +71,7 @@ export function StudioSidebar() {
     { icon: LayoutDashboard, label: t('studio.sidebar.overview'), href: "/studio/overview" },
     { icon: FileText, label: t('studio.sidebar.myContent'), href: "/studio/contents" },
     { icon: PlusCircle, label: t('studio.sidebar.publishContent'), href: "/studio/publish/original" },
-    { icon: FilePlus, label: t('studio.sidebar.prManagement'), href: "/studio/pr-requests" },
+    { icon: BookOpen, label: t('studio.sidebar.series'), href: "/studio/series" },
   ];
 
   return (

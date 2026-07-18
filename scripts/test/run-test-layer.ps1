@@ -136,7 +136,7 @@ function Invoke-RealDatabaseLayer {
     $backendProcess = $null; $frontendProcess = $null
     $cleanupErrors = [System.Collections.Generic.List[string]]::new()
     $result = $null
-    $old = @{ OMNICRAFT_TEST_MODE = $env:OMNICRAFT_TEST_MODE; OMNICRAFT_TEST_DB_DSN = $env:OMNICRAFT_TEST_DB_DSN; OMNICRAFT_TEST_REDIS_DB = $env:OMNICRAFT_TEST_REDIS_DB; REDIS_ADDR = $env:REDIS_ADDR; REDIS_DB = $env:REDIS_DB; NEXT_PUBLIC_API_URL = $env:NEXT_PUBLIC_API_URL; GOCACHE = $env:GOCACHE }
+    $old = @{ OMNICRAFT_TEST_MODE = $env:OMNICRAFT_TEST_MODE; OMNICRAFT_TEST_DB_DSN = $env:OMNICRAFT_TEST_DB_DSN; OMNICRAFT_TEST_REDIS_DB = $env:OMNICRAFT_TEST_REDIS_DB; OMNICRAFT_TEST_COMPOSE_ROOT = $env:OMNICRAFT_TEST_COMPOSE_ROOT; REDIS_ADDR = $env:REDIS_ADDR; REDIS_DB = $env:REDIS_DB; NEXT_PUBLIC_API_URL = $env:NEXT_PUBLIC_API_URL; GOCACHE = $env:GOCACHE }
     try {
         # A disposable database/migration run is part of the real test layer,
         # not an unmet host prerequisite. Failures from here must be visible as FAIL.
@@ -146,6 +146,7 @@ function Invoke-RealDatabaseLayer {
         $env:OMNICRAFT_TEST_MODE = "1"
         $env:OMNICRAFT_TEST_DB_DSN = ($adminDsn -replace '(?i)dbname=postgres', "dbname=$database")
         $env:OMNICRAFT_TEST_REDIS_DB = "$redisDatabase"
+        $env:OMNICRAFT_TEST_COMPOSE_ROOT = $ComposeRoot
         $env:REDIS_ADDR = $redisAddress; $env:REDIS_DB = "$redisDatabase"; $env:GOCACHE = $goCache; $env:NEXT_PUBLIC_API_URL = "http://127.0.0.1:8080"
         if ($Layer -eq "PostgresIntegration") {
             $result = Invoke-TestLayer -Layer $Layer -Action { Invoke-RunnerCommand -WorkingDirectory (Join-Path $RepoRoot "backend") -File "go" -Arguments @("test", "./...") }

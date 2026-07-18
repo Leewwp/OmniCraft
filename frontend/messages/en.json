@@ -1443,10 +1443,27 @@
       "overview": "Overview",
       "followers": "Followers",
       "myContent": "My Content",
+      "series": "Content Series",
       "prManagement": "PR Management",
       "contributors": "Contributors",
       "tagSuggestions": "Tag Suggestions",
       "revenue": "Revenue"
+    },
+    "series": {
+      "title": "Content series",
+      "subtitle": "Organize public content and maintain its chapter order.",
+      "create": "Create series",
+      "delete": "Delete series",
+      "empty": { "title": "No content series yet", "description": "Create a series to organize related content in order." },
+      "list": { "ariaLabel": "My content series" },
+      "detail": { "ariaLabel": "Series details" },
+      "form": { "title": "Series title", "description": "Series description", "zone": "Zone", "cover": "Series cover", "coverAutomatic": "Use the first item cover automatically", "createSubmit": "Create", "save": "Save changes" },
+      "items": { "title": "Added content", "ariaLabel": "Series content ordering list", "empty": "No content in this series yet", "add": "Add" },
+      "search": { "title": "Add content", "label": "Search content to add", "placeholder": "Search your content by title..." },
+      "confirm": { "deleteTitle": "Delete series?", "deleteDescription": "Deleting “{title}” removes the series order but does not delete content." },
+      "toast": { "created": "Series created", "saved": "Series saved", "deleted": "Series deleted", "itemAdded": "Content added", "itemRemoved": "Content removed", "reordered": "Order updated" },
+      "error": { "loadFailed": "Unable to load series. Try again.", "saveFailed": "Unable to save. Try again.", "deleteFailed": "Unable to delete. Try again.", "itemFailed": "Content operation failed. Try again." },
+      "a11y": { "backToList": "Back to series list", "moveUp": "Move {title} up", "moveDown": "Move {title} down", "removeItem": "Remove {title} from series" }
     },
     "publish": {
       "originalTitle": "Publish Original",
@@ -1684,6 +1701,49 @@
     },
     "a11y": {
       "preview": "Broadcast notification preview"
+    }
+  },
+  "series": {
+    "nav": {
+      "tabsLabel": "Content series",
+      "position": "{current} of {total}",
+      "previous": "Previous: {title}",
+      "next": "Next: {title}",
+      "catalog": "Series catalog",
+      "more": "More ({count})",
+      "first": "First chapter",
+      "last": "Last chapter",
+      "previousA11y": "Previous chapter: {title}",
+      "nextA11y": "Next chapter: {title}",
+      "firstA11y": "Previous chapter unavailable; this is the first chapter",
+      "lastA11y": "Next chapter unavailable; this is the last chapter",
+      "catalogA11y": "View the {title} series catalog"
+    },
+    "detail": {
+      "header": {
+        "zoneOriginal": "Original",
+        "zoneFanwork": "Fanwork",
+        "itemCount": "{count} items",
+        "owner": "By {username}"
+      },
+      "items": {
+        "title": "Series content",
+        "ariaLabel": "Series content list",
+        "itemLabel": "Item {index}"
+      },
+      "empty": {
+        "title": "No public content in this series",
+        "description": "This series has no content available to display yet."
+      },
+      "error": {
+        "title": "Series not found or unavailable",
+        "description": "The series may have been removed or its content is unavailable.",
+        "loadFailed": "Unable to load the series. Try again."
+      },
+      "a11y": {
+        "cover": "{title} series cover",
+        "retry": "Retry loading series"
+      }
     }
   },
   "error": {
