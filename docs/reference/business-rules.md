@@ -54,7 +54,7 @@
 - 后端在更新用户信誉分后需返回新分值，前端据此更新 UI 状态
 
 **排除条件**：
-- 黄赌毒永封用户不适用信誉分恢复，`users.is_banned = TRUE` 状态下所有功能禁用（users 表使用布尔字段而非 status 枚举，详见 architecture.md §4.1）
+- 黄赌毒永封用户不适用信誉分恢复，`users.is_banned = TRUE` 状态下所有功能禁用（users 表使用布尔字段而非 status 枚举，详见 docs/reference/schema.md §4.1）
 - IP 被永久封禁（`ips.status = 'banned'`）时，关联内容全部下架，作者信誉分不因此扣分（由管理员或 AI 审核独立判定）
 
 **特殊场景**：
@@ -93,7 +93,7 @@
   - 有互动历史：个性化向量相似度（60%）+ 热门度（40%）混合排序
   - 用户画像构建：浏览历史 + 收藏（x2 权重）+ 点赞（x1.5 权重）
   - 所有参数从 `config.yaml > recommendation` 读取，严禁硬编码权重
-  - 推荐引擎详细设计见 `architecture.md`  sec 12
+  - 推荐引擎详细设计见 `docs/specs/recommendation-page.md`
 
 - **发布时保留分类选择**：`content_items.category` 仍为必填，推荐算法使用该字段作为内容特征
 - **`content_type` 保留用途**：记录内容格式用于附件渲染策略（MarkdownRenderer / SheetMusicViewer 等），不对外暴露为筛选维度
@@ -145,7 +145,7 @@
 ### 搜索增强（Task 119–120）
 
 - 全文搜索（Task 119）：使用 PostgreSQL `tsvector` + `tsquery` 实现中文全文搜索；迁移 038 创建 `content_search_idx` GIN 索引
-- 搜索建议/热搜（Task 120）：搜索建议通过 tags 和 content_items 的前缀匹配实时计算（详见 architecture.md §15.5）；热门搜索词从 Redis hot_rank 数据提取；`GET /api/v1/search/suggestions` 返回 Top 10 建议词；前端搜索框输入时下拉显示建议
+- 搜索建议/热搜（Task 120）：搜索建议通过 tags 和 content_items 的前缀匹配实时计算（详见 docs/reference/implementation-notes.md §15.5）；热门搜索词从 Redis hot_rank 数据提取；`GET /api/v1/search/suggestions` 返回 Top 10 建议词；前端搜索框输入时下拉显示建议
 
 ### 密码重置（Task 117）
 
