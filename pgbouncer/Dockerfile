@@ -1,6 +1,6 @@
 FROM alpine:3.19
 
-RUN apk add --no-cache pgbouncer
+RUN apk add --no-cache pgbouncer postgresql-client
 
 RUN addgroup -S pgbouncer && adduser -S -D -H -G pgbouncer pgbouncer
 
