@@ -330,20 +330,20 @@ func (s *ContentService) ListContents(filter repository.ListContentsFilter, view
 	}
 	if s.rdb != nil && s.cacheCfg != nil && filter.Sort == "hot" && filter.Zone != "" && filter.Category == "" && filter.ContentType == "" && filter.Tags == nil && filter.TimeRange == "all" {
 		contents, err := s.getHotContents(context.Background(), filter)
-		if err == nil && len(contents) > 0 {
+		page := filter.Page
+		if page < 1 {
+			page = 1
+		}
+		pageSize := filter.PageSize
+		if pageSize < 1 || pageSize > 100 {
+			pageSize = 20
+		}
+		// The Redis rank is a best-effort hot index. It may be sparse after a
+		// seed import, restart, or rank-window rotation. Do not treat a
+		// partial first page as the complete result set.
+		if err == nil && len(contents) >= page*pageSize {
 			total := int64(len(contents))
-			page := filter.Page
-			if page < 1 {
-				page = 1
-			}
-			pageSize := filter.PageSize
-			if pageSize < 1 || pageSize > 100 {
-				pageSize = 20
-			}
 			start := (page - 1) * pageSize
-			if start >= len(contents) {
-				return []model.ContentItem{}, total, nil
-			}
 			end := start + pageSize
 			if end > len(contents) {
 				end = len(contents)
@@ -467,6 +467,9 @@ func (s *ContentService) getHotContents(ctx context.Context, filter repository.L
 		if !ok {
 			continue
 		}
+		if content.Status != "published" || content.DeletedAt != nil || !content.IsPublic {
+			continue
+		}
 		if filter.Zone != "" && content.Zone != filter.Zone {
 			continue
 		}
@@ -541,15 +544,16 @@ func (s *ContentService) UpdateHotRank(ctx context.Context, trendingWindowDays i
 
 	const batchSize = 500
 	since := time.Now().AddDate(0, 0, -trendingWindowDays)
-	var lastID int64
+	if err := s.rdb.Del(ctx, "rank:hot:contents").Err(); err != nil {
+		return fmt.Errorf("failed to reset hot content rank: %w", err)
+	}
 
-	for {
+	for page := 1; ; page++ {
 		filter := repository.ListContentsFilter{
-			Zone:      "original",
 			Status:    "published",
 			TimeRange: "all",
-			Sort:      "oldest",
-			Page:      1,
+			Sort:      "newest",
+			Page:      page,
 			PageSize:  batchSize,
 		}
 		contents, _, err := s.contentRepo.ListContents(filter)
@@ -561,13 +565,7 @@ func (s *ContentService) UpdateHotRank(ctx context.Context, trendingWindowDays i
 		}
 
 		pipe := s.rdb.Pipeline()
-		processed := 0
 		for _, c := range contents {
-			if c.ID <= lastID {
-				continue
-			}
-			lastID = c.ID
-			processed++
 			if c.CreatedAt.Before(since) {
 				continue
 			}
@@ -578,7 +576,7 @@ func (s *ContentService) UpdateHotRank(ctx context.Context, trendingWindowDays i
 		if _, err = pipe.Exec(ctx); err != nil {
 			return err
 		}
-		if processed < batchSize {
+		if len(contents) < batchSize {
 			break
 		}
 	}
