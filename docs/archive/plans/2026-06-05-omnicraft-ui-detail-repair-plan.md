@@ -1,5 +1,9 @@
 # OmniCraft UI Detail Repair Implementation Plan
 
+> **归档说明**：已于 2026-06-08 完成 Task 11 最终跨视口验证（lint/build/e2e 全 PASS，截图齐全），checkbox 当时未回填。2026-07-23 文档瘦身归档，文件不再维护。
+
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Repair the UI detail issues found in the frontend audit: broken mobile layouts, misleading controls, missing feedback states, inconsistent form/select/switch behavior, and search/publish interactions that appear functional but do not complete the intended action.
