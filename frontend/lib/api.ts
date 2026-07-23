@@ -1,4 +1,7 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+// NEXT_PUBLIC_API_URL is intentionally host-reachable from the browser.
+// Use || so an empty Compose value does not silently turn requests into
+// same-origin /api/v1 calls when no frontend proxy is configured.
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export interface ApiError {
   code: string;
