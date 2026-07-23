@@ -1,3 +1,4 @@
+import { getServerApiBase } from "@/lib/server-api";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from 'next-intl/server';
@@ -54,10 +55,6 @@ const SORT_LABEL_KEY: Record<string, string> = {
   best_rated: "content.sortTopRated",
 };
 
-function getApiBase() {
-  const raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-  return `${raw.replace(/\/$/, "")}/api/v1`;
-}
 
 function buildHref(contentId: string, next: Partial<SearchParams>, current: Required<SearchParams>) {
   const merged = { ...current, ...next };
@@ -119,7 +116,7 @@ export default async function RelatedFanworksPage({
     type: rawSearch.type || "",
     sort: rawSearch.sort || "newest",
   };
-  const apiBase = getApiBase();
+  const apiBase = getServerApiBase();
   const [original, related] = await Promise.all([
     fetchOriginal(apiBase, contentId),
     fetchRelatedFanworks(apiBase, contentId, current),

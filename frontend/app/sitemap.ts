@@ -1,9 +1,6 @@
+import { getServerApiBase } from "@/lib/server-api";
 import type { MetadataRoute } from "next";
 
-function getApiBase() {
-  const raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-  return `${raw.replace(/\/$/, "")}/api/v1`;
-}
 
 const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://omnicraft.com";
 
@@ -19,7 +16,7 @@ interface IPItem {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const apiBase = getApiBase();
+  const apiBase = getServerApiBase();
   const entries: MetadataRoute.Sitemap = [];
 
   // Static pages

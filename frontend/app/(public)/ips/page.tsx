@@ -1,3 +1,4 @@
+import { getBrowserApiBase, getServerApiBase } from "@/lib/server-api";
 import type { Metadata } from "next";
 import { getTranslations } from 'next-intl/server';
 import { IPBrowseClient } from "@/components/ip/IPBrowseClient";
@@ -11,10 +12,6 @@ interface IPItem {
   content_count?: number;
 }
 
-function getApiBase() {
-  const raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-  return `${raw.replace(/\/$/, "")}/api/v1`;
-}
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations();
@@ -29,7 +26,8 @@ export default async function IPBrowsePage({
 }: {
   searchParams: Promise<{ category?: string; sort?: string; q?: string }>;
 }) {
-  const apiBase = getApiBase();
+  const apiBase = getServerApiBase();
+  const browserApiBase = getBrowserApiBase();
   const raw = await searchParams;
   const category = raw.category || "";
   const sort = raw.sort || "hot";
@@ -56,7 +54,7 @@ export default async function IPBrowsePage({
 
   return (
     <IPBrowseClient
-      apiBase={apiBase}
+      apiBase={browserApiBase}
       initialIPs={initialIPs}
       initialTotal={initialTotal}
     />

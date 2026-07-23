@@ -1,3 +1,4 @@
+import { getServerApiBase } from "@/lib/server-api";
 import Link from "next/link";
 import { getTranslations } from 'next-intl/server';
 import { MasonryGrid } from "@/components/content/MasonryGrid";
@@ -31,7 +32,6 @@ const PRIMARY_CATEGORIES_FALLBACK: CategoryDisplay[] = [
   { slug: "productivity", i18n: "home.categoryProductivity" },
 ];
 
-function getApiBase() { return `${(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080").replace(/\/$/, "")}/api/v1`; }
 function normalizeSlug(s: string) { return s.endsWith("_orig") ? s.slice(0, -5) : s; }
 
 async function fetchCategories(apiBase: string): Promise<CategoryDisplay[]> {
@@ -83,7 +83,7 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
   const t = await getTranslations();
   const raw = await searchParams;
   const current = { category: raw.category || "", sort: raw.sort || "recommended" };
-  const apiBase = getApiBase();
+  const apiBase = getServerApiBase();
   const [categories, contents, stats] = await Promise.all([fetchCategories(apiBase), fetchContents(apiBase, current), fetchStats(apiBase)]);
 
   return (

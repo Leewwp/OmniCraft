@@ -1,3 +1,4 @@
+import { getServerApiBase } from "@/lib/server-api";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslations } from 'next-intl/server';
@@ -10,10 +11,6 @@ interface RelatedResponse { total?: number; }
 
 const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://omnicraft.com";
 
-function getApiBase() {
-  const raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-  return `${raw.replace(/\/$/, "")}/api/v1`;
-}
 
 async function fetchContent(apiBase: string, contentId: string): Promise<ContentResponse | null> {
   try {
@@ -34,7 +31,7 @@ async function fetchRelatedCount(apiBase: string, contentId: string) {
 export async function generateMetadata({ params }: { params: Promise<{ contentId: string }> }): Promise<Metadata> {
   const { contentId } = await params;
   const t = await getTranslations();
-  const rawData = await fetchContent(getApiBase(), contentId);
+  const rawData = await fetchContent(getServerApiBase(), contentId);
   const content = normalizeContentDetailResponse(rawData).content;
   if (!content || content.zone !== "original") return { title: `${t('content.originalZone')} — OmniCraft` };
   const title = `${content.title} — ${t('content.originalZone')}`;
@@ -45,7 +42,7 @@ export async function generateMetadata({ params }: { params: Promise<{ contentId
 export default async function OriginalDetailPage({ params }: { params: Promise<{ contentId: string }> }) {
   const t = await getTranslations();
   const { contentId } = await params;
-  const apiBase = getApiBase();
+  const apiBase = getServerApiBase();
   const [rawData, relatedCount] = await Promise.all([fetchContent(apiBase, contentId), fetchRelatedCount(apiBase, contentId)]);
   const normalized = normalizeContentDetailResponse(rawData);
   const content = normalized.content;

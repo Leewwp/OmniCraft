@@ -1,3 +1,4 @@
+import { getServerApiBase } from "@/lib/server-api";
 import { notFound } from "next/navigation";
 import { getTranslations, getLocale } from 'next-intl/server';
 import { UserProfileClient } from "./UserProfileClient";
@@ -11,10 +12,6 @@ interface UserData {
   created_at?: string;
 }
 
-function getApiBase() {
-  const raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-  return `${raw.replace(/\/$/, "")}/api/v1`;
-}
 
 async function fetchUser(apiBase: string, userId: string): Promise<UserData | null> {
   try {
@@ -35,7 +32,7 @@ export default async function UserProfilePage({
   const t = await getTranslations();
   const locale = await getLocale();
   const { userId } = await params;
-  const apiBase = getApiBase();
+  const apiBase = getServerApiBase();
   const user = await fetchUser(apiBase, userId);
 
   if (!user) {

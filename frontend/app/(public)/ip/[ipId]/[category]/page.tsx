@@ -1,3 +1,4 @@
+import { getServerApiBase } from "@/lib/server-api";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from 'next-intl/server';
@@ -20,10 +21,6 @@ interface ContentResponse {
   contents?: ContentCardData[];
 }
 
-function getApiBase() {
-  const raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-  return `${raw.replace(/\/$/, "")}/api/v1`;
-}
 
 async function fetchIP(apiBase: string, ipId: string): Promise<IPItem | null> {
   try {
@@ -82,7 +79,7 @@ export default async function IPCategoryPage({
   const sort = query.sort || "hot";
   const page = query.page || "1";
 
-  const apiBase = getApiBase();
+  const apiBase = getServerApiBase();
   const [ip, contents] = await Promise.all([
     fetchIP(apiBase, ipId),
     fetchCategoryContents(apiBase, ipId, category, sort, page),
