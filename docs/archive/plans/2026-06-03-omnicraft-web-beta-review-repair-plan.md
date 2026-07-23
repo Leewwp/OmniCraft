@@ -1,5 +1,8 @@
 # OmniCraft Web Beta Review Repairs Implementation Plan
 
+> **归档说明**：全部 7 个 Task 已于 2026-06-03 ~ 06-07 执行完毕并经最终集成复验（progress.txt 有逐 Task 记录），checkbox 当时未回填。2026-07-23 文档瘦身归档，文件不再维护。
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Repair the verified Web Beta review defects so the public Web Beta can be revalidated without known security, auth, feedback, search/download, Agent, or Admin audit blockers.
