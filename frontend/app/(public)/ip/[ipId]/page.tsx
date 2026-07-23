@@ -1,3 +1,4 @@
+import { getServerApiBase } from "@/lib/server-api";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslations } from 'next-intl/server';
@@ -25,10 +26,6 @@ interface ContentResponse {
 
 const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://omnicraft.com";
 
-function getApiBase() {
-  const raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-  return `${raw.replace(/\/$/, "")}/api/v1`;
-}
 
 async function fetchIP(apiBase: string, ipId: string): Promise<IPItem | null> {
   try {
@@ -72,7 +69,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { ipId } = await params;
   const t = await getTranslations();
-  const apiBase = getApiBase();
+  const apiBase = getServerApiBase();
   const ip = await fetchIP(apiBase, ipId);
   if (!ip) {
     return { title: t('content.ipNotFound') };
@@ -105,7 +102,7 @@ export default async function IPDetailPage({
   const query = await searchParams;
   const sort = query.sort || "hot";
 
-  const apiBase = getApiBase();
+  const apiBase = getServerApiBase();
   const [ip, contents] = await Promise.all([
     fetchIP(apiBase, ipId),
     fetchContents(apiBase, ipId, sort),

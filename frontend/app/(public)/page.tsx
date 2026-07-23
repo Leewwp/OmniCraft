@@ -1,3 +1,4 @@
+import { getBrowserApiBase, getServerApiBase } from "@/lib/server-api";
 import type { Metadata } from "next";
 import { getTranslations } from 'next-intl/server';
 import { HomePageClient } from "@/components/home/HomePageClient";
@@ -19,10 +20,6 @@ interface ContentResponse {
   contents?: ContentCardData[];
 }
 
-function getApiBase() {
-  const raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-  return `${raw.replace(/\/$/, "")}/api/v1`;
-}
 
 async function fetchIPs(apiBase: string): Promise<IPItem[]> {
   try {
@@ -78,7 +75,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const apiBase = getApiBase();
+  const apiBase = getServerApiBase();
+  const browserApiBase = getBrowserApiBase();
   const [initialIPs, initialContents] = await Promise.all([
     fetchIPs(apiBase),
     fetchContents(apiBase),
@@ -86,7 +84,7 @@ export default async function HomePage() {
 
   return (
     <HomePageClient
-      apiBase={apiBase}
+      apiBase={browserApiBase}
       initialIPs={initialIPs}
       initialContents={initialContents}
     />

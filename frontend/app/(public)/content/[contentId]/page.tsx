@@ -1,3 +1,4 @@
+import { getServerApiBase } from "@/lib/server-api";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslations } from 'next-intl/server';
@@ -46,10 +47,6 @@ interface ContentResponse {
   source_original?: { id: number; title: string };
 }
 
-function getApiBase() {
-  const raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-  return `${raw.replace(/\/$/, "")}/api/v1`;
-}
 
 async function fetchContent(apiBase: string, contentId: string): Promise<ContentResponse | null> {
   try {
@@ -64,7 +61,7 @@ const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://omnicraft.com";
 export async function generateMetadata({ params }: { params: Promise<{ contentId: string }> }): Promise<Metadata> {
   const { contentId } = await params;
   const t = await getTranslations();
-  const data = await fetchContent(getApiBase(), contentId);
+  const data = await fetchContent(getServerApiBase(), contentId);
   const content = normalizeContentDetailResponse(data).content;
   if (!content) return { title: t('content.contentNotFound') };
   const title = `${content.title} — ${t('nav.siteName')}`;
@@ -74,7 +71,7 @@ export async function generateMetadata({ params }: { params: Promise<{ contentId
 
 export default async function FanworkContentDetailPage({ params }: { params: Promise<{ contentId: string }> }) {
   const { contentId } = await params;
-  const apiBase = getApiBase();
+  const apiBase = getServerApiBase();
   const data = await fetchContent(apiBase, contentId);
   const normalized = normalizeContentDetailResponse(data);
   const content = normalized.content;
