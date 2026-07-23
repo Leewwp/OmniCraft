@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="Seed user 1">
+  <rect width="160" height="160" rx="80" fill="hsl(29 55% 43%)"/>
+  <circle cx="80" cy="62" r="31" fill="hsl(29 46% 82%)"/>
+  <path d="M30 150 C38 108 58 94 80 94 C102 94 122 108 130 150Z" fill="hsl(69 48% 76%)"/>
+  <text x="80" y="152" text-anchor="middle" fill="hsl(29 42% 22%)" font-size="19" font-family="Arial, sans-serif" font-weight="700">01</text>
+</svg>
