@@ -1,5 +1,8 @@
 # OmniCraft 文档治理体系实施计划
 
+> **归档说明**：经 2026-07-23 抽查核实：Phase 1 安全修复已落地（SafeErrorResponse 覆盖 25 文件、handler 层 err.Error() 归零）、GLOSSARY.md 已建、文档权威表已入 AGENTS.md、doc-validator 已实现且默认检查通过；Task 9/12/13 有 progress.txt 执行记录。未尽的 CLAUDE/AGENTS 合并与文档精简由 2026-07-23 文档瘦身工作接管。2026-07-23 文档瘦身归档，文件不再维护。
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 将 OmniCraft 项目从 ~80 份混杂文档重构为 12 个权威来源类别（含约 20+ 份实际文件）+ 自动化校验工具的可持续治理体系
