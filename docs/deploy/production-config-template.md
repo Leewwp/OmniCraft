@@ -129,12 +129,15 @@ agent:
 
 ## Frontend Build Environment
 
+NEXT_PUBLIC_API_URL 面向浏览器和构建阶段；INTERNAL_API_URL 仅供 Next.js 服务端渲染运行时使用。Compose 网络中使用 http://backend:8080；独立生产前端使用服务端可访问的 API 域名。不要将 Compose 服务名写入 NEXT_PUBLIC_API_URL。
+
 `NEXT_PUBLIC_API_URL` is used at build time by the frontend Dockerfile.
 `NEXT_PUBLIC_SITE_URL` is read by sitemap/metadata code, but the current
 Dockerfile does not expose it as a build arg yet.
 
 ```dotenv
 NEXT_PUBLIC_API_URL=https://api.leeppp.online
+INTERNAL_API_URL=https://api.leeppp.online
 NEXT_PUBLIC_SITE_URL=https://app.leeppp.online
 ```
 

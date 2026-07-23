@@ -152,6 +152,19 @@ docker compose logs -f
 | pgbouncer | 6432 | 数据库连接池（宿主机端口 6432 → 容器内 5432） |
 | redis | 6379 | Redis 7 |
 
+### 本地地址约定
+
+| 调用方 | 地址 | 用途 |
+|------|------|------|
+| 浏览器访问前端 | http://localhost:3000 | 手动浏览与浏览器端请求 |
+| 浏览器访问后端 | http://localhost:8080 | 浏览器端 API 请求 |
+| Docker 前端 SSR | http://backend:8080 | Next.js 服务端渲染请求 |
+| Docker 后端 | 容器内 :8080 | 宿主机映射为 8080 |
+
+NEXT_PUBLIC_API_URL 面向浏览器并在前端构建阶段注入；INTERNAL_API_URL 只面向 Next.js 服务端运行时。Docker Compose 本地配置使用 NEXT_PUBLIC_API_URL=http://localhost:8080 和 INTERNAL_API_URL=http://backend:8080：前者供宿主机浏览器访问，后者供容器内 SSR 访问。不要把 backend 作为 NEXT_PUBLIC_API_URL，否则浏览器无法解析 Compose 服务名。
+
+本地 Compose 为了便于调试会映射 3000（前端）和 8080（API）两个宿主机端口。上线时不要求用户访问两个端口；生产 Compose 只对外发布 Nginx 的 80/443，前端与 API 由域名或反向代理统一暴露。由于 NEXT_PUBLIC_API_URL 在前端构建阶段写入浏览器 bundle，修改它后必须重新构建前端镜像。
+
 ### 首次部署步骤
 
 1. **配置 SSL 证书**（Let's Encrypt）：
@@ -228,6 +241,7 @@ docker compose up -d
 | `AGENT_HMAC_SECRET` | 已禁用 Desktop 原型的兼容构建变量；不得用于生产发布，D-03 后由 Ed25519 配置替代 | — |
 | `GREEN_CALLBACK_URL` | 内容安全审核回调地址 | — |
 | `FRONTEND_URL` | 前端 URL（用于 CORS/OAuth） | `http://localhost:3000` |
+| `INTERNAL_API_URL` | Next.js SSR 访问后端的容器内地址；本地进程可留空 | `http://backend:8080`（Docker） |
 
 ---
 
@@ -351,7 +365,7 @@ OmniCraft/
 
 ```bash
 # 启动后端后，访问健康检查
-curl http://localhost:8080/health
+curl http://localhost:8080/healthz
 
 # 完整 API 清单见 architecture.md §3.2
 ```
