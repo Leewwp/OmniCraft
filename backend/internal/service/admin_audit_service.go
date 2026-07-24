@@ -44,6 +44,8 @@ var auditMetadataAllowlist = map[string][]string{
 		"validation_error_code",
 		"validation_fields",
 		"error_code",
+		"key_fingerprint",
+		"replayed",
 	},
 }
 

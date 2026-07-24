@@ -118,7 +118,10 @@ const intlMessages = {
 type ApiCall = {
   path: string;
   body: unknown;
+  options?: { headers?: Record<string, string> };
 };
+
+type MockOutcome = { data?: { recipient_count: number; broadcast_at: string; replayed?: boolean }; error?: Error };
 
 test.afterEach(() => {
   cleanup();
@@ -235,16 +238,14 @@ test("confirming the modal posts the broadcast request and shows recipient count
   fireEvent.click(await findConfirmButton(view));
 
   await waitFor(() => {
-    assert.deepEqual(calls, [
-      {
-        path: "/api/v1/admin/notifications/broadcast",
-        body: {
-          title: "Maintenance",
-          body: "Maintenance starts at 02:00.",
-          channel: "broadcast",
-        },
-      },
-    ]);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].path, "/api/v1/admin/notifications/broadcast");
+    assert.deepEqual(calls[0].body, {
+      title: "Maintenance",
+      body: "Maintenance starts at 02:00.",
+      channel: "broadcast",
+    });
+    assert.equal(idempotencyKeys(calls).length, 1);
     assert.ok(document.body.textContent?.includes("Broadcast sent to 37 users"));
   });
 });
@@ -270,6 +271,59 @@ test("shows a localized failure toast when the broadcast API fails", async () =>
       (view.getByLabelText(intlMessages.adminNotifications.form.bodyLabel) as HTMLTextAreaElement).value,
       "Maintenance starts at 02:00.",
     );
+  });
+});
+
+test("reuses the same idempotency key when retrying after a failure", async () => {
+  installAdminDom();
+  suppressExpectedSilentErrorLog();
+  const calls = installApiPostMock({
+    outcomes: [
+      { error: new ApiRequestError("INTERNAL_ERROR", "boom", 500) },
+      { data: { recipient_count: 5, broadcast_at: "2026-07-01T11:00:00Z" } },
+    ],
+  });
+  const view = await renderValidPage();
+
+  fireEvent.click(view.getByRole("button", { name: intlMessages.adminNotifications.form.send }));
+  fireEvent.click(await findConfirmButton(view));
+
+  await waitFor(() => {
+    assert.ok(document.body.textContent?.includes(intlMessages.adminNotifications.toast.failure));
+  });
+
+  fireEvent.click(view.getByRole("button", { name: intlMessages.adminNotifications.form.send }));
+  fireEvent.click(await findConfirmButton(view));
+
+  await waitFor(() => {
+    assert.equal(calls.length, 2);
+    const keys = idempotencyKeys(calls);
+    assert.equal(keys[0], keys[1]);
+  });
+});
+
+test("rotates the idempotency key after a successful broadcast", async () => {
+  installAdminDom();
+  const calls = installApiPostMock();
+  const view = await renderValidPage();
+
+  fireEvent.click(view.getByRole("button", { name: intlMessages.adminNotifications.form.send }));
+  fireEvent.click(await findConfirmButton(view));
+
+  await waitFor(() => {
+    assert.equal(calls.length, 1);
+  });
+
+  fireEvent.change(view.getByLabelText(intlMessages.adminNotifications.form.titleLabel), {
+    target: { value: "Second maintenance" },
+  });
+  fireEvent.click(view.getByRole("button", { name: intlMessages.adminNotifications.form.send }));
+  fireEvent.click(await findConfirmButton(view));
+
+  await waitFor(() => {
+    assert.equal(calls.length, 2);
+    const keys = idempotencyKeys(calls);
+    assert.notEqual(keys[0], keys[1]);
   });
 });
 
@@ -364,16 +418,27 @@ async function findConfirmButton(view: Awaited<ReturnType<typeof renderPage>>) {
   return button;
 }
 
-function installApiPostMock(options: { data?: { recipient_count: number; broadcast_at: string }; error?: Error } = {}) {
+function installApiPostMock(options: MockOutcome & { outcomes?: MockOutcome[] } = {}) {
   const calls: ApiCall[] = [];
-  api.post = (async <T,>(path: string, body: unknown): Promise<T> => {
-    calls.push({ path, body });
-    if (options.error) {
-      throw options.error;
+  const queue = [...(options.outcomes ?? [])];
+  api.post = (async <T,>(path: string, body: unknown, callOptions?: { headers?: Record<string, string> }): Promise<T> => {
+    calls.push({ path, body, options: callOptions });
+    const outcome = queue.length > 0 ? queue.shift()! : options;
+    if (outcome.error) {
+      throw outcome.error;
     }
-    return { data: options.data ?? { recipient_count: 12, broadcast_at: "2026-07-01T10:00:00Z" } } as T;
+    return { data: outcome.data ?? { recipient_count: 12, broadcast_at: "2026-07-01T10:00:00Z", replayed: false } } as T;
   }) as typeof api.post;
   return calls;
+}
+
+function idempotencyKeys(calls: ApiCall[]): string[] {
+  return calls.map((call) => {
+    const key = call.options?.headers?.["Idempotency-Key"];
+    assert.ok(key, "expected Idempotency-Key header on broadcast call");
+    assert.match(key, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    return key;
+  });
 }
 
 function installAdminDom() {

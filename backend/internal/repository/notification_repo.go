@@ -48,6 +48,20 @@ func (r *NotificationRepository) CreateBroadcastBatchTx(ctx context.Context, tx 
 	return tx.WithContext(ctx).CreateInBatches(rows, 500).Error
 }
 
+func (r *NotificationRepository) CreateBroadcastRequestTx(ctx context.Context, tx *gorm.DB, row *model.NotificationBroadcastRequest) error {
+	return tx.WithContext(ctx).Create(row).Error
+}
+
+func (r *NotificationRepository) GetBroadcastRequestByKeyHash(ctx context.Context, actorID int64, keyHash string) (*model.NotificationBroadcastRequest, error) {
+	var row model.NotificationBroadcastRequest
+	if err := r.db.WithContext(ctx).
+		Where("actor_id = ? AND key_hash = ?", actorID, keyHash).
+		First(&row).Error; err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
 func (r *NotificationRepository) List(userID int64, channel string, page, pageSize int) ([]model.Notification, int64, error) {
 	var total int64
 	q := r.db.Model(&model.Notification{}).Where("user_id = ?", userID)

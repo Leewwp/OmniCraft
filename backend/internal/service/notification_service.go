@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -36,6 +38,8 @@ func (s *NotificationService) SetAdminAuditService(auditSvc *AdminAuditService) 
 
 var (
 	ErrBroadcastValidation       = errors.New("VALIDATION_ERROR")
+	ErrIdempotencyKeyRequired    = errors.New("IDEMPOTENCY_KEY_REQUIRED")
+	ErrIdempotencyKeyReused      = errors.New("IDEMPOTENCY_KEY_REUSED")
 	errBroadcastAuditUnavailable = errors.New("BROADCAST_AUDIT_UNAVAILABLE")
 	errBroadcastSendFailed       = errors.New("BROADCAST_SEND_FAILED")
 )
@@ -56,13 +60,21 @@ func (e *BroadcastValidationError) Is(target error) bool {
 	return target == ErrBroadcastValidation
 }
 
-func (s *NotificationService) BroadcastSystemNotification(ctx context.Context, title, body, channel string, actorID int64) (int, time.Time, error) {
+func (s *NotificationService) BroadcastSystemNotification(ctx context.Context, title, body, channel string, actorID int64, idempotencyKey string) (int, time.Time, bool, error) {
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	if idempotencyKey == "" {
+		return 0, time.Time{}, false, ErrIdempotencyKeyRequired
+	}
+
 	title = strings.TrimSpace(title)
 	body = strings.TrimSpace(body)
 	channel = strings.TrimSpace(channel)
 	if channel == "" {
 		channel = "broadcast"
 	}
+
+	keyHash := hashBroadcastIdempotencyKey(idempotencyKey)
+	payloadHash := hashBroadcastPayload(title, body, channel)
 
 	titleLength := len([]rune(title))
 	bodyLength := len([]rune(body))
@@ -80,14 +92,14 @@ func (s *NotificationService) BroadcastSystemNotification(ctx context.Context, t
 				slog.String("error", auditErr.Error()),
 			)
 		}
-		return 0, time.Time{}, &BroadcastValidationError{
+		return 0, time.Time{}, false, &BroadcastValidationError{
 			Code:   ErrBroadcastValidation.Error(),
 			Fields: validationFields,
 		}
 	}
 
 	if s.auditSvc == nil {
-		return 0, time.Time{}, errBroadcastAuditUnavailable
+		return 0, time.Time{}, false, errBroadcastAuditUnavailable
 	}
 
 	recipientIDs, err := s.notifRepo.ListActiveRecipientIDsWithContext(ctx)
@@ -98,10 +110,12 @@ func (s *NotificationService) BroadcastSystemNotification(ctx context.Context, t
 			"recipient_count": 0,
 			"error_code":      "RECIPIENT_QUERY_FAILED",
 		})
-		return 0, time.Time{}, errBroadcastSendFailed
+		return 0, time.Time{}, false, errBroadcastSendFailed
 	}
 
-	broadcastAt := time.Now().UTC()
+	// PostgreSQL stores timestamptz at microsecond precision. Normalize before
+	// both persisting and returning so a replay returns the exact first response.
+	broadcastAt := time.Now().UTC().Truncate(time.Microsecond)
 	rows := make([]model.Notification, 0, len(recipientIDs))
 	for _, recipientID := range recipientIDs {
 		titleCopy := title
@@ -116,8 +130,20 @@ func (s *NotificationService) BroadcastSystemNotification(ctx context.Context, t
 		})
 	}
 
+	requestRow := &model.NotificationBroadcastRequest{
+		ActorID:        actorID,
+		KeyHash:        keyHash,
+		PayloadHash:    payloadHash,
+		RecipientCount: len(recipientIDs),
+		BroadcastAt:    broadcastAt,
+	}
+
 	failureCode := "BROADCAST_INSERT_FAILED"
 	err = s.notifRepo.Transaction(ctx, func(tx *gorm.DB) error {
+		if err := s.notifRepo.CreateBroadcastRequestTx(ctx, tx, requestRow); err != nil {
+			failureCode = "BROADCAST_REQUEST_RESERVE_FAILED"
+			return err
+		}
 		if err := s.notifRepo.CreateBroadcastBatchTx(ctx, tx, rows); err != nil {
 			failureCode = "BROADCAST_INSERT_FAILED"
 			return err
@@ -127,6 +153,8 @@ func (s *NotificationService) BroadcastSystemNotification(ctx context.Context, t
 			"title_length":    titleLength,
 			"body_length":     bodyLength,
 			"filter":          "active_users",
+			"key_fingerprint": keyHash[:12],
+			"replayed":        false,
 		}); err != nil {
 			failureCode = "AUDIT_WRITE_FAILED"
 			return err
@@ -134,16 +162,61 @@ func (s *NotificationService) BroadcastSystemNotification(ctx context.Context, t
 		return nil
 	})
 	if err != nil {
+		if isBroadcastUniqueViolation(err) {
+			return s.replayBroadcastRequest(ctx, actorID, keyHash, payloadHash)
+		}
 		_ = s.recordBroadcastAudit(ctx, actorID, "failed", map[string]interface{}{
 			"title_length":    titleLength,
 			"body_length":     bodyLength,
 			"recipient_count": len(recipientIDs),
 			"error_code":      failureCode,
 		})
-		return 0, time.Time{}, errBroadcastSendFailed
+		return 0, time.Time{}, false, errBroadcastSendFailed
 	}
 
-	return len(recipientIDs), broadcastAt, nil
+	return len(recipientIDs), broadcastAt, false, nil
+}
+
+// replayBroadcastRequest resolves a uniqueness conflict on (actor_id, key_hash).
+// On PostgreSQL the conflicting insert waits for the in-flight owner transaction,
+// so by the time the violation is visible the committed row is readable. A
+// matching payload replays the stored response; a different payload means the
+// key was reused for another broadcast.
+func (s *NotificationService) replayBroadcastRequest(ctx context.Context, actorID int64, keyHash, payloadHash string) (int, time.Time, bool, error) {
+	existing, err := s.notifRepo.GetBroadcastRequestByKeyHash(ctx, actorID, keyHash)
+	if err != nil {
+		slog.Error("broadcast idempotency replay lookup failed",
+			slog.Int64("actor_id", actorID),
+			slog.String("error", err.Error()),
+		)
+		return 0, time.Time{}, false, errBroadcastSendFailed
+	}
+	if existing.PayloadHash != payloadHash {
+		return 0, time.Time{}, false, ErrIdempotencyKeyReused
+	}
+	return existing.RecipientCount, existing.BroadcastAt, true, nil
+}
+
+func hashBroadcastIdempotencyKey(key string) string {
+	sum := sha256.Sum256([]byte("omnicraft-broadcast-key:" + key))
+	return hex.EncodeToString(sum[:])
+}
+
+func hashBroadcastPayload(title, body, channel string) string {
+	sum := sha256.Sum256([]byte("omnicraft-broadcast-payload:" + title + "\x1f" + body + "\x1f" + channel))
+	return hex.EncodeToString(sum[:])
+}
+
+func isBroadcastUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	const postgresConstraint = "uq_notification_broadcast_requests_actor_key"
+	const sqliteConstraint = "unique constraint failed: notification_broadcast_requests.actor_id, notification_broadcast_requests.key_hash"
+	return strings.Contains(msg, sqliteConstraint) ||
+		(strings.Contains(msg, postgresConstraint) &&
+			(strings.Contains(msg, "sqlstate 23505") || strings.Contains(msg, "duplicate key")))
 }
 
 func validateBroadcastNotification(titleLength, bodyLength int, channel string) []string {

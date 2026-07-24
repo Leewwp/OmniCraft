@@ -473,6 +473,19 @@
 | `body` | `TEXT` | NOT NULL | body |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 
+### notification_broadcast_requests
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `actor_id` | `BIGINT` | NOT NULL -> users.id | actor_id |
+| `key_hash` | `VARCHAR(64)` | NOT NULL | key_hash |
+| `payload_hash` | `VARCHAR(64)` | NOT NULL | payload_hash |
+| `recipient_count` | `INT` | NOT NULL | recipient_count |
+| `broadcast_at` | `TIMESTAMPTZ` | NOT NULL | broadcast_at |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+
 ### notifications
 
 | 列名 | 类型 | 约束 | 说明 |

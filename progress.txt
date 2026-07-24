@@ -492,3 +492,23 @@
 
 ### Notes:
 - 剩余优先级 1 工作：消息通知 Task 9（广播幂等，10 项，实现型）。
+
+## [2026-07-24] - Task 9: Durable admin broadcast idempotency
+
+### What was done:
+- Added migration 062 and a durable `notification_broadcast_requests` record keyed by hashed `(actor_id, Idempotency-Key)`, storing only payload hash and replay response metadata.
+- Made request reservation, per-user notifications and the success audit one PostgreSQL transaction; retries replay the stored result, payload reuse returns `409 IDEMPOTENCY_KEY_REUSED`, and failed transactions release the key.
+- Added `replayed` response metadata, CORS support for `Idempotency-Key`, and frontend UUID lifecycle that reuses a key after ambiguous failure but rotates after success or draft changes.
+- Narrowed duplicate-key classification to the broadcast request constraint and normalized `broadcast_at` to PostgreSQL microsecond precision so first and replayed responses are byte-for-byte consistent.
+
+### Testing:
+- Focused backend tests passed for handler/service/CORS/migration behavior, including a real PostgreSQL two-request concurrency test and migration 062 idempotency/constraint checks.
+- `go test ./...`, `go vet ./...`, and `go build ./...` passed.
+- Frontend admin notification tests passed 10/10; `npm.cmd run lint` and `npm.cmd run build` passed.
+- `go run . --fix` in `tools/doc-validator` reported schema/config/routes already synchronized.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-project.ps1` passed the default aggregate gate, including 102 frontend tests and the release documentation profile.
+- Real headless Chromium verification passed: first response `replayed:false`, same-key replay `replayed:true`, identical `broadcast_at`, 83 active users, 83 notification rows, one request row, one success audit and zero post-login console errors. Screenshot: `screenshots/community-messages-notifications-idempotency.png`.
+
+### Notes:
+- The persistent local Docker database predated migration 057; the first browser request failed safely on the old channel CHECK constraint with request/notifications rolled back and a failed audit retained. Applying the existing migration 057 restored the expected local schema before the successful rerun.
+- The messages/notifications plan is complete and archived. Stage 2 executable closeout work is complete; Beta R-02 remains intentionally blocked on Desktop D-02~D-05, real Ed25519 provisioning, HTTPS API configuration and a signed distribution path, so no R-02 checkbox or release evidence was fabricated.

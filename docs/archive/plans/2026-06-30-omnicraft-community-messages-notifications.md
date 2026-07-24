@@ -1,5 +1,7 @@
 # OmniCraft Community Messages And Notifications Implementation Plan
 
+> **归档说明**：Tasks 1-8 已于原计划执行期完成；2026-07-24 完成 Task 9 持久化广播幂等跟进，覆盖真实 PostgreSQL 并发唯一边界、事务回滚、CORS 预检、前端 key 生命周期及真实浏览器同 key 重放。全部验证门通过后归档。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 增强私信冷启动防骚扰、管理员系统通知广播，以及 `/messages` 双栏消息中心体验。
@@ -620,7 +622,7 @@ git commit -m "Community 1: messages and notifications enhancement"
 - Modify: `frontend/app/(protected)/admin/notifications/page.tsx`
 - Modify: `frontend/tests/admin-notifications-page.test.tsx`
 
-- [ ] **Step 1: Add failing backend idempotency tests**
+- [x] **Step 1: Add failing backend idempotency tests**
 
 Cover:
 
@@ -631,30 +633,30 @@ Cover:
 - concurrent requests with the same key serialize on the database uniqueness boundary and only one creates notifications;
 - a failure at any point rolls back the request record, notifications, and success audit together, so a retry can safely own the key.
 
-- [ ] **Step 2: Confirm red**
+- [x] **Step 2: Confirm red**
 
 ```powershell
 cd backend
 go test ./internal/service ./internal/handler -run "TestBroadcast.*Idempot|TestAdminNotificationBroadcast.*Idempot" -v
 ```
 
-- [ ] **Step 3: Add a durable idempotency record**
+- [x] **Step 3: Add a durable idempotency record**
 
 Create a table with a unique `(actor_id, key_hash)` constraint and fields for `payload_hash`, `recipient_count`, `broadcast_at`, and timestamps. Hash the normalized key and normalized title/body/channel payload separately. Never store the raw key, title, or Markdown body in the request record. Reserve migration 062 so this follow-up does not steal 059–061 from the three pending community plans; re-check the migration directory immediately before implementation.
 
-- [ ] **Step 4: Reserve and complete inside the broadcast transaction**
+- [x] **Step 4: Reserve and complete inside the broadcast transaction**
 
 The first transaction owns a newly inserted request row, creates the per-user notifications, writes the success audit, and stores the response summary before commit. A unique-key conflict must wait for/read the committed request: matching payload replays its response; a different payload returns `IDEMPOTENCY_KEY_REUSED`. Do not use Redis as the source of truth and do not leave a committed `pending` row that requires manual repair after a rolled-back broadcast.
 
-- [ ] **Step 5: Require and return idempotency metadata**
+- [x] **Step 5: Require and return idempotency metadata**
 
 The handler reads the `Idempotency-Key` header, passes it into the service, and returns `replayed: true|false`. Audit metadata may include a hashed key fingerprint and replay status, never the raw key or body.
 
-- [ ] **Step 6: Add frontend key lifecycle**
+- [x] **Step 6: Add frontend key lifecycle**
 
 Generate one UUID when the confirmation dialog opens, reuse it for retries of that exact draft, and rotate it after success or after the title/body changes. Do not generate a new key for an automatic network retry.
 
-- [ ] **Step 7: Verify focused and full gates**
+- [x] **Step 7: Verify focused and full gates**
 
 ```powershell
 cd backend
@@ -670,11 +672,11 @@ cd ../tools/doc-validator
 go run . --fix
 ```
 
-- [ ] **Step 8: Browser verification**
+- [x] **Step 8: Browser verification**
 
 Send a broadcast, replay the same captured request/key, and prove each recipient still has exactly one notification while the second response reports `replayed: true`.
 
-- [ ] **Step 9: Update only the follow-up state and commit**
+- [x] **Step 9: Update only the follow-up state and commit**
 
 Check only Task 9 steps, append a Task 9 entry to `progress.txt`, stage the exact migration/model/repository/service/handler/frontend/test/plan files actually changed, and commit `Community messages: durable broadcast idempotency`. Do not rewrite the original completed Task 1–8 history or any Beta/task.json state.
 
@@ -693,4 +695,4 @@ Check only Task 9 steps, append a Task 9 entry to `progress.txt`, stage the exac
 - [x] Admin broadcast confirmation uses `ConfirmModal`, not the browser-native confirm API, and tests cover open, irreversible warning, focus lock, Esc close, and confirm API call.
 - [x] Browser verification includes both admin broadcast and normal user receipt.
 - [x] `doc-validator` is required because both routes and migrations change.
-- [ ] Follow-up broadcast requests are idempotent across ambiguous client retries.
+- [x] Follow-up broadcast requests are idempotent across ambiguous client retries.

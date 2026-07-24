@@ -28,7 +28,7 @@
 
 ## Dependency Note
 
-This plan depends on the messages foundation from `2026-06-30-omnicraft-community-messages-notifications.md`:
+This plan depends on the completed messages foundation archived at `docs/archive/plans/2026-06-30-omnicraft-community-messages-notifications.md`:
 
 - frontend message components must use `/api/v1/messages`
 - `ChatWindow` must be ready to render typed messages
