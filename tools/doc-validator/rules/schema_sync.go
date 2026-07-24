@@ -254,9 +254,9 @@ func buildConstraints(col ColumnDef) string {
 	return strings.Join(parts, " ")
 }
 
-// CheckSchemaSync compares migration tables with architecture.md section 4.
+// CheckSchemaSync compares migration tables with docs/reference/schema.md section 4.
 func CheckSchemaSync() []RuleIssue {
-	archPath := "architecture.md"
+	archPath := filepath.Join("docs", "reference", "schema.md")
 	content, err := os.ReadFile(archPath)
 	if err != nil {
 		return []RuleIssue{{Severity: "ERROR", File: archPath, Message: fmt.Sprintf("cannot read: %v", err)}}
@@ -286,9 +286,9 @@ func CheckSchemaSync() []RuleIssue {
 	return issues
 }
 
-// SyncSchemaDocs generates schema documentation and inserts into architecture.md.
+// SyncSchemaDocs generates schema documentation and inserts into docs/reference/schema.md.
 func SyncSchemaDocs() error {
-	archPath := "architecture.md"
+	archPath := filepath.Join("docs", "reference", "schema.md")
 	content, err := os.ReadFile(archPath)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", archPath, err)

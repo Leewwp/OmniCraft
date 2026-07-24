@@ -150,7 +150,7 @@ OmniCraft/
 ├── AGENTS.md                # 本文件（唯一工作流权威；CLAUDE.md 为指向本文件的指针）
 ├── progress.txt             # 进度日志（近 30 天；旧记录见 docs/archive/progress/）
 ├── docs/
-│   ├── reference/           # 按需查阅：business-rules / schema / api / config
+│   ├── reference/           # 按需查阅：business-rules / schema / api / config / implementation-notes
 │   ├── specs/               # 版本功能规格
 │   ├── archive/             # 已归档（历史计划、进度归档、历史账本，不再作为开发依据）
 │   ├── superpowers/
