@@ -1,5 +1,7 @@
 # OmniCraft Project Excellence Hardening Implementation Plan
 
+> **归档说明**：Tasks 1-5 早已完成（commits 03ed211/db3aa6e/1ef75d2/2239f1b/b1aea75），2026-07-23 近完成清零时逐项核验 Review Checklist 8 项全部满足（run-tests.mjs 无 glob 全扩展发现；release profile 仅豁免 archive；bare-file-URI 中文散文误报有回归测试；router 组合根测试强制不构造 repo/service；policies_test 覆盖 archetype 与挂载；verify-project.ps1 全命令 fail-fast；无 Task 6 标题；五个执行提交未翻转 roadmap/community/task.json 完成状态）。随文档瘦身归档。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 提升默认验证门、文档治理和后端 HTTP 装配边界的可信度，让项目具备可重复验证、可解释演进的工程质量。
@@ -404,11 +406,11 @@ powershell -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -Tauri
 
 ## Review Checklist
 
-- [ ] Default frontend test gate discovers all supported unit-test extensions without shell globs.
-- [ ] Release doc profile excludes only archive debt and remains strict for current documents.
-- [ ] The current false bare-file-URI match has a regression test.
-- [ ] Router package owns route composition but not repository/domain-service construction.
-- [ ] Policy tests cover archetypes and actual route attachment.
-- [ ] Project verifier fails fast on every external command.
-- [ ] Task 6/backlog note is absent.
-- [ ] No roadmap/community/task.json completion state is changed.
+- [x] Default frontend test gate discovers all supported unit-test extensions without shell globs.
+- [x] Release doc profile excludes only archive debt and remains strict for current documents.
+- [x] The current false bare-file-URI match has a regression test.
+- [x] Router package owns route composition but not repository/domain-service construction.
+- [x] Policy tests cover archetypes and actual route attachment.
+- [x] Project verifier fails fast on every external command.
+- [x] Task 6/backlog note is absent.
+- [x] No roadmap/community/task.json completion state is changed.

@@ -1,5 +1,7 @@
 # OmniCraft Admin Operations Implementation Plan
 
+> **归档说明**：A-01~A-05 全部完成（roadmap 状态表全 [x]，progress 归档含 A-03~A-05 条目并注明 A-05 收官子系统）。2026-07-23 近完成清零归档。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give operators a complete, auditable Beta control surface for reports, feedback, queues and existing moderation actions.

@@ -478,3 +478,17 @@
 ### Notes:
 - 常驻上下文（AGENTS.md + architecture.md）从 ~420KB 降至 51.7KB。
 - 下一步按注册表优先级：近完成项清零（消息通知 11 / 卓越加固 9 / 发布验证 6），随后 UI 工程（U-01~U-05 地基 + 首页/详情页视觉样板）。
+
+## [2026-07-23] - 阶段2 近完成清零：4 子系统 + 卓越加固归档，R-02 定阻塞
+
+### What was done:
+- Beta 子系统×4（foundation F-01~F-06 / admin-operations A-01~A-05 / agent-entrypoints G-01~G-05 / verification-feedback V-01~V-06）经 roadmap 状态表与 progress 归档双重验证为 100% 完成（注册表余项为过期计数），加归档说明后移入 docs/archive/plans/，注册表行移除。
+- 卓越加固 Review Checklist 8 项逐项核验全部满足：run-tests.mjs 无 shell glob 全扩展名发现；doc-validator release profile 仅豁免 archive；bare-file-URI 中文散文误报已有回归测试；router 组合根由测试强制不构造 repo/service；policies_test 覆盖 archetype 与路由挂载；verify-project.ps1 全外部命令 fail-fast（有 tests.ps1）；计划无 Task 6 标题；五个执行提交未翻转 roadmap/community/task.json 完成状态（be6db7e 仅新增未勾选后续项）。勾选后归档，注册表行移除。
+- 发布验证 R-02 确认阻塞：Step 1 前置要求 D-01~D-05 全部勾选 + 真实 Ed25519 私钥 + HTTPS 基址，而 D-02~D-05 属优先级 6 heavy 车道未开始。注册表备注已改为显式依赖阻塞，不产出模拟证据。
+
+### Testing:
+- 核验方法：代码/脚本/测试文件逐一比对（见上），git log --follow 审查五个执行提交触及面。
+- doc-validator --check --profile release 在阶段1已全绿，profile 语义未变。
+
+### Notes:
+- 剩余优先级 1 工作：消息通知 Task 9（广播幂等，10 项，实现型）。

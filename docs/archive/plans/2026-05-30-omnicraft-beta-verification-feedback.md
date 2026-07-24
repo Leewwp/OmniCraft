@@ -1,5 +1,7 @@
 # OmniCraft Verification And Feedback Implementation Plan
 
+> **归档说明**：V-01~V-06 全部完成（roadmap 状态表全 [x]，progress 归档含 V-03~V-06 条目）。2026-07-23 近完成清零归档。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Close the account-verification, help, legal and user-feedback loops required for a public Web Beta.

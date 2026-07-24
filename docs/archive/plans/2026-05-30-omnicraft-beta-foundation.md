@@ -1,5 +1,7 @@
 # OmniCraft Beta Foundation Implementation Plan
 
+> **归档说明**：F-01~F-06 全部完成（roadmap 状态表全 [x]，progress 归档含 F-03~F-06 条目）。2026-07-23 近完成清零归档。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Establish the shared security and reliability baseline required by both Beta tracks.
