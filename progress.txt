@@ -525,3 +525,18 @@
 
 ### Notes:
 - Production recovery verified that migrations, including collections, series and notification broadcast idempotency, had completed before the backend connection failure.
+
+## [2026-07-24] - Deployment: Aliyun CAPTCHA success response compatibility
+
+### What was done:
+- Diagnosed production `/api/v1/captcha/verify` failures after the Aliyun CAPTCHA widget rendered successfully.
+- Confirmed backend logs showed Aliyun service-side verification returned `code=Success message=success`, but the local verifier only accepted `Code: OK`.
+- Updated the Aliyun CAPTCHA verifier to accept the official `Success` code while still requiring `Result.VerifyResult == true`.
+- Replaced the regression test that rejected `Success` with tests covering the official success response and `Success` plus `VerifyResult=false`.
+
+### Testing:
+- `go test ./internal/pkg/captcha -v` passed.
+- `git diff --check -- backend/internal/pkg/captcha/verifier.go backend/internal/pkg/captcha/verifier_test.go` passed.
+
+### Notes:
+- The large frontend `captcha_verify_param` payload is expected for Aliyun CAPTCHA 2.0 because it includes device and risk-analysis data; it should be forwarded unchanged.

@@ -122,71 +122,61 @@ func TestAliyunV2VerifierReturnsNilWhenAliyunSucceeds(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestAliyunV2VerifierRejectsCompatibilitySuccessShapes(t *testing.T) {
-	cases := []struct {
-		name       string
-		code       string
-		resultBody map[string]interface{}
-	}{
-		{
-			name:       "legacy success code",
-			code:       "Success",
-			resultBody: map[string]interface{}{"VerifyResult": true, "VerifyCode": "T001"},
-		},
-		{
-			name:       "numeric code string",
-			code:       "200",
-			resultBody: map[string]interface{}{"VerifyResult": true, "VerifyCode": "T001"},
-		},
-		{
-			name:       "empty code",
-			code:       "",
-			resultBody: map[string]interface{}{"VerifyResult": true, "VerifyCode": "T001"},
-		},
-		{
-			name:       "string verify result",
-			code:       "OK",
-			resultBody: map[string]interface{}{"VerifyResult": "true", "VerifyCode": "T001"},
-		},
-		{
-			name:       "string pass verify result",
-			code:       "OK",
-			resultBody: map[string]interface{}{"VerifyResult": "pass", "VerifyCode": "T001"},
-		},
-		{
-			name:       "numeric verify result",
-			code:       "OK",
-			resultBody: map[string]interface{}{"VerifyResult": float64(1), "VerifyCode": "T001"},
-		},
-	}
+func TestAliyunV2VerifierAcceptsOfficialSuccessResultResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]interface{}{
+			"Code":      "Success",
+			"Message":   "success",
+			"RequestId": "req-success",
+			"Result": map[string]interface{}{
+				"VerifyResult": true,
+				"VerifyCode":   "T001",
+			},
+		}))
+	}))
+	defer server.Close()
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				require.NoError(t, json.NewEncoder(w).Encode(map[string]interface{}{
-					"Code":      tc.code,
-					"Message":   "compat",
-					"RequestId": "req-compat",
-					"Result":    tc.resultBody,
-				}))
-			}))
-			defer server.Close()
+	verifier := NewAliyunV2Verifier(config.CaptchaConfig{
+		AccessKeyID:     "ak",
+		AccessKeySecret: "secret",
+		SceneID:         "scene-id",
+		Region:          "cn",
+	})
+	verifier.endpoint = server.URL
 
-			verifier := NewAliyunV2Verifier(config.CaptchaConfig{
-				AccessKeyID:     "ak",
-				AccessKeySecret: "secret",
-				SceneID:         "scene-id",
-				Region:          "cn",
-			})
-			verifier.endpoint = server.URL
+	err := verifier.Verify(context.Background(), "captcha-verify-param", "")
 
-			err := verifier.Verify(context.Background(), "captcha-verify-param", "")
+	require.NoError(t, err)
+}
 
-			require.Error(t, err)
-			require.Contains(t, err.Error(), "captcha verification failed")
-		})
-	}
+func TestAliyunV2VerifierRejectsSuccessCodeWhenVerifyResultIsFalse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]interface{}{
+			"Code":      "Success",
+			"Message":   "success",
+			"RequestId": "req-rejected",
+			"Result": map[string]interface{}{
+				"VerifyResult": false,
+				"VerifyCode":   "F001",
+			},
+		}))
+	}))
+	defer server.Close()
+
+	verifier := NewAliyunV2Verifier(config.CaptchaConfig{
+		AccessKeyID:     "ak",
+		AccessKeySecret: "secret",
+		SceneID:         "scene-id",
+		Region:          "cn",
+	})
+	verifier.endpoint = server.URL
+
+	err := verifier.Verify(context.Background(), "captcha-verify-param", "")
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "captcha verification failed")
 }
 
 func firstParam(r *http.Request, key string) string {

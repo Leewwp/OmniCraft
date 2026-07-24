@@ -183,7 +183,7 @@ func (r aliyunCaptchaVerifyResponse) verifyCode() string {
 
 func isAliyunCaptchaSuccessCode(code string) bool {
 	switch strings.ToLower(strings.TrimSpace(code)) {
-	case "ok":
+	case "ok", "success":
 		return true
 	default:
 		return false
