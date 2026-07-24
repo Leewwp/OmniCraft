@@ -27,10 +27,8 @@ CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致
 
 | 优先级 | 计划文件 | 余项 | 车道 | 备注 |
 |--------|----------|------|------|------|
-| 1 | `docs/superpowers/plans/2026-06-30-omnicraft-community-messages-notifications.md` | 11 | light | 近完成，收尾 |
-| 1 | `docs/superpowers/plans/2026-07-08-omnicraft-project-excellence-hardening.md` | 9 | light | 近完成，收尾 |
-| 1 | `docs/superpowers/plans/2026-05-30-omnicraft-beta-release-validation.md` | 6 | light | 近完成，收尾 |
-| 1 | Beta 子系统计划×4（foundation / admin-operations / agent-entrypoints / verification-feedback，同目录） | 各 1 | light | 近完成，收尾 |
+| 1 | `docs/superpowers/plans/2026-06-30-omnicraft-community-messages-notifications.md` | 10 | light | 近完成，仅剩 Task 9 广播幂等 |
+| 1 | `docs/superpowers/plans/2026-05-30-omnicraft-beta-release-validation.md` | 5 | light | R-02 阻塞：依赖 Desktop D-02~D-05（优先级 6，heavy）完成 |
 | 2 | `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md` | U-01~U-05 | light | UI 工程第一阶段；U-06/07/09/10 并入后续视觉精致化计划，U-11/U-12 收尾 |
 | 3 | `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md` | 65 | heavy | 发布路径；Ops-09 不得复制或绕过桌面安全任务 |
 | 4 | `docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md` | 64 | light | 未开始 |

@@ -1,5 +1,7 @@
 # OmniCraft Beta Agent Entrypoints Implementation Plan
 
+> **归档说明**：G-01~G-05 全部完成（roadmap 状态表全 [x]）。2026-07-23 近完成清零归档。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Deliver a controlled, understandable Agent experience that degrades cleanly to normal community features.
