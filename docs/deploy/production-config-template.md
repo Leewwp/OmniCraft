@@ -150,9 +150,9 @@ server {
     listen 443 ssl http2;
     server_name app.leeppp.online api.leeppp.online;
 
-    ssl_certificate /etc/letsencrypt/live/leeppp.online/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/leeppp.online/privkey.pem;
-    ssl_trusted_certificate /etc/letsencrypt/live/leeppp.online/chain.pem;
+    ssl_certificate /etc/letsencrypt/live/app.leeppp.online/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/app.leeppp.online/privkey.pem;
+    ssl_trusted_certificate /etc/letsencrypt/live/app.leeppp.online/chain.pem;
 
     location /api/ {
         proxy_pass http://backend;

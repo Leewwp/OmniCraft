@@ -159,9 +159,9 @@ sudo certbot certonly --standalone \
 The compose nginx template expects:
 
 ```text
-/etc/letsencrypt/live/leeppp.online/fullchain.pem
-/etc/letsencrypt/live/leeppp.online/privkey.pem
-/etc/letsencrypt/live/leeppp.online/chain.pem
+/etc/letsencrypt/live/app.leeppp.online/fullchain.pem
+/etc/letsencrypt/live/app.leeppp.online/privkey.pem
+/etc/letsencrypt/live/app.leeppp.online/chain.pem
 ```
 
 If Certbot creates a different live directory, update
