@@ -1,10 +1,10 @@
 # OmniCraft UI Polish Hardening Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Follow the active light-lane workflow in `AGENTS.md`; use the available UI/UX review and browser-testing skills for the relevant Task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 在不改变业务语义的前提下，修复已证实的设计令牌、交互反馈、可访问性、响应式、国际化和用户错误暴露问题，并建立可重复的 UI 治理门。
 
-**Architecture:** 先修正设计权威与基础组件，再按互不重叠的页面所有权并行整改，最后把静态检查接入项目级验证入口。每个文件只归一个 Task；跨 Task 的新文案集中到 i18n Task，跨前后端的信誉能力契约单独处理。
+**Architecture:** 先完成不依赖视觉方向的错误安全、基础组件可访问性和破坏性操作修复，再用隔离原型完成首页 Feed 与内容详情页的桌面/移动/暗色评审。用户明确批准原型后，才把视觉决策回写为设计 Token、共享组件和导航壳层，随后推广到剩余页面并接入治理门。跨阶段重复文件必须在前一提交合入后显式转移所有权，禁止并发修改。
 
 **Tech Stack:** Next.js 16.2 / React 19 / TypeScript 5 / Tailwind CSS 4 CSS-first / next-intl / Base UI / Playwright / Node test / PowerShell.
 
@@ -12,14 +12,14 @@
 
 ## Status And Authority
 
-**Audit date:** 2026-07-17  
-**Status:** reviewed draft; no implementation Task has started.
+**Audit date:** 2026-07-17；execution order revised 2026-07-25
 
-- This is a proposed Mode D UI hardening source. Before implementation, add this plan to the Mode D source list in `AGENTS.md`; until then, a future agent cannot reliably select it without an explicit user instruction.
-- The production-readiness specification and plan named for the same review were not present in the audited worktree. Do not resolve security/release-policy conflicts by inference; re-run the coordination review after those files are restored.
-- Visual authority order: `design/design-system.md`, then the matching `## Component:` / `## Page:` section in `design/ui-spec.md`, then this plan. If an implementation needs a new token, update the design-system table in U-01 before consuming it.
-- Base branch observed during review: `codex/productization-integration` and `main` both at `b1aea75`. Re-check before creating any worktree.
-- Branch format: `codex/excellence/u-XX`. One Task equals one worktree, one branch, one reviewed commit, and one progress entry.
+**Status:** active light-lane plan; no implementation Task has started.
+
+- This plan is priority 1 in the `AGENTS.md` active-plan registry and uses the light lane. Numeric Task IDs remain stable identifiers; the wave order below, not numeric order, is authoritative for execution.
+- Production Readiness is present and registered after this plan. Re-run coordination before U-11/U-12 or any edit that expands into config, release, verifier, or backend capability paths.
+- Before P-01 approval, visual authority remains `design/design-system.md` then matching `design/ui-spec.md` sections; correctness Tasks must not restyle surfaces. After the user approves P-01, the approved prototype decision record becomes the input for U-01/U-02B updates to those authorities.
+- Re-check the current `main` before implementation. Use one shared `codex/ui-refinement` light-lane branch with logical commits per Task/gate; exact file reservations still apply.
 - Do not modify `task.json`, Beta/community checkboxes, or Web Agent completion state.
 
 ## Verified Baseline
@@ -34,10 +34,10 @@ The former severity totals were removed because their cited “three audit appen
 | Palette utility inventory | The command below finds 287 palette-class matches in 42 TS/TSX/CSS files, including 24 legacy white/gray matches in 10 files | Record command + before/after count per Task; replace only semantically verified matches |
 | Arbitrary font sizes | 95 `text-[…]` matches in 30 TS/TSX/CSS files | Do not promise a blanket conversion; preserve intentional compact metrics and prove each changed surface |
 | Native confirms/prompts | 7 calls in 5 files | U-04 and U-11 own all seven |
-| Raw JSX SVG icons | 5 instances in 4 component files; generated placeholder SVG strings are intentional and excluded | U-06/U-09/U-02 own the four files; do not rewrite `coverPlaceholder.ts` |
+| Raw JSX SVG icons | 5 instances in 4 component files; generated placeholder SVG strings are intentional and excluded | U-06/U-09/U-02A own the four files; do not rewrite `coverPlaceholder.ts` |
 | Confirm modal | Existing component already supports `requireReason`, dialog semantics, focus trap, Esc, and focus restoration | Test and preserve these behaviors; do not plan them as new features |
 | Loading/empty state | 15 `common.loading` usages exist; `EmptyState` is already used by several list surfaces | Replace only page-level naked loading states; inline loading labels remain valid |
-| Error exposure | Direct user rendering is verified in `app/error.tsx`, verify-email, and `DownloadButton`; console logging in utilities is not user exposure | U-05/U-11 use a precise allowlist instead of a stale “nine files” claim |
+| Error exposure | Direct user rendering is verified in `app/error.tsx`, verify-email, PR requests, `VersionHistory`, and `DownloadButton`; console logging in utilities is not user exposure | U-05 must refresh and own the precise allowlist before U-04/U-11 receive overlapping files |
 | Reputation threshold | Four interaction components hard-code `3`; the public-config contract explicitly rejects `reputation`, `threshold`, and `min_score` fields | U-11 must use a server-derived capability, not a frontend config hook |
 | CI integration | No repository GitHub workflow exists; `scripts/verify-project.ps1` is the project gate | U-12 integrates `npm run lint:ui` into the project verifier instead of writing `frontend/.github/**` |
 
@@ -53,14 +53,18 @@ rg -o --glob '!node_modules/**' --glob '!package-lock.json' --glob '*.{ts,tsx,cs
 Tasks may run in parallel only after all listed dependencies are merged into the current integration base and the reservation ledger has no active overlap.
 
 ```text
-Wave 1:  U-01 U-05                              (parallel; disjoint foundations)
-Wave 2:  U-02                                   (depends on U-01)
-Wave 3:  U-03 U-04 U-06 U-07 U-08 U-09 U-10 U-11
-                                                  (parallel; U-11 also waits for restored parent docs)
-Wave 4:  U-12                                   (depends on U-01 through U-11)
+Wave 1:  U-05                                   safe user-facing errors
+Wave 2:  U-02A                                  primitive behavior/accessibility only
+Wave 3:  U-04                                   destructive-dialog correctness
+Gate:    P-01                                   home/detail visual prototype + user approval
+Wave 4:  U-01                                   approved design tokens and authority
+Wave 5:  U-02B                                  approved primitive visuals
+Wave 6:  U-03                                   navigation shells
+Wave 7:  U-06 U-07 U-08 U-09 U-10 U-11         remaining surfaces; U-11 also waits for Production Readiness coordination
+Wave 8:  U-12                                   enforceable governance gate
 ```
 
-Maximum useful parallelism is two workers in Wave 1 and up to the available worker limit in Wave 3. U-01, U-02, and U-12 are serialization points. A Task may not edit another Task's files “for convenience”; report the needed path/symbol/reason and transfer ownership in the reservation ledger first.
+P-01 is a blocking human review gate: U-01, U-02B, U-03 and all visual propagation work must not start before explicit approval. Tasks in the same wave may run in parallel only when their reservations are disjoint. U-05 → U-04 and U-05 → U-11 intentionally transfer overlapping files after merge; U-02A → U-02B does the same for primitives. No concurrent ownership is allowed.
 
 ## Common Execution And Verification Contract
 
@@ -68,7 +72,7 @@ Every Task follows this sequence:
 
 - [ ] Reserve exact files in `docs/working/2026-07-18-ui-polish-file-reservation.md` with real owner, branch, base commit, and timestamp.
 - [ ] Read every relevant component/page section in `design/ui-spec.md` in addition to the task files.
-- [ ] Start required services from the task worktree; if the deterministic test uses mocked API routes, record that explicitly.
+- [ ] Start required services from the task branch; if the deterministic test uses mocked API routes, record that explicitly.
 - [ ] Write a failing unit/contract test that demonstrates the specific defect. A screenshot alone is not the red test.
 - [ ] Confirm the expected failure, implement the minimum correction, then refactor.
 - [ ] Run focused tests, `npm.cmd run lint`, `npm.cmd test`, and `npm.cmd run build`.
@@ -80,24 +84,46 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 
 ## Task U-01: Align Design Authority And CSS Tokens
 
-**Depends on:** none  
+**Depends on:** P-01 approval
+
 **Files:**
 - Modify: `design/design-system.md`
 - Modify: `frontend/app/globals.css`
 - Create: `frontend/scripts/ui-governance/check-tokens.mjs`
 - Create: `frontend/scripts/ui-governance/check-tokens.test.mjs`
 
-- [ ] Write tests that parse the authoritative tables and assert emitted light/dark values, exact 3/4/8/12/full radii, Chinese sans fallbacks, modal-only shadow tokens, and absence of undefined token references.
+- [ ] Translate the approved P-01 decisions into authoritative light/dark color, radius, typography, spacing and three-tier subtle-elevation tables; do not preserve the obsolete modal-only-shadow rule merely because current CSS implements it.
+- [ ] Write tests that parse the approved authoritative tables and assert emitted light/dark values, the approved radius scale, Chinese sans fallbacks, approved elevation tokens, and absence of undefined token references.
 - [ ] Confirm the tests fail against current CSS.
-- [ ] Emit `--border-destructive` and `--radius-full`; replace computed radius drift with exact values; align font stacks.
+- [ ] Emit `--border-destructive` and `--radius-full`; replace computed radius drift with the approved exact values; align font stacks.
 - [ ] Resolve `--accent-hover` by using an already-authoritative semantic value or documenting a new value in the design system before CSS consumption.
 - [ ] If semantic success/warning/info tokens are introduced, specify both foreground and subtle-background light/dark values in the design system; do not add unnamed color constants only to satisfy a checker.
 - [ ] Verify the token test, frontend build, home/search/admin/studio light+dark screenshots, and no unexpected layout shift.
 
-## Task U-02: Harden Shared UI Primitives
+## Task U-02A: Harden Shared Primitive Behavior And Accessibility
 
-**Depends on:** U-01  
+**Depends on:** U-05
+
 **Files:**
+- Modify: `frontend/components/ui/button.tsx`
+- Modify: `frontend/components/ui/confirm-modal.tsx`
+- Modify: `frontend/components/ui/TagBadge.tsx`
+- Modify: `frontend/components/ui/Toast.tsx`
+- Create: `frontend/tests/ui-primitives-accessibility.test.tsx`
+
+- [ ] Add failing tests for Button accessible names, icon-button sizing and disabled semantics; ConfirmModal reason validation/focus/Esc/restoration; and Toast live-region/close labels.
+- [ ] Preserve existing ConfirmModal behavior rather than reimplementing it.
+- [ ] Apply 44px mobile/coarse-pointer targets to icon-only or isolated actions without globally inflating dense desktop controls; WCAG 2.2 AA 24px is the minimum fallback.
+- [ ] Replace the raw remove SVG in `TagBadge.tsx` with the established icon system and an accessible name.
+- [ ] Verify primitive unit tests plus keyboard-only ConfirmModal and Toast Playwright flows.
+- [ ] Do not change palette, radius, shadow, typography, empty-state composition or other visual direction in this Task.
+
+## Task U-02B: Apply Approved Visuals To Shared UI Primitives
+
+**Depends on:** P-01 approval, U-01, U-02A
+
+**Files:**
+- Modify: `design/ui-spec.md`
 - Modify: `frontend/components/ui/badge.tsx`
 - Modify: `frontend/components/ui/button.tsx`
 - Modify: `frontend/components/ui/card.tsx`
@@ -116,18 +142,17 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - Modify: `frontend/components/ui/TagBadge.tsx`
 - Modify: `frontend/components/ui/textarea.tsx`
 - Modify: `frontend/components/ui/Toast.tsx`
-- Create: `frontend/tests/ui-primitives-accessibility.test.tsx`
+- Create: `frontend/tests/ui-primitives-visual-contracts.test.tsx`
 
-- [ ] Add failing tests for Button accessible names, icon-button sizing, disabled semantics, ConfirmModal reason validation/focus/Esc/restoration, Toast live-region/close labels, and documented z-index/shadow rules.
-- [ ] Preserve existing ConfirmModal behavior rather than reimplementing it.
-- [ ] Align primitive radii, colors, focus rings, shadows, and semantic status colors with U-01.
-- [ ] Apply 44px mobile/coarse-pointer targets to icon-only or isolated actions without globally inflating dense desktop controls; WCAG 2.2 AA 24px is the minimum fallback.
-- [ ] Replace the raw remove SVG in `TagBadge.tsx` with the established icon system and an accessible name.
-- [ ] Verify primitive unit tests plus keyboard-only ConfirmModal and Toast Playwright flows.
+- [ ] Write the approved primitive appearance, states and responsive rules back to the matching `ui-spec.md` component sections before implementation.
+- [ ] Add contract tests for approved radii, colors, focus rings, elevation, status colors and empty/loading states without duplicating U-02A behavior tests.
+- [ ] Apply U-01 tokens to primitives while preserving every U-02A accessibility and interaction guarantee.
+- [ ] Verify representative primitive states in desktop/mobile and light/dark screenshots with no unexpected layout shift.
 
 ## Task U-03: Unify Navigation Shells
 
-**Depends on:** U-01, U-02, U-05  
+**Depends on:** P-01 approval, U-01, U-02B, U-05
+
 **Files:**
 - Modify: `frontend/components/layout/Header.tsx`
 - Modify: `frontend/components/layout/Sidebar.tsx`
@@ -136,14 +161,15 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - Create: `frontend/lib/use-sidebar-collapse.ts`
 - Create: `frontend/tests/navigation-shells.test.tsx`
 
-- [ ] Test distinct persistence keys, 228/48px desktop states, accessible toggle labels, tooltip/title behavior, keyboard operation, Header `z-40`, and mobile navigation/drawer reachability.
+- [ ] Test distinct persistence keys, the P-01-approved expanded/collapsed desktop widths (228/48px is only the current baseline), accessible toggle labels, tooltip/title behavior, keyboard operation, approved Header stacking, and mobile navigation/drawer reachability.
 - [ ] Extract only collapse-state behavior; keep public, studio, and admin information architectures separate where their navigation models differ.
 - [ ] Replace the admin 220/52px drift and horizontal mobile overflow with the approved mobile navigation pattern.
 - [ ] Verify public/studio/admin screenshots at 375, 768, 1024, and 1440 CSS pixels.
 
 ## Task U-04: Replace Native Destructive Dialogs
 
-**Depends on:** U-01, U-02, U-05  
+**Depends on:** U-02A, U-05
+
 **Files:**
 - Modify: `frontend/app/(protected)/dashboard/contents/page.tsx`
 - Modify: `frontend/app/(protected)/dashboard/contributors/page.tsx`
@@ -160,26 +186,48 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 
 ## Task U-05: Make User-Facing Errors Safe And Consistent
 
-**Depends on:** none  
+**Depends on:** none
+
 **Files:**
 - Modify: `frontend/lib/error-handler.ts`
 - Modify: `frontend/lib/user-facing-error.ts`
 - Modify: `frontend/app/error.tsx`
 - Modify: `frontend/app/(public)/verify-email/page.tsx`
+- Modify: `frontend/app/(protected)/dashboard/pr-requests/page.tsx` (ownership transfers to U-04 after U-05 merges)
 - Modify: `frontend/app/(public)/user/[userId]/UserProfileClient.tsx`
 - Modify: `frontend/components/content/ContentDetail.tsx`
+- Modify: `frontend/components/content/VersionHistory.tsx` (ownership transfers to U-04 after U-05 merges)
+- Modify: `frontend/components/content/DownloadButton.tsx` (ownership transfers to U-11 after U-05 merges)
 - Modify: `frontend/components/feedback/FeedbackForm.tsx`
 - Modify: `frontend/tests/error-handler-i18n.test.ts`
 - Create: `frontend/tests/user-facing-error-surfaces.test.tsx`
 
+- [ ] Re-run the exact raw-error inventory at Task start and update the explicit test allowlist; do not rely on the 2026-07-17 file count.
 - [ ] Write failing tests proving raw backend/exception messages are never rendered, known API codes map to translation keys, and unknown errors use a safe fallback.
 - [ ] Keep expected background/polling failures silent; do not convert every catch into a Toast.
 - [ ] Provide a small reusable mapper/helper only where it reduces duplicated policy. Avoid a wrapper that hides control flow or swallows rejected promises.
-- [ ] Verify error boundary, verify-email, profile, detail, and feedback normal/error paths.
+- [ ] Verify error boundary, verify-email, PR requests, profile, detail, version history, download and feedback normal/error paths.
+
+## Gate P-01: Approve Home Feed And Content Detail Visual Prototype
+
+**Depends on:** U-05, U-02A, U-04
+
+**Production files:** none; use an isolated throwaway prototype so rejected visual directions do not churn production pages.
+
+**Evidence:**
+- Create: `docs/working/2026-07-25-ui-prototype-review.md` (include creation date and expiry)
+- Create: `screenshots/ui-polish/prototype/` evidence
+
+- [ ] Build an isolated prototype for the home Feed and content detail page using real information density and representative cover/content states.
+- [ ] Cover desktop, mobile and dark mode; include navigation context, real cover cards, hover/focus behavior, loading/empty states and reduced-motion behavior.
+- [ ] Present screenshots to the user and iterate until the user explicitly approves one direction. Do not treat an Agent self-review as approval.
+- [ ] Record the approved typography, spacing, radius, border, color, three-tier subtle elevation, card, empty/loading and restrained brand-accent decisions without editing production CSS or components in this gate.
+- [ ] Only after explicit approval, mark P-01 complete and unblock U-01.
 
 ## Task U-06: Correct Detail-Level Loading, Empty, And Icon States
 
-**Depends on:** U-01, U-02, U-05  
+**Depends on:** P-01 approval, U-01, U-02B, U-05
+
 **Files:**
 - Modify: `frontend/app/(protected)/feedback/[feedbackId]/page.tsx`
 - Modify: `frontend/app/(public)/ip/[ipId]/discussions/[discussionId]/page.tsx`
@@ -194,7 +242,8 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 
 ## Task U-07: Standardize Paginated List Surfaces
 
-**Depends on:** U-01, U-02, U-05  
+**Depends on:** P-01 approval, U-01, U-02B, U-05
+
 **Files:**
 - Create: `frontend/components/ui/data-list.tsx`
 - Create: `frontend/tests/data-list.test.tsx`
@@ -214,7 +263,8 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 
 ## Task U-08: Repair Form Accessibility In Remaining Surfaces
 
-**Depends on:** U-01, U-02, U-05  
+**Depends on:** P-01 approval, U-01, U-02B, U-05
+
 **Files:**
 - Modify: `frontend/app/(protected)/settings/tag-groups/page.tsx`
 - Modify: `frontend/app/(protected)/ip/[ipId]/discussions/new/page.tsx`
@@ -233,7 +283,8 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 
 ## Task U-09: Normalize Content And Discovery Visuals
 
-**Depends on:** U-01, U-02, U-05  
+**Depends on:** P-01 approval, U-01, U-02B, U-05
+
 **Files:**
 - Modify: `frontend/components/content/ContentCard.tsx`
 - Modify: `frontend/components/content/ContentSidebar.tsx`
@@ -250,7 +301,8 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 
 ## Task U-10: Align Communication Surfaces And I18n
 
-**Depends on:** U-01, U-02, U-05  
+**Depends on:** P-01 approval, U-01, U-02B, U-03, U-05
+
 **Files:**
 - Modify: `frontend/messages/zh.json`
 - Modify: `frontend/messages/en.json`
@@ -273,7 +325,8 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 
 ## Task U-11: Replace Frontend Reputation Constants With Server Capabilities
 
-**Depends on:** U-01, U-02, U-05, and restored production-readiness coordination inputs  
+**Depends on:** P-01 approval, U-01, U-02B, U-05, and current Production Readiness coordination inputs
+
 **Files:**
 - Modify: `backend/internal/handler/auth.go`
 - Modify: `backend/internal/handler/auth_test.go`
@@ -295,7 +348,8 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 
 ## Task U-12: Add Enforceable UI Governance Gates
 
-**Depends on:** U-01 through U-11  
+**Depends on:** P-01, U-01, U-02A, U-02B, U-03 through U-11
+
 **Files:**
 - Modify: `frontend/package.json`
 - Create: `frontend/scripts/ui-governance/run-all.mjs`
@@ -314,7 +368,7 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 
 ## Definition Of Done
 
-- [ ] U-01 through U-12 are complete, individually reviewed twice, rebased/verified against the current integration base, and represented by one commit each.
+- [ ] P-01 is explicitly approved by the user; U-01, U-02A, U-02B and U-03 through U-12 are complete, verified against the current integration base, and represented by logical light-lane commits.
 - [ ] No native confirm/prompt remains in production TS/TSX code.
 - [ ] No raw backend or exception message is rendered to users in the audited allowlist.
 - [ ] Shared primitives and changed surfaces meet keyboard, focus, accessible-name, error-announcement, and mobile target requirements.
@@ -326,6 +380,7 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 ## Non-Goals
 
 - Do not redesign information architecture, introduce new product features, or change API pagination semantics solely for visual consistency.
+- Do not edit production visual tokens, primitives, navigation shells or page styling before P-01 approval; pre-prototype Tasks are correctness-only.
 - Do not replace generated data-URI placeholder SVGs with icon components.
 - Do not expose the full backend reputation/config object to the browser.
 - Do not create a GitHub Actions path under `frontend/`; the repository-level verifier is the current enforceable integration point.

@@ -27,7 +27,7 @@ CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致
 
 | 优先级 | 计划文件 | 余项 | 车道 | 备注 |
 |--------|----------|------|------|------|
-| 1 | `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md` | U-01~U-05 | light | UI 工程第一阶段；U-06/07/09/10 并入后续视觉精致化计划，U-11/U-12 收尾 |
+| 1 | `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md` | U-05→U-02A→U-04→P-01→U-01→U-02B→U-03 | light | 先修错误安全/可访问性/弹窗；P-01 原型须用户批准；再固化 Token、组件视觉和导航壳层。U-06/07/09/10 并入后续推广，U-11/U-12 收尾 |
 | 2 | `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md` | 65 | heavy | Web 发布路径执行 Ops-00~Ops-08；桌面制品 Ops-09 随桌面范围暂缓，不得复制或绕过桌面安全任务 |
 | 3 | `docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md` | 64 | light | 未开始 |
 | 3 | `docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md` | 62 | light | 未开始 |

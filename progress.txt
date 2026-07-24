@@ -558,3 +558,22 @@
 ### Notes:
 - Keep `features.desktop_deploy_enabled=false` and `client.download_enabled=false` until the user explicitly restores Desktop scope and the deferred heavy-lane security/release gates pass.
 - Per the user's stop condition, no frontend or UI implementation was started.
+
+## [2026-07-25] - Planning: reorder UI correctness and prototype work
+
+### What was done:
+- Reclassified U-01~U-05 by overlap risk: U-04/U-05 are correctness work, U-01/U-03 are visual foundations, and U-02 mixes both.
+- Reordered the active sequence to U-05 → U-02A → U-04 → P-01 → U-01 → U-02B → U-03, with P-01 as an explicit user-approval gate for home Feed and content-detail prototypes.
+- Split U-02 into pre-prototype accessibility/behavior work and post-approval visual primitive work; moved token, elevation and navigation changes behind P-01.
+- Refreshed U-05 ownership to include the currently verified raw-error surfaces and documented sequential ownership transfer to U-04/U-11.
+- Replaced stale Mode D/worktree guidance with the current light-lane branch and logical-commit workflow.
+
+### Testing:
+- Documentation-only planning change; no frontend implementation or application tests were run.
+- `go test ./...` in `tools/doc-validator`: PASS.
+- `go run . --check --profile release` in `tools/doc-validator`: PASS (`All checks passed`).
+- `git diff --check`: PASS; `AGENTS.md` remains below the 20KB limit.
+
+### Notes:
+- No production UI file, design token or page styling was changed.
+- The next executable task is U-05; prototype work starts only after U-05, U-02A and U-04 complete.
