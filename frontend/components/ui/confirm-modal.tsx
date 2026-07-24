@@ -145,6 +145,8 @@ export function ConfirmModal({
               onChange={(e) => setReason(e.target.value)}
               placeholder={effectiveReasonLabel}
               disabled={busy}
+              required={requireReason}
+              aria-required={requireReason}
             />
           </div>
         )}

@@ -1,3 +1,7 @@
+"use client";
+
+import { X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 type TagColor = "blue" | "green" | "purple" | "orange" | "rose" | "sky";
@@ -30,6 +34,10 @@ export function TagBadge({
   onClick,
   onRemove,
 }: TagBadgeProps) {
+  const t = useTranslations();
+  const tagLabel =
+    typeof children === "string" || typeof children === "number" ? String(children) : null;
+
   return (
     <span
       className={cn(
@@ -56,20 +64,16 @@ export function TagBadge({
       {onRemove && (
         <button
           type="button"
-          className="ml-0.5 inline-flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity"
+          className="relative ml-0.5 inline-flex items-center justify-center opacity-60 transition-opacity after:absolute after:-inset-1.5 hover:opacity-100 [@media(pointer:coarse)]:after:-inset-4"
           onClick={(e) => {
             e.stopPropagation();
             onRemove();
           }}
-          aria-label="Remove tag"
+          aria-label={
+            tagLabel ? t("common.removeTag", { tag: tagLabel }) : t("common.removeTagGeneric")
+          }
         >
-          <svg
-            className="h-3 w-3"
-            fill="currentColor"
-            viewBox="0 0 12 12"
-          >
-            <path d="M3.47 3.47a.75.75 0 0 1 1.06 0L6 4.94l1.47-1.47a.75.75 0 1 1 1.06 1.06L7.06 6l1.47 1.47a.75.75 0 1 1-1.06 1.06L6 7.06 4.53 8.53a.75.75 0 0 1-1.06-1.06L4.94 6 3.47 4.53a.75.75 0 0 1 0-1.06Z" />
-          </svg>
+          <X className="h-3 w-3" aria-hidden="true" />
         </button>
       )}
     </span>

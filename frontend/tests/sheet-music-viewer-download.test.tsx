@@ -6,6 +6,7 @@ import { IntlProvider } from "use-intl";
 
 const messages = {
   common: {
+    close: "Close",
     loading: "Loading...",
   },
   content: {

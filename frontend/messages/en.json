@@ -23,6 +23,8 @@
     "search": "Search IPs, content, creators...",
     "noData": "No data",
     "close": "Close",
+    "removeTag": "Remove {tag}",
+    "removeTagGeneric": "Remove tag",
     "processing": "Processing...",
     "enabled": "Enabled",
     "disabled": "Disabled",

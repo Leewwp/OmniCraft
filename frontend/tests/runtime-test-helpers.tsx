@@ -36,12 +36,19 @@ window.cancelAnimationFrame = (handle: number) => window.clearTimeout(handle);
 window.requestIdleCallback = ((callback: IdleRequestCallback) =>
   window.setTimeout(() => callback({ didTimeout: false, timeRemaining: () => 0 }), 0)) as typeof window.requestIdleCallback;
 window.cancelIdleCallback = ((handle: number) => window.clearTimeout(handle)) as typeof window.cancelIdleCallback;
+Object.defineProperty(globalThis, "requestAnimationFrame", {
+  configurable: true,
+  value: window.requestAnimationFrame.bind(window),
+});
+Object.defineProperty(globalThis, "cancelAnimationFrame", {
+  configurable: true,
+  value: window.cancelAnimationFrame.bind(window),
+});
 
 // Load testing-library after the DOM globals exist so React attaches event handling to JSDOM.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const testingLibrary = require("@testing-library/react") as typeof import("@testing-library/react");
-export const { act, cleanup, fireEvent, waitFor } = testingLibrary;
-const { render } = testingLibrary;
+export const { act, cleanup, fireEvent, render, waitFor } = testingLibrary;
 
 export const testMessages = {
   auth: {
@@ -136,6 +143,11 @@ export const testMessages = {
     uploadFailed: "Upload failed",
   },
   common: {
+    close: "Close",
+    confirm: "Confirm",
+    reason: "Reason",
+    removeTag: "Remove {tag}",
+    removeTagGeneric: "Remove tag",
     processing: "Processing",
     operationFailed: "Operation failed",
     rateLimited: "Rate limited",

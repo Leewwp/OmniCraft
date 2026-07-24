@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { X, CheckCircle, AlertTriangle, Info, AlertCircle } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 type ToastType = "success" | "error" | "warning" | "info";
@@ -53,6 +54,7 @@ const TOAST_DURATION = 4000;
 const EXIT_ANIMATION_MS = 300;
 
 function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: number) => void }) {
+  const t = useTranslations();
   const [visible, setVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -72,9 +74,12 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: number) =
   }, [toast.id, onRemove]);
 
   const Icon = iconMap[toast.type];
+  const assertive = toast.type === "error" || toast.type === "warning";
 
   return (
     <div
+      role={assertive ? "alert" : "status"}
+      aria-live={assertive ? "assertive" : "polite"}
       className={cn(
         "flex w-full max-w-sm items-start gap-3 rounded-md border p-3 shadow-md transition-all duration-300",
         colorMap[toast.type],
@@ -84,11 +89,13 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: number) =
       <Icon className={cn("h-5 w-5 shrink-0 mt-0.5", iconColorMap[toast.type])} />
       <p className="flex-1 text-sm text-foreground">{toast.message}</p>
       <button
+        type="button"
+        aria-label={t("common.close")}
         onClick={() => {
           setVisible(false);
           setTimeout(() => onRemove(toast.id), EXIT_ANIMATION_MS);
         }}
-        className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+        className="inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground [@media(pointer:coarse)]:size-11"
       >
         <X className="h-4 w-4" />
       </button>
@@ -113,7 +120,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       {/* Fixed toast container - top right */}
       <div
-        aria-live="polite"
         className="fixed right-4 top-4 z-[100] flex flex-col gap-2"
       >
         {toasts.map((t) => (

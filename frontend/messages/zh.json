@@ -22,6 +22,8 @@
     "search": "搜索 IP、内容、创作者...",
     "noData": "暂无数据",
     "close": "关闭",
+    "removeTag": "移除{tag}",
+    "removeTagGeneric": "移除标签",
     "processing": "处理中...",
     "enabled": "启用",
     "disabled": "禁用",

@@ -96,7 +96,7 @@ function seriesResponse(options: { itemCount: number; items?: unknown[] }) {
 }
 
 const messages = {
-  common: { retry: "Retry" },
+  common: { close: "Close", retry: "Retry" },
   series: {
     detail: {
       header: { zoneOriginal: "Original", zoneFanwork: "Fanwork", itemCount: "{count} items", owner: "By {username}" },

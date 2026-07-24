@@ -296,6 +296,7 @@ function validAccessToken() {
 
 const messages = {
   common: {
+    close: "Close",
     cancel: "Cancel",
     confirm: "Confirm",
     processing: "Processing",
