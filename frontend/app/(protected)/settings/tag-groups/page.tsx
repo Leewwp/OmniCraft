@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,7 @@ export default function TagGroupsPage() {
       setGroups(res.tag_groups ?? []);
     } catch (e) {
       silentError(e, { component: 'TagGroupsPage', action: 'loadGroups' });
-      setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
+      setError(t(getUserFacingErrorKey(e, "common.loadFailed")));
     } finally {
       setLoading(false);
     }
@@ -109,7 +110,7 @@ export default function TagGroupsPage() {
       await loadGroups();
     } catch (e) {
       silentError(e, { component: 'TagGroupsPage', action: 'handleSave' });
-      setModalError(e instanceof ApiRequestError ? e.message : t("common.saveFailed"));
+      setModalError(t(getUserFacingErrorKey(e, "common.saveFailed")));
     } finally {
       setModalBusy(false);
     }
@@ -123,7 +124,7 @@ export default function TagGroupsPage() {
       await loadGroups();
     } catch (e) {
       silentError(e, { component: 'TagGroupsPage', action: 'handleDelete' });
-      setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+      setError(t(getUserFacingErrorKey(e)));
     } finally {
       setBusy(false);
     }

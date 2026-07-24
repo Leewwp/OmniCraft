@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { Button } from "@/components/ui/button";
 import { silentError } from "@/lib/error-handler";
 
@@ -31,7 +32,7 @@ export default function NewDiscussionPage() {
       else router.push(`/ip/${ipId}/discussions`);
     } catch (e) {
       silentError(e, { component: 'NewDiscussionPage', action: 'handleSubmit' });
-      setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+      setError(t(getUserFacingErrorKey(e)));
     } finally {
       setBusy(false);
     }

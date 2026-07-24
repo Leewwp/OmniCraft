@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -62,7 +63,7 @@ export default function AdminReportsPage() {
       setTotal(data.total || 0);
     } catch (e) {
       silentError(e, { component: "AdminReportsPage", action: "loadReports" });
-      setError(e instanceof ApiRequestError ? e.message : t("admin.reports.loadFailed"));
+      setError(t(getUserFacingErrorKey(e, "admin.reports.loadFailed")));
     } finally {
       setLoading(false);
     }

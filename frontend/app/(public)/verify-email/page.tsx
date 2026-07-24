@@ -4,8 +4,9 @@ import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { Loader2 } from "lucide-react";
 
 function VerifyEmailContent() {
@@ -30,7 +31,7 @@ function VerifyEmailContent() {
         setSuccess(true);
       } catch (err) {
         silentError(err, { component: "VerifyEmailPage", action: "autoVerify" });
-        setError(err instanceof ApiRequestError ? err.message : t("common.operationFailed"));
+        setError(t(getUserFacingErrorKey(err, "auth.verifyEmailFailed")));
       } finally {
         setIsLoading(false);
       }

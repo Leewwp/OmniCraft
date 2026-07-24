@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { ListOrdered, AlertTriangle } from "lucide-react";
 
@@ -46,7 +47,7 @@ export default function AdminQueuePage() {
       if (dlqData) setDlqEntries(dlqData.entries || []);
     } catch (e) {
       silentError(e, { component: "AdminQueuePage", action: "loadData" });
-      setError(e instanceof ApiRequestError ? e.message : t("admin.queue.loadFailed"));
+      setError(t(getUserFacingErrorKey(e, "admin.queue.loadFailed")));
     } finally {
       setLoading(false);
     }

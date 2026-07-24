@@ -577,3 +577,19 @@
 ### Notes:
 - No production UI file, design token or page styling was changed.
 - The next executable task is U-05; prototype work starts only after U-05, U-02A and U-04 complete.
+
+## [2026-07-25] - Task U-05: Make user-facing errors safe and consistent
+
+### What was done:
+- Re-ran the raw-error inventory and expanded the explicit regression allowlist from the 8 planned paths to all 35 confirmed user-facing surfaces.
+- Replaced direct backend/exception message rendering with localized keys from `getUserFacingErrorKey`, preserving operation-specific fallbacks and existing silent logging/control flow.
+- Made the global error boundary always render its localized generic description instead of `error.message`.
+
+### Testing:
+- Confirmed red tests for a rendered credential-bearing exception and all 27 additional raw `ApiRequestError.message` surfaces, then passed `frontend/tests/user-facing-error-surfaces.test.tsx` (3/3).
+- `npm.cmd test`: PASS (105 tests); `npm.cmd run lint`: PASS; `npm.cmd run build`: PASS.
+- Headless Chrome verified mocked verify-email success and unknown 500 error paths on the current branch; the raw database-style message was absent. Screenshot: `screenshots/ui-polish/u-05/verify-email-safe-error.png`.
+
+### Notes:
+- No new Toasts, visual tokens, layout, typography, palette, radius, shadow, or page composition changes were introduced.
+- The running Docker frontend used an older image, so browser evidence was captured against a temporary current-worktree Next server on port 3001; the server was stopped after verification.

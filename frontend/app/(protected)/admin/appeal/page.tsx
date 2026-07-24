@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -47,7 +48,7 @@ export default function AdminAppealPage() {
       setTotal(data.total || 0);
     } catch (e) {
       silentError(e, { component: 'AdminAppealPage', action: 'loadAppeals' });
-      setError(e instanceof ApiRequestError ? e.message : t('admin.appeals.loadFailed'));
+      setError(t(getUserFacingErrorKey(e, "admin.appeals.loadFailed")));
     } finally {
       setLoading(false);
     }
@@ -69,7 +70,7 @@ export default function AdminAppealPage() {
       setTotal((t) => t - 1);
     } catch (e) {
       silentError(e, { component: 'AdminAppealPage', action: 'resolveAppeal' });
-      setError(e instanceof ApiRequestError ? e.message : t('admin.appeals.processFailed'));
+      setError(t(getUserFacingErrorKey(e, "admin.appeals.processFailed")));
     } finally {
       setBusy(false);
     }

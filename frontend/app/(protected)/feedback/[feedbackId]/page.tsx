@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -59,7 +60,7 @@ export default function FeedbackDetailPage() {
         setTicket(res);
       } catch (e) {
         silentError(e, { component: "FeedbackDetailPage", action: "load" });
-        setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+        setError(t(getUserFacingErrorKey(e)));
       } finally {
         setLoading(false);
       }

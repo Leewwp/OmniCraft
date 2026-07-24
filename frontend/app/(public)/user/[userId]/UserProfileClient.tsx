@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { ContentCardData } from "@/components/content/ContentCard";
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/social/FollowButton";
 import { normalizeContentList } from "@/lib/content";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { useTranslations } from 'next-intl';
 import { silentError } from "@/lib/error-handler";
 
@@ -52,7 +53,7 @@ export function UserProfileClient({ userId, displayName }: UserProfileClientProp
       setItems(tab === "discussions" ? raw as unknown as ContentCardData[] : normalizeContentList(raw));
     } catch (e) {
       silentError(e, { component: 'UserProfileClient', action: 'loadTab' });
-      setError(e instanceof ApiRequestError ? e.message : t('common.loadFailed'));
+      setError(t(getUserFacingErrorKey(e, "common.loadFailed")));
     } finally {
       setLoading(false);
     }

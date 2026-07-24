@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -60,7 +61,7 @@ export default function JudgeExamPage() {
       setAnswers({});
     } catch (e) {
       silentError(e, { component: 'JudgeExamPage', action: 'loadQuestions' });
-      setError(e instanceof ApiRequestError ? e.message : t('judge.examLoadFailed'));
+      setError(t(getUserFacingErrorKey(e, "judge.examLoadFailed")));
     } finally {
       setLoading(false);
     }
@@ -102,7 +103,7 @@ export default function JudgeExamPage() {
       setPhase("result");
     } catch (e) {
       silentError(e, { component: 'JudgeExamPage', action: 'submitExam' });
-      setError(e instanceof ApiRequestError ? e.message : t('judge.examSubmitFailed'));
+      setError(t(getUserFacingErrorKey(e, "judge.examSubmitFailed")));
     } finally {
       setLoading(false);
     }

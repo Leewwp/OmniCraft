@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { Button } from "@/components/ui/button";
@@ -41,7 +42,7 @@ export default function TagSuggestionsPage() {
       setSuggestions(res.suggestions ?? []);
     } catch (e) {
       silentError(e, { component: 'TagSuggestionsPage', action: 'loadSuggestions' });
-      setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
+      setError(t(getUserFacingErrorKey(e, "common.loadFailed")));
     }
   }, [contentId, t]);
 
@@ -57,7 +58,7 @@ export default function TagSuggestionsPage() {
       await loadSuggestions();
     } catch (e) {
       silentError(e, { component: 'TagSuggestionsPage', action: 'handleUpdate' });
-      setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+      setError(t(getUserFacingErrorKey(e)));
     } finally {
       setBusyId(null);
     }

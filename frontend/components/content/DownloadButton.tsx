@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { api, ApiRequestError } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 
 interface DownloadButtonProps {
   className?: string;
@@ -61,7 +62,7 @@ export function DownloadButton({
           window.location.href = "/login";
           return;
         }
-        toast("error", err.message);
+        toast("error", t(getUserFacingErrorKey(err, "content.downloadFailed")));
       } else {
         toast("error", t("content.downloadFailed"));
       }

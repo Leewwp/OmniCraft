@@ -7,7 +7,8 @@ import { Heart, ExternalLink, Plus } from "lucide-react";
 function isValidHttpUrl(val: string) {
   return !val || /^https?:\/\/.+/.test(val);
 }
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -51,7 +52,7 @@ export function CreatorSupportPanel({ supportInfo, isOwner, className }: Creator
       });
       setSuccess(t("common.saveSuccess"));
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : t("common.saveFailed"));
+      setError(t(getUserFacingErrorKey(e, "common.saveFailed")));
       silentError(e, { component: 'CreatorSupportPanel', action: 'handleSave' });
     } finally {
       setBusy(false);

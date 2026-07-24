@@ -7,8 +7,9 @@ import { DiffViewer } from "@/components/pr/DiffViewer";
 import { MergeEditor } from "@/components/pr/MergeEditor";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 
 interface ContentItem {
   id: number;
@@ -59,11 +60,7 @@ export default function PRRequestsPage() {
         setPRs(allPRs.flat().sort((a, b) => b.id - a.id));
       } catch (e) {
         silentError(e, { component: 'PRRequestsPage', action: 'loadPRs' });
-        if (e instanceof ApiRequestError) {
-          setError(`${e.code}: ${e.message}`);
-        } else {
-          setError(t('dashboard.pr.loadFailed'));
-        }
+        setError(t(getUserFacingErrorKey(e, "dashboard.pr.loadFailed")));
       }
     })();
   }, [user, t]);
@@ -89,11 +86,7 @@ export default function PRRequestsPage() {
       setMergeText(right || left);
     } catch (e) {
       silentError(e, { component: 'PRRequestsPage', action: 'loadPRDetail' });
-      if (e instanceof ApiRequestError) {
-        setError(`${e.code}: ${e.message}`);
-      } else {
-        setError(t('dashboard.pr.loadDetailFailed'));
-      }
+      setError(t(getUserFacingErrorKey(e, "dashboard.pr.loadDetailFailed")));
     } finally {
       setBusy(false);
     }
@@ -115,11 +108,7 @@ export default function PRRequestsPage() {
       }
     } catch (e) {
       silentError(e, { component: 'PRRequestsPage', action: 'acceptPR' });
-      if (e instanceof ApiRequestError) {
-        setError(`${e.code}: ${e.message}`);
-      } else {
-        setError(t('dashboard.pr.acceptFailed'));
-      }
+      setError(t(getUserFacingErrorKey(e, "dashboard.pr.acceptFailed")));
     } finally {
       setBusy(false);
     }
@@ -146,11 +135,7 @@ export default function PRRequestsPage() {
       }
     } catch (e) {
       silentError(e, { component: 'PRRequestsPage', action: 'rejectPR' });
-      if (e instanceof ApiRequestError) {
-        setError(`${e.code}: ${e.message}`);
-      } else {
-        setError(t('dashboard.pr.rejectFailed'));
-      }
+      setError(t(getUserFacingErrorKey(e, "dashboard.pr.rejectFailed")));
     } finally {
       setBusy(false);
     }

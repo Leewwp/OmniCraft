@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import Link from "next/link";
 import { Inbox, MessageSquare, ChevronRight } from "lucide-react";
@@ -38,7 +39,7 @@ export default function FeedbackMinePage() {
         setTotal(res.total);
       } catch (e) {
         silentError(e, { component: "FeedbackMinePage", action: "load" });
-        setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+        setError(t(getUserFacingErrorKey(e)));
       } finally {
         setLoading(false);
       }

@@ -2,8 +2,9 @@
 
 import { useTranslations, useLocale } from "next-intl";
 import { useEffect, useState } from "react";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
@@ -48,7 +49,7 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
       const data = await api.get<{ versions?: Version[] }>(`/api/v1/contents/${contentId}/versions`);
       setVersions(data.versions || []);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? `${e.code}: ${e.message}` : t('content.versionLoadFailed'));
+      setError(t(getUserFacingErrorKey(e, "content.versionLoadFailed")));
       silentError(e, { component: 'VersionHistory', action: 'loadVersions' });
     } finally {
       setLoading(false);

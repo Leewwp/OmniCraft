@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -43,7 +44,7 @@ export default function AdminUsersPage() {
       setTotal(data.total || 0);
     } catch (e) {
       silentError(e, { component: 'AdminUsersPage', action: 'loadUsers' });
-      setError(e instanceof ApiRequestError ? e.message : t('admin.users.loadFailed'));
+      setError(t(getUserFacingErrorKey(e, "admin.users.loadFailed")));
     } finally {
       setLoading(false);
     }
@@ -63,7 +64,7 @@ export default function AdminUsersPage() {
       );
     } catch (e) {
       silentError(e, { component: 'AdminUsersPage', action: 'banUser' });
-      setError(e instanceof ApiRequestError ? e.message : t('admin.users.banFailed'));
+      setError(t(getUserFacingErrorKey(e, "admin.users.banFailed")));
     } finally {
       setBusy(false);
     }
@@ -79,7 +80,7 @@ export default function AdminUsersPage() {
       );
     } catch (e) {
       silentError(e, { component: 'AdminUsersPage', action: 'unbanUser' });
-      setError(e instanceof ApiRequestError ? e.message : t('admin.users.unbanFailed'));
+      setError(t(getUserFacingErrorKey(e, "admin.users.unbanFailed")));
     } finally {
       setBusy(false);
     }

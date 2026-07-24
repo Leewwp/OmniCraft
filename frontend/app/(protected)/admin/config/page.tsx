@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -81,7 +82,7 @@ export default function AdminConfigPage() {
         }
       } catch (e) {
         silentError(e, { component: 'AdminConfigPage', action: 'loadConfig' });
-        setError(e instanceof ApiRequestError ? e.message : t('admin.config.loadFailed'));
+        setError(t(getUserFacingErrorKey(e, "admin.config.loadFailed")));
       } finally {
         setLoading(false);
       }
@@ -108,7 +109,7 @@ export default function AdminConfigPage() {
       setTimeout(() => setSaved(false), 3000);
     } catch (e) {
       silentError(e, { component: 'AdminConfigPage', action: 'saveConfig' });
-      setError(e instanceof ApiRequestError ? e.message : t('admin.config.saveFailed'));
+      setError(t(getUserFacingErrorKey(e, "admin.config.saveFailed")));
     } finally {
       setSaving(false);
     }
