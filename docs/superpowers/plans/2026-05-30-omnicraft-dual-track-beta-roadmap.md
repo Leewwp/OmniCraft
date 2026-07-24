@@ -1,5 +1,7 @@
 # OmniCraft Dual-Track Beta Roadmap
 
+> **2026-07-25 Web-only scope decision:** The Web Beta queue is complete through R-01. Remaining D-02 through D-05 and R-02 rows are intentionally deferred and stay unchecked. This roadmap is not an active task source until the user restores Desktop scope and re-registers it in `AGENTS.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Turn the dual-track Beta design into a dependency-aware execution queue without mixing new Beta work into the historical `task.json`.

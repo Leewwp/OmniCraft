@@ -1,5 +1,7 @@
 # OmniCraft Beta Release Validation Implementation Plan
 
+> **2026-07-25 Web-only scope decision:** R-01 remains complete. R-02 is intentionally deferred with all five steps unchecked because the interview release will neither implement nor advertise Desktop deployment. This plan is not an active task source until the user restores Desktop scope and re-registers it in `AGENTS.md`; keep `features.desktop_deploy_enabled=false` and do not fabricate release evidence while deferred.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Prove the Web Beta and optional desktop deploy track meet their frozen release gates with reproducible evidence.
