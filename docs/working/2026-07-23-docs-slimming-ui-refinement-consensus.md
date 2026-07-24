@@ -49,10 +49,17 @@
 |------|------|------|
 | 0 | 清场：遗产批次验证提交（5 commit）、worktree/分支清零 | ✅ 2026-07-23 完成 |
 | 1 | 文档瘦身（本备忘三、四、五节全部落地） | ✅ 2026-07-23 完成，已合入 main |
-| 2 | 近完成项清零（light 车道） | ✅ 2026-07-24 可执行项完成；R-02 依赖 Desktop D-02~D-05 继续阻塞 |
+| 2 | 近完成项清零（light 车道） | ✅ 2026-07-25 按 Web-only 范围收官；R-02 与 Desktop D-02~D-05 转为明确暂缓 |
 | 3 | UI 工程：U-01~U-05 地基 → 首页/详情页视觉样板（评审门）→ 分批推广 | ⬜ 待开始 |
-| 4+ | Production Readiness → 社区剩余 → Web Agent → Desktop 安全 | ⬜ 未排期 |
+| 4+ | Production Readiness（Ops-00~Ops-08）→ 社区剩余 → Web Agent | ⬜ 未排期；Desktop 安全与 Ops-09 暂缓 |
 
 **阶段 1 验收数据**：常驻上下文 ~420KB → 51.7KB；doc-validator 双 profile 全绿；工作成果已记入 progress.txt（2026-07-23 条目）。
-**阶段 2 验收数据**：Beta 子系统与卓越加固完成核验归档；消息通知 Task 9 持久化广播幂等通过聚合验证门与真实浏览器重放；R-02 因 Desktop D-02~D-05 和真实发布输入缺失保持阻塞，未制造模拟发布证据。
-**未推送**：本地 main/阶段分支仍领先 origin/main，推送时机由用户决定。
+**阶段 2 验收数据**：Beta 子系统与卓越加固完成核验归档；消息通知 Task 9 持久化广播幂等通过聚合验证门与真实浏览器重放；R-02 与 Desktop D-02~D-05 保留未勾选状态并移出当前任务来源，未制造模拟发布证据。
+
+## 八、2026-07-25 Web-only 范围调整
+
+- **目标**：项目优先服务面试展示，在时间有限的前提下只推进 Web 开发与部署；不实现、不发布、不宣传桌面/Tauri 能力。
+- **计划处置**：Beta release validation（仅余 R-02）、Desktop deploy security（仅余 D-02~D-05）和 Dual-track roadmap（仅余桌面链路）移出活计划注册表，但保留原文件与未勾选项，避免将暂缓误记为完成。
+- **安全边界**：持续保持 `features.desktop_deploy_enabled=false`、`client.download_enabled=false`；Production Readiness 只执行 Ops-00~Ops-08，Ops-09 随桌面范围暂缓。
+- **恢复条件**：用户明确恢复桌面范围后，将三份计划重新登记到 `AGENTS.md`，并按 D-02 → D-03 → D-04 → D-05 → R-02 → Ops-09 顺序使用 heavy 车道执行。
+- **当前下一项**：活计划最高优先级变为 UI Polish U-01~U-05，属于前端/UI 工作。

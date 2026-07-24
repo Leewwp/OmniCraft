@@ -540,3 +540,21 @@
 
 ### Notes:
 - The large frontend `captcha_verify_param` payload is expected for Aliyun CAPTCHA 2.0 because it includes device and risk-analysis data; it should be forwarded unchanged.
+
+## [2026-07-25] - Planning: defer Desktop and focus the interview release on Web
+
+### What was done:
+- Recorded the user's decision to pause all Desktop/Tauri implementation and advertising while prioritizing Web development and deployment for the interview showcase.
+- Removed Beta R-02, Desktop D-02~D-05 and the remaining Dual-track desktop queue from the selectable active-plan registry without checking or deleting any unfinished step.
+- Kept the three source plans in place with explicit reversible deferral notes and documented that Production Readiness Ops-09 is deferred while Ops-00~Ops-08 remains in Web scope.
+- Renumbered the active Web backlog; UI Polish U-01~U-05 is now the highest-priority runnable plan.
+
+### Testing:
+- Documentation-only governance change; no application code tests required.
+- `go test ./...` in `tools/doc-validator`: PASS.
+- `go run . --check --profile release` in `tools/doc-validator`: PASS (`All checks passed`).
+- Verified `backend/config.yaml` keeps both `features.desktop_deploy_enabled` and `client.download_enabled` set to `false`.
+
+### Notes:
+- Keep `features.desktop_deploy_enabled=false` and `client.download_enabled=false` until the user explicitly restores Desktop scope and the deferred heavy-lane security/release gates pass.
+- Per the user's stop condition, no frontend or UI implementation was started.

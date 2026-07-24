@@ -1,5 +1,7 @@
 # OmniCraft Desktop Deploy Security Implementation Plan
 
+> **2026-07-25 Web-only scope decision:** D-01 remains complete as the Web Beta safety gate. D-02 through D-05 are intentionally deferred with all remaining steps unchecked; this plan is not an active task source until the user restores Desktop scope and re-registers it in `AGENTS.md`. While deferred, keep `features.desktop_deploy_enabled=false` and `client.download_enabled=false`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the unsafe desktop one-click deployment prototype with a short-lived grant and Ed25519-verified execution pipeline.

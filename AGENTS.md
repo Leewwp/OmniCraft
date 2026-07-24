@@ -23,18 +23,27 @@ CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致
 
 ## 活计划注册表（任务的唯一来源）
 
-所有待办工作登记在下表。会话开始先查此表，选择**优先级最高且依赖已满足**的计划执行；用户明确指定任务时以用户指定为准。计划完成后从表中移除并归档该计划文件到 `docs/archive/plans/`。
+当前 Web-only 范围内的待办工作登记在下表。会话开始先查此表，选择**优先级最高且依赖已满足**的计划执行；用户明确指定任务时以用户指定为准。计划完成后从表中移除并归档该计划文件到 `docs/archive/plans/`。
 
 | 优先级 | 计划文件 | 余项 | 车道 | 备注 |
 |--------|----------|------|------|------|
-| 1 | `docs/superpowers/plans/2026-05-30-omnicraft-beta-release-validation.md` | 5 | light | R-02 阻塞：依赖 Desktop D-02~D-05（优先级 6，heavy）完成 |
-| 2 | `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md` | U-01~U-05 | light | UI 工程第一阶段；U-06/07/09/10 并入后续视觉精致化计划，U-11/U-12 收尾 |
-| 3 | `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md` | 65 | heavy | 发布路径；Ops-09 不得复制或绕过桌面安全任务 |
-| 4 | `docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md` | 64 | light | 未开始 |
-| 4 | `docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md` | 62 | light | 未开始 |
-| 5 | `docs/superpowers/plans/2026-07-16-omnicraft-web-agent-productization.md` | 47 | mixed | 未开始；真实 Provider 密钥缺失时按阻塞处理，仓库默认开关保持关闭 |
-| 6 | `docs/superpowers/plans/2026-05-30-omnicraft-beta-desktop-deploy-security.md` | 28 | heavy | 阻塞 Tauri 发布；D-02~D-05 完成前 `features.desktop_deploy_enabled` 保持 false，R-02 验证前不得发布生产 |
-| 7 | `docs/superpowers/plans/2026-05-30-omnicraft-dual-track-beta-roadmap.md` | 10 | mixed | 零散项，随车道捎带 |
+| 1 | `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md` | U-01~U-05 | light | UI 工程第一阶段；U-06/07/09/10 并入后续视觉精致化计划，U-11/U-12 收尾 |
+| 2 | `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md` | 65 | heavy | Web 发布路径执行 Ops-00~Ops-08；桌面制品 Ops-09 随桌面范围暂缓，不得复制或绕过桌面安全任务 |
+| 3 | `docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md` | 64 | light | 未开始 |
+| 3 | `docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md` | 62 | light | 未开始 |
+| 4 | `docs/superpowers/plans/2026-07-16-omnicraft-web-agent-productization.md` | 47 | mixed | 未开始；真实 Provider 密钥缺失时按阻塞处理，仓库默认开关保持关闭 |
+
+### 暂缓计划（不是当前任务来源）
+
+2026-07-25 用户决定面试展示阶段只推进 Web 开发与部署，暂不实现或宣传桌面能力。以下计划保留原路径和未勾选状态，只有用户明确恢复桌面范围并将其重新登记到上方活计划注册表后才能执行：
+
+| 计划文件 | 暂缓余项 | 恢复条件 |
+|----------|----------|----------|
+| `docs/superpowers/plans/2026-05-30-omnicraft-beta-release-validation.md` | R-02（5 steps） | D-02~D-05 完成，且具备真实 Ed25519、HTTPS API 与签名分发输入 |
+| `docs/superpowers/plans/2026-05-30-omnicraft-beta-desktop-deploy-security.md` | D-02~D-05（28 steps） | 用户明确恢复桌面开发；使用 heavy 车道逐任务执行 |
+| `docs/superpowers/plans/2026-05-30-omnicraft-dual-track-beta-roadmap.md` | D-02~D-05、R-02 及跟踪项 | 上述两份计划恢复时一并恢复 |
+
+暂缓期间必须保持 `features.desktop_deploy_enabled=false` 和 `client.download_enabled=false`；不得勾选上述余项，不得将桌面能力写入 Web-only 发布声明。Production Readiness 的 Ops-09 同样暂缓，但 Ops-00~Ops-08 仍属 Web 发布范围。
 
 历史 `task.json` 模式已废弃：账本 100+ 任务全部完成并归档，不再作为任务来源。
 
