@@ -54,7 +54,7 @@ frontend/out/
 frontend/.turbo/
 
 # Misplaced skill directories
-Users*
+/Users*/
 
 # Screenshots and browser automation artifacts
 screenshots/
