@@ -304,7 +304,7 @@ docker compose up -d postgres redis
 
 ## 8. 计划一：Messages And Notifications
 
-计划文件：`docs/superpowers/plans/2026-06-30-omnicraft-community-messages-notifications.md`
+计划文件：`docs/archive/plans/2026-06-30-omnicraft-community-messages-notifications.md`
 
 **完成状态**：已完成，commit `f9f536d`（`Community messages-notifications: completed`）。
 

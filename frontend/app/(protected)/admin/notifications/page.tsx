@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
@@ -17,6 +17,7 @@ interface BroadcastResponse {
   data: {
     recipient_count: number;
     broadcast_at: string;
+    replayed: boolean;
   };
 }
 
@@ -30,6 +31,10 @@ export default function AdminNotificationsPage() {
   const [bodyTouched, setBodyTouched] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  // Idempotency key bound to the exact draft. Generated when the confirmation
+  // dialog opens, reused across retries of the unchanged draft, and rotated
+  // after success or whenever the title/body changes.
+  const idempotencyRef = useRef<{ key: string; title: string; body: string } | null>(null);
 
   const validation = useMemo(() => {
     const next: { title?: string; body?: string } = {};
@@ -60,17 +65,27 @@ export default function AdminNotificationsPage() {
     setTitleTouched(true);
     setBodyTouched(true);
     if (!isValid || sending) return;
+    const draft = idempotencyRef.current;
+    if (!draft || draft.title !== trimmedTitle || draft.body !== trimmedBody) {
+      idempotencyRef.current = { key: globalThis.crypto.randomUUID(), title: trimmedTitle, body: trimmedBody };
+    }
     setConfirmOpen(true);
   }
 
   async function handleConfirm() {
     setSending(true);
+    const key = idempotencyRef.current?.key ?? globalThis.crypto.randomUUID();
     try {
-      const response = await api.post<BroadcastResponse>("/api/v1/admin/notifications/broadcast", {
-        title: trimmedTitle,
-        body: trimmedBody,
-        channel: "broadcast",
-      });
+      const response = await api.post<BroadcastResponse>(
+        "/api/v1/admin/notifications/broadcast",
+        {
+          title: trimmedTitle,
+          body: trimmedBody,
+          channel: "broadcast",
+        },
+        { headers: { "Idempotency-Key": key } },
+      );
+      idempotencyRef.current = null;
       toast(
         "success",
         t("toast.success", {

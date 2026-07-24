@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/repository"
+	"omnicraft/backend/internal/testutil"
 )
 
 func TestBroadcastSystemNotificationCreatesOneNotificationPerActiveUser(t *testing.T) {
@@ -23,12 +25,13 @@ func TestBroadcastSystemNotificationCreatesOneNotificationPerActiveUser(t *testi
 	activeOne := createBroadcastUser(t, db, "active-one", false, nil)
 	activeTwo := createBroadcastUser(t, db, "active-two", false, nil)
 
-	recipientCount, broadcastAt, err := svc.BroadcastSystemNotification(
+	recipientCount, broadcastAt, _, err := svc.BroadcastSystemNotification(
 		context.Background(),
 		"  Maintenance notice  ",
 		"  We will be offline briefly.  ",
 		"",
 		9001,
+		"broadcast-idem-key",
 	)
 
 	require.NoError(t, err)
@@ -62,12 +65,13 @@ func TestBroadcastSystemNotificationSkipsBannedAndDeletedUsers(t *testing.T) {
 	deletedAt := time.Now().UTC()
 	createBroadcastUser(t, db, "deleted", false, &deletedAt)
 
-	recipientCount, _, err := svc.BroadcastSystemNotification(
+	recipientCount, _, _, err := svc.BroadcastSystemNotification(
 		context.Background(),
 		"Status update",
 		"Only active users should receive this.",
 		"broadcast",
 		9001,
+		"broadcast-idem-key",
 	)
 
 	require.NoError(t, err)
@@ -93,12 +97,13 @@ func TestBroadcastSystemNotificationUsesBatchSize500(t *testing.T) {
 		batchSizes = append(batchSizes, tx.Statement.ReflectValue.Len())
 	}))
 
-	recipientCount, _, err := svc.BroadcastSystemNotification(
+	recipientCount, _, _, err := svc.BroadcastSystemNotification(
 		context.Background(),
 		"Batch notice",
 		"Batch size should be fixed at 500.",
 		"broadcast",
 		9001,
+		"broadcast-idem-key",
 	)
 
 	require.NoError(t, err)
@@ -111,12 +116,13 @@ func TestBroadcastSystemNotificationAuditMetadataDoesNotStoreFullBody(t *testing
 	createBroadcastUser(t, db, "active", false, nil)
 
 	fullBody := "Do not store this **Markdown** body or its https://example.com/private link."
-	recipientCount, broadcastAt, err := svc.BroadcastSystemNotification(
+	recipientCount, broadcastAt, _, err := svc.BroadcastSystemNotification(
 		context.Background(),
 		"   ",
 		fullBody,
 		"broadcast",
 		9001,
+		"broadcast-idem-key",
 	)
 
 	require.Error(t, err)
@@ -143,18 +149,22 @@ func TestBroadcastSystemNotificationSuccessAuditFailureRollsBackNotifications(t 
 	createBroadcastUser(t, db, "active-two", false, nil)
 	installBroadcastAuditFailureTrigger(t, db, "success")
 
-	recipientCount, broadcastAt, err := svc.BroadcastSystemNotification(
+	recipientCount, broadcastAt, _, err := svc.BroadcastSystemNotification(
 		context.Background(),
 		"Audit failure",
 		"Success audit failure must not leave recipient notifications behind.",
 		"broadcast",
 		9001,
+		"broadcast-idem-key",
 	)
 
 	require.Error(t, err)
 	require.Equal(t, 0, recipientCount)
 	require.True(t, broadcastAt.IsZero())
 	require.Equal(t, int64(0), countBroadcastNotifications(t, db))
+	var requestRows int64
+	require.NoError(t, db.Model(&model.NotificationBroadcastRequest{}).Count(&requestRows).Error)
+	require.Equal(t, int64(0), requestRows)
 }
 
 func TestBroadcastSystemNotificationValidationErrorSurvivesRejectedAuditFailure(t *testing.T) {
@@ -162,12 +172,13 @@ func TestBroadcastSystemNotificationValidationErrorSurvivesRejectedAuditFailure(
 	createBroadcastUser(t, db, "active", false, nil)
 	installBroadcastAuditFailureTrigger(t, db, "rejected")
 
-	recipientCount, broadcastAt, err := svc.BroadcastSystemNotification(
+	recipientCount, broadcastAt, _, err := svc.BroadcastSystemNotification(
 		context.Background(),
 		" ",
 		"Body is valid but title is not.",
 		"broadcast",
 		9001,
+		"broadcast-idem-key",
 	)
 
 	require.Error(t, err)
@@ -175,6 +186,9 @@ func TestBroadcastSystemNotificationValidationErrorSurvivesRejectedAuditFailure(
 	require.Equal(t, 0, recipientCount)
 	require.True(t, broadcastAt.IsZero())
 	require.Equal(t, int64(0), countBroadcastNotifications(t, db))
+	var requestRows int64
+	require.NoError(t, db.Model(&model.NotificationBroadcastRequest{}).Count(&requestRows).Error)
+	require.Equal(t, int64(0), requestRows)
 }
 
 func TestBroadcastSystemNotificationInsertFailureRollsBackFirstBatchAndWritesFailedAudit(t *testing.T) {
@@ -188,12 +202,13 @@ func TestBroadcastSystemNotificationInsertFailureRollsBackFirstBatchAndWritesFai
 	}
 	installBroadcastNotificationFailureTrigger(t, db, failingRecipient.ID)
 
-	recipientCount, broadcastAt, err := svc.BroadcastSystemNotification(
+	recipientCount, broadcastAt, _, err := svc.BroadcastSystemNotification(
 		context.Background(),
 		"Second batch failure",
 		"The failing row is in the second batch.",
 		"broadcast",
 		9001,
+		"broadcast-idem-key",
 	)
 
 	require.Error(t, err)
@@ -216,6 +231,8 @@ func TestBroadcastNotificationAuditAllowlistDropsUnexpectedBodyField(t *testing.
 		"validation_error_code": "VALIDATION_ERROR",
 		"validation_fields":     []string{"title"},
 		"error_code":            "BROADCAST_SEND_FAILED",
+		"key_fingerprint":       "abc123def456",
+		"replayed":              false,
 		"body":                  "full body must not be stored",
 		"title":                 "full title must not be stored",
 		"markdown":              "**markdown**",
@@ -223,7 +240,7 @@ func TestBroadcastNotificationAuditAllowlistDropsUnexpectedBodyField(t *testing.
 		"recipients":            []int64{1, 2},
 	})
 
-	require.Equal(t, 7, len(filtered))
+	require.Equal(t, 9, len(filtered))
 	require.Equal(t, 2, filtered["recipient_count"])
 	require.Equal(t, 12, filtered["title_length"])
 	require.Equal(t, 80, filtered["body_length"])
@@ -231,6 +248,8 @@ func TestBroadcastNotificationAuditAllowlistDropsUnexpectedBodyField(t *testing.
 	require.Equal(t, "VALIDATION_ERROR", filtered["validation_error_code"])
 	require.Equal(t, []string{"title"}, filtered["validation_fields"])
 	require.Equal(t, "BROADCAST_SEND_FAILED", filtered["error_code"])
+	require.Equal(t, "abc123def456", filtered["key_fingerprint"])
+	require.Equal(t, false, filtered["replayed"])
 	assertBroadcastAuditMetadataDoesNotContainUnsafeFields(t, filtered, "full body must not be stored")
 }
 
@@ -252,7 +271,7 @@ func setupBroadcastNotificationServiceTestWithGormConfig(t *testing.T, cfg *gorm
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Notification{}, &model.AdminAuditLog{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Notification{}, &model.AdminAuditLog{}, &model.NotificationBroadcastRequest{}))
 
 	notificationRepo := repository.NewNotificationRepository(db)
 	auditSvc := NewAdminAuditService(repository.NewAdminAuditRepository(db), db)
@@ -339,4 +358,256 @@ func assertBroadcastAuditMetadataDoesNotContainUnsafeFields(t *testing.T, metada
 	for key, value := range metadata {
 		require.NotEqualf(t, fullBody, value, "metadata key %q stores the full body", key)
 	}
+}
+
+func TestBroadcastSystemNotificationRequiresIdempotencyKey(t *testing.T) {
+	svc, db := setupBroadcastNotificationServiceTest(t)
+	createBroadcastUser(t, db, "active", false, nil)
+
+	recipientCount, broadcastAt, replayed, err := svc.BroadcastSystemNotification(
+		context.Background(),
+		"Maintenance notice",
+		"We will be offline briefly.",
+		"broadcast",
+		9001,
+		"   ",
+	)
+
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrIdempotencyKeyRequired), "error = %v", err)
+	require.Equal(t, 0, recipientCount)
+	require.True(t, broadcastAt.IsZero())
+	require.False(t, replayed)
+	require.Equal(t, int64(0), countBroadcastNotifications(t, db))
+}
+
+func TestBroadcastSystemNotificationReplaysSameKeyAndPayloadWithoutDuplicating(t *testing.T) {
+	svc, db := setupBroadcastNotificationServiceTest(t)
+	createBroadcastUser(t, db, "active-one", false, nil)
+	createBroadcastUser(t, db, "active-two", false, nil)
+
+	firstCount, firstAt, firstReplayed, err := svc.BroadcastSystemNotification(
+		context.Background(),
+		"Maintenance notice",
+		"We will be offline briefly.",
+		"broadcast",
+		9001,
+		"retry-key-1",
+	)
+	require.NoError(t, err)
+	require.Equal(t, 2, firstCount)
+	require.False(t, firstReplayed)
+
+	secondCount, secondAt, secondReplayed, err := svc.BroadcastSystemNotification(
+		context.Background(),
+		"  Maintenance notice  ",
+		"  We will be offline briefly.  ",
+		"broadcast",
+		9001,
+		"retry-key-1",
+	)
+	require.NoError(t, err)
+	require.True(t, secondReplayed)
+	require.Equal(t, firstCount, secondCount)
+	require.True(t, firstAt.Equal(secondAt), "first=%s second=%s", firstAt, secondAt)
+	require.Equal(t, int64(2), countBroadcastNotifications(t, db))
+
+	var successAudits int64
+	require.NoError(t, db.Model(&model.AdminAuditLog{}).
+		Where("action = ? AND result = ?", "broadcast_notification", "success").
+		Count(&successAudits).Error)
+	require.Equal(t, int64(1), successAudits)
+
+	log := latestBroadcastAuditLog(t, db)
+	require.Contains(t, log.Metadata, "key_fingerprint")
+	require.Equal(t, false, log.Metadata["replayed"])
+
+	var requestRows int64
+	require.NoError(t, db.Model(&model.NotificationBroadcastRequest{}).Count(&requestRows).Error)
+	require.Equal(t, int64(1), requestRows)
+}
+
+func TestBroadcastSystemNotificationRejectsSameKeyWithDifferentPayload(t *testing.T) {
+	svc, db := setupBroadcastNotificationServiceTest(t)
+	createBroadcastUser(t, db, "active", false, nil)
+
+	_, _, _, err := svc.BroadcastSystemNotification(
+		context.Background(),
+		"First title",
+		"First body.",
+		"broadcast",
+		9001,
+		"reuse-key-1",
+	)
+	require.NoError(t, err)
+
+	recipientCount, broadcastAt, replayed, err := svc.BroadcastSystemNotification(
+		context.Background(),
+		"First title",
+		"A different body must conflict.",
+		"broadcast",
+		9001,
+		"reuse-key-1",
+	)
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrIdempotencyKeyReused), "error = %v", err)
+	require.Equal(t, 0, recipientCount)
+	require.True(t, broadcastAt.IsZero())
+	require.False(t, replayed)
+	require.Equal(t, int64(1), countBroadcastNotifications(t, db))
+}
+
+func TestBroadcastSystemNotificationFailureRollsBackRequestRowSoRetryCanOwnKey(t *testing.T) {
+	svc, db := setupBroadcastNotificationServiceTest(t)
+	failing := createBroadcastUser(t, db, "failing", false, nil)
+	createBroadcastUser(t, db, "healthy", false, nil)
+	installBroadcastNotificationFailureTrigger(t, db, failing.ID)
+
+	_, _, _, err := svc.BroadcastSystemNotification(
+		context.Background(),
+		"Failure first",
+		"The first attempt fails and must release the key.",
+		"broadcast",
+		9001,
+		"retry-after-failure",
+	)
+	require.Error(t, err)
+	require.Equal(t, int64(0), countBroadcastNotifications(t, db))
+
+	var requestRows int64
+	require.NoError(t, db.Model(&model.NotificationBroadcastRequest{}).Count(&requestRows).Error)
+	require.Equal(t, int64(0), requestRows, "rolled-back attempt must not leave a request row")
+
+	require.NoError(t, db.Exec("DROP TRIGGER fail_broadcast_notification_insert").Error)
+
+	recipientCount, _, replayed, err := svc.BroadcastSystemNotification(
+		context.Background(),
+		"Failure first",
+		"The first attempt fails and must release the key.",
+		"broadcast",
+		9001,
+		"retry-after-failure",
+	)
+	require.NoError(t, err)
+	require.False(t, replayed)
+	require.Equal(t, 2, recipientCount)
+	require.Equal(t, int64(2), countBroadcastNotifications(t, db))
+}
+
+func TestBroadcastRequestUniqueBoundaryRejectsDuplicateActorKey(t *testing.T) {
+	svc, db := setupBroadcastNotificationServiceTest(t)
+	_ = svc
+	repo := repository.NewNotificationRepository(db)
+
+	row := &model.NotificationBroadcastRequest{
+		ActorID:        9001,
+		KeyHash:        hashBroadcastIdempotencyKey("boundary-key"),
+		PayloadHash:    hashBroadcastPayload("t", "b", "broadcast"),
+		RecipientCount: 1,
+		BroadcastAt:    time.Now().UTC(),
+	}
+	require.NoError(t, repo.CreateBroadcastRequestTx(context.Background(), db, row))
+
+	duplicate := &model.NotificationBroadcastRequest{
+		ActorID:        9001,
+		KeyHash:        row.KeyHash,
+		PayloadHash:    row.PayloadHash,
+		RecipientCount: 1,
+		BroadcastAt:    row.BroadcastAt,
+	}
+	err := repo.CreateBroadcastRequestTx(context.Background(), db, duplicate)
+	require.Error(t, err)
+	require.True(t, isBroadcastUniqueViolation(err), "error = %v", err)
+
+	otherActor := &model.NotificationBroadcastRequest{
+		ActorID:        9002,
+		KeyHash:        row.KeyHash,
+		PayloadHash:    row.PayloadHash,
+		RecipientCount: 1,
+		BroadcastAt:    row.BroadcastAt,
+	}
+	require.NoError(t, repo.CreateBroadcastRequestTx(context.Background(), db, otherActor))
+}
+
+func TestBroadcastSystemNotificationConcurrentSameKeyCreatesOncePostgres(t *testing.T) {
+	db := testutil.OpenEphemeralPostgres(t)
+	db = db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})
+	require.NoError(t, db.AutoMigrate(
+		&model.User{},
+		&model.Notification{},
+		&model.AdminAuditLog{},
+		&model.NotificationBroadcastRequest{},
+	))
+
+	users := []model.User{
+		{ID: 9001, Email: "broadcast-admin@example.test", PasswordHash: "hash", Username: "broadcast-admin", Role: "admin"},
+		{ID: 9002, Email: "broadcast-one@example.test", PasswordHash: "hash", Username: "broadcast-one"},
+		{ID: 9003, Email: "broadcast-two@example.test", PasswordHash: "hash", Username: "broadcast-two"},
+	}
+	require.NoError(t, db.Create(&users).Error)
+
+	repo := repository.NewNotificationRepository(db)
+	svc := NewNotificationService(repo)
+	svc.SetAdminAuditService(NewAdminAuditService(repository.NewAdminAuditRepository(db), db))
+
+	type result struct {
+		count    int
+		at       time.Time
+		replayed bool
+		err      error
+	}
+
+	start := make(chan struct{})
+	results := make(chan result, 2)
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			count, at, replayed, err := svc.BroadcastSystemNotification(
+				ctx,
+				"Concurrent maintenance",
+				"Only one delivery batch may commit.",
+				"broadcast",
+				9001,
+				"concurrent-key-1",
+			)
+			results <- result{count: count, at: at, replayed: replayed, err: err}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	var got []result
+	for item := range results {
+		require.NoError(t, item.err)
+		got = append(got, item)
+	}
+	require.Len(t, got, 2)
+	require.Equal(t, 3, got[0].count)
+	require.Equal(t, 3, got[1].count)
+	require.True(t, got[0].at.Equal(got[1].at), "broadcast_at values differ: %s vs %s", got[0].at, got[1].at)
+	require.NotEqual(t, got[0].replayed, got[1].replayed)
+
+	var notificationRows int64
+	require.NoError(t, db.Model(&model.Notification{}).Where("channel = ?", "broadcast").Count(&notificationRows).Error)
+	require.Equal(t, int64(3), notificationRows)
+
+	var requestRows int64
+	require.NoError(t, db.Model(&model.NotificationBroadcastRequest{}).Count(&requestRows).Error)
+	require.Equal(t, int64(1), requestRows)
+
+	var successAudits int64
+	require.NoError(t, db.Model(&model.AdminAuditLog{}).
+		Where("action = ? AND result = ?", "broadcast_notification", "success").
+		Count(&successAudits).Error)
+	require.Equal(t, int64(1), successAudits)
+}
+
+func TestIsBroadcastUniqueViolationRejectsUnrelatedUniqueErrors(t *testing.T) {
+	require.False(t, isBroadcastUniqueViolation(errors.New(`ERROR: duplicate key value violates unique constraint "users_email_key" (SQLSTATE 23505)`)))
 }

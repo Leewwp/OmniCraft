@@ -152,7 +152,7 @@ func setupAdminNotificationBroadcastRouter(t *testing.T) (*gin.Engine, *gorm.DB,
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Notification{}, &model.AdminAuditLog{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Notification{}, &model.AdminAuditLog{}, &model.NotificationBroadcastRequest{}))
 
 	cfg := &config.Config{}
 	cfg.JWT.Secret = "admin-broadcast-secret"
@@ -212,10 +212,19 @@ func createAdminBroadcastRouteUser(t *testing.T, db *gorm.DB, username, role str
 func postAdminNotificationBroadcast(t *testing.T, router *gin.Engine, token string, body string) *httptest.ResponseRecorder {
 	t.Helper()
 
+	return postAdminNotificationBroadcastWithKey(t, router, token, body, "handler-idem-key")
+}
+
+func postAdminNotificationBroadcastWithKey(t *testing.T, router *gin.Engine, token string, body string, idempotencyKey string) *httptest.ResponseRecorder {
+	t.Helper()
+
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/notifications/broadcast", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
+	if idempotencyKey != "" {
+		req.Header.Set("Idempotency-Key", idempotencyKey)
+	}
 	router.ServeHTTP(rec, req)
 	return rec
 }
@@ -285,4 +294,73 @@ func assertAdminBroadcastAuditHasNoFullText(t *testing.T, metadata model.JSONMap
 	if strings.TrimSpace(body) != "" {
 		require.NotContains(t, string(raw), strings.TrimSpace(body))
 	}
+}
+
+func TestAdminNotificationBroadcastIdempotencyKeyRequired(t *testing.T) {
+	router, db, adminToken, _, _ := setupAdminNotificationBroadcastRouter(t)
+
+	rec := postAdminNotificationBroadcastWithKey(t, router, adminToken, `{
+		"title": "Maintenance notice",
+		"body": "The site will be down briefly.",
+		"channel": "broadcast"
+	}`, "")
+
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	var errPayload struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errPayload))
+	require.Equal(t, "IDEMPOTENCY_KEY_REQUIRED", errPayload.Code)
+	require.Equal(t, int64(0), countAdminBroadcastNotifications(t, db))
+}
+
+func TestAdminNotificationBroadcastReplayReturnsStoredResultWithoutDuplicates(t *testing.T) {
+	router, db, adminToken, _, seeded := setupAdminNotificationBroadcastRouter(t)
+	body := `{"title":"Maintenance notice","body":"The site will be down briefly.","channel":"broadcast"}`
+
+	first := postAdminNotificationBroadcastWithKey(t, router, adminToken, body, "replay-key-1")
+	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
+	second := postAdminNotificationBroadcastWithKey(t, router, adminToken, body, "replay-key-1")
+	require.Equal(t, http.StatusOK, second.Code, second.Body.String())
+
+	var payload struct {
+		Data struct {
+			RecipientCount int    `json:"recipient_count"`
+			BroadcastAt    string `json:"broadcast_at"`
+			Replayed       bool   `json:"replayed"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(second.Body.Bytes(), &payload))
+	require.True(t, payload.Data.Replayed)
+	require.Equal(t, len(seeded.activeUsers), payload.Data.RecipientCount)
+	require.Equal(t, int64(len(seeded.activeUsers)), countAdminBroadcastNotifications(t, db))
+
+	var successAudits int64
+	require.NoError(t, db.Model(&model.AdminAuditLog{}).
+		Where("action = ? AND result = ?", "broadcast_notification", "success").
+		Count(&successAudits).Error)
+	require.Equal(t, int64(1), successAudits)
+}
+
+func TestAdminNotificationBroadcastSameKeyDifferentPayloadConflict(t *testing.T) {
+	router, _, adminToken, _, _ := setupAdminNotificationBroadcastRouter(t)
+
+	first := postAdminNotificationBroadcastWithKey(t, router, adminToken, `{
+		"title": "Maintenance notice",
+		"body": "The site will be down briefly.",
+		"channel": "broadcast"
+	}`, "conflict-key-1")
+	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
+
+	second := postAdminNotificationBroadcastWithKey(t, router, adminToken, `{
+		"title": "Maintenance notice",
+		"body": "A different body reuses the key.",
+		"channel": "broadcast"
+	}`, "conflict-key-1")
+	require.Equal(t, http.StatusConflict, second.Code, second.Body.String())
+	var errPayload struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(second.Body.Bytes(), &errPayload))
+	require.Equal(t, "IDEMPOTENCY_KEY_REUSED", errPayload.Code)
 }

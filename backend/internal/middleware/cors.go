@@ -30,7 +30,7 @@ func CORS(cfg *config.Config) gin.HandlerFunc {
 	}
 
 	allowedMethods := "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-	allowedHeaders := "Origin, Content-Type, Authorization, X-Requested-With, X-CSRF-Token"
+	allowedHeaders := "Origin, Content-Type, Authorization, X-Requested-With, X-CSRF-Token, Idempotency-Key"
 	exposeHeaders := "Content-Length"
 	maxAge := "86400"
 

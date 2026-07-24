@@ -40,6 +40,49 @@ func TestNotificationBroadcastChannelMigrationAllowsBroadcast(t *testing.T) {
 	}
 }
 
+func TestNotificationBroadcastIdempotencyMigration(t *testing.T) {
+	db := testutil.OpenEphemeralPostgres(t)
+	requireNotificationBroadcastRequestBaseUsers(t, db)
+
+	migration := filepath.Join("..", "..", "migrations", "062_notification_broadcast_idempotency.sql")
+	testutil.ApplyMigrationFile(t, db, migration)
+	testutil.ApplyMigrationFile(t, db, migration)
+
+	for _, column := range []string{"key_hash", "payload_hash", "recipient_count", "broadcast_at"} {
+		if dataType, _ := testutil.ColumnMetadata(t, db, "notification_broadcast_requests", column); dataType == "" {
+			t.Fatalf("expected notification_broadcast_requests.%s", column)
+		}
+	}
+	if !testutil.IndexExists(t, db, "notification_broadcast_requests", "uq_notification_broadcast_requests_actor_key") {
+		t.Fatal("expected actor/key unique index")
+	}
+	if !testutil.ForeignKeyExists(t, db, "notification_broadcast_requests", "actor_id", "users") {
+		t.Fatal("expected actor_id foreign key")
+	}
+
+	if err := db.Exec(`
+		INSERT INTO notification_broadcast_requests
+			(actor_id, key_hash, payload_hash, recipient_count, broadcast_at)
+		VALUES (1, repeat('a', 64), repeat('b', 64), 2, NOW())
+	`).Error; err != nil {
+		t.Fatalf("insert idempotency row: %v", err)
+	}
+	if err := db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)}).Exec(`
+		INSERT INTO notification_broadcast_requests
+			(actor_id, key_hash, payload_hash, recipient_count, broadcast_at)
+		VALUES (1, repeat('a', 64), repeat('c', 64), 3, NOW())
+	`).Error; err == nil {
+		t.Fatal("expected duplicate actor/key to be rejected")
+	}
+	if err := db.Exec(`
+		INSERT INTO notification_broadcast_requests
+			(actor_id, key_hash, payload_hash, recipient_count, broadcast_at)
+		VALUES (2, repeat('a', 64), repeat('c', 64), 3, NOW())
+	`).Error; err != nil {
+		t.Fatalf("same key hash for another actor should be allowed: %v", err)
+	}
+}
+
 func requireNotificationsBaseTable(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
@@ -61,5 +104,17 @@ func requireNotificationsBaseTable(t *testing.T, db *gorm.DB) {
 		)
 	`).Error; err != nil {
 		t.Fatalf("create notifications base table: %v", err)
+	}
+}
+
+func requireNotificationBroadcastRequestBaseUsers(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if err := db.Exec(`
+		CREATE TABLE users (
+			id BIGINT PRIMARY KEY
+		);
+		INSERT INTO users (id) VALUES (1), (2);
+	`).Error; err != nil {
+		t.Fatalf("create notification broadcast request base users: %v", err)
 	}
 }

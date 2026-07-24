@@ -38,3 +38,25 @@ func TestCORSReleaseModeDoesNotAutoAllowLocalhost(t *testing.T) {
 	r.ServeHTTP(localRec, localReq)
 	require.Empty(t, localRec.Header().Get("Access-Control-Allow-Origin"))
 }
+
+func TestCORSPreflightAllowsIdempotencyKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{Server: config.ServerConfig{Mode: "debug"}}
+
+	r := gin.New()
+	r.Use(CORS(cfg))
+	r.POST("/api/v1/admin/notifications/broadcast", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodOptions, "/api/v1/admin/notifications/broadcast", nil)
+	req.Header.Set("Origin", "http://localhost:3001")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	req.Header.Set("Access-Control-Request-Headers", "content-type,x-csrf-token,idempotency-key")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusNoContent, rec.Code)
+	require.Equal(t, "http://localhost:3001", rec.Header().Get("Access-Control-Allow-Origin"))
+	require.Contains(t, rec.Header().Get("Access-Control-Allow-Headers"), "Idempotency-Key")
+}

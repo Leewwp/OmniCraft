@@ -95,19 +95,25 @@ func (h *AdminHandler) BroadcastNotification(c *gin.Context) {
 		return
 	}
 
-	recipientCount, broadcastAt, err := h.notifSvc.BroadcastSystemNotification(
+	recipientCount, broadcastAt, replayed, err := h.notifSvc.BroadcastSystemNotification(
 		c.Request.Context(),
 		req.Title,
 		req.Body,
 		req.Channel,
 		middleware.GetUserID(c),
+		c.GetHeader("Idempotency-Key"),
 	)
 	if err != nil {
-		if errors.Is(err, service.ErrBroadcastValidation) {
+		switch {
+		case errors.Is(err, service.ErrIdempotencyKeyRequired):
+			c.JSON(http.StatusBadRequest, gin.H{"code": "IDEMPOTENCY_KEY_REQUIRED", "message": "Idempotency-Key header is required"})
+		case errors.Is(err, service.ErrIdempotencyKeyReused):
+			c.JSON(http.StatusConflict, gin.H{"code": "IDEMPOTENCY_KEY_REUSED", "message": "idempotency key was already used with a different payload"})
+		case errors.Is(err, service.ErrBroadcastValidation):
 			response.ValidationError(c, "invalid request parameters")
-			return
+		default:
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		return
 	}
 
@@ -115,6 +121,7 @@ func (h *AdminHandler) BroadcastNotification(c *gin.Context) {
 		"data": gin.H{
 			"recipient_count": recipientCount,
 			"broadcast_at":    broadcastAt,
+			"replayed":        replayed,
 		},
 	})
 }
