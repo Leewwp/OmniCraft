@@ -15,6 +15,7 @@ const originalDeleteWithBody = api.deleteWithBody;
 
 const messages = {
   common: {
+    close: "Close",
     cancel: "Cancel",
     confirm: "Confirm",
     processing: "Processing",

@@ -172,7 +172,7 @@ function seriesDetail(id: number, title: string) {
 }
 
 const messages = {
-  common: { cancel: "Cancel", retry: "Retry", reason: "Reason", processing: "Processing" },
+  common: { cancel: "Cancel", close: "Close", retry: "Retry", reason: "Reason", processing: "Processing" },
   series: { detail: { header: { zoneOriginal: "Original", zoneFanwork: "Fanwork" } } },
   studio: {
     series: {

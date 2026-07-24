@@ -30,7 +30,8 @@
 | Task | 文件所有权摘要 | 依赖 | 状态 | 当前 owner / 分支 / base / 时间 |
 |---|---|---|---|---|
 | U-01 | `design-system.md`、`globals.css`、token checker | — | 可预约 | — |
-| U-02 | `frontend/components/ui/**` | U-01 | 待依赖 | — |
+| U-02A | Button、ConfirmModal、TagBadge、Toast 行为与无障碍 | U-05 | 已释放 | Codex / `codex/ui-refinement` / `c4b24f9` / 2026-07-25 03:11–03:44 +08:00 |
+| U-02B | `frontend/components/ui/**` 视觉应用 | P-01/U-01/U-02A | 待依赖 | — |
 | U-03 | Header、Sidebar、StudioSidebar、admin layout、collapse hook | U-01/U-02/U-05 | 待依赖 | — |
 | U-04 | dashboard destructive pages、settings、agent-config、VersionHistory | U-01/U-02/U-05 | 待依赖 | — |
 | U-05 | error utilities + audited error surfaces | — | 已释放 | Codex / `codex/ui-refinement` / `d1f53cd` / 2026-07-25 02:52–03:06 +08:00 |
@@ -50,6 +51,8 @@
 |---|---|---|---|---|---|---|
 | 2026-07-25 02:52 +08:00 | U-05 | Codex | `codex/ui-refinement` | `d1f53cd` | `frontend/lib/error-handler.ts`; `frontend/lib/user-facing-error.ts`; `frontend/app/error.tsx`; `frontend/app/(public)/verify-email/page.tsx`; `frontend/app/(protected)/dashboard/pr-requests/page.tsx`; `frontend/app/(public)/user/[userId]/UserProfileClient.tsx`; `frontend/components/content/ContentDetail.tsx`; `frontend/components/content/VersionHistory.tsx`; `frontend/components/content/DownloadButton.tsx`; `frontend/components/feedback/FeedbackForm.tsx`; `frontend/tests/error-handler-i18n.test.ts`; `frontend/tests/user-facing-error-surfaces.test.tsx` | 已释放；原计划路径验证完成 |
 | 2026-07-25 02:58 +08:00 | U-05 | Codex | `codex/ui-refinement` | `d1f53cd` | `frontend/app/(protected)/admin/agent-config/page.tsx`; `frontend/app/(protected)/admin/appeal/page.tsx`; `frontend/app/(protected)/admin/audit-logs/page.tsx`; `frontend/app/(protected)/admin/categories/page.tsx`; `frontend/app/(protected)/admin/config/page.tsx`; `frontend/app/(protected)/admin/feedback/page.tsx`; `frontend/app/(protected)/admin/ips/page.tsx`; `frontend/app/(protected)/admin/queue/page.tsx`; `frontend/app/(protected)/admin/reports/page.tsx`; `frontend/app/(protected)/admin/users/page.tsx`; `frontend/app/(protected)/appeals/page.tsx`; `frontend/app/(protected)/dashboard/contributors/page.tsx`; `frontend/app/(protected)/dashboard/tag-suggestions/page.tsx`; `frontend/app/(protected)/feedback/[feedbackId]/page.tsx`; `frontend/app/(protected)/feedback/mine/page.tsx`; `frontend/app/(protected)/ip/[ipId]/discussions/new/page.tsx`; `frontend/app/(protected)/judge/exam/page.tsx`; `frontend/app/(protected)/judge/queue/page.tsx`; `frontend/app/(protected)/rehab/page.tsx`; `frontend/app/(protected)/settings/page.tsx`; `frontend/app/(protected)/settings/tag-groups/page.tsx`; `frontend/app/(public)/ip/[ipId]/discussions/[discussionId]/page.tsx`; `frontend/app/(public)/ip/[ipId]/discussions/page.tsx`; `frontend/components/agent/UploadAssistPanel.tsx`; `frontend/components/judge/VerdictDetail.tsx`; `frontend/components/social/CreatorSupportPanel.tsx`; `frontend/components/social/ReplyList.tsx` | 已释放；精确库存发现并清除 27 个额外原始错误渲染面 |
+| 2026-07-25 03:11 +08:00 | U-02A | Codex | `codex/ui-refinement` | `c4b24f9` | `frontend/components/ui/button.tsx`; `frontend/components/ui/confirm-modal.tsx`; `frontend/components/ui/TagBadge.tsx`; `frontend/components/ui/Toast.tsx`; `frontend/messages/en.json`; `frontend/messages/zh.json`; `frontend/tests/runtime-test-helpers.tsx`; `frontend/tests/ui-primitives-accessibility.test.tsx` | 已释放；原语行为、无障碍名称与触控目标验证完成 |
+| 2026-07-25 03:37 +08:00 | U-02A | Codex | `codex/ui-refinement` | `c4b24f9` | `frontend/tests/admin-notifications-page.test.tsx`; `frontend/tests/collection-detail.test.tsx`; `frontend/tests/history-page.test.tsx`; `frontend/tests/messages-components.test.tsx`; `frontend/tests/series-detail-page-contract.test.tsx`; `frontend/tests/sheet-music-viewer-download.test.tsx`; `frontend/tests/studio-series-page.test.tsx`; `frontend/tests/user-collections-page.test.tsx` | 已释放；为既有 Toast 测试目录补齐 `common.close` 测试消息契约 |
 
 ## 历史释放、阻塞与转移记录
 
@@ -57,3 +60,4 @@
 |---|---|---|---|---|---|
 | 2026-07-17 | U-11 | — | 阻塞 | U-11 全部范围 | 当前 worktree 缺少生产就绪规格与计划，无法确认公开配置安全边界；未启动实现 |
 | 2026-07-25 03:06 +08:00 | U-05 | Codex | 完成并释放 | U-05 全部预约路径 | 35 个明确审计面改用本地化安全回退；重叠路径按计划依次转交 U-02A/U-04 |
+| 2026-07-25 03:44 +08:00 | U-02A | Codex | 完成并释放 | U-02A 全部预约路径 | 5 项原语测试、真实键盘流和 44px 粗指针关闭目标通过；共享原语转交 U-02B，ConfirmModal 转交 U-04 使用 |

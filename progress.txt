@@ -593,3 +593,20 @@
 ### Notes:
 - No new Toasts, visual tokens, layout, typography, palette, radius, shadow, or page composition changes were introduced.
 - The running Docker frontend used an older image, so browser evidence was captured against a temporary current-worktree Next server on port 3001; the server was stopped after verification.
+
+## [2026-07-25] - Task U-02A: Harden shared primitive behavior and accessibility
+
+### What was done:
+- Made titled icon-only Buttons emit an explicit accessible name and added 44px coarse-pointer sizing to icon variants while retaining dense desktop sizes.
+- Preserved ConfirmModal's existing focus trap/Esc/restoration behavior and added native required semantics to the reason textarea.
+- Replaced TagBadge's raw remove SVG with Lucide `X`, added localized tag-specific remove labels, and expanded its pointer hit area without changing the pill layout.
+- Added per-Toast `alert`/`status` live-region semantics, localized close labels, and a 44px coarse-pointer close target.
+
+### Testing:
+- Confirmed red assertions for explicit icon labels, coarse targets, TagBadge naming/icon source, Toast roles/close labels, and ConfirmModal required semantics; focused primitive suite passed 5/5.
+- Existing Toast/ConfirmModal consumer tests plus the new suite passed 58 tests; full `npm.cmd test` passed 110 tests.
+- `npm.cmd run lint`: PASS; `npm.cmd run build`: PASS.
+- Headless Chrome mobile/coarse-pointer flow verified keyboard open, initial reason focus, required-state enablement, Esc close/focus restoration, Toast alert semantics, keyboard close, and a measured 44×44px close target. Screenshot: `screenshots/ui-polish/u-02a/keyboard-toast-mobile.png`.
+
+### Notes:
+- No palette, radius, shadow, typography, empty-state composition, page layout, or other prototype-dependent visual direction changed.

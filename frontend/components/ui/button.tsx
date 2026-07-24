@@ -25,12 +25,12 @@ const buttonVariants = cva(
         xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
         sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
         lg: "h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
-        icon: "size-8",
+        icon: "size-8 [@media(pointer:coarse)]:size-11",
         "icon-xs":
-          "size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
+          "size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [@media(pointer:coarse)]:size-11 [&_svg:not([class*='size-'])]:size-3",
         "icon-sm":
-          "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
-        "icon-lg": "size-9",
+          "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg [@media(pointer:coarse)]:size-11",
+        "icon-lg": "size-9 [@media(pointer:coarse)]:size-11",
       },
     },
     defaultVariants: {
@@ -44,12 +44,24 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  title,
+  "aria-label": ariaLabel,
+  "aria-labelledby": ariaLabelledBy,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  const iconOnly = typeof size === "string" && size.startsWith("icon");
+  const effectiveAriaLabel =
+    iconOnly && !ariaLabel && !ariaLabelledBy && typeof title === "string"
+      ? title
+      : ariaLabel;
+
   return (
     <ButtonPrimitive
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      title={title}
+      aria-label={effectiveAriaLabel}
+      aria-labelledby={ariaLabelledBy}
       {...props}
     />
   )

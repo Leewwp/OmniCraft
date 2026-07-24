@@ -49,6 +49,7 @@ const conversation = {
 
 const intlMessages = {
   common: {
+    close: "Close",
     back: "Back",
   },
   discussion: {

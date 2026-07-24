@@ -69,6 +69,7 @@ const originalConsoleWarn = console.warn;
 
 const intlMessages = {
   common: {
+    close: "Close",
     cancel: "Cancel",
     confirm: "Confirm",
     reason: "Reason",

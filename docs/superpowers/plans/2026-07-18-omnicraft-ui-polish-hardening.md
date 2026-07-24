@@ -111,12 +111,12 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - Modify: `frontend/components/ui/Toast.tsx`
 - Create: `frontend/tests/ui-primitives-accessibility.test.tsx`
 
-- [ ] Add failing tests for Button accessible names, icon-button sizing and disabled semantics; ConfirmModal reason validation/focus/Esc/restoration; and Toast live-region/close labels.
-- [ ] Preserve existing ConfirmModal behavior rather than reimplementing it.
-- [ ] Apply 44px mobile/coarse-pointer targets to icon-only or isolated actions without globally inflating dense desktop controls; WCAG 2.2 AA 24px is the minimum fallback.
-- [ ] Replace the raw remove SVG in `TagBadge.tsx` with the established icon system and an accessible name.
-- [ ] Verify primitive unit tests plus keyboard-only ConfirmModal and Toast Playwright flows.
-- [ ] Do not change palette, radius, shadow, typography, empty-state composition or other visual direction in this Task.
+- [x] Add failing tests for Button accessible names, icon-button sizing and disabled semantics; ConfirmModal reason validation/focus/Esc/restoration; and Toast live-region/close labels.
+- [x] Preserve existing ConfirmModal behavior rather than reimplementing it.
+- [x] Apply 44px mobile/coarse-pointer targets to icon-only or isolated actions without globally inflating dense desktop controls; WCAG 2.2 AA 24px is the minimum fallback.
+- [x] Replace the raw remove SVG in `TagBadge.tsx` with the established icon system and an accessible name.
+- [x] Verify primitive unit tests plus keyboard-only ConfirmModal and Toast Playwright flows.
+- [x] Do not change palette, radius, shadow, typography, empty-state composition or other visual direction in this Task.
 
 ## Task U-02B: Apply Approved Visuals To Shared UI Primitives
 
