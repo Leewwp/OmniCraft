@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Sparkles, Loader2, Check } from "lucide-react";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -59,7 +60,7 @@ export function AgentUploadAssistPanel({
       );
       setResult(data);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+      setError(t(getUserFacingErrorKey(e)));
       silentError(e, { component: 'UploadAssistPanel', action: 'handleAnalyze' });
     } finally {
       setLoading(false);

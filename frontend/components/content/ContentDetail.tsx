@@ -26,8 +26,9 @@ import { ReactionBar } from "@/components/social/ReactionBar";
 import { CommentSection } from "@/components/social/CommentSection";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/Toast";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 import { AgentFeatureGate } from "@/components/agent/AgentFeatureGate";
 import { SeriesNav } from "@/components/content/SeriesNav";
@@ -148,7 +149,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
       await api.post(`/api/v1/contents/${data.id}/tags/suggest`, { tag, action });
       toast("success", t("content.tagSuggestionSubmitted"));
     } catch (e) {
-      toast("error", e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+      toast("error", t(getUserFacingErrorKey(e)));
       silentError(e, { component: 'ContentDetail', action: 'handleTagSuggestion' });
     } finally {
       setTagSuggestionBusy(null);

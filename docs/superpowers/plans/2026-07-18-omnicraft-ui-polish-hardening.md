@@ -202,11 +202,11 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - Modify: `frontend/tests/error-handler-i18n.test.ts`
 - Create: `frontend/tests/user-facing-error-surfaces.test.tsx`
 
-- [ ] Re-run the exact raw-error inventory at Task start and update the explicit test allowlist; do not rely on the 2026-07-17 file count.
-- [ ] Write failing tests proving raw backend/exception messages are never rendered, known API codes map to translation keys, and unknown errors use a safe fallback.
-- [ ] Keep expected background/polling failures silent; do not convert every catch into a Toast.
-- [ ] Provide a small reusable mapper/helper only where it reduces duplicated policy. Avoid a wrapper that hides control flow or swallows rejected promises.
-- [ ] Verify error boundary, verify-email, PR requests, profile, detail, version history, download and feedback normal/error paths.
+- [x] Re-run the exact raw-error inventory at Task start and update the explicit test allowlist; do not rely on the 2026-07-17 file count.
+- [x] Write failing tests proving raw backend/exception messages are never rendered, known API codes map to translation keys, and unknown errors use a safe fallback.
+- [x] Keep expected background/polling failures silent; do not convert every catch into a Toast.
+- [x] Provide a small reusable mapper/helper only where it reduces duplicated policy. Avoid a wrapper that hides control flow or swallows rejected promises.
+- [x] Verify error boundary, verify-email, PR requests, profile, detail, version history, download and feedback normal/error paths.
 
 ## Gate P-01: Approve Home Feed And Content Detail Visual Prototype
 

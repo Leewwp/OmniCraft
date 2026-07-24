@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 
 interface CaseData {
@@ -51,7 +52,7 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
       setCaseData(data.case);
       setVotes(data.votes || []);
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : t('judge.verdict.loadFailed'));
+      setError(t(getUserFacingErrorKey(e, "judge.verdict.loadFailed")));
       silentError(e, { component: 'VerdictDetail', action: 'loadVerdict' });
     } finally {
       setLoading(false);
@@ -80,7 +81,7 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
       );
     } catch (e) {
       if (!(e instanceof ApiRequestError && e.status === 409)) {
-        setError(e instanceof ApiRequestError ? e.message : t('common.operationFailed'));
+        setError(t(getUserFacingErrorKey(e)));
         silentError(e, { component: 'VerdictDetail', action: 'voteReason' });
       }
     }

@@ -5,7 +5,8 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { DiscussionCard } from "@/components/social/DiscussionCard";
 import { Button } from "@/components/ui/button";
 import { Plus, Search } from "lucide-react";
@@ -45,7 +46,7 @@ export default function DiscussionsPage() {
       setDiscussions(res.discussions ?? []);
     } catch (e) {
       silentError(e, { component: 'DiscussionsPage', action: 'load' });
-      setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
+      setError(t(getUserFacingErrorKey(e, "common.loadFailed")));
     } finally {
       setLoading(false);
     }

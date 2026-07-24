@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 
@@ -73,7 +74,7 @@ export default function ContributorsPage() {
       );
     } catch (e) {
       silentError(e, { component: 'ContributorsPage', action: 'toggleBlock' });
-      setError(e instanceof ApiRequestError ? e.message : t('common.operationFailed'));
+      setError(t(getUserFacingErrorKey(e)));
     }
   }
 

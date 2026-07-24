@@ -4,7 +4,8 @@ import { useEffect, useState, useRef, type ComponentType } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,7 +55,7 @@ export function VerificationReminderCard({
       setResendCooldown(60);
     } catch (e) {
       silentError(e, { component: "VerificationReminderCard", action: "handleResendVerification" });
-      setResendError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+      setResendError(t(getUserFacingErrorKey(e)));
     } finally {
       resetResendCaptcha();
       setResendBusy(false);
@@ -145,7 +146,7 @@ export default function SettingsPage() {
       setSuccess(t("settings.avatarUpdated"));
     } catch (e) {
       silentError(e, { component: 'SettingsPage', action: 'handleAvatarChange' });
-      setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+      setError(t(getUserFacingErrorKey(e)));
     } finally {
       setAvatarUploading(false);
     }
@@ -161,7 +162,7 @@ export default function SettingsPage() {
       setSuccess(t("common.saveSuccess"));
     } catch (e) {
       silentError(e, { component: 'SettingsPage', action: 'handleSave' });
-      setError(e instanceof ApiRequestError ? e.message : t("common.saveFailed"));
+      setError(t(getUserFacingErrorKey(e, "common.saveFailed")));
     } finally {
       setBusy(false);
     }
@@ -190,7 +191,7 @@ export default function SettingsPage() {
       setConfirmPw("");
     } catch (e) {
       silentError(e, { component: 'SettingsPage', action: 'handleChangePassword' });
-      setPwError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+      setPwError(t(getUserFacingErrorKey(e)));
     } finally {
       setPwBusy(false);
     }
@@ -205,7 +206,7 @@ export default function SettingsPage() {
       router.push("/");
     } catch (e) {
       silentError(e, { component: 'SettingsPage', action: 'handleDeleteAccount' });
-      setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+      setError(t(getUserFacingErrorKey(e)));
     } finally {
       setDeleteBusy(false);
     }

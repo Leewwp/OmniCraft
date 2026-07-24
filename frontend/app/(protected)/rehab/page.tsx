@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback, useRef, Fragment } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { BookOpen, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -50,7 +51,7 @@ export default function RehabPage() {
       setCompletions(progressRes.completions ?? []);
     } catch (e) {
       silentError(e, { component: 'RehabPage', action: 'loadData' });
-      setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
+      setError(t(getUserFacingErrorKey(e, "common.loadFailed")));
     } finally {
       setLoading(false);
     }
@@ -89,7 +90,7 @@ export default function RehabPage() {
       await loadData();
     } catch (e) {
       silentError(e, { component: 'RehabPage', action: 'handleComplete' });
-      setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+      setError(t(getUserFacingErrorKey(e)));
     } finally {
       setCompletingId(null);
     }

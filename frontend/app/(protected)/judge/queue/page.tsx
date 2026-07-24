@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -48,7 +49,7 @@ export default function JudgeQueuePage() {
       setVotedCaseId(null);
     } catch (e) {
       silentError(e, { component: 'JudgeQueuePage', action: 'loadQueue' });
-      setError(e instanceof ApiRequestError ? e.message : t('judge.loadQueueFailed'));
+      setError(t(getUserFacingErrorKey(e, "judge.loadQueueFailed")));
     } finally {
       setLoading(false);
     }
@@ -72,7 +73,7 @@ export default function JudgeQueuePage() {
       setVotedCaseId(caseId);
     } catch (e) {
       silentError(e, { component: 'JudgeQueuePage', action: 'handleVote' });
-      setError(e instanceof ApiRequestError ? e.message : t('judge.voteFailed'));
+      setError(t(getUserFacingErrorKey(e, "judge.voteFailed")));
     } finally {
       setSubmitting(false);
     }

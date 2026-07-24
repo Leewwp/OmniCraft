@@ -25,7 +25,7 @@ export default function ErrorPage({
       </div>
       <h1 className="text-xl font-semibold text-foreground">{t('error.pageError')}</h1>
       <p className="max-w-md text-center text-sm text-muted-foreground">
-        {error.message || t('error.pageErrorDesc')}
+        {t('error.pageErrorDesc')}
       </p>
       <Button variant="outline" onClick={reset} className="gap-2">
         <RefreshCw className="h-4 w-4" />

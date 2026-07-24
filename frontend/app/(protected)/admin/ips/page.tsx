@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -47,7 +48,7 @@ export default function AdminIPsPage() {
       setTotal(data.total || 0);
     } catch (e) {
       silentError(e, { component: 'AdminIPsPage', action: 'loadIPs' });
-      setError(e instanceof ApiRequestError ? e.message : t('admin.ips.loadFailed'));
+      setError(t(getUserFacingErrorKey(e, "admin.ips.loadFailed")));
     } finally {
       setLoading(false);
     }
@@ -65,7 +66,7 @@ export default function AdminIPsPage() {
       setTotal((t) => t - 1);
     } catch (e) {
       silentError(e, { component: 'AdminIPsPage', action: 'handleAction' });
-      setError(e instanceof ApiRequestError ? e.message : t('common.operationFailed'));
+      setError(t(getUserFacingErrorKey(e)));
     }
   }
 

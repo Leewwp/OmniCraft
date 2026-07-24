@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Check, Loader2, Power, Wifi } from "lucide-react";
@@ -39,7 +40,7 @@ export default function AgentConfigPage() {
       setConfigs(res.configs ?? []);
     } catch (e) {
       silentError(e, { component: 'AdminAgentConfigPage', action: 'loadConfigs' });
-      setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
+      setError(t(getUserFacingErrorKey(e, "common.loadFailed")));
     } finally {
       setLoading(false);
     }
@@ -82,7 +83,7 @@ export default function AgentConfigPage() {
       await load();
     } catch (e) {
       silentError(e, { component: 'AdminAgentConfigPage', action: 'handleSave' });
-      setModalError(e instanceof ApiRequestError ? e.message : t("common.saveFailed"));
+      setModalError(t(getUserFacingErrorKey(e, "common.saveFailed")));
     } finally {
       setModalBusy(false);
     }
@@ -94,7 +95,7 @@ export default function AgentConfigPage() {
       await load();
     } catch (e) {
       silentError(e, { component: 'AdminAgentConfigPage', action: 'handleDelete' });
-      setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+      setError(t(getUserFacingErrorKey(e)));
     }
   }
 
@@ -104,7 +105,7 @@ export default function AgentConfigPage() {
       await load();
     } catch (e) {
       silentError(e, { component: 'AdminAgentConfigPage', action: 'handleActivate' });
-      setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+      setError(t(getUserFacingErrorKey(e)));
     }
   }
 

@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -62,7 +63,7 @@ export default function AdminCategoriesPage() {
       setParentCategories(parentsData.categories || []);
     } catch (e) {
       silentError(e, { component: 'AdminCategoriesPage', action: 'loadCategories' });
-      setError(e instanceof ApiRequestError ? e.message : t('admin.categories.loadFailed'));
+      setError(t(getUserFacingErrorKey(e, "admin.categories.loadFailed")));
     } finally {
       setLoading(false);
     }
@@ -90,7 +91,7 @@ export default function AdminCategoriesPage() {
       await loadCategories();
     } catch (e) {
       silentError(e, { component: 'AdminCategoriesPage', action: 'createCategory' });
-      setError(e instanceof ApiRequestError ? e.message : t('admin.categories.createFailed'));
+      setError(t(getUserFacingErrorKey(e, "admin.categories.createFailed")));
     } finally {
       setBusy(false);
     }
@@ -110,7 +111,7 @@ export default function AdminCategoriesPage() {
       await loadCategories();
     } catch (e) {
       silentError(e, { component: 'AdminCategoriesPage', action: 'updateCategory' });
-      setError(e instanceof ApiRequestError ? e.message : t('admin.categories.updateFailed'));
+      setError(t(getUserFacingErrorKey(e, "admin.categories.updateFailed")));
     } finally {
       setBusy(false);
     }
@@ -124,7 +125,7 @@ export default function AdminCategoriesPage() {
       await loadCategories();
     } catch (e) {
       silentError(e, { component: 'AdminCategoriesPage', action: 'deleteCategory' });
-      setError(e instanceof ApiRequestError ? e.message : t('admin.categories.deleteFailed'));
+      setError(t(getUserFacingErrorKey(e, "admin.categories.deleteFailed")));
     } finally {
       setBusy(false);
     }
@@ -151,7 +152,7 @@ export default function AdminCategoriesPage() {
       await api.put("/api/v1/admin/categories/reorder", { ids });
     } catch (e) {
       silentError(e, { component: 'AdminCategoriesPage', action: 'saveReorder' });
-      setError(e instanceof ApiRequestError ? e.message : t('admin.categories.sortFailed'));
+      setError(t(getUserFacingErrorKey(e, "admin.categories.sortFailed")));
       await loadCategories();
     }
   }

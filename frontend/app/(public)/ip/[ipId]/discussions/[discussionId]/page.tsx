@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { ReplyList } from "@/components/social/ReplyList";
 import { silentError } from "@/lib/error-handler";
 
@@ -45,7 +46,7 @@ export default function DiscussionDetailPage() {
       setReplies(res.comments ?? []);
     } catch (e) {
       silentError(e, { component: 'DiscussionDetailPage', action: 'load' });
-      setError(e instanceof ApiRequestError ? e.message : t("common.loadFailed"));
+      setError(t(getUserFacingErrorKey(e, "common.loadFailed")));
     } finally {
       setLoading(false);
     }

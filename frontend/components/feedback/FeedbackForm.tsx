@@ -3,8 +3,9 @@
 import { useState, useEffect, type ComponentType } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth, type User } from "@/contexts/AuthContext";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -97,7 +98,7 @@ export function FeedbackFormInner({
       setScreenshotGrant({ grant_id: presignRes.grant_id, oss_key: presignRes.oss_key });
     } catch (e) {
       silentError(e, { component: "FeedbackForm", action: "handleScreenshotSelect" });
-      setError(e instanceof ApiRequestError ? e.message : t("feedback.screenshotUploadFailed"));
+      setError(t(getUserFacingErrorKey(e, "feedback.screenshotUploadFailed")));
       setScreenshotFile(null);
       resetAnonymousCaptcha();
     } finally {
@@ -150,7 +151,7 @@ export function FeedbackFormInner({
       onSuccess?.(res.id);
     } catch (e) {
       silentError(e, { component: "FeedbackForm", action: "handleSubmit" });
-      setError(e instanceof ApiRequestError ? e.message : t("common.operationFailed"));
+      setError(t(getUserFacingErrorKey(e)));
     } finally {
       resetAnonymousCaptcha();
       setBusy(false);
