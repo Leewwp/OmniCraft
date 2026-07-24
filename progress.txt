@@ -610,3 +610,20 @@
 
 ### Notes:
 - No palette, radius, shadow, typography, empty-state composition, page layout, or other prototype-dependent visual direction changed.
+
+## [2026-07-25] - Task U-04: Replace native destructive dialogs
+
+### What was done:
+- Replaced dashboard content deletion, contributor block/unblock, PR accept/reject, version rollback, and admin LLM configuration deletion native dialogs with `ConfirmModal`.
+- Preserved the settings account-deletion password + irreversible-checkbox flow as its domain-specific confirmation contract.
+- Added required reason collection for PR rejection, localized admin configuration deletion copy, and kept failed destructive API actions open for retry.
+- Left only `frontend/components/social/ReactionBar.tsx`'s report prompt for U-11 ownership.
+
+### Testing:
+- `frontend/tests/destructive-dialogs.test.tsx`: PASS; full `npm.cmd test`: PASS (112 tests).
+- `npm.cmd run lint`: PASS; `npm.cmd run build`: PASS; `git diff --check`: PASS.
+- Source inventory: only the U-11-owned `ReactionBar.tsx` native prompt remains.
+- Browser attempt against current-worktree Next on port 3001 could start Chromium but the protected dashboard mock remained in its loading shell because the mock session did not satisfy the route's full auth/bootstrap contract; no screenshot was recorded or counted as passed.
+
+### Notes:
+- U-04 is complete and released. Stop before P-01 as requested; no prototype or production visual styling work was started.

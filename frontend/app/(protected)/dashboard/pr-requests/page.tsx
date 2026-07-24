@@ -6,6 +6,7 @@ import { PRCard, PRCardData } from "@/components/pr/PRCard";
 import { DiffViewer } from "@/components/pr/DiffViewer";
 import { MergeEditor } from "@/components/pr/MergeEditor";
 import { Button } from "@/components/ui/button";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
@@ -34,6 +35,7 @@ export default function PRRequestsPage() {
   const [mergeText, setMergeText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [pendingAction, setPendingAction] = useState<{ type: "accept" | "reject"; id: number } | null>(null);
 
   const openCount = useMemo(() => prs.filter((item) => item.status === "open").length, [prs]);
 
@@ -93,11 +95,6 @@ export default function PRRequestsPage() {
   }
 
   async function acceptPR(prID: number) {
-    const confirmed = window.confirm(t('dashboard.pr.acceptConfirm'));
-    if (!confirmed) {
-      return;
-    }
-
     setBusy(true);
     setError("");
     try {
@@ -109,22 +106,13 @@ export default function PRRequestsPage() {
     } catch (e) {
       silentError(e, { component: 'PRRequestsPage', action: 'acceptPR' });
       setError(t(getUserFacingErrorKey(e, "dashboard.pr.acceptFailed")));
+      throw e;
     } finally {
       setBusy(false);
     }
   }
 
-  async function rejectPR(prID: number) {
-    const reason = window.prompt(t('dashboard.pr.rejectReasonRequired'));
-    if (!reason || !reason.trim()) {
-      return;
-    }
-
-    const confirmed = window.confirm(t('dashboard.pr.rejectConfirm'));
-    if (!confirmed) {
-      return;
-    }
-
+  async function rejectPR(prID: number, reason: string) {
     setBusy(true);
     setError("");
     try {
@@ -136,6 +124,7 @@ export default function PRRequestsPage() {
     } catch (e) {
       silentError(e, { component: 'PRRequestsPage', action: 'rejectPR' });
       setError(t(getUserFacingErrorKey(e, "dashboard.pr.rejectFailed")));
+      throw e;
     } finally {
       setBusy(false);
     }
@@ -168,10 +157,10 @@ export default function PRRequestsPage() {
                   void loadPRDetail(id);
                 }}
                 onAccept={(id) => {
-                  void acceptPR(id);
+                  setPendingAction({ type: "accept", id });
                 }}
                 onReject={(id) => {
-                  void rejectPR(id);
+                  setPendingAction({ type: "reject", id });
                 }}
               />
             ))
@@ -204,6 +193,21 @@ export default function PRRequestsPage() {
           {t('dashboard.pr.refresh')}
         </Button>
       </div>
+      <ConfirmModal
+        open={pendingAction !== null}
+        onOpenChange={(open) => { if (!open) setPendingAction(null); }}
+        title={pendingAction?.type === "reject" ? t('pr.reject') : t('pr.accept')}
+        description={pendingAction?.type === "reject" ? t('dashboard.pr.rejectConfirm') : t('dashboard.pr.acceptConfirm')}
+        confirmLabel={pendingAction?.type === "reject" ? t('pr.reject') : t('pr.accept')}
+        requireReason={pendingAction?.type === "reject"}
+        reasonLabel={t('dashboard.pr.rejectReasonRequired')}
+        onConfirm={(reason) => {
+          if (!pendingAction) return Promise.resolve();
+          return pendingAction.type === "reject"
+            ? rejectPR(pendingAction.id, reason)
+            : acceptPR(pendingAction.id);
+        }}
+      />
     </div>
   );
 }

@@ -1170,7 +1170,10 @@
     "apiKey": "API Key",
     "apiKeyHint": "留空则不修改",
     "testConnection": "测试连接",
-    "activate": "激活"
+    "activate": "激活",
+    "deleteConfig": "删除配置",
+    "deleteTitle": "删除 LLM 配置",
+    "deleteDescription": "确认删除配置「{name}」吗？此操作不可撤销。"
   },
   "appeals": {
     "title": "我的申诉",

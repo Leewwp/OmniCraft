@@ -4,7 +4,7 @@
 **预计失效日期**: 2026-09-17
 
 > 适用范围：`docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md` 的 U-01 至 U-12。  
-> 当前状态：按 2026-07-25 修订后的执行顺序推进；U-05 已在共享 light 车道分支开始。
+> 当前状态：按 2026-07-25 修订后的执行顺序推进；U-05、U-02A、U-04 已完成释放，下一步为 P-01 人工原型评审。
 
 ## 预约规则
 
@@ -33,7 +33,7 @@
 | U-02A | Button、ConfirmModal、TagBadge、Toast 行为与无障碍 | U-05 | 已释放 | Codex / `codex/ui-refinement` / `c4b24f9` / 2026-07-25 03:11–03:44 +08:00 |
 | U-02B | `frontend/components/ui/**` 视觉应用 | P-01/U-01/U-02A | 待依赖 | — |
 | U-03 | Header、Sidebar、StudioSidebar、admin layout、collapse hook | U-01/U-02/U-05 | 待依赖 | — |
-| U-04 | dashboard destructive pages、settings、agent-config、VersionHistory | U-01/U-02/U-05 | 待依赖 | — |
+| U-04 | dashboard destructive pages、settings、agent-config、VersionHistory | U-01/U-02/U-05 | 已释放 | Codex / `codex/ui-refinement` / `4693cc3` / 2026-07-25 |
 | U-05 | error utilities + audited error surfaces | — | 已释放 | Codex / `codex/ui-refinement` / `d1f53cd` / 2026-07-25 02:52–03:06 +08:00 |
 | U-06 | feedback/discussion detail、SheetMusicViewer、VerdictDetail | U-01/U-02/U-05 | 待依赖 | — |
 | U-07 | DataList + history/appeals/rehab/feedback/studio/discussion lists | U-01/U-02/U-05 | 待依赖 | — |
@@ -61,3 +61,4 @@
 | 2026-07-17 | U-11 | — | 阻塞 | U-11 全部范围 | 当前 worktree 缺少生产就绪规格与计划，无法确认公开配置安全边界；未启动实现 |
 | 2026-07-25 03:06 +08:00 | U-05 | Codex | 完成并释放 | U-05 全部预约路径 | 35 个明确审计面改用本地化安全回退；重叠路径按计划依次转交 U-02A/U-04 |
 | 2026-07-25 03:44 +08:00 | U-02A | Codex | 完成并释放 | U-02A 全部预约路径 | 5 项原语测试、真实键盘流和 44px 粗指针关闭目标通过；共享原语转交 U-02B，ConfirmModal 转交 U-04 使用 |
+| 2026-07-25 | U-04 | Codex | 完成并释放 | `frontend/app/(protected)/dashboard/contents/page.tsx`; `frontend/app/(protected)/dashboard/contributors/page.tsx`; `frontend/app/(protected)/dashboard/pr-requests/page.tsx`; `frontend/app/(protected)/settings/page.tsx`; `frontend/app/(protected)/admin/agent-config/page.tsx`; `frontend/components/content/VersionHistory.tsx`; `frontend/components/ui/confirm-modal.tsx`; `frontend/messages/en.json`; `frontend/messages/zh.json`; `frontend/tests/destructive-dialogs.test.tsx` | 已释放；单元契约、全量前端测试、lint/build 通过；源码仅保留 U-11 的 ReactionBar prompt。受保护页面 Playwright mock 因会话依赖停留加载，未计为通过 |

@@ -16,7 +16,7 @@
 
 **Status:** active light-lane plan; no implementation Task has started.
 
-- This plan is priority 1 in the `AGENTS.md` active-plan registry and uses the light lane. Numeric Task IDs remain stable identifiers; the wave order below, not numeric order, is authoritative for execution.
+- This plan is priority 1 in the `AGENTS.md` active-plan registry and uses the light lane. U-05, U-02A and U-04 are complete; P-01 is the next human-approval gate. Numeric Task IDs remain stable identifiers; the wave order below, not numeric order, is authoritative for execution.
 - Production Readiness is present and registered after this plan. Re-run coordination before U-11/U-12 or any edit that expands into config, release, verifier, or backend capability paths.
 - Before P-01 approval, visual authority remains `design/design-system.md` then matching `design/ui-spec.md` sections; correctness Tasks must not restyle surfaces. After the user approves P-01, the approved prototype decision record becomes the input for U-01/U-02B updates to those authorities.
 - Re-check the current `main` before implementation. Use one shared `codex/ui-refinement` light-lane branch with logical commits per Task/gate; exact file reservations still apply.
@@ -179,10 +179,10 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - Modify: `frontend/components/content/VersionHistory.tsx`
 - Create: `frontend/tests/destructive-dialogs.test.tsx`
 
-- [ ] Test every current `window.confirm`/`window.prompt` path except ReactionBar, which belongs to U-11.
-- [ ] Use ConfirmModal `requireReason` for PR rejection and any other domain action whose API requires a reason; do not add reason collection to unrelated confirmations.
-- [ ] Preserve cancellation, busy, success, failure, and retry behavior; API failures must remain visible and must not close the modal as if successful.
-- [ ] Verify `rg -n 'window\.(confirm|prompt)\('` reports only the U-11-owned ReactionBar call before U-11 merges and zero afterward.
+- [x] Test every current `window.confirm`/`window.prompt` path except ReactionBar, which belongs to U-11.
+- [x] Use ConfirmModal `requireReason` for PR rejection and any other domain action whose API requires a reason; do not add reason collection to unrelated confirmations.
+- [x] Preserve cancellation, busy, success, failure, and retry behavior; API failures must remain visible and must not close the modal as if successful.
+- [x] Verify `rg -n 'window\.(confirm|prompt)\('` reports only the U-11-owned ReactionBar call before U-11 merges and zero afterward.
 
 ## Task U-05: Make User-Facing Errors Safe And Consistent
 

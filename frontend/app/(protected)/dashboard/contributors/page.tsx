@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 
 interface Contributor {
   user_id: number;
@@ -21,6 +22,7 @@ export default function ContributorsPage() {
   const [contributors, setContributors] = useState<Contributor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [pendingContributor, setPendingContributor] = useState<Contributor | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -62,7 +64,7 @@ export default function ContributorsPage() {
 
   async function toggleBlock(contributor: Contributor) {
     const action = contributor.blocked ? t('dashboard.contributors.unblock') : t('dashboard.contributors.block');
-    if (!window.confirm(t('dashboard.contributors.confirmAction', { action }))) return;
+    setError("");
     try {
       if (contributor.blocked) {
         await api.delete(`/api/v1/dashboard/contributors/${contributor.user_id}/block`);
@@ -75,6 +77,7 @@ export default function ContributorsPage() {
     } catch (e) {
       silentError(e, { component: 'ContributorsPage', action: 'toggleBlock' });
       setError(t(getUserFacingErrorKey(e)));
+      throw e;
     }
   }
 
@@ -117,7 +120,7 @@ export default function ContributorsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <Button size="sm" variant={c.blocked ? "outline" : "destructive"} onClick={() => void toggleBlock(c)}>
+                    <Button size="sm" variant={c.blocked ? "outline" : "destructive"} onClick={() => setPendingContributor(c)}>
                       {c.blocked ? t('dashboard.contributors.unblock') : t('dashboard.contributors.block')}
                     </Button>
                   </td>
@@ -126,6 +129,16 @@ export default function ContributorsPage() {
             </tbody>
           </table>
         </div>
+      )}
+      {pendingContributor && (
+        <ConfirmModal
+          open
+          onOpenChange={(open) => { if (!open) setPendingContributor(null); }}
+          title={pendingContributor.blocked ? t('dashboard.contributors.unblock') : t('dashboard.contributors.block')}
+          description={t('dashboard.contributors.confirmAction', { action: pendingContributor.blocked ? t('dashboard.contributors.unblock') : t('dashboard.contributors.block') })}
+          confirmLabel={pendingContributor.blocked ? t('dashboard.contributors.unblock') : t('dashboard.contributors.block')}
+          onConfirm={() => toggleBlock(pendingContributor)}
+        />
       )}
     </div>
   );
