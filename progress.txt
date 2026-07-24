@@ -512,3 +512,14 @@
 ### Notes:
 - The persistent local Docker database predated migration 057; the first browser request failed safely on the old channel CHECK constraint with request/notifications rolled back and a failed audit retained. Applying the existing migration 057 restored the expected local schema before the successful rerun.
 - The messages/notifications plan is complete and archived. Stage 2 executable closeout work is complete; Beta R-02 remains intentionally blocked on Desktop D-02~D-05, real Ed25519 provisioning, HTTPS API configuration and a signed distribution path, so no R-02 checkbox or release evidence was fabricated.
+
+## [2026-07-24] - Deployment: PgBouncer SCRAM compatibility
+
+### What was done:
+- Added `AUTH_TYPE: "scram-sha-256"` to the single-server PgBouncer template so a freshly initialized PostgreSQL 16 cluster using SCRAM password hashes accepts pooled backend connections.
+
+### Testing:
+- Reviewed the rendered Compose change with `git diff --check`; full local Compose rendering requires the deployment-only `.env`, which is intentionally absent from the repository.
+
+### Notes:
+- Production recovery verified that migrations, including collections, series and notification broadcast idempotency, had completed before the backend connection failure.

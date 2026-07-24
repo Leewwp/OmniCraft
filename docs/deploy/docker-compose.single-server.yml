@@ -61,6 +61,7 @@ services:
       DB_PORT: "5432"
       DB_USER: ${POSTGRES_USER:-omnicraft}
       DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      AUTH_TYPE: "scram-sha-256"
       DB_NAME: ${POSTGRES_DB:-omnicraft}
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 100
