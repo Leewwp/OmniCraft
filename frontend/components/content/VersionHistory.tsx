@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { Button } from "@/components/ui/button";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 interface Version {
@@ -37,6 +38,7 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<{ version: Version; content: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pendingRollback, setPendingRollback] = useState<Version | null>(null);
 
   useEffect(() => {
     void loadVersions();
@@ -70,9 +72,6 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
   }
 
   async function rollbackToVersion(version: Version) {
-    if (!window.confirm(t('content.restoreConfirm', { version: version.version_number }))) {
-      return;
-    }
     setBusy(true);
     try {
       await api.post(`/api/v1/contents/${contentId}/versions`, {
@@ -82,6 +81,7 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
     } catch (e) {
       setError(t('content.versionRestoreFailed'));
       silentError(e, { component: 'VersionHistory', action: 'rollbackToVersion' });
+      throw e;
     } finally {
       setBusy(false);
     }
@@ -136,7 +136,7 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
                   {t('content.preview')}
                 </Button>
                 {isAuthor && !v.is_latest && (
-                  <Button size="sm" variant="outline" disabled={busy} onClick={() => void rollbackToVersion(v)}>
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => setPendingRollback(v)}>
                     {t('content.restoreVersion')}
                   </Button>
                 )}
@@ -157,6 +157,14 @@ export function VersionHistory({ contentId, isAuthor }: VersionHistoryProps) {
           </div>
         </div>
       )}
+      <ConfirmModal
+        open={pendingRollback !== null}
+        onOpenChange={(open) => { if (!open) setPendingRollback(null); }}
+        title={t('content.restoreVersion')}
+        description={pendingRollback ? t('content.restoreConfirm', { version: pendingRollback.version_number }) : ""}
+        confirmLabel={t('content.restoreVersion')}
+        onConfirm={() => pendingRollback ? rollbackToVersion(pendingRollback) : Promise.resolve()}
+      />
     </div>
   );
 }

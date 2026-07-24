@@ -1170,7 +1170,10 @@
     "apiKey": "API Key",
     "apiKeyHint": "Leave empty to keep unchanged",
     "testConnection": "Test Connection",
-    "activate": "Activate"
+    "activate": "Activate",
+    "deleteConfig": "Delete configuration",
+    "deleteTitle": "Delete LLM configuration",
+    "deleteDescription": "Delete configuration \"{name}\"? This action cannot be undone."
   },
   "appeals": {
     "title": "My Appeals",

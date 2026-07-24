@@ -56,6 +56,8 @@ export function ConfirmModal({
       await onConfirm(reason);
       setReason("");
       onOpenChange(false);
+    } catch {
+      // Keep the dialog open so the caller can show the failure and the user can retry.
     } finally {
       setBusy(false);
     }

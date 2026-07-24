@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
@@ -29,6 +30,7 @@ export default function DashboardContentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<ContentItem | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -52,14 +54,15 @@ export default function DashboardContentsPage() {
   }
 
   async function deleteContent(id: number) {
-    if (!window.confirm(t('dashboard.content.deleteConfirm'))) return;
     setBusy(true);
     try {
       await api.delete(`/api/v1/contents/${id}`);
       setContents((prev) => prev.filter((c) => c.ID !== id));
+      setPendingDelete(null);
     } catch (e) {
       silentError(e, { component: 'DashboardContentsPage', action: 'deleteContent' });
       setError(t(getUserFacingErrorKey(e, "dashboard.content.deleteFailed")));
+      throw e;
     } finally {
       setBusy(false);
     }
@@ -139,7 +142,7 @@ export default function DashboardContentsPage() {
                       <Link href={`/content/${c.ID}`}>
                         <Button size="sm" variant="outline">{t('common.view')}</Button>
                       </Link>
-                      <Button size="sm" variant="outline" disabled={busy} onClick={() => void deleteContent(c.ID)}>
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => setPendingDelete(c)}>
                         {t('dashboard.content.delete')}
                       </Button>
                     </div>
@@ -150,6 +153,14 @@ export default function DashboardContentsPage() {
           </table>
         </div>
       )}
+      <ConfirmModal
+        open={pendingDelete !== null}
+        onOpenChange={(open) => { if (!open) setPendingDelete(null); }}
+        title={t('dashboard.content.delete')}
+        description={t('dashboard.content.deleteConfirm')}
+        confirmLabel={t('dashboard.content.delete')}
+        onConfirm={() => pendingDelete ? deleteContent(pendingDelete.ID) : Promise.resolve()}
+      />
     </div>
   );
 }

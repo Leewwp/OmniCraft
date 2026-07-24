@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Plus, Trash2, Check, Loader2, Power, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +33,7 @@ export default function AgentConfigPage() {
   const [form, setForm] = useState({ config_name: "", provider_type: "openai_compat", api_base: "", model: "", api_key: "" });
   const [modalBusy, setModalBusy] = useState(false);
   const [modalError, setModalError] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<LLMConfig | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -96,6 +98,7 @@ export default function AgentConfigPage() {
     } catch (e) {
       silentError(e, { component: 'AdminAgentConfigPage', action: 'handleDelete' });
       setError(t(getUserFacingErrorKey(e)));
+      throw e;
     }
   }
 
@@ -201,7 +204,8 @@ export default function AgentConfigPage() {
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(cfg)}>
                         {t("common.edit")}
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive" onClick={() => handleDelete(cfg.id)}
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive" onClick={() => setPendingDelete(cfg)}
+                        title={t("agentConfig.deleteConfig")}
                         disabled={cfg.is_active}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -264,6 +268,14 @@ export default function AgentConfigPage() {
           </div>
         </div>
       )}
+      <ConfirmModal
+        open={pendingDelete !== null}
+        onOpenChange={(open) => { if (!open) setPendingDelete(null); }}
+        title={t("agentConfig.deleteTitle")}
+        description={t("agentConfig.deleteDescription", { name: pendingDelete?.config_name ?? "" })}
+        confirmLabel={t("agentConfig.deleteConfig")}
+        onConfirm={() => pendingDelete ? handleDelete(pendingDelete.id) : Promise.resolve()}
+      />
     </div>
   );
 }
