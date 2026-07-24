@@ -518,6 +518,7 @@
 ### What was done:
 - Added `AUTH_TYPE: "scram-sha-256"` to the single-server PgBouncer template so a freshly initialized PostgreSQL 16 cluster using SCRAM password hashes accepts pooled backend connections.
 - Corrected the deployment templates and runbook to use Certbot's actual `/etc/letsencrypt/live/app.leeppp.online/` certificate directory instead of the non-existent parent-domain directory.
+- Updated the static Nginx CSP for Next.js App Router bootstrap scripts and the separate public API origin, restoring client-side hydration instead of leaving only server-rendered navigation.
 
 ### Testing:
 - Reviewed the rendered Compose change with `git diff --check`; full local Compose rendering requires the deployment-only `.env`, which is intentionally absent from the repository.
