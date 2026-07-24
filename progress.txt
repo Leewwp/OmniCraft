@@ -458,3 +458,23 @@
 - The prior Docker BLOCKED record remains above as historical evidence; this entry records its resolution on 2026-07-23.
 - The Content Series plan browser-verification checkbox and self-check are now complete.
 - No `task.json`, Beta roadmap, or UI polish plan state was changed.
+
+## [2026-07-23] - 文档瘦身阶段 0+1：清场与文档体系重构
+
+### What was done:
+- 阶段 0：验证并提交会话遗产批次（5 个主题 commit：SSR API URL 分离、公开页 SEO、hot rank 修复、迁移 060 搜索回退、本地 seed 工具）；修剪 9 个 codex worktree（4 个长路径残留已强删）；删除 10 条已全部并入 main 的 codex 分支。
+- 死账处置：progress.txt 轮换为 30 天窗口（259KB→39KB，127 条旧记录归档至 docs/archive/progress/2026-04-to-2026-06.md）；task.json 移至 docs/archive/task-ledger-mvp.json，历史任务模式废止。
+- 旧计划归档：铁证完成 6 份 + 验证完成 2 份（web-beta-review-repair、documentation-governance）移入 docs/archive/plans/ 并加归档说明。
+- AGENTS.md 重写：46KB→14KB；五模式废止，改为活计划注册表 + 双车道（light/heavy）；业务规则抽取至 docs/reference/business-rules.md；CLAUDE.md 变为 @AGENTS.md 指针。
+- architecture.md 拆分：128KB→37.7KB 概述；§4/5/7→docs/reference/{schema,api,config}.md；§10-13→docs/specs/；§14-15 实现笔记→docs/reference/implementation-notes.md（因含活实现引用，改归档为参考）。
+- ui-spec.md 小手术：删除 3 个死节（/publish、/dashboard 两个 301 页 + Deprecated 组件），顶部新增章节索引（46 页 + 63 组件）。
+- doc-validator 同步：schema/config 检查路径指向 docs/reference/，修复迁移后断链。
+
+### Testing:
+- 提交前验证：前端 100/100 单测 PASS、lint(tsc) PASS、go build/vet PASS。
+- doc-validator --check（含 release profile）：All checks passed。
+- go test ./tools/doc-validator/... PASS。
+
+### Notes:
+- 常驻上下文（AGENTS.md + architecture.md）从 ~420KB 降至 51.7KB。
+- 下一步按注册表优先级：近完成项清零（消息通知 11 / 卓越加固 9 / 发布验证 6），随后 UI 工程（U-01~U-05 地基 + 首页/详情页视觉样板）。
