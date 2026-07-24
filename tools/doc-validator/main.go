@@ -23,7 +23,7 @@ type checkProfile struct {
 }
 
 func main() {
-	fix := flag.Bool("fix", false, "Auto-fix architecture.md auto-generated sections")
+	fix := flag.Bool("fix", false, "Auto-fix generated sections in docs/reference/")
 	check := flag.Bool("check", false, "Run consistency checks")
 	diff := flag.Bool("diff", false, "Only check files changed in git diff")
 	profileName := flag.String("profile", "release", "Validation profile: release, archive, or all")
@@ -112,7 +112,7 @@ func findProjectRoot() string {
 }
 
 func runFix() {
-	fmt.Println("Fixing architecture.md auto-generated sections...")
+	fmt.Println("Fixing docs/reference/ auto-generated sections...")
 	if err := rules.SyncConfigFields(); err != nil {
 		fmt.Fprintf(os.Stderr, "config sync: %v\n", err)
 	}
@@ -122,7 +122,7 @@ func runFix() {
 	if err := rules.SyncRouteList(); err != nil {
 		fmt.Fprintf(os.Stderr, "route sync: %v\n", err)
 	}
-	fmt.Println("Done. Review changes to architecture.md before committing.")
+	fmt.Println("Done. Review changes before committing.")
 }
 
 func runCheck(diffOnly bool, profile checkProfile) []Issue {

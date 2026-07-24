@@ -11,6 +11,130 @@
 
 <!-- Gemini 生成内容从此行开始 -->
 
+## Section Index（索引）
+
+> 本索引由 2026-07-23 文档瘦身生成，后续由 doc-validator（UI 治理门 U-12）接管自动校验，请勿手改。
+> 使用方式：`grep -n "## Component: TagBadge" design/ui-spec.md` 定位后按节阅读。
+
+### Global（2）
+- Global Design Tokens
+- Global Interaction Patterns
+
+### Pages（46）
+- Page: / 首页
+- Page: /search 搜索页
+- Page: /login 登录页
+- Page: /register 注册页
+- Page: /ip/[ipId] IP 详情页
+- Page: /ip/[ipId]/[category] IP 类目内容列表
+- Page: /ip/[ipId]/discussions 讨论区列表
+- Page: /ip/[ipId]/discussions/[discussionId] 讨论详情
+- Page: /ip/[ipId]/discussions/new 发帖页
+- Page: /content/[contentId] 内容详情页
+- Page: /original 原创区首页
+- Page: /original/[contentId] 原创内容详情
+- Page: /user/[userId] 用户主页
+- Page: /settings 账号设置
+- Page: /settings/tag-groups 标签组管理
+- Page: /dashboard/contents 我的内容
+- Page: /dashboard/pr-requests PR 申请管理
+- Page: /dashboard/contributors 贡献者管理
+- Page: /dashboard/tag-suggestions 标签建议审核
+- Page: /judge/exam 赛博判官资质考核
+- Page: /judge/queue 待审内容队列
+- Page: /history 浏览历史
+- Page: /appeals 我的申诉
+- Page: /messages 消息中心
+- Page: /rehab 素质建设课程
+- Page: /admin/ips IP 库管理
+- Page: /admin/contents 内容终审
+- Page: /admin/users 用户管理
+- Page: /admin/appeal 申诉处理
+- Page: /admin/config 系统配置
+- Page: /admin/notifications 管理员系统通知广播
+- Page: /admin/categories 分类与标签管理
+- Page: /admin/agent-config Agent 管理
+- Page: /studio 创作者工作室
+- Page: /studio/publish/original 发布原创
+- Page: /studio/publish/fanwork 发布二创
+- Page: /studio/overview 数据概览
+- Page: /studio/series 内容系列管理
+- Page: /studio/favorites 收藏集管理
+- Page: /studio/followers 粉丝分析
+- Page: /studio/revenue 收益数据
+- Page: /forgot-password 忘记密码（Task 117）
+- Page: /reset-password 重置密码（Task 117）
+- Page: /series/[id] 内容系列详情
+- Page: /collections/[id] 收藏集详情（Task 122-124）
+- Page: /user/[userId]/collections 用户收藏集列表（Task 122-123）
+
+### Components（63）
+- Component: Header
+- Component: FacetedSearchSidebar
+- Component: ContentCard
+- Component: MasonryGrid
+- Component: TagBadge
+- Component: IPCard
+- Component: IPCategoryTabs
+- Component: ContentDetail
+- Component: SeriesNav 内容系列导航
+- Component: SourceAttribution 灵感来源归因
+- Component: RelatedFanworks 相关二创/衍生作品行
+- Component: MarkdownRenderer
+- Component: SheetMusicViewer
+- Component: PRCard
+- Component: DiffViewer
+- Component: ReactionBar
+- Component: CommentSection
+- Component: VersionHistory
+- Component: FileUploader
+- Component: ExamQuestion
+- Component: ReviewCard
+- Component: EmptyState
+- Component: ConfirmModal
+- Component: AgentChatWidget
+- Component: UploadAssistPanel
+- Component: ComplianceCheckBadge
+- Component: UsageGuidePanel
+- Component: SearchAgentInput
+- Component: FollowButton
+- Component: NotificationDropdown
+- Component: NotificationList
+- Component: ConversationList
+- Component: ChatWindow
+- Component: CollabInviteCard 联合创作邀请卡片
+- Component: CourseCard
+- Component: CourseContent
+- Component: ReputationDetail
+- Component: DiscussionCard
+- Component: ReplyList
+- Component: VerdictDetail
+- Component: LLMConfigTable
+- Component: LLMConfigModal
+- Component: ActiveConfigCard
+- Component: UserProfileCard
+- Component: FollowerListModal
+- Component: CreatorSupportPanel
+- Component: JudgeQualBadge
+- Component: StudioSidebar
+- Component: ContentTypeGrid
+- Component: SourceContentPicker 来源内容选择器
+- Component: CollabUserPicker 联合创作者选择器
+- Component: CollectionInfoCard 收藏集信息摘要
+- Component: ContentTypeFilter 内容类型筛选
+- Component: CollectionCard 收藏集卡片（Task 122-123）
+- Component: CollectionPicker 收藏集选择器
+- Component: DownloadButton 下载按钮（Task 121）
+- Component: LoadingSpinner 加载旋转器
+- Component: SkeletonCard 骨架屏卡片
+- Component: Toast 消息提示
+- Component: Footer 页脚
+- Component: StatsCard 统计卡片
+- Component: NotificationBell 通知铃铛
+- Component: SortSelect 排序选择器
+
+---
+
 ## Global Design Tokens
 
 > **来源**: 以下所有 token 值以 `design/design-system.md` 为准，是本文件的唯一设计权威。
@@ -772,54 +896,6 @@ interface FacetedSearchSidebarProps {
 - 破坏性操作必须 ConfirmModal 二次确认。
 - 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
 
-## Page: /publish 发布内容
-
-> ⚠️ **已废弃**：本页面已迁移至 `/studio/publish/original` 和 `/studio/publish/fanwork`（创作者工作室发布流程）。旧路由 `/publish` 保留 301 重定向到 `/studio/publish/original`。以下规范仅供迁移参考，**以新版 §13 创作者工作室章节和 Page: /studio/* 系列的最新规格为准**。
-
-**Key Constraints**
-- 必须读取 config.yaml 的文件大小限制（视频≤300MB, 图片≤20MB, 文本≤10MB等）。
-- 破坏性操作（如放弃上传或退出）需弹 ConfirmModal。
-- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
-
-**视觉层级**
-- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
-- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
-- 内容模块：带 1px 边框的卡片容器
-
-**核心组件清单**
-- `FileUploader`
-- `MarkdownEditor`
-- `UploadAssistPanel`
-
-**布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
-
-**状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
-
-**响应式规则**
-- 移动 (≤700px): 表单全宽（margin 16px），编辑器高度 250px，上传组件全宽。
-- 平板 (≤1100px): 表单最大宽度 720px，居中。
-- PC (>1100px): 表单最大宽度 960px，居中，两侧留白。
-
-**暗色模式适配**
-- 背景色 token: `canvas-default` -> `canvas-default.dark`
-- 边框色 token: `border-default` -> `border-default.dark`
-- 文字色 token: `foreground` -> `foreground.dark`
-- 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
-
-**交互细节**
-- 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
-- 破坏性操作必须 ConfirmModal 二次确认。
-- 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
-
 ## Page: /settings 账号设置
 
 **Key Constraints**
@@ -913,53 +989,6 @@ interface FacetedSearchSidebarProps {
 - 移动 (≤700px): 列表全宽（margin 16px），操作按钮展开式。
 - 平板 (≤1100px): 内容区最大宽度 640px，居中。
 - PC (>1100px): 内容区最大宽度 720px，居中。
-
-**暗色模式适配**
-- 背景色 token: `canvas-default` -> `canvas-default.dark`
-- 边框色 token: `border-default` -> `border-default.dark`
-- 文字色 token: `foreground` -> `foreground.dark`
-- 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
-
-**交互细节**
-- 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
-- 破坏性操作必须 ConfirmModal 二次确认。
-- 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
-
-## Page: /dashboard 创作者后台概览
-
-> ⚠️ **已废弃**：本页面已迁移至 `/studio/overview`（创作者工作室数据概览）。旧路由 `/dashboard` 保留 301 重定向到 `/studio/overview`。以下规范仅供迁移参考，**以新版 Page: /studio/overview 的最新规格为准**。
-
-**Key Constraints**
-- 后台页面：Role 必须为 admin 且二次校验拦截，包含 ConfirmModal 二次确认。
-- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
-
-**视觉层级**
-- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
-- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
-- 内容模块：带 1px 边框的卡片容器
-
-**核心组件清单**
-- `AdminNav`
-- `Table`
-- `ConfirmModal`
-
-**布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
-
-**状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
-
-**响应式规则**
-- 移动 (≤700px): 表格水平滚动，概览卡片单列堆叠，操作按钮展开式。
-- 平板 (≤1100px): 表格自适应宽度，概览卡片 2 列。
-- PC (>1100px): 表格最大宽度 1280px，概览卡片 4 列。
 
 **暗色模式适配**
 - 背景色 token: `canvas-default` -> `canvas-default.dark`
@@ -5397,60 +5426,6 @@ interface DownloadButtonProps {
 - 点击 -> 调用 `GET /api/v1/contents/:id/download` -> 获取 OSS 签名 URL -> 触发浏览器下载
 - 下载完成后 `download_count + 1`（异步，不影响用户操作）
 - 信誉分不足时按钮 disabled + tooltip 显示「信誉分不足，无法下载」
-
-## Component: Legacy Add-To-Collection Modal Compatibility（Deprecated）
-
-**Key Constraints**
-- 遵守全局扁平化无阴影设计规范，Modal 使用 `shadow-md`（唯一允许阴影的组件）。
-- 同一收藏集内不允许重复添加同一内容。
-
-**Props 接口**
-```ts
-interface LegacyCollectionPickerWrapperProps {
-  className?: string;
-  contentId: number;
-  contentTitle: string;
-  isOpen: boolean;
-  onClose: () => void;
-  onAdded?: (collectionId: number) => void;
-}
-```
-
-**视觉结构**
-- 遮罩: `<div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm">`
-- Modal 容器: `<div className="bg-canvas-default rounded-lg shadow-md max-w-md w-full mx-auto p-6">`
-- 标题: `<h2 className="text-lg font-medium text-foreground">` 添加到收藏集
-- 收藏集列表: 每项 `button border border-border-default rounded-md p-3 hover:bg-canvas-subtle flex items-center gap-3`
-  - 左侧: 收藏集标题 + 内容数
-  - 右侧: 已添加 check 标记 或 添加 plus 按钮
-- 底部: 「新建收藏集」按钮 + 「取消」按钮
-
-**尺寸规范**
-- Modal 最大宽度: 448px (`max-w-md`)
-- 内间距: `p-6` (24px)
-- 列表项间距: `gap-2` (8px)
-- 字号: `text-lg` (18px) 标题，`text-sm` (14px) 列表项，`text-xs` (12px) 辅助
-
-**状态变体**
-- default: 收藏集列表展示，可点击添加。
-- loading: 添加中 Spinner。
-- error: 数据加载失败 Toast。
-- added: 列表项显示 check 已添加标记，不可重复点击。
-- full: 收藏集列表为空时展示 EmptyState + 创建 CTA。
-
-**响应式行为**
-- 移动: Modal 全宽（m-4），`max-w-full`。
-- 平板/PC: `max-w-md` 居中。
-
-**暗色模式适配**
-- 遮罩: `bg-black/50` 不变。
-- Modal 容器: `bg-canvas-default.dark` (token 自动映射)。
-
-**关键交互**
-- 点击收藏集 -> `POST /api/v1/collections/:id/items` -> 成功后该项显示 check
-- 点击「新建收藏集」-> 弹出新建收藏集子 Modal（标题 + 公开/私有选择）
-- 重复添加：前端灰显 + 禁止点击，后端 UNIQUE 约束兜底返回 409
-- ESC 或点击遮罩 -> 关闭 Modal
 
 ## Component: LoadingSpinner 加载旋转器
 
