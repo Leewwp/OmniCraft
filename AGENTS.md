@@ -28,7 +28,7 @@ CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致
 | 优先级 | 计划文件 | 余项 | 车道 | 备注 |
 |--------|----------|------|------|------|
 | 1 | `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md` | P-01→U-01→U-02B→U-03 | light | U-05/U-02A/U-04 已完成；下一步仅为 P-01 原型评审，须用户批准后再继续。U-06/07/09/10 并入后续推广，U-11/U-12 收尾 |
-| 2 | `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md` | 65 | heavy | Web 发布路径执行 Ops-00~Ops-08；桌面制品 Ops-09 随桌面范围暂缓，不得复制或绕过桌面安全任务 |
+| 2 | `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md` | 58（其中 9 项桌面暂缓） | heavy | Ops-00 已完成；Web 发布路径执行 Ops-01~Ops-08。桌面制品 Ops-09 随桌面范围暂缓，不得复制或绕过桌面安全任务 |
 | 3 | `docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md` | 64 | light | 未开始 |
 | 3 | `docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md` | 62 | light | 未开始 |
 | 4 | `docs/superpowers/plans/2026-07-16-omnicraft-web-agent-productization.md` | 47 | mixed | 未开始；真实 Provider 密钥缺失时按阻塞处理，仓库默认开关保持关闭 |

@@ -1,10 +1,12 @@
 # OmniCraft Production Readiness Implementation Plan
 
+> **2026-07-25 Web-only execution scope:** Ops-00 is complete. Continue only Ops-01 through Ops-08 for the Web production-ready claim. Ops-09 is intentionally deferred, remains unchecked, and may resume only after the user restores Desktop scope and D-02 through D-05/R-02 are complete. Keep the Ops-09 section in this file as the future extension; do not archive or duplicate it.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 建立从 PR 验证、数据库升级和恢复，到可观测性、安全、制品证明、负载验证、部署回滚与桌面签名的可审计生产发布链。
 
-**Architecture:** GitHub Actions 只编排仓库内可本地复现的 verifier；数据库使用 forward-only ledger；发布使用不可变 digest、机器可读证据和 staging 演练。Ops-00～Ops-09 各自独立提交，通过 `codex/ops-integration` 串联，外部密钥缺失不能削弱 deterministic gates。
+**Architecture:** GitHub Actions 只编排仓库内可本地复现的 verifier；数据库使用 forward-only ledger；发布使用不可变 digest、机器可读证据和 staging 演练。当前 Web 主线由 Ops-00～Ops-08 串联；Ops-09 保留为恢复 Desktop 范围后的扩展。外部密钥缺失不能削弱 deterministic gates。
 
 **Tech Stack:** GitHub Actions、PowerShell 7-compatible scripts（CI 使用 `pwsh`；当前 Windows 本地命令沿用仓库的 `powershell` 入口）、Go 1.25.11、Node.js 20、npm、PostgreSQL 16 + pgvector、Redis 7、Docker Compose、Prometheus/Alertmanager、Grafana Alloy/Loki、Trivy/gitleaks/govulncheck/cargo-audit、CycloneDX/SPDX、k6、Tauri 2、Windows Authenticode。
 
@@ -14,11 +16,11 @@
 
 ## Status, authority, and universal rules
 
-**Status:** Ops-00 approved for execution on 2026-07-18 in `codex/ops/ops-00`; Ops-01～Ops-09 have not started.
+**Status:** Ops-00 completed at `9ea53c8`; Ops-01～Ops-08 have not started; Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
 
 - This plan is not Hardening Task 6 and must never add one.
 - Do not modify `task.json`, Beta/community checkboxes, or Web Agent completion state.
-- Ops-00 uses `codex/ops/ops-00`. After approval, create `codex/ops-integration`; Ops-01～09 use `codex/ops/ops-XX` from the latest integration commit.
+- Ops-00 was completed in `codex/ops/ops-00`. Before Ops-01, create or refresh `codex/ops-integration` from the latest `main`; Ops-01～08 use `codex/ops/ops-XX` from the latest integration commit. Do not create an Ops-09 branch while Desktop scope is deferred.
 - One Ops Task equals one session, worktree, branch, reviewed commit, and `progress.txt` entry.
 - Rebase onto `codex/ops-integration`, run the task's full gates, then merge with `git merge --ff-only`.
 - Every implementation behavior uses red → green → refactor. Operational YAML/shell behavior uses contract tests plus a real tool/drill; lint alone is insufficient.
@@ -73,6 +75,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidenc
 
 ## Ops-00: Establish the authoritative Production Readiness source
 
+> Completed at `9ea53c8` on 2026-07-18. The Mode E wording below records the workflow used at that time; current follow-up Ops tasks use the `AGENTS.md` heavy lane.
+
 **Depends on:** Hardening Tasks 1～5 merged at `b1aea75`  
 **Branch:** `codex/ops/ops-00`  
 **Write reservation:** only the six paths below
@@ -86,7 +90,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidenc
 - Modify: `CLAUDE.md`
 - Modify: `progress.txt`
 
-- [ ] **Step 1: Prove the sources do not already exist and Hardening ends at Task 5**
+- [x] **Step 1: Prove the sources do not already exist and Hardening ends at Task 5**
 
 Run before writing Mode E registration:
 
@@ -96,19 +100,19 @@ rg -n "模式 E：Production Readiness" AGENTS.md CLAUDE.md
 
 Expected before implementation: exit nonzero. After registration run the identical command and require exit zero. Separately confirm both new paths were absent at the base commit and Hardening has no active Task 6 with `git show HEAD:<path>`/`rg` evidence.
 
-- [ ] **Step 2: Write the design and this plan**
+- [x] **Step 2: Write the design and this plan**
 
 Cover CI, migrations, backup/restore, logs/metrics, alerts, scans, SBOM/provenance, load, production config, deploy/rollback and Desktop signing. Include exact tasks, evidence and blockers.
 
-- [ ] **Step 3: Register independent Mode E in both agent guides**
+- [x] **Step 3: Register independent Mode E in both agent guides**
 
 Add identical source, selection, branch, review, tracking and blocking rules. Explicitly prohibit `task.json` changes and Hardening Task 6.
 
-- [ ] **Step 4: Run spec review and plan review loops**
+- [x] **Step 4: Run spec review and plan review loops**
 
 Dispatch one spec-document reviewer and one plan-document reviewer with only the two paths and user requirements. Save complete responses as `artifacts/ops-00/spec-review-round-N.txt` and `artifacts/ops-00/plan-review-round-N.txt`. Allowed terminal status is exactly `APPROVED`; `ISSUES FOUND` or `DONE_WITH_CONCERNS` requires fixes and another full review, maximum three rounds. The final summary lists every report path and refuses completion unless the latest report for each reviewer starts with `APPROVED`.
 
-- [ ] **Step 5: Ignore generated evidence and verify docs/tracking isolation**
+- [x] **Step 5: Ignore generated evidence and verify docs/tracking isolation**
 
 Add `/artifacts/` to `.gitignore`; do not use a broad pattern that could hide versioned release manifests or fixtures elsewhere.
 
@@ -124,7 +128,7 @@ git check-ignore artifacts/ops-00/summary.json
 
 Expected: tests/release profile pass; no diff in forbidden tracking files; the evidence path is ignored.
 
-- [ ] **Step 6: Commit the reviewed sources, then create final-commit evidence**
+- [x] **Step 6: Commit the reviewed sources, then create final-commit evidence**
 
 After both review loops are approved, stage exactly the six reserved paths and create the single task commit. Only then generate the untracked/ignored summary so it identifies the reviewed commit rather than parent `b1aea75`:
 
@@ -753,7 +757,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidenc
 
 ## Ops-09: Sign and verify Desktop release artifacts
 
-**Depends on:** Ops-01, Ops-05, Ops-06, Ops-08 and Mode A Desktop D-02～D-05/R-02  
+**Depends on:** Ops-01, Ops-05, Ops-06, Ops-08 and the deferred Desktop D-02～D-05/R-02 plans
 **Branch:** `codex/ops/ops-09`  
 **Write reservation/freeze:** every file listed below and the protected signing environment; no concurrent Tauri bundle/updater/capability/signing or desktop release workflow edits
 
@@ -842,6 +846,6 @@ Ops 主线串行，因为 compose、runbook、CI、权威计划和证据索引�
 ## Web + Desktop production-ready extension
 
 - [ ] Web production-ready definition is satisfied.
-- [ ] Mode A D-02～D-05/R-02 are complete.
+- [ ] Deferred Desktop D-02～D-05/R-02 plans are complete after Desktop scope is restored.
 - [ ] Ops-09 is complete, reviewed, merged and evidenced.
 - [ ] Desktop installers/updater manifest are signed and independently verified; key rotation/revocation drill passes.

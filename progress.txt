@@ -350,7 +350,7 @@
 ## [2026-07-18] - Local test validation repair: documentation sync
 
 ### What was done:
-- Synchronized `docs/working/2026-07-18-local-test-validation-repair-plan.md` with the implementation already merged on `main`.
+- Synchronized the local test validation repair plan (now archived at `docs/archive/plans/2026-07-18-local-test-validation-repair-plan.md`) with the implementation already merged on `main`.
 - Marked the preflight/readiness/layer-runner implementation and contract verification complete, along with the originating session’s Docker recovery and isolated-layer execution evidence.
 - Kept the full repository regression checkbox open because the fresh `scripts/verify-project.ps1` run exceeded 240 seconds in `go test ./...` and did not produce a PASS result.
 
@@ -627,3 +627,23 @@
 
 ### Notes:
 - U-04 is complete and released. Stop before P-01 as requested; no prototype or production visual styling work was started.
+
+## [2026-07-25] - Maintenance: Web-only scope and repository state audit
+
+### What was done:
+- Confirmed the current release scope is Web-only across `AGENTS.md`, the deferred Desktop plans, Production Readiness, and Agent productization design/plan sources.
+- Kept Desktop D-02～D-05, R-02 and Ops-09 unchecked and preserved their source plans in place; verified runtime defaults remain `features.desktop_deploy_enabled=false` and `client.download_enabled=false`.
+- Marked the already evidenced Ops-00 source-establishment task complete and corrected the Production Readiness remaining count and UI plan status.
+- Archived 11 completed, superseded, or obsolete documents, including three completed community plans and old Mode C/worktree guidance; retained all active and explicitly deferred plans.
+- Removed four local branch refs already fully contained by `main`; no additional worktrees or stale worktree metadata remained.
+
+### Testing:
+- `git fetch --prune origin`: PASS; `origin/main` has no commits absent from local `main`.
+- `go test ./...` in `tools/doc-validator`: PASS.
+- `go run . --check --profile release` in `tools/doc-validator`: PASS (`All checks passed`).
+- `git diff --check`: PASS after formatting cleanup.
+- Verified `AGENTS.md` is 14,839 bytes, below the 20KB limit.
+
+### Notes:
+- Before this maintenance commit, local `main` was five commits ahead of `origin/main`; the final commit and push status are recorded in Git rather than fabricated in this entry.
+- The next product task remains P-01 prototype review preparation; no prototype or application implementation was started during this audit.
