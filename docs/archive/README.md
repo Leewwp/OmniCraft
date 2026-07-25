@@ -25,3 +25,10 @@
 | docs/iteration-review-prompt.md | 2026-06-29 | completed — tied to archived iteration reviews |
 | docs/async-queue-analysis.md | 2026-06-29 | completed — analysis no longer active |
 | docs/oss-lifecycle.md | 2026-06-29 | completed — superseded by config.yaml TTL values |
+| docs/working/2026-06-29-governance-verification-log.md | 2026-07-25 | completed — documentation governance verification finished |
+| docs/working/2026-06-30-community-features-development-guide.md | 2026-07-25 | obsolete — old Mode C/worktree workflow replaced by AGENTS.md registry and light/heavy lanes |
+| docs/working/2026-07-16-worktree-rescue-audit.md | 2026-07-25 | completed — audited worktrees are gone and all surviving branches are integrated |
+| docs/working/2026-07-18-local-test-validation-repair-{design,plan}.md | 2026-07-25 | completed — implementation and validation sync merged to main |
+| docs/working/2026-07-23-docs-slimming-ui-refinement-consensus.md | 2026-07-25 | superseded — decisions propagated to AGENTS.md and active UI plan |
+| docs/superpowers/plans/2026-05-30-omnicraft-beta-{implementation-notes,plan-review}.md | 2026-07-25 | superseded — historical Beta preparation material; live deferred plans retained separately |
+| docs/superpowers/plans/2026-06-30-omnicraft-community-{browse-history,collections,content-series}.md | 2026-07-25 | completed — all checkboxes complete; active community work continues in registered plans |

@@ -1,5 +1,7 @@
 # OmniCraft Web Agent Productization Implementation Plan
 
+> **2026-07-25 Web-only scope:** This plan remains limited to the Web Agent. Desktop actions, Tauri integration, and D-02 through D-05/R-02 are deferred and must not be started from this plan while Desktop scope is paused.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把现有 Web Agent 从功能开关后的 LLM 入口提升为带来源引用、受控工具、预算限制、评测证据和可靠降级的作品集核心能力。
@@ -14,9 +16,9 @@
 
 ## Coordination And Release Rules
 
-- Execute this plan in Mode D, one numbered Task per session/worktree/branch/commit. Do not modify `task.json`, Beta roadmap, or community completion state.
+- Execute this mixed plan using the current `AGENTS.md` lane classification: ordinary Web UI/service tasks use light; security, auth, production configuration and release gates use heavy. Do not modify the historical task ledger, Beta roadmap, or community completion state.
 - Dependency order: Task 1 precedes Tasks 2–4; Task 2 precedes Tasks 3 and 5; Task 3 precedes Tasks 4–6; Task 4 and Task 5 both precede Task 6.
-- This is a Web Agent plan. Do not duplicate Desktop D-02～D-05; execute the existing Beta desktop plan for local actions.
+- This is a Web Agent plan. Do not duplicate or execute Desktop D-02～D-05 while Desktop scope is deferred; the preserved Beta desktop plan remains the only future source for local actions after explicit restoration.
 - Serialize edits to `backend/internal/service/agent_service.go`, `backend/config/config.go`, `backend/config.yaml`, `frontend/components/agent/*`, and translation files.
 - Keep `agent.web_agent_enabled=false` in repository defaults. Production may enable it only after Task 6 passes with real Provider configuration.
 - Do not log prompts, raw provider responses, private content, secrets, or chain-of-thought.

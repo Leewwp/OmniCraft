@@ -1,5 +1,7 @@
 # OmniCraft Production Readiness Design
 
+> **2026-07-25 execution scope:** The current release target is Web-only. Ops-00 through Ops-08 define the active Web production-ready path; Ops-09 and the Web + Desktop extension remain preserved but deferred until Desktop scope is explicitly restored.
+
 **状态：** 已批准执行（2026-07-18）  
 **日期：** 2026-07-17  
 **适用范围：** Web/API、PostgreSQL、Redis、容器部署、Tauri 桌面制品  
@@ -18,7 +20,7 @@
 - 社区功能计划中的业务迁移和用户体验验收；
 - `task.json` 历史账本。
 
-Ops 工作使用独立模式 E，禁止修改 `task.json`、Beta roadmap、社区计划完成状态或 Web Agent 完成状态。
+Ops 工作使用 `AGENTS.md` 的 heavy 车道，禁止修改历史任务账本、Beta roadmap、社区计划完成状态或 Web Agent 完成状态。
 
 ## 2. 当前基线
 

@@ -14,12 +14,12 @@
 
 **Audit date:** 2026-07-17；execution order revised 2026-07-25
 
-**Status:** active light-lane plan; no implementation Task has started.
+**Status:** active light-lane plan; U-05, U-02A and U-04 are complete, and P-01 is the next approval gate.
 
 - This plan is priority 1 in the `AGENTS.md` active-plan registry and uses the light lane. U-05, U-02A and U-04 are complete; P-01 is the next human-approval gate. Numeric Task IDs remain stable identifiers; the wave order below, not numeric order, is authoritative for execution.
 - Production Readiness is present and registered after this plan. Re-run coordination before U-11/U-12 or any edit that expands into config, release, verifier, or backend capability paths.
 - Before P-01 approval, visual authority remains `design/design-system.md` then matching `design/ui-spec.md` sections; correctness Tasks must not restyle surfaces. After the user approves P-01, the approved prototype decision record becomes the input for U-01/U-02B updates to those authorities.
-- Re-check the current `main` before implementation. Use one shared `codex/ui-refinement` light-lane branch with logical commits per Task/gate; exact file reservations still apply.
+- Re-check the current `main` before implementation. The previous `codex/ui-refinement` branch was fully integrated and retired on 2026-07-25; create a fresh light-lane feature branch from the latest `main` when P-01 work resumes. Keep logical commits per Task/gate and preserve exact file reservations.
 - Do not modify `task.json`, Beta/community checkboxes, or Web Agent completion state.
 
 ## Verified Baseline
@@ -384,4 +384,4 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - Do not replace generated data-URI placeholder SVGs with icon components.
 - Do not expose the full backend reputation/config object to the browser.
 - Do not create a GitHub Actions path under `frontend/`; the repository-level verifier is the current enforceable integration point.
-- Do not update unrelated Mode A/B/C or Web Agent completion state.
+- Do not update unrelated deferred Beta plans, community plans, or Web Agent completion state.
