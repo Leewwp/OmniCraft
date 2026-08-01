@@ -1,6 +1,6 @@
 # OmniCraft 设计系统
 
-> 版本 2.0 | 2026-05-10 | 基于 Indigo 极简风格
+> 版本 2.1 | 2026-08-01 | 基于 P-01 批准的 Indigo 精修方向
 
 ## 设计参考
 
@@ -10,8 +10,8 @@
 
 ## 核心原则
 
-1. **无阴影** — 所有组件默认 `shadow: none`，仅 Modal/Popover/Dropdown 使用 `shadow-md`
-2. **1px 边框** — 扁平设计，通过 `border-border` 分隔
+1. **三档细腻层级** — 静态卡片/面板、悬浮反馈、浮层分别使用 elevation 1/2/3；阴影必须配合 1px 边框，不单独承担分隔
+2. **1px 边框** — 扁平基因不变，通过 `border-border` 分隔；交互态可提升为 `border-strong`
 3. **纯白背景** — `bg-background` = `#FFFFFF`，模块间用间距而非线条分隔
 4. **极简滚动条** — 3px 宽，默认透明，hover 半透明
 5. **统一圆角** — `rounded-lg` (8px) 为默认，标签用 `rounded-full`
@@ -32,7 +32,10 @@
 | `--muted-foreground` | `#52525B` | `#848D97` | 次要文字 |
 | `--border` | `#E8E8E8` | `#30363D` | 边框色 |
 | `--destructive` | `#E11D48` | `#F87171` | 错误/危险 |
+| `--accent-hover` | `#4338CA` | `#818CF8` | 主色交互态 |
 | `--ring` | `#4F46E5` | `#6366F1` | 聚焦环 |
+| `--border-strong` | `#D4D4D8` | `#444C56` | hover/active 强边框 |
+| `--border-destructive` | `#E11D48` | `#F87171` | 错误/危险边框 |
 
 ### 标签颜色
 
@@ -52,7 +55,6 @@
 | `--canvas-default` | `#FFFFFF` | `#0D1117` | 卡片/容器背景 |
 | `--canvas-subtle` | `#F5F5F5` | `#161B22` | 微妙背景 |
 | `--border-default` | `#E8E8E8` | `#30363D` | 默认边框 |
-| `--border-destructive` | `#E11D48` | `#F87171` | 错误/危险边框 |
 | `--fg-muted` | `#52525B` | `#848D97` | 柔和前景 |
 | `--accent-emphasis` | `#4F46E5` | `#6366F1` | 强调色 |
 | `--accent-subtle` | `#EEF2FF` | `#6366F11A` | 柔和强调色 |
@@ -65,6 +67,19 @@
 | `--header-h` | `52px` | 顶部导航高度 |
 | `--max-w` | `1440px` | 内容最大宽度 |
 
+### 间距
+
+间距只使用 4px 基线上的批准值；页面或组件不得再引入 10px、18px 等任意间距。
+
+| 用途 | 值 | 约束 |
+|------|-----|------|
+| 卡片内边距 | `12px` | `p-3` |
+| 区块内边距 | `16px` | `p-4` |
+| 详情卡内边距 | `20px / 24px` | 按信息密度选一档 |
+| 页面 gutter | `16px (mobile) / 24px (desktop)` | 不随弹性轨道分散 |
+| 网格 gap | `16px` | 所有断点保持一致 |
+| 区块间距 | `24px / 32px` | 同层级保持一致 |
+
 ### 圆角
 
 | Token | 值 | 用途 |
@@ -75,12 +90,37 @@
 | `--radius-xl` | `12px` | 大卡片 |
 | `--radius-full` | `9999px` | 标签/药丸按钮 |
 
+`rounded-2xl`、`rounded-3xl`、`rounded-4xl` 仅作为迁移兼容别名映射到 `--radius-xl`，不得扩展新的视觉圆角档位。
+
 ### 字体
 
 | Token | 值 |
 |-------|-----|
 | `--font-sans` | `-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif` |
-| `--font-mono` | `var(--font-geist-mono)` |
+| `--font-mono` | `'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace` |
+
+### 字阶
+
+| 用途 | 字号 / 字重 / 行高 |
+|------|--------------------|
+| 详情页标题 | `24px / 600 / tight` |
+| 区域标题 | `20px / 600 / normal` |
+| 卡片/区块标题 | `14px / 500 / normal` |
+| 正文 | `16px / 400 / relaxed` |
+| 作者、meta、标签 | `12px / 400 / normal` |
+| 侧栏小节标签 | `12px / 600 / uppercase / tracking-wider` |
+
+只允许 12/14/16/20/24px 五档正文与标题字号；紧凑指标数字例外必须在对应组件规格中登记。
+
+### 微阴影
+
+| Token | Light | Dark | 用途 |
+|-------|-------|------|------|
+| `--elevation-1` | `0 1px 2px 0 rgb(24 24 27 / 0.05)` | `0 1px 2px 0 rgb(0 0 0 / 0.30)` | 静置卡片、面板 |
+| `--elevation-2` | `0 4px 12px -2px rgb(24 24 27 / 0.10), 0 2px 4px -2px rgb(24 24 27 / 0.05)` | `0 4px 12px -2px rgb(0 0 0 / 0.50), 0 2px 4px -2px rgb(0 0 0 / 0.30)` | hover 升起 |
+| `--elevation-3` | `0 12px 32px -8px rgb(24 24 27 / 0.14), 0 4px 8px -4px rgb(24 24 27 / 0.06)` | `0 12px 32px -8px rgb(0 0 0 / 0.60), 0 4px 8px -4px rgb(0 0 0 / 0.40)` | Dropdown、Drawer、Modal |
+
+用于“升起”层级反馈的 hover 只允许 transform、border 与 shadow 过渡，不得造成布局位移；按钮、链接、选中态仍可按语义 token 进行颜色/背景过渡。`prefers-reduced-motion: reduce` 下禁用缩放、位移和脉冲。
 
 ---
 
@@ -100,7 +140,7 @@
 - 背景 `bg-card`，首选用 1px `border-border`
 - **原创区**: 无边框 (`border-0`)，图片优先，hover 时微上移
 - **二创区**: 1px 边框，信息密度高
-- 无阴影（全局规则）
+- 静态面板可使用 elevation 1，hover 使用 elevation 2；无边框原创卡只在 hover 时使用 elevation 2
 - 圆角 `rounded-lg`
 
 ### 输入框 (Input)
@@ -125,7 +165,7 @@
 
 ### Modal / Popover / Dropdown
 
-- 唯一可用 `shadow-md` 的组件
+- 使用 elevation 3，并始终保留 1px 边框
 - 背景叠加: `bg-black/50`
 - 圆角 `rounded-lg`
 
@@ -193,8 +233,3 @@ StudioLayout
 - [ ] 标签使用 tag 颜色变量
 - [ ] 图标颜色随文字色变化
 - [ ] Modal 遮罩层 `bg-black/50` (dark 可用 `bg-black/70`)
-
-> Token definitions below are in CSS property format for automated tooling. Values are authoritative and match the table definitions above.
-
---header-h: 52px
---font-geist-mono: "Geist Mono", "Menlo", monospace
