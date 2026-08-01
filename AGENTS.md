@@ -27,7 +27,7 @@ CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致
 
 | 优先级 | 计划文件 | 余项 | 车道 | 备注 |
 |--------|----------|------|------|------|
-| 1 | `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md` | U-03→U-06→U-07→U-08→U-09→U-10→U-11→U-12 | light | U-05/U-02A/U-04/U-01/U-02B 已完成；P-01 已于 2026-08-01 获批（IP 库选定方案 B Indigo 精修），采用当前 Indigo 单方向，Hallmark Tally 方向已取消。A1/A1.5/A1.6/A2 已完成并验证。生产 `/ips` 固定 156px 卡片置于弹性 Grid 轨道造成大量空白，由 U-09 回写方案 B 修复。现有二创页 `/`、原创页 `/original`、IP 详情 `/ip/[ipId]` 为已接受视觉基线，不重复构建。前端任务由 opencode 车道执行；U-11 后端能力与 U-12 的 verifier 共享文件按现有协调规则与 Production Readiness 串行；真实图片与全历史搜索生产接线另走后续计划 |
+| 1 | `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md` | U-06→U-07→U-08→U-09→U-10→U-11→U-12 | light | U-05/U-02A/U-04/U-01/U-02B/U-03 已完成；P-01 已于 2026-08-01 获批（IP 库选定方案 B Indigo 精修），采用当前 Indigo 单方向，Hallmark Tally 方向已取消。A1/A1.5/A1.6/A2 已完成并验证。生产 `/ips` 固定 156px 卡片置于弹性 Grid 轨道造成大量空白，由 U-09 回写方案 B 修复。现有二创页 `/`、原创页 `/original`、IP 详情 `/ip/[ipId]` 为已接受视觉基线，不重复构建。前端任务由 opencode 车道执行；U-11 后端能力与 U-12 的 verifier 共享文件按现有协调规则与 Production Readiness 串行；真实图片与全历史搜索生产接线另走后续计划 |
 | 2 | `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md` | 58（其中 9 项桌面暂缓） | heavy | Ops-00 已完成；Web 发布路径执行 Ops-01~Ops-08。桌面制品 Ops-09 随桌面范围暂缓，不得复制或绕过桌面安全任务 |
 | 3 | `docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md` | 64 | light | 未开始 |
 | 3 | `docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md` | 62 | light | 未开始 |

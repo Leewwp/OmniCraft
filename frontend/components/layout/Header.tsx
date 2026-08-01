@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { useTranslations, useLocale } from "next-intl";
@@ -21,6 +21,7 @@ import {
   Shield,
   Sun,
   User,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { buttonVariants } from "@/components/ui/button";
@@ -54,7 +55,9 @@ export function Header() {
   const { user, logout } = useAuth();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const router = useRouter();
+  const pathname = usePathname();
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [mounted, setMounted] = useState(false);
 
@@ -62,10 +65,20 @@ export function Header() {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setMobileMenuOpen(false);
+    }
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [mobileMenuOpen]);
+
   const activeTheme = theme === "system" ? resolvedTheme : theme;
 
   function goTo(path: string) {
     router.push(path);
+    setMobileMenuOpen(false);
   }
 
   function handleSearch(e: React.FormEvent) {
@@ -74,6 +87,7 @@ export function Header() {
     if (!trimmed) return;
     router.push(`/search?q=${encodeURIComponent(trimmed)}`);
     setMobileSearchOpen(false);
+    setMobileMenuOpen(false);
   }
 
   async function handleLocaleChange(newLocale: string) {
@@ -82,8 +96,9 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/95 backdrop-blur-sm">
-      <div className="mx-auto flex h-[52px] max-w-[1440px] items-center gap-3 px-5">
+    <>
+      <header className="sticky top-0 z-40 h-[var(--header-h)] w-full border-b border-border-default bg-canvas-default shadow-none">
+        <div className="mx-auto flex h-full max-w-7xl items-center gap-3 px-4">
         <Link
           href="/"
           className="flex items-center gap-2 font-semibold text-foreground transition-opacity hover:opacity-80"
@@ -92,16 +107,24 @@ export function Header() {
           <span className="text-base">{t("nav.siteName")}</span>
         </Link>
 
-        <nav className="hidden items-center gap-1 sm:flex">
+        <nav className="hidden h-full items-center gap-1 min-[701px]:flex">
           <Link
             href="/"
-            className="rounded-md px-3 py-1.5 text-sm text-foreground/80 transition-all duration-150 hover:bg-muted hover:text-foreground active:scale-95"
+            aria-current={pathname === "/" ? "page" : undefined}
+            className={cn(
+              "relative flex h-full items-center px-3 text-sm font-medium text-fg-muted transition-colors duration-150 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary after:opacity-0 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              pathname === "/" && "font-semibold text-foreground after:opacity-100",
+            )}
           >
             {t("nav.fanworkZone")}
           </Link>
           <Link
             href="/original"
-            className="rounded-md px-3 py-1.5 text-sm text-foreground/80 transition-all duration-150 hover:bg-muted hover:text-foreground active:scale-95"
+            aria-current={pathname.startsWith("/original") ? "page" : undefined}
+            className={cn(
+              "relative flex h-full items-center px-3 text-sm font-medium text-fg-muted transition-colors duration-150 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary after:opacity-0 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              pathname.startsWith("/original") && "font-semibold text-foreground after:opacity-100",
+            )}
           >
             {t("nav.originalZone")}
           </Link>
@@ -109,7 +132,7 @@ export function Header() {
 
         <div className="flex flex-1 items-center gap-2">
           {/* Desktop search */}
-          <form onSubmit={handleSearch} className="relative hidden max-w-sm flex-1 items-center sm:flex">
+          <form onSubmit={handleSearch} className="relative hidden max-w-[480px] flex-1 items-center min-[701px]:flex">
             <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground" />
             <input
               type="search"
@@ -117,15 +140,15 @@ export function Header() {
               placeholder={t("common.search")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-full border border-transparent bg-muted py-1.5 pl-9 pr-3 text-sm placeholder:text-muted-foreground/60 transition-all focus:border-ring focus:bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
+              className="h-8 w-full rounded-md border border-transparent bg-canvas-subtle pl-9 pr-3 text-sm placeholder:text-muted-foreground/60 transition-[color,background-color,border-color,box-shadow] duration-150 hover:border-border-strong focus:border-ring focus:bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
             />
           </form>
           {/* Mobile search toggle */}
-          <div className="flex flex-1 justify-end sm:hidden">
+          <div className="flex flex-1 justify-end min-[701px]:hidden">
             <button
               type="button"
               aria-label={t("common.search")}
-              className="rounded-md p-2 hover:bg-muted"
+              className="inline-flex size-11 items-center justify-center rounded-md hover:bg-canvas-subtle focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
             >
               <Search className="h-4 w-4" />
@@ -137,7 +160,7 @@ export function Header() {
           {/* Language switcher */}
           <DropdownMenu>
             <DropdownMenuTrigger
-              className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
+              className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "hidden min-[701px]:inline-flex")}
             >
               <Globe className="h-4 w-4" />
               <span className="sr-only">{t("nav.language")}</span>
@@ -161,7 +184,7 @@ export function Header() {
           {/* Theme switcher */}
           <DropdownMenu>
             <DropdownMenuTrigger
-              className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8")}
+              className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "hidden min-[701px]:inline-flex")}
             >
               <ThemeIcon theme={activeTheme} mounted={mounted} />
               <span className="sr-only">{t("nav.themeSwitch")}</span>
@@ -185,7 +208,7 @@ export function Header() {
           {/* Publish button */}
           <Link
             href={user ? "/studio/publish/original" : "/login?redirect=/studio/publish/original"}
-            className={cn(buttonVariants({ size: "sm" }), "hidden h-8 gap-1.5 text-sm sm:inline-flex")}
+            className={cn(buttonVariants({ size: "sm" }), "hidden gap-1.5 text-sm min-[701px]:inline-flex")}
           >
             <Plus className="h-4 w-4" />
             {t("nav.publish")}
@@ -194,55 +217,22 @@ export function Header() {
           {/* Notification bell with dropdown */}
           <NotificationDropdown />
 
-          {/* Mobile menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8 sm:hidden")}
-            >
-              <Menu className="h-4 w-4" />
-              <span className="sr-only">{t("nav.openMenu")}</span>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
-              <div className="p-1.5">
-                <form onSubmit={handleSearch} className="relative">
-                  <Search className="pointer-events-none absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-                  <input
-                    type="search"
-                    aria-label={t("common.search")}
-                    placeholder={t("common.search")}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                  />
-                </form>
-              </div>
-              <DropdownMenuItem onClick={() => goTo("/")}>{t("nav.fanworkZone")}</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => goTo("/original")}>{t("nav.originalZone")}</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {user ? (
-                <>
-                  <DropdownMenuItem onClick={() => goTo(`/user/${user.id}`)}>{t("nav.profile")}</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => goTo("/studio/overview")}>{t("nav.dashboard")}</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => goTo("/history")}>{t("nav.history")}</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => goTo("/settings")}>{t("nav.settings")}</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => goTo("/appeals")}>{t("nav.appeals")}</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => logout()}>{t("nav.logout")}</DropdownMenuItem>
-                </>
-              ) : (
-                <>
-                  <DropdownMenuItem onClick={() => goTo("/login")}>{t("nav.login")}</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => goTo("/register")}>{t("nav.register")}</DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <button
+            type="button"
+            aria-label={t("nav.openMenu")}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-primary-navigation"
+            onClick={() => setMobileMenuOpen(true)}
+            className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "min-[701px]:hidden")}
+          >
+            <Menu className="size-4" />
+          </button>
 
           {/* Desktop user menu */}
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger
-                className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "hidden h-8 gap-2 px-2 sm:inline-flex")}
+                className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "hidden gap-2 px-2 min-[701px]:inline-flex")}
               >
                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold">
                   {user.username.slice(0, 1).toUpperCase()}
@@ -286,7 +276,7 @@ export function Header() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <div className="hidden items-center gap-2 sm:flex">
+            <div className="hidden items-center gap-2 min-[701px]:flex">
               <Link
                 href="/login"
                 className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "h-8 text-sm")}
@@ -302,24 +292,128 @@ export function Header() {
             </div>
           )}
         </div>
-      </div>
-      {/* Mobile expandable search */}
-      {mobileSearchOpen && (
-        <form onSubmit={handleSearch} className="border-t border-border bg-background px-4 py-2 sm:hidden">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="search"
-              aria-label={t("common.search")}
-              autoFocus
-              placeholder={t("common.search")}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-full border border-transparent bg-muted py-1.5 pl-9 pr-3 text-sm placeholder:text-muted-foreground/60 transition-all focus:border-ring focus:bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
-            />
-          </div>
-        </form>
+        </div>
+        {/* Mobile expandable search */}
+        {mobileSearchOpen && (
+          <form onSubmit={handleSearch} className="absolute inset-x-0 top-full border-b border-border bg-canvas-default px-4 py-2 min-[701px]:hidden">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="search"
+                aria-label={t("common.search")}
+                autoFocus
+                placeholder={t("common.search")}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-11 w-full rounded-md border border-input bg-background pl-9 pr-3 text-base placeholder:text-muted-foreground/60 focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              />
+            </div>
+          </form>
+        )}
+      </header>
+
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-[60] min-[701px]:hidden">
+          <button
+            type="button"
+            aria-label={t("studio.sidebar.collapse")}
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <aside
+            id="mobile-primary-navigation"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("nav.openMenu")}
+            className="relative flex h-full w-[85vw] max-w-[320px] flex-col overflow-y-auto border-r border-border bg-canvas-default p-4 shadow-md"
+          >
+            <div className="flex items-center justify-between">
+              <Link
+                href="/"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 font-semibold text-foreground"
+              >
+                <Brush className="size-5 text-primary" />
+                <span>{t("nav.siteName")}</span>
+              </Link>
+              <button
+                type="button"
+                aria-label={t("studio.sidebar.collapse")}
+                title={t("studio.sidebar.collapse")}
+                onClick={() => setMobileMenuOpen(false)}
+                className="inline-flex size-11 items-center justify-center rounded-md text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSearch} className="relative mt-4">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="search"
+                aria-label={t("common.search")}
+                placeholder={t("common.search")}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-11 w-full rounded-md border border-input bg-background pl-9 pr-3 text-base focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              />
+            </form>
+
+            <nav className="mt-4 flex flex-col gap-1">
+              <Link
+                href="/"
+                aria-current={pathname === "/" ? "page" : undefined}
+                onClick={() => setMobileMenuOpen(false)}
+                className={cn(
+                  "flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                  pathname === "/" && "bg-accent-subtle font-semibold text-accent-emphasis",
+                )}
+              >
+                {t("nav.fanworkZone")}
+              </Link>
+              <Link
+                href="/original"
+                aria-current={pathname.startsWith("/original") ? "page" : undefined}
+                onClick={() => setMobileMenuOpen(false)}
+                className={cn(
+                  "flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                  pathname.startsWith("/original") && "bg-accent-subtle font-semibold text-accent-emphasis",
+                )}
+              >
+                {t("nav.originalZone")}
+              </Link>
+            </nav>
+
+            <div className="my-4 h-px bg-border" />
+            <div className="flex flex-col gap-1">
+              {user ? (
+                <>
+                  <button type="button" onClick={() => goTo(`/user/${user.id}`)} className="min-h-11 rounded-md px-3 text-left text-sm hover:bg-canvas-subtle">{t("nav.profile")}</button>
+                  <button type="button" onClick={() => goTo("/studio/overview")} className="min-h-11 rounded-md px-3 text-left text-sm hover:bg-canvas-subtle">{t("nav.dashboard")}</button>
+                  <button type="button" onClick={() => goTo("/history")} className="min-h-11 rounded-md px-3 text-left text-sm hover:bg-canvas-subtle">{t("nav.history")}</button>
+                  <button type="button" onClick={() => goTo("/settings")} className="min-h-11 rounded-md px-3 text-left text-sm hover:bg-canvas-subtle">{t("nav.settings")}</button>
+                  <button type="button" onClick={() => goTo("/appeals")} className="min-h-11 rounded-md px-3 text-left text-sm hover:bg-canvas-subtle">{t("nav.appeals")}</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      logout();
+                    }}
+                    className="min-h-11 rounded-md px-3 text-left text-sm text-destructive hover:bg-canvas-subtle"
+                  >
+                    {t("nav.logout")}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" onClick={() => goTo("/login")} className="min-h-11 rounded-md px-3 text-left text-sm hover:bg-canvas-subtle">{t("nav.login")}</button>
+                  <button type="button" onClick={() => goTo("/register")} className="min-h-11 rounded-md bg-primary px-3 text-left text-sm font-medium text-primary-foreground hover:bg-accent-hover">{t("nav.register")}</button>
+                </>
+              )}
+            </div>
+          </aside>
+        </div>
       )}
-    </header>
+    </>
   );
 }

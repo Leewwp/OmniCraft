@@ -4,7 +4,7 @@
 **预计失效日期**: 2026-09-17
 
 > 适用范围：`docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md` 的 U-01 至 U-12。  
-> 当前状态：按 2026-07-25 修订后的执行顺序推进；P-01 已于 2026-08-01 获批（IP 库方案 B，Indigo 精修），U-01 已完成并释放，下一项为 U-02B。
+> 当前状态：按 2026-07-25 修订后的执行顺序推进；P-01 已于 2026-08-01 获批（IP 库方案 B，Indigo 精修），U-03 已完成并释放，下一项为 U-06。
 
 ## 预约规则
 
@@ -32,10 +32,10 @@
 | U-01 | `design-system.md`、`globals.css`、token checker | P-01 | 已释放 | Codex（opencode 前端车道） / `opencode/ui-polish-u01` / `29ce01f` / 2026-08-01 15:47–2026-08-02 00:33 +08:00 |
 | U-02A | Button、ConfirmModal、TagBadge、Toast 行为与无障碍 | U-05 | 已释放 | Codex / `codex/ui-refinement` / `c4b24f9` / 2026-07-25 03:11–03:44 +08:00 |
 | U-02B | `frontend/components/ui/**` 视觉应用 | P-01/U-01/U-02A | 已释放 | Codex（opencode 前端车道） / `opencode/ui-polish-u01` / `3793739` / 2026-08-02 00:57–02:02 +08:00 |
-| U-03 | Header、Sidebar、StudioSidebar、admin layout、collapse hook | U-01/U-02/U-05 | 可预约 | — |
+| U-03 | Header、Sidebar、StudioSidebar、admin layout、collapse hook | U-01/U-02/U-05 | 已释放 | Codex（opencode 前端车道） / `opencode/ui-polish-u01` / `2c54c51` / 2026-08-02 02:05–03:13 +08:00 |
 | U-04 | dashboard destructive pages、settings、agent-config、VersionHistory | U-01/U-02/U-05 | 已释放 | Codex / `codex/ui-refinement` / `4693cc3` / 2026-07-25 |
 | U-05 | error utilities + audited error surfaces | — | 已释放 | Codex / `codex/ui-refinement` / `d1f53cd` / 2026-07-25 02:52–03:06 +08:00 |
-| U-06 | feedback/discussion detail、SheetMusicViewer、VerdictDetail | U-01/U-02/U-05 | 待依赖 | — |
+| U-06 | feedback/discussion detail、SheetMusicViewer、VerdictDetail | U-01/U-02/U-05 | 可预约 | — |
 | U-07 | DataList + history/appeals/rehab/feedback/studio/discussion lists | U-01/U-02/U-05 | 待依赖 | — |
 | U-08 | remaining settings/admin/discussion forms | U-01/U-02/U-05 | 待依赖 | — |
 | U-09 | content/home/search/IP discovery surfaces | U-01/U-02/U-05 | 待依赖 | — |
@@ -49,6 +49,8 @@
 
 | 时间（Asia/Shanghai） | Task | Owner | 分支 | Base commit | 精确预约路径 | 状态 / 原因 |
 |---|---|---|---|---|---|---|
+| 2026-08-02 02:05 +08:00 | U-03 | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `2c54c51` | `frontend/components/layout/Header.tsx`; `frontend/components/layout/Sidebar.tsx`; `frontend/components/studio/StudioSidebar.tsx`; `frontend/app/(protected)/admin/layout.tsx`; `frontend/lib/use-sidebar-collapse.ts`; `frontend/tests/navigation-shells.test.tsx` | 已释放 2026-08-02 03:13 +08:00；三套导航壳层、折叠持久化、701px 响应式边界、移动抽屉与截图验证通过 |
+| 2026-08-02 02:05 +08:00 | U-03 tracking | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `2c54c51` | `AGENTS.md`; `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md`; `docs/working/2026-07-18-ui-polish-file-reservation.md`; `progress.txt` | 已释放 2026-08-02 03:13 +08:00；完成状态、注册表余项、进度与预约审计已同步 |
 | 2026-08-02 00:57 +08:00 | U-02B | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `3793739` | `design/ui-spec.md`; `frontend/components/ui/badge.tsx`; `frontend/components/ui/button.tsx`; `frontend/components/ui/card.tsx`; `frontend/components/ui/checkbox.tsx`; `frontend/components/ui/confirm-modal.tsx`; `frontend/components/ui/dropdown-menu.tsx`; `frontend/components/ui/empty-state.tsx`; `frontend/components/ui/field.tsx`; `frontend/components/ui/input.tsx`; `frontend/components/ui/label.tsx`; `frontend/components/ui/select.tsx`; `frontend/components/ui/separator.tsx`; `frontend/components/ui/skeleton.tsx`; `frontend/components/ui/switch.tsx`; `frontend/components/ui/tabs.tsx`; `frontend/components/ui/TagBadge.tsx`; `frontend/components/ui/textarea.tsx`; `frontend/components/ui/Toast.tsx`; `frontend/tests/ui-primitives-visual-contracts.test.tsx` | 已释放 2026-08-02 02:02 +08:00；视觉权威、合同测试、共享原语实现与全量门禁均通过 |
 | 2026-08-02 00:57 +08:00 | U-02B tracking | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `3793739` | `AGENTS.md`; `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md`; `docs/working/2026-07-18-ui-polish-file-reservation.md`; `progress.txt` | 已释放 2026-08-02 02:02 +08:00；完成状态、注册表余项、进度与预约审计已同步 |
 | 2026-08-02 01:18 +08:00 | U-02B screenshots | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `3793739` | `screenshots/ui-polish/u-02b/login-desktop-light.png`; `screenshots/ui-polish/u-02b/login-mobile-dark.png`; `screenshots/ui-polish/u-02b/header-dropdown-desktop-dark.png`; `screenshots/ui-polish/u-02b/confirm-modal-desktop-light.png`; `screenshots/ui-polish/u-02b/empty-state-desktop-dark.png`; `screenshots/ui-polish/u-02b/skeleton-mobile-light.png` | 已释放 2026-08-02 02:02 +08:00；覆盖 desktop/mobile、light/dark、表单焦点、浮层 elevation、空态与加载态代表证据 |
@@ -66,6 +68,7 @@
 
 | 时间（Asia/Shanghai） | Task | Owner | 事件 | 影响路径 | 说明 |
 |---|---|---|---|---|---|
+| 2026-08-02 03:13 +08:00 | U-03 | Codex（opencode 前端车道） | 完成并释放 | U-03 全部预约路径 | 120/120 测试、lint、62 路由 Webpack build、375/768/1024/1440 浏览器矩阵及双轴复审完成；U-06 转为可预约 |
 | 2026-07-17 | U-11 | — | 阻塞 | U-11 全部范围 | 当前 worktree 缺少生产就绪规格与计划，无法确认公开配置安全边界；未启动实现 |
 | 2026-07-25 03:06 +08:00 | U-05 | Codex | 完成并释放 | U-05 全部预约路径 | 35 个明确审计面改用本地化安全回退；重叠路径按计划依次转交 U-02A/U-04 |
 | 2026-07-25 03:44 +08:00 | U-02A | Codex | 完成并释放 | U-02A 全部预约路径 | 5 项原语测试、真实键盘流和 44px 粗指针关闭目标通过；共享原语转交 U-02B，ConfirmModal 转交 U-04 使用 |

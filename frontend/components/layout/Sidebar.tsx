@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  PUBLIC_SIDEBAR_STORAGE_KEY,
+  useSidebarCollapse,
+} from "@/lib/use-sidebar-collapse";
 
 export interface SidebarItem {
   icon: React.ReactNode;
@@ -77,7 +80,7 @@ function TrendingSection({ title, entries }: NonNullable<SidebarProps["trending"
 }
 
 const itemBase =
-  "flex items-center gap-2.5 rounded-[6px] px-3 py-[7px] text-[13px] font-medium transition-all duration-100 w-full select-none active:scale-[0.97]";
+  "flex min-h-10 w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium outline-none transition-[color,background-color] duration-150 select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 const itemActive =
   "bg-accent-subtle text-accent-emphasis font-semibold";
@@ -91,34 +94,28 @@ const collapsedItem =
 export function Sidebar({ sections = [], trending, className }: SidebarProps) {
   const t = useTranslations();
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-
-  useEffect(() => {
-    const stored = localStorage.getItem("sidebarCollapsed");
-    if (stored === "true") setCollapsed(true);
-  }, []);
-
-  function toggle() {
-    setCollapsed((prev) => {
-      const next = !prev;
-      localStorage.setItem("sidebarCollapsed", String(next));
-      return next;
-    });
-  }
+  const { collapsed, toggle } = useSidebarCollapse({
+    storageKey: PUBLIC_SIDEBAR_STORAGE_KEY,
+  });
+  const toggleLabel = collapsed
+    ? t("studio.sidebar.expand")
+    : t("studio.sidebar.collapse");
 
   return (
     <aside
       className={cn(
-        "flex-shrink-0 overflow-y-auto overflow-x-hidden bg-background py-2 transition-[width] duration-200",
-        collapsed ? "w-[48px]" : "w-[228px]",
+        "flex-shrink-0 overflow-y-auto overflow-x-hidden border-r border-border bg-canvas-subtle py-2 transition-[width] duration-200 motion-reduce:transition-none",
+        collapsed ? "w-12" : "w-[228px]",
         className
       )}
+      aria-label={t("nav.siteName")}
     >
       {/* Toggle button */}
       <button
         type="button"
         onClick={toggle}
-        title={collapsed ? t('studio.sidebar.expand') : t('studio.sidebar.collapse')}
+        aria-label={toggleLabel}
+        title={toggleLabel}
         className={cn(
           itemBase,
           "text-fg-muted hover:text-fg-default hover:bg-canvas-subtle",

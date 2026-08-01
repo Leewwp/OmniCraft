@@ -14,9 +14,9 @@
 
 **Audit date:** 2026-07-17；execution order revised 2026-07-25；P-01 approved 2026-08-01
 
-**Status:** active light-lane plan; U-05, U-02A, U-04, U-01 and U-02B are complete; P-01 approved on 2026-08-01 (IP library = variant B Indigo 精修), and U-03 is next.
+**Status:** active light-lane plan; U-05, U-02A, U-04, U-01, U-02B and U-03 are complete; P-01 approved on 2026-08-01 (IP library = variant B Indigo 精修), and U-06 is next.
 
-- This plan is priority 1 in the `AGENTS.md` active-plan registry and uses the light lane. U-05, U-02A, U-04, U-01 and U-02B are complete; P-01 was explicitly approved by the user on 2026-08-01 with IP library variant B (Indigo 精修) as the final direction, so U-03 and later tasks are unblocked according to their listed dependencies. Numeric Task IDs remain stable identifiers; the wave order below, not numeric order, is authoritative for execution.
+- This plan is priority 1 in the `AGENTS.md` active-plan registry and uses the light lane. U-05, U-02A, U-04, U-01, U-02B and U-03 are complete; P-01 was explicitly approved by the user on 2026-08-01 with IP library variant B (Indigo 精修) as the final direction, so U-06 and later tasks are unblocked according to their listed dependencies. Numeric Task IDs remain stable identifiers; the wave order below, not numeric order, is authoritative for execution.
 - Production Readiness is present and registered after this plan. Re-run coordination before U-11/U-12 or any edit that expands into config, release, verifier, or backend capability paths.
 - Before P-01 approval, visual authority remains `design/design-system.md` then matching `design/ui-spec.md` sections; correctness Tasks must not restyle surfaces. After the user approved P-01 on 2026-08-01, the approved prototype decision record (`docs/working/2026-07-25-ui-prototype-review.md` §3/§6.3, with IP library variant B defined by `ip-library-b.css`) is the input for U-01/U-02B/U-09 updates to those authorities.
 - Re-check the current `main` before implementation. The previous `codex/ui-refinement` branch was fully integrated and retired on 2026-07-25; create a fresh light-lane feature branch from the latest `main` when P-01 work resumes. Keep logical commits per Task/gate and preserve exact file reservations.
@@ -198,10 +198,10 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - Create: `frontend/lib/use-sidebar-collapse.ts`
 - Create: `frontend/tests/navigation-shells.test.tsx`
 
-- [ ] Test distinct persistence keys, the P-01-approved expanded/collapsed desktop widths (228/48px is only the current baseline), accessible toggle labels, tooltip/title behavior, keyboard operation, approved Header stacking, and mobile navigation/drawer reachability.
-- [ ] Extract only collapse-state behavior; keep public, studio, and admin information architectures separate where their navigation models differ.
-- [ ] Replace the admin 220/52px drift and horizontal mobile overflow with the approved mobile navigation pattern.
-- [ ] Verify public/studio/admin screenshots at 375, 768, 1024, and 1440 CSS pixels.
+- [x] Test distinct persistence keys, the P-01-approved expanded/collapsed desktop widths (228/48px is only the current baseline), accessible toggle labels, tooltip/title behavior, keyboard operation, approved Header stacking, and mobile navigation/drawer reachability.
+- [x] Extract only collapse-state behavior; keep public, studio, and admin information architectures separate where their navigation models differ.
+- [x] Replace the admin 220/52px drift and horizontal mobile overflow with the approved mobile navigation pattern.
+- [x] Verify public/studio/admin screenshots at 375, 768, 1024, and 1440 CSS pixels.
 
 ## Task U-04: Replace Native Destructive Dialogs
 

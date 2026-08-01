@@ -106,3 +106,22 @@
 - `screenshots/` 由仓库忽略，证据保留在本地但不进入提交。
 - Input/Select/Textarea 的视觉类存在可接受的局部重复；依据 surgical changes 规则未引入额外抽象。
 - 未修改后端、throwaway 原型、真实 seed 素材或无关任务草稿；U-03 依赖已满足并转为可预约。
+
+## [2026-08-02] - Task U-03: 统一公共、Studio 与 Admin 导航壳层（完成）
+
+### What was done:
+- 新增共享 `useSidebarCollapse`，仅统一折叠状态与 localStorage 持久化；公共、Studio、Admin 使用 `sidebarCollapsed`、`studio_sidebar_collapsed`、`admin_sidebar_collapsed` 三个独立键并保留各自信息架构。
+- Header 对齐 52px、z-40、Indigo token 与 2px 选中下划线；移动菜单改为 85vw 左抽屉并移出 Header stacking context，避免页面 sticky 工具栏穿透。
+- Studio/Admin 桌面侧栏统一为 228/48px，移动端使用 85vw 抽屉；精确采用 ≤700px / ≥701px 断点。Studio 收起态补齐 300ms 可见 tooltip、分组分隔线与 3px 选中指示。
+- 新增导航壳层合同测试，覆盖独立持久化键、原生按钮语义、宽度、Header 层级、移动抽屉、tooltip/title、Esc 与响应式契约。
+
+### Testing:
+- Red 阶段：聚焦测试先因缺少 `use-sidebar-collapse` 模块按预期失败；实现后 U-03 聚焦测试 2/2 PASS。
+- `npm test`: 120/120 PASS；`npm run lint`: PASS；`npm run build -- --webpack`: PASS（62 个页面）；`git diff --check`: PASS；`backend/` 无差异。
+- 浏览器验证公共/Studio/Admin 在 375/768/1024/1440 CSS px 无横向溢出，Header 52px，桌面侧栏 228/48px，持久化 reload 生效；移动抽屉 85vw、dialog 语义、Esc 关闭均通过。额外验证 700/701px 边界与 Studio tooltip 不被裁剪。
+- 截图证据位于 `screenshots/ui-polish/u-03/`，包含三套壳层的四档宽度及 drawer/collapsed 代表状态。
+
+### Notes:
+- 双轴审查发现并修复 701px 断点、Studio tooltip/选中线/分组线、公共侧栏语义与抽屉 stacking context；最终 Standards 无硬违规。
+- P-01 原型中的独立生产 `/agent` 导航入口按 `AGENTS.md` 注册表由 Web Agent Productization 计划独占，U-03 不提前创建 404 路由或修改其完成状态。
+- `frontend/package-lock.json` 的 npm 元数据变化及 seed 素材/脚本/任务草稿均保持在 U-03 精确暂存之外；未修改后端。
