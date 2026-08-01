@@ -20,7 +20,7 @@ test.afterEach(() => {
 test("register remounts captcha after a failed submit consumes a one-time ticket", async () => {
   installDom();
 
-  const pageModule = await import("@/app/(public)/register/page");
+  const pageModule = await import("@/components/auth/RegisterPageContent");
   const apiModule = await import("@/lib/api");
   const publicConfigModule = await import("@/lib/public-config");
   const RegisterPageContent = pageModule.RegisterPageContent;
@@ -83,7 +83,7 @@ test("register remounts captcha after a failed submit consumes a one-time ticket
 test("forgot-password remounts captcha after a failed submission consumes a one-time ticket", async () => {
   installDom();
 
-  const pageModule = await import("@/app/(public)/forgot-password/page");
+  const pageModule = await import("@/components/auth/ForgotPasswordContent");
   const apiModule = await import("@/lib/api");
   const ForgotPasswordContent = pageModule.ForgotPasswordContent;
   const { FakeCaptcha, getMountCount } = createFakeCaptcha();
@@ -111,7 +111,7 @@ test("forgot-password remounts captcha after a failed submission consumes a one-
 test("settings resend verification remounts captcha after resend attempt", async () => {
   installDom();
 
-  const settingsModule = await import("@/app/(protected)/settings/page");
+  const settingsModule = await import("@/components/settings/VerificationReminderCard");
   const apiModule = await import("@/lib/api");
   const VerificationReminderCard = settingsModule.VerificationReminderCard;
   const { FakeCaptcha, getMountCount } = createFakeCaptcha();

@@ -165,7 +165,7 @@ async function renderUserCollectionsPage(userId: string) {
           <ToastProvider>
             <AuthProvider>
               <Suspense fallback={<div>Loading suspense</div>}>
-                <UserCollectionsPage params={{ userId }} />
+                <UserCollectionsPage params={Promise.resolve({ userId })} />
               </Suspense>
             </AuthProvider>
           </ToastProvider>

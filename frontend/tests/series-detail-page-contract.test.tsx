@@ -75,7 +75,7 @@ async function renderSeriesDetailPage(id: string) {
     view = render(
       <IntlProvider locale="en" messages={messages}>
         <ToastProvider>
-          <SeriesDetailPage params={{ id }} />
+          <SeriesDetailPage params={Promise.resolve({ id })} />
         </ToastProvider>
       </IntlProvider>,
     );

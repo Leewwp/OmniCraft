@@ -169,8 +169,8 @@ async function renderCollectionDetailPage(collectionId: string) {
             <AuthProvider>
               <Suspense fallback={<div>Loading suspense</div>}>
                 <CollectionDetailPage
-                  params={{ id: collectionId }}
-                  searchParams={Object.fromEntries(new URLSearchParams(window.location.search))}
+                  params={Promise.resolve({ id: collectionId })}
+                  searchParams={Promise.resolve(Object.fromEntries(new URLSearchParams(window.location.search)))}
                 />
               </Suspense>
             </AuthProvider>

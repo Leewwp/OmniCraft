@@ -23,7 +23,7 @@ import {
 } from "@/lib/collections";
 import { silentError } from "@/lib/error-handler";
 
-type PageParams = Promise<{ userId: string }> | { userId: string };
+type PageParams = Promise<{ userId: string }>;
 type CollectionZone = "original" | "fanwork";
 
 interface UserCollectionsPageProps {
