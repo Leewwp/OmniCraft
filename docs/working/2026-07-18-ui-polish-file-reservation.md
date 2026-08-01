@@ -4,7 +4,7 @@
 **预计失效日期**: 2026-09-17
 
 > 适用范围：`docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md` 的 U-01 至 U-12。  
-> 当前状态：按 2026-07-25 修订后的执行顺序推进；U-05、U-02A、U-04 已完成释放，下一步为 P-01 人工原型评审。
+> 当前状态：按 2026-07-25 修订后的执行顺序推进；P-01 已于 2026-08-01 获批（IP 库方案 B，Indigo 精修），U-01 已完成并释放，下一项为 U-02B。
 
 ## 预约规则
 
@@ -29,9 +29,9 @@
 
 | Task | 文件所有权摘要 | 依赖 | 状态 | 当前 owner / 分支 / base / 时间 |
 |---|---|---|---|---|
-| U-01 | `design-system.md`、`globals.css`、token checker | — | 可预约 | — |
+| U-01 | `design-system.md`、`globals.css`、token checker | P-01 | 已释放 | Codex（opencode 前端车道） / `opencode/ui-polish-u01` / `29ce01f` / 2026-08-01 15:47–2026-08-02 00:33 +08:00 |
 | U-02A | Button、ConfirmModal、TagBadge、Toast 行为与无障碍 | U-05 | 已释放 | Codex / `codex/ui-refinement` / `c4b24f9` / 2026-07-25 03:11–03:44 +08:00 |
-| U-02B | `frontend/components/ui/**` 视觉应用 | P-01/U-01/U-02A | 待依赖 | — |
+| U-02B | `frontend/components/ui/**` 视觉应用 | P-01/U-01/U-02A | 可预约 | — |
 | U-03 | Header、Sidebar、StudioSidebar、admin layout、collapse hook | U-01/U-02/U-05 | 待依赖 | — |
 | U-04 | dashboard destructive pages、settings、agent-config、VersionHistory | U-01/U-02/U-05 | 已释放 | Codex / `codex/ui-refinement` / `4693cc3` / 2026-07-25 |
 | U-05 | error utilities + audited error surfaces | — | 已释放 | Codex / `codex/ui-refinement` / `d1f53cd` / 2026-07-25 02:52–03:06 +08:00 |
@@ -53,6 +53,11 @@
 | 2026-07-25 02:58 +08:00 | U-05 | Codex | `codex/ui-refinement` | `d1f53cd` | `frontend/app/(protected)/admin/agent-config/page.tsx`; `frontend/app/(protected)/admin/appeal/page.tsx`; `frontend/app/(protected)/admin/audit-logs/page.tsx`; `frontend/app/(protected)/admin/categories/page.tsx`; `frontend/app/(protected)/admin/config/page.tsx`; `frontend/app/(protected)/admin/feedback/page.tsx`; `frontend/app/(protected)/admin/ips/page.tsx`; `frontend/app/(protected)/admin/queue/page.tsx`; `frontend/app/(protected)/admin/reports/page.tsx`; `frontend/app/(protected)/admin/users/page.tsx`; `frontend/app/(protected)/appeals/page.tsx`; `frontend/app/(protected)/dashboard/contributors/page.tsx`; `frontend/app/(protected)/dashboard/tag-suggestions/page.tsx`; `frontend/app/(protected)/feedback/[feedbackId]/page.tsx`; `frontend/app/(protected)/feedback/mine/page.tsx`; `frontend/app/(protected)/ip/[ipId]/discussions/new/page.tsx`; `frontend/app/(protected)/judge/exam/page.tsx`; `frontend/app/(protected)/judge/queue/page.tsx`; `frontend/app/(protected)/rehab/page.tsx`; `frontend/app/(protected)/settings/page.tsx`; `frontend/app/(protected)/settings/tag-groups/page.tsx`; `frontend/app/(public)/ip/[ipId]/discussions/[discussionId]/page.tsx`; `frontend/app/(public)/ip/[ipId]/discussions/page.tsx`; `frontend/components/agent/UploadAssistPanel.tsx`; `frontend/components/judge/VerdictDetail.tsx`; `frontend/components/social/CreatorSupportPanel.tsx`; `frontend/components/social/ReplyList.tsx` | 已释放；精确库存发现并清除 27 个额外原始错误渲染面 |
 | 2026-07-25 03:11 +08:00 | U-02A | Codex | `codex/ui-refinement` | `c4b24f9` | `frontend/components/ui/button.tsx`; `frontend/components/ui/confirm-modal.tsx`; `frontend/components/ui/TagBadge.tsx`; `frontend/components/ui/Toast.tsx`; `frontend/messages/en.json`; `frontend/messages/zh.json`; `frontend/tests/runtime-test-helpers.tsx`; `frontend/tests/ui-primitives-accessibility.test.tsx` | 已释放；原语行为、无障碍名称与触控目标验证完成 |
 | 2026-07-25 03:37 +08:00 | U-02A | Codex | `codex/ui-refinement` | `c4b24f9` | `frontend/tests/admin-notifications-page.test.tsx`; `frontend/tests/collection-detail.test.tsx`; `frontend/tests/history-page.test.tsx`; `frontend/tests/messages-components.test.tsx`; `frontend/tests/series-detail-page-contract.test.tsx`; `frontend/tests/sheet-music-viewer-download.test.tsx`; `frontend/tests/studio-series-page.test.tsx`; `frontend/tests/user-collections-page.test.tsx` | 已释放；为既有 Toast 测试目录补齐 `common.close` 测试消息契约 |
+| 2026-08-01 15:47 +08:00 | U-01 | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `fa95a35` | `design/design-system.md`; `frontend/app/globals.css`; `frontend/scripts/ui-governance/check-tokens.mjs`; `frontend/scripts/ui-governance/check-tokens.test.mjs` | 进行中；P-01 已获批，独占 U-01 权威表、CSS token 与 checker 路径 |
+| 2026-08-01 15:47 +08:00 | U-01 tracking | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `fa95a35` | `AGENTS.md`; `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md`; `docs/working/2026-07-25-ui-prototype-review.md`; `docs/working/2026-07-18-ui-polish-file-reservation.md`; `progress.txt` | 进行中；只同步 P-01 已批准状态、U-01 勾选/进度与预约审计，不带入 throwaway 原型 |
+| 2026-08-01 16:36 +08:00 | N16-01 build unblock | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `fa95a35` | `frontend/app/(protected)/settings/page.tsx`; `frontend/components/settings/VerificationReminderCard.tsx`; `frontend/tests/captcha-ticket-reset.test.tsx` | 进行中；独立维护前置任务，Next 16 build 拒绝 Page 文件的命名导出，仅原样迁移组件与测试导入，不改变 settings 行为/视觉 |
+| 2026-08-01 16:43 +08:00 | N16-01 build unblock | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `fa95a35` | `frontend/app/(public)/register/page.tsx`; `frontend/app/(public)/forgot-password/page.tsx`; `frontend/components/auth/RegisterPageContent.tsx`; `frontend/components/auth/ForgotPasswordContent.tsx`; `frontend/app/(public)/collections/[id]/page.tsx`; `frontend/app/(public)/series/[id]/page.tsx`; `frontend/app/(public)/user/[userId]/collections/page.tsx`; `frontend/tests/register-captcha.test.tsx`; `frontend/tests/captcha-ticket-reset.test.tsx`; `frontend/tests/collection-detail.test.tsx`; `frontend/tests/series-detail-page-contract.test.tsx`; `frontend/tests/user-collections-page.test.tsx` | 进行中；独立维护前置任务，修复 Next 16 Page 命名导出与 Promise params 类型门禁，保持现有组件逻辑和测试覆盖 |
+| 2026-08-01 23:40 +08:00 | U-01 authority alignment | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `fa95a35` | `.specify/memory/constitution.md`; `.specify/templates/plan-template.md`; `.specify/templates/spec-template.md`; `.specify/templates/tasks-template.md`; `design/ui-spec.md` | 进行中；双轨审查发现 P-01 已批准的三档微阴影与宪法/UI 规格旧“全局无阴影”规则冲突，按宪法修订流程同步最高权威与模板；仅改全局视觉治理条款，不改组件业务语义 |
 
 ## 历史释放、阻塞与转移记录
 
@@ -62,3 +67,6 @@
 | 2026-07-25 03:06 +08:00 | U-05 | Codex | 完成并释放 | U-05 全部预约路径 | 35 个明确审计面改用本地化安全回退；重叠路径按计划依次转交 U-02A/U-04 |
 | 2026-07-25 03:44 +08:00 | U-02A | Codex | 完成并释放 | U-02A 全部预约路径 | 5 项原语测试、真实键盘流和 44px 粗指针关闭目标通过；共享原语转交 U-02B，ConfirmModal 转交 U-04 使用 |
 | 2026-07-25 | U-04 | Codex | 完成并释放 | `frontend/app/(protected)/dashboard/contents/page.tsx`; `frontend/app/(protected)/dashboard/contributors/page.tsx`; `frontend/app/(protected)/dashboard/pr-requests/page.tsx`; `frontend/app/(protected)/settings/page.tsx`; `frontend/app/(protected)/admin/agent-config/page.tsx`; `frontend/components/content/VersionHistory.tsx`; `frontend/components/ui/confirm-modal.tsx`; `frontend/messages/en.json`; `frontend/messages/zh.json`; `frontend/tests/destructive-dialogs.test.tsx` | 已释放；单元契约、全量前端测试、lint/build 通过；源码仅保留 U-11 的 ReactionBar prompt。受保护页面 Playwright mock 因会话依赖停留加载，未计为通过 |
+| 2026-08-02 00:33 +08:00 | GOV-01 | Codex（opencode 前端车道） | 完成并释放 | `.specify/memory/constitution.md`; `.specify/templates/plan-template.md`; `.specify/templates/spec-template.md`; `.specify/templates/tasks-template.md`; `design/ui-spec.md` | 宪法 v2.0.0、模板传播与 UI 规格层级规则已由 `79c858f` 独立提交；规格复审 PASS |
+| 2026-08-02 00:33 +08:00 | N16-01 | Codex（opencode 前端车道） | 完成并释放 | N16-01 全部预约路径 | Next 16 Page 命名导出与 Promise params 契约由 `8b35eee` 独立提交；112/112 测试、lint、Webpack build PASS |
+| 2026-08-02 00:33 +08:00 | U-01 | Codex（opencode 前端车道） | 完成并释放 | U-01 权威表、CSS token、治理脚本与跟踪路径 | U-01 实现由 `29ce01f` 独立提交；token 3/3、112/112 测试、lint、62 路由 build、10 张真实 PNG 浏览器证据及 Standards/Spec 双轴复审 PASS |
