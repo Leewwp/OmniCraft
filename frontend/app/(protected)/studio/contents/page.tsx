@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { Eye, Heart, MessageCircle, Edit, Trash2 } from "lucide-react";
+import { Eye, Heart, MessageCircle, Edit, Trash2, FileText } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { DataList } from "@/components/ui/data-list";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function StudioContentsPage() {
@@ -17,18 +19,43 @@ export default function StudioContentsPage() {
     status: string;
   }>>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const contentsRef = useRef(contents);
+  contentsRef.current = contents;
 
-  useEffect(() => {
-    api.get("/api/v1/my/contents?limit=50")
-      .then((res) => setContents(((res as Record<string, unknown>)?.data as Array<Record<string, unknown>> || []).map((c) => ({
+  const load = useCallback(async (nextPage = 1, append = false) => {
+    if (append) setLoadingMore(true); else setLoading(contentsRef.current.length === 0);
+    setError("");
+    setPage(nextPage);
+    try {
+      const res = await api.get(`/api/v1/users/me/contents?page=${nextPage}&page_size=20`) as Record<string, unknown>;
+      const rawItems = (res?.contents ?? res?.data) as Array<Record<string, unknown>> | undefined;
+      const incoming = (rawItems || []).map((c) => ({
         id: c.id as number, title: c.title as string, zone: c.zone as string,
         content_type: c.content_type as string, view_count: c.view_count as number,
         like_count: c.like_count as number, comment_count: c.comment_count as number,
         status: c.status as string,
-      }))))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+      }));
+      const meta = res?.meta as Record<string, unknown> | undefined;
+      const total = (res?.total as number) ?? (meta?.total as number) ?? incoming.length;
+      const pageSize = (res?.page_size as number) ?? (meta?.page_size as number) ?? 20;
+      setContents((current) => append
+        ? [...current, ...incoming.filter((item) => !current.some((existing) => existing.id === item.id))]
+        : incoming);
+      setPage(nextPage);
+      setHasMore(total > nextPage * pageSize);
+    } catch {
+      setError(t("common.loadFailed"));
+    } finally {
+      setLoadingMore(false);
+      setLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => { void load(); }, [load]);
 
   return (
     <div>
@@ -42,23 +69,27 @@ export default function StudioContentsPage() {
         </Link>
       </div>
 
-      {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
-        </div>
-      ) : contents.length === 0 ? (
-        <div className="rounded-lg border border-border bg-card p-12 text-center">
-          <p className="mb-4 text-muted-foreground">{t('studio.contents.noContent')}</p>
-          <Link href="/studio/publish/original">
-            <Button>{t('studio.contents.startCreating')}</Button>
-          </Link>
-        </div>
-      ) : (
-        <div className="rounded-lg border border-border bg-card">
-          {contents.map((item) => (
+      <DataList
+        items={contents}
+        loading={loading}
+        error={error}
+        onRetry={() => void load(page, page > 1)}
+        hasMore={hasMore}
+        loadingMore={loadingMore}
+        onLoadMore={() => load(page + 1, true)}
+        empty={
+          <EmptyState
+            icon={FileText}
+            title={t('studio.contents.noContent')}
+            action={<Link href="/studio/publish/original"><Button>{t('studio.contents.startCreating')}</Button></Link>}
+          />
+        }
+        loadingState={<div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-lg" />)}</div>}
+        getKey={(item) => item.id}
+        renderItem={(item) => (
             <div
               key={item.id}
-              className="flex items-center gap-4 border-b border-border p-4 last:border-b-0"
+              className="flex items-center gap-4 rounded-lg border border-border bg-card p-4"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -86,9 +117,8 @@ export default function StudioContentsPage() {
                 </Button>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+        )}
+      />
     </div>
   );
 }

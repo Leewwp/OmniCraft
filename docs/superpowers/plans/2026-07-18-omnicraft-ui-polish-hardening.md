@@ -309,10 +309,10 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - Modify: `frontend/app/(protected)/studio/contents/page.tsx`
 - Modify: `frontend/app/(public)/ip/[ipId]/discussions/page.tsx`
 
-- [ ] Define DataList as presentation/state composition only; API page size, cursor/page state, and fetching remain owned by each page.
-- [ ] Test first load, empty, error+retry, next page, duplicate-request prevention, end-of-list, filter reset, and retained prior results during pagination failure.
-- [ ] Do not call a hard-coded page size “configurable” unless a real prop or backend contract controls it.
-- [ ] Preserve existing history tests and add focused tests for every newly paginated surface.
+- [x] Define DataList as presentation/state composition only; API page size, cursor/page state, and fetching remain owned by each page.
+- [x] Test first load, empty, error+retry, next page, duplicate-request prevention, end-of-list, filter reset, and retained prior results during pagination failure.
+- [x] Do not call a hard-coded page size “configurable” unless a real prop or backend contract controls it.
+- [x] Preserve existing history tests and add focused tests for every newly paginated surface.
 
 ## Task U-08: Repair Form Accessibility In Remaining Surfaces
 

@@ -142,3 +142,16 @@
 ### Notes:
 - 详情成功态与判官交互由单元测试 mock API 覆盖；本地数据库对应 ID 返回 NOT_FOUND，因此浏览器证据记录为真实错误路径，不以模拟页面冒充成功数据。
 - U-06 已释放；下一项前端任务为 U-07。`frontend/package-lock.json`、`.cache/`、真实 seed 素材/脚本和任务草稿仍为未提交的既有脏文件。
+
+## [2026-08-02] - Task U-07: 标准化分页列表状态（完成）
+### What was done:
+- 新增 `DataList` 展示/状态组合组件，统一首屏 Skeleton、空态、可重试错误、保留既有结果的分页错误、下一页加载、重复请求防护与稳定 key。
+- 将 history、appeals、rehab、feedback/mine、studio overview/followers/contents、IP discussions 接入页面自有 page/hasMore/loadingMore/fetching；筛选与搜索保持第一页重置，分页失败重试原失败游标。
+- Studio 内容接口改用后端真实 `/api/v1/users/me/contents` 路径并兼容 `contents/total` 响应；overview 保留排行请求语义并补齐错误 Toast + 卡片内联错误。
+- 新增 DataList 测试与 8 个列表面的 focused contract tests；浏览器使用本地管理员测试账号验证 Studio 三页桌面及 375px 空态/响应式状态，截图位于 `screenshots/ui-polish/u-07/`。
+### Testing:
+- 聚焦 U-07 DataList/contracts：PASS；全量 `npm test`: 136/136 PASS。
+- `npm run lint`: PASS；`npm run build -- --webpack`: PASS，62 路由；`git diff --check`: PASS；`backend/` 无修改。
+### Notes:
+- `/api/v1/rehab/courses` 当前后端响应没有 `total/page_size` 且忽略 page 参数，前端按现有契约安全降级为无下一页；真实课程分页需 U-11 后端契约补齐，不在本次前端范围内。
+- `frontend/package-lock.json`、`.cache/`、seed 素材/脚本与任务草稿为既有无关脏文件，未纳入 U-07 提交。
