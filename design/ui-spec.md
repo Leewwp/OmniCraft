@@ -154,6 +154,68 @@
 - **Empty**: EmptyState 组件（图标 + 标题 + 说明 + 可选 CTA），不留空白区域。
 - **Disabled**: `opacity-50` + `cursor-not-allowed` + 禁用 hover/click。
 
+## Component: Button 与 Badge 共享动作原语
+
+**视觉契约**
+- Button 使用 `rounded-md` (4px)、14px medium 字体和 1px 透明边框以稳定状态切换；default/outline/secondary/ghost/destructive/link 只消费既有语义 token，不引入任意色。
+- Primary hover 使用 `--accent-hover`；outline hover 使用 `--border-strong` + `--canvas-subtle`；destructive 使用 `--destructive`、`--border-destructive` 与既有白色前景 `--primary-foreground`，不得用未登记的红色常量。
+- 默认高度 32px，lg 36px；icon-only 在精细指针下按同档尺寸，在 coarse pointer 下保持 44px 目标。focus-visible 统一为 2px `--ring` + 2px background offset；disabled 保持 `opacity-50`、禁止交互且不触发 hover/active 位移。
+- Badge 始终 `rounded-full`、12px medium、20px 高，无 elevation；可交互 Badge 仅做 150ms 颜色/边框过渡，focus-visible 与 Button 相同。
+
+**响应式与动效**
+- 移动端不缩小文字；独立动作或 icon-only 动作保持 44px 触控目标，密集工具栏可沿用 U-02A 已批准的 coarse-pointer 媒体规则。
+- active 反馈不得通过会导致布局抖动的 margin/border-width 实现；reduced-motion 下禁用位移与缩放。
+
+## Component: Card 共享容器原语
+
+**视觉契约**
+- 默认卡片为 `bg-card` + 1px `border-border` + `rounded-lg` (8px) + elevation 1；内部 padding 使用 12px (sm) 或 16px (default)。
+- 只有显式声明为可交互的卡片才在 hover/focus-within 时切换 `border-strong` 与 elevation 2；变化只使用 border-color/shadow/transform，不改变布局尺寸。
+- 标题使用 14px medium，说明使用 14px muted；Footer 使用 `canvas-subtle` 与 1px 顶部分隔。
+- 原创内容卡的无边框特例由对应业务组件声明，不能通过改变共享 Card 默认值实现。
+
+## Component: Form Controls 表单原语
+
+**覆盖文件**: `checkbox.tsx`、`field.tsx`、`input.tsx`、`label.tsx`、`select.tsx`、`switch.tsx`、`textarea.tsx`
+
+**视觉契约**
+- Input/Select/Textarea 使用 `rounded-md` (4px)、1px `border-input`、`bg-background`、14px 正文；移动端输入文字保持 16px 以避免浏览器自动缩放，`md` 起恢复 14px。
+- hover（非 disabled）提升到 `border-strong`；focus-visible 使用 2px `--ring` + 2px background offset；invalid 使用 `border-destructive` + destructive ring，不以 placeholder 或颜色单独表达错误。
+- Label 为 14px medium；Field 间距使用 8px，hint/error 为 12px，error 保留 `role=alert`。
+- Checkbox 使用 16px 方形、`rounded-sm` (3px)、checked=`primary`；Switch 为 44×24px 药丸轨道，checked=`primary`、unchecked=`muted`，thumb 使用 elevation 1。两者沿用同一 focus/disabled 契约。
+
+**响应式与状态**
+- 表单控件宽度默认跟随容器，禁止产生横向滚动；disabled 使用柔和背景、`opacity-50` 与禁止光标。
+- placeholder 仅使用 muted foreground；不得把 placeholder 当作 label。
+
+## Component: DropdownMenu 浮层菜单原语
+
+**视觉契约**
+- Popup/Submenu 使用 `bg-popover` + 1px `border-border` + `rounded-lg` (8px) + elevation 3，不再用 ring 模拟边框或使用未登记的 shadow 档位。
+- Item 使用 `rounded-md` (4px)、14px、最小 32px 高；hover/focus 使用中性 `accent`，checked/selected 可使用 `accent-subtle` + `accent-emphasis`，destructive 只使用 destructive token。
+- Label/shortcut 使用 12px muted；separator 为 1px `border`。菜单宽度不得超过可用视口，长内容省略或纵向滚动。
+
+**动效与响应式**
+- 开合使用 150ms opacity/scale；reduced-motion 下只保留即时显隐。触控设备菜单项最小 44px 高，桌面保持密集 32px。
+
+## Component: Tabs 与 Separator 导航原语
+
+**视觉契约**
+- Default TabsList 使用 `canvas-subtle`、`rounded-lg` (8px) 和 4px 内边距；active trigger 使用 `bg-background`、1px border 与 elevation 1。
+- Line Tabs 不使用卡片阴影，active 仅以 2px `primary` 下划线 + 字重/文字色共同表达；focus-visible 使用统一 2px ring。
+- Trigger 为 14px medium、最小 32px 高；disabled 使用 `opacity-50`。移动端允许 TabsList 水平滚动但页面本身不得横向溢出。
+- Separator 仅为 1px `border` 色，无圆角、阴影或交互状态。
+
+## Component: Loading 与反馈原语
+
+**覆盖文件**: `skeleton.tsx`、`empty-state.tsx`、`Toast.tsx`
+
+**视觉契约**
+- Skeleton 形状镜像最终内容，使用 `canvas-subtle`、对应最终表面的圆角与 1.6s 低对比 pulse；reduced-motion 下静止。SkeletonCard/Detail 使用 `rounded-lg`、1px border 与 elevation 1，不得出现全屏 loading overlay。
+- EmptyState 为无边框、无阴影的垂直居中结构：56px `accent-subtle` 圆形图标底、16px 标题、14px muted 说明（`max-w-sm`）、可选 Button CTA；移动 `py-20`，桌面 `py-24`。
+- Toast 固定右上（移动端左右各 16px），使用 `bg-card` + 1px status border + `rounded-lg` + elevation 3。success/error/warning/info 分别复用已批准的 green/rose/orange/blue 标签前景与柔和背景 token；正文仍为 foreground，颜色不是唯一状态线索，必须保留对应 Lucide 图标与 live-region 语义。
+- Toast 入退场为 200ms opacity/translate；reduced-motion 下禁用位移。关闭动作沿用 U-02A 的可访问名称与 coarse-pointer 44px 目标。
+
 ## Component: Header
 
 **Key Constraints**
@@ -2023,28 +2085,27 @@ interface MasonryGridProps {
 - 使用预设 6 色体系 (blue/green/purple/orange/rose/sky)，颜色值参考 design-system.md 标签颜色表。
 - 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 - 标签默认无边框，使用纯色背景 + 对应文字色。
+- 使用 `rounded-full`、12px medium、20px 高；hover/focus 不改变 border-width 或布局尺寸。
 
 **Props 接口**
 ```ts
 interface TagBadgeProps {
   className?: string;
-  label: string;
   color?: 'blue' | 'green' | 'purple' | 'orange' | 'rose' | 'sky';
-  size?: 'sm' | 'md';
-  removable?: boolean;
-  onRemove?: (label: string) => void;
+  children: React.ReactNode;
+  onClick?: () => void;
+  onRemove?: () => void;
 }
 ```
 
 **视觉结构**
 - 容器: `<span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium tag-{color}">`
 - 文字: 标签文本 `{label}`
-- 可选的移除按钮: `<button className="ml-0.5 hover:opacity-70" onClick={onRemove}>` ✕
+- 可选的移除按钮: Lucide `X` 图标按钮，必须有本地化可访问名称；精细指针使用扩展 hit area，coarse pointer 目标至少 44px。
 
 **尺寸规范**
-- sm: `px-1.5 py-0.5 text-[10px]`
-- md: `px-2 py-0.5 text-xs`（默认）
-- 圆角: `rounded-full`（始终为药丸形）
+- 默认: `h-5 px-2 text-xs`，圆角始终 `rounded-full`。
+- 不新增 10px 字号档；需要更紧凑的业务标签时仍使用 12px 并减少水平 padding。
 
 **颜色映射**
 - blue: `bg-[#EEF2FF] text-[#4F46E5]` / dark `bg-[#6366F11A] text-[#A5B4FC]`
@@ -2056,8 +2117,9 @@ interface TagBadgeProps {
 
 **状态变体**
 - default: 按 color 显示对应颜色组合。
-- removable: 文字右侧显示 ✕ 按钮，hover 时颜色加深。
-- 无 active/disabled/focus/loading 状态（标签静态展示）。
+- clickable: `cursor-pointer`，hover 仅轻微降低亮度，focus-visible 使用统一 2px `ring` + offset；Enter/Space 可激活。
+- removable: 文字右侧显示 Lucide `X`，hover/focus 提升图标对比度，不使用 raw SVG 或文本 `✕`。
+- reduced-motion 下禁用 active scale；无 loading 状态。
 
 ## Component: IPCard
 
@@ -2929,7 +2991,7 @@ interface ReviewCardProps {
 **Key Constraints**
 - 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 - 居中展示，图标 + 标题 + 说明 + 可选 CTA，不留空白区域。
-- 无边框容器，使用纯文本 + 图标布局。
+- 无边框、无阴影容器，使用纯文本 + 图标布局。
 
 **Props 接口**
 ```ts
@@ -2947,17 +3009,17 @@ interface EmptyStateProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="flex flex-col items-center justify-center py-16 px-4 text-center">`
-- 图标区: `<div className="text-fg-muted mb-4">{icon}</div>` — 64x64 居中图标（默认使用 Inbox 或对应主题图标）
-- 标题: `<h3 className="text-base font-medium text-foreground mb-2">{title}</h3>`
-- 说明: `<p className="text-sm text-fg-muted max-w-sm">{description}</p>`
-- CTA: 可选 `<Link href={action.href} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity">`
+- 外层容器: `<div className="flex flex-col items-center justify-center px-4 py-20 text-center md:py-24">`
+- 图标区: 56×56 `rounded-full bg-accent-subtle text-accent-emphasis` 柔底圆形，内部图标 24×24。
+- 标题: `<h3 className="mt-4 text-base font-medium text-foreground">{title}</h3>`
+- 说明: `<p className="mt-2 max-w-sm text-sm text-fg-muted">{description}</p>`
+- CTA: 可选 `<div className="mt-4">`，内部动作必须复用 Button 规范。
 
 **尺寸规范**
-- 图标: 64x64 (w-16 h-16)
+- 图标柔底: 56×56，内部图标 24×24
 - 标题: `text-base` (16px) 加粗
 - 说明: `text-sm` (14px)
-- CTA 高度: `h-9` (36px)
+- CTA 高度按 Button 规范；独立移动动作至少 44px 触控目标
 
 **状态变体**
 - default: 图标 + 标题 + 说明 + 可选 CTA。
@@ -2968,7 +3030,7 @@ interface EmptyStateProps {
 **Key Constraints**
 - Modal 使用 elevation 3 并保留 1px border。
 - 遮罩层 `bg-black/50 backdrop-blur-sm`。
-- ESC 和点击遮罩关闭。
+- ESC 和点击遮罩关闭；busy 状态下阻止关闭，保留 U-02A 的 focus trap 与焦点恢复。
 
 **Props 接口**
 ```ts
@@ -2987,19 +3049,19 @@ interface ConfirmModalProps {
 ```
 
 **视觉结构**
-- 遮罩: `<div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={onClose} />`
+- 遮罩: `<div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />`
 - Modal 容器: `<div className="fixed inset-0 z-50 flex items-center justify-center p-4">`
-- 卡片: `<div className="bg-canvas-default border border-border-default rounded-lg shadow-md max-w-sm w-full mx-auto p-6">`
-- 标题: `<h2 className="text-lg font-medium text-foreground mb-2">{title}</h2>`
+- 卡片: `<div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-md">`，其中 `shadow-md` 映射到 elevation 3。
+- 标题: 20px semibold；消息为 14px muted。
 - 消息: `<p className="text-sm text-fg-muted mb-6">{message}</p>`
 - 按钮行: `<div className="flex justify-end gap-3">`
   - 取消按钮: `<button className="px-4 py-2 text-sm font-medium text-foreground bg-canvas-default border border-border-default rounded-md hover:bg-canvas-subtle">`
-  - 确认按钮: variant 为 destructive 时使用 `bg-destructive text-destructive-foreground`，default 使用 `bg-primary text-primary-foreground`
+  - 确认按钮: variant 为 destructive 时使用 `bg-destructive text-primary-foreground`，default 使用 `bg-primary text-primary-foreground`
 
 **尺寸规范**
-- Modal 最大宽度: 384px (`max-w-sm`)
+- Modal 最大宽度: 448px (`max-w-md`)，移动端保留 16px viewport gutter
 - 内间距: `p-6` (24px)
-- 按钮高度: `h-9` (36px)
+- 按钮遵循 Button 规范；coarse pointer 目标至少 44px
 
 **状态变体**
 - default: 白色背景 + 确认/取消按钮。
@@ -5455,8 +5517,9 @@ interface LoadingSpinnerProps {
 ## Component: SkeletonCard 骨架屏卡片
 
 **Key Constraints**
-- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
+- 遵守全局 Indigo 三档层级规则；SkeletonCard/Detail 镜像带边框最终面板时使用 elevation 1。
 - 仅用于内容加载占位，不可交互。
+- pulse 周期为 1.6s；`prefers-reduced-motion: reduce` 下静止。
 
 **Props 接口**
 ```ts
@@ -5468,8 +5531,8 @@ interface SkeletonCardProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="rounded-md bg-canvas-default overflow-hidden">`
-- 封面区: `<div className="bg-canvas-subtle animate-pulse" style={{ aspectRatio: zone === 'fanwork' ? '3/4' : 'auto', minHeight: 150 }} />`
+- 外层容器: `<div className="rounded-lg border border-border bg-card p-4 shadow-sm">`，`shadow-sm` 映射到 elevation 1。
+- 封面区: `<div className="rounded-lg bg-canvas-subtle animate-[pulse_1.6s_ease-in-out_infinite] motion-reduce:animate-none" />`
 - 信息区: `p-3 space-y-2`
   - 标题行: `<div className="h-4 bg-canvas-subtle rounded-sm w-3/4 animate-pulse" />`
   - 描述行: `<div className="h-3 bg-canvas-subtle rounded-sm w-1/2 animate-pulse" />`
@@ -5483,7 +5546,8 @@ interface SkeletonCardProps {
 **Key Constraints**
 - 位置固定右上角，z-50。
 - 自动消失 4s，支持手动关闭。
-- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none（Toast 容器无阴影只使用 1px border）。
+- Toast 是浮层反馈，使用 elevation 3 并保留 1px status border。
+- success/error/warning/info 复用 green/rose/orange/blue 标签柔和背景与前景 token，不引入任意 Tailwind 色常量。
 
 **Props 接口**
 ```ts
@@ -5497,17 +5561,18 @@ interface ToastProps {
 ```
 
 **视觉结构**
-- 容器: `<div className="flex items-center gap-3 px-4 py-3 border border-border-default rounded-md bg-canvas-default text-sm">`
+- 容器: `<div className="flex items-start gap-3 rounded-lg border bg-card p-3 text-sm shadow-md">`，`shadow-md` 映射到 elevation 3。
 - 图标: type 对应图标（success=check-circle, error=x-circle, info=info, warning=alert-triangle）
 - 文字: `flex-1 text-foreground`
-- 关闭按钮: `<button className="text-fg-muted hover:text-foreground">`
+- 关闭按钮: `<button className="text-fg-muted hover:text-foreground">`，含本地化可访问名称和 coarse-pointer 44px 目标。
 
 **状态变体**
-- success: `border-border` + 绿色图标 (`text-green-600`)
-- error: `border-border-destructive` + 红色图标 (`text-destructive`)
-- info: `border-border` + 蓝色图标 (`text-accent-emphasis`)
-- warning: `border-border` + 橙色图标 (`text-orange-500`)
-- 入场动效: `animate-in slide-in-from-right duration-200`
+- success: `--tag-green-bg` / `--tag-green-fg`
+- error: `--tag-rose-bg` / `--tag-rose-fg`
+- info: `--tag-blue-bg` / `--tag-blue-fg`
+- warning: `--tag-orange-bg` / `--tag-orange-fg`
+- 入退场动效: 200ms opacity + horizontal translate；reduced-motion 下只保留即时显隐。
+- 移动端容器左右各 16px 且不超过 viewport；桌面最大宽度 384px。
 
 ## Component: Footer 页脚
 

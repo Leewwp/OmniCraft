@@ -88,3 +88,21 @@
 - 第一轮双轨审查发现 Standards 4 / Spec 6 项并全部修复；最终 Standards 与 Spec 复审均 PASS，无剩余问题。
 - 最终提交按契约隔离：宪法/GOV-01 `79c858f`、Next 16 前置修复 `8b35eee`、U-01 token 实现 `29ce01f`；throwaway 原型与无关 seed/素材/草稿未混入。
 - 最终浏览器复核重新生成 admin IP 管理与 Studio 数据概览明暗主题证据；全部 10 张文件均为真实 PNG。admin 主体/侧栏为 1060×441 / 220×510，Studio 为 1212×848 / 228×848，1440×900 下均无横向溢出且明暗几何一致。
+
+## [2026-08-02] - Task U-02B: 批准视觉应用到共享 UI 原语（完成）
+
+### What was done:
+- 将 P-01 方案 B Indigo 精修的按钮、Badge、Card、表单、Dropdown、Tabs、Separator、Loading、EmptyState、Toast 与 ConfirmModal 视觉契约写回 `design/ui-spec.md`。
+- 将 U-01 的精确圆角、语义色、focus ring、三档 elevation、coarse-pointer 触控目标与 reduced-motion 规则应用到全部计划内共享原语，同时保留 U-02A 的行为与无障碍保证。
+- 新增 `ui-primitives-visual-contracts.test.tsx`，覆盖动作、表单、卡片、浮层、四类 Toast 状态、Skeleton zone/count、Tabs/Separator 及视觉权威章节。
+- 双轴审查修复 Button 禁用光标、破坏性 Badge/Dropdown token、Dropdown 位移动画、Tabs 背景/激活字重及缺失的 Tabs/Separator 防回归测试；最终 Standards 无硬违规，Spec 问题全部闭环。
+
+### Testing:
+- 聚焦 U-02A/U-02B：11/11 PASS；全量 `npm test`：118/118 PASS；`npm run lint`：PASS。
+- `npm run build -- --webpack`：PASS，生成 62 个页面；`git diff --check`：PASS；`backend/` 无差异。
+- 浏览器验证 375/768/1024/1440、light/dark、键盘 focus、Dropdown、ConfirmModal、EmptyState、Skeleton；375×812 登录页无横向溢出且输入字号 16px。6 张代表截图位于 `screenshots/ui-polish/u-02b/`。
+
+### Notes:
+- `screenshots/` 由仓库忽略，证据保留在本地但不进入提交。
+- Input/Select/Textarea 的视觉类存在可接受的局部重复；依据 surgical changes 规则未引入额外抽象。
+- 未修改后端、throwaway 原型、真实 seed 素材或无关任务草稿；U-03 依赖已满足并转为可预约。

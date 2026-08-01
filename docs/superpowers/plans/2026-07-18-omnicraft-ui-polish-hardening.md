@@ -14,9 +14,9 @@
 
 **Audit date:** 2026-07-17；execution order revised 2026-07-25；P-01 approved 2026-08-01
 
-**Status:** active light-lane plan; U-05, U-02A, U-04 and U-01 are complete; P-01 approved on 2026-08-01 (IP library = variant B Indigo 精修), and U-02B is next.
+**Status:** active light-lane plan; U-05, U-02A, U-04, U-01 and U-02B are complete; P-01 approved on 2026-08-01 (IP library = variant B Indigo 精修), and U-03 is next.
 
-- This plan is priority 1 in the `AGENTS.md` active-plan registry and uses the light lane. U-05, U-02A, U-04 and U-01 are complete; P-01 was explicitly approved by the user on 2026-08-01 with IP library variant B (Indigo 精修) as the final direction, so U-02B and later tasks are unblocked according to their listed dependencies. Numeric Task IDs remain stable identifiers; the wave order below, not numeric order, is authoritative for execution.
+- This plan is priority 1 in the `AGENTS.md` active-plan registry and uses the light lane. U-05, U-02A, U-04, U-01 and U-02B are complete; P-01 was explicitly approved by the user on 2026-08-01 with IP library variant B (Indigo 精修) as the final direction, so U-03 and later tasks are unblocked according to their listed dependencies. Numeric Task IDs remain stable identifiers; the wave order below, not numeric order, is authoritative for execution.
 - Production Readiness is present and registered after this plan. Re-run coordination before U-11/U-12 or any edit that expands into config, release, verifier, or backend capability paths.
 - Before P-01 approval, visual authority remains `design/design-system.md` then matching `design/ui-spec.md` sections; correctness Tasks must not restyle surfaces. After the user approved P-01 on 2026-08-01, the approved prototype decision record (`docs/working/2026-07-25-ui-prototype-review.md` §3/§6.3, with IP library variant B defined by `ip-library-b.css`) is the input for U-01/U-02B/U-09 updates to those authorities.
 - Re-check the current `main` before implementation. The previous `codex/ui-refinement` branch was fully integrated and retired on 2026-07-25; create a fresh light-lane feature branch from the latest `main` when P-01 work resumes. Keep logical commits per Task/gate and preserve exact file reservations.
@@ -181,10 +181,10 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - Modify: `frontend/components/ui/Toast.tsx`
 - Create: `frontend/tests/ui-primitives-visual-contracts.test.tsx`
 
-- [ ] Write the approved primitive appearance, states and responsive rules back to the matching `ui-spec.md` component sections before implementation.
-- [ ] Add contract tests for approved radii, colors, focus rings, elevation, status colors and empty/loading states without duplicating U-02A behavior tests.
-- [ ] Apply U-01 tokens to primitives while preserving every U-02A accessibility and interaction guarantee.
-- [ ] Verify representative primitive states in desktop/mobile and light/dark screenshots with no unexpected layout shift.
+- [x] Write the approved primitive appearance, states and responsive rules back to the matching `ui-spec.md` component sections before implementation.
+- [x] Add contract tests for approved radii, colors, focus rings, elevation, status colors and empty/loading states without duplicating U-02A behavior tests.
+- [x] Apply U-01 tokens to primitives while preserving every U-02A accessibility and interaction guarantee.
+- [x] Verify representative primitive states in desktop/mobile and light/dark screenshots with no unexpected layout shift.
 
 ## Task U-03: Unify Navigation Shells
 

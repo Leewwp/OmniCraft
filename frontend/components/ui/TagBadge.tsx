@@ -41,9 +41,9 @@ export function TagBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium select-none",
+        "inline-flex h-5 items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium outline-none select-none",
         colorStyles[color],
-        onClick && "cursor-pointer hover:brightness-95 active:scale-95 transition-all duration-150",
+        onClick && "cursor-pointer transition-[filter,box-shadow,transform] duration-150 hover:brightness-95 active:scale-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:active:scale-100",
         className,
       )}
       onClick={onClick}
@@ -64,7 +64,7 @@ export function TagBadge({
       {onRemove && (
         <button
           type="button"
-          className="relative ml-0.5 inline-flex items-center justify-center opacity-60 transition-opacity after:absolute after:-inset-1.5 hover:opacity-100 [@media(pointer:coarse)]:after:-inset-4"
+          className="relative ml-0.5 inline-flex items-center justify-center rounded-full opacity-60 outline-none transition-opacity after:absolute after:-inset-1.5 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:after:-inset-4"
           onClick={(e) => {
             e.stopPropagation();
             onRemove();
