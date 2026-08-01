@@ -140,11 +140,11 @@
 > **来源**: 以下所有 token 值以 `design/design-system.md` 为准，是本文件的唯一设计权威。
 
 - **颜色 token**：使用 `design/design-system.md` 定义的 CSS 自定义属性，以 `--xxx` 格式引用（`--` 前缀的 CSS 自定义属性），使用时通过 `var()` 读取值：`--background`、`--foreground`、`--primary`、`--border` 等基础色，以及 `--canvas-default`、`--canvas-subtle`、`--border-default`、`--fg-muted`、`--accent-emphasis`、`--accent-subtle` 等自定义 token。标签颜色使用预设的 6 色体系 (blue/green/purple/orange/rose/sky)。所有颜色支持 light/dark 双模式，暗色模式通过根级 `.dark` 类自动切换。
-- **字体**：font-family: `--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif`，包含中文字体回退。等宽字体 `--font-mono: var(--font-geist-mono)`。字号阶梯：text-xs 12 / text-sm 14 / text-base 16 / text-lg 18 / text-xl 20 / text-2xl 24 / text-3xl 30
-- **间距阶梯**：space-1 4px / space-2 8px / space-3 12px / space-4 16px / space-6 24px / space-8 32px / space-12 48px
+- **字体**：font-family: `--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif`，包含中文字体回退。等宽字体 `--font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace`。正文与标题只使用 12 / 14 / 16 / 20 / 24px 五档；紧凑指标数字例外须在组件章节登记。
+- **间距阶梯**：使用 4px 基线；卡片 12px、区块 16px、详情卡 20/24px、页面 gutter 16/24px、网格 gap 16px、区块间距 24/32px。
 - **圆角**：rounded-sm (3px) 小元素 / rounded-md (4px) 按钮/输入框 / rounded-lg (8px) 卡片/容器默认 / rounded-xl (12px) 大卡片 / rounded-full (9999px) 标签/药丸按钮。核心原则：统一圆角，`rounded-lg` (8px) 为默认，标签用 `rounded-full`。
 - **动效**：transition duration-150 ease-out（默认）；duration-300 ease-in-out（Modal/Sheet）
-- **阴影**：**强制 box-shadow:none**（无阴影全局原则），仅 Modal/Popover/Dropdown 使用 `shadow-md`
+- **层级**：静态卡片/面板使用 elevation 1，hover 使用 elevation 2，Dropdown/Drawer/Modal 使用 elevation 3；阴影必须配合 1px border，不得造成布局位移；`prefers-reduced-motion: reduce` 下禁用缩放、位移和脉冲。
 
 ## Global Interaction Patterns
 
@@ -157,7 +157,7 @@
 ## Component: Header
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 固定高度 `h-[var(--header-h)]` (52px)，sticky 顶部。
 - 底边框 `border-b border-border-default`，1px 分隔。
 - 背景 `bg-canvas-default`，全宽布局。
@@ -198,7 +198,7 @@ interface HeaderProps {
 - sticky: 滚动时固定顶部，z-40 确保在其他内容上方。
 - 登录态: 右侧显示用户菜单。
 - 未登录态: 右侧显示登录/注册按钮。
-- 无阴影（全局原则）。
+- Header 本体保持 shadow-none；其下拉菜单按浮层规则使用 elevation 3。
 
 **响应式行为**
 - 移动 (≤700px): 导航链接折叠为汉堡菜单，搜索框缩小或隐藏。
@@ -264,7 +264,7 @@ interface FacetedSearchSidebarProps {
 ## Page: / 首页
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -359,7 +359,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /login 登录页
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -404,7 +404,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /register 注册页
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -849,7 +849,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /user/[userId] 用户主页
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -899,7 +899,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /settings 账号设置
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 密码修改/注销等破坏性操作需 ConfirmModal 二次确认。
 - 联合创作邀请接收开关属于账号偏好设置，必须与 `users.accept_collab_invites` / `GET /api/v1/auth/me` 保持一致；默认值为开启。
@@ -959,7 +959,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /settings/tag-groups 标签组管理
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -1004,7 +1004,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /dashboard/contents 我的内容
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -1049,7 +1049,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /dashboard/pr-requests PR 申请管理
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -1094,7 +1094,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /dashboard/contributors 贡献者管理
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -1139,7 +1139,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /dashboard/tag-suggestions 标签建议审核
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -1280,7 +1280,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /history 浏览历史
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 页面位于 `(protected)` route group；未登录访问由受保护布局重定向到 `/login?redirect=/history`。
 - 保留期、分页大小、筛选条件均来自 API 响应或 URL query，组件内不得硬编码保留天数。
@@ -1357,7 +1357,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /appeals 我的申诉
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -1402,7 +1402,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /messages 消息中心
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border；Modal/Popover 遵守全局例外。
 - 本轮 scope：通知列表、私信会话列表、`ChatWindow`、广播通知视觉标记、5 分钟未读数轮询兜底。
 - Future/out-of-scope：`/api/v1/notifications/stream` 和 `/api/v1/messages/stream` SSE 实时推送；本轮不得为了 SSE 新增 provider、路由或浏览器验证。
@@ -1465,7 +1465,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /rehab 素质建设课程
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 每门课程仅能完成一次，最低阅读 3 分钟（180 秒）。
 
@@ -1745,7 +1745,7 @@ interface FacetedSearchSidebarProps {
 **Key Constraints**
 - 后台页面：Role 必须为 admin；页面只负责系统广播编辑与发送，不提供撤回入口。
 - 广播正文允许 Markdown 图片和链接，但预览和发送后的通知详情必须复用安全 Markdown 渲染链路，禁止原始 HTML 绕过消毒。
-- 遵守全局扁平化无阴影规范；除 ConfirmModal/Dropdown 外不得使用 shadow。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none；除 ConfirmModal/Dropdown 外不得使用 shadow。
 
 **目标与放置**
 - 目标：让管理员创建面向全站活跃用户的系统通知广播，并在发送前明确预览、确认不可撤回和展示收件人数结果。
@@ -1963,7 +1963,7 @@ interface ContentCardProps {
 ## Component: MasonryGrid
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 - 支持无限滚动加载（IntersectionObserver + useSWRInfinite）。
@@ -2021,7 +2021,7 @@ interface MasonryGridProps {
 
 **Key Constraints**
 - 使用预设 6 色体系 (blue/green/purple/orange/rose/sky)，颜色值参考 design-system.md 标签颜色表。
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 - 标签默认无边框，使用纯色背景 + 对应文字色。
 
 **Props 接口**
@@ -2160,7 +2160,7 @@ interface IPCategoryTabsProps {
 **Key Constraints**
 - 根据 `contentType` 渲染不同的内容展示器（MarkdownRenderer / SheetMusicViewer 等）。
 - 标题、作者信息、分类标签在一体化卡片中展示。
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 
 **Props 接口**
 ```ts
@@ -2422,7 +2422,7 @@ interface RelatedFanworksProps {
 ## Component: MarkdownRenderer
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -2469,7 +2469,7 @@ interface MarkdownRendererProps {
 ## Component: SheetMusicViewer
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -2565,7 +2565,7 @@ interface PRCardProps {
 ## Component: DiffViewer
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -2613,7 +2613,7 @@ interface DiffViewerProps {
 
 **Key Constraints**
 - 信誉分 < 3 用户：点赞/点踩/收藏按钮 disabled，hover tooltip 提示「信誉分不足」。
-- 遵守全局扁平化无阴影设计规范，使用 1px border 容器。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，使用 1px border 容器。
 - 内容类型为 mod/prompt 时显示「一键部署」按钮（需 `agent_enabled=true`）。
 
 **Props 接口**
@@ -2671,7 +2671,7 @@ interface ReactionBarProps {
 
 **Key Constraints**
 - 信誉分 < 3 用户：发布/评论/点赞按钮 disabled，hover tooltip 提示「信誉分不足」。
-- 遵守全局扁平化无阴影设计规范，使用 1px border 容器。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，使用 1px border 容器。
 - 支持楼中楼回复（ReplyList 子组件）。
 
 **Props 接口**
@@ -2733,7 +2733,7 @@ interface Comment {
 ## Component: VersionHistory
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -2927,7 +2927,7 @@ interface ReviewCardProps {
 ## Component: EmptyState
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 - 居中展示，图标 + 标题 + 说明 + 可选 CTA，不留空白区域。
 - 无边框容器，使用纯文本 + 图标布局。
 
@@ -2966,7 +2966,7 @@ interface EmptyStateProps {
 ## Component: ConfirmModal
 
 **Key Constraints**
-- Modal 是唯一允许 `shadow-md` 的组件（全局无阴影例外）。
+- Modal 使用 elevation 3 并保留 1px border。
 - 遮罩层 `bg-black/50 backdrop-blur-sm`。
 - ESC 和点击遮罩关闭。
 
@@ -2989,7 +2989,7 @@ interface ConfirmModalProps {
 **视觉结构**
 - 遮罩: `<div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={onClose} />`
 - Modal 容器: `<div className="fixed inset-0 z-50 flex items-center justify-center p-4">`
-- 卡片: `<div className="bg-canvas-default rounded-lg shadow-md max-w-sm w-full mx-auto p-6">`
+- 卡片: `<div className="bg-canvas-default border border-border-default rounded-lg shadow-md max-w-sm w-full mx-auto p-6">`
 - 标题: `<h2 className="text-lg font-medium text-foreground mb-2">{title}</h2>`
 - 消息: `<p className="text-sm text-fg-muted mb-6">{message}</p>`
 - 按钮行: `<div className="flex justify-end gap-3">`
@@ -3157,7 +3157,7 @@ interface AgentUploadAssistPanelProps {
 ## Component: ComplianceCheckBadge
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -3212,7 +3212,7 @@ interface AgentComplianceCheckBadgeProps {
 ## Component: UsageGuidePanel
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -3313,7 +3313,7 @@ interface SearchAgentInputProps {
 
 **Key Constraints**
 - FollowButton 未登录时：点击跳转 `/login`，不显示已关注状态。
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 
 **Props 接口**
 ```ts
@@ -3349,7 +3349,7 @@ interface FollowButtonProps {
 ## Component: NotificationDropdown
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -3397,7 +3397,7 @@ interface NotificationDropdownProps {
 
 **Key Constraints**
 - 用于 `/messages` 左栏通知时间线；不是 Header 下拉通知组件。
-- 遵守全局扁平化无阴影设计规范，列表容器和列表项均使用 1px border / divider，不使用 shadow。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，列表容器和列表项均使用 1px border / divider，不使用 shadow。
 - `channel === "broadcast"` 的系统广播必须同时使用文本、图标或 aria-label 与普通通知区分，不得只靠蓝色边框。
 - Markdown 正文摘要必须走安全 Markdown 渲染/摘要链路，不渲染原始 HTML。
 
@@ -3785,7 +3785,7 @@ interface CourseContentProps {
 ## Component: ReputationDetail
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -3880,7 +3880,7 @@ interface DiscussionCardProps {
 ## Component: ReplyList
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -3927,7 +3927,7 @@ interface ReplyListProps {
 ## Component: VerdictDetail
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -3974,7 +3974,7 @@ interface VerdictDetailProps {
 ## Component: LLMConfigTable
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -4021,7 +4021,7 @@ interface LLMConfigTableProps {
 ## Component: LLMConfigModal
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -4211,7 +4211,7 @@ interface FollowerListModalProps {
 ## Component: CreatorSupportPanel
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -4309,7 +4309,7 @@ interface JudgeQualBadgeProps {
 
 **Key Constraints**
 - 创作者工作室的可折叠侧边栏，必须在 `/studio/*` 布局中使用。
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 展开宽度 228px (`w-[228px]`)，收起宽度 48px (`w-12`)，过渡动画 `transition-all duration-200`。
 - 收起态：仅显示图标，hover 图标时在右侧弹出 tooltip（`absolute left-full ml-2`，延迟 300ms）。
 **Props 接口**
@@ -4373,7 +4373,7 @@ interface SidebarItem {
 **Key Constraints**
 - 内容类型选择卡片网格，用于 `/studio/publish/*` 发布流程步骤 1。
 - 卡片排列从 `config.yaml > publish.type_order_original` 或 `publish.type_order_fanwork` 读取。
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 **Props 接口**
 ```ts
 interface ContentTypeGridProps {
@@ -4547,7 +4547,7 @@ interface CollabUserPickerProps {
 - 所有 `/studio/*` 子页面共享 `StudioLayout`（侧边栏 + 主内容区）。
 - 需要登录，未登录 redirect `/login`。
 - 参考 B 站创作中心和 Reddit 创作者后台设计。
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 **视觉层级**
 - 顶部：Header `h-[var(--header-h)]`，底边框 `border-b border-border`
 - 主容器：`flex h-[calc(100vh-52px)]`（Header 下方全高），背景 `bg-canvas-subtle`
@@ -4891,7 +4891,7 @@ interface CollabUserPickerProps {
 ## Page: /forgot-password 忘记密码（Task 117）
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 邮件发送限流：同一邮箱 60 秒内只能发送一次重置邮件。
 
@@ -4935,7 +4935,7 @@ interface CollabUserPickerProps {
 ## Page: /reset-password 重置密码（Task 117）
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - token 有效期 1 小时，过期需重新申请。
 
@@ -5037,7 +5037,7 @@ interface CollabUserPickerProps {
 ## Page: /collections/[id] 收藏集详情（Task 122-124）
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 私有收藏集仅创建者可见；公开收藏集允许未登录用户浏览 published 内容。
 - 页面必须放在 `(public)` route group；是否可见由后端 detail API 兜底，不在前端猜测私有权限。
@@ -5116,7 +5116,7 @@ interface CollabUserPickerProps {
 ## Page: /user/[userId]/collections 用户收藏集列表（Task 122-123）
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 私有收藏集仅创建者可见。
 - 页面位于 `(public)` route group；未登录访问他人页面可浏览公开收藏集，自己的页面由登录状态决定 owner controls。
@@ -5263,7 +5263,7 @@ interface ContentTypeFilterProps {
 ## Component: CollectionCard 收藏集卡片（Task 122-123）
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -5385,7 +5385,7 @@ interface CollectionPickerProps {
 **Key Constraints**
 - 信誉分 < 3 用户：下载按钮 disabled，hover tooltip 提示「信誉分不足」。
 - 封禁用户：下载按钮 disabled，tooltip 提示「账号已被封禁」。
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **Props 接口**
@@ -5430,7 +5430,7 @@ interface DownloadButtonProps {
 ## Component: LoadingSpinner 加载旋转器
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 - 行内使用，不占据额外块级空间。
 - 颜色继承当前文字色。
 
@@ -5455,7 +5455,7 @@ interface LoadingSpinnerProps {
 ## Component: SkeletonCard 骨架屏卡片
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 - 仅用于内容加载占位，不可交互。
 
 **Props 接口**
@@ -5483,7 +5483,7 @@ interface SkeletonCardProps {
 **Key Constraints**
 - 位置固定右上角，z-50。
 - 自动消失 4s，支持手动关闭。
-- 遵守全局扁平化无阴影设计规范（Toast 容器无阴影只使用 1px border）。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none（Toast 容器无阴影只使用 1px border）。
 
 **Props 接口**
 ```ts
@@ -5512,7 +5512,7 @@ interface ToastProps {
 ## Component: Footer 页脚
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 - 页脚内容：版权信息 + 可选链接。
 
 **Props 接口**
@@ -5534,7 +5534,7 @@ interface FooterProps {
 ## Component: StatsCard 统计卡片
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，使用 1px border。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，使用 1px border。
 - 仅用于数据概览页面（/studio/overview, /studio/followers）。
 
 **Props 接口**
@@ -5588,7 +5588,7 @@ interface NotificationBellProps {
 ## Component: SortSelect 排序选择器
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 - 下拉选择器，用于内容列表的排序切换。
 
 **Props 接口**
