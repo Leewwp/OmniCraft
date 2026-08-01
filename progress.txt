@@ -125,3 +125,20 @@
 - 双轴审查发现并修复 701px 断点、Studio tooltip/选中线/分组线、公共侧栏语义与抽屉 stacking context；最终 Standards 无硬违规。
 - P-01 原型中的独立生产 `/agent` 导航入口按 `AGENTS.md` 注册表由 Web Agent Productization 计划独占，U-03 不提前创建 404 路由或修改其完成状态。
 - `frontend/package-lock.json` 的 npm 元数据变化及 seed 素材/脚本/任务草稿均保持在 U-03 精确暂存之外；未修改后端。
+
+## [2026-08-02] - Task U-06: 详情级加载、空态与图标状态（完成）
+
+### What was done:
+- 反馈单与讨论详情改用稳定骨架屏、EmptyState、可重试错误态，并保留布局高度；讨论错误同时通过右上 Toast 与可见红色状态播报呈现。
+- SheetMusicViewer 为 MusicXML/MIDI 加载与错误提供状态播报、骨架/安全错误回退及重试；无附件复用 EmptyState。
+- VerdictDetail 为加载、空数据、错误重试和无理由状态补齐组件化反馈；以 lucide ThumbsUp/ThumbsDown 替换原始 JSX SVG 并提供点赞/点踩无障碍名称。
+- 新增详情状态合同测试，覆盖静态契约及乐谱空态、判官失败重试与成功交互；未修改 `backend/`。
+
+### Testing:
+- Red 阶段：详情状态合同测试先因缺少 Skeleton/EmptyState/retry/live-region 与 lucide 图标契约而失败；实现后通过。
+- `npm test`: 123/123 PASS；`npm run lint`: PASS；`npm run build -- --webpack`: PASS（62 个页面）；`git diff --check`: PASS。
+- 浏览器使用本地 admin 会话验证 `/feedback/1` 与 `/ip/1/discussions/1` 的 NOT_FOUND 错误路径、Toast、重试按钮、桌面与 375px 移动响应式状态；截图位于 `screenshots/ui-polish/u-06/`。
+
+### Notes:
+- 详情成功态与判官交互由单元测试 mock API 覆盖；本地数据库对应 ID 返回 NOT_FOUND，因此浏览器证据记录为真实错误路径，不以模拟页面冒充成功数据。
+- U-06 已释放；下一项前端任务为 U-07。`frontend/package-lock.json`、`.cache/`、真实 seed 素材/脚本和任务草稿仍为未提交的既有脏文件。

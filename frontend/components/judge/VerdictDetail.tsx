@@ -5,6 +5,10 @@ import { useTranslations, useLocale } from "next-intl";
 import { api, ApiRequestError } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AlertCircle, Scale, ThumbsDown, ThumbsUp } from "lucide-react";
 
 interface CaseData {
   id: number;
@@ -89,21 +93,35 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center rounded-md border border-border bg-card p-8 ">
-        <span className="text-sm text-muted-foreground">{t('common.loading')}</span>
+      <div className="min-h-56 space-y-4 rounded-md border border-border bg-card p-4" aria-busy="true" aria-live="polite">
+        <span className="sr-only" role="status">{t('common.loading')}</span>
+        <Skeleton className="h-5 w-36" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-2 w-full" />
+        <Skeleton className="h-20 w-full" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 ">
+      <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4" role="alert" aria-live="polite">
+        <AlertCircle className="size-5 text-destructive" aria-hidden="true" />
         <p className="text-sm text-destructive">{error}</p>
+        <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => void loadVerdict()}>{t('common.retry')}</Button>
       </div>
     );
   }
 
-  if (!caseData) return null;
+  if (!caseData) {
+    return (
+      <EmptyState
+        icon={Scale}
+        title={t('common.noData')}
+        description={t('judge.verdict.title')}
+      />
+    );
+  }
 
   const totalVotes = caseData.vote_approve + caseData.vote_reject;
   const approvePct = totalVotes > 0 ? Math.round((caseData.vote_approve / totalVotes) * 100) : 0;
@@ -186,31 +204,27 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
                 <button
                   type="button"
                   onClick={() => void voteReason(v.id, "up")}
+                  aria-label={t('social.like')}
                   className={`inline-flex items-center gap-1 text-xs transition-colors cursor-pointer ${
                     v.user_vote_type === "up"
                       ? "text-emerald-600"
                       : "text-muted-foreground hover:text-emerald-600"
                   }`}
                 >
-                  <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z" />
-                    <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
-                  </svg>
+                  <ThumbsUp className="size-3.5" aria-hidden="true" />
                   <span>{v.upvotes}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => void voteReason(v.id, "down")}
+                  aria-label={t('social.dislike')}
                   className={`inline-flex items-center gap-1 text-xs transition-colors cursor-pointer ${
                     v.user_vote_type === "down"
                       ? "text-destructive"
                       : "text-muted-foreground hover:text-destructive"
                   }`}
                 >
-                  <svg className="size-3.5 rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z" />
-                    <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
-                  </svg>
+                  <ThumbsDown className="size-3.5" aria-hidden="true" />
                   <span>{v.downvotes}</span>
                 </button>
               </div>
@@ -218,7 +232,7 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
           ))}
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">{t('judge.verdict.noReasons')}</p>
+        <EmptyState icon={Scale} title={t('judge.verdict.noReasons')} />
       )}
     </div>
   );

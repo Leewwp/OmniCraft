@@ -288,10 +288,10 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - Modify: `frontend/components/judge/VerdictDetail.tsx`
 - Create: `frontend/tests/detail-state-contracts.test.tsx`
 
-- [ ] Test loading, not-found/empty, retriable error, and success states without layout collapse.
-- [ ] Replace raw JSX vote icons in VerdictDetail; keep generated data-URI placeholder SVGs outside scope.
-- [ ] Use inline spinner text only for local operations; use documented skeletons for page/detail fetches.
-- [ ] Verify keyboard and screen-reader status announcements plus desktop/mobile screenshots.
+- [x] Test loading, not-found/empty, retriable error, and success states without layout collapse.
+- [x] Replace raw JSX vote icons in VerdictDetail; keep generated data-URI placeholder SVGs outside scope.
+- [x] Use inline spinner text only for local operations; use documented skeletons for page/detail fetches.
+- [x] Verify keyboard and screen-reader status announcements plus desktop/mobile screenshots.
 
 ## Task U-07: Standardize Paginated List Surfaces
 

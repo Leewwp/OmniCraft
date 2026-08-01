@@ -69,6 +69,8 @@
 | 时间（Asia/Shanghai） | Task | Owner | 事件 | 影响路径 | 说明 |
 |---|---|---|---|---|---|
 | 2026-08-02 03:13 +08:00 | U-03 | Codex（opencode 前端车道） | 完成并释放 | U-03 全部预约路径 | 120/120 测试、lint、62 路由 Webpack build、375/768/1024/1440 浏览器矩阵及双轴复审完成；U-06 转为可预约 |
+| 2026-08-02 10:05 +08:00 | U-06 | Codex（opencode 前端车道） | 完成并释放 | U-06 全部预约路径 | 123/123 测试、lint、62 路由 Webpack build、桌面/375px 浏览器错误态与 Toast 截图、规格/标准双轴复审完成；U-07 转为可预约 |
+| 2026-08-02 09:10 +08:00 | U-06 | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `a02d07b` | `frontend/app/(protected)/feedback/[feedbackId]/page.tsx`; `frontend/app/(public)/ip/[ipId]/discussions/[discussionId]/page.tsx`; `frontend/components/content/SheetMusicViewer.tsx`; `frontend/components/judge/VerdictDetail.tsx`; `frontend/tests/detail-state-contracts.test.tsx`; `screenshots/ui-polish/u-06/`; `progress.txt`; `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md`; `docs/working/2026-07-18-ui-polish-file-reservation.md` | 已释放 2026-08-02 10:05 +08:00；详情加载骨架、404/空态、可重试错误、Toast/状态播报、响应式宽度与判官图标验证通过 |
 | 2026-07-17 | U-11 | — | 阻塞 | U-11 全部范围 | 当前 worktree 缺少生产就绪规格与计划，无法确认公开配置安全边界；未启动实现 |
 | 2026-07-25 03:06 +08:00 | U-05 | Codex | 完成并释放 | U-05 全部预约路径 | 35 个明确审计面改用本地化安全回退；重叠路径按计划依次转交 U-02A/U-04 |
 | 2026-07-25 03:44 +08:00 | U-02A | Codex | 完成并释放 | U-02A 全部预约路径 | 5 项原语测试、真实键盘流和 44px 粗指针关闭目标通过；共享原语转交 U-02B，ConfirmModal 转交 U-04 使用 |
