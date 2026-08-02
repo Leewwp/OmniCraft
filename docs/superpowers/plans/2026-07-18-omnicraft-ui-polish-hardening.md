@@ -367,15 +367,16 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - Modify: `frontend/app/(protected)/messages/page.tsx`
 - Modify: `frontend/components/social/ConversationList.tsx`
 - Modify: `frontend/components/social/ChatWindow.tsx`
+- Modify: `frontend/components/social/NotificationList.tsx` (desktop detail selection wiring)
 - Modify: `frontend/components/social/NotificationDropdown.tsx`
 - Create: `frontend/scripts/ui-governance/check-i18n-parity.mjs`
 - Create: `frontend/scripts/ui-governance/check-i18n-parity.test.mjs`
 - Create: `frontend/tests/communication-surfaces.test.tsx`
 
-- [ ] Test exact zh/en key parity, non-empty leaf values, safe placeholder parity, and documented namespaces.
-- [ ] Replace verified visible hard-coded copy, including the root skip link, without scanning source-code identifiers as false positives.
-- [ ] Fix accent-on-white contrast and notification/chat status semantics using U-01 tokens.
-- [ ] Preserve unread polling/SSE/message behavior and verify empty/error/reconnect/keyboard paths.
+- [x] Test exact zh/en key parity, non-empty leaf values, safe placeholder parity, and documented namespaces.
+- [x] Replace verified visible hard-coded copy, including the root skip link, without scanning source-code identifiers as false positives.
+- [x] Fix accent-on-white contrast and notification/chat status semantics using U-01 tokens.
+- [x] Preserve unread polling/SSE/message behavior and verify empty/error/reconnect/keyboard paths.
 - [ ] Do not create or restyle the production Agent workspace here. `/agent`, `AgentWorkspace`, global Widget removal, Agent citations and their translations are owned by Web Agent Productization Task 4 after P-01 approval; coordinate translation-file ownership before either task starts.
 
 ## Task U-11: Replace Frontend Reputation Constants With Server Capabilities

@@ -36,6 +36,7 @@
     "clickToView": "View",
     "manage": "Manage",
     "pageNumber": "Page {current}",
+    "skipToContent": "Skip to content",
     "units": {
       "days": "days",
       "times": "times",
@@ -68,6 +69,9 @@
     "myOriginal": "My Originals"
   },
   "auth": {
+    "suspendedTitle": "Account suspended",
+    "suspendedDescription": "Your account has been suspended.",
+    "submitAppeal": "Submit an appeal",
     "welcomeBack": "Welcome back",
     "loginTitle": "Log in to your OmniCraft account",
     "email": "Email",
@@ -1307,7 +1311,75 @@
     "systemLabel": "System",
     "notificationOpensTarget": "Opens related item",
     "notificationNoTarget": "No related item",
-    "unreadIndicator": "Unread"
+    "unreadIndicator": "Unread",
+    "tabs": {
+      "notifications": "Notifications",
+      "conversations": "Messages",
+      "notificationsCount": "{count} unread",
+      "conversationsCount": "{count} conversations"
+    },
+    "notifications": {
+      "emptyTitle": "No notifications",
+      "emptyDescription": "Replies, likes, follows, and system updates will appear here.",
+      "retry": "Retry notifications",
+      "markRead": "Mark notification as read",
+      "opensTarget": "Opens related item",
+      "noTarget": "No related item",
+      "timeUnknown": "Time unavailable",
+      "selectTitle": "Select a notification",
+      "selectDescription": "Choose a notification to view its details.",
+      "detailTitle": "Notification details"
+    },
+    "conversations": {
+      "emptyTitle": "No conversations",
+      "emptyDescription": "Start a conversation from a creator or content page.",
+      "retry": "Retry conversations",
+      "searchLabel": "Search conversations",
+      "collabInviteSummary": "Collaboration invitation",
+      "replyRequired": "Wait for the recipient to reply before sending another message.",
+      "unknownParticipant": "Unknown participant",
+      "unreadCount": "{count} unread",
+      "timeUnknown": "Time unavailable",
+      "startConversation": "Start a conversation"
+    },
+    "chat": {
+      "emptyTitle": "No messages yet",
+      "emptyDescription": "Send a message to start this conversation.",
+      "retry": "Retry messages",
+      "inputLabel": "Message",
+      "inputPlaceholder": "Type a message...",
+      "send": "Send message",
+      "sending": "Sending",
+      "unsupportedMessage": "This message type is not supported yet.",
+      "backToConversations": "Back to conversations",
+      "selectConversation": "Select a conversation to start chatting",
+      "collabInviteSummary": "Collaboration invitation",
+      "recipientUnavailable": "Recipient unavailable",
+      "timeUnknown": "Time unavailable"
+    },
+    "broadcast": {
+      "label": "System broadcast",
+      "summary": "System broadcast notification"
+    },
+    "empty": {
+      "title": "No messages",
+      "description": "Your notifications and conversations will appear here."
+    },
+    "error": {
+      "notifications": "Could not load notifications.",
+      "conversations": "Could not load conversations.",
+      "chat": "Could not load this conversation.",
+      "send": "Could not send the message.",
+      "retry": "Retry"
+    },
+    "a11y": {
+      "tabs": "Message center sections",
+      "notificationList": "Notifications",
+      "conversationList": "Conversations",
+      "messageList": "Conversation messages",
+      "unread": "Unread notification",
+      "broadcast": "System broadcast"
+    }
   },
   "footer": {
     "about": "About",

@@ -186,3 +186,14 @@
 ### Notes:
 - 双轴审查发现并修复 API 响应校验、抽屉 elevation/遮罩/焦点、触控目标、TagBadge/语义色、IPCard list 变体、作者栏业务合同与规格权威冲突；最终无提交阻塞项。
 - `/ips` 移动 12px gap 作为 P-01 已批准页面级例外登记进 `design/design-system.md`；其他网格仍保持全局 16px。
+## [2026-08-02] - Task U-10: Align Communication Surfaces And I18n
+### What was done:
+- Added exact zh/en catalog parity validation for leaf keys, non-empty values, placeholders, and documented namespaces.
+- Localized the root skip link and protected-account suspension guard; aligned `/messages`, `ConversationList`, `ChatWindow`, and `NotificationDropdown` with the Indigo communication contracts.
+- Added stable loading/empty/error/retry states, semantic tabs/logs, typed-message fallback (collaboration invite card remains owned by the later collaboration-invites plan), 44px mobile targets, unread badges, broadcast labels/icons, and safe localized send/load errors.
+### Testing:
+- `node scripts/ui-governance/check-i18n-parity.mjs messages/en.json messages/zh.json` PASS.
+- `npm test` PASS: 148/148; `npm run lint` PASS; `npm run build -- --webpack` PASS (62 routes).
+- ego lite authenticated browser verification PASS at desktop and 375x812; screenshots saved under `screenshots/ui-polish/u-10/`.
+### Notes:
+- Frontend-only; no `backend/` changes. Agent workspace, Widget, citations, and Agent translations remain owned by Web Agent Productization Task 4.
