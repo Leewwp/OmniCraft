@@ -1107,6 +1107,8 @@
     "today": "今天",
     "defaultSort": "默认排序",
     "mostLiked": "最多赞",
+    "gridView": "网格视图",
+    "listView": "列表视图",
     "filter": {
       "mainCategory": "大类",
       "selectedTags": "已选标签",

@@ -1107,6 +1107,8 @@
     "today": "Today",
     "defaultSort": "Default",
     "mostLiked": "Most liked",
+    "gridView": "Grid view",
+    "listView": "List view",
     "filter": {
       "mainCategory": "Category",
       "selectedTags": "Selected",

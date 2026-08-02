@@ -138,9 +138,9 @@ export default function SearchPage() {
         </AgentFeatureGate>
       </div>
 
-      <div className="flex flex-col gap-4 md:flex-row">
+      <div className="flex flex-col gap-4 min-[701px]:flex-row">
         {/* Mobile filter button */}
-        <div className="md:hidden">
+        <div className="min-[701px]:hidden">
           <Button
             ref={openFilterButtonRef}
             variant="outline"
@@ -156,20 +156,37 @@ export default function SearchPage() {
 
         {/* Mobile filter drawer */}
         {filterDrawerOpen && (
-          <div className="fixed inset-0 z-50 md:hidden">
+          <div className="fixed inset-0 z-50 min-[701px]:hidden">
             <button
               type="button"
               aria-label={t("common.close")}
-              className="absolute inset-0 bg-black/40"
+              className="absolute inset-0 bg-black/50"
               onClick={closeFilterDrawer}
             />
             <div
               role="dialog"
               aria-modal="true"
               aria-labelledby="mobile-filter-title"
-              className="absolute bottom-0 left-0 right-0 max-h-[85vh] overflow-y-auto rounded-t-lg border-t border-border bg-background p-4"
+              className="absolute inset-y-0 left-0 w-[85vw] max-w-sm overflow-y-auto border-r border-border bg-background p-4 shadow-[var(--elevation-3)]"
               onKeyDown={(e) => {
                 if (e.key === "Escape") closeFilterDrawer();
+                if (e.key === "Tab") {
+                  const focusable = Array.from(
+                    e.currentTarget.querySelectorAll<HTMLElement>(
+                      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+                    ),
+                  );
+                  const first = focusable[0];
+                  const last = focusable[focusable.length - 1];
+                  if (!first || !last) return;
+                  if (e.shiftKey && document.activeElement === first) {
+                    e.preventDefault();
+                    last.focus();
+                  } else if (!e.shiftKey && document.activeElement === last) {
+                    e.preventDefault();
+                    first.focus();
+                  }
+                }
               }}
             >
               <div className="mb-3 flex items-center justify-between">
@@ -180,7 +197,7 @@ export default function SearchPage() {
                   type="button"
                   ref={closeFilterButtonRef}
                   onClick={closeFilterDrawer}
-                  className="rounded-md p-1 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring"
                   aria-label={t("common.close")}
                 >
                   <X className="h-4 w-4" />
@@ -192,7 +209,7 @@ export default function SearchPage() {
         )}
 
         {/* Left: FacetedSearchSidebar (desktop) */}
-        <aside className="hidden w-[260px] shrink-0 md:block">
+        <aside className="hidden w-[228px] shrink-0 min-[701px]:block min-[1101px]:w-[260px]">
           <FacetedSearchSidebar onFilterChange={handleFilterChange} />
         </aside>
 
@@ -204,16 +221,20 @@ export default function SearchPage() {
               <Button
                 variant={viewMode === "grid" ? "default" : "ghost"}
                 size="sm"
-                className="h-7 px-2"
+                className="h-7 px-2 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
                 onClick={() => setViewMode("grid")}
+                aria-label={t("search.gridView")}
+                aria-pressed={viewMode === "grid"}
               >
                 <Grid3X3 className="h-3.5 w-3.5" />
               </Button>
               <Button
                 variant={viewMode === "list" ? "default" : "ghost"}
                 size="sm"
-                className="h-7 px-2"
+                className="h-7 px-2 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
                 onClick={() => setViewMode("list")}
+                aria-label={t("search.listView")}
+                aria-pressed={viewMode === "list"}
               >
                 <List className="h-3.5 w-3.5" />
               </Button>
@@ -275,7 +296,7 @@ export default function SearchPage() {
                     <Button size="sm" className="h-6 text-xs" onClick={handleSaveSearch} disabled={saveBusy}>
                       {t("common.save")}
                     </Button>
-                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setSaveOpen(false)}>
+                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11" onClick={() => setSaveOpen(false)} aria-label={t("common.close")}>
                       <X className="h-3 w-3" />
                     </Button>
                   </div>

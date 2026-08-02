@@ -172,3 +172,17 @@
 - 原阻塞已于 2026-08-02 解除：ego lite 获得受控 localhost 访问能力，真实浏览器证据已补齐。
 - 双轴审查发现并修复 dangling `aria-describedby`、标签组焦点陷阱/恢复、无效态视觉、通知 disabled 契约、coarse-pointer 目标和硬编码 Slug 标签；最终复核无阻塞项。
 - U-08 计划四项均已验证，可提交；`frontend/package-lock.json`、`.cache/`、seed 素材/脚本和任务草稿继续保留为无关脏文件。
+
+## [2026-08-02] - Task U-09: 统一内容发现与 IP 库视觉（完成）
+### What was done:
+- 将 P-01 方案 B 写入 `/ips` 与 IPCard 权威规格，修复固定 156px 卡宽置于弹性轨道造成的空白；实现两列/auto-fit/auto-fill 网格、16:10 卡片、追加加载及 loading/empty/error 状态。
+- 统一 ContentCard/ContentSidebar/Home/Search 的批准字阶、Lucide 图标、TagBadge、Indigo 语义 token、elevation/focus/reduced-motion；搜索移动筛选改为 85vw 左抽屉并补齐焦点约束与粗指针目标。
+- 为 IP API 响应增加运行时结构校验；搜索网格/列表图标按钮补充中英文可访问名称。未修改 `backend/`，未带入 throwaway 原型。
+### Testing:
+- RED：focused contracts 首次 3/3 失败于缺失 `/ips` 权威、固定卡宽、raw SVG 与任意字号；实现后 React/runtime + source contracts 4/4 PASS。
+- `npm test`: 144/144 PASS；`npm run lint`: PASS；`npm run build -- --webpack`: PASS（62 路由）；`git diff --check`: PASS。
+- ego lite task space 9：实测 320/375 两列 12px gap、768 四列 16px、1280/1440 六列 16px，均无横向溢出；验证 light/dark、loading/empty/error/retry、85vw 抽屉、Tab/Shift+Tab/Esc 焦点和有效 `/content/47`。
+- 13 张最终截图保存在忽略目录 `screenshots/ui-polish/u-09/`，覆盖 `/ips` 五档视口与 home/original/search/content 双主题。
+### Notes:
+- 双轴审查发现并修复 API 响应校验、抽屉 elevation/遮罩/焦点、触控目标、TagBadge/语义色、IPCard list 变体、作者栏业务合同与规格权威冲突；最终无提交阻塞项。
+- `/ips` 移动 12px gap 作为 P-01 已批准页面级例外登记进 `design/design-system.md`；其他网格仍保持全局 16px。

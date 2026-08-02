@@ -418,6 +418,26 @@ interface FacetedSearchSidebarProps {
 - 破坏性操作必须 ConfirmModal 二次确认。
 - 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
 
+## Page: /ips IP 库
+
+**批准来源**: P-01 方案 B（Indigo 精修），`docs/working/2026-07-25-ui-prototype-review.md` §3 / §6.3 / §7。
+
+**页面与工具栏**
+- 主容器最大宽度 1440px；移动 gutter 16px，桌面 gutter 24px。标题使用 24px semibold，说明 14px，结果总数使用 12px Indigo 柔和药丸。
+- 搜索与排序保持现有 URL/API 语义；搜索框与排序选择器有显式可访问名称、44px 触控高度和 2px focus ring。
+- 分类为单行横向滚动药丸；选中项同时使用 `aria-pressed=true`、Indigo 柔和背景、accent 边框和较高字重，不能只用颜色表达。
+
+**网格与卡片**
+- 320/375px 固定两列、gap 12px；701-1100px 使用 `repeat(auto-fit, minmax(168px, 1fr))`、gap 16px；1280/1440px 使用 `repeat(auto-fill, minmax(192px, 1fr))`、gap 16px。
+- 卡片必须 `w-full min-w-0` 填满轨道；禁止固定 156px 卡宽与 `1fr` 轨道并存。实际相邻卡间距不得超过 24px，最后一行沿用既有轨道。
+- 封面固定 16:10；标题 14px medium，类别/内容数/趋势使用 12px；卡片高度稳定，长标题与 meta 省略。暗色下信息区使用 `canvas-subtle`。
+- 默认 1px border + radius-lg + elevation 1；hover 使用 `border-strong` + elevation 2，封面仅克制缩放；focus-visible 2px ring；reduced-motion 下取消缩放。
+
+**状态与交互**
+- loading 使用 12 张与最终网格同轨道、同 16:10 封面比例的骨架；empty/error 使用 EmptyState 结构并分别提供清空筛选/重试；当前查询与筛选保持。
+- 加载更多必须追加而非替换既有卡片；请求中禁用重复触发；已到底显示总数。卡片整块可键盘聚焦，Enter 进入 `/ip/[ipId]`。
+- 浏览器验证覆盖 320/375/768/1280/1440px、light/dark、hover/focus、loading/empty/error 和无横向溢出。
+
 ## Page: /login 登录页
 
 **Key Constraints**
@@ -1966,7 +1986,7 @@ interface FacetedSearchSidebarProps {
 **Key Constraints**
 - ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
 - 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
+- 二创卡使用 1px border + radius-lg + elevation 1，hover 使用 `border-strong` + elevation 2；原创卡无默认边框，hover 使用浅遮罩、scale 1.05 与 elevation 2。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 - 原创区卡片使用简化样式（无 IP 名、无标签 Badge、仅显示点赞数）。
 
@@ -1983,16 +2003,16 @@ interface ContentCardProps {
 ```
 
 **视觉结构 — 二创区卡片（zone='fanwork'）**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default overflow-hidden">`（无 padding，内容填满）
+- 外层容器: `<div className="border border-border rounded-lg bg-card shadow-[var(--elevation-1)] overflow-hidden">`（无 padding，内容填满）
 - 封面区: 3:4 比例容器，`object-cover` 图片填满
-- 信息区: `p-3`，标题（`text-sm font-medium line-clamp-2`）→ 作者 + IP 名行（`text-xs text-fg-muted`）→ 互动数据行（`text-xs` ❤️ + 💬）→ 标签行（最多 3 个低饱和 TagBadge）
+- 信息区: `p-3`，标题（`text-sm font-medium line-clamp-2`）→ 作者 + IP 名行（`text-xs text-fg-muted`）→ 互动数据行（`text-xs` ❤️ + 💬）→ 标签行（最多 2 个低饱和 TagBadge）
 - 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **视觉结构 — 原创区卡片（zone='original'）**
 - 外层容器: `<div className="rounded-md bg-canvas-default overflow-hidden cursor-pointer group">`（无 border，更干净的小红书风格）
 - 封面区: 自适应高度（图片按原始宽高比，`object-cover w-full`），`max-height: 400px`，`overflow-hidden`
 - 悬停遮罩: `<div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />`
-- 封面缩放: `group-hover:scale-105 transition-transform duration-300`
+- 封面缩放: `group-hover:scale-105 transition-transform duration-300`，并在 hover 时提升至 elevation 2。
 - 信息区: `p-2`，标题（`text-sm font-medium line-clamp-2`）→ @作者（`text-xs text-fg-muted`）→ ❤️ 点赞数（`text-xs text-fg-muted`）
 - 无标签 Badge、无 IP 名
 
@@ -2124,51 +2144,40 @@ interface TagBadgeProps {
 ## Component: IPCard
 
 **Key Constraints**
-- 二创区页面/组件：依托于 ips.category 进行展示或跳转。
-- ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
-- 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- Browse 变体采用 P-01 方案 B：规则 Grid 中 `w-full min-w-0` 填满轨道，16:10 封面，不得恢复固定 156px 宽度。
+- List 变体保留现有详情/最近浏览语义；两种变体都只跳转 `/ip/[ipId]` 并记录最近访问，不改变 API 或路由。
+- 使用语义 token、1px border、radius-lg、elevation 1；hover 可提升为 elevation 2，暗色信息区使用 `canvas-subtle`。
 
 **Props 接口**
 ```ts
 interface IPCardProps {
+  data: IPCardData;
+  variant?: 'browse' | 'list';
   className?: string;
-  data?: any;
-  isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
 }
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
+- Browse：整卡 Link；封面 16:10；信息区 12px padding，名称 14px medium，类别 + 内容数与正向趋势 12px；趋势使用 Lucide `TrendingUp`，不使用文本箭头。
+- List：保留 40px 缩略图、名称/类别/描述与详情入口；字号只使用 12/14px。
 
 **尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+- Browse 宽度完全由父级轨道决定，`w-full min-w-0`；封面 `aspect-[16/10]`。
+- 标题 `text-sm`，meta `text-xs`，间距只使用 4/8/12px。
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
+- default: border + elevation 1；hover: border-strong + elevation 2 + 封面 scale 1.015；active 不产生布局位移。
+- focus-visible: 2px ring + offset；reduced-motion 下取消封面缩放。
+- loading/empty/error 由 IPBrowseClient 用同轨骨架和 EmptyState 组合负责。
 
 **响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
+- Browse 卡不声明列断点或固定宽度，由 `/ips` 的两列/auto-fit/auto-fill Grid 控制。
 
 **暗色模式适配**
 - 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- 整卡是有完整可访问名称的 Link；Tab 聚焦、Enter 跳转。点击/键盘激活都记录最近 IP。
 
 ## Component: IPCategoryTabs
 

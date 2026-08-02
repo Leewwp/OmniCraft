@@ -38,8 +38,8 @@
 | U-06 | feedback/discussion detail、SheetMusicViewer、VerdictDetail | U-01/U-02/U-05 | 可预约 | — |
 | U-07 | DataList + history/appeals/rehab/feedback/studio/discussion lists | U-01/U-02/U-05 | 已释放 | Codex（opencode 前端车道） / `opencode/ui-polish-u01` / `5ebfdc1` / 2026-08-02 |
 | U-08 | remaining settings/admin/discussion forms | U-01/U-02/U-05 | 已释放 | Codex（opencode 前端车道） / `opencode/ui-polish-u01` / `228c525` / 2026-08-02；实现、全量门禁与 ego lite 真实浏览器证据完成，待提交 |
-| U-09 | content/home/search/IP discovery surfaces | U-01/U-02/U-05 | 可预约 | — |
-| U-10 | messages catalogs + communication/agent surfaces | U-01/U-02/U-05 | 待依赖 | — |
+| U-09 | content/home/search/IP discovery surfaces | U-01/U-02/U-05 | 已释放 | Codex（opencode 前端车道） / `opencode/ui-polish-u01` / `c8926c7` / 2026-08-02 13:42–14:42 +08:00 |
+| U-10 | messages catalogs + communication/agent surfaces | U-01/U-02/U-05 | 可预约 | — |
 | U-11 | auth capability contract + interaction consumers | U-01/U-02/U-05 + production-readiness coordination | 阻塞 | 缺少生产就绪父文档，2026-07-17 |
 | U-12 | UI governance scripts、package、project verifier | U-01…U-11 | 待依赖 | — |
 
@@ -68,6 +68,7 @@
 
 | 时间（Asia/Shanghai） | Task | Owner | 事件 | 影响路径 | 说明 |
 |---|---|---|---|---|---|
+| 2026-08-02 14:42 +08:00 | U-09 release | Codex（opencode 前端车道） | 完成并释放 | U-09 全部预约路径、i18n/authority 追加路径与 `screenshots/ui-polish/u-09/` | 4/4 focused contracts、144/144 全量测试、lint、62 路由 Webpack build、五档 `/ips` 与四页面双主题浏览器证据、双轴复审全部通过；未修改 backend/；U-10 转为可预约 |
 | 2026-08-02 03:13 +08:00 | U-03 | Codex（opencode 前端车道） | 完成并释放 | U-03 全部预约路径 | 120/120 测试、lint、62 路由 Webpack build、375/768/1024/1440 浏览器矩阵及双轴复审完成；U-06 转为可预约 |
 | 2026-08-02 10:05 +08:00 | U-06 | Codex（opencode 前端车道） | 完成并释放 | U-06 全部预约路径 | 123/123 测试、lint、62 路由 Webpack build、桌面/375px 浏览器错误态与 Toast 截图、规格/标准双轴复审完成；U-07 转为可预约 |
 | 2026-08-02 09:10 +08:00 | U-06 | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `a02d07b` | `frontend/app/(protected)/feedback/[feedbackId]/page.tsx`; `frontend/app/(public)/ip/[ipId]/discussions/[discussionId]/page.tsx`; `frontend/components/content/SheetMusicViewer.tsx`; `frontend/components/judge/VerdictDetail.tsx`; `frontend/tests/detail-state-contracts.test.tsx`; `screenshots/ui-polish/u-06/`; `progress.txt`; `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md`; `docs/working/2026-07-18-ui-polish-file-reservation.md` | 已释放 2026-08-02 10:05 +08:00；详情加载骨架、404/空态、可重试错误、Toast/状态播报、响应式宽度与判官图标验证通过 |
@@ -76,6 +77,10 @@
 | 2026-08-02 14:10 +08:00 | U-08 | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `228c525` | U-08 全部预约路径 | 阻塞；实现、138/138 单元测试、lint、62 路由 Webpack build 与 diff check 已通过，但 in-app Browser 安全策略拒绝 localhost 页面操作，无法取得项目强制的真实键盘/响应式截图证据；未勾选、未提交、预约保持 |
 | 2026-08-02 14:20 +08:00 | U-08 browser evidence | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `228c525` | `screenshots/ui-polish/u-08/discussion-desktop-invalid-focus.png`; `screenshots/ui-polish/u-08/tag-groups-desktop-dialog.png`; `screenshots/ui-polish/u-08/admin-notifications-desktop.png`; `screenshots/ui-polish/u-08/admin-categories-mobile-invalid-focus.png`; `screenshots/ui-polish/u-08/admin-config-mobile.png` | 进行中；前端服务已恢复，使用 ego lite 补齐真实键盘、桌面/375px 响应式与截图证据 |
 | 2026-08-02 15:05 +08:00 | U-08 release | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `228c525` | U-08 全部预约路径与 `screenshots/ui-polish/u-08/` | 已释放；ego lite 真实浏览器验证、139/139 测试、lint、62 路由 Webpack build、diff check 与双轴复审全部通过，未改动 backend/ |
+| 2026-08-02 13:42 +08:00 | U-09 | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `c8926c7` | `design/ui-spec.md`; `frontend/components/content/ContentCard.tsx`; `frontend/components/content/ContentSidebar.tsx`; `frontend/components/home/HomePageClient.tsx`; `frontend/components/layout/FacetedSearchSidebar.tsx`; `frontend/components/ip/IPBrowseClient.tsx`; `frontend/components/ip/IPCard.tsx`; `frontend/app/(public)/search/page.tsx`; `frontend/tests/content-discovery-visual-contracts.test.tsx`; `progress.txt`; `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md`; `docs/working/2026-07-18-ui-polish-file-reservation.md` | 进行中；U-08 已由 `c8926c7` 提交，按 P-01 方案 B（Indigo 精修）启动 IP 库网格/卡片及内容发现视觉规范化，先写 focused visual contracts |
+| 2026-08-02 13:54 +08:00 | U-09 i18n accessibility | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `c8926c7` | `frontend/messages/en.json`; `frontend/messages/zh.json` | 进行中；搜索页网格/列表图标按钮需要可区分的本地化 accessible name，仅追加两个 U-09 键，提交后立即释放给 U-10 |
+| 2026-08-02 13:54 +08:00 | U-09 browser evidence | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `c8926c7` | `screenshots/ui-polish/u-09/ips-320-light.png`; `screenshots/ui-polish/u-09/ips-375-dark.png`; `screenshots/ui-polish/u-09/ips-768-light.png`; `screenshots/ui-polish/u-09/ips-1280-dark.png`; `screenshots/ui-polish/u-09/ips-1440-light.png`; `screenshots/ui-polish/u-09/home-light.png`; `screenshots/ui-polish/u-09/home-dark.png`; `screenshots/ui-polish/u-09/original-light.png`; `screenshots/ui-polish/u-09/original-dark.png`; `screenshots/ui-polish/u-09/search-light.png`; `screenshots/ui-polish/u-09/search-dark.png`; `screenshots/ui-polish/u-09/content-light.png`; `screenshots/ui-polish/u-09/content-dark.png` | 进行中；覆盖 IP 库五档视口与 home/original/search/content 双主题确定性视觉证据，复用 ego lite task space 9 |
+| 2026-08-02 14:35 +08:00 | U-09 authority reconciliation | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `c8926c7` | `design/design-system.md` | 进行中；双轴审查发现全局 16px 网格 gap 与 P-01 已批准 `/ips` 移动 12px 页面合同冲突，仅登记该页面级批准例外，不改其他 token |
 | 2026-07-17 | U-11 | — | 阻塞 | U-11 全部范围 | 当前 worktree 缺少生产就绪规格与计划，无法确认公开配置安全边界；未启动实现 |
 | 2026-07-25 03:06 +08:00 | U-05 | Codex | 完成并释放 | U-05 全部预约路径 | 35 个明确审计面改用本地化安全回退；重叠路径按计划依次转交 U-02A/U-04 |
 | 2026-07-25 03:44 +08:00 | U-02A | Codex | 完成并释放 | U-02A 全部预约路径 | 5 项原语测试、真实键盘流和 44px 粗指针关闭目标通过；共享原语转交 U-02B，ConfirmModal 转交 U-04 使用 |

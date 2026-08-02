@@ -3,8 +3,8 @@
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import Image from "next/image";
-import { Eye, Heart, MessageCircle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Heart, MessageCircle } from "lucide-react";
+import { TagBadge } from "@/components/ui/TagBadge";
 import { cn } from "@/lib/utils";
 import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
 
@@ -48,7 +48,7 @@ export function ContentCard({ data, className }: ContentCardProps) {
   const t = useTranslations();
   const contentType = data.content_type || "other";
   const rawTags = data.tags ?? [];
-  const tags = rawTags.slice(0, 3);
+  const tags = rawTags.slice(0, 2);
   const coverUrl = data.cover_image_url;
   const displayTitle = data.title;
   const authorName = data.author?.username ?? "";
@@ -60,48 +60,59 @@ export function ContentCard({ data, className }: ContentCardProps) {
   return (
     <Link
       href={getCardHref(data)}
+      aria-label={displayTitle}
       className={cn(
-        "group block overflow-hidden bg-card transition-all duration-200",
+        "group block overflow-hidden bg-card transition-[border-color,box-shadow,background-color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none",
         isOriginal
-          ? "rounded-lg hover:bg-muted/10 active:bg-muted/20"
-          : "rounded-lg border border-border hover:border-accent/20 hover:bg-accent-subtle/5 active:bg-accent-subtle/10",
+          ? "rounded-lg shadow-none hover:shadow-[var(--elevation-2)]"
+          : "rounded-lg border border-border shadow-[var(--elevation-1)] hover:border-[var(--border-strong)] hover:shadow-[var(--elevation-2)]",
         className
       )}
     >
       {/* Cover with type badge */}
       <div className="relative w-full bg-muted">
         {/* Aspect ratio for cover — use natural image or default */}
-        <div className={cn(contentType === "video" ? "aspect-[16/9]" : "aspect-[3/4]")}>
+        <div className={cn("relative overflow-hidden", contentType === "video" ? "aspect-[16/9]" : "aspect-[3/4]")}>
           {coverUrl ? (
             <Image
               src={coverUrl}
               alt={displayTitle}
               fill
-              className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+              className={cn(
+                "object-cover transition-transform duration-300 motion-reduce:transform-none",
+                isOriginal ? "group-hover:scale-105" : "group-hover:scale-[1.03]",
+              )}
               sizes="(max-width: 450px) 100vw, (max-width: 700px) 50vw, (max-width: 1100px) 33vw, 25vw"
             />
           ) : (
             <img
               src={placeholderSrc}
               alt={displayTitle}
-              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+              className={cn(
+                "h-full w-full object-cover transition-transform duration-300 motion-reduce:transform-none",
+                isOriginal ? "group-hover:scale-105" : "group-hover:scale-[1.03]",
+              )}
             />
           )}
         </div>
 
+        {isOriginal && (
+          <div className="pointer-events-none absolute inset-0 bg-black/10 opacity-0 transition-opacity duration-150 group-hover:opacity-100 motion-reduce:transition-none" />
+        )}
+
         {/* Type badge — fanwork only */}
         {!isOriginal && (
-          <span className="absolute top-2 left-2 rounded-md bg-background px-2 py-0.5 text-[10.5px] font-semibold text-foreground/70 border border-border/30">
+          <span className="absolute left-2 top-2 rounded-md border border-border/30 bg-background px-2 py-0.5 text-xs font-semibold text-foreground/70">
             {typeLabel}
           </span>
         )}
       </div>
 
-      <div className="flex flex-col gap-1.5 px-2.5 pb-3 pt-2">
+      <div className={cn("flex flex-col", isOriginal ? "gap-1 p-2" : "gap-1.5 p-3")}>
         {/* Source IP line — fanwork only */}
         {!isOriginal && data.ip?.name && (
-          <div className="flex items-center gap-1 text-[11.5px] text-muted-foreground">
-            <span className="h-3.5 w-3.5 flex-shrink-0 rounded-sm bg-muted flex items-center justify-center text-[8px] overflow-hidden">
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center overflow-hidden rounded-sm bg-muted text-xs">
               {data.ip.name.slice(0, 1)}
             </span>
             <span>{t('content.basedOnIp', { name: data.ip.name })}</span>
@@ -109,20 +120,20 @@ export function ContentCard({ data, className }: ContentCardProps) {
         )}
 
         {/* Title */}
-        <h3 className="line-clamp-2 text-[13.5px] font-semibold leading-snug text-foreground">
+        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-foreground">
           {displayTitle}
         </h3>
 
         {/* Description — fanwork only */}
         {!isOriginal && data.description && (
-          <p className="line-clamp-2 text-[12px] leading-relaxed text-muted-foreground">
+          <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
             {data.description}
           </p>
         )}
 
         {/* Author + time */}
-        <div className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-          <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-accent-subtle text-[9px] font-semibold text-accent-emphasis flex-shrink-0">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-accent-subtle text-xs font-semibold text-accent-emphasis">
             {(authorName || "?").slice(0, 1).toUpperCase()}
           </span>
           <span className="font-medium text-foreground/70 truncate">
@@ -131,25 +142,25 @@ export function ContentCard({ data, className }: ContentCardProps) {
         </div>
 
         {/* Stats row + tags */}
-        <div className="flex items-center justify-between pt-1.5 border-t border-border/50">
-          <div className="flex items-center gap-2.5 text-[11.5px] text-muted-foreground">
+        <div className={cn("flex items-center justify-between", isOriginal ? "pt-1" : "border-t border-border/50 pt-1.5")}>
+          <div className="flex items-center gap-2.5 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-0.5">
               <Heart className="h-3 w-3" />
               {data.like_count ?? 0}
             </span>
             {!isOriginal && (
               <span className="inline-flex items-center gap-0.5">
-                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                <MessageCircle className="h-3 w-3" aria-hidden="true" />
                 {data.comment_count ?? 0}
               </span>
             )}
           </div>
           {!isOriginal && tags.length > 0 && (
             <div className="flex flex-wrap gap-1">
-              {tags.slice(0, 3).map((tag) => (
-                <Badge key={tag} variant="secondary" className="text-[10px] rounded-full px-2 py-0">
+              {tags.map((tag) => (
+                <TagBadge key={tag}>
                   {tag}
-                </Badge>
+                </TagBadge>
               ))}
             </div>
           )}

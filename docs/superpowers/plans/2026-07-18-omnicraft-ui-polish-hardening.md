@@ -349,11 +349,11 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - Modify: `frontend/app/(public)/search/page.tsx`
 - Create: `frontend/tests/content-discovery-visual-contracts.test.tsx`
 
-- [ ] Write the approved P-01 IP-library page/grid/card contract into `design/ui-spec.md`, then apply it to `IPBrowseClient`/`IPCard`; remove the fixed 156px-in-fractional-track density defect without changing search/filter/sort/navigation semantics.
-- [ ] Replace the two raw JSX SVG icons in ContentCard/ContentSidebar and the undefined accent hover in IPBrowseClient.
-- [ ] Convert arbitrary sizes/colors only when the matching UI spec provides an authoritative replacement; record justified exceptions.
-- [ ] Test original/fanwork card distinctions, responsive facet behavior, IP-library grid density at 320/375/768/1280/1440px, loading/empty/error results, dark contrast, and keyboard operation.
-- [ ] Capture deterministic home/original/search/content screenshots in both themes.
+- [x] Write the approved P-01 IP-library page/grid/card contract into `design/ui-spec.md`, then apply it to `IPBrowseClient`/`IPCard`; remove the fixed 156px-in-fractional-track density defect without changing search/filter/sort/navigation semantics.
+- [x] Replace the two raw JSX SVG icons in ContentCard/ContentSidebar and the undefined accent hover in IPBrowseClient.
+- [x] Convert arbitrary sizes/colors only when the matching UI spec provides an authoritative replacement; record justified exceptions.
+- [x] Test original/fanwork card distinctions, responsive facet behavior, IP-library grid density at 320/375/768/1280/1440px, loading/empty/error results, dark contrast, and keyboard operation.
+- [x] Capture deterministic home/original/search/content screenshots in both themes.
 
 ## Task U-10: Align Communication Surfaces And I18n
 

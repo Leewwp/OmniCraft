@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface IPCardData {
@@ -35,21 +36,22 @@ function saveRecentIP(item: RecentIPItem) {
 export function IPCard({ data, variant = "browse", className }: IPCardProps) {
   const t = useTranslations();
 
-  // Browse variant: compact cover card (matching design demo)
+  // Browse variant: P-01 approved Indigo library card.
   if (variant === "browse") {
     return (
       <Link
         href={`/ip/${data.id}`}
         onClick={() => saveRecentIP({ id: data.id, name: data.name })}
+        aria-label={`${t('ip.enterDetail')}: ${data.name}`}
         className={cn(
-          "group flex-shrink-0 w-[156px] rounded-lg border border-border bg-card overflow-hidden transition-all duration-200 hover:border-accent/20 hover:bg-accent-subtle/5 active:scale-[0.98]",
+          "group block w-full min-w-0 overflow-hidden rounded-lg border border-border bg-card shadow-[var(--elevation-1)] transition-[border-color,box-shadow,background-color] duration-150 hover:border-[var(--border-strong)] hover:shadow-[var(--elevation-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:shadow-[var(--elevation-1)] motion-reduce:transition-none",
           className
         )}
       >
         {/* Cover */}
         <div className="aspect-[16/10] bg-muted overflow-hidden">
           {data.cover_url ? (
-            <img src={data.cover_url} alt={data.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+            <img src={data.cover_url} alt="" className="h-full w-full object-cover transition-transform duration-150 group-hover:scale-[1.015] motion-reduce:transform-none" />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-xl text-muted-foreground/40">
               {data.name.slice(0, 2)}
@@ -58,16 +60,20 @@ export function IPCard({ data, variant = "browse", className }: IPCardProps) {
         </div>
 
         {/* Info */}
-        <div className="px-2.5 py-2">
-          <div className="truncate text-[13px] font-semibold text-foreground">
+        <div className="space-y-1 bg-card p-3 dark:bg-canvas-subtle">
+          <div className="truncate text-sm font-medium text-foreground">
             {data.name}
           </div>
-          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-            {data.content_count !== undefined && (
-              <span>{t('ip.contentCount', { count: data.content_count })}</span>
-            )}
+          <div className="flex min-w-0 items-end justify-between gap-1 text-xs text-muted-foreground">
+            <span className="min-w-0 truncate">
+              {[data.category, data.content_count !== undefined ? t('ip.contentCount', { count: data.content_count }) : ""]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
             {data.trend !== undefined && data.trend > 0 && (
-              <span className="text-emerald-500 font-medium">↗ {data.trend}%</span>
+              <span className="inline-flex shrink-0 items-center gap-0.5 font-medium text-[var(--tag-green-fg)]">
+                <TrendingUp className="h-3 w-3" aria-hidden="true" />+{data.trend}%
+              </span>
             )}
           </div>
         </div>
@@ -80,8 +86,9 @@ export function IPCard({ data, variant = "browse", className }: IPCardProps) {
     <Link
       href={`/ip/${data.id}`}
       onClick={() => saveRecentIP({ id: data.id, name: data.name })}
+      aria-label={`${t('ip.enterDetail')}: ${data.name}`}
       className={cn(
-        "group flex min-w-64 flex-col gap-3 rounded-lg border border-border bg-card p-3 transition-all duration-200 hover:border-accent/20 hover:bg-muted/20 active:scale-[0.99]",
+        "group flex min-w-64 flex-col gap-3 rounded-lg border border-border bg-card p-3 shadow-[var(--elevation-1)] transition-[border-color,box-shadow,background-color] duration-150 hover:border-[var(--border-strong)] hover:bg-canvas-subtle hover:shadow-[var(--elevation-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none",
         className
       )}
     >
@@ -104,7 +111,7 @@ export function IPCard({ data, variant = "browse", className }: IPCardProps) {
         </p>
       )}
       <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-        {t('ip.enterDetail')} →
+        {t('ip.enterDetail')}
       </div>
     </Link>
   );
