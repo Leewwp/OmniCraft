@@ -155,3 +155,20 @@
 ### Notes:
 - `/api/v1/rehab/courses` 当前后端响应没有 `total/page_size` 且忽略 page 参数，前端按现有契约安全降级为无下一页；真实课程分页需 U-11 后端契约补齐，不在本次前端范围内。
 - `frontend/package-lock.json`、`.cache/`、seed 素材/脚本与任务草稿为既有无关脏文件，未纳入 U-07 提交。
+
+## [2026-08-02] - Task U-08: 修复剩余表单无障碍（完成）
+### What was done:
+- 为标签组、讨论发布、管理员通知、分类、队列、IP 审核、反馈和系统配置页面补齐表单标签、上下文动作名称、`aria-invalid`/`aria-describedby`、错误播报、首个无效字段焦点与 44px 移动端目标。
+- 新增 `form-accessibility.test.tsx`，以 Testing Library 角色/名称/焦点断言覆盖讨论空提交，并为八个计划页面建立无障碍合同；仓库不存在 axe 类现成依赖，按计划未新增未经批准的扫描依赖。
+- 为新增错误与动作名称补齐 zh/en 消息；全程未修改 `backend/`，未混入既有 package-lock、seed 素材、脚本或任务草稿。
+
+### Testing:
+- Red 阶段：聚焦测试因未关联 label、空提交按钮禁用且不播报/聚焦而按预期失败；实现后聚焦测试 2/2 PASS。
+- `npm test`: 139/139 PASS；`npm run lint`: PASS；`npm run build -- --webpack`: PASS（62 路由）；`git diff --check`: PASS。
+- 使用 ego lite 真实浏览器完成讨论、标签组、管理员通知/分类/配置及反馈/IP/队列代表性路径验证；截图保存在 `screenshots/ui-polish/u-08/`。
+- 验证了桌面与 375px 视口的首个无效字段聚焦、错误关联/播报、标签组 Escape 关闭、44px switch 触控目标和无横向溢出。
+
+### Notes:
+- 原阻塞已于 2026-08-02 解除：ego lite 获得受控 localhost 访问能力，真实浏览器证据已补齐。
+- 双轴审查发现并修复 dangling `aria-describedby`、标签组焦点陷阱/恢复、无效态视觉、通知 disabled 契约、coarse-pointer 目标和硬编码 Slug 标签；最终复核无阻塞项。
+- U-08 计划四项均已验证，可提交；`frontend/package-lock.json`、`.cache/`、seed 素材/脚本和任务草稿继续保留为无关脏文件。

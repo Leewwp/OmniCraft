@@ -329,10 +329,10 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - Modify: `frontend/app/(protected)/admin/config/page.tsx`
 - Create: `frontend/tests/form-accessibility.test.tsx`
 
-- [ ] Test every control has an accessible name through explicit label, implicit label, aria-label, or aria-labelledby; do not require `htmlFor` when valid implicit association is used.
-- [ ] Connect errors with `aria-describedby`, mark invalid controls, announce submission errors, and focus the first invalid field.
-- [ ] Add accessible names to icon-only table actions and confirm 44px isolated mobile targets.
-- [ ] Run an automated accessibility scan if an existing dependency supports it; otherwise use Testing Library roles/names plus Playwright keyboard evidence without adding an unapproved dependency.
+- [x] Test every control has an accessible name through explicit label, implicit label, aria-label, or aria-labelledby; do not require `htmlFor` when valid implicit association is used.
+- [x] Connect errors with `aria-describedby`, mark invalid controls, announce submission errors, and focus the first invalid field.
+- [x] Add accessible names to icon-only table actions and confirm 44px isolated mobile targets.
+- [x] Run an automated accessibility scan if an existing dependency supports it; otherwise use Testing Library roles/names plus Playwright keyboard evidence without adding an unapproved dependency.
 
 ## Task U-09: Normalize Content And Discovery Visuals
 

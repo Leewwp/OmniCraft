@@ -31,6 +31,7 @@ export default function AdminNotificationsPage() {
   const [bodyTouched, setBodyTouched] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   // Idempotency key bound to the exact draft. Generated when the confirmation
   // dialog opens, reused across retries of the unchanged draft, and rotated
   // after success or whenever the title/body changes.
@@ -64,7 +65,14 @@ export default function AdminNotificationsPage() {
     event.preventDefault();
     setTitleTouched(true);
     setBodyTouched(true);
-    if (!isValid || sending) return;
+    if (!isValid || sending) {
+      if (validation.title) {
+        titleInputRef.current?.focus();
+      } else if (validation.body) {
+        document.getElementById("broadcast-body")?.focus();
+      }
+      return;
+    }
     const draft = idempotencyRef.current;
     if (!draft || draft.title !== trimmedTitle || draft.body !== trimmedBody) {
       idempotencyRef.current = { key: globalThis.crypto.randomUUID(), title: trimmedTitle, body: trimmedBody };
@@ -121,18 +129,19 @@ export default function AdminNotificationsPage() {
             </div>
             <input
               id="broadcast-title"
-              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/25 disabled:opacity-60"
+              ref={titleInputRef}
+              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/25 disabled:opacity-60 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
               value={title}
               onBlur={() => setTitleTouched(true)}
               onChange={(event) => setTitle(event.currentTarget.value)}
               placeholder={t("form.titlePlaceholder")}
               aria-invalid={Boolean(titleError)}
-              aria-describedby="broadcast-title-hint broadcast-title-error"
+              aria-describedby={titleError ? "broadcast-title-error" : "broadcast-title-hint"}
               disabled={sending}
             />
             <div className="min-h-5">
               {titleError ? (
-                <p id="broadcast-title-error" className="text-xs text-destructive">
+                <p id="broadcast-title-error" role="alert" className="text-xs text-destructive">
                   {titleError}
                 </p>
               ) : (
@@ -152,19 +161,22 @@ export default function AdminNotificationsPage() {
                 {t("form.bodyCount", { count: body.length })}
               </span>
             </div>
-            <div onBlur={() => setBodyTouched(true)}>
+            <div
+              onBlur={() => setBodyTouched(true)}
+              className={bodyError ? "rounded-md ring-2 ring-destructive/20 [&>div]:border-destructive" : undefined}
+            >
               <MarkdownEditor
                 id="broadcast-body"
                 value={body}
                 onChange={setBody}
                 disabled={sending}
-                ariaDescribedBy="broadcast-body-hint broadcast-body-error"
+                ariaDescribedBy={bodyError ? "broadcast-body-error" : "broadcast-body-hint"}
                 ariaInvalid={Boolean(bodyError)}
               />
             </div>
             <div className="min-h-5">
               {bodyError ? (
-                <p id="broadcast-body-error" className="text-xs text-destructive">
+                <p id="broadcast-body-error" role="alert" className="text-xs text-destructive">
                   {bodyError}
                 </p>
               ) : (
@@ -176,7 +188,7 @@ export default function AdminNotificationsPage() {
           </div>
 
           <div className="flex justify-end">
-            <Button type="submit" className="min-h-11 w-full sm:w-auto" disabled={!isValid || sending}>
+            <Button type="submit" className="[@media(pointer:coarse)]:min-h-11 w-full sm:w-auto" disabled={!isValid || sending}>
               {sending ? t("form.sending") : t("form.send")}
             </Button>
           </div>

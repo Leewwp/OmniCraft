@@ -821,7 +821,12 @@
       "createFailed": "Failed to create category",
       "updateFailed": "Failed to update category",
       "deleteFailed": "Failed to delete category",
-      "sortFailed": "Failed to save sort order"
+      "sortFailed": "Failed to save sort order",
+      "nameRequired": "Chinese name is required.",
+      "slugRequired": "Slug is required.",
+      "slugFor": "Slug for {name}",
+      "moveUp": "Move {name} up",
+      "moveDown": "Move {name} down"
     },
     "config": {
       "title": "System Configuration",
@@ -851,6 +856,7 @@
       "revokeErrorRate": "Revoke Error Rate",
       "errorRateWindow": "Error Rate Window",
       "sectionAgent": "Agent",
+      "webAgent": "Web Agent",
       "dailyLimit": "Daily Rate Limit",
       "sectionSocial": "Social Moderation",
       "reportAutoHideRate": "Report Auto-Hide Rate",
@@ -859,7 +865,8 @@
       "saveConfirmMsg": "Save the current configuration? Changes will take effect immediately (resets to config.yaml defaults on restart).",
       "confirmSave": "Confirm save",
       "loadFailed": "Failed to load config",
-      "saveFailed": "Failed to save config"
+      "saveFailed": "Failed to save config",
+      "invalidValue": "Review the highlighted configuration value before saving."
     },
     "feedback": {
       "title": "Feedback Management",
@@ -877,7 +884,10 @@
       "user": "User",
       "internalNote": "Internal Note",
       "noReplies": "No replies yet",
+      "replyLabel": "Reply",
       "replyPlaceholder": "Type your reply...",
+      "replyRequired": "Reply content is required.",
+      "replyFailed": "Failed to send reply. Please try again.",
       "markInternalNote": "Mark as internal note (hidden from user)",
       "sendReply": "Send Reply"
     },
@@ -1013,6 +1023,7 @@
     "groupName": "Group Name",
     "groupNamePlaceholder": "Name your tag group",
     "tags": "Tags",
+    "addTag": "Add tag",
     "tagPlaceholder": "Type a tag and press Enter to add",
     "empty": "No tag groups yet",
     "createFirst": "Create your first tag group",
@@ -1140,6 +1151,7 @@
     "notFound": "Discussion not found",
     "titleLabel": "Title",
     "titlePlaceholder": "Give your discussion a title",
+    "titleRequired": "Title is required.",
     "bodyLabel": "Content",
     "bodyPlaceholder": "Write your thoughts...",
     "replyCount": "{count} replies",

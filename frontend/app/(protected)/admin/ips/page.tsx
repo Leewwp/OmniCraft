@@ -95,7 +95,7 @@ export default function AdminIPsPage() {
         </div>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
       {ips.length === 0 ? (
         <div className="rounded-md border border-border bg-card p-12 text-center ">
@@ -132,7 +132,8 @@ export default function AdminIPsPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="text-emerald-600 hover:bg-emerald-50"
+                          className="[@media(pointer:coarse)]:min-h-11 text-emerald-600 hover:bg-emerald-50"
+                          aria-label={`${t('admin.ips.approve')}: ${ip.name}`}
                           onClick={() => {
                             setConfirmAction({ ipId: ip.id, action: "approve", title: ip.name });
                             setConfirmOpen(true);
@@ -143,7 +144,8 @@ export default function AdminIPsPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="text-destructive hover:bg-destructive/10"
+                          className="[@media(pointer:coarse)]:min-h-11 text-destructive hover:bg-destructive/10"
+                          aria-label={`${t('admin.ips.reject')}: ${ip.name}`}
                           onClick={() => {
                             setConfirmAction({ ipId: ip.id, action: "reject", title: ip.name });
                             setConfirmOpen(true);

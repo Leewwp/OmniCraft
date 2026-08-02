@@ -822,7 +822,12 @@
       "createFailed": "创建分类失败",
       "updateFailed": "更新分类失败",
       "deleteFailed": "删除分类失败",
-      "sortFailed": "排序保存失败"
+      "sortFailed": "排序保存失败",
+      "nameRequired": "请输入中文名称。",
+      "slugRequired": "请输入 Slug。",
+      "slugFor": "{name}的 Slug",
+      "moveUp": "上移{name}",
+      "moveDown": "下移{name}"
     },
     "config": {
       "title": "系统配置",
@@ -852,6 +857,7 @@
       "revokeErrorRate": "撤权错误率",
       "errorRateWindow": "错误率窗口",
       "sectionAgent": "智能体 (Agent)",
+      "webAgent": "网页 Agent",
       "dailyLimit": "每日限流",
       "sectionSocial": "社交风控 (Social)",
       "reportAutoHideRate": "举报自动隐藏率",
@@ -860,7 +866,8 @@
       "saveConfirmMsg": "确认保存当前配置吗？修改将立即热更新生效（重启后恢复 config.yaml 默认值）。",
       "confirmSave": "确认保存",
       "loadFailed": "加载配置失败",
-      "saveFailed": "保存配置失败"
+      "saveFailed": "保存配置失败",
+      "invalidValue": "请检查高亮的配置值后再保存。"
     },
     "feedback": {
       "title": "反馈管理",
@@ -878,7 +885,10 @@
       "user": "用户",
       "internalNote": "内部备注",
       "noReplies": "暂无回复",
+      "replyLabel": "回复内容",
       "replyPlaceholder": "输入回复内容...",
+      "replyRequired": "请输入回复内容。",
+      "replyFailed": "发送回复失败，请重试。",
       "markInternalNote": "标记为内部备注（用户不可见）",
       "sendReply": "发送回复"
     },
@@ -1013,6 +1023,7 @@
     "groupName": "标签组名称",
     "groupNamePlaceholder": "为标签组命名",
     "tags": "标签",
+    "addTag": "添加标签",
     "tagPlaceholder": "输入标签后按 Enter 添加",
     "empty": "暂无标签组",
     "createFirst": "创建第一个标签组",
@@ -1140,6 +1151,7 @@
     "notFound": "讨论未找到",
     "titleLabel": "标题",
     "titlePlaceholder": "为你的讨论起个标题",
+    "titleRequired": "请输入标题。",
     "bodyLabel": "内容",
     "bodyPlaceholder": "写下你的想法...",
     "replyCount": "{count} 条回复",

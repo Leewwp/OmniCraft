@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { FormEvent, useEffect, useRef, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
@@ -8,7 +8,7 @@ import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { MessageSquare, Eye, ArrowLeft, Send, Lock } from "lucide-react";
+import { MessageSquare, Eye, ArrowLeft, Lock } from "lucide-react";
 
 interface FeedbackTicket {
   id: number;
@@ -73,6 +73,9 @@ export default function AdminFeedbackPage() {
   const [replyBody, setReplyBody] = useState("");
   const [isInternalNote, setIsInternalNote] = useState(false);
   const [replyBusy, setReplyBusy] = useState(false);
+  const [replyAttempted, setReplyAttempted] = useState(false);
+  const [replyError, setReplyError] = useState("");
+  const replyInputRef = useRef<HTMLTextAreaElement>(null);
   const [patchBusy, setPatchBusy] = useState(false);
 
   const pageSize = 20;
@@ -112,19 +115,27 @@ export default function AdminFeedbackPage() {
     }
   }
 
-  async function handleReply() {
-    if (!selectedTicket || !replyBody.trim()) return;
+  async function handleReply(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setReplyAttempted(true);
+    if (!selectedTicket || !replyBody.trim()) {
+      replyInputRef.current?.focus();
+      return;
+    }
     setReplyBusy(true);
+    setReplyError("");
     try {
       await api.post(`/api/v1/admin/feedback/${selectedTicket.id}/replies`, {
         body: replyBody.trim(),
         is_internal_note: isInternalNote,
       });
       setReplyBody("");
+      setReplyAttempted(false);
       setIsInternalNote(false);
       await loadTicketDetail(selectedTicket.id);
     } catch (e) {
       silentError(e, { component: "AdminFeedbackPage", action: "handleReply" });
+      setReplyError(t("admin.feedback.replyFailed"));
     } finally {
       setReplyBusy(false);
     }
@@ -177,7 +188,7 @@ export default function AdminFeedbackPage() {
       <div className="space-y-4 p-6">
         <button
           type="button"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          className="inline-flex min-h-11 items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
           onClick={() => setSelectedTicket(null)}
         >
           <ArrowLeft className="h-4 w-4" />
@@ -297,14 +308,29 @@ export default function AdminFeedbackPage() {
           )}
         </div>
 
-        <div className="rounded-md border border-border bg-card p-4">
+        <form className="rounded-md border border-border bg-card p-4" onSubmit={handleReply} noValidate>
+          <label htmlFor="feedback-reply" className="sr-only">
+            {t("admin.feedback.replyLabel")}
+          </label>
           <textarea
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            id="feedback-reply"
+            ref={replyInputRef}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
             rows={3}
             value={replyBody}
-            onChange={(e) => setReplyBody(e.target.value)}
+            onChange={(e) => {
+              setReplyBody(e.target.value);
+              if (replyError) setReplyError("");
+            }}
             placeholder={t("admin.feedback.replyPlaceholder")}
+            aria-invalid={Boolean(replyError || (replyAttempted && !replyBody.trim()))}
+            aria-describedby={replyError || (replyAttempted && !replyBody.trim()) ? "feedback-reply-error" : undefined}
           />
+          {(replyError || (replyAttempted && !replyBody.trim())) && (
+            <p id="feedback-reply-error" role="alert" className="mt-2 text-sm text-destructive">
+              {replyError || t("admin.feedback.replyRequired")}
+            </p>
+          )}
           <div className="mt-2 flex items-center justify-between">
             <label className="inline-flex items-center gap-2 text-sm">
               <input
@@ -315,11 +341,11 @@ export default function AdminFeedbackPage() {
               />
               {t("admin.feedback.markInternalNote")}
             </label>
-            <Button size="sm" onClick={handleReply} disabled={replyBusy || !replyBody.trim()}>
+            <Button type="submit" size="sm" className="[@media(pointer:coarse)]:min-h-11" disabled={replyBusy}>
               {replyBusy ? t("common.saving") : t("admin.feedback.sendReply")}
             </Button>
           </div>
-        </div>
+        </form>
       </div>
     );
   }
@@ -330,7 +356,7 @@ export default function AdminFeedbackPage() {
         <h1 className="text-2xl font-bold tracking-tight">{t("admin.feedback.title")}</h1>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
       <div className="flex items-center gap-3">
         <div className="w-fit min-w-40">
@@ -377,7 +403,7 @@ export default function AdminFeedbackPage() {
             <button
               key={ticket.id}
               type="button"
-              className="w-full rounded-md border border-border bg-card p-3 text-left transition-colors hover:bg-muted/50"
+              className="min-h-11 w-full rounded-md border border-border bg-card p-3 text-left transition-colors hover:bg-muted/50"
               onClick={() => loadTicketDetail(ticket.id)}
             >
               <div className="flex items-start justify-between gap-3">
