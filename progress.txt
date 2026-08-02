@@ -197,3 +197,17 @@
 - ego lite authenticated browser verification PASS at desktop and 375x812; screenshots saved under `screenshots/ui-polish/u-10/`.
 ### Notes:
 - Frontend-only; no `backend/` changes. Agent workspace, Widget, citations, and Agent translations remain owned by Web Agent Productization Task 4.
+
+## [2026-08-03] - Task U-11 Backend: Authenticated Interaction Capability
+### What was done:
+- 本地 `main` 以 ff-only 集成 U-01～U-10 检查点 `e2cdb79`；远端 main 无分支保护、required checks 或开放 PR，因此该动作不作为 Production Readiness PR/CI 证据。
+- 为 login 与 `/auth/me` 保留既有 user/tokens/csrf 字段并新增同形状 `capabilities.can_interact`；互动 middleware 复用同一纯判定函数，不暴露阈值或 min-score。
+- Rehab 课程事务成功后失效 `user:status:{id}` runtime cache，使恢复后的 capability 与真实互动 gate 在下一请求同时放行。
+### Testing:
+- RED：auth focused tests 因缺少 `capabilities` 失败；rehab 测试因缺少 cache 依赖接线失败；router contract 因 handler 未接收 Redis/config 失败。
+- GREEN：focused handler/middleware/service/router tests PASS；`go test ./...`、`go vet ./...`、`go build ./...`、doc-validator `--fix` 和 `git diff --check` PASS。
+- 规格审查三项修复：config/status 不可用改为 503 且无 capability；Redis cache DEL 失败不再返回课程完成成功；课程完成响应返回更新后的 `reputation`。新增 red tests 后重跑 focused 与完整后端三门均 PASS。
+- 候选服务在 `SERVER_PORT=8081` 启动成功；使用本地管理员真实验证 login 与 bearer `/api/v1/auth/me` 均返回一致 `can_interact=true`，保留 tokens/csrf/user 字段且无 threshold/min_score 泄露。
+### Notes:
+- 后端候选仍需顺序规格/质量审查及 main 上真实 login/`auth/me` smoke；U-11 前端消费者、浏览器证据和最终 checkbox 尚未开始。
+- 记录但不修复 `user:publish_freeze:{id}` 与 `publish:freeze:{id}` 键名差异；本轮不增加 `can_publish`，不修改 public config、Ops-01 或 U-12 文件。
