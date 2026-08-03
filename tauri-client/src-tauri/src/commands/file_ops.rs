@@ -563,6 +563,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn test_backup_file_internal_fails_gracefully_on_readonly_dir() {
         let dir = temp_dir().join("readonly_backup_test");
@@ -617,6 +618,29 @@ mod tests {
             "backup_file_internal should return an error on read-only backup dir, not panic"
         );
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_backup_file_internal_never_panics_on_readonly_dir() {
+        // The Windows directory read-only attribute does not block file
+        // creation, so a permission error cannot be provoked this way; the
+        // contract under test is that backup never panics.
+        let dir = temp_dir().join("readonly_backup_test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file_path = dir.join("important.txt");
+        std::fs::write(&file_path, "data").unwrap();
+        let backup_dir = dir.join(".omnicraft_backup");
+        std::fs::create_dir_all(&backup_dir).unwrap();
+        let mut perms = std::fs::metadata(&backup_dir).unwrap().permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(&backup_dir, perms).unwrap();
+        let _ = backup_file_internal(&file_path);
+        let mut perms = std::fs::metadata(&backup_dir).unwrap().permissions();
+        perms.set_readonly(false);
+        let _ = std::fs::set_permissions(&backup_dir, perms);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
