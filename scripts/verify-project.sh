@@ -63,9 +63,9 @@ fi
 REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
 
 case "$SCOPE" in
-  Backend|Frontend|Docs|All) ;;
+  Backend|Frontend|Docs|Tauri|All) ;;
   *)
-    echo "unknown scope: $SCOPE (expected Backend|Frontend|Docs|All)" >&2
+    echo "unknown scope: $SCOPE (expected Backend|Frontend|Docs|Tauri|All)" >&2
     exit 2
     ;;
 esac
@@ -173,7 +173,7 @@ if [ "$RELEASE" -eq 1 ] && in_scope Frontend; then
   run_checked "$REPO_ROOT/frontend" frontend frontend-npm-e2e npm run test:e2e
 fi
 
-if [ "$TAURI" -eq 1 ]; then
+if [ "$SCOPE" = "Tauri" ] || [ "$TAURI" -eq 1 ]; then
   run_checked "$REPO_ROOT/tauri-client" tauri-client tauri-npm-build npm run build
   run_checked "$REPO_ROOT/tauri-client" tauri-client tauri-cargo-test cargo test --manifest-path src-tauri/Cargo.toml
 fi

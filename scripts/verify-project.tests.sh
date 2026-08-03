@@ -189,6 +189,11 @@ tauri-client|npm run build
 tauri-client|cargo test --manifest-path src-tauri/Cargo.toml" "tauri tier must stay orthogonal to scope"
 
 rm -f "$LOG_PATH"
+run_verifier --repo-root "$REPO_ROOT" -Scope Tauri
+assert_log "tauri-client|npm run build
+tauri-client|cargo test --manifest-path src-tauri/Cargo.toml" "tauri scope must run only the desktop gates"
+
+rm -f "$LOG_PATH"
 ( cd "$TEMP_ROOT" && bash "$VERIFIER" --repo-root "$REPO_ROOT" -Scope Bogus >/dev/null 2>&1 )
 if [ $? -eq 0 ]; then
   echo "FAIL: unknown scope must be rejected" >&2

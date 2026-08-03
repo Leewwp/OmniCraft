@@ -61,7 +61,7 @@ jobs:
         run: echo "no desktop path changes; tauri-windows no-op"
       - name: Desktop verification
         if: needs.detect.outputs.changed == 'true'
-        run: bash scripts/verify-project.sh --tauri -ReportDir artifacts/tauri
+        run: bash scripts/verify-project.sh -Scope Tauri -ReportDir artifacts/tauri
       - name: Upload desktop evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
