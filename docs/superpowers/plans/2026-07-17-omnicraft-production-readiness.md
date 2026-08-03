@@ -178,7 +178,7 @@ Expected: only ignored `artifacts/` evidence remains outside the clean reviewed 
 - Modify: `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md`
 - Modify: `progress.txt`
 
-- [ ] **Step 1: Write failing verifier-scope/report tests**
+- [x] **Step 1: Write failing verifier-scope/report tests**
 
 Add contract cases for `-Scope Backend|Frontend|Docs|All`, default compatibility, deterministic command order, per-command log files, root JSON summary, fail-fast, and nonzero standalone process exit. Add evidence-schema tests for every required field, command exit-code pairing, redaction boolean and blocker list; `validate-evidence.sh -ExpectedCommit` must reject a different/missing commit. Add finalizer tests proving it changes only the identity/finalization fields, refuses a dirty or non-HEAD commit unless an explicit fixture mode is used, hashes the referenced evidence inventory, and is idempotent.
 
@@ -190,11 +190,11 @@ bash scripts/verify-project.tests.sh
 
 Expected red: unknown scope/report parameters or missing artifacts.
 
-- [ ] **Step 2: Implement scoped reporting without duplicating gate truth**
+- [x] **Step 2: Implement scoped reporting without duplicating gate truth**
 
 Keep default behavior unchanged. `-ReportDir` writes UTF-8 logs and `verification-summary.json`, including failed command and exit code, then returns nonzero.
 
-- [ ] **Step 3: Write failing workflow contract tests**
+- [x] **Step 3: Write failing workflow contract tests**
 
 Test stable required job names, PR/push triggers, concurrency, minimal permissions, SHA-pinned actions, cache keys from lockfiles, artifact upload under `if: always()`, no production secret reference, and Windows/path-filtered Tauri job.
 
@@ -206,17 +206,19 @@ bash scripts/ci/verify-workflows.tests.sh
 
 Expected red: workflow files absent.
 
-- [ ] **Step 4: Implement workflows**
+- [x] **Step 4: Implement workflows**
 
 Use job names `backend`, `frontend`, `docs`, `project-gate`, and `tauri-windows`. The Tauri workflow triggers for every PR, runs path detection, and makes `tauri-windows` complete successfully with an explicit no-op when Desktop paths are irrelevant; never use workflow-level `paths` for a required check. Pin Go 1.25.11 and Node 20; use `npm ci`; ordinary PRs receive no environment secrets. Branch protection requires `project-gate` immediately. Record `tauri-windows` as a stable always-emitted check in Ops-01 and make it required no later than the Web + Desktop production-ready gate; it is not required for the earlier Web-only claim unless the user explicitly chooses the stricter posture.
 
 Set artifact retention explicitly and test it: PR evidence uses `retention-days: 30`; push-to-main evidence uses `retention-days: 90`. Release evidence is handled by Ops-06/08 and must not inherit the shorter values.
 
-- [ ] **Step 5: Align toolchain metadata**
+- [x] **Step 5: Align toolchain metadata**
 
 Add Node/npm `engines` to frontend/Tauri packages and update guides to distinguish minimum policy from the exact CI Go toolchain.
 
 - [ ] **Step 6: Verify locally and in a PR**
+
+> 2026-08-03 本地部分完成：`verify-workflows.sh`、default verifier `-ReportDir artifacts/ops-01`、`--tauri`（安装 Rust 1.97.1 后）全部通过；`validate-evidence.tests.sh` / `finalize-evidence.tests.sh` / `verify-project.tests.sh` 全绿；doc-validator 修复（表格式 token 定义识别）后 release profile 通过；`artifacts/ops-01/summary.json` 已校验并将在 commit 后绑定终态。遗留：PR 失败探针、GitHub 运行记录与分支保护配置需推送后由用户确认（本地仓库领先 origin）。
 
 ```bash
 bash scripts/ci/verify-workflows.sh

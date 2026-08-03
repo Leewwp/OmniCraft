@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Ops evidence summary",
+  "description": "Machine-readable summary written by the project verifier (-ReportDir) and finalized by scripts/ops/finalize-evidence.sh for each Ops task.",
+  "type": "object",
+  "required": [
+    "task",
+    "commit",
+    "started_at",
+    "finished_at",
+    "commands",
+    "exit_codes",
+    "tool_versions",
+    "evidence",
+    "redaction_checked",
+    "blockers"
+  ],
+  "properties": {
+    "task": {
+      "type": "string",
+      "description": "Task identifier derived from the report directory basename (e.g. ops-01)"
+    },
+    "commit": {
+      "type": ["string", "null"],
+      "description": "Bound to the reviewed task commit SHA by finalize-evidence; null before finalization"
+    },
+    "started_at": {
+      "type": "string",
+      "description": "Verifier run start time, UTC ISO 8601"
+    },
+    "finished_at": {
+      "type": "string",
+      "description": "Verifier run end time, UTC ISO 8601"
+    },
+    "commands": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Executed gate commands in order; stops at the first failure"
+    },
+    "exit_codes": {
+      "type": "array",
+      "items": { "type": "integer" },
+      "description": "Exit code per executed command; must pair with commands"
+    },
+    "tool_versions": {
+      "type": "object",
+      "description": "Tool version strings for the tools invoked during the run"
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Paths of the raw evidence/log files produced by the run"
+    },
+    "evidence_sha256": {
+      "type": ["object", "null"],
+      "description": "Added by finalize-evidence: SHA-256 of each referenced evidence file"
+    },
+    "redaction_checked": {
+      "type": "boolean",
+      "description": "Attestation that logs were reviewed for secrets/PII before sharing"
+    },
+    "blockers": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Outstanding release blockers recorded for the task"
+    }
+  }
+}

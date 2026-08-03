@@ -65,6 +65,9 @@ screenshots/
 *.temp
 *.bak
 
+# Ops evidence (uploaded/archived, never committed)
+/artifacts/
+
 # Local agent/skill caches
 .agents/
 

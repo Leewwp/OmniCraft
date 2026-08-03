@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,10 +35,36 @@ fn resolve_whitelist_roots() -> Vec<PathBuf> {
     roots
 }
 
+// Resolves a path for whitelist comparison. Existing components are
+// canonicalized (symlink-safe); missing tail components are appended
+// lexically so destination paths that do not exist yet can still be checked.
+fn canonicalize_or_resolve(path: &Path) -> Result<PathBuf, String> {
+    let mut tail: Vec<OsString> = Vec::new();
+    let mut probe = path;
+    loop {
+        match probe.canonicalize() {
+            Ok(canonical) => {
+                let mut resolved = canonical;
+                for component in tail.iter().rev() {
+                    resolved.push(component);
+                }
+                return Ok(resolved);
+            }
+            Err(_) => {
+                let name = probe.file_name().ok_or_else(|| {
+                    format!("cannot resolve path '{}': no existing ancestor", path.display())
+                })?;
+                tail.push(name.to_os_string());
+                probe = probe.parent().ok_or_else(|| {
+                    format!("cannot resolve path '{}': no existing ancestor", path.display())
+                })?;
+            }
+        }
+    }
+}
+
 fn is_within_whitelist(path: &Path) -> Result<PathBuf, String> {
-    let canonical = path
-        .canonicalize()
-        .map_err(|e| format!("cannot resolve path '{}': {}", path.display(), e))?;
+    let canonical = canonicalize_or_resolve(path)?;
 
     for root in resolve_whitelist_roots() {
         let root_canonical = root.canonicalize();

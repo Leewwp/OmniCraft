@@ -1,0 +1,144 @@
+name: OmniCraft CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      failure_probe:
+        description: "Intentionally fail the project gate for evidence drills"
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: "1.25.11"
+          cache: false
+      - name: Cache Go build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}
+      - name: Backend verification
+        run: bash scripts/verify-project.sh -Scope Backend -ReportDir artifacts/backend
+      - name: Upload backend evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: backend-evidence
+          path: artifacts/backend
+          retention-days: ${{ github.event_name == 'push' && 90 || 30 }}
+
+  frontend:
+    name: Frontend gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 20
+          cache: false
+      - name: Cache npm
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+      - name: Frontend verification
+        run: bash scripts/verify-project.sh -Scope Frontend -ReportDir artifacts/frontend
+      - name: Upload frontend evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: frontend-evidence
+          path: artifacts/frontend
+          retention-days: ${{ github.event_name == 'push' && 90 || 30 }}
+
+  docs:
+    name: Docs gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: "1.25.11"
+          cache: false
+      - name: Cache Go build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}
+      - name: Docs verification
+        run: bash scripts/verify-project.sh -Scope Docs -ReportDir artifacts/docs
+      - name: Upload docs evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: docs-evidence
+          path: artifacts/docs
+          retention-days: ${{ github.event_name == 'push' && 90 || 30 }}
+
+  project-gate:
+    name: Project gate
+    needs: [backend, frontend, docs]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: "1.25.11"
+          cache: false
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 20
+          cache: false
+      - name: Cache Go build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}
+      - name: Cache npm
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+      - name: Project verification
+        run: bash scripts/verify-project.sh -ReportDir artifacts/gate
+      - name: Failure probe
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.failure_probe == true }}
+        run: exit 1
+      - name: Upload gate evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: project-gate-evidence
+          path: artifacts/gate
+          retention-days: ${{ github.event_name == 'push' && 90 || 30 }}

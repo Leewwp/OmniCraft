@@ -275,3 +275,22 @@
 - `scripts/overnight/night-run.sh` 的 powercfg 块已有 `command -v powercfg` 守卫，macOS 下自动跳过，未改动（可后续加 caffeinate 分支）。
 - `.specify/extensions/git` 为第三方模板自带 PowerShell 实现，不属于项目工作流，未改动。
 - `docs/GLOSSARY.md`/`docs/adr/README.md` 为并发 ADR-0002 会话改动，与本次提交无关，未纳入暂存。
+
+## [2026-08-03] - Ops-01: Establish GitHub Actions CI on the unified verifier
+### What was done:
+- verifier 扩展（TDD 先行，红→绿）：`verify-project.sh` 新增 `-Scope Backend|Frontend|Docs|All`（命令序列与默认完全一致）与 `-ReportDir <dir>`（每命令 UTF-8 日志 + `summary.json`：task/commit(null)/started|finished_at/commands/exit_codes/tool_versions/evidence/redaction_checked(false)/blockers([])；失败时仍写 summary 并记录失败 exit code，fail-fast 语义不变）。修正相对 `-ReportDir` 在子目录 tee 失效缺陷（规范化绝对路径）+ 新增回归契约测试。
+- 证据链：新增 `release/ops-evidence.schema.json`（draft-07，11 字段）、`scripts/ops/validate-evidence.sh`（必需字段/类型/pairing/redaction boolean/blockers/-ExpectedCommit 40-hex 绑定）、`scripts/ops/finalize-evidence.sh`（仅改 identity/finalization 字段：commit + evidence_sha256 库存哈希；脏工作区或非 HEAD 拒绝，`-Fixture` 绕过；幂等；可选 -RedactionChecked/-Blocker）。
+- 工作流契约：新增 `scripts/ci/verify-workflows.sh`（stdlib python3 迷你 YAML 解析器 + 契约检查：稳定 job 名、PR/push 触发、concurrency、最小 permissions、SHA 固定 actions、hashFiles(lockfile) 缓存键、`if: always()` 上传 + 30/90 天保留、无 secrets 引用、tauri-windows Windows + 路径检测 + no-op 分支）+ `verify-workflows.tests.sh`（真实文件 + 17 项变异用例）。
+- CI workflow：`.github/workflows/ci.yml`（backend/frontend/docs/project-gate，各 job 以 verifier `-Scope` 运行并上传证据；project-gate 为 required 检查，含 guarded `workflow_dispatch` 失败探针 `failure_probe`）+ `tauri-ci.yml`（detect + tauri-windows，全 PR 触发、路径检测、无关路径显式 no-op；action 全部 SHA 固定：checkout 3d3c42e、setup-go b7ad1da、setup-node 8207627、cache 55cc834、upload-artifact 043fb46；Go 1.25.11/Node 20；npm ci）。
+- 工具链元数据：frontend/tauri-client `engines`（node >=20, npm >=10）+ 锁文件同步；README/AGENTS 区分「本地最低版本 vs CI 精确固定」；CLAUDE.md 记录 CI 门契约。
+- 顺带修复三处阻塞门的既有债务：(1) doc-validator `--check --profile release` 的 2 条 design token 误报——`definedTokensIn` 现同时识别表格式反引号 token（+回归测试）；(2) 桌面图标 32/128/256 非 RGBA 导致 `generate_context!` 失败——python3 重编码为 RGBA；(3) `file_ops::is_within_whitelist` 对不存在的目标路径 canonicalize 失败导致 move_file 全拒——新增 `canonicalize_or_resolve`（最近存在祖先 canonical + 词法尾部）。安全方向不变（fail-closed）。
+- `.gitignore` 补 `/artifacts/`（Ops-00 遗漏，证据不入库）；`codex/ops-integration` 补建（Ops-00 应建未建，从当前 HEAD）。
+### Testing:
+- 契约测试全绿：`verify-project.tests.sh`（含 scope/report/相对目录回归）、`validate-evidence.tests.sh`（18 项）、`finalize-evidence.tests.sh`（12 项）、`verify-workflows.tests.sh`（17 项变异）。
+- 真实验证门：`bash scripts/verify-project.sh -ReportDir artifacts/ops-01` 8 命令全 0 退出；`--tauri` 全绿（npm build + `cargo test` 23/23；本机安装 Rust 1.97.1，`AGENT_HMAC_SECRET` 需以 dummy 提供编译）；`scripts/ci/verify-workflows.sh` 通过；doc-validator go test + release profile 通过；`git diff --check` 通过。
+- 证据链：`validate-evidence.sh` 预终态校验通过；commit 后执行 finalize + `-ExpectedCommit` 复核。
+### Notes:
+- Step 6 的 GitHub 侧证据（PR 失败探针运行、绿色运行记录、分支保护配置）未执行：本地仓库领先 origin（main ahead 12），推送与分支保护需用户确认后完成。
+- 桌面债务修复属用户批准的范围外介入：图标 RGBA、AGENT_HMAC_SECRET CI dummy（tauri-ci.yml job env，PR 构建产物从不分发，真实密钥由 Ops-09 提供）、file_ops whitelist 修复；`tauri-windows` 已在 CLAUDE.md 记录为稳定检查，Web-only 声明下不设为 required。
+- tauri-ci 路径检测仅匹配 `tauri-client/`（frontendDist 为 tauri-client 自身 dist，`frontend/` 不触发桌面构建）。
+- Ops-01 改动与 U-12 共享 `scripts/verify-project.sh`/`verify-project.tests.sh`/`frontend/package.json`，U-12 须在 Ops-01 合并后 rebase 执行。
