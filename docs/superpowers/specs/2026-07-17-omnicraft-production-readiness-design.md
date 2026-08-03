@@ -26,7 +26,7 @@ Ops 工作使用 `AGENTS.md` 的 heavy 车道，禁止修改历史任务账本�
 
 已具备：
 
-- `scripts/verify-project.ps1` 的 default/full/release/Tauri 分层与 fail-fast 合同；
+- `scripts/verify-project.sh` 的 default/full/release/Tauri 分层与 fail-fast 合同（2026-08-03 由 PowerShell 移植为 bash，历史 `.ps1` 已删除）；
 - Go、Next.js、doc-validator、Playwright 和 Tauri 的本地验证入口；
 - release 配置 fail-fast 校验；
 - 单机 Docker Compose、nginx 模板、数据库备份脚本和 Beta runbook；
@@ -299,7 +299,7 @@ UI Polish 协调：
 
 - Ops-00 与 UI 计划登记均修改 `AGENTS.md`/`CLAUDE.md`/`progress.txt`，必须串行；
 - UI U-11 必须在 Ops-00 规格落地后复核 capability/config 安全边界；
-- UI U-12 与 Ops-01 共享 `frontend/package.json`、`scripts/verify-project.ps1` 和测试，顺序固定为 Ops-01 先合并、U-12 后 rebase；
+- UI U-12 与 Ops-01 共享 `frontend/package.json`、`scripts/verify-project.sh` 和测试，顺序固定为 Ops-01 先合并、U-12 后 rebase；
 - U-01/U-05 在 UI 计划完成登记后可与 Ops-01～Ops-07 并行，因为写入范围分离；
 - Ops-08/09 发布候选验证期间避免并行改动构建、Docker 或 Tauri 制品文件。
 

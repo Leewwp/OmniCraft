@@ -13,7 +13,7 @@
 ## Cross-Plan Coordination
 
 - Execution source: this is part of the 2026-06-30 community feature plan family, derived from `docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md`. It is not a historical `task.json` task and not a 2026-05-30 Beta roadmap checkbox; executing it requires an explicit user request naming this plan or the community feature family.
-- Shared-file integration and migration order for the six community plans is: messages-notifications (`057`) -> browse-history (no migration) -> collections (`058`) -> content-series (`059`) -> source-linkage (`060`) -> collaboration-invites (`061`).
+- Shared-file integration and migration order for the six community plans is: messages-notifications (`057`) -> browse-history (no migration) -> collections (`058`) -> content-series (`059`) -> source-linkage (`061`) -> collaboration-invites (`063`).
 - `frontend/app/(protected)/messages/page.tsx`, `frontend/components/social/ChatWindow.tsx`, and `frontend/components/social/ConversationList.tsx` must already use the messages-notifications contract before this plan adds typed invite cards.
 - `frontend/components/content/ContentDetail.tsx` changes must land collections before content-series before source-linkage.
 - `frontend/components/studio/PublishForm.tsx` source fields from source-linkage must already be present before this plan adds the collaborator picker.
@@ -49,7 +49,7 @@ This plan also depends on the publish-form source fields from `2026-06-30-omnicr
 
 ### Backend
 
-- Create: `backend/migrations/061_collaboration_invites.sql`
+- Create: `backend/migrations/063_collaboration_invites.sql`
 - Create: `backend/internal/model/collab_invite.go`
 - Create: `backend/internal/repository/collab_invite_repo.go`
 - Create: `backend/internal/service/collab_invite_service.go`
@@ -90,7 +90,7 @@ This plan also depends on the publish-form source fields from `2026-06-30-omnicr
 ## Task 1: Add Config, Migration, And Models
 
 **Files:**
-- Create: `backend/migrations/061_collaboration_invites.sql`
+- Create: `backend/migrations/063_collaboration_invites.sql`
 - Create: `backend/internal/model/collab_invite.go`
 - Modify: `backend/internal/model/user.go`
 - Modify: `backend/internal/model/notification.go`
@@ -102,11 +102,11 @@ This plan also depends on the publish-form source fields from `2026-06-30-omnicr
 
 Run:
 
-```powershell
-Get-ChildItem backend\migrations | Sort-Object Name | Select-Object -Last 10 -ExpandProperty Name
+```bash
+ls backend/migrations/ | sort | tail -10
 ```
 
-Expected number is `061_collaboration_invites.sql` because source-linkage owns `060_add_source_fanwork_id.sql`. If `061_` is occupied by an unrelated migration at implementation time, stop and update all six community plans plus the source spec migration table before continuing.
+Expected number is `063_collaboration_invites.sql` because source-linkage owns `061_add_source_fanwork_id.sql` and `062_notification_broadcast_idempotency.sql` already exists（2026-08-03 编号修正：`060` 已被 `060_fix_search_config_fallback.sql` 占用）。If `063_` is occupied by an unrelated migration at implementation time, stop and update all six community plans plus the source spec migration table before continuing.
 
 - [ ] **Step 2: Write failing migration/model tests**
 
@@ -158,7 +158,7 @@ Do not add collaboration settings to `SaveOverride` or admin config. Expose only
 
 Run:
 
-```powershell
+```bash
 cd backend
 go test ./internal/model -run TestCollaborationInviteMigration -v
 go test ./config -run TestCollaborationConfig -v
@@ -209,7 +209,7 @@ Cover all exact outcomes:
 
 Run:
 
-```powershell
+```bash
 cd backend
 go test ./internal/service -run TestCollabInviteSend -v
 ```
@@ -281,7 +281,7 @@ Inside the database transaction, lock the `content_items` row and authoritativel
 
 Run:
 
-```powershell
+```bash
 cd backend
 go test ./internal/service -run TestCollabInviteSend -v
 ```
@@ -358,7 +358,7 @@ Do not start this scheduler as an anonymous temporary value; otherwise the proce
 
 Run:
 
-```powershell
+```bash
 cd backend
 go test ./internal/service -run "TestCollabInviteAccept|TestCollabInviteDecline" -v
 go test ./internal/pkg/scheduler -run TestCollabInviteExpiry -v
@@ -393,7 +393,7 @@ Also test `PATCH /api/v1/users/:id` can update `accept_collab_invites` for the c
 
 Run:
 
-```powershell
+```bash
 cd backend
 go test ./internal/handler -run TestCollabInvite -v
 ```
@@ -424,7 +424,7 @@ Map service errors to exact HTTP/error codes from the design spec.
 
 Run:
 
-```powershell
+```bash
 cd backend
 go test ./internal/handler -run TestCollabInvite -v
 ```
@@ -449,7 +449,7 @@ go test ./internal/handler -run TestCollabInvite -v
 
 Run:
 
-```powershell
+```bash
 rg -n "## Component: CollabInviteCard|## Component: CollabUserPicker|## Page: /settings|## Page: /messages" design/ui-spec.md
 ```
 
@@ -490,7 +490,7 @@ The switch belongs in its own "联合创作邀请" settings group described by `
 
 Run:
 
-```powershell
+```bash
 cd frontend
 node --import tsx --test tests/collab-invite-card.test.tsx tests/settings-collab-invites.test.tsx
 ```
@@ -510,7 +510,7 @@ node --import tsx --test tests/collab-invite-card.test.tsx tests/settings-collab
 
 Run:
 
-```powershell
+```bash
 rg -n "## Component: CollabUserPicker|## Page: /studio/publish/fanwork" design/ui-spec.md
 ```
 
@@ -543,7 +543,7 @@ Add visible strings under `collab.userPicker.*`.
 
 Run:
 
-```powershell
+```bash
 cd frontend
 node --import tsx --test tests/publish-collab-picker.test.tsx
 ```
@@ -588,7 +588,7 @@ Each invite request should use a 5-second client-side timeout. Execute at most t
 
 Run:
 
-```powershell
+```bash
 cd frontend
 node --import tsx --test tests/publish-collab-picker.test.tsx
 ```
@@ -605,7 +605,7 @@ node --import tsx --test tests/publish-collab-picker.test.tsx
 
 Run:
 
-```powershell
+```bash
 cd backend
 go test ./internal/service -run TestCollabInvite -v
 go test ./internal/handler -run TestCollabInvite -v
@@ -619,7 +619,7 @@ go build ./...
 
 Run:
 
-```powershell
+```bash
 cd frontend
 npm run test
 npm run lint
@@ -631,7 +631,7 @@ npx playwright test e2e/collab-invite-flow.spec.ts
 
 Because this plan changes `config.go`, migrations, and routes:
 
-```powershell
+```bash
 cd tools/doc-validator
 go run . --fix
 ```
@@ -655,9 +655,9 @@ go run . --fix
 
 - [ ] **Step 5: Commit when implementing**
 
-```powershell
-$routeOwner = if (Test-Path backend/internal/router/routes.go) { 'backend/internal/router/routes.go' } else { 'backend/internal/handler/routes.go' }
-git add -- backend/migrations/061_collaboration_invites.sql backend/internal/model/collab_invite.go backend/internal/model/user.go backend/internal/model/notification.go backend/internal/repository/collab_invite_repo.go backend/internal/repository/message_repo.go backend/internal/repository/content_repo.go backend/internal/service/collab_invite_service.go backend/internal/service/collab_invite_service_test.go backend/internal/handler/collab_invite.go backend/internal/handler/collab_invite_test.go backend/internal/handler/user.go backend/internal/handler/auth.go backend/internal/handler/public_config.go backend/internal/handler/public_config_test.go $routeOwner backend/internal/pkg/scheduler/collab_invite_expiry.go backend/internal/pkg/scheduler/collab_invite_expiry_test.go backend/config/config.go backend/config.yaml backend/cmd/server/main.go frontend/components/content/CollabUserPicker.tsx frontend/components/social/CollabInviteCard.tsx frontend/tests/collab-invite-card.test.tsx frontend/tests/settings-collab-invites.test.tsx frontend/tests/publish-collab-picker.test.tsx frontend/e2e/collab-invite-flow.spec.ts frontend/contexts/AuthContext.tsx "frontend/app/(protected)/settings/page.tsx" frontend/components/studio/PublishForm.tsx frontend/components/social/ChatWindow.tsx frontend/components/social/ConversationList.tsx frontend/messages/zh.json frontend/messages/en.json screenshots/community-collab-picker-desktop.png screenshots/community-collab-picker-mobile.png screenshots/community-collab-invite-pending.png screenshots/community-collab-invite-states.png screenshots/community-collab-invite-mobile.png screenshots/community-collab-settings-desktop.png screenshots/community-collab-settings-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md progress.txt
+```bash
+if [ -f backend/internal/router/routes.go ]; then routeOwner='backend/internal/router/routes.go'; else routeOwner='backend/internal/handler/routes.go'; fi
+git add -- backend/migrations/063_collaboration_invites.sql backend/internal/model/collab_invite.go backend/internal/model/user.go backend/internal/model/notification.go backend/internal/repository/collab_invite_repo.go backend/internal/repository/message_repo.go backend/internal/repository/content_repo.go backend/internal/service/collab_invite_service.go backend/internal/service/collab_invite_service_test.go backend/internal/handler/collab_invite.go backend/internal/handler/collab_invite_test.go backend/internal/handler/user.go backend/internal/handler/auth.go backend/internal/handler/public_config.go backend/internal/handler/public_config_test.go $routeOwner backend/internal/pkg/scheduler/collab_invite_expiry.go backend/internal/pkg/scheduler/collab_invite_expiry_test.go backend/config/config.go backend/config.yaml backend/cmd/server/main.go frontend/components/content/CollabUserPicker.tsx frontend/components/social/CollabInviteCard.tsx frontend/tests/collab-invite-card.test.tsx frontend/tests/settings-collab-invites.test.tsx frontend/tests/publish-collab-picker.test.tsx frontend/e2e/collab-invite-flow.spec.ts frontend/contexts/AuthContext.tsx "frontend/app/(protected)/settings/page.tsx" frontend/components/studio/PublishForm.tsx frontend/components/social/ChatWindow.tsx frontend/components/social/ConversationList.tsx frontend/messages/zh.json frontend/messages/en.json screenshots/community-collab-picker-desktop.png screenshots/community-collab-picker-mobile.png screenshots/community-collab-invite-pending.png screenshots/community-collab-invite-states.png screenshots/community-collab-invite-mobile.png screenshots/community-collab-settings-desktop.png screenshots/community-collab-settings-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md progress.txt
 git add -- frontend/lib/public-config.ts
 # Also add architecture.md if doc-validator --fix modified it during this task.
 git commit -m "Community 6: collaboration invites"
@@ -669,7 +669,7 @@ git commit -m "Community 6: collaboration invites"
 
 - [ ] Dependency on message-system correction is explicit.
 - [ ] Dependency on source-linkage `PublishForm.tsx` changes is explicit.
-- [ ] Migration number is `061`, after source-linkage `060`.
+- [ ] Migration number is `063`, after source-linkage `061`.
 - [ ] Anti-abuse chain lists all eight ordered stages and exact error codes.
 - [ ] Anti-abuse chain also rejects self/author/existing-contributor/unavailable-user/unavailable-content/capacity cases.
 - [ ] Redis keys and TTL are specified.

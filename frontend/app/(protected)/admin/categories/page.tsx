@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { FormEvent, useEffect, useRef, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
@@ -32,6 +32,10 @@ export default function AdminCategoriesPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
   const [showCreate, setShowCreate] = useState(false);
+  const [createAttempted, setCreateAttempted] = useState(false);
+  const [editAttempted, setEditAttempted] = useState(false);
+  const createNameRef = useRef<HTMLInputElement>(null);
+  const createSlugRef = useRef<HTMLInputElement>(null);
   const [createValues, setCreateValues] = useState({
     zone: "fanwork",
     level: "category",
@@ -73,8 +77,17 @@ export default function AdminCategoriesPage() {
     void loadCategories();
   }, [loadCategories]);
 
-  async function createCategory() {
-    if (!createValues.name_zh.trim() || !createValues.slug.trim()) return;
+  async function createCategory(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    setCreateAttempted(true);
+    if (!createValues.name_zh.trim() || !createValues.slug.trim()) {
+      if (!createValues.name_zh.trim()) {
+        createNameRef.current?.focus();
+      } else {
+        createSlugRef.current?.focus();
+      }
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -87,6 +100,7 @@ export default function AdminCategoriesPage() {
         sort_order: Number(createValues.sort_order),
       });
       setShowCreate(false);
+      setCreateAttempted(false);
       setCreateValues({ zone: "fanwork", level: "category", parent_id: "", name_zh: "", name_en: "", slug: "", sort_order: "0" });
       await loadCategories();
     } catch (e) {
@@ -98,7 +112,11 @@ export default function AdminCategoriesPage() {
   }
 
   async function updateCategory(id: number) {
-    if (!editValues.name_zh?.trim()) return;
+    setEditAttempted(true);
+    if (!editValues.name_zh?.trim()) {
+      document.getElementById(`category-edit-name-zh-${id}`)?.focus();
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -108,6 +126,7 @@ export default function AdminCategoriesPage() {
         sort_order: Number(editValues.sort_order),
       });
       setEditingId(null);
+      setEditAttempted(false);
       await loadCategories();
     } catch (e) {
       silentError(e, { component: 'AdminCategoriesPage', action: 'updateCategory' });
@@ -159,6 +178,7 @@ export default function AdminCategoriesPage() {
 
   function startEdit(cat: Category) {
     setEditingId(cat.id);
+    setEditAttempted(false);
     setEditValues({
       name_zh: (cat.name_i18n as Record<string, string>)?.zh || "",
       name_en: (cat.name_i18n as Record<string, string>)?.en || "",
@@ -169,12 +189,15 @@ export default function AdminCategoriesPage() {
 
   function cancelEdit() {
     setEditingId(null);
+    setEditAttempted(false);
     setEditValues({});
   }
 
   const parentOptions = parentCategories.filter(
     (cat) => cat.zone === createValues.zone && cat.level === "category",
   );
+  const createNameInvalid = createAttempted && !createValues.name_zh.trim();
+  const createSlugInvalid = createAttempted && !createValues.slug.trim();
 
   if (loading) {
     return (
@@ -202,17 +225,24 @@ export default function AdminCategoriesPage() {
         </Button>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
       {/* Create form */}
       {showCreate && (
-        <div className="rounded-md border border-border bg-card p-4 ">
+        <form className="rounded-md border border-border bg-card p-4" onSubmit={createCategory} noValidate>
           <h3 className="mb-3 text-sm font-semibold">{t('admin.categories.newCategory')}</h3>
+          {(createNameInvalid || createSlugInvalid) && (
+            <p id="category-create-error" role="alert" className="mb-3 text-sm text-destructive">
+              {[createNameInvalid ? t('admin.categories.nameRequired') : "", createSlugInvalid ? t('admin.categories.slugRequired') : ""]
+                .filter(Boolean)
+                .join(" ")}
+            </p>
+          )}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <label className="block text-xs font-medium mb-1">{t('admin.categories.colZone')} (zone)</label>
+              <label htmlFor="category-zone" className="block text-xs font-medium mb-1">{t('admin.categories.colZone')} (zone)</label>
               <Select
-                aria-label={t('admin.categories.colZone')}
+                id="category-zone"
                 className="px-2 py-1.5 text-sm"
                 value={createValues.zone}
                 onChange={(e) => setCreateValues((v) => ({ ...v, zone: e.target.value, parent_id: "" }))}
@@ -222,9 +252,9 @@ export default function AdminCategoriesPage() {
               </Select>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">{t('admin.categories.colLevel')} (level)</label>
+              <label htmlFor="category-level" className="block text-xs font-medium mb-1">{t('admin.categories.colLevel')} (level)</label>
               <Select
-                aria-label={t('admin.categories.colLevel')}
+                id="category-level"
                 className="px-2 py-1.5 text-sm"
                 value={createValues.level}
                 onChange={(e) => setCreateValues((v) => ({ ...v, level: e.target.value }))}
@@ -234,50 +264,59 @@ export default function AdminCategoriesPage() {
               </Select>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">{t('admin.categories.nameZh')}</label>
+              <label htmlFor="category-name-zh" className="block text-xs font-medium mb-1">{t('admin.categories.nameZh')}</label>
               <input
+                id="category-name-zh"
+                ref={createNameRef}
                 type="text"
-                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
                 value={createValues.name_zh}
                 onChange={(e) => setCreateValues((v) => ({ ...v, name_zh: e.target.value }))}
                 placeholder={t('home.hottest')}
+                aria-invalid={createNameInvalid}
+                aria-describedby={createNameInvalid ? "category-create-error" : undefined}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">{t('admin.categories.nameEn')}</label>
+              <label htmlFor="category-name-en" className="block text-xs font-medium mb-1">{t('admin.categories.nameEn')}</label>
               <input
+                id="category-name-en"
                 type="text"
-                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
                 value={createValues.name_en}
                 onChange={(e) => setCreateValues((v) => ({ ...v, name_en: e.target.value }))}
                 placeholder="Recommended"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">Slug</label>
+              <label htmlFor="category-slug" className="block text-xs font-medium mb-1">Slug</label>
               <input
+                id="category-slug"
+                ref={createSlugRef}
                 type="text"
-                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
                 value={createValues.slug}
                 onChange={(e) => setCreateValues((v) => ({ ...v, slug: e.target.value }))}
                 placeholder="recommended"
+                aria-invalid={createSlugInvalid}
+                aria-describedby={createSlugInvalid ? "category-create-error" : undefined}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">{t('admin.categories.sort')}</label>
+              <label htmlFor="category-sort" className="block text-xs font-medium mb-1">{t('admin.categories.sort')}</label>
               <Input
+                id="category-sort"
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
-                aria-label={t('admin.categories.sort')}
                 value={createValues.sort_order}
                 onChange={(e) => setCreateValues((v) => ({ ...v, sort_order: e.target.value.replace(/\D/g, '') }))}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">{t('admin.categories.parentId')}</label>
+              <label htmlFor="category-parent" className="block text-xs font-medium mb-1">{t('admin.categories.parentId')}</label>
               <Select
-                aria-label={t('admin.categories.parentId')}
+                id="category-parent"
                 className="px-2 py-1.5 text-sm"
                 value={createValues.parent_id}
                 onChange={(e) => setCreateValues((v) => ({ ...v, parent_id: e.target.value }))}
@@ -292,14 +331,14 @@ export default function AdminCategoriesPage() {
             </div>
           </div>
           <div className="mt-4 flex gap-2">
-            <Button size="sm" disabled={busy} onClick={() => void createCategory()}>
+            <Button type="submit" size="sm" disabled={busy}>
               {busy ? t('admin.categories.creating') : t('admin.categories.create')}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowCreate(false)}>
+            <Button type="button" size="sm" variant="outline" onClick={() => { setShowCreate(false); setCreateAttempted(false); }}>
               {t('common.cancel')}
             </Button>
           </div>
-        </div>
+        </form>
       )}
 
       {categories.length === 0 ? (
@@ -338,16 +377,20 @@ export default function AdminCategoriesPage() {
                         />
                       )}
                       <button
-                        className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-30"
+                        type="button"
+                        className="[@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 text-xs text-muted-foreground hover:text-foreground disabled:opacity-30"
                         disabled={idx === 0}
                         onClick={() => void moveUp(idx)}
+                        aria-label={t('admin.categories.moveUp', { name: (cat.name_i18n as Record<string, string>)?.zh || cat.slug })}
                       >
                         ▲
                       </button>
                       <button
-                        className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-30"
+                        type="button"
+                        className="[@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 text-xs text-muted-foreground hover:text-foreground disabled:opacity-30"
                         disabled={idx === categories.length - 1}
                         onClick={() => void moveDown(idx)}
+                        aria-label={t('admin.categories.moveDown', { name: (cat.name_i18n as Record<string, string>)?.zh || cat.slug })}
                       >
                         ▼
                       </button>
@@ -358,10 +401,14 @@ export default function AdminCategoriesPage() {
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
                           <input
+                            id={`category-edit-name-zh-${cat.id}`}
                             type="text"
-                            className="w-20 rounded border border-border bg-background px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                            className="w-20 rounded border border-border bg-background px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
                             value={editValues.name_zh || ""}
                             onChange={(e) => setEditValues((v) => ({ ...v, name_zh: e.target.value }))}
+                            aria-label={`${t('admin.categories.nameZh')}: ${(cat.name_i18n as Record<string, string>)?.zh || cat.slug}`}
+                            aria-invalid={editAttempted && !editValues.name_zh?.trim()}
+                            aria-describedby={editAttempted && !editValues.name_zh?.trim() ? `category-edit-error-${cat.id}` : undefined}
                           />
                           <input
                             type="text"
@@ -369,7 +416,13 @@ export default function AdminCategoriesPage() {
                             value={editValues.name_en || ""}
                             onChange={(e) => setEditValues((v) => ({ ...v, name_en: e.target.value }))}
                             placeholder="EN"
+                            aria-label={`${t('admin.categories.nameEn')}: ${(cat.name_i18n as Record<string, string>)?.zh || cat.slug}`}
                           />
+                          {editAttempted && !editValues.name_zh?.trim() && (
+                            <span id={`category-edit-error-${cat.id}`} role="alert" className="sr-only">
+                              {t('admin.categories.nameRequired')}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -378,6 +431,7 @@ export default function AdminCategoriesPage() {
                           className="w-24 rounded border border-border bg-background px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
                           value={editValues.slug || ""}
                           onChange={(e) => setEditValues((v) => ({ ...v, slug: e.target.value }))}
+                          aria-label={t('admin.categories.slugFor', { name: (cat.name_i18n as Record<string, string>)?.zh || cat.slug })}
                         />
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">{cat.zone}</td>

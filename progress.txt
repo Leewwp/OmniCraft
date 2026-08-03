@@ -1,649 +1,296 @@
 # OmniCraft 万象工坊 - 开发进度日志
 
-> **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-07-23）。
+> **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
-## [2026-07-02] - Community browse-history: review repair
-
-### What was done:
-- Verified `codex/community/browse-history` against the community design spec, plan file, UI spec, and current validation gates.
-- Fixed `/history` so it initializes `content_type`, `start_date`, and `end_date` from URL query parameters.
-- Added inline validation for invalid date ranges (`start_date > end_date`) so the page does not send an invalid request.
-- Fixed mobile history filter chips so labels stay on one line and scroll horizontally instead of wrapping into vertical text.
-- Added focused frontend tests for URL-query initialization and invalid date range behavior, plus localized error text.
-
-### Testing:
-- `node --import tsx --test tests/history-page.test.tsx`: passed.
-- `npm run test`: passed.
-- `npm run lint`: passed.
-- `npm run build`: passed.
-- Prior review verification in this session also passed backend `go test ./...`, `go vet ./...`, `go build ./...`, focused browse-history backend tests, and `tools/doc-validator --fix`.
-
-### Notes:
-- Existing screenshot artifacts remain under `screenshots/community-browse-history-*.png`; this repair changes query/date validation behavior and does not alter the primary layout.
-- `task.json` and Beta roadmap checkboxes were not modified.
-
-## [2026-07-02] - Community Docs: Review Follow-up Repairs
+## [2026-08-03] - Task U-11 Frontend: Server Capability Consumers（完成）
 
 ### What was done:
-- Reviewed the attached community documentation audit against the current `codex/community-integration` branch.
-- Repaired true documentation gaps in the community development guide, community design spec, and six community plan files.
-- Added explicit guidance for migration numbering checks, `tsx` focused-test readiness, focused gates, BLOCKED output, rollback flow, shared error-code registry, UI spec coverage, performance expectations, migration rollback comments, pagination defaults, compatibility windows, and concurrency/transaction edge cases.
+- AuthContext 新增 `capabilities`（`can_interact` + `interaction_denial_reason`）：login/`auth/me`/`refreshUser` 提取，缺失时 fail closed 为 `AUTH_STATUS_UNAVAILABLE`；登出与会话失败重置；导出 `interactionDenialKey()` 将后端枚举映射为本地化拒绝原因 key（不暴露数字阈值）。
+- ReactionBar 以 capability 取代 `user.reputation < 3` 门控；举报由原生 `window.prompt` 改为 ConfirmModal 原因输入（requireReason），成功关闭、取消不提交、失败弹窗保持并 Toast 错误；三按钮（赞/踩/举报）共用一个本地化拒绝原因 title。
+- CommentSection 评论输入与单条评论点赞/点踩接入 `can_interact`，占位符/禁用使用本地化拒绝原因。
+- DownloadButton 对已登录无互动能力用户禁用下载并显示本地化原因（游客保留后端 401→登录跳转流）。
+- judge/queue 与 judge/exam 以 `capabilities.can_interact` 取代 `user!.reputation < 3`，banner 显示本地化拒绝原因，exam 在 INSUFFICIENT_REPUTATION 时附加恢复提示。
+- rehab 课程完成后调用 `refreshUser()`，与后端 cache 失效配合使互动能力即时恢复。
+- 消息新增 `capabilities` namespace（5 个拒绝原因 + 恢复提示）与 `social.reportDialogTitle/reportFailed`，删除硬编码 ">= 3" 的 `judge.lowReputation/lowReputationExam`、`social.lowReputation/cannotComment` 死键，zh/en 全量对齐。
+- 测试：`interaction-capabilities.test.tsx` 8 项（fail-closed、能力透传、拒绝原因、禁用状态、举报成功/取消/失败、源码契约禁止阈值与原生弹窗）；`destructive-dialogs.test.tsx` 将 ReactionBar 移入无原生弹窗审计；`sheet-music-viewer-download.test.tsx` 补 AuthProvider/localStorage 与 auth fetch mock 路由。
 
 ### Testing:
-- Verified changes with targeted `git diff` and `rg` checks across the community docs.
-- No code tests were run because this task only changes Markdown documentation.
+- RED：`interaction-capabilities` 首次运行因 AuthContext 缺 `capabilities` 按预期失败（同时发现测试环境缺全局 `localStorage`，在测试内补齐）。
+- 聚焦 8/8 PASS；全量 `npm test` 156/156 PASS（修复 3 个 DownloadButton 相关测试的 provider 缺失）。
+- `npm run lint` PASS；`npm run build -- --webpack` PASS；i18n parity PASS；`git diff --check` PASS；`rg window\.(confirm|prompt)` 生产代码 0 处；`rg reputation < 3` 仅剩 admin/users 徽章展示（不在 U-11 范围）。
+- 后端（无改动）`go build/vet/test ./...` 全 PASS。
+- ego-browser：管理员登录后验证 `/content/47` ReactionBar 可互动、举报弹 ConfirmModal 并成功提交（按钮变"已举报"）、`/judge/queue`、`/judge/exam`、`/rehab` 正常渲染无 blocked banner；375px `/content/47` 无横向溢出。截图在 `screenshots/ui-polish/u-11/`。
 
 ### Notes:
-- Several audit findings were already covered locally or were terminology mismatches; most notably `content_type` is a content format enum and not the public category taxonomy from `AGENTS.md`.
-- `task.json` and Beta roadmap checkboxes were not modified.
+- `design/ui-spec.md` 与 judge 页面章节仍保留"信誉分 >= 3"文案，属文档级滞后（视觉契约 disabled+提示未变，能力来源换为服务器）；未修改 ui-spec（不在 U-11 预约范围），留待后续计划处理。
+- `frontend/package-lock.json` 既有 npm 元数据脏改动继续保留不提交；`codex/u11-frontend` 分支无额外工作。
+- U-11 计划全部 checkbox 已勾选；U-12 依赖已满足。
 
-## [2026-06-29] - Task P3-1/P3-2: Implement doc-validator core tool
+## [2026-08-01] - Task ENV-MAC-01: macOS 本地 Web 开发环境初始化
 
 ### What was done:
-- Created tools/doc-validator/ Go CLI tool with --fix and --check modes
-- rules/config_sync.go: Parse config.go with Go AST, extract 90+ config fields with mapstructure tags, flatten nested structs to dot paths, generate markdown table for architecture.md section 7
-- rules/schema_sync.go: Parse 56 migration SQL files, extract CREATE TABLE statements with columns/constraints/references, generate documentation tables for section 4
-- rules/route_sync.go: Parse routes.go with Go AST, extract 130+ routes with method/path/handler, generate route table for section 3.2
-- rules/token_refs.go, rules/cross_refs.go: Stub implementations (full in Task 16)
-- Added AUTO-GENERATED HTML comment markers to architecture.md around sections 3.2, 4, and 7
-- README.md with usage and check descriptions
+- 审计 Apple Silicon macOS 开发环境；确认 Docker Desktop/Compose、Git、Xcode Command Line Tools、Node/npm/pnpm 可用。
+- 安装并配置 Go 1.25.12（官方 SHA-256 校验）、Temurin JDK 21.0.12 LTS 与 Apache Maven 3.9.16；更新 `~/.zprofile` 的 Homebrew、Go、Java 与 Maven 环境变量，并配置 `GOPROXY=https://goproxy.cn,direct` 规避当前网络的 Google IPv6 超时。
+- 通过 Docker Compose 初始化并启动 PostgreSQL 16.14 + pgvector 0.8.6 与 Redis 7.4.10；全部数据库迁移成功执行。
+- 安装前后端依赖并启动 Go API（`:8080`）与 Next.js dev server（`:3000`）。
 
 ### Testing:
-- go build ./...: passed
-- go vet ./...: passed
-- go run . --fix: Regenerated all three auto-generated sections
-- go run . --check: "All checks passed" (6 checks)
-- Second go run . --fix: "no changes needed" (idempotent)
-- go run . --check after second fix: still "All checks passed"
+- 新登录 zsh 中 `go version`、`java -version`、`mvn --version`、`brew`、`git`、`docker compose`、`node`、`npm`、`pnpm` 均可用。
+- Backend: `go test ./...`, `go build ./...`, `go vet ./...` PASS；`/healthz` 返回 `status=ok`。
+- Frontend: `npm run lint`, `npm run test:unit` (112/112), `npm run build` PASS。
+- ego-browser PASS：首页渲染、浏览器跨端口访问后端健康接口、`/original` 客户端导航；截图保存为 `screenshots/2026-08-01-local-env-home.png`。
 
 ### Notes:
-- Config parsing uses Go AST (go/ast, go/parser) for accurate struct field extraction
-- Route parsing walks AST call expressions to find Gin .GET/.POST/.PUT/.PATCH/.DELETE calls
-- Schema parsing uses regex-based SQL extraction with parenthesized block matching
-- Token refs, cross refs, and expired docs checks are stubs for Task 16
-- All tool logic uses only Go standard library (no external dependencies)
+- 本地 Web 调试已就绪并保持服务运行。OSS 配置不完整，因此上传/预签名相关功能仍需真实阿里云配置；未修改生产功能开关。
+- `npm install` 报告 13 个依赖漏洞与 npm 11 的安装脚本审批提示；未执行会改变依赖图的 `npm audit fix` 或 `npm approve-scripts`。
 
-## [2026-06-29] - 文档治理：TT-001 catch-up — Task 151-169 progress.txt 记录补全
+## [2026-08-01] - Gate P-01: 用户批准，IP 库选定方案 B（Indigo 精修）
 
 ### What was done:
-- 补全 Task 151-169 的 progress.txt 记录缺口
-- 确认以下任务已完成 (passes: true) 但此前未在 progress.txt 中单独记录：
-  Task 151: 全局 err.Error() 脱敏
-  Task 152: 信誉分 < 3 权限限制补全 + 信誉分规则实现
-  Task 153: Auth 中间件 Redis fallback + Agent usage-guide HTTP 方法修复
-  Task 154: 数据库 Schema 修复 — Comment 缺失列 + 索引补全 + 字段类型对齐
-  Task 155: 中文全文检索修复 + 标签变更触发搜索索引更新
-  Task 156: Redis ZSet 内存回收 + 硬编码 TTL 迁移到配置 + Goroutine 安全补全
-  Task 157: Config override 环境变量一致性 + Docker 健康检查 + OptionalAuth 补全
-  Task 158: 前端 Shadow 规范修复 + OriginalSidebar 硬编码搜索词迁移
-  Task 159: 集成验证 — 安全 + 数据库 + 搜索修复全流程回归测试
-  Task 160: 配置结构补全 — AgentConfig/PublishConfig struct + .env.example 补全
-  Task 161: Redis key 规范化 + 推荐引擎硬编码参数配置化
-  Task 162: Docker/Nginx 加固 + SSL 证书配置
-  Task 163: pg_trgm GIN 索引 + 计算列排序优化
-  Task 164: CSRF rand.Read 检查 + Agent ChatStream 孤立记录清理 + 维度不匹配日志
-  Task 165: 前端 Rehab 子组件提取 + FollowerAnalytics 命名对齐 + console 清理
-  Task 166: E2E 残留 API 修复 — reactions 端点 + my/contents 路由 + stats NULL 处理
-  Task 167: 数据库迁移注释补充
-  Task 168: 集成验证 — 第二轮审查修复全流程回归测试
-  Task 169: 代码审查 — Spec Task 151-168 全面系统性审查
+- 用户明确批准 P-01：认可当前原型整体效果，IP 库在 A/B/C 三变体对比中选择方案 B（Indigo 精修，定义于 `frontend/app/prototype-ui-polish/ip-library-b.css`）。
+- 勾选计划 `2026-07-18-omnicraft-ui-polish-hardening.md` 的 Gate P-01 全部 21 个复选框；更新计划状态头、评审记录 `docs/working/2026-07-25-ui-prototype-review.md` §7（新增 2026-08-01 批准结论）与 `AGENTS.md` 活计划注册表（余项改为 U-01→U-02B→U-03→U-06→U-07→U-08→U-09→U-10→U-11→U-12）。
+- 确定任务分工：前端任务（U-01/U-02B/U-03/U-06~U-10/U-12 及 U-11 前端部分）由 opencode 执行；后端任务（U-11 后端能力、Production Readiness Ops-01~08）由 codex 执行。
+- 使用 to-spec 流程将批准后的执行计划固化为 spec 并发布到 GitHub issue（ready-for-agent）。
 
 ### Testing:
-- 不适用（本记录为治理审计，不涉及功能改动）
+- 文档与跟踪状态更新；未改动生产代码。P-01 解阻 U-01。
 
 ### Notes:
-- 上述任务在 task.json 中均已标记 passes: true，但 progress.txt 未记录执行详情
-- 历史任务精确执行日期不可追溯，以治理审计日期 (2026-06-29) 标注
-- 如需查看各任务完整 scope，请参考 task.json 中对应 ID 的 description 和 steps 字段
+- 生产 `/ips` 固定 156px 卡宽 + 弹性轨道缺陷由 U-09 回写方案 B 修复；生产 `/`、`/original`、`/ip/[ipId]` 为已接受视觉基线。
+- 本次收尾复核 `npm run lint` 与 `git diff --check` 通过；冗余 `npm run build` 在本机进入长时间未返回状态，正常终止请求因审批服务中断未获执行，因此沿用 2026-07-29 已记录的同一原型完整 build/browser 证据，不将本轮构建记为通过。
 
-## [2026-06-29] - Task 9: Update CLAUDE.md and AGENTS.md with document authority table and rules
+## [2026-08-01] - Task U-01: 文件提交与 light-lane 分支准备（阻塞）
 
 ### What was done:
-- Inserted document authority quick-reference table before "## Key Rules" in both CLAUDE.md and AGENTS.md
-- Inserted file naming conventions section after project structure in both files
-- Added Rule 3 at end of Step 1: document conflict resolution guideline
-- Added Rule 1 at end of Step 3: doc-validator / manual confirmation rule for config/migrations/routes changes
-- Added Rule 2 before Step 6: new .md file naming and placement rule
+- 核对当前 `opencode/p01-ui-prototype` 工作区，将 P-01 原型/批准跟踪文件与无关的真实素材、seed 脚本、空任务草稿区分开；计划仅精确暂存 P-01 文件。
+- 复核 `npm run lint`、`git diff --check` 通过，并确认 PostgreSQL/Redis 容器均 healthy。
 
 ### Testing:
-- Verified all 5 insertions in CLAUDE.md: authority table, naming conventions, 3 agent rules
-- Verified all 5 insertions in AGENTS.md: same changes mirrored
+- `npm run lint`: PASS。
+- `git diff --check`: PASS。
+- `docker compose ps --format json`: PostgreSQL/Redis healthy。
 
 ### Notes:
-- Document authority table references docs/superpowers/specs/2026-06-29-omnicraft-documentation-governance-design.md §4 as full authority
-- File naming conventions require new .md files in docs/working/ with YYYY-MM-DD-<scope>-<type>.md format
-- This is a pure documentation task (no build/test needed)
+- 原阻塞原因：沙箱对 `.git` 仅有读取权限；精确 `git add` 的首次升级请求因自动审批服务网络流中断被拒绝，并要求不得重试/绕过。
+- 2026-08-01 用户在获知风险后明确授权重新申请 Git 写权限并完成提交、建分支；阻塞已解除。继续精确暂存/提交 P-01 文件，保留无关未跟踪文件，从最新 `main` 建立 `opencode/ui-polish-u01`。
 
-## [2026-06-29] - Task 12: Fix FS-001~003 + CF-001 — Feature spec gaps and config alignment
+## [2026-08-01] - Maintenance N16-01: Next 16 Page 构建契约修复
 
 ### What was done:
-- FS-001 (CLAUDE.md): Added implementation status note to collections section — `> **实现状态**: 设计已确认（DEC-010），代码尚未实现。collections 和 collection_items 表 DDL 见 architecture.md §4.13。`  — architecture.md §4.13 already had this note, CLAUDE.md was missing it
-- FS-002 (CLAUDE.md): Fixed search_suggestions description — was incorrectly referencing a `search_suggestions` table that does not exist. Replaced with accurate description based on architecture.md §15.5: suggestions come from tags/content_items prefix matching, trending from Redis hot_rank
-- FS-003 (CLAUDE.md): Fixed judge error_rate_window value — was incorrectly stating `N > 10`, changed to `N >= 10 (从 config.yaml > judge.error_rate_window 读取)` to match config.yaml's `error_rate_window: 10`
-- CF-001: Verified features registry is consistent — all three flags (`payment_enabled`, `creator_support_enabled`, `desktop_deploy_enabled`) exist in backend/config.yaml, architecture.md §7, Go config struct, and frontend code with matching defaults. No changes needed.
+- 将 settings/register/forgot-password 的测试用命名导出原样迁移到独立组件，避免 Next 16 Page 模块拒绝额外导出。
+- 将 collections/series/user collections 三个动态 Page 的 props 收紧为 Promise-only，并同步直接渲染测试；不改变页面视觉、业务、API、i18n 或后端。
+- 在 UI Polish 计划中登记为独立 light-lane 前置维护任务，要求与 U-01 分开提交。
 
 ### Testing:
-- No code changes — documentation alignment only
-- Verified all three CLAUDE.md changes via Read
+- 聚焦测试 22/22 PASS；全量 `npm test` 112/112 PASS；`npm run lint` PASS。
+- `npm run build -- --webpack` PASS，生成 62 个页面。
 
 ### Notes:
-- config.yaml is authoritative for runtime defaults per document authority table
-- architecture.md §4.13 already had correct implementation status note for collections — CLAUDE.md was out of sync
-- No `search_suggestions` migration table exists; suggestions are computed from prefix matching on tags and content_items titles
+- 默认 Turbopack build 在本机优化阶段无输出挂起；用户明确接受不影响其他配置/任务的可用构建方式，因此采用 Webpack production build 作为本任务证据。
 
-## [2026-07-01] - Community messages-notifications: completed
+## [2026-08-01] - Task U-01: Indigo 设计权威与 CSS token（完成）
 
 ### What was done:
-- Added DM cold-start protection, stable message DTO contracts, and `/api/v1/messages` frontend usage.
-- Added migration 057 for `notifications.channel = broadcast`.
-- Added broadcast notification repository/service support with active-recipient filtering, transactional batch creation, and safe admin audit metadata.
-- Added `POST /api/v1/admin/notifications/broadcast` and the admin broadcast page with Markdown editor, safe preview, confirmation modal, and localized toasts.
-- Updated `/messages` notification/message UI with broadcast styling, safe Markdown rendering, valid-target navigation, stable unread counts, and mobile chat behavior.
-- Added focused backend/frontend tests, mocked Playwright verification, screenshots, and generated `architecture.md` route documentation.
+- 从最新 `main` 创建 `opencode/ui-polish-u01`；原型 throwaway 未带入。登记 U-01 权威文件、跟踪文件及 build-unblock 路径预约。
+- 将 P-01 §3 批准决策写入 `design/design-system.md`：Indigo light/dark 色板、accent-hover/border-strong/border-destructive、12/14/16/20/24 字阶、4px 基线间距、3/4/8/12/full 圆角、三档 elevation 及 reduced-motion 规则。
+- 将 `frontend/app/globals.css` 的字体中文回退、精确圆角、光暗色 token、accent-hover、强/危险边框和三档 elevation 对齐权威表。
+- 新增 `frontend/scripts/ui-governance/check-tokens.mjs` 与测试，解析权威 Markdown 表、校验 light/dark emitted values、圆角/字体/elevation、未定义 var 引用。
+- 双轨审查发现宪法/UI 规格仍保留旧“全局无阴影”最高权威；按用户已批准的 P-01 方向将宪法正式修订为 v2.0.0，并同步三份 Specify 模板及 `design/ui-spec.md` 的全局 token/层级规则。
+- 增加全局 reduced-motion fallback：停止 pulse/浮层 enter-exit 动画、压缩动画/过渡时长，并取消 hover/group-hover scale。
+- `progress.txt` 超过 64KB 后完成月度轮换，历史条目归档至 `docs/archive/progress/2026-06-29-to-2026-07-29.md`。
 
 ### Testing:
-- Backend: `go test ./...`, `go vet ./...`, `go build ./...` all passed.
-- Frontend: `npm run test`, `node --import tsx --test tests/messages-components.test.tsx`, `node --import tsx --test tests/admin-notifications-page.test.tsx`, `npm run lint`, and `npm run build` all passed.
-- Doc sync: `cd tools/doc-validator && go run . --fix` passed and updated `architecture.md` with the admin broadcast route.
-- Browser verification: used Playwright MCP against local dev server with mocked APIs; verified admin broadcast form, Markdown preview, ConfirmModal Esc/confirm flow, recipient-count toast, broadcast notification rendering, mobile chat, and `DM_REPLY_REQUIRED`; saved four screenshots under `screenshots/community-messages-notifications-*.png`.
+- Red 阶段：使用当前 validator 对 base `fa95a35` 的原始 `globals.css` 验证，明确失败于 accent-hover/border/radius/font/elevation 共 18 个不匹配；实现后 token checker 测试 3/3 通过。
+- `npm run lint`: PASS；全量 `npm test`: 112/112 PASS。
+- `npm run build -- --webpack`: PASS，生成 62 个页面。
+- 浏览器（localhost:3001）验证 home/search/admin/studio 的 light/dark、主题切换、无横向溢出和主题前后几何稳定；8 张桌面截图及 2 张 home mobile 截图位于 `screenshots/ui-polish/u-01/`。管理员使用 `admin@omnicraft.com`，Studio 使用 `seed-real-001@omnicraft.local`，均为用户明确授权的本地测试账号。
+- admin 主体/侧栏 light↔dark 几何一致（main 1060×441，sidebar 220×510）；studio 主体/侧栏一致（main 1212×848，sidebar 228×848）。
 
 ### Notes:
-- `npm run test:e2e -- messages-notifications.spec.ts` could not start because existing `frontend/playwright.config.ts` waits for backend `/health`, while the backend exposes `/healthz`; browser verification was completed with Playwright MCP instead.
-- This is Mode C community plan work. No `task.json` or Beta roadmap checkbox was changed.
+- 用户已明确接受 Webpack production build，并授权向 localhost 提交测试账号；两项原阻塞均已解除。
+- 375px 首页存在既有窄轨逐字换行问题，U-01 未改布局属性，归 U-09；真实 seed 图片的静态父级/LCP 开发警告同样不在 U-01 范围。
+- 第一轮双轨审查发现 Standards 4 / Spec 6 项并全部修复；最终 Standards 与 Spec 复审均 PASS，无剩余问题。
+- 最终提交按契约隔离：宪法/GOV-01 `79c858f`、Next 16 前置修复 `8b35eee`、U-01 token 实现 `29ce01f`；throwaway 原型与无关 seed/素材/草稿未混入。
+- 最终浏览器复核重新生成 admin IP 管理与 Studio 数据概览明暗主题证据；全部 10 张文件均为真实 PNG。admin 主体/侧栏为 1060×441 / 220×510，Studio 为 1212×848 / 228×848，1440×900 下均无横向溢出且明暗几何一致。
 
-## [2026-07-01] - Community messages-notifications: review repair
+## [2026-08-02] - Task U-02B: 批准视觉应用到共享 UI 原语（完成）
 
 ### What was done:
-- Fixed the final review finding where concurrent first DMs for a new sender/recipient pair could create duplicate conversations and bypass the cold-start reply guard.
-- Added a Postgres concurrency regression test that aligns concurrent conversation creation attempts and requires exactly one successful first DM.
-- Added transaction-scoped Postgres advisory locking before conversation lookup/creation, with an in-process pair lock fallback for non-Postgres tests/dev.
-- Addressed review follow-up by holding the non-Postgres fallback mutex around the full transaction and replacing the optional second-arrival race probe with an advisory-lock wait test against `pg_locks`, filtered to the exact pair advisory key.
+- 将 P-01 方案 B Indigo 精修的按钮、Badge、Card、表单、Dropdown、Tabs、Separator、Loading、EmptyState、Toast 与 ConfirmModal 视觉契约写回 `design/ui-spec.md`。
+- 将 U-01 的精确圆角、语义色、focus ring、三档 elevation、coarse-pointer 触控目标与 reduced-motion 规则应用到全部计划内共享原语，同时保留 U-02A 的行为与无障碍保证。
+- 新增 `ui-primitives-visual-contracts.test.tsx`，覆盖动作、表单、卡片、浮层、四类 Toast 状态、Skeleton zone/count、Tabs/Separator 及视觉权威章节。
+- 双轴审查修复 Button 禁用光标、破坏性 Badge/Dropdown token、Dropdown 位移动画、Tabs 背景/激活字重及缺失的 Tabs/Separator 防回归测试；最终 Standards 无硬违规，Spec 问题全部闭环。
 
 ### Testing:
-- Confirmed the new regression test failed before the fix: 5 successful concurrent sends instead of 1.
-- `go test ./internal/repository -run "TestSendWithColdStartGuard" -count=1 -v -timeout=120s` passed.
-- `go test ./internal/repository -count=1 -v -timeout=120s` passed.
-- `go test ./internal/handler -run TestMessageColdStart -count=1 -v -timeout=120s` passed.
-- `go test ./internal/handler -run TestAdminNotificationBroadcast -count=1 -v -timeout=120s` passed.
-- `go test ./internal/service -run TestBroadcast -count=1 -v -timeout=120s` passed.
-- Backend gates passed: `go test ./...`, `go vet ./...`, `go build ./...`.
-- Frontend gates passed: `npm run test`, `node --import tsx --test tests/messages-components.test.tsx`, `node --import tsx --test tests/admin-notifications-page.test.tsx`, `npm run lint`, `npm run build`.
-- Doc sync passed: `cd tools/doc-validator && go run . --fix` reported no changes needed.
+- 聚焦 U-02A/U-02B：11/11 PASS；全量 `npm test`：118/118 PASS；`npm run lint`：PASS。
+- `npm run build -- --webpack`：PASS，生成 62 个页面；`git diff --check`：PASS；`backend/` 无差异。
+- 浏览器验证 375/768/1024/1440、light/dark、键盘 focus、Dropdown、ConfirmModal、EmptyState、Skeleton；375×812 登录页无横向溢出且输入字号 16px。6 张代表截图位于 `screenshots/ui-polish/u-02b/`。
 
 ### Notes:
-- The repair keeps Mode C tracking only; no `task.json` or Beta roadmap checkbox was changed.
+- `screenshots/` 由仓库忽略，证据保留在本地但不进入提交。
+- Input/Select/Textarea 的视觉类存在可接受的局部重复；依据 surgical changes 规则未引入额外抽象。
+- 未修改后端、throwaway 原型、真实 seed 素材或无关任务草稿；U-03 依赖已满足并转为可预约。
 
-## [2026-07-02] - Community browse-history: completed
+## [2026-08-02] - Task U-03: 统一公共、Studio 与 Admin 导航壳层（完成）
 
 ### What was done:
-- Added `browse_history.retention_days` and `cleanup_time` config mapping/defaults and synced generated config docs in `architecture.md`.
-- Enhanced browse history repository and handler contracts with config-driven retention, `items` + legacy `history` compatibility, `content` + legacy `content_item` aliases, content-type/date filters, selected-delete and clear-all semantics, and unavailable-content placeholders.
-- Added daily browse-history cleanup scheduler using Asia/Shanghai wall-clock time, `time.AfterFunc` self-rescheduling, and graceful shutdown `Stop()`.
-- Refactored `/history` UI with filter chips, date range fields, batch delete, clear-all confirmation, retained data on refresh errors, localized copy, and gray non-clickable unavailable records.
-- Added focused backend and frontend tests for config, repository, handler, scheduler, and history page behavior.
+- 新增共享 `useSidebarCollapse`，仅统一折叠状态与 localStorage 持久化；公共、Studio、Admin 使用 `sidebarCollapsed`、`studio_sidebar_collapsed`、`admin_sidebar_collapsed` 三个独立键并保留各自信息架构。
+- Header 对齐 52px、z-40、Indigo token 与 2px 选中下划线；移动菜单改为 85vw 左抽屉并移出 Header stacking context，避免页面 sticky 工具栏穿透。
+- Studio/Admin 桌面侧栏统一为 228/48px，移动端使用 85vw 抽屉；精确采用 ≤700px / ≥701px 断点。Studio 收起态补齐 300ms 可见 tooltip、分组分隔线与 3px 选中指示。
+- 新增导航壳层合同测试，覆盖独立持久化键、原生按钮语义、宽度、Header 层级、移动抽屉、tooltip/title、Esc 与响应式契约。
 
 ### Testing:
-- Focused: `go test ./config -run TestBrowseHistoryConfig -v`; `go test ./internal/repository -run TestBrowseHistory -v`; `go test ./internal/handler -run TestBrowseHistory -v`; `go test ./internal/pkg/scheduler -run TestBrowseHistoryCleanup -v`; `node --import tsx --test tests/history-page.test.tsx`.
-- Full gates: `go test ./...`; `go vet ./...`; `go build ./...`; `npm run test`; `npm run lint`; `npm run build`.
-- Doc sync: `cd tools/doc-validator && go run . --fix` passed and updated `architecture.md` config mapping.
-- Browser verification: logged into local dev as `admintest@omnicraft.com`, verified `/history` rendered retained items plus unavailable placeholder, `content_type=video` filtering, same-day `start_date`/`end_date` query behavior, selected delete, clear-all empty state, and saved desktop/mobile screenshots under `screenshots/community-browse-history-*.png`.
+- Red 阶段：聚焦测试先因缺少 `use-sidebar-collapse` 模块按预期失败；实现后 U-03 聚焦测试 2/2 PASS。
+- `npm test`: 120/120 PASS；`npm run lint`: PASS；`npm run build -- --webpack`: PASS（62 个页面）；`git diff --check`: PASS；`backend/` 无差异。
+- 浏览器验证公共/Studio/Admin 在 375/768/1024/1440 CSS px 无横向溢出，Header 52px，桌面侧栏 228/48px，持久化 reload 生效；移动抽屉 85vw、dialog 语义、Esc 关闭均通过。额外验证 700/701px 边界与 Studio tooltip 不被裁剪。
+- 截图证据位于 `screenshots/ui-polish/u-03/`，包含三套壳层的四档宽度及 drawer/collapsed 代表状态。
 
 ### Notes:
-- Mode C tracking only: no `task.json` or Beta roadmap checkbox was changed.
-- Subagent review/implementation attempts were made, but the local subagent service repeatedly returned `503 Service Unavailable`; controller completed local review and verification gates instead.
+- 双轴审查发现并修复 701px 断点、Studio tooltip/选中线/分组线、公共侧栏语义与抽屉 stacking context；最终 Standards 无硬违规。
+- P-01 原型中的独立生产 `/agent` 导航入口按 `AGENTS.md` 注册表由 Web Agent Productization 计划独占，U-03 不提前创建 404 路由或修改其完成状态。
+- `frontend/package-lock.json` 的 npm 元数据变化及 seed 素材/脚本/任务草稿均保持在 U-03 精确暂存之外；未修改后端。
 
-## [2026-07-03] - Community collections: completed
+## [2026-08-02] - Task U-06: 详情级加载、空态与图标状态（完成）
 
 ### What was done:
-- Added migration 058 plus collection models, repository, service, and `/api/v1/collections` handlers for zone-scoped collection folders, default original/fanwork collections, item notes, public/private visibility, owner-only mutations, and fixed `contains_item` list response shape.
-- Preserved old `/favorites` rollback-window behavior with transactional double-write/delete against default collections, default collection creation on registration, and recommendation profile compatibility using a de-duplicated favorites + collection_items union.
-- Added `CollectionPicker`, `CollectionCard`, `CollectionInfoCard`, `ContentTypeFilter`, public `/collections/[id]`, public `/user/[userId]/collections`, and updated `/studio/favorites` and content detail entry points to use the new collection flow with localized copy.
-- Synced generated architecture route docs and fixed Playwright readiness to use backend `/healthz`.
-- Completed local two-stage review after subagent review attempts failed with `503 Service Unavailable`; no blocking spec or code-quality findings remained.
+- 反馈单与讨论详情改用稳定骨架屏、EmptyState、可重试错误态，并保留布局高度；讨论错误同时通过右上 Toast 与可见红色状态播报呈现。
+- SheetMusicViewer 为 MusicXML/MIDI 加载与错误提供状态播报、骨架/安全错误回退及重试；无附件复用 EmptyState。
+- VerdictDetail 为加载、空数据、错误重试和无理由状态补齐组件化反馈；以 lucide ThumbsUp/ThumbsDown 替换原始 JSX SVG 并提供点赞/点踩无障碍名称。
+- 新增详情状态合同测试，覆盖静态契约及乐谱空态、判官失败重试与成功交互；未修改 `backend/`。
 
 ### Testing:
-- Backend focused: `go test ./internal/model -run TestCollectionMigration -v`; `go test ./internal/repository -run TestCollectionRepo -v`; `go test ./internal/service -run 'Test(Collection|FavoriteCompatibility|Recommendation|AuthServiceCreateUserFromPending)' -v`; `go test ./internal/handler -run TestCollection -v`.
-- Backend full gates: `go test ./...`; `go vet ./...`; `go build ./...`.
-- Frontend focused: `node --import tsx --test tests/collection-picker.test.tsx`; `node --import tsx --test tests/collection-detail.test.tsx`; `node --import tsx --test tests/user-collections-page.test.tsx`.
-- Frontend full gates: `npm run test`; `npm run lint`; `npm run build`; `npx playwright test e2e/collections.spec.ts` (12 passed across desktop/mobile).
-- Doc sync: `cd tools/doc-validator && go run . --fix` passed with no remaining route/schema/config changes.
-- Browser screenshots saved locally under `screenshots/community-collections-desktop.png`, `screenshots/community-collections-owner-mobile.png`, `screenshots/community-collections-picker-desktop.png`, `screenshots/community-collections-picker-mobile.png`, `screenshots/community-collections-user-list-desktop.png`, and `screenshots/community-collections-user-list-owner-mobile.png`.
+- Red 阶段：详情状态合同测试先因缺少 Skeleton/EmptyState/retry/live-region 与 lucide 图标契约而失败；实现后通过。
+- `npm test`: 123/123 PASS；`npm run lint`: PASS；`npm run build -- --webpack`: PASS（62 个页面）；`git diff --check`: PASS。
+- 浏览器使用本地 admin 会话验证 `/feedback/1` 与 `/ip/1/discussions/1` 的 NOT_FOUND 错误路径、Toast、重试按钮、桌面与 375px 移动响应式状态；截图位于 `screenshots/ui-polish/u-06/`。
 
 ### Notes:
-- Mode C tracking only: no `task.json` or Beta roadmap checkbox was changed.
-- Subagent spec and code-quality review attempts both returned local `503 Service Unavailable`, so controller completed local review and fresh verification gates instead.
-- `frontend/test-results/.last-run.json` is a generated Playwright artifact and must not be staged.
+- 详情成功态与判官交互由单元测试 mock API 覆盖；本地数据库对应 ID 返回 NOT_FOUND，因此浏览器证据记录为真实错误路径，不以模拟页面冒充成功数据。
+- U-06 已释放；下一项前端任务为 U-07。`frontend/package-lock.json`、`.cache/`、真实 seed 素材/脚本和任务草稿仍为未提交的既有脏文件。
 
-## [2026-07-06] - Community collections: merged into main and docs synced
-
+## [2026-08-02] - Task U-07: 标准化分页列表状态（完成）
 ### What was done:
-- Fast-forward merged `codex/community/collections` into `main`, bringing in community plan 3 commit `0c74996`.
-- Updated `docs/working/2026-06-30-community-features-development-guide.md` to mark plan 3 Collections as complete and merged, and to set plan 4 Content Series as the next step.
-
+- 新增 `DataList` 展示/状态组合组件，统一首屏 Skeleton、空态、可重试错误、保留既有结果的分页错误、下一页加载、重复请求防护与稳定 key。
+- 将 history、appeals、rehab、feedback/mine、studio overview/followers/contents、IP discussions 接入页面自有 page/hasMore/loadingMore/fetching；筛选与搜索保持第一页重置，分页失败重试原失败游标。
+- Studio 内容接口改用后端真实 `/api/v1/users/me/contents` 路径并兼容 `contents/total` 响应；overview 保留排行请求语义并补齐错误 Toast + 卡片内联错误。
+- 新增 DataList 测试与 8 个列表面的 focused contract tests；浏览器使用本地管理员测试账号验证 Studio 三页桌面及 375px 空态/响应式状态，截图位于 `screenshots/ui-polish/u-07/`。
 ### Testing:
-- Verified `main` branch merge state with `git merge --ff-only codex/community/collections`.
-- Reconfirmed fresh validation evidence from the plan 3 worktree: focused backend tests, `go build ./...`, `npm run build`, and `npx playwright test e2e/collections.spec.ts` all passed before merge.
-- Verified post-edit repository diff only contains the intended doc-state updates.
-
+- 聚焦 U-07 DataList/contracts：PASS；全量 `npm test`: 136/136 PASS。
+- `npm run lint`: PASS；`npm run build -- --webpack`: PASS，62 路由；`git diff --check`: PASS；`backend/` 无修改。
 ### Notes:
-- This follow-up sync is status maintenance on `main`; no `task.json` or Beta roadmap checkbox was changed.
+- `/api/v1/rehab/courses` 当前后端响应没有 `total/page_size` 且忽略 page 参数，前端按现有契约安全降级为无下一页；真实课程分页需 U-11 后端契约补齐，不在本次前端范围内。
+- `frontend/package-lock.json`、`.cache/`、seed 素材/脚本与任务草稿为既有无关脏文件，未纳入 U-07 提交。
 
-## [2026-07-17] - Hardening Task 1: Make Frontend Unit Tests Discoverable And Complete
-
+## [2026-08-02] - Task U-08: 修复剩余表单无障碍（完成）
 ### What was done:
-- Added a cross-platform Node test runner that recursively discovers all supported `*.test.*` unit files, excludes generated/E2E directories, normalizes and sorts paths, and separates native from TS/TSX execution.
-- Added runner contract tests for discovery, exclusions, grouping, failure propagation, serial TS/TSX execution, and unknown-mode rejection.
-- Replaced the fixed frontend test list with `test:unit`, `test:contracts`, `verify`, and `verify:release` scripts while preserving existing package scripts.
-- Serialized TS/TSX test files after the newly complete concurrent gate exposed a resource-contention flake in JSDOM-heavy tests.
+- 为标签组、讨论发布、管理员通知、分类、队列、IP 审核、反馈和系统配置页面补齐表单标签、上下文动作名称、`aria-invalid`/`aria-describedby`、错误播报、首个无效字段焦点与 44px 移动端目标。
+- 新增 `form-accessibility.test.tsx`，以 Testing Library 角色/名称/焦点断言覆盖讨论空提交，并为八个计划页面建立无障碍合同；仓库不存在 axe 类现成依赖，按计划未新增未经批准的扫描依赖。
+- 为新增错误与动作名称补齐 zh/en 消息；全程未修改 `backend/`，未混入既有 package-lock、seed 素材、脚本或任务草稿。
 
 ### Testing:
-- TDD RED: `node --test scripts/run-tests.test.mjs` failed with `ERR_MODULE_NOT_FOUND` before the runner existed; the serial-execution contract later failed before its implementation.
-- Focused GREEN: `node --test scripts/run-tests.test.mjs` passed 6 tests.
-- Frontend gate: `npm.cmd run verify` passed TypeScript lint, 82 discovered unit assertions, and the Next.js production build.
-- Backend regression: `go test ./...` passed after PostgreSQL and Redis were healthy; `go vet ./...` and `go build ./...` passed with VCS stamping disabled for the external worktree environment.
-- Review: specification compliance reviewer returned `APPROVED`; local code-quality review, syntax checks, package-script completeness check, and `git diff --check` found no blocking issues.
+- Red 阶段：聚焦测试因未关联 label、空提交按钮禁用且不播报/聚焦而按预期失败；实现后聚焦测试 2/2 PASS。
+- `npm test`: 139/139 PASS；`npm run lint`: PASS；`npm run build -- --webpack`: PASS（62 路由）；`git diff --check`: PASS。
+- 使用 ego lite 真实浏览器完成讨论、标签组、管理员通知/分类/配置及反馈/IP/队列代表性路径验证；截图保存在 `screenshots/ui-polish/u-08/`。
+- 验证了桌面与 375px 视口的首个无效字段聚焦、错误关联/播报、标签组 Escape 关闭、44px switch 触控目标和无横向溢出。
 
 ### Notes:
-- The complete default unit gate now surfaces pre-existing React `act(...)` and intentional error-path console output from previously omitted tests; these tests pass and cleanup belongs to a separate focused task.
-- Mode D tracking only: no `task.json`, Beta roadmap, or community-plan completion state was changed.
+- 原阻塞已于 2026-08-02 解除：ego lite 获得受控 localhost 访问能力，真实浏览器证据已补齐。
+- 双轴审查发现并修复 dangling `aria-describedby`、标签组焦点陷阱/恢复、无效态视觉、通知 disabled 契约、coarse-pointer 目标和硬编码 Slug 标签；最终复核无阻塞项。
+- U-08 计划四项均已验证，可提交；`frontend/package-lock.json`、`.cache/`、seed 素材/脚本和任务草稿继续保留为无关脏文件。
 
-## [2026-07-17] - Hardening Task 2: Split Doc Validator Profiles Without Hiding Current Debt
-
+## [2026-08-02] - Task U-09: 统一内容发现与 IP 库视觉（完成）
 ### What was done:
-- Added explicit `release`, `archive`, and `all` validation profiles with `release` as the default and unknown-profile rejection.
-- Kept config, schema, route, token, active cross-reference, and working-document expiry checks in the release gate while excluding only `docs/archive/**` cross-reference debt.
-- Added archive-only cross-reference checking and an aggregate all profile, with the active profile printed in command output.
-- Replaced the permissive bare-file-URI regex with strict absolute Windows/POSIX file URI parsing that ignores bare prose and preserves balanced parentheses in paths.
-- Added profile, scope, file URI, Markdown-anchor, and archive isolation regression tests; documented profile usage and release semantics.
-
+- 将 P-01 方案 B 写入 `/ips` 与 IPCard 权威规格，修复固定 156px 卡宽置于弹性轨道造成的空白；实现两列/auto-fit/auto-fill 网格、16:10 卡片、追加加载及 loading/empty/error 状态。
+- 统一 ContentCard/ContentSidebar/Home/Search 的批准字阶、Lucide 图标、TagBadge、Indigo 语义 token、elevation/focus/reduced-motion；搜索移动筛选改为 85vw 左抽屉并补齐焦点约束与粗指针目标。
+- 为 IP API 响应增加运行时结构校验；搜索网格/列表图标按钮补充中英文可访问名称。未修改 `backend/`，未带入 throwaway 原型。
 ### Testing:
-- Reproduced the baseline: 122 issues, consisting of 121 archive findings and one active false bare `file:///` match.
-- TDD RED: cross-reference tests failed because `CrossRefOptions` did not exist; profile tests failed because `resolveProfile` did not exist; balanced-parentheses URI test failed before the scanner fix.
-- `go test ./... -v`, `go vet ./...`, and `go build ./...` passed in `tools/doc-validator`.
-- Default and explicit `release` profiles passed with zero issues; unknown profile rejection passed.
-- `archive` and `all` remained non-zero with 115 visible historical issues. Six former findings were invalid partial-path matches around `(protected)`, not hidden debt.
-- Remote specification reviewer timed out; local specification and code-quality reviews found no blocking issues.
-
+- RED：focused contracts 首次 3/3 失败于缺失 `/ips` 权威、固定卡宽、raw SVG 与任意字号；实现后 React/runtime + source contracts 4/4 PASS。
+- `npm test`: 144/144 PASS；`npm run lint`: PASS；`npm run build -- --webpack`: PASS（62 路由）；`git diff --check`: PASS。
+- ego lite task space 9：实测 320/375 两列 12px gap、768 四列 16px、1280/1440 六列 16px，均无横向溢出；验证 light/dark、loading/empty/error/retry、85vw 抽屉、Tab/Shift+Tab/Esc 焦点和有效 `/content/47`。
+- 13 张最终截图保存在忽略目录 `screenshots/ui-polish/u-09/`，覆盖 `/ips` 五档视口与 home/original/search/content 双主题。
 ### Notes:
-- `docs/working/2026-06-30-community-features-development-guide.md` already had the exact required metadata, so no redundant rewrite was made.
-- Mode D tracking only: no `task.json`, Beta roadmap, or community-plan completion state was changed.
-
-## [2026-07-17] - Hardening Task 3: Establish A Dedicated HTTP Composition Root
-
+- 双轴审查发现并修复 API 响应校验、抽屉 elevation/遮罩/焦点、触控目标、TagBadge/语义色、IPCard list 变体、作者栏业务合同与规格权威冲突；最终无提交阻塞项。
+- `/ips` 移动 12px gap 作为 P-01 已批准页面级例外登记进 `design/design-system.md`；其他网格仍保持全局 16px。
+## [2026-08-02] - Task U-10: Align Communication Surfaces And I18n
 ### What was done:
-- Moved the sole `RegisterRoutes` owner from `backend/internal/handler/routes.go` to `backend/internal/router/routes.go`, updated `main.go`, and preserved trusted-proxy, CORS, global middleware, route, authentication, and interaction-guard ordering.
-- Added container ownership for `StatsService` and reused the existing `IPStatsService`, `SearchService`, `PRService`, and `SocialService`; added thin service-backed PR/social handler constructors so the router creates no repositories or domain services.
-- Moved route security/deploy tests into the router package and added sole-owner, composition, representative route, credential/agent rate-limit, and disabled desktop/payment 503 contract coverage.
-- Updated doc-validator route extraction to the new owner, added legacy-marker replacement coverage, and regenerated the `architecture.md` route source marker/table.
-
+- Added exact zh/en catalog parity validation for leaf keys, non-empty values, placeholders, and documented namespaces.
+- Localized the root skip link and protected-account suspension guard; aligned `/messages`, `ConversationList`, `ChatWindow`, and `NotificationDropdown` with the Indigo communication contracts.
+- Added stable loading/empty/error/retry states, semantic tabs/logs, typed-message fallback (collaboration invite card remains owned by the later collaboration-invites plan), 44px mobile targets, unread badges, broadcast labels/icons, and safe localized send/load errors.
 ### Testing:
-- TDD RED: the main ownership test failed on the missing router import; router tests failed on missing `RegisterRoutes`; container and handler-constructor tests failed on their missing seams; route-sync failed while looking for the deleted handler owner.
-- Focused GREEN: `go test ./internal/container ./internal/handler ./internal/router ./cmd/server -v` passed, including the existing credential/agent middleware behavior and exact disabled-route 503 contracts.
-- Backend full gates: `go test ./...`, `go vet ./...`, and `go build ./...` passed.
-- Doc gates: `go test ./...`, `go run . --fix`, and `go run . --check --profile release` passed; release reported zero issues.
-- Project regression: `npm.cmd run verify` passed frontend TypeScript lint, all discovered unit tests, and the Next.js production build.
-- Mechanical route audit compared all 193 registration lines in order; after the required PR-handler container reuse equivalence, URL and middleware arguments were identical. Specification and code-quality reviewers both returned `APPROVED`.
-
+- `node scripts/ui-governance/check-i18n-parity.mjs messages/en.json messages/zh.json` PASS.
+- `npm test` PASS: 148/148; `npm run lint` PASS; `npm run build -- --webpack` PASS (62 routes).
+- ego lite authenticated browser verification PASS at desktop and 375x812; screenshots saved under `screenshots/ui-polish/u-10/`.
 ### Notes:
-- Route composition remains behavior-preserving; no route method/path was added or removed, and the old handler route owner no longer exists.
-- Mode D tracking only: no `task.json`, Beta roadmap, or community-plan completion state was changed.
+- Frontend-only; no `backend/` changes. Agent workspace, Widget, citations, and Agent translations remain owned by Web Agent Productization Task 4.
 
-## [2026-07-17] - Hardening Task 4: Centralize Interaction Policy Archetypes
-
+## [2026-08-02] - Task U-11: Frontend Handoff
 ### What was done:
-- Audited all current interaction guards and confirmed the only policy-value difference is publishing's additional no-publish-freeze requirement; standard interactions require verified email and minimum reputation.
-- Added fresh-value `standardVerifiedInteractionPolicy` and `publishingInteractionPolicy` archetypes, with publishing composed from standard plus the freeze check.
-- Kept all 12 route-specific guard variables and preserved operation-specific upload, comment-edit, Agent rate limits, middleware ordering, and handler/service business rules.
-- Added tests for exact archetype values, every guard-to-policy mapping, and representative real route attachments.
-
+- U-10 completed at `e2cdb79`; U-11 frontend consumers were identified for handoff.
 ### Testing:
-- TDD RED: `go test ./internal/router -run "TestInteractionPolicy|TestRoutePolicy" -v` failed because both named archetype functions were missing.
-- Focused GREEN and router regression: the same focused command and `go test ./internal/router -v` passed.
-- Mechanical audit compared all 193 route registration lines before and after; order and arguments were identical.
-- Full gates passed: backend `go test ./...`, `go vet ./...`, `go build ./...`; frontend `npm.cmd run verify`; doc-validator `go test ./...`, `go run . --fix`, and strict release profile.
-- Specification and code-quality reviewers both returned `APPROVED`.
-
+- No U-11 frontend implementation or checkbox was started in this historical handoff.
 ### Notes:
-- This is behavior-preserving policy deduplication, not a replacement for route-specific or handler/service authorization rules.
-- Mode D tracking only: no `task.json`, Beta roadmap, or community-plan completion state was changed.
+- Historical blocker: the frontend lane waited for backend-derived `capabilities.can_interact`; backend `6834b79` has now resolved this dependency.
 
-## [2026-07-17] - Hardening Task 5: Add Project-Level Verification Commands
-
+## [2026-08-03] - Task U-11 Backend: Authenticated Interaction Capability
 ### What was done:
-- Added a PowerShell project verifier with explicit default, full, and release tiers plus an orthogonal Tauri option.
-- Default runs backend `test/vet/build`, frontend `unit/lint/build`, doc-validator tests, and strict release profile as separate fail-fast child commands.
-- Full adds mocked Playwright contracts; release adds the complete Playwright suite; Tauri adds its frontend build and Rust tests. Full and release are mutually exclusive.
-- Added isolated fake-command contract tests for exact command order, tier additions, first-failure stop, caller-location restoration, standalone non-zero exit propagation, and default repository resolution under Windows PowerShell `-File`.
-- Documented tier prerequisites, archive hygiene, and evidence limits in README; synchronized the stable command entry in AGENTS.md and CLAUDE.md.
-
+- 本地 `main` 以 ff-only 集成 U-01～U-10 检查点 `e2cdb79`；远端 main 无分支保护、required checks 或开放 PR，因此该动作不作为 Production Readiness PR/CI 证据。
+- 为 login 与 `/auth/me` 保留既有 user/tokens/csrf 字段并新增同形状 `capabilities.can_interact`；互动 middleware 复用同一纯判定函数，不暴露阈值或 min-score。
+- Rehab 课程事务成功后失效 `user:status:{id}` runtime cache，使恢复后的 capability 与真实互动 gate 在下一请求同时放行。
 ### Testing:
-- TDD RED: contract tests initially failed because `verify-project.ps1` did not exist.
-- Contract GREEN: `powershell -ExecutionPolicy Bypass -File scripts/verify-project.tests.ps1` passed all default/full/release/Tauri and failure-path checks.
-- Real default gate: `powershell -ExecutionPolicy Bypass -File scripts/verify-project.ps1` passed all backend, frontend, and release-document subcommands.
-- Systematic regression: the first real CLI run reproduced an empty `$PSScriptRoot` during parameter binding; a standalone `-File` regression test failed, then passed after moving default `RepoRoot` resolution into the script body.
-- Full/release command plans were verified deterministically with fake commands; real browser suites remain subject to their documented service, browser, data, and external-input prerequisites. Tauri was not executed because Task 5 does not modify desktop files.
-- Specification and code-quality reviewers both returned `APPROVED`.
-
+- RED：auth focused tests 因缺少 `capabilities` 失败；rehab 测试因缺少 cache 依赖接线失败；router contract 因 handler 未接收 Redis/config 失败。
+- GREEN：focused handler/middleware/service/router tests PASS；`go test ./...`、`go vet ./...`、`go build ./...`、doc-validator `--fix` 和 `git diff --check` PASS。
+- 规格审查三项修复：config/status 不可用改为 503 且无 capability；Redis cache DEL 失败不再返回课程完成成功；课程完成响应返回更新后的 `reputation`。新增 red tests 后重跑 focused 与完整后端三门均 PASS。
+- 候选服务在 `SERVER_PORT=8081` 启动成功；使用本地管理员真实验证 login 与 bearer `/api/v1/auth/me` 均返回一致 `can_interact=true`，保留 tokens/csrf/user 字段且无 threshold/min_score 泄露。
 ### Notes:
-- The aggregate verifier is intended as the stable CI entry for later Ops work; it does not replace screenshots, real-provider smoke, package signing, or release evidence.
-- Mode D tracking only: no `task.json`, Beta roadmap, or community-plan completion state was changed.
+- 后端候选仍需顺序规格/质量审查及 main 上真实 login/`auth/me` smoke；U-11 前端消费者、浏览器证据和最终 checkbox 尚未开始。
+- 记录但不修复 `user:publish_freeze:{id}` 与 `publish:freeze:{id}` 键名差异；本轮不增加 `can_publish`，不修改 public config、Ops-01 或 U-12 文件。
 
-## [2026-07-18] - Ops-00: Production Readiness 规格与执行计划
-
+## [2026-08-03] - 设计会话：客户端 Agent 扩展与活人感约束（grill-with-docs + domain-modeling）
 ### What was done:
-- Added the independent Production Readiness design covering CI, forward-only migrations, backup/recovery, observability, alerting, security scans, SBOM/provenance, load testing, production configuration, deployment rollback, and desktop signing.
-- Added the Ops-00～Ops-09 execution plan with exact files, serial branch/dependency rules, TDD/verification commands, evidence summaries, acceptance criteria, and release blockers.
-- Registered independent Mode E in `AGENTS.md` and `CLAUDE.md`; explicitly excluded Hardening Task 6 and protected `task.json`, Beta/community state, and Web Agent state.
-- Coordinated the UI Polish plan: U-01/U-05 may run after UI-plan registration; U-11 depends on this coordination input; U-12 waits for Ops-01 because it shares verifier/package paths.
-
+- 明确长期目标：客户端 agent 为现有 Web Agent（检索）+ Desktop Agent（部署）的扩展，非新物种；LLM 走服务端。
+- 建立 L0-L4 操作分级（按项目功能细化）：判官写/举报/申诉/素质建设完成/支付/密码/删号 = L0 禁止代理；web/app 封顶 L2 安全写；L3 建议不执行；L4 仅桌面文件系统。
+- 建立活人感约束五机制（M1 标注 + trace_id、M2 分级隐性配额、M3 信号隔离 Phase 2、M4 AI 协助徽标手改去标、M5 revoked 回滚），分层实施 Phase 1/2。
+- 产出：ADR-0002（含完整分级表与先例）、GLOSSARY 新增「多端与 Agent（规划中）」9 术语 + 一键安装区分、research 调研骨架 docs/working/2026-08-03-agent-reference-oss-research.md（wayfinder 输入 + 面试素材）。
+- 先例核实：YouTube 事后校正、Meta CIB 网络级清洗、GitHub 次级限流、OWASP 软性限流、Reddit 阈值不公开。
 ### Testing:
-- `go test ./...` in `tools/doc-validator`: passed.
-- `go run . --check --profile release`: passed with all checks passed.
-- `git diff --check`: passed.
-- Three rounds of specification/plan review were completed; third-round findings were incorporated before user approval on 2026-07-18.
-
+- 无代码改动；未触碰 U-11 未提交改动与前端 package-lock 脏文件。
 ### Notes:
-- This is a planning-only Ops-00 commit; no Ops-01～Ops-09 implementation has started.
-- No production database snapshot or real provider credentials were required for Ops-00.
-- `task.json`, Beta roadmap, community completion state, and Web Agent completion state were not modified.
+- 后续动作：启动 research（四类候选池 + 选型标准已在骨架中）；wayfinder 规划长期决策地图；修订 dual-surface 规格 §4.2 只读工具集（串行登记）。
+- 术语落点决议：不新建 CONTEXT.md，遵循 AGENTS.md 治理（GLOSSARY 为唯一术语权威）。
 
-## [2026-07-18] - Local test validation repair: documentation sync
-
+## [2026-08-03] - 平台迁移收尾：macOS 文档适配 + 验证体系移植 bash + 计划审查
 ### What was done:
-- Synchronized the local test validation repair plan (now archived at `docs/archive/plans/2026-07-18-local-test-validation-repair-plan.md`) with the implementation already merged on `main`.
-- Marked the preflight/readiness/layer-runner implementation and contract verification complete, along with the originating session’s Docker recovery and isolated-layer execution evidence.
-- Kept the full repository regression checkbox open because the fresh `scripts/verify-project.ps1` run exceeded 240 seconds in `go test ./...` and did not produce a PASS result.
-
+- 验证体系 PowerShell → bash：新增 `scripts/verify-project.sh`（--repo-root/--full/--release/--tauri，命令顺序与 fail-fast 与原 .ps1 一致）、`scripts/verify-project.tests.sh`（fake go/npm/cargo 包装器契约测试 7 项全 PASS）、`scripts/run-root-python-e2e.sh`（位置参数 all|search-download|admin-journey）；删除 3 个 .ps1 原版。
+- 删除遗留 Windows 流程：`scripts/beta/`（task.json 模式已废弃）、`scripts/test/`（旧 CrossStack runner，已被 Playwright config 替代）；归档索引登记。
+- 文档适配 macOS：AGENTS.md（验证入口 + 注册表 5 行修正）、README.md、e2e/README.md、docs/deploy/production-config-template.md（Resolve-DnsName/curl.exe → dig/curl）、ui-polish 计划（npm.cmd → npm run、palette 命令 bash 化）、web-agent/社区两计划的代码块语言标注与 Get-ChildItem 命令 bash 化。
+- production-readiness 计划全量修订：84 处 .ps1/pwsh → .sh/bash；Tech Stack 与命令约定行更新；证据校验/终态块改 bash；核实 plan 中 9 处 `verify-project.sh -ReportDir` 调用为 Ops-01 前向引用（Ops-01 Step 1 将为 verifier 新增 `-ReportDir` 支持），非潜伏缺陷，予以保留。
+- 计划缺陷修正：source-linkage 迁移 `060`→`061`（`060_fix_search_config_fallback.sql` 已占用）、collaboration-invites `061`→`063`（`062_notification_broadcast_idempotency.sql` 已存在），同步社区设计规格迁移表与两计划的编号说明/协调链。
+- 注册表修正：Web Agent Task 4 等待条件 P-01→U-01→U-02B→U-03 已满足（改为等待本计划 Task 1~3）；U-12 依赖 Ops-01 先合并；source-linkage 与 collaboration-invites 共享文件须串行（前者先合并）。
+- 归档：`docs/working/2026-08-03-u11-backend-capability-contract.md`（U-11 已合入）→ `docs/archive/`；`docs/superpowers/progress/2026-06-09-security-hardening-execution.md` → `docs/archive/progress/`。
 ### Testing:
-- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test/preflight.tests.ps1`: passed.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test/readiness.tests.ps1`: passed.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test/run-test-layer.tests.ps1`: passed.
-- `node scripts/playwright-config.test.mjs`: 3 tests passed.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-project.ps1`: timed out after 240 seconds in the `go test ./...` child process; the process tree started by this check was stopped and no PASS was recorded.
-
+- `bash scripts/verify-project.tests.sh`：7 项契约测试全 PASS（default/full/release/tauri 命令序列、standalone 根解析、fail-fast、调用方目录恢复、非零退出传播）。
+- doc-validator `go test ./...` PASS；`--check --profile release` 仅剩 2 条既有 design token 警告（--header-h/--elevation-1，design 文件本次未改动）；`git diff --check` PASS。
+- 真实验证门 `bash scripts/verify-project.sh`（default）将在提交前按需运行（backend/frontend 无代码改动，本次为文档+脚本移植）。
 ### Notes:
-- Implementation commits already present on `main`: `9006a18`, `fe34360`, and `7d297f8`.
-- This maintenance entry changes documentation only; it does not modify `task.json`, Beta/community/Web Agent completion state, or the Production Readiness plan.
-## [2026-07-18] - Community Browse History Task 7 Follow-Up: Harden Clear And Cleanup
+- 暂缓桌面计划（beta-release-validation/desktop-deploy-security）仍含 Windows PowerShell 命令与 Authenticode 流程，恢复桌面范围时须一并 rebase 为 bash；本次未动。
+- `scripts/overnight/night-run.sh` 的 powercfg 块已有 `command -v powercfg` 守卫，macOS 下自动跳过，未改动（可后续加 caffeinate 分支）。
+- `.specify/extensions/git` 为第三方模板自带 PowerShell 实现，不属于项目工作流，未改动。
+- `docs/GLOSSARY.md`/`docs/adr/README.md` 为并发 ADR-0002 会话改动，与本次提交无关，未纳入暂存。
 
+## [2026-08-03] - Ops-01: Establish GitHub Actions CI on the unified verifier
 ### What was done:
-- Replaced implicit destructive DELETE behavior with explicit `{ "ids": [...] }` and `{ "clear_all": true }` modes; missing/empty bodies and empty IDs now fail safely, while conflicting modes return a dedicated error.
-- Added a transaction-scoped PostgreSQL advisory leader lock around expired-history deletion so concurrent API replicas do not run the same cleanup transaction.
-- Updated the History page to preserve confirmation before clear-all and send the explicit clear tag; added desktop/mobile Playwright contracts and deterministic screenshots.
-
+- verifier 扩展（TDD 先行，红→绿）：`verify-project.sh` 新增 `-Scope Backend|Frontend|Docs|All`（命令序列与默认完全一致）与 `-ReportDir <dir>`（每命令 UTF-8 日志 + `summary.json`：task/commit(null)/started|finished_at/commands/exit_codes/tool_versions/evidence/redaction_checked(false)/blockers([])；失败时仍写 summary 并记录失败 exit code，fail-fast 语义不变）。修正相对 `-ReportDir` 在子目录 tee 失效缺陷（规范化绝对路径）+ 新增回归契约测试。
+- 证据链：新增 `release/ops-evidence.schema.json`（draft-07，11 字段）、`scripts/ops/validate-evidence.sh`（必需字段/类型/pairing/redaction boolean/blockers/-ExpectedCommit 40-hex 绑定）、`scripts/ops/finalize-evidence.sh`（仅改 identity/finalization 字段：commit + evidence_sha256 库存哈希；脏工作区或非 HEAD 拒绝，`-Fixture` 绕过；幂等；可选 -RedactionChecked/-Blocker）。
+- 工作流契约：新增 `scripts/ci/verify-workflows.sh`（stdlib python3 迷你 YAML 解析器 + 契约检查：稳定 job 名、PR/push 触发、concurrency、最小 permissions、SHA 固定 actions、hashFiles(lockfile) 缓存键、`if: always()` 上传 + 30/90 天保留、无 secrets 引用、tauri-windows Windows + 路径检测 + no-op 分支）+ `verify-workflows.tests.sh`（真实文件 + 17 项变异用例）。
+- CI workflow：`.github/workflows/ci.yml`（backend/frontend/docs/project-gate，各 job 以 verifier `-Scope` 运行并上传证据；project-gate 为 required 检查，含 guarded `workflow_dispatch` 失败探针 `failure_probe`）+ `tauri-ci.yml`（detect + tauri-windows，全 PR 触发、路径检测、无关路径显式 no-op；action 全部 SHA 固定：checkout 3d3c42e、setup-go b7ad1da、setup-node 8207627、cache 55cc834、upload-artifact 043fb46；Go 1.25.11/Node 20；npm ci）。
+- 工具链元数据：frontend/tauri-client `engines`（node >=20, npm >=10）+ 锁文件同步；README/AGENTS 区分「本地最低版本 vs CI 精确固定」；CLAUDE.md 记录 CI 门契约。
+- 顺带修复三处阻塞门的既有债务：(1) doc-validator `--check --profile release` 的 2 条 design token 误报——`definedTokensIn` 现同时识别表格式反引号 token（+回归测试）；(2) 桌面图标 32/128/256 非 RGBA 导致 `generate_context!` 失败——python3 重编码为 RGBA；(3) `file_ops::is_within_whitelist` 对不存在的目标路径 canonicalize 失败导致 move_file 全拒——新增 `canonicalize_or_resolve`（最近存在祖先 canonical + 词法尾部）。安全方向不变（fail-closed）。
+- `.gitignore` 补 `/artifacts/`（Ops-00 遗漏，证据不入库）；`codex/ops-integration` 补建（Ops-00 应建未建，从当前 HEAD）。
 ### Testing:
-- TDD RED confirmed missing body, empty object, empty IDs, unknown-length stripped body, and conflicting modes were previously accepted or mapped incorrectly; focused handler tests pass after the fix.
-- PostgreSQL concurrency tests prove one of two cleanup instances executes while the other skips, and prove lock release after both successful commit and forced rollback.
-- Backend `go test ./...`, `go vet ./...`, and `go build -buildvcs=false ./...` passed.
-- Frontend `npm.cmd test` (75 TS/TSX assertions plus native runner tests), `npm.cmd run lint`, and `npm.cmd run build` passed.
-- Playwright desktop/mobile verification passed 4/4 for selected deletion, cancelled clear-all, confirmed clear-all, and stripped-body rejection; screenshots were visually inspected.
-
+- 契约测试全绿：`verify-project.tests.sh`（含 scope/report/相对目录回归）、`validate-evidence.tests.sh`（18 项）、`finalize-evidence.tests.sh`（12 项）、`verify-workflows.tests.sh`（17 项变异）。
+- 真实验证门：`bash scripts/verify-project.sh -ReportDir artifacts/ops-01` 8 命令全 0 退出；`--tauri` 全绿（npm build + `cargo test` 23/23；本机安装 Rust 1.97.1，`AGENT_HMAC_SECRET` 需以 dummy 提供编译）；`scripts/ci/verify-workflows.sh` 通过；doc-validator go test + release profile 通过；`git diff --check` 通过。
+- 证据链：`validate-evidence.sh` 预终态校验通过；commit 后执行 finalize + `-ExpectedCommit` 复核。
 ### Notes:
-- The advisory lock ID is stable and held only inside the delete transaction; it is never retained between scheduler runs.
-- Existing frontend next-intl environment and React `act(...)` test warnings remain baseline debt for the UI hardening plan; no new warning class was introduced.
-- Only Browse History Task 7 follow-up state was updated; `task.json`, Beta roadmap, and unrelated community plan state were not changed.
-
-## [2026-07-18] - Community Collections Task 11 Follow-Up: Reconcile Legacy Cutover
-
-### What was done:
-- Added owner-only lazy repair so authenticated implicit collection lists idempotently restore both default zones, while every explicit `owner_id` read remains mutation-free.
-- Added safe structured repair logs shared by own-list and add-to-default paths, with `user_id`, `zone`, and bounded error codes only.
-- Added the `collection-reconcile` maintenance command with per-user/zone drift reports, read-only exit semantics, only-add idempotent repair, duplicate preservation, explicit `DB_DSN` precedence, and a mandatory stopped-writer maintenance-window confirmation for `--apply`.
-- Replaced the user-profile legacy favorites API tab with a semantic link to `/user/[userId]/collections`, added localized labels, documented the five legacy cutover exit criteria, and saved browser evidence for the source and destination pages.
-
-### Testing:
-- TDD RED/GREEN covered own-list repair, public-read immutability, add-to-default safe logging, four reconciliation drift classes, read-only non-mutation, only-add/idempotent apply, duplicate preservation, invalid arguments, explicit DSN precedence, and the maintenance-window write gate.
-- Real PostgreSQL drills confirmed read-only drift totals, unconfirmed apply made zero changes, confirmed apply repaired 1 default collection/2 collection items/1 favorite, and the second confirmed apply reported zero repairs; both temporary databases were removed.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-project.ps1` passed backend test/vet/build, 76 frontend unit tests, TypeScript lint, Next.js production build, doc-validator tests, and the release documentation profile.
-- In-app Playwright verified the localized Collection link, pointer navigation to `/user/19/collections`, successful public empty state after migration 058, and zero browser console errors; specification and code-quality re-reviews both returned PASS.
-
-### Notes:
-- `--apply` is intentionally refused unless all application writers are stopped and `--maintenance-window-confirmed` is supplied; this prevents reconciliation from racing a user's favorite/unfavorite transaction.
-- Remaining `/studio/favorites` strings are the collection manager's historical route name, not calls to the legacy favorites API.
-- Only Collections Task 11 follow-up state was updated; `task.json`, Beta roadmap, and unrelated community plans were not changed.
-
-## [2026-07-18] - Community Content Series Tasks 1-10
-
-### What was done:
-- Added migration 059 and content-series models, repository/service rules, owner/contributor validation, visibility filtering, concurrent append locking, and transactional reorder.
-- Added series API handlers/routes, full content-detail memberships, SeriesNav, public series detail, and Studio series management with create/edit/delete/add/remove/reorder flows.
-- Added mocked and real cross-stack Playwright coverage, including desktop/mobile screenshots in the repository root.
-
-### Testing:
-- `mocked browser contract PASS` — `npm.cmd run test:contracts` (8/8).
-- GoUnit runner PASS.
-- PostgreSQL integration runner PASS after Docker daemon access was restored; an initial unprivileged run was truthfully BLOCKED by Docker access and was not counted as PASS.
-- CrossStack runner PASS (4/4) through `run-test-layer.ps1`, including seeded real public series detail and SeriesNav requests; the initial final-commit run without temporary `node_modules` was truthfully FAIL and was rerun after dependency installation.
-- Frontend unit PASS (96), TypeScript lint PASS, Next.js production build PASS.
-- `tools/doc-validator`: `go test ./...` PASS; `go run . --check --profile release` PASS.
-
-### Notes:
-- The mocked suite previously exposed an environment/permission failure and was rerun to a complete 8/8 PASS after the runner could write its generated result files. Series item mutations now refresh `content_series.updated_at`, management preloads soft-deleted content summaries, and CrossStack exports its temporary compose root for deterministic fixtures.
-- No `task.json`, Beta roadmap, or UI polish plan state was changed.
-
-## [2026-07-23] - Content Series strict real-browser follow-up BLOCKED
-
-### What was done:
-- Added an uncommitted CrossStack fixture and browser flow covering multiple memberships, first/last navigation, and authenticated Studio create/add/reorder/remove/delete.
-- Added CSRF-aware login setup and deterministic fixture password/content rows.
-
-### Testing:
-- `mocked browser contract PASS` — 8/8.
-- CrossStack with the fixture previously reached 3/5 PASS; the remaining failures were corrected in the test (role-tab ambiguity and CSRF login), but the verification could not be rerun after correction because Docker Desktop stopped starting.
-- Latest required CrossStack invocation is `BLOCKED`: `docker compose up` reports `Docker Desktop is unable to start`; daemon polling remained unavailable for 60 seconds.
-
-### Notes:
-- The uncommitted fixture/test changes are intentionally preserved for the next Agent; do not discard them.
-- Do not amend or merge the Content Series commit until CrossStack reruns with the authenticated Studio flow and all 5 tests pass.
-- To resume: repair/restart Docker Desktop, run `docker compose up -d --force-recreate postgres redis`, then rerun the mandated CrossStack runner with the content-series worktree and ComposeRoot.
-
-## [2026-07-23] - Content Series strict real-browser follow-up UNBLOCKED
-
-### What was done:
-- Docker Desktop was restarted and the preserved CrossStack fixture was rerun through the mandated runner.
-- The real browser suite now covers public 200 series detail, ordered chapters, multiple-series switching, first/last boundaries, and authenticated Studio create/add/reorder/remove/delete.
-
-### Testing:
-- `mocked browser contract PASS` — 8/8 (mock-only evidence; not used as a substitute for CrossStack).
-- GoUnit — PASS.
-- PostgresIntegration — PASS.
-- CrossStack — PASS, 5/5.
-- Frontend unit tests — 96 passed.
-- Frontend lint — PASS (`npm.cmd run lint`; standard cache-writing invocation passed under elevated permissions).
-- Frontend production build — PASS (`npm.cmd run build`, elevated due temporary worktree ACL).
-- Go vet/build — PASS via `go vet ./...` and `go build ./...` with `GOFLAGS=-buildvcs=false` because the temporary worktree cannot provide VCS stamping metadata.
-- `tools/doc-validator`: tests PASS; `go run . --check --profile release` PASS.
-
-### Notes:
-- The prior Docker BLOCKED record remains above as historical evidence; this entry records its resolution on 2026-07-23.
-- The Content Series plan browser-verification checkbox and self-check are now complete.
-- No `task.json`, Beta roadmap, or UI polish plan state was changed.
-
-## [2026-07-23] - 文档瘦身阶段 0+1：清场与文档体系重构
-
-### What was done:
-- 阶段 0：验证并提交会话遗产批次（5 个主题 commit：SSR API URL 分离、公开页 SEO、hot rank 修复、迁移 060 搜索回退、本地 seed 工具）；修剪 9 个 codex worktree（4 个长路径残留已强删）；删除 10 条已全部并入 main 的 codex 分支。
-- 死账处置：progress.txt 轮换为 30 天窗口（259KB→39KB，127 条旧记录归档至 docs/archive/progress/2026-04-to-2026-06.md）；task.json 移至 docs/archive/task-ledger-mvp.json，历史任务模式废止。
-- 旧计划归档：铁证完成 6 份 + 验证完成 2 份（web-beta-review-repair、documentation-governance）移入 docs/archive/plans/ 并加归档说明。
-- AGENTS.md 重写：46KB→14KB；五模式废止，改为活计划注册表 + 双车道（light/heavy）；业务规则抽取至 docs/reference/business-rules.md；CLAUDE.md 变为 @AGENTS.md 指针。
-- architecture.md 拆分：128KB→37.7KB 概述；§4/5/7→docs/reference/{schema,api,config}.md；§10-13→docs/specs/；§14-15 实现笔记→docs/reference/implementation-notes.md（因含活实现引用，改归档为参考）。
-- ui-spec.md 小手术：删除 3 个死节（/publish、/dashboard 两个 301 页 + Deprecated 组件），顶部新增章节索引（46 页 + 63 组件）。
-- doc-validator 同步：schema/config 检查路径指向 docs/reference/，修复迁移后断链。
-
-### Testing:
-- 提交前验证：前端 100/100 单测 PASS、lint(tsc) PASS、go build/vet PASS。
-- doc-validator --check（含 release profile）：All checks passed。
-- go test ./tools/doc-validator/... PASS。
-
-### Notes:
-- 常驻上下文（AGENTS.md + architecture.md）从 ~420KB 降至 51.7KB。
-- 下一步按注册表优先级：近完成项清零（消息通知 11 / 卓越加固 9 / 发布验证 6），随后 UI 工程（U-01~U-05 地基 + 首页/详情页视觉样板）。
-
-## [2026-07-23] - 阶段2 近完成清零：4 子系统 + 卓越加固归档，R-02 定阻塞
-
-### What was done:
-- Beta 子系统×4（foundation F-01~F-06 / admin-operations A-01~A-05 / agent-entrypoints G-01~G-05 / verification-feedback V-01~V-06）经 roadmap 状态表与 progress 归档双重验证为 100% 完成（注册表余项为过期计数），加归档说明后移入 docs/archive/plans/，注册表行移除。
-- 卓越加固 Review Checklist 8 项逐项核验全部满足：run-tests.mjs 无 shell glob 全扩展名发现；doc-validator release profile 仅豁免 archive；bare-file-URI 中文散文误报已有回归测试；router 组合根由测试强制不构造 repo/service；policies_test 覆盖 archetype 与路由挂载；verify-project.ps1 全外部命令 fail-fast（有 tests.ps1）；计划无 Task 6 标题；五个执行提交未翻转 roadmap/community/task.json 完成状态（be6db7e 仅新增未勾选后续项）。勾选后归档，注册表行移除。
-- 发布验证 R-02 确认阻塞：Step 1 前置要求 D-01~D-05 全部勾选 + 真实 Ed25519 私钥 + HTTPS 基址，而 D-02~D-05 属优先级 6 heavy 车道未开始。注册表备注已改为显式依赖阻塞，不产出模拟证据。
-
-### Testing:
-- 核验方法：代码/脚本/测试文件逐一比对（见上），git log --follow 审查五个执行提交触及面。
-- doc-validator --check --profile release 在阶段1已全绿，profile 语义未变。
-
-### Notes:
-- 剩余优先级 1 工作：消息通知 Task 9（广播幂等，10 项，实现型）。
-
-## [2026-07-24] - Task 9: Durable admin broadcast idempotency
-
-### What was done:
-- Added migration 062 and a durable `notification_broadcast_requests` record keyed by hashed `(actor_id, Idempotency-Key)`, storing only payload hash and replay response metadata.
-- Made request reservation, per-user notifications and the success audit one PostgreSQL transaction; retries replay the stored result, payload reuse returns `409 IDEMPOTENCY_KEY_REUSED`, and failed transactions release the key.
-- Added `replayed` response metadata, CORS support for `Idempotency-Key`, and frontend UUID lifecycle that reuses a key after ambiguous failure but rotates after success or draft changes.
-- Narrowed duplicate-key classification to the broadcast request constraint and normalized `broadcast_at` to PostgreSQL microsecond precision so first and replayed responses are byte-for-byte consistent.
-
-### Testing:
-- Focused backend tests passed for handler/service/CORS/migration behavior, including a real PostgreSQL two-request concurrency test and migration 062 idempotency/constraint checks.
-- `go test ./...`, `go vet ./...`, and `go build ./...` passed.
-- Frontend admin notification tests passed 10/10; `npm.cmd run lint` and `npm.cmd run build` passed.
-- `go run . --fix` in `tools/doc-validator` reported schema/config/routes already synchronized.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-project.ps1` passed the default aggregate gate, including 102 frontend tests and the release documentation profile.
-- Real headless Chromium verification passed: first response `replayed:false`, same-key replay `replayed:true`, identical `broadcast_at`, 83 active users, 83 notification rows, one request row, one success audit and zero post-login console errors. Screenshot: `screenshots/community-messages-notifications-idempotency.png`.
-
-### Notes:
-- The persistent local Docker database predated migration 057; the first browser request failed safely on the old channel CHECK constraint with request/notifications rolled back and a failed audit retained. Applying the existing migration 057 restored the expected local schema before the successful rerun.
-- The messages/notifications plan is complete and archived. Stage 2 executable closeout work is complete; Beta R-02 remains intentionally blocked on Desktop D-02~D-05, real Ed25519 provisioning, HTTPS API configuration and a signed distribution path, so no R-02 checkbox or release evidence was fabricated.
-
-## [2026-07-24] - Deployment: PgBouncer SCRAM compatibility
-
-### What was done:
-- Added `AUTH_TYPE: "scram-sha-256"` to the single-server PgBouncer template so a freshly initialized PostgreSQL 16 cluster using SCRAM password hashes accepts pooled backend connections.
-- Corrected the deployment templates and runbook to use Certbot's actual `/etc/letsencrypt/live/app.leeppp.online/` certificate directory instead of the non-existent parent-domain directory.
-- Updated the static Nginx CSP for Next.js App Router bootstrap scripts and the separate public API origin, restoring client-side hydration instead of leaving only server-rendered navigation.
-
-### Testing:
-- Reviewed the rendered Compose change with `git diff --check`; full local Compose rendering requires the deployment-only `.env`, which is intentionally absent from the repository.
-
-### Notes:
-- Production recovery verified that migrations, including collections, series and notification broadcast idempotency, had completed before the backend connection failure.
-
-## [2026-07-24] - Deployment: Aliyun CAPTCHA success response compatibility
-
-### What was done:
-- Diagnosed production `/api/v1/captcha/verify` failures after the Aliyun CAPTCHA widget rendered successfully.
-- Confirmed backend logs showed Aliyun service-side verification returned `code=Success message=success`, but the local verifier only accepted `Code: OK`.
-- Updated the Aliyun CAPTCHA verifier to accept the official `Success` code while still requiring `Result.VerifyResult == true`.
-- Replaced the regression test that rejected `Success` with tests covering the official success response and `Success` plus `VerifyResult=false`.
-
-### Testing:
-- `go test ./internal/pkg/captcha -v` passed.
-- `git diff --check -- backend/internal/pkg/captcha/verifier.go backend/internal/pkg/captcha/verifier_test.go` passed.
-
-### Notes:
-- The large frontend `captcha_verify_param` payload is expected for Aliyun CAPTCHA 2.0 because it includes device and risk-analysis data; it should be forwarded unchanged.
-
-## [2026-07-25] - Planning: defer Desktop and focus the interview release on Web
-
-### What was done:
-- Recorded the user's decision to pause all Desktop/Tauri implementation and advertising while prioritizing Web development and deployment for the interview showcase.
-- Removed Beta R-02, Desktop D-02~D-05 and the remaining Dual-track desktop queue from the selectable active-plan registry without checking or deleting any unfinished step.
-- Kept the three source plans in place with explicit reversible deferral notes and documented that Production Readiness Ops-09 is deferred while Ops-00~Ops-08 remains in Web scope.
-- Renumbered the active Web backlog; UI Polish U-01~U-05 is now the highest-priority runnable plan.
-
-### Testing:
-- Documentation-only governance change; no application code tests required.
-- `go test ./...` in `tools/doc-validator`: PASS.
-- `go run . --check --profile release` in `tools/doc-validator`: PASS (`All checks passed`).
-- Verified `backend/config.yaml` keeps both `features.desktop_deploy_enabled` and `client.download_enabled` set to `false`.
-
-### Notes:
-- Keep `features.desktop_deploy_enabled=false` and `client.download_enabled=false` until the user explicitly restores Desktop scope and the deferred heavy-lane security/release gates pass.
-- Per the user's stop condition, no frontend or UI implementation was started.
-
-## [2026-07-25] - Planning: reorder UI correctness and prototype work
-
-### What was done:
-- Reclassified U-01~U-05 by overlap risk: U-04/U-05 are correctness work, U-01/U-03 are visual foundations, and U-02 mixes both.
-- Reordered the active sequence to U-05 → U-02A → U-04 → P-01 → U-01 → U-02B → U-03, with P-01 as an explicit user-approval gate for home Feed and content-detail prototypes.
-- Split U-02 into pre-prototype accessibility/behavior work and post-approval visual primitive work; moved token, elevation and navigation changes behind P-01.
-- Refreshed U-05 ownership to include the currently verified raw-error surfaces and documented sequential ownership transfer to U-04/U-11.
-- Replaced stale Mode D/worktree guidance with the current light-lane branch and logical-commit workflow.
-
-### Testing:
-- Documentation-only planning change; no frontend implementation or application tests were run.
-- `go test ./...` in `tools/doc-validator`: PASS.
-- `go run . --check --profile release` in `tools/doc-validator`: PASS (`All checks passed`).
-- `git diff --check`: PASS; `AGENTS.md` remains below the 20KB limit.
-
-### Notes:
-- No production UI file, design token or page styling was changed.
-- The next executable task is U-05; prototype work starts only after U-05, U-02A and U-04 complete.
-
-## [2026-07-25] - Task U-05: Make user-facing errors safe and consistent
-
-### What was done:
-- Re-ran the raw-error inventory and expanded the explicit regression allowlist from the 8 planned paths to all 35 confirmed user-facing surfaces.
-- Replaced direct backend/exception message rendering with localized keys from `getUserFacingErrorKey`, preserving operation-specific fallbacks and existing silent logging/control flow.
-- Made the global error boundary always render its localized generic description instead of `error.message`.
-
-### Testing:
-- Confirmed red tests for a rendered credential-bearing exception and all 27 additional raw `ApiRequestError.message` surfaces, then passed `frontend/tests/user-facing-error-surfaces.test.tsx` (3/3).
-- `npm.cmd test`: PASS (105 tests); `npm.cmd run lint`: PASS; `npm.cmd run build`: PASS.
-- Headless Chrome verified mocked verify-email success and unknown 500 error paths on the current branch; the raw database-style message was absent. Screenshot: `screenshots/ui-polish/u-05/verify-email-safe-error.png`.
-
-### Notes:
-- No new Toasts, visual tokens, layout, typography, palette, radius, shadow, or page composition changes were introduced.
-- The running Docker frontend used an older image, so browser evidence was captured against a temporary current-worktree Next server on port 3001; the server was stopped after verification.
-
-## [2026-07-25] - Task U-02A: Harden shared primitive behavior and accessibility
-
-### What was done:
-- Made titled icon-only Buttons emit an explicit accessible name and added 44px coarse-pointer sizing to icon variants while retaining dense desktop sizes.
-- Preserved ConfirmModal's existing focus trap/Esc/restoration behavior and added native required semantics to the reason textarea.
-- Replaced TagBadge's raw remove SVG with Lucide `X`, added localized tag-specific remove labels, and expanded its pointer hit area without changing the pill layout.
-- Added per-Toast `alert`/`status` live-region semantics, localized close labels, and a 44px coarse-pointer close target.
-
-### Testing:
-- Confirmed red assertions for explicit icon labels, coarse targets, TagBadge naming/icon source, Toast roles/close labels, and ConfirmModal required semantics; focused primitive suite passed 5/5.
-- Existing Toast/ConfirmModal consumer tests plus the new suite passed 58 tests; full `npm.cmd test` passed 110 tests.
-- `npm.cmd run lint`: PASS; `npm.cmd run build`: PASS.
-- Headless Chrome mobile/coarse-pointer flow verified keyboard open, initial reason focus, required-state enablement, Esc close/focus restoration, Toast alert semantics, keyboard close, and a measured 44×44px close target. Screenshot: `screenshots/ui-polish/u-02a/keyboard-toast-mobile.png`.
-
-### Notes:
-- No palette, radius, shadow, typography, empty-state composition, page layout, or other prototype-dependent visual direction changed.
-
-## [2026-07-25] - Task U-04: Replace native destructive dialogs
-
-### What was done:
-- Replaced dashboard content deletion, contributor block/unblock, PR accept/reject, version rollback, and admin LLM configuration deletion native dialogs with `ConfirmModal`.
-- Preserved the settings account-deletion password + irreversible-checkbox flow as its domain-specific confirmation contract.
-- Added required reason collection for PR rejection, localized admin configuration deletion copy, and kept failed destructive API actions open for retry.
-- Left only `frontend/components/social/ReactionBar.tsx`'s report prompt for U-11 ownership.
-
-### Testing:
-- `frontend/tests/destructive-dialogs.test.tsx`: PASS; full `npm.cmd test`: PASS (112 tests).
-- `npm.cmd run lint`: PASS; `npm.cmd run build`: PASS; `git diff --check`: PASS.
-- Source inventory: only the U-11-owned `ReactionBar.tsx` native prompt remains.
-- Browser attempt against current-worktree Next on port 3001 could start Chromium but the protected dashboard mock remained in its loading shell because the mock session did not satisfy the route's full auth/bootstrap contract; no screenshot was recorded or counted as passed.
-
-### Notes:
-- U-04 is complete and released. Stop before P-01 as requested; no prototype or production visual styling work was started.
-
-## [2026-07-25] - Maintenance: Web-only scope and repository state audit
-
-### What was done:
-- Confirmed the current release scope is Web-only across `AGENTS.md`, the deferred Desktop plans, Production Readiness, and Agent productization design/plan sources.
-- Kept Desktop D-02～D-05, R-02 and Ops-09 unchecked and preserved their source plans in place; verified runtime defaults remain `features.desktop_deploy_enabled=false` and `client.download_enabled=false`.
-- Marked the already evidenced Ops-00 source-establishment task complete and corrected the Production Readiness remaining count and UI plan status.
-- Archived 11 completed, superseded, or obsolete documents, including three completed community plans and old Mode C/worktree guidance; retained all active and explicitly deferred plans.
-- Removed four local branch refs already fully contained by `main`; no additional worktrees or stale worktree metadata remained.
-
-### Testing:
-- `git fetch --prune origin`: PASS; `origin/main` has no commits absent from local `main`.
-- `go test ./...` in `tools/doc-validator`: PASS.
-- `go run . --check --profile release` in `tools/doc-validator`: PASS (`All checks passed`).
-- `git diff --check`: PASS after formatting cleanup.
-- Verified `AGENTS.md` is 14,839 bytes, below the 20KB limit.
-
-### Notes:
-- Before this maintenance commit, local `main` was five commits ahead of `origin/main`; the final commit and push status are recorded in Git rather than fabricated in this entry.
-- The next product task remains P-01 prototype review preparation; no prototype or application implementation was started during this audit.
+- Step 6 的 GitHub 侧证据（PR 失败探针运行、绿色运行记录、分支保护配置）未执行：本地仓库领先 origin（main ahead 12），推送与分支保护需用户确认后完成。
+- 桌面债务修复属用户批准的范围外介入：图标 RGBA、AGENT_HMAC_SECRET CI dummy（tauri-ci.yml job env，PR 构建产物从不分发，真实密钥由 Ops-09 提供）、file_ops whitelist 修复；`tauri-windows` 已在 CLAUDE.md 记录为稳定检查，Web-only 声明下不设为 required。
+- tauri-ci 路径检测仅匹配 `tauri-client/`（frontendDist 为 tauri-client 自身 dist，`frontend/` 不触发桌面构建）。
+- Ops-01 改动与 U-12 共享 `scripts/verify-project.sh`/`verify-project.tests.sh`/`frontend/package.json`，U-12 须在 Ops-01 合并后 rebase 执行。

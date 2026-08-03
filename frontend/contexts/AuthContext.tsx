@@ -39,10 +39,46 @@ export interface UnreadCounts {
   follow: number;
 }
 
+export interface InteractionCapabilities {
+  can_interact: boolean;
+  interaction_denial_reason?: string;
+}
+
+const FAIL_CLOSED_CAPABILITIES: InteractionCapabilities = {
+  can_interact: false,
+  interaction_denial_reason: "AUTH_STATUS_UNAVAILABLE",
+};
+
+export function readCapabilities(
+  data: { capabilities?: InteractionCapabilities },
+): InteractionCapabilities {
+  if (!data.capabilities || typeof data.capabilities.can_interact !== "boolean") {
+    return FAIL_CLOSED_CAPABILITIES;
+  }
+  return data.capabilities;
+}
+
+export function interactionDenialKey(reason?: string): string {
+  switch (reason) {
+    case "USER_BANNED":
+      return "capabilities.deniedBanned";
+    case "EMAIL_NOT_VERIFIED":
+      return "capabilities.deniedEmailNotVerified";
+    case "INSUFFICIENT_REPUTATION":
+      return "capabilities.deniedInsufficientReputation";
+    case "CONFIG_ERROR":
+    case "AUTH_STATUS_UNAVAILABLE":
+      return "capabilities.deniedUnavailable";
+    default:
+      return "capabilities.deniedUnknown";
+  }
+}
+
 interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
   unreadCounts: UnreadCounts;
+  capabilities: InteractionCapabilities;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<boolean>;
@@ -54,6 +90,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [capabilities, setCapabilities] = useState<InteractionCapabilities>(FAIL_CLOSED_CAPABILITIES);
   const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({ total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0 });
 
   const refresh = useCallback(async (): Promise<boolean> => {
@@ -70,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTokens();
       setAccessToken(null);
       setUser(null);
+      setCapabilities(FAIL_CLOSED_CAPABILITIES);
       return false;
     }
   }, []);
@@ -90,13 +128,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
       }
-      const data = await api.get<{ user: User }>("/api/v1/auth/me");
+      const data = await api.get<{ user: User; capabilities?: InteractionCapabilities }>("/api/v1/auth/me");
       setUser(data.user);
+      setCapabilities(readCapabilities(data));
     } catch (e) {
       silentError(e, { component: "AuthContext", action: "fetchMe" });
       clearTokens();
       setAccessToken(null);
       setUser(null);
+      setCapabilities(FAIL_CLOSED_CAPABILITIES);
     } finally {
       setIsLoading(false);
     }
@@ -137,10 +177,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await api.post<{
       user: User;
       tokens: { access_token: string };
+      capabilities?: InteractionCapabilities;
     }>("/api/v1/auth/login", { email, password });
     saveTokens(data.tokens.access_token);
     setAccessToken(data.tokens.access_token);
     setUser(data.user);
+    setCapabilities(readCapabilities(data));
   }, []);
 
   const logout = useCallback(async () => {
@@ -154,20 +196,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTokens();
       setAccessToken(null);
       setUser(null);
+      setCapabilities(FAIL_CLOSED_CAPABILITIES);
     }
   }, []);
 
   const refreshUser = useCallback(async () => {
     try {
-      const data = await api.get<{ user: User }>("/api/v1/auth/me");
+      const data = await api.get<{ user: User; capabilities?: InteractionCapabilities }>("/api/v1/auth/me");
       setUser(data.user);
+      setCapabilities(readCapabilities(data));
     } catch (e) {
       silentError(e, { component: "AuthContext", action: "refreshUser" });
     }
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, unreadCounts, login, logout, refresh, refreshUser }}>
+    <AuthContext.Provider value={{ user, isLoading, unreadCounts, capabilities, login, logout, refresh, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

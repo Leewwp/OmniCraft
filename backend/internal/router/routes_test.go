@@ -49,6 +49,14 @@ func TestRouterSourcePreservesRepresentativeRouteContracts(t *testing.T) {
 	}
 }
 
+func TestRehabHandlerReceivesRuntimeStatusDependencies(t *testing.T) {
+	source := readRoutesSource(t)
+	contract := `rehabHandler := handler.NewRehabHandler(db, rdb, cfg)`
+	if !strings.Contains(source, contract) {
+		t.Fatalf("router source missing rehab cache invalidation wiring %q", contract)
+	}
+}
+
 func TestSeriesMutationRoutesUseAuthAndStandardInteractionGuard(t *testing.T) {
 	source := readRoutesSource(t)
 	contracts := []string{

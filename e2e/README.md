@@ -11,21 +11,21 @@ They intentionally fail when fixture accounts, fixture content, or explicit auth
 
 Run both suites:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/run-root-python-e2e.ps1
+```bash
+bash scripts/run-root-python-e2e.sh
 ```
 
 Run one suite:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/run-root-python-e2e.ps1 -Suite search-download
-powershell -ExecutionPolicy Bypass -File scripts/run-root-python-e2e.ps1 -Suite admin-journey
+```bash
+bash scripts/run-root-python-e2e.sh search-download
+bash scripts/run-root-python-e2e.sh admin-journey
 ```
 
 From `frontend/`, the same manual entry point is exposed as:
 
-```powershell
-npm.cmd run test:e2e:release-manual
+```bash
+npm run test:e2e:release-manual
 ```
 
 ## Required fixture style

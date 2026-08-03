@@ -3,11 +3,11 @@ import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 
 function Field({ className, ...props }: React.ComponentProps<"div">) {
-  return <div className={cn("flex flex-col gap-1.5", className)} {...props} />;
+  return <div className={cn("flex flex-col gap-2", className)} {...props} />;
 }
 
 function FieldLabel({ className, ...props }: React.ComponentProps<typeof Label>) {
-  return <Label className={cn("text-sm font-medium", className)} {...props} />;
+  return <Label className={cn("text-sm font-medium text-foreground", className)} {...props} />;
 }
 
 function FieldHint({ className, ...props }: React.ComponentProps<"p">) {

@@ -65,5 +65,13 @@ screenshots/
 *.temp
 *.bak
 
+# Ops evidence (uploaded/archived, never committed)
+/artifacts/
+
 # Local agent/skill caches
 .agents/
+
+# Local dev/test artifacts
+frontend/.cache/
+frontend/public/seed-media/real/
+tasks/未命名.md

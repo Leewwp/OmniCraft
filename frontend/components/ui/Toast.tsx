@@ -36,22 +36,29 @@ const iconMap: Record<ToastType, typeof CheckCircle> = {
 };
 
 const colorMap: Record<ToastType, string> = {
-  success: "border-green-500/30 bg-green-50 dark:bg-green-950/30",
-  error: "border-destructive/30 bg-red-50 dark:bg-red-950/30",
-  warning: "border-yellow-500/30 bg-yellow-50 dark:bg-yellow-950/30",
-  info: "border-blue-500/30 bg-blue-50 dark:bg-blue-950/30",
+  success: "border-[var(--tag-green-fg)] bg-[var(--tag-green-bg)]",
+  error: "border-[var(--tag-rose-fg)] bg-[var(--tag-rose-bg)]",
+  warning: "border-[var(--tag-orange-fg)] bg-[var(--tag-orange-bg)]",
+  info: "border-[var(--tag-blue-fg)] bg-[var(--tag-blue-bg)]",
 };
 
 const iconColorMap: Record<ToastType, string> = {
-  success: "text-green-600 dark:text-green-400",
-  error: "text-destructive",
-  warning: "text-yellow-600 dark:text-yellow-400",
-  info: "text-blue-600 dark:text-blue-400",
+  success: "text-[var(--tag-green-fg)]",
+  error: "text-[var(--tag-rose-fg)]",
+  warning: "text-[var(--tag-orange-fg)]",
+  info: "text-[var(--tag-blue-fg)]",
 };
 
 let nextId = 0;
 const TOAST_DURATION = 4000;
-const EXIT_ANIMATION_MS = 300;
+const EXIT_ANIMATION_MS = 200;
+
+function getExitAnimationMs() {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return EXIT_ANIMATION_MS;
+  }
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : EXIT_ANIMATION_MS;
+}
 
 function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: number) => void }) {
   const t = useTranslations();
@@ -65,7 +72,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: number) =
     // Auto-dismiss
     timerRef.current = setTimeout(() => {
       setVisible(false);
-      setTimeout(() => onRemove(toast.id), EXIT_ANIMATION_MS);
+      setTimeout(() => onRemove(toast.id), getExitAnimationMs());
     }, TOAST_DURATION);
 
     return () => {
@@ -81,7 +88,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: number) =
       role={assertive ? "alert" : "status"}
       aria-live={assertive ? "assertive" : "polite"}
       className={cn(
-        "flex w-full max-w-sm items-start gap-3 rounded-md border p-3 shadow-md transition-all duration-300",
+        "flex w-full items-start gap-3 rounded-lg border bg-card p-3 shadow-md transition-[opacity,transform] duration-200 motion-reduce:translate-x-0 motion-reduce:transition-none",
         colorMap[toast.type],
         visible ? "translate-x-0 opacity-100" : "translate-x-4 opacity-0"
       )}
@@ -93,9 +100,9 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: number) =
         aria-label={t("common.close")}
         onClick={() => {
           setVisible(false);
-          setTimeout(() => onRemove(toast.id), EXIT_ANIMATION_MS);
+          setTimeout(() => onRemove(toast.id), getExitAnimationMs());
         }}
-        className="inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground [@media(pointer:coarse)]:size-11"
+        className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors duration-150 hover:bg-background/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:size-11"
       >
         <X className="h-4 w-4" />
       </button>
@@ -120,7 +127,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       {/* Fixed toast container - top right */}
       <div
-        className="fixed right-4 top-4 z-[100] flex flex-col gap-2"
+        className="fixed left-4 right-4 top-4 z-[100] flex flex-col gap-2 sm:left-auto sm:max-w-sm"
       >
         {toasts.map((t) => (
           <ToastItem key={t.id} toast={t} onRemove={removeToast} />

@@ -17,7 +17,7 @@
 | Redis | 7+ | — |
 | Rust | 1.75+ | 仅 Tauri 客户端需要 |
 
-CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致。
+CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致。CI 精确固定 Go 1.25.11 / Node 20（见 `.github/workflows/ci.yml` 与 `tauri-ci.yml`），本地只需满足上表最低版本；二者不等价。
 
 ---
 
@@ -27,11 +27,11 @@ CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致
 
 | 优先级 | 计划文件 | 余项 | 车道 | 备注 |
 |--------|----------|------|------|------|
-| 1 | `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md` | P-01→U-01→U-02B→U-03 | light | U-05/U-02A/U-04 已完成；下一步仅为 P-01 原型评审，须用户批准后再继续。U-06/07/09/10 并入后续推广，U-11/U-12 收尾 |
-| 2 | `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md` | 58（其中 9 项桌面暂缓） | heavy | Ops-00 已完成；Web 发布路径执行 Ops-01~Ops-08。桌面制品 Ops-09 随桌面范围暂缓，不得复制或绕过桌面安全任务 |
-| 3 | `docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md` | 64 | light | 未开始 |
-| 3 | `docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md` | 62 | light | 未开始 |
-| 4 | `docs/superpowers/plans/2026-07-16-omnicraft-web-agent-productization.md` | 47 | mixed | 未开始；真实 Provider 密钥缺失时按阻塞处理，仓库默认开关保持关闭 |
+| 1 | `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md` | U-12 | light | U-05/U-02A/U-04/U-01/U-02B/U-03/U-06/U-07/U-08/U-09/U-10/U-11 已完成；P-01 已于 2026-08-01 获批（IP 库选定方案 B Indigo 精修），采用当前 Indigo 单方向，Hallmark Tally 方向已取消。A1/A1.5/A1.6/A2 已完成并验证。生产 `/ips` 的固定卡宽空白缺陷已由 U-09 修复。现有二创页 `/`、原创页 `/original`、IP 详情 `/ip/[ipId]` 为已接受视觉基线，不重复构建。前端任务由 opencode 车道执行；U-12 修改 `scripts/verify-project.sh`、`scripts/verify-project.tests.sh` 与 `frontend/package.json`，按协调规则必须在 Ops-01 合并后 rebase 执行（执行顺序 Ops-01 → U-12）；真实图片与全历史搜索生产接线另走后续计划 |
+| 2 | `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md` | 58（其中 9 项桌面暂缓） | heavy | Ops-00 已完成；Web 发布路径执行 Ops-01~Ops-08。2026-08-03 起计划内脚本统一为 bash（`.sh`），本地与 CI 均用 `bash <path>` 调用，不再引用 `.ps1`/pwsh。Ops-01 先于 U-12 合并（共享 verifier 与 package.json）。桌面制品 Ops-09 随桌面范围暂缓，不得复制或绕过桌面安全任务 |
+| 3 | `docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md` | 64 | light | 未开始；迁移编号已修正为 `061_add_source_fanwork_id.sql`（`060` 已被 `060_fix_search_config_fallback.sql` 占用）。与 collaboration-invites 共享 `content_repo.go`、`zh.json`/`en.json`，须串行执行且本计划先合并 |
+| 3 | `docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md` | 62 | light | 未开始；迁移编号已修正为 `063_collaboration_invites.sql`（`060` 被占用、`062` 已存在）。须在 source-linkage 合并后执行（共享文件串行），其 `config.go`/`config.yaml`/`routes.go` 改动与 Web Agent 计划串行 |
+| 4 | `docs/superpowers/plans/2026-07-16-omnicraft-web-agent-productization.md` | 47 | mixed | 未开始；前端 Task 4 的 P-01→U-01→U-02B→U-03 等待条件已于 2026-08-02 满足（P-01 获批、U-01/U-02B/U-03 完成），Task 4 仍需等待本计划 Task 1~3；生产 `/agent`、旧 Widget 移除和引用浮层接线由本计划独占；真实 Provider 密钥缺失时按阻塞处理，仓库默认开关保持关闭 |
 
 ### 暂缓计划（不是当前任务来源）
 
@@ -100,7 +100,7 @@ cd frontend && npm run dev &
 - [ ] 功能在浏览器/接口测试中验证通过
 - [ ] Tauri 相关：`npm run build`、`cargo test --manifest-path src-tauri/Cargo.toml`
 
-项目级入口：`powershell -ExecutionPolicy Bypass -File scripts/verify-project.ps1`（`-Full` 加 mocked Playwright contracts，`-Release` 加完整 E2E，互斥；`-Tauri` 可叠加）。聚合入口不替代 UI 截图、真实外部服务 smoke 或发布证据。heavy 车道必须先有失败测试再实现。
+项目级入口：`bash scripts/verify-project.sh`（`--full` 加 mocked Playwright contracts，`--release` 加完整 E2E，互斥；`--tauri` 可叠加；契约测试见 `scripts/verify-project.tests.sh`）。2026-08-03 起验证体系由 PowerShell 移植为 bash（macOS/Linux 原生执行，与 GitHub Actions ubuntu runner 一致）；历史 `.ps1` 版本已删除，不再使用。聚合入口不替代 UI 截图、真实外部服务 smoke 或发布证据。heavy 车道必须先有失败测试再实现。
 
 ### Step 5: 更新 progress.txt
 

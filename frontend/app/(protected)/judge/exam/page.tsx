@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
@@ -22,7 +22,7 @@ type Phase = "select-type" | "exam" | "result";
 
 export default function JudgeExamPage() {
   const t = useTranslations();
-  const { user } = useAuth();
+  const { user, capabilities } = useAuth();
   const router = useRouter();
 
   const [phase, setPhase] = useState<Phase>("select-type");
@@ -109,7 +109,9 @@ export default function JudgeExamPage() {
     }
   }
 
-  const isReputationBlocked = user!.reputation < 3;
+  const isInteractionBlocked = !capabilities.can_interact;
+  const denialKey = interactionDenialKey(capabilities.interaction_denial_reason);
+  const isReputationBlocked = capabilities.interaction_denial_reason === "INSUFFICIENT_REPUTATION";
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-4 px-4 py-6">
@@ -122,11 +124,16 @@ export default function JudgeExamPage() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {isReputationBlocked && (
+      {user && isInteractionBlocked && (
         <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 ">
           <p className="text-sm text-destructive">
-            {t('judge.lowReputationExam', { reputation: user!.reputation })}
+            {t(denialKey)}
           </p>
+          {isReputationBlocked && (
+            <p className="mt-1 text-xs text-destructive/80">
+              {t('capabilities.reputationRestoreHint')}
+            </p>
+          )}
         </div>
       )}
 
@@ -138,13 +145,13 @@ export default function JudgeExamPage() {
               <button
                 key={ct.value}
                 type="button"
-                disabled={isReputationBlocked || loading}
+                disabled={isInteractionBlocked || loading}
                 onClick={() => {
                   setContentType(ct.value);
                   void loadQuestions(ct.value);
                 }}
                 className={`rounded-md border px-4 py-3 text-sm transition-all focus-visible:ring-2 focus-visible:ring-accent ${
-                  isReputationBlocked || loading
+                  isInteractionBlocked || loading
                     ? "border-border bg-background opacity-50 cursor-not-allowed"
                     : "border-border bg-background text-foreground hover:bg-muted cursor-pointer"
                 }`}

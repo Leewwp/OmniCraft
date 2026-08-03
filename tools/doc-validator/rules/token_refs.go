@@ -6,6 +6,21 @@ import (
 	"regexp"
 )
 
+// definedTokensIn extracts --token definitions in both prose (`--name: value`)
+// and backtick-quoted table cell (`--name`) forms.
+func definedTokensIn(content string) map[string]bool {
+	tokenDefRe := regexp.MustCompile(`--([a-zA-Z][a-zA-Z0-9-]*)\s*:`)
+	tokenCellRe := regexp.MustCompile("`--([a-zA-Z][a-zA-Z0-9-]*)`")
+	defined := make(map[string]bool)
+	for _, match := range tokenDefRe.FindAllStringSubmatch(content, -1) {
+		defined["--"+match[1]] = true
+	}
+	for _, match := range tokenCellRe.FindAllStringSubmatch(content, -1) {
+		defined["--"+match[1]] = true
+	}
+	return defined
+}
+
 // CheckTokenRefs scans ui-spec.md for CSS variable references and checks
 // that each referenced token is defined in design-system.md.
 func CheckTokenRefs() []RuleIssue {
@@ -18,12 +33,7 @@ func CheckTokenRefs() []RuleIssue {
 		return []RuleIssue{{Severity: "ERROR", File: dsPath, Message: fmt.Sprintf("cannot read: %v", err)}}
 	}
 
-	// Extract all --token-name definitions from design-system.md
-	tokenDefRe := regexp.MustCompile(`--([a-zA-Z][a-zA-Z0-9-]*)\s*:`)
-	definedTokens := make(map[string]bool)
-	for _, match := range tokenDefRe.FindAllStringSubmatch(string(dsContent), -1) {
-		definedTokens["--"+match[1]] = true
-	}
+	definedTokens := definedTokensIn(string(dsContent))
 
 	// Read ui-spec.md for token references
 	uiPath := "design/ui-spec.md"

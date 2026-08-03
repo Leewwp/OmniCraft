@@ -13,7 +13,7 @@
 ## Cross-Plan Coordination
 
 - Execution source: this is part of the 2026-06-30 community feature plan family, derived from `docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md`. It is not a historical `task.json` task and not a 2026-05-30 Beta roadmap checkbox; executing it requires an explicit user request naming this plan or the community feature family.
-- Shared-file integration and migration order for the six community plans is: messages-notifications (`057`) -> browse-history (no migration) -> collections (`058`) -> content-series (`059`) -> source-linkage (`060`) -> collaboration-invites (`061`).
+- Shared-file integration and migration order for the six community plans is: messages-notifications (`057`) -> browse-history (no migration) -> collections (`058`) -> content-series (`059`) -> source-linkage (`061`) -> collaboration-invites (`063`).
 - `frontend/app/(protected)/messages/page.tsx`, `frontend/components/social/ChatWindow.tsx`, and `frontend/components/social/ConversationList.tsx` must land in messages-notifications before collaboration-invites extends typed invite cards.
 - `frontend/components/content/ContentDetail.tsx` changes from collections and content-series must already be present; this plan adds source attribution and related/derivative rows after them.
 - `frontend/components/studio/PublishForm.tsx` source fields in this plan must land before collaboration-invites adds the collaborator picker.
@@ -32,7 +32,7 @@
 ### Backend
 
 - Read/modify if stale: `AGENTS.md`, `CLAUDE.md`, `architecture.md` - 先验证来源规则和发布/详情 API 文档是否已与本计划的 fanwork 三选一来源模型一致；仅当分支仍有旧单来源规则时再更新。
-- Create: `backend/migrations/060_add_source_fanwork_id.sql`.
+- Create: `backend/migrations/061_add_source_fanwork_id.sql`.
 - Modify: `backend/internal/model/content.go`
 - Modify: `backend/internal/repository/content_repo.go`
 - Modify: `backend/internal/service/content_service.go`
@@ -92,7 +92,7 @@ If stale prose remains, update `architecture.md` in hand-written prose sections 
 
 Run:
 
-```powershell
+```bash
 rg -n "单来源模型|最多绑定一个原创|只有 `zone='fanwork'` 允许填写 `source_original_id`|/publish\\?zone=fanwork&source_original_id" AGENTS.md CLAUDE.md architecture.md
 ```
 
@@ -103,7 +103,7 @@ Expected: no stale old-model prose remains except in explicitly labeled historic
 ## Task 1: Add Source Fanwork Migration And Model
 
 **Files:**
-- Create: `backend/migrations/060_add_source_fanwork_id.sql`
+- Create: `backend/migrations/061_add_source_fanwork_id.sql`
 - Modify: `backend/internal/model/content.go`
 - Test: `backend/internal/model/content_migration_test.go`
 
@@ -111,11 +111,11 @@ Expected: no stale old-model prose remains except in explicitly labeled historic
 
 Run:
 
-```powershell
-Get-ChildItem backend\migrations | Sort-Object Name | Select-Object -Last 10 -ExpandProperty Name
+```bash
+ls backend/migrations/ | sort | tail -10
 ```
 
-Expected number is `060_add_source_fanwork_id.sql` because this plan lands before collaboration-invites. If `060_` is already occupied by an unrelated migration at implementation time, stop and update all six community plans plus the source spec migration table before continuing.
+Expected number is `061_add_source_fanwork_id.sql` because this plan lands before collaboration-invites（2026-08-03 编号修正：`060` 已被 `060_fix_search_config_fallback.sql` 占用，`062_notification_broadcast_idempotency.sql` 已存在，collaboration-invites 相应调整为 `063`）。If `061_` is already occupied by an unrelated migration at implementation time, stop and update all six community plans plus the source spec migration table before continuing.
 
 - [ ] **Step 2: Write failing migration test**
 
@@ -154,7 +154,7 @@ SourceFanwork   *ContentItem `gorm:"foreignKey:SourceFanworkID" json:"source_fan
 
 Run:
 
-```powershell
+```bash
 cd backend
 go test ./internal/model -run TestContentSourceMigration -v
 ```
@@ -185,7 +185,7 @@ Table cases:
 
 Run:
 
-```powershell
+```bash
 cd backend
 go test ./internal/service -run TestValidateSource -v
 ```
@@ -212,7 +212,7 @@ Set `ContentItem.SourceFanworkID` during creation.
 
 Run:
 
-```powershell
+```bash
 cd backend
 go test ./internal/service -run TestValidateSource -v
 ```
@@ -242,7 +242,7 @@ Extend `content_publish_route_test.go` to assert:
 
 Run:
 
-```powershell
+```bash
 cd backend
 go test ./internal/handler -run "TestCreateContentRoute|TestUpdateContent.*SourceImmutable" -v
 ```
@@ -282,7 +282,7 @@ Keep current rule: objects without valid `id/title/zone` must not become clickab
 
 Run:
 
-```powershell
+```bash
 cd backend
 go test ./internal/handler -run TestCreateContentRoute -v
 ```
@@ -315,7 +315,7 @@ Cover:
 
 Run:
 
-```powershell
+```bash
 cd backend
 go test ./internal/handler -run TestListRelatedFanworks -v
 ```
@@ -346,7 +346,7 @@ Do not keep old `NOT_ORIGINAL` behavior for fanwork sources.
 
 Run:
 
-```powershell
+```bash
 cd backend
 go test ./internal/handler -run TestListRelatedFanworks -v
 ```
@@ -369,7 +369,7 @@ go test ./internal/handler -run TestListRelatedFanworks -v
 
 Run:
 
-```powershell
+```bash
 rg -n "## Page: /studio/publish/fanwork|## Component: SourceContentPicker|## Component: CollabUserPicker" design/ui-spec.md
 ```
 
@@ -406,7 +406,7 @@ Do not create a fanwork-specific picker file. Existing original-source picker ex
 
 Run:
 
-```powershell
+```bash
 cd frontend
 node --import tsx --test tests/studio-publish-fanwork.test.tsx
 ```
@@ -470,7 +470,7 @@ Add visible strings under `studio.publish.fanwork.source.*`, `sourceContentPicke
 
 Run:
 
-```powershell
+```bash
 cd frontend
 npx playwright test e2e/studio-publish-fanwork.spec.ts
 ```
@@ -495,7 +495,7 @@ npx playwright test e2e/studio-publish-fanwork.spec.ts
 
 Run:
 
-```powershell
+```bash
 rg -n "## Component: RelatedFanworks|## Component: SourceAttribution" design/ui-spec.md
 ```
 
@@ -567,7 +567,7 @@ Fanwork detail:
 
 Run:
 
-```powershell
+```bash
 cd frontend
 node --import tsx --test tests/source-linkage-components.test.tsx
 ```
@@ -584,7 +584,7 @@ node --import tsx --test tests/source-linkage-components.test.tsx
 
 Run:
 
-```powershell
+```bash
 cd backend
 go test ./internal/model -run TestContentSourceMigration -v
 go test ./internal/service -run TestValidateSource -v
@@ -595,7 +595,7 @@ go test ./internal/handler -run "TestCreateContentRoute|TestListRelatedFanworks"
 
 Run:
 
-```powershell
+```bash
 cd backend
 go test ./...
 go vet ./...
@@ -606,7 +606,7 @@ go build ./...
 
 Run:
 
-```powershell
+```bash
 cd frontend
 npm run test
 npm run lint
@@ -618,7 +618,7 @@ npx playwright test e2e/studio-publish-fanwork.spec.ts
 
 Because this plan changes migrations:
 
-```powershell
+```bash
 cd tools/doc-validator
 go run . --fix
 ```
@@ -642,8 +642,8 @@ go run . --fix
 
 - [ ] **Step 6: Commit when implementing**
 
-```powershell
-git add -- AGENTS.md CLAUDE.md architecture.md backend/migrations/060_add_source_fanwork_id.sql backend/internal/model/content.go backend/internal/model/content_migration_test.go backend/internal/repository/content_repo.go backend/internal/service/content_service.go backend/internal/service/content_source_test.go backend/internal/handler/content.go backend/internal/handler/content_publish_route_test.go backend/internal/pkg/response/safe_error.go frontend/components/content/RelatedFanworks.tsx frontend/components/content/SourceAttribution.tsx frontend/components/studio/SourceContentPicker.tsx frontend/lib/content.ts frontend/components/studio/PublishForm.tsx "frontend/app/(protected)/studio/publish/fanwork/page.tsx" "frontend/app/(public)/content/[contentId]/page.tsx" "frontend/app/(public)/original/[contentId]/page.tsx" "frontend/app/(public)/original/[contentId]/fanworks/page.tsx" frontend/components/content/ContentDetail.tsx frontend/components/content/ContentSidebar.tsx frontend/messages/zh.json frontend/messages/en.json frontend/tests/studio-publish-fanwork.test.tsx frontend/tests/source-linkage-components.test.tsx frontend/e2e/studio-publish-fanwork.spec.ts screenshots/community-source-picker-desktop.png screenshots/community-source-picker-mobile.png screenshots/community-source-attribution-desktop.png screenshots/community-source-attribution-unavailable.png screenshots/community-related-fanworks-desktop.png screenshots/community-derivatives-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md progress.txt
+```bash
+git add -- AGENTS.md CLAUDE.md architecture.md backend/migrations/061_add_source_fanwork_id.sql backend/internal/model/content.go backend/internal/model/content_migration_test.go backend/internal/repository/content_repo.go backend/internal/service/content_service.go backend/internal/service/content_source_test.go backend/internal/handler/content.go backend/internal/handler/content_publish_route_test.go backend/internal/pkg/response/safe_error.go frontend/components/content/RelatedFanworks.tsx frontend/components/content/SourceAttribution.tsx frontend/components/studio/SourceContentPicker.tsx frontend/lib/content.ts frontend/components/studio/PublishForm.tsx "frontend/app/(protected)/studio/publish/fanwork/page.tsx" "frontend/app/(public)/content/[contentId]/page.tsx" "frontend/app/(public)/original/[contentId]/page.tsx" "frontend/app/(public)/original/[contentId]/fanworks/page.tsx" frontend/components/content/ContentDetail.tsx frontend/components/content/ContentSidebar.tsx frontend/messages/zh.json frontend/messages/en.json frontend/tests/studio-publish-fanwork.test.tsx frontend/tests/source-linkage-components.test.tsx frontend/e2e/studio-publish-fanwork.spec.ts screenshots/community-source-picker-desktop.png screenshots/community-source-picker-mobile.png screenshots/community-source-attribution-desktop.png screenshots/community-source-attribution-unavailable.png screenshots/community-related-fanworks-desktop.png screenshots/community-derivatives-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md progress.txt
 git commit -m "Community 5: original fanwork source linkage"
 ```
 

@@ -75,7 +75,7 @@ Cover typed `AgentAnswer`, `AgentCitation`, `AgentToolExecution`, `AgentUsage`, 
 
 - [ ] **Step 2: Confirm red**
 
-```powershell
+```bash
 cd backend
 go test ./config ./internal/service -run "TestAgentConfig|TestAgentContract" -v
 ```
@@ -102,7 +102,7 @@ Do not use `map[string]any` for public response fields. Internal Provider-specif
 
 - [ ] **Step 5: Verify and run doc-validator**
 
-```powershell
+```bash
 cd backend
 go test ./config ./internal/service -run "TestAgentConfig|TestAgentContract|TestAgentEvalFixture" -v
 cd ../tools/doc-validator
@@ -136,7 +136,7 @@ Assert:
 
 - [ ] **Step 2: Confirm red**
 
-```powershell
+```bash
 cd backend
 go test ./internal/service -run "TestAgentGrounding|TestAgentToolPolicy" -v
 ```
@@ -157,7 +157,7 @@ Generate `trace_id`; record provider/model, tool name/status/duration, token cou
 
 - [ ] **Step 6: Verify focused tests**
 
-```powershell
+```bash
 cd backend
 go test ./internal/service -run "TestAgent|TestUploadAssist|TestNLSearch" -v
 ```
@@ -192,7 +192,7 @@ Cover:
 
 - [ ] **Step 2: Confirm red**
 
-```powershell
+```bash
 cd backend
 go test ./internal/handler ./internal/service ./internal/middleware -run "TestAgent.*Stream|TestAgent.*Quota|TestAgent.*Provider" -v
 ```
@@ -215,7 +215,7 @@ Add `DELETE /api/v1/agent/conversations/:id`. Delete with an owner-scoped transa
 
 - [ ] **Step 7: Verify focused and full backend gates**
 
-```powershell
+```bash
 cd backend
 go test ./internal/handler ./internal/service ./internal/middleware -run "TestAgent" -v
 go test ./...
@@ -263,7 +263,7 @@ Implement separate “开始新对话” and “清空当前历史” actions us
 
 - [ ] **Step 5: Run focused frontend tests**
 
-```powershell
+```bash
 cd frontend
 node --import tsx --test tests/agent-chat-widget.test.tsx
 npm run lint
@@ -301,7 +301,7 @@ The opt-in smoke records model/provider, latency, token usage, cost estimate, an
 
 - [ ] **Step 4: Verify evaluation gate**
 
-```powershell
+```bash
 cd backend
 go test ./internal/service -run TestAgentEvaluation -v
 ```
@@ -316,7 +316,7 @@ Update only Task 5 checkboxes and `progress.txt`, stage exact fixture/evaluation
 
 - [ ] **Step 1: Run full automated gates**
 
-```powershell
+```bash
 cd backend
 go test ./...
 go vet ./...

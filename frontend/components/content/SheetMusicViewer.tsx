@@ -10,6 +10,8 @@ import {
   Pause,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { DownloadButton } from "@/components/content/DownloadButton";
 import { cn } from "@/lib/utils";
 import { silentError } from "@/lib/error-handler";
@@ -54,7 +56,10 @@ function fileTypeFor(att: SheetMusicAttachment): string {
 
 /* ── OSMDRenderer (MusicXML → staff notation) ─ */
 function OSMDRenderer({ ossUrl }: { ossUrl: string }) {
+  const t = useTranslations();
   const containerRef = useRef<HTMLDivElement>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -63,6 +68,8 @@ function OSMDRenderer({ ossUrl }: { ossUrl: string }) {
     if (!el) return;
 
     async function init() {
+      setLoading(true);
+      setError("");
       try {
         const target = el;
         if (!target) return;
@@ -74,24 +81,32 @@ function OSMDRenderer({ ossUrl }: { ossUrl: string }) {
           drawTitle: false,
         });
         await osmd.load(ossUrl);
-        if (!cancelled) osmd.render();
+        if (!cancelled) {
+          osmd.render();
+          setLoading(false);
+        }
       } catch (e: unknown) {
         silentError(e, { component: 'OSMDRenderer', action: 'render' });
-        if (!cancelled) setError((e as Error).message || "Failed to render sheet music");
+        if (!cancelled) {
+          setError(t("common.loadFailed"));
+          setLoading(false);
+        }
       }
     }
     init();
     return () => { cancelled = true; };
-  }, [ossUrl]);
+  }, [ossUrl, attempt, t]);
 
   return (
-    <div className="relative min-h-[300px] overflow-x-auto rounded-md border border-border bg-card p-4">
+    <div className="relative min-h-[300px] overflow-x-auto rounded-md border border-border bg-card p-4" aria-busy={loading} aria-live="polite">
+      {loading && <><span className="sr-only" role="status">{t("common.loading")}</span><Skeleton className="h-64 w-full" /></>}
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-card/80">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 border border-border-destructive bg-card/95" role="alert">
           <p className="text-sm text-destructive">{error}</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((value) => value + 1)}>{t("common.retry")}</Button>
         </div>
       )}
-      <div ref={containerRef} className="osmd-container" />
+      <div ref={containerRef} className="osmd-container" aria-hidden={loading} />
     </div>
   );
 }
@@ -104,6 +119,7 @@ function MIDIPlayer({ ossUrl }: { ossUrl: string }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
   const ctxRef = useRef<AudioContext | null>(null);
   const playerRef = useRef<import("midi-player-js").Player | null>(null);
   const pianoRef = useRef<import("soundfont-player").Player | null>(null);
@@ -116,6 +132,8 @@ function MIDIPlayer({ ossUrl }: { ossUrl: string }) {
     ctxRef.current = ctx;
 
     async function init() {
+      setLoading(true);
+      setError("");
       try {
         const [{ Player }, { instrument }] = await Promise.all([
           import("midi-player-js"),
@@ -152,7 +170,7 @@ function MIDIPlayer({ ossUrl }: { ossUrl: string }) {
       } catch (e: unknown) {
         silentError(e, { component: 'MIDIPlayer', action: 'init' });
         if (!cancelled) {
-          setError((e as Error).message || "Failed to load MIDI");
+          setError(t("common.loadFailed"));
           setLoading(false);
         }
       }
@@ -163,7 +181,7 @@ function MIDIPlayer({ ossUrl }: { ossUrl: string }) {
       cancelled = true;
       try { ctx.close(); } catch (e) { silentError(e, { component: 'MIDIPlayer', action: 'cleanup' }); }
     };
-  }, [ossUrl]);
+  }, [ossUrl, attempt, t]);
 
   function togglePlay() {
     const player = playerRef.current;
@@ -194,16 +212,18 @@ function MIDIPlayer({ ossUrl }: { ossUrl: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center rounded-md border border-border bg-muted/20 p-8">
-        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+      <div className="flex min-h-28 items-center justify-center rounded-md border border-border bg-muted/20 p-8" aria-busy="true" aria-live="polite">
+        <span className="sr-only" role="status">{t("common.loading")}</span>
+        <Skeleton className="h-3 w-2/3" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="rounded-md border border-border bg-canvas-subtle p-4 text-center">
+      <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 text-center" role="alert">
         <p className="text-sm text-destructive">{error}</p>
+        <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => setAttempt((value) => value + 1)}>{t("common.retry")}</Button>
       </div>
     );
   }
@@ -346,14 +366,11 @@ export function SheetMusicViewer({ contentId, attachments, allowCopy, className 
 
   if (!attachments || attachments.length === 0) {
     return (
-      <div
-        className={cn(
-          "flex items-center justify-center rounded-md border border-border bg-muted/20 p-8",
-          className,
-        )}
-      >
-        <p className="text-sm text-muted-foreground">{t("content.noSheetMusic")}</p>
-      </div>
+      <EmptyState
+        icon={FileMusic}
+        title={t("content.noSheetMusic")}
+        className={className}
+      />
     );
   }
 

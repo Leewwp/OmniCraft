@@ -6,6 +6,7 @@ import { Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, ApiRequestError } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 
@@ -41,10 +42,14 @@ export function DownloadButton({
 }: DownloadButtonProps) {
   const t = useTranslations();
   const { toast } = useToast();
+  const { user, capabilities } = useAuth();
   const [loading, setLoading] = useState(false);
 
+  const interactionBlocked = !!user && !capabilities.can_interact;
+  const denialKey = interactionDenialKey(capabilities.interaction_denial_reason);
+
   const handleDownload = useCallback(async () => {
-    if (isDisabled || loading) return;
+    if (isDisabled || interactionBlocked || loading) return;
     setLoading(true);
     try {
       let path = `/api/v1/contents/${contentId}/download`;
@@ -69,11 +74,18 @@ export function DownloadButton({
     } finally {
       setLoading(false);
     }
-  }, [contentId, attachmentId, isDisabled, loading, onDownloadComplete, toast, t]);
+  }, [contentId, attachmentId, isDisabled, interactionBlocked, loading, onDownloadComplete, toast, t]);
 
   const label = contentType === "sheet_music"
     ? t("content.downloadSheetMusic")
     : t("content.download");
+
+  const effectiveDisabled = isDisabled || interactionBlocked || loading;
+  const effectiveReason = isDisabled
+    ? disableReason
+    : interactionBlocked
+      ? t(denialKey)
+      : undefined;
 
   return (
     <Button
@@ -81,8 +93,8 @@ export function DownloadButton({
       size={size}
       className={cn(className)}
       onClick={handleDownload}
-      disabled={isDisabled || loading}
-      title={isDisabled ? disableReason : undefined}
+      disabled={effectiveDisabled}
+      title={effectiveReason}
     >
       {loading ? (
         <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />

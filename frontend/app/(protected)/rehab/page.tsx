@@ -8,6 +8,10 @@ import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { BookOpen, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DataList } from "@/components/ui/data-list";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/Toast";
 import { CourseCard } from "@/components/rehab/CourseCard";
 import { CourseContent } from "@/components/rehab/CourseContent";
 import { ReputationDetail } from "@/components/rehab/ReputationDetail";
@@ -28,7 +32,8 @@ interface Completion {
 
 export default function RehabPage() {
   const t = useTranslations();
-  const { user } = useAuth();
+  const { toast } = useToast();
+  const { user, refreshUser } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [completions, setCompletions] = useState<Completion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,25 +42,35 @@ export default function RehabPage() {
   const [startTime, setStartTime] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [completingId, setCompletingId] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (nextPage = 1, append = false) => {
+    if (append) setLoadingMore(true); else setLoading(true);
     setError("");
+    setPage(nextPage);
     try {
       const [coursesRes, progressRes] = await Promise.all([
-        api.get<{ courses?: Course[] }>("/api/v1/rehab/courses"),
+        api.get<{ courses?: Course[]; total?: number; page_size?: number }>(`/api/v1/rehab/courses?page=${nextPage}&page_size=20`),
         api.get<{ completions?: Completion[] }>("/api/v1/rehab/my-progress"),
       ]);
-      setCourses(coursesRes.courses ?? []);
+      const incoming = coursesRes.courses ?? [];
+      setCourses((current) => append ? [...current, ...incoming.filter((item) => !current.some((existing) => existing.id === item.id))] : incoming);
+      setPage(nextPage);
+      setHasMore((coursesRes.total ?? incoming.length) > nextPage * (coursesRes.page_size ?? 20));
       setCompletions(progressRes.completions ?? []);
     } catch (e) {
       silentError(e, { component: 'RehabPage', action: 'loadData' });
-      setError(t(getUserFacingErrorKey(e, "common.loadFailed")));
+      const message = t(getUserFacingErrorKey(e, "common.loadFailed"));
+      setError(message);
+      toast("error", message);
     } finally {
+      setLoadingMore(false);
       setLoading(false);
     }
-  }, [t]);
+  }, [t, toast]);
 
   useEffect(() => {
     if (!user) return;
@@ -88,6 +103,7 @@ export default function RehabPage() {
       setActiveId(null);
       setStartTime(null);
       await loadData();
+      await refreshUser();
     } catch (e) {
       silentError(e, { component: 'RehabPage', action: 'handleComplete' });
       setError(t(getUserFacingErrorKey(e)));
@@ -100,14 +116,6 @@ export default function RehabPage() {
     return completions.some((c) => c.course_id === courseId && c.completed_at);
   }
 
-  if (loading) {
-    return (
-      <div className="mx-auto max-w-3xl px-4 py-6 text-sm text-muted-foreground">
-        {t("common.loading")}
-      </div>
-    );
-  }
-
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
       <div>
@@ -115,16 +123,18 @@ export default function RehabPage() {
         <p className="mt-1 text-sm text-muted-foreground">{t("rehab.subtitle")}</p>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      {courses.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-card p-8 text-center">
-          <BookOpen className="h-8 w-8 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">{t("rehab.noCourses")}</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {courses.map((course) => {
+      <DataList
+        items={courses}
+        loading={loading}
+        error={error}
+        onRetry={() => void loadData(page, page > 1)}
+        hasMore={hasMore}
+        loadingMore={loadingMore}
+        onLoadMore={() => loadData(page + 1, true)}
+        empty={<EmptyState icon={BookOpen} title={t("rehab.noCourses")} />}
+        loadingState={<div className="space-y-3"><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /></div>}
+        getKey={(course) => course.id}
+        renderItem={(course) => {
             const done = isCompleted(course.id);
             const isActive = activeId === course.id;
             const canComplete = isActive && elapsed >= course.min_reading_sec;
@@ -165,9 +175,8 @@ export default function RehabPage() {
               )}
               </Fragment>
             );
-          })}
-        </div>
-      )}
+        }}
+      />
     </div>
   );
 }

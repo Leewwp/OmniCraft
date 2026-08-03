@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
-import { ArrowLeft, MessageSquare, Paperclip } from "lucide-react";
+import { AlertCircle, ArrowLeft, MessageSquare, Paperclip } from "lucide-react";
 
 interface FeedbackReply {
   id: number;
@@ -51,38 +53,64 @@ export default function FeedbackDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      setError("");
-      try {
-        const res = (await api.get(`/api/v1/feedback/${ticketId}`)) as FeedbackTicket;
-        setTicket(res);
-      } catch (e) {
-        silentError(e, { component: "FeedbackDetailPage", action: "load" });
-        setError(t(getUserFacingErrorKey(e)));
-      } finally {
-        setLoading(false);
-      }
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = (await api.get(`/api/v1/feedback/${ticketId}`)) as FeedbackTicket;
+      setTicket(res);
+    } catch (e) {
+      silentError(e, { component: "FeedbackDetailPage", action: "load" });
+      setError(t(getUserFacingErrorKey(e, "common.loadFailed")));
+    } finally {
+      setLoading(false);
     }
-    load();
   }, [ticketId, t]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-2xl px-4 py-8">
-        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+      <div className="mx-auto min-h-[520px] w-full max-w-2xl px-4 py-8" aria-busy="true" aria-live="polite">
+        <span className="sr-only" role="status">{t("common.loading")}</span>
+        <Skeleton className="mb-4 h-8 w-32" />
+        <div className="space-y-4 rounded-lg border border-border bg-card p-4">
+          <div className="flex gap-2"><Skeleton className="h-5 w-16" /><Skeleton className="h-5 w-24" /><Skeleton className="h-5 w-12" /></div>
+          <Skeleton className="h-7 w-2/3" />
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-4 w-40" />
+        </div>
       </div>
     );
   }
 
-  if (error || !ticket) {
+  if (error) {
     return (
-      <div className="mx-auto w-full max-w-2xl px-4 py-8 text-center">
-        <p className="text-sm text-destructive">{error || t("feedback.ticketNotFound")}</p>
-        <Link href="/feedback/mine" className="mt-2 inline-block text-sm text-primary hover:underline">
-          {t("feedback.backToList")}
-        </Link>
+      <div className="mx-auto flex min-h-[520px] w-full max-w-2xl items-center justify-center px-4 py-8" aria-live="polite">
+        <div className="w-full rounded-lg border border-destructive/50 bg-destructive/5 p-6 text-center" role="alert">
+          <AlertCircle className="mx-auto size-6 text-destructive" aria-hidden="true" />
+          <p className="mt-2 text-sm text-destructive">{error}</p>
+          <div className="mt-4 flex justify-center gap-2">
+            <Button type="button" variant="outline" onClick={() => void load()}>{t("common.retry")}</Button>
+            <Button nativeButton={false} variant="outline" render={<Link href="/feedback/mine" />}>
+              {t("feedback.backToList")}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!ticket) {
+    return (
+      <div className="mx-auto min-h-[520px] w-full max-w-2xl px-4 py-8" aria-live="polite">
+        <EmptyState
+          icon={MessageSquare}
+          title={t("feedback.ticketNotFound")}
+          action={<Button nativeButton={false} variant="outline" render={<Link href="/feedback/mine" />}>{t("feedback.backToList")}</Button>}
+        />
       </div>
     );
   }

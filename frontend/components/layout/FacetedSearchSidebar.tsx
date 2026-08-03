@@ -310,9 +310,7 @@ export function FacetedSearchSidebar({
   return (
     <aside
       className={cn(
-        "flex flex-col border border-border rounded-md bg-card p-4 gap-4",
-        "w-full lg:w-[260px] shrink-0",
-        "",
+        "flex w-full shrink-0 flex-col gap-4 rounded-md border border-border bg-card p-4 shadow-none min-[1101px]:w-[260px]",
         className,
       )}
     >
@@ -408,7 +406,7 @@ export function FacetedSearchSidebar({
                   )}
                 >
                   {tag.name}
-                  <span className="tabular-nums text-[10px] text-muted-foreground/70">
+                  <span className="text-xs tabular-nums text-muted-foreground/70">
                     {tag.count}
                   </span>
                 </button>
@@ -512,6 +510,7 @@ export function FacetedSearchSidebar({
               <button
                 type="button"
                 onClick={() => handleContentTypeToggle(ct)}
+                aria-label={t('common.removeTag', { tag: t(CONTENT_TYPE_OPTIONS.find((o) => o.key === ct)?.label ?? "") || ct })}
                 className="hover:text-foreground hover:bg-muted/50 rounded-sm transition-colors"
               >
                 <X className="h-3 w-3" />
@@ -524,6 +523,7 @@ export function FacetedSearchSidebar({
               <button
                 type="button"
                 onClick={() => setTimeRange("")}
+                aria-label={t('common.removeTag', { tag: t(TIME_RANGE_OPTIONS.find((o) => o.key === timeRange)?.label ?? "") || timeRange })}
                 className="hover:text-foreground hover:bg-muted/50 rounded-sm transition-colors"
               >
                 <X className="h-3 w-3" />
@@ -536,6 +536,7 @@ export function FacetedSearchSidebar({
               <button
                 type="button"
                 onClick={() => setSort("")}
+                aria-label={t('common.removeTag', { tag: t(SORT_OPTIONS.find((o) => o.key === sort)?.label ?? "") || sort })}
                 className="hover:text-foreground hover:bg-muted/50 rounded-sm transition-colors"
               >
                 <X className="h-3 w-3" />
@@ -594,7 +595,7 @@ export function FacetedSearchSidebar({
                 className="flex items-center justify-between text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded px-2 py-1 transition-colors"
               >
                 <span className="truncate">{group.name}</span>
-                <span className="text-[10px] text-muted-foreground/70 ml-1 shrink-0">
+                <span className="ml-1 shrink-0 text-xs text-muted-foreground/70">
                   {group.tags.length}
                 </span>
               </button>

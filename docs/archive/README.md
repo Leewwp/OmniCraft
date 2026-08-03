@@ -32,3 +32,9 @@
 | docs/working/2026-07-23-docs-slimming-ui-refinement-consensus.md | 2026-07-25 | superseded — decisions propagated to AGENTS.md and active UI plan |
 | docs/superpowers/plans/2026-05-30-omnicraft-beta-{implementation-notes,plan-review}.md | 2026-07-25 | superseded — historical Beta preparation material; live deferred plans retained separately |
 | docs/superpowers/plans/2026-06-30-omnicraft-community-{browse-history,collections,content-series}.md | 2026-07-25 | completed — all checkboxes complete; active community work continues in registered plans |
+| `docs/working/2026-08-03-u11-backend-capability-contract.md` | 2026-08-03 | completed — U-11 前后端均已合入（`6834b79` / `997d56b`），交接契约使命完成 |
+| `scripts/beta/`（bootstrap/run-task/integrate/Common/beta-tasks/tests） | 2026-08-03 | obsolete — task.json 模式已废弃，仅被归档文档引用；已删除，git 历史可恢复 |
+| `scripts/test/`（preflight/readiness/run-test-layer + tests） | 2026-08-03 | obsolete — 旧 CrossStack runner，已被 Playwright config（test:contracts/test:cross-stack）替代；已删除 |
+| `scripts/verify-project.ps1` + `scripts/verify-project.tests.ps1` | 2026-08-03 | superseded — 移植为 bash `scripts/verify-project.sh` + `scripts/verify-project.tests.sh`（macOS/CI 原生执行） |
+| `scripts/run-root-python-e2e.ps1` | 2026-08-03 | superseded — 移植为 bash `scripts/run-root-python-e2e.sh` |
+| `docs/superpowers/progress/2026-06-09-security-hardening-execution.md` | 2026-08-03 | completed — 历史执行日志，按 progress 轮换规则归档至 `docs/archive/progress/` |

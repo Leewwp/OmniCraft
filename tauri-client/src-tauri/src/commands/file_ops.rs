@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,10 +35,36 @@ fn resolve_whitelist_roots() -> Vec<PathBuf> {
     roots
 }
 
+// Resolves a path for whitelist comparison. Existing components are
+// canonicalized (symlink-safe); missing tail components are appended
+// lexically so destination paths that do not exist yet can still be checked.
+fn canonicalize_or_resolve(path: &Path) -> Result<PathBuf, String> {
+    let mut tail: Vec<OsString> = Vec::new();
+    let mut probe = path;
+    loop {
+        match probe.canonicalize() {
+            Ok(canonical) => {
+                let mut resolved = canonical;
+                for component in tail.iter().rev() {
+                    resolved.push(component);
+                }
+                return Ok(resolved);
+            }
+            Err(_) => {
+                let name = probe.file_name().ok_or_else(|| {
+                    format!("cannot resolve path '{}': no existing ancestor", path.display())
+                })?;
+                tail.push(name.to_os_string());
+                probe = probe.parent().ok_or_else(|| {
+                    format!("cannot resolve path '{}': no existing ancestor", path.display())
+                })?;
+            }
+        }
+    }
+}
+
 fn is_within_whitelist(path: &Path) -> Result<PathBuf, String> {
-    let canonical = path
-        .canonicalize()
-        .map_err(|e| format!("cannot resolve path '{}': {}", path.display(), e))?;
+    let canonical = canonicalize_or_resolve(path)?;
 
     for root in resolve_whitelist_roots() {
         let root_canonical = root.canonicalize();
@@ -536,6 +563,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    #[cfg(not(windows))]
     #[test]
     fn test_backup_file_internal_fails_gracefully_on_readonly_dir() {
         let dir = temp_dir().join("readonly_backup_test");
@@ -590,6 +618,29 @@ mod tests {
             "backup_file_internal should return an error on read-only backup dir, not panic"
         );
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_backup_file_internal_never_panics_on_readonly_dir() {
+        // The Windows directory read-only attribute does not block file
+        // creation, so a permission error cannot be provoked this way; the
+        // contract under test is that backup never panics.
+        let dir = temp_dir().join("readonly_backup_test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file_path = dir.join("important.txt");
+        std::fs::write(&file_path, "data").unwrap();
+        let backup_dir = dir.join(".omnicraft_backup");
+        std::fs::create_dir_all(&backup_dir).unwrap();
+        let mut perms = std::fs::metadata(&backup_dir).unwrap().permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(&backup_dir, perms).unwrap();
+        let _ = backup_file_internal(&file_path);
+        let mut perms = std::fs::metadata(&backup_dir).unwrap().permissions();
+        perms.set_readonly(false);
+        let _ = std::fs::set_permissions(&backup_dir, perms);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

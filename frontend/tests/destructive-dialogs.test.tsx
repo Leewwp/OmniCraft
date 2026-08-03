@@ -13,11 +13,12 @@ const auditedSources = [
   "../app/(protected)/settings/page.tsx",
   "../app/(protected)/admin/agent-config/page.tsx",
   "../components/content/VersionHistory.tsx",
+  "../components/social/ReactionBar.tsx",
 ] as const;
 
 test.afterEach(() => cleanup());
 
-test("all U-04 surfaces use ConfirmModal and leave ReactionBar as the only native prompt owner", async () => {
+test("all U-04/U-11 surfaces use ConfirmModal and no production source owns a native dialog", async () => {
   for (const relativePath of auditedSources) {
     const source = await readFile(new URL(relativePath, import.meta.url), "utf8");
     assert.doesNotMatch(source, /window\.(confirm|prompt)\(/);
@@ -28,9 +29,6 @@ test("all U-04 surfaces use ConfirmModal and leave ReactionBar as the only nativ
       assert.match(source, /deleteOpen/);
     }
   }
-
-  const reactionBar = await readFile(new URL("../components/social/ReactionBar.tsx", import.meta.url), "utf8");
-  assert.match(reactionBar, /window\.prompt\(/);
 });
 
 test("ConfirmModal keeps destructive actions open after an API failure and allows retry", async () => {

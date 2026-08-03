@@ -4,9 +4,12 @@ import { useState, useEffect, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { ThumbsUp, ThumbsDown, Flag, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/contexts/AuthContext";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { useToast } from "@/components/ui/Toast";
 import { silentError } from "@/lib/error-handler";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 
 interface ReactionBarProps {
@@ -23,13 +26,17 @@ export function ReactionBar({
   className,
 }: ReactionBarProps) {
   const t = useTranslations();
-  const { user } = useAuth();
+  const { toast } = useToast();
+  const { user, capabilities } = useAuth();
   const [myReaction, setMyReaction] = useState<"like" | "dislike" | null>(null);
   const [likeCount, setLikeCount] = useState(initialLikes);
   const [dislikeCount, setDislikeCount] = useState(initialDislikes);
   const [busy, setBusy] = useState(false);
   const [reported, setReported] = useState(false);
-  const disabled = !user || user.reputation < 3;
+  const [reportOpen, setReportOpen] = useState(false);
+  const interactionBlocked = !capabilities.can_interact;
+  const disabled = !user || interactionBlocked || busy;
+  const denialKey = interactionDenialKey(capabilities.interaction_denial_reason);
 
   useEffect(() => {
     if (!user) return;
@@ -49,7 +56,7 @@ export function ReactionBar({
 
   const react = useCallback(
     async (reaction: "like" | "dislike") => {
-      if (!user || busy) return;
+      if (!user || interactionBlocked || busy) return;
       setBusy(true);
       const prevReaction = myReaction;
       const prevLikes = likeCount;
@@ -83,21 +90,22 @@ export function ReactionBar({
         setBusy(false);
       }
     },
-    [user, busy, myReaction, likeCount, dislikeCount, contentId],
+    [user, interactionBlocked, busy, myReaction, likeCount, dislikeCount, contentId],
   );
 
-  async function report() {
-    if (!user || reported) return;
-    const reason = window.prompt(t('social.reportReason'));
-    if (!reason) return;
+  async function submitReport(reason: string) {
+    if (!user) return;
     try {
       await api.post(`/api/v1/contents/${contentId}/report`, { reason });
       setReported(true);
     } catch (e) {
       if (e instanceof ApiRequestError && e.status === 409) {
         setReported(true);
+        return;
       }
+      toast("error", t(getUserFacingErrorKey(e, "social.reportFailed")));
       silentError(e, { component: 'ReactionBar', action: 'report' });
+      throw e;
     }
   }
 
@@ -111,9 +119,9 @@ export function ReactionBar({
       <Button
         variant={myReaction === "like" ? "default" : "outline"}
         size="sm"
-        disabled={disabled || busy}
+        disabled={disabled}
         onClick={() => react("like")}
-        title={disabled ? t('social.lowReputation') : t('social.like')}
+        title={disabled ? t(denialKey) : t('social.like')}
       >
         <ThumbsUp className="mr-1 h-3.5 w-3.5" />
         {likeCount}
@@ -122,9 +130,9 @@ export function ReactionBar({
       <Button
         variant={myReaction === "dislike" ? "default" : "outline"}
         size="sm"
-        disabled={disabled || busy}
+        disabled={disabled}
         onClick={() => react("dislike")}
-        title={disabled ? t('social.lowReputation') : t('social.dislike')}
+        title={disabled ? t(denialKey) : t('social.dislike')}
       >
         <ThumbsDown className="mr-1 h-3.5 w-3.5" />
         {dislikeCount}
@@ -135,13 +143,24 @@ export function ReactionBar({
       <Button
         variant="ghost"
         size="sm"
-        disabled={!user || reported}
-        onClick={() => void report()}
-        title={reported ? t('social.reported') : t('social.report')}
+        disabled={!user || interactionBlocked || reported}
+        onClick={() => setReportOpen(true)}
+        title={reported ? t('social.reported') : disabled ? t(denialKey) : t('social.report')}
       >
         <Flag className="mr-1 h-3.5 w-3.5" />
         {reported ? t('social.reported') : t('social.report')}
       </Button>
+
+      <ConfirmModal
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        title={t('social.reportDialogTitle')}
+        description={t('social.reportReason')}
+        reasonLabel={t('social.reportReason')}
+        confirmLabel={t('social.report')}
+        requireReason
+        onConfirm={submitReport}
+      />
     </div>
   );
 }

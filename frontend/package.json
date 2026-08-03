@@ -2,6 +2,10 @@
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,7 +16,7 @@
     "test:contracts": "playwright test --config=playwright.mocked.config.ts",
     "test:cross-stack": "playwright test --config=playwright.cross-stack.config.ts",
     "test:e2e": "npm run test:cross-stack",
-    "test:e2e:release-manual": "powershell -ExecutionPolicy Bypass -File ..\\scripts\\run-root-python-e2e.ps1",
+    "test:e2e:release-manual": "bash ../scripts/run-root-python-e2e.sh",
     "verify": "npm run lint && npm run test:unit && npm run build",
     "verify:release": "npm run verify && npm run test:e2e"
   },

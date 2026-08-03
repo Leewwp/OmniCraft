@@ -25,12 +25,14 @@
 
 | 工具 | 版本要求 | 说明 |
 |------|---------|------|
-| Go | 1.22+ | 后端 API 服务 |
-| Node.js | 20+ | 前端 Next.js |
+| Go | 1.22+ | 后端 API 服务（CI 精确固定 1.25.11，见 `.github/workflows/ci.yml`） |
+| Node.js | 20+ | 前端 Next.js（CI 固定 Node 20；`engines` 声明最低版本策略） |
 | pnpm | 9+ (或 npm 10+) | 前端包管理 |
 | PostgreSQL | 16+ | 需 pgvector ≥ 0.7 |
 | Redis | 7+ | 缓存与会话 |
 | Rust | 1.75+ | 仅 Tauri 客户端需要 |
+
+本地满足「最低版本」即可；CI 的精确工具链由 `.github/workflows/ci.yml` 与 `tauri-ci.yml` 固定，两者不混为一谈。
 
 ### 1. 克隆仓库
 
@@ -90,15 +92,15 @@ pnpm dev            # 或 npm run dev
 
 项目统一验证入口会在任一子命令失败时立即停止，并向调用方返回非零退出码。
 
-```powershell
+```bash
 # Default：日常确定性工程门
-powershell -ExecutionPolicy Bypass -File scripts/verify-project.ps1
+bash scripts/verify-project.sh
 
 # Full：Default + mocked Playwright contracts
-powershell -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -Full
+bash scripts/verify-project.sh --full
 
 # Release：Default + 完整 Playwright E2E
-powershell -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -Release
+bash scripts/verify-project.sh --release
 ```
 
 | 层级 | 覆盖范围 | 前置条件 |
@@ -107,15 +109,15 @@ powershell -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -Release
 | `full` | `default` + mocked Playwright contract suite | Playwright 浏览器、PostgreSQL、Redis 和可启动的本地前后端配置 |
 | `release` | `default` + desktop/mobile/mocked/cross-stack 完整 Playwright suite | 发布候选配置、Playwright 浏览器、PostgreSQL、Redis、测试数据及计划要求的外部服务 |
 
-`-Full` 与 `-Release` 是互斥层级。Tauri 是可叠加维度；修改桌面端时增加 `-Tauri`，也可与 `-Full` 或 `-Release` 组合：
+`--full` 与 `--release` 是互斥层级。`--tauri` 是可叠加维度；修改桌面端时增加 `--tauri`，也可与 `--full` 或 `--release` 组合：
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -Tauri
+```bash
+bash scripts/verify-project.sh --tauri
 ```
 
 归档链接债务保持可见，但不阻塞当前发布真相：
 
-```powershell
+```bash
 cd tools/doc-validator
 go run . --check --profile archive
 ```
