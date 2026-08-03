@@ -98,8 +98,9 @@ test("studio series edits, adds, reorders, removes, and deletes with exact paylo
   await waitFor(() => assert.ok(calls.delete.some((call) => call.path === "/api/v1/series/7/items/102")));
 
   fireEvent.click(view.getByRole("button", { name: "Delete series" }));
-  const deleteButtons = view.getAllByRole("button", { name: "Delete series" });
-  fireEvent.click(deleteButtons[deleteButtons.length - 1]);
+  await waitFor(() => assert.ok(view.getByRole("dialog")));
+  const confirmButtons = view.getAllByRole("button", { name: "Delete series" });
+  fireEvent.click(confirmButtons[confirmButtons.length - 1]);
   await waitFor(() => assert.ok(calls.delete.some((call) => call.path === "/api/v1/series/7")));
 });
 
