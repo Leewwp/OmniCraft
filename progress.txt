@@ -294,3 +294,20 @@
 - 桌面债务修复属用户批准的范围外介入：图标 RGBA、AGENT_HMAC_SECRET CI dummy（tauri-ci.yml job env，PR 构建产物从不分发，真实密钥由 Ops-09 提供）、file_ops whitelist 修复；`tauri-windows` 已在 CLAUDE.md 记录为稳定检查，Web-only 声明下不设为 required。
 - tauri-ci 路径检测仅匹配 `tauri-client/`（frontendDist 为 tauri-client 自身 dist，`frontend/` 不触发桌面构建）。
 - Ops-01 改动与 U-12 共享 `scripts/verify-project.sh`/`verify-project.tests.sh`/`frontend/package.json`，U-12 须在 Ops-01 合并后 rebase 执行。
+
+## [2026-08-03] - Ops-01 PR 证据与合并（#11）
+### What was done:
+- 推送 `codex/ops/ops-01` → PR #11（base main），CI 首次运行暴露并修复：setup-node v7 拒绝 `cache: false`（移除）、迁移/浏览历史测试需 postgres/redis → backend 与 project-gate 增加服务容器（pgvector/pgvector:pg16 + redis:7-alpine，healthcheck 单行 options）、`studio-series-page` 测试 busyAction 竞态（每次点击前 waitFor 前序异步完成 + 弹窗出现）。
+- verifier 扩展 `-Scope Tauri`（仅桌面门）——tauri-windows 不再重复 backend/frontend/docs 全量门（Windows 上缺服务会红），只跑 `npm run build` + `cargo test`。
+- tauri-ci 修正：detect 步骤输出需 job 级 `outputs:` 声明才能被 `needs` 引用；检测结果回显日志；YAML 纯量内 `: `（冒号+空格）破坏解析的教训（`desktop paths changed: x` → `changed=x`）。
+- Windows 平台测试修正：`test_backup_file_internal_fails_gracefully_on_readonly_dir` 改为 `#[cfg(not(windows))]`，新增 `#[cfg(windows)]` 变体（Windows 目录只读属性不阻止建文件，只验证不 panic）。
+- main 分支保护已配置：required `project-gate`（strict）、`allow_force_pushes=false`、`allow_deletions=false`、无人工审查（单人开发）。
+- PR #11 squash 合并 → `7f34191`；本地 refs 同步（main/codex/ops-integration）；证据 `artifacts/ops-01/summary.json` 重绑定终态 `7f34191` 并通过 `-ExpectedCommit` 校验。
+### Testing:
+- PR 六项检查全绿：Backend/Frontend/Docs gates、project-gate（4m50s~6m8s）、Detect desktop paths、Desktop Windows gates（真实 Windows cargo 构建 7m51s）。
+- failure_probe 演练：dispatch `failure_probe=true` → project-gate 失败（run 30841304958，X Failure probe）；`false` → 全绿（run 30842196659）。
+- 本地复核：`verify-project.tests.sh`（含 Tauri scope 用例）、`verify-workflows.tests.sh`、`cargo test` 23/23、clippy 通过。
+### Notes:
+- 另一会话 2026-08-03 在 ui-polish-u01 提交 `7fb6b4e`（multiplatform 计划登记），与本任务无关未触碰。
+- 合并后 U-12 可开始：基于 main（7f34191）rebase 执行，共享 verifier/package.json 不再冲突。
+- 后续 Ops-02 起各任务块可直接使用 `verify-project.sh -ReportDir artifacts/ops-XX` + finalize/validate 证据链。

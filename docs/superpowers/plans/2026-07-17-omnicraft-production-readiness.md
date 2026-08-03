@@ -216,9 +216,10 @@ Set artifact retention explicitly and test it: PR evidence uses `retention-days:
 
 Add Node/npm `engines` to frontend/Tauri packages and update guides to distinguish minimum policy from the exact CI Go toolchain.
 
-- [ ] **Step 6: Verify locally and in a PR**
+- [x] **Step 6: Verify locally and in a PR**
 
-> 2026-08-03 本地部分完成：`verify-workflows.sh`、default verifier `-ReportDir artifacts/ops-01`、`--tauri`（安装 Rust 1.97.1 后）全部通过；`validate-evidence.tests.sh` / `finalize-evidence.tests.sh` / `verify-project.tests.sh` 全绿；doc-validator 修复（表格式 token 定义识别）后 release profile 通过；`artifacts/ops-01/summary.json` 已校验并将在 commit 后绑定终态。遗留：PR 失败探针、GitHub 运行记录与分支保护配置需推送后由用户确认（本地仓库领先 origin）。
+> 2026-08-03 完成：本地 `verify-workflows.sh`、default verifier `-ReportDir artifacts/ops-01`、`--tauri`（Rust 1.97.1）、evidence 契约套件全绿；PR #11（squash 合并为 `7f34191`）六项检查全绿（backend/frontend/docs/project-gate/detect/tauri-windows 真实 Windows 构建 7m51s）；failure_probe 演练红盘（run 30841304958，project-gate 失败）与绿盘（run 30842196659）证据齐全；main 分支保护已配置（required `project-gate` strict、禁 force-push/删除，无人工审查）；`artifacts/ops-01/summary.json` 已绑定终态 commit `7f34191` 并通过 `-ExpectedCommit` 校验。
+> 实施中扩展：verifier 新增 `-Scope Tauri`（仅桌面门，供 tauri-windows 按路径执行）；`-Scope` 参数集由 Backend|Frontend|Docs|All 扩展为 Backend|Frontend|Docs|Tauri|All。CI 首次运行暴露的三处修复已合入：setup-node v7 拒绝 `cache: false`、迁移测试需 postgres/redis 服务容器、series 测试 busyAction 竞态。
 
 ```bash
 bash scripts/ci/verify-workflows.sh
