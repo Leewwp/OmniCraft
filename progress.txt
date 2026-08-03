@@ -2,6 +2,30 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+## [2026-08-03] - Task U-11 Frontend: Server Capability Consumers（完成）
+
+### What was done:
+- AuthContext 新增 `capabilities`（`can_interact` + `interaction_denial_reason`）：login/`auth/me`/`refreshUser` 提取，缺失时 fail closed 为 `AUTH_STATUS_UNAVAILABLE`；登出与会话失败重置；导出 `interactionDenialKey()` 将后端枚举映射为本地化拒绝原因 key（不暴露数字阈值）。
+- ReactionBar 以 capability 取代 `user.reputation < 3` 门控；举报由原生 `window.prompt` 改为 ConfirmModal 原因输入（requireReason），成功关闭、取消不提交、失败弹窗保持并 Toast 错误；三按钮（赞/踩/举报）共用一个本地化拒绝原因 title。
+- CommentSection 评论输入与单条评论点赞/点踩接入 `can_interact`，占位符/禁用使用本地化拒绝原因。
+- DownloadButton 对已登录无互动能力用户禁用下载并显示本地化原因（游客保留后端 401→登录跳转流）。
+- judge/queue 与 judge/exam 以 `capabilities.can_interact` 取代 `user!.reputation < 3`，banner 显示本地化拒绝原因，exam 在 INSUFFICIENT_REPUTATION 时附加恢复提示。
+- rehab 课程完成后调用 `refreshUser()`，与后端 cache 失效配合使互动能力即时恢复。
+- 消息新增 `capabilities` namespace（5 个拒绝原因 + 恢复提示）与 `social.reportDialogTitle/reportFailed`，删除硬编码 ">= 3" 的 `judge.lowReputation/lowReputationExam`、`social.lowReputation/cannotComment` 死键，zh/en 全量对齐。
+- 测试：`interaction-capabilities.test.tsx` 8 项（fail-closed、能力透传、拒绝原因、禁用状态、举报成功/取消/失败、源码契约禁止阈值与原生弹窗）；`destructive-dialogs.test.tsx` 将 ReactionBar 移入无原生弹窗审计；`sheet-music-viewer-download.test.tsx` 补 AuthProvider/localStorage 与 auth fetch mock 路由。
+
+### Testing:
+- RED：`interaction-capabilities` 首次运行因 AuthContext 缺 `capabilities` 按预期失败（同时发现测试环境缺全局 `localStorage`，在测试内补齐）。
+- 聚焦 8/8 PASS；全量 `npm test` 156/156 PASS（修复 3 个 DownloadButton 相关测试的 provider 缺失）。
+- `npm run lint` PASS；`npm run build -- --webpack` PASS；i18n parity PASS；`git diff --check` PASS；`rg window\.(confirm|prompt)` 生产代码 0 处；`rg reputation < 3` 仅剩 admin/users 徽章展示（不在 U-11 范围）。
+- 后端（无改动）`go build/vet/test ./...` 全 PASS。
+- ego-browser：管理员登录后验证 `/content/47` ReactionBar 可互动、举报弹 ConfirmModal 并成功提交（按钮变"已举报"）、`/judge/queue`、`/judge/exam`、`/rehab` 正常渲染无 blocked banner；375px `/content/47` 无横向溢出。截图在 `screenshots/ui-polish/u-11/`。
+
+### Notes:
+- `design/ui-spec.md` 与 judge 页面章节仍保留"信誉分 >= 3"文案，属文档级滞后（视觉契约 disabled+提示未变，能力来源换为服务器）；未修改 ui-spec（不在 U-11 预约范围），留待后续计划处理。
+- `frontend/package-lock.json` 既有 npm 元数据脏改动继续保留不提交；`codex/u11-frontend` 分支无额外工作。
+- U-11 计划全部 checkbox 已勾选；U-12 依赖已满足。
+
 ## [2026-08-01] - Task ENV-MAC-01: macOS 本地 Web 开发环境初始化
 
 ### What was done:
@@ -197,6 +221,14 @@
 - ego lite authenticated browser verification PASS at desktop and 375x812; screenshots saved under `screenshots/ui-polish/u-10/`.
 ### Notes:
 - Frontend-only; no `backend/` changes. Agent workspace, Widget, citations, and Agent translations remain owned by Web Agent Productization Task 4.
+
+## [2026-08-02] - Task U-11: Frontend Handoff
+### What was done:
+- U-10 completed at `e2cdb79`; U-11 frontend consumers were identified for handoff.
+### Testing:
+- No U-11 frontend implementation or checkbox was started in this historical handoff.
+### Notes:
+- Historical blocker: the frontend lane waited for backend-derived `capabilities.can_interact`; backend `6834b79` has now resolved this dependency.
 
 ## [2026-08-03] - Task U-11 Backend: Authenticated Interaction Capability
 ### What was done:

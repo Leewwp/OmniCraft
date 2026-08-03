@@ -395,12 +395,12 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - Modify: `frontend/app/(protected)/judge/exam/page.tsx`
 - Create: `frontend/tests/interaction-capabilities.test.tsx`
 
-- [ ] First reconcile this contract with the restored production-readiness documents. The current public-config endpoint intentionally rejects threshold/min-score fields.
-- [ ] Add a server-derived authenticated capability such as `capabilities.can_interact` (and `can_publish` only if required), computed from the configured threshold and ban/freeze state; do not expose the raw threshold through public config.
-- [ ] Test login and `/auth/me` consistency, reputation recovery, banned users, publish freeze, and backward-compatible user fields.
-- [ ] Consume the capability in ReactionBar, comments, downloads, and judge pages; use a non-numeric localized reason unless the server explicitly returns a safe display value.
-- [ ] Replace ReactionBar's native prompt with ConfirmModal reason input and test success/cancel/failure behavior.
-- [ ] Run focused backend tests, `go test ./...`, `go vet ./...`, `go build ./...`, frontend tests, lint, and build.
+- [x] First reconcile this contract with the restored production-readiness documents. The current public-config endpoint intentionally rejects threshold/min-score fields.
+- [x] Add a server-derived authenticated capability such as `capabilities.can_interact` (and `can_publish` only if required), computed from the configured threshold and ban/freeze state; do not expose the raw threshold through public config.
+- [x] Test login and `/auth/me` consistency, reputation recovery, banned users, publish freeze, and backward-compatible user fields.
+- [x] Consume the capability in ReactionBar, comments, downloads, and judge pages; use a non-numeric localized reason unless the server explicitly returns a safe display value.
+- [x] Replace ReactionBar's native prompt with ConfirmModal reason input and test success/cancel/failure behavior.
+- [x] Run focused backend tests, `go test ./...`, `go vet ./...`, `go build ./...`, frontend tests, lint, and build.
 
 ## Task U-12: Add Enforceable UI Governance Gates
 
