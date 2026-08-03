@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
-import { Bell, Heart, MessageCircle, UserPlus, GitPullRequest, Info } from "lucide-react";
+import { Bell, Heart, MessageCircle, UserPlus, GitPullRequest, Info, Megaphone } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,7 @@ const channelIcons: Record<string, React.ReactNode> = {
   follow: <UserPlus className="h-3.5 w-3.5" />,
   pr: <GitPullRequest className="h-3.5 w-3.5" />,
   system: <Info className="h-3.5 w-3.5" />,
+  broadcast: <Megaphone className="h-3.5 w-3.5" />,
 };
 
 export function NotificationDropdown() {
@@ -34,24 +35,44 @@ export function NotificationDropdown() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!user || !open) return;
     let cancelled = false;
     async function fetchData() {
       try {
+        setLoading(true);
+        setError(false);
         const data = await api.get<{ notifications?: Notification[] }>(
           "/api/v1/notifications?page_size=5"
         );
         if (cancelled) return;
         setNotifications((data.notifications || []).slice(0, 5));
       } catch {
-        // silent
+        if (!cancelled) setError(true);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
     fetchData();
     return () => { cancelled = true; };
-  }, [user, open]);
+  }, [user, open, retry]);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open]);
 
   if (!user) return null;
 
@@ -76,17 +97,21 @@ export function NotificationDropdown() {
     follow: t("notification.channelFollow"),
     pr: t("notification.channelPR"),
     system: t("notification.channelSystem"),
+    broadcast: t("notification.channelBroadcast"),
   };
 
   return (
     <div className="relative">
       <button
         type="button"
+        ref={triggerRef}
         onClick={() => setOpen(!open)}
         className={cn(
-          "relative inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors duration-150 hover:bg-muted active:bg-muted"
+          "relative inline-flex h-11 w-11 items-center justify-center rounded-md transition-colors duration-150 hover:bg-canvas-subtle active:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-accent-emphasis"
         )}
         aria-label={t("nav.notifications")}
+        aria-expanded={open}
+        aria-haspopup="dialog"
       >
         <Bell className="h-4 w-4" />
         {unreadCounts.total > 0 && (
@@ -102,24 +127,24 @@ export function NotificationDropdown() {
             className="fixed inset-0 z-40"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute right-0 top-full z-50 mt-1 w-80 rounded-md border border-border bg-card shadow-md">
-            <div className="flex items-center justify-between border-b border-border px-4 py-2">
+          <div role="dialog" aria-label={t("nav.notifications")} className="absolute right-0 top-full z-50 mt-1 w-[min(20rem,calc(100vw-2rem))] rounded-md border border-border-default bg-canvas-default shadow-none">
+            <div className="flex items-center justify-between border-b border-border-default px-4 py-2">
               <span className="text-sm font-medium">{t("nav.notifications")}</span>
 <button
                 onClick={() => {
                   setOpen(false);
                   router.push("/messages");
                 }}
-                className="text-xs text-accent hover:underline"
+                className="min-h-11 rounded-md px-2 text-xs font-medium text-accent-emphasis hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-accent-emphasis"
               >
                 {t("common.clickToView")}
               </button>
             </div>
             {unreadCounts.total > 0 && (
-              <div className="flex gap-1 border-b border-border/50 px-3 py-1.5 text-xs text-muted-foreground">
+              <div className="flex flex-wrap gap-1 border-b border-border-default px-3 py-1.5 text-xs text-fg-muted">
                 {Object.entries(channelLabels).map(([ch, label]) =>
                   unreadCounts[ch as keyof typeof unreadCounts] > 0 ? (
-                    <span key={ch} className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5">
+                    <span key={ch} className="inline-flex min-h-6 items-center gap-1 rounded bg-canvas-subtle px-1.5 py-0.5">
                       {channelIcons[ch]}
                       {label} {unreadCounts[ch as keyof typeof unreadCounts]}
                     </span>
@@ -128,9 +153,20 @@ export function NotificationDropdown() {
               </div>
             )}
             <div className="max-h-72 overflow-y-auto">
-              {notifications.length === 0 ? (
-                <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                  {t("messages.noMessages")}
+              {loading ? (
+                <div className="space-y-2 p-3" aria-label={t("common.loading")}>
+                  {[1, 2, 3].map((item) => <div key={item} className="h-12 animate-pulse rounded-md bg-canvas-subtle" />)}
+                </div>
+              ) : error ? (
+                <div className="flex flex-col items-center gap-2 px-4 py-6 text-center" role="alert">
+                  <p className="text-sm text-fg-muted">{t("messages.error.notifications")}</p>
+                  <button type="button" onClick={() => setRetry((value) => value + 1)} className="min-h-11 rounded-md border border-border-default px-3 text-sm text-accent-emphasis hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-accent-emphasis">
+                    {t("messages.error.retry")}
+                  </button>
+                </div>
+              ) : notifications.length === 0 ? (
+                <p className="px-4 py-6 text-center text-sm text-fg-muted">
+                  {t("messages.notifications.emptyTitle")}
                 </p>
               ) : (
                 notifications.map((n) => (
@@ -141,19 +177,16 @@ export function NotificationDropdown() {
                       router.push("/messages");
                     }}
                     className={cn(
-                      "flex w-full items-start gap-3 border-b border-border/50 px-4 py-2.5 text-left transition-colors hover:bg-muted/50",
-                      !n.is_read && "bg-accent/5"
+                      "flex min-h-[72px] w-full items-start gap-3 border-b border-border-default px-4 py-3 text-left transition-colors hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent-emphasis",
+                      !n.is_read && "bg-accent-subtle"
                     )}
+                    aria-label={`${n.channel === "broadcast" ? t("messages.broadcast.label") : channelLabels[n.channel] ?? t("notification.channelSystem")} · ${!n.is_read ? t("messages.a11y.unread") : t("messages.read")}`}
                   >
-                    <span
-                      className={cn(
-                        "mt-1.5 h-2 w-2 shrink-0 rounded-full",
-                        n.is_read ? "bg-transparent" : "bg-accent"
-                      )}
-                    />
+                    <span className="mt-0.5 shrink-0 text-fg-muted" aria-hidden="true">{channelIcons[n.channel] ?? channelIcons.system}</span>
                     <div className="min-w-0 flex-1">
+                      {n.channel === "broadcast" && <span className="text-xs font-medium text-accent-emphasis">{t("messages.broadcast.label")}</span>}
                       <p className="truncate text-sm">{n.body}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
+                      <p className="mt-0.5 text-xs text-fg-muted">
                         {new Date(n.created_at).toLocaleString(locale === "en" ? "en-US" : "zh-CN")}
                       </p>
                     </div>

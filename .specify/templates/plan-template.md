@@ -33,6 +33,10 @@
 
 [Gates determined based on constitution file]
 
+For frontend work, explicitly confirm that token values come from
+`design/design-system.md`, component/page composition follows `design/ui-spec.md`, and any elevation
+uses the approved 1/2/3 tier with a 1px border and reduced-motion fallback.
+
 ## Project Structure
 
 ### Documentation (this feature)

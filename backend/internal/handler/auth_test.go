@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -269,6 +270,92 @@ func TestLoginSucceedsForVerifiedUser(t *testing.T) {
 	r.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestLoginInteractionCapabilityMatrix(t *testing.T) {
+	tests := []struct {
+		name       string
+		email      string
+		reputation int
+		freeze     bool
+		want       bool
+		wantReason string
+	}{
+		{name: "normal", email: "capability-normal@test.com", reputation: 10, want: true},
+		{name: "below threshold", email: "capability-low@test.com", reputation: 2, want: false, wantReason: "INSUFFICIENT_REPUTATION"},
+		{name: "at threshold", email: "capability-boundary@test.com", reputation: 3, want: true},
+		{name: "publish freeze does not block interaction", email: "capability-frozen@test.com", reputation: 10, freeze: true, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			verifier := &fakeCaptchaVerifier{}
+			r, db, _, _, mr := setupAuthHandlerTest(t, verifier)
+			defer mr.Close()
+
+			user := createAuthHandlerTestUser(t, db, tt.email, "password123", true)
+			require.NoError(t, db.Model(user).Update("reputation", tt.reputation).Error)
+			if tt.freeze {
+				mr.Set("user:publish_freeze:"+strconv.FormatUint(uint64(user.ID), 10), "1")
+			}
+
+			req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"email":"`+user.Email+`","password":"password123"}`))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+			capabilities, ok := body["capabilities"].(map[string]any)
+			require.True(t, ok, "missing capabilities in %s", rec.Body.String())
+			require.Equal(t, tt.want, capabilities["can_interact"])
+			if tt.wantReason == "" {
+				require.NotContains(t, capabilities, "interaction_denial_reason")
+			} else {
+				require.Equal(t, tt.wantReason, capabilities["interaction_denial_reason"])
+			}
+			require.Contains(t, body, "user")
+			require.Contains(t, body, "tokens")
+			require.NotContains(t, rec.Body.String(), "threshold")
+			require.NotContains(t, rec.Body.String(), "min_score")
+		})
+	}
+}
+
+func TestLoginBannedResponseDoesNotChangeForCapabilities(t *testing.T) {
+	verifier := &fakeCaptchaVerifier{}
+	r, db, _, _, mr := setupAuthHandlerTest(t, verifier)
+	defer mr.Close()
+
+	user := createAuthHandlerTestUser(t, db, "banned-capability@test.com", "password123", true)
+	require.NoError(t, db.Model(user).Update("is_banned", true).Error)
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"email":"banned-capability@test.com","password":"password123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Contains(t, rec.Body.String(), "USER_BANNED")
+	require.NotContains(t, rec.Body.String(), "capabilities")
+}
+
+func TestLoginDoesNotReturnCapabilitiesWhenInteractionConfigIsUnavailable(t *testing.T) {
+	verifier := &fakeCaptchaVerifier{}
+	r, db, _, cfg, mr := setupAuthHandlerTest(t, verifier)
+	defer mr.Close()
+	createAuthHandlerTestUser(t, db, "config-unavailable@test.com", "password123", true)
+	cfg.Reputation.MinScoreForInteraction = 0
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"email":"config-unavailable@test.com","password":"password123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	require.Contains(t, rec.Body.String(), "CONFIG_ERROR")
+	require.NotContains(t, rec.Body.String(), "capabilities")
+	require.NotContains(t, rec.Body.String(), "threshold")
 }
 
 func TestForgotPasswordRequiresAndVerifiesCaptcha(t *testing.T) {

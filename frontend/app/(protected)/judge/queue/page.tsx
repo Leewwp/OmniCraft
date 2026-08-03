@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
@@ -24,7 +24,7 @@ interface JudgeCaseData {
 
 export default function JudgeQueuePage() {
   const t = useTranslations();
-  const { user } = useAuth();
+  const { user, capabilities } = useAuth();
   const router = useRouter();
 
   const [cases, setCases] = useState<JudgeCaseData[]>([]);
@@ -84,7 +84,8 @@ export default function JudgeQueuePage() {
     setCurrentIndex((i) => i + 1);
   }
 
-  const isReputationBlocked = user!.reputation < 3;
+  const isInteractionBlocked = !capabilities.can_interact;
+  const denialKey = interactionDenialKey(capabilities.interaction_denial_reason);
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4 px-4 py-6">
@@ -102,10 +103,10 @@ export default function JudgeQueuePage() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {isReputationBlocked && (
+      {user && isInteractionBlocked && (
         <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 ">
           <p className="text-sm text-destructive">
-            {t('judge.lowReputation', { reputation: user!.reputation })}
+            {t(denialKey)}
           </p>
         </div>
       )}
@@ -139,7 +140,7 @@ export default function JudgeQueuePage() {
         <div className="space-y-4">
           <ReviewCard
             judgeCase={cases[currentIndex]}
-            disabled={isReputationBlocked}
+            disabled={isInteractionBlocked}
             submitting={submitting}
             onVote={(caseId, vote, reason) => void handleVote(caseId, vote, reason)}
           />

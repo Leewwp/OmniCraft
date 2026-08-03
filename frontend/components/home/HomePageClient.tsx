@@ -177,20 +177,20 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
         {/* Zone banner */}
         <div className="px-6 pt-5 pb-3">
           <div className="flex items-baseline gap-3">
-            <h1 className="text-[22px] font-bold tracking-tight text-foreground">{t('nav.fanworkZone')}</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">{t('nav.fanworkZone')}</h1>
             <p className="text-sm text-muted-foreground">{t('home.fanworkZoneSubtitle')}</p>
           </div>
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
             <span className="flex items-baseline gap-1">
-              <span className="text-[15px] font-semibold text-foreground">{statsSummary ? statsSummary.contents.toLocaleString() : "--"}</span>
+              <span className="text-sm font-semibold text-foreground">{statsSummary ? statsSummary.contents.toLocaleString() : "--"}</span>
               <span className="text-xs text-muted-foreground">{t('home.contentCountLabel')}</span>
             </span>
             <span className="flex items-baseline gap-1">
-              <span className="text-[15px] font-semibold text-foreground">{statsSummary ? statsSummary.ips.toLocaleString() : "--"}</span>
+              <span className="text-sm font-semibold text-foreground">{statsSummary ? statsSummary.ips.toLocaleString() : "--"}</span>
               <span className="text-xs text-muted-foreground">{t('home.activeIpsLabel')}</span>
             </span>
             <span className="flex items-baseline gap-1">
-              <span className="text-[15px] font-semibold text-foreground">{statsSummary ? statsSummary.users.toLocaleString() : "--"}</span>
+              <span className="text-sm font-semibold text-foreground">{statsSummary ? statsSummary.users.toLocaleString() : "--"}</span>
               <span className="text-xs text-muted-foreground">{t('home.creatorsLabel')}</span>
             </span>
           </div>
@@ -200,7 +200,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
         {recentIPs.length > 0 && (
           <div className="px-6 pb-3">
             <div className="mb-2">
-              <span className="text-[13px] font-semibold text-muted-foreground">{t('home.recentIps')}</span>
+              <span className="text-sm font-semibold text-muted-foreground">{t('home.recentIps')}</span>
             </div>
             <div className="flex gap-2.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
               {recentIPs.map((ip) => (
@@ -219,14 +219,14 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
         {/* IP horizontal scroll */}
         <div className="px-6 pb-2">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-[13px] font-semibold text-muted-foreground">{t('home.recommendedIps')}</span>
+            <span className="text-sm font-semibold text-muted-foreground">{t('home.recommendedIps')}</span>
             <Link href="/ips" className="text-xs text-accent-emphasis font-medium">
               {t('home.browseAllIps')}
             </Link>
           </div>
           <div className="flex gap-2.5 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
             {ips.slice(0, 8).map((ip) => (
-              <IPCard key={ip.id} data={ip} variant="browse" />
+              <IPCard key={ip.id} data={ip} variant="browse" className="w-48 flex-none" />
             ))}
           </div>
           {(ipError || (ipCountsError && ips.length === 0)) && (
@@ -247,7 +247,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
                     key={opt.value}
                     type="button"
                     onClick={() => setContentType(opt.value)}
-                    className={`flex-shrink-0 rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors duration-150 whitespace-nowrap border select-none active:bg-muted ${
+                    className={`flex-shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors duration-150 whitespace-nowrap select-none active:bg-muted ${
                       active
                         ? "border-border bg-muted text-foreground font-semibold"
                         : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/70 cursor-pointer"

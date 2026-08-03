@@ -18,8 +18,8 @@ import { normalizeContentItem } from "@/lib/content";
 import { silentError } from "@/lib/error-handler";
 import { useTranslations } from "next-intl";
 
-type PageParams = Promise<{ id: string }> | { id: string };
-type PageSearchParams = Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>;
+type PageParams = Promise<{ id: string }>;
+type PageSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 interface CollectionDetailPageProps {
   params: PageParams;

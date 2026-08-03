@@ -3,9 +3,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Search, LayoutGrid, List } from "lucide-react";
+import { AlertCircle, Check, Search, SearchX } from "lucide-react";
 import { IPCard } from "@/components/ip/IPCard";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface IPItem {
   id: number;
@@ -15,6 +18,20 @@ interface IPItem {
   cover_url?: string;
   content_count?: number;
   trend?: number;
+}
+
+function isIPItem(value: unknown): value is IPItem {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  return typeof item.id === "number" && typeof item.name === "string";
+}
+
+function parseIPListResponse(value: unknown): { ips: IPItem[]; total: number } | null {
+  if (!value || typeof value !== "object") return null;
+  const response = value as Record<string, unknown>;
+  if (!Array.isArray(response.ips) || !response.ips.every(isIPItem)) return null;
+  if (typeof response.total !== "number" || response.total < 0) return null;
+  return { ips: response.ips, total: response.total };
 }
 
 interface IPBrowseClientProps {
@@ -56,11 +73,15 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
   const [search, setSearch] = useState(searchParams.get("q") || "");
   const [searchInput, setSearchInput] = useState(searchParams.get("q") || "");
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 24;
 
-  const fetchIPs = useCallback(async (cat: string, s: string, q: string, p: number) => {
-    setLoading(true);
+  const fetchIPs = useCallback(async (cat: string, s: string, q: string, p: number, append = false) => {
+    if (append) setLoadingMore(true);
+    else setLoading(true);
+    setError(false);
     const params = new URLSearchParams();
     if (cat) params.set("category", cat);
     params.set("sort", s);
@@ -70,12 +91,24 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
 
     try {
       const res = await fetch(`${apiBase}/ips?${params.toString()}`, { cache: "no-store" });
-      if (!res.ok) { setIPs([]); setTotal(0); return; }
-      const data = await res.json() as { ips?: IPItem[]; total?: number };
-      setIPs(data.ips || []);
-      setTotal(data.total || 0);
-    } catch { setIPs([]); setTotal(0); }
-    finally { setLoading(false); }
+      if (!res.ok) throw new Error("IP_FETCH_FAILED");
+      const data = parseIPListResponse(await res.json());
+      if (!data) throw new Error("IP_RESPONSE_INVALID");
+      const incoming = data.ips;
+      setIPs((current) => append ? [...current, ...incoming] : incoming);
+      setTotal(data.total);
+      return true;
+    } catch {
+      if (!append) {
+        setIPs([]);
+        setTotal(0);
+      }
+      setError(true);
+      return false;
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
   }, [apiBase, pageSize]);
 
   // Update category/sort → refetch
@@ -95,47 +128,60 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
     setSearch(searchInput);
   }
 
+  async function handleLoadMore() {
+    const nextPage = page + 1;
+    if (await fetchIPs(category, sort, search, nextPage, true)) {
+      setPage(nextPage);
+    }
+  }
+
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-6 py-6">
+    <div className="mx-auto w-full max-w-[1440px] px-4 py-6 md:px-6 md:py-8">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-[22px] font-bold tracking-tight text-foreground">{t('ip.title')}</h1>
+      <div className="mb-6 max-w-[720px]">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('ip.title')}</h1>
+          {total > 0 && (
+            <span className="rounded-full border border-primary/30 bg-accent-subtle px-2 py-0.5 text-xs font-semibold tabular-nums text-accent-emphasis">
+              {t('ip.totalCount', { total })}
+            </span>
+          )}
+        </div>
         <p className="mt-1 text-sm text-muted-foreground">
           {t('ip.browseDescription')}
         </p>
-        {total > 0 && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            {t('ip.totalCount', { total })}
-          </p>
-        )}
       </div>
 
       {/* Search + Sort row */}
-      <div className="mb-4 flex items-center gap-3">
-        <form onSubmit={handleSearchSubmit} className="relative flex-1 max-w-sm">
+      <div className="mb-4 grid max-w-[560px] grid-cols-[minmax(0,1fr)_auto] gap-2">
+        <form role="search" onSubmit={handleSearchSubmit} className="relative min-w-0">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={searchInput}
+            type="search"
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder={t('ip.searchPlaceholder')}
-            className="w-full rounded-full border border-transparent bg-muted pl-9 pr-4 py-2 text-sm placeholder:text-muted-foreground/60 focus:border-ring focus:bg-background focus:ring-2 focus:ring-ring/20"
+            aria-label={t('ip.searchPlaceholder')}
+            className="min-h-11 w-full rounded-full border border-border bg-muted pl-9 pr-4 text-sm placeholder:text-muted-foreground/60 focus:bg-background"
           />
         </form>
-        <div className="flex-shrink-0">
+        <label className="shrink-0">
+          <span className="sr-only">{t('ip.sortHot')}</span>
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value)}
-            className="rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+            aria-label={t('ip.sortHot')}
+            className="min-h-11 rounded-md border border-border bg-card px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
           >
             {SORT_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
             ))}
           </select>
-        </div>
+        </label>
       </div>
 
       {/* Category tabs */}
-      <div className="mb-6 flex items-center gap-1 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+      <nav aria-label={t('home.ipClassification')} className="mb-6 flex items-center gap-1 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
         {IP_CATEGORIES.map((cat) => {
           const active = category === cat.slug;
           return (
@@ -143,71 +189,70 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
               key={cat.slug || "__all__"}
               type="button"
               onClick={() => setCategory(cat.slug)}
-              className={`flex-shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-colors whitespace-nowrap ${
+              aria-pressed={active}
+              className={`inline-flex min-h-11 flex-shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-medium transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 active
-                  ? "border-border bg-card text-foreground font-semibold"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted"
+                  ? "border-primary bg-accent-subtle text-accent-emphasis font-semibold"
+                  : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
+              {active && <Check className="h-3.5 w-3.5" aria-hidden="true" />}
               {t(cat.labelKey)}
             </button>
           );
         })}
-      </div>
+      </nav>
 
       {/* IP Grid */}
       {loading ? (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div aria-label={t('common.loading')} aria-busy="true" className="grid grid-cols-2 gap-3 min-[701px]:grid-cols-[repeat(auto-fit,minmax(168px,1fr))] min-[701px]:gap-4 min-[1101px]:grid-cols-[repeat(auto-fill,minmax(192px,1fr))]">
           {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="rounded-lg border border-border bg-card overflow-hidden">
-              <div className="aspect-[16/10] bg-muted animate-pulse" />
+            <div key={i} className="overflow-hidden rounded-lg border border-border bg-card shadow-[var(--elevation-1)]">
+              <Skeleton className="aspect-[16/10] rounded-none" />
               <div className="p-3 space-y-2">
-                <div className="h-4 w-2/3 bg-muted rounded animate-pulse" />
-                <div className="h-3 w-1/2 bg-muted rounded animate-pulse" />
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-3 w-1/2" />
               </div>
             </div>
           ))}
         </div>
+      ) : error && ips.length === 0 ? (
+        <EmptyState
+          icon={AlertCircle}
+          title={t('common.loadFailed')}
+          description={t('common.loadFailed')}
+          action={<Button variant="outline" onClick={() => void fetchIPs(category, sort, search, 1)}>{t('common.retry')}</Button>}
+        />
       ) : ips.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card p-16 text-center">
-          <Search className="mx-auto mb-4 h-10 w-10 text-muted-foreground/40" />
-          <p className="text-sm font-medium text-foreground">{t('ip.notFound')}</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t('ip.notFoundHint')}
-          </p>
-          <button
-            type="button"
-            onClick={() => { setCategory(""); setSearch(""); setSearchInput(""); }}
-            className="mt-4 rounded-full bg-[var(--accent-emphasis)] px-6 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] transition-colors"
-          >
-            {t('ip.clearAllFilters')}
-          </button>
-        </div>
+        <EmptyState
+          icon={SearchX}
+          title={t('ip.notFound')}
+          description={t('ip.notFoundHint')}
+          action={<Button onClick={() => { setCategory(""); setSearch(""); setSearchInput(""); }}>{t('ip.clearAllFilters')}</Button>}
+        />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 min-[701px]:grid-cols-[repeat(auto-fit,minmax(168px,1fr))] min-[701px]:gap-4 min-[1101px]:grid-cols-[repeat(auto-fill,minmax(192px,1fr))]">
             {ips.map((ip) => (
               <IPCard key={ip.id} data={ip} variant="browse" />
             ))}
           </div>
 
           {/* Load more */}
-          {ips.length < total && (
-            <div className="mt-8 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  const nextPage = page + 1;
-                  setPage(nextPage);
-                  fetchIPs(category, sort, search, nextPage);
-                }}
-                disabled={loading}
-                className="rounded-full border border-border bg-card px-8 py-2.5 text-sm font-medium text-foreground hover:border-border/80 transition-colors disabled:opacity-50"
+          <div className="mt-8 flex min-h-11 flex-col items-center justify-center gap-2" aria-live="polite">
+            {ips.length < total ? (
+              <Button
+                variant="outline"
+                className="min-h-11 rounded-full px-8"
+                onClick={() => void handleLoadMore()}
+                disabled={loadingMore}
               >
-                {loading ? t('common.loading') : t('ip.loadMore')}
-              </button>
-            </div>
-          )}
+                {loadingMore ? t('common.loading') : error ? t('common.retry') : t('ip.loadMore')}
+              </Button>
+            ) : total > pageSize ? (
+              <p className="text-xs text-muted-foreground">{t('ip.totalCount', { total })}</p>
+            ) : null}
+          </div>
         </>
       )}
     </div>

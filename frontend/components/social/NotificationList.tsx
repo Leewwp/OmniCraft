@@ -13,7 +13,7 @@ import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 import { cn } from "@/lib/utils";
 
-interface Notification {
+export interface Notification {
   id: number;
   type: string;
   channel: string;
@@ -28,11 +28,13 @@ interface Notification {
 interface NotificationListProps {
   initialChannel?: string;
   onUnreadCountChange?: (count: number) => void;
+  onSelect?: (notification: Notification) => void;
 }
 
 export function NotificationList({
   initialChannel = "",
   onUnreadCountChange,
+  onSelect,
 }: NotificationListProps) {
   const t = useTranslations();
   const locale = useLocale();
@@ -94,6 +96,7 @@ export function NotificationList({
   }
 
   function handleNotificationClick(n: Notification) {
+    onSelect?.(n);
     if (!n.is_read) markRead(n.id);
     const href = getNotificationHref(n);
     if (href) router.push(href);
@@ -219,6 +222,15 @@ export function NotificationList({
               <div
                 key={n.id}
                 aria-label={`${channelLabel}. ${targetLabel}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => onSelect?.(n)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSelect?.(n);
+                  }
+                }}
                 className={itemClassName}
               >
                 {content}

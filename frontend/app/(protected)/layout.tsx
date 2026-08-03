@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 
@@ -11,6 +12,7 @@ export default function ProtectedLayout({
   children: React.ReactNode;
 }) {
   const { user, isLoading } = useAuth();
+  const t = useTranslations("auth");
   const router = useRouter();
   const pathname = usePathname();
 
@@ -41,10 +43,10 @@ export default function ProtectedLayout({
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center space-y-4">
-          <h1 className="text-2xl font-bold text-fg-default">Account Suspended</h1>
-          <p className="text-fg-muted">Your account has been suspended.</p>
+          <h1 className="text-2xl font-bold text-fg-default">{t("suspendedTitle")}</h1>
+          <p className="text-fg-muted">{t("suspendedDescription")}</p>
           <Link href="/appeals" className="text-accent-emphasis hover:underline">
-            Submit an appeal
+            {t("submitAppeal")}
           </Link>
         </div>
       </div>

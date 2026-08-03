@@ -73,7 +73,7 @@ export default function AdminQueuePage() {
     <div className="space-y-6 p-6">
       <h1 className="text-2xl font-bold tracking-tight">{t("admin.queue.title")}</h1>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
       <div className="rounded-md border border-border bg-card">
         <div className="border-b border-border px-4 py-3">

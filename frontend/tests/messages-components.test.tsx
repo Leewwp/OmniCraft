@@ -51,6 +51,7 @@ const intlMessages = {
   common: {
     close: "Close",
     back: "Back",
+    loading: "Loading...",
   },
   discussion: {
     search: "Search conversations",
@@ -81,6 +82,42 @@ const intlMessages = {
     notificationOpensTarget: "Opens related item",
     notificationNoTarget: "No related item",
     unreadIndicator: "Unread",
+    a11y: {
+      conversationList: "Conversations",
+      messageList: "Conversation messages",
+    },
+    conversations: {
+      searchLabel: "Search conversations",
+      retry: "Retry conversations",
+      emptyTitle: "No conversations",
+      emptyDescription: "Start a conversation from a creator or content page.",
+      collabInviteSummary: "Collaboration invitation",
+      unknownParticipant: "Unknown participant",
+      unreadCount: "{count} unread",
+      timeUnknown: "Time unavailable",
+      startConversation: "Start a conversation",
+    },
+    chat: {
+      backToConversations: "Back to conversations",
+      recipientUnavailable: "Recipient unavailable",
+      retry: "Retry messages",
+      emptyTitle: "No messages yet",
+      emptyDescription: "Send a message to start this conversation.",
+      unsupportedMessage: "This message type is not supported yet.",
+      inputLabel: "Message",
+      send: "Send message",
+      sending: "Sending",
+      timeUnknown: "Time unavailable",
+      inputPlaceholder: "Type a message...",
+      selectConversation: "Select a conversation",
+      collabInviteSummary: "Collaboration invitation",
+      replyRequired: "Wait for the recipient to reply before sending another message.",
+    },
+    error: {
+      conversations: "Could not load conversations.",
+      chat: "Could not load this conversation.",
+      send: "Could not send the message.",
+    },
   },
 };
 
@@ -146,7 +183,7 @@ test("ChatWindow sends replies through the message center send endpoint", async 
   fireEvent.change(input, { target: { value: "hello back" } });
   await waitFor(() => assert.equal(input.value, "hello back"));
 
-  const sendButton = view.getByLabelText(intlMessages.messages.sendMessage);
+  const sendButton = view.getByLabelText(intlMessages.messages.chat.send);
   fireEvent.click(sendButton);
 
   await waitFor(() => {
@@ -170,7 +207,7 @@ test("ChatWindow blocks duplicate sends while the first send is pending", async 
   fireEvent.change(input, { target: { value: "hello back" } });
   await waitFor(() => assert.equal(input.value, "hello back"));
 
-  const sendButton = view.getByLabelText(intlMessages.messages.sendMessage) as HTMLButtonElement;
+  const sendButton = view.getByLabelText(intlMessages.messages.chat.send) as HTMLButtonElement;
   fireEvent.click(sendButton);
   fireEvent.click(sendButton);
 
@@ -200,7 +237,7 @@ test("ChatWindow keeps the draft when the DM reply guard rejects the send", asyn
   fireEvent.change(input, { target: { value: "second ping" } });
   await waitFor(() => assert.equal(input.value, "second ping"));
 
-  const sendButton = view.getByLabelText(intlMessages.messages.sendMessage);
+  const sendButton = view.getByLabelText(intlMessages.messages.chat.send);
   fireEvent.click(sendButton);
 
   await waitFor(() => {
@@ -245,7 +282,7 @@ test("ChatWindow shows a localized toast when the backend requires a DM reply", 
   fireEvent.change(input, { target: { value: "second ping" } });
   await waitFor(() => assert.equal(input.value, "second ping"));
 
-  const sendButton = view.getByLabelText(intlMessages.messages.sendMessage);
+  const sendButton = view.getByLabelText(intlMessages.messages.chat.send);
   fireEvent.click(sendButton);
 
   await waitFor(() => {
@@ -539,9 +576,9 @@ function setValidAccessToken() {
   setAccessToken(`test.${payload}.signature`);
 }
 
-async function findReplyInput(container: HTMLElement): Promise<HTMLInputElement> {
+async function findReplyInput(container: HTMLElement): Promise<HTMLTextAreaElement> {
   await waitFor(() => {
-    assert.ok(container.querySelector('input[placeholder="Type a message..."]'), "reply input should render");
+    assert.ok(container.querySelector('textarea[placeholder="Type a message..."]'), "reply input should render");
   });
-  return container.querySelector('input[placeholder="Type a message..."]') as HTMLInputElement;
+  return container.querySelector('textarea[placeholder="Type a message..."]') as HTMLTextAreaElement;
 }

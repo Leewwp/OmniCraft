@@ -11,21 +11,24 @@ import (
 )
 
 var (
-	ErrCourseNotFound   = errors.New("course not found")
-	ErrAlreadyCompleted = errors.New("course already completed")
-	ErrCourseNotStarted = errors.New("course has not been started")
-	ErrReadingTooShort  = errors.New("minimum reading time has not elapsed")
+	ErrCourseNotFound         = errors.New("course not found")
+	ErrAlreadyCompleted       = errors.New("course already completed")
+	ErrCourseNotStarted       = errors.New("course has not been started")
+	ErrReadingTooShort        = errors.New("minimum reading time has not elapsed")
+	ErrStatusCacheUnavailable = errors.New("runtime status cache unavailable")
 )
 
 type RehabService struct {
-	rehabRepo *repository.RehabRepository
-	db        *gorm.DB
+	rehabRepo   *repository.RehabRepository
+	db          *gorm.DB
+	statusCache *RuntimeStatusCache
 }
 
-func NewRehabService(db *gorm.DB) *RehabService {
+func NewRehabService(db *gorm.DB, statusCache *RuntimeStatusCache) *RehabService {
 	return &RehabService{
-		rehabRepo: repository.NewRehabRepository(db),
-		db:        db,
+		rehabRepo:   repository.NewRehabRepository(db),
+		db:          db,
+		statusCache: statusCache,
 	}
 }
 
@@ -109,28 +112,28 @@ func (s *RehabService) GetCourseDetail(courseID int64, locale string) (*RehabCou
 	}, nil
 }
 
-func (s *RehabService) CompleteCourse(userID int64, courseID int64) error {
+func (s *RehabService) CompleteCourse(userID int64, courseID int64) (int, error) {
 	course, err := s.rehabRepo.GetCourseByID(courseID)
 	if err != nil {
-		return ErrCourseNotFound
+		return 0, ErrCourseNotFound
 	}
 
 	completed, err := s.rehabRepo.IsCompleted(userID, courseID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if completed {
-		return ErrAlreadyCompleted
+		return 0, ErrAlreadyCompleted
 	}
 	completion, err := s.rehabRepo.GetCompletion(userID, courseID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := canCompleteRehabCourse(completionStartedAt(completion), course.MinReadingSec, time.Now()); err != nil {
-		return err
+		return 0, err
 	}
 
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	err = s.db.Transaction(func(tx *gorm.DB) error {
 		now := time.Now()
 		if err := tx.Model(&model.RehabCompletion{}).
 			Where("user_id = ? AND course_id = ?", userID, courseID).
@@ -149,6 +152,22 @@ func (s *RehabService) CompleteCourse(userID int64, courseID int64) error {
 		return tx.Model(&model.User{}).Where("id = ?", userID).
 			Update("reputation", gorm.Expr("reputation + ?", course.RewardPoints)).Error
 	})
+	if err != nil {
+		return 0, err
+	}
+	var reputation int
+	if err := s.db.Model(&model.User{}).
+		Select("reputation").
+		Where("id = ?", userID).
+		Scan(&reputation).Error; err != nil {
+		return 0, err
+	}
+	if s.statusCache != nil {
+		if err := s.statusCache.Invalidate(userID); err != nil {
+			return reputation, ErrStatusCacheUnavailable
+		}
+	}
+	return reputation, nil
 }
 
 func (s *RehabService) GetMyProgress(userID int64) ([]RehabCourseResponse, error) {

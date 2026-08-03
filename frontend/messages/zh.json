@@ -35,6 +35,7 @@
     "manage": "管理",
     "clickToView": "查看",
     "pageNumber": "第 {current} 页",
+    "skipToContent": "跳转到主要内容",
     "units": {
       "days": "天",
       "times": "次",
@@ -68,6 +69,9 @@
     "myOriginal": "我的原创"
   },
   "auth": {
+    "suspendedTitle": "账号已被封禁",
+    "suspendedDescription": "你的账号已被暂停使用。",
+    "submitAppeal": "提交申诉",
     "welcomeBack": "欢迎回来",
     "loginTitle": "登录你的万象工坊账号",
     "email": "邮箱",
@@ -512,12 +516,18 @@
     "errorAttachmentRequired": "请至少上传一个内容附件",
     "errorPublishFailed": "发布失败，请稍后重试"
   },
+  "capabilities": {
+    "deniedBanned": "账号当前已被封禁，无法进行互动操作。",
+    "deniedEmailNotVerified": "请先完成邮箱验证，再进行互动操作。",
+    "deniedInsufficientReputation": "信誉分不足，暂时无法进行该操作。",
+    "deniedUnavailable": "互动能力暂时不可用，请稍后重试。",
+    "deniedUnknown": "当前暂无互动权限。",
+    "reputationRestoreHint": "请通过素质建设课程恢复信誉分后重新参加考核。"
+  },
   "judge": {
     "queueTitle": "待审内容队列",
     "queueSubtitle": "参与众裁，维护社区内容质量",
     "qualificationExam": "资质考核",
-    "lowReputation": "信誉分不足（当前 {reputation} 分，需要 >= 3 分），无法参与众裁投票。",
-    "lowReputationExam": "信誉分不足（当前 {reputation} 分，需要 >= 3 分），无法参加考核。请通过素质建设课程恢复信誉分。",
     "loadingQueue": "加载队列中...",
     "noPendingContent": "暂无待审内容。请先通过资质考核获取判官资格，或等待新的举报内容进入队列。",
     "takeExam": "参加考核",
@@ -822,7 +832,12 @@
       "createFailed": "创建分类失败",
       "updateFailed": "更新分类失败",
       "deleteFailed": "删除分类失败",
-      "sortFailed": "排序保存失败"
+      "sortFailed": "排序保存失败",
+      "nameRequired": "请输入中文名称。",
+      "slugRequired": "请输入 Slug。",
+      "slugFor": "{name}的 Slug",
+      "moveUp": "上移{name}",
+      "moveDown": "下移{name}"
     },
     "config": {
       "title": "系统配置",
@@ -852,6 +867,7 @@
       "revokeErrorRate": "撤权错误率",
       "errorRateWindow": "错误率窗口",
       "sectionAgent": "智能体 (Agent)",
+      "webAgent": "网页 Agent",
       "dailyLimit": "每日限流",
       "sectionSocial": "社交风控 (Social)",
       "reportAutoHideRate": "举报自动隐藏率",
@@ -860,7 +876,8 @@
       "saveConfirmMsg": "确认保存当前配置吗？修改将立即热更新生效（重启后恢复 config.yaml 默认值）。",
       "confirmSave": "确认保存",
       "loadFailed": "加载配置失败",
-      "saveFailed": "保存配置失败"
+      "saveFailed": "保存配置失败",
+      "invalidValue": "请检查高亮的配置值后再保存。"
     },
     "feedback": {
       "title": "反馈管理",
@@ -878,7 +895,10 @@
       "user": "用户",
       "internalNote": "内部备注",
       "noReplies": "暂无回复",
+      "replyLabel": "回复内容",
       "replyPlaceholder": "输入回复内容...",
+      "replyRequired": "请输入回复内容。",
+      "replyFailed": "发送回复失败，请重试。",
       "markInternalNote": "标记为内部备注（用户不可见）",
       "sendReply": "发送回复"
     },
@@ -908,11 +928,11 @@
     "dislike": "点踩",
     "reported": "已举报",
     "report": "举报",
+    "reportDialogTitle": "举报此内容",
     "reportReason": "请描述举报原因：",
-    "lowReputation": "信誉分不足",
+    "reportFailed": "举报提交失败，请稍后重试",
     "comments": "评论",
     "commentPlaceholder": "写下你的评论...",
-    "cannotComment": "信誉分不足，无法评论",
     "loginToComment": "请登录后参与评论",
     "noComments": "暂无评论，来抢沙发吧",
     "noCommentsHint": "评论和回复会在对话开始后显示在这里。",
@@ -981,6 +1001,7 @@
     "bio": "个人简介",
     "saveButton": "保存修改",
     "securityTitle": "安全设置",
+    "securityHint": "修改密码与删除账号",
     "changePassword": "修改密码",
     "oldPassword": "旧密码",
     "newPassword": "新密码",
@@ -1013,6 +1034,7 @@
     "groupName": "标签组名称",
     "groupNamePlaceholder": "为标签组命名",
     "tags": "标签",
+    "addTag": "添加标签",
     "tagPlaceholder": "输入标签后按 Enter 添加",
     "empty": "暂无标签组",
     "createFirst": "创建第一个标签组",
@@ -1096,6 +1118,8 @@
     "today": "今天",
     "defaultSort": "默认排序",
     "mostLiked": "最多赞",
+    "gridView": "网格视图",
+    "listView": "列表视图",
     "filter": {
       "mainCategory": "大类",
       "selectedTags": "已选标签",
@@ -1140,6 +1164,7 @@
     "notFound": "讨论未找到",
     "titleLabel": "标题",
     "titlePlaceholder": "为你的讨论起个标题",
+    "titleRequired": "请输入标题。",
     "bodyLabel": "内容",
     "bodyPlaceholder": "写下你的想法...",
     "replyCount": "{count} 条回复",
@@ -1293,7 +1318,75 @@
     "systemLabel": "系统",
     "notificationOpensTarget": "可打开相关项",
     "notificationNoTarget": "无相关项",
-    "unreadIndicator": "未读"
+    "unreadIndicator": "未读",
+    "tabs": {
+      "notifications": "通知",
+      "conversations": "私信",
+      "notificationsCount": "{count} 条未读",
+      "conversationsCount": "{count} 个对话"
+    },
+    "notifications": {
+      "emptyTitle": "暂无通知",
+      "emptyDescription": "回复、点赞、关注和系统更新会显示在这里。",
+      "retry": "重试加载通知",
+      "markRead": "将通知标记为已读",
+      "opensTarget": "可打开相关项",
+      "noTarget": "无相关项",
+      "timeUnknown": "时间不可用",
+      "selectTitle": "选择一条通知",
+      "selectDescription": "选择通知后可查看详情。",
+      "detailTitle": "通知详情"
+    },
+    "conversations": {
+      "emptyTitle": "暂无对话",
+      "emptyDescription": "可以从创作者主页或内容页发起对话。",
+      "retry": "重试加载对话",
+      "searchLabel": "搜索对话",
+      "collabInviteSummary": "联合创作邀请",
+      "replyRequired": "对方尚未回复，请等待回复后再发送新消息",
+      "unknownParticipant": "未知用户",
+      "unreadCount": "{count} 条未读",
+      "timeUnknown": "时间不可用",
+      "startConversation": "开始对话"
+    },
+    "chat": {
+      "emptyTitle": "还没有消息",
+      "emptyDescription": "发送消息开始这段对话。",
+      "retry": "重试加载消息",
+      "inputLabel": "消息",
+      "inputPlaceholder": "输入消息...",
+      "send": "发送消息",
+      "sending": "发送中",
+      "unsupportedMessage": "暂不支持此消息类型。",
+      "backToConversations": "返回对话列表",
+      "selectConversation": "选择一个对话开始聊天",
+      "collabInviteSummary": "联合创作邀请",
+      "recipientUnavailable": "收件人不可用",
+      "timeUnknown": "时间不可用"
+    },
+    "broadcast": {
+      "label": "系统广播",
+      "summary": "系统广播通知"
+    },
+    "empty": {
+      "title": "暂无消息",
+      "description": "通知和对话会显示在这里。"
+    },
+    "error": {
+      "notifications": "通知加载失败。",
+      "conversations": "对话加载失败。",
+      "chat": "对话加载失败。",
+      "send": "消息发送失败。",
+      "retry": "重试"
+    },
+    "a11y": {
+      "tabs": "消息中心分区",
+      "notificationList": "通知列表",
+      "conversationList": "对话列表",
+      "messageList": "对话消息",
+      "unread": "未读通知",
+      "broadcast": "系统广播"
+    }
   },
   "footer": {
     "about": "关于我们",

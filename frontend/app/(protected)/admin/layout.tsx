@@ -5,9 +5,13 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Shield, FileText, Users, AlertTriangle, Settings, Tags, Bot, MessageSquare, ListOrdered, LayoutDashboard, Flag, ScrollText, ChevronRight, PanelLeftClose, PanelLeft } from "lucide-react";
+import { Shield, FileText, Users, AlertTriangle, Settings, Tags, Bot, MessageSquare, ListOrdered, LayoutDashboard, Flag, ScrollText, ChevronRight, PanelLeftClose, PanelLeft, X } from "lucide-react";
 import { Footer } from "@/components/layout/Footer";
 import { cn } from "@/lib/utils";
+import {
+  ADMIN_SIDEBAR_STORAGE_KEY,
+  useSidebarCollapse,
+} from "@/lib/use-sidebar-collapse";
 
 const ADMIN_NAV = [
   { href: "/admin/dashboard", labelKey: "navDashboard", icon: LayoutDashboard },
@@ -29,13 +33,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const { collapsed, setCollapsed } = useSidebarCollapse({
+    storageKey: ADMIN_SIDEBAR_STORAGE_KEY,
+  });
 
   useEffect(() => {
     if (!isLoading && user && user.role !== "admin") {
       router.replace("/");
     }
   }, [user, isLoading, router]);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setMobileOpen(false);
+    }
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [mobileOpen]);
 
   if (isLoading) {
     return (
@@ -44,6 +64,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
     );
   }
+
+  const toggleLabel = collapsed
+    ? t("studio.sidebar.expand")
+    : t("studio.sidebar.collapse");
 
   if (!user || user.role !== "admin") {
     return (
@@ -58,35 +82,40 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-0 px-0 md:flex-row">
+    <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-0 px-0 min-[701px]:flex-row">
       <aside
         className={cn(
-          "hidden shrink-0 border-r border-transparent bg-background transition-all duration-200 md:block",
-          sidebarOpen ? "w-[220px]" : "w-[52px]"
+          "hidden shrink-0 border-r border-border bg-canvas-subtle transition-[width] duration-200 motion-reduce:transition-none min-[701px]:block",
+          collapsed ? "w-12" : "w-[228px]"
         )}
+        aria-label={t("admin.title")}
       >
-        <nav className="sticky top-14 flex flex-col gap-0.5 p-3">
-          {sidebarOpen && (
+        <nav className="sticky top-0 flex flex-col gap-0.5 p-3">
+          {!collapsed && (
             <div className="mb-3 flex items-center justify-between px-1">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {t('admin.title')}
               </p>
               <button
                 type="button"
-                className="rounded p-0.5 hover:bg-muted"
-                onClick={() => setSidebarOpen(false)}
+                aria-label={toggleLabel}
+                title={toggleLabel}
+                className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-canvas-default hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => setCollapsed(true)}
               >
-                <PanelLeftClose className="h-3.5 w-3.5 text-muted-foreground" />
+                <PanelLeftClose className="size-4" />
               </button>
             </div>
           )}
-          {!sidebarOpen && (
+          {collapsed && (
             <button
               type="button"
-              className="mb-3 self-end rounded p-1 hover:bg-muted"
-              onClick={() => setSidebarOpen(true)}
+              aria-label={toggleLabel}
+              title={toggleLabel}
+              className="mb-3 inline-flex size-9 items-center justify-center self-center rounded-md text-muted-foreground hover:bg-canvas-default hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => setCollapsed(false)}
             >
-              <PanelLeft className="h-4 w-4 text-muted-foreground" />
+              <PanelLeft className="size-4" />
             </button>
           )}
           {ADMIN_NAV.map((item) => {
@@ -96,46 +125,90 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Link
                 key={item.href}
                 href={item.href}
-                title={!sidebarOpen ? label : undefined}
+                title={collapsed ? label : undefined}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
+                  "flex min-h-10 items-center gap-2.5 rounded-md px-3 py-2 text-sm outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   isActive
                     ? "bg-accent-subtle text-accent-emphasis font-medium"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                  !sidebarOpen && "justify-center px-2"
+                    : "text-muted-foreground hover:bg-canvas-default hover:text-foreground",
+                  collapsed && "justify-center px-2"
                 )}
               >
                 <item.icon className="h-4 w-4 shrink-0" />
-                {sidebarOpen && <span>{label}</span>}
-                {sidebarOpen && isActive && <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" />}
+                {!collapsed && <span>{label}</span>}
+                {!collapsed && isActive && <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" />}
               </Link>
             );
           })}
         </nav>
       </aside>
 
-      <div className="w-full overflow-x-auto border-b border-border bg-background md:hidden">
-        <div className="flex gap-0 px-2 py-2">
-          {ADMIN_NAV.map((item) => {
-            const isActive = pathname.startsWith(item.href);
-            const label = t(`admin.${item.labelKey}`);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                  isActive
-                    ? "bg-accent/10 text-accent"
-                    : "text-foreground/60 hover:bg-muted hover:text-foreground"
-                )}
-              >
-                {label}
-              </Link>
-            );
-          })}
-        </div>
+      <div className="sticky top-0 z-30 flex h-12 w-full items-center gap-3 border-b border-border bg-canvas-default px-3 min-[701px]:hidden">
+        <button
+          type="button"
+          aria-label={t("nav.openMenu")}
+          aria-expanded={mobileOpen}
+          aria-controls="admin-mobile-navigation"
+          onClick={() => setMobileOpen(true)}
+          className="inline-flex size-10 items-center justify-center rounded-md text-foreground hover:bg-canvas-subtle focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <PanelLeft className="size-5" />
+        </button>
+        <span className="truncate text-sm font-semibold">{t("admin.title")}</span>
       </div>
+
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 min-[701px]:hidden">
+          <button
+            type="button"
+            aria-label={t("studio.sidebar.collapse")}
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setMobileOpen(false)}
+          />
+          <aside
+            id="admin-mobile-navigation"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("admin.title")}
+            className="relative flex h-full w-[85vw] max-w-[320px] flex-col overflow-y-auto border-r border-border bg-canvas-subtle p-3 shadow-md"
+          >
+            <div className="mb-2 flex items-center justify-between px-1">
+              <span className="text-sm font-semibold">{t("admin.title")}</span>
+              <button
+                type="button"
+                aria-label={t("studio.sidebar.collapse")}
+                title={t("studio.sidebar.collapse")}
+                onClick={() => setMobileOpen(false)}
+                className="inline-flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-canvas-default hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            <nav className="flex flex-col gap-0.5">
+              {ADMIN_NAV.map((item) => {
+                const isActive = pathname.startsWith(item.href);
+                const label = t(`admin.${item.labelKey}`);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileOpen(false)}
+                    className={cn(
+                      "flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring",
+                      isActive
+                        ? "bg-accent-subtle font-medium text-accent-emphasis"
+                        : "text-muted-foreground hover:bg-canvas-default hover:text-foreground",
+                    )}
+                  >
+                    <item.icon className="size-4 shrink-0" />
+                    <span>{label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </aside>
+        </div>
+      )}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="flex-1 w-full overflow-auto">

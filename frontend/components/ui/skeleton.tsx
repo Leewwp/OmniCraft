@@ -4,20 +4,43 @@ function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="skeleton"
-      className={cn("animate-pulse rounded-md bg-muted", className)}
+      aria-hidden="true"
+      className={cn(
+        "animate-[pulse_1.6s_ease-in-out_infinite] rounded-md bg-canvas-subtle motion-reduce:animate-none",
+        className,
+      )}
       {...props}
     />
   )
 }
 
-function SkeletonCard({ className, ...props }: React.ComponentProps<"div">) {
-  return (
+function SkeletonCard({
+  className,
+  zone = "fanwork",
+  count = 1,
+  ...props
+}: React.ComponentProps<"div"> & {
+  zone?: "original" | "fanwork";
+  count?: number;
+}) {
+  return Array.from({ length: count }, (_, index) => (
     <div
+      key={index}
       data-slot="skeleton-card"
-      className={cn("animate-pulse rounded-md border border-border bg-card p-4 shadow-none", className)}
+      data-zone={zone}
+      aria-hidden="true"
+      className={cn(
+        "animate-[pulse_1.6s_ease-in-out_infinite] rounded-lg border border-border bg-card p-4 shadow-sm motion-reduce:animate-none",
+        className,
+      )}
       {...props}
     >
-      <Skeleton className="mb-3 aspect-[3/4] w-full rounded-md" />
+      <Skeleton
+        className={cn(
+          "mb-3 w-full rounded-lg",
+          zone === "fanwork" ? "aspect-[3/4]" : "min-h-[150px]",
+        )}
+      />
       <Skeleton className="mb-2 h-4 w-3/4" />
       <Skeleton className="mb-2 h-3 w-1/2" />
       <div className="flex gap-2">
@@ -25,14 +48,18 @@ function SkeletonCard({ className, ...props }: React.ComponentProps<"div">) {
         <Skeleton className="h-5 w-12 rounded-full" />
       </div>
     </div>
-  )
+  ))
 }
 
 function SkeletonCircle({ size = 40, className, ...props }: React.ComponentProps<"div"> & { size?: number }) {
   return (
     <div
       data-slot="skeleton-circle"
-      className={cn("animate-pulse rounded-full bg-muted", className)}
+      aria-hidden="true"
+      className={cn(
+        "animate-[pulse_1.6s_ease-in-out_infinite] rounded-full bg-canvas-subtle motion-reduce:animate-none",
+        className,
+      )}
       style={{ width: size, height: size }}
       {...props}
     />
@@ -60,10 +87,14 @@ function SkeletonDetail({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="skeleton-detail"
-      className={cn("animate-pulse space-y-4 rounded-md border border-border bg-card p-6", className)}
+      aria-hidden="true"
+      className={cn(
+        "animate-[pulse_1.6s_ease-in-out_infinite] space-y-4 rounded-lg border border-border bg-card p-6 shadow-sm motion-reduce:animate-none",
+        className,
+      )}
       {...props}
     >
-      <Skeleton className="aspect-video w-full rounded-md" />
+      <Skeleton className="aspect-video w-full rounded-lg" />
       <Skeleton className="h-6 w-2/3" />
       <Skeleton className="h-4 w-1/3" />
       <SkeletonText lines={4} />

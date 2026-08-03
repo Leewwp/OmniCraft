@@ -1,17 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Users, UserPlus, UserMinus } from "lucide-react";
 import { api } from "@/lib/api";
 import { StatsCard } from "@/components/studio/StatsCard";
 import { FollowerTrendChart } from "@/components/studio/FollowerTrendChart";
 import { FollowerSourceChart } from "@/components/studio/FollowerSourceChart";
+import { DataList } from "@/components/ui/data-list";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/Toast";
 
 export default function StudioFollowersPage() {
   const t = useTranslations();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [stats, setStats] = useState({
     total: 0,
     newThisMonth: 0,
@@ -20,8 +25,9 @@ export default function StudioFollowersPage() {
   const [trend, setTrend] = useState<Array<{ date: string; newFollowers: number; netGrowth: number }>>([]);
   const [sources, setSources] = useState<Array<{ name: string; value: number }>>([]);
 
-  useEffect(() => {
-    async function fetchData() {
+  const fetchData = useCallback(async () => {
+      setLoading(true);
+      setError("");
       try {
         const res = await api.get("/api/v1/users/me/followers/stats?days=30") as Record<string, unknown> | null;
         if (res) {
@@ -46,13 +52,15 @@ export default function StudioFollowersPage() {
           }
         }
       } catch {
-        // Default stats
+        const message = t("common.loadFailed");
+        setError(message);
+        toast("error", message);
       } finally {
         setLoading(false);
       }
-    }
-    fetchData();
-  }, []);
+  }, [t, toast]);
+
+  useEffect(() => { void fetchData(); }, [fetchData]);
 
   if (loading) {
     return (
@@ -95,9 +103,14 @@ export default function StudioFollowersPage() {
       <div className="mb-6">
         <FollowerTrendChart data={trend} />
       </div>
-      <div>
-        <FollowerSourceChart data={sources} />
-      </div>
+      <DataList
+        items={sources.length > 0 ? [sources] : []}
+        loading={loading}
+        error={error}
+        onRetry={() => void fetchData()}
+        empty={<EmptyState icon={Users} title={t('studio.followers.noSourceData')} />}
+        renderItem={(sourceData) => <FollowerSourceChart data={sourceData} />}
+      />
     </div>
   );
 }

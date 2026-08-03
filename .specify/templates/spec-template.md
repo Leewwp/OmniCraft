@@ -84,6 +84,10 @@
 
 ### Functional Requirements
 
+For frontend requirements, cite `design/design-system.md` for token values and `design/ui-spec.md`
+for component/page behavior. Visible elevation requirements must name tier 1, 2 or 3 and include
+light/dark plus reduced-motion acceptance criteria.
+
 - **FR-001**: System MUST [specific capability, e.g., "allow users to create accounts"]
 - **FR-002**: System MUST [specific capability, e.g., "validate email addresses"]  
 - **FR-003**: Users MUST be able to [key interaction, e.g., "reset their password"]

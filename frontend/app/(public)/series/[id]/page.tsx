@@ -13,7 +13,7 @@ import { ApiRequestError } from "@/lib/api";
 import { getSeriesDetail, type SeriesDetailResponse } from "@/lib/series";
 import { silentError } from "@/lib/error-handler";
 
-type PageParams = Promise<{ id: string }> | { id: string };
+type PageParams = Promise<{ id: string }>;
 
 interface SeriesDetailPageProps {
   params: PageParams;

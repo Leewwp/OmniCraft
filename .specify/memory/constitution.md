@@ -1,17 +1,15 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change    : 1.2.0 → 1.3.0 (MINOR — UI design update, soft-delete policy clarification, toolchain bump)
-Version chain     : 1.0.0 → 1.1.0 → 1.1.1 → 1.2.0 → 1.3.0
+Version change    : 1.3.0 → 2.0.0 (MAJOR — ratify the approved P-01 Indigo refinement)
+Version chain     : 1.0.0 → 1.1.0 → 1.1.1 → 1.2.0 → 1.3.0 → 2.0.0
 Modified sections :
-  Principle VIII  — updated UI design reference from GitHub visual language to Indigo-based flat design
-  Principle XVII  — updated soft-delete policy from "only" to "preferred" per DEC-031; physical deletion now permitted for low-analytic-value data
-  Principle XIII  — fixed `features.web_agent_enabled` → `agent.web_agent_enabled` (field path correction)
-  Toolchain       — PostgreSQL minimum version raised from 15+ to 16+
+  Principle VIII  — replaced the obsolete global no-shadow rule with the approved three-tier subtle-elevation contract; aligned Tailwind 4 CSS-first tokens and Chinese font fallbacks
+  Principle XIV   — clarified design-system token authority versus ui-spec component/page authority
 Templates updated :
-  ✅ .specify/templates/plan-template.md   — 1.3.0 变更已传播（此标记为手动确认，模板本身为通用结构无需修改）
-  ✅ .specify/templates/spec-template.md    — 同上
-  ✅ .specify/templates/tasks-template.md   — 同上
+  ✅ .specify/templates/plan-template.md   — frontend constitution gate now checks token/elevation authority
+  ✅ .specify/templates/spec-template.md   — frontend requirements now reference both visual authorities
+  ✅ .specify/templates/tasks-template.md  — frontend verification now includes light/dark and reduced-motion evidence
 Deferred TODOs    : none
 -->
 
@@ -129,15 +127,22 @@ before merging. No library may be introduced for convenience if the standard lib
 
 ### VIII. UI Design Conformance
 
-The UI design system uses an **Indigo-based flat design** with 1px borders and no box-shadows
-(see `design/design-system.md` for color tokens and `architecture.md §10.4` for component mapping):
+The UI design system uses an **Indigo-based flat design** with 1px borders and three tiers of
+subtle elevation (see `design/design-system.md` for tokens and `design/ui-spec.md` for component/page
+mapping):
 
-- **Color tokens**: `canvas`, `border`, `fg`, `accent`, `tag` (with `light`/`dark` variants) MUST be
-  defined in `tailwind.config.ts` and used exclusively; raw hex colors in components are FORBIDDEN
+- **Design tokens**: `canvas`, `border`, `fg`, `accent`, `tag`, radius, typography, spacing and
+  elevation tokens (with `light`/`dark` variants where applicable) MUST be defined through the
+  Tailwind 4 CSS-first contract in `frontend/app/globals.css`; raw hex colors in components are
+  FORBIDDEN
+- **Elevation**: static cards/panels MAY use elevation 1, hover feedback MAY use elevation 2, and
+  dropdowns/drawers/modals MUST use elevation 3. Shadows MUST be paired with a 1px border, MUST NOT
+  cause layout shift, and scale/translation/pulse effects MUST be disabled under
+  `prefers-reduced-motion: reduce`
 - **Dark mode**: toggled via `class="dark"` on `<html>` using `next-themes`; theme stored in
   `localStorage` only — NOT persisted to the server
-- **Typography**: system font stack `(-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica,
-  Arial)`; no custom web fonts at MVP stage
+- **Typography**: system font stack `(-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+  'Microsoft YaHei', sans-serif)`; no custom web fonts at MVP stage
 - **Tag badges**: MUST use the `TagBadge` component with `tag.*` low-saturation color tokens; raw
   colored `<span>` elements for tags are FORBIDDEN
 - **Content browsing layout**: homepage, IP detail page, and original zone MUST use `MasonryGrid`
@@ -257,7 +262,8 @@ web Agent implementation:
 
 ### XIV. UI Design Spec Authority
 
-- `design/ui-spec.md` is the sole visual authority for frontend implementation
+- `design/design-system.md` is the sole authority for visual token values; `design/ui-spec.md` is
+  the sole authority for component/page composition, interaction and token application
 - The `ui_spec_ref` field in `task.json` lists headings to reference before coding
 - Design specifications take precedence over prose descriptions in `steps`
 - If `design/ui-spec.md` section is empty, implement based on `steps` and add comments
@@ -381,7 +387,7 @@ See Principle X for the authoritative rule set. All numeric thresholds MUST be r
 - **Conflict resolution**: if a task step conflicts with a principle, the principle wins; the
   conflicting step MUST be clarified before implementation begins
 
-**Version**: 1.3.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-06-28
+**Version**: 2.0.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-08-01
 
 ### 1.0.0 Changelog (2026-04-15)
 
@@ -417,3 +423,13 @@ See Principle X for the authoritative rule set. All numeric thresholds MUST be r
 - **Principle XVII**: Updated soft-delete policy from "only" to "preferred" per DEC-031. Physical deletion now permitted for low-analytic-value data (browse_history, read notifications).
 - **Toolchain**: PostgreSQL minimum version raised from 15+ to 16+ (matching `AGENTS.md` and `docker-compose.yml`).
 - **Principle XIII**: Fixed `features.web_agent_enabled` → `agent.web_agent_enabled` (field path correction).
+
+### 2.0.0 Changelog (2026-08-01)
+
+- **Principle VIII**: Ratified the user-approved P-01 Indigo refinement: exact CSS-first tokens,
+  Chinese system-font fallbacks, and three-tier subtle elevation replace the obsolete global
+  no-shadow rule.
+- **Principle XIV**: Clarified that `design/design-system.md` owns token values while
+  `design/ui-spec.md` owns component/page composition and application.
+- **Templates**: Propagated the updated frontend constitution gate and verification expectations to
+  the plan, spec and task templates.

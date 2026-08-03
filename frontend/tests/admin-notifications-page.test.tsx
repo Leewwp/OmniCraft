@@ -130,29 +130,24 @@ test.afterEach(() => {
   console.warn = originalConsoleWarn;
 });
 
-test("requires title and body before the broadcast can be submitted", async () => {
+test("announces required fields and focuses the first invalid broadcast field", async () => {
   installAdminDom();
   const calls = installApiPostMock();
   const view = await renderPage();
 
   const sendButton = view.getByRole("button", { name: intlMessages.adminNotifications.form.send }) as HTMLButtonElement;
   assert.equal(sendButton.disabled, true);
-
-  fireEvent.change(view.getByLabelText(intlMessages.adminNotifications.form.titleLabel), {
-    target: { value: "Maintenance" },
-  });
+  fireEvent.submit(sendButton.closest("form") as HTMLFormElement);
 
   await waitFor(() => {
-    assert.equal(sendButton.disabled, true);
+    const title = view.getByLabelText(intlMessages.adminNotifications.form.titleLabel);
+    assert.equal(title.getAttribute("aria-invalid"), "true");
+    assert.equal(document.activeElement, title);
+    assert.equal(
+      view.getByText(intlMessages.adminNotifications.validation.titleRequired).getAttribute("role"),
+      "alert",
+    );
     assert.equal(calls.length, 0);
-  });
-
-  fireEvent.change(view.getByLabelText(intlMessages.adminNotifications.form.bodyLabel), {
-    target: { value: "Maintenance starts at 02:00." },
-  });
-
-  await waitFor(() => {
-    assert.equal(sendButton.disabled, false);
   });
 });
 

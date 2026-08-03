@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -51,13 +51,20 @@
   --color-canvas-inset: var(--canvas-inset);
   --color-border-default: var(--border-default);
   --color-border-muted: var(--border-muted);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --color-border-strong: var(--border-strong);
+  --color-border-destructive: var(--border-destructive);
+  --color-accent-hover: var(--accent-hover);
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+  --radius-2xl: var(--radius-xl);
+  --radius-3xl: var(--radius-xl);
+  --radius-4xl: var(--radius-xl);
+  --shadow-sm: var(--elevation-1);
+  --shadow-md: var(--elevation-3);
+  --shadow-lg: var(--elevation-3);
 }
 
 :root {
@@ -76,6 +83,7 @@
   --muted-foreground: #52525b;
   --accent: #f5f5f5;
   --accent-foreground: #18181b;
+  --accent-hover: #4338ca;
   --destructive: #e11d48;
   --border: #e8e8e8;
   --input: #e8e8e8;
@@ -87,9 +95,9 @@
   --chart-4: #bc4c00;
   --chart-5: #bf8700;
   --chart-6: #cf222e;
-  --radius: 0.5rem;
-  --shadow-sm: none;
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --elevation-1: 0 1px 2px 0 rgb(24 24 27 / 0.05);
+  --elevation-2: 0 4px 12px -2px rgb(24 24 27 / 0.10), 0 2px 4px -2px rgb(24 24 27 / 0.05);
+  --elevation-3: 0 12px 32px -8px rgb(24 24 27 / 0.14), 0 4px 8px -4px rgb(24 24 27 / 0.06);
   --sidebar: #ffffff;
   --sidebar-foreground: #18181b;
   --sidebar-primary: #4f46e5;
@@ -116,6 +124,7 @@
   --muted-foreground: #848d97;
   --accent: #161b22;
   --accent-foreground: #e6edf3;
+  --accent-hover: #818cf8;
   --destructive: #f87171;
   --border: #30363d;
   --input: #30363d;
@@ -126,8 +135,9 @@
   --chart-4: #f0883e;
   --chart-5: #d29922;
   --chart-6: #f85149;
-  --shadow-sm: none;
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --elevation-1: 0 1px 2px 0 rgb(0 0 0 / 0.30);
+  --elevation-2: 0 4px 12px -2px rgb(0 0 0 / 0.50), 0 2px 4px -2px rgb(0 0 0 / 0.30);
+  --elevation-3: 0 12px 32px -8px rgb(0 0 0 / 0.60), 0 4px 8px -4px rgb(0 0 0 / 0.40);
   --sidebar: #0d1117;
   --sidebar-foreground: #e6edf3;
   --sidebar-primary: #6366f1;
@@ -145,6 +155,8 @@
   --canvas-inset: #fafafa;
   --border-default: #e8e8e8;
   --border-muted: #f0f0f0;
+  --border-strong: #d4d4d8;
+  --border-destructive: #e11d48;
   --fg-default: #18181b;
   --fg-muted: #52525b;
   --fg-subtle: #a1a1aa;
@@ -177,6 +189,8 @@
   --canvas-inset: #010409;
   --border-default: #30363d;
   --border-muted: #21262d;
+  --border-strong: #444c56;
+  --border-destructive: #f87171;
   --fg-default: #e6edf3;
   --fg-muted: #848d97;
   --fg-subtle: #6e7681;
@@ -207,5 +221,43 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  [class*="animate-pulse"],
+  [class*="data-open:animate-in"],
+  [class*="data-closed:animate-out"] {
+    animation: none !important;
+  }
+
+  [class*="hover:scale-"]:hover,
+  .group:hover [class*="group-hover:scale-"] {
+    --tw-scale-x: 1 !important;
+    --tw-scale-y: 1 !important;
+    --tw-scale-z: 1 !important;
+  }
+
+  [class*="hover:translate-x-"]:hover,
+  [class*="hover:-translate-x-"]:hover,
+  .group:hover [class*="group-hover:translate-x-"],
+  .group:hover [class*="group-hover:-translate-x-"] {
+    --tw-translate-x: 0 !important;
+  }
+
+  [class*="hover:translate-y-"]:hover,
+  [class*="hover:-translate-y-"]:hover,
+  .group:hover [class*="group-hover:translate-y-"],
+  .group:hover [class*="group-hover:-translate-y-"] {
+    --tw-translate-y: 0 !important;
   }
 }

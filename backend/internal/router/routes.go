@@ -292,7 +292,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		agent.GET("/conversations/:id", agentHandler.GetConversationMessages)
 	}
 
-	rehabHandler := handler.NewRehabHandler(db)
+	rehabHandler := handler.NewRehabHandler(db, rdb, cfg)
 	rehab := v1.Group("/rehab", authReq)
 	{
 		rehab.GET("/courses", rehabHandler.ListCourses)

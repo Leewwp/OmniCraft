@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
+import { DataList } from "@/components/ui/data-list";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { Inbox, MessageSquare, ChevronRight } from "lucide-react";
 
@@ -25,27 +28,35 @@ export default function FeedbackMinePage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      setError("");
-      try {
-        const res = (await api.get("/api/v1/feedback/me")) as {
-          items: FeedbackTicket[];
-          total: number;
-        };
-        setTickets(res.items || []);
-        setTotal(res.total);
-      } catch (e) {
-        silentError(e, { component: "FeedbackMinePage", action: "load" });
-        setError(t(getUserFacingErrorKey(e)));
-      } finally {
-        setLoading(false);
-      }
+  const load = useCallback(async (nextPage = 1, append = false) => {
+    if (append) setLoadingMore(true); else setLoading(true);
+    setError("");
+    setPage(nextPage);
+    try {
+      const res = (await api.get(`/api/v1/feedback/me?page=${nextPage}&page_size=20`)) as {
+        items?: FeedbackTicket[];
+        total?: number;
+        page_size?: number;
+      };
+      const incoming = res.items || [];
+      setTickets((current) => append ? [...current, ...incoming.filter((item) => !current.some((existing) => existing.id === item.id))] : incoming);
+      setTotal(res.total ?? incoming.length);
+      setPage(nextPage);
+      setHasMore((res.total ?? incoming.length) > nextPage * (res.page_size ?? 20));
+    } catch (e) {
+      silentError(e, { component: "FeedbackMinePage", action: "load" });
+      setError(t(getUserFacingErrorKey(e, "common.loadFailed")));
+    } finally {
+      setLoadingMore(false);
+      setLoading(false);
     }
-    load();
   }, [t]);
+
+  useEffect(() => { void load(); }, [load]);
 
   if (!user) {
     return (
@@ -80,21 +91,18 @@ export default function FeedbackMinePage() {
         </Link>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      {loading ? (
-        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
-      ) : tickets.length === 0 ? (
-        <div className="rounded-lg border border-border bg-card p-8 text-center">
-          <Inbox className="mx-auto h-10 w-10 text-muted-foreground" />
-          <p className="mt-3 text-sm text-muted-foreground">{t("feedback.noTickets")}</p>
-          <Link href="/feedback" className="mt-2 inline-block text-sm text-primary hover:underline">
-            {t("feedback.submitFirst")}
-          </Link>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {tickets.map((ticket) => (
+      <DataList
+        items={tickets}
+        loading={loading}
+        error={error}
+        onRetry={() => void load(page, page > 1)}
+        hasMore={hasMore}
+        loadingMore={loadingMore}
+        onLoadMore={() => load(page + 1, true)}
+        empty={<EmptyState icon={Inbox} title={t("feedback.noTickets")} description={t("feedback.submitFirst")} />}
+        loadingState={<div className="space-y-3"><Skeleton className="h-20 w-full rounded-lg" /><Skeleton className="h-20 w-full rounded-lg" /><Skeleton className="h-20 w-full rounded-lg" /></div>}
+        getKey={(ticket) => ticket.id}
+        renderItem={(ticket) => (
             <Link
               key={ticket.id}
               href={`/feedback/${ticket.id}`}
@@ -126,9 +134,8 @@ export default function FeedbackMinePage() {
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
             </Link>
-          ))}
-        </div>
-      )}
+        )}
+      />
     </div>
   );
 }

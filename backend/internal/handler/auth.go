@@ -15,6 +15,7 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/captcha"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
@@ -28,6 +29,29 @@ type AuthHandler struct {
 	captchaVerifier     captcha.CaptchaVerifier
 	rdb                 *redis.Client
 	cfg                 *config.Config
+}
+
+type AuthCapabilities struct {
+	CanInteract             bool   `json:"can_interact"`
+	InteractionDenialReason string `json:"interaction_denial_reason,omitempty"`
+}
+
+func buildAuthCapabilities(user *model.User, cfg *config.Config) (AuthCapabilities, string) {
+	status := &service.RuntimeUserStatus{
+		ID:              int64(user.ID),
+		Role:            user.Role,
+		IsBanned:        user.IsBanned,
+		EmailVerifiedAt: user.EmailVerifiedAt,
+		Reputation:      user.Reputation,
+	}
+	decision := service.EvaluateInteractionAccess(status, cfg, true, true)
+	if !decision.Allowed && decision.DenialReason != "EMAIL_NOT_VERIFIED" && decision.DenialReason != "INSUFFICIENT_REPUTATION" {
+		return AuthCapabilities{}, decision.DenialReason
+	}
+	return AuthCapabilities{
+		CanInteract:             decision.Allowed,
+		InteractionDenialReason: decision.DenialReason,
+	}, ""
 }
 
 func NewAuthHandler(authService *service.AuthService, verificationService *service.VerificationService, userRepo *repository.UserRepository, captchaVerifier captcha.CaptchaVerifier, rdb *redis.Client, cfg *config.Config) *AuthHandler {
@@ -178,7 +202,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusAccepted, gin.H{
-		"email":                  normalizedEmail,
+		"email":                 normalizedEmail,
 		"username":              input.Username,
 		"verification_required": true,
 	})
@@ -218,11 +242,18 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	capabilities, capabilityErrCode := buildAuthCapabilities(user, h.cfg)
+	if capabilityErrCode != "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": capabilityErrCode, "message": "interaction status is temporarily unavailable"})
+		return
+	}
+
 	h.clearLoginFailures(c, input.Email)
 	setRefreshCookie(c, h.cfg, tokens.RefreshToken)
 
 	c.JSON(http.StatusOK, gin.H{
-		"user": user,
+		"user":         user,
+		"capabilities": capabilities,
 		"tokens": gin.H{
 			"access_token": tokens.AccessToken,
 		},
@@ -287,8 +318,17 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	}
 
 	csrfToken := middleware.GetCSRFToken(c)
+	capabilities, capabilityErrCode := buildAuthCapabilities(user, h.cfg)
+	if capabilityErrCode != "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": capabilityErrCode, "message": "interaction status is temporarily unavailable"})
+		return
+	}
 	c.Header("X-CSRF-Token", csrfToken)
-	c.JSON(http.StatusOK, gin.H{"user": user, "csrf_token": csrfToken})
+	c.JSON(http.StatusOK, gin.H{
+		"user":         user,
+		"csrf_token":   csrfToken,
+		"capabilities": capabilities,
+	})
 }
 
 func (h *AuthHandler) CSRFToken(c *gin.Context) {

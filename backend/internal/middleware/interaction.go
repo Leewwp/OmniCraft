@@ -48,25 +48,20 @@ func InteractionRequired(cfg *config.Config, db *gorm.DB, rdb *redis.Client, pol
 			return
 		}
 
-		if policy.RequireVerifiedEmail {
-			if status.EmailVerifiedAt == nil {
-				c.JSON(http.StatusForbidden, gin.H{"code": "EMAIL_NOT_VERIFIED", "message": "email verification required"})
-				c.Abort()
-				return
+		decision := service.EvaluateInteractionAccess(status, cfg, policy.RequireVerifiedEmail, policy.RequireReputation)
+		if !decision.Allowed {
+			switch decision.DenialReason {
+			case "EMAIL_NOT_VERIFIED":
+				c.JSON(http.StatusForbidden, gin.H{"code": decision.DenialReason, "message": "email verification required"})
+			case "INSUFFICIENT_REPUTATION":
+				c.JSON(http.StatusForbidden, gin.H{"code": decision.DenialReason, "message": "reputation score too low to perform this action"})
+			case "USER_BANNED":
+				c.JSON(http.StatusUnauthorized, gin.H{"code": decision.DenialReason, "message": "account has been banned"})
+			default:
+				c.JSON(http.StatusServiceUnavailable, gin.H{"code": decision.DenialReason, "message": "interaction status is temporarily unavailable"})
 			}
-		}
-
-		if policy.RequireReputation {
-			if cfg.Reputation.MinScoreForInteraction <= 0 {
-				c.JSON(http.StatusServiceUnavailable, gin.H{"code": "CONFIG_ERROR", "message": "reputation threshold is misconfigured"})
-				c.Abort()
-				return
-			}
-			if status.Reputation < cfg.Reputation.MinScoreForInteraction {
-				c.JSON(http.StatusForbidden, gin.H{"code": "INSUFFICIENT_REPUTATION", "message": "reputation score too low to perform this action"})
-				c.Abort()
-				return
-			}
+			c.Abort()
+			return
 		}
 
 		if policy.RequireNoPublishFreeze {

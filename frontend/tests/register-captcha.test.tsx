@@ -20,7 +20,7 @@ test.afterEach(() => {
 test("register blocks aliyun_v2 submission when captcha token is empty", async () => {
   installDom();
 
-  const pageModule = await import("@/app/(public)/register/page");
+  const pageModule = await import("@/components/auth/RegisterPageContent");
   const apiModule = await import("@/lib/api");
   const publicConfigModule = await import("@/lib/public-config");
   const RegisterPageContent = pageModule.RegisterPageContent;
@@ -99,7 +99,7 @@ test("register blocks aliyun_v2 submission when captcha token is empty", async (
 test("register renders stable captcha container and button ids in the DOM", async () => {
   installDom();
 
-  const pageModule = await import("@/app/(public)/register/page");
+  const pageModule = await import("@/components/auth/RegisterPageContent");
   const RegisterPageContent = pageModule.RegisterPageContent;
   const publicConfigModule = await import("@/lib/public-config");
   publicConfigModule.clearPublicConfigCache();

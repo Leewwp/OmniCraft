@@ -61,6 +61,7 @@ export default function AdminConfigPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [invalidFieldId, setInvalidFieldId] = useState<string | null>(null);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingPatch, setPendingPatch] = useState<Record<string, unknown> | null>(null);
@@ -168,6 +169,20 @@ export default function AdminConfigPage() {
     };
   }
 
+  function prepareSave() {
+    const invalidField = document.querySelector<HTMLInputElement>("[data-config-field]:invalid");
+    if (invalidField) {
+      setInvalidFieldId(invalidField.id);
+      setError(t("admin.config.invalidValue"));
+      invalidField.focus();
+      return;
+    }
+    setInvalidFieldId(null);
+    setError("");
+    setPendingPatch(buildPatch());
+    setConfirmOpen(true);
+  }
+
   if (loading) {
     return (
       <div className="space-y-4 p-6">
@@ -180,7 +195,8 @@ export default function AdminConfigPage() {
     );
   }
 
-  function FieldRow({ label, value, onChange, min, max, step = 1, unit }: {
+  function FieldRow({ id, label, value, onChange, min, max, step = 1, unit }: {
+    id: string;
     label: string;
     value: number;
     onChange: (v: number) => void;
@@ -191,16 +207,26 @@ export default function AdminConfigPage() {
   }) {
     return (
       <div className="flex items-center justify-between gap-4 border-b border-border py-3 last:border-b-0">
-        <label className="text-sm font-medium">{label}</label>
+        <label htmlFor={id} className="text-sm font-medium">{label}</label>
         <div className="flex items-center gap-2">
           <input
+            id={id}
+            data-config-field
             type="number"
-            className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-ring"
+            className="[@media(pointer:coarse)]:min-h-11 w-24 rounded-md border border-border bg-background px-2 py-1.5 text-right text-sm focus:outline-none focus:ring-2 focus:ring-ring aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20"
             value={value}
             min={min}
             max={max}
             step={step}
-            onChange={(e) => onChange(Number(e.target.value))}
+            onChange={(e) => {
+              onChange(Number(e.target.value));
+              if (invalidFieldId === id && e.currentTarget.validity.valid) {
+                setInvalidFieldId(null);
+                setError("");
+              }
+            }}
+            aria-invalid={invalidFieldId === id}
+            aria-describedby={invalidFieldId === id ? "config-error" : undefined}
           />
           {unit && <span className="text-xs text-muted-foreground w-8">{unit}</span>}
         </div>
@@ -208,26 +234,32 @@ export default function AdminConfigPage() {
     );
   }
 
-  function ToggleRow({ label, value, onChange }: {
+  function ToggleRow({ id, label, value, onChange }: {
+    id: string;
     label: string;
     value: boolean;
     onChange: (v: boolean) => void;
   }) {
     return (
       <div className="flex items-center justify-between gap-4 border-b border-border py-3 last:border-b-0">
-        <label className="text-sm font-medium">{label}</label>
+        <label htmlFor={id} className="text-sm font-medium">{label}</label>
         <button
+          id={id}
           type="button"
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-            value ? "bg-accent" : "bg-muted"
-          }`}
+          role="switch"
+          aria-checked={value}
+          aria-label={label}
+          className="inline-flex [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-ring"
           onClick={() => onChange(!value)}
         >
-          <span
-            className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
-              value ? "translate-x-6" : "translate-x-1"
-            }`}
-          />
+          <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${value ? "bg-accent" : "bg-muted"}`}>
+            <span
+              aria-hidden="true"
+              className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                value ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </span>
         </button>
       </div>
     );
@@ -245,21 +277,18 @@ export default function AdminConfigPage() {
         <Button
           size="sm"
           disabled={saving}
-          onClick={() => {
-            setPendingPatch(buildPatch());
-            setConfirmOpen(true);
-          }}
+          onClick={prepareSave}
         >
           {saving ? t('common.saving') : t('admin.config.saveButton')}
         </Button>
       </div>
 
       {saved && (
-        <div className="rounded-md border border-emerald-500/30 bg-emerald-50 p-3 text-sm text-emerald-700 ">
+        <div role="status" className="rounded-md border border-emerald-500/30 bg-emerald-50 p-3 text-sm text-emerald-700">
           {t('admin.config.saved')}
         </div>
       )}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p id="config-error" role="alert" className="text-sm text-destructive">{error}</p>}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Limits */}
@@ -268,12 +297,12 @@ export default function AdminConfigPage() {
             <h3 className="text-sm font-semibold">{t('admin.config.sectionLimits')}</h3>
           </div>
           <div className="px-4 py-1">
-            <FieldRow label={t('admin.config.videoMaxMb')} value={config.limits.video_max_mb} onChange={(v) => updateLimits("video_max_mb", v)} min={1} unit="MB" />
-            <FieldRow label={t('admin.config.videoMaxDuration')} value={config.limits.video_max_sec} onChange={(v) => updateLimits("video_max_sec", v)} min={1} unit="s" />
-            <FieldRow label={t('admin.config.imageMaxMb')} value={config.limits.image_max_mb} onChange={(v) => updateLimits("image_max_mb", v)} min={1} unit="MB" />
-            <FieldRow label={t('admin.config.textMaxMb')} value={config.limits.text_max_mb} onChange={(v) => updateLimits("text_max_mb", v)} min={1} unit="MB" />
-            <FieldRow label={t('admin.config.modMaxMb')} value={config.limits.mod_max_mb} onChange={(v) => updateLimits("mod_max_mb", v)} min={1} unit="MB" />
-            <FieldRow label={t('admin.config.sheetMusicMaxMb')} value={config.limits.sheet_music_max_mb} onChange={(v) => updateLimits("sheet_music_max_mb", v)} min={1} unit="MB" />
+            <FieldRow id="config-video-max-mb" label={t('admin.config.videoMaxMb')} value={config.limits.video_max_mb} onChange={(v) => updateLimits("video_max_mb", v)} min={1} unit="MB" />
+            <FieldRow id="config-video-max-sec" label={t('admin.config.videoMaxDuration')} value={config.limits.video_max_sec} onChange={(v) => updateLimits("video_max_sec", v)} min={1} unit="s" />
+            <FieldRow id="config-image-max-mb" label={t('admin.config.imageMaxMb')} value={config.limits.image_max_mb} onChange={(v) => updateLimits("image_max_mb", v)} min={1} unit="MB" />
+            <FieldRow id="config-text-max-mb" label={t('admin.config.textMaxMb')} value={config.limits.text_max_mb} onChange={(v) => updateLimits("text_max_mb", v)} min={1} unit="MB" />
+            <FieldRow id="config-mod-max-mb" label={t('admin.config.modMaxMb')} value={config.limits.mod_max_mb} onChange={(v) => updateLimits("mod_max_mb", v)} min={1} unit="MB" />
+            <FieldRow id="config-sheet-music-max-mb" label={t('admin.config.sheetMusicMaxMb')} value={config.limits.sheet_music_max_mb} onChange={(v) => updateLimits("sheet_music_max_mb", v)} min={1} unit="MB" />
           </div>
         </div>
 
@@ -283,8 +312,8 @@ export default function AdminConfigPage() {
             <h3 className="text-sm font-semibold">{t('admin.config.sectionFeatures')}</h3>
           </div>
           <div className="px-4 py-1">
-            <ToggleRow label={t('admin.config.paymentEnabled')} value={config.features.payment_enabled} onChange={(v) => updateFeatures("payment_enabled", v)} />
-            <ToggleRow label={t('admin.config.creatorSupport')} value={config.features.creator_support_enabled} onChange={(v) => updateFeatures("creator_support_enabled", v)} />
+            <ToggleRow id="config-payment-enabled" label={t('admin.config.paymentEnabled')} value={config.features.payment_enabled} onChange={(v) => updateFeatures("payment_enabled", v)} />
+            <ToggleRow id="config-creator-support-enabled" label={t('admin.config.creatorSupport')} value={config.features.creator_support_enabled} onChange={(v) => updateFeatures("creator_support_enabled", v)} />
           </div>
         </div>
 
@@ -294,11 +323,11 @@ export default function AdminConfigPage() {
             <h3 className="text-sm font-semibold">{t('admin.config.sectionReputation')}</h3>
           </div>
           <div className="px-4 py-1">
-            <FieldRow label={t('admin.config.qualityContentThreshold')} value={config.reputation.quality_content_threshold} onChange={(v) => updateReputation("quality_content_threshold", v)} min={1} />
-            <FieldRow label={t('admin.config.qualityCommentThreshold')} value={config.reputation.quality_comment_threshold} onChange={(v) => updateReputation("quality_comment_threshold", v)} min={1} />
-            <FieldRow label={t('admin.config.repeatViolationWindow')} value={config.reputation.repeat_violation_window_days} onChange={(v) => updateReputation("repeat_violation_window_days", v)} min={1} unit={t('common.units.days')} />
-            <FieldRow label={t('admin.config.repeatViolationThreshold')} value={config.reputation.repeat_violation_threshold} onChange={(v) => updateReputation("repeat_violation_threshold", v)} min={1} unit={t('common.units.times')} />
-            <FieldRow label={t('admin.config.repeatViolationPenalty')} value={config.reputation.repeat_violation_extra_penalty} onChange={(v) => updateReputation("repeat_violation_extra_penalty", v)} min={0} />
+            <FieldRow id="config-quality-content-threshold" label={t('admin.config.qualityContentThreshold')} value={config.reputation.quality_content_threshold} onChange={(v) => updateReputation("quality_content_threshold", v)} min={1} />
+            <FieldRow id="config-quality-comment-threshold" label={t('admin.config.qualityCommentThreshold')} value={config.reputation.quality_comment_threshold} onChange={(v) => updateReputation("quality_comment_threshold", v)} min={1} />
+            <FieldRow id="config-repeat-violation-window" label={t('admin.config.repeatViolationWindow')} value={config.reputation.repeat_violation_window_days} onChange={(v) => updateReputation("repeat_violation_window_days", v)} min={1} unit={t('common.units.days')} />
+            <FieldRow id="config-repeat-violation-threshold" label={t('admin.config.repeatViolationThreshold')} value={config.reputation.repeat_violation_threshold} onChange={(v) => updateReputation("repeat_violation_threshold", v)} min={1} unit={t('common.units.times')} />
+            <FieldRow id="config-repeat-violation-penalty" label={t('admin.config.repeatViolationPenalty')} value={config.reputation.repeat_violation_extra_penalty} onChange={(v) => updateReputation("repeat_violation_extra_penalty", v)} min={0} />
           </div>
         </div>
 
@@ -308,11 +337,11 @@ export default function AdminConfigPage() {
             <h3 className="text-sm font-semibold">{t('admin.config.sectionJudge')}</h3>
           </div>
           <div className="px-4 py-1">
-            <FieldRow label={t('admin.config.minVotes')} value={config.judge.min_votes_required} onChange={(v) => updateJudge("min_votes_required", v)} min={1} unit={t('common.units.votes')} />
-            <FieldRow label={t('admin.config.examPassRate')} value={config.judge.exam_pass_rate} onChange={(v) => updateJudge("exam_pass_rate", v)} min={0} max={1} step={0.05} />
-            <FieldRow label={t('admin.config.verdictPassThreshold')} value={config.judge.pass_threshold} onChange={(v) => updateJudge("pass_threshold", v)} min={0} max={1} step={0.05} />
-            <FieldRow label={t('admin.config.revokeErrorRate')} value={config.judge.error_rate_revoke} onChange={(v) => updateJudge("error_rate_revoke", v)} min={0} max={1} step={0.05} />
-            <FieldRow label={t('admin.config.errorRateWindow')} value={config.judge.error_rate_window} onChange={(v) => updateJudge("error_rate_window", v)} min={1} unit={t('common.units.times')} />
+            <FieldRow id="config-min-votes" label={t('admin.config.minVotes')} value={config.judge.min_votes_required} onChange={(v) => updateJudge("min_votes_required", v)} min={1} unit={t('common.units.votes')} />
+            <FieldRow id="config-exam-pass-rate" label={t('admin.config.examPassRate')} value={config.judge.exam_pass_rate} onChange={(v) => updateJudge("exam_pass_rate", v)} min={0} max={1} step={0.05} />
+            <FieldRow id="config-verdict-pass-threshold" label={t('admin.config.verdictPassThreshold')} value={config.judge.pass_threshold} onChange={(v) => updateJudge("pass_threshold", v)} min={0} max={1} step={0.05} />
+            <FieldRow id="config-revoke-error-rate" label={t('admin.config.revokeErrorRate')} value={config.judge.error_rate_revoke} onChange={(v) => updateJudge("error_rate_revoke", v)} min={0} max={1} step={0.05} />
+            <FieldRow id="config-error-rate-window" label={t('admin.config.errorRateWindow')} value={config.judge.error_rate_window} onChange={(v) => updateJudge("error_rate_window", v)} min={1} unit={t('common.units.times')} />
           </div>
         </div>
 
@@ -322,8 +351,8 @@ export default function AdminConfigPage() {
             <h3 className="text-sm font-semibold">{t('admin.config.sectionAgent')}</h3>
           </div>
           <div className="px-4 py-1">
-            <ToggleRow label="Web Agent" value={config.agent.web_agent_enabled} onChange={(v) => updateAgent("web_agent_enabled", v)} />
-            <FieldRow label={t('admin.config.dailyLimit')} value={config.agent.rate_limit_per_day} onChange={(v) => updateAgent("rate_limit_per_day", v)} min={1} unit={t('common.units.times')} />
+            <ToggleRow id="config-web-agent-enabled" label={t('admin.config.webAgent')} value={config.agent.web_agent_enabled} onChange={(v) => updateAgent("web_agent_enabled", v)} />
+            <FieldRow id="config-agent-daily-limit" label={t('admin.config.dailyLimit')} value={config.agent.rate_limit_per_day} onChange={(v) => updateAgent("rate_limit_per_day", v)} min={1} unit={t('common.units.times')} />
           </div>
         </div>
 
@@ -333,8 +362,8 @@ export default function AdminConfigPage() {
             <h3 className="text-sm font-semibold">{t('admin.config.sectionSocial')}</h3>
           </div>
           <div className="px-4 py-1">
-            <FieldRow label={t('admin.config.reportAutoHideRate')} value={config.social.report_auto_hide_rate} onChange={(v) => updateSocial("report_auto_hide_rate", v)} min={0} max={1} step={0.01} />
-            <FieldRow label={t('admin.config.commentFoldThreshold')} value={config.social.comment_fold_threshold} onChange={(v) => updateSocial("comment_fold_threshold", v)} min={0} max={1} step={0.01} />
+            <FieldRow id="config-report-auto-hide-rate" label={t('admin.config.reportAutoHideRate')} value={config.social.report_auto_hide_rate} onChange={(v) => updateSocial("report_auto_hide_rate", v)} min={0} max={1} step={0.01} />
+            <FieldRow id="config-comment-fold-threshold" label={t('admin.config.commentFoldThreshold')} value={config.social.comment_fold_threshold} onChange={(v) => updateSocial("comment_fold_threshold", v)} min={0} max={1} step={0.01} />
           </div>
         </div>
       </div>

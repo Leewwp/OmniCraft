@@ -9,7 +9,11 @@ import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { DiscussionCard } from "@/components/social/DiscussionCard";
 import { Button } from "@/components/ui/button";
-import { Plus, Search } from "lucide-react";
+import { DataList } from "@/components/ui/data-list";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/Toast";
+import { MessageSquare, Plus, Search } from "lucide-react";
 import { silentError } from "@/lib/error-handler";
 
 interface DiscussionData {
@@ -27,35 +31,48 @@ export default function DiscussionsPage() {
   const params = useParams<{ ipId: string }>();
   const ipId = parseInt(params.ipId, 10);
   const { user } = useAuth();
+  const { toast } = useToast();
   const [discussions, setDiscussions] = useState<DiscussionData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const searchRef = useRef(search);
   searchRef.current = search;
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const load = useCallback(async (searchQuery?: string) => {
-    setLoading(true);
+  const load = useCallback(async (searchQuery?: string, nextPage = 1, append = false) => {
+    if (append) setLoadingMore(true); else setLoading(true);
     setError("");
+    setPage(nextPage);
     try {
       const q = (searchQuery ?? searchRef.current).trim();
-      const path = q ? `/search?q=${encodeURIComponent(q)}` : "";
-      const res = await api.get<{ discussions?: DiscussionData[] }>(
+      const path = q
+        ? `/search?q=${encodeURIComponent(q)}&page=${nextPage}&page_size=20`
+        : `?page=${nextPage}&page_size=20`;
+      const res = await api.get<{ discussions?: DiscussionData[]; total?: number; page_size?: number }>(
         `/api/v1/ips/${ipId}/discussions${path}`,
       );
-      setDiscussions(res.discussions ?? []);
+      const incoming = res.discussions ?? [];
+      setDiscussions((current) => append ? [...current, ...incoming.filter((item) => !current.some((existing) => existing.id === item.id))] : incoming);
+      setPage(nextPage);
+      setHasMore((res.total ?? incoming.length) > nextPage * (res.page_size ?? 20));
     } catch (e) {
       silentError(e, { component: 'DiscussionsPage', action: 'load' });
-      setError(t(getUserFacingErrorKey(e, "common.loadFailed")));
+      const message = t(getUserFacingErrorKey(e, "common.loadFailed"));
+      setError(message);
+      toast("error", message);
     } finally {
+      setLoadingMore(false);
       setLoading(false);
     }
-  }, [ipId, t]);
+  }, [ipId, t, toast]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6">
+    <div className="mx-auto w-full max-w-full min-[701px]:max-w-[720px] min-[1101px]:max-w-[960px] space-y-4 px-4 py-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t("discussion.title")}</h1>
@@ -82,21 +99,19 @@ export default function DiscussionsPage() {
         <Button size="sm" variant="outline" onClick={() => load()}>{t("discussion.search")}</Button>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      {loading ? (
-        <div className="text-sm text-muted-foreground text-center py-8">{t("common.loading")}</div>
-      ) : discussions.length === 0 ? (
-        <div className="rounded-md border border-border bg-card p-8 text-center text-sm text-muted-foreground ">
-          {t("discussion.empty")}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {discussions.map((d) => (
-            <DiscussionCard key={d.id} data={d} />
-          ))}
-        </div>
-      )}
+      <DataList
+        items={discussions}
+        loading={loading}
+        error={error}
+        onRetry={() => void load(undefined, page, page > 1)}
+        hasMore={hasMore}
+        loadingMore={loadingMore}
+        onLoadMore={() => load(undefined, page + 1, true)}
+        empty={<EmptyState icon={MessageSquare} title={t("discussion.empty")} />}
+        loadingState={<div className="space-y-3"><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div>}
+        getKey={(discussion) => discussion.id}
+        renderItem={(discussion) => <DiscussionCard key={discussion.id} data={discussion} />}
+      />
     </div>
   );
 }

@@ -836,7 +836,7 @@ CREATE UNIQUE INDEX idx_collab_invites_active ON collaboration_invites (content_
 | 过期后前端 | 邀请卡片灰色显示「已过期」，无操作按钮 |
 | 过期提醒 | 不发送即将过期提醒；仅在邀请卡片中展示过期状态 |
 | 过期后重新邀请 | 允许邀请者重新发送（走完整 8 阶段校验链，视为新邀请）。**注意**：需要将 UNIQUE 约束改为 PostgreSQL 部分唯一索引 `CREATE UNIQUE INDEX idx_collab_invites_active ON collaboration_invites (content_id, invitee_id) WHERE status IN ('pending', 'accepted')`，否则旧 expired 记录仍会阻止新邀请插入 |
-| 迁移文件 | `061_collaboration_invites.sql` 的 CREATE TABLE 语句中**不使用**行内 `UNIQUE (content_id, invitee_id)` 约束；表创建后用 `CREATE UNIQUE INDEX idx_collab_invites_active ON collaboration_invites (content_id, invitee_id) WHERE status IN ('pending', 'accepted')` 建立部分唯一索引 |
+| 迁移文件 | `063_collaboration_invites.sql` 的 CREATE TABLE 语句中**不使用**行内 `UNIQUE (content_id, invitee_id)` 约束；表创建后用 `CREATE UNIQUE INDEX idx_collab_invites_active ON collaboration_invites (content_id, invitee_id) WHERE status IN ('pending', 'accepted')` 建立部分唯一索引 |
 
 #### users 表新增字段
 
@@ -931,7 +931,7 @@ ALTER TABLE messages ADD COLUMN metadata JSONB NOT NULL DEFAULT '{}';
 
 - 查询同时包含 inviter_id 和 invitee_id 两个 participant 的 conversation_id（JOIN conversation_participants 自连接，按 conversation_id GROUP BY HAVING COUNT(DISTINCT user_id) = 2）
 - 若已存在 → 复用该会话；若不存在 → 新建 conversation + 插入两条 conversation_participants 记录
-- 现有表无 (user_a, user_b) 复合查找索引；建议在 `061_collaboration_invites.sql` 迁移中补充 `idx_conv_participants_user_pair` 加速查找（非强制，可按用户量评估）
+- 现有表无 (user_a, user_b) 复合查找索引；建议在 `063_collaboration_invites.sql` 迁移中补充 `idx_conv_participants_user_pair` 加速查找（非强制，可按用户量评估）
 
 ### 5.4 私信邀请卡片 UI
 
@@ -966,7 +966,7 @@ ALTER TABLE messages ADD COLUMN metadata JSONB NOT NULL DEFAULT '{}';
 
 | 层 | 文件路径 | 改动类型 |
 |----|---------|---------|
-| 后端 Migration | `backend/migrations/061_collaboration_invites.sql` | **新增**建表 + users.accept_collab_invites + messages.msg_type/metadata |
+| 后端 Migration | `backend/migrations/063_collaboration_invites.sql` | **新增**建表 + users.accept_collab_invites + messages.msg_type/metadata |
 | 后端 Model | `backend/internal/model/collab_invite.go` | **新增** |
 | 后端 Handler | `backend/internal/handler/collab_invite.go` | **新增** |
 | 后端 Service | `backend/internal/service/collab_invite_service.go` | **新增**（含防骚扰校验链） |
@@ -1114,7 +1114,7 @@ ip_id: set                source_original_id: set    source_fanwork_id: set
 
 | 层 | 文件路径 | 改动类型 |
 |----|---------|---------|
-| 后端 Migration | `backend/migrations/060_add_source_fanwork_id.sql` | **新增** |
+| 后端 Migration | `backend/migrations/061_add_source_fanwork_id.sql` | **新增** |
 | 后端 Model | `backend/internal/model/content.go` | 新增 SourceFanworkID / SourceFanwork 字段 |
 | 后端 Handler | `backend/internal/handler/content.go` | 更新发布/查询校验，返回 source_fanwork 摘要 |
 | 后端 Service | `backend/internal/service/content_service.go` | 更新校验逻辑 + 链式查询 |
@@ -1187,8 +1187,8 @@ browse_history:
 | 收藏集 | `058_create_collections.sql` | 创建 collections + collection_items 表 + 旧 favorites 数据迁移 + is_default 默认集约束 |
 | 广播幂等跟进 | `062_notification_broadcast_idempotency.sql` | 创建 notification_broadcast_requests；唯一约束 `(actor_id, key_hash)`，只保存 payload 哈希与安全响应摘要，不保存广播正文。若实施时 062 已被占用则顺延并同步引用 |
 | 内容系列 | `059_create_content_series.sql` | 创建 content_series + content_series_items 表 |
-| 联动增强 | `060_add_source_fanwork_id.sql` | content_items 新增 source_fanwork_id 列 |
-| 联合创作 | `061_collaboration_invites.sql` | 创建 collaboration_invites 表 + users.accept_collab_invites + messages.msg_type/metadata + 部分唯一索引（WHERE status IN ('pending','accepted')） |
+| 联动增强 | `061_add_source_fanwork_id.sql` | content_items 新增 source_fanwork_id 列 |
+| 联合创作 | `063_collaboration_invites.sql` | 创建 collaboration_invites 表 + users.accept_collab_invites + messages.msg_type/metadata + 部分唯一索引（WHERE status IN ('pending','accepted')） |
 
 ## 附录 C.1：首版数据量和性能预期
 

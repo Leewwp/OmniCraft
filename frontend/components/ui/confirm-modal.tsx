@@ -3,6 +3,8 @@
 import { useState, useCallback, useEffect, useId, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 interface ConfirmModalProps {
   open: boolean;
@@ -117,9 +119,9 @@ export function ConfirmModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
-        className="fixed inset-0 bg-black/50"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm"
         onClick={() => !busy && onOpenChange(false)}
       />
       <div
@@ -131,17 +133,16 @@ export function ConfirmModal({
         tabIndex={-1}
         className="relative z-50 w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-md"
       >
-        <h3 id={titleId} className="text-lg font-semibold">{title}</h3>
+        <h3 id={titleId} className="text-xl font-semibold tracking-tight">{title}</h3>
         <p id={descriptionId} className="mt-2 text-sm text-muted-foreground">{description}</p>
 
         {requireReason && (
           <div className="mt-4">
-            <label htmlFor={reasonId} className="block text-sm font-medium mb-1">
+            <Label htmlFor={reasonId} className="mb-2">
               {effectiveReasonLabel}
-            </label>
-            <textarea
+            </Label>
+            <Textarea
               id={reasonId}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               rows={3}
               value={reason}
               onChange={(e) => setReason(e.target.value)}

@@ -8,6 +8,10 @@ import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DataList } from "@/components/ui/data-list";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/Toast";
 
 interface Appeal {
   id: number;
@@ -20,6 +24,7 @@ interface Appeal {
 
 export default function AppealsPage() {
   const t = useTranslations();
+  const { toast } = useToast();
   const locale = useLocale();
   const { user } = useAuth();
   const [appeals, setAppeals] = useState<Appeal[]>([]);
@@ -28,22 +33,33 @@ export default function AppealsPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ target_type: "content", target_id: "", reason: "" });
   const [submitting, setSubmitting] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    void loadAppeals();
+    void loadAppeals(1, false);
   }, [user]);
 
-  async function loadAppeals() {
+  async function loadAppeals(nextPage = 1, append = false) {
     setError("");
-    setLoading(true);
+    setPage(nextPage);
+    if (append) setLoadingMore(true); else setLoading(true);
     try {
-      const data = await api.get<{ appeals?: Appeal[] }>("/api/v1/appeals/me");
-      setAppeals(data.appeals || []);
+      const data = await api.get<{ appeals?: Appeal[]; total?: number; page_size?: number }>(`/api/v1/appeals/me?page=${nextPage}&page_size=20`);
+      const incoming = data.appeals || [];
+      setAppeals((current) => append ? [...current, ...incoming.filter((item) => !current.some((existing) => existing.id === item.id))] : incoming);
+      setPage(nextPage);
+      const pageSize = data.page_size ?? 20;
+      setHasMore((data.total ?? incoming.length) > nextPage * pageSize);
     } catch (e) {
       silentError(e, { component: 'AppealsPage', action: 'loadAppeals' });
-      setError(t(getUserFacingErrorKey(e, "common.loadFailed")));
+      const message = t(getUserFacingErrorKey(e, "common.loadFailed"));
+      setError(message);
+      toast("error", message);
     } finally {
+      setLoadingMore(false);
       setLoading(false);
     }
   }
@@ -62,14 +78,12 @@ export default function AppealsPage() {
       void loadAppeals();
     } catch (e) {
       silentError(e, { component: 'AppealsPage', action: 'submitAppeal' });
-      setError(t(getUserFacingErrorKey(e, "appeals.submitFailed")));
+      const message = t(getUserFacingErrorKey(e, "appeals.submitFailed"));
+      setError(message);
+      toast("error", message);
     } finally {
       setSubmitting(false);
     }
-  }
-
-  if (loading) {
-    return <div className="mx-auto w-full max-w-2xl px-4 py-6 text-sm text-muted-foreground">{t('common.loading')}</div>;
   }
 
   function getStatusLabel(s: string) {
@@ -92,8 +106,6 @@ export default function AppealsPage() {
           {t('appeals.newAppeal')}
         </Button>
       </div>
-
-      {error && <p className="text-sm text-destructive">{error}</p>}
 
       {showForm && (
         <div className="space-y-3 rounded-md border border-border bg-card p-4 ">
@@ -131,14 +143,18 @@ export default function AppealsPage() {
         </div>
       )}
 
-      {appeals.length === 0 && !showForm ? (
-        <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-card p-12 text-center">
-          <FileText className="h-8 w-8 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">{t('appeals.noAppeals')}</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {appeals.map((a) => (
+      <DataList
+        items={appeals}
+        loading={loading}
+        error={showForm ? undefined : error}
+        onRetry={() => void loadAppeals(page, page > 1)}
+        hasMore={hasMore}
+        loadingMore={loadingMore}
+        onLoadMore={() => loadAppeals(page + 1, true)}
+        empty={<EmptyState icon={FileText} title={t('appeals.noAppeals')} />}
+        loadingState={<div className="space-y-3"><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /></div>}
+        getKey={(appeal) => appeal.id}
+        renderItem={(a) => (
             <div key={a.id} className="rounded-md border border-border bg-card p-4 ">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">{a.target_type} #{a.target_id}</span>
@@ -153,9 +169,8 @@ export default function AppealsPage() {
                 {new Date(a.created_at).toLocaleString(locale === "en" ? "en-US" : "zh-CN")}
               </p>
             </div>
-          ))}
-        </div>
-      )}
+        )}
+      />
     </div>
   );
 }

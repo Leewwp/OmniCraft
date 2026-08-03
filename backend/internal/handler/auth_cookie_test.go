@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -174,6 +175,124 @@ func TestLoginSetsHttpOnlyRefreshCookie(t *testing.T) {
 	}
 	if !found {
 		t.Error("login must set a refresh_token or __Host-refresh_token cookie")
+	}
+}
+
+func TestLoginAndMeReturnConsistentInteractionCapabilities(t *testing.T) {
+	r, _, db, rdb, mr := setupAuthCookieTestRouter(t)
+	defer mr.Close()
+	user := insertCookieTestUser(t, db, "capabilities@test.com", "capabilities", "password123")
+	if err := db.Model(user).Update("reputation", 2).Error; err != nil {
+		t.Fatalf("lower reputation: %v", err)
+	}
+
+	csrfToken := fetchCSRFToken(t, r)
+	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"email":"capabilities@test.com","password":"password123"}`))
+	loginReq.Header.Set("Content-Type", "application/json")
+	loginReq.Header.Set("X-CSRF-Token", csrfToken)
+	loginReq.AddCookie(&http.Cookie{Name: "csrf-token", Value: csrfToken})
+	loginW := httptest.NewRecorder()
+	r.ServeHTTP(loginW, loginReq)
+	if loginW.Code != http.StatusOK {
+		t.Fatalf("login: expected 200, got %d body=%s", loginW.Code, loginW.Body.String())
+	}
+
+	var loginBody map[string]any
+	if err := json.Unmarshal(loginW.Body.Bytes(), &loginBody); err != nil {
+		t.Fatalf("decode login: %v", err)
+	}
+	loginCapabilities, ok := loginBody["capabilities"].(map[string]any)
+	if !ok {
+		t.Fatalf("login missing capabilities: %s", loginW.Body.String())
+	}
+	tokens := loginBody["tokens"].(map[string]any)
+	accessToken := tokens["access_token"].(string)
+
+	me := func() (int, map[string]any, string) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		var body map[string]any
+		_ = json.Unmarshal(w.Body.Bytes(), &body)
+		return w.Code, body, w.Body.String()
+	}
+
+	status, meBody, raw := me()
+	if status != http.StatusOK {
+		t.Fatalf("me: expected 200, got %d body=%s", status, raw)
+	}
+	meCapabilities, ok := meBody["capabilities"].(map[string]any)
+	if !ok {
+		t.Fatalf("me missing capabilities: %s", raw)
+	}
+	if !reflect.DeepEqual(loginCapabilities, meCapabilities) {
+		t.Fatalf("login capabilities=%v me capabilities=%v", loginCapabilities, meCapabilities)
+	}
+	if _, ok := meBody["csrf_token"].(string); !ok {
+		t.Fatalf("me must preserve csrf_token: %s", raw)
+	}
+	if !strings.Contains(raw, `"reputation":2`) || strings.Contains(raw, "threshold") || strings.Contains(raw, "min_score") {
+		t.Fatalf("me compatibility or leakage failure: %s", raw)
+	}
+
+	if err := db.Model(user).Update("reputation", 3).Error; err != nil {
+		t.Fatalf("restore reputation: %v", err)
+	}
+	middleware.InvalidateUserStatusCache(rdb, int64(user.ID))
+	status, recoveredBody, raw := me()
+	if status != http.StatusOK {
+		t.Fatalf("recovered me: expected 200, got %d body=%s", status, raw)
+	}
+	recoveredCapabilities := recoveredBody["capabilities"].(map[string]any)
+	if recoveredCapabilities["can_interact"] != true {
+		t.Fatalf("recovered capabilities=%v", recoveredCapabilities)
+	}
+
+	if err := db.Model(user).Update("email_verified_at", nil).Error; err != nil {
+		t.Fatalf("clear email verification: %v", err)
+	}
+	middleware.InvalidateUserStatusCache(rdb, int64(user.ID))
+	status, unverifiedBody, raw := me()
+	if status != http.StatusOK {
+		t.Fatalf("unverified me: expected 200, got %d body=%s", status, raw)
+	}
+	unverifiedCapabilities := unverifiedBody["capabilities"].(map[string]any)
+	if unverifiedCapabilities["can_interact"] != false || unverifiedCapabilities["interaction_denial_reason"] != "EMAIL_NOT_VERIFIED" {
+		t.Fatalf("unverified capabilities=%v", unverifiedCapabilities)
+	}
+}
+
+func TestMeKeepsBannedAuthenticationSemantics(t *testing.T) {
+	r, _, db, rdb, mr := setupAuthCookieTestRouter(t)
+	defer mr.Close()
+	user := insertCookieTestUser(t, db, "me-banned@test.com", "me-banned", "password123")
+
+	csrfToken := fetchCSRFToken(t, r)
+	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"email":"me-banned@test.com","password":"password123"}`))
+	loginReq.Header.Set("Content-Type", "application/json")
+	loginReq.Header.Set("X-CSRF-Token", csrfToken)
+	loginReq.AddCookie(&http.Cookie{Name: "csrf-token", Value: csrfToken})
+	loginW := httptest.NewRecorder()
+	r.ServeHTTP(loginW, loginReq)
+	var loginBody map[string]any
+	_ = json.Unmarshal(loginW.Body.Bytes(), &loginBody)
+	accessToken := loginBody["tokens"].(map[string]any)["access_token"].(string)
+
+	if err := db.Model(user).Update("is_banned", true).Error; err != nil {
+		t.Fatalf("ban user: %v", err)
+	}
+	middleware.InvalidateUserStatusCache(rdb, int64(user.ID))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), "USER_BANNED") {
+		t.Fatalf("banned me: expected 401 USER_BANNED, got %d body=%s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "capabilities") {
+		t.Fatalf("banned me must not bypass auth semantics: %s", w.Body.String())
 	}
 }
 

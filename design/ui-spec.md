@@ -140,11 +140,11 @@
 > **来源**: 以下所有 token 值以 `design/design-system.md` 为准，是本文件的唯一设计权威。
 
 - **颜色 token**：使用 `design/design-system.md` 定义的 CSS 自定义属性，以 `--xxx` 格式引用（`--` 前缀的 CSS 自定义属性），使用时通过 `var()` 读取值：`--background`、`--foreground`、`--primary`、`--border` 等基础色，以及 `--canvas-default`、`--canvas-subtle`、`--border-default`、`--fg-muted`、`--accent-emphasis`、`--accent-subtle` 等自定义 token。标签颜色使用预设的 6 色体系 (blue/green/purple/orange/rose/sky)。所有颜色支持 light/dark 双模式，暗色模式通过根级 `.dark` 类自动切换。
-- **字体**：font-family: `--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif`，包含中文字体回退。等宽字体 `--font-mono: var(--font-geist-mono)`。字号阶梯：text-xs 12 / text-sm 14 / text-base 16 / text-lg 18 / text-xl 20 / text-2xl 24 / text-3xl 30
-- **间距阶梯**：space-1 4px / space-2 8px / space-3 12px / space-4 16px / space-6 24px / space-8 32px / space-12 48px
+- **字体**：font-family: `--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif`，包含中文字体回退。等宽字体 `--font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace`。正文与标题只使用 12 / 14 / 16 / 20 / 24px 五档；紧凑指标数字例外须在组件章节登记。
+- **间距阶梯**：使用 4px 基线；卡片 12px、区块 16px、详情卡 20/24px、页面 gutter 16/24px、网格 gap 16px、区块间距 24/32px。
 - **圆角**：rounded-sm (3px) 小元素 / rounded-md (4px) 按钮/输入框 / rounded-lg (8px) 卡片/容器默认 / rounded-xl (12px) 大卡片 / rounded-full (9999px) 标签/药丸按钮。核心原则：统一圆角，`rounded-lg` (8px) 为默认，标签用 `rounded-full`。
 - **动效**：transition duration-150 ease-out（默认）；duration-300 ease-in-out（Modal/Sheet）
-- **阴影**：**强制 box-shadow:none**（无阴影全局原则），仅 Modal/Popover/Dropdown 使用 `shadow-md`
+- **层级**：静态卡片/面板使用 elevation 1，hover 使用 elevation 2，Dropdown/Drawer/Modal 使用 elevation 3；阴影必须配合 1px border，不得造成布局位移；`prefers-reduced-motion: reduce` 下禁用缩放、位移和脉冲。
 
 ## Global Interaction Patterns
 
@@ -154,10 +154,72 @@
 - **Empty**: EmptyState 组件（图标 + 标题 + 说明 + 可选 CTA），不留空白区域。
 - **Disabled**: `opacity-50` + `cursor-not-allowed` + 禁用 hover/click。
 
+## Component: Button 与 Badge 共享动作原语
+
+**视觉契约**
+- Button 使用 `rounded-md` (4px)、14px medium 字体和 1px 透明边框以稳定状态切换；default/outline/secondary/ghost/destructive/link 只消费既有语义 token，不引入任意色。
+- Primary hover 使用 `--accent-hover`；outline hover 使用 `--border-strong` + `--canvas-subtle`；destructive 使用 `--destructive`、`--border-destructive` 与既有白色前景 `--primary-foreground`，不得用未登记的红色常量。
+- 默认高度 32px，lg 36px；icon-only 在精细指针下按同档尺寸，在 coarse pointer 下保持 44px 目标。focus-visible 统一为 2px `--ring` + 2px background offset；disabled 保持 `opacity-50`、禁止交互且不触发 hover/active 位移。
+- Badge 始终 `rounded-full`、12px medium、20px 高，无 elevation；可交互 Badge 仅做 150ms 颜色/边框过渡，focus-visible 与 Button 相同。
+
+**响应式与动效**
+- 移动端不缩小文字；独立动作或 icon-only 动作保持 44px 触控目标，密集工具栏可沿用 U-02A 已批准的 coarse-pointer 媒体规则。
+- active 反馈不得通过会导致布局抖动的 margin/border-width 实现；reduced-motion 下禁用位移与缩放。
+
+## Component: Card 共享容器原语
+
+**视觉契约**
+- 默认卡片为 `bg-card` + 1px `border-border` + `rounded-lg` (8px) + elevation 1；内部 padding 使用 12px (sm) 或 16px (default)。
+- 只有显式声明为可交互的卡片才在 hover/focus-within 时切换 `border-strong` 与 elevation 2；变化只使用 border-color/shadow/transform，不改变布局尺寸。
+- 标题使用 14px medium，说明使用 14px muted；Footer 使用 `canvas-subtle` 与 1px 顶部分隔。
+- 原创内容卡的无边框特例由对应业务组件声明，不能通过改变共享 Card 默认值实现。
+
+## Component: Form Controls 表单原语
+
+**覆盖文件**: `checkbox.tsx`、`field.tsx`、`input.tsx`、`label.tsx`、`select.tsx`、`switch.tsx`、`textarea.tsx`
+
+**视觉契约**
+- Input/Select/Textarea 使用 `rounded-md` (4px)、1px `border-input`、`bg-background`、14px 正文；移动端输入文字保持 16px 以避免浏览器自动缩放，`md` 起恢复 14px。
+- hover（非 disabled）提升到 `border-strong`；focus-visible 使用 2px `--ring` + 2px background offset；invalid 使用 `border-destructive` + destructive ring，不以 placeholder 或颜色单独表达错误。
+- Label 为 14px medium；Field 间距使用 8px，hint/error 为 12px，error 保留 `role=alert`。
+- Checkbox 使用 16px 方形、`rounded-sm` (3px)、checked=`primary`；Switch 为 44×24px 药丸轨道，checked=`primary`、unchecked=`muted`，thumb 使用 elevation 1。两者沿用同一 focus/disabled 契约。
+
+**响应式与状态**
+- 表单控件宽度默认跟随容器，禁止产生横向滚动；disabled 使用柔和背景、`opacity-50` 与禁止光标。
+- placeholder 仅使用 muted foreground；不得把 placeholder 当作 label。
+
+## Component: DropdownMenu 浮层菜单原语
+
+**视觉契约**
+- Popup/Submenu 使用 `bg-popover` + 1px `border-border` + `rounded-lg` (8px) + elevation 3，不再用 ring 模拟边框或使用未登记的 shadow 档位。
+- Item 使用 `rounded-md` (4px)、14px、最小 32px 高；hover/focus 使用中性 `accent`，checked/selected 可使用 `accent-subtle` + `accent-emphasis`，destructive 只使用 destructive token。
+- Label/shortcut 使用 12px muted；separator 为 1px `border`。菜单宽度不得超过可用视口，长内容省略或纵向滚动。
+
+**动效与响应式**
+- 开合使用 150ms opacity/scale；reduced-motion 下只保留即时显隐。触控设备菜单项最小 44px 高，桌面保持密集 32px。
+
+## Component: Tabs 与 Separator 导航原语
+
+**视觉契约**
+- Default TabsList 使用 `canvas-subtle`、`rounded-lg` (8px) 和 4px 内边距；active trigger 使用 `bg-background`、1px border 与 elevation 1。
+- Line Tabs 不使用卡片阴影，active 仅以 2px `primary` 下划线 + 字重/文字色共同表达；focus-visible 使用统一 2px ring。
+- Trigger 为 14px medium、最小 32px 高；disabled 使用 `opacity-50`。移动端允许 TabsList 水平滚动但页面本身不得横向溢出。
+- Separator 仅为 1px `border` 色，无圆角、阴影或交互状态。
+
+## Component: Loading 与反馈原语
+
+**覆盖文件**: `skeleton.tsx`、`empty-state.tsx`、`Toast.tsx`
+
+**视觉契约**
+- Skeleton 形状镜像最终内容，使用 `canvas-subtle`、对应最终表面的圆角与 1.6s 低对比 pulse；reduced-motion 下静止。SkeletonCard/Detail 使用 `rounded-lg`、1px border 与 elevation 1，不得出现全屏 loading overlay。
+- EmptyState 为无边框、无阴影的垂直居中结构：56px `accent-subtle` 圆形图标底、16px 标题、14px muted 说明（`max-w-sm`）、可选 Button CTA；移动 `py-20`，桌面 `py-24`。
+- Toast 固定右上（移动端左右各 16px），使用 `bg-card` + 1px status border + `rounded-lg` + elevation 3。success/error/warning/info 分别复用已批准的 green/rose/orange/blue 标签前景与柔和背景 token；正文仍为 foreground，颜色不是唯一状态线索，必须保留对应 Lucide 图标与 live-region 语义。
+- Toast 入退场为 200ms opacity/translate；reduced-motion 下禁用位移。关闭动作沿用 U-02A 的可访问名称与 coarse-pointer 44px 目标。
+
 ## Component: Header
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 固定高度 `h-[var(--header-h)]` (52px)，sticky 顶部。
 - 底边框 `border-b border-border-default`，1px 分隔。
 - 背景 `bg-canvas-default`，全宽布局。
@@ -198,7 +260,7 @@ interface HeaderProps {
 - sticky: 滚动时固定顶部，z-40 确保在其他内容上方。
 - 登录态: 右侧显示用户菜单。
 - 未登录态: 右侧显示登录/注册按钮。
-- 无阴影（全局原则）。
+- Header 本体保持 shadow-none；其下拉菜单按浮层规则使用 elevation 3。
 
 **响应式行为**
 - 移动 (≤700px): 导航链接折叠为汉堡菜单，搜索框缩小或隐藏。
@@ -264,7 +326,7 @@ interface FacetedSearchSidebarProps {
 ## Page: / 首页
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -356,10 +418,30 @@ interface FacetedSearchSidebarProps {
 - 破坏性操作必须 ConfirmModal 二次确认。
 - 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
 
+## Page: /ips IP 库
+
+**批准来源**: P-01 方案 B（Indigo 精修），`docs/working/2026-07-25-ui-prototype-review.md` §3 / §6.3 / §7。
+
+**页面与工具栏**
+- 主容器最大宽度 1440px；移动 gutter 16px，桌面 gutter 24px。标题使用 24px semibold，说明 14px，结果总数使用 12px Indigo 柔和药丸。
+- 搜索与排序保持现有 URL/API 语义；搜索框与排序选择器有显式可访问名称、44px 触控高度和 2px focus ring。
+- 分类为单行横向滚动药丸；选中项同时使用 `aria-pressed=true`、Indigo 柔和背景、accent 边框和较高字重，不能只用颜色表达。
+
+**网格与卡片**
+- 320/375px 固定两列、gap 12px；701-1100px 使用 `repeat(auto-fit, minmax(168px, 1fr))`、gap 16px；1280/1440px 使用 `repeat(auto-fill, minmax(192px, 1fr))`、gap 16px。
+- 卡片必须 `w-full min-w-0` 填满轨道；禁止固定 156px 卡宽与 `1fr` 轨道并存。实际相邻卡间距不得超过 24px，最后一行沿用既有轨道。
+- 封面固定 16:10；标题 14px medium，类别/内容数/趋势使用 12px；卡片高度稳定，长标题与 meta 省略。暗色下信息区使用 `canvas-subtle`。
+- 默认 1px border + radius-lg + elevation 1；hover 使用 `border-strong` + elevation 2，封面仅克制缩放；focus-visible 2px ring；reduced-motion 下取消缩放。
+
+**状态与交互**
+- loading 使用 12 张与最终网格同轨道、同 16:10 封面比例的骨架；empty/error 使用 EmptyState 结构并分别提供清空筛选/重试；当前查询与筛选保持。
+- 加载更多必须追加而非替换既有卡片；请求中禁用重复触发；已到底显示总数。卡片整块可键盘聚焦，Enter 进入 `/ip/[ipId]`。
+- 浏览器验证覆盖 320/375/768/1280/1440px、light/dark、hover/focus、loading/empty/error 和无横向溢出。
+
 ## Page: /login 登录页
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -404,7 +486,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /register 注册页
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -849,7 +931,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /user/[userId] 用户主页
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -899,7 +981,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /settings 账号设置
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 密码修改/注销等破坏性操作需 ConfirmModal 二次确认。
 - 联合创作邀请接收开关属于账号偏好设置，必须与 `users.accept_collab_invites` / `GET /api/v1/auth/me` 保持一致；默认值为开启。
@@ -959,7 +1041,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /settings/tag-groups 标签组管理
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -1004,7 +1086,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /dashboard/contents 我的内容
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -1049,7 +1131,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /dashboard/pr-requests PR 申请管理
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -1094,7 +1176,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /dashboard/contributors 贡献者管理
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -1139,7 +1221,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /dashboard/tag-suggestions 标签建议审核
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -1280,7 +1362,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /history 浏览历史
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 页面位于 `(protected)` route group；未登录访问由受保护布局重定向到 `/login?redirect=/history`。
 - 保留期、分页大小、筛选条件均来自 API 响应或 URL query，组件内不得硬编码保留天数。
@@ -1357,7 +1439,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /appeals 我的申诉
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -1402,7 +1484,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /messages 消息中心
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border；Modal/Popover 遵守全局例外。
 - 本轮 scope：通知列表、私信会话列表、`ChatWindow`、广播通知视觉标记、5 分钟未读数轮询兜底。
 - Future/out-of-scope：`/api/v1/notifications/stream` 和 `/api/v1/messages/stream` SSE 实时推送；本轮不得为了 SSE 新增 provider、路由或浏览器验证。
@@ -1465,7 +1547,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /rehab 素质建设课程
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 每门课程仅能完成一次，最低阅读 3 分钟（180 秒）。
 
@@ -1745,7 +1827,7 @@ interface FacetedSearchSidebarProps {
 **Key Constraints**
 - 后台页面：Role 必须为 admin；页面只负责系统广播编辑与发送，不提供撤回入口。
 - 广播正文允许 Markdown 图片和链接，但预览和发送后的通知详情必须复用安全 Markdown 渲染链路，禁止原始 HTML 绕过消毒。
-- 遵守全局扁平化无阴影规范；除 ConfirmModal/Dropdown 外不得使用 shadow。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none；除 ConfirmModal/Dropdown 外不得使用 shadow。
 
 **目标与放置**
 - 目标：让管理员创建面向全站活跃用户的系统通知广播，并在发送前明确预览、确认不可撤回和展示收件人数结果。
@@ -1904,7 +1986,7 @@ interface FacetedSearchSidebarProps {
 **Key Constraints**
 - ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
 - 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
+- 二创卡使用 1px border + radius-lg + elevation 1，hover 使用 `border-strong` + elevation 2；原创卡无默认边框，hover 使用浅遮罩、scale 1.05 与 elevation 2。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 - 原创区卡片使用简化样式（无 IP 名、无标签 Badge、仅显示点赞数）。
 
@@ -1921,16 +2003,16 @@ interface ContentCardProps {
 ```
 
 **视觉结构 — 二创区卡片（zone='fanwork'）**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default overflow-hidden">`（无 padding，内容填满）
+- 外层容器: `<div className="border border-border rounded-lg bg-card shadow-[var(--elevation-1)] overflow-hidden">`（无 padding，内容填满）
 - 封面区: 3:4 比例容器，`object-cover` 图片填满
-- 信息区: `p-3`，标题（`text-sm font-medium line-clamp-2`）→ 作者 + IP 名行（`text-xs text-fg-muted`）→ 互动数据行（`text-xs` ❤️ + 💬）→ 标签行（最多 3 个低饱和 TagBadge）
+- 信息区: `p-3`，标题（`text-sm font-medium line-clamp-2`）→ 作者 + IP 名行（`text-xs text-fg-muted`）→ 互动数据行（`text-xs` ❤️ + 💬）→ 标签行（最多 2 个低饱和 TagBadge）
 - 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **视觉结构 — 原创区卡片（zone='original'）**
 - 外层容器: `<div className="rounded-md bg-canvas-default overflow-hidden cursor-pointer group">`（无 border，更干净的小红书风格）
 - 封面区: 自适应高度（图片按原始宽高比，`object-cover w-full`），`max-height: 400px`，`overflow-hidden`
 - 悬停遮罩: `<div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />`
-- 封面缩放: `group-hover:scale-105 transition-transform duration-300`
+- 封面缩放: `group-hover:scale-105 transition-transform duration-300`，并在 hover 时提升至 elevation 2。
 - 信息区: `p-2`，标题（`text-sm font-medium line-clamp-2`）→ @作者（`text-xs text-fg-muted`）→ ❤️ 点赞数（`text-xs text-fg-muted`）
 - 无标签 Badge、无 IP 名
 
@@ -1963,7 +2045,7 @@ interface ContentCardProps {
 ## Component: MasonryGrid
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 - 支持无限滚动加载（IntersectionObserver + useSWRInfinite）。
@@ -2021,30 +2103,29 @@ interface MasonryGridProps {
 
 **Key Constraints**
 - 使用预设 6 色体系 (blue/green/purple/orange/rose/sky)，颜色值参考 design-system.md 标签颜色表。
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 - 标签默认无边框，使用纯色背景 + 对应文字色。
+- 使用 `rounded-full`、12px medium、20px 高；hover/focus 不改变 border-width 或布局尺寸。
 
 **Props 接口**
 ```ts
 interface TagBadgeProps {
   className?: string;
-  label: string;
   color?: 'blue' | 'green' | 'purple' | 'orange' | 'rose' | 'sky';
-  size?: 'sm' | 'md';
-  removable?: boolean;
-  onRemove?: (label: string) => void;
+  children: React.ReactNode;
+  onClick?: () => void;
+  onRemove?: () => void;
 }
 ```
 
 **视觉结构**
 - 容器: `<span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium tag-{color}">`
 - 文字: 标签文本 `{label}`
-- 可选的移除按钮: `<button className="ml-0.5 hover:opacity-70" onClick={onRemove}>` ✕
+- 可选的移除按钮: Lucide `X` 图标按钮，必须有本地化可访问名称；精细指针使用扩展 hit area，coarse pointer 目标至少 44px。
 
 **尺寸规范**
-- sm: `px-1.5 py-0.5 text-[10px]`
-- md: `px-2 py-0.5 text-xs`（默认）
-- 圆角: `rounded-full`（始终为药丸形）
+- 默认: `h-5 px-2 text-xs`，圆角始终 `rounded-full`。
+- 不新增 10px 字号档；需要更紧凑的业务标签时仍使用 12px 并减少水平 padding。
 
 **颜色映射**
 - blue: `bg-[#EEF2FF] text-[#4F46E5]` / dark `bg-[#6366F11A] text-[#A5B4FC]`
@@ -2056,57 +2137,47 @@ interface TagBadgeProps {
 
 **状态变体**
 - default: 按 color 显示对应颜色组合。
-- removable: 文字右侧显示 ✕ 按钮，hover 时颜色加深。
-- 无 active/disabled/focus/loading 状态（标签静态展示）。
+- clickable: `cursor-pointer`，hover 仅轻微降低亮度，focus-visible 使用统一 2px `ring` + offset；Enter/Space 可激活。
+- removable: 文字右侧显示 Lucide `X`，hover/focus 提升图标对比度，不使用 raw SVG 或文本 `✕`。
+- reduced-motion 下禁用 active scale；无 loading 状态。
 
 ## Component: IPCard
 
 **Key Constraints**
-- 二创区页面/组件：依托于 ips.category 进行展示或跳转。
-- ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
-- 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- Browse 变体采用 P-01 方案 B：规则 Grid 中 `w-full min-w-0` 填满轨道，16:10 封面，不得恢复固定 156px 宽度。
+- List 变体保留现有详情/最近浏览语义；两种变体都只跳转 `/ip/[ipId]` 并记录最近访问，不改变 API 或路由。
+- 使用语义 token、1px border、radius-lg、elevation 1；hover 可提升为 elevation 2，暗色信息区使用 `canvas-subtle`。
 
 **Props 接口**
 ```ts
 interface IPCardProps {
+  data: IPCardData;
+  variant?: 'browse' | 'list';
   className?: string;
-  data?: any;
-  isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
 }
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
+- Browse：整卡 Link；封面 16:10；信息区 12px padding，名称 14px medium，类别 + 内容数与正向趋势 12px；趋势使用 Lucide `TrendingUp`，不使用文本箭头。
+- List：保留 40px 缩略图、名称/类别/描述与详情入口；字号只使用 12/14px。
 
 **尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+- Browse 宽度完全由父级轨道决定，`w-full min-w-0`；封面 `aspect-[16/10]`。
+- 标题 `text-sm`，meta `text-xs`，间距只使用 4/8/12px。
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
+- default: border + elevation 1；hover: border-strong + elevation 2 + 封面 scale 1.015；active 不产生布局位移。
+- focus-visible: 2px ring + offset；reduced-motion 下取消封面缩放。
+- loading/empty/error 由 IPBrowseClient 用同轨骨架和 EmptyState 组合负责。
 
 **响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
+- Browse 卡不声明列断点或固定宽度，由 `/ips` 的两列/auto-fit/auto-fill Grid 控制。
 
 **暗色模式适配**
 - 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- 整卡是有完整可访问名称的 Link；Tab 聚焦、Enter 跳转。点击/键盘激活都记录最近 IP。
 
 ## Component: IPCategoryTabs
 
@@ -2160,7 +2231,7 @@ interface IPCategoryTabsProps {
 **Key Constraints**
 - 根据 `contentType` 渲染不同的内容展示器（MarkdownRenderer / SheetMusicViewer 等）。
 - 标题、作者信息、分类标签在一体化卡片中展示。
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 
 **Props 接口**
 ```ts
@@ -2422,7 +2493,7 @@ interface RelatedFanworksProps {
 ## Component: MarkdownRenderer
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -2469,7 +2540,7 @@ interface MarkdownRendererProps {
 ## Component: SheetMusicViewer
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -2565,7 +2636,7 @@ interface PRCardProps {
 ## Component: DiffViewer
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -2613,7 +2684,7 @@ interface DiffViewerProps {
 
 **Key Constraints**
 - 信誉分 < 3 用户：点赞/点踩/收藏按钮 disabled，hover tooltip 提示「信誉分不足」。
-- 遵守全局扁平化无阴影设计规范，使用 1px border 容器。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，使用 1px border 容器。
 - 内容类型为 mod/prompt 时显示「一键部署」按钮（需 `agent_enabled=true`）。
 
 **Props 接口**
@@ -2671,7 +2742,7 @@ interface ReactionBarProps {
 
 **Key Constraints**
 - 信誉分 < 3 用户：发布/评论/点赞按钮 disabled，hover tooltip 提示「信誉分不足」。
-- 遵守全局扁平化无阴影设计规范，使用 1px border 容器。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，使用 1px border 容器。
 - 支持楼中楼回复（ReplyList 子组件）。
 
 **Props 接口**
@@ -2733,7 +2804,7 @@ interface Comment {
 ## Component: VersionHistory
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -2927,9 +2998,9 @@ interface ReviewCardProps {
 ## Component: EmptyState
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 - 居中展示，图标 + 标题 + 说明 + 可选 CTA，不留空白区域。
-- 无边框容器，使用纯文本 + 图标布局。
+- 无边框、无阴影容器，使用纯文本 + 图标布局。
 
 **Props 接口**
 ```ts
@@ -2947,17 +3018,17 @@ interface EmptyStateProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="flex flex-col items-center justify-center py-16 px-4 text-center">`
-- 图标区: `<div className="text-fg-muted mb-4">{icon}</div>` — 64x64 居中图标（默认使用 Inbox 或对应主题图标）
-- 标题: `<h3 className="text-base font-medium text-foreground mb-2">{title}</h3>`
-- 说明: `<p className="text-sm text-fg-muted max-w-sm">{description}</p>`
-- CTA: 可选 `<Link href={action.href} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity">`
+- 外层容器: `<div className="flex flex-col items-center justify-center px-4 py-20 text-center md:py-24">`
+- 图标区: 56×56 `rounded-full bg-accent-subtle text-accent-emphasis` 柔底圆形，内部图标 24×24。
+- 标题: `<h3 className="mt-4 text-base font-medium text-foreground">{title}</h3>`
+- 说明: `<p className="mt-2 max-w-sm text-sm text-fg-muted">{description}</p>`
+- CTA: 可选 `<div className="mt-4">`，内部动作必须复用 Button 规范。
 
 **尺寸规范**
-- 图标: 64x64 (w-16 h-16)
+- 图标柔底: 56×56，内部图标 24×24
 - 标题: `text-base` (16px) 加粗
 - 说明: `text-sm` (14px)
-- CTA 高度: `h-9` (36px)
+- CTA 高度按 Button 规范；独立移动动作至少 44px 触控目标
 
 **状态变体**
 - default: 图标 + 标题 + 说明 + 可选 CTA。
@@ -2966,9 +3037,9 @@ interface EmptyStateProps {
 ## Component: ConfirmModal
 
 **Key Constraints**
-- Modal 是唯一允许 `shadow-md` 的组件（全局无阴影例外）。
+- Modal 使用 elevation 3 并保留 1px border。
 - 遮罩层 `bg-black/50 backdrop-blur-sm`。
-- ESC 和点击遮罩关闭。
+- ESC 和点击遮罩关闭；busy 状态下阻止关闭，保留 U-02A 的 focus trap 与焦点恢复。
 
 **Props 接口**
 ```ts
@@ -2987,19 +3058,19 @@ interface ConfirmModalProps {
 ```
 
 **视觉结构**
-- 遮罩: `<div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={onClose} />`
+- 遮罩: `<div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />`
 - Modal 容器: `<div className="fixed inset-0 z-50 flex items-center justify-center p-4">`
-- 卡片: `<div className="bg-canvas-default rounded-lg shadow-md max-w-sm w-full mx-auto p-6">`
-- 标题: `<h2 className="text-lg font-medium text-foreground mb-2">{title}</h2>`
+- 卡片: `<div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-md">`，其中 `shadow-md` 映射到 elevation 3。
+- 标题: 20px semibold；消息为 14px muted。
 - 消息: `<p className="text-sm text-fg-muted mb-6">{message}</p>`
 - 按钮行: `<div className="flex justify-end gap-3">`
   - 取消按钮: `<button className="px-4 py-2 text-sm font-medium text-foreground bg-canvas-default border border-border-default rounded-md hover:bg-canvas-subtle">`
-  - 确认按钮: variant 为 destructive 时使用 `bg-destructive text-destructive-foreground`，default 使用 `bg-primary text-primary-foreground`
+  - 确认按钮: variant 为 destructive 时使用 `bg-destructive text-primary-foreground`，default 使用 `bg-primary text-primary-foreground`
 
 **尺寸规范**
-- Modal 最大宽度: 384px (`max-w-sm`)
+- Modal 最大宽度: 448px (`max-w-md`)，移动端保留 16px viewport gutter
 - 内间距: `p-6` (24px)
-- 按钮高度: `h-9` (36px)
+- 按钮遵循 Button 规范；coarse pointer 目标至少 44px
 
 **状态变体**
 - default: 白色背景 + 确认/取消按钮。
@@ -3157,7 +3228,7 @@ interface AgentUploadAssistPanelProps {
 ## Component: ComplianceCheckBadge
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -3212,7 +3283,7 @@ interface AgentComplianceCheckBadgeProps {
 ## Component: UsageGuidePanel
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -3313,7 +3384,7 @@ interface SearchAgentInputProps {
 
 **Key Constraints**
 - FollowButton 未登录时：点击跳转 `/login`，不显示已关注状态。
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 
 **Props 接口**
 ```ts
@@ -3349,7 +3420,7 @@ interface FollowButtonProps {
 ## Component: NotificationDropdown
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -3397,7 +3468,7 @@ interface NotificationDropdownProps {
 
 **Key Constraints**
 - 用于 `/messages` 左栏通知时间线；不是 Header 下拉通知组件。
-- 遵守全局扁平化无阴影设计规范，列表容器和列表项均使用 1px border / divider，不使用 shadow。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，列表容器和列表项均使用 1px border / divider，不使用 shadow。
 - `channel === "broadcast"` 的系统广播必须同时使用文本、图标或 aria-label 与普通通知区分，不得只靠蓝色边框。
 - Markdown 正文摘要必须走安全 Markdown 渲染/摘要链路，不渲染原始 HTML。
 
@@ -3785,7 +3856,7 @@ interface CourseContentProps {
 ## Component: ReputationDetail
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -3880,7 +3951,7 @@ interface DiscussionCardProps {
 ## Component: ReplyList
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -3927,7 +3998,7 @@ interface ReplyListProps {
 ## Component: VerdictDetail
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -3974,7 +4045,7 @@ interface VerdictDetailProps {
 ## Component: LLMConfigTable
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -4021,7 +4092,7 @@ interface LLMConfigTableProps {
 ## Component: LLMConfigModal
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -4211,7 +4282,7 @@ interface FollowerListModalProps {
 ## Component: CreatorSupportPanel
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -4309,7 +4380,7 @@ interface JudgeQualBadgeProps {
 
 **Key Constraints**
 - 创作者工作室的可折叠侧边栏，必须在 `/studio/*` 布局中使用。
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 展开宽度 228px (`w-[228px]`)，收起宽度 48px (`w-12`)，过渡动画 `transition-all duration-200`。
 - 收起态：仅显示图标，hover 图标时在右侧弹出 tooltip（`absolute left-full ml-2`，延迟 300ms）。
 **Props 接口**
@@ -4373,7 +4444,7 @@ interface SidebarItem {
 **Key Constraints**
 - 内容类型选择卡片网格，用于 `/studio/publish/*` 发布流程步骤 1。
 - 卡片排列从 `config.yaml > publish.type_order_original` 或 `publish.type_order_fanwork` 读取。
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 **Props 接口**
 ```ts
 interface ContentTypeGridProps {
@@ -4547,7 +4618,7 @@ interface CollabUserPickerProps {
 - 所有 `/studio/*` 子页面共享 `StudioLayout`（侧边栏 + 主内容区）。
 - 需要登录，未登录 redirect `/login`。
 - 参考 B 站创作中心和 Reddit 创作者后台设计。
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 **视觉层级**
 - 顶部：Header `h-[var(--header-h)]`，底边框 `border-b border-border`
 - 主容器：`flex h-[calc(100vh-52px)]`（Header 下方全高），背景 `bg-canvas-subtle`
@@ -4891,7 +4962,7 @@ interface CollabUserPickerProps {
 ## Page: /forgot-password 忘记密码（Task 117）
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 邮件发送限流：同一邮箱 60 秒内只能发送一次重置邮件。
 
@@ -4935,7 +5006,7 @@ interface CollabUserPickerProps {
 ## Page: /reset-password 重置密码（Task 117）
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - token 有效期 1 小时，过期需重新申请。
 
@@ -5037,7 +5108,7 @@ interface CollabUserPickerProps {
 ## Page: /collections/[id] 收藏集详情（Task 122-124）
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 私有收藏集仅创建者可见；公开收藏集允许未登录用户浏览 published 内容。
 - 页面必须放在 `(public)` route group；是否可见由后端 detail API 兜底，不在前端猜测私有权限。
@@ -5116,7 +5187,7 @@ interface CollabUserPickerProps {
 ## Page: /user/[userId]/collections 用户收藏集列表（Task 122-123）
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - 私有收藏集仅创建者可见。
 - 页面位于 `(public)` route group；未登录访问他人页面可浏览公开收藏集，自己的页面由登录状态决定 owner controls。
@@ -5263,7 +5334,7 @@ interface ContentTypeFilterProps {
 ## Component: CollectionCard 收藏集卡片（Task 122-123）
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，颜色引用预定义 token。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -5385,7 +5456,7 @@ interface CollectionPickerProps {
 **Key Constraints**
 - 信誉分 < 3 用户：下载按钮 disabled，hover tooltip 提示「信誉分不足」。
 - 封禁用户：下载按钮 disabled，tooltip 提示「账号已被封禁」。
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **Props 接口**
@@ -5430,7 +5501,7 @@ interface DownloadButtonProps {
 ## Component: LoadingSpinner 加载旋转器
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 - 行内使用，不占据额外块级空间。
 - 颜色继承当前文字色。
 
@@ -5455,8 +5526,9 @@ interface LoadingSpinnerProps {
 ## Component: SkeletonCard 骨架屏卡片
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；SkeletonCard/Detail 镜像带边框最终面板时使用 elevation 1。
 - 仅用于内容加载占位，不可交互。
+- pulse 周期为 1.6s；`prefers-reduced-motion: reduce` 下静止。
 
 **Props 接口**
 ```ts
@@ -5468,8 +5540,8 @@ interface SkeletonCardProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="rounded-md bg-canvas-default overflow-hidden">`
-- 封面区: `<div className="bg-canvas-subtle animate-pulse" style={{ aspectRatio: zone === 'fanwork' ? '3/4' : 'auto', minHeight: 150 }} />`
+- 外层容器: `<div className="rounded-lg border border-border bg-card p-4 shadow-sm">`，`shadow-sm` 映射到 elevation 1。
+- 封面区: `<div className="rounded-lg bg-canvas-subtle animate-[pulse_1.6s_ease-in-out_infinite] motion-reduce:animate-none" />`
 - 信息区: `p-3 space-y-2`
   - 标题行: `<div className="h-4 bg-canvas-subtle rounded-sm w-3/4 animate-pulse" />`
   - 描述行: `<div className="h-3 bg-canvas-subtle rounded-sm w-1/2 animate-pulse" />`
@@ -5483,7 +5555,8 @@ interface SkeletonCardProps {
 **Key Constraints**
 - 位置固定右上角，z-50。
 - 自动消失 4s，支持手动关闭。
-- 遵守全局扁平化无阴影设计规范（Toast 容器无阴影只使用 1px border）。
+- Toast 是浮层反馈，使用 elevation 3 并保留 1px status border。
+- success/error/warning/info 复用 green/rose/orange/blue 标签柔和背景与前景 token，不引入任意 Tailwind 色常量。
 
 **Props 接口**
 ```ts
@@ -5497,22 +5570,23 @@ interface ToastProps {
 ```
 
 **视觉结构**
-- 容器: `<div className="flex items-center gap-3 px-4 py-3 border border-border-default rounded-md bg-canvas-default text-sm">`
+- 容器: `<div className="flex items-start gap-3 rounded-lg border bg-card p-3 text-sm shadow-md">`，`shadow-md` 映射到 elevation 3。
 - 图标: type 对应图标（success=check-circle, error=x-circle, info=info, warning=alert-triangle）
 - 文字: `flex-1 text-foreground`
-- 关闭按钮: `<button className="text-fg-muted hover:text-foreground">`
+- 关闭按钮: `<button className="text-fg-muted hover:text-foreground">`，含本地化可访问名称和 coarse-pointer 44px 目标。
 
 **状态变体**
-- success: `border-border` + 绿色图标 (`text-green-600`)
-- error: `border-border-destructive` + 红色图标 (`text-destructive`)
-- info: `border-border` + 蓝色图标 (`text-accent-emphasis`)
-- warning: `border-border` + 橙色图标 (`text-orange-500`)
-- 入场动效: `animate-in slide-in-from-right duration-200`
+- success: `--tag-green-bg` / `--tag-green-fg`
+- error: `--tag-rose-bg` / `--tag-rose-fg`
+- info: `--tag-blue-bg` / `--tag-blue-fg`
+- warning: `--tag-orange-bg` / `--tag-orange-fg`
+- 入退场动效: 200ms opacity + horizontal translate；reduced-motion 下只保留即时显隐。
+- 移动端容器左右各 16px 且不超过 viewport；桌面最大宽度 384px。
 
 ## Component: Footer 页脚
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 - 页脚内容：版权信息 + 可选链接。
 
 **Props 接口**
@@ -5534,7 +5608,7 @@ interface FooterProps {
 ## Component: StatsCard 统计卡片
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范，使用 1px border。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，使用 1px border。
 - 仅用于数据概览页面（/studio/overview, /studio/followers）。
 
 **Props 接口**
@@ -5588,7 +5662,7 @@ interface NotificationBellProps {
 ## Component: SortSelect 排序选择器
 
 **Key Constraints**
-- 遵守全局扁平化无阴影设计规范。
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
 - 下拉选择器，用于内容列表的排序切换。
 
 **Props 接口**

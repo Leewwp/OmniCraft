@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonCard } from "@/components/ui/skeleton";
+import { DataList } from "@/components/ui/data-list";
 import { useToast } from "@/components/ui/Toast";
 import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
@@ -63,6 +64,9 @@ export default function HistoryPage() {
   const { toast } = useToast();
   const initialFilters = useMemo(readInitialFilters, []);
   const [records, setRecords] = useState<HistoryRecord[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [total, setTotal] = useState(0);
   const [retentionDays, setRetentionDays] = useState<number | null>(null);
   const [contentType, setContentType] = useState(initialFilters.contentType);
@@ -76,28 +80,35 @@ export default function HistoryPage() {
   const [confirmMode, setConfirmMode] = useState<"selected" | "all" | null>(null);
   const recordsRef = useRef<HistoryRecord[]>([]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (requestedPage = 1, append = false) => {
     if (startDate && endDate && startDate > endDate) {
       setDateError(true);
       setInlineError(false);
+      setLoadingMore(false);
       setLoading(false);
       return;
     }
     setDateError(false);
 
-    const params = new URLSearchParams({ page: "1", page_size: "20" });
+    const params = new URLSearchParams({ page: String(requestedPage), page_size: "20" });
     if (contentType) params.set("content_type", contentType);
     if (startDate) params.set("start_date", startDate);
     if (endDate) params.set("end_date", endDate);
     const path = `/api/v1/users/me/history?${params.toString()}`;
 
+    setPage(requestedPage);
     try {
-      setLoading(recordsRef.current.length === 0);
+      if (append) setLoadingMore(true); else setLoading(recordsRef.current.length === 0);
       const data = await api.get<HistoryResponse>(path);
-      const nextRecords = normalizeHistory(data);
+      const incoming = normalizeHistory(data);
+      const nextRecords = append
+        ? [...recordsRef.current, ...incoming.filter((item) => !recordsRef.current.some((existing) => existing.id === item.id))]
+        : incoming;
       recordsRef.current = nextRecords;
       setRecords(nextRecords);
+      setPage(requestedPage);
       setTotal(data.total ?? nextRecords.length);
+      setHasMore((data.total ?? nextRecords.length) > requestedPage * (data.page_size ?? 20));
       setRetentionDays(typeof data.retention_days === "number" ? data.retention_days : null);
       setInlineError(false);
       if (typeof window !== "undefined") {
@@ -108,12 +119,13 @@ export default function HistoryPage() {
       toast("error", t("history.error.load"));
       setInlineError(recordsRef.current.length > 0);
     } finally {
+      setLoadingMore(false);
       setLoading(false);
     }
   }, [contentType, endDate, startDate, t, toast]);
 
   useEffect(() => {
-    void load();
+    void load(1, false);
   }, [load]);
 
   const groups = useMemo(() => groupByDate(records, t), [records, t]);
@@ -126,7 +138,7 @@ export default function HistoryPage() {
       setSelectedIDs([]);
       setBatchMode(false);
       setConfirmMode(null);
-      await load();
+      await load(1, false);
     } catch (error) {
       silentError(error, { component: "HistoryPage", action: "deleteHistory" });
       toast("error", t("history.toast.deleteFailed"));
@@ -216,31 +228,25 @@ export default function HistoryPage() {
         </p>
       )}
 
-      {inlineError && (
-        <p className="mb-4 rounded-md border border-destructive/30 p-3 text-sm text-destructive">
-          {t("history.error.inline")}
-        </p>
-      )}
-
-      {loading ? (
-        <div className="space-y-3">{Array.from({ length: 5 }).map((_, index) => <SkeletonCard key={index} />)}</div>
-      ) : records.length === 0 ? (
-        <EmptyState
-          icon={Clock}
-          title={t("history.empty.title")}
-          description={t("history.empty.description")}
-          action={
-            <Link
-              href="/home"
-              className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
-            >
-              {t("history.empty.action")}
-            </Link>
-          }
-        />
-      ) : (
-        <div className="space-y-6">
-          {groups.map((group) => (
+      <DataList
+        items={groups}
+        loading={loading}
+        error={inlineError ? t("history.error.inline") : undefined}
+        onRetry={() => void load(page, page > 1)}
+        hasMore={hasMore}
+        loadingMore={loadingMore}
+        onLoadMore={() => load(page + 1, true)}
+        empty={
+          <EmptyState
+            icon={Clock}
+            title={t("history.empty.title")}
+            description={t("history.empty.description")}
+            action={<Button nativeButton={false} render={<Link href="/home" />}>{t("history.empty.action")}</Button>}
+          />
+        }
+        loadingState={<div className="space-y-3">{Array.from({ length: 5 }).map((_, index) => <SkeletonCard key={index} />)}</div>}
+        getKey={(group) => group.label}
+        renderItem={(group) => (
             <section key={group.label}>
               <h2 className="mb-3 text-xs font-medium text-muted-foreground">{group.label}</h2>
               <div className="space-y-3">
@@ -256,9 +262,8 @@ export default function HistoryPage() {
                 ))}
               </div>
             </section>
-          ))}
-        </div>
-      )}
+        )}
+      />
 
       <ConfirmModal
         open={confirmMode !== null}

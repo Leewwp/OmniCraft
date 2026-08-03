@@ -16,8 +16,8 @@ function Switch({ checked, onCheckedChange, className, disabled, onClick, ...pro
       disabled={disabled}
       data-slot="switch"
       className={cn(
-        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
-        checked ? "bg-primary" : "bg-muted-foreground/25",
+        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border border-border outline-none transition-[background-color,border-color,box-shadow] duration-150 hover:border-border-strong focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border",
+        checked ? "bg-primary" : "bg-muted",
         className,
       )}
       onClick={(event) => {
@@ -29,7 +29,7 @@ function Switch({ checked, onCheckedChange, className, disabled, onClick, ...pro
     >
       <span
         className={cn(
-          "inline-block h-4 w-4 rounded-full bg-white transition-transform",
+          "inline-block h-4 w-4 rounded-full bg-primary-foreground shadow-sm transition-transform duration-150 motion-reduce:transition-none",
           checked ? "translate-x-6" : "translate-x-1",
         )}
       />

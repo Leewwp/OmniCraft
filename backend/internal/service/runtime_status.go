@@ -20,6 +20,32 @@ type RuntimeUserStatus struct {
 	Reputation      int
 }
 
+type InteractionAccessDecision struct {
+	Allowed      bool
+	DenialReason string
+}
+
+func EvaluateInteractionAccess(status *RuntimeUserStatus, cfg *config.Config, requireVerifiedEmail, requireReputation bool) InteractionAccessDecision {
+	if status == nil || cfg == nil {
+		return InteractionAccessDecision{DenialReason: "AUTH_STATUS_UNAVAILABLE"}
+	}
+	if status.IsBanned {
+		return InteractionAccessDecision{DenialReason: "USER_BANNED"}
+	}
+	if requireVerifiedEmail && status.EmailVerifiedAt == nil {
+		return InteractionAccessDecision{DenialReason: "EMAIL_NOT_VERIFIED"}
+	}
+	if requireReputation {
+		if cfg.Reputation.MinScoreForInteraction <= 0 {
+			return InteractionAccessDecision{DenialReason: "CONFIG_ERROR"}
+		}
+		if status.Reputation < cfg.Reputation.MinScoreForInteraction {
+			return InteractionAccessDecision{DenialReason: "INSUFFICIENT_REPUTATION"}
+		}
+	}
+	return InteractionAccessDecision{Allowed: true}
+}
+
 type RuntimeStatusCache struct {
 	rdb *redis.Client
 	cfg *config.Config
@@ -29,12 +55,12 @@ func NewRuntimeStatusCache(rdb *redis.Client, cfg *config.Config) *RuntimeStatus
 	return &RuntimeStatusCache{rdb: rdb, cfg: cfg}
 }
 
-func (c *RuntimeStatusCache) Invalidate(userID int64) {
+func (c *RuntimeStatusCache) Invalidate(userID int64) error {
 	if c.rdb == nil {
-		return
+		return nil
 	}
 	statusKey := fmt.Sprintf("user:status:%d", userID)
-	c.rdb.Del(context.Background(), statusKey)
+	return c.rdb.Del(context.Background(), statusKey).Err()
 }
 
 func (c *RuntimeStatusCache) Set(userID int64, status *RuntimeUserStatus) {
