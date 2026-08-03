@@ -87,15 +87,20 @@ test("studio series edits, adds, reorders, removes, and deletes with exact paylo
   fireEvent.click(view.getByRole("button", { name: "Add" }));
   await waitFor(() => {
     assert.deepEqual(calls.post.find((call) => call.path === "/api/v1/series/7/items")?.body, { content_item_id: 503 });
+    assert.ok(!view.getByRole("button", { name: "Move Second chapter up" }).hasAttribute("disabled"));
   });
 
   fireEvent.click(view.getByRole("button", { name: "Move Second chapter up" }));
   await waitFor(() => {
     assert.deepEqual(calls.put.find((call) => call.path === "/api/v1/series/7/items/reorder")?.body, { item_ids: [102, 101] });
+    assert.ok(!view.getByRole("button", { name: "Remove Second chapter from series" }).hasAttribute("disabled"));
   });
 
   fireEvent.click(view.getByRole("button", { name: "Remove Second chapter from series" }));
-  await waitFor(() => assert.ok(calls.delete.some((call) => call.path === "/api/v1/series/7/items/102")));
+  await waitFor(() => {
+    assert.ok(calls.delete.some((call) => call.path === "/api/v1/series/7/items/102"));
+    assert.ok(!view.getByRole("button", { name: "Delete series" }).hasAttribute("disabled"));
+  });
 
   fireEvent.click(view.getByRole("button", { name: "Delete series" }));
   await waitFor(() => assert.ok(view.getByRole("dialog")));
