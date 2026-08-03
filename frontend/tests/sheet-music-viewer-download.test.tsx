@@ -4,6 +4,8 @@ import { JSDOM } from "jsdom";
 import { fireEvent, render, waitFor, cleanup } from "@testing-library/react";
 import { IntlProvider } from "use-intl";
 
+import { AuthProvider } from "@/contexts/AuthContext";
+
 const messages = {
   common: {
     close: "Close",
@@ -36,6 +38,7 @@ function installDom() {
     Node: dom.window.Node,
     Event: dom.window.Event,
     MutationObserver: dom.window.MutationObserver,
+    localStorage: dom.window.localStorage,
   })) {
     Object.defineProperty(globalThis, key, {
       configurable: true,
@@ -93,13 +96,29 @@ async function renderViewer(props: ViewerProps) {
     return render(
       <IntlProvider locale="en" messages={messages}>
         <ToastProvider>
-          <SheetMusicViewer {...props} />
+          <AuthProvider>
+            <SheetMusicViewer {...props} />
+          </AuthProvider>
         </ToastProvider>
       </IntlProvider>,
     );
   } finally {
     console.error = originalConsoleError;
   }
+}
+
+function installFetchMock(records: string[], responseBody: { download_url: string; expires_in: number }) {
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/api/v1/auth/csrf")) {
+      return jsonResponse(200, { csrf_token: "test-token" });
+    }
+    if (url.includes("/api/v1/auth/refresh") || url.includes("/api/v1/auth/me")) {
+      return jsonResponse(401, { code: "UNAUTHORIZED", message: "not logged in" });
+    }
+    records.push(url);
+    return jsonResponse(200, responseBody);
+  }) as typeof fetch;
 }
 
 test.afterEach(() => {
@@ -113,13 +132,10 @@ test("attachments with only oss_key still render a download CTA that calls the a
   const fetchCalls: string[] = [];
   const openCalls: Array<[string | URL | undefined, string | undefined, string | undefined]> = [];
 
-  globalThis.fetch = (async (input: string | URL | Request) => {
-    fetchCalls.push(String(input));
-    return jsonResponse(200, {
-      download_url: "https://downloads.example/sheet-only",
-      expires_in: 300,
-    });
-  }) as typeof fetch;
+  installFetchMock(fetchCalls, {
+    download_url: "https://downloads.example/sheet-only",
+    expires_in: 300,
+  });
   window.open = ((url?: string | URL, target?: string, features?: string) => {
     openCalls.push([url, target, features]);
     return null;
@@ -145,13 +161,10 @@ test("previewable pdf attachments keep an authorized download CTA instead of a d
   document.cookie = "csrf-token=download-token";
 
   const fetchCalls: string[] = [];
-  globalThis.fetch = (async (input: string | URL | Request) => {
-    fetchCalls.push(String(input));
-    return jsonResponse(200, {
-      download_url: "https://downloads.example/preview.pdf",
-      expires_in: 300,
-    });
-  }) as typeof fetch;
+  installFetchMock(fetchCalls, {
+    download_url: "https://downloads.example/preview.pdf",
+    expires_in: 300,
+  });
   window.open = (() => null) as typeof window.open;
 
   const view = await renderViewer({
@@ -184,13 +197,10 @@ test("mixed preview and download-only attachments each render usable download CT
   document.cookie = "csrf-token=download-token";
 
   const fetchCalls: string[] = [];
-  globalThis.fetch = (async (input: string | URL | Request) => {
-    fetchCalls.push(String(input));
-    return jsonResponse(200, {
-      download_url: `https://downloads.example/${fetchCalls.length}`,
-      expires_in: 300,
-    });
-  }) as typeof fetch;
+  installFetchMock(fetchCalls, {
+    download_url: `https://downloads.example/${fetchCalls.length}`,
+    expires_in: 300,
+  });
   window.open = (() => null) as typeof window.open;
 
   const view = await renderViewer({

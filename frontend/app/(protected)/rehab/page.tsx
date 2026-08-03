@@ -33,7 +33,7 @@ interface Completion {
 export default function RehabPage() {
   const t = useTranslations();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [completions, setCompletions] = useState<Completion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,6 +103,7 @@ export default function RehabPage() {
       setActiveId(null);
       setStartTime(null);
       await loadData();
+      await refreshUser();
     } catch (e) {
       silentError(e, { component: 'RehabPage', action: 'handleComplete' });
       setError(t(getUserFacingErrorKey(e)));

@@ -6,7 +6,7 @@ import { MessageCircle, Send, ThumbsUp, ThumbsDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
@@ -29,14 +29,15 @@ interface CommentSectionProps {
 
 export function CommentSection({ contentId, className }: CommentSectionProps) {
   const t = useTranslations();
-  const { user } = useAuth();
+  const { user, capabilities } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const canComment = user && user.reputation >= 3;
+  const canComment = !!user && capabilities.can_interact;
+  const denialKey = interactionDenialKey(capabilities.interaction_denial_reason);
 
   useEffect(() => {
     void loadComments();
@@ -98,7 +99,7 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
         <div className="flex gap-2">
           <textarea
             className="min-h-[60px] flex-1 rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-            placeholder={canComment ? t('social.commentPlaceholder') : t('social.cannotComment')}
+            placeholder={canComment ? t('social.commentPlaceholder') : t(denialKey)}
             value={body}
             onChange={(e) => setBody(e.target.value)}
             disabled={!canComment || busy}
@@ -151,6 +152,7 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
                 key={comment.id}
                 comment={comment}
                 replies={comments.filter((c) => c.parent_id === comment.id)}
+                canInteract={canComment}
                 onReact={reactToComment}
               />
             ))}
@@ -163,15 +165,19 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
 function CommentItem({
   comment,
   replies,
+  canInteract,
   onReact,
 }: {
   comment: Comment;
   replies: Comment[];
+  canInteract: boolean;
   onReact: (id: number, reaction: "like" | "dislike") => void;
 }) {
   const t = useTranslations();
   const locale = useLocale();
   const { user } = useAuth();
+
+  const reactionDisabled = !user || !canInteract;
 
   return (
     <div className="rounded-md border border-border bg-card p-3 ">
@@ -193,7 +199,7 @@ function CommentItem({
       <div className="mt-2 flex items-center gap-2">
         <button
           className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-all duration-150 hover:text-foreground hover:bg-muted/50 active:scale-90 disabled:opacity-50"
-          disabled={!user}
+          disabled={reactionDisabled}
           onClick={() => onReact(comment.id, "like")}
         >
           <ThumbsUp className="h-3 w-3" />
@@ -201,7 +207,7 @@ function CommentItem({
         </button>
         <button
           className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-all duration-150 hover:text-foreground hover:bg-muted/50 active:scale-90 disabled:opacity-50"
-          disabled={!user}
+          disabled={reactionDisabled}
           onClick={() => onReact(comment.id, "dislike")}
         >
           <ThumbsDown className="h-3 w-3" />
