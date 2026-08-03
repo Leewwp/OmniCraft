@@ -8,7 +8,7 @@
 
 **Architecture:** GitHub Actions 只编排仓库内可本地复现的 verifier；数据库使用 forward-only ledger；发布使用不可变 digest、机器可读证据和 staging 演练。当前 Web 主线由 Ops-00～Ops-08 串联；Ops-09 保留为恢复 Desktop 范围后的扩展。外部密钥缺失不能削弱 deterministic gates。
 
-**Tech Stack:** GitHub Actions、PowerShell 7-compatible scripts（CI 使用 `pwsh`；当前 Windows 本地命令沿用仓库的 `powershell` 入口）、Go 1.25.11、Node.js 20、npm、PostgreSQL 16 + pgvector、Redis 7、Docker Compose、Prometheus/Alertmanager、Grafana Alloy/Loki、Trivy/gitleaks/govulncheck/cargo-audit、CycloneDX/SPDX、k6、Tauri 2、Windows Authenticode。
+**Tech Stack:** GitHub Actions、bash 脚本（本地与 CI 均使用仓库 `bash scripts/*.sh` 入口；2026-08-03 起由 PowerShell 移植，历史 `.ps1` 不再使用）、Go 1.25.11、Node.js 20、npm、PostgreSQL 16 + pgvector、Redis 7、Docker Compose、Prometheus/Alertmanager、Grafana Alloy/Loki、Trivy/gitleaks/govulncheck/cargo-audit、CycloneDX/SPDX、k6、Tauri 2、Windows Authenticode。
 
 **Design input:** `docs/superpowers/specs/2026-07-17-omnicraft-production-readiness-design.md`
 
@@ -36,7 +36,7 @@
 1. Finish and merge Ops-00 before registering the UI plan because both edit `AGENTS.md`, `CLAUDE.md`, and `progress.txt`.
 2. UI U-01/U-05 may start after the UI plan is committed and registered; their files do not overlap Ops-01～07.
 3. UI U-11 waits for this spec and must preserve the rule that raw reputation thresholds are not exposed through public config. Its current exact paths do not overlap Ops-03/08/09; before start it must publish the exact reservation again, compare it with the active Ops reservation, and serialize/transfer ownership if the list expands into config, compose, release or Tauri capability paths.
-4. Ops-01 owns `frontend/package.json`, `scripts/verify-project.ps1`, and `scripts/verify-project.tests.ps1` before UI U-12. U-12 rebases after Ops-01.
+4. Ops-01 owns `frontend/package.json`, `scripts/verify-project.sh`, and `scripts/verify-project.tests.sh` before UI U-12. U-12 rebases after Ops-01.
 5. During Ops-08/09 release drills, freeze concurrent edits to Dockerfiles, compose, release workflows and Tauri bundle configuration.
 
 ## Exact red/green and final-gate matrix
@@ -44,31 +44,31 @@
 | Task | Run before (expect nonzero) and after (expect zero) | Final gate |
 |---|---|---|
 | Ops-00 | `rg -n "模式 E：Production Readiness" AGENTS.md CLAUDE.md` | doc-validator tests + release profile + `git diff --check` |
-| Ops-01 | `scripts/verify-project.tests.ps1`; `scripts/ci/verify-workflows.tests.ps1` | default verifier + `-Tauri` |
-| Ops-02 | `go test ./internal/migration ./cmd/migrate -count=1`; `scripts/db/recovery-drill.tests.ps1` | default verifier + real recovery drill |
-| Ops-03 | `go test ./internal/observability ./internal/middleware ./cmd/server -count=1`; `ops/observability/prometheus.tests.ps1`; `scripts/ops/observability-drill.tests.ps1` | doc-validator `--fix` + default verifier + scrape drill |
-| Ops-04 | `scripts/ops/verify-alerts.tests.ps1`; `scripts/ops/alert-drill.tests.ps1` | default verifier + real firing/resolved drill |
-| Ops-05 | `scripts/security/verify-security.tests.ps1`; `scripts/security/verify-pinned-actions.tests.ps1` | default verifier + full filesystem/IaC/image scan |
-| Ops-06 | `scripts/release/generate-sbom.tests.ps1`; `scripts/release/verify-provenance.tests.ps1` | default verifier + downloaded-artifact verification |
-| Ops-07 | `scripts/load/run-load-tests.tests.ps1` | default verifier + smoke/load/stress |
-| Ops-08 | `scripts/release/preflight.tests.ps1`; `scripts/release/deployment-contract.tests.ps1` | doc-validator `--fix` + verifier `-Release` + staging deploy/rollback |
-| Ops-09 | `scripts/release/verify-desktop-artifacts.tests.ps1` | verifier `-Release -Tauri` + clean-runner signature/rotation verification |
+| Ops-01 | `scripts/verify-project.tests.sh`; `scripts/ci/verify-workflows.tests.sh` | default verifier + `--tauri` |
+| Ops-02 | `go test ./internal/migration ./cmd/migrate -count=1`; `scripts/db/recovery-drill.tests.sh` | default verifier + real recovery drill |
+| Ops-03 | `go test ./internal/observability ./internal/middleware ./cmd/server -count=1`; `ops/observability/prometheus.tests.sh`; `scripts/ops/observability-drill.tests.sh` | doc-validator `--fix` + default verifier + scrape drill |
+| Ops-04 | `scripts/ops/verify-alerts.tests.sh`; `scripts/ops/alert-drill.tests.sh` | default verifier + real firing/resolved drill |
+| Ops-05 | `scripts/security/verify-security.tests.sh`; `scripts/security/verify-pinned-actions.tests.sh` | default verifier + full filesystem/IaC/image scan |
+| Ops-06 | `scripts/release/generate-sbom.tests.sh`; `scripts/release/verify-provenance.tests.sh` | default verifier + downloaded-artifact verification |
+| Ops-07 | `scripts/load/run-load-tests.tests.sh` | default verifier + smoke/load/stress |
+| Ops-08 | `scripts/release/preflight.tests.sh`; `scripts/release/deployment-contract.tests.sh` | doc-validator `--fix` + verifier `--release` + staging deploy/rollback |
+| Ops-09 | `scripts/release/verify-desktop-artifacts.tests.sh` | verifier `--release --tauri` + clean-runner signature/rotation verification |
 
-In GitHub Actions invoke `.ps1` entries with `pwsh -NoProfile -File <path>`. On the current Windows development host use the repository-compatible `powershell -NoProfile -ExecutionPolicy Bypass -File <path>` form. Go commands run from `backend/`. Each task section repeats any additional environment/setup command required by its real drill.
+In GitHub Actions and on the local macOS development host, invoke `.sh` entries identically with `bash <path>` (POSIX-compatible bash 3.2+；不再使用 `powershell`/`pwsh`)。Go commands run from `backend/`. Each task section repeats any additional environment/setup command required by its real drill.
 
-Ops-01 creates the shared `release/ops-evidence.schema.json` and `scripts/ops/validate-evidence.ps1`. Ops-01～09 finish with the exact assertion below, replacing `XX`; any missing/invalid root summary fails the task:
+Ops-01 creates the shared `release/ops-evidence.schema.json` and `scripts/ops/validate-evidence.sh`. Ops-01～09 finish with the exact assertion below, replacing `XX`; any missing/invalid root summary fails the task:
 
-```powershell
-if (-not (Test-Path artifacts/ops-XX/summary.json)) { throw 'missing Ops summary' }
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidence.ps1 -Schema release/ops-evidence.schema.json -Summary artifacts/ops-XX/summary.json
+```bash
+if [ ! -f artifacts/ops-XX/summary.json ]; then echo "missing Ops summary" >&2; exit 1; fi
+bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -Summary artifacts/ops-XX/summary.json
 ```
 
 The section-level validation above proves structure before commit. After the task's single reviewed commit, finalize identity and validate again:
 
-```powershell
-$finalCommit = git rev-parse HEAD
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/finalize-evidence.ps1 -Summary artifacts/ops-XX/summary.json -Commit $finalCommit
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidence.ps1 -Schema release/ops-evidence.schema.json -Summary artifacts/ops-XX/summary.json -ExpectedCommit $finalCommit
+```bash
+finalCommit=$(git rev-parse HEAD)
+bash scripts/ops/finalize-evidence.sh -Summary artifacts/ops-XX/summary.json -Commit "$finalCommit"
+bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -Summary artifacts/ops-XX/summary.json -ExpectedCommit "$finalCommit"
 ```
 
 ---
@@ -94,7 +94,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidenc
 
 Run before writing Mode E registration:
 
-```powershell
+```bash
 rg -n "模式 E：Production Readiness" AGENTS.md CLAUDE.md
 ```
 
@@ -116,7 +116,7 @@ Dispatch one spec-document reviewer and one plan-document reviewer with only the
 
 Add `/artifacts/` to `.gitignore`; do not use a broad pattern that could hide versioned release manifests or fixtures elsewhere.
 
-```powershell
+```bash
 cd tools/doc-validator
 go test ./...
 go run . --check --profile release
@@ -131,6 +131,8 @@ Expected: tests/release profile pass; no diff in forbidden tracking files; the e
 - [x] **Step 6: Commit the reviewed sources, then create final-commit evidence**
 
 After both review loops are approved, stage exactly the six reserved paths and create the single task commit. Only then generate the untracked/ignored summary so it identifies the reviewed commit rather than parent `b1aea75`:
+
+> 历史记录：Ops-00 于 2026-07-18 在 Windows 主机以 PowerShell 执行；后续 Ops 任务使用下方 bash 形式。
 
 ```powershell
 git add .gitignore AGENTS.md CLAUDE.md progress.txt docs/superpowers/specs/2026-07-17-omnicraft-production-readiness-design.md docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md
@@ -159,15 +161,15 @@ Expected: only ignored `artifacts/` evidence remains outside the clean reviewed 
 
 - Create: `.github/workflows/ci.yml`
 - Create: `.github/workflows/tauri-ci.yml`
-- Create: `scripts/ci/verify-workflows.ps1`
-- Create: `scripts/ci/verify-workflows.tests.ps1`
+- Create: `scripts/ci/verify-workflows.sh`
+- Create: `scripts/ci/verify-workflows.tests.sh`
 - Create: `release/ops-evidence.schema.json`
-- Create: `scripts/ops/validate-evidence.ps1`
-- Create: `scripts/ops/validate-evidence.tests.ps1`
-- Create: `scripts/ops/finalize-evidence.ps1`
-- Create: `scripts/ops/finalize-evidence.tests.ps1`
-- Modify: `scripts/verify-project.ps1`
-- Modify: `scripts/verify-project.tests.ps1`
+- Create: `scripts/ops/validate-evidence.sh`
+- Create: `scripts/ops/validate-evidence.tests.sh`
+- Create: `scripts/ops/finalize-evidence.sh`
+- Create: `scripts/ops/finalize-evidence.tests.sh`
+- Modify: `scripts/verify-project.sh`
+- Modify: `scripts/verify-project.tests.sh`
 - Modify: `frontend/package.json`
 - Modify: `tauri-client/package.json`
 - Modify: `README.md`
@@ -178,12 +180,12 @@ Expected: only ignored `artifacts/` evidence remains outside the clean reviewed 
 
 - [ ] **Step 1: Write failing verifier-scope/report tests**
 
-Add contract cases for `-Scope Backend|Frontend|Docs|All`, default compatibility, deterministic command order, per-command log files, root JSON summary, fail-fast, and nonzero standalone process exit. Add evidence-schema tests for every required field, command exit-code pairing, redaction boolean and blocker list; `validate-evidence.ps1 -ExpectedCommit` must reject a different/missing commit. Add finalizer tests proving it changes only the identity/finalization fields, refuses a dirty or non-HEAD commit unless an explicit fixture mode is used, hashes the referenced evidence inventory, and is idempotent.
+Add contract cases for `-Scope Backend|Frontend|Docs|All`, default compatibility, deterministic command order, per-command log files, root JSON summary, fail-fast, and nonzero standalone process exit. Add evidence-schema tests for every required field, command exit-code pairing, redaction boolean and blocker list; `validate-evidence.sh -ExpectedCommit` must reject a different/missing commit. Add finalizer tests proving it changes only the identity/finalization fields, refuses a dirty or non-HEAD commit unless an explicit fixture mode is used, hashes the referenced evidence inventory, and is idempotent.
 
 Run:
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-project.tests.ps1
+```bash
+bash scripts/verify-project.tests.sh
 ```
 
 Expected red: unknown scope/report parameters or missing artifacts.
@@ -198,8 +200,8 @@ Test stable required job names, PR/push triggers, concurrency, minimal permissio
 
 Run:
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/verify-workflows.tests.ps1
+```bash
+bash scripts/ci/verify-workflows.tests.sh
 ```
 
 Expected red: workflow files absent.
@@ -216,14 +218,14 @@ Add Node/npm `engines` to frontend/Tauri packages and update guides to distingui
 
 - [ ] **Step 6: Verify locally and in a PR**
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/verify-workflows.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -ReportDir artifacts/ops-01
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -Tauri
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidence.tests.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/finalize-evidence.tests.ps1
-if (-not (Test-Path artifacts/ops-01/summary.json)) { throw 'missing Ops summary' }
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidence.ps1 -Schema release/ops-evidence.schema.json -Summary artifacts/ops-01/summary.json
+```bash
+bash scripts/ci/verify-workflows.sh
+bash scripts/verify-project.sh -ReportDir artifacts/ops-01
+bash scripts/verify-project.sh --tauri
+bash scripts/ops/validate-evidence.tests.sh
+bash scripts/ops/finalize-evidence.tests.sh
+if [ ! -f artifacts/ops-01/summary.json ]; then echo "missing Ops summary" >&2; exit 1; fi
+bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -Summary artifacts/ops-01/summary.json
 ```
 
 Open a PR that intentionally fails one fixture branch, record the failed required check, then restore and record all green checks. Configure branch protection after check names exist.
@@ -258,18 +260,18 @@ After the single reviewed commit, run the universal finalization block and requi
 - Create: `backend/internal/migration/testdata/historical-050.sql`
 - Create: `backend/internal/migration/testdata/historical-050.sha256`
 - Create: `backend/internal/migration/testdata/historical-050.manifest.json`
-- Create: `scripts/db/build-historical-fixture.ps1`
-- Create: `scripts/db/build-historical-fixture.tests.ps1`
+- Create: `scripts/db/build-historical-fixture.sh`
+- Create: `scripts/db/build-historical-fixture.tests.sh`
 - Create: `backend/cmd/migrate/main.go`
 - Create: `backend/cmd/migrate/main_test.go`
-- Create: `scripts/db/recovery-drill.ps1`
-- Create: `scripts/db/recovery-drill.tests.ps1`
-- Create: `scripts/db/verify-backup-policy.ps1`
-- Create: `scripts/db/verify-backup-policy.tests.ps1`
-- Create: `scripts/db/object-recovery-drill.ps1`
-- Create: `scripts/db/object-recovery-drill.tests.ps1`
-- Create: `scripts/db/redis-reconciliation-drill.ps1`
-- Create: `scripts/db/redis-reconciliation-drill.tests.ps1`
+- Create: `scripts/db/recovery-drill.sh`
+- Create: `scripts/db/recovery-drill.tests.sh`
+- Create: `scripts/db/verify-backup-policy.sh`
+- Create: `scripts/db/verify-backup-policy.tests.sh`
+- Create: `scripts/db/object-recovery-drill.sh`
+- Create: `scripts/db/object-recovery-drill.tests.sh`
+- Create: `scripts/db/redis-reconciliation-drill.sh`
+- Create: `scripts/db/redis-reconciliation-drill.tests.sh`
 - Create: `ops/recovery/docker-compose.recovery.yml`
 - Create: `release/backup-policy.schema.json`
 - Create: `release/backup-policy.json`
@@ -295,7 +297,7 @@ Start PostgreSQL, allow init scripts to create the volume, add a harmless tempor
 
 Cover filename validation, duplicate versions, stable ordering, SHA-256, checksum drift, ledger references to missing files, and missing lower-number application.
 
-```powershell
+```bash
 cd backend
 go test ./internal/migration -run "TestParse|TestPlan|TestChecksum" -v
 ```
@@ -312,9 +314,9 @@ Generate `historical-050.sql` by applying the real migrations 001～050 to the p
 
 Also test `metadata.json`: default is transactional; a non-transactional filename must be explicitly listed with reason, reviewer, machine-checkable pre/postconditions, idempotent/resume strategy and reconciliation instructions. Record started/succeeded/failed attempts with a redacted error digest. A failed/unknown attempt blocks blind retry and later migrations until explicit reconciliation approval.
 
-```powershell
+```bash
 cd backend
-$env:OMNICRAFT_TEST_POSTGRES_DSN="host=localhost port=5432 user=omnicraft password=omnicraft dbname=omnicraft_migration_test sslmode=disable"
+export OMNICRAFT_TEST_POSTGRES_DSN="host=localhost port=5432 user=omnicraft password=omnicraft dbname=omnicraft_migration_test sslmode=disable"
 go test ./internal/migration -run TestPostgres -count=1 -v
 ```
 
@@ -326,11 +328,11 @@ Build a dedicated migrate binary into the backend image. Deployment runs migrati
 
 Require custom-format dumps, checksum manifest, migration manifest, explicit destination DB, refusal to overwrite source, and nonzero failures. `backup-policy.json` declares daily + pre-migration PostgreSQL backup, 7 local copies, 30-day encrypted off-host immutable/versioned retention, monthly restore cadence, PostgreSQL/OSS/Redis classification and restore order. `recovery-objectives.json` may be `baseline_only` in Ops-02 with measured values and null approval; policy tests reject missing state/measurements but require approved numeric targets only in Ops-08.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/db/recovery-drill.tests.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/db/verify-backup-policy.tests.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/db/build-historical-fixture.tests.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/db/verify-backup-policy.ps1 -Policy release/backup-policy.json -ReportDir artifacts/ops-02/policy
+```bash
+bash scripts/db/recovery-drill.tests.sh
+bash scripts/db/verify-backup-policy.tests.sh
+bash scripts/db/build-historical-fixture.tests.sh
+bash scripts/db/verify-backup-policy.sh -Policy release/backup-policy.json -ReportDir artifacts/ops-02/policy
 ```
 
 - [ ] **Step 7: Perform a real recovery drill**
@@ -339,19 +341,19 @@ Use PostgreSQL 16 + pgvector containers. Populate non-sensitive fixture data, du
 
 The drill scripts own the full lifecycle in `try/finally`: create an isolated Compose project from `ops/recovery/docker-compose.recovery.yml`, wait for PostgreSQL/Redis/versioned MinIO readiness, seed data and attachment keys, perform DB restore + deleted-object version restore + DB-to-object reconciliation + Redis clear/rebuild, collect evidence, then remove containers/volumes. Missing readiness, reconciliation mismatch or teardown failure returns nonzero. Local MinIO proves adapter behavior only; real OSS/off-host evidence remains an Ops-08 blocker.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/db/recovery-drill.ps1 -ReportDir artifacts/ops-02
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/db/object-recovery-drill.tests.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/db/object-recovery-drill.ps1 -ComposeFile ops/recovery/docker-compose.recovery.yml -ReportDir artifacts/ops-02
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/db/redis-reconciliation-drill.tests.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/db/redis-reconciliation-drill.ps1 -ComposeFile ops/recovery/docker-compose.recovery.yml -ReportDir artifacts/ops-02
+```bash
+bash scripts/db/recovery-drill.sh -ReportDir artifacts/ops-02
+bash scripts/db/object-recovery-drill.tests.sh
+bash scripts/db/object-recovery-drill.sh -ComposeFile ops/recovery/docker-compose.recovery.yml -ReportDir artifacts/ops-02
+bash scripts/db/redis-reconciliation-drill.tests.sh
+bash scripts/db/redis-reconciliation-drill.sh -ComposeFile ops/recovery/docker-compose.recovery.yml -ReportDir artifacts/ops-02
 cd tools/doc-validator
 go run . --fix
 go run . --check --profile release
 cd ../..
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -ReportDir artifacts/ops-02
-if (-not (Test-Path artifacts/ops-02/summary.json)) { throw 'missing Ops summary' }
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidence.ps1 -Schema release/ops-evidence.schema.json -Summary artifacts/ops-02/summary.json
+bash scripts/verify-project.sh -ReportDir artifacts/ops-02
+if [ ! -f artifacts/ops-02/summary.json ]; then echo "missing Ops summary" >&2; exit 1; fi
+bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -Summary artifacts/ops-02/summary.json
 ```
 
 **Acceptance evidence:** `migration-summary.json`, historical fixture generation manifest and checksum verification, ledger rows/checksums, concurrent-run log, dump checksum, local versioned-object-adapter checksum/recovery evidence, restore verification, measured baseline RPO/RTO, backup policy validation, CI PostgreSQL job URL, final-commit-bound `artifacts/ops-02/summary.json`. Real off-host/Aliyun OSS evidence remains explicitly deferred to Ops-08.  
@@ -377,16 +379,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidenc
 - Create: `backend/internal/middleware/metrics.go`
 - Create: `backend/internal/middleware/metrics_test.go`
 - Create: `ops/observability/prometheus.yml`
-- Create: `ops/observability/prometheus.tests.ps1`
+- Create: `ops/observability/prometheus.tests.sh`
 - Create: `ops/observability/loki.yml`
 - Create: `ops/observability/alloy-config.alloy`
 - Create: `ops/observability/docker-compose.observability.yml`
 - Create: `ops/observability/log-retention-policy.schema.json`
 - Create: `ops/observability/log-retention-policy.json`
-- Create: `scripts/ops/archive-audit-logs.ps1`
-- Create: `scripts/ops/archive-audit-logs.tests.ps1`
-- Create: `scripts/ops/observability-drill.ps1`
-- Create: `scripts/ops/observability-drill.tests.ps1`
+- Create: `scripts/ops/archive-audit-logs.sh`
+- Create: `scripts/ops/archive-audit-logs.tests.sh`
+- Create: `scripts/ops/observability-drill.sh`
+- Create: `scripts/ops/observability-drill.tests.sh`
 - Modify: `backend/internal/middleware/logger.go`
 - Modify: `backend/internal/middleware/panic_recovery.go`
 - Modify: `backend/cmd/server/main.go`
@@ -398,7 +400,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidenc
 - Modify: `backend/go.sum`
 - Modify: `backend/internal/migration/runner.go`
 - Modify: `scripts/backup-db.sh`
-- Modify: `scripts/db/recovery-drill.ps1`
+- Modify: `scripts/db/recovery-drill.sh`
 - Modify: `docker-compose.yml`
 - Modify: `docs/deploy/docker-compose.single-server.yml`
 - Modify: `docs/deploy/single-server-beta-runbook.md`
@@ -424,14 +426,14 @@ Include aggregate success/failure/latency metrics for OSS, Green, CAPTCHA, SMTP 
 
 Run metrics on a separately configured internal port; do not expose it through public API routes. Keep `/healthz` liveness-only and add dependency-aware readiness without returning connection details. Configure Docker JSON rotation, a named durable Loki volume, internal Grafana Alloy→Loki ingestion with 30-day/capped retention, and authenticated/tunneled operator access whose query audit is retained. Alloy receives only the read-only log mounts/service-discovery access needed for collection and no Docker control capability. Migration runner and backup/recovery scripts emit bounded success/failure/last-success metrics consumed by Prometheus textfile/custom collectors.
 
-`archive-audit-logs.ps1` encrypts and uploads warning/error audit summaries to the configured off-site destination, verifies checksum/retention metadata, and writes access/archive evidence. Its contract tests use a local encrypted sink; real destination credentials are required by Ops-08.
+`archive-audit-logs.sh` encrypts and uploads warning/error audit summaries to the configured off-site destination, verifies checksum/retention metadata, and writes access/archive evidence. Its contract tests use a local encrypted sink; real destination credentials are required by Ops-08.
 
 - [ ] **Step 5: Verify Prometheus config and runtime scrape**
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ops/observability/prometheus.tests.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/observability-drill.tests.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/archive-audit-logs.tests.ps1
+```bash
+bash ops/observability/prometheus.tests.sh
+bash scripts/ops/observability-drill.tests.sh
+bash scripts/ops/archive-audit-logs.tests.sh
 cd backend
 go test ./internal/observability ./internal/middleware ./cmd/server -v
 go test ./...
@@ -441,13 +443,13 @@ cd ../tools/doc-validator
 go run . --fix
 go run . --check --profile release
 cd ../..
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/observability-drill.ps1 -Environment Local -ComposeFile docker-compose.yml -ReportDir artifacts/ops-03
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -ReportDir artifacts/ops-03
-if (-not (Test-Path artifacts/ops-03/summary.json)) { throw 'missing Ops summary' }
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidence.ps1 -Schema release/ops-evidence.schema.json -Summary artifacts/ops-03/summary.json
+bash scripts/ops/observability-drill.sh -Environment Local -ComposeFile docker-compose.yml -ReportDir artifacts/ops-03
+bash scripts/verify-project.sh -ReportDir artifacts/ops-03
+if [ ! -f artifacts/ops-03/summary.json ]; then echo "missing Ops summary" >&2; exit 1; fi
+bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -Summary artifacts/ops-03/summary.json
 ```
 
-`observability-drill.ps1` owns setup/readiness/seed/query/teardown in `try/finally`: start the application plus `ops/observability/docker-compose.observability.yml` under an isolated project name, wait for Prometheus/Loki, issue successful/failed requests, scrape metrics, query a known `trace_id`, record authorized query access, inspect rotation/retention settings, restart/recreate Loki while retaining its named volume and prove the log remains queryable, prove unauthenticated external access is unavailable, check cardinality, and remove resources. Missing readiness, durable-query evidence or teardown returns nonzero.
+`observability-drill.sh` owns setup/readiness/seed/query/teardown in `try/finally`: start the application plus `ops/observability/docker-compose.observability.yml` under an isolated project name, wait for Prometheus/Loki, issue successful/failed requests, scrape metrics, query a known `trace_id`, record authorized query access, inspect rotation/retention settings, restart/recreate Loki while retaining its named volume and prove the log remains queryable, prove unauthenticated external access is unavailable, check cardinality, and remove resources. Missing readiness, durable-query evidence or teardown returns nonzero.
 
 **Acceptance evidence:** redaction test output, sample sanitized JSON lines, scrape artifact, metric label inventory, readiness dependency cases, Loki restart/query and access-audit evidence, encrypted off-site archive contract evidence, `artifacts/ops-03/summary.json`.  
 **Release blocker:** secret/PII in logs, unbounded label, public metrics exposure, readiness reports ready with required DB/Redis unavailable, non-durable Loki storage, unauthorized query access, or missing encrypted warning/error archive contract.  
@@ -470,10 +472,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidenc
 - Create: `ops/observability/exporter-targets.yml`
 - Create: `ops/observability/external-heartbeat.schema.json`
 - Create: `ops/observability/external-heartbeat.example.json`
-- Create: `scripts/ops/verify-alerts.ps1`
-- Create: `scripts/ops/verify-alerts.tests.ps1`
-- Create: `scripts/ops/alert-drill.ps1`
-- Create: `scripts/ops/alert-drill.tests.ps1`
+- Create: `scripts/ops/verify-alerts.sh`
+- Create: `scripts/ops/verify-alerts.tests.sh`
+- Create: `scripts/ops/alert-drill.sh`
+- Create: `scripts/ops/alert-drill.tests.sh`
 - Modify: `ops/observability/prometheus.yml`
 - Modify: `ops/observability/docker-compose.observability.yml`
 - Modify: `docker-compose.yml`
@@ -493,20 +495,20 @@ Cover API availability/5xx/latency, DB/Redis, queue/worker, backup age, overdue 
 
 - [ ] **Step 3: Validate with real tools**
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/verify-alerts.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/alert-drill.tests.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/alert-drill.ps1 -Environment Local -ComposeFile ops/observability/docker-compose.observability.yml -WebhookSink http://alert-sink:8080/events -ReportDir artifacts/ops-04
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -ReportDir artifacts/ops-04
-if (-not (Test-Path artifacts/ops-04/summary.json)) { throw 'missing Ops summary' }
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidence.ps1 -Schema release/ops-evidence.schema.json -Summary artifacts/ops-04/summary.json
+```bash
+bash scripts/ops/verify-alerts.sh
+bash scripts/ops/alert-drill.tests.sh
+bash scripts/ops/alert-drill.sh -Environment Local -ComposeFile ops/observability/docker-compose.observability.yml -WebhookSink http://alert-sink:8080/events -ReportDir artifacts/ops-04
+bash scripts/verify-project.sh -ReportDir artifacts/ops-04
+if [ ! -f artifacts/ops-04/summary.json ]; then echo "missing Ops summary" >&2; exit 1; fi
+bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -Summary artifacts/ops-04/summary.json
 ```
 
 The script runs pinned `promtool`/Alertmanager config checks and contract tests.
 
 - [ ] **Step 4: Exercise firing and resolution**
 
-`alert-drill.ps1` starts an isolated observability project containing an in-network `alert-sink`, waits until Prometheus reports every postgres/redis/node/cAdvisor/blackbox target `up == 1`, injects API error-rate, dependency-down and overdue-recovery conditions, polls the sink for firing/resolved payloads, restores health, then calls the configured real external heartbeat and proves missing-heartbeat notification from the independent provider. It tears down in `finally`; `127.0.0.1` inside Alertmanager and synthetic-only heartbeat evidence are forbidden.
+`alert-drill.sh` starts an isolated observability project containing an in-network `alert-sink`, waits until Prometheus reports every postgres/redis/node/cAdvisor/blackbox target `up == 1`, injects API error-rate, dependency-down and overdue-recovery conditions, polls the sink for firing/resolved payloads, restores health, then calls the configured real external heartbeat and proves missing-heartbeat notification from the independent provider. It tears down in `finally`; `127.0.0.1` inside Alertmanager and synthetic-only heartbeat evidence are forbidden.
 
 **Acceptance evidence:** rule-test output, Alertmanager delivery IDs/screenshots, firing/resolved timestamps, runbook drill notes, `artifacts/ops-04/summary.json`.  
 **Release blocker:** invalid rule, exporter target not scraped, missing owner/runbook, receiver cannot deliver, no resolved evidence, no real independent heartbeat, or secrets committed in routing config.  
@@ -527,10 +529,10 @@ The script runs pinned `promtool`/Alertmanager config checks and contract tests.
 - Create: `security/scan-policy.json`
 - Create: `security/exceptions.json`
 - Create: `security/exceptions.schema.json`
-- Create: `scripts/security/verify-security.ps1`
-- Create: `scripts/security/verify-security.tests.ps1`
-- Create: `scripts/security/verify-pinned-actions.ps1`
-- Create: `scripts/security/verify-pinned-actions.tests.ps1`
+- Create: `scripts/security/verify-security.sh`
+- Create: `scripts/security/verify-security.tests.sh`
+- Create: `scripts/security/verify-pinned-actions.sh`
+- Create: `scripts/security/verify-pinned-actions.tests.sh`
 - Modify: `README.md`
 - Modify: `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md`
 - Modify: `progress.txt`
@@ -551,13 +553,13 @@ Use least privilege, dependency caches and artifact upload. Expose the stable ag
 
 Use test fixtures containing a fake secret pattern, expired exception and vulnerable fixture lockfile; each must fail only its intended gate.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/security/verify-security.tests.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/security/verify-pinned-actions.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/security/verify-security.ps1 -BuildImages -ReportDir artifacts/ops-05
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -ReportDir artifacts/ops-05
-if (-not (Test-Path artifacts/ops-05/summary.json)) { throw 'missing Ops summary' }
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidence.ps1 -Schema release/ops-evidence.schema.json -Summary artifacts/ops-05/summary.json
+```bash
+bash scripts/security/verify-security.tests.sh
+bash scripts/security/verify-pinned-actions.sh
+bash scripts/security/verify-security.sh -BuildImages -ReportDir artifacts/ops-05
+bash scripts/verify-project.sh -ReportDir artifacts/ops-05
+if [ ! -f artifacts/ops-05/summary.json ]; then echo "missing Ops summary" >&2; exit 1; fi
+bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -Summary artifacts/ops-05/summary.json
 ```
 
 **Acceptance evidence:** SARIF/JSON reports, workflow URLs, fixture failures, zero expired exceptions, pinned-tool manifest, filesystem/IaC/container-image report set, `artifacts/ops-05/summary.json`.  
@@ -577,12 +579,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidenc
 - Create: `.github/workflows/sbom.yml`
 - Create: `release/sbom-policy.json`
 - Create: `release/release-manifest.schema.json`
-- Create: `scripts/release/generate-sbom.ps1`
-- Create: `scripts/release/generate-sbom.tests.ps1`
-- Create: `scripts/release/verify-provenance.ps1`
-- Create: `scripts/release/verify-provenance.tests.ps1`
-- Create: `scripts/release/archive-release-evidence.ps1`
-- Create: `scripts/release/archive-release-evidence.tests.ps1`
+- Create: `scripts/release/generate-sbom.sh`
+- Create: `scripts/release/generate-sbom.tests.sh`
+- Create: `scripts/release/verify-provenance.sh`
+- Create: `scripts/release/verify-provenance.tests.sh`
+- Create: `scripts/release/archive-release-evidence.sh`
+- Create: `scripts/release/archive-release-evidence.tests.sh`
 - Modify: `backend/Dockerfile`
 - Modify: `frontend/Dockerfile`
 - Modify: `README.md`
@@ -603,14 +605,14 @@ Build immutable artifacts, upload SBOM, and create provenance/attestation with m
 
 - [ ] **Step 4: Download and verify**
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/generate-sbom.tests.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/generate-sbom.ps1 -OutputDir artifacts/ops-06
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/verify-provenance.ps1 -Manifest artifacts/ops-06/release-manifest.json
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/archive-release-evidence.tests.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -ReportDir artifacts/ops-06
-if (-not (Test-Path artifacts/ops-06/summary.json)) { throw 'missing Ops summary' }
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidence.ps1 -Schema release/ops-evidence.schema.json -Summary artifacts/ops-06/summary.json
+```bash
+bash scripts/release/generate-sbom.tests.sh
+bash scripts/release/generate-sbom.sh -OutputDir artifacts/ops-06
+bash scripts/release/verify-provenance.sh -Manifest artifacts/ops-06/release-manifest.json
+bash scripts/release/archive-release-evidence.tests.sh
+bash scripts/verify-project.sh -ReportDir artifacts/ops-06
+if [ ! -f artifacts/ops-06/summary.json ]; then echo "missing Ops summary" >&2; exit 1; fi
+bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -Summary artifacts/ops-06/summary.json
 ```
 
 The archive contract requires both a GitHub Release asset destination and an encrypted operator off-site destination with one-year retention metadata. Ops-06 proves the adapter with deterministic local fixtures; Ops-08 invokes it with protected staging/release destinations. Missing real destination credentials remains a release blocker.
@@ -639,8 +641,8 @@ The archive contract requires both a GitHub Release asset destination and an enc
 - Create: `tests/load/k6/release-profile.schema.json`
 - Create: `tests/load/k6/release-profile.json`
 - Create: `tests/load/k6/testdata.json`
-- Create: `scripts/load/run-load-tests.ps1`
-- Create: `scripts/load/run-load-tests.tests.ps1`
+- Create: `scripts/load/run-load-tests.sh`
+- Create: `scripts/load/run-load-tests.tests.sh`
 - Modify: `docs/deploy/single-server-beta-runbook.md`
 - Modify: `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md`
 - Modify: `progress.txt`
@@ -661,14 +663,14 @@ Run smoke first, then staged load and stress. Store p50/p95/p99, request/error r
 
 PR runs a short local smoke only when relevant paths change; scheduled/manual staging jobs run load/stress with staging-scoped secrets. The runner owns setup/readiness/seed/metrics/cleanup in `try/finally`: start an isolated app/PostgreSQL/Redis/Prometheus Compose project, wait for readiness, seed named test identities and dataset, run host k6 against `127.0.0.1`, capture resource metrics, delete test identities/data, then remove containers/volumes. Missing services, seed cleanup or metrics fail the run.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/load/run-load-tests.tests.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/load/run-load-tests.ps1 -Environment Local -Tier Smoke -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/ops-07 -RunName smoke
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/load/run-load-tests.ps1 -Environment Local -Tier Load -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/ops-07 -RunName load
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/load/run-load-tests.ps1 -Environment Local -Tier Stress -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/ops-07 -RunName stress
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -ReportDir artifacts/ops-07
-if (-not (Test-Path artifacts/ops-07/summary.json)) { throw 'missing Ops summary' }
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidence.ps1 -Schema release/ops-evidence.schema.json -Summary artifacts/ops-07/summary.json
+```bash
+bash scripts/load/run-load-tests.tests.sh
+bash scripts/load/run-load-tests.sh -Environment Local -Tier Smoke -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/ops-07 -RunName smoke
+bash scripts/load/run-load-tests.sh -Environment Local -Tier Load -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/ops-07 -RunName load
+bash scripts/load/run-load-tests.sh -Environment Local -Tier Stress -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/ops-07 -RunName stress
+bash scripts/verify-project.sh -ReportDir artifacts/ops-07
+if [ ! -f artifacts/ops-07/summary.json ]; then echo "missing Ops summary" >&2; exit 1; fi
+bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -Summary artifacts/ops-07/summary.json
 ```
 
 **Acceptance evidence:** approved profile, k6 smoke/load/stress summary JSON, thresholds, environment/dataset inventory, resource graphs, bottleneck/recovery notes, workflow URL, `artifacts/ops-07/summary.json`.  
@@ -689,13 +691,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidenc
 - Create: `.github/workflows/release.yml`
 - Create: `release/production-config.schema.json`
 - Create: `release/deployment-manifest.schema.json`
-- Create: `scripts/release/preflight.ps1`
-- Create: `scripts/release/preflight.tests.ps1`
+- Create: `scripts/release/preflight.sh`
+- Create: `scripts/release/preflight.tests.sh`
 - Create: `scripts/release/deploy.sh`
 - Create: `scripts/release/rollback.sh`
-- Create: `scripts/release/deployment-contract.tests.ps1`
-- Create: `scripts/release/staging-drill.ps1`
-- Create: `scripts/release/staging-drill.tests.ps1`
+- Create: `scripts/release/deployment-contract.tests.sh`
+- Create: `scripts/release/staging-drill.sh`
+- Create: `scripts/release/staging-drill.tests.sh`
 - Modify: `.gitignore`
 - Modify: `backend/config/config.go`
 - Modify: `backend/config/config_test.go`
@@ -730,23 +732,25 @@ Build/verify once, deploy the same digest, use GitHub Environment protection, an
 
 - [ ] **Step 5: Perform staging deploy and rollback drill**
 
-Deploy release candidate, verify, roll back to previous application digest against compatible schema, verify again, then redeploy candidate. Record actual durations and operator commands. Before the drill require `OMNICRAFT_STAGING_ENV_FILE`, `OMNICRAFT_STAGING_OVERRIDE_FILE`, `OMNICRAFT_CANDIDATE_MANIFEST`, `OMNICRAFT_PREVIOUS_MANIFEST`, real staging OSS/versioning credentials and encrypted off-site archive destination; the drill script validates each input and refuses placeholders. Change `release/recovery-objectives.json` from `baseline_only` to user-approved numeric database/object/service RPO/RTO with a commit-bound, API-verifiable approval reference, then machine-compare measured PostgreSQL + Aliyun OSS restore/reconciliation results. Invoke `archive-release-evidence.ps1` against both durable destinations and verify retention metadata.
+Deploy release candidate, verify, roll back to previous application digest against compatible schema, verify again, then redeploy candidate. Record actual durations and operator commands. Before the drill require `OMNICRAFT_STAGING_ENV_FILE`, `OMNICRAFT_STAGING_OVERRIDE_FILE`, `OMNICRAFT_CANDIDATE_MANIFEST`, `OMNICRAFT_PREVIOUS_MANIFEST`, real staging OSS/versioning credentials and encrypted off-site archive destination; the drill script validates each input and refuses placeholders. Change `release/recovery-objectives.json` from `baseline_only` to user-approved numeric database/object/service RPO/RTO with a commit-bound, API-verifiable approval reference, then machine-compare measured PostgreSQL + Aliyun OSS restore/reconciliation results. Invoke `archive-release-evidence.sh` against both durable destinations and verify retention metadata.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/preflight.tests.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/deployment-contract.tests.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/staging-drill.tests.ps1
-if (-not $env:OMNICRAFT_STAGING_ENV_FILE -or -not $env:OMNICRAFT_STAGING_OVERRIDE_FILE -or -not $env:OMNICRAFT_CANDIDATE_MANIFEST -or -not $env:OMNICRAFT_PREVIOUS_MANIFEST -or -not $env:OMNICRAFT_STAGING_OSS_BUCKET -or -not $env:OMNICRAFT_OFFSITE_ARCHIVE_URI -or -not $env:GITHUB_RELEASE_TAG) { throw 'Set all staging, OSS, release and off-site archive inputs' }
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/preflight.ps1 -EnvironmentFile $env:OMNICRAFT_STAGING_ENV_FILE -OverrideFile $env:OMNICRAFT_STAGING_OVERRIDE_FILE
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/staging-drill.ps1 -EnvironmentFile $env:OMNICRAFT_STAGING_ENV_FILE -OverrideFile $env:OMNICRAFT_STAGING_OVERRIDE_FILE -CandidateManifest $env:OMNICRAFT_CANDIDATE_MANIFEST -PreviousManifest $env:OMNICRAFT_PREVIOUS_MANIFEST -ReportDir artifacts/ops-08
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/archive-release-evidence.ps1 -Manifest artifacts/ops-08/deployment-manifest.json -GitHubRelease $env:GITHUB_RELEASE_TAG -OffsiteUri $env:OMNICRAFT_OFFSITE_ARCHIVE_URI -RetentionDays 365 -ReportDir artifacts/ops-08
+```bash
+bash scripts/release/preflight.tests.sh
+bash scripts/release/deployment-contract.tests.sh
+bash scripts/release/staging-drill.tests.sh
+for v in OMNICRAFT_STAGING_ENV_FILE OMNICRAFT_STAGING_OVERRIDE_FILE OMNICRAFT_CANDIDATE_MANIFEST OMNICRAFT_PREVIOUS_MANIFEST OMNICRAFT_STAGING_OSS_BUCKET OMNICRAFT_OFFSITE_ARCHIVE_URI GITHUB_RELEASE_TAG; do
+  if [ -z "${!v:-}" ]; then echo "Set all staging, OSS, release and off-site archive inputs (missing $v)" >&2; exit 1; fi
+done
+bash scripts/release/preflight.sh -EnvironmentFile "$OMNICRAFT_STAGING_ENV_FILE" -OverrideFile "$OMNICRAFT_STAGING_OVERRIDE_FILE"
+bash scripts/release/staging-drill.sh -EnvironmentFile "$OMNICRAFT_STAGING_ENV_FILE" -OverrideFile "$OMNICRAFT_STAGING_OVERRIDE_FILE" -CandidateManifest "$OMNICRAFT_CANDIDATE_MANIFEST" -PreviousManifest "$OMNICRAFT_PREVIOUS_MANIFEST" -ReportDir artifacts/ops-08
+bash scripts/release/archive-release-evidence.sh -Manifest artifacts/ops-08/deployment-manifest.json -GitHubRelease "$GITHUB_RELEASE_TAG" -OffsiteUri "$OMNICRAFT_OFFSITE_ARCHIVE_URI" -RetentionDays 365 -ReportDir artifacts/ops-08
 cd tools/doc-validator
 go run . --fix
 go run . --check --profile release
 cd ../..
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -Release -ReportDir artifacts/ops-08
-if (-not (Test-Path artifacts/ops-08/summary.json)) { throw 'missing Ops summary' }
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidence.ps1 -Schema release/ops-evidence.schema.json -Summary artifacts/ops-08/summary.json
+bash scripts/verify-project.sh --release -ReportDir artifacts/ops-08
+if [ ! -f artifacts/ops-08/summary.json ]; then echo "missing Ops summary" >&2; exit 1; fi
+bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -Summary artifacts/ops-08/summary.json
 ```
 
 **Acceptance evidence:** redacted preflight summary, deployment manifest, backup/migration IDs, candidate/previous digests, readiness/smoke logs, rollback and redeploy durations, approved and met RPO/RTO, `docs/deploy/single-server-beta-runbook.md` revised in place with a production title/status banner and an explicit note that the legacy filename is retained only for link compatibility, final-commit-bound `artifacts/ops-08/summary.json`.  
@@ -765,9 +769,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidenc
 
 - Create: `.github/workflows/desktop-release.yml`
 - Create: `release/desktop-manifest.schema.json`
-- Create: `scripts/release/verify-desktop-artifacts.ps1`
-- Create: `scripts/release/verify-desktop-artifacts.tests.ps1`
-- Create: `scripts/release/desktop-key-rotation-drill.ps1`
+- Create: `scripts/release/verify-desktop-artifacts.sh`
+- Create: `scripts/release/verify-desktop-artifacts.tests.sh`
+- Create: `scripts/release/desktop-key-rotation-drill.sh`
 - Create: `scripts/release/testdata/desktop-old.pub`
 - Create: `scripts/release/testdata/desktop-current.pub`
 - Create: `scripts/release/testdata/desktop-revoked.pub`
@@ -804,14 +808,14 @@ Build once, run Tauri tests/security scans, sign updater artifacts, Authenticode
 
 - [ ] **Step 5: Verify artifacts and key rotation**
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/verify-desktop-artifacts.tests.ps1
-if (-not $env:OMNICRAFT_DESKTOP_MANIFEST) { throw 'Set OMNICRAFT_DESKTOP_MANIFEST to the downloaded clean-runner manifest path' }
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-project.ps1 -Release -Tauri -ReportDir artifacts/ops-09
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/verify-desktop-artifacts.ps1 -Manifest $env:OMNICRAFT_DESKTOP_MANIFEST -ReportDir artifacts/ops-09
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release/desktop-key-rotation-drill.ps1 -Manifest $env:OMNICRAFT_DESKTOP_MANIFEST -OldPublicKey scripts/release/testdata/desktop-old.pub -CurrentPublicKey scripts/release/testdata/desktop-current.pub -RevokedPublicKey scripts/release/testdata/desktop-revoked.pub -TransitionManifest scripts/release/testdata/desktop-transition-manifest.json -RevocationList scripts/release/testdata/desktop-revocation-list.json -ReportDir artifacts/ops-09
-if (-not (Test-Path artifacts/ops-09/summary.json)) { throw 'missing Ops summary' }
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ops/validate-evidence.ps1 -Schema release/ops-evidence.schema.json -Summary artifacts/ops-09/summary.json
+```bash
+bash scripts/release/verify-desktop-artifacts.tests.sh
+if [ -z "${OMNICRAFT_DESKTOP_MANIFEST:-}" ]; then echo 'Set OMNICRAFT_DESKTOP_MANIFEST to the downloaded clean-runner manifest path' >&2; exit 1; fi
+bash scripts/verify-project.sh --release --tauri -ReportDir artifacts/ops-09
+bash scripts/release/verify-desktop-artifacts.sh -Manifest "$OMNICRAFT_DESKTOP_MANIFEST" -ReportDir artifacts/ops-09
+bash scripts/release/desktop-key-rotation-drill.sh -Manifest "$OMNICRAFT_DESKTOP_MANIFEST" -OldPublicKey scripts/release/testdata/desktop-old.pub -CurrentPublicKey scripts/release/testdata/desktop-current.pub -RevokedPublicKey scripts/release/testdata/desktop-revoked.pub -TransitionManifest scripts/release/testdata/desktop-transition-manifest.json -RevocationList scripts/release/testdata/desktop-revocation-list.json -ReportDir artifacts/ops-09
+if [ ! -f artifacts/ops-09/summary.json ]; then echo "missing Ops summary" >&2; exit 1; fi
+bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -Summary artifacts/ops-09/summary.json
 ```
 
 Perform a non-production key-rotation drill proving the supported transition sequence: a release signed by the old key delivers a client containing the new public key, the next release is signed by the new key, and a fixture signed only by the revoked key is rejected. The revocation list is verifier/release-policy evidence; do not imply that stock Tauri dynamically consumes multiple updater keys unless the implemented client contract and tests prove it.

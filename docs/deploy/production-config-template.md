@@ -170,13 +170,13 @@ blocks instead: `app.leeppp.online` proxies `/` to frontend, and
 
 ## Quick Verification Commands
 
-```powershell
-Resolve-DnsName app.leeppp.online
-Resolve-DnsName api.leeppp.online
+```bash
+dig +short app.leeppp.online
+dig +short api.leeppp.online
 
-curl.exe -I https://app.leeppp.online
-curl.exe https://api.leeppp.online/healthz
-curl.exe https://api.leeppp.online/api/v1/config/public
+curl -I https://app.leeppp.online
+curl https://api.leeppp.online/healthz
+curl https://api.leeppp.online/api/v1/config/public
 
 openssl s_client -connect app.leeppp.online:443 -servername app.leeppp.online
 openssl s_client -connect api.leeppp.online:443 -servername api.leeppp.online

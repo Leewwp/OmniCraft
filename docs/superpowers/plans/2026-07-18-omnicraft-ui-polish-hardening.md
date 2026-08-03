@@ -39,13 +39,13 @@ The former severity totals were removed because their cited “three audit appen
 | Loading/empty state | 15 `common.loading` usages exist; `EmptyState` is already used by several list surfaces | Replace only page-level naked loading states; inline loading labels remain valid |
 | Error exposure | Direct user rendering is verified in `app/error.tsx`, verify-email, PR requests, `VersionHistory`, and `DownloadButton`; console logging in utilities is not user exposure | U-05 must refresh and own the precise allowlist before U-04/U-11 receive overlapping files |
 | Reputation threshold | Four interaction components hard-code `3`; the public-config contract explicitly rejects `reputation`, `threshold`, and `min_score` fields | U-11 must use a server-derived capability, not a frontend config hook |
-| CI integration | No repository GitHub workflow exists; `scripts/verify-project.ps1` is the project gate | U-12 integrates `npm run lint:ui` into the project verifier instead of writing `frontend/.github/**` |
+| CI integration | No repository GitHub workflow exists; `scripts/verify-project.sh` is the project gate | U-12 integrates `npm run lint:ui` into the project verifier instead of writing `frontend/.github/**` |
 
 Baseline command for palette inventory:
 
-```powershell
-$pattern = '(?:bg|text|border|ring|from|via|to)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-'
-rg -o --glob '!node_modules/**' --glob '!package-lock.json' --glob '*.{ts,tsx,css}' $pattern frontend
+```bash
+pattern='(?:bg|text|border|ring|from|via|to)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-'
+rg -o --glob '!node_modules/**' --glob '!package-lock.json' --glob '*.{ts,tsx,css}' "$pattern" frontend
 ```
 
 ## Coordination And Parallelism
@@ -75,7 +75,7 @@ Every Task follows this sequence:
 - [ ] Start required services from the task branch; if the deterministic test uses mocked API routes, record that explicitly.
 - [ ] Write a failing unit/contract test that demonstrates the specific defect. A screenshot alone is not the red test.
 - [ ] Confirm the expected failure, implement the minimum correction, then refactor.
-- [ ] Run focused tests, `npm.cmd run lint`, `npm.cmd test`, and `npm.cmd run build`.
+- [ ] Run focused tests, `npm run lint`, `npm test`, and `npm run build`.
 - [ ] For visible changes, exercise keyboard and pointer interaction in Playwright and save deterministic screenshots under `screenshots/ui-polish/u-XX/`.
 - [ ] Run specification-conformance review, then code-quality review; fix and re-review all correctness, security, scope, and contract findings.
 - [ ] Update only this Task's checkboxes and `progress.txt`; stage exact files and create one commit.
@@ -412,13 +412,13 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - Create: `frontend/scripts/ui-governance/run-all.test.mjs`
 - Create: `frontend/scripts/ui-governance/check-source-policy.mjs`
 - Create: `frontend/scripts/ui-governance/check-source-policy.test.mjs`
-- Modify: `scripts/verify-project.ps1`
-- Modify: `scripts/verify-project.tests.ps1`
+- Modify: `scripts/verify-project.sh`
+- Modify: `scripts/verify-project.tests.sh`
 - Modify: `frontend/playwright.config.ts` only if new deterministic visual projects are required
 
 - [ ] Add `lint:ui` without removing existing package scripts; run token, i18n parity, native-dialog, undefined-token, and narrowly scoped source-policy checks.
 - [ ] Prefer AST/structured checks or explicit allowlists. Regex checks for hard-coded text, aria labels, touch targets, and colors must begin as measured reports until false positives and intentional exceptions are encoded.
-- [ ] Add a failing verifier contract test, then invoke `npm.cmd run lint:ui` from `scripts/verify-project.ps1`.
+- [ ] Add a failing verifier contract test, then invoke `npm run lint:ui` from `scripts/verify-project.sh`.
 - [ ] Do not claim real Safari coverage from Playwright WebKit. Record Chromium/Firefox/WebKit engine results separately from any manual Safari release evidence.
 - [ ] Run the complete project gate and mocked browser contracts. Release/browser and external-service evidence remain separate requirements.
 
@@ -429,7 +429,7 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - [ ] No raw backend or exception message is rendered to users in the audited allowlist.
 - [ ] Shared primitives and changed surfaces meet keyboard, focus, accessible-name, error-announcement, and mobile target requirements.
 - [ ] Changed surfaces use only authoritative tokens; intentional palette/arbitrary-size exceptions are documented by file and reason.
-- [ ] `npm.cmd run lint:ui`, frontend unit/lint/build, project verification, and required focused backend gates pass.
+- [ ] `npm run lint:ui`, frontend unit/lint/build, project verification, and required focused backend gates pass.
 - [ ] Deterministic screenshots exist for home, original feed, content detail, studio overview, admin, messages, light/dark, and 375/768/1024/1440 viewports. Pixel-diff thresholds are required only if U-12 actually introduces stable snapshot tooling and baselines.
 - [ ] Production-readiness coordination is re-reviewed after the missing parent documents are restored; unresolved security/release conflicts keep the affected Task unchecked.
 

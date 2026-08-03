@@ -191,7 +191,7 @@
 
 P-01 仅以完整 mock 数据验证全文搜索；真实 owner-scoped API、分页和索引由 Web Agent Productization 后续任务实现。
 
-**A1.6 实现与验证证据**：`detail.tsx` / `social.tsx` / `comments.tsx` / `agent.tsx` / `chat-overlay.tsx` 与 `prototype.css` 已落实上表契约；`node scripts/capture-p01-prototype.mjs` 在方向 A/B 均通过 320/375/414/768/1280/1920px、明暗色、移动端、reduced-motion、导航栈、资料浮层、评论图片、居中私信与 Agent 全文搜索断言。新增代表截图包括 `direction-{a,b}-agent-fulltext-search-desktop.png`，并刷新 detail/profile-card/comment-composer/chat-overlay 证据。独立浏览器复核确认 4 条“站台”正文命中按时间倒序、2000 字截断与六行内部滚动、失焦草稿保留、440px 私信窗口视口居中；`npm.cmd run lint`、`npm.cmd run build`、后端 `go test ./...` / `go vet ./...` / `go build ./...` 均通过。
+**A1.6 实现与验证证据**：`detail.tsx` / `social.tsx` / `comments.tsx` / `agent.tsx` / `chat-overlay.tsx` 与 `prototype.css` 已落实上表契约；`node scripts/capture-p01-prototype.mjs` 在方向 A/B 均通过 320/375/414/768/1280/1920px、明暗色、移动端、reduced-motion、导航栈、资料浮层、评论图片、居中私信与 Agent 全文搜索断言。新增代表截图包括 `direction-{a,b}-agent-fulltext-search-desktop.png`，并刷新 detail/profile-card/comment-composer/chat-overlay 证据。独立浏览器复核确认 4 条“站台”正文命中按时间倒序、2000 字截断与六行内部滚动、失焦草稿保留、440px 私信窗口视口居中；`npm run lint`、`npm run build`、后端 `go test ./...` / `go vet ./...` / `go build ./...` 均通过。
 
 ## 6.3 A2 IP 库原型交接规格（2026-07-28）
 
@@ -234,7 +234,7 @@ P-01 仅以完整 mock 数据验证全文搜索；真实 owner-scoped API、分�
 
 **验证(2026-07-29)**
 
-- `npm.cmd run lint`、`npm.cmd run build`:PASS(63 个页面)。
+- `npm run lint`、`npm run build`:PASS(63 个页面)。
 - 后端 `go test ./...`、`go vet ./...`、`go build ./...`:PASS。
 - `node scripts/capture-p01-prototype.mjs`:PASS;IP 库断言覆盖首屏密度(12 张/首行 6 列/间距 16px/右缘无残空)、16:10 封面、搜索过滤与总数同步、无结果空态(保留查询 + 单一清空入口)、分类筛选、内容最多/名称排序、加载更多 12→24→36 与已到底、骨架网格与最终轨道一致、错误重试回 default、键盘 Tab 焦点环与完整可访问名称、卡片点击进入生产 `/ip/[ipId]`;320/375/414/768/1280/1920 无横向溢出。
 - 证据:`screenshots/ui-polish/prototype/direction-a-library-{375,768,1280,1440}-light.png`、`direction-a-library-1280-dark.png`、`direction-a-library-{loading,empty,error}-1280.png`、`direction-a-library-search-empty-desktop.png`、`direction-a-library-loadmore-end-desktop.png`。
