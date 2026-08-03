@@ -113,7 +113,6 @@ jobs:
           retention-days: ${{ github.event_name == 'push' && 90 || 30 }}
 
   project-gate:
-    name: Project gate
     needs: [backend, frontend, docs]
     runs-on: ubuntu-latest
     services:
