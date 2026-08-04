@@ -352,3 +352,24 @@
 - 另一会话 2026-08-03 在 ui-polish-u01 提交 `7fb6b4e`（multiplatform 计划登记），与本任务无关未触碰。
 - 合并后 U-12 可开始：基于 main（7f34191）rebase 执行，共享 verifier/package.json 不再冲突。
 - 后续 Ops-02 起各任务块可直接使用 `verify-project.sh -ReportDir artifacts/ops-XX` + finalize/validate 证据链。
+
+## [2026-08-04] - 修复 f1d36e3..HEAD 双轴代码评审发现
+
+### What was done:
+- **后端 denial-reason 字符串收敛**：`service/runtime_status.go` 新增 `DenialReason*` 常量集（AUTH_STATUS_UNAVAILABLE/USER_BANNED/EMAIL_NOT_VERIFIED/CONFIG_ERROR/INSUFFICIENT_REPUTATION）与 `ErrUserStatusNotFound/ErrUserStatusDeleted` 哨兵错误 + `IsSoftDenialReason` 辅助；`middleware/interaction.go`（switch 分支与三处响应码）、`middleware/auth.go`（5 处）、`handler/auth.go`（`!Allowed && reason != A && reason != B` 双重否定 → `IsSoftDenialReason`，另 3 处）、`handler/rehab.go` 全部改用常量/errors.Is。
+- **`isBroadcastUniqueViolation` 类型化**：`notification_service.go` 由字符串匹配（sqlite 测试方言错误文本 + "sqlstate 23505"）改为 `errors.As` 类型断言——postgres 走 `*pgconn.PgError` Code==23505（pgx v5.6 无常量，用具名 const + PostgreSQL 协议固定 SQLSTATE），sqlite 走 `*sqlite.Error` Code()==SQLITE_CONSTRAINT_UNIQUE（modernc sqlite/lib 常量）；删除全部字符串匹配。
+- **前端**：`contexts/AuthContext.tsx` 导出 `DENIAL_REASON_*` 常量（switch 与 FAIL_CLOSED_CAPABILITIES 使用）；`admin/notifications/page.tsx` 抽取 `newIdempotencyKey()` 消除两处 `globalThis.crypto.randomUUID()`，幂等键注释 3 行精简为 1 行（保留加载语义）。
+- **Tauri**：`file_ops.rs` 抽出 `err_no_existing_ancestor()` 消除两处重复错误格式化。
+- **ADR**：新增 `docs/adr/0002-nginx-csp-unsafe-inline.md`（为 15e6525 的 `script-src 'unsafe-inline'` 决策补记录：App Router 内联 bootstrap 无法 nonce/hash、双头并存取交集的坑、API vhost 保持严格策略对照、迁移路径），README 索引更新。
+- 保留判断：注释政策下确认弹窗/侧栏/并发语义等 why-comment 属评审者建议保留的"tricky logic"类别，未删除；`queue/observability.go` 的 Redis 错误串比较属不同领域（XACK/NOGROUP），未动。
+
+### Testing:
+- `go build ./... && go vet ./...` PASS；`go test ./...` 全 PASS（含 notification 幂等重放 sqlite/postgres 用例、interaction/auth 断言原字符串值不变）。
+- `npm run lint`（tsc）PASS、`npm run lint:ui` PASS（UI governance checks passed）、`npm run build` PASS。
+- `bash scripts/verify-project.sh` PASS（含 doc-validator release profile、契约测试）。
+- 未验证：`file_ops.rs`（本机无 Rust 工具链，改动为等价函数提取，待 CI tauri-windows 验证）。
+
+### Notes:
+- 常量/哨兵保持原字符串值与错误消息不变，API 响应码与既有测试断言零破坏。
+- `go.mod`：pgconn 转正为直接依赖（原 indirect），`go mod tidy` 已更新。
+- 历史提交 affda3c（admin/users 页 + .gitignore + docs/agents skill 文件捆绑）与 CSP/captcha 无 spec 来源属历史问题，不重写 main 历史；`.gitignore` 锚定 `/Users*/` 实为正确修正。
