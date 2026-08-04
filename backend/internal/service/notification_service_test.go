@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/glebarez/sqlite"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -610,4 +611,7 @@ func TestBroadcastSystemNotificationConcurrentSameKeyCreatesOncePostgres(t *test
 
 func TestIsBroadcastUniqueViolationRejectsUnrelatedUniqueErrors(t *testing.T) {
 	require.False(t, isBroadcastUniqueViolation(errors.New(`ERROR: duplicate key value violates unique constraint "users_email_key" (SQLSTATE 23505)`)))
+	require.False(t, isBroadcastUniqueViolation(&pgconn.PgError{Code: "23505", ConstraintName: "users_email_key"}))
+	require.False(t, isBroadcastUniqueViolation(&pgconn.PgError{Code: "23503"}))
+	require.True(t, isBroadcastUniqueViolation(&pgconn.PgError{Code: "23505", ConstraintName: "uq_notification_broadcast_requests_actor_key"}))
 }

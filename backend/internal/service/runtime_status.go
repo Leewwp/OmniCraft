@@ -121,7 +121,7 @@ func ResolveRuntimeUserStatus(ctx context.Context, db *gorm.DB, cache *RuntimeSt
 	}
 
 	if db == nil {
-		return nil, fmt.Errorf(DenialReasonAuthStatusUnavailable)
+		return nil, errors.New(DenialReasonAuthStatusUnavailable)
 	}
 	var result struct {
 		ID              int64      `gorm:"column:id"`
@@ -137,7 +137,7 @@ func ResolveRuntimeUserStatus(ctx context.Context, db *gorm.DB, cache *RuntimeSt
 		Where("id = ?", userID).
 		Scan(&result).Error
 	if err != nil {
-		return nil, fmt.Errorf(DenialReasonAuthStatusUnavailable)
+		return nil, errors.New(DenialReasonAuthStatusUnavailable)
 	}
 
 	if result.ID == 0 {
