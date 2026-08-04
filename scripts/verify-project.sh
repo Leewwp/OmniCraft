@@ -157,6 +157,7 @@ fi
 if in_scope Frontend; then
   run_checked "$REPO_ROOT/frontend" frontend frontend-npm-test-unit npm run test:unit
   run_checked "$REPO_ROOT/frontend" frontend frontend-npm-lint npm run lint
+  run_checked "$REPO_ROOT/frontend" frontend frontend-npm-lint-ui npm run lint:ui
   run_checked "$REPO_ROOT/frontend" frontend frontend-npm-build npm run build
 fi
 

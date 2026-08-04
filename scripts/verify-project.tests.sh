@@ -75,6 +75,7 @@ backend|go vet ./...
 backend|go build ./...
 frontend|npm run test:unit
 frontend|npm run lint
+frontend|npm run lint:ui
 frontend|npm run build
 doc-validator|go test ./...
 doc-validator|go run . --check --profile release"
@@ -157,6 +158,7 @@ backend|go vet ./...
 backend|go build ./..."
 FRONTEND_COMMANDS="frontend|npm run test:unit
 frontend|npm run lint
+frontend|npm run lint:ui
 frontend|npm run build"
 DOCS_COMMANDS="doc-validator|go test ./...
 doc-validator|go run . --check --profile release"
@@ -222,6 +224,7 @@ backend-go-vet
 backend-go-build
 frontend-npm-test-unit
 frontend-npm-lint
+frontend-npm-lint-ui
 frontend-npm-build
 doc-validator-go-test
 doc-validator-go-check"
@@ -267,12 +270,13 @@ if len(s["commands"]) != len(s["exit_codes"]):
     print("FAIL: commands and exit_codes must be paired")
     sys.exit(1)
 if s["commands"] != ["backend|go test ./...", "backend|go vet ./...", "backend|go build ./...",
-                     "frontend|npm run test:unit", "frontend|npm run lint", "frontend|npm run build",
+                     "frontend|npm run test:unit", "frontend|npm run lint", "frontend|npm run lint:ui",
+                     "frontend|npm run build",
                      "doc-validator|go test ./...", "doc-validator|go run . --check --profile release"]:
     print("FAIL: summary command list must match the default contract")
     sys.exit(1)
-if len(s["evidence"]) != 8 or not all(e.endswith(".log") for e in s["evidence"]):
-    print("FAIL: evidence must list the eight per-command logs")
+if len(s["evidence"]) != 9 or not all(e.endswith(".log") for e in s["evidence"]):
+    print("FAIL: evidence must list the nine per-command logs")
     sys.exit(1)
 for tool in ("go", "node", "npm"):
     if tool not in s["tool_versions"]:
