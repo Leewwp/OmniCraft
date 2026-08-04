@@ -35,6 +35,10 @@ fn resolve_whitelist_roots() -> Vec<PathBuf> {
     roots
 }
 
+fn err_no_existing_ancestor(path: &Path) -> String {
+    format!("cannot resolve path '{}': no existing ancestor", path.display())
+}
+
 // Resolves a path for whitelist comparison. Existing components are
 // canonicalized (symlink-safe); missing tail components are appended
 // lexically so destination paths that do not exist yet can still be checked.
@@ -51,13 +55,9 @@ fn canonicalize_or_resolve(path: &Path) -> Result<PathBuf, String> {
                 return Ok(resolved);
             }
             Err(_) => {
-                let name = probe.file_name().ok_or_else(|| {
-                    format!("cannot resolve path '{}': no existing ancestor", path.display())
-                })?;
+                let name = probe.file_name().ok_or_else(|| err_no_existing_ancestor(path))?;
                 tail.push(name.to_os_string());
-                probe = probe.parent().ok_or_else(|| {
-                    format!("cannot resolve path '{}': no existing ancestor", path.display())
-                })?;
+                probe = probe.parent().ok_or_else(|| err_no_existing_ancestor(path))?;
             }
         }
     }
