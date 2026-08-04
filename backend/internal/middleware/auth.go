@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -56,7 +57,7 @@ func AuthRequired(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.Han
 
 		if !redisAvailable && !dbAvailable {
 			c.JSON(503, gin.H{
-				"code":    "AUTH_STATUS_UNAVAILABLE",
+				"code":    service.DenialReasonAuthStatusUnavailable,
 				"message": "auth service is temporarily unavailable, please try again later",
 			})
 			c.Abort()
@@ -72,7 +73,7 @@ func AuthRequired(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.Han
 				return
 			}
 			if redisErr != nil && redisErr != redis.Nil {
-				c.JSON(503, gin.H{"code": "AUTH_STATUS_UNAVAILABLE", "message": "account status is temporarily unavailable"})
+				c.JSON(503, gin.H{"code": service.DenialReasonAuthStatusUnavailable, "message": "account status is temporarily unavailable"})
 				c.Abort()
 				return
 			}
@@ -81,24 +82,23 @@ func AuthRequired(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.Han
 		cache := service.NewRuntimeStatusCache(rdb, cfg)
 		status, resolveErr := service.ResolveRuntimeUserStatus(c.Request.Context(), dbInstance, cache, claims.UserID)
 		if resolveErr != nil {
-			errCode := resolveErr.Error()
-			if errCode == "USER_NOT_FOUND" || errCode == "USER_DELETED" {
+			if errors.Is(resolveErr, service.ErrUserStatusNotFound) || errors.Is(resolveErr, service.ErrUserStatusDeleted) {
 				c.JSON(401, gin.H{"code": "UNAUTHORIZED", "message": "user not found or deleted"})
 				c.Abort()
 				return
 			}
 			if status != nil && status.IsBanned {
-				c.JSON(401, gin.H{"code": "USER_BANNED", "message": "account has been banned"})
+				c.JSON(401, gin.H{"code": service.DenialReasonUserBanned, "message": "account has been banned"})
 				c.Abort()
 				return
 			}
-			c.JSON(503, gin.H{"code": "AUTH_STATUS_UNAVAILABLE", "message": "account status is temporarily unavailable"})
+			c.JSON(503, gin.H{"code": service.DenialReasonAuthStatusUnavailable, "message": "account status is temporarily unavailable"})
 			c.Abort()
 			return
 		}
 
 		if status.IsBanned {
-			c.JSON(401, gin.H{"code": "USER_BANNED", "message": "account has been banned"})
+			c.JSON(401, gin.H{"code": service.DenialReasonUserBanned, "message": "account has been banned"})
 			c.Abort()
 			return
 		}

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,6 +11,19 @@ import (
 	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
+)
+
+const (
+	DenialReasonAuthStatusUnavailable  = "AUTH_STATUS_UNAVAILABLE"
+	DenialReasonUserBanned             = "USER_BANNED"
+	DenialReasonEmailNotVerified       = "EMAIL_NOT_VERIFIED"
+	DenialReasonConfigError            = "CONFIG_ERROR"
+	DenialReasonInsufficientReputation = "INSUFFICIENT_REPUTATION"
+)
+
+var (
+	ErrUserStatusNotFound = errors.New("USER_NOT_FOUND")
+	ErrUserStatusDeleted  = errors.New("USER_DELETED")
 )
 
 type RuntimeUserStatus struct {
@@ -27,23 +41,27 @@ type InteractionAccessDecision struct {
 
 func EvaluateInteractionAccess(status *RuntimeUserStatus, cfg *config.Config, requireVerifiedEmail, requireReputation bool) InteractionAccessDecision {
 	if status == nil || cfg == nil {
-		return InteractionAccessDecision{DenialReason: "AUTH_STATUS_UNAVAILABLE"}
+		return InteractionAccessDecision{DenialReason: DenialReasonAuthStatusUnavailable}
 	}
 	if status.IsBanned {
-		return InteractionAccessDecision{DenialReason: "USER_BANNED"}
+		return InteractionAccessDecision{DenialReason: DenialReasonUserBanned}
 	}
 	if requireVerifiedEmail && status.EmailVerifiedAt == nil {
-		return InteractionAccessDecision{DenialReason: "EMAIL_NOT_VERIFIED"}
+		return InteractionAccessDecision{DenialReason: DenialReasonEmailNotVerified}
 	}
 	if requireReputation {
 		if cfg.Reputation.MinScoreForInteraction <= 0 {
-			return InteractionAccessDecision{DenialReason: "CONFIG_ERROR"}
+			return InteractionAccessDecision{DenialReason: DenialReasonConfigError}
 		}
 		if status.Reputation < cfg.Reputation.MinScoreForInteraction {
-			return InteractionAccessDecision{DenialReason: "INSUFFICIENT_REPUTATION"}
+			return InteractionAccessDecision{DenialReason: DenialReasonInsufficientReputation}
 		}
 	}
 	return InteractionAccessDecision{Allowed: true}
+}
+
+func IsSoftDenialReason(reason string) bool {
+	return reason == DenialReasonEmailNotVerified || reason == DenialReasonInsufficientReputation
 }
 
 type RuntimeStatusCache struct {
@@ -103,9 +121,8 @@ func ResolveRuntimeUserStatus(ctx context.Context, db *gorm.DB, cache *RuntimeSt
 	}
 
 	if db == nil {
-		return nil, fmt.Errorf("AUTH_STATUS_UNAVAILABLE")
+		return nil, fmt.Errorf(DenialReasonAuthStatusUnavailable)
 	}
-
 	var result struct {
 		ID              int64      `gorm:"column:id"`
 		Role            string     `gorm:"column:role"`
@@ -120,15 +137,15 @@ func ResolveRuntimeUserStatus(ctx context.Context, db *gorm.DB, cache *RuntimeSt
 		Where("id = ?", userID).
 		Scan(&result).Error
 	if err != nil {
-		return nil, fmt.Errorf("AUTH_STATUS_UNAVAILABLE")
+		return nil, fmt.Errorf(DenialReasonAuthStatusUnavailable)
 	}
 
 	if result.ID == 0 {
-		return nil, fmt.Errorf("USER_NOT_FOUND")
+		return nil, ErrUserStatusNotFound
 	}
 
 	if result.DeletedAt != nil {
-		return nil, fmt.Errorf("USER_DELETED")
+		return nil, ErrUserStatusDeleted
 	}
 
 	status := &RuntimeUserStatus{

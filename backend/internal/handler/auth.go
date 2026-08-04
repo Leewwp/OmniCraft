@@ -45,7 +45,7 @@ func buildAuthCapabilities(user *model.User, cfg *config.Config) (AuthCapabiliti
 		Reputation:      user.Reputation,
 	}
 	decision := service.EvaluateInteractionAccess(status, cfg, true, true)
-	if !decision.Allowed && decision.DenialReason != "EMAIL_NOT_VERIFIED" && decision.DenialReason != "INSUFFICIENT_REPUTATION" {
+	if !decision.Allowed && !service.IsSoftDenialReason(decision.DenialReason) {
 		return AuthCapabilities{}, decision.DenialReason
 	}
 	return AuthCapabilities{
@@ -126,7 +126,7 @@ func (h *AuthHandler) captchaRequiredForLogin(c *gin.Context, email string) (boo
 		return false, true
 	}
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "AUTH_STATUS_UNAVAILABLE", "message": "account status is temporarily unavailable"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": service.DenialReasonAuthStatusUnavailable, "message": "account status is temporarily unavailable"})
 		return false, false
 	}
 	failures, err := strconv.Atoi(raw)
@@ -231,11 +231,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			return
 		}
 		if errors.Is(err, service.ErrUserBanned) {
-			c.JSON(http.StatusForbidden, gin.H{"code": "USER_BANNED", "message": "account has been banned"})
+			c.JSON(http.StatusForbidden, gin.H{"code": service.DenialReasonUserBanned, "message": "account has been banned"})
 			return
 		}
 		if errors.Is(err, service.ErrEmailNotVerified) {
-			c.JSON(http.StatusForbidden, gin.H{"code": "EMAIL_NOT_VERIFIED", "message": "email verification required before login"})
+			c.JSON(http.StatusForbidden, gin.H{"code": service.DenialReasonEmailNotVerified, "message": "email verification required before login"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to login"})
