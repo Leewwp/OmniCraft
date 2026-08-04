@@ -210,7 +210,10 @@ func hashBroadcastPayload(title, body, channel string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-const postgresUniqueViolationSQLState = "23505"
+const (
+	postgresUniqueViolationSQLState = "23505"
+	broadcastRequestKeyConstraint   = "uq_notification_broadcast_requests_actor_key"
+)
 
 func isBroadcastUniqueViolation(err error) bool {
 	if err == nil {
@@ -218,7 +221,8 @@ func isBroadcastUniqueViolation(err error) bool {
 	}
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
-		return pgErr.Code == postgresUniqueViolationSQLState
+		return pgErr.Code == postgresUniqueViolationSQLState &&
+			pgErr.ConstraintName == broadcastRequestKeyConstraint
 	}
 	var sqliteErr *sqlite.Error
 	if errors.As(err, &sqliteErr) {
