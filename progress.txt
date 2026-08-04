@@ -395,3 +395,19 @@
 - 常量/哨兵保持原字符串值与错误消息不变，API 响应码与既有测试断言零破坏。
 - `go.mod`：pgconn 转正为直接依赖（原 indirect），`go mod tidy` 已更新。
 - 历史提交 affda3c（admin/users 页 + .gitignore + docs/agents skill 文件捆绑）与 CSP/captcha 无 spec 来源属历史问题，不重写 main 历史；`.gitignore` 锚定 `/Users*/` 实为正确修正。
+
+## [2026-08-04] - 二轮 review 修复：收紧 23505 判定 + 顺手项
+
+### What was done:
+- 双轴复审（基线 1e6d323...91b35c4，含本轮修复任务）结论：Standards 无硬违规、Spec 六项全部满足；唯一实质发现是 `isBroadcastUniqueViolation` 的 23505 判定从"约束名匹配"放宽为"任意唯一冲突"（PK 冲突同码会被误判幂等重放）。
+- **收紧**：postgres 分支改为 `Code == "23505" && ConstraintName == "uq_notification_broadcast_requests_actor_key"`（pgconn 协议字段，稳定，与旧字符串匹配语义 100% 等价）；`notification_service_test.go` 的 `TestIsBroadcastUniqueViolationRejectsUnrelatedUniqueErrors` 扩充类型化用例（不同约束名 23505 拒绝、23503 拒绝、目标约束 23505 通过）。
+- **顺手项**：`runtime_status.go` 两处 `fmt.Errorf(DenialReason...)` → `errors.New`；`AuthContext.tsx` 五个 `DENIAL_REASON_*` 去掉 export（文件内消费，无外部使用点）。
+- 未修（判断项，评审接受）：interaction.go switch 与 IsSoftDenialReason 的双重分类、IsSoftDenialReason 命名、sqlite PK 1555 漏判（行为与旧实现等价）。
+- **顺带修门**：并发会话提交的 `docs/working/2026-08-04-content-discovery-gap-plan.md` 头部未按 doc-validator 格式声明 `**预计失效日期**: YYYY-MM-DD` 导致 verify-project 失败，已补一行（文件原有 `>` 引用格式不被规则识别）。
+
+### Testing:
+- `go build/vet` PASS；`go test ./...` 全 PASS（含 ephemeral postgres 双协程并发幂等测试，证明真实 PgError.ConstraintName 匹配有效）。
+- `npm run lint` PASS；`bash scripts/verify-project.sh` PASS（doc-validator release profile 全绿）。
+
+### Notes:
+- 本轮 4 个 commit 已提交（0be930c/c8df731/e5406e3/91b35c4）；本条目对应 5 个 commit：0be930c 收紧 + errors.New + 测试扩充、AuthContext 去 export、content-discovery 文档修门。
