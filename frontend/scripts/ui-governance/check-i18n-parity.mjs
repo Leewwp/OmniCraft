@@ -3,6 +3,18 @@ import { fileURLToPath } from "node:url";
 
 const PLACEHOLDER_RE = /\{([a-zA-Z0-9_]+)(?:,[^}]*)?\}/g;
 
+// Canonical documented namespaces; lint:ui (run-all.mjs) imports this list.
+export const I18N_NAMESPACES = [
+  "messages.tabs",
+  "messages.notifications",
+  "messages.conversations",
+  "messages.chat",
+  "messages.broadcast",
+  "messages.empty",
+  "messages.error",
+  "messages.a11y",
+];
+
 export function flattenLeaves(value, prefix = "", result = new Map()) {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     for (const [key, child] of Object.entries(value)) {
@@ -70,16 +82,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const errors = await validateMessageCatalogs({
     referencePath,
     candidatePath,
-    namespaces: [
-      "messages.tabs",
-      "messages.notifications",
-      "messages.conversations",
-      "messages.chat",
-      "messages.broadcast",
-      "messages.empty",
-      "messages.error",
-      "messages.a11y",
-    ],
+    namespaces: I18N_NAMESPACES,
   });
   if (errors.length) {
     console.error(errors.join("\n"));
