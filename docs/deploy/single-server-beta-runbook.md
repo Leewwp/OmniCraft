@@ -183,6 +183,14 @@ docker compose --env-file .env -f docker-compose.single-server.yml up -d --build
 docker compose --env-file .env -f docker-compose.single-server.yml ps
 ```
 
+The compose stack runs the forward-only migrations as a one-shot `migrate`
+container before the backend starts (`backend.depends_on.migrate:
+service_completed_successfully`). The backend refuses to start when the
+migration job fails; no `/docker-entrypoint-initdb.d` mount is used because
+init scripts only apply to a brand-new empty data volume and silently ignore
+later migration files. `docker compose logs migrate` shows the applied
+migration set and `migration-summary.json` in the container.
+
 ## 7. Verify
 
 ```bash
@@ -211,15 +219,96 @@ Expected public config posture:
 }
 ```
 
-## 8. Backup
+## 8. Database Migrations and Recovery
 
-Database backup example:
+Migrations are forward-only and ledger-backed. `schema_migrations` records
+version, filename, SHA-256 checksum and applied time; the runner compares the
+applied file/version/checksum set (never the max version alone), so a later
+backfill of a missing lower-numbered migration is still applied. A session
+advisory lock serializes concurrent runners.
+
+Rules enforced by `scripts/init-db.sh` / the `migrate` binary:
+
+- Applied-file checksum drift, duplicate versions, invalid filenames and
+  ledger entries whose file disappeared are rejected.
+- Every migration runs in one transaction (ledger row committed together
+  with the migration), except files declared in `backend/migrations/metadata.json`.
+- `047_pg_trgm_indexes.sql` and `049_search_trigram_fallback.sql` use
+  `CREATE INDEX CONCURRENTLY` and are declared non-transactional with reason,
+  reviewer, machine-checkable pre/postconditions and reconciliation steps.
+  Their attempts are audited in `schema_migration_attempts`; a failed or
+  unknown attempt blocks blind retry and all later migrations until the
+  operator reconciles with evidence:
+  `scripts/init-db.sh -ReconcileVersions 047,049 -ReconcileApproval CHG-1234`.
+  The approval value must identify a durable ticket, incident or change record;
+  it is stored in `schema_migration_attempts.approval_ref`.
+- A migration that reached a shared environment is never edited; changes are
+  new forward-fix migrations.
+
+Local bootstrap:
 
 ```bash
-mkdir -p /var/backups/omnicraft/postgres
-docker compose --env-file .env -f docker-compose.single-server.yml exec -T postgres \
-  pg_dump -U omnicraft omnicraft | gzip > "/var/backups/omnicraft/postgres/omnicraft-$(date +%F-%H%M%S).sql.gz"
+docker compose up -d postgres
+bash scripts/init-db.sh
 ```
 
-Keep OSS data in a private bucket and use Alibaba Cloud lifecycle policies for
-object retention.
+`scripts/init-db.sh` is a thin wrapper around
+`cd backend && go run ./cmd/migrate -DSN "$DB_DSN" -Dir backend/migrations`.
+Databases created by the old initdb flow (tables present, no ledger) must be
+recreated once with `docker compose down -v` before the ledger runner can be
+used; verify with `bash scripts/db/build-historical-fixture.tests.sh` and the
+migration integration suite (`go test ./internal/migration ./cmd/migrate`).
+
+Upgrade drill requirements (see `release/backup-policy.json`):
+
+- A full backup must exist within 24 hours, and a fresh backup must be taken
+  immediately before every production migration.
+- A restore drill into a new database must have succeeded within the last
+  30 days before any schema change.
+- Recovery order: PostgreSQL first (source of truth), then OSS object version
+  restore and reconciliation, then Redis clear-and-rebuild.
+- Real Aliyun OSS versioning/off-host storage and approved numeric RPO/RTO
+  targets are Ops-08 blockers; `release/recovery-objectives.json` currently
+  records measured baselines only.
+
+## 9. Backup
+
+Database backup uses the policy-compliant script (custom-format dump plus
+checksum manifest and migration ledger manifest):
+
+```bash
+# Daily cron (policy: daily + 7 local copies):
+0 2 * * * DB_HOST=postgres DB_PORT=5432 DB_USER=omnicraft DB_PASSWORD=... \
+  BACKUP_DIR=/var/backups/omnicraft/postgres \
+  bash /srv/omnicraft/scripts/backup-db.sh >> /var/log/omnicraft-backup.log 2>&1
+
+# Before every production migration (policy: pre_migration):
+DB_HOST=postgres ... bash /srv/omnicraft/scripts/backup-db.sh
+```
+
+Each backup produces `<dump>.custom` plus `<dump>.custom.manifest.json`
+(dump SHA-256, source database, pg version and applied migration set).
+Restores always target a NEW database and refuse to overwrite the source:
+
+```bash
+bash scripts/restore-db.sh -Backup /var/backups/omnicraft/postgres/omnicraft_*.custom \
+  -TargetDB omnicraft_restore_20260805 \
+  -AdminDSN "host=127.0.0.1 port=5432 user=postgres dbname=postgres" \
+  -VerifyDSN "host=127.0.0.1 port=5432 user=omnicraft dbname=omnicraft_restore_20260805 sslmode=disable"
+```
+
+`restore-db.sh` verifies the dump checksum, restores, then runs the migration
+ledger verifier and smoke checks; any failure drops the partial target.
+
+Off-host copies (policy: 30-day encrypted, versioned/immutable retention with
+post-upload SHA-256 verification) and the monthly restore drill are driven by
+the recovery drills:
+
+```bash
+bash scripts/db/recovery-drill.sh -ReportDir artifacts/ops-02
+bash scripts/db/object-recovery-drill.sh -ComposeFile ops/recovery/docker-compose.recovery.yml -ReportDir artifacts/ops-02
+bash scripts/db/redis-reconciliation-drill.sh -ComposeFile ops/recovery/docker-compose.recovery.yml -ReportDir artifacts/ops-02
+```
+
+Real Aliyun OSS versioning, off-host storage and service-level RPO/RTO remain
+Ops-08 blockers; the local MinIO stand-in proves adapter behavior only.

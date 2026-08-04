@@ -126,6 +126,12 @@ agent:
 - `legal.current_terms_version` and `legal.current_privacy_version` are non-empty.
 - `features.desktop_deploy_enabled` remains `false`.
 - `features.payment_enabled` remains `false` unless payment is separately approved.
+- Database migrations run as the one-shot `migrate` compose service before
+  the backend starts; the backend image contains the `migrate` binary and the
+  migrations directory (`/app/migrations`). No `/docker-entrypoint-initdb.d`
+  mount is used.
+- A full backup must exist and a restore drill must have succeeded within the
+  last 30 days before any schema change (`release/backup-policy.json`).
 
 ## Frontend Build Environment
 

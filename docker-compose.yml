@@ -10,7 +10,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/migrations:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U omnicraft"]
       interval: 10s
@@ -21,6 +20,25 @@ services:
         limits:
           memory: 1G
           cpus: "1.0"
+
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: omnicraft-migrate
+    environment:
+      DB_DSN: "host=postgres port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./artifacts:/app/evidence
+    command: ["./migrate", "-Dir", "/app/migrations", "-SummaryPath", "/app/evidence/migration-summary.json"]
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
 
   pgbouncer:
     build:
@@ -78,6 +96,8 @@ services:
     ports:
       - "8080:8080"
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       pgbouncer:
         condition: service_healthy
       postgres:

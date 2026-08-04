@@ -432,3 +432,26 @@
 
 ### Notes:
 - 本轮 4 个 commit 已提交（0be930c/c8df731/e5406e3/91b35c4）；本条目对应 5 个 commit：0be930c 收紧 + errors.New + 测试扩充、AuthContext 去 export、content-discovery 文档修门。
+
+## [2026-08-05] - Task Ops-02: Implement forward-only migrations and recovery drills
+
+### What was done:
+- 新增 `backend/internal/migration`：文件名解析/目录扫描/重复版本拒绝、`schema_migrations` 按 filename/version/checksum 三元集合比较、session advisory lock；默认迁移与 ledger 同事务提交，自管 BEGIN/COMMIT 文件在 COMMIT 前写 ledger，`047`/`049` 非事务迁移执行可机器验证的 SQL pre/postconditions。`schema_migration_attempts` 审计 started/succeeded/failed/reconciled、脱敏 error digest 与 `approval_ref`；任何未解决 failed/unknown attempt（包括已有 ledger 的 unknown）阻断后续迁移，需 `-ReconcileVersions` + `-ReconcileApproval` 放行。
+- 生成并提交 checksum 保护的合成历史 fixture `historical-050.sql`（+sha256+manifest），生成与 recovery/CI PostgreSQL 镜像固定到 `pgvector/pgvector@sha256:a362…14c6b`；Go 与 bash 双侧不仅核对 sidecar/manifest/源码 checksum，还解析 SQL dump 内嵌 ledger，拒绝同步篡改 dump + sidecar + manifest。
+- 新增 `cmd/migrate` CLI（含 reconciliation approval reference）；backend 镜像构建 migrate 二进制并携带 migrations；docker-compose 与 single-server compose 移除 initdb 挂载、新增 one-shot `migrate` 服务（backend `service_completed_successfully` 依赖）；`scripts/init-db.sh` 改为 ledger runner 包装且不再输出含密码 DSN。
+- 备份/恢复：`backup-db.sh` 改 custom-format + checksum/migration manifest + 7 份本地轮转 + 强制 ledger 存在，并在 dump 前后核对 ledger、拒绝并删除迁移竞态产生的不一致 dump；新增 `restore-db.sh`（校验 checksum、只恢复新库、拒绝覆盖源、逐项比对 manifest 与恢复 ledger、仓库 ledger 校验 + smoke）；`release/backup-policy.{json,schema}` 与 `release/recovery-objectives.{json,schema}`（baseline_only + 实测 RPO/RTO）。
+- 三个真实演练全绿：主 drill 按 PostgreSQL 恢复 → 版本对象恢复与 DB↔对象全量对账 → Redis 清空重建 → 启动实际构建的 server 并请求数据库型 `/api/v1/contents` 的顺序执行；三个 drill 均把 Compose teardown 失败向上传播，复核后零残留容器/卷/孤儿 server。`restore-db.sh` 额外拒绝把 `-VerifyDSN` 指向目标以外数据库，并拒绝未验证 PostgreSQL 约束。
+- CI backend job 只编排仓库内 `verify-migration-gate.sh` 单一命令源，运行 PostgreSQL integration + 5 个 drill/policy contracts，并把逐命令日志/summary 写入已上传的 `artifacts/backend/migrations`；runbook/production-config-template 更新迁移与备份恢复章节。
+
+### Testing:
+- 真实性复核发现原 `artifacts/ops-02/red-gates/go-test-migration.txt` 只是错误工作目录造成的 `directory not found`，不能支持此前“所有实现均先红”的历史声明；该历史顺序不可追溯改写。本次整改先新增能稳定命中缺陷的测试并确认 RED：version drift 被接受、`finished_at` 零值、自管事务已提交但 ledger 失败、SQL precondition 未执行、ledger 已存在时 unknown attempt 未阻断、同步篡改 fixture 可通过、teardown 被吞、只测 `/healthz`、`go run` 孤儿进程、备份开始时间晚记、VerifyDSN 可指向别库；最小修复后全部转绿。
+- `go test ./internal/migration ./cmd/migrate -count=1`、`go build/vet ./...`、全量 `go test ./...` PASS；5 个 scripts/db/*.tests.sh 全绿；`verify-backup-policy.sh` 对 committed policy/objectives PASS。
+- 最终本地实测（2026-08-05 03:16 CST）：backup 2s / restore 1s / PostgreSQL RPO 0s / PostgreSQL RTO 1s / object restore RTO 1s / service RTO 6s；`release/recovery-objectives.json` 保持 `baseline_only`、未批准。
+- `verify-migration-gate.sh` 六门全绿；三项真实 drill 全绿并成功 teardown；`doc-validator --fix/--check --profile release` 与全项目 verifier PASS；post-commit evidence 已绑定并通过 schema 校验。
+- PR #21 首轮 CI 全绿：Backend gates（含 `Migration integration and recovery contracts`）`https://github.com/Leewwp/OmniCraft/actions/runs/30943374596/job/92107134840`，聚合 project-gate `https://github.com/Leewwp/OmniCraft/actions/runs/30943374596/job/92108056373`；完成状态 amend 后须由同一 PR 的最终提交 CI 再次通过才允许 `--ff-only` 集成。
+
+### Notes:
+- MinIO 为本地版本化替身，真实 Aliyun OSS 版本恢复/异地备份/服务级 RPO/RTO 为 Ops-08 blocker（演练证据中已记录）。
+- Ops-02 原始 TDD RED 日志无效是历史审计瑕疵；本次整改保留事实并以真实缺陷 RED→GREEN 补充证据，不把事后测试冒充原始先后顺序。
+- 旧 initdb 创建的开发库（有表无 ledger）需 `docker compose down -v` 重建一次。
+- Docker Hub 不可达时经 docker.m.daocloud.io 镜像拉取 minio/minio（tag/digest 已在 recovery compose 固定并在注释中说明）。
