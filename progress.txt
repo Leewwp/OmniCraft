@@ -25,6 +25,24 @@
 - 原生弹窗别名捕获（`const c = window.confirm; c()`）与同名局部函数阴影化属于已记录的门限豁免（见 run-all.mjs 注释）。
 - `frontend/package-lock.json` 既有 npm 元数据脏改动继续保留不提交。
 
+## [2026-08-04] - Task U-12: 合并入 main 与分支清理（完成）
+
+### What was done:
+- U-12 验收收尾：补 u-12 复核截图 4 张（home 1440 light/dark、original 375 light、content 1440 dark）存 `screenshots/ui-polish/u-12/`（按项目惯例不入库，仅本地证据）；归档计划 U-12 5 项 + DoD 8 项 + 通用执行契约 9 项 + Agent 协调声明全部勾选（0 未勾选）。
+- 验证全绿：`npm run verify` PASS（lint + lint:ui + test:unit + build）；`bash scripts/verify-project.sh` PASS（exit 0）。
+- 提交 `1619fac`；PR #13（ui-polish-u12 → main）CI 6/6 绿（含 tauri-windows no-op），squash 合并为 `a9c005e`。
+- 分支清理（用户授权）：删除本地 8 个分支（codex/u11-backend、codex/u11-frontend、codex/ops-integration、OmniCraft-ops01、opencode/p01-ui-prototype、opencode/ui-polish-u01、opencode/ui-polish-u12、prototype/agent-confirm）与远端 `opencode/ui-polish-u12`；移除旧 worktree（`OmniCraft-ops01` 目录、`~/.codex/worktrees/69f6`）。本地仅剩 `main`，仅剩主工作区。
+- seeder 脚本（`scripts/seed_real_data.py`，原 9ed2b33）按用户决策保留本地不上传：复制至主工作区，经 `.git/info/exclude` 排除，不入库。
+
+### Testing:
+- 前端全量验证 + 项目级 verifier PASS；GitHub CI 6/6 checks pass（Backend/Frontend/Docs/project-gate/Detect desktop paths/Desktop Windows gates no-op）。
+- 已合并分支内容核对：main 已含 U-01~U-11（ReactionBar capabilities、后端 can_interact、ui-governance 部分检查）与 Ops-01；被删 worktree 内未提交改动经比对为旧版中间状态，无 main 缺失内容。
+
+### Notes:
+- 用户指示：合并与清理完成后**不推进 Ops-02**，停步待指示。下一步活计划为 Production Readiness Ops-02（迁移与恢复演练）或社区计划。
+- 遗留项：Ops-01 tauri-windows 的 readonly 目录测试在 Windows runner 上仍失败（仅 tauri-client 路径变更时触发），用户决策暂不修复。
+
+
 ## [2026-08-03] - Task U-11 Frontend: Server Capability Consumers（完成）
 
 ### What was done:
