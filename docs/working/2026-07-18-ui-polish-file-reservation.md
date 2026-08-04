@@ -3,8 +3,8 @@
 **创建日期**: 2026-07-17  
 **预计失效日期**: 2026-09-17
 
-> 适用范围：`docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md` 的 U-01 至 U-12。  
-> 当前状态：按 2026-07-25 修订后的执行顺序推进；P-01 已于 2026-08-01 获批（IP 库方案 B，Indigo 精修），U-03 已完成并释放，下一项为 U-06。
+> 适用范围：`docs/archive/plans/2026-07-18-omnicraft-ui-polish-hardening.md`（2026-08-04 归档）的 U-01 至 U-12。  
+> 当前状态：U-01 至 U-12 全部完成并释放，本专项计划已归档至 `docs/archive/plans/`（2026-08-04）。
 
 ## 预约规则
 
@@ -41,7 +41,7 @@
 | U-09 | content/home/search/IP discovery surfaces | U-01/U-02/U-05 | 已释放 | Codex（opencode 前端车道） / `opencode/ui-polish-u01` / `c8926c7` / 2026-08-02 13:42–14:42 +08:00 |
 | U-10 | messages catalogs + communication surfaces（不含 Agent workspace） | U-01/U-02/U-03/U-05 | 已释放 | Codex（opencode 前端车道） / `opencode/ui-polish-u01` / `4434a68` / 2026-08-02 15:06–15:31 +08:00 |
 | U-11 | auth capability contract + interaction consumers | U-01/U-02/U-05 + production-readiness coordination | 已释放 | Codex（opencode 前端车道） / `opencode/ui-polish-u01` / 2026-08-03 15:40 +08:00；后端 `6834b79` 与前端 capability 消费均已合入，U-12 依赖已满足 |
-| U-12 | UI governance scripts、package、project verifier | U-01…U-11 | 待依赖 | — |
+| U-12 | UI governance scripts、package、project verifier | U-01…U-11 | 已释放 | opencode 前端车道 / `opencode/ui-polish-u12` / `4cba1da` / 2026-08-04 +08:00 |
 
 精确文件列表以计划中对应 Task 的 `Files` 段为准。预约时必须复制为明确路径；摘要不能代替路径清单。
 
@@ -49,6 +49,8 @@
 
 | 时间（Asia/Shanghai） | Task | Owner | 分支 | Base commit | 精确预约路径 | 状态 / 原因 |
 |---|---|---|---|---|---|---|
+| 2026-08-04 +08:00 | U-12 | opencode 前端车道 | `opencode/ui-polish-u12` | `4cba1da` | `frontend/package.json`; `frontend/scripts/ui-governance/run-all.mjs`; `frontend/scripts/ui-governance/run-all.test.mjs`; `frontend/scripts/ui-governance/check-source-policy.mjs`; `frontend/scripts/ui-governance/check-source-policy.test.mjs`; `scripts/verify-project.sh`; `scripts/verify-project.tests.sh`; `frontend/scripts/ui-governance/check-i18n-parity.mjs`（所有权转移，见下） | 已释放；`lint:ui` 五道门（token/i18n/native-dialog/undefined-token/source-policy）+ 量测报告，verifier 契约测试先红后绿并接入项目门；RED 证据为契约测试缺 lint:ui 失败与测试文件 ERR_MODULE_NOT_FOUND；15/15 治理测试、156/156 全量、lint、build、后端三门、`--full` 完整门（含 8 mock 契约）全绿；ego-lite 首页/原创页正常；双轴复审 4 项发现已修复（touch-target 边界、i18n 命名空间单一来源、ElementAccess 原生弹窗、fileURLToPath）；计划勾选完成，专项归档 |
+| 2026-08-04 +08:00 | U-12 | opencode 前端车道 | `opencode/ui-polish-u12` | `4cba1da` | `frontend/scripts/ui-governance/check-i18n-parity.mjs` | 所有权转移：U-10 已释放后转交 U-12，仅导出 `I18N_NAMESPACES` 常量并让 CLI main 复用，消除 run-all 与 check-i18n-parity 的双份命名空间列表漂移风险；行为不变 |
 | 2026-08-03 15:40 +08:00 | U-11 frontend | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `9ed2b33` | `frontend/contexts/AuthContext.tsx`; `frontend/components/social/ReactionBar.tsx`; `frontend/components/social/CommentSection.tsx`; `frontend/components/content/DownloadButton.tsx`; `frontend/app/(protected)/judge/queue/page.tsx`; `frontend/app/(protected)/judge/exam/page.tsx`; `frontend/app/(protected)/rehab/page.tsx`; `frontend/messages/zh.json`; `frontend/messages/en.json`; `frontend/tests/interaction-capabilities.test.tsx`; `frontend/tests/destructive-dialogs.test.tsx`; `frontend/tests/sheet-music-viewer-download.test.tsx`; `screenshots/ui-polish/u-11/`; `AGENTS.md`; `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md`; `docs/working/2026-07-18-ui-polish-file-reservation.md`; `progress.txt` | 已释放；AuthContext fail-closed capability、五个消费者、ConfirmModal 举报流、zh/en 非数字拒绝原因、计划全部 checkbox 与浏览器证据完成；记录但保留 `frontend/package-lock.json` 既有 npm 元数据脏改动；U-12 依赖已满足 |
 | 2026-08-03 12:25 +08:00 | U-11 backend release | Codex（backend heavy） | `codex/u11-backend` | `e2cdb79` | U-11 backend 全部预约路径 | 已释放；提交 `6834b79` 已进入 main/前端车道，后端三门、顺序审查与真实 login/`auth/me` smoke 通过 |
 | 2026-08-02 15:45 +08:00 | U-11 handoff | Codex（opencode 前端车道） | `opencode/ui-polish-u01` | `e2cdb79` | `frontend/contexts/AuthContext.tsx`; `frontend/components/social/ReactionBar.tsx`; `frontend/components/social/CommentSection.tsx`; `frontend/components/content/DownloadButton.tsx`; `frontend/app/(protected)/judge/queue/page.tsx`; `frontend/app/(protected)/judge/exam/page.tsx`; `frontend/tests/interaction-capabilities.test.tsx`; backend capability contract | 历史阻塞记录；当时等待 codex 落地 `capabilities.can_interact`，现已由 `6834b79` 解除 |
