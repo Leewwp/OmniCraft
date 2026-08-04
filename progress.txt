@@ -39,8 +39,8 @@
 - 已合并分支内容核对：main 已含 U-01~U-11（ReactionBar capabilities、后端 can_interact、ui-governance 部分检查）与 Ops-01；被删 worktree 内未提交改动经比对为旧版中间状态，无 main 缺失内容。
 
 ### Notes:
+- 遗留项更正（2026-08-04 复核）：此前记录"Ops-01 tauri-windows 的 readonly 目录测试仍失败、用户决策暂不修复"不准确。事实：该失败仅发生在 Ops-01 CI 搭建期中间提交（`9cbeffd2`/`a45b447`，2026-08-03 17:53/19:23 UTC 两次 windows-latest run）；`7f34191`（Ops-01 的 CI gates 提交）已修复——fails-gracefully 测试改为 `#[cfg(not(windows))]`（unix 用 0o555），Windows 换为 `#[cfg(windows)]` never-panics 变体（Windows readonly 属性不阻止文件创建，backup_file_internal 全程 map_err 无 unwrap）。修复随 `4cba1da` 入 main，macOS 本地 `cargo test` 23/23 通过。当前 main 上该测试不再可能失败。唯一遗留：修复后尚无真实 Windows runner 实跑（后续 tauri-windows 均因无 tauri-client 变更而 no-op），如要硬证据可手动 workflow_dispatch 或推送 tauri-client 改动触发。
 - 用户指示：合并与清理完成后**不推进 Ops-02**，停步待指示。下一步活计划为 Production Readiness Ops-02（迁移与恢复演练）或社区计划。
-- 遗留项：Ops-01 tauri-windows 的 readonly 目录测试在 Windows runner 上仍失败（仅 tauri-client 路径变更时触发），用户决策暂不修复。
 
 
 ## [2026-08-03] - Task U-11 Frontend: Server Capability Consumers（完成）
