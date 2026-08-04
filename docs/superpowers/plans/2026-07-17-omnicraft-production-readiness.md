@@ -16,7 +16,7 @@
 
 ## Status, authority, and universal rules
 
-**Status:** Ops-00 completed at `9ea53c8`; Ops-01～Ops-08 have not started; Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
+**Status:** Ops-00 completed at `9ea53c8`; Ops-01 completed by CI commit `7f34191` and evidence/branch-protection closeout `4cba1da`; Ops-02～Ops-08 have not started; Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
 
 - This plan is not Hardening Task 6 and must never add one.
 - Do not modify `task.json`, Beta/community checkboxes, or Web Agent completion state.
@@ -220,6 +220,7 @@ Add Node/npm `engines` to frontend/Tauri packages and update guides to distingui
 
 > 2026-08-03 完成：本地 `verify-workflows.sh`、default verifier `-ReportDir artifacts/ops-01`、`--tauri`（Rust 1.97.1）、evidence 契约套件全绿；PR #11（squash 合并为 `7f34191`）六项检查全绿（backend/frontend/docs/project-gate/detect/tauri-windows 真实 Windows 构建 7m51s）；failure_probe 演练红盘（run 30841304958，project-gate 失败）与绿盘（run 30842196659）证据齐全；main 分支保护已配置（required `project-gate` strict、禁 force-push/删除，无人工审查）；`artifacts/ops-01/summary.json` 已绑定终态 commit `7f34191` 并通过 `-ExpectedCommit` 校验。
 > 实施中扩展：verifier 新增 `-Scope Tauri`（仅桌面门，供 tauri-windows 按路径执行）；`-Scope` 参数集由 Backend|Frontend|Docs|All 扩展为 Backend|Frontend|Docs|Tauri|All。CI 首次运行暴露的三处修复已合入：setup-node v7 拒绝 `cache: false`、迁移测试需 postgres/redis 服务容器、series 测试 busyAction 竞态。
+> 2026-08-04 审计偏差：`7f34191` 是直接基于 `fa95a356` 的 squash，包含 Ops-01 以外的 UI/文档路径，不满足本计划“一 Ops Task 一 reviewed commit”的理想边界。为保持共享历史可追溯性不重写 main；本次 review-remediation 对 `fa95a356..main` 聚合差异重新执行规格/质量审查并修复已确认问题。后续 heavy task 必须从最新集成点创建独立分支，禁止把其他任务路径并入其 evidence commit。
 
 ```bash
 bash scripts/ci/verify-workflows.sh

@@ -99,6 +99,11 @@ EXIT_CODES=()
 EVIDENCE=()
 TOOLS=()
 HALT=0
+STARTED_AT=""
+
+if [ -n "$REPORT_DIR" ]; then
+  STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+fi
 
 add_tool() {
   local tools="${TOOLS[*]:-}"
@@ -197,9 +202,8 @@ if [ -n "$REPORT_DIR" ]; then
     printf '%s\t%s\n' "$tool" "$version" >> "$versions_file"
   done
   task_name="$(basename "$REPORT_DIR")"
-  started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   finished_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  python3 - "$REPORT_DIR/summary.json" "$state_file" "$versions_file" "$task_name" "$started_at" "$finished_at" <<'PY'
+  python3 - "$REPORT_DIR/summary.json" "$state_file" "$versions_file" "$task_name" "$STARTED_AT" "$finished_at" <<'PY'
 import json, sys
 
 summary_path, state_file, versions_file, task_name, started_at, finished_at = sys.argv[1:]

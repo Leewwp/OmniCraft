@@ -1,12 +1,12 @@
 # OmniCraft UI Polish Hardening Implementation Plan
 
-> **For agentic workers:** Follow the active light-lane workflow in `AGENTS.md`; use the available UI/UX review and browser-testing skills for the relevant Task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Archived:** This light-lane plan completed through U-12 and is retained only as historical evidence. It is not a current task source; use the active-plan registry in `AGENTS.md`.
 
 **Goal:** 在不改变业务语义的前提下，修复已证实的设计令牌、交互反馈、可访问性、响应式、国际化和用户错误暴露问题，并建立可重复的 UI 治理门。
 
 **Architecture:** 先完成不依赖视觉方向的错误安全、基础组件可访问性和破坏性操作修复，再用当前 Indigo 隔离原型验证推荐流、独立 Agent 工作台、共享内容详情浮层和重新设计的 IP 库。用户于 2026-07-28 确认生产二创页 `/`、原创页 `/original` 与 IP 详情 `/ip/[ipId]` 的现有 UI 可直接沿用，A2 不再重复构建这些页面；Hallmark Tally 方案 B 同样已取消。A2 只构建新的 IP 库原型，用户批准后才把视觉决策回写为设计 Token、共享组件和生产 `/ips`，随后推广到剩余页面并接入治理门。跨阶段重复文件必须在前一提交合入后显式转移所有权，禁止并发修改。
 
-**Tech Stack:** Next.js 16.2 / React 19 / TypeScript 5 / Tailwind CSS 4 CSS-first / next-intl / Base UI / Playwright / Node test / PowerShell.
+**Tech Stack:** Next.js 16.2 / React 19 / TypeScript 5 / Tailwind CSS 4 CSS-first / next-intl / Base UI / Playwright / Node test / bash.
 
 ---
 
@@ -14,12 +14,12 @@
 
 **Audit date:** 2026-07-17；execution order revised 2026-07-25；P-01 approved 2026-08-01
 
-**Status:** active light-lane plan; U-05, U-02A, U-04, U-01, U-02B and U-03 are complete; P-01 approved on 2026-08-01 (IP library = variant B Indigo 精修), and U-06 is next.
+**Status:** completed and archived after U-12; P-01 was approved on 2026-08-01 (IP library = variant B Indigo 精修), and all implementation/DoD checkboxes were completed before archival.
 
-- This plan is priority 1 in the `AGENTS.md` active-plan registry and uses the light lane. U-05, U-02A, U-04, U-01, U-02B and U-03 are complete; P-01 was explicitly approved by the user on 2026-08-01 with IP library variant B (Indigo 精修) as the final direction, so U-06 and later tasks are unblocked according to their listed dependencies. Numeric Task IDs remain stable identifiers; the wave order below, not numeric order, is authoritative for execution.
-- Production Readiness is present and registered after this plan. Re-run coordination before U-11/U-12 or any edit that expands into config, release, verifier, or backend capability paths.
-- Before P-01 approval, visual authority remains `design/design-system.md` then matching `design/ui-spec.md` sections; correctness Tasks must not restyle surfaces. After the user approved P-01 on 2026-08-01, the approved prototype decision record (`docs/working/2026-07-25-ui-prototype-review.md` §3/§6.3, with IP library variant B defined by `ip-library-b.css`) is the input for U-01/U-02B/U-09 updates to those authorities.
-- Re-check the current `main` before implementation. The previous `codex/ui-refinement` branch was fully integrated and retired on 2026-07-25; create a fresh light-lane feature branch from the latest `main` when P-01 work resumes. Keep logical commits per Task/gate and preserve exact file reservations.
+- This plan formerly used the light lane and priority 1. Numeric Task IDs remain stable historical identifiers, but no step in this archived file should be selected for new execution.
+- Production Readiness remains active under its own registered plan; this archive does not reserve config, release, verifier, or backend capability paths.
+- Before P-01 approval, visual authority remained `design/design-system.md` then matching `design/ui-spec.md` sections. After approval, the historical input was `docs/working/2026-07-25-ui-prototype-review.md` §3/§6.3, with variant B preserved at `opencode/p01-ui-prototype@09cf059:frontend/app/prototype-ui-polish/ip-library-b.css`; U-01/U-02B/U-09 already applied the accepted result to production authorities.
+- Historical branch and file-reservation instructions below describe the completed execution only; do not recreate those branches from this archive.
 - Do not modify `task.json`, Beta/community checkboxes, or Web Agent completion state.
 
 ## Verified Baseline

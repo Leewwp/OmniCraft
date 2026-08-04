@@ -235,10 +235,10 @@ Redis Key: agent:rl:{user_id}:{YYYY-MM-DD}
 
 | 组件 | 位置 | 说明 |
 |---|---|---|
-| `AgentChatWidget.tsx` | 全站右下角悬浮 | 通用对话入口，`web_agent_enabled=false` 时不渲染 |
+| `AgentWorkspace.tsx` | 受保护路由 `/agent` | 顶部导航进入的独立全页工作台；`web_agent_enabled=false` 时隐藏入口并拒绝进入 |
 | `UploadAssistPanel.tsx` | 发布页（publish/page.tsx）| 上传完成后显示「AI 自动填写」按钮，调用 `/agent/upload-assist` |
 | `ComplianceCheckBadge.tsx` | 发布页确认区 | 展示合规检测结果（通过/风险/违规），支持流式进度 |
-| `SearchAgentInput.tsx` | 搜索页（/search） | 自然语言搜索输入框，替换关键词搜索框；降级兼容普通搜索 |
+| `GlobalSearchInput.tsx` | Header 与搜索页（/search） | 仅提供关键词建议、历史、热搜和普通搜索，不提供 Agent 模式切换 |
 | `UsageGuidePanel.tsx` | 内容详情页侧边 | 「AI 使用指导」折叠卡片，按需加载 |
 
 SSE 流式渲染复用 `lib/useSSE.ts` hook。该 hook 使用 `fetch` + `ReadableStream` 以支持带 JSON body 的 POST 流式请求和 AbortController 取消，不使用原生 `EventSource`。
@@ -250,7 +250,7 @@ SSE 流式渲染复用 `lib/useSSE.ts` hook。该 hook 使用 `fetch` + `Readabl
 - Chat context 只接受 server-owned surface 枚举和可选资源 ID；title/type/visibility 均由服务端按 viewer 重载，客户端摘要不能进入 system context。
 - `/agent/usage-guide/:id` 同步/流式路径与 tool registry 共用 viewer-aware resolver；普通用户 Agent 路由不得暴露会写审核记录的 `/agent/moderate/:id`。
 - `answer_kind` 由服务端执行路径确定：chat/search/detail/usage 的自然语言结果必须有有效 citation，否则进入 no-evidence；publish suggestion 使用独立 typed DTO。
-- UI 展示简短工具状态和引用卡片，不展示内部 prompt、工具原始参数或 chain-of-thought。
+- UI 展示简短工具状态和引用卡片，不展示内部 prompt、工具原始参数或 chain-of-thought；引用卡片打开与推荐流共用的内容详情浮层，关闭后恢复会话滚动位置和触发点焦点。
 - CI 使用 deterministic fake Provider 与固定 evaluation fixtures；真实 Provider 仅作为需要密钥的发布 smoke，不作为不稳定的 CI 判定器。
 - `agent.web_agent_enabled` 的仓库默认值保持 `false`；真实 Provider、预算、限流、引用评测和浏览器证据全部通过后，生产 override 才可开启。
 
