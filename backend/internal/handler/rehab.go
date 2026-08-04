@@ -73,7 +73,7 @@ func (h *RehabHandler) CompleteCourse(c *gin.Context) {
 		case service.ErrReadingTooShort:
 			c.JSON(http.StatusTooEarly, gin.H{"code": "READING_TIME_TOO_SHORT", "message": "minimum reading time has not elapsed"})
 		case service.ErrStatusCacheUnavailable:
-			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "AUTH_STATUS_UNAVAILABLE", "message": "account status is temporarily unavailable"})
+			c.JSON(http.StatusServiceUnavailable, gin.H{"code": service.DenialReasonAuthStatusUnavailable, "message": "account status is temporarily unavailable"})
 		default:
 			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		}

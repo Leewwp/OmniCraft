@@ -31,19 +31,18 @@ func InteractionRequired(cfg *config.Config, db *gorm.DB, rdb *redis.Client, pol
 		cache := service.NewRuntimeStatusCache(rdb, cfg)
 		status, err := service.ResolveRuntimeUserStatus(c.Request.Context(), db, cache, userID)
 		if err != nil {
-			errCode := err.Error()
-			if errCode == "USER_NOT_FOUND" || errCode == "USER_DELETED" {
+			if errors.Is(err, service.ErrUserStatusNotFound) || errors.Is(err, service.ErrUserStatusDeleted) {
 				c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "user not found or deleted"})
 				c.Abort()
 				return
 			}
-			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "AUTH_STATUS_UNAVAILABLE", "message": "account status is temporarily unavailable"})
+			c.JSON(http.StatusServiceUnavailable, gin.H{"code": service.DenialReasonAuthStatusUnavailable, "message": "account status is temporarily unavailable"})
 			c.Abort()
 			return
 		}
 
 		if status.IsBanned {
-			c.JSON(http.StatusUnauthorized, gin.H{"code": "USER_BANNED", "message": "account has been banned"})
+			c.JSON(http.StatusUnauthorized, gin.H{"code": service.DenialReasonUserBanned, "message": "account has been banned"})
 			c.Abort()
 			return
 		}
@@ -51,11 +50,11 @@ func InteractionRequired(cfg *config.Config, db *gorm.DB, rdb *redis.Client, pol
 		decision := service.EvaluateInteractionAccess(status, cfg, policy.RequireVerifiedEmail, policy.RequireReputation)
 		if !decision.Allowed {
 			switch decision.DenialReason {
-			case "EMAIL_NOT_VERIFIED":
+			case service.DenialReasonEmailNotVerified:
 				c.JSON(http.StatusForbidden, gin.H{"code": decision.DenialReason, "message": "email verification required"})
-			case "INSUFFICIENT_REPUTATION":
+			case service.DenialReasonInsufficientReputation:
 				c.JSON(http.StatusForbidden, gin.H{"code": decision.DenialReason, "message": "reputation score too low to perform this action"})
-			case "USER_BANNED":
+			case service.DenialReasonUserBanned:
 				c.JSON(http.StatusUnauthorized, gin.H{"code": decision.DenialReason, "message": "account has been banned"})
 			default:
 				c.JSON(http.StatusServiceUnavailable, gin.H{"code": decision.DenialReason, "message": "interaction status is temporarily unavailable"})
@@ -67,7 +66,7 @@ func InteractionRequired(cfg *config.Config, db *gorm.DB, rdb *redis.Client, pol
 		if policy.RequireNoPublishFreeze {
 			frozen, freezeErr := isPublishFrozen(c, rdb, userID)
 			if freezeErr != nil {
-				c.JSON(http.StatusServiceUnavailable, gin.H{"code": "AUTH_STATUS_UNAVAILABLE", "message": "account status is temporarily unavailable"})
+				c.JSON(http.StatusServiceUnavailable, gin.H{"code": service.DenialReasonAuthStatusUnavailable, "message": "account status is temporarily unavailable"})
 				c.Abort()
 				return
 			}

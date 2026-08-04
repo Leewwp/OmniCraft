@@ -15,7 +15,10 @@ import (
 	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/repository"
 
+	sqlite "github.com/glebarez/go-sqlite"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 type NotificationService struct {
@@ -207,16 +210,21 @@ func hashBroadcastPayload(title, body, channel string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+const postgresUniqueViolationSQLState = "23505"
+
 func isBroadcastUniqueViolation(err error) bool {
 	if err == nil {
 		return false
 	}
-	msg := strings.ToLower(err.Error())
-	const postgresConstraint = "uq_notification_broadcast_requests_actor_key"
-	const sqliteConstraint = "unique constraint failed: notification_broadcast_requests.actor_id, notification_broadcast_requests.key_hash"
-	return strings.Contains(msg, sqliteConstraint) ||
-		(strings.Contains(msg, postgresConstraint) &&
-			(strings.Contains(msg, "sqlstate 23505") || strings.Contains(msg, "duplicate key")))
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == postgresUniqueViolationSQLState
+	}
+	var sqliteErr *sqlite.Error
+	if errors.As(err, &sqliteErr) {
+		return sqliteErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE
+	}
+	return false
 }
 
 func validateBroadcastNotification(titleLength, bodyLength int, channel string) []string {
