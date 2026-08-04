@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        image: pgvector/pgvector@sha256:a36250871de0833b8757561c72f2477ef1ddd1101afa4e617fb552e0de514c6b
         env:
           POSTGRES_USER: omnicraft
           POSTGRES_PASSWORD: omnicraft
@@ -51,6 +51,10 @@ jobs:
           key: go-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}
       - name: Backend verification
         run: bash scripts/verify-project.sh -Scope Backend -ReportDir artifacts/backend
+      - name: Migration integration and recovery contracts
+        env:
+          OMNICRAFT_TEST_POSTGRES_ADMIN_DSN: host=localhost port=5432 user=omnicraft password=omnicraft dbname=postgres sslmode=disable
+        run: bash scripts/db/verify-migration-gate.sh -ReportDir artifacts/backend/migrations
       - name: Upload backend evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -118,7 +122,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        image: pgvector/pgvector@sha256:a36250871de0833b8757561c72f2477ef1ddd1101afa4e617fb552e0de514c6b
         env:
           POSTGRES_USER: omnicraft
           POSTGRES_PASSWORD: omnicraft

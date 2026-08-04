@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "state": "active",
+  "postgres_full": {
+    "frequency": "daily",
+    "pre_migration": true,
+    "format": "custom",
+    "checksum_manifest": true,
+    "migration_manifest": true
+  },
+  "local_retention": {
+    "copies": 7
+  },
+  "off_host": {
+    "enabled": true,
+    "encryption": "AES-256",
+    "immutable_or_versioned": true,
+    "retention_days": 30,
+    "verify_after_upload": true
+  },
+  "restore_drill": {
+    "cadence": "monthly",
+    "max_age_days": 30,
+    "new_database_only": true
+  },
+  "storage_classification": [
+    {
+      "system": "postgresql",
+      "class": "source_of_truth",
+      "recovery": "restore_first_into_new_database"
+    },
+    {
+      "system": "oss",
+      "class": "user_bytes_non_rebuildable",
+      "recovery": "version_restore_and_reconcile_against_postgres"
+    },
+    {
+      "system": "redis",
+      "class": "rebuildable_cache",
+      "recovery": "clear_and_rebuild_from_postgres"
+    }
+  ],
+  "restore_order": ["postgresql", "oss", "redis"]
+}

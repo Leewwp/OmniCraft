@@ -112,6 +112,10 @@ reset_fixtures
 expect_ok "real workflows must satisfy the contract"
 
 reset_fixtures
+mutate "ci||__replace__||bash scripts/db/verify-migration-gate.sh -ReportDir artifacts/backend/migrations||go test ./internal/migration ./cmd/migrate -count=1"
+expect_fail "migration integration and contracts must use the canonical evidence-producing gate"
+
+reset_fixtures
 mutate "ci||__replace__||    if: \${{ always() }}||    if: \${{ success() }}"
 expect_fail "project-gate must always run even when a dependency fails"
 
