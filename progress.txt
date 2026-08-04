@@ -2,6 +2,29 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+## [2026-08-04] - Task U-12: Enforceable UI Governance Gates（完成）
+
+### What was done:
+- `frontend/package.json` 新增 `lint:ui`（`node scripts/ui-governance/run-all.mjs`），`verify` 同步纳入，未删除任何既有脚本。
+- 新建 `run-all.mjs` 编排五道门：token 契约（复用 check-tokens）、zh/en i18n parity（复用 check-i18n-parity）、native-dialog（TypeScript AST 扫描 `confirm`/`prompt`/`alert` 的裸调用、`window.`/`globalThis.` 属性与 `window["x"]()` 计算访问）、undefined-token（TS/TSX 中 `var(--x)` 引用对照 globals.css 声明，放行 `--tw-`/`--base-ui-` 运行时前缀）、source-policy（U-05 四个 raw-render 模式全局门）。扫描集：`app/components/contexts/lib/i18n`，排除 test/spec/.d.ts。
+- 新建 `check-source-policy.mjs`：raw-error 门（error-message-union、ApiRequestError instanceof、code:message 插值、toast err.message）+ 四项量测报告（JSX 硬编码文本、aria-label 字面量、颜色字面量、<44px 紧凑尺寸，Tailwind ×4px 换算，h-10=40px 计入），量测仅输出不设门（计划要求"begin as measured reports"）。
+- 新建 `run-all.test.mjs`（6 项）与 `check-source-policy.test.mjs`（4 项），含仓库基线端到端门断言。
+- `scripts/verify-project.sh` 在 lint 与 build 之间接入 `npm run lint:ui`；`scripts/verify-project.tests.sh` 契约同步（命令顺序、frontend 作用域、9 个 log、summary 命令表/evidence 计数）。
+- `check-i18n-parity.mjs` 导出 `I18N_NAMESPACES`（U-10 释放后所有权转移），消除双份命名空间列表漂移。
+- 计划 U-12 全部 checkbox、DoD 与通用执行契约勾选完成；专项计划归档至 `docs/archive/plans/`，AGENTS.md 注册表移除该行。
+
+### Testing:
+- TDD RED：verifier 契约测试先失败（期望 lint:ui 缺失）+ 新脚本测试 ERR_MODULE_NOT_FOUND；接入后全绿。
+- 治理测试 15/15；全量 `npm test` 156/156；`npm run lint`（tsc）PASS；`npm run build -- --webpack` PASS；`bash scripts/verify-project.tests.sh` PASS；后端 `go build/vet/test ./...` 全 PASS。
+- `bash scripts/verify-project.sh --full`（含 8 mock Playwright 契约）PASS，summary.json 10 命令全 0；`lint:ui` 实测输出五项 [ok] + 四项 [measure] 且 exit 0。
+- ego-lite：`/` 与 `/original` 页面正常加载（页面结构、搜索框、跳转链接完整），截图 `/tmp/u12-home.png`、`/tmp/u12-original.png`（U-12 无可见 UI 改动，截图仅作回归证据，不入库）。
+- 双轴 code-review：4 项发现全部修复（touch-target `<11` 边界、I18N_NAMESPACES 单一来源、ElementAccess 原生弹窗漏检、fileURLToPath 路径处理），复审通过。
+
+### Notes:
+- 首次 `--full` 因环境缺 Playwright chromium-headless-shell 失败，`npx playwright install chromium` 后通过；门运行会重写 `screenshots/community-content-series-*.png` 基线截图，已在提交前恢复（既有 spec 行为，非本任务改动）。
+- 原生弹窗别名捕获（`const c = window.confirm; c()`）与同名局部函数阴影化属于已记录的门限豁免（见 run-all.mjs 注释）。
+- `frontend/package-lock.json` 既有 npm 元数据脏改动继续保留不提交。
+
 ## [2026-08-03] - Task U-11 Frontend: Server Capability Consumers（完成）
 
 ### What was done:

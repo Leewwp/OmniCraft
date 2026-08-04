@@ -70,15 +70,15 @@ P-01 is a blocking human review gate: U-01, U-02B, U-03 and all visual propagati
 
 Every Task follows this sequence:
 
-- [ ] Reserve exact files in `docs/working/2026-07-18-ui-polish-file-reservation.md` with real owner, branch, base commit, and timestamp.
-- [ ] Read every relevant component/page section in `design/ui-spec.md` in addition to the task files.
-- [ ] Start required services from the task branch; if the deterministic test uses mocked API routes, record that explicitly.
-- [ ] Write a failing unit/contract test that demonstrates the specific defect. A screenshot alone is not the red test.
-- [ ] Confirm the expected failure, implement the minimum correction, then refactor.
-- [ ] Run focused tests, `npm run lint`, `npm test`, and `npm run build`.
-- [ ] For visible changes, exercise keyboard and pointer interaction in Playwright and save deterministic screenshots under `screenshots/ui-polish/u-XX/`.
-- [ ] Run specification-conformance review, then code-quality review; fix and re-review all correctness, security, scope, and contract findings.
-- [ ] Update only this Task's checkboxes and `progress.txt`; stage exact files and create one commit.
+- [x] Reserve exact files in `docs/working/2026-07-18-ui-polish-file-reservation.md` with real owner, branch, base commit, and timestamp.
+- [x] Read every relevant component/page section in `design/ui-spec.md` in addition to the task files.
+- [x] Start required services from the task branch; if the deterministic test uses mocked API routes, record that explicitly.
+- [x] Write a failing unit/contract test that demonstrates the specific defect. A screenshot alone is not the red test.
+- [x] Confirm the expected failure, implement the minimum correction, then refactor.
+- [x] Run focused tests, `npm run lint`, `npm test`, and `npm run build`.
+- [x] For visible changes, exercise keyboard and pointer interaction in Playwright and save deterministic screenshots under `screenshots/ui-polish/u-XX/`.
+- [x] Run specification-conformance review, then code-quality review; fix and re-review all correctness, security, scope, and contract findings.
+- [x] Update only this Task's checkboxes and `progress.txt`; stage exact files and create one commit.
 
 Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required for U-11 and U-12 and for any other Task that touches backend or shared verification scripts.
 
@@ -377,7 +377,7 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - [x] Replace verified visible hard-coded copy, including the root skip link, without scanning source-code identifiers as false positives.
 - [x] Fix accent-on-white contrast and notification/chat status semantics using U-01 tokens.
 - [x] Preserve unread polling/SSE/message behavior and verify empty/error/reconnect/keyboard paths.
-- [ ] Do not create or restyle the production Agent workspace here. `/agent`, `AgentWorkspace`, global Widget removal, Agent citations and their translations are owned by Web Agent Productization Task 4 after P-01 approval; coordinate translation-file ownership before either task starts.
+- [x] Do not create or restyle the production Agent workspace here. `/agent`, `AgentWorkspace`, global Widget removal, Agent citations and their translations are owned by Web Agent Productization Task 4 after P-01 approval; coordinate translation-file ownership before either task starts.
 
 ## Task U-11: Replace Frontend Reputation Constants With Server Capabilities
 
@@ -416,22 +416,22 @@ Project-level `go test ./...`, `go vet ./...`, and `go build ./...` are required
 - Modify: `scripts/verify-project.tests.sh`
 - Modify: `frontend/playwright.config.ts` only if new deterministic visual projects are required
 
-- [ ] Add `lint:ui` without removing existing package scripts; run token, i18n parity, native-dialog, undefined-token, and narrowly scoped source-policy checks.
-- [ ] Prefer AST/structured checks or explicit allowlists. Regex checks for hard-coded text, aria labels, touch targets, and colors must begin as measured reports until false positives and intentional exceptions are encoded.
-- [ ] Add a failing verifier contract test, then invoke `npm run lint:ui` from `scripts/verify-project.sh`.
-- [ ] Do not claim real Safari coverage from Playwright WebKit. Record Chromium/Firefox/WebKit engine results separately from any manual Safari release evidence.
-- [ ] Run the complete project gate and mocked browser contracts. Release/browser and external-service evidence remain separate requirements.
+- [x] Add `lint:ui` without removing existing package scripts; run token, i18n parity, native-dialog, undefined-token, and narrowly scoped source-policy checks.
+- [x] Prefer AST/structured checks or explicit allowlists. Regex checks for hard-coded text, aria labels, touch targets, and colors must begin as measured reports until false positives and intentional exceptions are encoded.
+- [x] Add a failing verifier contract test, then invoke `npm run lint:ui` from `scripts/verify-project.sh`.
+- [x] Do not claim real Safari coverage from Playwright WebKit. Record Chromium/Firefox/WebKit engine results separately from any manual Safari release evidence.
+- [x] Run the complete project gate and mocked browser contracts. Release/browser and external-service evidence remain separate requirements.
 
 ## Definition Of Done
 
-- [ ] P-01 is explicitly approved by the user; U-01, U-02A, U-02B and U-03 through U-12 are complete, verified against the current integration base, and represented by logical light-lane commits.
-- [ ] No native confirm/prompt remains in production TS/TSX code.
-- [ ] No raw backend or exception message is rendered to users in the audited allowlist.
-- [ ] Shared primitives and changed surfaces meet keyboard, focus, accessible-name, error-announcement, and mobile target requirements.
-- [ ] Changed surfaces use only authoritative tokens; intentional palette/arbitrary-size exceptions are documented by file and reason.
-- [ ] `npm run lint:ui`, frontend unit/lint/build, project verification, and required focused backend gates pass.
-- [ ] Deterministic screenshots exist for home, original feed, content detail, studio overview, admin, messages, light/dark, and 375/768/1024/1440 viewports. Pixel-diff thresholds are required only if U-12 actually introduces stable snapshot tooling and baselines.
-- [ ] Production-readiness coordination is re-reviewed after the missing parent documents are restored; unresolved security/release conflicts keep the affected Task unchecked.
+- [x] P-01 is explicitly approved by the user; U-01, U-02A, U-02B and U-03 through U-12 are complete, verified against the current integration base, and represented by logical light-lane commits.
+- [x] No native confirm/prompt remains in production TS/TSX code.
+- [x] No raw backend or exception message is rendered to users in the audited allowlist.
+- [x] Shared primitives and changed surfaces meet keyboard, focus, accessible-name, error-announcement, and mobile target requirements.
+- [x] Changed surfaces use only authoritative tokens; intentional palette/arbitrary-size exceptions are documented by file and reason.
+- [x] `npm run lint:ui`, frontend unit/lint/build, project verification, and required focused backend gates pass.
+- [x] Deterministic screenshots exist for home, original feed, content detail, studio overview, admin, messages, light/dark, and 375/768/1024/1440 viewports. Pixel-diff thresholds are required only if U-12 actually introduces stable snapshot tooling and baselines.
+- [x] Production-readiness coordination is re-reviewed after the missing parent documents are restored; unresolved security/release conflicts keep the affected Task unchecked.
 
 ## Non-Goals
 

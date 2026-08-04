@@ -2,7 +2,7 @@
 
 **创建日期**: 2026-07-25
 **预计失效日期**: 2026-09-25
-**关联计划**: `docs/superpowers/plans/2026-07-18-omnicraft-ui-polish-hardening.md`(Gate P-01)
+**关联计划**: `docs/archive/plans/2026-07-18-omnicraft-ui-polish-hardening.md`(Gate P-01；2026-08-04 归档)
 **状态**: ✅ 2026-08-01 P-01 已获批；IP 库选择 A/B/C 变体中的方案 B（Indigo 精修）。2026-07-28 取消的是历史 Hallmark Tally 双方向方案 B，不是本次 IP 库变体。U-01 已解阻；生产 `/ips` 回写仍由 U-09 执行。
 
 ---

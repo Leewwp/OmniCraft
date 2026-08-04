@@ -11,13 +11,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "tsc --noEmit",
+    "lint:ui": "node scripts/ui-governance/run-all.mjs",
     "test": "node scripts/run-tests.mjs unit",
     "test:unit": "node scripts/run-tests.mjs unit",
     "test:contracts": "playwright test --config=playwright.mocked.config.ts",
     "test:cross-stack": "playwright test --config=playwright.cross-stack.config.ts",
     "test:e2e": "npm run test:cross-stack",
     "test:e2e:release-manual": "bash ../scripts/run-root-python-e2e.sh",
-    "verify": "npm run lint && npm run test:unit && npm run build",
+    "verify": "npm run lint && npm run lint:ui && npm run test:unit && npm run build",
     "verify:release": "npm run verify && npm run test:e2e"
   },
   "dependencies": {
