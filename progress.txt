@@ -2,6 +2,28 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+## [2026-08-04] - 规划：内容发现闭环三缺口（to-spec + to-tickets，无代码改动）
+
+### What was done:
+- 确认三个生产缺口（原型已验证、生产未实现、此前未登记计划）：**推荐页 `/recommend`**（独立内容推荐浏览面，原型 chrome.tsx 四导航"推荐/二创/原创/AI Agent"之一）、**共享内容详情浮窗**（全站卡片入口统一浮层 + 逐层返回导航栈 + 滚动记忆 + 退出恢复）、**Agent 工作台 `/agent`**（独立工作台页面，内容访问经浮窗）。用户确认 IP 库改造已完成（P-01 已由 U-09 回写），推荐页为独立页面形态。
+- 恢复被删原型分支 `opencode/p01-ui-prototype`（reflog 定位 tip `09cf059`，含 content-detail-overlay/feed/masonry/agent 等 15+ 文件）并推送远端备份（`origin/opencode/p01-ui-prototype`）。
+- to-spec：三缺口合成规格发布 GitHub **issue #14**（ready-for-agent；Problem/Solution/18 条用户故事/实现与测试决策/范围外，验收输入 = P-01 批准原型 + `docs/working/2026-07-25-ui-prototype-review.md` A1.5）。
+- to-tickets：拆为 5 张 tracer-bullet 门票并发布，阻塞边如下：
+  - **#15** ui-spec 补三章（/recommend、ContentDetailOverlay、/agent）— 无阻塞，先行
+  - **#16** 共享内容详情浮窗底座 — 阻塞 #15，次行
+  - **#17** 推荐页 /recommend（复用 ListContents，排序不足则扩展参数）— 阻塞 #15 #16
+  - **#18** 全站卡片入口统一接浮窗（二创/原创/IP；Agent 引用接线留 web-agent Task 4）— 阻塞 #15 #16
+  - **#19** Agent 工作台 /agent（工作台外壳 + 生命周期契约，与 web-agent 串行衔接）— 阻塞 #15 #16
+- 规划总顺序（用户确认）：Ops-02~08 → source-linkage → collaboration-invites → wayfinder T1（§4.2 修订）→ 三缺口（#15→#16→#17/#18/#19）→ Web Agent Productization → multiplatform（T2~T7）。
+
+### Testing:
+- 无代码改动；验证为原型分支恢复完整性（git ls-tree 15+ 文件）+ GitHub issue 发布确认（#14~#19 均 ready-for-agent）。
+
+### Notes:
+- 协调点：AGENTS.md 注册表"生产 `/agent` 归 Web Agent Productization Task 4 独占"声明待三缺口启动时修改为"本计划先行、Task 4 衔接"；三缺口共享 `zh.json`/`en.json` 串行编辑。
+- 执行方式：每票新会话 implement（tdd + code-review），按阻塞 frontier 抓票；本会话未推进任何实现，下一步开新会话执行 #15。
+- 原型分支 `scripts/seed_real_data.py` 本地保留（.git/info/exclude），不上 GitHub。
+
 ## [2026-08-04] - Task U-12: Enforceable UI Governance Gates（完成）
 
 ### What was done:
