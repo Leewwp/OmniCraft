@@ -123,7 +123,7 @@ func (s *RehabService) CompleteCourse(userID int64, courseID int64) (int, error)
 		return 0, err
 	}
 	if completed {
-		return 0, ErrAlreadyCompleted
+		return s.completedCourseResult(userID)
 	}
 	completion, err := s.rehabRepo.GetCompletion(userID, courseID)
 	if err != nil {
@@ -155,6 +155,10 @@ func (s *RehabService) CompleteCourse(userID int64, courseID int64) (int, error)
 	if err != nil {
 		return 0, err
 	}
+	return s.completedCourseResult(userID)
+}
+
+func (s *RehabService) completedCourseResult(userID int64) (int, error) {
 	var reputation int
 	if err := s.db.Model(&model.User{}).
 		Select("reputation").

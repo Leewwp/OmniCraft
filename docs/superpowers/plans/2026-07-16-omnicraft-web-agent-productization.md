@@ -19,7 +19,7 @@
 - Execute this mixed plan using the current `AGENTS.md` lane classification: ordinary Web UI/service tasks use light; security, auth, production configuration and release gates use heavy. Do not modify the historical task ledger, Beta roadmap, or community completion state.
 - Dependency order: Task 1 precedes Tasks 2–4; Task 2 precedes Tasks 3 and 5; Task 3 precedes Tasks 4–6; Task 4 and Task 5 both precede Task 6.
 - This is a Web Agent plan. Do not duplicate or execute Desktop D-02～D-05 while Desktop scope is deferred; the preserved Beta desktop plan remains the only future source for local actions after explicit restoration.
-- Serialize edits to `backend/internal/service/agent_service.go`, `backend/config/config.go`, `backend/config.yaml`, `frontend/components/agent/*`, and translation files.
+- Serialize edits to `backend/internal/service/agent_service.go`, `backend/config/config.go`, `backend/config.yaml`, `frontend/components/agent/*`, `frontend/components/content/ContentDetailOverlay.tsx`, shared Header/search files, and translation files. UI Polish U-10 does not own Agent workspace files; reserve translation files explicitly before Task 4.
 - Keep `agent.web_agent_enabled=false` in repository defaults. Production may enable it only after Task 6 passes with real Provider configuration.
 - Do not log prompts, raw provider responses, private content, secrets, or chain-of-thought.
 - If real API key/provider input is absent at release verification, record a blocker and keep the flag off; unit/contract tests may use deterministic fakes.
@@ -44,13 +44,18 @@
 
 ### Frontend
 
-- Modify: `frontend/components/agent/AgentChatWidget.tsx`
-- Modify: `frontend/components/agent/SearchAgentInput.tsx`
+- Create: `frontend/app/(protected)/agent/page.tsx`
+- Create: `frontend/components/agent/AgentWorkspace.tsx`
+- Remove after migration: `frontend/components/agent/AgentChatWidget.tsx`
+- Create/rename: `frontend/components/search/GlobalSearchInput.tsx` from the keyword-only behavior of `frontend/components/agent/SearchAgentInput.tsx`
+- Modify: `frontend/app/layout.tsx` (remove global Agent mount)
+- Modify: shared Header/search consumers to route Agent through `/agent`
 - Create: `frontend/components/agent/AgentCitationList.tsx`
 - Create: `frontend/components/agent/AgentToolStatus.tsx`
+- Create/reuse: `frontend/components/content/ContentDetailOverlay.tsx`
 - Create: `frontend/lib/agent.ts`
 - Modify: `frontend/messages/zh.json`, `frontend/messages/en.json`
-- Create: `frontend/tests/agent-chat-widget.test.tsx`
+- Create: `frontend/tests/agent-workspace.test.tsx`
 - Create: `frontend/e2e/web-agent-grounded.spec.ts`
 - Read/align: `design/ui-spec.md` Agent sections
 
@@ -240,7 +245,9 @@ Tests cover:
 - tool status summary without chain-of-thought;
 - no-evidence and degraded-search states;
 - retry preserving the user's current form input;
-- feature-disabled/anonymous state hides ChatWidget and Agent mode controls through public config while preserving SearchAgentInput keyword search;
+- feature-disabled state blocks/hides the `/agent` product entry while preserving keyword search; anonymous access follows the protected-route login redirect contract;
+- Root Layout does not mount a global Agent trigger or panel, and Header search exposes no Agent mode toggle;
+- citation cards open the shared content detail overlay and closing it restores the conversation scroll anchor and citation focus;
 - keyboard/focus behavior and `aria-live`;
 - throttled screen-reader announcements, reduced motion, and no forced auto-scroll while the user reads earlier output;
 - invalid citation objects are never clickable.
@@ -256,16 +263,17 @@ Tests cover:
 
 Citation items show title, zone, excerpt, and an accessible link. Tool status uses short user-facing labels such as “已检索 8 条内容”; do not expose raw args or internal reasoning.
 
-- [ ] **Step 4: Refactor AgentChatWidget and SearchAgentInput**
+- [ ] **Step 4: Build AgentWorkspace and separate global keyword search**
 
-Add stable loading, empty, partial-stream, stopped, error, degraded, and success states. Preserve last successful answer on retryable failures. All visible strings use `agent.*` translations.
+Create the protected `/agent` page and `AgentWorkspace` with stable loading, empty, partial-stream, stopped, error, degraded, and success states. Preserve last successful answer on retryable failures. Remove the Root Layout `AgentChatWidget` mount. Migrate Header/search consumers to keyword-only `GlobalSearchInput`; do not expose an Agent mode switch. All visible strings use the documented `agent.*` and `search.*` namespaces.
 Implement separate “开始新对话” and “清空当前历史” actions using the lifecycle contract above; never label a local-only reset as server history deletion.
+Wire valid citations to the shared `ContentDetailOverlay`; closing the overlay restores the conversation scroll position and citation trigger focus.
 
 - [ ] **Step 5: Run focused frontend tests**
 
 ```bash
 cd frontend
-node --import tsx --test tests/agent-chat-widget.test.tsx
+node --import tsx --test tests/agent-workspace.test.tsx
 npm run lint
 npm run build
 ```
@@ -329,7 +337,7 @@ npm run build
 
 - [ ] **Step 2: Run Playwright with a deterministic fake Provider**
 
-Verify natural-language search, citations, navigation, tool status, stop, no-evidence, degraded search, rate limit, new-conversation preservation, confirmed/cancelled/failed history deletion, mobile layout at 320/375/414px, keyboard focus, reduced motion, user-controlled streaming scroll, and feature-disabled hiding.
+Verify protected `/agent` navigation, natural-language questions, citations, shared detail-overlay open/close/history/focus restoration, tool status, stop, no-evidence, degraded keyword search, rate limit, new-conversation preservation, confirmed/cancelled/failed history deletion, mobile layout at 320/375/414px, keyboard focus, reduced motion, user-controlled streaming scroll, feature-disabled gating, absence of a global Agent widget, and absence of an Agent mode in Header search.
 
 - [ ] **Step 3: Run real-provider smoke**
 
@@ -339,6 +347,7 @@ With approved environment credentials, verify one cited search question, one no-
 
 - `screenshots/web-agent-grounded-desktop.png`
 - `screenshots/web-agent-citations-mobile.png`
+- `screenshots/web-agent-citation-overlay-desktop.png`
 - `screenshots/web-agent-no-evidence.png`
 - `screenshots/web-agent-degraded-search.png`
 

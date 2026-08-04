@@ -112,6 +112,18 @@ reset_fixtures
 expect_ok "real workflows must satisfy the contract"
 
 reset_fixtures
+mutate "ci||__replace__||    if: \${{ always() }}||    if: \${{ success() }}"
+expect_fail "project-gate must always run even when a dependency fails"
+
+reset_fixtures
+mutate "ci||__replace__||needs.backend.result||needs.backend.outcome"
+expect_fail "project-gate must inspect every dependency result"
+
+reset_fixtures
+mutate "ci||__replace__||= success||!= success"
+expect_fail "project-gate must require success from every dependency"
+
+reset_fixtures
 mutate "ci||__strip__||pull_request"
 expect_fail "ci.yml must declare the pull_request trigger"
 

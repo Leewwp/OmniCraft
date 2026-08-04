@@ -416,7 +416,7 @@ export default function AdminCategoriesPage() {
                             value={editValues.name_en || ""}
                             onChange={(e) => setEditValues((v) => ({ ...v, name_en: e.target.value }))}
                             placeholder="EN"
-                            aria-label={`${t('admin.categories.nameEn')}: ${(cat.name_i18n as Record<string, string>)?.zh || cat.slug}`}
+                            aria-label={`${t('admin.categories.nameEn')}: ${(cat.name_i18n as Record<string, string>)?.en || cat.slug}`}
                           />
                           {editAttempted && !editValues.name_zh?.trim() && (
                             <span id={`category-edit-error-${cat.id}`} role="alert" className="sr-only">

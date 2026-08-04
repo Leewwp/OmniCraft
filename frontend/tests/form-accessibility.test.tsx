@@ -186,6 +186,37 @@ test("tag-group and category forms expose runtime names and first-error focus", 
   }
 });
 
+test("category English edit field names the English value", async () => {
+  installDom();
+  const originalGet = api.get;
+  api.get = async <T,>() => ({
+    categories: [{
+      id: 9,
+      zone: "fanwork",
+      level: "category",
+      parent_id: null,
+      name_i18n: { zh: "中文分类", en: "English category" },
+      slug: "english-category",
+      sort_order: 0,
+      is_active: true,
+    }],
+  } as T);
+  try {
+    const { render } = await import("@testing-library/react");
+    const CategoriesPage = (await import("../app/(protected)/admin/categories/page")).default;
+    const view = render(
+      <IntlProvider locale="en" messages={enMessages}>
+        <CategoriesPage />
+      </IntlProvider>,
+    );
+    const edit = await waitFor(() => view.getByRole("button", { name: /^edit$/i }));
+    fireEvent.click(edit);
+    assert.ok(view.getByRole("textbox", { name: "English Name: English category" }));
+  } finally {
+    api.get = originalGet;
+  }
+});
+
 test("system config exposes a label for every field and switch", async () => {
   installDom();
   const originalGet = api.get;

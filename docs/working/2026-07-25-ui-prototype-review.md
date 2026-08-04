@@ -33,6 +33,8 @@
 | 截图证据 | `screenshots/ui-polish/prototype/`(23 张旧基线,见 §6) |
 | 生产改动 | **无**。未触碰生产页面、`globals.css`、设计 Token、共享组件 |
 
+> 原型源码未合并到生产 `main`，现以 `opencode/p01-ui-prototype@09cf059` 保留；本文出现的 `frontend/app/prototype-ui-polish/**`、素材和捕获脚本路径均指向该历史 ref，不表示文件存在于当前工作树。
+
 切换栏(仅非生产构建渲染):←/→ 或箭头按钮切换视图;状态丸切换 默认/加载/空/错误;右端切换明暗主题。
 
 以下旧基线本身不能单独作为 P-01 批准证据；A1/A1.5/A1.6 已补齐推荐、Agent 和详情交互。当前只需沿 Indigo 方向增加 IP 库原型并验证其跳转到现有 IP 详情页。

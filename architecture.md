@@ -165,6 +165,7 @@ app/
 │   ├── history/page.tsx             # 浏览历史
 │   ├── appeals/page.tsx             # 我的申诉
 │   ├── messages/page.tsx            # 消息中心（通知 + 私信）
+│   ├── agent/page.tsx               # 独立全页 Agent 工作台（feature gate + 登录保护）
 │   ├── rehab/page.tsx               # 素质建设课程
 │   └── feedback/page.tsx            # 用户反馈
 └── admin/                           # 管理员后台
@@ -203,6 +204,7 @@ components/
 ├── content/
 │   ├── ContentCard.tsx              # 内容卡片（通用）
 │   ├── ContentDetail.tsx            # 内容详情页
+│   ├── ContentDetailOverlay.tsx     # 推荐流与 Agent 引用共用的内容详情浮层
 │   ├── MarkdownRenderer.tsx         # MD 渲染（react-markdown）
 │   ├── MarkdownEditor.tsx           # MD 编辑器（@uiw/react-md-editor）
 │   ├── FileUploader.tsx             # 文件上传（OSS 直传）
@@ -220,6 +222,12 @@ components/
 │   ├── NotificationList.tsx         # 通知列表（按频道分 Tab）
 │   ├── ConversationList.tsx         # 私信对话列表
 │   └── ChatWindow.tsx               # 私信对话窗口
+├── agent/
+│   ├── AgentWorkspace.tsx           # /agent 全页会话工作台
+│   ├── AgentCitationList.tsx        # 服务端校验后的站内引用列表
+│   └── AgentToolStatus.tsx          # 不暴露内部推理的工具状态摘要
+├── search/
+│   └── GlobalSearchInput.tsx        # 全站关键词搜索；不提供 Agent 模式
 ├── judge/
 │   ├── ExamQuestion.tsx             # 判官考题
 │   └── ReviewCard.tsx               # 众裁内容卡

@@ -4,6 +4,7 @@
 > 状态：设计校准完成，人工决策已确认，可进入实现计划生成
 > 来源：/superpowers:brainstorming 会话
 > 实施策略：方案 A（串行垂直切片）
+> 2026-07-28 修订：用户确认私信冷启动由“仅回复解锁”扩展为“接收方关注发送方或回复后解锁”，并确认用户资料入口的完整私信聊天浮层与单图消息交互；真实图片附件生产实现另走后续 heavy 任务。
 
 ## 目录
 
@@ -132,18 +133,20 @@ OmniCraft 已完成 MVP 开发，Web Beta 加固主线已基本完成；桌面�
 
 #### 规则
 
-会话中对方**从未回复过**时，当前用户只能发一条消息。一旦对方回复（哪怕一次），限制永久解除。
+接收方尚未关注发送方且在会话中**从未回复过**时，发送方只能发一条纯文本消息。接收方关注发送方或回复（哪怕一次）后，限制永久解除；冷启动期间禁止图片消息。
 
 #### 校验逻辑（POST /api/v1/messages 前置校验）
 
 ```
-1. 查询该会话中 messages WHERE sender_id != 当前用户 的记录数
+1. 查询接收方是否关注发送方（follows: follower_id=接收方、target_type='user'、target_id=发送方）
+2. 查询该会话中 messages WHERE sender_id != 当前用户 的记录数
    （即对方发过的消息数）
-2. 若 count > 0 → 对方已回复过 → 放行
-3. 若 count == 0 → 冷启动状态：
+3. 若已关注或 count > 0 → 冷启动已解除 → 放行
+4. 若未关注且 count == 0 → 冷启动状态：
    a. 查该会话最后一条消息（ORDER BY created_at DESC LIMIT 1）
    b. 若最后一条 sender_id == 当前用户 → 拒绝 403
-   c. 否则 → 放行（这是第一条消息）
+   c. 若请求携带图片 → 拒绝（冷启动首条只允许纯文本）
+   d. 否则 → 放行（这是第一条纯文本消息）
 ```
 
 #### 错误响应
@@ -151,25 +154,29 @@ OmniCraft 已完成 MVP 开发，Web Beta 加固主线已基本完成；桌面�
 ```json
 {
   "code": "DM_REPLY_REQUIRED",
-  "message": "对方尚未回复，请等待回复后再发送新消息"
+  "message": "对方尚未关注或回复，只能发送一条私信"
 }
 ```
+
+`DM_REPLY_REQUIRED` 为兼容现有客户端保留的稳定错误码，语义自 2026-07-28 起扩展为“等待对方关注或回复”，不得仅按字面解释为回复条件。
 
 #### 场景覆盖
 
 | 场景 | 结果 |
 |------|------|
 | A 首次给 B 发消息 | 放行 |
-| A 再发第二条（B 没回） | 拒绝 DM_REPLY_REQUIRED |
+| A 首次给 B 发纯图片 | 拒绝，冷启动禁止图片 |
+| A 再发第二条（B 未关注且没回） | 拒绝 DM_REPLY_REQUIRED |
+| B 关注了 A（尚未回复） | A 后续发送与图片能力解锁 |
 | B 回复了 A | 放行 |
 | A 回复 B（对话已建立） | 放行 |
 | 双方持续正常聊天 | 无限制 |
 
 #### 实现说明
 
-- 无需改表，纯业务逻辑校验
+- 纯文本冷启动解锁判断无需改表；图片附件模型、上传授权和审核状态需要后续 heavy 迁移与服务实现
 - 现有后端真实发送接口为 `POST /api/v1/messages`，请求体包含 `recipient_id` 与 `text`，后端内部查找或创建 1:1 conversation 后写入 messages。
-- 当前前端 `frontend/components/social/ChatWindow.tsx` 仍调用 `/api/v1/conversations/:id/messages`，`frontend/components/social/ConversationList.tsx` 仍调用 `/api/v1/conversations`；实施 §1 时必须一并修正为现有 `/api/v1/messages` / `/api/v1/messages/:id` 体系，避免在新布局上继续叠加旧 API 错位。
+- 当前前端 `frontend/components/social/ChatWindow.tsx` 与 `ConversationList.tsx` 已统一调用 `/api/v1/messages` / `/api/v1/messages/:id`；后续私信聊天浮层必须复用该事实源，不得恢复旧 `/api/v1/conversations*` 路径。
 - 修改文件：`backend/internal/handler/message.go`、`backend/internal/repository/message_repo.go`；如抽出 service 层，新增 `backend/internal/service/message_service.go`。
 
 ### 1.3 管理员系统通知广播
@@ -270,6 +277,14 @@ OmniCraft 已完成 MVP 开发，Web Beta 加固主线已基本完成；桌面�
 | 未读红点 | 会话列表项红点 + Header 铃铛红点（继续轮询 unread-count） |
 | 系统通知 | 蓝色左边框标记，与个人通知视觉区分 |
 
+#### 用户资料入口的私信聊天浮层（2026-07-28 修订）
+
+- 创作者主页以外的用户资料浮层提供“私信”；点击后不跳转消息中心，而是在当前页面或内容详情浮层上方打开简化但完整的私信聊天浮层。消息中心继续作为完整会话列表与历史管理入口，两者共享同一会话事实源。
+- 桌面窗口约 440px 宽、最高 70–75dvh，默认在当前上下文视口居中且不跟随资料浮层或头像定位；移动端全屏。顶部只显示对方昵称，底部编辑器固定，中间消息记录独立滚动；关闭最上层后恢复下层位置与触发按钮焦点。
+- 输入框左上方提供图片按钮；文本或一张图片任一非空即可发送。每条最多一张 JPEG/PNG/GIF/WebP 图片且 ≤10MB，允许纯图片；冷启动期间图片按钮可见但禁用。
+- 选图后立即校验并临时上传，上传成功前不可发送；已发送图片支持独立预览。发送者提交后立即本地可见，接收方在图片审核通过前不可见；审核中对发送者静默，失败仅显示发送者侧红色感叹号，文字+图片原子失败且整条不投递。
+- P-01 A1.5 只使用静态 mock 验证上述交互。生产实现必须在后续 heavy 任务中补齐附件模型/迁移、用途隔离上传授权、OSS 临时对象清理、文件签名校验、图片审核和接收方可见性过滤。
+
 ### 1.5 业务约束
 
 | 约束 | 说明 |
@@ -277,6 +292,7 @@ OmniCraft 已完成 MVP 开发，Web Beta 加固主线已基本完成；桌面�
 | 广播不可撤回 | 通知一旦逐用户创建即不可撤回；前端需二次确认后才能发送 |
 | 广播幂等 | 请求必须携带 `Idempotency-Key`；同一管理员、同一 key、同一规范化正文的重试返回原结果，不得重复创建逐用户通知；同 key 不同正文返回 409。key 哈希、payload 哈希和安全响应摘要持久化到数据库，并与逐用户通知及成功审计在同一事务提交；Redis 不作为幂等事实源。 |
 | 冷启动限制 | 详见 §1.2（纯业务逻辑，不改表） |
+| 图片私信 | 每条最多一张 JPEG/PNG/GIF/WebP、≤10MB；冷启动禁用；先审后向接收方可见，见 §1.4 |
 | 广播权限与批量 | 详见 §1.3（仅 admin、CreateInBatches 每批 500） |
 | 系统通知视觉区分 | 详见 §1.4（蓝色左边框） |
 
@@ -294,7 +310,7 @@ OmniCraft 已完成 MVP 开发，Web Beta 加固主线已基本完成；桌面�
 | 后端 Migration | `backend/migrations/057_add_broadcast_channel.sql` | 重建 notifications channel CHECK 约束 |
 | 前端页面 | `frontend/app/(protected)/messages/page.tsx` | 重构为左侧会话列表 + 右侧对话窗口双栏布局 |
 | 前端页面 | `frontend/app/(protected)/admin/notifications/page.tsx` | **新增**广播编辑页 |
-| 前端组件 | `frontend/components/social/ChatWindow.tsx` | 修正私信 API 调用并处理 DM_REPLY_REQUIRED |
+| 前端组件 | `frontend/components/social/ChatWindow.tsx` | 保持统一消息 API，处理扩展语义后的 DM_REPLY_REQUIRED；后续 heavy 增加图片附件状态 |
 | 前端组件 | `frontend/components/social/NotificationList.tsx` | 支持系统通知样式区分 |
 | 前端组件 | `frontend/components/social/ConversationList.tsx` | 适配新布局 |
 | 前端 i18n | `frontend/messages/zh.json` | 新增翻译 key |
@@ -800,7 +816,7 @@ CREATE INDEX idx_series_items_content ON content_series_items(content_item_id);
 当前系统支持通过 PR（Pull Request）进行内容协作，但缺少在发布时直接邀请联合创作者的能力。用户希望发布内容时能勾选联合创作者，被邀请者通过私信确认后方可列入创作者名单。
 
 > **前置依赖**：本子系统依赖 §1 的私信基础设施（conversations / conversation_participants / messages 表）。
-> 实现前需熟悉 §1.2 冷启动限制规则（对方未回复时限发 1 条）和 §1.4 私信对话窗口设计。
+> 实现前需熟悉 §1.2 冷启动限制规则（接收方未关注且未回复时限发 1 条纯文本）和 §1.4 私信对话窗口设计。
 > 联合创作邀请卡片通过 messages 表的 `msg_type='collab_invite'` + `metadata` 字段承载，metadata 至少包含 `invite_id`、`content_id`、`content_title`、`inviter_id`、`inviter_username`，前端据此渲染卡片并调用 accept/decline API。
 
 ### 5.2 数据模型
@@ -1135,7 +1151,7 @@ ip_id: set                source_original_id: set    source_fanwork_id: set
 |----------|------|
 | DEC-001 | 实施策略：方案 A 串行垂直切片，按依赖顺序逐一交付 |
 | DEC-002 | 管理员通知推送为「系统通知频道」形式，非全员私信 |
-| DEC-003 | 私信限制为「会话冷启动」模式（对方回复后永久解锁） |
+| DEC-003 | 私信限制为「会话冷启动」模式（接收方关注发送方或回复后永久解锁；受限期仅一条纯文本） |
 | DEC-004 | 收藏集按 zone 分区（原创/二创），创建时锁定不可更改 |
 | DEC-005 | 浏览足迹保留 7 天，双保障（查询过滤 + 定时清理），带分类筛选标签的独立页面 |
 | DEC-006 | 内容系列仅作者管理，可手动排序，一个内容可属于多个内容系列 |
@@ -1223,7 +1239,7 @@ browse_history:
 | `frontend/messages/zh.json` / `frontend/messages/en.json` | 1-6 | i18n key 合并冲突 | 按页面/组件命名空间追加 key；禁止硬编码新增 UI 文案 |
 | `frontend/components/content/ContentDetail.tsx` | 3、4、6 | 收藏入口、系列导航、来源展示插入点冲突 | 按顺序集成；每次改动后浏览器验证内容详情页 |
 | `frontend/components/studio/PublishForm.tsx` | 6、5 | 来源字段和联合创作者选择同时改发布表单 | 严格按 source-linkage -> collaboration-invites 集成；先实现 §6 来源字段，再实现 §5 联合创作者选择，两个计划不得同时编辑该文件 |
-| `frontend/app/(protected)/messages/page.tsx` / `frontend/components/social/ChatWindow.tsx` / `frontend/components/social/ConversationList.tsx` | 1、5 | 私信布局、旧 API 纠偏和邀请卡片共用消息模型 | §1 先修 API 和布局，统一改用 `/api/v1/messages` 体系；§5 再扩展 msg_type/metadata 渲染 |
+| `frontend/app/(protected)/messages/page.tsx` / `frontend/components/social/ChatWindow.tsx` / `frontend/components/social/ConversationList.tsx` | 1、5 | 私信布局、统一消息 API 和邀请卡片共用消息模型 | §1 保持 `/api/v1/messages` 体系并扩展冷启动/图片状态；§5 再扩展 msg_type/metadata 渲染 |
 | `design/ui-spec.md` | 1、2、3、4、5、6 | 新页面/组件视觉规范缺失 | 对应实现计划先补相关 `## Page:` / `## Component:` 段落，再编码 |
 
 ## 附录 F：已确认的人工决策

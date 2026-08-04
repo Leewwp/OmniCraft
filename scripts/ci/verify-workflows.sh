@@ -282,6 +282,29 @@ if os.path.exists(ci_path):
     probe = dispatch.get("inputs", {}).get("failure_probe")
     if not isinstance(probe, dict) or probe.get("type") != "boolean" or probe.get("default") is not False:
         fail("ci.yml: failure_probe input must be a boolean defaulting to false")
+    project_gate = ci.get("jobs", {}).get("project-gate")
+    if not isinstance(project_gate, dict):
+        fail("ci.yml: project-gate job is missing")
+    if "always()" not in str(project_gate.get("if", "")):
+        fail("ci.yml: project-gate must use if: always() so dependency failures cannot skip the required check")
+    dependency_results = {
+        "BACKEND_RESULT": "needs.backend.result",
+        "FRONTEND_RESULT": "needs.frontend.result",
+        "DOCS_RESULT": "needs.docs.result",
+    }
+    dependency_guard = False
+    for step in steps_of(project_gate):
+        env = step.get("env") if isinstance(step, dict) else None
+        run = str(step.get("run", "")) if isinstance(step, dict) else ""
+        if not isinstance(env, dict):
+            continue
+        if all(expected in str(env.get(name, "")) for name, expected in dependency_results.items()) and all(
+            f'test "${name}" = success' in run for name in dependency_results
+        ):
+            dependency_guard = True
+            break
+    if not dependency_guard:
+        fail("ci.yml: project-gate must fail unless backend, frontend, and docs all succeeded")
 
 if os.path.exists(tauri_path):
     with open(tauri_path, encoding="utf-8") as f:

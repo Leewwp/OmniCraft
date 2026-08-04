@@ -65,6 +65,16 @@ for tool in go npm cargo; do
   chmod +x "$wrapper"
 done
 
+cat > "$TOOLS_ROOT/date" <<'FAKE_DATE'
+#!/usr/bin/env bash
+if [ -s "${OMNICRAFT_VERIFY_TEST_LOG:-}" ]; then
+  printf '%s\n' '2026-08-04T00:00:05Z'
+else
+  printf '%s\n' '2026-08-04T00:00:00Z'
+fi
+FAKE_DATE
+chmod +x "$TOOLS_ROOT/date"
+
 export PATH="$TOOLS_ROOT:$PATH"
 export OMNICRAFT_VERIFY_TEST_LOG="$LOG_PATH"
 
@@ -259,6 +269,12 @@ if s["task"] != "ops-01":
     sys.exit(1)
 if s["commit"] is not None:
     print("FAIL: commit must be null before finalization")
+    sys.exit(1)
+if s["started_at"] != "2026-08-04T00:00:00Z":
+    print("FAIL: started_at must be captured before the first command", s["started_at"])
+    sys.exit(1)
+if s["finished_at"] != "2026-08-04T00:00:05Z":
+    print("FAIL: finished_at must be captured after the commands", s["finished_at"])
     sys.exit(1)
 if s["redaction_checked"] is not False:
     print("FAIL: redaction_checked must default to false")
