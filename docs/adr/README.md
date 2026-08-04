@@ -8,3 +8,4 @@
 | 编号 | 标题 | 状态 | 日期 |
 |------|------|------|------|
 | 0001 | document-governance | accepted | 2026-06-29 |
+| 0002 | nginx-csp-unsafe-inline | accepted | 2026-08-04 |
