@@ -44,9 +44,15 @@ export interface InteractionCapabilities {
   interaction_denial_reason?: string;
 }
 
+export const DENIAL_REASON_USER_BANNED = "USER_BANNED";
+export const DENIAL_REASON_EMAIL_NOT_VERIFIED = "EMAIL_NOT_VERIFIED";
+export const DENIAL_REASON_INSUFFICIENT_REPUTATION = "INSUFFICIENT_REPUTATION";
+export const DENIAL_REASON_CONFIG_ERROR = "CONFIG_ERROR";
+export const DENIAL_REASON_UNAVAILABLE = "AUTH_STATUS_UNAVAILABLE";
+
 const FAIL_CLOSED_CAPABILITIES: InteractionCapabilities = {
   can_interact: false,
-  interaction_denial_reason: "AUTH_STATUS_UNAVAILABLE",
+  interaction_denial_reason: DENIAL_REASON_UNAVAILABLE,
 };
 
 export function readCapabilities(
@@ -60,14 +66,14 @@ export function readCapabilities(
 
 export function interactionDenialKey(reason?: string): string {
   switch (reason) {
-    case "USER_BANNED":
+    case DENIAL_REASON_USER_BANNED:
       return "capabilities.deniedBanned";
-    case "EMAIL_NOT_VERIFIED":
+    case DENIAL_REASON_EMAIL_NOT_VERIFIED:
       return "capabilities.deniedEmailNotVerified";
-    case "INSUFFICIENT_REPUTATION":
+    case DENIAL_REASON_INSUFFICIENT_REPUTATION:
       return "capabilities.deniedInsufficientReputation";
-    case "CONFIG_ERROR":
-    case "AUTH_STATUS_UNAVAILABLE":
+    case DENIAL_REASON_CONFIG_ERROR:
+    case DENIAL_REASON_UNAVAILABLE:
       return "capabilities.deniedUnavailable";
     default:
       return "capabilities.deniedUnknown";

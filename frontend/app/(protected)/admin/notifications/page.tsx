@@ -13,6 +13,8 @@ import { useToast } from "@/components/ui/Toast";
 const TITLE_LIMIT = 120;
 const BODY_LIMIT = 5000;
 
+const newIdempotencyKey = () => globalThis.crypto.randomUUID();
+
 interface BroadcastResponse {
   data: {
     recipient_count: number;
@@ -32,9 +34,7 @@ export default function AdminNotificationsPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
-  // Idempotency key bound to the exact draft. Generated when the confirmation
-  // dialog opens, reused across retries of the unchanged draft, and rotated
-  // after success or whenever the title/body changes.
+  // Idempotency key bound to the draft; rotated after success or when it changes.
   const idempotencyRef = useRef<{ key: string; title: string; body: string } | null>(null);
 
   const validation = useMemo(() => {
@@ -75,14 +75,14 @@ export default function AdminNotificationsPage() {
     }
     const draft = idempotencyRef.current;
     if (!draft || draft.title !== trimmedTitle || draft.body !== trimmedBody) {
-      idempotencyRef.current = { key: globalThis.crypto.randomUUID(), title: trimmedTitle, body: trimmedBody };
+      idempotencyRef.current = { key: newIdempotencyKey(), title: trimmedTitle, body: trimmedBody };
     }
     setConfirmOpen(true);
   }
 
   async function handleConfirm() {
     setSending(true);
-    const key = idempotencyRef.current?.key ?? globalThis.crypto.randomUUID();
+    const key = idempotencyRef.current?.key ?? newIdempotencyKey();
     try {
       const response = await api.post<BroadcastResponse>(
         "/api/v1/admin/notifications/broadcast",
