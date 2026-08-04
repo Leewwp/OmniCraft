@@ -2,6 +2,27 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+## [2026-08-04] - Task REVIEW-REMEDIATION: main / P-01 审查整改
+
+### What was done:
+- CI `project-gate` 改为 `if: always()`，在首步显式校验 backend/frontend/docs 三个依赖结果；workflow contract 同步覆盖 skipped required-check、错误 result 字段和非 success 比较。
+- verifier 在首条 gate 前采集 `started_at`、全部命令后采集 `finished_at`；真实 evidence 为 `10:13:58Z`～`10:15:06Z`，不再生成近零耗时假证据。
+- 素质建设课程完成接口支持已提交结果的幂等重放：Redis 失效导致首次 503 后，缓存恢复重试返回已提交信誉分且不重复奖励。
+- 分类管理英文编辑框使用英文名称构造可访问名称，并新增运行时回归测试。
+- 按既有用户决定从仓库删除误跟踪的 `scripts/seed_real_data.py`；其历史版本仍可从 `a3c7adc` 恢复，本地工作副本继续由 `.git/info/exclude` 排除。
+- 选择性吸收 P-01 原型的决策 hunks：同步独立 `/agent` 工作台、关键词全站搜索、共享 `ContentDetailOverlay`、Agent 引用恢复上下文，以及冷启动私信“关注或回复解锁/受限期纯文本”语义；未合并 throwaway 原型代码、covers、capture 脚本或 `.hallmark`。
+- 修正 ADR-0003 索引、Production Readiness 余项/状态、归档 UI 计划状态、原型历史 ref，并将 `CONTEXT.md` 收敛为指向唯一术语权威 `docs/GLOSSARY.md` 的导航视图；记录 Ops-01 聚合 commit 的历史审计偏差且不重写共享 main。
+
+### Testing:
+- TDD RED：workflow 缺 always/依赖失败聚合、verifier 启动时间晚采集、课程缓存恢复重试返回 409、英文输入框读中文名称均按预期失败；最小实现后全部转绿。
+- `bash scripts/verify-project.sh -ReportDir artifacts/review-remediation` PASS：Go test/vet/build、前端 157/157 单测、TypeScript lint、UI governance、Next.js 生产 build、doc-validator release profile 全绿。
+- `bash scripts/verify-project.tests.sh`、`bash scripts/ci/verify-workflows.tests.sh`、evidence validate/finalize contract tests 全部 PASS；`git diff --check` PASS。
+- 应用内浏览器使用本地管理员账号验证 `/admin/categories` 页面加载、编辑交互与“英文名称: Review child category”可访问名称；截图保存于 `screenshots/review-remediation/admin-categories-english-label.png`。临时父/子分类确认零内容引用后在单事务中清理。
+
+### Notes:
+- `scripts/seed_real_data.py` 从仓库删除是可恢复操作，不删除已存在的本地数据库种子记录或媒体。
+- Web Agent 与图片私信仍按活计划/后续 heavy 任务实施；本任务只修正文档权威和已发现缺陷，不开启功能开关、不实现原型产品代码。
+
 ## [2026-08-04] - 规划：内容发现闭环三缺口（to-spec + to-tickets，无代码改动）
 
 ### What was done:

@@ -114,6 +114,7 @@ jobs:
 
   project-gate:
     needs: [backend, frontend, docs]
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -131,6 +132,12 @@ jobs:
           - 6379:6379
         options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
+      - name: Verify dependency results
+        env:
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          DOCS_RESULT: ${{ needs.docs.result }}
+        run: test "$BACKEND_RESULT" = success && test "$FRONTEND_RESULT" = success && test "$DOCS_RESULT" = success
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Set up Go

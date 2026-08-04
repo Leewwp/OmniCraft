@@ -20,9 +20,10 @@
 - Global Design Tokens
 - Global Interaction Patterns
 
-### Pages（46）
+### Pages（48）
 - Page: / 首页
 - Page: /search 搜索页
+- Page: /ips IP 库
 - Page: /login 登录页
 - Page: /register 注册页
 - Page: /ip/[ipId] IP 详情页
@@ -45,6 +46,7 @@
 - Page: /history 浏览历史
 - Page: /appeals 我的申诉
 - Page: /messages 消息中心
+- Page: /agent Agent 工作台
 - Page: /rehab 素质建设课程
 - Page: /admin/ips IP 库管理
 - Page: /admin/contents 内容终审
@@ -68,7 +70,13 @@
 - Page: /collections/[id] 收藏集详情（Task 122-124）
 - Page: /user/[userId]/collections 用户收藏集列表（Task 122-123）
 
-### Components（63）
+### Components（69）
+- Component: Button 与 Badge 共享动作原语
+- Component: Card 共享容器原语
+- Component: Form Controls 表单原语
+- Component: DropdownMenu 浮层菜单原语
+- Component: Tabs 与 Separator 导航原语
+- Component: Loading 与反馈原语
 - Component: Header
 - Component: FacetedSearchSidebar
 - Component: ContentCard
@@ -77,6 +85,7 @@
 - Component: IPCard
 - Component: IPCategoryTabs
 - Component: ContentDetail
+- Component: ContentDetailOverlay
 - Component: SeriesNav 内容系列导航
 - Component: SourceAttribution 灵感来源归因
 - Component: RelatedFanworks 相关二创/衍生作品行
@@ -92,11 +101,10 @@
 - Component: ReviewCard
 - Component: EmptyState
 - Component: ConfirmModal
-- Component: AgentChatWidget
 - Component: UploadAssistPanel
 - Component: ComplianceCheckBadge
 - Component: UsageGuidePanel
-- Component: SearchAgentInput
+- Component: GlobalSearchInput
 - Component: FollowButton
 - Component: NotificationDropdown
 - Component: NotificationList
@@ -242,8 +250,8 @@ interface HeaderProps {
 **视觉结构**
 - 外层容器: `<header className="sticky top-0 z-40 h-[var(--header-h)] bg-canvas-default border-b border-border-default">`
 - 内部布局: `<div className="max-w-7xl mx-auto h-full flex items-center justify-between px-4">`
-- 左侧: Logo + 主导航链接（首页 / 原创 / 二创），水平排列 `gap-6`
-- 中间: 搜索栏（SearchAgentInput 或基础搜索框），最大宽度 480px
+- 左侧: Logo + 主导航链接（推荐 / 二创 / 原创 / AI Agent），水平排列 `gap-6`
+- 中间: 全站关键词搜索栏（GlobalSearchInput），最大宽度 480px；不得提供 Agent 模式切换
 - 右侧: 发布按钮（primary 色）+ 通知铃铛（NotificationBell）+ 用户菜单（Avatar 下拉）
   - 未登录: 登录/注册按钮
   - 已登录: Avatar + 用户名下拉（设置/我的内容/退出）
@@ -272,6 +280,7 @@ interface HeaderProps {
 
 **关键交互**
 - 导航链接点击: 路由跳转，选中项高亮。
+- AI Agent 跳转受保护路由 `/agent`；仓库默认功能关闭时可由 feature gate 暂时隐藏该导航项，启用后未登录用户交给受保护路由守卫跳转登录。
 - 搜索框聚焦: 展开建议下拉。
 - 发布按钮: 跳转 `/studio/publish/original`（已登录）或 `/login`（未登录）。
 - 用户菜单: 点击 Avatar 展开下拉，点击外部关闭。
@@ -279,7 +288,7 @@ interface HeaderProps {
 ## Component: FacetedSearchSidebar
 
 **Key Constraints**
-- 必须引入 SearchAgentInput 进行自然语言检索，失败时降级。
+- 仅提供普通关键词、标签和分类分面筛选；不得在侧边栏嵌入 Agent 模式或自然语言问答入口。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -372,7 +381,7 @@ interface FacetedSearchSidebarProps {
 ## Page: /search 搜索页
 
 **Key Constraints**
-- 必须引入 SearchAgentInput 进行自然语言检索，失败时降级。
+- 必须使用 `GlobalSearchInput` 提供关键词搜索、建议、历史和热搜；自然语言问答通过顶部导航进入 `/agent`。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 
 **视觉层级**
@@ -382,7 +391,7 @@ interface FacetedSearchSidebarProps {
 
 **核心组件清单**
 - `Header`
-- `SearchAgentInput`
+- `GlobalSearchInput`
 - `FacetedSearchSidebar`
 - `ContentCard`
 - `MasonryGrid`
@@ -400,7 +409,7 @@ interface FacetedSearchSidebarProps {
 - loading: 搜索结果区骨架屏（Skeleton 灰色块网格）。
 - empty: "未找到匹配结果" EmptyState + 搜索建议。
 - error: 搜索失败 Toast + 重试按钮。
-- 特殊状态：未登录时 NL 搜索降级为关键词搜索。
+- 特殊状态：未登录与 feature flag 关闭均不改变关键词搜索能力；搜索页不显示不可用的 Agent 模式。
 
 **响应式规则**
 - 移动 (≤700px): 分面侧边栏折叠为 Sheet 抽屉（85vw 左侧滑入），搜索结果瀑布流 2 列。
@@ -2295,6 +2304,43 @@ interface ContentDetailProps {
 - error: 内容被 ban 时显示对应限制 EmptyState。
 - 无 hover/active/focus/disabled 状态（内容静态展示）。
 
+## Component: ContentDetailOverlay
+
+**Key Constraints**
+- 推荐流卡片与 Agent 引用卡片必须复用同一详情浮层组件和内容可见性/错误状态；不得各自实现一套详情弹窗。
+- 桌面端为覆盖式详情层，移动端占满安全区域内可用视口；直接访问内容 URL 时渲染完整详情页而非强制浮层。
+- 打开时保存背景滚动位置与触发元素；关闭后恢复背景上下文、滚动位置和焦点。
+- 支持显式关闭、遮罩点击、Esc 和浏览器返回关闭；浮层内部点击不关闭。
+
+**Props 接口**
+```ts
+interface ContentDetailOverlayProps {
+  contentId: number;
+  zone: 'original' | 'fanwork';
+  source: 'recommendation' | 'agent-citation';
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  returnFocusRef?: React.RefObject<HTMLElement | null>;
+}
+```
+
+**视觉结构**
+- 遮罩层：固定覆盖视口，使用设计系统浮层背景与批准后的 elevation token。
+- 详情容器：复用 `ContentDetail`，包含独立可访问标题、关闭按钮和内部滚动区。
+- Agent 来源不增加专属详情外观；可在返回提示中说明将返回原对话。
+
+**状态变体**
+- loading：结构与真实详情一致的骨架屏。
+- default：完整公开内容详情。
+- forbidden/deleted/not-found：稳定本地化 EmptyState，不暴露原始后端错误。
+- closing：仅允许 opacity/transform 退场；reduced-motion 下立即或短淡出关闭。
+
+**响应式与可访问性**
+- PC：详情层不超过可用视口，内部滚动，关闭按钮始终可达。
+- 移动：全屏层，顶部关闭区和底部关键操作满足安全区域与 44px 触控目标。
+- 使用对话框语义、焦点陷阱和背景 inert；关闭后聚焦原推荐卡片或 Agent 引用卡片。
+- URL、浏览器历史和拦截路由的最终实现以 `docs/working/2026-07-25-wayfinder-ticket-content-modal-routing.md` 的已确认结论为准。
+
 ## Component: SeriesNav 内容系列导航
 
 **Key Constraints**
@@ -3079,22 +3125,17 @@ interface ConfirmModalProps {
 - 遮罩点击: 关闭 Modal。
 - ESC: 关闭 Modal。
 
-## Component: AgentChatWidget
+## Page: /agent Agent 工作台
 
 **Key Constraints**
-- 只有 config 中 `agent.web_agent_enabled=true` 且用户已登录才可见该功能。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
+- 受保护路由；只有 config 中 `agent.web_agent_enabled=true` 且用户已登录并满足现有邮箱验证要求时可进入。
+- Agent 是顶部导航进入的独立全页工作台。不得在 Root Layout 挂载全站右下角聊天入口；现有 `AgentChatWidget.tsx` 仅是待迁移的旧实现名。
+- 页面必须保持 1px border 扁平设计，无阴影 `shadow-none`；视觉方向在已批准的 P-01 决策范围内实现。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
 **Props 接口**
 ```ts
-interface AgentChatWidgetProps {
-  className?: string;
-  context?: {
-    type: 'global' | 'content' | 'search' | 'publish';
-    contentId?: number;
-  };
-  disabled?: boolean;
+interface AgentWorkspaceProps {
   initialConversationId?: number;
   onCitationOpen?: (citation: AgentCitation) => void;
 }
@@ -3114,17 +3155,17 @@ interface AgentToolStatus {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
+- 页面外层：受保护的全高工作区，位于共享 Header 下方。
+- 桌面布局：会话导航栏 + 主对话区；主区包含标题/会话动作、消息列表、工具状态、引用列表和固定输入区。
+- 移动布局：单列全高页面，会话导航使用抽屉或独立层，顶部标题与底部输入区保持可达。
 - 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
+- 页面高度：`calc(100dvh - var(--header-h))`，内部区域自行滚动，不依赖悬浮面板尺寸。
 - 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- closed：仅显示带 `aria-label` 的 Agent 入口按钮；功能关闭或未登录时不渲染。
 - empty：展开后显示能力说明、隐私提示、建议问题和输入框。
 - streaming：回答增量渲染，显示停止按钮；可视文本持续更新，但 `aria-live="polite"` 按完整短句/节流批次播报，不能逐 token 打断读屏。
 - tool-running：显示短状态，例如“正在检索内容”，不得展示原始参数或 chain-of-thought。
@@ -3143,16 +3184,16 @@ interface AgentToolStatus {
 
 **关键交互**
 - Enter 发送，Shift+Enter 换行；流式时发送按钮切换为停止。
-- 引用必须是站内有效 `id/title/zone` 形成的可聚焦链接；无效引用只显示不可点击 fallback 或直接丢弃。
+- 引用必须是站内有效 `id/title/zone` 形成的可聚焦 Agent 引用卡片；点击后打开共享 `ContentDetailOverlay`，无效引用只显示不可点击 fallback 或直接丢弃。
 - 工具状态只展示名称、用户友好结果和耗时摘要；不展示 system prompt、工具 JSON 或内部推理。
-- Esc 关闭浮层并把焦点返回入口按钮；重新打开恢复当前会话。
+- Esc 只关闭当前打开的内容详情浮层或会话抽屉，不离开 Agent 工作台；详情浮层关闭后恢复原会话滚动位置并把焦点返回引用卡片。
 - “开始新对话”不删除旧会话且无需确认；“清空当前历史”使用 `ConfirmModal` 并调用 owner-scoped `DELETE /api/v1/agent/conversations/:id`。取消不发请求；成功聚焦新输入框；失败保留当前消息并把焦点返回 trigger。该删除不会同时删除服务器脱敏 trace、审计或聚合用量记录。
 - 仅当用户停留在消息底部附近时自动跟随流式内容；用户向上阅读后停止抢滚动，并显示可聚焦的“跳到最新”按钮。
 - 所有可交互元素使用设计系统可见 focus ring；动画遵守 `prefers-reduced-motion`，流式文本本身不使用逐 token 位移动画。
 
 **可访问性与响应式**
-- PC：右下角面板宽 `min(420px, calc(100vw - 32px))`，最大高 `min(720px, calc(100vh - 96px))`。
-- 移动：占满安全区域内可用宽高，顶部固定标题/关闭，底部固定输入区。
+- PC：全页双栏工作区；会话栏可收起，主对话列保持可读行宽，引用卡片不挤压消息正文。
+- 移动：占满安全区域内可用宽高，顶部固定标题/会话入口，底部固定输入区。
 - 所有按钮触控目标不少于 44px；引用关系不能只靠颜色表达。
 - 对话列表使用语义列表；流式内容不在每个 token 到达时抢焦点。
 - 在 320/375/414/768/1024/1440px 检查无横向溢出；长标题、URL 和错误码必须可换行或截断且保留可访问名称。
@@ -3163,6 +3204,7 @@ interface AgentToolStatus {
 **Playwright 截图检查点**
 - `screenshots/web-agent-grounded-desktop.png`
 - `screenshots/web-agent-citations-mobile.png`
+- `screenshots/web-agent-citation-overlay-desktop.png`
 - `screenshots/web-agent-no-evidence.png`
 - `screenshots/web-agent-degraded-search.png`
 
@@ -3324,24 +3366,23 @@ interface UsageGuidePanelProps {
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
 - 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
 
-## Component: SearchAgentInput
+## Component: GlobalSearchInput
 
 **Key Constraints**
-- 搜索输入本体始终可见并提供 keyword 模式；只有 config 中 `agent.web_agent_enabled=true` 且用户已登录时才显示 Agent 模式切换和 Agent 专属状态。ChatWidget 在功能关闭/未登录时隐藏，但不得连带隐藏基础搜索。
-- 必须引入 SearchAgentInput 进行自然语言检索，失败时降级。
+- 搜索输入本体始终提供关键词搜索、建议、历史和热搜，不显示 Agent 模式切换或 Agent 专属状态。
+- 自然语言问答和受控协助通过顶部导航进入 `/agent`；不得在搜索框内复刻 Agent 工作台。
+- 现有 `SearchAgentInput.tsx` 是待迁移的旧实现名；实现任务可重命名为 `GlobalSearchInput.tsx`。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
 **Props 接口**
 ```ts
-interface SearchAgentInputProps {
+interface GlobalSearchInputProps {
   className?: string;
   value: string;
   onValueChange: (value: string) => void;
   onSubmit: (query: string) => void;
   onCancel?: () => void;
-  mode: 'keyword' | 'agent';
-  onModeChange?: (mode: 'keyword' | 'agent') => void;
   isLoading?: boolean;
   disabled?: boolean;
 }
@@ -3359,9 +3400,7 @@ interface SearchAgentInputProps {
 
 **状态变体**
 - keyword：默认可靠模式，调用普通搜索。
-- agent：仅在登录且 feature enabled 时可选，显示 Agent 标识和引用说明。
 - loading：输入保留，按钮显示进度并提供取消。
-- degraded：自动切回/展示关键词结果，并明确说明 Agent 暂不可用。
 - error：局部错误 + 重试；不清空 query。
 - disabled：保持原因说明，不能只降低透明度。
 
@@ -3372,13 +3411,12 @@ interface SearchAgentInputProps {
 - 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
-- Enter 提交当前模式；Esc 取消建议或流式请求。
-- Agent 结果必须显示引用；无引用回答转为 no-evidence/关键词降级。
-- 未登录或 feature disabled 时始终使用 keyword，不显示不可用的假入口。
-- 输入框具有可见 label 或等价可访问名称；模式切换、提交、取消均有可见 focus ring，状态不能只靠颜色表达。
+- Enter 提交关键词搜索；Esc 关闭建议或取消当前建议请求。
+- 搜索建议和热搜均进入普通搜索结果页；不得把查询静默转交 Agent Provider。
+- 输入框具有可见 label 或等价可访问名称；提交、取消均有可见 focus ring，状态不能只靠颜色表达。
 
 **i18n key namespace**
-- `agent.search.*`、`agent.search.mode.*`、`agent.search.degraded.*`、`agent.search.a11y.*`。
+- `search.input.*`、`search.suggestions.*`、`search.history.*`、`search.a11y.*`。
 
 ## Component: FollowButton
 
