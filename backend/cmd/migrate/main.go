@@ -9,11 +9,13 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"omnicraft/backend/internal/migration"
+	"omnicraft/backend/internal/observability"
 
 	_ "github.com/lib/pq"
 )
@@ -22,10 +24,48 @@ func main() {
 	started := time.Now().UTC()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 	if err := run(os.Args[1:], os.Stdout); err != nil {
+		writeMigrationMetrics(false, time.Now().UTC())
 		slog.Error("migrate failed", "error", err.Error(), "started_at", started, "finished_at", time.Now().UTC())
 		os.Exit(1)
 	}
+	writeMigrationMetrics(true, time.Now().UTC())
 	slog.Info("migrate finished", "started_at", started, "finished_at", time.Now().UTC())
+}
+
+// writeMigrationMetrics emits bounded success/failure/last-success metrics to
+// the textfile collector directory when METRICS_TEXTFILE_DIR is configured.
+func writeMigrationMetrics(ok bool, at time.Time) {
+	dir := strings.TrimSpace(os.Getenv("METRICS_TEXTFILE_DIR"))
+	if dir == "" {
+		return
+	}
+	lines := []string{
+		"# HELP omnicraft_migration_status Latest migration run outcome (1 success, 0 failure).",
+		"# TYPE omnicraft_migration_status gauge",
+	}
+	lastSuccess := ""
+	if ok {
+		lines = append(lines, "omnicraft_migration_status 1")
+		lastSuccess = fmt.Sprintf("%.3f", float64(at.UnixNano())/1e9)
+	} else {
+		lines = append(lines, "omnicraft_migration_status 0")
+		if existing, readErr := os.ReadFile(filepath.Join(dir, "omnicraft_migration.prom")); readErr == nil {
+			for _, line := range strings.Split(string(existing), "\n") {
+				if strings.HasPrefix(line, "omnicraft_migration_last_success_timestamp_seconds ") {
+					lastSuccess = strings.TrimSpace(strings.TrimPrefix(line, "omnicraft_migration_last_success_timestamp_seconds "))
+					break
+				}
+			}
+		}
+	}
+	if lastSuccess != "" {
+		lines = append(lines, "# HELP omnicraft_migration_last_success_timestamp_seconds Unix time of the last successful migration run.")
+		lines = append(lines, "# TYPE omnicraft_migration_last_success_timestamp_seconds gauge")
+		lines = append(lines, "omnicraft_migration_last_success_timestamp_seconds "+lastSuccess)
+	}
+	if err := observability.WriteTextfile(dir, "omnicraft_migration.prom", lines); err != nil {
+		slog.Error("failed to write migration textfile metrics", "error", err.Error())
+	}
 }
 
 func run(args []string, out io.Writer) error {

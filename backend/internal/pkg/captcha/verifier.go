@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/observability"
 )
 
 type CaptchaVerifier interface {
@@ -59,7 +60,9 @@ func NewAliyunV2Verifier(cfg config.CaptchaConfig) *AliyunV2Verifier {
 	}
 }
 
-func (v *AliyunV2Verifier) Verify(ctx context.Context, token, remoteIP string) error {
+func (v *AliyunV2Verifier) Verify(ctx context.Context, token, remoteIP string) (err error) {
+	started := time.Now()
+	defer func() { observability.ObserveExternalCall("captcha", started, err) }()
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return fmt.Errorf("captcha token is required")
@@ -95,7 +98,7 @@ func (v *AliyunV2Verifier) Verify(ctx context.Context, token, remoteIP string) e
 	req.Header.Set("x-acs-action", "VerifyIntelligentCaptcha")
 	req.Header.Set("x-acs-version", "2023-03-05")
 
-	slog.Debug("captcha verify request", "scene", v.sceneID, "remote_ip", remoteIP)
+	slog.Debug("captcha verify request", "scene", v.sceneID)
 
 	resp, err := v.httpClient.Do(req)
 	if err != nil {
@@ -115,7 +118,7 @@ func (v *AliyunV2Verifier) Verify(ctx context.Context, token, remoteIP string) e
 	aliyunResp := parseAliyunCaptchaVerifyResponse(body)
 
 	if !isAliyunCaptchaSuccessCode(aliyunResp.Code) {
-		slog.Warn("captcha verify api error", "code", aliyunResp.Code, "request_id", aliyunResp.RequestID, "message", aliyunResp.Message)
+		slog.Warn("captcha verify api error", "code", aliyunResp.Code, "request_id", aliyunResp.RequestID)
 		return fmt.Errorf("captcha verification failed")
 	}
 	if !aliyunResp.verifyResult() {

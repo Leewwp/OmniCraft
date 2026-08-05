@@ -16,7 +16,7 @@
 
 ## Status, authority, and universal rules
 
-**Status:** Ops-00 completed at `9ea53c8`; Ops-01 completed by CI commit `7f34191` and evidence/branch-protection closeout `4cba1da`; Ops-02 completed on `codex/ops/ops-02` after two-axis review, final-commit-bound local evidence and PR #21 PostgreSQL migration/contract/project gates; Ops-03～Ops-08 have not started; Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
+**Status:** Ops-00 completed at `9ea53c8`; Ops-01 completed by CI commit `7f34191` and evidence/branch-protection closeout `4cba1da`; Ops-02 completed on `codex/ops/ops-02` after two-axis review, final-commit-bound local evidence and PR #21 PostgreSQL migration/contract/project gates; Ops-03 completed on `codex/ops/ops-03` after contract tests, a real observability drill and the default project gate (pending review/merge); Ops-04～Ops-08 have not started; Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
 
 - This plan is not Hardening Task 6 and must never add one.
 - Do not modify `task.json`, Beta/community checkboxes, or Web Agent completion state.
@@ -416,27 +416,27 @@ bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -
 - Modify: `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md`
 - Modify: `progress.txt`
 
-- [ ] **Step 1: Write failing structured-log/redaction tests**
+- [x] **Step 1: Write failing structured-log/redaction tests**
 
 Assert required fields and prove authorization, cookies, tokens, signed URL query, email/raw IP and message bodies are absent. Errors use class/code, not raw untrusted body. `client_ip` is the first 128 bits of keyed HMAC-SHA256 encoded as 32 lowercase hex characters using `LOG_IP_HASH_SECRET`; logs include a non-secret key ID. Missing key in release fails closed, rotation accepts current/previous key only between explicit start/end timestamps, and no path falls back to raw IP.
 
-- [ ] **Step 2: Implement JSON slog configuration and request logging**
+- [x] **Step 2: Implement JSON slog configuration and request logging**
 
 Preserve request ID and middleware order. Route labels use Gin full-path templates with a bounded fallback.
 
-- [ ] **Step 3: Write failing metrics tests**
+- [x] **Step 3: Write failing metrics tests**
 
 Cover request count/error/latency, panic, DB pool, Redis, queue/worker metrics and label allowlists. Reject IDs and raw URLs as labels.
 
 Include aggregate success/failure/latency metrics for OSS, Green, CAPTCHA, SMTP and LLM adapters without request/user/content labels.
 
-- [ ] **Step 4: Implement an internal metrics server and readiness**
+- [x] **Step 4: Implement an internal metrics server and readiness**
 
 Run metrics on a separately configured internal port; do not expose it through public API routes. Keep `/healthz` liveness-only and add dependency-aware readiness without returning connection details. Configure Docker JSON rotation, a named durable Loki volume, internal Grafana Alloy→Loki ingestion with 30-day/capped retention, and authenticated/tunneled operator access whose query audit is retained. Alloy receives only the read-only log mounts/service-discovery access needed for collection and no Docker control capability. Migration runner and backup/recovery scripts emit bounded success/failure/last-success metrics consumed by Prometheus textfile/custom collectors.
 
 `archive-audit-logs.sh` encrypts and uploads warning/error audit summaries to the configured off-site destination, verifies checksum/retention metadata, and writes access/archive evidence. Its contract tests use a local encrypted sink; real destination credentials are required by Ops-08.
 
-- [ ] **Step 5: Verify Prometheus config and runtime scrape**
+- [x] **Step 5: Verify Prometheus config and runtime scrape**
 
 ```bash
 bash ops/observability/prometheus.tests.sh

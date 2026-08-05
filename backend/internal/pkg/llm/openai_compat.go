@@ -6,9 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
+	"time"
+
+	"omnicraft/backend/internal/observability"
 )
 
 type OpenAICompatProvider struct {
@@ -56,22 +58,24 @@ type openAIResponse struct {
 	} `json:"choices"`
 }
 
-func (p *OpenAICompatProvider) doPost(ctx context.Context, path string, body interface{}) (*http.Response, error) {
+func (p *OpenAICompatProvider) doPost(ctx context.Context, path string, body interface{}) (resp *http.Response, started time.Time, err error) {
+	started = time.Now()
 	b, err := json.Marshal(body)
 	if err != nil {
-		return nil, err
+		return nil, started, err
 	}
 	url := p.apiBase + path
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(b))
 	if err != nil {
-		return nil, err
+		return nil, started, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+p.apiKey)
-	return p.client.Do(req)
+	resp, err = p.client.Do(req)
+	return resp, started, err
 }
 
-func (p *OpenAICompatProvider) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
+func (p *OpenAICompatProvider) Chat(ctx context.Context, req ChatRequest) (response *ChatResponse, err error) {
 	payload := openAIRequest{
 		Model:       p.model,
 		Messages:    req.Messages,
@@ -79,14 +83,14 @@ func (p *OpenAICompatProvider) Chat(ctx context.Context, req ChatRequest) (*Chat
 		MaxTokens:   req.MaxTokens,
 		Temperature: req.Temperature,
 	}
-	resp, err := p.doPost(ctx, "/v1/chat/completions", payload)
+	resp, started, err := p.doPost(ctx, "/v1/chat/completions", payload)
+	defer func() { observability.ObserveExternalCall("llm", started, err) }()
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("openai api error %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("openai api error %d", resp.StatusCode)
 	}
 	var result openAIResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -101,7 +105,7 @@ func (p *OpenAICompatProvider) Chat(ctx context.Context, req ChatRequest) (*Chat
 	}, nil
 }
 
-func (p *OpenAICompatProvider) ChatStream(ctx context.Context, req ChatRequest, handler func(delta ChatDelta) error) error {
+func (p *OpenAICompatProvider) ChatStream(ctx context.Context, req ChatRequest, handler func(delta ChatDelta) error) (err error) {
 	payload := openAIRequest{
 		Model:       p.model,
 		Messages:    req.Messages,
@@ -110,17 +114,18 @@ func (p *OpenAICompatProvider) ChatStream(ctx context.Context, req ChatRequest, 
 		Temperature: req.Temperature,
 		Stream:      true,
 	}
-	resp, err := p.doPost(ctx, "/v1/chat/completions", payload)
+	resp, started, err := p.doPost(ctx, "/v1/chat/completions", payload)
+	defer func() { observability.ObserveExternalCall("llm", started, err) }()
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("openai api error %d: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("openai api error %d", resp.StatusCode)
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
+	finished := false
 	for scanner.Scan() {
 		line := scanner.Text()
 		if !strings.HasPrefix(line, "data: ") {
@@ -128,11 +133,12 @@ func (p *OpenAICompatProvider) ChatStream(ctx context.Context, req ChatRequest, 
 		}
 		data := strings.TrimPrefix(line, "data: ")
 		if data == "[DONE]" {
+			finished = true
 			return handler(ChatDelta{Done: true})
 		}
 		var chunk openAIResponse
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-			continue
+			return fmt.Errorf("openai stream response is invalid")
 		}
 		if len(chunk.Choices) == 0 {
 			continue
@@ -146,7 +152,13 @@ func (p *OpenAICompatProvider) ChatStream(ctx context.Context, req ChatRequest, 
 			return err
 		}
 	}
-	return scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	if !finished {
+		return fmt.Errorf("openai stream ended before completion")
+	}
+	return nil
 }
 
 type openAIEmbeddingRequest struct {
@@ -160,16 +172,16 @@ type openAIEmbeddingResponse struct {
 	} `json:"data"`
 }
 
-func (p *OpenAICompatProvider) GetEmbedding(ctx context.Context, text string) ([]float32, error) {
+func (p *OpenAICompatProvider) GetEmbedding(ctx context.Context, text string) (embedding []float32, err error) {
 	payload := openAIEmbeddingRequest{Model: p.embedModel, Input: text}
-	resp, err := p.doPost(ctx, "/v1/embeddings", payload)
+	resp, started, err := p.doPost(ctx, "/v1/embeddings", payload)
+	defer func() { observability.ObserveExternalCall("llm", started, err) }()
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("embedding api error %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("embedding api error %d", resp.StatusCode)
 	}
 	var result openAIEmbeddingResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {

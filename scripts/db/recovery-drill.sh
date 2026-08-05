@@ -80,6 +80,34 @@ sha256_of() {
   fi
 }
 
+# Emit bounded recovery-drill success/failure/last-success metrics to the
+# Prometheus textfile collector directory when METRICS_TEXTFILE_DIR is set.
+emit_recovery_metric() {
+	local status="$1"
+	[ -z "${METRICS_TEXTFILE_DIR:-}" ] && return 0
+	mkdir -p "$METRICS_TEXTFILE_DIR"
+	local outcome=0
+	local last_success=""
+	if [ "$status" -eq 0 ]; then
+		outcome=1
+		last_success="$(python3 -c 'import time; print(time.time())')"
+	elif [ -f "${METRICS_TEXTFILE_DIR}/omnicraft_recovery_drill.prom" ]; then
+		last_success="$(awk '/^omnicraft_recovery_drill_last_success_timestamp_seconds / {print $2}' \
+			"${METRICS_TEXTFILE_DIR}/omnicraft_recovery_drill.prom")"
+	fi
+	{
+		echo "# HELP omnicraft_recovery_drill_status Latest recovery drill outcome (1 success, 0 failure)."
+		echo "# TYPE omnicraft_recovery_drill_status gauge"
+		echo "omnicraft_recovery_drill_status $outcome"
+	if [ -n "$last_success" ]; then
+		echo "# HELP omnicraft_recovery_drill_last_success_timestamp_seconds Unix time of the last successful recovery drill."
+		echo "# TYPE omnicraft_recovery_drill_last_success_timestamp_seconds gauge"
+		echo "omnicraft_recovery_drill_last_success_timestamp_seconds $last_success"
+	fi
+  } > "${METRICS_TEXTFILE_DIR}/omnicraft_recovery_drill.prom.tmp"
+  mv "${METRICS_TEXTFILE_DIR}/omnicraft_recovery_drill.prom.tmp" "${METRICS_TEXTFILE_DIR}/omnicraft_recovery_drill.prom"
+}
+
 cleanup() {
 	local original_status=$?
 	local teardown_status=0
@@ -89,6 +117,7 @@ cleanup() {
     kill "$SERVER_PID" >/dev/null 2>&1
     wait "$SERVER_PID" >/dev/null 2>&1
   fi
+  emit_recovery_metric "$original_status"
   echo "==> teardown: removing recovery stack $PROJ"
 	docker compose -p "$PROJ" -f "$COMPOSE_FILE" down -v --remove-orphans >/dev/null 2>&1
 	teardown_status=$?

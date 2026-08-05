@@ -455,3 +455,22 @@
 - Ops-02 原始 TDD RED 日志无效是历史审计瑕疵；本次整改保留事实并以真实缺陷 RED→GREEN 补充证据，不把事后测试冒充原始先后顺序。
 - 旧 initdb 创建的开发库（有表无 ledger）需 `docker compose down -v` 重建一次。
 - Docker Hub 不可达时经 docker.m.daocloud.io 镜像拉取 minio/minio（tag/digest 已在 recovery compose 固定并在注释中说明）。
+
+## [2026-08-05] - Task Ops-03: Add production observability baseline
+
+### What was done:
+- 新增 `backend/internal/observability/`：JSON slog 日志（稳定字段 time/level/msg/service/environment/version/trace_id/request_id/route/method/status/duration_ms/client_ip/error_class）、`client_ip` 用 `LOG_IP_HASH_SECRET` HMAC-SHA256 前 128 bit 哈希（32 位小写十六进制）+ 非敏感 `client_ip_key_id`，前键仅在显式轮换窗口可用（`ip_key_rotation`），release 缺键 fail-closed；低基数 Prometheus 指标（http/panic/DB pool/Redis pool/queue/worker/migration/external dep 聚合标签白名单）、DB/Redis pool collectors、内部 server（:9091 `/metrics` + liveness `/healthz` + 依赖感知 `/readyz`，readiness 不泄露连接细节）、textfile 原子写入。
+- 重写 `middleware/logger.go`（route 模板 + 脱敏 + trace_id）、`panic_recovery.go`（class 级日志 + panic 计数，panic 值不落日志）、新增 `middleware/metrics.go`；main.go 接线 logger/hasher/metrics/obs server/readiness。
+- config 新增 `observability` 段（metrics_port/log_level/log_ip_hash_secret/log_ip_key_id/ip_key_rotation/readiness）+ release 校验 + env override（LOG_IP_HASH_SECRET/LOG_IP_KEY_ID）。
+- 迁移 CLI 与 `backup-db.sh`、`recovery-drill.sh` 向 `METRICS_TEXTFILE_DIR` 写 success/failure/last-success textfile 指标。
+- `ops/observability/`：prometheus.yml（内网 scrape backend:9091、30d+10GB 双 retention）、loki.yml（30d retention、durable 命名卷、inmemory ring）、alloy-config.alloy（local.file_match glob + read-only 挂载、无 Docker 控制权）、loki-gate（Go stdlib 认证/审计代理，仅绑 127.0.0.1）、docker-compose.observability.yml、log-retention-policy.json+schema。
+- `scripts/ops/observability-drill.sh`（实盘：app+栈构建、成功/失败请求、依赖感知 readyz、内网 scrape、Prometheus 查询、按 trace_id 的 Loki 摄入、401 未授权拒绝、gate 审计留存、Loki 重启数据保留、轮转/保留证据、卡基数、9091 不公开）+ tests、`archive-audit-logs.sh`（warning/error 聚合→AES-256-CBC-PBKDF2 加密→sink 上传→校验和/保留元数据→证据）+ tests、`ops/observability/prometheus.tests.sh`（promtool + 姿态/保留/端口契约）。
+- 主 compose 与 single-server compose 增加 `json-file` 轮转（10m×5）与 observability 服务；runbook 增加 7.1 Observability 操作节；architecture.md 增加第 7 章可观测性与环境变量。
+
+### Testing:
+- TDD RED：config observability 校验、IPHasher 旋转窗口/脱敏、metrics 标签白名单、metrics middleware、panic 计数、readiness 不泄露均先失败后转绿。
+- 全部契约门 PASS：`go test ./...`、`go vet`、`go build`、`ops/observability/prometheus.tests.sh`、`observability-drill.tests.sh`、`archive-audit-logs.tests.sh`、doc-validator `--fix`+release profile、`scripts/verify-project.sh` PASS。
+- 实盘 `observability-drill.sh` PASS（healthz 200 / readyz 200 / readyz redis-down 503 / healthz 保持 200 / 404 / 403 / gate 401×2 / Loki trace_id 查询+重启保留 / 指标内网唯一），证据在 `artifacts/ops-03/`。
+
+### Notes:
+- 真实异地加密归档目标、生产 gate token 与 OBS_LOG_DIR 为 Ops-08 部署输入，本任务以本地 contract sink 与 drill 证明适配器行为，记录为 blockers。

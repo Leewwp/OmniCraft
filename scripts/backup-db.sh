@@ -17,6 +17,37 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_DIR="${BACKUP_DIR:-${SCRIPT_DIR}/../backups}"
+
+# Emit bounded backup success/failure/last-success metrics to the Prometheus
+# textfile collector directory when METRICS_TEXTFILE_DIR is configured.
+METRICS_TEXTFILE_DIR="${METRICS_TEXTFILE_DIR:-}"
+
+emit_backup_metric() {
+	local status="$1"
+	[ -z "$METRICS_TEXTFILE_DIR" ] && return 0
+	mkdir -p "$METRICS_TEXTFILE_DIR"
+	local outcome=0
+	local last_success=""
+	if [ "$status" -eq 0 ]; then
+		outcome=1
+		last_success="$(python3 -c 'import time; print(time.time())')"
+	elif [ -f "${METRICS_TEXTFILE_DIR}/omnicraft_backup.prom" ]; then
+		last_success="$(awk '/^omnicraft_backup_last_success_timestamp_seconds / {print $2}' \
+			"${METRICS_TEXTFILE_DIR}/omnicraft_backup.prom")"
+	fi
+	{
+		echo "# HELP omnicraft_backup_status Latest backup run outcome (1 success, 0 failure)."
+		echo "# TYPE omnicraft_backup_status gauge"
+		echo "omnicraft_backup_status $outcome"
+	if [ -n "$last_success" ]; then
+		echo "# HELP omnicraft_backup_last_success_timestamp_seconds Unix time of the last successful backup."
+		echo "# TYPE omnicraft_backup_last_success_timestamp_seconds gauge"
+		echo "omnicraft_backup_last_success_timestamp_seconds $last_success"
+	fi
+  } > "${METRICS_TEXTFILE_DIR}/omnicraft_backup.prom.tmp"
+  mv "${METRICS_TEXTFILE_DIR}/omnicraft_backup.prom.tmp" "${METRICS_TEXTFILE_DIR}/omnicraft_backup.prom"
+}
+trap 'emit_backup_metric "$?"' EXIT
 # Parse --retain argument
 RETAIN_COUNT="${RETAIN_COUNT:-7}"
 while [ $# -gt 0 ]; do

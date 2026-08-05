@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "docker_log_driver": "json-file",
+  "docker_log_rotation": {
+    "max_size": "10m",
+    "max_file": 5
+  },
+  "loki": {
+    "retention_days": 30,
+    "storage": {
+      "max_bytes": "50GB"
+    }
+  },
+  "alloy": {
+    "log_mount": "read-only",
+    "docker_control": false
+  },
+  "warning_error_archive": {
+    "encrypted": true,
+    "retention_days": 365
+  },
+  "reviewed_at": "2026-08-05T00:00:00Z",
+  "reviewed_by": "maintainer"
+}
