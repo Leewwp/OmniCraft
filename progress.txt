@@ -2,6 +2,22 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+## [2026-08-06] - Task GAP-01: ui-spec 补写三章（#15）
+
+### What was done:
+- 三缺口 Ticket 01（GitHub #15）完成：`design/ui-spec.md` 新增 `## Page: /recommend 推荐流`，升级 `## Component: ContentDetailOverlay`（导航栈 ≤5、逐层返回/全退、唯一滚动模型、300/240ms 同帧动效、退出恢复触发点）与 `## Page: /agent Agent 工作台`（A1.6 会话侧栏折叠持久化、会话全文搜索浮层、唯一滚动模型）。
+- `## Component: MasonryGrid` 容器契约更新为最短列瀑布流（按返回顺序逐条放入当前最短列，DOM 顺序不变，禁止 CSS `columns-*`），消除与 P-01 决策的跨文档冲突。
+- Section Index Pages 48→49 并登记 `/recommend`。
+- 按三缺口规划协调点更新 `AGENTS.md` 注册表声明：生产 `/agent` 工作台改由三缺口 #19 先行落地，Web Agent Task 4 衔接引用浮层接线、独占旧 Widget 移除。
+
+### Testing:
+- `cd tools/doc-validator && go run . --check --profile release` PASS（token refs 与 cross refs 全绿）；`--fix` 无额外改动。
+- 变更面：仅 `design/ui-spec.md`、`AGENTS.md`、`progress.txt`。
+
+### Notes:
+- 分支 `web/gap-15-ui-spec`（基于 main@04e6c13），worktree `/private/tmp/OmniCraft-w15`；未推送，待 code-review 后提交 PR。
+- 三缺口执行顺序：#15 → #16（浮窗底座）→ #17/#18/#19；`opencode/p01-ui-prototype` 分支按用户指示保留（Web Agent 开发可能复用）。
+
 ## [2026-08-04] - Task REVIEW-REMEDIATION: main / P-01 审查整改
 
 ### What was done:
