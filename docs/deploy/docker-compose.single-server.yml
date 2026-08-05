@@ -210,6 +210,7 @@ services:
     volumes:
       - prometheus_data:/prometheus
       - ./ops/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/observability/prometheus-rules.yml:/etc/prometheus/prometheus-rules.yml:ro
     depends_on:
       backend:
         condition: service_healthy
@@ -219,11 +220,99 @@ services:
         limits:
           memory: 512m
 
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - alertmanager_data:/alertmanager
+      # ALERTMANAGER_CONFIG_FILE must point at the operator-rendered config
+      # (receiver values never come from Git; see single-server-beta-runbook.md).
+      - ${ALERTMANAGER_CONFIG_FILE:?set ALERTMANAGER_CONFIG_FILE}:/etc/alertmanager/alertmanager.yml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9093/-/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_URI: "postgres:5432/${POSTGRES_DB:-omnicraft}?sslmode=disable"
+      DATA_SOURCE_USER: ${POSTGRES_USER:-omnicraft}
+      DATA_SOURCE_PASS: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+    depends_on:
+      redis:
+        condition: service_healthy
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    restart: unless-stopped
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    command:
+      - --housekeeping_interval=15s
+      - --docker_only=true
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  blackbox:
+    image: prom/blackbox-exporter:v0.24.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/blackbox/blackbox.yml
+    volumes:
+      - ./ops/observability/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
   node-exporter:
     image: prom/node-exporter:v1.8.2
     command:
+      - --path.rootfs=/host
       - --collector.textfile.directory=/var/lib/node_exporter/textfile_collector
     volumes:
+      - /:/host:ro,rslave
       - ${METRICS_TEXTFILE_DIR:?set METRICS_TEXTFILE_DIR}:/var/lib/node_exporter/textfile_collector:ro
     logging: *default-logging
     deploy:
@@ -316,3 +405,4 @@ volumes:
   loki_data:
   alloy_data:
   loki_gate_audit:
+  alertmanager_data:

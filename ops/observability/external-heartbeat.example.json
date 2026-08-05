@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "provider": "healthchecks.io",
+  "api_base": "https://healthchecks.io/api/v1",
+  "check_uuid": "00000000-0000-0000-0000-000000000000",
+  "ping_url": "https://hc-ping.com/00000000-0000-0000-0000-000000000000",
+  "api_key_env": "HC_API_KEY",
+  "email_channel_id": "00000000-0000-0000-0000-000000000000",
+  "grace_seconds": 3600,
+  "timeout_seconds": 3600
+}

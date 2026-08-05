@@ -116,8 +116,31 @@ jobs:
           path: artifacts/docs
           retention-days: ${{ github.event_name == 'push' && 90 || 30 }}
 
+  ops-alerting:
+    name: Ops alerting gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: "1.25.11"
+      - name: Alerting contract tests
+        run: bash scripts/ops/verify-alerts.tests.sh && bash scripts/ops/alert-drill.tests.sh
+      - name: Alert sink tests
+        run: go test ./...
+        working-directory: ops/observability/alert-sink
+      - name: Upload alerting evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ops-alerting-evidence
+          path: artifacts
+          retention-days: ${{ github.event_name == 'push' && 90 || 30 }}
+
   project-gate:
-    needs: [backend, frontend, docs]
+    needs: [backend, frontend, docs, ops-alerting]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     services:
@@ -141,7 +164,8 @@ jobs:
           BACKEND_RESULT: ${{ needs.backend.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           DOCS_RESULT: ${{ needs.docs.result }}
-        run: test "$BACKEND_RESULT" = success && test "$FRONTEND_RESULT" = success && test "$DOCS_RESULT" = success
+          OPS_ALERTING_RESULT: ${{ needs.ops-alerting.result }}
+        run: test "$BACKEND_RESULT" = success && test "$FRONTEND_RESULT" = success && test "$DOCS_RESULT" = success && test "$OPS_ALERTING_RESULT" = success
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Set up Go

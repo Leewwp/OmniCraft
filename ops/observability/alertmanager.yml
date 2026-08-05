@@ -1,0 +1,28 @@
+# OmniCraft Alertmanager routing. Receiver VALUES stay outside Git: SMTP
+# credentials are placeholder tokens substituted at drill/deploy time from the
+# operator's env file (ops-04-smtp.env locally, /opt/omnicraft/.env on the
+# server). The drill receiver is the in-network alert-sink service name; loopback
+# addresses are forbidden here (verify-alerts.sh rejects them).
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: "SMTP_HOST_PLACEHOLDER:SMTP_PORT_PLACEHOLDER"
+  smtp_from: "SMTP_FROM_PLACEHOLDER"
+  smtp_auth_username: "SMTP_USERNAME_PLACEHOLDER"
+  smtp_auth_password: "SMTP_PASSWORD_PLACEHOLDER"
+
+route:
+  group_by: ["alertname", "severity"]
+  group_wait: 10s
+  group_interval: 30s
+  repeat_interval: 4h
+  receiver: ops-email
+
+receivers:
+  - name: ops-email
+    email_configs:
+      - to: "OPS_EMAIL_TO_PLACEHOLDER"
+
+  - name: drill-sink
+    webhook_configs:
+      - url: http://alert-sink:8080/events
+        send_resolved: true

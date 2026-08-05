@@ -348,3 +348,86 @@ bash scripts/db/redis-reconciliation-drill.sh -ComposeFile ops/recovery/docker-c
 
 Real Aliyun OSS versioning, off-host storage and service-level RPO/RTO remain
 Ops-08 blockers; the local MinIO stand-in proves adapter behavior only.
+
+## 10. Alerting (Ops-04)
+
+Prometheus evaluates `ops/observability/prometheus-rules.yml` every 15s and
+routes alerts through Alertmanager. Alertmanager's receiver VALUES live only
+in operator files, never in Git: render the runtime config at deploy/drill
+time from the committed placeholder template plus the server env file:
+
+```bash
+# On the server (values come from /opt/omnicraft/.env, kept 0600):
+SMTP_HOST=... SMTP_PORT=465 SMTP_FROM_EMAIL=... SMTP_USERNAME=... SMTP_PASSWORD=... \
+  OPS_EMAIL_TO=ops@example.com \
+  python3 - <<'PY'
+import os
+text = open("ops/observability/alertmanager.yml").read()
+for k, v in {
+    "SMTP_HOST_PLACEHOLDER": os.environ.get("SMTP_HOST", "SMTP_HOST_PLACEHOLDER"),
+    "SMTP_PORT_PLACEHOLDER": os.environ.get("SMTP_PORT", "587"),
+    "SMTP_FROM_PLACEHOLDER": os.environ.get("SMTP_FROM_EMAIL", "SMTP_FROM_PLACEHOLDER"),
+    "SMTP_USERNAME_PLACEHOLDER": os.environ.get("SMTP_USERNAME", "SMTP_USERNAME_PLACEHOLDER"),
+    "SMTP_PASSWORD_PLACEHOLDER": os.environ.get("SMTP_PASSWORD", "SMTP_PASSWORD_PLACEHOLDER"),
+    "OPS_EMAIL_TO_PLACEHOLDER": os.environ.get("OPS_EMAIL_TO", "OPS_EMAIL_TO_PLACEHOLDER"),
+}.items():
+    text = text.replace(k, v)
+open("/opt/omnicraft/alertmanager.yml", "w").write(text)
+PY
+chmod 600 /opt/omnicraft/alertmanager.yml
+# Single-server compose requires ALERTMANAGER_CONFIG_FILE to point at it.
+```
+
+### Alerting: API
+- `ApiUnavailable` / `ApiHigh5xxRate` / `ApiHighLatency`: blackbox probe of
+  `https://api.leeppp.online` plus backend `omnicraft_http_requests_total`.
+  First step: nginx/backend logs, upstream health, DB/Redis pool saturation.
+- Owner: platform. Severity: critical (unavailable/5xx), warning (latency).
+
+### Alerting: DB
+- `PostgresDown` (`pg_up`), `RedisDown` (`redis_up`),
+  `DatabasePoolExhausted` (in-use/max-open > 90%) and `RedisPoolExhausted`
+  (active pool with no idle connections). First step: inspect slow queries,
+  blocked clients and configured pool limits; restart a dependency only when
+  it is actually unavailable, and do not restart backend while DB is down.
+
+### Alerting: backend
+- `QueueBacklogHigh` / `WorkerFailures` / `MigrationFailed` / `RestartLoop`.
+  First step: worker logs, migration summary artifact, container restart logs.
+
+### Alerting: backup
+- `BackupStale` (24h) / `RecoveryDrillOverdue` (30d). First step: rerun
+  `scripts/backup-db.sh` / `scripts/db/recovery-drill.sh` and confirm metrics.
+
+### Alerting: cert / disk
+- `CertExpirySoon` (7d, blackbox TLS probe) → renew via certbot (deploy hook
+  reloads nginx). `DiskSpaceLow` (root fs < 10%) → prune images/cache, check
+  Loki retention. node-exporter mounts host `/` read-only at `/host` and uses
+  `--path.rootfs=/host`; confirm that mapping before acting on disk alerts.
+
+### Alerting: external
+- `ExternalDependencyFailures` (OSS/Green/CAPTCHA/SMTP/LLM > 50% failure for
+  15m). First step: credentials/quota of the failing dependency.
+
+### Verification and drills
+```bash
+bash scripts/ops/verify-alerts.sh -ConfigDir ops/observability
+bash scripts/ops/verify-alerts.tests.sh
+bash scripts/ops/alert-drill.tests.sh
+bash scripts/ops/alert-drill.sh -Environment Local \
+  -ComposeFile ops/observability/docker-compose.observability.yml \
+  -WebhookSink http://alert-sink:8080/events -ReportDir artifacts/ops-04 \
+  -HeartbeatNotificationEvidence /secure/path/current-healthchecks-delivery-redacted.png
+```
+
+The drill requires the real independent-failure-domain heartbeat credentials
+(`~/.config/omnicraft/ops-04-healthchecks.env`, Healthchecks.io, 0600) and
+proves firing/resolved delivery to the in-network alert-sink plus a real
+missing-heartbeat down-flip with the operator email channel attached. After the
+DOWN event, the drill waits up to five minutes for the evidence path to be
+created or refreshed and rejects files older than the current run. Use either
+an opaque-redacted email screenshot retaining the provider, DOWN subject,
+temporary check name and delivery timestamp, or the provider's redacted latest
+delivery-status view paired with `heartbeat-evidence.json`. Remove recipient,
+project contact and source IP. Every release drill creates and waits for a fresh
+provider event in the same run; prior heartbeat evidence cannot be reused.

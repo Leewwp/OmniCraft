@@ -1,0 +1,14 @@
+# Exporter scrape targets required by the alerting stack. verify-alerts.sh
+# asserts every entry below is present in prometheus.yml scrape_configs and
+# alert-drill.sh waits until each target reports up == 1. Service names are
+# resolved inside the Compose network.
+postgres-exporter:9187:
+  job: postgres-exporter
+redis-exporter:9121:
+  job: redis-exporter
+node-exporter:9100:
+  job: node-exporter
+cadvisor:8080:
+  job: cadvisor
+blackbox:9115:
+  job: blackbox
