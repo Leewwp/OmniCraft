@@ -4,9 +4,44 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"github.com/redis/go-redis/v9"
 )
+
+var queueMetrics = struct {
+	sync.RWMutex
+	backlog func(float64)
+	failure func()
+}{}
+
+// SetMetricsHooks connects queue observations to the server metrics registry
+// without making this low-level queue package import observability (config
+// already depends on queue).
+func SetMetricsHooks(backlog func(float64), failure func()) {
+	queueMetrics.Lock()
+	defer queueMetrics.Unlock()
+	queueMetrics.backlog = backlog
+	queueMetrics.failure = failure
+}
+
+func observeQueueBacklog(count float64) {
+	queueMetrics.RLock()
+	backlog := queueMetrics.backlog
+	queueMetrics.RUnlock()
+	if backlog != nil {
+		backlog(count)
+	}
+}
+
+func observeWorkerFailure() {
+	queueMetrics.RLock()
+	failure := queueMetrics.failure
+	queueMetrics.RUnlock()
+	if failure != nil {
+		failure()
+	}
+}
 
 type QueueStats struct {
 	Topic        string `json:"topic"`
@@ -29,8 +64,8 @@ func GetQueueStats(ctx context.Context, rdb *redis.Client, topics []string) ([]Q
 			return nil, fmt.Errorf("xinfo stream %s: %w", key, err)
 		}
 		s := QueueStats{
-			Topic:  topic,
-			Depth:  info.Length,
+			Topic: topic,
+			Depth: info.Length,
 		}
 		groups, err := rdb.XInfoGroups(ctx, key).Result()
 		if err == nil && len(groups) > 0 {

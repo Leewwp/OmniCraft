@@ -1,0 +1,24 @@
+# OmniCraft Prometheus configuration (internal observability network only).
+# Scrapes the backend's internal metrics port; the metrics endpoint is never
+# published to a public interface. Retention is bounded by both time and disk
+# in the compose service definition (--storage.tsdb.retention.time/size).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Application metrics served by the internal observability server.
+  - job_name: omnicraft-backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:9091"]
+        labels:
+          environment: production
+
+  # The node exporter textfile collector consumes migration/backup/recovery
+  # outcomes written by their respective commands into the shared directory.
+  - job_name: omnicraft-node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          environment: production

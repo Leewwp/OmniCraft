@@ -70,6 +70,62 @@ func TestMainRegistersRoutesThroughRouterPackage(t *testing.T) {
 	}
 }
 
+func TestMainSetsUpObservability(t *testing.T) {
+	src, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatalf("read main.go: %v", err)
+	}
+	text := string(src)
+
+	if !strings.Contains(text, `observability.NewLogger`) {
+		t.Fatal("main must build the JSON observability logger")
+	}
+	if !strings.Contains(text, `slog.SetDefault(logger)`) {
+		t.Fatal("main must install the observability logger as the slog default")
+	}
+	if !strings.Contains(text, `observability.NewIPHasher`) {
+		t.Fatal("main must build the client IP hasher")
+	}
+	if !strings.Contains(text, `observability.NewMetrics()`) {
+		t.Fatal("main must create the metrics registry")
+	}
+	if !strings.Contains(text, `observability.NewDatabaseCollector`) {
+		t.Fatal("main must register the database pool collector")
+	}
+	if !strings.Contains(text, `observability.NewRedisClientCollector`) {
+		t.Fatal("main must register the Redis pool collector")
+	}
+	if !strings.Contains(text, `observability.NewServer`) {
+		t.Fatal("main must start the internal observability server")
+	}
+	if !strings.Contains(text, `middleware.Metrics(metrics)`) {
+		t.Fatal("main must install the metrics middleware")
+	}
+	if !strings.Contains(text, `middleware.PanicRecovery(logger, metrics)`) {
+		t.Fatal("main must install the panic recovery middleware with the metrics registry")
+	}
+	if !strings.Contains(text, `"/healthz"`) {
+		t.Fatal("main must keep the liveness /healthz endpoint")
+	}
+}
+
+func TestMainReadinessProbeIsOpaqueAndBounded(t *testing.T) {
+	src, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatalf("read main.go: %v", err)
+	}
+	text := string(src)
+	if !strings.Contains(text, `errors.New("dependency unavailable")`) {
+		t.Fatal("readiness must return an opaque error without dependency details")
+	}
+	if !strings.Contains(text, "PingContext") {
+		t.Fatal("readiness must ping the database")
+	}
+	if !strings.Contains(text, "rdb.Ping") {
+		t.Fatal("readiness must ping redis")
+	}
+}
+
 func TestResolveJSONBodyLimitDefaultsToTextUploadLimit(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Limits.TextMaxMB = 10

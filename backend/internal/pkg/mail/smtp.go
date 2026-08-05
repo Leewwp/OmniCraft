@@ -5,8 +5,10 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/smtp"
+	"time"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/observability"
 )
 
 var (
@@ -48,7 +50,9 @@ func (s *SMTPSender) SendFeedbackUpdate(ctx context.Context, to, subject, body s
 	return s.sendMail(to, subject, body)
 }
 
-func (s *SMTPSender) sendMail(to, subject, body string) error {
+func (s *SMTPSender) sendMail(to, subject, body string) (err error) {
+	started := time.Now()
+	defer func() { observability.ObserveExternalCall("smtp", started, err) }()
 	addr := fmt.Sprintf("%s:%d", s.host, s.port)
 	from := s.from
 	if from == "" {

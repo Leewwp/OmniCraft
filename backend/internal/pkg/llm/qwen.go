@@ -6,10 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"strings"
+	"time"
+
+	"omnicraft/backend/internal/observability"
 )
 
 const qwenBaseURL = "https://dashscope.aliyuncs.com/compatible-mode"
@@ -33,18 +35,20 @@ func NewQwenProvider(apiKey, model, embedModel string) *QwenProvider {
 	}
 }
 
-func (p *QwenProvider) doPost(ctx context.Context, path string, body interface{}) (*http.Response, error) {
+func (p *QwenProvider) doPost(ctx context.Context, path string, body interface{}) (resp *http.Response, started time.Time, err error) {
+	started = time.Now()
 	b, err := json.Marshal(body)
 	if err != nil {
-		return nil, err
+		return nil, started, err
 	}
 	req, err := http.NewRequestWithContext(ctx, "POST", qwenBaseURL+path, bytes.NewReader(b))
 	if err != nil {
-		return nil, err
+		return nil, started, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+p.apiKey)
-	return p.client.Do(req)
+	resp, err = p.client.Do(req)
+	return resp, started, err
 }
 
 type qwenRequest struct {
@@ -68,16 +72,16 @@ type qwenResponse struct {
 	} `json:"usage"`
 }
 
-func (p *QwenProvider) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
+func (p *QwenProvider) Chat(ctx context.Context, req ChatRequest) (response *ChatResponse, err error) {
 	payload := qwenRequest{Model: p.model, Messages: req.Messages}
-	resp, err := p.doPost(ctx, "/v1/chat/completions", payload)
+	resp, started, err := p.doPost(ctx, "/v1/chat/completions", payload)
+	defer func() { observability.ObserveExternalCall("llm", started, err) }()
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("qwen api error %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("qwen api error %d", resp.StatusCode)
 	}
 	var result qwenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -89,19 +93,20 @@ func (p *QwenProvider) Chat(ctx context.Context, req ChatRequest) (*ChatResponse
 	return &ChatResponse{Content: result.Output.Choices[0].Message.Content}, nil
 }
 
-func (p *QwenProvider) ChatStream(ctx context.Context, req ChatRequest, handler func(delta ChatDelta) error) error {
+func (p *QwenProvider) ChatStream(ctx context.Context, req ChatRequest, handler func(delta ChatDelta) error) (err error) {
 	payload := qwenRequest{Model: p.model, Messages: req.Messages, Stream: true}
-	resp, err := p.doPost(ctx, "/v1/chat/completions", payload)
+	resp, started, err := p.doPost(ctx, "/v1/chat/completions", payload)
+	defer func() { observability.ObserveExternalCall("llm", started, err) }()
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("qwen api error %d: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("qwen api error %d", resp.StatusCode)
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
+	finished := false
 	for scanner.Scan() {
 		line := scanner.Text()
 		if !strings.HasPrefix(line, "data: ") {
@@ -109,11 +114,12 @@ func (p *QwenProvider) ChatStream(ctx context.Context, req ChatRequest, handler 
 		}
 		data := strings.TrimPrefix(line, "data: ")
 		if data == "[DONE]" {
+			finished = true
 			return handler(ChatDelta{Done: true})
 		}
 		var chunk qwenResponse
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-			continue
+			return fmt.Errorf("qwen stream response is invalid")
 		}
 		var content string
 		if len(chunk.Output.Choices) > 0 {
@@ -125,7 +131,13 @@ func (p *QwenProvider) ChatStream(ctx context.Context, req ChatRequest, handler 
 			return err
 		}
 	}
-	return scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	if !finished {
+		return fmt.Errorf("qwen stream ended before completion")
+	}
+	return nil
 }
 
 type qwenEmbeddingRequest struct {
@@ -146,19 +158,19 @@ type qwenEmbeddingResponse struct {
 	} `json:"output"`
 }
 
-func (p *QwenProvider) GetEmbedding(ctx context.Context, text string) ([]float32, error) {
+func (p *QwenProvider) GetEmbedding(ctx context.Context, text string) (embedding []float32, err error) {
 	payload := qwenEmbeddingRequest{Model: p.embedModel}
 	payload.Input.Texts = []string{text}
 	payload.Parameters.TextType = "document"
 
-	resp, err := p.doPost(ctx, "/v1/services/embeddings/text-embedding/text-embedding", payload)
+	resp, started, err := p.doPost(ctx, "/v1/services/embeddings/text-embedding/text-embedding", payload)
+	defer func() { observability.ObserveExternalCall("llm", started, err) }()
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("qwen embedding error %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("qwen embedding error %d", resp.StatusCode)
 	}
 	var result qwenEmbeddingResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {

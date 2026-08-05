@@ -11,6 +11,8 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/sts"
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
+
+	"omnicraft/backend/internal/observability"
 )
 
 type STSToken struct {
@@ -55,15 +57,21 @@ func NewOSSClient(endpoint, accessKeyID, accessKeySecret, bucketName string) (*O
 	}, nil
 }
 
-func (c *OSSClient) PutObject(ossKey string, reader io.Reader, options ...oss.Option) error {
+func (c *OSSClient) PutObject(ossKey string, reader io.Reader, options ...oss.Option) (err error) {
+	started := time.Now()
+	defer func() { observability.ObserveExternalCall("oss", started, err) }()
 	return c.bucket.PutObject(ossKey, reader, options...)
 }
 
-func (c *OSSClient) DeleteObject(ossKey string) error {
+func (c *OSSClient) DeleteObject(ossKey string) (err error) {
+	started := time.Now()
+	defer func() { observability.ObserveExternalCall("oss", started, err) }()
 	return c.bucket.DeleteObject(ossKey)
 }
 
-func (c *OSSClient) GetSignedURL(ossKey, method string, expires time.Duration, options ...oss.Option) (string, error) {
+func (c *OSSClient) GetSignedURL(ossKey, method string, expires time.Duration, options ...oss.Option) (url string, err error) {
+	started := time.Now()
+	defer func() { observability.ObserveExternalCall("oss", started, err) }()
 	expiresSec := int64(expires.Seconds())
 	if expiresSec <= 0 {
 		expiresSec = 900
@@ -79,7 +87,9 @@ func (c *OSSClient) GetSignedURL(ossKey, method string, expires time.Duration, o
 	}
 }
 
-func (c *OSSClient) GetObjectMeta(ossKey string) (*ObjectMeta, error) {
+func (c *OSSClient) GetObjectMeta(ossKey string) (meta *ObjectMeta, err error) {
+	started := time.Now()
+	defer func() { observability.ObserveExternalCall("oss", started, err) }()
 	props, err := c.bucket.GetObjectDetailedMeta(ossKey)
 	if err != nil {
 		return nil, err
@@ -91,7 +101,9 @@ func (c *OSSClient) GetObjectMeta(ossKey string) (*ObjectMeta, error) {
 	}, nil
 }
 
-func (c *OSSClient) GetVideoSnapshotURL(ossKey string, expires time.Duration, width int) (string, error) {
+func (c *OSSClient) GetVideoSnapshotURL(ossKey string, expires time.Duration, width int) (url string, err error) {
+	started := time.Now()
+	defer func() { observability.ObserveExternalCall("oss", started, err) }()
 	expiresSec := int64(expires.Seconds())
 	if expiresSec <= 0 {
 		expiresSec = 3600
@@ -103,7 +115,9 @@ func (c *OSSClient) GetVideoSnapshotURL(ossKey string, expires time.Duration, wi
 	return c.bucket.SignURL(ossKey, oss.HTTPGet, expiresSec, oss.Process(process))
 }
 
-func (c *OSSClient) GetSTS(regionID, roleArn, sessionName string, durationSeconds int64) (*STSToken, error) {
+func (c *OSSClient) GetSTS(regionID, roleArn, sessionName string, durationSeconds int64) (token *STSToken, err error) {
+	started := time.Now()
+	defer func() { observability.ObserveExternalCall("oss", started, err) }()
 	if strings.TrimSpace(regionID) == "" || strings.TrimSpace(roleArn) == "" {
 		return nil, fmt.Errorf("region and role arn are required")
 	}

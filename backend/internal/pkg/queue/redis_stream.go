@@ -13,9 +13,9 @@ import (
 )
 
 type RedisStreamBroker struct {
-	rdb      *redis.Client
-	cfg      *QueueConfig
-	stopped  chan struct{}
+	rdb     *redis.Client
+	cfg     *QueueConfig
+	stopped chan struct{}
 }
 
 func NewRedisStreamBroker(rdb *redis.Client, cfg *QueueConfig) *RedisStreamBroker {
@@ -63,6 +63,7 @@ func (b *RedisStreamBroker) Subscribe(ctx context.Context, topic string, group s
 			default:
 			}
 
+			b.observeGroupBacklog(ctx, streamKey, group)
 			results, err := b.rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
 				Group:    group,
 				Consumer: consumerName,
@@ -78,7 +79,6 @@ func (b *RedisStreamBroker) Subscribe(ctx context.Context, topic string, group s
 				time.Sleep(time.Second)
 				continue
 			}
-
 			for _, stream := range results {
 				for _, xmsg := range stream.Messages {
 					msg := b.decodeMessage(topic, xmsg)
@@ -89,6 +89,24 @@ func (b *RedisStreamBroker) Subscribe(ctx context.Context, topic string, group s
 	})
 
 	return nil
+}
+
+func (b *RedisStreamBroker) observeGroupBacklog(ctx context.Context, streamKey, group string) {
+	groups, err := b.rdb.XInfoGroups(ctx, streamKey).Result()
+	if err != nil {
+		return
+	}
+	for _, info := range groups {
+		if info.Name != group {
+			continue
+		}
+		backlog := info.Pending
+		if info.Lag > 0 {
+			backlog += info.Lag
+		}
+		observeQueueBacklog(float64(backlog))
+		return
+	}
 }
 
 func (b *RedisStreamBroker) handleMessage(ctx context.Context, topic, group string, msg Message, handler Handler) {
@@ -121,6 +139,7 @@ func (b *RedisStreamBroker) handleMessage(ctx context.Context, topic, group stri
 
 	slog.Error("handler exhausted retries, sending to DLQ",
 		"topic", topic, "msg_id", msg.ID, "attempts", msg.Attempts, "last_error", lastErr)
+	observeWorkerFailure()
 	b.sendToDLQ(ctx, msg, lastErr)
 	b.rdb.XAck(ctx, streamKey(topic), group, msg.ID)
 }

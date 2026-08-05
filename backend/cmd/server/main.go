@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -10,11 +12,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/container"
 	"omnicraft/backend/internal/middleware"
+	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/pkg/database"
+	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/pkg/recovery"
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/pkg/scheduler"
@@ -24,8 +29,22 @@ import (
 
 func main() {
 	cfg := config.Load()
+
+	logger, err := observability.NewLogger(*cfg)
+	if err != nil {
+		slog.Error("invalid observability configuration", "error", err)
+		os.Exit(1)
+	}
+	slog.SetDefault(logger)
+
 	if err := cfg.ValidateRelease(); err != nil {
-		slog.Error("invalid release configuration", "error", err)
+		logger.Error("invalid release configuration", "error", err)
+		os.Exit(1)
+	}
+
+	ipHasher, err := observability.NewIPHasher(cfg.Observability)
+	if err != nil {
+		logger.Error("invalid client IP hasher configuration", "error", err)
 		os.Exit(1)
 	}
 
@@ -33,6 +52,19 @@ func main() {
 
 	db := database.Init(cfg)
 	rdb := redisclient.Init(cfg)
+
+	metrics := observability.NewMetrics()
+	sqlDB, err := db.DB()
+	if err != nil {
+		logger.Error("failed to access underlying database handle", "error", err)
+		os.Exit(1)
+	}
+	metrics.Registry.MustRegister(observability.NewDatabaseCollector(sqlDB))
+	if rdb != nil {
+		metrics.Registry.MustRegister(observability.NewRedisClientCollector(rdb))
+	}
+	observability.SetDefaultMetrics(metrics)
+	queue.SetMetricsHooks(observability.SetDefaultQueueBacklog, observability.IncDefaultWorkerFailures)
 
 	ctr := container.NewContainer(db, rdb, cfg)
 
@@ -53,10 +85,19 @@ func main() {
 	// Start queue workers if enabled
 	stopWorkers := ctr.StartWorkers(context.Background())
 
+	ready := buildReadinessCheck(cfg, sqlDB, rdb)
+	obsServer := observability.NewServer(metrics.Registry, ready, time.Duration(cfg.Observability.ReadHeaderTimeoutSec)*time.Second)
+	go func() {
+		if err := obsServer.Serve(":" + cfg.Observability.MetricsPort); err != nil {
+			logger.Error("observability server failed", "error", err)
+			os.Exit(1)
+		}
+	}()
+
 	r := gin.New()
 	if len(cfg.Security.TrustedProxies) > 0 {
 		if err := r.SetTrustedProxies(cfg.Security.TrustedProxies); err != nil {
-			slog.Error("invalid trusted proxies", "error", err)
+			logger.Error("invalid trusted proxies", "error", err)
 			os.Exit(1)
 		}
 	} else if cfg.Server.Mode == "release" {
@@ -64,13 +105,14 @@ func main() {
 	}
 	bodyLimit := resolveJSONBodyLimit(cfg)
 	r.Use(middleware.RequestID())
-	r.Use(middleware.Logger())
+	r.Use(middleware.Metrics(metrics))
+	r.Use(middleware.Logger(logger, ipHasher))
 	r.Use(middleware.CORS(cfg))
 	r.Use(middleware.BodyLimit(bodyLimit))
 	r.Use(middleware.CSRF(cfg))
 	r.Use(middleware.SecurityHeaders())
 	r.Use(middleware.RateLimit(rdb, &cfg.RateLimit))
-	r.Use(middleware.PanicRecovery())
+	r.Use(middleware.PanicRecovery(logger, metrics))
 
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "service": "omnicraft-backend"})
@@ -82,15 +124,15 @@ func main() {
 	srv := &http.Server{
 		Addr:         ":" + cfg.Server.Port,
 		Handler:      r,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
+		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
+		IdleTimeout:  time.Duration(cfg.Server.IdleTimeout) * time.Second,
 	}
 
 	go func() {
-		slog.Info("OmniCraft backend starting", "port", cfg.Server.Port, "mode", cfg.Server.Mode)
+		logger.Info("OmniCraft backend starting", "port", cfg.Server.Port, "mode", cfg.Server.Mode)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("Failed to start server", "error", err)
+			logger.Error("Failed to start server", "error", err)
 			os.Exit(1)
 		}
 	}()
@@ -98,7 +140,7 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	slog.Info("Shutting down server...")
+	logger.Info("Shutting down server...")
 
 	stopWorkers()
 	browseHistoryCleanup.Stop()
@@ -111,18 +153,45 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		slog.Error("Server forced to shutdown", "error", err)
+		logger.Error("Server forced to shutdown", "error", err)
 	}
 
-	sqlDB, err := db.DB()
-	if err == nil {
-		sqlDB.Close()
-	}
 	if rdb != nil {
 		rdb.Close()
 	}
 
-	slog.Info("Server exited")
+	logger.Info("Server exited")
+}
+
+// buildReadinessCheck returns a dependency-aware readiness probe. The probe
+// checks PostgreSQL and Redis with bounded timeouts and reports a single
+// opaque error; connection details never leave the process.
+func buildReadinessCheck(cfg *config.Config, sqlDB *sql.DB, rdb *redis.Client) func() error {
+	return func() error {
+		dbTimeout := time.Duration(cfg.Observability.Readiness.DBTimeoutSec) * time.Second
+		if dbTimeout <= 0 {
+			return errors.New("readiness timeout is not configured")
+		}
+		redisTimeout := time.Duration(cfg.Observability.Readiness.RedisTimeoutSec) * time.Second
+		if redisTimeout <= 0 {
+			return errors.New("readiness timeout is not configured")
+		}
+
+		dbCtx, dbCancel := context.WithTimeout(context.Background(), dbTimeout)
+		defer dbCancel()
+		if err := sqlDB.PingContext(dbCtx); err != nil {
+			return errors.New("dependency unavailable")
+		}
+
+		if rdb != nil {
+			redisCtx, redisCancel := context.WithTimeout(context.Background(), redisTimeout)
+			defer redisCancel()
+			if err := rdb.Ping(redisCtx).Err(); err != nil {
+				return errors.New("dependency unavailable")
+			}
+		}
+		return nil
+	}
 }
 
 func resolveJSONBodyLimit(cfg *config.Config) int64 {

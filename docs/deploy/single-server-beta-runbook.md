@@ -219,6 +219,42 @@ Expected public config posture:
 }
 ```
 
+### 7.1 Observability (logs, metrics, readiness)
+
+The stack ships container logs through Docker `json-file` rotation (10 MB x 5
+per service) into Grafana Alloy, which tails them from a **read-only** log
+directory mount and forwards them to Loki (30-day retention, durable named
+volume). Prometheus scrapes the backend's internal `:9091/metrics` endpoint
+(30-day time + 10 GB disk retention); neither Prometheus nor Loki publishes a
+public port.
+
+Operator access to Loki goes through `loki-gate` (authenticated, audited),
+bound to `127.0.0.1:13100` on the host:
+
+```bash
+# required variables for the observability services
+OBS_GATE_TOKEN="<operator token>"
+OBS_LOG_DIR="/var/lib/docker/containers"   # read-only mount for Alloy
+
+ssh -N -L 13100:127.0.0.1:13100 <server>   # tunnel, then query:
+curl -H "Authorization: Bearer $OBS_GATE_TOKEN" \
+  "http://127.0.0.1:13100/loki/api/v1/query_range?query=%7Bjob%3D%22containers%22%7D&limit=20"
+```
+
+Every gate query is appended to `loki_gate_audit` (durable volume,
+`access-audit.jsonl`); unauthenticated queries return 401 and are also
+audited. Inside the network the backend exposes liveness `/healthz` (process
+only) and dependency-aware `/readyz` on `:9091`; both stay unreachable from
+the public network. `migrate`, `backup-db.sh` and `recovery-drill.sh` write
+bounded success/failure/last-success metrics to
+`METRICS_TEXTFILE_DIR` (Prometheus textfile collector) when configured.
+
+The observability drill that proves this posture runs with:
+
+```bash
+bash scripts/ops/observability-drill.sh -Environment Local -ReportDir artifacts/ops-03
+```
+
 ## 8. Database Migrations and Recovery
 
 Migrations are forward-only and ledger-backed. `schema_migrations` records

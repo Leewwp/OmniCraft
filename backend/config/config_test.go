@@ -65,7 +65,7 @@ func TestValidateReleaseRejectsDefaultJWTSecret(t *testing.T) {
 
 func validReleaseConfigForTest() *Config {
 	return &Config{
-		Server:   ServerConfig{Mode: "release", Port: "8080", ShutdownTimeout: 15},
+		Server:   ServerConfig{Mode: "release", Port: "8080", ShutdownTimeout: 15, ReadTimeout: 30, WriteTimeout: 60, IdleTimeout: 120},
 		Web:      WebConfig{PublicBaseURL: "https://app.example.com"},
 		Security: SecurityConfig{AllowedOrigins: []string{"https://app.example.com"}},
 		Database: DatabaseConfig{
@@ -131,6 +131,14 @@ func validReleaseConfigForTest() *Config {
 			Enabled:         true,
 			NormalPerMinute: 100,
 			UploadPerHour:   200,
+		},
+		Observability: ObservabilityConfig{
+			MetricsPort:          "9091",
+			LogLevel:             "info",
+			LogIPHashSecret:      "observability-ip-hash-secret-value",
+			LogIPKeyID:           "current",
+			ReadHeaderTimeoutSec: 5,
+			Readiness:            ReadinessConfig{DBTimeoutSec: 3, RedisTimeoutSec: 3},
 		},
 	}
 }
@@ -313,6 +321,98 @@ func TestApplyTestModeRequiresExplicitTestInputs(t *testing.T) {
 
 	err := applyTestMode(&Config{})
 	require.ErrorContains(t, err, "OMNICRAFT_TEST_DB_DSN")
+}
+
+func TestDefaultConfigDeclaresObservabilitySection(t *testing.T) {
+	cfg := loadDefaultConfigForTest(t)
+
+	require.Equal(t, "9091", cfg.Observability.MetricsPort)
+	require.Equal(t, "info", cfg.Observability.LogLevel)
+	require.NotEmpty(t, cfg.Observability.LogIPKeyID)
+	require.Positive(t, cfg.Observability.Readiness.DBTimeoutSec)
+	require.Positive(t, cfg.Observability.Readiness.RedisTimeoutSec)
+}
+
+func TestValidateReleaseRequiresIPHashSecretAndKeyID(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+
+	cfg := validReleaseConfigForTest()
+	cfg.Observability.LogIPHashSecret = ""
+	err := cfg.ValidateRelease()
+	require.Error(t, err)
+	require.True(t, strings.HasPrefix(err.Error(), validateReleaseErrPrefix))
+	require.ErrorContains(t, err, "observability.log_ip_hash_secret")
+
+	cfg = validReleaseConfigForTest()
+	cfg.Observability.LogIPKeyID = ""
+	err = cfg.ValidateRelease()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "observability.log_ip_key_id")
+}
+
+func TestValidateReleaseRejectsIncompleteIPKeyRotation(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+
+	cfg := validReleaseConfigForTest()
+	cfg.Observability.LogIPHashSecret = "current-secret-value"
+	cfg.Observability.LogIPKeyID = "current"
+	cfg.Observability.IPKeyRotation.PreviousKeyID = "previous"
+
+	err := cfg.ValidateRelease()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "observability.ip_key_rotation")
+}
+
+func TestValidateReleaseRejectsMalformedRotationWindow(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+
+	cfg := validReleaseConfigForTest()
+	cfg.Observability.LogIPHashSecret = "current-secret-value"
+	cfg.Observability.LogIPKeyID = "current"
+	cfg.Observability.IPKeyRotation = IPKeyRotationConfig{
+		PreviousSecret: "previous-secret-value",
+		PreviousKeyID:  "previous",
+		ActiveFrom:     "not-a-timestamp",
+		ActiveUntil:    "2026-12-31T23:59:59Z",
+	}
+
+	err := cfg.ValidateRelease()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "ip_key_rotation")
+}
+
+func TestValidateReleaseRejectsReversedRotationWindow(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+
+	cfg := validReleaseConfigForTest()
+	cfg.Observability.LogIPHashSecret = "current-secret-value"
+	cfg.Observability.LogIPKeyID = "current"
+	cfg.Observability.IPKeyRotation = IPKeyRotationConfig{
+		PreviousSecret: "previous-secret-value",
+		PreviousKeyID:  "previous",
+		ActiveFrom:     "2026-12-31T23:59:59Z",
+		ActiveUntil:    "2026-01-01T00:00:00Z",
+	}
+
+	err := cfg.ValidateRelease()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "ip_key_rotation")
+}
+
+func TestValidateReleaseAcceptsValidRotationWindow(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+
+	cfg := validReleaseConfigForTest()
+	cfg.Observability.LogIPHashSecret = "current-secret-value"
+	cfg.Observability.LogIPKeyID = "current"
+	cfg.Observability.IPKeyRotation = IPKeyRotationConfig{
+		PreviousSecret: "previous-secret-value",
+		PreviousKeyID:  "previous",
+		ActiveFrom:     "2026-01-01T00:00:00Z",
+		ActiveUntil:    "2026-12-31T23:59:59Z",
+	}
+
+	require.NoError(t, cfg.ValidateRelease())
 }
 
 func TestApplyTestModeLeavesNormalConfigurationUnchanged(t *testing.T) {

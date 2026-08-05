@@ -1,3 +1,12 @@
+# Docker JSON-file rotation for every service (policy:
+# ops/observability/log-retention-policy.json). Container logs stream to
+# stdout, Docker rotates them, and Grafana Alloy ships the files to Loki.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -15,6 +24,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -28,12 +38,15 @@ services:
     container_name: omnicraft-migrate
     environment:
       DB_DSN: "host=postgres port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable"
+      METRICS_TEXTFILE_DIR: /var/lib/omnicraft/metrics
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
       - ./artifacts:/app/evidence
+      - ${METRICS_TEXTFILE_DIR:-./artifacts/metrics}:/var/lib/omnicraft/metrics
     command: ["./migrate", "-Dir", "/app/migrations", "-SummaryPath", "/app/evidence/migration-summary.json"]
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -59,6 +72,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -78,6 +92,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -110,6 +125,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -139,6 +155,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -164,6 +181,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
+    logging: *default-logging
     deploy:
       resources:
         limits:

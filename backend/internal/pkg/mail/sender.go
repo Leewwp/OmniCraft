@@ -17,16 +17,16 @@ func NewLoggerSender() *LoggerSender {
 }
 
 func (s *LoggerSender) SendVerification(ctx context.Context, to, link string) error {
-	slog.Info("[mail] verification email", "to", to, "link", link)
+	slog.Info("mail event", "event", "verification_email")
 	return nil
 }
 
 func (s *LoggerSender) SendPasswordReset(ctx context.Context, to, link string) error {
-	slog.Info("[mail] password reset email", "to", to, "link", link)
+	slog.Info("mail event", "event", "password_reset_email")
 	return nil
 }
 
 func (s *LoggerSender) SendFeedbackUpdate(ctx context.Context, to, subject, body string) error {
-	slog.Info("[mail] feedback update email", "to", to, "subject", subject, "body", body)
+	slog.Info("mail event", "event", "feedback_update_email")
 	return nil
 }

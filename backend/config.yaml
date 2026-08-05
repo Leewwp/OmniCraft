@@ -2,6 +2,24 @@ server:
   port: "8080"
   mode: "debug"
   shutdown_timeout: 15
+  read_timeout: 30
+  write_timeout: 60
+  idle_timeout: 120
+
+observability:
+  metrics_port: "9091"
+  log_level: "info"
+  log_ip_hash_secret: ""
+  log_ip_key_id: "dev-key"
+  read_header_timeout_sec: 5
+  ip_key_rotation:
+    previous_secret: ""
+    previous_key_id: ""
+    active_from: ""
+    active_until: ""
+  readiness:
+    db_timeout_sec: 3
+    redis_timeout_sec: 3
 
 web:
   public_base_url: "http://localhost:3000"

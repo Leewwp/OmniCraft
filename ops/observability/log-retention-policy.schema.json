@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "OmniCraft log retention and access policy",
+  "required": [
+    "schema_version",
+    "docker_log_driver",
+    "docker_log_rotation",
+    "loki",
+    "alloy",
+    "warning_error_archive",
+    "reviewed_at",
+    "reviewed_by"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "docker_log_driver": { "const": "json-file" },
+    "docker_log_rotation": {
+      "type": "object",
+      "required": ["max_size", "max_file"],
+      "properties": {
+        "max_size": { "type": "string", "minLength": 1 },
+        "max_file": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "loki": {
+      "type": "object",
+      "required": ["retention_days", "storage"],
+      "properties": {
+        "retention_days": { "type": "integer", "minimum": 30 },
+        "storage": {
+          "type": "object",
+          "required": ["max_bytes"],
+          "properties": {
+            "max_bytes": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "alloy": {
+      "type": "object",
+      "required": ["log_mount", "docker_control"],
+      "properties": {
+        "log_mount": { "const": "read-only" },
+        "docker_control": { "const": false }
+      }
+    },
+    "warning_error_archive": {
+      "type": "object",
+      "required": ["encrypted", "retention_days"],
+      "properties": {
+        "encrypted": { "const": true },
+        "retention_days": { "type": "integer", "minimum": 30 }
+      }
+    },
+    "reviewed_at": { "type": "string", "format": "date-time" },
+    "reviewed_by": { "type": "string", "minLength": 1 }
+  }
+}
