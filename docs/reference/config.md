@@ -13,6 +13,7 @@
 | 配置路径 | 类型 | 说明 |
 |----------|------|------|
 | `agent.chat_max_context_messages` | `int` | ChatMaxContextMsgs |
+| `agent.citation_max_count` | `int` | CitationMaxCount |
 | `agent.embedding_dimensions` | `int` | EmbeddingDimensions |
 | `agent.embedding_model` | `string` | EmbeddingModel |
 | `agent.hmac_secret` | `string` | HMACSecret |
@@ -20,8 +21,13 @@
 | `agent.llm_api_key` | `string` | LLMAPIKey |
 | `agent.llm_model` | `string` | LLMModel |
 | `agent.llm_provider` | `string` | LLMProvider |
+| `agent.max_output_tokens` | `int` | MaxOutputTokens |
+| `agent.max_tool_calls_per_turn` | `int` | MaxToolCallsPerTurn |
 | `agent.max_user_message_chars` | `int` | MaxUserMessageChars |
+| `agent.provider_max_retries` | `int` | ProviderMaxRetries |
+| `agent.provider_timeout_sec` | `int` | ProviderTimeoutSec |
 | `agent.rate_limit_per_day` | `int` | RateLimitPerDay |
+| `agent.rate_limit_per_minute` | `int` | RateLimitPerMinute |
 | `agent.upload_assist_max_file_mb` | `int` | UploadAssistMaxFileMB |
 | `agent.web_agent_enabled` | `bool` | WebAgentEnabled |
 | `browse_history.cleanup_time` | `string` | CleanupTime |

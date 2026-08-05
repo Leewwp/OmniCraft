@@ -2,6 +2,24 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+## [2026-08-06] - Task Web Agent 1: define typed contracts and limits
+
+### What was done:
+- 计划 `2026-07-16-omnicraft-web-agent-productization.md` Task 1 完成（车道 C 长时任务第一步，分支 `web/agent-t1`）。
+- config：`AgentConfig` 新增 `rate_limit_per_minute`、`max_tool_calls_per_turn`、`max_output_tokens`、`provider_timeout_sec`、`provider_max_retries`、`citation_max_count`，映射进 `SaveOverride` 与 release 校验（新增 `requirePositiveInt` 辅助）；`config.yaml` 与 `docs/reference/config.md`（doc-validator 自动同步）补齐默认值。
+- 契约：新增 `internal/service/agent_contract.go`，typed `AgentAnswer`/`AgentCitation`/`AgentToolExecution`/`AgentUsage`/`AgentErrorDTO` 与 server-owned `AgentAnswerKind`（`grounded_content`/`no_evidence`/`publish_suggestion`）和工具状态常量，杜绝 `map[string]any` 公共响应字段。
+- 评测 fixture：新增 `testdata/agent_eval_cases.json`（schema_version=1，12 个用例），覆盖计划要求的 exact/semantic/two-cited/no-evidence/visibility/injection/forged-citation/forged-context/hidden-usage-guide/publish-forged-resource/provider-timeout/rate-limit 场景，含 expected/forbidden content IDs、工具白名单断言与降级/错误码。
+- 修复：`agent_eval_fixture_test.go` 读取路径由 `../testdata` 修正为 `../../testdata`（从 `internal/service` 包目录出发）。
+
+### Testing:
+- TDD RED：剥离 `config.go`/`config.yaml` 改动后 `go test ./config -run TestAgentConfig` 编译失败（字段缺失）；fixture 文件缺失时 `TestAgentEvalFixture` 报 no such file。绿盘后全部转绿。
+- `go test ./config ./internal/service -run "TestAgentConfig|TestAgentContract|TestAgentEvalFixture"` PASS。
+- `cd tools/doc-validator && go run . --fix` PASS（schema/route 无需改动，config 快照自动同步）。
+- `go test ./...`（后端全量）、`go vet ./config ./internal/service`、`go build ./...` 全绿。
+
+### Notes:
+- 仓库默认 `agent.web_agent_enabled=false` 保持关闭；未触碰 Task 4/6、未触碰 `frontend/**`、未改动其他计划 checkbox 或历史账本。
+
 ## [2026-08-06] - Task GAP-01: ui-spec 补写三章（#15）
 
 ### What was done:
