@@ -1,0 +1,219 @@
+# OmniCraft alert rules. Contract: every rule declares owner, severity,
+# pending window (for), summary, impact, first resolution step and a runbook
+# anchor (docs/deploy/single-server-beta-runbook.md#alerting-*), and only
+# references metrics from the alert contract allowlist
+# (ops/observability/alert-contract.schema.json).
+groups:
+  - name: omnicraft-api
+    rules:
+      - alert: ApiUnavailable
+        expr: probe_success{job="blackbox"} == 0 or absent(probe_success{job="blackbox"})
+        for: 5m
+        labels:
+          owner: platform
+          severity: critical
+        annotations:
+          summary: The external API probe has failed
+          impact: Users cannot reach the platform API; possible outage or routing failure.
+          first_step: Check nginx logs, backend container status and upstream health.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-api
+
+      - alert: ApiHigh5xxRate
+        expr: |
+          sum(rate(omnicraft_http_requests_total{status_class="5xx"}[5m]))
+            / clamp_min(sum(rate(omnicraft_http_requests_total[5m])), 1) > 0.05
+        for: 2m
+        labels:
+          owner: platform
+          severity: critical
+        annotations:
+          summary: API 5xx error rate above 5% over 5 minutes
+          impact: A large share of user requests are failing; experience degraded.
+          first_step: Inspect recent backend logs for stack traces and failing adapters.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-api
+
+      - alert: ApiHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(omnicraft_http_request_duration_seconds_bucket[5m])) by (le)) > 2
+        for: 10m
+        labels:
+          owner: platform
+          severity: warning
+        annotations:
+          summary: p95 API latency above 2 seconds
+          impact: Slow responses degrade user experience and client timeouts.
+          first_step: Check DB/Redis pool saturation and slow-query log.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-api
+
+  - name: omnicraft-dependencies
+    rules:
+      - alert: PostgresDown
+        expr: pg_up{job="postgres-exporter"} == 0
+        for: 1m
+        labels:
+          owner: platform
+          severity: critical
+        annotations:
+          summary: PostgreSQL is unreachable
+          impact: All database-backed endpoints fail; service effectively down.
+          first_step: Restart postgres and verify pgbouncer pool recovers.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-db
+
+      - alert: RedisDown
+        expr: redis_up{job="redis-exporter"} == 0
+        for: 1m
+        labels:
+          owner: platform
+          severity: critical
+        annotations:
+          summary: Redis is unreachable
+          impact: Sessions, caching and queues are unavailable; logins may fail.
+          first_step: Restart redis and confirm append-only recovery.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-db
+
+      - alert: DatabasePoolExhausted
+        expr: |
+          omnicraft_db_pool_max_open_connections > 0 and
+          omnicraft_db_pool_in_use_connections
+            / omnicraft_db_pool_max_open_connections > 0.9
+        for: 5m
+        labels:
+          owner: platform
+          severity: warning
+        annotations:
+          summary: Database connection pool usage is above 90%
+          impact: Requests may block waiting for database connections and time out.
+          first_step: Inspect slow queries and compare in-use connections with the configured pool limit.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-db
+
+      - alert: RedisPoolExhausted
+        expr: |
+          omnicraft_redis_pool_total_connections > 0 and
+          omnicraft_redis_pool_idle_connections == 0
+        for: 5m
+        labels:
+          owner: platform
+          severity: warning
+        annotations:
+          summary: Redis connection pool has no idle connections
+          impact: Redis operations may block or time out under sustained demand.
+          first_step: Check Redis latency, blocked clients and application pool sizing.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-db
+
+  - name: omnicraft-backend
+    rules:
+      - alert: QueueBacklogHigh
+        expr: omnicraft_queue_backlog > 500
+        for: 10m
+        labels:
+          owner: platform
+          severity: warning
+        annotations:
+          summary: Queue backlog above 500 messages
+          impact: Work is accumulating; notifications/digests may be delayed.
+          first_step: Check worker concurrency and Redis consumer lag.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-backend
+
+      - alert: WorkerFailures
+        expr: increase(omnicraft_queue_worker_failures_total[15m]) > 0
+        for: 5m
+        labels:
+          owner: platform
+          severity: warning
+        annotations:
+          summary: Queue worker jobs are failing
+          impact: Jobs exhaust retries; related features silently degrade.
+          first_step: Inspect worker logs and the failed job payload.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-backend
+
+      - alert: MigrationFailed
+        expr: omnicraft_migration_status{job="node-exporter"} == 0
+        for: 5m
+        labels:
+          owner: platform
+          severity: critical
+        annotations:
+          summary: Latest database migration run failed
+          impact: Schema may be inconsistent; new deployments could break.
+          first_step: Read the migration summary artifact and fix the failing migration.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-backend
+
+  - name: omnicraft-operations
+    rules:
+      - alert: BackupStale
+        expr: time() - omnicraft_backup_last_success_timestamp_seconds > 86400
+        for: 15m
+        labels:
+          owner: platform
+          severity: warning
+        annotations:
+          summary: No successful database backup in over 24 hours
+          impact: Recovery point objective may be exceeded; data loss risk grows.
+          first_step: Run scripts/backup-db.sh and verify the dump checksum.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-backup
+
+      - alert: RecoveryDrillOverdue
+        expr: time() - omnicraft_recovery_drill_last_success_timestamp_seconds > 2592000
+        for: 2m
+        labels:
+          owner: platform
+          severity: warning
+        annotations:
+          summary: No successful recovery drill in over 30 days
+          impact: Restore readiness is unproven; RTO claims are stale.
+          first_step: Run scripts/db/recovery-drill.sh and record the measured RTO.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-backup
+
+      - alert: CertExpirySoon
+        expr: probe_ssl_earliest_cert_expiry{job="blackbox"} - time() < 604800
+        for: 30m
+        labels:
+          owner: platform
+          severity: warning
+        annotations:
+          summary: TLS certificate expires within 7 days
+          impact: HTTPS clients will start failing after expiry.
+          first_step: Renew via certbot and confirm the nginx reload hook.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-cert
+
+      - alert: DiskSpaceLow
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 10
+        for: 15m
+        labels:
+          owner: platform
+          severity: warning
+        annotations:
+          summary: Root filesystem below 10% free
+          impact: Docker/Loki/PostgreSQL writes may fail; service risk grows.
+          first_step: Prune old images/build cache and check Loki retention.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-disk
+
+      - alert: RestartLoop
+        expr: changes(container_start_time_seconds{name=~"omnicraft-.*"}[15m]) >= 3
+        for: 5m
+        labels:
+          owner: platform
+          severity: warning
+        annotations:
+          summary: A container has restarted at least 3 times in 15 minutes
+          impact: A crashing service is flapping; partial availability.
+          first_step: Inspect container logs and restart policy for the offending service.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-backend
+
+  - name: omnicraft-external
+    rules:
+      - alert: ExternalDependencyFailures
+        expr: |
+          sum by (dependency) (rate(omnicraft_external_dependency_requests_total{result="failure"}[15m]))
+            / clamp_min(sum by (dependency) (rate(omnicraft_external_dependency_requests_total[15m])), 1) > 0.5
+        for: 15m
+        labels:
+          owner: platform
+          severity: warning
+        annotations:
+          summary: Sustained failure rate above 50% for an external dependency
+          impact: OSS/Green/CAPTCHA/SMTP/LLM integration is failing steadily.
+          first_step: Check the failing dependency's credentials and quota.
+          runbook: docs/deploy/single-server-beta-runbook.md#alerting-external

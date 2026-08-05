@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "description": "External heartbeat configuration for the independent-failure-domain heartbeat required by Ops-04. The real config file lives outside Git (e.g. ~/.config/omnicraft/external-heartbeat.json) and is validated against this schema by verify-alerts.sh and alert-drill.sh.",
+  "type": "object",
+  "required": [
+    "provider",
+    "api_base",
+    "check_uuid",
+    "ping_url",
+    "api_key_env",
+    "email_channel_id",
+    "grace_seconds",
+    "timeout_seconds"
+  ],
+  "properties": {
+    "provider": {
+      "type": "string",
+      "description": "Independent monitoring provider (must differ from the app failure domain)."
+    },
+    "api_base": {
+      "type": "string",
+      "format": "uri",
+      "description": "Provider API base URL used to query check status."
+    },
+    "check_uuid": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9-]+$",
+      "description": "UUID of the configured heartbeat check."
+    },
+    "ping_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "HTTPS URL pinged by the heartbeat cron to signal liveness."
+    },
+    "api_key_env": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Z_][A-Z0-9_]*$",
+      "description": "Name of the environment variable holding the provider API key; the key itself never appears in files."
+    },
+    "email_channel_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Provider channel/contact that receives missing-heartbeat notifications."
+    },
+    "grace_seconds": {
+      "type": "integer",
+      "minimum": 60,
+      "description": "Allowed silence before the provider marks the check down."
+    },
+    "timeout_seconds": {
+      "type": "integer",
+      "minimum": 60,
+      "description": "Expected ping cadence; exceeding timeout+grace fires the notification."
+    }
+  },
+  "additionalProperties": false
+}

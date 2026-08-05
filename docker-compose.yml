@@ -188,7 +188,101 @@ services:
           memory: 128M
           cpus: "0.5"
 
+  # ---------------------------------------------------------------------
+  # Alerting: Alertmanager routes Prometheus alerts to operators. Receiver
+  # values stay outside Git (placeholders are substituted at drill/deploy
+  # time). Exporters feed the alert rules in
+  # ops/observability/prometheus-rules.yml. All of these bind no public
+  # ports; Prometheus reaches them by service name on the internal network.
+  # ---------------------------------------------------------------------
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    container_name: omnicraft-alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - alertmanager_data:/alertmanager
+      - ${ALERTMANAGER_CONFIG_FILE:-./ops/observability/alertmanager.yml}:/etc/alertmanager/alertmanager.yml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9093/-/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: omnicraft-postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://omnicraft:omnicraft@postgres:5432/omnicraft?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    container_name: omnicraft-redis-exporter
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+    depends_on:
+      redis:
+        condition: service_healthy
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: omnicraft-cadvisor
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    command:
+      - --housekeeping_interval=15s
+      - --docker_only=true
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  blackbox:
+    image: prom/blackbox-exporter:v0.24.0
+    container_name: omnicraft-blackbox
+    command:
+      - --config.file=/etc/blackbox/blackbox.yml
+    volumes:
+      - ./ops/observability/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
 volumes:
   postgres_data:
   redis_data:
   ssl_certs:
+  alertmanager_data:

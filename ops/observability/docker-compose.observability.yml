@@ -1,6 +1,7 @@
-# OmniCraft observability stack: Prometheus (metrics), Loki (logs),
-# Grafana Alloy (read-only log shipping) and loki-gate (authenticated,
-# audited operator access to Loki).
+# OmniCraft observability stack: Prometheus (metrics + alert rules), Loki
+# (logs), Grafana Alloy (read-only log shipping), loki-gate (authenticated,
+# audited operator access to Loki) and alert-sink (in-network webhook
+# receiver used by the alert drill to prove firing/resolved delivery).
 #
 # This file is designed to be OVERLAYED on the main docker-compose.yml
 # (docker compose -f docker-compose.yml -f ops/observability/docker-compose.observability.yml)
@@ -15,6 +16,7 @@
 #   OBS_GATE_TOKEN   operator token for loki-gate (required)
 #   OBS_CONFIG_DIR   directory holding prometheus.yml/loki.yml/alloy-config.alloy
 #   OBS_LOG_DIR      read-only directory of container JSON log files tailed by Alloy
+#   ALERT_SINK_FILE  where alert-sink records webhook payloads (default /events/events.jsonl)
 
 services:
   prometheus:
@@ -28,6 +30,7 @@ services:
     volumes:
       - prometheus_data:/prometheus
       - ${OBS_CONFIG_DIR:-.}/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ${OBS_CONFIG_DIR:-.}/prometheus-rules.yml:/etc/prometheus/prometheus-rules.yml:ro
     depends_on:
       backend:
         condition: service_healthy
@@ -37,11 +40,28 @@ services:
         max-size: "10m"
         max-file: "5"
 
+  alert-sink:
+    build:
+      context: ${OBS_CONFIG_DIR:?OBS_CONFIG_DIR is required}/alert-sink
+      dockerfile: Dockerfile
+    container_name: omnicraft-alert-sink
+    environment:
+      ALERT_SINK_FILE: ${ALERT_SINK_FILE:-/events/events.jsonl}
+    volumes:
+      - alert_sink_data:/events
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
   node-exporter:
     image: prom/node-exporter:v1.8.2
     command:
+      - --path.rootfs=/host
       - --collector.textfile.directory=/var/lib/node_exporter/textfile_collector
     volumes:
+      - /:/host:ro
       - ${METRICS_TEXTFILE_DIR:?METRICS_TEXTFILE_DIR is required}:/var/lib/node_exporter/textfile_collector:ro
     logging:
       driver: json-file
@@ -132,3 +152,4 @@ volumes:
   loki_data:
   alloy_data:
   loki_gate_audit:
+  alert_sink_data:
