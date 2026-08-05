@@ -475,3 +475,18 @@
 ### Notes:
 - 真实异地加密归档目标、生产 gate token 与 OBS_LOG_DIR 为 Ops-08 部署输入，本任务以本地 contract sink 与 drill 证明适配器行为，记录为 blockers。
 - 2026-08-05 第四轮（阻塞项核实与解除）：① 核实 OBS_GATE_TOKEN/OBS_LOG_DIR 为 compose `${VAR:?required}` 硬门槛（observability/single-server 两处）；生成 OBS_GATE_TOKEN（openssl rand hex 64）并连同 OBS_LOG_DIR=/var/lib/docker/containers 写入服务器 /opt/omnicraft/.env 与本地 ~/.config/omnicraft/ops-obs.env（均 0600）② Linux 直挂验证通过：/var/lib/docker/containers :ro 挂载进容器后 json 日志可读、轮转文件存在（json-file 驱动，daemon 轮转实际 20MB×4，runbook 写 10MB×5 待校正）；完整 Alloy 摄取验证留 Ops-04 ③ 推送 codex/ops-integration（d76b62b..611ebf8，503 系 GitHub 瞬时故障）④ 异地归档目标仍未配置，为 Ops-08 唯一外部输入缺口（建议：阿里云另一区域 OSS SSE+lifecycle 365d / 腾讯 COS）
+
+## [2026-08-05] - Ops-08 异地归档外部输入配置完成（阿里云杭州 OSS）
+
+### What was done:
+- 创建异地加密归档桶 `omnicraft-ops-archive`（华东1 杭州 oss-cn-hangzhou，与应用桶 cn-guangzhou 异地；版本控制开启、私有读写、阻止公共访问、SSE-OSS AES256 加密）；生命周期规则 `ops-evidence-retention-365d`（整个桶，最后一次修改时间起 365 天删除）。
+- 创建 RAM 用户 `omnicraft-ops-archive-operator`（仅 OpenAPI 访问）与专用 AccessKey；自定义权限策略 `omnicraft-ops-archive-rw`（桶级最小权限：对象读写+列举+版本列举+生命周期读写，仅限该桶两级资源），用户手动完成策略创建与授权。
+- 本地实测验证（oss2）：GetBucketInfo 200 / ListObjects 0 对象 / PutObject→GetObject→DeleteObject 往返成功 / GetBucketLifecycle 显示 365 天规则 / ListBuckets 返回 403（最小权限符合设计，无账号级越权）。
+
+### Testing:
+- 上列五项验证全部 PASS；bucket 名、区域、lifecycle id=ops-evidence-retention-365d days=365 逐一核对。
+
+### Notes:
+- 凭证已落盘 `~/.config/omnicraft/ops-08-offsite-archive.env`（0600，仓库外），字段 ARCHIVE_AK_ID/ARCHIVE_AK_SECRET/OFFSITE_ARCHIVE_BUCKET/OFFSITE_ARCHIVE_REGION/OFFSITE_ARCHIVE_ENDPOINT/OFFSITE_ARCHIVE_URI=oss://omnicraft-ops-archive/ops-evidence；临时凭证文件已删除。
+- Ops-08 唯一外部输入缺口解除；剩余 Ops-08 步骤（archive-audit-logs.sh 生产 sink 接线、服务器 .env 写入、RPO/RTO 目标核准）按计划继续。
+- 服务器 .env 尚未写入归档凭证（按 Ops-08 步骤执行时接线，避免凭证驻留多余环境）。
