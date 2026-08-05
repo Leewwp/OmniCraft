@@ -20,8 +20,9 @@
 - Global Design Tokens
 - Global Interaction Patterns
 
-### Pages（48）
+### Pages（49）
 - Page: / 首页
+- Page: /recommend 推荐流
 - Page: /search 搜索页
 - Page: /ips IP 库
 - Page: /login 登录页
@@ -377,6 +378,63 @@ interface FacetedSearchSidebarProps {
 - 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
 - 破坏性操作必须 ConfirmModal 二次确认。
 - 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
+
+## Page: /recommend 推荐流
+
+**Key Constraints**
+- 独立顶级发现面（区别于二创 `/`、原创 `/original` 与 Agent 工作台 `/agent`）；单一"为你推荐"内容流，跨原创与二创展示，不提供分区标签、分类 Tab 或排序筛选。
+- 推荐流是算法驱动的发现界面：排序综合兴趣相关性、热度质量与新内容探索价值；所有推荐参数从 `config.yaml > recommendation` 读取（见 `docs/specs/recommendation-page.md`），前端不硬编码权重。
+- 全站内容卡片统一入口：卡片点击打开共享 `ContentDetailOverlay`（source=`recommendation`），不跳转详情页；直接访问内容 URL 才使用完整详情页。
+- 卡片主点击区与作者身份入口分离：点击卡片打开详情浮层；悬停 200ms / 聚焦立即显示用户资料浮层，点击进入用户主页。
+- 数据源：复用 `GET /api/v1/contents`（ListContents）推荐排序（`sort=recommended`，跨区参数由后端扩展，见三缺口 Ticket 03）；未登录匿名可浏览（纯热门推荐）。
+
+**视觉层级**
+- Header 下方无 Tab 栏；页面背景 `bg-canvas-subtle`，主容器居中最大宽度 1280px。
+- 内容区：最短列瀑布流（`MasonryGrid`），卡片直接排列，无外层 border 容器。
+- 卡片双式（P-01 §3.7 决策，按内容 zone 切换）：二创卡 = 1px border + `radius-lg` + `--elevation-1`，hover → `--border-strong` + `--elevation-2` + 封面 scale(1.03)，信息层 标题 14 → 基于 IP 12 → 标签(≤2) → 作者+互动 12，类型角标为黑 55% 半透明 chip；原创卡 = 无边框，封面自适应比例 + `radius-lg`，hover → 封面 scale(1.05) + 浅遮罩 + `--elevation-2`，信息仅 标题 14 / @作者 12 / 点赞 12。
+
+**核心组件清单**
+- `Header`
+- `ContentCard`（原创卡/二创卡两式）
+- `MasonryGrid`（最短列瀑布流）
+- `ContentDetailOverlay`（共享详情浮层，source=`recommendation`）
+- `SkeletonCard` / `EmptyState` / `Footer`
+
+**状态变体**
+- default：推荐流瀑布流卡片。
+- loading：骨架屏（封面比 + 标题行 + meta 行，镜像真实布局），首次加载 12 个占位；`prefers-reduced-motion` 下静止；禁止全屏遮罩。
+- empty：56px 圆形柔底图标 + 16px 标题 + 14px 说明（max-w-sm）+ CTA"浏览原创区"；垂直 py-20/24 居中。
+- error：同空状态结构，图标 AlertCircle，保留当前浏览位置，"重新加载" outline 按钮；不使用 Toast 承担页面级错误。
+- 已到底：显示"已经到底了"提示，不再触发请求。
+
+**无限滚动行为**
+- 初始加载：SSR 首屏 24 条。
+- 客户端滚动：IntersectionObserver 监听底部 sentinel；`page=2,3...` 追加到现有列表（SWR useSWRInfinite）。
+- 从浮层返回时恢复列表滚动位置与已加载数据。
+
+**响应式规则**
+- 移动 (≤700px)：2 列瀑布流，页面 gutter 16px，卡片间距 `gap-4`。
+- 平板 (≤1100px)：3 列瀑布流。
+- PC (>1100px)：4 列瀑布流，左对齐，页面 gutter 24px。
+
+**暗色模式适配**
+- 背景 `canvas-default` / 边框 `border-default` / 文字 `foreground` 随 `.dark` 自动映射；图片 `opacity-90`，占位 SVG 反色。
+
+**交互细节**
+- 卡片 hover：transform/shadow 反馈，不产生布局位移；`prefers-reduced-motion` 禁用缩放与脉冲。
+- 卡片点击：打开共享 `ContentDetailOverlay`；关闭后恢复推荐流滚动位置与触发卡片焦点。
+- 作者身份入口：悬停 200ms / 聚焦立即显示用户资料浮层，点击进入 `/user/[userId]`。
+- 数据加载策略：SSR 首屏 + 客户端 SWR 无限滚动。
+
+**i18n key namespace**
+- `recommend.*`（标题、空态、错误、加载更多、已到底）。
+
+**Playwright 截图检查点**
+- `screenshots/recommend-desktop.png`
+- `screenshots/recommend-mobile.png`
+- `screenshots/recommend-loading.png`
+- `screenshots/recommend-empty.png`
+- `screenshots/recommend-error.png`
 
 ## Page: /search 搜索页
 
@@ -2074,7 +2132,7 @@ interface MasonryGridProps {
 ```
 
 **视觉结构**
-- 外层容器: `<div className="columns-2 md:columns-3 lg:columns-4 gap-4 px-4">`
+- 外层容器: 最短列瀑布流容器 — 按 items 顺序逐条放入当前最短列，DOM/键盘/读屏顺序不变；窗口与图片高度变化时无显著动画地重新平衡。不得使用 CSS `columns-*`（按列优先填充会破坏返回顺序与最短列契约）。
 - 哨兵元素: `<div ref={sentinelRef} className="h-4" />` — IntersectionObserver 触发 onLoadMore
 - 底部提示: 加载中显示 Spinner，已到底显示 "已经到底了" 文本
 
@@ -2307,27 +2365,41 @@ interface ContentDetailProps {
 ## Component: ContentDetailOverlay
 
 **Key Constraints**
-- 推荐流卡片与 Agent 引用卡片必须复用同一详情浮层组件和内容可见性/错误状态；不得各自实现一套详情弹窗。
+- 全站唯一共享内容详情浮层：推荐流、分区页、IP 详情页、Agent 引用卡片与浮层内关联内容统一复用同一组件和内容可见性/错误状态；不得各自实现一套详情弹窗（含 Agent 专属弹窗）。
 - 桌面端为覆盖式详情层，移动端占满安全区域内可用视口；直接访问内容 URL 时渲染完整详情页而非强制浮层。
-- 打开时保存背景滚动位置与触发元素；关闭后恢复背景上下文、滚动位置和焦点。
+- 浮层承载与完整详情页一致的完整内容（正文、评论区、相关推荐、关联原创/二创、所属 IP）。
+- 打开时保存背景滚动位置与触发元素；完全退出后恢复最初触发入口的滚动位置和焦点；Agent 引用入口必须恢复原会话滚动位置并聚焦引用卡片。
 - 支持显式关闭、遮罩点击、Esc 和浏览器返回关闭；浮层内部点击不关闭。
+
+**导航栈（逐层返回）**
+- 浮层内访问关联内容压入内部导航栈，栈深度 ≤ 5（2026-08-04 三缺口执行规划；P-01 原型为"无硬上限"，生产以此为准）。
+- 返回类手势（返回按钮、Esc、浏览器后退）逐层弹出；退出类手势（右上关闭、背板点击）退出整个栈。
+- 返回文案只显示来源或上一条内容标题，不显示层数或解释文本；Agent 来源显示"返回对话"。
+- 每层记忆唯一内部内容滚动容器的滚动位置：弹层恢复该层记忆位置，新层回到顶部。
+- 私信聊天浮层与图片预览可叠加在内容详情最上层；Esc/背板/移动返回只关闭最上层，关闭后恢复下层滚动与触发点焦点。
 
 **Props 接口**
 ```ts
 interface ContentDetailOverlayProps {
   contentId: number;
   zone: 'original' | 'fanwork';
-  source: 'recommendation' | 'agent-citation';
+  source: 'recommendation' | 'zone-page' | 'ip-page' | 'agent-citation';
   open: boolean;
   onOpenChange: (open: boolean) => void;
   returnFocusRef?: React.RefObject<HTMLElement | null>;
 }
 ```
+（浮层内关联内容的导航栈内部状态由组件持有；对外仅暴露当前层打开/关闭契约。）
 
 **视觉结构**
-- 遮罩层：固定覆盖视口，使用设计系统浮层背景与批准后的 elevation token。
-- 详情容器：复用 `ContentDetail`，包含独立可访问标题、关闭按钮和内部滚动区。
-- Agent 来源不增加专属详情外观；可在返回提示中说明将返回原对话。
+- 遮罩层：固定覆盖视口，`--elevation-3` 浮层阴影 + 1px border + 设计系统浮层背景。
+- 详情容器：复用 `ContentDetail`，包含独立可访问标题、顶部返回/关闭栏（位于滚动主体外）与唯一内部内容滚动区；标题下方不重复作者信息，右侧创作者栏仅头像、昵称、关注（与完整详情页一致）。
+- 外壳与封面共享同一开合动画进度：开 300ms / 关 240ms，同帧同缓动 `cubic-bezier(0.22,0.61,0.36,1)`；栈内层切换水平滑动 240ms 同缓动；reduced-motion 降级为 100ms 纯透明度淡化。
+- 触发卡无缩略图或不在视口时，入场降级为居中轻缩放 + 淡化。
+- Agent 来源不增加专属详情外观。
+
+**唯一滚动模型**
+- 浮层打开时锁定背景 `html/body`（含滚动条宽度 padding 补偿）；`dialog` 与浮层外壳 `overflow: hidden`，只有内部内容主体滚动；顶部返回/关闭栏位于滚动主体外；每层只记忆这一滚动容器；不得以隐藏滚动条掩盖双滚动上下文。
 
 **状态变体**
 - loading：结构与真实详情一致的骨架屏。
@@ -2338,8 +2410,8 @@ interface ContentDetailOverlayProps {
 **响应式与可访问性**
 - PC：详情层不超过可用视口，内部滚动，关闭按钮始终可达。
 - 移动：全屏层，顶部关闭区和底部关键操作满足安全区域与 44px 触控目标。
-- 使用对话框语义、焦点陷阱和背景 inert；关闭后聚焦原推荐卡片或 Agent 引用卡片。
-- URL、浏览器历史和拦截路由的最终实现以 `docs/working/2026-07-25-wayfinder-ticket-content-modal-routing.md` 的已确认结论为准。
+- 使用对话框语义、焦点陷阱和背景 inert；打开聚焦标题，逐层弹出把焦点返回上层的触发链接，完全关闭后聚焦原触发卡片/引用卡片。
+- URL、浏览器历史和拦截路由的最终实现以 `docs/working/2026-07-25-wayfinder-ticket-content-modal-routing.md` 的已确认结论为准（URL 形态与错误历史语义仍 open）。
 
 ## Component: SeriesNav 内容系列导航
 
@@ -3130,7 +3202,8 @@ interface ConfirmModalProps {
 **Key Constraints**
 - 受保护路由；只有 config 中 `agent.web_agent_enabled=true` 且用户已登录并满足现有邮箱验证要求时可进入。
 - Agent 是顶部导航进入的独立全页工作台。不得在 Root Layout 挂载全站右下角聊天入口；现有 `AgentChatWidget.tsx` 仅是待迁移的旧实现名。
-- 页面必须保持 1px border 扁平设计，无阴影 `shadow-none`；视觉方向在已批准的 P-01 决策范围内实现。
+- 遵守全局 Indigo 三档层级规则：静置面板 `--elevation-1`，抽屉/搜索浮层 `--elevation-3`，阴影永远配合 1px border，不单独承担分隔；视觉方向在已批准的 P-01 决策范围内实现。
+- 唯一滚动模型：工作台固定为 Header 下方剩余视口高度，外壳与会话侧栏/主列不滚动，仅对话正文区域纵向滚动。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
 **Props 接口**
@@ -3156,12 +3229,13 @@ interface AgentToolStatus {
 
 **视觉结构**
 - 页面外层：受保护的全高工作区，位于共享 Header 下方。
-- 桌面布局：会话导航栏 + 主对话区；主区包含标题/会话动作、消息列表、工具状态、引用列表和固定输入区。
-- 移动布局：单列全高页面，会话导航使用抽屉或独立层，顶部标题与底部输入区保持可达。
+- 桌面布局：会话侧栏 + 主对话区；主区包含标题/会话动作、消息列表、工具状态、引用列表和固定输入区。
+- 会话侧栏（A1.6 契约）：展开态自上而下为 折叠按钮 → 搜索触发框 → 全宽"开启新对话" → 会话历史（保留非空时间分组）；可收为 56–64px 窄栏并持久化（localStorage），收起态保留 展开/搜索/新对话 三图标和 Tooltip。
+- 移动布局：单列全高页面，会话导航折叠即关闭抽屉，顶部标题与底部输入区保持可达。
 - 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **尺寸规范**
-- 页面高度：`calc(100dvh - var(--header-h))`，内部区域自行滚动，不依赖悬浮面板尺寸。
+- 页面高度：`calc(100dvh - var(--header-h))`，外壳与主列不滚动，仅对话正文区域纵向滚动。
 - 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
@@ -3176,6 +3250,12 @@ interface AgentToolStatus {
 - error：显示稳定的本地化错误与重试；保留用户输入和上一份成功回答。
 - disabled：请求中仅禁用会产生冲突的动作，停止和关闭仍可用。
 
+**会话全文搜索（A1.6 契约）**
+- 搜索全部未删除会话的标题与消息正文，不受侧栏加载范围限制；每条命中独立按时间倒序显示 来源/片段/日期，点击精确定位并短暂高亮。
+- 桌面 `min(720px,92vw)`、高度 ≤ 80dvh、视口居中；移动全屏。
+- 含快捷键、键盘导航、空态（不重复提供清空按钮）与焦点恢复；浮层内 Esc 先清空查询词，再次 Esc 关闭搜索层并恢复触发焦点。
+- 生产数据来源为 owner-scoped 会话搜索 API（由 Web Agent Productization 实现）；P-01 原型仅以 mock 验证交互。
+
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
 
@@ -3184,9 +3264,9 @@ interface AgentToolStatus {
 
 **关键交互**
 - Enter 发送，Shift+Enter 换行；流式时发送按钮切换为停止。
-- 引用必须是站内有效 `id/title/zone` 形成的可聚焦 Agent 引用卡片；点击后打开共享 `ContentDetailOverlay`，无效引用只显示不可点击 fallback 或直接丢弃。
+- 引用必须是站内有效 `id/title/zone` 形成的可聚焦 Agent 引用卡片；点击后打开共享 `ContentDetailOverlay`，无效引用只显示不可点击 fallback 或直接丢弃；详情浮层关闭后恢复原会话滚动位置并把焦点返回引用卡片。
 - 工具状态只展示名称、用户友好结果和耗时摘要；不展示 system prompt、工具 JSON 或内部推理。
-- Esc 只关闭当前打开的内容详情浮层或会话抽屉，不离开 Agent 工作台；详情浮层关闭后恢复原会话滚动位置并把焦点返回引用卡片。
+- Esc 只关闭当前打开的内容详情浮层、会话搜索层或会话抽屉，不离开 Agent 工作台。
 - “开始新对话”不删除旧会话且无需确认；“清空当前历史”使用 `ConfirmModal` 并调用 owner-scoped `DELETE /api/v1/agent/conversations/:id`。取消不发请求；成功聚焦新输入框；失败保留当前消息并把焦点返回 trigger。该删除不会同时删除服务器脱敏 trace、审计或聚合用量记录。
 - 仅当用户停留在消息底部附近时自动跟随流式内容；用户向上阅读后停止抢滚动，并显示可聚焦的“跳到最新”按钮。
 - 所有可交互元素使用设计系统可见 focus ring；动画遵守 `prefers-reduced-motion`，流式文本本身不使用逐 token 位移动画。
