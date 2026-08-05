@@ -474,3 +474,4 @@
 
 ### Notes:
 - 真实异地加密归档目标、生产 gate token 与 OBS_LOG_DIR 为 Ops-08 部署输入，本任务以本地 contract sink 与 drill 证明适配器行为，记录为 blockers。
+- 2026-08-05 第四轮（阻塞项核实与解除）：① 核实 OBS_GATE_TOKEN/OBS_LOG_DIR 为 compose `${VAR:?required}` 硬门槛（observability/single-server 两处）；生成 OBS_GATE_TOKEN（openssl rand hex 64）并连同 OBS_LOG_DIR=/var/lib/docker/containers 写入服务器 /opt/omnicraft/.env 与本地 ~/.config/omnicraft/ops-obs.env（均 0600）② Linux 直挂验证通过：/var/lib/docker/containers :ro 挂载进容器后 json 日志可读、轮转文件存在（json-file 驱动，daemon 轮转实际 20MB×4，runbook 写 10MB×5 待校正）；完整 Alloy 摄取验证留 Ops-04 ③ 推送 codex/ops-integration（d76b62b..611ebf8，503 系 GitHub 瞬时故障）④ 异地归档目标仍未配置，为 Ops-08 唯一外部输入缺口（建议：阿里云另一区域 OSS SSE+lifecycle 365d / 腾讯 COS）
