@@ -25,7 +25,7 @@
 
 | 工具 | 版本要求 | 说明 |
 |------|---------|------|
-| Go | 1.22+ | 后端 API 服务（CI 精确固定 1.25.11，见 `.github/workflows/ci.yml`） |
+| Go | 1.22+ | 后端 API 服务（CI 精确固定 1.25.12，见 `.github/workflows/ci.yml`） |
 | Node.js | 20+ | 前端 Next.js（CI 固定 Node 20；`engines` 声明最低版本策略） |
 | pnpm | 9+ (或 npm 10+) | 前端包管理 |
 | PostgreSQL | 16+ | 需 pgvector ≥ 0.7 |
@@ -123,6 +123,22 @@ go run . --check --profile archive
 ```
 
 聚合命令不能替代任务要求的浏览器截图、真实外部服务 smoke、Tauri 安装包验证或人工发布证据。
+
+### 8. 持续安全扫描
+
+安全门通过 `.github/workflows/security.yml` 的稳定 `security-gate` 作业在 PR、push 到 main 与每日定时运行；扫描工具全部固定版本或镜像 digest（见 `security/pinned-tools.json`），禁止浮动引用与 `|| true` 隐藏失败（`scripts/security/verify-pinned-actions.sh` 静态校验）。
+
+```bash
+# 扫描类别与豁免策略
+bash scripts/security/verify-pinned-actions.sh
+bash scripts/security/verify-security.sh -BuildImages -ReportDir artifacts/security
+
+# 合约测试（伪造密钥、过期例外、脆弱 lockfile 各自只触发对应门）
+bash scripts/security/verify-pinned-actions.tests.sh
+bash scripts/security/verify-security.tests.sh
+```
+
+覆盖：Go `govulncheck`、frontend/tauri-client `npm audit`、Tauri `cargo audit`、gitleaks（工作树 + 全历史）、Trivy filesystem/IaC/container-image 扫描。secret 命中与 release Critical 不可豁免；High 豁免必须进入 `security/exceptions.json`（含受影响版本/digest、补偿控制、独立人工批准人、commit 绑定 `approval_ref` 与到期日）。单人仓库未配置第二位合格 human owner 前，`high_exceptions_enabled` 保持 `false`，任何 High 都必须修复。
 
 ---
 

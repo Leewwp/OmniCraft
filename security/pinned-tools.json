@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "tools": [
+    {
+      "name": "govulncheck",
+      "version": "1.1.4",
+      "source": "golang.org/x/vuln/cmd/govulncheck@v1.1.4 (Go module proxy, immutable)"
+    },
+    {
+      "name": "gitleaks",
+      "version": "8.18.4",
+      "source": "docker://zricethezav/gitleaks:v8.18.4@sha256:75bdb2b2f4db213cde0b8295f13a88d6b333091bbfbf3012a4e083d00d31caba"
+    },
+    {
+      "name": "trivy",
+      "version": "0.57.1",
+      "source": "docker://aquasec/trivy:0.57.1@sha256:5c59e08f980b5d4d503329773480fcea2c9bdad7e381d846fbf9f2ecb8050f6b"
+    },
+    {
+      "name": "rust",
+      "version": "1.85.1",
+      "source": "docker://rust:1.85.1@sha256:e51d0265072d2d9d5d320f6a44dde6b9ef13653b035098febd68cce8fa7c0bc4 (cargo audit runtime)"
+    },
+    {
+      "name": "cargo-audit",
+      "version": "0.22.1",
+      "source": "cargo install cargo-audit --version 0.22.1 --locked (crates.io, immutable)"
+    }
+  ]
+}

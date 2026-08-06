@@ -280,6 +280,7 @@ const testRouter = {
   back() {},
   forward() {},
   prefetch() {},
+  bfcacheId: "test-bfcache",
   push(path: string) {
     window.history.pushState({}, "", path);
   },

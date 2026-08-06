@@ -20,6 +20,11 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Upgrade base packages (openssl security fixes) and drop the npm CLI whose
+# bundled dependencies are not needed at runtime.
+RUN apk upgrade --no-cache \
+  && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 

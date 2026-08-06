@@ -1,4 +1,4 @@
-FROM golang:1.25.11-alpine AS builder
+FROM golang:1.25.12-alpine AS builder
 
 WORKDIR /src
 
@@ -9,13 +9,17 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /gate .
 
-FROM alpine:3.19
+FROM alpine:3.23
 
 RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
 
 COPY --from=builder /gate .
+
+RUN addgroup -S gate && adduser -S gate -G gate
+
+USER gate
 
 EXPOSE 8080
 
