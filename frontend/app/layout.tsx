@@ -4,8 +4,6 @@ import { getLocale, getMessages, getTranslations } from 'next-intl/server';
 import { ThemeProvider } from 'next-themes';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/components/ui/Toast';
-import { AgentChatWidget } from '@/components/agent/AgentChatWidget';
-import { AgentFeatureGate } from '@/components/agent/AgentFeatureGate';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -47,9 +45,6 @@ export default async function RootLayout({
                 <main id="main-content" className="flex-1">
                   {children}
                 </main>
-                <AgentFeatureGate capability="webAgent">
-                  <AgentChatWidget />
-                </AgentFeatureGate>
               </AuthProvider>
             </ToastProvider>
           </ThemeProvider>

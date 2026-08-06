@@ -6,8 +6,10 @@ import (
 )
 
 type ChatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string     `json:"role"`
+	Content    string     `json:"content"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 }
 
 type ToolDefinition struct {
@@ -23,6 +25,9 @@ type ToolCall struct {
 		Name      string `json:"name"`
 		Arguments string `json:"arguments"`
 	} `json:"function"`
+	// Index marks streamed tool-call fragments. OpenAI-style providers split
+	// one call across deltas by index; a nil Index means a complete call.
+	Index *int `json:"index,omitempty"`
 }
 
 type ChatRequest struct {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -29,6 +28,10 @@ const (
 	// AgentErrorCodeProvider is the safe code for Provider-side failures; raw
 	// Provider errors are never serialized into the stream.
 	AgentErrorCodeProvider = "AGENT_PROVIDER_ERROR"
+	// AgentErrorCodeProviderTimeout marks a Provider-side deadline exceeded.
+	// It is distinct from client cancellation so the UI can degrade to keyword
+	// search instead of treating it as an aborted stream.
+	AgentErrorCodeProviderTimeout = "AGENT_PROVIDER_TIMEOUT"
 	// AgentErrorCodeCancelled marks a client-cancelled stream. The request
 	// still consumed its reserved quota and emitted an outcome.
 	AgentErrorCodeCancelled = "STREAM_CANCELLED"
@@ -93,6 +96,60 @@ type agentToolResult struct {
 	Guide   *UsageGuideResult    `json:"guide,omitempty"`
 	Search  []ContentSummary     `json:"search,omitempty"`
 	Suggest *UploadAssistResult  `json:"suggest,omitempty"`
+}
+
+// streamedToolCallAccumulator assembles OpenAI-style streamed tool calls,
+// which arrive split into indexed fragments (id+name on the first chunk,
+// arguments across later chunks). Calls are only considered complete once the
+// provider round finishes, so partial JSON fragments are never executed as
+// tool arguments.
+type streamedToolCallAccumulator struct {
+	byIndex  map[int]*llm.ToolCall
+	order    []int
+	complete []llm.ToolCall
+}
+
+func newStreamedToolCallAccumulator() *streamedToolCallAccumulator {
+	return &streamedToolCallAccumulator{byIndex: make(map[int]*llm.ToolCall)}
+}
+
+// add merges one delta's tool-call fragments. Chunks without an index are
+// treated as complete calls (non-fragmenting providers).
+func (a *streamedToolCallAccumulator) add(chunks []llm.ToolCall) {
+	for i := range chunks {
+		chunk := chunks[i]
+		if chunk.Index == nil {
+			a.complete = append(a.complete, chunk)
+			continue
+		}
+		idx := *chunk.Index
+		cur, ok := a.byIndex[idx]
+		if !ok {
+			cur = &llm.ToolCall{ID: chunk.ID, Type: chunk.Type}
+			cur.Function.Name = chunk.Function.Name
+			a.byIndex[idx] = cur
+			a.order = append(a.order, idx)
+		}
+		cur.Function.Arguments += chunk.Function.Arguments
+	}
+}
+
+// calls returns the fully assembled round calls in first-seen order. Index is
+// a stream-only fragment marker and must never be serialized back into a
+// non-streaming assistant message (strict OpenAI-compatible providers reject
+// it), so assembled calls always carry a nil Index.
+func (a *streamedToolCallAccumulator) calls() []llm.ToolCall {
+	if len(a.complete) == 0 && len(a.order) == 0 {
+		return nil
+	}
+	out := make([]llm.ToolCall, 0, len(a.complete)+len(a.order))
+	out = append(out, a.complete...)
+	for _, idx := range a.order {
+		call := *a.byIndex[idx]
+		call.Index = nil
+		out = append(out, call)
+	}
+	return out
 }
 
 // ChatStream runs one chat turn against the Provider with a server-owned tool
@@ -168,13 +225,17 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []
 	citationCandidates := make([]AgentCitation, 0, policy.CitationMaxCount)
 	seenCitationIDs := make(map[int64]bool, policy.CitationMaxCount)
 	streamErr := error(nil)
+	var lastUsage *llm.TokenUsage
 
 loop:
 	for {
-		var roundCalls []llm.ToolCall
+		acc := newStreamedToolCallAccumulator()
 		err := s.llmProvider.ChatStream(ctx, req, func(delta llm.ChatDelta) error {
 			if len(delta.ToolCalls) > 0 {
-				roundCalls = append(roundCalls, delta.ToolCalls...)
+				acc.add(delta.ToolCalls)
+			}
+			if delta.Usage != nil {
+				lastUsage = delta.Usage
 			}
 			if delta.Content != "" {
 				answerBuf.WriteString(delta.Content)
@@ -186,6 +247,7 @@ loop:
 			streamErr = err
 			break loop
 		}
+		roundCalls := acc.calls()
 		if len(roundCalls) == 0 {
 			break loop
 		}
@@ -193,6 +255,13 @@ loop:
 			traceAgentEvent(traceID, "tool_limit_reached", "executed", len(executedTools))
 			break loop
 		}
+
+		// OpenAI-compatible protocol order: the assistant message carrying the
+		// tool_calls must precede the tool result messages, and every tool
+		// message references its call by tool_call_id. Strict providers reject
+		// tool messages that appear without the assistant tool_calls message.
+		assistantMsg := llm.ChatMessage{Role: "assistant", ToolCalls: roundCalls}
+		req.Messages = append(req.Messages, assistantMsg)
 
 		toolMessages := make([]llm.ChatMessage, 0, len(roundCalls))
 		for _, tc := range roundCalls {
@@ -234,7 +303,7 @@ loop:
 				return err
 			}
 			resultJSON, _ := json.Marshal(result)
-			toolMessages = append(toolMessages, llm.ChatMessage{Role: "tool", Content: string(resultJSON)})
+			toolMessages = append(toolMessages, llm.ChatMessage{Role: "tool", ToolCallID: tc.ID, Content: string(resultJSON)})
 		}
 		req.Messages = append(req.Messages, toolMessages...)
 	}
@@ -242,8 +311,11 @@ loop:
 	if streamErr != nil {
 		traceAgentEvent(traceID, "chat_failed", "safe_error", safeAgentStreamCode(streamErr))
 		var code AgentStreamEventType = AgentErrorCodeProvider
-		if errors.Is(streamErr, context.Canceled) || errors.Is(streamErr, context.DeadlineExceeded) {
+		switch {
+		case errors.Is(streamErr, context.Canceled):
 			code = AgentErrorCodeCancelled
+		case errors.Is(streamErr, context.DeadlineExceeded):
+			code = AgentErrorCodeProviderTimeout
 		}
 		handler(AgentStreamEvent{Type: AgentEventError, ErrorCode: string(code), ErrorMessage: safeAgentStreamMessage(code)})
 		if conv != nil && s.db != nil {
@@ -261,7 +333,11 @@ loop:
 	}
 
 	kind := ClassifyGroundedAnswer(citations)
-	if err := handler(AgentStreamEvent{Type: AgentEventUsage, Usage: &AgentUsage{}}); err != nil {
+	usage := &AgentUsage{}
+	if lastUsage != nil {
+		usage = &AgentUsage{PromptTokens: lastUsage.PromptTokens, CompletionTokens: lastUsage.CompletionTokens}
+	}
+	if err := handler(AgentStreamEvent{Type: AgentEventUsage, Usage: usage}); err != nil {
 		return err
 	}
 
@@ -284,6 +360,7 @@ loop:
 		Answer:         answer,
 		Citations:      citations,
 		Tools:          executedTools,
+		Usage:          usage,
 		Degraded:       false,
 	}); err != nil {
 		return err
@@ -297,8 +374,10 @@ loop:
 // exposing raw Provider errors.
 func safeAgentStreamCode(err error) string {
 	switch {
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+	case errors.Is(err, context.Canceled):
 		return "cancelled"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "provider_timeout"
 	default:
 		return "provider_error"
 	}
@@ -306,8 +385,12 @@ func safeAgentStreamCode(err error) string {
 
 // safeAgentStreamMessage returns localized-safe copy for a stream error code.
 func safeAgentStreamMessage(code AgentStreamEventType) string {
-	if code == AgentErrorCodeCancelled {
+	switch code {
+	case AgentErrorCodeCancelled:
 		return "stream cancelled"
+	case AgentErrorCodeProviderTimeout:
+		return "provider timed out"
+	default:
+		return "provider unavailable"
 	}
-	return fmt.Sprintf("provider unavailable")
 }
