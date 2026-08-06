@@ -2,6 +2,26 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+## [2026-08-06] - 多车道交付验收、main 线汇合与浏览器验证
+
+### What was done:
+- **真实性验证（9 个 PR + 5 张三缺口票）**：逐一核对 origin/main 上 PR #35/#36/#37/#38/#39/#40/#41/#42/#43 均 MERGED 且 CI 全绿（gh pr view 检查 #43 六项 checks SUCCESS），合并 commit 与计划/账本语义一致。注意：账本 `/private/tmp/omnicraft-lane-ledger.md` 中车道 C 的四个 commit 哈希（ebc2c6d/b82c5d3/741ef4f/89c125f）与真实合并结果（ea2e6ed/5324955/5f47de1/0e2d0c1）不符，以 git 为准。
+- **证据核查**：eval fixture 12 用例覆盖 10 类（retrieval 4 / refusal / visibility 2 / injection / citations / context / publish / downgrade 2）属实；screenshots/ 中 recommend、gap16、gap18、gap19 截图此前未提交（在 worktree 内），本次全部入库并附合并后 main 复验截图（`screenshots/gap18/merged-main-recommend-overlay-verify.png`）。
+- **质量门（合并后 main）**：后端 `go build/vet/test ./...` 全绿（18 包 ok）；前端 `npm run lint`（tsc --noEmit）、`lint:ui`、`build`、`test:unit` 227/227 PASS；doc-validator --fix 无变更（config/schema/routes 同步无漂移）。
+- **代码质量抽检**：agent_tools.go 固定只读工具注册表 + DisallowUnknownFields 严格参数解码 + 查看者可见性过滤（防探测）；agent_ratelimit.go Lua 原子预算预留 + Redis 不可用 fail-closed；AGENT_RATE_LIMIT_EXCEEDED（handler）与 AGENT_RATE_LIMITED（eval 测试）码名不一致为已记录的非阻塞遗留，本次未改。修复合并冲突时顺带修正 origin/main 上 Task 5 遗留的 provider_test.go gofmt 对齐问题。
+- **main 线汇合**：本地 main（Ops-04/05/06 线，a0fc79b）与 origin/main（Web/GAP 线，3dd9f8f）在 c76c198 处分叉；本次以 origin/main 并入本地 main 完成汇合（9656b45），冲突仅 3 个文件：openai_compat.go / qwen.go（Model() 访问器与 doPost 计时返回均为所需，语义合并）与 progress.txt（双线条目按日期归位，无残留标记）。随后 AGENTS.md 注册表 web-agent 行更新（余项 47 → 6，Task 1~5 + 三缺口已合并、仅剩 Task 6），并提交浏览器证据。
+- **浏览器验证（ego-browser，合并后 main @ localhost:3000 + backend :8081）**：首页/推荐页渲染正常（109 张卡片，aria-label 完整）；推荐页卡片点击 → 共享 ContentDetailOverlay 打开成功（返回文案"返回推荐流"、关闭按钮、收藏/评论控件齐全）；/agent 匿名+feature-off 态正确显示"Agent 工作台尚未开放" EmptyState（feature 门控生效，符合 Task 4 契约）；Header 全局搜索框为 GlobalSearchInput（旧 AgentChatWidget 挂载已移除，文件保留）。
+
+### Testing:
+- 门：见上（后端 4 项 + 前端 4 项全绿）；curl 冒烟 /healthz、/api/v1/contents、/recommend、/agent 均 200。
+- 浏览器证据：screenshots/recommend/、gap16/、gap18/、gap19/（含本次 merged-main 复验）。
+
+### Notes:
+- **遗留阻塞不变**：Web Agent Task 6 缺真实 `agent.llm_api_key`（config.yaml 默认 `web_agent_enabled=false`、key 空）→ 按计划阻塞，解除后从最新 main 开 `web/agent-t6`。
+- **需要用户确认**：(1) 本地 main 已领先 origin/main 13 commits（Ops-04/05/06 + 汇合 + 文档），是否 push 需确认；(2) GitHub issues #14/#16/#17/#18/#19 仍为 open（#16~#19 标记 ready-for-agent），实现已合并，可关闭；(3) 账本哈希偏差仅影响临时文件，不影响仓库。
+- progress.txt 现 123KB 超 64KB 轮换阈值（合并双线所致），下轮会话建议按规则轮换归档。
+- 本会话未触碰：codex/ops/* 分支、用户 8080 dev server、opencode/p01-ui-prototype、桌面范围。
+
 ## [2026-08-06] - Ops-06: 生成并验证与制品绑定的 SBOM 与 provenance
 
 ### What was done:
