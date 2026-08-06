@@ -41,10 +41,12 @@
       "times": "次",
       "votes": "票"
     },
-    "rateLimited": "操作过于频繁，请稍后再试"
+    "rateLimited": "操作过于频繁，请稍后再试",
+    "endReached": "已经到底了"
   },
   "nav": {
     "siteName": "万象工坊",
+    "recommend": "推荐",
     "fanworkZone": "二创区",
     "originalZone": "原创区",
     "themeSwitch": "切换主题",
@@ -1161,6 +1163,17 @@
       "saveFailed": "保存失败，请重试",
       "loadedSearch": "已加载搜索「{name}」"
     }
+  },
+  "recommend": {
+    "title": "为你推荐",
+    "subtitle": "原创与二创混排，无分区标签与排序筛选，只保留继续发现的路径。",
+    "emptyTitle": "暂时没有新的推荐",
+    "emptyDescription": "你已经看完这一批内容。稍后回来，或前往原创区继续浏览。",
+    "emptyAction": "浏览原创区",
+    "errorTitle": "推荐内容暂时无法加载",
+    "errorDescription": "请求未完成，请稍后重新加载。",
+    "retryAction": "重新加载",
+    "loadingLabel": "推荐内容加载中"
   },
   "rehab": {
     "title": "素质建设课程",
