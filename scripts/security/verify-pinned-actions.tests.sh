@@ -174,6 +174,49 @@ jobs:
 EOF
 expect_exit 1 "|| true in security.yml rejected" "$TEMP_ROOT/pipetrue"
 
+# ------------------------------- attestation scopes allowed only in sbom.yml
+mkdir -p "$TEMP_ROOT/sbom-attest"
+cat > "$TEMP_ROOT/sbom-attest/sbom.yml" <<'EOF'
+permissions:
+  contents: read
+jobs:
+  provenance:
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373
+EOF
+expect_exit 0 "attestation scopes allowed in sbom.yml" "$TEMP_ROOT/sbom-attest"
+
+# ----------------------------------------- attestation scopes still rejected elsewhere
+mkdir -p "$TEMP_ROOT/attest-other"
+cat > "$TEMP_ROOT/attest-other/ci.yml" <<'EOF'
+permissions:
+  contents: read
+jobs:
+  gate:
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+EOF
+expect_exit 1 "attestation scopes rejected outside sbom.yml" "$TEMP_ROOT/attest-other"
+
+# ------------------------------------------------- sbom.yml cannot widen other scopes
+mkdir -p "$TEMP_ROOT/sbom-widen"
+cat > "$TEMP_ROOT/sbom-widen/sbom.yml" <<'EOF'
+permissions:
+  contents: write
+jobs:
+  sbom-gate:
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+EOF
+expect_exit 1 "sbom.yml with contents: write rejected" "$TEMP_ROOT/sbom-widen"
+
 # ------------------------------------------------------------- real workflows
 bash "$VERIFY" -ReportDir "$TEMP_ROOT/report-real" >/dev/null 2>&1 || {
   echo "FAIL: repository workflows must pass pinned-actions verification" >&2

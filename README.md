@@ -13,6 +13,7 @@
 - [环境变量说明](#环境变量说明)
 - [数据库初始化](#数据库初始化)
 - [数据库备份](#数据库备份)
+- [SBOM 与制品证明](#sbom-与制品证明)
 - [项目结构](#项目结构)
 - [API 文档](#api-文档)
 - [Tauri 客户端](#tauri-客户端)
@@ -327,6 +328,32 @@ crontab -e
 # 添加：每天凌晨 2 点备份，保留 30 天
 0 2 * * * /path/to/OmniCraft/scripts/backup-db.sh >> /var/log/omnicraft-backup.log 2>&1
 ```
+
+---
+
+## SBOM 与制品证明
+
+每个发布候选生成 CycloneDX SBOM（Go module、frontend/tauri npm、tauri Rust、容器 OS packages），并绑定到制品 digest、迁移清单 digest 与 pinned 生成器版本。生成、验证与归档全部可在本地复现，CI 通过 `.github/workflows/sbom.yml` 执行同一脚本集合并为 release 生成 GitHub provenance attestation。
+
+```bash
+# 1. 生成确定性 SBOM 与 release-manifest.json（自动构建缺失的容器镜像）
+bash scripts/release/generate-sbom.sh -OutputDir artifacts/ops-06
+
+# 2. 验证 manifest schema、全部 digest 与 provenance 引用（-ImageDaemon 额外核对镜像 OCI label 与 commit 绑定）
+bash scripts/release/verify-provenance.sh -Manifest artifacts/ops-06/release-manifest.json -ImageDaemon
+
+# 3. 归档证据并生成一年保留期的机器可读 receipt（真实加密异地目的地需 Ops-08 凭据）
+bash scripts/release/archive-release-evidence.sh -Manifest artifacts/ops-06/release-manifest.json -TargetDir /tmp/omnicraft-ops06-archive
+
+# 4. 契约测试
+bash scripts/release/generate-sbom.tests.sh
+bash scripts/release/verify-provenance.tests.sh
+bash scripts/release/archive-release-evidence.tests.sh
+```
+
+- 策略与 schema：`release/sbom-policy.json`、`release/release-manifest.schema.json`
+- 确定性：生成的 SBOM 移除 `metadata.timestamp` 与 `serialNumber` 等易变字段，绝不改写包身份
+- 发布阻塞：SBOM 与制品 digest 不绑定、生成器未 pin、provenance 身份不匹配、易变镜像 tag 作为证据
 
 ---
 

@@ -2,6 +2,30 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+## [2026-08-06] - Ops-06: 生成并验证与制品绑定的 SBOM 与 provenance
+
+### What was done:
+- 新增确定性 SBOM 生成/验证/归档三脚本（bash 入口 + python3 核心，全部本地可复现，CI 用同一命令集）：
+  - `scripts/release/generate-sbom.sh`：从 policy 组件清单生成 CycloneDX SBOM（Go/npm/Rust lockfile 走 pinned `anchore/syft@sha256:bc1ae5…` docker 镜像；容器组件自动 `docker build`（缺镜像时，带 `VERSION`/`COMMIT` build-arg）→ `docker save` → syft docker-archive）。归一化 `metadata.timestamp` + `serialNumber` 后按 SBOM 写 `release-manifest.json`（commit、version、6 组件 sbom digest、容器制品 tar sha256 + docker-archive manifest blob digest、migration-manifest digest、pinned generator、provenance 引用）；`-SkipImages` 产出未签名预览 manifest。
+  - `scripts/release/verify-provenance.sh`：17 项检查——schema（手写 draft-07 子集校验器）、policy 组件集合精确匹配、SBOM 存在/digest/CycloneDX/无易变字段/非空、制品 sha256 与镜像 digest 格式、迁移清单 digest 与仓库 migrations 精确核对、生成器 pin、provenance 身份（repo + sbom.yml workflow + refs/）；`-ImageDaemon` 额外核对镜像 OCI label `org.opencontainers.image.revision` == manifest commit；`-Preview` 放行预览 manifest。manifest 内路径相对 manifest 目录解析，下载后重算 digest 可直接复验。
+  - `scripts/release/archive-release-evidence.sh`：把 manifest/SBOM/tar/迁移清单/验证报告复制到 GitHub-Release 目标与 offsite 目标，写一年保留期 receipt（逐对象 sha256/size、expires_at、Ops-08 真实异地加密目的地 blocker）。
+- 新增 `release/sbom-policy.json`（required_ecosystems=go/npm/rust/container，6 组件含 files/image/tag/dockerfile/context，tool_pins.syft pinned digest，normalized_fields）与 `release/release-manifest.schema.json`。
+- 新增 `.github/workflows/sbom.yml`：PR → 预览 SBOM + `-Preview` 验证；push main → 全量生成 + `-ImageDaemon` 验证；release → 全量 + 上传（365 天保留）+ `actions/attest-build-provenance`（SHA-pinned `0f67c3f4…` v4.1.1）双 subject attestation + `gh attestation verify`。全部 action 40-hex SHA pin，job 级最小权限。
+- `backend/Dockerfile`、`frontend/Dockerfile`：新增 `ARG VERSION/COMMIT` + OCI labels（source/version/revision/title/description）。
+- 保留区扩展：`scripts/security/verify-pinned-actions.sh` 放行 sbom.yml 的 `attestations: write`/`id-token: write`（attest-build-provenance 最小权限必需），tests 增三种行为用例；已记入计划 Ops-06 完成注记。
+- `README.md` 新增「SBOM 与制品证明」章节。
+
+### Testing:
+- TDD 红：三套契约测试在实现前均以「script does not exist」退出 1（已留 `artifacts/ops-06/red-phase/`）。
+- TDD 绿：`generate-sbom.tests.sh`（含两轮运行 SBOM 字节级确定性对比、缺 lockfile 拒绝并点名组件、fixture 容器全流程 + verify 集成）、`verify-provenance.tests.sh`（18 用例：篡改 SBOM/制品/迁移清单、缺组件、extra 组件、预览模式、未 pin 生成器、易变字段、非 CycloneDX、空 SBOM、provenance 缺失/外部 builder）、`archive-release-evidence.tests.sh`（receipt 一年保留期、sha256/size、缺源文件、30 天覆盖、脱敏）全绿。
+- 全量证据：`generate-sbom.sh -OutputDir artifacts/ops-06 -Version 0.1.0-ops06`（6 组件 2 制品，后端/前端镜像自动构建）→ `verify-provenance.sh -ImageDaemon` 17 项全过（含 OCI label↔commit 绑定）→ archive（12 对象、365 天、2027-08-06 过期）→ 模拟下载后对拷贝复验通过。
+- `verify-pinned-actions.sh` + tests 通过；`verify-project.sh -ReportDir artifacts/ops-06`（go test/vet/build、前端 unit/lint/lint-ui/build、doc-validator release profile）全绿；`validate-evidence.sh` 通过。
+
+### Notes:
+- 本地容器 digest 取 docker-archive `manifest.json` blob SHA-256（可离线复算）；真实 registry digest 绑定留 Ops-08 push 阶段。真实 GitHub attestation 与加密异地归档目的地分别由 release job 与 Ops-08 提供凭据，均按计划保持阻塞标注，未以模拟证据声称完成。
+- 版本串在无 tag 时回退 `git describe --always`；本地证据显式 `-Version 0.1.0-ops06` 避免旧 tag 长串。
+- 桌面范围暂缓不变；tauri lockfile SBOM 作为仓库组件生成但不宣称可发布。
+
 ## [2026-08-06] - GAP #18 全站卡片入口统一接共享详情浮窗
 
 ### What was done:

@@ -76,12 +76,17 @@ done
 # or a scoped `contents: write` under a multi-line permissions block. Scope
 # keys are only matched while inside a `permissions:` block, so `needs:` and
 # comment lines cannot false-positive.
+# Exception (Ops-06 reservation extension): sbom.yml's provenance job may
+# request `attestations: write` and `id-token: write` — both are mandatory for
+# actions/attest-build-provenance, the only provenance mechanism used, and the
+# action reference itself is still SHA-pinned by the check above.
 PERM_ISSUES="$(python3 - "$WORKFLOW_DIR" <<'PY'
 import os, re, sys
 
 workflow_dir = sys.argv[1]
 SCOPES = ("contents", "packages", "pages", "security-events", "statuses",
           "id-token", "attestations")
+ATTESTATION_WORKFLOWS = ("sbom.yml",)
 scope_re = re.compile(r"^\s*(%s):\s*write\b" % "|".join(SCOPES))
 issues = []
 for wf in sorted(os.listdir(workflow_dir)):
@@ -111,7 +116,10 @@ for wf in sorted(os.listdir(workflow_dir)):
             in_permissions = True
             perm_indent = indent
         if in_permissions and scope_re.match(code):
-            issues.append("%s: permissions: <scope>: write is forbidden (least-privilege)" % wf)
+            scope = code.split(":")[0].strip()
+            if scope in ("id-token", "attestations") and wf in ATTESTATION_WORKFLOWS:
+                continue
+            issues.append("%s: permissions: %s: write is forbidden (least-privilege)" % (wf, scope))
 print("\n".join(issues))
 PY
 )"
