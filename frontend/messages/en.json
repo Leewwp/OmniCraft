@@ -68,7 +68,8 @@
     "publish": "Publish",
     "notifications": "Notifications",
     "favorites": "My Favorites",
-    "myOriginal": "My Originals"
+    "myOriginal": "My Originals",
+    "agent": "AI Agent"
   },
   "auth": {
     "suspendedTitle": "Account suspended",
@@ -1124,7 +1125,72 @@
     "searchAgentNoResults": "AI search found no results, switched to keyword search",
     "searchAgentDowngrade": "AI search temporarily unavailable, switched to keyword search",
     "aiSearch": "AI Search",
-    "keywordSearch": "Keyword Search"
+    "keywordSearch": "Keyword Search",
+    "featureDisabledTitle": "Agent workspace unavailable",
+    "featureDisabledDescription": "AI Agent capability is not enabled yet. Please try again later.",
+    "workspace": {
+      "sidebarLabel": "Conversation history",
+      "collapseSidebar": "Collapse sidebar",
+      "expandSidebar": "Expand sidebar",
+      "newConversation": "Start new conversation",
+      "openConversations": "Open conversation list",
+      "closeConversations": "Close conversation list",
+      "emptyConversations": "No conversations yet. Start a new one above.",
+      "untitled": "Conversation",
+      "privacyHint": "Only published content visible to your account is searched; grounded answers carry verified references.",
+      "groupToday": "Today",
+      "groupYesterday": "Yesterday",
+      "groupEarlier": "Earlier",
+      "transcriptLabel": "Chat transcript",
+      "composerLabel": "Ask the agent",
+      "inputPlaceholder": "Describe the works, sources or usage you want to find",
+      "send": "Send",
+      "stop": "Stop",
+      "sendMessage": "Send message",
+      "stopGenerating": "Stop generating",
+      "clearHistory": "Clear conversation",
+      "clearHistoryConfirmTitle": "Clear this conversation?",
+      "clearHistoryConfirmDescription": "All messages in this conversation will be deleted. This cannot be undone.",
+      "clearHistoryConfirmAction": "Clear history",
+      "clearHistorySuccess": "Conversation cleared",
+      "clearHistoryFailed": "Failed to clear conversation. Please try again.",
+      "emptyTitle": "Start researching from site content",
+      "emptyDescription": "Ask about works, sources, usage or creative directions. The agent only cites server-verified public content and stops when there is no evidence.",
+      "jumpToLatest": "Jump to latest",
+      "errorTitle": "This request was not completed",
+      "errorRetry": "Resend",
+      "conversationLoadFailed": "Failed to load conversation",
+      "composerHint": "Enter to send · Shift+Enter for newline",
+      "stoppedNotice": "Stopped generating",
+      "suggestionLayout": "Looking for “Empty Platform” themed visual references, ideally with both atmosphere images and text narration.",
+      "suggestionMusic": "Want to understand how chords relate to the melody with the shortest practice.",
+      "suggestionMod": "Find beginner-friendly furniture mods."
+    },
+    "tools": {
+      "title": "Tool activity",
+      "searchContent": "Search site content",
+      "getContentDetail": "Fetch content detail",
+      "getUsageGuide": "Fetch usage guide",
+      "suggestPublishMetadata": "Suggest publish metadata",
+      "unknown": "Tool",
+      "statusRunning": "Running",
+      "statusSuccess": "Done",
+      "statusFailed": "Failed"
+    },
+    "citations": {
+      "title": "Site references",
+      "count": "{count} verified references",
+      "invalid": "Reference unavailable"
+    },
+    "noEvidence": {
+      "title": "Not enough evidence",
+      "description": "Public content does not have enough material to support this answer. The agent did not fabricate a conclusion."
+    },
+    "a11y": {
+      "conversationItem": "Conversation #{id}",
+      "streamStatus": "Generating answer",
+      "jumpToLatest": "Jump to latest message"
+    }
   },
   "search": {
     "saveSearch": "Save this search",

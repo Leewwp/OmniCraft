@@ -2,6 +2,31 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+## [2026-08-06] - GAP #19 Agent 工作台 /agent
+
+### What was done:
+- 受保护路由 `frontend/app/(protected)/agent/page.tsx`：`Header` + `AgentFeatureGate`（`capability="webAgent"`，未启用/未验证邮箱时回退 EmptyState `agent.featureDisabled*`）+ `AgentWorkspace` 外壳。
+- `frontend/components/agent/AgentWorkspace.tsx`（ui-spec `## Page: /agent` 唯一视觉权威）：
+  - 双栏工作台：会话侧栏（A1.6 契约：折叠按钮 → 全宽「开启新对话」→ 时间分组会话历史，可收窄 56px 并 localStorage 持久化 `agentSidebarCollapsed`）+ 主对话区（标题/清空动作、消息正文、工具状态、引用卡片、固定输入区）；`h-[calc(100dvh-var(--header-h))]` 唯一滚动模型（仅正文滚动）。
+  - §4.6 会话生命周期：新对话不确认直接清空本地消息；清空走 `ConfirmModal` + owner-scoped `DELETE /api/v1/agent/conversations/:id`（幂等 204），取消不发请求，失败保留消息 + toast + 焦点回 trigger，成功清空 + toast + 聚焦输入框。
+  - 复用服务端流式契约 `POST /api/v1/agent/chat/stream`（`surface:"global"`，`lib/agent-stream.ts` 独立 SSE 客户端：typed 事件解析 + Abort 支持）；流式显示停止按钮、工具状态摘要、`no_evidence` 提示、错误横幅 + 重试、停止后「已停止生成」提示、底部跟随 +「跳到最新」。
+  - 空态含建议问题（`agent.workspace.suggestion*`），点击直接发送；引用卡片（id/title/zone 有效才可点）打开共享 `ContentDetailOverlay`（`source="agent-citation"`，`returnFocusRef` 关闭后焦点回引用卡片）。
+- `AgentConversationSidebar.tsx`：时间分组（今天/昨天/更早）会话列表；会话全文搜索（A1.6）生产 API 由 Web Agent Productization 提供，本票不实现（协调点，组件注释已记录）。
+- `Header` 导航接入 AI Agent 入口（桌面 + 移动菜单，`nav.agent`，`aria-current` 高亮）。
+- i18n：zh/en.json 仅新增 `agent.*`（workspace/tools/citations/noEvidence/a11y/featureDisabled*）与 `nav.agent`，双语严格对齐（parity 校验过）；diff 保持外科手术式（无格式噪音）。
+- 未触碰：后端、`ContentDetailOverlay` 本体、`AgentChatWidget`（旧 Widget 移除属 web-agent Task 4）、web-agent 计划 checkbox、codex/ops/*。
+
+### Testing:
+- TDD 红盘（2026-08-06，`cd frontend && node --import tsx --test tests/agent-workspace.test.tsx`）：实现缺失状态下 21 项测试全红 `ℹ tests 21 ℹ pass 0 ℹ fail 21`（ERR_MODULE_NOT_FOUND：AgentWorkspace/agent-stream/page 不存在），截图存 /tmp/gap19-red/red-summary.txt；实现落地后转绿。
+- `npm run test:unit`：native 26 + typed 214，全部 PASS / 0 FAIL（含 agent-workspace 21 项、messages-components、navigation-shells 等既有套件无回归）。
+- `npm run lint`（tsc --noEmit）PASS；`npm run lint:ui` PASS（UI governance checks passed）；`npm run build` PASS（`/agent` 路由编译成功）；`check-i18n-parity` PASS。
+- 已知测试环境注意点（非组件缺陷）：本文件内若同一测试文件存在**先前任何 React 渲染**，后续用例对受控 textarea 的 `fireEvent.change/input` 无法驱动 React onChange（隔离文件/单一用例下正常；messages-components 同模式不受影响，机制未完全定位）。为此 4 条流式用例改为经空态建议问题按钮发送（等价走 `handleSend`→SSE 全链路，且经 `installAbortableSSEFetch` 覆盖停止路径），输入框打字行为留给浏览器验证。
+- 浏览器截图由编排方统一处理（未启动 dev server）。
+
+### Notes:
+- 协调点（超出外壳范畴，未实现）：a) 会话全文搜索触发框与搜索层（ui-spec A1.6）待 web-agent Task 4 提供 owner-scoped 会话搜索 API；b) 旧 `AgentChatWidget` 的移除与引用浮层其他接线仍由 web-agent Task 4 独占。
+- 引用卡片 → 共享浮窗接线在本票内实现（ui-spec Page:/agent 要求「点击后打开共享 ContentDetailOverlay」，#16 已提供 `agent-citation` source 与 `returnFocusRef`）。
+
 ## [2026-08-06] - GAP #18 全站卡片入口统一接共享详情浮窗
 
 ### What was done:
