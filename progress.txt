@@ -167,6 +167,21 @@
 - 新增 `.gitleaks.toml` 路径级 allowlist（4 个历史测试夹具/文档示例路径的 generic-api-key/jwt 误报；当前工作树 0 命中）；next 16.3.0 新增 `bfcacheId` 字段导致的 4 个测试 router mock 补 `bfcacheId: "test-bfcache"`。
 - README 新增「8. 持续安全扫描」；计划 Ops-05 四个 step 勾选、Status 更新并记录保留区扩展。
 
+## [2026-08-06] - 合并 Ops-04 + Ops-05 至 main（审查整改收尾）
+
+### What was done:
+- code-review 两轴审查 Ops-05（`837968e`）后修复 8 项（子代理执行、两轴复核）：① npm 脆弱 lockfile 夹具补 tauri-client 干净 lockfile + 新增"干净 lockfile 通过 npm 门"判别力断言（修复前该断言必失败）；② 删除 run_policy_gate 未使用的 schema 死变量，policy-gate.json 记录 schema_version；③ 过期例外夹具翻转 high_exceptions_enabled=true 实现隔离（错误断言精确匹配 "expired"）；④ 新增缺 affected_version/compensating_controls/approval_date 三个字段夹具；⑤ write-all 检查升级为 Python 行级解析（拒绝 `permissions: write` 简写、块式与 flow-map `contents: write`，注释剥离，新增 3 条断言）；⑥ 4 个脚本 set -u → set -euo pipefail，9 处 `[ x ] && y` 短路改 if，gate 调用改 `|| rc=$?` 捕获；⑦ python3 -c 路径内插改 heredoc argv（新增 json_report_has_key 助手）；⑧ policy 门从脚本源码提取工具常量与 pinned-tools.json 交叉校验（版本 + sha256 digest）。修复后契约测试 16+12 项全绿、全量九门扫描全零。
+- 合并顺序执行：① 本地 main ff 到 origin/main（含 GAP 17/18、Web Agent 3 #38-40）；② 合并重写版 Ops-04 `244779d` → main（`ddaf0a4`），发现并解决 llm 包真实语义冲突：Web Agent 3 的 retryDo/usage/ProviderOption 与 ops observability 埋点/finished 完整性检查合成（doPost 保留 retryDo + started 埋点，错误信息 sanitized 为仅状态码防 provider body 泄露进 metrics，`io` 引用清除），后端 go test/vet/build 全绿；③ ops-05 rebase 到新 main（`9c0e195`），仅 progress.txt 冲突（保留 web 条目 + 插入 Ops-05 条目），ci.yml go-version 4 处含 ops-alerting 均 1.25.12；④ 证据重新生成并 finalize 绑定 `9c0e195`（旧证据备份至 artifacts/ops-05-pre-rebase）。
+- 跟踪更新：AGENTS.md 注册表与计划 Status 改为已合并（`ddaf0a4`/`9c0e195`）。
+
+### Testing:
+- 修复后：`verify-security.tests.sh` 16 项 OK、`verify-pinned-actions.tests.sh` 12 项 OK、`verify-pinned-actions.sh` OK、`verify-workflows.tests.sh` PASS。
+- 全量门（rebase 后 tip）：`verify-security.sh -BuildImages -ReportDir artifacts/ops-05` 九门全零（含真实镜像扫描）、`verify-project.sh -ReportDir artifacts/ops-05` 全绿（后端 go test/vet/build、前端 157 单测、Next 16.3.0 build、doc-validator release）、`validate-evidence.sh` PASS、summary.json 绑定 `9c0e19589e469c5d3cebbad0bda7332ce65aa51c`。
+
+### Notes:
+- main 当前 = `9c0e195`（Ops-05 已 ff 合入）；并行 web 分支（gap-16/17-19、agent-t3 等）与 ops 仅重叠 progress.txt，不受影响。
+- 待人工跟进：① `security-gate` 加入 main required checks 与分支保护导出（workflow 已合入 main，可配置）；② GitHub API 批准人身份校验延后至 Ops-08；③ push main 到 origin 前请确认（本次合并仅在本地）。
+
 ### Testing:
 - TDD RED：`verify-security.tests.sh`/`verify-pinned-actions.tests.sh` 初始不存在（exit 127），夹具逐一红转绿；`verify-pinned-actions` 8 项 + `verify-security` 12 项合约测试全绿。
 - 完整门：`verify-pinned-actions.sh` OK；`verify-security.sh -BuildImages -ReportDir artifacts/ops-05` 九门全零（policy/secrets/go/npm/cargo/trivy-fs/trivy-config/trivy-image/verdict），无 blocked finding；`security-verdict.json` 空 findings。
