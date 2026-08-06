@@ -1,0 +1,14 @@
+{
+  "Smoke": {
+    "http_req_duration": ["p(95)<500", "p(99)<800"],
+    "http_req_failed": ["rate<0.01"]
+  },
+  "Load": {
+    "http_req_duration": ["p(95)<800", "p(99)<1200"],
+    "http_req_failed": ["rate<0.01"]
+  },
+  "Stress": {
+    "http_req_duration": ["p(95)<1500", "p(99)<2000"],
+    "http_req_failed": ["rate<0.02"]
+  }
+}

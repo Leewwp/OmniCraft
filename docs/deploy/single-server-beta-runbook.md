@@ -431,3 +431,64 @@ temporary check name and delivery timestamp, or the provider's redacted latest
 delivery-status view paired with `heartbeat-evidence.json`. Remove recipient,
 project contact and source IP. Every release drill creates and waits for a fresh
 provider event in the same run; prior heartbeat evidence cannot be reused.
+
+## 11. Load, Stress and Capacity (Ops-07)
+
+The k6 suite lives in `tests/load/k6/`; the runner is
+`scripts/load/run-load-tests.sh`. Three tiers are defined: Smoke (script and
+critical-path validation), Load (target concurrency, 20 VUs) and Stress
+(step ramp to 50 VUs). Threshold objectives live in
+`tests/load/k6/thresholds.json` and are approved in
+`tests/load/k6/release-profile.json`; a measured baseline is recorded per
+tier but is never automatically the passing target. Threshold changes need a
+reviewed reason.
+
+### Load-test environment
+
+The application rate-limits per client IP (`rate_limit.normal_per_minute`,
+default 100). A single-IP k6 run would measure the rate limiter instead of
+system capacity, so the load-test target runs with the override in
+`ops/load/config-override.yaml` (rate limiting disabled; this file is outside
+the production config volume and never used by production). The release
+profile records that the baseline environment runs with rate limiting
+disabled.
+
+### Running the tiers locally
+
+```bash
+# k6 is required on the host (brew install k6). PostgreSQL must be running
+# (docker compose up -d postgres redis) and the backend must be started with
+# the load-test override:
+#   cd backend && CONFIG_OVERRIDE_PATH=../ops/load/config-override.yaml \
+#     go run cmd/server/main.go
+
+bash scripts/load/run-load-tests.tests.sh
+bash scripts/load/run-load-tests.sh -Environment Local -Tier Smoke \
+  -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json \
+  -ReportDir artifacts/ops-07 -RunName smoke -SeedDb omnicraft-postgres
+bash scripts/load/run-load-tests.sh -Environment Local -Tier Load \
+  -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json \
+  -ReportDir artifacts/ops-07 -RunName load -SeedDb omnicraft-postgres
+bash scripts/load/run-load-tests.sh -Environment Local -Tier Stress \
+  -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json \
+  -ReportDir artifacts/ops-07 -RunName stress -SeedDb omnicraft-postgres
+```
+
+The runner seeds five isolated test identities (`load-test-001..005@omnicraft.local`,
+bcrypt hash from `tests/load/k6/testdata.json`, reputation 10 for publishing)
+directly in PostgreSQL, waits for `/healthz`, executes the tier against the
+target, captures resource metrics and deletes the identities via a trap on
+EXIT (cascade removes their content; a failed cleanup fails the run). Use `-DbDsn <dsn>` instead of `-SeedDb` when
+the database is only reachable over TCP (CI service containers; requires psql).
+Production targets are refused unless `-AllowProduction` plus a confirmation
+token matching `OMNICRAFT_LOAD_PROD_CONFIRM_TOKEN` are provided. The GitHub
+workflow `.github/workflows/performance.yml` runs the smoke tier on PRs that
+touch load paths and the full load/stress set on schedule/manual dispatch.
+
+### Interpreting results
+
+k6 emits `http_req_duration` percentiles, `http_req_failed` and the summary
+export into `artifacts/ops-07/<run>-k6*.json`; the runner always writes
+`<run>-summary.json` and `<run>-resources.json`, even when k6 fails. A k6
+threshold failure propagates a nonzero exit, so a drill or CI run that
+crosses a threshold fails the gate.

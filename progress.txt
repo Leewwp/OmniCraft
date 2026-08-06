@@ -2,6 +2,27 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+## [2026-08-06] - Ops-07: 建立负载、压力与容量门
+
+### What was done:
+- 新增 k6 负载套件（`tests/load/k6/`）：`smoke.js`/`load.js`/`stress.js` 三个 tier 脚本 + `lib/auth.js`（CSRF cookie+header 登录流）+ `lib/scenarios.js`（按 release-profile 端点权重选取 health/feed/search/detail/auth_read/auth_write，付费 Provider/OSS 路径永不调用）。k6 v2.1.0 实测验证：`open()` 仅限 init 阶段（profile 模块级缓存一次）、相对路径以入口脚本目录解析（testdata/thresholds 用 `import.meta.resolve('../…')`，PROFILE 由 runner 规范化为绝对路径）。
+- 新增 runner `scripts/load/run-load-tests.sh` + 契约测试 `run-load-tests.tests.sh`（TDD：实现前 red，实现后 21 用例全绿）：强制 `-Environment Local|Staging`、目标 allowlist（Local=loopback；Staging=profile.staging_targets）、生产目标需 `-AllowProduction` + `-ConfirmationToken`（须匹配 `OMNICRAFT_LOAD_PROD_CONFIRM_TOKEN`）、k6 阈值失败传播非零退出、summary 总是落盘（含失败时）、`-DryRun`/`-K6Bin`/`-ScriptDir` 注入。
+- 测试身份隔离：runner 通过 `-SeedDb <container>`（docker exec）或 `-DbDsn <dsn>`（CI，需 psql）播种 5 个 `load-test-*@omnicraft.local` 身份（bcrypt hash 在 testdata.json，reputation=10 满足发布门），解析 published 内容 id 供 detail 路径，EXIT trap 删除身份（CASCADE 清内容）。登录每 IP 限 5/min，故 auth 只由 VU 池前 5 个 VU 承担（AUTH_VUS），每 VU 登录一次并缓存 bearer；写路径每次请求前重建 CSRF 配对（k6 jar 跨迭代不保证持久）。
+- 新增 `ops/load/config-override.yaml`（保留区扩展，已记入计划）：应用对每客户端 IP 限流 100 req/min，单 IP 压测会全 429（首个 Load run 实测 99.98% 429 证实）；该 override 关闭 rate_limit 且 `search_per_minute`/`upload_per_hour` 置 0（这两类限流器不受 enabled 开关控制），仅用于 load-test 环境，生产配置卷不含此文件。
+- 新增 `.github/workflows/performance.yml`：SHA-pinned actions、`contents: read`、PR 仅 smoke（`paths` 过滤测试路径）、schedule(每周一 03:00 UTC)/manual 跑 Load+Stress，k6 v2.1.0 linux-amd64 按版本下载，postgres/redis service containers，`-DbDsn` psql 播种，上传证据 30/90 天策略。
+- `release-profile.json` + `release-profile.schema.json`（version/commit/environment/staging_targets/endpoints/tiers/approval），`thresholds.json` 按 tier 定阈值；`docs/deploy/single-server-beta-runbook.md` 新增「11. Load, Stress and Capacity (Ops-07)」章节（环境决策、本地命令、结果解读）。
+
+### Testing:
+- TDD 红：`run-load-tests.tests.sh` 在 runner 不存在时「no-args must exit 2」失败退出 1（red 记录）。
+- TDD 绿：契约测试 21 用例全绿（参数校验、环境门、allowlist、生产 token 门、profile 缺失/非法、k6 失败传播 + summary 落盘、成功落盘、缺 k6 拒绝）。
+- 真实后端验证（`127.0.0.1:8080`，override 关闭限流，docker postgres/redis）：Smoke(2 VU/10 iter) 全绿 p95≈48ms；Load(20 VU/2m) 全绿 0 错误 p95≈99ms p99≈182ms（124k+ 请求）；Stress(10→25→50 VU 阶梯) 全绿 0 错误 p95≈203ms p99≈494ms。CSRF 登录/创建/删除路径逐项 curl 验证；seed/cleanup 验证无残留 load-test 身份。
+- 2026-08-06 维护者显式批准正式目标：Smoke p95<500/p99<800、Load p95<800/p99<1200、Stress p95<1500/p99<2000、错误率 <1%/1%/2%（基线不自动成为 passing target，仅留档）。
+- `verify-workflows.sh`、`verify-pinned-actions.sh` 契约测试全绿；default verifier（backend go test/vet/build、frontend test/lint/build、doc-validator release profile）全绿；doc-validator `--fix` 无变更。
+
+### Notes:
+- CI workflow 的 smoke/load/stress 真实验证需 push 到 GitHub 后由 performance.yml 执行（本地已完成等价验证）；`artifacts/ops-07/summary.json` 在 commit 后需经 `finalize-evidence.sh` 绑定终态 commit 并 revalidate。
+- 两阶段审查整改（规格 + 代码质量，amend 同一 commit）：profile 每 tier 增加结构化 target 并绑定 commit；runner 指标采集 JSON 数组化 + 缺指标/清理失败时失败；Stress 记录 recovery_healthz_ms；契约测试用例改为显式参数 + `-SkipReady`/`-SkipMetrics` 保持 hermetic；缺值 flag exit 2；bcrypt hash SQL 插值前校验；k6 下载 sha256 校验（digest 来自 GitHub API）；删除死代码/残留/修正注释；计划命令块补 `-SeedDb`。
+
 ## [2026-08-06] - 多车道交付验收、main 线汇合与浏览器验证
 
 ### What was done:

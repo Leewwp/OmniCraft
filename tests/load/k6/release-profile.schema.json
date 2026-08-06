@@ -1,0 +1,351 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OmniCraft release performance profile",
+  "type": "object",
+  "required": [
+    "version",
+    "commit",
+    "environment",
+    "endpoints",
+    "tiers",
+    "approval"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1"
+    },
+    "commit": {
+      "type": "string",
+      "minLength": 7
+    },
+    "environment": {
+      "type": "object",
+      "required": [
+        "cpu",
+        "memory",
+        "db",
+        "dataset_size",
+        "dataset_seed"
+      ],
+      "properties": {
+        "cpu": {
+          "type": "string"
+        },
+        "memory": {
+          "type": "string"
+        },
+        "db": {
+          "type": "string"
+        },
+        "dataset_size": {
+          "type": "string"
+        },
+        "dataset_seed": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "staging_targets": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "endpoints": {
+      "type": "object",
+      "required": [
+        "health",
+        "feed",
+        "search",
+        "detail",
+        "auth_read",
+        "auth_write"
+      ],
+      "properties": {
+        "health": {
+          "type": "number",
+          "minimum": 0
+        },
+        "feed": {
+          "type": "number",
+          "minimum": 0
+        },
+        "search": {
+          "type": "number",
+          "minimum": 0
+        },
+        "detail": {
+          "type": "number",
+          "minimum": 0
+        },
+        "auth_read": {
+          "type": "number",
+          "minimum": 0
+        },
+        "auth_write": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "tiers": {
+      "type": "object",
+      "required": [
+        "smoke",
+        "load",
+        "stress"
+      ],
+      "properties": {
+        "smoke": {
+          "type": "object",
+          "required": [
+            "vus",
+            "duration",
+            "target"
+          ],
+          "properties": {
+            "vus": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "iterations": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "duration": {
+              "type": "string"
+            },
+            "target": {
+              "type": "object",
+              "required": [
+                "p95_ms",
+                "p99_ms",
+                "error_rate"
+              ],
+              "properties": {
+                "p95_ms": {
+                  "type": "number",
+                  "minimum": 1
+                },
+                "p99_ms": {
+                  "type": "number",
+                  "minimum": 1
+                },
+                "error_rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "additionalProperties": false
+            },
+            "baseline": {
+              "type": "object",
+              "required": [
+                "p95_ms",
+                "p99_ms",
+                "error_rate"
+              ],
+              "properties": {
+                "p95_ms": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "p99_ms": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "error_rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": true
+        },
+        "load": {
+          "type": "object",
+          "required": [
+            "vus",
+            "duration",
+            "ramp",
+            "target"
+          ],
+          "properties": {
+            "vus": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "duration": {
+              "type": "string"
+            },
+            "ramp": {
+              "type": "string"
+            },
+            "stages": {
+              "type": "array"
+            },
+            "target": {
+              "type": "object",
+              "required": [
+                "p95_ms",
+                "p99_ms",
+                "error_rate"
+              ],
+              "properties": {
+                "p95_ms": {
+                  "type": "number",
+                  "minimum": 1
+                },
+                "p99_ms": {
+                  "type": "number",
+                  "minimum": 1
+                },
+                "error_rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "additionalProperties": false
+            },
+            "baseline": {
+              "type": "object",
+              "required": [
+                "p95_ms",
+                "p99_ms",
+                "error_rate"
+              ],
+              "properties": {
+                "p95_ms": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "p99_ms": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "error_rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": true
+        },
+        "stress": {
+          "type": "object",
+          "required": [
+            "stages",
+            "target"
+          ],
+          "properties": {
+            "stages": {
+              "type": "array"
+            },
+            "vus": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "duration": {
+              "type": "string"
+            },
+            "ramp": {
+              "type": "string"
+            },
+            "target": {
+              "type": "object",
+              "required": [
+                "p95_ms",
+                "p99_ms",
+                "error_rate"
+              ],
+              "properties": {
+                "p95_ms": {
+                  "type": "number",
+                  "minimum": 1
+                },
+                "p99_ms": {
+                  "type": "number",
+                  "minimum": 1
+                },
+                "error_rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "additionalProperties": false
+            },
+            "baseline": {
+              "type": "object",
+              "required": [
+                "p95_ms",
+                "p99_ms",
+                "error_rate"
+              ],
+              "properties": {
+                "p95_ms": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "p99_ms": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "error_rate": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "approval": {
+      "type": "object",
+      "required": [
+        "status",
+        "approved_by",
+        "approved_at",
+        "reference"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved"
+          ]
+        },
+        "approved_by": {
+          "type": "string"
+        },
+        "approved_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "reference": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,89 @@
+{
+  "version": "1",
+  "commit": "109a52750900cdf126ad3db56053aa6cdcff193f",
+  "environment": {
+    "cpu": "Apple Silicon (darwin/arm64) local dev host",
+    "memory": "host memory, single-node dev",
+    "db": "PostgreSQL 16 + pgvector (docker, single node)",
+    "dataset_size": "existing local dev dataset (~200 content items)",
+    "dataset_seed": "scripts/seed_local_rich_data.py + prior dev seeds",
+    "rate_limiting": "disabled via ops/load/config-override.yaml (load-test environment only; the app rate-limits per client IP, which would otherwise cap single-IP runs)"
+  },
+  "staging_targets": [],
+  "endpoints": {
+    "health": 0.1,
+    "feed": 0.3,
+    "search": 0.2,
+    "detail": 0.2,
+    "auth_read": 0.15,
+    "auth_write": 0.05
+  },
+  "tiers": {
+    "smoke": {
+      "vus": 2,
+      "iterations": 10,
+      "duration": "30s",
+      "target": {
+        "p95_ms": 500,
+        "p99_ms": 800,
+        "error_rate": 0.01
+      },
+      "baseline": {
+        "p95_ms": 48,
+        "p99_ms": 48,
+        "error_rate": 0.0
+      }
+    },
+    "load": {
+      "vus": 20,
+      "duration": "2m",
+      "ramp": "30s",
+      "target": {
+        "p95_ms": 800,
+        "p99_ms": 1200,
+        "error_rate": 0.01
+      },
+      "baseline": {
+        "p95_ms": 99,
+        "p99_ms": 182,
+        "error_rate": 0.0
+      }
+    },
+    "stress": {
+      "stages": [
+        {
+          "target": 10,
+          "duration": "30s"
+        },
+        {
+          "target": 25,
+          "duration": "30s"
+        },
+        {
+          "target": 50,
+          "duration": "1m"
+        },
+        {
+          "target": 0,
+          "duration": "30s"
+        }
+      ],
+      "target": {
+        "p95_ms": 1500,
+        "p99_ms": 2000,
+        "error_rate": 0.02
+      },
+      "baseline": {
+        "p95_ms": 203,
+        "p99_ms": 494,
+        "error_rate": 0.0
+      }
+    }
+  },
+  "approval": {
+    "status": "approved",
+    "approved_by": "pp (maintainer)",
+    "approved_at": "2026-08-06T14:10:00Z",
+    "reference": "2026-08-06 maintainer approval of Ops-07 release profile: smoke p95<500ms/p99<800ms, load p95<800ms/p99<1200ms, stress p95<1500ms/p99<2000ms, error rate <1%/1%/2%; measured baseline recorded per tier for reference only"
+  }
+}

@@ -16,7 +16,7 @@
 
 ## Status, authority, and universal rules
 
-**Status:** Ops-00 completed at `9ea53c8`; Ops-01 completed by CI commit `7f34191` and evidence/branch-protection closeout `4cba1da`; Ops-02 completed on `codex/ops/ops-02` after two-axis review, final-commit-bound local evidence and PR #21 PostgreSQL migration/contract/project gates; Ops-03 completed on `codex/ops/ops-03` after contract tests, a real observability drill and the default project gate (merged to main with Ops-04 at `ddaf0a4`); Ops-04 completed on `codex/ops/ops-04` after contract tests, promtool/amtool validation, a real firing/resolved alert drill with the in-network alert-sink and a real Healthchecks.io missing-heartbeat down-flip (merged to main at `ddaf0a4`, including llm semantic merge); Ops-05 completed on `codex/ops/ops-05` after policy/exception/pinned-action contract tests, fixture failure isolation, the default project gate and the full filesystem/IaC/image scan set (merged to main at `9c0e195`); Ops-06 completed on `codex/ops/ops-06` after manifest/SBOM/pinned-generator contract tests, deterministic two-run SBOM comparison, full container+lockfile generation, 17-check provenance verification with OCI label↔commit binding, downloaded-artifact re-verification, one-year-retention archive receipt and the default project gate; Ops-07～Ops-08 have not started; Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
+**Status:** Ops-00 completed at `9ea53c8`; Ops-01 completed by CI commit `7f34191` and evidence/branch-protection closeout `4cba1da`; Ops-02 completed on `codex/ops/ops-02` after two-axis review, final-commit-bound local evidence and PR #21 PostgreSQL migration/contract/project gates; Ops-03 completed on `codex/ops/ops-03` after contract tests, a real observability drill and the default project gate (merged to main with Ops-04 at `ddaf0a4`); Ops-04 completed on `codex/ops/ops-04` after contract tests, promtool/amtool validation, a real firing/resolved alert drill with the in-network alert-sink and a real Healthchecks.io missing-heartbeat down-flip (merged to main at `ddaf0a4`, including llm semantic merge); Ops-05 completed on `codex/ops/ops-05` after policy/exception/pinned-action contract tests, fixture failure isolation, the default project gate and the full filesystem/IaC/image scan set (merged to main at `9c0e195`); Ops-06 completed on `codex/ops/ops-06` after manifest/SBOM/pinned-generator contract tests, deterministic two-run SBOM comparison, full container+lockfile generation, 17-check provenance verification with OCI label↔commit binding, downloaded-artifact re-verification, one-year-retention archive receipt and the default project gate; Ops-07 completed on `codex/ops/ops-07` after runner/target-safety contract tests, the approved release performance profile, real smoke/load/stress baseline measurement, k6 threshold validation and the default project gate; Ops-08 has not started; Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
 
 - This plan is not Hardening Task 6 and must never add one.
 - Do not modify `task.json`, Beta/community checkboxes, or Web Agent completion state.
@@ -680,31 +680,36 @@ The archive contract requires both a GitHub Release asset destination and an enc
 - Create: `tests/load/k6/testdata.json`
 - Create: `scripts/load/run-load-tests.sh`
 - Create: `scripts/load/run-load-tests.tests.sh`
+- Create: `ops/load/config-override.yaml` (reservation extension: load-test
+  environment override that disables per-IP rate limiting — the app
+  rate-limits 100 req/min per client IP, so a single-IP k6 run would measure
+  the rate limiter instead of system capacity; production never loads this
+  file and Ops-08 preflight rejects test-mode config)
 - Modify: `docs/deploy/single-server-beta-runbook.md`
 - Modify: `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md`
 - Modify: `progress.txt`
 
-- [ ] **Step 1: Write failing runner/target-safety tests**
+- [x] **Step 1: Write failing runner/target-safety tests**
 
 Require an explicit environment, allowlist local/staging hosts, reject production unless `-AllowProduction` plus confirmation token, propagate k6 threshold failures and always save summary.
 
-- [ ] **Step 2: Add deterministic smoke/load/stress scenarios**
+- [x] **Step 2: Add deterministic smoke/load/stress scenarios**
 
 Cover health/readiness, anonymous feed/search/detail and authenticated read/write paths with isolated test identities. Do not call paid Provider/OSS paths by default.
 
-- [ ] **Step 3: Establish thresholds from measured baseline**
+- [x] **Step 3: Establish thresholds from measured baseline**
 
 Run smoke first, then staged load and stress. Store p50/p95/p99, request/error rates, max VUs, CPU/memory/DB/Redis metrics and recovery time. `release-profile.json` fixes environment resources, dataset size, duration, endpoint mix, throughput/concurrency and latency/error objectives and records explicit user approval. A measured baseline is not automatically the passing target. Threshold changes require a reviewed reason.
 
-- [ ] **Step 4: Add scheduled/manual workflow**
+- [x] **Step 4: Add scheduled/manual workflow**
 
 PR runs a short local smoke only when relevant paths change; scheduled/manual staging jobs run load/stress with staging-scoped secrets. The runner owns setup/readiness/seed/metrics/cleanup in `try/finally`: start an isolated app/PostgreSQL/Redis/Prometheus Compose project, wait for readiness, seed named test identities and dataset, run host k6 against `127.0.0.1`, capture resource metrics, delete test identities/data, then remove containers/volumes. Missing services, seed cleanup or metrics fail the run.
 
 ```bash
 bash scripts/load/run-load-tests.tests.sh
-bash scripts/load/run-load-tests.sh -Environment Local -Tier Smoke -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/ops-07 -RunName smoke
-bash scripts/load/run-load-tests.sh -Environment Local -Tier Load -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/ops-07 -RunName load
-bash scripts/load/run-load-tests.sh -Environment Local -Tier Stress -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/ops-07 -RunName stress
+bash scripts/load/run-load-tests.sh -Environment Local -Tier Smoke -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/ops-07 -RunName smoke -SeedDb omnicraft-postgres
+bash scripts/load/run-load-tests.sh -Environment Local -Tier Load -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/ops-07 -RunName load -SeedDb omnicraft-postgres
+bash scripts/load/run-load-tests.sh -Environment Local -Tier Stress -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/ops-07 -RunName stress -SeedDb omnicraft-postgres
 bash scripts/verify-project.sh -ReportDir artifacts/ops-07
 if [ ! -f artifacts/ops-07/summary.json ]; then echo "missing Ops summary" >&2; exit 1; fi
 bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -Summary artifacts/ops-07/summary.json
@@ -713,6 +718,16 @@ bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -
 **Acceptance evidence:** approved profile, k6 smoke/load/stress summary JSON, thresholds, environment/dataset inventory, resource graphs, bottleneck/recovery notes, workflow URL, `artifacts/ops-07/summary.json`.  
 **Release blocker:** profile not approved, target safety bypass, missing summary, threshold failure, uncontrolled paid/external call, test data not isolated/cleanable.  
 **Commit:** `Ops 07: add performance and capacity gates`
+
+> 2026-08-06 完成（`codex/ops/ops-07`，审查合并前视为 pending）。实施中的保留区扩展与决策（记录于此）：
+>
+> - 新增 `ops/load/config-override.yaml`：应用对每个客户端 IP 做 100 req/min 限流（`rate_limit.normal_per_minute`），单 IP 的 k6 压测若不关闭限流只会测量限流器而非系统容量（首个 Load 基线 run 实测 99.98% 429 证实）。该 override 仅用于 load-test 环境，`search_per_minute`/`upload_per_hour` 一并置 0（搜索与上传限流器不受 `enabled` 开关控制）；生产配置卷不含此文件，Ops-08 preflight 会拒绝测试态配置。release-profile 的 `environment.rate_limiting` 字段记录该环境决策。
+> - 身份与数据隔离：runner 通过 `-SeedDb <container>`（docker exec psql）或 `-DbDsn <dsn>`（CI service container，需 psql）直接向 PostgreSQL 播种 5 个 `load-test-*@omnicraft.local` 测试身份（bcrypt hash 见 `testdata.json`，reputation=10 以满足发布交互门），解析一个 published 内容 id 供 detail 路径使用，并在 EXIT trap 中删除身份（ON DELETE CASCADE 清除其内容）。登录有每 IP 5/min 的 credential 限流，故 auth 端点只由 VU 池前 5 个 VU 承担（`AUTH_VUS`），每个 auth VU 只登录一次并缓存 bearer；写路径每次请求前重新获取 CSRF 配对（k6 cookie jar 不保证跨迭代持久）。CSRF 流程与 create/delete 路径已用真实 backend 逐项验证。
+> - k6 脚本限制：`open()` 只能在 init 阶段使用，profile 在模块加载时缓存一次；`open()` 相对路径以入口脚本目录解析，故 `testdata.json`/`thresholds.json` 用 `import.meta.resolve('../...')`，`PROFILE` 由 runner 规范化为绝对路径。k6 v2.1.0 对 `import.meta.resolve` 有弃用提示，但当前行为正确且已对未来对齐方式做了前瞻处理。
+> - 基线测量（本地单机、Apple Silicon、rate-limit 关闭）：Smoke(2 VU, 10 iter) p95=48ms p99=48ms 错误率 0%；Load(20 VU, 2m) p95=99ms p99=182ms 错误率 0%；Stress(10→25→50 VU 阶梯) p95=203ms p99=494ms 错误率 0%。**2026-08-06 维护者显式批准**正式目标：Smoke p95<500ms/p99<800ms、Load p95<800ms/p99<1200ms、Stress p95<1500ms/p99<2000ms、错误率 <1%/1%/2%（`release-profile.json` approval 记录）；阈值写入 `thresholds.json` 与 profile 一致，基线仅留档不作为 passing target。
+> - CI 路径验证：`.github/workflows/performance.yml` 使用 SHA-pinned actions、`contents: read`、PR 仅 smoke（`paths` 过滤测试路径，含 workflow 文件自身）、schedule/manual 跑 Load+Stress；k6 v2.1.0 linux-amd64 按版本下载并做 sha256 校验（digest 取自 GitHub Releases API），postgres/redis 用 service containers，`-DbDsn` 走 psql 播种（已用本地 psql 包装器验证 DbDsn 路径）；evidence 上传 `if: always()` + `if-no-files-found: ignore`、30 天保留（无 push 触发，不声明 90 天分支）。`verify-workflows.sh` 与 `verify-pinned-actions.sh` 契约测试通过。workflow 合入 main 后需在 GitHub 跑一次真实 PR smoke 作为 CI 证据（push 后）。scheduled/manual 目前打 CI 内的本地栈（staging-scoped secrets 属 Ops-08 staging 环境输入，本地/CI 栈验证先于 staging 就绪是 Ops-07 范围内可辩护的偏差）。
+> - 两阶段审查整改（2026-08-06，code-review 两轴修复后 amend 同一 commit）：规格审查修复——`release-profile.json` 每 tier 增加结构化 `target`（p95/p99/error_rate，schema 同步 required）并绑定真实 commit（`profile.commit` 指向被审查的 reviewed commit `109a527`；tracked 文件无法引用自身未来 hash，最终证据摘要由 finalize-evidence 绑定最终 HEAD `e72d3a6`）；runner 指标采集改为 JSON 数组（docker stats 多行 + 原生 backend 进程合并，进程 pattern 覆盖 dev `go run` 与 CI 编译二进制 `omnicraft-server`）、空采集与缺指标时**失败**而非 best-effort（`-SkipMetrics` 仅供契约测试）；seed 清理失败现在使 run 失败（plan「seed cleanup fail the run」）；Stress 后记录 recovery（`recovery_healthz_ms`，等待 /healthz 恢复 <200ms）；计划命令块补 `-SeedDb`。代码质量审查修复——契约测试生产/非法 tier 用例改用完整显式参数（原 slice 语法遗留 stray 参数，实际未走被测分支）；新增 `-SkipReady`/`-SkipMetrics` 使契约测试 hermetic（不探测真实 backend）；带值 flag 缺值时 exit 2（`set -u` 不再裸崩）；`password_hash` 在 SQL 插值前做 bcrypt 前缀校验、identity count 限 1..99；`scenarios.js` 修正 cookie jar 语义注释并删除死代码 `authHeaders`/`session.csrfToken`；`auth.js` 注释修正（login 响应不含 csrf_token，回退到 GET /auth/csrf 的 token）；k6 下载加 sha256 校验（digest 取自 GitHub Releases API）；`K6_KUBERNETES_QPS` 残留删除；runbook「try/finally」改为「trap on EXIT」；`scenarios.js` 头部注明 Load/Stress 下 auth 端点混合因每 IP 登录限流被稀释（Smoke 完整混合）。二轮审查后遗留整改：`capture_metrics` 空采集（`[]`）现在使 run 失败（CI service containers 不匹配 `omnicraft-*` 时也不静默通过）；`authWrite` 注释与头部 cookie jar 语义一致；tests `BASE_ARGS` 重复 `-ScriptDir` 移除。
+> - 本地验证使用 override 重启了 127.0.0.1:8080 backend（`CONFIG_OVERRIDE_PATH=ops/load/config-override.yaml`），三个 tier 全绿且清理逻辑生效（无残留 load-test 身份）；default verifier 与 doc-validator release profile 全绿。
 
 ---
 
