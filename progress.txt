@@ -2,6 +2,33 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+
+### What was done:
+- 三缺口 Ticket 03（GitHub #17，车道 E light）完成：`/recommend` 推荐页（单一"为你推荐"流，无分区标签）+ Header 顶级入口 + 后端只读排序参数扩展。
+- 后端（只读，仅 service/content_service.go）：`ListContents` 在 `sort=recommended` 且 `zone==""`（推荐页跨区请求）时同样路由到 `handleRecommended` 推荐管线（个性化引擎或 hot 兜底），不再落到仓库层 `created_at` 默认排序；`zone=original` 既有契约不变；未动 repository/迁移/审核/上传/互动链路，未改 handler 文件（默认 sort 已透传）。
+- `frontend/lib/masonry-layout.ts`：纯函数最短列布局 `computeShortestColumnLayout`（按 items 顺序逐条放入当前最短列，DOM/读屏顺序不变）+ `masonryColumnCount`（≤700:2 列 / ≤1100:3 列 / 其余 4 列）+ `MASONRY_GAP=16`。
+- `components/content/MasonryGrid.tsx` 升级（替代 react-masonry-css 列优先填充，符合 ui-spec 最短列契约）：ResizeObserver + window resize 实测卡片高度后绝对定位重排（signature 去抖）；未测量前回退同断点响应式网格避免首屏空白/重叠；新增可选 `onOpenDetail`/`isLoadingMore`/`hasMore`/`loadError`/`onLoadMore`/`onRetry` 与底部 sentinel（IntersectionObserver，400px rootMargin）+ Spinner/"已经到底了"/重试按钮；既有 `items`/`emptyText` 调用方不受影响。
+- `components/content/ContentCard.tsx` 新增可选 `onOpenDetail` 浮窗模式：主点击区变按钮（触发浮窗回调，不跳详情页），作者身份入口分离为独立 `/user/:id` 链接（ui-spec"卡片主点击区与作者身份入口分离"）；不传则保持整卡 Link 默认行为（全站其余页面不受影响，属 #18 范围）。保留全部既有视觉契约正则（ip/description/tags/TagBadge/scale/elevation）。
+- `components/recommend/RecommendFeedClient.tsx`：SSR 首屏 + 客户端无限滚动（`sort=recommended&page=N&page_size=24`，sentinel 追加）；加载（12 骨架）/空（CTA"浏览原创区"）/错误（AlertCircle + "重新加载"，保留已浏览位置）/已到底；卡片点击打开共享 `ContentDetailOverlay`（source=recommendation，复用 #16 底座，未改浮层组件），关闭自动恢复页面滚动与触发焦点。
+- `app/(public)/recommend/page.tsx`：SSR 拉首屏 24 条（`getServerApiBase`），`bg-canvas-subtle` + `max-w-[1280px]`，标题/副标题 + `generateMetadata`（双语）。
+- `components/layout/Header.tsx`：桌面导航与移动菜单新增"推荐"入口（`nav.recommend`，位于二创之前），选中态 `aria-current`。
+- i18n：`nav.recommend`、`recommend.*`（标题/副标题/空态/错误/重新加载/加载标签）、`common.endReached`（共享组件底部文案）双语对齐，占位符一致。
+- 未实现（记录为后续项，不属本票范围）：作者悬停 200ms 用户资料浮层（需共享组件决策，随 #18 全站接线评估）；推荐引擎跨区混排（`recommendation_service.go` 不在本票可改文件集，现引擎/兜底为原创优先，跨区展示依赖后续引擎扩展）。
+
+### Testing:
+- 后端 TDD 红盘证据：service 层 `TestListContentsRecommendedSortRoutesToRecommendedPipeline` 先红（跨区 `ids = [1 3 2], want [3 2 1]`，即 `sort=recommended` 无 zone 落到 created_at 默认排序）；route 层 `TestListContentsRecommendedSortRouteWithoutZone` 先红（`total = 3, want 2`，二创泄漏进推荐流）。最小实现后双绿；`go test ./...`（全仓）PASS，`go build ./...`/`go vet ./...` PASS。
+- 前端 TDD 红盘证据：`tests/recommend-page.test.tsx` 14 项先红 12（模块不存在/列优先填充/整卡 Link 无浮窗模式/无哨兵/Header 无入口等），实现后 14/14 绿。
+- `npm run lint`（tsc --noEmit）PASS；`npm run lint:ui` PASS（tokens/i18n parity/native dialogs/undefined tokens/source policy）；`npm run test:unit` → 186/186 PASS；`npm run build` PASS（`/recommend` 路由入产物）。
+- `cd tools/doc-validator && go run . --fix`：config/schema/route 均 no changes needed（未动 config.go/migrations/routes.go）。
+- 浏览器/截图验证由编排方统一处理（本任务未启动 dev server）。
+
+### Notes:
+- lane-E-brief.md 在工作区不存在（任务要求内已含其纪律），按任务书执行。
+- `zone` prop 按 ui-spec MasonryGrid 接口保留（可选，卡片样式由 ContentCard 依 data.zone 自行判定）。
+- react-masonry-css 依赖保留在 package.json（无其他调用方，移除属清理项，避免锁文件噪声）。
+- 分支 `web/gap-17-19`（基于 main@53802a4）；按 light 车道分批 commit（后端排序扩展 → 推荐页实现 → 测试+日志），未推送。
+>>>>>>> 08aa205 (test(recommend): 推荐页状态/入口/最短列布局测试 + 进度日志)
+
 ## [2026-08-06] - Task Web Agent 2: enforce grounded tool boundaries
 
 ### What was done:
@@ -21,7 +48,7 @@
 ### Notes:
 - 仓库默认 `agent.web_agent_enabled=false` 保持关闭；未触碰 Task 3/4/6、未触碰 `frontend/**`、未改动其他计划 checkbox 或历史账本。
 - Task 3（流式 API 稳定化）为下一项；Provider 驱动的工具循环与确定性 harness 归 Task 5。
-
+=======
 ## [2026-08-06] - Task GAP-02 REVIEW: #16 浏览器验收与集成修复
 
 ### What was done:

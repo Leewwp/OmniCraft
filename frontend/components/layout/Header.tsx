@@ -109,6 +109,16 @@ export function Header() {
 
         <nav className="hidden h-full items-center gap-1 min-[701px]:flex">
           <Link
+            href="/recommend"
+            aria-current={pathname.startsWith("/recommend") ? "page" : undefined}
+            className={cn(
+              "relative flex h-full items-center px-3 text-sm font-medium text-fg-muted transition-colors duration-150 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary after:opacity-0 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              pathname.startsWith("/recommend") && "font-semibold text-foreground after:opacity-100",
+            )}
+          >
+            {t("nav.recommend")}
+          </Link>
+          <Link
             href="/"
             aria-current={pathname === "/" ? "page" : undefined}
             className={cn(
@@ -360,6 +370,17 @@ export function Header() {
             </form>
 
             <nav className="mt-4 flex flex-col gap-1">
+              <Link
+                href="/recommend"
+                aria-current={pathname.startsWith("/recommend") ? "page" : undefined}
+                onClick={() => setMobileMenuOpen(false)}
+                className={cn(
+                  "flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                  pathname.startsWith("/recommend") && "bg-accent-subtle font-semibold text-accent-emphasis",
+                )}
+              >
+                {t("nav.recommend")}
+              </Link>
               <Link
                 href="/"
                 aria-current={pathname === "/" ? "page" : undefined}
