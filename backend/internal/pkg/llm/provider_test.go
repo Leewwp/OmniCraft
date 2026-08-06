@@ -9,12 +9,12 @@ import (
 )
 
 type mockProvider struct {
-	chatResp    *llm.ChatResponse
-	chatErr     error
+	chatResp     *llm.ChatResponse
+	chatErr      error
 	streamChunks []string
-	streamErr   error
-	embedding   []float32
-	embedErr    error
+	streamErr    error
+	embedding    []float32
+	embedErr     error
 }
 
 func (m *mockProvider) Chat(_ context.Context, _ llm.ChatRequest) (*llm.ChatResponse, error) {
