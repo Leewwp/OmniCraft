@@ -1,0 +1,21 @@
+// OmniCraft Grafana Alloy configuration: tails container JSON log files from
+// a read-only mount and ships them to Loki. Alloy never gets Docker control
+// capability; it only reads the log files it is mounted.
+local.file_match "containers" {
+  path_targets = [{
+    "__path__" = "/var/log/containers/*.log",
+    "job"      = "containers",
+  }]
+}
+
+loki.source.file "containers" {
+  targets       = local.file_match.containers.targets
+  forward_to    = [loki.write.default.receiver]
+  tail_from_end = false
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

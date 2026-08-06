@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "omnicraft-backup-policy",
+  "title": "OmniCraft backup policy contract",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "state",
+    "postgres_full",
+    "local_retention",
+    "off_host",
+    "restore_drill",
+    "storage_classification",
+    "restore_order"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "state": { "enum": ["active"] },
+    "postgres_full": {
+      "type": "object",
+      "required": ["frequency", "pre_migration", "format", "checksum_manifest", "migration_manifest"],
+      "properties": {
+        "frequency": { "enum": ["daily"] },
+        "pre_migration": { "const": true },
+        "format": { "const": "custom" },
+        "checksum_manifest": { "const": true },
+        "migration_manifest": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "local_retention": {
+      "type": "object",
+      "required": ["copies"],
+      "properties": { "copies": { "const": 7 } },
+      "additionalProperties": false
+    },
+    "off_host": {
+      "type": "object",
+      "required": ["enabled", "encryption", "immutable_or_versioned", "retention_days", "verify_after_upload"],
+      "properties": {
+        "enabled": { "const": true },
+        "encryption": { "type": "string", "minLength": 1 },
+        "immutable_or_versioned": { "const": true },
+        "retention_days": { "const": 30 },
+        "verify_after_upload": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "restore_drill": {
+      "type": "object",
+      "required": ["cadence", "max_age_days", "new_database_only"],
+      "properties": {
+        "cadence": { "enum": ["monthly"] },
+        "max_age_days": { "const": 30 },
+        "new_database_only": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "storage_classification": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["system", "class", "recovery"],
+        "properties": {
+          "system": { "enum": ["postgresql", "oss", "redis"] },
+          "class": { "type": "string", "minLength": 1 },
+          "recovery": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "restore_order": {
+      "type": "array",
+      "minItems": 3,
+      "items": { "enum": ["postgresql", "oss", "redis"] },
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

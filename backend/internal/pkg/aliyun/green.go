@@ -11,6 +11,8 @@ import (
 	openapi "github.com/alibabacloud-go/darabonba-openapi/v2/client"
 	green20220302 "github.com/alibabacloud-go/green-20220302/v3/client"
 	"github.com/alibabacloud-go/tea/tea"
+
+	"omnicraft/backend/internal/observability"
 )
 
 var ErrGreenNotConfigured = errors.New("green config is incomplete")
@@ -50,7 +52,13 @@ func (c *GreenClient) newClient() (*green20220302.Client, error) {
 	return green20220302.NewClient(cfg)
 }
 
-func (c *GreenClient) TextModeration(ctx context.Context, text string) (*GreenScanResult, error) {
+func (c *GreenClient) TextModeration(ctx context.Context, text string) (result *GreenScanResult, err error) {
+	started := time.Now()
+	defer func() { observability.ObserveExternalCall("green", started, err) }()
+	return c.textModeration(ctx, text)
+}
+
+func (c *GreenClient) textModeration(ctx context.Context, text string) (*GreenScanResult, error) {
 	if !c.configured() {
 		return nil, ErrGreenNotConfigured
 	}
@@ -83,7 +91,13 @@ func (c *GreenClient) TextModeration(ctx context.Context, text string) (*GreenSc
 	return parseTextModerationPlusResponse(resp)
 }
 
-func (c *GreenClient) ImageModeration(ctx context.Context, imageURL string) (*GreenScanResult, error) {
+func (c *GreenClient) ImageModeration(ctx context.Context, imageURL string) (result *GreenScanResult, err error) {
+	started := time.Now()
+	defer func() { observability.ObserveExternalCall("green", started, err) }()
+	return c.imageModeration(ctx, imageURL)
+}
+
+func (c *GreenClient) imageModeration(ctx context.Context, imageURL string) (*GreenScanResult, error) {
 	if !c.configured() {
 		return nil, ErrGreenNotConfigured
 	}
@@ -116,7 +130,13 @@ func (c *GreenClient) ImageModeration(ctx context.Context, imageURL string) (*Gr
 	return parseImageModerationResponse(resp)
 }
 
-func (c *GreenClient) VideoAsyncScan(ctx context.Context, videoURL, callbackURL string) (*GreenScanResult, error) {
+func (c *GreenClient) VideoAsyncScan(ctx context.Context, videoURL, callbackURL string) (result *GreenScanResult, err error) {
+	started := time.Now()
+	defer func() { observability.ObserveExternalCall("green", started, err) }()
+	return c.videoAsyncScan(ctx, videoURL, callbackURL)
+}
+
+func (c *GreenClient) videoAsyncScan(ctx context.Context, videoURL, callbackURL string) (*GreenScanResult, error) {
 	if !c.configured() {
 		return nil, ErrGreenNotConfigured
 	}

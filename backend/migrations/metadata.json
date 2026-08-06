@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "default_transactional": true,
+  "self_transactional": [
+    {
+      "filename": "057_add_broadcast_channel.sql",
+      "reason": "the file manages its own BEGIN/COMMIT transaction; the runner inserts the ledger before the file COMMIT so schema and identity remain atomic",
+      "reviewer": "repo-owner",
+      "reviewed_at": "2026-08-04T00:00:00Z",
+      "preconditions": [
+        { "description": "notifications table exists", "query": "SELECT to_regclass('public.notifications') IS NOT NULL" }
+      ],
+      "postconditions": [
+        { "description": "notifications_channel_check accepts broadcast", "query": "SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'notifications_channel_check' AND pg_get_constraintdef(oid) LIKE '%broadcast%')" }
+      ],
+      "idempotent_resume": "schema statements and the ledger insert commit atomically; a failure rolls the whole migration back",
+      "reconciliation": "inspect the notifications_channel_check constraint; re-run migrate which applies the idempotent statements and records the ledger"
+    },
+    {
+      "filename": "058_create_collections.sql",
+      "reason": "the file manages its own BEGIN/COMMIT transaction; the runner inserts the ledger before the file COMMIT so schema and identity remain atomic",
+      "reviewer": "repo-owner",
+      "reviewed_at": "2026-08-04T00:00:00Z",
+      "preconditions": [
+        { "description": "content_items and users tables exist", "query": "SELECT to_regclass('public.content_items') IS NOT NULL AND to_regclass('public.users') IS NOT NULL" }
+      ],
+      "postconditions": [
+        { "description": "collections and collection_items tables exist", "query": "SELECT to_regclass('public.collections') IS NOT NULL AND to_regclass('public.collection_items') IS NOT NULL" }
+      ],
+      "idempotent_resume": "schema statements and the ledger insert commit atomically; a failure rolls the whole migration back",
+      "reconciliation": "inspect the database for collections/collection_items; re-run migrate which applies the idempotent statements and records the ledger"
+    },
+    {
+      "filename": "059_create_content_series.sql",
+      "reason": "the file manages its own BEGIN/COMMIT transaction; the runner inserts the ledger before the file COMMIT so schema and identity remain atomic",
+      "reviewer": "repo-owner",
+      "reviewed_at": "2026-08-04T00:00:00Z",
+      "preconditions": [
+        { "description": "content_items and users tables exist", "query": "SELECT to_regclass('public.content_items') IS NOT NULL AND to_regclass('public.users') IS NOT NULL" }
+      ],
+      "postconditions": [
+        { "description": "content_series and content_series_items tables exist", "query": "SELECT to_regclass('public.content_series') IS NOT NULL AND to_regclass('public.content_series_items') IS NOT NULL" }
+      ],
+      "idempotent_resume": "schema statements and the ledger insert commit atomically; a failure rolls the whole migration back",
+      "reconciliation": "inspect the database for content_series/content_series_items; re-run migrate which applies the idempotent statements and records the ledger"
+    },
+    {
+      "filename": "062_notification_broadcast_idempotency.sql",
+      "reason": "the file manages its own BEGIN/COMMIT transaction; the runner inserts the ledger before the file COMMIT so schema and identity remain atomic",
+      "reviewer": "repo-owner",
+      "reviewed_at": "2026-08-04T00:00:00Z",
+      "preconditions": [
+        { "description": "notifications and users tables exist", "query": "SELECT to_regclass('public.notifications') IS NOT NULL AND to_regclass('public.users') IS NOT NULL" }
+      ],
+      "postconditions": [
+        { "description": "notification_broadcast_requests table exists", "query": "SELECT to_regclass('public.notification_broadcast_requests') IS NOT NULL" }
+      ],
+      "idempotent_resume": "schema statements and the ledger insert commit atomically; a failure rolls the whole migration back",
+      "reconciliation": "inspect the database for notification_broadcast_requests; re-run migrate which applies the idempotent statements and records the ledger"
+    }
+  ],
+  "non_transactional": [
+    {
+      "filename": "047_pg_trgm_indexes.sql",
+      "reason": "CREATE INDEX CONCURRENTLY cannot run inside a transaction",
+      "reviewer": "repo-owner",
+      "reviewed_at": "2026-08-04T00:00:00Z",
+      "preconditions": [
+        { "description": "indexed tables exist", "query": "SELECT to_regclass('public.content_items') IS NOT NULL AND to_regclass('public.ips') IS NOT NULL AND to_regclass('public.users') IS NOT NULL AND to_regclass('public.tags') IS NOT NULL" }
+      ],
+      "postconditions": [
+        { "description": "all four trigram indexes exist and are valid", "query": "SELECT count(*) = 4 AND bool_and(i.indisvalid) FROM pg_class c JOIN pg_index i ON i.indexrelid = c.oid WHERE c.relname IN ('idx_content_items_title_trgm','idx_ips_name_trgm','idx_users_username_trgm','idx_tags_name_trgm')" }
+      ],
+      "idempotent_resume": "before retry, drop any INVALID index with DROP INDEX CONCURRENTLY; then re-run the IF NOT EXISTS statements",
+      "reconciliation": "1. inspect pg_index.indisvalid for all four indexes; 2. DROP INDEX CONCURRENTLY any invalid index; 3. resolve conflicting DDL or dead connections; 4. obtain a durable approval reference; 5. run migrate -ReconcileVersions 047 -ReconcileApproval <reference>"
+    },
+    {
+      "filename": "049_search_trigram_fallback.sql",
+      "reason": "CREATE INDEX CONCURRENTLY cannot run inside a transaction",
+      "reviewer": "repo-owner",
+      "reviewed_at": "2026-08-04T00:00:00Z",
+      "preconditions": [
+        { "description": "pg_trgm extension and content_tags table exist", "query": "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm') AND to_regclass('public.content_tags') IS NOT NULL" }
+      ],
+      "postconditions": [
+        { "description": "idx_content_tags_tag_trgm exists and is valid", "query": "SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_index i ON i.indexrelid = c.oid WHERE c.relname = 'idx_content_tags_tag_trgm' AND i.indisvalid)" }
+      ],
+      "idempotent_resume": "before retry, drop an INVALID idx_content_tags_tag_trgm with DROP INDEX CONCURRENTLY; then re-run the IF NOT EXISTS statement",
+      "reconciliation": "1. inspect pg_index.indisvalid for idx_content_tags_tag_trgm; 2. DROP INDEX CONCURRENTLY if invalid; 3. resolve conflicting DDL or dead connections; 4. obtain a durable approval reference; 5. run migrate -ReconcileVersions 049 -ReconcileApproval <reference>"
+    }
+  ]
+}

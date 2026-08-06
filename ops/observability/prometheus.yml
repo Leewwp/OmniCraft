@@ -1,0 +1,77 @@
+# OmniCraft Prometheus configuration (internal observability network only).
+# Scrapes the backend's internal metrics port; the metrics endpoint is never
+# published to a public interface. Retention is bounded by both time and disk
+# in the compose service definition (--storage.tsdb.retention.time/size).
+# Alerts evaluate the rules in prometheus-rules.yml and are routed to the
+# in-network Alertmanager; receiver values live outside Git.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - prometheus-rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  # Application metrics served by the internal observability server.
+  - job_name: omnicraft-backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:9091"]
+        labels:
+          environment: production
+
+  # The node exporter textfile collector consumes migration/backup/recovery
+  # outcomes written by their respective commands into the shared directory.
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          environment: production
+
+  # PostgreSQL metrics (pg_up signals database reachability for the
+  # PostgresDown alert).
+  - job_name: postgres-exporter
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+        labels:
+          environment: production
+
+  # Redis metrics (redis_up signals cache reachability for the RedisDown
+  # alert).
+  - job_name: redis-exporter
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+        labels:
+          environment: production
+
+  # Container metrics (restart-loop detection via
+  # container_start_time_seconds changes).
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+        labels:
+          environment: production
+
+  # Blackbox probes the public API for availability (probe_success) and TLS
+  # certificate expiry (probe_ssl_earliest_cert_expiry). The probe target is
+  # the production API base URL configured at deployment; loopback is never
+  # probed. The job label stays "blackbox" (static labels must not override
+  # job_name) so rules and the alert drill match up{job="blackbox"}.
+  - job_name: blackbox
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets: ["https://api.leeppp.online"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: target
+      - target_label: __address__
+        replacement: blackbox:9115

@@ -1,0 +1,515 @@
+{
+  "schema_version": 1,
+  "generator_version": "1",
+  "baseline": "050",
+  "image": "pgvector/pgvector:pg16",
+  "image_digest": "pgvector/pgvector@sha256:a36250871de0833b8757561c72f2477ef1ddd1101afa4e617fb552e0de514c6b",
+  "dump_checksum": "4b87617190dc76ab60650e28f3a9dee84f0e943b874693cf36b0560cd53162f5",
+  "pg_dump_version": "pg_dump (PostgreSQL) 16.14 (Debian 16.14-1.pgdg12+1)",
+  "generated_at": "2026-08-04T17:55:00.785765+00:00",
+  "generation_command": "bash scripts/db/build-historical-fixture.sh -Baseline 050 -OutputDir backend/internal/migration/testdata",
+  "migrations": [
+    {
+      "version": 1,
+      "filename": "001_users.sql",
+      "checksum": "eed6f8a9a3cc72209547dd2dce8bea253423c4f7c4bcc5ef8b823d02dd25ec1e"
+    },
+    {
+      "version": 2,
+      "filename": "002_judge_qualifications.sql",
+      "checksum": "010a656abd83621777cbdd4237e578d29be5cfd152ffcf40132fc85acfb45799"
+    },
+    {
+      "version": 3,
+      "filename": "003_reputation_logs.sql",
+      "checksum": "61615480ad62602bc1ca88e27c49154c17ab371a1c8d94ba0c4f172a4fa12b37"
+    },
+    {
+      "version": 4,
+      "filename": "004_oauth_accounts.sql",
+      "checksum": "b173b458284d160eaa9f10651e5eba8d68ee14c33964240674a1516007a34d00"
+    },
+    {
+      "version": 5,
+      "filename": "005_ips.sql",
+      "checksum": "4b4939e92652e9150c697ecfa8d519795f1099dd78bd5276c22ed53ad6cab18d"
+    },
+    {
+      "version": 6,
+      "filename": "006_content_items.sql",
+      "checksum": "ae4108feba29b4359681d650a85eec2ef32b9ca7c11d3c9bbb078100a6662758"
+    },
+    {
+      "version": 7,
+      "filename": "007_content_attachments.sql",
+      "checksum": "f8b76f46bd8412e5964fbd613f158366876a3d822d0ef9457cba2dd9244f37a8"
+    },
+    {
+      "version": 8,
+      "filename": "008_content_tags.sql",
+      "checksum": "71bce8ffe6f7567ff46b39889c7969041eeb79e01649916e4409173a76d39e52"
+    },
+    {
+      "version": 9,
+      "filename": "009_content_versions.sql",
+      "checksum": "097a9055646e5bd1622a96d29bb3acb918f07d0785c73b125ff108d47836cfca"
+    },
+    {
+      "version": 10,
+      "filename": "010_pull_requests.sql",
+      "checksum": "0373520ce57ac6f9336ca7e62d9a00bc8bfaa3dd505df51143dfaad977b18c42"
+    },
+    {
+      "version": 11,
+      "filename": "011_social.sql",
+      "checksum": "d00892cd0e32eb03a985d149f40281f452fd7b328cfaf637f55b090e8a2b98bf"
+    },
+    {
+      "version": 12,
+      "filename": "012_reports.sql",
+      "checksum": "704af109937c090ce720a36712fffd45facbdd8424af2cc678fd8f9e2c347007"
+    },
+    {
+      "version": 13,
+      "filename": "013_ai_review.sql",
+      "checksum": "e19e26d1abc7538c5d76ffdb5eaccda3d9707db3e21c68fd3c73ad54920ecf5c"
+    },
+    {
+      "version": 14,
+      "filename": "014_judge.sql",
+      "checksum": "6872dab7de2956afb1068ecddb26879820e67115376bfc038cdcdc3c51642ac7"
+    },
+    {
+      "version": 15,
+      "filename": "015_tags.sql",
+      "checksum": "ab5646d3fe3046b48302d99267a24f97dc0aef6f8e1cbcc9c66970ce9a2c7ff3"
+    },
+    {
+      "version": 16,
+      "filename": "016_tag_suggestions.sql",
+      "checksum": "36cb570c1dd7678c7e04939175e4db928993ab1f77761ca75668a968be4c86cd"
+    },
+    {
+      "version": 17,
+      "filename": "017_tag_groups.sql",
+      "checksum": "5533b3cfe57369abcb640ac167a878ef74021fd5bc901bf822d8fee8a5d9f945"
+    },
+    {
+      "version": 18,
+      "filename": "018_saved_searches.sql",
+      "checksum": "c4a519566a58bdc083869ea6308ff947eaa975b5f841aba935123ceeb3794661"
+    },
+    {
+      "version": 19,
+      "filename": "019_pgvector.sql",
+      "checksum": "9e9b2cfec47519f49ee73cb533c459e22f8ca54fe5ba1cbec59f3d5883fe191c"
+    },
+    {
+      "version": 20,
+      "filename": "020_agent_conversations.sql",
+      "checksum": "8f92a564bbd4cd315182dcd5781537f98f86a71d42df83d97a5289f43a660818"
+    },
+    {
+      "version": 21,
+      "filename": "021_agent_messages.sql",
+      "checksum": "1e872a500bcec04df8ab255734560048ae630d749fcb13c160dd816feb80e1e4"
+    },
+    {
+      "version": 22,
+      "filename": "022_content_embeddings.sql",
+      "checksum": "fd2064879e920be74d36ea265e29d635159612f81170ebaf59141769e66f9125"
+    },
+    {
+      "version": 23,
+      "filename": "023_notifications.sql",
+      "checksum": "dd768794756232f447966fefc69fcbffc55b953f90dee69f964acc77b5104f47"
+    },
+    {
+      "version": 24,
+      "filename": "024_conversations.sql",
+      "checksum": "6b65506489784f31bb7627f106ccf5e6a49eca7c858a73b886be8da66a4273e4"
+    },
+    {
+      "version": 25,
+      "filename": "025_rehab.sql",
+      "checksum": "57952fd8a17056cad2325c9ec95d2c9aa97e321b5cc57b4fd3b3044f1a1e8e3d"
+    },
+    {
+      "version": 26,
+      "filename": "026_rehab_seed.sql",
+      "checksum": "2a66a9a55c59b0063e216e02ee1eabc3c5c616c9a6cac4fbf3d38c431e58f227"
+    },
+    {
+      "version": 27,
+      "filename": "027_content_category.sql",
+      "checksum": "bcdd9235c1c2756ad3ed77e1e0e5a37c1b10aa46cb81200d9b25b52433dd079a"
+    },
+    {
+      "version": 28,
+      "filename": "028_categories.sql",
+      "checksum": "44f19e972c1ae985ea1091cc9769e5bea11690e3b84adfc4b40b72e406542455"
+    },
+    {
+      "version": 29,
+      "filename": "029_judge_reason.sql",
+      "checksum": "3bbdda60b8e88dcfc3d83950535f869c1bc1371227fbc3e3100a2e77ada3e081"
+    },
+    {
+      "version": 30,
+      "filename": "030_add_support_info_to_users.sql",
+      "checksum": "f5d445fc936d2f57b66945b9c96ef9b825beeadce448461ec287c53784a7c2ff"
+    },
+    {
+      "version": 31,
+      "filename": "031_create_llm_configs.sql",
+      "checksum": "f777a3b65381be29b5b6961c7b370c282600bfc5d831833b2aa3a2f2253e34b4"
+    },
+    {
+      "version": 32,
+      "filename": "032_browse_history.sql",
+      "checksum": "a31968076b70712ff58f355ec78348c71e2d1de79db598399336e41818a75b0e"
+    },
+    {
+      "version": 33,
+      "filename": "033_follows.sql",
+      "checksum": "4348bd9ef0ad70244b7b6c121e3f5ddf0050e38812f4388ce79a6acbd40c72f6"
+    },
+    {
+      "version": 34,
+      "filename": "034_appeals.sql",
+      "checksum": "cfebf03964a1db1e82ac5f1e2ba1cf44addb3f47b83a354656f838cff54a4f2d"
+    },
+    {
+      "version": 35,
+      "filename": "035_discussions.sql",
+      "checksum": "b0e0f4113c4336637099eb251c3416a30f330173b5b548f8b2908678a7a6902d"
+    },
+    {
+      "version": 36,
+      "filename": "036_content_source_original.sql",
+      "checksum": "596a392920ced2ec8fd69b334522467f87c998ee47933a96062bf28b03a4e0ca"
+    },
+    {
+      "version": 37,
+      "filename": "037_rehab_started_at.sql",
+      "checksum": "b0f6f1d75879839974cb2350117a7a28d8aae42312f05acff5636a69492032c7"
+    },
+    {
+      "version": 38,
+      "filename": "038_notification_channels.sql",
+      "checksum": "125c161783141135d6b911da7d1ecfaf93f280500db18141f385478d1b8cbb77"
+    },
+    {
+      "version": 39,
+      "filename": "039_conversation_unread_count.sql",
+      "checksum": "4520f722f18e29188223956f39576c0d6b12d2b3a8ba58e059dff7afb1b8fe5e"
+    },
+    {
+      "version": 40,
+      "filename": "040_p0_fixes.sql",
+      "checksum": "1616d2760b4308aa9e7e8a60e7e0836a8506b35286f555063ea88c9833ec3e68"
+    },
+    {
+      "version": 41,
+      "filename": "041_content_search_vector.sql",
+      "checksum": "9fcc62739e20e1a345b8bce5e628c3b66113cbddf919d7b9d72536e23adc679f"
+    },
+    {
+      "version": 42,
+      "filename": "042_ips_search_vector.sql",
+      "checksum": "23e58b0d9e3f1f638d760872c6153492a56161f9d61a5b9489a7131fe6c162fc"
+    },
+    {
+      "version": 43,
+      "filename": "043_comment_columns.sql",
+      "checksum": "b4bc99be2eb162f499f7c369b92d63f2e7b81a44526897295d9e7fd2615832f7"
+    },
+    {
+      "version": 44,
+      "filename": "044_indexes_and_fixes.sql",
+      "checksum": "b59d0be9c0cd8ac2c4788f57cd9ae0a9c638d17cff8335c5d784e2a05cfd2393"
+    },
+    {
+      "version": 45,
+      "filename": "045_search_tag_trigger.sql",
+      "checksum": "a8f8ba86025f7d5de746b862390507e0407a49546ed4ecd3a9bd71959af439cc"
+    },
+    {
+      "version": 46,
+      "filename": "046_user_schema_alignment.sql",
+      "checksum": "24c2609ee46cc177a120bb122c1bd2b72c112c4472fcd76607b54ddd4d9eb8d0"
+    },
+    {
+      "version": 47,
+      "filename": "047_pg_trgm_indexes.sql",
+      "checksum": "1370f7d9a607850b7a5167dac250cbdcc7ff33fe395b365ee1f203a1dbd745a8"
+    },
+    {
+      "version": 48,
+      "filename": "048_computed_columns.sql",
+      "checksum": "b0f6a6f64bf51efd20e288eb3d529d54c556ddd3ecf07e6a45c865d4f10da898"
+    },
+    {
+      "version": 49,
+      "filename": "049_search_trigram_fallback.sql",
+      "checksum": "155e0765feaf8f1803b697bfe1e9bb4c50f918aed4879b040e834233a3040190"
+    },
+    {
+      "version": 50,
+      "filename": "050_verification_and_terms.sql",
+      "checksum": "d6b7f269df4c16e9ef81d0e4e44363d85b22ed5162074e0a7da21f454bad96b8"
+    }
+  ],
+  "ledger": [
+    {
+      "version": 1,
+      "filename": "001_users.sql",
+      "checksum": "eed6f8a9a3cc72209547dd2dce8bea253423c4f7c4bcc5ef8b823d02dd25ec1e"
+    },
+    {
+      "version": 2,
+      "filename": "002_judge_qualifications.sql",
+      "checksum": "010a656abd83621777cbdd4237e578d29be5cfd152ffcf40132fc85acfb45799"
+    },
+    {
+      "version": 3,
+      "filename": "003_reputation_logs.sql",
+      "checksum": "61615480ad62602bc1ca88e27c49154c17ab371a1c8d94ba0c4f172a4fa12b37"
+    },
+    {
+      "version": 4,
+      "filename": "004_oauth_accounts.sql",
+      "checksum": "b173b458284d160eaa9f10651e5eba8d68ee14c33964240674a1516007a34d00"
+    },
+    {
+      "version": 5,
+      "filename": "005_ips.sql",
+      "checksum": "4b4939e92652e9150c697ecfa8d519795f1099dd78bd5276c22ed53ad6cab18d"
+    },
+    {
+      "version": 6,
+      "filename": "006_content_items.sql",
+      "checksum": "ae4108feba29b4359681d650a85eec2ef32b9ca7c11d3c9bbb078100a6662758"
+    },
+    {
+      "version": 7,
+      "filename": "007_content_attachments.sql",
+      "checksum": "f8b76f46bd8412e5964fbd613f158366876a3d822d0ef9457cba2dd9244f37a8"
+    },
+    {
+      "version": 8,
+      "filename": "008_content_tags.sql",
+      "checksum": "71bce8ffe6f7567ff46b39889c7969041eeb79e01649916e4409173a76d39e52"
+    },
+    {
+      "version": 9,
+      "filename": "009_content_versions.sql",
+      "checksum": "097a9055646e5bd1622a96d29bb3acb918f07d0785c73b125ff108d47836cfca"
+    },
+    {
+      "version": 10,
+      "filename": "010_pull_requests.sql",
+      "checksum": "0373520ce57ac6f9336ca7e62d9a00bc8bfaa3dd505df51143dfaad977b18c42"
+    },
+    {
+      "version": 11,
+      "filename": "011_social.sql",
+      "checksum": "d00892cd0e32eb03a985d149f40281f452fd7b328cfaf637f55b090e8a2b98bf"
+    },
+    {
+      "version": 12,
+      "filename": "012_reports.sql",
+      "checksum": "704af109937c090ce720a36712fffd45facbdd8424af2cc678fd8f9e2c347007"
+    },
+    {
+      "version": 13,
+      "filename": "013_ai_review.sql",
+      "checksum": "e19e26d1abc7538c5d76ffdb5eaccda3d9707db3e21c68fd3c73ad54920ecf5c"
+    },
+    {
+      "version": 14,
+      "filename": "014_judge.sql",
+      "checksum": "6872dab7de2956afb1068ecddb26879820e67115376bfc038cdcdc3c51642ac7"
+    },
+    {
+      "version": 15,
+      "filename": "015_tags.sql",
+      "checksum": "ab5646d3fe3046b48302d99267a24f97dc0aef6f8e1cbcc9c66970ce9a2c7ff3"
+    },
+    {
+      "version": 16,
+      "filename": "016_tag_suggestions.sql",
+      "checksum": "36cb570c1dd7678c7e04939175e4db928993ab1f77761ca75668a968be4c86cd"
+    },
+    {
+      "version": 17,
+      "filename": "017_tag_groups.sql",
+      "checksum": "5533b3cfe57369abcb640ac167a878ef74021fd5bc901bf822d8fee8a5d9f945"
+    },
+    {
+      "version": 18,
+      "filename": "018_saved_searches.sql",
+      "checksum": "c4a519566a58bdc083869ea6308ff947eaa975b5f841aba935123ceeb3794661"
+    },
+    {
+      "version": 19,
+      "filename": "019_pgvector.sql",
+      "checksum": "9e9b2cfec47519f49ee73cb533c459e22f8ca54fe5ba1cbec59f3d5883fe191c"
+    },
+    {
+      "version": 20,
+      "filename": "020_agent_conversations.sql",
+      "checksum": "8f92a564bbd4cd315182dcd5781537f98f86a71d42df83d97a5289f43a660818"
+    },
+    {
+      "version": 21,
+      "filename": "021_agent_messages.sql",
+      "checksum": "1e872a500bcec04df8ab255734560048ae630d749fcb13c160dd816feb80e1e4"
+    },
+    {
+      "version": 22,
+      "filename": "022_content_embeddings.sql",
+      "checksum": "fd2064879e920be74d36ea265e29d635159612f81170ebaf59141769e66f9125"
+    },
+    {
+      "version": 23,
+      "filename": "023_notifications.sql",
+      "checksum": "dd768794756232f447966fefc69fcbffc55b953f90dee69f964acc77b5104f47"
+    },
+    {
+      "version": 24,
+      "filename": "024_conversations.sql",
+      "checksum": "6b65506489784f31bb7627f106ccf5e6a49eca7c858a73b886be8da66a4273e4"
+    },
+    {
+      "version": 25,
+      "filename": "025_rehab.sql",
+      "checksum": "57952fd8a17056cad2325c9ec95d2c9aa97e321b5cc57b4fd3b3044f1a1e8e3d"
+    },
+    {
+      "version": 26,
+      "filename": "026_rehab_seed.sql",
+      "checksum": "2a66a9a55c59b0063e216e02ee1eabc3c5c616c9a6cac4fbf3d38c431e58f227"
+    },
+    {
+      "version": 27,
+      "filename": "027_content_category.sql",
+      "checksum": "bcdd9235c1c2756ad3ed77e1e0e5a37c1b10aa46cb81200d9b25b52433dd079a"
+    },
+    {
+      "version": 28,
+      "filename": "028_categories.sql",
+      "checksum": "44f19e972c1ae985ea1091cc9769e5bea11690e3b84adfc4b40b72e406542455"
+    },
+    {
+      "version": 29,
+      "filename": "029_judge_reason.sql",
+      "checksum": "3bbdda60b8e88dcfc3d83950535f869c1bc1371227fbc3e3100a2e77ada3e081"
+    },
+    {
+      "version": 30,
+      "filename": "030_add_support_info_to_users.sql",
+      "checksum": "f5d445fc936d2f57b66945b9c96ef9b825beeadce448461ec287c53784a7c2ff"
+    },
+    {
+      "version": 31,
+      "filename": "031_create_llm_configs.sql",
+      "checksum": "f777a3b65381be29b5b6961c7b370c282600bfc5d831833b2aa3a2f2253e34b4"
+    },
+    {
+      "version": 32,
+      "filename": "032_browse_history.sql",
+      "checksum": "a31968076b70712ff58f355ec78348c71e2d1de79db598399336e41818a75b0e"
+    },
+    {
+      "version": 33,
+      "filename": "033_follows.sql",
+      "checksum": "4348bd9ef0ad70244b7b6c121e3f5ddf0050e38812f4388ce79a6acbd40c72f6"
+    },
+    {
+      "version": 34,
+      "filename": "034_appeals.sql",
+      "checksum": "cfebf03964a1db1e82ac5f1e2ba1cf44addb3f47b83a354656f838cff54a4f2d"
+    },
+    {
+      "version": 35,
+      "filename": "035_discussions.sql",
+      "checksum": "b0e0f4113c4336637099eb251c3416a30f330173b5b548f8b2908678a7a6902d"
+    },
+    {
+      "version": 36,
+      "filename": "036_content_source_original.sql",
+      "checksum": "596a392920ced2ec8fd69b334522467f87c998ee47933a96062bf28b03a4e0ca"
+    },
+    {
+      "version": 37,
+      "filename": "037_rehab_started_at.sql",
+      "checksum": "b0f6f1d75879839974cb2350117a7a28d8aae42312f05acff5636a69492032c7"
+    },
+    {
+      "version": 38,
+      "filename": "038_notification_channels.sql",
+      "checksum": "125c161783141135d6b911da7d1ecfaf93f280500db18141f385478d1b8cbb77"
+    },
+    {
+      "version": 39,
+      "filename": "039_conversation_unread_count.sql",
+      "checksum": "4520f722f18e29188223956f39576c0d6b12d2b3a8ba58e059dff7afb1b8fe5e"
+    },
+    {
+      "version": 40,
+      "filename": "040_p0_fixes.sql",
+      "checksum": "1616d2760b4308aa9e7e8a60e7e0836a8506b35286f555063ea88c9833ec3e68"
+    },
+    {
+      "version": 41,
+      "filename": "041_content_search_vector.sql",
+      "checksum": "9fcc62739e20e1a345b8bce5e628c3b66113cbddf919d7b9d72536e23adc679f"
+    },
+    {
+      "version": 42,
+      "filename": "042_ips_search_vector.sql",
+      "checksum": "23e58b0d9e3f1f638d760872c6153492a56161f9d61a5b9489a7131fe6c162fc"
+    },
+    {
+      "version": 43,
+      "filename": "043_comment_columns.sql",
+      "checksum": "b4bc99be2eb162f499f7c369b92d63f2e7b81a44526897295d9e7fd2615832f7"
+    },
+    {
+      "version": 44,
+      "filename": "044_indexes_and_fixes.sql",
+      "checksum": "b59d0be9c0cd8ac2c4788f57cd9ae0a9c638d17cff8335c5d784e2a05cfd2393"
+    },
+    {
+      "version": 45,
+      "filename": "045_search_tag_trigger.sql",
+      "checksum": "a8f8ba86025f7d5de746b862390507e0407a49546ed4ecd3a9bd71959af439cc"
+    },
+    {
+      "version": 46,
+      "filename": "046_user_schema_alignment.sql",
+      "checksum": "24c2609ee46cc177a120bb122c1bd2b72c112c4472fcd76607b54ddd4d9eb8d0"
+    },
+    {
+      "version": 47,
+      "filename": "047_pg_trgm_indexes.sql",
+      "checksum": "1370f7d9a607850b7a5167dac250cbdcc7ff33fe395b365ee1f203a1dbd745a8"
+    },
+    {
+      "version": 48,
+      "filename": "048_computed_columns.sql",
+      "checksum": "b0f6a6f64bf51efd20e288eb3d529d54c556ddd3ecf07e6a45c865d4f10da898"
+    },
+    {
+      "version": 49,
+      "filename": "049_search_trigram_fallback.sql",
+      "checksum": "155e0765feaf8f1803b697bfe1e9bb4c50f918aed4879b040e834233a3040190"
+    },
+    {
+      "version": 50,
+      "filename": "050_verification_and_terms.sql",
+      "checksum": "d6b7f269df4c16e9ef81d0e4e44363d85b22ed5162074e0a7da21f454bad96b8"
+    }
+  ]
+}

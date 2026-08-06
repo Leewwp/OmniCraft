@@ -16,7 +16,7 @@
 
 ## Status, authority, and universal rules
 
-**Status:** Ops-00 completed at `9ea53c8`; Ops-01 completed by CI commit `7f34191` and evidence/branch-protection closeout `4cba1da`; Ops-02～Ops-08 have not started; Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
+**Status:** Ops-00 completed at `9ea53c8`; Ops-01 completed by CI commit `7f34191` and evidence/branch-protection closeout `4cba1da`; Ops-02 completed on `codex/ops/ops-02` after two-axis review, final-commit-bound local evidence and PR #21 PostgreSQL migration/contract/project gates; Ops-03 completed on `codex/ops/ops-03` after contract tests, a real observability drill and the default project gate (pending review/merge); Ops-04 completed on `codex/ops/ops-04` after contract tests, promtool/amtool validation, a real firing/resolved alert drill with the in-network alert-sink and a real Healthchecks.io missing-heartbeat down-flip (pending review/merge); Ops-05～Ops-08 have not started; Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
 
 - This plan is not Hardening Task 6 and must never add one.
 - Do not modify `task.json`, Beta/community checkboxes, or Web Agent completion state.
@@ -276,6 +276,7 @@ After the single reviewed commit, run the universal finalization block and requi
 - Create: `scripts/db/object-recovery-drill.tests.sh`
 - Create: `scripts/db/redis-reconciliation-drill.sh`
 - Create: `scripts/db/redis-reconciliation-drill.tests.sh`
+- Create: `scripts/db/verify-migration-gate.sh`
 - Create: `ops/recovery/docker-compose.recovery.yml`
 - Create: `release/backup-policy.schema.json`
 - Create: `release/backup-policy.json`
@@ -288,16 +289,19 @@ After the single reviewed commit, run the universal finalization block and requi
 - Modify: `docs/deploy/docker-compose.single-server.yml`
 - Modify: `backend/Dockerfile`
 - Modify: `.github/workflows/ci.yml`
+- Modify: `scripts/ci/verify-workflows.sh`
+- Modify: `scripts/ci/verify-workflows.tests.sh`
 - Modify: `docs/deploy/single-server-beta-runbook.md`
 - Modify: `docs/deploy/production-config-template.md`
 - Modify: `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md`
+- Modify: `AGENTS.md`
 - Modify: `progress.txt`
 
-- [ ] **Step 1: Reproduce the existing-volume failure**
+- [x] **Step 1: Reproduce the existing-volume failure**
 
 Start PostgreSQL, allow init scripts to create the volume, add a harmless temporary migration in a test fixture, restart, and prove `/docker-entrypoint-initdb.d` does not apply it. Do not modify production migration files for this proof.
 
-- [ ] **Step 2: Write failing parser/ledger tests**
+- [x] **Step 2: Write failing parser/ledger tests**
 
 Cover filename validation, duplicate versions, stable ordering, SHA-256, checksum drift, ledger references to missing files, and missing lower-number application.
 
@@ -306,11 +310,11 @@ cd backend
 go test ./internal/migration -run "TestParse|TestPlan|TestChecksum" -v
 ```
 
-- [ ] **Step 3: Implement the minimal planner and ledger**
+- [x] **Step 3: Implement the minimal planner and ledger**
 
 Create `schema_migrations(version, filename, checksum, applied_at)` and `schema_migration_attempts` audit state; compare by applied filename/version/checksum set, never max version alone.
 
-- [ ] **Step 4: Write failing PostgreSQL integration tests**
+- [x] **Step 4: Write failing PostgreSQL integration tests**
 
 Cover empty 001→latest, synthetic historical fixture→latest, no rerun, checksum rejection, inserted missing lower version, transactional rollback, and two concurrent runners where only one holds the advisory lock.
 
@@ -324,11 +328,11 @@ export OMNICRAFT_TEST_POSTGRES_DSN="host=localhost port=5432 user=omnicraft pass
 go test ./internal/migration -run TestPostgres -count=1 -v
 ```
 
-- [ ] **Step 5: Implement CLI and deployment wiring**
+- [x] **Step 5: Implement CLI and deployment wiring**
 
 Build a dedicated migrate binary into the backend image. Deployment runs migration as a one-shot command before backend readiness. Remove production reliance on initdb; keep local bootstrap as a wrapper around the CLI.
 
-- [ ] **Step 6: Write backup/restore contract tests, then repair scripts**
+- [x] **Step 6: Write backup/restore contract tests, then repair scripts**
 
 Require custom-format dumps, checksum manifest, migration manifest, explicit destination DB, refusal to overwrite source, and nonzero failures. `backup-policy.json` declares daily + pre-migration PostgreSQL backup, 7 local copies, 30-day encrypted off-host immutable/versioned retention, monthly restore cadence, PostgreSQL/OSS/Redis classification and restore order. `recovery-objectives.json` may be `baseline_only` in Ops-02 with measured values and null approval; policy tests reject missing state/measurements but require approved numeric targets only in Ops-08.
 
@@ -339,7 +343,7 @@ bash scripts/db/build-historical-fixture.tests.sh
 bash scripts/db/verify-backup-policy.sh -Policy release/backup-policy.json -ReportDir artifacts/ops-02/policy
 ```
 
-- [ ] **Step 7: Perform a real recovery drill**
+- [x] **Step 7: Perform a real recovery drill**
 
 Use PostgreSQL 16 + pgvector containers. Populate non-sensitive fixture data, dump, restore into a new DB, run ledger verification and backend smoke, and record measured backup duration, restore duration, RPO and RTO.
 
@@ -412,27 +416,27 @@ bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -
 - Modify: `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md`
 - Modify: `progress.txt`
 
-- [ ] **Step 1: Write failing structured-log/redaction tests**
+- [x] **Step 1: Write failing structured-log/redaction tests**
 
 Assert required fields and prove authorization, cookies, tokens, signed URL query, email/raw IP and message bodies are absent. Errors use class/code, not raw untrusted body. `client_ip` is the first 128 bits of keyed HMAC-SHA256 encoded as 32 lowercase hex characters using `LOG_IP_HASH_SECRET`; logs include a non-secret key ID. Missing key in release fails closed, rotation accepts current/previous key only between explicit start/end timestamps, and no path falls back to raw IP.
 
-- [ ] **Step 2: Implement JSON slog configuration and request logging**
+- [x] **Step 2: Implement JSON slog configuration and request logging**
 
 Preserve request ID and middleware order. Route labels use Gin full-path templates with a bounded fallback.
 
-- [ ] **Step 3: Write failing metrics tests**
+- [x] **Step 3: Write failing metrics tests**
 
 Cover request count/error/latency, panic, DB pool, Redis, queue/worker metrics and label allowlists. Reject IDs and raw URLs as labels.
 
 Include aggregate success/failure/latency metrics for OSS, Green, CAPTCHA, SMTP and LLM adapters without request/user/content labels.
 
-- [ ] **Step 4: Implement an internal metrics server and readiness**
+- [x] **Step 4: Implement an internal metrics server and readiness**
 
 Run metrics on a separately configured internal port; do not expose it through public API routes. Keep `/healthz` liveness-only and add dependency-aware readiness without returning connection details. Configure Docker JSON rotation, a named durable Loki volume, internal Grafana Alloy→Loki ingestion with 30-day/capped retention, and authenticated/tunneled operator access whose query audit is retained. Alloy receives only the read-only log mounts/service-discovery access needed for collection and no Docker control capability. Migration runner and backup/recovery scripts emit bounded success/failure/last-success metrics consumed by Prometheus textfile/custom collectors.
 
 `archive-audit-logs.sh` encrypts and uploads warning/error audit summaries to the configured off-site destination, verifies checksum/retention metadata, and writes access/archive evidence. Its contract tests use a local encrypted sink; real destination credentials are required by Ops-08.
 
-- [ ] **Step 5: Verify Prometheus config and runtime scrape**
+- [x] **Step 5: Verify Prometheus config and runtime scrape**
 
 ```bash
 bash ops/observability/prometheus.tests.sh
@@ -467,6 +471,11 @@ bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -
 **Branch:** `codex/ops/ops-04`
 **Write reservation:** only the alert rules/config, alert verification/drill scripts, compose/runbook/CI/tracking files listed below after Ops-03 releases them
 
+> **2026-08-06 maintainer clarification:** Step 4's required in-network
+> `alert-sink` is repository-owned, and completion advances the active registry.
+> The maintainer explicitly approved adding the four `alert-sink` files and
+> `AGENTS.md` to this task's reservation during review (Issue #33).
+
 **Files:**
 
 - Create: `ops/observability/prometheus-rules.yml`
@@ -476,6 +485,10 @@ bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -
 - Create: `ops/observability/exporter-targets.yml`
 - Create: `ops/observability/external-heartbeat.schema.json`
 - Create: `ops/observability/external-heartbeat.example.json`
+- Create: `ops/observability/alert-sink/Dockerfile`
+- Create: `ops/observability/alert-sink/go.mod`
+- Create: `ops/observability/alert-sink/main.go`
+- Create: `ops/observability/alert-sink/main_test.go`
 - Create: `scripts/ops/verify-alerts.sh`
 - Create: `scripts/ops/verify-alerts.tests.sh`
 - Create: `scripts/ops/alert-drill.sh`
@@ -486,18 +499,19 @@ bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -
 - Modify: `docs/deploy/docker-compose.single-server.yml`
 - Modify: `docs/deploy/single-server-beta-runbook.md`
 - Modify: `.github/workflows/ci.yml`
+- Modify: `AGENTS.md`
 - Modify: `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md`
 - Modify: `progress.txt`
 
-- [ ] **Step 1: Write failing alert contract tests**
+- [x] **Step 1: Write failing alert contract tests**
 
 Require owner, severity, `for`, summary, impact, first step and runbook anchor. Reject missing resolution semantics and invalid expression references.
 
-- [ ] **Step 2: Add minimal alert rules and routing**
+- [x] **Step 2: Add minimal alert rules and routing**
 
 Cover API availability/5xx/latency, DB/Redis, queue/worker, backup age, overdue recovery drill, migration failure, cert expiry, disk, restart loop, and sustained OSS/Green/CAPTCHA/SMTP/LLM failures. Map every rule to application/custom metrics, postgres/redis exporter, node exporter, cAdvisor or blackbox/certificate probes. Wire all exporters/rules/Alertmanager into the reserved Prometheus/Compose files. Receiver values stay outside Git; Ops-04 requires a real independent-failure-domain HTTPS heartbeat URL/credential before completion.
 
-- [ ] **Step 3: Validate with real tools**
+- [x] **Step 3: Validate with real tools**
 
 ```bash
 bash scripts/ops/verify-alerts.sh
@@ -510,7 +524,7 @@ bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -
 
 The script runs pinned `promtool`/Alertmanager config checks and contract tests.
 
-- [ ] **Step 4: Exercise firing and resolution**
+- [x] **Step 4: Exercise firing and resolution**
 
 `alert-drill.sh` starts an isolated observability project containing an in-network `alert-sink`, waits until Prometheus reports every postgres/redis/node/cAdvisor/blackbox target `up == 1`, injects API error-rate, dependency-down and overdue-recovery conditions, polls the sink for firing/resolved payloads, restores health, then calls the configured real external heartbeat and proves missing-heartbeat notification from the independent provider. It tears down in `finally`; `127.0.0.1` inside Alertmanager and synthetic-only heartbeat evidence are forbidden.
 

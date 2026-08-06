@@ -305,6 +305,12 @@ if os.path.exists(ci_path):
             break
     if not dependency_guard:
         fail("ci.yml: project-gate must fail unless backend, frontend, and docs all succeeded")
+    raw_ci = open(ci_path, encoding="utf-8").read()
+    canonical_migration_gate = "bash scripts/db/verify-migration-gate.sh -ReportDir artifacts/backend/migrations"
+    if canonical_migration_gate not in raw_ci:
+        fail("ci.yml: backend must run the canonical Ops-02 migration/contract gate with uploaded evidence")
+    if "go test ./internal/migration" in raw_ci or "recovery-drill.tests.sh &&" in raw_ci:
+        fail("ci.yml: migration commands must not be duplicated outside verify-migration-gate.sh")
 
 if os.path.exists(tauri_path):
     with open(tauri_path, encoding="utf-8") as f:

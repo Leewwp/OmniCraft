@@ -183,6 +183,14 @@ docker compose --env-file .env -f docker-compose.single-server.yml up -d --build
 docker compose --env-file .env -f docker-compose.single-server.yml ps
 ```
 
+The compose stack runs the forward-only migrations as a one-shot `migrate`
+container before the backend starts (`backend.depends_on.migrate:
+service_completed_successfully`). The backend refuses to start when the
+migration job fails; no `/docker-entrypoint-initdb.d` mount is used because
+init scripts only apply to a brand-new empty data volume and silently ignore
+later migration files. `docker compose logs migrate` shows the applied
+migration set and `migration-summary.json` in the container.
+
 ## 7. Verify
 
 ```bash
@@ -211,15 +219,215 @@ Expected public config posture:
 }
 ```
 
-## 8. Backup
+### 7.1 Observability (logs, metrics, readiness)
 
-Database backup example:
+The stack ships container logs through Docker `json-file` rotation (10 MB x 5
+per service) into Grafana Alloy, which tails them from a **read-only** log
+directory mount and forwards them to Loki (30-day retention, durable named
+volume). Prometheus scrapes the backend's internal `:9091/metrics` endpoint
+(30-day time + 10 GB disk retention); neither Prometheus nor Loki publishes a
+public port.
+
+Operator access to Loki goes through `loki-gate` (authenticated, audited),
+bound to `127.0.0.1:13100` on the host:
 
 ```bash
-mkdir -p /var/backups/omnicraft/postgres
-docker compose --env-file .env -f docker-compose.single-server.yml exec -T postgres \
-  pg_dump -U omnicraft omnicraft | gzip > "/var/backups/omnicraft/postgres/omnicraft-$(date +%F-%H%M%S).sql.gz"
+# required variables for the observability services
+OBS_GATE_TOKEN="<operator token>"
+OBS_LOG_DIR="/var/lib/docker/containers"   # read-only mount for Alloy
+
+ssh -N -L 13100:127.0.0.1:13100 <server>   # tunnel, then query:
+curl -H "Authorization: Bearer $OBS_GATE_TOKEN" \
+  "http://127.0.0.1:13100/loki/api/v1/query_range?query=%7Bjob%3D%22containers%22%7D&limit=20"
 ```
 
-Keep OSS data in a private bucket and use Alibaba Cloud lifecycle policies for
-object retention.
+Every gate query is appended to `loki_gate_audit` (durable volume,
+`access-audit.jsonl`); unauthenticated queries return 401 and are also
+audited. Inside the network the backend exposes liveness `/healthz` (process
+only) and dependency-aware `/readyz` on `:9091`; both stay unreachable from
+the public network. `migrate`, `backup-db.sh` and `recovery-drill.sh` write
+bounded success/failure/last-success metrics to
+`METRICS_TEXTFILE_DIR` (Prometheus textfile collector) when configured.
+
+The observability drill that proves this posture runs with:
+
+```bash
+bash scripts/ops/observability-drill.sh -Environment Local -ReportDir artifacts/ops-03
+```
+
+## 8. Database Migrations and Recovery
+
+Migrations are forward-only and ledger-backed. `schema_migrations` records
+version, filename, SHA-256 checksum and applied time; the runner compares the
+applied file/version/checksum set (never the max version alone), so a later
+backfill of a missing lower-numbered migration is still applied. A session
+advisory lock serializes concurrent runners.
+
+Rules enforced by `scripts/init-db.sh` / the `migrate` binary:
+
+- Applied-file checksum drift, duplicate versions, invalid filenames and
+  ledger entries whose file disappeared are rejected.
+- Every migration runs in one transaction (ledger row committed together
+  with the migration), except files declared in `backend/migrations/metadata.json`.
+- `047_pg_trgm_indexes.sql` and `049_search_trigram_fallback.sql` use
+  `CREATE INDEX CONCURRENTLY` and are declared non-transactional with reason,
+  reviewer, machine-checkable pre/postconditions and reconciliation steps.
+  Their attempts are audited in `schema_migration_attempts`; a failed or
+  unknown attempt blocks blind retry and all later migrations until the
+  operator reconciles with evidence:
+  `scripts/init-db.sh -ReconcileVersions 047,049 -ReconcileApproval CHG-1234`.
+  The approval value must identify a durable ticket, incident or change record;
+  it is stored in `schema_migration_attempts.approval_ref`.
+- A migration that reached a shared environment is never edited; changes are
+  new forward-fix migrations.
+
+Local bootstrap:
+
+```bash
+docker compose up -d postgres
+bash scripts/init-db.sh
+```
+
+`scripts/init-db.sh` is a thin wrapper around
+`cd backend && go run ./cmd/migrate -DSN "$DB_DSN" -Dir backend/migrations`.
+Databases created by the old initdb flow (tables present, no ledger) must be
+recreated once with `docker compose down -v` before the ledger runner can be
+used; verify with `bash scripts/db/build-historical-fixture.tests.sh` and the
+migration integration suite (`go test ./internal/migration ./cmd/migrate`).
+
+Upgrade drill requirements (see `release/backup-policy.json`):
+
+- A full backup must exist within 24 hours, and a fresh backup must be taken
+  immediately before every production migration.
+- A restore drill into a new database must have succeeded within the last
+  30 days before any schema change.
+- Recovery order: PostgreSQL first (source of truth), then OSS object version
+  restore and reconciliation, then Redis clear-and-rebuild.
+- Real Aliyun OSS versioning/off-host storage and approved numeric RPO/RTO
+  targets are Ops-08 blockers; `release/recovery-objectives.json` currently
+  records measured baselines only.
+
+## 9. Backup
+
+Database backup uses the policy-compliant script (custom-format dump plus
+checksum manifest and migration ledger manifest):
+
+```bash
+# Daily cron (policy: daily + 7 local copies):
+0 2 * * * DB_HOST=postgres DB_PORT=5432 DB_USER=omnicraft DB_PASSWORD=... \
+  BACKUP_DIR=/var/backups/omnicraft/postgres \
+  bash /srv/omnicraft/scripts/backup-db.sh >> /var/log/omnicraft-backup.log 2>&1
+
+# Before every production migration (policy: pre_migration):
+DB_HOST=postgres ... bash /srv/omnicraft/scripts/backup-db.sh
+```
+
+Each backup produces `<dump>.custom` plus `<dump>.custom.manifest.json`
+(dump SHA-256, source database, pg version and applied migration set).
+Restores always target a NEW database and refuse to overwrite the source:
+
+```bash
+bash scripts/restore-db.sh -Backup /var/backups/omnicraft/postgres/omnicraft_*.custom \
+  -TargetDB omnicraft_restore_20260805 \
+  -AdminDSN "host=127.0.0.1 port=5432 user=postgres dbname=postgres" \
+  -VerifyDSN "host=127.0.0.1 port=5432 user=omnicraft dbname=omnicraft_restore_20260805 sslmode=disable"
+```
+
+`restore-db.sh` verifies the dump checksum, restores, then runs the migration
+ledger verifier and smoke checks; any failure drops the partial target.
+
+Off-host copies (policy: 30-day encrypted, versioned/immutable retention with
+post-upload SHA-256 verification) and the monthly restore drill are driven by
+the recovery drills:
+
+```bash
+bash scripts/db/recovery-drill.sh -ReportDir artifacts/ops-02
+bash scripts/db/object-recovery-drill.sh -ComposeFile ops/recovery/docker-compose.recovery.yml -ReportDir artifacts/ops-02
+bash scripts/db/redis-reconciliation-drill.sh -ComposeFile ops/recovery/docker-compose.recovery.yml -ReportDir artifacts/ops-02
+```
+
+Real Aliyun OSS versioning, off-host storage and service-level RPO/RTO remain
+Ops-08 blockers; the local MinIO stand-in proves adapter behavior only.
+
+## 10. Alerting (Ops-04)
+
+Prometheus evaluates `ops/observability/prometheus-rules.yml` every 15s and
+routes alerts through Alertmanager. Alertmanager's receiver VALUES live only
+in operator files, never in Git: render the runtime config at deploy/drill
+time from the committed placeholder template plus the server env file:
+
+```bash
+# On the server (values come from /opt/omnicraft/.env, kept 0600):
+SMTP_HOST=... SMTP_PORT=465 SMTP_FROM_EMAIL=... SMTP_USERNAME=... SMTP_PASSWORD=... \
+  OPS_EMAIL_TO=ops@example.com \
+  python3 - <<'PY'
+import os
+text = open("ops/observability/alertmanager.yml").read()
+for k, v in {
+    "SMTP_HOST_PLACEHOLDER": os.environ.get("SMTP_HOST", "SMTP_HOST_PLACEHOLDER"),
+    "SMTP_PORT_PLACEHOLDER": os.environ.get("SMTP_PORT", "587"),
+    "SMTP_FROM_PLACEHOLDER": os.environ.get("SMTP_FROM_EMAIL", "SMTP_FROM_PLACEHOLDER"),
+    "SMTP_USERNAME_PLACEHOLDER": os.environ.get("SMTP_USERNAME", "SMTP_USERNAME_PLACEHOLDER"),
+    "SMTP_PASSWORD_PLACEHOLDER": os.environ.get("SMTP_PASSWORD", "SMTP_PASSWORD_PLACEHOLDER"),
+    "OPS_EMAIL_TO_PLACEHOLDER": os.environ.get("OPS_EMAIL_TO", "OPS_EMAIL_TO_PLACEHOLDER"),
+}.items():
+    text = text.replace(k, v)
+open("/opt/omnicraft/alertmanager.yml", "w").write(text)
+PY
+chmod 600 /opt/omnicraft/alertmanager.yml
+# Single-server compose requires ALERTMANAGER_CONFIG_FILE to point at it.
+```
+
+### Alerting: API
+- `ApiUnavailable` / `ApiHigh5xxRate` / `ApiHighLatency`: blackbox probe of
+  `https://api.leeppp.online` plus backend `omnicraft_http_requests_total`.
+  First step: nginx/backend logs, upstream health, DB/Redis pool saturation.
+- Owner: platform. Severity: critical (unavailable/5xx), warning (latency).
+
+### Alerting: DB
+- `PostgresDown` (`pg_up`), `RedisDown` (`redis_up`),
+  `DatabasePoolExhausted` (in-use/max-open > 90%) and `RedisPoolExhausted`
+  (active pool with no idle connections). First step: inspect slow queries,
+  blocked clients and configured pool limits; restart a dependency only when
+  it is actually unavailable, and do not restart backend while DB is down.
+
+### Alerting: backend
+- `QueueBacklogHigh` / `WorkerFailures` / `MigrationFailed` / `RestartLoop`.
+  First step: worker logs, migration summary artifact, container restart logs.
+
+### Alerting: backup
+- `BackupStale` (24h) / `RecoveryDrillOverdue` (30d). First step: rerun
+  `scripts/backup-db.sh` / `scripts/db/recovery-drill.sh` and confirm metrics.
+
+### Alerting: cert / disk
+- `CertExpirySoon` (7d, blackbox TLS probe) → renew via certbot (deploy hook
+  reloads nginx). `DiskSpaceLow` (root fs < 10%) → prune images/cache, check
+  Loki retention. node-exporter mounts host `/` read-only at `/host` and uses
+  `--path.rootfs=/host`; confirm that mapping before acting on disk alerts.
+
+### Alerting: external
+- `ExternalDependencyFailures` (OSS/Green/CAPTCHA/SMTP/LLM > 50% failure for
+  15m). First step: credentials/quota of the failing dependency.
+
+### Verification and drills
+```bash
+bash scripts/ops/verify-alerts.sh -ConfigDir ops/observability
+bash scripts/ops/verify-alerts.tests.sh
+bash scripts/ops/alert-drill.tests.sh
+bash scripts/ops/alert-drill.sh -Environment Local \
+  -ComposeFile ops/observability/docker-compose.observability.yml \
+  -WebhookSink http://alert-sink:8080/events -ReportDir artifacts/ops-04 \
+  -HeartbeatNotificationEvidence /secure/path/current-healthchecks-delivery-redacted.png
+```
+
+The drill requires the real independent-failure-domain heartbeat credentials
+(`~/.config/omnicraft/ops-04-healthchecks.env`, Healthchecks.io, 0600) and
+proves firing/resolved delivery to the in-network alert-sink plus a real
+missing-heartbeat down-flip with the operator email channel attached. After the
+DOWN event, the drill waits up to five minutes for the evidence path to be
+created or refreshed and rejects files older than the current run. Use either
+an opaque-redacted email screenshot retaining the provider, DOWN subject,
+temporary check name and delivery timestamp, or the provider's redacted latest
+delivery-status view paired with `heartbeat-evidence.json`. Remove recipient,
+project contact and source IP. Every release drill creates and waits for a fresh
+provider event in the same run; prior heartbeat evidence cannot be reused.
