@@ -2,6 +2,21 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+## [2026-08-06] - Task GAP-02 REVIEW: #16 浏览器验收与集成修复
+
+### What was done:
+- 编排方浏览器验收（ego-browser，dev server w16:3000 + 后端 8080 + seed_local_rich_data.py 本地数据）发现集成缺陷：**来源原创触发器嵌套在 IP 卡片内，而真实 API 只返回 `ip_id` 不返回嵌套 `ip` 对象 → 触发器不可达**。组件单测（mock 数据）无法覆盖此断层。
+- 修复 `ContentSidebar.tsx`：抽出 `sourceOriginalTrigger`（按钮/链接双形态），IP 卡片存在时仍在卡片内渲染；API 无 `ip` 对象时降级为独立侧栏卡片渲染，保证浮窗入口可达。原创详情页接线不在本票范围（属 #18 全站接线）。
+- 截图存 `screenshots/gap16/`：desktop-layer1-original53、desktop-layer2-fanwork201、desktop-banned-source-empty-state、dark-layer1、mobile-overlay-rendered。
+
+### Testing:
+- 浏览器验证通过：桌面点"来源原创"→ 浮窗层 1（原创 53 完整内容）；层内点关联二创 → 层 2（返回标签变"返回 原创实验｜…"）；Esc 逐层→根层全退（URL 不变）；滚动锁定（打开时 body scrollY 冻结 513）+ 退出恢复（scrollY=513、焦点回触发按钮）；banned 来源 54 → "内容不可访问/该内容已被下架" EmptyState；暗色模式 + 移动视口（390px）浮窗正常渲染（切视口后 dialog 保持 open）。
+- `npm run lint`、`node --import tsx --test --test-concurrency=1 tests/content-detail-overlay.test.tsx`（15/15）、`npm run build` 全 PASS。
+- 已知边界：移动端详情页无侧栏（`hidden lg:block`）→ 移动端无来源原创入口（移动端入口接线归 #18）；历史残留（Esc 全退后 popstate 多 1 条同 URL 记录）仍 open。
+
+### Notes:
+- 分支 `web/gap-16-overlay`；浏览器验收后待 code-review 提交 PR。
+
 ## [2026-08-06] - Task GAP-02: 共享内容详情浮窗底座（#16）
 
 ### What was done:
