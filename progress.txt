@@ -2,6 +2,26 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+
+## [2026-08-06] - Task 5: add deterministic agent evaluation gate
+### What was done:
+- 计划 `2026-07-16-omnicraft-web-agent-productization.md` Task 5 完成（车道 C 第五步，分支 `web/agent-t5`，基于 main@5f47de1 = Task 1+2+3 合并产物）。
+- **确定性评测门 `TestAgentEvaluation`**（`internal/service/agent_evaluation_test.go`）：以 `testdata/agent_eval_cases.json`（12 用例）为 CI oracle，新增 `evalProvider` 假 Provider harness 逐用例手写脚本（工具请求顺序、流式 token、伪造引用文本、prompt 注入、超时、错误全部确定性控制），不使用真实模型作为 pass/fail oracle。每用例断言六类：① 期望内容 ID 出现在模型可见结果（tool-result 消息解析 seen IDs）；② 禁止内容 ID 不进入引用且不下发模型；③ 引用对象 id/title/zone 非空且经 viewer 可见性复查；④ no-evidence 拒答（无引用、AGENT_NO_EVIDENCE）；⑤ injection 不改变工具策略（未知工具拒绝、执行工具全部注册、流不被中止、回答仍 grounded）；⑥ 降级/错误码匹配（provider 超时→AGENT_PROVIDER_TIMEOUT+degraded、限流→AGENT_RATE_LIMITED、隐藏内容→AGENT_CONTENT_NOT_FOUND、发布伪造资源参数→AGENT_INVALID_RESOURCE）。hidden/publish 两用例走前置拒绝路径（ResolveChatContext）与 typed 工具边界（ExecuteTool 拒绝 `{"content_id":42}` 伪造参数），publish_suggestion 是独立 typed contract 不经过 ChatStream。
+- **修复 Task 3 审查遗留 3 项（agent_stream.go）**：① 工具循环现在先追加带 `tool_calls` 的 assistant 消息、再追加带 `tool_call_id` 的 tool 消息（OpenAI 兼容协议要求 tool 消息前必须有 assistant tool_calls 消息，否则严格 provider 400）；② 新增 `streamedToolCallAccumulator`：流式 tool_calls 按 index 分片累积，provider 轮次结束才组装为完整调用执行，残缺 JSON 片段不再直接变 invalid_args（`llm.ToolCall.Index *int` 解析 openai-compat delta 的 index 字段）；③ usage 事件透传 provider `delta.Usage` token（累计最后一次非零 usage，usage 事件与 done 事件均携带），openai_compat 的 usage 解析不再死代码。顺带区分 provider 超时与客户端取消：`context.DeadlineExceeded` → 新错误码 `AGENT_PROVIDER_TIMEOUT`，客户端 cancel 仍为 `STREAM_CANCELLED`（wire 层可区分，UI 可降级而非视为中止）。
+- **可选真实 Provider smoke 命令**（`cmd/agent-smoke/main.go`，plan Step 3）：4 个用例（cited_search/no_evidence/injection/timeout_downgrade，问题镜像 fixture）经 `llm.NewProvider` 跑真实模型，输出 JSON 报告（model/provider、latency、usage、cost estimate（按模型前缀费率表估算，非记账，design §4.4）、定性输出与请求的工具名）；缺少 `agent.llm_api_key` 时输出阻塞信息并以退出码 1 结束，不进入 CI，不影响确定性单测。为此给 OpenAICompatProvider/QwenProvider 增加 `Model()` 访问器。
+- 测试基建修复：评测 seeding 发现 sqlite 内存库两个坑并规避——GORM `default:true` 标签在 Create 时把 `is_public=false` 改写为 true 且回写 struct（按 fixture 原始值无条件 UPDATE 修正）；`:memory:` 库按连接隔离（`SetMaxOpenConns(1)` 固定单连接）。
+
+### Testing:
+- TDD RED（对 Task 1+2+3 基线）：先写 `agent_evaluation_test.go` + 3 个修复测试，编译失败（`AgentErrorCodeProviderTimeout`/`ChatMessage.ToolCalls`/`ToolCallID`/`ToolCall.Index` 未定义）+ 3 个行为失败预期，退出码 1，红盘证据见会话记录。
+- 转绿：`go test ./internal/service -run TestAgentEvaluation -v` 12/12 用例 PASS（retrieval 4 + refusal 1 + visibility 2 + injection 1 + citations 1 + context 1 + publish 1 + downgrade 2），`TestAgentStreamAppendsAssistantToolCallMessageBeforeToolResults` / `TestAgentStreamAccumulatesStreamedToolCallFragmentsByIndex` / `TestAgentStreamPassesThroughProviderUsageTokens` PASS。
+- 门：`go test ./...`（18 ok）`go vet ./...` `go build ./...` 全绿；gofmt 仅本任务文件；未改 config/routes/迁移（doc-validator 无需运行）；smoke 缺密钥路径 `go run ./cmd/agent-smoke` → 阻塞信息 + 退出码 1 验证通过。
+- 调试过程记录的中间发现：GORM sqlite 的 bool default 回写与连接池隔离问题均在测试 harness 内规避（非产品代码缺陷）。
+
+### Notes:
+- 仓库默认 `agent.web_agent_enabled=false` 保持关闭（config.yaml 未改动）；真实 Provider 密钥缺失按阻塞处理，smoke 为 opt-in 手工命令。
+- 只勾选本计划 Task 5 的 5 个 checkbox；未触碰 Task 4/6、`frontend/**`、其他计划 checkbox 或历史账本；不 push、不合并，等待两阶段审查。
+- 遗留：Task 6 待做（浏览器 + 真实 provider smoke 发布验证，Task 6 Step 5 才能在部署配置开启功能）；`agent_stream.go` 中 tool 结果消息含 tool_call_id 的协议补齐已在 Task 5 完成，qwen provider 仍不支持工具广告（工具循环为 openai_compat 路径）。
+
 ## [2026-08-06] - GAP #19 Agent 工作台 /agent
 
 ### What was done:
@@ -48,7 +68,6 @@
 - 退出恢复语义（触发卡片焦点 + 页面滚动位置）由 #16 ContentDetailOverlay `finalizeClose` 统一实现，各入口零差异；同一导航栈/每层滚动记忆天然一致（同一组件实例）。
 - 范围外协调（记录不实现）：① Agent 引用卡片浮窗接线归 Web Agent Productization Task 4（见 AGENTS.md 注册表备注，本票未动）；② 其余内容卡片入口 `/user/[userId]`（讨论 tab 混入非内容卡片，需逐 tab 判定）、`/collections/[id]`、`/original/[contentId]/fanworks`、`/search`（本票明确禁止动搜索）仍保持整卡跳详情页，若"全站"口径需覆盖可开跟进票（每处仅需换成 OverlayMasonryGrid 一行改动）。
 - 顺带更新 `tests/content-discovery-visual-contracts.test.tsx` 第 104 行：home 由 `<MasonryGrid` 改断言 `/<OverlayMasonryGrid/`（契约保持"首页内容网格走浮窗接线"）。
-
 ## [2026-08-06] - Task 3: stabilize streaming API, budget reservation, and downgrade
 
 ### What was done:

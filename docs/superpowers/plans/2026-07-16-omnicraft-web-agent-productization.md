@@ -286,11 +286,11 @@ Update only Task 4 checkboxes and `progress.txt`, stage exact UI/translation/tes
 
 ## Task 5: Add Deterministic Agent Evaluation Gate
 
-- [ ] **Step 1: Build a fake Provider/tool harness**
+- [x] **Step 1: Build a fake Provider/tool harness**
 
 Fixtures must deterministically control model tool requests, streamed tokens, malformed citations, prompt injection, timeouts, and errors.
 
-- [ ] **Step 2: Implement evaluation assertions**
+- [x] **Step 2: Implement evaluation assertions**
 
 The test gate reports:
 
@@ -303,18 +303,18 @@ The test gate reports:
 
 Do not use a non-deterministic real model as the CI pass/fail oracle.
 
-- [ ] **Step 3: Add optional real-provider smoke command**
+- [x] **Step 3: Add optional real-provider smoke command**
 
 The opt-in smoke records model/provider, latency, token usage, cost estimate, and qualitative output for manual release evidence. Missing credentials block real-provider release verification but do not break deterministic unit CI.
 
-- [ ] **Step 4: Verify evaluation gate**
+- [x] **Step 4: Verify evaluation gate**
 
 ```bash
 cd backend
 go test ./internal/service -run TestAgentEvaluation -v
 ```
 
-- [ ] **Step 5: Checkpoint Task 5**
+- [x] **Step 5: Checkpoint Task 5**
 
 Update only Task 5 checkboxes and `progress.txt`, stage exact fixture/evaluation files, and commit `Web Agent 5: add deterministic evaluation gate`.
 
