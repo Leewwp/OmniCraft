@@ -2,7 +2,7 @@ import { getServerApiBase } from "@/lib/server-api";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from 'next-intl/server';
-import { MasonryGrid } from "@/components/content/MasonryGrid";
+import { OverlayMasonryGrid } from "@/components/content/OverlayMasonryGrid";
 import { ContentCardData } from "@/components/content/ContentCard";
 import { IPCategoryTabs } from "@/components/ip/IPCategoryTabs";
 import { getCategoryLabel } from "@/components/ip/ipCategory";
@@ -122,7 +122,7 @@ export default async function IPCategoryPage({
           <span className="text-xs text-muted-foreground">{t('common.pageNumber', { current: pageNum })}</span>
         </div>
 
-        <MasonryGrid items={contents} />
+        <OverlayMasonryGrid items={contents} source="ip-page" />
 
         <div className="flex items-center justify-end gap-2 pt-2">
           {pageNum > 1 ? (

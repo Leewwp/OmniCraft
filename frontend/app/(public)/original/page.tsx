@@ -1,7 +1,7 @@
 import { getServerApiBase } from "@/lib/server-api";
 import Link from "next/link";
 import { getTranslations } from 'next-intl/server';
-import { MasonryGrid } from "@/components/content/MasonryGrid";
+import { OverlayMasonryGrid } from "@/components/content/OverlayMasonryGrid";
 import { SortSelect } from "@/components/original/SortSelect";
 import { SidebarWrapper } from "@/components/original/OriginalSidebar";
 import { normalizeContentList } from "@/lib/content";
@@ -125,7 +125,7 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
 
         {/* Content masonry */}
         <div className="px-6 pt-4 pb-16">
-          <MasonryGrid items={contents} emptyText={t("home.noOriginalContent")} />
+          <OverlayMasonryGrid items={contents} emptyText={t("home.noOriginalContent")} source="zone-page" />
         </div>
       </div>
     </div>

@@ -2,6 +2,28 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+## [2026-08-06] - GAP #18 全站卡片入口统一接共享详情浮窗
+
+### What was done:
+- 新增 `frontend/components/content/OverlayMasonryGrid.tsx`（"use client"）：分区页/IP 页共用的瀑布流接线组件，持有 overlayEntry + 触发元素 ref，复用 #17 推荐页接线模式——`MasonryGrid` 传 `onOpenDetail` 进入卡片浮窗模式，条目点击打开共享 `ContentDetailOverlay`（`open` + `onOpenChange` 复位 + `returnFocusRef`），`key={zone:id}` 换内容重建栈。`source` 仅收 `"zone-page" | "ip-page"`，返回文案分别落 `contentDetailOverlay.backToZonePage` / `backToIpPage`（既有 key，未新增 i18n）。
+- 四处页面接线（无页面跳转，深链不变）：
+  - `components/home/HomePageClient.tsx`（二创 `/`）：`<MasonryGrid>` → `<OverlayMasonryGrid items={contents} emptyText={t("home.noOriginalContent")} source="zone-page" />`。
+  - `app/(public)/original/page.tsx`（原创 `/original`）：同上，`source="zone-page"`。
+  - `app/(public)/ip/[ipId]/page.tsx`（IP 详情）：`<OverlayMasonryGrid items={contents} source="ip-page" />`。
+  - `app/(public)/ip/[ipId]/[category]/page.tsx`（IP 类目内容列表，同 IP 详情面）：同上，`source="ip-page"`。
+- 未触碰：#16 浮窗本体、ContentCard 默认整卡 Link 模式、`/content/[contentId]` 与 `/original/[contentId]` 直达详情页（深链保留，含 fanwork 详情页 ContentDetailOverlayHost 关联浮窗能力）、Header、搜索页、后端、zh/en.json。
+
+### Testing:
+- TDD 红盘（2026-08-06，`cd frontend && node --import tsx --test tests/card-entry-overlay.test.tsx`）：先写 7 项测试，`ℹ tests 7 ℹ pass 0 ℹ fail 7`——ERR_MODULE_NOT_FOUND（OverlayMasonryGrid 未实现）+ 四页面源码契约断言失败（仍用 `<MasonryGrid>`），截图证据见下方；随后最小实现转绿 `pass 7 fail 0`。
+- `node scripts/run-tests.mjs unit`：219 tests / 219 pass / 0 fail（26 native + 193 typed，含 card-entry-overlay 7 项与 content-discovery-visual-contracts 1 项更新）。
+- `npm run lint`（tsc --noEmit）PASS；`npm run lint:ui` PASS（UI governance checks passed）；`npm run build` PASS（全部路由编译成功）。
+- 浏览器截图由编排方统一处理（未启动 dev server）。
+
+### Notes:
+- 退出恢复语义（触发卡片焦点 + 页面滚动位置）由 #16 ContentDetailOverlay `finalizeClose` 统一实现，各入口零差异；同一导航栈/每层滚动记忆天然一致（同一组件实例）。
+- 范围外协调（记录不实现）：① Agent 引用卡片浮窗接线归 Web Agent Productization Task 4（见 AGENTS.md 注册表备注，本票未动）；② 其余内容卡片入口 `/user/[userId]`（讨论 tab 混入非内容卡片，需逐 tab 判定）、`/collections/[id]`、`/original/[contentId]/fanworks`、`/search`（本票明确禁止动搜索）仍保持整卡跳详情页，若"全站"口径需覆盖可开跟进票（每处仅需换成 OverlayMasonryGrid 一行改动）。
+- 顺带更新 `tests/content-discovery-visual-contracts.test.tsx` 第 104 行：home 由 `<MasonryGrid` 改断言 `/<OverlayMasonryGrid/`（契约保持"首页内容网格走浮窗接线"）。
+
 ## [2026-08-06] - Task 3: stabilize streaming API, budget reservation, and downgrade
 
 ### What was done:

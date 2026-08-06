@@ -2,7 +2,7 @@ import { getServerApiBase } from "@/lib/server-api";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslations } from 'next-intl/server';
-import { MasonryGrid } from "@/components/content/MasonryGrid";
+import { OverlayMasonryGrid } from "@/components/content/OverlayMasonryGrid";
 import { ContentCardData } from "@/components/content/ContentCard";
 import { IPDetail } from "@/components/ip/IPDetail";
 import { RecordBrowseHistory } from "@/components/tracking/RecordBrowseHistory";
@@ -118,7 +118,7 @@ export default async function IPDetailPage({
       <IPDetail ip={ip} />
       <section className="space-y-3 rounded-md border border-border bg-card p-4 ">
         <h2 className="text-base font-semibold">{t('content.allContent')}</h2>
-        <MasonryGrid items={contents} />
+        <OverlayMasonryGrid items={contents} source="ip-page" />
       </section>
     </div>
   );
