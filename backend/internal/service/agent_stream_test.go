@@ -391,3 +391,180 @@ func TestAgentStreamUnknownToolNamesAreIgnoredWithStableDone(t *testing.T) {
 		t.Fatal("sanity")
 	}
 }
+
+// toolIndexPtr builds the streamed tool-call chunk index used by OpenAI-style
+// providers that fragment tool calls across deltas.
+func toolIndexPtr(v int) *int { return &v }
+
+// TestAgentStreamAppendsAssistantToolCallMessageBeforeToolResults locks the
+// OpenAI-compatible tool loop message order: every tool result message must be
+// preceded by the assistant message that requested the calls (with the
+// tool_calls payload), and each tool message carries the matching tool_call_id.
+// Strict providers reject tool messages that appear without the assistant
+// tool_calls message.
+func TestAgentStreamAppendsAssistantToolCallMessageBeforeToolResults(t *testing.T) {
+	provider := &streamToolProvider{rounds: [][]llm.ChatDelta{
+		{toolCallDelta("get_content_detail", `{"content_id": 88}`)},
+		{{Content: "final"}, {Done: true}},
+	}}
+	svc, _ := newStreamTestService(t, provider, nil)
+
+	var events []AgentStreamEvent
+	err := svc.ChatStream(
+		context.Background(),
+		7,
+		[]llm.ChatMessage{{Role: "user", Content: "hi"}},
+		resolveGlobalChatContext(t, svc, 7),
+		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
+	)
+	collectStreamEvents(t, err, &events)
+
+	if provider.calls != 2 {
+		t.Fatalf("provider calls = %d, want 2", provider.calls)
+	}
+	msgs := provider.lastReq.Messages
+	if len(msgs) < 2 {
+		t.Fatalf("second-round messages = %#v, want assistant tool_calls message + tool message", msgs)
+	}
+	assistant := msgs[len(msgs)-2]
+	toolMsg := msgs[len(msgs)-1]
+	if assistant.Role != "assistant" {
+		t.Fatalf("message before tool result = role %q, want assistant", assistant.Role)
+	}
+	if len(assistant.ToolCalls) != 1 || assistant.ToolCalls[0].Function.Name != "get_content_detail" {
+		t.Fatalf("assistant tool_calls = %#v, want the requested get_content_detail call", assistant.ToolCalls)
+	}
+	if toolMsg.Role != "tool" {
+		t.Fatalf("tool result message role = %q, want tool", toolMsg.Role)
+	}
+	if toolMsg.ToolCallID == "" || toolMsg.ToolCallID != assistant.ToolCalls[0].ID {
+		t.Fatalf("tool message tool_call_id = %q, want matching assistant call id %q", toolMsg.ToolCallID, assistant.ToolCalls[0].ID)
+	}
+}
+
+// TestAgentStreamAccumulatesStreamedToolCallFragmentsByIndex locks the
+// streaming tool-call assembly: OpenAI-style providers split one tool call into
+// indexed fragments (id+name in the first chunk, arguments across later
+// chunks). The service must assemble the fragments and only execute the call
+// once the provider round completes; executing each fragment as a standalone
+// call would run broken JSON arguments and fail with invalid_args.
+func TestAgentStreamAccumulatesStreamedToolCallFragmentsByIndex(t *testing.T) {
+	provider := &streamToolProvider{rounds: [][]llm.ChatDelta{
+		{
+			{ToolCalls: []llm.ToolCall{{Index: toolIndexPtr(0), ID: "call_1", Type: "function", Function: struct {
+				Name      string `json:"name"`
+				Arguments string `json:"arguments"`
+			}{Name: "get_content_detail", Arguments: `{"content_id"`}}}},
+			{ToolCalls: []llm.ToolCall{{Index: toolIndexPtr(0), Function: struct {
+				Name      string `json:"name"`
+				Arguments string `json:"arguments"`
+			}{Arguments: ": 88"}}}},
+			{ToolCalls: []llm.ToolCall{{Index: toolIndexPtr(0), Function: struct {
+				Name      string `json:"name"`
+				Arguments string `json:"arguments"`
+			}{Arguments: "}"}}}},
+		},
+		{{Content: "About Published Test Content"}, {Done: true}},
+	}}
+	svc, _ := newStreamTestService(t, provider, nil)
+
+	var events []AgentStreamEvent
+	err := svc.ChatStream(
+		context.Background(),
+		7,
+		[]llm.ChatMessage{{Role: "user", Content: "what is this"}},
+		resolveGlobalChatContext(t, svc, 7),
+		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
+	)
+	collectStreamEvents(t, err, &events)
+
+	if provider.calls != 2 {
+		t.Fatalf("provider calls = %d, want 2 (fragments must be assembled into one call before execution)", provider.calls)
+	}
+	toolExecutions, citations, kind := 0, 0, ""
+	for _, ev := range events {
+		switch ev.Type {
+		case AgentEventToolStatus:
+			toolExecutions++
+			if ev.Tool == nil || ev.Tool.Status != AgentToolStatusSuccess {
+				t.Fatalf("streamed tool call executed as %#v, want one success", ev.Tool)
+			}
+		case AgentEventCitation:
+			citations++
+			if ev.Citation == nil || ev.Citation.ContentID != 88 {
+				t.Fatalf("citation = %#v, want content 88 from assembled arguments", ev.Citation)
+			}
+		case AgentEventDone:
+			kind = string(ev.AnswerKind)
+		}
+	}
+	if toolExecutions != 1 {
+		t.Fatalf("tool executions = %d, want exactly 1 assembled call", toolExecutions)
+	}
+	if citations != 1 {
+		t.Fatalf("citations = %d, want 1 for valid assembled arguments", citations)
+	}
+	if kind != "grounded_content" {
+		t.Fatalf("answer_kind = %q, want grounded_content", kind)
+	}
+
+	// The reassembled call must be replayed without the stream-only index
+	// fragment marker: strict OpenAI-compatible providers reject `index` on
+	// non-streaming assistant messages.
+	var assistantMsg llm.ChatMessage
+	for _, msg := range provider.lastReq.Messages {
+		if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
+			assistantMsg = msg
+			break
+		}
+	}
+	if assistantMsg.Role != "assistant" || len(assistantMsg.ToolCalls) != 1 {
+		t.Fatalf("provider request messages = %#v, want an assistant message carrying the assembled tool call", provider.lastReq.Messages)
+	}
+	if assistantMsg.ToolCalls[0].Index != nil {
+		t.Fatalf("replayed tool call carries stream-only Index = %#v, want nil", assistantMsg.ToolCalls[0].Index)
+	}
+}
+
+// TestAgentStreamPassesThroughProviderUsageTokens locks usage passthrough:
+// the usage event and the done event must carry the provider-observed token
+// counts instead of a hardcoded zero.
+func TestAgentStreamPassesThroughProviderUsageTokens(t *testing.T) {
+	provider := &streamToolProvider{rounds: [][]llm.ChatDelta{
+		{{Content: "first "},
+			{Content: "answer", Done: true, Usage: &llm.TokenUsage{PromptTokens: 120, CompletionTokens: 300}}},
+	}}
+	svc, _ := newStreamTestService(t, provider, nil)
+
+	var events []AgentStreamEvent
+	err := svc.ChatStream(
+		context.Background(),
+		7,
+		[]llm.ChatMessage{{Role: "user", Content: "hi"}},
+		resolveGlobalChatContext(t, svc, 7),
+		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
+	)
+	collectStreamEvents(t, err, &events)
+
+	var usageEvent, doneEvent *AgentStreamEvent
+	for i := range events {
+		switch events[i].Type {
+		case AgentEventUsage:
+			usageEvent = &events[i]
+		case AgentEventDone:
+			doneEvent = &events[i]
+		}
+	}
+	if usageEvent == nil || usageEvent.Usage == nil {
+		t.Fatalf("usage event missing in %#v", events)
+	}
+	if usageEvent.Usage.PromptTokens != 120 || usageEvent.Usage.CompletionTokens != 300 {
+		t.Fatalf("usage event tokens = %#v, want provider {120, 300}", usageEvent.Usage)
+	}
+	if doneEvent == nil || doneEvent.Usage == nil {
+		t.Fatalf("done event missing provider usage in %#v", events)
+	}
+	if doneEvent.Usage.PromptTokens != 120 || doneEvent.Usage.CompletionTokens != 300 {
+		t.Fatalf("done usage tokens = %#v, want provider {120, 300}", doneEvent.Usage)
+	}
+}
