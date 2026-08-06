@@ -12,6 +12,11 @@ interface AuthorInfo {
   bio?: string;
 }
 
+export interface RelatedContentEntry {
+  id: number;
+  zone: "original" | "fanwork";
+}
+
 interface ContentSidebarProps {
   author?: AuthorInfo;
   authorStats?: {
@@ -26,6 +31,7 @@ interface ContentSidebarProps {
   relatedFanworksCount?: number;
   originalId?: number;
   zone?: string;
+  onOpenRelated?: (entry: RelatedContentEntry, trigger: HTMLElement) => void;
 }
 
 export function ContentSidebar({
@@ -38,10 +44,40 @@ export function ContentSidebar({
   relatedFanworksCount,
   originalId,
   zone,
+  onOpenRelated,
 }: ContentSidebarProps) {
   const t = useTranslations();
   const isFanwork = zone === "fanwork";
   const isOriginal = zone === "original";
+
+  const sourceOriginalTrigger =
+    sourceOriginal && sourceOriginal.title ? (
+      <div className="mt-3 border-t border-border/50 pt-3">
+        {onOpenRelated ? (
+          <button
+            type="button"
+            onClick={(event) =>
+              onOpenRelated({ id: sourceOriginal.id, zone: "original" }, event.currentTarget)
+            }
+            className="inline-flex max-w-full items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-accent-emphasis focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span className="truncate">
+              {t('content.sourceOriginalLabel')}：{sourceOriginal.title.slice(0, 20)}
+              {sourceOriginal.title.length > 20 ? "…" : ""}
+            </span>
+          </button>
+        ) : (
+          <Link
+            href={`/original/${sourceOriginal.id}`}
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-accent-emphasis"
+          >
+            <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+            {t('content.sourceOriginalLabel')}：{sourceOriginal.title.slice(0, 20)}{sourceOriginal.title.length > 20 ? "…" : ""}
+          </Link>
+        )}
+      </div>
+    ) : null;
 
   return (
     <aside className="w-[280px] flex-shrink-0 hidden lg:block">
@@ -120,18 +156,19 @@ export function ContentSidebar({
               </Link>
             )}
 
-            {/* Source original — subtle secondary link */}
-            {sourceOriginal && sourceOriginal.title && (
-              <div className="mt-3 border-t border-border/50 pt-3">
-                <Link
-                  href={`/original/${sourceOriginal.id}`}
-                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-accent-emphasis"
-                >
-                  <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-                  {t('content.sourceOriginalLabel')}：{sourceOriginal.title.slice(0, 20)}{sourceOriginal.title.length > 20 ? "…" : ""}
-                </Link>
-              </div>
-            )}
+            {/* Source original — subtle secondary link; overlay host turns it into a floating-detail trigger */}
+            {sourceOriginalTrigger}
+          </div>
+        )}
+
+        {/* Source original outside the IP card — rendered standalone when the API does not
+            provide a nested `ip` object (ip_id only), keeping the overlay trigger reachable. */}
+        {sourceOriginalTrigger && !(isFanwork && ip?.name) && (
+          <div className="rounded-lg border border-border/60 bg-card p-5 shadow-[var(--elevation-1)] transition-[border-color,box-shadow] hover:border-border hover:shadow-[var(--elevation-2)]">
+            <div className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              {t('content.sourceOriginalLabel')}
+            </div>
+            {sourceOriginalTrigger}
           </div>
         )}
 

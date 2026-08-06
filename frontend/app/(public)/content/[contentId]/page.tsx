@@ -2,9 +2,7 @@ import { getServerApiBase } from "@/lib/server-api";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslations } from 'next-intl/server';
-import { ContentDetail } from "@/components/content/ContentDetail";
-import { ContentSidebar } from "@/components/content/ContentSidebar";
-import { VersionHistory } from "@/components/content/VersionHistory";
+import { ContentDetailOverlayHost } from "@/components/content/ContentDetailOverlayHost";
 import { normalizeContentDetailResponse } from "@/lib/content";
 
 interface ContentItem {
@@ -79,27 +77,16 @@ export default async function FanworkContentDetailPage({ params }: { params: Pro
   if (content.zone === "original") notFound();
 
   const tags = normalized.tags;
-  const zone = content.zone || "fanwork";
+  const zone: "fanwork" = "fanwork";
   const sourceOriginal = data.source_original || (content.source_original_id ? { id: content.source_original_id, title: "" } : null);
 
   return (
-    <div className="mx-auto flex w-full max-w-[1280px] gap-6 px-6 py-6">
-      {/* Main content area */}
-      <div className="flex-1 min-w-0">
-        <ContentDetail
-          data={{ ...content, attachments: normalized.attachments, tags }}
-        />
-        {zone === "fanwork" && <VersionHistory contentId={content.id} />}
-      </div>
-
-      {/* Right sidebar */}
-      <ContentSidebar
-        author={content.author ? { id: content.author.id, username: content.author.username } : undefined}
-        authorStats={undefined}
-        zone={zone}
-        ip={content.ip?.name ? content.ip : undefined}
-        sourceOriginal={sourceOriginal}
-      />
-    </div>
+    <ContentDetailOverlayHost
+      content={{ ...content, attachments: normalized.attachments, tags }}
+      zone={zone}
+      author={content.author ? { id: content.author.id, username: content.author.username } : undefined}
+      ip={content.ip?.name ? content.ip : undefined}
+      sourceOriginal={sourceOriginal}
+    />
   );
 }
