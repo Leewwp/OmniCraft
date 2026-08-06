@@ -17,7 +17,7 @@
 | Redis | 7+ | — |
 | Rust | 1.75+ | 仅 Tauri 客户端需要 |
 
-CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致。CI 精确固定 Go 1.25.11 / Node 20（见 `.github/workflows/ci.yml` 与 `tauri-ci.yml`），本地只需满足上表最低版本；二者不等价。
+CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致。CI 精确固定 Go 1.25.12 / Node 20（见 `.github/workflows/ci.yml` 与 `tauri-ci.yml`），本地只需满足上表最低版本；二者不等价。
 
 ---
 
@@ -27,7 +27,7 @@ CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致
 
 | 优先级 | 计划文件 | 余项 | 车道 | 备注 |
 |--------|----------|------|------|------|
-| 2 | `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md` | 40（其中 9 项桌面暂缓） | heavy | Ops-00、Ops-01、Ops-02、Ops-03、Ops-04 已完成；Ops-04 经 alert 契约测试、promtool/amtool、真实 firing/resolved drill（in-network alert-sink）与真实 Healthchecks.io missing-heartbeat down-flip 验证（待审查合并），Web 发布路径下一任务为 Ops-05，之后继续 Ops-06~Ops-08。2026-08-03 起计划内脚本统一为 bash（`.sh`），本地与 CI 均用 `bash <path>` 调用，不再引用 `.ps1`/pwsh。桌面制品 Ops-09 随桌面范围暂缓，不得复制或绕过桌面安全任务 |
+| 2 | `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md` | 30（其中 9 项桌面暂缓） | heavy | Ops-00～Ops-05 已完成；Ops-04 经 alert 契约测试、promtool/amtool、真实 firing/resolved drill（in-network alert-sink）与真实 Healthchecks.io missing-heartbeat down-flip 验证（待审查合并）；Ops-05 经策略/例外/action-pin 契约测试、夹具失败隔离、默认项目门与 filesystem/IaC/image 全量扫描验证（待审查合并），Web 发布路径下一任务为 Ops-06，之后继续 Ops-07~Ops-08。2026-08-03 起计划内脚本统一为 bash（`.sh`），本地与 CI 均用 `bash <path>` 调用，不再引用 `.ps1`/pwsh。桌面制品 Ops-09 随桌面范围暂缓，不得复制或绕过桌面安全任务 |
 | 3 | `docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md` | 64 | light | 未开始；迁移编号已修正为 `061_add_source_fanwork_id.sql`（`060` 已被 `060_fix_search_config_fallback.sql` 占用）。与 collaboration-invites 共享 `content_repo.go`、`zh.json`/`en.json`，须串行执行且本计划先合并 |
 | 3 | `docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md` | 62 | light | 未开始；迁移编号已修正为 `063_collaboration_invites.sql`（`060` 被占用、`062` 已存在）。须在 source-linkage 合并后执行（共享文件串行），其 `config.go`/`config.yaml`/`routes.go` 改动与 Web Agent 计划串行 |
 | 4 | `docs/superpowers/plans/2026-07-16-omnicraft-web-agent-productization.md` | 47 | mixed | 未开始；前端 Task 4 的 P-01→U-01→U-02B→U-03 等待条件已于 2026-08-02 满足（P-01 获批、U-01/U-02B/U-03 完成），Task 4 仍需等待本计划 Task 1~3 与三缺口 #19（生产 `/agent` 工作台由三缺口先行落地，见 `docs/working/2026-08-04-content-discovery-gap-plan.md`）；引用浮层接线由 Task 4 衔接三缺口 #16/#18，旧 Widget 移除仍由 Task 4 独占；真实 Provider 密钥缺失时按阻塞处理，仓库默认开关保持关闭 |

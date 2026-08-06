@@ -1,0 +1,25 @@
+# OmniCraft gitleaks allowlist.
+# Extends the default rules with path-scoped exemptions for historical
+# test fixtures and documentation examples that match generic secret
+# patterns but contain no real credentials. Every entry is a reviewed
+# exemption equivalent to a security-policy decision: do not add new
+# paths here without review (see security/scan-policy.json).
+title = "OmniCraft gitleaks allowlist"
+
+[extend]
+useDefault = true
+
+[allowlist]
+# Each path below is allowlisted because matches occur only in test
+# fixtures, documentation examples or template constants. The current
+# working tree is verified clean by scripts/security/verify-security.sh.
+paths = [
+  # backend config tests use fake hex secrets as test values
+  "backend/config/config_test.go",
+  # archived plan document uses a fake secret placeholder in an example
+  "docs/superpowers/plans/2026-06-08-omnicraft-release-gates-config-hardening.md",
+  # web-video-presentation template constant that resembles a token
+  ".agents/skills/web-video-presentation/templates/src/hooks/useStepper.ts",
+  # dev-only seed script historically contained a demo JWT (removed from the current tree)
+  "scripts/seed-test-data.sh",
+]

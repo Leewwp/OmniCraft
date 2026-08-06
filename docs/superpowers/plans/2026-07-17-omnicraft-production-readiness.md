@@ -8,7 +8,7 @@
 
 **Architecture:** GitHub Actions 只编排仓库内可本地复现的 verifier；数据库使用 forward-only ledger；发布使用不可变 digest、机器可读证据和 staging 演练。当前 Web 主线由 Ops-00～Ops-08 串联；Ops-09 保留为恢复 Desktop 范围后的扩展。外部密钥缺失不能削弱 deterministic gates。
 
-**Tech Stack:** GitHub Actions、bash 脚本（本地与 CI 均使用仓库 `bash scripts/*.sh` 入口；2026-08-03 起由 PowerShell 移植，历史 `.ps1` 不再使用）、Go 1.25.11、Node.js 20、npm、PostgreSQL 16 + pgvector、Redis 7、Docker Compose、Prometheus/Alertmanager、Grafana Alloy/Loki、Trivy/gitleaks/govulncheck/cargo-audit、CycloneDX/SPDX、k6、Tauri 2、Windows Authenticode。
+**Tech Stack:** GitHub Actions、bash 脚本（本地与 CI 均使用仓库 `bash scripts/*.sh` 入口；2026-08-03 起由 PowerShell 移植，历史 `.ps1` 不再使用）、Go 1.25.12、Node.js 20、npm、PostgreSQL 16 + pgvector、Redis 7、Docker Compose、Prometheus/Alertmanager、Grafana Alloy/Loki、Trivy/gitleaks/govulncheck/cargo-audit、CycloneDX/SPDX、k6、Tauri 2、Windows Authenticode。
 
 **Design input:** `docs/superpowers/specs/2026-07-17-omnicraft-production-readiness-design.md`
 
@@ -16,7 +16,7 @@
 
 ## Status, authority, and universal rules
 
-**Status:** Ops-00 completed at `9ea53c8`; Ops-01 completed by CI commit `7f34191` and evidence/branch-protection closeout `4cba1da`; Ops-02 completed on `codex/ops/ops-02` after two-axis review, final-commit-bound local evidence and PR #21 PostgreSQL migration/contract/project gates; Ops-03 completed on `codex/ops/ops-03` after contract tests, a real observability drill and the default project gate (pending review/merge); Ops-04 completed on `codex/ops/ops-04` after contract tests, promtool/amtool validation, a real firing/resolved alert drill with the in-network alert-sink and a real Healthchecks.io missing-heartbeat down-flip (pending review/merge); Ops-05～Ops-08 have not started; Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
+**Status:** Ops-00 completed at `9ea53c8`; Ops-01 completed by CI commit `7f34191` and evidence/branch-protection closeout `4cba1da`; Ops-02 completed on `codex/ops/ops-02` after two-axis review, final-commit-bound local evidence and PR #21 PostgreSQL migration/contract/project gates; Ops-03 completed on `codex/ops/ops-03` after contract tests, a real observability drill and the default project gate (pending review/merge); Ops-04 completed on `codex/ops/ops-04` after contract tests, promtool/amtool validation, a real firing/resolved alert drill with the in-network alert-sink and a real Healthchecks.io missing-heartbeat down-flip (pending review/merge); Ops-05 completed on `codex/ops/ops-05` after policy/exception/pinned-action contract tests, fixture failure isolation, the default project gate and the full filesystem/IaC/image scan set (pending review/merge); Ops-06～Ops-08 have not started; Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
 
 - This plan is not Hardening Task 6 and must never add one.
 - Do not modify `task.json`, Beta/community checkboxes, or Web Agent completion state.
@@ -555,19 +555,19 @@ The script runs pinned `promtool`/Alertmanager config checks and contract tests.
 - Modify: `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md`
 - Modify: `progress.txt`
 
-- [ ] **Step 1: Write failing policy/exception/action-pin tests**
+- [x] **Step 1: Write failing policy/exception/action-pin tests**
 
 Reject floating actions, write-all permissions, missing scan categories, malformed exceptions, missing affected version/digest, compensating control, author, independent human approver, commit-bound `approval_ref`, approval date or expiry, and expired exceptions. The reference must identify a concrete commit plus GitHub PR review or protected-environment approval event; an issue/comment URL alone is insufficient because it is mutable. Release validation uses GitHub API identity to prove the approver is a current authorized repository human owner, differs from author, approved that commit, and has not been dismissed/revoked. In a single-human-owner repository no High exception can pass until a second eligible human approver is configured. Secret findings and release Critical vulnerabilities are non-waivable; High exceptions require explicit user approval.
 
-- [ ] **Step 2: Implement local security verifier**
+- [x] **Step 2: Implement local security verifier**
 
 Run pinned govulncheck; npm audit policy separately for `frontend/package-lock.json` and `tauri-client/package-lock.json`; cargo audit; gitleaks against both the checked-out tree and reachable Git history; and Trivy filesystem/IaC/container-image scans. Each child failure propagates nonzero; reports are written before exit.
 
-- [ ] **Step 3: Implement scheduled/PR workflow**
+- [x] **Step 3: Implement scheduled/PR workflow**
 
 Use least privilege, dependency caches and artifact upload. Expose the stable aggregate job name `security-gate`; after the workflow exists and passes, add it to `main` required checks and export the protection state as evidence. Do not download untrusted PR code and then expose privileged secrets.
 
-- [ ] **Step 4: Prove failure behavior**
+- [x] **Step 4: Prove failure behavior**
 
 Use test fixtures containing a fake secret pattern, expired exception and vulnerable fixture lockfile; each must fail only its intended gate.
 
@@ -583,6 +583,18 @@ bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -
 **Acceptance evidence:** SARIF/JSON reports, workflow URLs, fixture failures, zero expired exceptions, pinned-tool manifest, filesystem/IaC/container-image report set, `artifacts/ops-05/summary.json`.  
 **Release blocker:** secret hit, any release Critical vulnerability, any High vulnerability without a currently valid independent exception, expired/revoked exception, floating action/tool, or scan failure hidden with continue-on-error/`|| true`.  
 **Commit:** `Ops 05: add continuous security scanning`
+
+> 2026-08-06 完成（`codex/ops/ops-05`，审查合并前视为 pending）。实施中的保留区扩展（基线扫描暴露、为通过门必须修复，记录于此）：
+>
+> - `tauri-client/src-tauri/Cargo.lock`：`cargo audit` 检出 5 个 High（RUSTSEC-2026-0194/0195 quick-xml <0.41、RUSTSEC-2026-0185 quinn-proto <0.11.15）；升级 `plist 1.10.0`（携带 quick-xml 0.41.0）、`tauri-winrt-notification 0.7.3`（移除 quick-xml 0.37.5）、`quinn-proto 0.11.16` 后归零。有效 MSRV 由 plist 1.10.0 提升至 Rust 1.88（CI windows-latest 稳定版满足；桌面范围暂缓期间无本地构建门）。
+> - `frontend/package.json` + `package-lock.json`：`npm audit` 检出 1 Critical（tar）+ 9 High（next 链）；`next 16.2.7→16.3.0`、`overrides.next.postcss 8.5.15→8.5.25` 后归零。
+> - `tauri-client/package-lock.json`：`npm audit` 检出 vite/postcss High；`npm audit fix`（vite 6.x 补丁版）后归零，`package.json` 未改。
+> - `backend/go.mod` + `go.sum`：Trivy 检出 pgx/v5 CRITICAL CVE-2026-33815/33816；`v5.6.0→v5.9.0` 后归零（govulncheck 未报告，属 DB 滞后差异）。
+> - `backend/Dockerfile`、`ops/observability/gate/Dockerfile`：Trivy IaC DS002（root 运行）High；补 `USER` 非 root 用户后归零（backend 同时 chown `/app/evidence`、`/var/lib/omnicraft/metrics`）。
+> - 新建 `.gitleaks.toml`：gitleaks 全历史扫描对 4 个测试夹具/文档示例路径（config_test.go、归档计划文档、useStepper 模板常量、seed 脚本历史 demo JWT）产生 generic-api-key/jwt 误报；以路径级 allowlist 豁免，当前工作树验证为 0 命中。
+> - 扫描实施约定：各工具门只报告原始 JSON 报告，**唯一判定点**为 `security-verdict.json`（policy 门 + 例外匹配），保证 High 例外机制可用；工具级错误（无有效 JSON）仍使门失败。gitleaks 命中视为 secret、不可豁免，门直接失败。
+> - 审查整改（2026-08-06，code-review 两轴修复后 amend 同一 commit）：cargo-audit 未安装时容器内首次自动 `cargo install --locked`（命名卷缓存，干净 runner 可复现）；policy 门 event URL 校验收紧为 schema 同款正则（拒绝 issue/comment URL）；移除 advisory-db `git pull` 的 `|| true` 静默；移除无用 `TOOL_VERSIONS` 变量；`security-gate` job 名匹配收紧为整行键。
+> - 明确延后项（不在本 commit 承诺）：**GitHub API 身份校验**（批准人是当前授权 human owner、与 author 不同、对该 commit 批准、未被 dismiss/revoke）属 release 门操作，计划于 Ops-08 preflight/release 门接入 GitHub API 时执行，Ops-05 仅保证 `approval_ref` 结构契约；`security-gate` 加入 main required checks 与分支保护状态导出在 workflow 合入 main 并通过后执行（合并前无法配置）。CI 中 verifier 使用 `-ReportDir artifacts/security`（非 `ops-05`），本地 Ops 证据仍按本计划使用 `artifacts/ops-XX`。
 
 ---
 

@@ -293,6 +293,7 @@ const testRouter = {
   back() {},
   forward() {},
   prefetch() {},
+  bfcacheId: "test-bfcache",
   push() {},
   refresh() {},
   replace() {},

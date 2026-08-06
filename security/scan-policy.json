@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "categories": [
+    "go_dependencies",
+    "frontend_npm",
+    "tauri_npm",
+    "rust_dependencies",
+    "secrets",
+    "filesystem",
+    "iac",
+    "container_images"
+  ],
+  "npm_registry": "https://registry.npmjs.org",
+  "fail_on_severities": ["high", "critical"],
+  "non_waivable": ["secret", "critical"],
+  "high_exceptions_enabled": false,
+  "high_exception_notes": "Single-human-owner repository: no High exception can pass until a second eligible human approver is configured, an approved exception record exists in security/exceptions.json, and this flag is flipped to true by an explicit review.",
+  "pinned_tools": "security/pinned-tools.json",
+  "secret_allowlist": ".gitleaks.toml",
+  "scan_triggers": {
+    "pull_request": true,
+    "push_main": true,
+    "schedule": "0 6 * * *"
+  }
+}

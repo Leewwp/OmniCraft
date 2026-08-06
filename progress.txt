@@ -155,6 +155,31 @@
 ### Notes:
 - 分支 `web/gap-15-ui-spec`（基于 main@04e6c13），worktree `/private/tmp/OmniCraft-w15`；未推送，待 code-review 后提交 PR。
 - 三缺口执行顺序：#15 → #16（浮窗底座）→ #17/#18/#19；`opencode/p01-ui-prototype` 分支按用户指示保留（Web Agent 开发可能复用）。
+
+## [2026-08-06] - Task Ops-05: 持续安全扫描与例外治理
+
+### What was done:
+- 新增 `.github/workflows/security.yml`（PR/push main/每日 06:00 定时/workflow_dispatch，稳定聚合 job `security-gate`，`contents: read` 最小权限，SHA 固定 actions，无 production secrets，`if: always()` 上传证据）与 `.github/dependabot.yml`（gomod/npm×2/cargo/github-actions 每周更新）。
+- 新增 `security/scan-policy.json`（8 个扫描类别、fail_on high/critical、non_waivable secret/critical、`high_exceptions_enabled: false`——单人仓库未配置第二位合格 human owner 前 High 例外不可通过）、`security/exceptions.schema.json`（approval_ref 必须 commit 40-hex + GitHub PR review/protected-environment URL，issue URL 视为可篡改拒绝）、`security/exceptions.json`（空账本）、`security/pinned-tools.json`（govulncheck 1.1.4、gitleaks 8.18.4、trivy 0.57.1、rust 1.85.1、cargo-audit 0.22.1，全部模块版本/镜像 digest 固定）。
+- 新增 `scripts/security/verify-security.sh`（policy→secrets→go→npm→cargo→trivy-fs/config/image 门 + 唯一判定点 `security-verdict.json`；工具门只产出原始 JSON 报告，例外匹配统一在 verdict，保证 High 例外机制可用；gitleaks 命中视为 secret 不可豁免；trivy image 需 `-BuildImages` 并挂载 docker.sock）与 `verify-pinned-actions.sh`（uses 必须 40-hex SHA/digest 固定、禁 write-all、security.yml 必须含 `security-gate` 且禁 continue-on-error/`|| true`）。
+- 新增 `scripts/security/verify-security.tests.sh` 与 `verify-pinned-actions.tests.sh` 合约测试：伪造 AWS 密钥 fixture 只失败 gitleaks 门、lodash 4.17.15 脆弱 lockfile 只失败 npm 门、过期/批准人=作者/issue-URL/secret 例外与缺失类别只失败 policy 门（隔离性逐一断言）。
+- 基线修复（扫描暴露、为通过门必须处理；超出 Ops-05 保留区的文件已在本计划记录）：`tauri-client/src-tauri/Cargo.lock` 升级 plist 1.10.0（quick-xml 0.41.0）、tauri-winrt-notification 0.7.3、quinn-proto 0.11.16 清零 5 个 RUSTSEC High（有效 MSRV → Rust 1.88）；`frontend/package.json` next 16.2.7→16.3.0、overrides.postcss 8.5.25 清零 1 Critical+9 High；`tauri-client/package-lock.json` vite 补丁版清零 2 High；`backend/go.mod` pgx v5.6.0→v5.9.0 清零 CVE-2026-33815/33816 Critical（govulncheck DB 滞后未报告，Trivy 检出）；`backend/Dockerfile`、`ops/observability/gate/Dockerfile` 补非 root USER（DS002）+ alpine 3.19→3.23 + builder golang 1.25.12（CVE-2026-39822 stdlib、CVE-2026-40200 musl）；`frontend/Dockerfile` runner 移除 npm CLI（其捆绑 brace-expansion/tar 等 18 个 High/Critical 来自 node 基础镜像）+ `apk upgrade`（openssl 3.5.7）；`pgbouncer/Dockerfile` alpine 3.23；CI/AGENTS.md/README/计划 Go 1.25.11→1.25.12 同步。
+- 新增 `.gitleaks.toml` 路径级 allowlist（4 个历史测试夹具/文档示例路径的 generic-api-key/jwt 误报；当前工作树 0 命中）；next 16.3.0 新增 `bfcacheId` 字段导致的 4 个测试 router mock 补 `bfcacheId: "test-bfcache"`。
+- README 新增「8. 持续安全扫描」；计划 Ops-05 四个 step 勾选、Status 更新并记录保留区扩展。
+
+### Testing:
+- TDD RED：`verify-security.tests.sh`/`verify-pinned-actions.tests.sh` 初始不存在（exit 127），夹具逐一红转绿；`verify-pinned-actions` 8 项 + `verify-security` 12 项合约测试全绿。
+- 完整门：`verify-pinned-actions.sh` OK；`verify-security.sh -BuildImages -ReportDir artifacts/ops-05` 九门全零（policy/secrets/go/npm/cargo/trivy-fs/trivy-config/trivy-image/verdict），无 blocked finding；`security-verdict.json` 空 findings。
+- `bash scripts/verify-project.sh -ReportDir artifacts/ops-05` PASS（Go test/vet/build 30 包、前端 157/157 单测、tsc lint、UI governance、Next.js 16.3.0 生产 build、doc-validator release profile）。
+- 前端镜像 smoke：`omnicraft-frontend:latest` 起容器 HTTP 200；`apk upgrade`+去 npm 后 trivy image 0 漏洞。
+- `bash scripts/ci/verify-workflows.tests.sh` PASS（Go 版本变更后契约不变）。
+
+### Notes:
+- Ops-05 分支原基于 Ops-04 审查前提交 `f4c7b10`；Ops-04 审查整改提交由并行会话改写为 `244779d`，Ops-04 合入 main（`ddaf0a4`，含 llm 语义合并）后，Ops-05 已 rebase 到新 main 并解决共享文件冲突（保留我方 go-version/安全文件，吸收对方 Ops-04 整改），待审查合并。
+- `security-gate` 加入 main required checks 与分支保护导出：workflow 合入 main 且通过后执行（当前无法在合并前配置）。
+- 本地容器无法直连 github.com（容器 egress 限制），cargo audit 自动回退 host 侧 advisory-db 克隆（`~/.cache/omnicraft/cargo-advisory-db`）并以 `--db --no-fetch` 重试，扫描结果与 CI 等价；CI runner 走容器内直接拉取。
+- 桌面范围暂缓：Cargo.lock MSRV 升至 1.88 不影响当前 Web 发布路径，CI windows-latest 稳定版满足。
+
 ## [2026-08-04] - Task REVIEW-REMEDIATION: main / P-01 审查整改
 
 ### What was done:

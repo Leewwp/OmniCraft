@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OmniCraft security exception ledger entry",
+  "description": "Machine-readable exception ledger for security scan findings. Secret findings and release Critical vulnerabilities are non-waivable; only High findings may be recorded here, each requiring an independent human approver and a commit-bound approval reference. In a single-human-owner repository no High exception can pass (see security/scan-policy.json).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "exceptions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "exceptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "vulnerability_id",
+          "affected_component",
+          "affected_version",
+          "severity",
+          "risk_description",
+          "compensating_controls",
+          "author",
+          "approver",
+          "approval_date",
+          "expiry_date",
+          "approval_ref",
+          "status"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "vulnerability_id": { "type": "string", "minLength": 1 },
+          "affected_component": { "type": "string", "minLength": 1 },
+          "affected_version": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact affected version, or a version range string from the scan report"
+          },
+          "severity": {
+            "enum": ["high"],
+            "description": "Only High is waivable; secret/critical findings are non-waivable"
+          },
+          "risk_description": { "type": "string", "minLength": 1 },
+          "compensating_controls": { "type": "string", "minLength": 1 },
+          "author": { "type": "string", "minLength": 1 },
+          "approver": {
+            "type": "string",
+            "minLength": 1,
+            "description": "GitHub login of an independent human approver; must differ from author"
+          },
+          "approval_date": { "type": "string", "format": "date" },
+          "expiry_date": { "type": "string", "format": "date" },
+          "approval_ref": {
+            "type": "object",
+            "description": "Immutable reference binding the approval to a concrete commit plus a GitHub PR review or protected-environment approval event. An issue/comment URL alone is mutable and insufficient.",
+            "required": ["commit", "event"],
+            "properties": {
+              "commit": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "event": {
+                "type": "string",
+                "pattern": "^https://github\\.com/[^/]+/[^/]+/(pull/[0-9]+/(review|reviews)|environments/[^/]+)$"
+              }
+            }
+          },
+          "status": {
+            "enum": ["active", "revoked"]
+          }
+        }
+      }
+    }
+  }
+}
