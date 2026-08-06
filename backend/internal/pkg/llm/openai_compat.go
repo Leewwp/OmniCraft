@@ -66,6 +66,10 @@ type openAIResponse struct {
 	} `json:"usage"`
 }
 
+// Model reports the configured chat model (used by the opt-in agent-smoke
+// release-evidence command).
+func (p *OpenAICompatProvider) Model() string { return p.model }
+
 func (p *OpenAICompatProvider) doPost(ctx context.Context, path string, body interface{}) (*http.Response, error) {
 	b, err := json.Marshal(body)
 	if err != nil {

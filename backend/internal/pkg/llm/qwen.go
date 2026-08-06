@@ -39,6 +39,10 @@ func NewQwenProvider(apiKey, model, embedModel string, opts ...ProviderOption) *
 	}
 }
 
+// Model reports the configured chat model (used by the opt-in agent-smoke
+// release-evidence command).
+func (p *QwenProvider) Model() string { return p.model }
+
 func (p *QwenProvider) doPost(ctx context.Context, path string, body interface{}) (*http.Response, error) {
 	b, err := json.Marshal(body)
 	if err != nil {
