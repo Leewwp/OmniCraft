@@ -16,6 +16,7 @@
     "submitting": "Submitting...",
     "operationFailed": "Operation failed",
     "rateLimited": "Too many attempts. Please try again later.",
+    "endReached": "You've reached the end",
     "retry": "Retry",
     "back": "Back",
     "next": "Next page",
@@ -45,6 +46,7 @@
   },
   "nav": {
     "siteName": "OmniCraft",
+    "recommend": "Recommended",
     "fanworkZone": "Fan Creation Zone",
     "originalZone": "Original Zone",
     "themeSwitch": "Switch theme",
@@ -1160,6 +1162,17 @@
       "saveFailed": "Save failed, please retry",
       "loadedSearch": "Loaded search \"{name}\""
     }
+  },
+  "recommend": {
+    "title": "Recommended for you",
+    "subtitle": "A blended feed of original works and fanworks, without tabs or filters.",
+    "emptyTitle": "No recommendations yet",
+    "emptyDescription": "You have seen everything here. Come back later, or browse the original zone.",
+    "emptyAction": "Browse originals",
+    "errorTitle": "Recommendations are temporarily unavailable",
+    "errorDescription": "The request failed. Please try reloading.",
+    "retryAction": "Reload",
+    "loadingLabel": "Loading recommendations"
   },
   "rehab": {
     "title": "Rehabilitation Courses",
