@@ -2,7 +2,6 @@ package llm
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
 const qwenBaseURL = "https://dashscope.aliyuncs.com/compatible-mode"
@@ -19,17 +19,23 @@ type QwenProvider struct {
 	model      string
 	embedModel string
 	client     *http.Client
+	maxRetries int
 }
 
-func NewQwenProvider(apiKey, model, embedModel string) *QwenProvider {
+func NewQwenProvider(apiKey, model, embedModel string, opts ...ProviderOption) *QwenProvider {
 	if apiKey == "" {
 		apiKey = os.Getenv("AGENT_LLM_API_KEY")
+	}
+	cfg := providerConfig{timeout: 60 * time.Second, maxRetries: 2}
+	for _, opt := range opts {
+		opt(&cfg)
 	}
 	return &QwenProvider{
 		apiKey:     apiKey,
 		model:      model,
 		embedModel: embedModel,
-		client:     &http.Client{},
+		client:     &http.Client{Timeout: cfg.timeout},
+		maxRetries: cfg.maxRetries,
 	}
 }
 
@@ -38,13 +44,7 @@ func (p *QwenProvider) doPost(ctx context.Context, path string, body interface{}
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", qwenBaseURL+path, bytes.NewReader(b))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+p.apiKey)
-	return p.client.Do(req)
+	return retryDo(ctx, p.client, qwenBaseURL+path, p.apiKey, b, p.maxRetries)
 }
 
 type qwenRequest struct {

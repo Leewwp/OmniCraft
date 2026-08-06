@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -15,6 +16,7 @@ import (
 	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -22,26 +24,42 @@ type AgentHandler struct {
 	agentSvc *service.AgentService
 	cfg      *config.Config
 	db       *gorm.DB
+	quota    *middleware.AgentQuotaReserver
 }
 
-func NewAgentHandler(db *gorm.DB, cfg *config.Config) *AgentHandler {
+func NewAgentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *AgentHandler {
 	provider := llm.NewProvider(cfg)
 	greenClient := aliyun.NewGreenClient(
 		cfg.Green.AccessKeyID,
 		cfg.Green.AccessKeySecret,
 		cfg.Green.Region,
 	)
+	agentSvc := service.NewAgentService(
+		provider,
+		repository.NewEmbeddingRepository(db),
+		repository.NewContentRepository(db),
+		greenClient,
+		db,
+		cfg,
+	)
+	agentSvc.SetSearchRepository(repository.NewSearchRepository(db))
 	return &AgentHandler{
-		agentSvc: service.NewAgentService(
-			provider,
-			repository.NewEmbeddingRepository(db),
-			repository.NewContentRepository(db),
-			greenClient,
-			db,
-			cfg,
-		),
-		cfg: cfg,
-		db:  db,
+		agentSvc: agentSvc,
+		cfg:      cfg,
+		db:       db,
+		quota:    middleware.NewAgentQuotaReserver(rdb, cfg),
+	}
+}
+
+// NewAgentHandlerWithService builds the handler around a shared AgentService
+// (e.g. the one wired in the service container), which also keeps the search
+// repository fallback and queue producer consistent.
+func NewAgentHandlerWithService(db *gorm.DB, cfg *config.Config, rdb *redis.Client, agentSvc *service.AgentService) *AgentHandler {
+	return &AgentHandler{
+		agentSvc: agentSvc,
+		cfg:      cfg,
+		db:       db,
+		quota:    middleware.NewAgentQuotaReserver(rdb, cfg),
 	}
 }
 
@@ -49,9 +67,41 @@ func (h *AgentHandler) SetQueueProducer(p queue.Producer) {
 	h.agentSvc.SetQueueProducer(p)
 }
 
+// requireAgentFeature is the shared feature-flag guard. Provider-consuming
+// routes fail with 503 FEATURE_DISABLED before any quota or Provider work.
+func (h *AgentHandler) requireAgentFeature(c *gin.Context) bool {
+	if h.cfg.Agent.WebAgentEnabled {
+		return true
+	}
+	c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": "web agent is disabled"})
+	return false
+}
+
+// reserveGenerationQuota reserves one per-minute/per-day request for the
+// current user and maps the outcome: quota-exceeded -> 429, Redis unavailable
+// -> 503 fail-closed. Callers invoke it AFTER schema/visibility checks and
+// immediately BEFORE the first Provider call; every downstream outcome then
+// consumes the reservation.
+func (h *AgentHandler) reserveGenerationQuota(c *gin.Context) bool {
+	if h.quota == nil {
+		response.Error(c, http.StatusServiceUnavailable, "AGENT_QUOTA_UNAVAILABLE", "agent quota service is temporarily unavailable")
+		return false
+	}
+	userID := middleware.GetUserID(c)
+	err := h.quota.Reserve(c.Request.Context(), userID)
+	if err == nil {
+		return true
+	}
+	if errors.Is(err, middleware.ErrAgentQuotaExceeded) {
+		response.Error(c, http.StatusTooManyRequests, "AGENT_RATE_LIMIT_EXCEEDED", "agent request limit exceeded")
+		return false
+	}
+	response.Error(c, http.StatusServiceUnavailable, "AGENT_QUOTA_UNAVAILABLE", "agent quota service is temporarily unavailable")
+	return false
+}
+
 func (h *AgentHandler) UploadAssist(c *gin.Context) {
-	if !h.cfg.Agent.WebAgentEnabled {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": "agent not enabled"})
+	if !h.requireAgentFeature(c) {
 		return
 	}
 	var body struct {
@@ -64,6 +114,9 @@ func (h *AgentHandler) UploadAssist(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
+	if !h.reserveGenerationQuota(c) {
+		return
+	}
 	callerID := middleware.GetUserID(c)
 	result, err := h.agentSvc.UploadAssist(c.Request.Context(), callerID, body.Title, body.Description, body.Filename, body.ContentType)
 	if err != nil {
@@ -74,8 +127,7 @@ func (h *AgentHandler) UploadAssist(c *gin.Context) {
 }
 
 func (h *AgentHandler) ComplianceCheck(c *gin.Context) {
-	if !h.cfg.Agent.WebAgentEnabled {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": "agent not enabled"})
+	if !h.requireAgentFeature(c) {
 		return
 	}
 	var body struct {
@@ -87,6 +139,9 @@ func (h *AgentHandler) ComplianceCheck(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
+	if !h.reserveGenerationQuota(c) {
+		return
+	}
 	result, err := h.agentSvc.ComplianceCheck(c.Request.Context(), body.Title, body.Description, body.ContentType)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
@@ -96,8 +151,7 @@ func (h *AgentHandler) ComplianceCheck(c *gin.Context) {
 }
 
 func (h *AgentHandler) NLSearch(c *gin.Context) {
-	if !h.cfg.Agent.WebAgentEnabled {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": "agent not enabled"})
+	if !h.requireAgentFeature(c) {
 		return
 	}
 	var body struct {
@@ -107,18 +161,20 @@ func (h *AgentHandler) NLSearch(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
+	if !h.reserveGenerationQuota(c) {
+		return
+	}
 	viewerID := middleware.GetUserID(c)
-	results, err := h.agentSvc.NLSearch(c.Request.Context(), body.Query, viewerID)
+	result, err := h.agentSvc.NLSearch(c.Request.Context(), body.Query, viewerID)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"results": results})
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *AgentHandler) UsageGuide(c *gin.Context) {
-	if !h.cfg.Agent.WebAgentEnabled {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": "agent not enabled"})
+	if !h.requireAgentFeature(c) {
 		return
 	}
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
@@ -128,22 +184,34 @@ func (h *AgentHandler) UsageGuide(c *gin.Context) {
 	}
 	viewerID := middleware.GetUserID(c)
 
-	if c.Query("stream") == "true" {
-		c.Header("Content-Type", "text/event-stream")
-		c.Header("Cache-Control", "no-cache")
-		c.Header("X-Accel-Buffering", "no")
+	// Client-supplied resource IDs are visibility-prechecked BEFORE any quota
+	// reservation, so hidden content cannot be probed and never consumes quota.
+	if err := h.agentSvc.CheckContentVisible(c.Request.Context(), viewerID, id); err != nil {
+		response.NotFound(c, "content not found")
+		return
+	}
+	if !h.reserveGenerationQuota(c) {
+		return
+	}
 
+	if c.Query("stream") == "true" {
+		writer := &agentSSEWriter{c: c}
+		writer.begin()
 		err := h.agentSvc.UsageGuideStream(c.Request.Context(), viewerID, id, func(delta string, done bool) error {
 			if done {
-				c.SSEvent("message", gin.H{"done": true})
-			} else if delta != "" {
-				c.SSEvent("message", gin.H{"delta": delta, "done": false})
+				return writer.emit(service.AgentStreamEvent{Type: service.AgentEventDone})
 			}
-			c.Writer.Flush()
+			if delta != "" {
+				return writer.emit(service.AgentStreamEvent{Type: service.AgentEventDelta, Delta: delta})
+			}
 			return nil
 		})
 		if err != nil {
-			c.SSEvent("error", gin.H{"message": "service error"})
+			writer.emit(service.AgentStreamEvent{
+				Type:         service.AgentEventError,
+				ErrorCode:    service.AgentErrorCodeProvider,
+				ErrorMessage: "provider unavailable",
+			})
 		}
 		return
 	}
@@ -157,8 +225,7 @@ func (h *AgentHandler) UsageGuide(c *gin.Context) {
 }
 
 func (h *AgentHandler) ChatStream(c *gin.Context) {
-	if !h.cfg.Agent.WebAgentEnabled {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": "agent not enabled"})
+	if !h.requireAgentFeature(c) {
 		return
 	}
 	userID := middleware.GetUserID(c)
@@ -186,10 +253,15 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		if !allowedRoles[msg.Role] {
 			continue
 		}
-		if len(msg.Content) > maxMsgLen {
-			msg.Content = msg.Content[:maxMsgLen]
+		if len([]rune(msg.Content)) > maxMsgLen {
+			response.ValidationError(c, "message exceeds maximum length")
+			return
 		}
 		filtered = append(filtered, msg)
+	}
+	if len(filtered) == 0 {
+		response.ValidationError(c, "at least one user or assistant message is required")
+		return
 	}
 	if len(filtered) > maxCtxMsgs {
 		filtered = filtered[len(filtered)-maxCtxMsgs:]
@@ -210,21 +282,27 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		}
 	}
 
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("X-Accel-Buffering", "no")
-
-	err := h.agentSvc.ChatStream(c.Request.Context(), userID, filtered, chatCtx, func(delta string, done bool, convID int64, traceID string) error {
-		if done {
-			c.SSEvent("message", gin.H{"done": true, "conversation_id": convID, "trace_id": traceID})
-		} else if delta != "" {
-			c.SSEvent("message", gin.H{"delta": delta, "done": false})
-		}
-		c.Writer.Flush()
-		return nil
-	})
+	// Viewer-aware preload of any client-supplied context ID: hidden content is
+	// rejected here, BEFORE reservation, and never reaches the Provider.
+	resolved, err := h.agentSvc.ResolveChatContext(c.Request.Context(), userID, chatCtx)
 	if err != nil {
-		c.SSEvent("error", gin.H{"message": "service error"})
+		response.NotFound(c, "content not found")
+		return
+	}
+
+	if !h.reserveGenerationQuota(c) {
+		return
+	}
+
+	writer := &agentSSEWriter{c: c}
+	writer.begin()
+
+	if err := h.agentSvc.ChatStream(c.Request.Context(), userID, filtered, resolved, func(ev service.AgentStreamEvent) error {
+		return writer.emit(ev)
+	}); err != nil {
+		// The service already emitted a safe SSE error event; no second JSON
+		// response may follow once headers are written.
+		return
 	}
 }
 
@@ -233,16 +311,8 @@ type ChatContextDTO struct {
 	ContentID *int64 `json:"content_id,omitempty"`
 }
 
-func truncateStr(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen]
-}
-
 func (h *AgentHandler) ListConversations(c *gin.Context) {
-	if !h.cfg.Agent.WebAgentEnabled {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": "web agent is disabled"})
+	if !h.requireAgentFeature(c) {
 		return
 	}
 	userID := middleware.GetUserID(c)
@@ -252,8 +322,7 @@ func (h *AgentHandler) ListConversations(c *gin.Context) {
 }
 
 func (h *AgentHandler) GetConversationMessages(c *gin.Context) {
-	if !h.cfg.Agent.WebAgentEnabled {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": "web agent is disabled"})
+	if !h.requireAgentFeature(c) {
 		return
 	}
 	userID := middleware.GetUserID(c)
@@ -270,4 +339,59 @@ func (h *AgentHandler) GetConversationMessages(c *gin.Context) {
 	var messages []model.AgentMessage
 	h.db.Where("conversation_id = ?", convID).Order("created_at ASC").Find(&messages)
 	c.JSON(http.StatusOK, gin.H{"conversation": conv, "messages": messages})
+}
+
+// DeleteConversation deletes only the current user's conversation and its
+// message cascade inside one owner-scoped transaction. Missing, already
+// deleted or foreign IDs all return idempotent 204 so existence cannot be
+// probed; a DB failure rolls back (no partial message deletion) and returns a
+// stable error. Deletion never touches the Agent generation quota.
+func (h *AgentHandler) DeleteConversation(c *gin.Context) {
+	if !h.requireAgentFeature(c) {
+		return
+	}
+	userID := middleware.GetUserID(c)
+	convID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || convID <= 0 {
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid conversation id")
+		return
+	}
+
+	tx := h.db.Begin()
+	if tx.Error != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", tx.Error)
+		return
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			tx.Rollback()
+		}
+	}()
+
+	var conv model.AgentConversation
+	if err := tx.Where("id = ? AND user_id = ?", convID, userID).First(&conv).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.Status(http.StatusNoContent)
+			committed = true
+			tx.Commit()
+			return
+		}
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
+		return
+	}
+	if err := tx.Where("conversation_id = ?", conv.ID).Delete(&model.AgentMessage{}).Error; err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
+		return
+	}
+	if err := tx.Delete(&model.AgentConversation{}, "id = ?", conv.ID).Error; err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
+		return
+	}
+	if err := tx.Commit().Error; err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
+		return
+	}
+	committed = true
+	c.Status(http.StatusNoContent)
 }

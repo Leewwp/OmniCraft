@@ -175,7 +175,7 @@ Update only Task 2 checkboxes and `progress.txt`, stage exact orchestration/rout
 
 ## Task 3: Stabilize Streaming API, Budget Reservation, And Downgrade
 
-- [ ] **Step 1: Add failing handler/stream tests**
+- [x] **Step 1: Add failing handler/stream tests**
 
 Cover:
 
@@ -195,30 +195,30 @@ Cover:
 - `DELETE /agent/conversations/:id` deletes only the current user's conversation/messages, returns idempotent `204` for missing/foreign IDs, and does not consume generation quota;
 - DB deletion failure returns a stable error without partial message deletion.
 
-- [ ] **Step 2: Confirm red**
+- [x] **Step 2: Confirm red**
 
 ```bash
 cd backend
 go test ./internal/handler ./internal/service ./internal/middleware -run "TestAgent.*Stream|TestAgent.*Quota|TestAgent.*Provider" -v
 ```
 
-- [ ] **Step 3: Implement atomic request quotas and bounded retries**
+- [x] **Step 3: Implement atomic request quotas and bounded retries**
 
 After feature/auth/request-schema checks and viewer-aware preload of any client-supplied context ID, reserve per-minute and per-day request quotas together in one Redis Lua operation immediately before the first Provider call. The daily limit remains `rate_limit_per_day`; add `rate_limit_per_minute` for bursts. These are request-count hard limits, not a monetary/token ledger: per-turn input/output/tool limits bound individual cost, while actual token usage is observed and alerted. After reservation, every downstream outcome consumes the request. IDs later proposed by the model are checked inside the tool dispatcher and return uniform not-found on denial, but do not release quota. Redis failure is fail-closed for Provider-consuming endpoints. Retry only configured network/429/5xx conditions with bounded backoff; retries within one request do not reserve again, and side-effecting tools are never retried.
 
-- [ ] **Step 4: Implement typed SSE writer**
+- [x] **Step 4: Implement typed SSE writer**
 
 Centralize event serialization and flushing. Once headers are written, report errors as SSE `error` events rather than attempting a second JSON response.
 
-- [ ] **Step 5: Implement search downgrade**
+- [x] **Step 5: Implement search downgrade**
 
 When conversational generation is unavailable but search is healthy, return `degraded=true`, normal keyword search results, and localized copy. Do not fabricate a model answer.
 
-- [ ] **Step 6: Implement owned conversation deletion**
+- [x] **Step 6: Implement owned conversation deletion**
 
 Add `DELETE /api/v1/agent/conversations/:id`. Delete with an owner-scoped transaction and message cascade; zero affected rows returns `204` to keep missing/foreign cases indistinguishable and idempotent. Do not delete aggregate metrics or sanitized trace records. Mount this read/write-history route outside Provider quota middleware while retaining auth and ownership enforcement.
 
-- [ ] **Step 7: Verify focused and full backend gates**
+- [x] **Step 7: Verify focused and full backend gates**
 
 ```bash
 cd backend
@@ -228,7 +228,7 @@ go vet ./...
 go build ./...
 ```
 
-- [ ] **Step 8: Checkpoint Task 3**
+- [x] **Step 8: Checkpoint Task 3**
 
 Update only Task 3 checkboxes and `progress.txt`, stage exact streaming/quota files, and commit `Web Agent 3: stabilize streaming and quotas`.
 

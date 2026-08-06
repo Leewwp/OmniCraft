@@ -174,6 +174,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	provider := llm.NewProvider(cfg)
 	greenClient := aliyun.NewGreenClient(cfg.Green.AccessKeyID, cfg.Green.AccessKeySecret, cfg.Green.Region)
 	c.AgentService = service.NewAgentService(provider, c.EmbeddingRepo, c.ContentRepo, greenClient, db, cfg)
+	c.AgentService.SetSearchRepository(c.SearchRepo)
 	c.AgentService.SetQueueProducer(c.QueueProducer)
 
 	// Wire notification service
