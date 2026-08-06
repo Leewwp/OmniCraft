@@ -1,0 +1,89 @@
+name: OmniCraft performance
+
+on:
+  pull_request:
+    paths:
+      - "tests/load/**"
+      - "scripts/load/**"
+      - "ops/load/**"
+      - ".github/workflows/performance.yml"
+  schedule:
+    - cron: "0 3 * * 1" # weekly Monday 03:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: perf-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  load-gate:
+    name: Load gate
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector@sha256:a36250871de0833b8757561c72f2477ef1ddd1101afa4e617fb552e0de514c6b
+        env:
+          POSTGRES_USER: omnicraft
+          POSTGRES_PASSWORD: omnicraft
+          POSTGRES_DB: omnicraft
+        ports:
+          - 5432:5432
+        options: --health-cmd "pg_isready -U omnicraft" --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: "1.25.12"
+      - name: Install postgresql client (for identity seeding)
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Set up k6
+        run: |
+          curl -sSL "https://github.com/grafana/k6/releases/download/v2.1.0/k6-v2.1.0-linux-amd64.tar.gz" -o /tmp/k6.tgz
+          echo "295d961ebfca306f295f1133068dcd403a8171c87f387928f5f30b0fbcff858a  /tmp/k6.tgz" | sha256sum -c -
+          tar -xzf /tmp/k6.tgz -C /tmp
+          sudo mv /tmp/k6-v2.1.0-linux-amd64/k6 /usr/local/bin/k6
+          k6 version
+      - name: Start backend with load-test config
+        run: |
+          cd backend
+          go build -o /tmp/omnicraft-server ./cmd/server
+          CONFIG_OVERRIDE_PATH="$(pwd)/../ops/load/config-override.yaml" /tmp/omnicraft-server > /tmp/backend.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8080/healthz >/dev/null 2>&1 && break
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8080/healthz
+      - name: Contract tests
+        run: bash scripts/load/run-load-tests.tests.sh
+      - name: Smoke
+        env:
+          DB_DSN: host=localhost port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable
+        run: bash scripts/load/run-load-tests.sh -Environment Local -Tier Smoke -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/perf -RunName smoke -DbDsn "$DB_DSN"
+      - name: Load
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          DB_DSN: host=localhost port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable
+        run: bash scripts/load/run-load-tests.sh -Environment Local -Tier Load -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/perf -RunName load -DbDsn "$DB_DSN"
+      - name: Stress
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          DB_DSN: host=localhost port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable
+        run: bash scripts/load/run-load-tests.sh -Environment Local -Tier Stress -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/perf -RunName stress -DbDsn "$DB_DSN"
+      - name: Upload performance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: performance-evidence
+          path: artifacts/perf
+          if-no-files-found: ignore
+          retention-days: 30

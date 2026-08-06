@@ -1,0 +1,26 @@
+{
+  "identities": {
+    "prefix": "load-test-",
+    "suffix": "@omnicraft.local",
+    "count": 5,
+    "password": "LoadTest123!",
+    "password_hash": "$2a$10$4/o9nm8B6b7b7CvQskeGNeB3ZWBA1h145VV8URUuBvYuoH0s63rzG"
+  },
+  "content": {
+    "titles": [
+      "负载测试样本 · 雨夜漫步",
+      "负载测试样本 · 山海经新解",
+      "负载测试样本 · 咖啡手冲指南",
+      "负载测试样本 · 城市观星笔记"
+    ],
+    "categories": ["travel", "literature", "food", "tech_digital"],
+    "content_types": ["article", "image"],
+    "tags": ["负载测试", "performance"]
+  },
+  "search": {
+    "terms": ["原创", "攻略", "评测", "同人", "插画"]
+  },
+  "feed": {
+    "page_size": 20
+  }
+}

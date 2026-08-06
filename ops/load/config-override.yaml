@@ -1,0 +1,11 @@
+# OmniCraft load-test environment override (LOCAL/CI load, stress and capacity
+# runs ONLY). The app rate-limits per client IP (default 100 req/min) and per
+# user upload (200/h); a single-IP k6 run would otherwise measure the rate
+# limiter instead of system capacity. This override is never used by
+# production: Ops-08 preflight rejects test-mode flags, and this file is
+# outside the production config volume. The release profile records that the
+# measured baseline environment runs with rate limiting disabled.
+rate_limit:
+  enabled: false
+  search_per_minute: 0
+  upload_per_hour: 0
