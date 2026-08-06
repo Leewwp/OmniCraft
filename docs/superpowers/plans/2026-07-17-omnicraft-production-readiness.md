@@ -16,7 +16,7 @@
 
 ## Status, authority, and universal rules
 
-**Status:** Ops-00 completed at `9ea53c8`; Ops-01 completed by CI commit `7f34191` and evidence/branch-protection closeout `4cba1da`; Ops-02 completed on `codex/ops/ops-02` after two-axis review, final-commit-bound local evidence and PR #21 PostgreSQL migration/contract/project gates; Ops-03 completed on `codex/ops/ops-03` after contract tests, a real observability drill and the default project gate (merged to main with Ops-04 at `ddaf0a4`); Ops-04 completed on `codex/ops/ops-04` after contract tests, promtool/amtool validation, a real firing/resolved alert drill with the in-network alert-sink and a real Healthchecks.io missing-heartbeat down-flip (merged to main at `ddaf0a4`, including llm semantic merge); Ops-05 completed on `codex/ops/ops-05` after policy/exception/pinned-action contract tests, fixture failure isolation, the default project gate and the full filesystem/IaC/image scan set (merged to main at `9c0e195`); Ops-06～Ops-08 have not started; Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
+**Status:** Ops-00 completed at `9ea53c8`; Ops-01 completed by CI commit `7f34191` and evidence/branch-protection closeout `4cba1da`; Ops-02 completed on `codex/ops/ops-02` after two-axis review, final-commit-bound local evidence and PR #21 PostgreSQL migration/contract/project gates; Ops-03 completed on `codex/ops/ops-03` after contract tests, a real observability drill and the default project gate (merged to main with Ops-04 at `ddaf0a4`); Ops-04 completed on `codex/ops/ops-04` after contract tests, promtool/amtool validation, a real firing/resolved alert drill with the in-network alert-sink and a real Healthchecks.io missing-heartbeat down-flip (merged to main at `ddaf0a4`, including llm semantic merge); Ops-05 completed on `codex/ops/ops-05` after policy/exception/pinned-action contract tests, fixture failure isolation, the default project gate and the full filesystem/IaC/image scan set (merged to main at `9c0e195`); Ops-06 completed on `codex/ops/ops-06` after manifest/SBOM/pinned-generator contract tests, deterministic two-run SBOM comparison, full container+lockfile generation, 17-check provenance verification with OCI label↔commit binding, downloaded-artifact re-verification, one-year-retention archive receipt and the default project gate; Ops-07～Ops-08 have not started; Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
 
 - This plan is not Hardening Task 6 and must never add one.
 - Do not modify `task.json`, Beta/community checkboxes, or Web Agent completion state.
@@ -621,19 +621,19 @@ bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -
 - Modify: `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md`
 - Modify: `progress.txt`
 
-- [ ] **Step 1: Write failing manifest/SBOM tests**
+- [x] **Step 1: Write failing manifest/SBOM tests**
 
 Require commit, version, artifact SHA-256, image digest, migration manifest digest, SBOM paths/digests, generator versions and provenance references. Reject missing Go/npm/Rust/container components.
 
-- [ ] **Step 2: Generate deterministic SBOM sets**
+- [x] **Step 2: Generate deterministic SBOM sets**
 
 Use pinned CycloneDX/SPDX-capable tools. Normalize volatile timestamps only where the format allows; never edit package identity to force reproducibility.
 
-- [ ] **Step 3: Add GitHub provenance workflow**
+- [x] **Step 3: Add GitHub provenance workflow**
 
 Build immutable artifacts, upload SBOM, and create provenance/attestation with minimal required permissions. PR builds generate unsigned preview SBOM; release provenance only runs from protected refs/environments.
 
-- [ ] **Step 4: Download and verify**
+- [x] **Step 4: Download and verify**
 
 ```bash
 bash scripts/release/generate-sbom.tests.sh
@@ -650,6 +650,13 @@ The archive contract requires both a GitHub Release asset destination and an enc
 **Acceptance evidence:** SBOM files/digests, release manifest, attestation verification output, artifact/container digest match, `artifacts/ops-06/summary.json`.  
 **Release blocker:** missing ecosystem, SBOM not bound to artifact digest, provenance identity mismatch, mutable image tag used as evidence.  
 **Commit:** `Ops 06: add SBOM and provenance gates`
+
+> 2026-08-06 完成（`codex/ops/ops-06`，审查合并前视为 pending）。实施中的保留区扩展（记录于此）：
+>
+> - `scripts/security/verify-pinned-actions.sh` + `scripts/security/verify-pinned-actions.tests.sh`：为 `.github/workflows/sbom.yml` 的 provenance job 放行 `attestations: write` / `id-token: write`（`actions/attest-build-provenance` 强制要求的最小权限组合；其余 workflow 的这两项以及 sbom.yml 的其他 write scope 仍被拒绝，action 引用仍强制 40-hex SHA pin），并新增三种行为契约测试。
+> - 本地容器 digest 采用 docker-archive tar 内 `manifest.json` blob 的 SHA-256 作为镜像制品 digest（可离线复算、可验证）；真实 registry manifest digest 绑定留给 Ops-08 在 push 阶段记录。
+> - `release/sbom-policy.json` 组件携带 `files`（lockfile 路径）与 `image`/`tag`/`dockerfile`/`context`（容器组件）字段；本地与 CI 共用同一 policy 与同一 pinned syft digest。
+> - PR 预览 manifest 的 `provenance` 允许为空（未签名预览）；release manifest 必须有非空 provenance 引用，真实 attestation 由 sbom.yml release job 生成并在 CI 用 `gh attestation verify` 复核。
 
 ---
 

@@ -16,6 +16,15 @@ RUN npm run build
 # Production stage
 FROM node:20-alpine AS runner
 
+ARG VERSION=dev
+ARG COMMIT=unknown
+
+LABEL org.opencontainers.image.title="OmniCraft frontend" \
+	org.opencontainers.image.description="OmniCraft Next.js web client" \
+	org.opencontainers.image.source="https://github.com/omnicraft/omnicraft" \
+	org.opencontainers.image.version="$VERSION" \
+	org.opencontainers.image.revision="$COMMIT"
+
 WORKDIR /app
 
 ENV NODE_ENV=production

@@ -19,6 +19,15 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/migrate ./cmd/mig
 # Final stage
 FROM alpine:3.23
 
+ARG VERSION=dev
+ARG COMMIT=unknown
+
+LABEL org.opencontainers.image.title="OmniCraft backend" \
+	org.opencontainers.image.description="OmniCraft Go/Gin API server" \
+	org.opencontainers.image.source="https://github.com/omnicraft/omnicraft" \
+	org.opencontainers.image.version="$VERSION" \
+	org.opencontainers.image.revision="$COMMIT"
+
 RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /app

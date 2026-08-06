@@ -1,0 +1,74 @@
+name: OmniCraft SBOM & Provenance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  release:
+    types: [published]
+
+concurrency:
+  group: sbom-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  sbom-gate:
+    name: SBOM and provenance gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: SBOM contract tests
+        run: |
+          bash scripts/release/generate-sbom.tests.sh
+          bash scripts/release/verify-provenance.tests.sh
+          bash scripts/release/archive-release-evidence.tests.sh
+      - name: Generate preview SBOM (pull request)
+        if: github.event_name == 'pull_request'
+        run: bash scripts/release/generate-sbom.sh -OutputDir artifacts/sbom -SkipImages
+      - name: Verify preview SBOM
+        if: github.event_name == 'pull_request'
+        run: bash scripts/release/verify-provenance.sh -Manifest artifacts/sbom/release-manifest.json -Preview
+      - name: Generate full SBOM and release manifest
+        if: github.event_name != 'pull_request'
+        run: bash scripts/release/generate-sbom.sh -OutputDir artifacts/sbom -Commit "$GITHUB_SHA"
+      - name: Verify SBOM digests and image binding
+        if: github.event_name != 'pull_request'
+        run: bash scripts/release/verify-provenance.sh -Manifest artifacts/sbom/release-manifest.json -ImageDaemon
+      - name: Upload SBOM evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: sbom-evidence
+          path: artifacts/sbom
+          retention-days: ${{ github.event_name == 'push' && 90 || github.event_name == 'release' && 365 || 30 }}
+
+  provenance:
+    name: Provenance attestation
+    if: github.event_name == 'release'
+    needs: sbom-gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download SBOM evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: sbom-evidence
+          path: artifacts/sbom
+      - name: Attest release manifest
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373
+        with:
+          subject-path: artifacts/sbom/release-manifest.json
+      - name: Attest SBOM set
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373
+        with:
+          subject-path: artifacts/sbom/sboms/*.cdx.json
+      - name: Verify attestation identity
+        run: gh attestation verify artifacts/sbom/release-manifest.json --repo "$GITHUB_REPOSITORY"
