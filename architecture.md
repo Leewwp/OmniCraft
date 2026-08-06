@@ -99,6 +99,10 @@ OmniCraft 是一个以 **IP 二创内容聚合** 为核心流量底座、**Agent
 4. 域名/DNS 切换，Nginx 替换为 Ingress Controller
 ```
 
+### 2.4 发布门（Ops-08）
+
+生产发布受 `scripts/release/preflight.sh`（有效生产配置契约：占位符/默认值/非 HTTPS/不安全 flags/数据库 TLS 策略/trusted-proxy 拓扑/frontend-API DNS 一致性）与 `scripts/release/staging-drill.sh`（真实 staging 的 preflight → deploy candidate digest → 验证 → schema 兼容回滚 → 重部署）约束。镜像以不可变 sha256 digest 引用（`release/deployment-manifest.schema.json`），回滚绝不执行破坏性 down SQL；真实 staging/OSS/off-site 输入缺失时 drill 阻塞（exit 3），不以模拟证据替代。`.github/workflows/release.yml` 仅接受手动触发，部署 job 绑定 GitHub Environment `production` 保护。
+
 ---
 
 ---

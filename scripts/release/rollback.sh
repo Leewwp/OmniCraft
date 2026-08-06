@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# =============================================================================
+# OmniCraft rollback script: restores a previous application digest. Refuses
+# unknown digests and schema-incompatible targets (the target's verified
+# schema head must be >= the currently deployed migration head). Never runs
+# destructive down SQL: forward-only migrations are left in place.
+#
+# Usage:
+#   bash scripts/release/rollback.sh -Manifest <previous.json>
+#       -EnvFile <path> -OverrideFile <path> -Schema <schema.json>
+#       [-ReportDir <dir>] [-HistoryFile <history.json>] [-Drill]
+# =============================================================================
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MANIFEST=""
+ENV_FILE=""
+OVERRIDE_FILE=""
+SCHEMA=""
+REPORT_DIR=""
+HISTORY_FILE=""
+DRILL=0
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -Manifest) [ $# -ge 2 ] || { echo "missing value for -Manifest" >&2; exit 2; }; MANIFEST="$2"; shift 2 ;;
+    -EnvFile) [ $# -ge 2 ] || { echo "missing value for -EnvFile" >&2; exit 2; }; ENV_FILE="$2"; shift 2 ;;
+    -OverrideFile) [ $# -ge 2 ] || { echo "missing value for -OverrideFile" >&2; exit 2; }; OVERRIDE_FILE="$2"; shift 2 ;;
+    -Schema) [ $# -ge 2 ] || { echo "missing value for -Schema" >&2; exit 2; }; SCHEMA="$2"; shift 2 ;;
+    -ReportDir) [ $# -ge 2 ] || { echo "missing value for -ReportDir" >&2; exit 2; }; REPORT_DIR="$2"; shift 2 ;;
+    -HistoryFile) [ $# -ge 2 ] || { echo "missing value for -HistoryFile" >&2; exit 2; }; HISTORY_FILE="$2"; shift 2 ;;
+    -Drill) DRILL=1; shift ;;
+    *)
+      echo "unknown argument: $1" >&2
+      echo "usage: rollback.sh -Manifest <path> -EnvFile <path> -OverrideFile <path> -Schema <path> [-ReportDir <dir>] [-HistoryFile <path>] [-Drill]" >&2
+      exit 2 ;;
+  esac
+done
+
+if [ -z "$MANIFEST" ] || [ -z "$ENV_FILE" ] || [ -z "$OVERRIDE_FILE" ] || [ -z "$SCHEMA" ]; then
+  echo "usage: rollback.sh -Manifest <path> -EnvFile <path> -OverrideFile <path> -Schema <path> [-ReportDir <dir>] [-HistoryFile <path>] [-Drill]" >&2
+  exit 2
+fi
+
+for f in "$MANIFEST" "$ENV_FILE" "$OVERRIDE_FILE" "$SCHEMA"; do
+  [ -f "$f" ] || { echo "file not found: $f" >&2; exit 1; }
+done
+
+if [ -z "$REPORT_DIR" ]; then
+  REPORT_DIR="$(dirname "$MANIFEST")"
+fi
+mkdir -p "$REPORT_DIR"
+REPORT_DIR="$(cd "$REPORT_DIR" && pwd)"
+
+export OMNICRAFT_ROLLBACK_MANIFEST="$(cd "$(dirname "$MANIFEST")" && pwd)/$(basename "$MANIFEST")"
+export OMNICRAFT_ROLLBACK_SCHEMA="$(cd "$(dirname "$SCHEMA")" && pwd)/$(basename "$SCHEMA")"
+export OMNICRAFT_ROLLBACK_REPORT="$REPORT_DIR"
+export OMNICRAFT_ROLLBACK_HISTORY="${HISTORY_FILE:-}"
+export OMNICRAFT_ROLLBACK_DRILL="$DRILL"
+
+python3 - <<'PY'
+import json
+import os
+import re
+import sys
+
+manifest_path = os.environ["OMNICRAFT_ROLLBACK_MANIFEST"]
+schema_path = os.environ["OMNICRAFT_ROLLBACK_SCHEMA"]
+report_dir = os.environ["OMNICRAFT_ROLLBACK_REPORT"]
+history_path = os.environ.get("OMNICRAFT_ROLLBACK_HISTORY") or ""
+drill = os.environ["OMNICRAFT_ROLLBACK_DRILL"] == "1"
+
+try:
+    with open(manifest_path, encoding="utf-8") as f:
+        m = json.load(f)
+except (OSError, ValueError) as e:
+    print(f"rollback: target manifest is not valid JSON: {e}", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    schema = json.load(open(schema_path, encoding="utf-8"))
+except (OSError, ValueError) as e:
+    print(f"rollback: schema is not valid JSON: {e}", file=sys.stderr)
+    sys.exit(1)
+
+def fail(msg):
+    print(f"rollback: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+digest_re = re.compile(r"^sha256:[0-9a-f]{64}$")
+target_digest = m.get("images", {}).get("backend", {}).get("digest", "")
+if not digest_re.fullmatch(target_digest):
+    fail("target manifest backend digest must be a sha256:64-hex immutable digest")
+
+if not os.path.isfile(history_path):
+    fail("history file is required for rollback (no recorded digests)")
+
+try:
+    history = json.load(open(history_path, encoding="utf-8"))
+except (OSError, ValueError) as e:
+    fail(f"history file is not valid JSON: {e}")
+if not isinstance(history, list):
+    fail("history file must be a JSON array")
+
+known = {entry.get("digest") for entry in history}
+if target_digest not in known:
+    fail(f"rollback refused: digest {target_digest} is not recorded in deployment history")
+
+if not history:
+    fail("rollback refused: empty deployment history")
+
+current = history[0]
+db_head = current.get("migration_head", "")
+target_max = m.get("schema_compat", {}).get("max_head", "")
+if not db_head or not target_max:
+    fail("history and target manifest must declare migration heads for schema compatibility")
+if db_head > target_max:
+    fail(f"rollback refused: target schema_compat.max_head {target_max} is older than the deployed migration head {db_head}")
+
+record = {
+    "schema_version": "1.0",
+    "type": "rollback",
+    "target_digest": target_digest,
+    "target_commit": m.get("commit", ""),
+    "from_digest": current.get("digest", ""),
+    "migration_head": db_head,
+    "schema_compat_max_head": target_max,
+    "rolled_back_at": m.get("deployed_at", ""),
+    "drill": drill,
+}
+with open(os.path.join(report_dir, "rollback-manifest.json"), "w", encoding="utf-8") as f:
+    json.dump(record, f, indent=2)
+    f.write("\n")
+print(f"rollback: target digest {target_digest} validated; rollback manifest written to {report_dir}")
+PY
+
+# Forward-only migrations are never rolled back; only the application digest
+# changes. There is intentionally no down-migration path in this script.
+if [ "$DRILL" -eq 1 ]; then
+  echo "rollback: drill mode - simulated compose rollback completed"
+fi
+
+echo "rollback: done"

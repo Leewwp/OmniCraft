@@ -355,6 +355,26 @@ bash scripts/release/archive-release-evidence.tests.sh
 - 确定性：生成的 SBOM 移除 `metadata.timestamp` 与 `serialNumber` 等易变字段，绝不改写包身份
 - 发布阻塞：SBOM 与制品 digest 不绑定、生成器未 pin、provenance 身份不匹配、易变镜像 tag 作为证据
 
+## 生产发布门（Ops-08）
+
+生产发布候选必须通过配置 preflight 与 staging 部署/回滚演练：
+
+```bash
+# 1. 生产配置契约测试与 preflight（占位符/默认值/非 HTTPS/不安全 flags/TLS 策略/拓扑）
+bash scripts/release/preflight.tests.sh
+bash scripts/release/preflight.sh -EnvironmentFile /opt/omnicraft/.env -OverrideFile /var/lib/omnicraft/config_override.yaml -ReportDir artifacts/ops-08
+
+# 2. 部署/回滚契约测试与 staging 演练（preflight → deploy digest → 验证 → schema 兼容回滚 → 重部署）
+bash scripts/release/deployment-contract.tests.sh
+bash scripts/release/staging-drill.tests.sh
+bash scripts/release/staging-drill.sh -EnvironmentFile "$OMNICRAFT_STAGING_ENV_FILE" -OverrideFile "$OMNICRAFT_STAGING_OVERRIDE_FILE" -CandidateManifest "$OMNICRAFT_CANDIDATE_MANIFEST" -PreviousManifest "$OMNICRAFT_PREVIOUS_MANIFEST" -ReportDir artifacts/ops-08
+```
+
+- 镜像以不可变 sha256 digest 引用（`release/deployment-manifest.schema.json`）；回滚拒绝未知/不兼容 schema 的 digest，绝不执行破坏性 down SQL
+- 发布入口 `.github/workflows/release.yml` 仅手动触发，部署 job 绑定 GitHub Environment `production` 保护
+- 真实 staging 环境、OSS 与加密 off-site 归档凭据缺失时演练阻塞（exit 3），不得以模拟证据替代
+- 生产环境变量模板：`.env.production.example`（预检拒绝占位符）
+
 ---
 
 ## 项目结构
@@ -367,7 +387,7 @@ OmniCraft/
 ├── CLAUDE.md                # Agent 工作指南
 ├── progress.txt             # 开发进度日志
 ├── .env.example             # 环境变量模板（开发）
-├── .env.production          # 环境变量模板（生产）
+├── .env.production.example  # 环境变量模板（生产，占位符被 preflight 拒绝）
 ├── docker-compose.yml       # Docker Compose 编排
 ├── nginx/
 │   └── nginx.conf           # Nginx 反向代理配置

@@ -66,10 +66,10 @@ func TestValidateReleaseRejectsDefaultJWTSecret(t *testing.T) {
 func validReleaseConfigForTest() *Config {
 	return &Config{
 		Server:   ServerConfig{Mode: "release", Port: "8080", ShutdownTimeout: 15, ReadTimeout: 30, WriteTimeout: 60, IdleTimeout: 120},
-		Web:      WebConfig{PublicBaseURL: "https://app.example.com"},
-		Security: SecurityConfig{AllowedOrigins: []string{"https://app.example.com"}},
+		Web:      WebConfig{PublicBaseURL: "https://app.omnicraft.prod"},
+		Security: SecurityConfig{AllowedOrigins: []string{"https://app.omnicraft.prod"}},
 		Database: DatabaseConfig{
-			DSN: "host=db port=5432 user=omnicraft password=secret dbname=omnicraft sslmode=require",
+			DSN: "host=db.omnicraft.prod port=5432 user=omnicraft password=secret dbname=omnicraft sslmode=verify-full",
 		},
 		Redis: RedisConfig{Addr: "redis:6379", Password: "redis-secret", DB: 0},
 		JWT: JWTConfig{
@@ -87,7 +87,7 @@ func validReleaseConfigForTest() *Config {
 			AccessKeyID:        "green-key-id",
 			AccessKeySecret:    "green-key-secret",
 			Region:             "cn-shanghai",
-			CallbackURL:        "https://api.example.com/api/v1/internal/ai-callback",
+			CallbackURL:        "https://api.omnicraft.prod/api/v1/internal/ai-callback",
 			CallbackAllowedIPs: []string{"203.0.113.10"},
 		},
 		Features: FeaturesConfig{
@@ -105,11 +105,11 @@ func validReleaseConfigForTest() *Config {
 		},
 		SMTP: SMTPConfig{
 			Mode:        "smtp",
-			Host:        "smtp.example.com",
+			Host:        "smtp.omnicraft.prod",
 			Port:        587,
-			User:        "mailer@example.com",
+			User:        "mailer@omnicraft.prod",
 			Password:    "smtp-secret",
-			FromAddress: "noreply@example.com",
+			FromAddress: "noreply@omnicraft.prod",
 		},
 		Legal: LegalConfig{
 			CurrentTermsVersion:   "2026-06-08",
@@ -249,7 +249,7 @@ func TestApplyTestModeReplacesNormalDatabaseConfigurationAfterOverrides(t *testi
 	t.Setenv("OMNICRAFT_TEST_REDIS_DB", "15")
 
 	cfg := &Config{
-		Database: DatabaseConfig{DSN: "host=db.example.com dbname=production", ReadDSN: "host=replica.example.com dbname=production"},
+		Database: DatabaseConfig{DSN: "host=db.omnicraft.prod dbname=production", ReadDSN: "host=replica.omnicraft.prod dbname=production"},
 		Redis:    RedisConfig{Addr: "127.0.0.1:6379", DB: 0},
 	}
 
@@ -266,7 +266,7 @@ func TestApplyTestModeRejectsUnsafeTestConfiguration(t *testing.T) {
 		redisDB  string
 		wantPart string
 	}{
-		{"remote database", "host=db.example.com dbname=omnicraft_test_cross_stack", "15", "loopback"},
+		{"remote database", "host=db.omnicraft.prod dbname=omnicraft_test_cross_stack", "15", "loopback"},
 		{"normal database name", "host=127.0.0.1 dbname=omnicraft", "15", "omnicraft_test_"},
 		{"redis db zero", "host=127.0.0.1 dbname=omnicraft_test_cross_stack", "0", "non-zero"},
 		{"invalid redis db", "host=127.0.0.1 dbname=omnicraft_test_cross_stack", "not-a-number", "valid integer"},
@@ -294,7 +294,7 @@ func TestApplyTestModeRequiresLoopbackRedisWithValidPort(t *testing.T) {
 		{"localhost", "localhost:6379", false},
 		{"ipv4 loopback", "127.0.0.1:6379", false},
 		{"ipv6 loopback", "[::1]:6379", false},
-		{"remote host", "redis.example.com:6379", true},
+		{"remote host", "redis.omnicraft.prod:6379", true},
 		{"empty address", "", true},
 		{"missing port", "127.0.0.1", true},
 		{"invalid port", "127.0.0.1:not-a-port", true},
@@ -415,14 +415,81 @@ func TestValidateReleaseAcceptsValidRotationWindow(t *testing.T) {
 	require.NoError(t, cfg.ValidateRelease())
 }
 
+func TestValidateReleaseRejectsPlaceholderValues(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("OMNICRAFT_PRIVATE_DB_HOSTS", "")
+
+	cases := []struct {
+		name   string
+		mutate func(*Config)
+		want   string
+	}{
+		{"angle placeholder in jwt secret", func(c *Config) { c.JWT.Secret = "<openssl-rand-base64-64>" }, "jwt.secret"},
+		{"change-me placeholder in redis password", func(c *Config) { c.Redis.Password = "CHANGE_ME" }, "redis.password"},
+		{"example domain in public base url", func(c *Config) { c.Web.PublicBaseURL = "https://app.example.com" }, "web.public_base_url"},
+		{"placeholder in smtp host", func(c *Config) { c.SMTP.Host = "<smtp-host>" }, "smtp.host"},
+		{"placeholder in oss bucket", func(c *Config) { c.OSS.BucketName = "your-bucket-name" }, "oss.bucket_name"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validReleaseConfigForTest()
+			tc.mutate(cfg)
+			err := cfg.ValidateRelease()
+			require.Error(t, err)
+			require.True(t, strings.HasPrefix(err.Error(), validateReleaseErrPrefix))
+			require.ErrorContains(t, err, tc.want)
+		})
+	}
+}
+
+func TestValidateReleaseRequiresVerifyFullDatabaseTLS(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("OMNICRAFT_PRIVATE_DB_HOSTS", "")
+
+	cfg := validReleaseConfigForTest()
+	cfg.Database.DSN = "host=db.omnicraft.prod port=5432 user=omnicraft password=secret dbname=omnicraft sslmode=disable"
+	err := cfg.ValidateRelease()
+	require.Error(t, err)
+	require.True(t, strings.HasPrefix(err.Error(), validateReleaseErrPrefix))
+	require.ErrorContains(t, err, "sslmode")
+
+	cfg = validReleaseConfigForTest()
+	cfg.Database.DSN = "host=db.omnicraft.prod port=5432 user=omnicraft password=secret dbname=omnicraft sslmode=require"
+	err = cfg.ValidateRelease()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "verify-full")
+}
+
+func TestValidateReleaseAllowsPrivateDbHostTLSNegotiation(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("OMNICRAFT_PRIVATE_DB_HOSTS", "pgbouncer")
+
+	cfg := validReleaseConfigForTest()
+	cfg.Database.DSN = "host=pgbouncer port=5432 user=omnicraft password=secret dbname=omnicraft sslmode=disable"
+	require.NoError(t, cfg.ValidateRelease())
+}
+
+func TestValidateReleaseRejectsCallbackAllowedIPPlaceholders(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("OMNICRAFT_PRIVATE_DB_HOSTS", "")
+
+	cfg := validReleaseConfigForTest()
+	cfg.Green.CallbackAllowedIPs = []string{"<comma-separated-ip-list>"}
+	err := cfg.ValidateRelease()
+	require.Error(t, err)
+	require.True(t, strings.HasPrefix(err.Error(), validateReleaseErrPrefix))
+	require.ErrorContains(t, err, "green.callback_allowed_ips")
+}
+
 func TestApplyTestModeLeavesNormalConfigurationUnchanged(t *testing.T) {
 	t.Setenv("OMNICRAFT_TEST_MODE", "")
 	t.Setenv("OMNICRAFT_TEST_DB_DSN", "host=127.0.0.1 dbname=omnicraft_test_ignored")
 	t.Setenv("OMNICRAFT_TEST_REDIS_DB", "15")
 
-	cfg := &Config{Database: DatabaseConfig{DSN: "host=db.example.com dbname=production", ReadDSN: "host=replica.example.com dbname=production"}, Redis: RedisConfig{DB: 0}}
+	cfg := &Config{Database: DatabaseConfig{DSN: "host=db.omnicraft.prod dbname=production", ReadDSN: "host=replica.omnicraft.prod dbname=production"}, Redis: RedisConfig{DB: 0}}
 	require.NoError(t, applyTestMode(cfg))
-	require.Equal(t, "host=db.example.com dbname=production", cfg.Database.DSN)
-	require.Equal(t, "host=replica.example.com dbname=production", cfg.Database.ReadDSN)
+	require.Equal(t, "host=db.omnicraft.prod dbname=production", cfg.Database.DSN)
+	require.Equal(t, "host=replica.omnicraft.prod dbname=production", cfg.Database.ReadDSN)
 	require.Equal(t, 0, cfg.Redis.DB)
 }

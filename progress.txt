@@ -2,6 +2,28 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+## [2026-08-07] - Ops-08: 生产配置、部署与回滚门（Step 1-4 完成，Step 5 阻塞）
+
+### What was done:
+- **配置校验核心（Go）**：`backend/config/config.go` 扩展 `ValidateRelease()`——占位符拒绝（`<...>`/CHANGE_ME/REPLACE_ME/PLACEHOLDER/your-/example.com|org）、数据库 TLS 策略（release 必须 `sslmode=verify-full`，仅 `OMNICRAFT_PRIVATE_DB_HOSTS` 显式列表内的未暴露内部 PgBouncer 主机允许协商）、callback_allowed_ips 占位符拒绝、`client.download_enabled` 不安全 flag 拒绝；`overrideFromEnv` 导出为 `OverrideFromEnv` 供 preflight 复用（消除映射漂移）。config_test.go 新增 4 组 TDD 测试（占位符/verify-full/私有例外/callback IP）。
+- **新增 `backend/cmd/release-preflight/main.go`（保留区扩展，已记入计划）**：合并 .env + config.yaml + override YAML 为单一有效配置后执行 ValidateRelease + 部署级检查（trusted-proxy 拓扑须含非 loopback 条目、callback IP/CIDR 合法性、frontend/API URL 存在且 HTTPS 且 DNS 一致、env 值占位符扫描）；输出 redacted `preflight-summary.json`（永不回显 secret）。
+- **新增 `scripts/release/preflight.sh` + `preflight.tests.sh`**（TDD 红→绿，15 用例）：缺参数 exit 2、缺文件 exit 1、占位符 JWT/SMTP 拒绝、默认 DB 密码拒绝、非 verify-full TLS 拒绝、私有 pgbouncer 例外接受、loopback/空 proxies 拒绝、非法 callback IP 拒绝、bypass captcha/logger SMTP 拒绝、缺 NEXT_PUBLIC_SITE_URL 拒绝、site/api host 不一致拒绝、desktop_enabled 拒绝、summary redacted 验证。
+- **新增 `release/production-config.schema.json`**：有效生产配置 JSON Schema 契约（占位符/default/非 HTTPS/不安全 flags 全部结构化约束）。
+- **部署/回滚门**：新增 `release/deployment-manifest.schema.json`（不可变 sha256 digest、preflight/backup/migration/readiness/smoke 证据、previous_digest、schema_compat.max_head）、`scripts/release/deploy.sh`（immutable digest 强制、证据 ok 校验、preflight 先行、history 记录 previous digest）、`scripts/release/rollback.sh`（未知 digest 拒绝、schema 不兼容拒绝、绝不执行破坏性 down SQL）、`scripts/release/deployment-contract.tests.sh`（TDD 红→绿 11 用例）。
+- **staging 演练**：`scripts/release/staging-drill.sh` + `staging-drill.tests.sh`（TDD 红→绿 5 用例）：编排 preflight → deploy → verify → schema 兼容回滚 → 重部署；真实模式强制 7 项 `OMNICRAFT_STAGING_*` 输入，缺失/占位符 exit 3 阻塞，`-Drill` 仅供契约测试。
+- **发布 workflow**：`.github/workflows/release.yml`（仅 workflow_dispatch 手动触发、`environment: production` 环境保护、SHA-pinned actions、契约测试门、构建镜像记录不可变 digest、生成候选 manifest、上传 365 天证据）；`frontend/Dockerfile` 暴露 `NEXT_PUBLIC_SITE_URL` build arg；`backend/Dockerfile` 构建 release-preflight 二进制；compose 声明 `OMNICRAFT_PRIVATE_DB_HOSTS=pgbouncer` 与 frontend build args。
+- **模板与文档**：`.env.production.example`（占位符模板 + `.gitignore` 放行规则）、`production-config-template.md`（TLS 策略/OMNICRAFT_PRIVATE_DB_HOSTS/trusted_proxies/preflight 引用）、`single-server-beta-runbook.md`（生产标题 + legacy 文件名说明 + 新增「11. Release preflight and staging drill」）、`architecture.md` §2.4 发布门、`README.md` 生产发布门章节。
+
+### Testing:
+- TDD 红记录：preflight.tests.sh/deployment-contract.tests.sh/staging-drill.tests.sh 在脚本不存在时按预期失败（red）；config 新测试在实现前全部失败（期望 error 得到 nil）。
+- TDD 绿：preflight 15 用例、deployment 11 用例、staging-drill 5 用例全绿；`go test ./...`/`go vet`/`go build` 全绿；`verify-pinned-actions.sh` 全绿（release.yml SHA-pinned + least-privilege）；doc-validator `--fix` 无变更 + `--check --profile release` 通过；default verifier 全绿；evidence schema 校验通过。
+- 说明：新 worktree 需 `npm install`（typescript 缺失导致的前端测试失败是环境问题，非代码问题）。
+
+### Notes:
+- **Step 5 阻塞**：真实 staging 输入缺失（OMNICRAFT_STAGING_ENV_FILE/OVERRIDE_FILE/CANDIDATE_MANIFEST/PREVIOUS_MANIFEST/STAGING_OSS_BUCKET/GITHUB_RELEASE_TAG 全部缺失；off-site 归档凭据已备于 `~/.config/omnicraft/ops-08-offsite-archive.env`（ARCHIVE_* 前缀，命名需对齐），但 staging 环境/Oss bucket/Release tag 未提供）。按规则不勾选 Step 5、不提交 staging 相关计划项；recovery-objectives.json 保持 baseline_only（数值批准属 Step 5 输入）。
+- release.yml 已通过 pinned-actions 校验；CI 真实验证待 GitHub runner 恢复（当前 runner 分配持续失败，非代码问题）。
+- 提交后需 `finalize-evidence.sh` 绑定终态 commit 并 revalidate。
+
 ## [2026-08-06] - Ops-07: 建立负载、压力与容量门
 
 ### What was done:

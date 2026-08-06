@@ -16,7 +16,7 @@
 
 ## Status, authority, and universal rules
 
-**Status:** Ops-00 completed at `9ea53c8`; Ops-01 completed by CI commit `7f34191` and evidence/branch-protection closeout `4cba1da`; Ops-02 completed on `codex/ops/ops-02` after two-axis review, final-commit-bound local evidence and PR #21 PostgreSQL migration/contract/project gates; Ops-03 completed on `codex/ops/ops-03` after contract tests, a real observability drill and the default project gate (merged to main with Ops-04 at `ddaf0a4`); Ops-04 completed on `codex/ops/ops-04` after contract tests, promtool/amtool validation, a real firing/resolved alert drill with the in-network alert-sink and a real Healthchecks.io missing-heartbeat down-flip (merged to main at `ddaf0a4`, including llm semantic merge); Ops-05 completed on `codex/ops/ops-05` after policy/exception/pinned-action contract tests, fixture failure isolation, the default project gate and the full filesystem/IaC/image scan set (merged to main at `9c0e195`); Ops-06 completed on `codex/ops/ops-06` after manifest/SBOM/pinned-generator contract tests, deterministic two-run SBOM comparison, full container+lockfile generation, 17-check provenance verification with OCI label↔commit binding, downloaded-artifact re-verification, one-year-retention archive receipt and the default project gate; Ops-07 completed on `codex/ops/ops-07` after runner/target-safety contract tests, the approved release performance profile, real smoke/load/stress baseline measurement, k6 threshold validation and the default project gate; Ops-08 has not started; Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
+**Status:** Ops-00 completed at `9ea53c8`; Ops-01 completed by CI commit `7f34191` and evidence/branch-protection closeout `4cba1da`; Ops-02 completed on `codex/ops/ops-02` after two-axis review, final-commit-bound local evidence and PR #21 PostgreSQL migration/contract/project gates; Ops-03 completed on `codex/ops/ops-03` after contract tests, a real observability drill and the default project gate (merged to main with Ops-04 at `ddaf0a4`); Ops-04 completed on `codex/ops/ops-04` after contract tests, promtool/amtool validation, a real firing/resolved alert drill with the in-network alert-sink and a real Healthchecks.io missing-heartbeat down-flip (merged to main at `ddaf0a4`, including llm semantic merge); Ops-05 completed on `codex/ops/ops-05` after policy/exception/pinned-action contract tests, fixture failure isolation, the default project gate and the full filesystem/IaC/image scan set (merged to main at `9c0e195`); Ops-06 completed on `codex/ops/ops-06` after manifest/SBOM/pinned-generator contract tests, deterministic two-run SBOM comparison, full container+lockfile generation, 17-check provenance verification with OCI label↔commit binding, downloaded-artifact re-verification, one-year-retention archive receipt and the default project gate; Ops-07 completed on `codex/ops/ops-07` after runner/target-safety contract tests, the approved release performance profile, real smoke/load/stress baseline measurement, k6 threshold validation and the default project gate; Ops-08 in progress on `codex/ops/ops-08` (Step 1-4 completed after config/preflight/deployment/staging contract tests, the sanitized production template, the manual protected release workflow and the default project gate; Step 5 staging drill blocked on missing real staging/OSS/Release inputs); Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
 
 - This plan is not Hardening Task 6 and must never add one.
 - Do not modify `task.json`, Beta/community checkboxes, or Web Agent completion state.
@@ -766,19 +766,19 @@ bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -
 - Modify: `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md`
 - Modify: `progress.txt`
 
-- [ ] **Step 1: Write failing production-config tests**
+- [x] **Step 1: Write failing production-config tests**
 
 Reject placeholders, debug/localhost/HTTP/wildcard origins, default DB/JWT/Redis, bypass CAPTCHA/logger SMTP, missing legal versions, floating images, unsafe flags and missing frontend build URLs. Validate environment and override YAML as one effective config. Cover every `ValidateRelease()` field plus trusted-proxy topology, callback HTTPS/IP allowlist, read-only config-volume availability, frontend/API DNS consistency, and database TLS policy (`verify-full` externally; explicit private-network exception only for an unexposed internal PgBouncer host).
 
-- [ ] **Step 2: Implement sanitized template and preflight**
+- [x] **Step 2: Implement sanitized template and preflight**
 
 Allow `.env.production.example` through `.gitignore`; never allow `.env.production`. Align actual env names and expose `NEXT_PUBLIC_SITE_URL` as a build arg.
 
-- [ ] **Step 3: Write failing deployment/rollback contract tests**
+- [x] **Step 3: Write failing deployment/rollback contract tests**
 
 Require immutable digests, preflight, backup, migration, readiness, smoke and recorded previous digest. Rollback must refuse unknown/incompatible schema and must not run destructive down SQL.
 
-- [ ] **Step 4: Implement manual protected release workflow**
+- [x] **Step 4: Implement manual protected release workflow**
 
 Build/verify once, deploy the same digest, use GitHub Environment protection, and upload deployment manifest. Production is manual; PR cannot deploy.
 
@@ -808,6 +808,13 @@ bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -
 **Acceptance evidence:** redacted preflight summary, deployment manifest, backup/migration IDs, candidate/previous digests, readiness/smoke logs, rollback and redeploy durations, approved and met RPO/RTO, `docs/deploy/single-server-beta-runbook.md` revised in place with a production title/status banner and an explicit note that the legacy filename is retained only for link compatibility, final-commit-bound `artifacts/ops-08/summary.json`.  
 **Release blocker:** placeholder/default config, mutable image, missing backup/migration evidence, failed staging rollback, schema incompatible with previous app, missing external production inputs.  
 **Commit:** `Ops 08: add production deploy and rollback gate`
+
+> 2026-08-07 实施记录（`codex/ops/ops-08`，Step 1-4 完成；Step 5 阻塞，审查合并前视为 pending）：
+>
+> - **保留区扩展（记录于此）**：新增 `backend/cmd/release-preflight/main.go`——preflight 核心以 Go 实现（复用 `config` 包 `ValidateRelease`/`OverrideFromEnv`/`LoadOverride`，避免 bash 重复实现与映射漂移）；`preflight.sh` 为 bash 包装（参数/文件校验 + go build 临时二进制）。`config.go` 将 `overrideFromEnv` 导出为 `OverrideFromEnv` 供其复用；`ValidateRelease` 新增：占位符拒绝（`<...>`/CHANGE_ME/REPLACE_ME/PLACEHOLDER/your-/example.com|org）、数据库 TLS 策略（release 必须 `sslmode=verify-full`，仅 `OMNICRAFT_PRIVATE_DB_HOSTS` 显式私有网络例外）、callback IP 占位符拒绝、`client.download_enabled` 不安全 flag 拒绝。
+> - **Step 1-4 契约测试与实现**：`preflight.tests.sh` 15 用例（占位符/默认密码/非 verify-full/私有例外/loopback proxies/callback IP/bypass captcha/logger SMTP/缺 frontend URL/site-api host 不一致/desktop flag/summary redacted）；`deployment-contract.tests.sh` 11 用例（floating/malformed digest、缺 migration head、preflight 先行、valid drill 记录 previous digest、rollback 未知 digest/不兼容 schema 拒绝、无破坏性 down SQL）；`staging-drill.tests.sh` 5 用例（缺 7 项真实输入 exit 3、占位符拒绝、drill 编排 deploy→verify→rollback→redeploy）。`release.yml` 仅 workflow_dispatch + `environment: production` 保护 + SHA-pinned actions；frontend Dockerfile 暴露 `NEXT_PUBLIC_SITE_URL` build arg；backend Dockerfile 构建 release-preflight；compose 声明 `OMNICRAFT_PRIVATE_DB_HOSTS=pgbouncer` 与 frontend build args（否则生产 preflight 会拒绝自己的 compose 配置）。
+> - **Step 5 阻塞**：真实 staging 输入缺失——`OMNICRAFT_STAGING_ENV_FILE`/`OMNICRAFT_STAGING_OVERRIDE_FILE`/`OMNICRAFT_CANDIDATE_MANIFEST`/`OMNICRAFT_PREVIOUS_MANIFEST`/`OMNICRAFT_STAGING_OSS_BUCKET`/`GITHUB_RELEASE_TAG` 全部缺失；off-site 归档凭据已备于 `~/.config/omnicraft/ops-08-offsite-archive.env`（`ARCHIVE_AK_ID`/`ARCHIVE_AK_SECRET`/`OFFSITE_ARCHIVE_BUCKET`/`OFFSITE_ARCHIVE_REGION`/`OFFSITE_ARCHIVE_ENDPOINT`/`OFFSITE_ARCHIVE_URI`，命名与 staging-drill 的 `OMNICRAFT_OFFSITE_ARCHIVE_URI` 需对齐导出）。`recovery-objectives.json` 保持 `baseline_only`（用户批准数值属 Step 5 输入）。解除阻塞后运行计划 Step 5 命令块（`bash scripts/release/staging-drill.sh ...` + `archive-release-evidence.sh ...`）并勾选 Step 5。
+> - **CI 说明**：`verify-pinned-actions.sh`/`verify-security.tests.sh`/`verify-workflows.tests.sh` 全绿；release.yml 的真实验证待 GitHub hosted runner 恢复（2026-08-06 起 runner 分配持续失败，属 GitHub 基础设施问题，非代码）。
 
 ---
 

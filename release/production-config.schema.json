@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "omnicraft-production-config",
+  "title": "OmniCraft effective production configuration",
+  "description": "Contract for the effective production configuration produced by merging .env production variables, the repository default config.yaml and the operator config override YAML. Validated by scripts/release/preflight.sh (backed by backend/cmd/release-preflight). Secret values are never included here; this schema describes structure and safety rules only.",
+  "type": "object",
+  "required": ["server", "web", "security", "database", "redis", "jwt", "oss", "green", "features", "captcha", "smtp", "legal", "observability"],
+  "properties": {
+    "server": {
+      "type": "object",
+      "required": ["mode", "port"],
+      "properties": {
+        "mode": { "enum": ["release"] },
+        "port": { "type": "string", "pattern": "^[0-9]+$" },
+        "shutdown_timeout": { "type": "integer", "minimum": 1 },
+        "read_timeout": { "type": "integer", "minimum": 1 },
+        "write_timeout": { "type": "integer", "minimum": 1 },
+        "idle_timeout": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "web": {
+      "type": "object",
+      "required": ["public_base_url"],
+      "properties": {
+        "public_base_url": {
+          "type": "string",
+          "pattern": "^https://[a-z0-9.-]+\\.(online|com|net|org|cn|io|dev)(/.*)?$",
+          "not": { "pattern": "(<|>|CHANGE_ME|REPLACE_ME|PLACEHOLDER|example\\.(com|org))" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "security": {
+      "type": "object",
+      "required": ["allowed_origins", "trusted_proxies"],
+      "properties": {
+        "allowed_origins": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^https://",
+            "not": { "pattern": "(\\*|<|>|localhost|127\\.0\\.0\\.1|example\\.(com|org))" }
+          }
+        },
+        "trusted_proxies": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "At least one non-loopback entry (nginx container IP/CIDR) required by preflight"
+        }
+      },
+      "additionalProperties": false
+    },
+    "database": {
+      "type": "object",
+      "required": ["dsn"],
+      "properties": {
+        "dsn": {
+          "type": "string",
+          "description": "libpq DSN or postgres:// URL; preflight requires sslmode=verify-full except for explicit private-network hosts"
+        },
+        "read_dsn": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "redis": {
+      "type": "object",
+      "required": ["addr", "password", "db"],
+      "properties": {
+        "addr": { "type": "string", "minLength": 1 },
+        "password": {
+          "type": "string",
+          "not": { "pattern": "(<|>|CHANGE_ME|REPLACE_ME|PLACEHOLDER|^omnicraft$|^redis$)" }
+        },
+        "db": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "jwt": {
+      "type": "object",
+      "required": ["secret", "access_token_ttl", "refresh_token_ttl"],
+      "properties": {
+        "secret": {
+          "type": "string",
+          "minLength": 32,
+          "not": { "pattern": "(<|>|CHANGE_ME|dev-secret-change-in-production)" }
+        },
+        "access_token_ttl": { "type": "integer", "minimum": 1 },
+        "refresh_token_ttl": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "oss": {
+      "type": "object",
+      "required": ["endpoint", "access_key_id", "access_key_secret", "bucket_name", "domain", "download_url_ttl_sec"],
+      "properties": {
+        "endpoint": { "type": "string", "pattern": "^https://" },
+        "access_key_id": { "type": "string", "not": { "pattern": "(<|>|CHANGE_ME|your-)" } },
+        "access_key_secret": { "type": "string", "not": { "pattern": "(<|>|CHANGE_ME|your-)" } },
+        "bucket_name": { "type": "string", "not": { "pattern": "(<|>|your-)" } },
+        "domain": { "type": "string", "pattern": "^https://" },
+        "download_url_ttl_sec": { "type": "integer", "minimum": 1, "maximum": 3600 }
+      },
+      "additionalProperties": false
+    },
+    "green": {
+      "type": "object",
+      "required": ["access_key_id", "access_key_secret", "region", "callback_url", "callback_allowed_ips"],
+      "properties": {
+        "access_key_id": { "type": "string", "not": { "pattern": "(<|>|CHANGE_ME)" } },
+        "access_key_secret": { "type": "string", "not": { "pattern": "(<|>|CHANGE_ME)" } },
+        "region": { "type": "string", "minLength": 1 },
+        "callback_url": { "type": "string", "pattern": "^https://" },
+        "callback_allowed_ips": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "IPv4/IPv6 addresses or CIDRs; placeholders rejected"
+        }
+      },
+      "additionalProperties": false
+    },
+    "features": {
+      "type": "object",
+      "required": ["payment_enabled", "creator_support_enabled", "desktop_deploy_enabled"],
+      "properties": {
+        "payment_enabled": { "const": false },
+        "creator_support_enabled": { "const": false },
+        "desktop_deploy_enabled": { "const": false }
+      },
+      "additionalProperties": false
+    },
+    "captcha": {
+      "type": "object",
+      "required": ["provider", "prefix", "scene_id", "access_key_id", "access_key_secret"],
+      "properties": {
+        "provider": { "enum": ["aliyun_v2"] },
+        "prefix": { "type": "string", "not": { "pattern": "(<|>)" } },
+        "scene_id": { "type": "string", "not": { "pattern": "(<|>)" } },
+        "access_key_id": { "type": "string", "not": { "pattern": "(<|>|CHANGE_ME)" } },
+        "access_key_secret": { "type": "string", "not": { "pattern": "(<|>|CHANGE_ME)" } }
+      },
+      "additionalProperties": false
+    },
+    "smtp": {
+      "type": "object",
+      "required": ["mode", "host", "port", "user", "password", "from_address"],
+      "properties": {
+        "mode": { "enum": ["smtp"] },
+        "host": { "type": "string", "not": { "pattern": "(<|>|CHANGE_ME)" } },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "user": { "type": "string", "not": { "pattern": "(<|>)" } },
+        "password": { "type": "string", "not": { "pattern": "(<|>|CHANGE_ME)" } },
+        "from_address": { "type": "string", "pattern": "^[^@]+@[^@]+$" }
+      },
+      "additionalProperties": false
+    },
+    "legal": {
+      "type": "object",
+      "required": ["current_terms_version", "current_privacy_version"],
+      "properties": {
+        "current_terms_version": { "type": "string", "not": { "pattern": "(<|>|CHANGE_ME)" } },
+        "current_privacy_version": { "type": "string", "not": { "pattern": "(<|>|CHANGE_ME)" } }
+      },
+      "additionalProperties": false
+    },
+    "observability": {
+      "type": "object",
+      "required": ["metrics_port", "log_level", "log_ip_hash_secret", "log_ip_key_id"],
+      "properties": {
+        "metrics_port": { "type": "string", "pattern": "^[0-9]+$" },
+        "log_level": { "enum": ["debug", "info", "warn", "error"] },
+        "log_ip_hash_secret": { "type": "string", "minLength": 1 },
+        "log_ip_key_id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "agent": {
+      "type": "object",
+      "properties": {
+        "web_agent_enabled": { "type": "boolean" },
+        "llm_provider": { "type": "string" },
+        "llm_model": { "type": "string" },
+        "llm_api_base": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "client": {
+      "type": "object",
+      "required": ["download_enabled"],
+      "properties": {
+        "download_enabled": { "const": false },
+        "download_url": { "type": "string" },
+        "latest_version": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

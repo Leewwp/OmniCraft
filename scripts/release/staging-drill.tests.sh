@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# Contract tests for scripts/release/staging-drill.sh: input validation
+# (missing real staging inputs must block with exit 3, placeholders refused)
+# and the drill orchestration in -Drill mode (preflight -> deploy -> verify ->
+# rollback -> verify -> redeploy).
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+DRILL_SCRIPT="$SCRIPT_DIR/staging-drill.sh"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+if [ ! -f "$DRILL_SCRIPT" ]; then
+  echo "staging-drill.sh does not exist" >&2
+  exit 1
+fi
+
+TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/omnicraft-staging.XXXXXX")"
+trap 'rm -rf "$TEMP_ROOT"' EXIT
+
+make_fixture() {
+  local dir="$1"
+  mkdir -p "$dir"
+  python3 - "$dir" <<'PY'
+import json, sys
+out = sys.argv[1]
+with open(out + "/env", "w") as f:
+    f.write("""POSTGRES_USER=omnicraft
+POSTGRES_PASSWORD=correct-horse-battery-staple
+POSTGRES_DB=omnicraft
+OMNICRAFT_PRIVATE_DB_HOSTS=pgbouncer
+DB_DSN=host=pgbouncer port=5432 user=omnicraft password=correct-horse-battery-staple dbname=omnicraft sslmode=disable
+REDIS_ADDR=redis:6379
+REDIS_PASSWORD=redis-strong-secret
+REDIS_DB=0
+JWT_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+LLM_KEY_ENCRYPTION_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef
+ALLOWED_ORIGINS=https://app.omnicraft.test
+OSS_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com
+OSS_ACCESS_KEY_ID=LTAI5t-real-key
+OSS_ACCESS_KEY_SECRET=real-oss-secret
+OSS_BUCKET_NAME=omnicraft-private
+OSS_DOMAIN=https://omnicraft-private.oss-cn-hangzhou.aliyuncs.com
+GREEN_ACCESS_KEY_ID=LTAI5t-green-key
+GREEN_ACCESS_KEY_SECRET=real-green-secret
+GREEN_REGION=cn-shanghai
+GREEN_CALLBACK_URL=https://api.omnicraft.test/api/v1/internal/ai-callback
+GREEN_CALLBACK_ALLOWED_IPS=203.0.113.10
+CAPTCHA_ACCESS_KEY_ID=LTAI5t-captcha-key
+CAPTCHA_ACCESS_KEY_SECRET=real-captcha-secret
+SMTP_PASSWORD=smtp-strong-secret
+NEXT_PUBLIC_API_URL=https://api.omnicraft.test
+INTERNAL_API_URL=https://api.omnicraft.test
+NEXT_PUBLIC_SITE_URL=https://app.omnicraft.test
+""")
+with open(out + "/override.yaml", "w") as f:
+    f.write("""server:
+  mode: "release"
+web:
+  public_base_url: "https://app.omnicraft.test"
+security:
+  allowed_origins:
+    - "https://app.omnicraft.test"
+  trusted_proxies:
+    - "172.16.0.0/12"
+features:
+  payment_enabled: false
+  creator_support_enabled: false
+  desktop_deploy_enabled: false
+client:
+  download_enabled: false
+captcha:
+  provider: "aliyun_v2"
+  prefix: "p"
+  scene_id: "s"
+smtp:
+  mode: "smtp"
+  host: "smtp.omnicraft.test"
+  user: "mailer@omnicraft.test"
+  password: "smtp-secret"
+  from_address: "noreply@omnicraft.test"
+legal:
+  current_terms_version: "2026-08-07"
+  current_privacy_version: "2026-08-07"
+observability:
+  metrics_port: "9091"
+  log_level: "info"
+  log_ip_hash_secret: "ip-hash-secret"
+  log_ip_key_id: "current"
+rate_limit:
+  enabled: true
+  normal_per_minute: 100
+  upload_per_hour: 200
+""")
+def manifest(version, commit, digest, head):
+    return {
+        "schema_version": "1.0", "version": version, "commit": commit,
+        "created_at": "2026-08-07T00:00:00Z", "previous_digest": None,
+        "images": {
+            "backend": {"ref": "registry.example/omnicraft-backend@" + digest, "digest": digest},
+            "frontend": {"ref": "registry.example/omnicraft-frontend@" + digest, "digest": digest},
+        },
+        "migration": {"head": head}, "schema_compat": {"max_head": head},
+        "preflight": {"status": "ok", "summary": "preflight-summary.json"},
+        "backup": {"id": "backup-001", "status": "ok"},
+        "readiness": {"status": "ok"}, "smoke": {"status": "ok"},
+        "deployed_at": "2026-08-07T01:00:00Z",
+    }
+head = "060_fix_search_config_fallback.sql"
+d1 = "sha256:" + "1" * 64
+d2 = "sha256:" + "2" * 64
+# Candidate and previous share the same schema head so the rollback leg is
+# schema-compatible (a candidate that bumps the schema would legitimately be
+# refused by rollback.sh; that refusal path is covered by the deployment
+# contract tests).
+json.dump(manifest("v0.2.0", "a" * 40, d2, head), open(out + "/candidate.json", "w"), indent=2)
+json.dump(manifest("v0.1.0", "b" * 40, d1, head), open(out + "/previous.json", "w"), indent=2)
+PY
+}
+
+# ------------------------------------------------------------ usage errors
+rc=0
+bash "$DRILL_SCRIPT" >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 2 ] || { echo "FAIL: missing args must exit 2" >&2; exit 1; }
+echo "OK: usage errors"
+
+# -------------------------------------------- missing staging inputs block
+F="$TEMP_ROOT/blocked"
+make_fixture "$F"
+env -u OMNICRAFT_STAGING_ENV_FILE -u OMNICRAFT_STAGING_OVERRIDE_FILE -u OMNICRAFT_CANDIDATE_MANIFEST \
+  -u OMNICRAFT_PREVIOUS_MANIFEST -u OMNICRAFT_STAGING_OSS_BUCKET -u OMNICRAFT_OFFSITE_ARCHIVE_URI \
+  -u GITHUB_RELEASE_TAG \
+  bash "$DRILL_SCRIPT" -EnvironmentFile "$F/env" -OverrideFile "$F/override.yaml" \
+    -CandidateManifest "$F/candidate.json" -PreviousManifest "$F/previous.json" -ReportDir "$F/report" \
+    >/dev/null 2>"$F/blocked.err" || rc=$?
+[ "$rc" -eq 3 ] || { echo "FAIL: missing staging inputs must block with exit 3, got $rc" >&2; cat "$F/blocked.err" >&2; exit 1; }
+echo "OK: missing staging inputs block the drill"
+
+# ------------------------------------------------- placeholder inputs block
+F="$TEMP_ROOT/placeholder"
+make_fixture "$F"
+rc=0
+OMNICRAFT_STAGING_ENV_FILE="$F/env" OMNICRAFT_STAGING_OVERRIDE_FILE="$F/override.yaml" \
+  OMNICRAFT_CANDIDATE_MANIFEST="$F/candidate.json" OMNICRAFT_PREVIOUS_MANIFEST="$F/previous.json" \
+  OMNICRAFT_STAGING_OSS_BUCKET="<your-bucket>" OMNICRAFT_OFFSITE_ARCHIVE_URI="s3://<bucket>/ops" \
+  GITHUB_RELEASE_TAG="v0.1.0" \
+  bash "$DRILL_SCRIPT" -EnvironmentFile "$F/env" -OverrideFile "$F/override.yaml" \
+    -CandidateManifest "$F/candidate.json" -PreviousManifest "$F/previous.json" -ReportDir "$F/report" \
+    >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 3 ] || { echo "FAIL: placeholder staging inputs must block with exit 3, got $rc" >&2; exit 1; }
+echo "OK: placeholder staging inputs block the drill"
+
+# --------------------------------------------------------- valid drill run
+F="$TEMP_ROOT/valid"
+make_fixture "$F"
+rc=0
+bash "$DRILL_SCRIPT" -EnvironmentFile "$F/env" -OverrideFile "$F/override.yaml" \
+  -CandidateManifest "$F/candidate.json" -PreviousManifest "$F/previous.json" -ReportDir "$F/report" -Drill \
+  >"$TEMP_ROOT/valid.out" 2>"$TEMP_ROOT/valid.err" || rc=$?
+[ "$rc" -eq 0 ] || { echo "FAIL: valid drill must exit 0, got $rc" >&2; cat "$TEMP_ROOT/valid.err" >&2; exit 1; }
+[ -f "$F/report/deployment-manifest.json" ] || { echo "FAIL: deployment manifest missing" >&2; exit 1; }
+[ -f "$F/report/rollback-manifest.json" ] || { echo "FAIL: rollback manifest missing" >&2; exit 1; }
+[ -f "$F/report/history.json" ] || { echo "FAIL: history missing" >&2; exit 1; }
+echo "OK: valid drill orchestrates deploy -> rollback -> redeploy"
+
+echo "All staging-drill contract tests passed"

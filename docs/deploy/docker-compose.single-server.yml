@@ -124,6 +124,9 @@ services:
       REDIS_ADDR: "redis:6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
       REDIS_DB: ${REDIS_DB:-0}
+      # pgbouncer is an unexposed internal host: preflight allows TLS
+      # negotiation (sslmode=disable) only for hosts in this explicit list.
+      OMNICRAFT_PRIVATE_DB_HOSTS: "pgbouncer"
       CONFIG_OVERRIDE_PATH: /app/config_override.yaml
     volumes:
       - /var/lib/omnicraft/config_override.yaml:/app/config_override.yaml:ro
@@ -153,11 +156,12 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: https://api.leeppp.online
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.leeppp.online}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://app.leeppp.online}
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_URL: https://api.leeppp.online
-      NEXT_PUBLIC_SITE_URL: https://app.leeppp.online
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.leeppp.online}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://app.leeppp.online}
     depends_on:
       backend:
         condition: service_healthy

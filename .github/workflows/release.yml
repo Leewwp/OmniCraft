@@ -1,0 +1,127 @@
+name: OmniCraft Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. v0.1.0)"
+        required: true
+      api_url:
+        description: "Frontend NEXT_PUBLIC_API_URL build value"
+        required: false
+        default: "https://api.leeppp.online"
+
+concurrency:
+  group: release-${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release-contracts:
+    name: Release contract gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Release contract tests
+        run: |
+          bash scripts/release/preflight.tests.sh
+          bash scripts/release/deployment-contract.tests.sh
+          bash scripts/release/staging-drill.tests.sh
+          python3 -m json.tool release/production-config.schema.json >/dev/null
+          python3 -m json.tool release/deployment-manifest.schema.json >/dev/null
+      - name: Build backend image and record immutable digest
+        run: |
+          docker build -q --iidfile artifacts/backend.iid ./backend
+          mkdir -p artifacts
+          mv artifacts/backend.iid artifacts/backend.iid.tmp 2>/dev/null || mkdir -p artifacts
+          docker build -q --iidfile artifacts/backend.iid ./backend
+          cat artifacts/backend.iid
+      - name: Build frontend image and record immutable digest
+        run: |
+          docker build -q --iidfile artifacts/frontend.iid \
+            --build-arg NEXT_PUBLIC_API_URL="${{ inputs.api_url }}" \
+            --build-arg NEXT_PUBLIC_SITE_URL="https://app.leeppp.online" \
+            ./frontend
+          cat artifacts/frontend.iid
+      - name: Generate candidate deployment manifest
+        run: |
+          python3 - artifacts "${{ inputs.version }}" "$GITHUB_SHA" <<'PY'
+import json, sys, datetime
+
+out_dir, version, commit = sys.argv[1:4]
+
+def digest_for(name):
+    with open(f"{out_dir}/{name}.iid", encoding="utf-8") as f:
+        return f.read().strip()
+
+backend_digest = digest_for("backend")
+frontend_digest = digest_for("frontend")
+now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+manifest = {
+    "schema_version": "1.0",
+    "version": version,
+    "commit": commit,
+    "created_at": now,
+    "previous_digest": None,
+    "images": {
+        "backend": {"ref": f"omnicraft-backend@{backend_digest}", "digest": backend_digest},
+        "frontend": {"ref": f"omnicraft-frontend@{frontend_digest}", "digest": frontend_digest},
+    },
+    "migration": {"head": None},
+    "schema_compat": {"max_head": None},
+    "preflight": {"status": "pending", "summary": ""},
+    "backup": {"id": "", "status": "pending"},
+    "readiness": {"status": "pending"},
+    "smoke": {"status": "pending"},
+    "deployed_at": None,
+}
+with open(f"{out_dir}/deployment-manifest.json", "w", encoding="utf-8") as f:
+    json.dump(manifest, f, indent=2)
+    f.write("\n")
+print(f"candidate digest: backend={backend_digest} frontend={frontend_digest}")
+PY
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: release-evidence
+          path: artifacts
+          retention-days: 365
+
+  protected-deploy:
+    name: Protected release approval
+    needs: release-contracts
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Download release evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: release-evidence
+          path: artifacts
+      - name: Validate candidate manifest
+        run: |
+          python3 - <<'PY'
+import json, os, re
+m = json.load(open("artifacts/deployment-manifest.json", encoding="utf-8"))
+digest_re = re.compile(r"^sha256:[0-9a-f]{64}$")
+assert digest_re.fullmatch(m["images"]["backend"]["digest"]), "backend digest invalid"
+assert digest_re.fullmatch(m["images"]["frontend"]["digest"]), "frontend digest invalid"
+assert m["commit"] == os.environ["GITHUB_SHA"], "manifest commit must equal GITHUB_SHA"
+print("candidate manifest validated:")
+print(f"  version:   {m['version']}")
+print(f"  commit:    {m['commit']}")
+print(f"  backend:   {m['images']['backend']['digest']}")
+print(f"  frontend:  {m['images']['frontend']['digest']}")
+print("operator action: run scripts/release/staging-drill.sh on the staging server")
+print("with OMNICRAFT_STAGING_* inputs to complete preflight, deploy and rollback drill.")
+PY
+      - name: Upload deployment manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: deployment-manifest
+          path: artifacts/deployment-manifest.json
+          retention-days: 365
