@@ -12,6 +12,7 @@ for (const [key, value] of Object.entries({
   self: dom.window,
   document: dom.window.document,
   navigator: dom.window.navigator,
+  Element: dom.window.Element,
   HTMLElement: dom.window.HTMLElement,
   Node: dom.window.Node,
   Event: dom.window.Event,
@@ -48,7 +49,7 @@ Object.defineProperty(globalThis, "cancelAnimationFrame", {
 // Load testing-library after the DOM globals exist so React attaches event handling to JSDOM.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const testingLibrary = require("@testing-library/react") as typeof import("@testing-library/react");
-export const { act, cleanup, fireEvent, render, waitFor } = testingLibrary;
+export const { act, cleanup, fireEvent, render, waitFor, within } = testingLibrary;
 
 export const testMessages = {
   auth: {

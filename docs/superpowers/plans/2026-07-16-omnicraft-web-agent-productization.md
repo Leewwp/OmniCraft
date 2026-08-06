@@ -236,7 +236,7 @@ Update only Task 3 checkboxes and `progress.txt`, stage exact streaming/quota fi
 
 ## Task 4: Build Traceable And Accessible Web Agent UI
 
-- [ ] **Step 1: Confirm UI spec and add failing tests**
+- [x] **Step 1: Confirm UI spec and add failing tests**
 
 Tests cover:
 
@@ -255,21 +255,21 @@ Tests cover:
 - clear-history opens ConfirmModal, cancel performs no request, success sends the owned DELETE and focuses the new input;
 - delete failure preserves rendered messages and returns focus to the clear trigger.
 
-- [ ] **Step 2: Implement typed frontend normalizer**
+- [x] **Step 2: Implement typed frontend normalizer**
 
 `frontend/lib/agent.ts` normalizes SSE events and rejects malformed citations/tool events. No `any` in public component props.
 
-- [ ] **Step 3: Implement citation and tool-status components**
+- [x] **Step 3: Implement citation and tool-status components**
 
 Citation items show title, zone, excerpt, and an accessible link. Tool status uses short user-facing labels such as “已检索 8 条内容”; do not expose raw args or internal reasoning.
 
-- [ ] **Step 4: Build AgentWorkspace and separate global keyword search**
+- [x] **Step 4: Build AgentWorkspace and separate global keyword search**
 
 Create the protected `/agent` page and `AgentWorkspace` with stable loading, empty, partial-stream, stopped, error, degraded, and success states. Preserve last successful answer on retryable failures. Remove the Root Layout `AgentChatWidget` mount. Migrate Header/search consumers to keyword-only `GlobalSearchInput`; do not expose an Agent mode switch. All visible strings use the documented `agent.*` and `search.*` namespaces.
 Implement separate “开始新对话” and “清空当前历史” actions using the lifecycle contract above; never label a local-only reset as server history deletion.
 Wire valid citations to the shared `ContentDetailOverlay`; closing the overlay restores the conversation scroll position and citation trigger focus.
 
-- [ ] **Step 5: Run focused frontend tests**
+- [x] **Step 5: Run focused frontend tests**
 
 ```bash
 cd frontend
@@ -278,7 +278,7 @@ npm run lint
 npm run build
 ```
 
-- [ ] **Step 6: Checkpoint Task 4**
+- [x] **Step 6: Checkpoint Task 4**
 
 Update only Task 4 checkboxes and `progress.txt`, stage exact UI/translation/test files, and commit `Web Agent 4: build traceable Agent UI`.
 

@@ -25,6 +25,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { buttonVariants } from "@/components/ui/button";
+import { AgentFeatureGate } from "@/components/agent/AgentFeatureGate";
+import { GlobalSearchInput } from "@/components/search/GlobalSearchInput";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,7 +60,6 @@ export function Header() {
   const pathname = usePathname();
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -78,15 +79,6 @@ export function Header() {
 
   function goTo(path: string) {
     router.push(path);
-    setMobileMenuOpen(false);
-  }
-
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    const trimmed = searchQuery.trim();
-    if (!trimmed) return;
-    router.push(`/search?q=${encodeURIComponent(trimmed)}`);
-    setMobileSearchOpen(false);
     setMobileMenuOpen(false);
   }
 
@@ -138,31 +130,26 @@ export function Header() {
           >
             {t("nav.originalZone")}
           </Link>
-          <Link
-            href="/agent"
-            aria-current={pathname.startsWith("/agent") ? "page" : undefined}
-            className={cn(
-              "relative flex h-full items-center px-3 text-sm font-medium text-fg-muted transition-colors duration-150 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary after:opacity-0 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-              pathname.startsWith("/agent") && "font-semibold text-foreground after:opacity-100",
-            )}
-          >
-            {t("nav.agent")}
-          </Link>
+          <AgentFeatureGate capability="webAgent" fallback={null}>
+            <Link
+              href="/agent"
+              aria-current={pathname.startsWith("/agent") ? "page" : undefined}
+              className={cn(
+                "relative flex h-full items-center px-3 text-sm font-medium text-fg-muted transition-colors duration-150 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary after:opacity-0 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                pathname.startsWith("/agent") && "font-semibold text-foreground after:opacity-100",
+              )}
+            >
+              {t("nav.agent")}
+            </Link>
+          </AgentFeatureGate>
         </nav>
 
         <div className="flex flex-1 items-center gap-2">
-          {/* Desktop search */}
-          <form onSubmit={handleSearch} className="relative hidden max-w-[480px] flex-1 items-center min-[701px]:flex">
-            <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground" />
-            <input
-              type="search"
-              aria-label={t("common.search")}
-              placeholder={t("common.search")}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 w-full rounded-md border border-transparent bg-canvas-subtle pl-9 pr-3 text-sm placeholder:text-muted-foreground/60 transition-[color,background-color,border-color,box-shadow] duration-150 hover:border-border-strong focus:border-ring focus:bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
-            />
-          </form>
+          {/* Desktop keyword search (no Agent mode switch) */}
+          <GlobalSearchInput
+            size="sm"
+            className="hidden max-w-[480px] flex-1 items-center min-[701px]:flex"
+          />
           {/* Mobile search toggle */}
           <div className="flex flex-1 justify-end min-[701px]:hidden">
             <button
@@ -313,22 +300,13 @@ export function Header() {
           )}
         </div>
         </div>
-        {/* Mobile expandable search */}
+        {/* Mobile expandable keyword search */}
         {mobileSearchOpen && (
-          <form onSubmit={handleSearch} className="absolute inset-x-0 top-full border-b border-border bg-canvas-default px-4 py-2 min-[701px]:hidden">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="search"
-                aria-label={t("common.search")}
-                autoFocus
-                placeholder={t("common.search")}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-11 w-full rounded-md border border-input bg-background pl-9 pr-3 text-base placeholder:text-muted-foreground/60 focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-              />
-            </div>
-          </form>
+          <GlobalSearchInput
+            size="lg"
+            autoFocus
+            className="absolute inset-x-0 top-full border-b border-border bg-canvas-default px-4 py-2 min-[701px]:hidden"
+          />
         )}
       </header>
 
@@ -367,17 +345,7 @@ export function Header() {
               </button>
             </div>
 
-            <form onSubmit={handleSearch} className="relative mt-4">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="search"
-                aria-label={t("common.search")}
-                placeholder={t("common.search")}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-11 w-full rounded-md border border-input bg-background pl-9 pr-3 text-base focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-              />
-            </form>
+            <GlobalSearchInput size="lg" className="mt-4" />
 
             <nav className="mt-4 flex flex-col gap-1">
               <Link
@@ -413,17 +381,19 @@ export function Header() {
               >
                 {t("nav.originalZone")}
               </Link>
-              <Link
-                href="/agent"
-                aria-current={pathname.startsWith("/agent") ? "page" : undefined}
-                onClick={() => setMobileMenuOpen(false)}
-                className={cn(
-                  "flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
-                  pathname.startsWith("/agent") && "bg-accent-subtle font-semibold text-accent-emphasis",
-                )}
-              >
-                {t("nav.agent")}
-              </Link>
+              <AgentFeatureGate capability="webAgent" fallback={null}>
+                <Link
+                  href="/agent"
+                  aria-current={pathname.startsWith("/agent") ? "page" : undefined}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn(
+                    "flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                    pathname.startsWith("/agent") && "bg-accent-subtle font-semibold text-accent-emphasis",
+                  )}
+                >
+                  {t("nav.agent")}
+                </Link>
+              </AgentFeatureGate>
             </nav>
 
             <div className="my-4 h-px bg-border" />
