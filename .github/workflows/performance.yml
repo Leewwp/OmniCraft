@@ -53,6 +53,12 @@ jobs:
           tar -xzf /tmp/k6.tgz -C /tmp
           sudo mv /tmp/k6-v2.1.0-linux-amd64/k6 /usr/local/bin/k6
           k6 version
+      - name: Apply database migrations
+        env:
+          DB_DSN: host=localhost port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable
+        run: |
+          cd backend
+          go run ./cmd/migrate -Dir migrations
       - name: Start backend with load-test config
         run: |
           cd backend
