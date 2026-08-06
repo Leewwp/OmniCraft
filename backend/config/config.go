@@ -321,7 +321,7 @@ func Load() *Config {
 		os.Exit(1)
 	}
 
-	overrideFromEnv(cfg)
+	OverrideFromEnv(cfg)
 
 	OverridePath := "data/config_override.yaml"
 	if v := os.Getenv("CONFIG_OVERRIDE_PATH"); v != "" {
@@ -433,7 +433,7 @@ func loadDotEnvFiles() {
 	}
 }
 
-func overrideFromEnv(cfg *Config) {
+func OverrideFromEnv(cfg *Config) {
 	if v := os.Getenv("DB_DSN"); v != "" {
 		cfg.Database.DSN = v
 	}
@@ -575,6 +575,70 @@ func requireNonEmpty(errs *[]string, field, value string) {
 	}
 }
 
+// isPlaceholderValue detects template/placeholder tokens that must never reach
+// production configuration. The check is deliberately conservative: angle
+// brackets, explicit placeholder phrases and example domains are all rejected.
+func isPlaceholderValue(value string) bool {
+	lower := strings.ToLower(strings.TrimSpace(value))
+	for _, token := range []string{"<", ">", "change_me", "replace_me", "placeholder", "your-", "example.com", "example.org"} {
+		if strings.Contains(lower, token) {
+			return true
+		}
+	}
+	return false
+}
+
+// requireReleaseValue is requireNonEmpty plus placeholder rejection.
+func requireReleaseValue(errs *[]string, field, value string) {
+	requireNonEmpty(errs, field, value)
+	if strings.TrimSpace(value) != "" && isPlaceholderValue(value) {
+		*errs = append(*errs, field+" must not contain placeholders in release mode")
+	}
+}
+
+// databaseDSNValue extracts a single key from a libpq-style keyword/value DSN
+// or a postgres:// URL. Returns "" when the key is absent or unparsable.
+func databaseDSNValue(dsn, key string) string {
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		u, err := url.Parse(dsn)
+		if err != nil {
+			return ""
+		}
+		return u.Query().Get(key)
+	}
+	for _, part := range strings.Fields(dsn) {
+		k, v, ok := strings.Cut(part, "=")
+		if ok && strings.EqualFold(k, key) {
+			return strings.Trim(v, "'")
+		}
+	}
+	return ""
+}
+
+// validateDatabaseTLSPolicy requires sslmode=verify-full in release mode.
+// Only hosts explicitly listed in OMNICRAFT_PRIVATE_DB_HOSTS (an unexposed
+// internal PgBouncer behind the network perimeter) may use TLS negotiation
+// because the connection never leaves the private network.
+func validateDatabaseTLSPolicy(errs *[]string, dsn string) {
+	sslmode := strings.ToLower(strings.TrimSpace(databaseDSNValue(dsn, "sslmode")))
+	if sslmode == "" {
+		sslmode = "prefer" // libpq default when the key is absent
+	}
+	if sslmode == "verify-full" {
+		return
+	}
+	host := strings.ToLower(strings.TrimSpace(databaseDSNValue(dsn, "host")))
+	privateHosts := make(map[string]bool)
+	for _, h := range strings.Split(os.Getenv("OMNICRAFT_PRIVATE_DB_HOSTS"), ",") {
+		privateHosts[strings.ToLower(strings.TrimSpace(h))] = true
+	}
+	if host != "" && privateHosts[host] {
+		return
+	}
+	*errs = append(*errs, fmt.Sprintf(
+		"database.dsn sslmode must be verify-full in release mode (host %q is not an approved private-network exception)", host))
+}
+
 func requirePositiveInt(errs *[]string, field string, value int) {
 	if value <= 0 {
 		*errs = append(*errs, field+" must be positive when web agent is enabled")
@@ -590,7 +654,7 @@ func isLocalURL(raw string) bool {
 }
 
 func requireHTTPSURL(errs *[]string, field, raw string) {
-	requireNonEmpty(errs, field, raw)
+	requireReleaseValue(errs, field, raw)
 	if strings.TrimSpace(raw) == "" {
 		return
 	}
@@ -611,6 +675,10 @@ func requireAllowedOrigins(errs *[]string, origins []string) {
 		trimmed := strings.TrimSpace(origin)
 		if trimmed == "" {
 			*errs = append(*errs, "security.allowed_origins must not contain empty origins")
+			continue
+		}
+		if isPlaceholderValue(trimmed) {
+			*errs = append(*errs, "security.allowed_origins must not contain placeholder origins in release mode")
 			continue
 		}
 		if trimmed == "*" {
@@ -638,51 +706,60 @@ func (c *Config) ValidateRelease() error {
 	if strings.Contains(strings.ToLower(c.Database.DSN), "password=omnicraft") {
 		errs = append(errs, "database.dsn must not use the default development password in release mode")
 	}
+	validateDatabaseTLSPolicy(&errs, c.Database.DSN)
 	requireNonEmpty(&errs, "redis.addr", c.Redis.Addr)
-	requireNonEmpty(&errs, "redis.password", c.Redis.Password)
+	requireReleaseValue(&errs, "redis.password", c.Redis.Password)
 
-	if strings.TrimSpace(c.JWT.Secret) == "" || c.JWT.Secret == "dev-secret-change-in-production" || len(c.JWT.Secret) < 32 {
+	if strings.TrimSpace(c.JWT.Secret) == "" || c.JWT.Secret == "dev-secret-change-in-production" || len(c.JWT.Secret) < 32 || isPlaceholderValue(c.JWT.Secret) {
 		errs = append(errs, "jwt.secret must be a production secret of at least 32 characters in release mode")
 	}
 
 	requireHTTPSURL(&errs, "oss.endpoint", c.OSS.Endpoint)
-	requireNonEmpty(&errs, "oss.access_key_id", c.OSS.AccessKeyID)
-	requireNonEmpty(&errs, "oss.access_key_secret", c.OSS.AccessKeySecret)
-	requireNonEmpty(&errs, "oss.bucket_name", c.OSS.BucketName)
+	requireReleaseValue(&errs, "oss.access_key_id", c.OSS.AccessKeyID)
+	requireReleaseValue(&errs, "oss.access_key_secret", c.OSS.AccessKeySecret)
+	requireReleaseValue(&errs, "oss.bucket_name", c.OSS.BucketName)
 	requireHTTPSURL(&errs, "oss.domain", c.OSS.Domain)
 	if c.OSS.DownloadURLTTL <= 0 || c.OSS.DownloadURLTTL > 3600 {
 		errs = append(errs, "oss.download_url_ttl_sec must be between 1 and 3600 in release mode")
 	}
 
-	requireNonEmpty(&errs, "green.access_key_id", c.Green.AccessKeyID)
-	requireNonEmpty(&errs, "green.access_key_secret", c.Green.AccessKeySecret)
-	requireNonEmpty(&errs, "green.region", c.Green.Region)
+	requireReleaseValue(&errs, "green.access_key_id", c.Green.AccessKeyID)
+	requireReleaseValue(&errs, "green.access_key_secret", c.Green.AccessKeySecret)
+	requireReleaseValue(&errs, "green.region", c.Green.Region)
 	requireHTTPSURL(&errs, "green.callback_url", c.Green.CallbackURL)
 	if len(c.Green.CallbackAllowedIPs) == 0 {
 		errs = append(errs, "green.callback_allowed_ips is required in release mode")
+	}
+	for _, ip := range c.Green.CallbackAllowedIPs {
+		if isPlaceholderValue(ip) {
+			errs = append(errs, "green.callback_allowed_ips must not contain placeholders in release mode")
+		}
 	}
 
 	if c.Captcha.Provider == "bypass" || strings.TrimSpace(c.Captcha.Provider) == "" {
 		errs = append(errs, "captcha.provider must not be 'bypass' in release mode; use 'aliyun_v2'")
 	}
-	requireNonEmpty(&errs, "captcha.prefix", c.Captcha.Prefix)
-	requireNonEmpty(&errs, "captcha.scene_id", c.Captcha.SceneID)
-	requireNonEmpty(&errs, "captcha.access_key_id", c.Captcha.AccessKeyID)
-	requireNonEmpty(&errs, "captcha.access_key_secret", c.Captcha.AccessKeySecret)
+	requireReleaseValue(&errs, "captcha.prefix", c.Captcha.Prefix)
+	requireReleaseValue(&errs, "captcha.scene_id", c.Captcha.SceneID)
+	requireReleaseValue(&errs, "captcha.access_key_id", c.Captcha.AccessKeyID)
+	requireReleaseValue(&errs, "captcha.access_key_secret", c.Captcha.AccessKeySecret)
 
 	if c.SMTP.Mode == "logger" || strings.TrimSpace(c.SMTP.Mode) == "" {
 		errs = append(errs, "smtp.mode must not be 'logger' in release mode; use 'smtp'")
 	}
-	requireNonEmpty(&errs, "smtp.host", c.SMTP.Host)
-	requireNonEmpty(&errs, "smtp.user", c.SMTP.User)
-	requireNonEmpty(&errs, "smtp.password", c.SMTP.Password)
-	requireNonEmpty(&errs, "smtp.from_address", c.SMTP.FromAddress)
+	requireReleaseValue(&errs, "smtp.host", c.SMTP.Host)
+	requireReleaseValue(&errs, "smtp.user", c.SMTP.User)
+	requireReleaseValue(&errs, "smtp.password", c.SMTP.Password)
+	requireReleaseValue(&errs, "smtp.from_address", c.SMTP.FromAddress)
 
-	requireNonEmpty(&errs, "legal.current_terms_version", c.Legal.CurrentTermsVersion)
-	requireNonEmpty(&errs, "legal.current_privacy_version", c.Legal.CurrentPrivacyVersion)
+	requireReleaseValue(&errs, "legal.current_terms_version", c.Legal.CurrentTermsVersion)
+	requireReleaseValue(&errs, "legal.current_privacy_version", c.Legal.CurrentPrivacyVersion)
 
 	if c.Features.DesktopDeployEnabled {
 		errs = append(errs, "features.desktop_deploy_enabled must remain false until desktop security gates are complete")
+	}
+	if c.Client.DownloadEnabled {
+		errs = append(errs, "client.download_enabled must remain false in the Web-only release scope")
 	}
 
 	if c.Agent.WebAgentEnabled {

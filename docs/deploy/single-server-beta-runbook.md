@@ -1,4 +1,18 @@
-# Single-Server Web Beta Runbook
+# OmniCraft Single-Server Production Runbook
+
+> **Status: PRODUCTION** (Web-only scope). This document is the operational
+> runbook for the single-server production deployment. The filename
+> `single-server-beta-runbook.md` is retained only for link compatibility and
+> is referenced as `docs/deploy/single-server-beta-runbook.md` throughout the
+> repository; do not rename it.
+>
+> **Release discipline:** every release candidate must pass
+> `scripts/release/preflight.sh` (production configuration contract) and the
+> staging deploy/rollback drill (`scripts/release/staging-drill.sh`) before
+> it is deployed to production. Deployment images are referenced by immutable
+> sha256 digests (`release/deployment-manifest.schema.json`); rollback never
+> runs destructive down SQL. Desktop release capabilities remain disabled
+> (Ops-09 deferred).
 
 Target server:
 
@@ -432,7 +446,51 @@ delivery-status view paired with `heartbeat-evidence.json`. Remove recipient,
 project contact and source IP. Every release drill creates and waits for a fresh
 provider event in the same run; prior heartbeat evidence cannot be reused.
 
-## 11. Load, Stress and Capacity (Ops-07)
+## 11. Release preflight and staging drill (Ops-08)
+
+### 11.1 Production configuration preflight
+
+```bash
+bash scripts/release/preflight.tests.sh
+bash scripts/release/preflight.sh \
+  -EnvironmentFile /opt/omnicraft/.env \
+  -OverrideFile /var/lib/omnicraft/config_override.yaml \
+  -Schema release/production-config.schema.json -ReportDir artifacts/ops-08
+```
+
+The preflight merges `.env` + override YAML into one effective config and
+rejects: placeholders, HTTP/localhost/wildcard origins, default DB/JWT/Redis
+secrets, `bypass` CAPTCHA, `logger` SMTP, missing legal versions, floating
+images, unsafe feature flags (`desktop_deploy_enabled`, `download_enabled`),
+missing frontend build URLs, loopback-only trusted proxies, invalid callback
+IPs and non-`verify-full` database TLS (except `OMNICRAFT_PRIVATE_DB_HOSTS`).
+The summary (`preflight-summary.json`) is redacted and never echoes secrets.
+
+### 11.2 Staging deploy/rollback drill
+
+```bash
+bash scripts/release/staging-drill.tests.sh
+bash scripts/release/staging-drill.sh \
+  -EnvironmentFile "$OMNICRAFT_STAGING_ENV_FILE" \
+  -OverrideFile "$OMNICRAFT_STAGING_OVERRIDE_FILE" \
+  -CandidateManifest "$OMNICRAFT_CANDIDATE_MANIFEST" \
+  -PreviousManifest "$OMNICRAFT_PREVIOUS_MANIFEST" \
+  -ReportDir artifacts/ops-08
+```
+
+Required real staging inputs (the drill blocks with exit 3 when missing or
+placeholder): `OMNICRAFT_STAGING_ENV_FILE`, `OMNICRAFT_STAGING_OVERRIDE_FILE`,
+`OMNICRAFT_CANDIDATE_MANIFEST`, `OMNICRAFT_PREVIOUS_MANIFEST`,
+`OMNICRAFT_STAGING_OSS_BUCKET`, `OMNICRAFT_OFFSITE_ARCHIVE_URI`,
+`GITHUB_RELEASE_TAG`. The drill sequence is: preflight → deploy candidate
+digest → verify readiness/smoke → rollback to the previous digest (schema
+compatible only) → verify → redeploy candidate. Rollback refuses unknown or
+schema-incompatible digests and never runs destructive down SQL. Real staging
+OSS/versioning credentials and the encrypted off-site archive destination are
+release blockers when absent; the drill must not be replaced by simulated
+evidence.
+
+## 12. Load, Stress and Capacity (Ops-07)
 
 The k6 suite lives in `tests/load/k6/`; the runner is
 `scripts/load/run-load-tests.sh`. Three tiers are defined: Smoke (script and

@@ -31,6 +31,9 @@ security:
     - "127.0.0.1"
 
 database:
+  # Development default. In release mode ValidateRelease requires
+  # sslmode=verify-full unless the host is listed in OMNICRAFT_PRIVATE_DB_HOSTS
+  # (unexposed internal PgBouncer only).
   dsn: "host=localhost port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable"
   read_dsn: ""
 

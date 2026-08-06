@@ -2,6 +2,10 @@
 
 This template contains placeholders only. Keep real secrets in the server,
 deployment platform, or secret manager. Do not commit filled secrets.
+The machine-readable contract is `release/production-config.schema.json`;
+`scripts/release/preflight.sh` rejects placeholders, defaults, non-HTTPS
+endpoints, unsafe feature flags and non-`verify-full` database TLS (except
+for the explicit private-network PgBouncer exception).
 
 ## Public Endpoints
 
@@ -20,8 +24,12 @@ api.leeppp.online  A/AAAA or CNAME  <api-or-nginx-target>
 These names are read by `backend/config/config.go`.
 
 ```dotenv
-DB_DSN=host=<db-host> port=5432 user=<db-user> password=<db-password> dbname=<db-name> sslmode=require
+DB_DSN=host=<db-host> port=5432 user=<db-user> password=<db-password> dbname=<db-name> sslmode=verify-full
 DB_READ_DSN=
+
+# Preflight exception list: hosts allowed to use TLS negotiation instead of
+# verify-full. Only unexposed internal PgBouncer hosts belong here.
+OMNICRAFT_PRIVATE_DB_HOSTS=pgbouncer
 
 REDIS_ADDR=<redis-host>:6379
 REDIS_PASSWORD=<redis-password>
@@ -120,12 +128,19 @@ agent:
 
 - `server.mode: "release"` is set through `CONFIG_OVERRIDE_PATH`.
 - `web.public_base_url` and all `security.allowed_origins` entries use HTTPS production domains.
+- `security.trusted_proxies` contains at least one non-loopback entry (nginx
+  container IP or operator-owned Docker network CIDR); the preflight rejects a
+  topology that only trusts 127.0.0.1.
 - `JWT_SECRET`, `REDIS_PASSWORD`, `POSTGRES_PASSWORD`, `LLM_KEY_ENCRYPTION_SECRET`, OSS keys, Green keys, CAPTCHA keys, and SMTP password are real secrets stored outside Git.
 - `captcha.provider` is not `bypass`.
 - `smtp.mode` is not `logger`.
 - `legal.current_terms_version` and `legal.current_privacy_version` are non-empty.
 - `features.desktop_deploy_enabled` remains `false`.
 - `features.payment_enabled` remains `false` unless payment is separately approved.
+- Database TLS uses `sslmode=verify-full`; only `OMNICRAFT_PRIVATE_DB_HOSTS`
+  entries (unexposed internal PgBouncer) may use TLS negotiation.
+- `NEXT_PUBLIC_API_URL`, `INTERNAL_API_URL` and `NEXT_PUBLIC_SITE_URL` are
+  HTTPS, non-loopback and DNS-consistent (checked by preflight).
 - Database migrations run as the one-shot `migrate` compose service before
   the backend starts; the backend image contains the `migrate` binary and the
   migrations directory (`/app/migrations`). No `/docker-entrypoint-initdb.d`
@@ -138,8 +153,9 @@ agent:
 NEXT_PUBLIC_API_URL 面向浏览器和构建阶段；INTERNAL_API_URL 仅供 Next.js 服务端渲染运行时使用。Compose 网络中使用 http://backend:8080；独立生产前端使用服务端可访问的 API 域名。不要将 Compose 服务名写入 NEXT_PUBLIC_API_URL。
 
 `NEXT_PUBLIC_API_URL` is used at build time by the frontend Dockerfile.
-`NEXT_PUBLIC_SITE_URL` is read by sitemap/metadata code, but the current
-Dockerfile does not expose it as a build arg yet.
+`NEXT_PUBLIC_SITE_URL` is a build arg in the frontend Dockerfile and is read
+by sitemap/metadata code; both are passed to `docker build` as build args and
+validated by the release preflight.
 
 ```dotenv
 NEXT_PUBLIC_API_URL=https://api.leeppp.online

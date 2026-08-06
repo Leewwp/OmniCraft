@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "omnicraft-deployment-manifest",
+  "title": "OmniCraft deployment manifest",
+  "description": "Contract for release deployment records produced by scripts/release/deploy.sh and consumed by scripts/release/rollback.sh. Images are referenced by immutable sha256 digests only; every record carries preflight, backup, migration, readiness and smoke evidence plus the previous digest for rollback.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "version",
+    "commit",
+    "created_at",
+    "previous_digest",
+    "images",
+    "migration",
+    "schema_compat",
+    "preflight",
+    "backup",
+    "readiness",
+    "smoke",
+    "deployed_at"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "version": { "type": "string", "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+(-[A-Za-z0-9.]+)?$" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "previous_digest": {
+      "type": ["string", "null"],
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Digest of the deployment that this one replaces; null only for the initial deployment"
+    },
+    "images": {
+      "type": "object",
+      "required": ["backend", "frontend"],
+      "properties": {
+        "backend": {
+          "type": "object",
+          "required": ["ref", "digest"],
+          "properties": {
+            "ref": { "type": "string", "pattern": "^[A-Za-z0-9./_-]+@sha256:[0-9a-f]{64}$" },
+            "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          },
+          "additionalProperties": false
+        },
+        "frontend": {
+          "type": "object",
+          "required": ["ref", "digest"],
+          "properties": {
+            "ref": { "type": "string", "pattern": "^[A-Za-z0-9./_-]+@sha256:[0-9a-f]{64}$" },
+            "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "migration": {
+      "type": "object",
+      "required": ["head"],
+      "properties": {
+        "head": { "type": "string", "pattern": "^[0-9]{3}_[A-Za-z0-9_]+[.]sql$" }
+      },
+      "additionalProperties": false
+    },
+    "schema_compat": {
+      "type": "object",
+      "required": ["max_head"],
+      "properties": {
+        "max_head": { "type": "string", "pattern": "^[0-9]{3}_[A-Za-z0-9_]+[.]sql$" }
+      },
+      "additionalProperties": false
+    },
+    "preflight": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "const": "ok" },
+        "summary": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "backup": {
+      "type": "object",
+      "required": ["id", "status"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "status": { "const": "ok" }
+      },
+      "additionalProperties": false
+    },
+    "readiness": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "const": "ok" }
+      },
+      "additionalProperties": false
+    },
+    "smoke": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "const": "ok" }
+      },
+      "additionalProperties": false
+    },
+    "deployed_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}
