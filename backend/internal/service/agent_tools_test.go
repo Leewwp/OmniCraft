@@ -265,9 +265,9 @@ func TestAgentGrounding(t *testing.T) {
 		beforeStream := provider.streamCalls
 		hiddenID := int64(101)
 		chatCtx := &model.AgentChatContext{Surface: model.AgentChatSurfaceContent, ContentID: &hiddenID}
-		err := svc.ChatStream(ctx, viewerID, []llm.ChatMessage{{Role: "user", Content: "hi"}}, chatCtx, func(string, bool, int64, string) error { return nil })
+		_, err := svc.ResolveChatContext(ctx, viewerID, chatCtx)
 		if err == nil || !errors.Is(err, ErrContentNotFound) {
-			t.Fatalf("ChatStream(hidden content ctx) err = %v, want ErrContentNotFound", err)
+			t.Fatalf("ResolveChatContext(hidden content ctx) err = %v, want ErrContentNotFound", err)
 		}
 		if provider.streamCalls != beforeStream {
 			t.Fatal("hidden chat context must be rejected before the provider is called")
@@ -283,8 +283,11 @@ func TestAgentGrounding(t *testing.T) {
 		beforeStream := provider.streamCalls
 		visibleID := int64(100)
 		chatCtx := &model.AgentChatContext{Surface: model.AgentChatSurfaceContent, ContentID: &visibleID}
-		err := svc.ChatStream(ctx, viewerID, []llm.ChatMessage{{Role: "user", Content: "tell me"}}, chatCtx, func(string, bool, int64, string) error { return nil })
+		resolved, err := svc.ResolveChatContext(ctx, viewerID, chatCtx)
 		if err != nil {
+			t.Fatalf("ResolveChatContext(visible): %v", err)
+		}
+		if err := svc.ChatStream(ctx, viewerID, []llm.ChatMessage{{Role: "user", Content: "tell me"}}, resolved, func(AgentStreamEvent) error { return nil }); err != nil {
 			t.Fatalf("ChatStream(visible) err = %v", err)
 		}
 		if provider.streamCalls != beforeStream+1 {

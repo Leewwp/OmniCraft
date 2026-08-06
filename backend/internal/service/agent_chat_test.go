@@ -59,22 +59,31 @@ func TestChatStreamStoresServerOwnedContentContext(t *testing.T) {
 		Surface:   model.AgentChatSurfaceContent,
 		ContentID: &contentID,
 	}
+	resolved, err := svc.ResolveChatContext(context.Background(), 7, chatCtx)
+	if err != nil {
+		t.Fatalf("ResolveChatContext: %v", err)
+	}
 
 	var traceID string
-	err := svc.ChatStream(
+	var doneKind AgentAnswerKind
+	err = svc.ChatStream(
 		context.Background(),
 		7,
 		[]llm.ChatMessage{{Role: "user", Content: "What is this content about?"}},
-		chatCtx,
-		func(delta string, done bool, conversationID int64, tid string) error {
-			if done {
-				traceID = tid
+		resolved,
+		func(ev AgentStreamEvent) error {
+			if ev.Type == AgentEventDone {
+				traceID = ev.TraceID
+				doneKind = ev.AnswerKind
 			}
 			return nil
 		},
 	)
 	if err != nil {
 		t.Fatalf("ChatStream: %v", err)
+	}
+	if doneKind != AgentAnswerNoEvidence {
+		t.Fatalf("done answer_kind = %s, want no_evidence without a fetched citation", doneKind)
 	}
 
 	var conv model.AgentConversation
@@ -115,12 +124,17 @@ func TestChatStreamGlobalSurfaceHasNoContentContext(t *testing.T) {
 		&config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10}},
 	)
 
-	err := svc.ChatStream(
+	resolved, err := svc.ResolveChatContext(context.Background(), 7, &model.AgentChatContext{Surface: model.AgentChatSurfaceGlobal})
+	if err != nil {
+		t.Fatalf("ResolveChatContext: %v", err)
+	}
+
+	err = svc.ChatStream(
 		context.Background(),
 		7,
 		[]llm.ChatMessage{{Role: "user", Content: "hi"}},
-		&model.AgentChatContext{Surface: model.AgentChatSurfaceGlobal},
-		func(delta string, done bool, conversationID int64, traceID string) error { return nil },
+		resolved,
+		func(ev AgentStreamEvent) error { return nil },
 	)
 	if err != nil {
 		t.Fatalf("ChatStream: %v", err)

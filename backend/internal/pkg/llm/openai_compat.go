@@ -2,13 +2,13 @@ package llm
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type OpenAICompatProvider struct {
@@ -17,19 +17,25 @@ type OpenAICompatProvider struct {
 	model      string
 	embedModel string
 	client     *http.Client
+	maxRetries int
 }
 
-func NewOpenAICompatProvider(apiKey, apiBase, model, embedModel string) *OpenAICompatProvider {
+func NewOpenAICompatProvider(apiKey, apiBase, model, embedModel string, opts ...ProviderOption) *OpenAICompatProvider {
 	if apiBase == "" {
 		apiBase = "https://api.openai.com"
 	}
 	apiBase = strings.TrimRight(apiBase, "/")
+	cfg := providerConfig{timeout: 60 * time.Second, maxRetries: 2}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 	return &OpenAICompatProvider{
 		apiKey:     apiKey,
 		apiBase:    apiBase,
 		model:      model,
 		embedModel: embedModel,
-		client:     &http.Client{},
+		client:     &http.Client{Timeout: cfg.timeout},
+		maxRetries: cfg.maxRetries,
 	}
 }
 
@@ -54,6 +60,10 @@ type openAIResponse struct {
 		} `json:"delta"`
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
+	Usage struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+	} `json:"usage"`
 }
 
 func (p *OpenAICompatProvider) doPost(ctx context.Context, path string, body interface{}) (*http.Response, error) {
@@ -61,14 +71,7 @@ func (p *OpenAICompatProvider) doPost(ctx context.Context, path string, body int
 	if err != nil {
 		return nil, err
 	}
-	url := p.apiBase + path
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(b))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+p.apiKey)
-	return p.client.Do(req)
+	return retryDo(ctx, p.client, p.apiBase+path, p.apiKey, b, p.maxRetries)
 }
 
 func (p *OpenAICompatProvider) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
@@ -95,9 +98,11 @@ func (p *OpenAICompatProvider) Chat(ctx context.Context, req ChatRequest) (*Chat
 	if len(result.Choices) == 0 {
 		return nil, fmt.Errorf("no choices in response")
 	}
+	usage := usageFromRaw(result.Usage.PromptTokens, result.Usage.CompletionTokens)
 	return &ChatResponse{
 		Content:   result.Choices[0].Message.Content,
 		ToolCalls: result.Choices[0].Message.ToolCalls,
+		Usage:     usage,
 	}, nil
 }
 
@@ -140,6 +145,7 @@ func (p *OpenAICompatProvider) ChatStream(ctx context.Context, req ChatRequest, 
 		delta := ChatDelta{
 			Content:   chunk.Choices[0].Delta.Content,
 			ToolCalls: chunk.Choices[0].Delta.ToolCalls,
+			Usage:     usageFromRaw(chunk.Usage.PromptTokens, chunk.Usage.CompletionTokens),
 			Done:      chunk.Choices[0].FinishReason == "stop",
 		}
 		if err := handler(delta); err != nil {
@@ -147,6 +153,13 @@ func (p *OpenAICompatProvider) ChatStream(ctx context.Context, req ChatRequest, 
 		}
 	}
 	return scanner.Err()
+}
+
+func usageFromRaw(prompt, completion int) *TokenUsage {
+	if prompt == 0 && completion == 0 {
+		return nil
+	}
+	return &TokenUsage{PromptTokens: prompt, CompletionTokens: completion}
 }
 
 type openAIEmbeddingRequest struct {
