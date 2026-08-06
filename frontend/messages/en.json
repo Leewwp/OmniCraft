@@ -326,6 +326,27 @@
     "suggestRemoveTagHint": "Suggest removing this tag",
     "tagSuggestionSubmitted": "Tag suggestion submitted, awaiting author review"
   },
+  "contentDetailOverlay": {
+    "title": "Content detail",
+    "close": "Close content detail",
+    "returnTo": "Back to {title}",
+    "backToRecommendation": "Back to recommendations",
+    "backToZonePage": "Back to content page",
+    "backToIpPage": "Back to IP detail",
+    "backToAgent": "Back to conversation",
+    "openRelated": "Open content detail: {title}",
+    "notFoundTitle": "Content not found or deleted",
+    "notFoundDescription": "This work may have been deleted by its author, or your account cannot view it.",
+    "forbiddenTitle": "Content is not accessible",
+    "forbiddenDescription": "This content has been taken down and cannot be viewed.",
+    "loadFailedTitle": "Content detail failed to load",
+    "loadFailedDescription": "The request failed. Closing the detail will return you to your previous position.",
+    "creator": "Creator",
+    "ip": "Belongs to IP",
+    "sourceOriginal": "Related original",
+    "derivatives": "Derivative fanworks",
+    "viewAll": "View all"
+  },
   "collections": {
     "picker": {
       "title": "Add to collection",
