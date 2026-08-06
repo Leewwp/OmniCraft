@@ -171,6 +171,12 @@ type AgentConfig struct {
 	EmbeddingModel        string `mapstructure:"embedding_model"`
 	EmbeddingDimensions   int    `mapstructure:"embedding_dimensions"`
 	RateLimitPerDay       int    `mapstructure:"rate_limit_per_day"`
+	RateLimitPerMinute    int    `mapstructure:"rate_limit_per_minute"`
+	MaxToolCallsPerTurn   int    `mapstructure:"max_tool_calls_per_turn"`
+	MaxOutputTokens       int    `mapstructure:"max_output_tokens"`
+	ProviderTimeoutSec    int    `mapstructure:"provider_timeout_sec"`
+	ProviderMaxRetries    int    `mapstructure:"provider_max_retries"`
+	CitationMaxCount      int    `mapstructure:"citation_max_count"`
 	UploadAssistMaxFileMB int    `mapstructure:"upload_assist_max_file_mb"`
 	HMACSecret            string `mapstructure:"hmac_secret" json:"-"`
 	MaxUserMessageChars   int    `mapstructure:"max_user_message_chars"`
@@ -502,6 +508,12 @@ func (c *Config) SaveOverride(path string) error {
 	v.Set("agent", map[string]interface{}{
 		"web_agent_enabled":         c.Agent.WebAgentEnabled,
 		"rate_limit_per_day":        c.Agent.RateLimitPerDay,
+		"rate_limit_per_minute":     c.Agent.RateLimitPerMinute,
+		"max_tool_calls_per_turn":   c.Agent.MaxToolCallsPerTurn,
+		"max_output_tokens":         c.Agent.MaxOutputTokens,
+		"provider_timeout_sec":      c.Agent.ProviderTimeoutSec,
+		"provider_max_retries":      c.Agent.ProviderMaxRetries,
+		"citation_max_count":        c.Agent.CitationMaxCount,
 		"upload_assist_max_file_mb": c.Agent.UploadAssistMaxFileMB,
 	})
 	v.Set("judge", c.Judge)
@@ -525,6 +537,12 @@ func LoadOverride(base *Config, path string) {
 func requireNonEmpty(errs *[]string, field, value string) {
 	if strings.TrimSpace(value) == "" {
 		*errs = append(*errs, field+" is required in release mode")
+	}
+}
+
+func requirePositiveInt(errs *[]string, field string, value int) {
+	if value <= 0 {
+		*errs = append(*errs, field+" must be positive when web agent is enabled")
 	}
 }
 
@@ -634,8 +652,14 @@ func (c *Config) ValidateRelease() error {
 
 	if c.Agent.WebAgentEnabled {
 		requireNonEmpty(&errs, "agent.llm_api_key", c.Agent.LLMAPIKey)
-		if c.Agent.RateLimitPerDay <= 0 {
-			errs = append(errs, "agent.rate_limit_per_day must be positive when web agent is enabled")
+		requirePositiveInt(&errs, "agent.rate_limit_per_day", c.Agent.RateLimitPerDay)
+		requirePositiveInt(&errs, "agent.rate_limit_per_minute", c.Agent.RateLimitPerMinute)
+		requirePositiveInt(&errs, "agent.max_tool_calls_per_turn", c.Agent.MaxToolCallsPerTurn)
+		requirePositiveInt(&errs, "agent.max_output_tokens", c.Agent.MaxOutputTokens)
+		requirePositiveInt(&errs, "agent.provider_timeout_sec", c.Agent.ProviderTimeoutSec)
+		requirePositiveInt(&errs, "agent.citation_max_count", c.Agent.CitationMaxCount)
+		if c.Agent.ProviderMaxRetries < 0 {
+			errs = append(errs, "agent.provider_max_retries must not be negative when web agent is enabled")
 		}
 	}
 
