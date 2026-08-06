@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "omnicraft-recovery-objectives",
+  "title": "OmniCraft recovery objectives contract",
+  "type": "object",
+  "required": ["schema_version", "state", "measured", "approved_targets", "approval"],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "state": { "enum": ["baseline_only", "approved"] },
+    "measured": {
+      "type": "object",
+      "required": [
+        "postgres_rpo",
+        "postgres_rto",
+        "object_restore_rto",
+        "service_rpo",
+        "service_rto",
+        "measured_at",
+        "last_drill"
+      ],
+      "properties": {
+        "postgres_rpo": { "type": ["number", "null"], "minimum": 0 },
+        "postgres_rto": { "type": ["number", "null"], "minimum": 0 },
+        "object_restore_rto": { "type": ["number", "null"], "minimum": 0 },
+        "service_rpo": { "type": ["number", "null"], "minimum": 0 },
+        "service_rto": { "type": ["number", "null"], "minimum": 0 },
+        "measured_at": { "type": ["string", "null"] },
+        "last_drill": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "approved_targets": { "type": ["object", "null"] },
+    "approval": {
+      "type": ["object", "null"],
+      "properties": {
+        "ref": { "type": ["string", "null"], "minLength": 1 },
+        "approver": { "type": ["string", "null"], "minLength": 1 },
+        "approved_at": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

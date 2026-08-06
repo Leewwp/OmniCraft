@@ -561,3 +561,106 @@
 
 ### Notes:
 - 本轮 4 个 commit 已提交（0be930c/c8df731/e5406e3/91b35c4）；本条目对应 5 个 commit：0be930c 收紧 + errors.New + 测试扩充、AuthContext 去 export、content-discovery 文档修门。
+
+## [2026-08-05] - Task Ops-02: Implement forward-only migrations and recovery drills
+
+### What was done:
+- 新增 `backend/internal/migration`：文件名解析/目录扫描/重复版本拒绝、`schema_migrations` 按 filename/version/checksum 三元集合比较、session advisory lock；默认迁移与 ledger 同事务提交，自管 BEGIN/COMMIT 文件在 COMMIT 前写 ledger，`047`/`049` 非事务迁移执行可机器验证的 SQL pre/postconditions。`schema_migration_attempts` 审计 started/succeeded/failed/reconciled、脱敏 error digest 与 `approval_ref`；任何未解决 failed/unknown attempt（包括已有 ledger 的 unknown）阻断后续迁移，需 `-ReconcileVersions` + `-ReconcileApproval` 放行。
+- 生成并提交 checksum 保护的合成历史 fixture `historical-050.sql`（+sha256+manifest），生成与 recovery/CI PostgreSQL 镜像固定到 `pgvector/pgvector@sha256:a362…14c6b`；Go 与 bash 双侧不仅核对 sidecar/manifest/源码 checksum，还解析 SQL dump 内嵌 ledger，拒绝同步篡改 dump + sidecar + manifest。
+- 新增 `cmd/migrate` CLI（含 reconciliation approval reference）；backend 镜像构建 migrate 二进制并携带 migrations；docker-compose 与 single-server compose 移除 initdb 挂载、新增 one-shot `migrate` 服务（backend `service_completed_successfully` 依赖）；`scripts/init-db.sh` 改为 ledger runner 包装且不再输出含密码 DSN。
+- 备份/恢复：`backup-db.sh` 改 custom-format + checksum/migration manifest + 7 份本地轮转 + 强制 ledger 存在，并在 dump 前后核对 ledger、拒绝并删除迁移竞态产生的不一致 dump；新增 `restore-db.sh`（校验 checksum、只恢复新库、拒绝覆盖源、逐项比对 manifest 与恢复 ledger、仓库 ledger 校验 + smoke）；`release/backup-policy.{json,schema}` 与 `release/recovery-objectives.{json,schema}`（baseline_only + 实测 RPO/RTO）。
+- 三个真实演练全绿：主 drill 按 PostgreSQL 恢复 → 版本对象恢复与 DB↔对象全量对账 → Redis 清空重建 → 启动实际构建的 server 并请求数据库型 `/api/v1/contents` 的顺序执行；三个 drill 均把 Compose teardown 失败向上传播，复核后零残留容器/卷/孤儿 server。`restore-db.sh` 额外拒绝把 `-VerifyDSN` 指向目标以外数据库，并拒绝未验证 PostgreSQL 约束。
+- CI backend job 只编排仓库内 `verify-migration-gate.sh` 单一命令源，运行 PostgreSQL integration + 5 个 drill/policy contracts，并把逐命令日志/summary 写入已上传的 `artifacts/backend/migrations`；runbook/production-config-template 更新迁移与备份恢复章节。
+
+### Testing:
+- 真实性复核发现原 `artifacts/ops-02/red-gates/go-test-migration.txt` 只是错误工作目录造成的 `directory not found`，不能支持此前“所有实现均先红”的历史声明；该历史顺序不可追溯改写。本次整改先新增能稳定命中缺陷的测试并确认 RED：version drift 被接受、`finished_at` 零值、自管事务已提交但 ledger 失败、SQL precondition 未执行、ledger 已存在时 unknown attempt 未阻断、同步篡改 fixture 可通过、teardown 被吞、只测 `/healthz`、`go run` 孤儿进程、备份开始时间晚记、VerifyDSN 可指向别库；最小修复后全部转绿。
+- `go test ./internal/migration ./cmd/migrate -count=1`、`go build/vet ./...`、全量 `go test ./...` PASS；5 个 scripts/db/*.tests.sh 全绿；`verify-backup-policy.sh` 对 committed policy/objectives PASS。
+- 最终本地实测（2026-08-05 03:16 CST）：backup 2s / restore 1s / PostgreSQL RPO 0s / PostgreSQL RTO 1s / object restore RTO 1s / service RTO 6s；`release/recovery-objectives.json` 保持 `baseline_only`、未批准。
+- `verify-migration-gate.sh` 六门全绿；三项真实 drill 全绿并成功 teardown；`doc-validator --fix/--check --profile release` 与全项目 verifier PASS；post-commit evidence 已绑定并通过 schema 校验。
+- PR #21 首轮 CI 全绿：Backend gates（含 `Migration integration and recovery contracts`）`https://github.com/Leewwp/OmniCraft/actions/runs/30943374596/job/92107134840`，聚合 project-gate `https://github.com/Leewwp/OmniCraft/actions/runs/30943374596/job/92108056373`；完成状态 amend 后须由同一 PR 的最终提交 CI 再次通过才允许 `--ff-only` 集成。
+
+### Notes:
+- MinIO 为本地版本化替身，真实 Aliyun OSS 版本恢复/异地备份/服务级 RPO/RTO 为 Ops-08 blocker（演练证据中已记录）。
+- Ops-02 原始 TDD RED 日志无效是历史审计瑕疵；本次整改保留事实并以真实缺陷 RED→GREEN 补充证据，不把事后测试冒充原始先后顺序。
+- 旧 initdb 创建的开发库（有表无 ledger）需 `docker compose down -v` 重建一次。
+- Docker Hub 不可达时经 docker.m.daocloud.io 镜像拉取 minio/minio（tag/digest 已在 recovery compose 固定并在注释中说明）。
+
+## [2026-08-05] - Task Ops-03: Add production observability baseline
+
+### What was done:
+- 新增 `backend/internal/observability/`：JSON slog 日志（稳定字段 time/level/msg/service/environment/version/trace_id/request_id/route/method/status/duration_ms/client_ip/error_class）、`client_ip` 用 `LOG_IP_HASH_SECRET` HMAC-SHA256 前 128 bit 哈希（32 位小写十六进制）+ 非敏感 `client_ip_key_id`，前键仅在显式轮换窗口可用（`ip_key_rotation`），release 缺键 fail-closed；低基数 Prometheus 指标（http/panic/DB pool/Redis pool/queue/worker/migration/external dep 聚合标签白名单）、DB/Redis pool collectors、内部 server（:9091 `/metrics` + liveness `/healthz` + 依赖感知 `/readyz`，readiness 不泄露连接细节）、textfile 原子写入。
+- 重写 `middleware/logger.go`（route 模板 + 脱敏 + trace_id）、`panic_recovery.go`（class 级日志 + panic 计数，panic 值不落日志）、新增 `middleware/metrics.go`；main.go 接线 logger/hasher/metrics/obs server/readiness。
+- config 新增 `observability` 段（metrics_port/log_level/log_ip_hash_secret/log_ip_key_id/ip_key_rotation/readiness）+ release 校验 + env override（LOG_IP_HASH_SECRET/LOG_IP_KEY_ID）。
+- 迁移 CLI 与 `backup-db.sh`、`recovery-drill.sh` 向 `METRICS_TEXTFILE_DIR` 写 success/failure/last-success textfile 指标。
+- `ops/observability/`：prometheus.yml（内网 scrape backend:9091、30d+10GB 双 retention）、loki.yml（30d retention、durable 命名卷、inmemory ring）、alloy-config.alloy（local.file_match glob + read-only 挂载、无 Docker 控制权）、loki-gate（Go stdlib 认证/审计代理，仅绑 127.0.0.1）、docker-compose.observability.yml、log-retention-policy.json+schema。
+- `scripts/ops/observability-drill.sh`（实盘：app+栈构建、成功/失败请求、依赖感知 readyz、内网 scrape、Prometheus 查询、按 trace_id 的 Loki 摄入、401 未授权拒绝、gate 审计留存、Loki 重启数据保留、轮转/保留证据、卡基数、9091 不公开）+ tests、`archive-audit-logs.sh`（warning/error 聚合→AES-256-CBC-PBKDF2 加密→sink 上传→校验和/保留元数据→证据）+ tests、`ops/observability/prometheus.tests.sh`（promtool + 姿态/保留/端口契约）。
+- 主 compose 与 single-server compose 增加 `json-file` 轮转（10m×5）与 observability 服务；runbook 增加 7.1 Observability 操作节；architecture.md 增加第 7 章可观测性与环境变量。
+
+### Testing:
+- TDD RED：config observability 校验、IPHasher 旋转窗口/脱敏、metrics 标签白名单、metrics middleware、panic 计数、readiness 不泄露均先失败后转绿。
+- 全部契约门 PASS：`go test ./...`、`go vet`、`go build`、`ops/observability/prometheus.tests.sh`、`observability-drill.tests.sh`、`archive-audit-logs.tests.sh`、doc-validator `--fix`+release profile、`scripts/verify-project.sh` PASS。
+- 实盘 `observability-drill.sh` PASS（healthz 200 / readyz 200 / readyz redis-down 503 / healthz 保持 200 / 404 / 403 / gate 401×2 / Loki trace_id 查询+重启保留 / 指标内网唯一），证据在 `artifacts/ops-03/`。
+
+### Notes:
+- 真实异地加密归档目标、生产 gate token 与 OBS_LOG_DIR 为 Ops-08 部署输入，本任务以本地 contract sink 与 drill 证明适配器行为，记录为 blockers。
+- 2026-08-05 第四轮（阻塞项核实与解除）：① 核实 OBS_GATE_TOKEN/OBS_LOG_DIR 为 compose `${VAR:?required}` 硬门槛（observability/single-server 两处）；生成 OBS_GATE_TOKEN（openssl rand hex 64）并连同 OBS_LOG_DIR=/var/lib/docker/containers 写入服务器 /opt/omnicraft/.env 与本地 ~/.config/omnicraft/ops-obs.env（均 0600）② Linux 直挂验证通过：/var/lib/docker/containers :ro 挂载进容器后 json 日志可读、轮转文件存在（json-file 驱动，daemon 轮转实际 20MB×4，runbook 写 10MB×5 待校正）；完整 Alloy 摄取验证留 Ops-04 ③ 推送 codex/ops-integration（d76b62b..611ebf8，503 系 GitHub 瞬时故障）④ 异地归档目标仍未配置，为 Ops-08 唯一外部输入缺口（建议：阿里云另一区域 OSS SSE+lifecycle 365d / 腾讯 COS）
+
+## [2026-08-05] - Ops-08 异地归档外部输入配置完成（阿里云杭州 OSS）
+
+### What was done:
+- 创建异地加密归档桶 `omnicraft-ops-archive`（华东1 杭州 oss-cn-hangzhou，与应用桶 cn-guangzhou 异地；版本控制开启、私有读写、阻止公共访问、SSE-OSS AES256 加密）；生命周期规则 `ops-evidence-retention-365d`（整个桶，最后一次修改时间起 365 天删除）。
+- 创建 RAM 用户 `omnicraft-ops-archive-operator`（仅 OpenAPI 访问）与专用 AccessKey；自定义权限策略 `omnicraft-ops-archive-rw`（桶级最小权限：对象读写+列举+版本列举+生命周期读写，仅限该桶两级资源），用户手动完成策略创建与授权。
+- 本地实测验证（oss2）：GetBucketInfo 200 / ListObjects 0 对象 / PutObject→GetObject→DeleteObject 往返成功 / GetBucketLifecycle 显示 365 天规则 / ListBuckets 返回 403（最小权限符合设计，无账号级越权）。
+
+### Testing:
+- 上列五项验证全部 PASS；bucket 名、区域、lifecycle id=ops-evidence-retention-365d days=365 逐一核对。
+
+### Notes:
+- 凭证已落盘 `~/.config/omnicraft/ops-08-offsite-archive.env`（0600，仓库外），字段 ARCHIVE_AK_ID/ARCHIVE_AK_SECRET/OFFSITE_ARCHIVE_BUCKET/OFFSITE_ARCHIVE_REGION/OFFSITE_ARCHIVE_ENDPOINT/OFFSITE_ARCHIVE_URI=oss://omnicraft-ops-archive/ops-evidence；临时凭证文件已删除。
+- Ops-08 唯一外部输入缺口解除；剩余 Ops-08 步骤（archive-audit-logs.sh 生产 sink 接线、服务器 .env 写入、RPO/RTO 目标核准）按计划继续。
+- 服务器 .env 尚未写入归档凭证（按 Ops-08 步骤执行时接线，避免凭证驻留多余环境）。
+
+## [2026-08-05] - Task Ops-04: Add actionable alerting and runbook drills（完成）
+
+### What was done:
+- 告警契约：`ops/observability/alert-contract.schema.json` 要求每条规则具备 owner/severity/`for`/summary/impact/first_step/runbook anchor，并校验表达式只引用白名单 metric（ruby YAML 校验，macOS/CI 均内置 ruby）。
+- 规则 `prometheus-rules.yml`（16 条）：API 可用性/5xx/延迟、PostgresDown/RedisDown、DB/Redis 连接池耗尽、队列积压/worker 失败/迁移失败、备份过期/恢复 drill 逾期、证书到期、磁盘不足、重启循环、外部依赖（OSS/Green/CAPTCHA/SMTP/LLM）持续失败。
+- Alertmanager 路由：`alertmanager.yml` 仅含占位符（SMTP 凭据不入 Git），drill/部署时渲染真实值；webhook 接收器指向 in-network `alert-sink`，循环回环地址被契约测试拒绝。
+- 新服务：`alert-sink`（Go 标准库，POST /events 记录 webhook payload，GET /events 供 drill 轮询，无宿主端口）；主 compose 与 single-server compose 接入 alertmanager/postgres-exporter/redis-exporter/cadvisor/blackbox（全部 pinned 镜像、无公开端口）。
+- `verify-alerts.sh`：pinned promtool check config/rules + amtool check-config + 契约校验 + exporter 接线检查 + heartbeat schema 校验（支持 `-HeartbeatConfig`）。
+- `alert-drill.sh`：隔离 Compose 项目起全套 stack，等全部 target up==1，注入 API 5xx（停 postgres 持续 GET categories）、依赖下线（pg_up==0）、恢复 drill 逾期（stale textfile metric），轮询 sink 验证 firing/resolved，恢复健康，最后调真实 Healthchecks.io heartbeat（真实 ping 200 + 临时 check 无 ping 后 flip down + email channel 挂接 + 清理），`finally` 拆栈；`-DryRun` 供 CI 契约测试。
+- CI：新增 `ops-alerting` job 跑两个契约测试套件；runbook 新增 §10 Alerting（含渲染命令与全部告警 first_step）；计划 Ops-04 4 steps 勾选、Status 更新；AGENTS.md 注册表更新（下一任务 Ops-05）。
+
+### Testing:
+- TDD RED：两个契约套件在实现前均失败（脚本不存在）；GREEN 后全部通过：`verify-alerts.tests.sh`、`alert-drill.tests.sh`、`prometheus.tests.sh`（Ops-03 回归）、`alert-sink go test`。
+- `promtool check config/rules`（14 rules OK）、`amtool check-config` OK、`verify-workflows.sh`（CI 契约）OK。
+- 实盘 `alert-drill.sh` PASS：5 个 target up==1 → firing（PostgresDown/RecoveryDrillOverdue/ApiHigh5xxRate）→ 恢复 → resolved 全部送达 sink → 真实 heartbeat down-flip 证据（`artifacts/ops-04/heartbeat-evidence.json`：ping 200、create 201、flip down、delete 200）。
+- `scripts/verify-project.sh -ReportDir artifacts/ops-04` PASS；`validate-evidence.sh` PASS。
+- 排查记录：ApiHigh5xxRate 单次 burst 后 `rate()[5m]` 归零导致不 fire → 注入改为持续 180s；login 端点受 CSRF/限流 → 改用 GET categories（DB-backed 返回 500）；alert-sink 卷属主 500 → Dockerfile 预建 /events 并 chown。
+
+### Notes:
+- 外部输入：Healthchecks.io 真实凭据（`~/.config/omnicraft/ops-04-healthchecks.env`）与 SMTP 凭据（`ops-04-smtp.env`）均在仓库外，drill 通过 `-HeartbeatEnv` 引用，无凭据时明确 BLOCKED。
+- 桌面/异地归档不受本任务影响；Ops-08 异地归档输入已另项完成（2026-08-05 记录）。
+
+#### 2026-08-06 review remediation
+- 以 `codex/ops-integration`（`ac5d3fd`）为固定点完成规格符合性与代码标准两轴审查；确认当前分支含 Ops-04 实现提交及一笔应归入 integration 基线的 Ops-08 外部输入记录。
+- 发现生产 exporter 凭证、API 可用性表达式、DB/Redis 连接池告警、迁移失败指标 job 过滤、node-exporter 宿主根挂载、CI 聚合门、alert-sink 独立测试、证据汇总/脱敏及 heartbeat 通知送达证明等缺口。
+- 新增修复回归测试并完成实现：修正生产 exporter 凭证接线、API 可用性表达式、连接池告警、迁移指标 job 过滤、宿主根挂载和 CI 聚合门；Alertmanager 运行配置移入退出时删除的私有临时目录。
+- `alert-sink` 改为实例隔离 handler，补齐 JSON 错误封装、4 MiB 请求上限、服务超时、结构化日志和错误处理；独立 Go 测试纳入 CI。
+- 核对维护者提供的 Healthchecks.io DOWN 邮件截图，确认临时检查 `omnicraft-ops04-drill-1785946873` 于 2026-08-06 00:23:16 +0800 因宽限期超时转为 DOWN；归档副本遮盖收件人、项目邮箱和来源 IP。
+- 按文档冲突规则创建 GitHub Issue #33，记录 Step 4 要求 `alert-sink`、但精确文件保留清单遗漏 `ops/observability/alert-sink/*`，且 `AGENTS.md`/`.gitignore` 也在清单外的问题。
+
+#### Review remediation testing
+- 环境初始化：`go mod tidy`（使用 `/private/tmp/omnicraft-go-cache`）与 `frontend npm install` 通过；PostgreSQL/Redis 容器 healthy；Next.js dev server 启动成功。
+- RED：`bash scripts/ops/verify-alerts.tests.sh` 失败于 `ApiUnavailable must fire when probe_success is zero`；`bash scripts/ops/alert-drill.tests.sh` 失败于 runtime Alertmanager config 位于 report dir。两项均为预期失败，证明新回归测试覆盖缺陷。
+- 同轮通知证据加固的 RED 失败于 `drill must wait for notification evidence after the provider event`；实现等待窗口、文件时间校验与旧事件复用拒绝后，两个 Ops-04 契约套件均转绿。
+- 最终标准复审发现通知截图只与整轮 drill 开始时间比较，可能误收“演练已开始但 DOWN 尚未确认”期间刷新的旧证据；新增公开 CLI 新鲜度检查的行为测试，RED 失败于事件边界证据未被接受，随后以 heartbeat DOWN + 临时检查清理完成时刻作为独立边界，等待与归档前复检均拒绝早于该边界的截图，GREEN 后 `alert-drill.tests.sh` 通过。
+- 安全复核：仓库未跟踪 `artifacts/ops-04/alertmanager.runtime.yml`，历史中无该路径；使用仓库外 SMTP 环境值扫描后确认 Ops-04 证据不再包含 SMTP 密码。
+- GREEN：`verify-alerts.tests.sh`、`alert-drill.tests.sh`、`verify-alerts.sh`、workflow verifier、生产 Compose 渲染及 `alert-sink` 全量/单测独立运行均通过；promtool 验证 16 条规则，amtool 配置校验通过。
+- 最终真实演练（2026-08-06 10:26～10:39 CST，最终代码）通过：postgres/redis/node/cAdvisor/blackbox 五类 target 全部 up，`PostgresDown`、`RecoveryDrillOverdue`、`ApiHigh5xxRate` 均收到 firing 与 resolved；新建 Healthchecks.io 临时检查 `omnicraft-ops04-drill-1785983743` 并完成 ping 200、create 201、DOWN、delete 200。提供商邮件集成同步显示 `Ready to deliver` / `Delivered, 39 seconds ago`，脱敏截图生成时间晚于 DOWN 事件边界；teardown 后无残留容器/卷。
+- 项目默认门首次运行被工作区并发的非 Ops-04 Next 16.3.0 升级影响，在 `npm run lint` 处因 AppRouter mock 新字段失败；该外部改动未回退、未纳入本任务，最终门改在只含 Ops-04 提交的隔离 worktree 重跑并绑定证据。
+
+#### Review remediation notes
+- 文件保留冲突已由维护者明确批准并写入计划，Issue #33 待整改提交后关闭；`.gitignore` 不纳入任务差异。
+- 通知送达缺口已由本轮新 DOWN 与 Healthchecks.io 最新投递状态的脱敏截图共同解除；heartbeat JSON 仅保留 provider/check name/状态与时间，不再归档 ping URL、UUID 或 channel ID。
+- 维护者批准 SMTP 密码暂时沿用。该密码从未进入 Git，运行时配置不再进入证据目录；仍建议在方便时轮换。

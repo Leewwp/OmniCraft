@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "state": "baseline_only",
+  "measured": {
+    "postgres_rpo": 0,
+    "postgres_rto": 1,
+    "object_restore_rto": 1,
+    "service_rpo": 0,
+    "service_rto": 6,
+    "measured_at": "2026-08-04T19:16:12Z",
+    "last_drill": "recovery-drill 2026-08-04T19:15:58Z"
+  },
+  "approved_targets": null,
+  "approval": null
+}

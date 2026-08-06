@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
@@ -45,12 +46,40 @@ type Config struct {
 	RateLimit      RateLimitConfig      `mapstructure:"rate_limit"`
 	Recommendation RecommendationConfig `mapstructure:"recommendation"`
 	Queue          queue.QueueConfig    `mapstructure:"queue"`
+	Observability  ObservabilityConfig  `mapstructure:"observability"`
+}
+
+type ObservabilityConfig struct {
+	MetricsPort          string              `mapstructure:"metrics_port"`
+	LogLevel             string              `mapstructure:"log_level"`
+	LogIPHashSecret      string              `mapstructure:"log_ip_hash_secret" json:"-"`
+	LogIPKeyID           string              `mapstructure:"log_ip_key_id"`
+	ReadHeaderTimeoutSec int                 `mapstructure:"read_header_timeout_sec"`
+	IPKeyRotation        IPKeyRotationConfig `mapstructure:"ip_key_rotation"`
+	Readiness            ReadinessConfig     `mapstructure:"readiness"`
+}
+
+// IPKeyRotationConfig limits the previous IP-hash key to an explicit
+// rotation window so past hashes can be correlated only while rotating.
+type IPKeyRotationConfig struct {
+	PreviousSecret string `mapstructure:"previous_secret" json:"-"`
+	PreviousKeyID  string `mapstructure:"previous_key_id"`
+	ActiveFrom     string `mapstructure:"active_from"`
+	ActiveUntil    string `mapstructure:"active_until"`
+}
+
+type ReadinessConfig struct {
+	DBTimeoutSec    int `mapstructure:"db_timeout_sec"`
+	RedisTimeoutSec int `mapstructure:"redis_timeout_sec"`
 }
 
 type ServerConfig struct {
 	Port            string `mapstructure:"port"`
 	Mode            string `mapstructure:"mode"`
 	ShutdownTimeout int    `mapstructure:"shutdown_timeout"`
+	ReadTimeout     int    `mapstructure:"read_timeout"`
+	WriteTimeout    int    `mapstructure:"write_timeout"`
+	IdleTimeout     int    `mapstructure:"idle_timeout"`
 }
 
 type SecurityConfig struct {
@@ -497,6 +526,12 @@ func overrideFromEnv(cfg *Config) {
 	if v := os.Getenv("SMTP_PASSWORD"); v != "" {
 		cfg.SMTP.Password = v
 	}
+	if v := os.Getenv("LOG_IP_HASH_SECRET"); v != "" {
+		cfg.Observability.LogIPHashSecret = v
+	}
+	if v := os.Getenv("LOG_IP_KEY_ID"); v != "" {
+		cfg.Observability.LogIPKeyID = v
+	}
 }
 
 func (c *Config) SaveOverride(path string) error {
@@ -669,8 +704,64 @@ func (c *Config) ValidateRelease() error {
 		errs = append(errs, "rate_limit.normal_per_minute must be positive when rate limiting is enabled")
 	}
 
+	if strings.TrimSpace(c.Observability.MetricsPort) == "" {
+		errs = append(errs, "observability.metrics_port is required in release mode")
+	}
+	if strings.TrimSpace(c.Observability.LogIPHashSecret) == "" {
+		errs = append(errs, "observability.log_ip_hash_secret is required in release mode (no raw IP may ever be logged)")
+	}
+	if strings.TrimSpace(c.Observability.LogIPKeyID) == "" {
+		errs = append(errs, "observability.log_ip_key_id is required in release mode")
+	}
+	switch strings.ToLower(strings.TrimSpace(c.Observability.LogLevel)) {
+	case "debug", "info", "warn", "error":
+	default:
+		errs = append(errs, "observability.log_level must be one of debug, info, warn, error in release mode")
+	}
+	if c.Observability.Readiness.DBTimeoutSec <= 0 || c.Observability.Readiness.RedisTimeoutSec <= 0 {
+		errs = append(errs, "observability.readiness timeouts must be positive in release mode")
+	}
+	if c.Observability.ReadHeaderTimeoutSec <= 0 {
+		errs = append(errs, "observability.read_header_timeout_sec must be positive in release mode")
+	}
+	if c.Server.ReadTimeout <= 0 || c.Server.WriteTimeout <= 0 || c.Server.IdleTimeout <= 0 {
+		errs = append(errs, "server HTTP timeouts must be positive in release mode")
+	}
+	if err := validateIPKeyRotation(&errs, c.Observability.IPKeyRotation); err != nil {
+		errs = append(errs, err.Error())
+	}
+
 	if len(errs) > 0 {
 		return fmt.Errorf("release mode configuration error: %s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+// validateIPKeyRotation requires either a complete rotation block or none at
+// all. A rotation window must be parseable and strictly increasing.
+func validateIPKeyRotation(errs *[]string, rot IPKeyRotationConfig) error {
+	set := 0
+	for _, field := range []string{rot.PreviousSecret, rot.PreviousKeyID, rot.ActiveFrom, rot.ActiveUntil} {
+		if strings.TrimSpace(field) != "" {
+			set++
+		}
+	}
+	if set == 0 {
+		return nil
+	}
+	if set != 4 {
+		return fmt.Errorf("observability.ip_key_rotation must define previous_secret, previous_key_id, active_from and active_until together")
+	}
+	from, err := time.Parse(time.RFC3339, rot.ActiveFrom)
+	if err != nil {
+		return fmt.Errorf("observability.ip_key_rotation.active_from must be RFC3339: %w", err)
+	}
+	until, err := time.Parse(time.RFC3339, rot.ActiveUntil)
+	if err != nil {
+		return fmt.Errorf("observability.ip_key_rotation.active_until must be RFC3339: %w", err)
+	}
+	if !until.After(from) {
+		return fmt.Errorf("observability.ip_key_rotation.active_until must be after active_from")
 	}
 	return nil
 }

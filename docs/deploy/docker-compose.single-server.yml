@@ -2,8 +2,19 @@
 # Usage on the server:
 #   docker compose --env-file .env -f docker-compose.single-server.yml up -d --build
 #
-# Only nginx publishes host ports. PostgreSQL, Redis, backend, and frontend stay
-# on the Docker network.
+# Only nginx publishes host ports (80/443). PostgreSQL, Redis, backend,
+# frontend, Prometheus, Loki and Alloy stay on the Docker network. The
+# metrics/readiness endpoints on backend:9091 are internal-only; operator
+# access to Loki goes through loki-gate bound to 127.0.0.1:13100 (SSH tunnel).
+#
+# Variables (beyond .env): OBS_GATE_TOKEN (operator token, required),
+# OBS_LOG_DIR (read-only host dir of container JSON logs for Alloy).
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
 
 services:
   postgres:
@@ -15,16 +26,37 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-omnicraft}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-omnicraft} -d ${POSTGRES_DB:-omnicraft}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    logging: *default-logging
     deploy:
       resources:
         limits:
           memory: 1g
+
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: "no"
+    environment:
+      DB_DSN: "host=postgres port=5432 user=${POSTGRES_USER:-omnicraft} password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD} dbname=${POSTGRES_DB:-omnicraft} sslmode=disable"
+      METRICS_TEXTFILE_DIR: /var/lib/omnicraft/metrics
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./artifacts:/app/evidence
+      - ${METRICS_TEXTFILE_DIR:?set METRICS_TEXTFILE_DIR}:/var/lib/omnicraft/metrics
+    command: ["./migrate", "-Dir", "/app/migrations", "-SummaryPath", "/app/evidence/migration-summary.json"]
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 256m
 
   redis:
     image: redis:7-alpine
@@ -41,6 +73,7 @@ services:
       - allkeys-lru
     volumes:
       - redis_data:/data
+    logging: *default-logging
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping"]
       interval: 10s
@@ -74,6 +107,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -94,6 +128,8 @@ services:
     volumes:
       - /var/lib/omnicraft/config_override.yaml:/app/config_override.yaml:ro
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       pgbouncer:
@@ -106,6 +142,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -130,6 +167,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -155,6 +193,206 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.size=10GB
+    volumes:
+      - prometheus_data:/prometheus
+      - ./ops/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/observability/prometheus-rules.yml:/etc/prometheus/prometheus-rules.yml:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - alertmanager_data:/alertmanager
+      # ALERTMANAGER_CONFIG_FILE must point at the operator-rendered config
+      # (receiver values never come from Git; see single-server-beta-runbook.md).
+      - ${ALERTMANAGER_CONFIG_FILE:?set ALERTMANAGER_CONFIG_FILE}:/etc/alertmanager/alertmanager.yml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9093/-/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_URI: "postgres:5432/${POSTGRES_DB:-omnicraft}?sslmode=disable"
+      DATA_SOURCE_USER: ${POSTGRES_USER:-omnicraft}
+      DATA_SOURCE_PASS: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+    depends_on:
+      redis:
+        condition: service_healthy
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    restart: unless-stopped
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    command:
+      - --housekeeping_interval=15s
+      - --docker_only=true
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  blackbox:
+    image: prom/blackbox-exporter:v0.24.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/blackbox/blackbox.yml
+    volumes:
+      - ./ops/observability/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    command:
+      - --path.rootfs=/host
+      - --collector.textfile.directory=/var/lib/node_exporter/textfile_collector
+    volumes:
+      - /:/host:ro,rslave
+      - ${METRICS_TEXTFILE_DIR:?set METRICS_TEXTFILE_DIR}:/var/lib/node_exporter/textfile_collector:ro
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  loki:
+    image: grafana/loki:3.4.2
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        max_kb=$$(( $${LOKI_MAX_DISK_BYTES} / 1024 ));
+        /usr/bin/loki -config.file=/etc/loki/loki.yml -config.expand-env=false &
+        main_pid=$$!;
+        (
+          while kill -0 "$$main_pid" 2>/dev/null; do
+            used_kb=$$(du -sk /loki | awk '{print $$1}');
+            if [ "$$used_kb" -gt "$$max_kb" ]; then
+              echo "loki disk cap exceeded: $${used_kb}KB > $${max_kb}KB" >&2;
+              kill "$$main_pid";
+              exit 1;
+            fi;
+            sleep 30;
+          done
+        ) &
+        watcher_pid=$$!;
+        wait "$$main_pid";
+        status=$$?;
+        kill "$$watcher_pid" 2>/dev/null || true;
+        wait "$$watcher_pid" 2>/dev/null || true;
+        exit "$$status"
+    environment:
+      LOKI_MAX_DISK_BYTES: ${LOKI_MAX_DISK_BYTES:-53687091200}
+    volumes:
+      - loki_data:/loki
+      - ./ops/observability/loki.yml:/etc/loki/loki.yml:ro
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  alloy:
+    image: grafana/alloy:v1.8.2
+    restart: unless-stopped
+    command:
+      - run
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/alloy-config.alloy
+    volumes:
+      - alloy_data:/var/lib/alloy/data
+      - ./ops/observability/alloy-config.alloy:/etc/alloy/alloy-config.alloy:ro
+      - ${OBS_LOG_DIR:?set OBS_LOG_DIR (read-only host log dir)}:/var/log/containers:ro
+    depends_on:
+      - loki
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  loki-gate:
+    build:
+      context: ./ops/observability/gate
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      GATE_TOKEN: ${OBS_GATE_TOKEN:?set OBS_GATE_TOKEN}
+      LOKI_UPSTREAM: "http://loki:3100"
+      AUDIT_DIR: /var/log/gate
+    ports:
+      - "127.0.0.1:13100:8080"
+    volumes:
+      - loki_gate_audit:/var/log/gate
+    depends_on:
+      - loki
+    logging: *default-logging
     deploy:
       resources:
         limits:
@@ -163,3 +401,8 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  prometheus_data:
+  loki_data:
+  alloy_data:
+  loki_gate_audit:
+  alertmanager_data:

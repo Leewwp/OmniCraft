@@ -1,0 +1,72 @@
+# Isolated recovery-drill stack: PostgreSQL 16 + pgvector, Redis 7 and a
+# local versioned MinIO stand-in. Used only by scripts/db/*-drill.sh under an
+# isolated project name; the drill owns the full lifecycle including teardown.
+#
+# Production note: MinIO here proves the versioned-object adapter behavior
+# only. Real Aliyun OSS versioning/immutability, off-host storage and
+# service-level RPO/RTO remain Ops-08 blockers.
+#
+# Image note: when Docker Hub is unreachable the operator may pull the same
+# images through a mirror and re-tag them before running a drill.
+
+services:
+  postgres:
+    image: pgvector/pgvector@sha256:a36250871de0833b8757561c72f2477ef1ddd1101afa4e617fb552e0de514c6b
+    environment:
+      POSTGRES_USER: omnicraft
+      POSTGRES_PASSWORD: omnicraft
+      POSTGRES_DB: omnicraft
+    ports:
+      - "127.0.0.1:${RECOVERY_PG_PORT:-15432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U omnicraft -d omnicraft"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "127.0.0.1:${RECOVERY_REDIS_PORT:-16379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  minio:
+    image: minio/minio@sha256:c7175077d39a8cc10c9fd611cdcc68b6a5b365793e9ac6f4198ffff1ef0fe555
+    environment:
+      MINIO_ROOT_USER: omnicraftrecovery
+      MINIO_ROOT_PASSWORD: omnicraftrecovery-secret
+    command: ["server", "/data", "--console-address", ":9001"]
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9000'"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  minio-init:
+    image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        mc alias set local http://minio:9000 omnicraftrecovery omnicraftrecovery-secret &&
+        mc mb --with-versioning local/omnicraft-recovery &&
+        mc anonymous set none local/omnicraft-recovery
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

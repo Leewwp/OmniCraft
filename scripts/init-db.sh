@@ -2,65 +2,70 @@
 # =============================================================================
 # OmniCraft Database Initialization Script
 # =============================================================================
-# Runs all migration files in order against the target database.
+# Applies all forward-only migrations to the target database through the
+# migrate CLI, which maintains the schema_migrations ledger, rejects checksum
+# drift, and serializes concurrent runners with an advisory lock. Local
+# bootstrap only; production runs the same migrate binary as a one-shot
+# container before the backend starts.
+#
 # Usage:
 #   ./scripts/init-db.sh                          # uses env vars or defaults
 #   DB_DSN="host=... dbname=omnicraft" ./scripts/init-db.sh
+#   ./scripts/init-db.sh -ReconcileVersions 047,049 -ReconcileApproval CHG-1234
 # =============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MIGRATIONS_DIR="${SCRIPT_DIR}/../backend/migrations"
+BACKEND_DIR="${SCRIPT_DIR}/../backend"
+MIGRATIONS_DIR="${BACKEND_DIR}/migrations"
 
-# Database connection string
-DB_HOST="${DB_HOST:-localhost}"
-DB_PORT="${DB_PORT:-5432}"
-DB_USER="${DB_USER:-omnicraft}"
-DB_PASSWORD="${DB_PASSWORD:-omnicraft}"
-DB_NAME="${DB_NAME:-omnicraft}"
-
-export PGPASSWORD="${DB_PASSWORD}"
-
-echo "==> Initializing database: ${DB_NAME} on ${DB_HOST}:${DB_PORT}"
-
-# Check if psql is available
-if ! command -v psql &> /dev/null; then
-    echo "ERROR: psql is not installed. Please install PostgreSQL client."
-    exit 1
-fi
-
-# Check connectivity
-if ! psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -c "SELECT 1;" &> /dev/null; then
-    echo "ERROR: Cannot connect to PostgreSQL at ${DB_HOST}:${DB_PORT}"
-    echo "  Make sure PostgreSQL is running and credentials are correct."
-    exit 1
-fi
-
-echo "==> Found $(ls -1 "${MIGRATIONS_DIR}"/*.sql 2>/dev/null | wc -l) migration files"
-
-# Run each migration in order
-FAILED=0
-for migration in "${MIGRATIONS_DIR}"/*.sql; do
-    filename=$(basename "${migration}")
-    echo -n "  Running ${filename} ... "
-
-    if psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" \
-        -v ON_ERROR_STOP=1 -f "${migration}" &> /dev/null; then
-        echo "OK"
-    else
-        echo "FAILED"
-        echo "  Error details:"
-        psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" \
-            -v ON_ERROR_STOP=1 -f "${migration}" 2>&1 | head -20
-        FAILED=1
-        echo "  WARNING: Continuing with remaining migrations..."
-    fi
+RECONCILE=""
+RECONCILE_APPROVAL=""
+SUMMARY_PATH=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -ReconcileVersions)
+            RECONCILE="$2"
+            shift 2
+            ;;
+		-ReconcileApproval)
+			RECONCILE_APPROVAL="$2"
+			shift 2
+			;;
+        -SummaryPath)
+            SUMMARY_PATH="$2"
+            shift 2
+            ;;
+        *)
+            echo "unknown argument: $1" >&2
+            exit 2
+            ;;
+    esac
 done
 
-echo ""
-if [ "${FAILED}" -eq 0 ]; then
-    echo "==> All migrations completed successfully."
-else
-    echo "==> Some migrations failed. Review errors above."
-    exit 1
+# Database connection string. DB_DSN takes precedence, otherwise build one
+# from the conventional per-part env vars.
+DSN="${DB_DSN:-}"
+if [ -z "${DSN}" ]; then
+    DB_HOST="${DB_HOST:-localhost}"
+    DB_PORT="${DB_PORT:-5432}"
+    DB_USER="${DB_USER:-omnicraft}"
+    DB_PASSWORD="${DB_PASSWORD:-omnicraft}"
+    DB_NAME="${DB_NAME:-omnicraft}"
+    DSN="host=${DB_HOST} port=${DB_PORT} user=${DB_USER} password=${DB_PASSWORD} dbname=${DB_NAME} sslmode=disable"
 fi
+
+ARGS=(-DSN "${DSN}" -Dir "${MIGRATIONS_DIR}" -Metadata "${MIGRATIONS_DIR}/metadata.json")
+if [ -n "${RECONCILE}" ]; then
+    ARGS+=(-ReconcileVersions "${RECONCILE}")
+fi
+if [ -n "${RECONCILE_APPROVAL}" ]; then
+	ARGS+=(-ReconcileApproval "${RECONCILE_APPROVAL}")
+fi
+if [ -n "${SUMMARY_PATH}" ]; then
+    ARGS+=(-SummaryPath "${SUMMARY_PATH}")
+fi
+
+echo "==> Running migrations with the ledger runner (connection details redacted)"
+(cd "${BACKEND_DIR}" && go run ./cmd/migrate "${ARGS[@]}")
+echo "==> Migrations complete"

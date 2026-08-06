@@ -1,0 +1,14 @@
+# Blackbox exporter configuration: HTTPS probe of the public API for
+# availability (probe_success) and TLS certificate expiry
+# (probe_ssl_earliest_cert_expiry). Targets are defined in prometheus.yml.
+modules:
+  http_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes:
+        - 200
+      preferred_ip_protocol: ip4
+      tls_config:
+        insecure_skip_verify: false
