@@ -161,6 +161,12 @@ agent:
   embedding_model: "text-embedding-3-small"
   embedding_dimensions: 1536
   rate_limit_per_day: 50
+  rate_limit_per_minute: 5
+  max_tool_calls_per_turn: 8
+  max_output_tokens: 1200
+  provider_timeout_sec: 60
+  provider_max_retries: 2
+  citation_max_count: 5
   upload_assist_max_file_mb: 10
   max_user_message_chars: 4000
   chat_max_context_messages: 10

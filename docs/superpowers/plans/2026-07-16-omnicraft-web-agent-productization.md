@@ -63,7 +63,7 @@
 
 ## Task 1: Define Typed Contract, Limits, And Evaluation Fixtures
 
-- [ ] **Step 1: Write failing config and contract tests**
+- [x] **Step 1: Write failing config and contract tests**
 
 Cover config fields:
 
@@ -78,18 +78,18 @@ Cover config fields:
 Cover typed `AgentAnswer`, `AgentCitation`, `AgentToolExecution`, `AgentUsage`, and safe error DTO JSON fields from the design spec.
 `AgentAnswer` must include a server-owned `answer_kind` enum; the model cannot choose whether citations are required.
 
-- [ ] **Step 2: Confirm red**
+- [x] **Step 2: Confirm red**
 
 ```bash
 cd backend
 go test ./config ./internal/service -run "TestAgentConfig|TestAgentContract" -v
 ```
 
-- [ ] **Step 3: Implement config and typed contracts**
+- [x] **Step 3: Implement config and typed contracts**
 
 Do not use `map[string]any` for public response fields. Internal Provider-specific payloads remain behind the Provider adapter.
 
-- [ ] **Step 4: Add evaluation fixture schema and initial cases**
+- [x] **Step 4: Add evaluation fixture schema and initial cases**
 
 `backend/testdata/agent_eval_cases.json` must include at least:
 
@@ -105,7 +105,7 @@ Do not use `map[string]any` for public response fields. Internal Provider-specif
 - publish suggestion payload with an arbitrary resource ID or an oversized/unselected form snapshot;
 - provider timeout and rate-limit downgrade.
 
-- [ ] **Step 5: Verify and run doc-validator**
+- [x] **Step 5: Verify and run doc-validator**
 
 ```bash
 cd backend
@@ -114,7 +114,7 @@ cd ../tools/doc-validator
 go run . --fix
 ```
 
-- [ ] **Step 6: Checkpoint Task 1**
+- [x] **Step 6: Checkpoint Task 1**
 
 Update only Task 1 checkboxes and `progress.txt`, review `git diff`, stage exact Task 1 files, and commit `Web Agent 1: define typed contracts and limits`.
 
