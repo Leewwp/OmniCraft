@@ -138,6 +138,16 @@ export function Header() {
           >
             {t("nav.originalZone")}
           </Link>
+          <Link
+            href="/agent"
+            aria-current={pathname.startsWith("/agent") ? "page" : undefined}
+            className={cn(
+              "relative flex h-full items-center px-3 text-sm font-medium text-fg-muted transition-colors duration-150 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary after:opacity-0 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              pathname.startsWith("/agent") && "font-semibold text-foreground after:opacity-100",
+            )}
+          >
+            {t("nav.agent")}
+          </Link>
         </nav>
 
         <div className="flex flex-1 items-center gap-2">
@@ -402,6 +412,17 @@ export function Header() {
                 )}
               >
                 {t("nav.originalZone")}
+              </Link>
+              <Link
+                href="/agent"
+                aria-current={pathname.startsWith("/agent") ? "page" : undefined}
+                onClick={() => setMobileMenuOpen(false)}
+                className={cn(
+                  "flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-fg-muted hover:bg-canvas-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                  pathname.startsWith("/agent") && "bg-accent-subtle font-semibold text-accent-emphasis",
+                )}
+              >
+                {t("nav.agent")}
               </Link>
             </nav>
 
