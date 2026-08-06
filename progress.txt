@@ -2,6 +2,26 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+## [2026-08-06] - Task Web Agent 2: enforce grounded tool boundaries
+
+### What was done:
+- 计划 `2026-07-16-omnicraft-web-agent-productization.md` Task 2 完成（车道 C 第二步，分支 `web/agent-t2`，由编排方实现——子 Agent 三次空返回后接管）。
+- `internal/service/agent_tools.go`（新）：服务端只读工具注册表（`search_content`/`get_content_detail`/`get_usage_guide`/`suggest_publish_metadata`），严格参数解码（DisallowUnknownFields + 长度/数值边界，注入形状工具名一律 `ErrAgentToolUnknown`）；单一 viewer-aware 可见性 resolver（`ApplyContentVisibilityScope`，所有失败统一 `ErrContentNotFound` 防探测）；`RevalidateCitations`（模型输出后逐条重载，无效/隐藏引用剔除，上限 citation_max_count）；`ClassifyGroundedAnswer`（无有效引用 → `no_evidence`）；`AgentToolPolicy`（max_tool_calls_per_turn 配置驱动的循环预算）；trace_id（32 hex）+ 结构化 slog 追踪（禁记原始 prompt/Provider 错误）。
+- `suggest_publish_metadata` 不接受任何模型资源参数（content_id/draft_id 均拒绝），只读请求绑定的 typed `AgentPublishSnapshot`。
+- Chat 上下文改为 server-owned `AgentChatSurface`（global|content|search|publish）+ 可选 content_id（`model.AgentChatContext` 替代 `AgentPageContext`）；服务端按 viewer 重载 title/type/可见性，隐藏内容在创建会话与调用 Provider 前拒绝；system prompt 由 surface + 服务端数据构建。
+- `UsageGuide`/`UsageGuideStream` 与工具共用同一 resolver（旧 `FindByID` 无可见性）；普通用户 Agent 路由组移除 `POST /agent/moderate/:id`（doc-validator 自动同步 architecture.md）；ChatStream done 事件携带 trace_id。
+
+### Testing:
+- TDD RED：新 API 编译失败（ExecuteTool/ErrAgentTool* 未定义、ChatStream 签名变更）→ 实现后聚焦测试全绿。
+- `go test ./internal/service -run "TestAgentToolPolicy|TestAgentGrounding|TestChatStream"` PASS（14 子测试：工具白名单/参数拒绝/共享 resolver/隐藏内容不到达 Provider/服务端上下文/引用重验证/no_evidence/循环预算/trace）。
+- `go test ./internal/router -run TestAgentModerationRouteRemoved` PASS（moderate 路由 404）。
+- `go test ./...`、`go vet ./...`、`go build ./...` 全绿；`doc-validator --fix` 无额外改动（architecture.md 路由表自动移除 moderate）。
+- 调试注记：GORM v2 对 `default` tag 字段 Create 时零值替换为默认值（`IsPublic default:true` → false 变 true），fixture 改用 raw SQL 插入保证可见性确定性。
+
+### Notes:
+- 仓库默认 `agent.web_agent_enabled=false` 保持关闭；未触碰 Task 3/4/6、未触碰 `frontend/**`、未改动其他计划 checkbox 或历史账本。
+- Task 3（流式 API 稳定化）为下一项；Provider 驱动的工具循环与确定性 harness 归 Task 5。
+
 ## [2026-08-06] - Task GAP-02 REVIEW: #16 浏览器验收与集成修复
 
 ### What was done:

@@ -467,7 +467,6 @@ backend/
 | `POST` | `/api/v1/admin/users/:id/unban` | adminHandler.UnbanUser |
 | `POST` | `/api/v1/agent/chat/stream` | agentHandler.ChatStream |
 | `POST` | `/api/v1/agent/compliance-check` | agentHandler.ComplianceCheck |
-| `POST` | `/api/v1/agent/moderate/:id` | agentHandler.Moderate |
 | `POST` | `/api/v1/agent/search` | agentHandler.NLSearch |
 | `POST` | `/api/v1/agent/upload-assist` | agentHandler.UploadAssist |
 | `POST` | `/api/v1/appeals` | appealHandler.SubmitAppeal |

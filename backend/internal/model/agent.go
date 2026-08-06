@@ -20,9 +20,23 @@ type AgentMessage struct {
 	CreatedAt      time.Time `json:"created_at"`
 }
 
-type AgentPageContext struct {
-	Route        string `json:"route"`
-	ContentID    *int64 `json:"content_id,omitempty"`
-	ContentTitle string `json:"content_title,omitempty"`
-	ContentType  string `json:"content_type,omitempty"`
+// AgentChatSurface is a server-owned enum describing where a chat request was
+// initiated. Client-provided summaries (title/type/route) are never trusted;
+// the service reloads resource context from the database using the current
+// viewer, and the surface only selects server-owned prompt text.
+type AgentChatSurface string
+
+const (
+	AgentChatSurfaceGlobal  AgentChatSurface = "global"
+	AgentChatSurfaceContent AgentChatSurface = "content"
+	AgentChatSurfaceSearch  AgentChatSurface = "search"
+	AgentChatSurfacePublish AgentChatSurface = "publish"
+)
+
+// AgentChatContext is the only client-authored chat context accepted by the
+// web agent. It carries a server-owned surface enum and an optional content ID
+// that the service re-validates with the current viewer's visibility scope.
+type AgentChatContext struct {
+	Surface   AgentChatSurface `json:"surface"`
+	ContentID *int64           `json:"content_id,omitempty"`
 }
