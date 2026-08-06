@@ -8,7 +8,7 @@ import {
   Heart, Settings, FileText, ChevronRight,
 } from "lucide-react";
 import { IPCard } from "@/components/ip/IPCard";
-import { MasonryGrid } from "@/components/content/MasonryGrid";
+import { OverlayMasonryGrid } from "@/components/content/OverlayMasonryGrid";
 import { ContentCardData } from "@/components/content/ContentCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sidebar, type SidebarItem, type TrendingEntry } from "@/components/layout/Sidebar";
@@ -279,7 +279,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
               {t("home.contentLoadFailed")}
             </div>
           ) : (
-            <MasonryGrid items={contents} emptyText={t("home.noOriginalContent")} />
+            <OverlayMasonryGrid items={contents} emptyText={t("home.noOriginalContent")} source="zone-page" />
           )}
         </div>
       </div>
