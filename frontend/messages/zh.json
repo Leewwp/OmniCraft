@@ -327,6 +327,27 @@
     "suggestRemoveTagHint": "建议移除此标签",
     "tagSuggestionSubmitted": "标签建议已提交，等待作者审批"
   },
+  "contentDetailOverlay": {
+    "title": "内容详情",
+    "close": "关闭内容详情",
+    "returnTo": "返回 {title}",
+    "backToRecommendation": "返回推荐流",
+    "backToZonePage": "返回内容页",
+    "backToIpPage": "返回 IP 详情",
+    "backToAgent": "返回对话",
+    "openRelated": "打开内容详情：{title}",
+    "notFoundTitle": "内容不存在或已删除",
+    "notFoundDescription": "这件作品可能已被作者删除，或当前账号没有查看权限。",
+    "forbiddenTitle": "内容不可访问",
+    "forbiddenDescription": "该内容已被下架，无法查看。",
+    "loadFailedTitle": "内容详情暂时无法加载",
+    "loadFailedDescription": "网络连接未完成。关闭详情后仍会回到原来的浏览位置。",
+    "creator": "创作者",
+    "ip": "所属 IP",
+    "sourceOriginal": "关联原创",
+    "derivatives": "衍生二创",
+    "viewAll": "查看全部"
+  },
   "collections": {
     "picker": {
       "title": "添加到收藏集",
