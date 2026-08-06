@@ -605,3 +605,23 @@
 
 ### Notes:
 - 本轮 4 个 commit 已提交（0be930c/c8df731/e5406e3/91b35c4）；本条目对应 5 个 commit：0be930c 收紧 + errors.New + 测试扩充、AuthContext 去 export、content-discovery 文档修门。
+
+## [2026-08-06] - Task 4: build traceable Agent UI
+### What was done:
+- 车道 F（heavy）分支 `web/agent-t4`（基于 main@0e2d0c1 = GAP #19 + Task 5 合并产物）完成 `2026-07-16-omnicraft-web-agent-productization.md` Task 4 全部 6 步。
+- **typed normalizer `frontend/lib/agent.ts`**（Step 2）：`normalizeAgentCitation`（content_id 正整数 / title 非空 / zone 仅 original|fanwork）、`normalizeAgentTool`（name 非空 + status ∈ running/success/failed/error/skipped）、`normalizeAgentEvent`（畸形 citation/tool 事件整体拒绝，done 内嵌列表逐条过滤）；`toAgentCitation` + ui-spec camelCase `AgentCitation`。`lib/agent-stream.ts` 的 `parseAgentStreamLine` 改走 normalizer，组件层永远拿不到未校验数据；工具 status 联合类型按服务端契约扩为含 `error`/`skipped`。公共组件 props 零 any。
+- **引用/工具状态组件**（Step 3）：新增 `AgentCitationCard.tsx`（序号 + title + 分区徽标 `agent.citations.zoneOriginal/zoneFanwork` + excerpt + 可聚焦按钮打开共享浮窗）与 `AgentToolStatus.tsx`（用户向短文案：如「已检索站内内容」/「正在获取使用说明」/「发布建议生成失败」+ ≥1s 耗时摘要，不暴露 raw args/内部推理）；AgentWorkspace 内联实现迁移到两组件。
+- **全局产品面**（Step 4）：Root Layout 移除 `AgentChatWidget` 挂载（旧 Widget 文件保留为遗留，计划只要求移除 mount）；新增 keyword-only `components/search/GlobalSearchInput.tsx` 并迁移 Header 桌面/移动/菜单三处搜索（无 Agent 模式开关）；`/agent` 导航入口（桌面 + 移动菜单）包进 `AgentFeatureGate capability="webAgent"`，feature-disabled/匿名/未验证邮箱时隐藏入口但关键词搜索保留；匿名访问走 (protected) 路由 login 重定向契约（源码契约测试）。
+- **生命周期/接线核对**：citation→共享 `ContentDetailOverlay`（#19 已接线，新增关闭后焦点回引用卡片 + transcript 滚动锚不变的测试）；「开始新对话」保留服务端历史（不删列表项、不发 DELETE）测试；重试保留输入框当前内容（修复 `handleSend` 在 override 发送时无条件清空输入框的问题）；no-evidence 状态测试；畸形引用不可点测试（normalizer 直接丢弃）。
+- i18n：zh/en.json 新增 `agent.tools.*` 20 个结果短语 + `agent.citations.zoneOriginal/zoneFanwork`，双语严格对齐，diff 外科手术式（无格式噪音）。
+- 测试基建：`runtime-test-helpers.tsx` 补 `Element` 全局（Header 内 base-ui DropdownMenu 的 floating-ui 依赖）并导出 `within`；agent 测试文件去掉对 `@testing-library/react` 的静态 import（其会在 DOM 全局建立前初始化 react-dom，导致 isInputEventSupported=false、React input polyfill 在 focus 事件上抛 attachEvent/detachEvent TypeError 且 waitFor 挂起）——这是本仓库测试文件的潜伏顺序缺陷，本任务首次触发。
+
+### Testing:
+- TDD 红盘（2026-08-06，`cd frontend && node --import tsx --test tests/agent-workspace.test.tsx`）：新增断言清单首批全红——`ERR_MODULE_NOT_FOUND: Cannot find package '@/lib'`（lib/agent.ts 不存在，文件级 35 项全挂）+ 未实现前 Header 无条件渲染 `/agent` 入口（「Header hides the /agent entry when web_agent_enabled=false」断言失败）+ Root Layout 仍挂 AgentChatWidget（「Root Layout does not mount a global Agent trigger or panel」失败）；红盘证据见会话记录与 git stash 前的测试输出。
+- 转绿：`node --import tsx --test tests/agent-workspace.test.tsx` 34/34 PASS（#19 21 项 + Task 4 新增 13 项）；`npm run test:unit` 227/227 PASS。
+- 门：`npm run lint`（tsc --noEmit）、`npm run build`、`npm run lint:ui`（i18n parity + source policy + token governance）全绿。未改后端/config/routes/迁移（doc-validator 无需运行）；未启动 dev server（截图由编排方处理）。
+
+### Notes:
+- 只勾选本计划 Task 4 的 6 个 checkbox；未触碰 Task 6、其他计划 checkbox、历史账本；不 push、不合并。
+- 与 #19 交接：`AgentWorkspace`/`AgentConversationSidebar`/`lib/agent-stream.ts` 复用；引用浮窗接线（source=agent-citation + returnFocusRef）与清空/新对话生命周期为 #19 实现、本任务补测试核对；`AgentChatWidget.tsx` 文件保留（Root Layout 挂载已移除，移除点 = `app/layout.tsx`）。
+- 遗留：会话全文搜索（A1.6）仍为 #19 协调点的后续项；Task 6 浏览器验证需要 dev server + 假 Provider。

@@ -1175,12 +1175,35 @@
       "unknown": "Tool",
       "statusRunning": "Running",
       "statusSuccess": "Done",
-      "statusFailed": "Failed"
+      "statusFailed": "Failed",
+      "searchContentRunning": "Searching site content",
+      "searchContentSuccess": "Searched site content",
+      "searchContentFailed": "Site content search failed",
+      "searchContentSkipped": "Skipped site content search",
+      "getContentDetailRunning": "Fetching content detail",
+      "getContentDetailSuccess": "Fetched content detail",
+      "getContentDetailFailed": "Content detail fetch failed",
+      "getContentDetailSkipped": "Skipped content detail fetch",
+      "getUsageGuideRunning": "Fetching usage guide",
+      "getUsageGuideSuccess": "Fetched usage guide",
+      "getUsageGuideFailed": "Usage guide fetch failed",
+      "getUsageGuideSkipped": "Skipped usage guide fetch",
+      "suggestPublishMetadataRunning": "Suggesting publish metadata",
+      "suggestPublishMetadataSuccess": "Suggested publish metadata",
+      "suggestPublishMetadataFailed": "Publish metadata suggestion failed",
+      "suggestPublishMetadataSkipped": "Skipped publish metadata suggestion",
+      "unknownRunning": "Tool running",
+      "unknownSuccess": "Tool finished",
+      "unknownFailed": "Tool failed",
+      "unknownSkipped": "Tool skipped",
+      "duration": "{seconds}s"
     },
     "citations": {
       "title": "Site references",
       "count": "{count} verified references",
-      "invalid": "Reference unavailable"
+      "invalid": "Reference unavailable",
+      "zoneOriginal": "Original",
+      "zoneFanwork": "Fanwork"
     },
     "noEvidence": {
       "title": "Not enough evidence",

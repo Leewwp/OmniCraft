@@ -1,4 +1,5 @@
 import { getAccessToken } from "@/lib/api";
+import { normalizeAgentEvent } from "@/lib/agent";
 
 export interface AgentStreamCitation {
   content_id: number;
@@ -9,7 +10,7 @@ export interface AgentStreamCitation {
 
 export interface AgentStreamTool {
   name: string;
-  status: "running" | "success" | "failed";
+  status: "running" | "success" | "failed" | "error" | "skipped";
   duration_ms?: number;
 }
 
@@ -36,15 +37,15 @@ export interface AgentStreamHandlers {
   onClose?: () => void;
 }
 
-/** 解析一行 SSE 数据。仅接受 `data: <json>` 且带 `type` 字段的事件；[DONE] 与空行忽略。 */
+/** 解析一行 SSE 数据。仅接受 `data: <json>` 且带 `type` 字段的事件；[DONE] 与空行忽略。
+ *  事件经 lib/agent.ts 的 typed normalizer 校验，畸形 citation/tool 事件直接拒绝。 */
 export function parseAgentStreamLine(line: string): AgentStreamEvent | null {
   if (!line.startsWith("data:")) return null;
   const raw = line.slice(5).trim();
   if (!raw || raw === "[DONE]") return null;
   try {
-    const parsed = JSON.parse(raw) as { type?: string } & Record<string, unknown>;
-    if (!parsed.type) return null;
-    return parsed as unknown as AgentStreamEvent;
+    const parsed = JSON.parse(raw) as unknown;
+    return normalizeAgentEvent(parsed);
   } catch {
     return null;
   }

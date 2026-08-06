@@ -16,6 +16,9 @@ import {
   type AgentStreamEvent,
   type AgentStreamTool,
 } from "@/lib/agent-stream";
+import { toAgentCitation, type AgentCitation } from "@/lib/agent";
+import { AgentCitationCard } from "@/components/agent/AgentCitationCard";
+import { AgentToolStatus } from "@/components/agent/AgentToolStatus";
 import {
   AgentConversationSidebar,
   type AgentConversationSummary,
@@ -25,13 +28,6 @@ import { cn } from "@/lib/utils";
 const SIDEBAR_STORAGE_KEY = "agentSidebarCollapsed";
 const MAX_CONTEXT_MESSAGES = 10;
 const STICKY_BOTTOM_THRESHOLD = 80;
-
-export interface AgentCitation {
-  contentId: number;
-  title: string;
-  zone: "original" | "fanwork";
-  excerpt?: string;
-}
 
 export interface AgentWorkspaceProps {
   initialConversationId?: number;
@@ -51,19 +47,6 @@ interface AgentMessageDTO {
 }
 
 let nextMessageId = 1;
-
-const TOOL_LABEL_KEYS: Record<string, string> = {
-  search_content: "agent.tools.searchContent",
-  get_content_detail: "agent.tools.getContentDetail",
-  get_usage_guide: "agent.tools.getUsageGuide",
-  suggest_publish_metadata: "agent.tools.suggestPublishMetadata",
-};
-
-const TOOL_STATUS_KEYS: Record<AgentStreamTool["status"], string> = {
-  running: "agent.tools.statusRunning",
-  success: "agent.tools.statusSuccess",
-  failed: "agent.tools.statusFailed",
-};
 
 const SUGGESTION_KEYS = [
   "agent.workspace.suggestionLayout",
@@ -255,12 +238,10 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
   }, [activeId, loadConversations, toast, t]);
 
   const handleCitationOpen = useCallback(
-    (citation: AgentStreamCitation, trigger: HTMLElement) => {
-      const zone: AgentCitation["zone"] =
-        citation.zone === "original" ? "original" : "fanwork";
+    (citation: AgentCitation, trigger: HTMLElement) => {
       overlayTriggerRef.current = trigger;
-      setOverlayEntry({ contentId: citation.content_id, zone });
-      onCitationOpen?.({ contentId: citation.content_id, title: citation.title, zone, excerpt: citation.excerpt });
+      setOverlayEntry({ contentId: citation.contentId, zone: citation.zone });
+      onCitationOpen?.(citation);
     },
     [onCitationOpen],
   );
@@ -284,12 +265,14 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
           break;
         }
         case "tool_status": {
-          if (event.tool) setTurnTools((previous) => [...previous, event.tool as AgentStreamTool]);
+          const tool = event.tool;
+          if (tool) setTurnTools((previous) => [...previous, tool]);
           break;
         }
         case "citation": {
-          if (event.citation) {
-            setTurnCitations((previous) => [...previous, event.citation as AgentStreamCitation]);
+          const citation = event.citation;
+          if (citation) {
+            setTurnCitations((previous) => [...previous, citation]);
           }
           break;
         }
@@ -327,7 +310,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
     };
     const history = [...messages, userMessage];
     setMessages(history);
-    setInput("");
+    if (overrideMessage === undefined) setInput("");
     setTurnError(false);
     setStoppedNotice(false);
     setTurnTools([]);
@@ -517,21 +500,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
                 </div>
               ))}
 
-              {turnTools.length > 0 && (
-                <ul className="flex flex-wrap gap-2" aria-label={t("agent.tools.title")}>
-                  {turnTools.map((tool, index) => (
-                    <li
-                      key={`${tool.name}-${index}`}
-                      className="inline-flex items-center gap-1.5 rounded border border-border-default bg-canvas-default px-2 py-1 text-xs text-fg-muted"
-                    >
-                      <span className="text-fg-default">
-                        {t(TOOL_LABEL_KEYS[tool.name] ?? "agent.tools.unknown")}
-                      </span>
-                      <span>{t(TOOL_STATUS_KEYS[tool.status] ?? "agent.tools.statusRunning")}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              {turnTools.length > 0 && <AgentToolStatus tools={turnTools} />}
 
               {lastAnswerKind === "no_evidence" && (
                 <div className="flex items-start gap-2 rounded-md border border-border-default bg-canvas-default px-3 py-2 text-sm text-fg-default">
@@ -552,43 +521,15 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
                     </span>
                   </div>
                   <ul className="mt-2 grid gap-2 sm:grid-cols-2">
-                    {turnCitations.map((citation, index) => {
-                      const valid =
-                        citation.content_id > 0 &&
-                        citation.title.trim() !== "" &&
-                        citation.zone.trim() !== "";
-                      if (!valid) {
-                        return (
-                          <li
-                            key={`${citation.content_id}-${index}`}
-                            className="rounded-md border border-border-default bg-canvas-default px-3 py-2 text-xs text-fg-muted"
-                          >
-                            {t("agent.citations.invalid")}
-                          </li>
-                        );
-                      }
-                      return (
-                        <li key={`${citation.content_id}-${index}`}>
-                          <button
-                            type="button"
-                            onClick={(event) => handleCitationOpen(citation, event.currentTarget)}
-                            className="flex h-auto w-full flex-col items-start gap-0.5 rounded-md border border-border-default bg-canvas-default px-3 py-2 text-left transition-colors hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-ring"
-                          >
-                            <span className="flex w-full items-center gap-2 text-sm font-medium text-accent-emphasis">
-                              <span className="text-xs text-fg-muted">
-                                {String(index + 1).padStart(2, "0")}
-                              </span>
-                              <span className="truncate">{citation.title}</span>
-                            </span>
-                            {citation.excerpt && (
-                              <span className="line-clamp-2 w-full pl-6 text-xs text-fg-muted">
-                                {citation.excerpt}
-                              </span>
-                            )}
-                          </button>
-                        </li>
-                      );
-                    })}
+                    {turnCitations.map((citation, index) => (
+                      <li key={`${citation.content_id}-${index}`}>
+                        <AgentCitationCard
+                          citation={toAgentCitation(citation)}
+                          index={index}
+                          onOpen={handleCitationOpen}
+                        />
+                      </li>
+                    ))}
                   </ul>
                 </section>
               )}
