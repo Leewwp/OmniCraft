@@ -338,14 +338,14 @@ type UsageGuideResult struct {
 	Guide string `json:"guide"`
 }
 
-func (s *AgentService) UsageGuide(ctx context.Context, contentItemID int64) (*UsageGuideResult, error) {
+func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID int64) (*UsageGuideResult, error) {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return nil, ErrAgentDisabled
 	}
 
-	content, err := s.contentRepo.FindByID(contentItemID)
-	if err != nil || content == nil {
-		return nil, ErrContentNotFound
+	content, err := s.resolveVisibleContent(ctx, viewerID, contentItemID)
+	if err != nil {
+		return nil, err
 	}
 
 	var guideType string
@@ -382,14 +382,14 @@ Format as Markdown.`, content.Title, content.ContentType, content.Description, g
 	return &UsageGuideResult{Guide: resp.Content}, nil
 }
 
-func (s *AgentService) UsageGuideStream(ctx context.Context, contentItemID int64, handler func(delta string, done bool) error) error {
+func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentItemID int64, handler func(delta string, done bool) error) error {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return ErrAgentDisabled
 	}
 
-	content, err := s.contentRepo.FindByID(contentItemID)
-	if err != nil || content == nil {
-		return ErrContentNotFound
+	content, err := s.resolveVisibleContent(ctx, viewerID, contentItemID)
+	if err != nil {
+		return err
 	}
 
 	prompt := fmt.Sprintf("Generate a concise usage guide for: %s (type: %s)", content.Title, content.ContentType)
@@ -535,26 +535,42 @@ func (s *AgentService) embedContent(ctx context.Context, contentItemID int64, te
 	return nil
 }
 
-func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []llm.ChatMessage, pageCtx *model.AgentPageContext, handler func(delta string, done bool, conversationID int64) error) error {
+// ChatStream runs one chat turn with a server-owned context. Only the surface
+// enum and an optional content ID are accepted from the client; the service
+// reloads title/type/visibility with the current viewer before the Provider is
+// called, so hidden content is rejected without consuming quota or reaching
+// the Provider. Client-authored summaries and raw routes are never trusted.
+func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []llm.ChatMessage, chatCtx *model.AgentChatContext, handler func(delta string, done bool, conversationID int64, traceID string) error) error {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return ErrAgentDisabled
 	}
 
+	traceID := newTraceID()
+	traceAgentEvent(traceID, "chat_start", "user_id", userID)
+
+	surface := model.AgentChatSurfaceGlobal
+	var contentID *int64
+	if chatCtx != nil {
+		surface = chatCtx.Surface
+		contentID = chatCtx.ContentID
+	}
+
 	contextType := "general"
-	var contextID *int64
-	if pageCtx != nil {
-		if pageCtx.ContentID != nil {
-			contextType = "content"
-			contextID = pageCtx.ContentID
-		} else if pageCtx.Route != "" {
-			contextType = "page"
+	var resolvedContent *model.ContentItem
+	if surface == model.AgentChatSurfaceContent && contentID != nil {
+		content, err := s.resolveVisibleContent(ctx, userID, *contentID)
+		if err != nil {
+			traceAgentEvent(traceID, "chat_context_rejected", "surface", surface, "content_id", *contentID, "safe_error", "content_not_found")
+			return err
 		}
+		resolvedContent = content
+		contextType = "content"
 	}
 
 	conv := &model.AgentConversation{
 		UserID:      userID,
 		ContextType: contextType,
-		ContextID:   contextID,
+		ContextID:   contentID,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -577,29 +593,11 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []
 		}
 	}
 
-	llmMessages := messages
-	if pageCtx != nil {
-		var contextParts []string
-		contextParts = append(contextParts, fmt.Sprintf("Current page: %s", pageCtx.Route))
-		if pageCtx.ContentTitle != "" {
-			contextParts = append(contextParts, fmt.Sprintf("Content title: %s", pageCtx.ContentTitle))
-		}
-		if pageCtx.ContentType != "" {
-			contextParts = append(contextParts, fmt.Sprintf("Content type: %s", pageCtx.ContentType))
-		}
-		if pageCtx.ContentID != nil {
-			contextParts = append(contextParts, fmt.Sprintf("Content ID: %d", *pageCtx.ContentID))
-		}
-		systemMsg := llm.ChatMessage{
-			Role:    "system",
-			Content: "[Page Context] " + strings.Join(contextParts, "; "),
-		}
-		llmMessages = append([]llm.ChatMessage{systemMsg}, llmMessages...)
-	}
+	systemMsg := s.serverOwnedSystemPrompt(surface, resolvedContent)
 
 	req := llm.ChatRequest{
-		Messages:  llmMessages,
-		MaxTokens: 2000,
+		Messages:  append([]llm.ChatMessage{systemMsg}, messages...),
+		MaxTokens: s.ToolPolicy().MaxOutputTokens,
 		Stream:    true,
 	}
 
@@ -621,7 +619,7 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []
 			})
 			s.db.Model(conv).Update("updated_at", time.Now())
 		}
-		return handler(delta.Content, delta.Done, convID)
+		return handler(delta.Content, delta.Done, convID, traceID)
 	})
 
 	if err != nil && conv != nil {
@@ -630,7 +628,38 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []
 		s.db.Delete(conv)
 	}
 
+	if err != nil {
+		traceAgentEvent(traceID, "chat_failed", "safe_error", "provider_error")
+	} else {
+		traceAgentEvent(traceID, "chat_done", "conversation_id", convID, "surface", surface)
+	}
 	return err
+}
+
+// serverOwnedSystemPrompt builds prompt text exclusively from the server-owned
+// surface enum and database-reloaded resource context. Client-supplied titles,
+// content types, routes, or visibility claims are never interpolated.
+func (s *AgentService) serverOwnedSystemPrompt(surface model.AgentChatSurface, content *model.ContentItem) llm.ChatMessage {
+	var parts []string
+	switch surface {
+	case model.AgentChatSurfaceContent:
+		parts = append(parts, "surface=content")
+		if content != nil {
+			parts = append(parts, fmt.Sprintf("content_id=%d", content.ID))
+			parts = append(parts, fmt.Sprintf("title=%s", content.Title))
+			parts = append(parts, fmt.Sprintf("content_type=%s", content.ContentType))
+		}
+	case model.AgentChatSurfaceSearch:
+		parts = append(parts, "surface=search")
+	case model.AgentChatSurfacePublish:
+		parts = append(parts, "surface=publish")
+	default:
+		parts = append(parts, "surface=global")
+	}
+	return llm.ChatMessage{
+		Role:    "system",
+		Content: "[OmniCraft Agent Context] " + strings.Join(parts, "; "),
+	}
 }
 
 type AIReviewRecord struct {

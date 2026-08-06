@@ -126,13 +126,14 @@ func (h *AgentHandler) UsageGuide(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
 		return
 	}
+	viewerID := middleware.GetUserID(c)
 
 	if c.Query("stream") == "true" {
 		c.Header("Content-Type", "text/event-stream")
 		c.Header("Cache-Control", "no-cache")
 		c.Header("X-Accel-Buffering", "no")
 
-		err := h.agentSvc.UsageGuideStream(c.Request.Context(), id, func(delta string, done bool) error {
+		err := h.agentSvc.UsageGuideStream(c.Request.Context(), viewerID, id, func(delta string, done bool) error {
 			if done {
 				c.SSEvent("message", gin.H{"done": true})
 			} else if delta != "" {
@@ -147,21 +148,7 @@ func (h *AgentHandler) UsageGuide(c *gin.Context) {
 		return
 	}
 
-	result, err := h.agentSvc.UsageGuide(c.Request.Context(), id)
-	if err != nil {
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
-		return
-	}
-	c.JSON(http.StatusOK, result)
-}
-
-func (h *AgentHandler) Moderate(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
-		return
-	}
-	result, err := h.agentSvc.Moderate(c.Request.Context(), id)
+	result, err := h.agentSvc.UsageGuide(c.Request.Context(), viewerID, id)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
 		return
@@ -208,13 +195,18 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		filtered = filtered[len(filtered)-maxCtxMsgs:]
 	}
 
-	var pageCtx *model.AgentPageContext
+	var chatCtx *model.AgentChatContext
 	if body.Context != nil {
-		pageCtx = &model.AgentPageContext{
-			Route:        truncateStr(body.Context.Route, 200),
-			ContentID:    body.Context.ContentID,
-			ContentTitle: truncateStr(body.Context.ContentTitle, 200),
-			ContentType:  truncateStr(body.Context.ContentType, 50),
+		surface := model.AgentChatSurface(body.Context.Surface)
+		switch surface {
+		case model.AgentChatSurfaceGlobal, model.AgentChatSurfaceContent, model.AgentChatSurfaceSearch, model.AgentChatSurfacePublish:
+		default:
+			response.ValidationError(c, "invalid context surface")
+			return
+		}
+		chatCtx = &model.AgentChatContext{
+			Surface:   surface,
+			ContentID: body.Context.ContentID,
 		}
 	}
 
@@ -222,9 +214,9 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 	c.Header("Cache-Control", "no-cache")
 	c.Header("X-Accel-Buffering", "no")
 
-	err := h.agentSvc.ChatStream(c.Request.Context(), userID, filtered, pageCtx, func(delta string, done bool, convID int64) error {
+	err := h.agentSvc.ChatStream(c.Request.Context(), userID, filtered, chatCtx, func(delta string, done bool, convID int64, traceID string) error {
 		if done {
-			c.SSEvent("message", gin.H{"done": true, "conversation_id": convID})
+			c.SSEvent("message", gin.H{"done": true, "conversation_id": convID, "trace_id": traceID})
 		} else if delta != "" {
 			c.SSEvent("message", gin.H{"delta": delta, "done": false})
 		}
@@ -237,10 +229,8 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 }
 
 type ChatContextDTO struct {
-	Route        string `json:"route"`
-	ContentID    *int64 `json:"content_id,omitempty"`
-	ContentTitle string `json:"content_title,omitempty"`
-	ContentType  string `json:"content_type,omitempty"`
+	Surface   string `json:"surface"`
+	ContentID *int64 `json:"content_id,omitempty"`
 }
 
 func truncateStr(s string, maxLen int) string {

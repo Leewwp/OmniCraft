@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -36,7 +37,7 @@ func (p *recordingAgentChatProvider) GetEmbedding(_ context.Context, _ string) (
 	return []float32{0.1}, nil
 }
 
-func TestChatStreamStoresContentContextAndInjectsPageContext(t *testing.T) {
+func TestChatStreamStoresServerOwnedContentContext(t *testing.T) {
 	db := setupAgentChatDB(t)
 	provider := &recordingAgentChatProvider{
 		deltas: []llm.ChatDelta{
@@ -50,26 +51,24 @@ func TestChatStreamStoresContentContextAndInjectsPageContext(t *testing.T) {
 		nil,
 		nil,
 		db,
-		&config.Config{Agent: config.AgentConfig{WebAgentEnabled: true}},
+		&config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10}},
 	)
 
 	contentID := int64(88)
-	pageCtx := &model.AgentPageContext{
-		Route:        "/contents/88",
-		ContentID:    &contentID,
-		ContentTitle: "Review Target",
-		ContentType:  "article",
+	chatCtx := &model.AgentChatContext{
+		Surface:   model.AgentChatSurfaceContent,
+		ContentID: &contentID,
 	}
 
-	var conversationID int64
+	var traceID string
 	err := svc.ChatStream(
 		context.Background(),
-		42,
-		[]llm.ChatMessage{{Role: "user", Content: "Summarize this page"}},
-		pageCtx,
-		func(_ string, done bool, convID int64) error {
+		7,
+		[]llm.ChatMessage{{Role: "user", Content: "What is this content about?"}},
+		chatCtx,
+		func(delta string, done bool, conversationID int64, tid string) error {
 			if done {
-				conversationID = convID
+				traceID = tid
 			}
 			return nil
 		},
@@ -77,95 +76,71 @@ func TestChatStreamStoresContentContextAndInjectsPageContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ChatStream: %v", err)
 	}
-	if conversationID == 0 {
+
+	var conv model.AgentConversation
+	if err := db.First(&conv).Error; err != nil {
 		t.Fatal("expected ChatStream to create a persisted conversation")
 	}
-
-	if len(provider.lastRequest.Messages) != 2 {
-		t.Fatalf("provider messages len = %d, want 2", len(provider.lastRequest.Messages))
+	if conv.ContextType != "content" {
+		t.Fatalf("ContextType = %q, want content", conv.ContextType)
 	}
-	systemMsg := provider.lastRequest.Messages[0]
-	if systemMsg.Role != "system" {
-		t.Fatalf("first provider role = %q, want system", systemMsg.Role)
-	}
-	for _, want := range []string{
-		"[Page Context]",
-		"Current page: /contents/88",
-		"Content title: Review Target",
-		"Content type: article",
-		"Content ID: 88",
-	} {
-		if !strings.Contains(systemMsg.Content, want) {
-			t.Fatalf("system prompt = %q, want substring %q", systemMsg.Content, want)
-		}
+	if conv.ContextID == nil || *conv.ContextID != contentID {
+		t.Fatalf("ContextID = %#v, want %d", conv.ContextID, contentID)
 	}
 
-	var conversation model.AgentConversation
-	if err := db.First(&conversation, conversationID).Error; err != nil {
-		t.Fatalf("load conversation: %v", err)
+	if len(provider.lastRequest.Messages) == 0 || provider.lastRequest.Messages[0].Role != "system" {
+		t.Fatalf("provider request = %#v, want server-owned system prompt prepended", provider.lastRequest.Messages)
 	}
-	if conversation.ContextType != "content" {
-		t.Fatalf("ContextType = %q, want content", conversation.ContextType)
+	system := provider.lastRequest.Messages[0].Content
+	if !strings.Contains(system, "Published Test Content") {
+		t.Fatalf("system prompt = %q, want server-reloaded content title", system)
 	}
-	if conversation.ContextID == nil || *conversation.ContextID != contentID {
-		t.Fatalf("ContextID = %#v, want %d", conversation.ContextID, contentID)
+	if strings.Contains(system, "Route:") || strings.Contains(system, "client") {
+		t.Fatalf("system prompt = %q, must not contain client-authored route/summary", system)
 	}
-
-	var stored []model.AgentMessage
-	if err := db.Where("conversation_id = ?", conversationID).Order("id ASC").Find(&stored).Error; err != nil {
-		t.Fatalf("load messages: %v", err)
-	}
-	if len(stored) != 2 {
-		t.Fatalf("stored messages len = %d, want 2", len(stored))
-	}
-	if stored[0].Role != "user" || stored[0].Content == nil || *stored[0].Content != "Summarize this page" {
-		t.Fatalf("stored user message = %#v, want original user content", stored[0])
-	}
-	if stored[1].Role != "assistant" || stored[1].Content == nil || *stored[1].Content != "assistant reply" {
-		t.Fatalf("stored assistant message = %#v, want streamed assistant reply", stored[1])
+	if traceID == "" || len(traceID) != 32 {
+		t.Fatalf("done callback traceID = %q, want 32-hex trace id", traceID)
 	}
 }
 
-func TestChatStreamUsesPageContextTypeForRouteOnlyContext(t *testing.T) {
+func TestChatStreamGlobalSurfaceHasNoContentContext(t *testing.T) {
 	db := setupAgentChatDB(t)
-	provider := &recordingAgentChatProvider{
-		deltas: []llm.ChatDelta{{Done: true}},
-	}
+	provider := &recordingAgentChatProvider{}
 	svc := NewAgentService(
 		provider,
 		nil,
 		nil,
 		nil,
 		db,
-		&config.Config{Agent: config.AgentConfig{WebAgentEnabled: true}},
+		&config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10}},
 	)
 
 	err := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "Where am I?"}},
-		&model.AgentPageContext{Route: "/studio/overview"},
-		func(_ string, _ bool, _ int64) error { return nil },
+		[]llm.ChatMessage{{Role: "user", Content: "hi"}},
+		&model.AgentChatContext{Surface: model.AgentChatSurfaceGlobal},
+		func(delta string, done bool, conversationID int64, traceID string) error { return nil },
 	)
 	if err != nil {
 		t.Fatalf("ChatStream: %v", err)
 	}
 
-	var conversation model.AgentConversation
-	if err := db.First(&conversation).Error; err != nil {
-		t.Fatalf("load conversation: %v", err)
+	var conv model.AgentConversation
+	if err := db.First(&conv).Error; err != nil {
+		t.Fatal("expected ChatStream to create a persisted conversation")
 	}
-	if conversation.ContextType != "page" {
-		t.Fatalf("ContextType = %q, want page", conversation.ContextType)
+	if conv.ContextType != "general" {
+		t.Fatalf("ContextType = %q, want general", conv.ContextType)
 	}
-	if conversation.ContextID != nil {
-		t.Fatalf("ContextID = %#v, want nil for route-only page context", conversation.ContextID)
+	if conv.ContextID != nil {
+		t.Fatalf("ContextID = %#v, want nil for global surface", conv.ContextID)
 	}
 	if len(provider.lastRequest.Messages) == 0 || provider.lastRequest.Messages[0].Role != "system" {
 		t.Fatalf("provider request = %#v, want system prompt prepended", provider.lastRequest.Messages)
 	}
-	if !strings.Contains(provider.lastRequest.Messages[0].Content, "Current page: /studio/overview") {
-		t.Fatalf("system prompt = %q, want route context", provider.lastRequest.Messages[0].Content)
+	if !strings.Contains(provider.lastRequest.Messages[0].Content, "global") {
+		t.Fatalf("system prompt = %q, want global surface prompt", provider.lastRequest.Messages[0].Content)
 	}
 }
 
@@ -176,8 +151,15 @@ func setupAgentChatDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.AgentConversation{}, &model.AgentMessage{}); err != nil {
+	if err := db.AutoMigrate(&model.AgentConversation{}, &model.AgentMessage{}, &model.User{}, &model.ContentItem{}); err != nil {
 		t.Fatalf("migrate: %v", err)
+	}
+	if err := db.Create(&model.User{ID: 1, Username: "author", Email: "author@example.com"}).Error; err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	now := time.Now()
+	if err := db.Create(&model.ContentItem{ID: 88, Title: "Published Test Content", AuthorID: 1, Zone: "fanwork", ContentType: "mod", Status: "published", IsPublic: true, CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+		t.Fatalf("seed content: %v", err)
 	}
 	return db
 }

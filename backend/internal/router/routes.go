@@ -286,7 +286,6 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		agent.POST("/compliance-check", agentHandler.ComplianceCheck)
 		agent.POST("/search", agentHandler.NLSearch)
 		agent.GET("/usage-guide/:id", agentHandler.UsageGuide)
-		agent.POST("/moderate/:id", agentHandler.Moderate)
 		agent.POST("/chat/stream", agentHandler.ChatStream)
 		agent.GET("/conversations", agentHandler.ListConversations)
 		agent.GET("/conversations/:id", agentHandler.GetConversationMessages)

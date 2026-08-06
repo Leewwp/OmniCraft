@@ -229,18 +229,22 @@ func TestChatStreamHandlerFiltersRolesTruncatesMessagesAndLimitsContextWindow(t 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
 	}
-	if len(provider.lastRequest.Messages) != 2 {
-		t.Fatalf("provider messages len = %d, want 2", len(provider.lastRequest.Messages))
+	if len(provider.lastRequest.Messages) != 3 {
+		t.Fatalf("provider messages len = %d, want 3 (server-owned system prompt + 2 filtered user messages)", len(provider.lastRequest.Messages))
 	}
-	if provider.lastRequest.Messages[0].Role != "user" || provider.lastRequest.Messages[0].Content != "12345678" {
-		t.Fatalf("first forwarded message = %#v, want truncated user content", provider.lastRequest.Messages[0])
+	if provider.lastRequest.Messages[0].Role != "system" {
+		t.Fatalf("first message = %#v, want server-owned system prompt", provider.lastRequest.Messages[0])
 	}
-	if provider.lastRequest.Messages[1].Role != "user" || provider.lastRequest.Messages[1].Content != "tail" {
-		t.Fatalf("second forwarded message = %#v, want last context message", provider.lastRequest.Messages[1])
+	if provider.lastRequest.Messages[1].Role != "user" || provider.lastRequest.Messages[1].Content != "12345678" {
+		t.Fatalf("first forwarded message = %#v, want truncated user content", provider.lastRequest.Messages[1])
 	}
-	for _, msg := range provider.lastRequest.Messages {
+	if provider.lastRequest.Messages[2].Role != "user" || provider.lastRequest.Messages[2].Content != "tail" {
+		t.Fatalf("second forwarded message = %#v, want last context message", provider.lastRequest.Messages[2])
+	}
+	clientRoles := provider.lastRequest.Messages[1:]
+	for _, msg := range clientRoles {
 		if msg.Role == "system" {
-			t.Fatalf("invalid role leaked into provider request: %#v", provider.lastRequest.Messages)
+			t.Fatalf("client-authored role leaked into provider request: %#v", clientRoles)
 		}
 	}
 }

@@ -122,7 +122,7 @@ Update only Task 1 checkboxes and `progress.txt`, review `git diff`, stage exact
 
 ## Task 2: Enforce Grounded Read-Only Tool Orchestration
 
-- [ ] **Step 1: Add failing orchestration tests**
+- [x] **Step 1: Add failing orchestration tests**
 
 Assert:
 
@@ -139,35 +139,35 @@ Assert:
 - tool-call limit stops the loop with a stable result;
 - private, banned, author-deleted, under-review, and soft-deleted content never reaches citations.
 
-- [ ] **Step 2: Confirm red**
+- [x] **Step 2: Confirm red**
 
 ```bash
 cd backend
 go test ./internal/service -run "TestAgentGrounding|TestAgentToolPolicy" -v
 ```
 
-- [ ] **Step 3: Implement a focused tool registry**
+- [x] **Step 3: Implement a focused tool registry**
 
 Register `search_content`, `get_content_detail`, `get_usage_guide`, and suggestion-only publish metadata. Tool definitions are server-owned constants with strict input/output structs. `suggest_publish_metadata` accepts no model-authored resource arguments; it reads only the typed snapshot already bound to the current request. The model cannot supply arbitrary route names or SQL.
 
 Add a single viewer-aware content resolver shared by tool calls, chat context, and both legacy usage-guide response modes. Resolve resource context before creating a conversation or calling the Provider. Remove client-supplied `content_title`/`content_type`; map the surface enum to server-owned prompt text. De-register the ordinary-user moderation route before the feature can be enabled.
 
-- [ ] **Step 4: Implement citation validation and refusal**
+- [x] **Step 4: Implement citation validation and refusal**
 
 Normalize citations from backend-owned content summaries, not model-authored URLs. Invalid references are removed. Citation requirements are deterministic: chat/search/detail/usage-guide natural-language output is `grounded_content` and must retain at least one valid citation; publish metadata is a separate `publish_suggestion` DTO. A grounded answer without evidence becomes localized `no_evidence` plus keyword-search fallback.
 
-- [ ] **Step 5: Add trace and usage emission**
+- [x] **Step 5: Add trace and usage emission**
 
 Generate `trace_id`; record provider/model, tool name/status/duration, token counts, citation IDs, safe error, and degraded state through structured logs/metrics. Never log raw prompt/content/provider errors.
 
-- [ ] **Step 6: Verify focused tests**
+- [x] **Step 6: Verify focused tests**
 
 ```bash
 cd backend
 go test ./internal/service -run "TestAgent|TestUploadAssist|TestNLSearch" -v
 ```
 
-- [ ] **Step 7: Checkpoint Task 2**
+- [x] **Step 7: Checkpoint Task 2**
 
 Update only Task 2 checkboxes and `progress.txt`, stage exact orchestration/route/resolver files, and commit `Web Agent 2: enforce grounded tool boundaries`.
 
