@@ -325,7 +325,9 @@ func (s *ContentService) GetContent(id int64) (*model.ContentItem, error) {
 }
 
 func (s *ContentService) ListContents(filter repository.ListContentsFilter, viewerID int64) ([]model.ContentItem, int64, error) {
-	if filter.Sort == "recommended" && filter.Zone == "original" {
+	// 推荐排序既服务 /original（zone=original）也服务 /recommend 推荐页
+	// （zone 为空，跨区请求由推荐管线/兜底决定可展示集合）。
+	if filter.Sort == "recommended" && (filter.Zone == "original" || filter.Zone == "") {
 		return s.handleRecommended(filter, viewerID)
 	}
 	if s.rdb != nil && s.cacheCfg != nil && filter.Sort == "hot" && filter.Zone != "" && filter.Category == "" && filter.ContentType == "" && filter.Tags == nil && filter.TimeRange == "all" {
