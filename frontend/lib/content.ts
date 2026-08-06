@@ -48,6 +48,8 @@ export interface NormalizedContentDetailResponse {
   attachments: AttachmentData[];
   tags: string[];
   series_memberships: SeriesMembership[];
+  sourceOriginal?: { id: number; title: string };
+  sourceFanwork?: { id: number; title: string };
 }
 
 type RawObject = Record<string, unknown>;
@@ -179,6 +181,19 @@ export function normalizeSeriesMemberships(value: unknown): SeriesMembership[] {
     .filter((item): item is SeriesMembership => Boolean(item));
 }
 
+function normalizeSourceSummary(value: unknown): { id: number; title: string } | undefined {
+  const raw = asObject(value);
+  if (!raw) {
+    return undefined;
+  }
+  const id = positiveInteger(raw.id ?? raw.ID);
+  const title = stringValue(raw.title ?? raw.Title);
+  if (!id || !title?.trim()) {
+    return undefined;
+  }
+  return { id, title };
+}
+
 export function normalizeTags(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -276,11 +291,15 @@ export function normalizeContentDetailResponse(value: unknown): NormalizedConten
     topLevelMemberships === undefined
       ? (content?.series_memberships ?? [])
       : normalizeSeriesMemberships(topLevelMemberships);
+  const sourceOriginal = normalizeSourceSummary(pick(raw, "source_original", "SourceOriginal"));
+  const sourceFanwork = normalizeSourceSummary(pick(raw, "source_fanwork", "SourceFanwork"));
 
   return {
     content: content ? { ...content, series_memberships: seriesMemberships } : null,
     attachments: normalizeAttachments(pick(raw, "attachments", "Attachments")),
     tags: normalizeTags(pick(raw, "tags", "Tags")),
     series_memberships: seriesMemberships,
+    ...(sourceOriginal ? { sourceOriginal } : {}),
+    ...(sourceFanwork ? { sourceFanwork } : {}),
   };
 }
