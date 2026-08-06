@@ -2,6 +2,26 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+## [2026-08-06] - Task GAP-02: 共享内容详情浮窗底座（#16）
+
+### What was done:
+- 三缺口 Ticket 02（GitHub #16）完成：生产版共享 `ContentDetailOverlay` 底座 + 首个可演示闭环（详情页关联原创/相关二创入口打开浮窗，下钻不跳页）。
+- `frontend/components/content/ContentDetailOverlay.tsx`：原生 `<dialog showModal>` + 内部导航栈（深度 ≤ 5）+ 逐层返回（返回按钮/Esc/浏览器后退 popstate 同步）+ 全退（X/背板）+ 每层唯一滚动容器滚动记忆 + 退出恢复触发元素焦点与页面滚动（触发元素 ref 契约）；`--elevation-3` + 1px border + 背板遮罩（P-01 批准值 300/240ms 同缓动，reduced-motion 100ms）；html/body 双重滚动锁定 + 滚动条宽度 padding 补偿；44px 触控目标 + 安全区。
+- `ContentDetailOverlayLayer.tsx`：复用 `GET /api/v1/contents/:id` + `normalizeContentDetailResponse` 可见性逻辑（404/403 → 本地化 EmptyState，不暴露原始后端错误；banned → forbidden；可重试加载失败）；右侧创作者栏（头像/昵称/关注）+ 关联原创 + 相关二创行（点击压栈）；复用 `ContentDetail`（含评论区/ReactionBar/SeriesNav）。
+- `ContentDetailOverlayHost.tsx` + `ContentSidebar` `onOpenRelated` 契约 + `content/[contentId]/page.tsx` 接线：详情页源原创入口由 Link 变为浮窗触发器；`lib/content.ts` normalizer 增加 `sourceOriginal/sourceFanwork` 摘要（复用既有 pick/stringValue/positiveInteger 助手）。
+- i18n：`contentDetailOverlay.*` 双语 key（zh/en 各 21 个，占位符对齐）；无原生弹窗。
+- 历史遗留：接手时 worktree 已有先前会话未提交的半成品（测试 7/15 红）。本会话完成 popstate 同步实现缺口、修正测试 mock（related 详情缺数据导致栈类用例全红）、修复 3 个 TS 类型错误，达成全绿。
+
+### Testing:
+- TDD 红盘证据：接手时 `content-detail-overlay.test.tsx` 15 项中 7 项失败（栈压入/逐层返回/Esc/滚动记忆/深度上限/浏览器后退 + 源码策略 regex）；定位为组件缺 popstate 监听 + 测试 mock 对关联 id（101+）详情请求 404。修复后对 popstate 缺口单独红盘复现：临时移除监听后 `browser back pops layers and exits at the root with focus restored` 失败于 `Unable to find role="heading" and name "Original 1"`；恢复实现后转绿。
+- `node --import tsx --test --test-concurrency=1 tests/content-detail-overlay.test.tsx` → 15/15 PASS（打开/滚动锁定/标题聚焦/背板全退/关闭全退/逐层返回/焦点回触发/Esc 逐层/滚动记忆/深度上限/not-found/forbidden/重试/浏览器后退/宿主接线/i18n parity/源码策略）。
+- `npm run test:unit` → 172/172 PASS；`npm run lint`（tsc --noEmit）PASS；`npm run lint:ui` PASS（UI governance checks passed，tokens/i18n parity/native dialogs/undefined tokens/source policy）；`npm run build` PASS。
+- 浏览器验证（截图）由编排方统一处理（本任务未启动 dev server）。
+
+### Notes:
+- 已知边界（待编排方浏览器验证）：入口 FLIP（触发卡 rect → 浮层）为 P-01 原型能力，生产底座按 spec 降级路径实现居中轻缩放+淡化；`handleExit`/Esc 全退后 history 可能残留 1 条同 URL 记录（wayfinder 票据"URL 形态与错误历史语义"仍 open，不属本票范围）；背景 inert 由原生 modal dialog 语义提供（浏览器自动置顶层外 inert）。
+- 分支 `web/gap-16-overlay`（基于 main@d7c0081）；未推送，等 code-review 后提交 PR。
+
 ## [2026-08-06] - Task GAP-01: ui-spec 补写三章（#15）
 
 ### What was done:
