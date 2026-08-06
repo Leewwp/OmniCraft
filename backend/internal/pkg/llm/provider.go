@@ -1,6 +1,9 @@
 package llm
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type ChatMessage struct {
 	Role    string `json:"role"`
@@ -31,18 +34,48 @@ type ChatRequest struct {
 }
 
 type ChatResponse struct {
-	Content   string     `json:"content"`
-	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+	Content   string      `json:"content"`
+	ToolCalls []ToolCall  `json:"tool_calls,omitempty"`
+	Usage     *TokenUsage `json:"usage,omitempty"`
+}
+
+// TokenUsage carries observed token counts. It is an observability value used
+// for alerts, not a monetary ledger.
+type TokenUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
 }
 
 type ChatDelta struct {
-	Content   string     `json:"content,omitempty"`
-	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-	Done      bool       `json:"done"`
+	Content   string      `json:"content,omitempty"`
+	ToolCalls []ToolCall  `json:"tool_calls,omitempty"`
+	Usage     *TokenUsage `json:"usage,omitempty"`
+	Done      bool        `json:"done"`
 }
 
 type LLMProvider interface {
 	Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error)
 	ChatStream(ctx context.Context, req ChatRequest, handler func(delta ChatDelta) error) error
 	GetEmbedding(ctx context.Context, text string) ([]float32, error)
+}
+
+// providerConfig carries bounded timeout/retry tuning read from
+// cfg.Agent.ProviderTimeoutSec / ProviderMaxRetries.
+type providerConfig struct {
+	timeout    time.Duration
+	maxRetries int
+}
+
+// ProviderOption configures timeout and retry behavior of a concrete provider.
+type ProviderOption func(*providerConfig)
+
+// WithTimeout sets the per-attempt HTTP timeout (cfg.Agent.ProviderTimeoutSec).
+func WithTimeout(timeout time.Duration) ProviderOption {
+	return func(c *providerConfig) { c.timeout = timeout }
+}
+
+// WithMaxRetries sets the number of retries for retryable network/429/5xx
+// conditions (cfg.Agent.ProviderMaxRetries).
+func WithMaxRetries(n int) ProviderOption {
+	return func(c *providerConfig) { c.maxRetries = n }
 }

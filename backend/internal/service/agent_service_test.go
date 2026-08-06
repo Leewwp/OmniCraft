@@ -125,13 +125,16 @@ func TestNLSearchUsesSharedContentVisibility(t *testing.T) {
 		}, nil
 	}
 
-	results, err := svc.NLSearch(context.Background(), "query", viewer.ID)
+	result, err := svc.NLSearch(context.Background(), "query", viewer.ID)
 	if err != nil {
 		t.Fatalf("NLSearch: %v", err)
 	}
+	if result.Degraded {
+		t.Fatal("NLSearch must not report degraded mode on healthy conversational search")
+	}
 
 	got := map[int64]bool{}
-	for _, res := range results {
+	for _, res := range result.Results {
 		got[res.ID] = true
 	}
 	if !got[visible.ID] || !got[privateViewer.ID] {

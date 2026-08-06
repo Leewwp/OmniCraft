@@ -342,6 +342,7 @@ backend/
 |------|------|--------|
 | `DELETE` | `/api/v1/admin/categories/:id` | catHandler.AdminDeleteCategory |
 | `DELETE` | `/api/v1/admin/llm-configs/:id` | adminHandler.DeleteLLMConfig |
+| `DELETE` | `/api/v1/agent/conversations/:id` | agentHandler.DeleteConversation |
 | `DELETE` | `/api/v1/collections/:id` | collectionHandler.DeleteCollection |
 | `DELETE` | `/api/v1/collections/:id/items/:itemId` | collectionHandler.RemoveItem |
 | `DELETE` | `/api/v1/contents/:id` | contentHandler.DeleteContent |

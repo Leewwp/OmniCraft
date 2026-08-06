@@ -278,9 +278,13 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	repHandler := handler.NewReputationHandler(db)
 	v1.GET("/reputation-logs/me", authReq, repHandler.GetMyReputationLogs)
 
-	agentHandler := handler.NewAgentHandler(db, cfg)
+	agentHandler := handler.NewAgentHandlerWithService(db, cfg, rdb, ctr.AgentService)
 	agentHandler.SetQueueProducer(ctr.QueueProducer)
-	agent := v1.Group("/agent", authReq, agentGuard, middleware.AgentRateLimit(rdb, cfg))
+	// Quota for Provider-consuming routes is reserved inside each handler
+	// right before the first Provider call (feature/schema/visibility checks
+	// precede it and never consume quota). Conversation history and deletion
+	// routes are read/write-history only and stay outside any quota path.
+	agent := v1.Group("/agent", authReq, agentGuard)
 	{
 		agent.POST("/upload-assist", agentHandler.UploadAssist)
 		agent.POST("/compliance-check", agentHandler.ComplianceCheck)
@@ -289,6 +293,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		agent.POST("/chat/stream", agentHandler.ChatStream)
 		agent.GET("/conversations", agentHandler.ListConversations)
 		agent.GET("/conversations/:id", agentHandler.GetConversationMessages)
+		agent.DELETE("/conversations/:id", agentHandler.DeleteConversation)
 	}
 
 	rehabHandler := handler.NewRehabHandler(db, rdb, cfg)

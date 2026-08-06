@@ -59,7 +59,12 @@ func TestRoutePolicyAttachmentsPreserveOperationSpecificGuards(t *testing.T) {
 		`v1.POST("/collections", authReq, favoritesGuard, collectionHandler.CreateCollection)`,
 		`messages := v1.Group("/messages", authReq)`,
 		`messages.POST("", messagesGuard, msgHandler.SendMessage)`,
-		`agent := v1.Group("/agent", authReq, agentGuard, middleware.AgentRateLimit(rdb, cfg))`,
+		// Task 3: Agent generation quota is reserved inside each
+		// Provider-consuming handler right before the first Provider call
+		// (feature/schema/visibility rejections precede it and never consume
+		// quota). The agent group mounts no quota middleware, so conversation
+		// history and deletion routes stay outside every quota path.
+		`agent := v1.Group("/agent", authReq, agentGuard)`,
 	}
 	for _, contract := range contracts {
 		if !strings.Contains(source, contract) {

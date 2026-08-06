@@ -9,8 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
@@ -48,9 +50,13 @@ func (p *fakeAgentHTTPProvider) GetEmbedding(_ context.Context, _ string) ([]flo
 
 type recordingAgentHTTPProvider struct {
 	fakeAgentHTTPProvider
+	calls       int
+	lastRequest llm.ChatRequest
+	deltas      []llm.ChatDelta
 }
 
 func (p *recordingAgentHTTPProvider) ChatStream(_ context.Context, req llm.ChatRequest, handler func(delta llm.ChatDelta) error) error {
+	p.calls++
 	p.lastRequest = req
 	deltas := p.deltas
 	if len(deltas) == 0 {
@@ -74,7 +80,7 @@ func TestAgentConversationEndpointsRespectFeatureFlag(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	handler := NewAgentHandler(db, &config.Config{Agent: config.AgentConfig{WebAgentEnabled: false}})
+	handler := NewAgentHandler(db, &config.Config{Agent: config.AgentConfig{WebAgentEnabled: false}}, nil)
 	router := gin.New()
 	router.GET("/agent/conversations", func(c *gin.Context) {
 		c.Set(middleware.UserIDKey, int64(1))
@@ -140,7 +146,10 @@ func TestComplianceCheckHandlerReturnsStructuredResponse(t *testing.T) {
 		chatContent: `{"risk_level":"warning","reason":"possible copyright issue","suggestions":["add attribution"]}`,
 	}, true)
 	router := gin.New()
-	router.POST("/agent/compliance-check", handler.ComplianceCheck)
+	router.POST("/agent/compliance-check", func(c *gin.Context) {
+		c.Set(middleware.UserIDKey, int64(42))
+		handler.ComplianceCheck(c)
+	})
 
 	req := httptest.NewRequest(http.MethodPost, "/agent/compliance-check", bytes.NewBufferString(`{"title":"Original","description":"Desc","content_type":"article"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -187,14 +196,11 @@ func TestAgentHandlersRejectInvalidJSON(t *testing.T) {
 	}
 }
 
-func TestChatStreamHandlerFiltersRolesTruncatesMessagesAndLimitsContextWindow(t *testing.T) {
+func TestChatStreamHandlerRejectsOversizedMessages(t *testing.T) {
 	provider := &recordingAgentHTTPProvider{}
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.AgentConversation{}, &model.AgentMessage{}); err != nil {
-		t.Fatalf("migrate agent chat tables: %v", err)
 	}
 	cfg := &config.Config{
 		Agent: config.AgentConfig{
@@ -206,6 +212,58 @@ func TestChatStreamHandlerFiltersRolesTruncatesMessagesAndLimitsContextWindow(t 
 	handler := &AgentHandler{
 		agentSvc: service.NewAgentService(provider, nil, nil, nil, db, cfg),
 		cfg:      cfg,
+	}
+	router := gin.New()
+	router.POST("/agent/chat/stream", func(c *gin.Context) {
+		c.Set(middleware.UserIDKey, int64(9))
+		handler.ChatStream(c)
+	})
+
+	body := bytes.NewBufferString(`{
+		"messages": [
+			{"role": "user", "content": "0123456789ABCDEF"}
+		]
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/agent/chat/stream", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "VALIDATION_ERROR") {
+		t.Fatalf("body = %s, want VALIDATION_ERROR", rec.Body.String())
+	}
+	if provider.calls != 0 {
+		t.Fatal("oversized message must not reach the provider")
+	}
+}
+
+func TestChatStreamHandlerFiltersRolesAndLimitsContextWindow(t *testing.T) {
+	provider := &recordingAgentHTTPProvider{
+		deltas: []llm.ChatDelta{{Content: "answer"}, {Done: true}},
+	}
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentConversation{}, &model.AgentMessage{}); err != nil {
+		t.Fatalf("migrate agent chat tables: %v", err)
+	}
+	cfg := &config.Config{
+		Agent: config.AgentConfig{
+			WebAgentEnabled:     true,
+			MaxUserMessageChars: 64,
+			ChatMaxContextMsgs:  2,
+		},
+	}
+	quota, quotaCleanup := newTestQuotaReserver(t, cfg)
+	defer quotaCleanup()
+	handler := &AgentHandler{
+		agentSvc: service.NewAgentService(provider, nil, nil, nil, db, cfg),
+		cfg:      cfg,
+		quota:    quota,
 	}
 	router := gin.New()
 	router.POST("/agent/chat/stream", func(c *gin.Context) {
@@ -235,8 +293,8 @@ func TestChatStreamHandlerFiltersRolesTruncatesMessagesAndLimitsContextWindow(t 
 	if provider.lastRequest.Messages[0].Role != "system" {
 		t.Fatalf("first message = %#v, want server-owned system prompt", provider.lastRequest.Messages[0])
 	}
-	if provider.lastRequest.Messages[1].Role != "user" || provider.lastRequest.Messages[1].Content != "12345678" {
-		t.Fatalf("first forwarded message = %#v, want truncated user content", provider.lastRequest.Messages[1])
+	if provider.lastRequest.Messages[1].Role != "user" || provider.lastRequest.Messages[1].Content != "1234567890" {
+		t.Fatalf("first forwarded message = %#v, want last context user message", provider.lastRequest.Messages[1])
 	}
 	if provider.lastRequest.Messages[2].Role != "user" || provider.lastRequest.Messages[2].Content != "tail" {
 		t.Fatalf("second forwarded message = %#v, want last context message", provider.lastRequest.Messages[2])
@@ -253,8 +311,25 @@ func newAgentHandlerForTest(t *testing.T, provider llm.LLMProvider, enabled bool
 	t.Helper()
 
 	cfg := &config.Config{Agent: config.AgentConfig{WebAgentEnabled: enabled}}
+	quota, quotaCleanup := newTestQuotaReserver(t, cfg)
+	t.Cleanup(quotaCleanup)
 	return &AgentHandler{
 		agentSvc: service.NewAgentService(provider, nil, nil, nil, nil, cfg),
 		cfg:      cfg,
+		quota:    quota,
 	}
+}
+
+func newTestQuotaReserver(t *testing.T, cfg *config.Config) (*middleware.AgentQuotaReserver, func()) {
+	t.Helper()
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("miniredis: %v", err)
+	}
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	cleanup := func() {
+		_ = rdb.Close()
+		mr.Close()
+	}
+	return middleware.NewAgentQuotaReserver(rdb, cfg), cleanup
 }

@@ -30,6 +30,7 @@ type AgentService struct {
 	llmProvider   llm.LLMProvider
 	embeddingRepo *repository.EmbeddingRepository
 	contentRepo   *repository.ContentRepository
+	searchRepo    *repository.SearchRepository
 	greenClient   *aliyun.GreenClient
 	db            *gorm.DB
 	cfg           *config.Config
@@ -262,46 +263,91 @@ type ContentSummary struct {
 	Tags        []string `json:"tags"`
 }
 
-func (s *AgentService) NLSearch(ctx context.Context, query string, viewerID int64) ([]ContentSummary, error) {
+// NLSearchResult carries the search outcome. Degraded=true means conversational
+// (embedding) search was unavailable and the server fell back to normal
+// keyword search; the UI then shows localized copy instead of a model answer.
+type NLSearchResult struct {
+	Results  []ContentSummary `json:"results"`
+	Degraded bool             `json:"degraded"`
+}
+
+func (s *AgentService) NLSearch(ctx context.Context, query string, viewerID int64) (*NLSearchResult, error) {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return nil, ErrAgentDisabled
 	}
 
 	embedding, err := s.llmProvider.GetEmbedding(ctx, query)
+	if err == nil && s.vectorSearch != nil {
+		results, err := s.vectorSearch(embedding, 20)
+		if err != nil {
+			return nil, err
+		}
+
+		contentIDs := make([]int64, 0, len(results))
+		scoreMap := make(map[int64]float64, len(results))
+		for _, r := range results {
+			contentIDs = append(contentIDs, r.ContentItemID)
+			scoreMap[r.ContentItemID] = r.Score
+		}
+
+		contents, err := s.listVisibleNLSearchContents(contentIDs, viewerID)
+		if err != nil {
+			return nil, err
+		}
+
+		summaries := make([]ContentSummary, 0, len(contents))
+		for _, content := range contents {
+			summaries = append(summaries, ContentSummary{
+				ID:          content.ID,
+				Title:       content.Title,
+				ContentType: content.ContentType,
+				Score:       scoreMap[content.ID],
+			})
+		}
+		return &NLSearchResult{Results: summaries}, nil
+	}
+
+	// Conversational search is unavailable (embedding failure or missing
+	// vector search). Degrade to normal keyword search through the shared
+	// viewer-aware search path; never fabricate an answer.
+	fallback, fallbackErr := s.keywordSearchFallback(ctx, query, viewerID)
+	if fallbackErr != nil {
+		if err != nil {
+			return nil, err
+		}
+		return nil, fallbackErr
+	}
+	traceAgentEvent(newTraceID(), "nl_search_degraded", "user_id", viewerID)
+	return &NLSearchResult{Results: fallback, Degraded: true}, nil
+}
+
+// keywordSearchFallback runs the standard keyword search with the same
+// viewer-aware visibility rules as conversational search.
+func (s *AgentService) keywordSearchFallback(ctx context.Context, query string, viewerID int64) ([]ContentSummary, error) {
+	if s.searchRepo == nil {
+		return nil, errors.New("keyword search unavailable")
+	}
+	results, _, err := s.searchRepo.SearchContents(strings.TrimSpace(query), "", "", "", nil, "", "", 1, 10, viewerID)
 	if err != nil {
 		return nil, err
 	}
-
-	if s.vectorSearch == nil {
-		return nil, errors.New("vector search unavailable")
-	}
-	results, err := s.vectorSearch(embedding, 20)
-	if err != nil {
-		return nil, err
-	}
-
-	contentIDs := make([]int64, 0, len(results))
-	scoreMap := make(map[int64]float64, len(results))
+	summaries := make([]ContentSummary, 0, len(results))
 	for _, r := range results {
-		contentIDs = append(contentIDs, r.ContentItemID)
-		scoreMap[r.ContentItemID] = r.Score
-	}
-
-	contents, err := s.listVisibleNLSearchContents(contentIDs, viewerID)
-	if err != nil {
-		return nil, err
-	}
-
-	summaries := make([]ContentSummary, 0, len(contents))
-	for _, content := range contents {
 		summaries = append(summaries, ContentSummary{
-			ID:          content.ID,
-			Title:       content.Title,
-			ContentType: content.ContentType,
-			Score:       scoreMap[content.ID],
+			ID:          r.ID,
+			Title:       r.Title,
+			ContentType: r.ContentType,
 		})
 	}
 	return summaries, nil
+}
+
+// CheckContentVisible is the handler-side viewer-aware precheck for
+// client-supplied resource IDs (usage-guide path). Hidden content returns
+// ErrContentNotFound before any quota reservation or Provider call.
+func (s *AgentService) CheckContentVisible(ctx context.Context, viewerID, contentID int64) error {
+	_, err := s.resolveVisibleContent(ctx, viewerID, contentID)
+	return err
 }
 
 func (s *AgentService) listVisibleNLSearchContents(contentIDs []int64, viewerID int64) ([]model.ContentItem, error) {
@@ -500,6 +546,12 @@ func (s *AgentService) SetQueueProducer(p queue.Producer) {
 	s.queueProducer = p
 }
 
+// SetSearchRepository wires the keyword search fallback used when
+// conversational search is unavailable (degraded mode).
+func (s *AgentService) SetSearchRepository(repo *repository.SearchRepository) {
+	s.searchRepo = repo
+}
+
 func (s *AgentService) EmbedContentAsync(contentItemID int64, text string) {
 	if _, ok := s.queueProducer.(*queue.NoopProducer); !ok && s.queueProducer != nil {
 		recovery.GoSafe(func() {
@@ -533,107 +585,6 @@ func (s *AgentService) embedContent(ctx context.Context, contentItemID int64, te
 		return err
 	}
 	return nil
-}
-
-// ChatStream runs one chat turn with a server-owned context. Only the surface
-// enum and an optional content ID are accepted from the client; the service
-// reloads title/type/visibility with the current viewer before the Provider is
-// called, so hidden content is rejected without consuming quota or reaching
-// the Provider. Client-authored summaries and raw routes are never trusted.
-func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []llm.ChatMessage, chatCtx *model.AgentChatContext, handler func(delta string, done bool, conversationID int64, traceID string) error) error {
-	if !s.cfg.Agent.WebAgentEnabled {
-		return ErrAgentDisabled
-	}
-
-	traceID := newTraceID()
-	traceAgentEvent(traceID, "chat_start", "user_id", userID)
-
-	surface := model.AgentChatSurfaceGlobal
-	var contentID *int64
-	if chatCtx != nil {
-		surface = chatCtx.Surface
-		contentID = chatCtx.ContentID
-	}
-
-	contextType := "general"
-	var resolvedContent *model.ContentItem
-	if surface == model.AgentChatSurfaceContent && contentID != nil {
-		content, err := s.resolveVisibleContent(ctx, userID, *contentID)
-		if err != nil {
-			traceAgentEvent(traceID, "chat_context_rejected", "surface", surface, "content_id", *contentID, "safe_error", "content_not_found")
-			return err
-		}
-		resolvedContent = content
-		contextType = "content"
-	}
-
-	conv := &model.AgentConversation{
-		UserID:      userID,
-		ContextType: contextType,
-		ContextID:   contentID,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-	}
-	if len(messages) > 0 && messages[0].Role == "user" {
-		if err := s.db.Create(conv).Error; err != nil {
-			slog.Error("failed to create agent conversation", "error", err)
-			conv = nil
-		}
-	}
-
-	if conv != nil {
-		for _, msg := range messages {
-			content := msg.Content
-			s.db.Create(&model.AgentMessage{
-				ConversationID: conv.ID,
-				Role:           msg.Role,
-				Content:        &content,
-				CreatedAt:      time.Now(),
-			})
-		}
-	}
-
-	systemMsg := s.serverOwnedSystemPrompt(surface, resolvedContent)
-
-	req := llm.ChatRequest{
-		Messages:  append([]llm.ChatMessage{systemMsg}, messages...),
-		MaxTokens: s.ToolPolicy().MaxOutputTokens,
-		Stream:    true,
-	}
-
-	var buf strings.Builder
-	convID := int64(0)
-	if conv != nil {
-		convID = conv.ID
-	}
-
-	err := s.llmProvider.ChatStream(ctx, req, func(delta llm.ChatDelta) error {
-		buf.WriteString(delta.Content)
-		if delta.Done && conv != nil {
-			assistantContent := buf.String()
-			s.db.Create(&model.AgentMessage{
-				ConversationID: conv.ID,
-				Role:           "assistant",
-				Content:        &assistantContent,
-				CreatedAt:      time.Now(),
-			})
-			s.db.Model(conv).Update("updated_at", time.Now())
-		}
-		return handler(delta.Content, delta.Done, convID, traceID)
-	})
-
-	if err != nil && conv != nil {
-		slog.Error("[agent] ChatStream failed, cleaning up orphaned conversation", "conversation_id", conv.ID, "error", err)
-		s.db.Where("conversation_id = ?", conv.ID).Delete(&model.AgentMessage{})
-		s.db.Delete(conv)
-	}
-
-	if err != nil {
-		traceAgentEvent(traceID, "chat_failed", "safe_error", "provider_error")
-	} else {
-		traceAgentEvent(traceID, "chat_done", "conversation_id", convID, "surface", surface)
-	}
-	return err
 }
 
 // serverOwnedSystemPrompt builds prompt text exclusively from the server-owned
