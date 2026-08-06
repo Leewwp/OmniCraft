@@ -101,7 +101,7 @@ test("search and home preserve responsive, keyboard, loading, empty, and error c
   assert.match(search, /<Skeleton/);
   assert.match(search, /<EmptyState/);
   assert.match(search, /common\.retry/);
-  assert.match(home, /<MasonryGrid/);
+  assert.match(home, /<OverlayMasonryGrid/);
   assert.match(facets, /focus:ring-2/);
   assert.match(facets, /shadow-none/);
   assert.doesNotMatch(facets, /"flex flex-col border border-border rounded-md bg-card p-4 gap-4[^\"]*shadow-/);
