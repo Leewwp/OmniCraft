@@ -18,8 +18,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_DIR="$REPO_ROOT/ops/observability"
 HEARTBEAT_CONFIG=""
-PROMETHEUS_IMAGE="prom/prometheus:v2.55.1"
-ALERTMANAGER_IMAGE="prom/alertmanager:v0.28.1"
+PROMETHEUS_IMAGE="prom/prometheus@sha256:2659f4c2ebb718e7695cb9b25ffa7d6be64db013daba13e05c875451cf51b0d3"
+ALERTMANAGER_IMAGE="prom/alertmanager@sha256:27c475db5fb156cab31d5c18a4251ac7ed567746a2483ff264516437a39b15ba"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -49,15 +49,40 @@ done
 # ------------------------------------------------------------ pinned tooling
 command -v docker >/dev/null 2>&1 || fail "docker is required to run promtool/amtool"
 
-docker run --rm --entrypoint promtool -v "$CONFIG_DIR:/etc/prometheus:ro" \
-  "$PROMETHEUS_IMAGE" check config /etc/prometheus/prometheus.yml >/dev/null 2>&1 \
-  || fail "promtool rejected prometheus.yml"
-docker run --rm --entrypoint promtool -v "$CONFIG_DIR:/etc/prometheus:ro" \
-  "$PROMETHEUS_IMAGE" check rules /etc/prometheus/prometheus-rules.yml >/dev/null 2>&1 \
-  || fail "promtool rejected prometheus-rules.yml"
-docker run --rm --entrypoint amtool -v "$CONFIG_DIR:/etc/alertmanager:ro" \
-  "$ALERTMANAGER_IMAGE" check-config /etc/alertmanager/alertmanager.yml >/dev/null 2>&1 \
-  || fail "amtool rejected alertmanager.yml"
+# Pull the pinned images explicitly with retries: fresh runners pull from
+# Docker Hub, where transient failures and anonymous-pull rate limits are
+# common. Retrying before the checks makes the gate robust without hiding
+# the underlying pull error.
+ensure_image() {
+  local image="$1" attempt
+  if docker image inspect "$image" >/dev/null 2>&1; then
+    return 0
+  fi
+  for attempt in 1 2 3; do
+    if docker pull "$image" >/dev/null 2>&1; then
+      return 0
+    fi
+    echo "WARN: pull of $image failed (attempt $attempt/3), retrying" >&2
+    sleep 5
+  done
+  return 1
+}
+
+ensure_image "$PROMETHEUS_IMAGE" || fail "could not pull $PROMETHEUS_IMAGE"
+ensure_image "$ALERTMANAGER_IMAGE" || fail "could not pull $ALERTMANAGER_IMAGE"
+
+if ! promtool_out="$(docker run --rm --entrypoint promtool -v "$CONFIG_DIR:/etc/prometheus:ro" \
+  "$PROMETHEUS_IMAGE" check config /etc/prometheus/prometheus.yml 2>&1)"; then
+  fail "promtool rejected prometheus.yml: $promtool_out"
+fi
+if ! promtool_out="$(docker run --rm --entrypoint promtool -v "$CONFIG_DIR:/etc/prometheus:ro" \
+  "$PROMETHEUS_IMAGE" check rules /etc/prometheus/prometheus-rules.yml 2>&1)"; then
+  fail "promtool rejected prometheus-rules.yml: $promtool_out"
+fi
+if ! amtool_out="$(docker run --rm --entrypoint amtool -v "$CONFIG_DIR:/etc/alertmanager:ro" \
+  "$ALERTMANAGER_IMAGE" check-config /etc/alertmanager/alertmanager.yml 2>&1)"; then
+  fail "amtool rejected alertmanager.yml: $amtool_out"
+fi
 
 # ------------------------------------------------ alert rule contract (ruby)
 # Ruby ships with a YAML stdlib on macOS and CI; it is the only reliable
@@ -147,10 +172,10 @@ end
 RUBY
 
 # --------------------------------------------------------- routing safety check
-if rg -n "127\.0\.0\.1|localhost|0\.0\.0\.0" "$CONFIG_DIR/alertmanager.yml" >/dev/null 2>&1; then
+if grep -nE "127\.0\.0\.1|localhost|0\.0\.0\.0" "$CONFIG_DIR/alertmanager.yml" >/dev/null 2>&1; then
   fail "alertmanager.yml must not reference loopback/unspecified addresses"
 fi
-if rg -n "SMTP_(HOST|PORT|FROM|USERNAME|PASSWORD)_PLACEHOLDER|OPS_EMAIL_TO_PLACEHOLDER" \
+if grep -nE "SMTP_(HOST|PORT|FROM|USERNAME|PASSWORD)_PLACEHOLDER|OPS_EMAIL_TO_PLACEHOLDER" \
   "$CONFIG_DIR/alertmanager.yml" >/dev/null 2>&1; then
   :
 else

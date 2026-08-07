@@ -62,7 +62,7 @@ fi
 [ -f "$POLICY" ] || { echo "policy not found: $POLICY" >&2; exit 1; }
 [ -d "$REPO_ROOT/backend/migrations" ] || { echo "migrations dir not found: $REPO_ROOT/backend/migrations" >&2; exit 1; }
 
-mkdir -p "$OUTPUT_DIR/sboms" "$OUTPUT_DIR/container" "$OUTPUT_DIR/stage"
+mkdir -p "$OUTPUT_DIR/sboms" "$OUTPUT_DIR/container" "$OUTPUT_DIR/stage" "$OUTPUT_DIR/tmp"
 OUT="$(cd "$OUTPUT_DIR" && pwd)"
 
 if [ -z "$COMMIT" ]; then
@@ -147,6 +147,9 @@ def run_syft(source, out_name):
     out_rel = os.path.join("sboms", out_name)
     cmd = [
         "docker", "run", "--rm",
+        "--user", f"{os.getuid()}:{os.getgid()}",
+        "-e", "HOME=/work",
+        "-e", "TMPDIR=/work/tmp",
         "-v", f"{out}:/work:rw",
         syft_image,
         "scan", source,

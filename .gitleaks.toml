@@ -16,10 +16,19 @@ useDefault = true
 paths = [
   # backend config tests use fake hex secrets as test values
   "backend/config/config_test.go",
-  # archived plan document uses a fake secret placeholder in an example
+  # archived plan document uses a fake secret placeholder in an example;
+  # allowlisted under both the historical path (commits before the archive
+  # rename on 2026-08-07) and the current archived location
   "docs/superpowers/plans/2026-06-08-omnicraft-release-gates-config-hardening.md",
+  "docs/archive/plans/2026-06-08-omnicraft-release-gates-config-hardening.md",
   # web-video-presentation template constant that resembles a token
   ".agents/skills/web-video-presentation/templates/src/hooks/useStepper.ts",
   # dev-only seed script historically contained a demo JWT (removed from the current tree)
   "scripts/seed-test-data.sh",
+  # release-gate test fixtures use deliberately fake credentials
+  # ("correct-horse-battery-staple", "*-strong-secret", "real-*-secret")
+  # to exercise preflight/drill substitution and rejection paths
+  "scripts/release/deployment-contract.tests.sh",
+  "scripts/release/preflight.tests.sh",
+  "scripts/release/staging-drill.tests.sh",
 ]

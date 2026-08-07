@@ -1,15 +1,16 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change    : 1.3.0 → 2.0.0 (MAJOR — ratify the approved P-01 Indigo refinement)
-Version chain     : 1.0.0 → 1.1.0 → 1.1.1 → 1.2.0 → 1.3.0 → 2.0.0
+Version change    : 2.0.0 → 3.0.0 (MAJOR — replace the retired task.json workflow with the active-plan registry and risk lanes)
+Version chain     : 1.0.0 → 1.1.0 → 1.1.1 → 1.2.0 → 1.3.0 → 2.0.0 → 3.0.0
 Modified sections :
-  Principle VIII  — replaced the obsolete global no-shadow rule with the approved three-tier subtle-elevation contract; aligned Tailwind 4 CSS-first tokens and Chinese font fallbacks
-  Principle XIV   — clarified design-system token authority versus ui-spec component/page authority
+  Principle IX    — made AGENTS.md active-plan registry and GitHub tickets the only current task source; ratified light/heavy lanes and exact completion tracking
+  Principle XIII  — removed the obsolete historical Beta-roadmap priority sentence and delegated priority to the active registry
+  Principle XIV   — replaced task.json.ui_spec_ref with plan/ticket ui_spec_ref or explicit component/page headings
 Templates updated :
-  ✅ .specify/templates/plan-template.md   — frontend constitution gate now checks token/elevation authority
-  ✅ .specify/templates/spec-template.md   — frontend requirements now reference both visual authorities
-  ✅ .specify/templates/tasks-template.md  — frontend verification now includes light/dark and reduced-motion evidence
+  ✅ .specify/templates/plan-template.md   — requires registry/ticket source, lane and dependency declaration
+  ✅ .specify/templates/spec-template.md   — requires execution-source and ui-spec ownership notes
+  ✅ .specify/templates/tasks-template.md  — requires lane-aware checkpoints and exact tracking updates
 Deferred TODOs    : none
 -->
 
@@ -157,15 +158,21 @@ mapping):
 
 Agents executing implementation tasks MUST follow this sequence without deviation:
 
-1. Determine the active work mode per `CLAUDE.md` (or `AGENTS.md` for non-Claude agents) (Beta roadmap mode A or task.json mode B); select the appropriate task source and the next available task
+1. Read the active-plan registry in `AGENTS.md`. A user-named task takes precedence; otherwise select
+   the highest-priority registered plan/ticket whose documented and GitHub-native dependencies are
+   satisfied. Archived plans and the retired `task.json` ledger are not task sources.
 2. Verify the dev environment is running before writing any code
-3. Implement exactly the steps listed in the task; clarify ambiguity **before** coding, never after
+3. Read the owning design/spec/plan and exact ticket, declare the task lane, then implement exactly
+   that scope. Clarify ambiguity **before** coding, never after.
 4. Run ALL mandatory gates: `go build ./...`, `go vet ./...`, `npm run build`, `npm run lint`;
    UI tasks also require Playwright browser verification with screenshot
 5. Update `progress.txt` with the standardised work log
-6. Set `passes: true` only after ALL steps are verified; partial completion is NOT acceptable
-7. Commit `task.json` + `progress.txt` + all code changes in a **single atomic commit** with message
-   `Task [ID]: [title] - completed`
+6. Update only the current plan/ticket checkboxes after every required step and verification gate
+   passes. Partial work MUST remain unchecked; do not edit the archived task ledger.
+7. Follow the lane contract from `AGENTS.md`: light work may use logical scoped commits on one
+   feature branch; heavy work requires one task per worktree, branch and commit, a confirmed failing
+   test before implementation, and specification-conformance then code-quality review. Stage only
+   the exact files owned by the current task.
 
 Blocked tasks MUST emit the standard blocker template from `CLAUDE.md` (or `AGENTS.md` for non-Claude agents) and MUST NOT be marked
 complete. `git commit` is FORBIDDEN while a task is in a blocked state.
@@ -258,13 +265,17 @@ web Agent implementation:
 - **MVP scope**: only the five approved MVP features (upload-assist, compliance-check, search,
   usage-guide, moderate) may be implemented under Tasks 52–59; Tier 2/3 features require a new
   explicit PRD section and constitution amendment before implementation begins
-- **Priority**: implementation priority is governed by the active work mode (see Principle IX). All historical Tasks 1–51 are complete; new work follows the Beta roadmap.
+- **Priority**: implementation priority and blocking state are governed exclusively by the active-plan
+  registry and its GitHub ticket dependencies (see Principle IX). Historical numeric tasks are not a
+  fallback queue.
 
 ### XIV. UI Design Spec Authority
 
 - `design/design-system.md` is the sole authority for visual token values; `design/ui-spec.md` is
   the sole authority for component/page composition, interaction and token application
-- The `ui_spec_ref` field in `task.json` lists headings to reference before coding
+- A current plan/ticket MUST name `ui_spec_ref` or the exact `## Component:` / `## Page:` headings
+  to read before frontend coding. If a confirmed spec changes those headings, a designated authority
+  task MUST update `design/ui-spec.md` before dependent implementation tickets begin.
 - Design specifications take precedence over prose descriptions in `steps`
 - If `design/ui-spec.md` section is empty, implement based on `steps` and add comments
 
@@ -387,7 +398,7 @@ See Principle X for the authoritative rule set. All numeric thresholds MUST be r
 - **Conflict resolution**: if a task step conflicts with a principle, the principle wins; the
   conflicting step MUST be clarified before implementation begins
 
-**Version**: 2.0.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-08-01
+**Version**: 3.0.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-08-08
 
 ### 1.0.0 Changelog (2026-04-15)
 
@@ -433,3 +444,13 @@ See Principle X for the authoritative rule set. All numeric thresholds MUST be r
   `design/ui-spec.md` owns component/page composition and application.
 - **Templates**: Propagated the updated frontend constitution gate and verification expectations to
   the plan, spec and task templates.
+
+### 3.0.0 Changelog (2026-08-08)
+
+- **Principle IX**: Retired the obsolete Beta-roadmap/task.json dual-mode workflow and ratified the
+  `AGENTS.md` active-plan registry, GitHub dependency graph, exact plan/ticket tracking, and light/heavy
+  lane contracts as the implementation workflow.
+- **Principle XIII/XIV**: Removed historical-task priority fallback and replaced
+  `task.json.ui_spec_ref` with exact current plan/ticket UI authority references.
+- **Templates**: Propagated task source, lane, dependency, authority-owner and checkpoint requirements
+  to all Specify templates.
