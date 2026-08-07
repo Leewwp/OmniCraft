@@ -280,4 +280,97 @@ bash "$DRILL_SCRIPT" -EnvironmentFile "$F/env" -OverrideFile "$F/override.yaml" 
 [ "$rc" -eq 2 ] || { echo "FAIL: -RecoveryObjectives without -Measured must exit 2" >&2; exit 1; }
 echo "OK: -RecoveryObjectives without -Measured rejected"
 
+# ------------------------------------------ real-mode full orchestration
+# The non-drill path must run the full Compose deploy/rollback orchestration
+# without crashing on uninitialized drill-args state, and emit the RPO/RTO
+# comparison evidence.
+F="$TEMP_ROOT/real-mode"
+make_fixture "$F"
+python3 - "$F" <<'PY'
+import hashlib, json, sys
+out = sys.argv[1]
+candidate = json.load(open(out + "/candidate.json"))
+candidate["commit"] = "c" * 40
+json.dump(candidate, open(out + "/candidate.json", "w"), indent=2)
+objectives = {
+    "schema_version": 1,
+    "state": "approved",
+    "measured": {"postgres_rpo": 0, "postgres_rto": 1, "object_restore_rto": 1,
+                 "service_rpo": 0, "service_rto": 6, "measured_at": "2026-08-07T00:00:00Z", "last_drill": ""},
+    "approved_targets": {"postgres_rpo": 1440, "postgres_rto": 30, "object_restore_rto": 60,
+                         "service_rpo": 0, "service_rto": 30},
+    "approval": {"ref": "c" * 40, "approver": "tester", "approved_at": "2026-08-07T00:00:00Z"},
+}
+json.dump(objectives, open(out + "/objectives.json", "w"), indent=2)
+evidence_path = out + "/recovery-evidence.json"
+open(evidence_path, "w").write('{"restore": "measured"}\n')
+evidence_sha = hashlib.sha256(open(evidence_path, "rb").read()).hexdigest()
+measured = {"schema_version": 1, "drill_id": "ops-08-staging-recovery", "source_commit": "c" * 40,
+            "source_evidence": [{"path": "recovery-evidence.json", "sha256": evidence_sha}],
+            "postgres_rpo": 0, "postgres_rto": 1, "object_restore_rto": 1,
+            "service_rpo": 0, "service_rto": 6, "measured_at": "2026-08-07T02:00:00Z", "last_drill": "real drill"}
+json.dump(measured, open(out + "/measured.json", "w"), indent=2)
+with open(out + "/compose.yml", "w") as f:
+    f.write("""services:
+  migrate:
+    image: alpine:3.20
+  backend:
+    image: alpine:3.20
+  frontend:
+    image: alpine:3.20
+  nginx:
+    image: alpine:3.20
+""")
+PY
+printf 'smoke ok\n' > "$F/smoke.txt"
+FAKE_BIN="$F/bin"
+mkdir -p "$FAKE_BIN"
+cat > "$FAKE_BIN/docker" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+echo "$*" >> "${FAKE_DOCKER_LOG:?}"
+if [ "$1" = "inspect" ]; then
+  echo healthy
+  exit 0
+fi
+if [ "$1" != "compose" ]; then
+  echo "unexpected fake docker command: $*" >&2
+  exit 1
+fi
+shift
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -f|--env-file) shift 2 ;;
+    --*) shift ;;
+    *) command_name="$1"; shift; break ;;
+  esac
+done
+case "${command_name:-}" in
+  config|pull|up|stop|start|rm) exit 0 ;;
+  ps) echo fake-container; exit 0 ;;
+  exec) printf 'fake pg dump\n'; exit 0 ;;
+  *) echo "unexpected fake compose command: ${command_name:-}" >&2; exit 1 ;;
+esac
+EOF
+chmod +x "$FAKE_BIN/docker"
+rc=0
+OMNICRAFT_STAGING_ENV_FILE="$F/env" OMNICRAFT_STAGING_OVERRIDE_FILE="$F/override.yaml" \
+  OMNICRAFT_CANDIDATE_MANIFEST="$F/candidate.json" OMNICRAFT_PREVIOUS_MANIFEST="$F/previous.json" \
+  OMNICRAFT_STAGING_COMPOSE_FILE="$F/compose.yml" OMNICRAFT_STAGING_OSS_BUCKET="omnicraft-private" \
+  OMNICRAFT_OFFSITE_ARCHIVE_URI="oss://omnicraft-ops-archive/ops-evidence" \
+  GITHUB_RELEASE_TAG="v0.1.0" OMNICRAFT_RECOVERY_OBJECTIVES="$F/objectives.json" \
+  OMNICRAFT_MEASURED="$F/measured.json" OMNICRAFT_SMOKE_URL="file://$F/smoke.txt" \
+  OMNICRAFT_DOCKER_BIN="$FAKE_BIN/docker" FAKE_DOCKER_LOG="$F/docker.log" \
+  bash "$DRILL_SCRIPT" -EnvironmentFile "$F/env" -OverrideFile "$F/override.yaml" \
+    -CandidateManifest "$F/candidate.json" -PreviousManifest "$F/previous.json" \
+    -ComposeFile "$F/compose.yml" -ReportDir "$F/report-real" \
+    -RecoveryObjectives "$F/objectives.json" -Measured "$F/measured.json" \
+    >/dev/null 2>"$F/real.err" || rc=$?
+[ "$rc" -eq 0 ] || { echo "FAIL: real-mode drill must complete, got $rc" >&2; cat "$F/real.err" >&2; exit 1; }
+[ -f "$F/report-real/recovery-objective-comparison.json" ] || {
+  echo "FAIL: real-mode drill must emit recovery-objective-comparison.json" >&2; exit 1; }
+grep -Eq 'compose .*config|compose .*up|compose .*exec|inspect' "$F/docker.log" || {
+  echo "FAIL: real-mode drill did not exercise Compose" >&2; exit 1; }
+echo "OK: real-mode drill completes with Compose orchestration and RPO/RTO comparison"
+
 echo "All staging-drill contract tests passed"

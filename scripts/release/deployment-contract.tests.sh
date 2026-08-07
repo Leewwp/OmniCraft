@@ -324,6 +324,17 @@ grep -Eq 'compose .*config|compose .*pull|compose .*up|compose .*exec|inspect' "
 }
 echo "OK: real Compose path exercised"
 
+# --------------------------------------------------- compose override reset
+# The generated compose-images.yml must disable base-compose build blocks via
+# the Compose `!reset` merge tag; `build: null` is rejected by recent Docker
+# Compose versions ("build must be a string") and would break the release path.
+for f in "$F/report-real/compose-images.yml"; do
+  [ -f "$f" ] || { echo "FAIL: $f missing" >&2; exit 1; }
+  grep -Eq 'build: !reset null' "$f" || { echo "FAIL: $f must disable build via '!reset'" >&2; exit 1; }
+  grep -Eq 'image: .*@sha256:[0-9a-f]{64}' "$f" || { echo "FAIL: $f must pin immutable image digests" >&2; exit 1; }
+done
+echo "OK: compose override resets build blocks and pins digests"
+
 # ------------------------------------------------- rollback: unknown digest
 F="$TEMP_ROOT/rollback-unknown"
 make_fixture "$F"
