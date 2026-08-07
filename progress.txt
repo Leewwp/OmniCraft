@@ -2,6 +2,45 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。超过 64KB 或每月轮换一次（上次轮换：2026-08-07）。完整历史见 `docs/archive/progress/2026-08-01-to-2026-08-07.md`。
 
+## [2026-08-08] - CI gate recovery 三票完成（#93/#94/#95）与 #92 闭门准备
+
+### What was done:
+- **G1 (#93) Ops alerting 根因定案**：CI 诊断步证实 runner 上无 ripgrep（`NO RG: 1`）——`verify-alerts.sh`/`alert-drill.sh` 及两个 contract tests 中的 `rg -q/-n` 在无 rg 环境静默失败，触发 "alertmanager.yml must keep receiver values as placeholders" 假阳性；macOS 本地因 Homebrew rg 存在而通过。手记中 "docker pull TLS 超时" 理论被证伪（runner 位于 westus3，拉取正常；pre-fix 的 ~12s 失败 = 拉镜像耗时 + 随后 rg 假失败）。修复：4 个 ops 脚本的 `rg` 全部替换为 POSIX `grep -qE/-nE`；同时把 prom/prometheus、prom/alertmanager 固定为 sha256 digest（服务器侧腾讯 mirror 交叉验证）+ 显式 `docker pull` 带重试 + 失败时输出真实 docker stderr（满足 #92 "失败诊断输出不再被吞" 验收）。新增 pinned-tooling 合同测试。
+- **G2 (#94) SBOM 修复落地**：保留上一会话未提交的 `generate-sbom.sh` 修改（`--user $(id -u):$(id -g)` + `HOME=/work` + `TMPDIR=/work/tmp` + mkdir tmp），新增 Linux bind-mount seam 静态断言测试（macOS 无法复现 root-owned 语义，故用契约固定）；uid 语义用 alpine 实测确认（容器文件归宿主 uid，宿主 python 可重写）。
+- **G3 (#95) gitleaks 收窄**：`.gitleaks.toml` allowlist 增加 3 个 release-gate 测试夹具脚本路径 + 归档文档双路径（`docs/superpowers/plans/` 历史路径 + `docs/archive/plans/` 现路径，前者覆盖 history scan）；本地 tree+history 扫描 0 findings，"fake secret fails the gitleaks gate" 正向检出用例保持通过。
+- **Docs gate 修复**：`docs/working/2026-08-08-architecture-fix-backlog.md` 与 `active-plan-audit.md` 补 `**预计失效日期**:` 半角冒号头部（doc-validator 正则要求）。
+- 以 `docs/superpowers/plans/2026-08-08-omnicraft-ci-gate-recovery.md` 的 G1/G2/G3 勾选 + 本条目 + 子票关闭作为各任务收口；PR #98（合并 60d4b31）为普通合并，未用 admin merge。
+
+### Testing:
+- 本地全绿：`verify-alerts.tests.sh`、`alert-drill.tests.sh`、`generate-sbom.tests.sh`、`verify-pinned-actions.tests.sh`、`verify-security.tests.sh`、doc-validator release profile。
+- 服务器（Ubuntu 24.04，无 rg）复现验证：`verify-alerts.sh -ConfigDir ops/observability` 由 `ruby: command not found`（服务器无 ruby，非 CI 环境差异）→ 与 CI 一致失败点确认；grep 替换后本地通过。
+- CI 首轮全绿：Backend/Frontend/Docs/Ops alerting/SBOM/Security/project-gate/Desktop 全部 pass（run 31216862012/41/88）。
+
+### Notes:
+- #92 关闭条件（main 连续两次全绿 + 后续普通 PR 不经 admin merge 通过 required checks）尚差 main 上的连续绿 run 验证，保持 OPEN。#93/#94/#95 子票待关闭。
+- 工作区存在另一 agent 的未提交 docs 改动（AGENTS.md/社区 plans/specs/progress 等），本会话未触碰其文件面；progress.txt 与其条目共存。
+- 剩余生产项（不属 #92）：`GREEN_CALLBACK_ALLOWED_IPS` 需阿里云控制台人工获取；compose 镜像 digest 固化按 §1③ 服务器侧解析；服务器 compose 与仓库脱节、staging drill 未执行（需用户决策）。
+
+## [2026-08-08] - 活计划/GitHub Issues 全量审计与执行图收口
+
+### What was done:
+- 审计 AGENTS 注册表、constitution/templates、#64/#80 specs、社区 plans、架构 backlog、当前 migration/route/model 真实状态和 GitHub issues #1/#64~#76/#80~#98；报告更新于 `docs/working/2026-08-08-active-plan-audit.md`。
+- 将 CI gate recovery 登记为 priority 0 heavy 计划；#93~#95 挂为 #92 原生子票并由 PR #98 承载。Constitution 3.0.0 已用 AGENTS registry + GitHub dependencies + light/heavy lanes 取代退休的 `task.json` 工作流。
+- 统一迁移预留为 media `063` → source-linkage `064` → collaboration-invites `065` → IP history `066` → favorites drop `067`；同步社区 spec/plans、媒体 spec、协调/backlog 和 release contract fixture。
+- 交换媒体 T03/T04 职责：#83 为 heavy 数据/发布合同（`sort_order`、cover 宽高、config/public config、服务端媒体/poster grant 校验），#84 为依赖 #83/#65 的 light 上传 UI；补齐 #85/#87/#90 owner 与 fixed similar-content source。
+- GitHub 原生 DAG 回读验证：#80 挂 #81~#90；#96 等待媒体 T01~T09 terminal tickets，#90 等 #96，#97 等 #96/#90；Web light chain 之后才进入 #73(066)→#74→#75→#76(067)。#76 改 `ready-for-human`，tracking parents #64/#80 移除 AFK-ready label；已归档完成的 #1 关闭。
+- 新增 #73 IP visit history 和 #76 favorites cutover 两份 heavy implementation plans，锁定 HTTP/时间戳/batch/部分失效项合同，以及 #75 compatibility release→日志/backup restore 人工门→067 drop→forward-fix 的生产边界。#68 验收纳入 C2+C6 收敛。
+
+### Testing:
+- `git diff --check` 通过；旧迁移预留 grep（排除 archive）无残留。
+- `bash scripts/release/deployment-contract.tests.sh` 全部通过。
+- `cd tools/doc-validator && go run . --check`：release profile all checks passed。
+- GitHub API 回读确认 #80/#92 原生子票、#65~#97 blocked-by 图和 #76 label 与本地注册表一致。
+
+### Notes:
+- 未勾选任何功能 ticket/plan checkbox，未宣称 #92 完成。PR #98 当前 SBOM gate 已绿，但 Ops alerting gate 仍失败且其他 checks 尚在运行；#92 必须继续保持开放，直到 main 连续两次全绿并有普通 PR 验证。
+- 本轮只补计划、tracker 和直接相关 release fixture；未开始 #65~#76/#81~#90/#96/#97 的功能实现，也未恢复 Desktop 范围。
+
 ## [2026-08-08] - 架构审查裁决落盘（backlog 文档 + 注册表交错序 + #84 验证门）
 
 ### What was done:
