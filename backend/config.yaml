@@ -178,7 +178,7 @@ agent:
   llm_provider: "openai_compat"        # 或 "qwen"
   llm_model: "deepseek-chat"           # 按实际选择
   llm_api_base: "https://api.deepseek.com"
-  llm_api_key: ""                      # 留空，改用 env var 注入（需修复 config.go）
+  llm_api_key: ""                      # 留空，改用 env var AGENT_LLM_API_KEY 注入（config.go 已实现）
   embedding_model: "text-embedding-3-small"
   embedding_dimensions: 1536
   rate_limit_per_day: 50
