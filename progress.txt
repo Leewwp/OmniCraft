@@ -2,11 +2,29 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。超过 64KB 或每月轮换一次（上次轮换：2026-08-07）。完整历史见 `docs/archive/progress/2026-08-01-to-2026-08-07.md`。
 
-## [2026-08-07] - 审查修正收尾：Ops-08 保持阻塞
+## [2026-08-08] - 审计收口：证据、文档与本地发布配置
+
+### What was done:
+- 重新审阅 Ops-05/Ops-06/Ops-08 的原始日志并完成 redaction 检查；在最终 reviewed `HEAD` 上使用仓库 finalizer 重新计算 evidence SHA-256 并绑定三个 summary。
+- 收口 Ops-08 状态、RPO/RTO、runbook、Web 体验规格、生产 readiness 汇总、协调计划和 CI Go 版本文档；没有启动任何新开发任务。
+- 将 `.env`、`.env.production`、`frontend/.env.local` 权限收紧为 `0600`。`.env.production` 仍因包含 `your-domain.com`、空回调 IP 和本地真实密钥而不可作为生产输入；真实值不写入仓库，发布使用 `.env.production.example` 和外部 secret 管理。
+- 生产 Compose 不再给 PgBouncer 提供 `latest` 默认值，服务器必须显式提供 registry-verified `@sha256` 引用；本机 registry 查询不可用时不伪造 digest。
+- 只读查看所有 unreachable commits 的提交摘要和父子关系；未删除、未 prune、未恢复任何对象。
+
+### Testing:
+- 运行证据 schema/finalizer 校验、文档 validator、生产 Compose/发布契约门和最终 Git 状态复核。
+
+### Notes:
+- unreachable commits 的逐项摘要仅作为本次审计交付信息，不改变活计划来源；在用户审核前不处理这些对象。
+- Web Agent Task 6、Web 体验 Ticket 01 及其他活计划均未开始。
+
+## [2026-08-07] - 审查修正收尾：Ops-08 解除阻塞前记录
+
+> 本条记录发生在下方同日 Ops-08 Step 5 完成记录之前；当前状态以完成记录和本次 2026-08-08 证据收口记录为准。
 
 ### What was done:
 - 接管并复核 ChatGPT/opencode 审查会话留下的未提交修复；确认当前 `main` 工作树只有本轮发布门、Agent、Reaction、配置、文档和测试改动。
-- 保持 `release/recovery-objectives.json` 为 `baseline_only`，生产 readiness 注册表与 Ops-08 Step 5 均诚实标记为 blocked；未用历史 Release 摘要替代可复核的 staging/OSS/off-site 原始证据。
+- 当时保持 `release/recovery-objectives.json` 为 `baseline_only`，生产 readiness 注册表与 Ops-08 Step 5 均诚实标记为 blocked；未用历史 Release 摘要替代可复核的 staging/OSS/off-site 原始证据。
 - Agent 工具预算改为纯配置驱动，缺失配置在配额/SSE 前返回 `AGENT_CONFIG_INVALID`；客户端取消流的历史清理使用独立超时上下文，避免请求取消留下孤儿会话。
 - 真实发布演练补齐 smoke URL 输入门；归档器使用 OSS AES256 元数据并在成功前校验远端保留元数据、过期字段与归档 commit；进度日志按 64KB 规则完成轮换。
 
@@ -19,7 +37,7 @@
 - `npm install` 与 `go mod tidy` 完成；Go 首次默认缓存受沙箱权限限制，改用临时缓存复验。
 
 ### Notes:
-- Ops-08 Step 5 仍需人工提供并实际执行真实 staging deploy/rollback、OSS 版本恢复、off-site 双目的地归档、approved 且 commit-bound 的 RPO/RTO 与原始测量证据。
+- 当时 Ops-08 Step 5 仍需人工提供并实际执行真实 staging deploy/rollback、OSS 版本恢复、off-site 双目的地归档、approved 且 commit-bound 的 RPO/RTO 与原始测量证据。
 - Web experience corrections 的 12 个 tickets、Task 6 真实 Provider smoke 和桌面能力不属于本轮收尾，不提前开发或勾选。
 
 ## [2026-08-07] - 审查反馈清理：死代码/类型契约/推荐流 SWR 重构

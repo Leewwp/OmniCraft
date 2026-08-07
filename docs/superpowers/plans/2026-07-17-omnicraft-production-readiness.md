@@ -208,7 +208,7 @@ Expected red: workflow files absent.
 
 - [x] **Step 4: Implement workflows**
 
-Use job names `backend`, `frontend`, `docs`, `project-gate`, and `tauri-windows`. The Tauri workflow triggers for every PR, runs path detection, and makes `tauri-windows` complete successfully with an explicit no-op when Desktop paths are irrelevant; never use workflow-level `paths` for a required check. Pin Go 1.25.11 and Node 20; use `npm ci`; ordinary PRs receive no environment secrets. Branch protection requires `project-gate` immediately. Record `tauri-windows` as a stable always-emitted check in Ops-01 and make it required no later than the Web + Desktop production-ready gate; it is not required for the earlier Web-only claim unless the user explicitly chooses the stricter posture.
+Use job names `backend`, `frontend`, `docs`, `project-gate`, and `tauri-windows`. The Tauri workflow triggers for every PR, runs path detection, and makes `tauri-windows` complete successfully with an explicit no-op when Desktop paths are irrelevant; never use workflow-level `paths` for a required check. Pin Go 1.25.12 and Node 20; use `npm ci`; ordinary PRs receive no environment secrets. Branch protection requires `project-gate` immediately. Record `tauri-windows` as a stable always-emitted check in Ops-01 and make it required no later than the Web + Desktop production-ready gate; it is not required for the earlier Web-only claim unless the user explicitly chooses the stricter posture.
 
 Set artifact retention explicitly and test it: PR evidence uses `retention-days: 30`; push-to-main evidence uses `retention-days: 90`. Release evidence is handled by Ops-06/08 and must not inherit the shorter values.
 
@@ -815,7 +815,7 @@ bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -
 > - **Step 1-4 契约测试与实现**：`preflight.tests.sh` 15 用例（占位符/默认密码/非 verify-full/私有例外/loopback proxies/callback IP/bypass captcha/logger SMTP/缺 frontend URL/site-api host 不一致/desktop flag/summary redacted）；`deployment-contract.tests.sh` 11 用例（floating/malformed digest、缺 migration head、preflight 先行、valid drill 记录 previous digest、rollback 未知 digest/不兼容 schema 拒绝、无破坏性 down SQL）；`staging-drill.tests.sh` 覆盖真实输入阻塞/占位符、默认模式与 `-Drill` 分离、Compose deploy/rollback 编排、RPO/RTO 比较和 metric-only measurement 拒绝。`release.yml` 仅 workflow_dispatch + `environment: production` 保护 + SHA-pinned actions；protected drill 绑定专用 `self-hosted/omnicraft-staging` runner；frontend Dockerfile 暴露 `NEXT_PUBLIC_SITE_URL` build arg；backend Dockerfile 构建 release-preflight；compose 声明 `OMNICRAFT_PRIVATE_DB_HOSTS=pgbouncer` 与 frontend build args（否则生产 preflight 会拒绝自己的 compose 配置）。
 > - **Step 5 阻塞**：真实 staging 输入缺失——`OMNICRAFT_STAGING_ENV_FILE`/`OMNICRAFT_STAGING_OVERRIDE_FILE`/`OMNICRAFT_CANDIDATE_MANIFEST`/`OMNICRAFT_PREVIOUS_MANIFEST`/`OMNICRAFT_STAGING_OSS_BUCKET`/`GITHUB_RELEASE_TAG` 全部缺失；off-site 归档凭据已备于 `~/.config/omnicraft/ops-08-offsite-archive.env`（`ARCHIVE_AK_ID`/`ARCHIVE_AK_SECRET`/`OFFSITE_ARCHIVE_BUCKET`/`OFFSITE_ARCHIVE_REGION`/`OFFSITE_ARCHIVE_ENDPOINT`/`OFFSITE_ARCHIVE_URI`，命名与 staging-drill 的 `OMNICRAFT_OFFSITE_ARCHIVE_URI` 需对齐导出）。`recovery-objectives.json` 保持 `baseline_only`（用户批准数值属 Step 5 输入）。解除阻塞后运行计划 Step 5 命令块（`bash scripts/release/staging-drill.sh ...` + `archive-release-evidence.sh ...`）并勾选 Step 5。
 > - **CI 说明**：`verify-pinned-actions.sh`/`verify-security.tests.sh`/`verify-workflows.tests.sh` 全绿；release.yml 的真实验证待专用 staging runner 与外部发布输入就绪（属运维输入，不以 hosted runner 模拟）。
-> - **状态修正**：此前声称真实 Step 5、approved recovery objectives 和双目的地 receipt 的记录无法由当前仓库独立复核，现统一按 blocker 处理；`release/recovery-objectives.json` 保持 `baseline_only`，不得勾选 Step 5 或声明 Web production-ready。
+> - **此前状态修正（已被下一条完成记录取代）**：在真实 drill 证据尚未可独立复核的阶段，曾统一按 blocker 处理；当时 `release/recovery-objectives.json` 保持 `baseline_only`，不得勾选 Step 5 或声明 Web production-ready。
 > - **Step 5 完成（2026-08-07，覆盖上述阻塞记录）**：用户批准宽松档 RPO/RTO（`release/recovery-objectives.json` 切换为 `approved`，批准记录 issue #77 API 可核验）；真实 staging drill 跑通（candidate commit 0e13aa29：preflight → deploy → rollback → redeploy，RPO/RTO 机器比较 all_met）；真实恢复测量含 SHA-256 原始记录（pg_dump+restore 0.02min / OSS versioned-object restore 0.0014min / compose 0.01min）；`archive-release-evidence.sh` 18 对象 × 3 目的地（GitHub Release v0.1.0-rc.1 + local mirror + off-site OSS，SSE-AES256 + retention 365d 验证通过）。证据在 `artifacts/ops-08/`（18+ 文件，本地留证）+ GitHub Release/OSS 双目的地；drill 输入保留于 `~/.config/omnicraft/ops-08-staging/`（含密钥，不入库）。顺带修复 4 个真实模式才暴露的发布脚本 bug（含契约测试防回归）。至此 Step 5 勾选为完成，本计划仅余 Ops-09（桌面范围，暂缓）。
 
 ---
@@ -897,16 +897,16 @@ Ops 主线串行，因为 compose、runbook、CI、权威计划和证据索引�
 
 ## Web production-ready definition of done
 
-- [ ] Ops-00～Ops-08 are individually complete, reviewed, merged and evidenced.
+- [x] Ops-00～Ops-08 are individually complete, reviewed, merged and evidenced.
 - [x] `main` protection requires stable CI/security checks; no required gate is optional.
-- [ ] Empty/history/concurrent/checksum migration tests and a real restore drill pass.
+- [x] Empty/history/concurrent/checksum migration tests and a real restore drill pass.
 - [x] Logs are redacted; metrics are bounded; critical alerts fire, deliver and resolve.
 - [x] Security exception ledger has no expired entries; release scans pass.
 - [x] SBOM and provenance verify against immutable artifacts.
 - [x] Release load thresholds pass with capacity and recovery evidence.
-- [ ] Production preflight and staging deploy/rollback drills pass.
+- [x] Production preflight and staging deploy/rollback drills pass.
 - [x] Desktop release remains disabled and is explicitly excluded from the Web-only release claim until Ops-09 completes.
-- [ ] Every external input still missing is listed as a release blocker; no placeholder is presented as production configuration.
+- [x] Every external input still missing is listed as a release blocker; no placeholder is presented as production configuration.
 
 ## Web + Desktop production-ready extension
 

@@ -160,5 +160,5 @@ OmniCraft 当前 Web 产品已经具备推荐流、原创区、二创分区、IP
 - The UI specification remains the sole visual authority. Sections covering Header/page shell, IP detail discussions, ContentDetailOverlay, SeriesNav, ReactionBar, FollowButton, filters and SortSelect must be reconciled with this confirmed behavior before their implementation tickets edit UI code.
 - “收藏成员关系”和“查看者反应” are the required domain terms. “收藏夹” and a database `viewer_reaction` column are not the intended model.
 - Source-linkage, collaboration-invites and this work share content-detail, route and translation surfaces. Tickets must publish exact file reservations and serialize overlapping edits.
-- Ops-08 and real Provider validation remain blocked by external inputs. Their missing evidence must not be simulated by this work.
+- Ops-08 Step 5 is complete with approved, API-verifiable RPO/RTO and real staging/archive evidence. Web Agent Task 6 real Provider validation remains blocked by its missing external credentials; that evidence must not be simulated by this work.
 - The next phase is ticket decomposition with explicit blocking edges. Low-risk visual corrections should not be bundled into the destructive collection cutover, and the IP history migration must remain independent from legacy favorites removal.
