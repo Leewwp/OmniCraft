@@ -2,6 +2,21 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。超过 64KB 或每月轮换一次（上次轮换：2026-08-07）。完整历史见 `docs/archive/progress/2026-08-01-to-2026-08-07.md`。
 
+## [2026-08-08] - C1: 发布冻结键分叉修复（P1 bug，issue #78）
+
+### What was done:
+- 修复 P1 bug（issue #78）：`publishGuard` 中间件读取 `user:publish_freeze:%d` 而写入方使用 `publish:freeze:%d`，生产拦截静默失效。
+- 新增共享 key builder `internal/pkg/rediskeys.PublishFreezeKey(userID)`（纯 stdlib，返回规范键 `publish:freeze:<id>`，与存量 Redis 数据兼容），middleware 守卫（interaction.go:88）、review_service 写入（删除 `buildPublishFreezeKey`）、content_service 读取（content_service.go:115）三处统一复用。
+- 测试：新增 `rediskeys` 单测（键格式精确断言）；middleware 夹具改用 canonical key 并强化 `PUBLISH_FROZEN` 响应码断言；新增跨 seam 测试（以 review_service 相同方式写 canonical key，守卫 403 `PUBLISH_FROZEN`）；handler 层新增 `POST /api/v1/contents` 端到端 seam 测试（403 `PUBLISH_FROZEN`，policy 对齐生产 `publishingInteractionPolicy`）；auth_test.go:299 夹具改用 canonical key，`TestLoginInteractionCapabilityMatrix` 行为断言不变。
+- 从 `git status` 发现的无关未提交改动 `docs/GLOSSARY.md`（媒体集/附件术语条目）未纳入本次提交，保持未提交状态。
+
+### Testing:
+- `gofmt -l`：改动文件全部干净（仅存量未格式化文件 pre-existing）；`go build ./...` / `go vet`（四个相关包）通过。
+- `go test -count=1` `internal/pkg/rediskeys` / `internal/middleware` / `internal/service` / `internal/handler` 全部通过；全量 `go test ./...` 无失败（Postgres/Redis 容器已运行）。
+
+### Notes:
+- 分支 `fix/publish-freeze-key`，单 commit，PR 以 `Fixes #78` 开头；未改 config/routes/migrations，未运行 doc-validator（非必需）；未勾选任何计划 checkbox，未改 AGENTS.md。
+
 ## [2026-08-08] - 审计收口：证据、文档与本地发布配置
 
 ### What was done:

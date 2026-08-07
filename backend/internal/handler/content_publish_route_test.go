@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,18 +10,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	jwtutil "omnicraft/backend/internal/pkg/jwt"
+	"omnicraft/backend/internal/pkg/rediskeys"
 )
 
 func TestCreateContentRoutePublishesFanworkAndReadsBackSourceRelation(t *testing.T) {
-	router, db, token := setupPublishRoute(t, publishRouteUserState{Verified: true, Reputation: 10})
+	router, db, token, _ := setupPublishRoute(t, publishRouteUserState{Verified: true, Reputation: 10})
 	source := createPublishSourceOriginal(t, db, "Published original", "published")
 
 	body := `{
@@ -88,7 +92,7 @@ func TestCreateContentRoutePublishesFanworkAndReadsBackSourceRelation(t *testing
 }
 
 func TestCreateContentRouteRejectsInvalidSourceOriginal(t *testing.T) {
-	router, db, token := setupPublishRoute(t, publishRouteUserState{Verified: true, Reputation: 10})
+	router, db, token, _ := setupPublishRoute(t, publishRouteUserState{Verified: true, Reputation: 10})
 	nonOriginal := createPublishContent(t, db, "Fanwork source candidate", "fanwork", "published")
 	unpublishedOriginal := createPublishSourceOriginal(t, db, "Pending original", "pending")
 
@@ -167,7 +171,7 @@ func TestCreateContentRouteEnforcesPublishPermissions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router, _, token := setupPublishRoute(t, tt.state)
+			router, _, token, _ := setupPublishRoute(t, tt.state)
 
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/contents", bytes.NewBufferString(`{
@@ -191,13 +195,49 @@ func TestCreateContentRouteEnforcesPublishPermissions(t *testing.T) {
 	}
 }
 
+func TestCreateContentRouteRejectsPublishFrozen(t *testing.T) {
+	router, db, token, mr := setupPublishRoute(t, publishRouteUserState{Verified: true, Reputation: 10})
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer rdb.Close()
+
+	var viewer model.User
+	if err := db.Where("email = ?", "publish-viewer@example.com").First(&viewer).Error; err != nil {
+		t.Fatalf("load viewer: %v", err)
+	}
+
+	// review_service.applyRepeatViolationPenalty writes the canonical key with
+	// value "1" and a TTL; the publish guard must block on that exact key.
+	if err := rdb.Set(context.Background(), rediskeys.PublishFreezeKey(viewer.ID), "1", 7*24*time.Hour).Err(); err != nil {
+		t.Fatalf("set freeze key: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/contents", bytes.NewBufferString(`{
+		"title":"Frozen publish",
+		"zone":"fanwork",
+		"content_type":"article",
+		"is_public":true,
+		"allow_copy":true
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403; body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte("PUBLISH_FROZEN")) {
+		t.Fatalf("body = %s, want PUBLISH_FROZEN", rec.Body.String())
+	}
+}
+
 type publishRouteUserState struct {
 	Verified   bool
 	Reputation int
 	Banned     bool
 }
 
-func setupPublishRoute(t *testing.T, state publishRouteUserState) (*gin.Engine, *gorm.DB, string) {
+func setupPublishRoute(t *testing.T, state publishRouteUserState) (*gin.Engine, *gorm.DB, string, *miniredis.Miniredis) {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -216,9 +256,15 @@ func setupPublishRoute(t *testing.T, state publishRouteUserState) (*gin.Engine, 
 
 	handler := NewContentHandler(db, cfg, nil)
 	authReq := middleware.AuthRequired(cfg, nil, db)
-	publishGuard := middleware.InteractionRequired(cfg, db, nil, middleware.InteractionPolicy{
-		RequireVerifiedEmail: true,
-		RequireReputation:    true,
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("miniredis: %v", err)
+	}
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	publishGuard := middleware.InteractionRequired(cfg, db, rdb, middleware.InteractionPolicy{
+		RequireVerifiedEmail:   true,
+		RequireReputation:      true,
+		RequireNoPublishFreeze: true,
 	})
 
 	router := gin.New()
@@ -245,8 +291,12 @@ func setupPublishRoute(t *testing.T, state publishRouteUserState) (*gin.Engine, 
 	if err != nil {
 		t.Fatalf("generate token: %v", err)
 	}
+	t.Cleanup(func() {
+		rdb.Close()
+		mr.Close()
+	})
 
-	return router, db, pair.AccessToken
+	return router, db, pair.AccessToken, mr
 }
 
 func createPublishSourceOriginal(t *testing.T, db *gorm.DB, title, status string) model.ContentItem {

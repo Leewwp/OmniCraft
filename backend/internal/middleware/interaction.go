@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -10,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/pkg/rediskeys"
 	"omnicraft/backend/internal/service"
 )
 
@@ -85,7 +85,7 @@ func isPublishFrozen(c *gin.Context, rdb *redis.Client, userID int64) (bool, err
 	if rdb == nil {
 		return false, errors.New("redis unavailable")
 	}
-	key := fmt.Sprintf("user:publish_freeze:%d", userID)
+	key := rediskeys.PublishFreezeKey(userID)
 	_, err := rdb.Get(c.Request.Context(), key).Result()
 	if err == nil {
 		return true, nil
