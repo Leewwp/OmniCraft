@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { AlertCircle, Compass, RotateCw } from "lucide-react";
+import useSWRInfinite from "swr/infinite";
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { ContentCard, type ContentCardData } from "@/components/content/ContentCard";
 import { ContentDetailOverlay } from "@/components/content/ContentDetailOverlay";
@@ -22,15 +23,21 @@ interface RecommendFeedClientProps {
   initialError: boolean;
 }
 
+interface RecommendPageData {
+  items: ContentCardData[];
+  total: number | null;
+}
+
 interface OverlayEntry {
   contentId: number;
   zone: "original" | "fanwork";
 }
 
 /**
- * /recommend 推荐流：单一"为你推荐"内容流（无分区标签），SSR 首屏 + 客户端
- * IntersectionObserver 无限滚动（sort=recommended）；卡片点击打开共享
- * ContentDetailOverlay（source=recommendation），关闭后恢复页面滚动位置。
+ * /recommend 推荐流：单一"为你推荐"内容流（无分区标签），SSR 首屏 +
+ * SWR useSWRInfinite 无限滚动（sort=recommended，page=2,3... 追加）；
+ * 卡片点击打开共享 ContentDetailOverlay（source=recommendation），
+ * 关闭后恢复页面滚动位置。
  */
 export function RecommendFeedClient({
   apiBase,
@@ -39,66 +46,72 @@ export function RecommendFeedClient({
   initialError,
 }: RecommendFeedClientProps) {
   const t = useTranslations();
-  const [items, setItems] = useState<ContentCardData[]>(initialItems);
-  const [total, setTotal] = useState<number | null>(initialTotal);
-  const [page, setPage] = useState(1);
-  const [initialLoading, setInitialLoading] = useState(false);
-  const [error, setError] = useState(initialError);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [loadError, setLoadError] = useState(false);
   const [overlayEntry, setOverlayEntry] = useState<OverlayEntry | null>(null);
   const overlayTriggerRef = useRef<HTMLElement | null>(null);
 
-  const hasMore = total !== null ? items.length < total : items.length >= PAGE_SIZE;
+  const firstPageRef = useRef<RecommendPageData | null>(null);
+  firstPageRef.current = initialError ? null : { items: initialItems, total: initialTotal };
+  const firstPageUrl = `${apiBase}/contents?sort=recommended&page=1&page_size=${PAGE_SIZE}`;
 
-  const fetchPage = useCallback(
-    async (targetPage: number): Promise<{ items: ContentCardData[]; total: number | null } | null> => {
-      const res = await fetch(
-        `${apiBase}/contents?sort=recommended&page=${targetPage}&page_size=${PAGE_SIZE}`,
-        { cache: "no-store" },
-      );
-      if (!res.ok) return null;
+  const getKey = useCallback(
+    (pageIndex: number) =>
+      `${apiBase}/contents?sort=recommended&page=${pageIndex + 1}&page_size=${PAGE_SIZE}`,
+    [apiBase],
+  );
+
+  const fetcher = useCallback(
+    async (url: string): Promise<RecommendPageData> => {
+      const cached = firstPageRef.current;
+      if (cached && url === firstPageUrl) return cached;
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error("RECOMMEND_FETCH_FAILED");
       const data = (await res.json()) as { contents?: unknown[]; total?: number };
       return {
         items: normalizeContentList(data.contents),
         total: typeof data.total === "number" ? data.total : null,
       };
     },
-    [apiBase],
+    [firstPageUrl],
   );
 
-  const retryInitial = useCallback(async () => {
-    setInitialLoading(true);
-    setError(false);
-    try {
-      const result = await fetchPage(1);
-      if (!result) throw new Error("RECOMMEND_FETCH_FAILED");
-      setItems(result.items);
-      setTotal(result.total);
-      setPage(1);
-    } catch {
-      setError(true);
-    } finally {
-      setInitialLoading(false);
-    }
-  }, [fetchPage]);
+  const {
+    data,
+    size,
+    setSize,
+    error: swrError,
+    isValidating,
+    mutate,
+  } = useSWRInfinite(getKey, fetcher, {
+    initialSize: initialError ? 0 : 1,
+    fallbackData: firstPageRef.current ? [firstPageRef.current] : [],
+    revalidateFirstPage: false,
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    shouldRetryOnError: false,
+    dedupingInterval: 60000,
+  });
 
-  const loadMore = useCallback(async () => {
-    if (loadingMore) return;
-    setLoadingMore(true);
-    setLoadError(false);
-    try {
-      const result = await fetchPage(page + 1);
-      if (!result) throw new Error("RECOMMEND_LOAD_MORE_FAILED");
-      setItems((current) => [...current, ...result.items]);
-      setTotal(result.total);
-      setPage((current) => current + 1);
-    } catch {
-      setLoadError(true);
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [fetchPage, loadingMore, page]);
+  const items = useMemo(() => data?.flatMap((page) => page.items) ?? initialItems, [data, initialItems]);
+  const total = data?.[data.length - 1]?.total ?? initialTotal;
+  const hasMore = total !== null ? items.length < total : items.length >= PAGE_SIZE;
+
+  const isLoading = isValidating && data === undefined;
+  const isLoadingMore = isValidating && size > 1;
+  const showInitialError = initialError || (swrError !== undefined && size <= 1);
+  const loadError = swrError !== undefined && size > 1;
+
+  const retryInitial = useCallback(() => {
+    void setSize((current) => (current === 0 ? 1 : current));
+  }, [setSize]);
+
+  const loadMore = useCallback(() => {
+    void setSize((current) => current + 1);
+  }, [setSize]);
+
+  const retryLoadMore = useCallback(() => {
+    void mutate();
+  }, [mutate]);
 
   const handleOpenDetail = useCallback((data: ContentCardData, trigger: HTMLElement) => {
     overlayTriggerRef.current = trigger;
@@ -108,7 +121,7 @@ export function RecommendFeedClient({
     });
   }, []);
 
-  if (initialLoading && items.length === 0) {
+  if (isLoading && items.length === 0) {
     return (
       <div
         aria-label={t("recommend.loadingLabel")}
@@ -120,7 +133,7 @@ export function RecommendFeedClient({
     );
   }
 
-  if (error && items.length === 0) {
+  if (showInitialError && items.length === 0) {
     return (
       <EmptyState
         icon={AlertCircle}
@@ -156,11 +169,11 @@ export function RecommendFeedClient({
       <MasonryGrid
         items={items}
         onOpenDetail={handleOpenDetail}
-        isLoadingMore={loadingMore}
+        isLoadingMore={isLoadingMore}
         hasMore={hasMore}
         loadError={loadError}
-        onLoadMore={() => void loadMore()}
-        onRetry={() => void loadMore()}
+        onLoadMore={loadMore}
+        onRetry={retryLoadMore}
       />
 
       {overlayEntry && (
