@@ -876,3 +876,13 @@
 - 只勾选本计划 Task 4 的 6 个 checkbox；未触碰 Task 6、其他计划 checkbox、历史账本；不 push、不合并。
 - 与 #19 交接：`AgentWorkspace`/`AgentConversationSidebar`/`lib/agent-stream.ts` 复用；引用浮窗接线（source=agent-citation + returnFocusRef）与清空/新对话生命周期为 #19 实现、本任务补测试核对；`AgentChatWidget.tsx` 文件保留（Root Layout 挂载已移除，移除点 = `app/layout.tsx`）。
 - 遗留：会话全文搜索（A1.6）仍为 #19 协调点的后续项；Task 6 浏览器验证需要 dev server + 假 Provider。
+
+## [2026-08-07] - Ops 系列收尾：归档、注册表更新与分支清理
+### What was done:
+- **验证 Ops-08 真实性并确认合并**：契约测试复跑全绿（preflight 15、deployment-contract 11）；`artifacts/ops-08/summary.json` commit=`074715f` 与 main HEAD 一致，10 份 evidence sha256 全部匹配；归档 receipt 三目的地（local-mirror 8 对象、GitHub Release v0.1.0-rc.1 8 对象、offsite `oss://omnicraft-ops-archive` 8 对象）共 24 对象本地镜像 sha256 复验 PASS、blockers=[]；RPO=0min≤5min、RTO=0.1min≤30min 已批准目标 machine-compare 全达标。合并确认：Ops-08 已于 main `074715f` + 标记提交 `cf5cc2b` 完成并推送。
+- **文档更新**：AGENTS.md 活计划注册表移除 production-readiness（Ops-00~08 全部完成），移入暂缓计划表（仅剩 Ops-09 桌面暂缓）；登记新计划 #64（Web 体验修复与数据契约收口，Ticket 01~12）为优先级 1；source-linkage / web-agent Task 6 备注补充与 #64 的共享面串行说明。production-readiness 计划文件勾选 Web production-ready definition of done 全部 10 项。
+- **文档入库**：提交 `docs/GLOSSARY.md`（收藏成员关系/查看者反应术语）、`docs/superpowers/specs/2026-08-07-omnicraft-web-experience-corrections-design.md`、`docs/working/2026-08-07-ui-issues-audit.md`、`docs/working/2026-08-07-dev-coordination-plan.md`（commit `7216414`）。
+### Testing:
+- Ops-08 契约测试：`bash scripts/release/preflight.tests.sh`（15 用例）与 `bash scripts/release/deployment-contract.tests.sh`（11 用例）全绿；归档对象 sha256 复验 24/24 PASS。
+### Notes:
+- 分支/worktree 清理与 main 推送见后续提交；Tauri 相关 `verify-project.sh --release` 按计划在 Ops-08 已跑通，本轮仅文档变更无需重跑。
