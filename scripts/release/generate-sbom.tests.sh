@@ -132,6 +132,22 @@ bash "$GENERATE" -OutputDir "$TEMP_ROOT/x" -RepoRoot "$TEMP_ROOT/does-not-exist"
 [ "$rc" -eq 1 ] || { echo "FAIL: missing RepoRoot must exit 1" >&2; exit 1; }
 echo "OK: usage errors"
 
+# ------------------------------------------------------------ Linux bind-mount seam
+# On Linux runners the syft container must write as the caller UID/GID so the
+# host python can normalize the SBOM files afterwards (root-owned files made
+# the GitHub ubuntu runner fail with PermissionError). macOS Docker Desktop
+# masks ownership, so this seam asserts the docker run flags statically.
+python3 - "$GENERATE" <<'PY'
+import re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+assert re.search(r'"--user",\s*f"\{os\.getuid\(\)\}:\{os\.getgid\(\)\}"', text), \
+    "run_syft must run the container as the caller UID:GID"
+assert '"HOME=/work"' in text, "run_syft must provide a writable HOME"
+assert '"TMPDIR=/work/tmp"' in text, "run_syft must redirect TMPDIR into the mounted workdir"
+print("Linux bind-mount seam assertions passed")
+PY
+[ $? -eq 0 ] || { echo "FAIL: syft container must not write root-owned bind-mount files" >&2; exit 1; }
+
 # ------------------------------------------------- preview generation (red first: missing script)
 OUT1="$TEMP_ROOT/preview1"
 expect_exit 0 "preview sbom generation" -RepoRoot "$FIXTURE" -Policy "$FIXTURE/release/sbom-policy.json" -OutputDir "$OUT1" -SkipImages
