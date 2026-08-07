@@ -97,7 +97,7 @@ for service in prometheus alert-sink; do
     exit 1
   fi
 done
-if echo "$WEBHOOK_SINK" | rg -q "127\.0\.0\.1|localhost"; then
+if echo "$WEBHOOK_SINK" | grep -qE "127\.0\.0\.1|localhost"; then
   echo "ERROR: Alertmanager webhook sink must be an in-network service name, not loopback" >&2
   exit 1
 fi
@@ -247,7 +247,7 @@ with open(out, "w", encoding="utf-8") as f:
     f.write(text)
 PY
 chmod 600 "$RENDERED_AM"
-if rg -q "127\.0\.0\.1|localhost" "$RENDERED_AM"; then
+if grep -qE "127\.0\.0\.1|localhost" "$RENDERED_AM"; then
   echo "ERROR: rendered alertmanager config must not reference loopback" >&2
   exit 1
 fi
@@ -425,7 +425,7 @@ SINK_EVENTS="$REPORT_DIR/sink-events.jsonl"
 FIRING_SEEN=""
 for i in $(seq 1 120); do
   docker exec "$PROJ-alert-sink" cat /events/events.jsonl > "$SINK_EVENTS" 2>/dev/null || true
-  if rg -q '"status":"firing"' "$SINK_EVENTS" 2>/dev/null; then
+  if grep -qE '"status":"firing"' "$SINK_EVENTS" 2>/dev/null; then
     FIRING_SEEN=1
     break
   fi
@@ -433,7 +433,7 @@ for i in $(seq 1 120); do
 done
 [ -n "$FIRING_SEEN" ] || { echo "ERROR: no firing payloads delivered to the alert-sink" >&2; exit 1; }
 for alert in PostgresDown RecoveryDrillOverdue ApiHigh5xxRate; do
-  if ! rg -q "$alert" "$SINK_EVENTS" 2>/dev/null; then
+  if ! grep -qE "$alert" "$SINK_EVENTS" 2>/dev/null; then
     echo "ERROR: alert $alert not delivered to the sink" >&2
     exit 1
   fi
