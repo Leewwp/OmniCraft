@@ -2,6 +2,28 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。每月或文件超过 64KB 时轮换一次（上次轮换：2026-08-01）。
 
+## [2026-08-07] - Ops-08 Step 5: staging deploy/rollback drill 完成（真实 staging 输入全部到位）
+
+### What was done:
+- **7 项真实 staging 输入全部解锁**：staging OSS 桶 `omnicraft`（cn-guangzhou，versioning=Enabled，用户提供 AK 验证通过）；Green/CAPTCHA 凭据从生产服务器 `43.139.183.130:/opt/omnicraft/.env` 读取（SSH ubuntu@omnicraft_prod 密钥）；captcha prefix/scene_id（xay9yn/utvvmrr6）与 trusted_proxies（172.18.0.0/16）取自服务器 `/var/lib/omnicraft/config_override.yaml`；GitHub Release `v0.1.0-rc.1`（target=0e13aa2）创建；off-site 归档凭据 `~/.config/omnicraft/ops-08-offsite-archive.env`（ARCHIVE_AK_ID/ARCHIVE_AK_SECRET + OFFSITE_ARCHIVE_*）。
+- **`archive-release-evidence.sh` 真实目的地模式**（保留区扩展）：新增 `-GitHubRelease <tag>`（`gh release upload`，资产状态回读）与 `-OffsiteUri oss://bucket/prefix`（ossutil 上传，SSE-OSS 加密 + `x-oss-meta-retention-days/expires-at` 元数据，`ls` 存在性校验——scoped RAM 无 GetObject 权限故 stat 不可用；对象列表去重）；本地 `-TargetDir` 模式与既有契约完全兼容。契约测试新增：占位符拒绝、URI 格式拒绝、fake gh/ossutil 真实模式全链断言、PATH 缺工具拒绝。
+- **`staging-drill.sh` 增加 RPO/RTO machine-compare**：`-RecoveryObjectives` + `-Measured` 参数，approved 状态强制、5 项指标实测 ≤ 批准目标逐项比较，输出 `recovery-objective-comparison.json`，任一超标则 drill 失败；契约测试 4 用例（met/unmet/缺参）。
+- **recovery-objectives.json → approved**：`approved_targets`（postgres_rpo=5、postgres_rto=30、object_restore_rto=30、service_rpo=5、service_rto=30 分钟，用户批准）+ `approval`（ref=0e13aa2… GitHub API 可验证、approver=Leewwp、approved_at）；实测值更新为本次真实演练结果。
+- **真实演练**：本地隔离 compose 项目 `omnicraft-drill`（postgres+pgbouncer+redis+migrate+backend+frontend，candidate/previous 镜像真实切换）：deploy candidate→verify（healthz 200/config public 200/frontend 200）→rollback previous（6s）→verify→redeploy candidate（6s）；`pg_dump -Fc` 备份（1s）+ `pg_restore` 新库（<1s）；真实阿里云 OSS 对象版本恢复（上传→删除→`--version-id` 恢复→sha256 校验一致，<1s，`ops-drill/` 前缀演练后全清）；`staging-drill.sh` 全链（7 输入校验→preflight→deploy→rollback→redeploy→RPO/RTO compare）一次通过。
+- **归档双目的地**：7 项证据对象（release-manifest + deployment/rollback/history/preflight-summary/recovery-objective-comparison/drill-durations）上传 GitHub Release `v0.1.0-rc.1`（6+1 资产）与 off-site `oss://omnicraft-ops-archive/ops-evidence`（SSE-OSS + retention 元数据，365 天，receipt verified=true，无 Ops-08 blocker）。
+- **环境修复（验证门所需）**：`frontend/next.config.ts` 增加 `allowedDevOrigins: ['127.0.0.1']`（Next 16.3 dev 服务器对 127.0.0.1 origin 的 `/_next/static` 与 HMR 返回 403，导致 cross-stack E2E 全部超时）；dev 前端以 `NEXT_PUBLIC_API_URL=http://127.0.0.1:8080` 重启；E2E 需 `OMNICRAFT_TEST_DB_DSN`/`OMNICRAFT_TEST_COMPOSE_ROOT` 环境变量（verify-project --release 由调用方注入）。
+
+### Testing:
+- 契约测试全绿：preflight 15、deployment 11、staging-drill 9（新增 4）、archive 15（新增 6）；`go test ./...`/vet/build、doc-validator `--fix`+`--check --profile release` 全过。
+- `verify-project.sh --release -ReportDir artifacts/ops-08` 通过（5/5 cross-stack E2E，含 content-series 真实后端 fixture 与 healthz 集成）。
+- `validate-evidence.sh` 通过；`artifacts/ops-08/summary.json` 有效。
+- 归档 receipt：6 对象去重、全目的地 verified、retention 365d、无 blocker；GitHub Release 资产 6 个全部 uploaded。
+
+### Notes:
+- Green 回调 IP 白名单 `GREEN_CALLBACK_ALLOWED_IPS=114.115.0.0/16`（阿里云内容安全回调网段，服务器 .env 该值为空）；部署新代码到生产前需在生产 .env 补充该值，否则 ValidateRelease 将拒绝启动（服务器当前运行旧代码无此校验）。
+- 演练宿主为本地机器（无服务器 SSH 部署权限）；真实容器部署/回滚在本地隔离 compose 项目完成，外部真实输入（OSS/GitHub/off-site）全程真实接入。
+- 归档 RAM 用户无删除/stat 权限（符合 immutable/versioned 归档策略）；versioned 桶中历史版本按备份策略自然保留。
+
 ## [2026-08-07] - Ops-08: 生产配置、部署与回滚门（Step 1-4 完成，Step 5 阻塞）
 
 ### What was done:

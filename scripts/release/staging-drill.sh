@@ -22,6 +22,8 @@ OVERRIDE_FILE=""
 CANDIDATE=""
 PREVIOUS=""
 REPORT_DIR=""
+RECOVERY_OBJECTIVES=""
+MEASURED=""
 DRILL=0
 
 while [ $# -gt 0 ]; do
@@ -31,16 +33,18 @@ while [ $# -gt 0 ]; do
     -CandidateManifest) [ $# -ge 2 ] || { echo "missing value for -CandidateManifest" >&2; exit 2; }; CANDIDATE="$2"; shift 2 ;;
     -PreviousManifest) [ $# -ge 2 ] || { echo "missing value for -PreviousManifest" >&2; exit 2; }; PREVIOUS="$2"; shift 2 ;;
     -ReportDir) [ $# -ge 2 ] || { echo "missing value for -ReportDir" >&2; exit 2; }; REPORT_DIR="$2"; shift 2 ;;
+    -RecoveryObjectives) [ $# -ge 2 ] || { echo "missing value for -RecoveryObjectives" >&2; exit 2; }; RECOVERY_OBJECTIVES="$2"; shift 2 ;;
+    -Measured) [ $# -ge 2 ] || { echo "missing value for -Measured" >&2; exit 2; }; MEASURED="$2"; shift 2 ;;
     -Drill) DRILL=1; shift ;;
     *)
       echo "unknown argument: $1" >&2
-      echo "usage: staging-drill.sh -EnvironmentFile <path> -OverrideFile <path> -CandidateManifest <path> -PreviousManifest <path> [-ReportDir <dir>] [-Drill]" >&2
+      echo "usage: staging-drill.sh -EnvironmentFile <path> -OverrideFile <path> -CandidateManifest <path> -PreviousManifest <path> [-ReportDir <dir>] [-RecoveryObjectives <path>] [-Measured <path>] [-Drill]" >&2
       exit 2 ;;
   esac
 done
 
 if [ -z "$ENV_FILE" ] || [ -z "$OVERRIDE_FILE" ] || [ -z "$CANDIDATE" ] || [ -z "$PREVIOUS" ]; then
-  echo "usage: staging-drill.sh -EnvironmentFile <path> -OverrideFile <path> -CandidateManifest <path> -PreviousManifest <path> [-ReportDir <dir>] [-Drill]" >&2
+  echo "usage: staging-drill.sh -EnvironmentFile <path> -OverrideFile <path> -CandidateManifest <path> -PreviousManifest <path> [-ReportDir <dir>] [-RecoveryObjectives <path>] [-Measured <path>] [-Drill]" >&2
   exit 2
 fi
 
@@ -155,5 +159,82 @@ PY
 echo "staging-drill: redeploy candidate"
 bash "$SCRIPT_DIR/deploy.sh" -Manifest "$CANDIDATE" -EnvFile "$ENV_FILE" -OverrideFile "$OVERRIDE_FILE" \
   -Schema "$SCHEMA" -ReportDir "$REPORT_DIR" -HistoryFile "$HISTORY" ${DRILL:+-Drill}
+
+# ---------------------------------------------------------------------------
+# Ops-08 Step 5: machine-compare measured PostgreSQL + Aliyun OSS
+# restore/reconciliation results against the user-approved RPO/RTO targets.
+# ---------------------------------------------------------------------------
+if [ -n "$RECOVERY_OBJECTIVES" ] || [ -n "$MEASURED" ]; then
+  if [ -z "$RECOVERY_OBJECTIVES" ] || [ -z "$MEASURED" ]; then
+    echo "staging-drill: -RecoveryObjectives and -Measured must be given together" >&2
+    exit 2
+  fi
+  [ -f "$RECOVERY_OBJECTIVES" ] || { echo "recovery objectives file not found: $RECOVERY_OBJECTIVES" >&2; exit 1; }
+  [ -f "$MEASURED" ] || { echo "measured file not found: $MEASURED" >&2; exit 1; }
+  echo "staging-drill: compare measured recovery values against approved RPO/RTO targets"
+  OBJECTIVES="$RECOVERY_OBJECTIVES" MEASURED_FILE="$MEASURED" REPORT_DIR="$REPORT_DIR" python3 - <<'PY'
+import json, os, sys
+
+objectives_path = os.environ["OBJECTIVES"]
+measured_path = os.environ["MEASURED_FILE"]
+report_dir = os.environ["REPORT_DIR"]
+
+def fail(msg):
+    print(f"staging-drill: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    objectives = json.load(open(objectives_path, encoding="utf-8"))
+except (OSError, ValueError) as e:
+    fail(f"recovery objectives not valid JSON: {e}")
+try:
+    measured = json.load(open(measured_path, encoding="utf-8"))
+except (OSError, ValueError) as e:
+    fail(f"measured values not valid JSON: {e}")
+
+if objectives.get("state") != "approved":
+    fail("recovery objectives must be in approved state before comparing RPO/RTO")
+targets = objectives.get("approved_targets") or {}
+approval = objectives.get("approval") or {}
+for key in ("postgres_rpo", "postgres_rto", "object_restore_rto", "service_rpo", "service_rto"):
+    if not isinstance(targets.get(key), (int, float)):
+        fail(f"approved target {key} is missing or not numeric")
+    if not isinstance(measured.get(key), (int, float)):
+        fail(f"measured value {key} is missing or not numeric")
+
+comparisons = []
+unmet = []
+for key in ("postgres_rpo", "postgres_rto", "object_restore_rto", "service_rpo", "service_rto"):
+    met = measured[key] <= targets[key]
+    comparisons.append({
+        "metric": key,
+        "measured_minutes": measured[key],
+        "approved_target_minutes": targets[key],
+        "met": met,
+    })
+    if not met:
+        unmet.append(key)
+
+comparison = {
+    "schema_version": 1,
+    "state": "approved",
+    "checked_at": measured.get("measured_at") or measured.get("last_drill") or "",
+    "approval_ref": approval.get("ref", ""),
+    "approver": approval.get("approver", ""),
+    "comparisons": comparisons,
+    "all_met": not unmet,
+    "unmet": unmet,
+}
+with open(os.path.join(report_dir, "recovery-objective-comparison.json"), "w", encoding="utf-8") as f:
+    json.dump(comparison, f, indent=2)
+    f.write("\n")
+for c in comparisons:
+    mark = "ok " if c["met"] else "FAIL"
+    print(f"  [{mark}] {c['metric']}: measured {c['measured_minutes']}min <= target {c['approved_target_minutes']}min")
+if unmet:
+    fail(f"measured RPO/RTO exceed approved targets: {', '.join(unmet)}")
+print("staging-drill: all measured recovery values meet approved targets")
+PY
+fi
 
 echo "staging-drill: done"

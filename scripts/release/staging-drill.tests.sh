@@ -162,4 +162,81 @@ bash "$DRILL_SCRIPT" -EnvironmentFile "$F/env" -OverrideFile "$F/override.yaml" 
 [ -f "$F/report/history.json" ] || { echo "FAIL: history missing" >&2; exit 1; }
 echo "OK: valid drill orchestrates deploy -> rollback -> redeploy"
 
+# ---------------------------------------- recovery objective comparison step
+F="$TEMP_ROOT/objectives-ok"
+make_fixture "$F"
+python3 - "$F" <<'PY'
+import json, sys
+out = sys.argv[1]
+objectives = {
+    "schema_version": 1,
+    "state": "approved",
+    "measured": {"postgres_rpo": 0, "postgres_rto": 1, "object_restore_rto": 1,
+                 "service_rpo": 0, "service_rto": 6, "measured_at": "2026-08-07T00:00:00Z", "last_drill": ""},
+    "approved_targets": {"postgres_rpo": 5, "postgres_rto": 30, "object_restore_rto": 30,
+                         "service_rpo": 5, "service_rto": 30},
+    "approval": {"ref": "c" * 40, "approver": "tester", "approved_at": "2026-08-07T00:00:00Z"},
+}
+json.dump(objectives, open(out + "/objectives.json", "w"), indent=2)
+measured = {"postgres_rpo": 1, "postgres_rto": 3, "object_restore_rto": 2,
+            "service_rpo": 0, "service_rto": 8, "measured_at": "2026-08-07T02:00:00Z", "last_drill": "real drill"}
+json.dump(measured, open(out + "/measured.json", "w"), indent=2)
+PY
+rc=0
+bash "$DRILL_SCRIPT" -EnvironmentFile "$F/env" -OverrideFile "$F/override.yaml" \
+  -CandidateManifest "$F/candidate.json" -PreviousManifest "$F/previous.json" -ReportDir "$F/report2" -Drill \
+  -RecoveryObjectives "$F/objectives.json" -Measured "$F/measured.json" \
+  >"$TEMP_ROOT/objectives-ok.out" 2>"$TEMP_ROOT/objectives-ok.err" || rc=$?
+[ "$rc" -eq 0 ] || { echo "FAIL: drill with met recovery objectives must exit 0, got $rc" >&2; cat "$TEMP_ROOT/objectives-ok.err" >&2; exit 1; }
+[ -f "$F/report2/recovery-objective-comparison.json" ] || { echo "FAIL: comparison evidence missing" >&2; exit 1; }
+python3 - "$F/report2/recovery-objective-comparison.json" <<'PY'
+import json, sys
+c = json.load(open(sys.argv[1], encoding="utf-8"))
+if c.get("state") != "approved" or not c.get("all_met"):
+    print("FAIL: comparison must be approved and all_met", file=sys.stderr)
+    sys.exit(1)
+if len(c.get("comparisons", [])) != 5:
+    print("FAIL: comparison must cover all five metrics", file=sys.stderr)
+    sys.exit(1)
+if c.get("approval_ref") != "c" * 40:
+    print("FAIL: approval ref must be carried into the comparison", file=sys.stderr)
+    sys.exit(1)
+print("recovery objective comparison (met) assertions passed")
+PY
+echo "OK: drill compares measured values against approved recovery objectives"
+
+F="$TEMP_ROOT/objectives-unmet"
+make_fixture "$F"
+python3 - "$F" <<'PY'
+import json, sys
+out = sys.argv[1]
+objectives = {
+    "schema_version": 1,
+    "state": "approved",
+    "measured": {"postgres_rpo": 0, "postgres_rto": 1, "object_restore_rto": 1,
+                 "service_rpo": 0, "service_rto": 6, "measured_at": "2026-08-07T00:00:00Z", "last_drill": ""},
+    "approved_targets": {"postgres_rpo": 5, "postgres_rto": 30, "object_restore_rto": 30,
+                         "service_rpo": 5, "service_rto": 30},
+    "approval": {"ref": "c" * 40, "approver": "tester", "approved_at": "2026-08-07T00:00:00Z"},
+}
+json.dump(objectives, open(out + "/objectives.json", "w"), indent=2)
+measured = {"postgres_rpo": 60, "postgres_rto": 3, "object_restore_rto": 2,
+            "service_rpo": 0, "service_rto": 8, "measured_at": "2026-08-07T02:00:00Z", "last_drill": "real drill"}
+json.dump(measured, open(out + "/measured.json", "w"), indent=2)
+PY
+rc=0
+bash "$DRILL_SCRIPT" -EnvironmentFile "$F/env" -OverrideFile "$F/override.yaml" \
+  -CandidateManifest "$F/candidate.json" -PreviousManifest "$F/previous.json" -ReportDir "$F/report3" -Drill \
+  -RecoveryObjectives "$F/objectives.json" -Measured "$F/measured.json" \
+  >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || { echo "FAIL: unmet recovery objectives must fail the drill" >&2; exit 1; }
+echo "OK: unmet recovery objectives fail the drill"
+
+rc=0
+bash "$DRILL_SCRIPT" -EnvironmentFile "$F/env" -OverrideFile "$F/override.yaml" \
+  -CandidateManifest "$F/candidate.json" -PreviousManifest "$F/previous.json" -ReportDir "$F/report4" -Drill \
+  -RecoveryObjectives "$F/objectives.json" >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 2 ] || { echo "FAIL: -RecoveryObjectives without -Measured must exit 2" >&2; exit 1; }
+echo "OK: -RecoveryObjectives without -Measured rejected"
+
 echo "All staging-drill contract tests passed"

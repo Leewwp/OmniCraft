@@ -151,4 +151,133 @@ if grep -E "AKIA[0-9A-Z]{16}|password|secret|ACCESS_KEY|access_key" "$TEMP_ROOT/
 fi
 echo "OK: receipt is free of secret-like content"
 
+# ------------------------------------------------- real destination validation
+FIXTURE5="$TEMP_ROOT/fixture5"
+make_fixture "$FIXTURE5"
+rc=0
+bash "$ARCHIVE" -Manifest "$FIXTURE5/release-manifest.json" -TargetDir "$TEMP_ROOT/dest5" -GitHubRelease "CHANGE_ME" >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 1 ] || { echo "FAIL: placeholder -GitHubRelease must be rejected" >&2; exit 1; }
+echo "OK: placeholder -GitHubRelease rejected"
+
+rc=0
+bash "$ARCHIVE" -Manifest "$FIXTURE5/release-manifest.json" -GitHubRelease "v0.1.0-fixture" -OffsiteUri "not-an-oss-uri" >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 1 ] || { echo "FAIL: malformed -OffsiteUri must be rejected" >&2; exit 1; }
+echo "OK: malformed -OffsiteUri rejected"
+
+rc=0
+bash "$ARCHIVE" -Manifest "$FIXTURE5/release-manifest.json" -TargetDir "$TEMP_ROOT/dest5" >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 0 ] || { echo "FAIL: -TargetDir only mode must still work" >&2; exit 1; }
+echo "OK: -TargetDir only mode retained"
+
+# ------------------------------- real destinations with fake gh/ossutil CLIs
+FAKE_BIN="$TEMP_ROOT/fake-bin"
+mkdir -p "$FAKE_BIN"
+cat > "$FAKE_BIN/gh" <<'EOF'
+#!/usr/bin/env bash
+# fake gh: records invocation; release view returns one asset per upload
+if [ "$1" = "release" ] && [ "$2" = "upload" ]; then
+  echo "$@" >> "$GH_RECORD"
+  exit 0
+fi
+if [ "$1" = "release" ] && [ "$2" = "view" ]; then
+  echo '{"assets":[{"name":"artifact","url":"https://example.invalid/asset","size":10,"state":"uploaded"}]}'
+  exit 0
+fi
+echo "fake gh: unexpected args: $*" >&2
+exit 1
+EOF
+cat > "$FAKE_BIN/ossutil" <<'EOF'
+#!/usr/bin/env bash
+# fake ossutil: records invocation; stat returns retention metadata
+if [ "$1" = "cp" ]; then
+  echo "$@" >> "$OSSUTIL_RECORD"
+  exit 0
+fi
+if [ "$1" = "stat" ] || [ "$1" = "ls" ]; then
+  echo "$@" >> "$OSSUTIL_RECORD"
+  if [ "$1" = "ls" ]; then
+    echo "2026-08-07 00:00:00 +0800 CST  10  IA  ETAGMOCK  $2"
+  else
+    cat <<'OUT'
+object size: 10
+x-oss-meta-retention-days: 365
+x-oss-meta-expires-at: 2027-08-07T00:00:00Z
+x-oss-server-side-encryption: OSS
+OUT
+  fi
+  exit 0
+fi
+echo "fake ossutil: unexpected args: $*" >&2
+exit 1
+EOF
+chmod +x "$FAKE_BIN/gh" "$FAKE_BIN/ossutil"
+
+FIXTURE6="$TEMP_ROOT/fixture6"
+make_fixture "$FIXTURE6"
+GH_RECORD="$TEMP_ROOT/gh.calls"
+OSSUTIL_RECORD="$TEMP_ROOT/ossutil.calls"
+PATH="$FAKE_BIN:$PATH" OFFSITE_ARCHIVE_AK_ID="LTAI5tFIXTURE0000000000" \
+  OFFSITE_ARCHIVE_AK_SECRET="fixture-secret-not-committed" \
+  OFFSITE_ARCHIVE_ENDPOINT="oss-cn-hangzhou.aliyuncs.com" \
+  GH_RECORD="$GH_RECORD" OSSUTIL_RECORD="$OSSUTIL_RECORD" \
+  bash "$ARCHIVE" -Manifest "$FIXTURE6/release-manifest.json" \
+  -GitHubRelease "v0.1.0-fixture" -OffsiteUri "oss://omnicraft-fixture/ops-evidence" \
+  -ReportDir "$FIXTURE6" -RetentionDays 365
+python3 - "$FIXTURE6/archive-receipt.json" "$GH_RECORD" "$OSSUTIL_RECORD" <<'PY'
+import json, os, sys
+
+receipt = json.load(open(sys.argv[1], encoding="utf-8"))
+gh_calls = open(sys.argv[2], encoding="utf-8").read()
+ossutil_calls = open(sys.argv[3], encoding="utf-8").read()
+
+def fail(msg):
+    print("FAIL: " + msg, file=sys.stderr)
+    sys.exit(1)
+
+if receipt["blockers"]:
+    fail("real destination mode must not record simulated Ops-08 blockers: %s" % receipt["blockers"])
+if receipt["retention_days"] != 365:
+    fail("one-year retention not honored in real mode")
+if receipt["redaction_checked"] is not False:
+    fail("redaction_checked must be present")
+for dest in receipt["destinations"]:
+    if dest["type"] == "github-release":
+        if dest.get("tag") != "v0.1.0-fixture":
+            fail("github-release destination must carry the tag")
+        if not dest["objects"] or any("sha256" not in o for o in dest["objects"]):
+            fail("github-release objects must carry digests")
+    elif dest["type"] == "offsite-encrypted":
+        if dest.get("uri") != "oss://omnicraft-fixture/ops-evidence":
+            fail("offsite-encrypted destination must carry the uri")
+        if dest.get("encryption", {}).get("simulated") is not False:
+            fail("offsite encryption must be marked real (sse-oss)")
+        if not dest["objects"] or any(not o.get("verified") for o in dest["objects"]):
+            fail("offsite objects must be verified")
+    elif dest["type"] != "local-mirror":
+        fail("unexpected destination type " + dest["type"])
+if "upload" not in gh_calls or "v0.1.0-fixture" not in gh_calls:
+    fail("fake gh must have been invoked for release upload")
+if "--meta" not in ossutil_calls or "oss://omnicraft-fixture/ops-evidence" not in ossutil_calls:
+    fail("fake ossutil must have been invoked with the off-site uri")
+if "ls" not in ossutil_calls:
+    fail("offsite objects must be existence-verified via ls")
+if "LTAI5tFIXTURE" in open(sys.argv[1], encoding="utf-8").read():
+    fail("receipt must never contain credentials")
+print("real destination mode assertions passed")
+PY
+
+# ------------------- real destinations refuse missing tooling on PATH
+FIXTURE7="$TEMP_ROOT/fixture7"
+make_fixture "$FIXTURE7"
+EMPTY_BIN="$TEMP_ROOT/empty-bin"
+mkdir -p "$EMPTY_BIN"
+rc=0
+PATH="$EMPTY_BIN:$PATH" OFFSITE_ARCHIVE_AK_ID="x" OFFSITE_ARCHIVE_AK_SECRET="y" \
+  OFFSITE_ARCHIVE_ENDPOINT="oss-cn-hangzhou.aliyuncs.com" \
+  bash "$ARCHIVE" -Manifest "$FIXTURE7/release-manifest.json" \
+  -GitHubRelease "v0.1.0-fixture" -OffsiteUri "oss://omnicraft-fixture/ops" \
+  -ReportDir "$FIXTURE7" >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 1 ] || { echo "FAIL: missing gh/ossutil on PATH must fail" >&2; exit 1; }
+echo "OK: missing tooling on PATH rejected"
+
 echo "All archive-release-evidence contract tests passed"

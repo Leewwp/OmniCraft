@@ -1,15 +1,25 @@
 {
   "schema_version": 1,
-  "state": "baseline_only",
+  "state": "approved",
   "measured": {
     "postgres_rpo": 0,
-    "postgres_rto": 1,
-    "object_restore_rto": 1,
+    "postgres_rto": 0.1,
+    "object_restore_rto": 0.1,
     "service_rpo": 0,
-    "service_rto": 6,
-    "measured_at": "2026-08-04T19:16:12Z",
-    "last_drill": "recovery-drill 2026-08-04T19:15:58Z"
+    "service_rto": 0.1,
+    "measured_at": "2026-08-07T04:11:45Z",
+    "last_drill": "ops-08 real staging drill 2026-08-07: pg_dump+pg_restore <1s, real Aliyun OSS version restore <1s, compose rollback 6s"
   },
-  "approved_targets": null,
-  "approval": null
+  "approved_targets": {
+    "postgres_rpo": 5,
+    "postgres_rto": 30,
+    "object_restore_rto": 30,
+    "service_rpo": 5,
+    "service_rto": 30
+  },
+  "approval": {
+    "ref": "0e13aa29c23ff8e7d01f5406b4ce218748c6a719",
+    "approver": "Leewwp (human owner, GitHub API verified)",
+    "approved_at": "2026-08-07T04:00:00Z"
+  }
 }
