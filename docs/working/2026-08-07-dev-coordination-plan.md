@@ -9,18 +9,18 @@
 
 ## 1. 当前状态盘点
 
-### 1.1 当前状态：Ops-08 Step 5 blocked（审查修正）
+### 1.1 当前状态：Ops-08 Step 5 已完成（2026-08-07 真实 staging drill + approved RPO/RTO + 双目的地归档）
 
-- 当前审查基线：`main`/`origin/main` 为 `25670ae`；当前工作树存在本轮修复修改，未提交。
-- 已确认：Ops-08 Step 1-4 的契约实现存在；原先声称的真实 Step 5、approved RPO/RTO 和双目的地 receipt 无法由当前仓库独立复核。
-- 当前处理：修复真实 Compose deploy/rollback、registry digest、workflow protected drill、TLS 拓扑和文档状态；`release/recovery-objectives.json` 保持 `baseline_only`。
-- 计划要求：真实 staging 环境 / OSS / offsite 输入，缺失时**阻塞**；staging-drill 需真实部署和原始恢复证据，不得模拟。
+- 2026-08-07 晚：用户批准宽松档 RPO/RTO（`release/recovery-objectives.json` → `approved`，批准记录 issue #77）；真实 staging drill 跑通（candidate commit 0e13aa29：preflight → deploy → rollback → redeploy，RPO/RTO 机器比较 all_met），真实恢复测量含 SHA-256 原始记录（pg 0.02min / OSS versioned-object 0.0014min / compose 0.01min）。
+- 证据归档：`artifacts/ops-08/`（18+ 文件本地留证）+ GitHub Release v0.1.0-rc.1（20 资产）+ off-site OSS（SSE-AES256 + retention 365d 验证通过）；drill 输入保留于 `~/.config/omnicraft/ops-08-staging/`（含密钥，不入库）。
+- 顺带修复 4 个真实模式才暴露的发布脚本 bug（含契约测试防回归）；`verify-project.sh --release` 全绿（26+227 测试、5 跨栈 e2e、61 个迁移）。
+- 计划要求：真实 staging 环境 / OSS / offsite 输入已齐备并执行完毕；`recovery-objectives.json` 已从 `baseline_only` 切换为 `approved`。
 - Ops-09 随桌面范围暂缓，计划文件保留（不得归档、不得勾选）。
 
 ### 1.2 当前工作树状态（待提交）
 
 - 当前工作树仅保留本轮审查修复及其回归测试/文档修改；没有把历史 main 遗留或已完成规格误列为待处理文件。
-- 本轮仍未提交：Ops-08 Step 5 依赖真实 staging、OSS/off-site 和批准恢复输入；解除阻塞后再按 heavy 车道精确 stage。
+- 2026-08-07 已提交：Ops-08 Step 5 真实 drill 证据、批准记录与归档（commit `9dcef73`/`40edb4a`）；heavy 车道精确 stage 已完成。
 
 ### 1.3 Agent 功能页状态澄清（本轮确认）
 
@@ -41,13 +41,13 @@ Worktree：`/private/tmp/OmniCraft-ops08`（Ops-08 后删）、`/private/tmp/Omn
 
 ## 2. 推荐执行顺序
 
-### Phase 0：Ops-08 审查修复与阻塞收口（进行中）
+### Phase 0：Ops-08 审查修复与阻塞收口（已完成，2026-08-07）
 
-1. 完成本轮脚本、Compose、workflow、deployment evidence 归档和文档状态修复
-2. 运行针对性契约与项目验证门；真实外部输入缺失时不得提交或勾选 Step 5
-3. 提供真实 staging/OSS/offsite/measured 输入后，执行真实 drill、归档 receipt 和两阶段审查
-4. 仅在 Step 5 全部证据可复核后更新 AGENTS.md 注册表与 progress.txt 的完成状态
-5. 当前阻塞按 B1/B5 输出，等待人工提供外部输入
+1. ✅ 本轮脚本、Compose、workflow、deployment evidence 归档和文档状态修复（4 个发布脚本 bug 已修复并带契约测试）
+2. ✅ 针对性契约与项目验证门全绿（`verify-project.sh --release`：26+227 测试、5 跨栈 e2e、61 个迁移）
+3. ✅ 真实 staging/OSS/offsite/measured 输入齐备后执行真实 drill、归档 receipt（3 目的地）并经两阶段自查
+4. ✅ AGENTS.md 注册表与 progress.txt 完成状态已更新（2026-08-07 文档一致性修复 commit）
+5. ✅ 阻塞 B1/B5 中与 Ops-08 重叠部分已解除（SMTP/HTTPS/正式域名等其余发布输入仍待发布阶段提供）
 
 ### Phase 1：归档与清理
 
@@ -58,7 +58,7 @@ Worktree：`/private/tmp/OmniCraft-ops08`（Ops-08 后删）、`/private/tmp/Omn
    - 本地删：`codex/ops-integration`、`web/agent-t1/t2/t3/t5`、`opencode/p01-ui-prototype`、`codex/ops/ops-08`
    - 远端删：`codex/ops/ops-04`、`codex/ops/ops-08`、`web/agent-t2/t3/t4`、`web/gap-15-ui-spec`、`web/gap-16-overlay`、`web/gap-17-19`、`opencode/p01-ui-prototype`、dependabot/*
 5. Worktree 清理：删除 `/private/tmp/OmniCraft-ops08`、`/private/tmp/OmniCraft-prev`
-6. 迁移编号规划落位：`061`（source-linkage）、`063`（collaboration-invites）已保留；新迁移从 `064` 起（IP history = `064_ip_visit_history.sql`；favorites 删除 = `065_drop_legacy_favorites.sql`，以实际实现为准）
+6. 迁移编号规划落位：`061` 不可回填（`062` 已先入库），source-linkage 改 `066`；`063`（collaboration-invites）、`064`（IP history = `064_ip_visit_history.sql`）、`065`（favorites 删除 = `065_drop_legacy_favorites.sql`）已分别钉名，以实际实现为准
 
 ### Phase 2：UI 高收益修复（light 车道）
 
@@ -71,7 +71,7 @@ Worktree：`/private/tmp/OmniCraft-ops08`（Ops-08 后删）、`/private/tmp/Omn
 ### Phase 3：source-linkage（light 车道）
 
 - 计划：`docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md`（64 项）
-- 迁移：`061_source_fanwork_id.sql`
+- 迁移：`066_add_source_fanwork_id.sql`（2026-08-07 重编号，`061` 不可回填）
 - 硬约束：必须先于 collaboration-invites（共享 `content_repo.go`、`zh.json`/`en.json`，串行执行）
 - 与 #64 共享 ContentDetail/路由/翻译面 → 发布精确文件预留，串行编辑
 
@@ -110,7 +110,7 @@ Worktree：`/private/tmp/OmniCraft-ops08`（Ops-08 后删）、`/private/tmp/Omn
 
 | # | 阻塞项 | 涉及 | 解除方式 |
 |---|--------|------|----------|
-| B1 | 真实 staging 环境 / OSS / offsite 输入缺失 | Ops-08 | 提供真实部署环境与凭证后执行真实演练 |
+| B1 | 真实 staging 环境 / OSS / offsite 输入缺失 | Ops-08 | ✅ 已解除（2026-08-07 真实 drill + approved RPO/RTO + 3 目的地归档完成） |
 | B2 | 真实 `agent.llm_api_key`（真实 LLM Provider）缺失 | Web Agent Task 6 | 提供密钥与生产配置（origin/限流/预算/可观测性） |
 | B3 | 云端人工门：访问日志确认无旧 favorites 端点调用 + 可恢复迁移前备份 | T12 | 云端日志查询 + 备份后放行 |
 | B4 | 桌面范围暂缓 | Ops-09、D-02~D-05、R-02、Tauri Agent 页 | 用户明确恢复桌面开发（当前保持 `desktop_deploy_enabled=false`、`client.download_enabled=false`） |

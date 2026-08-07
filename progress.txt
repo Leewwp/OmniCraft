@@ -59,3 +59,20 @@
 ### Notes:
 - artifacts/ 目录被 .gitignore 忽略，本地留证 + GitHub Release/OSS 双目的地归档；drill 输入（env/manifest/measured）保留在 ~/.config/omnicraft/ops-08-staging/（含密钥，不入库）。
 - 桌面范围（Ops-09）与 Web Agent Task 6 不属本轮，维持原阻塞。
+
+## [2026-08-07] - 文档一致性修复：Ops-08 完成状态收口 + source-linkage 迁移重编号 061→066
+
+### What was done:
+- 全面审计（git 干净、doc-validator release 全绿、Ops-08 证据真实可复核）后修复 3 处文档与实际情况不符的问题：
+  1. **Ops-08 完成状态收口**：AGENTS.md 活计划注册表移除 Ops-08 Step 5 行（已完成），暂缓表 Ops-09 行恢复条件更新为「Ops-00~Ops-08 已全部完成」；production-readiness 计划 Status 头更新，审查修正记录 blockquote 追加「Step 5 完成（2026-08-07）」条目；working 协调文档 1.1/1.2/Phase 0/B1 同步更新为完成态。
+  2. **source-linkage 迁移重编号 `061`→`066`**：`061` 因 `062_notification_broadcast_idempotency.sql` 已先入库而不可回填（回填会造成新装库与既有库应用顺序分歧），`063`（collab）/`064`（IP history #64 T09）/`065`（favorites #64 T12）已钉名，取下一可用号 `066`。同步更新：AGENTS.md、source-linkage 计划（5 处）、collaboration-invites 计划（3 处）、community-features-design 规格（2 处）、deployment-contract.tests.sh 夹具（3 组 4 处）、working 协调文档（2 处）。
+  3. **issue #77 收口**：追加完成注释并关闭（作为 Ops-08 Step 5 approved RPO/RTO 的 API 可核验证据长期保留，recovery-objectives.json 仍引用其 URL）。
+
+### Testing:
+- `bash scripts/release/deployment-contract.tests.sh`：全部通过（夹具迁移编号更新为 062→066 无回归）。
+- `go run . --check`（tools/doc-validator，release profile）：All checks passed。
+- 全库 grep：无残留 `061_add_source_fanwork` / `Step 5 remains blocked` 引用（archive 历史记录除外，属历史日志不修改）。
+
+### Notes:
+- 纯文档/测试夹具改动，无运行时代码变更；未勾选任何计划 checkbox；下一步仍按注册表执行 #64 Ticket 01（issue #65）。
+- issue #77 关闭不影响证据有效性：GitHub issue 关闭后仍可访问，`release/recovery-objectives.json` 的 `approval.ref` 不受影响。

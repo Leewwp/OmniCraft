@@ -121,8 +121,8 @@ def manifest(version, commit, digest, previous, head):
 
 d1 = "sha256:" + "1" * 64
 d2 = "sha256:" + "2" * 64
-head_old = "060_fix_search_config_fallback.sql"
-head_new = "061_add_source_fanwork_id.sql"
+head_old = "062_notification_broadcast_idempotency.sql"
+head_new = "066_add_source_fanwork_id.sql"
 
 with open(out + "/candidate.json", "w") as f:
     json.dump(manifest("v0.2.0", "a" * 40, d2, d1, head_new), f, indent=2)
@@ -279,9 +279,9 @@ import json, sys
 for path in sys.argv[1:]:
     data = json.load(open(path))
     if path.endswith("previous.json"):
-        data["schema_compat"]["max_head"] = "061_add_source_fanwork_id.sql"
+        data["schema_compat"]["max_head"] = "066_add_source_fanwork_id.sql"
     else:
-        data[0]["migration_head"] = "061_add_source_fanwork_id.sql"
+        data[0]["migration_head"] = "066_add_source_fanwork_id.sql"
     json.dump(data, open(path, "w"), indent=2)
 PY
 printf 'smoke ok\n' > "$F/smoke.txt"
@@ -352,11 +352,11 @@ make_fixture "$F"
 python3 - "$F/previous.json" "$F/history.json" <<'PY'
 import json, sys
 m = json.load(open(sys.argv[1]))
-# Previous app only understands migrations up to 060; DB is at 061 now.
-m["schema_compat"]["max_head"] = "060_fix_search_config_fallback.sql"
+# Previous app only understands migrations up to 062; DB is at 066 now.
+m["schema_compat"]["max_head"] = "062_notification_broadcast_idempotency.sql"
 json.dump(m, open(sys.argv[1], "w"), indent=2)
 h = json.load(open(sys.argv[2]))
-h[0]["migration_head"] = "061_add_source_fanwork_id.sql"
+h[0]["migration_head"] = "066_add_source_fanwork_id.sql"
 json.dump(h, open(sys.argv[2], "w"), indent=2)
 PY
 expect_rollback 1 "rollback to schema-incompatible digest refused" "$F" -Drill
