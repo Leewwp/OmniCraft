@@ -782,7 +782,7 @@ Require immutable digests, preflight, backup, migration, readiness, smoke and re
 
 Build/verify once, deploy the same digest, use GitHub Environment protection, and upload deployment manifest. Production is manual; PR cannot deploy.
 
-- [ ] **Step 5: Perform staging deploy and rollback drill**
+- [x] **Step 5: Perform staging deploy and rollback drill**
 
 Deploy release candidate, verify, roll back to previous application digest against compatible schema, verify again, then redeploy candidate. Record actual durations and operator commands. Before the drill require `OMNICRAFT_STAGING_ENV_FILE`, `OMNICRAFT_STAGING_OVERRIDE_FILE`, `OMNICRAFT_CANDIDATE_MANIFEST`, `OMNICRAFT_PREVIOUS_MANIFEST`, real staging OSS/versioning credentials and encrypted off-site archive destination; the drill script validates each input and refuses placeholders. The measured recovery input must bind to the candidate commit and include SHA-256 references to the original recovery records; metric-only hand-written JSON fails closed. Change `release/recovery-objectives.json` from `baseline_only` to user-approved numeric database/object/service RPO/RTO with a commit-bound, API-verifiable approval reference, then machine-compare measured PostgreSQL + Aliyun OSS restore/reconciliation results. Invoke `archive-release-evidence.sh` against both durable destinations and verify retention metadata.
 
