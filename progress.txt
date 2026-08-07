@@ -39,3 +39,23 @@
 
 ### Notes:
 - artifacts 证据目录与 Ops-08 Step 5 保持 blocked；T09/T12 迁移文件尚未创建，issue 正文仅钉名待执行任务使用。
+
+## [2026-08-07] - Ops-08 Step 5 解除阻塞并完成：真实 staging drill + 双目的地归档
+
+### What was done:
+- 用户批准宽松档 RPO/RTO（postgres_rpo 1440 / postgres_rto 30 / object_restore_rto 60 / service_rpo 0 / service_rto 30，单位分钟），批准记录 issue #77（GitHub API 可核验），`release/recovery-objectives.json` 从 baseline_only 切换为 approved。
+- 真实恢复测量（原始记录含 SHA-256，绑定 candidate commit 0e13aa29）：PostgreSQL pg_dump 0.553s + pg_restore 1.199s（55 表全恢复，RTO 0.02min）；真实 OSS bucket omnicraft（versioning Enabled）版本化对象 上传→删除→按 versionId 移除删除标记恢复 0.081s（RTO 0.0014min，对象完整性验证后清理）；compose 服务恢复 0.603s（RTO 0.01min）。
+- 从目标 commit（0e13aa29 / f01fc378）重建 candidate/previous 镜像（label 绑定 commit），重写 manifest 为真实可复算 digest（此前 ~/.config 中 manifest 的 digest 与本地镜像不一致，不可复核）。
+- 真实 staging drill 跑通：preflight → deploy candidate（真实 compose、61 迁移、pg 备份、readiness、smoke）→ rollback previous → redeploy candidate → RPO/RTO 机器比较 all_met。证据 18 文件在 artifacts/ops-08/（backup 两份 .custom dump、history、durations、comparison 等）。
+- 归档：`archive-release-evidence.sh` 18 对象 × 3 目的地（GitHub Release v0.1.0-rc.1 资产 + 本地镜像 + off-site OSS `oss://omnicraft-ops-archive/ops-evidence`，SSE-AES256 + retention 365d 元数据验证通过，receipt 生成）。
+- 顺带修复真实模式才暴露的 4 个发布脚本 bug（含契约测试防回归）：staging-drill.sh bash3.2 空数组 unbound（DRILL_ARGS 改字符串）；3 处把 JSON 当 python 脚本执行；compose-release.sh `build: null` 被 Compose v5 拒绝改 `!reset null` + 本地 digest 镜像 pull 改 best-effort；archive-release-evidence.sh ossutil cp 加 -f 强制覆盖（旧对象元数据错误被覆盖修正）。用户补 RAM 权限 oss:GetObjectMeta + oss:GetObjectAcl 后 stat 验证通过。
+- 验收门：preflight/deployment-contract/staging-drill 契约测试全绿；doc-validator --fix/--check --profile release 通过；`verify-project.sh --release` 全绿（26+227 测试、5 Playwright cross-stack e2e——新增 omnicraft_test 库并迁移 61 个迁移）；`validate-evidence.sh` summary 校验通过。
+
+### Testing:
+- Go/前端全套：verify-project.sh --release 通过（OMNICRAFT_TEST_DB_DSN 指向新建 omnicraft_test 库、OMNICRAFT_TEST_COMPOSE_ROOT 为仓库根）。
+- 浏览器：drill 后 backend healthz（localhost:18080）与 frontend（localhost:13000）smoke 通过（脚本内 curl 验证）。
+- 证据：artifacts/ops-08/summary.json 通过 ops-evidence.schema 校验。
+
+### Notes:
+- artifacts/ 目录被 .gitignore 忽略，本地留证 + GitHub Release/OSS 双目的地归档；drill 输入（env/manifest/measured）保留在 ~/.config/omnicraft/ops-08-staging/（含密钥，不入库）。
+- 桌面范围（Ops-09）与 Web Agent Task 6 不属本轮，维持原阻塞。
