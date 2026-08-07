@@ -5,7 +5,7 @@
 ## Domain map
 
 - 内容发现：推荐流、原创/二创分区、IP 库与 IP 详情页；决策入口见 `docs/GLOSSARY.md` 和 `docs/working/2026-08-04-content-discovery-gap-plan.md`。
-- 内容浏览：所有卡片入口最终复用内容详情浮层，完整详情页保留给直达 URL；路由决策见 `docs/working/2026-07-25-wayfinder-ticket-content-modal-routing.md`。
+- 内容浏览：所有卡片入口最终复用内容详情浮层，完整详情页保留给直达 URL；媒体集/媒体查看器/连续浏览/相关内容规范见 `docs/superpowers/specs/2026-08-08-omnicraft-media-experience-design.md`；路由决策见 `docs/working/2026-07-25-wayfinder-ticket-content-modal-routing.md`。
 - Web Agent：顶部导航进入受保护的 `/agent` 全页工作台，全站搜索保持关键词职责；见 `docs/adr/0003-web-agent-dedicated-workspace.md`。
 - 社区互动：用户资料浮层、私信聊天浮层和冷启动私信共享消息事实源；详细规则见 `docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md` §1。
 
