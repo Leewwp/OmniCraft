@@ -183,6 +183,9 @@ func TestAgentToolPolicy(t *testing.T) {
 
 	t.Run("tool-call limit is config-driven and stops the loop", func(t *testing.T) {
 		policy := svc.ToolPolicy()
+		if !policy.Valid() {
+			t.Fatalf("configured tool policy = %#v, want valid policy", policy)
+		}
 		if policy.MaxCallsPerTurn != 2 {
 			t.Fatalf("MaxCallsPerTurn = %d, want 2 from config", policy.MaxCallsPerTurn)
 		}
@@ -191,6 +194,17 @@ func TestAgentToolPolicy(t *testing.T) {
 		}
 		if policy.AllowToolCall(2) || policy.AllowToolCall(99) {
 			t.Fatal("AllowToolCall must stop the loop at the limit")
+		}
+	})
+
+	t.Run("missing tool limits are not replaced with code defaults", func(t *testing.T) {
+		invalid := NewAgentService(provider, nil, repository.NewContentRepository(db), nil, db, &config.Config{})
+		policy := invalid.ToolPolicy()
+		if policy.Valid() {
+			t.Fatalf("missing tool limits produced valid policy %#v", policy)
+		}
+		if policy.MaxCallsPerTurn != 0 || policy.MaxOutputTokens != 0 || policy.CitationMaxCount != 0 {
+			t.Fatalf("missing tool limits must remain zero, got %#v", policy)
 		}
 	})
 }

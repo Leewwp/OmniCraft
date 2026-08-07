@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # =============================================================================
 # OmniCraft release-evidence archiver: proves the archive contract — copies
-# the manifest, SBOMs, artifacts and migration manifest into durable
-# destinations and writes a machine-readable receipt with per-object digests
-# and one-year (default) retention metadata.
+# either an Ops-06 release manifest (SBOMs, artifacts and migration manifest)
+# or an Ops-08 deployment manifest plus its complete evidence directory into
+# durable destinations, then writes a machine-readable receipt with
+# per-object digests and one-year (default) retention metadata.
 #
 # Two operation modes:
 #   - Local adapter mode (Ops-06): -TargetDir copies into a local destination
@@ -12,7 +13,7 @@
 #   - Real destination mode (Ops-08 Step 5): -GitHubRelease <tag> uploads
 #     the objects as GitHub Release assets via `gh`; -OffsiteUri oss://.../
 #     uploads the objects to the operator off-site Aliyun OSS bucket with
-#     SSE-OSS encryption and retention metadata via `ossutil`. Credentials
+#     SSE-OSS AES256 encryption and retention metadata via `ossutil`. Credentials
 #     come from the operator environment (source the off-site archive env
 #     file first; ARCHIVE_AK_ID/ARCHIVE_AK_SECRET + OFFSITE_ARCHIVE_* are
 #     accepted) and are never written to any receipt.
@@ -68,6 +69,7 @@ fi
 case "$RETENTION_DAYS" in
   ''|*[!0-9]*) echo "retention days must be a positive integer" >&2; exit 2 ;;
 esac
+[ "$RETENTION_DAYS" -gt 0 ] || { echo "retention days must be a positive integer" >&2; exit 2; }
 
 MANIFEST="$(cd "$(dirname "$MANIFEST")" && pwd)/$(basename "$MANIFEST")"
 if [ -n "$TARGET_DIR" ]; then
@@ -96,6 +98,7 @@ import datetime
 import hashlib
 import json
 import os
+import pathlib
 import re
 import shutil
 import subprocess
@@ -151,20 +154,48 @@ if offsite_uri:
     if not offsite_ak_id or not offsite_ak_secret:
         fail("off-site archive credentials missing: set ARCHIVE_AK_ID/ARCHIVE_AK_SECRET or OFFSITE_ARCHIVE_AK_ID/OFFSITE_ARCHIVE_AK_SECRET")
 
+if real_mode and (not github_release or not offsite_uri):
+    fail("real archive mode requires both -GitHubRelease and -OffsiteUri")
+
 if real_mode and not target_dir:
     target_dir = os.path.join(report_dir, "archive-local")
 
+def safe_object_name(value):
+    if not isinstance(value, str) or not value or "\\" in value:
+        fail(f"archive object path must be a non-empty relative POSIX path: {value!r}")
+    path = pathlib.PurePosixPath(value)
+    if path.is_absolute() or ".." in path.parts:
+        fail(f"archive object path escapes the manifest directory: {value}")
+    normalized = path.as_posix()
+    if normalized in ("", "."):
+        fail(f"archive object path is empty: {value!r}")
+    return normalized
+
 objects = [manifest_name]
-for comp in manifest.get("components", []):
-    objects.append(comp["sbom_path"])
-for artifact in manifest.get("artifacts", []):
-    objects.append(artifact["path"])
-mm = manifest.get("migration_manifest", {})
-if mm.get("path"):
-    objects.append(mm["path"])
-for extra in ("provenance-verification.json", "sbom-generation.json"):
-    if os.path.isfile(os.path.join(manifest_dir, extra)):
-        objects.append(extra)
+is_release_manifest = bool(manifest.get("components") or manifest.get("artifacts") or manifest.get("migration_manifest"))
+if is_release_manifest:
+    for comp in manifest.get("components", []):
+        objects.append(safe_object_name(comp["sbom_path"]))
+    for artifact in manifest.get("artifacts", []):
+        objects.append(safe_object_name(artifact["path"]))
+    mm = manifest.get("migration_manifest", {})
+    if mm.get("path"):
+        objects.append(safe_object_name(mm["path"]))
+    for extra in ("provenance-verification.json", "sbom-generation.json"):
+        if os.path.isfile(os.path.join(manifest_dir, extra)):
+            objects.append(extra)
+else:
+    # Ops-08 deployment manifests are evidence indexes rather than SBOM
+    # manifests. Archive the complete evidence directory so the receipt can
+    # be independently checked (preflight, backup, migration, readiness,
+    # smoke, rollback and recovery comparison), not just the top-level JSON.
+    for root, dirs, files in os.walk(manifest_dir):
+        dirs[:] = sorted(d for d in dirs if d not in {"archive-local", "offsite"})
+        for filename in sorted(files):
+            relative = os.path.relpath(os.path.join(root, filename), manifest_dir)
+            if relative in {"archive-receipt.json", "archive-release-evidence.json"}:
+                continue
+            objects.append(safe_object_name(relative))
 
 missing = [p for p in objects if not os.path.isfile(os.path.join(manifest_dir, p))]
 if missing:
@@ -239,26 +270,32 @@ if real_mode:
         for name in all_names:
             src = os.path.join(manifest_dir, name)
             run = subprocess.run(
-                ["gh", "release", "upload", github_release, src, "--clobber"],
+                # `file#label` preserves relative paths in the release asset
+                # name; uploading only `src` would flatten SBOM directories
+                # and make same-named evidence files collide.
+                ["gh", "release", "upload", github_release, f"{src}#{name}", "--clobber"],
                 capture_output=True, text=True)
             if run.returncode != 0:
                 fail(f"github release upload failed for {name}: {run.stderr.strip()}")
         view = subprocess.run(
             ["gh", "release", "view", github_release, "--json", "assets"],
             capture_output=True, text=True)
-        if view.returncode == 0:
-            try:
-                for asset in json.loads(view.stdout).get("assets", []):
-                    assets[asset["name"]] = {
-                        "url": asset.get("url", ""),
-                        "size": asset.get("size", 0),
-                        "state": asset.get("state", ""),
-                    }
-            except (OSError, ValueError):
-                assets = {}
+        if view.returncode != 0:
+            fail(f"github release asset verification failed: {view.stderr.strip()}")
+        try:
+            for asset in json.loads(view.stdout).get("assets", []):
+                assets[asset["name"]] = {
+                    "url": asset.get("url", ""),
+                    "size": asset.get("size", 0),
+                    "state": asset.get("state", ""),
+                }
+        except (KeyError, OSError, TypeError, ValueError) as e:
+            fail(f"github release asset response is not valid JSON: {e}")
         github_objects = []
         for name in all_names:
             remote = assets.get(name, {})
+            if remote.get("state") != "uploaded":
+                fail(f"github release asset verification missing uploaded asset: {name}")
             sha = sha256_file(os.path.join(manifest_dir, name))
             github_objects.append({
                 "name": name,
@@ -276,14 +313,16 @@ if real_mode:
     if offsite_uri:
         if shutil.which("ossutil") is None:
             fail("ossutil CLI is required for -OffsiteUri but is not on PATH")
+        archive_commit = manifest.get('commit') or 'unknown'
+        retention_meta = (
+            f"x-oss-meta-retention-days:{retention_days}#"
+            f"x-oss-meta-expires-at:{expires_str}#"
+            f"x-oss-meta-archive-commit:{archive_commit}#"
+            "x-oss-server-side-encryption:AES256"
+        )
         ossutil_cmd = ["ossutil", "cp", "-e", offsite_endpoint,
                        "-i", offsite_ak_id, "-k", offsite_ak_secret,
-                       "--meta", (
-                           f"x-oss-meta-retention-days:{retention_days},"
-                           f"x-oss-meta-expires-at:{expires_str},"
-                           f"x-oss-meta-archive-commit:{manifest.get('commit') or 'unknown'},"
-                           "x-oss-server-side-encryption:OSS"
-                       )]
+                       "--meta", retention_meta]
         remote = f"oss://{offsite_bucket}"
         if offsite_prefix:
             remote += f"/{offsite_prefix}"
@@ -294,19 +333,36 @@ if real_mode:
                 fail(f"ossutil upload failed for {name}: {run.stderr.strip() or run.stdout.strip()}")
         oss_objects = []
         for name in all_names:
-            # ossutil stat requires GetObject rights which scoped archive RAM
-            # users typically lack; ls (ListObjects) verifies existence/size.
+            # ListObjects only proves that an object name exists. stat is
+            # required here because the release gate must verify the remote
+            # encryption and retention metadata, not just record the upload
+            # command's intended headers.
             verify = subprocess.run(
-                ["ossutil", "ls", f"{remote}/{name}",
+                ["ossutil", "stat", f"{remote}/{name}",
                  "-e", offsite_endpoint, "-i", offsite_ak_id, "-k", offsite_ak_secret],
                 capture_output=True, text=True)
+            if verify.returncode != 0:
+                fail(f"off-site archive metadata verification failed for {name}: {verify.stderr.strip() or verify.stdout.strip()}")
+            metadata = verify.stdout
+            expected_metadata = {
+                "x-oss-meta-retention-days": str(retention_days),
+                "x-oss-meta-archive-commit": archive_commit,
+                "x-oss-server-side-encryption": "AES256",
+            }
+            for key, expected in expected_metadata.items():
+                match = re.search(rf"(?im)^\s*{re.escape(key)}\s*:\s*(.*?)\s*$", metadata)
+                if not match or match.group(1) != expected:
+                    fail(f"off-site archive metadata mismatch for {name}: {key}")
+            expiry_match = re.search(r"(?im)^\s*x-oss-meta-expires-at\s*:\s*(\S+)\s*$", metadata)
+            if not expiry_match:
+                fail(f"off-site archive metadata missing for {name}: x-oss-meta-expires-at")
             sha = sha256_file(os.path.join(manifest_dir, name))
             entry = {
                 "name": name,
                 "sha256": sha,
                 "size": os.path.getsize(os.path.join(manifest_dir, name)),
                 "remote_path": f"{remote}/{name}",
-                "verified": verify.returncode == 0 and name in verify.stdout,
+                "verified": True,
                 "retention_meta": {"retention_days": retention_days, "expires_at": expires_str},
             }
             oss_objects.append(entry)
@@ -333,6 +389,11 @@ receipt = {
     "redaction_checked": False,
     "blockers": blockers,
 }
+receipt_text = json.dumps(receipt, sort_keys=True)
+for secret in (offsite_ak_id, offsite_ak_secret):
+    if len(secret) >= 8 and secret in receipt_text:
+        fail("archive receipt contains off-site credential material")
+receipt["redaction_checked"] = True
 receipt_dir = report_dir if real_mode else target_dir
 receipt_path = os.path.join(receipt_dir, "archive-receipt.json")
 with open(receipt_path, "w", encoding="utf-8") as f:

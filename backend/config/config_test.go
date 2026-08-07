@@ -126,11 +126,15 @@ func validReleaseConfigForTest() *Config {
 			UploadAssistMaxFileMB: 10,
 			MaxUserMessageChars:   4000,
 			ChatMaxContextMsgs:    10,
+			ConversationListLimit: 50,
+			ConversationPageSize:  20,
 		},
 		RateLimit: RateLimitConfig{
-			Enabled:         true,
-			NormalPerMinute: 100,
-			UploadPerHour:   200,
+			Enabled:              true,
+			NormalPerMinute:      100,
+			UploadPerHour:        200,
+			AgentWindowSec:       86400,
+			AgentMinuteWindowSec: 60,
 		},
 		Observability: ObservabilityConfig{
 			MetricsPort:          "9091",

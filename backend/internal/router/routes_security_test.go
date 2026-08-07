@@ -282,10 +282,11 @@ func buildRoutesSecurityRouter(t *testing.T) (*gin.Engine, *config.Config, func(
 			Mode: "debug",
 		},
 		RateLimit: config.RateLimitConfig{
-			Enabled:             true,
-			CredentialPerMinute: 1,
-			NormalWindowSec:     60,
-			AgentWindowSec:      60,
+			Enabled:              true,
+			CredentialPerMinute:  1,
+			NormalWindowSec:      60,
+			AgentWindowSec:       60,
+			AgentMinuteWindowSec: 60,
 		},
 		Agent: config.AgentConfig{
 			WebAgentEnabled:     true,
@@ -293,6 +294,9 @@ func buildRoutesSecurityRouter(t *testing.T) (*gin.Engine, *config.Config, func(
 			RateLimitPerMinute:  5,
 			MaxUserMessageChars: 4000,
 			ChatMaxContextMsgs:  10,
+			MaxToolCallsPerTurn: 8,
+			MaxOutputTokens:     1200,
+			CitationMaxCount:    5,
 		},
 		Reputation: config.ReputationConfig{
 			MinScoreForInteraction: 3,

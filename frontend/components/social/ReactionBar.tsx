@@ -46,11 +46,9 @@ export function ReactionBar({
   async function fetchMyReaction() {
     try {
       const data = await api.get<{
-        reaction?: { reaction: string };
+        viewer_reaction?: "like" | "dislike" | null;
       }>(`/api/v1/social/reactions?target_type=content&target_id=${contentId}`);
-      if (data.reaction) {
-        setMyReaction(data.reaction.reaction as "like" | "dislike");
-      }
+      setMyReaction(data.viewer_reaction ?? null);
     } catch (e) { silentError(e, { component: 'ReactionBar', action: 'fetchMyReaction' }); }
   }
 

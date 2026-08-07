@@ -149,6 +149,24 @@ OMNICRAFT_STAGING_ENV_FILE="$F/env" OMNICRAFT_STAGING_OVERRIDE_FILE="$F/override
 [ "$rc" -eq 3 ] || { echo "FAIL: placeholder staging inputs must block with exit 3, got $rc" >&2; exit 1; }
 echo "OK: placeholder staging inputs block the drill"
 
+# ---------------------------------------------------- real-path guardrails
+# The default path must never accidentally inherit -Drill from the shell's
+# non-empty DRILL=0 value, and real deploy/rollback must call Compose rather
+# than only write manifest fixtures.
+if grep -Fq '${DRILL:+-Drill}' "$DRILL_SCRIPT"; then
+  echo "FAIL: default staging path must not pass -Drill when DRILL=0" >&2
+  exit 1
+fi
+if ! grep -Fq 'docker compose' "$SCRIPT_DIR/deploy.sh"; then
+  echo "FAIL: deploy.sh must execute Docker Compose on the real path" >&2
+  exit 1
+fi
+if grep -Fq 'simulated compose rollback completed' "$SCRIPT_DIR/rollback.sh"; then
+  echo "FAIL: rollback.sh must not report simulated compose rollback" >&2
+  exit 1
+fi
+echo "OK: real release path is not manifest-only or drill-only"
+
 # --------------------------------------------------------- valid drill run
 F="$TEMP_ROOT/valid"
 make_fixture "$F"
@@ -166,7 +184,7 @@ echo "OK: valid drill orchestrates deploy -> rollback -> redeploy"
 F="$TEMP_ROOT/objectives-ok"
 make_fixture "$F"
 python3 - "$F" <<'PY'
-import json, sys
+import hashlib, json, sys
 out = sys.argv[1]
 objectives = {
     "schema_version": 1,
@@ -178,7 +196,12 @@ objectives = {
     "approval": {"ref": "c" * 40, "approver": "tester", "approved_at": "2026-08-07T00:00:00Z"},
 }
 json.dump(objectives, open(out + "/objectives.json", "w"), indent=2)
-measured = {"postgres_rpo": 1, "postgres_rto": 3, "object_restore_rto": 2,
+evidence_path = out + "/recovery-evidence.json"
+open(evidence_path, "w").write('{"restore": "measured"}\n')
+evidence_sha = hashlib.sha256(open(evidence_path, "rb").read()).hexdigest()
+measured = {"schema_version": 1, "drill_id": "ops-08-staging-recovery", "source_commit": "a" * 40,
+            "source_evidence": [{"path": "recovery-evidence.json", "sha256": evidence_sha}],
+            "postgres_rpo": 1, "postgres_rto": 3, "object_restore_rto": 2,
             "service_rpo": 0, "service_rto": 8, "measured_at": "2026-08-07T02:00:00Z", "last_drill": "real drill"}
 json.dump(measured, open(out + "/measured.json", "w"), indent=2)
 PY
@@ -205,10 +228,23 @@ print("recovery objective comparison (met) assertions passed")
 PY
 echo "OK: drill compares measured values against approved recovery objectives"
 
+rc=0
+python3 - "$F/metric-only.json" <<'PY'
+import json, sys
+json.dump({"postgres_rpo": 1, "postgres_rto": 3, "object_restore_rto": 2,
+           "service_rpo": 0, "service_rto": 8}, open(sys.argv[1], "w"), indent=2)
+PY
+bash "$DRILL_SCRIPT" -EnvironmentFile "$F/env" -OverrideFile "$F/override.yaml" \
+  -CandidateManifest "$F/candidate.json" -PreviousManifest "$F/previous.json" -ReportDir "$F/report-metric-only" -Drill \
+  -RecoveryObjectives "$F/objectives.json" -Measured "$F/metric-only.json" \
+  >/dev/null 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || { echo "FAIL: metric-only recovery measurements must fail closed" >&2; exit 1; }
+echo "OK: metric-only recovery measurements rejected"
+
 F="$TEMP_ROOT/objectives-unmet"
 make_fixture "$F"
 python3 - "$F" <<'PY'
-import json, sys
+import hashlib, json, sys
 out = sys.argv[1]
 objectives = {
     "schema_version": 1,
@@ -220,7 +256,12 @@ objectives = {
     "approval": {"ref": "c" * 40, "approver": "tester", "approved_at": "2026-08-07T00:00:00Z"},
 }
 json.dump(objectives, open(out + "/objectives.json", "w"), indent=2)
-measured = {"postgres_rpo": 60, "postgres_rto": 3, "object_restore_rto": 2,
+evidence_path = out + "/recovery-evidence.json"
+open(evidence_path, "w").write('{"restore": "measured"}\n')
+evidence_sha = hashlib.sha256(open(evidence_path, "rb").read()).hexdigest()
+measured = {"schema_version": 1, "drill_id": "ops-08-staging-recovery", "source_commit": "a" * 40,
+            "source_evidence": [{"path": "recovery-evidence.json", "sha256": evidence_sha}],
+            "postgres_rpo": 60, "postgres_rto": 3, "object_restore_rto": 2,
             "service_rpo": 0, "service_rto": 8, "measured_at": "2026-08-07T02:00:00Z", "last_drill": "real drill"}
 json.dump(measured, open(out + "/measured.json", "w"), indent=2)
 PY

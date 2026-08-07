@@ -28,13 +28,6 @@ import (
 // consumed their per-minute or per-day Agent generation budget.
 var ErrAgentQuotaExceeded = errors.New("agent request quota exceeded")
 
-const (
-	agentQuotaDefaultPerMinute = 5
-	agentQuotaDefaultPerDay    = 50
-	agentQuotaMinuteTTL        = 60 * time.Second
-	agentQuotaDefaultDayTTL    = 25 * time.Hour
-)
-
 // agentQuotaReserveScript atomically increments the per-minute and per-day
 // counters and returns 1 when either limit is exceeded, 0 when the request is
 // admitted. KEYS[1]=minute key, KEYS[2]=day key; ARGV[1]=minute limit,
@@ -75,18 +68,14 @@ func (r *AgentQuotaReserver) Reserve(ctx context.Context, userID int64) error {
 	}
 	now := time.Now()
 
+	if r.cfg == nil || r.cfg.Agent.RateLimitPerMinute <= 0 || r.cfg.Agent.RateLimitPerDay <= 0 ||
+		r.cfg.RateLimit.AgentMinuteWindowSec <= 0 || r.cfg.RateLimit.AgentWindowSec <= 0 {
+		return fmt.Errorf("agent quota reserver: invalid runtime quota configuration")
+	}
 	perMinute := r.cfg.Agent.RateLimitPerMinute
-	if perMinute <= 0 {
-		perMinute = agentQuotaDefaultPerMinute
-	}
 	perDay := r.cfg.Agent.RateLimitPerDay
-	if perDay <= 0 {
-		perDay = agentQuotaDefaultPerDay
-	}
-	dayTTL := agentQuotaDefaultDayTTL
-	if r.cfg.RateLimit.AgentWindowSec > 0 {
-		dayTTL = time.Duration(r.cfg.RateLimit.AgentWindowSec) * time.Second
-	}
+	minuteTTL := time.Duration(r.cfg.RateLimit.AgentMinuteWindowSec) * time.Second
+	dayTTL := time.Duration(r.cfg.RateLimit.AgentWindowSec) * time.Second
 
 	exceeded, err := agentQuotaReserveScript.Run(
 		ctx,
@@ -94,7 +83,7 @@ func (r *AgentQuotaReserver) Reserve(ctx context.Context, userID int64) error {
 		[]string{r.MinuteKey(userID, now), r.DayKey(userID, now)},
 		perMinute,
 		perDay,
-		int(agentQuotaMinuteTTL.Seconds()),
+		int(minuteTTL.Seconds()),
 		int(dayTTL.Seconds()),
 	).Int()
 	if err != nil {

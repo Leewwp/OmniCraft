@@ -8,15 +8,17 @@
 # Usage:
 #   bash scripts/release/rollback.sh -Manifest <previous.json>
 #       -EnvFile <path> -OverrideFile <path> -Schema <schema.json>
-#       [-ReportDir <dir>] [-HistoryFile <history.json>] [-Drill]
+#       [-ComposeFile <compose.yml>] [-ReportDir <dir>] [-HistoryFile <history.json>] [-Drill]
 # =============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MANIFEST=""
 ENV_FILE=""
 OVERRIDE_FILE=""
 SCHEMA=""
+COMPOSE_FILE=""
 REPORT_DIR=""
 HISTORY_FILE=""
 DRILL=0
@@ -27,6 +29,7 @@ while [ $# -gt 0 ]; do
     -EnvFile) [ $# -ge 2 ] || { echo "missing value for -EnvFile" >&2; exit 2; }; ENV_FILE="$2"; shift 2 ;;
     -OverrideFile) [ $# -ge 2 ] || { echo "missing value for -OverrideFile" >&2; exit 2; }; OVERRIDE_FILE="$2"; shift 2 ;;
     -Schema) [ $# -ge 2 ] || { echo "missing value for -Schema" >&2; exit 2; }; SCHEMA="$2"; shift 2 ;;
+    -ComposeFile) [ $# -ge 2 ] || { echo "missing value for -ComposeFile" >&2; exit 2; }; COMPOSE_FILE="$2"; shift 2 ;;
     -ReportDir) [ $# -ge 2 ] || { echo "missing value for -ReportDir" >&2; exit 2; }; REPORT_DIR="$2"; shift 2 ;;
     -HistoryFile) [ $# -ge 2 ] || { echo "missing value for -HistoryFile" >&2; exit 2; }; HISTORY_FILE="$2"; shift 2 ;;
     -Drill) DRILL=1; shift ;;
@@ -42,7 +45,11 @@ if [ -z "$MANIFEST" ] || [ -z "$ENV_FILE" ] || [ -z "$OVERRIDE_FILE" ] || [ -z "
   exit 2
 fi
 
-for f in "$MANIFEST" "$ENV_FILE" "$OVERRIDE_FILE" "$SCHEMA"; do
+if [ -z "$COMPOSE_FILE" ]; then
+  COMPOSE_FILE="$REPO_ROOT/docs/deploy/docker-compose.single-server.yml"
+fi
+
+for f in "$MANIFEST" "$ENV_FILE" "$OVERRIDE_FILE" "$SCHEMA" "$COMPOSE_FILE"; do
   [ -f "$f" ] || { echo "file not found: $f" >&2; exit 1; }
 done
 
@@ -136,8 +143,69 @@ PY
 
 # Forward-only migrations are never rolled back; only the application digest
 # changes. There is intentionally no down-migration path in this script.
+record_rollback_history() {
+  [ -n "$HISTORY_FILE" ] || return 0
+  python3 - "$HISTORY_FILE" "$MANIFEST" <<'PY'
+import json
+import sys
+
+history_path, manifest_path = sys.argv[1:3]
+with open(history_path, encoding="utf-8") as f:
+    history = json.load(f)
+with open(manifest_path, encoding="utf-8") as f:
+    manifest = json.load(f)
+target = manifest["images"]["backend"]["digest"]
+entry = {
+    "digest": target,
+    "commit": manifest.get("commit", ""),
+    "migration_head": manifest["migration"]["head"],
+    "schema_compat_max_head": manifest["schema_compat"]["max_head"],
+}
+history = [item for item in history if item.get("digest") != target]
+history.insert(0, entry)
+with open(history_path, "w", encoding="utf-8") as f:
+    json.dump(history, f, indent=2)
+    f.write("\n")
+PY
+}
+
 if [ "$DRILL" -eq 1 ]; then
-  echo "rollback: drill mode - simulated compose rollback completed"
+  record_rollback_history
+  echo "rollback: drill mode - compose side effects skipped"
+else
+  RELEASE_ENV_FILE="$ENV_FILE"
+  RELEASE_COMPOSE_FILE="$COMPOSE_FILE"
+  RELEASE_OVERRIDE_FILE="$REPORT_DIR/compose-images.yml"
+  RELEASE_REPORT_DIR="$REPORT_DIR"
+  RELEASE_DOCKER_BIN="${OMNICRAFT_DOCKER_BIN:-docker}"
+  command -v "$RELEASE_DOCKER_BIN" >/dev/null 2>&1 || { echo "rollback: Docker is required outside -Drill" >&2; exit 1; }
+  command -v curl >/dev/null 2>&1 || { echo "rollback: curl is required outside -Drill" >&2; exit 1; }
+  source "$SCRIPT_DIR/compose-release.sh"
+  # Do not run the target's migration image during rollback. Schema safety was
+  # checked above; only application containers are switched back.
+  render_release_override "$MANIFEST" "$RELEASE_OVERRIDE_FILE" 0
+  release_compose config --quiet
+  rollback_release_images
+  : > "$REPORT_DIR/readiness.log"
+  wait_for_release_health
+  run_release_smoke
+  python3 - "$REPORT_DIR/rollback-manifest.json" <<'PY'
+import datetime
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as f:
+    record = json.load(f)
+record["rolled_back_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+record["readiness"] = {"status": "ok", "log": "readiness.log"}
+record["smoke"] = {"status": "ok", "response": "smoke-response.txt"}
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(record, f, indent=2)
+    f.write("\n")
+PY
+  record_rollback_history
+  echo "rollback: real compose image switch, readiness and smoke completed"
 fi
 
 echo "rollback: done"

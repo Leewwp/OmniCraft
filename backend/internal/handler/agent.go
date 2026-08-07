@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -240,11 +241,17 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 
 	maxMsgLen := h.cfg.Agent.MaxUserMessageChars
 	if maxMsgLen <= 0 {
-		maxMsgLen = 4000
+		response.Error(c, http.StatusServiceUnavailable, "AGENT_CONFIG_INVALID", "agent limits are not configured")
+		return
 	}
 	maxCtxMsgs := h.cfg.Agent.ChatMaxContextMsgs
 	if maxCtxMsgs <= 0 {
-		maxCtxMsgs = 10
+		response.Error(c, http.StatusServiceUnavailable, "AGENT_CONFIG_INVALID", "agent limits are not configured")
+		return
+	}
+	if h.cfg.Agent.MaxToolCallsPerTurn <= 0 || h.cfg.Agent.MaxOutputTokens <= 0 || h.cfg.Agent.CitationMaxCount <= 0 {
+		response.Error(c, http.StatusServiceUnavailable, "AGENT_CONFIG_INVALID", "agent tool limits are not configured")
+		return
 	}
 
 	allowedRoles := map[string]bool{"user": true, "assistant": true}
@@ -316,8 +323,16 @@ func (h *AgentHandler) ListConversations(c *gin.Context) {
 		return
 	}
 	userID := middleware.GetUserID(c)
+	listLimit := h.cfg.Agent.ConversationListLimit
+	if listLimit <= 0 {
+		response.Error(c, http.StatusServiceUnavailable, "AGENT_CONFIG_INVALID", "agent conversation limits are not configured")
+		return
+	}
 	var conversations []model.AgentConversation
-	h.db.Where("user_id = ?", userID).Order("updated_at DESC").Limit(50).Find(&conversations)
+	if err := h.db.Where("user_id = ?", userID).Order("updated_at DESC").Limit(listLimit).Find(&conversations).Error; err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"conversations": conversations})
 }
 
@@ -333,12 +348,47 @@ func (h *AgentHandler) GetConversationMessages(c *gin.Context) {
 	}
 	var conv model.AgentConversation
 	if err := h.db.Where("id = ? AND user_id = ?", convID, userID).First(&conv).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "conversation not found"})
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "conversation not found"})
+			return
+		}
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
 		return
 	}
+	page := 1
+	pageSize := h.cfg.Agent.ConversationPageSize
+	if pageSize <= 0 {
+		response.Error(c, http.StatusServiceUnavailable, "AGENT_CONFIG_INVALID", "agent conversation limits are not configured")
+		return
+	}
+	if raw := c.Query("page"); raw != "" {
+		page, err = strconv.Atoi(raw)
+		if err != nil || page <= 0 {
+			response.ValidationError(c, "invalid page")
+			return
+		}
+	}
+	if raw := c.Query("page_size"); raw != "" {
+		requested, parseErr := strconv.Atoi(raw)
+		if parseErr != nil || requested <= 0 {
+			response.ValidationError(c, "invalid page_size")
+			return
+		}
+		pageSize = requested
+	}
+	if pageSize > h.cfg.Agent.ConversationPageSize {
+		pageSize = h.cfg.Agent.ConversationPageSize
+	}
 	var messages []model.AgentMessage
-	h.db.Where("conversation_id = ?", convID).Order("created_at ASC").Find(&messages)
-	c.JSON(http.StatusOK, gin.H{"conversation": conv, "messages": messages})
+	if err := h.db.Where("conversation_id = ?", convID).Order("created_at ASC").Offset((page - 1) * pageSize).Limit(pageSize + 1).Find(&messages).Error; err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
+		return
+	}
+	hasMore := len(messages) > pageSize
+	if hasMore {
+		messages = messages[:pageSize]
+	}
+	c.JSON(http.StatusOK, gin.H{"conversation": conv, "messages": messages, "page": page, "page_size": pageSize, "has_more": hasMore})
 }
 
 // DeleteConversation deletes only the current user's conversation and its
@@ -365,16 +415,23 @@ func (h *AgentHandler) DeleteConversation(c *gin.Context) {
 	committed := false
 	defer func() {
 		if !committed {
-			tx.Rollback()
+			if err := tx.Rollback().Error; err != nil && !errors.Is(err, gorm.ErrInvalidTransaction) {
+				// The response has already been selected on the failure path; keep
+				// the rollback failure in structured logs without exposing it.
+				slog.Error("agent conversation rollback failed", "error", err)
+			}
 		}
 	}()
 
 	var conv model.AgentConversation
 	if err := tx.Where("id = ? AND user_id = ?", convID, userID).First(&conv).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.Status(http.StatusNoContent)
+			if commitErr := tx.Commit().Error; commitErr != nil {
+				response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", commitErr)
+				return
+			}
 			committed = true
-			tx.Commit()
+			c.Status(http.StatusNoContent)
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)

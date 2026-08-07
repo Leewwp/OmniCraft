@@ -112,27 +112,40 @@ func (r *SocialRepository) ListDiscussions(ipID *int64, contentID *int64, page, 
 }
 
 func (r *SocialRepository) UpsertReaction(reaction *model.Reaction) (string, error) {
-	var existing model.Reaction
-	err := r.db.Where("user_id = ? AND target_type = ? AND target_id = ?",
-		reaction.UserID, reaction.TargetType, reaction.TargetID).First(&existing).Error
+	action := ""
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var existing model.Reaction
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(
+			"user_id = ? AND target_type = ? AND target_id = ?",
+			reaction.UserID, reaction.TargetType, reaction.TargetID,
+		).First(&existing).Error
 
-	if err == gorm.ErrRecordNotFound {
-		if err2 := r.db.Create(reaction).Error; err2 != nil {
-			return "", err2
+		if err == gorm.ErrRecordNotFound {
+			if err := tx.Create(reaction).Error; err != nil {
+				return err
+			}
+			action = "created"
+			return nil
 		}
-		return "created", nil
-	}
-	if err != nil {
-		return "", err
-	}
+		if err != nil {
+			return err
+		}
 
-	if existing.Reaction == reaction.Reaction {
-		r.db.Delete(&existing)
-		return "removed", nil
-	}
+		if existing.Reaction == reaction.Reaction {
+			if err := tx.Delete(&existing).Error; err != nil {
+				return err
+			}
+			action = "removed"
+			return nil
+		}
 
-	r.db.Model(&existing).Update("reaction", reaction.Reaction)
-	return "updated", nil
+		if err := tx.Model(&existing).Update("reaction", reaction.Reaction).Error; err != nil {
+			return err
+		}
+		action = "updated"
+		return nil
+	})
+	return action, err
 }
 
 func (r *SocialRepository) GetReactionCounts(targetType string, targetID int64) (int64, int64, error) {
@@ -159,6 +172,24 @@ func (r *SocialRepository) GetReactionCounts(targetType string, targetID int64) 
 		}
 	}
 	return likes, dislikes, nil
+}
+
+func (r *SocialRepository) GetViewerReaction(userID int64, targetType string, targetID int64) (*string, error) {
+	if userID <= 0 {
+		return nil, nil
+	}
+	var reaction model.Reaction
+	err := r.db.Select("reaction").Where(
+		"user_id = ? AND target_type = ? AND target_id = ?", userID, targetType, targetID,
+	).First(&reaction).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	value := reaction.Reaction
+	return &value, nil
 }
 
 func (r *SocialRepository) CreateReport(report *model.Report) error {

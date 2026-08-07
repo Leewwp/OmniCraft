@@ -105,6 +105,95 @@ func TestAgentConversationEndpointsRespectFeatureFlag(t *testing.T) {
 	}
 }
 
+func TestListConversationsReportsDatabaseFailure(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("sqlite: %v", err)
+	}
+	handler := NewAgentHandler(db, &config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, ConversationListLimit: 50}}, nil)
+	if err := db.Exec("DROP TABLE agent_conversations").Error; err != nil {
+		// The table does not exist in the intentionally minimal fixture; the
+		// subsequent query still exercises the database-error path.
+		_ = err
+	}
+	router := gin.New()
+	router.GET("/agent/conversations", func(c *gin.Context) {
+		c.Set(middleware.UserIDKey, int64(1))
+		handler.ListConversations(c)
+	})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/agent/conversations", nil))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, body = %s; database failures must not look like an empty list", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "AGENT_ERROR") {
+		t.Fatalf("body = %s, want stable AGENT_ERROR", rec.Body.String())
+	}
+}
+
+func TestGetConversationReportsDatabaseFailure(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("sqlite: %v", err)
+	}
+	handler := NewAgentHandler(db, &config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, ConversationPageSize: 20}}, nil)
+	router := gin.New()
+	router.GET("/agent/conversations/:id", func(c *gin.Context) {
+		c.Set(middleware.UserIDKey, int64(1))
+		handler.GetConversationMessages(c)
+	})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/agent/conversations/1", nil))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, body = %s; database failures must not look like not found", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "AGENT_ERROR") {
+		t.Fatalf("body = %s, want stable AGENT_ERROR", rec.Body.String())
+	}
+}
+
+func TestGetConversationMessagesPaginatesConfiguredPage(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentConversation{}, &model.AgentMessage{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	conv := model.AgentConversation{ID: 1, UserID: 1, ContextType: "general"}
+	if err := db.Create(&conv).Error; err != nil {
+		t.Fatalf("seed conversation: %v", err)
+	}
+	for i := 0; i < 3; i++ {
+		content := "message"
+		if err := db.Create(&model.AgentMessage{ConversationID: conv.ID, Role: "user", Content: &content}).Error; err != nil {
+			t.Fatalf("seed message %d: %v", i, err)
+		}
+	}
+	handler := NewAgentHandler(db, &config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, ConversationPageSize: 2}}, nil)
+	router := gin.New()
+	router.GET("/agent/conversations/:id", func(c *gin.Context) {
+		c.Set(middleware.UserIDKey, int64(1))
+		handler.GetConversationMessages(c)
+	})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/agent/conversations/1?page=2&page_size=1", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var payload struct {
+		Messages []model.AgentMessage `json:"messages"`
+		Page     int                  `json:"page"`
+		HasMore  bool                 `json:"has_more"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(payload.Messages) != 1 || payload.Page != 2 || !payload.HasMore {
+		t.Fatalf("page payload = %#v, want one message, page=2, has_more=true", payload)
+	}
+}
+
 func TestUploadAssistHandlerReturnsStructuredResponse(t *testing.T) {
 	handler := newAgentHandlerForTest(t, &fakeAgentHTTPProvider{
 		chatContent: `{"suggested_tags":["tag-a","tag-b"],"suggested_category":"gaming","suggested_title":"Better title","suggested_description":"Sharper summary"}`,
@@ -207,6 +296,9 @@ func TestChatStreamHandlerRejectsOversizedMessages(t *testing.T) {
 			WebAgentEnabled:     true,
 			MaxUserMessageChars: 8,
 			ChatMaxContextMsgs:  2,
+			MaxToolCallsPerTurn: 1,
+			MaxOutputTokens:     1200,
+			CitationMaxCount:    5,
 		},
 	}
 	handler := &AgentHandler{
@@ -254,9 +346,15 @@ func TestChatStreamHandlerFiltersRolesAndLimitsContextWindow(t *testing.T) {
 	cfg := &config.Config{
 		Agent: config.AgentConfig{
 			WebAgentEnabled:     true,
+			RateLimitPerMinute:  5,
+			RateLimitPerDay:     50,
 			MaxUserMessageChars: 64,
 			ChatMaxContextMsgs:  2,
+			MaxToolCallsPerTurn: 8,
+			MaxOutputTokens:     1200,
+			CitationMaxCount:    5,
 		},
+		RateLimit: config.RateLimitConfig{AgentWindowSec: 86400, AgentMinuteWindowSec: 60},
 	}
 	quota, quotaCleanup := newTestQuotaReserver(t, cfg)
 	defer quotaCleanup()
@@ -310,7 +408,18 @@ func TestChatStreamHandlerFiltersRolesAndLimitsContextWindow(t *testing.T) {
 func newAgentHandlerForTest(t *testing.T, provider llm.LLMProvider, enabled bool) *AgentHandler {
 	t.Helper()
 
-	cfg := &config.Config{Agent: config.AgentConfig{WebAgentEnabled: enabled}}
+	cfg := &config.Config{Agent: config.AgentConfig{
+		WebAgentEnabled:       enabled,
+		RateLimitPerMinute:    5,
+		RateLimitPerDay:       50,
+		MaxUserMessageChars:   4000,
+		ChatMaxContextMsgs:    10,
+		ConversationListLimit: 50,
+		ConversationPageSize:  20,
+		MaxToolCallsPerTurn:   8,
+		MaxOutputTokens:       1200,
+		CitationMaxCount:      5,
+	}, RateLimit: config.RateLimitConfig{AgentWindowSec: 86400, AgentMinuteWindowSec: 60}}
 	quota, quotaCleanup := newTestQuotaReserver(t, cfg)
 	t.Cleanup(quotaCleanup)
 	return &AgentHandler{

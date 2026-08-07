@@ -203,7 +203,7 @@ export function ContentDetailOverlay({
     closingRef.current = true;
     setClosing(true);
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
-    closeTimerRef.current = window.setTimeout(finalizeClose, reduced ? 100 : 280);
+    closeTimerRef.current = window.setTimeout(finalizeClose, reduced ? 100 : 240);
   }, [finalizeClose]);
 
   const handleExit = useCallback(() => {

@@ -16,7 +16,7 @@
 
 ## Status, authority, and universal rules
 
-**Status:** Ops-00 completed at `9ea53c8`; Ops-01 completed by CI commit `7f34191` and evidence/branch-protection closeout `4cba1da`; Ops-02 completed on `codex/ops/ops-02` after two-axis review, final-commit-bound local evidence and PR #21 PostgreSQL migration/contract/project gates; Ops-03 completed on `codex/ops/ops-03` after contract tests, a real observability drill and the default project gate (merged to main with Ops-04 at `ddaf0a4`); Ops-04 completed on `codex/ops/ops-04` after contract tests, promtool/amtool validation, a real firing/resolved alert drill with the in-network alert-sink and a real Healthchecks.io missing-heartbeat down-flip (merged to main at `ddaf0a4`, including llm semantic merge); Ops-05 completed on `codex/ops/ops-05` after policy/exception/pinned-action contract tests, fixture failure isolation, the default project gate and the full filesystem/IaC/image scan set (merged to main at `9c0e195`); Ops-06 completed on `codex/ops/ops-06` after manifest/SBOM/pinned-generator contract tests, deterministic two-run SBOM comparison, full container+lockfile generation, 17-check provenance verification with OCI label↔commit binding, downloaded-artifact re-verification, one-year-retention archive receipt and the default project gate; Ops-07 completed on `codex/ops/ops-07` after runner/target-safety contract tests, the approved release performance profile, real smoke/load/stress baseline measurement, k6 threshold validation and the default project gate; **Ops-08 completed on `codex/ops/ops-08`** (merged to main at `074715f`) after Step 1-4 contract tests and the real Step 5 staging drill (7 real inputs: `omnicraft` OSS bucket cn-guangzhou with versioning enabled, server-read Green/CAPTCHA credentials, GitHub Release `v0.1.0-rc.1`, off-site `omnicraft-ops-archive`; real container deploy/rollback/redeploy with candidate/previous digests, real pg_dump/restore and Aliyun OSS version-restore measurements, approved RPO≤5min/RTO≤30min objectives, machine-compare all-met, dual-destination archive receipt verified, release-tier verify-project + validate-evidence passed); Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
+**Status:** Ops-00 through Ops-07 are complete. Ops-08 Steps 1-4 are complete, but Step 5 remains blocked and Ops-08 is not complete: the current repository has no independently verifiable real staging deploy/rollback, OSS version restore, off-site archive receipt, or approved RPO/RTO evidence. Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
 
 - This plan is not Hardening Task 6 and must never add one.
 - Do not modify `task.json`, Beta/community checkboxes, or Web Agent completion state.
@@ -782,19 +782,19 @@ Require immutable digests, preflight, backup, migration, readiness, smoke and re
 
 Build/verify once, deploy the same digest, use GitHub Environment protection, and upload deployment manifest. Production is manual; PR cannot deploy.
 
-- [x] **Step 5: Perform staging deploy and rollback drill**
+- [ ] **Step 5: Perform staging deploy and rollback drill**
 
-Deploy release candidate, verify, roll back to previous application digest against compatible schema, verify again, then redeploy candidate. Record actual durations and operator commands. Before the drill require `OMNICRAFT_STAGING_ENV_FILE`, `OMNICRAFT_STAGING_OVERRIDE_FILE`, `OMNICRAFT_CANDIDATE_MANIFEST`, `OMNICRAFT_PREVIOUS_MANIFEST`, real staging OSS/versioning credentials and encrypted off-site archive destination; the drill script validates each input and refuses placeholders. Change `release/recovery-objectives.json` from `baseline_only` to user-approved numeric database/object/service RPO/RTO with a commit-bound, API-verifiable approval reference, then machine-compare measured PostgreSQL + Aliyun OSS restore/reconciliation results. Invoke `archive-release-evidence.sh` against both durable destinations and verify retention metadata.
+Deploy release candidate, verify, roll back to previous application digest against compatible schema, verify again, then redeploy candidate. Record actual durations and operator commands. Before the drill require `OMNICRAFT_STAGING_ENV_FILE`, `OMNICRAFT_STAGING_OVERRIDE_FILE`, `OMNICRAFT_CANDIDATE_MANIFEST`, `OMNICRAFT_PREVIOUS_MANIFEST`, real staging OSS/versioning credentials and encrypted off-site archive destination; the drill script validates each input and refuses placeholders. The measured recovery input must bind to the candidate commit and include SHA-256 references to the original recovery records; metric-only hand-written JSON fails closed. Change `release/recovery-objectives.json` from `baseline_only` to user-approved numeric database/object/service RPO/RTO with a commit-bound, API-verifiable approval reference, then machine-compare measured PostgreSQL + Aliyun OSS restore/reconciliation results. Invoke `archive-release-evidence.sh` against both durable destinations and verify retention metadata.
 
 ```bash
 bash scripts/release/preflight.tests.sh
 bash scripts/release/deployment-contract.tests.sh
 bash scripts/release/staging-drill.tests.sh
-for v in OMNICRAFT_STAGING_ENV_FILE OMNICRAFT_STAGING_OVERRIDE_FILE OMNICRAFT_CANDIDATE_MANIFEST OMNICRAFT_PREVIOUS_MANIFEST OMNICRAFT_STAGING_OSS_BUCKET OMNICRAFT_OFFSITE_ARCHIVE_URI GITHUB_RELEASE_TAG; do
+for v in OMNICRAFT_STAGING_ENV_FILE OMNICRAFT_STAGING_OVERRIDE_FILE OMNICRAFT_CANDIDATE_MANIFEST OMNICRAFT_PREVIOUS_MANIFEST OMNICRAFT_STAGING_COMPOSE_FILE OMNICRAFT_STAGING_OSS_BUCKET OMNICRAFT_OFFSITE_ARCHIVE_URI GITHUB_RELEASE_TAG OMNICRAFT_RECOVERY_OBJECTIVES OMNICRAFT_MEASURED; do
   if [ -z "${!v:-}" ]; then echo "Set all staging, OSS, release and off-site archive inputs (missing $v)" >&2; exit 1; fi
 done
 bash scripts/release/preflight.sh -EnvironmentFile "$OMNICRAFT_STAGING_ENV_FILE" -OverrideFile "$OMNICRAFT_STAGING_OVERRIDE_FILE"
-bash scripts/release/staging-drill.sh -EnvironmentFile "$OMNICRAFT_STAGING_ENV_FILE" -OverrideFile "$OMNICRAFT_STAGING_OVERRIDE_FILE" -CandidateManifest "$OMNICRAFT_CANDIDATE_MANIFEST" -PreviousManifest "$OMNICRAFT_PREVIOUS_MANIFEST" -ReportDir artifacts/ops-08
+bash scripts/release/staging-drill.sh -EnvironmentFile "$OMNICRAFT_STAGING_ENV_FILE" -OverrideFile "$OMNICRAFT_STAGING_OVERRIDE_FILE" -CandidateManifest "$OMNICRAFT_CANDIDATE_MANIFEST" -PreviousManifest "$OMNICRAFT_PREVIOUS_MANIFEST" -ComposeFile "$OMNICRAFT_STAGING_COMPOSE_FILE" -ReportDir artifacts/ops-08 -RecoveryObjectives "$OMNICRAFT_RECOVERY_OBJECTIVES" -Measured "$OMNICRAFT_MEASURED"
 bash scripts/release/archive-release-evidence.sh -Manifest artifacts/ops-08/deployment-manifest.json -GitHubRelease "$GITHUB_RELEASE_TAG" -OffsiteUri "$OMNICRAFT_OFFSITE_ARCHIVE_URI" -RetentionDays 365 -ReportDir artifacts/ops-08
 cd tools/doc-validator
 go run . --fix
@@ -809,12 +809,13 @@ bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -
 **Release blocker:** placeholder/default config, mutable image, missing backup/migration evidence, failed staging rollback, schema incompatible with previous app, missing external production inputs.  
 **Commit:** `Ops 08: add production deploy and rollback gate`
 
-> 2026-08-07 实施记录（`codex/ops/ops-08`，Step 1-4 完成；Step 5 阻塞，审查合并前视为 pending）：
+> 2026-08-07 审查修正记录（当前 main，Step 1-4 完成；Step 5 blocked）：
 >
 > - **保留区扩展（记录于此）**：新增 `backend/cmd/release-preflight/main.go`——preflight 核心以 Go 实现（复用 `config` 包 `ValidateRelease`/`OverrideFromEnv`/`LoadOverride`，避免 bash 重复实现与映射漂移）；`preflight.sh` 为 bash 包装（参数/文件校验 + go build 临时二进制）。`config.go` 将 `overrideFromEnv` 导出为 `OverrideFromEnv` 供其复用；`ValidateRelease` 新增：占位符拒绝（`<...>`/CHANGE_ME/REPLACE_ME/PLACEHOLDER/your-/example.com|org）、数据库 TLS 策略（release 必须 `sslmode=verify-full`，仅 `OMNICRAFT_PRIVATE_DB_HOSTS` 显式私有网络例外）、callback IP 占位符拒绝、`client.download_enabled` 不安全 flag 拒绝。
-> - **Step 1-4 契约测试与实现**：`preflight.tests.sh` 15 用例（占位符/默认密码/非 verify-full/私有例外/loopback proxies/callback IP/bypass captcha/logger SMTP/缺 frontend URL/site-api host 不一致/desktop flag/summary redacted）；`deployment-contract.tests.sh` 11 用例（floating/malformed digest、缺 migration head、preflight 先行、valid drill 记录 previous digest、rollback 未知 digest/不兼容 schema 拒绝、无破坏性 down SQL）；`staging-drill.tests.sh` 5 用例（缺 7 项真实输入 exit 3、占位符拒绝、drill 编排 deploy→verify→rollback→redeploy）。`release.yml` 仅 workflow_dispatch + `environment: production` 保护 + SHA-pinned actions；frontend Dockerfile 暴露 `NEXT_PUBLIC_SITE_URL` build arg；backend Dockerfile 构建 release-preflight；compose 声明 `OMNICRAFT_PRIVATE_DB_HOSTS=pgbouncer` 与 frontend build args（否则生产 preflight 会拒绝自己的 compose 配置）。
+> - **Step 1-4 契约测试与实现**：`preflight.tests.sh` 15 用例（占位符/默认密码/非 verify-full/私有例外/loopback proxies/callback IP/bypass captcha/logger SMTP/缺 frontend URL/site-api host 不一致/desktop flag/summary redacted）；`deployment-contract.tests.sh` 11 用例（floating/malformed digest、缺 migration head、preflight 先行、valid drill 记录 previous digest、rollback 未知 digest/不兼容 schema 拒绝、无破坏性 down SQL）；`staging-drill.tests.sh` 覆盖真实输入阻塞/占位符、默认模式与 `-Drill` 分离、Compose deploy/rollback 编排、RPO/RTO 比较和 metric-only measurement 拒绝。`release.yml` 仅 workflow_dispatch + `environment: production` 保护 + SHA-pinned actions；protected drill 绑定专用 `self-hosted/omnicraft-staging` runner；frontend Dockerfile 暴露 `NEXT_PUBLIC_SITE_URL` build arg；backend Dockerfile 构建 release-preflight；compose 声明 `OMNICRAFT_PRIVATE_DB_HOSTS=pgbouncer` 与 frontend build args（否则生产 preflight 会拒绝自己的 compose 配置）。
 > - **Step 5 阻塞**：真实 staging 输入缺失——`OMNICRAFT_STAGING_ENV_FILE`/`OMNICRAFT_STAGING_OVERRIDE_FILE`/`OMNICRAFT_CANDIDATE_MANIFEST`/`OMNICRAFT_PREVIOUS_MANIFEST`/`OMNICRAFT_STAGING_OSS_BUCKET`/`GITHUB_RELEASE_TAG` 全部缺失；off-site 归档凭据已备于 `~/.config/omnicraft/ops-08-offsite-archive.env`（`ARCHIVE_AK_ID`/`ARCHIVE_AK_SECRET`/`OFFSITE_ARCHIVE_BUCKET`/`OFFSITE_ARCHIVE_REGION`/`OFFSITE_ARCHIVE_ENDPOINT`/`OFFSITE_ARCHIVE_URI`，命名与 staging-drill 的 `OMNICRAFT_OFFSITE_ARCHIVE_URI` 需对齐导出）。`recovery-objectives.json` 保持 `baseline_only`（用户批准数值属 Step 5 输入）。解除阻塞后运行计划 Step 5 命令块（`bash scripts/release/staging-drill.sh ...` + `archive-release-evidence.sh ...`）并勾选 Step 5。
-> - **CI 说明**：`verify-pinned-actions.sh`/`verify-security.tests.sh`/`verify-workflows.tests.sh` 全绿；release.yml 的真实验证待 GitHub hosted runner 恢复（2026-08-06 起 runner 分配持续失败，属 GitHub 基础设施问题，非代码）。
+> - **CI 说明**：`verify-pinned-actions.sh`/`verify-security.tests.sh`/`verify-workflows.tests.sh` 全绿；release.yml 的真实验证待专用 staging runner 与外部发布输入就绪（属运维输入，不以 hosted runner 模拟）。
+> - **状态修正**：此前声称真实 Step 5、approved recovery objectives 和双目的地 receipt 的记录无法由当前仓库独立复核，现统一按 blocker 处理；`release/recovery-objectives.json` 保持 `baseline_only`，不得勾选 Step 5 或声明 Web production-ready。
 
 ---
 
@@ -895,16 +896,16 @@ Ops 主线串行，因为 compose、runbook、CI、权威计划和证据索引�
 
 ## Web production-ready definition of done
 
-- [x] Ops-00～Ops-08 are individually complete, reviewed, merged and evidenced.
+- [ ] Ops-00～Ops-08 are individually complete, reviewed, merged and evidenced.
 - [x] `main` protection requires stable CI/security checks; no required gate is optional.
-- [x] Empty/history/concurrent/checksum migration tests and a real restore drill pass.
+- [ ] Empty/history/concurrent/checksum migration tests and a real restore drill pass.
 - [x] Logs are redacted; metrics are bounded; critical alerts fire, deliver and resolve.
 - [x] Security exception ledger has no expired entries; release scans pass.
 - [x] SBOM and provenance verify against immutable artifacts.
 - [x] Release load thresholds pass with capacity and recovery evidence.
-- [x] Production preflight and staging deploy/rollback drills pass.
+- [ ] Production preflight and staging deploy/rollback drills pass.
 - [x] Desktop release remains disabled and is explicitly excluded from the Web-only release claim until Ops-09 completes.
-- [x] Every external input still missing is listed as a release blocker; no placeholder is presented as production configuration.
+- [ ] Every external input still missing is listed as a release blocker; no placeholder is presented as production configuration.
 
 ## Web + Desktop production-ready extension
 

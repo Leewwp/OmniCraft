@@ -20,11 +20,14 @@ permissions:
 
 jobs:
   release-contracts:
-    name: Release contract gates
+    name: Release contract gates and registry build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
       - name: Release contract tests
         run: |
           bash scripts/release/preflight.tests.sh
@@ -32,96 +35,221 @@ jobs:
           bash scripts/release/staging-drill.tests.sh
           python3 -m json.tool release/production-config.schema.json >/dev/null
           python3 -m json.tool release/deployment-manifest.schema.json >/dev/null
-      - name: Build backend image and record immutable digest
+
+      - name: Build and push immutable registry images
+        env:
+          REGISTRY_TOKEN: ${{ secrets.OMNICRAFT_REGISTRY_WRITE_TOKEN }}
         run: |
-          docker build -q --iidfile artifacts/backend.iid ./backend
+          set -euo pipefail
           mkdir -p artifacts
-          mv artifacts/backend.iid artifacts/backend.iid.tmp 2>/dev/null || mkdir -p artifacts
-          docker build -q --iidfile artifacts/backend.iid ./backend
-          cat artifacts/backend.iid
-      - name: Build frontend image and record immutable digest
-        run: |
-          docker build -q --iidfile artifacts/frontend.iid \
+          if [ -z "$REGISTRY_TOKEN" ]; then
+            echo "release blocked: OMNICRAFT_REGISTRY_WRITE_TOKEN is required to push immutable images" >&2
+            exit 3
+          fi
+          registry_base="ghcr.io/${GITHUB_REPOSITORY,,}"
+          backend_ref="${registry_base}-backend:${GITHUB_SHA}"
+          frontend_ref="${registry_base}-frontend:${GITHUB_SHA}"
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx build --push --iidfile artifacts/backend.iid \
+            --tag "$backend_ref" ./backend
+          docker buildx build --push --iidfile artifacts/frontend.iid \
             --build-arg NEXT_PUBLIC_API_URL="${{ inputs.api_url }}" \
             --build-arg NEXT_PUBLIC_SITE_URL="https://app.leeppp.online" \
-            ./frontend
-          cat artifacts/frontend.iid
-      - name: Generate candidate deployment manifest
+            --tag "$frontend_ref" ./frontend
+          backend_digest="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$backend_ref" | tail -n 1)"
+          frontend_digest="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$frontend_ref" | tail -n 1)"
+          [[ "$backend_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$frontend_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          printf '%s\n' "$backend_digest" > artifacts/backend.registry-digest
+          printf '%s\n' "$frontend_digest" > artifacts/frontend.registry-digest
+
+      - name: Generate release candidate manifest
         run: |
-          python3 - artifacts "${{ inputs.version }}" "$GITHUB_SHA" <<'PY'
-import json, sys, datetime
+          set -euo pipefail
+          migration_head="$(find backend/migrations -maxdepth 1 -type f -name '*.sql' -print | sort -V | tail -n 1 | xargs -n 1 basename)"
+          python3 - artifacts "${{ inputs.version }}" "$GITHUB_SHA" "$migration_head" <<'PY'
+          import datetime
+          import json
+          import pathlib
+          import sys
 
-out_dir, version, commit = sys.argv[1:4]
+          out_dir, version, commit, migration_head = sys.argv[1:]
+          root = pathlib.Path(out_dir)
+          backend_digest = (root / "backend.registry-digest").read_text(encoding="utf-8").strip()
+          frontend_digest = (root / "frontend.registry-digest").read_text(encoding="utf-8").strip()
+          registry_base = f"ghcr.io/{__import__('os').environ['GITHUB_REPOSITORY'].lower()}"
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          manifest = {
+              "schema_version": "1.0",
+              "phase": "candidate",
+              "version": version,
+              "commit": commit,
+              "created_at": now,
+              "previous_digest": None,
+              "images": {
+                  "backend": {"ref": f"{registry_base}-backend@{backend_digest}", "digest": backend_digest},
+                  "frontend": {"ref": f"{registry_base}-frontend@{frontend_digest}", "digest": frontend_digest},
+              },
+              "migration": {"head": migration_head},
+              "schema_compat": {"max_head": migration_head},
+              "preflight": {"status": "pending", "summary": ""},
+              "backup": {"id": "pending", "status": "pending"},
+              "readiness": {"status": "pending"},
+              "smoke": {"status": "pending"},
+              "deployed_at": None,
+          }
+          (root / "candidate-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+          print(f"candidate registry digests: backend={backend_digest} frontend={frontend_digest}")
+          print(f"candidate migration head: {migration_head}")
+          PY
 
-def digest_for(name):
-    with open(f"{out_dir}/{name}.iid", encoding="utf-8") as f:
-        return f.read().strip()
-
-backend_digest = digest_for("backend")
-frontend_digest = digest_for("frontend")
-now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-manifest = {
-    "schema_version": "1.0",
-    "version": version,
-    "commit": commit,
-    "created_at": now,
-    "previous_digest": None,
-    "images": {
-        "backend": {"ref": f"omnicraft-backend@{backend_digest}", "digest": backend_digest},
-        "frontend": {"ref": f"omnicraft-frontend@{frontend_digest}", "digest": frontend_digest},
-    },
-    "migration": {"head": None},
-    "schema_compat": {"max_head": None},
-    "preflight": {"status": "pending", "summary": ""},
-    "backup": {"id": "", "status": "pending"},
-    "readiness": {"status": "pending"},
-    "smoke": {"status": "pending"},
-    "deployed_at": None,
-}
-with open(f"{out_dir}/deployment-manifest.json", "w", encoding="utf-8") as f:
-    json.dump(manifest, f, indent=2)
-    f.write("\n")
-print(f"candidate digest: backend={backend_digest} frontend={frontend_digest}")
-PY
-      - name: Upload release evidence
+      - name: Upload release candidate
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: release-evidence
+          name: release-candidate
           path: artifacts
           retention-days: 365
 
   protected-deploy:
-    name: Protected release approval
+    name: Protected staging deploy, rollback and redeploy
     needs: release-contracts
-    runs-on: ubuntu-latest
+    # This job must run on a dedicated staging host, not an ephemeral GitHub
+    # runner. The host owns the Compose volumes, TLS material and staging
+    # Docker daemon used by the real deploy/rollback drill.
+    runs-on: [self-hosted, omnicraft-staging]
+    permissions:
+      contents: read
+      packages: read
     environment: production
     steps:
-      - name: Download release evidence
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Download release candidate
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          name: release-evidence
+          name: release-candidate
           path: artifacts
-      - name: Validate candidate manifest
+
+      - name: Run the real protected staging drill
+        env:
+          REGISTRY_TOKEN: ${{ secrets.OMNICRAFT_REGISTRY_READ_TOKEN }}
+          STAGING_ENV_CONTENT: ${{ secrets.OMNICRAFT_STAGING_ENV_CONTENT }}
+          STAGING_OVERRIDE_CONTENT: ${{ secrets.OMNICRAFT_STAGING_OVERRIDE_CONTENT }}
+          PREVIOUS_MANIFEST_CONTENT: ${{ secrets.OMNICRAFT_PREVIOUS_MANIFEST_JSON }}
+          MEASURED_CONTENT: ${{ secrets.OMNICRAFT_STAGING_MEASURED_JSON }}
+          STAGING_OSS_BUCKET: ${{ secrets.OMNICRAFT_STAGING_OSS_BUCKET }}
+          OFFSITE_ARCHIVE_URI: ${{ secrets.OMNICRAFT_OFFSITE_ARCHIVE_URI }}
+          OFFSITE_ARCHIVE_AK_ID: ${{ secrets.OMNICRAFT_OFFSITE_ARCHIVE_AK_ID }}
+          OFFSITE_ARCHIVE_AK_SECRET: ${{ secrets.OMNICRAFT_OFFSITE_ARCHIVE_AK_SECRET }}
+          OFFSITE_ARCHIVE_ENDPOINT: ${{ secrets.OMNICRAFT_OFFSITE_ARCHIVE_ENDPOINT }}
+          OFFSITE_ARCHIVE_REGION: ${{ secrets.OMNICRAFT_OFFSITE_ARCHIVE_REGION }}
+          STAGING_SMOKE_URL: ${{ secrets.OMNICRAFT_STAGING_SMOKE_URL }}
+        run: |
+          set -euo pipefail
+          for name in STAGING_ENV_CONTENT STAGING_OVERRIDE_CONTENT PREVIOUS_MANIFEST_CONTENT MEASURED_CONTENT STAGING_OSS_BUCKET OFFSITE_ARCHIVE_URI STAGING_SMOKE_URL; do
+            if [ -z "${!name}" ]; then
+              echo "release blocked: production environment secret $name is required for the real staging drill" >&2
+              exit 3
+            fi
+          done
+          if [ -z "$REGISTRY_TOKEN" ]; then
+            echo "release blocked: OMNICRAFT_REGISTRY_READ_TOKEN is required to pull immutable images" >&2
+            exit 3
+          fi
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          staging_env_file="$RUNNER_TEMP/omnicraft-staging.env"
+          staging_override_file="$RUNNER_TEMP/omnicraft-staging-override.yaml"
+          previous_manifest="$RUNNER_TEMP/omnicraft-previous.json"
+          measured_file="$RUNNER_TEMP/omnicraft-measured.json"
+          printf '%s\n' "$STAGING_ENV_CONTENT" > "$staging_env_file"
+          printf '%s\n' "$STAGING_OVERRIDE_CONTENT" > "$staging_override_file"
+          printf '%s\n' "$PREVIOUS_MANIFEST_CONTENT" > "$previous_manifest"
+          printf '%s\n' "$MEASURED_CONTENT" > "$measured_file"
+          candidate_manifest="$PWD/artifacts/candidate-manifest.json"
+          cp docs/deploy/docker-compose.single-server.yml docker-compose.single-server.yml
+          cp docs/deploy/nginx.omnicraft.single-server.conf nginx/omnicraft.single-server.conf
+          compose_file="$PWD/docker-compose.single-server.yml"
+          recovery_objectives="$PWD/release/recovery-objectives.json"
+          report_dir="$PWD/artifacts/ops-08"
+          mkdir -p "$report_dir"
+          export OMNICRAFT_STAGING_ENV_FILE="$staging_env_file"
+          export OMNICRAFT_STAGING_OVERRIDE_FILE="$staging_override_file"
+          export OMNICRAFT_CANDIDATE_MANIFEST="$candidate_manifest"
+          export OMNICRAFT_PREVIOUS_MANIFEST="$previous_manifest"
+          export OMNICRAFT_STAGING_COMPOSE_FILE="$compose_file"
+          export OMNICRAFT_STAGING_OSS_BUCKET="$STAGING_OSS_BUCKET"
+          export OMNICRAFT_OFFSITE_ARCHIVE_URI="$OFFSITE_ARCHIVE_URI"
+          export GITHUB_RELEASE_TAG="${{ inputs.version }}"
+          export OMNICRAFT_RECOVERY_OBJECTIVES="$recovery_objectives"
+          export OMNICRAFT_MEASURED="$measured_file"
+          export OMNICRAFT_SMOKE_URL="$STAGING_SMOKE_URL"
+          bash scripts/release/staging-drill.sh \
+            -EnvironmentFile "$staging_env_file" \
+            -OverrideFile "$staging_override_file" \
+            -CandidateManifest "$candidate_manifest" \
+            -PreviousManifest "$previous_manifest" \
+            -ComposeFile "$compose_file" \
+            -ReportDir "$report_dir" \
+            -RecoveryObjectives "$recovery_objectives" \
+            -Measured "$measured_file"
+
+      - name: Archive deployment evidence to durable destinations
+        env:
+          GH_TOKEN: ${{ secrets.OMNICRAFT_RELEASE_ARCHIVE_TOKEN }}
+          OFFSITE_ARCHIVE_AK_ID: ${{ secrets.OMNICRAFT_OFFSITE_ARCHIVE_AK_ID }}
+          OFFSITE_ARCHIVE_AK_SECRET: ${{ secrets.OMNICRAFT_OFFSITE_ARCHIVE_AK_SECRET }}
+          OFFSITE_ARCHIVE_ENDPOINT: ${{ secrets.OMNICRAFT_OFFSITE_ARCHIVE_ENDPOINT }}
+          OFFSITE_ARCHIVE_REGION: ${{ secrets.OMNICRAFT_OFFSITE_ARCHIVE_REGION }}
+          OFFSITE_ARCHIVE_URI: ${{ secrets.OMNICRAFT_OFFSITE_ARCHIVE_URI }}
+        run: |
+          set -euo pipefail
+          if ! command -v ossutil >/dev/null 2>&1; then
+            echo "release blocked: ossutil is required to verify the encrypted off-site archive" >&2
+            exit 3
+          fi
+          for name in GH_TOKEN OFFSITE_ARCHIVE_AK_ID OFFSITE_ARCHIVE_AK_SECRET OFFSITE_ARCHIVE_URI; do
+            if [ -z "${!name}" ]; then
+              echo "release blocked: archive secret $name is required" >&2
+              exit 3
+            fi
+          done
+          bash scripts/release/archive-release-evidence.sh \
+            -Manifest artifacts/ops-08/deployment-manifest.json \
+            -GitHubRelease "${{ inputs.version }}" \
+            -OffsiteUri "$OFFSITE_ARCHIVE_URI" \
+            -RetentionDays 365 \
+            -ReportDir artifacts/ops-08
+
+      - name: Validate final deployment evidence
         run: |
           python3 - <<'PY'
-import json, os, re
-m = json.load(open("artifacts/deployment-manifest.json", encoding="utf-8"))
-digest_re = re.compile(r"^sha256:[0-9a-f]{64}$")
-assert digest_re.fullmatch(m["images"]["backend"]["digest"]), "backend digest invalid"
-assert digest_re.fullmatch(m["images"]["frontend"]["digest"]), "frontend digest invalid"
-assert m["commit"] == os.environ["GITHUB_SHA"], "manifest commit must equal GITHUB_SHA"
-print("candidate manifest validated:")
-print(f"  version:   {m['version']}")
-print(f"  commit:    {m['commit']}")
-print(f"  backend:   {m['images']['backend']['digest']}")
-print(f"  frontend:  {m['images']['frontend']['digest']}")
-print("operator action: run scripts/release/staging-drill.sh on the staging server")
-print("with OMNICRAFT_STAGING_* inputs to complete preflight, deploy and rollback drill.")
-PY
-      - name: Upload deployment manifest
+          import json
+          import os
+          import re
+
+          path = "artifacts/ops-08/deployment-manifest.json"
+          manifest = json.load(open(path, encoding="utf-8"))
+          digest_re = re.compile(r"^sha256:[0-9a-f]{64}$")
+          assert manifest["commit"] == os.environ["GITHUB_SHA"], "final manifest commit must equal GITHUB_SHA"
+          assert digest_re.fullmatch(manifest["images"]["backend"]["digest"])
+          assert digest_re.fullmatch(manifest["images"]["frontend"]["digest"])
+          for key in ("preflight", "backup", "readiness", "smoke"):
+              assert manifest[key]["status"] == "ok", f"{key} evidence is not ok"
+          comparison = json.load(open("artifacts/ops-08/recovery-objective-comparison.json", encoding="utf-8"))
+          assert comparison["all_met"] is True, "recovery objectives were not met"
+          receipt = json.load(open("artifacts/ops-08/archive-receipt.json", encoding="utf-8"))
+          assert not receipt["blockers"], "archive receipt contains blockers"
+          destination_types = {destination["type"] for destination in receipt["destinations"]}
+          assert {"github-release", "offsite-encrypted"}.issubset(destination_types)
+          print("final staging evidence is complete and machine-verifiable")
+          PY
+
+      - name: Upload protected release evidence
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: deployment-manifest
-          path: artifacts/deployment-manifest.json
+          name: release-evidence
+          path: artifacts/ops-08
           retention-days: 365

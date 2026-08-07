@@ -204,7 +204,12 @@ func (h *SocialHandler) React(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"action": action})
+	counts, viewerReaction, err := reactionSnapshot(h.db, callerID, input.TargetType, input.TargetID)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"action": action, "counts": counts, "viewer_reaction": viewerReaction})
 }
 
 func (h *SocialHandler) ListReactions(c *gin.Context) {
@@ -220,18 +225,39 @@ func (h *SocialHandler) ListReactions(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-
-	var reactions []model.Reaction
-	var total int64
-	q := h.db.Model(&model.Reaction{}).Where("target_type = ? AND target_id = ?", targetType, targetID)
-	q.Count(&total)
-	if err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&reactions).Error; err != nil {
+	if targetType != "content" && targetType != "comment" {
+		response.ValidationError(c, "invalid target_type")
+		return
+	}
+	counts, viewerReaction, err := reactionSnapshot(h.db, middleware.GetUserID(c), targetType, targetID)
+	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"reactions": reactions, "total": total})
+	c.JSON(http.StatusOK, gin.H{"counts": counts, "viewer_reaction": viewerReaction})
+}
+
+func reactionSnapshot(db *gorm.DB, userID int64, targetType string, targetID int64) (gin.H, *string, error) {
+	var rows []struct {
+		Reaction string
+		Count    int64
+	}
+	if err := db.Model(&model.Reaction{}).Select("reaction, COUNT(*) AS count").
+		Where("target_type = ? AND target_id = ?", targetType, targetID).
+		Group("reaction").Find(&rows).Error; err != nil {
+		return nil, nil, err
+	}
+	counts := gin.H{"like": int64(0), "dislike": int64(0)}
+	for _, row := range rows {
+		if row.Reaction == "like" || row.Reaction == "dislike" {
+			counts[row.Reaction] = row.Count
+		}
+	}
+	viewerReaction, err := repository.NewSocialRepository(db).GetViewerReaction(userID, targetType, targetID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return counts, viewerReaction, nil
 }
 
 func (h *SocialHandler) ReportContent(c *gin.Context) {

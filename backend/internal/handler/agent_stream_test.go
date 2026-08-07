@@ -94,7 +94,13 @@ func newAgentStreamTestHandler(t *testing.T, provider llm.LLMProvider, cfg *conf
 	}
 
 	if cfg == nil {
-		cfg = &config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, RateLimitPerMinute: 5, RateLimitPerDay: 50, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, MaxToolCallsPerTurn: 8, CitationMaxCount: 5, MaxOutputTokens: 1200}}
+		cfg = &config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, RateLimitPerMinute: 5, RateLimitPerDay: 50, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, ConversationListLimit: 50, ConversationPageSize: 20, MaxToolCallsPerTurn: 8, CitationMaxCount: 5, MaxOutputTokens: 1200}, RateLimit: config.RateLimitConfig{AgentWindowSec: 86400, AgentMinuteWindowSec: 60}}
+	}
+	if cfg.RateLimit.AgentWindowSec == 0 {
+		cfg.RateLimit.AgentWindowSec = 86400
+	}
+	if cfg.RateLimit.AgentMinuteWindowSec == 0 {
+		cfg.RateLimit.AgentMinuteWindowSec = 60
 	}
 
 	handler := &AgentHandler{
@@ -198,7 +204,10 @@ func TestAgentChatStreamOversizedMessageRejectedWithoutQuota(t *testing.T) {
 		RateLimitPerDay:     50,
 		MaxUserMessageChars: 8,
 		ChatMaxContextMsgs:  10,
-	}}
+		MaxToolCallsPerTurn: 8,
+		MaxOutputTokens:     1200,
+		CitationMaxCount:    5,
+	}, RateLimit: config.RateLimitConfig{AgentWindowSec: 86400, AgentMinuteWindowSec: 60}}
 	handler, mr, _ := newAgentStreamTestHandler(t, provider, cfg)
 
 	rec := postAgentChat(t, handler, 7, `{"messages":[{"role":"user","content":"0123456789ABCDEF"}]}`)
@@ -213,6 +222,34 @@ func TestAgentChatStreamOversizedMessageRejectedWithoutQuota(t *testing.T) {
 	}
 	if len(provider.lastRequest.Messages) != 0 && provider.lastRequest.Messages != nil {
 		t.Fatalf("provider request = %#v, oversized message must never reach provider", provider.lastRequest)
+	}
+}
+
+func TestAgentChatStreamMissingToolLimitsRejectedBeforeQuota(t *testing.T) {
+	provider := &recordingAgentHTTPProvider{}
+	cfg := &config.Config{Agent: config.AgentConfig{
+		WebAgentEnabled:       true,
+		RateLimitPerMinute:    5,
+		RateLimitPerDay:       50,
+		MaxUserMessageChars:   4000,
+		ChatMaxContextMsgs:    10,
+		ConversationListLimit: 50,
+		ConversationPageSize:  20,
+	}, RateLimit: config.RateLimitConfig{AgentWindowSec: 86400, AgentMinuteWindowSec: 60}}
+	handler, mr, _ := newAgentStreamTestHandler(t, provider, cfg)
+
+	rec := postAgentChat(t, handler, 7, `{"messages":[{"role":"user","content":"hi"}]}`)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "AGENT_CONFIG_INVALID") {
+		t.Fatalf("body = %s, want AGENT_CONFIG_INVALID", rec.Body.String())
+	}
+	if _, err := mr.Get(handler.quota.DayKey(7)); err == nil {
+		t.Fatal("invalid tool limits must be rejected before quota reservation")
+	}
+	if provider.calls != 0 {
+		t.Fatal("invalid tool limits must never reach the provider")
 	}
 }
 
@@ -243,6 +280,9 @@ func TestAgentChatStreamQuotaExceededReturns429(t *testing.T) {
 		RateLimitPerDay:     1,
 		MaxUserMessageChars: 4000,
 		ChatMaxContextMsgs:  10,
+		MaxToolCallsPerTurn: 8,
+		MaxOutputTokens:     1200,
+		CitationMaxCount:    5,
 	}}
 	handler, _, _ := newAgentStreamTestHandler(t, provider, cfg)
 
@@ -279,6 +319,9 @@ func TestAgentChatStreamRedisUnavailableFailsClosed(t *testing.T) {
 		RateLimitPerDay:     50,
 		MaxUserMessageChars: 4000,
 		ChatMaxContextMsgs:  10,
+		MaxToolCallsPerTurn: 8,
+		MaxOutputTokens:     1200,
+		CitationMaxCount:    5,
 	}}
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
@@ -356,6 +399,9 @@ func TestAgentChatStreamForbiddenToolIDConsumesReservation(t *testing.T) {
 		RateLimitPerDay:     1,
 		MaxUserMessageChars: 4000,
 		ChatMaxContextMsgs:  10,
+		MaxToolCallsPerTurn: 8,
+		MaxOutputTokens:     1200,
+		CitationMaxCount:    5,
 	}}
 	handler, _, _ := newAgentStreamTestHandler(t, provider, cfg)
 
