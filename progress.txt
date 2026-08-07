@@ -17,6 +17,21 @@
 ### Notes:
 - 分支 `fix/publish-freeze-key`，单 commit，PR 以 `Fixes #78` 开头；未改 config/routes/migrations，未运行 doc-validator（非必需）；未勾选任何计划 checkbox，未改 AGENTS.md。
 
+## [2026-08-08] - 媒体体验设计会话（/grilling + domain-modeling + to-spec + to-tickets）
+
+### What was done:
+- 用户实测报告三问题：原创区筛选不生效、详情封面被裁切成横向矩形、多图/多视频上传与画廊缺失。定位根因：前端 `original/page.tsx` 死代码（`search.sort || "hot"` 永不为空，分类选中仍发 `sort=recommended`）+ 后端 `handleRecommended` 无视筛选（curl 验证 recommended+category 返回混合分类）；封面裁剪为 `ContentCard` 强制 3:4/16:9 与 `ContentDetail` 强制 16:9（违背 ui-spec 自适应高度）；`content_attachments` 的 width/height 从不写入。
+- /grilling 逐项确认 14 项决策（含收藏集弹窗两处补充发现：背板/Esc 不关闭、toast 被浮层变暗遮盖）：媒体集 vs 附件语义拆分（同表不拆）、媒体集纯净（image 2~9 / video 1~3 不混排可混纵横比）、首图即封面 + 视频首帧 poster（前端 canvas 截帧）、老数据不兜底重建、contain+几何稳定+指示点、全屏媒体查看器、自然比例瀑布流、桌面双栏+移动单列、移动端连续浏览（上下文列表上滑）、桌面相关内容块不做自动加载、上传九宫格编排、筛选 bug 前后端修法、收藏集弹窗关闭行为 + 弹窗内通知。
+- 产出：spec 文档 `docs/superpowers/specs/2026-08-08-omnicraft-media-experience-design.md`；ADR `docs/adr/0004-media-experience-paradigm.md`；GLOSSARY 新增 6 术语（媒体集/附件/媒体查看器/连续浏览/相关内容/首图即封面）；CONTEXT.md 内容浏览域导航更新；GitHub spec issue #80 + tickets #81~#90（全部 ready-for-agent，原生阻塞边 83→84→85、86←85、87←84、88←85、89←85/88、90←88）；AGENTS.md 注册表新增优先 2 计划行（与 #64 串行规则、迁移 067 钉名）。
+
+### Testing:
+- 无实现代码改动；本轮为设计/规格/票据产出，验证门不适用。
+- 事实核查使用 curl 实测后端筛选行为（recommended+category 混分类 vs hot+category 正确）+ 代码阅读（ui-spec、ContentCard/ContentDetail/FileUploader/CollectionPicker/ConfirmModal、后端 handler/service/repo）。
+
+### Notes:
+- 未勾选任何计划 checkbox；注册表更新仅新增媒体体验计划行（#80/#81~#90），未动 #64 及既有计划描述。
+- 下一执行建议：按注册表优先 1（#64 T01/T02/T06）先行，或按文件预留协调直接开始媒体体验 T01/T02/T03（无阻塞，light）。
+
 ## [2026-08-08] - 审计收口：证据、文档与本地发布配置
 
 ### What was done:
