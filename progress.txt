@@ -21,3 +21,21 @@
 ### Notes:
 - Ops-08 Step 5 仍需人工提供并实际执行真实 staging deploy/rollback、OSS 版本恢复、off-site 双目的地归档、approved 且 commit-bound 的 RPO/RTO 与原始测量证据。
 - Web experience corrections 的 12 个 tickets、Task 6 真实 Provider smoke 和桌面能力不属于本轮收尾，不提前开发或勾选。
+
+## [2026-08-07] - 审查反馈清理：死代码/类型契约/推荐流 SWR 重构
+
+### What was done:
+- 删除空目录 `frontend/app/__u02a-test`、`frontend/app/u02a-test`（空目录不进入 Git，仅本地清理）。
+- 删除 `frontend/components/agent/AgentChatWidget.tsx` 死代码（零挂载，Root Layout 挂载已移除；agent-workspace 测试仅断言 layout 不含该组件，不受影响）。
+- 生产代码 `as unknown as` 类型契约清理两处：`search/page.tsx` 的 `handleSearch` 改为接收 `SearchAgentInput` 真实类型 `Record<string, unknown>[]` 并走 `normalizeContentList`（与 doSearch 路径一致）；`UserProfileClient.tsx` 讨论分支改为显式类型化映射 `toDiscussionCardData`（行为等价，保留卡片渲染字段）。
+- `/recommend` 推荐流按 ui-spec 重构为 SWR `useSWRInfinite`（page=2,3... 追加）：SSR 首页数据经 ref 注入 fetcher 避免挂载重复请求；`initialSize: 0` + 空数组 fallbackData 保持 SSR 失败时错误态即时渲染；`revalidateFirstPage: false` 防止 setSize 时重取第 1 页；issue #73/#76 正文分别钉入迁移文件名 `064_ip_visit_history.sql` / `065_drop_legacy_favorites.sql`。
+- `config.yaml` agent.llm_api_key 注释更新为指向已实现的 `AGENT_LLM_API_KEY` env 注入（config.go:500），doc-validator `--fix` 无漂移。
+- `artifacts/ops-07`、`ops-08` 本地证据目录：核验确认无真实 staging/OSS/off-site 输入，不伪造证据，Ops-08 Step 5 保持 blocked（需人工介入）。
+
+### Testing:
+- Go：`go build ./...`、`go vet ./...`、`go test ./...` 全部通过。
+- 前端：`npm run lint`（tsc --noEmit）、`npm run lint:ui`、`npm run test:unit`（227/227，含 RecommendFeedClient 4 用例，新增每用例独立 SWR 缓存避免跨用例污染）、`npm run build` 全部通过。
+- 浏览器（ego-browser）：/recommend SSR 首屏 16 卡 + 无限滚动追加至 98 卡 + 共享 ContentDetailOverlay 打开/Escape 关闭；/search 关键词搜索返回 9 卡（handleSearch 修复路径）；/user/16 讨论 tab 空态与临时种子讨论卡片渲染（标题/作者/互动数，验证后已删除）；截图保存至 screenshots/（目录被 .gitignore 忽略）。
+
+### Notes:
+- artifacts 证据目录与 Ops-08 Step 5 保持 blocked；T09/T12 迁移文件尚未创建，issue 正文仅钉名待执行任务使用。
