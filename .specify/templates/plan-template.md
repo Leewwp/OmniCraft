@@ -2,6 +2,8 @@
 
 **Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
 **Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
+**Execution Source**: [AGENTS.md registered plan + GitHub ticket]
+**Lane**: [light | mixed | heavy] | **Blocked By**: [native issue dependencies / manual gates]
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
 
@@ -32,6 +34,11 @@
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
 [Gates determined based on constitution file]
+
+Confirm that this plan is registered in `AGENTS.md` (or is explicitly user-named), its GitHub ticket
+dependencies match the prose execution order, and every heavy task has an independent worktree/branch/
+commit checkpoint, a failing-test step, and two-stage review. Archived plans and `task.json` are not
+valid execution sources.
 
 For frontend work, explicitly confirm that token values come from
 `design/design-system.md`, component/page composition follows `design/ui-spec.md`, and any elevation
