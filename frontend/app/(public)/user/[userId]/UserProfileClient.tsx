@@ -19,6 +19,30 @@ interface UserProfileClientProps {
   displayName: string;
 }
 
+interface DiscussionCardRecord {
+  id?: number;
+  title?: string;
+  author_id?: number;
+  author?: { id?: number; username?: string };
+  view_count?: number;
+}
+
+function toDiscussionCardData(value: unknown[]): ContentCardData[] {
+  return value
+    .map((item): ContentCardData | null => {
+      const raw = item as DiscussionCardRecord;
+      if (typeof raw?.id !== "number" || typeof raw.title !== "string") return null;
+      return {
+        id: raw.id,
+        title: raw.title,
+        author_id: raw.author_id,
+        author: raw.author,
+        view_count: raw.view_count,
+      };
+    })
+    .filter((item): item is ContentCardData => item !== null);
+}
+
 export function UserProfileClient({ userId, displayName }: UserProfileClientProps) {
   const t = useTranslations();
   const router = useRouter();
@@ -49,8 +73,7 @@ export function UserProfileClient({ userId, displayName }: UserProfileClientProp
       interface ProfileResponse { contents?: unknown[]; discussions?: unknown[] }
       const data = await api.get<ProfileResponse>(url);
       const raw = data.contents ?? data.discussions ?? [];
-      // Discussions return DiscussionCardData, not ContentCardData — pass through
-      setItems(tab === "discussions" ? raw as unknown as ContentCardData[] : normalizeContentList(raw));
+      setItems(tab === "discussions" ? toDiscussionCardData(raw) : normalizeContentList(raw));
     } catch (e) {
       silentError(e, { component: 'UserProfileClient', action: 'loadTab' });
       setError(t(getUserFacingErrorKey(e, "common.loadFailed")));
