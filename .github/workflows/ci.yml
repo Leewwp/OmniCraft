@@ -126,12 +126,12 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version: "1.25.12"
-      - name: Alerting contract tests
-        run: bash scripts/ops/verify-alerts.tests.sh && bash scripts/ops/alert-drill.tests.sh
       - name: Alerting config direct check (diagnostic)
         run: |
           ruby --version || echo "NO RUBY: $?"
           bash scripts/ops/verify-alerts.sh -ConfigDir ops/observability; echo "verify rc=$?"
+      - name: Alerting contract tests
+        run: bash scripts/ops/verify-alerts.tests.sh && bash scripts/ops/alert-drill.tests.sh
       - name: Alert sink tests
         run: go test ./...
         working-directory: ops/observability/alert-sink
