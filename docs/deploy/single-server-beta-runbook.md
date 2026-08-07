@@ -317,9 +317,11 @@ Upgrade drill requirements (see `release/backup-policy.json`):
   30 days before any schema change.
 - Recovery order: PostgreSQL first (source of truth), then OSS object version
   restore and reconciliation, then Redis clear-and-rebuild.
-- Real Aliyun OSS versioning/off-host storage and approved numeric RPO/RTO
-  targets are Ops-08 blockers; `release/recovery-objectives.json` currently
-  records measured baselines only.
+- Real Aliyun OSS versioning/off-host storage, an encrypted archive receipt and
+  approved numeric RPO/RTO targets are Ops-08 blockers. The committed
+  `release/recovery-objectives.json` is intentionally `baseline_only` with
+  null measurements until a reproducible staging drill supplies the original
+  restore records; static values must not be promoted to approved evidence.
 
 ## 9. Backup
 
@@ -475,20 +477,42 @@ bash scripts/release/staging-drill.sh \
   -OverrideFile "$OMNICRAFT_STAGING_OVERRIDE_FILE" \
   -CandidateManifest "$OMNICRAFT_CANDIDATE_MANIFEST" \
   -PreviousManifest "$OMNICRAFT_PREVIOUS_MANIFEST" \
-  -ReportDir artifacts/ops-08
+  -ComposeFile "$OMNICRAFT_STAGING_COMPOSE_FILE" \
+  -ReportDir artifacts/ops-08 \
+  -RecoveryObjectives "$OMNICRAFT_RECOVERY_OBJECTIVES" \
+  -Measured "$OMNICRAFT_MEASURED"
 ```
 
 Required real staging inputs (the drill blocks with exit 3 when missing or
 placeholder): `OMNICRAFT_STAGING_ENV_FILE`, `OMNICRAFT_STAGING_OVERRIDE_FILE`,
 `OMNICRAFT_CANDIDATE_MANIFEST`, `OMNICRAFT_PREVIOUS_MANIFEST`,
-`OMNICRAFT_STAGING_OSS_BUCKET`, `OMNICRAFT_OFFSITE_ARCHIVE_URI`,
-`GITHUB_RELEASE_TAG`. The drill sequence is: preflight → deploy candidate
+`OMNICRAFT_STAGING_COMPOSE_FILE`, `OMNICRAFT_STAGING_OSS_BUCKET`,
+`OMNICRAFT_OFFSITE_ARCHIVE_URI`, `GITHUB_RELEASE_TAG`,
+`OMNICRAFT_RECOVERY_OBJECTIVES`, `OMNICRAFT_MEASURED` and
+`OMNICRAFT_SMOKE_URL`. The drill sequence is: preflight → deploy candidate
 digest → verify readiness/smoke → rollback to the previous digest (schema
 compatible only) → verify → redeploy candidate. Rollback refuses unknown or
 schema-incompatible digests and never runs destructive down SQL. Real staging
 OSS/versioning credentials and the encrypted off-site archive destination are
 release blockers when absent; the drill must not be replaced by simulated
-evidence.
+evidence. `-RecoveryObjectives` must be an approved, commit-bound file and
+`-Measured` must be the output of the same real staging recovery exercise;
+`baseline_only` or hand-written measurements fail closed.
+
+The measured JSON must contain `drill_id: "ops-08-staging-recovery"`, the
+candidate `source_commit`, numeric minute values for all five RPO/RTO metrics,
+and a non-empty `source_evidence` array. Each source entry is a relative file
+path beside the measured JSON plus its SHA-256; the drill verifies those files
+before comparing targets.
+
+The durable archive step additionally requires an operator-scoped GitHub
+release token (`OMNICRAFT_RELEASE_ARCHIVE_TOKEN`) and the off-site archive
+credentials (`OMNICRAFT_OFFSITE_ARCHIVE_AK_ID`,
+`OMNICRAFT_OFFSITE_ARCHIVE_AK_SECRET`, plus `OFFSITE_ARCHIVE_ENDPOINT` or
+`OFFSITE_ARCHIVE_REGION`). `archive-release-evidence.sh` accepts the Ops-08
+deployment manifest and archives the complete evidence directory; it refuses
+to report success unless both the GitHub Release assets and every OSS object
+are remotely verified.
 
 ## 12. Load, Stress and Capacity (Ops-07)
 

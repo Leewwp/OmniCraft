@@ -168,6 +168,36 @@ expect_rollback() {
   echo "OK: $label"
 }
 
+expect_real_deploy() {
+  local expected="$1" label="$2" dir="$3" docker_bin="$4" smoke_url="$5"
+  local actual=0
+  OMNICRAFT_PRIVATE_DB_HOSTS=pgbouncer OMNICRAFT_DOCKER_BIN="$docker_bin" OMNICRAFT_SMOKE_URL="$smoke_url" \
+    bash "$DEPLOY" -Manifest "$dir/candidate.json" -EnvFile "$dir/env" -OverrideFile "$dir/override.yaml" \
+      -Schema "$SCHEMA" -ReportDir "$dir/report-real" -HistoryFile "$dir/history.json" \
+      >"$TEMP_ROOT/$label.out" 2>"$TEMP_ROOT/$label.err" || actual=$?
+  if [ "$actual" -ne "$expected" ]; then
+    echo "FAIL: $label: expected exit $expected, got $actual" >&2
+    cat "$TEMP_ROOT/$label.err" >&2
+    exit 1
+  fi
+  echo "OK: $label"
+}
+
+expect_real_rollback() {
+  local expected="$1" label="$2" dir="$3" docker_bin="$4" smoke_url="$5"
+  local actual=0
+  OMNICRAFT_PRIVATE_DB_HOSTS=pgbouncer OMNICRAFT_DOCKER_BIN="$docker_bin" OMNICRAFT_SMOKE_URL="$smoke_url" \
+    bash "$ROLLBACK" -Manifest "$dir/previous.json" -EnvFile "$dir/env" -OverrideFile "$dir/override.yaml" \
+      -Schema "$SCHEMA" -ReportDir "$dir/report-real" -HistoryFile "$dir/history.json" \
+      >"$TEMP_ROOT/$label.out" 2>"$TEMP_ROOT/$label.err" || actual=$?
+  if [ "$actual" -ne "$expected" ]; then
+    echo "FAIL: $label: expected exit $expected, got $actual" >&2
+    cat "$TEMP_ROOT/$label.err" >&2
+    exit 1
+  fi
+  echo "OK: $label"
+}
+
 # ------------------------------------------------------------ usage errors
 rc=0
 bash "$DEPLOY" >/dev/null 2>&1 || rc=$?
@@ -237,6 +267,62 @@ assert h[1]["digest"] == "sha256:" + "1" * 64, "previous deployment must be pres
 assert m["previous_digest"] == h[1]["digest"], "previous digest must be recorded"
 PY
 echo "OK: deployment manifest records previous digest"
+
+# ------------------------------------------------------- real Compose path
+# This fake Docker CLI is only a hermetic command recorder. The release
+# scripts still execute their real non-drill branches, including Compose
+# config/pull/up/exec, health inspection and smoke verification.
+F="$TEMP_ROOT/real-compose"
+make_fixture "$F"
+python3 - "$F/previous.json" "$F/history.json" <<'PY'
+import json, sys
+for path in sys.argv[1:]:
+    data = json.load(open(path))
+    if path.endswith("previous.json"):
+        data["schema_compat"]["max_head"] = "061_add_source_fanwork_id.sql"
+    else:
+        data[0]["migration_head"] = "061_add_source_fanwork_id.sql"
+    json.dump(data, open(path, "w"), indent=2)
+PY
+printf 'smoke ok\n' > "$F/smoke.txt"
+FAKE_BIN="$F/bin"
+mkdir -p "$FAKE_BIN"
+cat > "$FAKE_BIN/docker" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+echo "$*" >> "${FAKE_DOCKER_LOG:?}"
+if [ "$1" = "inspect" ]; then
+  echo healthy
+  exit 0
+fi
+if [ "$1" != "compose" ]; then
+  echo "unexpected fake docker command: $*" >&2
+  exit 1
+fi
+shift
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --env-file|-f) shift 2 ;;
+    *) command_name="$1"; shift; break ;;
+  esac
+done
+case "${command_name:-}" in
+  config|pull|up) exit 0 ;;
+  ps) echo fake-container; exit 0 ;;
+  exec) printf 'fake pg dump\n'; exit 0 ;;
+  *) echo "unexpected fake compose command: ${command_name:-}" >&2; exit 1 ;;
+esac
+EOF
+chmod +x "$FAKE_BIN/docker"
+FAKE_DOCKER_LOG="$F/docker.log" OMNICRAFT_DOCKER_BIN="$FAKE_BIN/docker" \
+  expect_real_deploy 0 "real compose deploy path" "$F" "$FAKE_BIN/docker" "file://$F/smoke.txt"
+FAKE_DOCKER_LOG="$F/docker.log" OMNICRAFT_DOCKER_BIN="$FAKE_BIN/docker" \
+  expect_real_rollback 0 "real compose rollback path" "$F" "$FAKE_BIN/docker" "file://$F/smoke.txt"
+grep -Eq 'compose .*config|compose .*pull|compose .*up|compose .*exec|inspect' "$F/docker.log" || {
+  echo "FAIL: real path did not exercise Compose and health inspection" >&2
+  exit 1
+}
+echo "OK: real Compose path exercised"
 
 # ------------------------------------------------- rollback: unknown digest
 F="$TEMP_ROOT/rollback-unknown"

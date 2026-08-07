@@ -22,6 +22,12 @@ func newQuotaTestReserver(t *testing.T, cfg *config.Config) (*AgentQuotaReserver
 	t.Cleanup(mr.Close)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = rdb.Close() })
+	if cfg.RateLimit.AgentWindowSec == 0 {
+		cfg.RateLimit.AgentWindowSec = 86400
+	}
+	if cfg.RateLimit.AgentMinuteWindowSec == 0 {
+		cfg.RateLimit.AgentMinuteWindowSec = 60
+	}
 	return NewAgentQuotaReserver(rdb, cfg), mr
 }
 
@@ -121,17 +127,17 @@ func TestAgentQuotaReserverFailClosedWhenRedisUnavailable(t *testing.T) {
 
 func TestAgentQuotaReserverLimitsAreConfigDriven(t *testing.T) {
 	res, mr := newQuotaTestReserver(t, &config.Config{Agent: config.AgentConfig{}})
-	ctx := context.Background()
+	if err := res.Reserve(context.Background(), 3); err == nil {
+		t.Fatal("missing limits must fail closed; no code defaults are allowed")
+	}
+	if _, err := mr.Get(res.DayKey(3)); err == nil {
+		t.Fatal("invalid configuration must not create a quota key")
+	}
+}
 
-	for i := 0; i < 5; i++ {
-		if err := res.Reserve(ctx, 3); err != nil {
-			t.Fatalf("reserve %d: %v", i+1, err)
-		}
-	}
-	if err := res.Reserve(ctx, 3); !errors.Is(err, ErrAgentQuotaExceeded) {
-		t.Fatalf("6th reserve err = %v, want ErrAgentQuotaExceeded (default minute limit 5)", err)
-	}
-	if _, err := mr.Get(res.DayKey(3)); err != nil {
-		t.Fatalf("day key must exist after 6 reservations: %v", err)
+func TestAgentQuotaReserverRejectsMissingRuntimeLimits(t *testing.T) {
+	res, _ := newQuotaTestReserver(t, &config.Config{Agent: config.AgentConfig{}})
+	if err := res.Reserve(context.Background(), 3); err == nil {
+		t.Fatal("Reserve must reject missing configured limits instead of applying code defaults")
 	}
 }

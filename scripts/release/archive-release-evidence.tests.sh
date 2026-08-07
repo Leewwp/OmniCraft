@@ -70,6 +70,10 @@ echo "OK: usage errors"
 # ---------------------------------------------------------------- happy path
 FIXTURE="$TEMP_ROOT/fixture"
 make_fixture "$FIXTURE"
+rc=0
+bash "$ARCHIVE" -Manifest "$FIXTURE/release-manifest.json" -TargetDir "$TEMP_ROOT/dest" -RetentionDays 0 >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 2 ] || { echo "FAIL: zero retention must exit 2" >&2; exit 1; }
+echo "OK: non-positive retention rejected"
 DEST="$TEMP_ROOT/dest"
 expect_archive 0 "archive happy path" -Manifest "$FIXTURE/release-manifest.json" -TargetDir "$DEST" -ReportDir "$FIXTURE"
 python3 - "$DEST/archive-receipt.json" <<'PY'
@@ -118,6 +122,39 @@ for name in ("sboms/backend-go.cdx.json", "artifacts/backend-image.tar", "releas
 # the fixture manifest has no migration-manifest field: archive must still copy
 # the manifest itself; migration object only exists when referenced
 print("archive receipt assertions passed")
+PY
+
+# -------------------------------------------------------- deployment evidence
+# Ops-08 passes a deployment manifest, not the Ops-06 SBOM manifest. The
+# archiver must retain the complete evidence directory in that mode.
+DEPLOY_FIXTURE="$TEMP_ROOT/deployment-fixture"
+mkdir -p "$DEPLOY_FIXTURE"
+printf 'preflight evidence\n' > "$DEPLOY_FIXTURE/preflight-summary.json"
+printf 'backup evidence\n' > "$DEPLOY_FIXTURE/backup-manifest.json"
+printf 'readiness evidence\n' > "$DEPLOY_FIXTURE/readiness.log"
+printf 'smoke evidence\n' > "$DEPLOY_FIXTURE/smoke-response.txt"
+python3 - "$DEPLOY_FIXTURE/deployment-manifest.json" <<'PY'
+import json, sys
+with open(sys.argv[1], "w", encoding="utf-8") as f:
+    json.dump({
+        "schema_version": "1.0",
+        "commit": "3333333333333333333333333333333333333333",
+        "images": {},
+        "preflight": {"status": "ok"},
+        "backup": {"status": "ok"},
+        "readiness": {"status": "ok"},
+        "smoke": {"status": "ok"},
+    }, f)
+PY
+expect_archive 0 "deployment evidence archive" -Manifest "$DEPLOY_FIXTURE/deployment-manifest.json" -TargetDir "$TEMP_ROOT/deployment-dest" -ReportDir "$DEPLOY_FIXTURE"
+python3 - "$TEMP_ROOT/deployment-dest/archive-receipt.json" <<'PY'
+import json, sys
+receipt = json.load(open(sys.argv[1], encoding="utf-8"))
+names = {obj["name"] for dest in receipt["destinations"] for obj in dest["objects"]}
+required = {"deployment-manifest.json", "preflight-summary.json", "backup-manifest.json", "readiness.log", "smoke-response.txt"}
+if not required.issubset(names):
+    raise SystemExit(f"deployment evidence archive missing {sorted(required - names)}")
+print("deployment evidence archive assertions passed")
 PY
 
 # ---------------------------------------------------- missing source file
@@ -169,6 +206,11 @@ bash "$ARCHIVE" -Manifest "$FIXTURE5/release-manifest.json" -TargetDir "$TEMP_RO
 [ "$rc" -eq 0 ] || { echo "FAIL: -TargetDir only mode must still work" >&2; exit 1; }
 echo "OK: -TargetDir only mode retained"
 
+rc=0
+bash "$ARCHIVE" -Manifest "$FIXTURE5/release-manifest.json" -GitHubRelease "v0.1.0-fixture" >/dev/null 2>&1 || rc=$?
+[ "$rc" -eq 1 ] || { echo "FAIL: real mode must require both durable destinations" >&2; exit 1; }
+echo "OK: real mode requires both durable destinations"
+
 # ------------------------------- real destinations with fake gh/ossutil CLIs
 FAKE_BIN="$TEMP_ROOT/fake-bin"
 mkdir -p "$FAKE_BIN"
@@ -180,7 +222,20 @@ if [ "$1" = "release" ] && [ "$2" = "upload" ]; then
   exit 0
 fi
 if [ "$1" = "release" ] && [ "$2" = "view" ]; then
-  echo '{"assets":[{"name":"artifact","url":"https://example.invalid/asset","size":10,"state":"uploaded"}]}'
+  python3 - "$GH_RECORD" <<'PY'
+import json
+import os
+import sys
+
+names = []
+for line in open(sys.argv[1], encoding="utf-8"):
+    fields = line.split()
+    if len(fields) >= 4:
+        upload = fields[3]
+        names.append(upload.split("#", 1)[1] if "#" in upload else os.path.basename(upload))
+print(json.dumps({"assets": [{"name": name, "url": "https://example.invalid/" + name,
+                              "size": 10, "state": "uploaded"} for name in names]}))
+PY
   exit 0
 fi
 echo "fake gh: unexpected args: $*" >&2
@@ -188,7 +243,7 @@ exit 1
 EOF
 cat > "$FAKE_BIN/ossutil" <<'EOF'
 #!/usr/bin/env bash
-# fake ossutil: records invocation; stat returns retention metadata
+# fake ossutil: records invocation; stat returns verified retention metadata
 if [ "$1" = "cp" ]; then
   echo "$@" >> "$OSSUTIL_RECORD"
   exit 0
@@ -202,7 +257,8 @@ if [ "$1" = "stat" ] || [ "$1" = "ls" ]; then
 object size: 10
 x-oss-meta-retention-days: 365
 x-oss-meta-expires-at: 2027-08-07T00:00:00Z
-x-oss-server-side-encryption: OSS
+x-oss-meta-archive-commit: 2222222222222222222222222222222222222222
+x-oss-server-side-encryption: AES256
 OUT
   fi
   exit 0
@@ -238,8 +294,8 @@ if receipt["blockers"]:
     fail("real destination mode must not record simulated Ops-08 blockers: %s" % receipt["blockers"])
 if receipt["retention_days"] != 365:
     fail("one-year retention not honored in real mode")
-if receipt["redaction_checked"] is not False:
-    fail("redaction_checked must be present")
+if receipt["redaction_checked"] is not True:
+    fail("redaction_checked must confirm the receipt was scanned")
 for dest in receipt["destinations"]:
     if dest["type"] == "github-release":
         if dest.get("tag") != "v0.1.0-fixture":
@@ -257,10 +313,10 @@ for dest in receipt["destinations"]:
         fail("unexpected destination type " + dest["type"])
 if "upload" not in gh_calls or "v0.1.0-fixture" not in gh_calls:
     fail("fake gh must have been invoked for release upload")
-if "--meta" not in ossutil_calls or "oss://omnicraft-fixture/ops-evidence" not in ossutil_calls:
+if "--meta" not in ossutil_calls or "AES256" not in ossutil_calls or "oss://omnicraft-fixture/ops-evidence" not in ossutil_calls:
     fail("fake ossutil must have been invoked with the off-site uri")
-if "ls" not in ossutil_calls:
-    fail("offsite objects must be existence-verified via ls")
+if "stat" not in ossutil_calls:
+    fail("offsite objects must be metadata-verified via stat")
 if "LTAI5tFIXTURE" in open(sys.argv[1], encoding="utf-8").read():
     fail("receipt must never contain credentials")
 print("real destination mode assertions passed")

@@ -1,6 +1,6 @@
 # OmniCraft 后续工作协调规划（2026-08-07 会话结论）
 
-> 创建日期：2026-08-07 | 预计失效日期：2026-10-07
+> 创建日期：2026-08-07 | **预计失效日期**: 2026-10-07
 > 范围：Ops-08 收尾 → 归档清理 → UI 体验修复（#64 系列）→ source-linkage → Web Agent Task 6 → IP history → 收藏集 cutover
 > 依据：AGENTS.md 活计划注册表、`docs/superpowers/plans/` 各计划、`docs/superpowers/specs/2026-08-07-omnicraft-web-experience-corrections-design.md`、GitHub issues #1/#22/#28/#30/#31/#32/#64/#65~#76
 > 本文件为会话结论汇总，不替代各计划文件与 AGENTS.md 的权威地位；任务来源始终以 AGENTS.md 注册表为准。
@@ -9,20 +9,18 @@
 
 ## 1. 当前状态盘点
 
-### 1.1 正在执行：Ops-08（Production Readiness 最后一环）
+### 1.1 当前状态：Ops-08 Step 5 blocked（审查修正）
 
-- Worktree：`/private/tmp/OmniCraft-ops08`（分支 `codex/ops/ops-08`）
-- 已提交：`0e13aa2 "Ops 08: add production deploy and rollback gate"`
-- 未提交修改（4 个文件）：`release/recovery-objectives.json`、`release/archive-release-evidence.sh(+tests)`、`release/staging-drill.sh(+tests)`
-- 计划要求：真实 staging 环境 / OSS / offsite 输入，缺失时**阻塞**；staging-drill 需真实部署演练证据，不得模拟
-- 完成后：两阶段审查 → 合并 main → 勾选 Ops-08 → 更新 AGENTS.md 注册表 → progress.txt 记录
-- Ops-09 随桌面范围暂缓，计划文件保留（不得归档、不得勾选）
+- 当前审查基线：`main`/`origin/main` 为 `25670ae`；当前工作树存在本轮修复修改，未提交。
+- 已确认：Ops-08 Step 1-4 的契约实现存在；原先声称的真实 Step 5、approved RPO/RTO 和双目的地 receipt 无法由当前仓库独立复核。
+- 当前处理：修复真实 Compose deploy/rollback、registry digest、workflow protected drill、TLS 拓扑和文档状态；`release/recovery-objectives.json` 保持 `baseline_only`。
+- 计划要求：真实 staging 环境 / OSS / offsite 输入，缺失时**阻塞**；staging-drill 需真实部署和原始恢复证据，不得模拟。
+- Ops-09 随桌面范围暂缓，计划文件保留（不得归档、不得勾选）。
 
-### 1.2 main 工作树遗留（待提交）
+### 1.2 当前工作树状态（待提交）
 
-- 已修改：`docs/GLOSSARY.md`
-- 未跟踪：`docs/superpowers/specs/2026-08-07-omnicraft-web-experience-corrections-design.md`（已确认规格，必须入库）、`docs/working/2026-08-07-ui-issues-audit.md`
-- 处理：Ops-08 合并 main 后，随 Phase 1 归档轮次一并提交
+- 当前工作树仅保留本轮审查修复及其回归测试/文档修改；没有把历史 main 遗留或已完成规格误列为待处理文件。
+- 本轮仍未提交：Ops-08 Step 5 依赖真实 staging、OSS/off-site 和批准恢复输入；解除阻塞后再按 heavy 车道精确 stage。
 
 ### 1.3 Agent 功能页状态澄清（本轮确认）
 
@@ -43,13 +41,13 @@ Worktree：`/private/tmp/OmniCraft-ops08`（Ops-08 后删）、`/private/tmp/Omn
 
 ## 2. 推荐执行顺序
 
-### Phase 0：Ops-08 收尾（进行中）
+### Phase 0：Ops-08 审查修复与阻塞收口（进行中）
 
-1. 完成未提交 4 个脚本的验证与提交
-2. 两阶段审查（规格符合性 → 代码质量）
-3. 合并 `codex/ops/ops-08` → main
-4. 勾选 Ops-08；AGENTS.md 注册表更新（Ops-08 完成，Ops-09 仍暂缓）；progress.txt 记录
-5. 若真实 staging/OSS/offsite 缺失 → 按阻塞流程输出阻塞信息，等待人工
+1. 完成本轮脚本、Compose、workflow、deployment evidence 归档和文档状态修复
+2. 运行针对性契约与项目验证门；真实外部输入缺失时不得提交或勾选 Step 5
+3. 提供真实 staging/OSS/offsite/measured 输入后，执行真实 drill、归档 receipt 和两阶段审查
+4. 仅在 Step 5 全部证据可复核后更新 AGENTS.md 注册表与 progress.txt 的完成状态
+5. 当前阻塞按 B1/B5 输出，等待人工提供外部输入
 
 ### Phase 1：归档与清理
 

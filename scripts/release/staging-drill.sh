@@ -21,6 +21,7 @@ ENV_FILE=""
 OVERRIDE_FILE=""
 CANDIDATE=""
 PREVIOUS=""
+COMPOSE_FILE=""
 REPORT_DIR=""
 RECOVERY_OBJECTIVES=""
 MEASURED=""
@@ -32,23 +33,28 @@ while [ $# -gt 0 ]; do
     -OverrideFile) [ $# -ge 2 ] || { echo "missing value for -OverrideFile" >&2; exit 2; }; OVERRIDE_FILE="$2"; shift 2 ;;
     -CandidateManifest) [ $# -ge 2 ] || { echo "missing value for -CandidateManifest" >&2; exit 2; }; CANDIDATE="$2"; shift 2 ;;
     -PreviousManifest) [ $# -ge 2 ] || { echo "missing value for -PreviousManifest" >&2; exit 2; }; PREVIOUS="$2"; shift 2 ;;
+    -ComposeFile) [ $# -ge 2 ] || { echo "missing value for -ComposeFile" >&2; exit 2; }; COMPOSE_FILE="$2"; shift 2 ;;
     -ReportDir) [ $# -ge 2 ] || { echo "missing value for -ReportDir" >&2; exit 2; }; REPORT_DIR="$2"; shift 2 ;;
     -RecoveryObjectives) [ $# -ge 2 ] || { echo "missing value for -RecoveryObjectives" >&2; exit 2; }; RECOVERY_OBJECTIVES="$2"; shift 2 ;;
     -Measured) [ $# -ge 2 ] || { echo "missing value for -Measured" >&2; exit 2; }; MEASURED="$2"; shift 2 ;;
     -Drill) DRILL=1; shift ;;
     *)
       echo "unknown argument: $1" >&2
-      echo "usage: staging-drill.sh -EnvironmentFile <path> -OverrideFile <path> -CandidateManifest <path> -PreviousManifest <path> [-ReportDir <dir>] [-RecoveryObjectives <path>] [-Measured <path>] [-Drill]" >&2
+      echo "usage: staging-drill.sh -EnvironmentFile <path> -OverrideFile <path> -CandidateManifest <path> -PreviousManifest <path> [-ComposeFile <compose.yml>] [-ReportDir <dir>] [-RecoveryObjectives <path>] [-Measured <path>] [-Drill]" >&2
       exit 2 ;;
   esac
 done
 
 if [ -z "$ENV_FILE" ] || [ -z "$OVERRIDE_FILE" ] || [ -z "$CANDIDATE" ] || [ -z "$PREVIOUS" ]; then
-  echo "usage: staging-drill.sh -EnvironmentFile <path> -OverrideFile <path> -CandidateManifest <path> -PreviousManifest <path> [-ReportDir <dir>] [-RecoveryObjectives <path>] [-Measured <path>] [-Drill]" >&2
+  echo "usage: staging-drill.sh -EnvironmentFile <path> -OverrideFile <path> -CandidateManifest <path> -PreviousManifest <path> [-ComposeFile <compose.yml>] [-ReportDir <dir>] [-RecoveryObjectives <path>] [-Measured <path>] [-Drill]" >&2
   exit 2
 fi
 
-for f in "$ENV_FILE" "$OVERRIDE_FILE" "$CANDIDATE" "$PREVIOUS"; do
+if [ -z "$COMPOSE_FILE" ]; then
+  COMPOSE_FILE="$REPO_ROOT/docs/deploy/docker-compose.single-server.yml"
+fi
+
+for f in "$ENV_FILE" "$OVERRIDE_FILE" "$CANDIDATE" "$PREVIOUS" "$COMPOSE_FILE"; do
   [ -f "$f" ] || { echo "file not found: $f" >&2; exit 1; }
 done
 
@@ -68,9 +74,13 @@ if [ "$DRILL" -ne 1 ]; then
     OMNICRAFT_STAGING_OVERRIDE_FILE
     OMNICRAFT_CANDIDATE_MANIFEST
     OMNICRAFT_PREVIOUS_MANIFEST
+    OMNICRAFT_STAGING_COMPOSE_FILE
     OMNICRAFT_STAGING_OSS_BUCKET
     OMNICRAFT_OFFSITE_ARCHIVE_URI
     GITHUB_RELEASE_TAG
+    OMNICRAFT_RECOVERY_OBJECTIVES
+    OMNICRAFT_MEASURED
+    OMNICRAFT_SMOKE_URL
   )
   MISSING=()
   for v in "${REQUIRED_INPUTS[@]}"; do
@@ -83,6 +93,13 @@ if [ "$DRILL" -ne 1 ]; then
     echo "staging-drill: real staging environment/OSS/off-site credentials are required (Ops-08 Step 5)" >&2
     exit 3
   fi
+  [ "$OMNICRAFT_STAGING_ENV_FILE" = "$ENV_FILE" ] || { echo "staging-drill: OMNICRAFT_STAGING_ENV_FILE must match -EnvironmentFile" >&2; exit 3; }
+  [ "$OMNICRAFT_STAGING_OVERRIDE_FILE" = "$OVERRIDE_FILE" ] || { echo "staging-drill: OMNICRAFT_STAGING_OVERRIDE_FILE must match -OverrideFile" >&2; exit 3; }
+  [ "$OMNICRAFT_CANDIDATE_MANIFEST" = "$CANDIDATE" ] || { echo "staging-drill: OMNICRAFT_CANDIDATE_MANIFEST must match -CandidateManifest" >&2; exit 3; }
+  [ "$OMNICRAFT_PREVIOUS_MANIFEST" = "$PREVIOUS" ] || { echo "staging-drill: OMNICRAFT_PREVIOUS_MANIFEST must match -PreviousManifest" >&2; exit 3; }
+  [ "$OMNICRAFT_STAGING_COMPOSE_FILE" = "$COMPOSE_FILE" ] || { echo "staging-drill: OMNICRAFT_STAGING_COMPOSE_FILE must match -ComposeFile" >&2; exit 3; }
+  [ "$OMNICRAFT_RECOVERY_OBJECTIVES" = "$RECOVERY_OBJECTIVES" ] || { echo "staging-drill: OMNICRAFT_RECOVERY_OBJECTIVES must match -RecoveryObjectives" >&2; exit 3; }
+  [ "$OMNICRAFT_MEASURED" = "$MEASURED" ] || { echo "staging-drill: OMNICRAFT_MEASURED must match -Measured" >&2; exit 3; }
   for v in "${REQUIRED_INPUTS[@]}"; do
     case "${!v}" in
       *"<"* | *">"* | *CHANGE_ME* | *REPLACE_ME* | *PLACEHOLDER* | *example.com* | *your-*)
@@ -90,7 +107,24 @@ if [ "$DRILL" -ne 1 ]; then
         exit 3 ;;
     esac
   done
+  if [[ ! "$OMNICRAFT_OFFSITE_ARCHIVE_URI" =~ ^oss://[a-z0-9][a-z0-9-]{2,62}(/.*)?$ ]]; then
+    echo "staging-drill: OMNICRAFT_OFFSITE_ARCHIVE_URI must be an oss://bucket/prefix URI" >&2
+    exit 3
+  fi
+  if [[ ! "$GITHUB_RELEASE_TAG" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+    echo "staging-drill: GITHUB_RELEASE_TAG contains unsupported characters" >&2
+    exit 3
+  fi
   echo "staging-drill: all real staging inputs present"
+  if [ -z "$RECOVERY_OBJECTIVES" ] || [ -z "$MEASURED" ]; then
+    echo "staging-drill: real mode requires -RecoveryObjectives and -Measured; no static RPO/RTO evidence is accepted" >&2
+    exit 3
+  fi
+fi
+
+DRILL_ARGS=()
+if [ "$DRILL" -eq 1 ]; then
+  DRILL_ARGS=(-Drill)
 fi
 
 # ---------------------------------------------------------------------------
@@ -131,10 +165,10 @@ bash "$SCRIPT_DIR/preflight.sh" -EnvironmentFile "$ENV_FILE" -OverrideFile "$OVE
 
 echo "staging-drill: deploy candidate"
 bash "$SCRIPT_DIR/deploy.sh" -Manifest "$CANDIDATE" -EnvFile "$ENV_FILE" -OverrideFile "$OVERRIDE_FILE" \
-  -Schema "$SCHEMA" -ReportDir "$REPORT_DIR" -HistoryFile "$HISTORY" ${DRILL:+-Drill}
+  -Schema "$SCHEMA" -ComposeFile "$COMPOSE_FILE" -ReportDir "$REPORT_DIR" -HistoryFile "$HISTORY" "${DRILL_ARGS[@]}"
 
 echo "staging-drill: verify candidate (readiness + smoke contract)"
-python3 - "$CANDIDATE" <<'PY'
+python3 "$REPORT_DIR/deployment-manifest.json" <<'PY'
 import json, sys
 m = json.load(open(sys.argv[1], encoding="utf-8"))
 for key in ("preflight", "readiness", "smoke"):
@@ -145,7 +179,7 @@ PY
 
 echo "staging-drill: rollback to previous"
 bash "$SCRIPT_DIR/rollback.sh" -Manifest "$PREVIOUS" -EnvFile "$ENV_FILE" -OverrideFile "$OVERRIDE_FILE" \
-  -Schema "$SCHEMA" -ReportDir "$REPORT_DIR" -HistoryFile "$HISTORY" ${DRILL:+-Drill}
+  -Schema "$SCHEMA" -ComposeFile "$COMPOSE_FILE" -ReportDir "$REPORT_DIR" -HistoryFile "$HISTORY" "${DRILL_ARGS[@]}"
 
 echo "staging-drill: verify rollback target"
 python3 - "$PREVIOUS" <<'PY'
@@ -155,10 +189,29 @@ if m.get("migration", {}).get("head", "") > m.get("schema_compat", {}).get("max_
     raise SystemExit("rollback target incompatible with deployed schema")
 print("rollback verification ok")
 PY
+if [ "$DRILL" -eq 0 ]; then
+  python3 "$REPORT_DIR/rollback-manifest.json" <<'PY'
+import json, sys
+m = json.load(open(sys.argv[1], encoding="utf-8"))
+for key in ("readiness", "smoke"):
+    if m.get(key, {}).get("status") != "ok":
+        raise SystemExit(f"rollback {key} not ok after compose switch")
+print("rollback compose verification ok")
+PY
+fi
 
 echo "staging-drill: redeploy candidate"
 bash "$SCRIPT_DIR/deploy.sh" -Manifest "$CANDIDATE" -EnvFile "$ENV_FILE" -OverrideFile "$OVERRIDE_FILE" \
-  -Schema "$SCHEMA" -ReportDir "$REPORT_DIR" -HistoryFile "$HISTORY" ${DRILL:+-Drill}
+  -Schema "$SCHEMA" -ComposeFile "$COMPOSE_FILE" -ReportDir "$REPORT_DIR" -HistoryFile "$HISTORY" "${DRILL_ARGS[@]}"
+
+python3 "$REPORT_DIR/deployment-manifest.json" <<'PY'
+import json, sys
+m = json.load(open(sys.argv[1], encoding="utf-8"))
+for key in ("preflight", "readiness", "smoke"):
+    if m.get(key, {}).get("status") != "ok":
+        raise SystemExit(f"redeployed candidate {key} not ok")
+print("redeployed candidate verification ok")
+PY
 
 # ---------------------------------------------------------------------------
 # Ops-08 Step 5: machine-compare measured PostgreSQL + Aliyun OSS
@@ -172,12 +225,15 @@ if [ -n "$RECOVERY_OBJECTIVES" ] || [ -n "$MEASURED" ]; then
   [ -f "$RECOVERY_OBJECTIVES" ] || { echo "recovery objectives file not found: $RECOVERY_OBJECTIVES" >&2; exit 1; }
   [ -f "$MEASURED" ] || { echo "measured file not found: $MEASURED" >&2; exit 1; }
   echo "staging-drill: compare measured recovery values against approved RPO/RTO targets"
-  OBJECTIVES="$RECOVERY_OBJECTIVES" MEASURED_FILE="$MEASURED" REPORT_DIR="$REPORT_DIR" python3 - <<'PY'
+  OBJECTIVES="$RECOVERY_OBJECTIVES" MEASURED_FILE="$MEASURED" REPORT_DIR="$REPORT_DIR" CANDIDATE_MANIFEST="$CANDIDATE" python3 - <<'PY'
+import hashlib
 import json, os, sys
+import pathlib
 
 objectives_path = os.environ["OBJECTIVES"]
 measured_path = os.environ["MEASURED_FILE"]
 report_dir = os.environ["REPORT_DIR"]
+candidate_path = os.environ["CANDIDATE_MANIFEST"]
 
 def fail(msg):
     print(f"staging-drill: {msg}", file=sys.stderr)
@@ -191,9 +247,33 @@ try:
     measured = json.load(open(measured_path, encoding="utf-8"))
 except (OSError, ValueError) as e:
     fail(f"measured values not valid JSON: {e}")
+try:
+    candidate = json.load(open(candidate_path, encoding="utf-8"))
+except (OSError, ValueError) as e:
+    fail(f"candidate manifest not valid JSON while checking measured evidence: {e}")
 
 if objectives.get("state") != "approved":
     fail("recovery objectives must be in approved state before comparing RPO/RTO")
+if measured.get("drill_id") != "ops-08-staging-recovery":
+    fail("measured values must identify the ops-08-staging-recovery drill")
+if measured.get("source_commit") != candidate.get("commit"):
+    fail("measured source_commit must match the candidate manifest commit")
+source_evidence = measured.get("source_evidence")
+if not isinstance(source_evidence, list) or not source_evidence:
+    fail("measured values must list source_evidence files; metric-only JSON is not accepted")
+measured_dir = pathlib.Path(measured_path).resolve().parent
+for item in source_evidence:
+    if not isinstance(item, dict) or not isinstance(item.get("path"), str) or not isinstance(item.get("sha256"), str):
+        fail("each source_evidence entry must contain path and sha256")
+    relative = pathlib.PurePosixPath(item["path"])
+    if relative.is_absolute() or ".." in relative.parts:
+        fail(f"source_evidence path escapes the measured file directory: {item['path']}")
+    evidence_path = (measured_dir / relative.as_posix()).resolve()
+    if measured_dir not in evidence_path.parents or not evidence_path.is_file():
+        fail(f"source_evidence file not found beside measured file: {item['path']}")
+    digest = hashlib.sha256(evidence_path.read_bytes()).hexdigest()
+    if digest != item["sha256"]:
+        fail(f"source_evidence sha256 mismatch: {item['path']}")
 targets = objectives.get("approved_targets") or {}
 approval = objectives.get("approval") or {}
 for key in ("postgres_rpo", "postgres_rto", "object_restore_rto", "service_rpo", "service_rto"):

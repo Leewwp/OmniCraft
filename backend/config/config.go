@@ -210,6 +210,8 @@ type AgentConfig struct {
 	HMACSecret            string `mapstructure:"hmac_secret" json:"-"`
 	MaxUserMessageChars   int    `mapstructure:"max_user_message_chars"`
 	ChatMaxContextMsgs    int    `mapstructure:"chat_max_context_messages"`
+	ConversationListLimit int    `mapstructure:"conversation_list_limit"`
+	ConversationPageSize  int    `mapstructure:"conversation_page_size"`
 }
 
 type CaptchaConfig struct {
@@ -274,18 +276,19 @@ type CacheConfig struct {
 }
 
 type RateLimitConfig struct {
-	Enabled             bool  `mapstructure:"enabled"`
-	NormalPerMinute     int   `mapstructure:"normal_per_minute"`
-	UploadPerHour       int   `mapstructure:"upload_per_hour"`
-	NormalWindowSec     int   `mapstructure:"normal_window_sec"`
-	UploadWindowSec     int   `mapstructure:"upload_window_sec"`
-	AgentWindowSec      int   `mapstructure:"agent_window_sec"`
-	CredentialPerMinute int   `mapstructure:"credential_per_minute"`
-	SearchPerMinute     int   `mapstructure:"search_per_minute"`
-	MaxJSONBodyBytes    int64 `mapstructure:"max_json_body_bytes"`
-	MaxQueryChars       int   `mapstructure:"max_query_chars"`
-	MaxSearchLimit      int   `mapstructure:"max_search_limit"`
-	MaxSearchPage       int   `mapstructure:"max_search_page"`
+	Enabled              bool  `mapstructure:"enabled"`
+	NormalPerMinute      int   `mapstructure:"normal_per_minute"`
+	UploadPerHour        int   `mapstructure:"upload_per_hour"`
+	NormalWindowSec      int   `mapstructure:"normal_window_sec"`
+	UploadWindowSec      int   `mapstructure:"upload_window_sec"`
+	AgentWindowSec       int   `mapstructure:"agent_window_sec"`
+	AgentMinuteWindowSec int   `mapstructure:"agent_minute_window_sec"`
+	CredentialPerMinute  int   `mapstructure:"credential_per_minute"`
+	SearchPerMinute      int   `mapstructure:"search_per_minute"`
+	MaxJSONBodyBytes     int64 `mapstructure:"max_json_body_bytes"`
+	MaxQueryChars        int   `mapstructure:"max_query_chars"`
+	MaxSearchLimit       int   `mapstructure:"max_search_limit"`
+	MaxSearchPage        int   `mapstructure:"max_search_page"`
 }
 
 type RecommendationConfig struct {
@@ -770,6 +773,12 @@ func (c *Config) ValidateRelease() error {
 		requirePositiveInt(&errs, "agent.max_output_tokens", c.Agent.MaxOutputTokens)
 		requirePositiveInt(&errs, "agent.provider_timeout_sec", c.Agent.ProviderTimeoutSec)
 		requirePositiveInt(&errs, "agent.citation_max_count", c.Agent.CitationMaxCount)
+		requirePositiveInt(&errs, "agent.max_user_message_chars", c.Agent.MaxUserMessageChars)
+		requirePositiveInt(&errs, "agent.chat_max_context_messages", c.Agent.ChatMaxContextMsgs)
+		requirePositiveInt(&errs, "agent.conversation_list_limit", c.Agent.ConversationListLimit)
+		requirePositiveInt(&errs, "agent.conversation_page_size", c.Agent.ConversationPageSize)
+		requirePositiveInt(&errs, "rate_limit.agent_window_sec", c.RateLimit.AgentWindowSec)
+		requirePositiveInt(&errs, "rate_limit.agent_minute_window_sec", c.RateLimit.AgentMinuteWindowSec)
 		if c.Agent.ProviderMaxRetries < 0 {
 			errs = append(errs, "agent.provider_max_retries must not be negative when web agent is enabled")
 		}

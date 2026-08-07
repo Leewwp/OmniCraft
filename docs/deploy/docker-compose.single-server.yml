@@ -43,10 +43,12 @@ services:
       dockerfile: Dockerfile
     restart: "no"
     environment:
-      DB_DSN: "host=postgres port=5432 user=${POSTGRES_USER:-omnicraft} password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD} dbname=${POSTGRES_DB:-omnicraft} sslmode=disable"
+      # Migrations use the same unexposed PgBouncer exception as backend;
+      # production preflight rejects direct PostgreSQL sslmode=disable.
+      DB_DSN: "host=pgbouncer port=5432 user=${POSTGRES_USER:-omnicraft} password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD} dbname=${POSTGRES_DB:-omnicraft} sslmode=disable"
       METRICS_TEXTFILE_DIR: /var/lib/omnicraft/metrics
     depends_on:
-      postgres:
+      pgbouncer:
         condition: service_healthy
     volumes:
       - ./artifacts:/app/evidence
@@ -251,11 +253,12 @@ services:
     image: prometheuscommunity/postgres-exporter:v0.15.0
     restart: unless-stopped
     environment:
-      DATA_SOURCE_URI: "postgres:5432/${POSTGRES_DB:-omnicraft}?sslmode=disable"
+      # Keep exporter traffic on the explicit internal PgBouncer exception.
+      DATA_SOURCE_URI: "pgbouncer:5432/${POSTGRES_DB:-omnicraft}?sslmode=disable"
       DATA_SOURCE_USER: ${POSTGRES_USER:-omnicraft}
       DATA_SOURCE_PASS: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
     depends_on:
-      postgres:
+      pgbouncer:
         condition: service_healthy
     logging: *default-logging
     deploy:

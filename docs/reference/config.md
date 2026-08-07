@@ -14,6 +14,8 @@
 |----------|------|------|
 | `agent.chat_max_context_messages` | `int` | ChatMaxContextMsgs |
 | `agent.citation_max_count` | `int` | CitationMaxCount |
+| `agent.conversation_list_limit` | `int` | ConversationListLimit |
+| `agent.conversation_page_size` | `int` | ConversationPageSize |
 | `agent.embedding_dimensions` | `int` | EmbeddingDimensions |
 | `agent.embedding_model` | `string` | EmbeddingModel |
 | `agent.hmac_secret` | `string` | HMACSecret |
@@ -103,6 +105,7 @@
 | `publish.type_order_fanwork` | `[]string` | TypeOrderFanwork |
 | `publish.type_order_original` | `[]string` | TypeOrderOriginal |
 | `queue` | `queue.QueueConfig` | Queue |
+| `rate_limit.agent_minute_window_sec` | `int` | AgentMinuteWindowSec |
 | `rate_limit.agent_window_sec` | `int` | AgentWindowSec |
 | `rate_limit.credential_per_minute` | `int` | CredentialPerMinute |
 | `rate_limit.enabled` | `bool` | Enabled |

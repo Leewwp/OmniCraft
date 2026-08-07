@@ -68,17 +68,17 @@ type AgentPublishSnapshot struct {
 // AgentContentSummary is the compact, server-owned content summary returned by
 // get_content_detail. It is rebuilt from the database, never from model output.
 type AgentContentSummary struct {
-	ID          int64    `json:"id"`
-	Title       string   `json:"title"`
-	Zone        string   `json:"zone"`
-	ContentType string   `json:"content_type"`
-	Excerpt     string   `json:"excerpt,omitempty"`
+	ID          int64  `json:"id"`
+	Title       string `json:"title"`
+	Zone        string `json:"zone"`
+	ContentType string `json:"content_type"`
+	Excerpt     string `json:"excerpt,omitempty"`
 }
 
 // AgentToolOutcome carries one tool execution result. Only the matching field
 // is populated; raw arguments and internal reasoning are never exposed.
 type AgentToolOutcome struct {
-	Execution AgentToolExecution  `json:"execution"`
+	Execution AgentToolExecution   `json:"execution"`
 	Detail    *AgentContentSummary `json:"detail,omitempty"`
 	Guide     *UsageGuideResult    `json:"guide,omitempty"`
 	Search    []ContentSummary     `json:"search,omitempty"`
@@ -88,9 +88,16 @@ type AgentToolOutcome struct {
 // AgentToolPolicy exposes the config-driven budget used to stop the tool loop
 // with a stable result.
 type AgentToolPolicy struct {
-	MaxCallsPerTurn int
-	MaxOutputTokens int
+	MaxCallsPerTurn  int
+	MaxOutputTokens  int
 	CitationMaxCount int
+}
+
+// Valid reports whether every provider-facing budget is explicitly configured.
+// A zero value is intentionally invalid: release and enabled development
+// environments must not silently inherit policy from code.
+func (p AgentToolPolicy) Valid() bool {
+	return p.MaxCallsPerTurn > 0 && p.MaxOutputTokens > 0 && p.CitationMaxCount > 0
 }
 
 // AllowToolCall reports whether the tool loop may run another call.
@@ -100,20 +107,15 @@ func (p AgentToolPolicy) AllowToolCall(already int) bool {
 
 // ToolPolicy returns the budget limits read from the active configuration.
 func (s *AgentService) ToolPolicy() AgentToolPolicy {
+	if s == nil || s.cfg == nil {
+		return AgentToolPolicy{}
+	}
 	cfg := s.cfg.Agent
-	maxCalls := cfg.MaxToolCallsPerTurn
-	if maxCalls <= 0 {
-		maxCalls = 8
+	return AgentToolPolicy{
+		MaxCallsPerTurn:  cfg.MaxToolCallsPerTurn,
+		MaxOutputTokens:  cfg.MaxOutputTokens,
+		CitationMaxCount: cfg.CitationMaxCount,
 	}
-	maxOut := cfg.MaxOutputTokens
-	if maxOut <= 0 {
-		maxOut = 1200
-	}
-	maxCites := cfg.CitationMaxCount
-	if maxCites <= 0 {
-		maxCites = 5
-	}
-	return AgentToolPolicy{MaxCallsPerTurn: maxCalls, MaxOutputTokens: maxOut, CitationMaxCount: maxCites}
 }
 
 // RegisteredToolNames lists the immutable server-owned tool names.

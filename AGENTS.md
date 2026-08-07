@@ -27,6 +27,7 @@ CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致
 
 | 优先级 | 计划文件 | 余项 | 车道 | 备注 |
 |--------|----------|------|------|------|
+| 1 | `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md` | Ops-08 Step 5（真实 staging deploy/rollback、OSS/off-site 证据、approved RPO/RTO） | heavy | 审查发现原完成声明无法由当前仓库独立复核；当前 blocked，解除后按真实外部输入执行，不得用模拟证据替代 |
 | 1 | `docs/superpowers/specs/2026-08-07-omnicraft-web-experience-corrections-design.md`（执行追踪：GitHub issues #64/#65~#76） | 12 tickets | 混合 | Ticket 01~12 全部 ready-for-agent 未开始；按依赖串行：T01→T02→T06（UI 高收益修复，light）→ source-linkage 计划（共享 ContentDetail/路由/翻译，先合并）→ T07→T03→T04→T05→T08（Reaction/浮窗/目录/排序，light）→ T09 IP history 独立表（heavy，独立迁移 `064_ip_visit_history.sql`）→ T10→T11→T12 收藏集 cutover（heavy，`065_drop_legacy_favorites.sql`；T12 需云端人工门：访问日志确认无旧端点调用 + 可恢复迁移前备份）。改 config/routes/migrations 后跑 doc-validator `--fix` |
 | 3 | `docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md` | 64 | light | 未开始；迁移编号已修正为 `061_add_source_fanwork_id.sql`（`060` 已被 `060_fix_search_config_fallback.sql` 占用）。与 collaboration-invites 共享 `content_repo.go`、`zh.json`/`en.json`，须串行执行且本计划先合并。与 #64 Web 体验修复共享 ContentDetail/路由/翻译面，须与 #64 串行（#64 的 T01/T02/T06 先合并，或按文件预留协调） |
 | 3 | `docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md` | 62 | light | 未开始；迁移编号已修正为 `063_collaboration_invites.sql`（`060` 被占用、`062` 已存在）。须在 source-linkage 合并后执行（共享文件串行），其 `config.go`/`config.yaml`/`routes.go` 改动与 Web Agent 计划串行 |
@@ -41,7 +42,7 @@ CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致
 | `docs/superpowers/plans/2026-05-30-omnicraft-beta-release-validation.md` | R-02（5 steps） | D-02~D-05 完成，且具备真实 Ed25519、HTTPS API 与签名分发输入 |
 | `docs/superpowers/plans/2026-05-30-omnicraft-beta-desktop-deploy-security.md` | D-02~D-05（28 steps） | 用户明确恢复桌面开发；使用 heavy 车道逐任务执行 |
 | `docs/superpowers/plans/2026-05-30-omnicraft-dual-track-beta-roadmap.md` | D-02~D-05、R-02 及跟踪项 | 上述两份计划恢复时一并恢复 |
-| `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md` | Ops-09（Web 发布范围 Ops-00~Ops-08 已全部完成并合并，已勾选 Web production-ready definition of done；证据见各 Ops commit 与 `artifacts/ops-XX/`，Ops-08 合并于 main `074715f`） | 用户明确恢复桌面范围后从最新 main 开 `codex/ops/ops-09`；计划文件保留 Ops-09 段不归档 |
+| `docs/superpowers/plans/2026-07-17-omnicraft-production-readiness.md` | Ops-09（桌面范围） | 用户明确恢复桌面范围后从最新 main 开 `codex/ops/ops-09`；Ops-08 Step 5 已移回活计划并保持 blocked；计划文件保留 Ops-09 段不归档 |
 
 暂缓期间必须保持 `features.desktop_deploy_enabled=false` 和 `client.download_enabled=false`；不得勾选上述余项，不得将桌面能力写入 Web-only 发布声明。Production Readiness 的 Ops-09 同样暂缓，但 Ops-00~Ops-08 仍属 Web 发布范围。
 

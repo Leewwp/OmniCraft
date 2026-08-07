@@ -6,21 +6,23 @@
 # with its previous digest for rollback.
 #
 # Real deployments require staging inputs (see Step 5 of the Ops-08 plan);
-# without them the script refuses. -Drill exercises the full orchestration
-# with simulated evidence so the contract tests run anywhere.
+# without them the script refuses. -Drill only exercises manifest and history
+# contracts; it never claims that a container was deployed.
 #
 # Usage:
 #   bash scripts/release/deploy.sh -Manifest <candidate.json>
 #       -EnvFile <path> -OverrideFile <path> -Schema <schema.json>
-#       [-ReportDir <dir>] [-HistoryFile <history.json>] [-Drill]
+#       [-ComposeFile <compose.yml>] [-ReportDir <dir>] [-HistoryFile <history.json>] [-Drill]
 # =============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MANIFEST=""
 ENV_FILE=""
 OVERRIDE_FILE=""
 SCHEMA=""
+COMPOSE_FILE=""
 REPORT_DIR=""
 HISTORY_FILE=""
 DRILL=0
@@ -31,6 +33,7 @@ while [ $# -gt 0 ]; do
     -EnvFile) [ $# -ge 2 ] || { echo "missing value for -EnvFile" >&2; exit 2; }; ENV_FILE="$2"; shift 2 ;;
     -OverrideFile) [ $# -ge 2 ] || { echo "missing value for -OverrideFile" >&2; exit 2; }; OVERRIDE_FILE="$2"; shift 2 ;;
     -Schema) [ $# -ge 2 ] || { echo "missing value for -Schema" >&2; exit 2; }; SCHEMA="$2"; shift 2 ;;
+    -ComposeFile) [ $# -ge 2 ] || { echo "missing value for -ComposeFile" >&2; exit 2; }; COMPOSE_FILE="$2"; shift 2 ;;
     -ReportDir) [ $# -ge 2 ] || { echo "missing value for -ReportDir" >&2; exit 2; }; REPORT_DIR="$2"; shift 2 ;;
     -HistoryFile) [ $# -ge 2 ] || { echo "missing value for -HistoryFile" >&2; exit 2; }; HISTORY_FILE="$2"; shift 2 ;;
     -Drill) DRILL=1; shift ;;
@@ -46,7 +49,11 @@ if [ -z "$MANIFEST" ] || [ -z "$ENV_FILE" ] || [ -z "$OVERRIDE_FILE" ] || [ -z "
   exit 2
 fi
 
-for f in "$MANIFEST" "$ENV_FILE" "$OVERRIDE_FILE" "$SCHEMA"; do
+if [ -z "$COMPOSE_FILE" ]; then
+  COMPOSE_FILE="$REPO_ROOT/docs/deploy/docker-compose.single-server.yml"
+fi
+
+for f in "$MANIFEST" "$ENV_FILE" "$OVERRIDE_FILE" "$SCHEMA" "$COMPOSE_FILE"; do
   [ -f "$f" ] || { echo "file not found: $f" >&2; exit 1; }
 done
 
@@ -61,6 +68,14 @@ export OMNICRAFT_DEPLOY_SCHEMA="$(cd "$(dirname "$SCHEMA")" && pwd)/$(basename "
 export OMNICRAFT_DEPLOY_REPORT="$REPORT_DIR"
 export OMNICRAFT_DEPLOY_HISTORY="${HISTORY_FILE:-}"
 export OMNICRAFT_DEPLOY_DRILL="$DRILL"
+
+RELEASE_ENV_FILE="$ENV_FILE"
+RELEASE_COMPOSE_FILE="$COMPOSE_FILE"
+RELEASE_OVERRIDE_FILE="$REPORT_DIR/compose-images.yml"
+RELEASE_REPORT_DIR="$REPORT_DIR"
+RELEASE_DOCKER_BIN="${OMNICRAFT_DOCKER_BIN:-docker}"
+# The real path below delegates to docker compose through compose-release.sh.
+source "$SCRIPT_DIR/compose-release.sh"
 
 python3 - <<'PY'
 import json
@@ -107,8 +122,11 @@ for name in ("backend", "frontend"):
 
 for key, ok_field in (("preflight", "status"), ("backup", "status"), ("readiness", "status"), ("smoke", "status")):
     block = m.get(key)
-    if not block or block.get(ok_field) != "ok":
-        fail(f"{key}.{ok_field} must be 'ok' before deployment")
+    if not block:
+        fail(f"{key} evidence block is required")
+    allowed = {"ok"} if drill else {"ok", "pending"}
+    if block.get(ok_field) not in allowed:
+        fail(f"{key}.{ok_field} must be one of {sorted(allowed)}")
 
 if not m.get("migration", {}).get("head"):
     fail("migration.head is required before deployment")
@@ -157,11 +175,48 @@ PY
 # ------------------------------------------------------------ preflight gate
 bash "$SCRIPT_DIR/preflight.sh" -EnvironmentFile "$ENV_FILE" -OverrideFile "$OVERRIDE_FILE" -ReportDir "$REPORT_DIR"
 
-# ---------------------------------------------------------------- history
+# ---------------------------------------------------------------- real deployment
 if [ "$DRILL" -eq 1 ]; then
-  echo "deploy: drill mode - simulated backup/migrate/readiness/smoke already recorded by manifest validation"
+  echo "deploy: drill mode - compose side effects skipped; contract evidence is fixture-only"
+else
+  command -v "$RELEASE_DOCKER_BIN" >/dev/null 2>&1 || { echo "deploy: Docker is required outside -Drill" >&2; exit 1; }
+  command -v curl >/dev/null 2>&1 || { echo "deploy: curl is required outside -Drill" >&2; exit 1; }
+  render_release_override "$MANIFEST" "$RELEASE_OVERRIDE_FILE"
+  release_compose config --quiet
+  deploy_release_images
+  backup_id="$(run_release_backup)"
+  run_release_migration
+  activate_release_images
+  : > "$REPORT_DIR/readiness.log"
+  wait_for_release_health
+  run_release_smoke
+  python3 - "$REPORT_DIR/deployment-manifest.json" "$MANIFEST" "$HISTORY_FILE" "$backup_id" "$REPORT_DIR" <<'PY'
+import datetime
+import json
+import os
+import sys
+
+output, candidate_path, history_path, backup_id, report_dir = sys.argv[1:]
+with open(candidate_path, encoding="utf-8") as f:
+    record = json.load(f)
+history = []
+if os.path.isfile(history_path):
+    with open(history_path, encoding="utf-8") as f:
+        history = json.load(f)
+record["previous_digest"] = history[0]["digest"] if history else None
+record["preflight"] = {"status": "ok", "summary": os.path.join(report_dir, "preflight-summary.json")}
+record["backup"] = {"id": backup_id, "status": "ok"}
+record["readiness"] = {"status": "ok"}
+record["smoke"] = {"status": "ok"}
+record["deployed_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+with open(output, "w", encoding="utf-8") as f:
+    json.dump(record, f, indent=2)
+    f.write("\n")
+PY
+  echo "deploy: real compose deployment, migration, readiness and smoke completed"
 fi
 
+# ---------------------------------------------------------------- history
 if [ -n "$HISTORY_FILE" ]; then
   NEW_DIGEST="$(python3 -c "import json;print(json.load(open('$MANIFEST'))['images']['backend']['digest'])")"
   NEW_COMMIT="$(python3 -c "import json;print(json.load(open('$MANIFEST'))['commit'])")"
@@ -177,6 +232,7 @@ if os.path.isfile(path):
     except (OSError, ValueError):
         history = []
 entry = {"digest": digest, "commit": commit, "migration_head": head, "schema_compat_max_head": max_head}
+history = [item for item in history if item.get("digest") != digest]
 history.insert(0, entry)
 with open(path, "w", encoding="utf-8") as f:
     json.dump(history, f, indent=2)

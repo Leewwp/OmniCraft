@@ -14,6 +14,8 @@ func TestAgentConfigLimitsFromYAML(t *testing.T) {
 	require.Positive(t, cfg.Agent.RateLimitPerDay)
 	require.Positive(t, cfg.Agent.MaxUserMessageChars)
 	require.Positive(t, cfg.Agent.ChatMaxContextMsgs)
+	require.Positive(t, cfg.Agent.ConversationListLimit)
+	require.Positive(t, cfg.Agent.ConversationPageSize)
 
 	// New typed budget/limits block.
 	require.Positive(t, cfg.Agent.RateLimitPerMinute)

@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/llm"
+
+	"gorm.io/gorm"
 )
 
 // AgentStreamEventType is the server-owned SSE event name set for the chat
@@ -35,6 +38,9 @@ const (
 	// AgentErrorCodeCancelled marks a client-cancelled stream. The request
 	// still consumed its reserved quota and emitted an outcome.
 	AgentErrorCodeCancelled = "STREAM_CANCELLED"
+	// AgentErrorCodeStorage marks a persistence failure without exposing the
+	// underlying database error to the client.
+	AgentErrorCodeStorage = "AGENT_STORAGE_ERROR"
 )
 
 // AgentStreamEvent is the typed stream event. Only the fields relevant to the
@@ -167,6 +173,9 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []
 
 	traceID := newTraceID()
 	traceAgentEvent(traceID, "chat_start", "user_id", userID, "surface", resolved.Surface)
+	if err := ctx.Err(); err != nil {
+		return emitAgentStreamError(handler, agentContextErrorCode(err), err)
+	}
 
 	contextType := "general"
 	if resolved.Surface == model.AgentChatSurfaceContent && resolved.Content != nil {
@@ -181,20 +190,28 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []
 		UpdatedAt:   time.Now(),
 	}
 	if len(messages) > 0 && messages[0].Role == "user" && s.db != nil {
-		if err := s.db.Create(conv).Error; err != nil {
-			slog.Error("failed to create agent conversation", "error", err)
-			conv = nil
-		}
-	}
-	if conv != nil && s.db != nil {
-		for _, msg := range messages {
-			content := msg.Content
-			s.db.Create(&model.AgentMessage{
-				ConversationID: conv.ID,
-				Role:           msg.Role,
-				Content:        &content,
-				CreatedAt:      time.Now(),
-			})
+		if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			if err := tx.Create(conv).Error; err != nil {
+				return err
+			}
+			for _, msg := range messages {
+				content := msg.Content
+				if err := tx.Create(&model.AgentMessage{
+					ConversationID: conv.ID,
+					Role:           msg.Role,
+					Content:        &content,
+					CreatedAt:      time.Now(),
+				}).Error; err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			slog.Error("failed to persist agent conversation", "error", err)
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return emitAgentStreamError(handler, agentContextErrorCode(err), err)
+			}
+			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
 		}
 	}
 
@@ -302,7 +319,10 @@ loop:
 			if err := handler(AgentStreamEvent{Type: AgentEventToolStatus, Tool: &execution}); err != nil {
 				return err
 			}
-			resultJSON, _ := json.Marshal(result)
+			resultJSON, err := json.Marshal(result)
+			if err != nil {
+				return fmt.Errorf("marshal agent tool result: %w", err)
+			}
 			toolMessages = append(toolMessages, llm.ChatMessage{Role: "tool", ToolCallID: tc.ID, Content: string(resultJSON)})
 		}
 		req.Messages = append(req.Messages, toolMessages...)
@@ -317,10 +337,21 @@ loop:
 		case errors.Is(streamErr, context.DeadlineExceeded):
 			code = AgentErrorCodeProviderTimeout
 		}
-		handler(AgentStreamEvent{Type: AgentEventError, ErrorCode: string(code), ErrorMessage: safeAgentStreamMessage(code)})
+		if emitErr := handler(AgentStreamEvent{Type: AgentEventError, ErrorCode: string(code), ErrorMessage: safeAgentStreamMessage(code)}); emitErr != nil {
+			streamErr = errors.Join(streamErr, emitErr)
+		}
 		if conv != nil && s.db != nil {
-			s.db.Where("conversation_id = ?", conv.ID).Delete(&model.AgentMessage{})
-			s.db.Delete(conv)
+			// The request context is commonly canceled when the client disconnects.
+			// Cleanup must still run so an interrupted turn cannot leave orphaned
+			// conversation history behind.
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if err := s.db.WithContext(cleanupCtx).Where("conversation_id = ?", conv.ID).Delete(&model.AgentMessage{}).Error; err != nil {
+				slog.Error("failed to clean up agent messages after stream failure", "error", err)
+			}
+			if err := s.db.WithContext(cleanupCtx).Delete(conv).Error; err != nil {
+				slog.Error("failed to clean up agent conversation after stream failure", "error", err)
+			}
+			cancel()
 		}
 		return streamErr
 	}
@@ -343,13 +374,19 @@ loop:
 
 	answer := answerBuf.String()
 	if conv != nil && s.db != nil {
-		s.db.Create(&model.AgentMessage{
+		if err := s.db.WithContext(ctx).Create(&model.AgentMessage{
 			ConversationID: conv.ID,
 			Role:           "assistant",
 			Content:        &answer,
 			CreatedAt:      time.Now(),
-		})
-		s.db.Model(conv).Update("updated_at", time.Now())
+		}).Error; err != nil {
+			slog.Error("failed to persist agent assistant message", "error", err)
+			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
+		}
+		if err := s.db.WithContext(ctx).Model(conv).Update("updated_at", time.Now()).Error; err != nil {
+			slog.Error("failed to update agent conversation timestamp", "error", err)
+			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
+		}
 	}
 
 	if err := handler(AgentStreamEvent{
@@ -383,9 +420,18 @@ func safeAgentStreamCode(err error) string {
 	}
 }
 
+func agentContextErrorCode(err error) string {
+	if errors.Is(err, context.Canceled) {
+		return AgentErrorCodeCancelled
+	}
+	return AgentErrorCodeProviderTimeout
+}
+
 // safeAgentStreamMessage returns localized-safe copy for a stream error code.
 func safeAgentStreamMessage(code AgentStreamEventType) string {
 	switch code {
+	case AgentErrorCodeStorage:
+		return "agent history unavailable"
 	case AgentErrorCodeCancelled:
 		return "stream cancelled"
 	case AgentErrorCodeProviderTimeout:
@@ -393,4 +439,15 @@ func safeAgentStreamMessage(code AgentStreamEventType) string {
 	default:
 		return "provider unavailable"
 	}
+}
+
+func emitAgentStreamError(handler func(ev AgentStreamEvent) error, code string, cause error) error {
+	if err := handler(AgentStreamEvent{
+		Type:         AgentEventError,
+		ErrorCode:    code,
+		ErrorMessage: safeAgentStreamMessage(AgentStreamEventType(code)),
+	}); err != nil {
+		return errors.Join(cause, err)
+	}
+	return cause
 }
