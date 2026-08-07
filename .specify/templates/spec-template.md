@@ -4,6 +4,7 @@
 **Created**: [DATE]  
 **Status**: Draft  
 **Input**: User description: "$ARGUMENTS"
+**Planned Execution Source**: [AGENTS.md registry entry / GitHub parent issue]
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -87,6 +88,10 @@
 For frontend requirements, cite `design/design-system.md` for token values and `design/ui-spec.md`
 for component/page behavior. Visible elevation requirements must name tier 1, 2 or 3 and include
 light/dark plus reduced-motion acceptance criteria.
+
+If this specification changes an existing `design/ui-spec.md` contract, name the single ticket/task
+that owns the authority update and make dependent UI tickets wait for it. Do not leave confirmed visual
+decisions to be reconciled ad hoc during implementation.
 
 - **FR-001**: System MUST [specific capability, e.g., "allow users to create accounts"]
 - **FR-002**: System MUST [specific capability, e.g., "validate email addresses"]  

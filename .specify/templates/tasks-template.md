@@ -17,6 +17,12 @@ description: "Task list template for feature implementation"
 - **[P]**: Can run in parallel (different files, no dependencies)
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
 - Include exact file paths in descriptions
+- Mark each task `[light]` or `[heavy]` (or inherit an explicitly declared plan-wide lane). Heavy tasks
+  MUST include a failing-test checkpoint, one worktree/branch/commit boundary, and two-stage review.
+- Include the owning GitHub ticket and every native/manual blocker. A prose dependency without a
+  matching tracker edge must be repaired before AFK execution.
+- Completion updates only the current plan/ticket and `progress.txt`; never update `task.json` or an
+  archived plan.
 
 ## Path Conventions
 

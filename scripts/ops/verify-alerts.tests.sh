@@ -73,12 +73,12 @@ RUBY
 # Production exporters must use the same external credentials as their
 # protected dependencies, and node-exporter must inspect the host rootfs.
 PROD_COMPOSE="$REPO_ROOT/docs/deploy/docker-compose.single-server.yml"
-rg -q 'DATA_SOURCE_USER:.*POSTGRES_USER' "$PROD_COMPOSE" \
-  && rg -q 'DATA_SOURCE_PASS:.*POSTGRES_PASSWORD' "$PROD_COMPOSE" \
-  && rg -q 'REDIS_PASSWORD:.*REDIS_PASSWORD' "$PROD_COMPOSE" \
+grep -qE 'DATA_SOURCE_USER:.*POSTGRES_USER' "$PROD_COMPOSE" \
+  && grep -qE 'DATA_SOURCE_PASS:.*POSTGRES_PASSWORD' "$PROD_COMPOSE" \
+  && grep -qE 'REDIS_PASSWORD:.*REDIS_PASSWORD' "$PROD_COMPOSE" \
   || { echo "FAIL: production exporters must consume external DB/Redis credentials" >&2; exit 1; }
-rg -q -- '--path.rootfs=/host' "$PROD_COMPOSE" \
-  && rg -q '/:/host:ro' "$PROD_COMPOSE" \
+grep -qE -- '--path.rootfs=/host' "$PROD_COMPOSE" \
+  && grep -qE '/:/host:ro' "$PROD_COMPOSE" \
   || { echo "FAIL: production node-exporter must inspect the host rootfs" >&2; exit 1; }
 
 # The required aggregate check must fail when the alerting job fails.
@@ -92,6 +92,25 @@ assert re.search(r"needs:\s*\[[^\]]*ops-alerting", job), "project-gate does not 
 assert "needs.ops-alerting.result" in job, "project-gate does not assert ops-alerting result"
 PY
 [ $? -eq 0 ] || { echo "FAIL: project-gate must aggregate ops-alerting" >&2; exit 1; }
+
+# ---------------------------------------------------------------- pinned tooling
+# The verifier must run promtool/amtool from digest-pinned images so fresh
+# runners and CI always execute the same tool binaries.
+python3 - "$VERIFY" <<'PY'
+import re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+for var in ("PROMETHEUS_IMAGE", "ALERTMANAGER_IMAGE"):
+    m = re.search(r'^%s="([^"]+)"$' % var, text, re.M)
+    assert m, "%s is not declared" % var
+    assert m.group(1).startswith(("prom/prometheus@", "prom/alertmanager@")), \
+        "%s must be a digest-pinned image reference: %s" % (var, m.group(1))
+    assert re.match(r"^[^@]+@sha256:[0-9a-f]{64}$", m.group(1)), \
+        "%s must pin a full sha256 digest: %s" % (var, m.group(1))
+assert "docker pull" in text, "verifier must pull images explicitly for retry"
+assert "2>&1" in text, "verifier must surface docker error output"
+print("pinned tooling assertions passed")
+PY
+[ $? -eq 0 ] || { echo "FAIL: verifier must use digest-pinned tool images" >&2; exit 1; }
 
 # ---------------------------------------------------------------- contract: owner/runbook
 # A rules file missing a required contract field must be rejected.
