@@ -17,10 +17,10 @@
 - 计划要求：真实 staging 环境 / OSS / offsite 输入已齐备并执行完毕；`recovery-objectives.json` 已从 `baseline_only` 切换为 `approved`。
 - Ops-09 随桌面范围暂缓，计划文件保留（不得归档、不得勾选）。
 
-### 1.2 当前工作树状态（待提交）
+### 1.2 当前工作树状态（2026-08-08 审计时）
 
-- 当前工作树仅保留本轮审查修复及其回归测试/文档修改；没有把历史 main 遗留或已完成规格误列为待处理文件。
-- 2026-08-07 已提交：Ops-08 Step 5 真实 drill 证据、批准记录与归档（commit `9dcef73`/`40edb4a`）；heavy 车道精确 stage 已完成。
+- 当前仅有仓库根目录的 `main` worktree，工作树无已提交或未跟踪改动；`artifacts/`、本地环境文件和截图等均为明确忽略的本地产物。
+- Ops-08 Step 5 真实 drill、批准记录与归档已提交（`9dcef73`/`40edb4a`），本次审计另行完成最终 evidence summary 绑定与文档收口。
 
 ### 1.3 Agent 功能页状态澄清（本轮确认）
 
@@ -29,13 +29,13 @@
 - 这是计划要求的设计行为（Task 6 验证通过前默认关闭），**不是未合并或故障**
 - 本地临时查看：改 `web_agent_enabled=true` 并重启后端（不提交；无真实 key 时会话走降级/报错，但页面可访问）
 
-### 1.4 分支与 worktree 清单（清理候选）
+### 1.4 分支与 worktree 清单（2026-08-08 审计结果）
 
-本地分支：`codex/ops-integration`（已合并）、`codex/ops/ops-08`（Ops-08 合并后删）、`opencode/p01-ui-prototype`（原型证据分支）、`web/agent-t1/t2/t3/t5`（squash 合并残留）
+本地分支：仅 `main`。
 
-远端分支：`codex/ops/ops-04`、`codex/ops/ops-08`、`web/agent-t2/t3/t4`、`web/gap-15-ui-spec`、`web/gap-16-overlay`、`web/gap-17-19`、`opencode/p01-ui-prototype`、dependabot/* 若干
+远端分支：`origin/main` 与 Dependabot 自动更新分支；此前列出的 feature/ops/prototype 分支已不在远端引用中。
 
-Worktree：`/private/tmp/OmniCraft-ops08`（Ops-08 后删）、`/private/tmp/OmniCraft-prev`（detached HEAD，可删）
+Worktree：仅仓库根目录 `/Users/pp/Desktop/file/code/project/OmniCraft`；`/private/tmp/OmniCraft-ops08` 与 `/private/tmp/OmniCraft-prev` 已不存在于 Git worktree 列表。
 
 ---
 
@@ -51,14 +51,12 @@ Worktree：`/private/tmp/OmniCraft-ops08`（Ops-08 后删）、`/private/tmp/Omn
 
 ### Phase 1：归档与清理
 
-1. 提交 main 遗留：`docs/GLOSSARY.md` + 08-07 spec + 08-07 audit 报告
-2. 归档：audit 报告保留至失效日；production-readiness 计划**不归档**（Ops-09 段保留）；spec 无需归档
-3. 在 AGENTS.md 注册新计划「Web 体验修复与数据契约收口」（来源 #64，Ticket 01–12），light/heavy 拆分按规格 Decision 34
-4. 分支清理（确认 PR 均已合并后）：
-   - 本地删：`codex/ops-integration`、`web/agent-t1/t2/t3/t5`、`opencode/p01-ui-prototype`、`codex/ops/ops-08`
-   - 远端删：`codex/ops/ops-04`、`codex/ops/ops-08`、`web/agent-t2/t3/t4`、`web/gap-15-ui-spec`、`web/gap-16-overlay`、`web/gap-17-19`、`opencode/p01-ui-prototype`、dependabot/*
-5. Worktree 清理：删除 `/private/tmp/OmniCraft-ops08`、`/private/tmp/OmniCraft-prev`
-6. 迁移编号规划落位：`061` 不可回填（`062` 已先入库），source-linkage 改 `066`；`063`（collaboration-invites）、`064`（IP history = `064_ip_visit_history.sql`）、`065`（favorites 删除 = `065_drop_legacy_favorites.sql`）已分别钉名，以实际实现为准
+1. ✅ 已提交 main 遗留：`docs/GLOSSARY.md`、08-07 spec 与 08-07 audit 文档已进入历史提交。
+2. ✅ 已完成文档归档决策：audit 报告保留至失效日；production-readiness 计划不归档（保留 Ops-09）；spec 不归档。
+3. ✅ 已在 AGENTS.md 注册 Web 体验修复与数据契约收口计划（#64，Ticket 01–12）。
+4. ✅ 已完成分支与 worktree 清理；当前实际清单见 1.4。
+5. ✅ 已完成 worktree 清理；不再删除不存在的 `/private/tmp/OmniCraft-ops08` 或 `/private/tmp/OmniCraft-prev`。
+6. ✅ 迁移编号规划已落位：`061` 不可回填，source-linkage 使用 `066`；`063`/`064`/`065` 按各计划钉名。
 
 ### Phase 2：UI 高收益修复（light 车道）
 

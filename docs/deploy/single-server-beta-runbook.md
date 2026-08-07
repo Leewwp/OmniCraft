@@ -45,6 +45,8 @@ Create `/opt/omnicraft/.env` on the server. Keep it out of Git.
 POSTGRES_USER=omnicraft
 POSTGRES_PASSWORD=<strong-postgres-password>
 POSTGRES_DB=omnicraft
+# Registry-verified immutable image reference; never use :latest or a tag.
+PGBOUNCER_IMAGE=edoburu/pgbouncer@sha256:<registry-verified-digest>
 
 REDIS_PASSWORD=<strong-redis-password>
 REDIS_DB=0
@@ -317,11 +319,13 @@ Upgrade drill requirements (see `release/backup-policy.json`):
   30 days before any schema change.
 - Recovery order: PostgreSQL first (source of truth), then OSS object version
   restore and reconciliation, then Redis clear-and-rebuild.
-- Real Aliyun OSS versioning/off-host storage, an encrypted archive receipt and
-  approved numeric RPO/RTO targets are Ops-08 blockers. The committed
-  `release/recovery-objectives.json` is intentionally `baseline_only` with
-  null measurements until a reproducible staging drill supplies the original
-  restore records; static values must not be promoted to approved evidence.
+- Ops-08 completed the real Aliyun OSS versioning/off-host storage drill,
+  encrypted archive receipt, and approved numeric RPO/RTO comparison on
+  2026-08-07. The committed `release/recovery-objectives.json` is now
+  `approved` and points to the API-verifiable approval record (issue #77); the
+  original recovery records remain in the local/archived Ops-08 evidence set.
+  Repeat the drill for future release changes rather than treating these
+  measurements as a permanent substitute.
 
 ## 9. Backup
 
@@ -362,8 +366,9 @@ bash scripts/db/object-recovery-drill.sh -ComposeFile ops/recovery/docker-compos
 bash scripts/db/redis-reconciliation-drill.sh -ComposeFile ops/recovery/docker-compose.recovery.yml -ReportDir artifacts/ops-02
 ```
 
-Real Aliyun OSS versioning, off-host storage and service-level RPO/RTO remain
-Ops-08 blockers; the local MinIO stand-in proves adapter behavior only.
+Ops-08's real Aliyun OSS versioning, off-host storage and service-level RPO/RTO
+evidence is complete; the local MinIO stand-in continues to prove adapter
+behavior only and is not a substitute for a future production release drill.
 
 ## 10. Alerting (Ops-04)
 

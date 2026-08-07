@@ -8,7 +8,9 @@
 # access to Loki goes through loki-gate bound to 127.0.0.1:13100 (SSH tunnel).
 #
 # Variables (beyond .env): OBS_GATE_TOKEN (operator token, required),
-# OBS_LOG_DIR (read-only host dir of container JSON logs for Alloy).
+# OBS_LOG_DIR (read-only host dir of container JSON logs for Alloy), and
+# PGBOUNCER_IMAGE (a registry-verified image reference ending in @sha256:<64
+# hex characters; no mutable tag/default is accepted).
 
 x-logging: &default-logging
   driver: json-file
@@ -89,7 +91,7 @@ services:
           memory: 512m
 
   pgbouncer:
-    image: edoburu/pgbouncer:latest
+    image: ${PGBOUNCER_IMAGE:?set PGBOUNCER_IMAGE to an immutable @sha256 image reference}
     restart: unless-stopped
     environment:
       DB_HOST: postgres
