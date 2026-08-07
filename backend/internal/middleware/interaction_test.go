@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"net/http/httptest"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/pkg/rediskeys"
 )
 
 func setupInteractionTestEnv(t *testing.T) (*gin.Engine, *gorm.DB, *config.Config) {
@@ -87,7 +89,7 @@ func TestInteractionRequiredRejectsPublishFreezeWhenPolicyRequiresIt(t *testing.
 	mr, err := miniredis.Run()
 	assert.NoError(t, err)
 	defer mr.Close()
-	mr.Set("user:publish_freeze:1", "1")
+	mr.Set(rediskeys.PublishFreezeKey(1), "1")
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	defer rdb.Close()
 
@@ -112,6 +114,48 @@ func TestInteractionRequiredRejectsPublishFreezeWhenPolicyRequiresIt(t *testing.
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, 403, w.Code)
+	var body map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &body)
+	assert.Equal(t, "PUBLISH_FROZEN", body["code"])
+}
+
+func TestPublishFreezeGuardAgreesWithWriterKey(t *testing.T) {
+	_, db, cfg := setupInteractionTestEnv(t)
+	insertTestUser(db, 1, "user", false, true, 10, nil)
+	mr, err := miniredis.Run()
+	assert.NoError(t, err)
+	defer mr.Close()
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer rdb.Close()
+
+	// review_service.applyRepeatViolationPenalty writes the canonical key with
+	// value "1" and a TTL; the guard must read that exact key.
+	assert.NoError(t, rdb.Set(context.Background(), rediskeys.PublishFreezeKey(1), "1", 7*24*time.Hour).Err())
+
+	policy := InteractionPolicy{
+		RequireVerifiedEmail:   true,
+		RequireReputation:      true,
+		RequireNoPublishFreeze: true,
+	}
+
+	r := setupTestRouter()
+	r.Use(func(c *gin.Context) {
+		c.Set(UserIDKey, int64(1))
+		c.Next()
+	})
+	r.Use(InteractionRequired(cfg, db, rdb, policy))
+	r.POST("/test", func(c *gin.Context) {
+		c.JSON(200, gin.H{"ok": true})
+	})
+
+	req := httptest.NewRequest("POST", "/test", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, 403, w.Code)
+	var body map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &body)
+	assert.Equal(t, "PUBLISH_FROZEN", body["code"])
 }
 
 func TestInteractionRequiredFailsClosedWhenPublishFreezeStatusUnavailable(t *testing.T) {

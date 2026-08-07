@@ -8,7 +8,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +24,7 @@ import (
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/captcha"
 	"omnicraft/backend/internal/pkg/mail"
+	"omnicraft/backend/internal/pkg/rediskeys"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 )
@@ -296,7 +296,7 @@ func TestLoginInteractionCapabilityMatrix(t *testing.T) {
 			user := createAuthHandlerTestUser(t, db, tt.email, "password123", true)
 			require.NoError(t, db.Model(user).Update("reputation", tt.reputation).Error)
 			if tt.freeze {
-				mr.Set("user:publish_freeze:"+strconv.FormatUint(uint64(user.ID), 10), "1")
+				mr.Set(rediskeys.PublishFreezeKey(int64(user.ID)), "1")
 			}
 
 			req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"email":"`+user.Email+`","password":"password123"}`))

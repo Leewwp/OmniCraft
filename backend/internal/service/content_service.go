@@ -16,6 +16,7 @@ import (
 	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/pkg/recovery"
 	redisclient "omnicraft/backend/internal/pkg/redis"
+	"omnicraft/backend/internal/pkg/rediskeys"
 	"omnicraft/backend/internal/repository"
 
 	"github.com/redis/go-redis/v9"
@@ -112,7 +113,7 @@ func (s *ContentService) PublishContent(input PublishContentInput, authorID int6
 
 func (s *ContentService) PublishContentWithContext(ctx context.Context, input PublishContentInput, authorID int64) (*model.ContentItem, error) {
 	if s.rdb != nil {
-		freezeKey := "publish:freeze:" + strconv.FormatInt(authorID, 10)
+		freezeKey := rediskeys.PublishFreezeKey(authorID)
 		if frozen, err := s.rdb.Exists(ctx, freezeKey).Result(); err == nil && frozen > 0 {
 			return nil, ErrPublishFrozen
 		}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/rediskeys"
 )
 
 var (
@@ -235,7 +235,7 @@ func (s *ReviewService) applyRepeatViolationPenalty(ctx context.Context, authorI
 	}
 
 	if s.rdb != nil {
-		freezeKey := buildPublishFreezeKey(authorID)
+		freezeKey := rediskeys.PublishFreezeKey(authorID)
 		freezeTTL := 7 * 24 * time.Hour
 		if s.cfg != nil && s.cfg.Cache.PublishFreezeTTL > 0 {
 			freezeTTL = time.Duration(s.cfg.Cache.PublishFreezeTTL) * time.Second
@@ -312,8 +312,4 @@ func normalizeReviewResult(result string) string {
 	default:
 		return "pass"
 	}
-}
-
-func buildPublishFreezeKey(userID int64) string {
-	return "publish:freeze:" + strconv.FormatInt(userID, 10)
 }
