@@ -16,7 +16,7 @@
 
 ## Status, authority, and universal rules
 
-**Status:** Ops-00 through Ops-07 are complete. Ops-08 Steps 1-4 are complete, but Step 5 remains blocked and Ops-08 is not complete: the current repository has no independently verifiable real staging deploy/rollback, OSS version restore, off-site archive receipt, or approved RPO/RTO evidence. Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
+**Status:** Ops-00 through Ops-08 are complete. Ops-08 Step 5 completed 2026-08-07 with a real staging drill, approved RPO/RTO (issue #77, API-verifiable), and dual-destination archive evidence (see `progress.txt` 2026-08-07 entry). Ops-09 is deferred by the 2026-07-25 Web-only scope decision.
 
 - This plan is not Hardening Task 6 and must never add one.
 - Do not modify `task.json`, Beta/community checkboxes, or Web Agent completion state.
@@ -809,13 +809,14 @@ bash scripts/ops/validate-evidence.sh -Schema release/ops-evidence.schema.json -
 **Release blocker:** placeholder/default config, mutable image, missing backup/migration evidence, failed staging rollback, schema incompatible with previous app, missing external production inputs.  
 **Commit:** `Ops 08: add production deploy and rollback gate`
 
-> 2026-08-07 审查修正记录（当前 main，Step 1-4 完成；Step 5 blocked）：
+> 2026-08-07 审查修正记录（当前 main；Step 5 于当日 22:34 完成真实 drill 后勾选，见下方「Step 5 完成」条目）：
 >
 > - **保留区扩展（记录于此）**：新增 `backend/cmd/release-preflight/main.go`——preflight 核心以 Go 实现（复用 `config` 包 `ValidateRelease`/`OverrideFromEnv`/`LoadOverride`，避免 bash 重复实现与映射漂移）；`preflight.sh` 为 bash 包装（参数/文件校验 + go build 临时二进制）。`config.go` 将 `overrideFromEnv` 导出为 `OverrideFromEnv` 供其复用；`ValidateRelease` 新增：占位符拒绝（`<...>`/CHANGE_ME/REPLACE_ME/PLACEHOLDER/your-/example.com|org）、数据库 TLS 策略（release 必须 `sslmode=verify-full`，仅 `OMNICRAFT_PRIVATE_DB_HOSTS` 显式私有网络例外）、callback IP 占位符拒绝、`client.download_enabled` 不安全 flag 拒绝。
 > - **Step 1-4 契约测试与实现**：`preflight.tests.sh` 15 用例（占位符/默认密码/非 verify-full/私有例外/loopback proxies/callback IP/bypass captcha/logger SMTP/缺 frontend URL/site-api host 不一致/desktop flag/summary redacted）；`deployment-contract.tests.sh` 11 用例（floating/malformed digest、缺 migration head、preflight 先行、valid drill 记录 previous digest、rollback 未知 digest/不兼容 schema 拒绝、无破坏性 down SQL）；`staging-drill.tests.sh` 覆盖真实输入阻塞/占位符、默认模式与 `-Drill` 分离、Compose deploy/rollback 编排、RPO/RTO 比较和 metric-only measurement 拒绝。`release.yml` 仅 workflow_dispatch + `environment: production` 保护 + SHA-pinned actions；protected drill 绑定专用 `self-hosted/omnicraft-staging` runner；frontend Dockerfile 暴露 `NEXT_PUBLIC_SITE_URL` build arg；backend Dockerfile 构建 release-preflight；compose 声明 `OMNICRAFT_PRIVATE_DB_HOSTS=pgbouncer` 与 frontend build args（否则生产 preflight 会拒绝自己的 compose 配置）。
 > - **Step 5 阻塞**：真实 staging 输入缺失——`OMNICRAFT_STAGING_ENV_FILE`/`OMNICRAFT_STAGING_OVERRIDE_FILE`/`OMNICRAFT_CANDIDATE_MANIFEST`/`OMNICRAFT_PREVIOUS_MANIFEST`/`OMNICRAFT_STAGING_OSS_BUCKET`/`GITHUB_RELEASE_TAG` 全部缺失；off-site 归档凭据已备于 `~/.config/omnicraft/ops-08-offsite-archive.env`（`ARCHIVE_AK_ID`/`ARCHIVE_AK_SECRET`/`OFFSITE_ARCHIVE_BUCKET`/`OFFSITE_ARCHIVE_REGION`/`OFFSITE_ARCHIVE_ENDPOINT`/`OFFSITE_ARCHIVE_URI`，命名与 staging-drill 的 `OMNICRAFT_OFFSITE_ARCHIVE_URI` 需对齐导出）。`recovery-objectives.json` 保持 `baseline_only`（用户批准数值属 Step 5 输入）。解除阻塞后运行计划 Step 5 命令块（`bash scripts/release/staging-drill.sh ...` + `archive-release-evidence.sh ...`）并勾选 Step 5。
 > - **CI 说明**：`verify-pinned-actions.sh`/`verify-security.tests.sh`/`verify-workflows.tests.sh` 全绿；release.yml 的真实验证待专用 staging runner 与外部发布输入就绪（属运维输入，不以 hosted runner 模拟）。
 > - **状态修正**：此前声称真实 Step 5、approved recovery objectives 和双目的地 receipt 的记录无法由当前仓库独立复核，现统一按 blocker 处理；`release/recovery-objectives.json` 保持 `baseline_only`，不得勾选 Step 5 或声明 Web production-ready。
+> - **Step 5 完成（2026-08-07，覆盖上述阻塞记录）**：用户批准宽松档 RPO/RTO（`release/recovery-objectives.json` 切换为 `approved`，批准记录 issue #77 API 可核验）；真实 staging drill 跑通（candidate commit 0e13aa29：preflight → deploy → rollback → redeploy，RPO/RTO 机器比较 all_met）；真实恢复测量含 SHA-256 原始记录（pg_dump+restore 0.02min / OSS versioned-object restore 0.0014min / compose 0.01min）；`archive-release-evidence.sh` 18 对象 × 3 目的地（GitHub Release v0.1.0-rc.1 + local mirror + off-site OSS，SSE-AES256 + retention 365d 验证通过）。证据在 `artifacts/ops-08/`（18+ 文件，本地留证）+ GitHub Release/OSS 双目的地；drill 输入保留于 `~/.config/omnicraft/ops-08-staging/`（含密钥，不入库）。顺带修复 4 个真实模式才暴露的发布脚本 bug（含契约测试防回归）。至此 Step 5 勾选为完成，本计划仅余 Ops-09（桌面范围，暂缓）。
 
 ---
 

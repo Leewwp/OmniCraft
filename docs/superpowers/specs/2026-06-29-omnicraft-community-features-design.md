@@ -1130,7 +1130,7 @@ ip_id: set                source_original_id: set    source_fanwork_id: set
 
 | 层 | 文件路径 | 改动类型 |
 |----|---------|---------|
-| 后端 Migration | `backend/migrations/061_add_source_fanwork_id.sql` | **新增** |
+| 后端 Migration | `backend/migrations/066_add_source_fanwork_id.sql` | **新增** |
 | 后端 Model | `backend/internal/model/content.go` | 新增 SourceFanworkID / SourceFanwork 字段 |
 | 后端 Handler | `backend/internal/handler/content.go` | 更新发布/查询校验，返回 source_fanwork 摘要 |
 | 后端 Service | `backend/internal/service/content_service.go` | 更新校验逻辑 + 链式查询 |
@@ -1203,7 +1203,7 @@ browse_history:
 | 收藏集 | `058_create_collections.sql` | 创建 collections + collection_items 表 + 旧 favorites 数据迁移 + is_default 默认集约束 |
 | 广播幂等跟进 | `062_notification_broadcast_idempotency.sql` | 创建 notification_broadcast_requests；唯一约束 `(actor_id, key_hash)`，只保存 payload 哈希与安全响应摘要，不保存广播正文。若实施时 062 已被占用则顺延并同步引用 |
 | 内容系列 | `059_create_content_series.sql` | 创建 content_series + content_series_items 表 |
-| 联动增强 | `061_add_source_fanwork_id.sql` | content_items 新增 source_fanwork_id 列 |
+| 联动增强 | `066_add_source_fanwork_id.sql` | content_items 新增 source_fanwork_id 列 |
 | 联合创作 | `063_collaboration_invites.sql` | 创建 collaboration_invites 表 + users.accept_collab_invites + messages.msg_type/metadata + 部分唯一索引（WHERE status IN ('pending','accepted')） |
 
 ## 附录 C.1：首版数据量和性能预期

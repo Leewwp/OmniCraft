@@ -13,7 +13,7 @@
 ## Cross-Plan Coordination
 
 - Execution source: this is part of the 2026-06-30 community feature plan family, derived from `docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md`. It is not a historical `task.json` task and not a 2026-05-30 Beta roadmap checkbox; executing it requires an explicit user request naming this plan or the community feature family.
-- Shared-file integration and migration order for the six community plans is: messages-notifications (`057`) -> browse-history (no migration) -> collections (`058`) -> content-series (`059`) -> source-linkage (`061`) -> collaboration-invites (`063`).
+- Shared-file integration and migration order for the six community plans is: messages-notifications (`057`) -> browse-history (no migration) -> collections (`058`) -> content-series (`059`) -> source-linkage (`066`) -> collaboration-invites (`063`).
 - `frontend/app/(protected)/messages/page.tsx`, `frontend/components/social/ChatWindow.tsx`, and `frontend/components/social/ConversationList.tsx` must already use the messages-notifications contract before this plan adds typed invite cards.
 - `frontend/components/content/ContentDetail.tsx` changes must land collections before content-series before source-linkage.
 - `frontend/components/studio/PublishForm.tsx` source fields from source-linkage must already be present before this plan adds the collaborator picker.
@@ -106,7 +106,7 @@ Run:
 ls backend/migrations/ | sort | tail -10
 ```
 
-Expected number is `063_collaboration_invites.sql` because source-linkage owns `061_add_source_fanwork_id.sql` and `062_notification_broadcast_idempotency.sql` already exists（2026-08-03 编号修正：`060` 已被 `060_fix_search_config_fallback.sql` 占用）。If `063_` is occupied by an unrelated migration at implementation time, stop and update all six community plans plus the source spec migration table before continuing.
+Expected number is `063_collaboration_invites.sql` because source-linkage owns `066_add_source_fanwork_id.sql` and `062_notification_broadcast_idempotency.sql` already exists（2026-08-03 编号修正：`060` 已被 `060_fix_search_config_fallback.sql` 占用；2026-08-07 更新：source-linkage 由 `061` 重编号为 `066`，`061` 不可回填）。If `063_` is occupied by an unrelated migration at implementation time, stop and update all six community plans plus the source spec migration table before continuing.
 
 - [ ] **Step 2: Write failing migration/model tests**
 
@@ -669,7 +669,7 @@ git commit -m "Community 6: collaboration invites"
 
 - [ ] Dependency on message-system correction is explicit.
 - [ ] Dependency on source-linkage `PublishForm.tsx` changes is explicit.
-- [ ] Migration number is `063`, after source-linkage `061`.
+- [ ] Migration number is `063`, after source-linkage `066`.
 - [ ] Anti-abuse chain lists all eight ordered stages and exact error codes.
 - [ ] Anti-abuse chain also rejects self/author/existing-contributor/unavailable-user/unavailable-content/capacity cases.
 - [ ] Redis keys and TTL are specified.
