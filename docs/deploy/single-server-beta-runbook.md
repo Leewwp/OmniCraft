@@ -46,7 +46,7 @@ POSTGRES_USER=omnicraft
 POSTGRES_PASSWORD=<strong-postgres-password>
 POSTGRES_DB=omnicraft
 # Registry-verified immutable image reference; never use :latest or a tag.
-PGBOUNCER_IMAGE=edoburu/pgbouncer@sha256:<registry-verified-digest>
+PGBOUNCER_IMAGE=edoburu/pgbouncer@sha256:4c1ca296ef525f108f5d3552cc337c0c09587cf8dae7f0067fd93349e47dc1cd
 
 REDIS_PASSWORD=<strong-redis-password>
 REDIS_DB=0

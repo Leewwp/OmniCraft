@@ -7,7 +7,7 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_DIR="$SCRIPT_DIR"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.observability.yml"
-PROMETHEUS_IMAGE="prom/prometheus:v2.55.1"
+PROMETHEUS_IMAGE="prom/prometheus@sha256:2659f4c2ebb718e7695cb9b25ffa7d6be64db013daba13e05c875451cf51b0d3"
 
 while [ $# -gt 0 ]; do
   case "$1" in
