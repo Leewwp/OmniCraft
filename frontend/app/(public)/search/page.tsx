@@ -69,10 +69,10 @@ export default function SearchPage() {
     }
   }, [t]);
 
-  function handleSearch(r: ContentCardData[], q: string) {
+  function handleSearch(r: Record<string, unknown>[], q: string) {
     setQuery(q);
     if (r.length > 0) {
-      setResults(r);
+      setResults(normalizeContentList(r));
     } else {
       // Fallback to keyword search
       void doSearch(q, filterConfig);
@@ -134,7 +134,7 @@ export default function SearchPage() {
             </div>
           }
         >
-          <SearchAgentInput onResults={(r, q) => handleSearch(r as unknown as ContentCardData[], q)} />
+          <SearchAgentInput onResults={handleSearch} />
         </AgentFeatureGate>
       </div>
 
