@@ -2,6 +2,20 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。超过 64KB 或每月轮换一次（上次轮换：2026-08-07）。完整历史见 `docs/archive/progress/2026-08-01-to-2026-08-07.md`。
 
+## [2026-08-08] - 架构审查裁决落盘（backlog 文档 + 注册表交错序 + #84 验证门）
+
+### What was done:
+- 合并收尾：PR #91（媒体计划注册，文档）与 PR #79（C1 冻结键修复）经 admin-merge 合入 main（`4aea507` / `733a58d`；progress.txt 冲突已调和）；#78 随 #79 自动关闭；分支已清理。
+- 查明三个 pre-existing 全红 CI gate（Ops alerting 自 Ops-04 引入即从未绿过、SBOM /tmp 权限、Security gitleaks 夹具误报），建 heavy 车道 issue #92 修复；修复前合并需 admin-merge。
+- 落盘三处决策：① AGENTS.md 注册表 #64 行与媒体行改为 2026-08-08 确认的交错执行序（T03/T04 提前、媒体 T05~T10 在其后、source-linkage 之后回归）；② 新建 `docs/working/2026-08-08-architecture-fix-backlog.md`（C1~C8 全部裁决与时机、次要项不建 issue 记录、gate #92）；③ issue #84 验收项增加非连续 migration fixture 验证门（C7 前移）。
+
+### Testing:
+- 纯文档改动；未改 config/routes/migrations，doc-validator 不适用。
+
+### Notes:
+- 未勾选任何计划 checkbox；注册表行修改仅反映已确认的执行序裁决。
+- 下一步执行建议：C2+C6 批（须在 #64 T03/T04 与媒体 T05 前）；或按注册表先行 #64 T01/T02/T06 与媒体 T01/T02/T03。
+
 ## [2026-08-08] - C1: 发布冻结键分叉修复（P1 bug，issue #78）
 
 ### What was done:
