@@ -27,7 +27,7 @@ with open(output_path, "w", encoding="utf-8") as f:
     for service, image in services:
         f.write(f"  {service}:\n")
         f.write(f"    image: {image}\n")
-        f.write("    build: null\n")
+        f.write("    build: !reset null\n")
 PY
 }
 
@@ -132,7 +132,10 @@ run_release_migration() {
 }
 
 deploy_release_images() {
-  release_compose pull backend frontend migrate > "$RELEASE_REPORT_DIR/compose-pull.log" 2>&1
+  # Pull is best-effort: locally built immutable digests have no registry to
+  # pull from. A truly missing image fails hard on the subsequent `up
+  # --no-build`; the pull log records why pull was skipped.
+  release_compose pull backend frontend migrate > "$RELEASE_REPORT_DIR/compose-pull.log" 2>&1 || true
   release_compose up -d --no-build postgres redis pgbouncer > "$RELEASE_REPORT_DIR/compose-dependencies.log" 2>&1
 }
 
@@ -141,6 +144,6 @@ activate_release_images() {
 }
 
 rollback_release_images() {
-  release_compose pull backend frontend > "$RELEASE_REPORT_DIR/compose-rollback-pull.log" 2>&1
+  release_compose pull backend frontend > "$RELEASE_REPORT_DIR/compose-rollback-pull.log" 2>&1 || true
   release_compose up -d --no-build --force-recreate backend frontend nginx > "$RELEASE_REPORT_DIR/compose-rollback-activate.log" 2>&1
 }

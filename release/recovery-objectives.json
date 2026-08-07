@@ -1,15 +1,25 @@
 {
   "schema_version": 1,
-  "state": "baseline_only",
+  "state": "approved",
   "measured": {
-    "postgres_rpo": null,
-    "postgres_rto": null,
-    "object_restore_rto": null,
-    "service_rpo": null,
-    "service_rto": null,
-    "measured_at": null,
-    "last_drill": null
+    "postgres_rpo": 0,
+    "postgres_rto": 0.02,
+    "object_restore_rto": 0.0014,
+    "service_rpo": 0,
+    "service_rto": 0.01,
+    "measured_at": "2026-08-07T13:46:39.055543+00:00",
+    "last_drill": "ops-08 staging drill: pg_dump 0.553s + pg_restore 1.199s, OSS versioned-object restore 0.081s, compose service recovery 0.603s"
   },
-  "approved_targets": null,
-  "approval": null
+  "approved_targets": {
+    "postgres_rpo": 1440,
+    "postgres_rto": 30,
+    "object_restore_rto": 60,
+    "service_rpo": 0,
+    "service_rto": 30
+  },
+  "approval": {
+    "ref": "https://github.com/Leewwp/OmniCraft/issues/77",
+    "approver": "Leewwp",
+    "approved_at": "2026-08-07T13:47:00+00:00"
+  }
 }

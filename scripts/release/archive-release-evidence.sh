@@ -320,7 +320,7 @@ if real_mode:
             f"x-oss-meta-archive-commit:{archive_commit}#"
             "x-oss-server-side-encryption:AES256"
         )
-        ossutil_cmd = ["ossutil", "cp", "-e", offsite_endpoint,
+        ossutil_cmd = ["ossutil", "cp", "-f", "-e", offsite_endpoint,
                        "-i", offsite_ak_id, "-k", offsite_ak_secret,
                        "--meta", retention_meta]
         remote = f"oss://{offsite_bucket}"

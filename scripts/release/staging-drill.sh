@@ -122,9 +122,9 @@ if [ "$DRILL" -ne 1 ]; then
   fi
 fi
 
-DRILL_ARGS=()
+DRILL_ARGS=""
 if [ "$DRILL" -eq 1 ]; then
-  DRILL_ARGS=(-Drill)
+  DRILL_ARGS="-Drill"
 fi
 
 # ---------------------------------------------------------------------------
@@ -165,10 +165,10 @@ bash "$SCRIPT_DIR/preflight.sh" -EnvironmentFile "$ENV_FILE" -OverrideFile "$OVE
 
 echo "staging-drill: deploy candidate"
 bash "$SCRIPT_DIR/deploy.sh" -Manifest "$CANDIDATE" -EnvFile "$ENV_FILE" -OverrideFile "$OVERRIDE_FILE" \
-  -Schema "$SCHEMA" -ComposeFile "$COMPOSE_FILE" -ReportDir "$REPORT_DIR" -HistoryFile "$HISTORY" "${DRILL_ARGS[@]}"
+  -Schema "$SCHEMA" -ComposeFile "$COMPOSE_FILE" -ReportDir "$REPORT_DIR" -HistoryFile "$HISTORY" ${DRILL_ARGS:+$DRILL_ARGS}
 
 echo "staging-drill: verify candidate (readiness + smoke contract)"
-python3 "$REPORT_DIR/deployment-manifest.json" <<'PY'
+python3 - "$REPORT_DIR/deployment-manifest.json" <<'PY'
 import json, sys
 m = json.load(open(sys.argv[1], encoding="utf-8"))
 for key in ("preflight", "readiness", "smoke"):
@@ -179,7 +179,7 @@ PY
 
 echo "staging-drill: rollback to previous"
 bash "$SCRIPT_DIR/rollback.sh" -Manifest "$PREVIOUS" -EnvFile "$ENV_FILE" -OverrideFile "$OVERRIDE_FILE" \
-  -Schema "$SCHEMA" -ComposeFile "$COMPOSE_FILE" -ReportDir "$REPORT_DIR" -HistoryFile "$HISTORY" "${DRILL_ARGS[@]}"
+  -Schema "$SCHEMA" -ComposeFile "$COMPOSE_FILE" -ReportDir "$REPORT_DIR" -HistoryFile "$HISTORY" ${DRILL_ARGS:+$DRILL_ARGS}
 
 echo "staging-drill: verify rollback target"
 python3 - "$PREVIOUS" <<'PY'
@@ -190,7 +190,7 @@ if m.get("migration", {}).get("head", "") > m.get("schema_compat", {}).get("max_
 print("rollback verification ok")
 PY
 if [ "$DRILL" -eq 0 ]; then
-  python3 "$REPORT_DIR/rollback-manifest.json" <<'PY'
+  python3 - "$REPORT_DIR/rollback-manifest.json" <<'PY'
 import json, sys
 m = json.load(open(sys.argv[1], encoding="utf-8"))
 for key in ("readiness", "smoke"):
@@ -202,9 +202,9 @@ fi
 
 echo "staging-drill: redeploy candidate"
 bash "$SCRIPT_DIR/deploy.sh" -Manifest "$CANDIDATE" -EnvFile "$ENV_FILE" -OverrideFile "$OVERRIDE_FILE" \
-  -Schema "$SCHEMA" -ComposeFile "$COMPOSE_FILE" -ReportDir "$REPORT_DIR" -HistoryFile "$HISTORY" "${DRILL_ARGS[@]}"
+  -Schema "$SCHEMA" -ComposeFile "$COMPOSE_FILE" -ReportDir "$REPORT_DIR" -HistoryFile "$HISTORY" ${DRILL_ARGS:+$DRILL_ARGS}
 
-python3 "$REPORT_DIR/deployment-manifest.json" <<'PY'
+python3 - "$REPORT_DIR/deployment-manifest.json" <<'PY'
 import json, sys
 m = json.load(open(sys.argv[1], encoding="utf-8"))
 for key in ("preflight", "readiness", "smoke"):
