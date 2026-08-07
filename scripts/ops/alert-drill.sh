@@ -252,7 +252,7 @@ if rg -q "127\.0\.0\.1|localhost" "$RENDERED_AM"; then
   exit 1
 fi
 docker run --rm --entrypoint amtool -v "$(dirname "$RENDERED_AM"):/etc/alertmanager:ro" \
-  prom/alertmanager:v0.28.1 check-config /etc/alertmanager/alertmanager.runtime.yml >/dev/null 2>&1 \
+  prom/alertmanager@sha256:27c475db5fb156cab31d5c18a4251ac7ed567746a2483ff264516437a39b15ba check-config /etc/alertmanager/alertmanager.runtime.yml >/dev/null 2>&1 \
   || { echo "ERROR: rendered alertmanager config failed amtool check" >&2; exit 1; }
 
 # ------------------------------------------------------------- isolated project setup
