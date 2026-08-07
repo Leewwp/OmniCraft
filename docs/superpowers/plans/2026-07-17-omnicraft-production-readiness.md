@@ -895,16 +895,16 @@ Ops 主线串行，因为 compose、runbook、CI、权威计划和证据索引�
 
 ## Web production-ready definition of done
 
-- [ ] Ops-00～Ops-08 are individually complete, reviewed, merged and evidenced.
-- [ ] `main` protection requires stable CI/security checks; no required gate is optional.
-- [ ] Empty/history/concurrent/checksum migration tests and a real restore drill pass.
-- [ ] Logs are redacted; metrics are bounded; critical alerts fire, deliver and resolve.
-- [ ] Security exception ledger has no expired entries; release scans pass.
-- [ ] SBOM and provenance verify against immutable artifacts.
-- [ ] Release load thresholds pass with capacity and recovery evidence.
-- [ ] Production preflight and staging deploy/rollback drills pass.
-- [ ] Desktop release remains disabled and is explicitly excluded from the Web-only release claim until Ops-09 completes.
-- [ ] Every external input still missing is listed as a release blocker; no placeholder is presented as production configuration.
+- [x] Ops-00～Ops-08 are individually complete, reviewed, merged and evidenced.
+- [x] `main` protection requires stable CI/security checks; no required gate is optional.
+- [x] Empty/history/concurrent/checksum migration tests and a real restore drill pass.
+- [x] Logs are redacted; metrics are bounded; critical alerts fire, deliver and resolve.
+- [x] Security exception ledger has no expired entries; release scans pass.
+- [x] SBOM and provenance verify against immutable artifacts.
+- [x] Release load thresholds pass with capacity and recovery evidence.
+- [x] Production preflight and staging deploy/rollback drills pass.
+- [x] Desktop release remains disabled and is explicitly excluded from the Web-only release claim until Ops-09 completes.
+- [x] Every external input still missing is listed as a release blocker; no placeholder is presented as production configuration.
 
 ## Web + Desktop production-ready extension
 
