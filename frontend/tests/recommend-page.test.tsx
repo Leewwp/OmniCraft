@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import React from "react";
 import { IntlProvider } from "use-intl";
+import { SWRConfig } from "swr";
 import enMessages from "@/messages/en.json";
 import { cleanup, fireEvent, installDom, render, waitFor } from "./runtime-test-helpers";
 
@@ -74,6 +75,12 @@ function renderWithIntl(node: React.ReactNode) {
     <IntlProvider locale="en" messages={feedMessages}>
       {node}
     </IntlProvider>,
+  );
+}
+
+function renderFeed(node: React.ReactNode) {
+  return renderWithIntl(
+    <SWRConfig value={{ provider: () => new Map() }}>{node}</SWRConfig>,
   );
 }
 
@@ -228,7 +235,7 @@ test("ContentCard overlay mode splits main click area from author entry", async 
 test("RecommendFeedClient renders feed cards without zone tabs", async () => {
   installDom();
   const { RecommendFeedClient } = await import("@/components/recommend/RecommendFeedClient");
-  const view = renderWithIntl(
+  const view = renderFeed(
     <RecommendFeedClient apiBase="http://api.test/api/v1" initialItems={[cardData(1), cardData(2, "fanwork")]} initialTotal={2} initialError={false} />,
   );
   assert.equal(view.queryByRole("tablist"), null, "recommend stream must not render zone tabs");
@@ -240,7 +247,7 @@ test("RecommendFeedClient renders feed cards without zone tabs", async () => {
 test("RecommendFeedClient empty state offers browse-originals CTA", async () => {
   installDom();
   const { RecommendFeedClient } = await import("@/components/recommend/RecommendFeedClient");
-  const view = renderWithIntl(
+  const view = renderFeed(
     <RecommendFeedClient apiBase="http://api.test/api/v1" initialItems={[]} initialTotal={0} initialError={false} />,
   );
   assert.ok(view.getByText("No recommendations yet"));
@@ -253,7 +260,7 @@ test("RecommendFeedClient error state keeps position and retries page 1", async 
   const { RecommendFeedClient } = await import("@/components/recommend/RecommendFeedClient");
   const stub = createFetchStub([{ contents: [cardData(1), cardData(2, "fanwork")], total: 2 }]);
   try {
-    const view = renderWithIntl(
+    const view = renderFeed(
       <RecommendFeedClient apiBase="http://api.test/api/v1" initialItems={[]} initialTotal={null} initialError />,
     );
     assert.ok(view.getByText("Recommendations are temporarily unavailable"));
@@ -292,7 +299,7 @@ test("RecommendFeedClient appends page 2 via sentinel with sort=recommended", as
     { contents: [cardData(3)], total: 3 },
   ]);
   try {
-    renderWithIntl(
+    renderFeed(
       <RecommendFeedClient apiBase="http://api.test/api/v1" initialItems={[cardData(1), cardData(2, "fanwork")]} initialTotal={3} initialError={false} />,
     );
     const triggerIntersect = () =>
