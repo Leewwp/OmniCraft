@@ -172,10 +172,10 @@ end
 RUBY
 
 # --------------------------------------------------------- routing safety check
-if rg -n "127\.0\.0\.1|localhost|0\.0\.0\.0" "$CONFIG_DIR/alertmanager.yml" >/dev/null 2>&1; then
+if grep -nE "127\.0\.0\.1|localhost|0\.0\.0\.0" "$CONFIG_DIR/alertmanager.yml" >/dev/null 2>&1; then
   fail "alertmanager.yml must not reference loopback/unspecified addresses"
 fi
-if rg -n "SMTP_(HOST|PORT|FROM|USERNAME|PASSWORD)_PLACEHOLDER|OPS_EMAIL_TO_PLACEHOLDER" \
+if grep -nE "SMTP_(HOST|PORT|FROM|USERNAME|PASSWORD)_PLACEHOLDER|OPS_EMAIL_TO_PLACEHOLDER" \
   "$CONFIG_DIR/alertmanager.yml" >/dev/null 2>&1; then
   :
 else

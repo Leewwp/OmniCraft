@@ -73,12 +73,12 @@ RUBY
 # Production exporters must use the same external credentials as their
 # protected dependencies, and node-exporter must inspect the host rootfs.
 PROD_COMPOSE="$REPO_ROOT/docs/deploy/docker-compose.single-server.yml"
-rg -q 'DATA_SOURCE_USER:.*POSTGRES_USER' "$PROD_COMPOSE" \
-  && rg -q 'DATA_SOURCE_PASS:.*POSTGRES_PASSWORD' "$PROD_COMPOSE" \
-  && rg -q 'REDIS_PASSWORD:.*REDIS_PASSWORD' "$PROD_COMPOSE" \
+grep -qE 'DATA_SOURCE_USER:.*POSTGRES_USER' "$PROD_COMPOSE" \
+  && grep -qE 'DATA_SOURCE_PASS:.*POSTGRES_PASSWORD' "$PROD_COMPOSE" \
+  && grep -qE 'REDIS_PASSWORD:.*REDIS_PASSWORD' "$PROD_COMPOSE" \
   || { echo "FAIL: production exporters must consume external DB/Redis credentials" >&2; exit 1; }
-rg -q -- '--path.rootfs=/host' "$PROD_COMPOSE" \
-  && rg -q '/:/host:ro' "$PROD_COMPOSE" \
+grep -qE -- '--path.rootfs=/host' "$PROD_COMPOSE" \
+  && grep -qE '/:/host:ro' "$PROD_COMPOSE" \
   || { echo "FAIL: production node-exporter must inspect the host rootfs" >&2; exit 1; }
 
 # The required aggregate check must fail when the alerting job fails.
