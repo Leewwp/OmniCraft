@@ -16,6 +16,8 @@
 
 **审核结果处理**（AI review processing）：应用内部将审核结果落库并变更内容/IP 状态的流程（`AICallbackInput` → `ProcessAICallback`），由扫描结果回调或同步审核路径触发，与入站通知是两个契约。_Avoid_：回调、回调处理
 
+**AI 审核终态**（AI review terminal state）：`banned` 是 AI 审核通道的终态——后续 AI 审核结果（pass/review）不得覆盖（防同步图片 block 后被异步视频 pass 复活）；**人工通道不受限**：申诉批准（`AppealTargetUpdates` approved → published）与判官翻案仍可翻转 banned。_Avoid_：把 banned 说成全局不可逆
+
 ## Test seams
 
 - HTTP/API 行为通过 handler/router 边界验证，业务事务与缓存恢复通过 service 集成测试补充。
