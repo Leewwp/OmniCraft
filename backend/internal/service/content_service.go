@@ -28,6 +28,7 @@ var (
 	ErrContentForbidden      = errors.New("forbidden: not content author")
 	ErrPublishFrozen         = errors.New("publish permission is temporarily frozen")
 	ErrInvalidSourceOriginal = errors.New("source original must be a published original content item")
+	ErrMediaSetInvalid       = errors.New("media set violates the gallery contract")
 )
 
 type ContentService struct {
@@ -35,6 +36,7 @@ type ContentService struct {
 	reviewSvc              *ReviewService
 	rdb                    *redis.Client
 	cacheCfg               *config.CacheConfig
+	uploadCfg              *config.UploadConfig
 	ossSvc                 *OSSService
 	uploadGrants           *UploadGrantService
 	uploadedObjectVerifier UploadedObjectVerifier
@@ -75,24 +77,38 @@ func (s *ContentService) WithUploadGrantService(grants *UploadGrantService) *Con
 	return s
 }
 
+func (s *ContentService) WithUploadConfig(cfg *config.UploadConfig) *ContentService {
+	s.uploadCfg = cfg
+	return s
+}
+
 func (s *ContentService) WithUploadedObjectVerifier(verifier UploadedObjectVerifier) *ContentService {
 	s.uploadedObjectVerifier = verifier
 	return s
 }
 
 type PublishContentInput struct {
-	Title            string            `json:"title" binding:"required,min=1,max=500"`
-	Description      string            `json:"description"`
-	Zone             string            `json:"zone" binding:"required,oneof=fanwork original"`
-	IPID             *int64            `json:"ip_id"`
-	SourceOriginalID *int64            `json:"source_original_id"`
-	Category         string            `json:"category"`
-	ContentType      string            `json:"content_type" binding:"required"`
-	CoverImageURL    string            `json:"cover_image_url"`
-	IsPublic         bool              `json:"is_public"`
-	AllowCopy        bool              `json:"allow_copy"`
-	Tags             []string          `json:"tags"`
-	Attachments      []AttachmentInput `json:"attachments"`
+	Title            string `json:"title" binding:"required,min=1,max=500"`
+	Description      string `json:"description"`
+	Zone             string `json:"zone" binding:"required,oneof=fanwork original"`
+	IPID             *int64 `json:"ip_id"`
+	SourceOriginalID *int64 `json:"source_original_id"`
+	Category         string `json:"category"`
+	ContentType      string `json:"content_type" binding:"required"`
+	// CoverImageURL is rejected for image/video content: covers are derived
+	// server-side from the media set or the verified poster grant.
+	CoverImageURL string `json:"cover_image_url"`
+	// PosterGrantID is the controlled video poster: an image upload grant
+	// issued to the current publisher. The backend consumes and verifies it,
+	// then derives the persistent cover URL and dimensions. Arbitrary client
+	// cover URLs/keys are never accepted (closes the cover_oss_key drift).
+	PosterGrantID string            `json:"poster_grant_id"`
+	PosterWidth   *int              `json:"poster_width"`
+	PosterHeight  *int              `json:"poster_height"`
+	IsPublic      bool              `json:"is_public"`
+	AllowCopy     bool              `json:"allow_copy"`
+	Tags          []string          `json:"tags"`
+	Attachments   []AttachmentInput `json:"attachments"`
 }
 
 type AttachmentInput struct {
@@ -104,7 +120,12 @@ type AttachmentInput struct {
 	DurationSec *int   `json:"duration_sec"`
 	Width       *int   `json:"width"`
 	Height      *int   `json:"height"`
-	IsPrimary   bool   `json:"is_primary"`
+	// SortOrder is the stable zero-based position within the media set. It is
+	// required and unique for image/video content; legacy attachment rows stay
+	// NULL and fall back to id order on read. Reordering after publish is not
+	// supported in this version.
+	SortOrder *int `json:"sort_order"`
+	IsPrimary bool `json:"is_primary"`
 }
 
 func (s *ContentService) PublishContent(input PublishContentInput, authorID int64) (*model.ContentItem, error) {
@@ -134,6 +155,16 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 		return nil, err
 	}
 
+	// Authoritative media set contract: quantity, purity, dimensions and
+	// stable ordering are validated BEFORE any upload grant is consumed or
+	// any row is written.
+	if err := s.validateMediaGallery(&input); err != nil {
+		return nil, err
+	}
+	if err := s.validatePosterContract(&input); err != nil {
+		return nil, err
+	}
+
 	content := &model.ContentItem{
 		Title:            input.Title,
 		Description:      input.Description,
@@ -153,27 +184,38 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 	var consumedGrants []UploadGrant
 
 	err := s.contentRepo.Transaction(func(txRepo *repository.ContentRepository) error {
-		if err := txRepo.CreateContent(content); err != nil {
-			return err
-		}
-
-		if len(input.Tags) > 0 {
-			tags := make([]model.ContentTag, 0, len(input.Tags))
-			for _, tag := range input.Tags {
-				if tag != "" {
-					tags = append(tags, model.ContentTag{
-						ContentItemID: content.ID,
-						Tag:           tag,
-					})
-				}
+		// Controlled poster: video covers may only come from an image upload
+		// grant that belongs to the current publisher.
+		if input.ContentType == "video" && input.PosterGrantID != "" {
+			if s.uploadGrants == nil {
+				return ErrUploadGrantUnavailable
 			}
-			if err := txRepo.CreateTags(tags); err != nil {
+			grant, err := s.uploadGrants.Consume(ctx, input.PosterGrantID, authorID, "content")
+			if err != nil {
 				return err
 			}
+			consumedGrants = append(consumedGrants, *grant)
+			if grant.FileType != "image" {
+				return fmt.Errorf("%w: video poster grant must be an image upload", ErrMediaSetInvalid)
+			}
+			if s.uploadedObjectVerifier == nil {
+				return ErrOSSNotConfigured
+			}
+			if err := s.uploadedObjectVerifier.VerifyUploadedObject(ctx, *grant); err != nil {
+				var validationErr *UploadValidationError
+				if errors.As(err, &validationErr) {
+					return fmt.Errorf("%w: %v", ErrUploadGrantInvalid, err)
+				}
+				return err
+			}
+			content.CoverImageURL = s.persistentObjectURL(grant.OSSKey)
+			content.CoverWidth = input.PosterWidth
+			content.CoverHeight = input.PosterHeight
 		}
 
+		var attachments []model.ContentAttachment
 		if len(input.Attachments) > 0 {
-			attachments := make([]model.ContentAttachment, 0, len(input.Attachments))
+			attachments = make([]model.ContentAttachment, 0, len(input.Attachments))
 			for i := range input.Attachments {
 				a := &input.Attachments[i]
 				if a.GrantID == "" {
@@ -212,9 +254,64 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 					DurationSec:   a.DurationSec,
 					Width:         a.Width,
 					Height:        a.Height,
-					IsPrimary:     a.IsPrimary,
+					SortOrder:     a.SortOrder,
+					IsPrimary:     legacyPrimary(a.IsPrimary),
 				})
 			}
+			// Cover derivation for image content: the sort_order=0 item (the
+			// first media item) is the cover. is_primary only marks the
+			// derived cover entry; media order is decided by sort_order alone.
+			if input.ContentType == "image" {
+				coverIndex := 0
+				for i := 1; i < len(attachments); i++ {
+					if *attachments[i].SortOrder < *attachments[coverIndex].SortOrder {
+						coverIndex = i
+					}
+				}
+				for i := range attachments {
+					attachments[i].IsPrimary = boolPtr(i == coverIndex)
+				}
+				content.CoverImageURL = s.persistentObjectURL(attachments[coverIndex].OSSKey)
+				content.CoverWidth = attachments[coverIndex].Width
+				content.CoverHeight = attachments[coverIndex].Height
+			} else if input.ContentType == "video" {
+				// Video covers are the verified poster, which is not an
+				// attachment row: no media attachment carries is_primary.
+				for i := range attachments {
+					attachments[i].IsPrimary = boolPtr(false)
+				}
+			}
+		}
+
+		if err := txRepo.CreateContent(content); err != nil {
+			return err
+		}
+
+		if len(attachments) > 0 {
+			// The attachment rows are assembled before CreateContent runs (the
+			// cover derivation needs them in memory), so their FK must be
+			// populated from the now-known content ID before the insert.
+			for i := range attachments {
+				attachments[i].ContentItemID = content.ID
+			}
+		}
+
+		if len(input.Tags) > 0 {
+			tags := make([]model.ContentTag, 0, len(input.Tags))
+			for _, tag := range input.Tags {
+				if tag != "" {
+					tags = append(tags, model.ContentTag{
+						ContentItemID: content.ID,
+						Tag:           tag,
+					})
+				}
+			}
+			if err := txRepo.CreateTags(tags); err != nil {
+				return err
+			}
+		}
+
+		if len(attachments) > 0 {
 			if err := txRepo.CreateAttachments(attachments); err != nil {
 				return err
 			}
@@ -285,6 +382,116 @@ func (s *ContentService) restoreUploadGrants(ctx context.Context, grants []Uploa
 			slog.Error("failed to restore upload grant after publish failure", "grant_id", grant.ID, "error", err)
 		}
 	}
+}
+
+// galleryLimits returns the configured media set size bounds for a content
+// type. Zero configuration values mean "use the specification default", so
+// tests and minimal configs keep the authoritative contract.
+func (s *ContentService) galleryLimits(contentType string) (min, max int) {
+	switch contentType {
+	case "image":
+		min, max = 2, 9
+		if s.uploadCfg != nil && s.uploadCfg.ImageGalleryMinItems > 0 {
+			min = s.uploadCfg.ImageGalleryMinItems
+		}
+		if s.uploadCfg != nil && s.uploadCfg.ImageGalleryMaxItems > 0 {
+			max = s.uploadCfg.ImageGalleryMaxItems
+		}
+	case "video":
+		min, max = 1, 3
+		if s.uploadCfg != nil && s.uploadCfg.VideoGalleryMinItems > 0 {
+			min = s.uploadCfg.VideoGalleryMinItems
+		}
+		if s.uploadCfg != nil && s.uploadCfg.VideoGalleryMaxItems > 0 {
+			max = s.uploadCfg.VideoGalleryMaxItems
+		}
+	}
+	return min, max
+}
+
+// validateMediaGallery enforces the media set contract for image/video
+// content: pure type (no image/video mixing, content_type consistent with
+// file_type), configured quantity bounds, positive dimensions and stable
+// non-negative unique sort_order. Non-media content types keep legacy
+// attachment semantics and are untouched. It must run before any upload grant
+// is consumed and before any write.
+func (s *ContentService) validateMediaGallery(input *PublishContentInput) error {
+	min, max := s.galleryLimits(input.ContentType)
+	if min == 0 {
+		return nil
+	}
+	mediaType := input.ContentType
+	if len(input.Attachments) < min || len(input.Attachments) > max {
+		return fmt.Errorf("%w: %s media set requires %d-%d items, got %d", ErrMediaSetInvalid, mediaType, min, max, len(input.Attachments))
+	}
+	seen := make(map[int]struct{}, len(input.Attachments))
+	for i := range input.Attachments {
+		a := &input.Attachments[i]
+		if a.FileType != mediaType {
+			return fmt.Errorf("%w: %s content cannot carry %s attachments", ErrMediaSetInvalid, mediaType, a.FileType)
+		}
+		if a.SortOrder == nil {
+			return fmt.Errorf("%w: %s media set requires an explicit sort_order", ErrMediaSetInvalid, mediaType)
+		}
+		if *a.SortOrder < 0 {
+			return fmt.Errorf("%w: %s media set sort_order must not be negative", ErrMediaSetInvalid, mediaType)
+		}
+		if _, dup := seen[*a.SortOrder]; dup {
+			return fmt.Errorf("%w: %s media set sort_order must be unique per content", ErrMediaSetInvalid, mediaType)
+		}
+		seen[*a.SortOrder] = struct{}{}
+		if a.Width == nil || *a.Width <= 0 || a.Height == nil || *a.Height <= 0 {
+			return fmt.Errorf("%w: %s media set requires positive width/height", ErrMediaSetInvalid, mediaType)
+		}
+	}
+	if input.CoverImageURL != "" {
+		return fmt.Errorf("%w: cover_image_url is not accepted for media content; the cover is derived server-side", ErrMediaSetInvalid)
+	}
+	return nil
+}
+
+// validatePosterContract enforces the controlled poster contract: video
+// posters must arrive as an image upload grant with positive dimensions;
+// image content must not carry a poster grant at all.
+func (s *ContentService) validatePosterContract(input *PublishContentInput) error {
+	switch input.ContentType {
+	case "video":
+		if input.PosterGrantID == "" {
+			// Legacy clients without a poster fall back to the existing
+			// server-side snapshot behavior.
+			return nil
+		}
+		if input.PosterWidth == nil || *input.PosterWidth <= 0 || input.PosterHeight == nil || *input.PosterHeight <= 0 {
+			return fmt.Errorf("%w: video poster requires positive width/height", ErrMediaSetInvalid)
+		}
+	case "image":
+		if input.PosterGrantID != "" {
+			return fmt.Errorf("%w: poster grants are only accepted for video content", ErrMediaSetInvalid)
+		}
+	}
+	return nil
+}
+
+func (s *ContentService) persistentObjectURL(ossKey string) string {
+	if s.ossSvc == nil {
+		return ""
+	}
+	return s.ossSvc.PersistentObjectURL(ossKey)
+}
+
+// legacyPrimary maps the legacy client-supplied is_primary flag onto the
+// pointer column: an explicit true is honoured, anything else stays nil so the
+// database default (true) applies, preserving pre-media-set attachment
+// semantics for non-media content types.
+func legacyPrimary(input bool) *bool {
+	if input {
+		return boolPtr(true)
+	}
+	return nil
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }
 
 func validateSourceOriginalLink(zone string, source *model.ContentItem) error {

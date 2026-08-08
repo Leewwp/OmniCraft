@@ -418,7 +418,7 @@ func createDownloadContent(t *testing.T, db *gorm.DB, authorID int64, ipID *int6
 		FileType:      "sheet_music_pdf",
 		OSSKey:        "uploads/1/sheet.pdf",
 		MimeType:      "application/pdf",
-		IsPrimary:     true,
+		IsPrimary:     boolPtr(true),
 	}
 	if err := db.Create(&attachment).Error; err != nil {
 		t.Fatalf("create attachment: %v", err)
@@ -451,4 +451,8 @@ func assertContentUnavailable(t *testing.T, rec *httptest.ResponseRecorder) {
 
 func strconvFormatInt(v int64) string {
 	return strconv.FormatInt(v, 10)
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }

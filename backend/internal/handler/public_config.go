@@ -33,11 +33,22 @@ type PublicLegalDTO struct {
 	CurrentPrivacyVersion string `json:"current_privacy_version"`
 }
 
+// PublicUploadDTO exposes only the non-sensitive upload limits the frontend
+// needs to enforce media set sizing without duplicating constants. It must
+// never include credentials, keys or rate limits.
+type PublicUploadDTO struct {
+	ImageGalleryMinItems int `json:"image_gallery_min_items"`
+	ImageGalleryMaxItems int `json:"image_gallery_max_items"`
+	VideoGalleryMinItems int `json:"video_gallery_min_items"`
+	VideoGalleryMaxItems int `json:"video_gallery_max_items"`
+}
+
 type PublicConfigResponse struct {
 	Features PublicFeaturesDTO `json:"features"`
 	Captcha  PublicCaptchaDTO  `json:"captcha"`
 	Client   PublicClientDTO   `json:"client"`
 	Legal    PublicLegalDTO    `json:"legal"`
+	Upload   PublicUploadDTO   `json:"upload"`
 }
 
 type PublicConfigHandler struct {
@@ -70,6 +81,12 @@ func (h *PublicConfigHandler) GetPublicConfig(c *gin.Context) {
 		Legal: PublicLegalDTO{
 			CurrentTermsVersion:   h.cfg.Legal.CurrentTermsVersion,
 			CurrentPrivacyVersion: h.cfg.Legal.CurrentPrivacyVersion,
+		},
+		Upload: PublicUploadDTO{
+			ImageGalleryMinItems: h.cfg.Upload.ImageGalleryMinItems,
+			ImageGalleryMaxItems: h.cfg.Upload.ImageGalleryMaxItems,
+			VideoGalleryMinItems: h.cfg.Upload.VideoGalleryMinItems,
+			VideoGalleryMaxItems: h.cfg.Upload.VideoGalleryMaxItems,
 		},
 	}
 	c.JSON(http.StatusOK, resp)

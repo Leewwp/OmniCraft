@@ -212,6 +212,29 @@ func (s *OSSService) GenerateVideoSnapshotURL(ctx context.Context, ossKey string
 	return s.client.GetVideoSnapshotURL(strings.TrimSpace(ossKey), coverExpiry, 480)
 }
 
+// PersistentObjectURL derives a stable unsigned public URL for an uploaded
+// object. It prefers the configured CDN domain and falls back to the
+// bucket-qualified endpoint. Empty input or absent config yields "".
+func (s *OSSService) PersistentObjectURL(ossKey string) string {
+	if s == nil || s.cfg == nil {
+		return ""
+	}
+	key := strings.TrimSpace(ossKey)
+	if key == "" {
+		return ""
+	}
+	if domain := strings.TrimSpace(s.cfg.OSS.Domain); domain != "" {
+		return strings.TrimSuffix(domain, "/") + "/" + key
+	}
+	endpoint := strings.TrimSpace(s.cfg.OSS.Endpoint)
+	bucket := strings.TrimSpace(s.cfg.OSS.BucketName)
+	if endpoint == "" || bucket == "" {
+		return ""
+	}
+	host := strings.TrimPrefix(strings.TrimPrefix(endpoint, "https://"), "http://")
+	return "https://" + bucket + "." + strings.TrimSuffix(host, "/") + "/" + key
+}
+
 func (s *OSSService) isAllowedSheetMusicExt(ext string) bool {
 	for _, allowed := range s.cfg.Upload.SheetMusicExtensions {
 		if strings.EqualFold(strings.TrimSpace(allowed), strings.TrimSpace(ext)) {
