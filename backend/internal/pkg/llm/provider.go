@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
 
@@ -16,6 +17,24 @@ type ToolDefinition struct {
 	Name        string                 `json:"name"`
 	Description string                 `json:"description"`
 	Parameters  map[string]interface{} `json:"parameters"`
+}
+
+// MarshalJSON renders tools in the OpenAI-compatible wire format
+// {"type":"function","function":{...}}. OpenAI, DeepSeek and other
+// openai_compat providers reject the legacy flat shape.
+func (t ToolDefinition) MarshalJSON() ([]byte, error) {
+	type functionShape struct {
+		Name        string                 `json:"name"`
+		Description string                 `json:"description"`
+		Parameters  map[string]interface{} `json:"parameters"`
+	}
+	return json.Marshal(struct {
+		Type     string        `json:"type"`
+		Function functionShape `json:"function"`
+	}{
+		Type:     "function",
+		Function: functionShape{Name: t.Name, Description: t.Description, Parameters: t.Parameters},
+	})
 }
 
 type ToolCall struct {
