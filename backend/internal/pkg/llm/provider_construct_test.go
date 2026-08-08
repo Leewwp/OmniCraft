@@ -45,11 +45,25 @@ func TestNewOpenAICompatProvider_SetsFields(t *testing.T) {
 	})
 }
 
+func TestNewMiniMaxProvider_DefaultAPIBase(t *testing.T) {
+	p := NewMiniMaxProvider("key", "", "model", "embed")
+	if p.openAI.apiBase != "https://api.minimaxi.com" {
+		t.Errorf("expected apiBase %q, got %q", "https://api.minimaxi.com", p.openAI.apiBase)
+	}
+}
+
 func TestNewProviderFromConfig_RoutesCorrectly(t *testing.T) {
 	t.Run("openai_compat", func(t *testing.T) {
 		p := NewProviderFromConfig("openai_compat", "key", "https://api.example.com", "gpt-4", "embed")
 		if _, ok := p.(*OpenAICompatProvider); !ok {
 			t.Errorf("expected *OpenAICompatProvider, got %T", p)
+		}
+	})
+
+	t.Run("minimax", func(t *testing.T) {
+		p := NewProviderFromConfig("minimax", "key", "https://api.minimaxi.com", "MiniMax-M1", "embo-01")
+		if _, ok := p.(*MiniMaxProvider); !ok {
+			t.Errorf("expected *MiniMaxProvider, got %T", p)
 		}
 	})
 
