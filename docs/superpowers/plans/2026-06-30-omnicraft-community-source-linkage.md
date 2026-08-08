@@ -1,6 +1,6 @@
 # OmniCraft Community Original Fanwork Source Linkage Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Execution:** Active-plan registry item tracked by GitHub issue #96. This is a mixed-lane plan: Task 1 is heavy; Tasks 0 and 2–7 are light; Task 8 closes verification/tracking. Every task ends at its own checkpoint before the next task begins.
 
 **Goal:** 增强原创/二创联动，支持二创基于二创的 `source_fanwork_id` 来源链，并在详情页克制展示灵感来源、相关二创和衍生作品。
 
@@ -12,8 +12,9 @@
 
 ## Cross-Plan Coordination
 
-- Execution source: this is part of the 2026-06-30 community feature plan family, derived from `docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md`. It is not a historical `task.json` task and not a 2026-05-30 Beta roadmap checkbox; executing it requires an explicit user request naming this plan or the community feature family.
-- Shared-file integration and migration order for the six community plans is: messages-notifications (`057`) -> browse-history (no migration) -> collections (`058`) -> content-series (`059`) -> source-linkage (`066`) -> collaboration-invites (`063`)（迁移编号与落地顺序解耦：`066` 为 2026-08-07 重编号，`061` 因 `062_notification_broadcast_idempotency.sql` 已先入库而不可回填，`063`/`064`/`065` 已分别钉名 collaboration-invites/IP history/favorites drop，`066` 是下一个可用编号；本计划仍先于 collaboration-invites 落地）。
+- Execution source: `AGENTS.md` active-plan registry and GitHub issue #96, derived from `docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md`. It is not a historical `task.json` task.
+- Shared-file integration and migration order is: existing foundations (`057`/`058`/`059`/`062`) -> media metadata (`063`) -> source-linkage (`064`) -> collaboration-invites (`065`) -> IP history (`066`) -> favorites drop (`067`). These numbers follow the confirmed merge order; do not deliberately apply a higher reservation before an uncreated lower reservation.
+- Lane/checkpoint contract: Task 1 uses one heavy worktree/branch/commit with a confirmed failing migration test and two-stage review. Each light Task 0 and 2–7 uses a logical scoped checkpoint commit after its focused gates. Task 8 may commit only final evidence, generated docs and tracking state not already committed; it must not collapse the whole plan into one commit.
 - `frontend/app/(protected)/messages/page.tsx`, `frontend/components/social/ChatWindow.tsx`, and `frontend/components/social/ConversationList.tsx` must land in messages-notifications before collaboration-invites extends typed invite cards.
 - `frontend/components/content/ContentDetail.tsx` changes from collections and content-series must already be present; this plan adds source attribution and related/derivative rows after them.
 - `frontend/components/studio/PublishForm.tsx` source fields in this plan must land before collaboration-invites adds the collaborator picker.
@@ -32,7 +33,7 @@
 ### Backend
 
 - Read/modify if stale: `AGENTS.md`, `CLAUDE.md`, `architecture.md` - 先验证来源规则和发布/详情 API 文档是否已与本计划的 fanwork 三选一来源模型一致；仅当分支仍有旧单来源规则时再更新。
-- Create: `backend/migrations/066_add_source_fanwork_id.sql`.
+- Create: `backend/migrations/064_add_source_fanwork_id.sql`.
 - Modify: `backend/internal/model/content.go`
 - Modify: `backend/internal/repository/content_repo.go`
 - Modify: `backend/internal/service/content_service.go`
@@ -61,7 +62,7 @@
 
 ---
 
-## Task 0: Align Authoritative Source-Linkage Documentation
+## Task 0 [light]: Align Authoritative Source-Linkage Documentation
 
 **Files:**
 - Read/modify if stale: `AGENTS.md`
@@ -100,10 +101,10 @@ Expected: no stale old-model prose remains except in explicitly labeled historic
 
 ---
 
-## Task 1: Add Source Fanwork Migration And Model
+## Task 1 [heavy]: Add Source Fanwork Migration And Model
 
 **Files:**
-- Create: `backend/migrations/066_add_source_fanwork_id.sql`
+- Create: `backend/migrations/064_add_source_fanwork_id.sql`
 - Modify: `backend/internal/model/content.go`
 - Test: `backend/internal/model/content_migration_test.go`
 
@@ -115,7 +116,7 @@ Run:
 ls backend/migrations/ | sort | tail -10
 ```
 
-Expected number is `066_add_source_fanwork_id.sql`（2026-08-07 重编号：`061` 因 `062_notification_broadcast_idempotency.sql` 已先入库而不可回填，`063`/`064`/`065` 已分别钉名 collaboration-invites/IP history（#64 T09）/favorites drop（#64 T12），`066` 为下一个可用编号；本计划仍先于 collaboration-invites 落地）。If `066_` is already occupied by an unrelated migration at implementation time, stop and update all six community plans plus the source spec migration table before continuing.
+Expected number is `064_add_source_fanwork_id.sql`: `061` remains intentionally unused after already-applied `062`, media metadata owns `063`, and this plan lands before collaboration-invites `065`, IP history `066` and favorites drop `067`. If `064_` is occupied by an unrelated migration at implementation time, stop and update the active registry, both community plans/specs and all open tickets before continuing.
 
 - [ ] **Step 2: Write failing migration test**
 
@@ -161,7 +162,7 @@ go test ./internal/model -run TestContentSourceMigration -v
 
 ---
 
-## Task 2: Replace Source Validation With Explicit Error Codes
+## Task 2 [light]: Replace Source Validation With Explicit Error Codes
 
 **Files:**
 - Modify: `backend/internal/service/content_service.go`
@@ -219,7 +220,7 @@ go test ./internal/service -run TestValidateSource -v
 
 ---
 
-## Task 3: Update Publish And Content Detail Contract
+## Task 3 [light]: Update Publish And Content Detail Contract
 
 **Files:**
 - Modify: `backend/internal/handler/content.go`
@@ -289,7 +290,7 @@ go test ./internal/handler -run TestCreateContentRoute -v
 
 ---
 
-## Task 4: Enhance Related Fanworks API
+## Task 4 [light]: Enhance Related Fanworks API
 
 **Files:**
 - Modify: `backend/internal/repository/content_repo.go`
@@ -353,7 +354,7 @@ go test ./internal/handler -run TestListRelatedFanworks -v
 
 ---
 
-## Task 5: Confirm Publish UI Spec And Source Picker API
+## Task 5 [light]: Confirm Publish UI Spec And Source Picker API
 
 **Files:**
 - Read: `design/ui-spec.md`
@@ -415,7 +416,7 @@ Expected: picker tests PASS before editing `PublishForm.tsx`.
 
 ---
 
-## Task 6: Update Fanwork Publish Flow
+## Task 6 [light]: Update Fanwork Publish Flow
 
 **Files:**
 - Modify: `frontend/components/studio/PublishForm.tsx`
@@ -477,7 +478,7 @@ npx playwright test e2e/studio-publish-fanwork.spec.ts
 
 ---
 
-## Task 7: Add Source Attribution And Related Rows
+## Task 7 [light]: Add Source Attribution And Related Rows
 
 **Files:**
 - Read: `design/ui-spec.md`
@@ -574,7 +575,7 @@ node --import tsx --test tests/source-linkage-components.test.tsx
 
 ---
 
-## Task 8: Full Verification And Documentation Sync
+## Task 8 [closure]: Full Verification And Documentation Sync
 
 **Files:**
 - Modify if generated: `architecture.md`
@@ -640,12 +641,9 @@ go run . --fix
    - `screenshots/community-related-fanworks-desktop.png`
    - `screenshots/community-derivatives-mobile.png`
 
-- [ ] **Step 6: Commit when implementing**
+- [ ] **Step 6: Close the plan without collapsing checkpoints**
 
-```bash
-git add -- AGENTS.md CLAUDE.md architecture.md backend/migrations/066_add_source_fanwork_id.sql backend/internal/model/content.go backend/internal/model/content_migration_test.go backend/internal/repository/content_repo.go backend/internal/service/content_service.go backend/internal/service/content_source_test.go backend/internal/handler/content.go backend/internal/handler/content_publish_route_test.go backend/internal/pkg/response/safe_error.go frontend/components/content/RelatedFanworks.tsx frontend/components/content/SourceAttribution.tsx frontend/components/studio/SourceContentPicker.tsx frontend/lib/content.ts frontend/components/studio/PublishForm.tsx "frontend/app/(protected)/studio/publish/fanwork/page.tsx" "frontend/app/(public)/content/[contentId]/page.tsx" "frontend/app/(public)/original/[contentId]/page.tsx" "frontend/app/(public)/original/[contentId]/fanworks/page.tsx" frontend/components/content/ContentDetail.tsx frontend/components/content/ContentSidebar.tsx frontend/messages/zh.json frontend/messages/en.json frontend/tests/studio-publish-fanwork.test.tsx frontend/tests/source-linkage-components.test.tsx frontend/e2e/studio-publish-fanwork.spec.ts screenshots/community-source-picker-desktop.png screenshots/community-source-picker-mobile.png screenshots/community-source-attribution-desktop.png screenshots/community-source-attribution-unavailable.png screenshots/community-related-fanworks-desktop.png screenshots/community-derivatives-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md progress.txt
-git commit -m "Community 5: original fanwork source linkage"
-```
+Confirm Task 0–7 checkpoint commits are present, stage only Task 8 evidence/generated-doc/tracking files that actually changed, update issue #96 with verification evidence, and close it. Do not restage the entire feature or create a second aggregate implementation commit.
 
 ---
 

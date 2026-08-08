@@ -15,12 +15,12 @@
 | ID | 候选 | 真实性裁决 | 处置 | 窗口/前置 |
 |----|------|-----------|------|-----------|
 | C1 | 发布冻结键分叉 | 确认（enforcement bug） | **已完成**：#78/#79 已合并，共享 key builder `internal/pkg/rediskeys.PublishFreezeKey` + 跨 seam 测试 | — |
-| C2 | ContentDetail 家族收敛（双侧栏/死代码/历史记录器/类型） | 基本确认 | 并入 #64 前置（不单独拆 issue）；低风险子项（删 ContentDetailClient、类型去重、"IP: " 硬编码、历史记录器收敛）可立即做；侧栏合并须在 #64 T03/T04 与媒体 T05 之前 | 先于 #64 T03/T04 与媒体 T05 |
-| C3 | 可见性策略重复 | 部分确认（collection/series/agent 已复用共享 scope，非四处全手写） | 写入 source-linkage 计划实现约束与测试项；**不新增**「来源被封禁即隐藏」全局规则，只按计划在来源不可见时隐藏摘要 | 随 source-linkage（066） |
+| C2 | ContentDetail 家族收敛（双侧栏/死代码/历史记录器/类型） | 基本确认 | **并入 #68 验收**（不单独拆 issue）：删 ContentDetailClient、类型去重、`IP: ` i18n、历史记录器与侧栏收敛先在 #68 内完成，再接正式转场 | #68 内、正式转场实现之前 |
+| C3 | 可见性策略重复 | 部分确认（collection/series/agent 已复用共享 scope，非四处全手写） | 写入 source-linkage 计划实现约束与测试项；**不新增**「来源被封禁即隐藏」全局规则，只按计划在来源不可见时隐藏摘要 | 随 source-linkage（064） |
 | C4 | 服务工厂/DB 逃生门 | 确认（架构债务） | 后续架构 issue，不作为 collaboration-invites 硬前置（避免扩大 feature 票范围） | source-linkage 后、invites 前重新评估 |
 | C5 | Agent god object/双流式客户端 | 部分确认（前端循环为 type-only；useSSE 仍被 UsageGuidePanel 使用，不能直接删） | 单独 Agent 后续架构 issue，真实 Provider smoke 解阻后再排期；不并入 #64 | Task 6 之前 |
-| C6 | Overlay 接线复制 ×4 | 确认 | 与 C2 合并为一个「共享 overlay hook」前置项 | 同 C2：先于 #64 T03/T04 与媒体 T09 |
-| C7 | 迁移账本（061 缺口/fixture/元数据） | 部分确认（061 不可回填；metadata.json 只登记特殊事务迁移，非全量快照；当前 fixture baseline=050） | **验证门前移**：在媒体 T04（#84，067 迁移）中增加非连续 migration fixture 验证门；不建独立 issue；不补 061、不改历史迁移 | 媒体 T04 之前/之中 |
+| C6 | Overlay 接线复制 ×4 | 确认 | 与 C2 一并写入 #68：抽取共享 overlay entry hook，四个入口只保留来源参数/触发 ref 差异 | #68 内、正式转场实现之前 |
+| C7 | 迁移账本（061 缺口/fixture/元数据） | 部分确认（061 不可回填；metadata.json 只登记特殊事务迁移，非全量快照；当前 fixture baseline=050） | **规划纠正**：不再故意先应用 067 再补 063~066；未创建迁移按真实合并序重排为媒体 063→source 064→invites 065→IP 066→favorites 067。仍不补 061、不改历史迁移 | 已在本轮规划审计收口 |
 | C8 | 路由组合根/AST 门 | 属实但非当前故障（invites 计划 routeOwner 已兼容实际路径） | 后续架构 issue，暂不阻塞 invites | invites 前重新评估 |
 
 ## 次要项裁决（不建 issue）
@@ -32,15 +32,15 @@
 ## CI gate 修复（发布门全红）
 
 - 三个 gate 在 main 上 pre-existing 全红（Ops alerting / SBOM / Security），阻断一切正常 PR 合并（branch protection `project-gate`）。
-- 已建 heavy 车道 issue **#92** 修复；修复前合并需 admin-merge（#79/#91 已按此处理）。
+- 已建 heavy 父 issue **#92** 与独立子票 #93 Ops alerting、#94 SBOM、#95 Security，并登记为活计划优先级 0；修复前不得把 admin-merge 当正常交付路径（#79/#91 为历史例外）。
 
 ## 执行顺序（2026-08-08 确认，已写入 AGENTS.md 注册表）
 
-1. #64 T01/T02/T06（light）∥ 媒体 T01/T02/T03（无阻塞）
-2. **C2+C6 批**（侧栏收敛 + overlay hook；先于 #64 T03/T04 与媒体 T05/T09）
-3. #64 T03/T04（浮窗转场/媒体加载）→ 媒体 T04（067 + C7 验证门）→ 媒体 T05~T10
-4. source-linkage（066，C3 随行）→ #64 T07/T05/T08 → T09（064）→ T10~T12（065）
-5. collaboration-invites（063，C8 前置评估）→ Web Agent Task 6（C5 前置评估；等真实 llm_api_key）
+1. #92/#93~#95 恢复正常合并门；#65 对齐 #64/#80 与 ui-spec 权威。
+2. #66/#67/#70/#82 与媒体 heavy T03 (#83) 按文件预约并行；#81 在 #66 后，媒体 UI T04 (#84) 在 #83/#65 后。
+3. #68 内先完成 C2+C6，再接正式浮窗转场；媒体 T05~T09 在 #68 与数据合同后执行。
+4. source-linkage（064，C3 随行）→ 媒体 T10（复用最终 RelatedFanworks 合同）→ collaboration-invites（065，C8 前置评估）。
+5. #64 T07/T05/T08 无业务硬依赖但共享文件预约串行；三票均完成后 → T09（066）→ T10/T11/T12（067 + 云端人工门）→ Web Agent Task 6（C5 前置评估；等真实 llm_api_key）。
 
 ## 备注
 

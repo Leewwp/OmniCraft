@@ -183,7 +183,7 @@ The compose nginx template expects:
 If Certbot creates a different live directory, update
 `nginx/omnicraft.single-server.conf`.
 
-## 6. Start Services
+## 6. Select and Start a Service Profile
 
 Copy the templates:
 
@@ -192,12 +192,60 @@ cp docs/deploy/docker-compose.single-server.yml docker-compose.single-server.yml
 cp docs/deploy/nginx.omnicraft.single-server.conf nginx/omnicraft.single-server.conf
 ```
 
-Then start:
+### 6.1 Full production profile
+
+The committed single-server compose defines 17 services: six resident Web
+core services, the one-shot `migrate` release gate, and ten resident
+observability/alerting services. Its declared resident memory limits total
+about 5.7 GiB before Ubuntu, Docker and filesystem cache, so it must not be
+started as a full stack on the current 3.6 GiB interview host.
+
+On a host with sufficient capacity (8 GiB minimum is the current operational
+target, or when observability is hosted separately), start the full profile:
 
 ```bash
 docker compose --env-file .env -f docker-compose.single-server.yml up -d --build
 docker compose --env-file .env -f docker-compose.single-server.yml ps
 ```
+
+### 6.2 Resource-constrained interview profile (3.6 GiB)
+
+The Web-only interview host uses this explicit service boundary:
+
+- resident Web core: `postgres`, `redis`, `pgbouncer`, `backend`, `frontend`,
+  `nginx`;
+- release-time one-shot gate: `migrate`;
+- resident application metrics: `prometheus`, with a dedicated lean config
+  that scrapes only `backend:9091`;
+- deferred on this host: `alertmanager`, `postgres-exporter`,
+  `redis-exporter`, `cadvisor`, `blackbox`, `node-exporter`, `loki`, `alloy`
+  and `loki-gate`.
+
+This profile is a deliberate interview/demo capacity trade-off, not evidence
+that the full production observability gate is running. It must preserve all
+current release and security contracts: immutable image references, Redis
+authentication, PgBouncer SCRAM, external secret/config override files,
+one-shot ledger-backed migrations, JSON log rotation, health/readiness
+checks, backups, and Nginx as the only public port owner.
+
+Do **not** obtain the lean profile by merely listing those services on the
+current compose command. The committed `ops/observability/prometheus.yml`
+also targets Alertmanager, PostgreSQL/Redis exporters, cAdvisor, Blackbox and
+node-exporter and loads rules backed by those targets. Starting it unchanged
+with those services absent produces blind/missing targets and is not an
+acceptable green monitoring state. Before changing the server, provide and
+statically validate a dedicated backend-only Prometheus config and a compose
+override/profile that mounts it. Until that deploy artifact exists, the
+3.6 GiB profile is an approved deployment decision, not an executable release
+command.
+
+The existing compose limits for the six Web core services plus Prometheus add
+up to about 3.9 GiB. Limits are caps rather than reservations, but that still
+leaves no safe host headroom. The deploy artifact must use measured peak RSS
+to keep aggregate container limits at or below about 2.6 GiB, leaving roughly
+1 GiB for Ubuntu, Docker and page cache. Capture `docker stats`, host available
+memory and OOM evidence during smoke. Build immutable frontend/backend images
+in CI rather than concurrently on this host.
 
 The compose stack runs the forward-only migrations as a one-shot `migrate`
 container before the backend starts (`backend.depends_on.migrate:

@@ -699,18 +699,35 @@ APP_PORT=8080
 FRONTEND_URL=https://app.leeppp.online     # 当前生产环境实际域名
 ```
 
-### 8.2 Docker Compose 服务清单
+### 8.2 Docker Compose 部署档
 
-```yaml
-version: "3.9"
-services:
-  frontend:        # Next.js（端口 3000）
-  backend:         # Go API（端口 8080）
-  postgres:        # PostgreSQL 16（端口 5432，内网）
-  pgbouncer:       # PgBouncer（端口 5432，暴露给 backend）
-  redis:           # Redis 7（端口 6379，内网）
-  nginx:           # Nginx（端口 80/443，唯一对外）
-```
+服务器部署以 `docs/deploy/docker-compose.single-server.yml` 和
+`docs/deploy/single-server-beta-runbook.md` 为权威；根目录
+`docker-compose.yml` 主要用于本地集成，不能按服务数量判断两者是否等价。
+
+| 分组 | 服务 | 生命周期 | 说明 |
+|------|------|----------|------|
+| Web 核心 | `frontend`、`backend`、`postgres`、`pgbouncer`、`redis`、`nginx` | 常驻 | `nginx` 是唯一公网入口；其余服务仅在 Compose 内网通信 |
+| 发布门 | `migrate` | 每次发布一次性运行 | 迁移成功后 backend 才能启动；完成后退出，不计入常驻内存 |
+| 3.6 GiB 面试观测 | `prometheus` | 常驻 | 仅抓取 backend 的低基数应用指标，使用精简 scrape 配置，不加载依赖完整观测栈的 targets/rules |
+| 完整生产观测 | `alertmanager`、`postgres-exporter`、`redis-exporter`、`cadvisor`、`blackbox`、`node-exporter`、`loki`、`alloy`、`loki-gate` | 资源充足或迁往独立监控节点后常驻 | 提供主机/依赖/容器指标、外部探测、告警投递和集中日志查询 |
+
+3.6 GiB 面试服务器采用“6 个 Web 核心常驻服务 + 一次性 `migrate` +
+精简 `prometheus`”。这不是完整生产观测档：结构化 JSON 日志、Docker
+日志轮转、`/healthz`、内网 `/readyz` 和 `/metrics`、备份/恢复脚本仍须
+保留，但完整日志链（Alloy → Loki → loki-gate）和告警链在该主机暂缓。
+
+当前单服务器模板的常驻内存上限合计约 5.7 GiB；仅 Web 核心与现有
+Prometheus 上限合计也约 3.9 GiB。`deploy.resources.limits` 是上限而非
+预留，但 3.6 GiB 主机仍必须基于 `docker stats` 的实测峰值重新设定精简
+档上限，并至少给 Ubuntu、Docker 和页缓存保留约 1 GiB。不要在该主机上
+并行构建前后端镜像；优先使用 CI 构建的不可变镜像。
+
+完整 `ops/observability/prometheus.yml` 会抓取 Alertmanager、数据库/Redis
+exporter、cAdvisor、Blackbox 和 node-exporter。精简档不能仅停掉这些容器后
+继续宣称监控全绿；服务器切换前必须提供并校验只抓取 `backend:9091` 的
+独立 Prometheus 配置。完整生产发布仍使用 17 服务模板，不受面试精简档
+影响。
 
 ---
 
