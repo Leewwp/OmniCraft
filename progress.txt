@@ -285,3 +285,18 @@
 ### Notes:
 - 纯文档/测试夹具改动，无运行时代码变更；未勾选任何计划 checkbox；下一步仍按注册表执行 #64 Ticket 01（issue #65）。
 - issue #77 关闭不影响证据有效性：GitHub issue 关闭后仍可访问，`release/recovery-objectives.json` 的 `approval.ref` 不受影响。
+
+## [2026-08-08] - Ticket 03 (#67): 验证浮窗共享元素转场原型
+
+### What was done:
+- 产出 throwaway 原型 `prototypes/overlay-transition/index.html`（自包含静态 HTML + vanilla JS，file:// 可用，零依赖）：FLIP 几何为核心（开 300ms / 关 240ms、共享缓动 cubic-bezier(0.22,0.61,0.36,1)）、View Transition API 渐进增强（命名唯一性换名、rAF 挂起规避、Abort 兜底）、居中 scale(0.96)+fade 降级（无 source/离屏/detached/display:none）、reduced-motion 100ms 纯透明度（原生 matchMedia + 强制开关双通道）、run token 中断恢复、滚动锁、focus 回归、执行日志面板。
+- 自动化验证驱动 `prototypes/overlay-transition/verify-prototype.mjs`（playwright-core，主仓库 node_modules 只读回退），17/17 断言通过。
+- 观察记录 `docs/working/2026-08-08-overlay-transition-prototype-observations.md`：各场景实测观察、兼容性（Firefox 无 VT 即真实 FLIP 环境）、9 条限制（VT 快照命名唯一性、VT 期间 rAF 挂起、getBoundingClientRect 时序、关闭必须重测 source、中断处理、reduced-motion 双通道等）、给 #68 的正式实现契约与复现步骤。
+
+### Testing:
+- `node prototypes/overlay-transition/verify-prototype.mjs`：17/17 PASS（FLIP 开/关中段变换断言、VT 路径开合、无 source/离屏/已卸载/无法测量四种降级、关闭时 source 离屏降级、reduced-motion 无 transform、连点中断恢复、focus 回归）。
+- 截图 12 张落 `screenshots/overlay-transition-*.png`（FLIP/VT 中段与落定、降级中段/落定、关闭降级、reduced-motion、中断恢复、baseline）。
+- 独立静态原型不参与 Next 构建面；未改动任何生产文件（矩阵 §6：#67 不共享生产文件）。
+
+### Notes:
+- 原型不替代 ui-spec/design-system 的数值权威（scale 0.96 等为原型实测值）；#68 接入时沿用共享 overlay hook 预约顺序（#67 → #68）。
