@@ -2,6 +2,31 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。超过 64KB 或每月轮换一次（上次轮换：2026-08-07）。完整历史见 `docs/archive/progress/2026-08-01-to-2026-08-07.md`。
 
+## [2026-08-08] - Ticket 01 (#65): 对齐 P-01 重叠边界与 UI 权威契约
+
+### What was done:
+- 新建 `docs/working/2026-08-08-ui-authority-ownership-matrix.md`：覆盖 #64 十四项问题、#80 媒体体验 10 票、已归档 #1（P-01）与活计划注册表的重叠/归属矩阵；明确保留/排除结论、术语权威表（收藏成员关系/查看者反应/媒体集/附件/媒体查看器/连续浏览/相关内容/首图即封面）、与 source-linkage #96 / media #80 / collaboration-invites #97 / Production Readiness / Web Agent Task 6 / content-safety 批次的精确文件 owner 与串行规则。
+- `design/ui-spec.md` 一次性对齐本轮权威（#65 是唯一权威更新 owner）：
+  - Header：品牌入口桌面/移动均跳 `/recommend`；新增「Page Shell 宽度契约」（1280px 主容器、/ips 1440px 例外、gutter 16/24px、背景契约），修复审计问题 1/2/3。
+  - `/` 与 `/original`：筛选选中态统一为 IP 库彩色药丸 + `aria-pressed`（审计问题 12）；/original 排序语义（无分类→recommended、有分类→hot、深链降级，媒体 #81）；卡片点击改打开共享浮层（source=`zone-page`）。
+  - ContentCard/MasonryGrid：封面自然比例（`cover_width/height` 数据驱动、极端比例限高、缺省 3:4、`object-contain` 不裁切），替换旧的 video→16:9/其他→3:4 固定裁切；MasonryGrid 明确不依赖 CSS `columns-*`。
+  - 新增 `MediaGallery`（contain 画廊、几何稳定、指示点、滑动/按钮翻页、超高限高、`onReachEnd` 连续浏览钩子）与 `MediaViewer`（全屏查看器、缩放/翻页/三种退出、层级高于 Overlay）章节。
+  - ContentDetail：媒体集 vs 附件语义拆分、`isFavorited`=收藏成员关系、`RelatedContents` 插入点（SeriesNav→RelatedFanworks→RelatedContents→CommentSection）。
+  - ContentDetailOverlay：FLIP 几何核心 + View Transition 渐进增强 + 降级缩放淡化 + reduced-motion（#64 决策 7-10）、媒体加载态与封面失败占位、桌面双栏（左媒体右信息，#88）、移动单列 + 连续浏览上下文列表（#89）、`contextList/contextIndex` props。
+  - SeriesNav：目录改为浮层内可滚动键盘可达章节选择器（选择入栈，不整页跳转；独立 `/series/[id]` 保留）；响应式收口（操作行不溢出，审计问题 5/6）。
+  - IP 详情页：compact 讨论区「发起讨论」入口 + 空态 CTA（审计问题 8）；IPCard 最近访问权威（匿名 localStorage + 登录幂等合并、6 条上限，#73）。
+  - ReactionBar：`viewer_reaction` 契约（公开聚合与查看者分离、匿名 null、互斥/取消/原子切换）、收藏按钮「已收藏」文案（审计问题 11）。
+  - FollowButton：确认既有权威契约并标注审计问题 10 的实现颠倒为缺陷（未关注 primary / 已关注 outline + hover 取消关注）。
+  - SortSelect：原生 select → 共享自定义 listbox（combobox trigger + 定位菜单、键盘导航、focus 返回、outside-click/Esc、sticky 堆叠、视口碰撞，审计问题 13）。
+  - CollectionPicker：背板/Esc 关闭（对齐 ConfirmModal）、busy/creating 阻止关闭、弹窗内通知（footer 上方浮动小条、2s 淡出、行内「已加入」徽标保留）。
+  - FileUploader + 发布页：媒体集上传编排权威（多选/九宫格/拖拽排序/移除/宽高采集/视频首帧截帧 poster/自定义封面、数量 2~9/1~3 public config）。
+  - 新增 `RelatedContents` 章节（#90 权威：复用列表 API filtered-hot、去重 ≤8 条、到底提示，不新增临时 endpoint）。
+  - Section Index 组件数 69→72（+MediaGallery/+MediaViewer/+RelatedContents）。
+
+### Testing:
+- `cd tools/doc-validator && go run . --check`：release profile All checks passed（token refs / cross-refs / config / schema / route sync）。
+- `git diff --check` 通过；Section Index 计数与实际 `## Component:` 一致（72）。
+
 ## [2026-08-08] - 分支/计划/issue 一致性审查与注册表收口
 
 ### What was done:

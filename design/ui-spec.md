@@ -71,7 +71,7 @@
 - Page: /collections/[id] 收藏集详情（Task 122-124）
 - Page: /user/[userId]/collections 用户收藏集列表（Task 122-123）
 
-### Components（69）
+### Components（72）
 - Component: Button 与 Badge 共享动作原语
 - Component: Card 共享容器原语
 - Component: Form Controls 表单原语
@@ -87,9 +87,12 @@
 - Component: IPCategoryTabs
 - Component: ContentDetail
 - Component: ContentDetailOverlay
+- Component: MediaGallery 媒体集画廊
+- Component: MediaViewer 全屏媒体查看器
 - Component: SeriesNav 内容系列导航
 - Component: SourceAttribution 灵感来源归因
 - Component: RelatedFanworks 相关二创/衍生作品行
+- Component: RelatedContents 相关内容块
 - Component: MarkdownRenderer
 - Component: SheetMusicViewer
 - Component: PRCard
@@ -232,6 +235,12 @@
 - 固定高度 `h-[var(--header-h)]` (52px)，sticky 顶部。
 - 底边框 `border-b border-border-default`，1px 分隔。
 - 背景 `bg-canvas-default`，全宽布局。
+- **品牌入口（page-shell 契约）**：桌面与移动 Logo 一律跳转 `/recommend`（推荐流是唯一品牌落点，二创区 `/` 不承担品牌入口语义）。Header 内层宽度与页面主容器共享同一 page-shell 宽度/gutter 契约（见「Page Shell 宽度契约」），不得出现独立 max-width 造成品牌与内容区横向漂移。
+
+**Page Shell 宽度契约（#64 决策 2 权威，Header/侧边栏/页面主容器共同遵守）**
+- 页面主容器最大宽度 1280px（`/ips` 为 1440px 的已批准例外，P-01 方案 B），Header 内层与其对齐，桌面 gutter 24px、移动 gutter 16px。
+- 公开侧边栏（桌面 228px）与页面主体使用同一背景契约：页面表面 `bg-canvas-default`，不引入与主体冲突的独立底色。
+- 实现必须移除造成可见漂移的独立 max-width 值（先例：2026-08-07 审计问题 1/2 的 `max-w-[1440px]` 与 `max-w-7xl` 混用）。
 
 **Props 接口**
 ```ts
@@ -250,8 +259,8 @@ interface HeaderProps {
 
 **视觉结构**
 - 外层容器: `<header className="sticky top-0 z-40 h-[var(--header-h)] bg-canvas-default border-b border-border-default">`
-- 内部布局: `<div className="max-w-7xl mx-auto h-full flex items-center justify-between px-4">`
-- 左侧: Logo + 主导航链接（推荐 / 二创 / 原创 / AI Agent），水平排列 `gap-6`
+- 内部布局: 与页面主容器共享 page-shell 宽度契约；`mx-auto h-full flex items-center justify-between` + 桌面 gutter 24px / 移动 gutter 16px
+- 左侧: Logo（跳转 `/recommend`）+ 主导航链接（推荐 / 二创 / 原创 / AI Agent），水平排列 `gap-6`
 - 中间: 全站关键词搜索栏（GlobalSearchInput），最大宽度 480px；不得提供 Agent 模式切换
 - 右侧: 发布按钮（primary 色）+ 通知铃铛（NotificationBell）+ 用户菜单（Avatar 下拉）
   - 未登录: 登录/注册按钮
@@ -280,6 +289,7 @@ interface HeaderProps {
 - 全局切换暗色类后 token 自动映射。
 
 **关键交互**
+- Logo 点击: 桌面与移动均路由跳转 `/recommend`（不跳 `/`），导航选中态同步。
 - 导航链接点击: 路由跳转，选中项高亮。
 - AI Agent 跳转受保护路由 `/agent`；仓库默认功能关闭时可由 feature gate 暂时隐藏该导航项，启用后未登录用户交给受保护路由守卫跳转登录。
 - 搜索框聚焦: 展开建议下拉。
@@ -338,6 +348,8 @@ interface FacetedSearchSidebarProps {
 **Key Constraints**
 - 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，颜色引用预定义 token。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
+- 二创区主页；品牌入口语义归 `Header`（跳 `/recommend`），本页不被视为品牌落点。
+- **筛选选中态（#64 决策 4 / 审计问题 12 权威）**：分类 Tab/筛选选中态与 IP 库、原创区一致——彩色药丸 `rounded-full border border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold` + `aria-pressed="true"`（不能只靠颜色表达）；未选中 `text-fg-muted hover:bg-canvas-subtle`。二创区固定 `sort=hot`，无同类 recommended 降级问题。
 
 **视觉层级**
 - 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
@@ -348,6 +360,7 @@ interface FacetedSearchSidebarProps {
 - `Header`
 - `ContentCard`
 - `MasonryGrid`
+- `ContentDetailOverlay`（共享详情浮层，source=`zone-page`）
 - `Footer`
 
 **布局规范**
@@ -377,6 +390,7 @@ interface FacetedSearchSidebarProps {
 **交互细节**
 - 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
 - 破坏性操作必须 ConfirmModal 二次确认。
+- 卡片点击：打开共享 `ContentDetailOverlay`（source=`zone-page`），不跳转详情页。
 - 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
 
 ## Page: /recommend 推荐流
@@ -601,16 +615,18 @@ interface FacetedSearchSidebarProps {
 - ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
 - 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
+- **讨论区契约（#64 决策 19 / 审计问题 8 权威）**：compact 讨论区必须有「发起讨论」入口（有权限时），空讨论时也显示带 CTA 的空态；发帖动作受既有认证、封禁与信誉互动守卫约束，UI 不得承诺不可用的操作。讨论区列表页与发帖页已有自己的「发帖」入口，本节只约束 IP 详情页 compact 形态。
 
 **视觉层级**
 - 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
 - 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
-- 内容模块：带 1px 边框的卡片容器
+- 内容模块：带 1px 边框的卡片容器；IP 详情包含紧凑讨论区（DiscussionBoard compact）
 
 **核心组件清单**
 - `Header`
 - `ContentCard`
 - `MasonryGrid`
+- `DiscussionBoard`（compact：发起讨论入口 + 讨论列表摘要 + 空态 CTA）
 - `Footer`
 
 **布局规范**
@@ -882,7 +898,7 @@ interface FacetedSearchSidebarProps {
 **Key Constraints**
 - 参考小红书网页端设计：顶部 Tab 导航 + 瀑布流内容，单层导航结构，无二级内容类型筛选。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
-- 推荐 Tab 为算法驱动的个性化推送（`sort=recommended`），非手动筛选选项。
+- **排序语义（#81 权威）**：未选分类且未显式选择排序时请求 `sort=recommended`；选中任何分类时排序默认降级为 `hot`（推荐排序管线无视分类等筛选条件，不得把 `recommended` 误传给带筛选的请求）；深链 URL 携带 `sort=recommended` 与分类参数时同样按 hot 语义处理。
 
 **视觉层级**
 - 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
@@ -893,8 +909,9 @@ interface FacetedSearchSidebarProps {
 **核心组件清单**
 - `Header`
 - `CategoryTabs`（原创区顶部分类 Tab 栏，横向滚动）
-- `ContentCard`（原创区简化样式：封面自适应高度 + 标题 + @作者 + 点赞数）
+- `ContentCard`（原创区简化样式：封面自然比例 + 标题 + @作者 + 点赞数）
 - `MasonryGrid`（瀑布流，支持无限滚动）
+- `ContentDetailOverlay`（共享详情浮层，source=`zone-page`）
 - `SkeletonCard`（内容卡片骨架屏）
 - `EmptyState`
 - `Footer`
@@ -903,8 +920,7 @@ interface FacetedSearchSidebarProps {
 - 固定项目：`推荐`（默认选中，始终在第一位）
 - 动态项目：从 `/api/v1/categories?zone=original&level=primary` 加载的 11 个一级分类
 - 每个 Tab 项: `<button>` 样式，padding `px-4 py-2`，字号 `text-sm`
-- 选中态：`text-accent-emphasis font-semibold` + 底部 2px accent 色下划线
-- 未选中态：`text-fg-muted`
+- **选中态（#64 决策 4 权威，与 IP 库彩色药丸一致）**：`rounded-full border border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold`，同时设置 `aria-pressed="true"`（不能只靠颜色表达）；未选中态 `rounded-full text-fg-muted hover:bg-canvas-subtle`、`aria-pressed="false"`
 - 横向滚动容器：`overflow-x-auto whitespace-nowrap scrollbar-hide`（隐藏滚动条）
 - 无二级内容类型筛选（不区分图文/视频/音频等）
 
@@ -941,7 +957,7 @@ interface FacetedSearchSidebarProps {
 **交互细节**
 - 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
 - 分类 Tab 点击：切换内容流（`router.push` 更新 URL query），保留滚动位置。
-- 卡片点击：跳转内容详情页 `/original/[contentId]`。
+- 卡片点击：打开共享 `ContentDetailOverlay`（source=`zone-page`），不跳转详情页；直接访问 `/original/[contentId]` URL 才使用完整详情页。
 - 卡片 hover：封面图 scale-105 + 浅色遮罩（小红书式）。
 - 数据加载策略: SSR 首屏，客户端 SWR 无限滚动加载后续页。
 
@@ -2056,12 +2072,16 @@ interface FacetedSearchSidebarProps {
 - 二创卡使用 1px border + radius-lg + elevation 1，hover 使用 `border-strong` + elevation 2；原创卡无默认边框，hover 使用浅遮罩、scale 1.05 与 elevation 2。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 - 原创区卡片使用简化样式（无 IP 名、无标签 Badge、仅显示点赞数）。
+- **封面自然比例（#87 权威，替代旧的 video→16:9 / 其他→3:4 固定裁切）**：
+  - 封面比例由数据驱动：`cover_width`/`cover_height`（image = 媒体集首项尺寸；video = poster 尺寸）换算 `aspect-ratio`，`object-contain` 不裁切；无该字段时防御性默认 3:4。
+  - 极端比例（`max(width/height, height/width) > 2`）按高度上限 contain（超高图内部按可用高度适配，超宽图不超过列宽），防止单卡主导瀑布流。
+  - 二创卡与原创卡共用此规则；列表场景禁止强制 `object-cover` 裁切封面。
 
 **Props 接口**
 ```ts
 interface ContentCardProps {
   className?: string;
-  item: ContentItem;           // 内容数据（必需）
+  item: ContentItem;           // 内容数据（必需，含 coverWidth/coverHeight）
   zone: 'original' | 'fanwork'; // 区域标识，决定渲染样式
   isLoading?: boolean;
   disabled?: boolean;
@@ -2071,21 +2091,21 @@ interface ContentCardProps {
 
 **视觉结构 — 二创区卡片（zone='fanwork'）**
 - 外层容器: `<div className="border border-border rounded-lg bg-card shadow-[var(--elevation-1)] overflow-hidden">`（无 padding，内容填满）
-- 封面区: 3:4 比例容器，`object-cover` 图片填满
+- 封面区: 自然比例容器（`aspect-ratio` 由 `cover_width/cover_height` 数据驱动，缺省 3:4），`object-contain` 图片填满
 - 信息区: `p-3`，标题（`text-sm font-medium line-clamp-2`）→ 作者 + IP 名行（`text-xs text-fg-muted`）→ 互动数据行（`text-xs` ❤️ + 💬）→ 标签行（最多 2 个低饱和 TagBadge）
 - 图标: `<Icon className="text-fg-muted w-4 h-4" />`
 
 **视觉结构 — 原创区卡片（zone='original'）**
 - 外层容器: `<div className="rounded-md bg-canvas-default overflow-hidden cursor-pointer group">`（无 border，更干净的小红书风格）
-- 封面区: 自适应高度（图片按原始宽高比，`object-cover w-full`），`max-height: 400px`，`overflow-hidden`
+- 封面区: 自然比例高度（`aspect-ratio` 由 `cover_width/cover_height` 数据驱动，缺省 3:4，`object-contain w-full`），`max-height: 400px`（极端比例限高），`overflow-hidden`
 - 悬停遮罩: `<div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />`
 - 封面缩放: `group-hover:scale-105 transition-transform duration-300`，并在 hover 时提升至 elevation 2。
 - 信息区: `p-2`，标题（`text-sm font-medium line-clamp-2`）→ @作者（`text-xs text-fg-muted`）→ ❤️ 点赞数（`text-xs text-fg-muted`）
 - 无标签 Badge、无 IP 名
 
 **尺寸规范**
-- 二创区卡片: padding 16px (p-4)，封面固定 3:4
-- 原创区卡片: padding 8px (p-2)，封面高度自适应，最小高度 150px
+- 二创区卡片: padding 16px (p-4)，封面自然比例（缺省 3:4）
+- 原创区卡片: padding 8px (p-2)，封面自然比例（缺省 3:4），最小高度 150px
 - 字号: `text-sm` (14px) 标题，`text-xs` (12px) 辅助信息
 - 间距: 元素间隙 4px (`gap-1`) 或 8px (`gap-2`)
 
@@ -2105,7 +2125,7 @@ interface ContentCardProps {
 - 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
-- 整卡可点击（`<Link href={...}>` 包裹），跳转详情页。
+- 整卡可点击，打开共享 `ContentDetailOverlay`（source 由所在页面传入：`recommendation` / `zone-page` / `ip-page`）；不跳转详情页。直接访问内容 URL 时才使用完整详情页。
 - Hover 触发视觉反馈（微缩放 + 遮罩）。
 - 键盘行为：支持 Tab 索引切换，Enter 选中。
 
@@ -2133,6 +2153,7 @@ interface MasonryGridProps {
 
 **视觉结构**
 - 外层容器: 最短列瀑布流容器 — 按 items 顺序逐条放入当前最短列，DOM/键盘/读屏顺序不变；窗口与图片高度变化时无显著动画地重新平衡。不得使用 CSS `columns-*`（按列优先填充会破坏返回顺序与最短列契约）。
+- 卡片高度由 `ContentCard` 封面自然比例决定（`cover_width/cover_height` 数据驱动，见 ContentCard 章节）；极端比例卡片在列内限高 contain，防止单卡主导。
 - 哨兵元素: `<div ref={sentinelRef} className="h-4" />` — IntersectionObserver 触发 onLoadMore
 - 底部提示: 加载中显示 Spinner，已到底显示 "已经到底了" 文本
 
@@ -2144,8 +2165,8 @@ interface MasonryGridProps {
 
 **尺寸规范**
 - 列间距: `gap-4` (16px)
-- 列数: 2 列（移动）/ 3 列（平板）/ 4 列（PC）
-- 内容卡片由子组件 ContentCard 自行控制高度
+- 列数: 2 列（移动）/ 3 列（平板）/ 4 列（PC），通过列容器/Grid 实现，不依赖 CSS `columns-*` 类名
+- 内容卡片由子组件 ContentCard 自行控制高度（自然比例）
 
 **状态变体**
 - default: 正常渲染内容卡片列表。
@@ -2155,9 +2176,10 @@ interface MasonryGridProps {
 - error: 底部显示 "加载失败，点击重试" 按钮。
 
 **响应式行为**
-- 移动 (≤700px): 2 列瀑布流 (`columns-2`)
-- 平板 (≤1100px): 3 列瀑布流 (`columns-3`)
-- PC (>1100px): 4 列瀑布流 (`columns-4`)
+- 移动 (≤700px): 2 列瀑布流（最短列布局）
+- 平板 (≤1100px): 3 列瀑布流
+- PC (>1100px): 4 列瀑布流
+- 极端比例封面在列内限高 contain（不撑破列布局）
 
 **暗色模式适配**
 - 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
@@ -2245,6 +2267,7 @@ interface IPCardProps {
 
 **关键交互**
 - 整卡是有完整可访问名称的 Link；Tab 聚焦、Enter 跳转。点击/键盘激活都记录最近 IP。
+- **最近访问（#64 决策 16-18 / #73 权威）**：匿名用户记录在本机 localStorage（`recent_ips`，去重保留 6 条，按最近访问排序）；登录后与独立 IP 访问历史模型幂等合并（重复按最新访问时间归并，服务器确认成功后清除本地记录；合并失败时保留本地，不丢失）。可见列表保持当前 6 条上限、按最近访问时间倒序。签入态历史来自账号绑定源（跨会话/跨设备一致），不依赖内容浏览历史。
 
 ## Component: IPCategoryTabs
 
@@ -2296,9 +2319,11 @@ interface IPCategoryTabsProps {
 ## Component: ContentDetail
 
 **Key Constraints**
-- 根据 `contentType` 渲染不同的内容展示器（MarkdownRenderer / SheetMusicViewer 等）。
+- 根据 `contentType` 渲染不同的内容展示器（MarkdownRenderer / SheetMusicViewer / MediaGallery 等）。
 - 标题、作者信息、分类标签在一体化卡片中展示。
 - 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
+- **媒体集 vs 附件（#80 语义权威）**：image/video 内容的多文件渲染为 `MediaGallery`（画廊/播放器，可顺序浏览）；mod/乐谱/音频/模板/prompt 等类型的文件保持附件下载列表语义。二者渲染与上传链路完全分离。
+- **收藏状态（#74 权威）**：收藏动作显示“已收藏”（收藏成员关系）或“添加到收藏集”，由同一事实源（用户活动收藏集的成员关系）派生，与 `CollectionPicker` 保持一致。
 
 **Props 接口**
 ```ts
@@ -2315,7 +2340,9 @@ interface ContentDetailProps {
     author: { id: number; username: string; avatarUrl?: string };
     tags?: { id: number; name: string }[];
     body?: string;
-    mediaUrls?: string[];
+    media?: Array<{ id: number; url: string; type: 'image' | 'video'; width?: number; height?: number; posterUrl?: string }>; // 媒体集（有序，按 sort_order ASC, id ASC）
+    attachments?: Array<{ id: number; name: string; url: string; size?: number }>; // 附件（下载列表）
+    isFavorited: boolean;      // 收藏成员关系派生
     createdAt: string;
     updatedAt?: string;
     sourceOriginalId?: number;
@@ -2345,9 +2372,9 @@ interface ContentDetailProps {
 - 内容区: `p-6`
   - Markdown 正文渲染（MarkdownRenderer）
   - 乐谱渲染（SheetMusicViewer）— 仅 `contentType='sheet_music'`
-  - 媒体展示（图片/视频/音频播放器）— 根据 contentType 选择
+  - **媒体集（MediaGallery）** — `contentType` 为 image/video 时渲染，见 MediaGallery 章节；附件（下载列表）仅在其他内容类型出现
 - 底部操作栏: `<ReactionBar />` 组件
-- 正文后扩展区: `<SeriesNav />`（如有） -> `<RelatedFanworks />`（如有） -> `<CommentSection />`
+- 正文后扩展区: `<SeriesNav />`（如有） -> `<RelatedFanworks />`（如有） -> `<RelatedContents />`（桌面/web 详情与浮层，见 RelatedContents 章节） -> `<CommentSection />`
 
 **尺寸规范**
 - 内间距: `p-6` (24px)
@@ -2362,6 +2389,11 @@ interface ContentDetailProps {
 - error: 内容被 ban 时显示对应限制 EmptyState。
 - 无 hover/active/focus/disabled 状态（内容静态展示）。
 
+**与现有组件关系**
+- 媒体区 = `MediaGallery`（image/video）；附件下载列表只保留给非媒体类型。
+- 收藏入口：`ReactionBar` 打开 `CollectionPicker`；“已收藏”状态由收藏成员关系派生，与 picker 行内状态同源。
+- 桌面/浮层双栏与连续浏览行为在 `ContentDetailOverlay` 章节定义；本组件是浮层内部复用表面。
+
 ## Component: ContentDetailOverlay
 
 **Key Constraints**
@@ -2371,12 +2403,19 @@ interface ContentDetailProps {
 - 打开时保存背景滚动位置与触发元素；完全退出后恢复最初触发入口的滚动位置和焦点；Agent 引用入口必须恢复原会话滚动位置并聚焦引用卡片。
 - 支持显式关闭、遮罩点击、Esc 和浏览器返回关闭；浮层内部点击不关闭。
 
+**共享元素转场（#64 决策 7-10 权威，覆盖 #67 原型与 #68 接入）**
+- 转场核心为手动计算的 FLIP 几何：source 矩形 = 触发卡片封面/媒体区；开启动画把该视觉锚点放大为浮层封面几何，同时外壳按同一时间线推进；关闭时仅在 source 矩形仍可测量（在视口、未 detach）时反向回归。
+- source 缺失、在视口外、detached 或无法测量时，退化为居中 scale-and-fade（直接程序化打开无卡片 source 时同样使用）。
+- View Transition API 是渐进增强：`document.startViewTransition` 可用时启用，不支持的环境继续走 FLIP。
+- 时长与缓动：开 300ms / 关 240ms，共享缓动 `cubic-bezier(0.22,0.61,0.36,1)`；栈内层切换水平滑动 240ms 同缓动；reduced-motion 降级为 100ms 纯透明度淡化。
+- 封面加载与主体同步：浮层在最终封面几何内展示媒体加载态（骨架/稳定占位）；封面加载成功才显示主体内容；加载失败显示稳定占位符后仍展示可用详情，不无限阻塞。
+
 **导航栈（逐层返回）**
 - 浮层内访问关联内容压入内部导航栈，栈深度 ≤ 5（2026-08-04 三缺口执行规划；P-01 原型为"无硬上限"，生产以此为准）。
 - 返回类手势（返回按钮、Esc、浏览器后退）逐层弹出；退出类手势（右上关闭、背板点击）退出整个栈。
 - 返回文案只显示来源或上一条内容标题，不显示层数或解释文本；Agent 来源显示"返回对话"。
 - 每层记忆唯一内部内容滚动容器的滚动位置：弹层恢复该层记忆位置，新层回到顶部。
-- 私信聊天浮层与图片预览可叠加在内容详情最上层；Esc/背板/移动返回只关闭最上层，关闭后恢复下层滚动与触发点焦点。
+- 私信聊天浮层、媒体查看器与图片预览可叠加在内容详情最上层；Esc/背板/移动返回只关闭最上层，关闭后恢复下层滚动与触发点焦点。
 
 **Props 接口**
 ```ts
@@ -2387,6 +2426,9 @@ interface ContentDetailOverlayProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   returnFocusRef?: React.RefObject<HTMLElement | null>;
+  // #89 连续浏览：触发上下文列表与当前索引（移动端从卡片网格进入时传入）
+  contextList?: Array<{ id: number; zone: 'original' | 'fanwork' }>;
+  contextIndex?: number;
 }
 ```
 （浮层内关联内容的导航栈内部状态由组件持有；对外仅暴露当前层打开/关闭契约。）
@@ -2397,21 +2439,119 @@ interface ContentDetailOverlayProps {
 - 外壳与封面共享同一开合动画进度：开 300ms / 关 240ms，同帧同缓动 `cubic-bezier(0.22,0.61,0.36,1)`；栈内层切换水平滑动 240ms 同缓动；reduced-motion 降级为 100ms 纯透明度淡化。
 - 触发卡无缩略图或不在视口时，入场降级为居中轻缩放 + 淡化。
 - Agent 来源不增加专属详情外观。
+- **桌面双栏（#88 权威）**：仅 image/video 内容，PC 端为左媒体右信息——媒体区（MediaGallery）高度上限 = 视口可用高度，宽度按媒体比例自适应；信息区（标题/作者/操作/正文/评论区）独立滚动；「封面与正文共享同一水平框架」的既有约束继续成立。文本型内容（article/sheet_music 等）维持单栏。
+- **移动单列（#89 权威）**：移动端全屏单列——媒体全宽 contain，信息在其下滚动；媒体集内翻页，最后一项继续上滑 = 沿触发上下文列表前进到下一篇；列表到底显示「已经到底」提示；不提供「上一篇」；查看器不参与内容级切换。
 
 **唯一滚动模型**
 - 浮层打开时锁定背景 `html/body`（含滚动条宽度 padding 补偿）；`dialog` 与浮层外壳 `overflow: hidden`，只有内部内容主体滚动；顶部返回/关闭栏位于滚动主体外；每层只记忆这一滚动容器；不得以隐藏滚动条掩盖双滚动上下文。
+- 桌面双栏下信息区与媒体区各自滚动，但同一时刻只有一个键盘/滚动目标；焦点与滚动位置按层记忆。
 
 **状态变体**
-- loading：结构与真实详情一致的骨架屏。
+- loading：结构与真实详情一致的骨架屏（媒体加载态在封面几何内）。
 - default：完整公开内容详情。
 - forbidden/deleted/not-found：稳定本地化 EmptyState，不暴露原始后端错误。
 - closing：仅允许 opacity/transform 退场；reduced-motion 下立即或短淡出关闭。
 
 **响应式与可访问性**
-- PC：详情层不超过可用视口，内部滚动，关闭按钮始终可达。
-- 移动：全屏层，顶部关闭区和底部关键操作满足安全区域与 44px 触控目标。
+- PC：详情层不超过可用视口，内部滚动，关闭按钮始终可达；双栏下媒体与信息区均不出界。
+- 平板/移动：全屏层，顶部关闭区和底部关键操作满足安全区域与 44px 触控目标；媒体/操作控件保持在边框内（#64 决策 15 权威，桌面/平板/移动皆然）。
 - 使用对话框语义、焦点陷阱和背景 inert；打开聚焦标题，逐层弹出把焦点返回上层的触发链接，完全关闭后聚焦原触发卡片/引用卡片。
 - URL、浏览器历史和拦截路由的最终实现以 `docs/working/2026-07-25-wayfinder-ticket-content-modal-routing.md` 的已确认结论为准（URL 形态与错误历史语义仍 open）。
+
+**Playwright 截图检查点（#64 Testing Decision 17 权威，本轮新增）**
+- `screenshots/overlay-shared-motion-open.png` / `overlay-shared-motion-close.png`：可测量 source 下开合几何。
+- `screenshots/overlay-fallback-open.png`：source 不可用时居中缩放淡化。
+- `screenshots/overlay-loading.png` / `overlay-cover-error.png`：加载态与封面失败占位。
+- `screenshots/overlay-two-panel-desktop.png`：桌面双栏（左媒体右信息）。
+- `screenshots/overlay-single-column-mobile.png`：移动单列 + 连续浏览上滑。
+
+## Component: MediaGallery 媒体集画廊（#80/#85 权威）
+
+**Key Constraints**
+- 只渲染 image/video 内容的有序媒体集（顺序由 `sort_order ASC, id ASC` 的存储契约决定，见 #83）；其他内容类型的文件走附件下载列表，两者语义分离（术语权威：「媒体集」≠「附件」）。
+- contain 不裁切：媒体按原始纵横比完整显示，禁止强制 `object-cover` 裁切（先例缺陷：详情页 `aspect-[16/9] max-h-96` 把竖图剪成横向矩形）。
+- 容器几何稳定：由首项媒体决定，浏览会话内切换不跳版。
+- 超高图（`height / width > 2`）限高 + 内部滚动（如容器内 `overflow-y-auto`），不撑破详情布局。
+
+**Props 接口**
+```ts
+interface MediaGalleryProps {
+  className?: string;
+  items: Array<{ id: number; url: string; type: 'image' | 'video'; width?: number; height?: number; posterUrl?: string }>;
+  initialIndex?: number;
+  onOpenViewer?: (index: number) => void;   // 点击媒体进入 MediaViewer
+  onReachEnd?: () => void;                   // 移动端连续浏览：#89 媒体集内最后一项继续上滑时触发
+}
+```
+
+**视觉结构**
+- 外层容器: `<div className="relative border border-border-default rounded-lg bg-canvas-default overflow-hidden">`，几何由首项比例确定（桌面双栏场景由 Overlay 传入高度约束）。
+- 媒体项: `object-contain w-full h-full`；当前项 `aria-current="true"`，隐藏项从焦点序移除（`inert` 或 `hidden`）。
+- 指示点: 底部居中低调位置指示点——透明圆 = 未浏览，实心圆 = 当前项；`aria-label` 说明「第 X 张 / 共 N 张」；不得闪烁或随切换跳动。
+- 翻页: 左右按钮（`outline`/`ghost` 变体，44px 触控目标，键盘可聚焦）+ 滑动手势（触摸滑动翻页）；按钮在首项/末项时 disabled。
+- 视频项: 展示 `<video controls poster={posterUrl}>`，第一帧 poster 为兜底；点击非 controls 区域也可进入查看器。
+
+**尺寸规范**
+- 容器宽度 = 可用内容宽度（与正文共享同一水平框架，不得窄于正文区）；高度由首项纵横比 + 超高限高共同决定。
+- 桌面双栏（Overlay 内）：高度上限 = 视口可用高度，宽度按媒体比例自适应。
+- 指示点间距 `gap-2`，直径 8px（`w-2 h-2`）。
+
+**状态变体**
+- default: 画廊展示当前媒体 + 指示点 + 翻页控件。
+- loading: 当前项骨架占位，几何稳定不跳动。
+- error: 单媒体失败显示稳定占位符（i18n `media.gallery.error.*`），不阻断画廊切换。
+- empty: 媒体集为空时组件不渲染（历史单图/单视频内容仍可渲染单个媒体）。
+
+**关键交互**
+- 点击媒体区（视频 controls 除外）打开 `MediaViewer`（index = 当前项）。
+- 滑动/按钮翻页只切换当前项，容器几何不变。
+- 移动端 `onReachEnd`：媒体集最后一项继续上滑 → 触发连续浏览切换上下文列表下一篇（#89）；桌面端不触发。
+
+**i18n key namespace**
+- 建议 namespace：`media.gallery.*`（位置、上一张/下一张、错误、a11y）。
+
+## Component: MediaViewer 全屏媒体查看器（#80/#86 权威）
+
+**Key Constraints**
+- 规范化既有「图片预览」语义：全站媒体细节浏览统一入口，可叠加在内容详情浮层最上层（层级高于 ContentDetailOverlay）。
+- 支持缩放（pinch / 滚轮 / 按钮）、媒体集内翻页、外部点击 / 关闭按钮 / Esc 三种退出。
+- Esc/背板只关闭最上层，关闭后恢复下层滚动与焦点（与私信浮层叠加语义一致）。
+- 只做媒体浏览，不参与内容级切换（连续浏览由 Overlay 承担）。
+
+**Props 接口**
+```ts
+interface MediaViewerProps {
+  className?: string;
+  items: Array<{ id: number; url: string; type: 'image' | 'video'; width?: number; height?: number; posterUrl?: string }>;
+  index: number;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onIndexChange?: (index: number) => void;
+}
+```
+
+**视觉结构**
+- 全屏固定层（`fixed inset-0 z-[60]`，高于 Overlay）：深色背景（设计系统 token，遮罩层级按 Overlay 语义）。
+- 当前媒体: 居中 contain，缩放时允许平移（`touch-action: none` + 滚轮/捏合缩放）。
+- 顶部: 位置指示（`第 X 张 / 共 N 张`）+ 关闭按钮（右上，44px 触控目标）。
+- 底部/两侧: 上一张/下一张按钮（媒体集 >1 时显示，首末 disabled）。
+- 缩放控制: 放大/缩小/重置按钮（或手势 + 滚轮等价操作）。
+
+**状态变体**
+- default: 显示当前媒体，可缩放可翻页。
+- zoomed: 缩放态下平移可用；Esc/背板关闭后恢复原缩放。
+- error: 媒体加载失败显示稳定占位符 + 重试。
+- 视频项: 进入查看器直接展示播放器（controls），缩放不适用于视频播放器区域。
+
+**关键交互**
+- 进入：点击 MediaGallery 媒体区。
+- 退出三通道：背板点击、关闭按钮、Esc；`reduced-motion` 下短淡出。
+- 翻页：左右按钮 + 触摸滑动；缩放态下滑动优先平移（`gesture` 优先级缩放 > 平移 > 翻页）。
+- 焦点：进入聚焦关闭按钮；关闭后焦点返回触发媒体区（或 Overlay 当前层）。
+- 与 Overlay 叠加：Esc/背板只关查看器；再按 Esc 才关 Overlay 层。
+
+**i18n key namespace**
+- 建议 namespace：`media.viewer.*`（位置、关闭、上一张/下一张、缩放、错误、a11y）。
 
 ## Component: SeriesNav 内容系列导航
 
@@ -2419,11 +2559,19 @@ interface ContentDetailOverlayProps {
 - 视觉必须克制，定位在 `ContentDetail` 正文/附件与评论区之间，不得喧宾夺主。
 - 默认展示前 3 个 series membership；后端返回全部紧凑 membership，超出的项目进入 `更多(N)` overflow menu，不得在 normalizer 中提前截断。
 - 上一篇/下一篇不可用时必须显示 disabled 状态，不渲染无效链接。
+- **响应式收口（#64 决策 13 / 审计问题 6 权威）**：系列操作行在断点间允许 reflow，但任何控制（上一项/目录/下一项）都不得溢出其容器边框；所有动作满足触控目标并保持逻辑焦点顺序。
 
 **目标与放置**
 - 目标：帮助用户在同一内容系列内跳到上一项、下一项或系列目录。
 - 放置：`frontend/components/content/SeriesNav.tsx`，由 `ContentDetail` 在正文和 `CommentSection` 之间渲染。
 - 多个系列时使用紧凑 tabs 或 segmented control 切换，不使用大卡片组；第 4 个及以后通过可键盘访问的 overflow menu 列出。
+
+**目录选择器（#64 决策 14 / 审计问题 5 权威）**
+- 在浮层内点击「目录」打开**有界高度、可滚动、键盘可访问的章节选择器**（listbox/menu 语义），不得离开浮层上下文跳转整页。
+- 选择某个章节 = 把该内容推入浮层现有导航栈（与上一项/下一项同模型），不导航到新页面。
+- 独立系列路由（`/series/[id]`）与全量系列页仍保持可用，供直接 URL 与站外入口使用；浮层内目录行为不删除或重定义这些公开页面。
+- 键盘：打开后焦点进入选择器；上/下方向键移动，Enter 选择入栈，Esc 关闭并返回「目录」trigger。
+- 选择器高度有界（如 `max-h-72`）内部滚动；触发项标记当前章节（`aria-selected`）。
 
 **Props 接口**
 ```ts
@@ -2436,11 +2584,13 @@ interface SeriesNavProps {
     previous?: { id: number; title: string };
     next?: { id: number; title: string };
   }>;
+  onNavigateInOverlay?: (contentId: number) => void; // 浮层内目录选择时压栈
 }
 ```
+（`onNavigateInOverlay` 由浮层上下文注入；独立详情页不传则目录退化为指向 `/series/[id]` 的链接。）
 
 **布局规范**
-- PC (>1100px)：外层 `border border-border-default rounded-lg bg-canvas-default p-4`，单行布局：系列信息在左，上一项/目录/下一项在右。
+- PC (>1100px)：外层 `border border-border-default rounded-lg bg-canvas-default p-4`，单行布局：系列信息在左，上一项/目录/下一项在右；操作区最小宽度保证三按钮整组不溢出（先例缺陷：`max-w-[72%]` + 固定按钮宽造成「下一章」溢出 23px）。
 - 平板 (701-1100px)：系列信息单行，导航按钮换到下一行 `grid grid-cols-3 gap-2`。
 - 移动 (<=700px)：全宽单列；tabs 横向滚动；上一项/下一项按钮分两行或两列，保证标题不溢出。
 - 按钮使用 `outline`/`ghost` 变体和 lucide `ChevronLeft`、`List`、`ChevronRight` 图标；文字 `text-sm`，辅助位置 `text-xs text-fg-muted`。
@@ -2458,7 +2608,7 @@ interface SeriesNavProps {
 - tabs 支持键盘左右切换；Enter/Space 激活 tab。
 - `更多(N)` 使用 Popover/Menu 语义，N 为 `memberships.length - 3`；菜单中每个系列分别链接 `/series/:id`。打开后用上/下方向键移动，Esc 关闭并把焦点返回 trigger。
 - 上一项/下一项是 `Link`，仅在目标对象有有效 `id` 和 `title` 时渲染。
-- 目录链接指向 `/series/[id]`。
+- **目录**：浮层内打开章节选择器（见「目录选择器」）；无 `onNavigateInOverlay` 的独立详情页场景目录指向 `/series/[id]`。
 - 所有 trigger、tab 和链接必须使用设计系统的可见 focus ring；hover/active 不能导致布局位移。
 
 **可访问性**
@@ -2469,7 +2619,7 @@ interface SeriesNavProps {
 
 **i18n key namespace**
 - 建议 namespace：`series.nav.*`。
-- 覆盖：`series.nav.position`、`series.nav.previous.*`、`series.nav.next.*`、`series.nav.catalog`、`series.nav.disabled.*`、`series.nav.a11y.*`。
+- 覆盖：`series.nav.position`、`series.nav.previous.*`、`series.nav.next.*`、`series.nav.catalog`、`series.nav.disabled.*`、`series.nav.a11y.*`、`series.nav.directory.*`（浮层内目录选择器的标题/空态/当前位置）。
 - 不硬编码“上一章/下一章/目录”等可见文案；位置数字可由 translation 插值。
 
 **与现有组件关系**
@@ -2607,6 +2757,58 @@ interface RelatedFanworksProps {
 - `screenshots/community-related-fanworks-desktop.png`：原创详情页有 8 张以内相关二创、查看全部和开始创作入口。
 - `screenshots/community-derivatives-mobile.png`：二创详情页衍生作品横向滚动，不出现“三创”硬编码文案。
 - 交互检查：total=0 隐藏、total>8 显示查看全部、创建链接 query 正确、无效卡片不渲染。
+
+## Component: RelatedContents 相关内容块（#80/#90 权威）
+
+**Key Constraints**
+- 桌面/web 端内容浏览完成后的发现延续：正文与评论区之后展示，不做自动加载下一篇（「下一篇」语义明确排除）。
+- 数据来源 = 关联原创/二创（source-linkage #96 交付的最终 `RelatedFanworks`/related-fanworks 合同）+ 相似内容（固定复用列表 API：同 zone、同 `content_type`、同 category，fanwork 有 IP 时再带 `ip_id`、`sort=hot&page_size=12`）。
+- 不新增临时 similar endpoint；不把带筛选的 `sort=recommended` 误称为推荐管线。
+- 客户端去除当前内容与关联行重复项后最多显示 8 条。
+- 移动端不渲染本块（移动连续浏览由 Overlay 承担）；列表到底时显示「已经到底了」提示（到底提示是全站瀑布流统一语义）。
+
+**Props 接口**
+```ts
+interface RelatedContentsProps {
+  className?: string;
+  contentId: number;
+  zone: 'original' | 'fanwork';
+  contentType: string;
+  category: string;
+  ipId?: number;
+  relatedFanworks?: Array<{ id: number; title: string; zone: 'original' | 'fanwork' }>; // #96 合同
+}
+```
+
+**视觉结构**
+- 外层容器: 复用 `RelatedFanworks` 的横向卡片行契约（卡片宽 148~180px、`gap-3`、外层单容器 `border border-border-default rounded-lg bg-canvas-default p-4`）；关联区块标题行（「相关创作」）与相似区块标题行（「你可能也喜欢」）分离。
+- 底部到底提示: 与 `MasonryGrid` 一致，显示「已经到底了」i18n 文案，无更多数据时不再请求。
+
+**状态变体**
+- default: 关联行（如有）+ 相似内容行（最多 8 条）。
+- loading: 区块标题骨架 + 横向卡片 skeleton x4，保留高度。
+- empty: 两行都无数据时渲染到底提示（不渲染空块标题）。
+- error: 局部内联错误 + 重试；不使用全页 EmptyState。
+- disabled: 卡片缺有效 `id/title/zone` 不渲染为可点击卡片。
+
+**核心交互与焦点顺序**
+- 焦点顺序：相关创作标题 -> 卡片链接 -> 相似内容标题 -> 卡片链接 -> 到底提示。
+- 卡片点击打开共享 `ContentDetailOverlay`（source=`zone-page`，压入当前浮层导航栈）。
+
+**可访问性**
+- 对比度与触控目标遵循 RelatedFanworks 同级规则；标题与卡片链接可读文本齐全。
+
+**i18n key namespace**
+- 建议 namespace：`media.related.*`（相关创作标题、相似内容标题、到底提示、错误、a11y）。
+
+**与现有组件关系**
+- 嵌入 `ContentDetail` 评论区之后（`ContentDetail` 扩展区顺序：`SeriesNav` -> `RelatedFanworks` -> `RelatedContents` -> `CommentSection` 前的到底提示由本块承载）。
+- #96 先交付最终 related-fanworks 合同后，#90 组装本块；不得在实现时临时发明数据源。
+
+**Playwright 截图检查点**
+- `screenshots/media-related-contents-desktop.png`：正文与评论区之后的相关创作 + 相似内容行。
+- `screenshots/media-related-contents-end.png`：「已经到底了」提示。
+- 交互检查：去重后 ≤8 条、无临时 endpoint、卡片打开共享浮层。
 
 ## Component: MarkdownRenderer
 
@@ -2804,6 +3006,11 @@ interface DiffViewerProps {
 - 信誉分 < 3 用户：点赞/点踩/收藏按钮 disabled，hover tooltip 提示「信誉分不足」。
 - 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none，使用 1px border 容器。
 - 内容类型为 mod/prompt 时显示「一键部署」按钮（需 `agent_enabled=true`）。
+- **查看者反应契约（#64 决策 21-24 / 审计问题 11 权威）**：
+  - 读取响应分离公开聚合（`likes`/`dislikes` 计数）与当前登录用户的 `viewer_reaction`（`'like' | 'dislike' | null`）；匿名请求恒为 `null`，绝不把其他用户的反应暴露为当前查看者状态。
+  - 持久化继续使用既有 reactions 模型，唯一身份 `(user_id, target_type, target_id)`；重复当前反应 = 取消（回到中性），选择相反反应 = 原子更新（切换时计数与状态不会出现不可能的组合）。
+  - 点赞/点踩互斥；刷新后状态由 `viewer_reaction` 稳定回显。
+- **收藏语义（#64 决策 25-26 权威）**：`isFavorited` 定义为收藏成员关系——内容属于当前用户至少一个活动收藏集即为“已收藏”；从最后一个收藏集移除后回到未收藏；成员关系由 `CollectionPicker` 与详情动作共享同一事实源。
 
 **Props 接口**
 ```ts
@@ -2811,12 +3018,12 @@ interface ReactionBarProps {
   className?: string;
   contentId: number;
   contentType: string;
-  likes: number;
-  dislikes: number;
+  likes: number;           // 公开聚合计数
+  dislikes: number;        // 公开聚合计数
   favorites: number;
   downloads: number;
-  userReaction?: 'like' | 'dislike' | null;
-  isFavorited: boolean;
+  viewerReaction?: 'like' | 'dislike' | null;  // 查看者反应（匿名/无记录为 null）
+  isFavorited: boolean;    // 收藏成员关系派生
   agentEnabled?: boolean;
   isDownloadable?: boolean;
   isDisabled?: boolean;
@@ -2843,14 +3050,16 @@ interface ReactionBarProps {
 - 已点赞: `text-accent-emphasis`
 - 已收藏: `text-destructive`
 - 已点踩: `text-fg-muted`（计数仍显示，无强调色）
+- 收藏按钮文案：`isFavorited` 时显示「已收藏」，否则「添加到收藏集」（i18n `reactions.favorite.*`）；不得硬编码。
 
 **状态变体**
 - default: 显示所有操作按钮及其计数。
-- liked: 点赞按钮 accent 色高亮，再次点击取消。
-- disliked: 点踩按钮 muted 色，与点赞互斥。
-- favorited: 收藏按钮 destructive 色高亮，再次点击取消。
+- liked: 点赞按钮 accent 色高亮，再次点击取消（回到中性）。
+- disliked: 点踩按钮 muted 色，与点赞互斥；再次点击取消。
+- favorited: 收藏按钮 destructive 色高亮 + 「已收藏」；再次点击打开 `CollectionPicker`（移除需在 picker 内确认）。
 - disabled: `opacity-50 cursor-not-allowed` + tooltip 提示原因。
 - loading: 对应按钮内嵌 Spinner 替换图标。
+- anonymous: 显示公开聚合计数，`viewerReaction` 为 `null`，收藏入口点击跳转 `/login`。
 
 **响应式行为**
 - 移动 (≤700px): 按钮无文字仅图标，紧凑排列 `gap-0.5`。
@@ -2973,47 +3182,62 @@ interface VersionHistoryProps {
 - 破坏性操作（如放弃上传或退出）需弹 ConfirmModal。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- **媒体集上传编排（#80 决策 / #84 权威）**：image 内容 = 纯图片集 2~9 张；video 内容 = 纯视频集 1~3 个；数量上下限是运行时配置，由 public config 暴露安全值并前端消费（后端为权威校验方，前端只消费合同）。不允许图文混排媒体集；纵横比可混。其他内容类型（article/sheet_music/mod/audio/template/prompt）保持附件语义。
 
 **Props 接口**
 ```ts
 interface FileUploaderProps {
   className?: string;
-  data?: any;
-  isLoading?: boolean;
+  mode: 'media-gallery' | 'attachment';   // 媒体集 vs 附件语义
+  contentType: 'image' | 'video' | string;
+  maxCount?: number;                        // 媒体集数量上限（public config）
+  minCount?: number;                        // 媒体集数量下限（public config）
+  value?: UploadItem[];
+  onChange?: (items: UploadItem[]) => void;
+  isBusy?: boolean;
   disabled?: boolean;
-  onAction?: (payload: any) => void;
+  error?: string;
+}
+
+interface UploadItem {
+  id: string;              // 临时 key（发布前）
+  file: File;
+  type: 'image' | 'video';
+  width?: number;          // image: naturalWidth；video: 首帧尺寸
+  height?: number;
+  sortOrder: number;       // 从 0 开始，随附件提交；拖动排序后重排
+  posterUrl?: string;      // video: 首帧截帧或自定义封面（不属于媒体集）
+  previewUrl?: string;
+  status: 'pending' | 'uploading' | 'done' | 'error';
 }
 ```
 
-**视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
-
-**尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
+**视觉结构（媒体集模式）**
+- 外层容器: `<div className="border border-border-default rounded-lg bg-canvas-default p-4">`
+- 上传入口: 点击或拖拽多选（`multiple`）；视频上传后自动从首帧（约 0.1s）经 `<video>` + canvas 截帧导出 JPEG，走既有 oss-token 流程上传为独立 poster 文件；提供「上传自定义封面」覆盖入口；发布表单注明「未上传封面将取视频第一帧作为封面」。
+- 九宫格预览: 3 列网格（移动 2 列），每格缩略图 `aspect-square` + `object-contain`；第一格带「封面」标记（首图即封面，image 内容无独立「设为封面」入口）；格子右上移除按钮（可访问名称 + 44px 触控目标）。
+- 拖拽排序: HTML5 DnD 在格子间交换；拖动中源格透明、目标格显示占位；排序即时重写 `sortOrder` 并刷新首格封面标记。
+- 移除: 移除任意项；低于数量下限或超出上限时表单级提示（i18n `publish.media.*`）。
+- 提交前宽高采集: 图片 `naturalWidth/Height`、视频首帧尺寸随附件提交写入既有 `width/height` 字段；服务端拒绝负数、重复顺序、非正宽高与媒体类型不匹配。
 
 **状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
+- default: 九宫格缩略图 + 排序 + 移除可用。
+- uploading: 对应格内嵌进度/Spinner，禁止移除正在上传项。
+- error: 单格红色边框 + 内联错误；整体失败用局部 EmptyState。
+- disabled: `opacity-50 cursor-not-allowed`（无发布权限/内容不可上传）。
+- empty: 空态提示拖拽或点击选择文件。
 
 **响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
+- PC/平板: 3 列九宫格；拖拽排序可用。
+- 移动: 2 列网格；拖拽排序不保证（保留移除与首格标记），键盘/按钮化排序为可选增强。
 
 **暗色模式适配**
 - 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
 
 **关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
-- 支持文件拖拽（Drag & Drop）与点击上传。异步上传有进度条反馈。
+- 点击/拖拽触发多选上传；预览生成后进入九宫格。
+- 键盘行为：移除按钮可 Tab 聚焦、Enter/Space 触发；格子顺序变更通过重新排序后的焦点位置声明。
+- 媒体集数量、类型、宽高与 poster 的权威校验在后端发布链路（#83），前端只做合同化提示。
 
 ## Component: ExamQuestion
 
@@ -3503,6 +3727,7 @@ interface GlobalSearchInputProps {
 **Key Constraints**
 - FollowButton 未登录时：点击跳转 `/login`，不显示已关注状态。
 - 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
+- **状态契约（#64 决策 20 / 审计问题 10 权威）**：未关注是显眼主操作（primary 实底）；已关注是克制的 outline 态；hover/focus 已关注时显示「取消关注」。实现不得与本节相反（先例：2026-08-07 审计实测 `variant={following ? "default" : "outline"}` 与本节颠倒）。
 
 **Props 接口**
 ```ts
@@ -3521,7 +3746,7 @@ interface FollowButtonProps {
 **视觉结构**
 - 按钮容器: `<button className="inline-flex items-center justify-center gap-1.5 rounded-md text-sm font-medium transition-colors">`
 - 未关注态: `bg-primary text-primary-foreground px-4 py-2 hover:opacity-90` — 显示 "+ 关注"
-- 已关注态: `border border-border-default bg-canvas-default text-foreground px-4 py-2 hover:bg-canvas-subtle hover:text-destructive hover:border-destructive` — 显示 "已关注"（hover 显示 "取消关注"）
+- 已关注态: `border border-border-default bg-canvas-default text-foreground px-4 py-2 hover:bg-canvas-subtle hover:text-destructive hover:border-destructive` — 显示 "已关注"（hover/focus 显示 "取消关注"）
 
 **尺寸规范**
 - md: `h-9 px-4 py-2 text-sm`（默认）
@@ -3530,7 +3755,7 @@ interface FollowButtonProps {
 **状态变体**
 - default: 未关注时 primary 色按钮；已关注时 outline 按钮。
 - hover 未关注: `opacity-90` 加深。
-- hover 已关注: 背景变 subtle + 边框/文字变 destructive 色（提示取消关注）。
+- hover/focus 已关注: 背景变 subtle + 边框/文字变 destructive 色（提示取消关注），文本切换为「取消关注」。
 - loading: 按钮内嵌 Spinner，文字变为处理中。
 - disabled: `opacity-50 cursor-not-allowed`（信誉分不足或未登录）。
 - 未登录: 点击跳转 `/login`，无 loading 状态。
@@ -4778,6 +5003,7 @@ interface CollabUserPickerProps {
 - 步骤 2 显示发布表单，zone='original' + content_type 锁定，category 必填。
 - 二创专属字段（ip_id、source_original_id）不渲染。
 - 破坏性操作需 ConfirmModal。
+- **媒体集发布约束（#80/#84 权威）**：image = 纯图片集 2~9 张；video = 纯视频集 1~3 个；数量/类型/宽高/顺序与 poster 的权威校验在后端发布链路（#83），前端只消费 public config 合同并做提示；「第一张即封面」（image），视频缺省取第一帧为封面并可在上传区上传自定义封面。
 **视觉层级**
 - 步骤 1：居中标题「选择原创内容类型」+ ContentTypeGrid 网格
 - 步骤 2：标题「发布原创 — [类型名]」+ 发布表单（max-w 960px 居中）
@@ -4812,6 +5038,7 @@ interface CollabUserPickerProps {
 - 发布表单比原创区多 fanwork 来源选择区；`ip_id`、`source_original_id`、`source_fanwork_id` 三者至少填写一个。
 - `source_original_id` 与 `source_fanwork_id` 互斥；选择任一内容来源时必须清除另一个内容来源。
 - 本计划阶段中 `SourceContentPicker` 负责来源字段；`CollabUserPicker` 由后续 collaboration-invites 计划追加，必须位于来源字段之后、提交按钮之前。
+- **媒体集发布约束**：与发布原创一致（见 `/studio/publish/original` 章节），image/video 走媒体集编排（FileUploader media-gallery 模式），其他类型维持附件语义。
 
 **目标与放置**
 - 目标：让创作者发布二创时明确选择内容类型，并在 IP、原创来源、二创来源三类灵感来源中至少提供一类。
@@ -5508,6 +5735,7 @@ interface CollectionCardProps {
 - Canonical 组件名为 `CollectionPicker`；现有旧添加收藏弹窗可作为兼容包装或内部实现，但新代码只能引用 `CollectionPicker`。
 - 仅展示与当前内容 `zone` 匹配的收藏集；是否已添加由列表 API 的 `contains_item` / `item_id` 决定，不通过制造重复请求判断。
 - Modal/Popover 可使用 `shadow-md`，其余内部列表项保持 1px border、无阴影。
+- **关闭行为（#80 决策 / 审计问题 14 配套 权威，对齐 ConfirmModal 既有模式）**：背板点击与 Esc 关闭、焦点陷阱与焦点恢复；添加/创建/移除请求进行中（busy/creating）时阻止关闭，不丢失进行中的操作。只改本弹窗，不扩及其他浮层。
 
 **目标与放置**
 - 目标：从内容详情页把当前内容添加到同 zone 收藏集，支持已添加状态、移除、搜索和内联新建收藏集。
@@ -5532,13 +5760,19 @@ interface CollectionPickerProps {
 - 移动 (<=700px)：底部 Sheet 形式，圆角只在顶部 `rounded-lg`；列表占可用高度，底部操作固定在 Sheet 内，不遮挡系统导航。
 - 收藏集列表项：`button` 或 `div + button` 结构，`border border-border-default rounded-md p-3`，标题、item_count、公开状态、已添加状态清晰排列。
 
+**弹窗内通知（#80 决策 权威）**
+- 添加/创建/移除的结果与错误以弹窗内短暂通知呈现（footer 上方绝对定位浮动小条）：`pointer-events-none`、半透明底、约 2 秒自动淡出、出现/消失不引起布局跳动；成功与失败都走通知。
+- 行内「已加入」徽标保留为持久状态标记，不因短通知消失。
+- 弹窗内不再触发全局 toast；弹窗外的收藏动作不受影响。
+
 **状态变体**
 - default：显示同 zone 收藏集列表；已添加项显示只读状态和可选移除操作。
 - loading：Modal 骨架列表 x5，保持标题和关闭按钮可见。
 - empty：该 zone 无收藏集时显示 EmptyState + 内联新建入口。
 - error：加载失败显示内联错误和重试按钮，同时 Toast 报错。
-- success：添加/移除/新建成功后行内状态即时更新并 Toast；不强制关闭 Modal。
+- success：添加/移除/新建成功后行内状态即时更新 + 弹窗内通知；不强制关闭 Modal。
 - disabled：当前用户未登录、信誉不足、内容不可收藏、请求进行中时相关按钮 disabled。
+- busy/creating：添加/创建/移除请求在途，阻止背板点击/Esc 关闭，直到请求落定。
 - search：收藏集数量超过 10 时显示搜索框；无匹配结果显示局部 EmptyState。
 
 **核心交互与焦点顺序**
@@ -5546,7 +5780,7 @@ interface CollectionPickerProps {
 - 焦点顺序：关闭 -> 搜索 -> 收藏集列表项 -> 已添加项移除按钮 -> 新建入口 -> 取消。
 - 点击未添加项：调用添加接口；点击已添加项的移除按钮：使用 `item_id` 调用移除接口。
 - 内联新建：展开标题、描述、公开开关和创建按钮；创建成功后新集合进入列表并可直接添加当前内容。
-- 键盘：`ArrowDown/ArrowUp` 可在列表项内移动焦点（可选），`Enter/Space` 执行当前主操作，Esc 关闭。
+- 键盘：`ArrowDown/ArrowUp` 可在列表项内移动焦点（可选），`Enter/Space` 执行当前主操作，Esc 关闭（busy 中除外）。
 
 **可访问性**
 - Modal 使用 `role="dialog"`、`aria-modal="true"`、`aria-labelledby`；移动 Sheet 同样保持 dialog 语义。
@@ -5781,7 +6015,9 @@ interface NotificationBellProps {
 
 **Key Constraints**
 - 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
-- 下拉选择器，用于内容列表的排序切换。
+- **共享自定义排序控件（#64 决策 5 / 审计问题 13 权威，替换三处原生 select）**：二创区（`/`）、原创区（`/original`）、IP 库（`/ips`）统一复用本组件；由 trigger + 定位 listbox/menu 构成，不使用原生 `<select>`（原生平台弹出会覆盖触发本体且无法定位）。
+- 支持键盘导航、focus 返回、外部点击与 Esc 关闭、sticky 工具栏堆叠（z-index 处理）与视口碰撞处理；跨平台不要求像素一致的弹层位置，优先可用性与视觉质量。
+- 所有选项与触发控件有可访问名称；打开后焦点进入 listbox，Esc 关闭并把焦点返回 trigger。
 
 **Props 接口**
 ```ts
@@ -5790,13 +6026,18 @@ interface SortSelectProps {
   value: string;
   options: { value: string; label: string }[];
   onChange: (value: string) => void;
+  ariaLabel: string;   // 可访问名称（i18n）
 }
 ```
 
 **视觉结构**
-- 外层容器: `<select className="border border-border-default rounded-md bg-canvas-default px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent-emphasis">`
-- 每个选项: `<option value={value} className="text-foreground bg-canvas-default">`
+- 外层容器（trigger）: `<button role="combobox" aria-haspopup="listbox" aria-expanded="false" className="inline-flex items-center gap-2 border border-border-default rounded-md bg-canvas-default px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent-emphasis">` — 显示当前选项 label + lucide `ChevronDown`
+- 弹层: `<ul role="listbox">`，定位在 trigger 下方，`--elevation-3` 浮层阴影 + 1px border + `rounded-md`；打开时不得遮挡 trigger 本体（视口碰撞时向上翻转）
+- 每个选项: `<li role="option" aria-selected={value===option.value}>`，当前选项用 accent-subtle 背景 + accent-emphasis 文字
+- 在 sticky 工具栏内使用时，弹层 z-index 高于工具栏其余内容
 
 **状态变体**
-- default: 选中当前排序值。
+- default: 显示当前选中选项。
+- open: `aria-expanded=true`，弹层可见，焦点在 listbox 内；ArrowUp/ArrowDown 移动，Home/End 到首尾，Enter/Space 选择并关闭，Esc 取消并返回 trigger。
 - focus: `ring-2 ring-accent-emphasis`。
+- disabled: `opacity-50 cursor-not-allowed`（无选项或页面禁用）。
