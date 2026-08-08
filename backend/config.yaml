@@ -182,11 +182,11 @@ upload:
     
 agent:
   web_agent_enabled: false
-  llm_provider: "openai_compat"        # 或 "qwen"
-  llm_model: "deepseek-chat"           # 按实际选择
-  llm_api_base: "https://api.deepseek.com"
+  llm_provider: "minimax"             # 或 "openai_compat" / "qwen"
+  llm_model: "MiniMax-M1"             # 按实际选择
+  llm_api_base: "https://api.minimaxi.com"
   llm_api_key: ""                      # 留空，改用 env var AGENT_LLM_API_KEY 注入（config.go 已实现）
-  embedding_model: "text-embedding-3-small"
+  embedding_model: "embo-01"           # MiniMax 1536 维 embedding（/v1/embeddings 需 texts+type=query 格式）
   embedding_dimensions: 1536
   rate_limit_per_day: 50
   rate_limit_per_minute: 5
