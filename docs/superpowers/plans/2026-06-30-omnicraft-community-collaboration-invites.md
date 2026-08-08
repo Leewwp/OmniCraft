@@ -1,6 +1,6 @@
 # OmniCraft Community Collaboration Invites Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Execution:** Active-plan registry item tracked by GitHub issue #97. This is a mixed-lane plan: Tasks 1–4 are heavy; Tasks 5–7 are light; Task 8 closes verification/tracking. Every task ends at its own checkpoint before the next task begins.
 
 **Goal:** 支持发布后邀请联合创作者，被邀请者通过私信卡片接受或拒绝，接受后幂等加入 `content_contributors`。
 
@@ -12,8 +12,9 @@
 
 ## Cross-Plan Coordination
 
-- Execution source: this is part of the 2026-06-30 community feature plan family, derived from `docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md`. It is not a historical `task.json` task and not a 2026-05-30 Beta roadmap checkbox; executing it requires an explicit user request naming this plan or the community feature family.
-- Shared-file integration and migration order for the six community plans is: messages-notifications (`057`) -> browse-history (no migration) -> collections (`058`) -> content-series (`059`) -> source-linkage (`066`) -> collaboration-invites (`063`).
+- Execution source: `AGENTS.md` active-plan registry and GitHub issue #97, derived from `docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md`. It is not a historical `task.json` task.
+- Shared-file integration and migration order is: existing foundations (`057`/`058`/`059`/`062`) -> media metadata (`063`) -> source-linkage (`064`) -> collaboration-invites (`065`) -> IP history (`066`) -> favorites drop (`067`).
+- Lane/checkpoint contract: Tasks 1–4 each use one heavy worktree/branch/commit, confirmed failing tests and two-stage review. Tasks 5–7 use logical light checkpoints. Task 8 may commit only final evidence, generated docs and tracking state not already committed; it must not collapse the whole plan into one commit.
 - `frontend/app/(protected)/messages/page.tsx`, `frontend/components/social/ChatWindow.tsx`, and `frontend/components/social/ConversationList.tsx` must already use the messages-notifications contract before this plan adds typed invite cards.
 - `frontend/components/content/ContentDetail.tsx` changes must land collections before content-series before source-linkage.
 - `frontend/components/studio/PublishForm.tsx` source fields from source-linkage must already be present before this plan adds the collaborator picker.
@@ -49,7 +50,7 @@ This plan also depends on the publish-form source fields from `2026-06-30-omnicr
 
 ### Backend
 
-- Create: `backend/migrations/063_collaboration_invites.sql`
+- Create: `backend/migrations/065_collaboration_invites.sql`
 - Create: `backend/internal/model/collab_invite.go`
 - Create: `backend/internal/repository/collab_invite_repo.go`
 - Create: `backend/internal/service/collab_invite_service.go`
@@ -87,10 +88,10 @@ This plan also depends on the publish-form source fields from `2026-06-30-omnicr
 
 ---
 
-## Task 1: Add Config, Migration, And Models
+## Task 1 [heavy]: Add Config, Migration, And Models
 
 **Files:**
-- Create: `backend/migrations/063_collaboration_invites.sql`
+- Create: `backend/migrations/065_collaboration_invites.sql`
 - Create: `backend/internal/model/collab_invite.go`
 - Modify: `backend/internal/model/user.go`
 - Modify: `backend/internal/model/notification.go`
@@ -106,7 +107,7 @@ Run:
 ls backend/migrations/ | sort | tail -10
 ```
 
-Expected number is `063_collaboration_invites.sql` because source-linkage owns `066_add_source_fanwork_id.sql` and `062_notification_broadcast_idempotency.sql` already exists（2026-08-03 编号修正：`060` 已被 `060_fix_search_config_fallback.sql` 占用；2026-08-07 更新：source-linkage 由 `061` 重编号为 `066`，`061` 不可回填）。If `063_` is occupied by an unrelated migration at implementation time, stop and update all six community plans plus the source spec migration table before continuing.
+Expected number is `065_collaboration_invites.sql`: media metadata owns `063`, source-linkage owns `064`, and this plan lands before IP history `066` and favorites drop `067`. If `065_` is occupied by an unrelated migration at implementation time, stop and update the active registry, both community plans/specs and all open tickets before continuing.
 
 - [ ] **Step 2: Write failing migration/model tests**
 
@@ -167,7 +168,7 @@ go test ./internal/handler -run TestPublicConfig.*Collaboration -v
 
 ---
 
-## Task 2: Implement Invite Service Anti-Abuse Chain
+## Task 2 [heavy]: Implement Invite Service Anti-Abuse Chain
 
 **Files:**
 - Create: `backend/internal/repository/collab_invite_repo.go`
@@ -288,7 +289,7 @@ go test ./internal/service -run TestCollabInviteSend -v
 
 ---
 
-## Task 3: Implement Accept, Decline, And Expiry
+## Task 3 [heavy]: Implement Accept, Decline, And Expiry
 
 **Files:**
 - Modify: `backend/internal/service/collab_invite_service.go`
@@ -366,7 +367,7 @@ go test ./internal/pkg/scheduler -run TestCollabInviteExpiry -v
 
 ---
 
-## Task 4: Add Handler Routes And User Setting Contract
+## Task 4 [heavy]: Add Handler Routes And User Setting Contract
 
 **Files:**
 - Create: `backend/internal/handler/collab_invite.go`
@@ -431,7 +432,7 @@ go test ./internal/handler -run TestCollabInvite -v
 
 ---
 
-## Task 5: Build Invite Card And Settings UI
+## Task 5 [light]: Build Invite Card And Settings UI
 
 **Files:**
 - Read: `design/ui-spec.md`
@@ -497,7 +498,7 @@ node --import tsx --test tests/collab-invite-card.test.tsx tests/settings-collab
 
 ---
 
-## Task 6: Confirm Collab Picker API And UI Spec
+## Task 6 [light]: Confirm Collab Picker API And UI Spec
 
 **Files:**
 - Read: `design/ui-spec.md`
@@ -552,7 +553,7 @@ Expected: picker-only tests PASS before editing `PublishForm.tsx`.
 
 ---
 
-## Task 7: Add Collab Picker To Publish Flow
+## Task 7 [light]: Add Collab Picker To Publish Flow
 
 **Files:**
 - Modify: `frontend/components/studio/PublishForm.tsx`
@@ -595,7 +596,7 @@ node --import tsx --test tests/publish-collab-picker.test.tsx
 
 ---
 
-## Task 8: Full Verification And Documentation Sync
+## Task 8 [closure]: Full Verification And Documentation Sync
 
 **Files:**
 - Modify if generated: `architecture.md`
@@ -653,15 +654,9 @@ go run . --fix
    - `screenshots/community-collab-settings-desktop.png`
    - `screenshots/community-collab-settings-mobile.png`
 
-- [ ] **Step 5: Commit when implementing**
+- [ ] **Step 5: Close the plan without collapsing checkpoints**
 
-```bash
-if [ -f backend/internal/router/routes.go ]; then routeOwner='backend/internal/router/routes.go'; else routeOwner='backend/internal/handler/routes.go'; fi
-git add -- backend/migrations/063_collaboration_invites.sql backend/internal/model/collab_invite.go backend/internal/model/user.go backend/internal/model/notification.go backend/internal/repository/collab_invite_repo.go backend/internal/repository/message_repo.go backend/internal/repository/content_repo.go backend/internal/service/collab_invite_service.go backend/internal/service/collab_invite_service_test.go backend/internal/handler/collab_invite.go backend/internal/handler/collab_invite_test.go backend/internal/handler/user.go backend/internal/handler/auth.go backend/internal/handler/public_config.go backend/internal/handler/public_config_test.go $routeOwner backend/internal/pkg/scheduler/collab_invite_expiry.go backend/internal/pkg/scheduler/collab_invite_expiry_test.go backend/config/config.go backend/config.yaml backend/cmd/server/main.go frontend/components/content/CollabUserPicker.tsx frontend/components/social/CollabInviteCard.tsx frontend/tests/collab-invite-card.test.tsx frontend/tests/settings-collab-invites.test.tsx frontend/tests/publish-collab-picker.test.tsx frontend/e2e/collab-invite-flow.spec.ts frontend/contexts/AuthContext.tsx "frontend/app/(protected)/settings/page.tsx" frontend/components/studio/PublishForm.tsx frontend/components/social/ChatWindow.tsx frontend/components/social/ConversationList.tsx frontend/messages/zh.json frontend/messages/en.json screenshots/community-collab-picker-desktop.png screenshots/community-collab-picker-mobile.png screenshots/community-collab-invite-pending.png screenshots/community-collab-invite-states.png screenshots/community-collab-invite-mobile.png screenshots/community-collab-settings-desktop.png screenshots/community-collab-settings-mobile.png docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md progress.txt
-git add -- frontend/lib/public-config.ts
-# Also add architecture.md if doc-validator --fix modified it during this task.
-git commit -m "Community 6: collaboration invites"
-```
+Confirm Task 1–7 checkpoint commits are present, stage only Task 8 evidence/generated-doc/tracking files that actually changed, update issue #97 with verification evidence, and close it. Do not restage the entire feature or create a second aggregate implementation commit.
 
 ---
 
@@ -669,7 +664,7 @@ git commit -m "Community 6: collaboration invites"
 
 - [ ] Dependency on message-system correction is explicit.
 - [ ] Dependency on source-linkage `PublishForm.tsx` changes is explicit.
-- [ ] Migration number is `063`, after source-linkage `066`.
+- [ ] Migration number is `065`, executed after source-linkage `064`.
 - [ ] Anti-abuse chain lists all eight ordered stages and exact error codes.
 - [ ] Anti-abuse chain also rejects self/author/existing-contributor/unavailable-user/unavailable-content/capacity cases.
 - [ ] Redis keys and TTL are specified.

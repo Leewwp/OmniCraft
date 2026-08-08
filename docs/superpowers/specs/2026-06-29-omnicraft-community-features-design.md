@@ -852,7 +852,7 @@ CREATE UNIQUE INDEX idx_collab_invites_active ON collaboration_invites (content_
 | 过期后前端 | 邀请卡片灰色显示「已过期」，无操作按钮 |
 | 过期提醒 | 不发送即将过期提醒；仅在邀请卡片中展示过期状态 |
 | 过期后重新邀请 | 允许邀请者重新发送（走完整 8 阶段校验链，视为新邀请）。**注意**：需要将 UNIQUE 约束改为 PostgreSQL 部分唯一索引 `CREATE UNIQUE INDEX idx_collab_invites_active ON collaboration_invites (content_id, invitee_id) WHERE status IN ('pending', 'accepted')`，否则旧 expired 记录仍会阻止新邀请插入 |
-| 迁移文件 | `063_collaboration_invites.sql` 的 CREATE TABLE 语句中**不使用**行内 `UNIQUE (content_id, invitee_id)` 约束；表创建后用 `CREATE UNIQUE INDEX idx_collab_invites_active ON collaboration_invites (content_id, invitee_id) WHERE status IN ('pending', 'accepted')` 建立部分唯一索引 |
+| 迁移文件 | `065_collaboration_invites.sql` 的 CREATE TABLE 语句中**不使用**行内 `UNIQUE (content_id, invitee_id)` 约束；表创建后用 `CREATE UNIQUE INDEX idx_collab_invites_active ON collaboration_invites (content_id, invitee_id) WHERE status IN ('pending', 'accepted')` 建立部分唯一索引 |
 
 #### users 表新增字段
 
@@ -947,7 +947,7 @@ ALTER TABLE messages ADD COLUMN metadata JSONB NOT NULL DEFAULT '{}';
 
 - 查询同时包含 inviter_id 和 invitee_id 两个 participant 的 conversation_id（JOIN conversation_participants 自连接，按 conversation_id GROUP BY HAVING COUNT(DISTINCT user_id) = 2）
 - 若已存在 → 复用该会话；若不存在 → 新建 conversation + 插入两条 conversation_participants 记录
-- 现有表无 (user_a, user_b) 复合查找索引；建议在 `063_collaboration_invites.sql` 迁移中补充 `idx_conv_participants_user_pair` 加速查找（非强制，可按用户量评估）
+- 现有表无 (user_a, user_b) 复合查找索引；建议在 `065_collaboration_invites.sql` 迁移中补充 `idx_conv_participants_user_pair` 加速查找（非强制，可按用户量评估）
 
 ### 5.4 私信邀请卡片 UI
 
@@ -982,7 +982,7 @@ ALTER TABLE messages ADD COLUMN metadata JSONB NOT NULL DEFAULT '{}';
 
 | 层 | 文件路径 | 改动类型 |
 |----|---------|---------|
-| 后端 Migration | `backend/migrations/063_collaboration_invites.sql` | **新增**建表 + users.accept_collab_invites + messages.msg_type/metadata |
+| 后端 Migration | `backend/migrations/065_collaboration_invites.sql` | **新增**建表 + users.accept_collab_invites + messages.msg_type/metadata |
 | 后端 Model | `backend/internal/model/collab_invite.go` | **新增** |
 | 后端 Handler | `backend/internal/handler/collab_invite.go` | **新增** |
 | 后端 Service | `backend/internal/service/collab_invite_service.go` | **新增**（含防骚扰校验链） |
@@ -1130,7 +1130,7 @@ ip_id: set                source_original_id: set    source_fanwork_id: set
 
 | 层 | 文件路径 | 改动类型 |
 |----|---------|---------|
-| 后端 Migration | `backend/migrations/066_add_source_fanwork_id.sql` | **新增** |
+| 后端 Migration | `backend/migrations/064_add_source_fanwork_id.sql` | **新增** |
 | 后端 Model | `backend/internal/model/content.go` | 新增 SourceFanworkID / SourceFanwork 字段 |
 | 后端 Handler | `backend/internal/handler/content.go` | 更新发布/查询校验，返回 source_fanwork 摘要 |
 | 后端 Service | `backend/internal/service/content_service.go` | 更新校验逻辑 + 链式查询 |
@@ -1163,7 +1163,7 @@ ip_id: set                source_original_id: set    source_fanwork_id: set
 | DEC-012 | 浏览足迹已失效内容展示灰色占位卡片，不可点击 |
 | DEC-013 | 内容系列导航在内容详情页正文下方、评论区上方，视觉克制 |
 | DEC-014 | 对外统一称「衍生作品」而非「三创」，链路仅展示一层 |
-| DEC-015 | 旧 favorites 数据迁移后保留 30 天回滚窗口 |
+| DEC-015 | 历史决策：旧 favorites 数据迁移后保留 30 天回滚窗口。**已被 2026-08-07 Web 体验修复规格取代**：测试/演示旧数据允许丢弃；运行时依赖退役、云端旧端点访问日志为零且存在可恢复备份后，执行独立 forward-only drop，不再等待固定 30 天 |
 | DEC-016 | collections 模型扩展了 AGENTS.md Task 122-123 的旧计划：新增 zone/sort_order/is_default 字段，collection_items.content_id 更名为 content_item_id |
 | DEC-017 | 内容系列添加内容时允许 owner 自己发布的内容或 owner 已确认贡献的内容，不只依赖 content_contributors |
 | DEC-018 | 联合创作邀请消息使用 msg_type + metadata 承载卡片摘要，最终状态以 collaboration_invites 表为准 |
@@ -1194,7 +1194,7 @@ browse_history:
 
 ## 附录 C：新增数据库迁移文件一览
 
-> **编号说明**：当前 `backend/migrations/` 最大编号为 `056_conversation_indexes.sql`，本设计建议从 `057_` 起连续编号。若实施前已有新的 migration 合入，按当时目录最大编号继续递增；每个迁移文件需在事务内完成 schema 变更并幂等可重放。
+> **编号说明（2026-08-08 更新）**：当前已应用到 `062_notification_broadcast_idempotency.sql`，`061` 保持未使用且不得回填。未创建的后续迁移按已确认执行序预留：媒体 metadata `063` → source-linkage `064` → collaboration-invites `065` → IP history `066` → favorites drop `067`。实现前检查实际目录和活计划注册表；若编号被占用，停止并同步所有计划/issue，不按“当前最大号+1”局部顺延。
 > **回滚说明**：每个新增迁移文件都必须包含 `-- ROLLBACK:` 注释块，说明本地测试环境如何撤销该迁移。已进入共享环境或生产环境的迁移不得自动执行破坏性回滚；需要优先评估向前修复或数据保留方案。
 
 | 子系统 | Migration | 说明 |
@@ -1203,8 +1203,11 @@ browse_history:
 | 收藏集 | `058_create_collections.sql` | 创建 collections + collection_items 表 + 旧 favorites 数据迁移 + is_default 默认集约束 |
 | 广播幂等跟进 | `062_notification_broadcast_idempotency.sql` | 创建 notification_broadcast_requests；唯一约束 `(actor_id, key_hash)`，只保存 payload 哈希与安全响应摘要，不保存广播正文。若实施时 062 已被占用则顺延并同步引用 |
 | 内容系列 | `059_create_content_series.sql` | 创建 content_series + content_series_items 表 |
-| 联动增强 | `066_add_source_fanwork_id.sql` | content_items 新增 source_fanwork_id 列 |
-| 联合创作 | `063_collaboration_invites.sql` | 创建 collaboration_invites 表 + users.accept_collab_invites + messages.msg_type/metadata + 部分唯一索引（WHERE status IN ('pending','accepted')） |
+| 媒体 metadata | `063_content_media_metadata.sql` | content_items 新增 cover_width/cover_height；content_attachments 新增稳定 sort_order |
+| 联动增强 | `064_add_source_fanwork_id.sql` | content_items 新增 source_fanwork_id 列 |
+| 联合创作 | `065_collaboration_invites.sql` | 创建 collaboration_invites 表 + users.accept_collab_invites + messages.msg_type/metadata + 部分唯一索引（WHERE status IN ('pending','accepted')） |
+| IP 访问历史 | `066_ip_visit_history.sql` | 独立账号级 IP 最近访问与匿名合并 |
+| favorites 清理 | `067_drop_legacy_favorites.sql` | 云端人工门满足后 forward-only 删除旧 favorites 表 |
 
 ## 附录 C.1：首版数据量和性能预期
 
@@ -1251,7 +1254,7 @@ browse_history:
 | 管理员广播 Markdown 能力 | §1 | 允许 Markdown 图片和链接；渲染必须走安全 Markdown 链路，不允许原始 HTML 绕过消毒 |
 | 浏览足迹清理时区 | §2 | 生产服务器时区固定为 Asia/Shanghai；`cleanup_time` 按 Asia/Shanghai 解释 |
 | 收藏集公开浏览范围 | §3 | 公开收藏集允许未登录用户浏览 published 内容，详情页继续放在 `(public)` route group |
-| 收藏集回滚窗口 | §3 | 旧 `favorites` 表保留 30 天足够；30 天后再由独立清理任务/人工迁移删除 |
+| 收藏集回滚窗口 | §3 | **历史决策，已被 2026-08-07 Web 体验修复规格取代**：不再等待固定 30 天；先退役运行时依赖，确认旧端点无调用并取得可恢复备份，再执行独立 forward-only drop |
 | 联合创作邀请过期提醒 | §5 | 不需要即将过期提醒；仅在邀请卡片显示过期状态 |
 | 联动来源必填范围 | §6 | 新 fanwork 必须绑定 IP、原创内容或二创内容之一；无来源内容不属于「二创」范畴 |
 | 内容系列公开性 | §4 | 首版只做公开系列，私有系列延后，避免额外权限和 UI 分支 |

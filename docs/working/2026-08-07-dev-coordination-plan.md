@@ -4,6 +4,7 @@
 > 范围：Ops-08 收尾 → 归档清理 → UI 体验修复（#64 系列）→ source-linkage → Web Agent Task 6 → IP history → 收藏集 cutover
 > 依据：AGENTS.md 活计划注册表、`docs/superpowers/plans/` 各计划、`docs/superpowers/specs/2026-08-07-omnicraft-web-experience-corrections-design.md`、GitHub issues #1/#22/#28/#30/#31/#32/#64/#65~#76
 > 本文件为会话结论汇总，不替代各计划文件与 AGENTS.md 的权威地位；任务来源始终以 AGENTS.md 注册表为准。
+> **2026-08-08 superseded note**：本文件 §2 的旧线性顺序已被 `AGENTS.md` 跨计划 DAG 与 `docs/working/2026-08-08-active-plan-audit.md` 取代；以下阶段仅保留历史背景，不可据此绕过 GitHub 原生 dependencies。
 
 ---
 
@@ -56,7 +57,7 @@ Worktree：仅仓库根目录 `/Users/pp/Desktop/file/code/project/OmniCraft`；
 3. ✅ 已在 AGENTS.md 注册 Web 体验修复与数据契约收口计划（#64，Ticket 01–12）。
 4. ✅ 已完成分支与 worktree 清理；当前实际清单见 1.4。
 5. ✅ 已完成 worktree 清理；不再删除不存在的 `/private/tmp/OmniCraft-ops08` 或 `/private/tmp/OmniCraft-prev`。
-6. ✅ 迁移编号规划已落位：`061` 不可回填，source-linkage 使用 `066`；`063`/`064`/`065` 按各计划钉名。
+6. ✅ 迁移编号规划于 2026-08-08 重新按实际执行序收口：`061` 不可回填；媒体 `063` → source-linkage `064` → collaboration-invites `065` → IP history `066` → favorites drop `067`。
 
 ### Phase 2：UI 高收益修复（light 车道）
 
@@ -66,10 +67,10 @@ Worktree：仅仓库根目录 `/Users/pp/Desktop/file/code/project/OmniCraft`；
 - 前置：调和 `design/ui-spec.md`（Header/页面外壳/筛选/FollowButton 等章节）
 - 验证：浏览器实测 + 截图（screenshots/）
 
-### Phase 3：source-linkage（light 车道）
+### Phase 3：source-linkage（mixed 车道）
 
 - 计划：`docs/superpowers/plans/2026-06-30-omnicraft-community-source-linkage.md`（64 项）
-- 迁移：`066_add_source_fanwork_id.sql`（2026-08-07 重编号，`061` 不可回填）
+- 迁移：`064_add_source_fanwork_id.sql`（Task 1 heavy；`061` 不可回填，媒体 metadata 先占 `063`）
 - 硬约束：必须先于 collaboration-invites（共享 `content_repo.go`、`zh.json`/`en.json`，串行执行）
 - 与 #64 共享 ContentDetail/路由/翻译面 → 发布精确文件预留，串行编辑
 
@@ -77,14 +78,14 @@ Worktree：仅仓库根目录 `/Users/pp/Desktop/file/code/project/OmniCraft`；
 
 顺序：T07 收口查看者反应 API 与 UI 契约 → T03 浮窗共享元素转场原型 → T04 接入浮窗转场与媒体加载 → T05 浮窗内系列目录与章节导航 → T08 跨页面共享排序下拉组件
 
-- 依赖边：T04←T03←T05 线性；T07/T08 仅依赖 T01
+- 依赖边：T03 → T04 → T05；T07/T08 另按 GitHub 原生边执行
 - 前置：ui-spec 调和（ContentDetailOverlay/SeriesNav/ReactionBar/SortSelect 章节）
 - **插入点：Web Agent Task 6 建议在此阶段完成后执行**（见 3.2）
 
 ### Phase 5：IP history 独立表（heavy 车道）
 
 - Ticket 09（#73）：独立 IP 访问历史模型 + 匿名合并，heavy 任务，迁移独立于 favorites 清理
-- 迁移：`064_ip_visit_history.sql`
+- 迁移：`066_ip_visit_history.sql`
 - heavy 要求：先写失败测试确认预期失败 → 最小实现 → 两阶段审查
 
 ### Phase 6：收藏集 cutover + 删除 favorites（heavy 车道）
@@ -92,13 +93,13 @@ Worktree：仅仓库根目录 `/Users/pp/Desktop/file/code/project/OmniCraft`；
 顺序：T10 收藏成员关系成为唯一收藏状态源 → T11 退役旧 favorites 运行时依赖 → T12 forward-only 清理与云端 cutover
 
 - 依赖边：T12←T11←T10；T12 另有云端人工门（访问日志确认无旧端点调用 + 可恢复迁移前备份）
-- 迁移：`065_drop_legacy_favorites.sql`（forward-only，历史迁移与 checksum fixture 不可修改）
+- 迁移：`067_drop_legacy_favorites.sql`（forward-only，历史迁移与 checksum fixture 不可修改）
 - 云端数据允许丢弃（无对账零漂移要求），但必须有可恢复备份
 - 低风险视觉修复不得混入本阶段
 
 ### 后续（不在本轮主序列，视用户安排）
 
-- **collaboration-invites**（注册表优先级 3，62 项）：须在 source-linkage 合并后串行执行（Phase 3 后可随时插入）
+- **collaboration-invites**（注册表优先级 3，mixed，62 项，迁移 `065`）：须在 source-linkage #96 与媒体 #90 合并后串行执行
 - **Web Agent Task 6**（见 3.2）
 - **wayfinder 设计线**（#22/#28/#30/#31/#32）：作品集导向设计项，需用户 grill/决策，非编码任务，与开发线无文件冲突可并行；#30 落地时与 #64 共享前端文件需串行
 
