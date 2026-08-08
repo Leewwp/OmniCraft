@@ -1,7 +1,7 @@
 # OmniCraft 后续工作协调规划（2026-08-07 会话结论）
 
 > 创建日期：2026-08-07 | **预计失效日期**: 2026-10-07
-> 范围：Ops-08 收尾 → 归档清理 → UI 体验修复（#64 系列）→ source-linkage → Web Agent Task 6 → IP history → 收藏集 cutover
+> 范围：Ops-08 收尾 → 归档清理 → #65/UI 权威 → 媒体 T01~T09 → source-linkage → 媒体 T10 → collaboration-invites → #71→#69→#72 → IP history → 收藏集 cutover
 > 依据：AGENTS.md 活计划注册表、`docs/superpowers/plans/` 各计划、`docs/superpowers/specs/2026-08-07-omnicraft-web-experience-corrections-design.md`、GitHub issues #1/#22/#28/#30/#31/#32/#64/#65~#76
 > 本文件为会话结论汇总，不替代各计划文件与 AGENTS.md 的权威地位；任务来源始终以 AGENTS.md 注册表为准。
 > **2026-08-08 superseded note**：本文件 §2 的旧线性顺序已被 `AGENTS.md` 跨计划 DAG 与 `docs/working/2026-08-08-active-plan-audit.md` 取代；以下阶段仅保留历史背景，不可据此绕过 GitHub 原生 dependencies。
@@ -74,11 +74,11 @@ Worktree：仅仓库根目录 `/Users/pp/Desktop/file/code/project/OmniCraft`；
 - 硬约束：必须先于 collaboration-invites（共享 `content_repo.go`、`zh.json`/`en.json`，串行执行）
 - 与 #64 共享 ContentDetail/路由/翻译面 → 发布精确文件预留，串行编辑
 
-### Phase 4：Reaction / 浮窗 / 目录 / 排序（light 车道）
+### Phase 4：Reaction / 浮窗 / 目录 / 排序（light 车道，当前机器顺序）
 
-顺序：T07 收口查看者反应 API 与 UI 契约 → T03 浮窗共享元素转场原型 → T04 接入浮窗转场与媒体加载 → T05 浮窗内系列目录与章节导航 → T08 跨页面共享排序下拉组件
+前置：媒体 T01~T09、source-linkage #96、媒体 T10 #90、collaboration-invites #97 已完成并合并；随后严格按 GitHub 原生依赖执行：#71 收口查看者反应 API 与 UI 契约 → #69 浮窗内系列目录与章节导航 → #72 跨页面共享排序下拉组件。
 
-- 依赖边：T03 → T04 → T05；T07/T08 另按 GitHub 原生边执行
+- 依赖边：#97→#71→#69→#72；三票共享 ContentDetail、筛选和 i18n 文件，不得并行预约。
 - 前置：ui-spec 调和（ContentDetailOverlay/SeriesNav/ReactionBar/SortSelect 章节）
 - **插入点：Web Agent Task 6 建议在此阶段完成后执行**（见 3.2）
 
