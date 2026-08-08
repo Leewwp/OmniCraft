@@ -8,6 +8,13 @@
 - 内容浏览：所有卡片入口最终复用内容详情浮层，完整详情页保留给直达 URL；媒体集/媒体查看器/连续浏览/相关内容规范见 `docs/superpowers/specs/2026-08-08-omnicraft-media-experience-design.md`；路由决策见 `docs/working/2026-07-25-wayfinder-ticket-content-modal-routing.md`。
 - Web Agent：顶部导航进入受保护的 `/agent` 全页工作台，全站搜索保持关键词职责；见 `docs/adr/0003-web-agent-dedicated-workspace.md`。
 - 社区互动：用户资料浮层、私信聊天浮层和冷启动私信共享消息事实源；详细规则见 `docs/superpowers/specs/2026-06-29-omnicraft-community-features-design.md` §1。
+- 内容审核：AI 审核（阿里云 Green）与人工判官双轨；术语见下方 Language 的"扫描结果回调 / 审核结果处理"分化，契约事实见 `docs/working/2026-08-08-aliyun-content-safety-callback-research.md`。
+
+## Language
+
+**扫描结果回调**（Aliyun scan callback）：阿里云内容安全向应用推送异步媒体审核结果的入站通知（`application/x-www-form-urlencoded`，`checksum`+`content`，SHA256(uid+seed+content) 认证）。_Avoid_：单独使用"回调"一词
+
+**审核结果处理**（AI review processing）：应用内部将审核结果落库并变更内容/IP 状态的流程（`AICallbackInput` → `ProcessAICallback`），由扫描结果回调或同步审核路径触发，与入站通知是两个契约。_Avoid_：回调、回调处理
 
 ## Test seams
 
