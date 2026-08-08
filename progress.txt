@@ -15,6 +15,25 @@
 - `cd tools/doc-validator && go run . --fix`：config/schema/route 同步均 no changes needed。
 - `git diff --check` 通过；GitHub 回读确认子票/依赖边/label 已生效。
 
+## [2026-08-08] - Web Agent Task 6 前置：DeepSeek key 配置 + Provider 兼容性修复
+
+### What was done:
+- 用户提供 DeepSeek API key（sk-03c9...，与 `~/.config/omnicraft/web-agent-deepseek.env` 2026-08-05 验证记录一致），完成本地与生产 `43.139.183.130` 配置：
+  - 本地 `.env`（gitignored）写入 `AGENT_LLM_PROVIDER=openai_compat` / `AGENT_LLM_MODEL=deepseek-chat` / `AGENT_LLM_API_BASE=https://api.deepseek.com` / `AGENT_LLM_API_KEY`。
+  - 生产 `/opt/omnicraft/.env` 的 `AGENT_LLM_API_KEY` 已存在且 hash 匹配；`/var/lib/omnicraft/config_override.yaml` 修复 `llm_model: ""`→`deepseek-chat`、`llm_api_base: ""`→`https://api.deepseek.com`（空值会覆盖 config.yaml 默认，已用 viper 复现验证）。
+- **发现并修复真实 Provider 兼容性 bug**：`ToolDefinition` 序列化为 OpenAI 旧格式 `{"name":...}`，DeepSeek/OpenAI 兼容 API 返回 400（`tools[0]: missing field type`）；改为标准 `{"type":"function","function":{...}}` 并新增 `openai_tools_wire_test.go` 守卫。
+- **生产事故与恢复**：重建 backend 时意外用本地版 `docker-compose.yml`（DB_DSN 硬编码 `password=omnicraft`）覆盖生产配置，导致 backend SASL 认证失败；postgres 容器被意外 recreate（数据卷 `omnicraft_postgres_data` 未丢，53 张业务表 + schema_migrations 均在）。已用 `docker compose -f docker-compose.single-server.yml up -d --no-build --no-deps` 分别重建 backend/redis 恢复；6 容器全部 healthy，healthz 200。
+- 验证：本地 `agent-smoke` 4 用例全绿（cited_search/no_evidence/injection/timeout_downgrade，真实 DeepSeek 调用，含 tool_calls 与注入防护）；`curl /models`、`/chat/completions`（deepseek-chat 与 deepseek-v4-flash）均 200。
+
+### Testing:
+- `go test ./...` / `go vet ./...` / `go build ./...` 全绿（backend）；doc-validator `--fix` 无变化。
+- 生产：`docker compose -f docker-compose.single-server.yml` 全部服务 healthy，`https://api.leeppp.online/healthz` 200。
+
+### Notes:
+- 已知限制：DeepSeek 无 `/embeddings` 端点（404），Agent 的向量检索依赖 embedding；`agent_service.go` 已有 keyword search 降级路径（NLSearch），`search_content` 工具依赖 embedding 暂不可用——Task 6 真实 smoke 时应验证降级行为，或将 embedding 切换为支持 provider（记录为后续评估项）。
+- `agent.web_agent_enabled` 保持 `false`（Task 6 通过前默认关闭，本地/生产均未开启）。
+- 提交内容：`provider.go`（ToolDefinition MarshalJSON）+ 新测试 + progress.txt。
+
 ### Notes:
 - 未勾选任何计划 checkbox；后续仍按注册表优先级执行：content-safety 批次无跨计划业务依赖（仅 config/routes 与 #97 串行预约），可与 #65 链按文件预约并行。codex/archive 分支建议保持归档不动（删除亦无损，均为本地 throwaway）。
 
