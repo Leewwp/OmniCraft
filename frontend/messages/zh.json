@@ -963,7 +963,8 @@
     "sendFailed": "评论发送失败",
     "loadFailed": "加载评论失败",
     "follow": "关注",
-    "following": "已关注"
+    "following": "已关注",
+    "unfollow": "取消关注"
   },
   "pr": {
     "submit": "提交修改申请",
@@ -1280,6 +1281,7 @@
     "title": "讨论区",
     "subtitle": "浏览和参与 IP 相关的讨论",
     "newPost": "发起讨论",
+    "loginToStart": "请登录后发起讨论",
     "search": "搜索",
     "searchPlaceholder": "搜索讨论标题...",
     "empty": "暂无讨论，来发起第一个话题吧",
