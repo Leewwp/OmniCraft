@@ -354,8 +354,10 @@ func Load() *Config {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")
-	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	// Do not enable viper.AutomaticEnv here: with SetEnvKeyReplacer it maps a
+	// top-level section key (e.g. "agent") to an env var of the same name
+	// (AGENT) and a generic value such as AGENT=1 silently shadows the entire
+	// YAML section. All runtime overrides flow through OverrideFromEnv below.
 
 	if err := viper.ReadInConfig(); err != nil {
 		slog.Warn("config file not found, using defaults/env vars", "error", err)
@@ -542,6 +544,9 @@ func OverrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("AGENT_LLM_API_KEY"); v != "" {
 		cfg.Agent.LLMAPIKey = v
+	}
+	if v := os.Getenv("AGENT_WEB_AGENT_ENABLED"); v != "" {
+		cfg.Agent.WebAgentEnabled = v == "1" || strings.EqualFold(v, "true")
 	}
 	if v := os.Getenv("AGENT_LLM_PROVIDER"); v != "" {
 		cfg.Agent.LLMProvider = v
