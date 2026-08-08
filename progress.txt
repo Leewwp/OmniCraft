@@ -2,6 +2,21 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。超过 64KB 或每月轮换一次（上次轮换：2026-08-07）。完整历史见 `docs/archive/progress/2026-08-01-to-2026-08-07.md`。
 
+## [2026-08-08] - 分支/计划审查收口：合并文档批次并修正 #71→#69→#72 依赖
+
+### What was done:
+- 将已通过 PR #102 检查的 `docs/gate-recovery-closure` 三提交批次合入本地 `main`，保留 3.6 GiB 部署档、IP history/favorites heavy 计划、迁移预留和活动计划审计修正。
+- 核对本地/远程分支、工作树、PR 与 #64/#80/#96/#97 tickets；确认 `origin/docs/media-experience-spec` 是已合并前的旧媒体规格，`origin/fix/publish-freeze-key` 的运行时代码已由 #79 合入，均不重复合并；归档 `codex/archive/unreachable-*` 分支不属于当前 Web-only 任务来源。
+- 将 GitHub 原生依赖补齐为 `#97 → #71 → #69 → #72 → #73`，并同步 `AGENTS.md` 与 `docs/working/2026-08-08-active-plan-audit.md`，避免共享文件被并行修改。
+
+### Testing:
+- `git diff --check`
+- `cd tools/doc-validator && go run . --check`
+- `bash scripts/release/deployment-contract.tests.sh`
+
+### Notes:
+- 当前唯一注册工作树保持干净；未发现任何工作树中的未提交文件。远程 Dependabot PR 仍需各自 CI/兼容性审查，不在本次规划合并范围内。
+
 ## [2026-08-08] - 3.6 GiB 面试服务器部署档裁决（含 Prometheus）
 
 ### What was done:
