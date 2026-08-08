@@ -2,10 +2,34 @@
 
 **创建日期**: 2026-08-08 · **预计失效日期**: 2026-10-08
 
-> 创建日期：2026-08-08  
-> 预计失效日期：2026-10-08  
-> 审计方式：只读核对本地权威文档、当前代码/迁移真实状态与 GitHub Issues 原生元数据；未修改 issue、计划或代码。  
-> GitHub 核对时点：2026-08-08（Asia/Shanghai）。
+> 初始审计方式：只读核对本地权威文档、当前代码/迁移真实状态与 GitHub Issues 原生元数据。
+> 修正方式：用户授权后在同日继续更新权威文档、实现计划和 GitHub 原生 tracker 元数据；下方 §2–§5 保留审计开始时的证据/发现，当前状态以 §0 为准。
+> GitHub 最终回读时点：2026-08-08（Asia/Shanghai）。
+
+## 0. 修正结果（当前权威状态）
+
+| Finding | 处理结果 | 当前状态 |
+|---------|----------|----------|
+| F-01 CI gate 未登记 | 新增 priority 0 heavy plan、#93~#95 并挂为 #92 原生子票；PR #98 承载三个独立修复 | **规划已修正，运行门仍开放**；必须等 main 连续两次全绿和普通 PR 验证后关闭 #92 |
+| F-02 宪法仍强制 task.json | Constitution 3.0.0 改为 AGENTS registry + GitHub dependencies + light/heavy lanes，并同步三份 `.specify/templates` | 已修正（commit `8571ea4`） |
+| F-03/F-04 媒体顺序与服务端权威缺失 | `063_content_media_metadata.sql` 归 #83 heavy；补 `sort_order`、稳定读取、config/public config、服务端数量/类型/宽高/poster grant 校验；#84 改为 light 上传 UI | 已同步 media spec、#83/#84 与依赖图 |
+| F-05 跨计划边只散落在文档 | #81←#66、#82←#65、#84←#83/#65、#85←#68/#83/#65、#87←#83/#65；#96 等待媒体 T01–T09 terminal tickets | GitHub 原生边已回读验证 |
+| F-06 C2+C6 无 owner | 完整验收并入 #68，要求先收敛 ContentDetail/侧栏/历史记录器/类型/overlay entry hook，再接正式转场 | 已修正 #68 与 backlog |
+| F-07 #90/source-linkage owner 冲突 | 执行序改为媒体 T01–T09 → #96 → #90 → #97；#90 固定复用 `RelatedFanworks` 与 filtered-hot list API | 已同步 spec、issues 与原生边 |
+| F-08 #73/#76 无 heavy plan | 新增 `2026-08-08-omnicraft-ip-visit-history.md` 与 `2026-08-08-omnicraft-favorites-cutover.md`，锁定 HTTP/时间戳/批量/发布/恢复边界 | 已补齐并链接到 AGENTS/#73/#76 |
+| F-09 tracker 状态失真 | #1 以归档证据关闭；#80 挂 #81~#90 原生子票；#92 挂 #93~#95；#76 改 `ready-for-human`；#64/#80 移除 AFK-ready label | 已修正 |
+| F-10 本地/GitHub/历史 spec 漂移 | #64/#80 正文按本地 confirmed spec 同步；community spec 的固定 30 天 favorites 决策标记为被 2026-08-07 规格取代 | 已修正 |
+| F-11 余项口径/旧执行门 | AGENTS 列改为「执行单元」并定义按 ticket/顶层 Task 计数；source=9 tasks、collab=8 tasks、Agent=6 steps；两社区计划移除旧 sub-skill/显式点名门 | 已修正 |
+| F-12 文字精度 | 迁移预留统一为 media 063 → source 064 → invites 065 → IP 066 → favorites 067；旧线性协调文档标记 superseded | 已修正；archive/progress 历史表述不追改 |
+
+### 修正后的机器可读执行图
+
+- #92 → 子票 #93/#94/#95；该全局门不阻止分析/实现，但阻止把 admin merge 当正常完成证据。
+- #65 → #66/#67/#70/#82；#81←#66；#68←#67；#83 可独立进行，#84←#83/#65，#85←#83/#68/#65，#86←#85，#87←#83/#65，#88←#85，#89←#85/#88。
+- #96←#81/#82/#84/#86/#87/#89 → #90（另依赖 #88）→ #97。
+- #69←#68/#97，#71←#65/#97，#72←#65/#66/#97 → #73；#74←#73 → #75 → #76，且 #76 直接依赖 #73 与真实云端人工门。
+
+该图已通过 GitHub dependency/sub-issue API 回读；实现者不得用下文初始审计图覆盖它。
 
 ## 1. 审计范围与结论
 
@@ -25,7 +49,7 @@
 
 1. **#64 拆票完整。** #64 原生 sub-issues 正好是 #65–#76，12 票均 OPEN、`ready-for-agent`、0 comments。组内原生依赖与票据 `Blocked by` 完全一致：65←∅，66←65，67←65，68←67，69←68，70←65，71←65，72←65/66，73←65，74←65/71，75←74，76←75。
 2. **#80 的 10 票内部依赖正确。** #81–#90 均 OPEN、`ready-for-agent`、0 comments；原生依赖与正文一致：81/82/83←∅，84←83，85←83/84，86←85，87←84，88←85，89←85/88，90←88。
-3. **风险拆分方向正确。** IP history `064` 和 favorites drop `065` 被分成独立 heavy 任务；#76 保留访问日志+可恢复备份人工门（Web 规格第 109–118、134–140 行）；#84 已加入 C7 非连续 migration fixture 验证门。
+3. **风险拆分方向正确。** IP history 与 favorites drop 从一开始就被分成独立 heavy 任务；最终预留分别调整为 `066`/`067`，#76 保留访问日志+可恢复备份人工门。
 4. **迁移编号当前无占用冲突。** 仓库现有为 001–060、062；预留为 063 collaboration invites、064 IP history、065 favorites drop、066 source linkage、067 cover dimensions。Migration runner 按版本集合/升序计划，不把“最大已应用版本”当成唯一边界；因此先 067、后补 063–066 在 runner 层面可行。风险在 fixture 验证而不是 runner 排序，已由 #84/C7 识别。
 
 ## 3. 发现与必要调整
