@@ -164,7 +164,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
   }));
 
   return (
-    <div className="mx-auto flex w-full max-w-[1440px] min-h-[calc(100vh-52px)]">
+    <div className="mx-auto flex w-full max-w-[1280px] min-h-[calc(100vh-52px)]">
       {/* Sidebar */}
       <Sidebar
         className="hidden md:block"
@@ -247,10 +247,11 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
                     key={opt.value}
                     type="button"
                     onClick={() => setContentType(opt.value)}
-                    className={`flex-shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors duration-150 whitespace-nowrap select-none active:bg-muted ${
+                    aria-pressed={active}
+                    className={`flex-shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors duration-150 whitespace-nowrap select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       active
-                        ? "border-border bg-muted text-foreground font-semibold"
-                        : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/70 cursor-pointer"
+                        ? "border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold"
+                        : "border-transparent text-fg-muted hover:bg-canvas-subtle hover:text-foreground cursor-pointer"
                     }`}
                   >
                     {opt.label}
