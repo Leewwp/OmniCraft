@@ -65,6 +65,7 @@ var safeMessages = map[string]string{
 	"VALIDATION_ERROR":        "invalid request parameters",
 	"INVALID_BODY":            "invalid request body",
 	"INVALID_SOURCE_ORIGINAL": "invalid source original content",
+	"MEDIA_SET_INVALID":       "media set violates the gallery contract",
 	"PUBLISH_FROZEN":          "publishing is temporarily frozen",
 	"LOW_REPUTATION":          "reputation score too low to perform this action",
 	"BLOCKED":                 "you have been blocked from this action",

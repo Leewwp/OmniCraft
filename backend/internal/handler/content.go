@@ -52,7 +52,8 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 	uploadGrants := service.NewUploadGrantService(rdb, grantTTL)
 	contentSvc := service.NewContentServiceWithOSS(repo, reviewSvc, rdb, &cfg.Cache, ossSvc).
 		WithUploadGrantService(uploadGrants).
-		WithUploadedObjectVerifier(ossSvc)
+		WithUploadedObjectVerifier(ossSvc).
+		WithUploadConfig(&cfg.Upload)
 
 	embeddingRepo := repository.NewEmbeddingRepository(db)
 	recSvc := service.NewRecommendationService(db, embeddingRepo, repo, contentSvc, rdb, &cfg.Recommendation)
@@ -210,6 +211,10 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 		}
 		if errors.Is(err, service.ErrUploadGrantInvalid) {
 			response.SafeErrorResponse(c, http.StatusBadRequest, "UPLOAD_GRANT_INVALID", err)
+			return
+		}
+		if errors.Is(err, service.ErrMediaSetInvalid) {
+			response.SafeErrorResponse(c, http.StatusBadRequest, "MEDIA_SET_INVALID", err)
 			return
 		}
 		if errors.Is(err, service.ErrUploadGrantUnavailable) {
@@ -532,7 +537,7 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 	} else {
 		var primaries []int
 		for i := range attachments {
-			if attachments[i].IsPrimary {
+			if attachments[i].IsPrimary != nil && *attachments[i].IsPrimary {
 				primaries = append(primaries, i)
 			}
 		}

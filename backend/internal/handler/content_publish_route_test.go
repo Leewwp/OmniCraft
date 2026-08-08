@@ -231,6 +231,91 @@ func TestCreateContentRouteRejectsPublishFrozen(t *testing.T) {
 	}
 }
 
+func TestCreateContentRouteRejectsInvalidMediaSets(t *testing.T) {
+	router, _, token, _ := setupPublishRoute(t, publishRouteUserState{Verified: true, Reputation: 10})
+
+	imageAttachment := func(sortOrder int, width, height int) string {
+		return `{"file_type":"image","oss_key":"uploads/1/image/` + strconv.Itoa(sortOrder) + `.png","sort_order":` + strconv.Itoa(sortOrder) + `,"width":` + strconv.Itoa(width) + `,"height":` + strconv.Itoa(height) + `}`
+	}
+	videoAttachment := func(sortOrder int) string {
+		return `{"file_type":"video","oss_key":"uploads/1/video/` + strconv.Itoa(sortOrder) + `.mp4","sort_order":` + strconv.Itoa(sortOrder) + `,"width":1280,"height":720}`
+	}
+	tenImages := func() string {
+		parts := make([]string, 0, 10)
+		for i := 0; i < 10; i++ {
+			parts = append(parts, imageAttachment(i, 100, 100))
+		}
+		return `{"title":"many","zone":"original","content_type":"image","attachments":[` + joinComma(parts) + `]}`
+	}()
+
+	tests := []struct {
+		name    string
+		payload string
+	}{
+		{
+			name:    "image content with a single attachment is too few",
+			payload: `{"title":"few","zone":"original","content_type":"image","attachments":[` + imageAttachment(0, 100, 100) + `]}`,
+		},
+		{name: "image content with ten attachments is too many", payload: tenImages},
+		{
+			name:    "image content cannot carry video attachments",
+			payload: `{"title":"mixed","zone":"original","content_type":"image","attachments":[` + imageAttachment(0, 100, 100) + `,` + videoAttachment(1) + `]}`,
+		},
+		{
+			name:    "video content cannot carry image attachments",
+			payload: `{"title":"mixed2","zone":"original","content_type":"video","attachments":[` + videoAttachment(0) + `,` + imageAttachment(1, 100, 100) + `]}`,
+		},
+		{
+			name:    "negative sort_order is rejected",
+			payload: `{"title":"neg","zone":"original","content_type":"image","attachments":[` + imageAttachment(-1, 100, 100) + `,` + imageAttachment(0, 100, 100) + `]}`,
+		},
+		{
+			name:    "duplicate sort_order is rejected",
+			payload: `{"title":"dup","zone":"original","content_type":"image","attachments":[` + imageAttachment(0, 100, 100) + `,` + imageAttachment(0, 200, 200) + `]}`,
+		},
+		{
+			name:    "non-positive width is rejected",
+			payload: `{"title":"w0","zone":"original","content_type":"image","attachments":[{"file_type":"image","oss_key":"uploads/1/image/a.png","sort_order":0,"width":0,"height":100},` + imageAttachment(1, 100, 100) + `]}`,
+		},
+		{
+			name:    "non-positive height is rejected",
+			payload: `{"title":"h0","zone":"original","content_type":"video","attachments":[{"file_type":"video","oss_key":"uploads/1/video/a.mp4","sort_order":0,"width":1280,"height":-1}]}`,
+		},
+		{
+			name:    "media content cannot accept an arbitrary client cover_image_url",
+			payload: `{"title":"cover","zone":"original","content_type":"image","cover_image_url":"https://evil.example.com/cover.png","attachments":[` + imageAttachment(0, 100, 100) + `,` + imageAttachment(1, 100, 100) + `]}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/contents", bytes.NewBufferString(tt.payload))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+token)
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400; body = %s", rec.Code, rec.Body.String())
+			}
+			if !bytes.Contains(rec.Body.Bytes(), []byte("MEDIA_SET_INVALID")) {
+				t.Fatalf("body = %s, want MEDIA_SET_INVALID", rec.Body.String())
+			}
+		})
+	}
+}
+
+func joinComma(parts []string) string {
+	out := ""
+	for i, p := range parts {
+		if i > 0 {
+			out += ","
+		}
+		out += p
+	}
+	return out
+}
+
 type publishRouteUserState struct {
 	Verified   bool
 	Reputation int

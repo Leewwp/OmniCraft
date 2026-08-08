@@ -258,6 +258,12 @@ func newContentGrantPublishService(t *testing.T) (*ContentService, *UploadGrantS
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
 	}
+	// Single connection so publish-transaction writes are visible to later
+	// reads (in-memory sqlite databases are per-connection). Follows the
+	// browse_history/admin_notification_broadcast test precedent.
+	if sqlDB, err := db.DB(); err == nil {
+		sqlDB.SetMaxOpenConns(1)
+	}
 	if err := db.AutoMigrate(&model.ContentItem{}, &model.ContentAttachment{}, &model.ContentTag{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -301,10 +307,13 @@ func (f *fakeUploadedObjectVerifier) VerifyUploadedObject(ctx context.Context, g
 
 func baseGrantPublishInput(attachment AttachmentInput) PublishContentInput {
 	return PublishContentInput{
-		Title:       "grant publish",
-		Zone:        "original",
-		Category:    "game",
-		ContentType: "image",
+		Title:    "grant publish",
+		Zone:     "original",
+		Category: "game",
+		// Non-media content type keeps the grant semantics of these tests
+		// independent from the media set gallery contract (image/video
+		// content now requires a full valid media set).
+		ContentType: "article",
 		IsPublic:    true,
 		AllowCopy:   true,
 		Attachments: []AttachmentInput{attachment},

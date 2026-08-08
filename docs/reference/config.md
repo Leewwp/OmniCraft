@@ -166,7 +166,12 @@ Zero means "use the hardcoded default in reputation_service.go". |
 | `smtp.user` | `string` | User |
 | `social.comment_fold_threshold` | `float64` | CommentFoldThreshold |
 | `social.report_auto_hide_rate` | `float64` | ReportAutoHideRate |
+| `upload.image_gallery_max_items` | `int` | ImageGalleryMaxItems |
+| `upload.image_gallery_min_items` | `int` | Media set (media gallery) size bounds for newly published image/video
+content. Zero means "use the specification defa... |
 | `upload.sheet_music_extensions` | `[]string` | SheetMusicExtensions |
+| `upload.video_gallery_max_items` | `int` | VideoGalleryMaxItems |
+| `upload.video_gallery_min_items` | `int` | VideoGalleryMinItems |
 | `verification.email_ttl_sec` | `int` | EmailTTLSec |
 | `verification.login_captcha_threshold` | `int` | LoginCaptchaThreshold |
 | `verification.password_min_length` | `int` | PasswordMinLength |

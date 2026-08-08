@@ -28,14 +28,20 @@ func setupPublicConfigTestRouter(t *testing.T) *gin.Engine {
 		},
 		Captcha: config.CaptchaConfig{
 			Provider: "aliyun_v2",
-			Prefix:  "",
-			SceneID: "",
-			Region:  "cn",
+			Prefix:   "",
+			SceneID:  "",
+			Region:   "cn",
 		},
 		Client: config.ClientConfig{
 			DownloadEnabled: false,
 			DownloadURL:     "",
 			LatestVersion:   "",
+		},
+		Upload: config.UploadConfig{
+			ImageGalleryMinItems: 2,
+			ImageGalleryMaxItems: 9,
+			VideoGalleryMinItems: 1,
+			VideoGalleryMaxItems: 3,
 		},
 	}
 
@@ -121,5 +127,50 @@ func TestPublicConfigAllowlist(t *testing.T) {
 	}
 	if _, has := resp["recommendation"]; has {
 		t.Error("public config must not expose 'recommendation'")
+	}
+}
+
+func TestPublicConfigExposesOnlyGalleryLimits(t *testing.T) {
+	r := setupPublicConfigTestRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/config/public", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	upload, ok := resp["upload"].(map[string]interface{})
+	if !ok {
+		t.Fatal("response must expose the non-sensitive 'upload' limits object")
+	}
+	want := map[string]int{
+		"image_gallery_min_items": 2,
+		"image_gallery_max_items": 9,
+		"video_gallery_min_items": 1,
+		"video_gallery_max_items": 3,
+	}
+	if len(upload) != len(want) {
+		t.Fatalf("upload object has %d keys, want exactly %d (only the gallery limits)", len(upload), len(want))
+	}
+	for key, wantValue := range want {
+		got, has := upload[key]
+		if !has {
+			t.Errorf("upload must contain '%s'", key)
+			continue
+		}
+		number, ok := got.(float64)
+		if !ok || int(number) != wantValue {
+			t.Errorf("upload.%s = %v, want %d", key, got, wantValue)
+		}
+	}
+	for key := range upload {
+		if _, known := want[key]; !known {
+			t.Errorf("upload must not expose unexpected key '%s'", key)
+		}
 	}
 }

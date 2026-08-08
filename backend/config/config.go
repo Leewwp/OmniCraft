@@ -181,6 +181,13 @@ type BrowseHistoryConfig struct {
 
 type UploadConfig struct {
 	SheetMusicExtensions []string `mapstructure:"sheet_music_extensions"`
+	// Media set (media gallery) size bounds for newly published image/video
+	// content. Zero means "use the specification default" so tests and
+	// minimal configs keep working.
+	ImageGalleryMinItems int `mapstructure:"image_gallery_min_items"`
+	ImageGalleryMaxItems int `mapstructure:"image_gallery_max_items"`
+	VideoGalleryMinItems int `mapstructure:"video_gallery_min_items"`
+	VideoGalleryMaxItems int `mapstructure:"video_gallery_max_items"`
 }
 
 type PublishConfig struct {
