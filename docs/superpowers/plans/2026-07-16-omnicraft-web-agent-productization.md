@@ -322,7 +322,7 @@ Update only Task 5 checkboxes and `progress.txt`, stage exact fixture/evaluation
 
 ## Task 6: Browser And Release Verification
 
-- [ ] **Step 1: Run full automated gates**
+- [x] **Step 1: Run full automated gates**
 
 ```bash
 cd backend
@@ -339,17 +339,21 @@ npm run build
 
 Verify protected `/agent` navigation, natural-language questions, citations, shared detail-overlay open/close/history/focus restoration, tool status, stop, no-evidence, degraded keyword search, rate limit, new-conversation preservation, confirmed/cancelled/failed history deletion, mobile layout at 320/375/414px, keyboard focus, reduced motion, user-controlled streaming scroll, feature-disabled gating, absence of a global Agent widget, and absence of an Agent mode in Header search.
 
+> 未勾选：按注册表协调约定，确定性 Playwright 套件建议在 #64 T03/T04 浮窗转场落地后执行，避免旧契约断言返工。degraded keyword search 契约已由确定性评估门（Task 5）与 `agent_tools_test.go` 覆盖。
+
 - [ ] **Step 3: Run real-provider smoke**
 
-With approved environment credentials, verify one cited search question, one no-evidence question, one injection fixture, and one timeout/downgrade case. Record trace IDs and aggregate usage only.
+> 2026-08-08 的 MiniMax `agent-smoke` 只证明 provider chat/tool wire、embedding wire、流式终止与 `<think>` 剥离可用；该命令不经过 AgentService、检索工具执行、引用可见性归一化或降级编排，也没有场景 pass/fail 断言，因此不能作为本步骤的完成证据。真正的 Agent/API smoke 仍待 Step 2 契约稳定后执行。
 
 - [ ] **Step 4: Save screenshots**
 
-- `screenshots/web-agent-grounded-desktop.png`
-- `screenshots/web-agent-citations-mobile.png`
-- `screenshots/web-agent-citation-overlay-desktop.png`
-- `screenshots/web-agent-no-evidence.png`
-- `screenshots/web-agent-degraded-search.png`
+- `screenshots/web-agent-grounded-desktop.png` ✓（2026-08-08 真实 MiniMax 接地回答 + 站内引用）
+- `screenshots/web-agent-citations-mobile.png` ✓（375px 移动端引用/回答）
+- `screenshots/web-agent-citation-overlay-desktop.png` ✓（引用打开 ContentDetailOverlay）
+- `screenshots/web-agent-no-evidence.png` ✓（无依据优雅拒绝）
+- `screenshots/web-agent-degraded-search.png` ✗（UI 无降级标识，视觉上无区分；降级契约由确定性套件验证）
+
+> 4/5 完成；degraded-search 截图待 Step 2 确定性套件一并产出。
 
 - [ ] **Step 5: Enable only in deployment configuration after evidence passes**
 

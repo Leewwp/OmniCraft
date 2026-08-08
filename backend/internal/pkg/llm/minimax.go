@@ -165,7 +165,8 @@ const thinkClose = "</think>"
 // chunks, so a stateful buffer keeps text inside an unclosed block until the
 // closing tag arrives or the stream ends.
 type thinkStripper struct {
-	buf string
+	buf   string
+	depth int
 }
 
 func newThinkStripper() *thinkStripper { return &thinkStripper{} }
@@ -177,47 +178,57 @@ func (s *thinkStripper) next(in string) string {
 	if in == "" {
 		return ""
 	}
-	if s.buf == "" && !strings.Contains(in, "<") {
+	if s.buf == "" && s.depth == 0 && !strings.Contains(in, "<") {
 		return in
 	}
 	s.buf += in
 	var out strings.Builder
-	for {
+	for len(s.buf) > 0 {
 		openIdx := strings.Index(s.buf, thinkOpen)
 		closeIdx := strings.Index(s.buf, thinkClose)
-		switch {
-		case openIdx < 0 && closeIdx < 0:
+		if openIdx < 0 && closeIdx < 0 {
 			// No complete tag: emit everything except a trailing fragment that
-			// could begin a tag in a later chunk.
+			// could begin a tag in a later chunk. While inside a reasoning block,
+			// discard the complete text instead of exposing it.
 			cut := trailingTagPrefix(s.buf)
-			out.WriteString(s.buf[:len(s.buf)-cut])
+			if s.depth == 0 {
+				out.WriteString(s.buf[:len(s.buf)-cut])
+			}
 			s.buf = s.buf[len(s.buf)-cut:]
 			return out.String()
-		case closeIdx >= 0 && (openIdx < 0 || closeIdx < openIdx):
-			// Stray closing tag without an open block: drop the tag itself.
-			out.WriteString(s.buf[:closeIdx])
-			s.buf = s.buf[closeIdx+len(thinkClose):]
-		case openIdx >= 0 && closeIdx < 0:
-			out.WriteString(s.buf[:openIdx])
-			s.buf = s.buf[openIdx:]
-			return out.String()
-		default:
-			out.WriteString(s.buf[:openIdx])
-			s.buf = s.buf[closeIdx+len(thinkClose):]
+		}
+
+		nextIdx := openIdx
+		nextTag := thinkOpen
+		if nextIdx < 0 || (closeIdx >= 0 && closeIdx < nextIdx) {
+			nextIdx = closeIdx
+			nextTag = thinkClose
+		}
+		if s.depth == 0 {
+			out.WriteString(s.buf[:nextIdx])
+		}
+		s.buf = s.buf[nextIdx+len(nextTag):]
+		if nextTag == thinkOpen {
+			s.depth++
+		} else if s.depth > 0 {
+			s.depth--
 		}
 	}
+	return out.String()
 }
 
 // flush returns anything left that is safe to emit at the end of a stream:
 // text before an unclosed think block, or a trailing partial open tag.
 func (s *thinkStripper) flush() string {
-	out := s.buf
-	if i := strings.Index(s.buf, thinkOpen); i >= 0 {
-		out = s.buf[:i]
-	} else if cut := trailingTagPrefix(s.buf); cut > 0 {
-		out = s.buf[:len(s.buf)-cut]
+	out := ""
+	if s.depth == 0 {
+		out = s.buf
+		if cut := trailingTagPrefix(s.buf); cut > 0 {
+			out = s.buf[:len(s.buf)-cut]
+		}
 	}
 	s.buf = ""
+	s.depth = 0
 	return out
 }
 

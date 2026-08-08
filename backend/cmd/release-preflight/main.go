@@ -31,14 +31,14 @@ type check struct {
 }
 
 type summary struct {
-	Tool       string  `json:"tool"`
-	CheckedAt  string  `json:"checked_at"`
-	EnvFile    string  `json:"env_file"`
-	Override   string  `json:"override_file"`
-	Schema     string  `json:"schema"`
-	Checks     []check `json:"checks"`
-	OK         bool    `json:"ok"`
-	Redacted   bool    `json:"redacted"`
+	Tool       string   `json:"tool"`
+	CheckedAt  string   `json:"checked_at"`
+	EnvFile    string   `json:"env_file"`
+	Override   string   `json:"override_file"`
+	Schema     string   `json:"schema"`
+	Checks     []check  `json:"checks"`
+	OK         bool     `json:"ok"`
+	Redacted   bool     `json:"redacted"`
 	FieldNames []string `json:"redacted_field_names"`
 }
 
@@ -231,10 +231,12 @@ func loadEffectiveConfig(repoRoot, overrideFile string, checks *[]check) *config
 		*checks = append(*checks, check{Name: "config.yaml.unmarshal", OK: false, Detail: errString(err)})
 		return nil
 	}
-	// Apply the .env overrides through the same mapping the backend uses
-	// (OverrideFromEnv mirrors config.Load), then layer the operator YAML.
-	config.OverrideFromEnv(cfg)
+	// Match config.Load: the operator override is layered onto config.yaml
+	// first, then explicit environment variables remain the final runtime
+	// authority. The preflight must validate the same effective values that the
+	// backend will actually start with.
 	config.LoadOverride(cfg, overrideFile)
+	config.OverrideFromEnv(cfg)
 	return cfg
 }
 
