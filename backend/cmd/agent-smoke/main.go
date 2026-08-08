@@ -116,6 +116,8 @@ func providerModel(provider llm.LLMProvider) string {
 		return p.Model()
 	case *llm.QwenProvider:
 		return p.Model()
+	case *llm.MiniMaxProvider:
+		return p.Model()
 	default:
 		return "unknown"
 	}

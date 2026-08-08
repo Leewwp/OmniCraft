@@ -27,6 +27,8 @@ func NewProviderFromConfig(providerType, apiKey, apiBase, model, embedModel stri
 	switch providerType {
 	case "openai_compat":
 		return NewOpenAICompatProvider(apiKey, apiBase, model, embedModel, opts...)
+	case "minimax":
+		return NewMiniMaxProvider(apiKey, apiBase, model, embedModel, opts...)
 	default:
 		return NewQwenProvider(apiKey, model, embedModel, opts...)
 	}
