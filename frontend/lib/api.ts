@@ -67,6 +67,10 @@ async function ensureCSRFHeader(
   headers["X-CSRF-Token"] = csrfToken;
 }
 
+// ensureCSRFHeader is reused by callers that fetch directly (agent SSE
+// stream) instead of going through api.post.
+export { ensureCSRFHeader };
+
 let refreshPromise: Promise<boolean> | null = null;
 
 let inMemoryAccessToken: string | null = null;
