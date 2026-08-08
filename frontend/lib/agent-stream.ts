@@ -1,4 +1,9 @@
-import { ensureCSRFHeader, getAccessToken } from "@/lib/api";
+import {
+  ensureCSRFHeader,
+  getAccessToken,
+  refreshAccessTokenHeader,
+  refreshCSRFHeader,
+} from "@/lib/api";
 import { normalizeAgentEvent } from "@/lib/agent";
 
 export interface AgentStreamCitation {
@@ -72,21 +77,49 @@ export async function startAgentStream(
   // must carry X-CSRF-Token and credentials like every other mutating call.
   try {
     await ensureCSRFHeader(headers);
-  } catch {
-    // No token available: let the request fail server-side instead of
-    // crashing the stream reader.
+  } catch (error) {
+    // CSRF is a local security precondition. Surface the safe client error and
+    // do not send a knowingly invalid state-changing request to the server.
+    handlers.onError?.(error instanceof Error ? error : new Error("security token unavailable"));
+    return;
   }
-  let res: Response;
-  try {
-    res = await fetchImpl(url, {
+  const send = () =>
+    fetchImpl(url, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
       signal,
       credentials: "include",
     });
-  } catch (error) {
-    if ((error as Error).name !== "AbortError") handlers.onError?.(error as Error);
+
+  let res: Response;
+  let csrfRetried = false;
+  let accessRetried = false;
+  for (;;) {
+    try {
+      res = await send();
+    } catch (error) {
+      if ((error as Error).name !== "AbortError") handlers.onError?.(error as Error);
+      return;
+    }
+    if (res.ok) break;
+
+    const code = await readErrorCode(res);
+    try {
+      if (res.status === 403 && code === "CSRF_TOKEN_INVALID" && !csrfRetried) {
+        csrfRetried = true;
+        await refreshCSRFHeader(headers);
+        continue;
+      }
+      if (res.status === 401 && code === "TOKEN_EXPIRED" && token && !accessRetried) {
+        accessRetried = true;
+        if (await refreshAccessTokenHeader(headers)) continue;
+      }
+    } catch (error) {
+      handlers.onError?.(error instanceof Error ? error : new Error("authentication recovery failed"));
+      return;
+    }
+    handlers.onError?.(new Error(`agent stream failed: ${res.status}`));
     return;
   }
   if (!res.ok || !res.body) {
@@ -111,4 +144,13 @@ export async function startAgentStream(
     return;
   }
   handlers.onClose?.();
+}
+
+async function readErrorCode(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as { code?: unknown };
+    return typeof body.code === "string" ? body.code : "";
+  } catch {
+    return "";
+  }
 }

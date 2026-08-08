@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -67,10 +68,13 @@ func TestNewProviderFromConfig_RoutesCorrectly(t *testing.T) {
 		}
 	})
 
-	t.Run("unknown_defaults_to_qwen", func(t *testing.T) {
+	t.Run("unknown_fails_closed", func(t *testing.T) {
 		p := NewProviderFromConfig("unknown_type", "key", "", "model", "embed")
-		if _, ok := p.(*QwenProvider); !ok {
-			t.Errorf("expected *QwenProvider for unknown type, got %T", p)
+		if _, ok := p.(*unsupportedProvider); !ok {
+			t.Errorf("expected *unsupportedProvider for unknown type, got %T", p)
+		}
+		if _, err := p.Chat(context.Background(), ChatRequest{}); err == nil || !strings.Contains(err.Error(), "unknown_type") {
+			t.Fatalf("unknown provider error = %v, want safe configuration error", err)
 		}
 	})
 

@@ -35,6 +35,69 @@ func loadDefaultConfigForTest(t *testing.T) *Config {
 	return &cfg
 }
 
+func TestLoadDoesNotLetGenericAgentEnvShadowAgentSection(t *testing.T) {
+	t.Setenv("AGENT", "1")
+	t.Setenv("AGENT_WEB_AGENT_ENABLED", "true")
+
+	tmp := t.TempDir()
+	configYAML := []byte(`agent:
+  web_agent_enabled: false
+  llm_provider: minimax
+  llm_model: MiniMax-M1
+  llm_api_base: https://api.minimaxi.com
+  embedding_model: embo-01
+`)
+	require.NoError(t, os.WriteFile(tmp+"/config.yaml", configYAML, 0o600))
+
+	previousWD, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmp))
+	t.Cleanup(func() { require.NoError(t, os.Chdir(previousWD)) })
+
+	cfg := Load()
+	require.Equal(t, "minimax", cfg.Agent.LLMProvider)
+	require.Equal(t, "MiniMax-M1", cfg.Agent.LLMModel)
+	require.Equal(t, "embo-01", cfg.Agent.EmbeddingModel)
+	require.True(t, cfg.Agent.WebAgentEnabled, "explicit namespaced override must still apply")
+}
+
+func TestLoadAppliesExplicitAgentEnvAfterConfigOverride(t *testing.T) {
+	t.Setenv("AGENT_WEB_AGENT_ENABLED", "true")
+	t.Setenv("AGENT_LLM_PROVIDER", "minimax")
+	t.Setenv("AGENT_LLM_MODEL", "MiniMax-M1")
+	t.Setenv("AGENT_LLM_API_BASE", "https://api.minimaxi.com")
+	t.Setenv("AGENT_EMBEDDING_MODEL", "embo-01")
+
+	tmp := t.TempDir()
+	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte(`agent:
+  web_agent_enabled: false
+  llm_provider: openai_compat
+  llm_model: stale-chat
+  llm_api_base: https://stale.example.test
+  embedding_model: stale-embedding
+`), 0o600))
+	require.NoError(t, os.WriteFile(tmp+"/override.yaml", []byte(`agent:
+  web_agent_enabled: false
+  llm_provider: qwen
+  llm_model: stale-override-chat
+  llm_api_base: https://stale-override.example.test
+  embedding_model: stale-override-embedding
+`), 0o600))
+	t.Setenv("CONFIG_OVERRIDE_PATH", tmp+"/override.yaml")
+
+	previousWD, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmp))
+	t.Cleanup(func() { require.NoError(t, os.Chdir(previousWD)) })
+
+	cfg := Load()
+	require.True(t, cfg.Agent.WebAgentEnabled)
+	require.Equal(t, "minimax", cfg.Agent.LLMProvider)
+	require.Equal(t, "MiniMax-M1", cfg.Agent.LLMModel)
+	require.Equal(t, "https://api.minimaxi.com", cfg.Agent.LLMAPIBase)
+	require.Equal(t, "embo-01", cfg.Agent.EmbeddingModel)
+}
+
 func TestValidateReleaseRejectsBypassCaptchaAndLoggerSMTP(t *testing.T) {
 	cfg := &Config{}
 	cfg.Server.Mode = "release"

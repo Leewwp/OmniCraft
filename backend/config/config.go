@@ -369,13 +369,15 @@ func Load() *Config {
 		os.Exit(1)
 	}
 
-	OverrideFromEnv(cfg)
-
 	OverridePath := "data/config_override.yaml"
 	if v := os.Getenv("CONFIG_OVERRIDE_PATH"); v != "" {
 		OverridePath = v
 	}
 	LoadOverride(cfg, OverridePath)
+	// Explicit environment variables are the final runtime authority. In
+	// particular, deployment overrides written by the admin UI must not turn
+	// off an explicitly enabled Agent or replace its provider credentials.
+	OverrideFromEnv(cfg)
 	if err := applyTestMode(cfg); err != nil {
 		slog.Error("invalid test mode configuration", "error", err)
 		os.Exit(1)
@@ -556,6 +558,9 @@ func OverrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("AGENT_LLM_API_BASE"); v != "" {
 		cfg.Agent.LLMAPIBase = v
+	}
+	if v := os.Getenv("AGENT_EMBEDDING_MODEL"); v != "" {
+		cfg.Agent.EmbeddingModel = v
 	}
 	if v := os.Getenv("AGENT_HMAC_SECRET"); v != "" {
 		cfg.Agent.HMACSecret = v

@@ -22,6 +22,8 @@ func TestThinkStripper(t *testing.T) {
 		{name: "block at start", chunks: []string{"<think>hidden</think>shown"}, expected: "shown"},
 		{name: "think block split across chunks", chunks: []string{"<thi", "nk>hidden</thin", "k>tail"}, expected: "tail"},
 		{name: "multiple blocks", chunks: []string{"a<think>x</think>b<think>y</think>c"}, expected: "abc"},
+		{name: "nested block never leaks", chunks: []string{"<think>outer<think>inner</think>still secret</think>visible"}, expected: "visible"},
+		{name: "nested block across chunks", chunks: []string{"safe<think>outer<thi", "nk>inner</think>secret", "</think>tail"}, expected: "safetail"},
 		{name: "stray closing tag dropped", chunks: []string{"a</think>b"}, expected: "ab"},
 		{name: "unclosed block at end dropped on flush", chunks: []string{"pre<think>hidden"}, expected: "pre"},
 		{name: "partial open tag at end dropped on flush", chunks: []string{"text<thi"}, expected: "text"},
