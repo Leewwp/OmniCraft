@@ -33,7 +33,7 @@ CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致
 | 3 | `docs/superpowers/plans/2026-06-30-omnicraft-community-collaboration-invites.md`（执行追踪：GitHub issue #97） | 8 tasks | mixed | 未开始；迁移为 `065_collaboration_invites.sql`。Task 1~4 涉及 migration/config/auth/anti-abuse/事务，按 heavy 分任务独立 worktree/提交；Task 5~7 为 light。须在 source-linkage #96 与媒体 #90 合并后执行；其 `config.go`/`config.yaml`/`routes.go` 改动与 Web Agent 计划串行 |
 | 4 | `docs/superpowers/plans/2026-07-16-omnicraft-web-agent-productization.md` | 6 steps | mixed | Task 1/2/3/5 已合并（PR #35/#37/#39/#41，契约→编排→流式配额→评测门，两阶段审查 blocking 项已修复）；Task 4 已合并（PR #43，旧 Widget 挂载移除、typed normalizer、feature 门控，feature ON/OFF 双态验证）；三缺口 #16/#17/#18/#19 先行落地（PR #36/#38/#40/#42，共享浮窗/推荐页/全站接线/Agent 工作台）。仅剩 Task 6（浏览器 + 真实 Provider smoke 发布验证，6 步），真实 `agent.llm_api_key` 缺失按阻塞处理，仓库默认 `agent.web_agent_enabled=false` 保持关闭，解除后从最新 main 开 `web/agent-t6`；与 #64 契约共享面（浮窗/导航壳/Header），建议在 #64 的 T03/T04 浮窗转场落地后再执行 Task 6 Step 2，避免旧契约断言返工 |
 
-跨计划可执行 DAG 以 GitHub 原生 `blocked_by` 为机器可读门，本文为人类摘要：`#65` →（`#66/#67/#70/#82` 与媒体 `#83` 按文件并行）→ `#68` 与媒体 `#81/#84/#85~#89` → source-linkage `#96` → 媒体 `#90` → collaboration-invites `#97` → Web `#71/#69/#72` → `#73` → `#74/#75/#76`。发现本文与 GitHub 原生边不一致时先停止并修正二者，不自行选择较宽松的一方。
+跨计划可执行 DAG 以 GitHub 原生 `blocked_by` 为机器可读门，本文为人类摘要：`#65` →（`#66/#67/#70/#82` 与媒体 `#83` 按文件并行）→ `#68` 与媒体 `#81/#84/#85~#89` → source-linkage `#96` → 媒体 `#90` → collaboration-invites `#97` → Web `#71` → `#69` → `#72` → `#73` → `#74/#75/#76`。其中 #71/#69/#72 共享筛选、ContentDetail 与 i18n 文件，必须按该顺序串行；发现本文与 GitHub 原生边不一致时先停止并修正二者，不自行选择较宽松的一方。
 
 ### 暂缓计划（不是当前任务来源）
 
