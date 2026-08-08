@@ -1,4 +1,4 @@
-import { getAccessToken } from "@/lib/api";
+import { ensureCSRFHeader, getAccessToken } from "@/lib/api";
 import { normalizeAgentEvent } from "@/lib/agent";
 
 export interface AgentStreamCitation {
@@ -64,16 +64,26 @@ export async function startAgentStream(
   signal?: AbortSignal,
 ): Promise<void> {
   const token = getAccessToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  // /agent/chat/stream sits behind the backend CSRF middleware; the stream
+  // must carry X-CSRF-Token and credentials like every other mutating call.
+  try {
+    await ensureCSRFHeader(headers);
+  } catch {
+    // No token available: let the request fail server-side instead of
+    // crashing the stream reader.
+  }
   let res: Response;
   try {
     res = await fetchImpl(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers,
       body: JSON.stringify(body),
       signal,
+      credentials: "include",
     });
   } catch (error) {
     if ((error as Error).name !== "AbortError") handlers.onError?.(error as Error);
