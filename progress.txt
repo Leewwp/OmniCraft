@@ -2,6 +2,39 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。超过 64KB 或每月轮换一次（上次轮换：2026-08-07）。完整历史见 `docs/archive/progress/2026-08-01-to-2026-08-07.md`。
 
+## [2026-08-08] - 3.6 GiB 面试服务器部署档裁决（含 Prometheus）
+
+### What was done:
+- 复核 Compose 真实服务清单：根目录本地集成 compose 为 12 服务，单服务器生产模板为 17 服务；`architecture.md`/`README.md` 原 6 服务清单仅覆盖 Web 核心，不能代表当前发布合同。
+- 核算单服务器模板声明上限：完整常驻服务约 5.7 GiB；6 个 Web 核心加现有 Prometheus 约 3.9 GiB，均未计 Ubuntu/Docker/页缓存，因此不适合在 3.6 GiB 主机上按原上限全量常驻。
+- 将资源受限面试档写入 `README.md`、`architecture.md` 与单服务器 runbook：保留 6 个 Web 核心、一次性 `migrate` 和 backend-only 精简 Prometheus；完整 exporter/Alertmanager、cAdvisor/Blackbox/node-exporter 与 Loki/Alloy/loki-gate 在该主机暂缓。
+- 明确精简档仍须保留不可变镜像、Redis/PgBouncer 安全合同、迁移账本、仅 Nginx 对外、结构化日志/轮转、健康/就绪检查及备份恢复，不把“少启动容器”表述为完整生产观测已通过。
+
+### Testing:
+- `git diff --check` 通过。
+- `bash scripts/verify-project.sh -Scope Docs -ReportDir /tmp/omnicraft-interview-profile-docs` 通过：doc-validator Go tests 与 release profile check 全绿。
+- 本地 PostgreSQL、Redis 容器已运行且 health 为 healthy；本轮未启动或修改服务器服务。
+
+### Notes:
+- 当前完整 `ops/observability/prometheus.yml` 依赖 Alertmanager、各 exporter、cAdvisor、Blackbox 与 node-exporter。服务器切换前仍需单独实现并验证 backend-only Prometheus 配置及 compose override/profile；本轮按用户范围只更新本地文档，没有改生产 compose 或服务器。
+- 3.6 GiB 档是 Web-only 面试展示档，不替代资源充足环境下的 17 服务完整生产观测档，也不解除真实告警投递/外部 heartbeat 的发布证据要求。
+
+## [2026-08-08] - Task #92 closure revalidation: transient Security gate failure
+
+### What was done:
+- 核对 `main` 最新提交 `079d2a4` 的 Security run `31225081492`：首次运行因 runner 下载模块时 `proxy.golang.org` 返回 403，且 Trivy filesystem/image 扫描未产出完整结果而失败；未发现漏洞 finding 或 secret finding。
+- 在隔离的 `origin/main` 临时副本重跑 Go、Trivy filesystem、Trivy image 三门，全部通过；随后只重跑失败的 GitHub Security job，attempt 2 以 job `93038361451` 在 8m41s 通过。
+- 复核 `main` 的 CI/SBOM/Tauri 与 Security 全部成功；#93/#94/#95 与 #92 已关闭，当前不需要修改安全规则、allowlist 或生产代码。
+
+### Testing:
+- 本地 Docker 授权环境：`verify-alerts.tests.sh`、`alert-drill.tests.sh`、`generate-sbom.tests.sh`、`verify-security.tests.sh`、`verify-project.tests.sh` 全部通过。
+- `cd tools/doc-validator && go run . --check --profile release`、`deployment-contract.tests.sh` 全部通过。
+- 隔离副本：`bash scripts/security/verify-security.sh -Gates go,trivy-fs,trivy-image -BuildImages ...` 的 summary 为 `go:0`、`trivy-fs:0`、`trivy-image:0`、`verdict:0`。
+
+### Notes:
+- 本条只记录远端瞬态失败与重跑证据；未改安全门强度、未提交代码、未覆盖工作区已有未提交计划审计改动。
+- 独立的 performance `Load gate` 仍因 smoke 数据集没有 approved content 失败（run `31220493995`）；该问题不属于 #92，本轮未修改其 seed/fixture。
+
 ## [2026-08-08] - CI gate recovery 三票完成（#93/#94/#95）与 #92 闭门准备
 
 ### What was done:

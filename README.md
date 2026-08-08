@@ -145,7 +145,11 @@ bash scripts/security/verify-security.tests.sh
 
 ## Docker Compose 部署
 
-### 快速启动（全部服务）
+### 本地集成环境
+
+根目录 `docker-compose.yml` 用于本地集成，不是公网服务器部署权威。公网
+服务器必须使用 `docs/deploy/docker-compose.single-server.yml` 和
+`docs/deploy/single-server-beta-runbook.md`，且只由 Nginx 暴露 80/443。
 
 ```bash
 # 1. 配置环境变量
@@ -160,7 +164,7 @@ docker compose ps
 docker compose logs -f
 ```
 
-### 服务清单
+### 核心服务
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
@@ -170,6 +174,20 @@ docker compose logs -f
 | postgres | 5432 | PostgreSQL 16 (pgvector) |
 | pgbouncer | 6432 | 数据库连接池（宿主机端口 6432 → 容器内 5432） |
 | redis | 6379 | Redis 7 |
+| migrate | 无 | 发布时一次性执行前向迁移，成功后退出 |
+
+### 3.6 GiB 面试部署档
+
+资源受限的面试服务器常驻 `nginx`、`frontend`、`backend`、`postgres`、
+`pgbouncer`、`redis` 和精简 `prometheus`；`migrate` 在每次发布时运行并
+退出。Prometheus 只抓取 backend 的内网 `:9091/metrics`，不得直接沿用
+需要 Alertmanager、exporter、cAdvisor、Blackbox 和 node-exporter 的完整
+配置。
+
+该档保留结构化日志、Docker 日志轮转、健康/就绪检查、指标接口与备份恢复
+能力，但暂缓 Loki/Alloy/loki-gate 和完整告警链。它是 Web-only 面试展示
+档，不等同于完整生产观测档；完整服务清单、资源条件和切换前置门见单服务器
+运行手册。
 
 ### 本地地址约定
 
