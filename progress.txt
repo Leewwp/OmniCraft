@@ -35,24 +35,6 @@
 - 提交与合并：#101 的 PR 推送后等 required `project-gate`，绿后合入 main 再关闭 issue。
 
 
-## [2026-08-09] - #101 Load gate 修复（新规则试运行首轮）
-
-### What was done:
-- 复现：干净库（omnicraft_loadtest，61 迁移）+ `-SeedDb` 后端复现 Smoke `detail 200` 失败；历史 run 日志已过期（404）不可查。
-- 根因：seed 只建 load-test 身份不建内容，干净环境无 `published` 内容，详情路径解析不到 CONTENT_ID。
-- 修复 `scripts/load/run-load-tests.sh`：新增 `seed_content()`，幂等插入 1 条 published 内容（title/category/content_type 取自 testdata.json，作者为 load-test-001，zone=original）；新增 `-SeedDbName` 参数（默认 omnicraft），`DB_RUN` 不再硬编码库名（CI `-DbDsn` 路径不受影响）。
-- `scripts/load/run-load-tests.tests.sh` 补 `-SeedDbName` 契约用例。
-- 同时作为开发流程优化计划（docs/working/2026-08-09-development-flow-optimization-plan.md）的试运行任务：无外部依赖，仅启动本任务依赖的 postgres/redis/后端（8090，8080 被本机 java 进程占用），scoped 验证。
-
-### Testing:
-- 契约测试 `bash scripts/load/run-load-tests.tests.sh`：PASS。
-- 真实 Smoke（clean env，`-SeedDbName omnicraft_loadtest`）：seed 身份 5 个 + 内容 1 条 → `resolved content id 1`；health 3/3、search 2/2、detail 4/4、login 1/1、auth/me 1/1 全过；p(95)=32ms、p(99)=47.84ms、error rate 0%；阈值全部 ✓；cleanup 正常。
-- `bash -n` 语法检查通过。
-
-### Notes:
-- 本地验证环境与 CI 的差异处理：CI 用 `-DbDsn`（psql），库名在 DSN 内；本地 `-SeedDb` 容器路径补 `-SeedDbName` 对齐。CI workflow 无需改动。
-- 提交与合并：#101 的 PR 推送后等 required `project-gate`，绿后合入 main 再关闭 issue。
-
 
 ## [2026-08-08] - 分支/计划审查收口：合并文档批次并修正 #71→#69→#72 依赖
 
