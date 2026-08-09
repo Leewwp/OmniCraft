@@ -2,6 +2,28 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。超过 64KB 或每月轮换一次（上次轮换：2026-08-07）。完整历史见 `docs/archive/progress/2026-08-01-to-2026-08-07.md`。
 
+## [2026-08-10] - Ticket 03 (#83) 安全修复批次（P1-1/P1-2/P2-1/P2-2/P2-3/P2-4）
+
+### What was done:
+- **P1-1**：`NewContentHandler` 链式配置补 `.WithImageDimensionsResolver(ossSvc)`（content.go），真实视频发布路径可经 OSS 对象头解析 poster 尺寸。
+- **P1-2**：`validatePosterContract` 视频只要求 `PosterGrantID`；客户端 `poster_width/poster_height` 降级为被忽略的兼容字段（不参与校验、不持久化），尺寸一律由服务端从对象头派生。补测试：无客户端宽高成功、错误客户端宽高仍用对象解析结果、image 内容携带 poster 宽高被忽略。
+- **P2-1**：`imageinfo.Parse` 对 PNG/JPEG/WebP 强制 `width>0 && height>0`，否则 `ErrMalformedImage`；补零宽/零高/JPEG/WebP 测试。
+- **P2-2**：图片上传 MIME 合同收敛到 parser 支持的 `image/png|image/jpeg|image/webp`（`imageinfo.IsSupportedMIME` 单一真源）。内容上传路径（`GeneratePresignUploadURL`，覆盖 poster/媒体）严格校验；发布期 poster/image 媒体 grant MIME 校验同步对齐。feedback 附件保留自身 gif 合同（走独立端点，不受影响）。补 presign 接受/拒绝矩阵 + 其他类型合同保持测试 + handler 路由 400 测试。
+- **P2-3**：事务回滚清理日志改为从 `consumedGrants`（服务端真值）构建 `ossKeysToCleanup`，包含已消费 poster grant 与媒体附件 grant 的真实 OSSKey；不再使用客户端提交的（可伪造）OSSKey。补 slog JSON 捕获测试断言真实 key 存在、`forged` key 不存在。
+- **P2-4**：`docs/reference/schema.md` 同步 `content_items.cover_width/cover_height`、`content_attachments.sort_order`（真源 063）。根因修复：doc-validator schema 生成器原先只解析 CREATE TABLE，`--fix` 会丢弃 ALTER TABLE ADD COLUMN 列；现 `parseAlterTableColumns` 合并 ALTER 列并补单测，`--fix` 幂等后 schema.md 同步全部 ALTER 列（含此前缺失的 036/040/041/048/050 等列，纯增量 29 行）。
+
+### Testing:
+- TDD 红→绿：imageinfo 零尺寸、service 无客户端宽高/错误宽高/清理日志、handler 接线与路由 400 先失败后通过。
+- `gofmt -l`（全部改动 Go 文件）：干净。`git diff --check`：通过。
+- `go build ./...`、`go vet ./...`、`go test ./...`（23 包）：全绿（PostgreSQL ephemeral + miniredis 本地可用，无外部依赖）。
+- `tools/doc-validator`：`go test ./...` 通过；`--fix` 幂等；`--check --profile release` 仅剩 1 个 pre-existing warning（`docs/working/2026-08-08-overlay-transition-prototype-observations.md` 无到期日头，origin/main 同样失败，#67 文件，不在本票修改面）。
+- 未改动前端/Tauri、config.yaml、routes.go、迁移编号与历史迁移语义；未提交前 PR #122 仍 Open。
+
+### Notes:
+- 环境：Docker 未在 compose 项目内运行但 5432/6379 端口已有监听（com.docker 代理），ephemeral postgres + miniredis 测试全部可用；未启动 dev server（纯后端修复，无需浏览器验证）。
+- PR #122 的 GitHub Actions 因本月额度耗尽 3 秒内失败（非代码失败）；不得用 workflow/branch-protection 改动绕过，合并须等 P1 修复提交推送后人工复核真实证据。
+- schema.md 的 ALTER 列同步同时修正了生成器 pre-existing 缺口（source_original_id 等此前从未出现在文档中），纯增量、`--fix` 幂等。
+
 ## [2026-08-09] - Ticket 03 (#83) 验证复核
 
 ### What was done:

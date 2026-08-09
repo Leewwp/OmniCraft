@@ -14,6 +14,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/imageinfo"
 	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/pkg/recovery"
 	redisclient "omnicraft/backend/internal/pkg/redis"
@@ -115,13 +116,17 @@ type PublishContentInput struct {
 	// issued to the current publisher. The backend consumes and verifies it,
 	// then derives the persistent cover URL and dimensions. Arbitrary client
 	// cover URLs/keys are never accepted (closes the cover_oss_key drift).
-	PosterGrantID string            `json:"poster_grant_id"`
-	PosterWidth   *int              `json:"poster_width"`
-	PosterHeight  *int              `json:"poster_height"`
-	IsPublic      bool              `json:"is_public"`
-	AllowCopy     bool              `json:"allow_copy"`
-	Tags          []string          `json:"tags"`
-	Attachments   []AttachmentInput `json:"attachments"`
+	PosterGrantID string `json:"poster_grant_id"`
+	// PosterWidth/PosterHeight are ignored compatibility fields kept only so
+	// legacy clients can keep sending them. The server derives poster
+	// dimensions from the uploaded object; these values are never validated
+	// and never persisted.
+	PosterWidth  *int              `json:"poster_width"`
+	PosterHeight *int              `json:"poster_height"`
+	IsPublic     bool              `json:"is_public"`
+	AllowCopy    bool              `json:"allow_copy"`
+	Tags         []string          `json:"tags"`
+	Attachments  []AttachmentInput `json:"attachments"`
 }
 
 type AttachmentInput struct {
@@ -211,8 +216,8 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 			if grant.FileType != "image" {
 				return fmt.Errorf("%w: video poster grant must be an image upload", ErrMediaSetInvalid)
 			}
-			if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(grant.MimeType)), "image/") {
-				return fmt.Errorf("%w: video poster grant MIME type must be image/*", ErrMediaSetInvalid)
+			if !imageinfo.IsSupportedMIME(grant.MimeType) {
+				return fmt.Errorf("%w: video poster grant MIME type must be image/png, image/jpeg or image/webp", ErrMediaSetInvalid)
 			}
 			if s.uploadedObjectVerifier == nil {
 				return ErrOSSNotConfigured
@@ -258,6 +263,9 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 				if (input.ContentType == "image" || input.ContentType == "video") &&
 					!strings.HasPrefix(strings.ToLower(strings.TrimSpace(grant.MimeType)), input.ContentType+"/") {
 					return fmt.Errorf("%w: %s media grant MIME type does not match content type", ErrMediaSetInvalid, input.ContentType)
+				}
+				if input.ContentType == "image" && !imageinfo.IsSupportedMIME(grant.MimeType) {
+					return fmt.Errorf("%w: image media grant MIME type must be image/png, image/jpeg or image/webp", ErrMediaSetInvalid)
 				}
 				if s.uploadedObjectVerifier == nil {
 					return ErrOSSNotConfigured
@@ -349,8 +357,11 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 
 	if err != nil {
 		s.restoreUploadGrants(ctx, consumedGrants)
-		for _, a := range input.Attachments {
-			ossKeysToCleanup = append(ossKeysToCleanup, a.OSSKey)
+		// Manual-cleanup keys come from the consumed grants (server-side
+		// truth), never from client-submitted OSSKeys, which may be forged.
+		// This covers both the poster grant and every consumed media grant.
+		for _, g := range consumedGrants {
+			ossKeysToCleanup = append(ossKeysToCleanup, g.OSSKey)
 		}
 		if len(ossKeysToCleanup) > 0 {
 			slog.Error("transaction rolled back, OSS files need manual cleanup", "keys", ossKeysToCleanup)
@@ -477,24 +488,24 @@ func (s *ContentService) validateMediaGallery(input *PublishContentInput) error 
 }
 
 // validatePosterContract enforces the controlled poster contract: video
-// posters must arrive as an image upload grant with positive dimensions;
-// image content must not carry a poster grant at all.
+// posters must arrive as an image upload grant; image content must not carry a
+// poster grant at all. Client-submitted poster_width/poster_height are
+// compatibility fields and are ignored: the server derives the real poster
+// dimensions from the uploaded object, so they never gate publish and never
+// get persisted.
 func (s *ContentService) validatePosterContract(input *PublishContentInput) error {
 	switch input.ContentType {
 	case "video":
 		if input.PosterGrantID == "" {
 			return fmt.Errorf("%w: video poster grant is required", ErrMediaSetInvalid)
 		}
-		if input.PosterWidth == nil || *input.PosterWidth <= 0 || input.PosterHeight == nil || *input.PosterHeight <= 0 {
-			return fmt.Errorf("%w: video poster requires positive width/height", ErrMediaSetInvalid)
-		}
 	case "image":
-		if input.PosterGrantID != "" || input.PosterWidth != nil || input.PosterHeight != nil {
+		if input.PosterGrantID != "" {
 			return fmt.Errorf("%w: poster grants are only accepted for video content", ErrMediaSetInvalid)
 		}
 	default:
-		if input.PosterGrantID != "" || input.PosterWidth != nil || input.PosterHeight != nil {
-			return fmt.Errorf("%w: poster fields are only accepted for video content", ErrMediaSetInvalid)
+		if input.PosterGrantID != "" {
+			return fmt.Errorf("%w: poster grants are only accepted for video content", ErrMediaSetInvalid)
 		}
 	}
 	return nil

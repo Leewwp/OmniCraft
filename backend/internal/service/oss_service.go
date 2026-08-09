@@ -15,6 +15,7 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/imageinfo"
 )
 
 var ErrOSSNotConfigured = errors.New("oss config is incomplete")
@@ -79,6 +80,13 @@ func (s *OSSService) GeneratePresignUploadURL(ctx context.Context, req PresignUp
 
 	if err := s.validateUploadByType(normalizedFileType, normalizedMime, req.FileSize, req.DurationSec, ext); err != nil {
 		return nil, err
+	}
+	// Content uploads (media gallery items and video posters) must be MIME
+	// types the imageinfo parser can decode, so an upload that passes here can
+	// always be parsed for dimensions at publish time. Feedback attachments
+	// keep their own MIME contract and do not go through this endpoint.
+	if normalizedFileType == "image" && !imageinfo.IsSupportedMIME(normalizedMime) {
+		return nil, &UploadValidationError{Message: "mime_type must be image/png, image/jpeg or image/webp"}
 	}
 
 	ossKey := s.buildOSSKey(normalizedFileType, ext, userID)

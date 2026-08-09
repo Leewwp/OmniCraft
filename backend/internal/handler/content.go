@@ -53,6 +53,7 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 	contentSvc := service.NewContentServiceWithOSS(repo, reviewSvc, rdb, &cfg.Cache, ossSvc).
 		WithUploadGrantService(uploadGrants).
 		WithUploadedObjectVerifier(ossSvc).
+		WithImageDimensionsResolver(ossSvc).
 		WithUploadConfig(&cfg.Upload)
 
 	embeddingRepo := repository.NewEmbeddingRepository(db)

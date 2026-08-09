@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -16,6 +17,28 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 )
+
+// TestNewContentHandlerWiresImageDimensionsResolver proves the production
+// handler chain injects the OSS service as the image dimensions resolver, so
+// real video publish derives poster dimensions from the uploaded object.
+func TestNewContentHandlerWiresImageDimensionsResolver(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("sqlite: %v", err)
+	}
+	h := NewContentHandler(db, testOSSUploadConfig(), nil)
+
+	svcVal := reflect.ValueOf(h.contentSvc).Elem()
+	field := svcVal.FieldByName("imageDimensions")
+	if !field.IsValid() {
+		t.Fatal("imageDimensions field not found on ContentService")
+	}
+	if field.IsNil() {
+		t.Fatal("imageDimensions resolver must be wired from ossSvc in NewContentHandler")
+	}
+}
 
 func TestGenerateOSSTokenReturnsUploadGrant(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -64,6 +87,39 @@ func TestGenerateOSSTokenReturnsUploadGrant(t *testing.T) {
 	}
 	if !mr.Exists("upload:grant:" + resp.GrantID) {
 		t.Fatalf("redis missing upload grant %q", resp.GrantID)
+	}
+}
+
+func TestGenerateOSSTokenRejectsUnsupportedImageMIME(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("sqlite: %v", err)
+	}
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("miniredis: %v", err)
+	}
+	defer mr.Close()
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer rdb.Close()
+
+	h := NewContentHandler(db, testOSSUploadConfig(), rdb)
+	r := gin.New()
+	r.POST("/contents/oss-token", func(c *gin.Context) {
+		c.Set(middleware.UserIDKey, int64(42))
+		h.GenerateOSSToken(c)
+	})
+
+	body := strings.NewReader(`{"file_name":"poster.gif","file_type":"image","mime_type":"image/gif","file_size":123}`)
+	req := httptest.NewRequest(http.MethodPost, "/contents/oss-token", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 	}
 }
 

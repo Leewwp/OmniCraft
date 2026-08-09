@@ -69,6 +69,23 @@ func parseMigrations() ([]TableDef, error) {
 			tableDef := parseTableBody(tableName, body)
 			allTables = append(allTables, tableDef)
 		}
+
+		// Merge columns added by ALTER TABLE ... ADD COLUMN (e.g. 063 media
+		// metadata) into their base table so the generated schema reflects the
+		// migrations as the source of truth.
+		alterColumns := parseAlterTableColumns(content)
+		for tableName, cols := range alterColumns {
+			td := findTable(allTables, tableName)
+			if td == nil {
+				continue
+			}
+			for _, col := range cols {
+				if td.hasColumn(col.Name) {
+					continue
+				}
+				td.Columns = append(td.Columns, col)
+			}
+		}
 	}
 
 	sort.Slice(allTables, func(i, j int) bool {
@@ -97,6 +114,93 @@ func extractParenthesizedBlock(s string, start int) (string, error) {
 	return "", fmt.Errorf("unmatched parentheses starting at %d", start)
 }
 
+func findTable(tables []TableDef, name string) *TableDef {
+	for i := range tables {
+		if tables[i].Name == name {
+			return &tables[i]
+		}
+	}
+	return nil
+}
+
+func (td *TableDef) hasColumn(name string) bool {
+	for _, col := range td.Columns {
+		if col.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// alterColumnRe matches one "ADD COLUMN [IF NOT EXISTS] name TYPE ..." inside
+// an ALTER TABLE statement, possibly spanning lines and multiple columns.
+var alterColumnRe = regexp.MustCompile(`(?is)ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s+([^,;]+)`)
+
+// refRe matches a REFERENCES clause in a column definition.
+var refRe = regexp.MustCompile(`REFERENCES\s+(\w+(?:\.\w+)?)\s*\((\w+)\)`)
+
+// parseAlterTableColumns extracts columns added by ALTER TABLE ... ADD COLUMN
+// from a migration file. It returns columns keyed by table name, in file
+// order. Constraints (NOT NULL, DEFAULT, REFERENCES) are parsed like CREATE
+// TABLE columns so the generated schema stays consistent.
+func parseAlterTableColumns(content string) map[string][]ColumnDef {
+	// Split into individual statements so "ALTER TABLE x ... ADD COLUMN a, ADD COLUMN b"
+	// keeps all columns under the same table.
+	stmtRe := regexp.MustCompile(`(?is)ALTER\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*([^;]*)`)
+	results := map[string][]ColumnDef{}
+	for _, m := range stmtRe.FindAllStringSubmatch(content, -1) {
+		tableName := m[1]
+		body := m[2]
+		for _, colMatch := range alterColumnRe.FindAllStringSubmatch(body, -1) {
+			col := parseColumnSpec(colMatch[1], colMatch[2])
+			results[tableName] = append(results[tableName], col)
+		}
+	}
+	return results
+}
+
+// parseColumnSpec parses "name TYPE rest..." into a ColumnDef, mirroring the
+// CREATE TABLE column parsing used by parseTableBody. Multi-word types such as
+// DOUBLE PRECISION are kept intact by stopping at a constraint keyword.
+func parseColumnSpec(name, spec string) ColumnDef {
+	col := ColumnDef{Name: name}
+	fields := strings.Fields(strings.TrimSpace(spec))
+	stop := func(word string) bool {
+		switch strings.ToUpper(word) {
+		case "NOT", "DEFAULT", "REFERENCES", "PRIMARY", "UNIQUE", "CHECK", "ON":
+			return true
+		}
+		return false
+	}
+	for _, f := range fields {
+		if stop(f) {
+			break
+		}
+		if col.Type != "" {
+			col.Type += " "
+		}
+		col.Type += strings.ToUpper(f)
+	}
+	upper := strings.ToUpper(spec)
+	if strings.Contains(upper, "NOT NULL") {
+		col.NotNull = true
+	}
+	if strings.Contains(upper, "PRIMARY KEY") {
+		col.PrimaryKey = true
+	}
+	if strings.Contains(upper, "UNIQUE") {
+		col.Unique = true
+	}
+	defaultRe := regexp.MustCompile(`(?i)DEFAULT\s+(\S+)`)
+	if dm := defaultRe.FindStringSubmatch(spec); dm != nil {
+		col.Default = strings.TrimRight(strings.TrimRight(dm[1], ","), ";")
+	}
+	if fm := refRe.FindStringSubmatch(spec); fm != nil {
+		col.References = fm[1] + "." + fm[2]
+	}
+	return col
+}
+
 // parseTableBody parses the content inside CREATE TABLE parentheses.
 func parseTableBody(tableName, body string) TableDef {
 	td := TableDef{Name: tableName}
@@ -105,7 +209,6 @@ func parseTableBody(tableName, body string) TableDef {
 	colRe := regexp.MustCompile(`^\s*(\w+)\s+(\S+)`)
 	primaryKeyRe := regexp.MustCompile(`PRIMARY\s+KEY\s*\((\w+)\)`)
 	uniqueRe := regexp.MustCompile(`UNIQUE\s*\((\w+(?:\s*,\s*\w+)*)\)`)
-	fkRe := regexp.MustCompile(`REFERENCES\s+(\w+(?:\.\w+)?)\s*\((\w+)\)`)
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -164,7 +267,7 @@ func parseTableBody(tableName, body string) TableDef {
 				val := strings.TrimRight(dm[1], ",")
 				col.Default = val
 			}
-			if fm := fkRe.FindStringSubmatch(rest); fm != nil {
+			if fm := refRe.FindStringSubmatch(rest); fm != nil {
 				col.References = fm[1] + "." + fm[2]
 			}
 			commentRe := regexp.MustCompile(`--\s*(.+)`)
