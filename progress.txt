@@ -2,6 +2,19 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。超过 64KB 或每月轮换一次（上次轮换：2026-08-07）。完整历史见 `docs/archive/progress/2026-08-01-to-2026-08-07.md`。
 
+## [2026-08-09] - Ticket 02 (#82) 验证修正
+
+### What was done:
+- 保留加载失败时的内联错误与全局 Toast；add/remove/create 仍只显示弹窗内 notice。
+- 修正测试对重复错误文案的查询，明确断言同时存在两处文案和 `alert` Toast。
+
+### Testing:
+- `npm run test:unit`：234/234 通过。
+- `npx tsc --noEmit --incremental false`、`npm run build`：通过。
+
+### Notes:
+- 当前仅验证和修复 worktree，未提交或合并。
+
 ## [2026-08-08] - Ticket 01 (#65): 对齐 P-01 重叠边界与 UI 权威契约
 
 ### What was done:

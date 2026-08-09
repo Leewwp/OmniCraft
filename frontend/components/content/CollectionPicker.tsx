@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/Toast";
 import {
   addCollectionItem,
   createCollection,
@@ -46,6 +47,7 @@ export function CollectionPicker({
   onChanged,
 }: CollectionPickerProps) {
   const t = useTranslations();
+  const { toast } = useToast();
   const [collections, setCollections] = useState<CollectionSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -171,6 +173,7 @@ export function CollectionPicker({
       setCollections(response.collections);
     } catch {
       setError(true);
+      toast("error", t("collections.picker.errors.load"));
     } finally {
       setLoading(false);
     }
