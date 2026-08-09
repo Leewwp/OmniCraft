@@ -15,6 +15,7 @@ import {
   updateCollection,
 } from "@/lib/collections";
 import { CollectionPicker } from "@/components/content/CollectionPicker";
+import { ToastProvider } from "@/components/ui/Toast";
 import { cleanup, fireEvent, installDom, waitFor } from "./runtime-test-helpers";
 import { render } from "@testing-library/react";
 
@@ -184,6 +185,17 @@ test("CollectionPicker lists same-zone collections with content item state from 
   assert.equal(calls.post.length, 0, "already-added state must not be probed with a duplicate add request");
 });
 
+test("CollectionPicker shows both inline error and a toast when loading fails", async () => {
+  installDom();
+  installApiMocks({ getShouldFail: () => true });
+  const view = renderPicker();
+
+  const messages = await view.findAllByText("Failed to load collections");
+  assert.equal(messages.length, 2);
+  const toast = await view.findByRole("alert");
+  assert.match(toast.textContent ?? "", /Failed to load collections/);
+});
+
 test("CollectionPicker removes already-added content using backend item_id", async () => {
   installDom();
   const calls = installApiMocks({
@@ -338,8 +350,10 @@ test("CollectionPicker shows in-modal notices on add success and failure and aut
 
 test("CollectionPicker does not fire global toasts for in-modal operations", () => {
   const source = fs.readFileSync(new URL("../components/content/CollectionPicker.tsx", import.meta.url), "utf8");
-  assert.doesNotMatch(source, /useToast/);
-  assert.doesNotMatch(source, /toast\s*\(/);
+  assert.match(source, /useToast/);
+  assert.match(source, /toast\("error", t\("collections\.picker\.errors\.load"\)\)/);
+  assert.doesNotMatch(source, /toast\("success"/);
+  assert.doesNotMatch(source, /toast\("error", t\("collections\.picker\.notice/);
 });
 
 test("CollectionPicker traps focus and restores it to the trigger on close", async () => {
@@ -419,6 +433,7 @@ test("new Task 7 code does not import the legacy add-to-collection modal", () =>
 function installApiMocks(
   options: {
     getResponse?: unknown;
+    getShouldFail?: () => boolean;
     postResponse?: unknown;
     putResponse?: unknown;
     postResponseForPath?: (path: string, body: unknown) => unknown;
@@ -434,6 +449,9 @@ function installApiMocks(
 
   api.get = (async <T,>(path: string): Promise<T> => {
     calls.get.push({ path });
+    if (options.getShouldFail?.()) {
+      throw new Error("boom");
+    }
     return (options.getResponse ?? { collection: { id: 9 }, collections: [] }) as T;
   }) as typeof api.get;
 
@@ -478,7 +496,9 @@ function collectionSummary(id: number, title: string, zone: "original" | "fanwor
 function renderPicker() {
   return render(
     <IntlProvider locale="en" messages={pickerMessages}>
-      <CollectionPickerHarness />
+      <ToastProvider>
+        <CollectionPickerHarness />
+      </ToastProvider>
     </IntlProvider>,
   );
 }
