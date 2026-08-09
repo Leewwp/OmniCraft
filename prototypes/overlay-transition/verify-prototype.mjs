@@ -231,6 +231,7 @@ try {
 
   /* ---------- interruption: rapid open→close→open recovers ---------- */
   await page.uncheck('#chk-no-vt');
+  const rapidScrollTopBefore = await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0);
   await page.click('#btn-rapid');
   await page.waitForTimeout(1000);
   const openAfterRapid = await page.$eval('#overlay', (el) => el.classList.contains('open'));
@@ -238,6 +239,20 @@ try {
   await page.screenshot({ path: resolve(SHOT_DIR, 'overlay-transition-interrupt-recovered.png') });
   logs = await logLines(page);
   check('rapid open/close/open recovers to settled open', openAfterRapid && logs.some((l) => l.includes('中断')), logs.slice(0, 2).join(' | '));
+  await page.keyboard.press('Escape');
+  await waitSettled(page, false);
+  const rapidFinalScrollState = await page.$eval('html', (el) => ({
+    htmlOverflow: el.style.overflow,
+    bodyOverflow: document.body.style.overflow,
+    bodyPaddingRight: document.body.style.paddingRight,
+    scrollTop: document.scrollingElement?.scrollTop ?? 0,
+  }));
+  check('rapid final close releases scroll lock',
+    rapidFinalScrollState.htmlOverflow === '' &&
+      rapidFinalScrollState.bodyOverflow === '' &&
+      rapidFinalScrollState.bodyPaddingRight === '' &&
+      rapidFinalScrollState.scrollTop === rapidScrollTopBefore,
+    JSON.stringify(rapidFinalScrollState));
 
   await browser.close();
 } catch (err) {
