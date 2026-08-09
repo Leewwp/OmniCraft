@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniCraft Overlay Shared-Element Transition Prototype (#67)</title>
+<style>
+  :root {
+    --canvas: #FFFFFF;
+    --canvas-subtle: #F5F5F5;
+    --border: #E4E4E7;
+    --text: #18181B;
+    --text-muted: #71717A;
+    --accent: #6366F1;
+    --mask: rgb(24 24 27 / 0.45);
+    --elevation-3: 0 12px 32px -8px rgb(24 24 27 / 0.14), 0 4px 8px -4px rgb(24 24 27 / 0.06);
+    --ease-shared: cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --canvas: #0D1117;
+      --canvas-subtle: #161B22;
+      --border: #30363D;
+      --text: #E6EDF3;
+      --text-muted: #8B949E;
+      --mask: rgb(0 0 0 / 0.60);
+      --elevation-3: 0 12px 32px -8px rgb(0 0 0 / 0.60), 0 4px 8px -4px rgb(0 0 0 / 0.40);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Noto Sans CJK SC", "Segoe UI", sans-serif;
+    background: var(--canvas-subtle);
+    color: var(--text);
+  }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--canvas);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .topbar h1 { font-size: 16px; margin: 0; }
+  .status { font-size: 12px; color: var(--text-muted); display: flex; gap: 16px; flex-wrap: wrap; }
+  .status b { color: var(--text); }
+  .pill { padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); font-size: 11px; }
+  .pill.on { border-color: var(--accent); color: var(--accent); }
+
+  .controls {
+    padding: 12px 24px;
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    background: var(--canvas);
+    border-bottom: 1px solid var(--border);
+  }
+  button, label.chk {
+    font: inherit; font-size: 13px;
+    padding: 6px 12px; border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--canvas);
+    color: var(--text);
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  label.chk { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+
+  .layout { display: grid; grid-template-columns: 1fr 340px; gap: 0; min-height: calc(100vh - 110px); }
+  .feed { padding: 24px; }
+  .feed h2 { font-size: 14px; color: var(--text-muted); margin: 0 0 12px; font-weight: 500; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    background: var(--canvas);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 120ms ease;
+  }
+  .card:hover, .card:focus-visible { border-color: var(--accent); outline: none; }
+  .card .cover { aspect-ratio: 3 / 4; position: relative; display: block; }
+  .card.wide .cover { aspect-ratio: 16 / 9; }
+  .card .cover svg { width: 100%; height: 100%; display: block; }
+  .card .meta { padding: 10px 12px; }
+  .card .meta .title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .card .meta .sub { font-size: 12px; color: var(--text-muted); }
+
+  /* ============ overlay ============ */
+  #overlay {
+    position: fixed; inset: 0; z-index: 50;
+    display: none;
+    /* scroll-lock is done on html/body; overlay itself never scrolls */
+    overflow: hidden;
+  }
+  #overlay.open { display: block; }
+  #overlay .mask {
+    position: absolute; inset: 0;
+    background: var(--mask);
+    opacity: 0;
+  }
+  #overlay .panel {
+    position: absolute; inset: 0;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 6vh 24px 48px;
+    overflow-y: auto;
+    pointer-events: none;
+  }
+  #overlay .sheet {
+    width: min(720px, 100%);
+    background: var(--canvas);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--elevation-3);
+    overflow: hidden;
+    pointer-events: auto;
+  }
+  #overlay .cover-frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    background: var(--canvas-subtle);
+    border-radius: 16px 16px 0 0;
+    overflow: hidden;
+    transform-origin: top left;
+    will-change: transform;
+  }
+  #overlay .cover-frame svg { width: 100%; height: 100%; display: block; }
+  #overlay .close-btn {
+    position: absolute; top: 12px; right: 12px; z-index: 2;
+    width: 36px; height: 36px; border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--canvas);
+    color: var(--text);
+    font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #overlay .body {
+    padding: 18px 20px 28px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  #overlay .body h3 { margin: 0 0 6px; font-size: 18px; }
+  #overlay .body p { margin: 0 0 10px; font-size: 13px; line-height: 1.7; color: var(--text-muted); }
+  #overlay .body .tag { display: inline-block; margin: 0 6px 6px 0; padding: 2px 10px; font-size: 11px; border: 1px solid var(--border); border-radius: 999px; }
+
+  /* reduced-motion & transition enablement */
+  #overlay .mask, #overlay .cover-frame, #overlay .panel, #overlay .body { transition: none; }
+  #overlay.anim-on .mask { transition: opacity var(--dur, 300ms) var(--ease-shared); }
+  #overlay.anim-on .cover-frame { transition: transform var(--dur, 300ms) var(--ease-shared); }
+  #overlay.anim-on .panel { transition: transform var(--dur, 300ms) var(--ease-shared), opacity var(--dur, 300ms) var(--ease-shared); }
+  #overlay.anim-on .body { transition: opacity 150ms ease-out; }
+  #overlay.anim-on.fade-only .mask,
+  #overlay.anim-on.fade-only .panel { transition: opacity 100ms ease-out; }
+  #overlay.anim-on.fade-only .cover-frame { transition: none; }
+
+  /* View Transition API pseudo-element overrides */
+  ::view-transition-group(shared-cover) {
+    animation-duration: var(--vt-dur, 300ms);
+    animation-timing-function: var(--ease-shared);
+  }
+  ::view-transition-old(shared-cover),
+  ::view-transition-new(shared-cover) {
+    animation-duration: var(--vt-dur, 300ms);
+  }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: var(--vt-dur, 300ms);
+    animation-timing-function: var(--ease-shared);
+  }
+  /* reduced-motion: keep VT fade minimal if it ever runs */
+  ::view-transition-group(*),
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: var(--vt-dur, 300ms);
+  }
+
+  /* ============ log ============ */
+  .log-panel {
+    border-left: 1px solid var(--border);
+    background: var(--canvas);
+    display: flex; flex-direction: column;
+    min-height: 100%;
+  }
+  .log-panel h3 { font-size: 13px; margin: 14px 16px 8px; }
+  #log { list-style: none; margin: 0; padding: 0 16px 24px; font-size: 12px; overflow-y: auto; flex: 1; }
+  #log li { padding: 6px 0; border-bottom: 1px dashed var(--border); line-height: 1.55; }
+  #log li .t { color: var(--text-muted); margin-right: 8px; }
+  #log li .path { display: inline-block; padding: 0 6px; border-radius: 999px; font-size: 11px; margin-right: 6px; }
+  #log li .path.flip { background: #312E81; color: #C7D2FE; }
+  #log li .path.vt { background: #064E3B; color: #A7F3D0; }
+  #log li .path.fallback { background: #7C2D12; color: #FED7AA; }
+  #log li .path.fade { background: #374151; color: #D1D5DB; }
+  #log li .path.info { background: #1E3A8A; color: #BFDBFE; }
+  #log li .path.warn { background: #713F12; color: #FDE68A; }
+
+  .scenario { margin: 12px 16px 0; font-size: 12px; color: var(--text-muted); line-height: 1.7; }
+  .scenario b { color: var(--text); }
+  .scenario .keys { font-family: ui-monospace, Menlo, monospace; font-size: 11px; background: var(--canvas-subtle); padding: 0 4px; border-radius: 4px; }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .log-panel { border-left: none; border-top: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <h1>Overlay Shared-Element Transition — prototype #67</h1>
+  <div class="status">
+    <span>VT: <b id="vt-native">checking…</b> <span class="pill" id="vt-pill">—</span></span>
+    <span>prefers-reduced-motion: <b id="rm-native">—</b> <span class="pill" id="rm-pill">—</span></span>
+  </div>
+</header>
+
+<div class="controls">
+  <button id="btn-open-card" class="primary">打开卡片 #1（视口内 source）</button>
+  <button id="btn-open-programmatic">程序化打开（无 source）</button>
+  <button id="btn-open-offscreen">离屏 source</button>
+  <button id="btn-open-detached">已卸载 source</button>
+  <button id="btn-open-unmeasurable">无法测量 source</button>
+  <button id="btn-close-offscreen">开→滚出→关（关闭时 source 离屏）</button>
+  <button id="btn-rapid">连点：开→关→开</button>
+  <label class="chk"><input type="checkbox" id="chk-no-vt"> 强制禁用 View Transition API</label>
+  <label class="chk"><input type="checkbox" id="chk-reduced"> 强制 reduced-motion</label>
+  <button id="btn-clear-log">清空日志</button>
+</div>
+
+<div class="layout">
+  <main class="feed" id="feed">
+    <h2>演示卡片网格（点击卡片打开详情浮层；封面为触发视觉锚点）</h2>
+    <div class="grid" id="grid"></div>
+  </main>
+
+  <aside class="log-panel">
+    <h3>执行日志（路径 / 几何 / 降级原因）</h3>
+    <ul id="log"></ul>
+    <div class="scenario">
+      <b>场景清单</b><br>
+      · 点击卡片：视口内 source，FLIP（或 VT）开合<br>
+      · 无 source / 离屏 / 已卸载 / display:none：居中 scale+fade 降级<br>
+      · <span class="keys">Esc</span> / 遮罩点击 / 关闭按钮：关闭<br>
+      · 关闭时 source 不再可测量：同样降级为居中缩淡<br>
+      · reduced-motion：100ms 纯透明度，无位移缩放
+    </div>
+  </aside>
+</div>
+
+<div id="overlay" aria-hidden="true">
+  <div class="mask" id="overlay-mask"></div>
+  <div class="panel" id="overlay-panel">
+    <div class="sheet" id="overlay-sheet">
+      <div class="cover-frame" id="overlay-cover">
+        <button class="close-btn" id="btn-close" aria-label="关闭">✕</button>
+      </div>
+      <div class="body" id="overlay-body">
+        <h3 id="ov-title"></h3>
+        <p id="ov-sub"></p>
+        <span class="tag">#原型</span>
+        <span class="tag">#FLIP</span>
+        <span class="tag" id="ov-path-tag">#FLIP</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* =========================================================
+ * 常量（#64 决策 10 / ui-spec 权威：300ms 开 / 240ms 关，
+ * 共享缓动 cubic-bezier(0.22,0.61,0.36,1)，reduced-motion
+ * 100ms 纯透明度）
+ * =======================================================*/
+const OPEN_MS = 300;
+const CLOSE_MS = 240;
+const FADE_MS = 100;
+const EASE = 'cubic-bezier(0.22,0.61,0.36,1)';
+const FALLBACK_SCALE = 0.96;
+const VT_NAME = 'shared-cover';
+
+/* 场景数据：卡片封面用 SVG data-URI（无需网络，file:// 可用） */
+const CARDS = (() => {
+  const base = [
+    ['春日市集手记', 262, false],
+    ['山间骑行 Vlog', 199, true],
+    ['深夜食堂配方', 15, false],
+    ['像素风角色设定', 122, false],
+    ['城市夜景长曝光', 220, true],
+    ['复古胶片风写真', 330, false],
+    ['独立游戏开发日志', 42, false],
+    ['手账排版灵感', 160, true],
+  ];
+  const out = [];
+  for (let round = 0; round < 4; round++) {
+    base.forEach(([title, hue, wide], i) => {
+      out.push({
+        title: round === 0 ? title : `${title} ${round + 1}`,
+        hue: (hue + round * 47) % 360,
+        wide,
+        late: round > 0,
+      });
+    });
+  }
+  return out;
+})();
+
+function coverSVG(hue, label) {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="g${hue}" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="hsl(${hue} 80% 62%)"/>
+          <stop offset="100%" stop-color="hsl(${(hue + 50) % 360} 80% 42%)"/>
+        </linearGradient>
+      </defs>
+      <rect width="400" height="400" fill="url(#g${hue})"/>
+      <circle cx="320" cy="80" r="120" fill="hsl(${hue} 80% 70% / 0.35)"/>
+      <text x="200" y="210" text-anchor="middle" font-family="system-ui" font-size="26" fill="white" opacity="0.92">${label}</text>
+    </svg>`;
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+
+/* 页面状态 */
+const state = {
+  trigger: null,        // 当前触发元素（或其 cover svg 的父容器 .cover）
+  phase: 'idle',        // idle | opening | closing
+  path: null,           // flip | vt | fallback | fade
+  run: 0,               // 递增 token，用于取消过期的动画回调
+};
+
+const overlay = document.getElementById('overlay');
+const mask = document.getElementById('overlay-mask');
+const panel = document.getElementById('overlay-panel');
+const coverFrame = document.getElementById('overlay-cover');
+const bodyEl = document.getElementById('overlay-body');
+const closeBtn = document.getElementById('btn-close');
+
+/* ---------------- 工具 ---------------- */
+const $ = (id) => document.getElementById(id);
+
+function log(action, path, detail) {
+  const li = document.createElement('li');
+  const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  const p = document.createElement('span');
+  p.className = 'path ' + (path || 'info');
+  p.textContent = (path || 'info').toUpperCase();
+  li.append(li_span(time), p, document.createTextNode(action), li_span(' ' + (detail || '')));
+  $('log').prepend(li);
+}
+function li_span(text) {
+  const s = document.createElement('span');
+  s.className = 't';
+  s.textContent = text;
+  return s;
+}
+function rectStr(r) {
+  return r ? `x:${Math.round(r.x)} y:${Math.round(r.y)} w:${Math.round(r.width)} h:${Math.round(r.height)}` : 'null';
+}
+function reducedMotion() {
+  return $('chk-reduced').checked || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+function vtSupported() {
+  return typeof document.startViewTransition === 'function';
+}
+function vtEnabled() {
+  return !$('chk-no-vt').checked && vtSupported();
+}
+function refreshStatus() {
+  const native = vtSupported() ? '支持' : '不支持';
+  $('vt-native').textContent = native;
+  $('vt-pill').textContent = $('chk-no-vt').checked ? 'FORCED OFF' : (vtSupported() ? 'ON' : 'N/A');
+  $('vt-pill').classList.toggle('on', vtEnabled());
+  const rm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  $('rm-native').textContent = rm ? 'reduce' : 'no-preference';
+  $('rm-pill').textContent = $('chk-reduced').checked ? 'FORCED ON' : (rm ? 'ON' : 'off');
+  $('rm-pill').classList.toggle('on', reducedMotion());
+}
+window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', refreshStatus);
+
+/* =========================================================
+ * 核心：测量门控
+ * 契约（ui-spec #64 决策 8-9）：
+ *  - source 必须存在、已连接、尺寸 > 0、与视口有交集
+ *  - 任一项失败 → null → 调用方走居中 scale-and-fade 降级
+ * =======================================================*/
+function measureSource(trigger) {
+  if (!trigger || !trigger.isConnected) return null;
+  const r = trigger.getBoundingClientRect();
+  if (r.width <= 0 || r.height <= 0) return null;
+  const inVp =
+    r.bottom > 0 && r.top < window.innerHeight &&
+    r.right > 0 && r.left < window.innerWidth;
+  if (!inVp) return null;
+  return { x: r.left, y: r.top, width: r.width, height: r.height };
+}
+
+/* ---------------- 渲染 overlay ---------------- */
+function getTriggerCover(trigger) {
+  // 触发视觉锚点：卡片封面区域（.cover）。程序化打开时无 source。
+  return trigger ? trigger.querySelector('.cover') || trigger : null;
+}
+
+function renderOverlay(trigger, path) {
+  if (overlay.classList.contains('open')) teardownOverlay();
+  const cover = getTriggerCover(trigger);
+  const card = trigger && trigger.closest('.card');
+  const hue = card ? parseInt(card.dataset.hue, 10) : 262;
+  const title = card ? card.dataset.title : '程序化打开的详情浮层';
+  coverFrame.innerHTML = cover
+    ? cover.innerHTML
+    : `<img src="${coverSVG(hue, '')}" alt="" style="width:100%;height:100%;display:block">`;
+  // SVG data-URI img 需显式填充
+  coverFrame.querySelectorAll('img').forEach(img => { img.style.width = '100%'; img.style.height = '100%'; img.style.display = 'block'; });
+  $('ov-title').textContent = title;
+  $('ov-sub').textContent = `source=${trigger ? 'card' : 'none'} · 路径=${path} · ${OPEN_MS}ms / ${CLOSE_MS}ms`;
+  $('ov-path-tag').textContent = '#' + path;
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+  if (path === 'vt') mask.style.opacity = '1'; // VT 快照内 mask 直接满不透明度，由 root 交叉淡化负责淡入
+  closeBtn.focus();
+}
+
+function hideBody() {
+  bodyEl.style.transition = 'none'; // 立即隐藏，不做过渡（关闭时主体先于回归动画消失）
+  bodyEl.style.opacity = '0';
+  bodyEl.style.pointerEvents = 'none';
+}
+function revealBody() {
+  bodyEl.style.transition = '';
+  bodyEl.style.opacity = '1';
+  bodyEl.style.pointerEvents = 'auto';
+}
+
+function teardownOverlay() {
+  clearVTName(coverFrame);
+  clearCardVTName();
+  overlay.classList.remove('open', 'anim-on', 'fade-only');
+  overlay.setAttribute('aria-hidden', 'true');
+  coverFrame.style.transform = 'none';
+  panel.style.transform = 'none';
+  mask.style.opacity = '0';
+  hideBody();
+}
+
+function removeOverlay() {
+  teardownOverlay();
+}
+
+/* View Transition 名称：只在转场期间动态加，结束后清掉 */
+function setVTName(el) { if (el) el.style.viewTransitionName = VT_NAME; }
+function clearVTName(el) { if (el) el.style.viewTransitionName = ''; }
+function cardCoverVT(trigger) {
+  return getTriggerCover(trigger);
+}
+function clearCardVTName() {
+  if (state.trigger) clearVTName(cardCoverVT(state.trigger));
+}
+
+/* ---------------- 滚动锁 ---------------- */
+let savedScroll = null;
+function lockScroll() {
+  if (savedScroll) return;
+  const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+  savedScroll = {
+    top: document.scrollingElement.scrollTop,
+    htmlOverflow: document.documentElement.style.overflow,
+    bodyOverflow: document.body.style.overflow,
+    bodyPaddingRight: document.body.style.paddingRight,
+  };
+  document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden';
+  if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`;
+}
+function unlockScroll() {
+  document.documentElement.style.overflow = savedScroll?.htmlOverflow || '';
+  document.body.style.overflow = savedScroll?.bodyOverflow || '';
+  document.body.style.paddingRight = savedScroll?.bodyPaddingRight || '';
+  if (savedScroll) document.scrollingElement.scrollTop = savedScroll.top;
+  savedScroll = null;
+}
+
+/* ---------------- 动画辅助 ---------------- */
+function nextFrame() {
+  // 注意：View Transition 进行期间 Chromium 会挂起 rAF（实测），
+  // 双 rAF 兜底 setTimeout，避免在 VT 期间调用时永久挂起。
+  return new Promise(resolve => {
+    let done = false;
+    const fin = () => { if (!done) { done = true; resolve(); } };
+    requestAnimationFrame(() => requestAnimationFrame(fin));
+    setTimeout(fin, 120);
+  });
+}
+function waitForTransition(el, timeout) {
+  return new Promise(resolve => {
+    let done = false;
+    const finish = () => { if (!done) { done = true; cleanup(); resolve(); } };
+    const cleanup = () => {
+      el.removeEventListener('transitionend', finish);
+      el.removeEventListener('transitioncancel', finish);
+      clearTimeout(timer);
+    };
+    const timer = setTimeout(finish, timeout);
+    el.addEventListener('transitionend', finish);
+    el.addEventListener('transitioncancel', finish);
+  });
+}
+async function waitVT(t, fallback) {
+  try {
+    await t.finished;
+    return true;
+  } catch (err) {
+    // AbortError / 被 skipTransition：按中断处理，兜底继续
+    log('View Transition 被中断或拒绝', 'warn', String(err.name || err));
+    if (fallback) await fallback();
+    return false;
+  }
+}
+
+/* =========================================================
+ * 打开路径
+ * =======================================================*/
+async function openOverlay(trigger, source) {
+  state.trigger = trigger;
+  const run = ++state.run;
+  lockScroll();
+
+  if (reducedMotion()) {
+    // AC4：reduced-motion → 100ms 纯透明度，无位移/缩放
+    state.path = 'fade';
+    renderOverlay(trigger, 'fade');
+    overlay.classList.add('anim-on', 'fade-only');
+    mask.style.opacity = '1';
+    bodyEl.style.opacity = '1';
+    bodyEl.style.pointerEvents = 'auto';
+    await waitForTransition(mask, FADE_MS + 120);
+    log('打开完成（reduced-motion 纯透明度）', 'fade', `${FADE_MS}ms`);
+    state.phase = 'idle';
+    return;
+  }
+
+  if (!source) {
+    // AC3：source 缺失/离屏/已卸载/无法测量 → 居中 scale-and-fade
+    state.path = 'fallback';
+    await fallbackOpen(trigger, run);
+    return;
+  }
+
+  if (vtEnabled()) {
+    state.path = 'vt';
+    const used = await vtOpen(trigger, source, run);
+    if (state.run !== run || !overlay.classList.contains('open')) return;
+    revealBody(); // VT 转场结束后展示主体（封面几何已就位）
+    log(used === 'flip' ? '打开完成（VT 失败 → FLIP 兜底）' : '打开完成（VT 共享元素）', used, `src=${rectStr(source)}`);
+    state.phase = 'idle';
+    return;
+  }
+
+  state.path = 'flip';
+  await flipOpen(trigger, source, run);
+  if (state.run !== run || !overlay.classList.contains('open')) return;
+  revealBody();
+  log('打开完成（FLIP）', 'flip', `src=${rectStr(source)}`);
+  state.phase = 'idle';
+}
+
+/* FLIP 打开（可靠核心）：First → Last → Invert → Play */
+async function flipOpen(trigger, src, run) {
+  renderOverlay(trigger, 'flip');
+  overlay.classList.add('anim-on');
+  overlay.style.setProperty('--dur', OPEN_MS + 'ms');
+
+  const cover = cardCoverVT(trigger);
+  const last = coverFrame.getBoundingClientRect();
+  const dx = src.x - last.x;
+  const dy = src.y - last.y;
+  const sx = src.width / last.width;
+  const sy = src.height / last.height;
+
+  // Invert：无过渡瞬移到位
+  coverFrame.style.transition = 'none';
+  coverFrame.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+  mask.style.opacity = '0';
+
+  await nextFrame(); // 确保初始态已绘制
+  if (state.run !== run) return;
+
+  // Play：300ms 同缓动（外壳 mask 与封面同一时间线）
+  const settled = waitForTransition(coverFrame, OPEN_MS + 200);
+  coverFrame.style.transition = '';
+  coverFrame.style.transform = 'none';
+  mask.style.opacity = '1';
+  await settled;
+  if (state.run !== run) return;
+  log('FLIP 开启动画结束', 'flip', `last=${rectStr(last)} dx=${Math.round(dx)} dy=${Math.round(dy)} sx=${sx.toFixed(2)} sy=${sy.toFixed(2)}`);
+}
+
+/* VT 打开（渐进增强）——返回实际使用的路径（'vt' 或 'flip'）
+ * 关键约束（实测）：view-transition-name 在每个快照状态内必须唯一。
+ * 打开：old 态只允许卡片封面带名；new 态只允许浮层封面带名 ——
+ * 回调内必须清掉卡片封面名，否则 new 态重复命名 → Chrome 中止转场。 */
+async function vtOpen(trigger, src, run) {
+  overlay.style.setProperty('--vt-dur', OPEN_MS + 'ms');
+  setVTName(cardCoverVT(trigger));
+  let t;
+  try {
+    t = document.startViewTransition(() => {
+      // 更新回调必须同步完成：实测 rAF 在 VT 进行期间被挂起，
+      // 回调内 await nextFrame() 会导致 updateCallbackDone 永不 resolve
+      renderOverlay(trigger, 'vt');
+      setVTName(coverFrame);
+      clearVTName(cardCoverVT(trigger)); // 新态唯一：只留浮层封面
+    });
+  } catch (err) {
+    // 同步 AbortError：已有进行中的 View Transition
+    log('startViewTransition 同步失败', 'warn', String(err && err.name));
+    clearVTName(cardCoverVT(trigger));
+    teardownOverlay();
+    await flipOpen(trigger, src, run);
+    return 'flip';
+  }
+  const completed = await waitVT(t, async () => {
+    if (state.run !== run) return;
+    log('VT 打开中断 → FLIP 兜底', 'warn', 't.finished rejected');
+    clearVTName(cardCoverVT(trigger));
+    teardownOverlay();
+    await flipOpen(trigger, src, run);
+  });
+  clearCardVTName(); // 转场结束，移除动态名，避免影响后续 DOM 快照
+  state.path = completed ? 'vt' : 'flip';
+  return state.path;
+}
+
+/* 降级打开：居中 scale-and-fade（AC3） */
+async function fallbackOpen(trigger, run) {
+  renderOverlay(trigger, 'fallback');
+  overlay.classList.add('anim-on');
+  overlay.style.setProperty('--dur', OPEN_MS + 'ms');
+  panel.style.transform = `scale(${FALLBACK_SCALE})`;
+  panel.style.opacity = '0';
+  mask.style.opacity = '0';
+  await nextFrame();
+  if (state.run !== run) return;
+  const settled = waitForTransition(panel, OPEN_MS + 200);
+  panel.style.transform = 'none';
+  panel.style.opacity = '1';
+  mask.style.opacity = '1';
+  await settled;
+  if (state.run !== run) return;
+  revealBody();
+  log('降级打开完成（居中 scale+fade）', 'fallback', `原因=${describeFallback(trigger)} · ${OPEN_MS}ms`);
+  state.phase = 'idle';
+}
+
+function describeFallback(trigger) {
+  if (!trigger) return '无 source（程序化打开）';
+  if (!trigger.isConnected) return 'source 已卸载（detached）';
+  const r = trigger.querySelector('.cover') || trigger;
+  const rect = r.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return 'source 无法测量（尺寸为 0 / display:none）';
+  if (rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth) {
+    return `source 离屏 rect=${rectStr(rect)} vp=${window.innerWidth}x${window.innerHeight}`;
+  }
+  return '未知';
+}
+
+/* =========================================================
+ * 关闭路径（可逆回归：仅在 source 仍可测量时反向）
+ * =======================================================*/
+async function closeOverlay() {
+  if (state.phase === 'closing') return;
+  if (state.phase === 'opening') cancelActive();
+  const run = ++state.run;
+  state.phase = 'closing';
+
+  const trigger = state.trigger;
+  hideBody();
+
+  if (reducedMotion()) {
+    overlay.classList.add('anim-on', 'fade-only');
+    overlay.style.setProperty('--dur', FADE_MS + 'ms');
+    const settled = waitForTransition(mask, FADE_MS + 120);
+    mask.style.opacity = '0';
+    await settled;
+    if (state.run !== run) return;
+    removeOverlay();
+    unlockScroll();
+    restoreFocus(trigger);
+    log('关闭完成（reduced-motion 纯透明度）', 'fade', `${FADE_MS}ms`);
+    state.phase = 'idle';
+    return;
+  }
+
+  const src = measureSource(getTriggerCover(trigger));
+  if (!src) {
+    state.path = 'fallback';
+    overlay.classList.add('anim-on');
+    overlay.style.setProperty('--dur', CLOSE_MS + 'ms');
+    panel.style.transition = 'none';
+    panel.style.transform = 'none';
+    panel.style.opacity = '1';
+    await nextFrame();
+    if (state.run !== run) return;
+    const settled = waitForTransition(panel, CLOSE_MS + 200);
+    panel.style.transform = `scale(${FALLBACK_SCALE})`;
+    panel.style.opacity = '0';
+    mask.style.opacity = '0';
+    await settled;
+    if (state.run !== run) return;
+    removeOverlay();
+    unlockScroll();
+    restoreFocus(trigger);
+    log('关闭降级（居中缩淡）', 'fallback', `原因=${describeFallback(trigger)} · ${CLOSE_MS}ms`);
+    state.phase = 'idle';
+    return;
+  }
+
+  if (vtEnabled()) {
+    const used = await vtClose(trigger, src, run);
+    if (state.run !== run) return;
+    removeOverlay();
+    unlockScroll();
+    restoreFocus(trigger);
+    log(used === 'flip' ? '关闭完成（VT 失败 → FLIP 兜底回归）' : '关闭完成（VT 反向回归）', used, `src=${rectStr(src)}`);
+    state.phase = 'idle';
+    return;
+  }
+
+  await flipClose(trigger, src, run);
+  if (state.run !== run) return;
+  removeOverlay();
+  unlockScroll();
+  restoreFocus(trigger);
+  log('关闭完成（FLIP 反向回归）', 'flip', `src=${rectStr(src)}`);
+  state.phase = 'idle';
+}
+
+/* FLIP 关闭：可逆回归（当前封面几何 → source 矩形）
+ * 时序：先 Invert（none → invert 变换作为终点），再 Play 240ms 同缓动 */
+async function flipClose(trigger, src, run) {
+  overlay.classList.add('anim-on');
+  overlay.style.setProperty('--dur', CLOSE_MS + 'ms');
+  const last = coverFrame.getBoundingClientRect();
+  const dx = src.x - last.x;
+  const dy = src.y - last.y;
+  const sx = src.width / last.width;
+  const sy = src.height / last.height;
+
+  // 起点 = 自然布局（identity），终点 = invert 变换（视觉上落在 source 处）
+  coverFrame.style.transition = 'none';
+  coverFrame.style.transform = 'none';
+  mask.style.opacity = '1';
+  await nextFrame();
+  if (state.run !== run) return;
+
+  const settled = waitForTransition(coverFrame, CLOSE_MS + 200);
+  coverFrame.style.transition = '';
+  coverFrame.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+  mask.style.opacity = '0';
+  await settled;
+}
+
+/* VT 关闭——返回实际使用的路径（'vt' 或 'flip'）
+ * 反向：old 态只允许浮层封面带名（卡片封面先清名），new 态只允许卡片封面带名；
+ * 回调内完成“换名 + 隐藏”，保证两个快照内名称唯一。 */
+async function vtClose(trigger, src, run) {
+  overlay.style.setProperty('--vt-dur', CLOSE_MS + 'ms');
+  clearVTName(cardCoverVT(trigger)); // old 态唯一：只有浮层封面
+  setVTName(coverFrame);
+  let t;
+  try {
+    t = document.startViewTransition(() => {
+      clearVTName(coverFrame);        // 新态唯一：只留卡片封面
+      setVTName(cardCoverVT(trigger));
+      overlay.classList.remove('open'); // old snapshot 含 overlay 封面，new 含卡片封面
+      overlay.setAttribute('aria-hidden', 'true');
+      // 同步完成，不在回调内 await（见 vtOpen 注释：VT 期间 rAF 挂起）
+    });
+  } catch (err) {
+    log('startViewTransition 同步失败（关闭）', 'warn', String(err && err.name));
+    clearVTName(coverFrame);
+    clearVTName(cardCoverVT(trigger));
+    teardownOverlay();
+    await flipClose(trigger, src, run);
+    return 'flip';
+  }
+  const completed = await waitVT(t, async () => {
+    if (state.run !== run) return;
+    log('VT 关闭中断 → FLIP 兜底', 'warn', 't.finished rejected');
+    if (!overlay.classList.contains('open')) overlay.classList.add('open'); // 回调已移除时恢复，让 FLIP 回归可见
+    teardownOverlay();
+    await flipClose(trigger, src, run);
+  });
+  clearCardVTName();
+  state.path = completed ? 'vt' : 'flip';
+  return state.path;
+}
+
+function restoreFocus(trigger) {
+  if (trigger && trigger.isConnected) {
+    trigger.focus({ preventScroll: true });
+  } else {
+    document.body.focus?.();
+  }
+}
+
+/* ---------------- 中断处理 ---------------- */
+function cancelActive() {
+  // 直接清掉进行中的过渡，保证状态机不回死锁
+  overlay.style.transition = 'none';
+  const els = [mask, panel, coverFrame];
+  els.forEach(el => {
+    const t = el.style.transition;
+    el.style.transition = 'none';
+    void el.offsetWidth;
+    el.style.transition = t;
+  });
+  if (overlay.classList.contains('open')) revealBody();
+  state.run++;
+  log('中断进行中的转场（cancelActive）', 'warn', `phase=${state.phase}`);
+  state.phase = 'idle';
+}
+
+/* =========================================================
+ * 事件接线
+ * =======================================================*/
+function openFrom(card) {
+  state.phase = 'opening';
+  const coverEl = card.querySelector('.cover');
+  const src = measureSource(coverEl);
+  const run = ++state.run;
+  openOverlay(card, src).catch(err => {
+    if (state.run === run) {
+      log('打开异常', 'warn', String(err && err.message));
+      teardownOverlay();
+      unlockScroll();
+      state.phase = 'idle';
+    }
+  });
+}
+
+function openProgrammatic() {
+  state.phase = 'opening';
+  openOverlay(null, null).catch(err => {
+    log('打开异常', 'warn', String(err && err.message));
+    state.phase = 'idle';
+  });
+}
+
+function buildGrid() {
+  const grid = document.getElementById('grid');
+  CARDS.forEach((c, i) => {
+    const card = document.createElement('article');
+    card.className = 'card' + (c.wide ? ' wide' : '');
+    card.tabIndex = 0;
+    card.dataset.hue = c.hue;
+    card.dataset.title = c.title;
+    card.setAttribute('aria-label', c.title);
+    card.innerHTML = `
+      <div class="cover"><img src="${coverSVG(c.hue, c.title)}" alt="" draggable="false"></div>
+      <div class="meta"><div class="title">${c.title}</div><div class="sub">创作者 · 第 ${i + 1} 篇</div></div>`;
+    card.addEventListener('click', () => openFrom(card));
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFrom(card); }
+    });
+    grid.appendChild(card);
+  });
+}
+
+$('btn-open-card').addEventListener('click', () => {
+  const first = document.querySelector('.card');
+  if (first) openFrom(first);
+});
+$('btn-open-programmatic').addEventListener('click', openProgrammatic);
+$('btn-open-offscreen').addEventListener('click', async () => {
+  const card = document.querySelector('.card');
+  card.scrollIntoView({ block: 'center' });
+  await nextFrame();
+  window.scrollBy(0, 900); // 滚出视口
+  await nextFrame();
+  log('准备：卡片已滚出视口', 'info', `rect=${rectStr(card.getBoundingClientRect())}`);
+  openFrom(card);
+});
+$('btn-open-detached').addEventListener('click', () => {
+  const card = document.querySelectorAll('.card')[3];
+  const ghost = card.cloneNode(true);
+  card.remove(); // 触发元素已卸载（detached）
+  log('准备：卡片已从 DOM 移除', 'info', `isConnected=${ghost.isConnected}`);
+  // 用被移除前的卡片引用打开：测量门必须拒绝
+  state.phase = 'opening';
+  openOverlay(ghost, measureSource(ghost.querySelector('.cover'))).catch(() => {});
+});
+$('btn-open-unmeasurable').addEventListener('click', () => {
+  const card = document.querySelectorAll('.card')[1];
+  card.querySelector('.cover').style.display = 'none'; // 无法测量
+  log('准备：卡片封面 display:none', 'info', 'rect 为零尺寸');
+  openFrom(card);
+  setTimeout(() => { card.querySelector('.cover').style.display = ''; }, 600);
+});
+$('btn-close-offscreen').addEventListener('click', async () => {
+  // 打开（source 可测量，正常 FLIP/VT）→ 解锁滚动并把触发卡滚出视口 → 关闭
+  // 契约：关闭时 source 不可测量 → 降级居中缩淡，而不是飞向离屏位置
+  const card = document.querySelector('.card');
+  openFrom(card);
+  await new Promise(r => setTimeout(r, 500));
+  unlockScroll();
+  card.scrollIntoView({ block: 'center' });
+  await nextFrame();
+  window.scrollBy(0, 900);
+  await nextFrame();
+  log('准备：触发卡已滚出视口（overlay 仍开）', 'info', `rect=${rectStr(card.getBoundingClientRect())}`);
+  closeOverlay();
+});
+$('btn-rapid').addEventListener('click', async () => {
+  const card = document.querySelector('.card');
+  openFrom(card);
+  await new Promise(r => setTimeout(r, 120));
+  closeOverlay();
+  await new Promise(r => setTimeout(r, 120));
+  openFrom(card);
+});
+$('chk-no-vt').addEventListener('change', refreshStatus);
+$('chk-reduced').addEventListener('change', refreshStatus);
+$('btn-clear-log').addEventListener('click', () => { $('log').innerHTML = ''; });
+
+closeBtn.addEventListener('click', (e) => { e.stopPropagation(); closeOverlay(); });
+mask.addEventListener('click', closeOverlay);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && overlay.classList.contains('open')) closeOverlay();
+});
+
+/* ---------------- 启动 ---------------- */
+buildGrid();
+refreshStatus();
+log('原型就绪', 'info', `VT native=${vtSupported()} · reduced-motion=${reducedMotion()}`);
+</script>
+</body>
+</html>
