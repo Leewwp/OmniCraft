@@ -24,6 +24,8 @@
 #                        isolated test identities declared in testdata.json;
 #                        without it no DB seeding happens (contract tests,
 #                        or workflows that pre-seed their own identities)
+#   -SeedDbName <name>   database name inside the -SeedDb container
+#                        (default: omnicraft; CI passes -DbDsn instead)
 #   -DbDsn <dsn>         PostgreSQL DSN used for seeding/cleanup when the DB
 #                        is not reachable through a docker container (CI
 #                        service containers); requires psql on PATH
@@ -48,6 +50,7 @@ DRY_RUN=0
 K6_BIN="k6"
 SCRIPT_DIR_OVERRIDE=""
 SEED_DB=""
+SEED_DB_NAME="omnicraft"
 DB_DSN=""
 CONTENT_ID=""
 READINESS_TIMEOUT_SEC=30
@@ -68,6 +71,7 @@ while [ $# -gt 0 ]; do
     -K6Bin) [ $# -ge 2 ] || { echo "missing value for $1" >&2; exit 2; }; K6_BIN="$2"; shift 2 ;;
     -ScriptDir) [ $# -ge 2 ] || { echo "missing value for $1" >&2; exit 2; }; SCRIPT_DIR_OVERRIDE="$2"; shift 2 ;;
     -SeedDb) [ $# -ge 2 ] || { echo "missing value for $1" >&2; exit 2; }; SEED_DB="$2"; shift 2 ;;
+    -SeedDbName) [ $# -ge 2 ] || { echo "missing value for $1" >&2; exit 2; }; SEED_DB_NAME="$2"; shift 2 ;;
     -DbDsn) [ $# -ge 2 ] || { echo "missing value for $1" >&2; exit 2; }; DB_DSN="$2"; shift 2 ;;
     -ContentId) [ $# -ge 2 ] || { echo "missing value for $1" >&2; exit 2; }; CONTENT_ID="$2"; shift 2 ;;
     -SkipReady) SKIP_READY=1; shift ;;
@@ -234,7 +238,7 @@ SEEDED_EMAILS=""
 DB_RUN() {
   local sql="$1"
   if [ -n "$SEED_DB" ]; then
-    docker exec "$SEED_DB" psql -U omnicraft -d omnicraft -v ON_ERROR_STOP=1 -tAc "$sql"
+    docker exec "$SEED_DB" psql -U omnicraft -d "$SEED_DB_NAME" -v ON_ERROR_STOP=1 -tAc "$sql"
   elif [ -n "$DB_DSN" ]; then
     psql "$DB_DSN" -v ON_ERROR_STOP=1 -tAc "$sql"
   fi
@@ -277,10 +281,35 @@ seed_test_data() {
   return 0
 }
 
+# Seed one published content item for the anonymous detail path so the
+# Smoke tier is self-sufficient on a clean environment (identities alone
+# leave no approved content). Idempotent: reuses an existing seeded row.
+seed_content() {
+  local title category content_type email title_esc content_id
+  title="$(python3 -c "import json;print(json.load(open('$K6_DIR/testdata.json'))['content']['titles'][0])")"
+  category="$(python3 -c "import json;print(json.load(open('$K6_DIR/testdata.json'))['content']['categories'][0])")"
+  content_type="$(python3 -c "import json;print(json.load(open('$K6_DIR/testdata.json'))['content']['content_types'][0])")"
+  email="$(printf 'load-test-%03d@omnicraft.local' 1)"
+  title_esc="${title//\'/\'\'}"
+  content_id="$(DB_RUN "SELECT id FROM content_items WHERE title = '$title_esc' AND author_id = (SELECT id FROM users WHERE email = '$email') AND deleted_at IS NULL LIMIT 1" 2>/dev/null | tr -d ' ' || true)"
+  if [ -n "$content_id" ]; then
+    echo "reusing seeded approved content $content_id for the detail path"
+  else
+    content_id="$(DB_RUN "INSERT INTO content_items (title, author_id, zone, category, content_type, status, is_public) SELECT '$title_esc', id, 'original', '$category', '$content_type', 'published', TRUE FROM users WHERE email = '$email' RETURNING id" 2>/dev/null | tr -d ' ' || true)"
+    if [ -z "$content_id" ]; then
+      echo "ERROR: failed to seed approved content for the detail path" >&2
+      return 1
+    fi
+    echo "seeded approved content $content_id for the detail path"
+  fi
+  return 0
+}
+
 if [ "$DRY_RUN" -eq 1 ]; then
   :
 elif [ -n "$SEED_DB" ] || [ -n "$DB_DSN" ]; then
   seed_test_data || exit 1
+  seed_content || exit 1
   if [ -z "$CONTENT_ID" ]; then
     CONTENT_ID="$(DB_RUN "SELECT id FROM content_items WHERE status IN ('approved','published') AND deleted_at IS NULL ORDER BY id LIMIT 1" 2>/dev/null | tr -d ' ' || true)"
     if [ -z "$CONTENT_ID" ]; then

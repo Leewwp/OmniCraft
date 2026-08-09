@@ -394,10 +394,13 @@
         "add": "Failed to add content",
         "remove": "Failed to remove content"
       },
-      "toast": {
+      "notice": {
         "added": "Added to collection",
         "removed": "Removed from collection",
-        "created": "Collection created"
+        "created": "Collection created and added",
+        "addFailed": "Failed to add, please retry",
+        "removeFailed": "Failed to remove, please retry",
+        "createFailed": "Failed to create, please retry"
       }
     },
     "card": {
