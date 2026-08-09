@@ -497,3 +497,15 @@ func TestApplyTestModeLeavesNormalConfigurationUnchanged(t *testing.T) {
 	require.Equal(t, "host=replica.omnicraft.prod dbname=production", cfg.Database.ReadDSN)
 	require.Equal(t, 0, cfg.Redis.DB)
 }
+
+func TestUploadConfigNormalizesGalleryDefaultsAndRejectsInvalidBounds(t *testing.T) {
+	defaults := (UploadConfig{}).NormalizedGalleryLimits()
+	require.Equal(t, 2, defaults.ImageGalleryMinItems)
+	require.Equal(t, 9, defaults.ImageGalleryMaxItems)
+	require.Equal(t, 1, defaults.VideoGalleryMinItems)
+	require.Equal(t, 3, defaults.VideoGalleryMaxItems)
+	require.NoError(t, (UploadConfig{}).ValidateGalleryLimits())
+
+	invalid := UploadConfig{ImageGalleryMinItems: 10, ImageGalleryMaxItems: 2}
+	require.ErrorContains(t, invalid.ValidateGalleryLimits(), "image gallery min_items")
+}

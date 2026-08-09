@@ -60,6 +60,7 @@ func NewPublicConfigHandler(cfg *config.Config) *PublicConfigHandler {
 }
 
 func (h *PublicConfigHandler) GetPublicConfig(c *gin.Context) {
+	upload := h.cfg.Upload.NormalizedGalleryLimits()
 	resp := PublicConfigResponse{
 		Features: PublicFeaturesDTO{
 			WebAgentEnabled:       h.cfg.Agent.WebAgentEnabled,
@@ -83,10 +84,10 @@ func (h *PublicConfigHandler) GetPublicConfig(c *gin.Context) {
 			CurrentPrivacyVersion: h.cfg.Legal.CurrentPrivacyVersion,
 		},
 		Upload: PublicUploadDTO{
-			ImageGalleryMinItems: h.cfg.Upload.ImageGalleryMinItems,
-			ImageGalleryMaxItems: h.cfg.Upload.ImageGalleryMaxItems,
-			VideoGalleryMinItems: h.cfg.Upload.VideoGalleryMinItems,
-			VideoGalleryMaxItems: h.cfg.Upload.VideoGalleryMaxItems,
+			ImageGalleryMinItems: upload.ImageGalleryMinItems,
+			ImageGalleryMaxItems: upload.ImageGalleryMaxItems,
+			VideoGalleryMinItems: upload.VideoGalleryMinItems,
+			VideoGalleryMaxItems: upload.VideoGalleryMaxItems,
 		},
 	}
 	c.JSON(http.StatusOK, resp)

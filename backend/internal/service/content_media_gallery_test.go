@@ -88,6 +88,22 @@ func TestPublishContentRejectsInvalidMediaSets(t *testing.T) {
 				input.CoverImageURL = "https://evil.example.com/cover.png"
 			},
 		},
+		{
+			name:        "image content cannot carry poster dimensions",
+			contentType: "image",
+			attachments: []AttachmentInput{image(), image()},
+			extra: func(input *PublishContentInput) {
+				input.PosterWidth = intPtr(640)
+				input.PosterHeight = intPtr(360)
+			},
+		},
+		{
+			name:        "non-media content cannot carry poster fields",
+			contentType: "article",
+			extra: func(input *PublishContentInput) {
+				input.PosterGrantID = "unexpected"
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -130,6 +146,24 @@ func TestPublishContentMediaSetValidationHappensBeforeGrantConsumption(t *testin
 	}
 	if _, err := grants.Consume(ctx, grant.ID, 42, "content"); err != nil {
 		t.Fatalf("grant must remain consumable after a rejected publish: %v", err)
+	}
+}
+
+func TestPublishContentRejectsMediaOrderThatDoesNotStartAtZero(t *testing.T) {
+	svc, _, _, cleanup := newContentGrantPublishService(t)
+	defer cleanup()
+
+	_, err := svc.PublishContent(PublishContentInput{
+		Title:       "gapped order",
+		Zone:        "original",
+		ContentType: "image",
+		Attachments: []AttachmentInput{
+			{FileType: "image", SortOrder: intPtr(1), Width: intPtr(100), Height: intPtr(100)},
+			{FileType: "image", SortOrder: intPtr(2), Width: intPtr(100), Height: intPtr(100)},
+		},
+	}, 42)
+	if !errors.Is(err, ErrMediaSetInvalid) {
+		t.Fatalf("publish err = %v, want ErrMediaSetInvalid", err)
 	}
 }
 
@@ -312,6 +346,43 @@ func TestPublishVideoPosterGrantMustBeImage(t *testing.T) {
 	}
 }
 
+func TestPublishVideoRejectsPosterGrantWithMismatchedMime(t *testing.T) {
+	svc, grants, _, cleanup := newContentGrantPublishService(t)
+	defer cleanup()
+	ctx := t.Context()
+
+	videoGrant, err := grants.Issue(ctx, UploadGrant{
+		UserID: 42, Purpose: "content", OSSKey: "uploads/42/video/clip.mp4",
+		FileType: "video", MimeType: "video/mp4", FileSize: 123,
+	})
+	if err != nil {
+		t.Fatalf("issue video grant: %v", err)
+	}
+	posterGrant, err := grants.Issue(ctx, UploadGrant{
+		UserID: 42, Purpose: "content", OSSKey: "uploads/42/image/not-image.bin",
+		FileType: "image", MimeType: "video/mp4", FileSize: 123,
+	})
+	if err != nil {
+		t.Fatalf("issue poster grant: %v", err)
+	}
+
+	_, err = svc.PublishContent(PublishContentInput{
+		Title: "video", Zone: "original", Category: "game", ContentType: "video",
+		IsPublic: true, AllowCopy: true, PosterGrantID: posterGrant.ID,
+		PosterWidth: intPtr(640), PosterHeight: intPtr(360),
+		Attachments: []AttachmentInput{{
+			GrantID: videoGrant.ID, FileType: "video", SortOrder: intPtr(0),
+			Width: intPtr(1280), Height: intPtr(720),
+		}},
+	}, 42)
+	if !errors.Is(err, ErrMediaSetInvalid) {
+		t.Fatalf("publish err = %v, want ErrMediaSetInvalid", err)
+	}
+	if _, err := grants.Consume(ctx, posterGrant.ID, 42, "content"); err != nil {
+		t.Fatalf("poster grant must be restored after a rejected publish: %v", err)
+	}
+}
+
 // TestPublishImageRejectsPosterGrant: poster grants are video-only; image
 // content carrying one is rejected before any grant is consumed.
 func TestPublishImageRejectsPosterGrant(t *testing.T) {
@@ -356,11 +427,9 @@ func TestPublishImageRejectsPosterGrant(t *testing.T) {
 	}
 }
 
-// TestPublishLegacyVideoWithoutPosterStillSucceeds: legacy clients that do not
-// send a poster grant keep the pre-contract behavior (server-side snapshot
-// fallback); the publish itself must not fail and the legacy single-video set
-// stays readable.
-func TestPublishLegacyVideoWithoutPosterStillSucceeds(t *testing.T) {
+// New video publishes require a verified poster grant. Historical rows remain
+// readable through the existing compatibility ordering path.
+func TestPublishVideoWithoutPosterIsRejected(t *testing.T) {
 	svc, grants, _, cleanup := newContentGrantPublishService(t)
 	defer cleanup()
 	ctx := t.Context()
@@ -373,7 +442,7 @@ func TestPublishLegacyVideoWithoutPosterStillSucceeds(t *testing.T) {
 		t.Fatalf("issue grant: %v", err)
 	}
 
-	content, err := svc.PublishContent(PublishContentInput{
+	_, err = svc.PublishContent(PublishContentInput{
 		Title:       "legacy-video",
 		Zone:        "original",
 		Category:    "game",
@@ -384,21 +453,13 @@ func TestPublishLegacyVideoWithoutPosterStillSucceeds(t *testing.T) {
 			{GrantID: grant.ID, FileType: "video", OSSKey: "forged", SortOrder: intPtr(0), Width: intPtr(1280), Height: intPtr(720)},
 		},
 	}, 42)
-	if err != nil {
-		t.Fatalf("legacy video publish must not fail: %v", err)
-	}
-	rows, err := svc.contentRepo.GetAttachments(content.ID)
-	if err != nil {
-		t.Fatalf("get attachments: %v", err)
-	}
-	if len(rows) != 1 {
-		t.Fatalf("legacy video attachments = %d, want 1", len(rows))
+	if !errors.Is(err, ErrMediaSetInvalid) {
+		t.Fatalf("publish err = %v, want ErrMediaSetInvalid", err)
 	}
 }
 
-// TestPersistentObjectURL covers the stable unsigned public URL derivation:
-// CDN domain preferred, bucket-qualified endpoint fallback, empty inputs and a
-// nil service yield "".
+// TestPersistentObjectURL covers stable delivery-domain derivation. A private
+// bucket endpoint must never be exposed as an unsigned fallback URL.
 func TestPersistentObjectURL(t *testing.T) {
 	cfg := func(domain, endpoint, bucket string) *config.Config {
 		return &config.Config{OSS: config.OSSConfig{Domain: domain, Endpoint: endpoint, BucketName: bucket}}
@@ -411,8 +472,7 @@ func TestPersistentObjectURL(t *testing.T) {
 	}{
 		{name: "cdn domain preferred", svc: &OSSService{cfg: cfg("https://cdn.example.test", "", "")}, key: "uploads/1.png", want: "https://cdn.example.test/uploads/1.png"},
 		{name: "cdn domain trailing slash trimmed", svc: &OSSService{cfg: cfg("https://cdn.example.test/", "", "")}, key: "uploads/1.png", want: "https://cdn.example.test/uploads/1.png"},
-		{name: "endpoint fallback https", svc: &OSSService{cfg: cfg("", "https://oss-cn-shanghai.aliyuncs.com", "omnicraft")}, key: "uploads/1.png", want: "https://omnicraft.oss-cn-shanghai.aliyuncs.com/uploads/1.png"},
-		{name: "endpoint fallback http", svc: &OSSService{cfg: cfg("", "http://oss-cn-shanghai.aliyuncs.com", "omnicraft")}, key: "uploads/1.png", want: "https://omnicraft.oss-cn-shanghai.aliyuncs.com/uploads/1.png"},
+		{name: "private bucket has no unsigned fallback", svc: &OSSService{cfg: cfg("", "https://oss-cn-shanghai.aliyuncs.com", "omnicraft")}, key: "uploads/1.png", want: ""},
 		{name: "empty key", svc: &OSSService{cfg: cfg("https://cdn.example.test", "", "")}, key: " ", want: ""},
 		{name: "empty key trims", svc: &OSSService{cfg: cfg("https://cdn.example.test", "", "")}, key: "  uploads/1.png  ", want: "https://cdn.example.test/uploads/1.png"},
 		{name: "empty config", svc: &OSSService{}, key: "uploads/1.png", want: ""},

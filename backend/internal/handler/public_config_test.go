@@ -174,3 +174,23 @@ func TestPublicConfigExposesOnlyGalleryLimits(t *testing.T) {
 		}
 	}
 }
+
+func TestPublicConfigNormalizesOmittedGalleryLimits(t *testing.T) {
+	cfg := &config.Config{}
+	r := gin.New()
+	r.GET("/api/v1/config/public", NewPublicConfigHandler(cfg).GetPublicConfig)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/config/public", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	var resp PublicConfigResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Upload != (PublicUploadDTO{ImageGalleryMinItems: 2, ImageGalleryMaxItems: 9, VideoGalleryMinItems: 1, VideoGalleryMaxItems: 3}) {
+		t.Fatalf("upload limits = %#v, want specification defaults", resp.Upload)
+	}
+}
