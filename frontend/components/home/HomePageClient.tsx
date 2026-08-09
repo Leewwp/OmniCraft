@@ -164,7 +164,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
   }));
 
   return (
-    <div className="mx-auto flex w-full max-w-[1440px] min-h-[calc(100vh-52px)]">
+    <div className="mx-auto flex w-full max-w-[1280px] min-h-[calc(100vh-52px)]">
       {/* Sidebar */}
       <Sidebar
         className="hidden md:block"
@@ -175,7 +175,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
       {/* Main content */}
       <div data-testid="home-main-content" className="min-w-0 flex-1">
         {/* Zone banner */}
-        <div className="px-6 pt-5 pb-3">
+        <div className="px-4 pt-5 pb-3 md:px-6">
           <div className="flex items-baseline gap-3">
             <h1 className="text-xl font-semibold tracking-tight text-foreground">{t('nav.fanworkZone')}</h1>
             <p className="text-sm text-muted-foreground">{t('home.fanworkZoneSubtitle')}</p>
@@ -198,7 +198,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
 
         {/* Recent IPs */}
         {recentIPs.length > 0 && (
-          <div className="px-6 pb-3">
+          <div className="px-4 pb-3 md:px-6">
             <div className="mb-2">
               <span className="text-sm font-semibold text-muted-foreground">{t('home.recentIps')}</span>
             </div>
@@ -217,7 +217,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
         )}
 
         {/* IP horizontal scroll */}
-        <div className="px-6 pb-2">
+        <div className="px-4 pb-2 md:px-6">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-sm font-semibold text-muted-foreground">{t('home.recommendedIps')}</span>
             <Link href="/ips" className="text-xs text-accent-emphasis font-medium">
@@ -247,10 +247,11 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
                     key={opt.value}
                     type="button"
                     onClick={() => setContentType(opt.value)}
-                    className={`flex-shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors duration-150 whitespace-nowrap select-none active:bg-muted ${
+                    aria-pressed={active}
+                    className={`flex-shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors duration-150 whitespace-nowrap select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       active
-                        ? "border-border bg-muted text-foreground font-semibold"
-                        : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/70 cursor-pointer"
+                        ? "border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold"
+                        : "border-transparent text-fg-muted hover:bg-canvas-subtle hover:text-foreground cursor-pointer"
                     }`}
                   >
                     {opt.label}
@@ -273,7 +274,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
         </div>
 
         {/* Masonry grid */}
-        <div className="px-6 py-4 pb-16">
+        <div className="px-4 py-4 pb-16 md:px-6">
           {contentError ? (
             <div className="rounded-md border border-border bg-card p-8 text-center text-sm text-muted-foreground">
               {t("home.contentLoadFailed")}

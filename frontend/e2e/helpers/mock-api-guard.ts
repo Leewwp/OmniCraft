@@ -17,7 +17,7 @@ function getState(page: Page): GuardState {
 }
 
 function escapeRegex(value: string): string {
-  return value.replace(/[|\\{}()[\]^$+?.]/g, "\\$&");
+  return value.replace(/[|\\{}()[\]^$+?.*]/g, "\\$&");
 }
 
 function globToRegex(pattern: string): RegExp {

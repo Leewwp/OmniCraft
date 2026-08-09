@@ -92,6 +92,63 @@ test("navigation shells share approved geometry while keeping separate informati
   assert.match(admin, /min-\[701px\]:block/);
 });
 
+test("brand entry and page shells follow the unified page-shell width/gutter contract", async () => {
+  const [header, sidebar, home, original, ips, recommend] = await Promise.all([
+    readFrontendSource("components/layout/Header.tsx"),
+    readFrontendSource("components/layout/Sidebar.tsx"),
+    readFrontendSource("components/home/HomePageClient.tsx"),
+    readFrontendSource("app/(public)/original/page.tsx"),
+    readFrontendSource("components/ip/IPBrowseClient.tsx"),
+    readFrontendSource("app/(public)/recommend/page.tsx"),
+  ]);
+
+  // Brand entry always points to the recommendation feed (desktop and mobile).
+  assert.match(header, /<Link[\s\S]*?href="\/recommend"[\s\S]*?nav\.siteName/);
+  assert.match(header, /nav\.siteName[\s\S]*?href="\/recommend"/);
+
+  // Header shares the page-shell width contract with the default 1280px pages.
+  assert.match(header, /max-w-\[1280px\]/);
+  assert.match(header, /px-4 md:px-6/);
+  assert.doesNotMatch(header, /max-w-7xl/);
+
+  // Public sidebar surface matches the adjacent page surface background.
+  assert.match(sidebar, /<aside[\s\S]*?bg-canvas-default/);
+
+  // Default public shells use 1280px; /ips keeps its approved 1440px exception.
+  assert.match(home, /max-w-\[1280px\]/);
+  assert.match(original, /max-w-\[1280px\]/);
+  assert.match(ips, /max-w-\[1440px\]/);
+  assert.match(recommend, /max-w-\[1280px\]/);
+  assert.doesNotMatch(home, /max-w-\[1440px\]/);
+  assert.doesNotMatch(original, /max-w-\[1440px\]/);
+});
+
+test("filter selected states share the colored pill contract with semantic state", async () => {
+  const [home, originalTabs, originalPage, ips] = await Promise.all([
+    readFrontendSource("components/home/HomePageClient.tsx"),
+    readFrontendSource("components/original/CategoryTabs.tsx"),
+    readFrontendSource("app/(public)/original/page.tsx"),
+    readFrontendSource("components/ip/IPBrowseClient.tsx"),
+  ]);
+
+  const pill = /border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold/;
+  for (const source of [home, originalTabs, ips]) {
+    assert.match(source, pill, "selected state must use the shared colored pill");
+    assert.match(source, /rounded-full/, "selected pill must be rounded-full");
+    assert.match(source, /aria-pressed/, "selection must be exposed semantically");
+  }
+
+  // Selection must not rely on color alone: semantic attribute or text is required.
+  assert.match(home, /aria-pressed=\{active\}/);
+  assert.match(originalTabs, /aria-pressed=\{active\}/);
+  assert.match(ips, /aria-pressed=\{active\}/);
+
+  // The original zone page delegates tabs to the shared component.
+  assert.match(originalPage, /<CategoryTabs/);
+  assert.match(originalPage, /border-b border-border-default bg-canvas-default/);
+  assert.doesNotMatch(originalPage, /active\s*\?\s*"border-border bg-card/);
+});
+
 function CollapseHarness() {
   const publicSidebar = useSidebarCollapse({ storageKey: PUBLIC_SIDEBAR_STORAGE_KEY });
   const studioSidebar = useSidebarCollapse({ storageKey: STUDIO_SIDEBAR_STORAGE_KEY });
