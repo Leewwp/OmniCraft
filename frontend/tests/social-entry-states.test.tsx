@@ -96,7 +96,7 @@ test("compact discussion entry fails closed with the server denial reason", asyn
 test("FollowButton preserves primary idle and restrained reversible following states", async () => {
   const source = await readFile(new URL("../components/social/FollowButton.tsx", import.meta.url), "utf8");
 
-  assert.match(source, /variant=\{following \? "outline" : "default"\}/);
+  assert.match(source, /variant=\{isFollowing \? "outline" : "default"\}/);
   assert.match(source, /group-hover:hidden group-focus-visible:hidden/);
   assert.match(source, /group-hover:inline group-focus-visible:inline/);
   assert.match(source, /social\.unfollow/);
