@@ -13,6 +13,7 @@ import (
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 
 	"omnicraft/backend/internal/observability"
+	"omnicraft/backend/internal/pkg/imageinfo"
 )
 
 type STSToken struct {
@@ -99,6 +100,25 @@ func (c *OSSClient) GetObjectMeta(ossKey string) (meta *ObjectMeta, err error) {
 		ContentLength: length,
 		ContentType:   props.Get("Content-Type"),
 	}, nil
+}
+
+// GetImageDimensions derives pixel dimensions from the object's container
+// header via a ranged GET, so the whole object is never downloaded. The
+// dimensions are trusted server-side output; clients cannot assert them.
+func (c *OSSClient) GetImageDimensions(ossKey string) (width, height int, err error) {
+	started := time.Now()
+	defer func() { observability.ObserveExternalCall("oss", started, err) }()
+	body, err := c.bucket.GetObject(ossKey, oss.Range(0, 65535))
+	if err != nil {
+		return 0, 0, err
+	}
+	defer body.Close()
+	head := make([]byte, 65536)
+	n, err := io.ReadFull(body, head)
+	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+		return 0, 0, err
+	}
+	return imageinfo.Parse(head[:n])
 }
 
 func (c *OSSClient) GetVideoSnapshotURL(ossKey string, expires time.Duration, width int) (url string, err error) {

@@ -41,12 +41,19 @@ type ContentService struct {
 	ossSvc                 *OSSService
 	uploadGrants           *UploadGrantService
 	uploadedObjectVerifier UploadedObjectVerifier
+	imageDimensions        ImageDimensionsResolver
 	recSvc                 *RecommendationService
 	queueProducer          queue.Producer
 }
 
 type UploadedObjectVerifier interface {
 	VerifyUploadedObject(ctx context.Context, grant UploadGrant) error
+}
+
+// ImageDimensionsResolver derives pixel dimensions from the uploaded object
+// itself, making cover/poster sizes a server-side trusted fact.
+type ImageDimensionsResolver interface {
+	ResolveImageDimensions(ctx context.Context, ossKey string) (width, height int, err error)
 }
 
 func NewContentService(contentRepo *repository.ContentRepository) *ContentService {
@@ -85,6 +92,11 @@ func (s *ContentService) WithUploadConfig(cfg *config.UploadConfig) *ContentServ
 
 func (s *ContentService) WithUploadedObjectVerifier(verifier UploadedObjectVerifier) *ContentService {
 	s.uploadedObjectVerifier = verifier
+	return s
+}
+
+func (s *ContentService) WithImageDimensionsResolver(resolver ImageDimensionsResolver) *ContentService {
+	s.imageDimensions = resolver
 	return s
 }
 
@@ -212,9 +224,16 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 				}
 				return err
 			}
+			if s.imageDimensions == nil {
+				return ErrOSSNotConfigured
+			}
+			posterWidth, posterHeight, err := s.imageDimensions.ResolveImageDimensions(ctx, grant.OSSKey)
+			if err != nil {
+				return fmt.Errorf("%w: poster dimensions could not be derived from the uploaded object", ErrMediaSetInvalid)
+			}
 			content.CoverImageURL = s.persistentObjectURL(grant.OSSKey)
-			content.CoverWidth = input.PosterWidth
-			content.CoverHeight = input.PosterHeight
+			content.CoverWidth = &posterWidth
+			content.CoverHeight = &posterHeight
 		}
 
 		var attachments []model.ContentAttachment
