@@ -23,6 +23,7 @@ export function FollowButton({ targetType, targetId, initialFollowing = false, c
   const { user, capabilities } = useAuth();
   const { toast } = useToast();
   const [following, setFollowing] = useState(initialFollowing);
+  const isFollowing = !!user && following;
   const [busy, setBusy] = useState(false);
 
   const interactionBlocked = !!user && !capabilities.can_interact;
@@ -34,9 +35,9 @@ export function FollowButton({ targetType, targetId, initialFollowing = false, c
     }
     if (interactionBlocked) return;
     setBusy(true);
-    const previousState = following;
+    const previousState = isFollowing;
     try {
-      if (following) {
+      if (isFollowing) {
         await api.delete(`/api/v1/${targetType}s/${targetId}/follow`);
         setFollowing(false);
       } else {
@@ -54,10 +55,10 @@ export function FollowButton({ targetType, targetId, initialFollowing = false, c
   return (
     <Button
       size="sm"
-      variant={following ? "outline" : "default"}
+      variant={isFollowing ? "outline" : "default"}
       className={cn(
         "group gap-1",
-        following &&
+        isFollowing &&
           "hover:border-destructive! hover:text-destructive! focus-visible:border-destructive focus-visible:text-destructive",
         className,
       )}
@@ -65,7 +66,7 @@ export function FollowButton({ targetType, targetId, initialFollowing = false, c
       disabled={interactionBlocked || busy}
       title={interactionBlocked ? t(interactionDenialKey(capabilities.interaction_denial_reason)) : undefined}
     >
-      {following ? (
+      {isFollowing ? (
         <>
           <Check className="h-3.5 w-3.5" />
           <span className="group-hover:hidden group-focus-visible:hidden">{t("social.following")}</span>
