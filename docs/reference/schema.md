@@ -143,6 +143,10 @@
 | `status` | `VARCHAR(20)` | NOT NULL DEFAULT 'published' | status |
 | `like_count` | `INT` | NOT NULL DEFAULT 0 | like_count |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `target_type` | `VARCHAR(20)` | - | target_type |
+| `target_id` | `BIGINT` | - | target_id |
+| `content` | `TEXT` | - | content |
+| `updated_at` | `TIMESTAMPTZ` | DEFAULT NOW() | updated_at |
 
 ### content_attachments
 
@@ -159,6 +163,7 @@
 | `height` | `INT` | - | height |
 | `is_primary` | `BOOLEAN` | DEFAULT TRUE | is_primary |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `sort_order` | `INT` | - | sort_order |
 
 ### content_contributors
 
@@ -200,6 +205,16 @@
 | `price` | `NUMERIC(10,2)` | DEFAULT 0 | price |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+| `description` | `TEXT` | - | description |
+| `source_original_id` | `BIGINT` | -> content_items.id | source_original_id |
+| `ban_reason` | `TEXT` | - | ban_reason |
+| `download_count` | `INTEGER` | NOT NULL DEFAULT 0 | download_count |
+| `search_vector` | `TSVECTOR` | - | search_vector |
+| `hot_score` | `DOUBLE PRECISION` | DEFAULT 0 | hot_score |
+| `rating_score` | `DOUBLE PRECISION` | DEFAULT 0 | rating_score |
+| `deleted_at` | `TIMESTAMPTZ` | - | deleted_at |
+| `cover_width` | `INT` | - | cover_width |
+| `cover_height` | `INT` | - | cover_height |
 
 ### content_series
 
@@ -256,6 +271,8 @@
 | `conversation_id` | `BIGINT` | NOT NULL -> conversations.id | conversation_id |
 | `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
 | `last_read_at` | `TIMESTAMPTZ` | - | last_read_at |
+| `unread_count` | `INTEGER` | NOT NULL DEFAULT 0 | unread_count |
+| `left_at` | `TIMESTAMPTZ` | - | left_at |
 
 ### conversations
 
@@ -280,6 +297,8 @@
 | `reply_count` | `INT` | NOT NULL DEFAULT 0 | reply_count |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+| `is_pinned` | `BOOLEAN` | NOT NULL DEFAULT FALSE | is_pinned |
+| `last_active_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | last_active_at |
 
 ### favorites
 
@@ -374,6 +393,8 @@
 | `status` | `VARCHAR(20)` | NOT NULL DEFAULT 'pending' | status |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+| `search_vector` | `TSVECTOR` | - | search_vector |
+| `popularity_score` | `DOUBLE PRECISION` | DEFAULT 0 | popularity_score |
 
 ### judge_cases
 
@@ -560,6 +581,7 @@
 | `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
 | `course_id` | `BIGINT` | NOT NULL -> rehab_courses.id | course_id |
 | `completed_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | completed_at |
+| `started_at` | `TIMESTAMPTZ` | - | started_at |
 | — | — | UNIQUE (`user_id`, `course_id`) | table constraint |
 
 ### rehab_courses
@@ -585,6 +607,7 @@
 | `detail` | `TEXT` | - | detail |
 | `status` | `VARCHAR(20)` | NOT NULL DEFAULT 'pending' | status |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `action_taken` | `TEXT` | - | action_taken |
 
 ### reputation_logs
 
@@ -660,6 +683,12 @@
 | `support_info` | `JSONB` | DEFAULT '{}' | support_info |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+| `email_verified_at` | `TIMESTAMPTZ` | - | email_verified_at |
+| `accepted_terms_version` | `VARCHAR(32)` | - | accepted_terms_version |
+| `accepted_terms_at` | `TIMESTAMPTZ` | - | accepted_terms_at |
+| `accepted_privacy_version` | `VARCHAR(32)` | - | accepted_privacy_version |
+| `accepted_privacy_at` | `TIMESTAMPTZ` | - | accepted_privacy_at |
+| `deleted_at` | `TIMESTAMPTZ` | - | deleted_at |
 
 
 <!-- END AUTO-GENERATED: §4 -->

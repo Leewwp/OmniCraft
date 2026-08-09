@@ -17,7 +17,7 @@ func TestParsePNG(t *testing.T) {
 	data = append(data, width...)
 	data = append(data, height...)
 	data = append(data, 8, 6, 0, 0, 0) // bit depth, color type, compression, filter, interlace
-	data = append(data, 0, 0, 0, 0)   // CRC (unparsed)
+	data = append(data, 0, 0, 0, 0)    // CRC (unparsed)
 
 	w, h, err := Parse(data)
 	if err != nil {
@@ -86,5 +86,71 @@ func TestParseRejectsUnknownAndTruncated(t *testing.T) {
 	}
 	if _, _, err := Parse(nil); err == nil {
 		t.Fatal("empty input must fail")
+	}
+}
+
+func pngHeader(w, h uint32) []byte {
+	data := []byte{
+		0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', // signature
+		0, 0, 0, 13, 'I', 'H', 'D', 'R', // IHDR chunk header
+	}
+	width := make([]byte, 4)
+	height := make([]byte, 4)
+	binary.BigEndian.PutUint32(width, w)
+	binary.BigEndian.PutUint32(height, h)
+	data = append(data, width...)
+	data = append(data, height...)
+	return append(data, 8, 6, 0, 0, 0) // bit depth, color type, compression, filter, interlace
+}
+
+func jpegHeader(w, h uint16) []byte {
+	data := []byte{0xFF, 0xD8, 0xFF, 0xC0}
+	sofLen := make([]byte, 2)
+	binary.BigEndian.PutUint16(sofLen, 11)
+	data = append(data, sofLen...)
+	data = append(data, 8) // precision
+	height := make([]byte, 2)
+	width := make([]byte, 2)
+	binary.BigEndian.PutUint16(height, h)
+	binary.BigEndian.PutUint16(width, w)
+	data = append(data, height...)
+	data = append(data, width...)
+	return append(data, 3, 1, 0x11, 0, 1, 0x11, 0, 1, 0x11, 0) // components (len 11)
+}
+
+func webpVP8Header(w, h uint16) []byte {
+	data := []byte("RIFF\x24\x00\x00\x00WEBPVP8 ")
+	data = append(data, 0x01, 0x02, 0x03) // frame tag
+	data = append(data, 0x9D, 0x01, 0x2A) // start code
+	dim := make([]byte, 4)
+	binary.LittleEndian.PutUint16(dim[0:2], w)
+	binary.LittleEndian.PutUint16(dim[2:4], h)
+	return append(data, dim...)
+}
+
+func TestParseRejectsZeroDimensions(t *testing.T) {
+	tests := []struct {
+		name    string
+		data    []byte
+		wantErr error
+	}{
+		{name: "png zero width", data: pngHeader(0, 100), wantErr: ErrMalformedImage},
+		{name: "png zero height", data: pngHeader(100, 0), wantErr: ErrMalformedImage},
+		{name: "png zero both", data: pngHeader(0, 0), wantErr: ErrMalformedImage},
+		{name: "jpeg zero width", data: jpegHeader(0, 100), wantErr: ErrMalformedImage},
+		{name: "jpeg zero height", data: jpegHeader(100, 0), wantErr: ErrMalformedImage},
+		{name: "webp zero width", data: webpVP8Header(0, 100), wantErr: ErrMalformedImage},
+		{name: "webp zero height", data: webpVP8Header(100, 0), wantErr: ErrMalformedImage},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w, h, err := Parse(tt.data)
+			if err == nil {
+				t.Fatalf("Parse(%s) = (%d,%d,nil), want error %v", tt.name, w, h, tt.wantErr)
+			}
+			if err != tt.wantErr {
+				t.Fatalf("Parse(%s) err = %v, want %v", tt.name, err, tt.wantErr)
+			}
+		})
 	}
 }

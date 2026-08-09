@@ -1,7 +1,12 @@
 package service
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"omnicraft/backend/config"
@@ -89,12 +94,11 @@ func TestPublishContentRejectsInvalidMediaSets(t *testing.T) {
 			},
 		},
 		{
-			name:        "image content cannot carry poster dimensions",
+			name:        "image content cannot carry a poster grant",
 			contentType: "image",
 			attachments: []AttachmentInput{image(), image()},
 			extra: func(input *PublishContentInput) {
-				input.PosterWidth = intPtr(640)
-				input.PosterHeight = intPtr(360)
+				input.PosterGrantID = "unexpected"
 			},
 		},
 		{
@@ -303,6 +307,284 @@ func TestPublishVideoWithPosterGrantDerivesCoverFromPoster(t *testing.T) {
 	}
 	if _, err := grants.Consume(ctx, posterGrant.ID, 42, "content"); err == nil {
 		t.Fatal("poster grant must be consumed by a successful publish")
+	}
+}
+
+// TestPublishVideoWithoutClientPosterDimensionsSucceeds proves the video
+// poster contract does not require client-submitted poster_width/poster_height:
+// the server consumes and verifies the poster grant and derives the cover
+// dimensions from the uploaded object itself.
+func TestPublishVideoWithoutClientPosterDimensionsSucceeds(t *testing.T) {
+	svc, grants, _, cleanup := newContentGrantPublishService(t)
+	defer cleanup()
+	ctx := t.Context()
+
+	svc.ossSvc = &OSSService{cfg: &config.Config{OSS: config.OSSConfig{Domain: "https://cdn.example.test"}}}
+
+	posterGrant, err := grants.Issue(ctx, UploadGrant{
+		UserID: 42, Purpose: "content", OSSKey: "uploads/42/image/poster.png",
+		FileType: "image", MimeType: "image/png", FileSize: 123,
+	})
+	if err != nil {
+		t.Fatalf("issue poster grant: %v", err)
+	}
+	videoGrant, err := grants.Issue(ctx, UploadGrant{
+		UserID: 42, Purpose: "content", OSSKey: "uploads/42/video/clip.mp4",
+		FileType: "video", MimeType: "video/mp4", FileSize: 123,
+	})
+	if err != nil {
+		t.Fatalf("issue video grant: %v", err)
+	}
+
+	content, err := svc.PublishContent(PublishContentInput{
+		Title:         "video",
+		Zone:          "original",
+		Category:      "game",
+		ContentType:   "video",
+		IsPublic:      true,
+		AllowCopy:     true,
+		PosterGrantID: posterGrant.ID,
+		Attachments: []AttachmentInput{
+			{GrantID: videoGrant.ID, FileType: "video", OSSKey: "forged", SortOrder: intPtr(0), Width: intPtr(1280), Height: intPtr(720)},
+		},
+	}, 42)
+	if err != nil {
+		t.Fatalf("publish video without client poster dimensions: %v", err)
+	}
+	if want := "https://cdn.example.test/uploads/42/image/poster.png"; content.CoverImageURL != want {
+		t.Fatalf("cover URL = %q, want %q", content.CoverImageURL, want)
+	}
+	if content.CoverWidth == nil || *content.CoverWidth != 1920 || content.CoverHeight == nil || *content.CoverHeight != 1080 {
+		t.Fatalf("cover dims = (%v,%v), want object-derived (1920,1080)", content.CoverWidth, content.CoverHeight)
+	}
+}
+
+// TestPublishVideoIgnoresWrongClientPosterDimensions proves client-submitted
+// poster_width/poster_height are never trusted: even absurd values are ignored
+// and the persisted cover dimensions come from the object header.
+func TestPublishVideoIgnoresWrongClientPosterDimensions(t *testing.T) {
+	svc, grants, _, cleanup := newContentGrantPublishService(t)
+	defer cleanup()
+	ctx := t.Context()
+
+	svc.ossSvc = &OSSService{cfg: &config.Config{OSS: config.OSSConfig{Domain: "https://cdn.example.test"}}}
+
+	posterGrant, err := grants.Issue(ctx, UploadGrant{
+		UserID: 42, Purpose: "content", OSSKey: "uploads/42/image/poster.png",
+		FileType: "image", MimeType: "image/png", FileSize: 123,
+	})
+	if err != nil {
+		t.Fatalf("issue poster grant: %v", err)
+	}
+	videoGrant, err := grants.Issue(ctx, UploadGrant{
+		UserID: 42, Purpose: "content", OSSKey: "uploads/42/video/clip.mp4",
+		FileType: "video", MimeType: "video/mp4", FileSize: 123,
+	})
+	if err != nil {
+		t.Fatalf("issue video grant: %v", err)
+	}
+
+	content, err := svc.PublishContent(PublishContentInput{
+		Title:         "video",
+		Zone:          "original",
+		Category:      "game",
+		ContentType:   "video",
+		IsPublic:      true,
+		AllowCopy:     true,
+		PosterGrantID: posterGrant.ID,
+		PosterWidth:   intPtr(-5),
+		PosterHeight:  intPtr(999999),
+		Attachments: []AttachmentInput{
+			{GrantID: videoGrant.ID, FileType: "video", OSSKey: "forged", SortOrder: intPtr(0), Width: intPtr(1280), Height: intPtr(720)},
+		},
+	}, 42)
+	if err != nil {
+		t.Fatalf("publish video with wrong client poster dimensions must still succeed: %v", err)
+	}
+	if content.CoverWidth == nil || *content.CoverWidth != 1920 || content.CoverHeight == nil || *content.CoverHeight != 1080 {
+		t.Fatalf("cover dims = (%v,%v), want object-derived (1920,1080)", content.CoverWidth, content.CoverHeight)
+	}
+}
+
+// TestPublishImageIgnoresClientPosterDimensions proves client poster width/height
+// are ignored for image content too: the cover always comes from the media set
+// first item, never from the compatibility poster fields.
+func TestPublishImageIgnoresClientPosterDimensions(t *testing.T) {
+	svc, grants, _, cleanup := newContentGrantPublishService(t)
+	defer cleanup()
+	ctx := t.Context()
+
+	svc.ossSvc = &OSSService{cfg: &config.Config{OSS: config.OSSConfig{Domain: "https://cdn.example.test"}}}
+
+	g1, err := grants.Issue(ctx, UploadGrant{
+		UserID: 42, Purpose: "content", OSSKey: "uploads/42/image/first.png",
+		FileType: "image", MimeType: "image/png", FileSize: 111,
+	})
+	if err != nil {
+		t.Fatalf("issue grant: %v", err)
+	}
+	g2, err := grants.Issue(ctx, UploadGrant{
+		UserID: 42, Purpose: "content", OSSKey: "uploads/42/image/second.png",
+		FileType: "image", MimeType: "image/png", FileSize: 222,
+	})
+	if err != nil {
+		t.Fatalf("issue grant: %v", err)
+	}
+
+	content, err := svc.PublishContent(PublishContentInput{
+		Title:        "gallery",
+		Zone:         "original",
+		Category:     "game",
+		ContentType:  "image",
+		IsPublic:     true,
+		AllowCopy:    true,
+		PosterWidth:  intPtr(999),
+		PosterHeight: intPtr(999),
+		Attachments: []AttachmentInput{
+			{GrantID: g1.ID, FileType: "image", OSSKey: "forged", SortOrder: intPtr(0), Width: intPtr(100), Height: intPtr(200)},
+			{GrantID: g2.ID, FileType: "image", OSSKey: "forged", SortOrder: intPtr(1), Width: intPtr(300), Height: intPtr(400)},
+		},
+	}, 42)
+	if err != nil {
+		t.Fatalf("publish image with client poster dimensions must succeed: %v", err)
+	}
+	if content.CoverWidth == nil || *content.CoverWidth != 100 || content.CoverHeight == nil || *content.CoverHeight != 200 {
+		t.Fatalf("cover dims = (%v,%v), want media-set first item (100,200)", content.CoverWidth, content.CoverHeight)
+	}
+}
+
+// TestPublishFailureCleanupLogUsesRealGrantKeys proves the rollback cleanup log
+// is built from the consumed grants (real server-side OSS keys) and never from
+// client-submitted keys, and that the consumed poster grant's key is included.
+func TestPublishFailureCleanupLogUsesRealGrantKeys(t *testing.T) {
+	svc, grants, _, cleanup := newContentGrantPublishService(t)
+	defer cleanup()
+	ctx := t.Context()
+
+	svc.ossSvc = &OSSService{cfg: &config.Config{OSS: config.OSSConfig{Domain: "https://cdn.example.test"}}}
+	svc.imageDimensions = &fakeImageDimensionsResolver{err: errors.New("not an image")}
+
+	posterGrant, err := grants.Issue(ctx, UploadGrant{
+		UserID: 42, Purpose: "content", OSSKey: "uploads/42/image/real-poster.png",
+		FileType: "image", MimeType: "image/png", FileSize: 123,
+	})
+	if err != nil {
+		t.Fatalf("issue poster grant: %v", err)
+	}
+	videoGrant, err := grants.Issue(ctx, UploadGrant{
+		UserID: 42, Purpose: "content", OSSKey: "uploads/42/video/real-clip.mp4",
+		FileType: "video", MimeType: "video/mp4", FileSize: 123,
+	})
+	if err != nil {
+		t.Fatalf("issue video grant: %v", err)
+	}
+
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
+	_, err = svc.PublishContent(PublishContentInput{
+		Title:         "video",
+		Zone:          "original",
+		Category:      "game",
+		ContentType:   "video",
+		IsPublic:      true,
+		AllowCopy:     true,
+		PosterGrantID: posterGrant.ID,
+		Attachments: []AttachmentInput{
+			{GrantID: videoGrant.ID, FileType: "video", OSSKey: "forged", SortOrder: intPtr(0), Width: intPtr(1280), Height: intPtr(720)},
+		},
+	}, 42)
+	if err == nil {
+		t.Fatal("publish must fail when poster dimensions cannot be derived")
+	}
+
+	output := logs.String()
+	if !strings.Contains(output, posterGrant.OSSKey) {
+		t.Fatalf("cleanup log must contain the real consumed poster grant OSS key %q; log=%q", posterGrant.OSSKey, output)
+	}
+	if strings.Contains(output, `"forged"`) {
+		t.Fatalf("cleanup log must not contain client-submitted keys; log=%q", output)
+	}
+
+	var entry map[string]any
+	if err := json.Unmarshal(logs.Bytes(), &entry); err != nil {
+		t.Fatalf("decode cleanup log: %v; output=%q", err, logs.String())
+	}
+	msg, _ := entry["msg"].(string)
+	if !strings.Contains(msg, "manual cleanup") {
+		t.Fatalf("unexpected log message %q, want manual cleanup entry", msg)
+	}
+}
+
+// failOnVideoVerifier rejects only video grants so the poster grant is fully
+// consumed and verified before the media attachment fails.
+type failOnVideoVerifier struct{}
+
+func (failOnVideoVerifier) VerifyUploadedObject(_ context.Context, grant UploadGrant) error {
+	if grant.FileType == "video" {
+		return errors.New("object gone")
+	}
+	return nil
+}
+
+// TestPublishFailureCleanupLogIncludesConsumedAttachmentKeys: when a media
+// attachment grant is consumed before the failure, its real key must also be in
+// the cleanup log alongside the poster key.
+func TestPublishFailureCleanupLogIncludesConsumedAttachmentKeys(t *testing.T) {
+	svc, grants, _, cleanup := newContentGrantPublishService(t)
+	defer cleanup()
+	ctx := t.Context()
+
+	svc.ossSvc = &OSSService{cfg: &config.Config{OSS: config.OSSConfig{Domain: "https://cdn.example.test"}}}
+	svc.uploadedObjectVerifier = failOnVideoVerifier{}
+
+	posterGrant, err := grants.Issue(ctx, UploadGrant{
+		UserID: 42, Purpose: "content", OSSKey: "uploads/42/image/real-poster.png",
+		FileType: "image", MimeType: "image/png", FileSize: 123,
+	})
+	if err != nil {
+		t.Fatalf("issue poster grant: %v", err)
+	}
+	videoGrant, err := grants.Issue(ctx, UploadGrant{
+		UserID: 42, Purpose: "content", OSSKey: "uploads/42/video/real-clip.mp4",
+		FileType: "video", MimeType: "video/mp4", FileSize: 123,
+	})
+	if err != nil {
+		t.Fatalf("issue video grant: %v", err)
+	}
+
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
+	_, err = svc.PublishContent(PublishContentInput{
+		Title:         "video",
+		Zone:          "original",
+		Category:      "game",
+		ContentType:   "video",
+		IsPublic:      true,
+		AllowCopy:     true,
+		PosterGrantID: posterGrant.ID,
+		Attachments: []AttachmentInput{
+			{GrantID: videoGrant.ID, FileType: "video", OSSKey: "forged", SortOrder: intPtr(0), Width: intPtr(1280), Height: intPtr(720)},
+		},
+	}, 42)
+	if err == nil {
+		t.Fatal("publish must fail when video attachment verification fails")
+	}
+
+	output := logs.String()
+	if !strings.Contains(output, posterGrant.OSSKey) {
+		t.Fatalf("cleanup log must contain the real consumed poster grant OSS key %q; log=%q", posterGrant.OSSKey, output)
+	}
+	if !strings.Contains(output, videoGrant.OSSKey) {
+		t.Fatalf("cleanup log must contain the real consumed attachment grant OSS key %q; log=%q", videoGrant.OSSKey, output)
+	}
+	if strings.Contains(output, `"forged"`) {
+		t.Fatalf("cleanup log must not contain client-submitted keys; log=%q", output)
 	}
 }
 

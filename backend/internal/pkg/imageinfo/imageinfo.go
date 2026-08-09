@@ -7,6 +7,7 @@ package imageinfo
 import (
 	"encoding/binary"
 	"errors"
+	"strings"
 )
 
 var (
@@ -14,22 +15,48 @@ var (
 	ErrMalformedImage    = errors.New("malformed image data")
 )
 
+// supportedMIMETypes lists the image MIME types the container parser can
+// decode. Upload validation must accept exactly this set so an object that
+// passes upload can always be parsed for dimensions at publish time.
+var supportedMIMETypes = []string{"image/png", "image/jpeg", "image/webp"}
+
+// IsSupportedMIME reports whether mime is a MIME type this parser can decode.
+// Comparison is case-insensitive with surrounding whitespace trimmed.
+func IsSupportedMIME(mime string) bool {
+	mime = strings.ToLower(strings.TrimSpace(mime))
+	for _, supported := range supportedMIMETypes {
+		if mime == supported {
+			return true
+		}
+	}
+	return false
+}
+
 // Parse returns the pixel dimensions of the image in data. It only reads the
 // container header, so callers may supply a prefix of the object (e.g. the
-// first 64 KiB from a ranged OSS GET).
+// first 64 KiB from a ranged OSS GET). Parsed dimensions must be strictly
+// positive; a zero width or height is malformed and rejected.
 func Parse(data []byte) (width, height int, err error) {
 	if len(data) < 12 {
 		return 0, 0, ErrMalformedImage
 	}
 	switch {
 	case len(data) >= 8 && string(data[:8]) == "\x89PNG\r\n\x1a\n":
-		return parsePNG(data)
+		width, height, err = parsePNG(data)
 	case data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF:
-		return parseJPEG(data)
+		width, height, err = parseJPEG(data)
 	case string(data[:4]) == "RIFF" && string(data[8:12]) == "WEBP":
-		return parseWebP(data)
+		width, height, err = parseWebP(data)
+	default:
+		return 0, 0, ErrUnsupportedFormat
 	}
-	return 0, 0, ErrUnsupportedFormat
+	if err != nil {
+		return 0, 0, err
+	}
+	if width <= 0 || height <= 0 {
+		return 0, 0, ErrMalformedImage
+	}
+	return width, height, nil
 }
 
 // parsePNG reads the width/height from the IHDR chunk that immediately
