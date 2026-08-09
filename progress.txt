@@ -2,19 +2,33 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。超过 64KB 或每月轮换一次（上次轮换：2026-08-07）。完整历史见 `docs/archive/progress/2026-08-01-to-2026-08-07.md`。
 
+## [2026-08-09] - Ticket 03 (#83) 验证复核
+
+### What was done:
+- 复核媒体数量、纯净类型、连续 `sort_order`、poster grant、cover 尺寸和 public config 合同；保留显式 delivery domain，移除未签名 bucket endpoint fallback。
+- 确认新 video 发布缺少 poster grant 时拒绝；旧的“服务端快照回退”说明仅为历史记录，不能作为当前合同。
+- 额外收紧 poster/媒体 grant：仅允许 video 使用 poster 字段，并核验 image/video grant 的 MIME 前缀；移除未再调用的服务端视频快照回退函数。
+
+### Testing:
+- `go test ./config ./internal/handler -count=1`、`go test ./internal/service -count=1`、`go vet ./...`、`go build ./...`：通过（service 测试使用 loopback/miniredis）。
+- `git diff --check`：通过。
+
+### Notes:
+- 私有 OSS 的完整“数据库相对 key + 读取时签名 URL”仍未在本票中闭合；poster 宽高仍由请求字段提供，尚未完成对象内容派生。未提交或合并。
+
 ## [2026-08-08] - Ticket 03 (#83): 媒体数据/发布合同（063 migration + 服务端校验）
 
 ### What was done:
 - `backend/migrations/063_content_media_metadata.sql`（forward-only，未动历史迁移）：`content_items` 加可空 `cover_width/cover_height`；`content_attachments` 加可空 `sort_order` + 同内容部分唯一索引 `uq_content_attachments_item_sort_order`（`WHERE sort_order IS NOT NULL`，遗留 NULL 多行仍可读）。
 - `config.yaml > upload` 与 `config.UploadConfig` 新增 `image_gallery_min_items=2/max_items=9`、`video_gallery_min_items=1/max_items=3`；public config（`/api/v1/config/public`）经新 `PublicUploadDTO` 只暴露这 4 个非敏感限制；前端不得复制常量（#84 消费）。
 - 发布合同（`content_service.go`）：
-  - `validateMediaGallery` 在任何 upload grant 消费与写库前校验数量上下限、纯净类型（`file_type` 与 `content_type` 一致、禁混排）、`sort_order` 非负且同内容唯一、宽高为正；image/video 拒绝客户端任意 `cover_image_url`。零配置回落到规格默认（2-9/1-3），非媒体类型（article 等）维持旧附件语义。
+  - `validateMediaGallery` 在任何 upload grant 消费与写库前校验数量上下限、纯净类型（`file_type` 与 `content_type` 一致、禁混排）、`sort_order` 从 0 连续且同内容唯一、宽高为正；image/video 拒绝客户端任意 `cover_image_url`。零配置回落到规格默认（2-9/1-3），非媒体类型（article 等）维持旧附件语义。
   - `validatePosterContract`：video 的 poster 必须带正宽高；image 拒绝 poster grant。
-  - poster 安全合同：video 的 `poster_grant_id` 在事务内消费 + 核验属当前发布者且为 image，再派生持久 cover URL（`OSSService.PersistentObjectURL`：CDN domain 优先、bucket 端点回退）与 `cover_width/height`；失败回滚并 restore grant。
+  - poster 安全合同：video 的 `poster_grant_id` 在事务内消费 + 核验属当前发布者且为 image，再经配置的 delivery domain 派生 cover URL 与 `cover_width/height`；私有 bucket 不再 fallback 为未签名 endpoint，失败回滚并 restore grant。签名读取/相对 key 的完整媒体 delivery contract 仍需单独收口。
   - 封面派生：image = `sort_order` 最小项（即 0）→ cover URL/宽高；`is_primary` 改为 `*bool` 只标记派生封面条目（video 无附件行携带，全部 false；遗留非媒体保持 DB 默认 true，下载端点已适配指针解引用）。
   - 修复回归：附件行原在 `CreateContent` 前以 `content.ID=0` 组装导致 FK 写 0（新测试抓出），现插入前回填 `ContentItemID`。
   - `GetAttachments` 固定 `sort_order ASC NULLS LAST, id ASC`（`content_repo.go`），列表零 join 由 `ContentItem.CoverWidth/Height` 提供。
-- 测试：service 错误路径（数量/混排/宽高/顺序/任意 cover URL/校验先于 grant 消费）、正常路径（image 首项派生 + is_primary 唯一 + 顺序持久化、video poster 派生 + 双 grant 消费、poster 非 image 拒绝后恢复、image 拒绝 poster、legacy video 无 poster 仍可发布）、`TestPersistentObjectURL`（CDN/端点回退/空输入）；handler 路由错误路径（400 MEDIA_SET_INVALID，`MEDIA_SET_INVALID` safe message）；model 迁移双跑幂等 + 唯一索引 + NULL 兜底顺序；migration gap fixture（061 缺口 + 063 后到 + 补缺 runner 语义，不补 061、不改历史 fixture）；public config 恰好 4 键。
+- 测试：service 错误路径（数量/混排/宽高/顺序/任意 cover URL/校验先于 grant 消费/视频缺 poster）、正常路径（image 首项派生 + is_primary 唯一 + 顺序持久化、video poster 派生 + 双 grant 消费、poster 非 image 拒绝后恢复、image 拒绝 poster）、`TestPersistentObjectURL`（delivery domain/私有 endpoint 不 fallback/空输入）；handler 路由错误路径（400 MEDIA_SET_INVALID，`MEDIA_SET_INVALID` safe message）；model 迁移双跑幂等 + 唯一索引 + NULL 兜底顺序；migration gap fixture（061 缺口 + 063 后到 + 补缺 runner 语义，不补 061、不改历史 fixture）；public config 恰好 4 键并归一化默认限额。
 - `newContentGrantPublishService` 加 `SetMaxOpenConns(1)`（sqlite :memory: 读写回查，沿用 browse_history/admin_notification_broadcast 先例）。
 
 ### Testing:

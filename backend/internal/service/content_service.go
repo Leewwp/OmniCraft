@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
 	"omnicraft/backend/config"
@@ -198,6 +199,9 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 			if grant.FileType != "image" {
 				return fmt.Errorf("%w: video poster grant must be an image upload", ErrMediaSetInvalid)
 			}
+			if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(grant.MimeType)), "image/") {
+				return fmt.Errorf("%w: video poster grant MIME type must be image/*", ErrMediaSetInvalid)
+			}
 			if s.uploadedObjectVerifier == nil {
 				return ErrOSSNotConfigured
 			}
@@ -231,6 +235,10 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 				consumedGrants = append(consumedGrants, *grant)
 				if grant.FileType != a.FileType {
 					return ErrUploadGrantInvalid
+				}
+				if (input.ContentType == "image" || input.ContentType == "video") &&
+					!strings.HasPrefix(strings.ToLower(strings.TrimSpace(grant.MimeType)), input.ContentType+"/") {
+					return fmt.Errorf("%w: %s media grant MIME type does not match content type", ErrMediaSetInvalid, input.ContentType)
 				}
 				if s.uploadedObjectVerifier == nil {
 					return ErrOSSNotConfigured
@@ -364,10 +372,6 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 		}
 	}
 
-	if input.ContentType == "video" && content.CoverImageURL == "" {
-		s.triggerVideoSnapshot(content.ID, input.Attachments)
-	}
-
 	s.invalidateContentListCache()
 
 	return content, nil
@@ -388,23 +392,16 @@ func (s *ContentService) restoreUploadGrants(ctx context.Context, grants []Uploa
 // type. Zero configuration values mean "use the specification default", so
 // tests and minimal configs keep the authoritative contract.
 func (s *ContentService) galleryLimits(contentType string) (min, max int) {
+	upload := config.UploadConfig{}
+	if s.uploadCfg != nil {
+		upload = *s.uploadCfg
+	}
+	upload = upload.NormalizedGalleryLimits()
 	switch contentType {
 	case "image":
-		min, max = 2, 9
-		if s.uploadCfg != nil && s.uploadCfg.ImageGalleryMinItems > 0 {
-			min = s.uploadCfg.ImageGalleryMinItems
-		}
-		if s.uploadCfg != nil && s.uploadCfg.ImageGalleryMaxItems > 0 {
-			max = s.uploadCfg.ImageGalleryMaxItems
-		}
+		min, max = upload.ImageGalleryMinItems, upload.ImageGalleryMaxItems
 	case "video":
-		min, max = 1, 3
-		if s.uploadCfg != nil && s.uploadCfg.VideoGalleryMinItems > 0 {
-			min = s.uploadCfg.VideoGalleryMinItems
-		}
-		if s.uploadCfg != nil && s.uploadCfg.VideoGalleryMaxItems > 0 {
-			max = s.uploadCfg.VideoGalleryMaxItems
-		}
+		min, max = upload.VideoGalleryMinItems, upload.VideoGalleryMaxItems
 	}
 	return min, max
 }
@@ -416,6 +413,11 @@ func (s *ContentService) galleryLimits(contentType string) (min, max int) {
 // attachment semantics and are untouched. It must run before any upload grant
 // is consumed and before any write.
 func (s *ContentService) validateMediaGallery(input *PublishContentInput) error {
+	if s.uploadCfg != nil {
+		if err := s.uploadCfg.ValidateGalleryLimits(); err != nil {
+			return fmt.Errorf("%w: invalid upload limits: %v", ErrMediaSetInvalid, err)
+		}
+	}
 	min, max := s.galleryLimits(input.ContentType)
 	if min == 0 {
 		return nil
@@ -444,6 +446,11 @@ func (s *ContentService) validateMediaGallery(input *PublishContentInput) error 
 			return fmt.Errorf("%w: %s media set requires positive width/height", ErrMediaSetInvalid, mediaType)
 		}
 	}
+	for expected := 0; expected < len(input.Attachments); expected++ {
+		if _, ok := seen[expected]; !ok {
+			return fmt.Errorf("%w: %s media set sort_order must be contiguous from 0", ErrMediaSetInvalid, mediaType)
+		}
+	}
 	if input.CoverImageURL != "" {
 		return fmt.Errorf("%w: cover_image_url is not accepted for media content; the cover is derived server-side", ErrMediaSetInvalid)
 	}
@@ -457,16 +464,18 @@ func (s *ContentService) validatePosterContract(input *PublishContentInput) erro
 	switch input.ContentType {
 	case "video":
 		if input.PosterGrantID == "" {
-			// Legacy clients without a poster fall back to the existing
-			// server-side snapshot behavior.
-			return nil
+			return fmt.Errorf("%w: video poster grant is required", ErrMediaSetInvalid)
 		}
 		if input.PosterWidth == nil || *input.PosterWidth <= 0 || input.PosterHeight == nil || *input.PosterHeight <= 0 {
 			return fmt.Errorf("%w: video poster requires positive width/height", ErrMediaSetInvalid)
 		}
 	case "image":
-		if input.PosterGrantID != "" {
+		if input.PosterGrantID != "" || input.PosterWidth != nil || input.PosterHeight != nil {
 			return fmt.Errorf("%w: poster grants are only accepted for video content", ErrMediaSetInvalid)
+		}
+	default:
+		if input.PosterGrantID != "" || input.PosterWidth != nil || input.PosterHeight != nil {
+			return fmt.Errorf("%w: poster fields are only accepted for video content", ErrMediaSetInvalid)
 		}
 	}
 	return nil
@@ -632,6 +641,8 @@ func scoredToContentItems(scored []ContentItemWithScore) []model.ContentItem {
 			ID:            s.Item.ID,
 			Title:         s.Item.Title,
 			CoverImageURL: s.Item.CoverURL,
+			CoverWidth:    s.Item.CoverWidth,
+			CoverHeight:   s.Item.CoverHeight,
 			AuthorID:      s.Item.AuthorID,
 			Author:        model.User{Username: s.Item.AuthorName},
 			LikeCount:     s.Item.LikeCount,
@@ -877,39 +888,6 @@ func (s *ContentService) invalidateContentListCache() {
 		return
 	}
 	redisclient.DeleteByPattern(context.Background(), "cache:content:list:*")
-}
-
-func (s *ContentService) triggerVideoSnapshot(contentID int64, attachments []AttachmentInput) {
-	if s.ossSvc == nil {
-		return
-	}
-
-	var videoKey string
-	for _, a := range attachments {
-		if a.FileType == "video" && a.OSSKey != "" {
-			videoKey = a.OSSKey
-			break
-		}
-	}
-	if videoKey == "" {
-		return
-	}
-
-	recovery.GoSafe(func() {
-		ctx := context.Background()
-		snapshotURL, err := s.ossSvc.GenerateVideoSnapshotURL(ctx, videoKey)
-		if err != nil {
-			slog.Error("video snapshot failed", "content_id", contentID, "error", err)
-			return
-		}
-		if err := s.contentRepo.UpdateContent(contentID, map[string]interface{}{
-			"cover_image_url": snapshotURL,
-		}); err != nil {
-			slog.Error("failed to update cover_image_url", "content_id", contentID, "error", err)
-			return
-		}
-		s.invalidateContentCache(contentID)
-	})
 }
 
 func (s *ContentService) FlushDownloadCounts(ctx context.Context) error {

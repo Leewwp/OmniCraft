@@ -190,6 +190,42 @@ type UploadConfig struct {
 	VideoGalleryMaxItems int `mapstructure:"video_gallery_max_items"`
 }
 
+// NormalizedGalleryLimits fills only omitted media-gallery limits with the
+// specification defaults. It is shared by the publish validator and the
+// public-config response so clients and the backend enforce the same bounds.
+func (u UploadConfig) NormalizedGalleryLimits() UploadConfig {
+	if u.ImageGalleryMinItems == 0 {
+		u.ImageGalleryMinItems = 2
+	}
+	if u.ImageGalleryMaxItems == 0 {
+		u.ImageGalleryMaxItems = 9
+	}
+	if u.VideoGalleryMinItems == 0 {
+		u.VideoGalleryMinItems = 1
+	}
+	if u.VideoGalleryMaxItems == 0 {
+		u.VideoGalleryMaxItems = 3
+	}
+	return u
+}
+
+func (u UploadConfig) ValidateGalleryLimits() error {
+	if u.ImageGalleryMinItems < 0 || u.ImageGalleryMaxItems < 0 {
+		return fmt.Errorf("image gallery limits must not be negative")
+	}
+	if u.VideoGalleryMinItems < 0 || u.VideoGalleryMaxItems < 0 {
+		return fmt.Errorf("video gallery limits must not be negative")
+	}
+	n := u.NormalizedGalleryLimits()
+	if n.ImageGalleryMinItems > n.ImageGalleryMaxItems {
+		return fmt.Errorf("image gallery min_items must not exceed max_items")
+	}
+	if n.VideoGalleryMinItems > n.VideoGalleryMaxItems {
+		return fmt.Errorf("video gallery min_items must not exceed max_items")
+	}
+	return nil
+}
+
 type PublishConfig struct {
 	RequireReview     bool     `mapstructure:"require_review"`
 	MaxDailyPosts     int      `mapstructure:"max_daily_posts"`
@@ -708,6 +744,9 @@ func (c *Config) ValidateRelease() error {
 		return nil
 	}
 	var errs []string
+	if err := c.Upload.ValidateGalleryLimits(); err != nil {
+		errs = append(errs, "upload."+err.Error())
+	}
 
 	requireHTTPSURL(&errs, "web.public_base_url", c.Web.PublicBaseURL)
 	requireAllowedOrigins(&errs, c.Security.AllowedOrigins)
