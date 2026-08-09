@@ -965,7 +965,8 @@
     "sendFailed": "Failed to send comment",
     "loadFailed": "Failed to load comments",
     "follow": "Follow",
-    "following": "Following"
+    "following": "Following",
+    "unfollow": "Unfollow"
   },
   "pr": {
     "submit": "Submit Edit Proposal",
@@ -1282,6 +1283,7 @@
     "title": "Discussions",
     "subtitle": "Browse and participate in IP-related discussions",
     "newPost": "New Post",
+    "loginToStart": "Log in to start a discussion",
     "search": "Search",
     "searchPlaceholder": "Search discussion titles...",
     "empty": "No discussions yet. Start the conversation!",

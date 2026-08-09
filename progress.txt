@@ -260,6 +260,23 @@
 - 纯文档/测试夹具改动，无运行时代码变更；未勾选任何计划 checkbox；下一步仍按注册表执行 #64 Ticket 01（issue #65）。
 - issue #77 关闭不影响证据有效性：GitHub issue 关闭后仍可访问，`release/recovery-objectives.json` 的 `approval.ref` 不受影响。
 
+## [2026-08-08] - Ticket 06 (#70): 补齐 IP 讨论入口与关注状态反馈
+
+### What was done:
+- `FollowButton.tsx`：状态契约修复（ui-spec FollowButton 章节 / #64 决策 20 / 审计问题 10）——未关注 primary（default variant，`--primary` 实底），已关注 outline；已关注态 hover/focus 文本切换「取消关注」（group-hover/group-focus-visible 双 span），并加 destructive 边框/文字（`hover:border-destructive!`/`hover:text-destructive!` 防 outline variant 的 `hover:text-foreground` 按编译顺序覆盖）；互动受限（封禁/邮箱未验证/信誉分不足/不可用）时 disabled + title 展示 denial 原因（复用 `interactionDenialKey` 合同，与 ReactionBar/CommentSection 一致）；匿名点击跳 `/login` 不变。
+- `DiscussionBoard.tsx`（#64 决策 19 / 审计问题 8）：compact 模式（IP 详情页）补「发起讨论」入口——有讨论时 header 入口，无讨论时空态 CTA（EmptyState action，避免双份入口）；入口仅对 `user && capabilities.can_interact` 的登录用户为可用链接；封禁/信誉分不足等受限状态为 disabled 按钮 + 可见 denial 文案（title + caption）；匿名为跳 `/login` 按钮（title「请登录后发起讨论」）；非 compact 全量模式入口与空态同步收口到 canStartDiscussion（不承诺不可用操作）。
+- `zh.json`/`en.json`：新增 `social.unfollow`（取消关注/Unfollow）与 `discussion.loginToStart`（请登录后发起讨论/Log in to start a discussion），denial 文案复用既有 `capabilities.denied*`。
+- 未新增后端接口，API 合同零变化；未触碰 backend/*（web/agent-t6 WIP 面）、Header/Sidebar/ContentDetailOverlay 等非 owner 文件。
+
+### Testing:
+- `npm run build` ✓、`npm run lint`（tsc --noEmit）✓。
+- 浏览器实测（Playwright，前端 :3001 → 后端 :8090 独立实例 + 测试用户 t70-eligible/lowrep/banned@test.local，bcrypt 密码 TestPass#70）：20/20 通过——匿名（IP7 有讨论 header 入口、IP8 空态 CTA）点击均跳 /login；eligible 登录用户 IP7 header 入口 + IP8 空态 CTA 均为可用链接；关注按钮未关注 primary（rgb(79,70,229)=`--primary`）、点击后已关注 outline（rgb(255,255,255)）、hover/focus 可见文本变「取消关注」（含 a11y 名随 hover 切换）、Enter 取消关注还原；lowrep（reputation=1 < min_score_for_interaction=3）发起讨论与关注均 disabled + 「信誉分不足」反馈；banned 真实流（登录后 DB 置 ban + reload）= 会话终止回匿名（既有后端 hard-denial 合同，/auth/me 503 → 前端清会话），deniedBanned UI 分支经网络 mock /auth/me（can_interact=false + USER_BANNED）验证渲染 disabled 入口 + 封禁文案；暗色模式（html.dark + body rgb(13,17,23) 验证）。
+- 截图 13 张存 `screenshots/t70-*.png`（明暗 × 桌面/移动 × 空态/受限态/关注各态，含 hover/focus 特写）。
+
+### Notes:
+- 与 #109 串行边界：仅改 DiscussionBoard 文案/入口面与 FollowButton，未动文本审核能力面，按 ownership matrix §6 预约边界保持清晰。
+- 顺带发现（记录不修，backend 面外）：FollowIP 成功但 follow 通知插入 FK 失败（notifications.user_id=0，`follow_repo.go` 关联 creator 缺失）——后端缺陷，与 #70 UI 面无关，留待后端票据。
+- issue #70 五条 AC 全部勾选并关闭；light 车道分批 commit 3 个。
 ## [2026-08-08] - Ticket 03 (#67): 验证浮窗共享元素转场原型
 
 ### What was done:
