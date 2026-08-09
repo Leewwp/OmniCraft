@@ -278,7 +278,8 @@ func newContentGrantPublishService(t *testing.T) (*ContentService, *UploadGrantS
 	verifier := &fakeUploadedObjectVerifier{}
 	svc := NewContentServiceWithDeps(repository.NewContentRepository(db), nil, rdb).
 		WithUploadGrantService(grants).
-		WithUploadedObjectVerifier(verifier)
+		WithUploadedObjectVerifier(verifier).
+		WithImageDimensionsResolver(&fakeImageDimensionsResolver{})
 	return svc, grants, verifier, func() {
 		redisclient.Client = previousRedisClient
 		_ = rdb.Close()
@@ -303,6 +304,26 @@ func (f *fakeUploadedObjectVerifier) VerifyUploadedObject(ctx context.Context, g
 	f.calls++
 	f.lastGrant = grant
 	return f.err
+}
+
+// fakeImageDimensionsResolver derives trusted dimensions from the object key
+// itself, so tests prove the server, not the client, owns cover dimensions.
+type fakeImageDimensionsResolver struct {
+	err error
+}
+
+func (f *fakeImageDimensionsResolver) ResolveImageDimensions(ctx context.Context, ossKey string) (int, int, error) {
+	_ = ctx
+	if f.err != nil {
+		return 0, 0, f.err
+	}
+	switch {
+	case len(ossKey) >= 3 && ossKey[len(ossKey)-3:] == "png":
+		return 1920, 1080, nil
+	case len(ossKey) >= 4 && ossKey[len(ossKey)-4:] == ".jpg":
+		return 1280, 720, nil
+	}
+	return 0, 0, errors.New("unsupported image")
 }
 
 func baseGrantPublishInput(attachment AttachmentInput) PublishContentInput {

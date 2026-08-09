@@ -251,7 +251,8 @@ func TestPublishImageGalleryDerivesCoverFromFirstItem(t *testing.T) {
 // TestPublishVideoWithPosterGrantDerivesCoverFromPoster proves the controlled
 // poster happy path: the poster arrives as an image upload grant owned by the
 // publisher, is consumed and verified, and the persistent cover URL and
-// dimensions come from the poster grant, never from the client.
+// dimensions come from the uploaded object (server-derived), never from the
+// client's PosterWidth/PosterHeight fields.
 func TestPublishVideoWithPosterGrantDerivesCoverFromPoster(t *testing.T) {
 	svc, grants, verifier, cleanup := newContentGrantPublishService(t)
 	defer cleanup()
@@ -270,7 +271,7 @@ func TestPublishVideoWithPosterGrantDerivesCoverFromPoster(t *testing.T) {
 		return *grant
 	}
 	videoGrant := issueGrant("video", "uploads/42/video/clip.mp4", "video/mp4")
-	posterGrant := issueGrant("image", "uploads/42/image/poster.jpg", "image/jpeg")
+	posterGrant := issueGrant("image", "uploads/42/image/poster.png", "image/png")
 
 	content, err := svc.PublishContent(PublishContentInput{
 		Title:         "video",
@@ -289,17 +290,70 @@ func TestPublishVideoWithPosterGrantDerivesCoverFromPoster(t *testing.T) {
 	if err != nil {
 		t.Fatalf("publish video with poster: %v", err)
 	}
-	if want := "https://cdn.example.test/uploads/42/image/poster.jpg"; content.CoverImageURL != want {
+	if want := "https://cdn.example.test/uploads/42/image/poster.png"; content.CoverImageURL != want {
 		t.Fatalf("cover URL = %q, want %q (verified poster)", content.CoverImageURL, want)
 	}
-	if content.CoverWidth == nil || *content.CoverWidth != 640 || content.CoverHeight == nil || *content.CoverHeight != 360 {
-		t.Fatalf("cover dims = (%v,%v), want poster (640,360)", content.CoverWidth, content.CoverHeight)
+	// Dimensions must be derived from the object (1920x1080 for .png), not
+	// echoed from the client's 640x360 claim.
+	if content.CoverWidth == nil || *content.CoverWidth != 1920 || content.CoverHeight == nil || *content.CoverHeight != 1080 {
+		t.Fatalf("cover dims = (%v,%v), want object-derived (1920,1080)", content.CoverWidth, content.CoverHeight)
 	}
 	if verifier.calls != 2 {
 		t.Fatalf("verify calls = %d, want 2 (media item + poster)", verifier.calls)
 	}
 	if _, err := grants.Consume(ctx, posterGrant.ID, 42, "content"); err == nil {
 		t.Fatal("poster grant must be consumed by a successful publish")
+	}
+}
+
+// TestPublishVideoPosterDerivationFailureRejectsPublish: when the poster
+// object's dimensions cannot be derived, the publish must fail (the poster is
+// not trustworthy) and the poster grant must be restored.
+func TestPublishVideoPosterDerivationFailureRejectsPublish(t *testing.T) {
+	svc, grants, _, cleanup := newContentGrantPublishService(t)
+	defer cleanup()
+	ctx := t.Context()
+
+	svc.ossSvc = &OSSService{cfg: &config.Config{OSS: config.OSSConfig{Domain: "https://cdn.example.test"}}}
+	svc.imageDimensions = &fakeImageDimensionsResolver{err: errors.New("not an image")}
+
+	posterGrant, err := grants.Issue(ctx, UploadGrant{
+		UserID: 42, Purpose: "content", OSSKey: "uploads/42/image/poster.bin",
+		FileType: "image", MimeType: "image/png", FileSize: 123,
+	})
+	if err != nil {
+		t.Fatalf("issue poster grant: %v", err)
+	}
+	videoGrant, err := grants.Issue(ctx, UploadGrant{
+		UserID: 42, Purpose: "content", OSSKey: "uploads/42/video/clip.mp4",
+		FileType: "video", MimeType: "video/mp4", FileSize: 123,
+	})
+	if err != nil {
+		t.Fatalf("issue video grant: %v", err)
+	}
+
+	_, err = svc.PublishContent(PublishContentInput{
+		Title:         "video",
+		Zone:          "original",
+		Category:      "game",
+		ContentType:   "video",
+		IsPublic:      true,
+		AllowCopy:     true,
+		PosterGrantID: posterGrant.ID,
+		PosterWidth:   intPtr(640),
+		PosterHeight:  intPtr(360),
+		Attachments: []AttachmentInput{
+			{GrantID: videoGrant.ID, FileType: "video", OSSKey: "forged", SortOrder: intPtr(0), Width: intPtr(1280), Height: intPtr(720)},
+		},
+	}, 42)
+	if err == nil {
+		t.Fatal("publish must fail when poster dimensions cannot be derived")
+	}
+	if !errors.Is(err, ErrMediaSetInvalid) {
+		t.Fatalf("error = %v, want ErrMediaSetInvalid wrapper", err)
+	}
+	if _, err := grants.Consume(ctx, posterGrant.ID, 42, "content"); err != nil {
+		t.Fatal("poster grant must be restored (re-consumable) when publish fails")
 	}
 }
 

@@ -139,6 +139,8 @@ func (s *OSSService) GeneratePresignDownloadURL(ctx context.Context, ossKey stri
 	return s.client.GetSignedURL(strings.TrimSpace(ossKey), http.MethodGet, ttl)
 }
 
+// VerifyUploadedObject asserts the uploaded object matches the grant's size
+// and content type, reading object metadata (not client claims).
 func (s *OSSService) VerifyUploadedObject(ctx context.Context, grant UploadGrant) error {
 	_ = ctx
 	if s == nil || s.client == nil {
@@ -155,6 +157,16 @@ func (s *OSSService) VerifyUploadedObject(ctx context.Context, grant UploadGrant
 		return &UploadValidationError{Message: "uploaded content type does not match grant"}
 	}
 	return nil
+}
+
+// ResolveImageDimensions derives pixel dimensions from the object header, so
+// cover/poster sizes are trusted server-side facts rather than client input.
+func (s *OSSService) ResolveImageDimensions(ctx context.Context, ossKey string) (int, int, error) {
+	_ = ctx
+	if s == nil || s.client == nil {
+		return 0, 0, ErrOSSNotConfigured
+	}
+	return s.client.GetImageDimensions(strings.TrimSpace(ossKey))
 }
 
 func (s *OSSService) validateUploadByType(fileType, mimeType string, fileSize int64, durationSec *int, ext string) error {
