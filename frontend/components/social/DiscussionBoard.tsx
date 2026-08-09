@@ -2,12 +2,13 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { DiscussionCard } from "@/components/social/DiscussionCard";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Search, ArrowRight, MessageSquareText } from "lucide-react";
@@ -49,7 +50,8 @@ function BoardSkeleton() {
 
 export function DiscussionBoard({ ipId, compact = false, className }: DiscussionBoardProps) {
   const t = useTranslations();
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, capabilities } = useAuth();
   const [discussions, setDiscussions] = useState<DiscussionData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -57,6 +59,10 @@ export function DiscussionBoard({ ipId, compact = false, className }: Discussion
   const [busy, setBusy] = useState(false);
   const searchRef = useRef(search);
   searchRef.current = search;
+
+  const canStartDiscussion = !!user && capabilities.can_interact;
+  const interactionBlocked = !!user && !capabilities.can_interact;
+  const denialKey = interactionDenialKey(capabilities.interaction_denial_reason);
 
   const load = useCallback(async (searchQuery?: string) => {
     setLoading(true);
@@ -84,31 +90,54 @@ export function DiscussionBoard({ ipId, compact = false, className }: Discussion
     setBusy(false);
   }
 
-  const displayedDiscussions = compact ? discussions.slice(0, 5) : discussions;
-
-  if (compact && !loading && discussions.length === 0) {
-    return null;
+  function startEntry() {
+    if (canStartDiscussion) {
+      return (
+        <Link href={`/ip/${ipId}/discussions/new`} className={buttonVariants({ size: "sm" })}>
+          <Plus className="mr-1 h-4 w-4" />
+          {t("discussion.newPost")}
+        </Link>
+      );
+    }
+    if (interactionBlocked) {
+      return (
+        <div className="flex flex-col items-center gap-1.5">
+          <Button size="sm" disabled title={t(denialKey)}>
+            <Plus className="mr-1 h-4 w-4" />
+            {t("discussion.newPost")}
+          </Button>
+          <p className="text-xs text-muted-foreground">{t(denialKey)}</p>
+        </div>
+      );
+    }
+    return (
+      <Button size="sm" onClick={() => router.push("/login")} title={t("discussion.loginToStart")}>
+        <Plus className="mr-1 h-4 w-4" />
+        {t("discussion.newPost")}
+      </Button>
+    );
   }
+
+  const displayedDiscussions = compact ? discussions.slice(0, 5) : discussions;
 
   return (
     <div className={cn("space-y-4", className)}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">{t("discussion.title")}</h2>
           {!compact && (
             <p className="mt-1 text-sm text-muted-foreground">{t("discussion.subtitle")}</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {!compact && user && (
-            <Link href={`/ip/${ipId}/discussions/new`}>
-              <Button size="sm">
-                <Plus className="mr-1 h-4 w-4" />
-                {t("discussion.newPost")}
-              </Button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {!compact && canStartDiscussion && (
+            <Link href={`/ip/${ipId}/discussions/new`} className={buttonVariants({ size: "sm" })}>
+              <Plus className="mr-1 h-4 w-4" />
+              {t("discussion.newPost")}
             </Link>
           )}
+          {compact && !loading && discussions.length > 0 && startEntry()}
           {compact && discussions.length > 0 && (
             <Link
               href={`/ip/${ipId}/discussions`}
@@ -164,14 +193,14 @@ export function DiscussionBoard({ ipId, compact = false, className }: Discussion
           description={t("discussion.emptyHint")}
           className="px-4 py-10"
           action={
-            !compact && user ? (
-              <Link href={`/ip/${ipId}/discussions/new`}>
-                <Button size="sm" variant="outline">
+            compact
+              ? startEntry()
+              : canStartDiscussion ? (
+                <Link href={`/ip/${ipId}/discussions/new`} className={buttonVariants({ size: "sm", variant: "outline" })}>
                   <Plus className="mr-1 h-4 w-4" />
                   {t("discussion.newPost")}
-                </Button>
-              </Link>
-            ) : null
+                </Link>
+              ) : null
           }
         />
       ) : (

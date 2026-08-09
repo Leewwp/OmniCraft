@@ -1,8 +1,8 @@
 import { getServerApiBase } from "@/lib/server-api";
-import Link from "next/link";
 import { getTranslations } from 'next-intl/server';
 import { OverlayMasonryGrid } from "@/components/content/OverlayMasonryGrid";
 import { SortSelect } from "@/components/original/SortSelect";
+import { CategoryTabs } from "@/components/original/CategoryTabs";
 import { SidebarWrapper } from "@/components/original/OriginalSidebar";
 import { normalizeContentList } from "@/lib/content";
 
@@ -48,15 +48,6 @@ async function fetchCategories(apiBase: string): Promise<CategoryDisplay[]> {
   } catch { return PRIMARY_CATEGORIES_FALLBACK; }
 }
 
-function buildHref(next: Partial<SearchParams>, current: Required<SearchParams>) {
-  const params = new URLSearchParams();
-  const m = { ...current, ...next };
-  if (m.category) params.set("category", m.category);
-  if (m.sort && m.sort !== "recommended") params.set("sort", m.sort);
-  const q = params.toString();
-  return q ? `/original?${q}` : "/original";
-}
-
 interface StatsSummary { users: number; ips: number; contents: number; }
 
 async function fetchStats(apiBase: string): Promise<StatsSummary | null> {
@@ -87,14 +78,14 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
   const [categories, contents, stats] = await Promise.all([fetchCategories(apiBase), fetchContents(apiBase, current), fetchStats(apiBase)]);
 
   return (
-    <div className="mx-auto flex w-full max-w-[1440px] min-h-[calc(100vh-52px)]">
+    <div className="mx-auto flex w-full max-w-[1280px] min-h-[calc(100vh-52px)]">
       {/* Sidebar — using client wrapper */}
       <SidebarWrapper />
 
       {/* Main content */}
       <div className="flex-1 min-w-0">
         {/* Zone banner */}
-        <div className="px-6 pt-5 pb-3">
+        <div className="px-4 pt-5 pb-3 md:px-6">
           <div className="flex items-baseline gap-3">
             <h1 className="text-[22px] font-bold tracking-tight text-foreground">{t("content.originalZone")}</h1>
             <p className="text-sm text-muted-foreground">{t("content.originalZoneDesc")}</p>
@@ -106,25 +97,15 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
         </div>
 
         {/* Category tabs + sort — unified sticky row */}
-        <div className="sticky top-[52px] z-40 bg-background px-6 py-2.5">
+        <div className="sticky top-[52px] z-40 border-b border-border-default bg-canvas-default px-4 py-2.5 md:px-6">
           <div className="flex items-center gap-0">
-            <div className="flex flex-1 items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-              {categories.map(cat => {
-                const active = current.category === cat.slug;
-                return (
-                  <Link key={cat.slug || "recommended"} href={buildHref({ category: cat.slug }, current)}
-                    className={`flex-shrink-0 rounded-full border px-3.5 py-1.5 text-[13px] font-medium transition-all duration-150 whitespace-nowrap select-none active:scale-95 ${
-                      active ? "border-border bg-card text-foreground font-semibold" : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/70 cursor-pointer"
-                    }`}>{cat.i18n ? t(cat.i18n) : cat.name_i18n?.zh || cat.name_i18n?.en || cat.slug}</Link>
-                );
-              })}
-            </div>
+            <CategoryTabs categories={categories} currentCategory={current.category} />
             <div className="ml-3 flex-shrink-0"><SortSelect /></div>
           </div>
         </div>
 
         {/* Content masonry */}
-        <div className="px-6 pt-4 pb-16">
+        <div className="px-4 pt-4 pb-16 md:px-6">
           <OverlayMasonryGrid items={contents} emptyText={t("home.noOriginalContent")} source="zone-page" />
         </div>
       </div>

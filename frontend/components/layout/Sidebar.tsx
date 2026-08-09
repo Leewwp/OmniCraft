@@ -104,7 +104,7 @@ export function Sidebar({ sections = [], trending, className }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "flex-shrink-0 overflow-y-auto overflow-x-hidden border-r border-border bg-canvas-subtle py-2 transition-[width] duration-200 motion-reduce:transition-none",
+        "flex-shrink-0 overflow-y-auto overflow-x-hidden border-r border-border bg-canvas-default py-2 transition-[width] duration-200 motion-reduce:transition-none",
         collapsed ? "w-12" : "w-[228px]",
         className
       )}
