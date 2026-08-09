@@ -192,7 +192,7 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
               aria-pressed={active}
               className={`inline-flex min-h-11 flex-shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-medium transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 active
-                  ? "border-primary bg-accent-subtle text-accent-emphasis font-semibold"
+                  ? "border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold"
                   : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
