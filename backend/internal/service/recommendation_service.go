@@ -148,6 +148,8 @@ type ContentItemBrief struct {
 	ID          int64  `json:"id"`
 	Title       string `json:"title"`
 	CoverURL    string `json:"cover_image_url"`
+	CoverWidth  *int   `json:"cover_width,omitempty"`
+	CoverHeight *int   `json:"cover_height,omitempty"`
 	AuthorID    int64  `json:"author_id"`
 	AuthorName  string `json:"author_name"`
 	LikeCount   int    `json:"like_count"`
@@ -326,6 +328,8 @@ func (s *RecommendationService) computeFinalScores(ctx context.Context, contentI
 				ID:          content.ID,
 				Title:       content.Title,
 				CoverURL:    content.CoverImageURL,
+				CoverWidth:  content.CoverWidth,
+				CoverHeight: content.CoverHeight,
 				AuthorID:    content.AuthorID,
 				AuthorName:  authorName,
 				LikeCount:   content.LikeCount,
@@ -375,6 +379,8 @@ func (s *RecommendationService) fallbackToHot(ctx context.Context, page, pageSiz
 				ID:          c.ID,
 				Title:       c.Title,
 				CoverURL:    c.CoverImageURL,
+				CoverWidth:  c.CoverWidth,
+				CoverHeight: c.CoverHeight,
 				AuthorID:    c.AuthorID,
 				AuthorName:  c.Author.Username,
 				LikeCount:   c.LikeCount,

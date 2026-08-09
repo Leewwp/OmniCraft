@@ -16,6 +16,8 @@ type ContentItem struct {
 	Category         string       `gorm:"size:50" json:"category,omitempty"`
 	ContentType      string       `gorm:"size:20;not null" json:"content_type"`
 	CoverImageURL    string       `gorm:"type:text" json:"cover_image_url,omitempty"`
+	CoverWidth       *int         `gorm:"column:cover_width" json:"cover_width,omitempty"`
+	CoverHeight      *int         `gorm:"column:cover_height" json:"cover_height,omitempty"`
 	Status           string       `gorm:"size:20;not null;default:pending" json:"status"`
 	ViewCount        int64        `gorm:"not null;default:0" json:"view_count"`
 	LikeCount        int          `gorm:"not null;default:0" json:"like_count"`
@@ -44,8 +46,13 @@ type ContentAttachment struct {
 	DurationSec   *int        `json:"duration_sec,omitempty"`
 	Width         *int        `json:"width,omitempty"`
 	Height        *int        `json:"height,omitempty"`
-	IsPrimary     bool        `gorm:"default:true" json:"is_primary"`
-	CreatedAt     time.Time   `gorm:"autoCreateTime" json:"created_at"`
+	SortOrder     *int        `gorm:"column:sort_order" json:"sort_order,omitempty"`
+	// IsPrimary marks the single derived cover entry for media content (image =
+	// sort_order 0 item; video = none, the poster is the cover). Pointer so new
+	// media rows can explicitly persist false; legacy non-media rows keep the
+	// column default true.
+	IsPrimary *bool     `gorm:"default:true" json:"is_primary"`
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
 }
 
 func (ContentAttachment) TableName() string { return "content_attachments" }

@@ -215,7 +215,11 @@ func (r *ContentRepository) CreateTags(tags []model.ContentTag) error {
 
 func (r *ContentRepository) GetAttachments(contentID int64) ([]model.ContentAttachment, error) {
 	var attachments []model.ContentAttachment
-	err := r.db.Where("content_item_id = ?", contentID).Find(&attachments).Error
+	// Media sets are browsed in stable order: sort_order ASC NULLS LAST with
+	// id ASC as the deterministic fallback for legacy rows without sort_order.
+	err := r.db.Where("content_item_id = ?", contentID).
+		Order("sort_order ASC NULLS LAST, id ASC").
+		Find(&attachments).Error
 	return attachments, err
 }
 

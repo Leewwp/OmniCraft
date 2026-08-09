@@ -30,3 +30,41 @@ UNIQUE (series_id, content_item_id)
 		t.Fatalf("generated schema omits composite constraint:\n%s", generated)
 	}
 }
+
+func TestParseAlterTableColumnsMergesAddedColumns(t *testing.T) {
+	content := `
+CREATE TABLE content_items (
+    id BIGSERIAL PRIMARY KEY,
+    title VARCHAR(500) NOT NULL
+);
+
+ALTER TABLE content_items
+    ADD COLUMN IF NOT EXISTS cover_width INT,
+    ADD COLUMN IF NOT EXISTS cover_height INT;
+
+ALTER TABLE content_attachments
+    ADD COLUMN IF NOT EXISTS sort_order INT NOT NULL DEFAULT 0;
+
+ALTER TABLE content_items
+    ADD COLUMN IF NOT EXISTS source_original_id BIGINT REFERENCES content_items(id) ON DELETE SET NULL;
+`
+	cols := parseAlterTableColumns(content)
+	if len(cols["content_items"]) != 3 {
+		t.Fatalf("content_items alter columns = %d, want 3: %#v", len(cols["content_items"]), cols["content_items"])
+	}
+	if len(cols["content_attachments"]) != 1 {
+		t.Fatalf("content_attachments alter columns = %d, want 1", len(cols["content_attachments"]))
+	}
+	coverWidth := cols["content_items"][0]
+	if coverWidth.Name != "cover_width" || coverWidth.Type != "INT" {
+		t.Fatalf("cover_width = %#v, want name=cover_width type=INT", coverWidth)
+	}
+	sortOrder := cols["content_attachments"][0]
+	if sortOrder.Name != "sort_order" || !sortOrder.NotNull || sortOrder.Default != "0" {
+		t.Fatalf("sort_order = %#v, want NOT NULL DEFAULT 0", sortOrder)
+	}
+	sourceID := cols["content_items"][2]
+	if sourceID.Name != "source_original_id" || sourceID.References != "content_items.id" {
+		t.Fatalf("source_original_id = %#v, want REFERENCES content_items.id", sourceID)
+	}
+}

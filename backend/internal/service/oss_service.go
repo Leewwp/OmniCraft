@@ -15,6 +15,7 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/imageinfo"
 )
 
 var ErrOSSNotConfigured = errors.New("oss config is incomplete")
@@ -80,6 +81,13 @@ func (s *OSSService) GeneratePresignUploadURL(ctx context.Context, req PresignUp
 	if err := s.validateUploadByType(normalizedFileType, normalizedMime, req.FileSize, req.DurationSec, ext); err != nil {
 		return nil, err
 	}
+	// Content uploads (media gallery items and video posters) must be MIME
+	// types the imageinfo parser can decode, so an upload that passes here can
+	// always be parsed for dimensions at publish time. Feedback attachments
+	// keep their own MIME contract and do not go through this endpoint.
+	if normalizedFileType == "image" && !imageinfo.IsSupportedMIME(normalizedMime) {
+		return nil, &UploadValidationError{Message: "mime_type must be image/png, image/jpeg or image/webp"}
+	}
 
 	ossKey := s.buildOSSKey(normalizedFileType, ext, userID)
 	const signedTTL = 15 * time.Minute
@@ -139,6 +147,8 @@ func (s *OSSService) GeneratePresignDownloadURL(ctx context.Context, ossKey stri
 	return s.client.GetSignedURL(strings.TrimSpace(ossKey), http.MethodGet, ttl)
 }
 
+// VerifyUploadedObject asserts the uploaded object matches the grant's size
+// and content type, reading object metadata (not client claims).
 func (s *OSSService) VerifyUploadedObject(ctx context.Context, grant UploadGrant) error {
 	_ = ctx
 	if s == nil || s.client == nil {
@@ -155,6 +165,16 @@ func (s *OSSService) VerifyUploadedObject(ctx context.Context, grant UploadGrant
 		return &UploadValidationError{Message: "uploaded content type does not match grant"}
 	}
 	return nil
+}
+
+// ResolveImageDimensions derives pixel dimensions from the object header, so
+// cover/poster sizes are trusted server-side facts rather than client input.
+func (s *OSSService) ResolveImageDimensions(ctx context.Context, ossKey string) (int, int, error) {
+	_ = ctx
+	if s == nil || s.client == nil {
+		return 0, 0, ErrOSSNotConfigured
+	}
+	return s.client.GetImageDimensions(strings.TrimSpace(ossKey))
 }
 
 func (s *OSSService) validateUploadByType(fileType, mimeType string, fileSize int64, durationSec *int, ext string) error {
@@ -210,6 +230,23 @@ func (s *OSSService) GenerateVideoSnapshotURL(ctx context.Context, ossKey string
 	}
 	const coverExpiry = 7 * 24 * time.Hour
 	return s.client.GetVideoSnapshotURL(strings.TrimSpace(ossKey), coverExpiry, 480)
+}
+
+// PersistentObjectURL derives a stable URL only through the explicitly
+// configured delivery domain. Private OSS buckets must be read through the
+// signed download endpoint; never synthesize an unsigned bucket URL.
+func (s *OSSService) PersistentObjectURL(ossKey string) string {
+	if s == nil || s.cfg == nil {
+		return ""
+	}
+	key := strings.TrimSpace(ossKey)
+	if key == "" {
+		return ""
+	}
+	if domain := strings.TrimSpace(s.cfg.OSS.Domain); domain != "" {
+		return strings.TrimSuffix(domain, "/") + "/" + key
+	}
+	return ""
 }
 
 func (s *OSSService) isAllowedSheetMusicExt(ext string) bool {
