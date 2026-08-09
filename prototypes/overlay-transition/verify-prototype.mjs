@@ -2,17 +2,29 @@
 // Runs the overlay-transition prototype through all four acceptance criteria
 // and saves screenshots into <repo-root>/screenshots/.
 //
-// Resolution: prefer the current repo's frontend/node_modules; fall back to the
-// main repo checkout (read-only require, no modification of that repo).
+// Resolution: use this checkout's frontend/node_modules, then normal package
+// resolution as a fallback.
 import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { existsSync, readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 let pw = null;
-for (const candidate of [
-  '/Users/pp/Desktop/file/code/project/OmniCraft/frontend/node_modules/playwright-core',
-  'playwright-core',
-]) {
+const candidates = [resolve(repoRoot, 'frontend/node_modules/playwright-core'), 'playwright-core'];
+const gitFile = resolve(repoRoot, '.git');
+if (existsSync(gitFile)) {
+  const gitDirLine = readFileSync(gitFile, 'utf8').trim();
+  const gitDir = gitDirLine.startsWith('gitdir: ') ? gitDirLine.slice('gitdir: '.length) : '';
+  const worktreesSegment = `${process.platform === 'win32' ? '\\' : '/'}worktrees${process.platform === 'win32' ? '\\' : '/'}`;
+  const splitAt = gitDir.lastIndexOf(worktreesSegment);
+  if (splitAt >= 0) {
+    const primaryRoot = resolve(gitDir.slice(0, splitAt), '..');
+    candidates.push(resolve(primaryRoot, 'frontend/node_modules/playwright-core'));
+  }
+}
+for (const candidate of candidates) {
   try {
     pw = require(candidate);
     break;
@@ -26,13 +38,17 @@ if (!pw) {
 }
 
 const { chromium } = pw;
-const SHOT_DIR = resolve(process.cwd(), 'screenshots');
-const PAGE_URL = 'file://' + resolve(process.cwd(), 'prototypes/overlay-transition/index.html');
+const SHOT_DIR = resolve(repoRoot, 'screenshots');
+const PAGE_URL = 'file://' + resolve(repoRoot, 'prototypes/overlay-transition/index.html');
 
 const results = [];
 function check(name, ok, detail = '') {
   results.push({ name, ok, detail });
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
+}
+
+function note(name, detail = '') {
+  console.log(`INFO  ${name}${detail ? '  — ' + detail : ''}`);
 }
 
 async function logLines(page) {
@@ -72,7 +88,7 @@ try {
   await page.goto(PAGE_URL);
   await page.waitForSelector('#grid .card');
   const vtNative = await page.evaluate(() => typeof document.startViewTransition === 'function');
-  check('VT native support detected in this browser', vtNative, `startViewTransition=${vtNative}`);
+  note('VT capability detected', `startViewTransition=${vtNative}`);
   await page.screenshot({ path: resolve(SHOT_DIR, 'overlay-transition-feed-baseline.png') });
 
   /* ---------- AC1/AC2: FLIP core with VT forced off ---------- */
@@ -118,6 +134,38 @@ try {
   logs = await logLines(page);
   const vtCloseOk = logs.some((l) => l.includes(vtCloseNeedle));
   check('VT path close reversible', vtCloseOk, logs[0]);
+
+  // A supported browser may still reject t.finished (interruption/abort).
+  // Emulate that asynchronous failure and prove the actual path is reported
+  // as FLIP rather than a misleading VT success.
+  if (vtNative) {
+    await page.evaluate(() => {
+      window.__prototypeNativeVT = document.startViewTransition;
+      document.startViewTransition = (update) => {
+        update();
+        return { finished: Promise.reject(new DOMException('forced rejection', 'AbortError')) };
+      };
+    });
+    await page.click('#btn-open-card');
+    await waitForLog(page, '打开完成（VT 失败 → FLIP 兜底）');
+    await waitSettled(page, true);
+    await page.keyboard.press('Escape');
+    await waitForLog(page, '关闭完成（VT 失败 → FLIP 兜底回归）');
+    await waitSettled(page, false);
+    logs = await logLines(page);
+    check(
+      'rejected VT reports and completes through FLIP fallback',
+      logs.some((l) => l.includes('打开完成（VT 失败 → FLIP 兜底）')) &&
+        logs.some((l) => l.includes('关闭完成（VT 失败 → FLIP 兜底回归）')),
+      logs.slice(0, 4).join(' | '),
+    );
+    await page.evaluate(() => {
+      document.startViewTransition = window.__prototypeNativeVT;
+      delete window.__prototypeNativeVT;
+    });
+  } else {
+    note('rejected VT fallback test skipped', 'native VT unavailable; forced-off FLIP path already covered');
+  }
 
   /* ---------- AC3: fallback scenarios (centered scale+fade) ---------- */
   await page.check('#chk-no-vt');
@@ -171,10 +219,12 @@ try {
   const rmTransform = await page.$eval('#overlay-cover', (el) => getComputedStyle(el).transform);
   check('reduced-motion: no transform during open', rmTransform === 'none', rmTransform);
   await page.screenshot({ path: resolve(SHOT_DIR, 'overlay-transition-reduced-open-settled.png') });
+  await waitForLog(page, '打开完成（reduced-motion'); // fade path logs after its transition settles
   logs = await logLines(page);
   check('reduced-motion open path logged (fade)', logs.some((l) => l.includes('打开完成（reduced-motion')), logs[0]);
   await page.keyboard.press('Escape');
   await waitSettled(page, false);
+  await waitForLog(page, '关闭完成（reduced-motion');
   logs = await logLines(page);
   check('reduced-motion close path logged (fade)', logs.some((l) => l.includes('关闭完成（reduced-motion')), logs[0]);
   await page.emulateMedia({ reducedMotion: 'no-preference' });
