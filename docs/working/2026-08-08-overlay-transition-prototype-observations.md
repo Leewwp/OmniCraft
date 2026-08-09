@@ -57,7 +57,7 @@
 5. **中断处理**：任何路径都带 run token + `cancelActive()`（transition:none 强制清过渡）。VT 中途被 `skipTransition`/Abort 时 `t.finished` 会 reject，需恢复 overlay 可见再走 FLIP 兜底；`startViewTransition` 同步抛错（已有进行中转场）也要走同一兜底。中断后必须保证状态机回 idle，不做残留清理时死锁。
 6. **reduced-motion 判定通道**：`matchMedia('(prefers-reduced-motion: reduce)')` 监听 change 事件实时刷新状态（实测可用）；原型还提供强制复选框，两通道共用同一 `reducedMotion()` 判定，保证测试可复现。
 7. **浏览器兼容性**：View Transition API 现为 Chromium/Safari 26+ 支持、Firefox 不支持——Firefox 即"VT 不支持 → FLIP"的真实环境，原型强制禁用开关可精确模拟该环境；FLIP 路径为所有现代浏览器共享代码。原型在 file:// 下可用（封面用 SVG data-URI，无网络依赖）。
-8. **scroll-lock 与滚动条宽度**：原型仅锁 `html/body` overflow（滚动条宽度 padding 补偿未做，那是 #68 的细节）；overlay 自身 `overflow:hidden`，内部滚动只发生在 sheet 的 panel 容器。关闭时恢复滚动位置需在 unlock 时写回 `document.scrollingElement.scrollTop`。
+8. **scroll-lock 与滚动条宽度**：原型同时锁定 `html/body` overflow，并把滚动条宽度补偿到 `body.paddingRight`，解锁时恢复原始内联样式与 `document.scrollingElement.scrollTop`；overlay 自身 `overflow:hidden`，内部滚动只发生在 sheet 的 panel 容器。
 9. **降级参数**：`scale(0.96)` + 300ms（开）/ 240ms（关）+ 同缓动；reduced-motion 100ms 纯 opacity。这些数值是原型实测值，正式实现的最终数值以 ui-spec/design-system 为准（本原型不替代 token 权威）。
 
 ## 5. 给 #68 的正式实现契约（可复现输入）
@@ -70,14 +70,14 @@
 - **降级**：居中 `scale(0.96)` + opacity，开 300ms / 关 240ms 同缓动；日志/断言按 `原因=无 source/离屏/已卸载/无法测量` 区分，便于测试复现。
 - **reduced-motion**：100ms 纯 opacity，cover 不设 transform；关闭同。
 - **测试面**（承接规格 Testing Decision 5）：浏览器级断言覆盖 视口内 source 开合、source 滚出后关闭、detached、程序化打开、VT 支持/不支持（强制开关模拟）、reduced-motion（emulateMedia + 强制开关）、快速中断恢复；几何断言用 computed transform/opacity，不断言实现细节字符串。
-- **不继承项**：原型使用 `display:none` 切换 overlay（生产建议 `dialog`/portal + inert，见 ui-spec 响应式与可访问性节）；scroll 锁需补滚动条宽度补偿；SVG data-URI 封面仅为原型自包含，生产走真实媒体加载态。
+- **不继承项**：原型使用 `display:none` 切换 overlay（生产建议 `dialog`/portal + inert，见 ui-spec 响应式与可访问性节）；SVG data-URI 封面仅为原型自包含，生产走真实媒体加载态。
 
 ## 6. 复现步骤（可追溯）
 
 ```bash
 # 1) 本地打开原型（或任意静态服务器 / file:// 直接打开）
 open prototypes/overlay-transition/index.html
-# 2) 自动化全场景验证（playwright-core，读取主仓库 node_modules 只读回退）
+# 2) 自动化全场景验证（playwright-core，按脚本位置解析当前仓库 frontend/node_modules）
 node prototypes/overlay-transition/verify-prototype.mjs
 # 预期：== 17/17 checks passed ==；截图落 screenshots/overlay-transition-*.png
 # 3) 人工抽查：控制条逐个场景按钮 + 右侧日志路径徽章

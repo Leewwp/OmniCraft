@@ -467,11 +467,21 @@ function clearCardVTName() {
 /* ---------------- 滚动锁 ---------------- */
 let savedScroll = null;
 function lockScroll() {
-  savedScroll = { top: document.scrollingElement.scrollTop };
+  const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+  savedScroll = {
+    top: document.scrollingElement.scrollTop,
+    htmlOverflow: document.documentElement.style.overflow,
+    bodyOverflow: document.body.style.overflow,
+    bodyPaddingRight: document.body.style.paddingRight,
+  };
   document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden';
+  if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`;
 }
 function unlockScroll() {
-  document.documentElement.style.overflow = '';
+  document.documentElement.style.overflow = savedScroll?.htmlOverflow || '';
+  document.body.style.overflow = savedScroll?.bodyOverflow || '';
+  document.body.style.paddingRight = savedScroll?.bodyPaddingRight || '';
   if (savedScroll) document.scrollingElement.scrollTop = savedScroll.top;
   savedScroll = null;
 }
@@ -504,10 +514,12 @@ function waitForTransition(el, timeout) {
 async function waitVT(t, fallback) {
   try {
     await t.finished;
+    return true;
   } catch (err) {
     // AbortError / 被 skipTransition：按中断处理，兜底继续
     log('View Transition 被中断或拒绝', 'warn', String(err.name || err));
     if (fallback) await fallback();
+    return false;
   }
 }
 
@@ -613,7 +625,7 @@ async function vtOpen(trigger, src, run) {
     await flipOpen(trigger, src, run);
     return 'flip';
   }
-  await waitVT(t, async () => {
+  const completed = await waitVT(t, async () => {
     if (state.run !== run) return;
     log('VT 打开中断 → FLIP 兜底', 'warn', 't.finished rejected');
     clearVTName(cardCoverVT(trigger));
@@ -621,7 +633,8 @@ async function vtOpen(trigger, src, run) {
     await flipOpen(trigger, src, run);
   });
   clearCardVTName(); // 转场结束，移除动态名，避免影响后续 DOM 快照
-  return 'vt';
+  state.path = completed ? 'vt' : 'flip';
+  return state.path;
 }
 
 /* 降级打开：居中 scale-and-fade（AC3） */
@@ -777,7 +790,7 @@ async function vtClose(trigger, src, run) {
     await flipClose(trigger, src, run);
     return 'flip';
   }
-  await waitVT(t, async () => {
+  const completed = await waitVT(t, async () => {
     if (state.run !== run) return;
     log('VT 关闭中断 → FLIP 兜底', 'warn', 't.finished rejected');
     if (!overlay.classList.contains('open')) overlay.classList.add('open'); // 回调已移除时恢复，让 FLIP 回归可见
@@ -785,7 +798,8 @@ async function vtClose(trigger, src, run) {
     await flipClose(trigger, src, run);
   });
   clearCardVTName();
-  return 'vt';
+  state.path = completed ? 'vt' : 'flip';
+  return state.path;
 }
 
 function restoreFocus(trigger) {
