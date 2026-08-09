@@ -175,7 +175,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
       {/* Main content */}
       <div data-testid="home-main-content" className="min-w-0 flex-1">
         {/* Zone banner */}
-        <div className="px-6 pt-5 pb-3">
+        <div className="px-4 pt-5 pb-3 md:px-6">
           <div className="flex items-baseline gap-3">
             <h1 className="text-xl font-semibold tracking-tight text-foreground">{t('nav.fanworkZone')}</h1>
             <p className="text-sm text-muted-foreground">{t('home.fanworkZoneSubtitle')}</p>
@@ -198,7 +198,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
 
         {/* Recent IPs */}
         {recentIPs.length > 0 && (
-          <div className="px-6 pb-3">
+          <div className="px-4 pb-3 md:px-6">
             <div className="mb-2">
               <span className="text-sm font-semibold text-muted-foreground">{t('home.recentIps')}</span>
             </div>
@@ -217,7 +217,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
         )}
 
         {/* IP horizontal scroll */}
-        <div className="px-6 pb-2">
+        <div className="px-4 pb-2 md:px-6">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-sm font-semibold text-muted-foreground">{t('home.recommendedIps')}</span>
             <Link href="/ips" className="text-xs text-accent-emphasis font-medium">
@@ -274,7 +274,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
         </div>
 
         {/* Masonry grid */}
-        <div className="px-6 py-4 pb-16">
+        <div className="px-4 py-4 pb-16 md:px-6">
           {contentError ? (
             <div className="rounded-md border border-border bg-card p-8 text-center text-sm text-muted-foreground">
               {t("home.contentLoadFailed")}
