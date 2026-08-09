@@ -85,7 +85,7 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
       {/* Main content */}
       <div className="flex-1 min-w-0">
         {/* Zone banner */}
-        <div className="px-6 pt-5 pb-3">
+        <div className="px-4 pt-5 pb-3 md:px-6">
           <div className="flex items-baseline gap-3">
             <h1 className="text-[22px] font-bold tracking-tight text-foreground">{t("content.originalZone")}</h1>
             <p className="text-sm text-muted-foreground">{t("content.originalZoneDesc")}</p>
@@ -97,7 +97,7 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
         </div>
 
         {/* Category tabs + sort — unified sticky row */}
-        <div className="sticky top-[52px] z-40 border-b border-border-default bg-canvas-default px-6 py-2.5">
+        <div className="sticky top-[52px] z-40 border-b border-border-default bg-canvas-default px-4 py-2.5 md:px-6">
           <div className="flex items-center gap-0">
             <CategoryTabs categories={categories} currentCategory={current.category} />
             <div className="ml-3 flex-shrink-0"><SortSelect /></div>
@@ -105,7 +105,7 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
         </div>
 
         {/* Content masonry */}
-        <div className="px-6 pt-4 pb-16">
+        <div className="px-4 pt-4 pb-16 md:px-6">
           <OverlayMasonryGrid items={contents} emptyText={t("home.noOriginalContent")} source="zone-page" />
         </div>
       </div>
