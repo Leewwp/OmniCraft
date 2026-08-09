@@ -14,6 +14,8 @@ import {
   removeCollectionItem,
   updateCollection,
 } from "@/lib/collections";
+import { CollectionPicker } from "@/components/content/CollectionPicker";
+import { ToastProvider } from "@/components/ui/Toast";
 import { cleanup, fireEvent, installDom, waitFor } from "./runtime-test-helpers";
 import { render } from "@testing-library/react";
 
@@ -175,12 +177,23 @@ test("CollectionPicker lists same-zone collections with content item state from 
   const view = renderPicker();
 
   await waitFor(() => assert.equal(calls.get.at(-1)?.path, "/api/v1/collections?zone=original&content_item_id=42"));
-  assert.ok(view.getByText("Original default"));
-  assert.ok(view.getByText("Already in"));
+  assert.ok(await view.findByText("Original default"));
+  assert.ok(await view.findByText("Already in"));
   assert.ok(!view.queryByText("Fanwork shelf"));
   assert.ok(!view.queryByText("Malformed shelf"));
-  assert.ok(view.getByText("Added"));
+  assert.ok(await view.findByText("Added"));
   assert.equal(calls.post.length, 0, "already-added state must not be probed with a duplicate add request");
+});
+
+test("CollectionPicker shows both inline error and a toast when loading fails", async () => {
+  installDom();
+  installApiMocks({ getShouldFail: () => true });
+  const view = renderPicker();
+
+  const messages = await view.findAllByText("Failed to load collections");
+  assert.equal(messages.length, 2);
+  const toast = await view.findByRole("alert");
+  assert.match(toast.textContent ?? "", /Failed to load collections/);
 });
 
 test("CollectionPicker removes already-added content using backend item_id", async () => {
@@ -244,6 +257,131 @@ test("CollectionPicker shows search only when there are ten or more collections"
   assert.ok(await view.findByRole("searchbox", { name: "Search collections" }));
 });
 
+test("CollectionPicker stays open when interacting inside and closes on backdrop click", async () => {
+  installDom();
+  installApiMocks({
+    getResponse: { items: [collectionSummary(1, "Shelf", "original", false)], total: 1 },
+  });
+  const view = renderPicker();
+  const dialog = await view.findByRole("dialog");
+
+  fireEvent.click(dialog);
+  assert.ok(view.queryByRole("dialog"), "click inside the dialog does not close it");
+
+  const backdrop = view.container.querySelector<HTMLElement>('[class*="bg-black/40"]');
+  assert.ok(backdrop, "backdrop element exists");
+  fireEvent.click(backdrop!);
+  assert.equal(view.queryByRole("dialog"), null, "backdrop click closes the dialog");
+});
+
+test("CollectionPicker closes with Escape when not busy", async () => {
+  installDom();
+  installApiMocks({
+    getResponse: { items: [collectionSummary(1, "Shelf", "original", false)], total: 1 },
+  });
+  const view = renderPicker();
+  await view.findByRole("dialog");
+
+  fireEvent.keyDown(document, { key: "Escape" });
+  assert.equal(view.queryByRole("dialog"), null, "Escape closes the dialog");
+});
+
+test("CollectionPicker blocks backdrop and Escape close while an add request is in flight", async () => {
+  installDom();
+  let releaseAdd: (() => void) | undefined;
+  const pendingAdd = new Promise<unknown>((resolve) => {
+    releaseAdd = () => resolve({ item: { id: 51, collection_id: 1, content_item_id: 42 } });
+  });
+  installApiMocks({
+    getResponse: { items: [collectionSummary(1, "Shelf", "original", false)], total: 1 },
+    postResponseForPath: () => pendingAdd,
+  });
+  const view = renderPicker();
+
+  const addButton = await view.findByRole("button", { name: "Add" });
+  fireEvent.click(addButton);
+
+  await waitFor(() => assert.ok(addButton.getAttribute("disabled") !== null));
+  assert.ok(view.getByRole("button", { name: "Close" }).getAttribute("disabled") !== null, "close disabled while busy");
+
+  fireEvent.keyDown(document, { key: "Escape" });
+  assert.ok(view.queryByRole("dialog"), "Escape does not close while busy");
+
+  const backdrop = view.container.querySelector<HTMLElement>('[class*="bg-black/40"]');
+  fireEvent.click(backdrop!);
+  assert.ok(view.queryByRole("dialog"), "backdrop click does not close while busy");
+
+  releaseAdd?.();
+  await waitFor(() => assert.ok(view.queryByText(/Added to collection/)));
+});
+
+test("CollectionPicker shows in-modal notices on add success and failure and auto-dismisses them", async () => {
+  installDom();
+  let failNext = false;
+  installApiMocks({
+    getResponse: { items: [collectionSummary(1, "Shelf", "original", false)], total: 1 },
+    postResponseForPath() {
+      if (failNext) return Promise.reject(new Error("boom"));
+      return { item: { id: 51, collection_id: 1, content_item_id: 42 } };
+    },
+    deleteShouldFail: () => failNext,
+  });
+  const view = renderPicker();
+  const dialog = await view.findByRole("dialog");
+
+  fireEvent.click(await view.findByRole("button", { name: "Add" }));
+  const notice = await view.findByText(/Added to collection/);
+  assert.ok(dialog.contains(notice), "success notice renders inside the dialog, not as a global toast");
+  assert.ok(view.getByText("Added"), "row badge persists while the notice is visible");
+
+  const deadline = Date.now() + 3000;
+  while (view.queryByText(/Added to collection/) !== null && Date.now() < deadline) {
+    await new Promise((resolve) => window.setTimeout(resolve, 100));
+  }
+  assert.equal(view.queryByText(/Added to collection/), null, "notice auto-dismisses after about two seconds");
+  assert.ok(view.getByText("Added"), "row badge persists after the notice fades out");
+
+  failNext = true;
+  fireEvent.click(await view.findByRole("button", { name: "Remove from Shelf" }));
+  const errorNotice = await view.findByRole("alert");
+  assert.ok(dialog.contains(errorNotice), "failure notice renders inside the dialog");
+  assert.match(errorNotice.textContent ?? "", /Failed to remove, please retry/);
+});
+
+test("CollectionPicker does not fire global toasts for in-modal operations", () => {
+  const source = fs.readFileSync(new URL("../components/content/CollectionPicker.tsx", import.meta.url), "utf8");
+  assert.match(source, /useToast/);
+  assert.match(source, /toast\("error", t\("collections\.picker\.errors\.load"\)\)/);
+  assert.doesNotMatch(source, /toast\("success"/);
+  assert.doesNotMatch(source, /toast\("error", t\("collections\.picker\.notice/);
+});
+
+test("CollectionPicker traps focus and restores it to the trigger on close", async () => {
+  installDom();
+  installApiMocks({ getResponse: { items: [collectionSummary(1, "Shelf", "original", false)], total: 1 } });
+  const view = render(
+    <IntlProvider locale="en" messages={pickerMessages}>
+      <PickerFocusHarness />
+    </IntlProvider>,
+  );
+  const trigger = await view.findByRole("button", { name: "Open picker" });
+  trigger.focus();
+  fireEvent.click(trigger);
+
+  const dialog = await view.findByRole("dialog");
+  await new Promise((resolve) => window.setTimeout(resolve, 0));
+  assert.equal(document.activeElement, view.getByRole("button", { name: "Close" }), "focus lands on the close button");
+
+  view.getByRole("button", { name: "New collection" }).focus();
+  fireEvent.keyDown(document, { key: "Tab" });
+  assert.equal(document.activeElement, view.getByRole("button", { name: "Close" }), "Tab from the last element wraps to the first");
+
+  fireEvent.keyDown(document, { key: "Escape" });
+  await new Promise((resolve) => window.setTimeout(resolve, 0));
+  assert.equal(view.queryByRole("dialog"), null, "Escape closes the dialog");
+  assert.equal(document.activeElement, trigger, "focus returns to the trigger button");
+});
+
 test("ContentDetail opens CollectionPicker instead of keeping the legacy favorite toggle as primary action", () => {
   const source = fs.readFileSync(new URL("../components/content/ContentDetail.tsx", import.meta.url), "utf8");
 
@@ -295,9 +433,11 @@ test("new Task 7 code does not import the legacy add-to-collection modal", () =>
 function installApiMocks(
   options: {
     getResponse?: unknown;
+    getShouldFail?: () => boolean;
     postResponse?: unknown;
     putResponse?: unknown;
     postResponseForPath?: (path: string, body: unknown) => unknown;
+    deleteShouldFail?: () => boolean;
   } = {},
 ) {
   const calls: { get: ApiCall[]; post: ApiCall[]; put: ApiCall[]; delete: ApiCall[] } = {
@@ -309,6 +449,9 @@ function installApiMocks(
 
   api.get = (async <T,>(path: string): Promise<T> => {
     calls.get.push({ path });
+    if (options.getShouldFail?.()) {
+      throw new Error("boom");
+    }
     return (options.getResponse ?? { collection: { id: 9 }, collections: [] }) as T;
   }) as typeof api.get;
 
@@ -327,6 +470,9 @@ function installApiMocks(
 
   api.delete = (async <T,>(path: string): Promise<T> => {
     calls.delete.push({ path });
+    if (options.deleteShouldFail?.()) {
+      throw new Error("boom");
+    }
     return undefined as T;
   }) as typeof api.delete;
 
@@ -350,7 +496,9 @@ function collectionSummary(id: number, title: string, zone: "original" | "fanwor
 function renderPicker() {
   return render(
     <IntlProvider locale="en" messages={pickerMessages}>
-      <CollectionPickerHarness />
+      <ToastProvider>
+        <CollectionPickerHarness />
+      </ToastProvider>
     </IntlProvider>,
   );
 }
@@ -365,26 +513,10 @@ function setNativeInputValue(element: HTMLElement, value: string) {
 function CollectionPickerHarness() {
   const [open, setOpen] = React.useState(true);
   const [changedCount, setChangedCount] = React.useState(0);
-  const [Picker, setPicker] = React.useState<React.ComponentType<{
-    contentId: number;
-    contentTitle: string;
-    zone: "original" | "fanwork";
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    onChanged?: () => void;
-  }> | null>(null);
-
-  React.useEffect(() => {
-    void import("@/components/content/CollectionPicker").then((module) => {
-      setPicker(() => module.CollectionPicker);
-    });
-  }, []);
-
-  if (!Picker) return null;
 
   return (
     <>
-      <Picker
+      <CollectionPicker
         contentId={42}
         contentTitle="Current content"
         zone="original"
@@ -393,6 +525,19 @@ function CollectionPickerHarness() {
         onChanged={() => setChangedCount((count) => count + 1)}
       />
       <output aria-label="changed count">{changedCount}</output>
+    </>
+  );
+}
+
+function PickerFocusHarness() {
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        Open picker
+      </button>
+      <CollectionPicker contentId={42} contentTitle="Current content" zone="original" open={open} onOpenChange={setOpen} />
     </>
   );
 }
@@ -451,10 +596,13 @@ const pickerMessages = {
         add: "Failed to add",
         remove: "Failed to remove",
       },
-      toast: {
+      notice: {
         added: "Added to collection",
         removed: "Removed from collection",
-        created: "Collection created",
+        created: "Collection created and added",
+        addFailed: "Failed to add, please retry",
+        removeFailed: "Failed to remove, please retry",
+        createFailed: "Failed to create, please retry",
       },
     },
     card: {
