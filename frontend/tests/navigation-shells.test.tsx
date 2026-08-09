@@ -145,6 +145,7 @@ test("filter selected states share the colored pill contract with semantic state
 
   // The original zone page delegates tabs to the shared component.
   assert.match(originalPage, /<CategoryTabs/);
+  assert.match(originalPage, /border-b border-border-default bg-canvas-default/);
   assert.doesNotMatch(originalPage, /active\s*\?\s*"border-border bg-card/);
 });
 

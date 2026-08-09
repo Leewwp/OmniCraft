@@ -97,7 +97,7 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
         </div>
 
         {/* Category tabs + sort — unified sticky row */}
-        <div className="sticky top-[52px] z-40 bg-background px-6 py-2.5">
+        <div className="sticky top-[52px] z-40 border-b border-border-default bg-canvas-default px-6 py-2.5">
           <div className="flex items-center gap-0">
             <CategoryTabs categories={categories} currentCategory={current.category} />
             <div className="ml-3 flex-shrink-0"><SortSelect /></div>
