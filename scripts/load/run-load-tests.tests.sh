@@ -226,4 +226,17 @@ bash "$RUNNER" -Environment Local -Tier Smoke -Target http://127.0.0.1:8080 \
   -SkipReady -SkipMetrics -ContentId >/dev/null 2>&1
 [ $? -eq 2 ] || { echo "FAIL: missing flag value must exit 2" >&2; exit 1; }
 
+# -SeedDbName is accepted only together with -SeedDb and never touches the DB
+# without one; dry-run must pass either way.
+expect_pass "seed db name with -SeedDb and -DryRun" \
+  -Environment Local -Tier Smoke -Target http://127.0.0.1:8080 \
+  -Profile "$TEMP_ROOT/release-profile.json" -ReportDir "$TEMP_ROOT/report" -RunName smoke \
+  -K6Bin "$TEMP_ROOT/fake-k6" -ScriptDir "$TEMP_ROOT/k6-scripts" \
+  -SeedDb "container" -SeedDbName "omnicraft" -DryRun
+expect_pass "seed db name without -SeedDb must be ignored in dry-run" \
+  -Environment Local -Tier Smoke -Target http://127.0.0.1:8080 \
+  -Profile "$TEMP_ROOT/release-profile.json" -ReportDir "$TEMP_ROOT/report" -RunName smoke \
+  -K6Bin "$TEMP_ROOT/fake-k6" -ScriptDir "$TEMP_ROOT/k6-scripts" \
+  -SeedDbName "omnicraft" -DryRun
+
 echo "All run-load-tests contract cases passed."
