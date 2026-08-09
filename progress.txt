@@ -274,6 +274,26 @@
 
 ### Notes:
 - 原型不替代 ui-spec/design-system 的数值权威（scale 0.96 等为原型实测值）；#68 接入时沿用共享 overlay hook 预约顺序（#67 → #68）。
+## [2026-08-08] - Ticket 02 (#66): 统一导航壳、品牌入口与筛选状态
+
+### What was done:
+- Header（`frontend/components/layout/Header.tsx`）：内层 `max-w-7xl` → `max-w-[1280px]` + `px-4 md:px-6`（page-shell 宽度/gutter 契约，桌面 24px/移动 16px）；桌面 Logo 与移动抽屉内品牌入口 `href="/"` → `/recommend`（决策 1：推荐流为唯一品牌落点，二创区 `/` 保持分区语义）。
+- Sidebar（`Sidebar.tsx`）：公开侧边栏背景 `bg-canvas-subtle` → `bg-canvas-default`，与相邻页面表面同一背景契约（决策 3）。
+- 页面壳统一：`/`（HomePageClient）、`/original` 主容器 `max-w-[1440px]` → `max-w-[1280px]`；`/ips` 保留 1440px 已批准例外（P-01 方案 B）；`/recommend` 维持 1280px + `bg-canvas-subtle` 权威契约。
+- 筛选选中态统一（决策 4）：`/`（HomePageClient 内容类型）、`/original`（分类 Tab）与 `/ips`（IP 分类）均采用 IP 库彩色药丸 `rounded-full border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold` + `aria-pressed`（选中不只靠颜色）；/ips 顺带 `border-primary` → `border-accent-emphasis` 对齐。新建共享组件 `frontend/components/original/CategoryTabs.tsx`（客户端，`role=tab` + `aria-selected` + `aria-pressed`，保留滚动位置与 sort=recommended 归一化语义），`original/page.tsx` 内联 Tab 迁入。
+- 修复 `frontend/e2e/helpers/mock-api-guard.ts`：`escapeRegex` 字符类缺失 `*`，导致 `**/api/v1/**` 等通配 pattern 编译非法正则（`Nothing to repeat`），mocked 契约全部在首个 API 请求即崩溃（自 6dea58b 引入，main 上 `--full` 梯队一直受影响）；补回 `*` 后 9 个依赖 `mockPublicApis` 的 spec 恢复可运行。
+- 新增契约测试：`frontend/e2e/page-shell-contract.mock.spec.ts`（品牌入口桌面/移动路由、1280px 壳 + 24px gutter 几何、侧边栏与页面表面明暗双模式背景一致、三处 pill 选中态 CSS + aria-pressed、Tab 键盘 Enter 导航、375px 四路由无横向溢出）与 `frontend/e2e/t66-shell-screenshots.spec.ts`（截图证据生成器，`zh-CN` locale，桌面 light/dark + 移动）；`frontend/tests/navigation-shells.test.tsx` 增加源码级契约断言。
+
+### Testing:
+- `npm run build`（next build --webpack）通过；`npm run lint`（tsc --noEmit）通过；`npm run test:unit` 229/229 通过（含新增 navigation-shells 用例）。
+- Playwright（dev 服务用 `next dev --webpack` 规避 Turbopack 在内存压力下的 CSS 编译损坏 flake）：page-shell-contract.mock.spec 5/5 + t66-shell-screenshots 3/3 全绿（多次重复运行稳定）；截图 7 张落盘 `screenshots/t66-*.png`（desktop light：home/original/ips/recommend；desktop dark：original；mobile：original + 品牌入口路由后 recommend），像素采样验证：light sidebar=body=#ffffff、dark sidebar=body=#0d1117、mobile original 工具栏命中 pill 色 #eef2ff、recommend 面 #f5f5f5（canvas-subtle 权威）。
+- 后端真实服务（docker 18080）确认存活；真实数据截图方案因 CORS（allowed_origins 仅 `http://localhost:3000`，我无法改 backend）放弃，改用 mockPublicApis + `zh-CN` locale 生成证据。
+- 环境注意：本机 16GB 内存长期高占用（opencode/Codex/ego-lite/多 worktree dev server 并发），Turbopack dev 偶发 CSS 产物损坏（`Parsing CSS source code failed`，字节级乱码，非本票代码引起——A/B 测试与全量还原后仍复现）；`next build`（webpack）与 `next dev --webpack` 均稳定。CI mocked 配置（plain `npm run dev`）遇 Turbopack flake 时建议清缓存重试。
+
+### Notes:
+- `zh.json`/`en.json` 无需新增键（复用 `nav.siteName`/`content.originalZone`/`home.*` 既有键）。
+- 未触碰 #67/#70/#82/#83 文件面与 backend/；未改 config/routes/migrations，无需 doc-validator。
+- 遗留（非本票范围）：mock-public-apis 修复后暴露的既有 spec 问题（如 messages-notifications 严格模式重复文本、admin/collections/history 首编译超时）为 6dea58b 守卫崩溃掩盖下的 pre-existing 问题，留待对应票处理。
 ## [2026-08-08] - GitHub issue #82（媒体体验 T02）：CollectionPicker 关闭行为与浮窗内通知
 
 ### What was done:
