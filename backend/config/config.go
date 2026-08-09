@@ -181,6 +181,49 @@ type BrowseHistoryConfig struct {
 
 type UploadConfig struct {
 	SheetMusicExtensions []string `mapstructure:"sheet_music_extensions"`
+	// Media set (media gallery) size bounds for newly published image/video
+	// content. Zero means "use the specification default" so tests and
+	// minimal configs keep working.
+	ImageGalleryMinItems int `mapstructure:"image_gallery_min_items"`
+	ImageGalleryMaxItems int `mapstructure:"image_gallery_max_items"`
+	VideoGalleryMinItems int `mapstructure:"video_gallery_min_items"`
+	VideoGalleryMaxItems int `mapstructure:"video_gallery_max_items"`
+}
+
+// NormalizedGalleryLimits fills only omitted media-gallery limits with the
+// specification defaults. It is shared by the publish validator and the
+// public-config response so clients and the backend enforce the same bounds.
+func (u UploadConfig) NormalizedGalleryLimits() UploadConfig {
+	if u.ImageGalleryMinItems == 0 {
+		u.ImageGalleryMinItems = 2
+	}
+	if u.ImageGalleryMaxItems == 0 {
+		u.ImageGalleryMaxItems = 9
+	}
+	if u.VideoGalleryMinItems == 0 {
+		u.VideoGalleryMinItems = 1
+	}
+	if u.VideoGalleryMaxItems == 0 {
+		u.VideoGalleryMaxItems = 3
+	}
+	return u
+}
+
+func (u UploadConfig) ValidateGalleryLimits() error {
+	if u.ImageGalleryMinItems < 0 || u.ImageGalleryMaxItems < 0 {
+		return fmt.Errorf("image gallery limits must not be negative")
+	}
+	if u.VideoGalleryMinItems < 0 || u.VideoGalleryMaxItems < 0 {
+		return fmt.Errorf("video gallery limits must not be negative")
+	}
+	n := u.NormalizedGalleryLimits()
+	if n.ImageGalleryMinItems > n.ImageGalleryMaxItems {
+		return fmt.Errorf("image gallery min_items must not exceed max_items")
+	}
+	if n.VideoGalleryMinItems > n.VideoGalleryMaxItems {
+		return fmt.Errorf("video gallery min_items must not exceed max_items")
+	}
+	return nil
 }
 
 type PublishConfig struct {
@@ -701,6 +744,9 @@ func (c *Config) ValidateRelease() error {
 		return nil
 	}
 	var errs []string
+	if err := c.Upload.ValidateGalleryLimits(); err != nil {
+		errs = append(errs, "upload."+err.Error())
+	}
 
 	requireHTTPSURL(&errs, "web.public_base_url", c.Web.PublicBaseURL)
 	requireAllowedOrigins(&errs, c.Security.AllowedOrigins)

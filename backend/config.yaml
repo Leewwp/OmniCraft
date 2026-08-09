@@ -172,6 +172,13 @@ upload:
     - ".mscz"
     - ".mscx"
     - ".pdf"
+  # Media set size bounds for newly published image/video content (media
+  # experience #83). Exposed through /api/v1/config/public as non-sensitive
+  # limits; the frontend must not duplicate these constants.
+  image_gallery_min_items: 2
+  image_gallery_max_items: 9
+  video_gallery_min_items: 1
+  video_gallery_max_items: 3
     
 agent:
   web_agent_enabled: false
