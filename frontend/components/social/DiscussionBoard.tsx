@@ -8,7 +8,7 @@ import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { DiscussionCard } from "@/components/social/DiscussionCard";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Search, ArrowRight, MessageSquareText } from "lucide-react";
@@ -93,11 +93,9 @@ export function DiscussionBoard({ ipId, compact = false, className }: Discussion
   function startEntry() {
     if (canStartDiscussion) {
       return (
-        <Link href={`/ip/${ipId}/discussions/new`}>
-          <Button size="sm">
-            <Plus className="mr-1 h-4 w-4" />
-            {t("discussion.newPost")}
-          </Button>
+        <Link href={`/ip/${ipId}/discussions/new`} className={buttonVariants({ size: "sm" })}>
+          <Plus className="mr-1 h-4 w-4" />
+          {t("discussion.newPost")}
         </Link>
       );
     }
@@ -134,11 +132,9 @@ export function DiscussionBoard({ ipId, compact = false, className }: Discussion
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {!compact && canStartDiscussion && (
-            <Link href={`/ip/${ipId}/discussions/new`}>
-              <Button size="sm">
-                <Plus className="mr-1 h-4 w-4" />
-                {t("discussion.newPost")}
-              </Button>
+            <Link href={`/ip/${ipId}/discussions/new`} className={buttonVariants({ size: "sm" })}>
+              <Plus className="mr-1 h-4 w-4" />
+              {t("discussion.newPost")}
             </Link>
           )}
           {compact && !loading && discussions.length > 0 && startEntry()}
@@ -200,11 +196,9 @@ export function DiscussionBoard({ ipId, compact = false, className }: Discussion
             compact
               ? startEntry()
               : canStartDiscussion ? (
-                <Link href={`/ip/${ipId}/discussions/new`}>
-                  <Button size="sm" variant="outline">
-                    <Plus className="mr-1 h-4 w-4" />
-                    {t("discussion.newPost")}
-                  </Button>
+                <Link href={`/ip/${ipId}/discussions/new`} className={buttonVariants({ size: "sm", variant: "outline" })}>
+                  <Plus className="mr-1 h-4 w-4" />
+                  {t("discussion.newPost")}
                 </Link>
               ) : null
           }
