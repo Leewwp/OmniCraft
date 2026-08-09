@@ -5,7 +5,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: "0 6 * * *"
+    - cron: "0 6 * * 1" # weekly Monday 06:00 UTC; daily runs repeated identical trivy scans for unchanged code
   workflow_dispatch:
 
 concurrency:
