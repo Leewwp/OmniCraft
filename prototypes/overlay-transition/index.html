@@ -467,6 +467,7 @@ function clearCardVTName() {
 /* ---------------- 滚动锁 ---------------- */
 let savedScroll = null;
 function lockScroll() {
+  if (savedScroll) return;
   const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
   savedScroll = {
     top: document.scrollingElement.scrollTop,
