@@ -30,6 +30,10 @@ jobs:
 
   tauri-windows:
     name: Desktop Windows gates
+    # The Windows runner is billed at 2x the Linux rate, so it must not be
+    # started for PRs/pushes that do not touch tauri-client/. GitHub treats a
+    # job skipped by this condition as passing the required check.
+    if: needs.detect.outputs.changed == 'true'
     needs: detect
     runs-on: windows-latest
     env:
@@ -56,11 +60,7 @@ jobs:
       - name: Install client dependencies
         run: npm ci
         working-directory: tauri-client
-      - name: No desktop changes
-        if: needs.detect.outputs.changed != 'true'
-        run: echo "no desktop path changes; tauri-windows no-op"
       - name: Desktop verification
-        if: needs.detect.outputs.changed == 'true'
         run: bash scripts/verify-project.sh -Scope Tauri -ReportDir artifacts/tauri
       - name: Upload desktop evidence
         if: always()

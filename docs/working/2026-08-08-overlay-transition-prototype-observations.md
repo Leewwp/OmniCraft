@@ -1,7 +1,7 @@
 # Overlay 共享元素转场原型观察记录（#67）
 
 - 创建日期：2026-08-08
-- 预计失效日期：2026-10-08（原型验证票 #67 收口后本文件归档或删除；#68 实现期间可作为设计输入保留，此后失效）
+- **预计失效日期**: 2026-10-08（原型验证票 #67 收口后本文件归档或删除；#68 实现期间可作为设计输入保留，此后失效）
 - 归属：GitHub issue #67（Parent #64，Ticket 03，light 车道）
 - 原型位置：`prototypes/overlay-transition/index.html`（自包含静态 HTML + vanilla JS，零依赖，file:// 或本地静态服务器均可运行）；自动化验证驱动：`prototypes/overlay-transition/verify-prototype.mjs`（playwright-core，17/17 断言通过）
 - 截图：`screenshots/overlay-transition-*.png`（12 张，覆盖 FLIP/VT/降级/reduced-motion/中断恢复）
