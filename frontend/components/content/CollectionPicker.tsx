@@ -28,6 +28,16 @@ interface CollectionPickerProps {
   onChanged?: () => void;
 }
 
+type NoticeKind = "success" | "error";
+
+interface PickerNotice {
+  kind: NoticeKind;
+  message: string;
+}
+
+const NOTICE_VISIBLE_MS = 1800;
+const NOTICE_FADE_MS = 200;
+
 export function CollectionPicker({
   contentId,
   contentTitle,
@@ -48,7 +58,84 @@ export function CollectionPicker({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isPublic, setIsPublic] = useState(false);
+  const [notice, setNotice] = useState<PickerNotice | null>(null);
+  const [noticeFading, setNoticeFading] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const blockedRef = useRef(false);
+  const onOpenChangeRef = useRef(onOpenChange);
+  const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noticeFadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const blocked = busyId !== null || creating;
+
+  useEffect(() => {
+    blockedRef.current = blocked;
+  }, [blocked]);
+
+  useEffect(() => {
+    onOpenChangeRef.current = onOpenChange;
+  }, [onOpenChange]);
+
+  useEffect(() => {
+    return () => {
+      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+      if (noticeFadeTimerRef.current) clearTimeout(noticeFadeTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    previouslyFocusedRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    const focusTimer = window.setTimeout(() => {
+      const focusable = getFocusableElements(dialogRef.current);
+      (focusable[0] ?? dialogRef.current)?.focus();
+    }, 0);
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!dialogRef.current) return;
+
+      if (event.key === "Escape") {
+        if (blockedRef.current) return;
+        event.preventDefault();
+        onOpenChangeRef.current(false);
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const focusable = getFocusableElements(dialogRef.current);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocusedRef.current?.focus();
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -65,6 +152,18 @@ export function CollectionPicker({
     if (!needle) return sameZoneCollections;
     return sameZoneCollections.filter((collection) => collection.title.toLowerCase().includes(needle));
   }, [query, sameZoneCollections]);
+
+  function showNotice(kind: NoticeKind, message: string) {
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+    if (noticeFadeTimerRef.current) clearTimeout(noticeFadeTimerRef.current);
+    setNotice({ kind, message });
+    setNoticeFading(false);
+    noticeTimerRef.current = setTimeout(() => setNoticeFading(true), NOTICE_VISIBLE_MS);
+    noticeFadeTimerRef.current = setTimeout(() => {
+      setNotice(null);
+      setNoticeFading(false);
+    }, NOTICE_VISIBLE_MS + NOTICE_FADE_MS);
+  }
 
   async function loadCollections() {
     setLoading(true);
@@ -93,9 +192,9 @@ export function CollectionPicker({
         ),
       );
       onChanged?.();
-      toast("success", t("collections.picker.toast.added"));
+      showNotice("success", t("collections.picker.notice.added"));
     } catch {
-      toast("error", t("collections.picker.errors.add"));
+      showNotice("error", t("collections.picker.notice.addFailed"));
     } finally {
       setBusyId(null);
     }
@@ -119,9 +218,9 @@ export function CollectionPicker({
         ),
       );
       onChanged?.();
-      toast("success", t("collections.picker.toast.removed"));
+      showNotice("success", t("collections.picker.notice.removed"));
     } catch {
-      toast("error", t("collections.picker.errors.remove"));
+      showNotice("error", t("collections.picker.notice.removeFailed"));
     } finally {
       setBusyId(null);
     }
@@ -151,9 +250,9 @@ export function CollectionPicker({
       setIsPublic(false);
       setShowCreate(false);
       onChanged?.();
-      toast("success", t("collections.picker.toast.created"));
+      showNotice("success", t("collections.picker.notice.created"));
     } catch {
-      toast("error", t("collections.picker.errors.create"));
+      showNotice("error", t("collections.picker.notice.createFailed"));
     } finally {
       setCreating(false);
     }
@@ -164,12 +263,21 @@ export function CollectionPicker({
   const showSearch = sameZoneCollections.length >= 10;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div
+        className="fixed inset-0 bg-black/40"
+        aria-hidden="true"
+        onClick={() => {
+          if (!blocked) onOpenChange(false);
+        }}
+      />
+      <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="collection-picker-title"
-        className="flex max-h-[85vh] w-full flex-col rounded-t-lg border border-border bg-card shadow-md sm:max-h-[min(70vh,640px)] sm:max-w-[480px] sm:rounded-lg"
+        tabIndex={-1}
+        className="relative z-10 flex max-h-[85vh] w-full flex-col rounded-t-lg border border-border bg-card shadow-md sm:max-h-[min(70vh,640px)] sm:max-w-[480px] sm:rounded-lg"
       >
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-border p-4">
           <div className="min-w-0">
@@ -184,6 +292,7 @@ export function CollectionPicker({
             type="button"
             variant="ghost"
             size="icon-sm"
+            disabled={blocked}
             onClick={() => onOpenChange(false)}
             aria-label={t("collections.picker.actions.close")}
           >
@@ -237,6 +346,7 @@ export function CollectionPicker({
                   key={collection.id}
                   collection={collection}
                   busy={busyId === collection.id}
+                  disabled={busyId !== null}
                   onAdd={() => void handleAdd(collection)}
                   onRemove={() => void handleRemove(collection)}
                 />
@@ -245,7 +355,22 @@ export function CollectionPicker({
           )}
         </div>
 
-        <footer className="shrink-0 border-t border-border p-4">
+        <footer className="relative shrink-0 border-t border-border p-4">
+          {notice && (
+            <div
+              role={notice.kind === "error" ? "alert" : "status"}
+              aria-live={notice.kind === "error" ? "assertive" : "polite"}
+              className={cn(
+                "pointer-events-none absolute bottom-full left-3 right-3 z-10 mb-2 rounded-md border px-3 py-2 text-center text-xs font-medium shadow-sm transition-opacity duration-200 motion-reduce:transition-none",
+                notice.kind === "success"
+                  ? "border-[var(--tag-green-fg)] bg-[var(--tag-green-bg)] text-foreground"
+                  : "border-[var(--tag-rose-fg)] bg-[var(--tag-rose-bg)] text-foreground",
+                noticeFading && "opacity-0",
+              )}
+            >
+              {notice.message}
+            </div>
+          )}
           {showCreate ? (
             <div className="space-y-3">
               <label className="block space-y-1">
@@ -274,7 +399,7 @@ export function CollectionPicker({
                 {t("collections.picker.create.isPublic")}
               </label>
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => setShowCreate(false)} disabled={creating}>
+                <Button type="button" variant="outline" size="sm" onClick={() => setShowCreate(false)} disabled={blocked}>
                   {t("common.cancel")}
                 </Button>
                 <Button type="button" size="sm" onClick={() => void handleCreate()} disabled={creating}>
@@ -284,7 +409,7 @@ export function CollectionPicker({
               </div>
             </div>
           ) : (
-            <Button type="button" variant="outline" className="w-full" onClick={() => setShowCreate(true)}>
+            <Button type="button" variant="outline" className="w-full" onClick={() => setShowCreate(true)} disabled={blocked}>
               <Plus className="h-4 w-4" />
               {t("collections.picker.actions.new")}
             </Button>
@@ -298,11 +423,13 @@ export function CollectionPicker({
 function CollectionPickerRow({
   collection,
   busy,
+  disabled,
   onAdd,
   onRemove,
 }: {
   collection: CollectionSummary;
   busy: boolean;
+  disabled: boolean;
   onAdd: () => void;
   onRemove: () => void;
 }) {
@@ -338,7 +465,7 @@ function CollectionPickerRow({
           type="button"
           variant="outline"
           size="sm"
-          disabled={busy || !collection.item_id}
+          disabled={busy || disabled || !collection.item_id}
           onClick={onRemove}
           aria-label={t("collections.picker.actions.removeFrom", { title: collection.title })}
         >
@@ -350,7 +477,7 @@ function CollectionPickerRow({
           type="button"
           variant="outline"
           size="sm"
-          disabled={busy}
+          disabled={busy || disabled}
           onClick={onAdd}
           className={cn(busy && "opacity-80")}
         >
@@ -359,5 +486,22 @@ function CollectionPickerRow({
         </Button>
       )}
     </div>
+  );
+}
+
+function getFocusableElements(root: HTMLElement | null): HTMLElement[] {
+  if (!root) return [];
+
+  return Array.from(
+    root.querySelectorAll<HTMLElement>(
+      [
+        "a[href]",
+        "button:not([disabled])",
+        "textarea:not([disabled])",
+        "input:not([disabled])",
+        "select:not([disabled])",
+        '[tabindex]:not([tabindex="-1"])',
+      ].join(","),
+    ),
   );
 }
