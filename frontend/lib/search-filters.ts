@@ -31,6 +31,16 @@ export function normalizeSearchFilters(config: SearchFilterConfig): NormalizedSe
   };
 }
 
+// #81 排序默认值语义：无分类且未显式选排序 → recommended；选中任何分类（或
+// 携带其他筛选）且未显式选排序 → hot。推荐管线无视分类等筛选条件，不得把
+// "recommended" 误传给带筛选的请求；显式排序原样保留（深链
+// sort=recommended+分类 由后端防御性降级为 hot）。
+export function resolveDefaultSort(config: SearchFilterConfig): string {
+  const explicitSort = config.sort?.trim();
+  if (explicitSort) return explicitSort;
+  return config.category?.trim() ? "hot" : "recommended";
+}
+
 export function buildContentSearchParams(query: string, config: SearchFilterConfig): URLSearchParams {
   const filters = normalizeSearchFilters(config);
   const params = new URLSearchParams();
