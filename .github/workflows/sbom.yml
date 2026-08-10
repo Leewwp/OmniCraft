@@ -1,8 +1,6 @@
 name: OmniCraft SBOM & Provenance
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
   release:
     types: [published]
@@ -36,7 +34,7 @@ jobs:
         with:
           name: sbom-evidence
           path: artifacts/sbom
-          retention-days: ${{ github.event_name == 'push' && 90 || github.event_name == 'release' && 365 || 30 }}
+          retention-days: ${{ github.event_name == 'release' && 365 || 30 }}
 
   provenance:
     name: Provenance attestation

@@ -50,6 +50,23 @@
 - 本地环境发现：8080 端口被一个 Java 进程（PID 50343）占用，OmniCraft dev/load server 需换端口（本批用 8081）；本机未装 psql，load runner 需用 `-SeedDb` transport。
 - #101 关闭条件：下一次 performance 调度 run（周一）Load gate 绿。
 
+## [2026-08-10] - CI 降本方案 A：全工作流移除 push 触发，仅按需 dispatch + 周调度
+
+### What was done:
+- 背景：方案 2 上线后 agent 仍直推 main（10:19/10:34/11:02 三次直推各触发全套 ≈ $0.25-0.30/次），且 #130 合并后 6 分钟有手动 dispatch 全套（12:26，CI/SBOM 跑完、Security 已取消）。用户决定升级为方案 A：**push 触发全移除，CI 只在 workflow_dispatch 手动按需跑**；验收完全本地化。
+- 触发收敛：`ci.yml`/`security.yml`/`sbom.yml`/`tauri-ci.yml` 删除 `push: branches: [main]`；保留 workflow_dispatch（ci 保留 failure_probe 演练输入）、security 周一调度、performance 周一调度、sbom release 发布事件。performance.yml 本无 push 不变。
+- retention 简化：无 push 后 `${{ github.event_name == 'push' && 90 || 30 }}` 死分支移除，ci/security/tauri 统一 `retention-days: 30`；sbom 改为 `release && 365 || 30`。
+- 契约同步：`verify-workflows.sh` 断言改为 push/pull_request 均禁止 + workflow_dispatch 必含 + retention 必须 30 天；`verify-workflows.tests.sh` 新增 push 禁止 2 组（ci+tauri）、dispatch 必含 2 组，retention 变异用例改为 30→90 失败。TDD 红→绿：先在旧工作流上确认红（retention needle 不存在、push 触发仍在），改完转绿。
+- 运行清理：12:26 dispatch 批次中 Security run（31388026980）已取消；CI（31388024033）与 SBOM（31388029672）在分析期间已跑完不可撤销。
+
+### Testing:
+- `bash scripts/ci/verify-workflows.tests.sh` 全绿；5 个工作流 on-block 结构核对无 push/pull_request 残留（rg 零匹配）。
+- 未触发任何 GitHub Actions 运行做验证（本地契约测试即验证门，符合"尽量在本地验证"）。
+
+### Notes:
+- 效果：合并 PR / 直推 main 均零触发，月度花费趋近 0（仅周一 security ~13min + performance ~3min ≈ $0.02/周 + 手动按需）。验收 = 本地 `verify-project.sh` + UI 截图；需要 CI 证据时 `gh workflow run` 手动跑。
+- 未改 config.go/routes/migrations，无需 doc-validator；并行任务（#127/#128 及后续）不受影响。
+
 ## [2026-08-10] - CI 降本（用户决定方案 2：GitHub Actions 仅 main 合并时跑）
 
 ### What was done:
