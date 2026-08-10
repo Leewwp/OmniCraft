@@ -19,6 +19,20 @@ test("resolveDefaultSort: category without explicit sort defaults to hot", () =>
   assert.equal(resolveDefaultSort({ category: " film_tv " }), "hot");
 });
 
+test("resolveDefaultSort: any narrowing filter without explicit sort defaults to hot", () => {
+  assert.equal(resolveDefaultSort({ selectedTags: ["cosplay"] }), "hot");
+  assert.equal(resolveDefaultSort({ selected_tags: ["cosplay"] }), "hot");
+  assert.equal(resolveDefaultSort({ contentTypes: ["image"] }), "hot");
+  assert.equal(resolveDefaultSort({ content_types: ["image"] }), "hot");
+  assert.equal(resolveDefaultSort({ timeRange: "month" }), "hot");
+  assert.equal(resolveDefaultSort({ category: "film_tv", contentTypes: [] }), "hot");
+});
+
+test("resolveDefaultSort: time_range=all is not a narrowing filter", () => {
+  assert.equal(resolveDefaultSort({ timeRange: "all" }), "recommended");
+  assert.equal(resolveDefaultSort({ time_range: "all" }), "recommended");
+});
+
 test("resolveDefaultSort: explicit non-recommended sort is preserved with or without category", () => {
   assert.equal(resolveDefaultSort({ category: "film_tv", sort: "hot" }), "hot");
   assert.equal(resolveDefaultSort({ category: "film_tv", sort: "most_views" }), "most_views");
