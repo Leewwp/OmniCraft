@@ -258,7 +258,15 @@ function installSSEFetch(events: Array<Record<string, unknown>>) {
   const calls: string[] = [];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input: string | URL | Request) => {
-    calls.push(String(input));
+    const url = String(input);
+    if (url.includes("/api/v1/auth/csrf")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ csrf_token: "test-csrf-token" }),
+      } as unknown as Response;
+    }
+    calls.push(url);
     return sseResponse(events);
   }) as typeof fetch;
   return { calls, restore: () => (globalThis.fetch = originalFetch) };
@@ -269,6 +277,13 @@ function installSSEFetch(events: Array<Record<string, unknown>>) {
 function installAbortableSSEFetch(events: Array<Record<string, unknown>>) {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
+    if (String(_input).includes("/api/v1/auth/csrf")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ csrf_token: "test-csrf-token" }),
+      } as unknown as Response;
+    }
     const signal = init?.signal ?? null;
     const payload = events.map((event) => `data: ${JSON.stringify(event)}\n`).join("");
     const stream = new ReadableStream<Uint8Array>({

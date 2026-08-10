@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -45,6 +46,13 @@ func TestNewOpenAICompatProvider_SetsFields(t *testing.T) {
 	})
 }
 
+func TestNewMiniMaxProvider_DefaultAPIBase(t *testing.T) {
+	p := NewMiniMaxProvider("key", "", "model", "embed")
+	if p.openAI.apiBase != "https://api.minimaxi.com" {
+		t.Errorf("expected apiBase %q, got %q", "https://api.minimaxi.com", p.openAI.apiBase)
+	}
+}
+
 func TestNewProviderFromConfig_RoutesCorrectly(t *testing.T) {
 	t.Run("openai_compat", func(t *testing.T) {
 		p := NewProviderFromConfig("openai_compat", "key", "https://api.example.com", "gpt-4", "embed")
@@ -53,10 +61,20 @@ func TestNewProviderFromConfig_RoutesCorrectly(t *testing.T) {
 		}
 	})
 
-	t.Run("unknown_defaults_to_qwen", func(t *testing.T) {
+	t.Run("minimax", func(t *testing.T) {
+		p := NewProviderFromConfig("minimax", "key", "https://api.minimaxi.com", "MiniMax-M1", "embo-01")
+		if _, ok := p.(*MiniMaxProvider); !ok {
+			t.Errorf("expected *MiniMaxProvider, got %T", p)
+		}
+	})
+
+	t.Run("unknown_fails_closed", func(t *testing.T) {
 		p := NewProviderFromConfig("unknown_type", "key", "", "model", "embed")
-		if _, ok := p.(*QwenProvider); !ok {
-			t.Errorf("expected *QwenProvider for unknown type, got %T", p)
+		if _, ok := p.(*unsupportedProvider); !ok {
+			t.Errorf("expected *unsupportedProvider for unknown type, got %T", p)
+		}
+		if _, err := p.Chat(context.Background(), ChatRequest{}); err == nil || !strings.Contains(err.Error(), "unknown_type") {
+			t.Fatalf("unknown provider error = %v, want safe configuration error", err)
 		}
 	})
 
