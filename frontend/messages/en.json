@@ -327,7 +327,9 @@
     "suggestRemoveTag": "Suggest removing {tag}",
     "suggestAddTagHint": "Suggest adding this tag",
     "suggestRemoveTagHint": "Suggest removing this tag",
-    "tagSuggestionSubmitted": "Tag suggestion submitted, awaiting author review"
+    "tagSuggestionSubmitted": "Tag suggestion submitted, awaiting author review",
+    "ipLabel": "IP: {name}",
+    "attachmentUnknownType": "File"
   },
   "contentDetailOverlay": {
     "title": "Content detail",
@@ -1679,16 +1681,60 @@
       "subtitle": "Organize public content and maintain its chapter order.",
       "create": "Create series",
       "delete": "Delete series",
-      "empty": { "title": "No content series yet", "description": "Create a series to organize related content in order." },
-      "list": { "ariaLabel": "My content series" },
-      "detail": { "ariaLabel": "Series details" },
-      "form": { "title": "Series title", "description": "Series description", "zone": "Zone", "cover": "Series cover", "coverAutomatic": "Use the first item cover automatically", "createSubmit": "Create", "save": "Save changes" },
-      "items": { "title": "Added content", "ariaLabel": "Series content ordering list", "empty": "No content in this series yet", "add": "Add" },
-      "search": { "title": "Add content", "label": "Search content to add", "placeholder": "Search your content by title..." },
-      "confirm": { "deleteTitle": "Delete series?", "deleteDescription": "Deleting “{title}” removes the series order but does not delete content." },
-      "toast": { "created": "Series created", "saved": "Series saved", "deleted": "Series deleted", "itemAdded": "Content added", "itemRemoved": "Content removed", "reordered": "Order updated" },
-      "error": { "loadFailed": "Unable to load series. Try again.", "saveFailed": "Unable to save. Try again.", "deleteFailed": "Unable to delete. Try again.", "itemFailed": "Content operation failed. Try again." },
-      "a11y": { "backToList": "Back to series list", "moveUp": "Move {title} up", "moveDown": "Move {title} down", "removeItem": "Remove {title} from series" }
+      "empty": {
+        "title": "No content series yet",
+        "description": "Create a series to organize related content in order."
+      },
+      "list": {
+        "ariaLabel": "My content series"
+      },
+      "detail": {
+        "ariaLabel": "Series details"
+      },
+      "form": {
+        "title": "Series title",
+        "description": "Series description",
+        "zone": "Zone",
+        "cover": "Series cover",
+        "coverAutomatic": "Use the first item cover automatically",
+        "createSubmit": "Create",
+        "save": "Save changes"
+      },
+      "items": {
+        "title": "Added content",
+        "ariaLabel": "Series content ordering list",
+        "empty": "No content in this series yet",
+        "add": "Add"
+      },
+      "search": {
+        "title": "Add content",
+        "label": "Search content to add",
+        "placeholder": "Search your content by title..."
+      },
+      "confirm": {
+        "deleteTitle": "Delete series?",
+        "deleteDescription": "Deleting “{title}” removes the series order but does not delete content."
+      },
+      "toast": {
+        "created": "Series created",
+        "saved": "Series saved",
+        "deleted": "Series deleted",
+        "itemAdded": "Content added",
+        "itemRemoved": "Content removed",
+        "reordered": "Order updated"
+      },
+      "error": {
+        "loadFailed": "Unable to load series. Try again.",
+        "saveFailed": "Unable to save. Try again.",
+        "deleteFailed": "Unable to delete. Try again.",
+        "itemFailed": "Content operation failed. Try again."
+      },
+      "a11y": {
+        "backToList": "Back to series list",
+        "moveUp": "Move {title} up",
+        "moveDown": "Move {title} down",
+        "removeItem": "Remove {title} from series"
+      }
     },
     "publish": {
       "originalTitle": "Publish Original",

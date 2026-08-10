@@ -1,14 +1,9 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback } from "react";
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import type { ContentCardData } from "@/components/content/ContentCard";
-import { ContentDetailOverlay } from "@/components/content/ContentDetailOverlay";
-
-interface OverlayEntry {
-  contentId: number;
-  zone: "original" | "fanwork";
-}
+import { useContentDetailOverlay } from "@/components/content/use-content-detail-overlay";
 
 interface OverlayMasonryGridProps {
   items: ContentCardData[];
@@ -24,34 +19,22 @@ interface OverlayMasonryGridProps {
  * 页面滚动位置；直接 URL 访问详情页的深链不受影响。
  */
 export function OverlayMasonryGrid({ items, emptyText, className, source }: OverlayMasonryGridProps) {
-  const [overlayEntry, setOverlayEntry] = useState<OverlayEntry | null>(null);
-  const overlayTriggerRef = useRef<HTMLElement | null>(null);
+  const { open: handleOpenDetail, overlayElement } = useContentDetailOverlay({ source });
 
-  const handleOpenDetail = useCallback((data: ContentCardData, trigger: HTMLElement) => {
-    overlayTriggerRef.current = trigger;
-    setOverlayEntry({
-      contentId: data.id,
-      zone: data.zone === "original" ? "original" : "fanwork",
-    });
-  }, []);
+  const openDetail = useCallback(
+    (data: ContentCardData, trigger: HTMLElement) => {
+      handleOpenDetail(
+        { contentId: data.id, zone: data.zone === "original" ? "original" : "fanwork" },
+        trigger,
+      );
+    },
+    [handleOpenDetail],
+  );
 
   return (
     <>
-      <MasonryGrid items={items} emptyText={emptyText} className={className} onOpenDetail={handleOpenDetail} />
-
-      {overlayEntry && (
-        <ContentDetailOverlay
-          key={`${overlayEntry.zone}:${overlayEntry.contentId}`}
-          contentId={overlayEntry.contentId}
-          zone={overlayEntry.zone}
-          source={source}
-          open
-          onOpenChange={(open) => {
-            if (!open) setOverlayEntry(null);
-          }}
-          returnFocusRef={overlayTriggerRef}
-        />
-      )}
+      <MasonryGrid items={items} emptyText={emptyText} className={className} onOpenDetail={openDetail} />
+      {overlayElement}
     </>
   );
 }

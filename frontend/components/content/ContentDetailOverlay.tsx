@@ -21,6 +21,9 @@ export interface ContentDetailOverlayProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   returnFocusRef?: RefObject<HTMLElement | null>;
+  /** #89 连续浏览：触发上下文列表与当前索引（移动端从卡片网格进入时传入）。 */
+  contextList?: Array<{ id: number; zone: "original" | "fanwork" }>;
+  contextIndex?: number;
 }
 
 interface OverlayLayerState {
@@ -38,6 +41,8 @@ export function ContentDetailOverlay({
   open,
   onOpenChange,
   returnFocusRef,
+  contextList,
+  contextIndex,
 }: ContentDetailOverlayProps) {
   const t = useTranslations();
   const titleId = useId();
@@ -84,7 +89,9 @@ export function ContentDetailOverlay({
         returnFocusRef?.current ??
         (document.activeElement instanceof HTMLElement ? document.activeElement : null);
       restoreRef.current = { trigger, windowY: window.scrollY };
-      setStack([{ entry: { contentId, zone, source }, trigger, scrollTop: 0, title: null }]);
+      setStack([
+        { entry: { contentId, zone, source, contextList, contextIndex }, trigger, scrollTop: 0, title: null },
+      ]);
       pushHistoryState(1);
     }
     lastOpenRef.current = open;
