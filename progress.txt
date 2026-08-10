@@ -2,6 +2,22 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。超过 64KB 或每月轮换一次（上次轮换：2026-08-07）。完整历史见 `docs/archive/progress/2026-08-01-to-2026-08-07.md`。
 
+## [2026-08-10] - Load gate 修复（#101 跟进）：k6 写路径退出媒体类型
+
+### What was done:
+- 定位 2026-08-10 04:27 调度 run 的 Load gate 失败：k6 `content create 200/201` 检查失败（1/13 请求），根因是 #83 媒体合同（063 migration）后 `image` 类型发布必须携带媒体集 + OSS upload grant（`ErrUploadGrantInvalid`），k6 旧 payload 无附件必然 400。
+- 修复：`tests/load/k6/testdata.json` 的 `content_types` 收窄为 `["article"]`。媒体合同（含 grant 校验）由既有 Go/前端契约测试覆盖（content_upload_grant_test.go 等），k6 容量套件无 OSS 环境无法构造合法媒体发布；恢复容量测量本意。
+- 本地复现与验证：迁移新建 `omnicraft_load` 库 → 以 `ops/load/config-override.yaml` + `SERVER_PORT=8081` 启动 → `run-load-tests.tests.sh` 契约全过 → Smoke（rate=0.00%，content create ✓）+ Load（rate=0.00%，content create ✓）双绿。
+
+### Testing:
+- `bash scripts/load/run-load-tests.tests.sh`：All run-load-tests contract cases passed.
+- Smoke tier：`✓ content create 200/201`、`✓ rate<0.01`（rate=0.00%）；Load tier 同样双绿。
+- curl 直连验证：article 创建 201；image 单/双附件无 grant 返回 400 UPLOAD_GRANT_INVALID（与修复方向一致）。
+
+### Notes:
+- 本地环境发现：8080 端口被一个 Java 进程（PID 50343）占用，OmniCraft dev/load server 需换端口（本批用 8081）；本机未装 psql，load runner 需用 `-SeedDb` transport。
+- #101 关闭条件：下一次 performance 调度 run（周一）Load gate 绿。
+
 ## [2026-08-10] - CI 降本（用户决定方案 2：GitHub Actions 仅 main 合并时跑）
 
 ### What was done:
