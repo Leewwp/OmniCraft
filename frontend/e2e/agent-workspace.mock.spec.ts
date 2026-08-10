@@ -221,7 +221,7 @@ async function installStreamingChat(page: Page) {
   await page.addInitScript(() => {
     const realFetch = window.fetch.bind(window);
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input.url;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (!url.includes("/api/v1/agent/chat/stream")) {
         return realFetch(input, init);
       }
