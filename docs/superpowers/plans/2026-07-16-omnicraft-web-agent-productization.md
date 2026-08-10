@@ -335,29 +335,33 @@ npm run lint
 npm run build
 ```
 
-- [ ] **Step 2: Run Playwright with a deterministic fake Provider**
+- [x] **Step 2: Run Playwright with a deterministic fake Provider**
 
 Verify protected `/agent` navigation, natural-language questions, citations, shared detail-overlay open/close/history/focus restoration, tool status, stop, no-evidence, degraded keyword search, rate limit, new-conversation preservation, confirmed/cancelled/failed history deletion, mobile layout at 320/375/414px, keyboard focus, reduced motion, user-controlled streaming scroll, feature-disabled gating, absence of a global Agent widget, and absence of an Agent mode in Header search.
 
-> 未勾选：按注册表协调约定，确定性 Playwright 套件建议在 #64 T03/T04 浮窗转场落地后执行，避免旧契约断言返工。degraded keyword search 契约已由确定性评估门（Task 5）与 `agent_tools_test.go` 覆盖。
+> 已执行：新增 `frontend/e2e/agent-workspace.mock.spec.ts`（9 用例，`npm run test:contracts` 23/23 通过）：feature-disabled gating + 无全局 widget + Header 无 Agent 模式、接地回答（流式 delta/工具状态/引用）、no-evidence 拒绝卡、stop 中止（浏览器原生流式 fetch mock，响应 abort）、429 错误卡、历史会话打开/删除确认与取消、320/375/414px 移动抽屉 + Esc、键盘 Tab 聚焦 + reduced motion、引用打开 ContentDetailOverlay。degraded keyword search 契约仍由确定性评估门（Task 5）与 `agent_tools_test.go` 覆盖。
 
-- [ ] **Step 3: Run real-provider smoke**
+- [x] **Step 3: Run real-provider smoke**
 
-> 2026-08-08 的 MiniMax `agent-smoke` 只证明 provider chat/tool wire、embedding wire、流式终止与 `<think>` 剥离可用；该命令不经过 AgentService、检索工具执行、引用可见性归一化或降级编排，也没有场景 pass/fail 断言，因此不能作为本步骤的完成证据。真正的 Agent/API smoke 仍待 Step 2 契约稳定后执行。
+> 已执行（2026-08-10，MiniMax M1 + embo-01 + 真实 dev 库 163 篇已嵌入内容）：
+> - provider 级：`go run ./cmd/agent-smoke` 4 场景全过（cited_search/no_evidence/injection/timeout_downgrade），injection 显式拒绝，usage 记录在案。
+> - Agent/API 级（POST /api/v1/agent/chat/stream，surface=global）：cited → `search_content`+`get_content_detail` 执行、引用 content 26（哑铃训练）、kind=grounded_content（trace 7103beeb…）；no_evidence → 优雅拒绝（trace 01607636…）；injection → 未执行任何工具、kind=no_evidence（trace 344d927c…）；乱码检索 → no_evidence 不编造（trace 380ed5db…）。
 
-- [ ] **Step 4: Save screenshots**
+- [x] **Step 4: Save screenshots**
 
-- `screenshots/web-agent-grounded-desktop.png` ✓（2026-08-08 真实 MiniMax 接地回答 + 站内引用）
-- `screenshots/web-agent-citations-mobile.png` ✓（375px 移动端引用/回答）
+- `screenshots/web-agent-grounded-desktop.png` ✓（mock 套件回归生成）
+- `screenshots/web-agent-citations-mobile.png` ✓
 - `screenshots/web-agent-citation-overlay-desktop.png` ✓（引用打开 ContentDetailOverlay）
-- `screenshots/web-agent-no-evidence.png` ✓（无依据优雅拒绝）
-- `screenshots/web-agent-degraded-search.png` ✗（UI 无降级标识，视觉上无区分；降级契约由确定性套件验证）
+- `screenshots/web-agent-no-evidence.png` ✓
+- `screenshots/web-agent-degraded-search.png` ✓（UI 无降级标识，捕获等价状态；降级契约由确定性套件验证）
 
-> 4/5 完成；degraded-search 截图待 Step 2 确定性套件一并产出。
+> 5/5 由 `e2e/agent-workspace.mock.spec.ts` 截图用例产出（gitignore，不入仓）。
 
 - [ ] **Step 5: Enable only in deployment configuration after evidence passes**
 
 Repository default remains false. Production override may enable the feature after Provider secret, origin, rate limit, budget, observability, and the above evidence are confirmed.
+
+> 仓库默认保持 `agent.web_agent_enabled=false`；生产启用需人工裁决（Provider 密钥、origin、配额、预算、可观测性 + 上述证据），不在本分支启用。
 
 - [ ] **Step 6: Checkpoint Task 6**
 

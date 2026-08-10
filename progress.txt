@@ -2,6 +2,24 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。超过 64KB 或每月轮换一次（上次轮换：2026-08-07）。完整历史见 `docs/archive/progress/2026-08-01-to-2026-08-07.md`。
 
+## [2026-08-10] - Web Agent Task 6 完成：真实 Provider 发布验证（MiniMax M1）
+
+### What was done:
+- 用户提供 MiniMax API key，解除 Task 6 阻塞。按注册表从最新 main 重开 `web/agent-t6`，cherry-pick 旧分支 4 个实质提交（AutomaticEnv 移除 + MiniMax provider + 前端流式 CSRF + 验证修复/文档，冲突全部按 ours/incoming 解析）。
+- **Step 1**：Go build/vet/test 24 包、前端 unit 246+26 / lint / lint:ui / build 全绿。
+- **Step 2**：新增 `frontend/e2e/agent-workspace.mock.spec.ts`（9 用例）：gating/无 widget/无 Header Agent 模式、接地回答（delta+工具+引用）、no-evidence、stop 中止（浏览器原生流式 fetch mock 响应 AbortSignal）、429 错误卡、历史打开/删除确认与取消、320/375/414px 移动抽屉、键盘 Tab 聚焦 + reduced motion、引用打开 ContentDetailOverlay；`npm run test:contracts` 23/23。
+- **Step 3**：真实 smoke 双级验证——provider 级 `agent-smoke` 4 场景（injection 显式拒绝）；Agent/API 级经真实后端 + 163 篇已嵌入内容 + MiniMax M1/embo-01：cited（工具执行 + 引用 content 26）、no_evidence、injection（未执行工具）、乱码（不编造），trace id 记录。
+- **Step 4**：5 张证据截图由 mock 套件产出（gitignore）。
+- **Step 5**：仓库默认 `web_agent_enabled=false` 保持；生产启用待人工裁决。
+- 顺手修复：`config.go` 补 `SERVER_PORT` env 覆盖（AutomaticEnv 移除后的回归）；`gitignore` 补 frontend/test-results。
+
+### Testing:
+- 如上 Step 1/2/3/4 全部通过；`go test ./config` 通过。
+
+### Notes:
+- 新发现并开 issue：#127 LoadOverride 部分 section 覆盖清零兄弟字段（实测 queue.max_attempts 3→0）；#128 sendToDLQ err=nil nil 解引用 panic（max_attempts=0 触发）。均不在本任务修复面。
+- smoke 用临时 SQL 用户 + dev 库，结束后已清理；MiniMax key 仅经 env 注入，未写入仓库。
+
 ## [2026-08-10] - Load gate 修复（#101 跟进）：k6 写路径退出媒体类型
 
 ### What was done:
