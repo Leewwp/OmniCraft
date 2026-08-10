@@ -1,8 +1,6 @@
 name: OmniCraft CI
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       failure_probe:
@@ -60,7 +58,7 @@ jobs:
         with:
           name: backend-evidence
           path: artifacts/backend
-          retention-days: ${{ github.event_name == 'push' && 90 || 30 }}
+          retention-days: 30
 
   frontend:
     name: Frontend gates
@@ -88,7 +86,7 @@ jobs:
         with:
           name: frontend-evidence
           path: artifacts/frontend
-          retention-days: ${{ github.event_name == 'push' && 90 || 30 }}
+          retention-days: 30
 
   docs:
     name: Docs gates
@@ -113,7 +111,7 @@ jobs:
         with:
           name: docs-evidence
           path: artifacts/docs
-          retention-days: ${{ github.event_name == 'push' && 90 || 30 }}
+          retention-days: 30
 
   ops-alerting:
     name: Ops alerting gates
@@ -136,7 +134,7 @@ jobs:
         with:
           name: ops-alerting-evidence
           path: artifacts
-          retention-days: ${{ github.event_name == 'push' && 90 || 30 }}
+          retention-days: 30
 
   project-gate:
     needs: [backend, frontend, docs, ops-alerting]

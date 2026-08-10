@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Contract-checks .github/workflows/ci.yml and .github/workflows/tauri-ci.yml:
-# stable job names, triggers (main push + workflow_dispatch only; PR-time runs
-# are removed from acceptance and the local verify-project.sh gate replaces
-# them), concurrency, minimal permissions, SHA-pinned actions, lockfile-derived
-# cache keys, always-upload evidence artifacts with the 30/90-day retention
-# policy, no production secret references, and the Windows Tauri path-detected
-# job-level skip.
+# stable job names, triggers (workflow_dispatch only; push/pull_request triggers
+# are removed so merges and PRs never spend Actions minutes, and local
+# verify-project.sh is the acceptance gate), concurrency, minimal permissions,
+# SHA-pinned actions, lockfile-derived cache keys, always-upload evidence
+# artifacts with 30-day retention, no production secret references, and the
+# Windows Tauri path-detected job-level skip.
 # Usage: bash scripts/ci/verify-workflows.sh [-WorkflowsDir <dir>]
 set -u
 
@@ -210,10 +210,10 @@ def check_shared(doc, name, required_jobs, lockfile_keys):
         fail(f"{name}: missing 'on' triggers")
     if "pull_request" in on:
         fail(f"{name}: pull_request trigger is forbidden (PR-time runs removed; local verify-project.sh is the PR gate)")
-    if "push" not in on:
-        fail(f"{name}: push trigger is required")
-    if isinstance(on["push"], dict) and "paths" in on["push"]:
-        fail(f"{name}: push trigger must not use a workflow-level paths filter")
+    if "push" in on:
+        fail(f"{name}: push trigger is forbidden (on-demand dispatch only; merges never spend Actions minutes)")
+    if "workflow_dispatch" not in on:
+        fail(f"{name}: workflow_dispatch trigger is required for on-demand verification")
 
     concurrency = doc.get("concurrency")
     if not isinstance(concurrency, dict):
@@ -249,8 +249,8 @@ def check_shared(doc, name, required_jobs, lockfile_keys):
             if "always()" not in step_if:
                 fail(f"{name}: evidence artifact upload must use if: always()")
             retention = str(step.get("with", {}).get("retention-days", ""))
-            if "30" not in retention or "90" not in retention:
-                fail(f"{name}: artifact retention must express the 30/90-day policy")
+            if "30" not in retention:
+                fail(f"{name}: artifact retention must be 30 days")
 
     for lockfile in lockfile_keys:
         if lockfile not in open(os.path.join(workflows_dir, name), encoding="utf-8").read():
