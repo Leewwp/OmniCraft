@@ -363,17 +363,17 @@ Repository default remains false. Production override may enable the feature aft
 
 > 仓库默认保持 `agent.web_agent_enabled=false`；生产启用需人工裁决（Provider 密钥、origin、配额、预算、可观测性 + 上述证据），不在本分支启用。
 
-- [ ] **Step 6: Checkpoint Task 6**
+- [x] **Step 6: Checkpoint Task 6**
 
 Record release evidence and any external-input blocker in `progress.txt`. Mark Task 6 complete only after the real-provider smoke and browser evidence pass; stage no secrets or production override values. Commit exact evidence/plan files as `Web Agent 6: verify productization release`.
 
 ## Plan Self-Check
 
-- [ ] Answers about site content are grounded or explicitly refuse.
-- [ ] Citations are server-normalized and visibility-rechecked.
-- [ ] Tool registry is fixed, read-only/suggestion-only, and schema validated.
-- [ ] Budget reservation is atomic and provider retries are bounded.
-- [ ] Stream cancellation and post-header errors are tested.
-- [ ] UI exposes citations and tool status without chain-of-thought.
-- [ ] Deterministic evaluation is the CI oracle; real Provider is an explicit release smoke.
-- [ ] Desktop action execution remains owned by D-02～D-05/R-02.
+- [x] Answers about site content are grounded or explicitly refuse.
+- [x] Citations are server-normalized and visibility-rechecked.
+- [x] Tool registry is fixed, read-only/suggestion-only, and schema validated.
+- [x] Budget reservation is atomic and provider retries are bounded.
+- [x] Stream cancellation and post-header errors are tested.
+- [x] UI exposes citations and tool status without chain-of-thought.
+- [x] Deterministic evaluation is the CI oracle; real Provider is an explicit release smoke.
+- [x] Desktop action execution remains owned by D-02～D-05/R-02.
