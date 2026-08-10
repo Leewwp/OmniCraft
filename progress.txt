@@ -20,6 +20,20 @@
 - 新发现并开 issue：#127 LoadOverride 部分 section 覆盖清零兄弟字段（实测 queue.max_attempts 3→0）；#128 sendToDLQ err=nil nil 解引用 panic（max_attempts=0 触发）。均不在本任务修复面。
 - smoke 用临时 SQL 用户 + dev 库，结束后已清理；MiniMax key 仅经 env 注入，未写入仓库。
 
+## [2026-08-10] - 会话收尾：CI 全绿确认、#101 关闭、工作树清理
+
+### What was done:
+- 确认 main@27b89d3 的 4 个 workflow 全部 completed success（CI / Security / SBOM & Provenance / Tauri CI）；93f1855 上的失败系 TS2339 类型错误，已被 27b89d3 修复。
+- 今晨 04:27 performance 调度 run 失败原因确认：该 run 跑在修复前 main（3546796 = PR #122 合并点，不含 #101 修复 796bbf7，后者 2026-08-10 14:06 才合入），Load gate Smoke 步骤失败为预期行为，非回归。
+- 手动 dispatch performance workflow（run 31381037700，main@27b89d3）：Load gate 全绿（Contract + Smoke + Load + Stress 通过），#101 关闭条件满足，issue 已关闭并附证据。
+- 恢复 `content-series.mock.spec.ts` 运行重写的 6 张基线截图（community-content-series-*.png，既有 spec 行为，按先例提交前恢复）；`git fetch --prune` 后确认无残留本地分支/worktree，工作树干净。
+
+### Testing:
+- gh run list / gh run watch 验证：4 workflow 绿 + performance dispatch run 绿；`git status` clean。
+
+### Notes:
+- 待办：#127 / #128（config LoadOverride 覆盖清零、sendToDLQ nil panic）仍 OPEN，未在任何计划内，可作独立 light 修复；#68/#81 为下一个可执行任务（ready-for-agent）。
+
 ## [2026-08-10] - Load gate 修复（#101 跟进）：k6 写路径退出媒体类型
 
 ### What was done:
