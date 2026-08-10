@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Contract tests for scripts/ci/verify-workflows.sh against the real workflows
-# and mutated copies. Verifies stable job names, triggers (main push +
-# workflow_dispatch only; PR-time runs forbidden), concurrency, minimal
-# permissions, SHA-pinned actions, lockfile cache keys, always-upload artifacts
-# with retention policy, absence of production secrets, and the Windows Tauri
-# path-detected job-level skip.
+# and mutated copies. Verifies stable job names, triggers (workflow_dispatch
+# only; push/pull_request forbidden), concurrency, minimal permissions,
+# SHA-pinned actions, lockfile cache keys, always-upload artifacts with 30-day
+# retention, absence of production secrets, and the Windows Tauri path-detected
+# job-level skip.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -133,12 +133,12 @@ mutate "ci||__replace__||\non:||\non:\n    pull_request:"
 expect_fail "ci.yml must not declare the pull_request trigger"
 
 reset_fixtures
-mutate "ci||__replace__||push:\n    branches: [main]||push:\n    paths: [backend/**]"
-expect_fail "push trigger must not use a workflow-level paths filter"
+mutate "ci||__replace__||\non:||\non:\n    push:\n      branches: [main]"
+expect_fail "ci.yml must not declare the push trigger"
 
 reset_fixtures
-mutate "ci||__strip__||push"
-expect_fail "ci.yml must declare the push trigger"
+mutate "ci||__strip__||workflow_dispatch"
+expect_fail "ci.yml must declare the workflow_dispatch trigger"
 
 reset_fixtures
 mutate "ci||__strip__||failure_probe"
@@ -169,8 +169,8 @@ mutate "ci||__replace__||if: always()||if: success()"
 expect_fail "evidence artifacts must upload under if: always()"
 
 reset_fixtures
-mutate "ci||__replace__||90 || 30||90"
-expect_fail "artifact retention must express the 30/90-day policy"
+mutate "ci||__replace__||retention-days: 30||retention-days: 90"
+expect_fail "artifact retention must be 30 days"
 
 reset_fixtures
 mutate "ci||__replace__||run: bash scripts/verify-project.sh -Scope Backend -ReportDir artifacts/backend||run: echo \"\${{ secrets.PRODUCTION_KEY }}\""
@@ -179,6 +179,14 @@ expect_fail "production secrets must never be referenced"
 reset_fixtures
 mutate "tauri||__replace__||\non:||\non:\n    pull_request:"
 expect_fail "tauri-ci.yml must not declare the pull_request trigger"
+
+reset_fixtures
+mutate "tauri||__replace__||\non:||\non:\n    push:\n      branches: [main]"
+expect_fail "tauri-ci.yml must not declare the push trigger"
+
+reset_fixtures
+mutate "tauri||__strip__||workflow_dispatch"
+expect_fail "tauri-ci.yml must declare the workflow_dispatch trigger"
 
 reset_fixtures
 mutate "tauri||__replace__||runs-on: windows-latest||runs-on: ubuntu-latest"

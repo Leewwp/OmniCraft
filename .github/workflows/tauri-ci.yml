@@ -1,8 +1,6 @@
 name: OmniCraft Tauri CI
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -66,4 +64,4 @@ jobs:
         with:
           name: tauri-evidence
           path: artifacts/tauri
-          retention-days: ${{ github.event_name == 'push' && 90 || 30 }}
+          retention-days: 30
