@@ -6,7 +6,7 @@ import { AlertCircle, BookOpen, Loader2, Menu, RotateCw, Send, Trash2, X } from 
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useToast } from "@/components/ui/Toast";
-import { ContentDetailOverlay } from "@/components/content/ContentDetailOverlay";
+import { useContentDetailOverlay } from "@/components/content/use-content-detail-overlay";
 import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { getBrowserApiBase } from "@/lib/server-api";
@@ -83,17 +83,17 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [overlayEntry, setOverlayEntry] = useState<{
-    contentId: number;
-    zone: "original" | "fanwork";
-  } | null>(null);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
 
   const transcriptRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
-  const overlayTriggerRef = useRef<HTMLElement | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const atBottomRef = useRef(true);
+
+  /* 共享浮层入口控制器：Agent 引用入口只保留来源参数差异。 */
+  const { open: openCitationOverlay, overlayElement } = useContentDetailOverlay({
+    source: "agent-citation",
+  });
 
   const loadConversations = useCallback(async () => {
     setConversationsLoading(true);
@@ -239,11 +239,13 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
 
   const handleCitationOpen = useCallback(
     (citation: AgentCitation, trigger: HTMLElement) => {
-      overlayTriggerRef.current = trigger;
-      setOverlayEntry({ contentId: citation.contentId, zone: citation.zone });
+      openCitationOverlay(
+        { contentId: citation.contentId, zone: citation.zone },
+        trigger,
+      );
       onCitationOpen?.(citation);
     },
-    [onCitationOpen],
+    [onCitationOpen, openCitationOverlay],
   );
 
   const handleStreamEvent = useCallback(
@@ -618,19 +620,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
         </form>
       </section>
 
-      {overlayEntry && (
-        <ContentDetailOverlay
-          key={`${overlayEntry.zone}:${overlayEntry.contentId}`}
-          contentId={overlayEntry.contentId}
-          zone={overlayEntry.zone}
-          source="agent-citation"
-          open
-          onOpenChange={(open) => {
-            if (!open) setOverlayEntry(null);
-          }}
-          returnFocusRef={overlayTriggerRef}
-        />
-      )}
+      {overlayElement}
 
       <ConfirmModal
         open={confirmOpen}

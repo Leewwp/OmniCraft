@@ -905,7 +905,8 @@ test("protected /agent page wires Header, feature gate and workspace", async () 
 test("workspace wires citations to the shared overlay with agent source", async () => {
   const source = await read("components/agent/AgentWorkspace.tsx");
   assert.match(source, /ContentDetailOverlay/);
-  assert.match(source, /source="agent-citation"/);
+  assert.match(source, /source:\s*"agent-citation"/);
+  assert.match(source, /useContentDetailOverlay/);
   assert.match(source, /surface:\s*"global"/);
   assert.match(source, /agentSidebarCollapsed/);
 });

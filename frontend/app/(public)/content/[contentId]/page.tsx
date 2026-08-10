@@ -5,56 +5,15 @@ import { getTranslations } from 'next-intl/server';
 import { ContentDetailOverlayHost } from "@/components/content/ContentDetailOverlayHost";
 import { normalizeContentDetailResponse } from "@/lib/content";
 
-interface ContentItem {
-  id: number;
-  title: string;
-  description?: string;
-  body?: string;
-  content_type?: string;
-  author_id?: number;
-  author?: { id: number; username: string; avatar_url?: string };
-  zone?: string;
-  ip?: { id: number; name: string; slug?: string };
-  source_original_id?: number;
-  cover_image_url?: string;
-  allow_copy?: boolean;
-  agent_enabled?: boolean;
-  view_count?: number;
-  like_count?: number;
-  dislike_count?: number;
-  status?: string;
-  created_at?: string;
-  updated_at?: string;
-}
+const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://omnicraft.com";
 
-interface Attachment {
-  id: number;
-  file_type?: string;
-  mime_type?: string;
-  oss_key?: string;
-  // Preview-only URL for inline renderers; downloads must go through DownloadButton/backend auth.
-  oss_url?: string;
-  file_size?: number;
-  is_primary?: boolean;
-}
-
-interface ContentResponse {
-  content?: ContentItem;
-  attachments?: Attachment[];
-  tags?: Array<{ tag: string } | string>;
-  source_original?: { id: number; title: string };
-}
-
-
-async function fetchContent(apiBase: string, contentId: string): Promise<ContentResponse | null> {
+async function fetchContent(apiBase: string, contentId: string): Promise<unknown> {
   try {
     const res = await fetch(`${apiBase}/contents/${contentId}`, { cache: "no-store" });
     if (!res.ok) return null;
-    return (await res.json()) as ContentResponse;
+    return (await res.json()) as unknown;
   } catch { return null; }
 }
-
-const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://omnicraft.com";
 
 export async function generateMetadata({ params }: { params: Promise<{ contentId: string }> }): Promise<Metadata> {
   const { contentId } = await params;
@@ -78,7 +37,9 @@ export default async function FanworkContentDetailPage({ params }: { params: Pro
 
   const tags = normalized.tags;
   const zone: "fanwork" = "fanwork";
-  const sourceOriginal = data.source_original || (content.source_original_id ? { id: content.source_original_id, title: "" } : null);
+  const sourceOriginal =
+    normalized.sourceOriginal ??
+    (content.source_original_id ? { id: content.source_original_id, title: "" } : null);
 
   return (
     <ContentDetailOverlayHost

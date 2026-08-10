@@ -32,44 +32,7 @@ import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 import { AgentFeatureGate } from "@/components/agent/AgentFeatureGate";
 import { SeriesNav } from "@/components/content/SeriesNav";
-import type { SeriesMembership } from "@/lib/content";
-
-interface Attachment {
-  id: number;
-  file_type?: string;
-  mime_type?: string;
-  oss_key?: string;
-  // Preview-only URL for inline renderers; downloads must go through DownloadButton/backend auth.
-  oss_url?: string;
-  file_size?: number;
-  is_primary?: boolean;
-}
-
-interface ContentDetailData {
-  id: number;
-  title: string;
-  author?: { id?: number; username?: string; avatar_url?: string };
-  author_id?: number;
-  zone?: string;
-  ip?: { id?: number; name?: string; slug?: string };
-  category?: string;
-  content_type?: string;
-  cover_image_url?: string;
-  status?: string;
-  view_count?: number;
-  like_count?: number;
-  dislike_count?: number;
-  description?: string;
-  body?: string;
-  is_public?: boolean;
-  allow_copy?: boolean;
-  agent_enabled?: boolean;
-  attachments?: Attachment[];
-  tags?: string[];
-  created_at?: string;
-  updated_at?: string;
-  series_memberships?: SeriesMembership[];
-}
+import type { AttachmentData, ContentDetailData } from "@/lib/content";
 
 interface ContentDetailProps {
   data: ContentDetailData;
@@ -175,9 +138,9 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
           <span>
             {t('content.author', { name: data.author?.username ?? t('common.userLabel', { id: data.author_id ?? "-" }) })}
           </span>
-          {data.zone === "fanwork" && data.ip && (
+          {data.zone === "fanwork" && data.ip?.name && (
             <span>
-              IP: {data.ip.name}
+              {t('content.ipLabel', { name: data.ip.name })}
             </span>
           )}
           <span>{t('content.type', { type: typeLabel })}</span>
@@ -230,7 +193,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
                 className="flex items-center justify-between rounded border border-border bg-muted/10 p-2"
               >
                 <span className="text-xs text-muted-foreground">
-                  {att.file_type || "file"}
+                  {att.file_type || t("content.attachmentUnknownType")}
                   {att.file_size != null && ` (${(att.file_size / 1024).toFixed(1)} KB)`}
                 </span>
                 {data.allow_copy && (
