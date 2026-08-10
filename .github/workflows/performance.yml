@@ -1,12 +1,6 @@
 name: OmniCraft performance
 
 on:
-  pull_request:
-    paths:
-      - "tests/load/**"
-      - "scripts/load/**"
-      - "ops/load/**"
-      - ".github/workflows/performance.yml"
   schedule:
     - cron: "0 3 * * 1" # weekly Monday 03:00 UTC
   workflow_dispatch:
@@ -76,12 +70,10 @@ jobs:
           DB_DSN: host=localhost port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable
         run: bash scripts/load/run-load-tests.sh -Environment Local -Tier Smoke -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/perf -RunName smoke -DbDsn "$DB_DSN"
       - name: Load
-        if: ${{ github.event_name != 'pull_request' }}
         env:
           DB_DSN: host=localhost port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable
         run: bash scripts/load/run-load-tests.sh -Environment Local -Tier Load -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/perf -RunName load -DbDsn "$DB_DSN"
       - name: Stress
-        if: ${{ github.event_name != 'pull_request' }}
         env:
           DB_DSN: host=localhost port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable
         run: bash scripts/load/run-load-tests.sh -Environment Local -Tier Stress -Target http://127.0.0.1:8080 -Profile tests/load/k6/release-profile.json -ReportDir artifacts/perf -RunName stress -DbDsn "$DB_DSN"
