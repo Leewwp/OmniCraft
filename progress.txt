@@ -529,3 +529,4 @@
 
 ### Notes:
 - 二创首页（固定 sort=hot）与 /recommend 未改动；routes.go/config/migrations 未触碰，无需 doc-validator。已接管 :8080（停掉 #68 进程后启动本 worktree 后端）与 :3001 前端。测试期间暂用 NEXT_PUBLIC_API_URL=http://localhost:8081 指向日志代理，验证完成后恢复默认。
+- 2026-08-11 收尾：TCC 桌面访问已重新授权。复核全量 `npm run test:unit` = 26 native + 256 typed 全绿（此前 12 fail 确认系 TCC EPERM 环境所致）；`npm run lint` / `lint:ui` / `build` 与 `go build/vet/test ./...` 复跑全绿；Playwright t81 spec 重跑通过（日志代理观测：无分类 sort=recommended 混合流 / 点 Tab sort=hot+category=film_tv 仅该分类 / 深链 sort=recommended+category=film_tv 后端降级仅该分类）。
