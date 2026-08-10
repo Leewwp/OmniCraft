@@ -1,7 +1,6 @@
 name: OmniCraft SBOM & Provenance
 
 on:
-  pull_request:
   push:
     branches: [main]
   workflow_dispatch:
@@ -27,17 +26,9 @@ jobs:
           bash scripts/release/generate-sbom.tests.sh
           bash scripts/release/verify-provenance.tests.sh
           bash scripts/release/archive-release-evidence.tests.sh
-      - name: Generate preview SBOM (pull request)
-        if: github.event_name == 'pull_request'
-        run: bash scripts/release/generate-sbom.sh -OutputDir artifacts/sbom -SkipImages
-      - name: Verify preview SBOM
-        if: github.event_name == 'pull_request'
-        run: bash scripts/release/verify-provenance.sh -Manifest artifacts/sbom/release-manifest.json -Preview
       - name: Generate full SBOM and release manifest
-        if: github.event_name != 'pull_request'
         run: bash scripts/release/generate-sbom.sh -OutputDir artifacts/sbom -Commit "$GITHUB_SHA"
       - name: Verify SBOM digests and image binding
-        if: github.event_name != 'pull_request'
         run: bash scripts/release/verify-provenance.sh -Manifest artifacts/sbom/release-manifest.json -ImageDaemon
       - name: Upload SBOM evidence
         if: always()
