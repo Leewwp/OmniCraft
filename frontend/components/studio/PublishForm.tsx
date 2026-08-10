@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, Send, ChevronDown, Image, Eye, EyeOff, MessageCircle, Undo2 } from "lucide-react";
+import { ArrowLeft, Send, ChevronDown, Eye, EyeOff, MessageCircle, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
-import { FileUploader } from "@/components/content/FileUploader";
+import { FileUploader, toUploadedAsset, type UploadItem } from "@/components/content/FileUploader";
 import { MarkdownEditor } from "@/components/content/MarkdownEditor";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,8 @@ import { AgentComplianceCheckBadge } from "@/components/agent/ComplianceCheckBad
 import { IPPicker } from "@/components/studio/IPPicker";
 import { SourceOriginalPicker } from "@/components/studio/SourceOriginalPicker";
 import type { UploadedAsset } from "@/components/content/FileUploader";
+import { fetchPublicConfig } from "@/lib/public-config";
+import { silentError } from "@/lib/error-handler";
 
 const ORIGINAL_CATEGORIES = [
   "film_tv", "gaming", "literature", "pet", "food",
@@ -38,6 +40,13 @@ const TEXT_PRIMARY_TYPES = ["article", "prompt", "other"];
 const MAX_SUGGESTED_TITLE_LENGTH = 500;
 const MAX_SUGGESTED_DESCRIPTION_LENGTH = 2000;
 
+interface GalleryLimit {
+  min: number;
+  max: number;
+}
+
+type GalleryLimits = Partial<Record<"image" | "video", GalleryLimit>>;
+
 interface PublishFormProps {
   zone: "original" | "fanwork";
   contentType: string;
@@ -53,6 +62,45 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const isFilePrimary = FILE_PRIMARY_TYPES.includes(contentType);
+  const mediaContentType = contentType === "image" || contentType === "video" ? contentType : null;
+  const isMediaGallery = mediaContentType !== null;
+
+  useEffect(() => {
+    if (!mediaContentType) {
+      setGalleryConfigLoading(false);
+      return;
+    }
+
+    let active = true;
+    setGalleryConfigLoading(true);
+    void fetchPublicConfig()
+      .then((config) => {
+        if (!active || !config.upload) return;
+        const uploadLimits = config.upload;
+        const nextLimits = mediaContentType === "image"
+          ? {
+              min: uploadLimits.image_gallery_min_items,
+              max: uploadLimits.image_gallery_max_items,
+            }
+          : {
+              min: uploadLimits.video_gallery_min_items,
+              max: uploadLimits.video_gallery_max_items,
+            };
+        if (nextLimits.min > 0 && nextLimits.max >= nextLimits.min) {
+          setGalleryLimits((current) => ({ ...current, [mediaContentType]: nextLimits }));
+        }
+      })
+      .catch((error) => {
+        silentError(error, { component: "PublishForm", action: "fetchGalleryLimits" });
+      })
+      .finally(() => {
+        if (active) setGalleryConfigLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [mediaContentType]);
 
   // Core fields
   const [title, setTitle] = useState("");
@@ -76,6 +124,9 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
 
   const [submitting, setSubmitting] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedAsset[]>([]);
+  const [mediaItems, setMediaItems] = useState<UploadItem[]>([]);
+  const [galleryLimits, setGalleryLimits] = useState<GalleryLimits>({});
+  const [galleryConfigLoading, setGalleryConfigLoading] = useState(Boolean(mediaContentType));
   const [coverFile, setCoverFile] = useState<UploadedAsset | null>(null);
   const [uploadError, setUploadError] = useState("");
   const [complianceRisk, setComplianceRisk] = useState<"safe" | "warning" | "violation" | null>(null);
@@ -93,6 +144,12 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
   }
 
   const description = isFilePrimary ? briefDesc : body;
+  const activeGalleryLimits = mediaContentType ? galleryLimits[mediaContentType] : null;
+  const galleryUnavailable = isMediaGallery && !activeGalleryLimits;
+  const readyMediaAssets = mediaItems
+    .filter((item) => item.status === "done")
+    .map(toUploadedAsset)
+    .filter((asset): asset is UploadedAsset => asset !== null);
   const complianceViolation = complianceRisk === "violation";
   const warningNeedsAcknowledgement = complianceRisk === "warning" && !warningAcknowledged;
 
@@ -155,6 +212,28 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
       return;
     }
     if (complianceViolation) { toast("error", t("agent.complianceBlockSubmit")); return; }
+    if (galleryUnavailable) {
+      toast("error", t("studio.publish.media.limitsUnavailable"));
+      return;
+    }
+    if (isMediaGallery && activeGalleryLimits) {
+      if (mediaItems.some((item) => item.status === "pending" || item.status === "uploading")) {
+        toast("error", t("studio.publish.media.uploadPending"));
+        return;
+      }
+      if (mediaItems.some((item) => item.status === "error")) {
+        toast("error", t("studio.publish.media.uploadFailed"));
+        return;
+      }
+      if (readyMediaAssets.length < activeGalleryLimits.min || readyMediaAssets.length > activeGalleryLimits.max) {
+        toast("error", t("studio.publish.media.countError", { min: activeGalleryLimits.min, max: activeGalleryLimits.max }));
+        return;
+      }
+      if (mediaContentType === "video" && !coverFile && !readyMediaAssets.some((asset) => asset.posterGrantId)) {
+        toast("error", t("studio.publish.media.posterRequired"));
+        return;
+      }
+    }
 
     setSubmitting(true);
     try {
@@ -165,18 +244,27 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
         allow_comments: allowComments,
       };
       if (zone === "original") payload.category = category;
-      if (uploadedFiles.length > 0) {
-        payload.attachments = uploadedFiles.map((f) => ({
+      const filesForPayload = isMediaGallery ? readyMediaAssets : uploadedFiles;
+      if (filesForPayload.length > 0) {
+        payload.attachments = filesForPayload.map((f, index) => ({
           grant_id: f.grantId,
           oss_key: f.ossKey,
           file_name: f.fileName,
           file_type: f.fileType,
           mime_type: f.mimeType,
           file_size: f.fileSize,
+          ...(isMediaGallery
+            ? {
+                width: f.width,
+                height: f.height,
+                sort_order: f.sortOrder ?? index,
+              }
+            : {}),
         }));
       }
-      if (coverFile) {
-        payload.cover_oss_key = coverFile.ossKey;
+      if (mediaContentType === "video") {
+        const posterGrantID = coverFile?.grantId ?? readyMediaAssets.find((asset) => asset.posterGrantId)?.posterGrantId;
+        if (posterGrantID) payload.poster_grant_id = posterGrantID;
       }
       if (zone === "fanwork" && selectedIP) {
         payload.ip_id = selectedIP.id;
@@ -288,7 +376,47 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
               {t(contentType === "image" ? 'studio.publish.uploadLabel.image' : contentType === "video" ? 'studio.publish.uploadLabel.video' : contentType === "audio" ? 'studio.publish.uploadLabel.audio' : contentType === "sheet_music" ? 'studio.publish.uploadLabel.sheet_music' : contentType === "mod" ? 'studio.publish.uploadLabel.mod' : 'studio.publish.uploadLabel.default')}
               <span className="text-destructive"> *</span>
             </label>
-            <FileUploader fileType={fileType} maxMB={maxMB} accept="*" onUploaded={(files) => { setUploadedFiles(files); setUploadError(""); }} />
+            {mediaContentType ? (
+              activeGalleryLimits ? (
+                <FileUploader
+                  mode="media-gallery"
+                  contentType={mediaContentType}
+                  minCount={activeGalleryLimits.min}
+                  maxCount={activeGalleryLimits.max}
+                  maxMB={maxMB}
+                  disabled={submitting}
+                  isBusy={galleryConfigLoading}
+                  error={uploadError}
+                  onChange={(items) => {
+                    setMediaItems(items);
+                    setUploadedFiles(
+                      items
+                        .filter((item) => item.status === "done")
+                        .map(toUploadedAsset)
+                        .filter((asset): asset is UploadedAsset => asset !== null),
+                    );
+                    setUploadError("");
+                  }}
+                />
+              ) : (
+                <div className="rounded-md border border-border bg-card p-4 text-sm text-muted-foreground" role="status" aria-live="polite">
+                  {galleryConfigLoading
+                    ? t("studio.publish.media.loadingLimits")
+                    : t("studio.publish.media.limitsUnavailable")}
+                </div>
+              )
+            ) : (
+              <FileUploader
+                fileType={fileType}
+                maxMB={maxMB}
+                accept="*"
+                disabled={submitting}
+                onUploaded={(files) => {
+                  setUploadedFiles(files);
+                  setUploadError("");
+                }}
+              />
+            )}
             <p className="mt-1 text-xs text-muted-foreground">
               {contentType === "sheet_music" ? t('studio.publish.uploadHint.sheet_music') :
                contentType === "mod" ? t('studio.publish.uploadHint.mod') :
@@ -355,25 +483,39 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
         </div>
         <div className="p-5 space-y-4">
 
-          {/* Cover toggle */}
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-sm font-medium text-foreground">{t('studio.publish.customCover')}</span>
-              <p className="text-xs text-muted-foreground">{t('studio.publish.coverDescription')}</p>
-            </div>
-            <Switch
-              checked={hasCustomCover}
-              onCheckedChange={setHasCustomCover}
-              aria-label={t('studio.publish.customCover')}
-              className={hasCustomCover ? "bg-[var(--accent-emphasis)]" : undefined}
-            />
-          </div>
+          {/* Video poster override. Image media uses the first sorted item as its cover. */}
+          {mediaContentType === "video" && (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-medium text-foreground">{t('studio.publish.customCover')}</span>
+                  <p className="text-xs text-muted-foreground">{t('studio.publish.coverDescription')}</p>
+                </div>
+                <Switch
+                  checked={hasCustomCover}
+                  onCheckedChange={(next) => {
+                    setHasCustomCover(next);
+                    if (!next) setCoverFile(null);
+                  }}
+                  aria-label={t('studio.publish.customCover')}
+                  className={hasCustomCover ? "bg-[var(--accent-emphasis)]" : undefined}
+                />
+              </div>
 
-          {/* Custom cover upload (conditional) */}
-          {hasCustomCover && (
-            <div className="pl-2 border-l-2 border-[var(--accent-subtle)]">
-              <FileUploader fileType="image" maxMB={20} accept="image/*" onUploaded={(files) => { if (files.length > 0) setCoverFile(files[0]); }} />
-            </div>
+              {hasCustomCover && (
+                <div className="border-l-2 border-[var(--accent-subtle)] pl-2">
+                  <FileUploader
+                    fileType="image"
+                    maxMB={20}
+                    accept="image/*"
+                    disabled={submitting}
+                    onUploaded={(files) => {
+                      setCoverFile(files[0] ?? null);
+                    }}
+                  />
+                </div>
+              )}
+            </>
           )}
 
           {/* Comment toggle */}
@@ -475,7 +617,12 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
 
       {/* Bottom actions */}
       <div className="flex items-center gap-3 pt-2">
-        <Button type="submit" size="lg" disabled={submitting || complianceViolation} className="gap-2 rounded-full px-8">
+        <Button
+          type="submit"
+          size="lg"
+          disabled={submitting || complianceViolation || galleryConfigLoading || galleryUnavailable || mediaItems.some((item) => item.status === "pending" || item.status === "uploading")}
+          className="gap-2 rounded-full px-8"
+        >
           <Send className="h-4 w-4" />
           {submitting ? t('studio.publish.submitting') : t('studio.publish.submit')}
         </Button>
