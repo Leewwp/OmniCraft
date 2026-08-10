@@ -2,6 +2,21 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。超过 64KB 或每月轮换一次（上次轮换：2026-08-07）。完整历史见 `docs/archive/progress/2026-08-01-to-2026-08-07.md`。
 
+## [2026-08-10] - 修复 #127 + #128（light）：config override 逐字段合并 + queue DLQ nil 兜底
+
+### What was done:
+- **#127**（LoadOverride 部分 section 覆盖清零兄弟字段）：`LoadOverride` 改为按 override 文件中实际出现的顶层 section 逐个 `UnmarshalKey`（`AllKeys` 收集 section + `mapstructure` tag 反射定位字段），只应用文件中出现的 key。回归测试锁定契约：部分 `queue` section 保留 `max_attempts`/`retry_backoff_sec`/`dlq_ttl_hours`/`worker_*`；同文件部分 `queue`+`rate_limit`；缺失文件 no-op。
+- **#128**（queue sendToDLQ err=nil nil 解引用 panic）：`sendToDLQ` 对 `err==nil` 用 `"unknown error"` 兜底；`handleMessage` 在 `maxAttempts<=0` 时直接 ACK（不调 handler、不进 DLQ、不 panic），消费者 goroutine 存活。`:180` 的 `err.Error()`（ensureGroup）核实已有 nil 守卫，无需改动。
+- 修复验证细节：对 viper v1.21.0 实测 10+ 种 override 形状（含 issue 所述精确形状与 ops/load/config-override.yaml）均无法复现 3→0；修复仍把「仅应用已出现 key」的保证固化到代码层并加测试锁定，不依赖 viper/mapstructure 解码语义。
+- TDD：两个 #128 测试修复前均失败（panic / 消费者死亡消息滞留 pending），修复后通过。
+
+### Testing:
+- `go build ./... && go vet ./... && go test ./...` 全绿；gofmt 干净；doc-validator `--fix`（config 文档无变更）。
+- PR #130 合并 main@fddb0db，4 workflow 全绿：CI 31388024033 / Security 31388881500（首次 dispatch 被用户取消后重跑）/ SBOM 31388029672 / Tauri 31388033042；#127（PR 自动关闭+证据评论 5240524409）、#128 已关闭附证据。
+
+### Notes:
+- 两 issue 无 checkbox，无需勾选计划文件；未占用注册表 DAG。下一可执行任务：#68 / #81。
+
 ## [2026-08-10] - Web Agent Task 6 完成：真实 Provider 发布验证（MiniMax M1）
 
 ### What was done:
