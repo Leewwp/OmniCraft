@@ -514,3 +514,18 @@
 ### Notes:
 - 测试环境发现 waitFor（@testing-library）在本仓库 node:test 环境下 interval/timeout 不触发（仅 MutationObserver 路径有效），淡出断言改用有界手动轮询（window.setTimeout）替代。
 - 本票不改 config/routes/migrations，无需 doc-validator；未触碰 #66/#67/#70/#83 与 backend/* 文件面。
+
+## [2026-08-11] - #81 原创区分类筛选修复（light，worktree media/t81）
+
+### What was done:
+- 前端：`frontend/lib/search-filters.ts` 新增 `resolveDefaultSort`（排序默认值语义：无分类且未显式选排序 → recommended；有分类 → hot；显式排序原样保留）；`frontend/app/(public)/original/page.tsx` 用它替换死代码表达式 `!search.category && search.sort === "recommended" ? "recommended" : (search.sort || "hot")`，并把 `search.sort` 默认从 "recommended" 改为 ""（不再混淆"未选择"与"recommended"）。CategoryTabs 接线本身已正确（点击写 ?category=<slug>、删显式 sort=recommended），未改动。SortSelect/#72 共享面未触碰。
+- 后端：`backend/internal/service/content_service.go` `handleRecommended` 增加防御：`recommendedSortHasFilters` 检测 category/content_type(s)/tags/author_id/ip_id/source_original_id/time_range(非 all) 任一筛选条件时降级为 hot 并输出结构化 slog.Warn JSON（含各筛选字段）；无筛选 recommended 语义不变。
+- 测试：handler seam（recommended 无筛选保留 + recommended+category 降级 hot 且仅含该分类）+ service 集成缝（结构化日志断言 + 无筛选不打日志 + 7 类筛选条件表驱动降级）。
+
+### Testing:
+- 后端 RED→GREEN：新测试先失败（total=3 混合分类泄露 / 无降级日志）后通过；`go build/vet/test ./...` 全绿。
+- 前端：`npm run lint`（tsc）、`lint:ui`、`npm run test:unit`（282 tests）、`npm run build` 全绿。
+- 浏览器（Playwright 1.60 + 日志代理 :8081 观察 SSR 请求）：/original 无分类 → `sort=recommended` 混合分类；点击 Film & TV → URL `?category=film_tv` + `sort=hot&category=film_tv` 且响应仅 film_tv；深链 `?category=film_tv&sort=recommended` → 后端降级、响应仅 film_tv；后端日志出现 JSON WARN "content list recommended sort degraded to hot"。截图 `screenshots/t81-original-{before-tab-click,after-tab-click,stale-deeplink}.png`。
+
+### Notes:
+- 二创首页（固定 sort=hot）与 /recommend 未改动；routes.go/config/migrations 未触碰，无需 doc-validator。已接管 :8080（停掉 #68 进程后启动本 worktree 后端）与 :3001 前端。测试期间暂用 NEXT_PUBLIC_API_URL=http://localhost:8081 指向日志代理，验证完成后恢复默认。
