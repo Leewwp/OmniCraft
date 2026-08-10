@@ -67,6 +67,15 @@ async function ensureCSRFHeader(
   headers["X-CSRF-Token"] = csrfToken;
 }
 
+// ensureCSRFHeader is reused by callers that fetch directly (agent SSE
+// stream) instead of going through api.post.
+export { ensureCSRFHeader };
+
+export async function refreshCSRFHeader(headers: Record<string, string>) {
+  inMemoryCsrfToken = null;
+  await ensureCSRFHeader(headers, true);
+}
+
 let refreshPromise: Promise<boolean> | null = null;
 
 let inMemoryAccessToken: string | null = null;
@@ -108,6 +117,22 @@ async function doRefreshToken(): Promise<boolean> {
     });
   }
   return refreshPromise;
+}
+
+export async function refreshAccessTokenHeader(
+  headers: Record<string, string>
+): Promise<boolean> {
+  if (!inMemoryAccessToken) return false;
+  const refreshed = await doRefreshToken();
+  if (refreshed && inMemoryAccessToken) {
+    headers.Authorization = `Bearer ${inMemoryAccessToken}`;
+    return true;
+  }
+  inMemoryAccessToken = null;
+  if (typeof window !== "undefined") {
+    window.location.href = "/login";
+  }
+  return false;
 }
 
 async function request<T>(

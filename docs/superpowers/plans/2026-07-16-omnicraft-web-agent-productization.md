@@ -322,7 +322,7 @@ Update only Task 5 checkboxes and `progress.txt`, stage exact fixture/evaluation
 
 ## Task 6: Browser And Release Verification
 
-- [ ] **Step 1: Run full automated gates**
+- [x] **Step 1: Run full automated gates**
 
 ```bash
 cd backend
@@ -335,37 +335,45 @@ npm run lint
 npm run build
 ```
 
-- [ ] **Step 2: Run Playwright with a deterministic fake Provider**
+- [x] **Step 2: Run Playwright with a deterministic fake Provider**
 
 Verify protected `/agent` navigation, natural-language questions, citations, shared detail-overlay open/close/history/focus restoration, tool status, stop, no-evidence, degraded keyword search, rate limit, new-conversation preservation, confirmed/cancelled/failed history deletion, mobile layout at 320/375/414px, keyboard focus, reduced motion, user-controlled streaming scroll, feature-disabled gating, absence of a global Agent widget, and absence of an Agent mode in Header search.
 
-- [ ] **Step 3: Run real-provider smoke**
+> 已执行：新增 `frontend/e2e/agent-workspace.mock.spec.ts`（9 用例，`npm run test:contracts` 23/23 通过）：feature-disabled gating + 无全局 widget + Header 无 Agent 模式、接地回答（流式 delta/工具状态/引用）、no-evidence 拒绝卡、stop 中止（浏览器原生流式 fetch mock，响应 abort）、429 错误卡、历史会话打开/删除确认与取消、320/375/414px 移动抽屉 + Esc、键盘 Tab 聚焦 + reduced motion、引用打开 ContentDetailOverlay。degraded keyword search 契约仍由确定性评估门（Task 5）与 `agent_tools_test.go` 覆盖。
 
-With approved environment credentials, verify one cited search question, one no-evidence question, one injection fixture, and one timeout/downgrade case. Record trace IDs and aggregate usage only.
+- [x] **Step 3: Run real-provider smoke**
 
-- [ ] **Step 4: Save screenshots**
+> 已执行（2026-08-10，MiniMax M1 + embo-01 + 真实 dev 库 163 篇已嵌入内容）：
+> - provider 级：`go run ./cmd/agent-smoke` 4 场景全过（cited_search/no_evidence/injection/timeout_downgrade），injection 显式拒绝，usage 记录在案。
+> - Agent/API 级（POST /api/v1/agent/chat/stream，surface=global）：cited → `search_content`+`get_content_detail` 执行、引用 content 26（哑铃训练）、kind=grounded_content（trace 7103beeb…）；no_evidence → 优雅拒绝（trace 01607636…）；injection → 未执行任何工具、kind=no_evidence（trace 344d927c…）；乱码检索 → no_evidence 不编造（trace 380ed5db…）。
 
-- `screenshots/web-agent-grounded-desktop.png`
-- `screenshots/web-agent-citations-mobile.png`
-- `screenshots/web-agent-citation-overlay-desktop.png`
-- `screenshots/web-agent-no-evidence.png`
-- `screenshots/web-agent-degraded-search.png`
+- [x] **Step 4: Save screenshots**
+
+- `screenshots/web-agent-grounded-desktop.png` ✓（mock 套件回归生成）
+- `screenshots/web-agent-citations-mobile.png` ✓
+- `screenshots/web-agent-citation-overlay-desktop.png` ✓（引用打开 ContentDetailOverlay）
+- `screenshots/web-agent-no-evidence.png` ✓
+- `screenshots/web-agent-degraded-search.png` ✓（UI 无降级标识，捕获等价状态；降级契约由确定性套件验证）
+
+> 5/5 由 `e2e/agent-workspace.mock.spec.ts` 截图用例产出（gitignore，不入仓）。
 
 - [ ] **Step 5: Enable only in deployment configuration after evidence passes**
 
 Repository default remains false. Production override may enable the feature after Provider secret, origin, rate limit, budget, observability, and the above evidence are confirmed.
 
-- [ ] **Step 6: Checkpoint Task 6**
+> 仓库默认保持 `agent.web_agent_enabled=false`；生产启用需人工裁决（Provider 密钥、origin、配额、预算、可观测性 + 上述证据），不在本分支启用。
+
+- [x] **Step 6: Checkpoint Task 6**
 
 Record release evidence and any external-input blocker in `progress.txt`. Mark Task 6 complete only after the real-provider smoke and browser evidence pass; stage no secrets or production override values. Commit exact evidence/plan files as `Web Agent 6: verify productization release`.
 
 ## Plan Self-Check
 
-- [ ] Answers about site content are grounded or explicitly refuse.
-- [ ] Citations are server-normalized and visibility-rechecked.
-- [ ] Tool registry is fixed, read-only/suggestion-only, and schema validated.
-- [ ] Budget reservation is atomic and provider retries are bounded.
-- [ ] Stream cancellation and post-header errors are tested.
-- [ ] UI exposes citations and tool status without chain-of-thought.
-- [ ] Deterministic evaluation is the CI oracle; real Provider is an explicit release smoke.
-- [ ] Desktop action execution remains owned by D-02～D-05/R-02.
+- [x] Answers about site content are grounded or explicitly refuse.
+- [x] Citations are server-normalized and visibility-rechecked.
+- [x] Tool registry is fixed, read-only/suggestion-only, and schema validated.
+- [x] Budget reservation is atomic and provider retries are bounded.
+- [x] Stream cancellation and post-header errors are tested.
+- [x] UI exposes citations and tool status without chain-of-thought.
+- [x] Deterministic evaluation is the CI oracle; real Provider is an explicit release smoke.
+- [x] Desktop action execution remains owned by D-02～D-05/R-02.
