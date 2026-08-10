@@ -21,6 +21,12 @@ export async function mockPublicApis(page: Page) {
           current_terms_version: "test",
           current_privacy_version: "test",
         },
+        upload: {
+          image_gallery_min_items: 2,
+          image_gallery_max_items: 9,
+          video_gallery_min_items: 1,
+          video_gallery_max_items: 3,
+        },
       }),
     }),
   );

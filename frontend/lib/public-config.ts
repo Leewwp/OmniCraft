@@ -25,11 +25,19 @@ export interface PublicLegal {
   current_privacy_version: string;
 }
 
+export interface PublicUpload {
+  image_gallery_min_items: number;
+  image_gallery_max_items: number;
+  video_gallery_min_items: number;
+  video_gallery_max_items: number;
+}
+
 export interface PublicConfig {
   features: PublicFeatures;
   captcha: PublicCaptcha;
   client: PublicClient;
   legal: PublicLegal;
+  upload: PublicUpload;
 }
 
 let cachedConfig: PublicConfig | null = null;
