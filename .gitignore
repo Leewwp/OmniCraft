@@ -60,6 +60,7 @@ frontend/.turbo/
 # Screenshots and browser automation artifacts
 screenshots/
 .playwright-mcp/
+frontend/test-results/
 
 # Temporary files
 *.tmp
