@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Contract-checks .github/workflows/ci.yml and .github/workflows/tauri-ci.yml:
-# stable job names, triggers, concurrency, minimal permissions, SHA-pinned
-# actions, lockfile-derived cache keys, always-upload evidence artifacts with
-# the 30/90-day retention policy, no production secret references, and the
-# Windows Tauri path-detected no-op job.
+# stable job names, triggers (main push + workflow_dispatch only; PR-time runs
+# are removed from acceptance and the local verify-project.sh gate replaces
+# them), concurrency, minimal permissions, SHA-pinned actions, lockfile-derived
+# cache keys, always-upload evidence artifacts with the 30/90-day retention
+# policy, no production secret references, and the Windows Tauri path-detected
+# job-level skip.
 # Usage: bash scripts/ci/verify-workflows.sh [-WorkflowsDir <dir>]
 set -u
 
@@ -206,12 +208,12 @@ def check_shared(doc, name, required_jobs, lockfile_keys):
     on = doc.get("on")
     if not isinstance(on, dict):
         fail(f"{name}: missing 'on' triggers")
-    if "pull_request" not in on:
-        fail(f"{name}: pull_request trigger is required")
+    if "pull_request" in on:
+        fail(f"{name}: pull_request trigger is forbidden (PR-time runs removed; local verify-project.sh is the PR gate)")
     if "push" not in on:
         fail(f"{name}: push trigger is required")
-    if isinstance(on["pull_request"], dict) and "paths" in on["pull_request"]:
-        fail(f"{name}: workflow-level pull_request paths filter is forbidden")
+    if isinstance(on["push"], dict) and "paths" in on["push"]:
+        fail(f"{name}: push trigger must not use a workflow-level paths filter")
 
     concurrency = doc.get("concurrency")
     if not isinstance(concurrency, dict):
@@ -286,7 +288,7 @@ if os.path.exists(ci_path):
     if not isinstance(project_gate, dict):
         fail("ci.yml: project-gate job is missing")
     if "always()" not in str(project_gate.get("if", "")):
-        fail("ci.yml: project-gate must use if: always() so dependency failures cannot skip the required check")
+        fail("ci.yml: project-gate must use if: always() so dependency failures cannot skip the gate job")
     dependency_results = {
         "BACKEND_RESULT": "needs.backend.result",
         "FRONTEND_RESULT": "needs.frontend.result",
@@ -325,10 +327,10 @@ if os.path.exists(tauri_path):
         fail("tauri-ci.yml: tauri-windows must run on windows-latest")
     noop_found = False
     detect_found = False
-    for step in steps_of(tauri_job):
-        step_if = str(step.get("if", ""))
-        if "needs.detect.outputs.changed != 'true'" in step_if:
-            noop_found = True
+    if "needs.detect.outputs.changed == 'true'" not in str(tauri_job.get("if", "")):
+        fail("tauri-ci.yml: tauri-windows must skip via job-level needs.detect.outputs.changed == 'true'")
+    else:
+        noop_found = True
     detect_job = jobs.get("detect")
     if isinstance(detect_job, dict):
         for step in steps_of(detect_job):

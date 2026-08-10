@@ -2,6 +2,26 @@
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。超过 64KB 或每月轮换一次（上次轮换：2026-08-07）。完整历史见 `docs/archive/progress/2026-08-01-to-2026-08-07.md`。
 
+## [2026-08-10] - CI 降本（用户决定方案 2：GitHub Actions 仅 main 合并时跑）
+
+### What was done:
+- 背景：私有仓库全部计费（Linux $0.008/min），实测每次 push/PR ≈ 60 job-min（CI 35-45min + Security 13min + SBOM 11min），一天烧 ~$1.5。分支保护仅要求 project-gate。
+- 用户选定方案 2：**PR 期完全靠本地验证（scripts/verify-project.sh + UI 截图），GH Actions 只在 push main + 手动/调度时跑**。
+- 触发收敛：`ci.yml`/`security.yml`/`sbom.yml`/`tauri-ci.yml` 删除 `pull_request` 触发（保留 push main + workflow_dispatch；security 保留周一调度，performance.yml 保留周一调度 + dispatch，删除 PR paths 块及其 `!= 'pull_request'` 死条件；sbom.yml 删除 PR preview 步）。
+- **project-gate 去重**：删除其完整重跑（checkout/go/node/npm ci/verify-project.sh/上传证据），只保留依赖结果聚合 + failure_probe 演练步（原每次重复跑 backend+frontend+docs 全套 ~12min，纯浪费）。ci.yml 155 行 → 155 行（缩减 48 行）。
+- tauri-ci detect 步简化 `HEAD~1`（PR base sha 分支已成死代码）；注释同步。
+- 契约同步：`scripts/ci/verify-workflows.sh` 断言改为「push 必含、pull_request 禁止、push 不得带 paths 过滤」；tauri-windows 跳过断言从旧 step 级 no-op 改为 job 级 `needs.detect.outputs.changed == 'true'`（修复 66944bb 换机制后契约过期、套件一直红的问题）；`verify-workflows.tests.sh` 对应翻转 3 组用例 + 新增 push-paths 禁止用例。TDD：先翻转测试确认红，再改实现转绿（"real workflows must satisfy the contract" 红 → 全绿）。
+- **分支保护（gh api PUT）**：main 的 `required_status_checks`（project-gate, strict）置 null 移除——CI 不再在 PR 报告任何 check，保留 required 会永久阻塞合并；force-push/删除/创建保护保留。移除后 main 无自动化 required check，验收完全依赖本地验证门（AGENTS.md Step 4）。
+
+### Testing:
+- `bash scripts/ci/verify-workflows.tests.sh` 全绿（红→绿：先翻转断言在旧工作流上失败，改完通过）。
+- 5 个 workflow YAML 结构校验通过；`gh api` 确认保护 JSON `required_status_checks: null`。
+
+### Notes:
+- 预估：合并前零消耗，每次 main merge ≈ 45 min（backend+frontend+docs+ops+security+sbom）≈ $0.36；若每天 1-2 次合并 ≈ $0.4-0.7/天，对比此前 ~$1.5/天。
+- 遗留：`tests/load/k6/lib/scenarios.js` 存在**非本会话产生的并发修改**（内容为 #83 媒体发布合同下 k6 播种附件适配，13:47 mtime），未纳入本 commit，疑似并行 Agent/手动编辑，需确认归属后再提交。
+- 未改 config.go/routes/migrations，无需 doc-validator。
+
 ## [2026-08-10] - Ticket 03 (#83) 安全修复批次（P1-1/P1-2/P2-1/P2-2/P2-3/P2-4）
 
 ### What was done:

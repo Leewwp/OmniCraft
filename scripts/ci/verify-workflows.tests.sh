@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Contract tests for scripts/ci/verify-workflows.sh against the real workflows
-# and mutated copies. Verifies stable job names, triggers, concurrency, minimal
+# and mutated copies. Verifies stable job names, triggers (main push +
+# workflow_dispatch only; PR-time runs forbidden), concurrency, minimal
 # permissions, SHA-pinned actions, lockfile cache keys, always-upload artifacts
 # with retention policy, absence of production secrets, and the Windows Tauri
-# path-filtered no-op job.
+# path-detected job-level skip.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -128,8 +129,12 @@ mutate "ci||__replace__||= success||!= success"
 expect_fail "project-gate must require success from every dependency"
 
 reset_fixtures
-mutate "ci||__strip__||pull_request"
-expect_fail "ci.yml must declare the pull_request trigger"
+mutate "ci||__replace__||\non:||\non:\n    pull_request:"
+expect_fail "ci.yml must not declare the pull_request trigger"
+
+reset_fixtures
+mutate "ci||__replace__||push:\n    branches: [main]||push:\n    paths: [backend/**]"
+expect_fail "push trigger must not use a workflow-level paths filter"
 
 reset_fixtures
 mutate "ci||__strip__||push"
@@ -172,23 +177,19 @@ mutate "ci||__replace__||run: bash scripts/verify-project.sh -Scope Backend -Rep
 expect_fail "production secrets must never be referenced"
 
 reset_fixtures
-mutate "tauri||__strip__||pull_request"
-expect_fail "tauri-ci.yml must trigger on every pull request"
+mutate "tauri||__replace__||\non:||\non:\n    pull_request:"
+expect_fail "tauri-ci.yml must not declare the pull_request trigger"
 
 reset_fixtures
 mutate "tauri||__replace__||runs-on: windows-latest||runs-on: ubuntu-latest"
 expect_fail "tauri-windows must run on Windows"
 
 reset_fixtures
-mutate "tauri||__replace__||!= 'true'||== 'true'"
-expect_fail "tauri-windows must keep the explicit no-op branch"
+mutate "tauri||__replace__||== 'true'||!= 'true'"
+expect_fail "tauri-windows must skip when desktop paths are unchanged"
 
 reset_fixtures
 mutate "tauri||__replace__||  tauri-windows:||  desktop:"
 expect_fail "stable job name tauri-windows must not be renamed"
-
-reset_fixtures
-mutate "ci||__replace__||\non:||\non:\n    pull_request:\n      paths: [frontend/**]"
-expect_fail "workflow-level paths must not gate required checks"
 
 echo "verify-workflows contract tests passed"
