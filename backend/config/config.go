@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -617,14 +618,40 @@ func (c *Config) SaveOverride(path string) error {
 	return v.WriteConfigAs(path)
 }
 
+// LoadOverride merges the override file onto base field-by-field: only keys
+// that actually appear in the override file are applied. Whole-struct
+// unmarshal of a partially present section would rely on mapstructure decode
+// semantics to leave absent siblings untouched; decoding per top-level section
+// makes that guarantee explicit and independent of the viper/mapstructure
+// version in use (#127).
 func LoadOverride(base *Config, path string) {
 	v := viper.New()
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err != nil {
 		return
 	}
-	if err := v.Unmarshal(base); err != nil {
-		slog.Warn("failed to merge config override", "error", err)
+	sections := make(map[string]bool)
+	for _, key := range v.AllKeys() {
+		sections[strings.Split(key, ".")[0]] = true
+	}
+	if len(sections) == 0 {
+		return
+	}
+	val := reflect.ValueOf(base).Elem()
+	typ := val.Type()
+	for i := 0; i < val.NumField(); i++ {
+		field := typ.Field(i)
+		tag, ok := field.Tag.Lookup("mapstructure")
+		if !ok {
+			continue
+		}
+		section := strings.Split(tag, ",")[0]
+		if section == "" || !sections[section] {
+			continue
+		}
+		if err := v.UnmarshalKey(section, val.Field(i).Addr().Interface()); err != nil {
+			slog.Warn("failed to merge config override section", "section", section, "error", err)
+		}
 	}
 }
 
