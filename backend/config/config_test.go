@@ -98,6 +98,56 @@ func TestLoadAppliesExplicitAgentEnvAfterConfigOverride(t *testing.T) {
 	require.Equal(t, "embo-01", cfg.Agent.EmbeddingModel)
 }
 
+func TestLoadOverridePartialSectionPreservesSiblingFields(t *testing.T) {
+	// Regression guard for #127: an override file containing only part of a
+	// nested section must merge field-by-field and never zero sibling fields
+	// that are absent from the file.
+	tmp := t.TempDir()
+	require.NoError(t, os.WriteFile(tmp+"/override.yaml", []byte("queue:\n  enabled: true\n"), 0o600))
+
+	cfg := loadDefaultConfigForTest(t)
+	require.Equal(t, 3, cfg.Queue.MaxAttempts, "sanity: default max_attempts")
+	require.Equal(t, []int{10, 60, 300}, cfg.Queue.RetryBackoffSec, "sanity: default retry backoff")
+
+	LoadOverride(cfg, tmp+"/override.yaml")
+
+	require.True(t, cfg.Queue.Enabled, "override must apply the present key")
+	require.Equal(t, 3, cfg.Queue.MaxAttempts, "absent sibling key must not be zeroed")
+	require.Equal(t, []int{10, 60, 300}, cfg.Queue.RetryBackoffSec, "absent sibling key must not be zeroed")
+	require.Equal(t, 168, cfg.Queue.DLQTTLHours, "absent sibling key must not be zeroed")
+	require.Equal(t, 2, cfg.Queue.WorkerReview, "absent sibling key must not be zeroed")
+}
+
+func TestLoadOverridePartialSectionsInSameFile(t *testing.T) {
+	// Multiple partially-present sections must each merge independently
+	// without zeroing siblings in any of them.
+	tmp := t.TempDir()
+	require.NoError(t, os.WriteFile(tmp+"/override.yaml", []byte(`queue:
+  enabled: true
+rate_limit:
+  enabled: false
+  search_per_minute: 0
+`), 0o600))
+
+	cfg := loadDefaultConfigForTest(t)
+	LoadOverride(cfg, tmp+"/override.yaml")
+
+	require.True(t, cfg.Queue.Enabled)
+	require.Equal(t, 3, cfg.Queue.MaxAttempts)
+	require.False(t, cfg.RateLimit.Enabled)
+	require.Equal(t, 0, cfg.RateLimit.SearchPerMinute)
+	require.Equal(t, 100, cfg.RateLimit.NormalPerMinute, "absent sibling key must not be zeroed")
+	require.Equal(t, 200, cfg.RateLimit.UploadPerHour, "absent sibling key must not be zeroed")
+}
+
+func TestLoadOverrideMissingFileIsNoOp(t *testing.T) {
+	tmp := t.TempDir()
+	cfg := loadDefaultConfigForTest(t)
+	LoadOverride(cfg, tmp+"/does-not-exist.yaml")
+	require.Equal(t, 3, cfg.Queue.MaxAttempts)
+	require.False(t, cfg.Queue.Enabled)
+}
+
 func TestValidateReleaseRejectsBypassCaptchaAndLoggerSMTP(t *testing.T) {
 	cfg := &Config{}
 	cfg.Server.Mode = "release"
