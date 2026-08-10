@@ -113,6 +113,18 @@ func (b *RedisStreamBroker) handleMessage(ctx context.Context, topic, group stri
 	retryBackoff := b.cfg.RetryBackoffSec
 	maxAttempts := b.cfg.MaxAttempts
 
+	// A non-positive attempt budget means the message can never be processed
+	// (misconfiguration, e.g. max_attempts zeroed by an override bug). Never
+	// attempt the handler, never send to the DLQ with a nil error: ACK so the
+	// message does not linger pending, and log loudly for the operator.
+	if maxAttempts <= 0 {
+		slog.Error("queue max_attempts is not positive, acknowledging without processing",
+			"topic", topic, "msg_id", msg.ID, "max_attempts", maxAttempts)
+		observeWorkerFailure()
+		b.rdb.XAck(ctx, streamKey(topic), group, msg.ID)
+		return
+	}
+
 	var lastErr error
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		msg.Attempts = attempt + 1
@@ -146,13 +158,17 @@ func (b *RedisStreamBroker) handleMessage(ctx context.Context, topic, group stri
 
 func (b *RedisStreamBroker) sendToDLQ(ctx context.Context, msg Message, err error) {
 	dlqKey := "omnicraft:dead-letter"
+	errStr := "unknown error"
+	if err != nil {
+		errStr = err.Error()
+	}
 	payload, marshalErr := json.Marshal(map[string]interface{}{
 		"original_topic": msg.Topic,
 		"original_id":    msg.ID,
 		"payload":        string(msg.Payload),
 		"metadata":       msg.Metadata,
 		"attempts":       msg.Attempts,
-		"error":          err.Error(),
+		"error":          errStr,
 		"failed_at":      time.Now().Format(time.RFC3339),
 	})
 	if marshalErr != nil {
