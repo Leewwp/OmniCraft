@@ -210,6 +210,118 @@ func TestRetryAndDLQ_PayloadAndMetadataPreserved(t *testing.T) {
 	}
 }
 
+func TestSendToDLQNilErrorFallsBackToUnknownError(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer rdb.Close()
+
+	cfg := &QueueConfig{
+		Enabled:         true,
+		MaxAttempts:     1,
+		RetryBackoffSec: []int{0},
+		MaxLen:          100000,
+	}
+	broker := NewRedisStreamBroker(rdb, cfg)
+
+	// err=nil must not panic (regression for #128: sendToDLQ called with a nil
+	// lastErr when the retry loop never ran, e.g. max_attempts=0).
+	msg := Message{ID: "1-0", Topic: "test.dlq-nil", Payload: []byte(`{"k":"v"}`), Metadata: map[string]string{}}
+	broker.sendToDLQ(context.Background(), msg, nil)
+
+	dlqEntries, err := rdb.XRange(context.Background(), "omnicraft:dead-letter", "-", "+").Result()
+	if err != nil {
+		t.Fatalf("reading DLQ stream: %v", err)
+	}
+	if len(dlqEntries) != 1 {
+		t.Fatalf("expected exactly 1 DLQ entry, got %d", len(dlqEntries))
+	}
+	dataStr, ok := dlqEntries[0].Values["data"].(string)
+	if !ok {
+		t.Fatal("DLQ entry missing 'data' field")
+	}
+	var dlqData map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &dlqData); err != nil {
+		t.Fatalf("unmarshal DLQ data: %v", err)
+	}
+	errMsg, _ := dlqData["error"].(string)
+	if errMsg != "unknown error" {
+		t.Errorf("expected error fallback %q, got %q", "unknown error", errMsg)
+	}
+}
+
+func TestMaxAttemptsZeroAcksWithoutProcessingOrDLQ(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer rdb.Close()
+
+	cfg := &QueueConfig{
+		Enabled:         true,
+		MaxAttempts:     0,
+		RetryBackoffSec: []int{1},
+		MaxLen:          100000,
+	}
+	broker := NewRedisStreamBroker(rdb, cfg)
+	defer broker.Stop()
+
+	received := make(chan string, 2)
+	handler := func(ctx context.Context, msg Message) error {
+		received <- string(msg.Payload)
+		return nil
+	}
+
+	topic := "test.max-attempts-zero"
+	group := "omnicraft-zero"
+	if err := broker.Subscribe(context.Background(), topic, group, handler); err != nil {
+		t.Fatalf("subscribe failed: %v", err)
+	}
+
+	// With max_attempts=0 the handler must never be invoked and messages must
+	// not go to the DLQ (regression for #128: the nil lastErr previously
+	// panicked inside sendToDLQ, killing the whole consumer goroutine).
+	for _, payload := range []string{"first", "second"} {
+		if err := broker.Publish(context.Background(), topic, []byte(payload)); err != nil {
+			t.Fatalf("publish %q failed: %v", payload, err)
+		}
+	}
+
+	// A live consumer ACKs every message even though it never processes them;
+	// a dead one (pre-fix panic) leaves them pending.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		var pending int64
+		groups, err := rdb.XInfoGroups(context.Background(), fmt.Sprintf("omnicraft:%s", topic)).Result()
+		if err == nil {
+			for _, g := range groups {
+				if g.Name == group {
+					pending = g.Pending
+				}
+			}
+		}
+		if pending == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("messages stayed pending with max_attempts=0 (consumer loop likely died), pending=%d", pending)
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	select {
+	case p := <-received:
+		t.Fatalf("handler must not be invoked with max_attempts=0, got payload %q", p)
+	default:
+	}
+
+	// DLQ must stay empty.
+	dlqEntries, err := rdb.XRange(context.Background(), "omnicraft:dead-letter", "-", "+").Result()
+	if err != nil {
+		t.Fatalf("reading DLQ stream: %v", err)
+	}
+	if len(dlqEntries) != 0 {
+		t.Errorf("expected empty DLQ with max_attempts=0, got %d entries", len(dlqEntries))
+	}
+}
+
 func TestIdempotentCheck(t *testing.T) {
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
