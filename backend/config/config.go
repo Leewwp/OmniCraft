@@ -547,6 +547,9 @@ func OverrideFromEnv(cfg *Config) {
 	if v := os.Getenv("AGENT_LLM_API_KEY"); v != "" {
 		cfg.Agent.LLMAPIKey = v
 	}
+	if v := os.Getenv("SERVER_PORT"); v != "" {
+		cfg.Server.Port = v
+	}
 	if v := os.Getenv("AGENT_WEB_AGENT_ENABLED"); v != "" {
 		cfg.Agent.WebAgentEnabled = v == "1" || strings.EqualFold(v, "true")
 	}
