@@ -36,6 +36,8 @@ interface ContentDetailOverlayLayerProps {
   entry: OverlayEntry;
   onPush: (entry: OverlayEntry, trigger: HTMLElement | null) => void;
   onTitleChange: (title: string) => void;
+  /** 层数据落定（含错误态）后通知浮层：入场转场可测量封面几何并启动。 */
+  onMotionReady?: () => void;
 }
 
 type LayerStatus = "loading" | "default" | "forbidden" | "not-found" | "error";
@@ -51,7 +53,12 @@ const TYPE_LABEL_KEYS: Record<string, string> = {
   template: "home.template",
 };
 
-export function ContentDetailOverlayLayer({ entry, onPush, onTitleChange }: ContentDetailOverlayLayerProps) {
+export function ContentDetailOverlayLayer({
+  entry,
+  onPush,
+  onTitleChange,
+  onMotionReady,
+}: ContentDetailOverlayLayerProps) {
   const t = useTranslations();
   const [status, setStatus] = useState<LayerStatus>("loading");
   const [detail, setDetail] = useState<NormalizedContentDetailResponse | null>(null);
@@ -63,6 +70,20 @@ export function ContentDetailOverlayLayer({ entry, onPush, onTitleChange }: Cont
   useEffect(() => {
     onTitleChangeRef.current = onTitleChange;
   }, [onTitleChange]);
+
+  const onMotionReadyRef = useRef(onMotionReady);
+  useEffect(() => {
+    onMotionReadyRef.current = onMotionReady;
+  }, [onMotionReady]);
+
+  /* 状态离开 loading（default/forbidden/not-found/error）后触发一次入场转场；
+     错误态没有封面几何，浮层会走居中缩淡降级。 */
+  const motionFiredRef = useRef(false);
+  useEffect(() => {
+    if (status === "loading" || motionFiredRef.current) return;
+    motionFiredRef.current = true;
+    onMotionReadyRef.current?.();
+  }, [status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -185,7 +206,10 @@ export function ContentDetailOverlayLayer({ entry, onPush, onTitleChange }: Cont
   return (
     <div className="mx-auto flex w-full max-w-[1280px] gap-6">
       <div className="min-w-0 flex-1">
-        <ContentDetail data={{ ...content, attachments: detail.attachments, tags: detail.tags }} />
+        <ContentDetail
+          data={{ ...content, attachments: detail.attachments, tags: detail.tags }}
+          coverSync
+        />
       </div>
 
       <ContentSidebar
