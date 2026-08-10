@@ -35,8 +35,28 @@
 
 ### Notes:
 - 预估：合并前零消耗，每次 main merge ≈ 45 min（backend+frontend+docs+ops+security+sbom）≈ $0.36；若每天 1-2 次合并 ≈ $0.4-0.7/天，对比此前 ~$1.5/天。
-- 遗留：`tests/load/k6/lib/scenarios.js` 存在**非本会话产生的并发修改**（内容为 #83 媒体发布合同下 k6 播种附件适配，13:47 mtime），未纳入本 commit，疑似并行 Agent/手动编辑，需确认归属后再提交。
+- 遗留已结清：`tests/load/k6/lib/scenarios.js` 的并发修改为 2026-08-10 会话的 Load gate 排查（PR #125），最终修复落在 `testdata.json`（content_types 收窄为 article），scenarios.js 已还原为原始状态。
 - 未改 config.go/routes/migrations，无需 doc-validator。
+
+## [2026-08-10] - Ticket 04 (#84): 媒体集上传编排 UI
+
+### What was done:
+- `FileUploader` 增加媒体集模式：多选、图片/视频类型校验、九宫格预览、HTML5 拖拽排序、键盘/按钮排序、移除、首项封面标记、进度与单项错误状态；图片采集 natural width/height，视频首帧经 canvas 生成独立 poster 并复用 oss-token 上传合同。
+- `PublishForm` 接入 public config 的媒体数量上下限，配置加载失败时阻止媒体发布；附件 payload 携带 `width`、`height`、`sort_order`，视频使用 `poster_grant_id`，图片继续按首项派生封面；旧附件模式保持兼容。
+- 新增中英文媒体编排文案、public upload 类型、mock public config、媒体排序/移除/数量/类型校验测试，以及 mocked Playwright 合同（解除阻塞后已执行，见下）。
+- 修正媒体客户端校验异常：内部错误只保留稳定错误码，展示文案统一经 `next-intl` 映射；移除失败项时清理整体错误提示。
+- 修正 `PublishForm` 复用时媒体配置请求切换到非媒体类型后残留 loading 状态的问题。
+
+### Testing:
+- 前端项目门：`npm run test:unit` 243/243、`npm run lint`、`npm run lint:ui`、`npm run build` 均通过。
+- 上传窄测试：`node --import tsx --test --test-concurrency=1 tests/content-upload-grant.test.tsx` 5/5 通过；`git diff --check` 通过。
+- Go `build`/`vet` 通过；Go 全量测试 `go test ./...` 23 包全绿（docker postgres ephemeral + miniredis）。
+- `npm run test:contracts`（mocked Playwright）：14/14 通过，含新增 `studio-publish-media.mock.spec.ts`（修正确认：内容类型按钮可访问名含描述文案，选择器由 `/^Image$/i` 放宽为 `/Image/i`）。
+- 截图：`screenshots/omnicraft-media-uploader-desktop.png` / `-mobile.png` 已由 mock spec 生成（gitignore，未入仓）。
+
+### Notes:
+- 阻塞已于 2026-08-10 解除（Docker 恢复可用）：Go 全量测试与 mocked Playwright 补跑通过，本票验证闭环完成，提交合并。
+ (Ticket 04 (#84): 发布端媒体编排 UI（多选/排序/宽高/poster）)
 
 ## [2026-08-10] - Ticket 03 (#83) 安全修复批次（P1-1/P1-2/P2-1/P2-2/P2-3/P2-4）
 
