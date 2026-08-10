@@ -1,3 +1,20 @@
+## [2026-08-11] - Ticket #68（light）：内容详情浮窗共享元素转场 + 媒体加载（C2+C6 收敛 + FLIP/VT）
+
+### What was done:
+- **C2+C6 收敛**：删除 `ContentDetailClient`（无生产调用方：仅 fs-exists 守卫的源码扫描测试 + e2e mock 函数名；其第二套浏览历史记录器随之消失）；ContentDetail 数据/props 归一至 `lib/content.ts` canonical 类型（fanwork 详情页本地 ContentItem/Attachment/ContentResponse 重复类型删除）；`IP: ` 硬编码改 `content.ipLabel` zh/en i18n（无新增硬编码可见文案）；独立页与浮层侧栏收敛到唯一 `ContentSidebar` owner（relatedItems/onOpenRelatedItem/followAction/relatedFooterAction props），浮层内私有 AsideCard 侧栏删除；共享入口控制器 `use-content-detail-overlay.tsx` 接入推荐流/分区页/IP 页/Agent 引用/详情页宿主，入口只保留来源参数+触发 ref+上下文列表差异。
+- **转场与媒体加载**（#67 原型 §5 契约）：FLIP 几何为核心，`document.startViewTransition` 特性检测渐进增强；路径选择 `reduced ? fade : (!source ? fallback : (vt ? vt : flip))`；300ms 开 / 240ms 关 / 共享缓动 / reduced-motion 100ms 纯 opacity；run token + cancelActive 中断处理；VT 快照唯一命名 + 清理，`t.finished` reject/同步 Abort → FLIP 兜底；入场保险定时器；外壳 opacity-0 起步。`ContentDetail` 新增 `coverSync`：加载态在最终封面几何内、正文/头部 invisible 保持布局、失败稳定占位仍显示可用详情；封面容器 w-full 与正文同水平边界，高度上限只裁内框。`ContentCard` 加 `card-cover` data-slot（FLIP source 锚点）。
+- **测试**：新增 overlay-motion（15）、use-content-detail-overlay（3）、content-cover-sync（5，next/image 在 jsdom 下与测试错误互相作用会挂死 node:test runner，测试内 stub 为 plain img 规避——真实浏览器行为由 Playwright 覆盖）；focused 102/102、全量单测 295/295、tsc、ui-governance、`npm run build` 全绿。
+- **浏览器验证**（Playwright real :3000 + :8080，Chromium 1223，zh）：21 项断言全过——VT 开合、FLIP 开（中段 matrix 几何）/关反向回归、离屏关闭降级居中缩淡（matrix(0.96...)）、reduced-motion 封面 transform 恒 none、封面加载态（skeleton+body hidden→reveal）、封面 404 占位+正文可用、分区页/IP 页返回文案、移动端滚动锁、Agent 引用（登录 seed-ui-001 + mock 流式引用）返回对话。截图 `screenshots/t68-*.png`（桌面 1440×900 + 移动 390×844）。
+- **验证脚本**：`/tmp/t68-verify.mjs`（未入库，11 场景 21 断言；真实后端 + 局部 route mock：Agent 流式引用与 config/public——真实 config `web_agent_enabled=false` 且 LLM 凭证缺失，与 Web Agent Task 6 同阻塞源）。
+
+### Testing:
+- `npm run test:unit` 295/295；`npm run lint`（tsc）；`npm run lint:ui`；`npm run build` 全绿；浏览器 21/21 断言 + 11 张截图。
+
+### Notes:
+- commit `105d223`（motion core）→ `22e7209`（C2+C6 收敛）→ `ace2d7c`（转场+媒体加载）→ `screenshots+progress`。
+- 会话中途 macOS Desktop TCC 权限吊销一度阻塞（已人工恢复）；期间完成的批次与证据见 ticket 评论。
+- Agent 入口浏览器验证使用 route mock 的流式引用（真实 LLM provider 缺失）；#85/#88/#89 将在此基础上接入媒体集/双栏/连续浏览。
+
 # OmniCraft 万象工坊 - 开发进度日志
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。超过 64KB 或每月轮换一次（上次轮换：2026-08-07）。完整历史见 `docs/archive/progress/2026-08-01-to-2026-08-07.md`。
