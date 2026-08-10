@@ -14,7 +14,7 @@
       "负载测试样本 · 城市观星笔记"
     ],
     "categories": ["travel", "literature", "food", "tech_digital"],
-    "content_types": ["article", "image"],
+    "content_types": ["article"],
     "tags": ["负载测试", "performance"]
   },
   "search": {
