@@ -26,11 +26,16 @@ import (
 )
 
 var (
-	ErrContentNotFound       = errors.New("content not found")
-	ErrContentForbidden      = errors.New("forbidden: not content author")
-	ErrPublishFrozen         = errors.New("publish permission is temporarily frozen")
-	ErrInvalidSourceOriginal = errors.New("source original must be a published original content item")
-	ErrMediaSetInvalid       = errors.New("media set violates the gallery contract")
+	ErrContentNotFound             = errors.New("content not found")
+	ErrContentForbidden            = errors.New("forbidden: not content author")
+	ErrPublishFrozen               = errors.New("publish permission is temporarily frozen")
+	ErrSourceNotAllowedForOriginal = errors.New("source fields are not allowed on original content")
+	ErrFanworkSourceRequired       = errors.New("fanwork content must specify an IP or a source")
+	ErrMultipleSourceConflict      = errors.New("only one of source_original_id and source_fanwork_id may be set")
+	ErrSourceOriginalUnavailable   = errors.New("source original must be a published original content item")
+	ErrSourceFanworkUnavailable    = errors.New("source fanwork must be a published fanwork content item")
+	ErrSourceImmutable             = errors.New("source attribution is immutable after creation")
+	ErrMediaSetInvalid             = errors.New("media set violates the gallery contract")
 )
 
 type ContentService struct {
@@ -107,6 +112,7 @@ type PublishContentInput struct {
 	Zone             string `json:"zone" binding:"required,oneof=fanwork original"`
 	IPID             *int64 `json:"ip_id"`
 	SourceOriginalID *int64 `json:"source_original_id"`
+	SourceFanworkID  *int64 `json:"source_fanwork_id"`
 	Category         string `json:"category"`
 	ContentType      string `json:"content_type" binding:"required"`
 	// CoverImageURL is rejected for image/video content: covers are derived
@@ -158,18 +164,28 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 		}
 	}
 
-	var sourceOriginal *model.ContentItem
+	var sourceOriginal, sourceFanwork *model.ContentItem
 	if input.SourceOriginalID != nil {
 		source, err := s.contentRepo.FindByID(*input.SourceOriginalID)
 		if err != nil {
 			return nil, err
 		}
 		if source == nil {
-			return nil, ErrInvalidSourceOriginal
+			return nil, ErrSourceOriginalUnavailable
 		}
 		sourceOriginal = source
 	}
-	if err := validateSourceOriginalLink(input.Zone, sourceOriginal); err != nil {
+	if input.SourceFanworkID != nil {
+		source, err := s.contentRepo.FindByID(*input.SourceFanworkID)
+		if err != nil {
+			return nil, err
+		}
+		if source == nil {
+			return nil, ErrSourceFanworkUnavailable
+		}
+		sourceFanwork = source
+	}
+	if err := validateSourceLink(input.Zone, input.IPID, sourceOriginal, sourceFanwork); err != nil {
 		return nil, err
 	}
 
@@ -190,6 +206,7 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 		Zone:             input.Zone,
 		IPID:             input.IPID,
 		SourceOriginalID: input.SourceOriginalID,
+		SourceFanworkID:  input.SourceFanworkID,
 		Category:         input.Category,
 		ContentType:      input.ContentType,
 		CoverImageURL:    input.CoverImageURL,
@@ -533,15 +550,24 @@ func boolPtr(v bool) *bool {
 	return &v
 }
 
-func validateSourceOriginalLink(zone string, source *model.ContentItem) error {
-	if source == nil {
+func validateSourceLink(zone string, ipID *int64, sourceOriginal, sourceFanwork *model.ContentItem) error {
+	if zone != "fanwork" {
+		if sourceOriginal != nil || sourceFanwork != nil {
+			return ErrSourceNotAllowedForOriginal
+		}
 		return nil
 	}
-	if zone != "fanwork" {
-		return ErrInvalidSourceOriginal
+	if ipID == nil && sourceOriginal == nil && sourceFanwork == nil {
+		return ErrFanworkSourceRequired
 	}
-	if source.Zone != "original" || source.Status != "published" {
-		return ErrInvalidSourceOriginal
+	if sourceOriginal != nil && sourceFanwork != nil {
+		return ErrMultipleSourceConflict
+	}
+	if sourceOriginal != nil && (sourceOriginal.Zone != "original" || sourceOriginal.Status != "published") {
+		return ErrSourceOriginalUnavailable
+	}
+	if sourceFanwork != nil && (sourceFanwork.Zone != "fanwork" || sourceFanwork.Status != "published") {
+		return ErrSourceFanworkUnavailable
 	}
 	return nil
 }
