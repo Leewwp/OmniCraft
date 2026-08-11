@@ -328,7 +328,9 @@
     "suggestRemoveTag": "建议移除 {tag} 标签",
     "suggestAddTagHint": "建议添加此标签",
     "suggestRemoveTagHint": "建议移除此标签",
-    "tagSuggestionSubmitted": "标签建议已提交，等待作者审批"
+    "tagSuggestionSubmitted": "标签建议已提交，等待作者审批",
+    "ipLabel": "IP：{name}",
+    "attachmentUnknownType": "文件"
   },
   "contentDetailOverlay": {
     "title": "内容详情",

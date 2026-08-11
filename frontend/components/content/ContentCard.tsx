@@ -72,7 +72,7 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
   );
 
   const cover = (
-    <div className="relative w-full bg-muted">
+    <div data-slot="card-cover" className="relative w-full bg-muted">
       {/* Aspect ratio for cover — use natural image or default */}
       <div className={cn("relative overflow-hidden", contentType === "video" ? "aspect-[16/9]" : "aspect-[3/4]")}>
         {coverUrl ? (
