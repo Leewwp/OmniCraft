@@ -332,6 +332,17 @@
     "ipLabel": "IP：{name}",
     "attachmentUnknownType": "文件"
   },
+  "media": {
+    "gallery": {
+      "position": "第 {current} / 共 {total}",
+      "previous": "上一张",
+      "next": "下一张",
+      "imageAlt": "第 {current} 张，共 {total} 张",
+      "error": {
+        "loadFailed": "媒体加载失败"
+      }
+    }
+  },
   "contentDetailOverlay": {
     "title": "内容详情",
     "close": "关闭内容详情",

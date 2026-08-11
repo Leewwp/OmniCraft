@@ -143,6 +143,17 @@ export const testMessages = {
     fileSizeExceeds: "{name} exceeds {maxMB}MB",
     uploadFailed: "Upload failed",
   },
+  media: {
+    gallery: {
+      position: "{current} / {total}",
+      previous: "Previous media",
+      next: "Next media",
+      imageAlt: "Media {current} of {total}",
+      error: {
+        loadFailed: "Failed to load media",
+      },
+    },
+  },
   studio: {
     publish: {
       media: {
