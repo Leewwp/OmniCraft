@@ -341,6 +341,21 @@
       "error": {
         "loadFailed": "媒体加载失败"
       }
+    },
+    "viewer": {
+      "title": "媒体查看器",
+      "position": "第 {current} / 共 {total}",
+      "close": "关闭查看器",
+      "previous": "上一张",
+      "next": "下一张",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "zoomReset": "重置缩放",
+      "imageAlt": "第 {current} 张，共 {total} 张",
+      "error": {
+        "loadFailed": "媒体加载失败",
+        "retry": "重试"
+      }
     }
   },
   "contentDetailOverlay": {
