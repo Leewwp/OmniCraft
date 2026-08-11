@@ -769,3 +769,25 @@
 ### Notes:
 - 关键实现决策：结果行按 ui-spec「id+title+zone 匹配」做严格 zone 过滤；@testing-library/dom 10.4.1 的 `fireEvent.click` 不派发 mousedown，option 选中改挂 `onClick`（mousedown 仅 preventDefault 保焦点，键盘 Enter 路径独立覆盖）；测试 harness 需像真实父级一样 lift selection state 才会出现 summary row。
 - 未触碰 main worktree；progress.txt 仅更新本 worktree 副本。
+
+## [2026-08-12] - Source-linkage Task 6（light）：更新 fanwork 发布流（#96）
+
+### What was done:
+- **Step 1 失败测试（10 项 + 1 子项）**：`frontend/tests/studio-publish-fanwork.test.tsx` 追加页面级集成测试——仅 IP 发布（payload 含 ip_id 无来源 id）、仅原创来源发布、仅二创来源发布、无 IP/来源提交在 API 调用前被拦截（disabled 提交钮 + 本地化校验文案）、选原创来源清二创来源、选二创来源清原创来源、`?source_original_id=77` 预填加载摘要、`?source_fanwork_id=88` 预填加载摘要、双 ID 预填保留 source_original_id 清 source_fanwork_id 并显示本地化警告（断言只 fetch `/api/v1/contents/77`）、非法预填 id 显示本地化非阻塞警告且 picker 为空（断言 0 次 API 调用）+ 预填来源加载失败显示可关闭内联错误（404 子项）。红→绿证据：实现前 11 新测试全红（9 旧 picker 测试绿），实现后 20/20 全绿。测试需 stub `next/navigation`/`AuthContext`/`MarkdownEditor`/`.css`（沿用 original-category-tabs + admin-notifications 的 Module._load 拦截模式，页面模块动态 import）。
+- **Step 2 校验文案**：删除 `studio.publish.ipRequired` 的「IP 必选」逻辑与 `ipError` 状态；fanwork 三源（IP/原创来源/二创来源）均空时提交按钮 disabled，来源区显示 `studio.publish.fanwork.validation.sourceRequired`（"发布二创需要 IP 或灵感来源"），fieldset `aria-describedby` 关联（ui-spec a11y）。旧键 `ipRequired`/`sourceOriginalOptional`/`searchOriginalPlaceholder` 从 zh/en 移除（仅 PublishForm 引用，已确认无其他消费者）。
+- **Step 3 接入 SourceContentPicker**：PublishForm 移除 `SourceOriginalPicker` 兼容包装使用（包装文件本身未动），改渲染两个 `<SourceContentPicker>`（sourceKind="original"→`source_original_id`、sourceKind="fanwork"→`source_fanwork_id`），共用既有 `GET /api/v1/contents/search?zone=&q=&limit=8`（无新增搜索 API）；来源区改为 `fieldset+legend`（`studio.publish.fanwork.source.legend`/`ipOptional`），IP 标签去 `*` 改可选；选择互斥：`handleSourceOriginalSelect`/`handleSourceFanworkSelect` 选中即清除另一来源。
+- **Step 4 payload 合同**：提交 payload 至多含 `source_original_id` 或 `source_fanwork_id` 之一（互斥由选择器状态保证），可带 `ip_id` 与任一来源；与后端 `validateSourceLink`（仅一个来源、zone 匹配 + published）对齐。
+- **query prefill**：`page.tsx` 用 `useSearchParams`（Suspense 包裹，login 页模式）解析 `source_original_id`/`source_fanwork_id`（`/^[1-9]\d*$/` 校验），双 ID 时保留 original 清 fanwork 并加 `bothSources` 警告，非法 id 加 `invalidId` 警告（可关闭，role="status"）；PublishForm 新增 props `prefillSourceOriginalId`/`prefillSourceFanworkId`/`prefillWarnings`，mount 时 fetch `GET /api/v1/contents/:id` → `normalizeContentDetailResponse` → 校验 zone 匹配 + status published 后预填摘要（prefill-loading 骨架行、prefill-error 内联可关闭，均 role="status"）。
+- **Step 5 i18n**：`studio.publish.fanwork.{source,validation,prefill,a11y}`（legend/ipOptional/sourceRequired/bothSources/invalidId/loadFailed/dismissWarning）zh/en 同步（i18n parity 通过）。
+- **Step 6 Playwright**：`studio-publish-fanwork.spec.ts` 两处 source option 定位从 `getByRole("button")` 改为 `getByRole("option")`（SourceContentPicker 结果行为 li/option）；test 2 改写为当前 picker 契约（编辑查询清空已选来源 → input 置空、summary 消失）；新增 `e2e/t6-publish-flow.mock.spec.ts`：三源发布 payload、无源 disabled+互斥、预填摘要、双 ID 警告、非法预填警告、6 张截图。
+- 未改后端/config/routes/migrations（无需 doc-validator）；未触碰 SourceContentPicker.tsx 与 main worktree。
+
+### Testing:
+- 红→绿：11 条新 focused 测试先全红（20 中 9 过 11 败），实现后 `node --import tsx --test tests/studio-publish-fanwork.test.tsx` 20/20 绿。
+- `npm run lint`（tsc strict）、`npm run lint:ui`（i18n parity 等全 ok）、`npm run build`、`npm run test:unit` 364/364 全绿。
+- Playwright：`npx playwright test e2e/studio-publish-fanwork.spec.ts` 2/2 绿 + `e2e/t6-publish-flow.mock.spec.ts` 6/6 绿（合计 8/8；worktree dev server 在 :3001，:3000 被另一 agent worktree t89 占用，用等价 baseURL 配置跑同一批 spec）。截图 8 张 `screenshots/t6-publish-fanwork-{ip-only,original-source,fanwork-source,mutual-exclusion,no-source-validation,prefill-original,prefill-both-warning,prefill-invalid-warning}.png`。
+
+### Notes:
+- 双 ID 优先级规则：两参数同时出现时（original 合法）保留 original 清 fanwork；参数非法时不发任何 prefill 请求、显示可关闭警告；预填来源 404/zone 不匹配/非 published 视为 prefill-error 不落选。
+- `@testing-library/dom` v16 已移除 `getByPlaceholder`（新 API `getByPlaceholderText`，测试内修正）；提交门 titleRequired 先于来源校验（预填测试需先填标题）。
+- 未触碰 main worktree；progress.txt 仅更新本 worktree 副本。
