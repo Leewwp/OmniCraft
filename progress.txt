@@ -630,3 +630,22 @@
 - 双栏仅作用于 image/video 且媒体集非空的内容；历史 image/video 无媒体集（行内 CoverImage）维持单栏。
 - 端口：:3001 为 t88 worktree 前端 dev（:3000 属 t85 worktree）；后端 :8080 共享。截图所需 `/seed-media/real/gallery/*.svg` 系 t85 worktree 的本地未提交素材，已复制到本 worktree 供验证，**不随本 PR 提交**（与 #85 一样未入库）。
 - 未触碰 config/routes/migrations（无需 doc-validator）；未触碰 MediaGallery/ContentCard/MasonryGrid/主 worktree；未 close issue。
+
+## [2026-08-11] - Ticket #89（light）：移动端连续浏览（上下文列表+上滑前进）
+
+### What was done:
+- **入口贯通（AC1）**：`use-content-detail-overlay.tsx` 把 `contextList`/`contextIndex` 从 hook options 移到每次 `open()` 的 `OverlayOpenEntry`（一次 hook 实例可开不同上下文），贯通所有网格入口：`OverlayMasonryGrid.tsx`（分区页/IP 页共用）与 `RecommendFeedClient.tsx`（推荐流）在 `openDetail` 时按网格顺序传入 `contextList` + 当前卡索引；浮层内关联内容/Agent 引用等非网格入口不传（不参与连续浏览）。`ContentDetailOverlay` 首层初始化把 context 字段带进 `OverlayEntry`。
+- **上滑切篇（AC2）**：`ContentDetailOverlayLayer` 新增 `handleReachEnd`（仅 `isMobileViewport()` <1100px 时生效；无 contextList 或索引越界早退）→ 请求 `onSwitchNext`；`ContentDetailOverlay.switchTopLayer` 原地替换顶层 entry（不压栈、不写 history、栈深不变），`key` 含 contentId 驱动层 remount——媒体区（viewerIndex/加载态/指示点）与信息区（滚动位置、coverSync 状态）全部重置为新内容初始态，顶层 scrollTop 置 0。接线：`MediaGallery.onReachEnd`（#85 已有钩子，仅接线；查看器不参与，未改 `MediaViewer.tsx`）→ 行内画廊与 #88 左栏媒体列两条路径都接同一 handler。上滑判定只在媒体集最后一项（MediaGallery 内已按 #85 实现），与集内翻页/页面滚动无冲突。
+- **到底提示（AC3）**：`atContextEnd`（contextIndex ≥ length-1）→ `ContentDetail` 新增 `galleryEndHint` prop，媒体区下方渲染 `media.continue.endReached`（en「You've reached the end」/zh「已经到底了」），随行内媒体区在桌面双栏下隐藏；到底后 `handleReachEnd` 早退不切篇。
+- **桌面不回归（AC4/AC5）**：`isMobileViewport` 与 #88 双栏判定同一 1100px 断点；桌面左栏媒体列上滑不切篇（handler 早退）；浮层关闭恢复滚动/焦点走既有 `restoreRef`/`finalizeClose` 契约（未改动）；`resolveActiveScroller`/#88 滚动模型未破坏。
+- **ContentDetail.tsx 改动理由**：移动端可见媒体区是行内画廊（split 左栏 <1100px 隐藏），连续浏览钩子与到底提示必须接在行内路径上（`onGalleryReachEnd`/`galleryEndHint` 两个新 prop + 提示块）；未触碰双栏几何逻辑。
+
+### Testing:
+- `npm run lint` / `npm run lint:ui` / `npm run build` 全绿；`npm run test:unit` 344/344（新增 `tests/content-detail-continuous-browse.test.tsx` 5 条：AC1 入口贯通、AC2 切篇+媒体/滚动/加载态重置+不重复取数、AC3 到底提示且不切篇、AC4 桌面不触发、源码契约）；`npm run test:contracts` 27/27。
+- 浏览器实测（Playwright，mock API :18080 + worktree 前端 :3002，zh）：12/12 断言——390×844 移动：打开单列浮层、滑到末媒体、上滑切篇（标题/媒体区重置/信息区滚动回 0）、连续切篇、列表最后一项上滑显示「已经到底了」且不再切换、Esc 关闭后焦点回到触发卡片；1280×800 桌面：双栏浮层可见、左栏媒体列上滑不切篇。截图 8 张 `screenshots/t89-*.png`（t89-mobile-open/last-media/switched/switched-2/end-hint/restored + t89-desktop-dual/no-switch）。
+- 验证环境：真实 Go 后端以 `SERVER_PORT=8091` 起（8080 被 health-agent 的 Spring Boot 占用，未杀他人进程）+ 确定性 mock（3 篇 image×2 媒体，CORS 回显 origin）；验证脚本与 mock 在 /tmp 未入库。
+
+### Notes:
+- 验证中发现切篇后若合成触摸仍有惯性滚动残留，顶层 `topKey` effect 会先重置 0 再被浏览器惯性补滚——真实手势（touchEnd 即抬指）无此问题，实测在 touchEnd 前留 80ms 停顿后稳定回 0；产品切篇重置逻辑本身正确（单元测试覆盖 scrollTop=80→切篇→0）。
+- 契约测试套件会再生成 `screenshots/community-content-series-*.png`（渲染不确定），已 restore 不纳入本票；tsconfig.json 的 `.next-playwright-t89` 条目为临时 dev 自动追加，已还原并删除临时 dist。
+- 未触碰 config/routes/migrations（无需 doc-validator）；未触碰 `MediaViewer.tsx`；未触碰主 worktree。
