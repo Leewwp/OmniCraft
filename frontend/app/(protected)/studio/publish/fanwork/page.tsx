@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ContentTypeGrid, type ContentType } from "@/components/studio/ContentTypeGrid";
-import { PublishForm } from "@/components/studio/PublishForm";
+import { PublishForm, type PrefillWarning } from "@/components/studio/PublishForm";
 
 const CONTENT_TYPE_KEYS = [
   { value: "image", icon: "🖼️" },
@@ -16,9 +17,43 @@ const CONTENT_TYPE_KEYS = [
   { value: "other", icon: "📦" },
 ] as const;
 
-export default function PublishFanworkPage() {
+function parsePrefillId(value: string | null): { present: boolean; valid: boolean; id?: number } {
+  if (value === null) return { present: false, valid: false };
+  if (!/^[1-9]\d*$/.test(value.trim())) return { present: true, valid: false };
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) return { present: true, valid: false };
+  return { present: true, valid: true, id: parsed };
+}
+
+function resolvePrefill(searchParams: URLSearchParams): {
+  sourceOriginalId?: number;
+  sourceFanworkId?: number;
+  warnings: PrefillWarning[];
+} {
+  const original = parsePrefillId(searchParams.get("source_original_id"));
+  const fanwork = parsePrefillId(searchParams.get("source_fanwork_id"));
+  const warnings = new Set<PrefillWarning>();
+  let sourceOriginalId: number | undefined;
+  let sourceFanworkId: number | undefined;
+
+  if (original.valid) sourceOriginalId = original.id;
+  if (fanwork.present && original.valid) {
+    // Both IDs specified: keep source_original_id, clear source_fanwork_id.
+    warnings.add("bothSources");
+  } else if (fanwork.valid) {
+    sourceFanworkId = fanwork.id;
+  }
+  if (original.present && !original.valid) warnings.add("invalidId");
+  if (fanwork.present && !fanwork.valid) warnings.add("invalidId");
+
+  return { sourceOriginalId, sourceFanworkId, warnings: [...warnings] };
+}
+
+function PublishFanworkClient() {
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const t = useTranslations("studio.publish");
+  const searchParams = useSearchParams();
+  const prefill = resolvePrefill(searchParams);
 
   const contentTypes: ContentType[] = CONTENT_TYPE_KEYS.map(({ value, icon }) => ({
     value,
@@ -35,6 +70,9 @@ export default function PublishFanworkPage() {
           zone="fanwork"
           contentType={selectedType}
           onBack={() => setSelectedType(null)}
+          prefillSourceOriginalId={prefill.sourceOriginalId}
+          prefillSourceFanworkId={prefill.sourceFanworkId}
+          prefillWarnings={prefill.warnings}
         />
       </div>
     );
@@ -50,5 +88,13 @@ export default function PublishFanworkPage() {
         onSelect={setSelectedType}
       />
     </div>
+  );
+}
+
+export default function PublishFanworkPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[40vh]" />}>
+      <PublishFanworkClient />
+    </Suspense>
   );
 }
