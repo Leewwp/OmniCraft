@@ -206,8 +206,24 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 			response.SafeErrorResponse(c, http.StatusForbidden, "PUBLISH_FROZEN", err)
 			return
 		}
-		if errors.Is(err, service.ErrInvalidSourceOriginal) {
-			response.SafeErrorResponse(c, http.StatusBadRequest, "INVALID_SOURCE_ORIGINAL", err)
+		if errors.Is(err, service.ErrSourceNotAllowedForOriginal) {
+			response.SafeErrorResponse(c, http.StatusBadRequest, "SOURCE_NOT_ALLOWED_FOR_ORIGINAL", err)
+			return
+		}
+		if errors.Is(err, service.ErrFanworkSourceRequired) {
+			response.SafeErrorResponse(c, http.StatusBadRequest, "FANWORK_SOURCE_REQUIRED", err)
+			return
+		}
+		if errors.Is(err, service.ErrMultipleSourceConflict) {
+			response.SafeErrorResponse(c, http.StatusBadRequest, "MULTIPLE_SOURCE_CONFLICT", err)
+			return
+		}
+		if errors.Is(err, service.ErrSourceOriginalUnavailable) {
+			response.SafeErrorResponse(c, http.StatusBadRequest, "SOURCE_ORIGINAL_UNAVAILABLE", err)
+			return
+		}
+		if errors.Is(err, service.ErrSourceFanworkUnavailable) {
+			response.SafeErrorResponse(c, http.StatusBadRequest, "SOURCE_FANWORK_UNAVAILABLE", err)
 			return
 		}
 		if errors.Is(err, service.ErrUploadGrantInvalid) {
@@ -387,14 +403,22 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 	}
 
 	var req struct {
-		Title         *string `json:"title"`
-		CoverImageURL *string `json:"cover_image_url"`
-		IsPublic      *bool   `json:"is_public"`
-		AllowCopy     *bool   `json:"allow_copy"`
-		AgentEnabled  *bool   `json:"agent_enabled"`
+		Title            *string `json:"title"`
+		CoverImageURL    *string `json:"cover_image_url"`
+		IsPublic         *bool   `json:"is_public"`
+		AllowCopy        *bool   `json:"allow_copy"`
+		AgentEnabled     *bool   `json:"agent_enabled"`
+		IPID             *int64  `json:"ip_id"`
+		SourceOriginalID *int64  `json:"source_original_id"`
+		SourceFanworkID  *int64  `json:"source_fanwork_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.SafeErrorResponse(c, http.StatusBadRequest, "INVALID_BODY", err)
+		return
+	}
+
+	if req.IPID != nil || req.SourceOriginalID != nil || req.SourceFanworkID != nil {
+		response.SafeErrorResponse(c, http.StatusBadRequest, "SOURCE_IMMUTABLE", service.ErrSourceImmutable)
 		return
 	}
 
