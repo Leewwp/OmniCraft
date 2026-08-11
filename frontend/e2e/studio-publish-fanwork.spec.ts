@@ -93,7 +93,7 @@ test("mocked fanwork publish payload includes IP and source original IDs before 
   await page.getByRole("button", { name: "Star Rail" }).click();
 
   await page.getByPlaceholder("Search original content title...").fill("Original");
-  await page.getByRole("button", { name: "Original Lightcone" }).click();
+  await page.getByRole("option", { name: /Original Lightcone/ }).click();
 
   await page.getByPlaceholder("Enter body content (Markdown)...").fill("A repaired fanwork submission.");
   await page.getByRole("button", { name: /^Publish$/i }).click();
@@ -110,7 +110,7 @@ test("mocked fanwork publish payload includes IP and source original IDs before 
   expect(legacyContentSearchUrls).toHaveLength(0);
 });
 
-test("mocked fanwork pickers preserve edited query after clearing a selected option", async ({ page }) => {
+test("mocked fanwork pickers clear the selected source when the query is edited", async ({ page }) => {
   await mockCreatorSession(page);
 
   await mockApiRoute(page, "**/api/v1/ips?**", (route) =>
@@ -141,7 +141,9 @@ test("mocked fanwork pickers preserve edited query after clearing a selected opt
   await expect(ipInput).toHaveValue("Star Rail edited");
 
   await sourceInput.fill("Original");
-  await page.getByRole("button", { name: "Original Lightcone" }).click();
+  await page.getByRole("option", { name: /Original Lightcone/ }).click();
+  await expect(page.getByText("Selected source")).toBeVisible();
   await sourceInput.fill("Original Lightcone edited");
-  await expect(sourceInput).toHaveValue("Original Lightcone edited");
+  await expect(sourceInput).toHaveValue("");
+  await expect(page.getByText("Selected source")).not.toBeVisible();
 });
