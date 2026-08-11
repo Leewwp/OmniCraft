@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MediaViewer } from "@/components/content/MediaViewer";
 import type { AttachmentData } from "@/lib/content";
 
 export interface MediaGalleryItem {
@@ -107,8 +108,10 @@ export function MediaGallery({
   const [index, setIndex] = useState(() => clampIndex(initialIndex ?? 0, items.length));
   const [failed, setFailed] = useState<Record<number, boolean>>({});
   const [loaded, setLoaded] = useState<Record<number, boolean>>({});
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const firstSettledRef = useRef(false);
+  const viewerTriggerRef = useRef<HTMLElement | null>(null);
 
   const goPrevious = useCallback(() => {
     setIndex((current) => Math.max(0, current - 1));
@@ -130,13 +133,31 @@ export function MediaGallery({
   });
 
   function handleMediaClick(event: React.MouseEvent<HTMLDivElement>) {
-    if (!onOpenViewer) return;
     if (current.type === "video") {
       const rect = event.currentTarget.getBoundingClientRect();
       if (rect.height > 0 && event.clientY > rect.bottom - VIDEO_CONTROLS_STRIP) return;
     }
-    onOpenViewer(clampIndex(index, items.length));
+    const targetIndex = clampIndex(index, items.length);
+    viewerTriggerRef.current = event.currentTarget;
+    // onOpenViewer 已由上层消费时交给上层（#88/#89 预留给双栏/连续浏览的入口），
+    // 未消费则内部自持状态渲染 MediaViewer（当前唯一消费方）。
+    if (onOpenViewer) {
+      onOpenViewer(targetIndex);
+      return;
+    }
+    setViewerIndex(targetIndex);
   }
+
+  /** 查看器关闭后把焦点还给触发媒体区（AC4：恢复触发点焦点）。 */
+  const handleViewerOpenChange = useCallback((open: boolean) => {
+    if (open) return;
+    setViewerIndex(null);
+    const trigger = viewerTriggerRef.current;
+    viewerTriggerRef.current = null;
+    if (trigger) {
+      requestAnimationFrame(() => trigger.focus({ preventScroll: true }));
+    }
+  }, []);
 
   function handleTouchStart(event: React.TouchEvent) {
     const touch = event.touches[0];
@@ -203,6 +224,7 @@ export function MediaGallery({
             <div
               key={item.id}
               aria-current={active ? "true" : undefined}
+              tabIndex={active ? -1 : undefined}
               className={cn("relative", active ? cn("block", !tall && "h-full") : "hidden")}
               onClick={active ? handleMediaClick : undefined}
             >
@@ -304,6 +326,14 @@ export function MediaGallery({
           </button>
         </div>
       )}
+
+      <MediaViewer
+        items={items}
+        index={viewerIndex ?? 0}
+        open={viewerIndex !== null}
+        onOpenChange={handleViewerOpenChange}
+        onIndexChange={setViewerIndex}
+      />
     </section>
   );
 }
