@@ -366,7 +366,7 @@ go test ./internal/handler -run TestListRelatedFanworks -v
 - Test: add focused tests under `frontend/tests/studio-publish-fanwork.test.tsx`
 - Test: `frontend/e2e/studio-publish-fanwork.spec.ts`
 
-- [ ] **Step 1: Confirm UI spec before UI code**
+- [x] **Step 1: Confirm UI spec before UI code**
 
 Run:
 
@@ -376,7 +376,7 @@ rg -n "## Page: /studio/publish/fanwork|## Component: SourceContentPicker|## Com
 
 The publish page spec must define loading, empty, validation, error, disabled, a11y, i18n namespace, query prefill, and screenshot checkpoints. It must state that `SourceContentPicker` owns inspiration source selection and `CollabUserPicker` is reserved for the later collaboration-invites plan.
 
-- [ ] **Step 2: Add failing source picker tests**
+- [x] **Step 2: Add failing source picker tests**
 
 Assert:
 
@@ -389,7 +389,7 @@ Assert:
 - clearing selection emits `undefined`
 - loading, empty, and error states render localized text
 
-- [ ] **Step 3: Implement `SourceContentPicker`**
+- [x] **Step 3: Implement `SourceContentPicker`**
 
 Create:
 
@@ -403,7 +403,7 @@ interface SourceContentPickerProps {
 
 Do not create a fanwork-specific picker file. Existing original-source picker exports must be migrated to use `SourceContentPicker` or kept only as compatibility wrappers that internally render `SourceContentPicker`.
 
-- [ ] **Step 4: Run focused picker tests**
+- [x] **Step 4: Run focused picker tests**
 
 Run:
 
