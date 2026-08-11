@@ -2071,6 +2071,31 @@
       "resultsFanwork": "Fanwork source search results"
     }
   },
+  "sourceAttribution": {
+    "original": "Inspired by: {title}",
+    "fanwork": "Inspired by: {title}",
+    "unavailable": "Inspiration source: content unavailable",
+    "a11y": {
+      "original": "Open original source {title}",
+      "fanwork": "Open fanwork source {title}"
+    }
+  },
+  "relatedFanworks": {
+    "original": {
+      "title": "Related Fanworks"
+    },
+    "derivatives": {
+      "title": "Derivative Works"
+    },
+    "actions": {
+      "viewAll": "View All",
+      "create": "Start Creating"
+    },
+    "error": {
+      "loadFailed": "Related works failed to load. Please try again.",
+      "retry": "Retry"
+    }
+  },
   "error": {
     "pageError": "Something went wrong",
     "pageErrorDesc": "An unexpected error occurred. Please try again later.",
