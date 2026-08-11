@@ -15,6 +15,25 @@
 - 会话中途 macOS Desktop TCC 权限吊销一度阻塞（已人工恢复）；期间完成的批次与证据见 ticket 评论。
 - Agent 入口浏览器验证使用 route mock 的流式引用（真实 LLM provider 缺失）；#85/#88/#89 将在此基础上接入媒体集/双栏/连续浏览。
 
+## [2026-08-11] - Ticket #85（light）：详情/浮层媒体区（MediaGallery）
+
+### What was done:
+- **`frontend/lib/content.ts`**：`AttachmentData` 扩展 `width/height/sort_order`（仅本票划片）；`normalizeAttachment` 归一化（`positiveInteger` 宽高 / 新增 `nonNegativeInteger` 支持 sort_order=0，蛇形+帕斯卡键，NULL/历史行保持 undefined）。
+- **`frontend/components/content/MediaGallery.tsx`（新）**：按 ui-spec §MediaGallery 实现——contain 不裁切（image `<img>` object-contain / video `<video controls preload="metadata" poster>` 顺序播放器）；容器几何由首项宽高比决定（aspect-ratio style），会话内切换不跳版；超高图（height/width>2）限高 70vh + `overflow-y-auto` 内部滚动；宽高缺失防御性 3:4（私有常量）；底部低调指示点（透明圆=未浏览/实心=当前，`role=group` aria-label「第 X / 共 N」）；左右按钮（44px 触控目标、首末 disabled、i18n aria-label）+ touch swipe 翻页（仅水平位移>40px 且 |dx|>|dy|，不抢页面滚动）；末项上滑预留 `onReachEnd`（#89）；`onOpenViewer` 可选（#86 接入前媒体区不可点，video 点击排除 controls 条）；单媒体失败稳定占位（`media.gallery.error.loadFailed`）不阻断切换；首项 settle 回调 `onFirstMediaSettled` 驱动浮层 coverSync；`selectMediaItems` 导出：image/video 内容中 file_type=image/video 且有 URL 的附件进媒体集（保持后端稳定顺序不重排），其余进下载列表，其他内容类型全部维持下载列表（AC3）。
+- **`frontend/components/content/ContentDetail.tsx`**：image/video 内容渲染 MediaGallery 替代 CoverImage（组件自带 `data-slot="detail-cover"`，浮层 FLIP/VT 转场锚点与封面同步合同保留；媒体集为空时回退 CoverImage，历史内容仍可见）；附件下载列表与 Download All 仅渲染非媒体集素材；sheet_music 语义不变。
+- **i18n**：`media.gallery.*`（position/previous/next/imageAlt/error.loadFailed）仅新增键，zh/en 同步（parity 通过）。
+- **测试**：`frontend/tests/media-gallery.test.tsx` 14 用例（selectMediaItems 拆分、normalizeAttachment 宽高/顺序、渲染顺序与 aria-current/hidden、首项几何与 3:4 默认、超高图限高滚动、指示点、按钮边界、touch 滑动（jsdom 手动构造 touches）、onReachEnd、视频 controls/poster、错误占位、onOpenViewer、几何稳定）；`runtime-test-helpers.tsx` 增补 `media.gallery` 测试消息。
+
+### Testing:
+- `npm run lint`（tsc strict）/ `npm run lint:ui` / `npm run build` 全绿；`npm run test:unit` 300/300；`bash scripts/verify-project.sh --full` 23 mocked contracts 全过（无 media gallery 契约改动）。
+- 浏览器实测（Playwright real :3000+:8080，Chromium headless，zh）：本地 DB 手动应用 063 幂等 DDL + 插入内容 27（4 图：横/竖/方/超高，含 width/height/sort_order）、29（2 视频 + poster 内容封面）、30（历史 NULL 宽高 + pdf 附件）；断言全过——桌面容器 926×520.9 16:9 首项、翻页后几何不变、prev 首项 disabled、移动左/右滑动翻页、超高图 scrollH=1020>clientH=191 内部滚动、视频 controls/preload=metadata/poster、顺序播放器翻页、历史数据 0.75 默认比例、下载列表仅含 pdf；浮层（overlay）实测：卡片点击开共享浮层后画廊渲染、coverSync body reveal、浮层内翻页几何稳定、移动单列。截图 10 张 `screenshots/media-gallery-*.png`（含 overlay 桌面/移动）。
+
+### Notes:
+- 401 均为未登录 `/api/v1/auth/refresh` 全站既有行为，与本次改动无关。
+- 本地 fixture 库迁移账本只到 004（表结构已存在），未跑全量迁移；验证数据用 063 幂等 SQL 手工补齐（`sort_order` 列 + 唯一索引），未改代码/迁移文件。
+- 验证媒体资源 `frontend/public/seed-media/real/`（gitignored，从 main worktree 只读复制 + 新增 5 张 SVG 画廊测试图）不入库。
+- 待办：#86 MediaViewer 将消费 `onOpenViewer`；#88 桌面双栏将向 MediaGallery 传高度约束；#89 连续浏览将接入 `onReachEnd`。
+
 # OmniCraft 万象工坊 - 开发进度日志
 
 > **轮换规则**：本文件仅保留最近约 30 天的条目；更早记录已归档至 `docs/archive/progress/`。超过 64KB 或每月轮换一次（上次轮换：2026-08-07）。完整历史见 `docs/archive/progress/2026-08-01-to-2026-08-07.md`。
