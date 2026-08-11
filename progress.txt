@@ -1,3 +1,23 @@
+## [2026-08-12] - Task 7（light）：来源归因与相关/衍生作品行（#96）
+
+### What was done:
+- **ui-spec 确认（Step 1）**：`design/ui-spec.md` 两节均存在（`## Component: SourceAttribution` :2635、`## Component: RelatedFanworks` :2697），按视觉权威实现，克制视觉处理。
+- **组件（Step 3/4）**：
+  - `frontend/components/content/SourceAttribution.tsx`（新）：仅 fanwork 且存在内容级来源时渲染；source_original → `/original/:id`，source_fanwork → `/content/:id`；仅 IP 不渲染；有 id 无摘要渲染灰色不可点击「灵感来源：内容已下架」（`sourceAttribution.unavailable`）；`inline-flex gap-1 text-xs text-fg-muted` + lucide GitBranch w-3.5 + line-clamp-1 + py-2 触控命中区，aria-label 区分来源类型。
+  - `frontend/components/content/RelatedFanworks.tsx`（新）：props 按计划原文；`GET /api/v1/contents/:id/related-fanworks?page=1&page_size=8`；loading 骨架（标题 + 4 卡）→ total=0 隐藏 → 横向滚动卡片行（148/160/180px 三档响应式，复用 ContentCard）；「查看全部」仅 total>8 且 viewAllHref 存在时渲染；错误态内联 + 重试；外层单容器 `border border-border-default bg-canvas-default p-4`。
+  - i18n：`sourceAttribution.*`（original/fanwork/unavailable/a11y.*）与 `relatedFanworks.*`（original.title/derivatives.title/actions.viewAll/actions.create/error.loadFailed/error.retry）zh/en 同步；衍生标签「衍生作品」，无「三创」硬编码（组件源码 + messages 双重断言）。
+- **接线（Step 5）**：`ContentDetail` 新增可选 props `sourceOriginal`/`sourceFanwork`（标题元信息下、正文上方）与 `relatedFanworks`（SeriesNav 同级、评论区上方）；original 详情页传 viewAllHref=既有 `/original/[contentId]/fanworks` + createHref=`?source_original_id=`；fanwork 详情页（ContentDetailOverlayHost）传归因 + 衍生行（首版不传 viewAllHref）；Overlay Layer 两处 ContentDetail 传 source 摘要，避免浮层内 fanwork 误渲染「内容已下架」。不做递归来源链。
+- **TYPE_FILTERS 修正（Task 4 遗留协调点）**：`fanworks/page.tsx` 的 `text,article,prompt` 在 Task 4 严格 allowlist 下会 400；改为「文本」→ `article,prompt`、「全部」→ 不发送 content_type（后端空值=不过滤，否则漏 audio 等类型）。浏览器验证全部/文本过滤均 200。
+- **验证数据**（dev DB）：T7 衍生测试 17481（source_fanwork_id=229，published）、下架来源对 17482/17483（17482 已软删，17483 呈现 unavailable 态）；迁移 064 直接应用至共享 dev DB（schema_migrations 账本本就残缺，未触碰账本）。
+
+### Testing:
+- 红→绿：先写 `frontend/tests/source-linkage-components.test.tsx`（11 条：计划 7 断言 + createHref 两向 + viewAll 边界），组件不存在时 ERR_MODULE_NOT_FOUND 红；实现后绿（缺 i18n key 时 MISSING_MESSAGE 红 → 补 key 绿）。`node --import tsx --test` 11/11。
+- 门禁：`npm run lint`（tsc strict）/`npm run lint:ui`/`npm run build` 全绿；`npm run test:unit` 375/375；`npm run test:contracts` 34/34（18080 端口先确认空闲）。
+- 浏览器实测（ego-browser, zh, :3001 → :8088）：original/137 相关二创行（卡片 229 + 开始创作 ?source_original_id=137，无查看全部 total=1）；content/229 归因链接「灵感来源：…」→ /original/137 + 衍生作品行（17481 卡 + ?source_fanwork_id=229，无「三创」）；content/17481 二创来源归因 → /content/229；content/17483 灰色「灵感来源：内容已下架」不可点击；fanworks 页全部/文本过滤 200（文本正确空态）；移动端 390px 衍生行横向滚动。截图 7 张 `screenshots/t7-*.png`。
+
+### Notes:
+- 未触碰：主 worktree、后端文件、SourceContentPicker.tsx/PublishForm.tsx；无 config/routes/migrations 改动（064 仅本地应用，无需 doc-validator）。
+- 首版范围裁剪遵循计划：衍生作品不建列表页，不传 viewAllHref。
 ## [2026-08-11] - Ticket #86（light）：全屏媒体查看器（缩放/翻页/三种退出）
 
 ### What was done:
