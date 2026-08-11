@@ -1,3 +1,22 @@
+## [2026-08-11] - Ticket #86（light）：全屏媒体查看器（缩放/翻页/三种退出）
+
+### What was done:
+- **`frontend/components/content/MediaViewer.tsx`（新）**：按 ui-spec §MediaViewer 实现。**portal 隔离**：`createPortal` 挂 `document.body`，脱离详情浮层 FLIP transform 祖先对 `position: fixed` 的约束；再以原生 `<dialog>` + `showModal()` 进入浏览器 top layer——普通 z-index 无法压过同为原生 dialog 的详情浮层（实测验证，ui-spec 的 `fixed inset-0 z-[60]` 类保留标注层级意图）。全屏 `inset-0 h-dvh w-full` 深色背景 `bg-black/90`；媒体 `object-contain` 不裁切，缩放用 `transform: translate() scale()` 不破坏布局。
+- **缩放（AC2）**：滚轮（原生非 passive 监听，React 事件系统对 wheel 以 passive 注册 preventDefault 不生效）+ 双指捏合（pointer events 距离比）+ 放大/缩小/重置按钮（×1.5 步进，钳制 [1,5]）+ 双击复位；缩放态单指平移（`touch-action: none` + setPointerCapture，位移按舞台尺寸钳制）；视频项不缩放、直接渲染播放器（controls/autoPlay/poster）。
+- **翻页（AC3）**：左右按钮（首末 disabled）+ 触摸滑动，仅未缩放态生效（手势优先级 缩放>平移>翻页）；翻页复位缩放与平移；底部沿用 MediaGallery 指示点视觉语言（透明圆=未浏览/实心=当前，`role=group` aria-label 位置）+ 顶部「第 X / 共 N」位置标签；不做内容级切换（AC5，查看器无任何上下文列表/连续浏览回调）。
+- **三种退出（AC4）**：背板点击（pointerup 于空白舞台、位移 < 10px）、关闭按钮、Esc。Esc 用 window capture 阶段监听 + `stopPropagation` + `preventDefault` 自包含：capture 同步关闭后，浏览器对同一 keydown 的 dialog-cancel 默认动作会落到新的最顶层 dialog（详情浮层），`preventDefault` 阻止该默认动作，浮层不被连带关闭（浏览器实测发现并修复）。关闭后焦点还给触发媒体区（MediaGallery 侧 `requestAnimationFrame` + `tabIndex={-1}` 包装层）；打开期间锁定 html/body 滚动并恢复原值（与浮层锁幂等叠加）。错误占位 + 重试（`media.viewer.error.*`）。
+- **`frontend/components/content/MediaGallery.tsx`（最小接入）**：仅新增内部 `viewerIndex` state + 触发元素 ref + `<MediaViewer>` 渲染；`handleMediaClick` 在 `onOpenViewer` 已由上层消费时转发（#88/#89 预留），未消费则内部自持状态（当前唯一路径）；不触碰既有翻页/指示点/几何稳定逻辑。
+- **i18n**：`media.viewer.*`（title/position/close/previous/next/zoomIn/zoomOut/zoomReset/imageAlt/error.loadFailed/error.retry）zh/en 同步 append-only，未带其他键改动。
+
+### Testing:
+- `npm run lint`（tsc strict）/ `npm run lint:ui` / `npm run build` 全绿；`npm run test:unit` 335/335（新增 media-viewer.test.tsx 19 条：进入索引/位置/按钮+滚轮+双击缩放/钳制/捏合/平移/视频不缩放/触摸滑动与手势优先级/翻页复位/背板/拖拽不误关/关闭钮/Esc 捕获不传播/滚动锁/错误重试；media-gallery.test.tsx 同步更新 #86 前「无 handler 惰性」预期 + dialog stub）；`npm run test:contracts` 27/27。
+- 浏览器实测（Playwright real :8080 + worktree 前端 :3001，zh）：20/20 断言——/original?category=sports 浮层内点媒体开查看器（从点击项开始，第 1 / 共 4）、查看器盖在浮层上方、放大 1.5×/滚轮/重置/双击、指示点 4 个、下一张翻页、Esc 只关查看器且浮层保持打开、焦点回触发媒体区、背板点击关闭、关闭按钮关闭、视频项播放器且无缩放控件、移动端进入/触摸滑动翻页/背板点击关闭、关闭后浮层仍在。截图 8 张 `screenshots/t86-viewer-*.png`（桌面 1280×800 + 移动 390×844，像素抽样验证非空白）。
+
+### Notes:
+- 关键决策：查看器必须用原生 dialog 而非纯 z-index 浮层——详情浮层经 `showModal()` 位于浏览器 top layer，`z-[60]` 的 fixed div 永远渲染在其下（浏览器实测：layer check）。原生 dialog 进入同一 top layer 且后开者在上，无需穿透。popover API 方案实测不可行：模态 dialog 打开时页面其余部分 inert，`showPopover()` 静默无效。
+- 验证数据沿用 #85 fixture：content 27（4 图：横/竖/方/超高）+ 29（2 视频），`?category=sports` 使二者进入前 12 条避免深翻页；gallery SVG（g01-g05）为 #85 后缺失的 gitignored 资源，已在本 worktree 重建（不入库）。
+- 未触碰 config/routes/migrations（无需 doc-validator）；未触碰 #88 划片文件（ContentDetail/Overlay*/ContentSidebar）与主 worktree。progress.txt 只更新本 worktree 副本。
+
 ## [2026-08-11] - Ticket #68（light）：内容详情浮窗共享元素转场 + 媒体加载（C2+C6 收敛 + FLIP/VT）
 
 ### What was done:
