@@ -23,6 +23,7 @@ type ListContentsFilter struct {
 	Zone             string
 	IPID             *int64
 	SourceOriginalID *int64
+	SourceFanworkID  *int64
 	Category         string
 	ContentType      string
 	ContentTypes     []string
@@ -33,6 +34,10 @@ type ListContentsFilter struct {
 	TimeRange        string
 	Page             int
 	PageSize         int
+	// ViewerID lets source-linkage queries reuse the centralized content
+	// visibility scope (published, non-deleted, author/IP not banned, and
+	// is_public OR author-owned) for returned children.
+	ViewerID int64
 }
 
 func (r *ContentRepository) CreateContent(content *model.ContentItem) error {
@@ -71,12 +76,21 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 	var items []model.ContentItem
 	var total int64
 
-	q := r.db.Model(&model.ContentItem{}).Preload("Author").Where("deleted_at IS NULL")
+	q := r.db.Model(&model.ContentItem{}).Preload("Author")
 
-	if f.Status != "" {
-		q = q.Where("status = ?", f.Status)
+	// Source-linkage queries (related fanworks / derivative works) reuse the
+	// centralized content visibility scope instead of a partial
+	// status='published' predicate that can drift from soft-delete,
+	// author-deleted and banned rules.
+	if f.SourceOriginalID != nil || f.SourceFanworkID != nil {
+		q = ApplyContentVisibilityScope(q, f.ViewerID)
 	} else {
-		q = q.Where("status = ?", "published")
+		q = q.Where("deleted_at IS NULL")
+		if f.Status != "" {
+			q = q.Where("status = ?", f.Status)
+		} else {
+			q = q.Where("status = ?", "published")
+		}
 	}
 
 	if f.Zone != "" {
@@ -87,6 +101,9 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 	}
 	if f.SourceOriginalID != nil {
 		q = q.Where("source_original_id = ?", *f.SourceOriginalID)
+	}
+	if f.SourceFanworkID != nil {
+		q = q.Where("source_fanwork_id = ?", *f.SourceFanworkID)
 	}
 	if f.Category != "" {
 		q = q.Where("category = ?", f.Category)
