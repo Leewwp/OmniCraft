@@ -749,6 +749,66 @@
 - 测试环境发现 waitFor（@testing-library）在本仓库 node:test 环境下 interval/timeout 不触发（仅 MutationObserver 路径有效），淡出断言改用有界手动轮询（window.setTimeout）替代。
 - 本票不改 config/routes/migrations，无需 doc-validator；未触碰 #66/#67/#70/#83 与 backend/* 文件面。
 
+## [2026-08-11] - GitHub Issue/DAG 与陈旧 Dependabot PR 卫生修复
+
+### What was done:
+- 为 #144/#145 补充直接 `blocked_by #134`，冻结门 #134 的直接下游由 10 张增至 12 张；保留 #73→#76，因为票面明确用它固定 066→067 迁移顺序。
+- 将父级规格票 #64/#80/#103/#110 统一标记为 `wayfinder:map`；#103 移除会被误领的 `ready-for-agent`。新增 `deferred` 标签并用于 #114/#115/#151；#151 以 `not planned` 关闭，恢复生产存量范围后再重开登记。
+- 关闭 #44~#63 共 20 张基于 #92 修复前基线的陈旧 Dependabot PR。#131 后 CI 明确为 `workflow_dispatch` only，单纯 rebase 不会产生新验证证据；后续依赖升级从当时最新 main 重新创建并手动验证。
+- 回读 open issue：无无标签票；回读 Dependabot PR：open 数为 0。当前最高优先级且依赖已满足的开发票为 #85，#87 也已解锁但排序靠后。
+
+### Testing:
+- GitHub REST/`gh` 回读依赖明细、标签、state/state_reason、assignee 与 open PR；#134 blocking=12，#144 blocked_by=9，#145 blocked_by=2，#151 CLOSED/not_planned。
+- 本机 Go 1.25.12、Node 26.7.0、npm 11.19.0、pnpm 11.16.0 满足 Web-only 最低版本；PostgreSQL 16/pgvector 与 Redis 7 容器均 healthy，前端依赖目录已存在。
+- 本次无运行时代码、config、routes 或 migration 变更，未运行项目构建与浏览器测试。
+
+### Notes:
+- Rust 未安装；当前 Web-only #85 不需要 Rust。现有未提交规划文档与本地 main 的 ahead/behind 状态均保留，未清理、暂存或提交用户改动。
+
+## [2026-08-11] - Wayfinder 正式收口：#28/#31/#32 与 #110 编排
+
+### What was done:
+- 晋升 RAG 正式设计、可靠异步/可观测性与 RAG 两份 roadmap、Agent/RAG 证据合同；新增 ADR 0005，固定"模块化单体 Agent/Search + 唯一独立 Worker + 单 Agent 基线"，gRPC/多智能体仅在 T09 证据后复核。
+- 审查修正：T01 改 heavy 并固定 `069_rag_evaluation.sql`；T02 固定 `070_outbox_inbox.sql`、四类内容事件与 W3C trace context；T04 固定 `071_rag_chunks.sql`、`chunk_key/chunking_version/source spans`；Worker 删除 server fallback；GORM tracing 采用 `gorm.io/plugin/opentelemetry/tracing`。
+- #110 调研晋升正式 malware scanning spec：新上传 mod 的结构拒绝、ClamAV scan-then-publish、clean-only download、quarantine/delete、管理员误报审计；计划迁移 072。ClamAV 仅 full-infra/security profile，存量回扫为 Future rollout。
+- GitHub：创建冻结门 #134；T00–T10 #135–#145 作为 #22 子票；S01–S06 #146–#151 作为 #110 子票；全部挂原生 blocked_by。#32 旧 #31 边删除，现仅等待 #136–#144。关闭 #28/#31；#32 与 #110 保持 OPEN；移除 #110 `ready-for-human`。
+- `AGENTS.md` 注册两份 roadmap 与 malware scanning spec；#151 明确不属于当前自动执行单元。#101 旧注册行保持整行删除。轮换归档保留 22 条于 `docs/archive/progress/2026-08-07-to-2026-08-09.md`。
+
+### Testing:
+- 无运行时代码、config、routes 或 migration 文件变更；未启动服务，未运行运行时测试。
+- 文档执行 `git diff --check`、路径/旧合同全文扫描；GitHub 回读父子关系、issue 状态与原生依赖计数；AGENTS.md 与 GitHub DAG 对照。
+
+### Notes:
+- 所有新增运行时任务必须等待 #134；当前继续按既有 Web-only 注册表优先级执行。
+- 本轮未提交 commit；正式文档记录的是设计/计划，不得宣传为 Implemented。
+
+## [2026-08-11] - 票据卫生：#83 收口（release-pending 解除 + 关闭）
+
+### What was done:
+- 复核 #83 全证据链：8/8 AC 已勾选；真实私有 OSS 验证（生产 bucket omnicraft / cn-guangzhou，相对 key 入库/签名 URL/poster 尺寸派生三条 PASS）于 2026-08-09 完成并留有 comment；PR #122（media/t83，mergeCommit 3546796）已合入 origin/main；blocked_scope=merge 已解除、用户已批准合并。
+- 根因：2026-08-08 实现完成时 GitHub 连通性故障导致关闭步骤未执行，08-09 重开挂 release-pending 验证/合并虽完成但无人收口，票据残留 OPEN。
+- 动作：移除 release-pending 标签（其定义「仍等待真实发布验证」条件已满足）+ close 为 COMPLETED，并留收口说明 comment。
+
+### Testing:
+- gh issue view 83：state=CLOSED / stateReason=COMPLETED / labels 为空。
+
+### Notes:
+- 收口后 #85（T05）blocked_by 仅剩 #68（#65/#83 均已关闭），DAG 与注册表一致；下个开发会话可正常从 #68/#81 起步。无代码/配置/迁移改动。
+
+## [2026-08-11] - Wayfinder #30：面试展示型 Agent/RAG 架构边界
+
+### What was done:
+- 将新增技术路线定位为本地可运行、可解释、可追问的面试证据，不以生产部署为硬目标。
+- 确认三层证据等级：`Implemented` 必须有主线代码、Compose 启动、自动化测试、关键指标和失败/降级演练；`Designed` 需有 ADR、契约、数据所有权、失败恢复和实施计划；`Future option` 只记录触发条件与不采用原因。
+- 将第一条垂直切片收敛为 OmniCraft 站内内容 RAG：已发布内容 → 分块/embedding → OpenSearch 关键词/过滤与 pgvector 语义召回 → RRF/rerank → 可见性复核 → 单 Agent 回答与引用 → OTel trace → golden-set 评测。
+- 明确当前不引入多智能体运行时；多 Agent 仅保留为需对照评测的 Designed 方案。运行时 Agent/RAG 实现等现有 Web-only DAG 收口后再开始；期间只允许 ADR、评测集、契约和指标定义等文档准备。
+
+### Testing:
+- 本次为 wayfinder 决策与领域术语收敛，无运行时代码变更；核对现有 deterministic Agent evaluation fixtures、引用权限复核和 Redis/pgvector 基线。
+
+### Notes:
+- 决策已写入并关闭 GitHub issue #30；#28/#31/#32 已收到上游约束，作为下游票继续消费本结论，不在本票中关闭。
+
 ## [2026-08-11] - #81 原创区分类筛选修复（light，worktree media/t81）
 
 ### What was done:

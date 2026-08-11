@@ -10,3 +10,5 @@
 | 0001 | document-governance | accepted | 2026-06-29 |
 | 0002 | nginx-csp-unsafe-inline | accepted | 2026-08-04 |
 | 0003 | web-agent-dedicated-workspace | accepted | 2026-07-26 |
+| 0004 | media-experience-paradigm | accepted | 2026-08-08 |
+| 0005 | agent-rag-runtime-boundary | accepted | 2026-08-11 |
