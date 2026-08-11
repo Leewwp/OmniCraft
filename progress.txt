@@ -604,3 +604,29 @@
 ### Notes:
 - 移动端 390px 视口存在既有 26px 页面级水平溢出（原创区页头描述行 + 分类 Tab 行，未涉及卡片）；已用 stash 对照 main 复现确认与本票无关，溢出断言按 AC 范围收敛到卡片区。
 - 未触碰 config/routes/migrations（无需 doc-validator）；未触碰 #85 的 ContentDetail/MediaGallery/overlay 组件与主 worktree。progress.txt 只更新本 worktree 副本。
+
+## [2026-08-11] - #88 桌面双栏详情浮层（light，worktree media/t88）
+
+### What was done:
+- `frontend/components/content/ContentDetail.tsx`：新增 `mediaSlot?: "inline" | "split"` 与 `coverReady?: boolean`。split 模式下行内媒体区包 `min-[1100px]:hidden`（<1100px 单列兜底保留，display:none 不加载图、不触发落定事件）；正文 reveal 判定扩展为「行内落定 || 行外 coverReady 落定」（任一路径 settled 即显示，错误态同 reveal，符合 ui-spec:2411）。
+- `frontend/components/content/ContentDetailOverlayLayer.tsx`：数据落定后按「content_type ∈ image/video 且媒体集非空」判定 split-media 并回报 `onLayoutChange(index, layout)`。split 布局 = `min-[1100px]:grid-cols-[3fr_2fr]`：左媒体列（`hidden min-[1100px]:grid place-items-center`，aspect 盒 `height:100%` + `aspect-ratio` 首项比例 + `max-width:100%`，有翻页控件时 `max-height: calc(100% - 64px)` 预留控件位；宽度按比例自适应、列内居中 contain 不裁切，MediaGallery 不改组件仅包容器）；右信息列 = `data-slot="layer-scroller"`，`min-[1100px]:overflow-y-auto` 独立滚动，ContentDetail(mediaSlot="split", coverReady) + 创作者栏/相关列表下置于信息列末尾（维持 ui-spec:2402 相关推荐与 :2438 创作者栏，ContentSidebar 组件本身未改）。单列布局与侧栏不变。
+- `frontend/components/content/ContentDetailOverlay.tsx`：
+  - 新增 `layerLayouts` state（每层回报布局）+ `resolveActiveScroller()`：顶层 split-media 且视口 ≥1100px（`matchMedia("(min-width: 1100px)")`，jsdom 无 matchMedia 时安全降级）时唯一滚动目标 = 顶层可见 `layer-scroller`（跳过 display:none 底层），否则 overlay-scroller；pushLayer 滚动捕获与 topKey 恢复均走该目标（焦点/滚动按层记忆不变）。
+  - overlay-scroller 在 split-media 顶层时加 `min-[1100px]:h-full min-[1100px]:overflow-hidden`（不滚动，ui-spec:2447 唯一滚动目标）。
+  - `getTopCover` 改为跳过 display:none 的 detail-cover（split 模式下行内媒体区与左栏媒体列共存，取可见者，FLIP/VT 锚点仍正确）。
+- i18n：无新增文案（布局纯 CSS/逻辑，未触碰 messages）。ContentSidebar/Host/use-content-detail-overlay 未改（Host 全页维持单栏，ui-spec:2395 双栏定义于浮层章节）。
+
+### Testing:
+- `npm run lint`（tsc）、`lint:ui`、`npm run build` 全绿；`npm run test:unit` 317 tests 全绿（新增 `tests/content-detail-split-layout.test.tsx` 4 条：媒体集内容出 split 布局（layer-scroller + 双 detail-cover 锚点 + aspect 盒 1600/900 比例）、split 滚动记忆路由到 layer-scroller 并在 pop 后恢复（matchMedia stub ≥1100px）、历史无媒体集 image 内容保持单列、源码契约断言）。
+- `bash scripts/verify-project.sh -Scope Frontend`：default verification passed。
+- 浏览器（Playwright + worktree :3001 dev + 共享 :8080 后端，内容 30「15 分钟营养早餐碗」3:4 防御比例 + 2 图控件位）：
+  - 1440×900：`screenshots/t88-desktop-dual.png` —— 双栏几何 580×773（3:4 比例、高度达上限 773+64=837≈视口可用），信息列独立滚动（scrollTop 400，媒体区 top 恒定 148，overlay-scroller 0）；`t88-desktop-dual-scrolled.png` 滚动后；Esc 关闭、0 pageerror。
+  - 900×900：`t88-tablet-single.png` —— 单列全宽 contain（868 宽），无溢出。
+  - 390×844：`t88-mobile-single.png` —— 全屏单列（382 宽），信息下滚不回归。
+  - 平板 701-1100 判定：≤1100 保持单列（含 1024-1100 现 lg 布局），>1100 才双栏——PR 已写明。
+- 桌面 FLIP 锚点：visibleCovers=1（隐藏行内 cover 被跳过，取左栏媒体列）。
+
+### Notes:
+- 双栏仅作用于 image/video 且媒体集非空的内容；历史 image/video 无媒体集（行内 CoverImage）维持单栏。
+- 端口：:3001 为 t88 worktree 前端 dev（:3000 属 t85 worktree）；后端 :8080 共享。截图所需 `/seed-media/real/gallery/*.svg` 系 t85 worktree 的本地未提交素材，已复制到本 worktree 供验证，**不随本 PR 提交**（与 #85 一样未入库）。
+- 未触碰 config/routes/migrations（无需 doc-validator）；未触碰 MediaGallery/ContentCard/MasonryGrid/主 worktree；未 close issue。
