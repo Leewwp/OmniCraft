@@ -698,3 +698,24 @@
 - handler 配套改动（计划 Task 2 Files 清单之外的 3 个文件，按执行指令「如 handler 需要配套改动请一并完成并在报告中说明」）：`handler/content.go`（CreateContent 旧 `INVALID_SOURCE_ORIGINAL` 映射替换为 5 个新精确码 400 映射 + UpdateContent SOURCE_IMMUTABLE 探测）、`handler/content_publish_route_test.go`（`TestCreateContentRouteRejectsInvalidSourceOriginal` 改名 `TestCreateContentRouteRejectsInvalidSourceLink`，3 用例断言改为各自精确码：original+source → SOURCE_NOT_ALLOWED_FOR_ORIGINAL、fanwork+非原创/未发布来源 → SOURCE_ORIGINAL_UNAVAILABLE）、`pkg/response/safe_error.go`（删除 `INVALID_SOURCE_ORIGINAL`，新增 6 个新码 safeMessages，供 SafeErrorResponse 消息映射）。理由：服务语义变更后全量 `go test ./...` 必须保持绿，旧码已无生产路径。
 - 已知边界（报告中说明）：fanwork 同时携带两个来源 ID 且其一不存在时，加载阶段先返回 UNAVAILABLE 而非 CONFLICT（helper 内部 CONFLICT 优先仅对已加载来源成立）；两个 ID 均存在时按 spec 顺序返回 MULTIPLE_SOURCE_CONFLICT。Task 3 路由测试覆盖真实路径。
 - 未触碰 config/routes/migrations（无需 doc-validator）；未触碰 main worktree/frontend；progress.txt 只更新本 worktree 副本。
+
+## [2026-08-11] - Task 3（light）：发布与内容详情契约（#96）
+
+### What was done:
+- **Step 1（TDD 红）**: `backend/internal/handler/content_publish_route_test.go` 扩展 7 项断言：① 新测试 `TestCreateContentRoutePublishesFanworkWithSourceFanwork`——fanwork 仅带 `source_fanwork_id` 可发布（201 + 返回 source_fanwork_id），且 `GET /contents/:id` 可见时返回 `source_fanwork: {id, title, zone:"fanwork"}`；② 既有 `TestCreateContentRoutePublishesFanworkAndReadsBackSourceRelation` GET 断言补 `zone:"original"`；③ `TestCreateContentRouteRejectsInvalidSourceLink` 新增 3 用例：original+source_fanwork_id → SOURCE_NOT_ALLOWED_FOR_ORIGINAL、fanwork 无 IP/来源 → FANWORK_SOURCE_REQUIRED、双来源 → MULTIPLE_SOURCE_CONFLICT（Task 2 已实现，直接验证端到端）；④ 新测试 `TestUpdateContentRouteRejectsSourceImmutable`——PATCH ip_id/source_original_id/source_fanwork_id 各返回 400 SOURCE_IMMUTABLE 且 DB 中已存归因（source_fanwork_id 原值）保留、其余来源字段仍为 nil。测试 router 补 `PATCH /api/v1/contents/:id`（authReq + handler.UpdateContent）。
+- **Step 2**: `go test ./internal/handler -run "TestCreateContentRoute|TestUpdateContent.*SourceImmutable" -v` 红：`source_original zone = ""`（缺 zone）与 `source_fanwork = {ID:0,...}`（摘要缺失）。`TestUpdateContentRouteRejectsSourceImmutable` 因 Task 2 已实现探测而直接绿（行为本已正确，测试补契约）。注意：PATCH 测试命名按计划 Step 2 正则 `TestUpdateContent.*SourceImmutable` 调整。
+- **Step 3**: 核对 6 个精确码映射（`handler/content.go`）：SOURCE_NOT_ALLOWED_FOR_ORIGINAL/FANWORK_SOURCE_REQUIRED/MULTIPLE_SOURCE_CONFLICT/SOURCE_ORIGINAL_UNAVAILABLE/SOURCE_FANWORK_UNAVAILABLE 均已映射 400（:209-228，Task 2 完成），SOURCE_IMMUTABLE 更新时 400（:420-423）。全部就位，无需改动。
+- **Step 4**: `GetContent` 详情路径：新增 `source_fanwork` 摘要 `{id, title, zone:"fanwork"}`（`SourceFanworkID` 非空且来源可取时）；`source_original` 摘要补 `zone:"original"`。来源不可取时省略摘要，`source_fanwork_id` 由 content 对象 json tag 自动保留（前端渲染「内容已下架」）。
+- **Step 5**: `frontend/lib/content.ts`：`ContentDetailData` 加 `source_fanwork_id`；`normalizeContentItem` 归一化 `source_fanwork_id`；`normalizeSourceSummary` 要求 id/title/zone 三字段齐备才产出 `SourceSummary`（`zone: "original" | "fanwork"`），缺一即省略——无有效三字段摘要不得成为可点击卡片（ui-spec SourceAttribution 契约），`source_*_id` 单独存在时前端仍可渲染下架文案。
+- **Step 6**: `go test ./internal/handler -run TestCreateContentRoute -v` 转绿；`TestUpdateContent.*SourceImmutable` 亦绿。
+
+### Testing:
+- 红→绿：`content_publish_route_test.go:94: source_original zone = "", want original`、`:159: source_fanwork = {ID:0, Title:"", Zone:""}, want id=1 title="Published fanwork source"` → 实现后 7 用例全 PASS。
+- 全量 `go build ./... && go vet ./... && go test ./...` 全绿（handler/model/service 等全 ok）。
+- `gofmt -l` 仅列出存量未格式化文件（admin_audit.go/config_public.go/feedback.go/version.go，未触碰）；本任务 3 个文件均干净。
+- 前端：`npm run lint`（tsc --noEmit）绿、`npm run build` 绿、`npm run test:unit` 344/344（含 content-series-normalizer.test.ts）。
+- 未改 config/routes/migrations → 无需 doc-validator。
+
+### Notes:
+- 中途误用 `go fmt` 顺带格式化 5 个存量未格式化文件（ip.go/version.go/admin_audit_service_test.go/category_service.go/verification_service.go），已 `git checkout` 还原，未混入提交。
+- 未触碰 main worktree；progress.txt 仅更新本 worktree 副本。

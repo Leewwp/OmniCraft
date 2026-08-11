@@ -7,6 +7,7 @@ export interface ContentDetailData extends ContentCardData {
   ip_id?: number;
   ip?: { id?: number; name?: string; slug?: string };
   source_original_id?: number;
+  source_fanwork_id?: number;
   is_public?: boolean;
   allow_copy?: boolean;
   agent_enabled?: boolean;
@@ -48,13 +49,19 @@ export interface SeriesMembership {
   next?: SeriesContentSummary;
 }
 
+export interface SourceSummary {
+  id: number;
+  title: string;
+  zone: "original" | "fanwork";
+}
+
 export interface NormalizedContentDetailResponse {
   content: ContentDetailData | null;
   attachments: AttachmentData[];
   tags: string[];
   series_memberships: SeriesMembership[];
-  sourceOriginal?: { id: number; title: string };
-  sourceFanwork?: { id: number; title: string };
+  sourceOriginal?: SourceSummary;
+  sourceFanwork?: SourceSummary;
 }
 
 type RawObject = Record<string, unknown>;
@@ -194,17 +201,19 @@ export function normalizeSeriesMemberships(value: unknown): SeriesMembership[] {
     .filter((item): item is SeriesMembership => Boolean(item));
 }
 
-function normalizeSourceSummary(value: unknown): { id: number; title: string } | undefined {
+function normalizeSourceSummary(value: unknown): SourceSummary | undefined {
   const raw = asObject(value);
   if (!raw) {
     return undefined;
   }
   const id = positiveInteger(raw.id ?? raw.ID);
   const title = stringValue(raw.title ?? raw.Title);
-  if (!id || !title?.trim()) {
+  const rawZone = raw.zone ?? raw.Zone;
+  const zone = rawZone === "original" || rawZone === "fanwork" ? rawZone : undefined;
+  if (!id || !title?.trim() || !zone) {
     return undefined;
   }
-  return { id, title };
+  return { id, title, zone };
 }
 
 export function normalizeTags(value: unknown): string[] {
@@ -246,6 +255,7 @@ export function normalizeContentItem(value: unknown): ContentDetailData | null {
     ip_id: numberValue(pick(raw, "ip_id", "IPID")),
     ip: normalizeIP(pick(raw, "ip", "IP")),
     source_original_id: numberValue(pick(raw, "source_original_id", "SourceOriginalID")),
+    source_fanwork_id: numberValue(pick(raw, "source_fanwork_id", "SourceFanworkID")),
     category: stringValue(pick(raw, "category", "Category")),
     content_type: stringValue(pick(raw, "content_type", "ContentType")),
     cover_image_url: stringValue(pick(raw, "cover_image_url", "CoverImageURL")),
