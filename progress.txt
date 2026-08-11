@@ -719,3 +719,33 @@
 ### Notes:
 - 中途误用 `go fmt` 顺带格式化 5 个存量未格式化文件（ip.go/version.go/admin_audit_service_test.go/category_service.go/verification_service.go），已 `git checkout` 还原，未混入提交。
 - 未触碰 main worktree；progress.txt 仅更新本 worktree 副本。
+
+## [2026-08-12] - Task 4（light）：增强 Related Fanworks API（#96）
+
+### What was done:
+- **Step 1（TDD 红）**: 新建 `backend/internal/handler/content_related_fanworks_route_test.go`，11 个用例覆盖计划 10 项测试清单 + 1 项来源可见性：original 源按 `source_original_id` 返回（并断言 `source_content_id`/`source_zone` 新响应合同）；fanwork 源按 `source_fanwork_id` 返回衍生作品（不得再 400 NOT_ORIGINAL，且按 `source_original_id` 指向 fanwork 的行不得泄漏）；非可见子项排除（pending/under_review/软删/作者 banned/is_public=false 全部排除，仅 published+public 可见）；`content_type` 单值与逗号多值 allowlist IN；非法/空条目（`bogus`/`article,`/`,`/`article,,prompt`/`text`）→ 400 INVALID_CONTENT_TYPE；默认 sort 按 hot_score 降序；`sort=new` 按 created_at 降序；`limit` 别名 page_size；`page_size` 优先于 `limit`；软删来源 → 404 NOT_FOUND。测试 seed 用显式 UPDATE 落 `is_public=false`（`default:true` 标签使 GORM 零值 false 被 INSERT 省略，初版实测 is_public 恒 true 已修复）。
+- **Step 2**: `go test ./internal/handler -run TestListRelatedFanworks -v` 红（5 FAIL/4 PASS，另 2 项来源可见性/页大小语义本就绿）：
+  ```
+  --- FAIL: TestListRelatedFanworksFanworkReturnsDerivativesBySourceFanworkID
+      status = 400, want 200 ... body = {"code":"NOT_ORIGINAL",...}
+  --- FAIL: TestListRelatedFanworksExcludesNonVisibleChildren
+      total = 5, want 1 ...（banned 作者/private/pending 子项全泄漏）
+  --- FAIL: TestListRelatedFanworksRejectsInvalidContentType
+      content_type=bogus: status = 200, want 400
+  --- FAIL: TestListRelatedFanworksSortHotIsDefault
+      default sort = [low-hot high-hot mid-hot], want hot order
+  --- FAIL: TestListRelatedFanworksLimitAliasesPageSize
+      page_size = 20, want 1（limit 别名未解析）
+  ```
+- **Step 3**: `ListContentsFilter` 新增 `SourceFanworkID *int64` 与 `ViewerID int64`；`ListContents` 在携带任一来源过滤时**复用集中可见性 scope**（`ApplyContentVisibilityScope(q, f.ViewerID)`：published + 非软删 + 作者非 banned/删 + IP 非 banned + is_public 或作者本人），不复制局部 `status='published'` 谓词；无来源过滤的既有路径（含 admin under_review 显式 Status、user/IP 列表）行为不变。`ContentService`：hot Redis 路径守卫补 `SourceOriginalID==nil && SourceFanworkID==nil`（否则 sort=hot 默认下 related-fanworks 会命中全局热度 rank 泄漏跨源内容）；`recommendedSortHasFilters` 补 SourceFanworkID。新增 `GetVisibleContent(id, viewerID)`——经集中 scope 的单行解析（显式绕过详情缓存，防可见性经缓存泄漏），供来源查找。
+- **Step 4**: `ListRelatedFanworks` 重写：来源查找改用 `GetVisibleContent`（zone=original → SourceOriginalID；zone=fanwork → SourceFanworkID；其余 zone 返回空表，模型约束下不可达）；**删除旧 NOT_ORIGINAL 400**；`content_type` 逗号解析走 allowlist（image/article/video/audio/template/sheet_music/mod/prompt/other，与 browse-history 同枚举）参数化 `IN`，非法/空条目 400 `INVALID_CONTENT_TYPE`；sort 默认 `hot`、`new`/`newest` → 最新、`most_views`/`best_rated` 透传、未知回退最新；page_size 默认 24 上限 100，`limit` 为别名且 page_size 优先（复用 `parsePositiveInt`）；响应对齐 `docs/reference/api.md` 快照合同：`source_content_id` + `source_zone`（原 `source_original_id` 键对 fanwork 源语义错误，已按 api.md 收敛；前端仅消费 contents/total 不受影响）。
+- **Step 5**: `go test ./internal/handler -run TestListRelatedFanworks -v` 11/11 全绿。
+
+### Testing:
+- 红→绿证据见上；`go build ./... && go vet ./... && go test ./...` 全量全绿（handler/service/repository 等全 ok）。
+- `gofmt -l`：本任务 4 个文件均干净（仓库存量未格式化文件 ip.go/version.go 等未触碰）。
+- 未改 config/routes/migrations → 无需 doc-validator。
+
+### Notes:
+- 已知前端协调点（本任务后端先行，不碰 frontend）：`frontend/app/(public)/original/[contentId]/fanworks/page.tsx` 的 TYPE_FILTERS 仍发送 `text,article,prompt`（`text` 不在标准枚举内），严格 allowlist 生效后该页「All/Text」过滤将 400 回退空列表；计划后续前端任务已列入修改该页（`frontend/app/(public)/original/[contentId]/fanworks/page.tsx` 在计划文件清单），届时须将 `text` 从过滤值中去掉。
+- 未触碰 main worktree；progress.txt 仅更新本 worktree 副本。

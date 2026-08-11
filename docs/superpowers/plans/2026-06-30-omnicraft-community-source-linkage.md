@@ -297,7 +297,7 @@ go test ./internal/handler -run TestCreateContentRoute -v
 - Modify: `backend/internal/handler/content.go`
 - Test: `backend/internal/handler/content_publish_route_test.go` or new focused test
 
-- [ ] **Step 1: Add failing API tests**
+- [x] **Step 1: Add failing API tests**
 
 Cover:
 
@@ -312,7 +312,7 @@ Cover:
 - `limit` aliases `page_size`
 - `page_size` wins over `limit`
 
-- [ ] **Step 2: Run and confirm red**
+- [x] **Step 2: Run and confirm red**
 
 Run:
 
@@ -321,7 +321,7 @@ cd backend
 go test ./internal/handler -run TestListRelatedFanworks -v
 ```
 
-- [ ] **Step 3: Add repository filter**
+- [x] **Step 3: Add repository filter**
 
 In `ListContentsFilter`, add:
 
@@ -333,7 +333,7 @@ Apply `WHERE source_fanwork_id = ?` when present.
 
 Reuse the centralized content visibility scope for both source lookup and returned children. Do not copy a partial `status='published'` predicate that can drift from soft-delete/author-deleted/banned rules.
 
-- [ ] **Step 4: Modify handler logic**
+- [x] **Step 4: Modify handler logic**
 
 For `GET /api/v1/contents/:id/related-fanworks`:
 
@@ -343,7 +343,7 @@ For `GET /api/v1/contents/:id/related-fanworks`:
 
 Do not keep old `NOT_ORIGINAL` behavior for fanwork sources.
 
-- [ ] **Step 5: Verify API tests**
+- [x] **Step 5: Verify API tests**
 
 Run:
 

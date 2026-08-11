@@ -597,13 +597,32 @@ func (s *ContentService) GetContent(id int64) (*model.ContentItem, error) {
 	return content, nil
 }
 
+// GetVisibleContent resolves a single content row through the centralized
+// content visibility scope (published, non-deleted, author/IP not banned, and
+// is_public OR author-owned for the viewer). It is the viewer-aware source
+// lookup used by related-fanworks; it intentionally bypasses the detail cache
+// so visibility can never leak through a stale cached row.
+func (s *ContentService) GetVisibleContent(id int64, viewerID int64) (*model.ContentItem, error) {
+	var content model.ContentItem
+	err := repository.ApplyContentVisibilityScope(s.contentRepo.DB().Model(&model.ContentItem{}), viewerID).
+		Where("content_items.id = ?", id).
+		First(&content).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrContentNotFound
+		}
+		return nil, err
+	}
+	return &content, nil
+}
+
 func (s *ContentService) ListContents(filter repository.ListContentsFilter, viewerID int64) ([]model.ContentItem, int64, error) {
 	// 推荐排序既服务 /original（zone=original）也服务 /recommend 推荐页
 	// （zone 为空，跨区请求由推荐管线/兜底决定可展示集合）。
 	if filter.Sort == "recommended" && (filter.Zone == "original" || filter.Zone == "") {
 		return s.handleRecommended(filter, viewerID)
 	}
-	if s.rdb != nil && s.cacheCfg != nil && filter.Sort == "hot" && filter.Zone != "" && filter.Category == "" && filter.ContentType == "" && filter.Tags == nil && filter.TimeRange == "all" {
+	if s.rdb != nil && s.cacheCfg != nil && filter.Sort == "hot" && filter.Zone != "" && filter.Category == "" && filter.ContentType == "" && filter.Tags == nil && filter.TimeRange == "all" && filter.SourceOriginalID == nil && filter.SourceFanworkID == nil {
 		contents, err := s.getHotContents(context.Background(), filter)
 		page := filter.Page
 		if page < 1 {
@@ -664,7 +683,7 @@ func recommendedSortHasFilters(filter repository.ListContentsFilter) bool {
 	if filter.Category != "" || filter.ContentType != "" || len(filter.ContentTypes) > 0 || len(filter.Tags) > 0 {
 		return true
 	}
-	if filter.AuthorID != nil || filter.IPID != nil || filter.SourceOriginalID != nil {
+	if filter.AuthorID != nil || filter.IPID != nil || filter.SourceOriginalID != nil || filter.SourceFanworkID != nil {
 		return true
 	}
 	return filter.TimeRange != "" && filter.TimeRange != "all"

@@ -328,7 +328,8 @@ func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
 		return
 	}
 
-	source, err := h.contentSvc.GetContent(sourceID)
+	viewerID := middleware.GetUserID(c)
+	source, err := h.contentSvc.GetVisibleContent(sourceID, viewerID)
 	if err != nil {
 		if errors.Is(err, service.ErrContentNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
@@ -337,44 +338,94 @@ func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
-	if source.Zone != "original" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "NOT_ORIGINAL", "message": "related fanworks require original content"})
+
+	var sourceOriginalID, sourceFanworkID *int64
+	switch source.Zone {
+	case "original":
+		sourceOriginalID = &sourceID
+	case "fanwork":
+		sourceFanworkID = &sourceID
+	default:
+		// Zones are constrained by the publish contract; any other zone has
+		// no source-linkage children.
+	}
+
+	page := parsePositiveInt(c.Query("page"), 1)
+	pageSize := parsePositiveInt(c.Query("page_size"), 0)
+	if pageSize == 0 {
+		pageSize = parsePositiveInt(c.Query("limit"), 24)
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	contentTypes, ok := parseRelatedFanworkContentTypes(c.Query("content_type"))
+	if !ok {
+		response.Error(c, http.StatusBadRequest, "INVALID_CONTENT_TYPE", "invalid content type")
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	contentTypes := parseCSVQuery(c.Query("content_type"))
-	contentType := ""
-	if len(contentTypes) == 1 {
-		contentType = contentTypes[0]
-	}
-	if len(contentTypes) > 1 {
-		contentType = ""
+	sort := "hot"
+	switch c.Query("sort") {
+	case "", "hot":
+		sort = "hot"
+	case "new", "newest":
+		sort = "new"
+	default:
+		// Legacy sorts (most_views, best_rated) pass through to the
+		// repository ordering; anything unknown falls back to newest.
+		sort = c.Query("sort")
 	}
 
 	contents, total, err := h.contentSvc.ListContents(repository.ListContentsFilter{
 		Zone:             "fanwork",
-		SourceOriginalID: &sourceID,
-		ContentType:      contentType,
+		SourceOriginalID: sourceOriginalID,
+		SourceFanworkID:  sourceFanworkID,
 		ContentTypes:     contentTypes,
-		Sort:             c.DefaultQuery("sort", "newest"),
+		Sort:             sort,
 		TimeRange:        c.DefaultQuery("time_range", "all"),
 		Page:             page,
 		PageSize:         pageSize,
-	}, middleware.GetUserID(c))
+		ViewerID:         viewerID,
+	}, viewerID)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"source_original_id": sourceID,
-		"contents":           contents,
-		"total":              total,
-		"page":               page,
-		"page_size":          pageSize,
+		"source_content_id": sourceID,
+		"source_zone":       source.Zone,
+		"contents":          contents,
+		"total":             total,
+		"page":              page,
+		"page_size":         pageSize,
 	})
+}
+
+var validRelatedFanworkContentTypes = map[string]bool{
+	"image": true, "article": true, "video": true, "audio": true,
+	"template": true, "sheet_music": true, "mod": true, "prompt": true, "other": true,
+}
+
+// parseRelatedFanworkContentTypes parses the comma-separated content_type
+// query for related-fanworks. Every entry must be a standard allowlisted
+// content type; empty or unknown entries reject the request so the caller
+// can answer 400 INVALID_CONTENT_TYPE.
+func parseRelatedFanworkContentTypes(raw string) ([]string, bool) {
+	if raw == "" {
+		return nil, true
+	}
+	parts := strings.Split(raw, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value == "" || !validRelatedFanworkContentTypes[value] {
+			return nil, false
+		}
+		values = append(values, value)
+	}
+	return values, true
 }
 
 func parseCSVQuery(raw string) []string {
