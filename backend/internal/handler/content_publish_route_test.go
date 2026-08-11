@@ -78,6 +78,7 @@ func TestCreateContentRoutePublishesFanworkAndReadsBackSourceRelation(t *testing
 		SourceOriginal struct {
 			ID    int64  `json:"id"`
 			Title string `json:"title"`
+			Zone  string `json:"zone"`
 		} `json:"source_original"`
 	}
 	if err := json.Unmarshal(getRec.Body.Bytes(), &loaded); err != nil {
@@ -88,6 +89,130 @@ func TestCreateContentRoutePublishesFanworkAndReadsBackSourceRelation(t *testing
 	}
 	if loaded.SourceOriginal.ID != source.ID || loaded.SourceOriginal.Title != source.Title {
 		t.Fatalf("source_original = %#v, want id=%d title=%q", loaded.SourceOriginal, source.ID, source.Title)
+	}
+	if loaded.SourceOriginal.Zone != "original" {
+		t.Fatalf("source_original zone = %q, want original", loaded.SourceOriginal.Zone)
+	}
+}
+
+func TestCreateContentRoutePublishesFanworkWithSourceFanwork(t *testing.T) {
+	router, db, token, _ := setupPublishRoute(t, publishRouteUserState{Verified: true, Reputation: 10})
+	source := createPublishContent(t, db, "Published fanwork source", "fanwork", "published")
+
+	body := `{
+		"title":"Derived fanwork",
+		"zone":"fanwork",
+		"content_type":"article",
+		"is_public":true,
+		"allow_copy":true,
+		"source_fanwork_id":` + strconv.FormatInt(source.ID, 10) + `
+	}`
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/contents", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, want 201; body = %s", rec.Code, rec.Body.String())
+	}
+
+	var created struct {
+		Content struct {
+			ID              int64  `json:"id"`
+			SourceFanworkID *int64 `json:"source_fanwork_id"`
+		} `json:"content"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode create response: %v; body = %s", err, rec.Body.String())
+	}
+	if created.Content.SourceFanworkID == nil || *created.Content.SourceFanworkID != source.ID {
+		t.Fatalf("source_fanwork_id = %#v, want %d", created.Content.SourceFanworkID, source.ID)
+	}
+
+	getRec := httptest.NewRecorder()
+	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/contents/"+strconv.FormatInt(created.Content.ID, 10), nil)
+	router.ServeHTTP(getRec, getReq)
+
+	if getRec.Code != http.StatusOK {
+		t.Fatalf("get status = %d, want 200; body = %s", getRec.Code, getRec.Body.String())
+	}
+
+	var loaded struct {
+		Content struct {
+			SourceFanworkID *int64 `json:"source_fanwork_id"`
+		} `json:"content"`
+		SourceFanwork struct {
+			ID    int64  `json:"id"`
+			Title string `json:"title"`
+			Zone  string `json:"zone"`
+		} `json:"source_fanwork"`
+	}
+	if err := json.Unmarshal(getRec.Body.Bytes(), &loaded); err != nil {
+		t.Fatalf("decode get response: %v; body = %s", err, getRec.Body.String())
+	}
+	if loaded.Content.SourceFanworkID == nil || *loaded.Content.SourceFanworkID != source.ID {
+		t.Fatalf("loaded source_fanwork_id = %#v, want %d", loaded.Content.SourceFanworkID, source.ID)
+	}
+	if loaded.SourceFanwork.ID != source.ID || loaded.SourceFanwork.Title != source.Title {
+		t.Fatalf("source_fanwork = %#v, want id=%d title=%q", loaded.SourceFanwork, source.ID, source.Title)
+	}
+	if loaded.SourceFanwork.Zone != "fanwork" {
+		t.Fatalf("source_fanwork zone = %q, want fanwork", loaded.SourceFanwork.Zone)
+	}
+}
+
+func TestUpdateContentRouteRejectsSourceImmutable(t *testing.T) {
+	router, db, token, _ := setupPublishRoute(t, publishRouteUserState{Verified: true, Reputation: 10})
+	source := createPublishContent(t, db, "Published fanwork source", "fanwork", "published")
+	original := createPublishSourceOriginal(t, db, "Published original", "published")
+	otherFanwork := createPublishContent(t, db, "Another fanwork", "fanwork", "published")
+
+	created := createPublishContent(t, db, "Attributed fanwork", "fanwork", "published")
+	if err := db.Model(&model.ContentItem{}).Where("id = ?", created.ID).
+		Update("source_fanwork_id", source.ID).Error; err != nil {
+		t.Fatalf("set source_fanwork_id: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		payload string
+	}{
+		{name: "ip_id is immutable", payload: `{"ip_id": 5}`},
+		{name: "source_original_id is immutable", payload: `{"source_original_id":` + strconv.FormatInt(original.ID, 10) + `}`},
+		{name: "source_fanwork_id is immutable", payload: `{"source_fanwork_id":` + strconv.FormatInt(otherFanwork.ID, 10) + `}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPatch, "/api/v1/contents/"+strconv.FormatInt(created.ID, 10), bytes.NewBufferString(tt.payload))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+token)
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400; body = %s", rec.Code, rec.Body.String())
+			}
+			if !bytes.Contains(rec.Body.Bytes(), []byte("SOURCE_IMMUTABLE")) {
+				t.Fatalf("body = %s, want SOURCE_IMMUTABLE", rec.Body.String())
+			}
+		})
+	}
+
+	var stored model.ContentItem
+	if err := db.First(&stored, created.ID).Error; err != nil {
+		t.Fatalf("load stored content: %v", err)
+	}
+	if stored.SourceFanworkID == nil || *stored.SourceFanworkID != source.ID {
+		t.Fatalf("stored source_fanwork_id = %#v, want %d preserved", stored.SourceFanworkID, source.ID)
+	}
+	if stored.SourceOriginalID != nil {
+		t.Fatalf("stored source_original_id = %#v, want nil", stored.SourceOriginalID)
+	}
+	if stored.IPID != nil {
+		t.Fatalf("stored ip_id = %#v, want nil", stored.IPID)
 	}
 }
 
@@ -129,17 +254,43 @@ func TestCreateContentRouteRejectsInvalidSourceLink(t *testing.T) {
 			wantBodyToken: "SOURCE_ORIGINAL_UNAVAILABLE",
 		},
 		{
-			name: "fanwork cannot reference unpublished original",
+			name: "original zone cannot carry source_fanwork_id",
 			payload: `{
-				"title":"Fanwork unpublished source",
+				"title":"Original with fanwork source",
+				"zone":"original",
+				"content_type":"article",
+				"is_public":true,
+				"allow_copy":true,
+				"source_fanwork_id":` + strconv.FormatInt(nonOriginal.ID, 10) + `
+			}`,
+			wantCode:      http.StatusBadRequest,
+			wantBodyToken: "SOURCE_NOT_ALLOWED_FOR_ORIGINAL",
+		},
+		{
+			name: "fanwork without IP or source is rejected",
+			payload: `{
+				"title":"Fanwork no source",
+				"zone":"fanwork",
+				"content_type":"article",
+				"is_public":true,
+				"allow_copy":true
+			}`,
+			wantCode:      http.StatusBadRequest,
+			wantBodyToken: "FANWORK_SOURCE_REQUIRED",
+		},
+		{
+			name: "fanwork with both source IDs is rejected",
+			payload: `{
+				"title":"Fanwork two sources",
 				"zone":"fanwork",
 				"content_type":"article",
 				"is_public":true,
 				"allow_copy":true,
-				"source_original_id":` + strconv.FormatInt(unpublishedOriginal.ID, 10) + `
+				"source_original_id":` + strconv.FormatInt(unpublishedOriginal.ID, 10) + `,
+				"source_fanwork_id":` + strconv.FormatInt(nonOriginal.ID, 10) + `
 			}`,
 			wantCode:      http.StatusBadRequest,
-			wantBodyToken: "SOURCE_ORIGINAL_UNAVAILABLE",
+			wantBodyToken: "MULTIPLE_SOURCE_CONFLICT",
 		},
 	}
 
@@ -359,6 +510,7 @@ func setupPublishRoute(t *testing.T, state publishRouteUserState) (*gin.Engine, 
 	router := gin.New()
 	router.POST("/api/v1/contents", authReq, publishGuard, handler.CreateContent)
 	router.GET("/api/v1/contents/:id", handler.GetContent)
+	router.PATCH("/api/v1/contents/:id", authReq, handler.UpdateContent)
 
 	now := time.Now()
 	viewer := model.User{

@@ -309,7 +309,13 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 	if content.SourceOriginalID != nil && *content.SourceOriginalID > 0 {
 		source, srcErr := h.contentSvc.GetContent(*content.SourceOriginalID)
 		if srcErr == nil && source != nil {
-			resp["source_original"] = gin.H{"id": source.ID, "title": source.Title}
+			resp["source_original"] = gin.H{"id": source.ID, "title": source.Title, "zone": "original"}
+		}
+	}
+	if content.SourceFanworkID != nil && *content.SourceFanworkID > 0 {
+		source, srcErr := h.contentSvc.GetContent(*content.SourceFanworkID)
+		if srcErr == nil && source != nil {
+			resp["source_fanwork"] = gin.H{"id": source.ID, "title": source.Title, "zone": "fanwork"}
 		}
 	}
 	c.JSON(http.StatusOK, resp)
