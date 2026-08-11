@@ -1729,12 +1729,28 @@
       "backToTypes": "返回选择类型",
       "titleRequired": "请输入标题",
       "categoryRequired": "请选择分类",
-      "ipRequired": "请选择关联 IP",
       "categoryLabel": "分类",
       "ipLabel": "关联 IP",
       "ipSearchPlaceholder": "搜索并选择 IP...",
       "ipSearching": "正在搜索 IP...",
       "ipHint": "输入 IP 名称进行搜索（功能开发中）",
+      "fanwork": {
+        "source": {
+          "legend": "灵感来源",
+          "ipOptional": "关联 IP（可选）"
+        },
+        "validation": {
+          "sourceRequired": "发布二创需要 IP 或灵感来源"
+        },
+        "prefill": {
+          "bothSources": "同时指定了原创来源和二创来源，已保留原创来源并清除二创来源",
+          "invalidId": "来源参数无效，未预填来源",
+          "loadFailed": "无法加载所选来源，请在下方手动搜索选择"
+        },
+        "a11y": {
+          "dismissWarning": "关闭预填提示"
+        }
+      },
       "bodyLabel": "正文",
       "bodyPlaceholder": "简单描述一下你的作品...",
       "coverLabel": "封面图片",
@@ -1748,8 +1764,6 @@
       "allowComment": "允许评论",
       "publishSettings": "发布设置",
       "customCover": "自定义封面",
-      "sourceOriginalOptional": "来源原创（可选）",
-      "searchOriginalPlaceholder": "搜索原创内容标题...",
       "submit": "发布创作",
       "submitting": "发布中...",
       "cancel": "取消",

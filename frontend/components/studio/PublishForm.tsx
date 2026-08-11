@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useId, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, Send, ChevronDown, Eye, EyeOff, MessageCircle, Undo2 } from "lucide-react";
+import { ArrowLeft, Send, ChevronDown, Eye, EyeOff, MessageCircle, Undo2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -17,7 +17,9 @@ import { AgentFeatureGate } from "@/components/agent/AgentFeatureGate";
 import { AgentUploadAssistPanel } from "@/components/agent/UploadAssistPanel";
 import { AgentComplianceCheckBadge } from "@/components/agent/ComplianceCheckBadge";
 import { IPPicker } from "@/components/studio/IPPicker";
-import { SourceOriginalPicker } from "@/components/studio/SourceOriginalPicker";
+import { SourceContentPicker, type SourceContent } from "@/components/studio/SourceContentPicker";
+import { Skeleton } from "@/components/ui/skeleton";
+import { normalizeContentDetailResponse } from "@/lib/content";
 import type { UploadedAsset } from "@/components/content/FileUploader";
 import { fetchPublicConfig } from "@/lib/public-config";
 import { silentError } from "@/lib/error-handler";
@@ -51,13 +53,20 @@ interface PublishFormProps {
   zone: "original" | "fanwork";
   contentType: string;
   onBack: () => void;
+  /** Query-prefill source ids (fanwork only); already resolved to at most one. */
+  prefillSourceOriginalId?: number;
+  prefillSourceFanworkId?: number;
+  /** Localized prefill warnings resolved by the page from the URL query. */
+  prefillWarnings?: PrefillWarning[];
 }
+
+export type PrefillWarning = "bothSources" | "invalidId";
 
 function FieldError({ children }: { children: React.ReactNode }) {
   return <p className="mt-1 text-xs text-destructive">{children}</p>;
 }
 
-export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
+export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId, prefillSourceFanworkId, prefillWarnings = [] }: PublishFormProps) {
   const t = useTranslations();
   const router = useRouter();
   const { toast } = useToast();
@@ -102,6 +111,47 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
     };
   }, [mediaContentType]);
 
+  // Query prefill (fanwork only): load the source summary so the picker can
+  // show the selected row without a manual search. At most one source id is
+  // ever prefilled; the fanwork page already resolved both-ID precedence.
+  useEffect(() => {
+    if (zone !== "fanwork") return;
+    const prefillId = prefillSourceOriginalId ?? prefillSourceFanworkId;
+    if (!prefillId) return;
+    const kind = prefillSourceOriginalId ? "original" : "fanwork";
+
+    let active = true;
+    setPrefillLoading(true);
+    setPrefillFailed(false);
+    api
+      .get<unknown>(`/api/v1/contents/${prefillId}`)
+      .then((data) => {
+        if (!active) return;
+        const content = normalizeContentDetailResponse(data).content;
+        if (
+          content &&
+          (content.zone === "original" || content.zone === "fanwork") &&
+          content.zone === kind &&
+          content.status === "published"
+        ) {
+          const summary: SourceContent = { id: content.id, title: content.title, zone: content.zone };
+          if (kind === "original") setSourceOriginal(summary);
+          else setSourceFanwork(summary);
+        } else {
+          setPrefillFailed(true);
+        }
+      })
+      .catch(() => {
+        if (active) setPrefillFailed(true);
+      })
+      .finally(() => {
+        if (active) setPrefillLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [zone, prefillSourceOriginalId, prefillSourceFanworkId]);
+
   // Core fields
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -110,8 +160,12 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
   // Zone-specific
   const [category, setCategory] = useState("");
   const [selectedIP, setSelectedIP] = useState<{ id: number; name: string } | null>(null);
-  const [sourceOriginal, setSourceOriginal] = useState<{ id: number; title: string } | null>(null);
-  const [ipError, setIpError] = useState("");
+  const [sourceOriginal, setSourceOriginal] = useState<SourceContent | null>(null);
+  const [sourceFanwork, setSourceFanwork] = useState<SourceContent | null>(null);
+  const [prefillLoading, setPrefillLoading] = useState(false);
+  const [prefillFailed, setPrefillFailed] = useState(false);
+  const [dismissedWarnings, setDismissedWarnings] = useState<Set<PrefillWarning>>(new Set());
+  const sourceHintId = useId();
 
   // Settings
   const [tags, setTags] = useState<string[]>([]);
@@ -152,6 +206,17 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
     .filter((asset): asset is UploadedAsset => asset !== null);
   const complianceViolation = complianceRisk === "violation";
   const warningNeedsAcknowledgement = complianceRisk === "warning" && !warningAcknowledged;
+  const sourceMissing = zone === "fanwork" && !selectedIP && !sourceOriginal && !sourceFanwork;
+
+  function handleSourceOriginalSelect(content?: SourceContent) {
+    setSourceOriginal(content ?? null);
+    if (content) setSourceFanwork(null);
+  }
+
+  function handleSourceFanworkSelect(content?: SourceContent) {
+    setSourceFanwork(content ?? null);
+    if (content) setSourceOriginal(null);
+  }
 
   function handleAssistFill(data: { suggested_title?: string; suggested_description?: string; suggested_tags?: string[]; suggested_category?: string }) {
     if (complianceViolation) {
@@ -205,10 +270,8 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
     e.preventDefault();
     if (!title.trim()) { toast("error", t('studio.publish.titleRequired')); return; }
     if (zone === "original" && !category) { toast("error", t('studio.publish.categoryRequired')); return; }
-    if (zone === "fanwork" && !selectedIP) {
-      const message = t('studio.publish.ipRequired');
-      setIpError(message);
-      toast("error", message);
+    if (zone === "fanwork" && sourceMissing) {
+      toast("error", t('studio.publish.fanwork.validation.sourceRequired'));
       return;
     }
     if (complianceViolation) { toast("error", t("agent.complianceBlockSubmit")); return; }
@@ -272,6 +335,9 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
       if (zone === "fanwork" && sourceOriginal) {
         payload.source_original_id = sourceOriginal.id;
       }
+      if (zone === "fanwork" && sourceFanwork) {
+        payload.source_fanwork_id = sourceFanwork.id;
+      }
       await api.post("/api/v1/contents", payload);
       toast("success", t('studio.publish.success'));
       router.push("/studio/contents");
@@ -328,36 +394,77 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
         </div>
       )}
 
-      {/* Zone-specific: Fanwork IP + Source */}
+      {/* Zone-specific: Fanwork IP + Sources */}
       {zone === "fanwork" && (
-        <div className="space-y-3">
+        <fieldset className="space-y-3" aria-describedby={sourceMissing ? sourceHintId : undefined}>
+          <legend className="text-sm font-medium text-foreground">{t('studio.publish.fanwork.source.legend')}</legend>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-foreground">
-              {t('studio.publish.ipLabel')} <span className="text-destructive">*</span>
+              {t('studio.publish.fanwork.source.ipOptional')}
             </label>
             <IPPicker
               value={selectedIP}
-              onChange={(next) => {
-                setSelectedIP(next);
-                if (next) setIpError("");
-              }}
+              onChange={setSelectedIP}
               placeholder={t('studio.publish.ipSearchPlaceholder')}
               searchLabel={t('studio.publish.ipLabel')}
               loadingLabel={t('studio.publish.ipSearching')}
             />
-            {ipError && <FieldError>{ipError}</FieldError>}
           </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">{t('studio.publish.sourceOriginalOptional')}</label>
-            <SourceOriginalPicker
-              value={sourceOriginal}
-              onChange={setSourceOriginal}
-              placeholder={t('studio.publish.searchOriginalPlaceholder')}
-              searchLabel={t('studio.publish.sourceOriginalOptional')}
-              loadingLabel={t('common.loading')}
-            />
-          </div>
-        </div>
+          {prefillLoading ? (
+            <div role="status" aria-live="polite" className="space-y-2">
+              <Skeleton className="h-9 w-full" />
+              <Skeleton className="h-9 w-full" />
+            </div>
+          ) : (
+            <>
+              <SourceContentPicker
+                sourceKind="original"
+                selected={sourceOriginal ?? undefined}
+                disabled={submitting}
+                onSelect={handleSourceOriginalSelect}
+              />
+              <SourceContentPicker
+                sourceKind="fanwork"
+                selected={sourceFanwork ?? undefined}
+                disabled={submitting}
+                onSelect={handleSourceFanworkSelect}
+              />
+            </>
+          )}
+          {prefillWarnings
+            .filter((warning) => !dismissedWarnings.has(warning))
+            .map((warning) => (
+              <div key={warning} role="status" className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                <span>{t(`studio.publish.fanwork.prefill.${warning}`)}</span>
+                <button
+                  type="button"
+                  onClick={() => setDismissedWarnings((current) => new Set(current).add(warning))}
+                  aria-label={t('studio.publish.fanwork.a11y.dismissWarning')}
+                  className="inline-flex size-8 shrink-0 items-center justify-center rounded-md hover:bg-muted"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          {prefillFailed && (
+            <div role="status" className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <span>{t('studio.publish.fanwork.prefill.loadFailed')}</span>
+              <button
+                type="button"
+                onClick={() => setPrefillFailed(false)}
+                aria-label={t('studio.publish.fanwork.a11y.dismissWarning')}
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-md hover:bg-muted"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+          {sourceMissing && (
+            <p id={sourceHintId} className="text-xs text-destructive">
+              {t('studio.publish.fanwork.validation.sourceRequired')}
+            </p>
+          )}
+        </fieldset>
       )}
 
       {/* Primary content area: Text types → Markdown */}
@@ -620,7 +727,7 @@ export function PublishForm({ zone, contentType, onBack }: PublishFormProps) {
         <Button
           type="submit"
           size="lg"
-          disabled={submitting || complianceViolation || galleryConfigLoading || galleryUnavailable || mediaItems.some((item) => item.status === "pending" || item.status === "uploading")}
+          disabled={submitting || complianceViolation || galleryConfigLoading || galleryUnavailable || mediaItems.some((item) => item.status === "pending" || item.status === "uploading") || sourceMissing}
           className="gap-2 rounded-full px-8"
         >
           <Send className="h-4 w-4" />
