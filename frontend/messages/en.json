@@ -1728,12 +1728,28 @@
       "backToTypes": "Back to type selection",
       "titleRequired": "Please enter a title",
       "categoryRequired": "Please select a category",
-      "ipRequired": "Please select a linked IP",
       "categoryLabel": "Category",
       "ipLabel": "Linked IP",
       "ipSearchPlaceholder": "Search and select IP...",
       "ipSearching": "Searching IP...",
       "ipHint": "Enter IP name to search (feature in development)",
+      "fanwork": {
+        "source": {
+          "legend": "Inspiration source",
+          "ipOptional": "Linked IP (optional)"
+        },
+        "validation": {
+          "sourceRequired": "Fanwork requires an IP or an inspiration source"
+        },
+        "prefill": {
+          "bothSources": "Both an original source and a fanwork source were specified. Keeping the original source and clearing the fanwork source.",
+          "invalidId": "Invalid source parameter. No source was prefilled.",
+          "loadFailed": "Could not load the selected source. Please search and select it manually."
+        },
+        "a11y": {
+          "dismissWarning": "Dismiss prefill notice"
+        }
+      },
       "bodyLabel": "Content",
       "bodyPlaceholder": "Briefly describe your work...",
       "coverLabel": "Cover Image",
@@ -1747,8 +1763,6 @@
       "allowComment": "Allow Comments",
       "publishSettings": "Publish Settings",
       "customCover": "Custom Cover",
-      "sourceOriginalOptional": "Source Original (optional)",
-      "searchOriginalPlaceholder": "Search original content title...",
       "submit": "Publish",
       "submitting": "Publishing...",
       "cancel": "Cancel",
