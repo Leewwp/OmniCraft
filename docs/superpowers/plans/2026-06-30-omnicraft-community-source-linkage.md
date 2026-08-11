@@ -426,7 +426,7 @@ Expected: picker tests PASS before editing `PublishForm.tsx`.
 - Test: `frontend/tests/studio-publish-fanwork.test.tsx`
 - Test: `frontend/e2e/studio-publish-fanwork.spec.ts`
 
-- [ ] **Step 1: Add failing publish tests**
+- [x] **Step 1: Add failing publish tests**
 
 Cover:
 
@@ -441,11 +441,11 @@ Cover:
 - query prefill with both IDs keeps `source_original_id`, clears `source_fanwork_id`, and shows the localized warning specified by `design/ui-spec.md`
 - invalid query prefill id shows a localized non-blocking warning and leaves the picker empty
 
-- [ ] **Step 2: Change validation copy**
+- [x] **Step 2: Change validation copy**
 
 The UI must no longer say IP is required for all fanworks. It must say fanwork requires IP or inspiration source.
 
-- [ ] **Step 3: Wire `SourceContentPicker` into `PublishForm`**
+- [x] **Step 3: Wire `SourceContentPicker` into `PublishForm`**
 
 Use two `SourceContentPicker` instances:
 
@@ -454,7 +454,7 @@ Use two `SourceContentPicker` instances:
 
 Both must call the existing search route `GET /api/v1/contents/search` with `zone`, `q`, and `limit=8`. The current backend route supports `zone`; do not add a second content search API in this plan.
 
-- [ ] **Step 4: Submit payload**
+- [x] **Step 4: Submit payload**
 
 Payload may include only one of:
 
@@ -463,11 +463,11 @@ Payload may include only one of:
 
 It may include `ip_id` along with either source if user selected an IP. It must never include both source IDs.
 
-- [ ] **Step 5: Add i18n keys**
+- [x] **Step 5: Add i18n keys**
 
 Add visible strings under `studio.publish.fanwork.source.*`, `sourceContentPicker.*`, and `studio.publish.fanwork.validation.*`.
 
-- [ ] **Step 6: Run Playwright focused test**
+- [x] **Step 6: Run Playwright focused test**
 
 Run:
 
