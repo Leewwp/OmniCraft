@@ -327,7 +327,9 @@
     "suggestRemoveTag": "Suggest removing {tag}",
     "suggestAddTagHint": "Suggest adding this tag",
     "suggestRemoveTagHint": "Suggest removing this tag",
-    "tagSuggestionSubmitted": "Tag suggestion submitted, awaiting author review"
+    "tagSuggestionSubmitted": "Tag suggestion submitted, awaiting author review",
+    "ipLabel": "IP: {name}",
+    "attachmentUnknownType": "File"
   },
   "contentDetailOverlay": {
     "title": "Content detail",

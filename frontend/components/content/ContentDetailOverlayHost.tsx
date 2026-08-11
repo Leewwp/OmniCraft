@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback } from "react";
 import { ContentDetail } from "@/components/content/ContentDetail";
 import { ContentSidebar, type RelatedContentEntry } from "@/components/content/ContentSidebar";
-import { ContentDetailOverlay } from "@/components/content/ContentDetailOverlay";
+import { useContentDetailOverlay } from "@/components/content/use-content-detail-overlay";
 import { VersionHistory } from "@/components/content/VersionHistory";
 import type { AttachmentData, ContentDetailData } from "@/lib/content";
 
@@ -23,15 +23,19 @@ export function ContentDetailOverlayHost({
   ip,
   sourceOriginal,
 }: ContentDetailOverlayHostProps) {
-  const [entry, setEntry] = useState<RelatedContentEntry | null>(null);
-  const triggerRef = useRef<HTMLElement | null>(null);
+  const { open: handleOpenRelated, overlayElement } = useContentDetailOverlay({
+    source: "zone-page",
+  });
 
-  const handleOpenRelated = useCallback((relatedEntry: RelatedContentEntry, trigger: HTMLElement) => {
-    triggerRef.current = trigger;
-    setEntry(relatedEntry);
-  }, []);
-
-  const handleClose = useCallback(() => setEntry(null), []);
+  const openRelated = useCallback(
+    (relatedEntry: RelatedContentEntry, trigger: HTMLElement) => {
+      handleOpenRelated(
+        { contentId: relatedEntry.id, zone: relatedEntry.zone },
+        trigger,
+      );
+    },
+    [handleOpenRelated],
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-[1280px] gap-6 px-6 py-6">
@@ -48,22 +52,10 @@ export function ContentDetailOverlayHost({
         zone={zone}
         ip={ip}
         sourceOriginal={sourceOriginal}
-        onOpenRelated={handleOpenRelated}
+        onOpenRelated={openRelated}
       />
 
-      {entry && (
-        <ContentDetailOverlay
-          key={`${entry.zone}:${entry.id}`}
-          contentId={entry.id}
-          zone={entry.zone}
-          source="zone-page"
-          open
-          onOpenChange={(open) => {
-            if (!open) handleClose();
-          }}
-          returnFocusRef={triggerRef}
-        />
-      )}
+      {overlayElement}
     </div>
   );
 }

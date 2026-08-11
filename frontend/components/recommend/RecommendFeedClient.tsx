@@ -7,7 +7,7 @@ import { AlertCircle, Compass, RotateCw } from "lucide-react";
 import useSWRInfinite from "swr/infinite";
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { ContentCard, type ContentCardData } from "@/components/content/ContentCard";
-import { ContentDetailOverlay } from "@/components/content/ContentDetailOverlay";
+import { useContentDetailOverlay } from "@/components/content/use-content-detail-overlay";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buttonVariants } from "@/components/ui/button";
 import { SkeletonCard } from "@/components/ui/skeleton";
@@ -28,11 +28,6 @@ interface RecommendPageData {
   total: number | null;
 }
 
-interface OverlayEntry {
-  contentId: number;
-  zone: "original" | "fanwork";
-}
-
 /**
  * /recommend 推荐流：单一"为你推荐"内容流（无分区标签），SSR 首屏 +
  * SWR useSWRInfinite 无限滚动（sort=recommended，page=2,3... 追加）；
@@ -46,8 +41,9 @@ export function RecommendFeedClient({
   initialError,
 }: RecommendFeedClientProps) {
   const t = useTranslations();
-  const [overlayEntry, setOverlayEntry] = useState<OverlayEntry | null>(null);
-  const overlayTriggerRef = useRef<HTMLElement | null>(null);
+  const { open: handleOpenDetail, overlayElement } = useContentDetailOverlay({
+    source: "recommendation",
+  });
 
   const firstPageRef = useRef<RecommendPageData | null>(null);
   firstPageRef.current = initialError ? null : { items: initialItems, total: initialTotal };
@@ -113,13 +109,15 @@ export function RecommendFeedClient({
     void mutate();
   }, [mutate]);
 
-  const handleOpenDetail = useCallback((data: ContentCardData, trigger: HTMLElement) => {
-    overlayTriggerRef.current = trigger;
-    setOverlayEntry({
-      contentId: data.id,
-      zone: data.zone === "original" ? "original" : "fanwork",
-    });
-  }, []);
+  const openDetail = useCallback(
+    (data: ContentCardData, trigger: HTMLElement) => {
+      handleOpenDetail(
+        { contentId: data.id, zone: data.zone === "original" ? "original" : "fanwork" },
+        trigger,
+      );
+    },
+    [handleOpenDetail],
+  );
 
   if (isLoading && items.length === 0) {
     return (
@@ -168,27 +166,14 @@ export function RecommendFeedClient({
     <>
       <MasonryGrid
         items={items}
-        onOpenDetail={handleOpenDetail}
+        onOpenDetail={openDetail}
         isLoadingMore={isLoadingMore}
         hasMore={hasMore}
         loadError={loadError}
         onLoadMore={loadMore}
         onRetry={retryLoadMore}
       />
-
-      {overlayEntry && (
-        <ContentDetailOverlay
-          key={`${overlayEntry.zone}:${overlayEntry.contentId}`}
-          contentId={overlayEntry.contentId}
-          zone={overlayEntry.zone}
-          source="recommendation"
-          open
-          onOpenChange={(open) => {
-            if (!open) setOverlayEntry(null);
-          }}
-          returnFocusRef={overlayTriggerRef}
-        />
-      )}
+      {overlayElement}
     </>
   );
 }

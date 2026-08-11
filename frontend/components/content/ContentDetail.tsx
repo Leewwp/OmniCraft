@@ -32,48 +32,13 @@ import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 import { AgentFeatureGate } from "@/components/agent/AgentFeatureGate";
 import { SeriesNav } from "@/components/content/SeriesNav";
-import type { SeriesMembership } from "@/lib/content";
-
-interface Attachment {
-  id: number;
-  file_type?: string;
-  mime_type?: string;
-  oss_key?: string;
-  // Preview-only URL for inline renderers; downloads must go through DownloadButton/backend auth.
-  oss_url?: string;
-  file_size?: number;
-  is_primary?: boolean;
-}
-
-interface ContentDetailData {
-  id: number;
-  title: string;
-  author?: { id?: number; username?: string; avatar_url?: string };
-  author_id?: number;
-  zone?: string;
-  ip?: { id?: number; name?: string; slug?: string };
-  category?: string;
-  content_type?: string;
-  cover_image_url?: string;
-  status?: string;
-  view_count?: number;
-  like_count?: number;
-  dislike_count?: number;
-  description?: string;
-  body?: string;
-  is_public?: boolean;
-  allow_copy?: boolean;
-  agent_enabled?: boolean;
-  attachments?: Attachment[];
-  tags?: string[];
-  created_at?: string;
-  updated_at?: string;
-  series_memberships?: SeriesMembership[];
-}
+import type { AttachmentData, ContentDetailData } from "@/lib/content";
 
 interface ContentDetailProps {
   data: ContentDetailData;
   className?: string;
+  /** 浮层封面同步（#64 决策 11）：开启后正文在封面加载落定前保持布局不可见。 */
+  coverSync?: boolean;
 }
 
 function getTypeLabel(t: (key: string) => string, contentType: string): string {
@@ -104,34 +69,58 @@ function getTypeIcon(contentType: string) {
   }
 }
 
-function CoverImage({ url, contentType, title, typeLabel }: { url?: string; contentType?: string; title: string; typeLabel: string }) {
-  const Icon = getTypeIcon(contentType || "other");
+interface CoverImageProps {
+  url?: string;
+  contentType?: string;
+  title: string;
+  typeLabel: string;
+  /** 浮层封面同步（决策 11）：加载态在最终封面几何内展示，成功后正文才 reveal。 */
+  coverSync?: boolean;
+  coverState: "loading" | "ready" | "error";
+  onCoverSettled: (state: "ready" | "error") => void;
+}
 
-  if (url) {
-    return (
-      <div className="overflow-hidden rounded-md border border-border relative aspect-[16/9] max-h-96">
-        <Image
-          src={url}
-          alt={title}
-          fill
-          className="object-cover"
-          sizes="(max-width: 768px) 100vw, 800px"
-        />
-      </div>
-    );
-  }
+function CoverImage({ url, contentType, title, typeLabel, coverSync, coverState, onCoverSettled }: CoverImageProps) {
+  const Icon = getTypeIcon(contentType || "other");
+  const showImage = Boolean(url && coverState !== "error");
+  const showSkeleton = Boolean(coverSync && url && coverState === "loading");
 
   return (
-    <div className="flex h-48 w-full items-center justify-center rounded-md border border-border bg-muted/20">
-      <div className="flex flex-col items-center gap-2 text-muted-foreground">
-        <Icon className="h-12 w-12" />
-        <span className="text-xs">{typeLabel}</span>
+    <div
+      data-slot="detail-cover"
+      className="relative w-full overflow-hidden rounded-md border border-border bg-muted"
+    >
+      {/* 封面与正文共享同一水平框架：外层 w-full 恒定，高度上限只裁内框不缩宽度（#64 决策 12）。 */}
+      <div className="relative aspect-[16/9] max-h-96 w-full">
+        {showImage && url ? (
+          <Image
+            src={url}
+            alt={title}
+            fill
+            className={cn("object-cover", showSkeleton && "opacity-0")}
+            onLoad={() => onCoverSettled("ready")}
+            onError={() => onCoverSettled("error")}
+            sizes="(max-width: 768px) 100vw, 800px"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <div className="flex flex-col items-center gap-2 text-muted-foreground">
+              <Icon className="h-12 w-12" />
+              <span className="text-xs">{typeLabel}</span>
+            </div>
+          </div>
+        )}
+        {showSkeleton && (
+          <div aria-hidden="true" className="absolute inset-0 flex animate-pulse items-center justify-center bg-muted">
+            <Icon className="h-12 w-12 text-muted-foreground/40" />
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-export function ContentDetail({ data, className }: ContentDetailProps) {
+export function ContentDetail({ data, className, coverSync = false }: ContentDetailProps) {
   const t = useTranslations();
   const locale = useLocale();
   const contentType = data.content_type || "other";
@@ -141,6 +130,10 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
   const { toast } = useToast();
   const [collectionPickerOpen, setCollectionPickerOpen] = useState(false);
   const [tagSuggestionBusy, setTagSuggestionBusy] = useState<string | null>(null);
+  const [coverState, setCoverState] = useState<"loading" | "ready" | "error">(() =>
+    coverSync && data.cover_image_url ? "loading" : "ready",
+  );
+  const bodyVisible = !coverSync || coverState !== "loading";
 
   async function handleTagSuggestion(tag: string, action: "add" | "remove") {
     if (!user) return;
@@ -165,8 +158,8 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
 
   return (
     <div className={cn("space-y-6", className)}>
-      {/* Header */}
-      <div className="space-y-4">
+      {/* Header（浮层封面同步：随正文一起在封面落定后 reveal） */}
+      <div className={cn("space-y-4", bodyVisible ? undefined : "invisible")}>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
           {data.title}
         </h1>
@@ -175,9 +168,9 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
           <span>
             {t('content.author', { name: data.author?.username ?? t('common.userLabel', { id: data.author_id ?? "-" }) })}
           </span>
-          {data.zone === "fanwork" && data.ip && (
+          {data.zone === "fanwork" && data.ip?.name && (
             <span>
-              IP: {data.ip.name}
+              {t('content.ipLabel', { name: data.ip.name })}
             </span>
           )}
           <span>{t('content.type', { type: typeLabel })}</span>
@@ -202,14 +195,21 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
         contentType={contentType}
         title={data.title}
         typeLabel={typeLabel}
+        coverSync={coverSync}
+        coverState={coverState}
+        onCoverSettled={setCoverState}
       />
 
-      {/* Content Body */}
-      {description && contentType === "article" && (
-        <section className="rounded-md border border-border bg-card p-4 ">
-          <MarkdownRenderer content={description} />
-        </section>
-      )}
+      {/* Content Body（浮层封面同步：正文在封面落定前保持布局、不可见，避免跳版） */}
+      <div
+        data-slot="detail-body"
+        className={cn("space-y-6", bodyVisible ? undefined : "invisible")}
+      >
+        {description && contentType === "article" && (
+          <section className="rounded-md border border-border bg-card p-4 ">
+            <MarkdownRenderer content={description} />
+          </section>
+        )}
 
       {description && contentType !== "article" && contentType !== "sheet_music" && (
         <section className="rounded-md border border-border bg-card p-4 ">
@@ -230,7 +230,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
                 className="flex items-center justify-between rounded border border-border bg-muted/10 p-2"
               >
                 <span className="text-xs text-muted-foreground">
-                  {att.file_type || "file"}
+                  {att.file_type || t("content.attachmentUnknownType")}
                   {att.file_size != null && ` (${(att.file_size / 1024).toFixed(1)} KB)`}
                 </span>
                 {data.allow_copy && (
@@ -369,6 +369,7 @@ export function ContentDetail({ data, className }: ContentDetailProps) {
       <section className="rounded-md border border-border bg-card p-4 ">
         <CommentSection contentId={data.id} />
       </section>
+      </div>
     </div>
   );
 }
