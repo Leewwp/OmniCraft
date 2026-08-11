@@ -13,6 +13,8 @@ type ContentItem struct {
 	IP               *IP          `gorm:"foreignKey:IPID" json:"ip,omitempty"`
 	SourceOriginalID *int64       `gorm:"index" json:"source_original_id,omitempty"`
 	SourceOriginal   *ContentItem `gorm:"foreignKey:SourceOriginalID" json:"source_original,omitempty"`
+	SourceFanworkID  *int64       `gorm:"index" json:"source_fanwork_id,omitempty"`
+	SourceFanwork    *ContentItem `gorm:"foreignKey:SourceFanworkID" json:"source_fanwork,omitempty"`
 	Category         string       `gorm:"size:50" json:"category,omitempty"`
 	ContentType      string       `gorm:"size:20;not null" json:"content_type"`
 	CoverImageURL    string       `gorm:"type:text" json:"cover_image_url,omitempty"`

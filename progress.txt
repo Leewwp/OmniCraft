@@ -649,3 +649,25 @@
 - 验证中发现切篇后若合成触摸仍有惯性滚动残留，顶层 `topKey` effect 会先重置 0 再被浏览器惯性补滚——真实手势（touchEnd 即抬指）无此问题，实测在 touchEnd 前留 80ms 停顿后稳定回 0；产品切篇重置逻辑本身正确（单元测试覆盖 scrollTop=80→切篇→0）。
 - 契约测试套件会再生成 `screenshots/community-content-series-*.png`（渲染不确定），已 restore 不纳入本票；tsconfig.json 的 `.next-playwright-t89` 条目为临时 dev 自动追加，已还原并删除临时 dist。
 - 未触碰 config/routes/migrations（无需 doc-validator）；未触碰 `MediaViewer.tsx`；未触碰主 worktree。
+
+## [2026-08-11] - Task 1（heavy）：source-linkage 064 迁移与模型字段（#96）
+
+### What was done:
+- **Step 1**: `ls backend/migrations/ | sort | tail -10` 确认 064 未被占用（061 空置、062/063 已用），无需换号。
+- **Step 2（TDD 红）**: `backend/internal/model/content_migration_test.go` 新增 `TestContentSourceMigration`（复用同包 `requireContentItemsBaseTable` / `assertSeriesForeignKey` / `indexDefinition` 先例），断言：`source_fanwork_id` 为 bigint nullable、FK 引用 `content_items(id)` 且 `ON DELETE SET NULL`、`idx_content_items_source_fanwork` 存在且为 partial（`source_fanwork_id IS NOT NULL`）。迁移文件应用两次验证幂等（沿用 063 先例）。失败证据：
+  ```
+  content_migration_test.go:45: read migration ../../migrations/064_add_source_fanwork_id.sql: open ../../migrations/064_add_source_fanwork_id.sql: no such file or directory
+  --- FAIL: TestContentSourceMigration
+  ```
+- **Step 3（绿）**: 新建 `backend/migrations/064_add_source_fanwork_id.sql`，DDL 与计划一致（ADD COLUMN IF NOT EXISTS + FK ON DELETE SET NULL；partial index `(source_fanwork_id, status, created_at DESC)`），含 `-- ROLLBACK:` 注释块（本地测试库专用，DROP INDEX + DROP COLUMN，共享环境优先 forward fix）。036/063 风格，063 同款 forward-only 头注释。
+- **Step 4**: `ContentItem` 新增 `SourceFanworkID *int64`（`gorm:"index"`）与 `SourceFanwork *ContentItem`（`gorm:"foreignKey:SourceFanworkID"`），JSON 字段名与计划一致，对齐既有 `SourceOriginalID/SourceOriginal` 写法。
+- 未触碰 config/routes；`go test ./...` 无 schema 快照报错，故按计划不跑 doc-validator（Task 8 统一处理）。未触碰 main worktree/frontend。
+
+### Testing:
+- 红→绿：`go test ./internal/model -run '^TestContentSourceMigration$' -v` FAIL（迁移不存在）→ 实现后 PASS。
+- `go test ./internal/model -run TestContentSourceMigration -v`：两个匹配用例均 PASS。
+- 全量 `go build ./... && go vet ./... && go test ./...`：全部 ok，无 FAIL。
+- `gofmt -l` 干净（改动的 2 个文件均未列出）。
+
+### Notes:
+- 单一 commit（heavy 纪律），PR 标题含「Closes #96（Task 1）」；不 close issue #96（Task 8 收口）。改 progress.txt 仅限本 worktree 副本。
