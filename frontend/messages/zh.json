@@ -2072,6 +2072,31 @@
       "resultsFanwork": "二创来源搜索结果"
     }
   },
+  "sourceAttribution": {
+    "original": "灵感来源：{title}",
+    "fanwork": "灵感来源：{title}",
+    "unavailable": "灵感来源：内容已下架",
+    "a11y": {
+      "original": "打开原创来源 {title}",
+      "fanwork": "打开二创来源 {title}"
+    }
+  },
+  "relatedFanworks": {
+    "original": {
+      "title": "相关二创"
+    },
+    "derivatives": {
+      "title": "衍生作品"
+    },
+    "actions": {
+      "viewAll": "查看全部",
+      "create": "开始创作"
+    },
+    "error": {
+      "loadFailed": "相关作品加载失败，请重试。",
+      "retry": "重试"
+    }
+  },
   "error": {
     "pageError": "页面出错了",
     "pageErrorDesc": "发生了意外错误，请稍后重试",
