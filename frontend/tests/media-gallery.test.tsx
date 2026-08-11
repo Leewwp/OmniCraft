@@ -46,7 +46,24 @@ function dispatchTouch(
   });
 }
 
-test.beforeEach(() => installDom());
+/* Native <dialog> showModal/close are not implemented in jsdom; stub the modal
+   lifecycle so the MediaViewer mounted by MediaGallery exercises the same code
+   paths as browsers (same pattern as content-detail-overlay.test.tsx). */
+function installDialogStubs() {
+  const prototype = window.HTMLDialogElement?.prototype as unknown as HTMLDialogElement | undefined;
+  if (!prototype) return;
+  prototype.showModal = function showModalStub(this: HTMLDialogElement) {
+    this.setAttribute("open", "");
+  };
+  prototype.close = function closeStub(this: HTMLDialogElement) {
+    this.removeAttribute("open");
+  };
+}
+
+test.beforeEach(() => {
+  installDom();
+  installDialogStubs();
+});
 test.afterEach(() => cleanup());
 
 /* ---------- 媒体集/附件语义拆分（AC3） ---------- */
@@ -261,7 +278,7 @@ test("MediaGallery invokes onOpenViewer on image click with the current index", 
   assert.deepEqual(opened, [0, 1]);
 });
 
-test("MediaGallery opens the viewer for video clicks outside the controls strip and stays inert without handler", () => {
+test("MediaGallery opens the viewer for video clicks outside the controls strip and self-opens without handler", () => {
   const opened: number[] = [];
   const { container } = renderGallery({
     items: [makeItem(1, { type: "video" })],
@@ -271,9 +288,13 @@ test("MediaGallery opens the viewer for video clicks outside the controls strip 
   assert.deepEqual(opened, [0], "jsdom rect is 0 so the click lands above the controls strip");
   cleanup();
 
+  // 无上层消费时（当前唯一路径）内部自持状态渲染 MediaViewer（#86）。
   const noHandler = renderGallery({ items: [makeItem(1)] });
   fireEvent.click(noHandler.container.querySelector("img") as Element);
-  assert.ok(true, "no handler: click is inert");
+  assert.ok(
+    document.body.querySelector("dialog"),
+    "without an external handler the internal viewer opens",
+  );
 });
 
 test("MediaGallery geometry stays stable while switching between different aspect ratios", () => {

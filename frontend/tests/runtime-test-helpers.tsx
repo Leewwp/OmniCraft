@@ -153,6 +153,21 @@ export const testMessages = {
         loadFailed: "Failed to load media",
       },
     },
+    viewer: {
+      title: "Media viewer",
+      position: "{current} / {total}",
+      close: "Close viewer",
+      previous: "Previous media",
+      next: "Next media",
+      zoomIn: "Zoom in",
+      zoomOut: "Zoom out",
+      zoomReset: "Reset zoom",
+      imageAlt: "Media {current} of {total}",
+      error: {
+        loadFailed: "Failed to load media",
+        retry: "Retry",
+      },
+    },
   },
   studio: {
     publish: {
