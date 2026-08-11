@@ -19,6 +19,8 @@ export interface ContentCardData {
   zone?: string;
   content_type?: string;
   cover_image_url?: string;
+  cover_width?: number;
+  cover_height?: number;
   view_count?: number;
   like_count?: number;
   comment_count?: number;
@@ -31,6 +33,13 @@ export interface ContentCardData {
     slug?: string;
   };
 }
+
+/** 封面缺省纵横比：历史内容无 cover_width/cover_height 时的防御性比例（3:4）。 */
+const COVER_DEFAULT_ASPECT_RATIO = "3 / 4";
+/** 极端比例阈值：max(width/height, height/width) 大于该值即按高度上限 contain。 */
+const COVER_EXTREME_RATIO_THRESHOLD = 2;
+/** 极端比例封面高度上限（px）：防止单卡主导瀑布流。 */
+const COVER_EXTREME_MAX_HEIGHT_PX = 400;
 
 interface ContentCardProps {
   data: ContentCardData;
@@ -61,6 +70,19 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
   const authorId = data.author_id ?? data.author?.id;
   const placeholderSrc = getCoverPlaceholder(contentType, displayTitle);
   const isOriginal = data.zone === "original";
+
+  /* 封面自然比例：#83 合同 cover_width/cover_height（image = 媒体集首项尺寸，
+     video = poster 尺寸）驱动 aspect-ratio，object-contain 不裁切；无数据时
+     防御性 3:4；极端比例（max(w/h, h/w) > 2）按高度上限 contain。 */
+  const coverWidth = data.cover_width;
+  const coverHeight = data.cover_height;
+  const hasCoverSize =
+    typeof coverWidth === "number" && typeof coverHeight === "number" && coverWidth > 0 && coverHeight > 0;
+  const coverAspectRatio = hasCoverSize ? `${coverWidth} / ${coverHeight}` : COVER_DEFAULT_ASPECT_RATIO;
+  const coverIsExtreme =
+    hasCoverSize &&
+    Math.max(coverWidth / coverHeight, coverHeight / coverWidth) > COVER_EXTREME_RATIO_THRESHOLD;
+
   const typeLabel = contentType === "sheet_music" ? t('home.sheetMusic') : contentType === "prompt" ? t('home.aiPrompt') : contentType === "mod" ? t('home.mod') : contentType === "video" ? t('home.video') : contentType === "audio" ? t('home.audio') : contentType === "image" ? t('home.image') : t('home.text');
 
   const cardClasses = cn(
@@ -73,15 +95,22 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
 
   const cover = (
     <div data-slot="card-cover" className="relative w-full bg-muted">
-      {/* Aspect ratio for cover — use natural image or default */}
-      <div className={cn("relative overflow-hidden", contentType === "video" ? "aspect-[16/9]" : "aspect-[3/4]")}>
+      {/* 自然比例封面：数据驱动 aspect-ratio + object-contain，极端比例限高 */}
+      <div
+        data-slot="card-cover-aspect"
+        className="relative overflow-hidden"
+        style={{
+          aspectRatio: coverAspectRatio,
+          ...(coverIsExtreme ? { maxHeight: `${COVER_EXTREME_MAX_HEIGHT_PX}px` } : {}),
+        }}
+      >
         {coverUrl ? (
           <Image
             src={coverUrl}
             alt={displayTitle}
             fill
             className={cn(
-              "object-cover transition-transform duration-300 motion-reduce:transform-none",
+              "object-contain transition-transform duration-300 motion-reduce:transform-none",
               isOriginal ? "group-hover:scale-105" : "group-hover:scale-[1.03]",
             )}
             sizes="(max-width: 450px) 100vw, (max-width: 700px) 50vw, (max-width: 1100px) 33vw, 25vw"
@@ -91,7 +120,7 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
             src={placeholderSrc}
             alt={displayTitle}
             className={cn(
-              "h-full w-full object-cover transition-transform duration-300 motion-reduce:transform-none",
+              "h-full w-full object-contain transition-transform duration-300 motion-reduce:transform-none",
               isOriginal ? "group-hover:scale-105" : "group-hover:scale-[1.03]",
             )}
           />
