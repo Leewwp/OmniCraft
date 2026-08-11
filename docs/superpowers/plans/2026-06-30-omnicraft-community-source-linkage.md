@@ -492,7 +492,7 @@ npx playwright test e2e/studio-publish-fanwork.spec.ts
 - Modify: `frontend/messages/en.json`
 - Test: add to `frontend/tests/source-linkage-components.test.tsx`
 
-- [ ] **Step 1: Confirm UI spec before component code**
+- [x] **Step 1: Confirm UI spec before component code**
 
 Run:
 
@@ -502,7 +502,7 @@ rg -n "## Component: RelatedFanworks|## Component: SourceAttribution" design/ui-
 
 Expected: both sections are present. If a future branch lacks one, stop and repair UI spec in an explicitly scoped docs/design step before coding. Both components must follow restrained visual treatment.
 
-- [ ] **Step 2: Add failing component tests**
+- [x] **Step 2: Add failing component tests**
 
 Assert:
 
@@ -514,7 +514,7 @@ Assert:
 - `RelatedFanworks` shows "查看全部" only when total is greater than 8 and `viewAllHref` is present
 - derivative row label uses "衍生作品" via i18n and never renders "三创"
 
-- [ ] **Step 3: Implement `SourceAttribution`**
+- [x] **Step 3: Implement `SourceAttribution`**
 
 Rules:
 
@@ -525,7 +525,7 @@ Rules:
 
 Place it under title metadata and above body.
 
-- [ ] **Step 4: Implement `RelatedFanworks`**
+- [x] **Step 4: Implement `RelatedFanworks`**
 
 Props:
 
@@ -549,7 +549,7 @@ Behavior:
 - fanwork derivative create link, when enabled, points to `/studio/publish/fanwork?source_fanwork_id=<id>`
 - fanwork derivative row uses label "衍生作品", not "三创"
 
-- [ ] **Step 5: Wire detail pages**
+- [x] **Step 5: Wire detail pages**
 
 Original detail:
 
@@ -564,7 +564,7 @@ Fanwork detail:
 
 > **首版范围裁剪**：衍生作品"查看全部"列表页（类似 `/original/[contentId]/fanworks`）延后到后续版本。首版仅展示 `RelatedFanworks` 横向滚动卡片行（最多 8 张），不提供 `viewAllHref`。
 
-- [ ] **Step 6: Run focused component tests**
+- [x] **Step 6: Run focused component tests**
 
 Run:
 
