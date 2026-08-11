@@ -91,15 +91,16 @@ func TestCreateContentRoutePublishesFanworkAndReadsBackSourceRelation(t *testing
 	}
 }
 
-func TestCreateContentRouteRejectsInvalidSourceOriginal(t *testing.T) {
+func TestCreateContentRouteRejectsInvalidSourceLink(t *testing.T) {
 	router, db, token, _ := setupPublishRoute(t, publishRouteUserState{Verified: true, Reputation: 10})
 	nonOriginal := createPublishContent(t, db, "Fanwork source candidate", "fanwork", "published")
 	unpublishedOriginal := createPublishSourceOriginal(t, db, "Pending original", "pending")
 
 	tests := []struct {
-		name     string
-		payload  string
-		wantCode int
+		name          string
+		payload       string
+		wantCode      int
+		wantBodyToken string
 	}{
 		{
 			name: "original zone cannot carry source_original_id",
@@ -111,7 +112,8 @@ func TestCreateContentRouteRejectsInvalidSourceOriginal(t *testing.T) {
 				"allow_copy":true,
 				"source_original_id":` + strconv.FormatInt(unpublishedOriginal.ID, 10) + `
 			}`,
-			wantCode: http.StatusBadRequest,
+			wantCode:      http.StatusBadRequest,
+			wantBodyToken: "SOURCE_NOT_ALLOWED_FOR_ORIGINAL",
 		},
 		{
 			name: "fanwork cannot reference non-original content",
@@ -123,7 +125,8 @@ func TestCreateContentRouteRejectsInvalidSourceOriginal(t *testing.T) {
 				"allow_copy":true,
 				"source_original_id":` + strconv.FormatInt(nonOriginal.ID, 10) + `
 			}`,
-			wantCode: http.StatusBadRequest,
+			wantCode:      http.StatusBadRequest,
+			wantBodyToken: "SOURCE_ORIGINAL_UNAVAILABLE",
 		},
 		{
 			name: "fanwork cannot reference unpublished original",
@@ -135,7 +138,8 @@ func TestCreateContentRouteRejectsInvalidSourceOriginal(t *testing.T) {
 				"allow_copy":true,
 				"source_original_id":` + strconv.FormatInt(unpublishedOriginal.ID, 10) + `
 			}`,
-			wantCode: http.StatusBadRequest,
+			wantCode:      http.StatusBadRequest,
+			wantBodyToken: "SOURCE_ORIGINAL_UNAVAILABLE",
 		},
 	}
 
@@ -150,8 +154,8 @@ func TestCreateContentRouteRejectsInvalidSourceOriginal(t *testing.T) {
 			if rec.Code != tt.wantCode {
 				t.Fatalf("status = %d, want %d; body = %s", rec.Code, tt.wantCode, rec.Body.String())
 			}
-			if !bytes.Contains(rec.Body.Bytes(), []byte("INVALID_SOURCE_ORIGINAL")) {
-				t.Fatalf("body = %s, want INVALID_SOURCE_ORIGINAL", rec.Body.String())
+			if !bytes.Contains(rec.Body.Bytes(), []byte(tt.wantBodyToken)) {
+				t.Fatalf("body = %s, want %s", rec.Body.String(), tt.wantBodyToken)
 			}
 		})
 	}
