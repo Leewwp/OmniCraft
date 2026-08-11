@@ -331,6 +331,17 @@
     "ipLabel": "IP: {name}",
     "attachmentUnknownType": "File"
   },
+  "media": {
+    "gallery": {
+      "position": "{current} / {total}",
+      "previous": "Previous media",
+      "next": "Next media",
+      "imageAlt": "Media {current} of {total}",
+      "error": {
+        "loadFailed": "Failed to load media"
+      }
+    }
+  },
   "contentDetailOverlay": {
     "title": "Content detail",
     "close": "Close content detail",

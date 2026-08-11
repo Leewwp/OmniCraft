@@ -32,6 +32,7 @@ import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 import { AgentFeatureGate } from "@/components/agent/AgentFeatureGate";
 import { SeriesNav } from "@/components/content/SeriesNav";
+import { MediaGallery, selectMediaItems } from "@/components/content/MediaGallery";
 import type { AttachmentData, ContentDetailData } from "@/lib/content";
 
 interface ContentDetailProps {
@@ -130,8 +131,16 @@ export function ContentDetail({ data, className, coverSync = false }: ContentDet
   const { toast } = useToast();
   const [collectionPickerOpen, setCollectionPickerOpen] = useState(false);
   const [tagSuggestionBusy, setTagSuggestionBusy] = useState<string | null>(null);
+
+  const { media: mediaItems, downloads: downloadItems } = selectMediaItems(
+    data.attachments ?? [],
+    contentType,
+    contentType === "video" ? data.cover_image_url : undefined,
+  );
+  const isMediaContent = contentType === "image" || contentType === "video";
+  const usesGallery = isMediaContent && mediaItems.length > 0;
   const [coverState, setCoverState] = useState<"loading" | "ready" | "error">(() =>
-    coverSync && data.cover_image_url ? "loading" : "ready",
+    coverSync && usesGallery ? "loading" : coverSync && data.cover_image_url ? "loading" : "ready",
   );
   const bodyVisible = !coverSync || coverState !== "loading";
 
@@ -189,16 +198,26 @@ export function ContentDetail({ data, className, coverSync = false }: ContentDet
         </div>
       </div>
 
-      {/* Cover Image */}
-      <CoverImage
-        url={data.cover_image_url}
-        contentType={contentType}
-        title={data.title}
-        typeLabel={typeLabel}
-        coverSync={coverSync}
-        coverState={coverState}
-        onCoverSettled={setCoverState}
-      />
+      {/* Media area: image/video content renders the stable MediaGallery
+          (contain, no crop); other types keep the cover image. The gallery
+          carries data-slot="detail-cover" so the overlay FLIP/cover-sync
+          contract keeps working on the shared surface. */}
+      {usesGallery ? (
+        <MediaGallery
+          items={mediaItems}
+          onFirstMediaSettled={setCoverState}
+        />
+      ) : (
+        <CoverImage
+          url={data.cover_image_url}
+          contentType={contentType}
+          title={data.title}
+          typeLabel={typeLabel}
+          coverSync={coverSync}
+          coverState={coverState}
+          onCoverSettled={setCoverState}
+        />
+      )}
 
       {/* Content Body（浮层封面同步：正文在封面落定前保持布局、不可见，避免跳版） */}
       <div
@@ -219,12 +238,14 @@ export function ContentDetail({ data, className, coverSync = false }: ContentDet
         </section>
       )}
 
-      {/* Attachments / Gallery for non-sheet-music types */}
-      {data.attachments && data.attachments.length > 0 && contentType !== "sheet_music" && (
+      {/* Attachments download list: media-set entries (image/video items of
+          image/video content) are excluded — they are browsed in the gallery.
+          Other content types keep the full attachment list semantics (AC3). */}
+      {downloadItems.length > 0 && contentType !== "sheet_music" && (
         <section className="space-y-2 rounded-md border border-border bg-card p-4 ">
           <h2 className="text-sm font-semibold">{t('content.attachments')}</h2>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {data.attachments.map((att) => (
+            {downloadItems.map((att) => (
               <div
                 key={att.id}
                 className="flex items-center justify-between rounded border border-border bg-muted/10 p-2"
@@ -289,10 +310,10 @@ export function ContentDetail({ data, className, coverSync = false }: ContentDet
         </div>
       )}
 
-      {/* Download All Button */}
-      {data.allow_copy && data.attachments && data.attachments.length > 1 && (
+      {/* Download All Button（仅非媒体集素材） */}
+      {data.allow_copy && downloadItems.length > 1 && (
         <div className="flex flex-wrap gap-2">
-          {data.attachments.map((att) => (
+          {downloadItems.map((att) => (
             <DownloadButton
               key={att.id}
               contentId={data.id}
