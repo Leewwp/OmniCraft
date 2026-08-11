@@ -40,6 +40,11 @@ interface ContentDetailProps {
   className?: string;
   /** 浮层封面同步（#64 决策 11）：开启后正文在封面加载落定前保持布局不可见。 */
   coverSync?: boolean;
+  /** #88 桌面双栏：媒体区由浮层层（Overlay Layer）在左栏另行渲染（≥1100px），
+      行内媒体区仅保留给 <1100px 单列视图（min-[1100px]:hidden）。 */
+  mediaSlot?: "inline" | "split";
+  /** #88 双栏模式下行外媒体区（左栏 MediaGallery）的首项加载落定信号。 */
+  coverReady?: boolean;
 }
 
 function getTypeLabel(t: (key: string) => string, contentType: string): string {
@@ -121,7 +126,13 @@ function CoverImage({ url, contentType, title, typeLabel, coverSync, coverState,
   );
 }
 
-export function ContentDetail({ data, className, coverSync = false }: ContentDetailProps) {
+export function ContentDetail({
+  data,
+  className,
+  coverSync = false,
+  mediaSlot = "inline",
+  coverReady,
+}: ContentDetailProps) {
   const t = useTranslations();
   const locale = useLocale();
   const contentType = data.content_type || "other";
@@ -142,7 +153,12 @@ export function ContentDetail({ data, className, coverSync = false }: ContentDet
   const [coverState, setCoverState] = useState<"loading" | "ready" | "error">(() =>
     coverSync && usesGallery ? "loading" : coverSync && data.cover_image_url ? "loading" : "ready",
   );
-  const bodyVisible = !coverSync || coverState !== "loading";
+  /* #88 双栏：≥1100px 时行内媒体区被隐藏（min-[1100px]:hidden），其首项不会触发
+     落定事件；正文 reveal 改由左栏行外媒体区的 coverReady 信号驱动（任一路径落定即显示，
+     错误态同 reveal，与 ui-spec:2411 稳定占位符语义一致）。 */
+  const settled =
+    coverState !== "loading" || (mediaSlot === "split" && coverReady !== undefined);
+  const bodyVisible = !coverSync || settled;
 
   async function handleTagSuggestion(tag: string, action: "add" | "remove") {
     if (!user) return;
@@ -201,23 +217,26 @@ export function ContentDetail({ data, className, coverSync = false }: ContentDet
       {/* Media area: image/video content renders the stable MediaGallery
           (contain, no crop); other types keep the cover image. The gallery
           carries data-slot="detail-cover" so the overlay FLIP/cover-sync
-          contract keeps working on the shared surface. */}
-      {usesGallery ? (
-        <MediaGallery
-          items={mediaItems}
-          onFirstMediaSettled={setCoverState}
-        />
-      ) : (
-        <CoverImage
-          url={data.cover_image_url}
-          contentType={contentType}
-          title={data.title}
-          typeLabel={typeLabel}
-          coverSync={coverSync}
-          coverState={coverState}
-          onCoverSettled={setCoverState}
-        />
-      )}
+          contract keeps working on the shared surface. #88 双栏模式下该行内
+          媒体区在 ≥1100px 隐藏（由 Overlay 层的左栏媒体列承担）。 */}
+      <div className={cn(mediaSlot === "split" && "min-[1100px]:hidden")}>
+        {usesGallery ? (
+          <MediaGallery
+            items={mediaItems}
+            onFirstMediaSettled={setCoverState}
+          />
+        ) : (
+          <CoverImage
+            url={data.cover_image_url}
+            contentType={contentType}
+            title={data.title}
+            typeLabel={typeLabel}
+            coverSync={coverSync}
+            coverState={coverState}
+            onCoverSettled={setCoverState}
+          />
+        )}
+      </div>
 
       {/* Content Body（浮层封面同步：正文在封面落定前保持布局、不可见，避免跳版） */}
       <div
