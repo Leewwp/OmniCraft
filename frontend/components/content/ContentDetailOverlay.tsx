@@ -32,6 +32,16 @@ const OVERLAY_EASING = "cubic-bezier(0.22,0.61,0.36,1)";
 /** 入场转场等待层数据的保险时限：超时按降级路径淡入，避免不可见卡死。 */
 const ENTRANCE_SAFETY_MS = 2000;
 
+/** 层布局：single = 单列（overlay-scroller 滚动）；split-media = 桌面双栏
+    （≥1100px 时唯一滚动容器为层内 layer-scroller）。 */
+type LayerLayout = "single" | "split-media";
+
+/** #88 桌面双栏视口判定：与 ui-spec 全局三档（PC > 1100px）一致。 */
+function isSplitViewport(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(min-width: 1100px)").matches;
+}
+
 export interface ContentDetailOverlayProps {
   contentId: number;
   zone: "original" | "fanwork";
@@ -74,6 +84,7 @@ export function ContentDetailOverlay({
   const [closing, setClosing] = useState(false);
   const [stackMove, setStackMove] = useState<"push" | "pop" | null>(null);
   const [popFocus, setPopFocus] = useState<HTMLElement | null>(null);
+  const [layerLayouts, setLayerLayouts] = useState<Record<number, LayerLayout>>({});
 
   const stackRef = useRef<OverlayLayerState[]>(stack);
   const popFocusRef = useRef<HTMLElement | null>(popFocus);
@@ -83,6 +94,7 @@ export function ContentDetailOverlay({
   const lastOpenRef = useRef(false);
   const topKeyRef = useRef<string | null>(null);
   const onOpenChangeRef = useRef(onOpenChange);
+  const layerLayoutsRef = useRef(layerLayouts);
 
   /* 转场状态（#67 原型 §5 契约）：run token 拦截过期回调；入场只跑一次。 */
   const motionRunRef = useRef(0);
@@ -104,6 +116,29 @@ export function ContentDetailOverlay({
   useEffect(() => {
     onOpenChangeRef.current = onOpenChange;
   }, [onOpenChange]);
+
+  useEffect(() => {
+    layerLayoutsRef.current = layerLayouts;
+  }, [layerLayouts]);
+
+  const handleLayoutChange = useCallback((index: number, layout: LayerLayout) => {
+    setLayerLayouts((prev) => (prev[index] === layout ? prev : { ...prev, [index]: layout }));
+  }, []);
+
+  /* 当前唯一滚动容器：#88 桌面双栏（split-media 且 ≥1100px）时取顶层可见层的
+     layer-scroller（跳过 display:none 的底层），否则回到 overlay-scroller。 */
+  const resolveActiveScroller = useCallback((): HTMLElement | null => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return null;
+    if (layerLayoutsRef.current[stackRef.current.length - 1] !== "split-media" || !isSplitViewport()) {
+      return scroller;
+    }
+    const candidates = scroller.querySelectorAll<HTMLElement>('[data-slot="layer-scroller"]');
+    for (let i = candidates.length - 1; i >= 0; i -= 1) {
+      if (candidates[i].offsetParent !== null) return candidates[i];
+    }
+    return scroller;
+  }, []);
 
   function pushHistoryState(depth: number) {
     window.history.pushState({ ...(window.history.state ?? {}), [HISTORY_KEY]: depth }, "");
@@ -184,8 +219,8 @@ export function ContentDetailOverlay({
     const previousKey = topKeyRef.current;
     topKeyRef.current = topKey;
     const layer = stack[stack.length - 1];
-    const scroller = scrollerRef.current;
-    if (scroller) scroller.scrollTop = layer.scrollTop;
+    const activeScroller = resolveActiveScroller();
+    if (activeScroller) activeScroller.scrollTop = layer.scrollTop;
     if (previousKey === null) {
       window.setTimeout(() => titleRef.current?.focus({ preventScroll: true }), 0);
       return;
@@ -204,15 +239,15 @@ export function ContentDetailOverlay({
     if (closingRef.current || stackRef.current.length === 0) return;
     if (stackRef.current.length >= MAX_STACK_DEPTH) return;
     const current = stackRef.current;
-    const scroller = scrollerRef.current;
+    const activeScroller = resolveActiveScroller();
     const next = current.map((layer, index) =>
-      index === current.length - 1 ? { ...layer, scrollTop: scroller?.scrollTop ?? 0 } : layer,
+      index === current.length - 1 ? { ...layer, scrollTop: activeScroller?.scrollTop ?? 0 } : layer,
     );
     next.push({ entry, trigger, scrollTop: 0, title: null });
     setStackMove("push");
     setStack(next);
     pushHistoryState(next.length);
-  }, []);
+  }, [resolveActiveScroller]);
 
   /* 弹出一层（返回按钮 / Esc / 浏览器后退）。 */
   const popLayer = useCallback(() => {
@@ -231,7 +266,14 @@ export function ContentDetailOverlay({
     const scroller = scrollerRef.current;
     if (!scroller) return null;
     const covers = scroller.querySelectorAll<HTMLElement>(`[data-slot="${OVERLAY_COVER_SLOT}"]`);
-    return covers.length > 0 ? covers[covers.length - 1] : null;
+    /* #88 双栏：行内媒体区（min-[1100px]:hidden）也是 detail-cover 锚点，须跳过
+       display:none 的隐藏实例，取可见的左栏媒体列。 */
+    for (let i = covers.length - 1; i >= 0; i -= 1) {
+      if (covers[i].offsetParent !== null || covers[i].getClientRects().length > 0) {
+        return covers[i];
+      }
+    }
+    return null;
   }, []);
 
   /* 中断处理：run token 递增使所有在途回调过期；清过渡、清定时器、清 VT 命名。 */
@@ -419,6 +461,7 @@ export function ContentDetailOverlay({
     setStack([]);
     setStackMove(null);
     setPopFocus(null);
+    setLayerLayouts({});
     const restore = restoreRef.current;
     restoreRef.current = null;
     onOpenChangeRef.current(false);
@@ -582,6 +625,7 @@ export function ContentDetailOverlay({
   const depth = stack.length;
   const top = depth > 0 ? stack[depth - 1] : null;
   const previous = depth > 1 ? stack[depth - 2] : null;
+  const topLayout: LayerLayout = (layerLayouts[depth - 1] ?? "single") as LayerLayout;
 
   function sourceReturnLabel(entrySource: OverlaySource): string {
     switch (entrySource) {
@@ -665,7 +709,12 @@ export function ContentDetailOverlay({
         <div
           ref={scrollerRef}
           data-slot="overlay-scroller"
-          className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 lg:px-6"
+          className={cn(
+            "min-h-0 overflow-y-auto overscroll-contain px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 lg:px-6",
+            /* #88 桌面双栏：顶层为 split-media 时滚动改由层内信息列承担。 */
+            topLayout === "split-media" &&
+              "min-[1100px]:h-full min-[1100px]:overflow-hidden",
+          )}
         >
           {stack.map((layer, index) => (
             <div
@@ -684,6 +733,8 @@ export function ContentDetailOverlay({
             >
               <ContentDetailOverlayLayer
                 entry={layer.entry}
+                layerIndex={index}
+                onLayoutChange={handleLayoutChange}
                 onPush={pushLayer}
                 onTitleChange={handleTitleChange(index)}
                 onMotionReady={handleMotionReady}
