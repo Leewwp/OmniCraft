@@ -26,6 +26,11 @@ export interface AttachmentData {
   oss_url?: string;
   file_size?: number;
   is_primary?: boolean;
+  // #83 媒体元数据：自然宽高与稳定排序（sort_order ASC NULLS LAST, id ASC）。
+  // 历史/旧行宽高可能为 NULL，渲染侧使用防御性默认比例。
+  width?: number;
+  height?: number;
+  sort_order?: number;
 }
 
 export interface SeriesContentSummary {
@@ -82,6 +87,11 @@ function positiveInteger(value: unknown): number | undefined {
   return parsed !== undefined && Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+function nonNegativeInteger(value: unknown): number | undefined {
+  const parsed = numberValue(value);
+  return parsed !== undefined && Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
 function pick<T>(raw: RawObject, snake: string, pascal: string): T | undefined {
   return (raw[snake] ?? raw[pascal]) as T | undefined;
 }
@@ -114,7 +124,7 @@ function normalizeIP(value: unknown): ContentDetailData["ip"] {
   };
 }
 
-function normalizeAttachment(value: unknown): AttachmentData | null {
+export function normalizeAttachment(value: unknown): AttachmentData | null {
   const raw = asObject(value);
   if (!raw) {
     return null;
@@ -131,6 +141,9 @@ function normalizeAttachment(value: unknown): AttachmentData | null {
     oss_url: stringValue(raw.oss_url ?? raw.OSSURL),
     file_size: numberValue(raw.file_size ?? raw.FileSize),
     is_primary: boolValue(raw.is_primary ?? raw.IsPrimary),
+    width: positiveInteger(raw.width ?? raw.Width),
+    height: positiveInteger(raw.height ?? raw.Height),
+    sort_order: nonNegativeInteger(raw.sort_order ?? raw.SortOrder),
   };
 }
 
