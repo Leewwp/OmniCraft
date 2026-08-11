@@ -236,6 +236,8 @@ export function normalizeContentItem(value: unknown): ContentDetailData | null {
     category: stringValue(pick(raw, "category", "Category")),
     content_type: stringValue(pick(raw, "content_type", "ContentType")),
     cover_image_url: stringValue(pick(raw, "cover_image_url", "CoverImageURL")),
+    cover_width: positiveInteger(pick(raw, "cover_width", "CoverWidth")),
+    cover_height: positiveInteger(pick(raw, "cover_height", "CoverHeight")),
     status: stringValue(pick(raw, "status", "Status")),
     view_count: numberValue(pick(raw, "view_count", "ViewCount")),
     like_count: numberValue(pick(raw, "like_count", "LikeCount")),
