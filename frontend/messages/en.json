@@ -355,6 +355,9 @@
         "loadFailed": "Failed to load media",
         "retry": "Retry"
       }
+    },
+    "continue": {
+      "endReached": "You've reached the end"
     }
   },
   "contentDetailOverlay": {
