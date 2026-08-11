@@ -749,3 +749,23 @@
 ### Notes:
 - 已知前端协调点（本任务后端先行，不碰 frontend）：`frontend/app/(public)/original/[contentId]/fanworks/page.tsx` 的 TYPE_FILTERS 仍发送 `text,article,prompt`（`text` 不在标准枚举内），严格 allowlist 生效后该页「All/Text」过滤将 400 回退空列表；计划后续前端任务已列入修改该页（`frontend/app/(public)/original/[contentId]/fanworks/page.tsx` 在计划文件清单），届时须将 `text` 从过滤值中去掉。
 - 未触碰 main worktree；progress.txt 仅更新本 worktree 副本。
+
+## [2026-08-12] - Source-linkage Task 5（light）：确认发布 UI 规格并实现 SourceContentPicker（#96）
+
+### What was done:
+- **Step 1 ui-spec 确认**：`design/ui-spec.md` 存在 `## Component: SourceContentPicker`（L4828）与 `## Page: /studio/publish/fanwork`（L5034）章节，满足全部要求——loading/empty/validation/error/disabled/prefilled 状态变体、a11y（label+combobox/listbox、aria-activedescendant、44px 触控）、i18n namespace `sourceContentPicker.*`、query prefill（`?source_original_id` / `?source_fanwork_id`）、Playwright 截图检查点（`screenshots/community-source-picker-{desktop,mobile}.png`）；且明确 `SourceContentPicker` 拥有灵感来源选择、`CollabUserPicker` 留给后续 collaboration-invites 计划（L5040/5096）。无缺失，无需记录 issue。
+- **`frontend/components/studio/SourceContentPicker.tsx`（新）**：按计划原文 props（`sourceKind/selected/disabled/onSelect`）。搜索调用 `GET /api/v1/contents/search?zone=<sourceKind>&q=<query>&limit=8`（URLSearchParams 顺序 zone→q→limit），300ms debounce；**防御性可选题过滤**（`isSelectableSource`）：要求数字 id>0、非空 title、`zone === sourceKind`、无 `deleted_at`、`status` 为 published 或缺失、作者无 `deleted_at`/`is_banned`——banned/审核中/软删/作者删除行永不渲染；结果归一为 `{id,title,zone}` 摘要再 emit。combobox/listbox 语义（label+htmlFor、`aria-expanded`/`aria-controls`/`aria-activedescendant`、option `aria-selected`）、ArrowDown/Up 高亮 + Enter 选择 + Esc 关闭、loading（Spinner+文案）、empty、error（内联错误+重试按钮，不清除已选）、已选 summary row + 清除按钮（`onSelect(undefined)`）、disabled 态禁用输入与清除。
+- **`SourceOriginalPicker.tsx` 迁移为兼容包装**：保留旧 props 接口（value/onChange/placeholder/searchLabel/loadingLabel），内部渲染 `<SourceContentPicker sourceKind="original">` 并做 `{id,title}` ↔ `{id,title,zone}` 映射；PublishForm.tsx 无需改动仍可编译（Step 4 要求改 PublishForm 前测试先绿，表单集成属 Task 6）。
+- **i18n**：新增顶层 `sourceContentPicker.*` namespace（original/fanwork label+placeholder、search.loading/empty、error.searchFailed/retry、selected.label/clear、a11y.results*）zh/en 同步（ui-governance i18n parity 通过）。
+- **e2e mock 修正**：`studio-publish-fanwork.spec.ts` 两处 contents/search mock items 补 `zone`/`status`（严格 zone 过滤下旧 mock 行不渲染）；新增 `e2e/t5-source-picker.mock.spec.ts`（mocked config 契约）实测搜索/过滤/选中/清除/错误/空态并截图。
+- 未改后端/config/routes/migrations（无需 doc-validator）；page.tsx 无 Task 5 改动（query prefill 与来源区集成属 Task 6）。
+
+### Testing:
+- 红→绿：9 条 focused 测试先以 `ERR_MODULE_NOT_FOUND` 红，实现后 `node --import tsx --test tests/studio-publish-fanwork.test.tsx` 9/9 绿（original/fanwork URL 合同精确断言 `zone=original|fanwork&q=<query>&limit=8`、匿名与登录子集一致、banned/审核中/软删/作者删除/封禁作者不渲染、id/title/zone 校验、选中 emit 摘要、清除 emit undefined、loading/empty/error 本地化文案、disabled）。
+- `npm run lint`（tsc strict）、`npm run lint:ui`（i18n parity 等全 ok）、`npm run build`、`npm run test:unit` 353/353 全绿。
+- 浏览器实测（Playwright mocked config，webServer 自动起 dev :3001）：t5-source-picker.mock.spec.ts 通过——默认态、搜索出结果且 Banned Draft/Under Review Draft 不可见、选中出 summary+清除、清除回归、500 错误态+Retry、空态。截图 6 张 `screenshots/t5-publish-source-picker-{default,results,selected,cleared,error,empty}.png`。
+- `npm run test:contracts`：16 过 / 4 失败 + 8 未跑——4 个失败（content-series/contract-smoke/page-shell/t87-natural-ratio）在 pristine origin/main 上以相同集合复现（pre-existing，非本任务引入；对应注册表已知 #101 load-gate 与 #66/#68 共享文件批次）。
+
+### Notes:
+- 关键实现决策：结果行按 ui-spec「id+title+zone 匹配」做严格 zone 过滤；@testing-library/dom 10.4.1 的 `fireEvent.click` 不派发 mousedown，option 选中改挂 `onClick`（mousedown 仅 preventDefault 保焦点，键盘 Enter 路径独立覆盖）；测试 harness 需像真实父级一样 lift selection state 才会出现 summary row。
+- 未触碰 main worktree；progress.txt 仅更新本 worktree 副本。

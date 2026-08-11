@@ -2031,6 +2031,32 @@
       }
     }
   },
+  "sourceContentPicker": {
+    "original": {
+      "label": "Source Original",
+      "placeholder": "Search original content title..."
+    },
+    "fanwork": {
+      "label": "Source Fanwork",
+      "placeholder": "Search fanwork content title..."
+    },
+    "search": {
+      "loading": "Searching...",
+      "empty": "No matching content found."
+    },
+    "error": {
+      "searchFailed": "Search failed. Please try again.",
+      "retry": "Retry"
+    },
+    "selected": {
+      "label": "Selected source",
+      "clear": "Clear selected source"
+    },
+    "a11y": {
+      "resultsOriginal": "Original source search results",
+      "resultsFanwork": "Fanwork source search results"
+    }
+  },
   "error": {
     "pageError": "Something went wrong",
     "pageErrorDesc": "An unexpected error occurred. Please try again later.",
