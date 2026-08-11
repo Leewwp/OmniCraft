@@ -45,6 +45,10 @@ interface ContentDetailProps {
   mediaSlot?: "inline" | "split";
   /** #88 双栏模式下行外媒体区（左栏 MediaGallery）的首项加载落定信号。 */
   coverReady?: boolean;
+  /** #89 连续浏览：移动端行内媒体集最后一项继续上滑时触发（上层切篇）。 */
+  onGalleryReachEnd?: () => void;
+  /** #89 连续浏览：上下文列表到底时在媒体区下显示「已经到底」提示。 */
+  galleryEndHint?: boolean;
 }
 
 function getTypeLabel(t: (key: string) => string, contentType: string): string {
@@ -132,6 +136,8 @@ export function ContentDetail({
   coverSync = false,
   mediaSlot = "inline",
   coverReady,
+  onGalleryReachEnd,
+  galleryEndHint = false,
 }: ContentDetailProps) {
   const t = useTranslations();
   const locale = useLocale();
@@ -224,6 +230,7 @@ export function ContentDetail({
           <MediaGallery
             items={mediaItems}
             onFirstMediaSettled={setCoverState}
+            onReachEnd={onGalleryReachEnd}
           />
         ) : (
           <CoverImage
@@ -235,6 +242,16 @@ export function ContentDetail({
             coverState={coverState}
             onCoverSettled={setCoverState}
           />
+        )}
+        {/* #89 连续浏览：上下文列表到底提示（随媒体区一起在双栏桌面端隐藏，
+            与瀑布流统一「已经到底了」语义一致）。 */}
+        {usesGallery && galleryEndHint && (
+          <div
+            data-slot="media-continue-end"
+            className="flex items-center justify-center py-3 text-xs text-muted-foreground"
+          >
+            {t("media.continue.endReached")}
+          </div>
         )}
       </div>
 

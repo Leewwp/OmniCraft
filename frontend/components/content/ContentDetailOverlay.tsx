@@ -249,6 +249,20 @@ export function ContentDetailOverlay({
     pushHistoryState(next.length);
   }, [resolveActiveScroller]);
 
+  /* #89 连续浏览：原地替换顶层为上下文列表下一篇（不压栈、不写历史）。
+     新 entry 驱动层 remount（key 含 contentId），媒体区/信息区状态与滚动
+     位置全部重置为新内容的初始态。 */
+  const switchTopLayer = useCallback((nextEntry: OverlayEntry) => {
+    if (closingRef.current || stackRef.current.length === 0) return;
+    setStack((prev) =>
+      prev.map((layer, index) =>
+        index === prev.length - 1
+          ? { ...layer, entry: nextEntry, scrollTop: 0, title: null }
+          : layer,
+      ),
+    );
+  }, []);
+
   /* 弹出一层（返回按钮 / Esc / 浏览器后退）。 */
   const popLayer = useCallback(() => {
     if (closingRef.current) return;
@@ -736,6 +750,7 @@ export function ContentDetailOverlay({
                 layerIndex={index}
                 onLayoutChange={handleLayoutChange}
                 onPush={pushLayer}
+                onSwitchNext={switchTopLayer}
                 onTitleChange={handleTitleChange(index)}
                 onMotionReady={handleMotionReady}
               />
