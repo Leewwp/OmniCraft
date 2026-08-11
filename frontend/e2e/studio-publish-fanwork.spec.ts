@@ -65,7 +65,7 @@ test("mocked fanwork publish payload includes IP and source original IDs before 
     return route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ items: [{ id: 77, title: "Original Lightcone" }], total: 1 }),
+      body: JSON.stringify({ items: [{ id: 77, title: "Original Lightcone", zone: "original", status: "published" }], total: 1 }),
     });
   });
 
@@ -125,7 +125,7 @@ test("mocked fanwork pickers preserve edited query after clearing a selected opt
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ items: [{ id: 77, title: "Original Lightcone" }], total: 1 }),
+      body: JSON.stringify({ items: [{ id: 77, title: "Original Lightcone", zone: "original", status: "published" }], total: 1 }),
     }),
   );
 
