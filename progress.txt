@@ -547,3 +547,22 @@
 ### Notes:
 - 二创首页（固定 sort=hot）与 /recommend 未改动；routes.go/config/migrations 未触碰，无需 doc-validator。已接管 :8080（停掉 #68 进程后启动本 worktree 后端）与 :3001 前端。测试期间暂用 NEXT_PUBLIC_API_URL=http://localhost:8081 指向日志代理，验证完成后恢复默认。
 - 2026-08-11 收尾：TCC 桌面访问已重新授权。复核全量 `npm run test:unit` = 26 native + 256 typed 全绿（此前 12 fail 确认系 TCC EPERM 环境所致）；`npm run lint` / `lint:ui` / `build` 与 `go build/vet/test ./...` 复跑全绿；Playwright t81 spec 重跑通过（日志代理观测：无分类 sort=recommended 混合流 / 点 Tab sort=hot+category=film_tv 仅该分类 / 深链 sort=recommended+category=film_tv 后端降级仅该分类）。
+
+## [2026-08-11] - #87 列表卡片自然比例瀑布流（light，worktree media/t87）
+
+### What was done:
+- `frontend/lib/content.ts`：`normalizeContentItem` 拾取 #83 合同 `cover_width`/`cover_height`（snake/Pascal 双兼容，经 positiveInteger 过滤非法值 → undefined 走默认比例）。仅扩展卡片归一化，未动 `AttachmentData`/`normalizeAttachment`（#85 划片）。
+- `frontend/components/content/ContentCard.tsx`：
+  - `ContentCardData` 新增 `cover_width?`/`cover_height?`；组件私有常量 `COVER_DEFAULT_ASPECT_RATIO="3 / 4"`、`COVER_EXTREME_RATIO_THRESHOLD=2`、`COVER_EXTREME_MAX_HEIGHT_PX=400`（不新建共享 lib）。
+  - 封面容器改为数据驱动 `aspect-ratio`（image=媒体集首项 / video=poster 尺寸；NULL → 3:4），`object-contain` 不裁切（替代旧 video→16:9 / 其他→3:4 的 object-cover）；极端比例（max(w/h,h/w) > 2）内联 `max-height:400px` 限高 contain；新增 `data-slot="card-cover-aspect"` 供测试定位。原创/二创共用同一组件与规则（AC3）。
+- i18n：无新增文案（纯 CSS/数据逻辑）。
+
+### Testing:
+- `npm run lint`（tsc）、`lint:ui`、`npm run build` 全绿。
+- `npm run test:unit` 294 tests 全绿（新增 12 条：3:4 默认、数据驱动比例+object-contain 不裁切、极端横/竖限高 400px、2:1/1:2 边界不触发、video poster 比例、二创共用、键盘可聚焦、归一化 snake/Pascal/非法值/列表保持）。
+- `npm run test:contracts` 27 passed（新增 t87-natural-ratio.mock.spec.ts 4 条：桌面 4 列自然比例+极端限高+无卡片溢出 / 移动 2 列+限高 / Tab 键盘聚焦卡片 / 搜索页二创+原创同源卡片）。
+- 浏览器截图 4 张：`screenshots/t87-original-mixed-ratio-desktop.png`、`t87-original-mixed-ratio-mobile.png`、`t87-original-keyboard-focus.png`、`t87-search-mixed-zones-shared-card.png`（内容经像素抽样验证非空白）。
+
+### Notes:
+- 移动端 390px 视口存在既有 26px 页面级水平溢出（原创区页头描述行 + 分类 Tab 行，未涉及卡片）；已用 stash 对照 main 复现确认与本票无关，溢出断言按 AC 范围收敛到卡片区。
+- 未触碰 config/routes/migrations（无需 doc-validator）；未触碰 #85 的 ContentDetail/MediaGallery/overlay 组件与主 worktree。progress.txt 只更新本 worktree 副本。
