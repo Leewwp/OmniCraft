@@ -21,9 +21,13 @@ interface SearchParams {
   sort?: string;
 }
 
+/* Task 4 的 related-fanworks content_type 严格 allowlist（image/article/video/audio/
+   template/sheet_music/mod/prompt/other）不包含 `text`；`text` 会让「文本」过滤
+   返回 400 INVALID_CONTENT_TYPE，故文本类统一映射 article,prompt。
+   「全部」不发送 content_type（后端空值 = 不过滤），否则会漏掉 audio 等类型。 */
 const TYPE_FILTERS = [
-  { key: "", label: "All", contentType: "text,article,prompt" },
-  { key: "text", label: "Text", contentType: "text,article,prompt" },
+  { key: "", label: "All", contentType: "" },
+  { key: "text", label: "Text", contentType: "article,prompt" },
   { key: "image", label: "Image", contentType: "image" },
   { key: "video", label: "Video", contentType: "video" },
   { key: "audio", label: "Audio/Sheet Music", contentType: "audio,sheet_music" },
