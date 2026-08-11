@@ -357,6 +357,8 @@ export function ContentDetailOverlayLayer({
             coverSync
             mediaSlot="split"
             coverReady={coverReady}
+            sourceOriginal={isFanwork ? detail.sourceOriginal : undefined}
+            sourceFanwork={isFanwork ? detail.sourceFanwork : undefined}
             /* #89 移动单列：可见的媒体区是行内画廊（≥1100px 才隐藏），
                连续浏览钩子与到底提示必须接在这条路径上。 */
             onGalleryReachEnd={handleReachEnd}
@@ -374,6 +376,8 @@ export function ContentDetailOverlayLayer({
         <ContentDetail
           data={{ ...content, attachments: detail.attachments, tags: detail.tags }}
           coverSync
+          sourceOriginal={isFanwork ? detail.sourceOriginal : undefined}
+          sourceFanwork={isFanwork ? detail.sourceFanwork : undefined}
           onGalleryReachEnd={handleReachEnd}
           galleryEndHint={atContextEnd}
         />
