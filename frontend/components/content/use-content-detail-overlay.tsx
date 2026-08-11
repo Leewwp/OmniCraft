@@ -7,6 +7,9 @@ import type { OverlaySource } from "@/components/content/ContentDetailOverlayLay
 export interface OverlayOpenEntry {
   contentId: number;
   zone: "original" | "fanwork";
+  /** #89 连续浏览：触发上下文列表与当前索引（移动端从卡片网格进入时传入）。 */
+  contextList?: ContentOverlayContextItem[];
+  contextIndex?: number;
 }
 
 export interface ContentOverlayContextItem {
@@ -17,9 +20,6 @@ export interface ContentOverlayContextItem {
 export interface UseContentDetailOverlayOptions {
   /** 来源参数：决定返回文案语义（推荐流 / 分区页 / IP 页 / Agent 引用）。 */
   source: OverlaySource;
-  /** #89 连续浏览：触发上下文列表与当前索引（移动端从卡片网格进入时传入）。 */
-  contextList?: ContentOverlayContextItem[];
-  contextIndex?: number;
 }
 
 /**
@@ -46,8 +46,8 @@ export function useContentDetailOverlay(options: UseContentDetailOverlayOptions)
       contentId={entry.contentId}
       zone={entry.zone}
       source={options.source}
-      contextList={options.contextList}
-      contextIndex={options.contextIndex}
+      contextList={entry.contextList}
+      contextIndex={entry.contextIndex}
       open
       onOpenChange={handleOpenChange}
       returnFocusRef={returnFocusRef}

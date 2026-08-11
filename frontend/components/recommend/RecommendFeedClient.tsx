@@ -111,12 +111,22 @@ export function RecommendFeedClient({
 
   const openDetail = useCallback(
     (data: ContentCardData, trigger: HTMLElement) => {
+      const index = items.findIndex((item) => item.id === data.id);
       handleOpenDetail(
-        { contentId: data.id, zone: data.zone === "original" ? "original" : "fanwork" },
+        {
+          contentId: data.id,
+          zone: data.zone === "original" ? "original" : "fanwork",
+          /* #89 连续浏览：把触发上下文列表 + 当前索引传给浮层（移动端上滑切篇）。 */
+          contextList: items.map((item) => ({
+            id: item.id,
+            zone: item.zone === "original" ? "original" : "fanwork",
+          })),
+          contextIndex: index >= 0 ? index : undefined,
+        },
         trigger,
       );
     },
-    [handleOpenDetail],
+    [handleOpenDetail, items],
   );
 
   if (isLoading && items.length === 0) {
