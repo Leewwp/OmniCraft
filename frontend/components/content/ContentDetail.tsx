@@ -32,8 +32,18 @@ import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 import { AgentFeatureGate } from "@/components/agent/AgentFeatureGate";
 import { SeriesNav } from "@/components/content/SeriesNav";
+import { SourceAttribution, type SourceSummary } from "@/components/content/SourceAttribution";
+import { RelatedFanworks } from "@/components/content/RelatedFanworks";
 import { MediaGallery, selectMediaItems } from "@/components/content/MediaGallery";
 import type { AttachmentData, ContentDetailData } from "@/lib/content";
+
+interface RelatedFanworksSlot {
+  sourceContentId: number;
+  sourceZone: "original" | "fanwork";
+  titleKey: string;
+  createHref?: string;
+  viewAllHref?: string;
+}
 
 interface ContentDetailProps {
   data: ContentDetailData;
@@ -41,7 +51,7 @@ interface ContentDetailProps {
   /** 浮层封面同步（#64 决策 11）：开启后正文在封面加载落定前保持布局不可见。 */
   coverSync?: boolean;
   /** #88 桌面双栏：媒体区由浮层层（Overlay Layer）在左栏另行渲染（≥1100px），
-      行内媒体区仅保留给 <1100px 单列视图（min-[1100px]:hidden）。 */
+       行内媒体区仅保留给 <1100px 单列视图（min-[1100px]:hidden）。 */
   mediaSlot?: "inline" | "split";
   /** #88 双栏模式下行外媒体区（左栏 MediaGallery）的首项加载落定信号。 */
   coverReady?: boolean;
@@ -49,6 +59,11 @@ interface ContentDetailProps {
   onGalleryReachEnd?: () => void;
   /** #89 连续浏览：上下文列表到底时在媒体区下显示「已经到底」提示。 */
   galleryEndHint?: boolean;
+  /** 来源归因摘要（source-linkage #96）：fanwork 详情传入后渲染在标题元信息下、正文上方。 */
+  sourceOriginal?: SourceSummary;
+  sourceFanwork?: SourceSummary;
+  /** 相关二创/衍生作品行：正文后、评论区上方；不传则不渲染。 */
+  relatedFanworks?: RelatedFanworksSlot;
 }
 
 function getTypeLabel(t: (key: string) => string, contentType: string): string {
@@ -138,6 +153,9 @@ export function ContentDetail({
   coverReady,
   onGalleryReachEnd,
   galleryEndHint = false,
+  sourceOriginal,
+  sourceFanwork,
+  relatedFanworks,
 }: ContentDetailProps) {
   const t = useTranslations();
   const locale = useLocale();
@@ -218,6 +236,17 @@ export function ContentDetail({
             </span>
           )}
         </div>
+
+        {/* 来源归因（ui-spec:2635）：标题/作者元信息之后、正文之前；仅 fanwork 且存在内容级来源时渲染。 */}
+        {data.zone === "fanwork" && (
+          <SourceAttribution
+            zone="fanwork"
+            sourceOriginalId={sourceOriginal?.id ?? data.source_original_id}
+            sourceOriginal={sourceOriginal}
+            sourceFanworkId={sourceFanwork?.id ?? data.source_fanwork_id}
+            sourceFanwork={sourceFanwork}
+          />
+        )}
       </div>
 
       {/* Media area: image/video content renders the stable MediaGallery
@@ -421,6 +450,9 @@ export function ContentDetail({
       {data.series_memberships && data.series_memberships.length > 0 && (
         <SeriesNav memberships={data.series_memberships} />
       )}
+
+      {/* 相关二创/衍生作品行（ui-spec:2697）：正文后、评论区上方，与 SeriesNav 同级。 */}
+      {relatedFanworks && <RelatedFanworks {...relatedFanworks} />}
 
       {/* Comments */}
       <section className="rounded-md border border-border bg-card p-4 ">

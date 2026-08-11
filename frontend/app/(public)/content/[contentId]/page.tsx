@@ -40,6 +40,7 @@ export default async function FanworkContentDetailPage({ params }: { params: Pro
   const sourceOriginal =
     normalized.sourceOriginal ??
     (content.source_original_id ? { id: content.source_original_id, title: "" } : null);
+  const sourceFanwork = normalized.sourceFanwork ?? null;
 
   return (
     <ContentDetailOverlayHost
@@ -48,6 +49,13 @@ export default async function FanworkContentDetailPage({ params }: { params: Pro
       author={content.author ? { id: content.author.id, username: content.author.username } : undefined}
       ip={content.ip?.name ? content.ip : undefined}
       sourceOriginal={sourceOriginal}
+      sourceFanwork={sourceFanwork}
+      relatedFanworks={{
+        sourceContentId: content.id,
+        sourceZone: "fanwork",
+        titleKey: "relatedFanworks.derivatives.title",
+        createHref: `/studio/publish/fanwork?source_fanwork_id=${content.id}`,
+      }}
     />
   );
 }
