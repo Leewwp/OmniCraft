@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AlertCircle, FileQuestion, ShieldOff } from "lucide-react";
 import Link from "next/link";
@@ -40,6 +40,8 @@ interface ContentDetailOverlayLayerProps {
   /** #88 布局回报：image/video 媒体集内容 = "split-media"（桌面双栏），其余 "single"。 */
   onLayoutChange: (index: number, layout: "single" | "split-media") => void;
   onPush: (entry: OverlayEntry, trigger: HTMLElement | null) => void;
+  /** #89 连续浏览：媒体集最后一项继续上滑时请求切换到上下文列表下一篇。 */
+  onSwitchNext?: (entry: OverlayEntry) => void;
   onTitleChange: (title: string) => void;
   /** 层数据落定（含错误态）后通知浮层：入场转场可测量封面几何并启动。 */
   onMotionReady?: () => void;
@@ -53,6 +55,12 @@ const SPLIT_MEDIA_CONTROLS_HEIGHT = 64;
 
 /** 媒体集首项几何缺失时的防御性默认比例（与 MediaGallery DEFAULT_ASPECT_RATIO 一致）。 */
 const SPLIT_DEFAULT_RATIO = 3 / 4;
+
+/** #89 连续浏览视口判定：与 ui-spec 全局三档一致（PC > 1100px），桌面不出现连续浏览交互。 */
+function isMobileViewport(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return true;
+  return !window.matchMedia("(min-width: 1100px)").matches;
+}
 
 const TYPE_LABEL_KEYS: Record<string, string> = {
   article: "home.text",
@@ -70,6 +78,7 @@ export function ContentDetailOverlayLayer({
   layerIndex,
   onLayoutChange,
   onPush,
+  onSwitchNext,
   onTitleChange,
   onMotionReady,
 }: ContentDetailOverlayLayerProps) {
@@ -174,6 +183,31 @@ export function ContentDetailOverlayLayer({
     onLayoutChangeRef.current?.(layerIndex, isSplit ? "split-media" : "single");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, detail, layerIndex]);
+
+  /* #89 连续浏览：媒体集最后一项继续上滑 → 切换上下文列表下一篇（仅移动端）；
+     上下文列表到底时不再切换，显示「已经到底」提示。浮层内关联内容等无
+     contextList 的入口不参与连续浏览。 */
+  const atContextEnd = Boolean(
+    entry.contextList?.length &&
+      entry.contextIndex !== undefined &&
+      entry.contextIndex >= entry.contextList.length - 1,
+  );
+
+  const handleReachEnd = useCallback(() => {
+    if (!isMobileViewport()) return;
+    const list = entry.contextList;
+    const index = entry.contextIndex;
+    if (!list || list.length === 0 || index === undefined) return;
+    if (index >= list.length - 1) return;
+    const nextItem = list[index + 1];
+    onSwitchNext?.({
+      contentId: nextItem.id,
+      zone: nextItem.zone,
+      source: entry.source,
+      contextList: list,
+      contextIndex: index + 1,
+    });
+  }, [entry, onSwitchNext]);
 
   if (status === "loading") {
     return (
@@ -307,6 +341,7 @@ export function ContentDetailOverlayLayer({
             <MediaGallery
               items={mediaItems}
               onFirstMediaSettled={(state) => setCoverReady(state === "ready")}
+              onReachEnd={handleReachEnd}
             />
           </div>
         </div>
@@ -322,6 +357,10 @@ export function ContentDetailOverlayLayer({
             coverSync
             mediaSlot="split"
             coverReady={coverReady}
+            /* #89 移动单列：可见的媒体区是行内画廊（≥1100px 才隐藏），
+               连续浏览钩子与到底提示必须接在这条路径上。 */
+            onGalleryReachEnd={handleReachEnd}
+            galleryEndHint={atContextEnd}
           />
           {sidebar}
         </div>
@@ -335,6 +374,8 @@ export function ContentDetailOverlayLayer({
         <ContentDetail
           data={{ ...content, attachments: detail.attachments, tags: detail.tags }}
           coverSync
+          onGalleryReachEnd={handleReachEnd}
+          galleryEndHint={atContextEnd}
         />
       </div>
 
