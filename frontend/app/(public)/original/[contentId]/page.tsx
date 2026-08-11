@@ -52,7 +52,16 @@ export default async function OriginalDetailPage({ params }: { params: Promise<{
     <div className="mx-auto flex w-full max-w-[1280px] gap-6 px-6 py-6">
       {/* Main content */}
       <div className="flex-1 min-w-0">
-        <ContentDetail data={{ ...content, attachments: normalized.attachments, tags: normalized.tags }} />
+        <ContentDetail
+          data={{ ...content, attachments: normalized.attachments, tags: normalized.tags }}
+          relatedFanworks={{
+            sourceContentId: content.id,
+            sourceZone: "original",
+            titleKey: "relatedFanworks.original.title",
+            createHref: `/studio/publish/fanwork?source_original_id=${content.id}`,
+            viewAllHref: `/original/${contentId}/fanworks`,
+          }}
+        />
       </div>
 
       {/* Right sidebar */}
