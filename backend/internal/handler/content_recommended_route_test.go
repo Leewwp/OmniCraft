@@ -66,6 +66,59 @@ func TestListContentsRecommendedSortRouteWithoutZone(t *testing.T) {
 	}
 }
 
+// #81 防御契约：sort=recommended 携带 category 等筛选条件时，服务端必须降级为
+// hot 排序并按该分类收敛内容；不得再走推荐管线（推荐管线无视筛选条件）。
+func TestListContentsRecommendedWithCategoryDegradesToHot(t *testing.T) {
+	router, db := setupRecommendedSortRoute(t)
+
+	now := time.Now()
+	a := seedRecommendedRouteContentCategory(t, db, "cat-film-hot50", "original", "film_tv", 50, now)
+	b := seedRecommendedRouteContentCategory(t, db, "cat-film-hot10", "original", "film_tv", 10, now.Add(1*time.Minute))
+	c := seedRecommendedRouteContentCategory(t, db, "cat-game-hot100", "original", "gaming", 100, now.Add(2*time.Minute))
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/contents?zone=original&sort=recommended&category=film_tv&page=1&page_size=20", nil)
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+
+	var body struct {
+		Contents []struct {
+			ID       int64  `json:"id"`
+			Category string `json:"category"`
+		} `json:"contents"`
+		Total int64 `json:"total"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v; body = %s", err, rec.Body.String())
+	}
+
+	if body.Total != 2 {
+		t.Fatalf("total = %d, want 2 (film_tv only, gaming leaked in); body = %s", body.Total, rec.Body.String())
+	}
+	gotIDs := make([]int64, 0, len(body.Contents))
+	for _, item := range body.Contents {
+		if item.Category != "film_tv" {
+			t.Fatalf("category = %q, want film_tv only; body = %s", item.Category, rec.Body.String())
+		}
+		gotIDs = append(gotIDs, item.ID)
+	}
+	want := []int64{a.ID, b.ID} // hot 降序，且不含更高热的 gaming 内容
+	if len(gotIDs) != len(want) {
+		t.Fatalf("ids = %v, want %v", gotIDs, want)
+	}
+	for i := range want {
+		if gotIDs[i] != want[i] {
+			t.Fatalf("ids = %v, want %v", gotIDs, want)
+		}
+	}
+	if c.ID == 0 {
+		t.Fatal("seed failed: gaming content not created")
+	}
+}
+
 func setupRecommendedSortRoute(t *testing.T) (*gin.Engine, *gorm.DB) {
 	t.Helper()
 
@@ -92,6 +145,11 @@ func setupRecommendedSortRoute(t *testing.T) (*gin.Engine, *gorm.DB) {
 
 func seedRecommendedRouteContent(t *testing.T, db *gorm.DB, title, zone string, hotScore float64, createdAt time.Time) model.ContentItem {
 	t.Helper()
+	return seedRecommendedRouteContentCategory(t, db, title, zone, "game", hotScore, createdAt)
+}
+
+func seedRecommendedRouteContentCategory(t *testing.T, db *gorm.DB, title, zone, category string, hotScore float64, createdAt time.Time) model.ContentItem {
+	t.Helper()
 
 	author := model.User{
 		Email:        title + "@example.com",
@@ -107,7 +165,7 @@ func seedRecommendedRouteContent(t *testing.T, db *gorm.DB, title, zone string, 
 		Title:       title,
 		AuthorID:    author.ID,
 		Zone:        zone,
-		Category:    "game",
+		Category:    category,
 		ContentType: "article",
 		Status:      "published",
 		IsPublic:    true,

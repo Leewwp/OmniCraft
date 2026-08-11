@@ -630,7 +630,46 @@ func (s *ContentService) ListContents(filter repository.ListContentsFilter, view
 	return contents, total, nil
 }
 
+// recommendedSortHasFilters reports whether a ListContents request carrying
+// sort=recommended also carries any narrowing filter condition. The
+// recommendation pipeline ignores those conditions, so such requests must be
+// degraded to hot ordering (see handleRecommended).
+func recommendedSortHasFilters(filter repository.ListContentsFilter) bool {
+	if filter.Category != "" || filter.ContentType != "" || len(filter.ContentTypes) > 0 || len(filter.Tags) > 0 {
+		return true
+	}
+	if filter.AuthorID != nil || filter.IPID != nil || filter.SourceOriginalID != nil {
+		return true
+	}
+	return filter.TimeRange != "" && filter.TimeRange != "all"
+}
+
+func ptrInt64String(p *int64) string {
+	if p == nil {
+		return ""
+	}
+	return strconv.FormatInt(*p, 10)
+}
+
 func (s *ContentService) handleRecommended(filter repository.ListContentsFilter, viewerID int64) ([]model.ContentItem, int64, error) {
+	// #81 防御：推荐管线无视 category/content_type/tags/author/ip 等筛选条件，
+	// 携带任何筛选的 recommended 请求一律降级为 hot 排序并记录结构化日志，
+	// 保证旧深链（如 ?category=film_tv&sort=recommended）语义正确。
+	if recommendedSortHasFilters(filter) {
+		slog.Warn("content list recommended sort degraded to hot",
+			slog.String("zone", filter.Zone),
+			slog.String("category", filter.Category),
+			slog.String("content_type", filter.ContentType),
+			slog.String("tags", strings.Join(filter.Tags, ",")),
+			slog.String("author_id", ptrInt64String(filter.AuthorID)),
+			slog.String("ip_id", ptrInt64String(filter.IPID)),
+			slog.String("source_original_id", ptrInt64String(filter.SourceOriginalID)),
+			slog.String("time_range", filter.TimeRange),
+		)
+		filter.Sort = "hot"
+		return s.ListContents(filter, viewerID)
+	}
+
 	if s.recSvc == nil {
 		filter.Sort = "hot"
 		return s.ListContents(filter, viewerID)

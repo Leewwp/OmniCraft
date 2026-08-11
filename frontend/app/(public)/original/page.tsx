@@ -5,6 +5,7 @@ import { SortSelect } from "@/components/original/SortSelect";
 import { CategoryTabs } from "@/components/original/CategoryTabs";
 import { SidebarWrapper } from "@/components/original/OriginalSidebar";
 import { normalizeContentList } from "@/lib/content";
+import { resolveDefaultSort } from "@/lib/search-filters";
 
 interface CategoryItem {
   id: number; slug: string; name_i18n?: Record<string, string>;
@@ -60,7 +61,7 @@ async function fetchStats(apiBase: string): Promise<StatsSummary | null> {
 }
 
 async function fetchContents(apiBase: string, search: Required<SearchParams>) {
-  const sort = !search.category && search.sort === "recommended" ? "recommended" : (search.sort || "hot");
+  const sort = resolveDefaultSort({ category: search.category, sort: search.sort });
   const params = new URLSearchParams({ zone: "original", sort, time_range: "all", page_size: "24" });
   if (search.category) params.set("category", search.category);
   try {
@@ -73,7 +74,7 @@ async function fetchContents(apiBase: string, search: Required<SearchParams>) {
 export default async function OriginalPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const t = await getTranslations();
   const raw = await searchParams;
-  const current = { category: raw.category || "", sort: raw.sort || "recommended" };
+  const current = { category: raw.category || "", sort: raw.sort || "" };
   const apiBase = getServerApiBase();
   const [categories, contents, stats] = await Promise.all([fetchCategories(apiBase), fetchContents(apiBase, current), fetchStats(apiBase)]);
 
