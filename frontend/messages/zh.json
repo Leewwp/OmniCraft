@@ -356,6 +356,9 @@
         "loadFailed": "媒体加载失败",
         "retry": "重试"
       }
+    },
+    "continue": {
+      "endReached": "已经到底了"
     }
   },
   "contentDetailOverlay": {
