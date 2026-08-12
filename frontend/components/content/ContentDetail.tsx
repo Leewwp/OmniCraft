@@ -457,7 +457,6 @@ export function ContentDetail({
           disabled={!user}
           onClick={() => setCollectionPickerOpen(true)}
           className={cn(isFavorited && "border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive")}
-          aria-pressed={user ? isFavorited : undefined}
         >
           <Bookmark className={cn("mr-1 h-3.5 w-3.5", isFavorited && "fill-current")} />
           {isFavorited ? t("collections.picker.actions.favorited") : t("collections.picker.actions.open")}
