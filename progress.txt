@@ -1,3 +1,21 @@
+## [2026-08-12] - Task 2 [heavy]: Invite Service Anti-Abuse Chain (#97)
+
+### What was done:
+- **Step 1/2（TDD red）**：先写 `backend/internal/service/collab_invite_service_test.go`（23 个顶层测试全矩阵）+ service stub（sentinels + 构造器 + `SendInvite` 返回 nil），`go test ./internal/service -run TestCollabInviteSend -v` 23 个全红（行为红，先修 1 个 miniredis Get 双返回值编译错）。
+- **Step 3（Redis 反滥用）**：`collab_invite_count:{inviter_id}:{YYYY-MM-DD}` 与 `collab_invite_user:{inviter_id}:{invitee_id}:{YYYY-MM-DD}`，TTL 86400s，日期为注入时钟的 Asia/Shanghai 日历日（午夜边界测试 23:59+08 → 00:00+08）；预留用单 Lua 脚本（`inviteReserveScript`：limit 检查/重复 invitee 检查都在写之前，拒绝不产生部分预留；token 存入 per-invitee key）；DB 失败后补偿用有界 Lua（`inviteCompensateScript`：计数永不为负、归零即删、per-invitee key 仅当 token 匹配才删）；Redis 不可用 fail-closed（`ErrInviteRateLimitUnavailable`，先于任何 DB 写）。
+- **Step 4（typed send）**：`MessageRepository.SendTyped(senderID, convID, body, msgType, metadata)` + `Send` 改为 `msgType="text"`/空 metadata 的包装；新增 tx 内变体 `SendTypedTx` 与 `FindOrCreateConversationTx`（复用 conversationPairAdvisoryKey 事务级 pair 锁，不开新事务）；`sendInTx` 支持 msg_type/metadata，unread_count 逻辑不变。
+- **Step 5（service 事务）**：`SendInvite` 链 = self/author/contributor/unavailable 内容与 invitee 检查 → 信誉门（复用 `minScoreForInteraction`）→ 双向拉黑（`IsBlockedByEither`）→ `accept_collab_invites` → active duplicate（pending/accepted）→ Redis 预留 → 单事务（content row `FOR UPDATE` 权威复核 + 容量 = 已确认 contributor + 非 contributor 的 active pending invitee 去重计数，超 `max_contributors_per_item` 拒）→ 建 invite（expires_at = now + invite_expire_days）→ find/create 1:1 会话 → `collab_invite` typed message（metadata 仅 5 键：invite_id/content_id/content_title/inviter_id/inviter_username，body「联合创作邀请」）→ 回填 message_id；23505 部分唯一索引冲突映射 `ErrInviteAlreadyExists`；DB 失败 best-effort 补偿 + 记日志。
+- 新文件：`backend/internal/repository/collab_invite_repo.go`（CreateInvite/UpdateMessageID/IsBlockedByEither/HasActiveInvite + Transaction/DB）；`backend/internal/service/collab_invite_service.go`；`backend/internal/service/collab_invite_service_test.go`。修改：`backend/internal/repository/message_repo.go`、`backend/internal/repository/content_repo.go`（FindByIDForUpdate/IsContributor/CountContributors/CountPendingInviteesNotContributors）。
+
+### Testing:
+- 红→绿：red 23/23 失败 → 实现后 `go test ./internal/service -run TestCollabInviteSend -v` 23/23 绿（修 1 个测试自身 bug：UnavailableContent 子测试内容 id 撞主键）。
+- 关键覆盖：owner/contributor 可邀、pending 内容可邀、9 个错误码路径、并发容量 9+2 并发 → 1 成功 1 `CONTRIBUTOR_LIMIT_REACHED`、pending 去重容量语义（已 contributor 的 pending invite 不占位）、expired 可重新邀请、typed message 豁免冷启动守卫但普通文本仍 `DM_REPLY_REQUIRED` 直至回复、Redis 不可用零 DB 写、DB 失败（plpgsql 触发器）后补偿删 key、Asia/Shanghai 午夜 key 切换、TTL 86400s。
+- 全量门：`go build ./...`、`go vet ./...`、`go test ./...`（24 包全 ok）绿；改动文件 `gofmt -l` 干净（分支上另有 6 个与本任务无关的 pre-existing 未格式化文件，未触碰）。
+
+### Notes:
+- 未改动 config.go/config.yaml/routes.go/migrations → 无需 doc-validator；未触碰前端与主 worktree。
+- 遗留（供后续任务）：`ListConversationSummaries` 最后消息 raw SQL 不含 msg_type/metadata，Task 4/5 卡片渲染需补；容器/handler/路由接入为 Task 4 范围。
+
 ## [2026-08-12] - Ticket 10（light）：相关内容块与到底提示（桌面/web）（#90）
 
 ### What was done:
