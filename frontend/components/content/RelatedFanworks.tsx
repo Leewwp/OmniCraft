@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { AlertCircle, ArrowRight } from "lucide-react";
@@ -15,6 +15,12 @@ interface RelatedFanworksProps {
   titleKey: string;
   createHref?: string;
   viewAllHref?: string;
+  /** #90 浮层栈内打开卡片（source=zone-page 压栈）；不传保持整卡 Link 跳转。 */
+  onOpenDetail?: (data: ContentCardData, trigger: HTMLElement) => void;
+  /** #90 行数据落定后回报（RelatedContents 相似内容去重用）。 */
+  onData?: (items: ContentCardData[]) => void;
+  /** #90 嵌入模式：不渲染自身 bordered 容器（由宿主 RelatedContents 提供外层单容器）。 */
+  embedded?: boolean;
 }
 
 type RowStatus = "loading" | "ready" | "error";
@@ -27,12 +33,20 @@ export function RelatedFanworks({
   titleKey,
   createHref,
   viewAllHref,
+  onOpenDetail,
+  onData,
+  embedded = false,
 }: RelatedFanworksProps) {
   const t = useTranslations();
   const [items, setItems] = useState<ContentCardData[]>([]);
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState<RowStatus>("loading");
   const [attempt, setAttempt] = useState(0);
+
+  const onDataRef = useRef(onData);
+  useEffect(() => {
+    onDataRef.current = onData;
+  }, [onData]);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,9 +57,11 @@ export function RelatedFanworks({
       )
       .then((raw) => {
         if (cancelled) return;
-        setItems(normalizeContentList(raw.contents));
+        const normalized = normalizeContentList(raw.contents);
+        setItems(normalized);
         setTotal(raw.total ?? 0);
         setStatus("ready");
+        onDataRef.current?.(normalized);
       })
       .catch(() => {
         if (!cancelled) setStatus("error");
@@ -55,12 +71,16 @@ export function RelatedFanworks({
     };
   }, [sourceContentId, attempt]);
 
+  const containerClass = embedded
+    ? undefined
+    : "rounded-lg border border-border-default bg-canvas-default p-4";
+
   if (status === "loading") {
     return (
       <div
         data-slot="related-fanworks-loading"
         aria-hidden="true"
-        className="rounded-lg border border-border-default bg-canvas-default p-4"
+        className={containerClass}
       >
         <div className="h-4 w-40 animate-pulse rounded bg-muted" />
         <div className="mt-3 flex gap-3 overflow-hidden">
@@ -77,7 +97,7 @@ export function RelatedFanworks({
       <section
         data-slot="related-fanworks"
         aria-label={t(titleKey)}
-        className="rounded-lg border border-border-default bg-canvas-default p-4"
+        className={containerClass}
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-foreground">{t(titleKey)}</h2>
@@ -104,7 +124,7 @@ export function RelatedFanworks({
       data-slot="related-fanworks"
       data-source-zone={sourceZone}
       aria-label={t(titleKey)}
-      className="rounded-lg border border-border-default bg-canvas-default p-4"
+      className={containerClass}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2
@@ -140,6 +160,7 @@ export function RelatedFanworks({
           <ContentCard
             key={item.id}
             data={item}
+            onOpenDetail={onOpenDetail}
             className="w-[148px] shrink-0 min-[701px]:w-[160px] min-[1101px]:w-[180px]"
           />
         ))}
