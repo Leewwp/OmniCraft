@@ -1,3 +1,23 @@
+## [2026-08-12] - Ticket #71 [light]: 收口查看者反应 API 与 UI 契约
+
+### What was done:
+- **后端测试补齐（`backend/internal/handler/social_reaction_test.go`）**：handler/repo/service 已具备 viewer_reaction 分离（#65 期既有），本票补齐 HTTP seam 测试：新增 `reactionPayload`/`newReactionTestDB`/`seedReactionUsers`/`newReactionRouter`（X-Test-User 头注入 auth）helper，6 个新测试：①创建（action=created、viewer_reaction=like、counts like=1/dislike=0、GET 回读一致）；②重复点击取消（action=removed、viewer_reaction=null、counts 归零、回读中性）；③like↔dislike 原子切换（action=updated、DB 行数恒为 1 互斥、counts 无不可能组合、切换回来再验证）；④匿名 POST 401；⑤信誉分 <3 → 403（reputation=2 用户）；⑥GET 校验错误路径 4 例（缺 target_type/缺 target_id/非法 target_id/非法 target_type → 400）。
+- **前端 `frontend/components/social/ReactionBar.tsx`**：①新增 `ReactionSnapshot` 类型与 `applySnapshot`，GET 回读与 POST 响应统一对账 `counts`+`viewer_reaction`（服务端快照权威，切换/取消后计数与状态不可能组合）；②like/dislike 按钮加 `aria-pressed`（语义化选中状态，可被测试断言）；③匿名不触发 GET（无 user 不 fetch），仍只渲染公开聚合。
+- **前端单测 `frontend/tests/reaction-bar-viewer.test.tsx`（5 例）**：匿名只见聚合 + 零 viewer GET + 按钮 disabled + aria-pressed=false；登录后 viewer_reaction=like 回读回显 + 恰好 1 次 GET；重复点击取消（POST body 断言 + 服务端快照对账）；原子切换 like→dislike；失败回滚（500 → 状态与计数复原）。
+- **e2e `frontend/e2e/t71-reaction-viewer.mock.spec.ts`（3 例，zh-CN）**：有状态 mock 反应 store（GET/POST 原子语义与后端一致）：匿名桌面（聚合 5/2、按钮 disabled、无 viewer GET、`web-t71-reaction-anon-desktop.png`）；登录（viewer_reaction=like 回显 → reload 仍 like（`web-t71-reaction-echo.png`）→ 取消回中性 → 切换 dislike（`web-t71-reaction-switch.png`）→ 再 reload 仍 dislike）；匿名移动 375×844（`web-t71-reaction-anon-mobile.png`）。
+- **契约修正**：`e2e/content-series.mock.spec.ts` 与 `e2e/t90-related-contents.mock.spec.ts` 中过期的 `user_reaction: null` mock 键改为 `viewer_reaction: null`（与后端真实契约一致）。
+
+### Testing:
+- 后端：`go build ./... && go vet ./... && go test ./...` 全绿（34 包 ok）；reaction 测试 10/10（2 既有 + 8 新增）。
+- 前端：`npm run lint`（tsc strict）干净；`node scripts/run-tests.mjs unit` 451 全绿（26 native + 425 TS，含新 5 例）；`npm run build` 成功。
+- e2e：`npx playwright test --config=playwright.mocked.config.ts t71-reaction-viewer` 3/3 绿；改动过的 `content-series.mock` + `t90-related-contents.mock` 复跑 9/9 绿。
+- 截图 4 张（`screenshots/web-t71-reaction-*.png`，`git add -f` 入库，同 #97 Task 8 先例）。
+
+### Notes:
+- 无 config/routes/migrations 改动 → 无 doc-validator、无 Go 门额外要求；未触碰 #69（ContentDetail/SeriesNav）、#72（筛选/排序）、#73/#74/#75/#76（migrations/collections/favorites）预约文件。`ContentDetail.tsx` 仅读取确认既有 props 契约（`contentId`/`initialLikes`/`initialDislikes`），未修改。
+- 分支 `web/t71`（基于本地 main，领先 origin/main 恰 5 个 docs commit），3 个 commit 已 push；未 close issue、未合并 main、未改 AGENTS.md 注册表。
+- 遗留：screenshots 目录整体 gitignore，新 ticket 截图沿用既有 `-f` 强制入库惯例；图片无法目检（当前模型不支持图像输入），视觉验证以 e2e 语义断言（aria-pressed/计数/disabled）为准。
+
 ## [2026-08-12] - Task 8（closure）：全量验证、浏览器验证与计划收口（#97）
 
 ### What was done:
