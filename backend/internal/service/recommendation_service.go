@@ -201,7 +201,7 @@ func (s *RecommendationService) buildUserProfile(ctx context.Context, userID int
 		slog.Error("[rec] browse history query failed", "error", err)
 	}
 
-	// #74: 收藏信号只来自收藏成员关系（活动收藏集），不再读取旧 favorites 表。
+	// 收藏信号只来自收藏成员关系（活动收藏集）。
 	var favRows []embeddingRow
 	if err := s.db.Raw(`
 		SELECT CAST(ce.embedding AS text) AS embedding

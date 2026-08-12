@@ -210,26 +210,3 @@ func (r *SocialRepository) CountReports(targetType string, targetID int64) (int6
 	err := r.db.Model(&model.Report{}).Where("target_type = ? AND target_id = ?", targetType, targetID).Count(&count).Error
 	return count, err
 }
-
-func (r *SocialRepository) CreateFavorite(userID, contentID int64) error {
-	fav := model.Favorite{UserID: userID, ContentItemID: contentID}
-	return r.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&fav).Error
-}
-
-func (r *SocialRepository) DeleteFavorite(userID, contentID int64) error {
-	return r.db.Where("user_id = ? AND content_item_id = ?", userID, contentID).
-		Delete(&model.Favorite{}).Error
-}
-
-func (r *SocialRepository) ListFavoritesByUser(userID int64, page, pageSize int, contentType string) ([]model.Favorite, int64, error) {
-	var favs []model.Favorite
-	var total int64
-	q := r.db.Model(&model.Favorite{}).Where("user_id = ?", userID)
-	if contentType != "" {
-		q = q.Joins("JOIN content_items ON content_items.id = favorites.content_item_id").Where("content_items.content_type = ?", contentType)
-	}
-	q.Count(&total)
-	offset := (page - 1) * pageSize
-	err := q.Order("favorites.created_at DESC").Offset(offset).Limit(pageSize).Find(&favs).Error
-	return favs, total, err
-}
