@@ -99,7 +99,7 @@ This plan also depends on the publish-form source fields from `2026-06-30-omnicr
 - Modify: `backend/config.yaml`
 - Test: backend migration/model tests
 
-- [ ] **Step 1: Re-check migration number**
+- [x] **Step 1: Re-check migration number**
 
 Run:
 
@@ -109,7 +109,7 @@ ls backend/migrations/ | sort | tail -10
 
 Expected number is `065_collaboration_invites.sql`: media metadata owns `063`, source-linkage owns `064`, and this plan lands before IP history `066` and favorites drop `067`. If `065_` is occupied by an unrelated migration at implementation time, stop and update the active registry, both community plans/specs and all open tickets before continuing.
 
-- [ ] **Step 2: Write failing migration/model tests**
+- [x] **Step 2: Write failing migration/model tests**
 
 Assert:
 
@@ -125,12 +125,12 @@ ON collaboration_invites (content_id, invitee_id)
 WHERE status IN ('pending', 'accepted');
 ```
 
-- [ ] **Step 3: Implement migration**
+- [x] **Step 3: Implement migration**
 
 Do not create a normal `UNIQUE (content_id, invitee_id)` constraint; expired invites must allow re-invite.
 Include a `-- ROLLBACK:` comment block for local-test rollback, covering `collaboration_invites`, `users.accept_collab_invites`, and `messages.msg_type/metadata`. Do not automatically drop these fields in shared environments after invites/messages may exist.
 
-- [ ] **Step 4: Add config**
+- [x] **Step 4: Add config**
 
 Add:
 
@@ -155,7 +155,7 @@ collaboration:
 
 Do not add collaboration settings to `SaveOverride` or admin config. Expose only `max_invitees_per_publish` through `GET /api/v1/config/public` as `collaboration.max_invitees_per_publish`; daily limits, expiry and contributor capacity remain server-only. Add allowlist tests proving no other collaboration field leaks.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run:
 
@@ -604,7 +604,7 @@ node --import tsx --test tests/publish-collab-picker.test.tsx
 - Modify if generated: `architecture.md`
 - Screenshot outputs listed in Step 4.
 
-- [ ] **Step 1: Run backend gates**
+- [x] **Step 1: Run backend gates**
 
 Run:
 
@@ -618,7 +618,7 @@ go vet ./...
 go build ./...
 ```
 
-- [ ] **Step 2: Run frontend gates**
+- [x] **Step 2: Run frontend gates**
 
 Run:
 
@@ -630,7 +630,7 @@ npm run build
 npx playwright test e2e/collab-invite-flow.spec.ts
 ```
 
-- [ ] **Step 3: Run doc-validator**
+- [x] **Step 3: Run doc-validator**
 
 Because this plan changes `config.go`, migrations, and routes:
 
@@ -639,7 +639,7 @@ cd tools/doc-validator
 go run . --fix
 ```
 
-- [ ] **Step 4: Browser verification**
+- [x] **Step 4: Browser verification**
 
 1. Creator publishes content with a selected collaborator.
 2. Invitee opens `/messages` and sees pending invite card.
@@ -656,7 +656,7 @@ go run . --fix
    - `screenshots/community-collab-settings-desktop.png`
    - `screenshots/community-collab-settings-mobile.png`
 
-- [ ] **Step 5: Close the plan without collapsing checkpoints**
+- [x] **Step 5: Close the plan without collapsing checkpoints**
 
 Confirm Task 1–7 checkpoint commits are present, stage only Task 8 evidence/generated-doc/tracking files that actually changed, update issue #97 with verification evidence, and close it. Do not restage the entire feature or create a second aggregate implementation commit.
 
@@ -664,22 +664,22 @@ Confirm Task 1–7 checkpoint commits are present, stage only Task 8 evidence/ge
 
 ## Plan Self-Check
 
-- [ ] Dependency on message-system correction is explicit.
-- [ ] Dependency on source-linkage `PublishForm.tsx` changes is explicit.
-- [ ] Migration number is `065`, executed after source-linkage `064`.
-- [ ] Anti-abuse chain lists all eight ordered stages and exact error codes.
-- [ ] Anti-abuse chain also rejects self/author/existing-contributor/unavailable-user/unavailable-content/capacity cases.
-- [ ] Redis keys and TTL are specified.
-- [ ] Redis daily key date uses Asia/Shanghai and tests cover midnight boundaries.
-- [ ] Redis reservation and DB failure compensation behavior is specified and tested.
-- [ ] Redis quota reservation and compensation are atomic Lua operations with concurrency tests.
-- [ ] Accept path uses independent idempotent contributor insert and does not increment `pr_count`.
-- [ ] Invite metadata is explicitly safe and minimal.
-- [ ] User setting spans migration, model, PATCH, auth/me, AuthContext, and settings UI.
-- [ ] `CollabUserPicker` uses existing `GET /api/v1/users/search?q=<query>&limit=8` and only safe user fields.
-- [ ] Scheduler expiration and re-invite partial unique index are both covered.
-- [ ] Scheduler expiration uses a transaction-scoped leader lock across replicas.
-- [ ] Publish UI enforces the configured selection cap and bounded concurrency.
-- [ ] Public config exposes only `max_invitees_per_publish`; picker receives it as `maxSelected`, and server-side capacity checks remain authoritative.
-- [ ] `main.go` stores the collaboration expiry scheduler instance and calls `Stop()` during graceful shutdown.
-- [ ] Browser verification covers pending, accepted, declined, expired, and settings states.
+- [x] Dependency on message-system correction is explicit.
+- [x] Dependency on source-linkage `PublishForm.tsx` changes is explicit.
+- [x] Migration number is `065`, executed after source-linkage `064`.
+- [x] Anti-abuse chain lists all eight ordered stages and exact error codes.
+- [x] Anti-abuse chain also rejects self/author/existing-contributor/unavailable-user/unavailable-content/capacity cases.
+- [x] Redis keys and TTL are specified.
+- [x] Redis daily key date uses Asia/Shanghai and tests cover midnight boundaries.
+- [x] Redis reservation and DB failure compensation behavior is specified and tested.
+- [x] Redis quota reservation and compensation are atomic Lua operations with concurrency tests.
+- [x] Accept path uses independent idempotent contributor insert and does not increment `pr_count`.
+- [x] Invite metadata is explicitly safe and minimal.
+- [x] User setting spans migration, model, PATCH, auth/me, AuthContext, and settings UI.
+- [x] `CollabUserPicker` uses existing `GET /api/v1/users/search?q=<query>&limit=8` and only safe user fields.
+- [x] Scheduler expiration and re-invite partial unique index are both covered.
+- [x] Scheduler expiration uses a transaction-scoped leader lock across replicas.
+- [x] Publish UI enforces the configured selection cap and bounded concurrency.
+- [x] Public config exposes only `max_invitees_per_publish`; picker receives it as `maxSelected`, and server-side capacity checks remain authoritative.
+- [x] `main.go` stores the collaboration expiry scheduler instance and calls `Stop()` during graceful shutdown.
+- [x] Browser verification covers pending, accepted, declined, expired, and settings states.
