@@ -27,6 +27,7 @@ export interface User {
   role: string;
   is_banned: boolean;
   email_verified_at: string | null;
+  accept_collab_invites: boolean;
   created_at: string;
 }
 
