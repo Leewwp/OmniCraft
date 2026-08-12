@@ -29,6 +29,32 @@
 - 工作树中 #73 未提交的 progress.txt 残留已 `git checkout --` 还原（内容与 `web/t73` commit 10185ca 完全一致，无信息丢失）；t87 截图残留未触碰、未暂存。
 - 未 close issue、未合并 main、未改 AGENTS.md 注册表、未动 routes.go/migrations（doc-validator 无需运行，但 verify 门已含 --check）。
 
+## [2026-08-13] - Issue #73 [heavy]: 建立独立 IP 访问历史与登录合并
+
+### What was done:
+- **migration `backend/migrations/066_ip_visit_history.sql`**：`ip_visit_history(user_id, ip_id, visited_at)` 复合主键，两个 FK 均 `ON DELETE CASCADE`（users/ips），`idx_ip_visit_history_user_recent (user_id, visited_at DESC, ip_id DESC)` 稳定排序索引；forward-only + 本地测试用 `-- ROLLBACK:` 注释；`065` 已存在且 `066` 未占用（H1 前提确认）。
+- **后端**：`model/ip_visit_history.go`（复合主键模型）；`repository/ip_visit_history_repo.go`（RecordVisit 事务内先查公开性再 upsert、MergeVisits 单事务验证+upsert+读回最近列表、ListRecent 只 join `status='approved'` 的 IP，全部 GORM 参数化）；`handler/ip_visit_history.go`（GET 最近六项 `{items, limit}`、PUT 服务端时间幂等 204/404 IP_NOT_FOUND/500 IP_VISIT_RECORD_FAILED、POST merge 全量先校验→折叠重复取最新→未来时间 clamp→事务 upsert→`{accepted_ip_ids, discarded_ip_ids, items}`，400 INVALID_IP_VISIT_MERGE 不写库、500 IP_VISIT_MERGE_FAILED 脱敏）；`router/routes.go` 三条路由挂 authReq 的 `me` 组。
+- **前端**：`lib/ip-visit-history.ts` 收敛旧 `recent_ips` 兼容解析/去重/六项 cap/record/merge/list；`IPCard.tsx` 点击改走 `recordIpVisit`（先写本机，已登录时 fire-and-forget PUT）；`HomePageClient.tsx` 列表改经 `loadRecentIps`（登录读 server，失败/空则回退本机）；`AuthContext.tsx` 未认证→认证迁移时触发一次幂等 merge（失败保留本机、仅下次迁移重试，401 不循环），`ipHistoryVersion` 通知列表重读；无新增 i18n 字符串（复用 `home.recentIps`）。
+- **e2e**：`frontend/e2e/t73-ip-visit-history.mock.spec.ts`（4 例：匿名去重+六项 cap、登录 merge 只清理 acknowledged IDs、merge 500 保留→重试成功清理、移动端列表可见）；截图 7 张 `screenshots/web-t73-*.png`（mocked 4 + 真实后端 journey 3）。
+
+### Red → green 证据：
+- H1：`TestIPVisitHistoryMigration` 首跑红：`read migration ../../migrations/066_ip_visit_history.sql: no such file or directory` → 建 migration 后绿（含幂等双应用、PK/FK cascade/索引断言 + GREATEST upsert + 级联删除行为）。
+- H2：`ip_visit_history_test.go` 首跑红（`undefined: NewIPVisitHistoryHandler`）；router 契约测试首跑红（缺 3 条 route 源码契约）→ 实现后全绿（12 个 HTTP seam 测试：record 幂等刷新、未知/非公开 IP 404、六项稳定排序+用户隔离、同时间戳 ip_id DESC 平局、merge clamp+重复折叠、失效 IP discarded、7 类 payload 校验不写库、空数组合法、DB 失败 500 脱敏不暴露原始错误）。
+- H3：`tests/ip-visit-history.test.ts` 首跑 10/10 红（模块不存在）→ 实现后 10/10 绿（匿名去重/cap、匿名零 API 调用、登录 PUT 记录、PUT 失败保留本机、200 只清 acknowledged、失败保留、无本地/无认证 no-op、匿名读本机、登录读 server、失败/空回退本机）。
+- 真实后端 journey（本地 18080 + dev DB 手灌 066）：9/9 PASS（8 卡点击→本机 cap 6 最新在前、重复访问置顶不增长、登录 merge 后本机清空、签入列表读 server 6 项、API 侧 6 条合并记录、public summary 形状）。
+
+### Testing:
+- 后端：`go build ./... && go vet ./... && go test ./...` 全绿；migration 门 `TestPostgresEmptyToLatest`/`TestPostgresNoRerun`/`TestPostgresHistoricalFixtureToLatest`/`TestHistoricalFixtureValidation` 全绿（066 自动纳入空库与 050 fixture 升级路径）。
+- 前端：`npm run lint`（tsc strict）干净、`npm run test:unit` 455/455 绿（含新 10 例）、`npm run build` 成功、`lint:ui` 通过。
+- e2e：mocked `t73-ip-visit-history` 4/4 绿；`bash scripts/verify-project.sh --full` 71/71 全绿（首跑 2 失败为环境冲突：本人占用的 18080 与 contract-smoke 自起后端 EADDRINUSE、t87 既有 flake 在 main 上同样失败；清理进程后复跑全绿）。
+- doc-validator `go run . --fix`：architecture.md 新增 3 条路由、docs/reference/schema.md 新增 `ip_visit_history` 表段。
+
+### Notes:
+- 未触碰 #74（collections）/ #75/#76（favorites 遗留）相关文件；未回退 #72 的 SortSelect 改动（基于 main 工作）；`HomePageClient.tsx`/`IPCard.tsx` 仅做计划要求的 recent_ips 收敛。
+- 分支 `web/t73`（独立 worktree `../omnicraft-t73`），单提交已 push；未 close issue、未合并 main、未改 AGENTS.md 注册表。
+- 遗留：dev 库（本地）schema_migrations ledger 与 migrate runner 不兼容（历史遗留），066 经一次性脚本手灌 dev 库供真实 journey，生产/测试门走 ephemeral PG 完整迁移路径；本地 journey 的种子用户/IP 仍在 dev 库（可复用）。图片无法目检（当前模型不支持图像输入），视觉验证以 e2e DOM 断言 + journey 程序化断言为准。
+
+
 ## [2026-08-12] - Ticket #71 [light]: 收口查看者反应 API 与 UI 契约
 
 ### What was done:

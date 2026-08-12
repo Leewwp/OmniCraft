@@ -395,6 +395,14 @@
 | `ip_id` | `BIGINT` | NOT NULL -> ips.id | ip_id |
 | `tag` | `VARCHAR(50)` | NOT NULL | tag |
 
+### ip_visit_history
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `ip_id` | `BIGINT` | NOT NULL -> ips.id | ip_id |
+| `visited_at` | `TIMESTAMPTZ` | NOT NULL | visited_at |
+
 ### ips
 
 | 列名 | 类型 | 约束 | 说明 |

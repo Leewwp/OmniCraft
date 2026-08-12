@@ -269,6 +269,11 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	me.GET("/history", histHandler.GetHistory)
 	me.DELETE("/history", histHandler.ClearHistory)
 
+	ipVisitHistoryHandler := handler.NewIPVisitHistoryHandler(db)
+	me.GET("/ip-visits", ipVisitHistoryHandler.ListRecent)
+	me.PUT("/ip-visits/:ipId", ipVisitHistoryHandler.RecordVisit)
+	me.POST("/ip-visits/merge", ipVisitHistoryHandler.MergeVisits)
+
 	discHandler := handler.NewDiscussionHandler(db)
 	ips.GET("/:id/discussions", optAuth, discHandler.ListDiscussions)
 	ips.POST("/:id/discussions", authReq, discHandler.CreateDiscussion)

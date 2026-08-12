@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { recordIpVisit } from "@/lib/ip-visit-history";
 
 interface IPCardData {
   id: number;
@@ -22,15 +23,8 @@ interface IPCardProps {
   className?: string;
 }
 
-interface RecentIPItem { id: number; name: string }
-const RECENT_IP_KEY = "recent_ips";
-
-function saveRecentIP(item: RecentIPItem) {
-  if (typeof window === "undefined") return;
-  const raw = localStorage.getItem(RECENT_IP_KEY);
-  const current: RecentIPItem[] = raw ? (JSON.parse(raw) as RecentIPItem[]) : [];
-  const deduped = [item, ...current.filter((it) => it.id !== item.id)].slice(0, 6);
-  localStorage.setItem(RECENT_IP_KEY, JSON.stringify(deduped));
+function recordVisit(data: IPCardData) {
+  recordIpVisit({ id: data.id, name: data.name });
 }
 
 export function IPCard({ data, variant = "browse", className }: IPCardProps) {
@@ -41,7 +35,7 @@ export function IPCard({ data, variant = "browse", className }: IPCardProps) {
     return (
       <Link
         href={`/ip/${data.id}`}
-        onClick={() => saveRecentIP({ id: data.id, name: data.name })}
+        onClick={() => recordVisit(data)}
         aria-label={`${t('ip.enterDetail')}: ${data.name}`}
         className={cn(
           "group block w-full min-w-0 overflow-hidden rounded-lg border border-border bg-card shadow-[var(--elevation-1)] transition-[border-color,box-shadow,background-color] duration-150 hover:border-[var(--border-strong)] hover:shadow-[var(--elevation-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:shadow-[var(--elevation-1)] motion-reduce:transition-none",
@@ -85,7 +79,7 @@ export function IPCard({ data, variant = "browse", className }: IPCardProps) {
   return (
     <Link
       href={`/ip/${data.id}`}
-      onClick={() => saveRecentIP({ id: data.id, name: data.name })}
+      onClick={() => recordVisit(data)}
       aria-label={`${t('ip.enterDetail')}: ${data.name}`}
       className={cn(
         "group flex min-w-64 flex-col gap-3 rounded-lg border border-border bg-card p-3 shadow-[var(--elevation-1)] transition-[border-color,box-shadow,background-color] duration-150 hover:border-[var(--border-strong)] hover:bg-canvas-subtle hover:shadow-[var(--elevation-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none",
