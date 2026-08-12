@@ -297,7 +297,7 @@ go test ./internal/service -run TestCollabInviteSend -v
 - Test: `backend/internal/service/collab_invite_service_test.go`
 - Test: `backend/internal/pkg/scheduler/collab_invite_expiry_test.go`
 
-- [ ] **Step 1: Write failing response tests**
+- [x] **Step 1: Write failing response tests**
 
 Cover:
 
@@ -311,7 +311,7 @@ Cover:
 - concurrent accepts never exceed `max_contributors_per_item`
 - accept returns `CONTRIBUTOR_LIMIT_REACHED` and leaves the invite pending when no slot remains
 
-- [ ] **Step 2: Implement accept transaction**
+- [x] **Step 2: Implement accept transaction**
 
 Use:
 
@@ -323,22 +323,22 @@ Use:
 6. update status to `accepted`, set `responded_at`
 7. return latest DTO
 
-- [ ] **Step 3: Implement decline transaction**
+- [x] **Step 3: Implement decline transaction**
 
 Lock row, verify invitee and pending status, update status to `declined`, set `responded_at`.
 
-- [ ] **Step 4: Add expiry scheduler tests**
+- [x] **Step 4: Add expiry scheduler tests**
 
 Scheduler marks `pending` invites older than configured days as `expired`. It does not change accepted or declined invites.
 Tests must also prove the scheduler computes day boundaries using the configured expiration duration, `Stop()` cancels the pending timer callback, and two scheduler instances cannot expire the same batch concurrently.
 
-- [ ] **Step 5: Implement expiry scheduler**
+- [x] **Step 5: Implement expiry scheduler**
 
 Use the same `time.AfterFunc` self-rescheduling approach as browse history cleanup unless a shared helper already exists by implementation time.
 Expose `Stop()` on the scheduler and make it idempotent.
 Acquire a transaction-scoped PostgreSQL advisory leader lock before the expiry update. A replica that cannot acquire the lock records a skipped run and reschedules normally.
 
-- [ ] **Step 6: Wire scheduler**
+- [x] **Step 6: Wire scheduler**
 
 In `backend/cmd/server/main.go`, save the instance:
 
@@ -355,7 +355,7 @@ collabInviteExpiry.Stop()
 
 Do not start this scheduler as an anonymous temporary value; otherwise the process cannot stop its timer on shutdown.
 
-- [ ] **Step 7: Verify**
+- [x] **Step 7: Verify**
 
 Run:
 

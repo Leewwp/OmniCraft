@@ -117,6 +117,19 @@ func (r *ContentRepository) CountPendingInviteesNotContributors(contentID int64)
 	return count, err
 }
 
+// InsertContributorIfAbsent records a collaboration-created contributor row
+// with pr_count=0 and the caller-supplied first_at. ON CONFLICT DO NOTHING
+// makes the accept idempotent: an existing row keeps its pr_count and first_at
+// untouched. pr_count is deliberately never incremented here — only merged
+// pull requests do that (PRRepository.UpsertContributor).
+func (r *ContentRepository) InsertContributorIfAbsent(contentID, userID int64, now time.Time) error {
+	return r.db.Exec(`
+		INSERT INTO content_contributors (content_item_id, user_id, pr_count, first_at)
+		VALUES (?, ?, 0, ?)
+		ON CONFLICT (content_item_id, user_id) DO NOTHING
+	`, contentID, userID, now).Error
+}
+
 func (r *ContentRepository) BatchGetByIDs(ids []int64) ([]model.ContentItem, error) {
 	if len(ids) == 0 {
 		return nil, nil

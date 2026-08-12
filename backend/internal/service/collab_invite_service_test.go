@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -692,4 +693,283 @@ func TestCollabInviteSendDateKeysUseAsiaShanghaiMidnight(t *testing.T) {
 	require.NoError(t, gerr)
 	require.Equal(t, "1", got)
 	require.True(t, mr.Exists("collab_invite_user:1:3:2026-08-12"))
+}
+
+func seedCollabInviteWithExpiresAt(t *testing.T, db *gorm.DB, id, contentID, inviterID, inviteeID int64, status string, expiresAt time.Time) {
+	t.Helper()
+	require.NoError(t, db.Exec(`
+		INSERT INTO collaboration_invites (id, content_id, inviter_id, invitee_id, status, expires_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, id, contentID, inviterID, inviteeID, status, expiresAt).Error)
+}
+
+func collabInviteStatusOf(t *testing.T, db *gorm.DB, id int64) string {
+	t.Helper()
+	var statuses []string
+	require.NoError(t, db.Model(&model.CollabInvite{}).Where("id = ?", id).Pluck("status", &statuses).Error)
+	require.Len(t, statuses, 1)
+	return statuses[0]
+}
+
+func collabContributorCount(t *testing.T, db *gorm.DB, contentID, userID int64) int64 {
+	t.Helper()
+	var count int64
+	require.NoError(t, db.Model(&model.ContentContributor{}).
+		Where("content_item_id = ? AND user_id = ?", contentID, userID).
+		Count(&count).Error)
+	return count
+}
+
+func seedCollabAcceptBase(t *testing.T, svc *CollabInviteService, db *gorm.DB) {
+	t.Helper()
+	seedCollabUser(t, db, 1, "alice", 10, false, nil, nil)
+	seedCollabUser(t, db, 2, "bob", 10, false, nil, nil)
+	seedCollabContent(t, db, 100, 1, "published", nil, "")
+	seedCollabInviteWithExpiresAt(t, db, 500, 100, 1, 2, "pending", collabInviteFixedNow.Add(7*24*time.Hour))
+}
+
+func TestCollabInviteAcceptNonInviteeRejected(t *testing.T) {
+	svc, db, _ := setupCollabInviteServiceTest(t)
+	seedCollabAcceptBase(t, svc, db)
+	seedCollabUser(t, db, 3, "carol", 10, false, nil, nil)
+
+	_, err := svc.AcceptInvite(context.Background(), 500, 3)
+	require.ErrorIs(t, err, ErrInviteNotInvitee)
+	require.Equal(t, "pending", collabInviteStatusOf(t, db, 500))
+	require.EqualValues(t, 0, collabContributorCount(t, db, 100, 2))
+}
+
+func TestCollabInviteDeclineNonInviteeRejected(t *testing.T) {
+	svc, db, _ := setupCollabInviteServiceTest(t)
+	seedCollabAcceptBase(t, svc, db)
+	seedCollabUser(t, db, 3, "carol", 10, false, nil, nil)
+
+	_, err := svc.DeclineInvite(context.Background(), 500, 3)
+	require.ErrorIs(t, err, ErrInviteNotInvitee)
+	require.Equal(t, "pending", collabInviteStatusOf(t, db, 500))
+}
+
+func TestCollabInviteAcceptPendingSucceeds(t *testing.T) {
+	svc, db, _ := setupCollabInviteServiceTest(t)
+	seedCollabAcceptBase(t, svc, db)
+
+	invite, err := svc.AcceptInvite(context.Background(), 500, 2)
+	require.NoError(t, err)
+	require.NotNil(t, invite)
+	require.Equal(t, int64(500), invite.ID)
+	require.Equal(t, model.CollabInviteStatusAccepted, invite.Status)
+	require.NotNil(t, invite.RespondedAt)
+	require.True(t, invite.RespondedAt.Equal(collabInviteFixedNow))
+
+	require.Equal(t, "accepted", collabInviteStatusOf(t, db, 500))
+	require.EqualValues(t, 1, collabContributorCount(t, db, 100, 2))
+	var prCount int
+	var firstAt time.Time
+	require.NoError(t, db.Raw(`
+		SELECT pr_count, first_at FROM content_contributors
+		WHERE content_item_id = ? AND user_id = ?
+	`, 100, 2).Row().Scan(&prCount, &firstAt))
+	require.Zero(t, prCount)
+	require.True(t, firstAt.Equal(collabInviteFixedNow))
+}
+
+func TestCollabInviteDeclinePendingSucceeds(t *testing.T) {
+	svc, db, _ := setupCollabInviteServiceTest(t)
+	seedCollabAcceptBase(t, svc, db)
+
+	invite, err := svc.DeclineInvite(context.Background(), 500, 2)
+	require.NoError(t, err)
+	require.NotNil(t, invite)
+	require.Equal(t, int64(500), invite.ID)
+	require.Equal(t, model.CollabInviteStatusDeclined, invite.Status)
+	require.NotNil(t, invite.RespondedAt)
+	require.True(t, invite.RespondedAt.Equal(collabInviteFixedNow))
+
+	require.Equal(t, "declined", collabInviteStatusOf(t, db, 500))
+	require.EqualValues(t, 0, collabContributorCount(t, db, 100, 2))
+}
+
+func TestCollabInviteAcceptExpiredRejected(t *testing.T) {
+	svc, db, _ := setupCollabInviteServiceTest(t)
+	seedCollabAcceptBase(t, svc, db)
+	require.NoError(t, db.Exec(`
+		UPDATE collaboration_invites SET expires_at = ?
+		WHERE id = 500
+	`, collabInviteFixedNow).Error)
+
+	_, err := svc.AcceptInvite(context.Background(), 500, 2)
+	require.ErrorIs(t, err, ErrInviteExpired)
+	require.Equal(t, "pending", collabInviteStatusOf(t, db, 500))
+	require.EqualValues(t, 0, collabContributorCount(t, db, 100, 2))
+}
+
+func TestCollabInviteDeclineExpiredRejected(t *testing.T) {
+	svc, db, _ := setupCollabInviteServiceTest(t)
+	seedCollabAcceptBase(t, svc, db)
+	require.NoError(t, db.Exec(`
+		UPDATE collaboration_invites SET expires_at = ?
+		WHERE id = 500
+	`, collabInviteFixedNow).Error)
+
+	_, err := svc.DeclineInvite(context.Background(), 500, 2)
+	require.ErrorIs(t, err, ErrInviteExpired)
+	require.Equal(t, "pending", collabInviteStatusOf(t, db, 500))
+}
+
+func TestCollabInviteAcceptDeclineNotPendingStatusesRejected(t *testing.T) {
+	svc, db, _ := setupCollabInviteServiceTest(t)
+	seedCollabAcceptBase(t, svc, db)
+
+	t.Run("accepted invite cannot be accepted again", func(t *testing.T) {
+		require.NoError(t, db.Exec(`
+			UPDATE collaboration_invites SET status = 'accepted', responded_at = NOW()
+			WHERE id = 500
+		`).Error)
+		_, err := svc.AcceptInvite(context.Background(), 500, 2)
+		require.ErrorIs(t, err, ErrInviteNotPending)
+		require.Equal(t, "accepted", collabInviteStatusOf(t, db, 500))
+	})
+
+	t.Run("declined invite cannot be accepted", func(t *testing.T) {
+		require.NoError(t, db.Exec(`
+			UPDATE collaboration_invites SET status = 'declined', responded_at = NOW()
+			WHERE id = 500
+		`).Error)
+		_, err := svc.AcceptInvite(context.Background(), 500, 2)
+		require.ErrorIs(t, err, ErrInviteNotPending)
+		require.Equal(t, "declined", collabInviteStatusOf(t, db, 500))
+	})
+
+	t.Run("accepted invite cannot be declined", func(t *testing.T) {
+		require.NoError(t, db.Exec(`
+			UPDATE collaboration_invites SET status = 'accepted', responded_at = NOW()
+			WHERE id = 500
+		`).Error)
+		_, err := svc.DeclineInvite(context.Background(), 500, 2)
+		require.ErrorIs(t, err, ErrInviteNotPending)
+		require.Equal(t, "accepted", collabInviteStatusOf(t, db, 500))
+	})
+
+	t.Run("declined invite cannot be declined again", func(t *testing.T) {
+		require.NoError(t, db.Exec(`
+			UPDATE collaboration_invites SET status = 'declined', responded_at = NOW()
+			WHERE id = 500
+		`).Error)
+		_, err := svc.DeclineInvite(context.Background(), 500, 2)
+		require.ErrorIs(t, err, ErrInviteNotPending)
+		require.Equal(t, "declined", collabInviteStatusOf(t, db, 500))
+	})
+}
+
+func TestCollabInviteAcceptExistingContributorIdempotent(t *testing.T) {
+	svc, db, _ := setupCollabInviteServiceTest(t)
+	seedCollabAcceptBase(t, svc, db)
+	oldFirstAt := collabInviteFixedNow.Add(-10 * 24 * time.Hour)
+	require.NoError(t, db.Exec(`
+		INSERT INTO content_contributors (content_item_id, user_id, pr_count, first_at)
+		VALUES (100, 2, 1, ?)
+	`, oldFirstAt).Error)
+
+	invite, err := svc.AcceptInvite(context.Background(), 500, 2)
+	require.NoError(t, err)
+	require.Equal(t, model.CollabInviteStatusAccepted, invite.Status)
+	require.Equal(t, "accepted", collabInviteStatusOf(t, db, 500))
+	require.EqualValues(t, 1, collabContributorCount(t, db, 100, 2))
+
+	var prCount int
+	var firstAt time.Time
+	require.NoError(t, db.Raw(`
+		SELECT pr_count, first_at FROM content_contributors
+		WHERE content_item_id = ? AND user_id = ?
+	`, 100, 2).Row().Scan(&prCount, &firstAt))
+	require.Equal(t, 1, prCount)
+	require.True(t, firstAt.Equal(oldFirstAt))
+}
+
+func TestCollabInviteAcceptLimitReachedLeavesInvitePending(t *testing.T) {
+	svc, db, _ := setupCollabInviteServiceTest(t)
+	seedCollabAcceptBase(t, svc, db)
+	for i := 3; i <= 12; i++ {
+		seedCollabUser(t, db, int64(i), fmt.Sprintf("contrib-%d", i), 10, false, nil, nil)
+		seedCollabContributor(t, db, 100, int64(i))
+	}
+
+	_, err := svc.AcceptInvite(context.Background(), 500, 2)
+	require.ErrorIs(t, err, ErrContributorLimitReached)
+	require.Equal(t, "pending", collabInviteStatusOf(t, db, 500))
+	require.EqualValues(t, 0, collabContributorCount(t, db, 100, 2))
+	var responded []sql.NullTime
+	require.NoError(t, db.Model(&model.CollabInvite{}).Where("id = ?", 500).Pluck("responded_at", &responded).Error)
+	require.Len(t, responded, 1)
+	require.False(t, responded[0].Valid)
+}
+
+func TestCollabInviteAcceptConcurrentCapacity(t *testing.T) {
+	svc, db, _ := setupCollabInviteServiceTest(t)
+	seedCollabUser(t, db, 1, "alice", 10, false, nil, nil)
+	seedCollabContent(t, db, 100, 1, "published", nil, "")
+	for i := 3; i <= 11; i++ {
+		seedCollabUser(t, db, int64(i), fmt.Sprintf("contrib-%d", i), 10, false, nil, nil)
+		seedCollabContributor(t, db, 100, int64(i))
+	}
+	seedCollabUser(t, db, 12, "invitee-a", 10, false, nil, nil)
+	seedCollabUser(t, db, 13, "invitee-b", 10, false, nil, nil)
+	seedCollabInviteWithExpiresAt(t, db, 500, 100, 1, 12, "pending", collabInviteFixedNow.Add(7*24*time.Hour))
+	seedCollabInviteWithExpiresAt(t, db, 501, 100, 1, 13, "pending", collabInviteFixedNow.Add(7*24*time.Hour))
+
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	var wg sync.WaitGroup
+	for _, acceptCase := range []struct{ inviteID, inviteeID int64 }{{500, 12}, {501, 13}} {
+		wg.Add(1)
+		go func(inviteID, inviteeID int64) {
+			defer wg.Done()
+			<-start
+			_, err := svc.AcceptInvite(context.Background(), inviteID, inviteeID)
+			results <- err
+		}(acceptCase.inviteID, acceptCase.inviteeID)
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	successes, limitReached := 0, 0
+	for err := range results {
+		switch {
+		case err == nil:
+			successes++
+		case errors.Is(err, ErrContributorLimitReached):
+			limitReached++
+		default:
+			t.Fatalf("unexpected concurrent accept error: %v", err)
+		}
+	}
+	if successes != 1 || limitReached != 1 {
+		t.Fatalf("results = %d successes and %d limit-reached, want 1/1", successes, limitReached)
+	}
+
+	var total int64
+	require.NoError(t, db.Model(&model.ContentContributor{}).Where("content_item_id = ?", 100).Count(&total).Error)
+	require.EqualValues(t, 10, total)
+	var accepted, pending int64
+	require.NoError(t, db.Model(&model.CollabInvite{}).
+		Where("id IN ? AND status = ?", []int64{500, 501}, model.CollabInviteStatusAccepted).
+		Count(&accepted).Error)
+	require.NoError(t, db.Model(&model.CollabInvite{}).
+		Where("id IN ? AND status = ?", []int64{500, 501}, model.CollabInviteStatusPending).
+		Count(&pending).Error)
+	require.EqualValues(t, 1, accepted)
+	require.EqualValues(t, 1, pending)
+}
+
+func TestCollabInviteAcceptNotFound(t *testing.T) {
+	svc, _, _ := setupCollabInviteServiceTest(t)
+	_, err := svc.AcceptInvite(context.Background(), 99999, 2)
+	require.ErrorIs(t, err, ErrInviteNotFound)
+}
+
+func TestCollabInviteDeclineNotFound(t *testing.T) {
+	svc, _, _ := setupCollabInviteServiceTest(t)
+	_, err := svc.DeclineInvite(context.Background(), 99999, 2)
+	require.ErrorIs(t, err, ErrInviteNotFound)
 }
