@@ -16,6 +16,8 @@ export interface ContentDetailData extends ContentCardData {
   series_memberships?: SeriesMembership[];
   created_at?: string;
   updated_at?: string;
+  /** #74：收藏成员关系派生（至少一个活动收藏集包含该内容）。匿名响应不携带。 */
+  isFavorited?: boolean;
 }
 
 export interface AttachmentData {
@@ -270,6 +272,7 @@ export function normalizeContentItem(value: unknown): ContentDetailData | null {
     allow_copy: boolValue(pick(raw, "allow_copy", "AllowCopy")),
     agent_enabled: boolValue(pick(raw, "agent_enabled", "AgentEnabled")),
     series_memberships: normalizeSeriesMemberships(pick(raw, "series_memberships", "SeriesMemberships")),
+    isFavorited: boolValue(pick(raw, "is_favorited", "IsFavorited")),
     created_at: stringValue(pick(raw, "created_at", "CreatedAt")),
     updated_at: stringValue(pick(raw, "updated_at", "UpdatedAt")),
   };
@@ -318,9 +321,10 @@ export function normalizeContentDetailResponse(value: unknown): NormalizedConten
       : normalizeSeriesMemberships(topLevelMemberships);
   const sourceOriginal = normalizeSourceSummary(pick(raw, "source_original", "SourceOriginal"));
   const sourceFanwork = normalizeSourceSummary(pick(raw, "source_fanwork", "SourceFanwork"));
+  const isFavorited = boolValue(pick(raw, "is_favorited", "IsFavorited"));
 
   return {
-    content: content ? { ...content, series_memberships: seriesMemberships } : null,
+    content: content ? { ...content, isFavorited, series_memberships: seriesMemberships } : null,
     attachments: normalizeAttachments(pick(raw, "attachments", "Attachments")),
     tags: normalizeTags(pick(raw, "tags", "Tags")),
     series_memberships: seriesMemberships,

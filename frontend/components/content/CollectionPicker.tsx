@@ -26,6 +26,9 @@ interface CollectionPickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onChanged?: () => void;
+  /** #74：操作成功后上报新的收藏成员关系（内容是否仍属于任一活动收藏集），
+      与详情页「已收藏」状态共享同一事实源。 */
+  onMembershipChange?: (isMember: boolean) => void;
 }
 
 type NoticeKind = "success" | "error";
@@ -45,6 +48,7 @@ export function CollectionPicker({
   open,
   onOpenChange,
   onChanged,
+  onMembershipChange,
 }: CollectionPickerProps) {
   const t = useTranslations();
   const { toast } = useToast();
@@ -147,6 +151,11 @@ export function CollectionPicker({
     [collections, zone],
   );
 
+  /** #74：操作成功后上报新的收藏成员关系（内容是否仍属于任一活动收藏集）。 */
+  function reportMembership(isMember: boolean) {
+    onMembershipChange?.(isMember);
+  }
+
   const filteredCollections = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return sameZoneCollections;
@@ -192,6 +201,7 @@ export function CollectionPicker({
         ),
       );
       onChanged?.();
+      reportMembership(true);
       showNotice("success", t("collections.picker.notice.added"));
     } catch {
       showNotice("error", t("collections.picker.notice.addFailed"));
@@ -218,6 +228,7 @@ export function CollectionPicker({
         ),
       );
       onChanged?.();
+      reportMembership(collections.some((entry) => entry.contains_item && entry.id !== collection.id));
       showNotice("success", t("collections.picker.notice.removed"));
     } catch {
       showNotice("error", t("collections.picker.notice.removeFailed"));
@@ -250,6 +261,7 @@ export function CollectionPicker({
       setIsPublic(false);
       setShowCreate(false);
       onChanged?.();
+      reportMembership(true);
       showNotice("success", t("collections.picker.notice.created"));
     } catch {
       showNotice("error", t("collections.picker.notice.createFailed"));

@@ -409,6 +409,7 @@
       },
       "actions": {
         "open": "Add to collection",
+        "favorited": "Favorited",
         "add": "Add",
         "remove": "Remove",
         "removeFrom": "Remove from {title}",
