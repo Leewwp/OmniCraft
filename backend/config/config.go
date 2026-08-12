@@ -33,6 +33,7 @@ type Config struct {
 	Reputation     ReputationConfig     `mapstructure:"reputation"`
 	Judge          JudgeConfig          `mapstructure:"judge"`
 	Social         SocialConfig         `mapstructure:"social"`
+	Collaboration  CollaborationConfig  `mapstructure:"collaboration"`
 	BrowseHistory  BrowseHistoryConfig  `mapstructure:"browse_history"`
 	Upload         UploadConfig         `mapstructure:"upload"`
 	Publish        PublishConfig        `mapstructure:"publish"`
@@ -173,6 +174,16 @@ type JudgeConfig struct {
 type SocialConfig struct {
 	ReportAutoHideRate   float64 `mapstructure:"report_auto_hide_rate"`
 	CommentFoldThreshold float64 `mapstructure:"comment_fold_threshold"`
+}
+
+// CollaborationConfig carries server-only collaboration invite limits.
+// Only MaxInviteesPerPublish is exposed through the public config endpoint;
+// daily limits, expiry and contributor capacity must never reach the client.
+type CollaborationConfig struct {
+	InviteDailyLimit       int `mapstructure:"invite_daily_limit"`
+	InviteExpireDays       int `mapstructure:"invite_expire_days"`
+	MaxInviteesPerPublish  int `mapstructure:"max_invitees_per_publish"`
+	MaxContributorsPerItem int `mapstructure:"max_contributors_per_item"`
 }
 
 type BrowseHistoryConfig struct {

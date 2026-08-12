@@ -55,6 +55,10 @@
 | `client.download_enabled` | `bool` | DownloadEnabled |
 | `client.download_url` | `string` | DownloadURL |
 | `client.latest_version` | `string` | LatestVersion |
+| `collaboration.invite_daily_limit` | `int` | InviteDailyLimit |
+| `collaboration.invite_expire_days` | `int` | InviteExpireDays |
+| `collaboration.max_contributors_per_item` | `int` | MaxContributorsPerItem |
+| `collaboration.max_invitees_per_publish` | `int` | MaxInviteesPerPublish |
 | `database.dsn` | `string` | DSN |
 | `database.read_dsn` | `string` | ReadDSN |
 | `features.creator_support_enabled` | `bool` | CreatorSupportEnabled |
