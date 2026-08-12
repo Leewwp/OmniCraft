@@ -946,3 +946,25 @@
 
 ### Notes:
 - 未碰 main worktree/frontend/routes.go；issue #97 不 close。
+
+## [2026-08-12] - Task 5 [light]: Build Invite Card And Settings UI
+
+### What was done:
+- **Step 1（UI spec 确认）**：`rg -n "## Component: CollabInviteCard|## Component: CollabUserPicker|## Page: /settings|## Page: /messages" design/ui-spec.md` → 全部存在（4029/4892/1064/1567），/settings 描述 accept_collab_invites 开关、保存状态、i18n keys 与截图检查点。TagBadge spec 2191。
+- **Step 2（RED 测试）**：新建 `frontend/tests/collab-invite-card.test.tsx`（12 个测试：pending 按钮+状态文本+role=group/aria-labelledby、accepted/declined/expired 只读 + expired bg-canvas-subtle、accept/decline POST 端点 + returned invite.status 状态更新、失败保持 pending + 行内错误 + toast、非接收方 waiting 无按钮、aria-busy + 另一按钮 disabled、按钮 aria-label 含标题 + min-h-11、ChatWindow 集成卡片 + 普通气泡回归、invalid metadata 回退摘要）与 `frontend/tests/settings-collab-invites.test.tsx`（6 个测试：初始化 aria-checked、PATCH body deepEqual、成功 refreshUser + toast、失败回滚 + toast + 行内错误、保存中密码/注销控件不受影响、显式可见 label）。初次运行 RED：`Cannot find module '@/components/social/CollabInviteCard'` + `Unable to find role="switch"`，0/18 通过。
+- **后端 DTO 前置（研究 gotcha 1）**：`backend/internal/handler/message.go` MessageDTO 增加 `MsgType string json:"msg_type"` + `Metadata model.JSONMap json:"metadata,omitempty"` 并在 `messageDTO()` 填充——否则 ChatWindow 的 collab_invite 分支是死代码。无 migration/route 改动 → 不跑 doc-validator。
+- **Step 3（卡片）**：新建 `frontend/components/social/CollabInviteCard.tsx`——按 ui-spec 精确 props 接口（id/status/contentId/contentTitle/inviterUsername + isCurrentUserInvitee + onAccept/onDecline）；`max-w-full md:max-w-[min(420px,80%)] lg:max-w-[420px] border border-border-default rounded-lg bg-canvas-default p-4`；类型行 → 邀请描述 → 内容链接（/content/:id）→ TagBadge 状态（pending blue/accepted green/declined rose/expired `bg-canvas-subtle text-fg-muted` 自定义 gray，twMerge 覆盖生效，绝不只靠颜色）→ 仅 `isCurrentUserInvitee && pending` 显示操作区；本地 status state + per-button busy LoaderCircle + 另一按钮 disabled + aria-busy；失败恢复 + 行内错误 + toast；全部文案走 `useTranslations()` `collabInviteCard.*`。`ChatWindow.tsx`：Message 接口加 `metadata?`，`msg_type === "collab_invite"` 分支渲染卡片（snake_case metadata → camelCase props，`isCurrentUserInvitee = sender_id !== user?.id`），invalid metadata（缺 invite_id/content_id/content_title/inviter_username）回退安全摘要文本；普通气泡不变；ConversationList 无需改动（collabInviteSummary 分支已存在，DTO 修复后自然生效，metadata 无 status 可追加）。
+- **Step 4/5（设置页）**：`AuthContext.tsx` User 接口加 `accept_collab_invites: boolean`；`app/(protected)/settings/page.tsx` 个人信息卡与安全设置之间新增独立「联合创作邀请」分组卡（标题 + 描述 + 显式 `<label>` 包裹 Switch + help 文本 + 行内错误），own `collabBusy/collabError/collabAccept` 状态（绝不用页面级 busy/error）；乐观 PATCH `/api/v1/users/:id` body 仅 `{accept_collab_invites}` → 成功 `refreshUser()` + success toast，失败回滚到 pre-save 值 + error toast + 行内错误；保存中仅开关行 disabled + 局部 saving 指示，密码/注销控件不受影响；Switch 为既有 `@/components/ui/switch`（无 id prop → 外层 label）。
+- **i18n**：zh.json + en.json 镜像新增 `collabInviteCard.*`（type/invitation/status/actions/errors/summary/a11y，占位符 {inviter}/{title} 一致）与 `settings.collaboration.*`（title/description/acceptInvites.label/help/toast.saved|failed/error.save/a11y.acceptInvites）；复用既有 `messages.chat.collabInviteSummary`/`messages.conversations.collabInviteSummary`，不重复。
+- **浏览器验证（mock 合同）**：新建 `frontend/e2e/t97-collab-invites.mock.spec.ts`（9 个测试，precedent：messages-notifications.spec.ts + mock-api-guard + NEXT_LOCALE=zh cookie）：pending 卡片（含接受/拒绝/气泡回归）、accept→accepted 只读、decline→declined 只读、accept 返回 expired → 灰色只读、失败 409 → 行内错误+toast+保持 pending、移动端按钮 ≥44px（boundingBox 断言）、设置开关初始化/保存/回滚、移动端设置。截图 7 张：`community-collab-invite-pending/states-accepted/states-declined/states-expired/mobile.png` + `community-collab-settings-desktop/mobile.png`（screenshots/ gitignored，`git add -f`）。
+
+### Testing:
+- 红→绿：RED 0/18 → 实现后聚焦 18/18（`node --import tsx --test tests/collab-invite-card.test.tsx tests/settings-collab-invites.test.tsx`）。
+- 修复两个测试自身问题：(1) toast 与行内错误同文案 → `getByText` 双匹配，改 `querySelector('[role="alert"]')`；(2) 设置开关测试与 AuthProvider fetchMe 竞态（switch 先于 user 渲染，`!user` 早退）→ `awaitLoadedUser` 等 username input 值出现再点击。
+- 全量门：`npm run test:unit` 403/403、`npm run lint`（tsc --noEmit）干净、`npm run lint:ui` 全 gate ok、`npm run build` ok；后端 DTO 改动后 `go build ./...`/`go vet ./...`/`go test ./...`（24 包）全绿；Playwright mock 合同 9/9（`npx playwright test --config=playwright.mocked.config.ts t97-collab-invites.mock.spec.ts`）。
+- 截图保存至 `screenshots/community-collab-*.png` 共 7 张。
+
+### Notes:
+- 偏差：(1) 卡片 metadata 有效性判定要求 invite_id+content_id+content_title+inviter_username 四项齐全（ui-spec 只列前三个，但描述文案需要 inviter，四项更保守安全）；(2) e2e expired 状态用 mock accept 响应返回 status=expired 演示（后端对过期邀请实际返回 409 错误，卡片对任何 returned status 都应用，截图合同仅用于视觉验证）；(3) 状态截图分三张（accepted/declined/expired），非单张合成图；(4) ConversationList 未追加状态文本（last_message metadata 无 status 字段可读）。
+- 遗留：(1) 后端 MessageDTO 新增字段无 handler 测试断言（研究 §6 gotcha 1 的补测点），建议 Task 7 或后续补 `TestMessageDTO`；(2) ChatWindow 初始 status 恒为 pending（metadata 不含 status，已接受邀请重进会话仍显示可操作，直到点击后按返回 DTO 更新；属既有合同限制，不在本任务范围）。
+- 提交序列（light 分批）：tests → backend DTO → card → chatwindow → auth/settings → i18n → e2e+screenshots → docs（progress.txt + 计划勾选）。

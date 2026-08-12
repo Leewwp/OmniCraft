@@ -446,7 +446,7 @@ go test ./internal/handler -run TestCollabInvite -v
 - Test: `frontend/tests/collab-invite-card.test.tsx`
 - Test: `frontend/tests/settings-collab-invites.test.tsx`
 
-- [ ] **Step 1: Confirm UI spec before component code**
+- [x] **Step 1: Confirm UI spec before component code**
 
 Run:
 
@@ -456,7 +456,7 @@ rg -n "## Component: CollabInviteCard|## Component: CollabUserPicker|## Page: /s
 
 Expected: invite card, user picker, `/settings`, and `/messages` sections are present. `/settings` must describe the `accept_collab_invites` switch, saving state, i18n keys, and screenshot checkpoints. If a future branch lacks one, stop and repair UI spec in an explicitly scoped docs/design step before UI work.
 
-- [ ] **Step 2: Add failing invite-card tests**
+- [x] **Step 2: Add failing invite-card tests**
 
 Cover:
 
@@ -468,11 +468,11 @@ Cover:
 - decline button calls `/api/v1/collab-invites/:id/decline`
 - local card state updates from returned invite DTO
 
-- [ ] **Step 3: Implement card rendering**
+- [x] **Step 3: Implement card rendering**
 
 `ChatWindow` must branch on `message.msg_type === "collab_invite"` and render `CollabInviteCard`. Normal text messages continue to render as bubbles.
 
-- [ ] **Step 4: Add settings switch tests**
+- [x] **Step 4: Add settings switch tests**
 
 Assert settings page:
 
@@ -482,12 +482,12 @@ Assert settings page:
 - rolls back to the previous server value and shows localized feedback if save fails
 - keeps password/delete-account settings unaffected while the collaboration switch is saving
 
-- [ ] **Step 5: Implement settings UI**
+- [x] **Step 5: Implement settings UI**
 
 Use an existing `Switch` component. No hardcoded visible strings.
 The switch belongs in its own "联合创作邀请" settings group described by `design/ui-spec.md`; do not hide it inside dangerous actions or password settings.
 
-- [ ] **Step 6: Run frontend tests**
+- [x] **Step 6: Run frontend tests**
 
 Run:
 
@@ -495,6 +495,8 @@ Run:
 cd frontend
 node --import tsx --test tests/collab-invite-card.test.tsx tests/settings-collab-invites.test.tsx
 ```
+
+18/18 pass（RED 0/18 → 实现后全绿）。
 
 ---
 
