@@ -17,6 +17,20 @@
 ### Notes:
 - 遗留：`docs/reference/business-rules.md` 中旧 favorites 描述（若存在）待后续人工确认更新；#76 在云端日志+可恢复备份人工门满足前不得执行。
 
+## [2026-08-13] - 收尾：code-review 两轴审查结论（61e2dca..HEAD）
+
+### What was done:
+- **Standards 轴**：无硬违规（错误 envelope、参数化 SQL、i18n、slog、TS strict、迁移规范 066 forward-only + ROLLBACK 注释均合规）。判断项：①SeriesNav 上一章/下一章渲染三份重复（overlay button/整页 Link/禁用 button），可提取共享 NavButton（非阻塞，light 票范围内）；②`ipPublicStatus="approved"` 与既有 ip_repo/ip_service/search_repo 魔数字符串重复，概念未收敛为共享常量（仓库级遗留，非本批引入）；③content.go 成员关系查询失败 fail-open 为「未收藏」（旧代码同语义，已补 slog，#74 唯一事实源声明下仍可复核）；④Go 新代码中文注释与既有英文风格不一致（一致性提示）。
+- **Spec 轴**：六票规格符合，无缺失、无 scope creep、无错误实现。#73 HTTP 契约逐字段核对通过（200 {items,limit:6}、PUT 204/404/500、merge 400 全量预校验/null 拒收 [] 合法、GREATEST upsert、无部分成功、客户端仅清 accepted∪discarded）；#75 未建 067、历史迁移/fixture 零改动、guard 更名 collectionGuard 且 6 条收藏集路由保留、运行时代码零残留；#72 三页真实复用同一 SortSelect；#69 独立页保留整页 Link。
+- **给 #76 预检的显式归类（防 C1 扫描踩线）**：`backend/internal/model/collection_migration_test.go:80-88,120-129` 仍建 `favorites` 表并断言 `assertFavoritesBackfilledAndRetained`——这是对历史迁移 058 回填语义的 fixture 测试（规格 Out of Scope「不编辑历史迁移/checksum fixture」），#76 C1 仓库扫描应显式归类为「历史 fixture 除外」，而非视为 current-test 违规。
+- 微偏差：#73 输出 RFC3339Nano（计划写 RFC3339，合规超集）。
+
+### Testing:
+- 审查基于 `git diff 61e2dca...HEAD`（76 文件、23 commits），两轴并行子 agent 独立产出；无需代码修复，无提交。
+
+### Notes:
+- 判断项均不阻塞；如需后续收紧可开独立优化票（SeriesNav 去重、approved 状态常量收敛）。
+
 ## [2026-08-13] - Issue #75 [heavy]: 退役旧 favorites 运行时依赖（Compatibility release）
 
 ### What was done:
