@@ -749,6 +749,23 @@
 - 测试环境发现 waitFor（@testing-library）在本仓库 node:test 环境下 interval/timeout 不触发（仅 MutationObserver 路径有效），淡出断言改用有界手动轮询（window.setTimeout）替代。
 - 本票不改 config/routes/migrations，无需 doc-validator；未触碰 #66/#67/#70/#83 与 backend/* 文件面。
 
+## [2026-08-11] - 媒体显示链 T05~T09 + source-linkage #96 全链完成
+
+### What was done:
+- 合并 #68/#81（PR #132/#133）后，媒体显示链五票全部完成并合并：**#85 详情/浮层媒体区**（MediaGallery，PR #152）、**#87 列表卡片自然比例瀑布流**（PR #153）、**#86 全屏媒体查看器**（MediaViewer，portal 到 body 脱离 FLIP transform、原生 dialog top layer、缩放/翻页/三退出，PR #154）、**#88 桌面双栏详情浮层**（split 布局 + resolveActiveScroller 唯一滚动目标，PR #155）、**#89 移动端连续浏览**（contextList 贯通、onReachEnd 切篇、到底提示，PR #156）。
+- source-linkage #96 计划 9 个 Task 全部完成（PR #157~#164）：T1 heavy 迁移 `064_add_source_fanwork_id.sql` + 模型字段（TDD 红→绿 + 两阶段审查通过）；T2 六错误码校验（SOURCE_NOT_ALLOWED_FOR_ORIGINAL/FANWORK_SOURCE_REQUIRED/MULTIPLE_SOURCE_CONFLICT/SOURCE_ORIGINAL_UNAVAILABLE/SOURCE_FANWORK_UNAVAILABLE/SOURCE_IMMUTABLE）；T3 发布/详情契约（source_fanwork 摘要 + source_original 补 zone + PATCH SOURCE_IMMUTABLE）；T4 related-fanworks API（zone 分派、集中可见性 scope、content_type allowlist IN、limit 别名、删 NOT_ORIGINAL）；T5 SourceContentPicker（ui-spec 确认 + 9 测试）；T6 fanwork 发布流（双 picker 互斥 + query prefill + 校验文案）；T7 SourceAttribution + RelatedFanworks（「衍生作品」无「三创」+ fanworks 页 TYPE_FILTERS 移除 text）；T8 收口（后端/前端全量门 + doc-validator schema +1 行 + 15 项自查 + 6 截图）。
+- 本地 main 与 origin 对齐：把 Overnight Agent 的两个未推送 docs commit（0f0cc3e/0376073）rebase 到最新 origin/main（progress.txt 冲突已手工合并：Overnight 轮换版 + #68/#81/#85/#87 四条今日条目），本地 main = origin + 2 docs commit，未 push（用户指示本次只 commit）。
+
+### Testing:
+- 各 PR 验证门全绿：后端 go build/vet/test 全量、前端 lint/lint:ui/build、test:unit 375/375、test:contracts 34/34（曾 4 失败系 #89 残留 mock-api.mjs 占用 18080，kill 后恢复）、Playwright spec 绿。
+- 浏览器截图：t86-viewer ×8、t88 双栏三档 ×4、t89 ×8、t5 picker ×6、t6 publish ×8、t7 ×7、Task 8 六张 community-* 收口截图，全部 screenshots/ 入库。
+- #96 已被用户手动关闭（COMPLETED）；Task 8 仅追加验证证据评论，未 reopen。
+
+### Notes:
+- 计划文件已归档 `docs/archive/plans/2026-06-30-omnicraft-community-source-linkage.md`；AGENTS.md 注册表移除 source-linkage 行、DAG 段标注 #96 已完成。
+- 下一任务按 DAG 为**#90（媒体 T10 相关内容块与到底提示）**——依赖 #96 已满足（复用最终 related-fanworks 合同）；其后 #97 collaboration-invites（8 tasks，迁移 065）。
+- 本会话多次子代理空返回（#85 一次、#88 四次）：模式为「调研会话存活、实现会话中断」，通过 resume 已存活会话或两步（调研→resume 实现）绕过；若复现，先派只读调研再续接，不要反复派全新实现会话。
+
 ## [2026-08-11] - GitHub Issue/DAG 与陈旧 Dependabot PR 卫生修复
 
 ### What was done:
