@@ -31,7 +31,7 @@ var (
 	ErrInviteBlocked              = errors.New("INVITE_BLOCKED")
 	ErrInviteNotAccepting         = errors.New("INVITE_NOT_ACCEPTING")
 	ErrInviteAlreadyExists        = errors.New("INVITE_ALREADY_EXISTS")
-	ErrInviteRateLimitUnavailable = errors.New("invite rate limit service unavailable")
+	ErrInviteRateLimitUnavailable = errors.New("INVITE_SERVICE_UNAVAILABLE")
 )
 
 const (
@@ -162,6 +162,18 @@ func (s *CollabInviteService) SendInvite(ctx context.Context, contentID, inviter
 	}
 	if alreadyContributor {
 		return nil, ErrInviteAlreadyContributor
+	}
+
+	contributors, err := s.contentRepo.CountContributors(contentID)
+	if err != nil {
+		return nil, err
+	}
+	pending, err := s.contentRepo.CountPendingInviteesNotContributors(contentID)
+	if err != nil {
+		return nil, err
+	}
+	if contributors+pending >= int64(s.maxContributorsPerItem()) {
+		return nil, ErrContributorLimitReached
 	}
 
 	inviter, err := s.userRepo.FindByID(inviterID)

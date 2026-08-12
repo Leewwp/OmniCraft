@@ -1,9 +1,12 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -355,7 +358,7 @@ func TestCollabInviteSendRejectsLowReputation(t *testing.T) {
 }
 
 func TestCollabInviteSendRejectsContributorLimit(t *testing.T) {
-	svc, db, _ := setupCollabInviteServiceTest(t)
+	svc, db, mr := setupCollabInviteServiceTest(t)
 	seedCollabUser(t, db, 1, "alice", 10, false, nil, nil)
 	seedCollabContent(t, db, 100, 1, "published", nil, "")
 	for i := 3; i <= 12; i++ {
@@ -366,6 +369,23 @@ func TestCollabInviteSendRejectsContributorLimit(t *testing.T) {
 
 	_, err := svc.SendInvite(context.Background(), 100, 1, 2)
 	require.ErrorIs(t, err, ErrContributorLimitReached)
+	require.Empty(t, mr.Keys(), "capacity pre-check must reject before consuming Redis quota")
+}
+
+func TestCollabInviteSendCapacityPreCheckFiresBeforeRedis(t *testing.T) {
+	svc, db, mr := setupCollabInviteServiceTest(t)
+	seedCollabUser(t, db, 1, "alice", 10, false, nil, nil)
+	seedCollabContent(t, db, 100, 1, "published", nil, "")
+	for i := 3; i <= 12; i++ {
+		seedCollabUser(t, db, int64(i), fmt.Sprintf("contrib-%d", i), 10, false, nil, nil)
+		seedCollabContributor(t, db, 100, int64(i))
+	}
+	seedCollabUser(t, db, 2, "bob", 10, false, nil, nil)
+	mr.Close()
+
+	_, err := svc.SendInvite(context.Background(), 100, 1, 2)
+	require.ErrorIs(t, err, ErrContributorLimitReached,
+		"capacity pre-check must reject before Redis is contacted; if Redis was touched first the call would fail closed instead")
 }
 
 func TestCollabInviteSendCapacityCountsPendingDistinctNonContributors(t *testing.T) {
@@ -618,6 +638,31 @@ func TestCollabInviteSendDBFailureCompensatesReservation(t *testing.T) {
 
 	require.False(t, mr.Exists(collabInviteFixedCountKey(1)))
 	require.False(t, mr.Exists(collabInviteFixedUserKey(1, 2)))
+}
+
+func TestCollabInviteSendCompensationFailureIsLogged(t *testing.T) {
+	svc, _, mr := setupCollabInviteServiceTest(t)
+
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+
+	countKey := collabInviteFixedCountKey(1)
+	userKey := collabInviteFixedUserKey(1, 2)
+	mr.Close()
+
+	svc.compensateInviteReservation(context.Background(), countKey, userKey, "token")
+
+	output := logs.String()
+	require.Contains(t, output, "failed to compensate Redis reservation after DB failure")
+	require.Contains(t, output, countKey)
+	require.Contains(t, output, userKey)
+
+	var entry map[string]any
+	require.NoError(t, json.Unmarshal(logs.Bytes(), &entry))
+	require.Equal(t, "ERROR", entry["level"])
+	require.Equal(t, "[collab_invite] failed to compensate Redis reservation after DB failure", entry["msg"])
 }
 
 func TestCollabInviteSendDateKeysUseAsiaShanghaiMidnight(t *testing.T) {

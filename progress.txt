@@ -15,6 +15,7 @@
 ### Notes:
 - 未改动 config.go/config.yaml/routes.go/migrations → 无需 doc-validator；未触碰前端与主 worktree。
 - 遗留（供后续任务）：`ListConversationSummaries` 最后消息 raw SQL 不含 msg_type/metadata，Task 4/5 卡片渲染需补；容器/handler/路由接入为 Task 4 范围。
+- **两阶段审查 DONE_WITH_CONCERNS 修复**（commit `fix(collab): address Task 2 review concerns...`）：① `SendInvite` 在 Redis 预留前新增廉价容量预检（spec §5.3 链第 2 步「先做容量预检」），事务内权威复核保留；新增 `TestCollabInviteSendCapacityPreCheckFiresBeforeRedis`（Redis 宕机时容量已满仍返回 `CONTRIBUTOR_LIMIT_REACHED`，证明预检先于 Redis）+ `TestCollabInviteSendRejectsContributorLimit` 断言 `mr.Keys()` 为空；② 新增 `TestCollabInviteSendCompensationFailureIsLogged`（关闭 miniredis 直接驱动补偿路径，slog JSON handler 断言 ERROR 级结构化日志含 count/user key，沿用 content_media_gallery_test 日志捕获先例）；③ 删除 `CollabInviteRepository.Transaction()`/`DB()`（零调用者，service 用 `NewCollabInviteRepository(tx)`）；④ `ErrInviteRateLimitUnavailable` 文案改 UPPERCASE 码 `INVITE_SERVICE_UNAVAILABLE`（标识符不变，Task 4 handler 映射 503）；⑤ `CountPendingInviteesNotContributors` 的 `'pending'` 字面量参数化为 `model.CollabInviteStatusPending`。接受不修：banned inviter → `ErrNotContentOwner`（spec 无 INVITER_UNAVAILABLE 码，Task 4 路由守卫先返回 USER_BANNED，service 为纵深防御）。修复后 `-run TestCollabInviteSend` 25/25 绿、`go build/vet/test ./...` 全绿、gofmt 干净。
 
 ## [2026-08-12] - Ticket 10（light）：相关内容块与到底提示（桌面/web）（#90）
 
