@@ -1,3 +1,27 @@
+## [2026-08-12] - Task 8（closure）：全量验证、浏览器验证与计划收口（#97）
+
+### What was done:
+- **Step 1 后端门**：`go test ./internal/service -run TestCollabInvite -v`（23+13 例）、`./internal/handler -run TestCollabInvite -v`、`./internal/pkg/scheduler -run TestCollabInviteExpiry -v` 全绿；`go test ./...` 34 包全 ok；`go vet ./...`、`go build ./...` 通过。
+- **Step 2 前端门**：`npm run test:unit` 420/420；`npm run lint`（tsc strict）/`npm run lint:ui`/`npm run build` 全绿；`npm run test:contracts` 50/50（含 t97-collab-invites 与 collab-invite-flow.mock.spec）。
+- **Step 3 doc-validator**：`go run . --fix` 两轮幂等（config/schema/route sync 均无变化——Task 1/4 已同步完毕）。
+- **Step 4 浏览器验证（ego-browser，zh，:3000 → :8088 真实后端 + 真实 postgres/redis）**：
+  1. 发布流：collabCreator(168) 登录 → /studio/publish/original 文章 → 选分类「游戏」+ 正文 → 搜索「collabInvitee」→ 选中 chip（移除 aria-label 含用户名）→ 发布 → 201 `POST /api/v1/contents` + 201 `POST /contents/17484/collab-invites`（DB 断言：invite 1 pending、message_id 回填、1 会话 + 1 `msg_type='collab_invite'` 消息，metadata 5 键）；契约图：接口先 204(OPTIONS) 后 201。
+  2. 收件箱：collabInvitee(169) 登录 → /messages 私信 → 会话列表「联合创作邀请」摘要 + 未读 1 → 打开会话见 pending 卡片（role=group + aria-labelledby、「待接受」+ 接受/拒绝按钮，按钮 aria-label 含内容标题）。
+  3. 接受：点接受 → 卡片变「已接受」只读无按钮；DB：invite 1 status=accepted、responded_at 非空、content_contributors (17484,169) pr_count=0。
+  4. 拒绝：第二个邀请（content 17485，invite 2）点拒绝 → 卡片「已拒绝」；DB status=declined。
+  5. 过期：SQL 种入 expires_at 已过期的 pending 邀请（invite 3, content 17486）+ 消息卡片 → 点接受 → 后端 400 INVITE_EXPIRED → 卡片行内错误 + toast「操作失败，请重试」且保持待接受（前端卡片初始态来自 metadata 无 status 字段，属 Task 5 已知限制；过期只读视觉态由 t97 mocked e2e 覆盖）。另验证调度器幂等重跑（scheduler 测试已覆盖 leader lock）。
+  6. 设置开关：/settings「联合创作邀请」组 → 开关 aria-checked true→false → DB users.accept_collab_invites=f → 刷新页面仍为 false（持久化 + refreshUser）；随后打开：桌面 1280×800 与移动 390×844 截图。
+- **截图 8 张**（`screenshots/community-collab-*.png`，`git add -f` 入库，同 #96 Task 8 先例）：`community-collab-picker-{desktop,mobile}.png`、`community-collab-invite-pending.png`、`community-collab-invite-states.png`、`community-collab-invite-expired.png`、`community-collab-invite-mobile.png`、`community-collab-settings-{desktop,mobile}.png`。
+- **Step 5 收口**：确认 Task 1-7 checkpoint commits 均在 main（PR #166~#172：Task1 70bfb7e/38446f8、T2 84ee1af/b136403、T3 c295e98/7adb62b、T4 86106ec、T5 8 commits、T6 5 commits、T7 5 commits）；仅 stage Task 8 证据（progress.txt + 计划勾选 + 截图 + AGENTS.md 注册表移除 collab 行 + 计划归档），单 commit；#97 已被用户手动关闭，收口只追加验证证据评论不 reopen（#96 先例）。
+
+### Testing:
+- 见各 Step；Plan Self-Check 19 项逐项核对全部通过（message 依赖显式、PublishForm 依赖显式、065 在 064 后、八阶段反滥用链 + 精确错误码、Redis key/TTL/Asia-Shanghai 午夜、Lua 原子预留/补偿、accept 幂等 contributor pr_count=0、metadata 最小 5 键、设置链 migration→model→PATCH→/me→AuthContext→UI、picker 用既有 users/search + 安全字段、过期调度 + partial unique 索引、leader lock、publish UI cap + 有界并发、public config 只暴露 max_invitees_per_publish、main.go 具名实例 + Stop()、浏览器验证五状态）。
+- 环境：docker postgres/redis 健康；dev DB 缺 065 迁移（schema_migrations 账本残缺先例）→ 本次直接应用 065 至共享 dev DB；后端 SERVER_PORT=8088（此前 9091 被陈旧 go-build 进程占用已清理）；前端 NEXT_PUBLIC_API_URL=http://localhost:8088 起在 :3000。
+
+### Notes:
+- 遗留：①dev 验证数据（users 168/169、contents 17484-17486、invites 1-3、conv 1-2）保留在共享 dev DB；②卡片初始态 pending 的已知限制（metadata 无 status 字段）已记录于 Task 5 备注，如产品需要「已过期立即只读」需在消息 metadata 扩展 status/expires_at（后续票）；③invite 过期调度器 24h 间隔实际触发前，过期邀请在 UI 上仍显示待接受（后端拒绝正确）。
+- 未触碰：Task 1-7 实现代码；主 worktree 未动（本 worktree 独立）。
+
 ## [2026-08-12] - Task 7 [light]: Add Collab Picker To Publish Flow (#97)
 
 ### What was done:
