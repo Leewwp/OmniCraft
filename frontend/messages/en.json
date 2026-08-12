@@ -1094,7 +1094,25 @@
     "changeAvatar": "Change Avatar",
     "avatarHint": "JPG or PNG, max 20MB",
     "avatarTooLarge": "Image must be smaller than 20MB",
-    "avatarUpdated": "Avatar updated"
+    "avatarUpdated": "Avatar updated",
+    "collaboration": {
+      "title": "Collaboration invites",
+      "description": "Control who can invite you to collaborate on content.",
+      "acceptInvites": {
+        "label": "Accept collaboration invites",
+        "help": "When off, other users cannot send you collaboration invites."
+      },
+      "toast": {
+        "saved": "Setting saved",
+        "failed": "Could not save this setting."
+      },
+      "error": {
+        "save": "Could not save this setting. Please try again."
+      },
+      "a11y": {
+        "acceptInvites": "Accept collaboration invites"
+      }
+    }
   },
   "tagGroups": {
     "title": "Tag Groups",
@@ -1556,6 +1574,32 @@
       "messageList": "Conversation messages",
       "unread": "Unread notification",
       "broadcast": "System broadcast"
+    }
+  },
+  "collabInviteCard": {
+    "type": "Collaboration invite",
+    "invitation": "{inviter} invites you to co-create “{title}”",
+    "status": {
+      "pending": "Pending",
+      "pendingSender": "Waiting for the invitee",
+      "accepted": "Accepted",
+      "declined": "Declined",
+      "expired": "Expired"
+    },
+    "actions": {
+      "accept": "Accept",
+      "decline": "Decline"
+    },
+    "errors": {
+      "failed": "Could not update the invitation. Please try again."
+    },
+    "summary": {
+      "invalid": "You received a collaboration invitation."
+    },
+    "a11y": {
+      "title": "Collaboration invitation for “{title}”",
+      "accept": "Accept collaboration invite for “{title}”",
+      "decline": "Decline collaboration invite for “{title}”"
     }
   },
   "footer": {
