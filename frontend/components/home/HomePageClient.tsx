@@ -12,6 +12,7 @@ import { OverlayMasonryGrid } from "@/components/content/OverlayMasonryGrid";
 import { ContentCardData } from "@/components/content/ContentCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sidebar, type SidebarItem, type TrendingEntry } from "@/components/layout/Sidebar";
+import { SortSelect } from "@/components/ui/SortSelect";
 import { normalizeContentList } from "@/lib/content";
 import { api } from "@/lib/api";
 
@@ -260,15 +261,16 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
               })}
             </div>
             <div className="shrink-0">
-              <select
+              <SortSelect
+                ariaLabel={t('common.sortLabel')}
                 value={contentSort}
-                onChange={(e) => setContentSort(e.target.value)}
-                className="rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
-              >
-                <option value="hot">{t('home.hottest')}</option>
-                <option value="newest">{t('home.newest')}</option>
-                <option value="most_views">{t('home.mostViewed')}</option>
-              </select>
+                options={[
+                  { value: "hot", label: t('home.hottest') },
+                  { value: "newest", label: t('home.newest') },
+                  { value: "most_views", label: t('home.mostViewed') },
+                ]}
+                onChange={setContentSort}
+              />
             </div>
           </div>
         </div>

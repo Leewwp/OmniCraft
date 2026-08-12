@@ -38,6 +38,7 @@
     "manage": "Manage",
     "pageNumber": "Page {current}",
     "skipToContent": "Skip to content",
+    "sortLabel": "Sort by",
     "units": {
       "days": "days",
       "times": "times",
@@ -1046,7 +1047,8 @@
     "sortByName": "Name",
     "sortHot": "Hottest",
     "sortMostContents": "Most Content",
-    "sortNewest": "Newest"
+    "sortNewest": "Newest",
+    "sortLabel": "Sort IPs"
   },
   "user": {
     "profile": "User #{id}",
