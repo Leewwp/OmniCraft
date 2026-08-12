@@ -7,6 +7,7 @@ import (
 	"omnicraft/backend/internal/model"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type ContentRepository struct {
@@ -61,6 +62,59 @@ func (r *ContentRepository) FindByID(id int64) (*model.ContentItem, error) {
 		return nil, err
 	}
 	return &content, nil
+}
+
+// FindByIDForUpdate locks the content row for UPDATE inside a transaction and
+// returns it, or nil when it is missing or soft-deleted. Serializing on the
+// content row is what keeps concurrent invites from over-reserving contributor
+// slots for the same content.
+func (r *ContentRepository) FindByIDForUpdate(id int64) (*model.ContentItem, error) {
+	var content model.ContentItem
+	err := r.db.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("deleted_at IS NULL").
+		First(&content, id).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &content, nil
+}
+
+// IsContributor reports whether the user is a confirmed contributor of the
+// content item.
+func (r *ContentRepository) IsContributor(contentID, userID int64) (bool, error) {
+	var count int64
+	err := r.db.Model(&model.ContentContributor{}).
+		Where("content_item_id = ? AND user_id = ?", contentID, userID).
+		Count(&count).Error
+	return count > 0, err
+}
+
+// CountContributors returns the number of confirmed contributor rows.
+func (r *ContentRepository) CountContributors(contentID int64) (int64, error) {
+	var count int64
+	err := r.db.Model(&model.ContentContributor{}).
+		Where("content_item_id = ?", contentID).
+		Count(&count).Error
+	return count, err
+}
+
+// CountPendingInviteesNotContributors returns the number of distinct invitees
+// of active pending invites for the content who are not already confirmed
+// contributors. Together with CountContributors this is the authoritative
+// capacity check performed under the locked content row.
+func (r *ContentRepository) CountPendingInviteesNotContributors(contentID int64) (int64, error) {
+	var count int64
+	err := r.db.Raw(`
+		SELECT COUNT(DISTINCT ci.invitee_id)
+		FROM collaboration_invites AS ci
+		LEFT JOIN content_contributors AS cc
+		  ON cc.content_item_id = ci.content_id AND cc.user_id = ci.invitee_id
+		WHERE ci.content_id = ? AND ci.status = ? AND cc.user_id IS NULL
+	`, contentID, model.CollabInviteStatusPending).Scan(&count).Error
+	return count, err
 }
 
 func (r *ContentRepository) BatchGetByIDs(ids []int64) ([]model.ContentItem, error) {
