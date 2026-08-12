@@ -564,7 +564,7 @@ Expected: picker-only tests PASS before editing `PublishForm.tsx`.
 - Test: `frontend/tests/publish-collab-picker.test.tsx`
 - Test: `frontend/e2e/collab-invite-flow.spec.ts`
 
-- [ ] **Step 1: Add failing publish-flow tests**
+- [x] **Step 1: Add failing publish-flow tests**
 
 Assert:
 
@@ -575,7 +575,7 @@ Assert:
 - source-linkage fields still submit exactly one of `source_original_id` / `source_fanwork_id`
 - collaborator picker sits after source fields in fanwork publish and before submit actions in both zones
 
-- [ ] **Step 2: Modify publish payload flow**
+- [x] **Step 2: Modify publish payload flow**
 
 Current content creation returns a content ID. After successful `POST /api/v1/contents`, call:
 
@@ -587,7 +587,7 @@ for each selected invitee.
 
 Each invite request should use a 5-second client-side timeout. Execute at most three invite requests concurrently and never exceed the public `max_invitees_per_publish` value supplied as `maxSelected`; do not serialize five independent 5-second timeouts. Do not auto-retry failed invite calls; retries can create confusing duplicate UX and are already guarded server-side. Do not block content creation if one invite fails after content was created. Show a warning toast listing failed usernames and provide a link to the published content so invites can be managed later.
 
-- [ ] **Step 3: Run tests**
+- [x] **Step 3: Run tests**
 
 Run:
 

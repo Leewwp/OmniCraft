@@ -1,3 +1,22 @@
+## [2026-08-12] - Task 7 [light]: Add Collab Picker To Publish Flow (#97)
+
+### What was done:
+- **Step 1（TDD 红→绿）**：`frontend/tests/publish-collab-picker.test.tsx` 追加 publish-flow 集成段（harness 复制自 studio-publish-fanwork.test.tsx：Module._load 桩 next/navigation/AuthContext/MarkdownEditor/css、`api.post` 延迟 resolve/reject 收集、`globalThis.fetch` 分支返回含 `collaboration.max_invitees_per_publish: 5` 的完整 public config、afterEach `clearPublicConfigCache()`）。先红（7/7：`Unable to find an accessible element with the role "combobox" and name "Collaborators"`）→ 实现后 17/17 绿。七组断言：①内容创建成功后被选用户每人一条 invite POST（`/api/v1/contents/999/collab-invites` + `{invitee_id}`）；②invite 失败 → warning toast（列失败用户名 + `/content/999` 链接文本）+ success toast + `routerPushes=["/studio/contents"]`，发布本身不失败；③重复用户不可添加（aria-disabled + 仅 1 chip）且只发 1 条 invite；④original 页（category 必填 + picker）与 fanwork 页都支持；⑤source-linkage 仍精确提交 `source_original_id` 且 body 无 `collaborators`/`invitee_ids`/`source_fanwork_id`；⑥DOM 顺序：picker 在 fanwork 来源 fieldset 之后、两 zone 提交按钮之前；⑦（额外）invite 请求并发 ≤3（延迟 mock 验证首批 3 条后第 4 条才发出）。
+- **Step 2（实现）**：`frontend/components/studio/PublishForm.tsx`——模块级 `INVITE_TIMEOUT_MS=5000`/`INVITE_CONCURRENCY=3`；`withTimeout`（Promise.race 语义、settle 时 clearTimeout，避免测试残留 5s 定时器）；`sendCollabInvites(contentId, users)` 批量循环（每批 3 并发、批间串行、逐用户 try/catch 收集失败、绝不 rethrow、无自动重试）；`handleSubmit` 改为 `api.post<{content?:{id?:number}}>` 捕获 `created.content?.id` → 有 id 且有选中用户时发邀请 → 失败时 warning toast `studio.publish.collab.inviteFailed`（{usernames} 逗号连接 + {url} `/content/${id}`）→ 再 success toast + `router.push("/studio/contents")`；`submitting` 贯穿邀请期（finally 复位，picker/submit 保持禁用）；挂载 effect 拉 `fetchPublicConfig` → `setCollabMaxSelected(config.collaboration?.max_invitees_per_publish ?? 0)`（失败静默 → maxSelected 0 → picker 不可用但可照常发布，符合 ui-spec）；JSX 在主要内容字段之后（fanwork 来源 fieldset 之后、提交按钮之前）插入 `<CollabUserPicker selectedUsers maxSelected disabled={submitting} onChange>`。`frontend/lib/public-config.ts` 新增 `PublicCollaboration { max_invitees_per_publish }` 并加入 `PublicConfig.collaboration`。
+- **Step 3（i18n）**：zh.json/en.json `studio.publish` 下新增 `collab.inviteFailed`（{usernames}/{url} 占位）。**命名空间选 `studio.publish.collab.*`**：与同组件既有 toast 键 `studio.publish.success/failed` 同域；计划文字示例 `publish.collab.inviteFailed` 为 "e.g." 非强制。
+- **Step 4（清理）**：删除 Task 6 harness `app/(protected)/studio/collab-picker-demo/page.tsx` 与唯一消费者 `frontend/e2e/t6-collab-picker.mock.spec.ts`（Task 6 progress 承诺 Task 7 删除）；其移动端覆盖（44px 移除目标、无横向溢出）移植进新 spec。`screenshots/community-collab-picker-*.png` 保留（ui-spec 检查点 + Task 8 证据）。
+- **Step 5（e2e）**：新建 `frontend/e2e/collab-invite-flow.mock.spec.ts`（mock 命名后缀使 `test:contracts` 的 `*.mock.spec.ts` testMatch 生效；Task 8 行 630 显式文件参数两种命名均可跑）：mockPublicApis + zh cookie + **覆盖注册 config/public（含 collaboration，page.route LIFO 后注册者先执行）** + 显式 POST `/api/v1/contents` → `{content:{id:123}}` + `**/api/v1/contents/*/collab-invites`（可配置失败）+ users/search + ips。四测试：original+两位协作者成功（1 条 contents POST、2 条 invite POST `[{invitee_id:1},{invitee_id:2}]`、success toast、URL /studio/contents、截图 `t7-collab-publish-original.png`）；fanwork+IP+协作者（boundingBox 同时刻测量断言 picker 在来源 fieldset 之下，截图 `t7-collab-publish-fanwork.png`）；invite 失败 → warning toast 含失败用户名与 `/content/123` + 仍跳转成功（截图 `t7-collab-invite-failed-toast.png`）；移动端 390×844 chips、移除按钮 ≥44px、无横向溢出（截图 `t7-collab-publish-mobile.png`）。修 2 处：ContentTypeGrid 按钮可访问名含图标+描述（exact:true 不匹配 → 改 regex）；跨交互 boundingBox 比较因页面滚动失效 → 同一滚动位置测量两盒。
+
+### Testing:
+- 红→绿：`node --import tsx --test tests/publish-collab-picker.test.tsx` 先 17 测试中 7 个新测试全红（picker 未集成 → combobox "Collaborators" 找不到）→ 实现 + i18n 后 17/17 绿。
+- 全量：`npm run test:unit` 420/420 绿（含既有 studio-publish-fanwork.test.tsx 7 个 payload 断言测试——invite 独立 POST，contents body 未变）；`npm run lint`（tsc --noEmit）干净；`npm run lint:ui` UI governance 通过；`npm run build` 成功；`npm run test:contracts` 50/50 绿（含既有 t6-publish-flow.mock.spec.ts 5 测试与 t97 全量——未选协作者时无 invite 调用，payload 断言不受影响）。
+- e2e：`npx playwright test --config=playwright.mocked.config.ts collab-invite-flow.mock.spec.ts` 4/4 绿。
+- 无 backend/config/routes/migrations 改动 → 无 doc-validator、无 Go 门。
+
+### Notes:
+- 截图 `screenshots/t7-collab-*.png`（4 张）为 gitignored 产物，提交时 `git add -f`。
+- 决策：warning toast 仅支持纯文本（Toast.tsx 渲染 string）→ "链接" 以 `/content/{id}` 文本形式展示在 toast 内；如需真锚点须扩展共享 Toast 组件（超出本任务文件清单）。
+- 遗留：Task 8 未勾选（本任务只勾 Step 1-3）；Task 8 行 630 命令中 spec 文件名按实际命名 `e2e/collab-invite-flow.mock.spec.ts` 调整。
 ## [2026-08-12] - Task 6 [light]: Confirm Collab Picker API And UI Spec (#97)
 
 ### What was done:
