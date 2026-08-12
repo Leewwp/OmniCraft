@@ -1,3 +1,28 @@
+## [2026-08-12] - Ticket 10（light）：相关内容块与到底提示（桌面/web）（#90）
+
+### What was done:
+- **组件（Step 3）**：
+  - `frontend/components/content/RelatedContents.tsx`（新，ui-spec:2761 #80/#90 权威）：桌面/web（≥1100px，组件内 matchMedia 自判定，移动端不渲染不请求）相关内容块 = 关联原创/二创行（复用 RelatedFanworks 组件，embedded 嵌入单容器）+ 相似内容行（固定复用列表 API：同 zone/content_type/category，fanwork 有 IP 再带 ip_id，sort=hot&page_size=12；不新增临时 similar endpoint，不用带筛 selected recommended）+ 底部「已经到底了」提示（media.related.endReached，与 #89 移动端 media.continue.endReached 语义分开）；客户端去重（排除当前内容 id 与关联行 prop 摘要 + RF onData 实际行 id）后最多 8 条；空分支（两行都无数据）只渲染到底提示不渲染空块标题；similar 错误行内错误 + 重试。
+  - `RelatedFanworks.tsx` 小扩展（复用优先）：可选 props `onOpenDetail`（浮层栈内打开卡片）、`onData`（行数据落定回报，RelatedContents 去重用）、`embedded`（嵌入模式不渲染自身 bordered 容器，宿主提供外层单容器）；默认行为不变。
+  - `ContentDetail.tsx`：新可选 props `onOpenRelatedDetail`/`relatedFanworksSummary`；新增 isDesktop（matchMedia ≥1100px）——桌面端行内 RelatedFanworks 降级隐藏（由评论区之后的 RelatedContents 统一承载，避免同页重复关联作品），<1100px 保持原行内行；评论区之后渲染 RelatedContents（slot 的 titleKey 覆写为 media.related.relatedTitle「相关创作」）。
+  - `ContentDetailOverlayLayer.tsx`：桌面端（≥1100px）向 ContentDetail 传关联行 slot（复用 RF 合同）+ relatedFanworksSummary（layer 已为侧栏拉取的数据，去重用）+ onOpenRelatedDetail（onPush 压栈，栈深 ≤5 沿用）；<1100px 不传（移动端关联入口维持 #89 语义）。
+  - `ContentDetailOverlayHost.tsx`：`onOpenRelatedDetail` 接入既有 useContentDetailOverlay（source=zone-page），相关内容卡片浮层栈内打开。
+  - i18n：`media.related.*`（relatedTitle/similarTitle/endReached/error.*/a11y.similarList）zh/en 同步。
+- **放置裁决**：spec（2 处）与 ui-spec Key Constraints + 截图检查点均写「正文与评论区之后」；ui-spec「与现有组件关系」括号内的扩展区顺序（RelatedContents 在 CommentSection 前）与之矛盾——按多数（含 issue #90 正文「在正文和评论区之后组装」）实现为评论区之后，PR 描述记录该 ui-spec 内部矛盾供 #65 修订。
+- **测试（Step 4）**：
+  - `frontend/tests/related-contents.test.tsx`（新 10 例）：固定 list 合同精确 URL 断言（fanwork+ip 带 ip_id、original 不带、无 category 省略、sort=hot 且非 recommended）、双行渲染 + 去重 ≤8、嵌入单容器（RF 行无嵌套 border）、空分支仅到底提示、错误 + 重试、移动端不渲染不请求、onOpenDetail 回调。
+  - `#88/#89` 三个受影响测试适配（jsdom 桌面视口下相关块新增 h2 标题行）：openOverlay/openContext 等待改按名称区分；#89 AC4 桌面断言由 queryByText("You've reached the end") 改为 `[data-slot="media-continue-end"]` 不存在（#90 块提示与 #89 移动连续浏览提示语义分开）。
+  - `frontend/e2e/t90-related-contents.mock.spec.ts`（新 3 例契约测试）：桌面双行 + 固定合同请求断言（zone/content_type/category/ip_id/sort=hot/page_size=12）+ 去重 10→8 + 卡片浮层栈内打开/返回 + 到底提示；空分支仅 hint；移动端不渲染不发起相似请求。
+
+### Testing:
+- `npm run lint`（tsc strict）、`npm run lint:ui`、`npm run build` 全绿；`npm run test:unit` 411/411 全绿（含新增 10 例）；`npm run test:contracts` 37/37 全绿。
+- 浏览器实测（Playwright mocked contracts，zh）：桌面双行块（相关创作 1 张 + 你可能也喜欢 8 张、当前内容与关联行去重）、空分支（仅「已经到底了」）、卡片在浮层栈内打开（612→613 压栈、返回逐层回退）、移动端 375px 无块无请求。
+- 截图 4 张（`git add -f` 入库，同 #85/#88 先例）：`screenshots/t90-related-contents-{desktop,empty,mobile,overlay-stack}.png`。
+
+### Notes:
+- 未触碰：后端文件、config/routes/migrations、MediaGallery/MediaViewer/SourceAttribution/PublishForm/SourceContentPicker、主 worktree；doc-validator 无需运行（无 config/routes/migrations 改动）。
+- 遗留：ui-spec RelatedContents「与现有组件关系」段与 Key Constraints/截图检查点的放置矛盾待 #65 修订（本票按多数实现为评论区之后）；桌面 overlay 侧栏相关列表（#88）与块内关联行并存为既有面与新面并存，未做归并。
+
 ## [2026-08-12] - Task 8（closure）：全量验证与文档同步（#96）
 
 ### What was done:
