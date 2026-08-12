@@ -1850,6 +1850,9 @@
       "cancel": "Cancel",
       "success": "Published successfully!",
       "failed": "Failed to publish, please try again",
+      "collab": {
+        "inviteFailed": "Published, but collaboration invites failed to send for: {usernames}. Manage invites at {url}."
+      },
       "descriptionOptional": "Description (optional)",
       "allowCopyPR": "Allow Copy/PR Collaboration",
       "allowCopyPRDesc": "Allow other creators to submit modification suggestions",
