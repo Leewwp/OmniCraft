@@ -509,7 +509,7 @@ node --import tsx --test tests/collab-invite-card.test.tsx tests/settings-collab
 - Modify: `frontend/messages/en.json`
 - Test: `frontend/tests/publish-collab-picker.test.tsx`
 
-- [ ] **Step 1: Confirm UI spec before picker code**
+- [x] **Step 1: Confirm UI spec before picker code**
 
 Run:
 
@@ -519,7 +519,7 @@ rg -n "## Component: CollabUserPicker|## Page: /studio/publish/fanwork" design/u
 
 `CollabUserPicker` must be defined as an additive PublishForm section. For fanwork, it appears below source fields; for original, it appears after the main content fields and before submit actions. It must not alter the `SourceContentPicker` layout from source-linkage.
 
-- [ ] **Step 2: Add failing picker tests**
+- [x] **Step 2: Add failing picker tests**
 
 Assert:
 
@@ -534,15 +534,15 @@ Assert:
 - while public config is unavailable, collaborator selection stays unavailable with localized explanation, but the user can still publish content without invitations
 - loading, empty, and error states render localized text
 
-- [ ] **Step 3: Implement `CollabUserPicker`**
+- [x] **Step 3: Implement `CollabUserPicker`**
 
 Use existing API search route `GET /api/v1/users/search?q=<query>&limit=8`. The backend route already exists and returns safe search results; do not add a new user search endpoint for this plan.
 
-- [ ] **Step 4: Add i18n keys**
+- [x] **Step 4: Add i18n keys**
 
 Add visible strings under `collab.userPicker.*`.
 
-- [ ] **Step 5: Run picker tests**
+- [x] **Step 5: Run picker tests**
 
 Run:
 
