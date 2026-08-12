@@ -111,6 +111,7 @@
 | `content_id` | `BIGINT` | NOT NULL -> content_items.id | content_id |
 | `inviter_id` | `BIGINT` | NOT NULL -> users.id | inviter_id |
 | `invitee_id` | `BIGINT` | NOT NULL -> users.id | invitee_id |
+| `message_id` | `BIGINT` | -> messages.id | message_id |
 | `status` | `VARCHAR(20)` | NOT NULL DEFAULT 'pending' | status |
 | `expires_at` | `TIMESTAMPTZ` | NOT NULL | expires_at |
 | `responded_at` | `TIMESTAMPTZ` | - | responded_at |
