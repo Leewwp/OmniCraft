@@ -360,6 +360,15 @@ func TestBrowseHistoryConfig(t *testing.T) {
 	require.Equal(t, "03:00", cfg.BrowseHistory.CleanupTime)
 }
 
+func TestCollaborationConfig(t *testing.T) {
+	cfg := loadDefaultConfigForTest(t)
+
+	require.Equal(t, 20, cfg.Collaboration.InviteDailyLimit)
+	require.Equal(t, 7, cfg.Collaboration.InviteExpireDays)
+	require.Equal(t, 5, cfg.Collaboration.MaxInviteesPerPublish)
+	require.Equal(t, 10, cfg.Collaboration.MaxContributorsPerItem)
+}
+
 func TestApplyTestModeReplacesNormalDatabaseConfigurationAfterOverrides(t *testing.T) {
 	t.Setenv("OMNICRAFT_TEST_MODE", "1")
 	t.Setenv("OMNICRAFT_TEST_DB_DSN", "host=127.0.0.1 port=5432 user=omnicraft password=omnicraft dbname=omnicraft_test_cross_stack sslmode=disable")

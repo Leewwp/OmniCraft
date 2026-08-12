@@ -43,12 +43,20 @@ type PublicUploadDTO struct {
 	VideoGalleryMaxItems int `json:"video_gallery_max_items"`
 }
 
+// PublicCollaborationDTO exposes only the publish-time invitee cap the
+// frontend needs to size the collaborator picker. Daily limits, expiry and
+// contributor capacity are server-only.
+type PublicCollaborationDTO struct {
+	MaxInviteesPerPublish int `json:"max_invitees_per_publish"`
+}
+
 type PublicConfigResponse struct {
-	Features PublicFeaturesDTO `json:"features"`
-	Captcha  PublicCaptchaDTO  `json:"captcha"`
-	Client   PublicClientDTO   `json:"client"`
-	Legal    PublicLegalDTO    `json:"legal"`
-	Upload   PublicUploadDTO   `json:"upload"`
+	Features      PublicFeaturesDTO      `json:"features"`
+	Captcha       PublicCaptchaDTO       `json:"captcha"`
+	Client        PublicClientDTO        `json:"client"`
+	Legal         PublicLegalDTO         `json:"legal"`
+	Upload        PublicUploadDTO        `json:"upload"`
+	Collaboration PublicCollaborationDTO `json:"collaboration"`
 }
 
 type PublicConfigHandler struct {
@@ -88,6 +96,9 @@ func (h *PublicConfigHandler) GetPublicConfig(c *gin.Context) {
 			ImageGalleryMaxItems: upload.ImageGalleryMaxItems,
 			VideoGalleryMinItems: upload.VideoGalleryMinItems,
 			VideoGalleryMaxItems: upload.VideoGalleryMaxItems,
+		},
+		Collaboration: PublicCollaborationDTO{
+			MaxInviteesPerPublish: h.cfg.Collaboration.MaxInviteesPerPublish,
 		},
 	}
 	c.JSON(http.StatusOK, resp)
