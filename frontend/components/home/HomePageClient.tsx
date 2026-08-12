@@ -15,6 +15,7 @@ import { Sidebar, type SidebarItem, type TrendingEntry } from "@/components/layo
 import { SortSelect } from "@/components/ui/SortSelect";
 import { normalizeContentList } from "@/lib/content";
 import { api } from "@/lib/api";
+import { loadRecentIps, type RecentIPItem } from "@/lib/ip-visit-history";
 
 interface IPItem {
   id: number;
@@ -31,15 +32,13 @@ interface HomePageClientProps {
 
 interface IPResponse { ips: IPItem[] }
 interface ContentResponse { contents: ContentCardData[] }
-interface RecentIP { id: number; name: string }
 
-const RECENT_IP_KEY = "recent_ips";
 const ALL_KEY = "__all__";
 
 export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePageClientProps) {
   const t = useTranslations();
-  const { user } = useAuth();
-  const [recentIPs, setRecentIPs] = useState<RecentIP[]>([]);
+  const { user, ipHistoryVersion } = useAuth();
+  const [recentIPs, setRecentIPs] = useState<RecentIPItem[]>([]);
   const [ips, setIPs] = useState<IPItem[]>(initialIPs);
   const [contents, setContents] = useState<ContentCardData[]>(initialContents);
   const [ipCategory, setIPCategory] = useState("");
@@ -68,13 +67,17 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
     return [ALL_KEY, ...Array.from(new Set(ips.map((ip) => ip.category).filter(Boolean)))] as string[];
   }, [ips]);
 
-  // Load recent IPs
+  // Load recent IPs: anonymous history comes from local storage, signed-in
+  // history from the account source; a completed login merge re-reads the list.
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(RECENT_IP_KEY);
-      if (raw) setRecentIPs(JSON.parse(raw).slice(0, 6));
-    } catch { /* ignore */ }
-  }, []);
+    let cancelled = false;
+    loadRecentIps().then((items) => {
+      if (!cancelled) setRecentIPs(items);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, ipHistoryVersion]);
 
   // Fetch stats summary
   useEffect(() => {
