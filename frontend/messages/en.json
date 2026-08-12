@@ -358,6 +358,18 @@
     },
     "continue": {
       "endReached": "You've reached the end"
+    },
+    "related": {
+      "relatedTitle": "Related creations",
+      "similarTitle": "You might also like",
+      "endReached": "You've reached the end",
+      "error": {
+        "loadFailed": "Failed to load similar content. Please retry.",
+        "retry": "Retry"
+      },
+      "a11y": {
+        "similarList": "Similar content"
+      }
     }
   },
   "contentDetailOverlay": {
