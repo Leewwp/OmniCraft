@@ -261,27 +261,65 @@ func (r *MessageRepository) SendWithColdStartGuard(senderID, recipientID int64, 
 			}
 		}
 
-		msg, err = txRepo.sendInTx(senderID, convID, body)
+		msg, err = txRepo.sendInTx(senderID, convID, body, "text", nil)
 		return err
 	})
 	return msg, err
 }
 
-func (r *MessageRepository) Send(senderID, convID int64, body string) (*model.Message, error) {
+// SendTyped persists a typed message (msg_type + metadata) in its own
+// transaction. It is intended for trusted service-level messages only; the
+// collaboration invite service uses it after its anti-abuse chain passes,
+// and this path is exempt from the text-message cold-start guard. Clients
+// must never be allowed to choose an arbitrary msg_type through a handler.
+func (r *MessageRepository) SendTyped(senderID, convID int64, body, msgType string, metadata model.JSONMap) (*model.Message, error) {
 	var msg *model.Message
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		var err error
-		msg, err = (&MessageRepository{db: tx}).sendInTx(senderID, convID, body)
+		msg, err = (&MessageRepository{db: tx}).sendInTx(senderID, convID, body, msgType, metadata)
 		return err
 	})
 	return msg, err
 }
 
-func (r *MessageRepository) sendInTx(senderID, convID int64, body string) (*model.Message, error) {
+// Send keeps the legacy text-only path as a wrapper for SendTyped.
+func (r *MessageRepository) Send(senderID, convID int64, body string) (*model.Message, error) {
+	return r.SendTyped(senderID, convID, body, "text", nil)
+}
+
+// FindOrCreateConversationTx finds or creates the 1:1 conversation for the
+// pair inside a caller-owned transaction. The pair is serialized with the
+// same transaction-scoped advisory lock (or in-process lock for non-postgres
+// dialects) used by the DM path, so a concurrent text send cannot race this
+// creation. The caller owns the transaction lifecycle.
+func (r *MessageRepository) FindOrCreateConversationTx(tx *gorm.DB, userA, userB int64) (int64, error) {
+	txRepo := &MessageRepository{db: tx}
+	if usesPostgresConversationPairLock(tx) {
+		if err := txRepo.lockPostgresConversationPair(userA, userB); err != nil {
+			return 0, err
+		}
+	} else {
+		unlockPair := lockConversationPairInProcess(conversationPairKey(userA, userB))
+		defer unlockPair()
+	}
+	return txRepo.findOrCreateConversation(userA, userB)
+}
+
+// SendTypedTx persists a typed message inside a caller-owned transaction.
+func (r *MessageRepository) SendTypedTx(tx *gorm.DB, senderID, convID int64, body, msgType string, metadata model.JSONMap) (*model.Message, error) {
+	return (&MessageRepository{db: tx}).sendInTx(senderID, convID, body, msgType, metadata)
+}
+
+func (r *MessageRepository) sendInTx(senderID, convID int64, body, msgType string, metadata model.JSONMap) (*model.Message, error) {
+	if metadata == nil {
+		metadata = model.JSONMap{}
+	}
 	msg := &model.Message{
 		ConversationID: convID,
 		SenderID:       senderID,
 		Body:           body,
+		MsgType:        msgType,
+		Metadata:       metadata,
 	}
 	if err := r.db.Create(msg).Error; err != nil {
 		return nil, err

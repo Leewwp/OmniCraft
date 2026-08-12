@@ -177,7 +177,7 @@ go test ./internal/handler -run TestPublicConfig.*Collaboration -v
 - Modify: `backend/internal/repository/content_repo.go`
 - Test: `backend/internal/service/collab_invite_service_test.go`
 
-- [ ] **Step 1: Write failing service tests**
+- [x] **Step 1: Write failing service tests**
 
 Cover all exact outcomes:
 
@@ -206,7 +206,7 @@ Cover all exact outcomes:
 
 > **实施决策**：Redis 不可用时采用 fail-closed 策略（拒绝邀请操作）。这是最安全的选择，确保防骚扰链路在存储不可用时不会出现缺口。如果产品要求不同降级行为（如降级为仅 DB 校验），需单独讨论并修改设计规格。
 
-- [ ] **Step 2: Run and confirm red**
+- [x] **Step 2: Run and confirm red**
 
 Run:
 
@@ -215,7 +215,7 @@ cd backend
 go test ./internal/service -run TestCollabInviteSend -v
 ```
 
-- [ ] **Step 3: Implement Redis anti-abuse keys**
+- [x] **Step 3: Implement Redis anti-abuse keys**
 
 Use:
 
@@ -241,7 +241,7 @@ Reservation strategy:
 
 Compensation must also be a bounded atomic Lua operation: never decrement below zero, remove the counter when it reaches zero, and delete the per-invitee reservation only when it belongs to the current reservation token.
 
-- [ ] **Step 4: Implement typed message send**
+- [x] **Step 4: Implement typed message send**
 
 Add:
 
@@ -263,7 +263,7 @@ Metadata must include only:
 
 No email, tokens, private settings, or full user profile.
 
-- [ ] **Step 5: Implement service transaction**
+- [x] **Step 5: Implement service transaction**
 
 On success:
 
@@ -278,7 +278,7 @@ Before Redis reservation, cheaply validate that the content is not soft-deleted 
 
 Inside the database transaction, lock the `content_items` row and authoritatively recheck content availability, existing contributor status, and capacity. Count confirmed contributors plus active `pending` invites for distinct non-contributors; creating this invite must not make that total exceed `max_contributors_per_item`. This serializes concurrent sends for the same content and prevents creating more simultaneously acceptable invitations than available slots.
 
-- [ ] **Step 6: Verify send service**
+- [x] **Step 6: Verify send service**
 
 Run:
 
