@@ -1095,7 +1095,25 @@
     "changeAvatar": "更换头像",
     "avatarHint": "JPG 或 PNG，最大 20MB",
     "avatarTooLarge": "图片不能超过 20MB",
-    "avatarUpdated": "头像已更新"
+    "avatarUpdated": "头像已更新",
+    "collaboration": {
+      "title": "联合创作邀请",
+      "description": "管理他人向你发送联合创作邀请的方式。",
+      "acceptInvites": {
+        "label": "接收联合创作邀请",
+        "help": "关闭后其他用户无法向你发送联合创作邀请。"
+      },
+      "toast": {
+        "saved": "设置已保存",
+        "failed": "保存失败，请稍后重试"
+      },
+      "error": {
+        "save": "保存失败，请重试"
+      },
+      "a11y": {
+        "acceptInvites": "接收联合创作邀请"
+      }
+    }
   },
   "tagGroups": {
     "title": "标签组管理",
@@ -1557,6 +1575,32 @@
       "messageList": "对话消息",
       "unread": "未读通知",
       "broadcast": "系统广播"
+    }
+  },
+  "collabInviteCard": {
+    "type": "联合创作邀请",
+    "invitation": "{inviter} 邀请你联合创作《{title}》",
+    "status": {
+      "pending": "待接受",
+      "pendingSender": "等待对方接受",
+      "accepted": "已接受",
+      "declined": "已拒绝",
+      "expired": "已过期"
+    },
+    "actions": {
+      "accept": "接受",
+      "decline": "拒绝"
+    },
+    "errors": {
+      "failed": "操作失败，请重试"
+    },
+    "summary": {
+      "invalid": "你收到了一条联合创作邀请"
+    },
+    "a11y": {
+      "title": "关于《{title}》的联合创作邀请",
+      "accept": "接受《{title}》的联合创作邀请",
+      "decline": "拒绝《{title}》的联合创作邀请"
     }
   },
   "footer": {
