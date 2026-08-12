@@ -383,6 +383,19 @@ func (r *CollectionRepository) EnsureDefaultCollection(ctx context.Context, user
 	return &existing, nil
 }
 
+// CountActiveMembershipsForContent counts how many of the user's active
+// (non-deleted) collections contain the content item. #74: this is the single
+// source of truth for the "favorited" state.
+func (r *CollectionRepository) CountActiveMembershipsForContent(ctx context.Context, userID, contentID int64) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&model.CollectionItem{}).
+		Joins("JOIN collections ON collections.id = collection_items.collection_id").
+		Where("collection_items.content_item_id = ? AND collections.user_id = ? AND collections.deleted_at IS NULL", contentID, userID).
+		Count(&count).Error
+	return count, err
+}
+
 func (r *CollectionRepository) findOwnedCollection(ctx context.Context, collectionID, ownerID int64) (*model.Collection, error) {
 	var collection model.Collection
 	if err := r.db.WithContext(ctx).

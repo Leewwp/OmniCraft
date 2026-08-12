@@ -32,14 +32,13 @@ func TestRecommendationCollectionItemsBuildUserProfile(t *testing.T) {
 	assertRecommendationVectorApprox(t, profile, []float32{0.6, 0.8})
 }
 
-func TestRecommendationFavoriteAndCollectionItemsAreDeduplicated(t *testing.T) {
+func TestRecommendationCollectionItemsBothContributeToProfile(t *testing.T) {
 	db := setupRecommendationServiceTestDB(t)
 	user := seedRecommendationUser(t, db, 1)
 	first := seedRecommendationContent(t, db, 10, user.ID, "original", "article", "game")
 	second := seedRecommendationContent(t, db, 11, user.ID, "original", "video", "game")
 	seedRecommendationEmbedding(t, db, first.ID, "[1,0]")
 	seedRecommendationEmbedding(t, db, second.ID, "[0,1]")
-	seedRecommendationFavorite(t, db, user.ID, first.ID)
 	collection := seedRecommendationCollection(t, db, user.ID, "original")
 	seedRecommendationCollectionItem(t, db, collection.ID, first.ID)
 	seedRecommendationCollectionItem(t, db, collection.ID, second.ID)
@@ -52,7 +51,9 @@ func TestRecommendationFavoriteAndCollectionItemsAreDeduplicated(t *testing.T) {
 	assertRecommendationVectorApprox(t, profile, []float32{0.70710677, 0.70710677})
 }
 
-func TestRecommendationCollectionItemsMatchFavoriteWeight(t *testing.T) {
+// #74: 收藏信号权重（x2）现在只由收藏成员关系承担；旧 favorites 行完全被忽略
+// （见 TestRecommendationFavoritesOnlyUserIsColdStart / ...DoNotAlter...）。
+func TestRecommendationCollectionMembershipKeepsFavoriteWeight(t *testing.T) {
 	db := setupRecommendationServiceTestDB(t)
 	user := seedRecommendationUser(t, db, 1)
 	browsed := seedRecommendationContent(t, db, 10, user.ID, "original", "article", "game")
@@ -60,27 +61,67 @@ func TestRecommendationCollectionItemsMatchFavoriteWeight(t *testing.T) {
 	seedRecommendationEmbedding(t, db, browsed.ID, "[1,0]")
 	seedRecommendationEmbedding(t, db, favorited.ID, "[0,1]")
 	seedRecommendationBrowseHistory(t, db, user.ID, browsed.ID)
+	collection := seedRecommendationCollection(t, db, user.ID, "original")
+	seedRecommendationCollectionItem(t, db, collection.ID, favorited.ID)
 
-	favoriteSvc := &RecommendationService{db: db}
-	seedRecommendationFavorite(t, db, user.ID, favorited.ID)
-	favoriteProfile, err := favoriteSvc.buildUserProfile(context.Background(), user.ID)
+	svc := &RecommendationService{db: db}
+	collectionProfile, err := svc.buildUserProfile(context.Background(), user.ID)
 	if err != nil {
-		t.Fatalf("favorite buildUserProfile() error = %v", err)
+		t.Fatalf("collection buildUserProfile() error = %v", err)
 	}
+	assertRecommendationVectorApprox(t, collectionProfile, []float32{0.4472136, 0.8944272})
+}
+
+// #74: legacy favorites rows must no longer contribute to cold-start or
+// profile signals; only collection membership counts as a favorite signal.
+func TestRecommendationFavoritesOnlyUserIsColdStart(t *testing.T) {
+	db := setupRecommendationServiceTestDB(t)
+	user := seedRecommendationUser(t, db, 1)
+	for i, contentID := range []int64{10, 11, 12} {
+		content := seedRecommendationContent(t, db, contentID, user.ID, "original", "article", "game")
+		seedRecommendationEmbedding(t, db, content.ID, []string{"[1,0]", "[0,1]", "[1,1]"}[i])
+		seedRecommendationFavorite(t, db, user.ID, content.ID)
+	}
+
+	svc := &RecommendationService{db: db}
+	if !svc.isColdStart(user.ID, 1) {
+		t.Fatal("isColdStart() = false for user with legacy favorites only, want true (favorites must not count)")
+	}
+	if _, err := svc.buildUserProfile(context.Background(), user.ID); err == nil {
+		t.Fatal("buildUserProfile() = profile for legacy favorites only, want error (no collection membership signal)")
+	}
+}
+
+// #74: a favorite row next to an identical collection membership must not
+// change the profile vector — the favorite is ignored entirely.
+func TestRecommendationFavoritesDoNotAlterCollectionMembershipProfile(t *testing.T) {
+	db := setupRecommendationServiceTestDB(t)
+	user := seedRecommendationUser(t, db, 1)
+	browsed := seedRecommendationContent(t, db, 10, user.ID, "original", "article", "game")
+	favorited := seedRecommendationContent(t, db, 11, user.ID, "original", "template", "efficiency")
+	seedRecommendationEmbedding(t, db, browsed.ID, "[1,0]")
+	seedRecommendationEmbedding(t, db, favorited.ID, "[0,1]")
+	seedRecommendationBrowseHistory(t, db, user.ID, browsed.ID)
+	collection := seedRecommendationCollection(t, db, user.ID, "original")
+	seedRecommendationCollectionItem(t, db, collection.ID, favorited.ID)
+	seedRecommendationFavorite(t, db, user.ID, favorited.ID)
+
+	withFavorite := &RecommendationService{db: db}
+	profile, err := withFavorite.buildUserProfile(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("buildUserProfile() error = %v", err)
+	}
+	assertRecommendationVectorApprox(t, profile, []float32{0.4472136, 0.8944272})
 
 	if err := db.Where("user_id = ? AND content_item_id = ?", user.ID, favorited.ID).Delete(&model.Favorite{}).Error; err != nil {
 		t.Fatalf("delete favorite: %v", err)
 	}
-	collection := seedRecommendationCollection(t, db, user.ID, "original")
-	seedRecommendationCollectionItem(t, db, collection.ID, favorited.ID)
-
-	collectionSvc := &RecommendationService{db: db}
-	collectionProfile, err := collectionSvc.buildUserProfile(context.Background(), user.ID)
+	withoutFavorite := &RecommendationService{db: db}
+	profileWithout, err := withoutFavorite.buildUserProfile(context.Background(), user.ID)
 	if err != nil {
-		t.Fatalf("collection buildUserProfile() error = %v", err)
+		t.Fatalf("buildUserProfile() without favorite error = %v", err)
 	}
-	assertRecommendationVectorApprox(t, collectionProfile, favoriteProfile)
-	assertRecommendationVectorApprox(t, collectionProfile, []float32{0.4472136, 0.8944272})
+	assertRecommendationVectorApprox(t, profileWithout, profile)
 }
 
 func setupRecommendationServiceTestDB(t *testing.T) *gorm.DB {
