@@ -19,6 +19,11 @@ interface ReactionBarProps {
   className?: string;
 }
 
+interface ReactionSnapshot {
+  counts?: { like?: number; dislike?: number };
+  viewer_reaction?: "like" | "dislike" | null;
+}
+
 export function ReactionBar({
   contentId,
   initialLikes = 0,
@@ -38,17 +43,26 @@ export function ReactionBar({
   const disabled = !user || interactionBlocked || busy;
   const denialKey = interactionDenialKey(capabilities.interaction_denial_reason);
 
+  const applySnapshot = useCallback((data: ReactionSnapshot) => {
+    if (data.counts) {
+      setLikeCount(data.counts.like ?? 0);
+      setDislikeCount(data.counts.dislike ?? 0);
+    }
+    if (data.viewer_reaction !== undefined) {
+      setMyReaction(data.viewer_reaction ?? null);
+    }
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     void fetchMyReaction();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, contentId]);
 
   async function fetchMyReaction() {
     try {
-      const data = await api.get<{
-        viewer_reaction?: "like" | "dislike" | null;
-      }>(`/api/v1/social/reactions?target_type=content&target_id=${contentId}`);
-      setMyReaction(data.viewer_reaction ?? null);
+      const data = await api.get<ReactionSnapshot>(`/api/v1/social/reactions?target_type=content&target_id=${contentId}`);
+      applySnapshot(data);
     } catch (e) { silentError(e, { component: 'ReactionBar', action: 'fetchMyReaction' }); }
   }
 
@@ -74,11 +88,12 @@ export function ReactionBar({
       }
 
       try {
-        await api.post("/api/v1/social/reactions", {
+        const data = await api.post<ReactionSnapshot>("/api/v1/social/reactions", {
           target_type: "content",
           target_id: contentId,
           reaction,
         });
+        applySnapshot(data);
       } catch (e) {
         silentError(e, { component: 'ReactionBar', action: 'react' });
         setMyReaction(prevReaction);
@@ -88,7 +103,7 @@ export function ReactionBar({
         setBusy(false);
       }
     },
-    [user, interactionBlocked, busy, myReaction, likeCount, dislikeCount, contentId],
+    [user, interactionBlocked, busy, myReaction, likeCount, dislikeCount, contentId, applySnapshot],
   );
 
   async function submitReport(reason: string) {
@@ -118,6 +133,7 @@ export function ReactionBar({
         variant={myReaction === "like" ? "default" : "outline"}
         size="sm"
         disabled={disabled}
+        aria-pressed={myReaction === "like"}
         onClick={() => react("like")}
         title={disabled ? t(denialKey) : t('social.like')}
       >
@@ -129,6 +145,7 @@ export function ReactionBar({
         variant={myReaction === "dislike" ? "default" : "outline"}
         size="sm"
         disabled={disabled}
+        aria-pressed={myReaction === "dislike"}
         onClick={() => react("dislike")}
         title={disabled ? t(denialKey) : t('social.dislike')}
       >
