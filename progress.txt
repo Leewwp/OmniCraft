@@ -1,3 +1,21 @@
+## [2026-08-12] - Task 8（closure）：全量验证与文档同步（#96）
+
+### What was done:
+- **Step 1 后端聚焦门**：`go test ./internal/model -run TestContentSourceMigration -v` 2/2、`go test ./internal/service -run TestValidateSource -v` 9/9、`go test ./internal/handler -run "TestCreateContentRoute|TestListRelatedFanworks" -v` 全绿（含 original/fanwork 两向 related 行为、不可见来源 404、content_type 单值/多值/非法、sort/limit 语义）。
+- **Step 2 后端全量门**：`go test ./...`（32 包全 ok）、`go vet ./...`、`go build ./...` 全绿。
+- **Step 3 前端门**：`npm run test` 375/375、`npm run lint`（tsc strict）、`npm run build` 全绿；`npx playwright test e2e/studio-publish-fanwork.spec.ts` 2/2 绿（默认配置 testMatch 仅 `*.integration.spec.ts`，沿用 t6 先例用等价临时 baseURL :3000 配置跑同一批 spec，跑完删除临时配置，不入库）。
+- **Step 4 doc-validator**：`go run . --fix` 仅更新 `docs/reference/schema.md`（content_items 表补 `source_fanwork_id BIGINT -> content_items.id` 1 行）；config/route sync 无变化；再跑一次幂等（no changes）。
+- **Step 5 浏览器验证（ego-browser, zh, :3000 → :8088 真实后端）**：7 项全过——original/137 相关二创行（卡片 229 + 开始创作 ?source_original_id=137）；original/26 无 fanwork 时整行隐藏；content/229 归因「灵感来源：…」→ /original/137；content/17481 二创来源归因 → /content/229；content/229 「衍生作品」行（17481 卡 + ?source_fanwork_id=229）；publish 页三源（IP 可选 + 原创来源 + 二创来源）搜索/互斥正常，选原创来源后提交按钮解除 disabled；无 IP/来源提交被本地化校验「发布二创需要 IP 或灵感来源」拦截（提交钮 disabled）。
+- **截图 6 张** `screenshots/community-{source-picker-desktop,source-picker-mobile,source-attribution-desktop,source-attribution-unavailable,related-fanworks-desktop,derivatives-mobile}.png`（screenshots/ 被 .gitignore 排除，`git add -f` 入库，同 #85/#88 先例；像素抽样验证非空白）。
+- **Step 6 收口**：确认 Task 0–7 checkpoint commits 均在 main（t1 0b85f25/#157、t2 785355f/#158、t3 1e07199/#159、t4 e407340/#160、t5 2cc68a1..#161、t6 f3ec98c..#162、t7 347b862..#163，t0 为验证-only 无独立提交）；仅 stage Task 8 证据（doc-validator 生成物 + 截图 + progress.txt + 计划勾选），单 commit，未重写 Task 0-7 实现代码。
+
+### Testing:
+- 见各 Step；Plan Self-Check 15 项逐项核对全部通过（错误码 6 个与条件、无陈旧单来源文档、历史无源行不受阻、SourceContentPicker canonical、搜索复用可见性、多值 content_type 契约、SOURCE_IMMUTABLE 创建期不可变、无「三创」、不可用来源行为、双来源互斥、浏览器覆盖等）。
+
+### Notes:
+- 环境：docker postgres/redis 复用主 worktree 已有健康容器（omnicraft-postgres/omnicraft-redis）；后端 `SERVER_PORT=8088` 起在 8088（config.go 支持 SERVER_PORT env 覆盖）；前端 `NEXT_PUBLIC_API_URL=http://localhost:8088` 起在 :3000；验证数据沿用 Task 7 fixture（137/229/17481/17482/17483）。
+- 截图暗色为主分布与已入库 t7 截图一致（浏览器环境默认暗色渲染），像素抽样确认含内容非空白。
+- 未触碰：主 worktree、Task 0-7 已提交实现代码；doc-validator 仅改 schema.md 生成节。
 ## [2026-08-12] - Task 7（light）：来源归因与相关/衍生作品行（#96）
 
 ### What was done:

@@ -215,6 +215,7 @@
 | `deleted_at` | `TIMESTAMPTZ` | - | deleted_at |
 | `cover_width` | `INT` | - | cover_width |
 | `cover_height` | `INT` | - | cover_height |
+| `source_fanwork_id` | `BIGINT` | -> content_items.id | source_fanwork_id |
 
 ### content_series
 
