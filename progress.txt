@@ -1,3 +1,34 @@
+## [2026-08-13] - Issue #74 [light]: 让收藏成员关系成为唯一收藏状态源
+
+### What was done:
+- **后端（收藏状态唯一事实源 = 活动收藏集成员关系）**：
+  - `repository/collection_repo.go` 新增 `CountActiveMembershipsForContent(ctx, userID, contentID)`：`collection_items` JOIN `collections`（`deleted_at IS NULL`），参数化 GORM 查询，返回当前用户活动收藏集中的成员数。
+  - `handler/content.go` `GetContent`：`is_favorited` 从旧 `favorites` 表计数切换为活动收藏集成员数（>0 即已收藏）；成员查询失败降级为未收藏 + slog 记录，不阻断详情；匿名响应依旧不携带该字段。
+  - `service/recommendation_service.go`：`isColdStart` 与 `buildUserProfile` 移除 `favorites` 读取 —— 冷启动只计 browse_history + collection_items（活动收藏集）+ reactions like；画像收藏信号（x2 权重）只来自 collection membership。
+  - 旧 favorites route/handler/model/双写一律保留给 #75 统一退役（未触碰）。
+- **后端测试（TDD 红→绿）**：`recommendation_service_test.go` 新测试 `TestRecommendationFavoritesOnlyUserIsColdStart` 首跑红（favorites 行被计为信号）→ 实现后绿；`TestRecommendationFavoritesDoNotAlterCollectionMembershipProfile` 证明同内容加/不加 favorites 行画像不变；`TestRecommendationCollectionMembershipKeepsFavoriteWeight` 保持 x2 权重语义；`TestRecommendationCollectionItemsBothContributeToProfile` 替代旧「favorites×collection 去重」测试。新 `handler/content_detail_favorited_test.go`（6 例 HTTP seam）：匿名不携带 `is_favorited`、零成员=false、单成员=true、多成员移除其一仍 true、移除最后一个 false、已删除收藏集成员不计、他人成员不泄漏。
+- **前端（normalizer + 详情按钮 + picker 同步）**：
+  - `lib/content.ts`：`ContentDetailData.isFavorited`；`normalizeContentItem` 与 `normalizeContentDetailResponse` 从响应顶层 `is_favorited` 归一化（匿名保持缺省）。
+  - `ContentDetail.tsx`：收藏按钮文案/样式随 `isFavorited` 切换「已收藏」（destructive）/「添加到收藏集」；初始值来自详情响应，`data.id` 变化时重同步。
+  - `CollectionPicker.tsx`：新增 `onMembershipChange` 回调，add/remove/create 成功后上报新成员关系（添加→true；移除→按剩余集合计算），详情与 picker 同源。
+  - i18n：`collections.picker.actions.favorited`（zh「已收藏」/ en「Favorited」）。
+- **前端测试**：`collection-picker.test.tsx` +2（成员关系上报：移除其一仍 true / 移除最后 false / 添加 true / 初始加载不上报）；新增 `content-detail-favorited.test.tsx`（标签渲染 + picker 操作后标签不翻转）；normalizer 函数级断言 1 例。
+- **e2e**：`frontend/e2e/t74-favorited-state.mock.spec.ts`（2 例，zh-CN，有状态收藏集 mock）：匿名无「已收藏」且入口为「添加到收藏集」；双收藏集成员移除其一仍「已收藏」→ 移除最后一个取消（详情按钮与 picker 行状态一致）。截图 4 张 `screenshots/web-t74-*.png`。
+- **契约兼容**：收藏按钮不加 `aria-pressed`（#71 的 `button[aria-pressed]` 定位契约依赖 DOM 顺序，避免被收藏入口抢占第一个匹配）。
+
+### Testing:
+- 后端：`go build ./... && go vet ./... && go test ./...` 全绿（推荐服务 5 例 + 详情收藏态 6 例 seam 全绿）。
+- 前端：`npm run test:unit` 477/477 绿、`npm run lint`（tsc strict）干净、`npm run build` 成功。
+- e2e：`npx playwright test --config=playwright.mocked.config.ts` 69/69 全绿（含新 t74 2 例；修掉一次由收藏按钮 `aria-pressed` 引起的 t71 契约回归后复跑全绿）。
+- 项目门：`bash scripts/verify-project.sh --full` 通过（backend tests + frontend unit/lint/lint:ui + doc-validator + mocked contracts）。
+
+### Notes:
+- 分支 `web/t74`（基于本地 main，含 #69/#71/#72 + collab；**#73 尚未合入 main** —— 066_ip_visit_history 只在 `web/t73` 分支，与任务简报「066 已合入 main」不符；#74 无需 066，未受影响，web/t73 合入后如有 routes.go 冲突再 rebase）。
+- 旧 favorites 读取点清理边界：#75 遗留 —— `handler/social.go`（FavoriteHandler 全部）、`repository/social_repo.go`（AddFavorite/RemoveFavorite/ListUserFavorites 等）、`model/social.go` Favorite/BrowseHistory 模型（保留）、`routes.go` 171-176 favorites 路由段 + `favoritesGuard` 命名、`service/social_service.go` 中收藏双写；本票仅移除 content detail 与推荐服务的 favorites 读取。
+- 图片无法目检（当前模型不支持图像输入），视觉验证以 e2e DOM 断言 + 程序化断言为准。
+- 工作树中 #73 未提交的 progress.txt 残留已 `git checkout --` 还原（内容与 `web/t73` commit 10185ca 完全一致，无信息丢失）；t87 截图残留未触碰、未暂存。
+- 未 close issue、未合并 main、未改 AGENTS.md 注册表、未动 routes.go/migrations（doc-validator 无需运行，但 verify 门已含 --check）。
+
 ## [2026-08-12] - Ticket #71 [light]: 收口查看者反应 API 与 UI 契约
 
 ### What was done:
