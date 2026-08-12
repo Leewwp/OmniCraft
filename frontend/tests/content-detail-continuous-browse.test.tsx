@@ -283,7 +283,9 @@ async function openContext(view: ReturnType<typeof render>, entryIndex: number) 
     await Promise.resolve();
   });
   await waitFor(() => assert.ok(view.getByRole("dialog")));
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2 })));
+  /* 桌面视口下 #90 相关内容块会额外渲染标题行（h2），等待时必须按名称区分。 */
+  const expectedTitle = ["Context A", "Context B", "Context C"][entryIndex];
+  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: expectedTitle })));
 }
 
 /** 在最后一项媒体上向上滑动（移动端连续浏览手势；目标 = 移动端可见的行内画廊）。 */
@@ -384,7 +386,9 @@ test("#89 AC4: desktop (>=1100px) never triggers continuous browsing", async () 
   swipeUpOnMedia("first");
   await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: "Context A" })));
   assert.equal(detailCallCount, 1, "desktop must not switch content");
-  assert.ok(view.queryByText("You've reached the end") === null);
+  /* #89 移动连续浏览的到底提示（media-continue-end）不得出现在桌面端；
+     #90 桌面相关内容块的「已经到底了」由 RelatedContents 承载，语义不同。 */
+  assert.ok(document.querySelector('[data-slot="media-continue-end"]') === null);
 });
 
 test("#89 source contracts: context fields live on the entry, not as a second state machine", () => {
