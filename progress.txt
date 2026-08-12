@@ -1029,3 +1029,22 @@
 - 偏差：(1) 卡片 metadata 有效性判定要求 invite_id+content_id+content_title+inviter_username 四项齐全（ui-spec 只列前三个，但描述文案需要 inviter，四项更保守安全）；(2) e2e expired 状态用 mock accept 响应返回 status=expired 演示（后端对过期邀请实际返回 409 错误，卡片对任何 returned status 都应用，截图合同仅用于视觉验证）；(3) 状态截图分三张（accepted/declined/expired），非单张合成图；(4) ConversationList 未追加状态文本（last_message metadata 无 status 字段可读）。
 - 遗留：(1) 后端 MessageDTO 新增字段无 handler 测试断言（研究 §6 gotcha 1 的补测点），建议 Task 7 或后续补 `TestMessageDTO`；(2) ChatWindow 初始 status 恒为 pending（metadata 不含 status，已接受邀请重进会话仍显示可操作，直到点击后按返回 DTO 更新；属既有合同限制，不在本任务范围）。
 - 提交序列（light 分批）：tests → backend DTO → card → chatwindow → auth/settings → i18n → e2e+screenshots → docs（progress.txt + 计划勾选）。
+
+## [2026-08-12] - Task: 跨页面共享排序下拉组件（#72）
+
+### What was done:
+- **新建共享控件** `frontend/components/ui/SortSelect.tsx`（严格按 ui-spec `## Component: SortSelect 排序选择器`）：基于仓库既有 `@base-ui/react` 原语（与 dropdown-menu 同源），trigger 为 `role=combobox` + `aria-haspopup=listbox` + `aria-expanded`，弹层为 `role=listbox`/`role=option` + `aria-selected`；Props 接口与 ui-spec 一致（className/value/options/onChange/ariaLabel）。弹层 `z-50` + `shadow-md`（elevation-3）+ 1px border + `rounded-md`，`max-h-(--available-height) overflow-y-auto` 视口碰撞可滚动，`min-w-(--anchor-width) max-w-[calc(100vw-2rem)]` 防止横向溢出；Positioner `side=bottom` + 自动向上翻转 + `alignItemWithTrigger={false}`（打开时绝不遮挡 trigger 本体）。**关键修正**：`modal={false}`（Base UI Select 默认 modal=true 会渲染 inert 遮罩拦截全页指针事件——真实浏览器实测发现，直接违反「外部点击关闭」语义，已修复）；`items` prop 传入使 trigger 同步解析选项 label（否则显示原始 value）。
+- **替换三处原生 select**（二创区 `/`、原创区 `/original`、IP 库 `/ips`）：`components/home/HomePageClient.tsx`（contentSort 状态驱动，选项 hot/newest/most_views）；`components/original/SortSelect.tsx` 重写为薄包装（保留 useSearchParams/router.push 语义：recommended 删除 sort 参数、其他值 set、保留无关参数）；`components/ip/IPBrowseClient.tsx`（sort 状态驱动，选项 hot/most_contents/newest/name，保留 44px `min-h-11` 触控高度）。三页共用同一控件与同一 `aria-label`，URL/API 参数语义不变（/original 深链 `sort=most_views` 等原样保留）。
+- **i18n**：`common.sortLabel`（zh 排序方式 / en Sort by）+ `ip.sortLabel`（zh IP 排序方式 / en Sort IPs，替代原先误用 `ip.sortHot` 作可访问名的缺陷）。
+- **单测** `tests/sort-select.test.tsx`（8 例：combobox/listbox 语义与当前项 label、aria-selected、方向键/Home/End 高亮移动、Enter/Space 提交并关闭、Escape 取消不触发 onChange、外部点击关闭）+ `tests/original-sort-select.test.tsx`（5 例：URL 语义兼容——默认 recommended、set/delete sort 参数、保留 category 参数、深链回显）。jsdom 环境补齐 `getComputedStyle` 全局（Base UI 异步 timer 依赖，缺失会导致 runner 级挂死）。
+- **e2e** `frontend/e2e/t72-sort-control.mock.spec.ts`（10 例，mock 配置）：三页共用控件（combobox+listbox+可访问名一致）；深链与 URL/API 参数兼容（/original URL 语义、/ips 与 / 的客户端请求捕获断言 sort 参数）；键盘全流程（Tab 聚焦、ArrowDown 打开、方向键/Home/End、Enter/Space 提交、Escape 关闭+焦点回 trigger、外部点击关闭+焦点恢复）；sticky 工具栏堆叠（popup z-50 > 工具栏 z-40、不遮挡 trigger）；窄视口 320px 无横向溢出 + 右缘不越界；视口底部碰撞向上翻转（375×240 实测 popup 完整在视口内且不覆盖 trigger）；截图 4 张。
+- **截图**（`screenshots/`，`git add -f` 入库，同 #97 Task 8 先例）：`web-t72-sort-desktop.png`（/original 1440×900 弹层打开）、`web-t72-sort-mobile.png`（375×844）、`web-t72-sort-mobile-ips-edge.png`（320px 边缘）、`web-t72-sort-flip-above.png`（底部碰撞）。
+
+### Testing:
+- `npm run verify`（exit 0）：tsc lint 干净；`lint:ui` UI governance 26/26；`npm run test:unit` 433/433（新增 13 例，含既有 420 例全绿——HomePageClient/IPBrowseClient 改动无回归）；`npm run build` 成功。
+- `npx playwright test --config=playwright.mocked.config.ts` 全量 60/60 连续 4 轮稳定（含新 t72 10 例与既有 50 例；修复 1 处键盘流程竞态——重新打开后需先 poll 高亮落到选中项再按方向键）。
+- 真实浏览器手工验证（dev server :3001，zh-CN）：键盘全流程、焦点恢复、URL 更新均通过；实测发现并修复 modal inert 遮罩问题。
+- 无 backend/config/routes/migrations 改动 → 无 doc-validator、无 Go 门。
+
+### Notes:
+- 遗留/偏差：(1) `frontend/e2e/content-series.mock.spec.ts` 与 `t90-related-contents.mock.spec.ts` 保持原样（#71 分支已改未合入 main，本票不触碰）；(2) 单测在 jsdom 下 Base UI 不渲染 data-highlighted/data-selected 属性，用 tabIndex 断言高亮（浏览器侧用 toBeFocused 断言）；(3) jsdom + Base UI 键盘打开路径存在偶发 runner 挂死，单测统一用点击打开、键盘全流程由真实浏览器 e2e 覆盖；(4) 深链 `/original?category=film_tv&sort=recommended` 的 hot 降级语义由后端承担，前端 trigger 显示 URL 原值（既有行为，未改动）。
