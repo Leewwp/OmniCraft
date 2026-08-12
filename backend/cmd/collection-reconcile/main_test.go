@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -29,7 +30,7 @@ func TestReconcileReadOnlyReportsDriftWithoutWriting(t *testing.T) {
 	if report.Apply {
 		t.Fatal("read-only report unexpectedly marked apply=true")
 	}
-	if report.Totals.LegacyMissingFromDefault != 2 || report.Totals.DefaultMissingFromLegacy != 1 || report.Totals.MissingDefaultCollections != 1 {
+	if report.Totals.DuplicateLogicalItems != 0 || report.Totals.MissingDefaultCollections != 1 {
 		t.Fatalf("unexpected totals: %#v", report.Totals)
 	}
 	if len(report.Users) != 2 {
@@ -44,7 +45,7 @@ func TestReconcileReadOnlyReportsDriftWithoutWriting(t *testing.T) {
 	}
 }
 
-func TestReconcileApplyRepairsBothSidesIdempotentlyWithoutDeleting(t *testing.T) {
+func TestReconcileApplyEnsuresMissingDefaultCollectionsIdempotently(t *testing.T) {
 	db := setupReconcileDB(t, true)
 	seedReconcileDrift(t, db)
 	before := loadReconcileCounts(t, db)
@@ -59,11 +60,13 @@ func TestReconcileApplyRepairsBothSidesIdempotentlyWithoutDeleting(t *testing.T)
 	if !report.Apply || report.Totals.HasDrift() {
 		t.Fatalf("apply report = %#v, want clean applied report", report)
 	}
-	afterFirst := loadReconcileCounts(t, db)
-	if afterFirst.Collections <= before.Collections || afterFirst.CollectionItems <= before.CollectionItems || afterFirst.Favorites <= before.Favorites {
-		t.Fatalf("apply must only add missing compatibility rows: before=%#v after=%#v", before, afterFirst)
+	if report.Repairs == nil || report.Repairs.DefaultCollectionsCreated != 1 {
+		t.Fatalf("apply repairs = %#v, want one default collection created", report.Repairs)
 	}
-
+	afterFirst := loadReconcileCounts(t, db)
+	if afterFirst.Collections <= before.Collections || afterFirst.CollectionItems != before.CollectionItems {
+		t.Fatalf("apply must only add the missing default collection: before=%#v after=%#v", before, afterFirst)
+	}
 	stdout.Reset()
 	stderr.Reset()
 	code = executeCollectionReconcile([]string{"--apply", "--maintenance-window-confirmed"}, db, &stdout, &stderr)
@@ -138,6 +141,24 @@ func TestReconcileRejectsUnknownArguments(t *testing.T) {
 	}
 }
 
+func TestMaintenanceToolingHasNoLegacyFavoritesDependency(t *testing.T) {
+	mainSource, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatalf("read reconcile main source: %v", err)
+	}
+	if strings.Contains(strings.ToLower(string(mainSource)), "favorite") {
+		t.Fatal("collection-reconcile must not reference legacy favorites after cutover")
+	}
+
+	seedSource, err := os.ReadFile(filepath.Join("..", "..", "..", "scripts", "seed_local_rich_data.py"))
+	if err != nil {
+		t.Fatalf("read seed script: %v", err)
+	}
+	if strings.Contains(strings.ToLower(string(seedSource)), "favorite") {
+		t.Fatal("seed_local_rich_data.py must not create or count legacy favorites after cutover")
+	}
+}
+
 func TestLoadCollectionReconcileDSNExplicitEnvWinsOverDotEnv(t *testing.T) {
 	t.Setenv("DB_DSN", "host=explicit-db dbname=explicit")
 	tempDir := t.TempDir()
@@ -165,7 +186,6 @@ func TestLoadCollectionReconcileDSNExplicitEnvWinsOverDotEnv(t *testing.T) {
 type reconcileCounts struct {
 	Collections     int64
 	CollectionItems int64
-	Favorites       int64
 }
 
 func setupReconcileDB(t *testing.T, enforceDefaultUniqueness bool) *gorm.DB {
@@ -179,7 +199,7 @@ func setupReconcileDB(t *testing.T, enforceDefaultUniqueness bool) *gorm.DB {
 		t.Fatalf("db handle: %v", err)
 	}
 	sqlDB.SetMaxOpenConns(1)
-	if err := db.AutoMigrate(&model.User{}, &model.ContentItem{}, &model.Favorite{}, &model.Collection{}, &model.CollectionItem{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.ContentItem{}, &model.Collection{}, &model.CollectionItem{}); err != nil {
 		t.Fatalf("migrate reconcile models: %v", err)
 	}
 	if enforceDefaultUniqueness {
@@ -193,13 +213,10 @@ func setupReconcileDB(t *testing.T, enforceDefaultUniqueness bool) *gorm.DB {
 func seedReconcileDrift(t *testing.T, db *gorm.DB) {
 	t.Helper()
 	user := seedReconcileUser(t, db, 1)
-	originalLegacy := seedReconcileContent(t, db, 100, user.ID, "original")
-	originalDefaultOnly := seedReconcileContent(t, db, 101, user.ID, "original")
-	fanworkLegacy := seedReconcileContent(t, db, 102, user.ID, "fanwork")
+	seedReconcileContent(t, db, 100, user.ID, "original")
+	seedReconcileContent(t, db, 102, user.ID, "fanwork")
 	originalDefault := seedReconcileCollection(t, db, 10, user.ID, "original", true)
-	seedReconcileFavorite(t, db, user.ID, originalLegacy.ID)
-	seedReconcileFavorite(t, db, user.ID, fanworkLegacy.ID)
-	seedReconcileCollectionItem(t, db, 1000, originalDefault.ID, originalDefaultOnly.ID, "private reconciliation note")
+	seedReconcileCollectionItem(t, db, 1000, originalDefault.ID, 101, "private reconciliation note")
 }
 
 func seedReconcileUser(t *testing.T, db *gorm.DB, id int64) model.User {
@@ -237,13 +254,6 @@ func seedReconcileCollectionItem(t *testing.T, db *gorm.DB, id, collectionID, co
 	}
 }
 
-func seedReconcileFavorite(t *testing.T, db *gorm.DB, userID, contentID int64) {
-	t.Helper()
-	if err := db.Create(&model.Favorite{UserID: userID, ContentItemID: contentID}).Error; err != nil {
-		t.Fatalf("create favorite: %v", err)
-	}
-}
-
 func loadReconcileCounts(t *testing.T, db *gorm.DB) reconcileCounts {
 	t.Helper()
 	counts := reconcileCounts{}
@@ -252,9 +262,6 @@ func loadReconcileCounts(t *testing.T, db *gorm.DB) reconcileCounts {
 	}
 	if err := db.Model(&model.CollectionItem{}).Count(&counts.CollectionItems).Error; err != nil {
 		t.Fatalf("count collection items: %v", err)
-	}
-	if err := db.Model(&model.Favorite{}).Count(&counts.Favorites).Error; err != nil {
-		t.Fatalf("count favorites: %v", err)
 	}
 	return counts
 }

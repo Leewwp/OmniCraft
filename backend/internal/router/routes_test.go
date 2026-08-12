@@ -75,6 +75,37 @@ func TestIPVisitHistoryRoutesRequireAuthUnderUsersMe(t *testing.T) {
 	}
 }
 
+func TestLegacyFavoritesRoutesAreNotRegistered(t *testing.T) {
+	source := readRoutesSource(t)
+	for _, legacy := range []string{
+		`favorites := v1.Group("/favorites", authReq)`,
+		`favorites.POST("", favoritesGuard, favHandler.AddFavorite)`,
+		`favorites.DELETE("/:contentId", favoritesGuard, favHandler.RemoveFavorite)`,
+		`users.GET("/:id/favorites", optAuth, favHandler.ListUserFavorites)`,
+		`favHandler := handler.NewFavoriteHandler(db, cfg)`,
+		`favoritesGuard := middleware.InteractionRequired`,
+	} {
+		if strings.Contains(source, legacy) {
+			t.Errorf("router source still registers legacy favorites dependency %q", legacy)
+		}
+	}
+
+	collectionContracts := []string{
+		`collectionGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())`,
+		`v1.POST("/collections", authReq, collectionGuard, collectionHandler.CreateCollection)`,
+		`v1.PUT("/collections/:id", authReq, collectionGuard, collectionHandler.UpdateCollection)`,
+		`v1.DELETE("/collections/:id", authReq, collectionGuard, collectionHandler.DeleteCollection)`,
+		`v1.POST("/collections/:id/items", authReq, collectionGuard, collectionHandler.AddItem)`,
+		`v1.DELETE("/collections/:id/items/:itemId", authReq, collectionGuard, collectionHandler.RemoveItem)`,
+		`v1.PUT("/collections/:id/items/:itemId", authReq, collectionGuard, collectionHandler.UpdateItem)`,
+	}
+	for _, contract := range collectionContracts {
+		if !strings.Contains(source, contract) {
+			t.Errorf("router source missing collection route interaction-guard contract %q", contract)
+		}
+	}
+}
+
 func TestSeriesMutationRoutesUseAuthAndStandardInteractionGuard(t *testing.T) {
 	source := readRoutesSource(t)
 	contracts := []string{

@@ -299,8 +299,8 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 		"series_memberships": seriesMemberships,
 	}
 
-	// #74: 收藏状态以收藏成员关系为唯一事实源 —— 当前用户至少一个活动收藏集
-	// 包含该内容即为已收藏；已删除收藏集不计入。旧 favorites 表不再作为信号。
+	// 收藏状态以收藏成员关系为唯一事实源 —— 当前用户至少一个活动收藏集
+	// 包含该内容即为已收藏；已删除收藏集不计入。
 	currentUserID := middleware.GetUserID(c)
 	if currentUserID > 0 {
 		memberships, err := h.collectionRepo.CountActiveMembershipsForContent(c.Request.Context(), currentUserID, id)

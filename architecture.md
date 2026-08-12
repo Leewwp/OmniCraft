@@ -358,7 +358,6 @@ backend/
 | `DELETE` | `/api/v1/collections/:id/items/:itemId` | collectionHandler.RemoveItem |
 | `DELETE` | `/api/v1/contents/:id` | contentHandler.DeleteContent |
 | `DELETE` | `/api/v1/dashboard/contributors/:userId/block` | prHandler.UnblockContributor |
-| `DELETE` | `/api/v1/favorites/:contentId` | favHandler.RemoveFavorite |
 | `DELETE` | `/api/v1/ips/:id/follow` | followHandler.UnfollowIP |
 | `DELETE` | `/api/v1/messages/:id` | msgHandler.DeleteMessage |
 | `DELETE` | `/api/v1/messages/conversations/:id` | msgHandler.LeaveConversation |
@@ -438,7 +437,6 @@ backend/
 | `GET` | `/api/v1/users/:id` | userHandler.GetUser |
 | `GET` | `/api/v1/users/:id/contents` | userHandler.GetUserContents |
 | `GET` | `/api/v1/users/:id/discussions` | discHandler.ListByUser |
-| `GET` | `/api/v1/users/:id/favorites` | favHandler.ListUserFavorites |
 | `GET` | `/api/v1/users/:id/followers` | followHandler.GetFollowers |
 | `GET` | `/api/v1/users/:id/following` | followHandler.GetFollowing |
 | `GET` | `/api/v1/users/:id/reputation` | userHandler.GetReputation |
@@ -504,7 +502,6 @@ backend/
 | `POST` | `/api/v1/dashboard/contributors/:userId/block` | prHandler.BlockContributor |
 | `POST` | `/api/v1/deploy-grants` | inline handler |
 | `POST` | `/api/v1/discussions/:id/comments` | discHandler.ReplyToDiscussion |
-| `POST` | `/api/v1/favorites` | favHandler.AddFavorite |
 | `POST` | `/api/v1/feedback` | feedbackHandler.SubmitTicket |
 | `POST` | `/api/v1/feedback/attachments/presign` | feedbackHandler.PresignUpload |
 | `POST` | `/api/v1/internal/ai-callback` | internalHandler.AICallback |
