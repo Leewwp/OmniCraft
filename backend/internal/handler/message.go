@@ -22,11 +22,13 @@ type MessageHandler struct {
 }
 
 type MessageDTO struct {
-	ID        int64  `json:"id"`
-	SenderID  int64  `json:"sender_id"`
-	Text      string `json:"text"`
-	Body      string `json:"body"`
-	CreatedAt string `json:"created_at"`
+	ID        int64         `json:"id"`
+	SenderID  int64         `json:"sender_id"`
+	Text      string        `json:"text"`
+	Body      string        `json:"body"`
+	MsgType   string        `json:"msg_type"`
+	Metadata  model.JSONMap `json:"metadata,omitempty"`
+	CreatedAt string        `json:"created_at"`
 }
 
 type ConversationParticipantDTO struct {
@@ -200,6 +202,8 @@ func messageDTO(message model.Message) MessageDTO {
 		SenderID:  message.SenderID,
 		Text:      message.Body,
 		Body:      message.Body,
+		MsgType:   message.MsgType,
+		Metadata:  message.Metadata,
 		CreatedAt: formatMessageTime(message.CreatedAt),
 	}
 }
