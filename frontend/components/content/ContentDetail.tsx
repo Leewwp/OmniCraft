@@ -70,6 +70,8 @@ interface ContentDetailProps {
   onOpenRelatedDetail?: (data: ContentCardData, trigger: HTMLElement) => void;
   /** #90 关联行已加载的 id/zone 摘要（#96 合同，相似内容去重；overlay 层已有该数据）。 */
   relatedFanworksSummary?: Array<{ id: number; title: string; zone: "original" | "fanwork" }>;
+  /** #69 浮层内系列导航：章节切换/目录选择压入浮层导航栈（不整页跳转）；独立详情页不传。 */
+  onNavigateInOverlay?: (contentId: number, trigger?: HTMLElement | null) => void;
 }
 
 function getTypeLabel(t: (key: string) => string, contentType: string): string {
@@ -164,6 +166,7 @@ export function ContentDetail({
   relatedFanworks,
   onOpenRelatedDetail,
   relatedFanworksSummary,
+  onNavigateInOverlay,
 }: ContentDetailProps) {
   const t = useTranslations();
   const locale = useLocale();
@@ -468,7 +471,7 @@ export function ContentDetail({
       />
 
       {data.series_memberships && data.series_memberships.length > 0 && (
-        <SeriesNav memberships={data.series_memberships} />
+        <SeriesNav memberships={data.series_memberships} onNavigateInOverlay={onNavigateInOverlay} />
       )}
 
       {/* 相关二创/衍生作品行（ui-spec:2697）：正文后、评论区上方，与 SeriesNav 同级。
