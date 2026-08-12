@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SortSelect } from "@/components/ui/SortSelect";
 
 interface IPItem {
   id: number;
@@ -165,19 +166,15 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
             className="min-h-11 w-full rounded-full border border-border bg-muted pl-9 pr-4 text-sm placeholder:text-muted-foreground/60 focus:bg-background"
           />
         </form>
-        <label className="shrink-0">
-          <span className="sr-only">{t('ip.sortHot')}</span>
-          <select
+        <div className="shrink-0">
+          <SortSelect
+            ariaLabel={t('ip.sortLabel')}
             value={sort}
-            onChange={(e) => setSort(e.target.value)}
-            aria-label={t('ip.sortHot')}
-            className="min-h-11 rounded-md border border-border bg-card px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
-          >
-            {SORT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
-            ))}
-          </select>
-        </label>
+            options={SORT_OPTIONS.map((opt) => ({ value: opt.value, label: t(opt.labelKey) }))}
+            onChange={setSort}
+            className="min-h-11"
+          />
+        </div>
       </div>
 
       {/* Category tabs */}

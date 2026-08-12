@@ -36,6 +36,7 @@
     "clickToView": "查看",
     "pageNumber": "第 {current} 页",
     "skipToContent": "跳转到主要内容",
+    "sortLabel": "排序方式",
     "units": {
       "days": "天",
       "times": "次",
@@ -1047,7 +1048,8 @@
     "sortByName": "名称排序",
     "sortHot": "最热门",
     "sortMostContents": "最多内容",
-    "sortNewest": "最新"
+    "sortNewest": "最新",
+    "sortLabel": "IP 排序方式"
   },
   "user": {
     "profile": "用户 #{id}",
