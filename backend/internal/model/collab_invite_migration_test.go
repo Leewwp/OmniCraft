@@ -26,7 +26,15 @@ func TestCollaborationInviteMigration(t *testing.T) {
 		t.Fatal("expected collaboration_invites table to exist")
 	}
 
-	dataType, nullable := testutil.ColumnMetadata(t, db, "users", "accept_collab_invites")
+	dataType, nullable := testutil.ColumnMetadata(t, db, "collaboration_invites", "message_id")
+	if dataType != "bigint" || !nullable {
+		t.Fatalf("collaboration_invites.message_id = (%s, nullable=%v), want bigint nullable", dataType, nullable)
+	}
+	if !testutil.ForeignKeyExists(t, db, "collaboration_invites", "message_id", "messages") {
+		t.Fatal("expected message_id foreign key to reference messages")
+	}
+
+	dataType, nullable = testutil.ColumnMetadata(t, db, "users", "accept_collab_invites")
 	if dataType != "boolean" || nullable {
 		t.Fatalf("users.accept_collab_invites = (%s, nullable=%v), want boolean NOT NULL", dataType, nullable)
 	}
@@ -52,13 +60,29 @@ func TestCollaborationInviteMigration(t *testing.T) {
 		t.Fatalf("messages.msg_type CHECK %q must allow 'collab_invite'", def)
 	}
 
+	statusDef := checkConstraintDefinition(t, db, "collaboration_invites", "status")
+	for _, want := range []string{"pending", "accepted", "declined", "expired"} {
+		if !strings.Contains(statusDef, want) {
+			t.Fatalf("collaboration_invites.status CHECK %q must allow '%s'", statusDef, want)
+		}
+	}
+	if strings.Contains(statusDef, "rejected") {
+		t.Fatalf("collaboration_invites.status CHECK %q must not allow 'rejected'", statusDef)
+	}
+
 	dataType, nullable = testutil.ColumnMetadata(t, db, "messages", "metadata")
 	if dataType != "jsonb" || nullable {
 		t.Fatalf("messages.metadata = (%s, nullable=%v), want jsonb NOT NULL", dataType, nullable)
 	}
 
+	if !testutil.IndexExists(t, db, "collaboration_invites", "idx_collab_invites_inviter") {
+		t.Fatal("expected idx_collab_invites_inviter to exist")
+	}
 	if !testutil.IndexExists(t, db, "collaboration_invites", "idx_collab_invites_active") {
 		t.Fatal("expected idx_collab_invites_active to exist")
+	}
+	if !indexIsUnique(t, db, "idx_collab_invites_active") {
+		t.Fatal("idx_collab_invites_active must be a UNIQUE index")
 	}
 	indexDef := indexDefinition(t, db, "idx_collab_invites_active")
 	for _, want := range []string{"content_id", "invitee_id", "status", "pending", "accepted"} {
@@ -132,6 +156,21 @@ func requireCollaborationBaseTables(t *testing.T, db *gorm.DB) {
 	`).Error; err != nil {
 		t.Fatalf("create messages base table: %v", err)
 	}
+}
+
+func indexIsUnique(t *testing.T, db *gorm.DB, index string) bool {
+	t.Helper()
+
+	var unique bool
+	if err := db.Raw(`
+		SELECT i.indisunique
+		FROM pg_index i
+		JOIN pg_class c ON c.oid = i.indexrelid
+		WHERE c.relname = ?
+	`, index).Scan(&unique).Error; err != nil {
+		t.Fatalf("lookup unique flag of %s: %v", index, err)
+	}
+	return unique
 }
 
 func checkConstraintDefinition(t *testing.T, db *gorm.DB, table, column string) string {

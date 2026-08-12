@@ -875,3 +875,19 @@
 
 ### Notes:
 - 未碰：main worktree、frontend、routes.go。Task 2（repo/service 层）待本 PR 合并后开新 worktree。
+
+## [2026-08-12] - Task 1（heavy）审查修复（PR #166 DONE_WITH_CONCERNS 4 项）
+
+### What was done:
+- **① message_id 列**：`065_collaboration_invites.sql` CREATE TABLE 补 `message_id BIGINT REFERENCES messages(id) ON DELETE SET NULL`（设计输入 line 834 + 计划 Task 2 Step 1/5 回填要求；迁移未合并直接改 065 本体）；`collab_invite.go` 补 `MessageID *int64`（`json:"message_id,omitempty"`）；测试新增 message_id 列（bigint nullable）+ FK→messages 断言。
+- **② inviter 索引**：065 补 `idx_collab_invites_inviter ON collaboration_invites (inviter_id)`（设计输入 line 840，inviter_id 为 ON DELETE CASCADE FK 需显式索引）；测试断言存在。
+- **③ UNIQUE 断言强化**：新增 helper `indexIsUnique`（pg_index.indisunique）断言 `idx_collab_invites_active` 是 UNIQUE；partial 谓词断言（content_id/invitee_id/status/pending/accepted）保持。
+- **④ status 统一 declined**：065 CHECK 改 `('pending','accepted','declined','expired')`、`CollabInviteStatusRejected` → `CollabInviteStatusDeclined = "declined"`；测试新增 status CHECK 断言（含 4 值、不含 rejected）；迁移注释同步；全库残留 rejected 均为无关表（tag_suggestions/appeals）。
+
+### Testing:
+- `go test ./internal/model -run TestCollaborationInviteMigration -v` PASS；`cd backend && go build ./... && go vet ./... && go test ./...` 24 包全绿无 FAIL；改动文件 gofmt 干净。
+- doc-validator `--fix` 两轮幂等：schema.md 同步 `collaboration_invites.message_id` 列（+1 行）；config/route 无变化。
+- 提交：`fix(collab): address Task 1 review concerns - message_id, inviter index, unique assertion, declined status (#97)`（追加 commit，不 amend）。
+
+### Notes:
+- 未碰 main worktree/frontend/routes.go；issue #97 不 close。

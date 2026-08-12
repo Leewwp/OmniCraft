@@ -2,7 +2,9 @@
 --   * collaboration_invites tracks publish-time invites to co-authors; the
 --     active partial unique index guarantees at most one pending/accepted
 --     invite per (content_id, invitee_id) while still allowing a re-invite
---     once a previous invite expires or is rejected;
+--     once a previous invite expires or is declined;
+--   * message_id links the invite card in messages (msg_type='collab_invite')
+--     back to the invite and is cleared when the message is deleted;
 --   * users.accept_collab_invites is the recipient opt-in switch, on by
 --     default so existing users keep receiving invites;
 --   * messages.msg_type + messages.metadata carry typed invite cards: only
@@ -16,13 +18,17 @@ CREATE TABLE IF NOT EXISTS collaboration_invites (
     content_id    BIGINT      NOT NULL REFERENCES content_items(id) ON DELETE CASCADE,
     inviter_id    BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     invitee_id    BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    message_id    BIGINT      REFERENCES messages(id) ON DELETE SET NULL,
     status        VARCHAR(20) NOT NULL DEFAULT 'pending'
-                              CHECK (status IN ('pending', 'accepted', 'rejected', 'expired')),
+                              CHECK (status IN ('pending', 'accepted', 'declined', 'expired')),
     expires_at    TIMESTAMPTZ NOT NULL,
     responded_at  TIMESTAMPTZ,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_collab_invites_inviter
+  ON collaboration_invites (inviter_id);
 
 CREATE INDEX IF NOT EXISTS idx_collab_invites_invitee
   ON collaboration_invites (invitee_id, status, created_at DESC);
