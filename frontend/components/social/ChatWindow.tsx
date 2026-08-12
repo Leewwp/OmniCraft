@@ -7,6 +7,7 @@ import { ApiRequestError, api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/Toast";
+import { CollabInviteCard, type CollabInviteStatus } from "@/components/social/CollabInviteCard";
 import type { Conversation } from "@/components/social/ConversationList";
 
 interface Message {
@@ -15,6 +16,7 @@ interface Message {
   text?: string;
   body?: string;
   msg_type?: string;
+  metadata?: Record<string, unknown>;
   created_at?: string;
 }
 
@@ -142,9 +144,29 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
               </div>
             ) : messages.map((message) => {
               const own = message.sender_id === user?.id;
-              const content = message.msg_type === "collab_invite"
-                ? t("messages.chat.collabInviteSummary")
-                : message.msg_type && message.msg_type !== "text"
+              if (message.msg_type === "collab_invite") {
+                const invite = inviteFromMetadata(message);
+                return (
+                  <div key={message.id} className="flex justify-start">
+                    {invite ? (
+                      <CollabInviteCard
+                        invite={invite}
+                        isCurrentUserInvitee={message.sender_id !== user?.id}
+                        onAccept={async () => {}}
+                        onDecline={async () => {}}
+                      />
+                    ) : (
+                      <div className="max-w-[86%] rounded-lg bg-canvas-subtle px-3 py-2 text-sm text-fg-default md:max-w-[70%]">
+                        <p className="whitespace-pre-wrap break-words">{t("collabInviteCard.summary.invalid")}</p>
+                        <time className="mt-0.5 block text-right text-[10px] opacity-75" dateTime={message.created_at}>
+                          {formatMessageTime(message.created_at, locale, t("messages.chat.timeUnknown"))}
+                        </time>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              const content = message.msg_type && message.msg_type !== "text"
                 ? t("messages.chat.unsupportedMessage")
                 : message.text ?? message.body ?? t("messages.chat.unsupportedMessage");
               return (
@@ -192,6 +214,22 @@ function normalizeLoadedMessages(messages: Message[]): Message[] {
 function normalizeMessage(message: Message): Message {
   const text = message.text ?? message.body ?? "";
   return { ...message, text, body: message.body ?? text };
+}
+
+function inviteFromMetadata(message: Message): {
+  id: number;
+  status: CollabInviteStatus;
+  contentId: number;
+  contentTitle: string;
+  inviterUsername: string;
+} | null {
+  const metadata = message.metadata ?? {};
+  const id = Number(metadata.invite_id ?? 0);
+  const contentId = Number(metadata.content_id ?? 0);
+  const contentTitle = typeof metadata.content_title === "string" ? metadata.content_title : "";
+  const inviterUsername = typeof metadata.inviter_username === "string" ? metadata.inviter_username : "";
+  if (!id || !contentId || !contentTitle || !inviterUsername) return null;
+  return { id, status: "pending", contentId, contentTitle, inviterUsername };
 }
 
 function compareMessagesChronologically(a: Message, b: Message): number {
