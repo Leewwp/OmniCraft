@@ -168,8 +168,6 @@ func (s *RecommendationService) isColdStart(userID int64, threshold int) bool {
 		SELECT content_item_id FROM (
 			SELECT content_item_id FROM browse_history WHERE user_id = ?
 			UNION
-			SELECT content_item_id FROM favorites WHERE user_id = ?
-			UNION
 			SELECT ci.content_item_id
 			FROM collection_items ci
 			JOIN collections c ON c.id = ci.collection_id
@@ -178,7 +176,7 @@ func (s *RecommendationService) isColdStart(userID int64, threshold int) bool {
 			SELECT target_id AS content_item_id FROM reactions WHERE user_id = ? AND target_type = 'content' AND reaction = 'like'
 		) interactions
 		LIMIT ?
-	) t`, userID, userID, userID, userID, threshold).Scan(&count)
+	) t`, userID, userID, userID, threshold).Scan(&count)
 	return count < int64(threshold)
 }
 
@@ -203,21 +201,17 @@ func (s *RecommendationService) buildUserProfile(ctx context.Context, userID int
 		slog.Error("[rec] browse history query failed", "error", err)
 	}
 
+	// #74: 收藏信号只来自收藏成员关系（活动收藏集），不再读取旧 favorites 表。
 	var favRows []embeddingRow
 	if err := s.db.Raw(`
 		SELECT CAST(ce.embedding AS text) AS embedding
-		FROM (
-			SELECT content_item_id FROM favorites WHERE user_id = ?
-			UNION
-			SELECT ci.content_item_id
-			FROM collection_items ci
-			JOIN collections c ON c.id = ci.collection_id
-			WHERE c.user_id = ? AND c.deleted_at IS NULL
-		) favorite_sources
-		JOIN content_embeddings ce ON ce.content_item_id = favorite_sources.content_item_id
+		FROM collection_items ci
+		JOIN collections c ON c.id = ci.collection_id
+		JOIN content_embeddings ce ON ce.content_item_id = ci.content_item_id
+		WHERE c.user_id = ? AND c.deleted_at IS NULL
 		LIMIT 50
-	`, userID, userID).Scan(&favRows).Error; err != nil {
-		slog.Error("[rec] favorites query failed", "error", err)
+	`, userID).Scan(&favRows).Error; err != nil {
+		slog.Error("[rec] collection membership query failed", "error", err)
 	}
 
 	var likeRows []embeddingRow
