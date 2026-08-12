@@ -1602,6 +1602,32 @@
       "decline": "Decline collaboration invite for “{title}”"
     }
   },
+  "collabUserPicker": {
+    "label": "Collaborators",
+    "search": {
+      "placeholder": "Search username...",
+      "loading": "Searching...",
+      "empty": "No matching users found."
+    },
+    "selected": {
+      "maxReached": "You can select up to {max} collaborators"
+    },
+    "duplicate": {
+      "alreadySelected": "Already selected"
+    },
+    "error": {
+      "searchFailed": "Search failed. Please try again.",
+      "retry": "Retry"
+    },
+    "disabled": {
+      "unavailable": "Collaborator selection is unavailable. You can still publish content."
+    },
+    "a11y": {
+      "results": "User search results",
+      "selectedList": "Selected collaborators",
+      "removeUser": "Remove {username}"
+    }
+  },
   "footer": {
     "about": "About",
     "help": "Help Center",

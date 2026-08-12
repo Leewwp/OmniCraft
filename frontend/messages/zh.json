@@ -1603,6 +1603,32 @@
       "decline": "拒绝《{title}》的联合创作邀请"
     }
   },
+  "collabUserPicker": {
+    "label": "联合创作者",
+    "search": {
+      "placeholder": "搜索用户名...",
+      "loading": "正在搜索...",
+      "empty": "未找到匹配用户。"
+    },
+    "selected": {
+      "maxReached": "最多可选择 {max} 位联合创作者"
+    },
+    "duplicate": {
+      "alreadySelected": "已选择"
+    },
+    "error": {
+      "searchFailed": "搜索失败，请重试。",
+      "retry": "重试"
+    },
+    "disabled": {
+      "unavailable": "联合创作者选择暂不可用，你仍可以发布内容。"
+    },
+    "a11y": {
+      "results": "用户搜索结果",
+      "selectedList": "已选联合创作者",
+      "removeUser": "移除 {username}"
+    }
+  },
   "footer": {
     "about": "关于我们",
     "help": "帮助中心",
