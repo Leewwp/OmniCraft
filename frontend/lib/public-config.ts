@@ -32,12 +32,17 @@ export interface PublicUpload {
   video_gallery_max_items: number;
 }
 
+export interface PublicCollaboration {
+  max_invitees_per_publish: number;
+}
+
 export interface PublicConfig {
   features: PublicFeatures;
   captcha: PublicCaptcha;
   client: PublicClient;
   legal: PublicLegal;
   upload: PublicUpload;
+  collaboration: PublicCollaboration;
 }
 
 let cachedConfig: PublicConfig | null = null;
