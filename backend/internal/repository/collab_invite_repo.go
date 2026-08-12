@@ -16,20 +16,6 @@ func NewCollabInviteRepository(db *gorm.DB) *CollabInviteRepository {
 	return &CollabInviteRepository{db: db}
 }
 
-// DB exposes the underlying handle so callers can build tx-scoped
-// repositories for a shared transaction.
-func (r *CollabInviteRepository) DB() *gorm.DB {
-	return r.db
-}
-
-// Transaction runs fn on a tx-scoped repository.
-func (r *CollabInviteRepository) Transaction(fn func(tx *CollabInviteRepository) error) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		txRepo := &CollabInviteRepository{db: tx}
-		return fn(txRepo)
-	})
-}
-
 // CreateInvite inserts a new invite row.
 func (r *CollabInviteRepository) CreateInvite(invite *model.CollabInvite) error {
 	return r.db.Create(invite).Error

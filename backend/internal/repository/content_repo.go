@@ -112,8 +112,8 @@ func (r *ContentRepository) CountPendingInviteesNotContributors(contentID int64)
 		FROM collaboration_invites AS ci
 		LEFT JOIN content_contributors AS cc
 		  ON cc.content_item_id = ci.content_id AND cc.user_id = ci.invitee_id
-		WHERE ci.content_id = ? AND ci.status = 'pending' AND cc.user_id IS NULL
-	`, contentID).Scan(&count).Error
+		WHERE ci.content_id = ? AND ci.status = ? AND cc.user_id IS NULL
+	`, contentID, model.CollabInviteStatusPending).Scan(&count).Error
 	return count, err
 }
 
