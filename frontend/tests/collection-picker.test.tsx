@@ -390,6 +390,81 @@ test("ContentDetail opens CollectionPicker instead of keeping the legacy favorit
   assert.doesNotMatch(source, /onClick=\{\(\) => void toggleFavorite\(\)\}/);
 });
 
+test("#74 CollectionPicker reports membership after add and after removing from one of several collections", async () => {
+  installDom();
+  const calls = installApiMocks({
+    getResponse: {
+      items: [
+        collectionSummary(1, "First shelf", "original", true, 11),
+        collectionSummary(2, "Second shelf", "original", true, 22),
+      ],
+      total: 2,
+    },
+  });
+  const view = renderPicker();
+
+  await view.findByText("First shelf");
+  assert.equal(view.getByLabelText("membership state").textContent, "false", "initial load does not touch detail state");
+
+  fireEvent.click(view.getByRole("button", { name: "Remove from First shelf" }));
+  await waitFor(() => assert.equal(calls.delete.at(-1)?.path, "/api/v1/collections/1/items/11"));
+  await waitFor(() => assert.equal(view.getByLabelText("membership state").textContent, "true", "still member of second collection"));
+
+  fireEvent.click(view.getByRole("button", { name: "Remove from Second shelf" }));
+  await waitFor(() => assert.equal(calls.delete.at(-1)?.path, "/api/v1/collections/2/items/22"));
+  await waitFor(() => assert.equal(view.getByLabelText("membership state").textContent, "false", "last membership removed"));
+});
+
+test("#74 CollectionPicker reports membership true when adding to an empty shelf", async () => {
+  installDom();
+  const calls = installApiMocks({
+    getResponse: {
+      items: [collectionSummary(1, "Empty shelf", "original", false)],
+      total: 1,
+    },
+  });
+  const view = renderPicker();
+
+  fireEvent.click(await view.findByRole("button", { name: "Add" }));
+  await waitFor(() => assert.equal(calls.post.at(-1)?.path, "/api/v1/collections/1/items"));
+  await waitFor(() => assert.equal(view.getByLabelText("membership state").textContent, "true"));
+});
+
+test("ContentDetail derives favorited label from isFavorited and reuses the membership callback", () => {
+  const source = fs.readFileSync(new URL("../components/content/ContentDetail.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /isFavorited/);
+  assert.match(source, /collections\.picker\.actions\.favorited/);
+  assert.match(source, /onMembershipChange=\{setIsFavorited\}/);
+  assert.doesNotMatch(source, /\/api\/v1\/favorites|\/favorites\//, "legacy favorites endpoints must not be called from ContentDetail");
+});
+
+test("#74 normalizer carries top-level is_favorited into the detail payload", () => {
+  const { normalizeContentDetailResponse } = require("../lib/content") as typeof import("../lib/content");
+  const favorited = normalizeContentDetailResponse({
+    content: { id: 42, title: "T", zone: "original", content_type: "article" },
+    is_favorited: true,
+    attachments: [],
+    tags: [],
+  });
+  assert.equal(favorited.content?.isFavorited, true);
+
+  const notFavorited = normalizeContentDetailResponse({
+    content: { id: 43, title: "U", zone: "original", content_type: "article" },
+    is_favorited: false,
+    attachments: [],
+    tags: [],
+  });
+  assert.equal(notFavorited.content?.isFavorited, false);
+
+  const anonymous = normalizeContentDetailResponse({
+    content: { id: 44, title: "V", zone: "original", content_type: "article" },
+    attachments: [],
+    tags: [],
+  });
+  assert.equal(anonymous.content?.isFavorited, undefined, "anonymous payload keeps isFavorited absent");
+});
+
 test("Studio favorites page uses CollectionCard and collection APIs instead of the legacy favorites list", () => {
   const source = fs.readFileSync(new URL("../app/(protected)/studio/favorites/page.tsx", import.meta.url), "utf8");
 
@@ -513,6 +588,7 @@ function setNativeInputValue(element: HTMLElement, value: string) {
 function CollectionPickerHarness() {
   const [open, setOpen] = React.useState(true);
   const [changedCount, setChangedCount] = React.useState(0);
+  const [isMember, setIsMember] = React.useState(false);
 
   return (
     <>
@@ -523,8 +599,10 @@ function CollectionPickerHarness() {
         open={open}
         onOpenChange={setOpen}
         onChanged={() => setChangedCount((count) => count + 1)}
+        onMembershipChange={setIsMember}
       />
       <output aria-label="changed count">{changedCount}</output>
+      <output aria-label="membership state">{String(isMember)}</output>
     </>
   );
 }

@@ -177,6 +177,12 @@ export function ContentDetail({
   const { toast } = useToast();
   const [collectionPickerOpen, setCollectionPickerOpen] = useState(false);
   const [tagSuggestionBusy, setTagSuggestionBusy] = useState<string | null>(null);
+  /* #74：收藏状态以收藏成员关系为唯一事实源 —— 初始值来自详情响应，
+     收藏选择器操作后经 onMembershipChange 同步。 */
+  const [isFavorited, setIsFavorited] = useState(Boolean(data.isFavorited));
+  useEffect(() => {
+    setIsFavorited(Boolean(data.isFavorited));
+  }, [data.id, data.isFavorited]);
 
   /* #90 桌面/web 相关内容块：≥1100px 时关联行由 RelatedContents 统一承载，
      行内 RelatedFanworks 降级为 <1100px（移动/平板，与 #89 连续浏览边界一致）。 */
@@ -443,16 +449,18 @@ export function ContentDetail({
         )}
       </AgentFeatureGate>
 
-      {/* Collection Picker Button */}
+      {/* Collection Picker Button（#74：文案随收藏成员关系切换「已收藏/添加到收藏集」） */}
       <div className="flex items-center gap-2 rounded-md border border-border bg-card px-4 py-3 ">
         <Button
           variant="outline"
           size="sm"
           disabled={!user}
           onClick={() => setCollectionPickerOpen(true)}
+          className={cn(isFavorited && "border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive")}
+          aria-pressed={user ? isFavorited : undefined}
         >
-          <Bookmark className="mr-1 h-3.5 w-3.5" />
-          {t("collections.picker.actions.open")}
+          <Bookmark className={cn("mr-1 h-3.5 w-3.5", isFavorited && "fill-current")} />
+          {isFavorited ? t("collections.picker.actions.favorited") : t("collections.picker.actions.open")}
         </Button>
         <CollectionPicker
           contentId={data.id}
@@ -460,6 +468,7 @@ export function ContentDetail({
           zone={collectionZone}
           open={collectionPickerOpen}
           onOpenChange={setCollectionPickerOpen}
+          onMembershipChange={setIsFavorited}
         />
       </div>
 

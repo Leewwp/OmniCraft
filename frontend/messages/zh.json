@@ -410,6 +410,7 @@
       },
       "actions": {
         "open": "添加到收藏集",
+        "favorited": "已收藏",
         "add": "添加",
         "remove": "移除",
         "removeFrom": "从 {title} 移除",
