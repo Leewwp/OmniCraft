@@ -18,6 +18,7 @@ import { AgentUploadAssistPanel } from "@/components/agent/UploadAssistPanel";
 import { AgentComplianceCheckBadge } from "@/components/agent/ComplianceCheckBadge";
 import { IPPicker } from "@/components/studio/IPPicker";
 import { SourceContentPicker, type SourceContent } from "@/components/studio/SourceContentPicker";
+import { CollabUserPicker, type CollabUser } from "@/components/content/CollabUserPicker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { normalizeContentDetailResponse } from "@/lib/content";
 import type { UploadedAsset } from "@/components/content/FileUploader";
@@ -42,6 +43,12 @@ const TEXT_PRIMARY_TYPES = ["article", "prompt", "other"];
 const MAX_SUGGESTED_TITLE_LENGTH = 500;
 const MAX_SUGGESTED_DESCRIPTION_LENGTH = 2000;
 
+// Collaboration invites (collab plan Task 7): each invite request gets a
+// 5-second client-side timeout and at most three run concurrently. There is
+// no auto-retry; failed invites surface as a warning toast after publish.
+const INVITE_TIMEOUT_MS = 5000;
+const INVITE_CONCURRENCY = 3;
+
 interface GalleryLimit {
   min: number;
   max: number;
@@ -64,6 +71,45 @@ export type PrefillWarning = "bothSources" | "invalidId";
 
 function FieldError({ children }: { children: React.ReactNode }) {
   return <p className="mt-1 text-xs text-destructive">{children}</p>;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("request timed out")), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+/** Sends one collab invite per selected user, at most three concurrently.
+ *  Never throws: failures are returned so the caller can surface them
+ *  without failing the already-completed content publish. */
+async function sendCollabInvites(contentId: number, users: CollabUser[]): Promise<CollabUser[]> {
+  const failed: CollabUser[] = [];
+  for (let offset = 0; offset < users.length; offset += INVITE_CONCURRENCY) {
+    const batch = users.slice(offset, offset + INVITE_CONCURRENCY);
+    await Promise.all(
+      batch.map(async (user) => {
+        try {
+          await withTimeout(
+            api.post(`/api/v1/contents/${contentId}/collab-invites`, { invitee_id: user.id }),
+            INVITE_TIMEOUT_MS,
+          );
+        } catch {
+          failed.push(user);
+        }
+      }),
+    );
+  }
+  return failed;
 }
 
 export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId, prefillSourceFanworkId, prefillWarnings = [] }: PublishFormProps) {
@@ -110,6 +156,25 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
       active = false;
     };
   }, [mediaContentType]);
+
+  // Collaborator selection cap (collab plan Task 7): public config value
+  // feeds CollabUserPicker as maxSelected. While unavailable the picker
+  // stays closed and publishing still works without invitations.
+  useEffect(() => {
+    let active = true;
+    void fetchPublicConfig()
+      .then((config) => {
+        if (active) {
+          setCollabMaxSelected(config.collaboration?.max_invitees_per_publish ?? 0);
+        }
+      })
+      .catch((error) => {
+        silentError(error, { component: "PublishForm", action: "fetchCollabLimits" });
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Query prefill (fanwork only): load the source summary so the picker can
   // show the selected row without a manual search. At most one source id is
@@ -185,6 +250,8 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
   const [uploadError, setUploadError] = useState("");
   const [complianceRisk, setComplianceRisk] = useState<"safe" | "warning" | "violation" | null>(null);
   const [warningAcknowledged, setWarningAcknowledged] = useState(false);
+  const [collabUsers, setCollabUsers] = useState<CollabUser[]>([]);
+  const [collabMaxSelected, setCollabMaxSelected] = useState(0);
 
   const undoSnapshot = useRef<{ title: string; briefDesc: string; body: string; tags: string[]; category: string } | null>(null);
   const [canUndo, setCanUndo] = useState(false);
@@ -338,7 +405,17 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
       if (zone === "fanwork" && sourceFanwork) {
         payload.source_fanwork_id = sourceFanwork.id;
       }
-      await api.post("/api/v1/contents", payload);
+      const created = await api.post<{ content?: { id?: number } }>("/api/v1/contents", payload);
+      const contentId = created.content?.id;
+      if (contentId && collabUsers.length > 0) {
+        const failedInvites = await sendCollabInvites(contentId, collabUsers);
+        if (failedInvites.length > 0) {
+          toast("warning", t("studio.publish.collab.inviteFailed", {
+            usernames: failedInvites.map((user) => user.username).join(", "),
+            url: `/content/${contentId}`,
+          }));
+        }
+      }
       toast("success", t('studio.publish.success'));
       router.push("/studio/contents");
     } catch {
@@ -543,6 +620,18 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
           </div>
         </div>
       )}
+
+      {/* Collaborators: sits after the main content fields (and after the
+          fanwork source fields) and before the submit actions; invites are
+          sent after content creation succeeds. */}
+      <div>
+        <CollabUserPicker
+          selectedUsers={collabUsers}
+          maxSelected={collabMaxSelected}
+          disabled={submitting}
+          onChange={setCollabUsers}
+        />
+      </div>
 
       {/* AI Upload Assist */}
       {isFilePrimary && (

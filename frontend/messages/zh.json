@@ -1851,6 +1851,9 @@
       "cancel": "取消",
       "success": "发布成功！",
       "failed": "发布失败，请重试",
+      "collab": {
+        "inviteFailed": "发布成功，但向以下用户的联合创作邀请发送失败：{usernames}。可在 {url} 管理邀请。"
+      },
       "descriptionOptional": "简介（可选）",
       "allowCopyPR": "允许复制/PR 协同",
       "allowCopyPRDesc": "允许其他创作者基于此内容提交修改建议",
