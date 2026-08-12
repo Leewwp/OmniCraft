@@ -10,18 +10,25 @@ import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/components/ui/Toast";
 import { VerificationReminderCard } from "@/components/settings/VerificationReminderCard";
-import { User, CheckCircle, AlertCircle, ExternalLink } from "lucide-react";
+import { User, CheckCircle, AlertCircle, ExternalLink, LoaderCircle } from "lucide-react";
 
 export default function SettingsPage() {
   const t = useTranslations();
   const router = useRouter();
   const { user, refreshUser, logout } = useAuth();
+  const { toast } = useToast();
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const [collabAccept, setCollabAccept] = useState(true);
+  const [collabBusy, setCollabBusy] = useState(false);
+  const [collabError, setCollabError] = useState("");
 
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -44,8 +51,30 @@ export default function SettingsPage() {
     if (user) {
       setUsername(user.username || "");
       setBio(user.bio || "");
+      setCollabAccept(user.accept_collab_invites ?? true);
     }
   }, [user]);
+
+  async function handleCollabToggle(next: boolean) {
+    if (!user || collabBusy) return;
+    const previous = user.accept_collab_invites ?? true;
+    setCollabAccept(next);
+    setCollabError("");
+    setCollabBusy(true);
+    try {
+      await api.patch(`/api/v1/users/${user.id}`, { accept_collab_invites: next });
+      await refreshUser();
+      toast("success", t("settings.collaboration.toast.saved"));
+    } catch (e) {
+      silentError(e, { component: "SettingsPage", action: "handleCollabToggle" });
+      setCollabAccept(previous);
+      const messageKey = getUserFacingErrorKey(e, "settings.collaboration.error.save");
+      setCollabError(t(messageKey));
+      toast("error", t("settings.collaboration.toast.failed"));
+    } finally {
+      setCollabBusy(false);
+    }
+  }
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -202,6 +231,34 @@ export default function SettingsPage() {
         <Button size="sm" disabled={busy} onClick={() => void handleSave()}>
           {busy ? t("common.saving") : t("settings.saveButton")}
         </Button>
+      </div>
+
+      <div className="space-y-3 rounded-md border border-border bg-card p-4">
+        <h3 className="text-sm font-semibold">{t("settings.collaboration.title")}</h3>
+        <p className="text-xs text-muted-foreground">{t("settings.collaboration.description")}</p>
+        <div className="flex items-center justify-between gap-4">
+          <label className="flex items-center gap-3">
+            <Switch
+              checked={collabAccept}
+              onCheckedChange={(checked) => void handleCollabToggle(checked)}
+              disabled={collabBusy}
+              aria-label={t("settings.collaboration.a11y.acceptInvites")}
+            />
+            <span className="text-sm font-medium text-foreground">{t("settings.collaboration.acceptInvites.label")}</span>
+          </label>
+          {collabBusy && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite">
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              {t("common.saving")}
+            </span>
+          )}
+        </div>
+        <p className="text-[11px] text-muted-foreground">{t("settings.collaboration.acceptInvites.help")}</p>
+        {collabError && (
+          <p className="text-sm text-destructive" role="alert">
+            {collabError}
+          </p>
+        )}
       </div>
 
       {!isVerified && (
