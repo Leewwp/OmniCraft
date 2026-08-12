@@ -70,11 +70,11 @@
 - Read/modify if stale: `architecture.md`
 - Read: `docs/superpowers/specs/2026-06-29-omnicraft-documentation-governance-design.md`
 
-- [ ] **Step 1: Confirm conflict scope**
+- [x] **Step 1: Confirm conflict scope**
 
 Read the current "原创/二创来源联动规则" sections in `AGENTS.md` and `CLAUDE.md`, the publish/content-detail/related-fanworks sections in `architecture.md`, and `design/ui-spec.md` sections for `SourceAttribution` and `RelatedFanworks`. Confirm whether they already describe the fanwork three-source model and the UI labels/links for original sources vs fanwork derivative rows. If they still describe a single-source `source_original_id` model, continue with Steps 2-3; if already aligned, record that Task 0 is verification-only and do not edit these files.
 
-- [ ] **Step 2: Update agent business rules**
+- [x] **Step 2: Update agent business rules**
 
 If stale prose remains, in both `AGENTS.md` and `CLAUDE.md`, replace the old single-source bullets with the community design model:
 
@@ -85,11 +85,11 @@ If stale prose remains, in both `AGENTS.md` and `CLAUDE.md`, replace the old sin
 - `source_fanwork_id` must point to `zone='fanwork' AND status='published'`
 - legacy fanworks without content sources remain valid historical rows
 
-- [ ] **Step 3: Update architecture API/schema prose**
+- [x] **Step 3: Update architecture API/schema prose**
 
 If stale prose remains, update `architecture.md` in hand-written prose sections (outside any `<!-- AUTO-GENERATED START -->` / `<!-- AUTO-GENERATED END -->` blocks managed by `doc-validator`) so that content detail and publish examples mention `source_fanwork_id`, `source_fanwork`, fanwork-source related rows, and the same exact error codes used in this plan. If `architecture.md` does not use explicit auto-generated markers, treat sections whose headings match route/schema table patterns (e.g. "## API Routes", "## Database Schema") as likely auto-generated and avoid hand-editing their structured content. Do not hand-edit auto-generated schema/route sections; if later code changes require generated updates, Task 8 runs `doc-validator`.
 
-- [ ] **Step 4: Verify no stale source rule remains**
+- [x] **Step 4: Verify no stale source rule remains**
 
 Run:
 
@@ -108,7 +108,7 @@ Expected: no stale old-model prose remains except in explicitly labeled historic
 - Modify: `backend/internal/model/content.go`
 - Test: `backend/internal/model/content_migration_test.go`
 
-- [ ] **Step 1: Re-check migration number**
+- [x] **Step 1: Re-check migration number**
 
 Run:
 
@@ -118,7 +118,7 @@ ls backend/migrations/ | sort | tail -10
 
 Expected number is `064_add_source_fanwork_id.sql`: `061` remains intentionally unused after already-applied `062`, media metadata owns `063`, and this plan lands before collaboration-invites `065`, IP history `066` and favorites drop `067`. If `064_` is occupied by an unrelated migration at implementation time, stop and update the active registry, both community plans/specs and all open tickets before continuing.
 
-- [ ] **Step 2: Write failing migration test**
+- [x] **Step 2: Write failing migration test**
 
 Add a Postgres-backed test asserting:
 
@@ -127,7 +127,7 @@ Add a Postgres-backed test asserting:
 - index `idx_content_items_source_fanwork` exists
 - index is partial where `source_fanwork_id IS NOT NULL`
 
-- [ ] **Step 3: Implement migration**
+- [x] **Step 3: Implement migration**
 
 DDL:
 
@@ -142,7 +142,7 @@ CREATE INDEX IF NOT EXISTS idx_content_items_source_fanwork
 
 Include a `-- ROLLBACK:` comment block for local-test rollback, covering dropping the partial index and removing `source_fanwork_id` only when no shared data depends on it. In shared environments prefer a forward fix over destructive rollback.
 
-- [ ] **Step 4: Add model fields**
+- [x] **Step 4: Add model fields**
 
 In `ContentItem`:
 
@@ -151,7 +151,7 @@ SourceFanworkID *int64       `gorm:"index" json:"source_fanwork_id,omitempty"`
 SourceFanwork   *ContentItem `gorm:"foreignKey:SourceFanworkID" json:"source_fanwork,omitempty"`
 ```
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run:
 
@@ -168,7 +168,7 @@ go test ./internal/model -run TestContentSourceMigration -v
 - Modify: `backend/internal/service/content_service.go`
 - Modify: `backend/internal/service/content_source_test.go`
 
-- [ ] **Step 1: Write failing service validation tests**
+- [x] **Step 1: Write failing service validation tests**
 
 Table cases:
 
@@ -182,7 +182,7 @@ Table cases:
 - original-source fanwork succeeds
 - fanwork-source fanwork succeeds
 
-- [ ] **Step 2: Run and confirm red**
+- [x] **Step 2: Run and confirm red**
 
 Run:
 
@@ -191,7 +191,7 @@ cd backend
 go test ./internal/service -run TestValidateSource -v
 ```
 
-- [ ] **Step 3: Add input field**
+- [x] **Step 3: Add input field**
 
 In `PublishContentInput`:
 
@@ -199,17 +199,17 @@ In `PublishContentInput`:
 SourceFanworkID *int64 `json:"source_fanwork_id"`
 ```
 
-- [ ] **Step 4: Implement validation**
+- [x] **Step 4: Implement validation**
 
 Create a single create-time validation helper that receives zone, `ipID`, source original, and source fanwork. Return typed errors that handler can map to the exact codes.
 
 Source attribution is immutable after creation in the first release. Existing sources always point to an already-created content while the new content has no ID yet, so create cannot introduce a direct or transitive cycle. Do not add an unreachable recursive CTE. `PATCH /contents/:id` must detect any `ip_id`, `source_original_id`, or `source_fanwork_id` field and return `400 SOURCE_IMMUTABLE` rather than silently ignoring it. Unrelated updates and historical rows remain unaffected.
 
-- [ ] **Step 5: Persist source fanwork**
+- [x] **Step 5: Persist source fanwork**
 
 Set `ContentItem.SourceFanworkID` during creation.
 
-- [ ] **Step 6: Verify service tests**
+- [x] **Step 6: Verify service tests**
 
 Run:
 
@@ -227,7 +227,7 @@ go test ./internal/service -run TestValidateSource -v
 - Modify: `backend/internal/handler/content_publish_route_test.go`
 - Modify: `frontend/lib/content.ts`
 
-- [ ] **Step 1: Add failing route tests**
+- [x] **Step 1: Add failing route tests**
 
 Extend `content_publish_route_test.go` to assert:
 
@@ -239,7 +239,7 @@ Extend `content_publish_route_test.go` to assert:
 - `GET /contents/:id` still returns `source_original: { id, title, zone: "original" }` for original-source fanworks
 - `PATCH /contents/:id` with `ip_id`, `source_original_id`, or `source_fanwork_id` returns `400 SOURCE_IMMUTABLE` and preserves the stored attribution
 
-- [ ] **Step 2: Run and confirm red**
+- [x] **Step 2: Run and confirm red**
 
 Run:
 
@@ -248,7 +248,7 @@ cd backend
 go test ./internal/handler -run "TestCreateContentRoute|TestUpdateContent.*SourceImmutable" -v
 ```
 
-- [ ] **Step 3: Map exact error codes**
+- [x] **Step 3: Map exact error codes**
 
 Handler mapping:
 
@@ -259,7 +259,7 @@ Handler mapping:
 - `SOURCE_FANWORK_UNAVAILABLE` -> 400
 - `SOURCE_IMMUTABLE` -> 400 on content update attempts
 
-- [ ] **Step 4: Add source fanwork summary**
+- [x] **Step 4: Add source fanwork summary**
 
 When content has `SourceFanworkID`, fetch source if visible and return:
 
@@ -269,7 +269,7 @@ When content has `SourceFanworkID`, fetch source if visible and return:
 
 Also include `zone: "original"` in `source_original` summaries returned from touched content detail paths. If source is unavailable, include `source_fanwork_id` but omit summary so frontend can render "内容已下架".
 
-- [ ] **Step 5: Update frontend normalizer**
+- [x] **Step 5: Update frontend normalizer**
 
 Add to `frontend/lib/content.ts`:
 
@@ -279,7 +279,7 @@ Add to `frontend/lib/content.ts`:
 
 Keep current rule: objects without valid `id/title/zone` must not become clickable cards. `SourceAttribution` may render unavailable-source text from `source_*_id` alone, but it must not create a link without a summary containing all three fields.
 
-- [ ] **Step 6: Verify route tests**
+- [x] **Step 6: Verify route tests**
 
 Run:
 
@@ -581,7 +581,7 @@ node --import tsx --test tests/source-linkage-components.test.tsx
 - Modify if generated: `architecture.md`
 - Screenshot outputs listed in Step 5.
 
-- [ ] **Step 1: Run backend focused gates**
+- [x] **Step 1: Run backend focused gates**
 
 Run:
 
@@ -592,7 +592,7 @@ go test ./internal/service -run TestValidateSource -v
 go test ./internal/handler -run "TestCreateContentRoute|TestListRelatedFanworks" -v
 ```
 
-- [ ] **Step 2: Run backend full gates**
+- [x] **Step 2: Run backend full gates**
 
 Run:
 
@@ -603,7 +603,7 @@ go vet ./...
 go build ./...
 ```
 
-- [ ] **Step 3: Run frontend gates**
+- [x] **Step 3: Run frontend gates**
 
 Run:
 
@@ -615,7 +615,7 @@ npm run build
 npx playwright test e2e/studio-publish-fanwork.spec.ts
 ```
 
-- [ ] **Step 4: Run doc-validator**
+- [x] **Step 4: Run doc-validator**
 
 Because this plan changes migrations:
 
@@ -624,7 +624,7 @@ cd tools/doc-validator
 go run . --fix
 ```
 
-- [ ] **Step 5: Browser verification**
+- [x] **Step 5: Browser verification**
 
 1. Original detail with fanworks shows inline related row, max 8 cards, create link.
 2. Original detail without fanworks hides the row.
@@ -641,7 +641,7 @@ go run . --fix
    - `screenshots/community-related-fanworks-desktop.png`
    - `screenshots/community-derivatives-mobile.png`
 
-- [ ] **Step 6: Close the plan without collapsing checkpoints**
+- [x] **Step 6: Close the plan without collapsing checkpoints**
 
 Confirm Task 0–7 checkpoint commits are present, stage only Task 8 evidence/generated-doc/tracking files that actually changed, update issue #96 with verification evidence, and close it. Do not restage the entire feature or create a second aggregate implementation commit.
 
@@ -649,18 +649,18 @@ Confirm Task 0–7 checkpoint commits are present, stage only Task 8 evidence/ge
 
 ## Plan Self-Check
 
-- [ ] All six source errors, including update-time `SOURCE_IMMUTABLE`, are named with exact conditions.
-- [ ] `AGENTS.md`, `CLAUDE.md`, and `architecture.md` no longer describe the stale single-source-only model.
-- [ ] Historical fanwork rows without sources are not retroactively blocked.
-- [ ] Model, migration, input DTO, repository filter, handler response, frontend normalize, publish UI, and detail UI are all included.
-- [ ] Related API behavior differs correctly for original source and fanwork source.
-- [ ] Source summaries include `id`, `title`, and `zone` before frontend renders clickable attribution.
-- [ ] `SourceContentPicker` is canonical and no fanwork-specific picker file is created.
-- [ ] Fanwork source search uses `GET /api/v1/contents/search?zone=fanwork&q=<query>&limit=8`.
-- [ ] Source search reuses shared visibility and never exposes unavailable content.
-- [ ] Related-fanworks multi-value `content_type` follows the authoritative architecture contract.
-- [ ] Source attribution is create-only; update payloads receive `SOURCE_IMMUTABLE` instead of being silently ignored.
-- [ ] UI labels use "衍生作品" instead of "三创".
-- [ ] Source attribution has unavailable-source behavior and does not render for IP-only fanwork.
-- [ ] Publish UI prevents both source IDs from being submitted together.
-- [ ] Browser verification covers original rows, fanwork source links, derivative rows, and publish validation.
+- [x] All six source errors, including update-time `SOURCE_IMMUTABLE`, are named with exact conditions.
+- [x] `AGENTS.md`, `CLAUDE.md`, and `architecture.md` no longer describe the stale single-source-only model.
+- [x] Historical fanwork rows without sources are not retroactively blocked.
+- [x] Model, migration, input DTO, repository filter, handler response, frontend normalize, publish UI, and detail UI are all included.
+- [x] Related API behavior differs correctly for original source and fanwork source.
+- [x] Source summaries include `id`, `title`, and `zone` before frontend renders clickable attribution.
+- [x] `SourceContentPicker` is canonical and no fanwork-specific picker file is created.
+- [x] Fanwork source search uses `GET /api/v1/contents/search?zone=fanwork&q=<query>&limit=8`.
+- [x] Source search reuses shared visibility and never exposes unavailable content.
+- [x] Related-fanworks multi-value `content_type` follows the authoritative architecture contract.
+- [x] Source attribution is create-only; update payloads receive `SOURCE_IMMUTABLE` instead of being silently ignored.
+- [x] UI labels use "衍生作品" instead of "三创".
+- [x] Source attribution has unavailable-source behavior and does not render for IP-only fanwork.
+- [x] Publish UI prevents both source IDs from being submitted together.
+- [x] Browser verification covers original rows, fanwork source links, derivative rows, and publish validation.
