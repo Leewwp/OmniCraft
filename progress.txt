@@ -18,6 +18,25 @@
 - 分支 `web/t71`（基于本地 main，领先 origin/main 恰 5 个 docs commit），3 个 commit 已 push；未 close issue、未合并 main、未改 AGENTS.md 注册表。
 - 遗留：screenshots 目录整体 gitignore，新 ticket 截图沿用既有 `-f` 强制入库惯例；图片无法目检（当前模型不支持图像输入），视觉验证以 e2e 语义断言（aria-pressed/计数/disabled）为准。
 
+## [2026-08-12] - Issue #69 [light]: 浮窗内系列目录与章节导航
+
+### What was done:
+- **SeriesNav**（`frontend/components/content/SeriesNav.tsx`）：新增 `onNavigateInOverlay?: (contentId, trigger?)` 属性。浮层上下文（有该属性）下上一章/下一章/目录全部渲染为按钮，章节切换经该回调压入浮层导航栈，不整页跳转；独立详情页不传时保持既有整页 Link（目录 → `/series/:id`）。新增浮层内「目录」章节选择器（#64 决策 14 / ui-spec 目录选择器）：listbox 语义、`max-h-72` 有界高度 + 内部滚动、按 `active.current_index` 标记当前章节（`aria-selected` + `currentOption` label）、打开后焦点进入并落在当前章节、上/下/Home/End 移动、Enter/Space 选择压栈（当前章节只关闭不压栈）、Escape 关闭并归还焦点到 trigger、外部 pointerdown 关闭、章节列表懒加载 `GET /api/v1/series/:id`（按 series_id 缓存，loading/error+重试/empty 态，i18n `series.nav.directory.*`）。关键修复：目录打开期间在 document 捕获阶段拦截 Escape（React 合成事件挂在根节点，冒泡 preventDefault 太晚，会让 dialog 原生 cancel 连带弹出整个浮层）；焦点归还延迟到 rAF（聚焦元素随面板移除会夺走焦点）。
+- **ContentDetail**：新增 `onNavigateInOverlay` 属性透传 SeriesNav；**ContentDetailOverlayLayer**：`handleNavigateInOverlay` 包装 `onPush`（zone 沿用当前层、source 沿用当前 entry、触发元素作为 focus 恢复锚点，同内容 id 防御性跳过），两条渲染路径（单列/双栏）均传入。
+- **i18n**：zh.json/en.json `series.nav.directory.*` 十键镜像（title/position/option/currentOption/loading/empty/loadFailed/retry/listLabel）。
+- **单测**（`frontend/tests/series-nav.test.tsx` +7）：overlay 模式按钮化、prev/next 携带触发元素压栈、目录有界+滚动+当前章节 aria-selected+焦点进入、键盘流（Arrow/Enter/Escape 归还焦点）、当前章节不重复压栈、首末章禁用可读、目录拉取失败重试（fetch 桩先例 series-api.test.ts）。
+- **e2e**（`frontend/e2e/t69-series-directory.mock.spec.ts` +4，mocked 配置）：独立 URL 保持整页导航（/original/603 链接 + 首末章 disabled）；桌面浮层流（feed 卡片进入 → 上一章/下一章/目录按钮化 → 下一章压栈 URL 不变 → 返回逐层恢复 → 目录 listbox 10 项/当前 aria-selected → 选首章禁用上一章 → 选末章禁用下一章 → 浏览器后退逐层回退并关闭浮层）；键盘流（焦点进入/方向键/Enter 压栈/Escape 归还焦点）；移动 390 + 平板 768 容器内边界断言（按钮 boundingBox ⊆ nav，目录面板 ≤ 视口宽 + max-h 288px）。
+- 截图 5 张（`screenshots/web-t69-series-dir-{desktop,mobile,tablet,return,standalone}.png`）。
+
+### Testing:
+- `npm run test:unit` 427/427；`npm run lint`（tsc strict）与 `npm run build` 通过；`npm run test:contracts`（mocked Playwright）54/54 全绿（含既有 content-series/overlay 相关契约无回归）。
+- 无 config/routes/migrations 改动 → doc-validator 不适用；后端零改动。
+
+### Notes:
+- 目录章节列表取公开系列详情合同（后端 membership 只含 prev/next），懒加载并按 series_id 缓存；系列 tab 切换/成员变更时目录自动关闭。
+- 已按主线约束：未触碰 ReactionBar/reactions（#71 分支未合并，以 main 为准）、筛选排序（#72）、migrations（#73/#76）、collections（#74）、favorites（#75）；`content-series.mock.spec.ts` 保持 main 原样（未引入 #71 的 viewer_reaction 改动）。
+- 截图已生成但本会话模型无法读图，浏览器验证以 e2e 程序化断言（几何/语义/类名）为准。
+
 ## [2026-08-12] - Task 8（closure）：全量验证、浏览器验证与计划收口（#97）
 
 ### What was done:
