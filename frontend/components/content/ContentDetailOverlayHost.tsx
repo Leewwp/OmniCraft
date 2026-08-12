@@ -6,6 +6,7 @@ import { ContentSidebar, type RelatedContentEntry } from "@/components/content/C
 import { useContentDetailOverlay } from "@/components/content/use-content-detail-overlay";
 import { VersionHistory } from "@/components/content/VersionHistory";
 import type { SourceSummary } from "@/components/content/SourceAttribution";
+import type { ContentCardData } from "@/components/content/ContentCard";
 import type { AttachmentData, ContentDetailData } from "@/lib/content";
 
 interface RelatedFanworksSlot {
@@ -50,6 +51,17 @@ export function ContentDetailOverlayHost({
     [handleOpenRelated],
   );
 
+  /* #90 相关内容块卡片：浮层栈内打开（source=zone-page）。 */
+  const openRelatedDetail = useCallback(
+    (data: ContentCardData, trigger: HTMLElement) => {
+      handleOpenRelated(
+        { contentId: data.id, zone: data.zone === "original" ? "original" : "fanwork" },
+        trigger,
+      );
+    },
+    [handleOpenRelated],
+  );
+
   return (
     <div className="mx-auto flex w-full max-w-[1280px] gap-6 px-6 py-6">
       <div className="min-w-0 flex-1">
@@ -62,6 +74,7 @@ export function ContentDetailOverlayHost({
           }
           sourceFanwork={sourceFanwork ?? undefined}
           relatedFanworks={relatedFanworks}
+          onOpenRelatedDetail={openRelatedDetail}
         />
         {zone === "fanwork" && <VersionHistory contentId={content.id} />}
       </div>
