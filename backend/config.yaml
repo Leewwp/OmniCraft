@@ -146,6 +146,12 @@ social:
   report_auto_hide_rate: 0.10
   comment_fold_threshold: 0.30
 
+collaboration:
+  invite_daily_limit: 20
+  invite_expire_days: 7
+  max_invitees_per_publish: 5
+  max_contributors_per_item: 10
+
 browse_history:
   retention_days: 7
   cleanup_time: "03:00"
