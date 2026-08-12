@@ -854,3 +854,24 @@
 - 双 ID 优先级规则：两参数同时出现时（original 合法）保留 original 清 fanwork；参数非法时不发任何 prefill 请求、显示可关闭警告；预填来源 404/zone 不匹配/非 published 视为 prefill-error 不落选。
 - `@testing-library/dom` v16 已移除 `getByPlaceholder`（新 API `getByPlaceholderText`，测试内修正）；提交门 titleRequired 先于来源校验（预填测试需先填标题）。
 - 未触碰 main worktree；progress.txt 仅更新本 worktree 副本。
+
+## [2026-08-12] - Task 1（heavy）：配置、迁移与模型（collaboration-invites #97）
+
+### What was done:
+- **TDD 红**（先失败测试）：
+  - `backend/internal/model/collab_invite_migration_test.go`（新）`TestCollaborationInviteMigration`：先跑失败——`read migration ../../migrations/065_collaboration_invites.sql: no such file or directory`；随后两次断言修正（`accept_collab_invites`/`msg_type`/`metadata` 为 NOT NULL，非 nullable；metadata 默认值改 `::text` 扫描避免 GORM map 扫描歧义）。
+  - `backend/config/config_test.go` `TestCollaborationConfig`：先跑失败——`cfg.Collaboration undefined (type *Config has no field or method Collaboration)`。
+  - `backend/internal/handler/public_config_test.go`：`TestPublicConfigExposesOnlyCollaborationMaxInviteesPerPublish` + `TestPublicConfigAllowlist` 扩展先跑失败——`response must contain 'collaboration' object`。
+- **实现（Step 3/4）**：
+  - `backend/migrations/065_collaboration_invites.sql`（新）：`collaboration_invites` 表（status CHECK pending/accepted/rejected/expired）+ `idx_collab_invites_invitee` + **partial unique** `idx_collab_invites_active ON (content_id, invitee_id) WHERE status IN ('pending','accepted')`（非普通 UNIQUE，过期可重邀）；`users.accept_collab_invites BOOLEAN NOT NULL DEFAULT TRUE`；`messages.msg_type VARCHAR(20) NOT NULL DEFAULT 'text' CHECK (text/collab_invite)`；`messages.metadata JSONB NOT NULL DEFAULT '{}'`；`-- ROLLBACK:` 注释块覆盖三处，共享环境不自动 drop。
+  - `backend/internal/model/collab_invite.go`（新）：`CollabInvite` + 4 个 status 常量；`user.go` 加 `AcceptCollabInvites`（`gorm:"not null;default:true"`）；`notification.go` Message 加 `MsgType`（default 'text'）+ `Metadata`（`JSONMap` `gorm:"type:jsonb;not null;default:'{}'"`，复用 RehabCourse 先例）。
+  - `backend/config/config.go`：`CollaborationConfig` 4 字段（invite_daily_limit=20/invite_expire_days=7/max_invitees_per_publish=5/max_contributors_per_item=10）挂 `Config.Collaboration`；**未加入 `SaveOverride`**（config.go:597 白名单不变）；`config.yaml` 加 collaboration 段默认值。
+  - `backend/internal/handler/public_config.go`：`PublicCollaborationDTO{MaxInviteesPerPublish}` + `PublicConfigResponse.Collaboration`；仅暴露 `collaboration.max_invitees_per_publish`。
+
+### Testing:
+- 三目标测试全绿：`go test ./internal/model -run TestCollaborationInviteMigration -v`、`./config -run TestCollaborationConfig -v`、`./internal/handler -run TestPublicConfig -v`（含 allowlist 精确 key 断言：collaboration 仅 1 键、无 invite_daily_limit/invite_expire_days/max_contributors_per_item/inviter 泄漏）。
+- `cd backend && go build ./... && go vet ./... && go test ./...` 全量全绿（约 30 包）；改动文件 `gofmt -l` 干净（全库残留未格式化文件为既有，未触碰）。
+- doc-validator `--fix` 两轮幂等：`docs/reference/config.md`（+4 配置行）、`docs/reference/schema.md`（+collaboration_invites 表、messages 两列、users 一列）；生成物 diff 已核对仅含本次改动。
+
+### Notes:
+- 未碰：main worktree、frontend、routes.go。Task 2（repo/service 层）待本 PR 合并后开新 worktree。

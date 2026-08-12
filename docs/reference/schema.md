@@ -103,6 +103,20 @@
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
 
+### collaboration_invites
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `content_id` | `BIGINT` | NOT NULL -> content_items.id | content_id |
+| `inviter_id` | `BIGINT` | NOT NULL -> users.id | inviter_id |
+| `invitee_id` | `BIGINT` | NOT NULL -> users.id | invitee_id |
+| `status` | `VARCHAR(20)` | NOT NULL DEFAULT 'pending' | status |
+| `expires_at` | `TIMESTAMPTZ` | NOT NULL | expires_at |
+| `responded_at` | `TIMESTAMPTZ` | - | responded_at |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+
 ### collection_items
 
 | 列名 | 类型 | 约束 | 说明 |
@@ -494,6 +508,8 @@
 | `sender_id` | `BIGINT` | NOT NULL -> users.id | sender_id |
 | `body` | `TEXT` | NOT NULL | body |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `msg_type` | `VARCHAR(20)` | NOT NULL DEFAULT 'text' | msg_type |
+| `metadata` | `JSONB` | NOT NULL DEFAULT '{}'::jsonb | metadata |
 
 ### notification_broadcast_requests
 
@@ -690,6 +706,7 @@
 | `accepted_privacy_version` | `VARCHAR(32)` | - | accepted_privacy_version |
 | `accepted_privacy_at` | `TIMESTAMPTZ` | - | accepted_privacy_at |
 | `deleted_at` | `TIMESTAMPTZ` | - | deleted_at |
+| `accept_collab_invites` | `BOOLEAN` | NOT NULL DEFAULT TRUE | accept_collab_invites |
 
 
 <!-- END AUTO-GENERATED: §4 -->

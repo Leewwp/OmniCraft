@@ -18,6 +18,7 @@ type User struct {
 	IsBanned               bool       `gorm:"not null;default:false" json:"is_banned"`
 	BanReason              string     `gorm:"type:text" json:"ban_reason,omitempty"`
 	EmailVerifiedAt        *time.Time `json:"email_verified_at,omitempty"`
+	AcceptCollabInvites    bool       `gorm:"not null;default:true" json:"accept_collab_invites"`
 	AcceptedTermsVersion   string     `gorm:"size:32" json:"accepted_terms_version,omitempty"`
 	AcceptedTermsAt        *time.Time `json:"accepted_terms_at,omitempty"`
 	AcceptedPrivacyVersion string     `gorm:"size:32" json:"accepted_privacy_version,omitempty"`

@@ -43,6 +43,12 @@ func setupPublicConfigTestRouter(t *testing.T) *gin.Engine {
 			VideoGalleryMinItems: 1,
 			VideoGalleryMaxItems: 3,
 		},
+		Collaboration: config.CollaborationConfig{
+			InviteDailyLimit:       20,
+			InviteExpireDays:       7,
+			MaxInviteesPerPublish:  5,
+			MaxContributorsPerItem: 10,
+		},
 	}
 
 	r := gin.New()
@@ -128,6 +134,21 @@ func TestPublicConfigAllowlist(t *testing.T) {
 	if _, has := resp["recommendation"]; has {
 		t.Error("public config must not expose 'recommendation'")
 	}
+
+	collab, ok := resp["collaboration"].(map[string]interface{})
+	if !ok {
+		t.Fatal("response must contain 'collaboration' object")
+	}
+	for key := range collab {
+		if key != "max_invitees_per_publish" {
+			t.Errorf("collaboration must not expose server-only key '%s'", key)
+		}
+	}
+	for _, word := range []string{"invite_daily_limit", "invite_expire_days", "max_contributors_per_item", "inviter"} {
+		if strings.Contains(body, word) {
+			t.Errorf("public config must not contain '%s'", word)
+		}
+	}
 }
 
 func TestPublicConfigExposesOnlyGalleryLimits(t *testing.T) {
@@ -171,6 +192,46 @@ func TestPublicConfigExposesOnlyGalleryLimits(t *testing.T) {
 	for key := range upload {
 		if _, known := want[key]; !known {
 			t.Errorf("upload must not expose unexpected key '%s'", key)
+		}
+	}
+}
+
+func TestPublicConfigExposesOnlyCollaborationMaxInviteesPerPublish(t *testing.T) {
+	r := setupPublicConfigTestRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/config/public", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	collab, ok := resp["collaboration"].(map[string]interface{})
+	if !ok {
+		t.Fatal("response must expose the non-sensitive 'collaboration' object")
+	}
+	want := map[string]int{"max_invitees_per_publish": 5}
+	if len(collab) != len(want) {
+		t.Fatalf("collaboration object has %d keys, want exactly %d (only max_invitees_per_publish)", len(collab), len(want))
+	}
+	for key, wantValue := range want {
+		got, has := collab[key]
+		if !has {
+			t.Errorf("collaboration must contain '%s'", key)
+			continue
+		}
+		number, ok := got.(float64)
+		if !ok || int(number) != wantValue {
+			t.Errorf("collaboration.%s = %v, want %d", key, got, wantValue)
+		}
+	}
+	for key := range collab {
+		if _, known := want[key]; !known {
+			t.Errorf("collaboration must not expose unexpected key '%s'", key)
 		}
 	}
 }

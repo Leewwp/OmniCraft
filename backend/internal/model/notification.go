@@ -35,6 +35,8 @@ type Message struct {
 	ConversationID int64     `gorm:"not null;index" json:"conversation_id"`
 	SenderID       int64     `gorm:"not null" json:"sender_id"`
 	Body           string    `gorm:"not null" json:"body"`
+	MsgType        string    `gorm:"not null;default:'text';size:20" json:"msg_type"`
+	Metadata       JSONMap   `gorm:"type:jsonb;not null;default:'{}'" json:"metadata,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
 }
 
