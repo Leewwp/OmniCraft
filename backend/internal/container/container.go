@@ -68,6 +68,7 @@ type ServiceContainer struct {
 	SearchService       *service.SearchService
 	FeedbackService     *service.FeedbackService
 	AdminAuditService   *service.AdminAuditService
+	CollabInviteService *service.CollabInviteService
 	CaptchaVerifier     captcha.CaptchaVerifier
 	CaptchaProvider     captcha.CaptchaVerifier
 	CaptchaTickets      *captcha.TicketStore
@@ -160,6 +161,14 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.FeedbackService.SetFeedbackMailSender(feedbackMailSender)
 	c.AdminAuditService = service.NewAdminAuditService(c.AdminAuditRepo, db)
 	c.NotificationService.SetAdminAuditService(c.AdminAuditService)
+	c.CollabInviteService = service.NewCollabInviteService(
+		c.ContentRepo,
+		repository.NewCollabInviteRepository(db),
+		c.MessageRepo,
+		c.UserRepo,
+		rdb,
+		cfg,
+	)
 
 	// Wire recommendation into content service
 	c.RecommendationSvc = service.NewRecommendationService(db, c.EmbeddingRepo, c.ContentRepo, c.ContentService, rdb, &cfg.Recommendation)
