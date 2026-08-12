@@ -491,9 +491,12 @@ backend/
 | `POST` | `/api/v1/auth/reset-password` | authHandler.ResetPassword |
 | `POST` | `/api/v1/auth/verify-email` | authHandler.VerifyEmail |
 | `POST` | `/api/v1/captcha/verify` | captchaHandler.Verify |
+| `POST` | `/api/v1/collab-invites/:id/accept` | collabInviteHandler.AcceptInvite |
+| `POST` | `/api/v1/collab-invites/:id/decline` | collabInviteHandler.DeclineInvite |
 | `POST` | `/api/v1/collections` | collectionHandler.CreateCollection |
 | `POST` | `/api/v1/collections/:id/items` | collectionHandler.AddItem |
 | `POST` | `/api/v1/contents` | contentHandler.CreateContent |
+| `POST` | `/api/v1/contents/:id/collab-invites` | collabInviteHandler.SendInvite |
 | `POST` | `/api/v1/contents/:id/report` | socialHandler.ReportContent |
 | `POST` | `/api/v1/contents/:id/tags/suggest` | tagHandler.SuggestTag |
 | `POST` | `/api/v1/contents/oss-token` | contentHandler.GenerateOSSToken |
