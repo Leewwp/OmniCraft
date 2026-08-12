@@ -32,6 +32,10 @@ var (
 	ErrInviteNotAccepting         = errors.New("INVITE_NOT_ACCEPTING")
 	ErrInviteAlreadyExists        = errors.New("INVITE_ALREADY_EXISTS")
 	ErrInviteRateLimitUnavailable = errors.New("INVITE_SERVICE_UNAVAILABLE")
+	ErrInviteNotFound             = errors.New("INVITE_NOT_FOUND")
+	ErrInviteExpired              = errors.New("INVITE_EXPIRED")
+	ErrInviteNotInvitee           = errors.New("INVITE_NOT_INVITEE")
+	ErrInviteNotPending           = errors.New("INVITE_NOT_PENDING")
 )
 
 const (
@@ -291,6 +295,115 @@ func (s *CollabInviteService) SendInvite(ctx context.Context, contentID, inviter
 		return nil, err
 	}
 	return invite, nil
+}
+
+// AcceptInvite accepts a pending invite: it records the invitee as a
+// contributor (idempotently, pr_count=0, never touching an existing row's
+// pr_count or first_at) and transitions the invite to accepted. The invite
+// row is locked first, then its content_items parent row, so concurrent
+// accepts for the same content serialize on the content lock and can never
+// exceed max_contributors_per_item. Capacity failures roll back the whole
+// transaction, leaving the invite pending.
+func (s *CollabInviteService) AcceptInvite(ctx context.Context, inviteID, userID int64) (*model.CollabInvite, error) {
+	var accepted *model.CollabInvite
+	err := s.contentRepo.Transaction(func(txContent *repository.ContentRepository) error {
+		tx := txContent.DB()
+		inviteRepo := repository.NewCollabInviteRepository(tx)
+
+		invite, now, err := s.lockPendingInviteFor(inviteRepo, inviteID, userID)
+		if err != nil {
+			return err
+		}
+
+		content, err := txContent.FindByIDForUpdate(invite.ContentID)
+		if err != nil {
+			return err
+		}
+		if content == nil {
+			return ErrContentUnavailable
+		}
+		alreadyContributor, err := txContent.IsContributor(invite.ContentID, userID)
+		if err != nil {
+			return err
+		}
+		if !alreadyContributor {
+			contributors, err := txContent.CountContributors(invite.ContentID)
+			if err != nil {
+				return err
+			}
+			if contributors >= int64(s.maxContributorsPerItem()) {
+				return ErrContributorLimitReached
+			}
+		}
+		if err := txContent.InsertContributorIfAbsent(invite.ContentID, userID, now); err != nil {
+			return err
+		}
+
+		invite.Status = model.CollabInviteStatusAccepted
+		invite.RespondedAt = &now
+		if err := inviteRepo.UpdateStatus(invite.ID, model.CollabInviteStatusAccepted, &now); err != nil {
+			return err
+		}
+		accepted = invite
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return accepted, nil
+}
+
+// DeclineInvite declines a pending invite: it locks the invite row, verifies
+// the caller is the invitee and the invite is still pending and unexpired,
+// then transitions it to declined with responded_at. No content row lock is
+// needed because declining does not touch contributor capacity.
+func (s *CollabInviteService) DeclineInvite(ctx context.Context, inviteID, userID int64) (*model.CollabInvite, error) {
+	var declined *model.CollabInvite
+	err := s.contentRepo.Transaction(func(txContent *repository.ContentRepository) error {
+		tx := txContent.DB()
+		inviteRepo := repository.NewCollabInviteRepository(tx)
+
+		invite, now, err := s.lockPendingInviteFor(inviteRepo, inviteID, userID)
+		if err != nil {
+			return err
+		}
+
+		invite.Status = model.CollabInviteStatusDeclined
+		invite.RespondedAt = &now
+		if err := inviteRepo.UpdateStatus(invite.ID, model.CollabInviteStatusDeclined, &now); err != nil {
+			return err
+		}
+		declined = invite
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return declined, nil
+}
+
+// lockPendingInviteFor locks the invite row for update and verifies it exists,
+// belongs to the caller, is still pending, and is not expired. It returns the
+// locked invite and the service clock value used for the expiry check.
+func (s *CollabInviteService) lockPendingInviteFor(inviteRepo *repository.CollabInviteRepository, inviteID, userID int64) (*model.CollabInvite, time.Time, error) {
+	invite, err := inviteRepo.FindByIDForUpdate(inviteID)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	if invite == nil {
+		return nil, time.Time{}, ErrInviteNotFound
+	}
+	if invite.InviteeID != userID {
+		return nil, time.Time{}, ErrInviteNotInvitee
+	}
+	if invite.Status != model.CollabInviteStatusPending {
+		return nil, time.Time{}, ErrInviteNotPending
+	}
+	now := s.now()
+	if !invite.ExpiresAt.After(now) {
+		return nil, time.Time{}, ErrInviteExpired
+	}
+	return invite, now, nil
 }
 
 func (s *CollabInviteService) compensateInviteReservation(ctx context.Context, countKey, userKey, token string) {

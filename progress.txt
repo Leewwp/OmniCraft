@@ -1,3 +1,22 @@
+## [2026-08-12] - Task 3 [heavy]: Implement Accept, Decline, And Expiry (#97)
+
+### What was done:
+- **Step 1/2（accept 事务）**：`CollabInviteService.AcceptInvite(ctx, inviteID, userID)`（`collab_invite_service.go`）——单事务内：`FindByIDForUpdate` 锁 invite 行 → 不存在 `ErrInviteNotFound` → 非 invitee `ErrInviteNotInvitee` → 非 pending `ErrInviteNotPending` → `ExpiresAt <= now` `ErrInviteExpired` → 锁 content 父行（`FindByIDForUpdate`，nil → `ErrContentUnavailable`）→ 非贡献者时锁下 `CountContributors >= max_contributors_per_item` → `ErrContributorLimitReached`（事务回滚 = 邀请保持 pending）→ `InsertContributorIfAbsent`（`pr_count=0`、`first_at=注入 now`，`ON CONFLICT DO NOTHING` 幂等，不触碰既有行的 pr_count/first_at）→ `UpdateStatus(accepted, responded_at)` → 返回变更后的 invite DTO。锁序 invite→content（SendInvite 只锁 content 行 + 插 invite 行，无环）。
+- **Step 3（decline 事务）**：`DeclineInvite(ctx, inviteID, userID)` 同骨架（FOR UPDATE → notfound → invitee → pending → expiry → `UpdateStatus(declined, responded_at)`），不锁 content 行（无容量检查）。
+- **Step 4/5（expiry 调度器）**：`backend/internal/pkg/scheduler/collab_invite_expiry.go` 克隆 BrowseHistoryCleanup 结构（db/cfg/repo/注入 now/mu/timer/stopped；`Start()`、幂等 `Stop()`、`time.AfterFunc` 自重排 24h 固定间隔、Asia/Shanghai location + FixedZone 兜底、skipped-run slog.Info「leader lock not acquired」）；repo 侧 `CollabInviteRepository.ExpirePendingIfLeader(expireDays, now)`：事务内 `pg_try_advisory_xact_lock(0x4f4d4e494e564954 /* "OMNINVIT" */)`，未获锁提交即跳过，`UPDATE status='expired' WHERE status='pending' AND created_at < now.AddDate(0,0,-expireDays)`，非 postgres 方言跳过锁。
+- **Step 6（接线）**：`backend/cmd/server/main.go` 具名实例 `collabInviteExpiry := scheduler.NewCollabInviteExpiry(db, &cfg.Collaboration)` + `Start()`（browseHistoryCleanup 之后），shutdown `stopWorkers()` 后 `collabInviteExpiry.Stop()`（rdb.Close 之前），非匿名。
+- **错误码决策（用户批准）**：设计规格错误码表未定义的两个码按用户指示新增——`ErrInviteNotInvitee = errors.New("INVITE_NOT_INVITEE")`（403，非被邀请人调用 accept/decline）、`ErrInviteNotPending = errors.New("INVITE_NOT_PENDING")`（409，非 pending 重复操作）；既有 `INVITE_EXPIRED`/`INVITE_NOT_FOUND` 按规格表实现。
+
+### Testing:
+- TDD 红→绿：stub 阶段 `TestCollabInviteAccept|Decline` 13 个测试编译/行为红（undefined AcceptInvite/DeclineInvite）→ 实现后 13/13 PASS（`go test ./internal/service -run "TestCollabInviteAccept|TestCollabInviteDecline" -v`，含非 invitee、expired 边界 `expires_at == fixed now`、已响应拒绝、幂等贡献者 pr_count 不增 first_at 不变、容量满留 pending、并发容量 1 成功 1 拒绝、NotFound）。
+- 调度器：`go test ./internal/pkg/scheduler -run TestCollabInviteExpiry -v` 4/4 PASS（配置天数边界 -3d、过期/接受/拒绝分支、Stop 取消 timer 回调、双实例同一 DB 经 GORM Update callback 阻塞断言第二实例 `AcquiredLeader=false Expired=0`、释放后首实例完成、第三实例重获锁）。
+- 全量：`go build ./...` / `go vet ./...` / `go test ./...`（24 包）全绿；改动文件 gofmt 干净。
+
+### Notes:
+- 未碰 config/config.yaml/routes/migrations（main.go 非三者）→ 无需 doc-validator；未碰前端与主 worktree。
+- 遗留：INVITE_NOT_INVITEE/INVITE_NOT_PENDING 为设计规格错误码表外新增，Task 4 handler 映射（403/409）与设计规格表同步待记录；Task 5 卡片渲染消费 ListConversationSummaries 时需补 msg_type/metadata（Task 2 遗留）。
+- 提交：`feat(collab): accept, decline and expiry for collaboration invites (#97)`。
+
 ## [2026-08-12] - Task 2 [heavy]: Invite Service Anti-Abuse Chain (#97)
 
 ### What was done:
