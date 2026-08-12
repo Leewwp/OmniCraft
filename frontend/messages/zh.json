@@ -359,6 +359,18 @@
     },
     "continue": {
       "endReached": "已经到底了"
+    },
+    "related": {
+      "relatedTitle": "相关创作",
+      "similarTitle": "你可能也喜欢",
+      "endReached": "已经到底了",
+      "error": {
+        "loadFailed": "相似内容加载失败，请重试。",
+        "retry": "重试"
+      },
+      "a11y": {
+        "similarList": "相似内容"
+      }
     }
   },
   "contentDetailOverlay": {
