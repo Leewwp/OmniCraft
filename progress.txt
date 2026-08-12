@@ -1,3 +1,22 @@
+## [2026-08-13] - 收尾：Web 批次 #71/#69/#72/#73/#74/#75 全量验证、跟踪与推送
+
+### What was done:
+- **全量验证（main @ 739e94f，全部通过）**：
+  - 后端 `go build ./... && go vet ./... && go test ./...`：24 包全绿无 FAIL（含 handler/repository/service/migration 全量）。
+  - 前端 `npm run test:unit` 461/461、`npm run lint`（tsc --noEmit strict）干净、`npm run build` 成功。
+  - doc-validator `go run . --fix` 两轮幂等（第二轮零 diff）：config/schema/route 均无变化；核对 `docs/reference/schema.md` 含 `ip_visit_history`（line 398）、`architecture.md` §3.2 含三条 `ip-visits` 路由（GET /users/me/ip-visits、PUT /users/me/ip-visits/:ipId、POST /users/me/ip-visits/merge）、无已删 favorites 端点（architecture.md 的 `favorites/page.tsx` 为 /studio 收藏集管理页，非旧 API；api.md 为人工精选示例文档，不含旧端点）。
+  - `bash scripts/verify-project.sh --full` 通过：backend + frontend + doc-validator release check + 73 例 mocked Playwright contracts（含 #71 反应、#72 排序控件、#73 IP 历史、#74 收藏态、t87/t90、#97 邀请）全绿，末行「OmniCraft full verification passed」。
+- **残留扫描**：`grep -rn "favorites" backend/ --include="*.go"` 仅命中 3 个允许项——`router/routes_test.go`（旧端点 404 契约断言）、`model/collection_migration_test.go`（历史迁移 058 回填 fixture）、`cmd/collection-reconcile/main_test.go`（退役契约断言），无运行时 handler/repo/service 引用；`frontend/` 无 `api/v1/favorites`、`/users/:id/favorites` 引用。无需修复项。
+- **跟踪与文档**：`docs/superpowers/plans/2026-08-08-omnicraft-ip-visit-history.md` 勾选 H1-H4 全部 19 项（#73 自查已确认）；`2026-08-08-omnicraft-favorites-cutover.md` 不勾选（属 #76 人工门）；AGENTS.md Web 行备注更新为「#65~#75 全部完成，仅剩 #76 ready-for-human 人工门」，12 tickets 计数保留（#76 未执行）；GitHub issue #69/#71/#72/#73/#74/#75 已 close（评论含实现摘要+验证门+merge commit），#64/#76 保持 open，#68 清理 ready-for-agent 标签。
+
+### Testing:
+- 验证门结果见上；无代码修复，无测试变更。
+- merge commit 记录：#71→aa618dc、#69→363062e、#72→e0caf70（随 #73 合并进入 main）、#73→e0caf70、#74→e0caf70（随 #73 合并进入 main）、#75→739e94f。
+- 已推送 main 至 origin（推送前 `git fetch origin` 确认 merge-base = origin/main HEAD，无远端新提交，无 rebase 需求）。
+
+### Notes:
+- 遗留：`docs/reference/business-rules.md` 中旧 favorites 描述（若存在）待后续人工确认更新；#76 在云端日志+可恢复备份人工门满足前不得执行。
+
 ## [2026-08-13] - Issue #75 [heavy]: 退役旧 favorites 运行时依赖（Compatibility release）
 
 ### What was done:

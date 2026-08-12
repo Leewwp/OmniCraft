@@ -59,34 +59,34 @@
 
 ## Task H1 [heavy]: Red tests and migration
 
-- [ ] 确认 #97、#69/#71/#72 的共享文件序列已完成，`065_collaboration_invites.sql` 已存在，且 `066_` 未被占用。
-- [ ] 写 PostgreSQL migration test：复合主键、两个 cascade FK、稳定排序索引、空库升级与 historical fixture 升级。
-- [ ] 运行 focused test 并记录因 `066_ip_visit_history.sql` 不存在而预期失败的证据。
-- [ ] 添加幂等 forward-only migration 与 model；migration 含本地测试用 `-- ROLLBACK:` 注释，共享环境只允许 forward-fix。
-- [ ] 运行 migration focused test 至 green。
+- [x] 确认 #97、#69/#71/#72 的共享文件序列已完成，`065_collaboration_invites.sql` 已存在，且 `066_` 未被占用。
+- [x] 写 PostgreSQL migration test：复合主键、两个 cascade FK、稳定排序索引、空库升级与 historical fixture 升级。
+- [x] 运行 focused test 并记录因 `066_ip_visit_history.sql` 不存在而预期失败的证据。
+- [x] 添加幂等 forward-only migration 与 model；migration 含本地测试用 `-- ROLLBACK:` 注释，共享环境只允许 forward-fix。
+- [x] 运行 migration focused test 至 green。
 
 ## Task H2 [heavy]: Repository and HTTP contract
 
-- [ ] 先写 HTTP seam 失败测试，覆盖 record、重复刷新、当前用户隔离、稳定六项排序、未来时间 clamp、payload 内重复、失效 IP、batch > 6、数据库失败不暴露原始错误。
-- [ ] 实现 repository upsert/list/merge transaction；所有 SQL 通过 GORM 参数化表达，不拼接用户输入。
-- [ ] 实现三条认证路由与统一安全错误 envelope；GET/merge 只返回 public IP summary。
-- [ ] 重跑 focused handler/router tests；运行 `go test ./...`、`go vet ./...`、`go build ./...`。
+- [x] 先写 HTTP seam 失败测试，覆盖 record、重复刷新、当前用户隔离、稳定六项排序、未来时间 clamp、payload 内重复、失效 IP、batch > 6、数据库失败不暴露原始错误。
+- [x] 实现 repository upsert/list/merge transaction；所有 SQL 通过 GORM 参数化表达，不拼接用户输入。
+- [x] 实现三条认证路由与统一安全错误 envelope；GET/merge 只返回 public IP summary。
+- [x] 重跑 focused handler/router tests；运行 `go test ./...`、`go vet ./...`、`go build ./...`。
 
 ## Task H3 [heavy]: Browser integration
 
-- [ ] 先写前端失败测试：匿名去重/六项、登录 merge 失败保留、本次 200 只清理 acknowledged IDs、登录后列表改读 server。
-- [ ] 将 `recent_ips` 的读写从 `IPCard`/`HomePageClient` 收敛到 `frontend/lib/ip-visit-history.ts`；兼容读取当前本机旧结构，不做破坏性一次性清空。
-- [ ] IP 激活仍即时写本机记录；已登录时调用 record API。登录状态由未认证转为认证时触发一次 merge，401 不循环重试。
-- [ ] 浏览器验证匿名访问六个以上 IP、重复访问置顶、登录成功合并、故意制造 500 后本机记录保留、重试成功后清理；保存桌面与移动截图到 `screenshots/`。
-- [ ] 运行 frontend focused tests、`npm run lint`、`npm run build` 与相关 Playwright journey。
+- [x] 先写前端失败测试：匿名去重/六项、登录 merge 失败保留、本次 200 只清理 acknowledged IDs、登录后列表改读 server。
+- [x] 将 `recent_ips` 的读写从 `IPCard`/`HomePageClient` 收敛到 `frontend/lib/ip-visit-history.ts`；兼容读取当前本机旧结构，不做破坏性一次性清空。
+- [x] IP 激活仍即时写本机记录；已登录时调用 record API。登录状态由未认证转为认证时触发一次 merge，401 不循环重试。
+- [x] 浏览器验证匿名访问六个以上 IP、重复访问置顶、登录成功合并、故意制造 500 后本机记录保留、重试成功后清理；保存桌面与移动截图到 `screenshots/`。
+- [x] 运行 frontend focused tests、`npm run lint`、`npm run build` 与相关 Playwright journey。
 
 ## Task H4 [closure]: Verification and tracking
 
-- [ ] 修改 migration/routes 后运行 `cd tools/doc-validator && go run . --fix`，核对自动生成 API/schema 文档包含新路由与 `066`。
-- [ ] 运行 `bash scripts/verify-project.sh --full`，以及 migration historical-fixture gate。
-- [ ] 完成规格符合性审查，再完成代码质量审查；处理所有 blocking 与 `DONE_WITH_CONCERNS` 项。
-- [ ] 在 `progress.txt` 记录 red→green、浏览器截图、迁移验证和审查结果；只勾选 #73/本计划实际完成项。
-- [ ] 精确 stage 实际改动并创建该 heavy task 的唯一提交；不得混入 #75/#76 或其他计划文件。
+- [x] 修改 migration/routes 后运行 `cd tools/doc-validator && go run . --fix`，核对自动生成 API/schema 文档包含新路由与 `066`。
+- [x] 运行 `bash scripts/verify-project.sh --full`，以及 migration historical-fixture gate。
+- [x] 完成规格符合性审查，再完成代码质量审查；处理所有 blocking 与 `DONE_WITH_CONCERNS` 项。
+- [x] 在 `progress.txt` 记录 red→green、浏览器截图、迁移验证和审查结果；只勾选 #73/本计划实际完成项。
+- [x] 精确 stage 实际改动并创建该 heavy task 的唯一提交；不得混入 #75/#76 或其他计划文件。
 
 ## Stop conditions
 
