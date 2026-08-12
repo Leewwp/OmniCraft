@@ -6,6 +6,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   ReactNode,
 } from "react";
 import { api, ApiRequestError, setAccessToken, getAccessToken } from "@/lib/api";
@@ -15,6 +16,7 @@ import {
   isTokenExpired,
 } from "@/lib/auth";
 import { silentError } from "@/lib/error-handler";
+import { mergeLocalIpsIntoAccount } from "@/lib/ip-visit-history";
 
 export interface User {
   id: number;
@@ -86,6 +88,7 @@ interface AuthContextValue {
   isLoading: boolean;
   unreadCounts: UnreadCounts;
   capabilities: InteractionCapabilities;
+  ipHistoryVersion: number;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<boolean>;
@@ -99,6 +102,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [capabilities, setCapabilities] = useState<InteractionCapabilities>(FAIL_CLOSED_CAPABILITIES);
   const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({ total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0 });
+  const [ipHistoryVersion, setIPHistoryVersion] = useState(0);
+  const previousUserRef = useRef<User | null>(null);
 
   const refresh = useCallback(async (): Promise<boolean> => {
     try {
@@ -180,6 +185,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [user]);
 
+  // Idempotent login merge: the first time the session turns authenticated
+  // (including the initial page load of an already signed-in user), local
+  // anonymous IP visits are merged into the account history. A failed merge
+  // keeps the local records and only retries on a later auth transition,
+  // so a 401 can never become a retry loop. The version bump re-reads any
+  // recent-IP surface once the merge attempt settles.
+  useEffect(() => {
+    if (user && !previousUserRef.current) {
+      mergeLocalIpsIntoAccount().finally(() => setIPHistoryVersion((v) => v + 1));
+    }
+    previousUserRef.current = user;
+  }, [user]);
+
   const login = useCallback(async (email: string, password: string, _rememberMe?: boolean) => {
     const data = await api.post<{
       user: User;
@@ -218,7 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, unreadCounts, capabilities, login, logout, refresh, refreshUser }}>
+    <AuthContext.Provider value={{ user, isLoading, unreadCounts, capabilities, ipHistoryVersion, login, logout, refresh, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

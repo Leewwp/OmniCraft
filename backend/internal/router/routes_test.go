@@ -57,6 +57,24 @@ func TestRehabHandlerReceivesRuntimeStatusDependencies(t *testing.T) {
 	}
 }
 
+func TestIPVisitHistoryRoutesRequireAuthUnderUsersMe(t *testing.T) {
+	source := readRoutesSource(t)
+	contracts := []string{
+		`me.GET("/ip-visits", ipVisitHistoryHandler.ListRecent)`,
+		`me.PUT("/ip-visits/:ipId", ipVisitHistoryHandler.RecordVisit)`,
+		`me.POST("/ip-visits/merge", ipVisitHistoryHandler.MergeVisits)`,
+		`me := v1.Group("/users/me", authReq)`,
+	}
+	for _, contract := range contracts {
+		if !strings.Contains(source, contract) {
+			t.Errorf("router source missing IP visit history route contract %q", contract)
+		}
+	}
+	if strings.Count(source, `me := v1.Group("/users/me", authReq)`) != 1 {
+		t.Error("IP visit history routes must be registered on the single auth-required users/me group")
+	}
+}
+
 func TestSeriesMutationRoutesUseAuthAndStandardInteractionGuard(t *testing.T) {
 	source := readRoutesSource(t)
 	contracts := []string{
