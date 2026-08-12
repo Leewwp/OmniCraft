@@ -1,3 +1,21 @@
+## [2026-08-12] - Task 6 [light]: Confirm Collab Picker API And UI Spec (#97)
+
+### What was done:
+- **Step 1**：`rg -n "## Component: CollabUserPicker|## Page: /studio/publish/fanwork" design/ui-spec.md` → 4892 / 5034 均存在（CollabUserPicker 为 additive PublishForm 区块，fanwork 在来源字段之后、original 在主内容字段之后提交动作之前）。
+- **Step 2/3（TDD 红→绿）**：`frontend/tests/publish-collab-picker.test.tsx` 10 个测试——先红（组件不存在 ERR_MODULE_NOT_FOUND）→ 实现 `frontend/components/content/CollabUserPicker.tsx` 后全绿。覆盖：搜索用户名且精确调用 `GET /api/v1/users/search?q=<query>&limit=8`（`assert.equal(apiCalls[0].url, "/api/v1/users/search?q=Lumi&limit=8")`）；归一化只保留 id/username/avatarUrl（snake→camel，reputation/role 不泄漏）；丢弃非数字 id / 空 username / 纯空白 username 结果；移除已选 chip；重复用户不可添加且结果项 aria-selected+aria-disabled+本地化「已选择」；maxSelected 上限 + 本地化限数提示；接收 public 值作为 maxSelected（prop 5 全选成功）；maxSelected<=0 → 输入禁用 + 本地化说明 + 零 API 调用；loading/empty/error+retry 本地化；disabled 禁用输入与移除按钮。组件结构镜像 SourceContentPicker（useTranslations("collabUserPicker")、useId、300ms debounce + cancelled 标志、combobox+listbox + aria-activedescendant/aria-selected、role=status/role=alert），chips 移除按钮 aria-label 含用户名（ui-spec a11y），选择后清空输入并保持焦点，Enter/Arrow/Enter/Escape 键盘，无 Backspace 删除。
+- **Step 4（i18n）**：zh.json + en.json 新增顶层 `collabUserPicker.*`（label、search.placeholder/loading/empty、selected.maxReached {max}、duplicate.alreadySelected、error.searchFailed/retry、disabled.unavailable、a11y.results/selectedList/removeUser {username}）。**命名空间按 ui-spec 权威用 `collabUserPicker.*`，未采用计划文字中的 `collab.userPicker.*`**（与 Task 5 `collabInviteCard.*` 顶层风格一致）。
+- **浏览器验证（mock e2e）**：`frontend/e2e/t6-collab-picker.mock.spec.ts` + 临时 harness 页 `app/(protected)/studio/collab-picker-demo/page.tsx`（Task 7 PublishForm 集成后删除并改用真实页面）——zh locale，mock auth/config/public/users/search：搜索→结果→选择→chip 出现；重复行 disabled + 「已选择」；移除 chip 后输入恢复；选满 5 人显示「最多可选择 5 位联合创作者」且输入禁用；err→500 内联错误+重试；zoo→空态；移动端（hasTouch 粗指针仿真）chip 换行、移除按钮 ≥44px、无横向溢出。截图 `screenshots/community-collab-picker-{desktop,mobile}.png`（git add -f）。
+
+### Testing:
+- 红→绿：测试先行 10/10 红（ERR_MODULE_NOT_FOUND）→ 实现后 `node --import tsx --test tests/publish-collab-picker.test.tsx` 10/10 绿（修 1 处：无 avatar 时组件发射对象含 `avatarUrl: undefined`，deepStrictEqual 不匹配 → 归一化改为无 avatar 时不携带该键）。
+- 全量：`npm run test:unit` 413/413 绿；`npm run lint`（tsc --noEmit）干净；`npm run lint:ui` UI governance 通过；`npm run build` 成功。
+- e2e：`npx playwright test --config=playwright.mocked.config.ts t6-collab-picker.mock.spec.ts` 2/2 绿（桌面 + 移动）。过程中修 2 处：初始字母 span 未 aria-hidden 导致 option 可访问名混入首字母（改为 aria-hidden + exact name 断言）；setViewportSize 不足以触发 (pointer:coarse) 媒体查询（改用 test.use hasTouch:true 仿真粗指针）。
+
+### Notes:
+- 未触碰 PublishForm.tsx / lib/public-config.ts（Task 7 范围）；无 config/routes/migrations 改动 → 无需 doc-validator；后端未改动。
+- 遗留：harness 演示页 `app/(protected)/studio/collab-picker-demo/page.tsx` 为 Task 6 浏览器验证而建，Task 7 集成 PublishForm 后应删除该页并把 e2e spec 改指真实发布页；公共配置获取（`collaboration.max_invitees_per_publish` → maxSelected）在 Task 7 落地，届时需给 `lib/public-config.ts` 的 PublicConfig 增加 collaboration 字段。
+- 提交：测试→组件→i18n→e2e+截图→docs 五连。
+
 ## [2026-08-12] - Task 4 [heavy]: Handler Routes And User Setting Contract (#97)
 
 ### What was done:
