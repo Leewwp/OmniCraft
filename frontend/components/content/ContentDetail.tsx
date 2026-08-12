@@ -35,6 +35,8 @@ import { SeriesNav } from "@/components/content/SeriesNav";
 import { SourceAttribution, type SourceSummary } from "@/components/content/SourceAttribution";
 import { RelatedFanworks } from "@/components/content/RelatedFanworks";
 import { MediaGallery, selectMediaItems } from "@/components/content/MediaGallery";
+import { RelatedContents } from "@/components/content/RelatedContents";
+import type { ContentCardData } from "@/components/content/ContentCard";
 import type { AttachmentData, ContentDetailData } from "@/lib/content";
 
 interface RelatedFanworksSlot {
@@ -64,6 +66,10 @@ interface ContentDetailProps {
   sourceFanwork?: SourceSummary;
   /** 相关二创/衍生作品行：正文后、评论区上方；不传则不渲染。 */
   relatedFanworks?: RelatedFanworksSlot;
+  /** #90 浮层栈内打开相关卡片（overlay 宿主传入）；不传时卡片保持整卡 Link 跳转。 */
+  onOpenRelatedDetail?: (data: ContentCardData, trigger: HTMLElement) => void;
+  /** #90 关联行已加载的 id/zone 摘要（#96 合同，相似内容去重；overlay 层已有该数据）。 */
+  relatedFanworksSummary?: Array<{ id: number; title: string; zone: "original" | "fanwork" }>;
 }
 
 function getTypeLabel(t: (key: string) => string, contentType: string): string {
@@ -156,6 +162,8 @@ export function ContentDetail({
   sourceOriginal,
   sourceFanwork,
   relatedFanworks,
+  onOpenRelatedDetail,
+  relatedFanworksSummary,
 }: ContentDetailProps) {
   const t = useTranslations();
   const locale = useLocale();
@@ -166,6 +174,18 @@ export function ContentDetail({
   const { toast } = useToast();
   const [collectionPickerOpen, setCollectionPickerOpen] = useState(false);
   const [tagSuggestionBusy, setTagSuggestionBusy] = useState<string | null>(null);
+
+  /* #90 桌面/web 相关内容块：≥1100px 时关联行由 RelatedContents 统一承载，
+     行内 RelatedFanworks 降级为 <1100px（移动/平板，与 #89 连续浏览边界一致）。 */
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mediaQuery = window.matchMedia("(min-width: 1100px)");
+    const update = () => setIsDesktop(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
 
   const { media: mediaItems, downloads: downloadItems } = selectMediaItems(
     data.attachments ?? [],
@@ -451,13 +471,32 @@ export function ContentDetail({
         <SeriesNav memberships={data.series_memberships} />
       )}
 
-      {/* 相关二创/衍生作品行（ui-spec:2697）：正文后、评论区上方，与 SeriesNav 同级。 */}
-      {relatedFanworks && <RelatedFanworks {...relatedFanworks} />}
+      {/* 相关二创/衍生作品行（ui-spec:2697）：正文后、评论区上方，与 SeriesNav 同级。
+          #90 桌面/web（≥1100px）关联行由评论区之后的 RelatedContents 统一承载，
+          行内行降级为 <1100px 渲染，避免同页重复展示关联作品。 */}
+      {relatedFanworks && !isDesktop && (
+        <RelatedFanworks {...relatedFanworks} onOpenDetail={onOpenRelatedDetail} />
+      )}
 
       {/* Comments */}
       <section className="rounded-md border border-border bg-card p-4 ">
         <CommentSection contentId={data.id} />
       </section>
+
+      {/* 相关内容块（ui-spec:2761 #90 权威）：正文与评论区之后展示关联原创/二创行 +
+          相似内容行 + 「已经到底了」提示；移动端自隐藏，不做自动加载下一篇。 */}
+      <RelatedContents
+        contentId={data.id}
+        zone={data.zone === "fanwork" ? "fanwork" : "original"}
+        contentType={contentType}
+        category={data.category}
+        ipId={data.zone === "fanwork" ? data.ip?.id ?? data.ip_id : undefined}
+        relatedFanworks={relatedFanworksSummary}
+        relatedFanworksSlot={
+          relatedFanworks ? { ...relatedFanworks, titleKey: "media.related.relatedTitle" } : undefined
+        }
+        onOpenDetail={onOpenRelatedDetail}
+      />
       </div>
     </div>
   );

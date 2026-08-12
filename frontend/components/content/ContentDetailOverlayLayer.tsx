@@ -89,6 +89,17 @@ export function ContentDetailOverlayLayer({
   const [relatedTotal, setRelatedTotal] = useState(0);
   const [attempt, setAttempt] = useState(0);
   const [coverReady, setCoverReady] = useState<boolean | undefined>(undefined);
+  /* #90 桌面相关内容块：仅 ≥1100px 把关联行插槽交给 ContentDetail（RelatedContents
+     自隐藏于 <1100px；移动端关联入口维持 #89 语义——由连续浏览承担，不渲染该行）。 */
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mediaQuery = window.matchMedia("(min-width: 1100px)");
+    const update = () => setIsDesktop(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
 
   const onTitleChangeRef = useRef(onTitleChange);
   useEffect(() => {
@@ -287,9 +298,38 @@ export function ContentDetailOverlayLayer({
     };
   });
 
-  const handleOpenEntry = (entry: { id: number; zone: "original" | "fanwork" }, trigger: HTMLElement) => {
-    onPush({ contentId: entry.id, zone: entry.zone, source: "zone-page" }, trigger);
+  /* #90 相关内容块卡片：浮层栈内打开（source=zone-page）；ContentCardData 的
+     zone 为可选字符串，此处统一归一化为 original/fanwork。 */
+  const handleOpenEntry = (
+    entry: { id: number; zone?: string },
+    trigger: HTMLElement,
+  ) => {
+    onPush(
+      {
+        contentId: entry.id,
+        zone: entry.zone === "original" ? "original" : "fanwork",
+        source: "zone-page",
+      },
+      trigger,
+    );
   };
+
+  /* #90 相关内容块：关联行插槽（复用 RelatedFanworks 组件）+ 相似内容去重摘要
+     （layer 已为侧栏拉取 related-fanworks 合同，直接复用该数据源）。 */
+  const relatedFanworksSlot = {
+    sourceContentId: content.id,
+    sourceZone: isFanwork ? ("fanwork" as const) : ("original" as const),
+    titleKey: isFanwork ? "relatedFanworks.derivatives.title" : "relatedFanworks.original.title",
+    createHref: isFanwork
+      ? `/studio/publish/fanwork?source_fanwork_id=${content.id}`
+      : `/studio/publish/fanwork?source_original_id=${content.id}`,
+    viewAllHref: !isFanwork ? `/original/${content.id}/fanworks` : undefined,
+  };
+  const relatedFanworksSummary = related.map((item) => ({
+    id: item.id,
+    title: item.title,
+    zone: item.zone === "original" ? ("original" as const) : ("fanwork" as const),
+  }));
 
   /* 创作者栏/相关列表（ui-spec:2402 相关推荐 + :2438 创作者栏）：单列时是右侧栏；
      双栏时下置于信息列末尾，维持关联入口（≥1100 显示，<1100 依旧隐藏）。 */
@@ -363,6 +403,9 @@ export function ContentDetailOverlayLayer({
                连续浏览钩子与到底提示必须接在这条路径上。 */
             onGalleryReachEnd={handleReachEnd}
             galleryEndHint={atContextEnd}
+            relatedFanworks={isDesktop ? relatedFanworksSlot : undefined}
+            relatedFanworksSummary={isDesktop ? relatedFanworksSummary : undefined}
+            onOpenRelatedDetail={handleOpenEntry}
           />
           {sidebar}
         </div>
@@ -380,6 +423,9 @@ export function ContentDetailOverlayLayer({
           sourceFanwork={isFanwork ? detail.sourceFanwork : undefined}
           onGalleryReachEnd={handleReachEnd}
           galleryEndHint={atContextEnd}
+          relatedFanworks={isDesktop ? relatedFanworksSlot : undefined}
+          relatedFanworksSummary={isDesktop ? relatedFanworksSummary : undefined}
+          onOpenRelatedDetail={handleOpenEntry}
         />
       </div>
 

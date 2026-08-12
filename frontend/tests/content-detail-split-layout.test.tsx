@@ -172,6 +172,10 @@ function installApiMock() {
     if (requestPath.startsWith("/api/v1/social/comments")) {
       return { comments: [] } as T;
     }
+    /* #90 相关内容块的相似内容行：固定 list 合同，测试给空数据即可。 */
+    if (requestPath.startsWith("/api/v1/contents?")) {
+      return { contents: [], total: 0 } as T;
+    }
     const contentIdMatch = requestPath.match(/^\/api\/v1\/contents\/(\d+)$/);
     if (contentIdMatch) {
       const contentId = Number(contentIdMatch[1]);
@@ -244,14 +248,19 @@ function renderOverlay(node: React.ReactNode, splitViewport = false) {
   return render(<IntlProvider locale="en" messages={enMessages}>{node}</IntlProvider>);
 }
 
-async function openOverlay(view: ReturnType<typeof render>, entryId: number) {
+async function openOverlay(view: ReturnType<typeof render>, entryId: number, expectedTitle?: string) {
   const trigger = view.getByRole("button", { name: "Open overlay" });
   await act(async () => {
     fireEvent.click(trigger);
     await Promise.resolve();
   });
   await waitFor(() => assert.ok(view.getByRole("dialog")));
-  await waitFor(() => assert.ok(view.getByRole("heading", { level: 2 })));
+  /* 桌面视口下 #90 相关内容块会额外渲染标题行（h2），等待时必须按名称区分。 */
+  if (expectedTitle) {
+    await waitFor(() => assert.ok(view.getByRole("heading", { level: 2, name: expectedTitle })));
+  } else {
+    await waitFor(() => assert.ok(view.getByRole("heading", { level: 2 })));
+  }
   return trigger;
 }
 
@@ -282,7 +291,7 @@ test("#88 split scroll memory routes to the layer-scroller and restores on pop",
   installApiMock();
   /* jsdom 视口视为桌面（≥1100px）：滚动路由走层内信息列。 */
   const view = renderOverlay(<OverlayHarness entryId={7} zone="original" />, true);
-  await openOverlay(view, 7);
+  await openOverlay(view, 7, "Gallery Image Work");
 
   const layerScroller = document.querySelector<HTMLElement>('[data-slot="layer-scroller"]');
   assert.ok(layerScroller);
@@ -312,7 +321,7 @@ test("#88 split scroll memory routes to the layer-scroller and restores on pop",
 test("#88 legacy image content without a media set stays single-column", async () => {
   installApiMock();
   const view = renderOverlay(<OverlayHarness entryId={8} zone="original" />, true);
-  await openOverlay(view, 8);
+  await openOverlay(view, 8, "Legacy Cover Work");
 
   assert.ok(document.querySelector('[data-slot="layer-scroller"]') === null);
   assert.equal(document.querySelectorAll('[data-slot="detail-cover"]').length, 1);
