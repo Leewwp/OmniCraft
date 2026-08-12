@@ -1,3 +1,20 @@
+## [2026-08-12] - Task 4 [heavy]: Handler Routes And User Setting Contract (#97)
+
+### What was done:
+- **Step 1/2（TDD red）**：先写 `backend/internal/handler/collab_invite_test.go`（15 个顶层测试：send happy path 201 + invite/conversation/message 计数、不存在内容 404 CONTENT_UNAVAILABLE 且 0 记录、author/not-owner 校验、INVITE_NOT_ACCEPTING、重复邀请 409 ALREADY_EXISTS + decline 后 409 DUPLICATE_USER、invalid body 400 VALIDATION_ERROR + 非数字 id 400 INVALID_ID、send 路由守卫 401/USER_BANNED/EMAIL_NOT_VERIFIED/INSUFFICIENT_REPUTATION、accept happy path + contributor 行、非 invitee 403、非 pending 409、expired 400、not found 404、decline happy path + 无 contributor 行、decline 守卫、PATCH 设置契约 false→true + 他人 403 + NO_FIELDS + /auth/me 返回字段）+ 501 stub handler（可编译），`go test ./internal/handler -run TestCollabInvite -v` 20 个子测试红（守卫子测试因中间件独立于 handler 而先绿，属预期）。
+- **Step 3（handler）**：新建 `backend/internal/handler/collab_invite.go`——`CollabInviteHandler{svc}` + `NewCollabInviteHandler(svc)`；`SendInvite`（GetUserID、`{"invitee_id":42}` binding required、`:id` 为 content_item_id、201 `gin.H{"invite": invite}`）、`AcceptInvite`/`DeclineInvite`（`:id` 为 invite id、200 `gin.H{"invite": invite}`）；`mapCollabInviteError` 按 `errors.Is` 映射 18 个 sentinel → 规格表 HTTP/错误码（含用户批准的 INVITE_NOT_INVITEE 403、INVITE_NOT_PENDING 409）。
+- **Step 4（路由 + 容器）**：`backend/internal/router/routes.go`——新增 `collabInvitesGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())`（无匿名 policy 字面量）；`contents.POST("/:id/collab-invites", authReq, collabInvitesGuard, collabInviteHandler.SendInvite)`、`v1.POST("/collab-invites/:id/accept|decline", authReq, ...)`；无 repository.New/service.New。`backend/internal/container/container.go`——`CollabInviteService` 字段 + `service.NewCollabInviteService(c.ContentRepo, repository.NewCollabInviteRepository(db), c.MessageRepo, c.UserRepo, rdb, cfg)` 构造。
+- **用户设置契约**：`backend/internal/handler/user.go` UpdateUser 请求结构新增 `AcceptCollabInvites *bool json:"accept_collab_invites"` + updates 白名单映射；`sanitizeUser` 输出新增 `accept_collab_invites`。`auth.go` 无需改动（Me 直接序列化 model.User，json tag 已含该字段，仅测试契约）。
+- 路由表同步：`cd tools/doc-validator && go run . --fix` 把 3 条新路由写入 `architecture.md` §3.2 路由清单（二次运行 no changes needed，幂等）。
+
+### Testing:
+- 红→绿：red 20 子测试失败（501/NO_FIELDS 等）→ 实现后 `go test ./internal/handler -run TestCollabInvite -v` 全绿（修 1 个测试自身 bug：INVITE_AUTHOR_NOT_ALLOWED 需邀请者是已确认 contributor 才可达——service 链先判 NOT_CONTENT_OWNER）。
+- 全量：`go build ./...` / `go vet ./...` / `go test ./...`（24 包）全绿；routes_test.go/policies_test.go/container_test.go 保持绿；改动文件 gofmt 干净（ip.go/version.go 为既有 gofmt 违规，未触碰）。
+
+### Notes:
+- 测试基建：ephemeral postgres（testutil.OpenEphemeralPostgres）+ 手写 base schema（users 含 role/email_verified_at，ResolveRuntimeUserStatus 需要）+ 065 迁移 + miniredis；handler 包无法注入 svc.now，断言避开 expires_at/Redis 日期；守卫用内联 `middleware.InteractionPolicy{RequireVerifiedEmail: true, RequireReputation: true}`（不能 import router，循环依赖）。
+- 提交：`feat(collab): invite routes, handler and accept_collab_invites setting contract (#97)`。
+
 ## [2026-08-12] - Task 3 [heavy]: Implement Accept, Decline, And Expiry (#97)
 
 ### What was done:

@@ -44,6 +44,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	messagesGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
 	downloadsGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
 	agentGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
+	collabInvitesGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
 
 	publicConfigHandler := handler.NewPublicConfigHandler(cfg)
 	v1.GET("/config/public", publicConfigHandler.GetPublicConfig)
@@ -139,6 +140,11 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		social.POST("/comments/:id/report", authReq, reportsGuard, socialHandler.ReportComment)
 	}
 	contents.POST("/:id/report", authReq, reportsGuard, socialHandler.ReportContent)
+
+	collabInviteHandler := handler.NewCollabInviteHandler(ctr.CollabInviteService)
+	contents.POST("/:id/collab-invites", authReq, collabInvitesGuard, collabInviteHandler.SendInvite)
+	v1.POST("/collab-invites/:id/accept", authReq, collabInviteHandler.AcceptInvite)
+	v1.POST("/collab-invites/:id/decline", authReq, collabInviteHandler.DeclineInvite)
 
 	favHandler := handler.NewFavoriteHandler(db, cfg)
 	collectionHandler := handler.NewCollectionHandler(db)

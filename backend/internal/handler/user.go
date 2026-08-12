@@ -122,10 +122,11 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 
 	var req struct {
-		Username        *string `json:"username"`
-		AvatarURL       *string `json:"avatar_url"`
-		Bio             *string `json:"bio"`
-		PreferredLocale *string `json:"preferred_locale"`
+		Username            *string `json:"username"`
+		AvatarURL           *string `json:"avatar_url"`
+		Bio                 *string `json:"bio"`
+		PreferredLocale     *string `json:"preferred_locale"`
+		AcceptCollabInvites *bool   `json:"accept_collab_invites"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.SafeErrorResponse(c, http.StatusBadRequest, "INVALID_BODY", err)
@@ -144,6 +145,9 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 	if req.PreferredLocale != nil {
 		updates["preferred_locale"] = *req.PreferredLocale
+	}
+	if req.AcceptCollabInvites != nil {
+		updates["accept_collab_invites"] = *req.AcceptCollabInvites
 	}
 
 	if len(updates) == 0 {
@@ -374,15 +378,16 @@ func invalidateUserTokens(rdb *redis.Client, userID int64) {
 
 func sanitizeUser(u *model.User) gin.H {
 	return gin.H{
-		"id":               u.ID,
-		"username":         u.Username,
-		"email":            u.Email,
-		"avatar_url":       u.AvatarURL,
-		"bio":              u.Bio,
-		"reputation":       u.Reputation,
-		"preferred_locale": u.PreferredLocale,
-		"role":             u.Role,
-		"is_banned":        u.IsBanned,
-		"created_at":       u.CreatedAt,
+		"id":                    u.ID,
+		"username":              u.Username,
+		"email":                 u.Email,
+		"avatar_url":            u.AvatarURL,
+		"bio":                   u.Bio,
+		"reputation":            u.Reputation,
+		"preferred_locale":      u.PreferredLocale,
+		"role":                  u.Role,
+		"is_banned":             u.IsBanned,
+		"accept_collab_invites": u.AcceptCollabInvites,
+		"created_at":            u.CreatedAt,
 	}
 }

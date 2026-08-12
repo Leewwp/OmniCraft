@@ -376,7 +376,7 @@ go test ./internal/pkg/scheduler -run TestCollabInviteExpiry -v
 - Modify: `backend/internal/handler/auth.go`
 - Test: `backend/internal/handler/collab_invite_test.go`
 
-- [ ] **Step 1: Add failing route tests**
+- [x] **Step 1: Add failing route tests**
 
 Routes:
 
@@ -390,7 +390,7 @@ For `POST /api/v1/contents/:id/collab-invites`, `:id` is always `content_item_id
 
 Also test `PATCH /api/v1/users/:id` can update `accept_collab_invites` for the current user, and `GET /api/v1/auth/me` returns it.
 
-- [ ] **Step 2: Run and confirm red**
+- [x] **Step 2: Run and confirm red**
 
 Run:
 
@@ -399,7 +399,7 @@ cd backend
 go test ./internal/handler -run TestCollabInvite -v
 ```
 
-- [ ] **Step 3: Implement handlers**
+- [x] **Step 3: Implement handlers**
 
 Request:
 
@@ -415,13 +415,13 @@ Response:
 
 Map service errors to exact HTTP/error codes from the design spec.
 
-- [ ] **Step 4: Register routes**
+- [x] **Step 4: Register routes**
 
 `POST /contents/:id/collab-invites` must use auth and reputation interaction guard.
 
 `POST /collab-invites/:id/accept|decline` must use auth.
 
-- [ ] **Step 5: Verify handler**
+- [x] **Step 5: Verify handler**
 
 Run:
 
