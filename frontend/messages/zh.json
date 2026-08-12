@@ -2102,7 +2102,18 @@
       "nextA11y": "下一章：{title}",
       "firstA11y": "上一章不可用，已是第一章",
       "lastA11y": "下一章不可用，已是最后一章",
-      "catalogA11y": "查看 {title} 系列目录"
+      "catalogA11y": "查看 {title} 系列目录",
+      "directory": {
+        "title": "章节目录",
+        "position": "第 {current} / 共 {total} 章",
+        "option": "第 {index} 章：{title}",
+        "currentOption": "当前章节：第 {index} 章：{title}",
+        "loading": "目录加载中…",
+        "empty": "系列暂无公开内容",
+        "loadFailed": "目录加载失败",
+        "retry": "重试",
+        "listLabel": "{title} 章节目录"
+      }
     },
     "detail": {
       "header": {

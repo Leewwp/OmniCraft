@@ -220,6 +220,16 @@ export function ContentDetailOverlayLayer({
     });
   }, [entry, onSwitchNext]);
 
+  /* #69 浮层内系列导航：上一章/下一章/目录选择都压入同一导航栈（与关联卡片同模型），
+     不整页跳转；zone 沿用当前层（系列单一 zone，与 membership.series_zone 一致）。 */
+  const handleNavigateInOverlay = useCallback(
+    (contentId: number, trigger?: HTMLElement | null) => {
+      if (contentId === entry.contentId) return;
+      onPush({ contentId, zone: entry.zone, source: entry.source }, trigger ?? null);
+    },
+    [entry, onPush],
+  );
+
   if (status === "loading") {
     return (
       <div aria-busy="true" aria-label={t("contentDetailOverlay.title")}>
@@ -406,6 +416,7 @@ export function ContentDetailOverlayLayer({
             relatedFanworks={isDesktop ? relatedFanworksSlot : undefined}
             relatedFanworksSummary={isDesktop ? relatedFanworksSummary : undefined}
             onOpenRelatedDetail={handleOpenEntry}
+            onNavigateInOverlay={handleNavigateInOverlay}
           />
           {sidebar}
         </div>
@@ -426,6 +437,7 @@ export function ContentDetailOverlayLayer({
           relatedFanworks={isDesktop ? relatedFanworksSlot : undefined}
           relatedFanworksSummary={isDesktop ? relatedFanworksSummary : undefined}
           onOpenRelatedDetail={handleOpenEntry}
+          onNavigateInOverlay={handleNavigateInOverlay}
         />
       </div>
 

@@ -2101,7 +2101,18 @@
       "nextA11y": "Next chapter: {title}",
       "firstA11y": "Previous chapter unavailable; this is the first chapter",
       "lastA11y": "Next chapter unavailable; this is the last chapter",
-      "catalogA11y": "View the {title} series catalog"
+      "catalogA11y": "View the {title} series catalog",
+      "directory": {
+        "title": "Chapter directory",
+        "position": "Chapter {current} of {total}",
+        "option": "Chapter {index}: {title}",
+        "currentOption": "Current chapter: Chapter {index}: {title}",
+        "loading": "Loading chapters…",
+        "empty": "No public chapters yet",
+        "loadFailed": "Failed to load chapters",
+        "retry": "Retry",
+        "listLabel": "{title} chapter directory"
+      }
     },
     "detail": {
       "header": {
