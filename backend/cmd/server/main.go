@@ -74,6 +74,8 @@ func main() {
 	scheduler.NewDownloadCountSync(ctr.ContentService, &cfg.Cache).Start()
 	browseHistoryCleanup := scheduler.NewBrowseHistoryCleanup(db, &cfg.BrowseHistory)
 	browseHistoryCleanup.Start()
+	collabInviteExpiry := scheduler.NewCollabInviteExpiry(db, &cfg.Collaboration)
+	collabInviteExpiry.Start()
 
 	hotRankSvc := service.NewHotRankService(ctr.ContentService, &cfg.Recommendation).
 		WithRecommendationService(ctr.RecommendationSvc).
@@ -144,6 +146,7 @@ func main() {
 
 	stopWorkers()
 	browseHistoryCleanup.Stop()
+	collabInviteExpiry.Stop()
 
 	shutdownTimeout := time.Duration(cfg.Server.ShutdownTimeout) * time.Second
 	if shutdownTimeout <= 0 {
