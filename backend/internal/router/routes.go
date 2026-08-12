@@ -35,7 +35,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	editDeleteGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
 	commentsGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
 	reactionsGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
-	favoritesGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
+	collectionGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
 	seriesGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
 	reportsGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
 	prGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
@@ -146,16 +146,15 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	v1.POST("/collab-invites/:id/accept", authReq, collabInviteHandler.AcceptInvite)
 	v1.POST("/collab-invites/:id/decline", authReq, collabInviteHandler.DeclineInvite)
 
-	favHandler := handler.NewFavoriteHandler(db, cfg)
 	collectionHandler := handler.NewCollectionHandler(db)
 	v1.GET("/collections", optAuth, collectionHandler.ListCollections)
 	v1.GET("/collections/:id", optAuth, collectionHandler.GetCollection)
-	v1.POST("/collections", authReq, favoritesGuard, collectionHandler.CreateCollection)
-	v1.PUT("/collections/:id", authReq, favoritesGuard, collectionHandler.UpdateCollection)
-	v1.DELETE("/collections/:id", authReq, favoritesGuard, collectionHandler.DeleteCollection)
-	v1.POST("/collections/:id/items", authReq, favoritesGuard, collectionHandler.AddItem)
-	v1.DELETE("/collections/:id/items/:itemId", authReq, favoritesGuard, collectionHandler.RemoveItem)
-	v1.PUT("/collections/:id/items/:itemId", authReq, favoritesGuard, collectionHandler.UpdateItem)
+	v1.POST("/collections", authReq, collectionGuard, collectionHandler.CreateCollection)
+	v1.PUT("/collections/:id", authReq, collectionGuard, collectionHandler.UpdateCollection)
+	v1.DELETE("/collections/:id", authReq, collectionGuard, collectionHandler.DeleteCollection)
+	v1.POST("/collections/:id/items", authReq, collectionGuard, collectionHandler.AddItem)
+	v1.DELETE("/collections/:id/items/:itemId", authReq, collectionGuard, collectionHandler.RemoveItem)
+	v1.PUT("/collections/:id/items/:itemId", authReq, collectionGuard, collectionHandler.UpdateItem)
 
 	seriesHandler := handler.NewSeriesHandler(db)
 	v1.POST("/series", authReq, seriesGuard, seriesHandler.CreateSeries)
@@ -167,13 +166,6 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	v1.POST("/series/:id/items", authReq, seriesGuard, seriesHandler.AddItem)
 	v1.DELETE("/series/:id/items/:itemId", authReq, seriesGuard, seriesHandler.RemoveItem)
 	v1.PUT("/series/:id/items/reorder", authReq, seriesGuard, seriesHandler.ReorderItems)
-
-	favorites := v1.Group("/favorites", authReq)
-	{
-		favorites.POST("", favoritesGuard, favHandler.AddFavorite)
-		favorites.DELETE("/:contentId", favoritesGuard, favHandler.RemoveFavorite)
-	}
-	users.GET("/:id/favorites", optAuth, favHandler.ListUserFavorites)
 
 	judgeHandler := handler.NewJudgeHandler(db, cfg, ctr.AdminAuditService)
 	judge := v1.Group("/judge")

@@ -57,16 +57,6 @@ type Reaction struct {
 
 func (Reaction) TableName() string { return "reactions" }
 
-type Favorite struct {
-	UserID        int64       `gorm:"primaryKey" json:"user_id"`
-	ContentItemID int64       `gorm:"primaryKey" json:"content_item_id"`
-	User          User        `gorm:"foreignKey:UserID" json:"-"`
-	ContentItem   ContentItem `gorm:"foreignKey:ContentItemID" json:"-"`
-	CreatedAt     time.Time   `gorm:"autoCreateTime" json:"created_at"`
-}
-
-func (Favorite) TableName() string { return "favorites" }
-
 type BrowseHistory struct {
 	ID            int64       `gorm:"primaryKey;autoIncrement" json:"id"`
 	UserID        int64       `gorm:"not null;uniqueIndex:idx_browse_unique;index:idx_browse_history_user" json:"user_id"`

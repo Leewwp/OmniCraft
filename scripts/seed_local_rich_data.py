@@ -339,15 +339,6 @@ def build_seed_sql() -> str:
         seen_reactions.add(pair)
         reaction_rows.append((content_key, email, "dislike" if index % 17 == 0 else "like", (datetime.now(timezone.utc) - timedelta(days=index % 80)).isoformat()))
 
-    favorite_rows = []
-    seen_favorites: set[tuple[str, str]] = set()
-    for index in range(700):
-        content_key = plans[(index * 11) % len(plans)].key
-        email = f"seed-ui-{(index * 3) % 24 + 1:03d}{SEED_EMAIL_SUFFIX}"
-        if (content_key, email) not in seen_favorites:
-            seen_favorites.add((content_key, email))
-            favorite_rows.append((content_key, email, (datetime.now(timezone.utc) - timedelta(days=index % 62)).isoformat()))
-
     history_rows = []
     seen_history: set[tuple[str, str]] = set()
     for index in range(1400):
@@ -465,12 +456,6 @@ FROM (
   FROM reactions WHERE target_type = 'content' GROUP BY target_id
 ) agg WHERE ci.id = agg.target_id;
 
-CREATE TEMP TABLE seed_favorites (seed_key TEXT, user_email TEXT, created_at TIMESTAMPTZ) ON COMMIT DROP;
-INSERT INTO seed_favorites VALUES\n{rows_sql(favorite_rows)};
-INSERT INTO favorites (user_id, content_item_id, created_at)
-SELECT u.id, sc.content_id, sf.created_at
-FROM seed_favorites sf JOIN seed_content sc ON sc.seed_key = sf.seed_key JOIN users u ON u.email = sf.user_email;
-
 CREATE TEMP TABLE seed_history (seed_key TEXT, user_email TEXT, viewed_at TIMESTAMPTZ) ON COMMIT DROP;
 INSERT INTO seed_history VALUES\n{rows_sql(history_rows)};
 INSERT INTO browse_history (user_id, content_item_id, viewed_at)
@@ -538,7 +523,6 @@ SELECT 'seed_published_public=' || count(*) FROM content_items ci JOIN users u O
 SELECT 'seed_local_covers=' || count(*) FROM content_items ci JOIN users u ON u.id = ci.author_id WHERE u.support_info @> {marker}::jsonb AND ci.cover_image_url LIKE '/seed-media/%';
 SELECT 'seed_comments=' || count(*) FROM comments c JOIN users u ON u.id = c.author_id WHERE u.support_info @> {marker}::jsonb;
 SELECT 'seed_reactions=' || count(*) FROM reactions r JOIN users u ON u.id = r.user_id WHERE u.support_info @> {marker}::jsonb;
-SELECT 'seed_favorites=' || count(*) FROM favorites f JOIN users u ON u.id = f.user_id WHERE u.support_info @> {marker}::jsonb;
 SELECT 'seed_history=' || count(*) FROM browse_history bh JOIN users u ON u.id = bh.user_id WHERE u.support_info @> {marker}::jsonb;
 SELECT 'seed_notifications=' || count(*) FROM notifications n JOIN users u ON u.id = n.user_id WHERE u.support_info @> {marker}::jsonb;
 SELECT 'seed_collections=' || count(*) FROM collections c JOIN users u ON u.id = c.user_id WHERE u.support_info @> {marker}::jsonb;

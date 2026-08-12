@@ -36,7 +36,7 @@ func TestRoutePolicyAttachmentsPreserveOperationSpecificGuards(t *testing.T) {
 		"editDeleteGuard": "standardVerifiedInteractionPolicy()",
 		"commentsGuard":   "standardVerifiedInteractionPolicy()",
 		"reactionsGuard":  "standardVerifiedInteractionPolicy()",
-		"favoritesGuard":  "standardVerifiedInteractionPolicy()",
+		"collectionGuard": "standardVerifiedInteractionPolicy()",
 		"reportsGuard":    "standardVerifiedInteractionPolicy()",
 		"prGuard":         "standardVerifiedInteractionPolicy()",
 		"judgeGuard":      "standardVerifiedInteractionPolicy()",
@@ -56,7 +56,7 @@ func TestRoutePolicyAttachmentsPreserveOperationSpecificGuards(t *testing.T) {
 		`contents.POST("", authReq, publishGuard, middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.CreateContent)`,
 		`contents.PATCH("/:id", authReq, editDeleteGuard, contentHandler.UpdateContent)`,
 		`social.PATCH("/comments/:id", authReq, commentsGuard, middleware.CommentEditRateLimit(rdb), socialHandler.EditComment)`,
-		`v1.POST("/collections", authReq, favoritesGuard, collectionHandler.CreateCollection)`,
+		`v1.POST("/collections", authReq, collectionGuard, collectionHandler.CreateCollection)`,
 		`messages := v1.Group("/messages", authReq)`,
 		`messages.POST("", messagesGuard, msgHandler.SendMessage)`,
 		// Task 3: Agent generation quota is reserved inside each
