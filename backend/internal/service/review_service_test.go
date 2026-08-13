@@ -63,6 +63,7 @@ type fakeGreenScanner struct {
 	imageResult *aliyun.GreenScanResult
 	videoResult *aliyun.GreenScanResult
 	videoErr    error
+	imageErr    error
 
 	imageCalls []string
 	videoCalls []aliyun.VideoScanParams
@@ -77,6 +78,9 @@ func (f *fakeGreenScanner) TextModeration(ctx context.Context, text string) (*al
 
 func (f *fakeGreenScanner) ImageModeration(ctx context.Context, imageURL string) (*aliyun.GreenScanResult, error) {
 	f.imageCalls = append(f.imageCalls, imageURL)
+	if f.imageErr != nil {
+		return nil, f.imageErr
+	}
 	if f.imageResult != nil {
 		return f.imageResult, nil
 	}
@@ -697,4 +701,48 @@ func TestSubmitForAIReviewVideoScanErrorPropagatesWithoutSideEffects(t *testing.
 	require.ErrorIs(t, err, aliyun.ErrGreenSeedRequired)
 	require.Equal(t, "pending", reviewContentStatus(t, db, contentID), "no status transition without a scan")
 	require.Equal(t, int64(0), reviewRecordsCount(t, db))
+}
+
+// The sync image-only scan seam (#111/#113) must surface the raw Green result
+// so callers apply their own environment-specific availability policy, and
+// must pass through the scan error unchanged.
+func TestReviewImageURL(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("unconfigured green returns ErrGreenNotConfigured", func(t *testing.T) {
+		svc := NewReviewService(nil, nil, &config.Config{}, NewReputationService(nil))
+		_, err := svc.ReviewImageURL(ctx, "https://cdn.example.test/a.png")
+		require.ErrorIs(t, err, aliyun.ErrGreenNotConfigured)
+	})
+
+	t.Run("block result is surfaced unchanged", func(t *testing.T) {
+		svc, _, _ := setupReviewServiceTest(t)
+		scanner := &fakeGreenScanner{imageResult: &aliyun.GreenScanResult{Result: "block", Reason: "sexy"}}
+		svc.green = scanner
+		result, err := svc.ReviewImageURL(ctx, "https://cdn.example.test/a.png")
+		require.NoError(t, err)
+		require.Equal(t, "block", result)
+		require.Equal(t, []string{"https://cdn.example.test/a.png"}, scanner.imageCalls)
+	})
+
+	t.Run("review and pass results are normalized and propagated", func(t *testing.T) {
+		svc, _, _ := setupReviewServiceTest(t)
+		scanner := &fakeGreenScanner{imageResult: &aliyun.GreenScanResult{Result: "REVIEW"}}
+		svc.green = scanner
+		result, err := svc.ReviewImageURL(ctx, "https://cdn.example.test/b.png")
+		require.NoError(t, err)
+		require.Equal(t, "review", result)
+		scanner.imageResult = &aliyun.GreenScanResult{Result: "pass"}
+		result, err = svc.ReviewImageURL(ctx, "https://cdn.example.test/c.png")
+		require.NoError(t, err)
+		require.Equal(t, "pass", result)
+		require.Equal(t, []string{"https://cdn.example.test/b.png", "https://cdn.example.test/c.png"}, scanner.imageCalls)
+	})
+
+	t.Run("scan error is passed through untouched", func(t *testing.T) {
+		svc, _, _ := setupReviewServiceTest(t)
+		svc.green = &fakeGreenScanner{imageErr: aliyun.ErrGreenNotConfigured}
+		_, err := svc.ReviewImageURL(ctx, "https://cdn.example.test/d.png")
+		require.ErrorIs(t, err, aliyun.ErrGreenNotConfigured)
+	})
 }
