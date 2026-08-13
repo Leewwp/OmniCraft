@@ -67,6 +67,21 @@ features:
   payment_enabled: false
   creator_support_enabled: false
   desktop_deploy_enabled: false
+  # Off by default (archive malware scanning design §6); enabling it in
+  # release mode additionally requires the full archive_scan.* block below.
+  archive_malware_scan_enabled: false
+
+# Archive malware scanning quotas, timeout and retry policy (design §4/§6).
+# Server-side skeleton only (S01); the scan worker and gates consume it.
+archive_scan:
+  max_upload_size_mb: 500
+  max_zip_entries: 5000
+  max_entry_uncompressed_mb: 200
+  max_total_uncompressed_mb: 2048
+  max_recursion_depth: 10
+  scan_timeout_sec: 120
+  retry_backoff_sec: [60, 300, 1800]
+  url_ttl_sec: 300
 
 captcha:
   provider: "bypass"

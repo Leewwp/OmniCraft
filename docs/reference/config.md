@@ -32,6 +32,14 @@
 | `agent.rate_limit_per_minute` | `int` | RateLimitPerMinute |
 | `agent.upload_assist_max_file_mb` | `int` | UploadAssistMaxFileMB |
 | `agent.web_agent_enabled` | `bool` | WebAgentEnabled |
+| `archive_scan.max_entry_uncompressed_mb` | `int` | MaxEntryUncompressedMB |
+| `archive_scan.max_recursion_depth` | `int` | MaxRecursionDepth |
+| `archive_scan.max_total_uncompressed_mb` | `int` | MaxTotalUncompressedMB |
+| `archive_scan.max_upload_size_mb` | `int` | MaxUploadSizeMB |
+| `archive_scan.max_zip_entries` | `int` | MaxZipEntries |
+| `archive_scan.retry_backoff_sec` | `[]int` | RetryBackoffSec |
+| `archive_scan.scan_timeout_sec` | `int` | ScanTimeoutSec |
+| `archive_scan.url_ttl_sec` | `int` | URLTTLSec |
 | `browse_history.cleanup_time` | `string` | CleanupTime |
 | `browse_history.retention_days` | `int` | RetentionDays |
 | `cache.content_detail_ttl` | `int` | ContentDetailTTL |
@@ -61,6 +69,7 @@
 | `collaboration.max_invitees_per_publish` | `int` | MaxInviteesPerPublish |
 | `database.dsn` | `string` | DSN |
 | `database.read_dsn` | `string` | ReadDSN |
+| `features.archive_malware_scan_enabled` | `bool` | ArchiveMalwareScanEnabled |
 | `features.creator_support_enabled` | `bool` | CreatorSupportEnabled |
 | `features.desktop_deploy_enabled` | `bool` | DesktopDeployEnabled |
 | `features.payment_enabled` | `bool` | PaymentEnabled |
