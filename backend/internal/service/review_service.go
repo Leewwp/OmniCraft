@@ -95,6 +95,23 @@ func (s *ReviewService) ReviewText(ctx context.Context, text string) (string, er
 	return normalizeReviewResult(res.Result), nil
 }
 
+// ReviewImageURL runs a synchronous Aliyun Green image scan over a single
+// platform OSS object URL and returns the normalized result ("pass", "review"
+// or "block"). When the Green client is not configured it returns
+// aliyun.ErrGreenNotConfigured so callers can apply their environment-specific
+// availability policy. Unlike SubmitForAIReview this seam performs no record
+// writes and no reputation side effects: callers own their persistence rules.
+func (s *ReviewService) ReviewImageURL(ctx context.Context, imageURL string) (string, error) {
+	if s == nil || s.green == nil {
+		return "", aliyun.ErrGreenNotConfigured
+	}
+	res, err := s.green.ImageModeration(ctx, imageURL)
+	if err != nil {
+		return "", err
+	}
+	return normalizeReviewResult(res.Result), nil
+}
+
 func (s *ReviewService) SubmitForAIReview(ctx context.Context, in SubmitReviewInput) error {
 	if s == nil || s.db == nil {
 		return errors.New("review service not initialized")
