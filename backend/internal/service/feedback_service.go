@@ -8,10 +8,14 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
+	"time"
+
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/captcha"
 	"omnicraft/backend/internal/repository"
-	"time"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -19,22 +23,24 @@ import (
 
 // Feedback-specific sentinel errors for handler comparison via errors.Is().
 var (
-	ErrFeedbackInvalidCategory        = errors.New("INVALID_CATEGORY")
-	ErrFeedbackTitleAndDescriptionReq = errors.New("TITLE_AND_DESCRIPTION_REQUIRED")
-	ErrFeedbackTitleTooLong           = errors.New("TITLE_TOO_LONG")
-	ErrFeedbackContactEmailRequired   = errors.New("CONTACT_EMAIL_REQUIRED_FOR_ANONYMOUS")
-	ErrFeedbackCaptchaRequired        = errors.New("CAPTCHA_REQUIRED_FOR_ANONYMOUS")
-	ErrFeedbackCaptchaFailed          = errors.New("CAPTCHA_VERIFICATION_FAILED")
-	ErrFeedbackInvalidMimeType        = errors.New("INVALID_MIME_TYPE")
-	ErrFeedbackFileTooLarge           = errors.New("FILE_TOO_LARGE")
-	ErrFeedbackTicketNotFound         = errors.New("TICKET_NOT_FOUND")
-	ErrFeedbackForbidden              = errors.New("FORBIDDEN")
-	ErrFeedbackInvalidStatus          = errors.New("INVALID_STATUS")
-	ErrFeedbackInvalidPriority        = errors.New("INVALID_PRIORITY")
-	ErrFeedbackBodyRequired           = errors.New("BODY_REQUIRED")
-	ErrFeedbackBodyTooLong            = errors.New("BODY_TOO_LONG")
-	ErrFeedbackDeliveryFailed         = errors.New("FEEDBACK_DELIVERY_FAILED")
-	ErrFeedbackUploadGrantInvalid     = errors.New("UPLOAD_GRANT_INVALID")
+	ErrFeedbackInvalidCategory                 = errors.New("INVALID_CATEGORY")
+	ErrFeedbackTitleAndDescriptionReq          = errors.New("TITLE_AND_DESCRIPTION_REQUIRED")
+	ErrFeedbackTitleTooLong                    = errors.New("TITLE_TOO_LONG")
+	ErrFeedbackContactEmailRequired            = errors.New("CONTACT_EMAIL_REQUIRED_FOR_ANONYMOUS")
+	ErrFeedbackCaptchaRequired                 = errors.New("CAPTCHA_REQUIRED_FOR_ANONYMOUS")
+	ErrFeedbackCaptchaFailed                   = errors.New("CAPTCHA_VERIFICATION_FAILED")
+	ErrFeedbackInvalidMimeType                 = errors.New("INVALID_MIME_TYPE")
+	ErrFeedbackFileTooLarge                    = errors.New("FILE_TOO_LARGE")
+	ErrFeedbackTicketNotFound                  = errors.New("TICKET_NOT_FOUND")
+	ErrFeedbackForbidden                       = errors.New("FORBIDDEN")
+	ErrFeedbackInvalidStatus                   = errors.New("INVALID_STATUS")
+	ErrFeedbackInvalidPriority                 = errors.New("INVALID_PRIORITY")
+	ErrFeedbackBodyRequired                    = errors.New("BODY_REQUIRED")
+	ErrFeedbackBodyTooLong                     = errors.New("BODY_TOO_LONG")
+	ErrFeedbackDeliveryFailed                  = errors.New("FEEDBACK_DELIVERY_FAILED")
+	ErrFeedbackUploadGrantInvalid              = errors.New("UPLOAD_GRANT_INVALID")
+	ErrFeedbackAttachmentBlocked               = errors.New("ATTACHMENT_BLOCKED")
+	ErrFeedbackAttachmentModerationUnavailable = errors.New("ATTACHMENT_MODERATION_UNAVAILABLE")
 )
 
 var allowedDiagnosticKeys = map[string]struct{}{
@@ -49,6 +55,13 @@ var validCategories = map[string]bool{
 	"account_or_security": true, "agent_quality": true, "feature_request": true, "other": true,
 }
 
+// ImageReviewer is the minimal moderation dependency FeedbackService needs to
+// gate screenshot attachments before they are persisted. *ReviewService is
+// the production implementation; tests inject a fake.
+type ImageReviewer interface {
+	ReviewImageURL(ctx context.Context, imageURL string) (string, error)
+}
+
 type FeedbackService struct {
 	repo            *repository.FeedbackRepository
 	userRepo        *repository.UserRepository
@@ -58,6 +71,8 @@ type FeedbackService struct {
 	ossSigner       feedbackOSSSigner
 	notificationSvc *NotificationService
 	mailSender      FeedbackMailSender
+	cfg             *config.Config
+	reviewSvc       ImageReviewer
 }
 
 type FeedbackMailSender interface {
@@ -97,6 +112,18 @@ func (s *FeedbackService) SetNotificationService(notificationSvc *NotificationSe
 
 func (s *FeedbackService) SetFeedbackMailSender(mailSender FeedbackMailSender) {
 	s.mailSender = mailSender
+}
+
+// SetReviewService wires the image review gate used to scan screenshot
+// attachments before they are persisted.
+func (s *FeedbackService) SetReviewService(reviewSvc ImageReviewer) {
+	s.reviewSvc = reviewSvc
+}
+
+// SetConfig wires the environment configuration that resolves the A4
+// availability policy for attachment image moderation.
+func (s *FeedbackService) SetConfig(cfg *config.Config) {
+	s.cfg = cfg
 }
 
 type SubmitTicketInput struct {
@@ -165,12 +192,79 @@ func (s *FeedbackService) SubmitTicket(ctx context.Context, input SubmitTicketIn
 		return nil, err
 	}
 
+	if err := s.moderateAttachments(ctx, "feedback_attachment", attachments); err != nil {
+		s.restoreFeedbackUploadGrants(ctx, consumedGrants)
+		return nil, err
+	}
+
 	if err := s.repo.CreateTicketWithAttachments(ticket, attachments); err != nil {
 		s.restoreFeedbackUploadGrants(ctx, consumedGrants)
 		return nil, err
 	}
 
 	return ticket, nil
+}
+
+// moderateAttachments runs the synchronous image review gate over feedback
+// screenshot attachments before they are persisted. Tickets without
+// attachments skip the gate entirely, so plain text feedback is never blocked
+// by attachment review failure. A "block" result rejects the submission.
+// Availability follows the A4 environment semantics: in release mode any
+// review failure is fail-closed, while in local/test mode an unconfigured
+// Green client is fail-open and must be recorded via structured logs.
+func (s *FeedbackService) moderateAttachments(ctx context.Context, action string, attachments []model.FeedbackAttachment) error {
+	if len(attachments) == 0 {
+		return nil
+	}
+
+	if s.reviewSvc == nil {
+		if s.isReleaseMode() {
+			slog.Error("attachment image moderation unavailable, rejecting submission",
+				"action", action, "env_mode", s.environmentMode(), "policy", "fail_closed", "reason", "review_service_not_wired")
+			return ErrFeedbackAttachmentModerationUnavailable
+		}
+		slog.Warn("attachment image moderation skipped, submission allowed",
+			"action", action, "env_mode", s.environmentMode(), "policy", "fail_open", "reason", "review_service_not_wired")
+		return nil
+	}
+
+	for _, att := range attachments {
+		result, err := s.reviewSvc.ReviewImageURL(ctx, s.resolveAttachmentScanURL(att.OSSKey))
+		if err != nil {
+			if !s.isReleaseMode() && errors.Is(err, aliyun.ErrGreenNotConfigured) {
+				slog.Warn("attachment image moderation skipped, submission allowed",
+					"action", action, "env_mode", s.environmentMode(), "policy", "fail_open", "reason", "green_not_configured")
+				return nil
+			}
+			slog.Error("attachment image moderation unavailable, rejecting submission",
+				"action", action, "env_mode", s.environmentMode(), "policy", "fail_closed", "reason", err.Error())
+			return ErrFeedbackAttachmentModerationUnavailable
+		}
+		if result == "block" {
+			return ErrFeedbackAttachmentBlocked
+		}
+	}
+	return nil
+}
+
+func (s *FeedbackService) isReleaseMode() bool {
+	return s.cfg != nil && s.cfg.Server.Mode == "release"
+}
+
+func (s *FeedbackService) environmentMode() string {
+	if s.cfg == nil {
+		return "unknown"
+	}
+	return s.cfg.Server.Mode
+}
+
+// resolveAttachmentScanURL maps a platform OSS object key to its delivery URL,
+// mirroring ReviewService.resolveScanObjectURL.
+func (s *FeedbackService) resolveAttachmentScanURL(ossKey string) string {
+	if s.cfg != nil && strings.TrimSpace(s.cfg.OSS.Domain) != "" {
+		return strings.TrimRight(strings.TrimSpace(s.cfg.OSS.Domain), "/") + "/" + strings.TrimLeft(ossKey, "/")
+	}
+	return ossKey
 }
 
 type PresignUploadInput struct {
