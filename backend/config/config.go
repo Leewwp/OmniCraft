@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,11 @@ import (
 	"github.com/spf13/viper"
 
 	"omnicraft/backend/internal/pkg/queue"
+)
+
+var (
+	greenSeedFormat = regexp.MustCompile(`^[A-Za-z0-9_]{1,64}$`)
+	greenUIDFormat  = regexp.MustCompile(`^\d+$`)
 )
 
 type Config struct {
@@ -116,11 +122,14 @@ type OSSConfig struct {
 }
 
 type GreenConfig struct {
-	AccessKeyID        string   `mapstructure:"access_key_id" json:"-"`
-	AccessKeySecret    string   `mapstructure:"access_key_secret" json:"-"`
-	Region             string   `mapstructure:"region"`
-	CallbackURL        string   `mapstructure:"callback_url" json:"-"`
-	CallbackAllowedIPs []string `mapstructure:"callback_allowed_ips" json:"-"`
+	AccessKeyID     string `mapstructure:"access_key_id" json:"-"`
+	AccessKeySecret string `mapstructure:"access_key_secret" json:"-"`
+	Region          string `mapstructure:"region"`
+	CallbackURL     string `mapstructure:"callback_url" json:"-"`
+	// Seed is the callback signature seed (green.seed): release-required, [A-Za-z0-9_], max 64 chars.
+	Seed string `mapstructure:"seed" json:"-"`
+	// UID is the Aliyun main account UID (green.uid): release-required, digits only (console account info, not RAM UID).
+	UID string `mapstructure:"uid" json:"-"`
 }
 
 type FeaturesConfig struct {
@@ -543,18 +552,11 @@ func OverrideFromEnv(cfg *Config) {
 	if v := os.Getenv("GREEN_CALLBACK_URL"); v != "" {
 		cfg.Green.CallbackURL = v
 	}
-	if v := os.Getenv("GREEN_CALLBACK_ALLOWED_IPS"); v != "" {
-		parts := strings.Split(v, ",")
-		ips := make([]string, 0, len(parts))
-		for _, part := range parts {
-			ip := strings.TrimSpace(part)
-			if ip != "" {
-				ips = append(ips, ip)
-			}
-		}
-		if len(ips) > 0 {
-			cfg.Green.CallbackAllowedIPs = ips
-		}
+	if v := os.Getenv("GREEN_SEED"); v != "" {
+		cfg.Green.Seed = v
+	}
+	if v := os.Getenv("GREEN_UID"); v != "" {
+		cfg.Green.UID = v
 	}
 	if v := os.Getenv("AGENT_LLM_API_KEY"); v != "" {
 		cfg.Agent.LLMAPIKey = v
@@ -827,13 +829,13 @@ func (c *Config) ValidateRelease() error {
 	requireReleaseValue(&errs, "green.access_key_secret", c.Green.AccessKeySecret)
 	requireReleaseValue(&errs, "green.region", c.Green.Region)
 	requireHTTPSURL(&errs, "green.callback_url", c.Green.CallbackURL)
-	if len(c.Green.CallbackAllowedIPs) == 0 {
-		errs = append(errs, "green.callback_allowed_ips is required in release mode")
+	requireReleaseValue(&errs, "green.seed", c.Green.Seed)
+	requireReleaseValue(&errs, "green.uid", c.Green.UID)
+	if seed := strings.TrimSpace(c.Green.Seed); seed != "" && !greenSeedFormat.MatchString(seed) {
+		errs = append(errs, "green.seed must be 1-64 characters of [A-Za-z0-9_] in release mode")
 	}
-	for _, ip := range c.Green.CallbackAllowedIPs {
-		if isPlaceholderValue(ip) {
-			errs = append(errs, "green.callback_allowed_ips must not contain placeholders in release mode")
-		}
+	if uid := strings.TrimSpace(c.Green.UID); uid != "" && !greenUIDFormat.MatchString(uid) {
+		errs = append(errs, "green.uid must be the numeric Aliyun main account UID (digits only) in release mode")
 	}
 
 	if c.Captcha.Provider == "bypass" || strings.TrimSpace(c.Captcha.Provider) == "" {

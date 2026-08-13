@@ -17,6 +17,34 @@
 ### Notes:
 - 遗留：`docs/reference/business-rules.md` 中旧 favorites 描述（若存在）待后续人工确认更新；#76 在云端日志+可恢复备份人工门满足前不得执行。
 
+## [2026-08-13] - Task #104: 配置与 release gate 改造（删回调 IP 白名单、加 seed/uid）
+
+### What was done:
+- `backend/config/config.go`：删除 `Green` 结构的回调来源 IP 白名单字段、对应 env 覆盖与 `ValidateRelease` 校验；新增 `Green.Seed`/`Green.UID`（mapstructure `seed`/`uid`，`json:"-"`）+ `GREEN_SEED`/`GREEN_UID` env 覆盖；release 必填 + 占位符拒绝 + 格式校验（uid `^\d+$` 纯数字主账号 UID；seed `^[A-Za-z0-9_]{1,64}$`）。
+- `backend/config.yaml`：green 段旧白名单列表替换为 `seed: ""`/`uid: ""`。
+- `backend/cmd/release-preflight/main.go`：删除旧回调 IP 检查与输出，新增 `checkGreenAuthFields`（`green.auth_fields`），缺失/占位符/格式错误信息明确可操作（uid 告知阿里云控制台右上角账号信息、主账号 UID 非 RAM UID；seed 附生成命令且可上线前更换）。
+- `backend/internal/handler/internal.go`：`isAllowedSourceIP` 移除对已删配置字段的引用，过渡期保持仅回环默认（#106 会整体删除该函数）。
+- `release/production-config.schema.json`：green.required 改为 `["access_key_id","access_key_secret","region","callback_url","seed","uid"]`，新增 seed/uid 属性定义（pattern + 占位符 not-pattern + 说明）。
+- 配置模板：`.env.production.example`、`docs/deploy/production-config-template.md`、`docs/deploy/single-server-beta-runbook.md` 写入随机生成 seed（`eGvqrYixTEzFRDUToSd1lgy3plgaMJDqr0X5Ji7P4TY`，openssl 生成，注释标注「部署方可在首次上线前更换」）；uid 用占位符并标注来源；runbook 补充 seed 重新生成命令说明。
+- 脚本：`scripts/release/{preflight,deployment-contract,staging-drill}.tests.sh` 夹具旧白名单变量替换为 `GREEN_SEED=test_seed_1234567890`/`GREEN_UID=1234567890123456`；preflight.tests.sh 的「invalid callback ip rejected」用例改为「invalid green uid rejected」（`GREEN_UID=not-an-uid`）。
+- 文档：`.env.example` 替换条目；`docs/reference/config.md` §7 由 doc-validator `--fix` 自动重生成（删旧行、加 seed/uid 行）；`docs/working/2026-08-08-aliyun-content-safety-callback-research.md` 与 `progress.txt` #92 阻塞说明同步改为「前提证伪、已随 #104 删除」（spec 决策 7 要求）；归档文档、spec 文件、AGENTS.md 未动。
+- TDD：先写失败测试（missing seed/uid、seed/uid 占位符、uid 非数字、seed 超长/非法字符、本地模式可空）确认红，再实现转绿。
+
+### Testing:
+- `cd backend && go build ./... && go vet ./... && go test ./...`：24 包全绿无 FAIL。
+- `go test ./config/ -run 'Release|Seed|UID' -v`：21 PASS / 0 FAIL；完整 config 包 `ok`。
+- `bash scripts/release/preflight.tests.sh`、`deployment-contract.tests.sh`、`staging-drill.tests.sh` 全部通过（末行 All ... passed）。
+- 手动 smoke：缺失 GREEN_UID 时 preflight 输出「green.uid is missing: set GREEN_UID to the Aliyun MAIN account UID, found in the Aliyun console top-right account info (the RAM user UID is NOT accepted)」并 FAIL。
+- `cd tools/doc-validator && go run . --fix` 两轮幂等（第二轮各 sync no changes）；`go run . --check` release profile All checks passed。
+- 残留 grep：`GREEN_CALLBACK_ALLOWED_IPS|callback_allowed_ips|CallbackAllowedIPs` 排除 archive/.git/spec/AGENTS.md 后零命中；docs/archive 内 5 处历史引用未动。
+- gitleaks 工作树扫描 no leaks found；`git diff --check` 干净；gofmt 仅提示 base 已存在的 ip.go/version.go（未触碰）。
+- `go run cmd/release-preflight/main.go --help` 正常退出。
+
+### Notes:
+- 偏差 1：`docs/working/2026-08-08-aliyun-content-safety-callback-research.md`（非 archive 的活文档）含旧标识符引用，父验证 grep 要求其归零；已改为保留结论语义的描述性表述并注明「随 #104 删除」，未改动任何调研结论。
+- 偏差 2：`progress.txt` #92 阻塞说明按 spec 决策 7 更新（原列表首项前提证伪收口），其余两项保留。
+- 偏差 3：`internal/handler/internal.go` 属 #106 范围（整体删除 isAllowedSourceIP），本票仅做最小编译兼容改动，语义不变（回环默认）。
+
 ## [2026-08-13] - 收尾：code-review 两轴审查结论（61e2dca..HEAD）
 
 ### What was done:
@@ -675,7 +703,7 @@
 ### Notes:
 - #92 关闭条件（main 连续两次全绿 + 后续普通 PR 不经 admin merge 通过 required checks）尚差 main 上的连续绿 run 验证，保持 OPEN。#93/#94/#95 子票待关闭。
 - 工作区存在另一 agent 的未提交 docs 改动（AGENTS.md/社区 plans/specs/progress 等），本会话未触碰其文件面；progress.txt 与其条目共存。
-- 剩余生产项（不属 #92）：`GREEN_CALLBACK_ALLOWED_IPS` 需阿里云控制台人工获取；compose 镜像 digest 固化按 §1③ 服务器侧解析；服务器 compose 与仓库脱节、staging drill 未执行（需用户决策）。
+- 剩余生产项（不属 #92）：回调 IP 白名单前提证伪——阿里云官方无回调来源网段，旧回调来源白名单配置已随 #104 删除，改为 `GREEN_SEED`/`GREEN_UID`（release gate 必填）；compose 镜像 digest 固化按 §1③ 服务器侧解析；服务器 compose 与仓库脱节、staging drill 未执行（需用户决策）。
 
 ## [2026-08-08] - 活计划/GitHub Issues 全量审计与执行图收口
 
