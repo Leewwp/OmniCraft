@@ -49,6 +49,7 @@ type ServiceContainer struct {
 	SearchRepo        *repository.SearchRepository
 	FeedbackRepo      *repository.FeedbackRepository
 	AdminAuditRepo    *repository.AdminAuditRepository
+	OutboxRepo        *repository.OutboxRepository
 
 	// Services
 	AuthService         *service.AuthService
@@ -113,6 +114,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.SearchRepo = repository.NewSearchRepository(db)
 	c.FeedbackRepo = repository.NewFeedbackRepository(db)
 	c.AdminAuditRepo = repository.NewAdminAuditRepository(db)
+	c.OutboxRepo = repository.NewOutboxRepository(db)
 
 	// Services
 	c.AuthService = service.NewAuthService(c.UserRepo, rdb, cfg)
@@ -139,8 +141,10 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.IPService = service.NewIPService(c.IPRepo)
 	c.ReputationService = service.NewReputationService(db)
 	c.ReviewService = service.NewReviewService(db, rdb, cfg, c.ReputationService)
+	c.ReviewService.SetOutboxRepository(c.OutboxRepo)
 	c.JudgeService = service.NewJudgeService(c.JudgeRepo, c.ReputationService, cfg)
 	c.ContentService = service.NewContentServiceWithOSS(c.ContentRepo, c.ReviewService, rdb, &cfg.Cache, nil)
+	c.ContentService.SetOutboxRepository(c.OutboxRepo)
 	c.SocialService = service.NewSocialServiceWithRedis(c.SocialRepo, c.ContentRepo, c.UserRepo, cfg, rdb, c.ReviewService)
 	c.StatsService = service.NewStatsService(db, rdb)
 	c.IPStatsService = service.NewIPStatsService(db, rdb)

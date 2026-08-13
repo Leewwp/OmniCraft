@@ -15,7 +15,9 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/events"
 	"omnicraft/backend/internal/pkg/rediskeys"
+	"omnicraft/backend/internal/repository"
 )
 
 var (
@@ -64,6 +66,7 @@ type ReviewService struct {
 	cfg      *config.Config
 	reputSvc *ReputationService
 	green    greenScanner
+	outbox   repository.OutboxWriter
 }
 
 func NewReviewService(db *gorm.DB, rdb *redis.Client, cfg *config.Config, reputSvc *ReputationService) *ReviewService {
@@ -78,6 +81,13 @@ func NewReviewService(db *gorm.DB, rdb *redis.Client, cfg *config.Config, reputS
 		reputSvc: reputSvc,
 		green:    greenClient,
 	}
+}
+
+// SetOutboxRepository attaches the transactional outbox. Content terminal
+// transitions (published/banned) write one outbox event per transition inside
+// the same database transaction as the status update.
+func (s *ReviewService) SetOutboxRepository(outbox repository.OutboxWriter) {
+	s.outbox = outbox
 }
 
 // ReviewText runs Aliyun Green text moderation over text and returns the
@@ -262,6 +272,9 @@ func (s *ReviewService) applyContentReviewResult(ctx context.Context, tx *gorm.D
 		if err := tx.Model(&model.ContentItem{}).Where("id = ?", content.ID).Update("status", "banned").Error; err != nil {
 			return err
 		}
+		if err := s.emitContentEvent(ctx, tx, events.TopicContentBanned, content, "banned"); err != nil {
+			return err
+		}
 		relatedID := content.ID
 		if s.reputSvc != nil {
 			if err := addReputationTx(tx, content.AuthorID, -3, "ai_violation", &relatedID); err != nil {
@@ -290,8 +303,40 @@ func (s *ReviewService) applyContentReviewResult(ctx context.Context, tx *gorm.D
 		if res.RowsAffected == 0 {
 			return nil
 		}
+		// Postgres reports rows affected even for value-identical updates, so
+		// the pre-update status is the real transition guard: only an actual
+		// pending/under_review -> published transition emits an event.
+		if content.Status == "published" {
+			return nil
+		}
+		if err := s.emitContentEvent(ctx, tx, events.TopicContentPublished, content, "published"); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+// emitContentEvent writes one outbox row inside the caller's transaction, so
+// the terminal status transition and its event commit atomically. nil outbox
+// (unwired service) is a no-op for backwards-compatible callers; the container
+// always wires one.
+func (s *ReviewService) emitContentEvent(ctx context.Context, tx *gorm.DB, topic string, content model.ContentItem, newStatus string) error {
+	if s.outbox == nil {
+		return nil
+	}
+	traceparent, tracestate := events.FromContext(ctx)
+	env, err := events.NewContentEnvelope(topic, content.ID, traceparent, tracestate,
+		events.ContentEventPayload{
+			ContentID:   content.ID,
+			AuthorID:    content.AuthorID,
+			ContentType: content.ContentType,
+			Status:      newStatus,
+		})
+	if err != nil {
+		return err
+	}
+	row := events.ToOutboxEvent(env)
+	return s.outbox.CreateTx(ctx, tx, &row)
 }
 
 func (s *ReviewService) processIPReviewResult(tx *gorm.DB, ipID int64, result string) error {

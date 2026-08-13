@@ -14,6 +14,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/events"
 	"omnicraft/backend/internal/pkg/imageinfo"
 	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/pkg/recovery"
@@ -50,6 +51,7 @@ type ContentService struct {
 	imageDimensions        ImageDimensionsResolver
 	recSvc                 *RecommendationService
 	queueProducer          queue.Producer
+	outbox                 repository.OutboxWriter
 }
 
 type UploadedObjectVerifier interface {
@@ -84,6 +86,13 @@ func (s *ContentService) SetRecommendationService(recSvc *RecommendationService)
 
 func (s *ContentService) SetQueueProducer(p queue.Producer) {
 	s.queueProducer = p
+}
+
+// SetOutboxRepository attaches the transactional outbox. Edits and soft
+// deletes of already-published content write one outbox event per operation
+// inside the same database transaction as the content write.
+func (s *ContentService) SetOutboxRepository(outbox repository.OutboxWriter) {
+	s.outbox = outbox
 }
 
 func (s *ContentService) WithUploadGrantService(grants *UploadGrantService) *ContentService {
@@ -824,7 +833,19 @@ func (s *ContentService) UpdateContent(id int64, authorID int64, updates map[str
 	if content.AuthorID != authorID {
 		return ErrContentForbidden
 	}
-	if err := s.contentRepo.UpdateContent(id, updates); err != nil {
+	// A published edit is a RAG-index refresh event: the content write and the
+	// outbox insert share one transaction so a failed event never leaves the
+	// visible content ahead of the event (and vice versa).
+	if content.Status == "published" && s.outbox != nil {
+		if err := s.contentRepo.Transaction(func(txRepo *repository.ContentRepository) error {
+			if err := txRepo.UpdateContent(id, updates); err != nil {
+				return err
+			}
+			return s.emitContentEvent(context.Background(), txRepo.DB(), events.TopicContentUpdated, content)
+		}); err != nil {
+			return err
+		}
+	} else if err := s.contentRepo.UpdateContent(id, updates); err != nil {
 		return err
 	}
 
@@ -842,7 +863,18 @@ func (s *ContentService) DeleteContent(id int64, authorID int64) error {
 	if content.AuthorID != authorID {
 		return ErrContentForbidden
 	}
-	if err := s.contentRepo.DeleteContent(id); err != nil {
+	// A published delete removes the content from the RAG index: the soft
+	// delete and the outbox insert share one transaction.
+	if content.Status == "published" && s.outbox != nil {
+		if err := s.contentRepo.Transaction(func(txRepo *repository.ContentRepository) error {
+			if err := txRepo.DeleteContent(id); err != nil {
+				return err
+			}
+			return s.emitContentEvent(context.Background(), txRepo.DB(), events.TopicContentDeleted, content)
+		}); err != nil {
+			return err
+		}
+	} else if err := s.contentRepo.DeleteContent(id); err != nil {
 		return err
 	}
 
@@ -850,6 +882,28 @@ func (s *ContentService) DeleteContent(id int64, authorID int64) error {
 	s.invalidateContentListCache()
 
 	return nil
+}
+
+// emitContentEvent writes one outbox row inside the caller's transaction, so
+// the content write and its event commit atomically. nil outbox (unwired
+// service) is a no-op for backwards-compatible callers; the container always
+// wires one.
+func (s *ContentService) emitContentEvent(ctx context.Context, tx *gorm.DB, topic string, content *model.ContentItem) error {
+	if s.outbox == nil {
+		return nil
+	}
+	traceparent, tracestate := events.FromContext(ctx)
+	env, err := events.NewContentEnvelope(topic, content.ID, traceparent, tracestate,
+		events.ContentEventPayload{
+			ContentID:   content.ID,
+			AuthorID:    content.AuthorID,
+			ContentType: content.ContentType,
+		})
+	if err != nil {
+		return err
+	}
+	row := events.ToOutboxEvent(env)
+	return s.outbox.CreateTx(ctx, tx, &row)
 }
 
 func (s *ContentService) IncrViewCount(id int64) {
