@@ -30,6 +30,7 @@ func (w *ReviewWorker) Handle(ctx context.Context, msg queue.Message) error {
 		Title          string                 `json:"title,omitempty"`
 		Description    string                 `json:"description,omitempty"`
 		AuthorID       int64                  `json:"author_id,omitempty"`
+		CoverImageURL  string                 `json:"cover_image_url,omitempty"`
 		Result         string                 `json:"result,omitempty"`
 		RawResponse    map[string]interface{} `json:"raw_response,omitempty"`
 		ProviderTaskID string                 `json:"provider_task_id,omitempty"`
@@ -48,12 +49,13 @@ func (w *ReviewWorker) Handle(ctx context.Context, msg queue.Message) error {
 	switch payload.Action {
 	case "submit_ai_review":
 		input := service.SubmitReviewInput{
-			TargetType:  payload.TargetType,
-			TargetID:    payload.TargetID,
-			ContentType: payload.ContentType,
-			Title:       payload.Title,
-			Description: payload.Description,
-			AuthorID:    payload.AuthorID,
+			TargetType:    payload.TargetType,
+			TargetID:      payload.TargetID,
+			ContentType:   payload.ContentType,
+			Title:         payload.Title,
+			Description:   payload.Description,
+			AuthorID:      payload.AuthorID,
+			CoverImageURL: payload.CoverImageURL,
 		}
 		if err := w.reviewSvc.SubmitForAIReview(ctx, input); err != nil {
 			slog.Error("review_worker: SubmitForAIReview failed",

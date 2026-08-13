@@ -95,15 +95,17 @@ func (s *IPService) submitIPForAIReview(ip *model.IP, creatorID int64) {
 	if s.reviewSvc == nil || ip == nil {
 		return
 	}
+	reviewInput := ipReviewInput(ip, creatorID)
 	if _, ok := s.queueProducer.(*queue.NoopProducer); !ok && s.queueProducer != nil {
 		recovery.GoSafe(func() {
 			payload, _ := json.Marshal(map[string]interface{}{
-				"action":      "submit_ai_review",
-				"target_type": "ip",
-				"target_id":   ip.ID,
-				"title":       ip.Name,
-				"description": ip.Description,
-				"author_id":   creatorID,
+				"action":          "submit_ai_review",
+				"target_type":     reviewInput.TargetType,
+				"target_id":       reviewInput.TargetID,
+				"title":           reviewInput.Title,
+				"description":     reviewInput.Description,
+				"author_id":       reviewInput.AuthorID,
+				"cover_image_url": reviewInput.CoverImageURL,
 			})
 			if err := s.queueProducer.Publish(context.Background(), "ip.review", payload); err != nil {
 				slog.Error("failed to publish ip.review message", "ip_id", ip.ID, "error", err)
@@ -111,17 +113,25 @@ func (s *IPService) submitIPForAIReview(ip *model.IP, creatorID int64) {
 		})
 	} else {
 		recovery.GoSafe(func() {
-			err := s.reviewSvc.SubmitForAIReview(context.Background(), SubmitReviewInput{
-				TargetType:  "ip",
-				TargetID:    ip.ID,
-				Title:       ip.Name,
-				Description: ip.Description,
-				AuthorID:    creatorID,
-			})
+			err := s.reviewSvc.SubmitForAIReview(context.Background(), reviewInput)
 			if err != nil && !errors.Is(err, aliyun.ErrGreenNotConfigured) {
 				slog.Error("ip ai review failed", "ip_id", ip.ID, "error", err)
 			}
 		})
+	}
+}
+
+// ipReviewInput assembles the review input for an IP. IPs stay on the pure
+// text synchronous path: no attachments, no async video callback. The cover
+// enters the image review input only (decision 6, B3).
+func ipReviewInput(ip *model.IP, creatorID int64) SubmitReviewInput {
+	return SubmitReviewInput{
+		TargetType:    "ip",
+		TargetID:      ip.ID,
+		Title:         ip.Name,
+		Description:   ip.Description,
+		AuthorID:      creatorID,
+		CoverImageURL: ip.CoverURL,
 	}
 }
 

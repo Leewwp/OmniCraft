@@ -388,25 +388,27 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 
 	if s.reviewSvc != nil {
 		reviewInput := SubmitReviewInput{
-			TargetType:  "content",
-			TargetID:    content.ID,
-			ContentType: input.ContentType,
-			Title:       input.Title,
-			Description: input.Description,
-			AuthorID:    authorID,
-			Attachments: input.Attachments,
+			TargetType:    "content",
+			TargetID:      content.ID,
+			ContentType:   input.ContentType,
+			Title:         input.Title,
+			Description:   input.Description,
+			AuthorID:      authorID,
+			CoverImageURL: content.CoverImageURL,
+			Attachments:   input.Attachments,
 		}
 		if _, ok := s.queueProducer.(*queue.NoopProducer); !ok && s.queueProducer != nil {
 			recovery.GoSafe(func() {
 				payload, _ := json.Marshal(map[string]interface{}{
-					"action":       "submit_ai_review",
-					"target_type":  reviewInput.TargetType,
-					"target_id":    reviewInput.TargetID,
-					"content_type": reviewInput.ContentType,
-					"title":        reviewInput.Title,
-					"description":  reviewInput.Description,
-					"author_id":    reviewInput.AuthorID,
-					"attachments":  reviewInput.Attachments,
+					"action":          "submit_ai_review",
+					"target_type":     reviewInput.TargetType,
+					"target_id":       reviewInput.TargetID,
+					"content_type":    reviewInput.ContentType,
+					"title":           reviewInput.Title,
+					"description":     reviewInput.Description,
+					"author_id":       reviewInput.AuthorID,
+					"cover_image_url": reviewInput.CoverImageURL,
+					"attachments":     reviewInput.Attachments,
 				})
 				if err := s.queueProducer.Publish(context.Background(), "content.review", payload); err != nil {
 					slog.Error("failed to publish content.review message", "content_id", content.ID, "error", err)
