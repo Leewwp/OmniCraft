@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -19,7 +20,20 @@ import (
 
 var (
 	ErrReviewTargetNotFound = errors.New("review target not found")
+	// ErrCoverNotPlatformOSSObject is returned when a cover URL is not a
+	// platform-verified OSS object (cfg.OSS.Domain prefix): such a cover is
+	// never handed to Green for scanning.
+	ErrCoverNotPlatformOSSObject = errors.New("cover image is not a platform OSS object")
 )
+
+// greenScanner is the scan seam for ReviewService. *aliyun.GreenClient is the
+// production implementation; tests inject a fake to assert scan parameters and
+// rejection semantics without real Aliyun credentials.
+type greenScanner interface {
+	TextModeration(ctx context.Context, text string) (*aliyun.GreenScanResult, error)
+	ImageModeration(ctx context.Context, imageURL string) (*aliyun.GreenScanResult, error)
+	VideoAsyncScan(ctx context.Context, params aliyun.VideoScanParams) (*aliyun.GreenScanResult, error)
+}
 
 type SubmitReviewInput struct {
 	TargetType  string
@@ -28,7 +42,12 @@ type SubmitReviewInput struct {
 	Title       string
 	Description string
 	AuthorID    int64
-	Attachments []AttachmentInput
+	// CoverImageURL is the cover image of the reviewed target (content
+	// CoverImageURL / IP CoverURL). Only platform-verified OSS object URLs are
+	// scanned; anything else fails the submission with
+	// ErrCoverNotPlatformOSSObject.
+	CoverImageURL string
+	Attachments   []AttachmentInput
 }
 
 type AICallbackInput struct {
@@ -44,7 +63,7 @@ type ReviewService struct {
 	rdb      *redis.Client
 	cfg      *config.Config
 	reputSvc *ReputationService
-	green    *aliyun.GreenClient
+	green    greenScanner
 }
 
 func NewReviewService(db *gorm.DB, rdb *redis.Client, cfg *config.Config, reputSvc *ReputationService) *ReviewService {
@@ -96,6 +115,22 @@ func (s *ReviewService) SubmitForAIReview(ctx context.Context, in SubmitReviewIn
 		raw[k] = v
 	}
 
+	// Cover images enter the image review as a first-class input. The cover
+	// must be a platform-verified OSS object: arbitrary URLs are never handed
+	// to Green, and a non-platform cover fails the submission explicitly
+	// (decision 6).
+	if in.CoverImageURL != "" {
+		coverURL, coverErr := s.resolveCoverScanURL(in.CoverImageURL)
+		if coverErr != nil {
+			return coverErr
+		}
+		coverRes, scanErr := s.green.ImageModeration(ctx, coverURL)
+		if scanErr != nil {
+			return scanErr
+		}
+		result = mergeReviewResult(result, coverRes.Result)
+	}
+
 	for _, a := range in.Attachments {
 		mime := strings.ToLower(strings.TrimSpace(a.MimeType))
 		ossKey := strings.TrimSpace(a.OSSKey)
@@ -112,7 +147,12 @@ func (s *ReviewService) SubmitForAIReview(ctx context.Context, in SubmitReviewIn
 			result = mergeReviewResult(result, imgRes.Result)
 		}
 		if strings.HasPrefix(mime, "video/") || strings.EqualFold(a.FileType, "video") {
-			videoRes, scanErr := s.green.VideoAsyncScan(ctx, scanURL, s.cfg.Green.CallbackURL)
+			videoRes, scanErr := s.green.VideoAsyncScan(ctx, aliyun.VideoScanParams{
+				VideoURL:    scanURL,
+				CallbackURL: s.cfg.Green.CallbackURL,
+				Seed:        s.cfg.Green.Seed,
+				DataID:      fmt.Sprintf("%s:%d", in.TargetType, in.TargetID),
+			})
 			if scanErr != nil {
 				return scanErr
 			}
@@ -387,6 +427,23 @@ func (s *ReviewService) resolveScanObjectURL(ossKey string) string {
 		return strings.TrimRight(strings.TrimSpace(s.cfg.OSS.Domain), "/") + "/" + strings.TrimLeft(ossKey, "/")
 	}
 	return ossKey
+}
+
+// resolveCoverScanURL verifies a cover URL is a platform OSS object before it
+// is handed to Green. The cover is a client-visible URL (server-derived for
+// media content, client-supplied for IPs and legacy text content), so it must
+// match the configured delivery domain exactly; anything else fails closed
+// with ErrCoverNotPlatformOSSObject instead of scanning an arbitrary URL.
+func (s *ReviewService) resolveCoverScanURL(coverURL string) (string, error) {
+	coverURL = strings.TrimSpace(coverURL)
+	if s.cfg == nil || strings.TrimSpace(s.cfg.OSS.Domain) == "" {
+		return "", ErrCoverNotPlatformOSSObject
+	}
+	domain := strings.TrimRight(strings.TrimSpace(s.cfg.OSS.Domain), "/")
+	if !strings.HasPrefix(coverURL, domain+"/") {
+		return "", ErrCoverNotPlatformOSSObject
+	}
+	return coverURL, nil
 }
 
 func mergeReviewResult(current, incoming string) string {
