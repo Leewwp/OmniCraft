@@ -295,6 +295,7 @@ WorkerCount     int `mapstructure:"worker_count"`
 | `AGENT_HMAC_SECRET` | Agent HMAC 签名密钥 |
 | `GREEN_CALLBACK_URL` | 阿里云内容安全回调地址 |
 | `GREEN_CALLBACK_ALLOWED_IPS` | 回调 IP 白名单 |
+> 修正（2026-08-13）：`GREEN_CALLBACK_ALLOWED_IPS`（回调来源 IP 白名单）前提证伪——阿里云官方从未发布回调来源网段，该配置已随 #104 全链路删除；入站认证为 form+checksum 契约（#106），release gate 改校验 `GREEN_SEED`/`GREEN_UID`。
 
 ### 其他配置缺口
 
