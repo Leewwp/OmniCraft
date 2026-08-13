@@ -1437,3 +1437,20 @@
 
 ### Notes:
 - 恢复生产部署时：重新激活 #76（ready-for-human）→ 关 #134 → #135~#150 生产发布受门约束；凭证检查恢复「阻塞处理」原语义。
+
+## [2026-08-13] - Task #135/#136: T00 宪法修订 + T01 RAG 评测 schema/harness
+
+### What was done:
+- **#135 T00 宪法修订（governance-only）**：constitution.md 3.0.0 → 3.1.0（MINOR）。Principle I 栈表登记四个系统服务：OpenSearch（full-infra only，PG 检索保留为降级路径 D9）、OTel Collector（应用仅配 Collector OTLP 端点，离线丢弃遥测+告警）、Jaeger（all-in-one full-infra only，Tempo 记录为替代不双引入）、ClamAV（full-infra/security，clamd 私网 TCP 3310 worker-only）；逐项含现有替代/引入理由/运行成本/profile 边界/退出条件；依赖管理文件具体化为 docker-compose.yml + 声明 profile。Sync Impact Report/版本链/Changelog 同步；模板传播检查结论：无需传播。提交信息固定 docs: amend constitution for interview infrastructure（96460e0）。
+- **#136 T01 RAG 评测（heavy, TDD）**：069_rag_evaluation.sql（eval_golden_cases/eval_runs 真相源，UNIQUE case_key/run_key）、model/repository（仅两张评测表）、rag_eval harness 包（language 判定/metrics/deterministic_embedding/export/runner/adapters；指标 Recall@K/MRR/nDCG@10/citation precision/coverage/groundedness/answer relevance/visibility leak count/P95/降级成功率）、testdata：63 条 golden case（zh 66.7% / en 20.6% / mixed 12.7% / 冷门 25.4% 全达标）+ CI 子集 12 case（字节级一致 + dataset checksum）+ 真实基线（keyword recall@10=0.714/MRR=0.671/citPrec=0.913/leak=0；vector recall@10=0.317/leak=2）。run 幂等写入 eval_runs。
+- 两票并行：governance/t135 + rag/t136 独立 worktree 开发，merge 08d07ac/c13f8eb 无冲突。
+
+### Testing:
+- #135：doc-validator --check（含 release profile）All checks passed；模板传播核对。
+- #136：TDD red→green（迁移测试缺文件 red、harness 16 断言 red、fixture/基线 red 后绿）；go build/vet/test 26+ 包全绿（rag_eval 包 24 例 + 2 env-gated skip）；doc-validator --fix 同步 schema.md 两表；verify-project.sh --full 73/73。
+- 子 agent 中断恢复：#136 首轮会话返回空，仅留下 4 个文件（迁移/模型/repo/迁移测试，质量良好）→ 恢复会话（ses_0058d11e5ffeNu7c23MgAOCY5n）完成剩余交付物并单 commit e1364be。
+
+### Notes:
+- vector 基线使用确定性 standin 向量（本地无 embedding provider 凭证，本地开发模式允许测试替身）；artifact environment 字段已标注，生产声明前需真实 provider 重跑。vector leak=2 系现状 VectorSearch 无可见性谓词的真实测量（T06 已列入修复）。
+- 本地 dev DB 迁移账本不完整（runner 在 005 处报 already exists），069 直接 psql 应用；CI/ephemeral 路径不受影响。
+- 下一步（lane 内 DAG）：observability #137（070 outbox，T02）；RAG #138→#139（#138 为共享 worker）。
