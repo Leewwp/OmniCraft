@@ -83,9 +83,11 @@ func (s *OSSService) GeneratePresignUploadURL(ctx context.Context, req PresignUp
 	}
 	// Content uploads (media gallery items and video posters) must be MIME
 	// types the imageinfo parser can decode, so an upload that passes here can
-	// always be parsed for dimensions at publish time. Feedback attachments
+	// always be parsed for dimensions at publish time. Avatars share the same
+	// delivery chain (#111): the object is scanned by Green and rendered by
+	// the client, so it must be a decodable image too. Feedback attachments
 	// keep their own MIME contract and do not go through this endpoint.
-	if normalizedFileType == "image" && !imageinfo.IsSupportedMIME(normalizedMime) {
+	if (normalizedFileType == "image" || normalizedFileType == "avatar") && !imageinfo.IsSupportedMIME(normalizedMime) {
 		return nil, &UploadValidationError{Message: "mime_type must be image/png, image/jpeg or image/webp"}
 	}
 
@@ -189,6 +191,14 @@ func (s *OSSService) validateUploadByType(fileType, mimeType string, fileSize in
 			return &UploadValidationError{Message: fmt.Sprintf("video duration exceeds %d seconds", s.cfg.Limits.VideoMaxSec)}
 		}
 	case "image":
+		limitMB = s.cfg.Limits.ImageMaxMB
+		if !strings.HasPrefix(mimeType, "image/") {
+			return &UploadValidationError{Message: "mime_type must be image/*"}
+		}
+	case "avatar":
+		// Profile avatars are issued through the same presign chain as content
+		// images, under their own /avatar/ key prefix so the audit tooling can
+		// distinguish them. The size budget reuses the image limit.
 		limitMB = s.cfg.Limits.ImageMaxMB
 		if !strings.HasPrefix(mimeType, "image/") {
 			return &UploadValidationError{Message: "mime_type must be image/*"}
