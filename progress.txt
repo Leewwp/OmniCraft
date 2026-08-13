@@ -1376,3 +1376,25 @@
 
 ### Notes:
 - 遗留/偏差：(1) `frontend/e2e/content-series.mock.spec.ts` 与 `t90-related-contents.mock.spec.ts` 保持原样（#71 分支已改未合入 main，本票不触碰）；(2) 单测在 jsdom 下 Base UI 不渲染 data-highlighted/data-selected 属性，用 tabIndex 断言高亮（浏览器侧用 toBeFocused 断言）；(3) jsdom + Base UI 键盘打开路径存在偶发 runner 挂死，单测统一用点击打开、键盘全流程由真实浏览器 e2e 覆盖；(4) 深链 `/original?category=film_tv&sort=recommended` 的 hot 降级语义由后端承担，前端 trigger 显示 URL 原值（既有行为，未改动）。
+
+## [2026-08-13] - 内容安全回调修复批次（#103~#109，heavy，6 票全部合入 main @ ef6b1de）
+
+### What was done:
+- **#104 配置与 release gate**（merge 77b9570，commit b88f1a0）：删除 `green.callback_allowed_ips`/`GREEN_CALLBACK_ALLOWED_IPS` 全链路（config.go/config.yaml/schema/release-preflight/三脚本/.env 双例/部署文档）；新增 `green.seed`（GREEN_SEED，release 必填、字符集 [A-Za-z0-9_]{1,64}、占位符拒绝）与 `green.uid`（GREEN_UID，纯数字主账号 UID、占位符拒绝），preflight 提前校验（A5）输出可操作错误信息；模板 seed 生成随机值、uid 标注「阿里云控制台右上角主账号 UID 非 RAM UID」。
+- **#105 幂等 + banned 终态守卫 + 同步单次落库**（merge e37de43，commit 8ea14d7）：迁移 `068_add_ai_review_records_task_id.sql`（provider_task_id VARCHAR(128) 可空 + (provider, provider_task_id) 唯一索引）；ProcessAICallback 事务内 ON CONFLICT DO NOTHING 幂等短路（重复 taskId → 200 不新增记录、信誉/冻结只罚一次）；A2 移除 SubmitForAIReview 外层 recordAIReview（同步一次 1 条、幂等键不混用）；A1 条件更新守卫 pass/review 不覆盖 banned（block→pass 不复活、pass→block banned、review→pass published），申诉 approved（人工通道）不受限可翻案（回归测试）。
+- **#106 入站契约**（merge 076a64f，commit 47f30f0）：`/api/v1/internal/ai-callback` 改阿里云官方 form+checksum 契约（SHA256(uid+seed+content) 常量时间比较，失败 403 不泄细节，非 200 保留重试语义）；dataId 解析器仅支持 `content:<id>`（畸形/未知类型 400 无副作用，ip: 预留）；删除 isAllowedSourceIP 与 127.0.0.1 默认放行；suggestion 归一化取最严；队列 payload 加 provider_task_id 透传。
+- **#107 提交侧参数 + 封面审核**（merge 2efdfd6，commit 1b660dc）：VideoAsyncScan 改 VideoScanParams（url/callback/seed/dataId，cryptType 不传默认 SHA256）；空 seed+有 callback → ErrGreenSeedRequired fail-closed；SubmitReviewInput.CoverImageURL 封面纳入图片审核，resolveCoverScanURL 强制匹配 cfg.OSS.Domain 前缀（非平台 OSS 对象不扫描且明确错误，防任意 URL）；内容封面（poster grant/media set）与 IP 封面（CreateIP）均接入；green 字段改 greenScanner 接口（可注入 seam）；review_worker.go 合并冲突修复（双字段共存）。
+- **#109 评论/讨论文本审核**（merge 318f1ae，commit 61b49b2）：PostComment/PostDiscussion/EditComment 发布前经 ReviewService.ReviewText 同步审核；block → CONTENT_BLOCKED(422) 不落库；A4 分环境：release fail-closed（审核失败 MODERATION_UNAVAILABLE(503) 不落库）、local/test Green 未配置显式 fail-open（slog 结构化日志 policy=fail_open，指标走 green.ObserveExternalCall）；B4 EditComment block 保持原内容。
+- **#108 端到端验证与文档收口**（merge ef6b1de，commits 92a7ba2/6fd59a0）：路由级补 banned 不被 pass 覆盖用例；C1 Agent 直发契约测试（agent_publish_review_contract_test.go：Agent 发布进 ContentService 审核链、工具集仅 4 只读工具无直发路径）；归档文档 9 处加 `> 修正（2026-08-13）` 说明（114.115.0.0/16 认知修正）；progress.txt #92 阻塞说明更新为「前提证伪，收口解除」。
+- 收尾：7 票 issue（#103 + #104~#109）已关闭（评论含 merge 哈希与验证证据）；AGENTS.md 注册表行 3 更新为 ✅ 完成、DAG 段落 #108 已从末端清单移除、#112 标注依赖已满足可开始。
+
+### Testing:
+- TDD 全程红→绿（#104 config 8 失败→21 绿；#105 8/11 行为红→12/12 绿；#106 路由契约红→绿 19 例；#107 11 例红→绿；#109 12 例红→绿；#108 补 2 用例）。
+- `go build/vet/test ./...` 后端 24 包全绿（父 agent 独立复核一轮 + 收尾子 agent 复核一轮）。
+- `bash scripts/verify-project.sh --full` 通过（73 例 mocked contracts 含前端 lint/build）；doc-validator `--fix` 两轮幂等；零残留 grep（GREEN_CALLBACK_ALLOWED_IPS 仅 spec/AGENTS.md/archive 修正标注/历史 ledger）。
+- 前端本轮零代码改动；screenshots/ Playwright 产物已还原未入库。
+
+### Notes:
+- 偏差记录：#107 dataId 冒号不在官方字符集 [A-Za-z0-9_] 内（以 spec A3 `{target_type}:<id>` 为权威，解析端 #106 按冒号拆分）；#106 扫描失败（code!=200）回调按无 results 默认 pass 处理（标注为 #108/#110 后续评估项）；C1 测试选 service 级 seam（handler 内部自建 ReviewService 无路由级注入点，HTTP 契约面已由路由测试覆盖）；task-ledger-mvp.json 2 处历史描述按 AGENTS.md 不改动。
+- 冻结门 #134 剩余等待：#76（ready-for-human 人工门）/ #111 / #112 / #113（#112 已无阻塞可开始）。
+- 收尾期间 macOS TCC 曾撤销 Desktop 访问（opencode 进程无法读写仓库），经用户授权后恢复，issue 关闭/评论不受影响。
