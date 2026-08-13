@@ -1,13 +1,18 @@
 package handler
 
 import (
+	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -17,8 +22,10 @@ import (
 )
 
 type MessageHandler struct {
-	msgRepo  *repository.MessageRepository
-	notifSvc *service.NotificationService
+	msgRepo   *repository.MessageRepository
+	notifSvc  *service.NotificationService
+	cfg       *config.Config
+	reviewSvc service.TextReviewer
 }
 
 type MessageDTO struct {
@@ -51,6 +58,11 @@ func NewMessageHandler(db *gorm.DB) *MessageHandler {
 
 func (h *MessageHandler) SetNotificationService(ns *service.NotificationService) {
 	h.notifSvc = ns
+}
+
+func (h *MessageHandler) SetReviewService(cfg *config.Config, reviewSvc service.TextReviewer) {
+	h.cfg = cfg
+	h.reviewSvc = reviewSvc
 }
 
 func (h *MessageHandler) ListConversations(c *gin.Context) {
@@ -87,6 +99,19 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 		return
 	}
 
+	if err := h.moderateText(c.Request.Context(), "dm", body.Text); err != nil {
+		if errors.Is(err, service.ErrTextBlocked) {
+			response.Error(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "内容包含违规内容，无法发送")
+			return
+		}
+		if errors.Is(err, service.ErrModerationUnavailable) {
+			response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "内容审核服务暂时不可用，请稍后重试")
+			return
+		}
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+
 	msg, err := h.msgRepo.SendWithColdStartGuard(callerID, body.RecipientID, body.Text)
 	if errors.Is(err, repository.ErrDMReplyRequired) {
 		response.Error(c, http.StatusForbidden, "DM_REPLY_REQUIRED", "对方尚未回复，请等待回复后再发送新消息")
@@ -102,6 +127,58 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": messageDTO(*msg)})
+}
+
+// moderateText runs the text moderation gate before a DM is persisted. Blank
+// text is skipped without an external call. A "block" (or "violation") result
+// rejects the message. Availability policy follows the A4 environment
+// semantics: in release mode any moderation failure is fail-closed, while in
+// local/test mode an unconfigured Green client is fail-open and must be
+// recorded via structured logs.
+func (h *MessageHandler) moderateText(ctx context.Context, action, text string) error {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return nil
+	}
+
+	if h.reviewSvc == nil {
+		if h.isReleaseMode() {
+			slog.Error("content moderation unavailable, rejecting message",
+				"action", action, "env_mode", h.environmentMode(), "policy", "fail_closed", "reason", "review_service_not_wired")
+			return service.ErrModerationUnavailable
+		}
+		slog.Warn("content moderation skipped, message allowed",
+			"action", action, "env_mode", h.environmentMode(), "policy", "fail_open", "reason", "review_service_not_wired")
+		return nil
+	}
+
+	result, err := h.reviewSvc.ReviewText(ctx, trimmed)
+	if err != nil {
+		if !h.isReleaseMode() && errors.Is(err, aliyun.ErrGreenNotConfigured) {
+			slog.Warn("content moderation skipped, message allowed",
+				"action", action, "env_mode", h.environmentMode(), "policy", "fail_open", "reason", "green_not_configured")
+			return nil
+		}
+		slog.Error("content moderation unavailable, rejecting message",
+			"action", action, "env_mode", h.environmentMode(), "policy", "fail_closed", "reason", err.Error())
+		return service.ErrModerationUnavailable
+	}
+
+	if result == "block" || result == "violation" {
+		return service.ErrTextBlocked
+	}
+	return nil
+}
+
+func (h *MessageHandler) isReleaseMode() bool {
+	return h.cfg != nil && h.cfg.Server.Mode == "release"
+}
+
+func (h *MessageHandler) environmentMode() string {
+	if h.cfg == nil {
+		return "unknown"
+	}
+	return h.cfg.Server.Mode
 }
 
 func (h *MessageHandler) ListMessages(c *gin.Context) {
