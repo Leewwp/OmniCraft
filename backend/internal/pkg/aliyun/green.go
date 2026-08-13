@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -15,7 +16,27 @@ import (
 	"omnicraft/backend/internal/observability"
 )
 
-var ErrGreenNotConfigured = errors.New("green config is incomplete")
+var (
+	ErrGreenNotConfigured = errors.New("green config is incomplete")
+	// ErrGreenSeedRequired is returned when a callback is configured but
+	// green.seed is empty: the official contract requires seed when using a
+	// callback (the checksum cannot be computed or verified without it), so
+	// submitting such a scan would silently never deliver a verifiable result.
+	ErrGreenSeedRequired = errors.New("green seed is required when a callback is configured")
+	// greenSeedPattern mirrors the config gate (#104): [A-Za-z0-9_], max 64.
+	// The request builder enforces it defensively so a misconfigured seed can
+	// never reach Aliyun outside the release gate.
+	greenSeedPattern = regexp.MustCompile(`^[A-Za-z0-9_]{1,64}$`)
+)
+
+// VideoScanParams carries the VideoModeration ServiceParameters inputs.
+// cryptType is intentionally never set: SHA256 is the documented default.
+type VideoScanParams struct {
+	VideoURL    string
+	CallbackURL string
+	Seed        string
+	DataID      string
+}
 
 type GreenClient struct {
 	accessKeyID     string
@@ -130,17 +151,22 @@ func (c *GreenClient) imageModeration(ctx context.Context, imageURL string) (*Gr
 	return parseImageModerationResponse(resp)
 }
 
-func (c *GreenClient) VideoAsyncScan(ctx context.Context, videoURL, callbackURL string) (result *GreenScanResult, err error) {
+func (c *GreenClient) VideoAsyncScan(ctx context.Context, params VideoScanParams) (result *GreenScanResult, err error) {
 	started := time.Now()
 	defer func() { observability.ObserveExternalCall("green", started, err) }()
-	return c.videoAsyncScan(ctx, videoURL, callbackURL)
+	return c.videoAsyncScan(ctx, params)
 }
 
-func (c *GreenClient) videoAsyncScan(ctx context.Context, videoURL, callbackURL string) (*GreenScanResult, error) {
+func (c *GreenClient) videoAsyncScan(ctx context.Context, params VideoScanParams) (*GreenScanResult, error) {
 	if !c.configured() {
 		return nil, ErrGreenNotConfigured
 	}
 	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	spJSON, err := buildVideoServiceParams(params)
+	if err != nil {
 		return nil, err
 	}
 
@@ -149,18 +175,9 @@ func (c *GreenClient) videoAsyncScan(ctx context.Context, videoURL, callbackURL 
 		return nil, err
 	}
 
-	serviceParams := map[string]interface{}{
-		"url":      videoURL,
-		"callback": callbackURL,
-	}
-	spJSON, err := json.Marshal(serviceParams)
-	if err != nil {
-		return nil, err
-	}
-
 	req := &green20220302.VideoModerationRequest{
 		Service:           tea.String("query_security_check"),
-		ServiceParameters: tea.String(string(spJSON)),
+		ServiceParameters: tea.String(spJSON),
 	}
 	resp, err := client.VideoModeration(req)
 	if err != nil {
@@ -178,6 +195,37 @@ func (c *GreenClient) videoAsyncScan(ctx context.Context, videoURL, callbackURL 
 		RawResponse: body,
 		TaskID:      extractTaskIDFromBody(body),
 	}, nil
+}
+
+// buildVideoServiceParams constructs the ServiceParameters JSON for
+// VideoModeration. seed is required whenever a callback is used (official
+// contract: "使用 callback 时必须提供 seed"; callback empty means polling
+// mode, where seed is neither required nor sent). dataId keeps the
+// {target_type}:<id> form the callback parser expects. cryptType is never
+// included so the default SHA256 applies.
+func buildVideoServiceParams(params VideoScanParams) (string, error) {
+	serviceParams := map[string]interface{}{
+		"url":      strings.TrimSpace(params.VideoURL),
+		"callback": strings.TrimSpace(params.CallbackURL),
+	}
+	if dataID := strings.TrimSpace(params.DataID); dataID != "" {
+		serviceParams["dataId"] = dataID
+	}
+	if callback := serviceParams["callback"].(string); callback != "" {
+		seed := strings.TrimSpace(params.Seed)
+		if seed == "" {
+			return "", ErrGreenSeedRequired
+		}
+		if !greenSeedPattern.MatchString(seed) {
+			return "", fmt.Errorf("green seed must be [A-Za-z0-9_], max 64 chars")
+		}
+		serviceParams["seed"] = seed
+	}
+	spJSON, err := json.Marshal(serviceParams)
+	if err != nil {
+		return "", err
+	}
+	return string(spJSON), nil
 }
 
 func (c *GreenClient) newDataID(prefix string) string {
