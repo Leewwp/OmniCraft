@@ -1399,3 +1399,24 @@
 - 冻结门 #134 剩余等待：#76（ready-for-human 人工门）/ #111 / #112 / #113（#112 已无阻塞可开始）。
 - 收尾期间 macOS TCC 曾撤销 Desktop 访问（opencode 进程无法读写仓库），经用户授权后恢复，issue 关闭/评论不受影响。
 - code-review（两轴，固定点 4c3293e）：Standards 无硬违规；判断项 5 个（handler 与 service 的 suggestion 归一化逻辑重复副本、seed/uid 正则跨 3 文件重复、aliyunCallbackContent.Code 未用——code≠200 扫描失败回调按默认 pass 处理、processIPReviewResult 的 violation 死分支、internal.go 二次 Unmarshal 微 nit）。Spec 8 项决策全部实现，无缺失/越界/错误；3 条非阻塞观察（code 字段鲁棒性缺口同 Standards、归一化副本、local/test 未配 OSS.Domain 时带封面提交 fail-closed）。判断项均不阻塞，可开后续优化票：suggestion 归一化导出复用、seed/uid 校验集中、回调 code≠200 显式处理。
+
+## [2026-08-13] - Task #111/#112/#113: moderation 批次（头像图片审核 / 私信文本审核 / 反馈附件图片审核）
+
+### What was done:
+- **共享 seam（main 44943d3）**：`ReviewService.ReviewImageURL(ctx, url)` 同步图片扫描（TDD：先失败测试→实现→绿；pass/review/block 归一化 + ErrGreenNotConfigured 透传，无记录/信誉副作用），供 #111/#113 复用。
+- **#111 头像图片审核（heavy）**：`PATCH /api/v1/users/me` 头像链路强制平台 OSS 对象（`isPlatformAvatarObjectURL` 镜像封面门）+ 同步 ImageModeration（block→`AVATAR_BLOCKED` 400；审核不可用→`MODERATION_UNAVAILABLE` 503；A4 分环境语义与 social_service.go:262-304 一致）；空串清空头像跳过审核；`oss_service` 增加 `file_type=avatar` presign（`/avatar/` key 前缀、复用 ImageMaxMB）；存量审计/降级一次性脚本 `backend/cmd/avatar-audit`（只读默认，`--apply` 需 `--maintenance-window-confirmed`，幂等，软删用户跳过，无迁移编号占用）。
+- **#112 私信文本审核（light）**：`SendMessage` 落库前同步 `ReviewText`（复用 #109 的 `TextReviewer`/`ErrTextBlocked`/`ErrModerationUnavailable`），block→`CONTENT_BLOCKED` 422 拒发不落库；A4 分环境语义；通知仅在发送成功后触发；空白文本跳过审核。
+- **#113 反馈附件图片审核（light）**：`SubmitTicket` 落库前逐附件 `ReviewImageURL`，block→拒绝整票并恢复 upload grants（`ATTACHMENT_BLOCKED` 400）；release 审核不可用→`ATTACHMENT_MODERATION_UNAVAILABLE` 503；无附件纯文字反馈完全绕开审核门；A4 语义一致。无迁移无新表。
+- **#111 前端兼容修复（父 agent 收尾）**：发现前端 `settings/page.tsx` 用不存在的 `oss_cdn_base` 拼头像 URL（裸 oss_key 会被新门拒绝 → 头像更新必失败）→ 后端 `/api/v1/config/public` 新增 `oss_domain` 字段，前端改用它拼接 `oss_domain + "/" + oss_key`。
+- 三个 worktree（OmniCraft-wt-t111/112/113）独立开发后按序 merge 入 main，共享文件仅 routes.go（各一行，无冲突）。
+
+### Testing:
+- 三票各带测试：#111 11 个 handler 用例 + 4 个 OSS presign 用例 + 6 个审计脚本用例（TDD red→green 证据留存）；#112 6 个用例（block 拒发不落库不通知/pass/review 正常/fail-closed/fail-open/空白跳过）；#113 12 例（block 拒绝+grant 恢复/pass/review/release fail-closed/fail-open/纯文字绕过/URL 拼装）。
+- `cd backend && go build ./... && go vet ./... && go test ./...` 26 包全绿；`gofmt -l` 改动文件干净；`cd tools/doc-validator && go run . --fix` 幂等（config/schema/route 无变更）。
+- 前端 `npm run lint` + `npm run build` 通过；`bash scripts/verify-project.sh --full` 通过（73/73 mocked Playwright contracts，末行 OmniCraft full verification passed）。
+- 分支 `moderation/t111|t112|t113` 推送 origin，worktree 已清理。
+
+### Notes:
+- 遗留：本地 main 上存在约 30 个**预先存在**的 gofmt 未格式化文件（cmd/seed_admin、internal/handler/ip.go 等，经 stash/`git show HEAD` 验证为基线噪音），非本次引入，未触碰。
+- #134 冻结门现状：#111/#112/#113 已关闭，仍剩 #76（ready-for-human，067 云端执行人工门）→ 优先级 5（observability/RAG/归档扫描）继续冻结。
+- `docs/superpowers/specs/2026-08-08-omnicraft-content-safety-callback-fix-design.md` 中 B1/B5/B6 决策由本批次落地。
