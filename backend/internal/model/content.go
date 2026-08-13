@@ -53,8 +53,17 @@ type ContentAttachment struct {
 	// sort_order 0 item; video = none, the poster is the cover). Pointer so new
 	// media rows can explicitly persist false; legacy non-media rows keep the
 	// column default true.
-	IsPrimary *bool     `gorm:"default:true" json:"is_primary"`
-	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+	IsPrimary *bool `gorm:"default:true" json:"is_primary"`
+	// Scan fields (archive malware scanning, migration 072). scan_status
+	// mirrors the current archive_scan_jobs.status; legacy_unscanned marks
+	// pre-migration mod archives that are not auto-rescanned by the minimal
+	// implementation.
+	ScanStatus    string     `gorm:"size:32;not null;default:not_required" json:"scan_status"`
+	ScanRequired  bool       `gorm:"not null;default:false" json:"scan_required"`
+	ScanVersion   int        `gorm:"not null;default:0" json:"scan_version"`
+	LastScanJobID *int64     `json:"last_scan_job_id,omitempty"`
+	ScannedAt     *time.Time `json:"scanned_at,omitempty"`
+	CreatedAt     time.Time  `gorm:"autoCreateTime" json:"created_at"`
 }
 
 func (ContentAttachment) TableName() string { return "content_attachments" }

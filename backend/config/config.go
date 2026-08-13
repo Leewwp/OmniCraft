@@ -43,6 +43,7 @@ type Config struct {
 	BrowseHistory  BrowseHistoryConfig  `mapstructure:"browse_history"`
 	Upload         UploadConfig         `mapstructure:"upload"`
 	Publish        PublishConfig        `mapstructure:"publish"`
+	ArchiveScan    ArchiveScanConfig    `mapstructure:"archive_scan"`
 	Agent          AgentConfig          `mapstructure:"agent"`
 	SMTP           SMTPConfig           `mapstructure:"smtp"`
 	Captcha        CaptchaConfig        `mapstructure:"captcha"`
@@ -133,9 +134,25 @@ type GreenConfig struct {
 }
 
 type FeaturesConfig struct {
-	PaymentEnabled        bool `mapstructure:"payment_enabled"`
-	CreatorSupportEnabled bool `mapstructure:"creator_support_enabled"`
-	DesktopDeployEnabled  bool `mapstructure:"desktop_deploy_enabled"`
+	PaymentEnabled            bool `mapstructure:"payment_enabled"`
+	CreatorSupportEnabled     bool `mapstructure:"creator_support_enabled"`
+	DesktopDeployEnabled      bool `mapstructure:"desktop_deploy_enabled"`
+	ArchiveMalwareScanEnabled bool `mapstructure:"archive_malware_scan_enabled"`
+}
+
+// ArchiveScanConfig carries the archive malware scanning quotas, timeout and
+// retry policy (archive malware scanning design §4/§6). All limits are read
+// from config, never hardcoded. This ticket (S01) only builds the skeleton;
+// the worker (S03) and gates (S04) consume it.
+type ArchiveScanConfig struct {
+	MaxUploadSizeMB        int   `mapstructure:"max_upload_size_mb"`
+	MaxZipEntries          int   `mapstructure:"max_zip_entries"`
+	MaxEntryUncompressedMB int   `mapstructure:"max_entry_uncompressed_mb"`
+	MaxTotalUncompressedMB int   `mapstructure:"max_total_uncompressed_mb"`
+	MaxRecursionDepth      int   `mapstructure:"max_recursion_depth"`
+	ScanTimeoutSec         int   `mapstructure:"scan_timeout_sec"`
+	RetryBackoffSec        []int `mapstructure:"retry_backoff_sec"`
+	URLTTLSec              int   `mapstructure:"url_ttl_sec"`
 }
 
 type LimitsConfig struct {
@@ -862,6 +879,32 @@ func (c *Config) ValidateRelease() error {
 	}
 	if c.Client.DownloadEnabled {
 		errs = append(errs, "client.download_enabled must remain false in the Web-only release scope")
+	}
+	if c.Features.ArchiveMalwareScanEnabled {
+		if c.ArchiveScan.MaxUploadSizeMB <= 0 {
+			errs = append(errs, "archive_scan.max_upload_size_mb must be positive when archive malware scanning is enabled")
+		}
+		if c.ArchiveScan.MaxZipEntries <= 0 {
+			errs = append(errs, "archive_scan.max_zip_entries must be positive when archive malware scanning is enabled")
+		}
+		if c.ArchiveScan.MaxEntryUncompressedMB <= 0 {
+			errs = append(errs, "archive_scan.max_entry_uncompressed_mb must be positive when archive malware scanning is enabled")
+		}
+		if c.ArchiveScan.MaxTotalUncompressedMB <= 0 {
+			errs = append(errs, "archive_scan.max_total_uncompressed_mb must be positive when archive malware scanning is enabled")
+		}
+		if c.ArchiveScan.MaxRecursionDepth <= 0 {
+			errs = append(errs, "archive_scan.max_recursion_depth must be positive when archive malware scanning is enabled")
+		}
+		if c.ArchiveScan.ScanTimeoutSec <= 0 {
+			errs = append(errs, "archive_scan.scan_timeout_sec must be positive when archive malware scanning is enabled")
+		}
+		if len(c.ArchiveScan.RetryBackoffSec) == 0 {
+			errs = append(errs, "archive_scan.retry_backoff_sec must not be empty when archive malware scanning is enabled")
+		}
+		if c.ArchiveScan.URLTTLSec <= 0 {
+			errs = append(errs, "archive_scan.url_ttl_sec must be positive when archive malware scanning is enabled")
+		}
 	}
 
 	if c.Agent.WebAgentEnabled {
