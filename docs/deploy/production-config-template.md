@@ -50,7 +50,11 @@ GREEN_ACCESS_KEY_ID=<green-ram-access-key-id>
 GREEN_ACCESS_KEY_SECRET=<green-ram-access-key-secret>
 GREEN_REGION=cn-shanghai
 GREEN_CALLBACK_URL=https://api.leeppp.online/api/v1/internal/ai-callback
-GREEN_CALLBACK_ALLOWED_IPS=<comma-separated-callback-ip-list>
+# Callback signature seed ([A-Za-z0-9_], max 64 chars). A generated template
+# value is provided; deployers may replace it before first launch.
+GREEN_SEED=eGvqrYixTEzFRDUToSd1lgy3plgaMJDqr0X5Ji7P4TY
+# Aliyun MAIN account UID from the console top-right account info (not the RAM UID).
+GREEN_UID=<aliyun-main-account-uid>
 
 CAPTCHA_ACCESS_KEY_ID=<captcha-ram-access-key-id>
 CAPTCHA_ACCESS_KEY_SECRET=<captcha-ram-access-key-secret>

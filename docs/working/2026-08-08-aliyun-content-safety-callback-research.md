@@ -9,7 +9,7 @@
 
 1. 阿里云内容安全的异步媒体审核支持“回调”或“轮询”两条结果获取路径。旧版 Green API 的图片/视频异步接口在请求中传入 `callback`、`seed`，并可传 `cryptType`；当前内容安全增强版的视频文件审核文档也明确采用同样的请求参数模式。
 2. 回调的官方认证机制是 `checksum`：将阿里云账号 UID、用户自定义 `seed`、回调 `content` 拼接后按指定算法计算，再由业务服务端校验。官方文档没有把来源 IP/CIDR 白名单列为回调接口的必需参数或必配项。
-3. `GREEN_CALLBACK_ALLOWED_IPS` 不是阿里云 API 参数名，也不是本次核对的阿里云内容安全控制台字段。若应用自行维护该变量，它应被理解为应用侧的额外入站访问控制，而不是“阿里云控制台配置”。
+3. 旧版应用配置里的「回调来源 IP 白名单」不是阿里云 API 参数名，也不是本次核对的阿里云内容安全控制台字段。若应用自行维护该白名单，它应被理解为应用侧的额外入站访问控制，而不是“阿里云控制台配置”。（该配置项已在 #104 中删除，不再存在于代码/配置/schema 中。）
 4. 不能仅依据阿里云官方材料把 `114.115.0.0/16` 等网段认定为 Green 回调官方来源网段：本次核对的官方回调文档、视频 API 文档和 OpenAPI 元数据均未发布该网段或要求按该网段放行。
 5. 控制台确实存在回调相关配置，但文档描述的是机器审核/人工审核的“消息通知”方案（回调地址、加密算法、通知类型、审核结果，并由系统生成 `seed`）；异步扫描结果回调则要求调用方准备地址和 `seed`，在 API 请求中传入 `callback` 和 `seed`。
 
@@ -106,13 +106,13 @@ checksum = SHA256(<用户 UID> + <seed> + <content>)
 
 因此，基于官方公开文档可以确认：公网可达是回调地址要求；固定来源 IP 白名单不是这些文档列出的官方接入必需项。由于这是对公开官方材料的核对结果，不应扩大解释为阿里云在所有未公开内部系统中绝对不存在任何网络策略。
 
-### 3.3 关于 `GREEN_CALLBACK_ALLOWED_IPS`
+### 3.3 关于应用侧回调来源 IP 白名单（旧配置，已随 #104 删除）
 
-结论：`GREEN_CALLBACK_ALLOWED_IPS` 不是阿里云 Green API 的官方参数名，也不是上述官方文档描述的控制台配置项。阿里云 API 使用的是 `callback`、`seed`、`cryptType`、`checksum` 等名称；当前 `VideoModeration` 的官方 OpenAPI 元数据也只将请求入口描述为 `Service` 与 `ServiceParameters`，没有该字段。
+结论：应用侧回调来源 IP 白名单不是阿里云 Green API 的官方参数名，也不是上述官方文档描述的控制台配置项。阿里云 API 使用的是 `callback`、`seed`、`cryptType`、`checksum` 等名称；当前 `VideoModeration` 的官方 OpenAPI 元数据也只将请求入口描述为 `Service` 与 `ServiceParameters`，没有该字段。
 
 来源：[Green 2022-03-02 VideoModeration API 元数据](https://next.api.aliyun.com/meta/v1/products/Green/versions/2022-03-02/apis/VideoModeration/api)；[视频文件审核增强版 API 2505810](https://help.aliyun.com/zh/document_detail/2505810.html)。
 
-如果应用配置了 `GREEN_CALLBACK_ALLOWED_IPS`，它只能被归类为应用/部署方自行维护的入站 IP/CIDR allowlist。它不是“需要在阿里云内容安全控制台填写的配置”，也不能从阿里云官方文档推出其默认值或官方网段。尤其不能仅凭该变量名或非官方材料把 `114.115.0.0/16` 作为阿里云 Green 回调来源网段。
+如果应用曾配置回调来源 IP 白名单，它只能被归类为应用/部署方自行维护的入站 IP/CIDR allowlist。它不是“需要在阿里云内容安全控制台填写的配置”，也不能从阿里云官方文档推出其默认值或官方网段。尤其不能仅凭该变量名或非官方材料把 `114.115.0.0/16` 作为阿里云 Green 回调来源网段。
 
 ## 4. 哪些内容属于阿里云控制台配置
 
@@ -128,7 +128,7 @@ checksum = SHA256(<用户 UID> + <seed> + <content>)
 
 来源：[如何在内容安全中配置消息通知 130313](https://help.aliyun.com/zh/document_detail/130313.html) 的“扫描结果回调通知”；[视频审核异步检测 70436](https://help.aliyun.com/zh/document_detail/70436.html)。
 
-这意味着对该路径而言，回调 URL、seed 和算法选择是 API 请求/业务接入的一部分，而不是一个名为 `GREEN_CALLBACK_ALLOWED_IPS` 的阿里云控制台白名单字段。
+这意味着对该路径而言，回调 URL、seed 和算法选择是 API 请求/业务接入的一部分，而不是阿里云控制台白名单字段。
 
 ### 4.2 机器审核/人工审核消息通知：控制台方案
 
@@ -148,11 +148,11 @@ checksum = SHA256(<用户 UID> + <seed> + <content>)
 | 是否支持异步回调？ | 支持。回调与轮询均为官方文档描述的结果获取方式。来源：[70436](https://help.aliyun.com/zh/document_detail/70436.html)、[2505810](https://help.aliyun.com/zh/document_detail/2505810.html) |
 | 回调如何认证？ | 用 `seed` 参与 `checksum` 计算；可按文档选择 SHA256/SM3。来源：[130313](https://help.aliyun.com/zh/document_detail/130313.html)、[70436](https://help.aliyun.com/zh/document_detail/70436.html) |
 | 阿里云是否要求回调来源 IP 白名单？ | 本次核对的官方 API/帮助文档未列出该要求，也未公布 Green 回调固定来源 CIDR；官方明确要求的是公网可达和 checksum 校验。来源：[130313](https://help.aliyun.com/zh/document_detail/130313.html)、[2505810](https://help.aliyun.com/zh/document_detail/2505810.html) |
-| `GREEN_CALLBACK_ALLOWED_IPS` 是否是阿里云控制台配置？ | 不是官方 API 参数，也不是本次核对的官方控制台字段；若存在，应视为应用自行维护的 allowlist。来源：[VideoModeration 元数据](https://next.api.aliyun.com/meta/v1/products/Green/versions/2022-03-02/apis/VideoModeration/api)、[130313](https://help.aliyun.com/zh/document_detail/130313.html) |
+| 应用侧回调来源 IP 白名单是否是阿里云控制台配置？ | 不是官方 API 参数，也不是本次核对的官方控制台字段；若存在，应视为应用自行维护的 allowlist（该配置项已随 #104 删除）。来源：[VideoModeration 元数据](https://next.api.aliyun.com/meta/v1/products/Green/versions/2022-03-02/apis/VideoModeration/api)、[130313](https://help.aliyun.com/zh/document_detail/130313.html) |
 
 ## 6. 接入建议（推断，不冒充阿里云要求）
 
 - 服务端应优先实现 `checksum` 校验、重复回调幂等和 HTTP 200 ACK；这些是直接由官方回调协议支持的接入行为。
-- 如果应用额外保留 `GREEN_CALLBACK_ALLOWED_IPS`，应在配置和部署文档中明确标注“应用侧防御性 allowlist”，不能标注为“阿里云官方回调 IP”。
+- 如果应用保留回调来源 IP 白名单（本批次已删除该配置项），应在配置和部署文档中明确标注“应用侧防御性 allowlist”，不能标注为“阿里云官方回调 IP”。
 - 在没有阿里云官方来源网段文档、控制台显示或工单确认前，不应把某个固定 CIDR 写成官方事实；否则可能因阿里云回调出口变化导致合法回调被拒绝。
 - 由于官方通用通知文档和视频接口文档对重试次数存在差异，应用应按重复投递处理，而不是依赖固定次数作为业务正确性条件。

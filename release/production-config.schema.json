@@ -107,17 +107,23 @@
     },
     "green": {
       "type": "object",
-      "required": ["access_key_id", "access_key_secret", "region", "callback_url", "callback_allowed_ips"],
+      "required": ["access_key_id", "access_key_secret", "region", "callback_url", "seed", "uid"],
       "properties": {
         "access_key_id": { "type": "string", "not": { "pattern": "(<|>|CHANGE_ME)" } },
         "access_key_secret": { "type": "string", "not": { "pattern": "(<|>|CHANGE_ME)" } },
         "region": { "type": "string", "minLength": 1 },
         "callback_url": { "type": "string", "pattern": "^https://" },
-        "callback_allowed_ips": {
-          "type": "array",
-          "minItems": 1,
-          "items": { "type": "string" },
-          "description": "IPv4/IPv6 addresses or CIDRs; placeholders rejected"
+        "seed": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_]{1,64}$",
+          "not": { "pattern": "(<|>|CHANGE_ME|REPLACE_ME|PLACEHOLDER|your-)" },
+          "description": "Callback signature seed; [A-Za-z0-9_], max 64 chars. The template ships a generated value; deployers may replace it before first launch."
+        },
+        "uid": {
+          "type": "string",
+          "pattern": "^[0-9]+$",
+          "not": { "pattern": "(<|>|CHANGE_ME|REPLACE_ME|PLACEHOLDER|your-)" },
+          "description": "Aliyun MAIN account UID from the console top-right account info; the RAM UID is NOT accepted."
         }
       },
       "additionalProperties": false

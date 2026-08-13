@@ -60,9 +60,8 @@ green:
   access_key_secret: ""
   region: "cn-shanghai"
   callback_url: ""
-  callback_allowed_ips:
-    - "127.0.0.1"
-    - "::1"
+  seed: ""
+  uid: ""
 
 features:
   payment_enabled: false

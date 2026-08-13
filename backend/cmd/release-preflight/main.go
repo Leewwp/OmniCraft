@@ -2,7 +2,7 @@
 // the .env file, the repository default config.yaml and the operator override
 // YAML are merged into one effective config (mirroring backend config.Load),
 // then Config.ValidateRelease plus deployment-level checks (trusted-proxy
-// topology, callback IP allowlist, frontend/API DNS consistency, placeholder
+// topology, green callback seed/uid, frontend/API DNS consistency, placeholder
 // scanning of environment values) are run. The result is written as a redacted
 // JSON summary that never echoes secret values.
 package main
@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -22,6 +23,11 @@ import (
 	"github.com/spf13/viper"
 
 	"omnicraft/backend/config"
+)
+
+var (
+	greenSeedFormat = regexp.MustCompile(`^[A-Za-z0-9_]{1,64}$`)
+	greenUIDFormat  = regexp.MustCompile(`^\d+$`)
 )
 
 type check struct {
@@ -172,7 +178,7 @@ func runChecks(envFile, overrideFile, repoRoot, composeFile string) []check {
 	}
 
 	checkTrustedProxies(cfg, add)
-	checkCallbackIPs(cfg, add)
+	checkGreenAuthFields(cfg, add)
 	checkFrontendURLs(add)
 	checkPlaceholdersInEnv(add)
 	checkConfigVolumeReadOnly(composeFile, add)
@@ -272,21 +278,33 @@ func isLoopbackCIDR(cidr string) bool {
 	return ipNet.IP.IsLoopback() || (ipNet.IP.IsUnspecified() && strings.Contains(cidr, "/0"))
 }
 
-func checkCallbackIPs(cfg *config.Config, add func(string, bool, string)) {
+// checkGreenAuthFields validates green.seed/green.uid early (missing,
+// placeholder, format) so a misconfigured callback signature is caught before
+// the server starts; every message is actionable for the deployer.
+func checkGreenAuthFields(cfg *config.Config, add func(string, bool, string)) {
 	if cfg == nil {
 		return
 	}
-	invalid := []string{}
-	for _, raw := range cfg.Green.CallbackAllowedIPs {
-		ip := strings.TrimSpace(raw)
-		if net.ParseIP(ip) == nil {
-			if _, _, err := net.ParseCIDR(ip); err != nil {
-				invalid = append(invalid, raw)
-			}
-		}
+	var problems []string
+	seed := strings.TrimSpace(cfg.Green.Seed)
+	if seed == "" {
+		problems = append(problems, "green.seed is missing: set GREEN_SEED to a random string of [A-Za-z0-9_], max 64 chars (e.g. openssl rand -base64 36 | tr -dc 'A-Za-z0-9_' | cut -c1-48); deployers may replace the generated template value before first launch")
+	} else if containsPlaceholder(seed) {
+		problems = append(problems, "green.seed must not contain placeholders")
+	} else if !greenSeedFormat.MatchString(seed) {
+		problems = append(problems, "green.seed must be 1-64 characters of [A-Za-z0-9_]")
 	}
-	add("callback_ips.valid", len(invalid) == 0,
-		fmt.Sprintf("green.callback_allowed_ips entries must be IPs or CIDRs: %v", invalid))
+
+	uid := strings.TrimSpace(cfg.Green.UID)
+	if uid == "" {
+		problems = append(problems, "green.uid is missing: set GREEN_UID to the Aliyun MAIN account UID, found in the Aliyun console top-right account info (the RAM user UID is NOT accepted)")
+	} else if containsPlaceholder(uid) {
+		problems = append(problems, "green.uid must not contain placeholders")
+	} else if !greenUIDFormat.MatchString(uid) {
+		problems = append(problems, "green.uid must be digits only (the Aliyun main account UID from the console account info)")
+	}
+
+	add("green.auth_fields", len(problems) == 0, strings.Join(problems, "; "))
 }
 
 func checkFrontendURLs(add func(string, bool, string)) {
