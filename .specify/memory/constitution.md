@@ -1,16 +1,11 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change    : 2.0.0 → 3.0.0 (MAJOR — replace the retired task.json workflow with the active-plan registry and risk lanes)
-Version chain     : 1.0.0 → 1.1.0 → 1.1.1 → 1.2.0 → 1.3.0 → 2.0.0 → 3.0.0
+Version change    : 3.0.0 → 3.1.0 (MINOR — register OpenSearch, OTel Collector, Jaeger and ClamAV as frozen system services with profile boundaries and exit criteria)
+Version chain     : 1.0.0 → 1.1.0 → 1.1.1 → 1.2.0 → 1.3.0 → 2.0.0 → 3.0.0 → 3.1.0
 Modified sections :
-  Principle IX    — made AGENTS.md active-plan registry and GitHub tickets the only current task source; ratified light/heavy lanes and exact completion tracking
-  Principle XIII  — removed the obsolete historical Beta-roadmap priority sentence and delegated priority to the active registry
-  Principle XIV   — replaced task.json.ui_spec_ref with plan/ticket ui_spec_ref or explicit component/page headings
-Templates updated :
-  ✅ .specify/templates/plan-template.md   — requires registry/ticket source, lane and dependency declaration
-  ✅ .specify/templates/spec-template.md   — requires execution-source and ui-spec ownership notes
-  ✅ .specify/templates/tasks-template.md  — requires lane-aware checkpoints and exact tracking updates
+  Principle I     — registered OpenSearch / OTel Collector / Jaeger / ClamAV in the frozen stack table; per-service existing alternative, rationale, run cost, profile boundary and exit condition documented (roadmap T00, issue #135)
+Templates updated : none — checked plan/spec/tasks templates and the agent-file/checklist/constitution templates; none enumerate the frozen stack or system services, and this amendment adds no new workflow gate, authority, or task-format requirement
 Deferred TODOs    : none
 -->
 
@@ -34,10 +29,31 @@ The following stack is FROZEN for all phases unless amended via a formal constit
 | Deployment P0 | Docker Compose single-node |
 | Deployment P2 | Kubernetes (Aliyun ACK) — pre-reserved, not yet active |
 | Vector Search | pgvector extension for PostgreSQL — no separate vector DB |
+| Search Index | OpenSearch — full-infra profile only; PostgreSQL FTS/pgvector retained as degradation path |
+| Observability / Tracing | OTel Collector + Jaeger (all-in-one) — full-infra profile only |
+| Malware Scanning | ClamAV (clamd + freshclam) — full-infra/security profile only |
 
 Introducing a new runtime dependency (npm package, Go module, or system service) requires explicit
 justification against an existing alternative and MUST be added to the dependency management file
 before merging. No library may be introduced for convenience if the standard library covers the case.
+For a system service, the dependency management file is the Docker Compose service definition
+(`docker-compose.yml`) including its declared profile; runtime tickets MUST register the service in
+the exact profile stated below before merging.
+
+#### System services registered 2026-08-13 (v3.1.0)
+
+The four services below are FROZEN additions to the stack, each with its existing alternative,
+rationale, run cost, profile boundary and exit condition. Profile boundaries are normative: a
+service scoped to `full-infra` (or `full-infra`/`security`) MUST NOT be started in the default
+Docker Compose profile, and a service scoped to `full-infra`/`security` MUST NOT be started in
+`full-infra` alone. Reversing any of these registrations requires a new constitution amendment.
+
+| Service | Existing alternative | Rationale | Run cost | Profile boundary | Exit condition |
+|---|---|---|---|---|---|
+| OpenSearch (search index; RAG slice T05) | PostgreSQL FTS (tsvector/pg_trgm) + pgvector full-stack retrieval | Separates filtered aggregation (zone/category/tags) and BM25 ranking quality from the content store; index lifecycle isolated from the content DB; stronger multi-field filtered aggregation | +1 container; 512MB–1GB memory | full-infra only; default profile must not start it | PostgreSQL FTS/pgvector remains the degradation path (D9) and is not replaced; revert to it at any time |
+| OTel Collector (telemetry pipeline; T08) | Applications export OTLP directly to Jaeger (no collector) | Centralised sampling control; batching/retry/buffering; future multi-service shared exporter topology; keeps the telemetry pipeline separate from the existing Prometheus scrape surface | +1 container; one configuration surface | full-infra profile starts the container; applications configure the Collector OTLP endpoint as the only trace export path | Collector offline ⇒ telemetry is dropped with an alert; business topology is never switched |
+| Jaeger (distributed tracing; T08) | Tempo (issue #24 initially preferred Tempo for Grafana integration) | User ruling; all-in-one single container demonstrates the full stack locally (Query/UI/Collector/Agent) with no external storage dependency (Tempo full features need object storage); mature Docker ecosystem | +1 container; 256–512MB memory | full-infra only; default profile must not start it | Jaeger is the ruling; Tempo remains the recorded alternative and must never be dual-introduced |
+| ClamAV (archive malware scanning; issue #110) | Aliyun cloud-security file scanning, Content Safety virus detection, self-built engine, third-party Go clamd client (all rejected) | Local demo runs standalone; official Docker image + freshclam persistent signature volume; enables EICAR acceptance and the scan-then-publish closed loop; regular CI does not download virus signatures online | clamd + freshclam official images + persistent signature volume; not run on the 3.6 GiB interview host | full-infra/security profile only; default Compose must not start it; clamd socket stays private (Compose private-network TCP 3310, worker-only) | If reversed: remove the ClamAV service and worker wiring from the full-infra/security profile and disable `features.archive_malware_scan_enabled`; structure/limit checks remain |
 
 ### II. Code Quality Standards
 
@@ -398,7 +414,7 @@ See Principle X for the authoritative rule set. All numeric thresholds MUST be r
 - **Conflict resolution**: if a task step conflicts with a principle, the principle wins; the
   conflicting step MUST be clarified before implementation begins
 
-**Version**: 3.0.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-08-08
+**Version**: 3.1.0 | **Ratified**: 2026-04-15 | **Last Amended**: 2026-08-13
 
 ### 1.0.0 Changelog (2026-04-15)
 
@@ -454,3 +470,13 @@ See Principle X for the authoritative rule set. All numeric thresholds MUST be r
   `task.json.ui_spec_ref` with exact current plan/ticket UI authority references.
 - **Templates**: Propagated task source, lane, dependency, authority-owner and checkpoint requirements
   to all Specify templates.
+
+### 3.1.0 Changelog (2026-08-13)
+
+- **Principle I**: Registered four system services in the frozen stack — OpenSearch (full-infra only),
+  OTel Collector (one configuration surface), Jaeger (full-infra only; issue #24 Tempo preference
+  replaced by user ruling, Tempo recorded as alternative, not dual-introduced), ClamAV
+  (full-infra/security only) — each with its existing alternative, rationale, run cost, profile
+  boundary and exit condition. PostgreSQL FTS/pgvector retained as the OpenSearch degradation path.
+- **Governance**: Ratified via the reliable-async roadmap T00 (issue #135); profile boundaries are
+  normative for the default vs full-infra/security Docker Compose profiles.
