@@ -159,6 +159,8 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.FeedbackService = service.NewFeedbackService(c.FeedbackRepo, c.UserRepo, rdb, c.CaptchaVerifier, uploadGrantTTL, feedbackOSSSigner)
 	c.FeedbackService.SetNotificationService(c.NotificationService)
 	c.FeedbackService.SetFeedbackMailSender(feedbackMailSender)
+	c.FeedbackService.SetReviewService(c.ReviewService)
+	c.FeedbackService.SetConfig(cfg)
 	c.AdminAuditService = service.NewAdminAuditService(c.AdminAuditRepo, db)
 	c.NotificationService.SetAdminAuditService(c.AdminAuditService)
 	c.CollabInviteService = service.NewCollabInviteService(
