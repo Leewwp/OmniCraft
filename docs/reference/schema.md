@@ -54,6 +54,7 @@
 | `result` | `VARCHAR(20)` | NOT NULL | result |
 | `raw_response` | `JSONB` | - | raw_response |
 | `scanned_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | scanned_at |
+| `provider_task_id` | `VARCHAR(128)` | - | provider_task_id |
 
 ### appeals
 

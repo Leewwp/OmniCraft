@@ -3,13 +3,14 @@ package model
 import "time"
 
 type AIReviewRecord struct {
-	ID          int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	TargetType  string    `gorm:"size:20;not null" json:"target_type"`
-	TargetID    int64     `gorm:"not null" json:"target_id"`
-	Provider    string    `gorm:"size:50;not null;default:aliyun" json:"provider"`
-	Result      string    `gorm:"size:20;not null" json:"result"`
-	RawResponse []byte    `gorm:"type:jsonb" json:"raw_response,omitempty"`
-	ScannedAt   time.Time `gorm:"autoCreateTime" json:"scanned_at"`
+	ID             int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	TargetType     string    `gorm:"size:20;not null" json:"target_type"`
+	TargetID       int64     `gorm:"not null" json:"target_id"`
+	Provider       string    `gorm:"size:50;not null;default:aliyun" json:"provider"`
+	Result         string    `gorm:"size:20;not null" json:"result"`
+	RawResponse    []byte    `gorm:"type:jsonb" json:"raw_response,omitempty"`
+	ProviderTaskID *string   `gorm:"size:128" json:"provider_task_id,omitempty"`
+	ScannedAt      time.Time `gorm:"autoCreateTime" json:"scanned_at"`
 }
 
 func (AIReviewRecord) TableName() string { return "ai_review_records" }
