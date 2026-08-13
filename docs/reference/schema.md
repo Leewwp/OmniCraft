@@ -71,6 +71,41 @@
 | `resolved_at` | `TIMESTAMPTZ` | - | resolved_at |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 
+### archive_scan_attempts
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `scan_job_id` | `BIGINT` | NOT NULL -> archive_scan_jobs.id | scan_job_id |
+| `attempt_no` | `INTEGER` | NOT NULL | attempt_no |
+| `result` | `VARCHAR(16)` | NOT NULL | result |
+| `duration_ms` | `INTEGER` | NOT NULL | duration_ms |
+| `engine_version` | `VARCHAR(64)` | - | engine_version |
+| `signature_version` | `VARCHAR(64)` | - | signature_version |
+| `detection_name` | `VARCHAR(255)` | - | detection_name |
+| `error_code` | `VARCHAR(64)` | - | error_code |
+
+### archive_scan_jobs
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `attachment_id` | `BIGINT` | NOT NULL -> content_attachments.id | attachment_id |
+| `scan_version` | `INTEGER` | NOT NULL DEFAULT 0 | scan_version |
+| `status` | `VARCHAR(32)` | NOT NULL DEFAULT 'pending' | status |
+| `attempts` | `INTEGER` | NOT NULL DEFAULT 0 | attempts |
+| `next_attempt_at` | `TIMESTAMPTZ` | - | next_attempt_at |
+| `object_sha256` | `VARCHAR(64)` | - | object_sha256 |
+| `engine_version` | `VARCHAR(64)` | - | engine_version |
+| `signature_version` | `VARCHAR(64)` | - | signature_version |
+| `detection_name` | `VARCHAR(255)` | - | detection_name |
+| `quarantine_key` | `TEXT` | - | quarantine_key |
+| `error_code` | `VARCHAR(64)` | - | error_code |
+| `started_at` | `TIMESTAMPTZ` | - | started_at |
+| `finished_at` | `TIMESTAMPTZ` | - | finished_at |
+
 ### author_blocklist
 
 | 列名 | 类型 | 约束 | 说明 |
@@ -180,6 +215,11 @@
 | `is_primary` | `BOOLEAN` | DEFAULT TRUE | is_primary |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | `sort_order` | `INT` | - | sort_order |
+| `scan_status` | `VARCHAR(32)` | NOT NULL DEFAULT 'not_required' | scan_status |
+| `scan_required` | `BOOLEAN` | NOT NULL DEFAULT FALSE | scan_required |
+| `scan_version` | `INTEGER` | NOT NULL DEFAULT 0 | scan_version |
+| `last_scan_job_id` | `BIGINT` | - | last_scan_job_id |
+| `scanned_at` | `TIMESTAMPTZ` | - | scanned_at |
 
 ### content_contributors
 
