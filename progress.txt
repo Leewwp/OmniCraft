@@ -1454,3 +1454,21 @@
 - vector 基线使用确定性 standin 向量（本地无 embedding provider 凭证，本地开发模式允许测试替身）；artifact environment 字段已标注，生产声明前需真实 provider 重跑。vector leak=2 系现状 VectorSearch 无可见性谓词的真实测量（T06 已列入修复）。
 - 本地 dev DB 迁移账本不完整（runner 在 005 处报 already exists），069 直接 psql 应用；CI/ephemeral 路径不受影响。
 - 下一步（lane 内 DAG）：observability #137（070 outbox，T02）；RAG #138→#139（#138 为共享 worker）。
+
+## [2026-08-13] - Task #137/#146: T02 outbox/inbox + S01 归档扫描 schema
+
+### What was done:
+- **#137 T02（heavy, TDD）**：070_outbox_inbox.sql（outbox_events：BIGSERIAL id=稳定 event_id，含 aggregate_id/event_type/schema_version/payload/traceparent/tracestate/status/attempts/next_attempt_at/sent_at；inbox_consumers UNIQUE(consumer_group,event_id)）；backend/internal/pkg/events/（envelope 固定结构 + 每事件 schema 校验 + topic 常量）；outbox_repo（事务内写、SKIP LOCKED 领取、MarkSent、退避重试，重试复用同一 id）；四类生产者同事务接入（review_service：published/banned；content_service：updated/deleted），OutboxWriter 接口 seam 供故障注入。
+- **#146 S01（heavy, TDD）**：072_archive_malware_scanning.sql（content_attachments + scan_status/scan_required/scan_version/last_scan_job_id/scanned_at；archive_scan_jobs 含 (attachment_id, scan_version) current-job 部分唯一索引；archive_scan_attempts 不可变审计）；状态机 repository（pending→scanning→clean | blocked→manual_review→clean|blocked | failed→pending 有界重试 1m/5m/30m）；存量 mod 迁移标记 legacy_unscanned；config 骨架 archive_malware_scan_enabled=false + archive_scan.* 八项初值。
+- 两票并行 worktree（observability/t137 + archive/t146），merge b5c6793/d1e7378 无冲突。
+
+### Testing:
+- #137：四类提交/回滚双向集成、不重复发事件、SKIP LOCKED、退避/event_id 稳定、trace round-trip、迁移空库+069→070 历史升级+幂等；go test 39 包全绿。
+- #146：空库/历史 fixture + 001→072 全链 + 幂等、宪法字段、非法转换全拒、8 goroutine 并发恰 1（-race）、审计不可变、legacy_unscanned 语义；go test 26 包全绿。
+- 合并后全量：go build/vet/test 全绿；doc-validator --fix 幂等（config/schema 已由子 agent 同步）；verify-project.sh --full 73/73（首轮 72/73 为 t97 settings switch 偶发 flake，重跑 73/73 确认）。
+- 遗留：verify 中断残留 next-server 进程占 3001 → kill -9 清理后重跑通过。
+
+### Notes:
+- #137 顾虑：ClaimPendingTx 目前仅测试使用（T03 seam）；occurred_at=created_at（迁移合同无独立列）；ctx 传递深度 T08 评估；updated/deleted payload 无 Status 字段（RAG 需要可 schema v2 加）。
+- #146 顾虑：ContentAttachment 新字段随 JSON 进公开 API（additive，前端忽略）；container 装配留待 S03；scan_version 按 spec 至少包含语义加入。
+- 下一步 lane 内 DAG：#138（T03 独立 cmd/worker，共享）→ 之后 observability #143、RAG #139/#140。
