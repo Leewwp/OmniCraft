@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -57,6 +58,10 @@ type PublicConfigResponse struct {
 	Legal         PublicLegalDTO         `json:"legal"`
 	Upload        PublicUploadDTO        `json:"upload"`
 	Collaboration PublicCollaborationDTO `json:"collaboration"`
+	// OSSDomain is the configured object delivery domain (#111). Clients use
+	// it to compose stable object URLs from upload grants (e.g. avatar_url =
+	// oss_domain + "/" + oss_key). Empty when delivery is not configured.
+	OSSDomain string `json:"oss_domain"`
 }
 
 type PublicConfigHandler struct {
@@ -100,6 +105,7 @@ func (h *PublicConfigHandler) GetPublicConfig(c *gin.Context) {
 		Collaboration: PublicCollaborationDTO{
 			MaxInviteesPerPublish: h.cfg.Collaboration.MaxInviteesPerPublish,
 		},
+		OSSDomain: strings.TrimRight(strings.TrimSpace(h.cfg.OSS.Domain), "/"),
 	}
 	c.JSON(http.StatusOK, resp)
 }
