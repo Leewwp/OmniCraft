@@ -1398,3 +1398,4 @@
 - 偏差记录：#107 dataId 冒号不在官方字符集 [A-Za-z0-9_] 内（以 spec A3 `{target_type}:<id>` 为权威，解析端 #106 按冒号拆分）；#106 扫描失败（code!=200）回调按无 results 默认 pass 处理（标注为 #108/#110 后续评估项）；C1 测试选 service 级 seam（handler 内部自建 ReviewService 无路由级注入点，HTTP 契约面已由路由测试覆盖）；task-ledger-mvp.json 2 处历史描述按 AGENTS.md 不改动。
 - 冻结门 #134 剩余等待：#76（ready-for-human 人工门）/ #111 / #112 / #113（#112 已无阻塞可开始）。
 - 收尾期间 macOS TCC 曾撤销 Desktop 访问（opencode 进程无法读写仓库），经用户授权后恢复，issue 关闭/评论不受影响。
+- code-review（两轴，固定点 4c3293e）：Standards 无硬违规；判断项 5 个（handler 与 service 的 suggestion 归一化逻辑重复副本、seed/uid 正则跨 3 文件重复、aliyunCallbackContent.Code 未用——code≠200 扫描失败回调按默认 pass 处理、processIPReviewResult 的 violation 死分支、internal.go 二次 Unmarshal 微 nit）。Spec 8 项决策全部实现，无缺失/越界/错误；3 条非阻塞观察（code 字段鲁棒性缺口同 Standards、归一化副本、local/test 未配 OSS.Domain 时带封面提交 fail-closed）。判断项均不阻塞，可开后续优化票：suggestion 归一化导出复用、seed/uid 校验集中、回调 code≠200 显式处理。
