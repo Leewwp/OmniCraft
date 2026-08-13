@@ -2,10 +2,14 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,8 +17,12 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/repository"
+	"omnicraft/backend/internal/service"
 )
 
 func TestMessageColdStartAllowsFirstMessage(t *testing.T) {
@@ -212,6 +220,180 @@ func TestMessageColdStartRejectsAfterSenderLeavesAndReopensConversation(t *testi
 	}
 }
 
+func TestSendMessageRejectsBlockedTextAndDoesNotPersist(t *testing.T) {
+	cfg := &config.Config{Server: config.ServerConfig{Mode: "debug"}}
+	reviewer := &fakeTextReviewer{result: "block"}
+	router, db := setupMessageRouterWithOptions(t, cfg, reviewer, true)
+
+	rec := postMessageForColdStart(t, router, 1, 2, "this dm is a violation")
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422; body = %s", rec.Code, rec.Body.String())
+	}
+	var payload struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode error response: %v; body = %s", err, rec.Body.String())
+	}
+	if payload.Code != "CONTENT_BLOCKED" {
+		t.Fatalf("response code = %q, want CONTENT_BLOCKED; body = %s", payload.Code, rec.Body.String())
+	}
+	if got := countMessages(t, db); got != 0 {
+		t.Fatalf("message count = %d, want 0 (blocked text must not be persisted)", got)
+	}
+	if got := countNotifications(t, db); got != 0 {
+		t.Fatalf("notification count = %d, want 0 (blocked message must not notify)", got)
+	}
+	if len(reviewer.calls) != 1 || !strings.Contains(reviewer.calls[0], "violation") {
+		t.Fatalf("moderation calls = %v, want one call with the message body", reviewer.calls)
+	}
+}
+
+func TestSendMessageAllowsPassAndReviewText(t *testing.T) {
+	for _, result := range []string{"pass", "review"} {
+		t.Run(result, func(t *testing.T) {
+			cfg := &config.Config{Server: config.ServerConfig{Mode: "debug"}}
+			reviewer := &fakeTextReviewer{result: result}
+			router, db := setupMessageRouterWithOptions(t, cfg, reviewer, true)
+
+			rec := postMessageForColdStart(t, router, 1, 2, "perfectly fine dm")
+
+			if rec.Code != http.StatusCreated {
+				t.Fatalf("status = %d, want 201; body = %s", rec.Code, rec.Body.String())
+			}
+			if got := countMessages(t, db); got != 1 {
+				t.Fatalf("message count = %d, want 1", got)
+			}
+			waitForNotificationCount(t, db, 1)
+		})
+	}
+}
+
+func TestSendMessageFailClosedWhenModerationFailsInReleaseMode(t *testing.T) {
+	cfg := &config.Config{Server: config.ServerConfig{Mode: "release"}}
+	reviewer := &fakeTextReviewer{err: errors.New("green api error")}
+	router, db := setupMessageRouterWithOptions(t, cfg, reviewer, true)
+
+	rec := postMessageForColdStart(t, router, 1, 2, "some dm")
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body = %s", rec.Code, rec.Body.String())
+	}
+	var payload struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode error response: %v; body = %s", err, rec.Body.String())
+	}
+	if payload.Code != "MODERATION_UNAVAILABLE" {
+		t.Fatalf("response code = %q, want MODERATION_UNAVAILABLE; body = %s", payload.Code, rec.Body.String())
+	}
+	if got := countMessages(t, db); got != 0 {
+		t.Fatalf("message count = %d, want 0 (fail-closed must not persist)", got)
+	}
+	if got := countNotifications(t, db); got != 0 {
+		t.Fatalf("notification count = %d, want 0 (fail-closed must not notify)", got)
+	}
+}
+
+func TestSendMessageFailClosedWhenReviewerMissingInReleaseMode(t *testing.T) {
+	cfg := &config.Config{Server: config.ServerConfig{Mode: "release"}}
+	router, db := setupMessageRouterWithOptions(t, cfg, nil, true)
+
+	rec := postMessageForColdStart(t, router, 1, 2, "some dm")
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body = %s", rec.Code, rec.Body.String())
+	}
+	if got := countMessages(t, db); got != 0 {
+		t.Fatalf("message count = %d, want 0", got)
+	}
+	if got := countNotifications(t, db); got != 0 {
+		t.Fatalf("notification count = %d, want 0", got)
+	}
+}
+
+func TestSendMessageFailOpenWhenGreenNotConfiguredInLocalMode(t *testing.T) {
+	cfg := &config.Config{Server: config.ServerConfig{Mode: "debug"}}
+	reviewer := &fakeTextReviewer{err: aliyun.ErrGreenNotConfigured}
+	router, db := setupMessageRouterWithOptions(t, cfg, reviewer, true)
+
+	logs := captureHandlerLogs(t, func() {
+		rec := postMessageForColdStart(t, router, 1, 2, "dm with green disabled")
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want 201 (fail-open); body = %s", rec.Code, rec.Body.String())
+		}
+	})
+	if got := countMessages(t, db); got != 1 {
+		t.Fatalf("message count = %d, want 1 (fail-open must persist)", got)
+	}
+	waitForNotificationCount(t, db, 1)
+	joined := strings.Join(logs, "\n")
+	if !strings.Contains(joined, "fail_open") {
+		t.Fatalf("logs do not record the fail-open policy: %s", joined)
+	}
+}
+
+func TestSendMessageSkipsModerationForBlankText(t *testing.T) {
+	cfg := &config.Config{Server: config.ServerConfig{Mode: "release"}}
+	reviewer := &fakeTextReviewer{result: "block"}
+	router, db := setupMessageRouterWithOptions(t, cfg, reviewer, true)
+
+	rec := postMessageForColdStart(t, router, 1, 2, "   ")
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201 (blank text skips moderation); body = %s", rec.Code, rec.Body.String())
+	}
+	if len(reviewer.calls) != 0 {
+		t.Fatalf("moderation calls = %v, want none for blank text", reviewer.calls)
+	}
+	if got := countMessages(t, db); got != 1 {
+		t.Fatalf("message count = %d, want 1", got)
+	}
+}
+
+func countMessages(t *testing.T, db *gorm.DB) int64 {
+	t.Helper()
+	var count int64
+	if err := db.Model(&model.Message{}).Count(&count).Error; err != nil {
+		t.Fatalf("count messages: %v", err)
+	}
+	return count
+}
+
+func countNotifications(t *testing.T, db *gorm.DB) int64 {
+	t.Helper()
+	var count int64
+	if err := db.Model(&model.Notification{}).Count(&count).Error; err != nil {
+		t.Fatalf("count notifications: %v", err)
+	}
+	return count
+}
+
+func waitForNotificationCount(t *testing.T, db *gorm.DB, want int64) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if got := countNotifications(t, db); got == want {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("notification count did not reach %d before deadline", want)
+}
+
+func captureHandlerLogs(t *testing.T, fn func()) []string {
+	t.Helper()
+	var buf bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	defer slog.SetDefault(previous)
+	fn()
+	return strings.Split(buf.String(), "\n")
+}
+
 func TestMessageAPIContract(t *testing.T) {
 	t.Run("list conversations returns message center DTO envelope", func(t *testing.T) {
 		router, db := setupMessageColdStartRouter(t)
@@ -315,17 +497,45 @@ func TestMessageAPIContract(t *testing.T) {
 
 func setupMessageColdStartRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	t.Helper()
+	return setupMessageRouterWithOptions(t, nil, nil, false)
+}
+
+type fakeTextReviewer struct {
+	result string
+	err    error
+	calls  []string
+}
+
+func (f *fakeTextReviewer) ReviewText(_ context.Context, text string) (string, error) {
+	f.calls = append(f.calls, text)
+	if f.err != nil {
+		return "", f.err
+	}
+	return f.result, nil
+}
+
+func setupMessageRouterWithOptions(t *testing.T, cfg *config.Config, reviewer service.TextReviewer, wireNotifications bool) (*gin.Engine, *gorm.DB) {
+	t.Helper()
 
 	gin.SetMode(gin.TestMode)
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.User{}, &model.Conversation{}, &model.ConversationParticipant{}, &model.Message{}); err != nil {
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("db handle: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	if err := db.AutoMigrate(&model.User{}, &model.Conversation{}, &model.ConversationParticipant{}, &model.Message{}, &model.Notification{}); err != nil {
 		t.Fatalf("migrate messages: %v", err)
 	}
 
 	handler := NewMessageHandler(db)
+	handler.SetReviewService(cfg, reviewer)
+	if wireNotifications {
+		handler.SetNotificationService(service.NewNotificationService(repository.NewNotificationRepository(db)))
+	}
 	router := gin.New()
 	router.POST("/api/v1/messages", func(c *gin.Context) {
 		if rawUserID := c.GetHeader("X-Test-User-ID"); rawUserID != "" {
