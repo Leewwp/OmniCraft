@@ -247,6 +247,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 
 	msgHandler := handler.NewMessageHandler(db)
 	msgHandler.SetNotificationService(notifSvc)
+	msgHandler.SetReviewService(cfg, ctr.ReviewService)
 	messages := v1.Group("/messages", authReq)
 	{
 		messages.GET("", messagesGuard, msgHandler.ListConversations)
