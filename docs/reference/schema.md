@@ -411,6 +411,16 @@
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | — | — | UNIQUE (`follower_id`, `target_type`, `target_id`) | table constraint |
 
+### inbox_consumers
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `consumer_group` | `VARCHAR(64)` | NOT NULL | consumer_group |
+| `event_id` | `BIGINT` | NOT NULL | event_id |
+| `consumed_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | consumed_at |
+
 ### ip_review_logs
 
 | 列名 | 类型 | 约束 | 说明 |
@@ -594,6 +604,23 @@
 | `access_token` | `TEXT` | - | access_token |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | — | — | UNIQUE (`provider`, `provider_uid`) | table constraint |
+
+### outbox_events
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `aggregate_id` | `BIGINT` | NOT NULL | aggregate_id |
+| `event_type` | `VARCHAR(128)` | NOT NULL | event_type |
+| `schema_version` | `INTEGER` | NOT NULL DEFAULT 1 | schema_version |
+| `payload` | `JSONB` | NOT NULL DEFAULT '{}'::jsonb | payload |
+| `traceparent` | `VARCHAR(55)` | - | traceparent |
+| `tracestate` | `VARCHAR(512)` | - | tracestate |
+| `status` | `VARCHAR(16)` | NOT NULL DEFAULT 'pending' | status |
+| `attempts` | `INTEGER` | NOT NULL DEFAULT 0 | attempts |
+| `next_attempt_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | next_attempt_at |
+| `sent_at` | `TIMESTAMPTZ` | - | sent_at |
 
 ### password_reset_tokens
 
