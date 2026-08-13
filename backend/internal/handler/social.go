@@ -29,6 +29,7 @@ func NewSocialHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Socia
 		repository.NewUserRepository(db),
 		cfg,
 		rdb,
+		service.NewReviewService(db, rdb, cfg, nil),
 	), db)
 }
 
@@ -51,6 +52,14 @@ func (h *SocialHandler) PostComment(c *gin.Context) {
 	if err != nil {
 		if err == service.ErrLowReputation {
 			response.Forbidden(c, "reputation score too low to perform this action")
+			return
+		}
+		if err == service.ErrTextBlocked {
+			response.Error(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "content was rejected by content moderation")
+			return
+		}
+		if err == service.ErrModerationUnavailable {
+			response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "content moderation is temporarily unavailable, please try again later")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
@@ -95,6 +104,14 @@ func (h *SocialHandler) EditComment(c *gin.Context) {
 		}
 		if err == service.ErrCommentForbidden {
 			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "not comment author"})
+			return
+		}
+		if err == service.ErrTextBlocked {
+			response.Error(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "content was rejected by content moderation")
+			return
+		}
+		if err == service.ErrModerationUnavailable {
+			response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "content moderation is temporarily unavailable, please try again later")
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
@@ -162,6 +179,14 @@ func (h *SocialHandler) PostDiscussion(c *gin.Context) {
 	if err != nil {
 		if err == service.ErrLowReputation {
 			response.Forbidden(c, "reputation score too low to perform this action")
+			return
+		}
+		if err == service.ErrTextBlocked {
+			response.Error(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "content was rejected by content moderation")
+			return
+		}
+		if err == service.ErrModerationUnavailable {
+			response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "content moderation is temporarily unavailable, please try again later")
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)

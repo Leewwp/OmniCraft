@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"strings"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/aliyun"
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/repository"
 
@@ -14,14 +17,22 @@ import (
 )
 
 var (
-	ErrCommentNotFound    = errors.New("comment not found")
-	ErrDiscussionNotFound = errors.New("discussion not found")
-	ErrLowReputation      = errors.New("reputation too low to post")
-	ErrCommentForbidden   = errors.New("not comment author")
-	ErrAlreadyReported    = errors.New("already reported this target")
+	ErrCommentNotFound       = errors.New("comment not found")
+	ErrDiscussionNotFound    = errors.New("discussion not found")
+	ErrLowReputation         = errors.New("reputation too low to post")
+	ErrCommentForbidden      = errors.New("not comment author")
+	ErrAlreadyReported       = errors.New("already reported this target")
+	ErrTextBlocked           = errors.New("text rejected by content moderation")
+	ErrModerationUnavailable = errors.New("content moderation unavailable")
 )
 
 const defaultMinScoreForInteraction = 3
+
+// TextReviewer is the minimal moderation dependency SocialService needs to
+// gate user-generated text before it is persisted.
+type TextReviewer interface {
+	ReviewText(ctx context.Context, text string) (string, error)
+}
 
 type SocialService struct {
 	socialRepo  *repository.SocialRepository
@@ -30,24 +41,27 @@ type SocialService struct {
 	cfg         *config.Config
 	rdb         *redis.Client
 	notifSvc    *NotificationService
+	reviewSvc   TextReviewer
 }
 
-func NewSocialService(sRepo *repository.SocialRepository, cRepo *repository.ContentRepository, uRepo *repository.UserRepository, cfg *config.Config) *SocialService {
+func NewSocialService(sRepo *repository.SocialRepository, cRepo *repository.ContentRepository, uRepo *repository.UserRepository, cfg *config.Config, reviewSvc TextReviewer) *SocialService {
 	return &SocialService{
 		socialRepo:  sRepo,
 		contentRepo: cRepo,
 		userRepo:    uRepo,
 		cfg:         cfg,
+		reviewSvc:   reviewSvc,
 	}
 }
 
-func NewSocialServiceWithRedis(sRepo *repository.SocialRepository, cRepo *repository.ContentRepository, uRepo *repository.UserRepository, cfg *config.Config, rdb *redis.Client) *SocialService {
+func NewSocialServiceWithRedis(sRepo *repository.SocialRepository, cRepo *repository.ContentRepository, uRepo *repository.UserRepository, cfg *config.Config, rdb *redis.Client, reviewSvc TextReviewer) *SocialService {
 	return &SocialService{
 		socialRepo:  sRepo,
 		contentRepo: cRepo,
 		userRepo:    uRepo,
 		cfg:         cfg,
 		rdb:         rdb,
+		reviewSvc:   reviewSvc,
 	}
 }
 
@@ -64,6 +78,9 @@ type PostCommentInput struct {
 
 func (s *SocialService) PostComment(input PostCommentInput, authorID int64) (*model.Comment, error) {
 	if err := s.ensureCanInteract(authorID); err != nil {
+		return nil, err
+	}
+	if err := s.moderateText(context.Background(), "comment", input.Body); err != nil {
 		return nil, err
 	}
 
@@ -116,6 +133,9 @@ func (s *SocialService) EditComment(commentID int64, callerID int64, newBody str
 	if c.AuthorID != callerID {
 		return nil, ErrCommentForbidden
 	}
+	if err := s.moderateText(context.Background(), "edit_comment", newBody); err != nil {
+		return nil, err
+	}
 	if err := s.socialRepo.EditComment(commentID, newBody); err != nil {
 		return nil, err
 	}
@@ -136,6 +156,9 @@ type PostDiscussionInput struct {
 
 func (s *SocialService) PostDiscussion(input PostDiscussionInput, authorID int64) (*model.Discussion, error) {
 	if err := s.ensureCanInteract(authorID); err != nil {
+		return nil, err
+	}
+	if err := s.moderateText(context.Background(), "discussion", strings.TrimSpace(input.Title)+"\n"+input.Body); err != nil {
 		return nil, err
 	}
 
@@ -231,6 +254,58 @@ func minScoreForInteraction(cfg *config.Config) int {
 		return defaultMinScoreForInteraction
 	}
 	return cfg.Reputation.MinScoreForInteraction
+}
+
+// moderateText runs the text moderation gate before comment/discussion text
+// is persisted. Blank text is skipped without an external call. A "block"
+// (or "violation") result rejects the submission. Availability policy follows
+// the A4 environment semantics: in release mode any moderation failure is
+// fail-closed, while in local/test mode an unconfigured Green client is
+// fail-open and must be recorded via structured logs.
+func (s *SocialService) moderateText(ctx context.Context, action, text string) error {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return nil
+	}
+
+	if s.reviewSvc == nil {
+		if s.isReleaseMode() {
+			slog.Error("content moderation unavailable, rejecting submission",
+				"action", action, "env_mode", s.environmentMode(), "policy", "fail_closed", "reason", "review_service_not_wired")
+			return ErrModerationUnavailable
+		}
+		slog.Warn("content moderation skipped, submission allowed",
+			"action", action, "env_mode", s.environmentMode(), "policy", "fail_open", "reason", "review_service_not_wired")
+		return nil
+	}
+
+	result, err := s.reviewSvc.ReviewText(ctx, trimmed)
+	if err != nil {
+		if !s.isReleaseMode() && errors.Is(err, aliyun.ErrGreenNotConfigured) {
+			slog.Warn("content moderation skipped, submission allowed",
+				"action", action, "env_mode", s.environmentMode(), "policy", "fail_open", "reason", "green_not_configured")
+			return nil
+		}
+		slog.Error("content moderation unavailable, rejecting submission",
+			"action", action, "env_mode", s.environmentMode(), "policy", "fail_closed", "reason", err.Error())
+		return ErrModerationUnavailable
+	}
+
+	if result == "block" || result == "violation" {
+		return ErrTextBlocked
+	}
+	return nil
+}
+
+func (s *SocialService) isReleaseMode() bool {
+	return s.cfg != nil && s.cfg.Server.Mode == "release"
+}
+
+func (s *SocialService) environmentMode() string {
+	if s.cfg == nil {
+		return "unknown"
+	}
+	return s.cfg.Server.Mode
 }
 
 func (s *SocialService) Report(targetType string, targetID int64, reporterID int64, reason, detail string) error {
