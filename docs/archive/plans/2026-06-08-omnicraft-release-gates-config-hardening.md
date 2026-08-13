@@ -83,6 +83,7 @@ func validReleaseConfigForTest() *Config {
 			CallbackURL: "https://api.example.com/api/v1/internal/ai-callback",
 			CallbackAllowedIPs: []string{"203.0.113.10"},
 		},
+> 修正（2026-08-13）：本计划中的 `CallbackAllowedIPs`/`green.callback_allowed_ips` 项前提证伪——阿里云官方从未发布回调来源网段（调研结论 3/4/5），该字段与 release 校验已随 #104 全链路删除；入站认证改为 form+checksum 契约（#106），release gate 改校验 `green.seed`/`green.uid`。本计划已归档，仅为历史记录。
 		Features: FeaturesConfig{
 			PaymentEnabled: false,
 			CreatorSupportEnabled: false,
@@ -168,6 +169,7 @@ func TestValidateReleaseRejectsIncompleteProductionConfig(t *testing.T) {
 		{"missing oss secret", func(c *Config) { c.OSS.AccessKeySecret = "" }, "oss.access_key_secret"},
 		{"missing green callback url", func(c *Config) { c.Green.CallbackURL = "" }, "green.callback_url"},
 		{"missing green callback allowed ips", func(c *Config) { c.Green.CallbackAllowedIPs = nil }, "green.callback_allowed_ips"},
+> 修正（2026-08-13）：`green.callback_allowed_ips` 校验已随 #104 删除（前提证伪，见本文件上方修正行），由 `green.seed`/`green.uid` release 必填校验取代。
 		{"missing captcha public fields", func(c *Config) { c.Captcha.Prefix = "" }, "captcha.prefix"},
 		{"missing captcha secret", func(c *Config) { c.Captcha.AccessKeySecret = "" }, "captcha.access_key_secret"},
 		{"missing smtp host", func(c *Config) { c.SMTP.Host = "" }, "smtp.host"},
@@ -316,6 +318,7 @@ requireHTTPSURL(&errs, "green.callback_url", c.Green.CallbackURL)
 if len(c.Green.CallbackAllowedIPs) == 0 {
 	errs = append(errs, "green.callback_allowed_ips is required in release mode")
 }
+> 修正（2026-08-13）：以上代码段为历史计划中的示例实现，已随 #104 移除（回调来源 IP 白名单前提证伪）；release gate 现校验 `green.seed`/`green.uid`（必填 + 占位符拒绝 + 格式校验）。
 
 if c.Captcha.Provider == "bypass" || strings.TrimSpace(c.Captcha.Provider) == "" {
 	errs = append(errs, "captcha.provider must not be 'bypass' in release mode; use 'aliyun_v2'")

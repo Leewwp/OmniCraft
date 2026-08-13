@@ -161,6 +161,7 @@
 | security | `csrf_enabled`、`frame_ancestors` | `trusted_proxies` |
 | oss | `presign_expire_sec` | `endpoint`/`access_key_*`/`bucket_name`/`domain` |
 | green | — | `access_key_*`/`callback_url`/`callback_allowed_ips` |
+> 修正（2026-08-13）：`callback_allowed_ips` 前提证伪——阿里云官方从未发布回调来源网段，该字段已随 #104 删除；配置段现为 `access_key_*`/`callback_url`/`region`/`seed`/`uid`。
 | captcha | — | `prefix`/`access_key_*` |
 
 #### H6 — notifications.type 枚举统一 → ✅ 已修复
