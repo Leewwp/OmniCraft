@@ -9,6 +9,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
@@ -31,10 +32,11 @@ type SubmitReviewInput struct {
 }
 
 type AICallbackInput struct {
-	TargetType  string                 `json:"target_type" binding:"required"`
-	TargetID    int64                  `json:"target_id" binding:"required"`
-	Result      string                 `json:"result" binding:"required"`
-	RawResponse map[string]interface{} `json:"raw_response"`
+	TargetType     string                 `json:"target_type" binding:"required"`
+	TargetID       int64                  `json:"target_id" binding:"required"`
+	Result         string                 `json:"result" binding:"required"`
+	RawResponse    map[string]interface{} `json:"raw_response"`
+	ProviderTaskID string                 `json:"provider_task_id"`
 }
 
 type ReviewService struct {
@@ -106,16 +108,15 @@ func (s *ReviewService) SubmitForAIReview(ctx context.Context, in SubmitReviewIn
 		}
 	}
 
-	if err := s.recordAIReview(in.TargetType, in.TargetID, result, raw); err != nil {
-		return err
-	}
-
-	return s.ProcessAICallback(ctx, AICallbackInput{
+	if err := s.ProcessAICallback(ctx, AICallbackInput{
 		TargetType:  in.TargetType,
 		TargetID:    in.TargetID,
 		Result:      result,
 		RawResponse: raw,
-	})
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *ReviewService) ProcessAICallback(ctx context.Context, in AICallbackInput) error {
@@ -124,19 +125,57 @@ func (s *ReviewService) ProcessAICallback(ctx context.Context, in AICallbackInpu
 	}
 
 	result := normalizeReviewResult(in.Result)
-	if err := s.recordAIReview(in.TargetType, in.TargetID, result, in.RawResponse); err != nil {
-		return err
+	providerTaskID := strings.TrimSpace(in.ProviderTaskID)
+
+	// Idempotent short-circuit: a callback for an already-recorded provider
+	// task id returns success (HTTP 200 semantics) without re-recording,
+	// re-penalizing or re-freezing. Alibaba Cloud retries callback delivery,
+	// so duplicate callbacks are the normal case, not an error.
+	if providerTaskID != "" {
+		var count int64
+		if err := s.db.WithContext(ctx).Model(&model.AIReviewRecord{}).
+			Where("provider = ? AND provider_task_id = ?", "aliyun", providerTaskID).
+			Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return nil
+		}
 	}
 
-	if strings.EqualFold(in.TargetType, "ip") {
-		return s.processIPReviewResult(in.TargetID, result)
-	}
-	if !strings.EqualFold(in.TargetType, "content") {
-		return nil
-	}
+	// The dedup re-check and the record insert share one transaction with the
+	// status transition, so two concurrent duplicate callbacks cannot both
+	// pass the check; the unique index converts the losing insert into a
+	// no-op. The record is written before the repeat-violation count so the
+	// current violation is visible inside the window.
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		recorded, err := s.recordAIReview(ctx, tx, in.TargetType, in.TargetID, result, in.RawResponse, providerTaskID)
+		if err != nil {
+			return err
+		}
+		if !recorded {
+			return nil
+		}
 
+		if strings.EqualFold(in.TargetType, "ip") {
+			return s.processIPReviewResult(tx, in.TargetID, result)
+		}
+		if !strings.EqualFold(in.TargetType, "content") {
+			return nil
+		}
+		return s.applyContentReviewResult(ctx, tx, in.TargetID, result)
+	})
+}
+
+// applyContentReviewResult transitions a content item according to the
+// normalized AI result. banned is the terminal state of the AI channel:
+// pass and review results use a conditional update that can never overwrite
+// a banned row, so a late async result cannot resurrect blocked content.
+// The block branch stays idempotent: an already-banned row is not
+// re-penalized.
+func (s *ReviewService) applyContentReviewResult(ctx context.Context, tx *gorm.DB, contentID int64, result string) error {
 	var content model.ContentItem
-	if err := s.db.First(&content, in.TargetID).Error; err != nil {
+	if err := tx.First(&content, contentID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrReviewTargetNotFound
 		}
@@ -144,40 +183,48 @@ func (s *ReviewService) ProcessAICallback(ctx context.Context, in AICallbackInpu
 	}
 
 	switch result {
-	case "block", "violation":
-		if content.Status != "banned" {
-			if err := s.db.Model(&model.ContentItem{}).Where("id = ?", content.ID).Update("status", "banned").Error; err != nil {
-				return err
-			}
-			relatedID := content.ID
-			if s.reputSvc != nil {
-				if err := s.reputSvc.AddReputation(content.AuthorID, -3, "ai_violation", &relatedID); err != nil {
-					return err
-				}
-			}
-			if err := s.applyRepeatViolationPenalty(ctx, content.AuthorID); err != nil {
+	case "block":
+		if content.Status == "banned" {
+			return nil
+		}
+		if err := tx.Model(&model.ContentItem{}).Where("id = ?", content.ID).Update("status", "banned").Error; err != nil {
+			return err
+		}
+		relatedID := content.ID
+		if s.reputSvc != nil {
+			if err := addReputationTx(tx, content.AuthorID, -3, "ai_violation", &relatedID); err != nil {
 				return err
 			}
 		}
+		return s.applyRepeatViolationPenalty(ctx, tx, content.AuthorID)
 	case "review":
-		if err := s.db.Model(&model.ContentItem{}).Where("id = ?", content.ID).Update("status", "under_review").Error; err != nil {
+		res := tx.Model(&model.ContentItem{}).
+			Where("id = ? AND status <> ?", content.ID, "banned").
+			Update("status", "under_review")
+		if err := res.Error; err != nil {
 			return err
 		}
-		if err := s.ensureJudgeCase(content); err != nil {
-			return err
+		if res.RowsAffected == 0 {
+			return nil
 		}
+		return s.ensureJudgeCase(tx, content)
 	default:
-		if err := s.db.Model(&model.ContentItem{}).Where("id = ?", content.ID).Update("status", "published").Error; err != nil {
+		res := tx.Model(&model.ContentItem{}).
+			Where("id = ? AND status <> ?", content.ID, "banned").
+			Update("status", "published")
+		if err := res.Error; err != nil {
 			return err
+		}
+		if res.RowsAffected == 0 {
+			return nil
 		}
 	}
-
 	return nil
 }
 
-func (s *ReviewService) processIPReviewResult(ipID int64, result string) error {
+func (s *ReviewService) processIPReviewResult(tx *gorm.DB, ipID int64, result string) error {
 	var ip model.IP
-	if err := s.db.First(&ip, ipID).Error; err != nil {
+	if err := tx.First(&ip, ipID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrReviewTargetNotFound
 		}
@@ -186,15 +233,13 @@ func (s *ReviewService) processIPReviewResult(ipID int64, result string) error {
 	if result != "block" && result != "violation" {
 		return nil
 	}
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&model.IP{}).Where("id = ?", ipID).Update("status", "banned").Error; err != nil {
-			return err
-		}
-		return tx.Model(&model.ContentItem{}).Where("ip_id = ?", ipID).Update("status", "banned").Error
-	})
+	if err := tx.Model(&model.IP{}).Where("id = ?", ipID).Update("status", "banned").Error; err != nil {
+		return err
+	}
+	return tx.Model(&model.ContentItem{}).Where("ip_id = ?", ipID).Update("status", "banned").Error
 }
 
-func (s *ReviewService) applyRepeatViolationPenalty(ctx context.Context, authorID int64) error {
+func (s *ReviewService) applyRepeatViolationPenalty(ctx context.Context, tx *gorm.DB, authorID int64) error {
 	windowDays := s.cfg.Reputation.RepeatViolationWindowDays
 	if windowDays <= 0 {
 		windowDays = 7
@@ -210,7 +255,7 @@ func (s *ReviewService) applyRepeatViolationPenalty(ctx context.Context, authorI
 
 	windowStart := time.Now().AddDate(0, 0, -windowDays)
 	var count int64
-	err := s.db.WithContext(ctx).
+	err := tx.WithContext(ctx).
 		Model(&model.AIReviewRecord{}).
 		Joins("JOIN content_items ON ai_review_records.target_id = content_items.id").
 		Distinct("ai_review_records.target_id").
@@ -229,7 +274,7 @@ func (s *ReviewService) applyRepeatViolationPenalty(ctx context.Context, authorI
 	}
 
 	if s.reputSvc != nil {
-		if err := s.reputSvc.AddReputation(authorID, extraPenalty, "repeat_violation", nil); err != nil {
+		if err := addReputationTx(tx, authorID, extraPenalty, "repeat_violation", nil); err != nil {
 			return err
 		}
 	}
@@ -248,9 +293,9 @@ func (s *ReviewService) applyRepeatViolationPenalty(ctx context.Context, authorI
 	return nil
 }
 
-func (s *ReviewService) ensureJudgeCase(content model.ContentItem) error {
+func (s *ReviewService) ensureJudgeCase(tx *gorm.DB, content model.ContentItem) error {
 	var count int64
-	if err := s.db.Model(&model.JudgeCase{}).
+	if err := tx.Model(&model.JudgeCase{}).
 		Where("target_id = ? AND status = ?", content.ID, "open").
 		Count(&count).Error; err != nil {
 		return err
@@ -270,10 +315,16 @@ func (s *ReviewService) ensureJudgeCase(content model.ContentItem) error {
 		Status:     "open",
 		MinVotes:   minVotes,
 	}
-	return s.db.Create(&judgeCase).Error
+	return tx.Create(&judgeCase).Error
 }
 
-func (s *ReviewService) recordAIReview(targetType string, targetID int64, result string, raw map[string]interface{}) error {
+// recordAIReview persists one ai_review_records row inside tx. It returns
+// false when the row was skipped because the same (provider,
+// provider_task_id) already exists (a concurrent duplicate callback). Rows
+// without a provider task id are stored as NULL so they never conflict in the
+// unique index: synchronous submissions always record, and the initial
+// submission record and the async result keep separate idempotency keys.
+func (s *ReviewService) recordAIReview(ctx context.Context, tx *gorm.DB, targetType string, targetID int64, result string, raw map[string]interface{}, providerTaskID string) (bool, error) {
 	rawBytes, _ := json.Marshal(raw)
 	record := model.AIReviewRecord{
 		TargetType:  strings.TrimSpace(targetType),
@@ -282,7 +333,38 @@ func (s *ReviewService) recordAIReview(targetType string, targetID int64, result
 		Result:      result,
 		RawResponse: rawBytes,
 	}
-	return s.db.Create(&record).Error
+	if providerTaskID != "" {
+		record.ProviderTaskID = &providerTaskID
+	}
+	stmt := tx.WithContext(ctx).Model(&model.AIReviewRecord{}).
+		Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "provider"}, {Name: "provider_task_id"}},
+			DoNothing: true,
+		}).
+		Create(&record)
+	if err := stmt.Error; err != nil {
+		return false, err
+	}
+	return stmt.RowsAffected > 0, nil
+}
+
+// addReputationTx applies a reputation log entry and the score delta inside
+// the caller's transaction, so the review record, the penalty and the status
+// transition are atomic: a failed penalty rolls the record back too, and a
+// duplicate callback can never charge the penalty twice.
+func addReputationTx(tx *gorm.DB, userID int64, delta int, reason string, relatedID *int64) error {
+	log := model.ReputationLog{
+		UserID:    userID,
+		Delta:     delta,
+		Reason:    reason,
+		RelatedID: relatedID,
+	}
+	if err := tx.Create(&log).Error; err != nil {
+		return err
+	}
+	return tx.Model(&model.User{}).
+		Where("id = ?", userID).
+		UpdateColumn("reputation", gorm.Expr("reputation + ?", delta)).Error
 }
 
 func (s *ReviewService) resolveScanObjectURL(ossKey string) string {
