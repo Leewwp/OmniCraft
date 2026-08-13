@@ -3,9 +3,12 @@ package handler
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
@@ -14,6 +17,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -21,19 +25,35 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type UserHandler struct {
-	userRepo    *repository.UserRepository
-	reputSvc    *service.ReputationService
-	contentRepo *repository.ContentRepository
-	followRepo  *repository.FollowRepository
-	authSvc     *service.AuthService
-	rdb         *redis.Client
-	cfg         *config.Config
-	jwtSecret   string
+// Avatar moderation sentinel errors for the UpdateUser avatar gate. Callers
+// map them to the unified {code, message} response format; raw scanner errors
+// never reach the client.
+var (
+	ErrAvatarBlocked               = errors.New("avatar image blocked by content moderation")
+	ErrAvatarModerationUnavailable = errors.New("avatar moderation unavailable")
+)
+
+// avatarReviewer is the minimal image-moderation dependency UserHandler needs
+// to gate avatar_url updates before they are persisted. *service.ReviewService
+// satisfies it; tests inject a fake.
+type avatarReviewer interface {
+	ReviewImageURL(ctx context.Context, imageURL string) (string, error)
 }
 
-func NewUserHandler(db *gorm.DB, authSvc *service.AuthService, rdb *redis.Client, cfg *config.Config) *UserHandler {
-	return &UserHandler{
+type UserHandler struct {
+	userRepo       *repository.UserRepository
+	reputSvc       *service.ReputationService
+	contentRepo    *repository.ContentRepository
+	followRepo     *repository.FollowRepository
+	authSvc        *service.AuthService
+	rdb            *redis.Client
+	cfg            *config.Config
+	jwtSecret      string
+	avatarReviewer avatarReviewer
+}
+
+func NewUserHandler(db *gorm.DB, authSvc *service.AuthService, rdb *redis.Client, cfg *config.Config, reviewers ...avatarReviewer) *UserHandler {
+	h := &UserHandler{
 		userRepo:    repository.NewUserRepository(db),
 		reputSvc:    service.NewReputationService(db),
 		contentRepo: repository.NewContentRepository(db),
@@ -43,6 +63,10 @@ func NewUserHandler(db *gorm.DB, authSvc *service.AuthService, rdb *redis.Client
 		cfg:         cfg,
 		jwtSecret:   cfg.JWT.Secret,
 	}
+	if len(reviewers) > 0 {
+		h.avatarReviewer = reviewers[0]
+	}
+	return h
 }
 
 func (h *UserHandler) GetUser(c *gin.Context) {
@@ -138,7 +162,27 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		updates["username"] = *req.Username
 	}
 	if req.AvatarURL != nil {
-		updates["avatar_url"] = *req.AvatarURL
+		avatarURL := strings.TrimSpace(*req.AvatarURL)
+		if avatarURL != "" {
+			if !isPlatformAvatarObjectURL(h.cfg, avatarURL) {
+				response.Error(c, http.StatusBadRequest, "AVATAR_NOT_PLATFORM_OSS_OBJECT", "avatar must be a platform OSS object URL")
+				return
+			}
+			if err := h.reviewAvatarImage(c, avatarURL); err != nil {
+				switch {
+				case errors.Is(err, ErrAvatarBlocked):
+					response.Error(c, http.StatusBadRequest, "AVATAR_BLOCKED", "avatar image was blocked by content moderation")
+				case errors.Is(err, ErrAvatarModerationUnavailable):
+					response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "avatar moderation is temporarily unavailable, please try again later")
+				default:
+					response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
+				}
+				return
+			}
+		}
+		// Empty avatar_url clears the avatar back to the platform default and
+		// skips both the platform-object gate and the image scan.
+		updates["avatar_url"] = avatarURL
 	}
 	if req.Bio != nil {
 		updates["bio"] = *req.Bio
@@ -374,6 +418,66 @@ func invalidateUserTokens(rdb *redis.Client, userID int64) {
 		rdb.Del(ctx, members...)
 	}
 	rdb.Del(ctx, tokenSetKey)
+}
+
+// isPlatformAvatarObjectURL mirrors the cover-image gate
+// (ReviewService.resolveCoverScanURL): only URLs carrying the configured OSS
+// delivery-domain prefix are platform-verified objects. Arbitrary external
+// URLs are never scanned nor persisted.
+func isPlatformAvatarObjectURL(cfg *config.Config, rawURL string) bool {
+	url := strings.TrimSpace(rawURL)
+	if cfg == nil || strings.TrimSpace(cfg.OSS.Domain) == "" {
+		return false
+	}
+	domain := strings.TrimRight(strings.TrimSpace(cfg.OSS.Domain), "/")
+	return strings.HasPrefix(url, domain+"/")
+}
+
+func (h *UserHandler) isReleaseMode() bool {
+	return h.cfg != nil && h.cfg.Server.Mode == "release"
+}
+
+func (h *UserHandler) environmentMode() string {
+	if h.cfg == nil {
+		return "unknown"
+	}
+	return h.cfg.Server.Mode
+}
+
+// reviewAvatarImage runs the avatar image moderation gate before a new
+// avatar_url is persisted. The availability policy follows the A4 environment
+// semantics shared with the text moderation gate (SocialService.moderateText):
+// in release mode any moderation failure is fail-closed, while in local/test
+// mode an unconfigured Green client is fail-open and must be recorded via
+// structured logs.
+func (h *UserHandler) reviewAvatarImage(c *gin.Context, avatarURL string) error {
+	if h.avatarReviewer == nil {
+		if h.isReleaseMode() {
+			slog.Error("avatar moderation unavailable, rejecting update",
+				"action", "avatar_review", "env_mode", h.environmentMode(), "policy", "fail_closed", "reason", "review_service_not_wired")
+			return ErrAvatarModerationUnavailable
+		}
+		slog.Warn("avatar moderation skipped, update allowed",
+			"action", "avatar_review", "env_mode", h.environmentMode(), "policy", "fail_open", "reason", "review_service_not_wired")
+		return nil
+	}
+
+	result, err := h.avatarReviewer.ReviewImageURL(c.Request.Context(), avatarURL)
+	if err != nil {
+		if !h.isReleaseMode() && errors.Is(err, aliyun.ErrGreenNotConfigured) {
+			slog.Warn("avatar moderation skipped, update allowed",
+				"action", "avatar_review", "env_mode", h.environmentMode(), "policy", "fail_open", "reason", "green_not_configured")
+			return nil
+		}
+		slog.Error("avatar moderation unavailable, rejecting update",
+			"action", "avatar_review", "env_mode", h.environmentMode(), "policy", "fail_closed", "reason", err.Error())
+		return ErrAvatarModerationUnavailable
+	}
+
+	if result == "block" || result == "violation" {
+		return ErrAvatarBlocked
+	}
+	return nil
 }
 
 func sanitizeUser(u *model.User) gin.H {
