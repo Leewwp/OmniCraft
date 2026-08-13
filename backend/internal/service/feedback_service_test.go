@@ -14,7 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/repository"
 )
 
@@ -384,4 +386,208 @@ func TestFeedbackPatchTicketCloseEmailsAnonymousContact(t *testing.T) {
 
 func ptrInt64(v int64) *int64 {
 	return &v
+}
+
+type fakeImageReviewer struct {
+	result string
+	err    error
+	urls   []string
+}
+
+func (f *fakeImageReviewer) ReviewImageURL(_ context.Context, imageURL string) (string, error) {
+	f.urls = append(f.urls, imageURL)
+	if f.err != nil {
+		return "", f.err
+	}
+	return f.result, nil
+}
+
+func feedbackModerationService(t *testing.T, mode string, reviewer ImageReviewer) *FeedbackService {
+	t.Helper()
+	svc, _, _ := setupFeedbackServiceTest(t)
+	svc.SetConfig(&config.Config{Server: config.ServerConfig{Mode: mode}})
+	svc.SetReviewService(reviewer)
+	return svc
+}
+
+func issueFeedbackUploadGrant(t *testing.T, svc *FeedbackService) *PresignFeedbackUploadGrant {
+	t.Helper()
+	grant, err := svc.PresignUpload(context.Background(), PresignUploadInput{
+		UserID:    ptrInt64(42),
+		FileName:  "shot.png",
+		MimeType:  "image/png",
+		SizeBytes: 512,
+	})
+	require.NoError(t, err)
+	return grant
+}
+
+func countFeedbackAttachments(t *testing.T, db *gorm.DB, ossKey string) int64 {
+	t.Helper()
+	var n int64
+	require.NoError(t, db.Model(&model.FeedbackAttachment{}).Where("oss_key = ?", ossKey).Count(&n).Error)
+	return n
+}
+
+func TestFeedbackSubmitTicketRejectsBlockedAttachmentAndRestoresGrant(t *testing.T) {
+	svc, db, mr := setupFeedbackServiceTest(t)
+	svc.SetConfig(&config.Config{Server: config.ServerConfig{Mode: "debug"}})
+	reviewer := &fakeImageReviewer{result: "block"}
+	svc.SetReviewService(reviewer)
+	ctx := context.Background()
+
+	grant := issueFeedbackUploadGrant(t, svc)
+	_, err := svc.SubmitTicket(ctx, SubmitTicketInput{
+		UserID:      ptrInt64(42),
+		Category:    "web_bug",
+		Title:       "Broken page",
+		Description: "The beta page failed",
+		AttachmentGrants: []FeedbackAttachmentGrantInput{{
+			GrantID: grant.GrantID,
+			OSSKey:  grant.OSSKey,
+		}},
+	})
+	require.ErrorIs(t, err, ErrFeedbackAttachmentBlocked)
+	require.Equal(t, int64(0), countFeedbackAttachments(t, db, grant.OSSKey))
+	require.True(t, mr.Exists("feedback:upload_grant:"+grant.GrantID), "consumed grant must be restored after moderation rejection")
+
+	var tickets int64
+	require.NoError(t, db.Model(&model.FeedbackTicket{}).Count(&tickets).Error)
+	require.Equal(t, int64(0), tickets)
+}
+
+func TestFeedbackSubmitTicketAllowsPassAndReviewAttachments(t *testing.T) {
+	for _, result := range []string{"pass", "review"} {
+		t.Run(result, func(t *testing.T) {
+			svc, db, _ := setupFeedbackServiceTest(t)
+			svc.SetConfig(&config.Config{Server: config.ServerConfig{Mode: "debug"}})
+			reviewer := &fakeImageReviewer{result: result}
+			svc.SetReviewService(reviewer)
+			ctx := context.Background()
+
+			grant := issueFeedbackUploadGrant(t, svc)
+			_, err := svc.SubmitTicket(ctx, SubmitTicketInput{
+				UserID:      ptrInt64(42),
+				Category:    "web_bug",
+				Title:       "Broken page",
+				Description: "The beta page failed",
+				AttachmentGrants: []FeedbackAttachmentGrantInput{{
+					GrantID: grant.GrantID,
+					OSSKey:  grant.OSSKey,
+				}},
+			})
+			require.NoError(t, err)
+			require.Equal(t, int64(1), countFeedbackAttachments(t, db, grant.OSSKey))
+		})
+	}
+}
+
+func TestFeedbackSubmitTicketFailsClosedInReleaseWhenModerationUnavailable(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		reviewer ImageReviewer
+	}{
+		{name: "reviewer error", reviewer: &fakeImageReviewer{err: errors.New("green upstream down")}},
+		{name: "reviewer not wired", reviewer: nil},
+		{name: "green not configured in release", reviewer: &fakeImageReviewer{err: aliyun.ErrGreenNotConfigured}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, _, _ := setupFeedbackServiceTest(t)
+			svc.SetConfig(&config.Config{Server: config.ServerConfig{Mode: "release"}})
+			svc.SetReviewService(tc.reviewer)
+			ctx := context.Background()
+
+			grant := issueFeedbackUploadGrant(t, svc)
+			_, err := svc.SubmitTicket(ctx, SubmitTicketInput{
+				UserID:      ptrInt64(42),
+				Category:    "web_bug",
+				Title:       "Broken page",
+				Description: "The beta page failed",
+				AttachmentGrants: []FeedbackAttachmentGrantInput{{
+					GrantID: grant.GrantID,
+					OSSKey:  grant.OSSKey,
+				}},
+			})
+			require.ErrorIs(t, err, ErrFeedbackAttachmentModerationUnavailable)
+		})
+	}
+}
+
+func TestFeedbackSubmitTicketFailsOpenWhenGreenNotConfiguredOutsideRelease(t *testing.T) {
+	svc, db, _ := setupFeedbackServiceTest(t)
+	svc.SetConfig(&config.Config{Server: config.ServerConfig{Mode: "debug"}})
+	reviewer := &fakeImageReviewer{err: aliyun.ErrGreenNotConfigured}
+	svc.SetReviewService(reviewer)
+	ctx := context.Background()
+
+	grant := issueFeedbackUploadGrant(t, svc)
+	_, err := svc.SubmitTicket(ctx, SubmitTicketInput{
+		UserID:      ptrInt64(42),
+		Category:    "web_bug",
+		Title:       "Broken page",
+		Description: "The beta page failed",
+		AttachmentGrants: []FeedbackAttachmentGrantInput{{
+			GrantID: grant.GrantID,
+			OSSKey:  grant.OSSKey,
+		}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), countFeedbackAttachments(t, db, grant.OSSKey))
+}
+
+func TestFeedbackTextOnlyTicketBypassesAttachmentModeration(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		reviewer ImageReviewer
+		mode     string
+	}{
+		{name: "no reviewer", reviewer: nil, mode: "release"},
+		{name: "blocking reviewer", reviewer: &fakeImageReviewer{result: "block"}, mode: "debug"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, db, _ := setupFeedbackServiceTest(t)
+			svc.SetConfig(&config.Config{Server: config.ServerConfig{Mode: tc.mode}})
+			if tc.reviewer != nil {
+				svc.SetReviewService(tc.reviewer)
+			}
+			ctx := context.Background()
+
+			_, err := svc.SubmitTicket(ctx, SubmitTicketInput{
+				UserID:      ptrInt64(42),
+				Category:    "web_bug",
+				Title:       "Broken page",
+				Description: "The beta page failed",
+			})
+			require.NoError(t, err)
+			var tickets int64
+			require.NoError(t, db.Model(&model.FeedbackTicket{}).Count(&tickets).Error)
+			require.Equal(t, int64(1), tickets)
+		})
+	}
+}
+
+func TestFeedbackSubmitTicketPassesAttachmentScanURLFromOSSKey(t *testing.T) {
+	svc, _, _ := setupFeedbackServiceTest(t)
+	svc.SetConfig(&config.Config{
+		Server: config.ServerConfig{Mode: "debug"},
+		OSS:    config.OSSConfig{Domain: "https://cdn.example.com/"},
+	})
+	reviewer := &fakeImageReviewer{result: "pass"}
+	svc.SetReviewService(reviewer)
+	ctx := context.Background()
+
+	grant := issueFeedbackUploadGrant(t, svc)
+	_, err := svc.SubmitTicket(ctx, SubmitTicketInput{
+		UserID:      ptrInt64(42),
+		Category:    "web_bug",
+		Title:       "Broken page",
+		Description: "The beta page failed",
+		AttachmentGrants: []FeedbackAttachmentGrantInput{{
+			GrantID: grant.GrantID,
+			OSSKey:  grant.OSSKey,
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, reviewer.urls, 1)
+	require.Equal(t, "https://cdn.example.com/"+grant.OSSKey, reviewer.urls[0])
 }
