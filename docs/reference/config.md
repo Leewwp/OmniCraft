@@ -67,9 +67,10 @@
 | `feedback.upload_grant_ttl_sec` | `int` | UploadGrantTTLSec |
 | `green.access_key_id` | `string` | AccessKeyID |
 | `green.access_key_secret` | `string` | AccessKeySecret |
-| `green.callback_allowed_ips` | `[]string` | CallbackAllowedIPs |
 | `green.callback_url` | `string` | CallbackURL |
 | `green.region` | `string` | Region |
+| `green.seed` | `string` | Seed is the callback signature seed (green.seed): release-required, [A-Za-z0-9_], max 64 chars. |
+| `green.uid` | `string` | UID is the Aliyun main account UID (green.uid): release-required, digits only (console account info, not RAM UID). |
 | `judge.error_rate_revoke` | `float64` | ErrorRateRevoke |
 | `judge.error_rate_window` | `int` | ErrorRateWindow |
 | `judge.exam_pass_rate` | `float64` | ExamPassRate |

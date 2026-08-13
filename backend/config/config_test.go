@@ -197,11 +197,12 @@ func validReleaseConfigForTest() *Config {
 			DownloadURLTTL:  300,
 		},
 		Green: GreenConfig{
-			AccessKeyID:        "green-key-id",
-			AccessKeySecret:    "green-key-secret",
-			Region:             "cn-shanghai",
-			CallbackURL:        "https://api.omnicraft.prod/api/v1/internal/ai-callback",
-			CallbackAllowedIPs: []string{"203.0.113.10"},
+			AccessKeyID:     "green-key-id",
+			AccessKeySecret: "green-key-secret",
+			Region:          "cn-shanghai",
+			CallbackURL:     "https://api.omnicraft.prod/api/v1/internal/ai-callback",
+			Seed:            "test_seed_abc123",
+			UID:             "1234567890123456",
 		},
 		Features: FeaturesConfig{
 			PaymentEnabled:        false,
@@ -282,7 +283,8 @@ func TestValidateReleaseRejectsIncompleteProductionConfig(t *testing.T) {
 		{"missing oss endpoint", func(c *Config) { c.OSS.Endpoint = "" }, "oss.endpoint"},
 		{"missing oss secret", func(c *Config) { c.OSS.AccessKeySecret = "" }, "oss.access_key_secret"},
 		{"missing green callback url", func(c *Config) { c.Green.CallbackURL = "" }, "green.callback_url"},
-		{"missing green callback allowed ips", func(c *Config) { c.Green.CallbackAllowedIPs = nil }, "green.callback_allowed_ips"},
+		{"missing green seed", func(c *Config) { c.Green.Seed = "" }, "green.seed"},
+		{"missing green uid", func(c *Config) { c.Green.UID = "" }, "green.uid"},
 		{"missing captcha public fields", func(c *Config) { c.Captcha.Prefix = "" }, "captcha.prefix"},
 		{"missing captcha secret", func(c *Config) { c.Captcha.AccessKeySecret = "" }, "captcha.access_key_secret"},
 		{"missing smtp host", func(c *Config) { c.SMTP.Host = "" }, "smtp.host"},
@@ -596,16 +598,74 @@ func TestValidateReleaseAllowsPrivateDbHostTLSNegotiation(t *testing.T) {
 	require.NoError(t, cfg.ValidateRelease())
 }
 
-func TestValidateReleaseRejectsCallbackAllowedIPPlaceholders(t *testing.T) {
+func TestValidateReleaseRejectsSeedPlaceholder(t *testing.T) {
 	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
 	t.Setenv("OMNICRAFT_PRIVATE_DB_HOSTS", "")
 
 	cfg := validReleaseConfigForTest()
-	cfg.Green.CallbackAllowedIPs = []string{"<comma-separated-ip-list>"}
+	cfg.Green.Seed = "<seed-placeholder>"
 	err := cfg.ValidateRelease()
 	require.Error(t, err)
 	require.True(t, strings.HasPrefix(err.Error(), validateReleaseErrPrefix))
-	require.ErrorContains(t, err, "green.callback_allowed_ips")
+	require.ErrorContains(t, err, "green.seed")
+}
+
+func TestValidateReleaseRejectsUIDPlaceholder(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("OMNICRAFT_PRIVATE_DB_HOSTS", "")
+
+	cfg := validReleaseConfigForTest()
+	cfg.Green.UID = "<aliyun-main-account-uid>"
+	err := cfg.ValidateRelease()
+	require.Error(t, err)
+	require.True(t, strings.HasPrefix(err.Error(), validateReleaseErrPrefix))
+	require.ErrorContains(t, err, "green.uid")
+}
+
+func TestValidateReleaseRejectsNonNumericUID(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("OMNICRAFT_PRIVATE_DB_HOSTS", "")
+
+	cfg := validReleaseConfigForTest()
+	cfg.Green.UID = "not-a-number"
+	err := cfg.ValidateRelease()
+	require.Error(t, err)
+	require.True(t, strings.HasPrefix(err.Error(), validateReleaseErrPrefix))
+	require.ErrorContains(t, err, "green.uid")
+}
+
+func TestValidateReleaseRejectsOverlongSeed(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("OMNICRAFT_PRIVATE_DB_HOSTS", "")
+
+	cfg := validReleaseConfigForTest()
+	cfg.Green.Seed = strings.Repeat("a", 65)
+	err := cfg.ValidateRelease()
+	require.Error(t, err)
+	require.True(t, strings.HasPrefix(err.Error(), validateReleaseErrPrefix))
+	require.ErrorContains(t, err, "green.seed")
+}
+
+func TestValidateReleaseRejectsIllegalSeedChars(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("OMNICRAFT_PRIVATE_DB_HOSTS", "")
+
+	cfg := validReleaseConfigForTest()
+	cfg.Green.Seed = "seed-with-dashes-123"
+	err := cfg.ValidateRelease()
+	require.Error(t, err)
+	require.True(t, strings.HasPrefix(err.Error(), validateReleaseErrPrefix))
+	require.ErrorContains(t, err, "green.seed")
+}
+
+func TestValidateReleaseAllowsEmptySeedAndUIDInLocalMode(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+
+	cfg := validReleaseConfigForTest()
+	cfg.Server.Mode = "local"
+	cfg.Green.Seed = ""
+	cfg.Green.UID = ""
+	require.NoError(t, cfg.ValidateRelease())
 }
 
 func TestApplyTestModeLeavesNormalConfigurationUnchanged(t *testing.T) {
