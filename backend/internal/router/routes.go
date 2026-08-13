@@ -65,7 +65,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	auth.POST("/forgot-password", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), authHandler.ForgotPassword)
 	auth.POST("/reset-password", authHandler.ResetPassword)
 
-	userHandler := handler.NewUserHandler(db, authService, rdb, cfg)
+	userHandler := handler.NewUserHandler(db, authService, rdb, cfg, ctr.ReviewService)
 	users := v1.Group("/users")
 	{
 		users.GET("/:id", optAuth, userHandler.GetUser)
