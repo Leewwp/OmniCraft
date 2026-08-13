@@ -317,6 +317,39 @@
 | `is_pinned` | `BOOLEAN` | NOT NULL DEFAULT FALSE | is_pinned |
 | `last_active_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | last_active_at |
 
+### eval_golden_cases
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `case_key` | `VARCHAR(128)` | NOT NULL | case_key |
+| `schema_version` | `INTEGER` | NOT NULL DEFAULT 1 | schema_version |
+| `query` | `TEXT` | NOT NULL | query |
+| `query_language` | `VARCHAR(16)` | NOT NULL | query_language |
+| `viewer_context` | `JSONB` | NOT NULL DEFAULT '{}'::jsonb | viewer_context |
+| `relevant_evidence` | `JSONB` | NOT NULL DEFAULT '[]'::jsonb | relevant_evidence |
+| `relevant_content_ids` | `JSONB` | NOT NULL DEFAULT '[]'::jsonb | relevant_content_ids |
+| `expected_citations` | `JSONB` | NOT NULL DEFAULT '[]'::jsonb | expected_citations |
+| `forbidden_content_ids` | `JSONB` | NOT NULL DEFAULT '[]'::jsonb | forbidden_content_ids |
+| `answer_rubric` | `JSONB` | NOT NULL DEFAULT '{}'::jsonb | answer_rubric |
+| `classification` | `JSONB` | NOT NULL DEFAULT '{}'::jsonb | classification |
+| `is_active` | `BOOLEAN` | NOT NULL DEFAULT TRUE | is_active |
+
+### eval_runs
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `run_key` | `VARCHAR(128)` | NOT NULL | run_key |
+| `dataset_checksum` | `VARCHAR(64)` | NOT NULL | dataset_checksum |
+| `retriever_version` | `VARCHAR(64)` | NOT NULL | retriever_version |
+| `chunking_version` | `VARCHAR(64)` | NOT NULL | chunking_version |
+| `metrics` | `JSONB` | NOT NULL DEFAULT '{}'::jsonb | metrics |
+| `environment` | `JSONB` | NOT NULL DEFAULT '{}'::jsonb | environment |
+| `artifact_path` | `TEXT` | NOT NULL | artifact_path |
+
 ### favorites
 
 | 列名 | 类型 | 约束 | 说明 |
