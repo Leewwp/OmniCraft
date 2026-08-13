@@ -236,6 +236,36 @@ func TestAICallbackWithQueueProducerPublishesWithoutSideEffects(t *testing.T) {
 	}
 }
 
+// TestAICallbackBlockThenPassKeepsBanned covers the A1 terminal-state guard
+// at the HTTP boundary (the service-level equivalent ships with #105): once a
+// block result bans a content item, a later pass result for a different task
+// is recorded but must never resurrect the content.
+func TestAICallbackBlockThenPassKeepsBanned(t *testing.T) {
+	router, _, db, cleanup := buildAICallbackRouter(t, queue.NewNoopProducer(), "under_review")
+	defer cleanup()
+
+	blockContent := callbackContentJSON("content:1", "task-block-then-pass", "block")
+	rec := postCallback(t, router, checksumOf(testCallbackUID, testCallbackSeed, blockContent), blockContent)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("block callback status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if got := contentStatus(t, db); got != "banned" {
+		t.Fatalf("content status after block = %q, want banned", got)
+	}
+
+	passContent := callbackContentJSON("content:1", "task-pass-after-block", "pass")
+	rec = postCallback(t, router, checksumOf(testCallbackUID, testCallbackSeed, passContent), passContent)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("pass callback status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if got := contentStatus(t, db); got != "banned" {
+		t.Fatalf("content status after pass = %q, want banned (banned is the AI channel terminal state)", got)
+	}
+	if n := countAIReviewRecords(t, db); n != 2 {
+		t.Fatalf("ai_review_records = %d, want 2 (each distinct taskId is recorded; the pass must not flip the status)", n)
+	}
+}
+
 // buildAICallbackRouter wires a router with the real ReviewService, sqlite
 // storage and the given queue producer, plus one author user (id 1) and one
 // content item (id 1) in the given start status.
