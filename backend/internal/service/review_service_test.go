@@ -45,9 +45,53 @@ func setupReviewServiceTest(t *testing.T) (*ReviewService, *gorm.DB, *miniredis.
 			RepeatViolationExtraPenalty: -1,
 		},
 		Judge: config.JudgeConfig{MinVotesRequired: 3},
+		OSS:   config.OSSConfig{Domain: "https://cdn.example.test"},
+		Green: config.GreenConfig{
+			Seed:        "seed_test_value",
+			CallbackURL: "https://api.leeppp.online/api/v1/internal/ai-callback",
+		},
 	}
 	svc := NewReviewService(db, rdb, cfg, NewReputationService(db))
 	return svc, db, mr
+}
+
+// fakeGreenScanner is the injectable seam for ReviewService.green: it records
+// the scan calls so tests can assert both the parameters sent to Green and the
+// rejection semantics (no scan call at all for non-platform cover URLs).
+type fakeGreenScanner struct {
+	textResult  *aliyun.GreenScanResult
+	imageResult *aliyun.GreenScanResult
+	videoResult *aliyun.GreenScanResult
+	videoErr    error
+
+	imageCalls []string
+	videoCalls []aliyun.VideoScanParams
+}
+
+func (f *fakeGreenScanner) TextModeration(ctx context.Context, text string) (*aliyun.GreenScanResult, error) {
+	if f.textResult != nil {
+		return f.textResult, nil
+	}
+	return &aliyun.GreenScanResult{Result: "pass"}, nil
+}
+
+func (f *fakeGreenScanner) ImageModeration(ctx context.Context, imageURL string) (*aliyun.GreenScanResult, error) {
+	f.imageCalls = append(f.imageCalls, imageURL)
+	if f.imageResult != nil {
+		return f.imageResult, nil
+	}
+	return &aliyun.GreenScanResult{Result: "pass"}, nil
+}
+
+func (f *fakeGreenScanner) VideoAsyncScan(ctx context.Context, params aliyun.VideoScanParams) (*aliyun.GreenScanResult, error) {
+	f.videoCalls = append(f.videoCalls, params)
+	if f.videoErr != nil {
+		return nil, f.videoErr
+	}
+	if f.videoResult != nil {
+		return f.videoResult, nil
+	}
+	return &aliyun.GreenScanResult{Result: "pass"}, nil
 }
 
 func createReviewBaseSchema(t *testing.T, db *gorm.DB) {
@@ -485,4 +529,172 @@ func TestAppealApprovedCanFlipBannedToPublishedOutsideReviewFlow(t *testing.T) {
 	require.Equal(t, map[string]interface{}{"status": "published"}, updates)
 	require.NoError(t, db.Model(&model.ContentItem{}).Where("id = ?", contentID).Updates(updates).Error)
 	require.Equal(t, "published", reviewContentStatus(t, db, contentID), "appeal approval overturns the AI ban")
+}
+
+// B2: a content cover scanned by ImageModeration with a block result rejects
+// publication: the content transitions to banned and the review record keeps
+// the block result.
+func TestSubmitForAIReviewContentCoverBlockBansContent(t *testing.T) {
+	svc, db, _ := setupReviewServiceTest(t)
+	ctx := context.Background()
+
+	userID := seedReviewUser(t, db)
+	contentID := seedReviewContent(t, db, userID)
+
+	green := &fakeGreenScanner{imageResult: &aliyun.GreenScanResult{Result: "block", Reason: "violent_content"}}
+	svc.green = green
+
+	require.NoError(t, svc.SubmitForAIReview(ctx, SubmitReviewInput{
+		TargetType:    "content",
+		TargetID:      contentID,
+		Title:         "cover fixture",
+		Description:   "cover block must reject publication",
+		CoverImageURL: "https://cdn.example.test/uploads/42/image/poster.png",
+	}))
+
+	require.Equal(t, "banned", reviewContentStatus(t, db, contentID), "cover block must reject publication")
+	require.Equal(t, []string{"https://cdn.example.test/uploads/42/image/poster.png"}, green.imageCalls,
+		"the cover URL must be the only image scanned")
+	require.Equal(t, []string{"ai_violation", "repeat_violation"}, reputationLogReasons(t, db, userID))
+	require.Equal(t, 6, userReputation(t, db, userID))
+
+	var record model.AIReviewRecord
+	require.NoError(t, db.Where("target_type = ? AND target_id = ?", "content", contentID).First(&record).Error)
+	require.Equal(t, "block", record.Result, "the merged result must stay block")
+}
+
+// B3: an IP cover scanned with a block result bans the IP and its contents.
+func TestSubmitForAIReviewIPCoverBlockBansIP(t *testing.T) {
+	svc, db, _ := setupReviewServiceTest(t)
+	ctx := context.Background()
+
+	userID := seedReviewUser(t, db)
+	ipID := seedReviewIP(t, db)
+	contentID := seedReviewContent(t, db, userID, &ipID)
+
+	green := &fakeGreenScanner{imageResult: &aliyun.GreenScanResult{Result: "block", Reason: "violent_content"}}
+	svc.green = green
+
+	require.NoError(t, svc.SubmitForAIReview(ctx, SubmitReviewInput{
+		TargetType:    "ip",
+		TargetID:      ipID,
+		Title:         "ip cover fixture",
+		Description:   "cover block must reject the ip",
+		CoverImageURL: "https://cdn.example.test/uploads/42/ip/cover.png",
+	}))
+
+	require.Equal(t, "banned", reviewIPStatus(t, db, ipID), "cover block must reject the IP")
+	require.Equal(t, "banned", reviewContentStatus(t, db, contentID), "IP block cascades to its contents")
+	require.Equal(t, []string{"https://cdn.example.test/uploads/42/ip/cover.png"}, green.imageCalls)
+}
+
+// Decision 6: a cover that is not a platform-verified OSS object is never
+// handed to Green; the submission fails with an explicit error and writes no
+// record.
+func TestSubmitForAIReviewCoverNotPlatformObjectReturnsExplicitError(t *testing.T) {
+	svc, db, _ := setupReviewServiceTest(t)
+	ctx := context.Background()
+
+	userID := seedReviewUser(t, db)
+	contentID := seedReviewContent(t, db, userID)
+
+	green := &fakeGreenScanner{}
+	svc.green = green
+
+	err := svc.SubmitForAIReview(ctx, SubmitReviewInput{
+		TargetType:    "content",
+		TargetID:      contentID,
+		Title:         "cover fixture",
+		CoverImageURL: "https://evil.example.com/cover.png",
+	})
+	require.ErrorIs(t, err, ErrCoverNotPlatformOSSObject)
+	require.Empty(t, green.imageCalls, "non-platform cover URLs must never reach Green")
+	require.Equal(t, int64(0), reviewRecordsCount(t, db), "no record when the cover cannot be scanned")
+}
+
+// Regression: submissions without a cover keep the legacy behavior and never
+// call the image scanner.
+func TestSubmitForAIReviewWithoutCoverKeepsLegacyBehavior(t *testing.T) {
+	svc, db, _ := setupReviewServiceTest(t)
+	ctx := context.Background()
+
+	userID := seedReviewUser(t, db)
+	contentID := seedReviewContent(t, db, userID)
+
+	green := &fakeGreenScanner{}
+	svc.green = green
+
+	require.NoError(t, svc.SubmitForAIReview(ctx, SubmitReviewInput{
+		TargetType:  "content",
+		TargetID:    contentID,
+		Title:       "no cover fixture",
+		Description: "no cover, no image scan",
+	}))
+	require.Equal(t, "published", reviewContentStatus(t, db, contentID))
+	require.Empty(t, green.imageCalls, "no cover means no image scan")
+}
+
+// Decision 1: the video async scan request carries seed from green.seed and
+// dataId in the {target_type}:<id> form the callback parser expects.
+func TestSubmitForAIReviewVideoScanCarriesSeedAndDataID(t *testing.T) {
+	svc, db, _ := setupReviewServiceTest(t)
+	ctx := context.Background()
+
+	userID := seedReviewUser(t, db)
+	contentID := seedReviewContent(t, db, userID)
+
+	green := &fakeGreenScanner{}
+	svc.green = green
+
+	require.NoError(t, svc.SubmitForAIReview(ctx, SubmitReviewInput{
+		TargetType:  "content",
+		TargetID:    contentID,
+		ContentType: "video",
+		Title:       "video fixture",
+		Attachments: []AttachmentInput{
+			{FileType: "video", OSSKey: "uploads/42/video/v.mp4", MimeType: "video/mp4"},
+		},
+	}))
+
+	require.Len(t, green.videoCalls, 1)
+	require.Equal(t, "seed_test_value", green.videoCalls[0].Seed, "seed must come from green.seed")
+	require.Equal(t, fmt.Sprintf("content:%d", contentID), green.videoCalls[0].DataID, "dataId must match the callback parser format")
+	require.Equal(t, "https://api.leeppp.online/api/v1/internal/ai-callback", green.videoCalls[0].CallbackURL)
+	require.Equal(t, "https://cdn.example.test/uploads/42/video/v.mp4", green.videoCalls[0].VideoURL)
+}
+
+// The empty-seed semantic itself lives in the aliyun layer (a callback
+// without seed is rejected by buildVideoServiceParams before the request is
+// sent; see green_test.go). At the service layer the seed from green.seed is
+// simply forwarded, and any scan error propagates out of SubmitForAIReview
+// without status side effects or records.
+func TestSubmitForAIReviewVideoScanErrorPropagatesWithoutSideEffects(t *testing.T) {
+	_, db, _ := setupReviewServiceTest(t)
+	ctx := context.Background()
+
+	userID := seedReviewUser(t, db)
+	contentID := seedReviewContent(t, db, userID)
+
+	svc := NewReviewService(db, nil, &config.Config{
+		Reputation: config.ReputationConfig{
+			RepeatViolationWindowDays: 7, RepeatViolationThreshold: 1, RepeatViolationExtraPenalty: -1,
+		},
+		Judge: config.JudgeConfig{MinVotesRequired: 3},
+		OSS:   config.OSSConfig{Domain: "https://cdn.example.test"},
+		Green: config.GreenConfig{CallbackURL: "https://api.leeppp.online/api/v1/internal/ai-callback"},
+	}, NewReputationService(db))
+	svc.green = &fakeGreenScanner{videoErr: aliyun.ErrGreenSeedRequired}
+
+	err := svc.SubmitForAIReview(ctx, SubmitReviewInput{
+		TargetType:  "content",
+		TargetID:    contentID,
+		ContentType: "video",
+		Title:       "video fixture",
+		Attachments: []AttachmentInput{
+			{FileType: "video", OSSKey: "uploads/42/video/v.mp4", MimeType: "video/mp4"},
+		},
+	})
+	require.ErrorIs(t, err, aliyun.ErrGreenSeedRequired)
+	require.Equal(t, "pending", reviewContentStatus(t, db, contentID), "no status transition without a scan")
+	require.Equal(t, int64(0), reviewRecordsCount(t, db))
 }
