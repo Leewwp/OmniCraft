@@ -1,3 +1,26 @@
+## [2026-08-13] - Task #105: 重复回调幂等（068 迁移 + 唯一索引 + 短路）+ banned 终态守卫 + 同步单次落库
+
+### What was done:
+- **迁移** `backend/migrations/068_add_ai_review_records_task_id.sql`：`ai_review_records` 加可空 `provider_task_id VARCHAR(128)` + `uq_ai_review_records_provider_task` 唯一索引（provider, provider_task_id）；文件头注释风格对齐 063/064/066（forward-only + ROLLBACK 段，IF NOT EXISTS 幂等可重放）。编号确认：066 为 worktree 最新、067 预留给 #76 未占用，068 空闲。
+- **model**：`AIReviewRecord.ProviderTaskID *string`（`gorm:"size:128"`，可空列用指针，对齐 SourceOriginalID 等既有风格；NULL 语义让无 taskId 的同步记录不与任何记录冲突）。
+- **review_service.go**：
+  - `AICallbackInput` 增加 `ProviderTaskID string`（json:"provider_task_id"）。
+  - `ProcessAICallback`：带 taskId 时先查重短路（已存在 → nil，HTTP 200 语义）；查重+落库+状态变更同一事务，落库用 `ON CONFLICT (provider, provider_task_id) DO NOTHING` 防并发重复回调（唯一索引把败方插入变成 no-op）；`recordAIReview` 增加 providerTaskID 参数（空值落 NULL）并在事务内执行。
+  - **A2**：`SubmitForAIReview` 移除外层 `recordAIReview`，同步路径仅经 `ProcessAICallback` 落库 1 条；同步记录无 taskId、异步结果带 taskId，幂等键不混用。
+  - **A1**：content 的 review→under_review 与 pass→published 两分支改为条件更新 `WHERE id=? AND status<>'banned'`（RowsAffected==0 短路，banned 内容不建判官案）；block 分支保持现状幂等（已 banned 不再扣分）。IP 通道 `processIPReviewResult` 改为接收事务（置 banned 无复活面，确认即可）。
+  - 信誉扣分与重复违规惩罚改走同一事务（新增 `addReputationTx`，防止记录与惩罚原子性分裂导致部分失败时重复扣分）。
+- **人工通道确认**：申诉（handler/admin.go `AppealTargetUpdates` approved → 直接 `Updates({status:published})`）与判官翻案（judge_service SubmitVote → CloseCase，不触碰 content_items.status）均不经过 `ProcessAICallback` 守卫分支，不受影响。
+
+### Testing:
+- TDD 红→绿：先写 12 个 service 集成测试 + 1 个迁移测试；红阶段确认（重复回调不短路 → 记录数/复活断言失败；无 taskId 回调被唯一索引误拦截），绿阶段全部通过。
+- 迁移应用验证：`TestAIReviewRecordsTaskIDMigration`（应用 013+068，列/唯一索引/NULL 共存/重复 taskId 拒绝/双次应用幂等）；迁移 runner `TestPostgresEmptyToLatest`/`TestPostgresNoRerun`/`TestPostgresHistoricalFixtureToLatest` 通过（068 从空库与 050 fixture 正常应用）。
+- 验证门：`go build ./...`、`go vet ./...`、`go test ./...` 全绿；申诉回归 `TestApprovedAppealRestoresContentStatus` + 新增 `TestAppealApprovedCanFlipBannedToPublishedOutsideReviewFlow` 通过；doc-validator `--fix` 两轮幂等（第二轮零 diff），自动同步 `docs/reference/schema.md` provider_task_id 行。
+- 测试明细（12 个）：重复回调幂等（记录数/信誉/冻结只一次）、无 taskId 行为不变、同步单次落库、同步/异步幂等键不混用、同步 block→异步 pass 不复活、pass→block 终态 banned、review→pass→published、review 不复活 banned（不建案）、IP block 幂等+无复活面、Green 未配置不落库、申诉翻案。
+
+### Notes:
+- 偏差：①`SubmitForAIReview` 的扫描 happy-path 无法单测（aliyun.GreenClient 无测试注入点，endpoint 硬编码），A2 以「行为等价测试 + 结构性保证（SubmitForAIReview 内无 recordAIReview 调用）」覆盖；②迁移测试直接应用真实 013+068 文件而非手写 base table；③惩罚落库改为与记录同事务（修复「重复回调不重复扣分」的原子性前提），属本票必要范围；④miniredis v2.38 `Exists` 返回 bool。
+- 未触碰 config.go / handler/internal.go / social_service.go / review_worker.go（#106/#107/#109 范围）；未 push/merge，未勾选 checkbox。
+
 ## [2026-08-13] - 收尾：Web 批次 #71/#69/#72/#73/#74/#75 全量验证、跟踪与推送
 
 ### What was done:
