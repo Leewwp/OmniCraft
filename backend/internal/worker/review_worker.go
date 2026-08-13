@@ -24,15 +24,16 @@ func NewReviewWorker(reviewSvc *service.ReviewService) *ReviewWorker {
 
 func (w *ReviewWorker) Handle(ctx context.Context, msg queue.Message) error {
 	var payload struct {
-		TargetType  string                 `json:"target_type"`
-		TargetID    int64                  `json:"target_id"`
-		ContentType string                 `json:"content_type,omitempty"`
-		Title       string                 `json:"title,omitempty"`
-		Description string                 `json:"description,omitempty"`
-		AuthorID    int64                  `json:"author_id,omitempty"`
-		Result      string                 `json:"result,omitempty"`
-		RawResponse map[string]interface{} `json:"raw_response,omitempty"`
-		Action       string                 `json:"action"`
+		TargetType     string                 `json:"target_type"`
+		TargetID       int64                  `json:"target_id"`
+		ContentType    string                 `json:"content_type,omitempty"`
+		Title          string                 `json:"title,omitempty"`
+		Description    string                 `json:"description,omitempty"`
+		AuthorID       int64                  `json:"author_id,omitempty"`
+		Result         string                 `json:"result,omitempty"`
+		RawResponse    map[string]interface{} `json:"raw_response,omitempty"`
+		ProviderTaskID string                 `json:"provider_task_id,omitempty"`
+		Action         string                 `json:"action"`
 	}
 
 	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
@@ -64,10 +65,11 @@ func (w *ReviewWorker) Handle(ctx context.Context, msg queue.Message) error {
 
 	case "process_ai_callback":
 		input := service.AICallbackInput{
-			TargetType:  payload.TargetType,
-			TargetID:    payload.TargetID,
-			Result:      payload.Result,
-			RawResponse: payload.RawResponse,
+			TargetType:     payload.TargetType,
+			TargetID:       payload.TargetID,
+			Result:         payload.Result,
+			RawResponse:    payload.RawResponse,
+			ProviderTaskID: payload.ProviderTaskID,
 		}
 		if err := w.reviewSvc.ProcessAICallback(ctx, input); err != nil {
 			slog.Error("review_worker: ProcessAICallback failed",
