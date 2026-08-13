@@ -102,6 +102,7 @@
 | security | `csrf_enabled`、`frame_ancestors` | `trusted_proxies` | — |
 | oss | `presign_expire_sec` | `endpoint`/`access_key_id`/`access_key_secret`/`bucket_name`/`domain` | — |
 | green | — | `access_key_id`/`access_key_secret`/`callback_url`/`callback_allowed_ips` | — |
+> 修正（2026-08-13）：`callback_allowed_ips` 前提证伪——阿里云官方从未发布回调来源网段，该字段已随 #104 删除；配置段现为 `access_key_id`/`access_key_secret`/`callback_url`/`region`/`seed`/`uid`。
 | captcha | — | `prefix`/`access_key_id`/`access_key_secret` | — |
 | publish | — | `require_review`/`max_daily_posts`/`freeze_on_violation` | — |
 

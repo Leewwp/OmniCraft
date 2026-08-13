@@ -87,6 +87,7 @@
 | queue | **幽灵字段未清除**：`worker_notif` 应为 `worker_notification` | architecture.md L1536 仍是 `worker_notif` |
 | publish | 缺 3 字段：`require_review`、`max_daily_posts`、`freeze_on_violation` | grep 0 匹配 |
 | green | 缺 4 字段：`access_key_id`、`access_key_secret`、`callback_url`、`callback_allowed_ips` | grep 0 匹配 |
+> 修正（2026-08-13）：`callback_allowed_ips` 前提证伪——阿里云官方从未发布回调来源网段，该字段已随 #104 删除；green 配置段字段现为 `access_key_id`/`access_key_secret`/`callback_url`/`region`/`seed`/`uid`。
 | captcha | 缺 2 字段：`access_key_id`、`access_key_secret` | grep 0 匹配 |
 
 **结论**：N6 未完成，仍存在 1 个幽灵字段错误 + 16 个字段缺失。

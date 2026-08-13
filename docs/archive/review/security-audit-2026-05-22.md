@@ -195,6 +195,7 @@ c.SSEvent("error", gin.H{"message": err.Error()})
 | `Green.AccessKeySecret` | ✅ | GreenConfig |
 | `Green.CallbackURL` | ✅ | GreenConfig |
 | `Green.CallbackAllowedIPs` | ✅ | GreenConfig |
+> 修正（2026-08-13）：`Green.CallbackAllowedIPs`（回调来源 IP 白名单）前提证伪——阿里云官方从未发布回调来源网段，该字段已随 #104 从 `GreenConfig` 删除；入站认证为 form+checksum 契约（#106），新增 `Green.Seed`/`Green.UID` release 必填。
 | `Agent.LLMAPIKey` | ✅ | AgentConfig |
 | `Agent.HMACSecret` | ✅ | AgentConfig |
 | `Database.DSN` | ✅ | DatabaseConfig |

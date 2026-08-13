@@ -1,3 +1,26 @@
+## [2026-08-13] - Task #108: 端到端验证与文档收口（回调契约/C1 Agent 直发契约/文档零残留）
+
+### What was done:
+- **端到端验证核对**：审读 `backend/internal/router/ai_callback_test.go`（#106 路由级测试）对照 spec Testing Decisions 建覆盖矩阵——合法回调 200+状态变更（pass/block/review/violation/最严合并 ✅）、伪造篡改 403 无副作用（错 checksum/错 seed/错 uid/篡改 content/缺 checksum/缺 green 配置 fail-closed ✅）、重复回调幂等 ✅、缺 seed/uid release gate 拒绝（config_test #104 ✅）；路由级缺「先 block 再 pass 保持 banned」用例 → 补充 `TestAICallbackBlockThenPassKeepsBanned`（两次不同 taskId 回调：block→banned，pass 记录但状态保持 banned，守卫在 review_service.go 条件更新 `WHERE status <> 'banned'`）。
+- **C1 Agent 直发契约测试**（spec Testing Decisions C1）：确认 Agent 无独立发布落库链路——`agent_service.go` 仅 4 个只读工具（search/detail/usage-guide/suggest_publish_metadata），发布走共享 `POST /api/v1/contents` → `PublishContentWithContext` → `SubmitForAIReview`（content_service.go:389-422）。seam 采用 #107 的 `ReviewService.green` greenScanner 接口（handler 内部自建 ReviewService 无路由级注入点，故选 service 级）。新增 `agent_publish_review_contract_test.go`：`TestAgentPublishEntersContentReviewChain`（本地 fake scanner 嵌入共享 fakeGreenScanner 记录 textCalls，断言发布触发 SubmitForAIReview→Green 文本扫描→恰 1 条 provider=aliyun 记录；pass→published 不扣信誉、block→banned 扣信誉）+ `TestAgentToolsetHasNoDirectPublishPath`（工具集恰为 4 个只读工具，未来新增直发发布工具即破坏契约）。
+- **文档收口**：
+  - `docs/reference/config.md`：#104 已同步（green.seed/green.uid 行存在、旧回调来源 IP 白名单配置键不存在）✅ 无需改动。
+  - `architecture.md`/`README.md`：无过时回调契约表述（仅路由表行 + GREEN_CALLBACK_URL 变量行；GREEN_SEED/GREEN_UID 已在 runbook/env 模板）→ 无需改动。
+  - `progress.txt`：#92 阻塞说明首项已由 #104 更新为「回调 IP 白名单前提证伪——已随 #104 删除，改为 GREEN_SEED/GREEN_UID」，无残留项待补；两处历史条目（#104/#106 残留 grep 描述）去除旧标识符字面量。
+  - 归档修正说明（不改原文，段后加 `> 修正（2026-08-13）：...`）：`docs/archive/progress/2026-08-01-to-2026-08-07.md`、`docs/archive/progress/2026-08-07-to-2026-08-09.md`、`docs/archive/review/db-devops-perf-review-2026-05-22.md`、`docs/archive/review/security-audit-2026-05-22.md`，另补齐其余 archive .md 命中文件（iteration-review ×3、progress 2026-04-to-2026-06、plans 2026-06-08 release-gates）。
+  - 偏差：`docs/archive/task-ledger-mvp.json` 2 处旧任务描述含该变量名——JSON 历史账本按 AGENTS.md「不得修改任务描述/历史账本」保留不动，已记录。
+- **零残留验证**：回调来源 IP 白名单标识符（env 变量/配置键/网段字面量）grep 命中仅限允许位（spec、AGENTS.md 注册表、docs/archive 修正标注、docs/working 调研（#104 已改描述性））。
+
+### Testing:
+- 新增测试：路由级 `TestAICallbackBlockThenPassKeepsBanned`（先 block 后 pass 保持 banned、2 条记录各自 taskId）+ service 级 C1 两测全过。
+- `cd backend && go build ./... && go vet ./... && go test ./...` 24 包全绿；`bash scripts/verify-project.sh --full` 通过（末行 OmniCraft full verification passed）。
+- `cd tools/doc-validator && go run . --fix` 两轮幂等（第二轮零 diff）。
+
+### Notes:
+- 偏差 1：C1 契约测试选 service 级而非路由级——`ContentHandler.NewContentHandler` 内部自建 ReviewService（无路由级注入点），greenScanner seam 仅在 package service 内可注入；路由级测试已覆盖 HTTP 契约面，service 级覆盖审核链面，二者互补。
+- 偏差 2：task-ledger-mvp.json 不追加修正（JSON 账本 + 任务描述不可改），已在零残留验证中归类为允许偏差。
+- 未触碰 #104~#107/#109 行为代码、migrations、config.go/routes.go；未 push/merge，未勾选 checkbox。
+
 ## [2026-08-13] - Task #106: 扫描结果回调入站契约（form + checksum + 403，删 IP 白名单）
 
 ### What was done:
@@ -7,7 +30,7 @@
   - `content` JSON 解析（dataId/taskId/results/code/message），`dataId` 经 `parseCallbackDataID`（`strings.SplitN(dataId, ":", 2)`，只允许 `content:<id>`，id 为正整数；`ip:<id>` 预留未来 IP 媒体命名空间、`bogus:*`/格式错误/非数字 id → `400 VALIDATION_ERROR` 明确错误且不产生副作用）；
   - suggestion 归一化在 handler 内实现小函数（service 的 `mergeReviewResult`/`normalizeReviewResult` 未导出，按任务指示优先 handler 内复制最小逻辑）：block/violation→block、review/pending→review、默认→pass，取最严（pass<review<block）；
   - 构造 `AICallbackInput{TargetType, TargetID, Result, RawResponse(原始 content 全量), ProviderTaskID: taskId}`，队列分支保留（NoopProducer 判定不变），同步分支复用 `ProcessAICallback`（#105 幂等短路直接生效）；ErrReviewTargetNotFound → 404 语义保留。
-- **删 IP 白名单**：删除 `isAllowedSourceIP` 函数与 `net` import；`GREEN_CALLBACK_ALLOWED_IPS`/`callback_allowed_ips` 全仓 go 代码零残留（#104 已删配置）。checksum 是唯一入站认证。
+- **删 IP 白名单**：删除 `isAllowedSourceIP` 函数与 `net` import；旧回调来源 IP 白名单配置（环境变量/配置键）全仓 go 代码零残留（#104 已删配置）。checksum 是唯一入站认证。
 - **队列 payload 兼容**：`process_ai_callback` payload 新增 `provider_task_id` 字段；`review_worker.go` payload 结构体与 `AICallbackInput` 构造同步消费该字段（additive 变更，旧消息无该字段 → 空串 → 行为与 #105 前一致；供 #108 端到端验证）。
 
 ### Testing:
@@ -81,7 +104,7 @@
 - `bash scripts/release/preflight.tests.sh`、`deployment-contract.tests.sh`、`staging-drill.tests.sh` 全部通过（末行 All ... passed）。
 - 手动 smoke：缺失 GREEN_UID 时 preflight 输出「green.uid is missing: set GREEN_UID to the Aliyun MAIN account UID, found in the Aliyun console top-right account info (the RAM user UID is NOT accepted)」并 FAIL。
 - `cd tools/doc-validator && go run . --fix` 两轮幂等（第二轮各 sync no changes）；`go run . --check` release profile All checks passed。
-- 残留 grep：`GREEN_CALLBACK_ALLOWED_IPS|callback_allowed_ips|CallbackAllowedIPs` 排除 archive/.git/spec/AGENTS.md 后零命中；docs/archive 内 5 处历史引用未动。
+- 残留 grep：回调来源 IP 白名单标识符（环境变量/camelCase 配置键）排除 archive/.git/spec/AGENTS.md 后零命中；docs/archive 内 5 处历史引用未动。
 - gitleaks 工作树扫描 no leaks found；`git diff --check` 干净；gofmt 仅提示 base 已存在的 ip.go/version.go（未触碰）。
 - `go run cmd/release-preflight/main.go --help` 正常退出。
 
