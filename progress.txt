@@ -1,3 +1,25 @@
+## [2026-08-13] - Task #106: 扫描结果回调入站契约（form + checksum + 403，删 IP 白名单）
+
+### What was done:
+- **handler/internal.go**：`AICallback` 改为阿里云官方回调契约——
+  - 解析 `application/x-www-form-urlencoded`（`checksum` + `content` 两字段，gin `c.PostForm`）；
+  - checksum 校验 `SHA256(uid + seed + content)`（uid=cfg.Green.UID 主账号 UID、seed=cfg.Green.Seed，拼接顺序严格按官方文档；hex 小写编码；`crypto/subtle.ConstantTimeCompare` 常量时间比较）——校验失败或字段缺失 → `403 {"code":"FORBIDDEN","message":"invalid checksum"}`，不泄露细节，保留阿里云非 200 重试语义；green seed/uid 未配置（local 空值）→ fail-closed 403；
+  - `content` JSON 解析（dataId/taskId/results/code/message），`dataId` 经 `parseCallbackDataID`（`strings.SplitN(dataId, ":", 2)`，只允许 `content:<id>`，id 为正整数；`ip:<id>` 预留未来 IP 媒体命名空间、`bogus:*`/格式错误/非数字 id → `400 VALIDATION_ERROR` 明确错误且不产生副作用）；
+  - suggestion 归一化在 handler 内实现小函数（service 的 `mergeReviewResult`/`normalizeReviewResult` 未导出，按任务指示优先 handler 内复制最小逻辑）：block/violation→block、review/pending→review、默认→pass，取最严（pass<review<block）；
+  - 构造 `AICallbackInput{TargetType, TargetID, Result, RawResponse(原始 content 全量), ProviderTaskID: taskId}`，队列分支保留（NoopProducer 判定不变），同步分支复用 `ProcessAICallback`（#105 幂等短路直接生效）；ErrReviewTargetNotFound → 404 语义保留。
+- **删 IP 白名单**：删除 `isAllowedSourceIP` 函数与 `net` import；`GREEN_CALLBACK_ALLOWED_IPS`/`callback_allowed_ips` 全仓 go 代码零残留（#104 已删配置）。checksum 是唯一入站认证。
+- **队列 payload 兼容**：`process_ai_callback` payload 新增 `provider_task_id` 字段；`review_worker.go` payload 结构体与 `AICallbackInput` 构造同步消费该字段（additive 变更，旧消息无该字段 → 空串 → 行为与 #105 前一致；供 #108 端到端验证）。
+
+### Testing:
+- TDD 红→绿：先写路由级测试（`backend/internal/router/ai_callback_test.go`，prior art routes_security_test.go，真实 RegisterRoutes + sqlite + miniredis + 真实 ReviewService）；红阶段确认（旧 IP 白名单 handler 对合法 form 回调返回 403 `callback source ip is not allowed`）。
+- 绿阶段用例：合法回调（pass→published/block→banned/review→under_review/violation→block/最严合并）；伪造篡改（错 checksum/错 seed/错 uid/篡改 content/缺 checksum → 403 无副作用）；缺 green 配置 fail-closed 403；重复 taskId 回调第二次 200 且 ai_review_records 不新增；dataId 不支持/畸形（bogus:1、ip:1、content:、content:abc、no-separator、content:0、content:-3）→ 400 无副作用；队列分支 recordingProducer 断言 topic=content.review + payload 含 action/target_type/target_id/result/provider_task_id 且不同步落状态（worker 不在测试内运行）。
+- 测试基建：sqlite AutoMigrate 后手工建 `uq_ai_review_records_provider_task` 唯一索引（镜像迁移 068；否则 `recordAIReview` 的 ON CONFLICT 在 sqlite 报 `SQL logic error: ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint`）；队列分支断言轮询等待 `recovery.GoSafe` 后台发布 goroutine（2s 超时）。
+- 验证门：`go build ./... && go vet ./... && go test ./...` 全绿（含 router 全量回归）；routes.go/config.go 未动 → 不需 doc-validator。
+
+### Notes:
+- 偏差：①suggestion 归一化/合并逻辑按任务指示在 handler 内复制最小实现（service 未导出函数未改，不触碰 #105/#107 范围）；②缺失 seed/uid 时 handler fail-closed 403（spec 决策 4 的 fail-closed 语义延伸，本地空配置下回调 URL 本就为空、无合法回调可达）；③code!=200（扫描失败）回调当前按「无 results → 默认 pass」处理，不产生 side effect 的条件未覆盖扫描失败场景——标注为后续 #108/#110 评估项，未在本票擅自加逻辑。
+- 未触碰 review_service.go（ProcessAICallback/SubmitForAIReview）、social_service.go、config.go、green.go、routes.go、migrations；未 push/merge，未勾选 checkbox。
+
 ## [2026-08-13] - Task #105: 重复回调幂等（068 迁移 + 唯一索引 + 短路）+ banned 终态守卫 + 同步单次落库
 
 ### What was done:

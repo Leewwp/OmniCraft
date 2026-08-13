@@ -2,10 +2,14 @@ package handler
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"log/slog"
-	"net"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -35,26 +39,87 @@ func (h *InternalHandler) SetQueueProducer(p queue.Producer) {
 	h.queueProducer = p
 }
 
+// aliyunCallbackContent is the JSON payload of the Aliyun content-safety
+// scan-result callback. It travels inside the form field "content" of an
+// application/x-www-form-urlencoded POST; the exact bytes of this JSON are
+// what the checksum signs.
+type aliyunCallbackContent struct {
+	DataID  string `json:"dataId"`
+	TaskID  string `json:"taskId"`
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Results []struct {
+		Scene      string `json:"scene"`
+		Label      string `json:"label"`
+		Suggestion string `json:"suggestion"`
+	} `json:"results"`
+}
+
+// AICallback is the inbound Aliyun scan-result callback endpoint. It parses
+// application/x-www-form-urlencoded (checksum + content), verifies the
+// checksum SHA256(uid + seed + content) with the main-account UID and the
+// per-deployment seed, then reuses the existing review processing flow (sync
+// or via the content.review / ip.review queue topics). The checksum is the
+// only inbound authentication: the legacy source-IP allowlist was retired in
+// #104/#106 because Aliyun publishes no callback source ranges.
 func (h *InternalHandler) AICallback(c *gin.Context) {
-	if !h.isAllowedSourceIP(c.ClientIP()) {
-		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "callback source ip is not allowed"})
+	content := c.PostForm("content")
+	checksum := strings.TrimSpace(c.PostForm("checksum"))
+	if content == "" || checksum == "" {
+		response.Forbidden(c, "invalid checksum")
 		return
 	}
 
-	var input service.AICallbackInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		response.ValidationError(c, "invalid request parameters")
+	seed := strings.TrimSpace(h.cfg.Green.Seed)
+	uid := strings.TrimSpace(h.cfg.Green.UID)
+	if seed == "" || uid == "" {
+		// Fail closed: without the configured contract inputs no callback
+		// can be authenticated.
+		response.Forbidden(c, "invalid checksum")
 		return
+	}
+	expected := sha256Hex(uid + seed + content)
+	if subtle.ConstantTimeCompare([]byte(checksum), []byte(expected)) != 1 {
+		response.Forbidden(c, "invalid checksum")
+		return
+	}
+
+	var callback aliyunCallbackContent
+	if err := json.Unmarshal([]byte(content), &callback); err != nil {
+		response.ValidationError(c, "invalid callback content")
+		return
+	}
+
+	targetType, targetID, err := parseCallbackDataID(callback.DataID)
+	if err != nil {
+		response.ValidationError(c, "invalid callback target")
+		return
+	}
+
+	result := "pass"
+	for _, r := range callback.Results {
+		result = mergeCallbackSuggestion(result, normalizeCallbackSuggestion(r.Suggestion))
+	}
+
+	var raw map[string]interface{}
+	_ = json.Unmarshal([]byte(content), &raw)
+	input := service.AICallbackInput{
+		TargetType:     targetType,
+		TargetID:       targetID,
+		Result:         result,
+		RawResponse:    raw,
+		ProviderTaskID: strings.TrimSpace(callback.TaskID),
 	}
 
 	if _, ok := h.queueProducer.(*queue.NoopProducer); !ok && h.queueProducer != nil {
 		recovery.GoSafe(func() {
 			payload, _ := json.Marshal(map[string]interface{}{
-				"action":       "process_ai_callback",
-				"target_type":  input.TargetType,
-				"target_id":    input.TargetID,
-				"result":       input.Result,
-				"raw_response": input.RawResponse,
+				"action":           "process_ai_callback",
+				"target_type":      input.TargetType,
+				"target_id":        input.TargetID,
+				"result":           input.Result,
+				"raw_response":     input.RawResponse,
+				"provider_task_id": input.ProviderTaskID,
 			})
 			topic := "content.review"
 			if strings.EqualFold(input.TargetType, "ip") {
@@ -80,30 +145,52 @@ func (h *InternalHandler) AICallback(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "ok"})
 }
 
-func (h *InternalHandler) isAllowedSourceIP(rawIP string) bool {
-	clientIP := net.ParseIP(strings.TrimSpace(rawIP))
-	if clientIP == nil {
-		return false
+// parseCallbackDataID restores a {target_type}:<id> business identifier into
+// its parts. Only currently supported target types are accepted: content.
+// The ip namespace is reserved for a future IP-media extension and, like any
+// unknown or malformed identifier, must be rejected without side effects (IP
+// has no media attachment today, so Aliyun never delivers an ip: callback).
+func parseCallbackDataID(dataID string) (string, int64, error) {
+	parts := strings.SplitN(dataID, ":", 2)
+	if len(parts) != 2 {
+		return "", 0, errors.New("invalid callback dataId")
 	}
-
-	// The Aliyun callback source-IP allowlist config was retired in #104
-	// (Aliyun publishes no callback source ranges). Until the form+checksum
-	// callback contract lands (#106), only loopback callers are permitted so
-	// staging drills and local verification keep working.
-	allowed := []string{"127.0.0.1", "::1"}
-
-	for _, candidate := range allowed {
-		trimmed := strings.TrimSpace(candidate)
-		if trimmed == "" {
-			continue
-		}
-		if ip := net.ParseIP(trimmed); ip != nil && ip.Equal(clientIP) {
-			return true
-		}
-		if _, network, err := net.ParseCIDR(trimmed); err == nil && network.Contains(clientIP) {
-			return true
-		}
+	targetType := strings.TrimSpace(parts[0])
+	if !strings.EqualFold(targetType, "content") {
+		return "", 0, errors.New("unsupported callback target type")
 	}
+	id, err := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
+	if err != nil || id <= 0 {
+		return "", 0, errors.New("invalid callback target id")
+	}
+	return targetType, id, nil
+}
 
-	return false
+// normalizeCallbackSuggestion maps a raw Aliyun suggestion value onto the
+// application review vocabulary used by ReviewService.ProcessAICallback.
+func normalizeCallbackSuggestion(suggestion string) string {
+	switch strings.ToLower(strings.TrimSpace(suggestion)) {
+	case "block", "violation":
+		return "block"
+	case "review", "pending":
+		return "review"
+	default:
+		return "pass"
+	}
+}
+
+// mergeCallbackSuggestion keeps the strictest of two normalized suggestions
+// (pass < review < block), mirroring the merge semantics of the review
+// service so the inbound contract and the internal flow agree.
+func mergeCallbackSuggestion(current, incoming string) string {
+	priority := map[string]int{"pass": 1, "review": 2, "block": 3}
+	if priority[incoming] > priority[current] {
+		return incoming
+	}
+	return current
+}
+
+func sha256Hex(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])
 }
