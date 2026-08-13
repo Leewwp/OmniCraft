@@ -1420,3 +1420,20 @@
 - 遗留：本地 main 上存在约 30 个**预先存在**的 gofmt 未格式化文件（cmd/seed_admin、internal/handler/ip.go 等，经 stash/`git show HEAD` 验证为基线噪音），非本次引入，未触碰。
 - #134 冻结门现状：#111/#112/#113 已关闭，仍剩 #76（ready-for-human，067 云端执行人工门）→ 优先级 5（observability/RAG/归档扫描）继续冻结。
 - `docs/superpowers/specs/2026-08-08-omnicraft-content-safety-callback-fix-design.md` 中 B1/B5/B6 决策由本批次落地。
+
+## [2026-08-13] - 治理调整：本地开发模式（无生产部署）
+
+### What was done:
+- 用户决策（2026-08-13）：短期不真实上线生产，以本地可运行/测试/功能完成为目标（与 issue #22 基线一致）。据此放宽部分约束：
+- **#76**：标签由 ready-for-human 改为 deferred（新标签 `deferred`，描述「已延期：恢复生产部署时重新激活」）；issue 注释记录恢复条件（#75 部署确认 → 云端日志 ≥24h 零命中 → backup/restore drill → 067 TDD drop release → post-cutover smoke）。本地不执行 067、不以 mock/local 证据冒充生产证据。
+- **#134**：body 重写——本地开发解冻（#135~#150 不再 blocked_by #134），本票保持 OPEN 作为生产发布门；恢复生产时先执行 #76 再关本票。
+- **#110**：注释更新——"运行时统一等待 #134"仅对生产发布生效。
+- **AGENTS.md**：注册表上方新增「本地开发模式」说明块；优先级 1/5/6 行与 DAG 段改写（#76 deferred、#135~#150 本地可执行、生产门保留）；⚠️ 阻塞处理章节加本地开发例外（凭证/密钥/发布输入不再阻塞，走 fail-open/mock；迁移冲突与多代理契约冲突仍阻塞）。
+- 文档同步：两份 roadmap 计划文件（observability/RAG）与 archive-malware-scanning spec 各加修订注记（2026-08-13）。
+- 核实：#135~#150 各票 body 无原生 blocked_by 边（GitHub issue links API 404，edges 仅存在于 #134/#110 body 与 AGENTS.md），本次同步即为修正本体。
+
+### Testing:
+- 无需代码测试（纯治理/文档调整）；AGENTS.md 与计划文件修订后无验证门要求。
+
+### Notes:
+- 恢复生产部署时：重新激活 #76（ready-for-human）→ 关 #134 → #135~#150 生产发布受门约束；凭证检查恢复「阻塞处理」原语义。

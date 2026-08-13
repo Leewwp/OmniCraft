@@ -25,18 +25,20 @@ CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致
 
 当前 Web-only 范围内的待办工作登记在下表。会话开始先查此表，选择**优先级最高且依赖已满足**的计划执行；用户明确指定任务时以用户指定为准。计划完成后从表中移除并归档该计划文件到 `docs/archive/plans/`。表中「执行单元」按 tracker ticket 或计划顶层 Task 计数，不计 Plan Self-Check 复核框。
 
+> **本地开发模式（2026-08-13 起）**：短期不真实上线生产，以本地可运行、可测试、功能完成（本地 live demo）为目标（与 issue #22 基线一致）。影响：① #76（067 drop release）与 #134（Web-only 生产发布冻结门）整体延期——#76 已标 `deferred`，本地不执行 067、不以 mock/local 证据冒充生产证据；#135~#150 本地开发不再被 #134 阻塞（GitHub 依赖与本文同步放宽），仅生产发布仍受 #134/#76 门约束，恢复生产部署时重新激活。② 真实凭证/外部服务缺失（阿里云 AccessKey、Green 内容安全、SMTP、LLM provider 等）在本地开发期不再阻塞，走既有 fail-open/mock/测试替身路径（如 A4 审核语义、fake scanner、`verify-project.sh --full` 的 mocked contracts）；仅当用户明确要求真实发布时才恢复「阻塞处理」的凭证检查。
+
 | 优先级 | 计划文件 | 执行单元 | 车道 | 备注 |
 |--------|----------|------|------|------|
-| 1 | `docs/superpowers/specs/2026-08-07-omnicraft-web-experience-corrections-design.md`（执行追踪：GitHub issues #64/#65~#76；heavy 细化：`docs/superpowers/plans/2026-08-08-omnicraft-ip-visit-history.md`、`docs/superpowers/plans/2026-08-08-omnicraft-favorites-cutover.md`） | 12 tickets | 混合 | #65~#75 全部完成（#71/#69/#72 共享面并行合并、#73 heavy 独立迁移 `066_ip_visit_history.sql`、#74→#75 收藏状态以成员关系为唯一源并退役旧 favorites 运行时依赖，均经 `verify-project.sh --full` 与全量验证门）；仅剩 #76 ready-for-human 人工门：heavy `067_drop_legacy_favorites.sql`，在云端日志+可恢复备份人工门满足前不得执行。改 config/routes/migrations 后跑 doc-validator `--fix` |
+| 1 | `docs/superpowers/specs/2026-08-07-omnicraft-web-experience-corrections-design.md`（执行追踪：GitHub issues #64/#65~#76；heavy 细化：`docs/superpowers/plans/2026-08-08-omnicraft-ip-visit-history.md`、`docs/superpowers/plans/2026-08-08-omnicraft-favorites-cutover.md`） | 12 tickets | 混合 | #65~#75 全部完成（#71/#69/#72 共享面并行合并、#73 heavy 独立迁移 `066_ip_visit_history.sql`、#74→#75 收藏状态以成员关系为唯一源并退役旧 favorites 运行时依赖，均经 `verify-project.sh --full` 与全量验证门）；仅剩 #76（heavy `067_drop_legacy_favorites.sql`），2026-08-13 起标 `deferred`：随生产部署延期，云端日志+可恢复备份人工门在恢复生产前不执行（本地也不产生 mock 证据）。改 config/routes/migrations 后跑 doc-validator `--fix` |
 | 2 | `docs/archive/plans/2026-08-08-omnicraft-media-experience-design.md`（执行追踪：GitHub issues #80/#81~#90） | 10 tickets | 混合 | ✅ 全部完成并合并（#81~#90，PR #132/#133/#152~#156/#165）；计划已归档 `docs/archive/plans/`。媒体显示链、来源联动与相关块收口，无遗留执行单元 |
 | 3 | `docs/archive/plans/2026-06-30-omnicraft-community-source-linkage.md`（执行追踪：GitHub issue #96） | 9 tasks | mixed | ✅ 全部完成并合并（#157~#164）；计划已归档 `docs/archive/plans/`。来源校验/契约/related-fanworks/picker/归因行收口，无遗留执行单元 |
 | 3 | `docs/superpowers/specs/2026-08-08-omnicraft-content-safety-callback-fix-design.md`（执行追踪：GitHub issues #103/#104~#109；#104~#109 为 #103 原生子票） | 6 tickets | heavy | ✅ 全部完成并合并（#104~#109，merge 77b9570/e37de43/076a64f/2efdfd6/318f1ae/ef6b1de；#103 spec 随批次关闭）：回调契约改 form+checksum 且 checksum 为唯一入站认证（#106）、提交侧补 seed/dataId 且封面纳入图片审核（#107）、删 `green.callback_allowed_ips` 加 `green.seed`/`green.uid` 配置与 release gate（#104）、`068_add_ai_review_records_task_id.sql` 幂等+banned 终态守卫+同步单次落库（#105）、评论/讨论文本审核含 A4 分环境语义与 EditComment（#109）。全量验证门通过（24 包 + verify-project.sh --full 73 例 + doc-validator 幂等）。#110 已晋升为后续独立安全计划（优先级 6 归档扫描，父票 #110），不属本行；#111/#112/#113 见优先级 4 行 |
 | 4 | grilling 2026-08-08 moderation 批次（执行追踪：GitHub issues #111/#112/#113；追踪：#114/#115） | 3 tickets | 混合 | ✅ 全部完成并合并（#111 heavy 头像 OSS 强制+ImageModeration+存量 avatar-audit 脚本、#112 light 私信 A4 文本审核、#113 light 反馈附件图片审核；merge 8ee85b4/eaf530f/771aaba；共享 seam `ReviewImageURL` 在 44943d3，前端兼容修复 1e6c25e 暴露 `oss_domain`）。全量验证门通过（26 包 + verify-project.sh --full 73 例 + doc-validator 幂等）。#134 冻结门仅剩 #76 |
-| 5 | `docs/superpowers/plans/2026-08-11-omnicraft-reliable-async-observability-foundation-roadmap.md`（执行追踪：冻结门 #134；T00/T02/T03/T08 = #135/#137/#138/#143） | 4 tickets | heavy | 全部被 Web-only 冻结门 #134 阻塞；#134 原生等待 #76（#111/#112/#113 已关闭）。顺序：#135 治理；#137→#138；#143 等 #135/#138/#142。独立 `cmd/worker` 是唯一 Worker 模型；固定迁移 070；改 config/routes/migrations 后跑 doc-validator `--fix` |
-| 5 | `docs/superpowers/plans/2026-08-11-omnicraft-rag-minimal-slice-roadmap.md`（设计输入：`docs/superpowers/specs/2026-08-11-omnicraft-rag-deepening-design.md`；执行追踪：T01/T04/T05/T06/T07/T09/T10 = #136/#139/#140/#141/#142/#144/#145） | 7 tickets | 混合 | 全部由 #134 原生直接阻塞；顺序 #136，#138→#139，#135/#138/#139→#140，#136/#140→#141，#136/#141→#142，#143 在共享文件上排 #142 后，#144 等 #136~#143，#145 只在 #144 后更新 ADR 0005且不阻塞 #32。固定迁移 069/071；T01 也是 heavy |
-| 6 | `docs/superpowers/specs/2026-08-11-omnicraft-archive-malware-scanning-design.md`（执行追踪：父票 #110；最小实现 #146~#150；Future rollout #151） | 5 tickets | heavy | #146 被 #134 阻塞；#147←#146；#148←#146/#135/#138；#149←#147/#148/#108；#150←#149。ClamAV 仅 full-infra/security profile；固定迁移 072。#151 存量回扫不属于当前最小实现，已标 `deferred` 并以 `not planned` 关闭；只有用户明确恢复生产存量范围后才重开并登记为执行单元 |
+| 5 | `docs/superpowers/plans/2026-08-11-omnicraft-reliable-async-observability-foundation-roadmap.md`（执行追踪：冻结门 #134；T00/T02/T03/T08 = #135/#137/#138/#143） | 4 tickets | heavy | 本地开发已解冻（2026-08-13：#134 仅作生产发布门且 deferred，#135~#150 本地执行不再被其阻塞）；#134 生产门原生等待 #76（deferred）。顺序：#135 治理；#137→#138；#143 等 #135/#138/#142。独立 `cmd/worker` 是唯一 Worker 模型；固定迁移 070；改 config/routes/migrations 后跑 doc-validator `--fix` |
+| 5 | `docs/superpowers/plans/2026-08-11-omnicraft-rag-minimal-slice-roadmap.md`（设计输入：`docs/superpowers/specs/2026-08-11-omnicraft-rag-deepening-design.md`；执行追踪：T01/T04/T05/T06/T07/T09/T10 = #136/#139/#140/#141/#142/#144/#145） | 7 tickets | 混合 | 本地已解冻（2026-08-13：#134 仅作生产发布门且 deferred，本地不阻塞）；顺序 #136，#138→#139，#135/#138/#139→#140，#136/#140→#141，#136/#141→#142，#143 在共享文件上排 #142 后，#144 等 #136~#143，#145 只在 #144 后更新 ADR 0005且不阻塞 #32。固定迁移 069/071；T01 也是 heavy |
+| 6 | `docs/superpowers/specs/2026-08-11-omnicraft-archive-malware-scanning-design.md`（执行追踪：父票 #110；最小实现 #146~#150；Future rollout #151） | 5 tickets | heavy | 本地已解冻（2026-08-13：#134 仅作生产发布门且 deferred，本地不阻塞）；#147←#146；#148←#146/#135/#138；#149←#147/#148/#108；#150←#149。ClamAV 仅 full-infra/security profile；固定迁移 072。#151 存量回扫不属于当前最小实现，已标 `deferred` 并以 `not planned` 关闭；只有用户明确恢复生产存量范围后才重开并登记为执行单元 |
 
-跨计划可执行 DAG 以 GitHub 原生 `blocked_by` 为机器可读门，本文为人类摘要：`#65` →（`#66/#67/#70/#82` 与媒体 `#83` 按文件并行）→ `#68` 与媒体 `#81/#84/#85~#89` → source-linkage `#96`（已完成）→ 媒体 `#90`（已完成）→ collaboration-invites `#97`（已完成）→ Web `#71` → `#69` → `#72` → `#73` → `#74/#75/#76`。其中 #71/#69/#72 共享筛选、ContentDetail 与 i18n 文件，必须按该顺序串行；Web/safety 末端 #111/#112/#113 已全部关闭（#76 仍是 ready-for-human 人工门），#76 与其余 blocker 全部关闭后才关 #134，之后执行 #135~#150 的原生 DAG。发现本文与 GitHub 原生边不一致时先停止并修正二者，不自行选择较宽松的一方。
+跨计划可执行 DAG 以 GitHub 原生 `blocked_by` 为机器可读门，本文为人类摘要：`#65` →（`#66/#67/#70/#82` 与媒体 `#83` 按文件并行）→ `#68` 与媒体 `#81/#84/#85~#89` → source-linkage `#96`（已完成）→ 媒体 `#90`（已完成）→ collaboration-invites `#97`（已完成）→ Web `#71` → `#69` → `#72` → `#73` → `#74/#75/#76`。其中 #71/#69/#72 共享筛选、ContentDetail 与 i18n 文件，必须按该顺序串行；Web/safety 末端 #111/#112/#113 已全部关闭（2026-08-13），#76 已标 `deferred`（恢复生产部署时激活，本地不执行）。2026-08-13 起本地开发不再被 #134 冻结门阻塞：#135~#150 按各自 lane 内 DAG（见上表备注）在本地执行，仅生产发布仍受 #134/#76 门约束。发现本文与 GitHub 原生边不一致时先停止并修正二者，不自行选择较宽松的一方。
 
 ### 暂缓计划（不是当前任务来源）
 
@@ -130,12 +132,14 @@ cd frontend && npm run dev &
 
 ## ⚠️ 阻塞处理
 
+> **本地开发模式例外（2026-08-13 起）**：短期无生产部署。第 1/2/4 条（凭证、密钥、发布输入）在本地开发期**不再阻塞**——走既有 fail-open/mock/测试替身路径（审核 A4 语义、fake scanner、`verify-project.sh --full` mocked contracts），仅当用户明确要求真实发布时恢复检查。第 3/5 条（迁移冲突、多代理契约冲突）在任何模式下都阻塞。
+
 **以下情况必须停止任务，输出阻塞信息，等待人工介入**：
 
-1. 缺少外部服务配置：阿里云 AccessKey、OSS Bucket、Redis 连接失败
-2. 需要真实密钥：内容安全 API、OSS 直传凭证、真实 LLM Provider
+1. 缺少外部服务配置：阿里云 AccessKey、OSS Bucket、Redis 连接失败（本地开发期例外，见上）
+2. 需要真实密钥：内容安全 API、OSS 直传凭证、真实 LLM Provider（本地开发期例外，见上）
 3. 数据库迁移冲突：迁移文件执行失败
-4. 发布输入缺失：SMTP、验证码、HTTPS 证书、Allowed Origins、正式域名、法律文本版本、Ed25519 密钥缺失
+4. 发布输入缺失：SMTP、验证码、HTTPS 证书、Allowed Origins、正式域名、法律文本版本、Ed25519 密钥缺失（本地开发期例外，见上）
 5. 多代理契约冲突：共享文件冲突、无法安全 rebase、任务语义不兼容
 
 **阻塞时禁止**：提交 commit、勾选任何 checkbox、假装任务完成。
