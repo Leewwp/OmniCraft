@@ -61,6 +61,21 @@ func NewReviewService(db *gorm.DB, rdb *redis.Client, cfg *config.Config, reputS
 	}
 }
 
+// ReviewText runs Aliyun Green text moderation over text and returns the
+// normalized result ("pass", "review" or "block"). When the Green client is
+// not configured it returns aliyun.ErrGreenNotConfigured so callers can apply
+// their environment-specific availability policy.
+func (s *ReviewService) ReviewText(ctx context.Context, text string) (string, error) {
+	if s == nil || s.green == nil {
+		return "", aliyun.ErrGreenNotConfigured
+	}
+	res, err := s.green.TextModeration(ctx, text)
+	if err != nil {
+		return "", err
+	}
+	return normalizeReviewResult(res.Result), nil
+}
+
 func (s *ReviewService) SubmitForAIReview(ctx context.Context, in SubmitReviewInput) error {
 	if s == nil || s.db == nil {
 		return errors.New("review service not initialized")
