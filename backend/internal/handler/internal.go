@@ -86,13 +86,11 @@ func (h *InternalHandler) isAllowedSourceIP(rawIP string) bool {
 		return false
 	}
 
-	allowed := []string{}
-	if h.cfg != nil {
-		allowed = h.cfg.Green.CallbackAllowedIPs
-	}
-	if len(allowed) == 0 {
-		allowed = []string{"127.0.0.1", "::1"}
-	}
+	// The Aliyun callback source-IP allowlist config was retired in #104
+	// (Aliyun publishes no callback source ranges). Until the form+checksum
+	// callback contract lands (#106), only loopback callers are permitted so
+	// staging drills and local verification keep working.
+	allowed := []string{"127.0.0.1", "::1"}
 
 	for _, candidate := range allowed {
 		trimmed := strings.TrimSpace(candidate)
