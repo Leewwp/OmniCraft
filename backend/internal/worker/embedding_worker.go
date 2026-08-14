@@ -5,16 +5,24 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	"gorm.io/gorm"
+
 	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/service"
 )
 
+// EmbeddingWorker computes embeddings for the content.embedding topic. The
+// LLM call cannot join the inbox transaction; the embedding upsert is a
+// rebuildable projection (ADR 0005), so the completion record is written
+// after the effect and a crash re-runs the embedding on redelivery
+// (at-least-once).
 type EmbeddingWorker struct {
 	agentSvc *service.AgentService
+	db       *gorm.DB
 }
 
-func NewEmbeddingWorker(agentSvc *service.AgentService) *EmbeddingWorker {
-	return &EmbeddingWorker{agentSvc: agentSvc}
+func NewEmbeddingWorker(agentSvc *service.AgentService, db *gorm.DB) *EmbeddingWorker {
+	return &EmbeddingWorker{agentSvc: agentSvc, db: db}
 }
 
 func (w *EmbeddingWorker) Handle(ctx context.Context, msg queue.Message) error {
@@ -44,5 +52,10 @@ func (w *EmbeddingWorker) Handle(ctx context.Context, msg queue.Message) error {
 
 	slog.Info("embedding_worker: embedding completed",
 		"content_id", payload.ContentID)
+
+	if err := MarkConsumedInbox(ctx, w.db, msg.Group, InboxEventID(msg.Group, msg)); err != nil {
+		slog.Error("embedding_worker: failed to record inbox completion", "msg_id", msg.ID, "error", err)
+		return err
+	}
 	return nil
 }
