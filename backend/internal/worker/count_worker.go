@@ -7,16 +7,23 @@ import (
 	"log/slog"
 
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 
 	"omnicraft/backend/internal/pkg/queue"
 )
 
+// CountWorker applies view/download counter increments from the
+// count.download topic. The Redis increment is not joinable with the inbox
+// transaction, so the completion record is written after the increment
+// (at-least-once: a crash re-increments on redelivery; counters are eventual
+// and reconciled by the server's count sync schedulers).
 type CountWorker struct {
 	rdb *redis.Client
+	db  *gorm.DB
 }
 
-func NewCountWorker(rdb *redis.Client) *CountWorker {
-	return &CountWorker{rdb: rdb}
+func NewCountWorker(rdb *redis.Client, db *gorm.DB) *CountWorker {
+	return &CountWorker{rdb: rdb, db: db}
 }
 
 func (w *CountWorker) Handle(ctx context.Context, msg queue.Message) error {
@@ -57,7 +64,12 @@ func (w *CountWorker) Handle(ctx context.Context, msg queue.Message) error {
 		}
 	default:
 		slog.Warn("count_worker: unknown action", "action", payload.Action, "msg_id", msg.ID)
+		return nil
 	}
 
+	if err := MarkConsumedInbox(ctx, w.db, msg.Group, InboxEventID(msg.Group, msg)); err != nil {
+		slog.Error("count_worker: failed to record inbox completion", "msg_id", msg.ID, "error", err)
+		return err
+	}
 	return nil
 }

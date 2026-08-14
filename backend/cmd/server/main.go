@@ -84,9 +84,6 @@ func main() {
 		hotRankSvc.Run()
 	})
 
-	// Start queue workers if enabled
-	stopWorkers := ctr.StartWorkers(context.Background())
-
 	ready := buildReadinessCheck(cfg, sqlDB, rdb)
 	obsServer := observability.NewServer(metrics.Registry, ready, time.Duration(cfg.Observability.ReadHeaderTimeoutSec)*time.Second)
 	go func() {
@@ -144,7 +141,6 @@ func main() {
 	<-quit
 	logger.Info("Shutting down server...")
 
-	stopWorkers()
 	browseHistoryCleanup.Stop()
 	collabInviteExpiry.Stop()
 

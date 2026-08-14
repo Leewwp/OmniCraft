@@ -93,3 +93,19 @@ func (r *OutboxRepository) RecordFailure(ctx context.Context, id int64, nextAtte
 			"next_attempt_at": nextAttemptAt,
 		}).Error
 }
+
+// MarkConsumedTx inserts the (consumer_group, event_id) inbox completion row
+// inside the caller's transaction. It returns true only when the insert
+// actually landed (first application of the event for the group); on a UNIQUE
+// conflict the duplicate delivery is reported as alreadyConsumed=true and the
+// existing row is left untouched. The business effect must run in the same
+// transaction so a crash can never leave a completion record without its
+// side effect.
+func (r *OutboxRepository) MarkConsumedTx(ctx context.Context, tx *gorm.DB, group string, eventID int64) (alreadyConsumed bool, err error) {
+	row := model.InboxConsumer{ConsumerGroup: group, EventID: eventID}
+	result := tx.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&row)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 0, nil
+}

@@ -346,6 +346,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		admin.POST("/llm-configs/:id/test", adminHandler.TestLLMConfig)
 		admin.GET("/queue/stats", adminHandler.GetQueueStats)
 		admin.GET("/queue/dlq", adminHandler.GetDLQEntries)
+		admin.POST("/queue/dlq/:id/replay", adminHandler.ReplayDLQEntry)
 		admin.GET("/feedback", adminFeedbackHandler.ListFeedback)
 		admin.GET("/feedback/:id", adminFeedbackHandler.GetFeedback)
 		admin.PATCH("/feedback/:id", adminFeedbackHandler.PatchFeedback)

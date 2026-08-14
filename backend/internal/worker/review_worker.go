@@ -5,20 +5,26 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	"gorm.io/gorm"
+
 	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/service"
 )
 
+// ReviewWorker applies AI review results from the content.review / ip.review
+// topics. The review services are internally idempotent (provider_task_id
+// dedup, conditional status updates), so the inbox completion record is
+// written after the effect: a crash re-runs the review on redelivery
+// (at-least-once) instead of losing it.
 type ReviewWorker struct {
 	reviewSvc *service.ReviewService
-	rdb       interface {
-		IdempotentCheck(ctx context.Context, topic, msgID string) (bool, error)
-	}
+	db        *gorm.DB
 }
 
-func NewReviewWorker(reviewSvc *service.ReviewService) *ReviewWorker {
+func NewReviewWorker(reviewSvc *service.ReviewService, db *gorm.DB) *ReviewWorker {
 	return &ReviewWorker{
 		reviewSvc: reviewSvc,
+		db:        db,
 	}
 }
 
@@ -83,7 +89,12 @@ func (w *ReviewWorker) Handle(ctx context.Context, msg queue.Message) error {
 
 	default:
 		slog.Warn("review_worker: unknown action", "action", payload.Action, "msg_id", msg.ID)
+		return nil
 	}
 
+	if err := MarkConsumedInbox(ctx, w.db, msg.Group, InboxEventID(msg.Group, msg)); err != nil {
+		slog.Error("review_worker: failed to record inbox completion", "msg_id", msg.ID, "error", err)
+		return err
+	}
 	return nil
 }
