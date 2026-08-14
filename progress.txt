@@ -1472,3 +1472,22 @@
 - #137 顾虑：ClaimPendingTx 目前仅测试使用（T03 seam）；occurred_at=created_at（迁移合同无独立列）；ctx 传递深度 T08 评估；updated/deleted payload 无 Status 字段（RAG 需要可 schema v2 加）。
 - #146 顾虑：ContentAttachment 新字段随 JSON 进公开 API（additive，前端忽略）；container 装配留待 S03；scan_version 按 spec 至少包含语义加入。
 - 下一步 lane 内 DAG：#138（T03 独立 cmd/worker，共享）→ 之后 observability #143、RAG #139/#140。
+
+## [2026-08-14] - Task #138/#147: T03 独立 Worker + S02 zip 校验器
+
+### What was done:
+- **#138 T03（heavy, TDD + 故障演练）**：唯一 cmd/worker 运行模型（backend 不再启动异步消费者/relay）；relay_service+relay_worker（outbox pending → Redis Streams XAdd → MarkSent，at-least-once）；幂等消费（inbox_consumers 与副作用同事务，UNIQUE 冲突跳过）；DLQ 加 consumer_group；POST /api/v1/admin/queue/dlq/:id/replay（admin 鉴权 + 审计）；config worker.enabled/concurrency；docker-compose 默认 profile 含 worker。
+- **#147 S02（heavy, TDD）**：backend/internal/pkg/archivezip/ 流式 validator——拒绝加密/绝对路径/盘符/..穿越/symlink/重名覆盖/条目数/单条目/累计解压/递归深度超限；嵌套 zip 受限临时目录递归；配额全来自 config；哨兵错误=§7 API code。
+- 故障演练 4 项真实执行（证据 docs/working/2026-08-14-t138-fault-drills-*.md/raw）：redis 中断追平、重复投递幂等、DLQ replay+审计、server/worker 独立启停双向；演练中发现并修复 XREADGROUP NOGROUP 永久空转缺陷（重建 group 从流头回补，TDD red→green）。
+- 子 agent 取消恢复：#138 首轮被取消，留下 ~20 个已修改文件（全绿）→ 派续做 agent 完成演练/证据/单 commit a63d6a6（并修复 docker-compose YAML 结构错误、清理僵尸进程与 tmpdrill）。
+
+### Testing:
+- #138：go test 28 包全绿（relay 5/inbox 幂等 5/indexer 5/shutdown 2/replay 4）；doc-validator 幂等；docker compose config 通过；verify-project.sh --full 73/73。
+- #147：正/反各条件全测 + 流式中断证明 + 300 轮畸形 + Fuzz 20s/73k execs + -race；全后端绿；verify 73/73。
+- 合并后全量：29 包 go test 绿 + verify 73/73 + doc-validator 幂等。
+
+### Notes:
+- #138 遗留：blocking XREADGROUP 超时（redis.Nil）被记为 error 日志噪音，建议后续排除。
+- #147 遗留：畸形 zip 映射空缺留 S04（建议 400/ARCHIVE_SCAN_FAILED）；条目数逐层独立语义。
+- 演练环境清理：演练 Redis 容器已停、演练库保留复验；server/worker 进程已停。
+- 下一步 lane 内 DAG：#143（T08 OTel，等 #138/#142 完成，RAG lane #139 尚在途）；archive #148（S03 等 #146/#135/#138 已满足，可开）。
