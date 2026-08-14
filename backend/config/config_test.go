@@ -145,7 +145,7 @@ func TestLoadOverrideMissingFileIsNoOp(t *testing.T) {
 	cfg := loadDefaultConfigForTest(t)
 	LoadOverride(cfg, tmp+"/does-not-exist.yaml")
 	require.Equal(t, 3, cfg.Queue.MaxAttempts)
-	require.False(t, cfg.Queue.Enabled)
+	require.True(t, cfg.Queue.Enabled, "dev default enables the queue broker for the standalone worker (issue #138)")
 }
 
 func TestValidateReleaseRejectsBypassCaptchaAndLoggerSMTP(t *testing.T) {

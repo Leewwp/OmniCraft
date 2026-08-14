@@ -47,6 +47,7 @@ var auditMetadataAllowlist = map[string][]string{
 		"key_fingerprint",
 		"replayed",
 	},
+	"dlq_replay": {"original_topic", "original_id", "error_code"},
 }
 
 var sensitiveKeyPatterns = []string{

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -824,6 +825,47 @@ func (h *AdminHandler) GetDLQEntries(c *gin.Context) {
 		"entries": entries,
 		"count":   len(entries),
 	})
+}
+
+// dlqEntryIDPattern matches Redis stream ids ("<millis>-<seq>"), the only
+// valid dead-letter entry identifiers.
+var dlqEntryIDPattern = regexp.MustCompile(`^\d+-\d+$`)
+
+// ReplayDLQEntry re-delivers one dead-letter entry back to its original topic
+// (mounts DLQWorker.Replay, which previously had no route). Admin-only via the
+// /api/v1/admin group middleware; every attempt is recorded in the admin
+// audit log with the operator, time and entry id.
+func (h *AdminHandler) ReplayDLQEntry(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if !dlqEntryIDPattern.MatchString(id) {
+		h.auditFailed(c, "dlq_replay", "dlq_entry", id, map[string]any{"error_code": "INVALID_ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid dlq entry id"})
+		return
+	}
+	if h.dlqWorker == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "DLQ_UNAVAILABLE", "message": "dead-letter queue is unavailable"})
+		return
+	}
+
+	entry, err := h.dlqWorker.Replay(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, worker.ErrDLQEntryNotFound) {
+			h.auditFailed(c, "dlq_replay", "dlq_entry", id, map[string]any{"error_code": "DLQ_ENTRY_NOT_FOUND"})
+			c.JSON(http.StatusNotFound, gin.H{"code": "DLQ_ENTRY_NOT_FOUND", "message": "dlq entry not found"})
+			return
+		}
+		h.auditFailed(c, "dlq_replay", "dlq_entry", id, map[string]any{"error_code": "REPLAY_FAILED"})
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "REPLAY_FAILED", err)
+		return
+	}
+
+	if !h.auditOrFail(c, "dlq_replay", "dlq_entry", id, map[string]any{
+		"original_topic": entry.OriginalTopic,
+		"original_id":    entry.OriginalID,
+	}) {
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "dlq entry replayed", "entry": entry})
 }
 
 func (h *AdminHandler) auditOrFail(c *gin.Context, action, targetType, targetID string, metadata map[string]any) bool {

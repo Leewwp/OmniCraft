@@ -244,7 +244,7 @@ cache:
   publish_freeze_ttl: 604800
 
 queue:
-  enabled: false
+  enabled: true
   max_attempts: 3
   retry_backoff_sec:
     - 10
@@ -256,3 +256,9 @@ queue:
   worker_notification: 1
   worker_embedding: 1
   worker_count: 1
+
+# Standalone worker process (cmd/worker). Consumed only by cmd/worker: the
+# API server never starts asynchronous consumers (ADR 0005).
+worker:
+  enabled: true
+  concurrency: 2

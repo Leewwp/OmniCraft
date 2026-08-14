@@ -55,7 +55,18 @@ type Config struct {
 	RateLimit      RateLimitConfig      `mapstructure:"rate_limit"`
 	Recommendation RecommendationConfig `mapstructure:"recommendation"`
 	Queue          queue.QueueConfig    `mapstructure:"queue"`
+	Worker         WorkerConfig         `mapstructure:"worker"`
 	Observability  ObservabilityConfig  `mapstructure:"observability"`
+}
+
+// WorkerConfig controls the standalone worker process (cmd/worker) only: the
+// API server never starts asynchronous consumers or the outbox relay (ADR
+// 0005, issue #138). Concurrency is the number of consumer goroutines per
+// topic; messages of a topic are distributed across them by the consumer
+// group semantics.
+type WorkerConfig struct {
+	Enabled     bool `mapstructure:"enabled"`
+	Concurrency int  `mapstructure:"concurrency"`
 }
 
 type ObservabilityConfig struct {

@@ -162,6 +162,32 @@ services:
           memory: 512M
           cpus: "0.5"
 
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: omnicraft-worker
+    env_file: .env
+    environment:
+      DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable"
+      REDIS_ADDR: "redis:6379"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      pgbouncer:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["./worker"]
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
   nginx:
     image: nginx:alpine
     container_name: omnicraft-nginx

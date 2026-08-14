@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/redis/go-redis/v9"
@@ -10,9 +11,11 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/captcha"
+	"omnicraft/backend/internal/pkg/events"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/pkg/mail"
 	"omnicraft/backend/internal/pkg/queue"
+	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 	"omnicraft/backend/internal/worker"
@@ -202,26 +205,67 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	return c
 }
 
-// StartWorkers starts all queue consumers when queue is enabled.
-// Returns a stop function that should be called on shutdown.
+// StartWorkers starts all queue consumers and the outbox relay. It is the
+// single entry point of the standalone worker process (cmd/worker): the API
+// server never starts asynchronous consumers (ADR 0005) and no
+// worker.external=false fallback exists. Returns a stop function that
+// gracefully drains the consumers and the relay.
 func (c *ServiceContainer) StartWorkers(ctx context.Context) func() {
-	if c.QueueBroker == nil || !c.Cfg.Queue.Enabled {
+	if c.QueueBroker == nil {
+		slog.Warn("worker: queue broker is nil (queue disabled or redis absent), skipping worker startup")
 		return func() {}
 	}
 
 	mgr := worker.NewWorkerManager(c.QueueBroker)
+	concurrency := c.Cfg.Worker.Concurrency
+	if concurrency < 1 {
+		concurrency = 1
+	}
 
-	mgr.Register("content.review", "omnicraft-content-review", worker.NewReviewWorker(c.ReviewService).Handle)
-	mgr.Register("ip.review", "omnicraft-ip-review", worker.NewReviewWorker(c.ReviewService).Handle)
-	mgr.Register("notification.create", "omnicraft-notification", worker.NewNotificationWorker(c.NotificationRepo).Handle)
-	mgr.Register("count.download", "omnicraft-count", worker.NewCountWorker(c.RDB).Handle)
-	mgr.Register("content.embedding", "omnicraft-embedding", worker.NewEmbeddingWorker(c.AgentService).Handle)
+	reviewWorker := worker.NewReviewWorker(c.ReviewService, c.DB)
+	notificationWorker := worker.NewNotificationWorker(c.NotificationRepo, c.DB)
+	countWorker := worker.NewCountWorker(c.RDB, c.DB)
+	embeddingWorker := worker.NewEmbeddingWorker(c.AgentService, c.DB)
+	indexerWorker := worker.NewIndexerWorker(c.DB, c.AgentService, repository.NewEmbeddingRepository(c.DB))
+
+	subscriptions := []struct {
+		topic   string
+		group   string
+		handler queue.Handler
+	}{
+		{"content.review", "omnicraft-content-review", reviewWorker.Handle},
+		{"ip.review", "omnicraft-ip-review", reviewWorker.Handle},
+		{"notification.create", "omnicraft-notification", notificationWorker.Handle},
+		{"count.download", "omnicraft-count", countWorker.Handle},
+		{"content.embedding", "omnicraft-embedding", embeddingWorker.Handle},
+		{events.TopicContentPublished, "omnicraft-indexer", indexerWorker.Handle},
+		{events.TopicContentUpdated, "omnicraft-indexer", indexerWorker.Handle},
+		{events.TopicContentBanned, "omnicraft-indexer", indexerWorker.Handle},
+		{events.TopicContentDeleted, "omnicraft-indexer", indexerWorker.Handle},
+	}
+	for _, sub := range subscriptions {
+		// Concurrency is one consumer goroutine per topic per unit; the Redis
+		// consumer-group semantics distribute messages across them (each
+		// message is delivered to exactly one consumer).
+		for i := 0; i < concurrency; i++ {
+			mgr.Register(sub.topic, sub.group, sub.handler)
+		}
+	}
 
 	if err := mgr.Start(ctx); err != nil {
 		slog.Error("Failed to start workers", "error", err)
 	}
 
+	relayCtx, relayCancel := context.WithCancel(ctx)
+	recovery.GoSafe(func() {
+		relay := worker.NewRelayWorker(service.NewRelayService(c.OutboxRepo, c.QueueProducer, &c.Cfg.Queue), 0)
+		if err := relay.Start(relayCtx); err != nil && !errors.Is(err, context.Canceled) {
+			slog.Error("relay worker stopped unexpectedly", "error", err)
+		}
+	})
+
 	return func() {
+		relayCancel()
 		mgr.Stop()
 	}
 }
