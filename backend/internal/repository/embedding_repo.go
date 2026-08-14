@@ -28,6 +28,14 @@ func (r *EmbeddingRepository) UpsertEmbedding(contentItemID int64, embedding []f
 	`, contentItemID, pgVector(embedding)).Error
 }
 
+// DeleteByContentIDTx removes every embedding row of one content inside the
+// caller's transaction. The indexer worker calls it for content.banned and
+// content.deleted events, in the same transaction as the inbox completion
+// record.
+func (r *EmbeddingRepository) DeleteByContentIDTx(tx *gorm.DB, contentItemID int64) error {
+	return tx.Exec(`DELETE FROM content_embeddings WHERE content_item_id = ?`, contentItemID).Error
+}
+
 func (r *EmbeddingRepository) VectorSearch(embedding []float32, topK int) ([]EmbeddingSearchResult, error) {
 	var results []EmbeddingSearchResult
 	err := r.db.Raw(`

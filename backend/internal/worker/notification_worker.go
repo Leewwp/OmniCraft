@@ -5,17 +5,26 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	"gorm.io/gorm"
+
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/repository"
 )
 
+// NotificationWorker persists notifications from the notification.create
+// topic. The notification row and the inbox completion record commit in one
+// database transaction, so a duplicate delivery (same stream message id after
+// an ACK-loss redelivery) is skipped by the UNIQUE(consumer_group, event_id)
+// guard and never creates a second notification.
 type NotificationWorker struct {
+	db        *gorm.DB
 	notifRepo *repository.NotificationRepository
 }
 
-func NewNotificationWorker(notifRepo *repository.NotificationRepository) *NotificationWorker {
+func NewNotificationWorker(notifRepo *repository.NotificationRepository, db *gorm.DB) *NotificationWorker {
 	return &NotificationWorker{
+		db:        db,
 		notifRepo: notifRepo,
 	}
 }
@@ -51,7 +60,10 @@ func (w *NotificationWorker) Handle(ctx context.Context, msg queue.Message) erro
 		SenderID:   &payload.SenderID,
 	}
 
-	if err := w.notifRepo.Create(n); err != nil {
+	_, err := ConsumeInboxTx(ctx, w.db, msg.Group, InboxEventID(msg.Group, msg), func(ctx context.Context, tx *gorm.DB) error {
+		return w.notifRepo.CreateTx(ctx, tx, n)
+	})
+	if err != nil {
 		slog.Error("notification_worker: failed to create notification",
 			"user_id", payload.UserID, "channel", payload.Channel, "error", err)
 		return err

@@ -14,6 +14,7 @@ RUN go mod download
 COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/server ./cmd/server/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/worker ./cmd/worker/main.go
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/migrate ./cmd/migrate
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/release-preflight ./cmd/release-preflight
 
@@ -34,6 +35,7 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 
 COPY --from=builder /app/server .
+COPY --from=builder /app/worker .
 COPY --from=builder /app/migrate .
 COPY --from=builder /app/release-preflight .
 COPY --from=builder /app/config.yaml .

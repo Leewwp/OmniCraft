@@ -193,6 +193,8 @@ content. Zero means "use the specification defa... |
 | `verification.resend_cooldown_sec` | `int` | ResendCooldownSec |
 | `verification.reset_ttl_sec` | `int` | ResetTTLSec |
 | `web.public_base_url` | `string` | PublicBaseURL |
+| `worker.concurrency` | `int` | Concurrency |
+| `worker.enabled` | `bool` | Enabled |
 
 <!-- END AUTO-GENERATED: §7 -->
 

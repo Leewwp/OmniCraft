@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"omnicraft/backend/internal/pkg/recovery"
@@ -75,13 +76,35 @@ func (b *RedisStreamBroker) Subscribe(ctx context.Context, topic string, group s
 				if ctx.Err() != nil {
 					return
 				}
+				// The group can disappear under a running consumer (operator
+				// FLUSHDB, manual stream cleanup, TTL expiry). Re-create it
+				// from the head instead of error-spinning on NOGROUP forever;
+				// the group resumes at the oldest message, so nothing written
+				// while it was missing is lost (at-least-once).
+				if strings.HasPrefix(err.Error(), noGroupPrefix) {
+					if ensureErr := b.ensureGroup(ctx, streamKey, group); ensureErr != nil {
+						slog.Error("failed to re-create consumer group", "topic", topic, "group", group, "error", ensureErr)
+					}
+				}
 				slog.Error("xreadgroup error", "topic", topic, "group", group, "error", err)
 				time.Sleep(time.Second)
 				continue
 			}
 			for _, stream := range results {
 				for _, xmsg := range stream.Messages {
+					// Re-check shutdown after the blocking read returned: a
+					// message that arrived during Stop() must not reach the
+					// handler (it stays pending and is redelivered on the
+					// next start, at-least-once).
+					select {
+					case <-ctx.Done():
+						return
+					case <-b.stopped:
+						return
+					default:
+					}
 					msg := b.decodeMessage(topic, xmsg)
+					msg.Group = group
 					b.handleMessage(ctx, topic, group, msg, handler)
 				}
 			}
@@ -152,11 +175,11 @@ func (b *RedisStreamBroker) handleMessage(ctx context.Context, topic, group stri
 	slog.Error("handler exhausted retries, sending to DLQ",
 		"topic", topic, "msg_id", msg.ID, "attempts", msg.Attempts, "last_error", lastErr)
 	observeWorkerFailure()
-	b.sendToDLQ(ctx, msg, lastErr)
+	b.sendToDLQ(ctx, msg, group, lastErr)
 	b.rdb.XAck(ctx, streamKey(topic), group, msg.ID)
 }
 
-func (b *RedisStreamBroker) sendToDLQ(ctx context.Context, msg Message, err error) {
+func (b *RedisStreamBroker) sendToDLQ(ctx context.Context, msg Message, group string, err error) {
 	dlqKey := "omnicraft:dead-letter"
 	errStr := "unknown error"
 	if err != nil {
@@ -165,6 +188,7 @@ func (b *RedisStreamBroker) sendToDLQ(ctx context.Context, msg Message, err erro
 	payload, marshalErr := json.Marshal(map[string]interface{}{
 		"original_topic": msg.Topic,
 		"original_id":    msg.ID,
+		"consumer_group": group,
 		"payload":        string(msg.Payload),
 		"metadata":       msg.Metadata,
 		"attempts":       msg.Attempts,
@@ -190,11 +214,17 @@ func (b *RedisStreamBroker) sendToDLQ(ctx context.Context, msg Message, err erro
 	}
 }
 
+const busyGroupPrefix = "BUSYGROUP"
+
+const noGroupPrefix = "NOGROUP"
+
 func (b *RedisStreamBroker) ensureGroup(ctx context.Context, streamKey, group string) error {
 	err := b.rdb.XGroupCreateMkStream(ctx, streamKey, group, "0").Err()
 	if err != nil {
 		errStr := err.Error()
-		if len(errStr) >= 8 && errStr[:8] == "BUSYGROUP" {
+		// The group already exists (second consumer of the same topic, e.g.
+		// worker.concurrency > 1): that is a normal no-op, not a failure.
+		if len(errStr) >= len(busyGroupPrefix) && errStr[:len(busyGroupPrefix)] == busyGroupPrefix {
 			return nil
 		}
 	}

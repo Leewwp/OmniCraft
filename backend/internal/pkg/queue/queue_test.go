@@ -175,6 +175,13 @@ func TestRetryAndDLQ_PayloadAndMetadataPreserved(t *testing.T) {
 		t.Errorf("DLQ original_topic mismatch: expected %s, got %s", topic, originalTopic)
 	}
 
+	// Verify the consumer group is recorded on the DLQ entry (issue #138:
+	// replay and DLQ triage need to know which consumer failed).
+	consumerGroup, _ := dlqData["consumer_group"].(string)
+	if consumerGroup != group {
+		t.Errorf("DLQ consumer_group mismatch: expected %s, got %s", group, consumerGroup)
+	}
+
 	// Verify error message
 	errMsg, _ := dlqData["error"].(string)
 	if errMsg != "permanent failure" {
@@ -225,8 +232,8 @@ func TestSendToDLQNilErrorFallsBackToUnknownError(t *testing.T) {
 
 	// err=nil must not panic (regression for #128: sendToDLQ called with a nil
 	// lastErr when the retry loop never ran, e.g. max_attempts=0).
-	msg := Message{ID: "1-0", Topic: "test.dlq-nil", Payload: []byte(`{"k":"v"}`), Metadata: map[string]string{}}
-	broker.sendToDLQ(context.Background(), msg, nil)
+	msg := Message{ID: "1-0", Topic: "test.dlq-nil", Group: "omnicraft-dlq-nil", Payload: []byte(`{"k":"v"}`), Metadata: map[string]string{}}
+	broker.sendToDLQ(context.Background(), msg, msg.Group, nil)
 
 	dlqEntries, err := rdb.XRange(context.Background(), "omnicraft:dead-letter", "-", "+").Result()
 	if err != nil {
@@ -359,5 +366,51 @@ func TestNoopProducer(t *testing.T) {
 	err := noop.Publish(context.Background(), "test.topic", []byte("payload"))
 	if err != nil {
 		t.Errorf("noop producer should not return error, got %v", err)
+	}
+}
+
+// TestRedisStreamBrokerRecreatesDeletedGroup proves the consumer self-heals
+// when its consumer group disappears (operator FLUSHDB, manual stream cleanup,
+// TTL expiry): instead of error-spinning on NOGROUP forever, Subscribe
+// re-creates the group with XGroupCreateMkStream and resumes consuming from
+// the head, so a stream written after the wipe is still processed.
+func TestRedisStreamBrokerRecreatesDeletedGroup(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer rdb.Close()
+
+	cfg := &QueueConfig{Enabled: true, MaxAttempts: 3, RetryBackoffSec: []int{0, 0}, MaxLen: 100000}
+	broker := NewRedisStreamBroker(rdb, cfg)
+	defer broker.Stop()
+
+	var handled int
+	broker.Subscribe(context.Background(), "test.selfheal", "omnicraft-selfheal", func(ctx context.Context, msg Message) error {
+		handled++
+		return nil
+	})
+
+	if err := broker.Publish(context.Background(), "test.selfheal", []byte("before")); err != nil {
+		t.Fatalf("publish before flush: %v", err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for handled < 1 {
+		if time.Now().After(deadline) {
+			t.Fatal("first message never handled")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	// Wipe the whole redis (streams and groups) under the running consumer.
+	mr.FlushAll()
+
+	if err := broker.Publish(context.Background(), "test.selfheal", []byte("after")); err != nil {
+		t.Fatalf("publish after flush: %v", err)
+	}
+	deadline = time.Now().Add(5 * time.Second)
+	for handled < 2 {
+		if time.Now().After(deadline) {
+			t.Fatalf("message published after group wipe was never handled (handled=%d): consumer must re-create its group", handled)
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 }
