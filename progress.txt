@@ -1,3 +1,18 @@
+## [2026-08-16] - 双轴审查批次收口：任务完成性核验 + 修复计划登记（#193/#194~#203）
+
+### What was done:
+- **两轴审查**（`4c3293e..HEAD`，47 commits：safety #104~#109 → moderation #111~#113 → 本地开发模式 → #135/#136 → #137/#146 → #138/#147）：Standards/Spec 并行子代理 + 人工抽查复核全部关键结论。
+- **完成性核验**：五方证据互证（go build/vet/test 全绿真实执行、前端 lint/build、verify-project.sh --full 73/73、GitHub 票状态与注册表逐票吻合、progress 记录齐全）。无高危缺陷。
+- **关键发现**：① T03 同事务契约字面偏差——review/count/embedding worker 副作用与 inbox 完成记录分离事务，重投可致同步审核记录重复落库（068 唯一索引忽略 NULL 键；状态/扣分/事件均有幂等守卫，破坏仅限记录条数 + 重复 Green 扫描费用）；② `pkg/queue` SetNX 幂等死代码；③ indexer_worker 提前实现 T04/T05 投影契约；④ A4 审核门 ×4 重复、OSS 域校验 ×4、seed 正则 ×3、suggestion 合并镜像复制；⑤ relay 批大小/轮询间隔硬编码；⑥ 本地 dev DB 停在迁移 4（落后 60+ 迁移，demo 不可直接启动）。
+- **修复批次登记**：父票 #193（wayfinder:map）+ 子票 #194~#203（10 tickets，P0~P4 分级）；#196/#197 原生 `blocked_by` #195；#202 标 `ready-for-human` 等待降级语义裁决；AGENTS.md 活计划注册表已登记本行。
+- **环境**：docker postgres/redis 健康；dev 库待 #194 执行 init-db.sh 同步。
+
+### Testing:
+- 审查阶段：go build/vet/test ./... 全绿；前端 tsc --noEmit + build 通过；verify-project.sh --full 73 例全绿（与本批 4 条任务线声称一致）。
+
+### Notes:
+- 修复顺序：P0 环境（#194）→ P1 正确性（#195，TDD 红→绿）→ 其串行 #196/#197 → P2 整洁（#198/#199，可并行）→ P3（#200/#201，heavy）→ P4 裁决/登记（#202/#203）。
+
 ## [2026-08-13] - Task #108: 端到端验证与文档收口（回调契约/C1 Agent 直发契约/文档零残留）
 
 ### What was done:
