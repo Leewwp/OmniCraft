@@ -51,7 +51,7 @@ func newRelayService(db *gorm.DB, producer queue.Producer, outbox OutboxClaimer)
 	if outbox == nil {
 		outbox = repository.NewOutboxRepository(db)
 	}
-	return NewRelayService(outbox, producer, &queue.QueueConfig{RetryBackoffSec: []int{1, 2}})
+	return NewRelayService(outbox, producer, 100, &queue.QueueConfig{RetryBackoffSec: []int{1, 2}})
 }
 
 func countStreamMessages(t *testing.T, rdb *redis.Client, topic string) int64 {
@@ -164,6 +164,40 @@ func TestRelayRecordsFailureBackoffOnDeliveryError(t *testing.T) {
 	again, err := relay.RunOnce(context.Background())
 	require.NoError(t, err)
 	require.Zero(t, again, "event must not be retried before next_attempt_at")
+}
+
+// TestRelayRespectsConfiguredBatchSize proves the batch size parameter (wired
+// from config.relay.batch_size, issue #200) actually bounds how many due
+// events one run claims: the first run delivers exactly batchSize and the
+// remainder stays pending for the next run.
+func TestRelayRespectsConfiguredBatchSize(t *testing.T) {
+	db, rdb := setupRelayTestDB(t)
+	broker := queue.NewRedisStreamBroker(rdb, &queue.QueueConfig{MaxLen: 100000, MaxAttempts: 3, RetryBackoffSec: []int{1}})
+	outbox := repository.NewOutboxRepository(db)
+	relay := NewRelayService(outbox, broker, 2, &queue.QueueConfig{RetryBackoffSec: []int{1, 2}})
+
+	for i := int64(1); i <= 5; i++ {
+		require.NoError(t, db.Create(relayOutboxEvent(t, i, events.TopicContentPublished)).Error)
+	}
+
+	first, err := relay.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 2, first, "first run must claim exactly the configured batch size")
+	require.Equal(t, int64(2), countStreamMessages(t, rdb, events.TopicContentPublished))
+
+	var remain int64
+	require.NoError(t, db.Model(&model.OutboxEvent{}).Where("status = ?", model.OutboxStatusPending).Count(&remain).Error)
+	require.Equal(t, int64(3), remain, "events beyond the batch must stay pending")
+
+	second, err := relay.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 2, second, "second run claims the next batch")
+	require.Equal(t, int64(4), countStreamMessages(t, rdb, events.TopicContentPublished))
+
+	third, err := relay.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, third, "final run drains the remainder")
+	require.Equal(t, int64(5), countStreamMessages(t, rdb, events.TopicContentPublished))
 }
 
 // failingRelayProducer is the XAdd failure injection seam: every publish fails.

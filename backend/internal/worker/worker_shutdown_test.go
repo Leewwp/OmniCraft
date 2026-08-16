@@ -28,7 +28,7 @@ func TestRelayWorkerGracefulShutdown(t *testing.T) {
 	broker := queue.NewRedisStreamBroker(rdb, &queue.QueueConfig{MaxLen: 100000, MaxAttempts: 3, RetryBackoffSec: []int{1}})
 	defer broker.Stop()
 
-	relay := NewRelayWorker(service.NewRelayService(repository.NewOutboxRepository(db), broker, &queue.QueueConfig{RetryBackoffSec: []int{1}}), 10*time.Millisecond)
+	relay := NewRelayWorker(service.NewRelayService(repository.NewOutboxRepository(db), broker, 10, &queue.QueueConfig{RetryBackoffSec: []int{1}}), 10*time.Millisecond)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)

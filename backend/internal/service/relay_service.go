@@ -12,11 +12,6 @@ import (
 	"omnicraft/backend/internal/repository"
 )
 
-// defaultRelayBatchSize bounds how many due outbox events one relay run
-// claims. Claimed-but-undelivered rows stay pending, so a batch boundary is
-// only a latency bound, never a loss point.
-const defaultRelayBatchSize = 100
-
 // OutboxClaimer is the relay's seam over the outbox rows: claim due pending
 // events, mark delivered rows sent, record failed deliveries with backoff.
 // Tests inject wrappers to simulate the crash window between XAdd and
@@ -42,14 +37,16 @@ type RelayService struct {
 	retryBackoff []int
 }
 
-// NewRelayService builds the relay. cfg supplies the retry backoff schedule
-// (shared with the consumer retry policy); a nil or empty cfg falls back to
-// the queue package defaults.
-func NewRelayService(outbox OutboxClaimer, producer queue.Producer, cfg *queue.QueueConfig) *RelayService {
+// NewRelayService builds the relay. batchSize bounds how many due outbox
+// events one run claims (issue #200: read from config.relay.batch_size,
+// validated in release mode; never a hardcoded default). cfg supplies the
+// retry backoff schedule (shared with the consumer retry policy); a nil or
+// empty cfg falls back to the queue package defaults.
+func NewRelayService(outbox OutboxClaimer, producer queue.Producer, batchSize int, cfg *queue.QueueConfig) *RelayService {
 	relay := &RelayService{
 		outbox:    outbox,
 		producer:  producer,
-		batchSize: defaultRelayBatchSize,
+		batchSize: batchSize,
 	}
 	if cfg != nil {
 		relay.retryBackoff = queue.RetryBackoff(cfg)

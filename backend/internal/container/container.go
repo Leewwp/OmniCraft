@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -258,7 +259,10 @@ func (c *ServiceContainer) StartWorkers(ctx context.Context) func() {
 
 	relayCtx, relayCancel := context.WithCancel(ctx)
 	recovery.GoSafe(func() {
-		relay := worker.NewRelayWorker(service.NewRelayService(c.OutboxRepo, c.QueueProducer, &c.Cfg.Queue), 0)
+		relay := worker.NewRelayWorker(
+			service.NewRelayService(c.OutboxRepo, c.QueueProducer, c.Cfg.Relay.BatchSize, &c.Cfg.Queue),
+			time.Duration(c.Cfg.Relay.PollIntervalSec)*time.Second,
+		)
 		if err := relay.Start(relayCtx); err != nil && !errors.Is(err, context.Canceled) {
 			slog.Error("relay worker stopped unexpectedly", "error", err)
 		}

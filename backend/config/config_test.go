@@ -250,6 +250,10 @@ func validReleaseConfigForTest() *Config {
 			AgentWindowSec:       86400,
 			AgentMinuteWindowSec: 60,
 		},
+		Relay: RelayConfig{
+			BatchSize:       100,
+			PollIntervalSec: 1,
+		},
 		Observability: ObservabilityConfig{
 			MetricsPort:          "9091",
 			LogLevel:             "info",

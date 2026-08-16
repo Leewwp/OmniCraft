@@ -144,6 +144,8 @@
 | `redis.addr` | `string` | Addr |
 | `redis.db` | `int` | DB |
 | `redis.password` | `string` | Password |
+| `relay.batch_size` | `int` | BatchSize |
+| `relay.poll_interval_sec` | `int` | PollIntervalSec |
 | `reputation.min_score_for_interaction` | `int` | MinScoreForInteraction |
 | `reputation.quality_comment_threshold` | `int` | QualityCommentThreshold |
 | `reputation.quality_content_threshold` | `int` | QualityContentThreshold |

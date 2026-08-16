@@ -55,9 +55,30 @@ type Config struct {
 	RateLimit      RateLimitConfig      `mapstructure:"rate_limit"`
 	Recommendation RecommendationConfig `mapstructure:"recommendation"`
 	Queue          queue.QueueConfig    `mapstructure:"queue"`
+	Relay          RelayConfig          `mapstructure:"relay"`
 	Worker         WorkerConfig         `mapstructure:"worker"`
 	Observability  ObservabilityConfig  `mapstructure:"observability"`
 }
+
+// RelayConfig carries the outbox relay loop tuning (issue #200): batch size
+// bounds how many due outbox events one relay run claims and the poll interval
+// bounds delivery latency. The relay runs only in the standalone worker
+// process (ADR 0005, cmd/worker), so the values are server-side only and never
+// reach the public config response. All limits are read from config, never
+// hardcoded.
+type RelayConfig struct {
+	BatchSize       int `mapstructure:"batch_size"`
+	PollIntervalSec int `mapstructure:"poll_interval_sec"`
+}
+
+// Relay tuning bounds guard the relay loop against nonsense configuration in
+// release mode (issue #200).
+const (
+	RelayMinBatchSize       = 1
+	RelayMaxBatchSize       = 10000
+	RelayMinPollIntervalSec = 1
+	RelayMaxPollIntervalSec = 3600
+)
 
 // WorkerConfig controls the standalone worker process (cmd/worker) only: the
 // API server never starts asynchronous consumers or the outbox relay (ADR
@@ -916,6 +937,13 @@ func (c *Config) ValidateRelease() error {
 		if c.ArchiveScan.URLTTLSec <= 0 {
 			errs = append(errs, "archive_scan.url_ttl_sec must be positive when archive malware scanning is enabled")
 		}
+	}
+
+	if c.Relay.BatchSize < RelayMinBatchSize || c.Relay.BatchSize > RelayMaxBatchSize {
+		errs = append(errs, fmt.Sprintf("relay.batch_size must be between %d and %d in release mode", RelayMinBatchSize, RelayMaxBatchSize))
+	}
+	if c.Relay.PollIntervalSec < RelayMinPollIntervalSec || c.Relay.PollIntervalSec > RelayMaxPollIntervalSec {
+		errs = append(errs, fmt.Sprintf("relay.poll_interval_sec must be between %d and %d in release mode", RelayMinPollIntervalSec, RelayMaxPollIntervalSec))
 	}
 
 	if c.Agent.WebAgentEnabled {
