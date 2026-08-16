@@ -42,7 +42,7 @@ func TestRunModerationGateA4Semantics(t *testing.T) {
 		name           string
 		cfg            *config.Config
 		review         func(context.Context) (string, error)
-		blocked        func(string) bool
+		blockViolation bool
 		blockedErr     error
 		unavailableErr error
 		wantErr        error
@@ -51,7 +51,6 @@ func TestRunModerationGateA4Semantics(t *testing.T) {
 		{
 			name:           "unwired reviewer and release fails closed",
 			cfg:            release,
-			blocked:        blockedTextResult,
 			blockedErr:     ErrTextBlocked,
 			unavailableErr: ErrModerationUnavailable,
 			wantErr:        ErrModerationUnavailable,
@@ -60,7 +59,6 @@ func TestRunModerationGateA4Semantics(t *testing.T) {
 		{
 			name:           "unwired reviewer and debug fails open",
 			cfg:            debug,
-			blocked:        blockedTextResult,
 			blockedErr:     ErrTextBlocked,
 			unavailableErr: ErrModerationUnavailable,
 			wantLog:        []string{"policy=fail_open", "reason=review_service_not_wired", "env_mode=debug", "action=" + action},
@@ -68,7 +66,6 @@ func TestRunModerationGateA4Semantics(t *testing.T) {
 		{
 			name:           "unwired reviewer and nil cfg fails open with unknown env",
 			cfg:            nil,
-			blocked:        blockedTextResult,
 			blockedErr:     ErrTextBlocked,
 			unavailableErr: ErrModerationUnavailable,
 			wantLog:        []string{"policy=fail_open", "reason=review_service_not_wired", "env_mode=unknown", "action=" + action},
@@ -77,7 +74,6 @@ func TestRunModerationGateA4Semantics(t *testing.T) {
 			name:           "review error and release fails closed with raw reason",
 			cfg:            release,
 			review:         errReview(errors.New("green api down")),
-			blocked:        blockedTextResult,
 			blockedErr:     ErrTextBlocked,
 			unavailableErr: ErrModerationUnavailable,
 			wantErr:        ErrModerationUnavailable,
@@ -87,7 +83,6 @@ func TestRunModerationGateA4Semantics(t *testing.T) {
 			name:           "non-green review error and debug still fails closed",
 			cfg:            debug,
 			review:         errReview(errors.New("green api down")),
-			blocked:        blockedTextResult,
 			blockedErr:     ErrTextBlocked,
 			unavailableErr: ErrModerationUnavailable,
 			wantErr:        ErrModerationUnavailable,
@@ -97,7 +92,6 @@ func TestRunModerationGateA4Semantics(t *testing.T) {
 			name:           "green not configured and release fails closed",
 			cfg:            release,
 			review:         errReview(aliyun.ErrGreenNotConfigured),
-			blocked:        blockedTextResult,
 			blockedErr:     ErrTextBlocked,
 			unavailableErr: ErrModerationUnavailable,
 			wantErr:        ErrModerationUnavailable,
@@ -107,7 +101,6 @@ func TestRunModerationGateA4Semantics(t *testing.T) {
 			name:           "green not configured and debug fails open",
 			cfg:            debug,
 			review:         errReview(aliyun.ErrGreenNotConfigured),
-			blocked:        blockedTextResult,
 			blockedErr:     ErrTextBlocked,
 			unavailableErr: ErrModerationUnavailable,
 			wantLog:        []string{"policy=fail_open", "reason=green_not_configured", "env_mode=debug", "action=" + action},
@@ -116,25 +109,23 @@ func TestRunModerationGateA4Semantics(t *testing.T) {
 			name:           "block result rejected",
 			cfg:            debug,
 			review:         resultReview("block"),
-			blocked:        blockedTextResult,
 			blockedErr:     ErrTextBlocked,
 			unavailableErr: ErrModerationUnavailable,
 			wantErr:        ErrTextBlocked,
 		},
 		{
-			name:           "violation result rejected by text predicate",
+			name:           "violation result rejected by text gate",
 			cfg:            debug,
 			review:         resultReview("violation"),
-			blocked:        blockedTextResult,
+			blockViolation: true,
 			blockedErr:     ErrTextBlocked,
 			unavailableErr: ErrModerationUnavailable,
 			wantErr:        ErrTextBlocked,
 		},
 		{
-			name:           "violation result allowed by image predicate",
+			name:           "violation result allowed by image gate",
 			cfg:            debug,
 			review:         resultReview("violation"),
-			blocked:        blockedImageResult,
 			blockedErr:     ErrFeedbackAttachmentBlocked,
 			unavailableErr: ErrFeedbackAttachmentModerationUnavailable,
 		},
@@ -142,7 +133,6 @@ func TestRunModerationGateA4Semantics(t *testing.T) {
 			name:           "review result allowed",
 			cfg:            debug,
 			review:         resultReview("review"),
-			blocked:        blockedTextResult,
 			blockedErr:     ErrTextBlocked,
 			unavailableErr: ErrModerationUnavailable,
 		},
@@ -150,17 +140,8 @@ func TestRunModerationGateA4Semantics(t *testing.T) {
 			name:           "pass result allowed",
 			cfg:            debug,
 			review:         resultReview("pass"),
-			blocked:        blockedTextResult,
 			blockedErr:     ErrTextBlocked,
 			unavailableErr: ErrModerationUnavailable,
-		},
-		{
-			name:           "unwired reviewer and nil cfg fails open with unknown env",
-			cfg:            nil,
-			blocked:        blockedTextResult,
-			blockedErr:     ErrTextBlocked,
-			unavailableErr: ErrModerationUnavailable,
-			wantLog:        []string{"policy=fail_open", "reason=review_service_not_wired", "env_mode=unknown", "action=" + action},
 		},
 	}
 
@@ -168,7 +149,7 @@ func TestRunModerationGateA4Semantics(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			logged := captureGateLogs(t, func() {
 				err := RunModerationGate(context.Background(), tc.cfg, action,
-					"content moderation", "submission", tc.review, tc.blocked,
+					"content moderation", "submission", tc.review, tc.blockViolation,
 					tc.blockedErr, tc.unavailableErr)
 				if tc.wantErr != nil {
 					if !errors.Is(err, tc.wantErr) {

@@ -13,7 +13,6 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
-	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/captcha"
 	"omnicraft/backend/internal/repository"
 
@@ -209,53 +208,28 @@ func (s *FeedbackService) SubmitTicket(ctx context.Context, input SubmitTicketIn
 // screenshot attachments before they are persisted. Tickets without
 // attachments skip the gate entirely, so plain text feedback is never blocked
 // by attachment review failure. A "block" result rejects the submission.
-// Availability follows the A4 environment semantics: in release mode any
-// review failure is fail-closed, while in local/test mode an unconfigured
-// Green client is fail-open and must be recorded via structured logs.
+// Availability follows the A4 environment semantics via RunModerationGate: in
+// release mode any review failure is fail-closed, while in local/test mode an
+// unconfigured Green client is fail-open and must be recorded via structured
+// logs.
 func (s *FeedbackService) moderateAttachments(ctx context.Context, action string, attachments []model.FeedbackAttachment) error {
 	if len(attachments) == 0 {
 		return nil
 	}
 
-	if s.reviewSvc == nil {
-		if s.isReleaseMode() {
-			slog.Error("attachment image moderation unavailable, rejecting submission",
-				"action", action, "env_mode", s.environmentMode(), "policy", "fail_closed", "reason", "review_service_not_wired")
-			return ErrFeedbackAttachmentModerationUnavailable
-		}
-		slog.Warn("attachment image moderation skipped, submission allowed",
-			"action", action, "env_mode", s.environmentMode(), "policy", "fail_open", "reason", "review_service_not_wired")
-		return nil
-	}
-
 	for _, att := range attachments {
-		result, err := s.reviewSvc.ReviewImageURL(ctx, s.resolveAttachmentScanURL(att.OSSKey))
-		if err != nil {
-			if !s.isReleaseMode() && errors.Is(err, aliyun.ErrGreenNotConfigured) {
-				slog.Warn("attachment image moderation skipped, submission allowed",
-					"action", action, "env_mode", s.environmentMode(), "policy", "fail_open", "reason", "green_not_configured")
-				return nil
+		var review func(context.Context) (string, error)
+		if s.reviewSvc != nil {
+			review = func(ctx context.Context) (string, error) {
+				return s.reviewSvc.ReviewImageURL(ctx, s.resolveAttachmentScanURL(att.OSSKey))
 			}
-			slog.Error("attachment image moderation unavailable, rejecting submission",
-				"action", action, "env_mode", s.environmentMode(), "policy", "fail_closed", "reason", err.Error())
-			return ErrFeedbackAttachmentModerationUnavailable
 		}
-		if result == "block" {
-			return ErrFeedbackAttachmentBlocked
+		if err := RunModerationGate(ctx, s.cfg, action, "attachment image moderation", "submission",
+			review, false, ErrFeedbackAttachmentBlocked, ErrFeedbackAttachmentModerationUnavailable); err != nil {
+			return err
 		}
 	}
 	return nil
-}
-
-func (s *FeedbackService) isReleaseMode() bool {
-	return s.cfg != nil && s.cfg.Server.Mode == "release"
-}
-
-func (s *FeedbackService) environmentMode() string {
-	if s.cfg == nil {
-		return "unknown"
-	}
-	return s.cfg.Server.Mode
 }
 
 // resolveAttachmentScanURL maps a platform OSS object key to its delivery URL,

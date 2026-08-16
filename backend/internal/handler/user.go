@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,7 +16,6 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
-	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -433,51 +431,21 @@ func isPlatformAvatarObjectURL(cfg *config.Config, rawURL string) bool {
 	return strings.HasPrefix(url, domain+"/")
 }
 
-func (h *UserHandler) isReleaseMode() bool {
-	return h.cfg != nil && h.cfg.Server.Mode == "release"
-}
-
-func (h *UserHandler) environmentMode() string {
-	if h.cfg == nil {
-		return "unknown"
-	}
-	return h.cfg.Server.Mode
-}
-
 // reviewAvatarImage runs the avatar image moderation gate before a new
 // avatar_url is persisted. The availability policy follows the A4 environment
-// semantics shared with the text moderation gate (SocialService.moderateText):
-// in release mode any moderation failure is fail-closed, while in local/test
+// semantics shared by every moderation gate via service.RunModerationGate: in
+// release mode any moderation failure is fail-closed, while in local/test
 // mode an unconfigured Green client is fail-open and must be recorded via
 // structured logs.
 func (h *UserHandler) reviewAvatarImage(c *gin.Context, avatarURL string) error {
-	if h.avatarReviewer == nil {
-		if h.isReleaseMode() {
-			slog.Error("avatar moderation unavailable, rejecting update",
-				"action", "avatar_review", "env_mode", h.environmentMode(), "policy", "fail_closed", "reason", "review_service_not_wired")
-			return ErrAvatarModerationUnavailable
+	var review func(context.Context) (string, error)
+	if h.avatarReviewer != nil {
+		review = func(ctx context.Context) (string, error) {
+			return h.avatarReviewer.ReviewImageURL(ctx, avatarURL)
 		}
-		slog.Warn("avatar moderation skipped, update allowed",
-			"action", "avatar_review", "env_mode", h.environmentMode(), "policy", "fail_open", "reason", "review_service_not_wired")
-		return nil
 	}
-
-	result, err := h.avatarReviewer.ReviewImageURL(c.Request.Context(), avatarURL)
-	if err != nil {
-		if !h.isReleaseMode() && errors.Is(err, aliyun.ErrGreenNotConfigured) {
-			slog.Warn("avatar moderation skipped, update allowed",
-				"action", "avatar_review", "env_mode", h.environmentMode(), "policy", "fail_open", "reason", "green_not_configured")
-			return nil
-		}
-		slog.Error("avatar moderation unavailable, rejecting update",
-			"action", "avatar_review", "env_mode", h.environmentMode(), "policy", "fail_closed", "reason", err.Error())
-		return ErrAvatarModerationUnavailable
-	}
-
-	if result == "block" || result == "violation" {
-		return ErrAvatarBlocked
-	}
-	return nil
+	return service.RunModerationGate(c.Request.Context(), h.cfg, "avatar_review", "avatar moderation", "update",
+		review, true, ErrAvatarBlocked, ErrAvatarModerationUnavailable)
 }
 
 func sanitizeUser(u *model.User) gin.H {
