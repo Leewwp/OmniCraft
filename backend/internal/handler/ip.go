@@ -79,7 +79,7 @@ func (h *IPHandler) CreateIP(c *gin.Context) {
 		return
 	}
 
-	ip, err := h.ipSvc.CreateIP(input, callerID)
+	ip, err := h.ipSvc.CreateIP(c.Request.Context(), input, callerID)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		return
