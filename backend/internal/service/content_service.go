@@ -407,6 +407,7 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 			Attachments:   input.Attachments,
 		}
 		if _, ok := s.queueProducer.(*queue.NoopProducer); !ok && s.queueProducer != nil {
+			detachedCtx := context.WithoutCancel(ctx)
 			recovery.GoSafe(func() {
 				payload, _ := json.Marshal(map[string]interface{}{
 					"action":          "submit_ai_review",
@@ -419,12 +420,12 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 					"cover_image_url": reviewInput.CoverImageURL,
 					"attachments":     reviewInput.Attachments,
 				})
-				if err := s.queueProducer.Publish(context.Background(), "content.review", payload); err != nil {
+				if err := s.queueProducer.Publish(detachedCtx, "content.review", payload); err != nil {
 					slog.Error("failed to publish content.review message", "content_id", content.ID, "error", err)
 				}
 			})
 		} else {
-			if err := s.reviewSvc.SubmitForAIReview(context.Background(), reviewInput); err != nil && !errors.Is(err, aliyun.ErrGreenNotConfigured) {
+			if err := s.reviewSvc.SubmitForAIReview(ctx, reviewInput); err != nil && !errors.Is(err, aliyun.ErrGreenNotConfigured) {
 				return nil, err
 			}
 		}
