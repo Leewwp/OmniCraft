@@ -76,11 +76,11 @@ type PostCommentInput struct {
 	Body          string `json:"body" binding:"required,min=1,max=5000"`
 }
 
-func (s *SocialService) PostComment(input PostCommentInput, authorID int64) (*model.Comment, error) {
+func (s *SocialService) PostComment(ctx context.Context, input PostCommentInput, authorID int64) (*model.Comment, error) {
 	if err := s.ensureCanInteract(authorID); err != nil {
 		return nil, err
 	}
-	if err := s.moderateText(context.Background(), "comment", input.Body); err != nil {
+	if err := s.moderateText(ctx, "comment", input.Body); err != nil {
 		return nil, err
 	}
 
@@ -125,7 +125,7 @@ func (s *SocialService) DeleteComment(commentID int64, callerID int64) error {
 	return s.socialRepo.DeleteComment(commentID)
 }
 
-func (s *SocialService) EditComment(commentID int64, callerID int64, newBody string) (*model.Comment, error) {
+func (s *SocialService) EditComment(ctx context.Context, commentID int64, callerID int64, newBody string) (*model.Comment, error) {
 	c, err := s.socialRepo.FindComment(commentID)
 	if err != nil || c == nil {
 		return nil, ErrCommentNotFound
@@ -133,7 +133,7 @@ func (s *SocialService) EditComment(commentID int64, callerID int64, newBody str
 	if c.AuthorID != callerID {
 		return nil, ErrCommentForbidden
 	}
-	if err := s.moderateText(context.Background(), "edit_comment", newBody); err != nil {
+	if err := s.moderateText(ctx, "edit_comment", newBody); err != nil {
 		return nil, err
 	}
 	if err := s.socialRepo.EditComment(commentID, newBody); err != nil {
@@ -154,11 +154,11 @@ type PostDiscussionInput struct {
 	Body          string `json:"body"`
 }
 
-func (s *SocialService) PostDiscussion(input PostDiscussionInput, authorID int64) (*model.Discussion, error) {
+func (s *SocialService) PostDiscussion(ctx context.Context, input PostDiscussionInput, authorID int64) (*model.Discussion, error) {
 	if err := s.ensureCanInteract(authorID); err != nil {
 		return nil, err
 	}
-	if err := s.moderateText(context.Background(), "discussion", strings.TrimSpace(input.Title)+"\n"+input.Body); err != nil {
+	if err := s.moderateText(ctx, "discussion", strings.TrimSpace(input.Title)+"\n"+input.Body); err != nil {
 		return nil, err
 	}
 
