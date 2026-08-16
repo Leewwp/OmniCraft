@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
-	"omnicraft/backend/internal/pkg/aliyun"
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/repository"
 
@@ -259,53 +257,22 @@ func minScoreForInteraction(cfg *config.Config) int {
 // moderateText runs the text moderation gate before comment/discussion text
 // is persisted. Blank text is skipped without an external call. A "block"
 // (or "violation") result rejects the submission. Availability policy follows
-// the A4 environment semantics: in release mode any moderation failure is
-// fail-closed, while in local/test mode an unconfigured Green client is
-// fail-open and must be recorded via structured logs.
+// the A4 environment semantics via RunModerationGate: in release mode any
+// moderation failure is fail-closed, while in local/test mode an unconfigured
+// Green client is fail-open and must be recorded via structured logs.
 func (s *SocialService) moderateText(ctx context.Context, action, text string) error {
 	trimmed := strings.TrimSpace(text)
 	if trimmed == "" {
 		return nil
 	}
-
-	if s.reviewSvc == nil {
-		if s.isReleaseMode() {
-			slog.Error("content moderation unavailable, rejecting submission",
-				"action", action, "env_mode", s.environmentMode(), "policy", "fail_closed", "reason", "review_service_not_wired")
-			return ErrModerationUnavailable
+	var review func(context.Context) (string, error)
+	if s.reviewSvc != nil {
+		review = func(ctx context.Context) (string, error) {
+			return s.reviewSvc.ReviewText(ctx, trimmed)
 		}
-		slog.Warn("content moderation skipped, submission allowed",
-			"action", action, "env_mode", s.environmentMode(), "policy", "fail_open", "reason", "review_service_not_wired")
-		return nil
 	}
-
-	result, err := s.reviewSvc.ReviewText(ctx, trimmed)
-	if err != nil {
-		if !s.isReleaseMode() && errors.Is(err, aliyun.ErrGreenNotConfigured) {
-			slog.Warn("content moderation skipped, submission allowed",
-				"action", action, "env_mode", s.environmentMode(), "policy", "fail_open", "reason", "green_not_configured")
-			return nil
-		}
-		slog.Error("content moderation unavailable, rejecting submission",
-			"action", action, "env_mode", s.environmentMode(), "policy", "fail_closed", "reason", err.Error())
-		return ErrModerationUnavailable
-	}
-
-	if result == "block" || result == "violation" {
-		return ErrTextBlocked
-	}
-	return nil
-}
-
-func (s *SocialService) isReleaseMode() bool {
-	return s.cfg != nil && s.cfg.Server.Mode == "release"
-}
-
-func (s *SocialService) environmentMode() string {
-	if s.cfg == nil {
-		return "unknown"
-	}
-	return s.cfg.Server.Mode
+	return RunModerationGate(ctx, s.cfg, action, "content moderation", "submission",
+		review, true, ErrTextBlocked, ErrModerationUnavailable)
 }
 
 func (s *SocialService) Report(targetType string, targetID int64, reporterID int64, reason, detail string) error {

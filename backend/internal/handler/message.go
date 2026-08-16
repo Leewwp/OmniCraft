@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,7 +11,6 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
-	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -132,53 +130,22 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 // moderateText runs the text moderation gate before a DM is persisted. Blank
 // text is skipped without an external call. A "block" (or "violation") result
 // rejects the message. Availability policy follows the A4 environment
-// semantics: in release mode any moderation failure is fail-closed, while in
-// local/test mode an unconfigured Green client is fail-open and must be
-// recorded via structured logs.
+// semantics via RunModerationGate: in release mode any moderation failure is
+// fail-closed, while in local/test mode an unconfigured Green client is
+// fail-open and must be recorded via structured logs.
 func (h *MessageHandler) moderateText(ctx context.Context, action, text string) error {
 	trimmed := strings.TrimSpace(text)
 	if trimmed == "" {
 		return nil
 	}
-
-	if h.reviewSvc == nil {
-		if h.isReleaseMode() {
-			slog.Error("content moderation unavailable, rejecting message",
-				"action", action, "env_mode", h.environmentMode(), "policy", "fail_closed", "reason", "review_service_not_wired")
-			return service.ErrModerationUnavailable
+	var review func(context.Context) (string, error)
+	if h.reviewSvc != nil {
+		review = func(ctx context.Context) (string, error) {
+			return h.reviewSvc.ReviewText(ctx, trimmed)
 		}
-		slog.Warn("content moderation skipped, message allowed",
-			"action", action, "env_mode", h.environmentMode(), "policy", "fail_open", "reason", "review_service_not_wired")
-		return nil
 	}
-
-	result, err := h.reviewSvc.ReviewText(ctx, trimmed)
-	if err != nil {
-		if !h.isReleaseMode() && errors.Is(err, aliyun.ErrGreenNotConfigured) {
-			slog.Warn("content moderation skipped, message allowed",
-				"action", action, "env_mode", h.environmentMode(), "policy", "fail_open", "reason", "green_not_configured")
-			return nil
-		}
-		slog.Error("content moderation unavailable, rejecting message",
-			"action", action, "env_mode", h.environmentMode(), "policy", "fail_closed", "reason", err.Error())
-		return service.ErrModerationUnavailable
-	}
-
-	if result == "block" || result == "violation" {
-		return service.ErrTextBlocked
-	}
-	return nil
-}
-
-func (h *MessageHandler) isReleaseMode() bool {
-	return h.cfg != nil && h.cfg.Server.Mode == "release"
-}
-
-func (h *MessageHandler) environmentMode() string {
-	if h.cfg == nil {
-		return "unknown"
-	}
-	return h.cfg.Server.Mode
+	return service.RunModerationGate(ctx, h.cfg, action, "content moderation", "message",
+		review, true, service.ErrTextBlocked, service.ErrModerationUnavailable)
 }
 
 func (h *MessageHandler) ListMessages(c *gin.Context) {
