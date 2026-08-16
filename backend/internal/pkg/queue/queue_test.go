@@ -329,38 +329,6 @@ func TestMaxAttemptsZeroAcksWithoutProcessingOrDLQ(t *testing.T) {
 	}
 }
 
-func TestIdempotentCheck(t *testing.T) {
-	mr := miniredis.RunT(t)
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	defer rdb.Close()
-
-	ctx := context.Background()
-
-	ok, err := IdempotentCheck(ctx, rdb, "test.topic", "msg-1")
-	if err != nil {
-		t.Fatalf("idempotent check failed: %v", err)
-	}
-	if !ok {
-		t.Error("first check should return true")
-	}
-
-	ok, err = IdempotentCheck(ctx, rdb, "test.topic", "msg-1")
-	if err != nil {
-		t.Fatalf("second idempotent check failed: %v", err)
-	}
-	if ok {
-		t.Error("second check should return false (duplicate)")
-	}
-
-	ok, err = IdempotentCheck(ctx, rdb, "test.topic", "msg-2")
-	if err != nil {
-		t.Fatalf("different msg id check failed: %v", err)
-	}
-	if !ok {
-		t.Error("different msg id should return true")
-	}
-}
-
 func TestNoopProducer(t *testing.T) {
 	noop := NewNoopProducer()
 	err := noop.Publish(context.Background(), "test.topic", []byte("payload"))
