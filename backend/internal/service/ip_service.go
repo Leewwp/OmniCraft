@@ -60,7 +60,7 @@ type CreateIPInput struct {
 	Tags        []string `json:"tags"`
 }
 
-func (s *IPService) CreateIP(input CreateIPInput, creatorID int64) (*model.IP, error) {
+func (s *IPService) CreateIP(ctx context.Context, input CreateIPInput, creatorID int64) (*model.IP, error) {
 	slug := generateSlug(input.Name)
 
 	existing, err := s.ipRepo.FindBySlug(slug)
@@ -86,16 +86,17 @@ func (s *IPService) CreateIP(input CreateIPInput, creatorID int64) (*model.IP, e
 	}
 
 	s.invalidateIPListCache()
-	s.submitIPForAIReview(ip, creatorID)
+	s.submitIPForAIReview(ctx, ip, creatorID)
 
 	return ip, nil
 }
 
-func (s *IPService) submitIPForAIReview(ip *model.IP, creatorID int64) {
+func (s *IPService) submitIPForAIReview(ctx context.Context, ip *model.IP, creatorID int64) {
 	if s.reviewSvc == nil || ip == nil {
 		return
 	}
 	reviewInput := ipReviewInput(ip, creatorID)
+	detachedCtx := context.WithoutCancel(ctx)
 	if _, ok := s.queueProducer.(*queue.NoopProducer); !ok && s.queueProducer != nil {
 		recovery.GoSafe(func() {
 			payload, _ := json.Marshal(map[string]interface{}{
@@ -107,13 +108,13 @@ func (s *IPService) submitIPForAIReview(ip *model.IP, creatorID int64) {
 				"author_id":       reviewInput.AuthorID,
 				"cover_image_url": reviewInput.CoverImageURL,
 			})
-			if err := s.queueProducer.Publish(context.Background(), "ip.review", payload); err != nil {
+			if err := s.queueProducer.Publish(detachedCtx, "ip.review", payload); err != nil {
 				slog.Error("failed to publish ip.review message", "ip_id", ip.ID, "error", err)
 			}
 		})
 	} else {
 		recovery.GoSafe(func() {
-			err := s.reviewSvc.SubmitForAIReview(context.Background(), reviewInput)
+			err := s.reviewSvc.SubmitForAIReview(detachedCtx, reviewInput)
 			if err != nil && !errors.Is(err, aliyun.ErrGreenNotConfigured) {
 				slog.Error("ip ai review failed", "ip_id", ip.ID, "error", err)
 			}
