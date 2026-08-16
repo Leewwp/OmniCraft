@@ -160,7 +160,7 @@ func TestPostCommentRejectsBlockedTextAndDoesNotPersist(t *testing.T) {
 	reviewer := &fakeTextReviewer{result: "block"}
 	svc := newTestSocialService(db, "debug", reviewer)
 
-	_, err := svc.PostComment(PostCommentInput{Body: "this comment is a violation"}, authorID)
+	_, err := svc.PostComment(context.Background(), PostCommentInput{Body: "this comment is a violation"}, authorID)
 	if !errors.Is(err, ErrTextBlocked) {
 		t.Fatalf("PostComment() error = %v, want ErrTextBlocked", err)
 	}
@@ -179,7 +179,7 @@ func TestPostCommentAllowsPassAndReviewText(t *testing.T) {
 			authorID := seedTestSocialUser(t, db)
 			svc := newTestSocialService(db, "debug", &fakeTextReviewer{result: result})
 
-			got, err := svc.PostComment(PostCommentInput{Body: "perfectly fine comment"}, authorID)
+			got, err := svc.PostComment(context.Background(), PostCommentInput{Body: "perfectly fine comment"}, authorID)
 			if err != nil {
 				t.Fatalf("PostComment() error = %v, want nil", err)
 			}
@@ -199,7 +199,7 @@ func TestPostDiscussionRejectsBlockedTextAndDoesNotPersist(t *testing.T) {
 	reviewer := &fakeTextReviewer{result: "block"}
 	svc := newTestSocialService(db, "debug", reviewer)
 
-	_, err := svc.PostDiscussion(PostDiscussionInput{Title: "Great mod", Body: "but contains violation"}, authorID)
+	_, err := svc.PostDiscussion(context.Background(), PostDiscussionInput{Title: "Great mod", Body: "but contains violation"}, authorID)
 	if !errors.Is(err, ErrTextBlocked) {
 		t.Fatalf("PostDiscussion() error = %v, want ErrTextBlocked", err)
 	}
@@ -218,7 +218,7 @@ func TestPostDiscussionAllowsPassAndReviewText(t *testing.T) {
 			authorID := seedTestSocialUser(t, db)
 			svc := newTestSocialService(db, "debug", &fakeTextReviewer{result: result})
 
-			got, err := svc.PostDiscussion(PostDiscussionInput{Title: "Great mod", Body: "all good"}, authorID)
+			got, err := svc.PostDiscussion(context.Background(), PostDiscussionInput{Title: "Great mod", Body: "all good"}, authorID)
 			if err != nil {
 				t.Fatalf("PostDiscussion() error = %v, want nil", err)
 			}
@@ -237,13 +237,13 @@ func TestEditCommentRejectsBlockedTextAndKeepsOriginal(t *testing.T) {
 	authorID := seedTestSocialUser(t, db)
 	svc := newTestSocialService(db, "debug", &fakeTextReviewer{result: "pass"})
 
-	created, err := svc.PostComment(PostCommentInput{Body: "original safe text"}, authorID)
+	created, err := svc.PostComment(context.Background(), PostCommentInput{Body: "original safe text"}, authorID)
 	if err != nil {
 		t.Fatalf("seed comment: %v", err)
 	}
 
 	blockingSvc := newTestSocialService(db, "debug", &fakeTextReviewer{result: "block"})
-	if _, err := blockingSvc.EditComment(created.ID, authorID, "edited violation text"); !errors.Is(err, ErrTextBlocked) {
+	if _, err := blockingSvc.EditComment(context.Background(), created.ID, authorID, "edited violation text"); !errors.Is(err, ErrTextBlocked) {
 		t.Fatalf("EditComment() error = %v, want ErrTextBlocked", err)
 	}
 
@@ -263,11 +263,11 @@ func TestEditCommentAllowsPassAndReviewText(t *testing.T) {
 			authorID := seedTestSocialUser(t, db)
 			svc := newTestSocialService(db, "debug", &fakeTextReviewer{result: result})
 
-			created, err := svc.PostComment(PostCommentInput{Body: "original"}, authorID)
+			created, err := svc.PostComment(context.Background(), PostCommentInput{Body: "original"}, authorID)
 			if err != nil {
 				t.Fatalf("seed comment: %v", err)
 			}
-			got, err := svc.EditComment(created.ID, authorID, "edited content")
+			got, err := svc.EditComment(context.Background(), created.ID, authorID, "edited content")
 			if err != nil {
 				t.Fatalf("EditComment() error = %v, want nil", err)
 			}
@@ -290,7 +290,7 @@ func TestPostCommentFailClosedWhenModerationFailsInReleaseMode(t *testing.T) {
 	authorID := seedTestSocialUser(t, db)
 	svc := newTestSocialService(db, "release", &fakeTextReviewer{err: errors.New("green api error")})
 
-	_, err := svc.PostComment(PostCommentInput{Body: "some comment"}, authorID)
+_, err := svc.PostComment(context.Background(), PostCommentInput{Body: "some comment"}, authorID)
 	if !errors.Is(err, ErrModerationUnavailable) {
 		t.Fatalf("PostComment() error = %v, want ErrModerationUnavailable", err)
 	}
@@ -298,7 +298,7 @@ func TestPostCommentFailClosedWhenModerationFailsInReleaseMode(t *testing.T) {
 		t.Fatalf("comment count = %d, want 0 (fail-closed must not persist)", got)
 	}
 
-	_, err = svc.PostDiscussion(PostDiscussionInput{Title: "some discussion"}, authorID)
+	_, err = svc.PostDiscussion(context.Background(), PostDiscussionInput{Title: "some discussion"}, authorID)
 	if !errors.Is(err, ErrModerationUnavailable) {
 		t.Fatalf("PostDiscussion() error = %v, want ErrModerationUnavailable", err)
 	}
@@ -312,7 +312,7 @@ func TestPostCommentFailClosedWhenReviewerMissingInReleaseMode(t *testing.T) {
 	authorID := seedTestSocialUser(t, db)
 	svc := newTestSocialService(db, "release", nil)
 
-	if _, err := svc.PostComment(PostCommentInput{Body: "some comment"}, authorID); !errors.Is(err, ErrModerationUnavailable) {
+	if _, err := svc.PostComment(context.Background(), PostCommentInput{Body: "some comment"}, authorID); !errors.Is(err, ErrModerationUnavailable) {
 		t.Fatalf("PostComment() error = %v, want ErrModerationUnavailable", err)
 	}
 	if got := countSocialComments(t, db); got != 0 {
@@ -326,7 +326,7 @@ func TestPostCommentFailOpenWhenGreenNotConfiguredInLocalMode(t *testing.T) {
 	svc := newTestSocialService(db, "debug", &fakeTextReviewer{err: aliyun.ErrGreenNotConfigured})
 
 	logs := captureSocialLogs(t, func() {
-		got, err := svc.PostComment(PostCommentInput{Body: "comment with green disabled"}, authorID)
+		got, err := svc.PostComment(context.Background(), PostCommentInput{Body: "comment with green disabled"}, authorID)
 		if err != nil {
 			t.Fatalf("PostComment() error = %v, want nil (fail-open)", err)
 		}
@@ -363,7 +363,7 @@ func TestModerationFailOpenWithUnconfiguredGreenRecordsLogAndMetric(t *testing.T
 	)
 
 	logs := captureSocialLogs(t, func() {
-		if _, err := svc.PostComment(PostCommentInput{Body: "comment with green unconfigured"}, authorID); err != nil {
+		if _, err := svc.PostComment(context.Background(), PostCommentInput{Body: "comment with green unconfigured"}, authorID); err != nil {
 			t.Fatalf("PostComment() error = %v, want nil (fail-open)", err)
 		}
 	})
@@ -385,7 +385,7 @@ func TestPostCommentSkipsModerationForBlankText(t *testing.T) {
 	reviewer := &fakeTextReviewer{result: "block"}
 	svc := newTestSocialService(db, "release", reviewer)
 
-	got, err := svc.PostComment(PostCommentInput{Body: "   "}, authorID)
+	got, err := svc.PostComment(context.Background(), PostCommentInput{Body: "   "}, authorID)
 	if err != nil {
 		t.Fatalf("PostComment() error = %v, want nil (blank text skips moderation)", err)
 	}

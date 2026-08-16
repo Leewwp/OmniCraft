@@ -48,7 +48,7 @@ func (h *SocialHandler) PostComment(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
-	comment, err := h.socialSvc.PostComment(input, callerID)
+	comment, err := h.socialSvc.PostComment(c.Request.Context(), input, callerID)
 	if err != nil {
 		if err == service.ErrLowReputation {
 			response.Forbidden(c, "reputation score too low to perform this action")
@@ -96,7 +96,7 @@ func (h *SocialHandler) EditComment(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
-	comment, err := h.socialSvc.EditComment(id, callerID, body.Body)
+	comment, err := h.socialSvc.EditComment(c.Request.Context(), id, callerID, body.Body)
 	if err != nil {
 		if err == service.ErrCommentNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "comment not found"})
@@ -175,7 +175,7 @@ func (h *SocialHandler) PostDiscussion(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
 		return
 	}
-	d, err := h.socialSvc.PostDiscussion(input, callerID)
+	d, err := h.socialSvc.PostDiscussion(c.Request.Context(), input, callerID)
 	if err != nil {
 		if err == service.ErrLowReputation {
 			response.Forbidden(c, "reputation score too low to perform this action")
