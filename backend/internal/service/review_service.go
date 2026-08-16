@@ -50,6 +50,19 @@ type SubmitReviewInput struct {
 	// ErrCoverNotPlatformOSSObject.
 	CoverImageURL string
 	Attachments   []AttachmentInput
+	// SyncKey is an opaque stable idempotency key for at-least-once
+	// redelivery (the worker path stamps it with "sync:" + message id). A
+	// non-empty SyncKey short-circuits a duplicate submission before any Green
+	// scan and lands in provider_task_id so the 068 unique index dedups
+	// concurrent redeliveries. Empty keeps the legacy HTTP-direct behavior:
+	// every submission scans and records with a NULL key.
+	SyncKey string
+}
+
+// SetGreenScanner injects a Green scan provider. Tests substitute a fake to
+// assert scan parameters and rejection semantics without real credentials.
+func (s *ReviewService) SetGreenScanner(sc greenScanner) {
+	s.green = sc
 }
 
 type AICallbackInput struct {
@@ -130,6 +143,24 @@ func (s *ReviewService) SubmitForAIReview(ctx context.Context, in SubmitReviewIn
 		return aliyun.ErrGreenNotConfigured
 	}
 
+	syncKey := strings.TrimSpace(in.SyncKey)
+	// #195: at-least-once redelivery of the same submit_ai_review message is
+	// deduplicated by the stable synthetic key ("sync:" + message id). A
+	// record that already carries the key means the first delivery completed:
+	// return success without re-scanning (a duplicate scan would burn Green
+	// quota) and without re-recording.
+	if syncKey != "" {
+		var count int64
+		if err := s.db.WithContext(ctx).Model(&model.AIReviewRecord{}).
+			Where("provider = ? AND provider_task_id = ?", "aliyun", syncKey).
+			Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return nil
+		}
+	}
+
 	result := "pass"
 	raw := map[string]interface{}{"source": "green"}
 
@@ -190,12 +221,20 @@ func (s *ReviewService) SubmitForAIReview(ctx context.Context, in SubmitReviewIn
 		}
 	}
 
-	if err := s.ProcessAICallback(ctx, AICallbackInput{
+	callback := AICallbackInput{
 		TargetType:  in.TargetType,
 		TargetID:    in.TargetID,
 		Result:      result,
 		RawResponse: raw,
-	}); err != nil {
+	}
+	// The synthetic sync key lands in provider_task_id so recordAIReview lets
+	// the 068 unique index dedup a concurrent redelivery racing the count
+	// check above. The "sync:" prefix never collides with Aliyun async task
+	// ids, keeping the sync/async idempotency keys distinct (068 comment).
+	if syncKey != "" {
+		callback.ProviderTaskID = syncKey
+	}
+	if err := s.ProcessAICallback(ctx, callback); err != nil {
 		return err
 	}
 	return nil
