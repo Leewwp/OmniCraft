@@ -67,9 +67,11 @@ type fakeGreenScanner struct {
 
 	imageCalls []string
 	videoCalls []aliyun.VideoScanParams
+	textCalls  []string
 }
 
 func (f *fakeGreenScanner) TextModeration(ctx context.Context, text string) (*aliyun.GreenScanResult, error) {
+	f.textCalls = append(f.textCalls, text)
 	if f.textResult != nil {
 		return f.textResult, nil
 	}
@@ -745,4 +747,79 @@ func TestReviewImageURL(t *testing.T) {
 		_, err := svc.ReviewImageURL(ctx, "https://cdn.example.test/d.png")
 		require.ErrorIs(t, err, aliyun.ErrGreenNotConfigured)
 	})
+}
+
+// #195: at-least-once redelivery of the same submit_ai_review message must
+// produce exactly one sync record and must not re-scan Green. The worker
+// stamps SubmitReviewInput.SyncKey with "sync:" + message id.
+func TestSubmitForAIReviewSameSyncKeyIsDeduplicated(t *testing.T) {
+	svc, db, _ := setupReviewServiceTest(t)
+	ctx := context.Background()
+
+	userID := seedReviewUser(t, db)
+	contentID := seedReviewContent(t, db, userID)
+
+	green := &fakeGreenScanner{}
+	svc.green = green
+
+	// First delivery: the content is submitted for AI review.
+	require.NoError(t, svc.SubmitForAIReview(ctx, SubmitReviewInput{
+		TargetType:  "content",
+		TargetID:    contentID,
+		Title:       "redelivery fixture",
+		Description: "first delivery",
+		SyncKey:     "sync:1724600000000-0",
+	}))
+
+	// The sync record must carry the synthetic key so the 068 unique index
+	// (provider, provider_task_id) is the idempotency backstop.
+	var first model.AIReviewRecord
+	require.NoError(t, db.Where("target_type = ? AND target_id = ?", "content", contentID).First(&first).Error)
+	require.NotNil(t, first.ProviderTaskID)
+	require.Equal(t, "sync:1724600000000-0", *first.ProviderTaskID)
+
+	// Redelivery of the same message id: no new scan, no new record.
+	require.NoError(t, svc.SubmitForAIReview(ctx, SubmitReviewInput{
+		TargetType:  "content",
+		TargetID:    contentID,
+		Title:       "redelivery fixture",
+		Description: "redelivery",
+		SyncKey:     "sync:1724600000000-0",
+	}))
+
+	require.Equal(t, int64(1), reviewRecordsCount(t, db), "redelivery must not add a second sync record")
+	require.Len(t, green.textCalls, 1, "redelivery must not re-run the Green text scan")
+	require.Equal(t, "published", reviewContentStatus(t, db, contentID))
+}
+
+// #195: the HTTP direct path (no SyncKey) keeps its legacy behavior: every
+// submission scans and records with a NULL provider_task_id. This locks the
+// "HTTP 直发路径维持 NULL 键不变" decision.
+func TestSubmitForAIReviewWithoutSyncKeyKeepsLegacyBehavior(t *testing.T) {
+	svc, db, _ := setupReviewServiceTest(t)
+	ctx := context.Background()
+
+	userID := seedReviewUser(t, db)
+	contentID := seedReviewContent(t, db, userID)
+
+	green := &fakeGreenScanner{}
+	svc.green = green
+
+	for i := 0; i < 2; i++ {
+		require.NoError(t, svc.SubmitForAIReview(ctx, SubmitReviewInput{
+			TargetType:  "content",
+			TargetID:    contentID,
+			Title:       "http direct fixture",
+			Description: "no sync key",
+		}))
+	}
+
+	require.Equal(t, int64(2), reviewRecordsCount(t, db), "HTTP direct path: each submission records separately")
+	require.Len(t, green.textCalls, 2, "HTTP direct path: each submission scans separately")
+
+	var records []model.AIReviewRecord
+	require.NoError(t, db.Where("target_type = ? AND target_id = ?", "content", contentID).Find(&records).Error)
+	for _, r := range records {
+		require.Nil(t, r.ProviderTaskID, "HTTP direct path records keep a NULL provider_task_id")
+	}
 }
