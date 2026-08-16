@@ -1,0 +1,74 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+
+	"omnicraft/backend/config"
+	"omnicraft/backend/internal/pkg/aliyun"
+)
+
+// RunModerationGate is the single A4 moderation gate: it applies the
+// environment availability policy to one content-review attempt and records
+// the decision with consistent structured log keys (action, env_mode, policy,
+// reason). Every moderation gate in the platform routes through this helper so
+// release-fail-closed / dev-fail-open semantics stay uniform.
+//
+// review is nil when no review service is wired; the gate then records
+// reason=review_service_not_wired and fails closed in release mode. A review
+// error wrapping aliyun.ErrGreenNotConfigured in a non-release environment
+// fails open and records reason=green_not_configured; any other review error
+// fails closed regardless of environment. subjectNoun/targetNoun render the
+// gate-specific log messages (e.g. "content moderation" / "message").
+//
+// A "block" result returns blockedErr; blockViolation additionally treats
+// "violation" as blocking for text-facing gates, while the sync image gate
+// passes false (only an explicit "block" rejects, mirroring the historical
+// image-scan semantics). Allow paths return nil.
+func RunModerationGate(
+	ctx context.Context,
+	cfg *config.Config,
+	action, subjectNoun, targetNoun string,
+	review func(ctx context.Context) (string, error),
+	blockViolation bool,
+	blockedErr, unavailableErr error,
+) error {
+	envMode := "unknown"
+	release := false
+	if cfg != nil {
+		envMode = cfg.Server.Mode
+		release = cfg.Server.Mode == "release"
+	}
+
+	failClosed := func(reason string) error {
+		slog.Error(subjectNoun+" unavailable, rejecting "+targetNoun,
+			"action", action, "env_mode", envMode, "policy", "fail_closed", "reason", reason)
+		return unavailableErr
+	}
+	failOpen := func(reason string) error {
+		slog.Warn(subjectNoun+" skipped, "+targetNoun+" allowed",
+			"action", action, "env_mode", envMode, "policy", "fail_open", "reason", reason)
+		return nil
+	}
+
+	if review == nil {
+		if release {
+			return failClosed("review_service_not_wired")
+		}
+		return failOpen("review_service_not_wired")
+	}
+
+	result, err := review(ctx)
+	if err != nil {
+		if !release && errors.Is(err, aliyun.ErrGreenNotConfigured) {
+			return failOpen("green_not_configured")
+		}
+		return failClosed(err.Error())
+	}
+
+	if result == "block" || (blockViolation && result == "violation") {
+		return blockedErr
+	}
+	return nil
+}
