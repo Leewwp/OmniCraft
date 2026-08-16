@@ -1,3 +1,27 @@
+## [2026-08-16] - 双轴审查修复批次收口：全部 9/10 票完成合并（#194~#201、#203）
+
+### What was done:
+- **#194（P0 环境）**：dev 库 schema_migrations 4→69（先 pg_dump 备份再重放，幂等无 drift）；server 冒烟新表路由（related-fanworks / favorites 成员 / outbox 查询 401/404 符合空库预期，无缺表 panic）；清理已合并本地分支 13 个（safety/t104~109、web/t69~75；backup/pre-rebase-20260812 确认纯 pre-rebase 备份、内容可达自 main 后删除）。
+- **#195（P1 正确性，heavy TDD）**：`SubmitReviewInput` 增 `SyncKey`，worker 路径以 `sync:<Redis Streams 消息ID>`（重投不变）作提交前幂等短路（查 `(provider,provider_task_id)=('aliyun', syncKey)` 存在即跳过重复 Green 扫描）+ 落入 `provider_task_id` 走 068 唯一索引并发兜底；HTTP 直发路径不传 SyncKey 行为不变；异步回调 provider_task_id 去重不受影响；worker 级重投测试（同 msg.ID 两次 Handle）断言记录数=1、扫描数=1。commit 916a72e，merge 7ffc07d。
+- **#196（P1，←#195）**：review worker unknown-action 从 `slog.Warn+return nil`（静默吞）改为 return error → 指数退避→DLQ，测试覆盖；inbox.go 顶部注释固化「ConsumeInboxTx 同事务 vs MarkConsumedInbox 副作用后记录」双路径契约。commit 88a44e4 / merge 3bae1e7。
+- **#197（P2，←#195）**：回调 handler 镜像 normalize/merge 删除，统一复用导出的 `service.NormalizeReviewResult` / `service.MergeReviewResult`（review_service.go 单实现）。commit 1b5ba46 / merge efaa32a。
+- **#198（P2 整洁）**：4 处平台 OSS 判定收敛为 `aliyun.IsPlatformObjectURL`/`aliyun.ObjectURL`（审核封面/反馈附件/头像上传/存量审计），3 处 seed 正则收敛为 `config.ValidGreenSeed`（配置 release 门/网关包/发布预检）；"mirrors" 注释清除。commits 3a7f53e+6f78269 / merge 81bb147。
+- **#199（P2）**：评论/讨论文本审核、IP 审核等 6 处 `context.Background()` 改传播调用方 ctx（异步队列用 WithoutCancel 保留 trace），业务路径无新增 Background；删除 SetNX 幂等死代码 `pkg/queue/idempotent.go` 及测试。commit 5231e88 等 / merge 6413870。
+- **#200（P3 重构，heavy）**：relay 批大小/轮询间隔移入 config.yaml `relay.batch_size`/`relay.poll_interval_sec`（默认 100/1），`ValidateRelease` 边界校验（1..10000 / 1..3600）与测试，release schema/preflight/config.md 同步，doc-validator 幂等；零硬编码残留。commit 4326284 / merge ed1fae9。
+- **#201（P3，heavy）**：抽取单一 `service.RunModerationGate`（fail-open/fail-close 环境语义 + 统一 `action/env_mode/policy/reason` 日志键），私信/评论/反馈附件/头像 4 门全部引用；分层收敛（语义归 service，DM/头像入口留 handler 避免过度重构）；A4 语义测试 13 子测 + 各门现有测试全绿；行为逐点不变（一处已记录微差：多附件+Green 未配置时逐附件 warn 日志，策略不变）。commits 491bcba+fa0caf8 / merge f37a5ee（与 #198 共享 user.go/feedback_service.go，父 agent 手工解决冲突：双方都删除的 isReleaseMode/environmentMode/isPlatformAvatarObjectURL 残留去掉、aliyun import 补回）。
+- **#203（P4 登记）**：RAG roadmap T04/T05 段注明「投影契约以现状 indexer 实现为准」+ 已实现行为清单（四事件消费、published/updated fire-and-forget 重嵌入、banned/deleted 同事务删除、幂等/DLQ，6 条）。commit 7c72e95 / merge f8e074f。
+- **#202（P4 裁决）**：`ready-for-human` 未裁决，跳过未阻塞；等待人工对「review 结果可将 published 降回 under_review」的裁决。
+
+### Testing:
+- 每票：`cd backend && go build/vet/test ./...` 全绿（29 包）。
+- 合并后终验：`bash scripts/verify-project.sh --full` → **OmniCraft full verification passed**（前端 461+ unit / lint / build / doc-validator release check / 73 例 mocked Playwright contracts 全过）。
+- `tools/doc-validator --fix --check`：config/schema/route 均 no changes needed（幂等）。
+
+### Notes:
+- 合并顺序：#195 →（#196/#197，serial）→ #198 → #201（冲突 resolve）→ #199 → #200 → #203。所有 merge 为 --no-ff 保留分支拓扑。
+- worktree 环境备注：并行 worktree 中 `frontend/node_modules` 符号链接被 Turbopack 拒绝（越过 filesystem root），各 agent 临时以真实拷贝（gitignored）替换跑通 --full；主仓库不受影响。
+- 遗留：#202 待人工裁决；worktrees（omnicraft-wt/194~203）待清理；本地未 push（main 领先 origin 若干 merge commit，待用户决定推送）。
+
 ## [2026-08-16] - 双轴审查批次收口：任务完成性核验 + 修复计划登记（#193/#194~#203）
 
 ### What was done:
