@@ -94,6 +94,17 @@
 
 **完成标准**：红→绿；chunker 边界用例全覆盖；doc-validator `--fix`；两阶段审查；单一提交。
 
+### 契约基准：投影入口以现状 indexer 实现为准（#203）
+
+**声明**：#138 已实现的 indexer worker（`backend/internal/worker/indexer_worker.go`）是投影契约的现实基准；T04/T05 不得偏离其事件驱动与幂等语义，也不得重复实现已存在的入口。已实现行为清单（现状代码核实）：
+
+- 消费 `content.published/updated/banned/deleted` 四类内容事件（订阅 `omnicraft-indexer` group，`backend/internal/container/container.go`）。
+- published/updated：收件箱事务内读取 `content_items` 最新行（标题+描述拼接文本）并写入 inbox 完成记录；事务提交后 **fire-and-forget** 触发重嵌入（`EmbedContentAsync` → 发布 `content.embedding` job，`indexer_worker.go`）。
+- 嵌入副作用：独立 EmbeddingWorker 消费 `content.embedding`，调用 LLM provider 后 UPSERT 写入 `content_embeddings`（`embedding_worker.go` → `embedding_repo.go:UpsertEmbedding`）；可重建投影（ADR 0005）、at-least-once，崩溃重投即重跑。
+- banned/deleted：与 inbox 完成记录**同事务**删除该 content 全部 embedding 行（`embedding_repo.go:DeleteByContentIDTx`）。
+- 幂等/重试/DLQ：`inbox_consumers` UNIQUE 冲突跳过重复投递；永久失败事件进 DLQ，admin replay 端点可重投（#138）。
+- 现状投影粒度为**内容级** embedding（`content_embeddings` 表）；本 Task 的 chunk 级投影与 T05 的 OpenSearch 投影是该事件驱动基座之上的扩展，不得改动上述已存在行为。
+
 ---
 
 ## T05 [heavy] OpenSearch full-infra profile、indexer 与 full rebuild
@@ -124,6 +135,10 @@
 - 重复投递同事件 → 幂等不重复索引。
 
 **完成标准**：full-infra profile 一键启动含 OpenSearch；增量索引 + rebuild 演练证据；rebuild 端点安全面测试通过；两阶段审查；单一提交。
+
+### 契约基准：indexer 扩展沿用现状实现（#203）
+
+**声明**：T05 的 indexer 在现状 `indexer_worker` 的事件消费、幂等、同事务删除与 DLQ replay 语义之上扩展（增量索引 + rebuild），不另起一套入口；**「embedding 由 indexer 内联写入（已裁决）」是在现状「published/updated → fire-and-forget 重嵌入」seam 上按 chunk 语义深化，不复用/不改造内容级 `content.embedding` 通道**。行为清单以现状实现为准，详见 T04「契约基准：投影入口以现状 indexer 实现为准（#203）」小节。
 
 ---
 
