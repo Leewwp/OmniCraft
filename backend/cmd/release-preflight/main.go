@@ -26,8 +26,7 @@ import (
 )
 
 var (
-	greenSeedFormat = regexp.MustCompile(`^[A-Za-z0-9_]{1,64}$`)
-	greenUIDFormat  = regexp.MustCompile(`^\d+$`)
+	greenUIDFormat = regexp.MustCompile(`^\d+$`)
 )
 
 type check struct {
@@ -291,7 +290,7 @@ func checkGreenAuthFields(cfg *config.Config, add func(string, bool, string)) {
 		problems = append(problems, "green.seed is missing: set GREEN_SEED to a random string of [A-Za-z0-9_], max 64 chars (e.g. openssl rand -base64 36 | tr -dc 'A-Za-z0-9_' | cut -c1-48); deployers may replace the generated template value before first launch")
 	} else if containsPlaceholder(seed) {
 		problems = append(problems, "green.seed must not contain placeholders")
-	} else if !greenSeedFormat.MatchString(seed) {
+	} else if !config.ValidGreenSeed(seed) {
 		problems = append(problems, "green.seed must be 1-64 characters of [A-Za-z0-9_]")
 	}
 
