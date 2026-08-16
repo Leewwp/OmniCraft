@@ -115,7 +115,7 @@ func (s *ReviewService) ReviewText(ctx context.Context, text string) (string, er
 	if err != nil {
 		return "", err
 	}
-	return normalizeReviewResult(res.Result), nil
+	return NormalizeReviewResult(res.Result), nil
 }
 
 // ReviewImageURL runs a synchronous Aliyun Green image scan over a single
@@ -132,7 +132,7 @@ func (s *ReviewService) ReviewImageURL(ctx context.Context, imageURL string) (st
 	if err != nil {
 		return "", err
 	}
-	return normalizeReviewResult(res.Result), nil
+	return NormalizeReviewResult(res.Result), nil
 }
 
 func (s *ReviewService) SubmitForAIReview(ctx context.Context, in SubmitReviewInput) error {
@@ -168,7 +168,7 @@ func (s *ReviewService) SubmitForAIReview(ctx context.Context, in SubmitReviewIn
 	if err != nil {
 		return err
 	}
-	result = mergeReviewResult(result, textResult.Result)
+	result = MergeReviewResult(result, textResult.Result)
 	for k, v := range textResult.RawResponse {
 		raw[k] = v
 	}
@@ -186,7 +186,7 @@ func (s *ReviewService) SubmitForAIReview(ctx context.Context, in SubmitReviewIn
 		if scanErr != nil {
 			return scanErr
 		}
-		result = mergeReviewResult(result, coverRes.Result)
+		result = MergeReviewResult(result, coverRes.Result)
 	}
 
 	for _, a := range in.Attachments {
@@ -202,7 +202,7 @@ func (s *ReviewService) SubmitForAIReview(ctx context.Context, in SubmitReviewIn
 			if scanErr != nil {
 				return scanErr
 			}
-			result = mergeReviewResult(result, imgRes.Result)
+			result = MergeReviewResult(result, imgRes.Result)
 		}
 		if strings.HasPrefix(mime, "video/") || strings.EqualFold(a.FileType, "video") {
 			videoRes, scanErr := s.green.VideoAsyncScan(ctx, aliyun.VideoScanParams{
@@ -214,7 +214,7 @@ func (s *ReviewService) SubmitForAIReview(ctx context.Context, in SubmitReviewIn
 			if scanErr != nil {
 				return scanErr
 			}
-			result = mergeReviewResult(result, videoRes.Result)
+			result = MergeReviewResult(result, videoRes.Result)
 			if videoRes.TaskID != "" {
 				raw["video_task_id"] = videoRes.TaskID
 			}
@@ -245,7 +245,7 @@ func (s *ReviewService) ProcessAICallback(ctx context.Context, in AICallbackInpu
 		return errors.New("review service not initialized")
 	}
 
-	result := normalizeReviewResult(in.Result)
+	result := NormalizeReviewResult(in.Result)
 	providerTaskID := strings.TrimSpace(in.ProviderTaskID)
 
 	// Idempotent short-circuit: a callback for an already-recorded provider
@@ -547,17 +547,23 @@ func (s *ReviewService) resolveCoverScanURL(coverURL string) (string, error) {
 	return coverURL, nil
 }
 
-func mergeReviewResult(current, incoming string) string {
+// MergeReviewResult keeps the strictest of two review results
+// (pass < review < block). Inputs are normalized by NormalizeReviewResult
+// before comparison, so callers may pass raw Aliyun values.
+func MergeReviewResult(current, incoming string) string {
 	priority := map[string]int{"pass": 1, "review": 2, "block": 3, "violation": 3}
-	curr := normalizeReviewResult(current)
-	next := normalizeReviewResult(incoming)
+	curr := NormalizeReviewResult(current)
+	next := NormalizeReviewResult(incoming)
 	if priority[next] > priority[curr] {
 		return next
 	}
 	return curr
 }
 
-func normalizeReviewResult(result string) string {
+// NormalizeReviewResult maps a raw review result value onto the application
+// review vocabulary ("pass", "review" or "block"). Unknown, empty or
+// otherwise unexpected values fail closed to "pass".
+func NormalizeReviewResult(result string) string {
 	r := strings.ToLower(strings.TrimSpace(result))
 	switch r {
 	case "block", "violation":
