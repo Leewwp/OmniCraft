@@ -1,3 +1,16 @@
+## [2026-08-16] - 双轴审查修复批次归档：#202 裁决「允许」降级，父票 #193 关闭
+
+### What was done:
+- **#202 人工裁决（允许）**：负责人裁定 published→under_review 降级合法——review 结果=「疑似违规待人工复核」，降级创建判官 case 符合「宁可多复核」原则；banned 仍为 AI 通道终态（conditional update `WHERE status <> banned` 永不复活已封禁内容，#105 守卫不受影响）。裁决为「允许」故无需新增守卫/补测试。comment 已回填 #202 后关闭。
+- **父票 #193 收口**：任务清单 10/10 勾选 → 批次收口 comment → 关闭 #193。
+- **AGENTS.md 注册表**：优先级 6 行标记 ✅ 全部完成并归档，注明 #202 裁决结论（无遗留执行单元）。
+
+### Testing:
+- 合并后终验（上一轮 6d283c6 已全绿）：29 包 go build/vet/test + verify-project.sh --full 73/73 + doc-validator --fix 幂等，本轮仅文档/issue 变更，无代码改动。
+
+### Notes:
+- 遗留：本地 main 领先 origin/main 24 个 commit 未 push（待敏感信息检查后推送）。
+
 ## [2026-08-16] - 双轴审查修复批次收口：全部 9/10 票完成合并（#194~#201、#203）
 
 ### What was done:
