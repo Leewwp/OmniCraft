@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"strings"
 	"time"
 
 	"omnicraft/backend/config"
@@ -258,13 +257,14 @@ func (s *FeedbackService) environmentMode() string {
 	return s.cfg.Server.Mode
 }
 
-// resolveAttachmentScanURL maps a platform OSS object key to its delivery URL,
-// mirroring ReviewService.resolveScanObjectURL.
+// resolveAttachmentScanURL maps a platform OSS object key to its delivery URL
+// through the shared aliyun.ObjectURL helper (the same contract as the content
+// review scan path).
 func (s *FeedbackService) resolveAttachmentScanURL(ossKey string) string {
-	if s.cfg != nil && strings.TrimSpace(s.cfg.OSS.Domain) != "" {
-		return strings.TrimRight(strings.TrimSpace(s.cfg.OSS.Domain), "/") + "/" + strings.TrimLeft(ossKey, "/")
+	if s.cfg == nil {
+		return ossKey
 	}
-	return ossKey
+	return aliyun.ObjectURL(s.cfg.OSS.Domain, ossKey)
 }
 
 type PresignUploadInput struct {

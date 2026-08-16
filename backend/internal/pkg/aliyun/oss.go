@@ -171,3 +171,27 @@ func (c *OSSClient) GetSTS(regionID, roleArn, sessionName string, durationSecond
 		Expiration:      resp.Credentials.Expiration,
 	}, nil
 }
+
+// IsPlatformObjectURL reports whether rawURL is a platform-verified OSS object:
+// only URLs carrying the configured delivery-domain prefix (trimmed domain +
+// "/") qualify. No URL is ever verified without a configured domain. This is
+// the single gate shared by cover-image review, feedback attachment mapping,
+// avatar upload and the avatar-audit tool.
+func IsPlatformObjectURL(domain, rawURL string) bool {
+	url := strings.TrimSpace(rawURL)
+	domain = strings.TrimRight(strings.TrimSpace(domain), "/")
+	if domain == "" {
+		return false
+	}
+	return strings.HasPrefix(url, domain+"/")
+}
+
+// ObjectURL derives the platform delivery URL for a platform OSS object key
+// under the configured delivery domain. Without a configured domain the key is
+// returned unchanged, preserving the caller's preexisting fallback behavior.
+func ObjectURL(domain, ossKey string) string {
+	if strings.TrimSpace(domain) == "" {
+		return ossKey
+	}
+	return strings.TrimRight(strings.TrimSpace(domain), "/") + "/" + strings.TrimLeft(ossKey, "/")
+}

@@ -680,6 +680,30 @@ func TestApplyTestModeLeavesNormalConfigurationUnchanged(t *testing.T) {
 	require.Equal(t, 0, cfg.Redis.DB)
 }
 
+func TestValidGreenSeed(t *testing.T) {
+	cases := []struct {
+		name string
+		seed string
+		want bool
+	}{
+		{"alphanumeric underscores", "seed_abc_123", true},
+		{"single char", "a", true},
+		{"exactly 64 chars", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", true},
+		{"empty rejected", "", false},
+		{"whitespace rejected", "  a  ", false},
+		{"dash rejected", "seed-abc", false},
+		{"dot rejected", "seed.abc", false},
+		{"overlong 65 chars rejected", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ValidGreenSeed(tc.seed); got != tc.want {
+				t.Fatalf("ValidGreenSeed(%q) = %v, want %v", tc.seed, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestUploadConfigNormalizesGalleryDefaultsAndRejectsInvalidBounds(t *testing.T) {
 	defaults := (UploadConfig{}).NormalizedGalleryLimits()
 	require.Equal(t, 2, defaults.ImageGalleryMinItems)

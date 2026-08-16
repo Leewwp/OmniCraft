@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	green20220302 "github.com/alibabacloud-go/green-20220302/v3/client"
 	"github.com/alibabacloud-go/tea/tea"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/observability"
 )
 
@@ -23,10 +23,6 @@ var (
 	// callback (the checksum cannot be computed or verified without it), so
 	// submitting such a scan would silently never deliver a verifiable result.
 	ErrGreenSeedRequired = errors.New("green seed is required when a callback is configured")
-	// greenSeedPattern mirrors the config gate (#104): [A-Za-z0-9_], max 64.
-	// The request builder enforces it defensively so a misconfigured seed can
-	// never reach Aliyun outside the release gate.
-	greenSeedPattern = regexp.MustCompile(`^[A-Za-z0-9_]{1,64}$`)
 )
 
 // VideoScanParams carries the VideoModeration ServiceParameters inputs.
@@ -216,7 +212,10 @@ func buildVideoServiceParams(params VideoScanParams) (string, error) {
 		if seed == "" {
 			return "", ErrGreenSeedRequired
 		}
-		if !greenSeedPattern.MatchString(seed) {
+		// The format contract is owned by the config gate (config.ValidGreenSeed);
+		// the request builder enforces it defensively so a misconfigured seed can
+		// never reach Aliyun outside the release gate.
+		if !config.ValidGreenSeed(seed) {
 			return "", fmt.Errorf("green seed must be [A-Za-z0-9_], max 64 chars")
 		}
 		serviceParams["seed"] = seed
