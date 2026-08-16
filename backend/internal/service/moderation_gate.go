@@ -9,19 +9,6 @@ import (
 	"omnicraft/backend/internal/pkg/aliyun"
 )
 
-// blockedTextResult is the block predicate for text-facing gates (DM,
-// comment, avatar): an explicit "violation" is treated the same as "block".
-func blockedTextResult(result string) bool {
-	return result == "block" || result == "violation"
-}
-
-// blockedImageResult is the block predicate for the sync image gate (feedback
-// attachments): only an explicit "block" rejects, mirroring the historical
-// image-scan semantics where "review" and "violation" do not block submission.
-func blockedImageResult(result string) bool {
-	return result == "block"
-}
-
 // RunModerationGate is the single A4 moderation gate: it applies the
 // environment availability policy to one content-review attempt and records
 // the decision with consistent structured log keys (action, env_mode, policy,
@@ -35,13 +22,16 @@ func blockedImageResult(result string) bool {
 // fails closed regardless of environment. subjectNoun/targetNoun render the
 // gate-specific log messages (e.g. "content moderation" / "message").
 //
-// A "block"-matching result returns blockedErr; allow paths return nil.
+// A "block" result returns blockedErr; blockViolation additionally treats
+// "violation" as blocking for text-facing gates, while the sync image gate
+// passes false (only an explicit "block" rejects, mirroring the historical
+// image-scan semantics). Allow paths return nil.
 func RunModerationGate(
 	ctx context.Context,
 	cfg *config.Config,
 	action, subjectNoun, targetNoun string,
 	review func(ctx context.Context) (string, error),
-	blocked func(result string) bool,
+	blockViolation bool,
 	blockedErr, unavailableErr error,
 ) error {
 	envMode := "unknown"
@@ -77,7 +67,7 @@ func RunModerationGate(
 		return failClosed(err.Error())
 	}
 
-	if blocked(result) {
+	if result == "block" || (blockViolation && result == "violation") {
 		return blockedErr
 	}
 	return nil
