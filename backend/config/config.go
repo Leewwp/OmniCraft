@@ -25,6 +25,14 @@ var (
 	greenUIDFormat  = regexp.MustCompile(`^\d+$`)
 )
 
+// ValidGreenSeed reports whether seed matches the green.seed format contract
+// ([A-Za-z0-9_], 1-64 chars). This is the single definition shared by the
+// release config gate, the Green request builder and the release preflight;
+// callers apply their own empty-trim and placeholder guards around it.
+func ValidGreenSeed(seed string) bool {
+	return greenSeedFormat.MatchString(seed)
+}
+
 type Config struct {
 	Server         ServerConfig         `mapstructure:"server"`
 	Web            WebConfig            `mapstructure:"web"`
