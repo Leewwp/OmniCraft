@@ -8,23 +8,17 @@ import (
 	"omnicraft/backend/internal/service"
 )
 
-// relayPollInterval is how often the relay claims a new outbox batch. The
-// outbox backoff gate (next_attempt_at) is the real delivery schedule; the
-// poll interval only bounds delivery latency.
-const relayPollInterval = time.Second
-
 // RelayWorker runs the outbox relay in a loop until its context is
 // cancelled. It is started only by cmd/worker (ADR 0005: the API server never
-// runs asynchronous consumers).
+// runs asynchronous consumers). The poll interval is read from config.relay
+// (issue #200); the outbox backoff gate (next_attempt_at) is the real delivery
+// schedule, while the poll interval only bounds delivery latency.
 type RelayWorker struct {
 	svc      *service.RelayService
 	interval time.Duration
 }
 
 func NewRelayWorker(svc *service.RelayService, interval time.Duration) *RelayWorker {
-	if interval <= 0 {
-		interval = relayPollInterval
-	}
 	return &RelayWorker{svc: svc, interval: interval}
 }
 

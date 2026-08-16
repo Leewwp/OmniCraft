@@ -202,6 +202,16 @@
         "latest_version": { "type": "string" }
       },
       "additionalProperties": false
+    },
+    "relay": {
+      "type": "object",
+      "required": ["batch_size", "poll_interval_sec"],
+      "properties": {
+        "batch_size": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "poll_interval_sec": { "type": "integer", "minimum": 1, "maximum": 3600 }
+      },
+      "additionalProperties": false,
+      "description": "Outbox relay loop tuning (issue #200): bounds mirrored from backend/config/config.go ValidateRelease and the repo default config.yaml. Server/worker-side only; never exposed to clients."
     }
   },
   "additionalProperties": false
