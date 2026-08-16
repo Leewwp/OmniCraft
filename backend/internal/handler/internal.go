@@ -98,7 +98,7 @@ func (h *InternalHandler) AICallback(c *gin.Context) {
 
 	result := "pass"
 	for _, r := range callback.Results {
-		result = mergeCallbackSuggestion(result, normalizeCallbackSuggestion(r.Suggestion))
+		result = service.MergeReviewResult(result, service.NormalizeReviewResult(r.Suggestion))
 	}
 
 	var raw map[string]interface{}
@@ -164,30 +164,6 @@ func parseCallbackDataID(dataID string) (string, int64, error) {
 		return "", 0, errors.New("invalid callback target id")
 	}
 	return targetType, id, nil
-}
-
-// normalizeCallbackSuggestion maps a raw Aliyun suggestion value onto the
-// application review vocabulary used by ReviewService.ProcessAICallback.
-func normalizeCallbackSuggestion(suggestion string) string {
-	switch strings.ToLower(strings.TrimSpace(suggestion)) {
-	case "block", "violation":
-		return "block"
-	case "review", "pending":
-		return "review"
-	default:
-		return "pass"
-	}
-}
-
-// mergeCallbackSuggestion keeps the strictest of two normalized suggestions
-// (pass < review < block), mirroring the merge semantics of the review
-// service so the inbound contract and the internal flow agree.
-func mergeCallbackSuggestion(current, incoming string) string {
-	priority := map[string]int{"pass": 1, "review": 2, "block": 3}
-	if priority[incoming] > priority[current] {
-		return incoming
-	}
-	return current
 }
 
 func sha256Hex(s string) string {
