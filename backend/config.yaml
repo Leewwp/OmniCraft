@@ -262,3 +262,11 @@ queue:
 worker:
   enabled: true
   concurrency: 2
+
+# Outbox relay loop tuning (issue #200). batch_size bounds how many due outbox
+# events one relay run claims; poll_interval_sec bounds delivery latency. The
+# relay runs only in the standalone worker process (ADR 0005), so these values
+# are server-side only and never reach the client-facing config response.
+relay:
+  batch_size: 100
+  poll_interval_sec: 1
