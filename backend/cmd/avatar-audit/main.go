@@ -3,16 +3,16 @@
 // accepted as-is, so existing users may carry arbitrary external URLs that
 // would now be rejected at update time and are out of moderation reach. The
 // audit lists them; --apply downgrades them to the default avatar (empty
-// avatar_url), mirroring the runtime gate in handler.UserHandler.UpdateUser.
+// avatar_url), reusing the runtime platform-object gate.
 //
 // Usage:
 //
 //	go run ./cmd/avatar-audit                       # read-only audit
 //	go run ./cmd/avatar-audit --apply --maintenance-window-confirmed
 //
-// The domain check reuses the runtime contract: only URLs prefixed with the
-// configured oss.domain are platform-verified objects. Requires DB_DSN or
-// config.Load().Database.DSN.
+// The domain check reuses the runtime contract via aliyun.IsPlatformObjectURL:
+// only URLs prefixed with the configured oss.domain are platform-verified
+// objects. Requires DB_DSN or config.Load().Database.DSN.
 package main
 
 import (
@@ -20,13 +20,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/aliyun"
 )
 
 const (
@@ -176,24 +176,11 @@ func externalAvatarUsers(db *gorm.DB, ossDomain string) ([]model.User, error) {
 	}
 	filtered := make([]model.User, 0, len(users))
 	for _, u := range users {
-		if !isPlatformAvatarURL(ossDomain, u.AvatarURL) {
+		if !aliyun.IsPlatformObjectURL(ossDomain, u.AvatarURL) {
 			filtered = append(filtered, u)
 		}
 	}
 	return filtered, nil
-}
-
-// isPlatformAvatarURL mirrors the runtime avatar gate
-// (handler.UserHandler.isPlatformAvatarObjectURL): a non-empty avatar is a
-// platform-verified object only when it carries the configured delivery-domain
-// prefix. Without a configured domain no URL can be verified.
-func isPlatformAvatarURL(ossDomain, avatarURL string) bool {
-	url := strings.TrimSpace(avatarURL)
-	domain := strings.TrimRight(strings.TrimSpace(ossDomain), "/")
-	if domain == "" {
-		return false
-	}
-	return strings.HasPrefix(url, domain+"/")
 }
 
 func repairAvatarAudit(db *gorm.DB, ossDomain string) (avatarAuditRepairTotals, error) {

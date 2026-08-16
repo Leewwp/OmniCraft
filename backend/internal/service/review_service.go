@@ -485,10 +485,10 @@ func addReputationTx(tx *gorm.DB, userID int64, delta int, reason string, relate
 }
 
 func (s *ReviewService) resolveScanObjectURL(ossKey string) string {
-	if s.cfg != nil && strings.TrimSpace(s.cfg.OSS.Domain) != "" {
-		return strings.TrimRight(strings.TrimSpace(s.cfg.OSS.Domain), "/") + "/" + strings.TrimLeft(ossKey, "/")
+	if s.cfg == nil {
+		return ossKey
 	}
-	return ossKey
+	return aliyun.ObjectURL(s.cfg.OSS.Domain, ossKey)
 }
 
 // resolveCoverScanURL verifies a cover URL is a platform OSS object before it
@@ -498,11 +498,7 @@ func (s *ReviewService) resolveScanObjectURL(ossKey string) string {
 // with ErrCoverNotPlatformOSSObject instead of scanning an arbitrary URL.
 func (s *ReviewService) resolveCoverScanURL(coverURL string) (string, error) {
 	coverURL = strings.TrimSpace(coverURL)
-	if s.cfg == nil || strings.TrimSpace(s.cfg.OSS.Domain) == "" {
-		return "", ErrCoverNotPlatformOSSObject
-	}
-	domain := strings.TrimRight(strings.TrimSpace(s.cfg.OSS.Domain), "/")
-	if !strings.HasPrefix(coverURL, domain+"/") {
+	if s.cfg == nil || !aliyun.IsPlatformObjectURL(s.cfg.OSS.Domain, coverURL) {
 		return "", ErrCoverNotPlatformOSSObject
 	}
 	return coverURL, nil
