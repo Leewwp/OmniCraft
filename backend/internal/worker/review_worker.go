@@ -62,6 +62,12 @@ func (w *ReviewWorker) Handle(ctx context.Context, msg queue.Message) error {
 			Description:   payload.Description,
 			AuthorID:      payload.AuthorID,
 			CoverImageURL: payload.CoverImageURL,
+			// #195 at-least-once idempotency: Redis Streams re-delivers the
+			// same message id after an ACK loss, so "sync:" + message id is a
+			// stable synthetic key across retries. The prefix keeps the sync
+			// key from ever colliding with an Aliyun async task id inside the
+			// 068 unique index (provider, provider_task_id).
+			SyncKey: "sync:" + msg.ID,
 		}
 		if err := w.reviewSvc.SubmitForAIReview(ctx, input); err != nil {
 			slog.Error("review_worker: SubmitForAIReview failed",
