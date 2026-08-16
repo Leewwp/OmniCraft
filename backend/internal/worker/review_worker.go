@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 
 	"gorm.io/gorm"
@@ -94,8 +95,10 @@ func (w *ReviewWorker) Handle(ctx context.Context, msg queue.Message) error {
 			"target_type", payload.TargetType, "target_id", payload.TargetID)
 
 	default:
-		slog.Warn("review_worker: unknown action", "action", payload.Action, "msg_id", msg.ID)
-		return nil
+		// Unknown actions are permanent failures, not silent skips. Returning
+		// an error lets the broker retry with exponential backoff and dead-letter
+		// the message once attempts are exhausted (see TestReviewWorkerUnknownActionLandsInDLQ).
+		return fmt.Errorf("review_worker: unknown action %q", payload.Action)
 	}
 
 	if err := MarkConsumedInbox(ctx, w.db, msg.Group, InboxEventID(msg.Group, msg)); err != nil {

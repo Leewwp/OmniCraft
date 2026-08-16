@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -179,4 +182,87 @@ func TestReviewWorkerSubmitAIReviewRedeliveryIsIdempotent(t *testing.T) {
 	var status string
 	require.NoError(t, db.Raw(`SELECT status FROM content_items WHERE id = ?`, contentID).Scan(&status).Error)
 	require.Equal(t, "published", status)
+}
+
+// TestReviewWorkerUnknownActionReturnsError proves an unknown action is a
+// permanent failure, not a silent skip: Handle returns an error so the broker
+// can retry and dead-letter the message, and never writes an inbox completion
+// row for an unhandled action.
+func TestReviewWorkerUnknownActionReturnsError(t *testing.T) {
+	ww, db, _ := setupReviewWorkerTest(t)
+
+	err := ww.Handle(context.Background(), queue.Message{
+		ID: "1-0", Topic: "content.review", Group: "omnicraft-content-review",
+		Payload: []byte(`{"action":"no_such_action","target_type":"content","target_id":1}`),
+	})
+	require.Error(t, err, "an unknown action must fail so it can be DLQ'd instead of being swallowed")
+	require.Contains(t, err.Error(), "unknown action")
+	require.Contains(t, err.Error(), "no_such_action")
+
+	var inbox int64
+	require.NoError(t, db.Model(&model.InboxConsumer{}).Count(&inbox).Error)
+	require.Zero(t, inbox, "an unhandled action must never leave an inbox completion row")
+}
+
+// TestReviewWorkerUnknownActionLandsInDLQ proves the end-to-end retry->DLQ
+// path for an unknown action: the broker retries the failing message and,
+// once attempts are exhausted, dead-letters it with topic/group/error
+// metadata. No inbox completion row is written along the way.
+func TestReviewWorkerUnknownActionLandsInDLQ(t *testing.T) {
+	ww, db, _ := setupReviewWorkerTest(t)
+
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+
+	broker := queue.NewRedisStreamBroker(rdb, &queue.QueueConfig{
+		Enabled:         true,
+		MaxAttempts:     2,
+		RetryBackoffSec: []int{0, 0},
+		MaxLen:          100000,
+	})
+	defer broker.Stop()
+
+	mgr := NewWorkerManager(broker)
+	mgr.Register("content.review", "omnicraft-content-review", ww.Handle)
+	require.NoError(t, mgr.Start(context.Background()))
+
+	payload, err := json.Marshal(map[string]interface{}{
+		"action":      "no_such_action",
+		"target_type": "content",
+		"target_id":   1,
+	})
+	require.NoError(t, err)
+	require.NoError(t, broker.Publish(context.Background(), "content.review", payload))
+
+	var dlqEntries []redis.XMessage
+	deadline := time.Now().Add(8 * time.Second)
+	for {
+		entries, err := rdb.XRange(context.Background(), "omnicraft:dead-letter", "-", "+").Result()
+		require.NoError(t, err)
+		if len(entries) > 0 {
+			dlqEntries = entries
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("unknown action message never reached the DLQ")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	var entry struct {
+		OriginalTopic string `json:"original_topic"`
+		OriginalID    string `json:"original_id"`
+		ConsumerGroup string `json:"consumer_group"`
+		Error         string `json:"error"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(dlqEntries[len(dlqEntries)-1].Values["data"].(string)), &entry))
+	require.Equal(t, "content.review", entry.OriginalTopic)
+	require.Equal(t, "omnicraft-content-review", entry.ConsumerGroup)
+	require.Contains(t, entry.Error, "unknown action")
+	require.Contains(t, entry.Error, "no_such_action")
+
+	var inbox int64
+	require.NoError(t, db.Model(&model.InboxConsumer{}).Count(&inbox).Error)
+	require.Zero(t, inbox, "a dead-lettered message must never leave an inbox completion row")
 }
