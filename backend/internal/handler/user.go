@@ -164,7 +164,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	if req.AvatarURL != nil {
 		avatarURL := strings.TrimSpace(*req.AvatarURL)
 		if avatarURL != "" {
-			if !isPlatformAvatarObjectURL(h.cfg, avatarURL) {
+			if h.cfg == nil || !aliyun.IsPlatformObjectURL(h.cfg.OSS.Domain, avatarURL) {
 				response.Error(c, http.StatusBadRequest, "AVATAR_NOT_PLATFORM_OSS_OBJECT", "avatar must be a platform OSS object URL")
 				return
 			}
@@ -418,19 +418,6 @@ func invalidateUserTokens(rdb *redis.Client, userID int64) {
 		rdb.Del(ctx, members...)
 	}
 	rdb.Del(ctx, tokenSetKey)
-}
-
-// isPlatformAvatarObjectURL mirrors the cover-image gate
-// (ReviewService.resolveCoverScanURL): only URLs carrying the configured OSS
-// delivery-domain prefix are platform-verified objects. Arbitrary external
-// URLs are never scanned nor persisted.
-func isPlatformAvatarObjectURL(cfg *config.Config, rawURL string) bool {
-	url := strings.TrimSpace(rawURL)
-	if cfg == nil || strings.TrimSpace(cfg.OSS.Domain) == "" {
-		return false
-	}
-	domain := strings.TrimRight(strings.TrimSpace(cfg.OSS.Domain), "/")
-	return strings.HasPrefix(url, domain+"/")
 }
 
 func (h *UserHandler) isReleaseMode() bool {
