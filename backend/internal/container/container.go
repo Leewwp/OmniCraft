@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -19,6 +20,7 @@ import (
 	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
+	ragservice "omnicraft/backend/internal/service/rag"
 	"omnicraft/backend/internal/worker"
 )
 
@@ -54,6 +56,7 @@ type ServiceContainer struct {
 	FeedbackRepo      *repository.FeedbackRepository
 	AdminAuditRepo    *repository.AdminAuditRepository
 	OutboxRepo        *repository.OutboxRepository
+	OpenSearchRepo    *repository.OpenSearchRepository
 
 	// Services
 	AuthService         *service.AuthService
@@ -70,6 +73,7 @@ type ServiceContainer struct {
 	AgentService        *service.AgentService
 	NotificationService *service.NotificationService
 	PRService           *service.PRService
+	VersionService      *service.VersionService
 	SearchService       *service.SearchService
 	FeedbackService     *service.FeedbackService
 	AdminAuditService   *service.AdminAuditService
@@ -77,6 +81,7 @@ type ServiceContainer struct {
 	CaptchaVerifier     captcha.CaptchaVerifier
 	CaptchaProvider     captcha.CaptchaVerifier
 	CaptchaTickets      *captcha.TicketStore
+	RAGProjection       *ragservice.Projection
 }
 
 func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceContainer {
@@ -154,6 +159,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.IPStatsService = service.NewIPStatsService(db, rdb)
 	c.NotificationService = service.NewNotificationService(c.NotificationRepo)
 	c.PRService = service.NewPRService(c.PRRepo, c.VersionRepo, c.ContentRepo)
+	c.VersionService = service.NewVersionService(c.VersionRepo, c.ContentRepo)
 	c.SearchService = service.NewSearchService(c.SearchRepo, rdb)
 
 	uploadGrantTTL := 300
@@ -195,6 +201,31 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.AgentService = service.NewAgentService(provider, c.EmbeddingRepo, c.ContentRepo, greenClient, db, cfg)
 	c.AgentService.SetSearchRepository(c.SearchRepo)
 	c.AgentService.SetQueueProducer(c.QueueProducer)
+	opensearchTimeout := time.Duration(cfg.RAG.Index.TimeoutSec) * time.Second
+	c.OpenSearchRepo = repository.NewOpenSearchRepositoryWithLimits(
+		cfg.RAG.Index.URL,
+		&http.Client{Timeout: opensearchTimeout},
+		repository.OpenSearchResponseLimits{
+			ErrorBodyMaxBytes:     int64(cfg.RAG.Index.ErrorBodyMaxBytes),
+			ResponseBodyMaxBytes:  int64(cfg.RAG.Index.ResponseBodyMaxBytes),
+			HealthPollIntervalSec: cfg.RAG.Index.HealthPollIntervalSec,
+		},
+	)
+	c.RAGProjection = ragservice.NewProjectionWithVersionLoader(
+		db,
+		ragservice.NewChunker(ragservice.ChunkerConfig{
+			MaxTokens: cfg.RAG.Chunking.MaxTokens, OverlapTokens: cfg.RAG.Chunking.OverlapTokens,
+			ChunkingVersion: cfg.RAG.Chunking.ChunkingVersion, TokenizerEncoding: cfg.RAG.Chunking.TokenizerEncoding,
+		}),
+		ragservice.NewProviderChunkEmbedder(provider),
+		c.OpenSearchRepo,
+		c.VersionService,
+		ragservice.ProjectionConfig{
+			IndexVersion: cfg.RAG.Index.GenerationStart, EmbeddingModel: cfg.RAG.Index.EmbeddingModel,
+			EmbeddingDimensions:   cfg.Agent.EmbeddingDimensions,
+			LockCleanupTimeoutSec: cfg.RAG.Index.LockCleanupTimeoutSec,
+		},
+	)
 
 	// Wire notification service
 	c.SocialService.SetNotificationService(c.NotificationService)
@@ -227,7 +258,10 @@ func (c *ServiceContainer) StartWorkers(ctx context.Context) func() {
 	notificationWorker := worker.NewNotificationWorker(c.NotificationRepo, c.DB)
 	countWorker := worker.NewCountWorker(c.RDB, c.DB)
 	embeddingWorker := worker.NewEmbeddingWorker(c.AgentService, c.DB)
-	indexerWorker := worker.NewIndexerWorker(c.DB, c.AgentService, repository.NewEmbeddingRepository(c.DB))
+	indexerWorker := worker.NewIndexerWorker(c.DB, c.AgentService, repository.NewEmbeddingRepository(c.DB), nil)
+	if c.Cfg.Features.RAGHybridEnabled {
+		indexerWorker = worker.NewIndexerWorker(c.DB, c.AgentService, repository.NewEmbeddingRepository(c.DB), c.RAGProjection)
+	}
 
 	subscriptions := []struct {
 		topic   string

@@ -1,3 +1,54 @@
+## [2026-08-19] - Task #140: T05 收尾复核
+
+### What was done:
+- 修复内容版本合同：投影通过 `VersionService` 重建 full/diff 版本链，使用 bound PostgreSQL connection 的独立 GORM session，避免 diff patch 被当作正文或污染后续查询。
+- 修复崩溃恢复：read alias 指向不完整世代时先恢复最后一个完整 current PostgreSQL 世代，再启动新的 rebuild；增加 diff 正文与 incomplete-alias 回归测试。
+- 接入 `agent.embedding_dimensions` 与 RAG release 校验、OpenSearch health poll interval；健康检查在 timeout/context 内轮询，接受 yellow/green，并处理 response body close/discard 错误。
+- 增加 `opensearch-seed` full-infra one-shot 服务和幂等严格 mapping seed 脚本；默认 Compose 仍不启动 OpenSearch。
+
+### Testing:
+- focused `internal/service/rag`、`internal/repository`、`config`、`internal/container` 全绿；新增版本链、alias 回退、健康轮询测试全绿。
+- `GOCACHE=/tmp/omnicraft-gocache bash scripts/verify-project.sh --full` 全绿：Go test/vet/build、前端 461 单测、lint/UI governance/build、doc-validator release、mocked Playwright 73/73。
+- `git diff --check`、`sh -n ops/opensearch/seed.sh`、默认/full-infra Compose config 全绿。
+
+### Notes:
+- 真实 OpenSearch full-infra 尝试未能拉取 `opensearchproject/opensearch:2.19.3`：Docker registry TLS 返回与 `registry-1.docker.io` 不匹配的 Facebook 证书；未创建容器，因此不声称真实 mapping/bulk/health/stop-recovery/DLQ 证据通过。恢复 registry 网络后执行既有 `TestOpenSearchRepositoryRealContainerContract` 与停机恢复演练。
+
+## [2026-08-18] - Task #140: T05 OpenSearch projection、indexer 与 full rebuild
+
+### What was done:
+- 在既有 `IndexerWorker.Handle` 上扩展单一消费入口：四类内容事件先重读 PostgreSQL 最新 published truth，完成 T04 分块、chunk embedding、OpenSearch bulk 与状态提升后才提交 inbox；旧内容级 embedding 行为保持不变，失败继续进入既有 retry/DLQ。
+- 新增严格 mapping 的 OpenSearch adapter（稳定 `_id=chunk_key`、按 content 替换/删除、yellow 健康可用、alias 原子切换/超时读后确认、幂等建删索引）及固定 `omnicraft-rag-vN` / `omnicraft-rag-read` 合同。
+- 新增同步 `POST /api/v1/admin/rag/rebuild`：admin 鉴权、feature gate、安全错误码与 `rag_rebuild` 成败审计；共享/独占 PostgreSQL advisory lock 协调增量与 rebuild，alias 先切、PG 后翻，保留目标与一个旧世代。
+- 崩溃恢复校验 published content ID 集合、state、chunking/embedding model、chunk↔embedding 完整性；拒绝提升 failed/残缺世代，恢复后仍执行 retention。空 published 集合以 alias 版本维持世代单调，不新增迁移。
+- 修复审查发现的 metadata-only 更新：用 content `updated_at` 对 current projection `last_indexed_at` 判 freshness，标题变化不再误判为 replay；embedding provider 与投影 model 在 release 门强制一致。
+- 规格审查 P1 修复：非 alias rebuild target 必先删后建，validation 核对 expected doc count + exact strict mapping；banned/deleted/missing 通过 OpenSearch prefix index discovery + PG 世代登记覆盖 current/rollback/失败世代，全部外部删除成功后才清 PG；published 但缺 latest-active version 改为 retryable projection error，不再误作 purge 成功。
+- 规格复审修复：alias 查询仅在明确 404/no-alias 时回退 PostgreSQL；transient alias 错误直接令 projection/inbox 重试，避免写入旧 PG 世代。固定 index prefix/read alias 从可配置面移除，严格只接受 canonical `omnicraft-rag-vN`；retention 合并 PG 登记与 OpenSearch discovery，清理仅存在于 OpenSearch 的旧世代。
+- 代码质量审查修复：增量 current 更新改为内存 chunk/embed → OpenSearch stable-ID upsert → PostgreSQL 单事务替换 current chunks/embeddings → stale-ID prune；embedding/bulk/PG/prune 任一失败均不先删除最后有效投影，prune 失败保留新旧并强制后续重试收敛。global shared lock 同一专用连接内叠加 per-content exclusive advisory lock，阻止旧事件后完成覆盖新真相。
+- rebuild 审计改为服务端随机 `operation_id` 关联的 append-only `started → success/failed`：started 无法持久化即 fail-closed 且不执行 rebuild；成功后的 result audit 降级返回 200 并写结构化日志，失败路径保留安全 503 且显式记录 audit degradation，避免客户端误重建与静默漏审计。
+- 质量复审边界修复：current refresh 在构造 search documents 前统一填充 generation-owned 字段；零 chunk 增量/重建跳过空 bulk 并通过 prune 删除旧文档；协调锁改为与 truth/repository/status 业务读写共用同一 GORM transaction 的 transaction-scoped advisory locks，避免 session lock 残留和小连接池互锁。
+- 质量终审修复：`_delete_by_query` 即使 HTTP 200 也校验 `timed_out`、`version_conflicts` 与 `failures`，partial failure 保持 retryable 且不清 PostgreSQL；rebuild success/failed 终态审计使用保留 request values 的 detached 短超时 context，不因客户端取消而漏记。
+- 最终 P1 修复：`SyncContent`/`Rebuild` 使用专用物理连接持 session advisory locks，并通过 `Projection.withDB(bound)` / `RagChunkRepository.WithDB(bound)` 将全部 PG 读写绑定该连接；repository 事务独立提交，使 alias 前 staging 保持耐久。detached 短超时 unlock 模糊失败时以 `driver.ErrBadConn` 强制连接池丢弃物理 session。
+- panic 安全收口：lock acquire 成功后立即注册 deferred cleanup；provider/operation panic 时先 detached-timeout unlock 或 discard 坏连接，再原样 re-panic，不吞掉或替换 panic 值。
+- `docker-compose.yml` 仅在 `full-infra` profile 加 OpenSearch 2.19.3；host-local 默认 `127.0.0.1:9200`，`RAG_INDEX_URL` 供 backend/worker Compose 注入服务 DNS。config/routes 文档已由 doc-validator 同步。
+
+### Testing:
+- TDD/回归切片覆盖 replay no-op、版本/标题更新、banned/deleted/missing、provider/OpenSearch 失败与恢复、worker inbox 顺序、alias 超时、alias-ahead-of-PG 恢复、并发 advisory lock、retention、空集合 v2→v3、固定 mapping/bulk/health/alias、普通用户 403、配置身份/URL override。审查后新增测试首次执行受 sandbox PostgreSQL 网络权限阻止，提权后 focused packages 全绿；不把该权限失败伪称实现 red。
+- 规格审查 red→green：① expected count/mapping 新合同缺失导致 repository 编译 red，补 strict mapping/count validation 后 green；② 模拟 retained v1 的 per-content PG 登记已清，旧 purge 实测 v1 文档残留 red，加入 prefix index discovery 后 green；③ truth-gap sentinel 缺失编译 red，补 repo 二次 published 判定、projection retryable error 与 worker inbox 未完成断言后 green。
+- 规格复审 red→green：① alias=v2、PG=v1 且 alias 查询 transient failure 时旧实现错误返回 nil 并回退写 v1，修复后 projection 失败、worker 不完成 inbox，恢复后重投写 v2；②传入 unsafe prefix 的测试真实创建 `unsafe-v1`，固定 identity 后只创建 `omnicraft-rag-v1`；③ PG 无 v1 登记但 OpenSearch 有 v1/v2/v3 时 v1 残留，合并 OS discovery 后仅保留 v2/v3，并忽略 malformed 名称。
+- 质量审查 red→green：OpenSearch 替换顺序测试在旧 delete-first 实现真实失败，现验证 bulk 在 prune 前；current refresh 覆盖 embedding/bulk/PG trigger/prune 四失败窗口与 prune 恢复重试；同内容旧调用阻塞后并发新 truth 最终 PG/OS 均收敛 v2，`go test -race` 通过；审计测试先因新 recorder seam 缺失编译 red，后覆盖 started 写失败、nil audit、success/failed result audit 降级及 operation_id 关联并全绿。
+- 质量复审 red→green：空 Upsert 在旧 adapter 真实返回 unavailable，现验证零 HTTP bulk；新增 updated/title refresh generation 字段、增量/full rebuild 空正文收敛测试；transaction-scoped lock 在取消/释放后由同一单连接池立即重获，相关 `go test -race` 全绿。
+- 质量终审 red→green：三类 `_delete_by_query` 200 partial 响应在旧实现均错误返回 nil，现统一返回 sanitized retryable error，purge 恢复重投后收敛；success/failed 两类请求内取消场景的终态审计 context 均保持可用。
+- 最终 P1 red→green：`MaxOpenConns(1)` 下完整 published Sync 旧实现稳定在 active generation 查询触发 500ms deadline；bound connection 后 Sync + Rebuild 均通过。alias 切 v2 后注入 promote 失败仍保留 staging，恢复重跑 reconcile 为 current；注入 ambiguous unlock 会 discard 旧物理连接，新池连接可立即重获锁；并发/rebuild 等待与 `go test -race` 保持全绿。
+- panic cleanup 测试：provider panic + unlock ambiguous 时确认 panic 对象身份不变、discard 恰好一次，随后 `MaxOpenConns(1)` 上完整 Sync 立即成功；targeted 与 race 全绿。
+- `go test ./...`、`go vet ./...`、`go build ./...` 全绿；前端 `npm run verify` 461/461 + lint/UI governance + production build 全绿。
+- 最新质量终审修复后 `bash scripts/verify-project.sh --full` 再次全绿（mocked Playwright 73/73）；doc-validator `--fix` 连跑两次幂等；默认 Compose 不含 OpenSearch，`--profile full-infra` 含 OpenSearch。
+
+### Notes:
+- Review pending：规格终审已通过；代码质量审查修复已完成并等待复审，质量复审通过前不标记完成。
+- 真实 `opensearchproject/opensearch:2.19.3` 镜像拉取连续三次在 manifest/auth/TLS 阶段失败，容器未创建；因此未声称真实 mapping/bulk/health/alias 集成和 stop/recovery retry/DLQ/追平演练通过。
+- 网络恢复后补验：`docker compose --profile full-infra up -d opensearch`；再执行 `OMNICRAFT_OPENSEARCH_URL=http://127.0.0.1:9200 go test ./internal/repository -run TestOpenSearchRepositoryRealContainerContract -count=1`，随后停机/恢复并核对 indexer retry/DLQ/追平。
+
 ## [2026-08-18] - Task #139: T04 RAG chunk/index projection 与内容版本合同
 
 ### What was done:

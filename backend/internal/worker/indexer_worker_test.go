@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -31,6 +32,23 @@ const (
 // times a content re-embedding was triggered (the T03 side effect).
 type recordingEmbedder struct {
 	calls atomic.Int64
+}
+
+type failingContentProjection struct{ err error }
+
+func (f failingContentProjection) SyncContent(context.Context, int64) error { return f.err }
+
+type recoveringContentProjection struct {
+	calls atomic.Int64
+	fail  atomic.Bool
+}
+
+func (p *recoveringContentProjection) SyncContent(context.Context, int64) error {
+	p.calls.Add(1)
+	if p.fail.Load() {
+		return errors.New("transient alias lookup failure")
+	}
+	return nil
 }
 
 func (r *recordingEmbedder) EmbedContentAsync(contentItemID int64, text string) {
@@ -99,7 +117,7 @@ func TestIndexerConsumesPublishedEventIdempotently(t *testing.T) {
 
 	mgr := NewWorkerManager(broker)
 	mgr.Register(events.TopicContentPublished, indexerGroup,
-		NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db)).Handle)
+		NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), nil).Handle)
 	require.NoError(t, mgr.Start(context.Background()))
 
 	payload := indexerEnvelope(t, events.TopicContentPublished, 5001, 5001)
@@ -145,7 +163,7 @@ func TestIndexerBannedEventRemovesEmbeddingInSameTransaction(t *testing.T) {
 
 	mgr := NewWorkerManager(broker)
 	mgr.Register(events.TopicContentBanned, indexerGroup,
-		NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db)).Handle)
+		NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), nil).Handle)
 	require.NoError(t, mgr.Start(context.Background()))
 
 	payload := indexerEnvelope(t, events.TopicContentBanned, contentID, contentID)
@@ -182,7 +200,7 @@ func TestIndexerPermanentFailureLandsInDLQWithConsumerGroup(t *testing.T) {
 
 	mgr := NewWorkerManager(broker)
 	mgr.Register(events.TopicContentPublished, indexerGroup,
-		NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db)).Handle)
+		NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), nil).Handle)
 	require.NoError(t, mgr.Start(context.Background()))
 
 	payload := indexerEnvelope(t, events.TopicContentPublished, 999999, 999999)
@@ -220,7 +238,7 @@ func TestIndexerPermanentFailureLandsInDLQWithConsumerGroup(t *testing.T) {
 func TestIndexerRejectsInvalidEnvelope(t *testing.T) {
 	db := setupIndexerDB(t)
 	embedder := &recordingEmbedder{}
-	idx := NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db))
+	idx := NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), nil)
 
 	err := idx.Handle(context.Background(), queue.Message{
 		ID: "1-0", Topic: events.TopicContentPublished, Group: indexerGroup, Payload: []byte("not-json"),
@@ -241,7 +259,7 @@ func TestIndexerRejectsInvalidEnvelope(t *testing.T) {
 func TestIndexerMissingContentIsPermanentFailure(t *testing.T) {
 	db := setupIndexerDB(t)
 	embedder := &recordingEmbedder{}
-	idx := NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db))
+	idx := NewIndexerWorker(db, embedder, repository.NewEmbeddingRepository(db), nil)
 
 	err := idx.Handle(context.Background(), queue.Message{
 		ID: "1-0", Topic: events.TopicContentPublished, Group: indexerGroup,
@@ -249,4 +267,61 @@ func TestIndexerMissingContentIsPermanentFailure(t *testing.T) {
 	})
 	require.Error(t, err, "an event for a missing content row must fail so it can be DLQ'd and replayed after the row exists")
 	require.Zero(t, indexerInboxRows(t, db))
+}
+
+func TestIndexerProjectionFailurePreventsInboxCompletion(t *testing.T) {
+	db := setupIndexerDB(t)
+	seedIndexerContent(t, db, 5002, "retry projection")
+	embedder := &recordingEmbedder{}
+	idx := NewIndexerWorker(
+		db,
+		embedder,
+		repository.NewEmbeddingRepository(db),
+		failingContentProjection{err: errors.New("projection unavailable")},
+	)
+
+	err := idx.Handle(context.Background(), queue.Message{
+		ID: "1-0", Topic: events.TopicContentPublished, Group: indexerGroup,
+		Payload: []byte(indexerEnvelope(t, events.TopicContentPublished, 5002, 5002)),
+	})
+	require.ErrorContains(t, err, "projection unavailable")
+	require.Zero(t, indexerInboxRows(t, db), "projection failure must remain retryable and never complete inbox")
+	require.Zero(t, embedder.calls.Load(), "legacy embedding remains after successful inbox completion only")
+}
+
+func TestIndexerPublishedTruthGapRemainsRetryableWithoutInboxCompletion(t *testing.T) {
+	db := setupIndexerDB(t)
+	seedIndexerContent(t, db, 5003, "published without latest active version")
+	idx := NewIndexerWorker(
+		db,
+		&recordingEmbedder{},
+		repository.NewEmbeddingRepository(db),
+		failingContentProjection{err: errors.New("published content version unavailable")},
+	)
+
+	err := idx.Handle(context.Background(), queue.Message{
+		ID: "1-0", Topic: events.TopicContentPublished, Group: indexerGroup,
+		Payload: []byte(indexerEnvelope(t, events.TopicContentPublished, 5003, 5003)),
+	})
+	require.ErrorContains(t, err, "published content version unavailable")
+	require.Zero(t, indexerInboxRows(t, db))
+}
+
+func TestIndexerRetriesTransientAliasLookupWithoutCompletingInbox(t *testing.T) {
+	db := setupIndexerDB(t)
+	seedIndexerContent(t, db, 5004, "alias retry")
+	projection := &recoveringContentProjection{}
+	projection.fail.Store(true)
+	idx := NewIndexerWorker(db, &recordingEmbedder{}, repository.NewEmbeddingRepository(db), projection)
+	message := queue.Message{
+		ID: "1-0", Topic: events.TopicContentUpdated, Group: indexerGroup,
+		Payload: []byte(indexerEnvelope(t, events.TopicContentUpdated, 5004, 5004)),
+	}
+
+	require.ErrorContains(t, idx.Handle(context.Background(), message), "transient alias lookup failure")
+	require.Zero(t, indexerInboxRows(t, db))
+	projection.fail.Store(false)
+	require.NoError(t, idx.Handle(context.Background(), message))
+	require.Equal(t, int64(1), indexerInboxRows(t, db))
+	require.Equal(t, int64(2), projection.calls.Load())
 }

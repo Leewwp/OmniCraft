@@ -25,6 +25,8 @@ var (
 	greenUIDFormat  = regexp.MustCompile(`^\d+$`)
 )
 
+const RAGEmbeddingDimensions = 1536
+
 // ValidGreenSeed reports whether seed matches the green.seed format contract
 // ([A-Za-z0-9_], 1-64 chars). This is the single definition shared by the
 // release config gate, the Green request builder and the release preflight;
@@ -184,6 +186,8 @@ type FeaturesConfig struct {
 
 type RAGConfig struct {
 	Chunking RAGChunkingConfig `mapstructure:"chunking"`
+	Index    RAGIndexConfig    `mapstructure:"index"`
+	Hybrid   RAGHybridConfig   `mapstructure:"hybrid"`
 }
 
 type RAGChunkingConfig struct {
@@ -191,6 +195,25 @@ type RAGChunkingConfig struct {
 	OverlapTokens     int    `mapstructure:"overlap_tokens"`
 	ChunkingVersion   int    `mapstructure:"version"`
 	TokenizerEncoding string `mapstructure:"tokenizer_encoding"`
+}
+
+type RAGIndexConfig struct {
+	URL                   string `mapstructure:"url"`
+	GenerationStart       int    `mapstructure:"generation_start"`
+	EmbeddingModel        string `mapstructure:"embedding_model"`
+	HealthPollIntervalSec int    `mapstructure:"health_poll_interval_sec"`
+	TimeoutSec            int    `mapstructure:"timeout_sec"`
+	AuditTimeoutSec       int    `mapstructure:"audit_timeout_sec"`
+	LockCleanupTimeoutSec int    `mapstructure:"lock_cleanup_timeout_sec"`
+	ErrorBodyMaxBytes     int    `mapstructure:"error_body_max_bytes"`
+	ResponseBodyMaxBytes  int    `mapstructure:"response_body_max_bytes"`
+}
+
+type RAGHybridConfig struct {
+	BM25TopK   int `mapstructure:"bm25_topk"`
+	VectorTopK int `mapstructure:"vector_topk"`
+	RRFK       int `mapstructure:"rrf_k"`
+	FinalTopK  int `mapstructure:"final_topk"`
 }
 
 // ArchiveScanConfig carries the archive malware scanning quotas, timeout and
@@ -649,6 +672,9 @@ func OverrideFromEnv(cfg *Config) {
 	if v := os.Getenv("AGENT_EMBEDDING_MODEL"); v != "" {
 		cfg.Agent.EmbeddingModel = v
 	}
+	if v := os.Getenv("RAG_INDEX_URL"); v != "" {
+		cfg.RAG.Index.URL = v
+	}
 	if v := os.Getenv("AGENT_HMAC_SECRET"); v != "" {
 		cfg.Agent.HMACSecret = v
 	}
@@ -972,6 +998,28 @@ func (c *Config) ValidateRelease() error {
 		if c.RAG.Chunking.TokenizerEncoding != "cl100k_base" {
 			errs = append(errs, "rag.chunking.tokenizer_encoding must be cl100k_base when RAG hybrid search is enabled")
 		}
+		indexURL, err := url.Parse(strings.TrimSpace(c.RAG.Index.URL))
+		if err != nil || indexURL.Host == "" || (indexURL.Scheme != "http" && indexURL.Scheme != "https") {
+			errs = append(errs, "rag.index.url must be an absolute http(s) URL when RAG hybrid search is enabled")
+		}
+		requireNonEmpty(&errs, "rag.index.embedding_model", c.RAG.Index.EmbeddingModel)
+		if c.RAG.Index.EmbeddingModel != c.Agent.EmbeddingModel {
+			errs = append(errs, "rag.index.embedding_model must match agent.embedding_model when RAG hybrid search is enabled")
+		}
+		requirePositiveInt(&errs, "rag.index.generation_start", c.RAG.Index.GenerationStart)
+		if c.Agent.EmbeddingDimensions != RAGEmbeddingDimensions {
+			errs = append(errs, fmt.Sprintf("agent.embedding_dimensions must be %d when RAG hybrid search is enabled", RAGEmbeddingDimensions))
+		}
+		requirePositiveInt(&errs, "rag.index.health_poll_interval_sec", c.RAG.Index.HealthPollIntervalSec)
+		requirePositiveInt(&errs, "rag.index.timeout_sec", c.RAG.Index.TimeoutSec)
+		requirePositiveInt(&errs, "rag.index.audit_timeout_sec", c.RAG.Index.AuditTimeoutSec)
+		requirePositiveInt(&errs, "rag.index.lock_cleanup_timeout_sec", c.RAG.Index.LockCleanupTimeoutSec)
+		requirePositiveInt(&errs, "rag.index.error_body_max_bytes", c.RAG.Index.ErrorBodyMaxBytes)
+		requirePositiveInt(&errs, "rag.index.response_body_max_bytes", c.RAG.Index.ResponseBodyMaxBytes)
+		requirePositiveInt(&errs, "rag.hybrid.bm25_topk", c.RAG.Hybrid.BM25TopK)
+		requirePositiveInt(&errs, "rag.hybrid.vector_topk", c.RAG.Hybrid.VectorTopK)
+		requirePositiveInt(&errs, "rag.hybrid.rrf_k", c.RAG.Hybrid.RRFK)
+		requirePositiveInt(&errs, "rag.hybrid.final_topk", c.RAG.Hybrid.FinalTopK)
 	}
 
 	if c.Relay.BatchSize < RelayMinBatchSize || c.Relay.BatchSize > RelayMaxBatchSize {

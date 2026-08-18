@@ -42,6 +42,19 @@ func TestDefaultRAGChunkingConfig(t *testing.T) {
 	require.Equal(t, 48, cfg.RAG.Chunking.OverlapTokens)
 	require.Equal(t, 1, cfg.RAG.Chunking.ChunkingVersion)
 	require.Equal(t, "cl100k_base", cfg.RAG.Chunking.TokenizerEncoding)
+	require.Equal(t, "http://127.0.0.1:9200", cfg.RAG.Index.URL)
+	require.Equal(t, 1, cfg.RAG.Index.GenerationStart)
+	require.Equal(t, "text-embedding-3-small", cfg.RAG.Index.EmbeddingModel)
+	require.Equal(t, 1, cfg.RAG.Index.HealthPollIntervalSec)
+	require.Equal(t, 10, cfg.RAG.Index.TimeoutSec)
+	require.Equal(t, 2, cfg.RAG.Index.AuditTimeoutSec)
+	require.Equal(t, 2, cfg.RAG.Index.LockCleanupTimeoutSec)
+	require.Equal(t, 65536, cfg.RAG.Index.ErrorBodyMaxBytes)
+	require.Equal(t, 1048576, cfg.RAG.Index.ResponseBodyMaxBytes)
+	require.Equal(t, 200, cfg.RAG.Hybrid.BM25TopK)
+	require.Equal(t, 200, cfg.RAG.Hybrid.VectorTopK)
+	require.Equal(t, 60, cfg.RAG.Hybrid.RRFK)
+	require.Equal(t, 10, cfg.RAG.Hybrid.FinalTopK)
 }
 
 func TestValidateReleaseRejectsInvalidRAGChunkingConfig(t *testing.T) {
@@ -73,6 +86,68 @@ func TestValidateReleaseRejectsInvalidRAGChunkingConfig(t *testing.T) {
 			require.Contains(t, err.Error(), tc.want)
 		})
 	}
+}
+
+func TestValidateReleaseRejectsInvalidRAGIndexConfig(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+	cfg := validReleaseConfigForTest()
+	cfg.Features.RAGHybridEnabled = true
+	cfg.RAG.Chunking = RAGChunkingConfig{MaxTokens: 512, OverlapTokens: 48, ChunkingVersion: 1, TokenizerEncoding: "cl100k_base"}
+	cfg.RAG.Index = RAGIndexConfig{
+		URL:             "not-a-url",
+		GenerationStart: 1, EmbeddingModel: "text-embedding-3-small", TimeoutSec: 10,
+	}
+	cfg.RAG.Hybrid = RAGHybridConfig{BM25TopK: 200, VectorTopK: 200, RRFK: 60, FinalTopK: 10}
+	err := cfg.ValidateRelease()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "rag.index.url")
+}
+
+func TestValidateReleaseRejectsMissingRAGOperationalLimits(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+	cfg := validReleaseConfigForTest()
+	cfg.Features.RAGHybridEnabled = true
+	cfg.RAG.Chunking = RAGChunkingConfig{MaxTokens: 512, OverlapTokens: 48, ChunkingVersion: 1, TokenizerEncoding: "cl100k_base"}
+	cfg.RAG.Index = RAGIndexConfig{
+		URL: "http://opensearch:9200", GenerationStart: 1, EmbeddingModel: "text-embedding-3-small",
+		TimeoutSec: 10, AuditTimeoutSec: 0, LockCleanupTimeoutSec: 0, ErrorBodyMaxBytes: 0, ResponseBodyMaxBytes: 0,
+	}
+	cfg.RAG.Hybrid = RAGHybridConfig{BM25TopK: 200, VectorTopK: 200, RRFK: 60, FinalTopK: 10}
+	err := cfg.ValidateRelease()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "rag.index.audit_timeout_sec")
+	require.Contains(t, err.Error(), "rag.index.lock_cleanup_timeout_sec")
+	require.Contains(t, err.Error(), "rag.index.error_body_max_bytes")
+	require.Contains(t, err.Error(), "rag.index.response_body_max_bytes")
+}
+
+func TestValidateReleaseRejectsRAGEmbeddingIdentityDrift(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+	cfg := validReleaseConfigForTest()
+	cfg.Features.RAGHybridEnabled = true
+	cfg.Agent.EmbeddingModel = "text-embedding-3-small"
+	cfg.RAG.Chunking = RAGChunkingConfig{MaxTokens: 512, OverlapTokens: 48, ChunkingVersion: 1, TokenizerEncoding: "cl100k_base"}
+	cfg.RAG.Index = RAGIndexConfig{URL: "http://opensearch:9200", GenerationStart: 1, EmbeddingModel: "other-model", TimeoutSec: 10}
+	cfg.RAG.Hybrid = RAGHybridConfig{BM25TopK: 200, VectorTopK: 200, RRFK: 60, FinalTopK: 10}
+	require.ErrorContains(t, cfg.ValidateRelease(), "must match agent.embedding_model")
+}
+
+func TestDefaultConfigDoesNotExposeFixedRAGIndexIdentity(t *testing.T) {
+	raw, err := os.ReadFile("../config.yaml")
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "index_prefix:")
+	require.NotContains(t, string(raw), "read_alias:")
+}
+
+func TestLoadAppliesRAGIndexURLEnvOverride(t *testing.T) {
+	t.Setenv("RAG_INDEX_URL", "http://opensearch:9200")
+	tmp := t.TempDir()
+	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte("rag:\n  index:\n    url: http://127.0.0.1:9200\n"), 0o600))
+	previousWD, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmp))
+	t.Cleanup(func() { require.NoError(t, os.Chdir(previousWD)) })
+	require.Equal(t, "http://opensearch:9200", Load().RAG.Index.URL)
 }
 
 func TestLoadDoesNotLetGenericAgentEnvShadowAgentSection(t *testing.T) {
