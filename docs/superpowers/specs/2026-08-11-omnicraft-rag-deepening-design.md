@@ -228,22 +228,24 @@ RRF(d) = Σ_{r ∈ R} 1 / (k + rank_r(d))
 | `chunk_key` | CHAR(64) | 对 `content_id/content_version/chunking_version/source_start/source_end/text_hash` 做 SHA-256 得到的确定性身份 |
 | `heading` | TEXT | 标题链（H1/H2/… 拼接，可为空） |
 | `text` | TEXT | chunk 文本 |
-| `source_start` / `source_end` | INT | 在正文中的字符区间（引用定位与评测锚点；最小实现不做 UI 高亮） |
+| `source_start` / `source_end` | INT | 正文 Unicode code point 的半开区间 `[start,end)`（引用定位与评测锚点；最小实现不做 UI 高亮） |
 | `zone` | VARCHAR | original / fanwork |
 | `content_type` | VARCHAR | 内容类型（mod/guide/…） |
-| `category` | BIGINT | 分类（categories.id，可空） |
+| `category` | VARCHAR(50) | 分类业务键快照（跟随 `content_items.category`，可空） |
 | `ip` | BIGINT | 所属 IP（ips.id，可空） |
 | `tags` | TEXT[] | 内容标签快照（分块时刻） |
 | `created_at` / `updated_at` | TIMESTAMPTZ | 宪法 + 审计 |
-| UNIQUE | — | `chunk_key`；以及 `(content_id, content_version, chunking_version, chunk_index)`，允许两个分块版本并存 |
+| UNIQUE | — | `(index_version, chunk_key)`；以及 `(content_id, content_version, chunking_version, index_version, chunk_index)`，允许两个索引世代并存 |
 
-**稳定 chunk identity（修订）**：引用使用确定性 `chunk_key`，只保证在内容版本、分块版本与源区间不变时跨重复 rebuild 稳定；分块参数变化会产生新的 `chunking_version` 与 `chunk_key`，不会把旧身份错误映射到新文本。golden set 以 `content_id/content_version/source_start/source_end` 标注相关证据，运行时按目标 `chunking_version` 解析为 chunk_key，因此分块升级后必须重新生成并人工复核受影响标注。
+**稳定 chunk identity（T04 裁决）**：引用使用确定性 `chunk_key`，计算 `content_id/content_version/chunking_version/source_start/source_end/text_hash` 的 SHA-256；同一内容版本、分块版本、源区间和文本重复 rebuild 时身份稳定，文本变化必然产生新身份。`index_version` 属于投影世代，不进入身份 hash，因此同一 chunk 可在多个世代共存。golden set 以 `content_id/content_version/source_start/source_end` 标注相关证据，运行时按目标 `chunking_version` 解析为 chunk_key，因此分块升级后必须重新生成并人工复核受影响标注。
 
 投影表（Designed）：
 
 - `chunk_embeddings`：`id` PK、`created_at`、`chunk_id` BIGINT FK、`embedding vector(1536)`、`embedding_model`、`embedded_at`，UNIQUE `(chunk_id, embedding_model)`。
   - **pgvector 最小实现固定 `vector(1536)`**（已确认）：维度变化不做热切换，走新 migration + 新世代重建（embedding model 升级 = 新 index_version）。
 - `index_projection_status`：`id` PK、`created_at`、UNIQUE `(content_id, index_version)`（**双世代共存**）、`chunking_version`、`embedding_model`、`state`、`error_summary`（脱敏）、`last_indexed_at`；当前世代由 `is_current` 布尔 + `UNIQUE(content_id) WHERE is_current` 表达。OpenSearch 与 pgvector 查询都必须 join/过滤 `is_current=true`，不得混读旧世代。
+- `rag_chunks.category` 跟随现有 `content_items.category` 的 `VARCHAR(50)` 业务键快照，不在 T04 引入分类表重构。
+- 内容版本绑定：`content_items.status=published` 是可索引性的权威门；正文从该内容的 latest active `content_versions` 重建。071 为缺少版本记录的既有内容回填 version 1 full snapshot，避免已发布内容因历史数据缺版本而无法投影。
 
 **不采用**：把 chunk 全部塞进 content_embeddings 换列（已有表结构为 content 级，改语义风险大）；OpenSearch 作为 chunk 元数据唯一持有者（违反 D1）。
 

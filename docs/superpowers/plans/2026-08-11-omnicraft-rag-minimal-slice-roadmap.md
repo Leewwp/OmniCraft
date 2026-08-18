@@ -76,10 +76,10 @@
 ### Migration 合同
 
 - 固定迁移 `071_rag_chunks.sql`；执行前重新核对 069/070/071 未冲突。
-- `rag_chunks`：`id/created_at/content_id/content_version/chunk_index/chunk_key/chunking_version/heading/text/source_start/source_end/zone/content_type/category/ip/tags/index_version`；UNIQUE `(index_version, chunk_key)`，并以 `(content_id, content_version, chunking_version, chunk_index)` 保证同一世代顺序唯一。`chunk_key` 是 `content_id/content_version/chunking_version/source_start/source_end` 规范串的 SHA-256。
-- `chunk_embeddings`：id/created_at + chunk_id FK UNIQUE + **`embedding vector(1536)`（固定，已裁决；维度变化走迁移+新世代，不做运行时可配维度）** + embedding_model + embedded_at。
+- `rag_chunks`：`id/created_at/content_id/content_version/chunk_index/chunk_key/chunking_version/heading/text/source_start/source_end/zone/content_type/category/ip/tags/index_version`；`source_start/source_end` 是 Unicode code point 半开区间 `[start,end)`；UNIQUE `(index_version, chunk_key)`，并以 `(content_id, content_version, chunking_version, index_version, chunk_index)` 保证同一世代顺序唯一。`chunk_key` 是 `content_id/content_version/chunking_version/source_start/source_end/text_hash` 规范串的 SHA-256；`category` 跟随现有 `content_items.category` 的 `VARCHAR(50)`。
+- `chunk_embeddings`：id/created_at + chunk_id FK + **UNIQUE `(chunk_id, embedding_model)`** + **`embedding vector(1536)`（固定，已裁决；维度变化走迁移+新世代，不做运行时可配维度）** + embedding_model + embedded_at。
 - `index_projection_status`：id/created_at + UNIQUE `(content_id,index_version)` + `chunking_version/embedding_model/state/error_summary/last_indexed_at/is_current`；查询与引用只能读取 current generation，并同时过滤 index_version、chunking_version、embedding_model。
-- 内容版本合同：分块只消费 `content_versions` 中该 content 的 `is_latest` 已发布版本；引用中的 content_version 即该版本号。
+- 内容版本合同：`content_items.status=published` 决定可索引性；分块消费该 content 的 latest active `content_versions`，正文由版本链重建，引用中的 content_version 即该版本号。071 为缺失版本的既有已发布内容回填 version 1 full snapshot。
 - chunker：标题/段落/Markdown heading 感知切分，`chunk_max_tokens=512`/`chunk_overlap_tokens=48`（已裁决初值，评测后定值）从 config.yaml 读取；纯段落无 heading 时以内容标题为前缀、heading 可空。
 
 **精确文件范围**：

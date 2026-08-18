@@ -73,6 +73,7 @@
 | `features.creator_support_enabled` | `bool` | CreatorSupportEnabled |
 | `features.desktop_deploy_enabled` | `bool` | DesktopDeployEnabled |
 | `features.payment_enabled` | `bool` | PaymentEnabled |
+| `features.rag_hybrid_enabled` | `bool` | RAGHybridEnabled |
 | `feedback.upload_grant_ttl_sec` | `int` | UploadGrantTTLSec |
 | `green.access_key_id` | `string` | AccessKeyID |
 | `green.access_key_secret` | `string` | AccessKeySecret |
@@ -119,6 +120,10 @@
 | `publish.type_order_fanwork` | `[]string` | TypeOrderFanwork |
 | `publish.type_order_original` | `[]string` | TypeOrderOriginal |
 | `queue` | `queue.QueueConfig` | Queue |
+| `rag.chunking.max_tokens` | `int` | MaxTokens |
+| `rag.chunking.overlap_tokens` | `int` | OverlapTokens |
+| `rag.chunking.tokenizer_encoding` | `string` | TokenizerEncoding |
+| `rag.chunking.version` | `int` | ChunkingVersion |
 | `rate_limit.agent_minute_window_sec` | `int` | AgentMinuteWindowSec |
 | `rate_limit.agent_window_sec` | `int` | AgentWindowSec |
 | `rate_limit.credential_per_minute` | `int` | CredentialPerMinute |

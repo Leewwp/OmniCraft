@@ -1,3 +1,29 @@
+## [2026-08-18] - Task #139: T04 RAG chunk/index projection 与内容版本合同
+
+### What was done:
+- 新增固定迁移 `071_rag_chunks.sql`：`rag_chunks`、`chunk_embeddings vector(1536)`、`index_projection_status` 三表，双世代唯一键/current 部分唯一索引、内容版本复合 FK，并为缺少版本记录的既有 published 内容回填 version-1 full snapshot。
+- 新增 RAG 模型与 repository seam：published + latest active 内容版本门；stage/failed/retry/promote/current-only 双世代切换，查询同时过滤 index/chunking/embedding model。
+- 规格审查修复 current 世代重放安全：Stage 对已 ready+current 的同世代事件行锁后幂等 no-op，MarkFailed 不撤销 current；failed 非 current 世代仍可 restage→promote，旧投影持续服务。
+- 新增结构感知 chunker：Markdown heading 链、段落预算内合并、句子边界硬切、48-token overlap、Unicode code-point `[start,end)`、含 `text_hash` 的稳定 SHA-256 chunk_key；纯段落以内容标题作前缀。
+- 使用 `github.com/pkoukk/tiktoken-go` 的真实 `cl100k_base`；官方词表作为 go:embed asset 固定 SHA-256，运行时和 CI 不依赖外网或临时缓存。
+- 新增 `features.rag_hybrid_enabled=false` 与 `rag.chunking` 配置（含显式 `tokenizer_encoding=cl100k_base`）；启用 RAG 的 release 配置校验覆盖 token 上限、overlap、版本与唯一受支持编码，doc-validator 同步 config/schema 快照。
+- 修复 doc-validator 将 `index_version` 误判为 `INDEX` 约束的前缀判断，并加回归测试；schema 快照现完整登记 069/071 的 index_version 字段。
+- 修复 doc-validator 对多行复合 UNIQUE 的解析，schema 快照完整呈现 generation-order 唯一键。
+
+### Testing:
+- TDD：首轮 public chunker seam 缺失 red→green；段落未合并测试得到 3 chunks（want 1）red→green；heading/段落/硬切/overlap/Unicode span/稳定 key/标题前缀/离线 tokenizer 均绿。
+- doc-validator parser 回归测试先 red（`index_version` 列被丢弃）再收窄 INDEX 约束识别后 green；`--fix` 连跑两次幂等。
+- PostgreSQL 集成：071 空前置 schema + 历史 published 回填、重复迁移幂等、vector/字段/双世代唯一键；repository stage→promote、旧世代连续可读、failed 不切 current、published gate 与错误 model 过滤均绿。
+- 规格审查 TDD：current generation Stage 重放令查询结果从 1 变 0（red）→行锁幂等保护（green）；多行 generation-order UNIQUE 未生成（red）→parser/renderer green。迁移测试额外实证 generation-order、`(chunk_id,embedding_model)` 与 current partial unique。
+- 最终规格审查 TDD：先加入默认 `tokenizer_encoding` 与拒绝 `o200k_base` 测试，编译因配置字段缺失而 red；补齐 config/mapstructure/YAML、release 校验和 chunker 实际消费后 green。空值仅兼容既有内部调用，显式编码仅允许 `cl100k_base`。
+- 质量审查修复：chunker 改为全文仅一次 `[]rune`、指数局部扩窗、局部 overlap 查找，并以 `sync.Once` 缓存 tokenizer 初始化结果；10 MiB 计量 seam 证明 tokenization 不扫描全部 remainder，另有 1 MiB 真实 cl100k 高压缩 smoke。Promote 在锁定世代后将 matching ready+current 重放视为幂等成功；latest version 异常多标记时按 version_number DESC 防御选择；071 新增 `rag_chunks(ip)` 索引，并为复合/部分/vector 索引紧邻记录目标查询。
+- 质量审查 TDD：旧 chunker 的 10 MiB 高压缩用例运行 10 秒仍不结束（中止）且 16 路构造返回不同 tokenizer 实例；旧 Promote ack-loss replay 返回 not found；双 latest fixture 错选 v1；迁移注释/IP index 契约缺失。上述测试均在最小修复后 green，tokenizer 并发缓存另经 `go test -race` 通过。
+- `go test ./...`、`go vet ./...`、`go build ./...` 全绿；`bash scripts/verify-project.sh --full` 全绿（frontend 461 tests、lint/UI governance/build、doc-validator release、mocked Playwright 73/73）。
+
+### Notes:
+- Review concern（DONE_WITH_CONCERNS）：ticket 整体先有 chunker red，但 migration/config/repository 三个后续 slice 在最小实现后才补黑盒测试，测试直接 green；一次 repository red 来自测试 fixture 缺 `updated_at`，不计实现 red。未伪造后补 red，交由两阶段审查裁决。
+- T04 不扩入 T05：未改 indexer/container/routes/OpenSearch；`rag_hybrid_enabled` 保持 false。
+
 ## [2026-08-16] - 双轴审查修复批次归档：#202 裁决「允许」降级，父票 #193 关闭
 
 ### What was done:

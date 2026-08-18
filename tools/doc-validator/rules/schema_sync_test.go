@@ -31,6 +31,45 @@ UNIQUE (series_id, content_item_id)
 	}
 }
 
+func TestSchemaSyncPreservesMultilineCompositeUniqueConstraint(t *testing.T) {
+	table := parseTableBody("rag_chunks", `
+id BIGSERIAL PRIMARY KEY,
+content_id BIGINT NOT NULL,
+content_version INT NOT NULL,
+chunking_version INT NOT NULL,
+index_version INT NOT NULL,
+chunk_index INT NOT NULL,
+CONSTRAINT uq_rag_chunks_generation_order UNIQUE (
+    content_id, content_version, chunking_version, index_version, chunk_index
+)
+`)
+	want := []string{"content_id", "content_version", "chunking_version", "index_version", "chunk_index"}
+	if len(table.UniqueConstraints) != 1 {
+		t.Fatalf("unique constraints = %#v, want one multiline composite constraint", table.UniqueConstraints)
+	}
+	if strings.Join(table.UniqueConstraints[0], ",") != strings.Join(want, ",") {
+		t.Fatalf("unique constraint = %#v, want %#v", table.UniqueConstraints[0], want)
+	}
+	generated := generateSchemaTable([]TableDef{table})
+	if !strings.Contains(generated, "UNIQUE (`content_id`, `content_version`, `chunking_version`, `index_version`, `chunk_index`)") {
+		t.Fatalf("generated schema omits multiline composite constraint:\n%s", generated)
+	}
+}
+
+func TestSchemaSyncDoesNotTreatIndexPrefixedColumnAsConstraint(t *testing.T) {
+	table := parseTableBody("rag_chunks", `
+id BIGSERIAL PRIMARY KEY,
+index_version INT NOT NULL CHECK (index_version > 0),
+INDEX idx_rag_chunks_version (index_version)
+`)
+	if !table.hasColumn("index_version") {
+		t.Fatalf("index_version column was mistaken for an INDEX table constraint: %#v", table.Columns)
+	}
+	if table.hasColumn("INDEX") {
+		t.Fatalf("INDEX table constraint was mistaken for a column: %#v", table.Columns)
+	}
+}
+
 func TestParseAlterTableColumnsMergesAddedColumns(t *testing.T) {
 	content := `
 CREATE TABLE content_items (

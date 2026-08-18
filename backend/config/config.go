@@ -53,6 +53,7 @@ type Config struct {
 	Publish        PublishConfig        `mapstructure:"publish"`
 	ArchiveScan    ArchiveScanConfig    `mapstructure:"archive_scan"`
 	Agent          AgentConfig          `mapstructure:"agent"`
+	RAG            RAGConfig            `mapstructure:"rag"`
 	SMTP           SMTPConfig           `mapstructure:"smtp"`
 	Captcha        CaptchaConfig        `mapstructure:"captcha"`
 	Verification   VerificationConfig   `mapstructure:"verification"`
@@ -178,6 +179,18 @@ type FeaturesConfig struct {
 	CreatorSupportEnabled     bool `mapstructure:"creator_support_enabled"`
 	DesktopDeployEnabled      bool `mapstructure:"desktop_deploy_enabled"`
 	ArchiveMalwareScanEnabled bool `mapstructure:"archive_malware_scan_enabled"`
+	RAGHybridEnabled          bool `mapstructure:"rag_hybrid_enabled"`
+}
+
+type RAGConfig struct {
+	Chunking RAGChunkingConfig `mapstructure:"chunking"`
+}
+
+type RAGChunkingConfig struct {
+	MaxTokens         int    `mapstructure:"max_tokens"`
+	OverlapTokens     int    `mapstructure:"overlap_tokens"`
+	ChunkingVersion   int    `mapstructure:"version"`
+	TokenizerEncoding string `mapstructure:"tokenizer_encoding"`
 }
 
 // ArchiveScanConfig carries the archive malware scanning quotas, timeout and
@@ -944,6 +957,20 @@ func (c *Config) ValidateRelease() error {
 		}
 		if c.ArchiveScan.URLTTLSec <= 0 {
 			errs = append(errs, "archive_scan.url_ttl_sec must be positive when archive malware scanning is enabled")
+		}
+	}
+	if c.Features.RAGHybridEnabled {
+		if c.RAG.Chunking.MaxTokens <= 0 {
+			errs = append(errs, "rag.chunking.max_tokens must be positive when RAG hybrid search is enabled")
+		}
+		if c.RAG.Chunking.OverlapTokens < 0 || c.RAG.Chunking.OverlapTokens >= c.RAG.Chunking.MaxTokens {
+			errs = append(errs, "rag.chunking.overlap_tokens must be non-negative and less than max_tokens when RAG hybrid search is enabled")
+		}
+		if c.RAG.Chunking.ChunkingVersion <= 0 {
+			errs = append(errs, "rag.chunking.version must be positive when RAG hybrid search is enabled")
+		}
+		if c.RAG.Chunking.TokenizerEncoding != "cl100k_base" {
+			errs = append(errs, "rag.chunking.tokenizer_encoding must be cl100k_base when RAG hybrid search is enabled")
 		}
 	}
 

@@ -35,6 +35,46 @@ func loadDefaultConfigForTest(t *testing.T) *Config {
 	return &cfg
 }
 
+func TestDefaultRAGChunkingConfig(t *testing.T) {
+	cfg := loadDefaultConfigForTest(t)
+	require.False(t, cfg.Features.RAGHybridEnabled)
+	require.Equal(t, 512, cfg.RAG.Chunking.MaxTokens)
+	require.Equal(t, 48, cfg.RAG.Chunking.OverlapTokens)
+	require.Equal(t, 1, cfg.RAG.Chunking.ChunkingVersion)
+	require.Equal(t, "cl100k_base", cfg.RAG.Chunking.TokenizerEncoding)
+}
+
+func TestValidateReleaseRejectsInvalidRAGChunkingConfig(t *testing.T) {
+	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
+	cases := []struct {
+		name   string
+		mutate func(*RAGChunkingConfig)
+		want   string
+	}{
+		{"non-positive max tokens", func(c *RAGChunkingConfig) { c.MaxTokens = 0 }, "rag.chunking.max_tokens"},
+		{"negative overlap", func(c *RAGChunkingConfig) { c.OverlapTokens = -1 }, "rag.chunking.overlap_tokens"},
+		{"overlap reaches max", func(c *RAGChunkingConfig) { c.OverlapTokens = c.MaxTokens }, "rag.chunking.overlap_tokens"},
+		{"non-positive version", func(c *RAGChunkingConfig) { c.ChunkingVersion = 0 }, "rag.chunking.version"},
+		{"unsupported tokenizer", func(c *RAGChunkingConfig) { c.TokenizerEncoding = "o200k_base" }, "rag.chunking.tokenizer_encoding"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validReleaseConfigForTest()
+			cfg.Features.RAGHybridEnabled = true
+			cfg.RAG.Chunking = RAGChunkingConfig{
+				MaxTokens: 512, OverlapTokens: 48, ChunkingVersion: 1, TokenizerEncoding: "cl100k_base",
+			}
+			tc.mutate(&cfg.RAG.Chunking)
+
+			err := cfg.ValidateRelease()
+			require.Error(t, err)
+			require.True(t, strings.HasPrefix(err.Error(), validateReleaseErrPrefix))
+			require.Contains(t, err.Error(), tc.want)
+		})
+	}
+}
+
 func TestLoadDoesNotLetGenericAgentEnvShadowAgentSection(t *testing.T) {
 	t.Setenv("AGENT", "1")
 	t.Setenv("AGENT_WEB_AGENT_ENABLED", "true")
