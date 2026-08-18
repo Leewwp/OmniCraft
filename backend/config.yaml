@@ -70,6 +70,15 @@ features:
   # Off by default (archive malware scanning design §6); enabling it in
   # release mode additionally requires the full archive_scan.* block below.
   archive_malware_scan_enabled: false
+  # RAG remains opt-in until the full T04-T07 slice is complete.
+  rag_hybrid_enabled: false
+
+rag:
+  chunking:
+    max_tokens: 512
+    overlap_tokens: 48
+    version: 1
+    tokenizer_encoding: "cl100k_base"
 
 # Archive malware scanning quotas, timeout and retry policy (design §4/§6).
 # Server-side skeleton only (S01); the scan worker and gates consume it.
