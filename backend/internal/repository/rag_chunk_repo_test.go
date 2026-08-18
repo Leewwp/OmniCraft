@@ -85,6 +85,18 @@ func TestRagChunkRepositoryPublishedVersionGate(t *testing.T) {
 	require.ErrorIs(t, err, ErrRagGenerationNotFound)
 }
 
+func TestLatestPublishedVersionDistinguishesPublishedTruthGap(t *testing.T) {
+	db := prepareRagRepositoryDatabase(t)
+	require.NoError(t, db.Exec(`UPDATE content_versions SET is_latest = FALSE WHERE content_item_id = 10`).Error)
+
+	_, err := NewRagChunkRepository(db).LatestPublishedVersion(context.Background(), 10)
+	require.ErrorIs(t, err, ErrRagPublishedVersionUnavailable)
+
+	require.NoError(t, db.Exec(`UPDATE content_items SET status = 'banned' WHERE id = 10`).Error)
+	_, err = NewRagChunkRepository(db).LatestPublishedVersion(context.Background(), 10)
+	require.ErrorIs(t, err, ErrRagGenerationNotFound)
+}
+
 func TestLatestPublishedVersionChoosesHighestVersionWhenLatestFlagsAreCorrupt(t *testing.T) {
 	db := prepareRagRepositoryDatabase(t)
 	require.NoError(t, db.Exec(`INSERT INTO content_versions

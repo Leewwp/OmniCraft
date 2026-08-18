@@ -79,6 +79,22 @@ rag:
     overlap_tokens: 48
     version: 1
     tokenizer_encoding: "cl100k_base"
+  index:
+    # Host-local default; Compose overrides this with the service DNS name.
+    url: "http://127.0.0.1:9200"
+    generation_start: 1
+    embedding_model: "text-embedding-3-small"
+    health_poll_interval_sec: 1
+    timeout_sec: 10
+    audit_timeout_sec: 2
+    lock_cleanup_timeout_sec: 2
+    error_body_max_bytes: 65536
+    response_body_max_bytes: 1048576
+  hybrid:
+    bm25_topk: 200
+    vector_topk: 200
+    rrf_k: 60
+    final_topk: 10
 
 # Archive malware scanning quotas, timeout and retry policy (design §4/§6).
 # Server-side skeleton only (S01); the scan worker and gates consume it.

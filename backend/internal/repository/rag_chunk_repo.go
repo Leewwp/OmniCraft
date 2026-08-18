@@ -13,6 +13,7 @@ import (
 )
 
 var ErrRagGenerationNotFound = errors.New("rag generation not found")
+var ErrRagPublishedVersionUnavailable = errors.New("published content version unavailable")
 
 type RagGeneration struct {
 	ContentID       int64
@@ -24,6 +25,10 @@ type RagGeneration struct {
 type RagChunkRepository struct{ db *gorm.DB }
 
 func NewRagChunkRepository(db *gorm.DB) *RagChunkRepository {
+	return &RagChunkRepository{db: db}
+}
+
+func (r *RagChunkRepository) WithDB(db *gorm.DB) *RagChunkRepository {
 	return &RagChunkRepository{db: db}
 }
 
@@ -39,6 +44,15 @@ func (r *RagChunkRepository) LatestPublishedVersion(ctx context.Context, content
 		Order("cv.version_number DESC").
 		First(&version).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
+		var published int64
+		if countErr := r.db.WithContext(ctx).Table("content_items").
+			Where("id = ? AND status = ? AND deleted_at IS NULL", contentID, "published").
+			Count(&published).Error; countErr != nil {
+			return nil, countErr
+		}
+		if published > 0 {
+			return nil, ErrRagPublishedVersionUnavailable
+		}
 		return nil, ErrRagGenerationNotFound
 	}
 	return &version, err
@@ -47,12 +61,23 @@ func (r *RagChunkRepository) LatestPublishedVersion(ctx context.Context, content
 // StageGeneration atomically replaces only the requested non-current
 // generation. The current generation remains queryable if staging fails.
 func (r *RagChunkRepository) StageGeneration(ctx context.Context, generation RagGeneration, chunks []model.RagChunk) error {
+	return r.stageGeneration(ctx, generation, chunks, false)
+}
+
+// RestageGeneration replaces an already-current content projection inside the
+// same global index generation. Callers must first prove current truth changed;
+// ordinary at-least-once replay continues to use StageGeneration's no-op guard.
+func (r *RagChunkRepository) RestageGeneration(ctx context.Context, generation RagGeneration, chunks []model.RagChunk) error {
+	return r.stageGeneration(ctx, generation, chunks, true)
+}
+
+func (r *RagChunkRepository) stageGeneration(ctx context.Context, generation RagGeneration, chunks []model.RagChunk, replaceCurrent bool) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing model.IndexProjectionStatus
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("content_id = ? AND index_version = ?", generation.ContentID, generation.IndexVersion).
 			Take(&existing).Error
-		if err == nil && existing.IsCurrent {
+		if err == nil && existing.IsCurrent && !replaceCurrent {
 			return nil
 		}
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -65,7 +90,7 @@ func (r *RagChunkRepository) StageGeneration(ctx context.Context, generation Rag
 		}
 		if err := tx.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "content_id"}, {Name: "index_version"}},
-			DoUpdates: clause.AssignmentColumns([]string{"chunking_version", "embedding_model", "state", "error_summary"}),
+			DoUpdates: clause.AssignmentColumns([]string{"chunking_version", "embedding_model", "state", "error_summary", "is_current"}),
 		}).Create(&status).Error; err != nil {
 			return err
 		}
@@ -110,6 +135,35 @@ func (r *RagChunkRepository) MarkFailed(ctx context.Context, generation RagGener
 	})
 }
 
+// DeleteProjection removes one content from a global generation after the
+// external search projection has acknowledged its idempotent delete.
+func (r *RagChunkRepository) DeleteProjection(ctx context.Context, contentID int64, indexVersion int) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("content_id = ? AND index_version = ?", contentID, indexVersion).
+			Delete(&model.RagChunk{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("content_id = ? AND index_version = ?", contentID, indexVersion).
+			Delete(&model.IndexProjectionStatus{}).Error
+	})
+}
+
+func (r *RagChunkRepository) ProjectionVersions(ctx context.Context) ([]int, error) {
+	var versions []int
+	err := r.db.WithContext(ctx).Table("index_projection_status").Distinct("index_version").
+		Order("index_version ASC").Pluck("index_version", &versions).Error
+	return versions, err
+}
+
+func (r *RagChunkRepository) DeleteAllProjections(ctx context.Context, contentID int64) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("content_id = ?", contentID).Delete(&model.RagChunk{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("content_id = ?", contentID).Delete(&model.IndexProjectionStatus{}).Error
+	})
+}
+
 func (r *RagChunkRepository) PromoteGeneration(ctx context.Context, generation RagGeneration) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var status model.IndexProjectionStatus
@@ -150,4 +204,30 @@ func (r *RagChunkRepository) ListCurrent(ctx context.Context, contentID int64, c
 		Where("ips.is_current = ? AND ips.state = ? AND ips.chunking_version = ? AND ips.embedding_model = ?", true, "ready", chunkingVersion, embeddingModel).
 		Order("rc.chunk_index ASC").Find(&chunks).Error
 	return chunks, err
+}
+
+// IsCurrentFresh distinguishes a true at-least-once replay from metadata-only
+// changes (for example a title update) that do not alter chunk identity.
+func (r *RagChunkRepository) IsCurrentFresh(ctx context.Context, generation RagGeneration, truthUpdatedAt time.Time) (bool, error) {
+	var status model.IndexProjectionStatus
+	err := r.db.WithContext(ctx).
+		Where("content_id = ? AND index_version = ? AND chunking_version = ? AND embedding_model = ? AND state = ? AND is_current = ?",
+			generation.ContentID, generation.IndexVersion, generation.ChunkingVersion, generation.EmbeddingModel, "ready", true).
+		Take(&status).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return status.LastIndexedAt != nil && !status.LastIndexedAt.Before(truthUpdatedAt), nil
+}
+
+func (r *RagChunkRepository) HasCurrentGeneration(ctx context.Context, generation RagGeneration) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&model.IndexProjectionStatus{}).
+		Where("content_id = ? AND index_version = ? AND chunking_version = ? AND embedding_model = ? AND state = ? AND is_current = ?",
+			generation.ContentID, generation.IndexVersion, generation.ChunkingVersion, generation.EmbeddingModel, "ready", true).
+		Count(&count).Error
+	return count == 1, err
 }

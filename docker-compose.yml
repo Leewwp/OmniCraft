@@ -99,6 +99,51 @@ services:
           memory: 512M
           cpus: "0.5"
 
+  opensearch:
+    image: opensearchproject/opensearch:2.19.3
+    container_name: omnicraft-opensearch
+    profiles: ["full-infra"]
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9200/_cluster/health | grep -Eq '\"status\":\"(green|yellow)\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+
+  opensearch-seed:
+    image: opensearchproject/opensearch:2.19.3
+    container_name: omnicraft-opensearch-seed
+    profiles: ["full-infra"]
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    volumes:
+      - ./ops/opensearch/seed.sh:/seed.sh:ro
+    entrypoint: ["/bin/sh", "/seed.sh"]
+    environment:
+      OPENSEARCH_URL: "http://opensearch:9200"
+      OPENSEARCH_INDEX: "omnicraft-rag-v1"
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: "0.1"
+
   backend:
     build:
       context: ./backend
@@ -108,6 +153,7 @@ services:
     environment:
       DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable"
       REDIS_ADDR: "redis:6379"
+      RAG_INDEX_URL: "http://opensearch:9200"
     ports:
       - "8080:8080"
     depends_on:
@@ -171,6 +217,7 @@ services:
     environment:
       DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable"
       REDIS_ADDR: "redis:6379"
+      RAG_INDEX_URL: "http://opensearch:9200"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -310,5 +357,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  opensearch_data:
   ssl_certs:
   alertmanager_data:

@@ -1,9 +1,11 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
+	"gorm.io/gorm"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/diffengine"
 	"omnicraft/backend/internal/repository"
@@ -18,6 +20,13 @@ type VersionService struct {
 
 func NewVersionService(vRepo *repository.VersionRepository, cRepo *repository.ContentRepository) *VersionService {
 	return &VersionService{versionRepo: vRepo, contentRepo: cRepo}
+}
+
+// WithDB binds version reads to an existing GORM connection. Projection work
+// holds a PostgreSQL advisory-lock session for its whole operation, so version
+// reconstruction must use that same physical connection when one is supplied.
+func (s *VersionService) WithDB(db *gorm.DB) *VersionService {
+	return NewVersionService(repository.NewVersionRepository(db), repository.NewContentRepository(db))
 }
 
 func (s *VersionService) CreateInitialVersion(contentID int64, authorID int64, fullText string) (*model.ContentVersion, error) {
@@ -108,6 +117,30 @@ func (s *VersionService) GetVersionContent(versionID int64) (string, error) {
 	}
 
 	return content, nil
+}
+
+// LoadLatestPublishedContent returns the latest active version number and its
+// reconstructed body. Projection consumers must use this seam instead of
+// treating a diff patch as a full document.
+func (s *VersionService) LoadLatestPublishedContent(ctx context.Context, contentID int64) (int, string, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, "", err
+	}
+	version, err := s.versionRepo.GetLatest(contentID)
+	if err != nil {
+		return 0, "", err
+	}
+	if version == nil || version.Status != "active" {
+		return 0, "", ErrVersionNotFound
+	}
+	content, err := s.GetVersionContent(version.ID)
+	if err != nil {
+		return 0, "", err
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, "", err
+	}
+	return version.VersionNumber, content, nil
 }
 
 func (s *VersionService) ListVersions(contentID int64) ([]model.ContentVersion, error) {

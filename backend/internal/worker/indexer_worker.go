@@ -20,6 +20,10 @@ type Embedder interface {
 	EmbedContentAsync(contentItemID int64, text string)
 }
 
+type ContentProjection interface {
+	SyncContent(ctx context.Context, contentID int64) error
+}
+
 // IndexerWorker consumes the four content event topics
 // (content.published/updated/banned/deleted) relayed from the outbox. Each
 // event is applied idempotently inside the inbox transaction:
@@ -37,10 +41,11 @@ type IndexerWorker struct {
 	db            *gorm.DB
 	embedder      Embedder
 	embeddingRepo *repository.EmbeddingRepository
+	projection    ContentProjection
 }
 
-func NewIndexerWorker(db *gorm.DB, embedder Embedder, embeddingRepo *repository.EmbeddingRepository) *IndexerWorker {
-	return &IndexerWorker{db: db, embedder: embedder, embeddingRepo: embeddingRepo}
+func NewIndexerWorker(db *gorm.DB, embedder Embedder, embeddingRepo *repository.EmbeddingRepository, projection ContentProjection) *IndexerWorker {
+	return &IndexerWorker{db: db, embedder: embedder, embeddingRepo: embeddingRepo, projection: projection}
 }
 
 // Handle consumes one relayed envelope. The stream message id is irrelevant:
@@ -63,6 +68,11 @@ func (w *IndexerWorker) Handle(ctx context.Context, msg queue.Message) error {
 
 	switch envelope.EventType {
 	case events.TopicContentPublished, events.TopicContentUpdated:
+		if w.projection != nil {
+			if err := w.projection.SyncContent(ctx, envelope.AggregateID); err != nil {
+				return fmt.Errorf("indexer: content projection: %w", err)
+			}
+		}
 		var text string
 		alreadyConsumed, err := ConsumeInboxTx(ctx, w.db, msg.Group, envelope.EventID, func(ctx context.Context, tx *gorm.DB) error {
 			var content struct {
@@ -91,6 +101,11 @@ func (w *IndexerWorker) Handle(ctx context.Context, msg queue.Message) error {
 		return nil
 
 	case events.TopicContentBanned, events.TopicContentDeleted:
+		if w.projection != nil {
+			if err := w.projection.SyncContent(ctx, envelope.AggregateID); err != nil {
+				return fmt.Errorf("indexer: content projection: %w", err)
+			}
+		}
 		_, err := ConsumeInboxTx(ctx, w.db, msg.Group, envelope.EventID, func(ctx context.Context, tx *gorm.DB) error {
 			return w.embeddingRepo.DeleteByContentIDTx(tx, envelope.AggregateID)
 		})

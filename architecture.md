@@ -475,6 +475,7 @@ backend/
 | `POST` | `/api/v1/admin/llm-configs/:id/test` | adminHandler.TestLLMConfig |
 | `POST` | `/api/v1/admin/notifications/broadcast` | adminHandler.BroadcastNotification |
 | `POST` | `/api/v1/admin/queue/dlq/:id/replay` | adminHandler.ReplayDLQEntry |
+| `POST` | `/api/v1/admin/rag/rebuild` | adminRAGHandler.Rebuild |
 | `POST` | `/api/v1/admin/users/:id/ban` | adminHandler.BanUser |
 | `POST` | `/api/v1/admin/users/:id/unban` | adminHandler.UnbanUser |
 | `POST` | `/api/v1/agent/chat/stream` | agentHandler.ChatStream |
