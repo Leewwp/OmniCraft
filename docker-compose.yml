@@ -144,6 +144,56 @@ services:
           memory: 64M
           cpus: "0.1"
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.76.0
+    container_name: omnicraft-jaeger
+    profiles: ["full-infra"]
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+    expose:
+      - "4317"
+      - "4318"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:14269/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.134.0
+    container_name: omnicraft-otel-collector
+    profiles: ["full-infra"]
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./ops/observability/otel-collector.yml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      jaeger:
+        condition: service_healthy
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:13133/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+
   clamav:
     image: clamav/clamav:1.4.3
     container_name: omnicraft-clamav
@@ -178,6 +228,8 @@ services:
       DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable"
       REDIS_ADDR: "redis:6379"
       RAG_INDEX_URL: "http://opensearch:9200"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
+      OBSERVABILITY_TRACING_ENABLED: "true"
     ports:
       - "8080:8080"
     depends_on:
@@ -243,6 +295,8 @@ services:
       REDIS_ADDR: "redis:6379"
       RAG_INDEX_URL: "http://opensearch:9200"
       CLAMD_ADDRESS: "clamav:3310"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
+      OBSERVABILITY_TRACING_ENABLED: "true"
     depends_on:
       migrate:
         condition: service_completed_successfully

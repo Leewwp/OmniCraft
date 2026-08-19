@@ -145,7 +145,7 @@ ClamAV 同属新系统服务，由同一治理票覆盖。宪法修订为 MINOR�
 
 ---
 
-## T08 [heavy] OpenTelemetry 跨 HTTP/队列/DB/LLM 追踪
+## T08 [heavy][completed-local] OpenTelemetry 跨 HTTP/队列/DB/LLM 追踪
 
 **输入**：T03 的队列链路；现有 slog JSON + Prometheus 基线（`observability/`）；#24 选型结论被本票修正：**Jaeger（已裁决）**，Tempo 不引入。
 **输出**：OTel SDK 接入 + GenAI 语义约定 + 端到端 trace（HTTP → worker → DB/LLM/队列）+ 本地演示栈（Jaeger）。
@@ -176,6 +176,8 @@ ClamAV 同属新系统服务，由同一治理票覆盖。宪法修订为 MINOR�
 - 降级：collector 离线不影响业务请求成功。
 - 两阶段审查通过；单一提交。
 
+**完成记录（本地开发）**：T08 实现提交包含公共 seam 测试（head sampling、HTTP ID 分离、HTTP→outbox→queue W3C 往返、GORM 参数脱敏和 LLM GenAI span）。Collector/Jaeger 容器与真实 UI 链路未在当前环境执行，不宣称为生产证据；复验命令和缺口记录于 `docs/working/2026-08-19-t143-otel-evidence.md`。
+
 ---
 
 ## 里程碑与 DAG（与 RAG 纵切片计划共表）
@@ -201,6 +203,8 @@ ClamAV 同属新系统服务，由同一治理票覆盖。宪法修订为 MINOR�
 
 ## Closure（对应纵切片 T09 前序检查）
 
-- [ ] T02/T03/T08 各自 red→green、两阶段审查、故障演练证据齐全（记录于 progress.txt）。
+- [ ] T02/T03 各自 red→green、两阶段审查、故障演练证据齐全（记录于 progress.txt）。
+- [x] T08 本地实现 red→green、两阶段审查与 Collector schema/离线设计记录已完成（记录于 progress.txt）。
+- [ ] T08 真实 Jaeger UI HTTP→worker→DB→LLM 截图（当前环境缺口，恢复 full-infra 后复验）。
 - [ ] 本计划相关 Ticket 在 GitHub 关闭；冻结门边正确。
 - [ ] 文档同步：`architecture.md`/`docs/reference/*` 经 doc-validator `--fix` 更新。

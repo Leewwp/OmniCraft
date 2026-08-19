@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"omnicraft/backend/internal/observability"
 )
 
@@ -19,6 +21,7 @@ type OpenAICompatProvider struct {
 	embedModel string
 	client     *http.Client
 	maxRetries int
+	system     string
 }
 
 func NewOpenAICompatProvider(apiKey, apiBase, model, embedModel string, opts ...ProviderOption) *OpenAICompatProvider {
@@ -35,8 +38,9 @@ func NewOpenAICompatProvider(apiKey, apiBase, model, embedModel string, opts ...
 		apiBase:    apiBase,
 		model:      model,
 		embedModel: embedModel,
-		client:     &http.Client{Timeout: cfg.timeout},
+		client:     &http.Client{Timeout: cfg.timeout, Transport: otelhttp.NewTransport(http.DefaultTransport)},
 		maxRetries: cfg.maxRetries,
+		system:     "openai_compatible",
 	}
 }
 
@@ -82,6 +86,14 @@ func (p *OpenAICompatProvider) doPost(ctx context.Context, path string, body int
 }
 
 func (p *OpenAICompatProvider) Chat(ctx context.Context, req ChatRequest) (response *ChatResponse, err error) {
+	ctx, span := startLLMSpan(ctx, "chat", p.model, p.system, req.Temperature)
+	defer func() {
+		var usage *TokenUsage
+		if response != nil {
+			usage = response.Usage
+		}
+		finishLLMSpan(span, err, usage)
+	}()
 	payload := openAIRequest{
 		Model:       p.model,
 		Messages:    req.Messages,
@@ -114,6 +126,9 @@ func (p *OpenAICompatProvider) Chat(ctx context.Context, req ChatRequest) (respo
 }
 
 func (p *OpenAICompatProvider) ChatStream(ctx context.Context, req ChatRequest, handler func(delta ChatDelta) error) (err error) {
+	ctx, span := startLLMSpan(ctx, "chat.stream", p.model, p.system, req.Temperature)
+	var lastUsage *TokenUsage
+	defer func() { finishLLMSpan(span, err, lastUsage) }()
 	payload := openAIRequest{
 		Model:       p.model,
 		Messages:    req.Messages,
@@ -157,6 +172,9 @@ func (p *OpenAICompatProvider) ChatStream(ctx context.Context, req ChatRequest, 
 			Usage:     usageFromRaw(chunk.Usage.PromptTokens, chunk.Usage.CompletionTokens),
 			Done:      chunk.Choices[0].FinishReason == "stop",
 		}
+		if delta.Usage != nil {
+			lastUsage = delta.Usage
+		}
 		if err := handler(delta); err != nil {
 			return err
 		}
@@ -189,6 +207,8 @@ type openAIEmbeddingResponse struct {
 }
 
 func (p *OpenAICompatProvider) GetEmbedding(ctx context.Context, text string) (embedding []float32, err error) {
+	ctx, span := startLLMSpan(ctx, "embedding", p.embedModel, p.system, 0)
+	defer func() { finishLLMSpan(span, err, nil) }()
 	payload := openAIEmbeddingRequest{Model: p.embedModel, Input: text}
 	resp, started, err := p.doPost(ctx, "/v1/embeddings", payload)
 	defer func() { observability.ObserveExternalCall("llm", started, err) }()

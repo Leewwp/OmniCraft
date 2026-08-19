@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	"go.opentelemetry.io/otel/sdk/trace"
 )
 
 const (
@@ -125,5 +127,21 @@ func TestTraceContextRoundTrip(t *testing.T) {
 	emptyTP, emptyTS := FromContext(context.Background())
 	if emptyTP != "" || emptyTS != "" {
 		t.Fatalf("empty context must yield empty trace context, got (%q, %q)", emptyTP, emptyTS)
+	}
+}
+
+func TestFromContextExtractsCurrentOTelTraceForOutbox(t *testing.T) {
+	provider := trace.NewTracerProvider()
+	t.Cleanup(func() {
+		if err := provider.Shutdown(context.Background()); err != nil {
+			t.Errorf("shutdown tracer provider: %v", err)
+		}
+	})
+	ctx, span := provider.Tracer("events-test").Start(context.Background(), "http-request")
+	defer span.End()
+
+	traceparent, tracestate := FromContext(ctx)
+	if traceparent == "" || len(traceparent) < 55 || tracestate != "" {
+		t.Fatalf("OTel context = (%q, %q), want W3C traceparent and empty tracestate", traceparent, tracestate)
 	}
 }

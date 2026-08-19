@@ -29,8 +29,10 @@ func NewMiniMaxProvider(apiKey, apiBase, model, embedModel string, opts ...Provi
 	if apiBase == "" {
 		apiBase = "https://api.minimaxi.com"
 	}
+	openAI := NewOpenAICompatProvider(apiKey, apiBase, model, embedModel, opts...)
+	openAI.system = "minimax"
 	return &MiniMaxProvider{
-		openAI:     NewOpenAICompatProvider(apiKey, apiBase, model, embedModel, opts...),
+		openAI:     openAI,
 		embedModel: embedModel,
 	}
 }
@@ -49,6 +51,9 @@ func (p *MiniMaxProvider) Chat(ctx context.Context, req ChatRequest) (*ChatRespo
 }
 
 func (p *MiniMaxProvider) ChatStream(ctx context.Context, req ChatRequest, handler func(delta ChatDelta) error) (err error) {
+	ctx, span := startLLMSpan(ctx, "chat.stream", p.openAI.model, "minimax", req.Temperature)
+	var lastUsage *TokenUsage
+	defer func() { finishLLMSpan(span, err, lastUsage) }()
 	payload := openAIRequest{
 		Model:       p.openAI.model,
 		Messages:    req.Messages,
@@ -97,6 +102,9 @@ func (p *MiniMaxProvider) ChatStream(ctx context.Context, req ChatRequest, handl
 			Usage:     usageFromRaw(chunk.Usage.PromptTokens, chunk.Usage.CompletionTokens),
 			Done:      choice.FinishReason == "stop",
 		}
+		if delta.Usage != nil {
+			lastUsage = delta.Usage
+		}
 		if choice.FinishReason != "" {
 			sawFinish = true
 			delta.Content += stripper.flush()
@@ -135,6 +143,8 @@ type minimaxEmbeddingResponse struct {
 // dims). The endpoint requires type "query"; "document" is rejected, so both
 // indexing and query embedding use the same type to keep one vector space.
 func (p *MiniMaxProvider) GetEmbedding(ctx context.Context, text string) (embedding []float32, err error) {
+	ctx, span := startLLMSpan(ctx, "embedding", p.embedModel, "minimax", 0)
+	defer func() { finishLLMSpan(span, err, nil) }()
 	payload := minimaxEmbeddingRequest{Model: p.embedModel, Texts: []string{text}, Type: "query"}
 	resp, started, err := p.openAI.doPost(ctx, "/v1/embeddings", payload)
 	defer func() { observability.ObserveExternalCall("llm", started, err) }()

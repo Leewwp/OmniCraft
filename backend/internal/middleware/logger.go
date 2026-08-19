@@ -10,7 +10,7 @@ import (
 )
 
 // Logger emits one structured JSON log line per request with stable fields:
-// trace_id/request_id (same value, fixed semantics), route (Gin full-path
+// trace_id/request_id (independent correlation values), route (Gin full-path
 // template or the bounded "unmatched" marker), method, status, duration_ms,
 // client_ip (keyed HMAC hash, never raw), client_ip_key_id and error_class.
 // Query strings and bodies are never logged.
@@ -23,15 +23,16 @@ func Logger(logger *slog.Logger, hasher *observability.IPHasher) gin.HandlerFunc
 		route := observability.NormalizeRoute(c.FullPath())
 
 		requestID, _ := c.Get("request_id")
-		id := ""
+		requestIDValue := ""
 		if requestID != nil {
-			id, _ = requestID.(string)
+			requestIDValue, _ = requestID.(string)
 		}
+		traceID := c.GetString("trace_id")
 
 		status := c.Writer.Status()
 		logger.Info("request",
-			"trace_id", id,
-			"request_id", id,
+			"trace_id", traceID,
+			"request_id", requestIDValue,
 			// path is deliberately the same bounded Gin route template as route;
 			// the raw URL path and query are never logged.
 			"path", route,

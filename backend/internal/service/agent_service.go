@@ -16,6 +16,7 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/pkg/queue"
@@ -369,7 +370,11 @@ func (s *AgentService) NLSearch(ctx context.Context, query string, viewerID int6
 		}
 		return nil, fallbackErr
 	}
-	traceAgentEvent(newTraceID(), "nl_search_degraded", "user_id", viewerID)
+	traceID := observability.TraceID(ctx)
+	if traceID == "" {
+		traceID = untracedTraceID
+	}
+	traceAgentEvent(traceID, "nl_search_degraded", "user_id", viewerID)
 	return &NLSearchResult{Results: fallback, Degraded: true}, nil
 }
 

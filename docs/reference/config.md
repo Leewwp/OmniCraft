@@ -109,6 +109,10 @@
 | `observability.read_header_timeout_sec` | `int` | ReadHeaderTimeoutSec |
 | `observability.readiness.db_timeout_sec` | `int` | DBTimeoutSec |
 | `observability.readiness.redis_timeout_sec` | `int` | RedisTimeoutSec |
+| `observability.tracing.backend` | `string` | Backend |
+| `observability.tracing.enabled` | `bool` | Enabled |
+| `observability.tracing.endpoint` | `string` | Endpoint |
+| `observability.tracing.sample_ratio` | `float64` | SampleRatio |
 | `oss.access_key_id` | `string` | AccessKeyID |
 | `oss.access_key_secret` | `string` | AccessKeySecret |
 | `oss.bucket_name` | `string` | BucketName |

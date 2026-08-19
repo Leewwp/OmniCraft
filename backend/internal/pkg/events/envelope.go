@@ -12,6 +12,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"go.opentelemetry.io/otel/propagation"
 )
 
 // Content event topics. These are the minimal event set the RAG indexer
@@ -194,9 +196,10 @@ func FromContext(ctx context.Context) (traceparent, tracestate string) {
 	if ctx == nil {
 		return "", ""
 	}
-	tc, ok := ctx.Value(traceContextKey{}).(traceContext)
-	if !ok {
-		return "", ""
+	if tc, ok := ctx.Value(traceContextKey{}).(traceContext); ok {
+		return tc.traceparent, tc.tracestate
 	}
-	return tc.traceparent, tc.tracestate
+	carrier := propagation.MapCarrier{}
+	propagation.TraceContext{}.Inject(ctx, carrier)
+	return carrier.Get("traceparent"), carrier.Get("tracestate")
 }

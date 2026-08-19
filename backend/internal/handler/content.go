@@ -551,7 +551,7 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 		return
 	}
 
-	if err := h.contentSvc.UpdateContent(id, callerID, updates); err != nil {
+	if err := h.contentSvc.UpdateContentWithContext(c.Request.Context(), id, callerID, updates); err != nil {
 		if err == service.ErrContentNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
 			return
@@ -580,7 +580,7 @@ func (h *ContentHandler) DeleteContent(c *gin.Context) {
 		return
 	}
 
-	if err := h.contentSvc.DeleteContent(id, callerID); err != nil {
+	if err := h.contentSvc.DeleteContentWithContext(c.Request.Context(), id, callerID); err != nil {
 		if err == service.ErrContentNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
 			return
