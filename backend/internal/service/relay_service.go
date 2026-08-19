@@ -6,6 +6,10 @@ import (
 	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	oteltrace "go.opentelemetry.io/otel/trace"
+
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/events"
 	"omnicraft/backend/internal/pkg/queue"
@@ -81,7 +85,14 @@ func (s *RelayService) RunOnce(ctx context.Context) (int, error) {
 			s.recordFailure(ctx, row, now, marshalErr)
 			continue
 		}
-		if publishErr := s.producer.Publish(ctx, row.EventType, payload); publishErr != nil {
+		publishCtx := propagation.TraceContext{}.Extract(ctx, propagation.MapCarrier{
+			"traceparent": row.Traceparent,
+			"tracestate":  row.Tracestate,
+		})
+		publishCtx, publishSpan := otel.Tracer("omnicraft/queue").Start(publishCtx, "queue.relay.publish", oteltrace.WithSpanKind(oteltrace.SpanKindProducer))
+		publishErr := s.producer.Publish(publishCtx, row.EventType, payload)
+		publishSpan.End()
+		if publishErr != nil {
 			s.recordFailure(ctx, row, now, publishErr)
 			continue
 		}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/pkg/llm"
 
 	"gorm.io/gorm"
@@ -171,7 +172,10 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []
 		resolved = &ResolvedChatContext{Surface: model.AgentChatSurfaceGlobal}
 	}
 
-	traceID := newTraceID()
+	traceID := observability.TraceID(ctx)
+	if traceID == "" {
+		traceID = untracedTraceID
+	}
 	traceAgentEvent(traceID, "chat_start", "user_id", userID, "surface", resolved.Surface)
 	if err := ctx.Err(); err != nil {
 		return emitAgentStreamError(handler, agentContextErrorCode(err), err)

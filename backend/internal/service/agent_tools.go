@@ -3,8 +3,6 @@ package service
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +13,7 @@ import (
 	"gorm.io/gorm"
 
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/repository"
 )
@@ -458,7 +457,11 @@ type citationTruth = repository.CitationTruth
 // chunk truth after model output. Only server-shaped citations that still
 // match the latest published chunk can reach SSE.
 func (s *AgentService) RevalidateCitations(ctx context.Context, viewerID int64, citations []AgentCitation) []AgentCitation {
-	return s.revalidateCitations(ctx, viewerID, citations, newTraceID())
+	traceID := observability.TraceID(ctx)
+	if traceID == "" {
+		traceID = untracedTraceID
+	}
+	return s.revalidateCitations(ctx, viewerID, citations, traceID)
 }
 
 func (s *AgentService) revalidateCitations(ctx context.Context, viewerID int64, citations []AgentCitation, traceID string) []AgentCitation {
@@ -571,14 +574,10 @@ func ClassifyGroundedAnswer(citations []AgentCitation) AgentAnswerKind {
 	return AgentAnswerGroundedContent
 }
 
-// newTraceID returns a 32-hex trace id for one agent request.
-func newTraceID() string {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return fmt.Sprintf("%032x", time.Now().UnixNano())
-	}
-	return hex.EncodeToString(b)
-}
+// untracedTraceID is an explicit marker for direct service callers that do
+// not pass through HTTP tracing. Production requests replace it with the
+// OTel trace ID created by the HTTP root span.
+const untracedTraceID = "00000000000000000000000000000000"
 
 // traceAgentEvent emits a safe structured trace line. Raw prompts, full
 // private content, and raw Provider errors are never logged.

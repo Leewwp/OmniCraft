@@ -4,10 +4,12 @@ import (
 	"log/slog"
 	"os"
 
+	"go.opentelemetry.io/otel"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"gorm.io/plugin/dbresolver"
+	"gorm.io/plugin/opentelemetry/tracing"
 
 	"omnicraft/backend/config"
 )
@@ -22,6 +24,13 @@ func Init(cfg *config.Config) *gorm.DB {
 	})
 	if err != nil {
 		slog.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	if err := db.Use(tracing.NewPlugin(
+		tracing.WithTracerProvider(otel.GetTracerProvider()),
+		tracing.WithoutQueryVariables(),
+	)); err != nil {
+		slog.Error("Failed to configure database tracing", "error", err)
 		os.Exit(1)
 	}
 

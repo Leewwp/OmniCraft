@@ -9,10 +9,12 @@ import (
 	"time"
 
 	"github.com/glebarez/sqlite"
+	"go.opentelemetry.io/otel/sdk/trace"
 	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/repository"
 )
@@ -360,10 +362,20 @@ func TestAgentGrounding(t *testing.T) {
 		}
 	})
 
-	t.Run("trace ids are generated and stable across requests", func(t *testing.T) {
-		a, b := newTraceID(), newTraceID()
-		if a == "" || a == b || len(a) != 32 {
-			t.Fatalf("trace ids %q %q, want two distinct 32-hex values", a, b)
+	t.Run("trace ids come from the request context", func(t *testing.T) {
+		provider := trace.NewTracerProvider()
+		t.Cleanup(func() {
+			if err := provider.Shutdown(context.Background()); err != nil {
+				t.Errorf("shutdown tracer provider: %v", err)
+			}
+		})
+		ctxA, spanA := provider.Tracer("agent-test").Start(context.Background(), "request-a")
+		ctxB, spanB := provider.Tracer("agent-test").Start(context.Background(), "request-b")
+		defer spanA.End()
+		defer spanB.End()
+		a, b := observability.TraceID(ctxA), observability.TraceID(ctxB)
+		if a == "" || a == b || len(a) != 32 || len(b) != 32 {
+			t.Fatalf("trace ids %q %q, want two distinct OTel ids", a, b)
 		}
 	})
 }

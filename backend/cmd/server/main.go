@@ -42,6 +42,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	tracerProvider, err := observability.NewTracerProvider(context.Background(), observability.TracingConfig{
+		Enabled: cfg.Observability.Tracing.Enabled, Endpoint: cfg.Observability.Tracing.Endpoint,
+		SampleRatio: cfg.Observability.Tracing.SampleRatio, Backend: cfg.Observability.Tracing.Backend,
+	})
+	if err != nil {
+		logger.Error("invalid tracing configuration", "error", err)
+		os.Exit(1)
+	}
+	shutdownTracing := observability.InstallTracerProvider(tracerProvider)
+
 	ipHasher, err := observability.NewIPHasher(cfg.Observability)
 	if err != nil {
 		logger.Error("invalid client IP hasher configuration", "error", err)
@@ -104,6 +114,7 @@ func main() {
 	}
 	bodyLimit := resolveJSONBodyLimit(cfg)
 	r.Use(middleware.RequestID())
+	r.Use(middleware.Tracing(tracerProvider))
 	r.Use(middleware.Metrics(metrics))
 	r.Use(middleware.Logger(logger, ipHasher))
 	r.Use(middleware.CORS(cfg))
@@ -153,6 +164,9 @@ func main() {
 
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Error("Server forced to shutdown", "error", err)
+	}
+	if err := shutdownTracing(ctx); err != nil {
+		logger.Warn("trace provider shutdown failed", "error", err)
 	}
 
 	if rdb != nil {

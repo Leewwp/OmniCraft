@@ -892,6 +892,10 @@ func (s *ContentService) getHotContents(ctx context.Context, filter repository.L
 }
 
 func (s *ContentService) UpdateContent(id int64, authorID int64, updates map[string]interface{}) error {
+	return s.UpdateContentWithContext(context.Background(), id, authorID, updates)
+}
+
+func (s *ContentService) UpdateContentWithContext(ctx context.Context, id int64, authorID int64, updates map[string]interface{}) error {
 	content, err := s.contentRepo.FindByID(id)
 	if err != nil || content == nil {
 		return ErrContentNotFound
@@ -907,7 +911,7 @@ func (s *ContentService) UpdateContent(id int64, authorID int64, updates map[str
 			if err := txRepo.UpdateContent(id, updates); err != nil {
 				return err
 			}
-			return s.emitContentEvent(context.Background(), txRepo.DB(), events.TopicContentUpdated, content)
+			return s.emitContentEvent(ctx, txRepo.DB(), events.TopicContentUpdated, content)
 		}); err != nil {
 			return err
 		}
@@ -922,6 +926,10 @@ func (s *ContentService) UpdateContent(id int64, authorID int64, updates map[str
 }
 
 func (s *ContentService) DeleteContent(id int64, authorID int64) error {
+	return s.DeleteContentWithContext(context.Background(), id, authorID)
+}
+
+func (s *ContentService) DeleteContentWithContext(ctx context.Context, id int64, authorID int64) error {
 	content, err := s.contentRepo.FindByID(id)
 	if err != nil || content == nil {
 		return ErrContentNotFound
@@ -936,7 +944,7 @@ func (s *ContentService) DeleteContent(id int64, authorID int64) error {
 			if err := txRepo.DeleteContent(id); err != nil {
 				return err
 			}
-			return s.emitContentEvent(context.Background(), txRepo.DB(), events.TopicContentDeleted, content)
+			return s.emitContentEvent(ctx, txRepo.DB(), events.TopicContentDeleted, content)
 		}); err != nil {
 			return err
 		}

@@ -261,12 +261,14 @@ backend/
 │   │   ├── ratelimit.go             # 限流（Redis 令牌桶）
 │   │   ├── logger.go                # 请求日志（JSON、脱敏、HMAC IP）
 │   │   ├── metrics.go               # 低基数请求指标
+│   │   ├── tracing.go               # OTel provider、OTLP export、W3C context
 │   │   ├── panic_recovery.go        # panic 恢复（class 级日志 + 计数）
 │   │   └── cors.go
 │   ├── observability/               # 可观测性（生产基线）
 │   │   ├── logger.go                # JSON slog + client_ip HMAC 哈希/轮换
 │   │   ├── metrics.go               # Prometheus 指标与 DB/Redis 收集器
 │   │   ├── server.go                # 内部 :9091（/metrics /healthz /readyz）
+│   │   ├── tracing.go               # OTel provider、OTLP export、采样与 trace ID
 │   │   └── logger.go                # 迁移/备份 textfile 指标写入
 │   ├── handler/                     # HTTP 处理器（按模块）
 │   │   ├── auth.go
@@ -654,9 +656,11 @@ omnicraft://deploy?content_id=xxx&token=yyy
 
 ## 7. 可观测性（日志、指标、就绪）
 
-日志使用结构化 JSON（稳定字段 `time/level/msg/service/environment/version/trace_id/request_id/route/method/status/duration_ms/client_ip/error_class`）。`client_ip` 只保存 `LOG_IP_HASH_SECRET` 的 HMAC-SHA256 前 128 bit（32 位小写十六进制）+ 非敏感 `client_ip_key_id`；日志永不出现原始 IP、token、cookie、授权头、验证码票据、签名 URL 查询串或消息正文。前一把哈希密钥只在显式轮换窗口内可用（`observability.ip_key_rotation`）。release 模式缺少哈希密钥时 fail-closed 拒绝启动。
+日志使用结构化 JSON（稳定字段 `time/level/msg/service/environment/version/trace_id/request_id/route/method/status/duration_ms/client_ip/error_class`）。`trace_id` 是 OTel 128-bit trace，`request_id` 仍是独立的 8-byte hex 请求关联 ID；SSE `trace_id` 沿用当前 OTel context。`client_ip` 只保存 `LOG_IP_HASH_SECRET` 的 HMAC-SHA256 前 128 bit（32 位小写十六进制）+ 非敏感 `client_ip_key_id`；日志永不出现原始 IP、token、cookie、授权头、验证码票据、签名 URL 查询串或消息正文。前一把哈希密钥只在显式轮换窗口内可用（`observability.ip_key_rotation`）。release 模式缺少哈希密钥时 fail-closed 拒绝启动。
 
 指标低基数：请求量/错误率/延迟（route 模板 + method + status_class 标签）、panic、DB pool、Redis pool、队列积压、worker 失败、迁移状态，以及 OSS/Green/CAPTCHA/SMTP/LLM 外部依赖按依赖名+结果聚合的成功/失败/延迟。`/healthz` 仅进程存活；`/readyz` 依赖感知（DB+Redis 超时探测）且不泄露连接细节；`/metrics` 只在内网 `:9091` 暴露。
+
+Tracing 使用 head-based ratio sampling，经 OTLP/gRPC 只发往 `observability.tracing.endpoint`；full-infra 由 OTel Collector 转发到 Jaeger，Collector 离线只丢弃遥测并告警，不改变业务路径。HTTP、Redis Streams、GORM 和 LLM span 共享 W3C context；GenAI span 只记录 provider/model、temperature 和 token usage，不记录 prompt 或 embedding 正文。
 
 参考栈：应用 JSON stdout → Docker `json-file` 轮转（10MB×5）→ Grafana Alloy（只读日志挂载，无 Docker 控制权）→ Loki（命名卷、30 天 retention）；Prometheus 内网抓取、30 天+磁盘上限双 retention；操作员经 `loki-gate`（127.0.0.1 绑定、token 认证、查询审计落盘）或 SSH 隧道访问。warning/error 审计摘要每日加密归档（异地目标凭证为 Ops-08 输入）。迁移器、`backup-db.sh`、`recovery-drill.sh` 向 `METRICS_TEXTFILE_DIR` 输出 success/failure/last-success 文本指标。
 

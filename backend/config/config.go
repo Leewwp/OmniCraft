@@ -119,6 +119,14 @@ type ObservabilityConfig struct {
 	ReadHeaderTimeoutSec int                 `mapstructure:"read_header_timeout_sec"`
 	IPKeyRotation        IPKeyRotationConfig `mapstructure:"ip_key_rotation"`
 	Readiness            ReadinessConfig     `mapstructure:"readiness"`
+	Tracing              TracingConfig       `mapstructure:"tracing"`
+}
+
+type TracingConfig struct {
+	Enabled     bool    `mapstructure:"enabled"`
+	Endpoint    string  `mapstructure:"endpoint"`
+	SampleRatio float64 `mapstructure:"sample_ratio"`
+	Backend     string  `mapstructure:"backend"`
 }
 
 // IPKeyRotationConfig limits the previous IP-hash key to an explicit
@@ -715,6 +723,17 @@ func OverrideFromEnv(cfg *Config) {
 	if v := os.Getenv("LOG_IP_KEY_ID"); v != "" {
 		cfg.Observability.LogIPKeyID = v
 	}
+	if v := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); v != "" {
+		cfg.Observability.Tracing.Endpoint = v
+	}
+	if v := os.Getenv("OBSERVABILITY_TRACING_ENABLED"); v != "" {
+		cfg.Observability.Tracing.Enabled = v == "1" || strings.EqualFold(v, "true")
+	}
+	if v := os.Getenv("OTEL_TRACES_SAMPLER_ARG"); v != "" {
+		if ratio, err := strconv.ParseFloat(v, 64); err == nil {
+			cfg.Observability.Tracing.SampleRatio = ratio
+		}
+	}
 }
 
 func (c *Config) SaveOverride(path string) error {
@@ -1090,6 +1109,17 @@ func (c *Config) ValidateRelease() error {
 	}
 	if c.Observability.ReadHeaderTimeoutSec <= 0 {
 		errs = append(errs, "observability.read_header_timeout_sec must be positive in release mode")
+	}
+	if c.Observability.Tracing.SampleRatio < 0 || c.Observability.Tracing.SampleRatio > 1 {
+		errs = append(errs, "observability.tracing.sample_ratio must be between 0 and 1 in release mode")
+	}
+	if c.Observability.Tracing.Enabled {
+		if strings.TrimSpace(c.Observability.Tracing.Endpoint) == "" {
+			errs = append(errs, "observability.tracing.endpoint is required when tracing is enabled")
+		}
+		if strings.TrimSpace(c.Observability.Tracing.Backend) != "jaeger" {
+			errs = append(errs, "observability.tracing.backend must be jaeger")
+		}
 	}
 	if c.Server.ReadTimeout <= 0 || c.Server.WriteTimeout <= 0 || c.Server.IdleTimeout <= 0 {
 		errs = append(errs, "server HTTP timeouts must be positive in release mode")

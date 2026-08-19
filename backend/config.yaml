@@ -20,6 +20,11 @@ observability:
   readiness:
     db_timeout_sec: 3
     redis_timeout_sec: 3
+  tracing:
+    enabled: false
+    endpoint: "otel-collector:4317"
+    sample_ratio: 1.0
+    backend: "jaeger"
 
 web:
   public_base_url: "http://localhost:3000"

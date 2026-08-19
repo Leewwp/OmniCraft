@@ -5,6 +5,10 @@ import (
 	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	oteltrace "go.opentelemetry.io/otel/trace"
+
 	"omnicraft/backend/internal/service"
 )
 
@@ -40,8 +44,11 @@ func (w *RelayWorker) Start(ctx context.Context) error {
 }
 
 func (w *RelayWorker) runOnce(ctx context.Context) {
+	ctx, span := otel.Tracer("omnicraft/queue").Start(ctx, "queue.relay", oteltrace.WithSpanKind(oteltrace.SpanKindProducer))
+	defer span.End()
 	delivered, err := w.svc.RunOnce(ctx)
 	if err != nil {
+		span.SetStatus(codes.Error, "relay run failed")
 		slog.Error("relay_worker: relay run failed", "error", err)
 		return
 	}

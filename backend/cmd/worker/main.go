@@ -28,6 +28,21 @@ func main() {
 	}
 	slog.SetDefault(logger)
 
+	tracerProvider, err := observability.NewTracerProvider(context.Background(), observability.TracingConfig{
+		Enabled: cfg.Observability.Tracing.Enabled, Endpoint: cfg.Observability.Tracing.Endpoint,
+		SampleRatio: cfg.Observability.Tracing.SampleRatio, Backend: cfg.Observability.Tracing.Backend,
+	})
+	if err != nil {
+		logger.Error("invalid tracing configuration", "error", err)
+		os.Exit(1)
+	}
+	shutdownTracing := observability.InstallTracerProvider(tracerProvider)
+	defer func() {
+		if err := shutdownTracing(context.Background()); err != nil {
+			logger.Warn("trace provider shutdown failed", "error", err)
+		}
+	}()
+
 	if !cfg.Worker.Enabled {
 		logger.Info("worker is disabled in config, exiting")
 		return

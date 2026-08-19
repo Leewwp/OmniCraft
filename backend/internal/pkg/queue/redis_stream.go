@@ -11,6 +11,10 @@ import (
 	"omnicraft/backend/internal/pkg/recovery"
 
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 type RedisStreamBroker struct {
@@ -29,9 +33,17 @@ func NewRedisStreamBroker(rdb *redis.Client, cfg *QueueConfig) *RedisStreamBroke
 
 func (b *RedisStreamBroker) Publish(ctx context.Context, topic string, payload []byte) error {
 	streamKey := streamKey(topic)
+	spanCtx, span := otel.Tracer("omnicraft/queue").Start(ctx, "queue.publish", oteltrace.WithSpanKind(oteltrace.SpanKindProducer))
+	defer span.End()
+	span.SetAttributes(attribute.String("messaging.system", "redis"), attribute.String("messaging.destination.name", topic))
 	msg := map[string]interface{}{
 		"payload":   string(payload),
 		"timestamp": time.Now().UnixMilli(),
+	}
+	metadata := make(map[string]string, 2)
+	InjectTraceContext(spanCtx, metadata)
+	for key, value := range metadata {
+		msg[key] = value
 	}
 	id, err := b.rdb.XAdd(ctx, &redis.XAddArgs{
 		Stream: streamKey,
@@ -40,6 +52,7 @@ func (b *RedisStreamBroker) Publish(ctx context.Context, topic string, payload [
 		Values: msg,
 	}).Result()
 	if err != nil {
+		span.RecordError(err)
 		return fmt.Errorf("xadd to %s: %w", streamKey, err)
 	}
 	logQueueEvent("publish", topic, id, 0)
@@ -65,13 +78,16 @@ func (b *RedisStreamBroker) Subscribe(ctx context.Context, topic string, group s
 			}
 
 			b.observeGroupBacklog(ctx, streamKey, group)
-			results, err := b.rdb.XReadGroup(ctx, &redis.XReadGroupArgs{
+			readCtx, readSpan := otel.Tracer("omnicraft/queue").Start(ctx, "queue.consume", oteltrace.WithSpanKind(oteltrace.SpanKindConsumer))
+			readSpan.SetAttributes(attribute.String("messaging.system", "redis"), attribute.String("messaging.destination.name", topic))
+			results, err := b.rdb.XReadGroup(readCtx, &redis.XReadGroupArgs{
 				Group:    group,
 				Consumer: consumerName,
 				Streams:  []string{streamKey, ">"},
 				Count:    10,
 				Block:    2 * time.Second,
 			}).Result()
+			readSpan.End()
 			if err != nil {
 				if ctx.Err() != nil {
 					return
@@ -105,7 +121,14 @@ func (b *RedisStreamBroker) Subscribe(ctx context.Context, topic string, group s
 					}
 					msg := b.decodeMessage(topic, xmsg)
 					msg.Group = group
-					b.handleMessage(ctx, topic, group, msg, handler)
+					messageCtx, span := otel.Tracer("omnicraft/queue").Start(
+						ExtractTraceContext(ctx, msg.Metadata), "queue.consume",
+						oteltrace.WithSpanKind(oteltrace.SpanKindConsumer),
+					)
+					span.SetName("queue.process")
+					span.SetAttributes(attribute.String("messaging.system", "redis"), attribute.String("messaging.destination.name", topic), attribute.String("messaging.message.id", msg.ID))
+					b.handleMessage(messageCtx, topic, group, msg, handler)
+					span.End()
 				}
 			}
 		}
@@ -233,14 +256,36 @@ func (b *RedisStreamBroker) ensureGroup(ctx context.Context, streamKey, group st
 
 func (b *RedisStreamBroker) decodeMessage(topic string, xmsg redis.XMessage) Message {
 	payloadStr, _ := xmsg.Values["payload"].(string)
+	metadata := make(map[string]string, 2)
+	for _, key := range []string{"traceparent", "tracestate"} {
+		if value, ok := xmsg.Values[key].(string); ok && value != "" {
+			metadata[key] = value
+		}
+	}
 	return Message{
 		ID:        xmsg.ID,
 		Topic:     topic,
 		Payload:   []byte(payloadStr),
-		Metadata:  map[string]string{},
+		Metadata:  metadata,
 		Attempts:  0,
 		CreatedAt: time.Now(),
 	}
+}
+
+// InjectTraceContext serializes the W3C trace context into queue metadata.
+// Only propagation fields are copied; payloads and prompts never enter the
+// carrier.
+func InjectTraceContext(ctx context.Context, metadata map[string]string) {
+	if metadata == nil {
+		return
+	}
+	propagation.TraceContext{}.Inject(ctx, propagation.MapCarrier(metadata))
+}
+
+// ExtractTraceContext restores the W3C parent from queue metadata. Invalid or
+// absent metadata safely falls back to the supplied context.
+func ExtractTraceContext(ctx context.Context, metadata map[string]string) context.Context {
+	return propagation.TraceContext{}.Extract(ctx, propagation.MapCarrier(metadata))
 }
 
 func (b *RedisStreamBroker) Close() error {

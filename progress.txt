@@ -1715,3 +1715,18 @@
 
 ### Notes:
 - Two-axis heavy-task review completed and rerun against `f494567`: specification corrections covered no-evidence/degraded delta suppression and persistence, the shared `AgentCitationList`, the no-evidence keyword-search CTA, and exact rejected-count assertions; the code-quality correction moved citation-truth queries behind `RagChunkRepository`. The T07 diff includes the adapter/projection plumbing required to consume the T06 retrieval contract; this scope expansion is covered by focused and full tests. The real OpenSearch contract, embedding provider, LLM provider, and production corpus were not all available for this local batch; no production validation claim is made. Re-run full-infra/API smoke with real dependencies before any production release decision.
+
+## [2026-08-19] - Task #143: T08 OpenTelemetry tracing
+
+### What was done:
+- Added head-based OTel ratio sampling, OTLP/gRPC exporter setup, W3C propagator installation, and bounded exporter warnings; collector failures do not enter business request errors.
+- Added HTTP root spans, independent `X-Request-ID`/`trace_id` logging, queue producer/relay/consumer spans with `traceparent`/`tracestate` metadata, GORM tracing without query variables, and sanitized GenAI spans for chat/stream/embedding calls.
+- Replaced Agent's independent random `newTraceID()` path with the request OTel trace ID; direct untraced service calls use an explicit all-zero marker. Added full-infra Jaeger and OTel Collector Compose services plus the Collector pipeline config.
+- Synchronized `docs/reference/config.md`, `architecture.md`, the T08 roadmap status, and `docs/working/2026-08-19-t143-otel-evidence.md`.
+
+### Testing:
+- TDD red-to-green focused tests passed for provider ratio/export, HTTP ID separation, HTTP-to-outbox/queue W3C round-trip, GORM span/query-value exclusion, and LLM prompt exclusion. Backend `go test ./...`, `go vet ./...`, `go build ./...`, frontend `npm run lint`, `npm run build`, and `bash scripts/verify-project.sh --full` passed (73/73 mocked Playwright contracts). Final doc-validator checks passed.
+- `docker compose config --quiet` and `docker compose --profile full-infra config --quiet` passed using a temporary `.env.example` copy; the temporary file was removed. A real `docker compose --profile full-infra up -d jaeger otel-collector` attempt failed before container creation because Docker Hub authorization returned `EOF`; no Jaeger UI evidence is claimed. Exact rerun commands are in the evidence file.
+
+### Notes:
+- This is local development evidence only. Real Collector delivery, Jaeger UI end-to-end visualization, production sampling behavior, and real external LLM/provider traces remain environment gaps. #76, #151, and desktop/Tauri work remain deferred/out of scope.
