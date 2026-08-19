@@ -176,6 +176,11 @@ const workspaceMessages = {
     noEvidence: {
       title: "Not enough evidence",
       description: "No public content supports this answer.",
+      searchCta: "Search site content",
+    },
+    degraded: {
+      title: "Search fallback active",
+      description: "The answer was not generated. Review the available site references.",
     },
     a11y: {
       conversationItem: "Conversation #{id}",
@@ -646,6 +651,45 @@ test("workspace streams an answer and renders citation cards", async () => {
   }
 });
 
+test("degraded stream hides the model summary and shows fallback references", async () => {
+  installDom();
+  const now = new Date();
+  const stub = installSSEFetch([
+    { type: "start", conversation_id: 7, answer_kind: "grounded_content" },
+    { type: "delta", delta: "model summary that must stay hidden" },
+    {
+      type: "done",
+      conversation_id: 7,
+      answer_kind: "grounded_content",
+      answer: "model summary that must stay hidden",
+      citations: [{ content_id: 3, title: "Fallback result", zone: "original" }],
+      degraded: true,
+    },
+  ]);
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [conversation(7, now.toISOString())] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: conversation(7, now.toISOString()),
+        messages: [{ id: 1, conversation_id: 7, role: "user", content: "Find beginner-friendly furniture mods" }],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const suggestion = await waitFor(() =>
+      view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
+    );
+    fireEvent.click(suggestion);
+    await waitFor(() => assert.ok(view.getByText("Search fallback active")), { timeout: 3000 });
+    assert.equal(view.queryByText("model summary that must stay hidden"), null);
+    assert.ok(view.getByRole("button", { name: /Fallback result/ }));
+  } finally {
+    stub.restore();
+  }
+});
+
 test("clicking a citation opens the shared ContentDetailOverlay with agent source", async () => {
   installDom();
   const now = new Date();
@@ -1051,6 +1095,57 @@ test("normalizer rejects malformed citations", () => {
   );
 });
 
+test("normalizer preserves expanded citation fields and rejects a forged route", () => {
+  const chunkKey = "a".repeat(64);
+  assert.deepEqual(
+    normalizeAgentCitation({
+      content_id: 3,
+      content_version: 7,
+      chunk_key: chunkKey,
+      chunk_index: 2,
+      title: "T",
+      zone: "original",
+      route: "/original/3",
+      excerpt: "e",
+      source: "hybrid_rrf",
+    }),
+    {
+      content_id: 3,
+      content_version: 7,
+      chunk_key: chunkKey,
+      chunk_index: 2,
+      title: "T",
+      zone: "original",
+      route: "/original/3",
+      excerpt: "e",
+      source: "hybrid_rrf",
+    },
+  );
+  assert.equal(
+    normalizeAgentCitation({
+      content_id: 3,
+      content_version: 7,
+      chunk_key: chunkKey,
+      chunk_index: 2,
+      title: "T",
+      zone: "original",
+      route: "/original/999",
+      source: "hybrid_rrf",
+    }),
+    null,
+  );
+  assert.equal(
+    normalizeAgentCitation({
+      content_id: 3,
+      content_version: 7,
+      title: "T",
+      zone: "original",
+    }),
+    null,
+    "expanded citation fields must be supplied as one complete contract",
+  );
+});
+
 test("normalizer rejects malformed tool events", () => {
   assert.equal(normalizeAgentTool({ name: "", status: "success" }), null);
   assert.equal(normalizeAgentTool({ name: "search_content", status: "bogus" }), null);
@@ -1233,6 +1328,9 @@ test("no-evidence turn shows the notice without fabricating an answer", async ()
     fireEvent.click(suggestion);
     await waitFor(() => assert.ok(view.getByText("Not enough evidence")));
     assert.ok(view.getByText("No public content supports this answer."));
+    assert.equal(view.queryByText("I did not find enough material."), null);
+    const searchLink = view.getByRole("link", { name: "Search site content" });
+    assert.equal(searchLink.getAttribute("href"), "/search?q=Find%20beginner-friendly%20furniture%20mods");
   } finally {
     stub.restore();
   }

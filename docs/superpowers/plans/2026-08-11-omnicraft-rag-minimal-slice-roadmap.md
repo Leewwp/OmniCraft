@@ -203,6 +203,15 @@
 
 **完成标准**：端到端问答 + 引用 + 可见性用例在浏览器与接口层双验证（截图，含引用卡交互）；泄漏 count=0；两阶段审查；单一提交。
 
+### T07 状态（2026-08-19）
+
+- [x] `search_content` 在 `rag_hybrid_enabled=true` 时接入 HybridRetriever；默认关闭时保持既有基线路径，不泄漏 RAG 扩展字段。
+- [x] Agent citation DTO/SSE 扩展 `content_version`、`chunk_key`、`chunk_index`、服务端 `route`、`source`；无 `score`/`visibility_checked`；模型伪造字段和不可见、过期、非 current projection 引用在 SSE 前丢弃并写入安全 trace 日志。
+- [x] `done.degraded` 与检索降级状态贯通；评测 fixture 升级到 schema version 2，并覆盖 source/stable identity/丢弃路径。
+- [x] `/agent` mocked Playwright contract 与桌面/移动截图已完成：`screenshots/web-agent-grounded-desktop.png`、`web-agent-citation-overlay-desktop.png`、`web-agent-citations-mobile.png`、`web-agent-no-evidence.png`、`web-agent-degraded-search.png`。
+- [x] 两阶段规格/代码质量审查完成；审查发现的 feature flag、扩展 DTO 完整性、detail provenance、no-evidence/degraded delta 泄漏、no-evidence 搜索 CTA、持久化、共享引用列表和 repository seam 问题已以失败测试驱动修正，并完成最终复审。
+- [ ] 真实 OpenSearch、embedding provider、LLM 与生产数据上的端到端验证仍留待真实 full-infra/生产样本；本地 fake/mocked 结果不作为生产证据。
+
 ---
 
 ## T09 [closure] 故障演练、全量验证、指标归档与文档同步

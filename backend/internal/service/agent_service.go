@@ -27,15 +27,45 @@ var ErrAgentDisabled = errors.New("web agent is disabled")
 var ErrAgentFileTooLarge = errors.New("file too large for upload assist")
 
 type AgentService struct {
-	llmProvider   llm.LLMProvider
-	embeddingRepo *repository.EmbeddingRepository
-	contentRepo   *repository.ContentRepository
-	searchRepo    *repository.SearchRepository
-	greenClient   *aliyun.GreenClient
-	db            *gorm.DB
-	cfg           *config.Config
-	queueProducer queue.Producer
-	vectorSearch  func(embedding []float32, topK int) ([]repository.EmbeddingSearchResult, error)
+	llmProvider     llm.LLMProvider
+	embeddingRepo   *repository.EmbeddingRepository
+	contentRepo     *repository.ContentRepository
+	searchRepo      *repository.SearchRepository
+	ragChunkRepo    *repository.RagChunkRepository
+	hybridRetriever AgentContentRetriever
+	greenClient     *aliyun.GreenClient
+	db              *gorm.DB
+	cfg             *config.Config
+	queueProducer   queue.Producer
+	vectorSearch    func(embedding []float32, topK int) ([]repository.EmbeddingSearchResult, error)
+}
+
+// AgentRetrievalCandidate is the service-owned boundary for RAG results. The
+// concrete HybridRetriever lives in service/rag and is adapted by the
+// container, keeping the AgentService contract independent of that package's
+// projection dependencies.
+type AgentRetrievalCandidate struct {
+	ChunkKey        string
+	ContentID       int64
+	ContentVersion  int
+	ChunkIndex      int
+	ChunkingVersion int
+	IndexVersion    int
+	Title           string
+	Heading         string
+	Text            string
+	Zone            string
+	ContentType     string
+	Source          string
+}
+
+type AgentRetrievalResult struct {
+	Candidates []AgentRetrievalCandidate
+	Degraded   string
+}
+
+type AgentContentRetriever interface {
+	Retrieve(ctx context.Context, query string, viewerID int64) (AgentRetrievalResult, error)
 }
 
 func NewAgentService(provider llm.LLMProvider, embeddingRepo *repository.EmbeddingRepository, contentRepo *repository.ContentRepository, greenClient *aliyun.GreenClient, db *gorm.DB, cfg *config.Config) *AgentService {
@@ -47,6 +77,9 @@ func NewAgentService(provider llm.LLMProvider, embeddingRepo *repository.Embeddi
 		db:            db,
 		cfg:           cfg,
 		queueProducer: queue.NewNoopProducer(),
+	}
+	if db != nil {
+		svc.ragChunkRepo = repository.NewRagChunkRepository(db)
 	}
 	if embeddingRepo != nil {
 		svc.vectorSearch = embeddingRepo.VectorSearch
@@ -256,11 +289,17 @@ func aggregateComplianceResults(greenResult, greenReason string, llmResult *Comp
 }
 
 type ContentSummary struct {
-	ID          int64    `json:"id"`
-	Title       string   `json:"title"`
-	ContentType string   `json:"content_type"`
-	Score       float64  `json:"score"`
-	Tags        []string `json:"tags"`
+	ID             int64    `json:"id"`
+	Title          string   `json:"title"`
+	Zone           string   `json:"zone,omitempty"`
+	ContentType    string   `json:"content_type"`
+	ContentVersion int      `json:"content_version,omitempty"`
+	ChunkKey       string   `json:"chunk_key,omitempty"`
+	ChunkIndex     int      `json:"chunk_index,omitempty"`
+	Excerpt        string   `json:"excerpt,omitempty"`
+	Source         string   `json:"source,omitempty"`
+	Score          float64  `json:"-"`
+	Tags           []string `json:"tags,omitempty"`
 }
 
 // NLSearchResult carries the search outcome. Degraded=true means conversational
@@ -274,6 +313,19 @@ type NLSearchResult struct {
 func (s *AgentService) NLSearch(ctx context.Context, query string, viewerID int64) (*NLSearchResult, error) {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return nil, ErrAgentDisabled
+	}
+	if s.ragHybridEnabled() {
+		if s.hybridRetriever == nil {
+			return nil, errors.New("hybrid retrieval unavailable")
+		}
+		result, err := s.hybridRetriever.Retrieve(ctx, strings.TrimSpace(query), viewerID)
+		if err != nil {
+			return nil, err
+		}
+		return &NLSearchResult{
+			Results:  retrievalSummaries(result.Candidates),
+			Degraded: result.Degraded != "",
+		}, nil
 	}
 
 	embedding, err := s.llmProvider.GetEmbedding(ctx, query)
@@ -333,11 +385,12 @@ func (s *AgentService) keywordSearchFallback(ctx context.Context, query string, 
 	}
 	summaries := make([]ContentSummary, 0, len(results))
 	for _, r := range results {
-		summaries = append(summaries, ContentSummary{
+		summary := ContentSummary{
 			ID:          r.ID,
 			Title:       r.Title,
 			ContentType: r.ContentType,
-		})
+		}
+		summaries = append(summaries, summary)
 	}
 	return summaries, nil
 }
@@ -550,6 +603,16 @@ func (s *AgentService) SetQueueProducer(p queue.Producer) {
 // conversational search is unavailable (degraded mode).
 func (s *AgentService) SetSearchRepository(repo *repository.SearchRepository) {
 	s.searchRepo = repo
+}
+
+// SetContentRetriever injects the viewer-aware hybrid retrieval boundary used
+// by Agent tools and NLSearch. The container supplies the concrete adapter.
+func (s *AgentService) SetContentRetriever(retriever AgentContentRetriever) {
+	s.hybridRetriever = retriever
+}
+
+func (s *AgentService) ragHybridEnabled() bool {
+	return s != nil && s.cfg != nil && s.cfg.Features.RAGHybridEnabled
 }
 
 func (s *AgentService) EmbedContentAsync(contentItemID int64, text string) {

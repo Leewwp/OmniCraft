@@ -47,7 +47,7 @@ func seedAgentGroundingDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.User{}, &model.IP{}, &model.ContentItem{}, &model.AgentConversation{}, &model.AgentMessage{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.IP{}, &model.ContentItem{}, &model.AgentConversation{}, &model.AgentMessage{}, &model.ContentVersion{}, &model.RagChunk{}, &model.IndexProjectionStatus{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
@@ -79,6 +79,15 @@ func seedAgentGroundingDB(t *testing.T) *gorm.DB {
 		).Error; err != nil {
 			t.Fatalf("seed content %d: %v", c.ID, err)
 		}
+	}
+	if err := db.Create(&model.ContentVersion{ID: 1000, ContentItemID: 100, AuthorID: 1, VersionNumber: 1, StorageType: "full", StorageKey: "grounding-test", Status: "active", IsLatest: true}).Error; err != nil {
+		t.Fatalf("seed content version: %v", err)
+	}
+	if err := db.Create(&model.RagChunk{ContentID: 100, ContentVersion: 1, ChunkIndex: 0, ChunkKey: strings.Repeat("b", 64), ChunkingVersion: 1, Text: "Published Public", SourceStart: 0, SourceEnd: 15, Zone: "original", ContentType: "mod", IndexVersion: 1}).Error; err != nil {
+		t.Fatalf("seed rag chunk: %v", err)
+	}
+	if err := db.Create(&model.IndexProjectionStatus{ContentID: 100, IndexVersion: 1, ChunkingVersion: 1, EmbeddingModel: "test", State: "ready", IsCurrent: true, ErrorSummary: ""}).Error; err != nil {
+		t.Fatalf("seed projection status: %v", err)
 	}
 	return db
 }
@@ -325,7 +334,7 @@ func TestAgentGrounding(t *testing.T) {
 
 	t.Run("every returned citation is revalidated after model output", func(t *testing.T) {
 		citations := []AgentCitation{
-			{ContentID: 100, Title: "Published Public", Zone: "original"},
+			{ContentID: 100, ContentVersion: 1, ChunkKey: strings.Repeat("b", 64), ChunkIndex: 0, Title: "Published Public", Zone: "original", Route: "/original/100", Excerpt: "Published Public", Source: "vector"},
 			{ContentID: 101, Title: "Private", Zone: "original"},
 			{ContentID: 102, Title: "Banned", Zone: "original"},
 			{ContentID: 103, Title: "Under Review", Zone: "original"},

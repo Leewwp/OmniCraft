@@ -301,7 +301,7 @@ func projectionDocuments(chunks []model.RagChunk, contentID int64, embeddingMode
 	for i, chunk := range chunks {
 		documents[i] = SearchDocument{
 			ID: chunk.ChunkKey, ChunkKey: chunk.ChunkKey, ContentID: contentID,
-			ContentVersion: chunk.ContentVersion, ChunkingVersion: chunk.ChunkingVersion,
+			ContentVersion: chunk.ContentVersion, ChunkIndex: chunk.ChunkIndex, ChunkingVersion: chunk.ChunkingVersion,
 			IndexVersion: chunk.IndexVersion, EmbeddingModel: embeddingModel,
 			Title: content.Title, Heading: chunk.Heading, Text: chunk.Text,
 			SourceStart: chunk.SourceStart, SourceEnd: chunk.SourceEnd,

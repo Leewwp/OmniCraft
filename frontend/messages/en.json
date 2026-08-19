@@ -1275,7 +1275,12 @@
     },
     "noEvidence": {
       "title": "Not enough evidence",
-      "description": "Public content does not have enough material to support this answer. The agent did not fabricate a conclusion."
+      "description": "Public content does not have enough material to support this answer. The agent did not fabricate a conclusion.",
+      "searchCta": "Search site content"
+    },
+    "degraded": {
+      "title": "Search fallback active",
+      "description": "The answer was not generated. Review the available site references."
     },
     "a11y": {
       "conversationItem": "Conversation #{id}",

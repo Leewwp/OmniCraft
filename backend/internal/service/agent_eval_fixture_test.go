@@ -27,6 +27,7 @@ type agentEvalExpect struct {
 	ForbiddenContentIDs []int64  `json:"forbidden_content_ids"`
 	ExpectedToolNames   []string `json:"expected_tool_names"`
 	Degraded            bool     `json:"degraded"`
+	CitationSource      string   `json:"citation_source,omitempty"`
 	ErrorCode           string   `json:"error_code,omitempty"`
 }
 
@@ -54,7 +55,7 @@ func TestAgentEvalFixture(t *testing.T) {
 
 	var fixture agentEvalFixture
 	require.NoError(t, json.Unmarshal(data, &fixture))
-	require.Equal(t, 1, fixture.SchemaVersion)
+	require.Equal(t, 2, fixture.SchemaVersion)
 	require.NotEmpty(t, fixture.Cases)
 
 	seen := make(map[string]bool, len(fixture.Cases))

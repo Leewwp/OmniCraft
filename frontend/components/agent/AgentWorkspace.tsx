@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 import { AlertCircle, BookOpen, Loader2, Menu, RotateCw, Send, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -17,7 +18,7 @@ import {
   type AgentStreamTool,
 } from "@/lib/agent-stream";
 import { toAgentCitation, type AgentCitation } from "@/lib/agent";
-import { AgentCitationCard } from "@/components/agent/AgentCitationCard";
+import { AgentCitationList } from "@/components/agent/AgentCitationList";
 import { AgentToolStatus } from "@/components/agent/AgentToolStatus";
 import {
   AgentConversationSidebar,
@@ -79,6 +80,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
   const [stoppedNotice, setStoppedNotice] = useState(false);
   const [turnTools, setTurnTools] = useState<AgentStreamTool[]>([]);
   const [turnCitations, setTurnCitations] = useState<AgentStreamCitation[]>([]);
+  const [turnDegraded, setTurnDegraded] = useState(false);
   const [lastAnswerKind, setLastAnswerKind] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -137,11 +139,13 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
       .then((data) => {
         if (cancelled) return;
         setMessages(
-          (data.messages ?? []).map((message) => ({
-            id: message.id,
-            role: message.role === "user" ? "user" : "assistant",
-            content: message.content ?? "",
-          })),
+          (data.messages ?? [])
+            .filter((message) => message.role === "user" || (message.content ?? "").trim() !== "")
+            .map((message) => ({
+              id: message.id,
+              role: message.role === "user" ? "user" : "assistant",
+              content: message.content ?? "",
+            })),
         );
       })
       .catch((error) => {
@@ -209,6 +213,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
     setActiveId(null);
     setMessages([]);
     setTurnCitations([]);
+    setTurnDegraded(false);
     setTurnTools([]);
     setTurnError(false);
     setStoppedNotice(false);
@@ -224,6 +229,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
       setActiveId(null);
       setMessages([]);
       setTurnCitations([]);
+      setTurnDegraded(false);
       setTurnTools([]);
       setTurnError(false);
       setStoppedNotice(false);
@@ -284,6 +290,13 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
             void loadConversations();
           }
           if (event.citations) setTurnCitations(event.citations);
+          setTurnDegraded(Boolean(event.degraded));
+          if (event.degraded || event.answer_kind === "no_evidence") {
+            setMessages((previous) => {
+              const last = previous[previous.length - 1];
+              return last?.role === "assistant" ? previous.slice(0, -1) : previous;
+            });
+          }
           setLastAnswerKind(event.answer_kind ?? null);
           setStreaming(false);
           break;
@@ -317,6 +330,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
     setStoppedNotice(false);
     setTurnTools([]);
     setTurnCitations([]);
+    setTurnDegraded(false);
     setLastAnswerKind(null);
     setStreaming(true);
 
@@ -359,6 +373,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
   }
 
   const lastMessageIsUser = messages[messages.length - 1]?.role === "user";
+  const lastUserQuery = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
   const headerTitle =
     activeId === null
       ? t("agent.workspace.newConversation")
@@ -510,31 +525,32 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
                   <div>
                     <p className="font-medium">{t("agent.noEvidence.title")}</p>
                     <p className="mt-1 text-xs text-fg-muted">{t("agent.noEvidence.description")}</p>
+                    {lastUserQuery && (
+                      <Link
+                        href={`/search?q=${encodeURIComponent(lastUserQuery)}`}
+                        className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent-emphasis underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        {t("agent.noEvidence.searchCta")}
+                      </Link>
+                    )}
                   </div>
                 </div>
               )}
 
-              {turnCitations.length > 0 && (
-                <section aria-label={t("agent.citations.title")} className="mt-1">
-                  <div className="flex items-baseline gap-2">
-                    <h3 className="text-sm font-medium text-fg-default">{t("agent.citations.title")}</h3>
-                    <span className="text-xs text-fg-muted">
-                      {t("agent.citations.count", { count: turnCitations.length })}
-                    </span>
+              {turnDegraded && (
+                <div className="flex items-start gap-2 rounded-md border border-border-default bg-canvas-default px-3 py-2 text-sm text-fg-default">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-fg-muted" aria-hidden="true" />
+                  <div>
+                    <p className="font-medium">{t("agent.degraded.title")}</p>
+                    <p className="mt-1 text-xs text-fg-muted">{t("agent.degraded.description")}</p>
                   </div>
-                  <ul className="mt-2 grid gap-2 sm:grid-cols-2">
-                    {turnCitations.map((citation, index) => (
-                      <li key={`${citation.content_id}-${index}`}>
-                        <AgentCitationCard
-                          citation={toAgentCitation(citation)}
-                          index={index}
-                          onOpen={handleCitationOpen}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                </section>
+                </div>
               )}
+
+              <AgentCitationList
+                citations={turnCitations.map(toAgentCitation)}
+                onOpen={handleCitationOpen}
+              />
 
               {stoppedNotice && (
                 <p className="text-xs text-fg-muted">{t("agent.workspace.stoppedNotice")}</p>

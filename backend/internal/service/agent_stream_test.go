@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -76,7 +77,7 @@ func newStreamTestService(t *testing.T, provider llm.LLMProvider, cfg *config.Co
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.AgentConversation{}, &model.AgentMessage{}, &model.User{}, &model.ContentItem{}); err != nil {
+	if err := db.AutoMigrate(&model.AgentConversation{}, &model.AgentMessage{}, &model.User{}, &model.ContentItem{}, &model.ContentVersion{}, &model.RagChunk{}, &model.IndexProjectionStatus{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	if err := db.Create(&model.User{ID: 1, Username: "author", Email: "author@example.com"}).Error; err != nil {
@@ -85,6 +86,15 @@ func newStreamTestService(t *testing.T, provider llm.LLMProvider, cfg *config.Co
 	now := time.Now()
 	if err := db.Create(&model.ContentItem{ID: 88, Title: "Published Test Content", AuthorID: 1, Zone: "fanwork", ContentType: "mod", Status: "published", IsPublic: true, CreatedAt: now, UpdatedAt: now}).Error; err != nil {
 		t.Fatalf("seed content: %v", err)
+	}
+	if err := db.Create(&model.ContentVersion{ID: 880, ContentItemID: 88, AuthorID: 1, VersionNumber: 1, StorageType: "full", StorageKey: "stream-test", Status: "active", IsLatest: true}).Error; err != nil {
+		t.Fatalf("seed content version: %v", err)
+	}
+	if err := db.Create(&model.RagChunk{ContentID: 88, ContentVersion: 1, ChunkIndex: 0, ChunkKey: fmt.Sprintf("%064x", 88), ChunkingVersion: 1, Heading: "", Text: "Published Test Content", SourceStart: 0, SourceEnd: 23, Zone: "fanwork", ContentType: "mod", IndexVersion: 1}).Error; err != nil {
+		t.Fatalf("seed rag chunk: %v", err)
+	}
+	if err := db.Create(&model.IndexProjectionStatus{ContentID: 88, IndexVersion: 1, ChunkingVersion: 1, EmbeddingModel: "test", State: "ready", IsCurrent: true, ErrorSummary: ""}).Error; err != nil {
+		t.Fatalf("seed projection status: %v", err)
 	}
 	if cfg == nil {
 		cfg = &config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, MaxToolCallsPerTurn: 8, CitationMaxCount: 5, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, MaxOutputTokens: 1200}}
@@ -112,7 +122,10 @@ func collectStreamEvents(t *testing.T, err error, events *[]AgentStreamEvent) {
 }
 
 func TestAgentStreamEmitsTypedEventsAndDoneContract(t *testing.T) {
-	provider := &streamToolProvider{rounds: [][]llm.ChatDelta{{{Content: "The answer"}, {Done: true}}}}
+	provider := &streamToolProvider{rounds: [][]llm.ChatDelta{
+		{toolCallDelta("get_content_detail", `{"content_id":88}`)},
+		{{Content: "The answer"}, {Done: true}},
+	}}
 	svc, _ := newStreamTestService(t, provider, nil)
 
 	var events []AgentStreamEvent
@@ -187,10 +200,13 @@ func TestAgentStreamModelToolIDsVisibilityCheckedAfterProviderCall(t *testing.T)
 	if provider.calls != 2 {
 		t.Fatalf("provider ChatStream calls = %d, want 2 (first round for tool call, second for answer)", provider.calls)
 	}
-	var toolSeen, citationSeen bool
+	var toolSeen, citationSeen, deltaSeen bool
 	doneKind := ""
+	doneAnswer := ""
 	for _, ev := range events {
 		switch ev.Type {
+		case AgentEventDelta:
+			deltaSeen = true
 		case AgentEventToolStatus:
 			toolSeen = true
 			if ev.Tool == nil {
@@ -204,6 +220,7 @@ func TestAgentStreamModelToolIDsVisibilityCheckedAfterProviderCall(t *testing.T)
 			t.Fatalf("forbidden tool id must not produce a citation event")
 		case AgentEventDone:
 			doneKind = string(ev.AnswerKind)
+			doneAnswer = ev.Answer
 		}
 	}
 	if !toolSeen {
@@ -212,8 +229,22 @@ func TestAgentStreamModelToolIDsVisibilityCheckedAfterProviderCall(t *testing.T)
 	if citationSeen {
 		t.Fatal("citations must not be emitted for forbidden content")
 	}
+	if deltaSeen {
+		t.Fatal("no-evidence answer must not emit model deltas")
+	}
 	if doneKind != "no_evidence" {
 		t.Fatalf("done answer_kind = %q, want no_evidence after forbidden tool result", doneKind)
+	}
+	if doneAnswer != "" {
+		t.Fatalf("done answer = %q, want no-evidence answer to stay empty", doneAnswer)
+	}
+
+	var messages []model.AgentMessage
+	if err := svc.db.Where("role = ?", "assistant").Find(&messages).Error; err != nil {
+		t.Fatalf("load persisted assistant messages: %v", err)
+	}
+	if len(messages) != 1 || messages[0].Content == nil || *messages[0].Content != "" {
+		t.Fatalf("persisted assistant messages = %#v, want one empty no-evidence message", messages)
 	}
 }
 

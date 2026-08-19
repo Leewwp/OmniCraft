@@ -242,6 +242,9 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 		ragservice.NewDatabaseVisibilityFilter(db),
 		cfg.RAG.Hybrid,
 	)
+	if cfg.Features.RAGHybridEnabled {
+		c.AgentService.SetContentRetriever(&agentRAGRetriever{retriever: c.HybridRetriever})
+	}
 	c.RAGProjection = ragservice.NewProjectionWithVersionLoader(
 		db,
 		ragservice.NewChunker(ragservice.ChunkerConfig{
