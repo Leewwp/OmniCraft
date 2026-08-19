@@ -1,6 +1,6 @@
 # Agent/RAG 运行时边界：模块化单体 + 独立 Worker
 
-- **状态**：accepted
+- **状态**：accepted；T10 复核于 2026-08-19 完成，当前决策维持
 - **日期**：2026-08-11
 - **决策所有者**：GitHub #30/#28/#31
 - **复核入口**：RAG 路线图 T10
@@ -21,6 +21,16 @@ OmniCraft 当前是 Go/Gin 模块化单体，Agent 通过站内工具与 SSE 提
 - 本地默认 Compose 仍需 backend + Worker，但 OpenSearch/OTel/Jaeger/ClamAV 只在对应 full-infra/security profile 启动。
 - 模块接口必须允许替换检索投影与测试故障注入，但不得为未来微服务预建空 RPC 层。
 - 可在简历中描述“设计了可演进边界”；只有 Worker、RAG、追踪和评测真实完成后才能写“实现”。
+
+## T10 Review (2026-08-19)
+
+T09 的本地 closure evidence 已复核：63 个 golden cases、34 个本地投影内容，hybrid `Recall@10=0.476`、`MRR=0.365`、`nDCG@10=0.393`、visibility leak count `0`，最新本地 retrieval P95 为 `5.8 ms`。这些数字使用 deterministic SHA-256 embedding stand-in 和本地 OpenSearch/fixture corpus；同 run keyword baseline 的 MRR 为 `0.370`，因此 RRF 指标门未由 stand-in 满足。证据包明确没有真实 embedding provider、LLM answer evaluation、生产样本或 Jaeger 全链可视化。
+
+基于这组证据，T10 不触发 Agent/Search 拆分，也不引入 gRPC。HTTP API、Agent orchestration、RAG retriever 和 OpenSearch adapter 继续作为模块化单体内的深模块，独立 `cmd/worker` 继续承担异步故障隔离边界，外部 Agent 合同继续使用 REST + SSE。当前没有独立扩缩容资源曲线、跨团队所有权、独立发布边界或网络化成本优于进程内调用的测量证据。
+
+`Research Agent -> Answer Agent` 对照实验未晋升为 Implemented：T09 没有真实 LLM answer-eval 或同一 golden set 的双节点对照结果，无法证明引用正确率、groundedness、relevance、P95、token 成本和工具失败率同时满足晋升条件。当前运行时维持单 Agent + 确定性 RAG；未来只有在补齐真实 provider/生产样本并满足本 ADR 的触发条件后，才重新评估拆分或双节点 workflow。
+
+Evidence: `docs/working/2026-08-19-t144-rag-closure-evidence.md`, `docs/working/2026-08-19-t144-rag-closure-metrics.json`, `docs/working/2026-08-19-t144-rag-closure-raw.txt`.
 
 ## Revisit Triggers
 

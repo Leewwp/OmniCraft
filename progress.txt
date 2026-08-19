@@ -1,3 +1,19 @@
+## [2026-08-19] - Task #145: T10 Agent/RAG 运行时边界决策收口
+
+### What was done:
+- 基于 T09 本地证据复核 `docs/adr/0005-agent-rag-runtime-boundary.md`：维持模块化单体内 Agent/Search 深模块、独立 `cmd/worker` 异步边界、REST + SSE 外部合同和单 Agent + 确定性 RAG。
+- 明确当前证据不足以触发 Agent/Search 拆分、gRPC 或 `Research Agent -> Answer Agent` 晋升；记录 deterministic embedding、无真实 LLM/生产样本、无独立资源曲线和未执行双节点对照的限制。
+- 将 RAG 路线图 T10 标记为已完成，并按 AGENTS.md 规则归档到 `docs/archive/plans/2026-08-11-omnicraft-rag-minimal-slice-roadmap.md`；未引入运行时代码。
+
+### Testing:
+- TDD red：ADR 缺少 `## T10 Review (2026-08-19)` 决策合同，断言按预期失败。
+- Green/质量检查：ADR 决策合同存在，证据路径与 T09 指标一致；`git diff --check` 通过。新 worktree 首次完整门因未安装 `frontend/node_modules` 报 `Cannot find module 'typescript'`，执行 `cd frontend && npm install` 后重跑完整门通过；未修改依赖清单或锁文件。
+
+### Notes:
+- T10 是 documentation-only decision gate，不把本地/mock/stand-in 结果描述为生产证据；真实 provider、生产样本、Jaeger 全链和双节点评测仍是后续复验输入。
+- #76、#151、Tauri/桌面范围继续 deferred。
+- RAG 路线图已从活计划注册表移除并归档；#145 的唯一提交将包含 ADR 决策、路线图归档、注册表同步和进度记录。
+
 ## [2026-08-19] - Task #150: S05 归档扫描验收与证据收口
 
 ### What was done:
