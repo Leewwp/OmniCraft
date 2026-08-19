@@ -1,3 +1,16 @@
+## [2026-08-19] - Preflight: Git/DAG 状态校正
+
+### What was done:
+- 发现 `.git/REBASE_HEAD` 存在，但没有 `rebase-merge`/`rebase-apply` 目录，`git status` 也无 rebase/merge 冲突；确认是陈旧伪引用并安全删除，仓库恢复为普通 `main` 状态。
+- 本地注册表与 `d44015b` 已将 #140/T05 视为完成，但 GitHub #140 仍为 OPEN，造成 #141 原生 `blocked_by` 漂移；依据现有提交、计划和验证记录关闭 #140，并在 issue comment 中保留证据与真实 OpenSearch 镜像 TLS 缺口说明。
+
+### Testing:
+- `git status --porcelain=v2 --branch`：无 rebase/merge 标记，`main` 相对 `origin/main` 为 ahead 1。
+- `gh issue view 140 --json number,state,closedAt,blockedBy`：#140 已 CLOSED；其依赖 #135/#138/#139 均 CLOSED。
+
+### Notes:
+- 该修正只同步已完成任务的 tracker 状态，不代表真实 OpenSearch full-infra 已验证；真实镜像拉取缺口仍按 #140 记录的复验命令处理。
+
 ## [2026-08-19] - Task #140: T05 收尾复核
 
 ### What was done:
