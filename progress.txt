@@ -1665,3 +1665,20 @@
 - No real embedding provider is configured in local development. No production verification claim is made; production rerun requires real provider credentials and a production-like corpus.
 - Heavy-task TDD and two-axis review completed: red-to-green coverage includes RRF, degradation, viewer visibility, current-version validation, backfill, repository contracts, and eval identity checks; specification review corrected the PG fallback contract and evidence wording, while the quality review found no remaining code-level issue.
 - D9 trace/metric emission is intentionally left to the dependent OTel task #143; T06 exposes the degradation marker and records the local fault-drill evidence without claiming production telemetry.
+
+## [2026-08-19] - Task #148: S03 ClamAV adapter and archive scan worker
+
+### What was done:
+- Implemented the private clamd `zPING`/`zVERSION`/`zINSTREAM` adapter with 32 KiB framing, bounded responses, context timeout handling, disconnect/protocol mapping, and sanitized worker error codes.
+- Added the standalone archive scan Worker seam: OSS streaming + SHA-256, clean/blocked/failed transitions, quarantine copy, source deletion retry after a persisted blocked transition, archive-owned backoff, terminal retry handling, and Inbox completion recording.
+- Wired `archive.scan.requested` into the transactional Outbox created by `ArchiveScanRepository.CreateJob`; the worker accepts both the envelope contract and legacy direct test payloads.
+- Added the security Compose profile with private `archive_security` network, no host port, persistent ClamAV signatures, and 4 GiB memory limit; added `archive_scan.clamd_address` and `CLAMD_ADDRESS` configuration plus the config snapshot.
+
+### Testing:
+- Heavy-task TDD was recorded red-to-green for the protocol, worker, repository/outbox, and configuration contracts. The final focused suites passed: `go test ./internal/pkg/clamav ./internal/worker ./internal/repository ./internal/pkg/events ./config ./internal/container ./internal/pkg/aliyun`.
+- Specification review found and corrected missing transactional Outbox wiring, Inbox completion, blocked SHA-256 persistence, and quarantine/delete ordering. Quality review found and corrected Compose profile semantics, discarded close errors, duplicate deletion, and added the blocked-delete retry test.
+- `docker compose config --quiet`, `--profile security config --quiet`, and `--profile full-infra config --quiet` passed. Final `go test ./...`, `go vet ./...`, `go build ./...`, frontend lint/UI governance/461 unit tests/build, `go run . --check --profile release`, and `bash scripts/verify-project.sh --full` all passed; the latter reported 73/73 mocked Playwright contracts.
+
+### Notes:
+- Evidence: `docs/working/2026-08-19-s03-clamav-worker-evidence.md`. The real smoke command `docker compose --profile security up -d clamav` could not create a container because Docker Hub authorization hit a TLS handshake timeout. No real signature database, EICAR, or recovery result is claimed; rerun the commands in the evidence file after registry access is restored.
+- This local task does not execute production deployment, #76 legacy-favorites removal, #151 historical mod rescan, or deferred desktop/Tauri work.

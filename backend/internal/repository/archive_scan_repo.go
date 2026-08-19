@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/events"
 )
 
 var (
@@ -55,10 +56,18 @@ type ArchiveScanRetryPolicy struct {
 type ArchiveScanRepository struct {
 	db     *gorm.DB
 	policy ArchiveScanRetryPolicy
+	outbox OutboxWriter
 }
 
 func NewArchiveScanRepository(db *gorm.DB, policy ArchiveScanRetryPolicy) *ArchiveScanRepository {
-	return &ArchiveScanRepository{db: db, policy: policy}
+	return NewArchiveScanRepositoryWithOutbox(db, policy, nil)
+}
+
+// NewArchiveScanRepositoryWithOutbox wires the transactional outbox used by
+// production upload flows. The legacy constructor remains available for
+// schema/state-machine callers that do not create jobs from an upload path.
+func NewArchiveScanRepositoryWithOutbox(db *gorm.DB, policy ArchiveScanRetryPolicy, outbox OutboxWriter) *ArchiveScanRepository {
+	return &ArchiveScanRepository{db: db, policy: policy, outbox: outbox}
 }
 
 // CreateJob starts a scan for attachmentID at scanVersion: it creates a
@@ -99,13 +108,27 @@ func (r *ArchiveScanRepository) CreateJob(ctx context.Context, attachmentID int6
 		if err := tx.Create(&job).Error; err != nil {
 			return err
 		}
-		return tx.Model(&model.ContentAttachment{}).
+		if err := tx.Model(&model.ContentAttachment{}).
 			Where("id = ?", attachmentID).
 			Updates(map[string]interface{}{
 				"scan_status":   model.ScanStatusPending,
 				"scan_required": true,
 				"scan_version":  scanVersion,
-			}).Error
+			}).Error; err != nil {
+			return err
+		}
+		if r.outbox != nil {
+			traceparent, tracestate := events.FromContext(ctx)
+			envelope, err := events.NewArchiveScanEnvelope(attachmentID, job.ID, traceparent, tracestate)
+			if err != nil {
+				return err
+			}
+			row := events.ToOutboxEvent(envelope)
+			if err := r.outbox.CreateTx(ctx, tx, &row); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -148,7 +171,7 @@ func (r *ArchiveScanRepository) FinishClean(ctx context.Context, jobID int64, en
 // Block records a malware hit: job and attachment become blocked with the
 // detection name and quarantine key (the object was copied out and the
 // original key removed by the worker; this ticket only persists the state).
-func (r *ArchiveScanRepository) Block(ctx context.Context, jobID int64, detectionName, quarantineKey string) error {
+func (r *ArchiveScanRepository) Block(ctx context.Context, jobID int64, detectionName, quarantineKey, objectSHA256 string) error {
 	now := time.Now()
 	return r.transition(ctx, jobID, model.ScanStatusScanning,
 		func(job *model.ArchiveScanJob) (string, map[string]interface{}, map[string]interface{}, error) {
@@ -157,6 +180,7 @@ func (r *ArchiveScanRepository) Block(ctx context.Context, jobID int64, detectio
 					"finished_at":    now,
 					"detection_name": detectionName,
 					"quarantine_key": quarantineKey,
+					"object_sha256":  objectSHA256,
 				},
 				map[string]interface{}{}, nil
 		})

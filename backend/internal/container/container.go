@@ -13,6 +13,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/captcha"
+	"omnicraft/backend/internal/pkg/clamav"
 	"omnicraft/backend/internal/pkg/events"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/pkg/mail"
@@ -56,6 +57,7 @@ type ServiceContainer struct {
 	FeedbackRepo      *repository.FeedbackRepository
 	AdminAuditRepo    *repository.AdminAuditRepository
 	OutboxRepo        *repository.OutboxRepository
+	ArchiveScanRepo   *repository.ArchiveScanRepository
 	OpenSearchRepo    *repository.OpenSearchRepository
 	HybridRetriever   *ragservice.HybridRetriever
 
@@ -83,6 +85,8 @@ type ServiceContainer struct {
 	CaptchaProvider     captcha.CaptchaVerifier
 	CaptchaTickets      *captcha.TicketStore
 	RAGProjection       *ragservice.Projection
+	ArchiveObjectStore  worker.ArchiveScanObjectStore
+	ArchiveScanner      worker.ArchiveScanner
 }
 
 func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceContainer {
@@ -125,6 +129,22 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.FeedbackRepo = repository.NewFeedbackRepository(db)
 	c.AdminAuditRepo = repository.NewAdminAuditRepository(db)
 	c.OutboxRepo = repository.NewOutboxRepository(db)
+	backoff := make([]time.Duration, 0, len(cfg.ArchiveScan.RetryBackoffSec))
+	for _, seconds := range cfg.ArchiveScan.RetryBackoffSec {
+		if seconds >= 0 {
+			backoff = append(backoff, time.Duration(seconds)*time.Second)
+		}
+	}
+	c.ArchiveScanRepo = repository.NewArchiveScanRepositoryWithOutbox(db, repository.ArchiveScanRetryPolicy{Backoff: backoff}, c.OutboxRepo)
+	if cfg.Features.ArchiveMalwareScanEnabled {
+		ossClient, ossErr := aliyun.NewOSSClient(cfg.OSS.Endpoint, cfg.OSS.AccessKeyID, cfg.OSS.AccessKeySecret, cfg.OSS.BucketName)
+		if ossErr != nil {
+			slog.Error("archive scan OSS object store is unavailable", "error", ossErr)
+		} else {
+			c.ArchiveObjectStore = ossClient
+		}
+		c.ArchiveScanner = clamav.NewClient(cfg.ArchiveScan.ClamdAddress, time.Duration(cfg.ArchiveScan.ScanTimeoutSec)*time.Second)
+	}
 
 	// Services
 	c.AuthService = service.NewAuthService(c.UserRepo, rdb, cfg)
@@ -286,6 +306,22 @@ func (c *ServiceContainer) StartWorkers(ctx context.Context) func() {
 		{events.TopicContentUpdated, "omnicraft-indexer", indexerWorker.Handle},
 		{events.TopicContentBanned, "omnicraft-indexer", indexerWorker.Handle},
 		{events.TopicContentDeleted, "omnicraft-indexer", indexerWorker.Handle},
+	}
+	if c.Cfg.Features.ArchiveMalwareScanEnabled && c.ArchiveObjectStore != nil && c.ArchiveScanner != nil {
+		archiveScanWorker := worker.NewArchiveScanWorkerWithDB(
+			c.ArchiveScanRepo,
+			c.ArchiveObjectStore,
+			c.ArchiveScanner,
+			time.Duration(c.Cfg.ArchiveScan.ScanTimeoutSec)*time.Second,
+			c.DB,
+		)
+		subscriptions = append(subscriptions, struct {
+			topic   string
+			group   string
+			handler queue.Handler
+		}{worker.ArchiveScanTopic, worker.ArchiveScanConsumerGroup, archiveScanWorker.Handle})
+	} else if c.Cfg.Features.ArchiveMalwareScanEnabled {
+		slog.Error("archive scan worker is disabled because its dependencies are unavailable")
 	}
 	for _, sub := range subscriptions {
 		// Concurrency is one consumer goroutine per topic per unit; the Redis

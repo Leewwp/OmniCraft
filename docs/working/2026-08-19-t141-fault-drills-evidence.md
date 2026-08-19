@@ -1,7 +1,7 @@
 # T06 (#141) Fault-Drill Evidence
 
 > Created: 2026-08-19
-> Expected expiry: 2026-10-19
+> **预计失效日期**: 2026-10-19
 > Scope: local development only; this record is not production evidence.
 
 ## Environment

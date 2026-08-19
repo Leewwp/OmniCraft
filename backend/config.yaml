@@ -105,6 +105,9 @@ archive_scan:
   max_total_uncompressed_mb: 2048
   max_recursion_depth: 10
   scan_timeout_sec: 120
+  # Private Compose DNS address; the security profile overrides this with
+  # clamav:3310. clamd is never exposed through a host port.
+  clamd_address: "127.0.0.1:3310"
   retry_backoff_sec: [60, 300, 1800]
   url_ttl_sec: 300
 

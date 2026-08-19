@@ -32,6 +32,7 @@
 | `agent.rate_limit_per_minute` | `int` | RateLimitPerMinute |
 | `agent.upload_assist_max_file_mb` | `int` | UploadAssistMaxFileMB |
 | `agent.web_agent_enabled` | `bool` | WebAgentEnabled |
+| `archive_scan.clamd_address` | `string` | ClamdAddress |
 | `archive_scan.max_entry_uncompressed_mb` | `int` | MaxEntryUncompressedMB |
 | `archive_scan.max_recursion_depth` | `int` | MaxRecursionDepth |
 | `archive_scan.max_total_uncompressed_mb` | `int` | MaxTotalUncompressedMB |

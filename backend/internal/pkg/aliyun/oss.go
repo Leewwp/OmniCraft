@@ -70,6 +70,28 @@ func (c *OSSClient) DeleteObject(ossKey string) (err error) {
 	return c.bucket.DeleteObject(ossKey)
 }
 
+// Delete implements the archive scan object-store seam.
+func (c *OSSClient) Delete(ossKey string) error {
+	return c.DeleteObject(ossKey)
+}
+
+// Open returns a streaming object reader for server-side consumers such as
+// archive malware scanning. Callers must close the returned reader.
+func (c *OSSClient) Open(ossKey string) (reader io.ReadCloser, err error) {
+	started := time.Now()
+	defer func() { observability.ObserveExternalCall("oss", started, err) }()
+	return c.bucket.GetObject(ossKey)
+}
+
+// Copy copies an object inside the configured private bucket. It is used to
+// move blocked archives into the quarantine prefix before deleting the source.
+func (c *OSSClient) Copy(sourceKey, targetKey string) (err error) {
+	started := time.Now()
+	defer func() { observability.ObserveExternalCall("oss", started, err) }()
+	_, err = c.bucket.CopyObject(sourceKey, targetKey)
+	return err
+}
+
 func (c *OSSClient) GetSignedURL(ossKey, method string, expires time.Duration, options ...oss.Option) (url string, err error) {
 	started := time.Now()
 	defer func() { observability.ObserveExternalCall("oss", started, err) }()
