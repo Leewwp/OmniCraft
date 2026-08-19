@@ -1,9 +1,12 @@
 package repository
 
 import (
+	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 
 	"gorm.io/gorm"
@@ -26,6 +29,61 @@ type ContentSearchResult struct {
 	model.ContentItem
 	Score    float64 `json:"score"`
 	Headline string  `json:"headline,omitempty"`
+}
+
+type RAGChunkSearchResult struct {
+	model.RagChunk
+	Title string  `gorm:"column:title"`
+	Score float64 `gorm:"column:score"`
+}
+
+// SearchRAGChunks is the PostgreSQL keyword fallback for the hybrid retriever.
+// It reads only the current ready chunk generation and repeats the complete
+// viewer visibility predicate before ranking.
+func (r *SearchRepository) SearchRAGChunks(ctx context.Context, query string, topK int, viewerID int64) ([]RAGChunkSearchResult, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return nil, nil
+	}
+	if topK <= 0 {
+		topK = config.RAGDefaultBM25TopK
+	}
+	pattern := "%" + query + "%"
+	var results []RAGChunkSearchResult
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT rc.*, ci.title,
+		       ts_rank_cd(
+			   to_tsvector('simple', concat_ws(' ', ci.title, rc.heading, rc.text)),
+			   plainto_tsquery('simple', ?)
+		       ) AS score
+		FROM rag_chunks AS rc
+		JOIN content_items AS ci ON ci.id = rc.content_id
+		JOIN index_projection_status AS ips
+		  ON ips.content_id = rc.content_id
+		 AND ips.index_version = rc.index_version
+		 AND ips.is_current = TRUE
+		 AND ips.state = 'ready'
+		WHERE ci.status = 'published'
+		  AND ci.deleted_at IS NULL
+		  AND NOT EXISTS (
+			  SELECT 1 FROM users AS author
+			  WHERE author.id = ci.author_id
+				AND (author.is_banned = TRUE OR author.deleted_at IS NOT NULL)
+		  )
+		  AND (ci.ip_id IS NULL OR NOT EXISTS (
+			  SELECT 1 FROM ips AS ip WHERE ip.id = ci.ip_id AND ip.status = 'banned'
+		  ))
+		  AND (ci.is_public = TRUE OR ci.author_id = ?)
+		  AND (
+			  to_tsvector('simple', concat_ws(' ', ci.title, rc.heading, rc.text)) @@ plainto_tsquery('simple', ?)
+			  OR ci.title ILIKE ?
+			  OR rc.heading ILIKE ?
+			  OR rc.text ILIKE ?
+		  )
+		ORDER BY score DESC, rc.chunk_key ASC
+		LIMIT ?
+	`, query, viewerID, query, pattern, pattern, pattern, topK).Scan(&results).Error
+	return results, err
 }
 
 func (r *SearchRepository) SearchSuggestions(prefix string, limit int, viewerID int64) ([]SearchSuggestion, error) {

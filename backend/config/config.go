@@ -27,6 +27,16 @@ var (
 
 const RAGEmbeddingDimensions = 1536
 
+// RAG retrieval defaults mirror backend/config.yaml. They are used only as a
+// defensive value for direct repository callers that omit a limit; production
+// startup validates the configured values when hybrid retrieval is enabled.
+const (
+	RAGDefaultBM25TopK   = 200
+	RAGDefaultVectorTopK = 200
+	RAGDefaultRRFK       = 60
+	RAGDefaultFinalTopK  = 10
+)
+
 // ValidGreenSeed reports whether seed matches the green.seed format contract
 // ([A-Za-z0-9_], 1-64 chars). This is the single definition shared by the
 // release config gate, the Green request builder and the release preflight;

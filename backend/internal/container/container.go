@@ -57,6 +57,7 @@ type ServiceContainer struct {
 	AdminAuditRepo    *repository.AdminAuditRepository
 	OutboxRepo        *repository.OutboxRepository
 	OpenSearchRepo    *repository.OpenSearchRepository
+	HybridRetriever   *ragservice.HybridRetriever
 
 	// Services
 	AuthService         *service.AuthService
@@ -210,6 +211,14 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 			ResponseBodyMaxBytes:  int64(cfg.RAG.Index.ResponseBodyMaxBytes),
 			HealthPollIntervalSec: cfg.RAG.Index.HealthPollIntervalSec,
 		},
+	)
+	c.HybridRetriever = ragservice.NewHybridRetriever(
+		ragservice.NewOpenSearchKeywordRetriever(c.OpenSearchRepo),
+		ragservice.NewPostgresKeywordRetriever(c.SearchRepo),
+		ragservice.NewPostgresVectorRetriever(c.EmbeddingRepo, cfg.RAG.Index.EmbeddingModel),
+		provider,
+		ragservice.NewDatabaseVisibilityFilter(db),
+		cfg.RAG.Hybrid,
 	)
 	c.RAGProjection = ragservice.NewProjectionWithVersionLoader(
 		db,

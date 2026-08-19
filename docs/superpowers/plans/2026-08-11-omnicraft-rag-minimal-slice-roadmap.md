@@ -166,6 +166,13 @@
 
 **完成标准**：golden set 对照报告（RRF vs 基线）真实数字；降级矩阵演示；`go test ./...`/vet/build 绿；两阶段审查；单一提交。
 
+### T06 状态（2026-08-19）
+
+- [x] HybridRetriever、RRF 累加/tie-break、PG keyword fallback、pgvector current-generation/visibility predicates、latest active content-version revalidation、top-20 visibility plus ordered backfill、source contract and degradation matrix implemented and tested.
+- [x] Same-run 63-case local golden-set comparison passes: hybrid `Recall@10=0.429`, `MRR=0.371`, `nDCG@10=0.385`, zero visibility leaks; keyword baseline `0.413/0.370/0.380`, vector baseline `0.365/0.281/0.303`.
+- [x] Real local OpenSearch repository contract and stop/restart fallback/recovery drills passed; evidence: `docs/working/2026-08-19-t141-fault-drills-evidence.md`.
+- [ ] Real embedding-provider comparison remains an environment gap. The OpenSearch-backed run used the deterministic local stand-in and recorded `MRR=0.365` versus same-run keyword `0.370`; this is not production evidence and must be rerun before production claims.
+
 ---
 
 ## T07 [heavy] Agent 工具、可见性复核、citation DTO 与 SSE 合同

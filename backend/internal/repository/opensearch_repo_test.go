@@ -43,6 +43,31 @@ func TestOpenSearchRepositoryCreatesFixedStrictMapping(t *testing.T) {
 	}
 }
 
+func TestOpenSearchRepositorySearchesReadAliasWithBM25AndStableChunkSort(t *testing.T) {
+	var body map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/omnicraft-rag-read/_search", r.URL.Path)
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		require.Equal(t, float64(25), body["size"])
+		require.Contains(t, string(mustJSON(t, body["query"])), `"title^3"`)
+		require.Contains(t, string(mustJSON(t, body["sort"])), `"chunk_key":"asc"`)
+		w.Header().Set("Content-Type", "application/json")
+		if _, err := io.WriteString(w, `{"hits":{"hits":[{"_id":"a","_score":2.5,"_source":{"chunk_key":"a","content_id":7,"content_version":2,"status":"published"}}]}}`); err != nil {
+			t.Errorf("write response: %v", err)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	repo := NewOpenSearchRepository(server.URL, server.Client())
+	results, err := repo.Search(context.Background(), "query", 25)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, "a", results[0].Document.ID)
+	require.Equal(t, int64(7), results[0].Document.ContentID)
+	require.Equal(t, 2.5, results[0].Score)
+}
+
 func TestOpenSearchRepositoryCreateIndexTreatsExistingGenerationAsReplay(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPut {

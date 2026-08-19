@@ -1647,3 +1647,21 @@
 - #147 遗留：畸形 zip 映射空缺留 S04（建议 400/ARCHIVE_SCAN_FAILED）；条目数逐层独立语义。
 - 演练环境清理：演练 Redis 容器已停、演练库保留复验；server/worker 进程已停。
 - 下一步 lane 内 DAG：#143（T08 OTel，等 #138/#142 完成，RAG lane #139 尚在途）；archive #148（S03 等 #146/#135/#138 已满足，可开）。
+
+## [2026-08-19] - Task #141: T06 hybrid retrieval and degradation
+
+### What was done:
+- Implemented `HybridRetriever` with OpenSearch BM25, PostgreSQL chunk keyword fallback, pgvector chunk retrieval, application-layer RRF (`k=60`), same-chunk contribution accumulation, deterministic chunk-key tie-break, source labels, and fail-closed retrieval errors.
+- Added the existing viewer-aware `SearchContents` contract to the PostgreSQL keyword fallback, then mapped its ranked content results onto current chunk candidates; chunk/vector repositories also enforce current-generation predicates, and final visibility revalidation joins the latest active content version and applies the shared content visibility scope.
+- Added top-20 visibility validation with ordered one-at-a-time backfill, full degradation-matrix tests, OpenSearch alias search contract, and a 63-case hybrid golden-set harness with same-run baseline comparison and committed-artifact drift reporting.
+
+### Testing:
+- Focused RAG/repository tests, full `go test ./...`, `go vet ./...`, and `go build ./...` passed.
+- Same-run local golden-set gate passed with hybrid `Recall@10=0.429`, `MRR=0.371`, `nDCG@10=0.385`, zero visibility leaks; local deterministic embeddings and PostgreSQL fallback were explicitly marked as non-production evidence.
+- Real local OpenSearch contract passed before and after `docker stop/start omnicraft-opensearch`; stop/recovery fallback passed. The OpenSearch-backed hybrid run completed with the deterministic stand-in but missed keyword MRR by 0.005, so the real-provider gate remains open.
+
+### Notes:
+- Full evidence and exact rerun commands: `docs/working/2026-08-19-t141-fault-drills-evidence.md`.
+- No real embedding provider is configured in local development. No production verification claim is made; production rerun requires real provider credentials and a production-like corpus.
+- Heavy-task TDD and two-axis review completed: red-to-green coverage includes RRF, degradation, viewer visibility, current-version validation, backfill, repository contracts, and eval identity checks; specification review corrected the PG fallback contract and evidence wording, while the quality review found no remaining code-level issue.
+- D9 trace/metric emission is intentionally left to the dependent OTel task #143; T06 exposes the degradation marker and records the local fault-drill evidence without claiming production telemetry.
