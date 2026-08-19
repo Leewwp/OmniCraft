@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"sync"
@@ -13,6 +14,66 @@ import (
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/testutil"
 )
+
+type recordingArchiveOutboxWriter struct {
+	event *model.OutboxEvent
+	err   error
+}
+
+func (w *recordingArchiveOutboxWriter) CreateTx(_ context.Context, _ *gorm.DB, event *model.OutboxEvent) error {
+	if w.err != nil {
+		return w.err
+	}
+	copy := *event
+	w.event = &copy
+	return nil
+}
+
+func TestArchiveScanRepositoryCreateJobWritesRequestedOutboxEventTransactionally(t *testing.T) {
+	db, modID, _ := setupArchiveScanRepositoryDB(t)
+	writer := &recordingArchiveOutboxWriter{}
+	repo := NewArchiveScanRepositoryWithOutbox(db, ArchiveScanRetryPolicy{}, writer)
+
+	job, err := repo.CreateJob(context.Background(), modID, 3)
+	if err != nil {
+		t.Fatalf("CreateJob() error = %v", err)
+	}
+	if writer.event == nil || writer.event.EventType != "archive.scan.requested" || writer.event.AggregateID != modID {
+		t.Fatalf("outbox event = %#v, want archive.scan.requested for attachment %d", writer.event, modID)
+	}
+	if writer.event.Status != model.OutboxStatusPending || writer.event.SchemaVersion != 1 {
+		t.Fatalf("outbox event delivery fields = %#v, want pending schema 1", writer.event)
+	}
+	var payload struct {
+		JobID int64 `json:"job_id"`
+	}
+	if err := json.Unmarshal(writer.event.Payload, &payload); err != nil {
+		t.Fatalf("decode archive outbox payload: %v", err)
+	}
+	if payload.JobID != job.ID {
+		t.Fatalf("outbox job id = %d, want %d", payload.JobID, job.ID)
+	}
+}
+
+func TestArchiveScanRepositoryOutboxFailureRollsBackJobAndAttachment(t *testing.T) {
+	db, modID, _ := setupArchiveScanRepositoryDB(t)
+	writer := &recordingArchiveOutboxWriter{err: errors.New("outbox unavailable")}
+	repo := NewArchiveScanRepositoryWithOutbox(db, ArchiveScanRetryPolicy{}, writer)
+
+	if _, err := repo.CreateJob(context.Background(), modID, 3); err == nil {
+		t.Fatal("CreateJob() error = nil, want outbox failure")
+	}
+	if _, err := repo.GetCurrentJob(context.Background(), modID, 3); !errors.Is(err, ErrArchiveScanNotFound) {
+		t.Fatalf("job after outbox rollback = %v, want ErrArchiveScanNotFound", err)
+	}
+	attachment, err := repo.GetAttachmentScanState(context.Background(), modID)
+	if err != nil {
+		t.Fatalf("GetAttachmentScanState() error = %v", err)
+	}
+	if attachment.ScanStatus == model.ScanStatusPending || attachment.ScanRequired {
+		t.Fatalf("attachment after outbox rollback = %#v, want original non-pending state", attachment)
+	}
+}
 
 func TestArchiveScanRepositoryCreateJobTracksAttachmentState(t *testing.T) {
 	db, modID, imageID := setupArchiveScanRepositoryDB(t)
@@ -132,7 +193,7 @@ func TestArchiveScanRepositoryBlockedFlowAndManualReview(t *testing.T) {
 	if err := repo.StartScan(context.Background(), job.ID); err != nil {
 		t.Fatalf("StartScan() error = %v", err)
 	}
-	if err := repo.Block(context.Background(), job.ID, "EICAR-Test-Signature", "quarantine/2026/08/13/a.zip"); err != nil {
+	if err := repo.Block(context.Background(), job.ID, "EICAR-Test-Signature", "quarantine/2026/08/13/a.zip", "sha256:blocked"); err != nil {
 		t.Fatalf("Block() error = %v", err)
 	}
 	blocked, err := repo.GetJob(context.Background(), job.ID)
@@ -187,7 +248,7 @@ func TestArchiveScanRepositoryManualReviewCanConfirmBlocked(t *testing.T) {
 	repo := NewArchiveScanRepository(db, ArchiveScanRetryPolicy{})
 
 	job := mustStartScannableJob(t, repo, modID)
-	if err := repo.Block(context.Background(), job.ID, "EICAR-Test-Signature", "quarantine/2026/08/13/a.zip"); err != nil {
+	if err := repo.Block(context.Background(), job.ID, "EICAR-Test-Signature", "quarantine/2026/08/13/a.zip", "sha256:blocked"); err != nil {
 		t.Fatalf("Block() error = %v", err)
 	}
 	if err := repo.StartManualReview(context.Background(), job.ID); err != nil {
@@ -233,7 +294,7 @@ func TestArchiveScanRepositoryIllegalTransitionsAreRejected(t *testing.T) {
 	}{
 		{"StartScan on clean job", func() error { return repo.StartScan(context.Background(), job.ID) }},
 		{"FinishClean on clean job", func() error { return repo.FinishClean(context.Background(), job.ID, "e", "s", "h") }},
-		{"Block on clean job", func() error { return repo.Block(context.Background(), job.ID, "d", "q") }},
+		{"Block on clean job", func() error { return repo.Block(context.Background(), job.ID, "d", "q", "") }},
 		{"Fail on clean job", func() error { return repo.Fail(context.Background(), job.ID, "ENGINE_ERR") }},
 		{"Retry on clean job", func() error { return repo.Retry(context.Background(), job.ID) }},
 		{"StartManualReview on clean job", func() error { return repo.StartManualReview(context.Background(), job.ID) }},
@@ -250,7 +311,7 @@ func TestArchiveScanRepositoryIllegalTransitionsAreRejected(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateJob() error = %v", err)
 	}
-	if err := repo.Block(context.Background(), pending.ID, "d", "q"); !errors.Is(err, ErrArchiveScanIllegalState) {
+	if err := repo.Block(context.Background(), pending.ID, "d", "q", ""); !errors.Is(err, ErrArchiveScanIllegalState) {
 		t.Fatalf("Block on pending job error = %v, want ErrArchiveScanIllegalState", err)
 	}
 	if err := repo.Fail(context.Background(), pending.ID, "ENGINE_ERR"); !errors.Is(err, ErrArchiveScanIllegalState) {
@@ -264,7 +325,7 @@ func TestArchiveScanRepositoryIllegalTransitionsAreRejected(t *testing.T) {
 	if err := repo.StartScan(context.Background(), pending.ID); err != nil {
 		t.Fatalf("StartScan() error = %v", err)
 	}
-	if err := repo.Block(context.Background(), pending.ID, "d", "q"); err != nil {
+	if err := repo.Block(context.Background(), pending.ID, "d", "q", ""); err != nil {
 		t.Fatalf("Block() error = %v", err)
 	}
 	if err := repo.ResolveManualReview(context.Background(), pending.ID, model.ScanStatusClean); !errors.Is(err, ErrArchiveScanIllegalState) {

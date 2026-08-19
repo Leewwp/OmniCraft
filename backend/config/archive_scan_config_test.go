@@ -22,6 +22,7 @@ func TestDefaultConfigDeclaresArchiveScanSkeleton(t *testing.T) {
 	require.Equal(t, 2048, cfg.ArchiveScan.MaxTotalUncompressedMB)
 	require.Equal(t, 10, cfg.ArchiveScan.MaxRecursionDepth)
 	require.Equal(t, 120, cfg.ArchiveScan.ScanTimeoutSec)
+	require.Equal(t, "127.0.0.1:3310", cfg.ArchiveScan.ClamdAddress)
 	require.Equal(t, []int{60, 300, 1800}, cfg.ArchiveScan.RetryBackoffSec)
 	require.Equal(t, 300, cfg.ArchiveScan.URLTTLSec)
 }
@@ -41,5 +42,6 @@ func TestValidateReleaseRejectsInvalidArchiveScanQuotas(t *testing.T) {
 
 	err := cfg.ValidateRelease()
 	require.Error(t, err)
+	require.Contains(t, err.Error(), "archive_scan.clamd_address")
 	require.Contains(t, err.Error(), "archive_scan.retry_backoff_sec")
 }

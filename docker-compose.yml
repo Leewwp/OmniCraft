@@ -144,6 +144,30 @@ services:
           memory: 64M
           cpus: "0.1"
 
+  clamav:
+    image: clamav/clamav:1.4.3
+    container_name: omnicraft-clamav
+    profiles: ["security"]
+    expose:
+      - "3310"
+    volumes:
+      - clamav_signatures:/var/lib/clamav
+      - ./ops/clamav/clamd.conf:/etc/clamav/clamd.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --config-file=/etc/clamav/clamd.conf --ping 1 --fdpass /etc/hosts >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      - archive_security
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "1.0"
+
   backend:
     build:
       context: ./backend
@@ -218,6 +242,7 @@ services:
       DB_DSN: "host=pgbouncer port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable"
       REDIS_ADDR: "redis:6379"
       RAG_INDEX_URL: "http://opensearch:9200"
+      CLAMD_ADDRESS: "clamav:3310"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -228,6 +253,9 @@ services:
       redis:
         condition: service_healthy
     command: ["./worker"]
+    networks:
+      - default
+      - archive_security
     logging: *default-logging
     deploy:
       resources:
@@ -358,5 +386,10 @@ volumes:
   postgres_data:
   redis_data:
   opensearch_data:
-  ssl_certs:
+  clamav_signatures:
   alertmanager_data:
+  ssl_certs:
+
+networks:
+  archive_security:
+    internal: true

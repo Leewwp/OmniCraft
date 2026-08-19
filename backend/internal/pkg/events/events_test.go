@@ -93,6 +93,26 @@ func TestContentEnvelopeBuilder(t *testing.T) {
 	}
 }
 
+func TestArchiveScanEnvelopeBuilder(t *testing.T) {
+	env, err := NewArchiveScanEnvelope(42, 7, testTraceparent, testTracestate)
+	if err != nil {
+		t.Fatalf("NewArchiveScanEnvelope failed: %v", err)
+	}
+	if env.EventType != TopicArchiveScanRequested || env.AggregateID != 42 {
+		t.Fatalf("envelope fields corrupted: %+v", env)
+	}
+	var payload ArchiveScanEventPayload
+	if err := json.Unmarshal(env.Payload, &payload); err != nil {
+		t.Fatalf("decode archive scan payload: %v", err)
+	}
+	if payload.JobID != 7 {
+		t.Fatalf("payload = %+v, want job_id 7", payload)
+	}
+	if _, err := NewArchiveScanEnvelope(42, 0, "", ""); err == nil {
+		t.Fatal("archive scan envelope must reject zero job id")
+	}
+}
+
 // TestTraceContextRoundTrip proves the context carriers preserve the W3C
 // trace context unchanged.
 func TestTraceContextRoundTrip(t *testing.T) {

@@ -231,14 +231,15 @@ type RAGHybridConfig struct {
 // from config, never hardcoded. This ticket (S01) only builds the skeleton;
 // the worker (S03) and gates (S04) consume it.
 type ArchiveScanConfig struct {
-	MaxUploadSizeMB        int   `mapstructure:"max_upload_size_mb"`
-	MaxZipEntries          int   `mapstructure:"max_zip_entries"`
-	MaxEntryUncompressedMB int   `mapstructure:"max_entry_uncompressed_mb"`
-	MaxTotalUncompressedMB int   `mapstructure:"max_total_uncompressed_mb"`
-	MaxRecursionDepth      int   `mapstructure:"max_recursion_depth"`
-	ScanTimeoutSec         int   `mapstructure:"scan_timeout_sec"`
-	RetryBackoffSec        []int `mapstructure:"retry_backoff_sec"`
-	URLTTLSec              int   `mapstructure:"url_ttl_sec"`
+	MaxUploadSizeMB        int    `mapstructure:"max_upload_size_mb"`
+	MaxZipEntries          int    `mapstructure:"max_zip_entries"`
+	MaxEntryUncompressedMB int    `mapstructure:"max_entry_uncompressed_mb"`
+	MaxTotalUncompressedMB int    `mapstructure:"max_total_uncompressed_mb"`
+	MaxRecursionDepth      int    `mapstructure:"max_recursion_depth"`
+	ScanTimeoutSec         int    `mapstructure:"scan_timeout_sec"`
+	ClamdAddress           string `mapstructure:"clamd_address"`
+	RetryBackoffSec        []int  `mapstructure:"retry_backoff_sec"`
+	URLTTLSec              int    `mapstructure:"url_ttl_sec"`
 }
 
 type LimitsConfig struct {
@@ -685,6 +686,9 @@ func OverrideFromEnv(cfg *Config) {
 	if v := os.Getenv("RAG_INDEX_URL"); v != "" {
 		cfg.RAG.Index.URL = v
 	}
+	if v := os.Getenv("CLAMD_ADDRESS"); v != "" {
+		cfg.ArchiveScan.ClamdAddress = v
+	}
 	if v := os.Getenv("AGENT_HMAC_SECRET"); v != "" {
 		cfg.Agent.HMACSecret = v
 	}
@@ -987,6 +991,9 @@ func (c *Config) ValidateRelease() error {
 		}
 		if c.ArchiveScan.ScanTimeoutSec <= 0 {
 			errs = append(errs, "archive_scan.scan_timeout_sec must be positive when archive malware scanning is enabled")
+		}
+		if strings.TrimSpace(c.ArchiveScan.ClamdAddress) == "" {
+			errs = append(errs, "archive_scan.clamd_address must be configured when archive malware scanning is enabled")
 		}
 		if len(c.ArchiveScan.RetryBackoffSec) == 0 {
 			errs = append(errs, "archive_scan.retry_backoff_sec must not be empty when archive malware scanning is enabled")

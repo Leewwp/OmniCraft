@@ -19,10 +19,11 @@ import (
 // triggers re-indexing of the changed version, banned removes the content from
 // the index, deleted removes the content from the index.
 const (
-	TopicContentPublished = "content.published"
-	TopicContentUpdated   = "content.updated"
-	TopicContentBanned    = "content.banned"
-	TopicContentDeleted   = "content.deleted"
+	TopicContentPublished     = "content.published"
+	TopicContentUpdated       = "content.updated"
+	TopicContentBanned        = "content.banned"
+	TopicContentDeleted       = "content.deleted"
+	TopicArchiveScanRequested = "archive.scan.requested"
 )
 
 // ContentSchemaVersion is the schema version of the current ContentEventPayload
@@ -52,6 +53,12 @@ type ContentEventPayload struct {
 	AuthorID    int64  `json:"author_id"`
 	ContentType string `json:"content_type,omitempty"`
 	Status      string `json:"status,omitempty"`
+}
+
+// ArchiveScanEventPayload identifies the S01 scan job created in the same
+// transaction as the upload state change and outbox row.
+type ArchiveScanEventPayload struct {
+	JobID int64 `json:"job_id"`
 }
 
 // Validate checks the envelope against the fixed contract and the schema
@@ -99,6 +106,30 @@ func NewContentEnvelope(topic string, aggregateID int64, traceparent, tracestate
 	return env, nil
 }
 
+// NewArchiveScanEnvelope builds the stable event consumed by the standalone
+// archive scan worker. AggregateID is the attachment id; JobID is the
+// authoritative workflow id and prevents workers from reconstructing object
+// keys from a stream message id.
+func NewArchiveScanEnvelope(aggregateID, jobID int64, traceparent, tracestate string) (Envelope, error) {
+	payloadBytes, err := json.Marshal(ArchiveScanEventPayload{JobID: jobID})
+	if err != nil {
+		return Envelope{}, err
+	}
+	env := Envelope{
+		EventType:     TopicArchiveScanRequested,
+		SchemaVersion: ContentSchemaVersion,
+		AggregateID:   aggregateID,
+		OccurredAt:    time.Now().UTC(),
+		Traceparent:   traceparent,
+		Tracestate:    tracestate,
+		Payload:       payloadBytes,
+	}
+	if err := env.Validate(); err != nil {
+		return Envelope{}, err
+	}
+	return env, nil
+}
+
 func marshalContentPayload(payload ContentEventPayload) (json.RawMessage, error) {
 	raw, err := json.Marshal(payload)
 	if err != nil {
@@ -121,13 +152,25 @@ func validateContentPayload(topic string, raw json.RawMessage) error {
 	return nil
 }
 
+func validateArchiveScanPayload(raw json.RawMessage) error {
+	var payload ArchiveScanEventPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return fmt.Errorf("events: archive scan payload is invalid: %w", err)
+	}
+	if payload.JobID <= 0 {
+		return fmt.Errorf("events: archive scan payload requires job_id > 0")
+	}
+	return nil
+}
+
 // topicValidators holds one schema validator per known topic. A topic without
 // an entry is rejected by Envelope.Validate.
 var topicValidators = map[string]func(json.RawMessage) error{
-	TopicContentPublished: func(raw json.RawMessage) error { return validateContentPayload(TopicContentPublished, raw) },
-	TopicContentUpdated:   func(raw json.RawMessage) error { return validateContentPayload(TopicContentUpdated, raw) },
-	TopicContentBanned:    func(raw json.RawMessage) error { return validateContentPayload(TopicContentBanned, raw) },
-	TopicContentDeleted:   func(raw json.RawMessage) error { return validateContentPayload(TopicContentDeleted, raw) },
+	TopicContentPublished:     func(raw json.RawMessage) error { return validateContentPayload(TopicContentPublished, raw) },
+	TopicContentUpdated:       func(raw json.RawMessage) error { return validateContentPayload(TopicContentUpdated, raw) },
+	TopicContentBanned:        func(raw json.RawMessage) error { return validateContentPayload(TopicContentBanned, raw) },
+	TopicContentDeleted:       func(raw json.RawMessage) error { return validateContentPayload(TopicContentDeleted, raw) },
+	TopicArchiveScanRequested: validateArchiveScanPayload,
 }
 
 type traceContextKey struct{}
