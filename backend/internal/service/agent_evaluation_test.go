@@ -110,7 +110,7 @@ func runEvalCase(t *testing.T, tc agentEvalCase) (evalOutcome, *AgentService, *g
 	t.Helper()
 	db := seedEvalContents(t, tc)
 	provider := &evalProvider{script: evalScriptForCase(tc), failWith: evalFailureForCase(tc)}
-	cfg := &config.Config{Agent: config.AgentConfig{
+	cfg := &config.Config{Features: config.FeaturesConfig{RAGHybridEnabled: true}, Agent: config.AgentConfig{
 		WebAgentEnabled: true, MaxToolCallsPerTurn: 8, CitationMaxCount: 5,
 		MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, MaxOutputTokens: 1200,
 	}}
@@ -122,6 +122,9 @@ func runEvalCase(t *testing.T, tc agentEvalCase) (evalOutcome, *AgentService, *g
 		}
 		return results, nil
 	}
+	svc.SetContentRetriever(&contractRetriever{result: AgentRetrievalResult{
+		Candidates: evalRAGCandidates(tc),
+	}})
 
 	switch tc.ID {
 	case "hidden_content_id_usage_guide":
@@ -155,6 +158,27 @@ func runEvalCase(t *testing.T, tc agentEvalCase) (evalOutcome, *AgentService, *g
 			func(ev AgentStreamEvent) error { events = append(events, ev); return nil })
 		return deriveEvalOutcome(events, streamErr, provider), svc, db
 	}
+}
+
+func evalRAGCandidates(tc agentEvalCase) []AgentRetrievalCandidate {
+	candidates := make([]AgentRetrievalCandidate, 0, len(tc.Contents))
+	for _, content := range tc.Contents {
+		if content.Status != "published" || !content.IsPublic || content.AuthorIsBanned {
+			continue
+		}
+		candidates = append(candidates, AgentRetrievalCandidate{
+			ChunkKey:       fmt.Sprintf("%064x", content.ID),
+			ContentID:      content.ID,
+			ContentVersion: 1,
+			ChunkIndex:     0,
+			Title:          content.Title,
+			Text:           content.Title,
+			Zone:           content.Zone,
+			ContentType:    content.ContentType,
+			Source:         "vector",
+		})
+	}
+	return candidates
 }
 
 func resolveEvalChatContext(t *testing.T, svc *AgentService, tc agentEvalCase) *ResolvedChatContext {
@@ -323,7 +347,7 @@ func seedEvalContents(t *testing.T, tc agentEvalCase) *gorm.DB {
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.ContentItem{}, &model.AgentConversation{}, &model.AgentMessage{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.ContentItem{}, &model.AgentConversation{}, &model.AgentMessage{}, &model.ContentVersion{}, &model.RagChunk{}, &model.IndexProjectionStatus{}))
 
 	authorBanned := false
 	for _, c := range tc.Contents {
@@ -350,6 +374,24 @@ func seedEvalContents(t *testing.T, tc agentEvalCase) *gorm.DB {
 			require.NoError(t, db.Exec("UPDATE content_items SET is_public = false WHERE id = ?", content.ID).Error)
 		}
 	}
+	for _, c := range tc.Contents {
+		if c.Status != "published" {
+			continue
+		}
+		require.NoError(t, db.Create(&model.ContentVersion{
+			ID: c.ID + 100000, ContentItemID: c.ID, AuthorID: 1, VersionNumber: 1,
+			StorageType: "full", StorageKey: fmt.Sprintf("eval-%d", c.ID), Status: "active", IsLatest: true,
+		}).Error)
+		require.NoError(t, db.Create(&model.RagChunk{
+			ContentID: c.ID, ContentVersion: 1, ChunkIndex: 0, ChunkKey: fmt.Sprintf("%064x", c.ID),
+			ChunkingVersion: 1, Text: c.Title, SourceStart: 0, SourceEnd: len([]rune(c.Title)),
+			Zone: c.Zone, ContentType: c.ContentType, IndexVersion: 1,
+		}).Error)
+		require.NoError(t, db.Create(&model.IndexProjectionStatus{
+			ContentID: c.ID, IndexVersion: 1, ChunkingVersion: 1, EmbeddingModel: "eval",
+			State: "ready", IsCurrent: true, ErrorSummary: "",
+		}).Error)
+	}
 	return db
 }
 
@@ -370,8 +412,15 @@ func assertEvalCase(t *testing.T, tc agentEvalCase, o evalOutcome, svc *AgentSer
 
 	for _, c := range o.citations {
 		require.Positive(t, c.ContentID, "case %s: citation without content_id", tc.ID)
+		require.Positive(t, c.ContentVersion, "case %s: citation without content_version", tc.ID)
+		require.Len(t, c.ChunkKey, 64, "case %s: citation without stable chunk_key", tc.ID)
+		require.GreaterOrEqual(t, c.ChunkIndex, 0, "case %s: citation without chunk_index", tc.ID)
 		require.NotEmpty(t, c.Title, "case %s: citation %d without title", tc.ID, c.ContentID)
 		require.NotEmpty(t, c.Zone, "case %s: citation %d without zone", tc.ID, c.ContentID)
+		require.Equal(t, contentRoute(c.Zone, c.ContentID), c.Route, "case %s: citation route must be server-owned", tc.ID)
+		require.NotEmpty(t, c.Excerpt, "case %s: citation %d without excerpt", tc.ID, c.ContentID)
+		require.Equal(t, tc.Expected.CitationSource, c.Source, "case %s: citation source mismatch", tc.ID)
+		require.NotContains(t, c.Source, "score", "case %s: citation must not expose score", tc.ID)
 		_, err := svc.resolveVisibleContent(context.Background(), evalViewerID, c.ContentID)
 		require.NoError(t, err, "case %s: citation %d is not viewer-visible", tc.ID, c.ContentID)
 	}
@@ -384,7 +433,7 @@ func assertEvalCase(t *testing.T, tc agentEvalCase, o evalOutcome, svc *AgentSer
 		require.NotEmpty(t, o.answer, "case %s: grounded answer must not be empty", tc.ID)
 		require.NotEmpty(t, o.citations, "case %s: grounded answer must carry at least one citation", tc.ID)
 	}
-	if tc.ID == "client_forged_context" {
+	if tc.ID == "client_forged_context" && o.kind == string(AgentAnswerGroundedContent) {
 		require.Equal(t, "模组使用说明", o.citations[0].Title, "case %s: citation title must be server-owned, not client-forged", tc.ID)
 	}
 

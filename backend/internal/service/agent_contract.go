@@ -1,5 +1,7 @@
 package service
 
+import "encoding/json"
+
 // AgentAnswerKind is a server-owned enum that determines whether an answer
 // must carry citations. The model never chooses citation requirements; the
 // value is fixed by the request surface and the service execution path.
@@ -29,10 +31,55 @@ const (
 // It is rebuilt from backend-owned content summaries, never from model-authored
 // URLs, so it always carries a valid content_id/title/zone.
 type AgentCitation struct {
-	ContentID int64  `json:"content_id"`
-	Title     string `json:"title"`
-	Zone      string `json:"zone"`
-	Excerpt   string `json:"excerpt"`
+	ContentID      int64  `json:"content_id"`
+	ContentVersion int    `json:"content_version"`
+	ChunkKey       string `json:"chunk_key"`
+	ChunkIndex     int    `json:"chunk_index"`
+	Title          string `json:"title"`
+	Zone           string `json:"zone"`
+	Route          string `json:"route"`
+	Excerpt        string `json:"excerpt"`
+	Source         string `json:"source"`
+}
+
+// MarshalJSON keeps the pre-RAG citation contract stable while preserving the
+// complete RAG provenance contract, including a valid zero-based chunk index.
+func (c AgentCitation) MarshalJSON() ([]byte, error) {
+	if c.ContentVersion == 0 && c.ChunkKey == "" && c.ChunkIndex == 0 && c.Route == "" && c.Source == "" {
+		return json.Marshal(struct {
+			ContentID int64  `json:"content_id"`
+			Title     string `json:"title"`
+			Zone      string `json:"zone"`
+			Excerpt   string `json:"excerpt"`
+		}{
+			ContentID: c.ContentID,
+			Title:     c.Title,
+			Zone:      c.Zone,
+			Excerpt:   c.Excerpt,
+		})
+	}
+
+	return json.Marshal(struct {
+		ContentID      int64  `json:"content_id"`
+		ContentVersion int    `json:"content_version"`
+		ChunkKey       string `json:"chunk_key"`
+		ChunkIndex     int    `json:"chunk_index"`
+		Title          string `json:"title"`
+		Zone           string `json:"zone"`
+		Route          string `json:"route"`
+		Excerpt        string `json:"excerpt"`
+		Source         string `json:"source"`
+	}{
+		ContentID:      c.ContentID,
+		ContentVersion: c.ContentVersion,
+		ChunkKey:       c.ChunkKey,
+		ChunkIndex:     c.ChunkIndex,
+		Title:          c.Title,
+		Zone:           c.Zone,
+		Route:          c.Route,
+		Excerpt:        c.Excerpt,
+		Source:         c.Source,
+	})
 }
 
 // AgentToolExecution reports one registered tool invocation without exposing

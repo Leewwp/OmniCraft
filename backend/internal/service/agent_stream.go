@@ -240,7 +240,9 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []
 	var answerBuf strings.Builder
 	var executedTools []AgentToolExecution
 	citationCandidates := make([]AgentCitation, 0, policy.CitationMaxCount)
-	seenCitationIDs := make(map[int64]bool, policy.CitationMaxCount)
+	seenCitationKeys := make(map[string]bool, policy.CitationMaxCount)
+	retrievalSources := make(map[string]string)
+	degraded := false
 	streamErr := error(nil)
 	var lastUsage *llm.TokenUsage
 
@@ -256,7 +258,6 @@ loop:
 			}
 			if delta.Content != "" {
 				answerBuf.WriteString(delta.Content)
-				return handler(AgentStreamEvent{Type: AgentEventDelta, Delta: delta.Content})
 			}
 			return nil
 		})
@@ -303,15 +304,44 @@ loop:
 				result.Guide = outcome.Guide
 				result.Search = outcome.Search
 				result.Suggest = outcome.Suggest
+				for chunkKey, source := range outcome.RetrievalSources {
+					retrievalSources[chunkKey] = source
+				}
+				if outcome.Degraded {
+					degraded = true
+					traceAgentEvent(traceID, "retrieval_degraded", "tool", tc.Function.Name)
+				}
+				for _, summary := range outcome.Search {
+					citation, ok := citationFromSearchSummary(summary)
+					if !ok || seenCitationKeys[citation.ChunkKey] {
+						continue
+					}
+					seenCitationKeys[citation.ChunkKey] = true
+					citationCandidates = append(citationCandidates, citation)
+				}
 				if outcome.Detail != nil {
-					if !seenCitationIDs[outcome.Detail.ID] {
-						seenCitationIDs[outcome.Detail.ID] = true
-						citationCandidates = append(citationCandidates, AgentCitation{
-							ContentID: outcome.Detail.ID,
-							Title:     outcome.Detail.Title,
-							Zone:      outcome.Detail.Zone,
-							Excerpt:   outcome.Detail.Excerpt,
-						})
+					if !s.ragHybridEnabled() {
+						legacyKey := fmt.Sprintf("content:%d", outcome.Detail.ID)
+						if !seenCitationKeys[legacyKey] {
+							seenCitationKeys[legacyKey] = true
+							citationCandidates = append(citationCandidates, AgentCitation{
+								ContentID: outcome.Detail.ID,
+								Title:     outcome.Detail.Title,
+								Zone:      outcome.Detail.Zone,
+								Excerpt:   outcome.Detail.Excerpt,
+							})
+						}
+					} else {
+						citation, err := s.citationForContent(ctx, userID, outcome.Detail.ID)
+						if err != nil {
+							traceAgentEvent(traceID, "citation_revalidation", "accepted", false, "reason", "citation_truth_unavailable")
+						} else if source, ok := retrievalSources[citation.ChunkKey]; !ok {
+							traceAgentEvent(traceID, "citation_revalidation", "accepted", false, "reason", "citation_source_unavailable")
+						} else if !seenCitationKeys[citation.ChunkKey] {
+							citation.Source = source
+							seenCitationKeys[citation.ChunkKey] = true
+							citationCandidates = append(citationCandidates, citation)
+						}
 					}
 				}
 			}
@@ -356,14 +386,20 @@ loop:
 		return streamErr
 	}
 
-	citations := s.RevalidateCitations(ctx, userID, citationCandidates)
+	citations := s.revalidateCitations(ctx, userID, citationCandidates, traceID)
+	kind := ClassifyGroundedAnswer(citations)
+	answer := answerBuf.String()
+	if kind == AgentAnswerGroundedContent && !degraded && answer != "" {
+		if err := handler(AgentStreamEvent{Type: AgentEventDelta, Delta: answer}); err != nil {
+			return err
+		}
+	}
 	for i := range citations {
 		if err := handler(AgentStreamEvent{Type: AgentEventCitation, Citation: &citations[i]}); err != nil {
 			return err
 		}
 	}
 
-	kind := ClassifyGroundedAnswer(citations)
 	usage := &AgentUsage{}
 	if lastUsage != nil {
 		usage = &AgentUsage{PromptTokens: lastUsage.PromptTokens, CompletionTokens: lastUsage.CompletionTokens}
@@ -372,7 +408,9 @@ loop:
 		return err
 	}
 
-	answer := answerBuf.String()
+	if kind == AgentAnswerNoEvidence || degraded {
+		answer = ""
+	}
 	if conv != nil && s.db != nil {
 		if err := s.db.WithContext(ctx).Create(&model.AgentMessage{
 			ConversationID: conv.ID,
@@ -398,7 +436,7 @@ loop:
 		Citations:      citations,
 		Tools:          executedTools,
 		Usage:          usage,
-		Degraded:       false,
+		Degraded:       degraded,
 	}); err != nil {
 		return err
 	}

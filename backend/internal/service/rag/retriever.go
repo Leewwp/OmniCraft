@@ -28,6 +28,7 @@ type RetrievalCandidate struct {
 	ChunkKey        string
 	ContentID       int64
 	ContentVersion  int
+	ChunkIndex      int
 	ChunkingVersion int
 	IndexVersion    int
 	EmbeddingModel  string

@@ -11,6 +11,11 @@ export interface AgentStreamCitation {
   title: string;
   zone: string;
   excerpt?: string;
+  content_version?: number;
+  chunk_key?: string;
+  chunk_index?: number;
+  route?: string;
+  source?: "bm25" | "vector" | "hybrid_rrf";
 }
 
 export interface AgentStreamTool {

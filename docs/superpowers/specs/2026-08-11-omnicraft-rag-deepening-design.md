@@ -6,6 +6,8 @@
 > **配套文档**：`docs/superpowers/specs/2026-07-16-omnicraft-dual-surface-agent-productization-design.md`（Web Agent 产品化）、`/Users/pp/Desktop/file/code/project/OmniCraft-tech-selection-analysis.md`（设计输入，§8 OpenSearch+pgvector、§11 落地顺序；确认后的权威合同由本文承接）
 > **状态约定**：本设计不落 migration、不修改运行时代码；所有 Implemented 能力均以当前 `origin/main` 代码真相为准。
 
+> **实现追踪（2026-08-19）**：T07/#142 已在本地开发批次实现并验证。Agent 运行时仅在 `features.rag_hybrid_enabled=true` 时消费 HybridRetriever；citation 扩展字段在服务端复核后输出，前端边界要求扩展字段成组完整。浏览器截图与 mocked contract 属于本地验证证据；真实 OpenSearch、embedding provider、LLM 和生产数据验证尚未完成，不得据此作生产声明。
+
 ---
 
 ## 0. 定位与范围

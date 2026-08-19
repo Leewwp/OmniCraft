@@ -1699,3 +1699,19 @@
 
 ### Notes:
 - Verification is local application evidence only. It does not claim real ClamAV, EICAR, OSS quarantine, or production release validation. #76 and #151 remain deferred; S05 real full-infra/security evidence remains outstanding.
+
+## [2026-08-19] - Task #142: T07 Agent hybrid retrieval, citation revalidation, and SSE contract
+
+### What was done:
+- Wired Agent `search_content` and `NLSearch` to the viewer-aware HybridRetriever when `features.rag_hybrid_enabled=true`; the default-disabled path preserves the existing baseline behavior and does not expose RAG fields.
+- Extended server-owned citations with `content_version`, `chunk_key`, `chunk_index`, `route`, and `source`; final revalidation checks published visibility, latest active version, current ready projection, chunk identity, metadata, and excerpt. Invalid/forged citations are omitted from SSE and recorded with safe trace reasons.
+- Propagated retrieval degradation to SSE `done.degraded`; kept direct-detail citations from inventing provenance without a preceding retrieval result. Frontend normalization rejects incomplete expanded DTOs, forged routes, invalid chunk keys, and invalid sources while retaining the legacy base citation shape.
+- Added deterministic schema-version-2 Agent evaluation assertions and the RAG/Agent contract tests. Existing `/agent` visual behavior remains within the authoritative UI spec.
+
+### Testing:
+- TDD red-to-green: focused tests first failed for disabled feature-flag bypass, forged direct-detail provenance, incomplete expanded citations, no-evidence answer persistence, exact rejected-count logging, pre-classification model delta leakage, and missing no-evidence search CTA; minimal fixes then passed.
+- `cd backend && go test ./...`, `go vet ./...`, `go build ./...` passed; frontend `npm run test:unit` (463 passed), `npm run lint`, `npm run build` passed; `bash scripts/verify-project.sh --full` passed (73/73 mocked Playwright contracts); and `tools/doc-validator --fix` twice followed by `--check` passed idempotently.
+- Mocked `/agent` browser contracts passed and screenshots are saved under `screenshots/`: grounded desktop, citation overlay desktop, citations mobile, no-evidence, and degraded-search states. These are local/mocked UI evidence, not production evidence.
+
+### Notes:
+- Two-axis heavy-task review completed and rerun against `f494567`: specification corrections covered no-evidence/degraded delta suppression and persistence, the shared `AgentCitationList`, the no-evidence keyword-search CTA, and exact rejected-count assertions; the code-quality correction moved citation-truth queries behind `RagChunkRepository`. The T07 diff includes the adapter/projection plumbing required to consume the T06 retrieval contract; this scope expansion is covered by focused and full tests. The real OpenSearch contract, embedding provider, LLM provider, and production corpus were not all available for this local batch; no production validation claim is made. Re-run full-infra/API smoke with real dependencies before any production release decision.

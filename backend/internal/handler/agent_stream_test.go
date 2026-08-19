@@ -82,7 +82,10 @@ func newAgentStreamTestHandler(t *testing.T, provider llm.LLMProvider, cfg *conf
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.AgentConversation{}, &model.AgentMessage{}, &model.User{}, &model.ContentItem{}); err != nil {
+	if err := db.AutoMigrate(
+		&model.AgentConversation{}, &model.AgentMessage{}, &model.User{}, &model.ContentItem{},
+		&model.ContentVersion{}, &model.RagChunk{}, &model.IndexProjectionStatus{},
+	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	if err := db.Create(&model.User{ID: 1, Username: "author", Email: "a@example.com"}).Error; err != nil {
@@ -151,7 +154,7 @@ func TestAgentChatStreamEmitsTypedSSEEvents(t *testing.T) {
 	if names[len(names)-1] != "done" {
 		t.Fatalf("last event = %s, want done; events = %v", names[len(names)-1], names)
 	}
-	for _, want := range []string{"delta", "usage", "done"} {
+	for _, want := range []string{"usage", "done"} {
 		found := false
 		for _, n := range names {
 			if n == want {
@@ -178,10 +181,109 @@ func TestAgentChatStreamEmitsTypedSSEEvents(t *testing.T) {
 	if degraded, _ := doneData["degraded"].(bool); degraded {
 		t.Fatal("done degraded = true, want false")
 	}
+	if answer, _ := doneData["answer"].(string); answer != "" {
+		t.Fatalf("no-evidence done answer = %q, want empty", answer)
+	}
+	for _, name := range names {
+		if name == "delta" {
+			t.Fatalf("no-evidence stream must not expose model delta: %v", names)
+		}
+	}
 
 	// Reservation was consumed exactly once for this request.
 	if _, err := mr.Get(handler.quota.DayKey(7)); err != nil {
 		t.Fatalf("day quota key missing after successful stream: %v", err)
+	}
+}
+
+type handlerContractRetriever struct {
+	result service.AgentRetrievalResult
+}
+
+func (r *handlerContractRetriever) Retrieve(_ context.Context, _ string, _ int64) (service.AgentRetrievalResult, error) {
+	return r.result, nil
+}
+
+func TestAgentChatStreamFlagOnEmitsExpandedCitationAndDegradedStatus(t *testing.T) {
+	const chunkKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+	cases := []struct {
+		name         string
+		degraded     string
+		source       string
+		wantDegraded bool
+	}{
+		{name: "grounded", source: "hybrid_rrf"},
+		{name: "keyword fallback", degraded: "keyword_pg", source: "bm25", wantDegraded: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			provider := &oneShotStreamProvider{rounds: [][]llm.ChatDelta{
+				{{ToolCalls: []llm.ToolCall{{
+					ID: "call_1", Type: "function",
+					Function: struct {
+						Name      string `json:"name"`
+						Arguments string `json:"arguments"`
+					}{Name: service.ToolSearchContent, Arguments: `{"query":"find this"}`},
+				}}}},
+				{{Content: "grounded answer", Done: true}},
+			}}
+			cfg := &config.Config{
+				Features: config.FeaturesConfig{RAGHybridEnabled: true},
+				Agent: config.AgentConfig{
+					WebAgentEnabled: true, RateLimitPerMinute: 5, RateLimitPerDay: 50,
+					MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, MaxToolCallsPerTurn: 8,
+					CitationMaxCount: 5, MaxOutputTokens: 1200,
+				},
+			}
+			handler, _, db := newAgentStreamTestHandler(t, provider, cfg)
+			now := time.Now()
+			if err := db.Create(&model.ContentVersion{ID: 880, ContentItemID: 88, AuthorID: 1, VersionNumber: 1, StorageType: "full", StorageKey: "handler-rag", Status: "active", IsLatest: true}).Error; err != nil {
+				t.Fatalf("seed content version: %v", err)
+			}
+			if err := db.Create(&model.RagChunk{ContentID: 88, ContentVersion: 1, ChunkIndex: 0, ChunkKey: chunkKey, ChunkingVersion: 1, Text: "Published Test Content", SourceStart: 0, SourceEnd: 22, Zone: "fanwork", ContentType: "mod", IndexVersion: 1, CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+				t.Fatalf("seed rag chunk: %v", err)
+			}
+			if err := db.Create(&model.IndexProjectionStatus{ContentID: 88, IndexVersion: 1, ChunkingVersion: 1, EmbeddingModel: "test", State: "ready", IsCurrent: true, ErrorSummary: "", CreatedAt: now}).Error; err != nil {
+				t.Fatalf("seed projection status: %v", err)
+			}
+			handler.agentSvc.SetContentRetriever(&handlerContractRetriever{result: service.AgentRetrievalResult{
+				Candidates: []service.AgentRetrievalCandidate{{
+					ChunkKey: chunkKey, ContentID: 88, ContentVersion: 1, ChunkIndex: 0,
+					Title: "Published Test Content", Text: "Published Test Content", Zone: "fanwork",
+					ContentType: "mod", Source: tc.source,
+				}},
+				Degraded: tc.degraded,
+			}})
+
+			rec := postAgentChat(t, handler, 7, `{"messages":[{"role":"user","content":"find this"}]}`)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+			}
+			events := parseAgentSSE(t, rec.Body.String())
+			var citationData, doneData map[string]any
+			for _, event := range events {
+				switch event.Name {
+				case "citation":
+					citationData, _ = event.Data["citation"].(map[string]any)
+				case "done":
+					doneData = event.Data
+				}
+			}
+			if citationData == nil {
+				t.Fatalf("expanded citation event missing: %s", rec.Body.String())
+			}
+			if citationData["content_version"] != float64(1) || citationData["chunk_key"] != chunkKey || citationData["route"] != "/content/88" || citationData["source"] != tc.source {
+				t.Fatalf("citation = %#v, want version/chunk/route/source contract", citationData)
+			}
+			if doneData == nil {
+				t.Fatal("done event missing")
+			}
+			if got, _ := doneData["degraded"].(bool); got != tc.wantDegraded {
+				t.Fatalf("done degraded = %v, want %v", got, tc.wantDegraded)
+			}
+		})
 	}
 }
 

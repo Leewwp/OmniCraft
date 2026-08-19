@@ -14,12 +14,22 @@ export interface AgentCitation {
   title: string;
   zone: "original" | "fanwork";
   excerpt?: string;
+  contentVersion?: number;
+  chunkKey?: string;
+  chunkIndex?: number;
+  route?: string;
+  source?: "bm25" | "vector" | "hybrid_rrf";
 }
 
 export function toAgentCitation(citation: AgentStreamCitation): AgentCitation {
   const zone: AgentCitation["zone"] = citation.zone === "original" ? "original" : "fanwork";
   const normalized: AgentCitation = { contentId: citation.content_id, title: citation.title, zone };
   if (citation.excerpt !== undefined) normalized.excerpt = citation.excerpt;
+  if (citation.content_version !== undefined) normalized.contentVersion = citation.content_version;
+  if (citation.chunk_key !== undefined) normalized.chunkKey = citation.chunk_key;
+  if (citation.chunk_index !== undefined) normalized.chunkIndex = citation.chunk_index;
+  if (citation.route !== undefined) normalized.route = citation.route;
+  if (citation.source !== undefined) normalized.source = citation.source;
   return normalized;
 }
 
@@ -49,7 +59,44 @@ export function normalizeAgentCitation(raw: unknown): AgentStreamCitation | null
     title: title.trim(),
     zone,
   };
+  const expandedFields = [
+    candidate.content_version,
+    candidate.chunk_key,
+    candidate.chunk_index,
+    candidate.route,
+    candidate.source,
+  ];
+  const hasExpandedFields = expandedFields.some((field) => field !== undefined);
+  if (hasExpandedFields && expandedFields.some((field) => field === undefined)) return null;
+  const contentVersion = candidate.content_version;
+  if (contentVersion !== undefined) {
+    if (typeof contentVersion !== "number" || !Number.isInteger(contentVersion) || contentVersion <= 0) return null;
+    normalized.content_version = contentVersion;
+  }
+  const chunkKey = candidate.chunk_key;
+  if (chunkKey !== undefined) {
+    if (typeof chunkKey !== "string" || !/^[0-9a-f]{64}$/.test(chunkKey)) return null;
+    normalized.chunk_key = chunkKey;
+  }
+  const chunkIndex = candidate.chunk_index;
+  if (chunkIndex !== undefined) {
+    if (typeof chunkIndex !== "number" || !Number.isInteger(chunkIndex) || chunkIndex < 0) return null;
+    normalized.chunk_index = chunkIndex;
+  }
+  const route = candidate.route;
+  if (route !== undefined) {
+    if (typeof route !== "string") return null;
+    const expectedRoute = zone === "original" ? `/original/${contentId}` : `/content/${contentId}`;
+    if (route !== expectedRoute) return null;
+    normalized.route = route;
+  }
+  const source = candidate.source;
+  if (source !== undefined) {
+    if (source !== "bm25" && source !== "vector" && source !== "hybrid_rrf") return null;
+    normalized.source = source;
+  }
   const excerpt = candidate.excerpt;
+  if (hasExpandedFields && (typeof excerpt !== "string" || excerpt.trim() === "")) return null;
   if (typeof excerpt === "string" && excerpt.trim() !== "") {
     normalized.excerpt = excerpt;
   }

@@ -1276,7 +1276,12 @@
     },
     "noEvidence": {
       "title": "未找到足够依据",
-      "description": "公开内容中没有足够材料支持这次回答。Agent 没有生成推测性结论。"
+      "description": "公开内容中没有足够材料支持这次回答。Agent 没有生成推测性结论。",
+      "searchCta": "搜索站内内容"
+    },
+    "degraded": {
+      "title": "已切换到搜索降级模式",
+      "description": "本次未生成模型总结，请查看可用的站内依据。"
     },
     "a11y": {
       "conversationItem": "对话 #{id}",

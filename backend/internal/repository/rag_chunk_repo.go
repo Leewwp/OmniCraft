@@ -22,6 +22,25 @@ type RagGeneration struct {
 	EmbeddingModel  string
 }
 
+// CitationTruth is the repository-owned projection of a viewer-visible RAG
+// chunk used to rebuild server-owned Agent citations.
+type CitationTruth struct {
+	ContentID      int64  `gorm:"column:content_id"`
+	ContentVersion int    `gorm:"column:content_version"`
+	ChunkIndex     int    `gorm:"column:chunk_index"`
+	ChunkKey       string `gorm:"column:chunk_key"`
+	Text           string `gorm:"column:text"`
+	Title          string `gorm:"column:title"`
+	Zone           string `gorm:"column:zone"`
+}
+
+type CitationLookup struct {
+	ContentID      int64
+	ContentVersion int
+	ChunkIndex     int
+	ChunkKey       string
+}
+
 type RagChunkRepository struct{ db *gorm.DB }
 
 func NewRagChunkRepository(db *gorm.DB) *RagChunkRepository {
@@ -30,6 +49,34 @@ func NewRagChunkRepository(db *gorm.DB) *RagChunkRepository {
 
 func (r *RagChunkRepository) WithDB(db *gorm.DB) *RagChunkRepository {
 	return &RagChunkRepository{db: db}
+}
+
+// LoadVisibleCitationTruth enforces the same current-generation and
+// viewer-visibility predicates used by retrieval before a citation is sent.
+func (r *RagChunkRepository) LoadVisibleCitationTruth(ctx context.Context, viewerID int64, lookup CitationLookup) (CitationTruth, error) {
+	var truth CitationTruth
+	query := r.citationTruthQuery(ctx, viewerID).
+		Where("rc.content_id = ? AND rc.content_version = ? AND rc.chunk_key = ? AND rc.chunk_index = ?", lookup.ContentID, lookup.ContentVersion, lookup.ChunkKey, lookup.ChunkIndex)
+	return truth, query.Take(&truth).Error
+}
+
+// FirstVisibleCitationTruth returns the first current chunk for a visible
+// content item so direct-detail tool results can gain server-owned provenance.
+func (r *RagChunkRepository) FirstVisibleCitationTruth(ctx context.Context, viewerID, contentID int64) (CitationTruth, error) {
+	var truth CitationTruth
+	query := r.citationTruthQuery(ctx, viewerID).
+		Where("rc.content_id = ?", contentID).
+		Order("rc.chunk_index ASC")
+	return truth, query.Take(&truth).Error
+}
+
+func (r *RagChunkRepository) citationTruthQuery(ctx context.Context, viewerID int64) *gorm.DB {
+	query := r.db.WithContext(ctx).Table("rag_chunks AS rc").
+		Select("rc.content_id, rc.content_version, rc.chunk_index, rc.chunk_key, rc.text, content_items.title, content_items.zone").
+		Joins("JOIN content_items ON content_items.id = rc.content_id").
+		Joins("JOIN content_versions ON content_versions.content_item_id = rc.content_id AND content_versions.version_number = rc.content_version AND content_versions.status = 'active' AND content_versions.is_latest = TRUE").
+		Joins("JOIN index_projection_status ON index_projection_status.content_id = rc.content_id AND index_projection_status.index_version = rc.index_version AND index_projection_status.is_current = TRUE AND index_projection_status.state = 'ready' AND index_projection_status.chunking_version = rc.chunking_version")
+	return ApplyContentVisibilityScope(query, viewerID)
 }
 
 // LatestPublishedVersion is the only content-version read seam used by the

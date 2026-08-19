@@ -43,6 +43,11 @@ func TestAgentContract(t *testing.T) {
 	require.Equal(t, "Blender 插件安装指南", cite["title"])
 	require.Equal(t, "original", cite["zone"])
 	require.Equal(t, "第一步：下载插件包。", cite["excerpt"])
+	require.NotContains(t, cite, "content_version")
+	require.NotContains(t, cite, "chunk_key")
+	require.NotContains(t, cite, "chunk_index")
+	require.NotContains(t, cite, "route")
+	require.NotContains(t, cite, "source")
 
 	tools := raw["tools"].([]any)
 	require.Len(t, tools, 1)
@@ -54,6 +59,26 @@ func TestAgentContract(t *testing.T) {
 	usage := raw["usage"].(map[string]any)
 	require.Equal(t, float64(120), usage["prompt_tokens"])
 	require.Equal(t, float64(300), usage["completion_tokens"])
+}
+
+func TestAgentRAGCitationContractIncludesZeroChunkIndex(t *testing.T) {
+	answer := AgentAnswer{Citations: []AgentCitation{{
+		ContentID: 101, ContentVersion: 3, ChunkKey: "chunk-101", ChunkIndex: 0,
+		Title: "Blender 插件安装指南", Zone: "original", Route: "/original/101",
+		Excerpt: "第一步：下载插件包。", Source: "hybrid_rrf",
+	}}}
+
+	data, err := json.Marshal(answer)
+	require.NoError(t, err)
+
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal(data, &raw))
+	cite := raw["citations"].([]any)[0].(map[string]any)
+	require.Equal(t, float64(3), cite["content_version"])
+	require.Equal(t, "chunk-101", cite["chunk_key"])
+	require.Equal(t, float64(0), cite["chunk_index"])
+	require.Equal(t, "/original/101", cite["route"])
+	require.Equal(t, "hybrid_rrf", cite["source"])
 }
 
 // TestAgentAnswerKindEnum ensures the server owns every answer-kind value and
