@@ -44,12 +44,27 @@ type ArchiveScanRepository interface {
 	AppendAttempt(ctx context.Context, attempt *model.ArchiveScanAttempt) error
 }
 
+type archiveScanAtomicOutcomeRepository interface {
+	FinishCleanWithAttempt(ctx context.Context, jobID int64, attempt *model.ArchiveScanAttempt, engineVersion, signatureVersion, objectSHA256 string) error
+	BlockWithAttempt(ctx context.Context, jobID int64, attempt *model.ArchiveScanAttempt, detectionName, quarantineKey, objectSHA256 string) error
+	FailWithAttempt(ctx context.Context, jobID int64, attempt *model.ArchiveScanAttempt, errorCode string) error
+}
+
+type archiveScanRecoveryRepository interface {
+	ResetScanning(ctx context.Context, jobID int64) error
+}
+
+type ArchiveScanCompletionNotifier interface {
+	ArchiveScanClean(ctx context.Context, attachmentID int64) error
+}
+
 // ArchiveScanObjectStore keeps OSS operations behind a small seam so the
 // worker can be tested without credentials or an external bucket.
 type ArchiveScanObjectStore interface {
 	Open(objectKey string) (io.ReadCloser, error)
 	Copy(sourceKey, targetKey string) error
 	Delete(objectKey string) error
+	Exists(objectKey string) (bool, error)
 }
 
 type ArchiveScanner interface {
@@ -63,17 +78,22 @@ type ArchiveScanWorker struct {
 	scanner    ArchiveScanner
 	timeout    time.Duration
 	db         *gorm.DB
+	notifier   ArchiveScanCompletionNotifier
 }
 
 func NewArchiveScanWorker(repository ArchiveScanRepository, objects ArchiveScanObjectStore, scanner ArchiveScanner, timeout time.Duration) *ArchiveScanWorker {
-	return newArchiveScanWorker(repository, objects, scanner, timeout, nil)
+	return newArchiveScanWorker(repository, objects, scanner, timeout, nil, nil)
 }
 
 func NewArchiveScanWorkerWithDB(repository ArchiveScanRepository, objects ArchiveScanObjectStore, scanner ArchiveScanner, timeout time.Duration, db *gorm.DB) *ArchiveScanWorker {
-	return newArchiveScanWorker(repository, objects, scanner, timeout, db)
+	return newArchiveScanWorker(repository, objects, scanner, timeout, db, nil)
 }
 
-func newArchiveScanWorker(repository ArchiveScanRepository, objects ArchiveScanObjectStore, scanner ArchiveScanner, timeout time.Duration, db *gorm.DB) *ArchiveScanWorker {
+func NewArchiveScanWorkerWithDBAndNotifier(repository ArchiveScanRepository, objects ArchiveScanObjectStore, scanner ArchiveScanner, timeout time.Duration, db *gorm.DB, notifier ArchiveScanCompletionNotifier) *ArchiveScanWorker {
+	return newArchiveScanWorker(repository, objects, scanner, timeout, db, notifier)
+}
+
+func newArchiveScanWorker(repository ArchiveScanRepository, objects ArchiveScanObjectStore, scanner ArchiveScanner, timeout time.Duration, db *gorm.DB, notifier ArchiveScanCompletionNotifier) *ArchiveScanWorker {
 	if timeout <= 0 {
 		timeout = 120 * time.Second
 	}
@@ -83,6 +103,7 @@ func newArchiveScanWorker(repository ArchiveScanRepository, objects ArchiveScanO
 		scanner:    scanner,
 		timeout:    timeout,
 		db:         db,
+		notifier:   notifier,
 	}
 }
 
@@ -134,7 +155,13 @@ func (w *ArchiveScanWorker) handleAttempt(ctx context.Context, jobID int64) (ret
 	if job == nil || job.ID <= 0 || job.AttachmentID <= 0 {
 		return false, nil, ErrArchiveScanMalformedMessage
 	}
-	if job.Status == model.ScanStatusClean || job.Status == model.ScanStatusManualReview {
+	if job.Status == model.ScanStatusClean {
+		if err := w.notifyArchiveScanClean(ctx, job.AttachmentID); err != nil {
+			return false, nil, sanitizedWorkerError("archive_scan_completion_failed")
+		}
+		return false, nil, nil
+	}
+	if job.Status == model.ScanStatusManualReview {
 		return false, nil, nil
 	}
 	if job.Status == model.ScanStatusBlocked {
@@ -160,6 +187,14 @@ func (w *ArchiveScanWorker) handleAttempt(ctx context.Context, jobID int64) (ret
 		return true, nil, nil
 	}
 	if job.Status != model.ScanStatusPending {
+		if job.Status == model.ScanStatusScanning && job.StartedAt != nil && time.Since(*job.StartedAt) >= w.timeout {
+			if recovery, ok := w.repository.(archiveScanRecoveryRepository); ok {
+				if err := recovery.ResetScanning(ctx, job.ID); err != nil {
+					return false, nil, sanitizedWorkerError("archive_scan_recovery_failed")
+				}
+				return true, nil, nil
+			}
+		}
 		return false, nil, ErrArchiveScanNotReady
 	}
 
@@ -206,11 +241,23 @@ func (w *ArchiveScanWorker) handleAttempt(ctx context.Context, jobID int64) (ret
 			ScanJobID: job.ID, Result: model.ScanAttemptResultClean, DurationMs: durationMs,
 			EngineVersion: version.Engine, SignatureVersion: version.Signatures,
 		}
-		if err := w.repository.AppendAttempt(ctx, attempt); err != nil {
-			return false, nil, sanitizedWorkerError("archive_scan_audit_failed")
+		objectSHA256 := fmt.Sprintf("%x", digest.Sum(nil))
+		if atomic, ok := w.repository.(archiveScanAtomicOutcomeRepository); ok {
+			if err := atomic.FinishCleanWithAttempt(ctx, job.ID, attempt, version.Engine, version.Signatures, objectSHA256); err != nil {
+				w.resetScanningAfterFailure(ctx, job.ID)
+				return false, nil, sanitizedWorkerError("archive_scan_finish_failed")
+			}
+		} else {
+			if err := w.repository.AppendAttempt(ctx, attempt); err != nil {
+				return false, nil, sanitizedWorkerError("archive_scan_audit_failed")
+			}
+			if err := w.repository.FinishClean(ctx, job.ID, version.Engine, version.Signatures, objectSHA256); err != nil {
+				w.resetScanningAfterFailure(ctx, job.ID)
+				return false, nil, sanitizedWorkerError("archive_scan_finish_failed")
+			}
 		}
-		if err := w.repository.FinishClean(ctx, job.ID, version.Engine, version.Signatures, fmt.Sprintf("%x", digest.Sum(nil))); err != nil {
-			return false, nil, sanitizedWorkerError("archive_scan_finish_failed")
+		if err := w.notifyArchiveScanClean(ctx, job.AttachmentID); err != nil {
+			return false, nil, sanitizedWorkerError("archive_scan_completion_failed")
 		}
 		return false, nil, nil
 	case clamav.StatusBlocked:
@@ -222,11 +269,20 @@ func (w *ArchiveScanWorker) handleAttempt(ctx context.Context, jobID int64) (ret
 			ScanJobID: job.ID, Result: model.ScanAttemptResultBlocked, DurationMs: durationMs,
 			EngineVersion: version.Engine, SignatureVersion: version.Signatures, DetectionName: result.DetectionName,
 		}
-		if err := w.repository.AppendAttempt(ctx, attempt); err != nil {
-			return false, nil, sanitizedWorkerError("archive_scan_audit_failed")
-		}
-		if err := w.repository.Block(ctx, job.ID, result.DetectionName, quarantineKey, fmt.Sprintf("%x", digest.Sum(nil))); err != nil {
-			return false, nil, sanitizedWorkerError("archive_scan_block_failed")
+		objectSHA256 := fmt.Sprintf("%x", digest.Sum(nil))
+		if atomic, ok := w.repository.(archiveScanAtomicOutcomeRepository); ok {
+			if err := atomic.BlockWithAttempt(ctx, job.ID, attempt, result.DetectionName, quarantineKey, objectSHA256); err != nil {
+				w.resetScanningAfterFailure(ctx, job.ID)
+				return false, nil, sanitizedWorkerError("archive_scan_block_failed")
+			}
+		} else {
+			if err := w.repository.AppendAttempt(ctx, attempt); err != nil {
+				return false, nil, sanitizedWorkerError("archive_scan_audit_failed")
+			}
+			if err := w.repository.Block(ctx, job.ID, result.DetectionName, quarantineKey, objectSHA256); err != nil {
+				w.resetScanningAfterFailure(ctx, job.ID)
+				return false, nil, sanitizedWorkerError("archive_scan_block_failed")
+			}
 		}
 		blockedJob := *job
 		blockedJob.QuarantineKey = quarantineKey
@@ -250,16 +306,40 @@ func (w *ArchiveScanWorker) cleanupBlockedObject(ctx context.Context, job *model
 	return w.objects.Delete(attachment.OSSKey)
 }
 
+func (w *ArchiveScanWorker) notifyArchiveScanClean(ctx context.Context, attachmentID int64) error {
+	if w.notifier == nil {
+		return nil
+	}
+	return w.notifier.ArchiveScanClean(ctx, attachmentID)
+}
+
+func (w *ArchiveScanWorker) resetScanningAfterFailure(ctx context.Context, jobID int64) {
+	recovery, ok := w.repository.(archiveScanRecoveryRepository)
+	if !ok {
+		return
+	}
+	if err := recovery.ResetScanning(ctx, jobID); err != nil {
+		slog.Warn("archive scan recovery reset failed", "job_id", jobID, "error_code", "archive_scan_recovery_failed")
+	}
+}
 func (w *ArchiveScanWorker) fail(ctx context.Context, jobID int64, started time.Time, result, errorCode, engine, signatures, detection string) (retryNow bool, retryAt *time.Time, err error) {
 	attempt := &model.ArchiveScanAttempt{
 		ScanJobID: jobID, Result: result, DurationMs: int(time.Since(started).Milliseconds()),
 		EngineVersion: engine, SignatureVersion: signatures, DetectionName: detection, ErrorCode: errorCode,
 	}
-	if err := w.repository.AppendAttempt(ctx, attempt); err != nil {
-		return false, nil, sanitizedWorkerError("archive_scan_audit_failed")
-	}
-	if err := w.repository.Fail(ctx, jobID, errorCode); err != nil {
-		return false, nil, sanitizedWorkerError("archive_scan_fail_transition_failed")
+	if atomic, ok := w.repository.(archiveScanAtomicOutcomeRepository); ok {
+		if err := atomic.FailWithAttempt(ctx, jobID, attempt, errorCode); err != nil {
+			w.resetScanningAfterFailure(ctx, jobID)
+			return false, nil, sanitizedWorkerError("archive_scan_fail_transition_failed")
+		}
+	} else {
+		if err := w.repository.AppendAttempt(ctx, attempt); err != nil {
+			return false, nil, sanitizedWorkerError("archive_scan_audit_failed")
+		}
+		if err := w.repository.Fail(ctx, jobID, errorCode); err != nil {
+			w.resetScanningAfterFailure(ctx, jobID)
+			return false, nil, sanitizedWorkerError("archive_scan_fail_transition_failed")
+		}
 	}
 	job, err := w.repository.GetJob(ctx, jobID)
 	if err != nil || job == nil {

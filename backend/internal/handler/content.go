@@ -14,6 +14,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/archivezip"
 	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/pkg/response"
@@ -38,6 +39,7 @@ type ContentHandler struct {
 	rdb               *redis.Client
 	cfg               *config.Config
 	queueProducer     queue.Producer
+	archiveGate       *service.ArchiveScanGate
 }
 
 func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *ContentHandler {
@@ -54,6 +56,7 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 	contentSvc := service.NewContentServiceWithOSS(repo, reviewSvc, rdb, &cfg.Cache, ossSvc).
 		WithUploadGrantService(uploadGrants).
 		WithUploadedObjectVerifier(ossSvc).
+		WithArchiveScanConfig(&cfg.ArchiveScan).
 		WithImageDimensionsResolver(ossSvc).
 		WithUploadConfig(&cfg.Upload)
 
@@ -73,11 +76,17 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 		rdb:               rdb,
 		cfg:               cfg,
 		queueProducer:     queue.NewNoopProducer(),
+		archiveGate:       service.NewArchiveScanGate(db, cfg.Features.ArchiveMalwareScanEnabled),
 	}
 }
 
 func (h *ContentHandler) SetQueueProducer(p queue.Producer) {
 	h.queueProducer = p
+}
+
+func (h *ContentHandler) SetArchiveScanRepository(repo *repository.ArchiveScanRepository) {
+	h.contentSvc.SetArchiveScanRepository(repo, h.cfg.Features.ArchiveMalwareScanEnabled)
+	h.archiveGate = service.NewArchiveScanGate(h.contentRepo.DB(), h.cfg.Features.ArchiveMalwareScanEnabled)
 }
 
 func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
@@ -234,6 +243,42 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 		}
 		if errors.Is(err, service.ErrMediaSetInvalid) {
 			response.SafeErrorResponse(c, http.StatusBadRequest, "MEDIA_SET_INVALID", err)
+			return
+		}
+		if errors.Is(err, service.ErrArchiveAttachmentRequired) {
+			response.Error(c, http.StatusBadRequest, "ARCHIVE_ATTACHMENT_REQUIRED", "mod content requires a zip archive attachment")
+			return
+		}
+		if errors.Is(err, archivezip.ErrEncrypted) {
+			response.Error(c, http.StatusBadRequest, "ARCHIVE_ENCRYPTED", "archive is encrypted")
+			return
+		}
+		if errors.Is(err, archivezip.ErrPathInvalid) {
+			response.Error(c, http.StatusBadRequest, "ARCHIVE_PATH_INVALID", "archive path is invalid")
+			return
+		}
+		if errors.Is(err, archivezip.ErrLinkForbidden) {
+			response.Error(c, http.StatusBadRequest, "ARCHIVE_LINK_FORBIDDEN", "archive link is forbidden")
+			return
+		}
+		if errors.Is(err, archivezip.ErrLimitExceeded) {
+			response.Error(c, http.StatusBadRequest, "ARCHIVE_LIMIT_EXCEEDED", "archive limits exceeded")
+			return
+		}
+		if errors.Is(err, archivezip.ErrInvalid) {
+			response.Error(c, http.StatusBadRequest, "ARCHIVE_INVALID", "archive is invalid")
+			return
+		}
+		if errors.Is(err, service.ErrArchiveScanUnavailable) {
+			response.Error(c, http.StatusServiceUnavailable, "ARCHIVE_SCAN_UNAVAILABLE", "archive scanning is unavailable")
+			return
+		}
+		if errors.Is(err, service.ErrArchiveScanFailed) {
+			response.Error(c, http.StatusConflict, "ARCHIVE_SCAN_FAILED", "archive scan failed")
+			return
+		}
+		if errors.Is(err, service.ErrArchiveScanPending) {
+			response.Error(c, http.StatusConflict, "ARCHIVE_SCAN_PENDING", "archive scan is pending")
 			return
 		}
 		if errors.Is(err, service.ErrUploadGrantUnavailable) {
@@ -636,11 +681,18 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 		}
 	}
 
-	ttlSec := h.cfg.OSS.DownloadURLTTL
-	if ttlSec <= 0 {
-		ttlSec = 300
+	if h.archiveGate != nil {
+		if err := h.archiveGate.RequireAttachmentClean(c.Request.Context(), target.ID); err != nil {
+			if errors.Is(err, service.ErrArchiveNotClean) {
+				response.Error(c, http.StatusForbidden, "ARCHIVE_NOT_CLEAN", "archive is not clean")
+				return
+			}
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+			return
+		}
 	}
-	ttl := time.Duration(ttlSec) * time.Second
+
+	ttl := downloadURLTTL(h.cfg, *target)
 
 	url, err := h.ossSvc.GeneratePresignDownloadURL(context.Background(), target.OSSKey, ttl)
 	if err != nil {
@@ -667,6 +719,23 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"download_url": url,
-		"expires_in":   ttlSec,
+		"expires_in":   int64(ttl.Seconds()),
 	})
+}
+
+func downloadURLTTL(cfg *config.Config, attachment model.ContentAttachment) time.Duration {
+	ttlSec := 300
+	if cfg != nil {
+		ttlSec = cfg.OSS.DownloadURLTTL
+		if cfg.Features.ArchiveMalwareScanEnabled && (attachment.FileType == "mod" || attachment.ScanRequired) {
+			ttlSec = cfg.ArchiveScan.URLTTLSec
+			if ttlSec <= 0 || ttlSec > 300 {
+				ttlSec = 300
+			}
+		}
+	}
+	if ttlSec <= 0 {
+		ttlSec = 300
+	}
+	return time.Duration(ttlSec) * time.Second
 }

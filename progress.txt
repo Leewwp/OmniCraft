@@ -1682,3 +1682,20 @@
 ### Notes:
 - Evidence: `docs/working/2026-08-19-s03-clamav-worker-evidence.md`. The real smoke command `docker compose --profile security up -d clamav` could not create a container because Docker Hub authorization hit a TLS handshake timeout. No real signature database, EICAR, or recovery result is claimed; rerun the commands in the evidence file after registry access is restored.
 - This local task does not execute production deployment, #76 legacy-favorites removal, #151 historical mod rescan, or deferred desktop/Tauri work.
+
+## [2026-08-19] - Task #149: S04 archive publish/download gates and admin review
+
+### What was done:
+- Added the shared archive clean-only gate. New mod content first passes the configured zip structure/quota validator, then creates a pending scan job and `archive.scan.requested` Outbox event inside the content transaction; AI review cannot publish until every required archive is clean.
+- Added clean-only download URL signing with stable `ARCHIVE_NOT_CLEAN` responses and a quarantine-prefix fail-closed check.
+- Added admin scan-job inspection, bounded attempt listing, retry, and manual review/resolve APIs under the existing admin guard and rate limit. Review reasons are mandatory, illegal transitions/outcomes are rejected, false-positive release restores quarantine to the original key, and state changes plus audit records commit atomically.
+- Manual-review entry now requires both the original key to be absent and the quarantine object to be present; false-positive clean resolution is idempotent, verifies the restored object digest during compensation, and notifies the review service so a previously approved content pass cannot remain stranded.
+- Synchronized the generated API route section and archive-scanning S04 status. Evidence: `docs/working/2026-08-19-s04-archive-gates-evidence.md`.
+
+### Testing:
+- TDD red-to-green: archive gate state matrix, mod pending-job creation, download positive/negative paths, quarantine rejection with the feature disabled, admin authorization/reason/audit/illegal-transition paths, latest-review gating, corrupt-archive mapping, rollback compensation, and clean-completion notification.
+- `go test ./...`, `go vet ./...`, `go build ./...`, frontend lint/UI governance/461 unit tests/build, and `bash scripts/verify-project.sh --full` passed after route documentation synchronization.
+- `tools/doc-validator --fix` was run twice and was idempotent.
+
+### Notes:
+- Verification is local application evidence only. It does not claim real ClamAV, EICAR, OSS quarantine, or production release validation. #76 and #151 remain deferred; S05 real full-infra/security evidence remains outstanding.

@@ -89,6 +89,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	prHandler := handler.NewPRHandlerWithService(ctr.PRService)
 	contentHandler := handler.NewContentHandler(db, cfg, rdb)
 	contentHandler.SetQueueProducer(ctr.QueueProducer)
+	contentHandler.SetArchiveScanRepository(ctr.ArchiveScanRepo)
 	contents := v1.Group("/contents")
 	{
 		contents.GET("", optAuth, contentHandler.ListContents)
@@ -315,6 +316,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	adminFeedbackHandler := handler.NewAdminFeedbackHandler(db, ctr.FeedbackService, ctr.AdminAuditService)
 	adminAuditHandler := handler.NewAdminAuditHandler(ctr.AdminAuditService)
 	adminRAGHandler := handler.NewAdminRAGHandler(cfg, ctr.RAGProjection, ctr.AdminAuditService)
+	adminArchiveScanHandler := handler.NewAdminArchiveScanHandler(db, ctr.ArchiveScanRepo, ctr.AdminAuditService, ctr.ArchiveObjectStore)
+	adminArchiveScanHandler.SetArchiveScanCompletionNotifier(ctr.ReviewService)
+	archiveScanAdminRateLimit := middleware.RedisFixedWindowLimit(rdb, "ratelimit:admin-archive-scan", cfg.RateLimit.NormalPerMinute, time.Minute, true)
 	admin := v1.Group("/admin", authReq, middleware.AdminRequired())
 	{
 		admin.GET("/ips", adminHandler.ListPendingIPs)
@@ -355,6 +359,10 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		admin.POST("/notifications/broadcast", adminHandler.BroadcastNotification)
 		admin.GET("/audit-logs", adminAuditHandler.ListAuditLogs)
 		admin.POST("/rag/rebuild", adminRAGHandler.Rebuild)
+		admin.GET("/archive-scan-jobs/:id", archiveScanAdminRateLimit, adminArchiveScanHandler.GetJob)
+		admin.POST("/archive-scan-jobs/:id/manual-review", archiveScanAdminRateLimit, adminArchiveScanHandler.StartManualReview)
+		admin.POST("/archive-scan-jobs/:id/resolve", archiveScanAdminRateLimit, adminArchiveScanHandler.ResolveManualReview)
+		admin.POST("/archive-scan-jobs/:id/retry", archiveScanAdminRateLimit, adminArchiveScanHandler.Retry)
 	}
 
 	internalHandler := handler.NewInternalHandler(db, rdb, cfg)
