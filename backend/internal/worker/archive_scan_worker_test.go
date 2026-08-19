@@ -344,6 +344,13 @@ func TestArchiveScanWorkerRejectsMalformedMessage(t *testing.T) {
 	}
 }
 
+func TestArchiveScanWorkerPreservesConfiguredTimeout(t *testing.T) {
+	worker := NewArchiveScanWorker(&fakeArchiveScanRepository{}, &fakeArchiveObjectStore{}, &fakeArchiveScanner{}, 0)
+	if worker.timeout != 0 {
+		t.Fatalf("timeout = %s, want configured zero value", worker.timeout)
+	}
+}
+
 func TestArchiveScanWorkerDuplicateTerminalDeliveryIsIdempotent(t *testing.T) {
 	repo := testArchiveScanRepository()
 	objects := &fakeArchiveObjectStore{data: "clean archive"}

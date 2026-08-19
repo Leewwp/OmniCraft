@@ -197,7 +197,7 @@ services:
   clamav:
     image: clamav/clamav:1.4.3
     container_name: omnicraft-clamav
-    profiles: ["security"]
+    profiles: ["security", "full-infra"]
     expose:
       - "3310"
     volumes:

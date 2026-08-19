@@ -30,6 +30,13 @@ func TestClientPingUsesPrivateClamdProtocol(t *testing.T) {
 	}
 }
 
+func TestNewClientPreservesConfiguredTimeout(t *testing.T) {
+	client := NewClient("clamav:3310", 0)
+	if client.timeout != 0 {
+		t.Fatalf("timeout = %s, want configured zero value", client.timeout)
+	}
+}
+
 func TestClientVersionParsesEngineAndSignatureVersions(t *testing.T) {
 	listener := listenTestClamd(t, func(conn net.Conn) error {
 		command, err := readNulCommand(conn)

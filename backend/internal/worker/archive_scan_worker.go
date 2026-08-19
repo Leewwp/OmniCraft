@@ -94,9 +94,6 @@ func NewArchiveScanWorkerWithDBAndNotifier(repository ArchiveScanRepository, obj
 }
 
 func newArchiveScanWorker(repository ArchiveScanRepository, objects ArchiveScanObjectStore, scanner ArchiveScanner, timeout time.Duration, db *gorm.DB, notifier ArchiveScanCompletionNotifier) *ArchiveScanWorker {
-	if timeout <= 0 {
-		timeout = 120 * time.Second
-	}
 	return &ArchiveScanWorker{
 		repository: repository,
 		objects:    objects,
