@@ -59,6 +59,116 @@ type ArchiveScanRepository struct {
 	outbox OutboxWriter
 }
 
+// RetryFailedJob moves a failed job back to pending when its configured retry
+// schedule still has capacity. It is the repository seam used by the admin
+// retry endpoint; the same transition remains available to the worker.
+func (r *ArchiveScanRepository) RetryFailedJob(ctx context.Context, jobID int64) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return r.RetryFailedJobTx(ctx, tx, jobID)
+	})
+}
+
+// RetryFailedJobTx is the transactional form used when an admin retry and its
+// audit record must commit together.
+func (r *ArchiveScanRepository) RetryFailedJobTx(ctx context.Context, tx *gorm.DB, jobID int64) error {
+	var job model.ArchiveScanJob
+	if err := tx.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ?", jobID).First(&job).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrArchiveScanNotFound
+		}
+		return err
+	}
+	if err := r.transitionTx(ctx, tx, jobID, model.ScanStatusFailed,
+		func(job *model.ArchiveScanJob) (string, map[string]interface{}, map[string]interface{}, error) {
+			if job.NextAttemptAt == nil {
+				return "", nil, nil, ErrArchiveScanRetryExhausted
+			}
+			return model.ScanStatusPending, map[string]interface{}{
+				"attempts":        job.Attempts + 1,
+				"next_attempt_at": nil,
+				"error_code":      "",
+			}, map[string]interface{}{}, nil
+		}); err != nil {
+		return err
+	}
+	if r.outbox == nil {
+		return nil
+	}
+	traceparent, tracestate := events.FromContext(ctx)
+	envelope, err := events.NewArchiveScanEnvelope(job.AttachmentID, job.ID, traceparent, tracestate)
+	if err != nil {
+		return err
+	}
+	row := events.ToOutboxEvent(envelope)
+	return r.outbox.CreateTx(ctx, tx, &row)
+}
+
+// FinishCleanWithAttempt commits the terminal clean transition and its
+// immutable attempt row together. Worker side effects must not leave an
+// attempt saying clean while the job is still scanning.
+func (r *ArchiveScanRepository) FinishCleanWithAttempt(ctx context.Context, jobID int64, attempt *model.ArchiveScanAttempt, engineVersion, signatureVersion, objectSHA256 string) error {
+	now := time.Now()
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := r.transitionTx(ctx, tx, jobID, model.ScanStatusScanning,
+			func(job *model.ArchiveScanJob) (string, map[string]interface{}, map[string]interface{}, error) {
+				return model.ScanStatusClean, map[string]interface{}{
+					"finished_at": now, "engine_version": engineVersion,
+					"signature_version": signatureVersion, "object_sha256": objectSHA256,
+				}, map[string]interface{}{"scanned_at": now, "last_scan_job_id": job.ID}, nil
+			}); err != nil {
+			return err
+		}
+		return r.appendAttemptTx(ctx, tx, attempt)
+	})
+}
+
+// BlockWithAttempt commits the blocked state and immutable detection audit
+// after the worker has copied the source into quarantine.
+func (r *ArchiveScanRepository) BlockWithAttempt(ctx context.Context, jobID int64, attempt *model.ArchiveScanAttempt, detectionName, quarantineKey, objectSHA256 string) error {
+	now := time.Now()
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := r.transitionTx(ctx, tx, jobID, model.ScanStatusScanning,
+			func(job *model.ArchiveScanJob) (string, map[string]interface{}, map[string]interface{}, error) {
+				return model.ScanStatusBlocked, map[string]interface{}{
+					"finished_at": now, "detection_name": detectionName,
+					"quarantine_key": quarantineKey, "object_sha256": objectSHA256,
+				}, map[string]interface{}{}, nil
+			}); err != nil {
+			return err
+		}
+		return r.appendAttemptTx(ctx, tx, attempt)
+	})
+}
+
+// FailWithAttempt commits a failed state and its retry metadata with the
+// corresponding immutable error attempt.
+func (r *ArchiveScanRepository) FailWithAttempt(ctx context.Context, jobID int64, attempt *model.ArchiveScanAttempt, errorCode string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := r.transitionTx(ctx, tx, jobID, model.ScanStatusScanning,
+			func(job *model.ArchiveScanJob) (string, map[string]interface{}, map[string]interface{}, error) {
+				updates := map[string]interface{}{"error_code": errorCode}
+				if job.Attempts < len(r.policy.Backoff) {
+					updates["next_attempt_at"] = time.Now().Add(r.policy.Backoff[job.Attempts])
+				}
+				return model.ScanStatusFailed, updates, map[string]interface{}{}, nil
+			}); err != nil {
+			return err
+		}
+		return r.appendAttemptTx(ctx, tx, attempt)
+	})
+}
+
+// ResetScanning returns an abandoned in-flight job to pending. It is used
+// only after a worker-side transactional outcome failed, or after the scan
+// timeout has elapsed, so a later delivery can safely retry the scan.
+func (r *ArchiveScanRepository) ResetScanning(ctx context.Context, jobID int64) error {
+	return r.transition(ctx, jobID, model.ScanStatusScanning,
+		func(*model.ArchiveScanJob) (string, map[string]interface{}, map[string]interface{}, error) {
+			return model.ScanStatusPending, map[string]interface{}{"started_at": nil}, map[string]interface{}{}, nil
+		})
+}
+
 func NewArchiveScanRepository(db *gorm.DB, policy ArchiveScanRetryPolicy) *ArchiveScanRepository {
 	return NewArchiveScanRepositoryWithOutbox(db, policy, nil)
 }
@@ -78,60 +188,73 @@ func NewArchiveScanRepositoryWithOutbox(db *gorm.DB, policy ArchiveScanRetryPoli
 func (r *ArchiveScanRepository) CreateJob(ctx context.Context, attachmentID int64, scanVersion int) (*model.ArchiveScanJob, error) {
 	var job model.ArchiveScanJob
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var attachment model.ContentAttachment
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ?", attachmentID).
-			First(&attachment).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrArchiveScanNotFound
-			}
+		created, err := r.CreateJobTx(ctx, tx, attachmentID, scanVersion)
+		if err != nil {
 			return err
 		}
-		if attachment.ScanStatus == model.ScanStatusNotRequired {
-			return ErrArchiveScanNotScannable
-		}
-		var current int64
-		if err := tx.Model(&model.ArchiveScanJob{}).
-			Where("attachment_id = ? AND scan_version = ? AND status NOT IN ?",
-				attachmentID, scanVersion, []string{model.ScanStatusClean, model.ScanStatusFailed}).
-			Count(&current).Error; err != nil {
-			return err
-		}
-		if current > 0 {
-			return ErrArchiveScanJobExists
-		}
-		job = model.ArchiveScanJob{
-			AttachmentID: attachmentID,
-			ScanVersion:  scanVersion,
-			Status:       model.ScanStatusPending,
-		}
-		if err := tx.Create(&job).Error; err != nil {
-			return err
-		}
-		if err := tx.Model(&model.ContentAttachment{}).
-			Where("id = ?", attachmentID).
-			Updates(map[string]interface{}{
-				"scan_status":   model.ScanStatusPending,
-				"scan_required": true,
-				"scan_version":  scanVersion,
-			}).Error; err != nil {
-			return err
-		}
-		if r.outbox != nil {
-			traceparent, tracestate := events.FromContext(ctx)
-			envelope, err := events.NewArchiveScanEnvelope(attachmentID, job.ID, traceparent, tracestate)
-			if err != nil {
-				return err
-			}
-			row := events.ToOutboxEvent(envelope)
-			if err := r.outbox.CreateTx(ctx, tx, &row); err != nil {
-				return err
-			}
-		}
+		job = *created
 		return nil
 	})
 	if err != nil {
 		return nil, err
+	}
+	return &job, nil
+}
+
+// CreateJobTx creates a pending job inside an existing transaction. Content
+// publication uses this form so attachment creation, the scan state and the
+// archive.scan.requested outbox event commit atomically.
+func (r *ArchiveScanRepository) CreateJobTx(ctx context.Context, tx *gorm.DB, attachmentID int64, scanVersion int) (*model.ArchiveScanJob, error) {
+	var job model.ArchiveScanJob
+	var attachment model.ContentAttachment
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ?", attachmentID).
+		First(&attachment).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrArchiveScanNotFound
+		}
+		return nil, err
+	}
+	if attachment.ScanStatus == model.ScanStatusNotRequired && attachment.FileType != "mod" {
+		return nil, ErrArchiveScanNotScannable
+	}
+	var current int64
+	if err := tx.Model(&model.ArchiveScanJob{}).
+		Where("attachment_id = ? AND scan_version = ? AND status NOT IN ?",
+			attachmentID, scanVersion, []string{model.ScanStatusClean, model.ScanStatusFailed}).
+		Count(&current).Error; err != nil {
+		return nil, err
+	}
+	if current > 0 {
+		return nil, ErrArchiveScanJobExists
+	}
+	job = model.ArchiveScanJob{
+		AttachmentID: attachmentID,
+		ScanVersion:  scanVersion,
+		Status:       model.ScanStatusPending,
+	}
+	if err := tx.Create(&job).Error; err != nil {
+		return nil, err
+	}
+	if err := tx.Model(&model.ContentAttachment{}).
+		Where("id = ?", attachmentID).
+		Updates(map[string]interface{}{
+			"scan_status":   model.ScanStatusPending,
+			"scan_required": true,
+			"scan_version":  scanVersion,
+		}).Error; err != nil {
+		return nil, err
+	}
+	if r.outbox != nil {
+		traceparent, tracestate := events.FromContext(ctx)
+		envelope, err := events.NewArchiveScanEnvelope(attachmentID, job.ID, traceparent, tracestate)
+		if err != nil {
+			return nil, err
+		}
+		row := events.ToOutboxEvent(envelope)
+		if err := r.outbox.CreateTx(ctx, tx, &row); err != nil {
+			return nil, err
+		}
 	}
 	return &job, nil
 }
@@ -228,7 +351,15 @@ func (r *ArchiveScanRepository) Retry(ctx context.Context, jobID int64) error {
 // is only reachable from blocked and must be initiated by an admin (the
 // admin guard is S04; the repository enforces the transition source).
 func (r *ArchiveScanRepository) StartManualReview(ctx context.Context, jobID int64) error {
-	return r.transition(ctx, jobID, model.ScanStatusBlocked,
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return r.StartManualReviewTx(ctx, tx, jobID)
+	})
+}
+
+// StartManualReviewTx is the transactional form used by the admin handler so
+// the state transition and its audit record commit or roll back together.
+func (r *ArchiveScanRepository) StartManualReviewTx(ctx context.Context, tx *gorm.DB, jobID int64) error {
+	return r.transitionTx(ctx, tx, jobID, model.ScanStatusBlocked,
 		func(job *model.ArchiveScanJob) (string, map[string]interface{}, map[string]interface{}, error) {
 			return model.ScanStatusManualReview, map[string]interface{}{}, map[string]interface{}{}, nil
 		})
@@ -239,11 +370,18 @@ func (r *ArchiveScanRepository) StartManualReview(ctx context.Context, jobID int
 // last_scan_job_id) or ScanStatusBlocked (confirmed malware). Any other
 // outcome is rejected as an illegal transition.
 func (r *ArchiveScanRepository) ResolveManualReview(ctx context.Context, jobID int64, outcome string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return r.ResolveManualReviewTx(ctx, tx, jobID, outcome)
+	})
+}
+
+// ResolveManualReviewTx is the transactional form used by the admin handler.
+func (r *ArchiveScanRepository) ResolveManualReviewTx(ctx context.Context, tx *gorm.DB, jobID int64, outcome string) error {
 	if outcome != model.ScanStatusClean && outcome != model.ScanStatusBlocked {
 		return ErrArchiveScanIllegalState
 	}
 	now := time.Now()
-	return r.transition(ctx, jobID, model.ScanStatusManualReview,
+	return r.transitionTx(ctx, tx, jobID, model.ScanStatusManualReview,
 		func(job *model.ArchiveScanJob) (string, map[string]interface{}, map[string]interface{}, error) {
 			jobUpdates := map[string]interface{}{"finished_at": now}
 			attachmentUpdates := map[string]interface{}{}
@@ -261,25 +399,30 @@ func (r *ArchiveScanRepository) ResolveManualReview(ctx context.Context, jobID i
 // the database backstop. There is no update or delete path.
 func (r *ArchiveScanRepository) AppendAttempt(ctx context.Context, attempt *model.ArchiveScanAttempt) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var job model.ArchiveScanJob
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ?", attempt.ScanJobID).
-			First(&job).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrArchiveScanNotFound
-			}
-			return err
-		}
-		var maxNo int
-		if err := tx.Model(&model.ArchiveScanAttempt{}).
-			Where("scan_job_id = ?", attempt.ScanJobID).
-			Select("COALESCE(MAX(attempt_no), 0)").
-			Scan(&maxNo).Error; err != nil {
-			return err
-		}
-		attempt.AttemptNo = maxNo + 1
-		return tx.Create(attempt).Error
+		return r.appendAttemptTx(ctx, tx, attempt)
 	})
+}
+
+func (r *ArchiveScanRepository) appendAttemptTx(ctx context.Context, tx *gorm.DB, attempt *model.ArchiveScanAttempt) error {
+	tx = tx.WithContext(ctx)
+	var job model.ArchiveScanJob
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ?", attempt.ScanJobID).
+		First(&job).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrArchiveScanNotFound
+		}
+		return err
+	}
+	var maxNo int
+	if err := tx.Model(&model.ArchiveScanAttempt{}).
+		Where("scan_job_id = ?", attempt.ScanJobID).
+		Select("COALESCE(MAX(attempt_no), 0)").
+		Scan(&maxNo).Error; err != nil {
+		return err
+	}
+	attempt.AttemptNo = maxNo + 1
+	return tx.Create(attempt).Error
 }
 
 // GetJob returns one job by id.
@@ -327,7 +470,7 @@ func (r *ArchiveScanRepository) ListAttemptsByJob(ctx context.Context, jobID int
 	err := r.db.WithContext(ctx).
 		Where("scan_job_id = ?", jobID).
 		Order("attempt_no ASC").
-		Find(&attempts).Error
+		Limit(100).Find(&attempts).Error
 	return attempts, err
 }
 
@@ -353,38 +496,43 @@ func (r *ArchiveScanRepository) GetAttachmentScanState(ctx context.Context, atta
 // stale transitions affect zero rows and are rejected.
 func (r *ArchiveScanRepository) transition(ctx context.Context, jobID int64, wantStatus string,
 	mutate func(job *model.ArchiveScanJob) (string, map[string]interface{}, map[string]interface{}, error)) error {
-
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var job model.ArchiveScanJob
-		if err := tx.Where("id = ?", jobID).First(&job).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrArchiveScanNotFound
-			}
-			return err
-		}
-		if job.Status != wantStatus {
-			return ErrArchiveScanIllegalState
-		}
-		nextStatus, jobUpdates, attachmentUpdates, err := mutate(&job)
-		if err != nil {
-			return err
-		}
-		jobUpdates["status"] = nextStatus
-		if err := tx.Model(&model.ArchiveScanJob{}).
-			Where("id = ? AND status = ?", job.ID, wantStatus).
-			Updates(jobUpdates).Error; err != nil {
-			return err
-		}
-		attachmentUpdates["scan_status"] = nextStatus
-		result := tx.Model(&model.ContentAttachment{}).
-			Where("id = ? AND scan_status = ?", job.AttachmentID, wantStatus).
-			Updates(attachmentUpdates)
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected != 1 {
-			return ErrArchiveScanIllegalState
-		}
-		return nil
+		return r.transitionTx(ctx, tx, jobID, wantStatus, mutate)
 	})
+}
+
+func (r *ArchiveScanRepository) transitionTx(ctx context.Context, tx *gorm.DB, jobID int64, wantStatus string,
+	mutate func(job *model.ArchiveScanJob) (string, map[string]interface{}, map[string]interface{}, error)) error {
+	tx = tx.WithContext(ctx)
+	var job model.ArchiveScanJob
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", jobID).First(&job).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrArchiveScanNotFound
+		}
+		return err
+	}
+	if job.Status != wantStatus {
+		return ErrArchiveScanIllegalState
+	}
+	nextStatus, jobUpdates, attachmentUpdates, err := mutate(&job)
+	if err != nil {
+		return err
+	}
+	jobUpdates["status"] = nextStatus
+	if err := tx.Model(&model.ArchiveScanJob{}).
+		Where("id = ? AND status = ?", job.ID, wantStatus).
+		Updates(jobUpdates).Error; err != nil {
+		return err
+	}
+	attachmentUpdates["scan_status"] = nextStatus
+	result := tx.Model(&model.ContentAttachment{}).
+		Where("id = ? AND scan_status = ?", job.AttachmentID, wantStatus).
+		Updates(attachmentUpdates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return ErrArchiveScanIllegalState
+	}
+	return nil
 }

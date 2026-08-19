@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -15,6 +17,7 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/archivezip"
 	"omnicraft/backend/internal/pkg/imageinfo"
 )
 
@@ -167,6 +170,72 @@ func (s *OSSService) VerifyUploadedObject(ctx context.Context, grant UploadGrant
 		return &UploadValidationError{Message: "uploaded content type does not match grant"}
 	}
 	return nil
+}
+
+// ValidateArchiveStructure streams an uploaded object into a restricted
+// temporary file and lets the archivezip package inspect it with its configured
+// entry, decompression and nesting quotas. The temporary file is removed on
+// every return path; the archive is never retained as application state.
+func (s *OSSService) ValidateArchiveStructure(ctx context.Context, ossKey string, size int64, quota archivezip.Quota) error {
+	if s == nil || s.client == nil {
+		return ErrOSSNotConfigured
+	}
+	if size <= 0 {
+		return &UploadValidationError{Message: "archive size must be positive"}
+	}
+	object, err := s.client.Open(strings.TrimSpace(ossKey))
+	if err != nil {
+		return err
+	}
+	defer object.Close()
+	tmp, err := os.CreateTemp("", "omnicraft-archive-validate-*")
+	if err != nil {
+		return err
+	}
+	name := tmp.Name()
+	defer func() { _ = tmp.Close() }()
+	defer os.Remove(name)
+	written, err := copyWithContext(ctx, tmp, io.LimitReader(object, size+1))
+	if err != nil {
+		return err
+	}
+	if written != size {
+		return &UploadValidationError{Message: "uploaded archive size does not match grant"}
+	}
+	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+	if _, err := archivezip.Validate(ctx, tmp, written, quota); err != nil {
+		return err
+	}
+	return tmp.Close()
+}
+
+func copyWithContext(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
+	buf := make([]byte, 32*1024)
+	var total int64
+	for {
+		if err := ctx.Err(); err != nil {
+			return total, err
+		}
+		n, readErr := src.Read(buf)
+		if n > 0 {
+			written, writeErr := dst.Write(buf[:n])
+			total += int64(written)
+			if writeErr != nil {
+				return total, writeErr
+			}
+			if written != n {
+				return total, io.ErrShortWrite
+			}
+		}
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				return total, nil
+			}
+			return total, readErr
+		}
+	}
 }
 
 // ResolveImageDimensions derives pixel dimensions from the object header, so

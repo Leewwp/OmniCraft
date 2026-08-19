@@ -12,6 +12,7 @@ package archivezip
 import (
 	"archive/zip"
 	"bytes"
+	"compress/flate"
 	"context"
 	"errors"
 	"fmt"
@@ -34,6 +35,7 @@ var (
 	ErrPathInvalid   = errors.New("ARCHIVE_PATH_INVALID")
 	ErrLinkForbidden = errors.New("ARCHIVE_LINK_FORBIDDEN")
 	ErrLimitExceeded = errors.New("ARCHIVE_LIMIT_EXCEEDED")
+	ErrInvalid       = errors.New("ARCHIVE_INVALID")
 )
 
 // errInvalidQuota marks a Quota with non-positive limits. It is an internal
@@ -135,7 +137,7 @@ func validateLevel(ctx context.Context, r io.ReaderAt, size int64, q Quota, dept
 	}
 	zr, err := zip.NewReader(r, size)
 	if err != nil {
-		return fmt.Errorf("invalid zip archive: %w", err)
+		return fmt.Errorf("%w: %v", ErrInvalid, err)
 	}
 	if len(zr.File) > q.MaxZipEntries {
 		return fmt.Errorf("zip entry count %d exceeds limit %d: %w",
@@ -165,6 +167,10 @@ func validateLevel(ctx context.Context, r io.ReaderAt, size int64, q Quota, dept
 		err = consumeEntry(ctx, rc, q, depth, acc, dir)
 		rc.Close()
 		if err != nil {
+			var corrupt flate.CorruptInputError
+			if errors.Is(err, zip.ErrChecksum) || errors.Is(err, io.ErrUnexpectedEOF) || errors.As(err, &corrupt) {
+				return fmt.Errorf("entry %q is corrupt: %w", f.Name, ErrInvalid)
+			}
 			return err
 		}
 		acc.entryCount++

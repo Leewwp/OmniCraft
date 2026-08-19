@@ -370,6 +370,7 @@ backend/
 | `DELETE` | `/api/v1/users/me/saved-searches/:id` | tagHandler.DeleteSavedSearch |
 | `DELETE` | `/api/v1/users/me/tag-groups/:id` | tagHandler.DeleteTagGroup |
 | `GET` | `/api/v1/admin/appeals` | adminHandler.ListAppeals |
+| `GET` | `/api/v1/admin/archive-scan-jobs/:id` | adminArchiveScanHandler.GetJob |
 | `GET` | `/api/v1/admin/audit-logs` | adminAuditHandler.ListAuditLogs |
 | `GET` | `/api/v1/admin/config` | adminHandler.GetConfig |
 | `GET` | `/api/v1/admin/contents` | adminHandler.ListUnderReviewContents |
@@ -464,6 +465,9 @@ backend/
 | `PATCH` | `/api/v1/users/me/support-info` | userHandler.UpdateSupportInfo |
 | `PATCH` | `/api/v1/users/me/tag-groups/:id` | tagHandler.UpdateTagGroup |
 | `POST` | `/api/v1/admin/appeals/:id` | adminHandler.ResolveAppeal |
+| `POST` | `/api/v1/admin/archive-scan-jobs/:id/manual-review` | adminArchiveScanHandler.StartManualReview |
+| `POST` | `/api/v1/admin/archive-scan-jobs/:id/resolve` | adminArchiveScanHandler.ResolveManualReview |
+| `POST` | `/api/v1/admin/archive-scan-jobs/:id/retry` | adminArchiveScanHandler.Retry |
 | `POST` | `/api/v1/admin/categories` | catHandler.AdminCreateCategory |
 | `POST` | `/api/v1/admin/contents/:id/ban` | adminHandler.BanContent |
 | `POST` | `/api/v1/admin/feedback/:id/replies` | adminFeedbackHandler.ReplyFeedback |

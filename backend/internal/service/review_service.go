@@ -74,12 +74,13 @@ type AICallbackInput struct {
 }
 
 type ReviewService struct {
-	db       *gorm.DB
-	rdb      *redis.Client
-	cfg      *config.Config
-	reputSvc *ReputationService
-	green    greenScanner
-	outbox   repository.OutboxWriter
+	db          *gorm.DB
+	rdb         *redis.Client
+	cfg         *config.Config
+	reputSvc    *ReputationService
+	green       greenScanner
+	outbox      repository.OutboxWriter
+	archiveGate *ArchiveScanGate
 }
 
 func NewReviewService(db *gorm.DB, rdb *redis.Client, cfg *config.Config, reputSvc *ReputationService) *ReviewService {
@@ -101,6 +102,13 @@ func NewReviewService(db *gorm.DB, rdb *redis.Client, cfg *config.Config, reputS
 // the same database transaction as the status update.
 func (s *ReviewService) SetOutboxRepository(outbox repository.OutboxWriter) {
 	s.outbox = outbox
+}
+
+// SetArchiveScanGate makes the content review transition consume the same
+// clean-only policy as downloads. A blocked or pending archive leaves content
+// unpublished and returns an error so the review message is retried.
+func (s *ReviewService) SetArchiveScanGate(gate *ArchiveScanGate) {
+	s.archiveGate = gate
 }
 
 // ReviewText runs Aliyun Green text moderation over text and returns the
@@ -333,6 +341,17 @@ func (s *ReviewService) applyContentReviewResult(ctx context.Context, tx *gorm.D
 		}
 		return s.ensureJudgeCase(tx, content)
 	default:
+		if s.archiveGate != nil {
+			if err := s.archiveGate.RequireContentCleanTx(ctx, tx, content.ID); err != nil {
+				// The archive worker will notify this service after a clean
+				// result. Keep the AI pass record committed so that notification
+				// can publish the content without re-running Green moderation.
+				if errors.Is(err, ErrArchiveNotClean) {
+					return nil
+				}
+				return err
+			}
+		}
 		res := tx.Model(&model.ContentItem{}).
 			Where("id = ? AND status <> ?", content.ID, "banned").
 			Update("status", "published")
@@ -353,6 +372,48 @@ func (s *ReviewService) applyContentReviewResult(ctx context.Context, tx *gorm.D
 		}
 	}
 	return nil
+}
+
+// ArchiveScanClean resumes a content pass that was recorded before its mod
+// archive became clean. It is idempotent: if no pass is waiting, or content is
+// already terminal, the notification is acknowledged without changing state.
+// The archive worker retries this seam until it succeeds, so a clean scan
+// cannot strand a previously approved content review.
+func (s *ReviewService) ArchiveScanClean(ctx context.Context, attachmentID int64) error {
+	if s == nil || s.db == nil {
+		return errors.New("review service not initialized")
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var attachment model.ContentAttachment
+		if err := tx.Where("id = ?", attachmentID).First(&attachment).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		var content model.ContentItem
+		if err := tx.Where("id = ?", attachment.ContentItemID).First(&content).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		if content.Status == "published" || content.Status == "banned" {
+			return nil
+		}
+		var latest model.AIReviewRecord
+		if err := tx.Where("target_type = ? AND target_id = ?", "content", content.ID).
+			Order("scanned_at DESC, id DESC").First(&latest).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		if latest.Result != "pass" {
+			return nil
+		}
+		return s.applyContentReviewResult(ctx, tx, content.ID, "pass")
+	})
 }
 
 // emitContentEvent writes one outbox row inside the caller's transaction, so

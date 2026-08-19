@@ -172,8 +172,10 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.ReputationService = service.NewReputationService(db)
 	c.ReviewService = service.NewReviewService(db, rdb, cfg, c.ReputationService)
 	c.ReviewService.SetOutboxRepository(c.OutboxRepo)
+	c.ReviewService.SetArchiveScanGate(service.NewArchiveScanGate(db, cfg.Features.ArchiveMalwareScanEnabled))
 	c.JudgeService = service.NewJudgeService(c.JudgeRepo, c.ReputationService, cfg)
-	c.ContentService = service.NewContentServiceWithOSS(c.ContentRepo, c.ReviewService, rdb, &cfg.Cache, nil)
+	c.ContentService = service.NewContentServiceWithOSS(c.ContentRepo, c.ReviewService, rdb, &cfg.Cache, nil).
+		WithArchiveScanConfig(&cfg.ArchiveScan)
 	c.ContentService.SetOutboxRepository(c.OutboxRepo)
 	c.SocialService = service.NewSocialServiceWithRedis(c.SocialRepo, c.ContentRepo, c.UserRepo, cfg, rdb, c.ReviewService)
 	c.StatsService = service.NewStatsService(db, rdb)
@@ -308,12 +310,13 @@ func (c *ServiceContainer) StartWorkers(ctx context.Context) func() {
 		{events.TopicContentDeleted, "omnicraft-indexer", indexerWorker.Handle},
 	}
 	if c.Cfg.Features.ArchiveMalwareScanEnabled && c.ArchiveObjectStore != nil && c.ArchiveScanner != nil {
-		archiveScanWorker := worker.NewArchiveScanWorkerWithDB(
+		archiveScanWorker := worker.NewArchiveScanWorkerWithDBAndNotifier(
 			c.ArchiveScanRepo,
 			c.ArchiveObjectStore,
 			c.ArchiveScanner,
 			time.Duration(c.Cfg.ArchiveScan.ScanTimeoutSec)*time.Second,
 			c.DB,
+			c.ReviewService,
 		)
 		subscriptions = append(subscriptions, struct {
 			topic   string

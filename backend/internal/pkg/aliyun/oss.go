@@ -1,6 +1,7 @@
 package aliyun
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -122,6 +123,29 @@ func (c *OSSClient) GetObjectMeta(ossKey string) (meta *ObjectMeta, err error) {
 		ContentLength: length,
 		ContentType:   props.Get("Content-Type"),
 	}, nil
+}
+
+// Exists checks whether an object is still present without exposing provider
+// error details to callers. A 404 is the expected result after the worker has
+// completed quarantine cleanup; other provider failures remain errors so an
+// admin cannot advance a review on uncertain storage state.
+func (c *OSSClient) Exists(ossKey string) (bool, error) {
+	started := time.Now()
+	var err error
+	defer func() { observability.ObserveExternalCall("oss", started, err) }()
+	_, err = c.bucket.GetObjectDetailedMeta(ossKey)
+	if err == nil {
+		return true, nil
+	}
+	var serviceErr oss.ServiceError
+	if errors.As(err, &serviceErr) && serviceErr.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	var serviceErrPtr *oss.ServiceError
+	if errors.As(err, &serviceErrPtr) && serviceErrPtr.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+	return false, err
 }
 
 // GetImageDimensions derives pixel dimensions from the object's container

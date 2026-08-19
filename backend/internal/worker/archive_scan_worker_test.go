@@ -120,6 +120,8 @@ func (s *fakeArchiveObjectStore) Delete(key string) error {
 	return nil
 }
 
+func (s *fakeArchiveObjectStore) Exists(string) (bool, error) { return false, nil }
+
 type fakeArchiveScanner struct {
 	results []clamav.Result
 	errors  []error
@@ -169,6 +171,32 @@ func TestArchiveScanWorkerCleanPathHashesAndAudits(t *testing.T) {
 	if repo.job.ObjectSHA256 != wantHash {
 		t.Fatalf("object hash = %q, want %q", repo.job.ObjectSHA256, wantHash)
 	}
+}
+
+func TestArchiveScanWorkerNotifiesReviewPublicationAfterClean(t *testing.T) {
+	repo := testArchiveScanRepository()
+	objects := &fakeArchiveObjectStore{data: "clean archive"}
+	scanner := &fakeArchiveScanner{results: []clamav.Result{{Status: clamav.StatusClean}}}
+	notifier := &fakeArchiveScanCompletionNotifier{}
+	worker := NewArchiveScanWorkerWithDBAndNotifier(repo, objects, scanner, time.Second, nil, notifier)
+
+	if err := worker.Handle(context.Background(), archiveScanMessage(7)); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if notifier.attachmentID != repo.attachment.ID || notifier.calls != 1 {
+		t.Fatalf("completion notification = calls %d attachment %d, want one for %d", notifier.calls, notifier.attachmentID, repo.attachment.ID)
+	}
+}
+
+type fakeArchiveScanCompletionNotifier struct {
+	calls        int
+	attachmentID int64
+}
+
+func (n *fakeArchiveScanCompletionNotifier) ArchiveScanClean(_ context.Context, attachmentID int64) error {
+	n.calls++
+	n.attachmentID = attachmentID
+	return nil
 }
 
 func TestArchiveScanWorkerQuarantinesBeforeDeletingBlockedObject(t *testing.T) {

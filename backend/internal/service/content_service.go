@@ -14,6 +14,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/aliyun"
+	"omnicraft/backend/internal/pkg/archivezip"
 	"omnicraft/backend/internal/pkg/events"
 	"omnicraft/backend/internal/pkg/imageinfo"
 	"omnicraft/backend/internal/pkg/queue"
@@ -37,6 +38,8 @@ var (
 	ErrSourceFanworkUnavailable    = errors.New("source fanwork must be a published fanwork content item")
 	ErrSourceImmutable             = errors.New("source attribution is immutable after creation")
 	ErrMediaSetInvalid             = errors.New("media set violates the gallery contract")
+	ErrArchiveAttachmentRequired   = errors.New("mod content requires an archive attachment")
+	ErrArchiveScanUnavailable      = errors.New("archive scan repository is unavailable")
 )
 
 type ContentService struct {
@@ -52,10 +55,18 @@ type ContentService struct {
 	recSvc                 *RecommendationService
 	queueProducer          queue.Producer
 	outbox                 repository.OutboxWriter
+	archiveScanRepo        *repository.ArchiveScanRepository
+	archiveScanEnabled     bool
+	archiveValidator       ArchiveValidator
+	archiveScanCfg         *config.ArchiveScanConfig
 }
 
 type UploadedObjectVerifier interface {
 	VerifyUploadedObject(ctx context.Context, grant UploadGrant) error
+}
+
+type ArchiveValidator interface {
+	ValidateArchiveStructure(ctx context.Context, ossKey string, size int64, quota archivezip.Quota) error
 }
 
 // ImageDimensionsResolver derives pixel dimensions from the uploaded object
@@ -77,7 +88,7 @@ func NewContentServiceWithCache(contentRepo *repository.ContentRepository, revie
 }
 
 func NewContentServiceWithOSS(contentRepo *repository.ContentRepository, reviewSvc *ReviewService, rdb *redis.Client, cacheCfg *config.CacheConfig, ossSvc *OSSService) *ContentService {
-	return &ContentService{contentRepo: contentRepo, reviewSvc: reviewSvc, rdb: rdb, cacheCfg: cacheCfg, ossSvc: ossSvc}
+	return &ContentService{contentRepo: contentRepo, reviewSvc: reviewSvc, rdb: rdb, cacheCfg: cacheCfg, ossSvc: ossSvc, archiveValidator: ossSvc}
 }
 
 func (s *ContentService) SetRecommendationService(recSvc *RecommendationService) {
@@ -93,6 +104,26 @@ func (s *ContentService) SetQueueProducer(p queue.Producer) {
 // inside the same database transaction as the content write.
 func (s *ContentService) SetOutboxRepository(outbox repository.OutboxWriter) {
 	s.outbox = outbox
+}
+
+// SetArchiveScanRepository wires the scan-then-publish path. The repository
+// is used inside the content transaction so a new mod attachment, its pending
+// scan job and archive.scan.requested event are committed together.
+func (s *ContentService) SetArchiveScanRepository(repo *repository.ArchiveScanRepository, enabled bool) {
+	s.archiveScanRepo = repo
+	s.archiveScanEnabled = enabled
+	if s.reviewSvc != nil {
+		s.reviewSvc.SetArchiveScanGate(NewArchiveScanGate(s.contentRepo.DB(), enabled))
+	}
+}
+
+func (s *ContentService) SetArchiveValidator(validator ArchiveValidator) {
+	s.archiveValidator = validator
+}
+
+func (s *ContentService) WithArchiveScanConfig(cfg *config.ArchiveScanConfig) *ContentService {
+	s.archiveScanCfg = cfg
+	return s
 }
 
 func (s *ContentService) WithUploadGrantService(grants *UploadGrantService) *ContentService {
@@ -207,6 +238,19 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 	if err := s.validatePosterContract(&input); err != nil {
 		return nil, err
 	}
+	if s.archiveScanEnabled && input.ContentType == "mod" {
+		if len(input.Attachments) == 0 {
+			return nil, ErrArchiveAttachmentRequired
+		}
+		if s.archiveScanRepo == nil {
+			return nil, ErrArchiveScanUnavailable
+		}
+		for _, attachment := range input.Attachments {
+			if attachment.FileType != "mod" {
+				return nil, ErrArchiveAttachmentRequired
+			}
+		}
+	}
 
 	content := &model.ContentItem{
 		Title:            input.Title,
@@ -303,6 +347,17 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 					}
 					return err
 				}
+				if s.archiveScanEnabled && input.ContentType == "mod" && a.FileType == "mod" {
+					if s.archiveValidator == nil || s.archiveScanCfg == nil {
+						return ErrOSSNotConfigured
+					}
+					if maxMB := s.archiveScanCfg.MaxUploadSizeMB; maxMB > 0 && grant.FileSize > int64(maxMB)<<20 {
+						return archivezip.ErrLimitExceeded
+					}
+					if err := s.archiveValidator.ValidateArchiveStructure(ctx, grant.OSSKey, grant.FileSize, archivezip.QuotaFromConfig(*s.archiveScanCfg)); err != nil {
+						return err
+					}
+				}
 				a.OSSKey = grant.OSSKey
 				a.FileSize = &grant.FileSize
 				a.MimeType = grant.MimeType
@@ -375,6 +430,16 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 		if len(attachments) > 0 {
 			if err := txRepo.CreateAttachments(attachments); err != nil {
 				return err
+			}
+		}
+		if s.archiveScanEnabled && s.archiveScanRepo != nil && input.ContentType == "mod" {
+			for _, attachment := range attachments {
+				if attachment.FileType != "mod" {
+					continue
+				}
+				if _, err := s.archiveScanRepo.CreateJobTx(ctx, txRepo.DB(), attachment.ID, 1); err != nil {
+					return err
+				}
 			}
 		}
 

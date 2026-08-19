@@ -75,6 +75,37 @@ func TestArchiveScanRepositoryOutboxFailureRollsBackJobAndAttachment(t *testing.
 	}
 }
 
+func TestArchiveScanRepositoryRetryWritesRequestedOutboxEvent(t *testing.T) {
+	db, modID, _ := setupArchiveScanRepositoryDB(t)
+	writer := &recordingArchiveOutboxWriter{}
+	repo := NewArchiveScanRepositoryWithOutbox(db, ArchiveScanRetryPolicy{Backoff: []time.Duration{time.Minute}}, writer)
+	job, err := repo.CreateJob(context.Background(), modID, 1)
+	if err != nil {
+		t.Fatalf("CreateJob() error = %v", err)
+	}
+	if err := repo.StartScan(context.Background(), job.ID); err != nil {
+		t.Fatalf("StartScan() error = %v", err)
+	}
+	if err := repo.Fail(context.Background(), job.ID, "CLAMD_UNAVAILABLE"); err != nil {
+		t.Fatalf("Fail() error = %v", err)
+	}
+	if err := repo.RetryFailedJob(context.Background(), job.ID); err != nil {
+		t.Fatalf("RetryFailedJob() error = %v", err)
+	}
+	if writer.event == nil || writer.event.EventType != "archive.scan.requested" {
+		t.Fatalf("retry outbox event = %#v, want archive.scan.requested", writer.event)
+	}
+	var payload struct {
+		JobID int64 `json:"job_id"`
+	}
+	if err := json.Unmarshal(writer.event.Payload, &payload); err != nil {
+		t.Fatalf("decode retry outbox payload: %v", err)
+	}
+	if payload.JobID != job.ID {
+		t.Fatalf("retry outbox job id = %d, want %d", payload.JobID, job.ID)
+	}
+}
+
 func TestArchiveScanRepositoryCreateJobTracksAttachmentState(t *testing.T) {
 	db, modID, imageID := setupArchiveScanRepositoryDB(t)
 	repo := NewArchiveScanRepository(db, ArchiveScanRetryPolicy{})

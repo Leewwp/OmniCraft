@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -456,11 +457,32 @@ func TestValidateMalformedArchive(t *testing.T) {
 		if err == nil {
 			t.Fatalf("expected error for malformed archive %q", data)
 		}
+		if !errors.Is(err, ErrInvalid) {
+			t.Fatalf("malformed archive must map to ErrInvalid, got %v", err)
+		}
 		for _, s := range []error{ErrEncrypted, ErrPathInvalid, ErrLinkForbidden, ErrLimitExceeded} {
 			if errors.Is(err, s) {
 				t.Fatalf("malformed archive must not map to business sentinel %v, got %v", s, err)
 			}
 		}
+	}
+}
+
+func TestValidateCorruptEntryMapsToInvalidArchive(t *testing.T) {
+	data := buildTestZip(t, testEntry{name: "payload.txt", content: []byte("payload"), method: zip.Store})
+	if len(data) < 30 || string(data[:4]) != "PK\x03\x04" {
+		t.Fatal("zip fixture does not contain a local file header")
+	}
+	nameLen := int(binary.LittleEndian.Uint16(data[26:28]))
+	extraLen := int(binary.LittleEndian.Uint16(data[28:30]))
+	index := 30 + nameLen + extraLen
+	if index >= len(data) {
+		t.Fatal("zip fixture has no stored payload")
+	}
+	data[index] ^= 0x01
+	_, err := validateData(t, data, defaultQuota)
+	if !errors.Is(err, ErrInvalid) {
+		t.Fatalf("corrupt entry error = %v, want ErrInvalid", err)
 	}
 }
 
@@ -530,6 +552,9 @@ func TestValidateSentinelCodes(t *testing.T) {
 	}
 	if ErrLimitExceeded.Error() != "ARCHIVE_LIMIT_EXCEEDED" {
 		t.Fatalf("ErrLimitExceeded = %q", ErrLimitExceeded.Error())
+	}
+	if ErrInvalid.Error() != "ARCHIVE_INVALID" {
+		t.Fatalf("ErrInvalid = %q", ErrInvalid.Error())
 	}
 }
 
