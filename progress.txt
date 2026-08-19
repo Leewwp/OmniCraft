@@ -1,3 +1,20 @@
+## [2026-08-19] - Task #150: S05 归档扫描验收与证据收口
+
+### What was done:
+- 完成 S05 本地 closure：整理 #148/#149 已实现的 ClamAV adapter、Worker、隔离、重试、发布/下载门禁与管理员复核的 focused acceptance evidence；S05 未新增运行时代码。
+- 记录 security/full-infra Compose 配置检查与真实 ClamAV smoke 尝试；明确 Apple Silicon manifest 不匹配及 Docker registry TLS 证书错误，未把失败尝试或 fake seam 当作 EICAR/生产证据。
+- 更新 archive malware scanning spec 的 S05 状态；证据与原始终端摘录分别落在 `docs/working/2026-08-19-s05-archive-scan-evidence.md` 和 `docs/working/2026-08-19-s05-archive-scan-raw.txt`。
+
+### Testing:
+- focused archive scan suites 全绿（clamav/worker/repository/events/config/container/OSS、发布下载门禁、管理员 handler）。
+- `GOCACHE=/tmp/omnicraft-gocache bash scripts/verify-project.sh --full`：第二次完整门通过；Go test/vet/build、前端 `463/463` unit、lint/UI governance/build、release doc-validator、mocked Playwright `73/73`。
+- 首次完整门的既有 #72 keyboard-focus 用例出现一次性失败（`72 passed, 1 failed`）；隔离复跑 `2/2` 通过，随后完整门 `73/73` 通过。该波动未改 #72 代码。
+
+### Notes:
+- 真实 ClamAV signature database、EICAR、clamd recovery、真实 OSS quarantine/delete 仍是环境缺口；恢复 registry 与兼容镜像后按 S05 evidence 包中的命令复验。
+- #76、#151、Tauri/桌面范围继续 deferred。
+- Heavy 两阶段审查通过：规格符合性确认 S05 只收口证据/验收且未越过本地开发范围；代码/文档质量审查确认路径、声明与验证时间线一致，`git diff --check` 通过。S05 未修改 config/routes/migrations，故无需运行 doc-validator。
+
 ## [2026-08-19] - Preflight: Git/DAG 状态校正
 
 ### What was done:
