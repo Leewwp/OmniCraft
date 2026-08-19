@@ -3,7 +3,7 @@ set -eu
 
 base_url="${OPENSEARCH_URL:-http://opensearch:9200}"
 index="${OPENSEARCH_INDEX:-omnicraft-rag-v1}"
-mapping='{"mappings":{"dynamic":"strict","properties":{"chunk_key":{"type":"keyword"},"content_id":{"type":"long"},"content_version":{"type":"integer"},"chunking_version":{"type":"integer"},"index_version":{"type":"integer"},"embedding_model":{"type":"keyword"},"title":{"type":"text"},"heading":{"type":"text"},"text":{"type":"text"},"source_start":{"type":"integer"},"source_end":{"type":"integer"},"zone":{"type":"keyword"},"content_type":{"type":"keyword"},"category":{"type":"keyword"},"tags":{"type":"keyword"},"status":{"type":"keyword"},"ip":{"type":"long"}}}}'
+mapping='{"mappings":{"dynamic":"strict","properties":{"chunk_key":{"type":"keyword"},"content_id":{"type":"long"},"content_version":{"type":"integer"},"chunk_index":{"type":"integer"},"chunking_version":{"type":"integer"},"index_version":{"type":"integer"},"embedding_model":{"type":"keyword"},"title":{"type":"text"},"heading":{"type":"text"},"text":{"type":"text"},"source_start":{"type":"integer"},"source_end":{"type":"integer"},"zone":{"type":"keyword"},"content_type":{"type":"keyword"},"category":{"type":"keyword"},"tags":{"type":"keyword"},"status":{"type":"keyword"},"ip":{"type":"long"}}}}'
 
 status="$(curl -sS -o /dev/null -w '%{http_code}' "${base_url}/${index}")"
 case "$status" in
@@ -16,6 +16,7 @@ case "$status" in
     check_field chunk_key keyword
     check_field content_id long
     check_field content_version integer
+    check_field chunk_index integer
     check_field chunking_version integer
     check_field index_version integer
     check_field embedding_model keyword
