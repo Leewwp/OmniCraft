@@ -198,11 +198,15 @@ export function normalizeAgentEvent(raw: unknown): AgentStreamEvent | null {
       return event;
     }
     case "error": {
-      const event: { type: "error"; error_code?: string; error_message?: string } = { type: "error" };
+      const event: Extract<AgentStreamEvent, { type: "error" }> = { type: "error" };
       const errorCode = candidate.error_code;
       if (typeof errorCode === "string" && errorCode !== "") event.error_code = errorCode;
       const errorMessage = candidate.error_message;
       if (typeof errorMessage === "string" && errorMessage !== "") event.error_message = errorMessage;
+      if (candidate.degraded === true && candidate.degraded_reason === "provider_error") {
+        event.degraded = true;
+        event.degraded_reason = "provider_error";
+      }
       return event;
     }
     default:

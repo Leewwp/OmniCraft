@@ -349,6 +349,9 @@ func TestAgentStreamProviderErrorEmitsSafeErrorEvent(t *testing.T) {
 	if errorEvent.ErrorCode != "AGENT_PROVIDER_ERROR" {
 		t.Fatalf("error code = %q, want AGENT_PROVIDER_ERROR", errorEvent.ErrorCode)
 	}
+	if !errorEvent.Degraded || errorEvent.DegradedReason != "provider_error" {
+		t.Fatalf("provider error degradation = (%v, %q), want (true, provider_error)", errorEvent.Degraded, errorEvent.DegradedReason)
+	}
 	if strings.Contains(errorEvent.ErrorMessage, "RAW") || strings.Contains(errorEvent.ErrorMessage, "SECRET") {
 		t.Fatalf("raw provider error leaked to client: %q", errorEvent.ErrorMessage)
 	}
@@ -380,6 +383,9 @@ func TestAgentStreamClientCancellationCancelsProviderContext(t *testing.T) {
 	}
 	if errorEvent == nil || errorEvent.ErrorCode != "STREAM_CANCELLED" {
 		t.Fatalf("cancelled stream events = %#v, want STREAM_CANCELLED error event", events)
+	}
+	if errorEvent.Degraded || errorEvent.DegradedReason != "" {
+		t.Fatalf("cancelled stream degradation = (%v, %q), want (false, empty)", errorEvent.Degraded, errorEvent.DegradedReason)
 	}
 }
 
