@@ -11,6 +11,19 @@
 ### Notes:
 - 该修正只同步已完成任务的 tracker 状态，不代表真实 OpenSearch full-infra 已验证；真实镜像拉取缺口仍按 #140 记录的复验命令处理。
 
+## [2026-08-19] - Preflight: 本地迁移缺口发现与修复
+
+### What was done:
+- 本地开发库 `schema_migrations` 实际为 `069 -> 070 -> 072`，缺少仓库中的 `071_rag_chunks.sql`；`rag_chunks`、`chunk_embeddings`、`index_projection_status` 均不存在，导致 T06/T08 后续无法在该库做集成验证。
+- 确认 071 是安全的前向补缺：当前库无 published 内容、无 content_versions，072 已成功存在；迁移 runner 支持低版本 backfill，但要求显式 reconciliation approval。
+
+### Testing:
+- 只读复核：`SELECT version, filename FROM schema_migrations WHERE version BETWEEN 69 AND 72` 返回 69/70/72；目标三表不存在；`content_items.status='published'` 为 0。
+- 处理命令：`cd backend && go run ./cmd/migrate -DSN "$DB_DSN" -Dir migrations -ReconcileVersions 71 -ReconcileApproval "local-dev-2026-08-19-rag-malware-preflight"`，随后运行同一 migrate `-VerifyOnly` 与表/ledger 查询。
+
+### Notes:
+- 这是本地开发数据库状态漂移，不是生产数据库证据；未执行 down SQL、删除或重排任何迁移。若 reconciliation 执行失败，按 AGENTS.md 保持任务阻塞并不提交业务任务。
+
 ## [2026-08-19] - Task #140: T05 收尾复核
 
 ### What was done:
