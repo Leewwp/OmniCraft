@@ -10,10 +10,14 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"omnicraft/backend/config"
 )
 
 var ErrOpenSearchUnavailable = errors.New("opensearch unavailable")
 var ErrOpenSearchAliasNotFound = errors.New("opensearch alias not found")
+
+const ragReadAlias = "omnicraft-rag-read"
 
 type SearchDocument struct {
 	ID              string   `json:"-"`
@@ -34,6 +38,11 @@ type SearchDocument struct {
 	IP              *int64   `json:"ip"`
 	Tags            []string `json:"tags"`
 	Status          string   `json:"status"`
+}
+
+type SearchResult struct {
+	Document SearchDocument
+	Score    float64
 }
 
 type OpenSearchRepository struct {
@@ -78,6 +87,49 @@ func NewOpenSearchRepositoryWithLimits(baseURL string, client *http.Client, limi
 		responseBodyMaxBytes: limits.ResponseBodyMaxBytes,
 		healthPollInterval:   time.Duration(limits.HealthPollIntervalSec) * time.Second,
 	}
+}
+
+// Search queries the fixed read alias. The alias is the only read surface so
+// rebuilds can switch generations atomically without changing callers.
+func (r *OpenSearchRepository) Search(ctx context.Context, query string, topK int) ([]SearchResult, error) {
+	if topK <= 0 {
+		topK = config.RAGDefaultBM25TopK
+	}
+	var response struct {
+		Hits struct {
+			Hits []struct {
+				ID     string         `json:"_id"`
+				Score  float64        `json:"_score"`
+				Source SearchDocument `json:"_source"`
+			} `json:"hits"`
+		} `json:"hits"`
+	}
+	err := r.doJSON(ctx, http.MethodPost, "/"+ragReadAlias+"/_search", map[string]any{
+		"size":             topK,
+		"track_total_hits": false,
+		"query": map[string]any{
+			"multi_match": map[string]any{
+				"query":  query,
+				"fields": []string{"title^3", "heading^2", "text"},
+			},
+		},
+		"sort": []any{
+			map[string]any{"_score": "desc"},
+			map[string]any{"chunk_key": "asc"},
+		},
+	}, &response)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]SearchResult, 0, len(response.Hits.Hits))
+	for _, hit := range response.Hits.Hits {
+		document := hit.Source
+		if document.ID == "" {
+			document.ID = hit.ID
+		}
+		results = append(results, SearchResult{Document: document, Score: hit.Score})
+	}
+	return results, nil
 }
 
 func (r *OpenSearchRepository) CreateIndex(ctx context.Context, index string) error {

@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	"omnicraft/backend/internal/repository"
+	ragservice "omnicraft/backend/internal/service/rag"
 )
 
 // ProductionKeywordAdapter measures the existing keyword-only retrieval path
@@ -38,9 +39,10 @@ func (a *ProductionKeywordAdapter) Retrieve(ctx context.Context, query string, v
 // from the local-dev deterministic standin (no provider credentials in local
 // development mode); the artifact environment marks this explicitly.
 type ProductionVectorAdapter struct {
-	Embeddings *repository.EmbeddingRepository
-	DB         *gorm.DB
-	Dims       int
+	Embeddings    *repository.EmbeddingRepository
+	DB            *gorm.DB
+	Dims          int
+	QueryEmbedder ragservice.QueryEmbedder
 }
 
 // Retrieve implements Retriever for the production pgvector path. viewerID is
@@ -48,6 +50,13 @@ type ProductionVectorAdapter struct {
 // the baseline measures the raw as-is behaviour (leak count included).
 func (a *ProductionVectorAdapter) Retrieve(ctx context.Context, query string, viewerID int64, topK int) ([]Retrieved, error) {
 	embedding := DeterministicEmbedding(query, a.Dims)
+	if a.QueryEmbedder != nil {
+		var err error
+		embedding, err = a.QueryEmbedder.GetEmbedding(ctx, query)
+		if err != nil {
+			return nil, fmt.Errorf("query embedding: %w", err)
+		}
+	}
 	results, err := a.Embeddings.VectorSearch(embedding, topK)
 	if err != nil {
 		return nil, fmt.Errorf("vector search: %w", err)
