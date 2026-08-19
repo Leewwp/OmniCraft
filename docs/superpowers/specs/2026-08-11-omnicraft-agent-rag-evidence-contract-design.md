@@ -61,6 +61,26 @@
 | 默认 profile 启动时间 / full-infra 启动时间 | 本地实测 | __ s / __ s |
 | 验证脚本通过项 | verify-project.sh --full | __ 项 |
 
+### T09 本地开发测量（2026-08-19）
+
+以下数字来自真实本地运行，但不满足真实 provider、生产样本或 Jaeger full-infra 晋升条件；不得写成生产指标：
+
+| 指标 | 本地测量 | 运行/限制 |
+|---|---:|---|
+| Recall@10 | 0.476 | 63-case hybrid；deterministic SHA-256 stand-in；34-content corpus |
+| MRR | 0.365 | 同 run；keyword baseline 0.370，stand-in gate gap |
+| nDCG@10 | 0.393 | 同 run |
+| citation precision / coverage | 0.049 / 0.476 | retrieval oracle，不是生成答案质量 |
+| groundedness / answer relevance | 未测量 | 未配置真实 LLM |
+| visibility leak count | 0 | viewer-aware hybrid revalidation |
+| P95 检索延迟 | 5.8 ms（最新；此前 55.7 ms） | 本地 OpenSearch yellow；deterministic stand-in |
+| SSE first-token / token per request | 未测量 | 未配置真实 LLM |
+| OpenSearch / embedding 降级 | 通过 / 通过 | 一次 stop/restart + 注入 provider error；不是总体成功率 |
+| outbox/consumer/DLQ 指标 | 合同通过 | 复用 T03 本地演练；未生成生产规模率 |
+| verify-project.sh --full | 73/73 | mocked browser contracts |
+
+证据包与精确命令：`docs/working/2026-08-19-t144-rag-closure-evidence.md`。T09 关闭本地开发批次，但本节不勾选 Implemented 晋升；真实 embedding provider、LLM、生产样本和 Jaeger UI 证据恢复后重新运行。
+
 ## 4. 文案模板（三级）
 
 - **Implemented（真实实现后可写，示例骨架，数字留空）**：

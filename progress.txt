@@ -1730,3 +1730,21 @@
 
 ### Notes:
 - This is local development evidence only. Real Collector delivery, Jaeger UI end-to-end visualization, production sampling behavior, and real external LLM/provider traces remain environment gaps. #76, #151, and desktop/Tauri work remain deferred/out of scope.
+
+## [2026-08-19] - Task #144: T09 RAG closure, fault drills, and evidence archive
+
+### What was done:
+- Added the T09 six-drill evidence matrix at `docs/working/2026-08-19-t144-rag-closure-evidence.md` and terminal excerpts at `docs/working/2026-08-19-t144-rag-closure-raw.txt`, with local run IDs, exact commands, measurements, evidence paths, and explicit non-production qualifications.
+- Re-ran the 63-case local hybrid evaluation after rebuilding the derived OpenSearch index with the canonical strict mapping: Recall@10 `0.476`, MRR `0.365`, nDCG@10 `0.393`, latest P95 `5.8ms` (earlier run `55.7ms`), visibility leak count `0`. The deterministic stand-in MRR gap versus keyword baseline `0.370` remains recorded.
+- Fixed `ops/opensearch/seed.sh` so full-infra seed creates and validates the required `chunk_index` field. The base script lacked that field; shell syntax and the runtime mapping contract passed after the minimal change. No unrecorded pre-fix command is claimed.
+- Recorded five local business/async/rebuild/visibility drills plus OTel application contracts. Real Jaeger/Collector visualization remains an environment gap: the reproducible full-infra retry could not resolve `otel/opentelemetry-collector-contrib:0.134.0` (`manifest ... not found`) before container creation.
+- Updated the RAG roadmap, reliable-observability closure note, and #32 evidence contract with local closure state and unresolved evidence gaps.
+
+### Testing:
+- `OMNICRAFT_RAG_HYBRID_EVAL=1 OMNICRAFT_RAG_EMBEDDING_MODE=standin OMNICRAFT_RAG_OPENSEARCH_URL=http://127.0.0.1:9200 go test ./internal/service/rag_eval -run TestHybridGoldenSetEval -count=1 -v` passed.
+- Full local RAG/Agent/projection/admin/queue/OTel focused suites passed; T01 full-set contracts passed (63 cases, zh=42, en=13, mixed=8, cold=16).
+- Final project verification passed as the #144 pre-commit gate: `go test ./...`, `go vet ./...`, `go build ./...`, frontend 463 unit tests/lint/UI governance/build, release doc-validator, and mocked Playwright `73/73`; raw excerpts are in the evidence archive. The single heavy commit follows this gate.
+
+### Notes:
+- Local Docker services and deterministic embeddings are not production evidence. Do not promote these numbers to production claims until real embedding/LLM/provider, production-like corpus, and full-infra Jaeger runs are available.
+- #76, #151, and desktop/Tauri remain deferred/out of scope.

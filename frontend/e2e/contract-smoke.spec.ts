@@ -140,14 +140,14 @@ test.describe("real HTTP contract smoke", () => {
     const filterDialog = page.getByRole("dialog", { name: /Advanced filters/i });
     const hasFilterDialog = await filterDialog.isVisible().catch(() => false);
     const filterScope = hasFilterDialog ? filterDialog : page;
-    await filterScope.getByRole("button", { name: /Image/i }).click();
-    await filterScope.getByLabel(/Time range/i).selectOption("week");
+    await filterScope.getByRole("button", { name: /Image|图片/i }).click();
+    await filterScope.getByLabel(/Time range|时间范围/i).selectOption("week");
     if (hasFilterDialog) {
       await page.keyboard.press("Escape");
       await expect(filterDialog).toBeHidden();
     }
-    await page.getByPlaceholder(/keyword/i).fill("layout repair");
-    await page.getByRole("button", { name: /^Search$/i }).click();
+    await page.getByPlaceholder(/keyword|关键词/i).fill("layout repair");
+    await page.getByRole("button", { name: /^(Search|搜索)$/i }).click();
 
     await expect(page.getByText("Layout repair image")).toBeVisible();
   });

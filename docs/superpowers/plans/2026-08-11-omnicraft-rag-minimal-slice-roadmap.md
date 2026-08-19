@@ -234,6 +234,13 @@
 - 指标归档：T01 harness 全量 run 指标表/JSON 落盘（Recall@K/MRR/nDCG/citation precision/coverage/groundedness/relevance/leak/P95/first-token/token per request/降级成功率）—— **数字全部真实测量，供 #32 证据合同消费**。
 - 文档同步：doc-validator `--fix` 刷新 `architecture.md`/`docs/reference/{schema,api,config}.md`；把真实证据回填 #32 证据合同。
 
+### T09 状态（2026-08-19，本地开发 closure）
+
+- [x] 五项业务/异步故障演练与可见性/重建合同已在本地完成；第六项 OTel 已完成应用合同测试并记录 full-infra 启动尝试；六项矩阵、命令、终端摘录和指标已归档：`docs/working/2026-08-19-t144-rag-closure-evidence.md`、`docs/working/2026-08-19-t144-rag-closure-raw.txt`。
+- [x] `go test ./...`、`go vet ./...`、`go build ./...`、前端 lint/build、`bash scripts/verify-project.sh --full` 与 doc-validator 幂等门已完成；最终命令摘录和 `73/73` 结果已归档。
+- [x] T01/T06 本地 golden-set 数字已按 stand-in/本地 corpus 标注并回填 #32；结构化汇总已落盘至 `docs/working/2026-08-19-t144-rag-closure-metrics.json`，未把它们晋升为生产证据。
+- [ ] 真实 OTel Collector/Jaeger UI 全链可视化仍是环境缺口；真实 embedding/LLM/生产数据也未配置。详见证据包，不阻塞本地开发 closure。
+
 ## T10 [decision gate] 拆 Agent/Search、gRPC 与两节点 workflow 决策
 
 **输入**：T09 证据包。
@@ -258,6 +265,7 @@ M0 批准 →（冻结门）→ M0.5 T00 → M1 T01 → M2 T02→T03 → M3 T04�
 
 ## Closure（对应 T09）
 
-- [ ] 全部演练 6 项证据归档；验证门全绿；指标为真实测量。
-- [ ] 本计划 Ticket 在 GitHub 全部关闭；冻结门边正确。
-- [ ] #32 证据合同被真实指标填充，或明确记录未达到的证据缺口。
+- [x] 本地五项演练、第六项 OTel 应用合同/环境尝试和六项证据矩阵已归档；本地验证门与指标归档完成。
+- [ ] 真实 Jaeger UI HTTP→worker→DB→LLM 截图；当前环境缺口，不以本地 mock 或网络失败冒充。
+- [x] #32 证据合同已回填真实本地测量与未达成项；未宣称生产 Implemented。
+- [ ] 本计划 T10（#145）仍待 T09 提交后执行；#144 closure issue 在本提交后关闭。

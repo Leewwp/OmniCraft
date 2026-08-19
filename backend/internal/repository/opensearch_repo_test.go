@@ -34,7 +34,7 @@ func TestOpenSearchRepositoryCreatesFixedStrictMapping(t *testing.T) {
 	properties := mappings["properties"].(map[string]any)
 	for field, expectedType := range map[string]string{
 		"chunk_key": "keyword", "content_id": "long", "content_version": "integer",
-		"chunking_version": "integer", "index_version": "integer", "embedding_model": "keyword",
+		"chunk_index": "integer", "chunking_version": "integer", "index_version": "integer", "embedding_model": "keyword",
 		"title": "text", "heading": "text", "text": "text", "source_start": "integer",
 		"source_end": "integer", "zone": "keyword", "content_type": "keyword",
 		"category": "keyword", "ip": "long", "tags": "keyword", "status": "keyword",
