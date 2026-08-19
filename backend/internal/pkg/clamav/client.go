@@ -51,9 +51,6 @@ type Client struct {
 }
 
 func NewClient(address string, timeout time.Duration) *Client {
-	if timeout <= 0 {
-		timeout = 30 * time.Second
-	}
 	return &Client{address: strings.TrimSpace(address), timeout: timeout}
 }
 

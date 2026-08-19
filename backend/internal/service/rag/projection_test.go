@@ -467,7 +467,7 @@ func TestProjectionDiscardsPhysicalConnectionWhenUnlockIsAmbiguous(t *testing.T)
 	require.NoError(t, projection.SyncContent(context.Background(), 10), "the pool must replace the discarded locked session")
 }
 
-func TestProjectionPanicCleansOrDiscardsSessionBeforeRepanic(t *testing.T) {
+func TestProjectionPanicCleansOrDiscardsSessionAndReturnsUnavailable(t *testing.T) {
 	db := prepareProjectionDatabase(t)
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
@@ -489,12 +489,7 @@ func TestProjectionPanicCleansOrDiscardsSessionBeforeRepanic(t *testing.T) {
 		projectionDiscardPhysicalConnection = originalDiscard
 	})
 
-	var recovered any
-	func() {
-		defer func() { recovered = recover() }()
-		_ = projection.SyncContent(context.Background(), 10)
-	}()
-	require.Same(t, panicValue, recovered)
+	require.ErrorIs(t, projection.SyncContent(context.Background(), 10), ErrProjectionUnavailable)
 	require.Equal(t, 1, discards)
 	projectionUnlockAll = originalUnlock
 	require.NoError(t, newTestProjection(db, search).SyncContent(context.Background(), 10),

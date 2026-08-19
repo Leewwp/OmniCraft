@@ -546,7 +546,8 @@ func (p *Projection) withProjectionConnection(ctx context.Context, shared bool, 
 				}
 			}
 			if panicValue != nil {
-				panic(panicValue)
+				slog.Error("projection operation panicked")
+				resultErr = ErrProjectionUnavailable
 			}
 		}()
 		resultErr = operation(p.withDB(bound))
@@ -555,12 +556,14 @@ func (p *Projection) withProjectionConnection(ctx context.Context, shared bool, 
 }
 
 func acquireProjectionSessionLocks(db *gorm.DB, shared bool, contentID int64) error {
-	lockFunction := "pg_advisory_lock"
+	var lockErr error
 	if shared {
-		lockFunction = "pg_advisory_lock_shared"
+		lockErr = db.Exec("SELECT pg_advisory_lock_shared(?)", projectionAdvisoryLockKey).Error
+	} else {
+		lockErr = db.Exec("SELECT pg_advisory_lock(?)", projectionAdvisoryLockKey).Error
 	}
-	if err := db.Exec("SELECT "+lockFunction+"(?)", projectionAdvisoryLockKey).Error; err != nil {
-		return fmt.Errorf("acquire projection advisory lock: %w", err)
+	if lockErr != nil {
+		return fmt.Errorf("acquire projection advisory lock: %w", lockErr)
 	}
 	if shared {
 		contentLockKey := projectionContentLockBase ^ contentID

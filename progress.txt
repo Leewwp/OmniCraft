@@ -1781,3 +1781,19 @@
 ### Notes:
 - Local Docker services and deterministic embeddings are not production evidence. Do not promote these numbers to production claims until real embedding/LLM/provider, production-like corpus, and full-infra Jaeger runs are available.
 - #76, #151, and desktop/Tauri remain deferred/out of scope.
+## [2026-08-20] - Task Review: post-batch verification and deterministic fixes
+
+### What was done:
+- Reviewed `origin/main...HEAD` across standards, specification, repository hygiene, documentation, worktrees, and branch state.
+- Replaced advisory-lock SQL concatenation with explicit static statements, converted projection-operation panic recovery to a sanitized unavailable error after cleanup, and removed hardcoded timeout fallbacks from the archive worker and ClamAV client.
+- Enabled the ClamAV service in both `security` and `full-infra` Compose profiles so the documented full-infra smoke path can actually start the scanner.
+
+### Testing:
+- `cd backend && go test ./...`, `go build ./...`, and `go vet ./...` passed.
+- `cd frontend && npm run lint` passed; `bash scripts/verify-project.sh --full` passed with mocked Playwright `73/73`.
+- `docker compose --profile full-infra config --quiet` and `git diff --check` passed.
+
+### Notes:
+- Review baseline was assumed to be `origin/main` because no fixed point was supplied; `main` is ahead by 12 commits and the worktree was clean before these review fixes.
+- Remaining spec gap requiring explicit product authorization: D9 LLM-provider failure should emit `degraded=provider_error` and show ordinary keyword-search fallback; current behavior remains error-only.
+- Real external provider, OTel/Jaeger, ClamAV/EICAR, and production OSS evidence remain unverified as documented; ignored local build/env artifacts were not deleted.
