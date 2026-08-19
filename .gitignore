@@ -61,11 +61,14 @@ frontend/.turbo/
 screenshots/
 .playwright-mcp/
 frontend/test-results/
+frontend/.next-playwright-mocked/
+frontend/screenshots/
 
 # Temporary files
 *.tmp
 *.temp
 *.bak
+/.tmp-next-*
 
 # Ops evidence (uploaded/archived, never committed)
 /artifacts/

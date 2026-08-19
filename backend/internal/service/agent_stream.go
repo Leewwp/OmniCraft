@@ -60,6 +60,7 @@ type AgentStreamEvent struct {
 	Citations      []AgentCitation      `json:"citations,omitempty"`
 	Tools          []AgentToolExecution `json:"tools,omitempty"`
 	Degraded       bool                 `json:"degraded"`
+	DegradedReason string               `json:"degraded_reason,omitempty"`
 	ErrorCode      string               `json:"error_code,omitempty"`
 	ErrorMessage   string               `json:"error_message,omitempty"`
 }
@@ -371,7 +372,18 @@ loop:
 		case errors.Is(streamErr, context.DeadlineExceeded):
 			code = AgentErrorCodeProviderTimeout
 		}
-		if emitErr := handler(AgentStreamEvent{Type: AgentEventError, ErrorCode: string(code), ErrorMessage: safeAgentStreamMessage(code)}); emitErr != nil {
+		providerFallback := code != AgentErrorCodeCancelled
+		degradedReason := ""
+		if providerFallback {
+			degradedReason = "provider_error"
+		}
+		if emitErr := handler(AgentStreamEvent{
+			Type:           AgentEventError,
+			Degraded:       providerFallback,
+			DegradedReason: degradedReason,
+			ErrorCode:      string(code),
+			ErrorMessage:   safeAgentStreamMessage(code),
+		}); emitErr != nil {
 			streamErr = errors.Join(streamErr, emitErr)
 		}
 		if conv != nil && s.db != nil {

@@ -472,6 +472,12 @@ func TestAgentChatStreamProviderErrorEmitsSafeSSEError(t *testing.T) {
 	if code, _ := errorEvent.Data["error_code"].(string); code != "AGENT_PROVIDER_ERROR" {
 		t.Fatalf("error event code = %q, want AGENT_PROVIDER_ERROR", code)
 	}
+	if degraded, _ := errorEvent.Data["degraded"].(bool); !degraded {
+		t.Fatalf("error event degraded = %v, want true", degraded)
+	}
+	if reason, _ := errorEvent.Data["degraded_reason"].(string); reason != "provider_error" {
+		t.Fatalf("error event degraded_reason = %q, want provider_error", reason)
+	}
 	if _, err := mr.Get(handler.quota.DayKey(7)); err != nil {
 		t.Fatalf("provider-error stream must still consume its reservation (day key missing): %v", err)
 	}

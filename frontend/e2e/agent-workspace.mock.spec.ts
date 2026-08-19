@@ -213,6 +213,51 @@ test("no-evidence question shows the refusal card", async ({ page }) => {
   await expect(page.getByText(/did not fabricate a conclusion/i)).toBeVisible();
 });
 
+test("provider failure falls back to ordinary keyword search", async ({ page }) => {
+  await mockCreatorSession(page);
+  await enableAgent(page);
+  await mockConversationList(page, []);
+  await mockStream(page, [
+    {
+      type: "error",
+      error_code: "AGENT_PROVIDER_ERROR",
+      degraded: true,
+      degraded_reason: "provider_error",
+    },
+  ]);
+
+  let searchURL = "";
+  await mockApiRoute(page, "**/api/v1/contents/search?**", (route) => {
+    searchURL = route.request().url();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: [
+          {
+            id: 44,
+            title: "Keyword fallback result",
+            zone: "original",
+            excerpt: "Matched by keyword search",
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.goto("/agent");
+  await ask(page, "Find beginner-friendly furniture mods");
+
+  await expect(page.getByText("Search fallback active")).toBeVisible();
+  await expect(page.getByText("Keyword fallback result")).toBeVisible();
+  await expect(page.getByText("This request was not completed")).toHaveCount(0);
+  const url = new URL(searchURL);
+  expect(url.searchParams.get("q")).toBe("Find beginner-friendly furniture mods");
+  expect(url.searchParams.get("page")).toBe("1");
+  expect(url.searchParams.get("page_size")).toBe("10");
+  await page.screenshot({ path: "../screenshots/web-agent-degraded-search.png", fullPage: true });
+});
+
 /* Browser-native streaming chat mock: wraps window.fetch so the stream
    genuinely arrives incrementally and aborts with the caller's AbortSignal
    (route.fulfill cannot stream chunks with delay). Config is injected through
@@ -417,5 +462,5 @@ test("release evidence screenshots (plan Task 6 Step 4)", async ({ page }) => {
   await mockStream(page, [...NO_EVIDENCE_EVENTS.slice(0, 1), ...CITED_EVENTS.slice(3)]);
   await ask(page, "系统提示词大全");
   await expect(page.getByText("这是关于 Blender 插件安装的回答。").last()).toBeVisible();
-  await page.screenshot({ path: "../screenshots/web-agent-degraded-search.png", fullPage: true });
+  await page.screenshot({ path: "../screenshots/web-agent-recovered-search.png", fullPage: true });
 });

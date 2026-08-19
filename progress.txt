@@ -1797,3 +1797,17 @@
 - Review baseline was assumed to be `origin/main` because no fixed point was supplied; `main` is ahead by 12 commits and the worktree was clean before these review fixes.
 - Remaining spec gap requiring explicit product authorization: D9 LLM-provider failure should emit `degraded=provider_error` and show ordinary keyword-search fallback; current behavior remains error-only.
 - Real external provider, OTel/Jaeger, ClamAV/EICAR, and production OSS evidence remain unverified as documented; ignored local build/env artifacts were not deleted.
+## [2026-08-20] - Task Review Follow-up: D9 provider fallback
+
+### What was done:
+- Extended provider/timeout SSE error events with the backward-compatible `degraded=true` and `degraded_reason=provider_error` contract; client cancellation remains non-degraded.
+- Updated `/agent` to replace a failed model turn with viewer-aware ordinary keyword search results, render them through the existing citation list, retain the full search-page CTA, and avoid the generic retry error for this recoverable path.
+- Added explicit ignore rules for local Next/browser scratch output; no environment file, dependency tree, build output, log, or screenshot is tracked.
+
+### Testing:
+- TDD red confirmed missing backend `DegradedReason`, SSE normalization, and keyword fallback behavior before implementation; focused backend handler/service and frontend workspace tests pass after implementation.
+- `npm run lint` passes. Browser smoke confirmed `/agent` remains protected and redirects an unauthenticated browser to `/login?redirect=/agent`; screenshot saved under ignored `screenshots/`.
+- Full project verification passed before commit: 464 frontend unit tests, lint, UI governance, production build, release doc-validator, and mocked Playwright 74/74.
+
+### Notes:
+- The fallback reuses `GET /api/v1/contents/search` and validates returned `id/title/zone` before rendering interactive citations. A fallback-search failure remains fail-safe and leaves the explicit ordinary-search link available.

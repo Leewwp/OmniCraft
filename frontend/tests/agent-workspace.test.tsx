@@ -391,6 +391,15 @@ test("parseAgentStreamLine decodes typed SSE events and ignores non-data lines",
     type: "error",
     error_code: "AGENT_PROVIDER_ERROR",
   });
+  assert.deepEqual(
+    parseAgentStreamLine('data: {"type":"error","error_code":"AGENT_PROVIDER_ERROR","degraded":true,"degraded_reason":"provider_error"}'),
+    {
+      type: "error",
+      error_code: "AGENT_PROVIDER_ERROR",
+      degraded: true,
+      degraded_reason: "provider_error",
+    },
+  );
   assert.equal(parseAgentStreamLine("data: [DONE]"), null);
   assert.equal(parseAgentStreamLine("event: ping"), null);
   assert.equal(parseAgentStreamLine("data: not-json"), null);
@@ -793,6 +802,41 @@ test("stream error shows a localized banner and retry resends", async () => {
     );
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test("provider error falls back to ordinary keyword results without showing the generic error", async () => {
+  installDom();
+  const stub = installSSEFetch([
+    {
+      type: "error",
+      error_code: "AGENT_PROVIDER_ERROR",
+      degraded: true,
+      degraded_reason: "provider_error",
+    },
+  ]);
+  const calls = installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } },
+    {
+      method: "GET",
+      path: "/api/v1/contents/search?q=Find+beginner-friendly+furniture+mods",
+      response: {
+        items: [{ id: 44, title: "Keyword fallback result", zone: "original", excerpt: "Matched by keyword search" }],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const suggestion = await waitFor(() =>
+      view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
+    );
+    fireEvent.click(suggestion);
+    await waitFor(() => assert.ok(view.getByText("Search fallback active")));
+    assert.ok(view.getByRole("button", { name: /Keyword fallback result/ }));
+    assert.equal(view.queryByText("This request was not completed"), null);
+    assert.ok(calls.some((call) => call.path.includes("/api/v1/contents/search?q=Find+beginner-friendly+furniture+mods")));
+  } finally {
+    stub.restore();
   }
 });
 

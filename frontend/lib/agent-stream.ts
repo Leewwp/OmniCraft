@@ -39,7 +39,13 @@ export type AgentStreamEvent =
       tools?: AgentStreamTool[];
       degraded?: boolean;
     }
-  | { type: "error"; error_code?: string; error_message?: string };
+  | {
+      type: "error";
+      error_code?: string;
+      error_message?: string;
+      degraded?: boolean;
+      degraded_reason?: "provider_error";
+    };
 
 export interface AgentStreamHandlers {
   onEvent: (event: AgentStreamEvent) => void;

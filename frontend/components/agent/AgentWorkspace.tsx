@@ -90,6 +90,8 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
   const transcriptRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const controllerRef = useRef<AbortController | null>(null);
+  const activeQueryRef = useRef("");
+  const fallbackRequestRef = useRef(0);
   const atBottomRef = useRef(true);
 
   /* 共享浮层入口控制器：Agent 引用入口只保留来源参数差异。 */
@@ -204,12 +206,14 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
   }
 
   const handleSelectConversation = useCallback((id: number) => {
+    fallbackRequestRef.current += 1;
     setActiveId(id);
     setDrawerOpen(false);
   }, []);
 
   const handleNewConversation = useCallback(() => {
     if (streaming) return;
+    fallbackRequestRef.current += 1;
     setActiveId(null);
     setMessages([]);
     setTurnCitations([]);
@@ -226,6 +230,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
     if (activeId === null) return;
     try {
       await api.delete(`/api/v1/agent/conversations/${activeId}`);
+      fallbackRequestRef.current += 1;
       setActiveId(null);
       setMessages([]);
       setTurnCitations([]);
@@ -253,6 +258,54 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
     },
     [onCitationOpen, openCitationOverlay],
   );
+
+  const loadKeywordFallback = useCallback(async (query: string, requestId: number) => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    try {
+      const params = new URLSearchParams({ q: trimmed, page: "1", page_size: "10" });
+      const data = await api.get<{ items?: unknown[]; contents?: unknown[] }>(
+        `/api/v1/contents/search?${params.toString()}`,
+      );
+      if (fallbackRequestRef.current !== requestId) return;
+      const rawItems = data.items ?? data.contents ?? [];
+      const citations: AgentStreamCitation[] = [];
+      const seen = new Set<number>();
+      for (const raw of rawItems) {
+        if (!raw || typeof raw !== "object") continue;
+        const item = raw as Record<string, unknown>;
+        const contentId = item.id;
+        const title = item.title;
+        const zone = item.zone;
+        if (
+          typeof contentId !== "number" ||
+          !Number.isInteger(contentId) ||
+          contentId <= 0 ||
+          seen.has(contentId) ||
+          typeof title !== "string" ||
+          title.trim() === "" ||
+          (zone !== "original" && zone !== "fanwork")
+        ) {
+          continue;
+        }
+        const citation: AgentStreamCitation = {
+          content_id: contentId,
+          title: title.trim(),
+          zone,
+        };
+        const excerpt = item.excerpt ?? item.description;
+        if (typeof excerpt === "string" && excerpt.trim() !== "") {
+          citation.excerpt = excerpt.trim();
+        }
+        seen.add(contentId);
+        citations.push(citation);
+      }
+      setTurnCitations(citations);
+    } catch (error) {
+      silentError(error, { component: "AgentWorkspace", action: "keyword fallback" });
+      if (fallbackRequestRef.current === requestId) setTurnCitations([]);
+    }
+  }, []);
 
   const handleStreamEvent = useCallback(
     (event: AgentStreamEvent) => {
@@ -302,6 +355,18 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
           break;
         }
         case "error": {
+          if (event.degraded && event.degraded_reason === "provider_error") {
+            setTurnError(false);
+            setTurnDegraded(true);
+            setMessages((previous) => {
+              const last = previous[previous.length - 1];
+              return last?.role === "assistant" ? previous.slice(0, -1) : previous;
+            });
+            void loadKeywordFallback(activeQueryRef.current, fallbackRequestRef.current);
+            setStreaming(false);
+            controllerRef.current?.abort();
+            break;
+          }
           setTurnError(true);
           setStreaming(false);
           controllerRef.current?.abort();
@@ -311,7 +376,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
           break;
       }
     },
-    [loadConversations],
+    [loadConversations, loadKeywordFallback],
   );
 
   function handleSend(overrideMessage?: string) {
@@ -324,6 +389,8 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
       content: trimmed,
     };
     const history = [...messages, userMessage];
+    activeQueryRef.current = trimmed;
+    fallbackRequestRef.current += 1;
     setMessages(history);
     if (overrideMessage === undefined) setInput("");
     setTurnError(false);
@@ -543,6 +610,14 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
                   <div>
                     <p className="font-medium">{t("agent.degraded.title")}</p>
                     <p className="mt-1 text-xs text-fg-muted">{t("agent.degraded.description")}</p>
+                    {lastUserQuery && (
+                      <Link
+                        href={`/search?q=${encodeURIComponent(lastUserQuery)}`}
+                        className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent-emphasis underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        {t("agent.noEvidence.searchCta")}
+                      </Link>
+                    )}
                   </div>
                 </div>
               )}
