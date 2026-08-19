@@ -20,9 +20,10 @@
 ### Testing:
 - 只读复核：`SELECT version, filename FROM schema_migrations WHERE version BETWEEN 69 AND 72` 返回 69/70/72；目标三表不存在；`content_items.status='published'` 为 0。
 - 处理命令：`cd backend && go run ./cmd/migrate -DSN "$DB_DSN" -Dir migrations -ReconcileVersions 71 -ReconcileApproval "local-dev-2026-08-19-rag-malware-preflight"`，随后运行同一 migrate `-VerifyOnly` 与表/ledger 查询。
+- 实际执行：显式 loopback DSN 运行 `go run ./cmd/migrate -DSN 'host=127.0.0.1 port=5432 user=omnicraft password=omnicraft dbname=omnicraft sslmode=disable' -Dir migrations -ReconcileVersions 71 -ReconcileApproval 'local-dev-2026-08-19-rag-malware-preflight'`，补齐 071；随后 `-VerifyOnly` 通过，069–072 连续，RAG/扫描表均存在。
 
 ### Notes:
-- 这是本地开发数据库状态漂移，不是生产数据库证据；未执行 down SQL、删除或重排任何迁移。若 reconciliation 执行失败，按 AGENTS.md 保持任务阻塞并不提交业务任务。
+- 这是本地开发数据库状态漂移，不是生产数据库证据；未执行 down SQL、删除或重排任何迁移。当前库 published=0/chunks=0，golden-set 业务指标仍待 seed + 投影数据后运行。
 
 ## [2026-08-19] - Task #140: T05 收尾复核
 
