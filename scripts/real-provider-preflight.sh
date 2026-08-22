@@ -68,7 +68,6 @@ if git ls-files --error-unmatch .env >/dev/null 2>&1; then
     die '.env is tracked by git; remove it from the index before using a real key'
 fi
 
-masked="${key:0:3}***${key: -2}"
 printf 'provider preflight passed\n'
-printf 'provider=%s\nchat_model=%s\napi_base=%s\nembedding_model=%s\nembedding_api_base=%s\nembedding_group_id=%s\napi_key=%s (not logged in full)\n' \
-    "$provider" "$chat_model" "$api_base" "$embedding_model" "$embedding_api_base" "$embedding_group_id" "$masked"
+printf 'provider=%s\nchat_model=%s\napi_base=%s\nembedding_model=%s\nembedding_api_base=%s\nembedding_group_id=present\napi_key=present (not logged)\n' \
+    "$provider" "$chat_model" "$api_base" "$embedding_model" "$embedding_api_base"
