@@ -1,7 +1,7 @@
 # OmniCraft 可靠异步与可观测性基础路线图
 
 > **创建日期**：2026-08-11
-> **状态**：`accepted`（2026-08-11）。本路线图只编排任务；运行时实现必须等待 GitHub 原生冻结门解除。
+> **状态**：`local-closure`（2026-08-22）。T00/T02/T03/T08 的本地实现、测试和可复核应用证据已完成；真实外部 Collector/Jaeger UI 仍未验证。
 > **修订（2026-08-13）**：本地开发模式（无生产部署）下，本计划不再等待 #134 冻结门（#134 仅作生产发布门，deferred）。按注册表备注的 lane 内 DAG 在本地执行；恢复生产部署时重新受 #134/#76 门约束。
 > **来源（消费输入）**：
 > - GitHub issue #31（执行编排，本票主体）、#28（RAG 深化设计，确认后生效）
@@ -9,6 +9,14 @@
 > - `#30` resolution（2026-08-11）：运行时增强等 Web-only DAG 收口后执行
 > - 代码审计：`backend/internal/pkg/queue/`、`backend/internal/worker/`、`backend/internal/container/`、`backend/internal/observability/`（2026-08-11）
 > **执行追踪**：冻结门 #134；T00 #135；T02 #137；T03 #138；T08 #143；总体 closure #144
+
+## Local Status (2026-08-22)
+
+- T00/#135: local governance revision completed.
+- T02/#137: local Outbox/Inbox implementation, tests, and four content-event transaction contracts completed; local Redis/DB fault evidence is recorded.
+- T03/#138: local standalone Worker, relay, Inbox idempotency, DLQ replay, and four fault drills completed; the only Worker model remains `cmd/worker`.
+- T08/#143: local OTel SDK/application span contracts, W3C propagation, and Compose configuration completed; **real Collector delivery and Jaeger UI HTTP -> Worker -> DB -> LLM screenshots are not verified**.
+- #144 closure consumes the above local evidence. None of these statements is a production deployment claim.
 
 ## Goal
 
@@ -203,8 +211,8 @@ ClamAV 同属新系统服务，由同一治理票覆盖。宪法修订为 MINOR�
 
 ## Closure（对应纵切片 T09 前序检查）
 
-- [ ] T02/T03 各自 red→green、两阶段审查、故障演练证据齐全（记录于 progress.txt）。
+- [x] T02/T03 各自 red→green、两阶段审查、故障演练证据齐全（记录于 progress.txt）；证据范围为本地 DB/Redis。
 - [x] T08 本地实现 red→green、两阶段审查与 Collector schema/离线设计记录已完成（记录于 progress.txt）。
 - [ ] T08 真实 Jaeger UI HTTP→worker→DB→LLM 截图（当前环境缺口，恢复 full-infra 后复验）。
-- [ ] 本计划相关 Ticket 在 GitHub 关闭；冻结门边正确。
-- [ ] 文档同步：`architecture.md`/`docs/reference/*` 经 doc-validator `--fix` 更新。
+- [x] 本计划相关 Ticket #135/#137/#138/#143/#144 在 GitHub 关闭；#32 的冻结门边正确。
+- [x] 文档同步：`architecture.md`/`docs/reference/*` 经 doc-validator `--fix` 更新并通过幂等检查。

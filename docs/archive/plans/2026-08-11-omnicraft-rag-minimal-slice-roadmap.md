@@ -1,7 +1,7 @@
 # OmniCraft RAG 最小纵切片路线图
 
 > **创建日期**：2026-08-11
-> **状态**：`accepted`（2026-08-11）。本路线图只编排任务；运行时实现必须等待 GitHub 原生冻结门解除。
+> **状态**：`local-closure`（2026-08-22）。本路线图已完成本地实现、测试与 closure 证据同步；不代表真实 provider、生产 corpus 或 Jaeger UI 已验证。
 > **修订（2026-08-13）**：本地开发模式（无生产部署）下，本计划不再等待 #134 冻结门（#134 仅作生产发布门，deferred）。按注册表备注的 lane 内 DAG 在本地执行；恢复生产部署时重新受 #134/#76 门约束。
 > **来源（消费输入）**：
 > - GitHub issue #31（执行编排，本票主体）、#28（RAG 深化设计 —— **本计划唯一 RAG 合同来源，不得并行发明另一套合同**）
@@ -9,6 +9,23 @@
 > - `#30` resolution（2026-08-11）：纵切片为站内单 Agent RAG；Markdown 仅演示适配器；多 Agent 仅对照实验
 > - 代码审计：`backend/internal/repository/{search_repo,embedding_repo,content_visibility}.go`、`backend/internal/service/{agent_tools,agent_stream,agent_contract}.go`（2026-08-11）
 > **执行追踪**：T01 #136；T04 #139；T05 #140；T06 #141；T07 #142；T09 #144；T10 #145；#32 blocked_by #136–#144（不含 #145）
+
+## Local Status (2026-08-22)
+
+| Task | Issue | Local status | Evidence / boundary |
+| --- | ---: | --- | --- |
+| T01 | #136 | completed-local | `backend/migrations/069_rag_evaluation.sql`, 63-case fixture, harness and local metrics; deterministic stand-in only |
+| T02 | #137 | completed-local | migration 070, transactional Outbox/Inbox contracts and tests; local Redis/DB drills |
+| T03 | #138 | completed-local | standalone `cmd/worker`, relay, idempotency and DLQ replay; local fault-drill evidence |
+| T04 | #139 | completed-local | migration 071, chunker, current-generation visibility contract and tests |
+| T05 | #140 | completed-local | OpenSearch mapping/indexer/rebuild contracts and local repository evidence |
+| T06 | #141 | completed-local | RRF/degradation/visibility tests and local OpenSearch stop/recovery evidence; no real embedding comparison |
+| T07 | #142 | completed-local | Agent citation/SSE contract and mocked UI evidence; real local provider-backed browser flow remains separate |
+| T08 | #143 | completed-local | OTel application contracts and full-infra configuration; real Collector/Jaeger UI chain remains unverified |
+| T09 | #144 | completed-local | local closure matrix and metrics archive; production evidence is intentionally absent |
+| T10 | #145 | completed-local decision | ADR 0005 keeps modular monolith + independent Worker + REST/SSE + single Agent; not a #32 blocker |
+
+The only open downstream deliverable is #32's demo/resume narrative. Its `blocked_by` set remains #136&#8211;#144; #145 is intentionally excluded.
 
 ## Goal
 

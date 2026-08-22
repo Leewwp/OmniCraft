@@ -283,6 +283,15 @@ DELETE FROM messages
 WHERE sender_id IN (
   SELECT id FROM users WHERE email LIKE '%{SEED_EMAIL_SUFFIX}' AND support_info @> {marker}::jsonb
 );
+-- notifications.sender_id is a legacy nullable foreign key without
+-- ON DELETE CASCADE, so remove both sides before deleting the seed users.
+DELETE FROM notifications
+WHERE user_id IN (
+    SELECT id FROM users WHERE email LIKE '%{SEED_EMAIL_SUFFIX}' AND support_info @> {marker}::jsonb
+)
+OR sender_id IN (
+    SELECT id FROM users WHERE email LIKE '%{SEED_EMAIL_SUFFIX}' AND support_info @> {marker}::jsonb
+);
 DELETE FROM conversations c
 WHERE EXISTS (
   SELECT 1 FROM conversation_participants cp
@@ -386,7 +395,7 @@ CREATE TEMP TABLE seed_users (
 INSERT INTO seed_users VALUES\n{user_rows};
 INSERT INTO users (email, password_hash, username, avatar_url, bio, support_info, reputation, role, email_verified_at)
 SELECT email,
-       '$2b$12$M0lmvqWJFMMjvFafrWiHrOfPAx10KALWzkKj/kGKiP2PndMgCOOcK',
+       '$2b$12$Le/8YUCP5Rmh3GQ61k5aoOqUHs2GFzRrSxVUJYYDBawsBCBfkkAKu',
        username, avatar_url, bio, support_info, reputation, role, NOW()
 FROM seed_users;
 
@@ -408,6 +417,14 @@ INSERT INTO seed_content (
   seed_key, title, description, author_email, zone, ip_slug, source_key, category, content_type, cover_url,
   status, is_public, allow_copy, view_count, download_count, hot_score, rating_score, created_at
 ) VALUES\n{content_rows};
+-- RAG fixtures reserve content ids 1001-1039. Cleanup removes this seed's
+-- rows but PostgreSQL sequences keep advancing, so derive the next id from
+-- non-RAG rows before inserting the deterministic local corpus.
+SELECT setval(
+  'content_items_id_seq',
+  COALESCE((SELECT MAX(id) FROM content_items WHERE id NOT BETWEEN 1001 AND 1039), 1),
+  true
+);
 INSERT INTO content_items (
   title, description, author_id, zone, ip_id, category, content_type, cover_image_url, status, is_public,
   allow_copy, view_count, download_count, hot_score, rating_score, created_at, updated_at
