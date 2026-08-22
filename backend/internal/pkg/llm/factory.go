@@ -23,6 +23,8 @@ func NewProvider(cfg *config.Config) LLMProvider {
 		providerType, apiKey, apiBase, model, embedModel,
 		WithTimeout(timeout),
 		WithMaxRetries(cfg.Agent.ProviderMaxRetries),
+		WithEmbeddingAPIBase(cfg.Agent.EmbeddingAPIBase),
+		WithEmbeddingGroupID(cfg.Agent.EmbeddingGroupID),
 	)
 }
 

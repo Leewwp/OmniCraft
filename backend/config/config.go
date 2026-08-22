@@ -374,6 +374,8 @@ type AgentConfig struct {
 	LLMAPIBase            string `mapstructure:"llm_api_base"`
 	LLMAPIKey             string `mapstructure:"llm_api_key" json:"-"`
 	EmbeddingModel        string `mapstructure:"embedding_model"`
+	EmbeddingAPIBase      string `mapstructure:"embedding_api_base"`
+	EmbeddingGroupID      string `mapstructure:"embedding_group_id" json:"-"`
 	EmbeddingDimensions   int    `mapstructure:"embedding_dimensions"`
 	RateLimitPerDay       int    `mapstructure:"rate_limit_per_day"`
 	RateLimitPerMinute    int    `mapstructure:"rate_limit_per_minute"`
@@ -602,9 +604,16 @@ func validateTestRedisAddr(raw string) error {
 }
 
 func loadDotEnvFiles() {
+	// Commands are commonly started from backend/, while the canonical local
+	// env file lives at the repository root. Prefer that file when config.yaml
+	// is present in the current directory so a stale backend/.env cannot shadow
+	// the user's current credentials. Explicitly exported variables still win.
 	candidates := []string{".env", filepath.Join("..", ".env")}
+	if _, err := os.Stat("config.yaml"); err == nil {
+		candidates = []string{filepath.Join("..", ".env"), ".env"}
+	}
 	for _, candidate := range candidates {
-		if err := godotenv.Overload(candidate); err != nil {
+		if err := godotenv.Load(candidate); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				continue
 			}
@@ -690,6 +699,21 @@ func OverrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("AGENT_EMBEDDING_MODEL"); v != "" {
 		cfg.Agent.EmbeddingModel = v
+		// Hybrid RAG stores the embedding model in both agent and index
+		// configuration. Keep the common single-variable setup coherent unless
+		// the caller explicitly supplies the index value below.
+		if strings.TrimSpace(os.Getenv("RAG_INDEX_EMBEDDING_MODEL")) == "" {
+			cfg.RAG.Index.EmbeddingModel = v
+		}
+	}
+	if v := os.Getenv("AGENT_EMBEDDING_API_BASE"); v != "" {
+		cfg.Agent.EmbeddingAPIBase = v
+	}
+	if v := os.Getenv("AGENT_EMBEDDING_GROUP_ID"); v != "" {
+		cfg.Agent.EmbeddingGroupID = v
+	}
+	if v := os.Getenv("RAG_INDEX_EMBEDDING_MODEL"); v != "" {
+		cfg.RAG.Index.EmbeddingModel = v
 	}
 	if v := os.Getenv("RAG_INDEX_URL"); v != "" {
 		cfg.RAG.Index.URL = v

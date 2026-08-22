@@ -86,8 +86,10 @@ type LLMProvider interface {
 // providerConfig carries bounded timeout/retry tuning read from
 // cfg.Agent.ProviderTimeoutSec / ProviderMaxRetries.
 type providerConfig struct {
-	timeout    time.Duration
-	maxRetries int
+	timeout          time.Duration
+	maxRetries       int
+	embeddingAPIBase string
+	embeddingGroupID string
 }
 
 // ProviderOption configures timeout and retry behavior of a concrete provider.
@@ -102,4 +104,16 @@ func WithTimeout(timeout time.Duration) ProviderOption {
 // conditions (cfg.Agent.ProviderMaxRetries).
 func WithMaxRetries(n int) ProviderOption {
 	return func(c *providerConfig) { c.maxRetries = n }
+}
+
+// WithEmbeddingAPIBase overrides the embedding endpoint base for providers
+// whose chat and embedding APIs use different hosts.
+func WithEmbeddingAPIBase(base string) ProviderOption {
+	return func(c *providerConfig) { c.embeddingAPIBase = base }
+}
+
+// WithEmbeddingGroupID supplies the legacy MiniMax embedding GroupId query
+// parameter. It is intentionally kept out of public config responses.
+func WithEmbeddingGroupID(groupID string) ProviderOption {
+	return func(c *providerConfig) { c.embeddingGroupID = groupID }
 }

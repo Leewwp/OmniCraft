@@ -1839,3 +1839,18 @@
 
 ### Notes:
 - Local evidence uses deterministic keyword projection, mocked contracts, and real local services. Real LLM/embedding quality, Jaeger UI full-chain tracing, external providers, production traffic, and production deployment remain unverified. #32 remains open.
+
+## [2026-08-22] - Real provider evidence planning
+### What was done:
+- Compared the resume analysis and evidence-supplementation sessions and selected a minimum slice: one real MiniMax chat + embedding contract, followed by real retrieval evaluation; Jaeger and ClamAV remain independent optional batches.
+- Added explicit `RAG_INDEX_EMBEDDING_MODEL` support and synchronization with `AGENT_EMBEDDING_MODEL` to prevent model identity drift during hybrid RAG evaluation.
+- Added `scripts/real-provider-preflight.sh` and its shell contract test. The preflight validates local configuration without making a network call or printing a full key.
+- Added `docs/working/2026-08-22-real-provider-evidence-plan.md` with the decision, exact environment variables, security boundary, and post-configuration sequence.
+- Confirmed MiniMax's current OpenAI-compatible Chat Completions model list and the documented legacy `embo-01` embedding endpoint; split embedding base URL and GroupId into server-only configuration and added provider serialization coverage.
+- Preflight and one-request endpoint smoke passed for Chat (`200`, MiniMax-M3) and Embedding (`200`, 1536 dimensions). Project `agent-smoke` initially loaded stale `backend/.env` (MiniMax-M1); fixed dotenv precedence to prefer the repository root `.env` from `backend/` and added a regression test. A stale key was present in the ignored backend env file and must be revoked/rotated after accidental diagnostic exposure.
+
+### Testing:
+- `bash scripts/real-provider-preflight.tests.sh` passed; `cd backend && go test ./config` passed; `go fmt` and `git diff --check` passed; `tools/doc-validator` `--fix` followed by `--check` passed.
+
+### Notes:
+- No further real provider calls will be made with the exposed credentials. After key rotation, run the final provider smoke and evidence sequence in a new task.
