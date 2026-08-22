@@ -3,6 +3,7 @@ set -eu
 
 base_url="${OPENSEARCH_URL:-http://opensearch:9200}"
 index="${OPENSEARCH_INDEX:-omnicraft-rag-v1}"
+alias="${OPENSEARCH_ALIAS:-omnicraft-rag-read}"
 mapping='{"mappings":{"dynamic":"strict","properties":{"chunk_key":{"type":"keyword"},"content_id":{"type":"long"},"content_version":{"type":"integer"},"chunk_index":{"type":"integer"},"chunking_version":{"type":"integer"},"index_version":{"type":"integer"},"embedding_model":{"type":"keyword"},"title":{"type":"text"},"heading":{"type":"text"},"text":{"type":"text"},"source_start":{"type":"integer"},"source_end":{"type":"integer"},"zone":{"type":"keyword"},"content_type":{"type":"keyword"},"category":{"type":"keyword"},"tags":{"type":"keyword"},"status":{"type":"keyword"},"ip":{"type":"long"}}}}'
 
 status="$(curl -sS -o /dev/null -w '%{http_code}' "${base_url}/${index}")"
@@ -41,4 +42,9 @@ case "$status" in
     ;;
 esac
 
-echo "OpenSearch seed ready: ${index}"
+curl -fsS -X POST -H 'Content-Type: application/json' \
+  --data "{\"actions\":[{\"remove\":{\"index\":\"*\",\"alias\":\"${alias}\",\"must_exist\":false}},{\"add\":{\"index\":\"${index}\",\"alias\":\"${alias}\"}}]}" \
+  "${base_url}/_aliases" >/dev/null
+curl -fsS "${base_url}/_alias/${alias}" | grep -Fq "\"${index}\""
+
+echo "OpenSearch seed ready: ${index} (alias=${alias})"

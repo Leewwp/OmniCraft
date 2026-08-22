@@ -1811,3 +1811,31 @@
 
 ### Notes:
 - The fallback reuses `GET /api/v1/contents/search` and validates returned `id/title/zone` before rendering interactive citations. A fallback-search failure remains fail-safe and leaves the explicit ordinary-search link available.
+
+## [2026-08-22] - Task #32 local demo and evidence package bootstrap
+
+### What was done:
+- Synchronized the RAG and reliable-async roadmap status language with the closed #136~#150 implementation state. T02/T03/T08 are marked local-complete; real Collector/Jaeger UI evidence remains explicitly unchecked.
+- Added `scripts/live-demo.sh` for idempotent local startup, migration 069~072 verification, existing seed loading, optional full-infra startup, host backend/worker/frontend process tracking, logs, and safe stop/verify commands. The script refuses to create or rewrite `.env`.
+- Added `scripts/seed_local_rag_projection.py` for a local keyword-only projection from visible published seed rows. It does not call an embedding provider and leaves `chunk_embeddings` empty; OpenSearch seed now establishes the canonical generation and read alias.
+- Added the local Live Demo runbook and the resume/demo evidence package under `docs/working/`.
+
+### Testing:
+- `bash scripts/live-demo.tests.sh` passed (shell syntax, Python syntax, OpenSearch seed contract, no destructive bootstrap commands).
+- `docker compose config --quiet` passed before the edits; runtime full-infra and authenticated browser evidence are still pending.
+
+### Notes:
+- This is local evidence only. Deterministic/keyword seed, mocked contracts, real local services, real external providers, Jaeger UI, and production evidence remain separate categories. #32 stays open; no Issue was closed or pushed.
+
+## [2026-08-22] - Task #32 local demo closure verification
+
+### What was done:
+- Completed the real local evidence run: PostgreSQL, Redis, migrations 069~072, rich seed, RAG fixture, OpenSearch generation/alias, backend, standalone worker, frontend, authenticated `/agent`, grounded/no-evidence/degraded states, citation detail overlay, and desktop/mobile screenshots.
+- Stopped the held demo host processes with `bash scripts/live-demo.sh stop`; Docker data was preserved. No GitHub issue was changed, closed, or pushed.
+
+### Testing:
+- Passed: backend `go build ./...`, `go vet ./...`, `go test ./...`; frontend `npm run lint`, `npm run build`; `bash scripts/live-demo.tests.sh`; `docker compose config --quiet`; doc-validator `--fix` twice then `--check`; `git diff --check`; and the earlier real local API/browser evidence run.
+- `bash scripts/verify-project.sh --full` ran through Go, unit tests, lint, UI governance, build, and mocked Playwright, with 56/73 mocked browser tests passing. The remaining 17 tests reproduce a local environment conflict: their server-rendered fixture is hard-coded to `127.0.0.1:18080`, occupied by an unrelated Java process, so those pages receive 404/page-not-found responses. The process was left untouched.
+
+### Notes:
+- Local evidence uses deterministic keyword projection, mocked contracts, and real local services. Real LLM/embedding quality, Jaeger UI full-chain tracing, external providers, production traffic, and production deployment remain unverified. #32 remains open.

@@ -3,6 +3,7 @@ package queue
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -91,6 +92,12 @@ func (b *RedisStreamBroker) Subscribe(ctx context.Context, topic string, group s
 			if err != nil {
 				if ctx.Err() != nil {
 					return
+				}
+				// XREADGROUP returns redis.Nil when its BLOCK timeout
+				// expires without a message. An idle consumer is healthy;
+				// continue the loop without emitting an error log.
+				if errors.Is(err, redis.Nil) {
+					continue
 				}
 				// The group can disappear under a running consumer (operator
 				// FLUSHDB, manual stream cleanup, TTL expiry). Re-create it
