@@ -1,3 +1,18 @@
+## [2026-08-22] - Interview evidence orchestration spec (#204)
+
+### What was done:
+- Wrote `docs/working/2026-08-22-interview-evidence-orchestration-spec.md` from the evidence diagnosis discussion and published it as GitHub issue #204 with `ready-for-agent` and `wayfinder:task` labels, part of #22.
+- Prioritized P0 benchmark provenance/citation diagnosis, P1 same-corpus real MiniMax differential evaluation, P2 pinned Collector/Jaeger trace evidence, and P3 #32 resume/demo closure. Kept #134/#76 production gates, #151 historical rescan, desktop/Tauri and optional ClamAV evidence out of the interview-critical path.
+- Recorded the required architecture boundary: Agent Chat is synchronous HTTP -> DB -> MiniMax Chat -> SSE; content projection is the asynchronous HTTP/outbox -> relay -> Redis Stream -> Worker -> MiniMax Embedding -> PostgreSQL/OpenSearch trace. No screenshot-driven architecture change is planned.
+
+### Testing:
+- `git diff --check`: passed.
+- `gh issue create`: published #204 successfully.
+- Worktree changes are documentation-only; no runtime or baseline artifact was modified.
+
+### Notes:
+- The spec explicitly refuses to compare `citation_precision=0.913` keyword content-level output directly with `0.052` chunk-level MiniMax hybrid output. It requires corpus identity, K, retriever entity and citation denominator alignment before any retrieval-quality claim.
+
 ## [2026-08-22] - Evidence quality assessment and Jaeger follow-up
 
 ### What was done:
