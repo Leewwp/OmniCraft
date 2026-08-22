@@ -1,3 +1,19 @@
+## [2026-08-22] - Evidence quality assessment and Jaeger follow-up
+
+### What was done:
+- Reviewed the real MiniMax evidence package against the committed RAG baseline and resume-oriented claim boundaries. The direct chat/embedding contracts are credible local evidence; the retrieval run is not a clean quality gate because the dedicated corpus has 169 contents while the committed baseline identifies 253 contents.
+- Flagged the real run's citation precision (0.052) as a material data-quality/metric-shape issue rather than a resume metric: the evaluation returns a broad candidate set and the value is far below the committed baseline (0.913). A same-corpus rerun and aligned citation/top-K semantics are required before claiming retrieval uplift.
+- Attempted the optional Jaeger full-chain batch with the repository Compose profile. Docker Hub returned `manifest unknown` for `otel/opentelemetry-collector-contrib:0.134.0`; alternate registry/tag checks also timed out. No Jaeger or Collector trace/UI evidence is claimed, and no repository configuration was changed.
+
+### Testing:
+- `docker compose config --quiet` and `docker compose --profile full-infra config --quiet`: previously passed in the existing evidence package.
+- `docker compose --profile full-infra up -d jaeger otel-collector`: failed before container creation because the pinned Collector image manifest was unavailable.
+- `git diff --check`: passed; worktree remained clean apart from this progress entry before commit.
+
+### Notes:
+- Resume-safe claims: implemented OTel application contracts and W3C propagation; real MiniMax Chat/Embedding contract and local retrieval measurement over a dedicated corpus. Do not claim production quality, retrieval uplift, or Jaeger full-chain completion.
+- Jaeger is worth completing if the resume highlights observability/async tracing; it is a small, independent evidence batch once a valid Collector image is available. ClamAV/EICAR remains lower priority unless security scanning is a primary resume theme.
+
 ## [2026-08-22] - MiniMax real provider and RAG evidence follow-up
 
 ### What was done:
