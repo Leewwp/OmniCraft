@@ -14,6 +14,20 @@ type Retrieved struct {
 	ContentID      int64   `json:"content_id"`
 	ContentVersion int64   `json:"content_version,omitempty"` // latest version at eval time; 0 when unknown
 	Score          float64 `json:"score"`
+	// Evidence is retained only for opt-in local diagnosis reports. It is
+	// excluded from committed evaluation artifacts and public contracts.
+	Evidence *RetrievedEvidence `json:"-"`
+}
+
+// RetrievedEvidence carries the server-owned chunk fields needed to inspect a
+// citation mismatch without exposing provider responses or internal scores.
+type RetrievedEvidence struct {
+	ChunkKey    string
+	Title       string
+	Heading     string
+	Text        string
+	SourceStart int
+	SourceEnd   int
 }
 
 // Retriever produces the ranked retrieval list for one query. The keyword
@@ -48,6 +62,8 @@ type CaseResult struct {
 	LeakedIDs         []int64     `json:"leaked_ids"`
 	LatencyMs         float64     `json:"latency_ms"`
 	Success           bool        `json:"success"`
+	// ExpectedCitations is used by the opt-in diagnosis report only.
+	ExpectedCitations []Citation `json:"-"`
 }
 
 // RetrieverMetrics aggregates one retriever's numbers over the dataset.
@@ -236,7 +252,7 @@ func runRetrievalEval(ctx context.Context, inputs []caseInput, retrieve Retrieve
 // metrics and appends the CaseResult. A non-nil error marks failure.
 func runCaseRetrieval(ctx context.Context, in caseInput, retrieve Retriever, topK int, result *RetrieverResult) error {
 	hits, err := retrieve(ctx, in.query, in.viewerID, topK)
-	cr := CaseResult{CaseKey: in.caseKey, Query: in.query}
+	cr := CaseResult{CaseKey: in.caseKey, Query: in.query, ExpectedCitations: citationsFromSet(in.expectedCitations)}
 	if err != nil {
 		result.PerCase = append(result.PerCase, cr)
 		return fmt.Errorf("retrieve %q: %w", in.caseKey, err)
@@ -258,6 +274,23 @@ func runCaseRetrieval(ctx context.Context, in caseInput, retrieve Retriever, top
 	cr.LeakedIDs = VisibilityLeaks(ids, in.forbidden)
 	result.PerCase = append(result.PerCase, cr)
 	return nil
+}
+
+func citationsFromSet(set map[Citation]bool) []Citation {
+	if len(set) == 0 {
+		return nil
+	}
+	out := make([]Citation, 0, len(set))
+	for citation := range set {
+		out = append(out, citation)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].ContentID != out[j].ContentID {
+			return out[i].ContentID < out[j].ContentID
+		}
+		return out[i].ContentVersion < out[j].ContentVersion
+	})
+	return out
 }
 
 // determinize imposes the deterministic tie-break: score descending, then

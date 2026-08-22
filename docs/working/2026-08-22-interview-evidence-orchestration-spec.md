@@ -3,7 +3,7 @@
 Part of #22
 
 > Created: 2026-08-22
-> 预计失效日期: 2026-10-22
+> **预计失效日期**: 2026-10-22
 > Scope: local development and interview evidence only; not a production release plan.
 
 ## Problem Statement

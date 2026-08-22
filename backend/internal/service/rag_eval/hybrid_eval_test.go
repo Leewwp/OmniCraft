@@ -26,6 +26,7 @@ import (
 const hybridEvalEnv = "OMNICRAFT_RAG_HYBRID_EVAL"
 const hybridOpenSearchEnv = "OMNICRAFT_RAG_OPENSEARCH_URL"
 const hybridEmbeddingModeEnv = "OMNICRAFT_RAG_EMBEDDING_MODE"
+const hybridDiagnosisReportEnv = "OMNICRAFT_RAG_DIAG_REPORT"
 
 type localProjectionEmbedder struct{ dimensions int }
 
@@ -165,7 +166,13 @@ func TestHybridGoldenSetEval(t *testing.T) {
 			// The evaluator sorts by score to make provider output deterministic.
 			// Preserve the retriever's already-fused order with an ordinal score;
 			// the actual RRF score remains server-private and is never serialized.
-			hits = append(hits, Retrieved{ContentID: candidate.ContentID, ContentVersion: int64(candidate.ContentVersion), Score: float64(len(got.Candidates) - rank)})
+			hits = append(hits, Retrieved{
+				ContentID: candidate.ContentID, ContentVersion: int64(candidate.ContentVersion), Score: float64(len(got.Candidates) - rank),
+				Evidence: &RetrievedEvidence{
+					ChunkKey: candidate.ChunkKey, Title: candidate.Title, Heading: candidate.Heading,
+					Text: candidate.Text, SourceStart: candidate.SourceStart, SourceEnd: candidate.SourceEnd,
+				},
+			})
 		}
 		return hits, nil
 	}, hybridCfg.FinalTopK, RunSpec{
@@ -204,6 +211,32 @@ func TestHybridGoldenSetEval(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse baseline artifact: %v", err)
 	}
+	if reportPath := strings.TrimSpace(os.Getenv(hybridDiagnosisReportEnv)); reportPath != "" {
+		report := BuildCitationDiagnosisReport(result, CitationDiagnosisMetadata{
+			RetrieverVersion:      "hybrid-rrf-pg-fallback-v1",
+			HitEntity:             "chunk",
+			CorpusScope:           "content_items.status=published AND deleted_at IS NULL",
+			CorpusContents:        int64(len(contentIDs)),
+			CorpusContentChecksum: contentIDChecksum(contentIDs),
+			CorpusEmbeddings:      result.Environment.CorpusEmbeddings,
+			RequestedTopK:         hybridCfg.FinalTopK,
+			BM25TopK:              hybridCfg.BM25TopK,
+			VectorTopK:            hybridCfg.VectorTopK,
+			FinalTopK:             hybridCfg.FinalTopK,
+			RRFK:                  hybridCfg.RRFK,
+			DatasetChecksum:       datasetChecksum,
+			ChunkingVersion:       strconv.Itoa(evalCfg.RAG.Chunking.ChunkingVersion),
+			IndexVersion:          strconv.Itoa(evalCfg.RAG.Index.GenerationStart),
+			EmbeddingModel:        embeddingModel,
+			ProjectionGeneration:  evalCfg.RAG.Index.GenerationStart,
+			QueryEmbeddingStandin: embeddingMode == "standin",
+			CaseSampleLimit:       8,
+		}, baseline)
+		if err := WriteCitationDiagnosisReport(reportPath, report); err != nil {
+			t.Fatalf("write citation diagnosis report: %v", err)
+		}
+		t.Logf("citation diagnosis report written to %s: raw_precision=%.3f dedup_precision=%.3f mean_hits=%.2f unique_hits=%.2f findings=%d", reportPath, report.CurrentMetrics.CitationPrecision, report.CurrentMetrics.DeduplicatedCitationPrecision, report.CurrentMetrics.MeanProducedHits, report.CurrentMetrics.MeanUniqueHits, len(report.Findings))
+	}
 	gateErr := compareHybridToBaseline(result, baseline)
 	if gateErr != nil {
 		if result.Environment.QueryEmbeddingStandin {
@@ -213,6 +246,14 @@ func TestHybridGoldenSetEval(t *testing.T) {
 		}
 	}
 	t.Logf("hybrid local: cases=%d recall@10=%.3f mrr=%.3f ndcg@10=%.3f citation_precision=%.3f coverage=%.3f leak=%d p95=%.1fms degradation=%.3f corpus=%d chunks=%d", result.DatasetSize, result.Metrics.RecallAt10, result.Metrics.MRR, result.Metrics.NDCGAt10, result.Metrics.CitationPrecision, result.Metrics.CitationCoverage, result.Metrics.VisibilityLeakCount, result.Metrics.P95RetrievalMs, result.Metrics.DegradationSuccessRate, result.Environment.CorpusContents, result.Environment.CorpusEmbeddings)
+}
+
+func contentIDChecksum(contentIDs []int64) string {
+	values := make([]string, len(contentIDs))
+	for i, contentID := range contentIDs {
+		values[i] = strconv.FormatInt(contentID, 10)
+	}
+	return ChecksumOf([]byte(strings.Join(values, "\n")))
 }
 
 func loadHybridEvalConfig(t *testing.T) config.Config {
