@@ -6,19 +6,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"omnicraft/backend/internal/observability"
 )
 
 // MiniMaxProvider talks to the MiniMax platform (api.minimaxi.com). Chat uses
-// the OpenAI-compatible /v1/chat/completions wire format, which MiniMax-M1
-// accepts (verified with real tool_calls round-trips). Embeddings use the
+// the OpenAI-compatible /v1/chat/completions wire format supported by the
+// current M-series models. Embeddings use the
 // MiniMax-specific wire format: /v1/embeddings requires a "texts" array plus
 // a "type" field (the endpoint accepts "query" and rejects "document") and
 // returns a "vectors" array instead of OpenAI's data[].embedding.
 //
-// MiniMax-M1 emits <think>...</think> reasoning blocks inside content. They
+// MiniMax M-series models can emit <think>...</think> reasoning blocks inside content. They
 // are stripped here so chain-of-thought never reaches the UI.
 type MiniMaxProvider struct {
 	openAI     *OpenAICompatProvider
@@ -146,7 +147,11 @@ func (p *MiniMaxProvider) GetEmbedding(ctx context.Context, text string) (embedd
 	ctx, span := startLLMSpan(ctx, "embedding", p.embedModel, "minimax", 0)
 	defer func() { finishLLMSpan(span, err, nil) }()
 	payload := minimaxEmbeddingRequest{Model: p.embedModel, Texts: []string{text}, Type: "query"}
-	resp, started, err := p.openAI.doPost(ctx, "/v1/embeddings", payload)
+	path := "/v1/embeddings"
+	if p.openAI.embedGroupID != "" {
+		path += "?GroupId=" + url.QueryEscape(p.openAI.embedGroupID)
+	}
+	resp, started, err := p.openAI.doPostAt(ctx, p.openAI.embedAPIBase, path, payload)
 	defer func() { observability.ObserveExternalCall("llm", started, err) }()
 	if err != nil {
 		return nil, err

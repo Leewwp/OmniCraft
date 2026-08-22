@@ -16,7 +16,9 @@
 | `agent.citation_max_count` | `int` | CitationMaxCount |
 | `agent.conversation_list_limit` | `int` | ConversationListLimit |
 | `agent.conversation_page_size` | `int` | ConversationPageSize |
+| `agent.embedding_api_base` | `string` | EmbeddingAPIBase |
 | `agent.embedding_dimensions` | `int` | EmbeddingDimensions |
+| `agent.embedding_group_id` | `string` | EmbeddingGroupID |
 | `agent.embedding_model` | `string` | EmbeddingModel |
 | `agent.hmac_secret` | `string` | HMACSecret |
 | `agent.llm_api_base` | `string` | LLMAPIBase |

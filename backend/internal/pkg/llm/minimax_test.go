@@ -101,6 +101,28 @@ func TestMiniMaxProvider_GetEmbedding_Serialization(t *testing.T) {
 	}
 }
 
+func TestMiniMaxProvider_GetEmbedding_UsesLegacyBaseAndGroupID(t *testing.T) {
+	var receivedReq *http.Request
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedReq = r
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"vectors":[[0.1]],"base_resp":{"status_code":0}}`)
+	}))
+	defer server.Close()
+
+	p := NewMiniMaxProvider("test-key", "https://chat.example.test", "MiniMax-M3", "embo-01",
+		WithEmbeddingAPIBase(server.URL), WithEmbeddingGroupID("group/a"))
+	if _, err := p.GetEmbedding(context.Background(), "hello"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if receivedReq.URL.Path != "/v1/embeddings" {
+		t.Fatalf("path = %q, want /v1/embeddings", receivedReq.URL.Path)
+	}
+	if got := receivedReq.URL.Query().Get("GroupId"); got != "group/a" {
+		t.Fatalf("GroupId = %q, want group/a", got)
+	}
+}
+
 func TestMiniMaxProvider_GetEmbedding_ErrorStatus(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := minimaxEmbeddingResponse{}

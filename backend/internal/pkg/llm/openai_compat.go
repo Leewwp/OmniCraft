@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -15,13 +16,15 @@ import (
 )
 
 type OpenAICompatProvider struct {
-	apiKey     string
-	apiBase    string
-	model      string
-	embedModel string
-	client     *http.Client
-	maxRetries int
-	system     string
+	apiKey       string
+	apiBase      string
+	embedAPIBase string
+	embedGroupID string
+	model        string
+	embedModel   string
+	client       *http.Client
+	maxRetries   int
+	system       string
 }
 
 func NewOpenAICompatProvider(apiKey, apiBase, model, embedModel string, opts ...ProviderOption) *OpenAICompatProvider {
@@ -34,14 +37,23 @@ func NewOpenAICompatProvider(apiKey, apiBase, model, embedModel string, opts ...
 		opt(&cfg)
 	}
 	return &OpenAICompatProvider{
-		apiKey:     apiKey,
-		apiBase:    apiBase,
-		model:      model,
-		embedModel: embedModel,
-		client:     &http.Client{Timeout: cfg.timeout, Transport: otelhttp.NewTransport(http.DefaultTransport)},
-		maxRetries: cfg.maxRetries,
-		system:     "openai_compatible",
+		apiKey:       apiKey,
+		apiBase:      apiBase,
+		embedAPIBase: strings.TrimRight(defaultString(cfg.embeddingAPIBase, apiBase), "/"),
+		embedGroupID: cfg.embeddingGroupID,
+		model:        model,
+		embedModel:   embedModel,
+		client:       &http.Client{Timeout: cfg.timeout, Transport: otelhttp.NewTransport(http.DefaultTransport)},
+		maxRetries:   cfg.maxRetries,
+		system:       "openai_compatible",
 	}
+}
+
+func defaultString(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
 }
 
 type openAIRequest struct {
@@ -76,12 +88,16 @@ type openAIResponse struct {
 func (p *OpenAICompatProvider) Model() string { return p.model }
 
 func (p *OpenAICompatProvider) doPost(ctx context.Context, path string, body interface{}) (resp *http.Response, started time.Time, err error) {
+	return p.doPostAt(ctx, p.apiBase, path, body)
+}
+
+func (p *OpenAICompatProvider) doPostAt(ctx context.Context, base, path string, body interface{}) (resp *http.Response, started time.Time, err error) {
 	started = time.Now()
 	b, err := json.Marshal(body)
 	if err != nil {
 		return nil, started, err
 	}
-	resp, err = retryDo(ctx, p.client, p.apiBase+path, p.apiKey, b, p.maxRetries)
+	resp, err = retryDo(ctx, p.client, strings.TrimRight(base, "/")+path, p.apiKey, b, p.maxRetries)
 	return resp, started, err
 }
 
@@ -210,7 +226,11 @@ func (p *OpenAICompatProvider) GetEmbedding(ctx context.Context, text string) (e
 	ctx, span := startLLMSpan(ctx, "embedding", p.embedModel, p.system, 0)
 	defer func() { finishLLMSpan(span, err, nil) }()
 	payload := openAIEmbeddingRequest{Model: p.embedModel, Input: text}
-	resp, started, err := p.doPost(ctx, "/v1/embeddings", payload)
+	path := "/v1/embeddings"
+	if p.embedGroupID != "" {
+		path += "?GroupId=" + url.QueryEscape(p.embedGroupID)
+	}
+	resp, started, err := p.doPostAt(ctx, p.embedAPIBase, path, payload)
 	defer func() { observability.ObserveExternalCall("llm", started, err) }()
 	if err != nil {
 		return nil, err

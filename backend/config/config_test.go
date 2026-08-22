@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -182,6 +183,8 @@ func TestLoadAppliesExplicitAgentEnvAfterConfigOverride(t *testing.T) {
 	t.Setenv("AGENT_LLM_MODEL", "MiniMax-M1")
 	t.Setenv("AGENT_LLM_API_BASE", "https://api.minimaxi.com")
 	t.Setenv("AGENT_EMBEDDING_MODEL", "embo-01")
+	t.Setenv("AGENT_EMBEDDING_API_BASE", "https://api.minimax.chat")
+	t.Setenv("AGENT_EMBEDDING_GROUP_ID", "group-123")
 
 	tmp := t.TempDir()
 	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte(`agent:
@@ -211,6 +214,58 @@ func TestLoadAppliesExplicitAgentEnvAfterConfigOverride(t *testing.T) {
 	require.Equal(t, "MiniMax-M1", cfg.Agent.LLMModel)
 	require.Equal(t, "https://api.minimaxi.com", cfg.Agent.LLMAPIBase)
 	require.Equal(t, "embo-01", cfg.Agent.EmbeddingModel)
+	require.Equal(t, "https://api.minimax.chat", cfg.Agent.EmbeddingAPIBase)
+	require.Equal(t, "group-123", cfg.Agent.EmbeddingGroupID)
+	require.Equal(t, "embo-01", cfg.RAG.Index.EmbeddingModel)
+}
+
+func TestLoadAllowsExplicitRAGIndexEmbeddingModelOverride(t *testing.T) {
+	t.Setenv("AGENT_EMBEDDING_MODEL", "embo-01")
+	t.Setenv("RAG_INDEX_EMBEDDING_MODEL", "index-model")
+
+	tmp := t.TempDir()
+	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte(`agent:
+  embedding_model: stale-agent
+rag:
+  index:
+    embedding_model: stale-index
+`), 0o600))
+	previousWD, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmp))
+	t.Cleanup(func() { require.NoError(t, os.Chdir(previousWD)) })
+
+	cfg := Load()
+	require.Equal(t, "embo-01", cfg.Agent.EmbeddingModel)
+	require.Equal(t, "index-model", cfg.RAG.Index.EmbeddingModel)
+}
+
+func TestLoadPrefersRepositoryRootEnvWhenStartedFromBackend(t *testing.T) {
+	repo := t.TempDir()
+	backendDir := filepath.Join(repo, "backend")
+	require.NoError(t, os.Mkdir(backendDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(backendDir, "config.yaml"), []byte("agent:\n  llm_model: yaml-model\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(repo, ".env"), []byte("AGENT_LLM_MODEL=root-model\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(backendDir, ".env"), []byte("AGENT_LLM_MODEL=stale-backend-model\n"), 0o600))
+
+	previousWD, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(backendDir))
+	t.Cleanup(func() { require.NoError(t, os.Chdir(previousWD)) })
+
+	// The loader's parent candidate represents the repository root when the
+	// process is started from backend/; explicit environment remains absent.
+	previousModel, hadModel := os.LookupEnv("AGENT_LLM_MODEL")
+	require.NoError(t, os.Unsetenv("AGENT_LLM_MODEL"))
+	t.Cleanup(func() {
+		if hadModel {
+			_ = os.Setenv("AGENT_LLM_MODEL", previousModel)
+		} else {
+			_ = os.Unsetenv("AGENT_LLM_MODEL")
+		}
+	})
+	cfg := Load()
+	require.Equal(t, "root-model", cfg.Agent.LLMModel)
 }
 
 func TestLoadOverridePartialSectionPreservesSiblingFields(t *testing.T) {
