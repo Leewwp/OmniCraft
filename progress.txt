@@ -1909,3 +1909,17 @@
 
 ### Notes:
 - No further real provider calls will be made with the exposed credentials. After key rotation, run the final provider smoke and evidence sequence in a new task.
+
+## [2026-08-22] - RAG citation precision diagnosis
+### What was done:
+- Added an opt-in citation diagnosis report for hybrid retrieval with explicit hit entity, corpus scope/count/checksum, chunking/index/model, candidate K, raw versus content-deduplicated citation metrics, and redacted representative Top-K chunks.
+- Confirmed the apparent `0.913 -> 0.052` drop is not a valid provider-quality comparison: the historical baseline is content-level over 253 contents with different observed hit cardinalities, while the current hybrid run is chunk-level over 169 published contents at final K=10.
+- Repaired only missing local `content_versions` snapshots required by the migration 071 projection invariant; the committed historical baseline artifact was not changed.
+- Generated `docs/working/2026-08-22-rag-citation-diagnosis-standin.json` and recorded the interview-facing conclusion and P0-P2 sequencing in `docs/working/2026-08-22-rag-citation-diagnosis.md`.
+
+### Testing:
+- `cd backend && go test ./internal/service/rag_eval` passed.
+- Stand-in full golden-set diagnosis passed with 63 cases: Recall@10 0.429, MRR 0.372, nDCG@10 0.386, citation precision 0.043, coverage 0.429, visibility leaks 0; historical baseline comparison was intentionally rejected for corpus identity mismatch.
+
+### Notes:
+- This is a diagnosis artifact, not a MiniMax quality claim. A same-corpus/same-K real-provider differential still requires recovery of the historical 253-content corpus or creation of a new explicitly versioned baseline.

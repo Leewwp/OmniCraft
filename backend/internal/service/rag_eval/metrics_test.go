@@ -84,6 +84,25 @@ func TestCitationPrecisionAndCoverage(t *testing.T) {
 	}
 }
 
+func TestDeduplicatedCitationMetricsKeepFirstRankedContent(t *testing.T) {
+	expected := map[Citation]bool{{ContentID: 1, ContentVersion: 1}: true}
+	produced := []Citation{
+		{ContentID: 1, ContentVersion: 1},
+		{ContentID: 1, ContentVersion: 1},
+		{ContentID: 9, ContentVersion: 1},
+	}
+	got := DeduplicateCitations(produced)
+	if len(got) != 2 || got[0] != produced[0] || got[1] != produced[2] {
+		t.Fatalf("deduplicated citations = %#v, want first-ranked unique identities", got)
+	}
+	if precision := CitationPrecisionDeduplicated(produced, expected); precision != 0.5 {
+		t.Errorf("deduplicated citation precision = %v, want 0.5", precision)
+	}
+	if coverage := CitationCoverageDeduplicated(produced, expected); coverage != 1 {
+		t.Errorf("deduplicated citation coverage = %v, want 1", coverage)
+	}
+}
+
 func TestVisibilityLeaks(t *testing.T) {
 	forbidden := map[int64]bool{1006: true, 1007: true}
 	leaked := VisibilityLeaks([]int64{1001, 1007, 1002, 1006, 1003}, forbidden)

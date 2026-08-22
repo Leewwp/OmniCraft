@@ -167,6 +167,37 @@ func CitationPrecision(produced []Citation, expected map[Citation]bool) float64 
 	return float64(hit) / float64(len(produced))
 }
 
+// DeduplicateCitations collapses repeated chunk hits to one content/version
+// identity while preserving the first-ranked citation.
+func DeduplicateCitations(produced []Citation) []Citation {
+	if len(produced) == 0 {
+		return nil
+	}
+	seen := make(map[Citation]bool, len(produced))
+	out := make([]Citation, 0, len(produced))
+	for _, citation := range produced {
+		if seen[citation] {
+			continue
+		}
+		seen[citation] = true
+		out = append(out, citation)
+	}
+	return out
+}
+
+// CitationPrecisionDeduplicated measures content-level precision for a
+// chunk-level result. It is separate from CitationPrecision so historical
+// raw-hit metrics remain unchanged.
+func CitationPrecisionDeduplicated(produced []Citation, expected map[Citation]bool) float64 {
+	return CitationPrecision(DeduplicateCitations(produced), expected)
+}
+
+// CitationCoverageDeduplicated measures content-level coverage after repeated
+// chunk hits have been collapsed.
+func CitationCoverageDeduplicated(produced []Citation, expected map[Citation]bool) float64 {
+	return CitationCoverage(DeduplicateCitations(produced), expected)
+}
+
 // CitationCoverage is the share of expected citations produced at least
 // once. An empty expected set scores 1 when nothing was produced and 0
 // otherwise.
