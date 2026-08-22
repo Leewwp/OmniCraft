@@ -23,6 +23,7 @@ if AGENT_LLM_API_KEY=placeholder \
     exit 1
 fi
 
+preflight_output="$(
 AGENT_LLM_API_KEY=abcdefghijk \
 AGENT_WEB_AGENT_ENABLED=true \
 AGENT_LLM_PROVIDER=minimax \
@@ -32,6 +33,13 @@ AGENT_EMBEDDING_MODEL=embo-01 \
 AGENT_EMBEDDING_API_BASE=https://api.minimax.chat \
 AGENT_EMBEDDING_GROUP_ID=test-group \
 RAG_INDEX_EMBEDDING_MODEL=embo-01 \
-bash "$ROOT_DIR/scripts/real-provider-preflight.sh" >/dev/null
+bash "$ROOT_DIR/scripts/real-provider-preflight.sh"
+)"
+
+if [[ "$preflight_output" == *'abcdefghijk'* || "$preflight_output" == *'api_key=abcdefghijk'* ]]; then
+    echo 'preflight must not print any key content' >&2
+    exit 1
+fi
+[[ "$preflight_output" == *'api_key=present (not logged)'* ]]
 
 echo 'real provider preflight script contracts passed'

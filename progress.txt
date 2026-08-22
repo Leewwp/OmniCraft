@@ -1,3 +1,27 @@
+## [2026-08-22] - MiniMax real provider and RAG evidence follow-up
+
+### What was done:
+- Ran the real-provider preflight against the repository root environment: minimax, MiniMax-M3, embo-01, the split Chat/Embedding bases, model identity, and GroupId presence all matched. Hardened the preflight output and shell contract so no key content or GroupId value is printed.
+- Ran backend/go run ./cmd/agent-smoke with field-level output filtering: 4/4 cases succeeded; recorded only provider/model, case status, tool-request metadata, latency, token usage, and cost estimate. The root .env loaded MiniMax-M3; stale backend/.env was not used.
+- Verified a real embo-01 embedding response with GroupId in the query, HTTP 200, one vector, and dimension 1536.
+- Created a dedicated local evaluation database and OpenSearch generation 2. The generation audit found 169 embo-01 vectors, all dimension 1536, with no stand-in model mixed into that generation.
+- Ran the real hybrid evaluation. Hybrid metrics were Recall@10 0.508, MRR 0.440, nDCG@10 0.456, citation precision 0.052, citation coverage 0.508, visibility leaks 0, and P95 retrieval latency 389.8ms. Same-run keyword baseline was Recall@10 0.413, MRR 0.370, nDCG@10 0.380.
+- Preserved the real gate failure: the harness rejected the committed baseline comparison because its corpus identity is 253 contents while the dedicated real run has 169. No pass or production claim is made. Full evidence is in docs/working/2026-08-22-minimax-real-provider-evidence.md.
+
+### Testing:
+- bash scripts/real-provider-preflight.sh: passed with key/group values reported only as present.
+- bash scripts/real-provider-preflight.tests.sh: passed.
+- go run ./cmd/agent-smoke: 4/4 real MiniMax cases succeeded.
+- Direct MiniMax Embedding contract: HTTP 200, provider status 0, vector count 1, dimension 1536.
+- OMNICRAFT_RAG_HYBRID_EVAL=1 OMNICRAFT_RAG_EMBEDDING_MODE=real OMNICRAFT_RAG_OPENSEARCH_URL=http://127.0.0.1:9200 go test ./internal/service/rag_eval -run TestHybridGoldenSetEval -count=1 -v: completed real projection but returned FAIL on the corpus-identity gate; the failure is retained.
+- bash scripts/verify-project.sh --full: failed with 56 passed, 17 failed, and 1 not run; failures were in mocked UI/real-HTTP contract suites (including an occupied :18080 test port), not in the MiniMax provider or RAG evaluation commands.
+
+### Notes:
+- Golden set checksum: sha256:e759d965ae70cb2bd0cb1022735207c307b13b6d23c9946dbc88c01225521b04; commit: 10fa0ab.
+- Chat smoke totaled 1285 input tokens, 1034 output tokens, and a rough $0.0021935 estimate using the command's generic fallback rate. MiniMax embedding usage/cost was not exposed by the response.
+- The first dedicated evaluation attempt stopped on missing seed content_versions; this was repaired with the existing migration 071 initialization contract before the final run. The local backend launch also hit an occupied :9091 metrics port. Neither is a provider pass/fail claim.
+- OpenSearch read alias was restored to omnicraft-rag-v1; Jaeger full-chain and ClamAV/EICAR evidence remain out of scope. No .env file was modified.
+
 ## [2026-08-19] - Task #145: T10 Agent/RAG 运行时边界决策收口
 
 ### What was done:
