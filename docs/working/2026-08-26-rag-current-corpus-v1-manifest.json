@@ -24,7 +24,7 @@
     "contents": 169,
     "published_public_not_deleted": 163,
     "anonymous_visible_after_author_ip_predicates": 161,
-    "content_identity_checksum": "sha256:c8bac1432aec25fda3b5e34ee087d5465edf3d811bedd24c2dac89108126bb5a",
+    "content_identity_checksum": "sha256:240b3bac94916e791f41436abf9ab73fbb39702cd9b25f86cda264990a3765be",
     "composition": {
       "rag_eval_seed_published": 34,
       "local_rich_seed_published": 135

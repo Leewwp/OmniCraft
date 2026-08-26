@@ -38,7 +38,7 @@
 | published, not deleted scope | 169 |
 | published + public, not deleted | 163 |
 | anonymous visibility after author/IP predicates | 161 |
-| content identity checksum | `sha256:c8bac1432aec25fda3b5e34ee087d5465edf3d811bedd24c2dac89108126bb5a` |
+| content identity checksum | `sha256:240b3bac94916e791f41436abf9ab73fbb39702cd9b25f86cda264990a3765be` |
 | golden-set checksum | `sha256:e759d965ae70cb2bd0cb1022735207c307b13b6d23c9946dbc88c01225521b04` |
 | chunking | version 1, max 512 tokens, overlap 48 |
 | index generation | 1 for the local projection; real MiniMax run is isolated in generation 2 |
@@ -60,16 +60,10 @@ predicate 下可复核。
 scope、169 个 chunk、169 个 `embo-01` embedding，维度为 1536。内容向量不需要
 重新生成，可以直接复用这份隔离 generation。
 
-剩余阻塞只有 query embedding 的真实 provider 调用。当前 shell preflight 仅证明
-本机存在配置，不证明凭证仍然安全或可继续使用。此前凭证曾进入诊断边界，因此
-不得继续使用旧 key。下一次真实运行前需要：
+用户已轮换凭证并通过本机 `.env` 完成 MiniMax provider preflight；未在聊天、报告或 Git
+中记录密钥。真实 `embo-01` query embedding 已在该隔离库完成 K=10 与 K=20 differential，
+结果见同日的 real evidence 报告。历史 baseline 保持不变，真实结果仍只属于 current-v1
+本地面试证据，不代表生产质量或 SLA。
 
-1. 用户轮换/撤销旧 MiniMax API key；
-2. 提供已轮换 key 的本地环境配置（通过本机 `.env` 或临时环境变量，不要发送到聊天或提交到 Git）；
-3. 确认 `AGENT_LLM_PROVIDER=minimax`、`AGENT_EMBEDDING_MODEL=embo-01`、
-   `RAG_INDEX_EMBEDDING_MODEL=embo-01` 和 `AGENT_EMBEDDING_GROUP_ID` 与此前相同的
-   provider contract；
-4. 再运行同 corpus 的 K=10 differential；必要时追加 K=20，但不改旧 baseline。
-
-在收到新凭证前，不运行真实 provider 请求，不把 stand-in 数字写成 MiniMax 质量
-证据，也不提出 reranker 结论。
+报告中的 `projection_generation` 已从 `index_projection_status` 的 ready/current 状态读取；
+两份 real 报告均为 generation 2。该字段不再把配置的 `generation_start` 误当成实际运行代际。
