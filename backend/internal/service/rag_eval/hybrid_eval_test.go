@@ -145,6 +145,7 @@ func TestHybridGoldenSetEval(t *testing.T) {
 			t.Fatalf("project content %d: %v", contentID, err)
 		}
 	}
+	projectionGeneration := currentProjectionGeneration(t, db)
 
 	searchRepo := repository.NewSearchRepository(db)
 	embeddingRepo := repository.NewEmbeddingRepository(db)
@@ -180,7 +181,7 @@ func TestHybridGoldenSetEval(t *testing.T) {
 		RunKey:           "rag-hybrid-local-" + time.Now().UTC().Format("20060102T150405Z"),
 		RetrieverVersion: "hybrid-rrf-pg-fallback-v1",
 		ChunkingVersion:  strconv.Itoa(evalCfg.RAG.Chunking.ChunkingVersion),
-		IndexVersion:     strconv.Itoa(evalCfg.RAG.Index.GenerationStart),
+		IndexVersion:     strconv.Itoa(projectionGeneration),
 		DatasetChecksum:  datasetChecksum,
 	}, Environment{
 		GoVersion:             runtime.Version(),
@@ -227,9 +228,9 @@ func TestHybridGoldenSetEval(t *testing.T) {
 			RRFK:                  hybridCfg.RRFK,
 			DatasetChecksum:       datasetChecksum,
 			ChunkingVersion:       strconv.Itoa(evalCfg.RAG.Chunking.ChunkingVersion),
-			IndexVersion:          strconv.Itoa(evalCfg.RAG.Index.GenerationStart),
+			IndexVersion:          strconv.Itoa(projectionGeneration),
 			EmbeddingModel:        embeddingModel,
-			ProjectionGeneration:  evalCfg.RAG.Index.GenerationStart,
+			ProjectionGeneration:  projectionGeneration,
 			QueryEmbeddingStandin: embeddingMode == "standin",
 			CaseSampleLimit:       8,
 		}, baseline)
@@ -284,6 +285,21 @@ func contentCorpusChecksum(t *testing.T, db *gorm.DB) string {
 		t.Fatalf("marshal corpus identity: %v", err)
 	}
 	return ChecksumOf(body)
+}
+
+func currentProjectionGeneration(t *testing.T, db *gorm.DB) int {
+	t.Helper()
+	var generation int
+	err := db.WithContext(context.Background()).Table("index_projection_status").
+		Select("COALESCE(MAX(index_version), 0)").
+		Where("is_current = TRUE AND state = ?", "ready").Scan(&generation).Error
+	if err != nil {
+		t.Fatalf("load current projection generation: %v", err)
+	}
+	if generation <= 0 {
+		t.Fatalf("current projection generation is unavailable")
+	}
+	return generation
 }
 
 func loadHybridEvalConfig(t *testing.T) config.Config {

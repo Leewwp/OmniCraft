@@ -1938,3 +1938,19 @@
 
 ### Notes:
 - P0 provenance audit is complete with an explicit unrecoverable outcome. P1 is prepared but real query embedding calls are paused until the previously exposed MiniMax credential is rotated and a replacement local-only configuration is available.
+
+## [2026-08-26] - MiniMax real RAG differential evidence
+### What was done:
+- Used the user-rotated local MiniMax credential configuration for real `embo-01` query embeddings against the isolated `current-local-published-v1` corpus; no secrets or provider response bodies were persisted.
+- Added the explicit `RAG_HYBRID_FINAL_TOPK` environment override with a configuration regression test, then ran the same corpus at final K=10 and K=20.
+- Corrected diagnosis report provenance to record the actual ready/current projection generation from `index_projection_status` (generation 2), and refreshed the corpus checksum in the current-v1 manifest.
+- Added `docs/working/2026-08-26-rag-real-minimax-differential-evidence.md` with interview-safe conclusions and claim boundaries.
+
+### Testing:
+- Real K=10: Recall@10 0.492, MRR 0.437, nDCG@10 0.450, citation precision 0.170, coverage 0.492, p95 164.8ms, 0 visibility leaks.
+- Real K=20: Recall@10 0.492, MRR 0.438, nDCG@10 0.450, citation precision 0.162, coverage 0.508, p95 163.8ms, 0 visibility leaks.
+- Both real runs reached the expected historical provenance guard (`baseline corpus=253`, `current corpus=169`) after writing reports; this is not a provider failure.
+- `cd backend && go test ./config ./internal/service/rag_eval` passed; report secret scan and `git diff --check` passed.
+
+### Notes:
+- K=20 did not recover citation precision; coverage rose slightly while precision fell. This rules out a pure Top-K truncation explanation but does not yet validate a reranker fix. Historical `0.913` remains non-comparable and untouched.

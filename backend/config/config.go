@@ -718,6 +718,11 @@ func OverrideFromEnv(cfg *Config) {
 	if v := os.Getenv("RAG_INDEX_URL"); v != "" {
 		cfg.RAG.Index.URL = v
 	}
+	if v := os.Getenv("RAG_HYBRID_FINAL_TOPK"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.RAG.Hybrid.FinalTopK = n
+		}
+	}
 	if v := os.Getenv("CLAMD_ADDRESS"); v != "" {
 		cfg.ArchiveScan.ClamdAddress = v
 	}

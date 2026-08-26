@@ -151,6 +151,17 @@ func TestLoadAppliesRAGIndexURLEnvOverride(t *testing.T) {
 	require.Equal(t, "http://opensearch:9200", Load().RAG.Index.URL)
 }
 
+func TestLoadAppliesRAGHybridFinalTopKEnvOverride(t *testing.T) {
+	t.Setenv("RAG_HYBRID_FINAL_TOPK", "20")
+	tmp := t.TempDir()
+	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte("rag:\n  hybrid:\n    final_topk: 10\n"), 0o600))
+	previousWD, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmp))
+	t.Cleanup(func() { require.NoError(t, os.Chdir(previousWD)) })
+	require.Equal(t, 20, Load().RAG.Hybrid.FinalTopK)
+}
+
 func TestLoadDoesNotLetGenericAgentEnvShadowAgentSection(t *testing.T) {
 	t.Setenv("AGENT", "1")
 	t.Setenv("AGENT_WEB_AGENT_ENABLED", "true")
