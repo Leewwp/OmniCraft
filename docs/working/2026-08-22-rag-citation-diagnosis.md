@@ -44,7 +44,7 @@ baseline。
 脱敏 Top-K 报告保存在
 `docs/working/2026-08-22-rag-citation-diagnosis-standin.json`，只保留 8 个
 代表性 case 的 chunk excerpt，完整 63-case 指标仍写入 `current_metrics`。
-报告记录了 golden-set checksum、content-ID checksum、chunking/index/model、
+报告记录了 golden-set checksum、content identity checksum、chunking/index/model、
 BM25/vector/final K 和历史 baseline identity。
 
 ## 归因判断
@@ -84,7 +84,7 @@ BM25/vector/final K 和历史 baseline identity。
 - 保持 `backend/testdata/rag_eval_baseline.json` 不变；
 - 从历史数据库备份或导出中寻找 253-content corpus manifest；
 - 若找不到，正式创建新的 `current-corpus-v1` baseline，不把 169 冒充 253；
-- 为每个运行固定 golden checksum、content-ID checksum、scope、chunking、index、
+- 为每个运行固定 golden checksum、content identity checksum、scope、chunking、index、
   embedding model、BM25/vector/final K。
 
 ### P1：同口径真实 MiniMax differential

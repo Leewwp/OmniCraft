@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "corpus_id": "current-local-published-v1",
+  "generated_at": "2026-08-26",
+  "repository_commit": "a32ae3e",
+  "source_seeds": [
+    {
+      "path": "backend/testdata/rag_eval_seed.sql",
+      "revision": "a32ae3e",
+      "role": "RAG evaluation content and 63-case golden set"
+    },
+    {
+      "path": "scripts/seed_local_rich_data.py",
+      "revision": "a32ae3e",
+      "role": "fictional local rich corpus"
+    }
+  ],
+  "golden_set": {
+    "active_cases": 63,
+    "dataset_checksum": "sha256:e759d965ae70cb2bd0cb1022735207c307b13b6d23c9946dbc88c01225521b04"
+  },
+  "scope": {
+    "predicate": "content_items.status = 'published' AND content_items.deleted_at IS NULL",
+    "contents": 169,
+    "published_public_not_deleted": 163,
+    "anonymous_visible_after_author_ip_predicates": 161,
+    "content_identity_checksum": "sha256:c8bac1432aec25fda3b5e34ee087d5465edf3d811bedd24c2dac89108126bb5a",
+    "composition": {
+      "rag_eval_seed_published": 34,
+      "local_rich_seed_published": 135
+    }
+  },
+  "retrieval_contract": {
+    "visibility_predicate": "published, non-deleted, non-banned author, non-banned IP, public or owner",
+    "chunking_version": 1,
+    "chunking_max_tokens": 512,
+    "chunking_overlap_tokens": 48,
+    "golden_query_embedding_model": "embo-01",
+    "planned_final_top_k": [10, 20]
+  },
+  "historical_baseline": {
+    "artifact_path": "backend/testdata/rag_eval_baseline.json",
+    "reported_contents": 253,
+    "reported_embeddings": 201,
+    "reproducible_from_repository": false,
+    "reason": "artifact has metrics and environment counts but no corpus snapshot, ID manifest, content export, or seed revision"
+  },
+  "isolated_real_projection": {
+    "database": "omnicraft_test_minimax_20260822",
+    "index_generation": 2,
+    "embedding_model": "embo-01",
+    "embedding_count": 169,
+    "embedding_dimensions": 1536,
+    "content_vectors_overwritten": false
+  }
+}
