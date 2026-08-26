@@ -1954,3 +1954,15 @@
 
 ### Notes:
 - K=20 did not recover citation precision; coverage rose slightly while precision fell. This rules out a pure Top-K truncation explanation but does not yet validate a reranker fix. Historical `0.913` remains non-comparable and untouched.
+
+## [2026-08-26] - Jaeger/Collector full-infra remediation smoke
+### What was done:
+- Replaced the unavailable `otel/opentelemetry-collector-contrib:0.134.0` full-infra image with pinned `otel/opentelemetry-collector:0.120.0`, updated the standard config path, and enabled the `health_check` extension to match the Compose healthcheck.
+- Started real local Jaeger `1.76.0` and Collector `0.120.0` containers. A tracing-enabled local backend emitted a `/healthz` HTTP span that was queried through Jaeger API.
+
+### Testing:
+- `docker compose --profile full-infra config --quiet` passed.
+- Jaeger healthy; Collector logs reported `Everything is ready`; Jaeger API returned service `unknown_service:server` and a `GET /healthz` span.
+
+### Notes:
+- This is real Collector delivery and a single-span smoke, not the requested authenticated Agent Chat or asynchronous HTTP/outbox -> relay -> Redis Stream -> Worker -> Embedding -> PostgreSQL/OpenSearch full-chain evidence. Those remain explicitly unverified.

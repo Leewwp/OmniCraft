@@ -18,9 +18,13 @@ exporters:
       insecure: true
 
 service:
-  extensions: []
+  extensions: [health_check]
   pipelines:
     traces:
       receivers: [otlp]
       processors: [batch]
       exporters: [otlp/jaeger]
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
