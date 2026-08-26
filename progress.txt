@@ -1923,3 +1923,18 @@
 
 ### Notes:
 - This is a diagnosis artifact, not a MiniMax quality claim. A same-corpus/same-K real-provider differential still requires recovery of the historical 253-content corpus or creation of a new explicitly versioned baseline.
+
+## [2026-08-26] - RAG provenance audit and current corpus v1
+### What was done:
+- Audited Git history, branches/tags, RAG seeds, baseline generation code, `eval_runs`, and local PostgreSQL state. Confirmed the historical 253-content corpus has no recoverable repository snapshot, ID manifest, content export, or database dump.
+- Recorded a non-conflicting `current-local-published-v1` manifest with source revisions, 63-case checksum, 169-content scope, visibility counts, content identity checksum, chunking/index contract, and isolated MiniMax generation facts.
+- Updated diagnostic reports to hash the complete content identity fields rather than content IDs alone, so title/body/visibility/latest-version drift invalidates the checksum.
+- Confirmed `omnicraft_test_minimax_20260822` still contains 169 isolated `embo-01` vectors at 1536 dimensions; no legacy vectors were overwritten.
+
+### Testing:
+- `cd backend && go test ./internal/service/rag_eval` passed.
+- `go run . --check` in `tools/doc-validator` passed.
+- Stand-in hybrid diagnosis regenerated with full content identity checksum; intentional historical baseline gate rejection remains `253 != 169`.
+
+### Notes:
+- P0 provenance audit is complete with an explicit unrecoverable outcome. P1 is prepared but real query embedding calls are paused until the previously exposed MiniMax credential is rotated and a replacement local-only configuration is available.

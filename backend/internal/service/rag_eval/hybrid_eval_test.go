@@ -2,6 +2,7 @@ package rageval
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -217,7 +218,7 @@ func TestHybridGoldenSetEval(t *testing.T) {
 			HitEntity:             "chunk",
 			CorpusScope:           "content_items.status=published AND deleted_at IS NULL",
 			CorpusContents:        int64(len(contentIDs)),
-			CorpusContentChecksum: contentIDChecksum(contentIDs),
+			CorpusContentChecksum: contentCorpusChecksum(t, db),
 			CorpusEmbeddings:      result.Environment.CorpusEmbeddings,
 			RequestedTopK:         hybridCfg.FinalTopK,
 			BM25TopK:              hybridCfg.BM25TopK,
@@ -248,12 +249,41 @@ func TestHybridGoldenSetEval(t *testing.T) {
 	t.Logf("hybrid local: cases=%d recall@10=%.3f mrr=%.3f ndcg@10=%.3f citation_precision=%.3f coverage=%.3f leak=%d p95=%.1fms degradation=%.3f corpus=%d chunks=%d", result.DatasetSize, result.Metrics.RecallAt10, result.Metrics.MRR, result.Metrics.NDCGAt10, result.Metrics.CitationPrecision, result.Metrics.CitationCoverage, result.Metrics.VisibilityLeakCount, result.Metrics.P95RetrievalMs, result.Metrics.DegradationSuccessRate, result.Environment.CorpusContents, result.Environment.CorpusEmbeddings)
 }
 
-func contentIDChecksum(contentIDs []int64) string {
-	values := make([]string, len(contentIDs))
-	for i, contentID := range contentIDs {
-		values[i] = strconv.FormatInt(contentID, 10)
+type corpusIdentityRow struct {
+	ContentID      int64  `json:"content_id" gorm:"column:content_id"`
+	Title          string `json:"title" gorm:"column:title"`
+	Description    string `json:"description" gorm:"column:description"`
+	AuthorID       int64  `json:"author_id" gorm:"column:author_id"`
+	Zone           string `json:"zone" gorm:"column:zone"`
+	Category       string `json:"category" gorm:"column:category"`
+	ContentType    string `json:"content_type" gorm:"column:content_type"`
+	Status         string `json:"status" gorm:"column:status"`
+	IsPublic       bool   `json:"is_public" gorm:"column:is_public"`
+	ContentVersion int64  `json:"content_version" gorm:"column:content_version"`
+}
+
+func contentCorpusChecksum(t *testing.T, db *gorm.DB) string {
+	t.Helper()
+	rows := make([]corpusIdentityRow, 0)
+	err := db.Raw(`
+		SELECT ci.id AS content_id, ci.title, ci.description, ci.author_id,
+		       ci.zone, COALESCE(ci.category, '') AS category,
+		       COALESCE(ci.content_type, '') AS content_type, ci.status,
+		       ci.is_public, COALESCE(cv.version_number, 0) AS content_version
+		FROM content_items AS ci
+		LEFT JOIN content_versions AS cv
+		  ON cv.content_item_id = ci.id AND cv.is_latest = TRUE
+		WHERE ci.status = 'published' AND ci.deleted_at IS NULL
+		ORDER BY ci.id ASC
+	`).Scan(&rows).Error
+	if err != nil {
+		t.Fatalf("load corpus identity: %v", err)
 	}
-	return ChecksumOf([]byte(strings.Join(values, "\n")))
+	body, err := json.Marshal(rows)
+	if err != nil {
+		t.Fatalf("marshal corpus identity: %v", err)
+	}
+	return ChecksumOf(body)
 }
 
 func loadHybridEvalConfig(t *testing.T) config.Config {
