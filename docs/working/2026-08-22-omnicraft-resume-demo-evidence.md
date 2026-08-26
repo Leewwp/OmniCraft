@@ -59,7 +59,7 @@ The first command is the baseline local stack. The second is the optional OpenSe
 | Outbox/Worker/DLQ | #137/#138 tests and fault-drill evidence | standalone Worker started; subscriptions and outbox polling visible in `artifacts/live-demo/logs/worker.log` | not a production deployment claim |
 | Hybrid retrieval and citation revalidation | #141/#142 tests and local OpenSearch evidence | local keyword projection created with 30 documents; Agent returned 5 validated citations in degraded mode | real embedding/LLM not verified |
 | OpenSearch mapping, generation and read alias | repository tests and `ops/opensearch/seed.sh` | `omnicraft-rag-v1` and `omnicraft-rag-read` verified at `127.0.0.1:9200` | no production index claim |
-| OTel application contracts | #143 tests and `docs/working/2026-08-19-t143-otel-evidence.md` | Jaeger/Collector start attempted; pinned Collector image was unavailable | Jaeger full-chain not verified |
+| OTel application contracts | #143 tests and `docs/working/2026-08-19-t143-otel-evidence.md` | Pinned standard Collector + Jaeger started; `/healthz` application span queried | Agent Chat and async Worker full-chain not verified |
 | Agent browser interaction | existing mocked contracts/screenshots | real login, `/agent`, grounded/degraded query, no-evidence state, citation overlay, desktop/mobile screenshots passed | no production UX claim |
 
 ## Browser screenshot ledger
@@ -113,6 +113,6 @@ Initial bootstrap tooling was added on 2026-08-22. The runtime/API/browser/Jaege
 - Real browser login with `seed-ui-001@seed.omnicraft.local` / `password123`: redirected to `/agent`; the navigation exposed `AI Agent`.
 - Real browser query `Blender 插件安装教程`: entered search-degraded mode and displayed five validated citations. Real browser query `明天的天气怎么样`: displayed the no-summary/no-evidence degraded state with no citations. Clicking a citation opened the shared content detail overlay for `Blender 插件安装教程`.
 - Screenshots saved under `screenshots/omnicraft-live-demo/` are real browser captures, not mocked contract captures.
-- Jaeger/OTel Collector was attempted. Docker could not resolve `otel/opentelemetry-collector-contrib:0.134.0` (`manifest unknown`); this is recorded in `artifacts/live-demo/logs/full-infra-telemetry-start.log`, so no Jaeger UI or full-chain trace evidence is claimed.
+- Jaeger/OTel Collector now starts with the pinned standard Collector image `otel/opentelemetry-collector:0.120.0`; a tracing-enabled backend `/healthz` span was queried from Jaeger API. Authenticated Agent Chat and asynchronous Worker trace evidence remain unverified.
 - The local projection reports `embedding=none`; no real embedding quality or LLM groundedness claim is made.
 - The held demo session was stopped with `bash scripts/live-demo.sh stop`; Docker data was preserved. A separate local process owning port `18080` was left untouched.

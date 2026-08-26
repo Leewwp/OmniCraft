@@ -169,12 +169,12 @@ services:
           cpus: "0.5"
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.134.0
+    image: otel/opentelemetry-collector:0.120.0
     container_name: omnicraft-otel-collector
     profiles: ["full-infra"]
-    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    command: ["--config=/etc/otelcol/config.yaml"]
     volumes:
-      - ./ops/observability/otel-collector.yml:/etc/otelcol-contrib/config.yaml:ro
+      - ./ops/observability/otel-collector.yml:/etc/otelcol/config.yaml:ro
     depends_on:
       jaeger:
         condition: service_healthy

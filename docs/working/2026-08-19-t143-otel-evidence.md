@@ -30,7 +30,9 @@ The first three commands passed in the #143 worktree. The doc-validator fix was 
 ## Environment Gaps
 
 - `docker compose config --quiet` and `docker compose --profile full-infra config --quiet` passed using a temporary copy of `.env.example` as `.env`; the temporary file was removed and no containers were started.
-- A real local smoke attempt was made with `docker compose --profile full-infra up -d jaeger otel-collector`, but Docker Hub authorization failed while resolving `otel/opentelemetry-collector-contrib:0.134.0` (`Get https://auth.docker.io/token: EOF`). `docker compose ... ps --all` confirmed no container was created. No claim is made for real OTel Collector delivery, Jaeger UI rendering, or a full HTTP-to-worker-to-DB-to-LLM trace. Re-run after registry access is restored:
+- The former `otel/opentelemetry-collector-contrib:0.134.0` image was not resolvable (`manifest unknown`). The Compose full-infra profile now uses the pinned standard `otel/opentelemetry-collector:0.120.0` image, its standard `/etc/otelcol/config.yaml` path, and an explicitly enabled `health_check` extension. On 2026-08-26 the replacement Collector and Jaeger containers started successfully; the Collector reached ready state and Jaeger API returned an application HTTP span from a tracing-enabled local backend. This validates real Collector delivery, but only a `/healthz` single-span smoke was produced. No claim is made for a real Agent Chat or asynchronous Worker full-chain trace yet.
+
+Re-run the remaining full-chain evidence after authenticated Agent and Worker triggers are available:
 
 ```text
 cp .env.example .env
