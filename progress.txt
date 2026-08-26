@@ -1957,11 +1957,11 @@
 
 ## [2026-08-26] - Jaeger/Collector full-infra remediation smoke
 ### What was done:
-- Replaced the unavailable `otel/opentelemetry-collector-contrib:0.134.0` full-infra image with pinned `otel/opentelemetry-collector:0.120.0`, updated the standard config path, and enabled the `health_check` extension to match the Compose healthcheck.
+- Replaced the unavailable `otel/opentelemetry-collector-contrib:0.134.0` full-infra image with pinned `otel/opentelemetry-collector:0.120.0`, updated the standard config path, enabled the `health_check` extension, and used the distroless image's native `validate` command for the Compose healthcheck.
 - Started real local Jaeger `1.76.0` and Collector `0.120.0` containers. A tracing-enabled local backend emitted a `/healthz` HTTP span that was queried through Jaeger API.
 
 ### Testing:
-- `docker compose --profile full-infra config --quiet` passed.
+- `docker compose --profile full-infra config --quiet` and the Collector native config validation passed; the recreated Collector reached Docker `healthy` state.
 - Jaeger healthy; Collector logs reported `Everything is ready`; Jaeger API returned service `unknown_service:server` and a `GET /healthz` span.
 
 ### Notes:

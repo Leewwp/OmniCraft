@@ -182,7 +182,9 @@ services:
       - "4317:4317"
       - "4318:4318"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:13133/ || exit 1"]
+      # The standard Collector image is distroless and has no shell/wget.
+      # Its native config validation is the supported container probe.
+      test: ["CMD", "/otelcol", "validate", "--config=/etc/otelcol/config.yaml"]
       interval: 10s
       timeout: 5s
       retries: 12
