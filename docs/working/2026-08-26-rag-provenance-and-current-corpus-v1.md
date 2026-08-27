@@ -31,9 +31,9 @@
 | 字段 | 值 |
 |---|---|
 | corpus id | `current-local-published-v1` |
-| repository commit | `a32ae3e` |
+| repository commit | `f4f9484` |
 | source seeds | `backend/testdata/rag_eval_seed.sql` + `scripts/seed_local_rich_data.py` |
-| source seed revision | `a32ae3e` |
+| source seed revision | `f4f9484` |
 | active golden cases | 63 |
 | published, not deleted scope | 169 |
 | published + public, not deleted | 163 |

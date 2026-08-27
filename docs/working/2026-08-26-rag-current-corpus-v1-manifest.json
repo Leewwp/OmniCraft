@@ -2,16 +2,16 @@
   "schema_version": 1,
   "corpus_id": "current-local-published-v1",
   "generated_at": "2026-08-26",
-  "repository_commit": "a32ae3e",
+  "repository_commit": "f4f9484",
   "source_seeds": [
     {
       "path": "backend/testdata/rag_eval_seed.sql",
-      "revision": "a32ae3e",
+      "revision": "f4f9484",
       "role": "RAG evaluation content and 63-case golden set"
     },
     {
       "path": "scripts/seed_local_rich_data.py",
-      "revision": "a32ae3e",
+      "revision": "f4f9484",
       "role": "fictional local rich corpus"
     }
   ],
