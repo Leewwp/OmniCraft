@@ -6,6 +6,16 @@ Part of #22
 > **预计失效日期**: 2026-10-22
 > Scope: local development and interview evidence only; not a production release plan.
 
+## Phase 1 execution alignment (2026-08-27)
+
+The user confirmed that the first-phase delivery window ends around 2026-09-03,
+with target roles ordered as AI application development, Agent development, and
+AI full-stack development. #207 T01/T02/T03 are now the active implementation
+track; this evidence ticket remains a downstream closure track for the same
+local interview package. The repository-root `.env` contains the user's real
+MiniMax configuration. Provider evidence may be refreshed locally, but secrets
+must never be persisted in Git, logs, screenshots, or reports.
+
 ## Problem Statement
 
 当前 OmniCraft 的 RAG、回答 Agent、可靠异步和 OTel 实现主线已经完成本地实现与自动化合同，但面试证据仍有两个关键缺口：

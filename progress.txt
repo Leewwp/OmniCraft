@@ -2043,3 +2043,15 @@
 - 本次仅修改治理文档与 GitHub 状态，未修改运行时代码。
 ### Notes:
 - 第一阶段完成前注册表不新增计划；第二阶段条目启动时按 #208 约定立 spec/plan 并移入注册表。
+
+## [2026-08-27] - Phase 1 execution alignment: #207 T01/T02/T03
+### What was done:
+- 记录用户确认：面试约一周后，目标交付日为 2026-09-03；岗位优先级为 AI 应用开发、Agent 开发、AI 全栈开发。
+- 将 #207 T02 Provider seam 与 T03 轻量工具 registry 从可选项调整为本轮纳入项；T01 继续按 heavy/TDD，三项按 T01 → T02 → T03 串行执行。
+- 在 #207 规格/计划、#204 证据规格和本地 Phase 1 execution brief 中同步交付边界、验证门、证据分级和 MiniMax 凭证保密约束。
+- 新增可直接交给后续 coding agent 的 Goal 提示词，明确目标、成功标准、权限、工具路由、停止条件和输出格式。
+### Testing:
+- 本次仅修改文档与 GitHub issue 内容；实现前验证 `git diff --check`、文档结构和 issue 状态。
+### Notes:
+- 根目录 `.env` 已由用户配置真实 MiniMax 凭证，但本次及后续证据不得记录 key、GroupId、prompt、raw provider response 或其他秘密。
+- #204/#32 仍是第一阶段下游证据与叙事收口票；#208 继续承载第二阶段 future work。
