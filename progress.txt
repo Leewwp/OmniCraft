@@ -1979,3 +1979,15 @@
 - `docker compose up -d postgres redis` and `docker compose --profile full-infra up -d jaeger otel-collector` healthy.
 ### Notes:
 - Full authenticated Agent Chat and real async embedding-to-projection traces remain partial because this run did not have a disposable authenticated business request and complete provider/projection evidence. No production claim is made. Historical `unknown_service:server` spans remain as old Jaeger data.
+
+## [2026-08-27] - Review follow-up: observability identity and evidence governance
+### What was done:
+- Fixed standalone worker OTel identity by adding `worker.service_name=omnicraft-worker`; the worker composition root no longer inherits the server service name from the shared tracing section.
+- Made `OTEL_SERVICE_NAME` override both server and worker service-name fields and added config/tracing regression coverage, including preservation of default OTel resource attributes.
+- Removed the unrelated `OBSERVABILITY_METRICS_PORT` environment override from the reviewed change.
+- Synchronized the active-plan registry with completed #148/#149/#150 status and narrowed Jaeger claim-matrix reproducibility wording to the commands actually documented.
+### Testing:
+- `go build ./...`, `go vet ./...`, `go test ./...`, frontend `npm run lint`, frontend `npm run build`, and `go run tools/doc-validator --check` passed.
+- `bash scripts/verify-project.sh --full` reached 73/74 mocked Playwright contracts; the existing settings collaboration switch contract failed because its mock returned `DB_ERROR`, so the toggle never changed. The failure is unrelated to this follow-up and is not claimed as fixed.
+### Notes:
+- Real authenticated Agent Chat and real async embedding-to-projection traces remain partial; production evidence remains unavailable. The pre-existing working-tree change in `CONTEXT.md` was preserved and not staged.

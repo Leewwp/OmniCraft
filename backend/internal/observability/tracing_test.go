@@ -38,10 +38,35 @@ func TestNewTracerProviderSetsConfiguredServiceName(t *testing.T) {
 	span.End()
 	require.NoError(t, provider.ForceFlush(context.Background()))
 	var serviceName string
+	var sdkName string
+	for _, kv := range exporter.GetSpans()[0].Resource.Attributes() {
+		if kv.Key == attribute.Key("service.name") {
+			serviceName = kv.Value.AsString()
+		}
+		if kv.Key == attribute.Key("telemetry.sdk.name") {
+			sdkName = kv.Value.AsString()
+		}
+	}
+	require.Equal(t, "omnicraft-worker", serviceName)
+	require.NotEmpty(t, sdkName)
+}
+
+func TestNewTracerProviderUsesServerFallbackServiceName(t *testing.T) {
+	exporter := tracetest.NewInMemoryExporter()
+	provider, err := NewTracerProvider(context.Background(), TracingConfig{Enabled: true, SampleRatio: 1}, exporter)
+	require.NoError(t, err)
+	defer provider.Shutdown(context.Background())
+
+	_, span := provider.Tracer("test").Start(context.Background(), "operation")
+	span.End()
+	require.NoError(t, provider.ForceFlush(context.Background()))
+	require.NotEmpty(t, exporter.GetSpans())
+
+	var serviceName string
 	for _, kv := range exporter.GetSpans()[0].Resource.Attributes() {
 		if kv.Key == attribute.Key("service.name") {
 			serviceName = kv.Value.AsString()
 		}
 	}
-	require.Equal(t, "omnicraft-worker", serviceName)
+	require.Equal(t, "omnicraft-server", serviceName)
 }

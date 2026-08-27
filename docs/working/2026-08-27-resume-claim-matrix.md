@@ -30,10 +30,10 @@ no production evidence.
 | Baseline diagnosis | Chunk keyword baseline MRR was 0.370; K increase did not solve citation precision. | same RAG evidence | Local real provider verified | Partial | Yes | Historical 0.913 is not comparable |
 | Provenance | Audited corpus identity and found the historical 253-content snapshot unrecoverable. | `docs/working/2026-08-26-rag-provenance-and-current-corpus-v1.md` | Local full-infra partial | N/A | Yes | Cannot claim results on 253 historical rows |
 | Visibility | Two evaluation runs recorded 0 visibility leaks. | RAG differential evidence | Local real provider verified | Embedding yes | Yes | Local corpus only |
-| OTel naming | Added resource-backed `service.name`; Jaeger now shows `omnicraft-server` and `omnicraft-worker`. | `docs/working/2026-08-27-jaeger-end-to-end-evidence.md`; tracing test | Local full-infra partial | N/A | Yes | Historical unknown-service rows remain |
+| OTel naming | Added resource-backed `service.name`; Jaeger now shows `omnicraft-server` and `omnicraft-worker`. | `docs/working/2026-08-27-jaeger-end-to-end-evidence.md`; tracing test | Local full-infra partial | N/A | Service query reproducible with running stack | Representative trace IDs require a manual server/worker run |
 | Agent Chat trace | Authenticated route and SSE contract are covered by fake-provider tests; complete real MiniMax trace was not captured. | agent handler tests; Jaeger evidence | Local mocked | No for this run | Test-only | Do not say full Jaeger chain complete |
 | Async projection trace | Outbox/relay/Redis worker boundaries are real and traced; embedding and final projection were not completed in this run. | Jaeger evidence; outbox/inbox tests | Local full-infra partial | No for this run | Boundary only | Do not claim full projection trace |
-| Collector resilience | Health request remained successful while Collector was stopped and after restart. | Jaeger evidence | Local real | N/A | Yes | Telemetry may be lost during outage |
+| Collector resilience | Health request remained successful while Collector was stopped and after restart. | Jaeger evidence | Local real | N/A | Health drill reproducible with running server | Telemetry may be lost during outage |
 
 ## Allowed resume wording
 

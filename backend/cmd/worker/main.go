@@ -31,7 +31,7 @@ func main() {
 	tracerProvider, err := observability.NewTracerProvider(context.Background(), observability.TracingConfig{
 		Enabled: cfg.Observability.Tracing.Enabled, Endpoint: cfg.Observability.Tracing.Endpoint,
 		SampleRatio: cfg.Observability.Tracing.SampleRatio, Backend: cfg.Observability.Tracing.Backend,
-		ServiceName: cfg.Observability.Tracing.ServiceName,
+		ServiceName: cfg.Worker.ServiceName,
 	})
 	if err != nil {
 		logger.Error("invalid tracing configuration", "error", err)

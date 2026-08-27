@@ -25,6 +25,13 @@ curl -fsS http://127.0.0.1:8080/healthz
 curl -fsS 'http://127.0.0.1:16686/api/services'
 ```
 
+The commands above reproduce the infrastructure health and service query only.
+They do not recreate the representative trace IDs below: those IDs came from a
+manual run of the locally configured server/worker processes and queue activity.
+Reproducing a business trace additionally requires starting both processes with
+the documented environment, creating a disposable local event, waiting for the
+worker, and querying Jaeger by the resulting trace ID.
+
 The backend was run locally with `OBSERVABILITY_TRACING_ENABLED=true`,
 `OTEL_EXPORTER_OTLP_ENDPOINT=127.0.0.1:4317`, and
 `OTEL_SERVICE_NAME=omnicraft-server`. The worker used the same endpoint and
