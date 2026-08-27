@@ -2055,3 +2055,14 @@
 ### Notes:
 - 根目录 `.env` 已由用户配置真实 MiniMax 凭证，但本次及后续证据不得记录 key、GroupId、prompt、raw provider response 或其他秘密。
 - #204/#32 仍是第一阶段下游证据与叙事收口票；#208 继续承载第二阶段 future work。
+## [2026-08-28] - Task #207: T01/T02/T03 Agent workspace minimal architecture
+### What was done:
+- 保留并验证现有服务端 Citation Verification：content identity、版本/chunk、viewer 可见性和 `no_evidence` 合同。
+- 为流式工作台增加仅包含 `ChatStream` 的内部 Provider seam；未修改公共 `llm.LLMProvider` 协议。
+- 将四个固定 Agent 工具整理为本地不可动态注册的 registry，保持参数校验、可见性、错误归一化和调用上限。
+### Testing:
+- `go test ./...`, `go vet ./...`, `go build ./...`
+- `npm run lint`
+- `bash scripts/verify-project.sh --full` (Go/unit/lint/build/release checks passed; mocked Playwright contract phase was not runnable because port 3001 was already occupied by an existing `next-server` process)
+### Notes:
+- 仅记录本地实现与测试证据；未宣称生产 Provider、检索质量或部署能力。

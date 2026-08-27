@@ -29,6 +29,7 @@ var ErrAgentFileTooLarge = errors.New("file too large for upload assist")
 
 type AgentService struct {
 	llmProvider     llm.LLMProvider
+	chatStreamer    agentChatStreamer
 	embeddingRepo   *repository.EmbeddingRepository
 	contentRepo     *repository.ContentRepository
 	searchRepo      *repository.SearchRepository
@@ -39,6 +40,13 @@ type AgentService struct {
 	cfg             *config.Config
 	queueProducer   queue.Producer
 	vectorSearch    func(embedding []float32, topK int) ([]repository.EmbeddingSearchResult, error)
+}
+
+// agentChatStreamer is the narrow Provider capability consumed by the Agent
+// workspace streaming loop. The broader llm.LLMProvider remains available to
+// legacy non-streaming and embedding callers behind the compatibility shell.
+type agentChatStreamer interface {
+	ChatStream(ctx context.Context, req llm.ChatRequest, handler func(delta llm.ChatDelta) error) error
 }
 
 // AgentRetrievalCandidate is the service-owned boundary for RAG results. The
@@ -72,6 +80,7 @@ type AgentContentRetriever interface {
 func NewAgentService(provider llm.LLMProvider, embeddingRepo *repository.EmbeddingRepository, contentRepo *repository.ContentRepository, greenClient *aliyun.GreenClient, db *gorm.DB, cfg *config.Config) *AgentService {
 	svc := &AgentService{
 		llmProvider:   provider,
+		chatStreamer:  provider,
 		embeddingRepo: embeddingRepo,
 		contentRepo:   contentRepo,
 		greenClient:   greenClient,
