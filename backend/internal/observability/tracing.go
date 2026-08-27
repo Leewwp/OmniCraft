@@ -11,7 +11,9 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
@@ -23,6 +25,7 @@ type TracingConfig struct {
 	Endpoint    string  `mapstructure:"endpoint"`
 	SampleRatio float64 `mapstructure:"sample_ratio"`
 	Backend     string  `mapstructure:"backend"`
+	ServiceName string  `mapstructure:"service_name"`
 }
 
 // NewTracerProvider builds a provider using an explicitly supplied exporter
@@ -38,7 +41,15 @@ func NewTracerProvider(ctx context.Context, cfg TracingConfig, exporters ...sdkt
 	if cfg.Enabled {
 		sampler = sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.SampleRatio))
 	}
-	providerOptions := []sdktrace.TracerProviderOption{sdktrace.WithSampler(sampler)}
+	serviceName := strings.TrimSpace(cfg.ServiceName)
+	if serviceName == "" {
+		serviceName = "omnicraft-server"
+	}
+	res, err := resource.New(ctx, resource.WithAttributes(semconv.ServiceName(serviceName)))
+	if err != nil {
+		return nil, fmt.Errorf("create tracing resource: %w", err)
+	}
+	providerOptions := []sdktrace.TracerProviderOption{sdktrace.WithSampler(sampler), sdktrace.WithResource(res)}
 
 	var exporter sdktrace.SpanExporter
 	for _, candidate := range exporters {

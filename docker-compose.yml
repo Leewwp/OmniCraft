@@ -232,6 +232,7 @@ services:
       RAG_INDEX_URL: "http://opensearch:9200"
       OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
       OBSERVABILITY_TRACING_ENABLED: "true"
+      OTEL_SERVICE_NAME: "omnicraft-server"
     ports:
       - "8080:8080"
     depends_on:
@@ -299,6 +300,7 @@ services:
       CLAMD_ADDRESS: "clamav:3310"
       OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
       OBSERVABILITY_TRACING_ENABLED: "true"
+      OTEL_SERVICE_NAME: "omnicraft-worker"
     depends_on:
       migrate:
         condition: service_completed_successfully

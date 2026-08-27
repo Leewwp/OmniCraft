@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
@@ -26,4 +27,21 @@ func TestNewTracerProviderValidatesHeadRatioAndExportsSpans(t *testing.T) {
 	_, err = NewTracerProvider(ctx, TracingConfig{Enabled: true, SampleRatio: 1.1}, exporter)
 	require.Error(t, err)
 	_ = otel.GetTracerProvider()
+}
+
+func TestNewTracerProviderSetsConfiguredServiceName(t *testing.T) {
+	exporter := tracetest.NewInMemoryExporter()
+	provider, err := NewTracerProvider(context.Background(), TracingConfig{Enabled: true, SampleRatio: 1, ServiceName: "omnicraft-worker"}, exporter)
+	require.NoError(t, err)
+	defer provider.Shutdown(context.Background())
+	_, span := provider.Tracer("test").Start(context.Background(), "operation")
+	span.End()
+	require.NoError(t, provider.ForceFlush(context.Background()))
+	var serviceName string
+	for _, kv := range exporter.GetSpans()[0].Resource.Attributes() {
+		if kv.Key == attribute.Key("service.name") {
+			serviceName = kv.Value.AsString()
+		}
+	}
+	require.Equal(t, "omnicraft-worker", serviceName)
 }

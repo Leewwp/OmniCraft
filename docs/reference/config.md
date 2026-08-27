@@ -115,6 +115,7 @@
 | `observability.tracing.enabled` | `bool` | Enabled |
 | `observability.tracing.endpoint` | `string` | Endpoint |
 | `observability.tracing.sample_ratio` | `float64` | SampleRatio |
+| `observability.tracing.service_name` | `string` | ServiceName |
 | `oss.access_key_id` | `string` | AccessKeyID |
 | `oss.access_key_secret` | `string` | AccessKeySecret |
 | `oss.bucket_name` | `string` | BucketName |
