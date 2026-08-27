@@ -254,7 +254,11 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []
 loop:
 	for {
 		acc := newStreamedToolCallAccumulator()
-		err := s.llmProvider.ChatStream(ctx, req, func(delta llm.ChatDelta) error {
+		if s.chatStreamer == nil {
+			streamErr = errors.New("agent streaming provider unavailable")
+			break loop
+		}
+		err := s.chatStreamer.ChatStream(ctx, req, func(delta llm.ChatDelta) error {
 			if len(delta.ToolCalls) > 0 {
 				acc.add(delta.ToolCalls)
 			}

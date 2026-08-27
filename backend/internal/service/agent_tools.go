@@ -203,28 +203,36 @@ func (s *AgentService) resolveVisibleContent(ctx context.Context, viewerID, cont
 	return &content, nil
 }
 
+type agentToolHandler func(context.Context, json.RawMessage, int64, *AgentPublishSnapshot) (*AgentToolOutcome, error)
+
+// toolRegistry is local and fixed: callers cannot register tools at runtime.
+func (s *AgentService) toolRegistry() map[string]agentToolHandler {
+	return map[string]agentToolHandler{
+		ToolSearchContent: func(ctx context.Context, args json.RawMessage, viewerID int64, _ *AgentPublishSnapshot) (*AgentToolOutcome, error) {
+			return s.toolSearchContent(ctx, args, viewerID)
+		},
+		ToolGetContentDetail: func(ctx context.Context, args json.RawMessage, viewerID int64, _ *AgentPublishSnapshot) (*AgentToolOutcome, error) {
+			return s.toolGetContentDetail(ctx, args, viewerID)
+		},
+		ToolGetUsageGuide: func(ctx context.Context, args json.RawMessage, viewerID int64, _ *AgentPublishSnapshot) (*AgentToolOutcome, error) {
+			return s.toolGetUsageGuide(ctx, args, viewerID)
+		},
+		ToolSuggestPublishMetadata: func(ctx context.Context, args json.RawMessage, _ int64, snapshot *AgentPublishSnapshot) (*AgentToolOutcome, error) {
+			return s.toolSuggestPublishMetadata(ctx, args, snapshot)
+		},
+	}
+}
+
 // ExecuteTool validates and executes one registered read-only tool. Unknown
-// names and invalid arguments never reach a provider or the database query
-// beyond the shared visibility resolver.
+// names and invalid arguments never reach a provider or visibility query.
 func (s *AgentService) ExecuteTool(ctx context.Context, name string, rawArgs json.RawMessage, viewerID int64, snapshot *AgentPublishSnapshot) (*AgentToolOutcome, error) {
 	start := time.Now()
-
-	switch name {
-	case ToolSearchContent:
-		outcome, err := s.toolSearchContent(ctx, rawArgs, viewerID)
-		return outcome, withToolError(outcome, name, err, start)
-	case ToolGetContentDetail:
-		outcome, err := s.toolGetContentDetail(ctx, rawArgs, viewerID)
-		return outcome, withToolError(outcome, name, err, start)
-	case ToolGetUsageGuide:
-		outcome, err := s.toolGetUsageGuide(ctx, rawArgs, viewerID)
-		return outcome, withToolError(outcome, name, err, start)
-	case ToolSuggestPublishMetadata:
-		outcome, err := s.toolSuggestPublishMetadata(ctx, rawArgs, snapshot)
-		return outcome, withToolError(outcome, name, err, start)
-	default:
+	handler, ok := s.toolRegistry()[name]
+	if !ok {
 		return nil, ErrAgentToolUnknown
 	}
+	outcome, err := handler(ctx, rawArgs, viewerID, snapshot)
+	return outcome, withToolError(outcome, name, err, start)
 }
 
 func withToolError(outcome *AgentToolOutcome, name string, err error, start time.Time) error {

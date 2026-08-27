@@ -1,7 +1,7 @@
 # OmniCraft Agent 工作台最小架构改进执行计划
 
 > 创建日期：2026-08-27
-> 状态：active
+> 状态：completed (T01/T02/T03 verified 2026-08-28)
 > 来源规格：`docs/superpowers/specs/2026-08-27-omnicraft-agent-workspace-minimal-architecture-design.md`
 > 执行追踪：GitHub issue #207
 
@@ -31,6 +31,13 @@
 - 用固定名称到处理器的本地 registry 整理现有四个工具分发。
 - 保持白名单、参数校验、viewer 可见性、错误归一化和调用限制。
 - 不新增跨包 adapter、动态注册或工具并行执行。
+
+### Completion Evidence (2026-08-28)
+
+- T01 citation verification contract and tests were already present and remain green.
+- T02 adds the internal streaming-only Provider capability seam without changing `llm.LLMProvider`.
+- T03 uses a fixed four-tool local registry while preserving validation, visibility, normalized errors, and call limits.
+- Verified with `go test ./...`, `go vet ./...`, `go build ./...`, frontend lint/build, and all pre-contract phases of `bash scripts/verify-project.sh --full`; the mocked Playwright contract phase was blocked by an existing listener on port 3001.
 
 ## 不作为当前执行单元
 
