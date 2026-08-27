@@ -30,7 +30,7 @@ LABEL org.opencontainers.image.title="OmniCraft backend" \
 	org.opencontainers.image.version="$VERSION" \
 	org.opencontainers.image.revision="$COMMIT"
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk upgrade --no-cache && apk add --no-cache ca-certificates tzdata
 
 WORKDIR /app
 
