@@ -127,6 +127,7 @@ type TracingConfig struct {
 	Endpoint    string  `mapstructure:"endpoint"`
 	SampleRatio float64 `mapstructure:"sample_ratio"`
 	Backend     string  `mapstructure:"backend"`
+	ServiceName string  `mapstructure:"service_name"`
 }
 
 // IPKeyRotationConfig limits the previous IP-hash key to an explicit
@@ -754,6 +755,12 @@ func OverrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); v != "" {
 		cfg.Observability.Tracing.Endpoint = v
+	}
+	if v := os.Getenv("OBSERVABILITY_METRICS_PORT"); v != "" {
+		cfg.Observability.MetricsPort = v
+	}
+	if v := os.Getenv("OTEL_SERVICE_NAME"); v != "" {
+		cfg.Observability.Tracing.ServiceName = v
 	}
 	if v := os.Getenv("OBSERVABILITY_TRACING_ENABLED"); v != "" {
 		cfg.Observability.Tracing.Enabled = v == "1" || strings.EqualFold(v, "true")

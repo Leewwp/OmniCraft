@@ -25,6 +25,7 @@ observability:
     endpoint: "otel-collector:4317"
     sample_ratio: 1.0
     backend: "jaeger"
+    service_name: "omnicraft-server"
 
 web:
   public_base_url: "http://localhost:3000"
