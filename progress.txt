@@ -2063,6 +2063,19 @@
 ### Testing:
 - `go test ./...`, `go vet ./...`, `go build ./...`
 - `npm run lint`
-- `bash scripts/verify-project.sh --full` (Go/unit/lint/build/release checks passed; mocked Playwright contract phase was not runnable because port 3001 was already occupied by an existing `next-server` process)
+- `bash scripts/verify-project.sh --full` (Go/unit/lint/build/release checks passed; mocked Playwright contracts subsequently passed 74/74 after the transient port conflict cleared)
 ### Notes:
 - 仅记录本地实现与测试证据；未宣称生产 Provider、检索质量或部署能力。
+
+## [2026-08-28] - Task #207 review closure
+### What was done:
+- 双轴复核 `085bc2e` 后确认 T01/T03 合同与实现一致，并发现 T02 原测试仅验证接口可赋值，未证明 streaming-only adapter 能驱动 `AgentService`。
+- 新增内部 `newAgentServiceWithChatStreamer` 构造 seam，保留公共 `NewAgentService(llm.LLMProvider, ...)` 兼容合同；streaming-only fake 现通过真实 `AgentService.ChatStream` 路径产生终态事件。
+- 将完成计划归档到 `docs/archive/plans/`，同步 AGENTS.md 注册表与 GitHub #207 completion 状态。
+### Testing:
+- `go test ./internal/service -run TestAgentStreamProviderSeamAcceptsStreamingOnlyAdapter -count=1`
+- `go test ./internal/service -run 'TestAgentStreamProviderSeamAcceptsStreamingOnlyAdapter|TestChatStream' -count=1`
+- `go test ./...`, `go vet ./...`, `go build ./...`
+- 前一提交已通过 frontend `npm run lint` / `npm run build`；本次无前端改动。
+### Notes:
+- `bash scripts/verify-project.sh --full` 的 mocked Playwright 阶段已在端口冲突解除后通过 74/74；#207 后端行为合同与集成验证均已完成。

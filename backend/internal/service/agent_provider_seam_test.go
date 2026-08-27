@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/pkg/llm"
 )
 
@@ -16,8 +17,36 @@ func (streamingOnlyProvider) ChatStream(_ context.Context, _ llm.ChatRequest, ha
 }
 
 func TestAgentStreamProviderSeamAcceptsStreamingOnlyAdapter(t *testing.T) {
-	var seam agentChatStreamer = streamingOnlyProvider{}
-	if err := seam.ChatStream(context.Background(), llm.ChatRequest{}, func(llm.ChatDelta) error { return nil }); err != nil {
-		t.Fatalf("streaming-only adapter returned error: %v", err)
+	svc := newAgentServiceWithChatStreamer(
+		nil,
+		streamingOnlyProvider{},
+		nil,
+		nil,
+		nil,
+		nil,
+		&config.Config{Agent: config.AgentConfig{
+			WebAgentEnabled:     true,
+			MaxToolCallsPerTurn: 1,
+			CitationMaxCount:    1,
+			MaxOutputTokens:     100,
+		}},
+	)
+
+	var events []AgentStreamEvent
+	err := svc.ChatStream(
+		context.Background(),
+		1,
+		[]llm.ChatMessage{{Role: "user", Content: "hello"}},
+		&ResolvedChatContext{},
+		func(event AgentStreamEvent) error {
+			events = append(events, event)
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("ChatStream with streaming-only adapter: %v", err)
+	}
+	if len(events) == 0 || events[len(events)-1].Type != AgentEventDone {
+		t.Fatalf("events = %#v, want terminal done event", events)
 	}
 }

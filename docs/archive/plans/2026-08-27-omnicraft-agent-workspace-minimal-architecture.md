@@ -35,9 +35,9 @@
 ### Completion Evidence (2026-08-28)
 
 - T01 citation verification contract and tests were already present and remain green.
-- T02 adds the internal streaming-only Provider capability seam without changing `llm.LLMProvider`.
+- T02 adds the internal streaming-only Provider capability seam without changing `llm.LLMProvider`; a streaming-only adapter drives the real `AgentService.ChatStream` path in tests.
 - T03 uses a fixed four-tool local registry while preserving validation, visibility, normalized errors, and call limits.
-- Verified with `go test ./...`, `go vet ./...`, `go build ./...`, frontend lint/build, and all pre-contract phases of `bash scripts/verify-project.sh --full`; the mocked Playwright contract phase was blocked by an existing listener on port 3001.
+- Verified with `go test ./...`, `go vet ./...`, `go build ./...`, frontend lint/build, and mocked Playwright contracts (`cd frontend && npm run test:contracts`, 74/74). The full script was also rerun; its browser contract phase passed after the transient port conflict cleared.
 
 ## 不作为当前执行单元
 
