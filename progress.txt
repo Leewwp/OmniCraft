@@ -1991,3 +1991,43 @@
 - `bash scripts/verify-project.sh --full` reached 73/74 mocked Playwright contracts; the existing settings collaboration switch contract failed because its mock returned `DB_ERROR`, so the toggle never changed. The failure is unrelated to this follow-up and is not claimed as fixed.
 ### Notes:
 - Real authenticated Agent Chat and real async embedding-to-projection traces remain partial; production evidence remains unavailable. The pre-existing working-tree change in `CONTEXT.md` was preserved and not staged.
+## [2026-08-27] - Task #207: Agent 工作台最小架构改进规格登记
+### What was done:
+- 根据面试/简历最小实现目标，收敛 Agent 工作台改动范围。
+- 将 Citation Verification seam 登记为当前唯一必做执行单元；Provider 使用侧 interface 和轻量工具 registry 登记为可选执行单元。
+- 将 Agent Session History、发布/合规拆分、AgentService 删除、服务拆分和大规模检索基础设施整理为未来开发方向。
+- 创建规格与执行计划，并发布 GitHub issue #207（ready-for-agent）。
+### Testing:
+- `git diff --check` 通过。
+- 本次仅修改规格、计划、导航和进度文档，未修改运行时代码。
+### Notes:
+- T01 涉及引用安全、viewer 可见性和版本/chunk 校验，执行时按 heavy lane 先红后绿。
+
+## [2026-08-27] - CI Security 基线修复：Go 1.25.13 / nanoid 3.3.18 / gitleaks eval 基线豁免
+### What was done:
+- 依据 2026-08-17（run 32002408860）与 2026-08-24（run 32698278647）两次 OmniCraft Security 定时失败的 verdict BLOCKED 清单落地三项修复（已合并入 main）：
+  - Go 工具链 pin 1.25.12→1.25.13（ci.yml×3、security.yml、performance.yml、backend/Dockerfile、ops/observability/gate/Dockerfile），并同步 README.md/AGENTS.md 表述；修复 omnicraft-backend/omnicraft-migrate 镜像中 7 个 Go stdlib HIGH CVE（CVE-2026-33818/-39821/-56853/-56858/-56859/-56860/-56862，官方 fixed=1.25.13）。
+  - nanoid 传递依赖（postcss 要求 ^3.3.16）3.3.17→3.3.18（frontend/tauri-client 两份 lockfile，resolved 保持 registry.npmjs.org）；清零 CVE-2026-67213/advisory 1139427 对 npm-audit×2、trivy-fs、trivy-image-frontend 的四路阻断。
+  - .gitleaks.toml [allowlist] 新增锚定正则 `\bmix_cyberpunk_2077\b`：#136 RAG eval 基线的假数据集用例名触发 generic-api-key 熵启发式；secret 属 scan-policy non_waivable，allowlist 是唯一合规范道；采用精确字面量而非路径豁免，该文件其余内容仍被扫描。
+### Testing:
+- pinned gitleaks v8.18.4 本地 tree+history 复扫：backend/testdata/rag_eval_baseline.json finding 清零。
+- `bash scripts/security/verify-security.tests.sh` 全部契约断言通过（含 secret/policy/npm fixture）。
+- `go build ./...`、`go vet`、`go test ./internal/service/rag_eval` 通过；frontend `npm run build` + `lint`（tsc --noEmit）通过；两包 `npm audit` vulnerabilities NONE。
+- 镜像级复核（二阶段完成）：Docker Hub 不可达后改走 docker.m.daocloud.io 国内镜像成功拉取 golang:1.25.13-alpine（同时证明官方 tag 存在；初判“构建成功”曾为管道退出码假象，已用提取二进制 go version 证伪并纠正本记录），重建 backend/migrate/frontend 三镜像成功；trivy DB 经 docker.m.daocloud.io/aquasec/trivy-db 下载成功，三镜像复扫：7 个 Go stdlib CVE 与 nanoid CVE-2026-67213 全部清零。唯一残留 CVE-2026-14456（alpine libcrypto3/libssl3 3.5.7-r0→fixed 3.5.8-r0）为 08-24 后新披露的上游包时差：final stage 已加 `apk upgrade`（frontend 原有、backend/gate 本轮补齐，commit f55622f），待 alpine 发布 3.5.8-r0 后构建即自动消化。
+### Notes:
+- 提交 08609ef（Go pin）/92fbbf8（nanoid）/f91801c（gitleaks allowlist），经 cherry-pick 合并入 main；AGENTS.md 仅含版本行 hunk，#207 注册表行与 CONTEXT.md/progress.txt 的既有未提交改动保留在工作区未被混入本次提交。
+- 新风险移交：本地 main 领先 origin/main 26 个提交，其中 docs/working/ 下三份 rag citation 诊断 JSON（2026-08-22-standin/2026-08-26-real-k10/real-k20，commit a32ae3e/956bfe6/7dc7e27）包含 202 条 gitleaks generic-api-key finding；这些提交一旦推送将立即以更大量级阻断 Security gate，推送前需先处理（脱敏重生成证据文件，或经 policy review 后登记 allowlist）。
+
+## [2026-08-27] - 推送前数据脱敏与仓库收口（历史重写 + 分支/worktree 清理 + 镜像级复扫）
+### What was done:
+- 审计 26 个未推送提交的全部 diff：唯一敏感点为 docs/working/ 三份 rag citation 诊断 JSON（2026-08-22-standin、2026-08-26-real-k10/k20，引入于 a32ae3e→f4f9484）中 `cases[].hits[].chunk_key` 字段共 58 个高熵值（gitleaks generic-api-key 触发 202 次）；其余代码/config/.env.example/evidence 文档经宽模式扫描（AKIA/JWT/Bearer/sk-/私钥块/group_id/IP/邮箱/手机号）全部干净。
+- 脱敏方式：filter-branch --index-filter 仅重写 a32ae3e~1..main 共 7 个提交，把三份 JSON 的 chunk_key 以跨文件一致映射替换为 rc-001~rc-058 低熵别名；树差异恰好 202 行且其余为零。provenance manifest/md 内冻结 hash a32ae3e 同步修正为 f4f9484（c74381d）。三份安全修复经 cherry-pick 落到新 main（08609ef Go pin / 92fbbf8 nanoid / f91801c gitleaks allowlist），另补 f55622f（apk upgrade 消化新披露 openssl CVE-2026-14456）。main 领先 origin/main 30 提交。
+- refs 清理顺序：backup/pre-sanitize-2026-08-27（tip=771f44e 已记录至 /tmp/sanitize-recovery-record.txt）、fix/security-gate-baselines（已 cherry-pick）、refs/original/refs/heads/main、stash@{0} 全部移除后，pinned gitleaks v8.18.4 对 --all（含全部 tags 与远端 tracking refs）终扫 **findings=0**。
+- 仓库收口：8 个 codex/* worktree（OmniCraft-wt-{141,142,143,144,145,148,149,150}）全部 remove；7 个分支 fast-forward 等价于 main 直接删除，codex/141 tip 3da1e5f 经 git patch-id 与 main 上 ac1d7d5 完全等效后 -D 删除。本地仅剩 main 单分支、主仓单 worktree。
+### Testing:
+- filter-branch 后 rev-list 计数保持 26、worktree 树差异仅三份 JSON；全 refs gitleaks 终扫 rc=0 findings=0。
+- `go build ./...` 通过；npm audit（frontend/tauri-client）NONE 维持。
+- trivy 三镜像终扫（DB 经 daocloud，--skip-db-update）：HIGH/CRITICAL 均只剩 CVE-2026-14456×2（上游 alpine 包源时差，见上条记录），stdlib/nanoid 类全清零。
+### Notes:
+- 脱敏前的原始对象在 reflog/对象库中仍存在（gc 前）；如需彻底物理清除可执行 `git reflog expire --expire=now --all && git gc --prune=now`，或将 /tmp/sanitize-recovery-record.txt 中记录的旧 hash blob 一并失效。
+- origin 上残留的 dependabot/* 远端分支未动，属已合并 PR 的机械更新分支，风险≈0，可在 GitHub 设置开启自动删除头分支或手动清理。
