@@ -54,6 +54,23 @@ The first command is the baseline local stack. The second is the optional OpenSe
 
 ## Evidence status
 
+### 2026-08-28 evidence closure update
+
+One authenticated local Agent Chat request reached MiniMax-M3 and returned SSE
+with the contractual event order `start -> tool_status -> delta -> citation ->
+usage -> done`. Jaeger trace `0a9b971022bc994ca0f031932e478704` (service
+`omnicraft-server`) contained HTTP, DB, `llm.chat`, `llm.chat.stream` and
+`llm.embedding` spans; request ID `66e4dce62ec98c84` remained distinct. This is
+`local real provider` evidence for synchronous Chat, not a Worker trace. The
+runtime citation emitted `content_id` and display fields but omitted
+`content_version`, `chunk_key`, `route` and `source`, so that contract remains
+`partial`.
+
+An authenticated content update returned successfully, but the API produced no
+outbox row and therefore no relay/Redis/Worker/embedding/projection business
+trace. Async evidence remains `local full-infra partial`; production is
+unavailable.
+
 | Claim | Code/test evidence | Local live evidence | Production status |
 | --- | --- | --- | --- |
 | RAG evaluation schema/harness | #136 tests and 63-case artifacts | fixture ran twice; `content_items=38`, `content_versions=38`, `eval_golden_cases=63` | not verified with real provider/corpus |

@@ -12,8 +12,8 @@ configuration-backed names: `omnicraft-server` for the HTTP process and
 names on 2026-08-27. Historical `unknown_service:server` data remains in Jaeger
 as old telemetry and is not treated as a current target service.
 
-Evidence grading uses `local real`, `local mocked`, `designed`, and
-`production unavailable`.
+Evidence grading uses `implemented`, `local real provider`, `local full-infra`,
+`local mocked`, `partial`, and `production unavailable`.
 
 ## Environment and reproduction
 
@@ -54,16 +54,35 @@ workflow claimed below.
 
 ## Authentication Agent Chat
 
+### 2026-08-28 authenticated capture
+
+Normal seeded-account login with CSRF protection succeeded, followed by a real
+MiniMax request to `POST /api/v1/agent/chat/stream`.
+
+| Field | Redacted evidence |
+|---|---|
+| Provider/model | `minimax` / `MiniMax-M3` |
+| HTTP status | `200` (`text/event-stream`) |
+| X-Request-ID | `66e4dce62ec98c84` |
+| OTel trace_id | `0a9b971022bc994ca0f031932e478704` |
+| Server span | `POST /api/v1/agent/chat/stream`, ~12.6 s |
+| Service | `omnicraft-server` |
+| Key spans | `insert agent_conversations`, `insert agent_messages`, `llm.chat`, `llm.chat.stream`, `llm.embedding`, `update agent_conversations` |
+| SSE order | `start -> tool_status -> delta -> citation -> usage -> done` |
+| Citation | `content_id=1001`; title/zone/excerpt present, version/chunk/route/source absent in this runtime response |
+| Grade | `local real provider`, with citation-field `partial` |
+
+This confirms synchronous HTTP -> DB -> MiniMax Chat -> SSE. It does not pass
+through the standalone Worker. Temporary API/SSE/Jaeger files were redacted and
+were not added to the repository.
+
 Route mapping is `POST /api/v1/agent/chat/stream` through the authenticated
 `/agent` group, then `AgentHandler.ChatStream` and `AgentService.ChatStream`,
 which writes conversation data and emits SSE events. Existing tests cover the
 route contract with a fake provider.
 
-**Grade: local mocked / production unavailable.** This run did not execute a
-real authenticated request through MiniMax Chat, DB persistence, and SSE with a
-single captured trace ID. No claim of a complete Agent Chat Jaeger trace is
-made. The missing evidence is a disposable authenticated account and a valid
-local MiniMax Chat configuration, followed by a Jaeger trace export query.
+The earlier mocked status is superseded for this run by the authenticated
+capture above. Production evidence remains unavailable.
 
 ## Async content projection
 
@@ -72,11 +91,11 @@ code path is transactional outbox -> relay -> Redis Streams -> worker, with
 W3C traceparent stored in the envelope. Existing integration tests cover
 commit-after-outbox and inbox idempotency contracts.
 
-**Grade: local full-infra partial.** This run did not complete a disposable
-content event through real MiniMax `embo-01` embedding and PostgreSQL/OpenSearch
-projection, so no complete async trace ID is asserted. OpenSearch is not
-required by the default stack and was not used as evidence here. The available
-worker trace IDs above are queue-boundary evidence only.
+**Grade: local full-infra partial.** A real authenticated content update returned
+`200`, but the running API instance produced no `outbox_events` row, leaving the
+Worker with no event to relay. No real `embo-01` embedding or final
+PostgreSQL/OpenSearch projection trace is asserted. Existing worker trace IDs
+remain queue-boundary evidence only.
 
 ## Collector offline drill
 

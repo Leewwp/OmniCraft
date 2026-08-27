@@ -2091,3 +2091,16 @@
 - `go run tools/doc-validator --check`：passed。
 ### Notes:
 - Phase 1 可选项仅包括 #204/#32 的证据和叙事收口；#208 及 #76/#110/#114/#115/#134 属于第二阶段或生产 deferred，不应混入本周面试交付。
+## [2026-08-28] - Task #204: Interview evidence closure
+### What was done:
+- Passed real MiniMax provider preflight and `cmd/agent-smoke` (MiniMax-M3; latency/token/cost metadata captured only in temporary redacted files).
+- Completed authenticated CSRF-protected Agent Chat request. SSE order was `start -> tool_status -> delta -> citation -> usage -> done`; Jaeger trace `0a9b971022bc994ca0f031932e478704`, request ID `66e4dce62ec98c84`, service `omnicraft-server`, HTTP/DB/llm spans verified.
+- Attempted authenticated content update for async projection. Response was 200, but no `outbox_events` row was produced by the running API instance; no embedding/projection chain claim made.
+- Synchronized Jaeger evidence, resume claim matrix, and demo evidence with conservative grades and production-unavailable limits.
+### Testing:
+- `bash scripts/real-provider-preflight.sh` (pass)
+- `go run ./cmd/agent-smoke` (pass, 4 real MiniMax cases)
+- Authenticated login + CSRF + Agent SSE curl (200; trace queried in Jaeger)
+### Notes:
+- Citation response omitted server-owned `content_version`, `chunk_key`, `route`, and `source`; citation-field contract remains partial.
+- Async outbox/relay/Worker/embedding/projection evidence remains open; do not close #204.
