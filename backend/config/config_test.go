@@ -646,6 +646,21 @@ func TestDefaultConfigDeclaresObservabilitySection(t *testing.T) {
 	require.Positive(t, cfg.Observability.Readiness.RedisTimeoutSec)
 }
 
+func TestDefaultConfigDeclaresWorkerServiceName(t *testing.T) {
+	cfg := loadDefaultConfigForTest(t)
+	require.Equal(t, "omnicraft-worker", cfg.Worker.ServiceName)
+}
+
+func TestOverrideFromEnvAppliesOTelServiceNameToServerAndWorker(t *testing.T) {
+	t.Setenv("OTEL_SERVICE_NAME", "omnicraft-test")
+	cfg := &Config{}
+
+	OverrideFromEnv(cfg)
+
+	require.Equal(t, "omnicraft-test", cfg.Observability.Tracing.ServiceName)
+	require.Equal(t, "omnicraft-test", cfg.Worker.ServiceName)
+}
+
 func TestValidateReleaseRequiresIPHashSecretAndKeyID(t *testing.T) {
 	t.Setenv("LLM_KEY_ENCRYPTION_SECRET", "0123456789abcdef0123456789abcdef")
 

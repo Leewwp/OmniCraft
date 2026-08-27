@@ -223,6 +223,7 @@ content. Zero means "use the specification defa... |
 | `web.public_base_url` | `string` | PublicBaseURL |
 | `worker.concurrency` | `int` | Concurrency |
 | `worker.enabled` | `bool` | Enabled |
+| `worker.service_name` | `string` | ServiceName |
 
 <!-- END AUTO-GENERATED: §7 -->
 

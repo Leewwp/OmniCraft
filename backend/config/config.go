@@ -107,8 +107,9 @@ const (
 // topic; messages of a topic are distributed across them by the consumer
 // group semantics.
 type WorkerConfig struct {
-	Enabled     bool `mapstructure:"enabled"`
-	Concurrency int  `mapstructure:"concurrency"`
+	Enabled     bool   `mapstructure:"enabled"`
+	Concurrency int    `mapstructure:"concurrency"`
+	ServiceName string `mapstructure:"service_name"`
 }
 
 type ObservabilityConfig struct {
@@ -756,11 +757,9 @@ func OverrideFromEnv(cfg *Config) {
 	if v := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); v != "" {
 		cfg.Observability.Tracing.Endpoint = v
 	}
-	if v := os.Getenv("OBSERVABILITY_METRICS_PORT"); v != "" {
-		cfg.Observability.MetricsPort = v
-	}
 	if v := os.Getenv("OTEL_SERVICE_NAME"); v != "" {
 		cfg.Observability.Tracing.ServiceName = v
+		cfg.Worker.ServiceName = v
 	}
 	if v := os.Getenv("OBSERVABILITY_TRACING_ENABLED"); v != "" {
 		cfg.Observability.Tracing.Enabled = v == "1" || strings.EqualFold(v, "true")

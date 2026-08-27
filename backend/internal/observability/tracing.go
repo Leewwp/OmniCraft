@@ -45,7 +45,10 @@ func NewTracerProvider(ctx context.Context, cfg TracingConfig, exporters ...sdkt
 	if serviceName == "" {
 		serviceName = "omnicraft-server"
 	}
-	res, err := resource.New(ctx, resource.WithAttributes(semconv.ServiceName(serviceName)))
+	res, err := resource.Merge(
+		resource.Default(),
+		resource.NewSchemaless(semconv.ServiceName(serviceName)),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("create tracing resource: %w", err)
 	}
