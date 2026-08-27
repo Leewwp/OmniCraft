@@ -26,7 +26,7 @@
 
 | 工具 | 版本要求 | 说明 |
 |------|---------|------|
-| Go | 1.22+ | 后端 API 服务（CI 精确固定 1.25.12，见 `.github/workflows/ci.yml`） |
+| Go | 1.22+ | 后端 API 服务（CI 精确固定 1.25.13，见 `.github/workflows/ci.yml`） |
 | Node.js | 20+ | 前端 Next.js（CI 固定 Node 20；`engines` 声明最低版本策略） |
 | pnpm | 9+ (或 npm 10+) | 前端包管理 |
 | PostgreSQL | 16+ | 需 pgvector ≥ 0.7 |
