@@ -2,7 +2,7 @@
 
 > Created: 2026-08-22
 > **预计失效日期**: 2026-10-22
-> Status: local evidence package complete with explicit verification limits; no production or real-provider claim.
+> Status: local evidence package maintained with explicit verification limits; no production claim.
 
 ## Project positioning
 
@@ -17,6 +17,7 @@ The implementation scope represented by the repository is:
 - Independent Worker, relay, Inbox idempotency and DLQ replay: `backend/cmd/worker/`, `backend/internal/worker/`, and the admin queue route.
 - Chunking, current-generation projection, visibility revalidation, OpenSearch alias/rebuild, RRF and degradation: `backend/migrations/071_rag_chunks.sql`, `backend/internal/service/rag/`, `backend/internal/repository/{rag_chunk_repo,opensearch_repo}.go`.
 - Agent citation/SSE boundary and UI: `backend/internal/service/agent_*`, `backend/internal/handler/agent*.go`, `frontend/app/(protected)/agent/`, and `frontend/components/agent/`.
+- Phase 1 Agent workspace seams: server-owned Citation Verification, internal streaming-only Provider capability, and fixed four-tool registry (GitHub #207, completed 2026-08-28).
 - OTel spans and W3C context propagation: `backend/internal/observability/`, queue tracing, database tracing, LLM observability, and `ops/observability/otel-collector.yml`.
 
 The runtime boundary remains modular monolith + one independent Worker + REST/SSE + one Agent. #145's ADR does not authorize gRPC, Kafka, multi-agent runtime, or a split Search service.
@@ -91,7 +92,7 @@ cd tools/doc-validator && go run . --fix && go run . --fix && go run . --check
 git diff --check
 ```
 
-The backend build/vet/test, frontend lint/build, `scripts/live-demo.tests.sh`, compose config, and doc-validator idempotence checks passed. `verify-project.sh --full` completed the Go, unit, lint, UI-governance, build, and 56/73 mocked browser tests, but its remaining 17 mocked tests could not use their fixed server-rendered fixture port because another local project's Java process occupied `18080`; the isolated rerun reproduced the same 404/page-not-found result. The gate therefore remains an environment-limited failure, not a claim of 73/73. The `56/73` mocked result must not be relabeled as real browser evidence.
+The backend build/vet/test, frontend lint/build, `scripts/live-demo.tests.sh`, compose config, and doc-validator idempotence checks passed. The current mocked browser contract suite passed 74/74 with `cd frontend && npm run test:contracts`; the full project gate was subsequently rerun after transient port conflicts cleared. These are mocked browser contracts, not production evidence.
 
 ## Resume wording guardrails
 

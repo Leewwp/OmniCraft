@@ -2079,3 +2079,15 @@
 - 前一提交已通过 frontend `npm run lint` / `npm run build`；本次无前端改动。
 ### Notes:
 - `bash scripts/verify-project.sh --full` 的 mocked Playwright 阶段已在端口冲突解除后通过 74/74；#207 后端行为合同与集成验证均已完成。
+
+## [2026-08-28] - Phase 1 remaining work analysis
+### What was done:
+- 确认 #207 已关闭并归档，第一阶段不再有新的核心 Agent 运行时开发项。
+- 将 #204 定义为剩余的真实面试证据收口：authenticated Agent Chat SSE 与异步 embedding-to-projection trace；当前证据矩阵仍标记 partial。
+- 将 #32 定义为剩余的叙事交付：基于已验证证据生成岗位定向简历措辞、live demo 脚本和面试追问清单。
+- 修正旧 resume/demo 证据文档中的 56/73 与端口阻塞旧结果，统一为当前 mocked Playwright 74/74。
+### Testing:
+- `cd frontend && npm run test:contracts`：74/74 passed。
+- `go run tools/doc-validator --check`：passed。
+### Notes:
+- Phase 1 可选项仅包括 #204/#32 的证据和叙事收口；#208 及 #76/#110/#114/#115/#134 属于第二阶段或生产 deferred，不应混入本周面试交付。
