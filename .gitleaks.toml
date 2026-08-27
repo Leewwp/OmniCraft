@@ -32,3 +32,10 @@ paths = [
   "scripts/release/preflight.tests.sh",
   "scripts/release/staging-drill.tests.sh",
 ]
+# The RAG eval baseline is a single-line JSON of fabricated local-eval data
+# (#136); its dataset case name "mix_cyberpunk_2077" trips the generic-api-key
+# entropy heuristic without being a credential. Exempting the exact literal
+# instead of the path keeps every other string in that file scanned.
+regexes = [
+  '''\bmix_cyberpunk_2077\b''',
+]
