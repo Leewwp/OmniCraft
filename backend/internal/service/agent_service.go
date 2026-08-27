@@ -78,9 +78,16 @@ type AgentContentRetriever interface {
 }
 
 func NewAgentService(provider llm.LLMProvider, embeddingRepo *repository.EmbeddingRepository, contentRepo *repository.ContentRepository, greenClient *aliyun.GreenClient, db *gorm.DB, cfg *config.Config) *AgentService {
+	return newAgentServiceWithChatStreamer(provider, provider, embeddingRepo, contentRepo, greenClient, db, cfg)
+}
+
+// newAgentServiceWithChatStreamer keeps the public compatibility constructor
+// while allowing the workspace stream to depend on a narrower capability.
+// Legacy helpers still receive the broader provider through provider.
+func newAgentServiceWithChatStreamer(provider llm.LLMProvider, chatStreamer agentChatStreamer, embeddingRepo *repository.EmbeddingRepository, contentRepo *repository.ContentRepository, greenClient *aliyun.GreenClient, db *gorm.DB, cfg *config.Config) *AgentService {
 	svc := &AgentService{
 		llmProvider:   provider,
-		chatStreamer:  provider,
+		chatStreamer:  chatStreamer,
 		embeddingRepo: embeddingRepo,
 		contentRepo:   contentRepo,
 		greenClient:   greenClient,
