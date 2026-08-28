@@ -104,10 +104,12 @@ separate `ContentHandler` whose internal service had no outbox repository. The
 handler now receives the shared container outbox explicitly. A repeat
 authenticated update produced `content.updated` with status `sent`, a W3C
 `traceparent`, and an `omnicraft-indexer` inbox record. The projection status for
-the seeded content nevertheless remained `local-keyword-seed-v1`; the real
-`embo-01` embedding/projection operation was not observed. The async grade is
-therefore still `partial`, with the outbox -> relay -> Redis -> inbox boundary
-now locally verified.
+the seeded content nevertheless remained `local-keyword-seed-v1`. Jaeger queries
+for `omnicraft-worker` showed real embedding traces
+`275aac4f5b08a796644570e41786c2e6` and `776ee941aee8f120f8e457a48c00f9e5`
+with `queue.process`, `HTTP POST`, `llm.embedding`, and `insert inbox_consumers`
+spans. Outbox -> relay -> Redis -> Worker -> real embedding -> Inbox is locally
+verified; final RAG/OpenSearch projection remains `partial`.
 
 ## Collector offline drill
 

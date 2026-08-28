@@ -2104,4 +2104,4 @@
 ### Notes:
 - Citation response omitted server-owned `content_version`, `chunk_key`, `route`, and `source`; citation-field contract remains partial.
 - Root cause of the missing outbox row was route wiring: `RegisterRoutes` created a separate ContentHandler without the shared outbox. Added explicit handler injection; authenticated update now creates/sends `content.updated` and Worker records inbox consumption.
-- Projection still reports `local-keyword-seed-v1`; real `embo-01` embedding/final projection evidence remains open. Do not close #204.
+- Jaeger queries found Worker traces `275aac4f5b08a796644570e41786c2e6` and `776ee941aee8f120f8e457a48c00f9e5` with queue/process, HTTP POST, `llm.embedding`, and Inbox spans, confirming real `embo-01` embedding. Projection still reports `local-keyword-seed-v1`; final RAG/OpenSearch projection evidence remains open. Do not close #204.
