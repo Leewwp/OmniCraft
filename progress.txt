@@ -2103,4 +2103,5 @@
 - Authenticated login + CSRF + Agent SSE curl (200; trace queried in Jaeger)
 ### Notes:
 - Citation response omitted server-owned `content_version`, `chunk_key`, `route`, and `source`; citation-field contract remains partial.
-- Async outbox/relay/Worker/embedding/projection evidence remains open; do not close #204.
+- Root cause of the missing outbox row was route wiring: `RegisterRoutes` created a separate ContentHandler without the shared outbox. Added explicit handler injection; authenticated update now creates/sends `content.updated` and Worker records inbox consumption.
+- Projection still reports `local-keyword-seed-v1`; real `embo-01` embedding/final projection evidence remains open. Do not close #204.
