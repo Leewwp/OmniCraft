@@ -9,8 +9,9 @@
 OmniCraft has verified local MiniMax Chat and legacy `embo-01` Embedding
 provider contracts, a versioned current-v1 hybrid RAG differential evaluation,
 provenance and visibility audits, and a runnable Jaeger/Collector stack with
-explicit server/worker service names. The Agent Chat and async projection
-business traces remain partial in this environment; production is unavailable.
+explicit server/worker service names. Authenticated Chat and the async
+outbox/Worker/embedding boundary are locally real; the final OpenSearch
+projection remains intentionally unverified and is not a Phase 1 gate.
 
 ## Evidence grading legend
 
@@ -32,7 +33,7 @@ no production evidence.
 | Visibility | Two evaluation runs recorded 0 visibility leaks. | RAG differential evidence | Local real provider verified | Embedding yes | Yes | Local corpus only |
 | OTel naming | Added resource-backed `service.name`; Jaeger now shows `omnicraft-server` and `omnicraft-worker`. | `docs/working/2026-08-27-jaeger-end-to-end-evidence.md`; tracing test | Local full-infra partial | N/A | Service query reproducible with running stack | Representative trace IDs require a manual server/worker run |
 | Agent Chat trace | Captured authenticated HTTP -> DB -> MiniMax-M3 -> SSE request with Jaeger trace `0a9b971022bc994ca0f031932e478704`; citation version/chunk/route/source fields were absent in this runtime response. | jaeger evidence 2026-08-28 | Local real provider / partial citation contract | Yes | Reproducible with local credentials | Do not say production or complete citation-field contract |
-| Async projection trace | Fixed route wiring so authenticated content update creates/sends `content.updated`; Worker consumed it and Jaeger shows real `llm.embedding` plus Inbox completion. Projection remains `local-keyword-seed-v1`, so final RAG/OpenSearch projection is unverified. | Jaeger evidence 2026-08-28; outbox/inbox tests | Local full-infra partial | Embedding yes | Outbox/relay/Worker/embedding boundary | Do not claim full projection trace |
+| Async projection trace | Fixed route wiring so authenticated content update creates/sends `content.updated`; Worker consumed it and Jaeger shows real `llm.embedding` plus Inbox completion. The final RAG/OpenSearch write remains unverified by deliberate Phase 1 scope decision. | Jaeger evidence 2026-08-28; outbox/inbox tests | Local full-infra partial | Embedding yes | Outbox/relay/Worker/embedding boundary | Do not claim complete projection or alias cutover |
 | Collector resilience | Health request remained successful while Collector was stopped and after restart. | Jaeger evidence | Local real | N/A | Health drill reproducible with running server | Telemetry may be lost during outage |
 
 ## Allowed resume wording
@@ -74,8 +75,9 @@ stayed low, and I found the old 253-content baseline could not be reconstructed,
 so I refused to call it a regression or improvement. I also repaired local OTel
 resource identity so Jaeger distinguishes server and worker, and ran a
 Collector-offline drill showing the health path still succeeds. The remaining
-gap is a disposable authenticated Agent Chat and full async projection trace;
-those are explicitly partial rather than presented as production evidence.
+technical boundary is the final PostgreSQL/OpenSearch projection and complete
+citation-field payload; both are explicitly partial and intentionally do not
+block the Phase 1 resume/demo package.
 
 ### Why no direct improvement claim?
 
@@ -92,10 +94,10 @@ current-v1 identity checksum and golden checksum are reproducible.
 
 ### What is Jaeger complete to?
 
-Jaeger/Collector export, explicit server/worker naming, health tracing, and
-worker queue-boundary spans are locally real. The authenticated Chat and
-outbox-to-embedding-to-projection traces are not complete in this run, so the
-overall claim is local full-infra partial, not full end-to-end.
+Jaeger/Collector export, explicit server/worker naming, health tracing,
+authenticated MiniMax Chat, and outbox-to-Worker-to-embedding spans are locally
+real. The final PostgreSQL/OpenSearch projection is not complete in this run,
+so the overall claim remains local full-infra partial, not full end-to-end.
 
 ## Reproduction commands and evidence index
 
@@ -107,7 +109,8 @@ Run backend gates with `go build ./...`, `go vet ./...`, `go test ./...`, and
 
 ## Production gaps and future work
 
-Capture disposable-account Agent Chat and async projection traces with real
-provider credentials, then repeat against a production-like Collector/Jaeger
-and OpenSearch. Reranker evaluation and ClamAV inventory rescan remain future
-work; neither is claimed here.
+The Phase 1 package can proceed with the captured local evidence. Future work
+may capture a complete async projection trace in an isolated generation/index,
+repeat against production-like Collector/Jaeger and OpenSearch, and evaluate a
+reranker. None of those are required for the current resume/demo claim, and
+ClamAV inventory rescan remains future work.

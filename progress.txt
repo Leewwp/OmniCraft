@@ -2105,3 +2105,18 @@
 - Citation response omitted server-owned `content_version`, `chunk_key`, `route`, and `source`; citation-field contract remains partial.
 - Root cause of the missing outbox row was route wiring: `RegisterRoutes` created a separate ContentHandler without the shared outbox. Added explicit handler injection; authenticated update now creates/sends `content.updated` and Worker records inbox consumption.
 - Jaeger queries found Worker traces `275aac4f5b08a796644570e41786c2e6` and `776ee941aee8f120f8e457a48c00f9e5` with queue/process, HTTP POST, `llm.embedding`, and Inbox spans, confirming real `embo-01` embedding. Projection still reports `local-keyword-seed-v1`; final RAG/OpenSearch projection evidence remains open. Do not close #204.
+## [2026-08-28] - Phase 1 status audit and OpenSearch projection decision
+
+### What was done:
+- Audited the active registry, repository state, GitHub issues #32/#110/#134/#204/#207/#208, and the Phase 1 evidence documents.
+- Confirmed #207 (T01/T02/T03) is closed and that no Phase 1 core runtime implementation task remains. #204 and #32 are the remaining Phase 1 evidence/packaging closure items.
+- Recorded the decision that a real OpenSearch projection and alias cutover are not required for Phase 1. Existing PostgreSQL FTS/pgvector/RRF and fallback paths support the local demo; OpenSearch remains an optional full-infra/Phase 2 experiment.
+- Synchronized the interview orchestration spec, resume claim matrix, Jaeger evidence, local demo runbook, and resume/demo evidence with the current decision and the corrected outbox/Worker/embedding evidence.
+
+### Testing:
+- Read-only GitHub issue/state audit: #207 CLOSED; #204/#32 OPEN; #208 OPEN roadmap; #76/#134/#110/#114/#115 deferred or production/future scope; #135-#145 CLOSED.
+- No runtime code or database migration changed in this audit.
+
+### Notes:
+- Phase 1 is suitable for scoped resume writing and a guarded local browser demo, with explicit partial labels for citation-field completeness and final PostgreSQL/OpenSearch projection.
+- Do not claim retrieval uplift, complete Jaeger end-to-end projection, production readiness, or OpenSearch alias cutover.

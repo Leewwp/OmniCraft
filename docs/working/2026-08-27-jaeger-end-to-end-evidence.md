@@ -91,11 +91,10 @@ code path is transactional outbox -> relay -> Redis Streams -> worker, with
 W3C traceparent stored in the envelope. Existing integration tests cover
 commit-after-outbox and inbox idempotency contracts.
 
-**Grade: local full-infra partial.** A real authenticated content update returned
-`200`, but the running API instance produced no `outbox_events` row, leaving the
-Worker with no event to relay. No real `embo-01` embedding or final
-PostgreSQL/OpenSearch projection trace is asserted. Existing worker trace IDs
-remain queue-boundary evidence only.
+**Grade: local full-infra partial.** The initial run exposed a route-wiring
+defect and is superseded by the correction below. The final PostgreSQL/OpenSearch
+projection is still not asserted; this is now an intentional Phase 1 boundary,
+not a reason to mutate the baseline read alias.
 
 ### Wiring correction (2026-08-28)
 
@@ -109,7 +108,8 @@ for `omnicraft-worker` showed real embedding traces
 `275aac4f5b08a796644570e41786c2e6` and `776ee941aee8f120f8e457a48c00f9e5`
 with `queue.process`, `HTTP POST`, `llm.embedding`, and `insert inbox_consumers`
 spans. Outbox -> relay -> Redis -> Worker -> real embedding -> Inbox is locally
-verified; final RAG/OpenSearch projection remains `partial`.
+verified; final RAG/OpenSearch projection remains `partial` and is deferred to
+an isolated Phase 2 experiment if later justified by scale or search needs.
 
 ## Collector offline drill
 
@@ -127,6 +127,8 @@ health-path drill.
 ## Limitations
 
 - No production Collector, Jaeger, MiniMax, OpenSearch, or SLA evidence.
+- OpenSearch is an optional full-infra projection in the current phase; no
+  generation or read alias was changed for interview preparation.
 - `/healthz` and queue spans do not establish Agent Chat or projection
   end-to-end completion.
 - Old `unknown_service:server` spans remain historical data in Jaeger.

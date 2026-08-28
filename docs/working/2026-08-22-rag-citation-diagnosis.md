@@ -4,6 +4,16 @@
 > **预计失效日期**: 2026-10-22
 > Scope: local interview evidence; not a production quality report
 
+## Status update (2026-08-28)
+
+The provenance diagnosis and current-v1 real MiniMax differential work described
+below are complete and archived in the 2026-08-26 evidence files. The captured
+authenticated Chat and Worker/`embo-01` embedding traces are also documented.
+The final PostgreSQL/OpenSearch projection is intentionally not a Phase 1 gate;
+the P1/P2 action list below is historical planning context. Do not start a new
+projection or alias cutover from this document. Any continuation requires a
+Phase 2/#208 isolated spec/plan.
+
 ## 结论
 
 当前不能把 `citation_precision=0.913` 与 MiniMax 真实 hybrid 的 `0.052`
@@ -79,7 +89,7 @@ BM25/vector/final K 和历史 baseline identity。
 
 ## 后续编排
 
-### P0：封存 provenance（当前进行中）
+### P0：封存 provenance（已完成；历史编排）
 
 - 保持 `backend/testdata/rag_eval_baseline.json` 不变；
 - 从历史数据库备份或导出中寻找 253-content corpus manifest；
@@ -87,7 +97,7 @@ BM25/vector/final K 和历史 baseline identity。
 - 为每个运行固定 golden checksum、content identity checksum、scope、chunking、index、
   embedding model、BM25/vector/final K。
 
-### P1：同口径真实 MiniMax differential
+### P1：同口径真实 MiniMax differential（已完成；历史编排）
 
 - 使用独立数据库和新 generation/model identity，保留历史 content-level vectors；
 - 在同一 corpus 上运行 content-level legacy、chunk keyword、deterministic hybrid、
@@ -95,13 +105,14 @@ BM25/vector/final K 和历史 baseline identity。
 - 固定 K（至少 K=10，必要时追加 K=20），同时输出 raw/deduplicated citation；
 - 抽检代表性 Top-5，先做归因再决定是否提出 rerank。
 
-### P2：Jaeger full-chain
+### P2：Jaeger full-chain（部分完成；最终 projection 可选）
 
 - 使用 pinned Collector 镜像和实际启用的 healthcheck；
 - 采集同步 Agent Chat trace（HTTP → DB → MiniMax Chat → SSE）以及异步投影
   trace（HTTP/outbox → relay → Redis Stream → Worker → MiniMax Embedding → DB/OpenSearch）；
 - 不把同步 Agent Chat 描述成经过 Worker；
-- 真实 UI trace 截图完成后，才更新 #32 面试素材。
+- 已捕获真实同步 Chat 与异步 Worker/embedding 边界；最终 OpenSearch
+  projection 仍未验证，不阻塞 #32 面试素材。
 
 ClamAV/EICAR、生产发布门、遗留 favorites 云端 cutover、桌面/Tauri 和历史存量
 回扫继续保持低优先级或 deferred，不抢占 P0-P2。

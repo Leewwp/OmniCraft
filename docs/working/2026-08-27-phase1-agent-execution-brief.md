@@ -15,15 +15,23 @@
 
 The first phase is a locally runnable, interview-ready Web experience: core page browsing, the protected Agent workspace, citation safety behavior, provider seams, the fixed tool set, and a reproducible live-demo path. It does not require cloud deployment or production credentials. #204 and #32 consume the implementation evidence; #208 remains the long-term roadmap.
 
+## Status update (2026-08-28)
+
+#207 T01/T02/T03 completed and the issue is closed. No Phase 1 core runtime
+implementation task remains. The active work is #204/#32 evidence and packaging:
+use the captured authenticated MiniMax Chat SSE trace, the corrected
+outbox/Worker/`embo-01` embedding boundary, the current-v1 RAG diagnosis, and
+the existing browser screenshots to finalize resume wording, demo flow, and
+interview answers. A complete OpenSearch projection or read-alias cutover is
+not required for this phase and is deferred to an isolated Phase 2 experiment.
+
 ## Delivery sequence
 
 | Window | Focus | Exit evidence |
 |---|---|---|
-| Aug 27-29 | #207 T01 Citation Verification, heavy/TDD | Red tests first; server-owned citation identity, visibility, version/chunk checks, stable `no_evidence`; focused tests pass |
-| Aug 30 | #207 T02 Provider seam, light | Agent depends only on streaming chat capability; fake adapter contract passes |
-| Aug 31 | #207 T03 tool registry, light | Four-tool allowlist, validation, visibility and call limits remain unchanged |
-| Sep 1 | Integration and repository gates | `go test ./...`, `go vet ./...`, `go build ./...`, relevant frontend checks, `bash scripts/verify-project.sh --full`, doc-validator when required |
-| Sep 2-3 | #204/#32 evidence and demo closure | Authenticated browser/API walk-through, screenshots, resume wording and interview follow-up answers aligned to evidence grades |
+| Aug 27-28 | #207 T01/T02/T03 | Completed and closed; implementation evidence is available for downstream use |
+| Aug 28-31 | #204 evidence reconciliation | Completed authenticated Chat and Worker/embedding evidence; retain explicit partial labels for citation fields and final projection |
+| Sep 1-3 | #32 resume/demo closure | Authenticated browser/API walk-through, screenshots, resume wording and interview follow-up answers aligned to evidence grades |
 
 ## Evidence and wording guardrails
 
