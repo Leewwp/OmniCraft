@@ -84,6 +84,13 @@ func (h *ContentHandler) SetQueueProducer(p queue.Producer) {
 	h.queueProducer = p
 }
 
+// SetOutboxRepository wires the transactional outbox into the content
+// service used by this handler. The route builder owns the shared repository
+// instance so HTTP edits and the standalone relay observe the same rows.
+func (h *ContentHandler) SetOutboxRepository(outbox repository.OutboxWriter) {
+	h.contentSvc.SetOutboxRepository(outbox)
+}
+
 func (h *ContentHandler) SetArchiveScanRepository(repo *repository.ArchiveScanRepository) {
 	h.contentSvc.SetArchiveScanRepository(repo, h.cfg.Features.ArchiveMalwareScanEnabled)
 	h.archiveGate = service.NewArchiveScanGate(h.contentRepo.DB(), h.cfg.Features.ArchiveMalwareScanEnabled)

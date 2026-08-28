@@ -89,6 +89,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	prHandler := handler.NewPRHandlerWithService(ctr.PRService)
 	contentHandler := handler.NewContentHandler(db, cfg, rdb)
 	contentHandler.SetQueueProducer(ctr.QueueProducer)
+	contentHandler.SetOutboxRepository(ctr.OutboxRepo)
 	contentHandler.SetArchiveScanRepository(ctr.ArchiveScanRepo)
 	contents := v1.Group("/contents")
 	{

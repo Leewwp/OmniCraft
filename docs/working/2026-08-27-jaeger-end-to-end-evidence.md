@@ -97,6 +97,18 @@ Worker with no event to relay. No real `embo-01` embedding or final
 PostgreSQL/OpenSearch projection trace is asserted. Existing worker trace IDs
 remain queue-boundary evidence only.
 
+### Wiring correction (2026-08-28)
+
+The missing outbox row was traced to route wiring: `RegisterRoutes` constructed a
+separate `ContentHandler` whose internal service had no outbox repository. The
+handler now receives the shared container outbox explicitly. A repeat
+authenticated update produced `content.updated` with status `sent`, a W3C
+`traceparent`, and an `omnicraft-indexer` inbox record. The projection status for
+the seeded content nevertheless remained `local-keyword-seed-v1`; the real
+`embo-01` embedding/projection operation was not observed. The async grade is
+therefore still `partial`, with the outbox -> relay -> Redis -> inbox boundary
+now locally verified.
+
 ## Collector offline drill
 
 1. `docker stop omnicraft-otel-collector`
