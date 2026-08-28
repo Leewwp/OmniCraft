@@ -66,9 +66,11 @@ runtime citation emitted `content_id` and display fields but omitted
 `content_version`, `chunk_key`, `route` and `source`, so that contract remains
 `partial`.
 
-An authenticated content update returned successfully, but the API produced no
-outbox row and therefore no relay/Redis/Worker/embedding/projection business
-trace. Async evidence remains `local full-infra partial`; production is
+An authenticated content update initially exposed a route-wiring defect. After
+the correction, the event was relayed and consumed by the standalone Worker,
+which produced real `embo-01` embedding and Inbox spans. The final
+PostgreSQL/OpenSearch projection remains unverified by deliberate Phase 1 scope
+decision, so async evidence remains `local full-infra partial`; production is
 unavailable.
 
 | Claim | Code/test evidence | Local live evidence | Production status |
@@ -77,7 +79,7 @@ unavailable.
 | Outbox/Worker/DLQ | #137/#138 tests and fault-drill evidence | standalone Worker started; subscriptions and outbox polling visible in `artifacts/live-demo/logs/worker.log` | not a production deployment claim |
 | Hybrid retrieval and citation revalidation | #141/#142 tests and local OpenSearch evidence | local keyword projection created with 30 documents; Agent returned 5 validated citations in degraded mode | real embedding/LLM not verified |
 | OpenSearch mapping, generation and read alias | repository tests and `ops/opensearch/seed.sh` | `omnicraft-rag-v1` and `omnicraft-rag-read` verified at `127.0.0.1:9200` | no production index claim |
-| OTel application contracts | #143 tests and `docs/working/2026-08-19-t143-otel-evidence.md` | Pinned standard Collector + Jaeger started; `/healthz` application span queried | Agent Chat and async Worker full-chain not verified |
+| OTel application contracts | #143 tests and `docs/working/2026-08-19-t143-otel-evidence.md` | Pinned standard Collector + Jaeger started; authenticated Chat and Worker/embedding spans queried | Final OpenSearch projection is not verified; no production claim |
 | Agent browser interaction | existing mocked contracts/screenshots | real login, `/agent`, grounded/degraded query, no-evidence state, citation overlay, desktop/mobile screenshots passed | no production UX claim |
 
 ## Browser screenshot ledger
@@ -95,7 +97,11 @@ These are separate from mocked contract screenshots such as `screenshots/web-age
 
 ## OTel status
 
-T08 is accurately described as “OTel application span contracts, W3C propagation, and local tests completed.” It must not be described as “Jaeger full-chain tracing completed” until a real local trace is queried in Jaeger UI and a screenshot plus trace ID is recorded. `X-Request-ID` and `trace_id` must remain distinct.
+T08 is accurately described as “OTel application span contracts, W3C propagation,
+local Collector/Jaeger export, and selected server/worker traces completed.” It
+must not be described as “Jaeger full-chain tracing completed”: the final
+PostgreSQL/OpenSearch projection was not verified and no alias was cut over.
+`X-Request-ID` and `trace_id` must remain distinct.
 
 ## Validation commands
 
@@ -113,9 +119,9 @@ The backend build/vet/test, frontend lint/build, `scripts/live-demo.tests.sh`, c
 
 ## Resume wording guardrails
 
-Allowed local wording includes: “implemented and tested a transactional Outbox/Inbox and standalone Worker path”, “built a viewer-aware RAG citation contract with deterministic local evaluation”, and “added OTel application contracts and a reproducible full-infra configuration.”
+Allowed local wording includes: “implemented and tested a transactional Outbox/Inbox and standalone Worker path”, “built a viewer-aware RAG citation contract with deterministic local evaluation”, “integrated and locally verified MiniMax Chat plus `embo-01` embedding boundaries”, and “added OTel application contracts and a reproducible full-infra configuration.”
 
-Forbidden unless independently verified: production launch, real-user scale, guaranteed RRF uplift, real LLM groundedness, real embedding-provider comparison, and Jaeger full-chain completion.
+Forbidden unless independently verified: production launch, real-user scale, guaranteed RRF uplift, real LLM groundedness, real embedding-provider comparison, complete PostgreSQL/OpenSearch projection, and Jaeger full-chain completion.
 
 ## Run log
 
@@ -132,5 +138,7 @@ Initial bootstrap tooling was added on 2026-08-22. The runtime/API/browser/Jaege
 - Real browser query `Blender 插件安装教程`: entered search-degraded mode and displayed five validated citations. Real browser query `明天的天气怎么样`: displayed the no-summary/no-evidence degraded state with no citations. Clicking a citation opened the shared content detail overlay for `Blender 插件安装教程`.
 - Screenshots saved under `screenshots/omnicraft-live-demo/` are real browser captures, not mocked contract captures.
 - Jaeger/OTel Collector now starts with the pinned standard Collector image `otel/opentelemetry-collector:0.120.0`; a tracing-enabled backend `/healthz` span was queried from Jaeger API. Authenticated Agent Chat and asynchronous Worker trace evidence remain unverified.
-- The local projection reports `embedding=none`; no real embedding quality or LLM groundedness claim is made.
+- The 2026-08-22 baseline demo projection reports `embedding=none`; this is
+  run-specific and does not contradict the later isolated real `embo-01`
+  Worker evidence. No real embedding quality or LLM groundedness claim is made.
 - The held demo session was stopped with `bash scripts/live-demo.sh stop`; Docker data was preserved. A separate local process owning port `18080` was left untouched.

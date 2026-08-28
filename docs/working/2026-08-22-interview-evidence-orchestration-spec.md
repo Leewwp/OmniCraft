@@ -16,6 +16,28 @@ local interview package. The repository-root `.env` contains the user's real
 MiniMax configuration. Provider evidence may be refreshed locally, but secrets
 must never be persisted in Git, logs, screenshots, or reports.
 
+## Current decision update (2026-08-28)
+
+The Phase 1 implementation slice is complete: #207 T01/T02/T03 was closed on
+2026-08-28. The remaining Phase 1 work is evidence and interview packaging in
+#204 and #32, not another core Agent/RAG runtime feature.
+
+OpenSearch projection is **not a Phase 1 completion requirement**. The current
+repository already has PostgreSQL FTS/pg_trgm, pgvector, RRF, visibility
+revalidation, OpenSearch projection contracts, and PostgreSQL fallback. The
+default `rag_hybrid_enabled=false` path and the authenticated MiniMax Chat SSE
+demo do not require a real OpenSearch read alias. The real Worker embedding
+trace proves provider execution, but the final RAG-generation/OpenSearch write
+is not verified and must not be completed by mutating the baseline generation
+or alias during interview preparation.
+
+Any future OpenSearch projection work belongs in Phase 2/#208 as an isolated,
+reversible experiment: a new generation and index, a small local corpus, no
+initial alias cutover, explicit mapping/model/dimension/version checks, and a
+recorded rollback target. A production-like OpenSearch deployment is justified
+later by scale, query isolation, complex filtering, or index-lifecycle needs;
+its enterprise popularity alone does not make it a current release gate.
+
 ## Problem Statement
 
 当前 OmniCraft 的 RAG、回答 Agent、可靠异步和 OTel 实现主线已经完成本地实现与自动化合同，但面试证据仍有两个关键缺口：
@@ -79,18 +101,18 @@ must never be persisted in Git, logs, screenshots, or reports.
 ### Interview-priority orchestration
 
 1. P0: benchmark provenance recovery and citation diagnosis. This has the highest interview value because it demonstrates detecting an invalid comparison instead of tuning a number.
-2. P1: real MiniMax same-corpus projection and differential report. This turns the provider contract into a defensible retrieval experiment.
-3. P2: pinned Collector/Jaeger remediation and real trace capture. This adds a high-signal observability artifact once the image/config blocker is removed.
-4. P3: update #32 resume/demo evidence with the diagnosis, metrics matrix, Top-K examples and Jaeger screenshots.
+2. P1: reconcile the captured authenticated Chat and Worker evidence, and decide whether any additional trace is worth the risk before the interview deadline. The final OpenSearch projection is optional and must not block the package.
+3. P2: update #32 resume/demo evidence with the diagnosis, metrics matrix, Top-K examples, screenshots, and interview answers.
+4. P3: keep Phase 2 candidates (OpenSearch projection, reranker, production-like Collector/Jaeger and real security/provider evidence) explicitly deferred until a new spec/plan is registered.
 5. P4: optional ClamAV/EICAR full-infra evidence only if the target role or resume narrative emphasizes content safety/security scanning.
 6. Deferred: #134 production freeze closure, #76 legacy favorites cloud cutover, #151 historical archive rescan and desktop/Tauri work. These do not improve the current interview signal enough to displace P0–P3.
 
 ### Dependencies and sequencing
 
 - P0 depends on the completed T01/T04/T05/T06 evaluation and projection contracts, and must not modify their historical baseline artifact until the diagnosis is complete.
-- P1 depends on a recoverable corpus manifest. If the historical 253 corpus cannot be recovered, P1 creates a new versioned baseline and records the limitation.
-- P2 depends on the completed T03 Worker and T08 OTel application contracts. It is independent of the RAG quality conclusion, but its asynchronous trace should use the real MiniMax embedding path once P1 has established the provider configuration.
-- P3 consumes P0–P2 and updates the interview evidence package; it does not reopen completed implementation tickets.
+- P1 consumes the already captured local MiniMax Chat and Worker evidence; it does not require an OpenSearch alias cutover.
+- P2 consumes the completed T03 Worker and T08 OTel application contracts and updates the interview evidence package; it does not reopen completed implementation tickets.
+- P3 is a Phase 2 planning decision only and requires a new spec/plan before any isolated projection or production-like infrastructure work starts.
 - #134 remains a production release gate only in the current local-development mode. It does not block P0–P3.
 
 ## Testing Decisions
@@ -118,7 +140,7 @@ must never be persisted in Git, logs, screenshots, or reports.
 
 ## Further Notes
 
-- The current evidence supports resume claims about implementing real MiniMax provider contracts, versioned hybrid RAG, visibility-leak protection, provider fallback and OTel application contracts. It does not yet support a retrieval-uplift claim or Jaeger full-chain completion.
+- The current evidence supports resume claims about implementing real MiniMax provider contracts, versioned hybrid RAG, visibility-leak protection, provider fallback, OTel application contracts, and a locally captured synchronous Chat plus async Worker/embedding boundary. It does not support a retrieval-uplift claim or a complete PostgreSQL-to-OpenSearch projection trace.
 - The strongest interview narrative is the diagnosis itself: the apparent `0.913 → 0.052` drop led to discovery that the numbers came from different retriever entities, corpus predicates, candidate cardinalities and citation semantics.
 - If the same-corpus corrected run still shows weak fine-grained citation precision, the honest conclusion is a semantic retrieval bottleneck and a justified reranker follow-up, not a fabricated pass.
-- This document is a local interview-evidence plan. Production deployment gates remain governed by the active registry and the existing reliable-async and archive-scanning plans.
+- This document is a local interview-evidence plan. The project is sufficient for scoped resume writing and a guarded local demo; production deployment gates and any real OpenSearch cutover remain governed by the active registry and Phase 2 planning rules.

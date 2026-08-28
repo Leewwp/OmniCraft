@@ -84,7 +84,7 @@ Unauthenticated access must remain protected:
 curl -i http://127.0.0.1:8080/api/v1/agent/conversations
 ```
 
-Authenticated browser/API checks should use the login response's access token and CSRF cookie; never disable auth or CSRF to produce evidence. Verify all four paths: normal request, malformed input, no-auth request, and OpenSearch-down degraded request. SSE output is expected to include `trace_id`, `content_id`, `content_version`, `chunk_key`, `source`, and `degraded` only when the runtime path has those values.
+Authenticated browser/API checks should use the login response's access token and CSRF cookie; never disable auth or CSRF to produce evidence. Verify all four paths: normal request, malformed input, no-auth request, and OpenSearch-down degraded request. SSE output should be checked for `trace_id`, `content_id`, and `degraded`; the expanded `content_version`, `chunk_key`, and `source` fields are emitted only when the runtime projection/citation path supplies them and remain a known partial boundary in the captured real-provider run.
 
 ## Idempotence checks
 
@@ -106,5 +106,12 @@ The migration ledger rejects checksum drift and skips already-applied migrations
 
 ## Known gaps
 
-- The repository has OTel application contracts and Compose wiring, but real Collector delivery and Jaeger UI trace screenshots are not claimed until the full-infra images start and a trace is queried.
-- The demo uses local seed data and a keyword-only projection. It does not claim real embedding quality, real LLM groundedness, production traffic, production OSS, ClamAV/EICAR, or production release readiness.
+- The repository has OTel application contracts and Compose wiring; local
+  Collector delivery, service identity, and selected Jaeger traces are
+  documented separately. A complete business-chain screenshot is not claimed
+  because the final OpenSearch projection was not verified.
+- The demo uses local seed data and a keyword-only projection. A real
+  OpenSearch projection is optional and is not required for the Phase 1 demo;
+  the runbook does not switch the read alias or mutate the baseline generation.
+  It does not claim real embedding quality, real LLM groundedness, production
+  traffic, production OSS, ClamAV/EICAR, or production release readiness.
