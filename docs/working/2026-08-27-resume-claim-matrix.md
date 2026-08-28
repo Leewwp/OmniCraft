@@ -13,6 +13,15 @@ explicit server/worker service names. Authenticated Chat and the async
 outbox/Worker/embedding boundary are locally real; the final OpenSearch
 projection remains intentionally unverified and is not a Phase 1 gate.
 
+2026-08-29 addition: an answer-producing evaluation over the same frozen
+current-v1 corpus measured real Agent answers (55/63 answered, 0 degraded,
+0 provider errors), SSE first-token latency (P50 2078 ms / P95 8259 ms),
+streamed token usage (mean 3226 tokens/answer after the MiniMax
+`stream_options`/usage-chunk fixes), and deterministic
+groundedness/answer-relevance proxies (0.005/0.035) with effective
+denominators. The MiniMax-M3 direct-answer rate (25.7% of attempts without
+retrieval) is recorded, not hidden.
+
 ## Evidence grading legend
 
 `Local real provider verified` means a real provider call was captured locally.
@@ -35,6 +44,7 @@ no production evidence.
 | Agent Chat trace | Captured authenticated HTTP -> DB -> MiniMax-M3 -> SSE request with Jaeger trace `0a9b971022bc994ca0f031932e478704`; citation version/chunk/route/source fields were absent in this runtime response. | jaeger evidence 2026-08-28 | Local real provider / partial citation contract | Yes | Reproducible with local credentials | Do not say production or complete citation-field contract |
 | Async projection trace | Fixed route wiring so authenticated content update creates/sends `content.updated`; Worker consumed it and Jaeger shows real `llm.embedding` plus Inbox completion. The final RAG/OpenSearch write remains unverified by deliberate Phase 1 scope decision. | Jaeger evidence 2026-08-28; outbox/inbox tests | Local full-infra partial | Embedding yes | Outbox/relay/Worker/embedding boundary | Do not claim complete projection or alias cutover |
 | Collector resilience | Health request remained successful while Collector was stopped and after restart. | Jaeger evidence | Local real | N/A | Health drill reproducible with running server | Telemetry may be lost during outage |
+| Answer eval (groundedness/latency/usage) | Ran a 63-case answer-producing eval over the same frozen current-v1 corpus through the real AgentService tool loop: 55/63 answered, 0 degraded, 0 provider errors; first-token P50 2078 ms / P95 8259 ms; mean 3226 tokens/answer after fixing MiniMax streamed-usage handling; deterministic groundedness/relevance proxies recorded (0.005/0.035) with effective denominators; direct-answer rate 25.7% counted honestly. | `docs/working/2026-08-29-agent-answer-eval-evidence.md`; artifact `2026-08-29-agent-answer-eval-real.json` (dataset `e759d965…`, corpus `240b3bac…`) | Local real provider verified | Yes (chat + query embedding) | Yes with credentials and frozen corpus | Proxies saturate for paraphrasing models — do not present 0.005 groundedness as a quality certificate; no production latency/quality; in-process service invocation (HTTP path evidenced separately) |
 
 ## Allowed resume wording
 
@@ -42,8 +52,13 @@ no production evidence.
   hybrid RAG evaluation with provenance and visibility audits.
 - Used K=10/K=20 controls to show that the historical baseline was not directly
   comparable and that increasing Top-K did not resolve citation precision.
-- Added local OTel Collector/Jaeger service identity and validated server/worker
+- Added local OTel service identity for server/worker and validated server/worker
   queue-boundary telemetry plus a Collector-offline business-health drill.
+- Built an answer-producing evaluation on the same frozen corpus: measured real
+  streamed answers (first-token P50/P95, per-answer token usage after fixing
+  MiniMax streamed usage), recorded deterministic groundedness/relevance
+  proxies with effective denominators, and surfaced a 25.7% direct-answer
+  rate instead of hiding it.
 
 ## Forbidden wording
 
@@ -51,6 +66,10 @@ Do not say “completed Jaeger end-to-end tracing”, “MiniMax significantly
 improved retrieval”, “real MiniMax on the historical 253 corpus”, “reranker
 fixed citation quality”, or “production stable/metric-backed”. Do not turn a
 mock provider, `/healthz` span, or Collector startup into a business-chain claim.
+For the answer eval: do not present the 0.005 groundedness proxy as a quality
+verdict (it is a verbatim-containment proxy awaiting judge scoring), do not
+quote the latency numbers as production SLA, and do not hide the direct-answer
+attempts.
 
 ## Interview material
 
@@ -64,6 +83,10 @@ mock provider, `/healthz` span, or Collector startup into a business-chain claim
    precision remained the limiting metric.
 3. Added explicit OTel service identity for server/worker and verified local
    Collector/Jaeger export plus business continuity during a Collector outage.
+4. Built an answer-producing eval on the frozen current-v1 corpus: real
+   MiniMax-M3 tool-loop answers measured end-to-end (55/63 answered, first-token
+   P50 2078 ms, mean 3226 tokens/answer), with deterministic
+   groundedness/relevance baselines recorded for a future judge layer.
 
 ### 60-second narrative
 

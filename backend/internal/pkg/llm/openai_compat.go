@@ -63,6 +63,14 @@ type openAIRequest struct {
 	MaxTokens   int              `json:"max_tokens,omitempty"`
 	Temperature float64          `json:"temperature,omitempty"`
 	Stream      bool             `json:"stream,omitempty"`
+	// StreamOptions is nil for non-streaming and for providers that do not
+	// opt in; the omitempty keeps their request bodies byte-identical.
+	StreamOptions *streamOptions `json:"stream_options,omitempty"`
+}
+
+// streamOptions carries the OpenAI-compatible stream_options request field.
+type streamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 type openAIResponse struct {

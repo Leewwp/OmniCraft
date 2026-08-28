@@ -2120,3 +2120,18 @@
 ### Notes:
 - Phase 1 is suitable for scoped resume writing and a guarded local browser demo, with explicit partial labels for citation-field completeness and final PostgreSQL/OpenSearch projection.
 - Do not claim retrieval uplift, complete Jaeger end-to-end projection, production readiness, or OpenSearch alias cutover.
+## [2026-08-29] - Task #204: Agent answer eval with real MiniMax usage and first-token measurement
+
+### What was done:
+- Ran a 63-case answer-producing eval over the same frozen current-v1 corpus (dataset `e759d965…`, corpus `240b3bac…`, identical to the 08-26 differential run) through the real AgentService tool loop with MiniMax-M3 + `embo-01`: 55/63 answered (8 no_evidence incl. one designed refusal), 0 degraded, 0 provider errors; SSE first-token P50 2078 ms / P95 8259 ms; mean 3226 tokens/answer (prompt 143,744 / completion 33,705); deterministic groundedness/relevance proxies 0.005/0.035 with effective denominators; direct-answer rate 25.7% (19/74) counted honestly.
+- Fixed two real streaming defects found by the run: `openai_compat.go` gained `stream_options` (omitempty; only MiniMax streaming opts in) and `minimax.go` now parses the terminal usage-only chunk and keeps scanning past the finish chunk; without this, MiniMax streams never reported token usage.
+- Diagnosed MiniMax-M3 probabilistic tool-call compliance under the production prompt via the retained diagnostic `cmd/answer-probe`; the runner adds bounded retries plus direct-answer accounting instead of hiding it.
+- Evidence: `docs/working/2026-08-29-agent-answer-eval-evidence.md` + redacted artifact `docs/working/2026-08-29-agent-answer-eval-real.json` (schema `agent-answer-eval-v1`); claim matrix gained the answer-eval row, allowed/forbidden wording, and a resume bullet.
+
+### Testing:
+- `go build ./...`, `go vet ./...`, `go test ./...` all green (32 packages); `llm` package 27 tests pass after the streaming fixes.
+- Env-gated runner `TestAgentAnswerEval` (skipped in CI); always-on unit tests for sentence split/scoring/effective denominators/redacted write contract.
+
+### Notes:
+- Groundedness/relevance are verbatim-containment/lexical proxies that saturate for paraphrasing models — do not present 0.005 as a quality verdict; citation correctness is evidenced by server-side citation-truth re-resolution (231/231) and 0 visibility leak.
+- First-token/total latencies are local measurements, not production SLA.

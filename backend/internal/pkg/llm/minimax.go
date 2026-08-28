@@ -62,6 +62,9 @@ func (p *MiniMaxProvider) ChatStream(ctx context.Context, req ChatRequest, handl
 		MaxTokens:   req.MaxTokens,
 		Temperature: req.Temperature,
 		Stream:      true,
+		// MiniMax omits usage on streamed completions unless explicitly
+		// requested; the Agent usage event needs the token accounting.
+		StreamOptions: &streamOptions{IncludeUsage: true},
 	}
 	resp, started, err := p.openAI.doPost(ctx, "/v1/chat/completions", payload)
 	defer func() { observability.ObserveExternalCall("llm", started, err) }()
@@ -93,6 +96,15 @@ func (p *MiniMaxProvider) ChatStream(ctx context.Context, req ChatRequest, handl
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
 			continue
 		}
+		// OpenAI-compatible streams deliver usage as a terminal chunk with an
+		// empty choices array once include_usage is requested. Surface it
+		// before the choices guard so token accounting is not dropped.
+		if usage := usageFromRaw(chunk.Usage.PromptTokens, chunk.Usage.CompletionTokens); usage != nil {
+			lastUsage = usage
+			if err := handler(ChatDelta{Usage: usage}); err != nil {
+				return err
+			}
+		}
 		if len(chunk.Choices) == 0 {
 			continue
 		}
@@ -113,9 +125,9 @@ func (p *MiniMaxProvider) ChatStream(ctx context.Context, req ChatRequest, handl
 		if err := handler(delta); err != nil {
 			return err
 		}
-		if choice.FinishReason != "" {
-			return nil
-		}
+		// Do not return on the finish chunk: with include_usage requested the
+		// terminal usage-only chunk arrives after it, and the stream ends at
+		// EOF.
 	}
 	if err := scanner.Err(); err != nil {
 		return err

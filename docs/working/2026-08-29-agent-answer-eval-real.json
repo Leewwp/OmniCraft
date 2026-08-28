@@ -1,0 +1,3255 @@
+{
+  "schema_version": "agent-answer-eval-v1",
+  "metadata": {
+    "ran_at": "2026-08-28T16:23:05Z",
+    "git_commit": "3123b830f986f28fcad74ee104f583a24ace3eaa",
+    "provider": "minimax",
+    "chat_model": "MiniMax-M3",
+    "embedding_model": "embo-01",
+    "query_embedding_standin": false,
+    "retriever_version": "hybrid-rrf-pg-fallback-v1",
+    "keyword_source": "opensearch",
+    "dataset_checksum": "sha256:e759d965ae70cb2bd0cb1022735207c307b13b6d23c9946dbc88c01225521b04",
+    "corpus_content_checksum": "sha256:240b3bac94916e791f41436abf9ab73fbb39702cd9b25f86cda264990a3765be",
+    "corpus_contents": 169,
+    "corpus_embeddings": 169,
+    "projection_generation": 2,
+    "chunking_version": "1",
+    "index_version": "2",
+    "final_top_k": 10,
+    "go_version": "go1.25.12",
+    "chat_viewer_user_id": 2,
+    "note": "local answer-producing measurement over the frozen current-v1 corpus; real provider chat and query embeddings; in-process AgentService tool loop (not HTTP); chat runs as a seeded user owning no private corpus content so the retrieval scope equals the golden cases' anonymous viewer; groundedness is a deterministic verbatim-containment proxy, not a production quality certificate"
+  },
+  "summary": {
+    "cases": 63,
+    "answered": 55,
+    "no_evidence": 8,
+    "degraded": 0,
+    "provider_errors": 0,
+    "groundedness_mean": 0.005061983471074381,
+    "answer_relevance_mean": 0.034700771862198686,
+    "first_token_p50_ms": 2078,
+    "first_token_p95_ms": 8259,
+    "total_p50_ms": 13026,
+    "total_p95_ms": 32155,
+    "prompt_tokens_total": 143744,
+    "completion_tokens_total": 33705,
+    "tokens_per_answer_mean": 3226.3454545454547,
+    "total_attempts": 74,
+    "direct_answer_attempts": 19,
+    "direct_answer_rate": 0.25675675675675674
+  },
+  "cases": [
+    {
+      "case_key": "bike_commute",
+      "query": "骑车通勤",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我帮你搜索一下关于\"骑车通勤\"的实用内容。\n\n# 🚴 骑车通勤指南\n\n目前内容库中暂未收录专门的\"骑车通勤\"主题文章。下面结合通用知识，给你一份实用的**骑车通勤全攻略**：\n\n---\n\n## 一、车辆选择\n\n| 类型 | 适用场景 | 特点 |\n|------|---------|------|\n| 公路车 | 5km 以上长距离 | 速度快，但骑行姿势激进 |\n| 山地车 | 颠簸路段、混合路况 | 耐用舒适，但较重 |\n| 城市通勤车 / 瓜车 | 城市综合路况 | 兼顾速度与装载能力 |\n| 折叠车 | 需搭配公交/地铁 | 方便携带进办公室 |\n| 电助力车 | 长距离、爬坡多 | 省力续航强，需注意充电 |\n\n---\n\n## 二、必备装备清单\n\n### 🛡️ 安全\n- **头盔**（最重要！可加装后视镜）\n- **前后车灯**（白天也建议亮尾灯）\n- **铃铛或喇叭**\n\n### 🧥 服饰\n- **透气速干衣**（避免棉质出汗后黏身）\n- **防风外套**（早晚会凉）\n- **手套**（防震、防摔）\n- **雨衣 / 雨披**（分体式雨衣优于雨披）\n\n### 👜 装载\n- **后货架 + 驮包** 或 **车架包**\n- **车锁**（U 锁更安全）\n- **码表 / 手机支架**（导航 + 记录轨迹）\n\n---\n\n## 三、实用通勤技巧\n\n### ⏰ 时间管理\n- 比开车/坐车**多预留 20~30 分钟**\n- 关注天气，雨雪天提前出门或换乘\n- 周末试骑一次，确定时长\n\n### 🛣️ 路线规划\n- 优先选择**自行车道、绿道、河边步道**\n- 避开主干道快速路段\n- 利用地图 App（高德、百度、Google Maps）查\"骑行路线\"\n\n### 🏢 停车与办公\n- 公司是否有**淋浴间 / 更衣室**\n- 准备**通勤包**（放办公换洗衣物、洗漱用品）\n- 准备**小毛巾 + 干洗喷雾**应急\n\n---\n\n## 四、健康与习惯\n\n- **调整坐垫高度**：踩到底时膝盖微弯\n- **避免运动过量**：循序渐进，前两周别太猛\n- **多喝水**，通风透气\n- **关注膝关节、腰部**，不适及时调整\n- 春秋**花粉 / 柳絮**季节可戴骑行口罩\n\n---\n\n## 五、法律与礼仪\n\n- 遵守交通信号，**不逆行、不闯红灯**\n- 转弯打手势（伸出手示意方向）\n- 不在人行道骑行（国内多数城市规定）\n- 夜间必须开启车灯\n- 部分城市禁/限电助力车上牌，需提前确认\n\n---\n\n## 📌 推荐尝试\n\n如果你愿意持续分享骑车通勤的经验，比如：\n- 通勤路线推荐\n- 装备评测\n- 防雨防汗技巧\n- 通勤穿搭\n\n可以帮你 **整理成专栏文章发布**。需要的话，我也可以帮你 **生成\"骑车通勤\"主题的创作提纲**，方便你开始写第一篇 📝",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 2,
+      "citations": [
+        {
+          "content_id": 1017,
+          "content_version": 1,
+          "chunk_key": "648b1df11e84ecab24dc098c6cd6b33b465786e0cee7d82b1a2ecc9570434e9f",
+          "title": "地铁通勤阅读书单：30 本短篇集",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 108,
+          "content_version": 1,
+          "chunk_key": "1ad9a0bf419a250c90ae7b7dd0f0ba96caf5ac63241f14edd9a381b72cfc16e8",
+          "title": "原创实验｜镜头下的普通朋友 107",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 44,
+          "content_version": 1,
+          "chunk_key": "8404b567dd45b5da07a71bbfedff9cba429d980bd52a84dcecb2b946c6928033",
+          "title": "原创实验｜镜头下的普通朋友 43",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 140,
+          "content_version": 1,
+          "chunk_key": "19b5f8fc6f15d16c626f439ba09ae015ced6cf200d41350c1a3c4074ac3bbb64",
+          "title": "灵感衍生｜镜头下的普通朋友 139",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 92,
+          "content_version": 1,
+          "chunk_key": "d8b11a4874226447252f34103efab79e632a4194d0c4c188e832d6c3685ff8b6",
+          "title": "原创实验｜镜头下的普通朋友 91",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.012987012987012988,
+      "first_token_ms": 1637,
+      "total_ms": 11090,
+      "prompt_tokens": 3548,
+      "completion_tokens": 741,
+      "degraded": false
+    },
+    {
+      "case_key": "breakfast_bowl",
+      "query": "营养早餐碗",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮您搜索关于\"营养早餐碗\"的内容。\n\n\n\n当前内容库中并没有与\"营养早餐碗\"直接相关的内容，搜索结果主要是一些无关的\"周末露营清单\"系列样本，仅有一条《藜麦一周备餐：藜麦饭与沙拉基底》与备餐相关，但并非针对早餐碗主题。\n\n💡 **搜索建议**\n- 换一些更具体的关键词试试，例如：\n  - \"隔夜燕麦\"、\"overnight oats\"\n  - \"希腊酸奶碗\"、\"acai bowl\"\n  - \"藜麦早餐\"、\"鸡蛋牛油果吐司\"\n  - \"健身备餐\"、\"meal prep 早餐\"\n- 或者直接告诉我你想做哪种风格的早餐碗（高蛋白、低碳、植物基、增肌等），我可以帮你拆解食材搭配思路 🥣",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 2,
+      "citations": [
+        {
+          "content_id": 1016,
+          "content_version": 1,
+          "chunk_key": "43d01c0c7dc3f55ef86a9141c2342c30ff055b83133b0a2a3ab07c5ef0067d5e",
+          "title": "藜麦一周备餐：藜麦饭与沙拉基底",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1020,
+          "content_version": 1,
+          "chunk_key": "f5322dd23339144055d9d0f5f284b710a1bc15a405273b7989ea68e6e4021d00",
+          "title": "流浪猫救助喂养记录：幼猫到成猫",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 87,
+          "content_version": 1,
+          "chunk_key": "399e9a2b1735933b6e90ae68727dc9d6ac3d4e74944f689c420b44f6290e87ca",
+          "title": "原创实验｜周末露营清单 86",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 71,
+          "content_version": 1,
+          "chunk_key": "1c709f0c640455927cf0544cb259e4d495f19aba58104793f512167608976ae4",
+          "title": "原创实验｜周末露营清单 70",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 39,
+          "content_version": 1,
+          "chunk_key": "79f7dff52829a3fc64643819772729d9aa2c4acae5436bcc219d2b7cc71b9138",
+          "title": "原创实验｜周末露营清单 38",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.05555555555555555,
+      "first_token_ms": 3870,
+      "total_ms": 27295,
+      "prompt_tokens": 2214,
+      "completion_tokens": 234,
+      "degraded": false
+    },
+    {
+      "case_key": "cat_adoption_checklist",
+      "query": "养猫避坑指南",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮你搜索一下相关内容，看看是否有已发布的养猫指南供参考，同时为你整理一份实用的避坑指南。\n\n\n\n# 🐱 养猫避坑指南：从\"云吸猫\"到合格铲屎官\n\n\u003e 内容库里没有专门讲\"养猫避坑\"的文章，唯一相关的是《流浪猫救助喂养记录：幼猫到成猫》，侧重喂养节奏。下面这份避坑指南结合了通用养猫常识与新手最容易踩的坑，帮你少走弯路、少花钱。\n\n---\n\n## 一、领养/购猫前的5 个灵魂拷问\n\n别看视频里猫猫软萌就冲动下单，先问自己：\n\n| 问题 | 建议 |\n|------|------|\n| 1. 家人是否同意/对猫毛过敏？ | 提前做一次家庭会议，过敏是劝退项 |\n| 2. 租房/合租，房东允许吗？ | 押金被扣、合同违约是常见坑 |\n| 3. 月均预算 500+ 准备好了吗？ | 猫粮、疫苗、驱虫、绝育、看病都要钱 |\n| 4. 能陪它 10–15 年吗？ | 猫咪寿命长，弃养是最大的坑 |\n| 5. 是否能从正规渠道获取？ | 后院猫/星期猫是新手第一大坑（见下） |\n\n### 🚫 避坑点：拒绝\"后院猫\"与\"星期猫\"\n- **后院猫**：无序繁殖、没驱虫、母猫带病，容易出现先天疾病或性格缺陷。\n- **星期猫**：买回家一周就发病，治疗费远超购猫钱。\n- **建议**：领养代替购买（流浪猫救助、动物保护组织）或选能提供**健康证明、疫苗记录、遗传病保障**的正规猫舍。\n\n---\n\n## 二、入户必备物品清单（别被忽悠买一堆）\n\n商家最爱推\"豪华大礼包\"，其实新手只需这些：\n\n### ✅ 必买\n- **猫粮**（幼猫/成猫粮分开）+ **猫碗**（陶瓷或不锈钢，避开廉价塑料）\n- **猫砂盆**（封闭/开放都行，先买大号，猫会长）+ **猫砂**（豆腐砂、膨润土各有优劣，先小包装试）\n- **水碗/饮水机**（很多猫不爱喝静水，流动水更吸引）\n- **猫抓板**（必备，否则沙发遭殃）\n- **航空箱**（比猫包更耐用，应急就医刚需）\n\n### ⚠️ 慎买\n- **猫衣服**：多数猫讨厌穿，纯主人审美税。\n- **铃铛项圈**：长期挂在脖子上会影响听觉，且有卡钩风险。\n- **化毛膏**：营养膏等\"保健品\"大多智商税，主粮+猫草足够。\n- **去泪痕液/眼药水**：健康猫不需要，别把猫当试验田。\n\n---\n\n## 三、喂养三大误区\n\n### 误区 1：剩饭剩菜/自制粮 = 爱它\n- **真相**：人类食物盐油过高，长期吃会肾衰；纯肉也不等于营养均衡。\n- **建议**：选**正规品牌主粮**（看成分表前几位是肉），搭配偶尔主食罐/冻干。\n\n### 误区 2：多多益善，吃胖才可爱\n- **真相**：肥胖是猫咪健康第一杀手，会引发糖尿病、脂肪肝、关节问题。\n- **建议**：按体重喂食，每日总量分3–4 餐；用**食物秤**称量，别凭感觉\"倒一把\"。\n\n### 误区 3：牛奶一定要喝\n- **真相**：大多数猫**乳糖不耐**，喝了会拉稀。\n- **建议**：准备干净的饮用水即可；如果想喂奶，选**宠物专用羊奶粉**。\n\n---\n\n## 四、健康管理时间线（最容易忘的是绝育）\n\n| 时间 | 项目 | 备注 |\n|------|------|------|\n| 2 月龄起 | 体内外驱虫 | 每月一次，6 月龄后视情况拉长 |\n| 8 周龄起 | 首针猫三联 | 之后每 3–4 周一针，共 3 针 |\n| 3 月龄后 | 狂犬疫苗 | 一年一次 |\n| **6–8 月龄** | **绝育** | 早晚都要做，发情期前后最佳，能降低乳腺肿瘤、子宫蓄脓风险 |\n| 每年 | 体检 + 加强免疫 | 老年猫建议加查肾指标 |\n\n### 🚫 避坑点：\n- **驱虫 ≠ 疫苗**，两个都做才完整。\n- **别等发情才绝育**，母猫意外怀孕、生崽处理、子宫病变是大坑。\n- **公猫隐睾**要警惕，单侧隐睾需尽早手术（癌变风险高）。\n\n---\n\n## 五、行为与环境的隐藏坑\n\n1. **封窗封阳台**——猫没有\"恐高\"概念，每年都有坠楼悲剧。\n2. **收好橡皮筋、线头、塑料袋**——异食癖会要命。\n3. **百合花、绿萝、康乃馨对猫剧毒**——养花前先查宠物友好清单。\n4. **不要强行撸猫/惩罚式教育**——会让猫更焦虑甚至攻击。\n5. **多猫家庭慎入**——原住民应激、尿闭是常见问题，新猫必须**隔离至少 2 周**再慢慢介绍。\n6. **",
+      "attempts": 2,
+      "direct_answers": 1,
+      "tool_calls": 5,
+      "citations": [
+        {
+          "content_id": 1020,
+          "content_version": 1,
+          "chunk_key": "f5322dd23339144055d9d0f5f284b710a1bc15a405273b7989ea68e6e4021d00",
+          "title": "流浪猫救助喂养记录：幼猫到成猫",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1004,
+          "content_version": 1,
+          "chunk_key": "be1cc2b8dc25eede1fb1f5775d0e868263da46700ed863ccb9634ac3a8b43885",
+          "title": "高清导出设置指南",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1008,
+          "content_version": 1,
+          "chunk_key": "9c35bcde7a019651c8fcf01fde474f7f5b22992767127c2b449ef17108dee01e",
+          "title": "系统提示词大全",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1039,
+          "content_version": 1,
+          "chunk_key": "4821d208733267a2a33de7b9eea4e368cf2074a610390e8ff98ded439310bf47",
+          "title": "平板手绘入门：从图层到笔刷",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1002,
+          "content_version": 1,
+          "chunk_key": "5fd8884b125d3e809f2355ecd7afd06e3f7230cebf74c65c0e50cd7f6f025b71",
+          "title": "游戏模组安装入门",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.007722007722007722,
+      "first_token_ms": 1382,
+      "total_ms": 18866,
+      "prompt_tokens": 4841,
+      "completion_tokens": 1200,
+      "degraded": false
+    },
+    {
+      "case_key": "client_forged_context",
+      "query": "这个模组应该怎么使用",
+      "query_language": "zh",
+      "status": "no_evidence",
+      "answer_kind": "no_evidence",
+      "attempts": 2,
+      "direct_answers": 2,
+      "tool_calls": 0,
+      "evidence_chunks": 0,
+      "evidence_lookups": 0,
+      "groundedness": null,
+      "answer_relevance": null,
+      "first_token_ms": 3735,
+      "total_ms": 5769,
+      "prompt_tokens": 608,
+      "completion_tokens": 530,
+      "degraded": false
+    },
+    {
+      "case_key": "desk_workspace_renovation",
+      "query": "出租屋改造",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮您搜索关于出租屋改造的相关内容。\n\n为您找到以下与「出租屋改造 / 低成本房间改造」相关的内容，主题围绕改造构思、取舍与可复用的小技巧，方便对照参考：\n\n| # | 标题 | 类型 | 分区 |\n|---|---|---|---|\n| 1 | 原创实验｜低成本房间改造 103 | 模板 | 原创 |\n| 2 | 原创实验｜低成本房间改造 87 | 视频 | 原创 |\n| 3 | 原创实验｜低成本房间改造 39 | 音频 | 原创 |\n| 4 | 原创实验｜低成本房间改造 23 | 图片 | 原创 |\n| 5 | 原创实验｜低成本房间改造 07 | 乐谱 | 原创 |\n| 6 | 灵感衍生｜低成本房间改造 167 | 模组 | 灵感衍生 |\n| 7 | 灵感衍生｜低成本房间改造 151 | 音频 | 灵感衍生 |\n| 8 | 灵感衍生｜低成本房间改造 119 | 乐谱 | 灵感衍生 |\n\n\u003e 说明：以上均为**本地界面测试用的虚构样本**，内容与人物均为虚构，不依赖外部图片、OSS 或审核服务，主要用于验证列表卡片、搜索、标签与详情页排版。\n\n### 可能用得上的改造思路（基于样本共性提炼）\n\n1. **先做减法再谈加法**\n   - 搬走冗余家具，墙面、地面尽量留白，给\"低成本软装\"腾出视觉空间。\n2. **灯光先行，氛围翻倍**\n   - 一盏主灯 + 1–2 盏暖光辅灯（落地灯/夹子灯），比换家具更见效。\n3. **可拆卸、可带走**\n   - 优先选择无痕挂钩、自粘背胶、伸缩杆、免钉搁板——退租不留痕，押金更安全。\n4. **软装做主题色**\n   - 用床品、窗帘、地毯三件套统一色调，几十到几百元就能切换风格。\n5. **分区而非砌墙**\n   - 用屏风、书架、地毯划分客厅/卧室/工作区，灵活又低成本。\n\n如果想进一步看某一篇的具体内容（比如 id=104 的模板），告诉我编号，我再帮你调详情。",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 4,
+      "citations": [
+        {
+          "content_id": 104,
+          "content_version": 1,
+          "chunk_key": "97f41ad055bb0ff2ee8eb30b7af8fcdc7ac2c5638aa20281b9a527c2f8d1ffb5",
+          "title": "原创实验｜低成本房间改造 103",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 24,
+          "content_version": 1,
+          "chunk_key": "6f423e0dd0152da4c4eaad38a41391fb8d9d15099472d2c5314f5bd1cd565f37",
+          "title": "原创实验｜低成本房间改造 23",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 8,
+          "content_version": 1,
+          "chunk_key": "5ded4a482b71711043f3d1a701563fe246028f4a7b676a6d5a1f581aa832b434",
+          "title": "原创实验｜低成本房间改造 07",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 120,
+          "content_version": 1,
+          "chunk_key": "231d7b2ba99f94895ce59a497f23db002f8e2501de53aeae62f73b39c3956140",
+          "title": "灵感衍生｜低成本房间改造 119",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 88,
+          "content_version": 1,
+          "chunk_key": "e6053d3d74a235ca1297b6502591d6ef6cb22678d4c0ef02621caba5e10cd3b3",
+          "title": "原创实验｜低成本房间改造 87",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.016666666666666666,
+      "first_token_ms": 5884,
+      "total_ms": 22735,
+      "prompt_tokens": 4070,
+      "completion_tokens": 523,
+      "degraded": false
+    },
+    {
+      "case_key": "dumbbell_fullbody_plan",
+      "query": "哑铃全身训练",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮您搜索哑铃全身训练的相关内容。\n\n我帮您搜索一下相关内容。\n\n我在站内搜索了「哑铃全身训练」「哑铃训练计划」「家庭健身 哑铃动作」等关键词，目前库里没有一篇完整的「哑铃全身训练计划」文章，只有一些零散的、与单一部位相关的健身内容。我先把找到的相关条目列给你，避免你按错误的方向去找：\n\n**站内仅有的一条相关健身内容：**\n- 📄 [反向飞鸟动作细节：肩袖稳定的关键](content://1015)（文章）—— 只讲肩部一个动作（俯身角度、肘部轨迹、配重选择），并不是全身训练方案。\n\n**站内其他热门文章（与健身无关，仅供参考）：**\n- 反向飞鸟、郁金香拉花、天文观测、洞洞板收纳、流浪猫救助、系统提示词大全、视频剪辑技巧等。\n\n---\n\n### 给你一个可直接用的「哑铃全身训练」参考框架\n\n既然库里没有现成的全身计划，下面是一套通用、对新手友好的哑铃全身训练模板，你可以直接拿来练：\n\n**动作分组（每周 3 次，隔天练）**\n\n| 部位 | 动作 | 组数 × 次数 | 休息 |\n|---|---|---|---|\n| 腿 + 臀 | 高脚杯深蹲 | 3 × 12 | 60s |\n| 腿 + 臀 | 弓步蹲（左右各算一次）| 3 × 10/侧 | 60s |\n| 胸 | 哑铃卧推（平躺）| 3 × 10–12 | 60–90s |\n| 背 | 单臂哑铃划船 | 3 × 10/侧 | 60s |\n| 肩 | 哑铃推举（坐姿或站姿）| 3 × 10–12 | 60s |\n| 肩后束 | 反向飞鸟（站内那篇讲的就是这个）| 3 × 12–15 | 45s |\n| 手臂 | 哑铃弯举 + 颈后臂屈伸（超级组）| 3 × 12 + 12 | 60s |\n| 核心 | 哑铃俄罗斯转体 + 平板支撑 | 3 × 20 + 30s | 45s |\n\n**节奏建议**\n- 每次动作下放 2 秒、发力 1 秒（离心慢、向心快），比单纯追求重量更安全也更增肌。\n- 选哑铃重量的标准：完成最后一组时「还能再做 2 次左右、但做不了第 3 次」。如果能轻松做完所有组，就加重2–4 kg。\n- 训练前动态热身 5 分钟（开合跳、高抬腿、肩部绕环），训练后静态拉伸每个大肌群 30 秒。\n\n**四周进阶思路**\n1. 第 1–2 周：先把动作做标准，重量宁轻勿重。\n2. 第 3 周：每组加 1–2 次，或换稍重的哑铃。\n3. 第 4 周：在最后一组把次数做到力竭（肌肉没法再完成一次标准动作）。\n\n---\n\n如果你希望我把上面的计划整理成一篇「可发布」的图文稿件（带动作要领、常见错误、配重建议），用 [suggest_publish_metadata]() 拉到发布表单，然后我可以帮你继续打磨内容。要走这一步的话告诉我就行。",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1015,
+          "content_version": 1,
+          "chunk_key": "ccca1d629bf67bd454a0d2b4f41552ceb19f7bc0ab182a5815cc8db75acebbab",
+          "title": "反向飞鸟动作细节：肩袖稳定的关键",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1014,
+          "content_version": 1,
+          "chunk_key": "4236075d9aa03ef4ca1c471939f003819eb53520b59024464762ffaddc8370f4",
+          "title": "郁金香拉花手法拆解：从基础到进阶",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1008,
+          "content_version": 1,
+          "chunk_key": "9c35bcde7a019651c8fcf01fde474f7f5b22992767127c2b449ef17108dee01e",
+          "title": "系统提示词大全",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1003,
+          "content_version": 1,
+          "chunk_key": "e0e5a5efbb5ec26f1644b4ac1e179b9d41488792801972834a15ec20ab3aa169",
+          "title": "视频剪辑技巧大全",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 102,
+          "content_version": 1,
+          "chunk_key": "0f07dce6f8f58dabf42a9e286939dbe93471be2f5f20c75be2fc075e7f70515d",
+          "title": "原创实验｜新手也能完成的配色练习 101",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.011235955056179775,
+      "first_token_ms": 2278,
+      "total_ms": 10841,
+      "prompt_tokens": 5249,
+      "completion_tokens": 939,
+      "degraded": false
+    },
+    {
+      "case_key": "elden_ring_boss",
+      "query": "艾尔登法环 Boss",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来为你搜索关于《艾尔登法环》Boss的相关内容。\n\n\n\n当前内容库里没有直接关于「艾尔登法环 Boss」的可检索条目（搜索返回的是模组使用、拉花、藜麦备餐等无关内容）。不过基于通用知识，我可以为你整理一份《艾尔登法环》主要 Boss 的概览。\n\n# 《艾尔登法环》主要 Boss 总览\n\n## 🏆 主要剧情 Boss（主线）\n\n| 顺序 | Boss | 位置 |\n|---|---|---|\n| 1 | **恶兆妖鬼 玛尔基特** | 史东薇尔城 |\n| 2 | **接肢 葛瑞克** | 史东薇尔城（王座） |\n| 3 | **满月女王 蕾娜菈** | 魔法学院雷亚卢卡利亚 |\n| 4 | **拉达冈的红狼** | 禁域 |\n| 5 | **恶兆王 蒙格特** | 王城罗德尔 |\n| 6 | **初始之王 葛孚雷** | 王城罗德尔（黄金树前） |\n| 7 | **黑剑 玛利凯斯** | 黄金树内部 |\n| 8 | **艾尔登之兽** | 黄金树内部（结局 Boss） |\n\n## ⭐ 高人气高难度 Boss（可选/支线）\n\n- **玛莲妮亚，米凯拉之刃**（腐败女神）—— 圣树，分上肢腐败、腐败花二阶段，被誉为全作最难\n- **拉塔恩将军**（碎星）—— 盖利德，巨型重力魔法 Boss，可召唤 NPC\n- **龙王 普拉顿桑克斯**—— 天空之城\n- **黑暗弃子 艾丝缇**—— 法姆·亚兹拉\n- **死龙 弗尔桑克斯**—— 灰烬王城底\n- **神皮双人组 / 神皮使徒**—— 法姆·亚兹拉\n\n## 🎯 DLC《黄金树幽影》新增 Boss（2024）\n\n- **穿刺者 梅瑟威**\n- **梅瑟威的火焰骑士**\n- **蕾妲娜（黑骑士）**\n- **老将 亚伦**\n- **最终 Boss 拉德加 / 米凯拉**（剧情结局之一）\n\n## 💡 通关小提示\n\n- **练级地**：盖利德、啜泣半岛、王城外围\n- **强力骨灰**：仿身泪滴（召唤玩家分身）、黑刀狄亚罗斯、腐败野狗\n- **逃课打法**：毒/睡眠/出血流派 + 骨灰拉仇恨；或骑马躲技能\n- **玛莲妮亚对策**：血质变（切腹/尸山血海）+ 防腐败护符，或纯魔法压制\n\n---\n\n如果你想深入了解某个 Boss 的具体打法、build 推荐或剧情背景，告诉我名字，我可以展开讲讲。",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 6,
+      "citations": [
+        {
+          "content_id": 1010,
+          "content_version": 1,
+          "chunk_key": "d2c33b62eec0a38f22648e123e1405d964be54c5af4e8cfbab039f164b04d009",
+          "title": "模组使用说明",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1014,
+          "content_version": 1,
+          "chunk_key": "4236075d9aa03ef4ca1c471939f003819eb53520b59024464762ffaddc8370f4",
+          "title": "郁金香拉花手法拆解：从基础到进阶",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1016,
+          "content_version": 1,
+          "chunk_key": "43d01c0c7dc3f55ef86a9141c2342c30ff055b83133b0a2a3ab07c5ef0067d5e",
+          "title": "藜麦一周备餐：藜麦饭与沙拉基底",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 166,
+          "content_version": 1,
+          "chunk_key": "14c4432c00fb6e91d12758d763a7d146715e9fb7b562368a2587c2a3f04fe95d",
+          "title": "灵感衍生｜新手也能完成的配色练习 165",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 134,
+          "content_version": 1,
+          "chunk_key": "53fcb6c4f6110381d895e636e2103fb392e9d6ebb0b5fbcf92cebd3a183f332f",
+          "title": "灵感衍生｜新手也能完成的配色练习 133",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.02857142857142857,
+      "first_token_ms": 8259,
+      "total_ms": 25135,
+      "prompt_tokens": 3300,
+      "completion_tokens": 699,
+      "degraded": false
+    },
+    {
+      "case_key": "en_cat_checklist",
+      "query": "cat care checklist",
+      "query_language": "en",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "I'll search the platform for any existing cat care checklist content that might be useful to you.\n\n\n\n# 🐱 Cat Care Checklist\n\nHere's a comprehensive checklist for cat care — useful both before adoption and as an ongoing reference.\n\n## 🏠 Before Bringing a Cat Home\n- [ ] **Litter box** (one per cat, plus an extra)\n- [ ] **Litter** (clumping or non-clumping, unscented preferred)\n- [ ] **Food \u0026 water bowls** (stainless steel or ceramic)\n- [ ] **Quality cat food** (kitten, adult, or senior formula)\n- [ ] **Scratching post** (vertical and/or horizontal)\n- [ ] **Cat bed / cozy resting spot**\n- [ ] **Toys** (wand toys, balls, puzzle feeders)\n- [ ] **Carrier** (for vet visits and travel)\n- [ ] **Brush / grooming tools**\n- [ ] **Window screens** secured (if you open windows)\n\n## 💉 Health \u0026 Veterinary Care\n- [ ] **Initial vet visit** (within first week of adoption)\n- [ ] **Vaccinations** (FVRCP, rabies, FeLV as recommended)\n- [ ] **Spay / neuter** (typically 4–6 months of age)\n- [ ] **Flea, tick, and parasite prevention**\n- [ ] **Microchip + ID tag**\n- [ ] **Annual wellness exams**\n- [ ] **Dental care** (tooth brushing or dental treats)\n\n## 🍽️ Daily Essentials\n- [ ] Fresh water available at all times\n- [ ] Measured meals (to prevent overeating)\n- [ ] Clean litter box (scoop daily)\n- [ ] Play / enrichment time (15–30 min, twice daily)\n- [ ] Observation for changes in appetite, behavior, or litter habits\n\n## 🧠 Enrichment \u0026 Environment\n- [ ] **Vertical space** (cat tree, shelves)\n- [ ] **Window perch** for bird/sun watching\n- [ ] **Hiding spots** (cats feel safe with options to retreat)\n- [ ] **Rotating toys** to keep interest\n- [ ] **Calming aids** (Feliway diffuser) during stress events\n\n## ⚠️ Safety Checklist\n- [ ] Remove toxic plants (lilies, pothos, philodendron, etc.)\n- [ ] Secure loose cords and small objects\n- [ ] Keep human medications, chocolate, onions, and grapes out of reach\n- [ ] Check for open toilet lids, dryers before closing\n- [ ] Window screen reinforcement for upper floors\n\n---\n\nI found one viewer-visible article on this topic (\"Cat Care Checklist Before Adoption: 10 Essentials\") but its detail summary was brief. Would you like me to:\n1. **Search for more specific topics** (e.g., kitten care, senior cat care, grooming, nutrition), or\n2. **Help with something particular** like a checklist for a new kitten, a multi-cat household, or a cat with special needs?",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 2,
+      "citations": [
+        {
+          "content_id": 1027,
+          "content_version": 1,
+          "chunk_key": "6190a7fd36dd815dd2f75a893c894a50b54aaa79780751713c25eeac942ab2e0",
+          "title": "Cat Care Checklist Before Adoption: 10 Essentials",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 1,
+      "evidence_lookups": 1,
+      "groundedness": 0.020833333333333332,
+      "answer_relevance": 0.018461538461538463,
+      "first_token_ms": 1970,
+      "total_ms": 10682,
+      "prompt_tokens": 874,
+      "completion_tokens": 715,
+      "degraded": false
+    },
+    {
+      "case_key": "en_cyberpunk_shots",
+      "query": "cyberpunk night city screenshots",
+      "query_language": "en",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "I searched the available content, but unfortunately I didn't find any cyberpunk night city screenshots in the indexed material. The only result that came back was an unrelated article (\"Morning Run Journal: 5K Along the Coast\").\n\nA few possibilities:\n- Such images may exist but aren't tagged/described with terms like \"cyberpunk\" or \"night city\" in a way the search can match.\n- They may not have been published to a viewer-visible zone yet.\n- They might be stored as binary assets that aren't full-text searchable.\n\nIf you can share more detail — for example:\n- the artist's name or studio,\n- the game, film, or project they relate to (e.g., *Cyberpunk 2077*, *Blade Runner*, a specific mod),\n- any tag, category, or uploader you remember,\n\n…I can try a more targeted search. Otherwise, let me know how you'd like to proceed — e.g., try other queries like \"neon city,\" \"sci-fi skyline,\" or \"dystopian urban photography\"?",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 1,
+      "citations": [
+        {
+          "content_id": 1036,
+          "content_version": 1,
+          "chunk_key": "1e91d854f8c9e570b9f877bab1c2b988903f2cec5d05f36a5b9219c71fe1f3e8",
+          "title": "Morning Run Journal: 5K Along the Coast",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 1,
+      "evidence_lookups": 1,
+      "groundedness": 0.125,
+      "answer_relevance": 0.04938271604938271,
+      "first_token_ms": 1710,
+      "total_ms": 7518,
+      "prompt_tokens": 794,
+      "completion_tokens": 249,
+      "degraded": false
+    },
+    {
+      "case_key": "en_dumbbell_plan",
+      "query": "dumbbell workout plan",
+      "query_language": "en",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "I found a relevant article. Let me get the details for you.\n\nHere's a beginner-friendly dumbbell workout plan from the content library that matches what you're looking for:\n\n## 🏋️ Dumbbell Full-Body Workout: 20-Minute Beginner Plan\n\n**Best for:** Beginners starting resistance training, anyone needing a quick equipment-light workout, or folks with just one set of dumbbells.\n\n### Before You Start\n- Pick **light-to-moderate dumbbells** (≈5–10 lbs to start)\n- Warm up **3–5 minutes** (arm circles, bodyweight squats)\n- Clear a small workout space\n\n### The Routine- Perform each exercise in the order presented\n- Hit the **listed rep scheme** for each movement\n- Honor the **rest guidance** between sets to keep form solid\n- Track reps to monitor progress\n\n### After- Cool down with **2–3 minutes** of light stretching\n- Hydrate and log the session\n- Note any movements where form felt shaky\n\n### Best Practices\n- **Form over weight** — drop load if technique breaks down\n- **Full range of motion** on every rep\n- **Breathe consistently** — exhale on exertion, inhale on the eccentric\n- Run it **2–3× per week** with at least one rest day between sessions\n- **Progress gradually** — add reps before adding weight\n\n### Quick Adjustments\n| Situation | What to Do |\n|-----------|-----------|\n| No dumbbells | Substitute water jugs or backpacks |\n| Less than 20 min | Cut rest periods in half |\n| Too hard | Reduce reps, focus on technique |\n| Too easy | Bump weight in 2–5 lb jumps |\n\n### Safety\n- Stop at any sharp or joint pain\n- Check with a physician first if you have injuries or conditions\n- Keep dumbbells controlled — no slamming or dropping\n\n---\n\n📄 **Source:** *Dumbbell Full-Body Workout: 20-Minute Beginner Plan* (content #1026)\n\n\u003e **Note:** The detailed exercise list with specific movements and rep counts lives in the full article. If you'd like, I can also pull up a **shoulder-focused dumbbell + machine routine** (content #1037), or help you turn this into a weekly schedule. Just let me know!",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1026,
+          "content_version": 1,
+          "chunk_key": "2a66d7ca4a06898bfa7519d00ff640e784f2c0430b05fe196cafe9921737727c",
+          "title": "Dumbbell Full-Body Workout: 20-Minute Beginner Plan",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1037,
+          "content_version": 1,
+          "chunk_key": "36deb1d00368ca9e6ce893add5e5443de61072d4cd526540d9bd2dc27bd1c610",
+          "title": "Shoulder Workout: Machines and Free Weights",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 2,
+      "evidence_lookups": 2,
+      "groundedness": 0,
+      "answer_relevance": 0.019169329073482427,
+      "first_token_ms": 3160,
+      "total_ms": 13515,
+      "prompt_tokens": 1484,
+      "completion_tokens": 1056,
+      "degraded": false
+    },
+    {
+      "case_key": "en_elden_ring",
+      "query": "elden ring boss guide",
+      "query_language": "en",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "I'll search for Elden Ring boss guide content in the published library.\n\n\n\nI searched the available content library for an Elden Ring boss guide, but the corpus doesn't contain viewer-visible material on that topic — the only result that surfaced was an unrelated meal-prep article.\n\nA couple of options for how I can help:\n\n1. **General strategy tips from my own knowledge.** I can write up a general boss-fight framework for Elden Ring (summon usage, spirit ashes, posture/poise, when to level Vigor, DLC tuning, etc.), or dive deep on a specific boss if you tell me which one (e.g., Malenia, Radagon \u0026 Elden Beast, Mohg, Promised Consort Radahn, etc.).\n2. **Refine the search.** If you were looking for a specific already-published guide in this site's library (not Elden Ring in general), let me know the boss name or a related term and I'll try again.\n3. **Help with something adjacent**, like build crafting, weapon recommendations per boss, or a checklist of boss order for a low-level run.\n\nWhich would you like? If you want general tips, just confirm and I'll write them out.",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 6,
+      "citations": [
+        {
+          "content_id": 1029,
+          "content_version": 1,
+          "chunk_key": "06e9caf7472ce6b8cd0fb44afb7827f23010a8b45fefbd9df1a35528eae90ad2",
+          "title": "Meal Prep Guide: 5 Days of Healthy Lunchboxes",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 1,
+      "evidence_lookups": 1,
+      "groundedness": 0,
+      "answer_relevance": 0.04060913705583756,
+      "first_token_ms": 2372,
+      "total_ms": 12075,
+      "prompt_tokens": 1089,
+      "completion_tokens": 399,
+      "degraded": false
+    },
+    {
+      "case_key": "en_home_office",
+      "query": "home office setup",
+      "query_language": "en",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "I found a relevant article. Let me get the details for you.\n\nI found a relevant article for you: **\"Home Office Setup: 12㎡ Desk Workspace\"** — covering desk riser, shelving, and cable management for a small home office corner that feels like a studio.\n\nWant me to pull it up in full, or help with something more specific? For example:\n\n- **Ergonomics** — desk/chair height, monitor eye level\n- **Lighting** — bias lighting, task lamps, reducing screen glare\n- **Cable management** — under-desk trays, raceways, wireless gear\n- **Small-space layouts** — corner setups, vertical storage, dual-monitor\n- **Acoustics** — dampening echo in a compact room\n- **Aesthetic/mood** — studio-style backdrop, plants, wall-mounted pegboard\n\nLet me know which angle you want to dig into, or if you'd like the full article pulled up.",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 2,
+      "citations": [
+        {
+          "content_id": 1030,
+          "content_version": 1,
+          "chunk_key": "52d9bd0bc19f26858ac3ddc55834986c159bd72c6989aa995b95a83df882aee7",
+          "title": "Home Office Setup: 12㎡ Desk Workspace",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1027,
+          "content_version": 1,
+          "chunk_key": "6190a7fd36dd815dd2f75a893c894a50b54aaa79780751713c25eeac942ab2e0",
+          "title": "Cat Care Checklist Before Adoption: 10 Essentials",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1028,
+          "content_version": 1,
+          "chunk_key": "6cecbb979c1c4bf7de8a95f6a17864cb2d5387622859053736274bd17a98f535",
+          "title": "Running Route: 5K from Home to Art Museum",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 3,
+      "evidence_lookups": 3,
+      "groundedness": 0,
+      "answer_relevance": 0.046153846153846156,
+      "first_token_ms": 2244,
+      "total_ms": 12791,
+      "prompt_tokens": 1103,
+      "completion_tokens": 256,
+      "degraded": false
+    },
+    {
+      "case_key": "en_indie_prototype",
+      "query": "indie game prototyping weekend",
+      "query_language": "en",
+      "status": "no_evidence",
+      "answer_kind": "no_evidence",
+      "attempts": 2,
+      "direct_answers": 2,
+      "tool_calls": 10,
+      "evidence_chunks": 0,
+      "evidence_lookups": 0,
+      "groundedness": null,
+      "answer_relevance": null,
+      "first_token_ms": 616,
+      "total_ms": 8300,
+      "prompt_tokens": 997,
+      "completion_tokens": 116,
+      "degraded": false
+    },
+    {
+      "case_key": "en_kitten_diary",
+      "query": "kitten rescue diary",
+      "query_language": "en",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "I'd be happy to help with \"kitten rescue diary\" content! Let me search for any existing related content first, and I can also suggest metadata if you're looking to publish something.\n\n\n\nI found a relevant article in the content library. Here's a summary of what's available:\n\n## 📓 Kitten Rescue Diary: Day 30\n\n**What's covered:**\n- **Weight milestones** — benchmarks to compare your rescued kitten's growth at the one-month mark\n- **Feeding schedule** — a baseline routine with notes on adjusting portions for breed and activity level\n- **Socialisation notes** — guidance on introducing people, sounds, and gentle handling during this critical window\n\n**How to use it:**\n1. **Weigh your kitten** at the same time daily (ideally before feeding) and flag any deviation over 10% for vet advice\n2. **Log feeding times/quantities** to spot appetite changes, and transition foods gradually\n3. **Run short socialisation sessions** (5–10 minutes) and record reactions to track progress\n\n**Best practices:**\n- Pair the article with a daily journal for accuracy\n- Cross-check milestones with your vet (they're guidelines, not absolutes)\n- Share the routine with anyone else caring for the kitten\n- Re-read relevant sections weekly as your kitten develops\n\n**Quick tips:**\n- ⚖️ Always weigh before meals for consistency\n- 🐾 Keep socialisation sessions brief and positive\n- 📸 Photograph progress for easy comparisonWould you like me to look up additional diary entries (e.g., earlier days, or look for related content like fostering guides or vet checklists)?",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 4,
+      "citations": [
+        {
+          "content_id": 1038,
+          "content_version": 1,
+          "chunk_key": "fab996b3e8fd62a8ba7f4ebfbf4403ccbea0f3ceb1134758230acd1e6e79695a",
+          "title": "Kitten Rescue Diary: Day 30",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 1,
+      "evidence_lookups": 1,
+      "groundedness": 0.041666666666666664,
+      "answer_relevance": 0.024896265560165973,
+      "first_token_ms": 586,
+      "total_ms": 10492,
+      "prompt_tokens": 1461,
+      "completion_tokens": 341,
+      "degraded": false
+    },
+    {
+      "case_key": "en_latte_basics",
+      "query": "milk froth latte art",
+      "query_language": "en",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "search didn't return relevant results for milk froth latte art content. Let me try a more specific search.\n\nI searched the available published content for information on milk frothing and latte art, but unfortunately there's no relevant material in the current content library. The closest results that came back were articles about running routes, a running journal, and a cat care checklist — none related to coffee preparation.\n\nHere's a brief general guide based on common knowledge, though it's not sourced from the content library:\n\n**Steaming Milk for Latte Art**\n1. **Start cold** — Use cold whole milk (fat content ~3.5% gives the best texture and sweetness).\n2. **Purge the steam wand** before and after each use.\n3. **Position the pitcher** — Tip the pitcher slightly, place the wand tip just below the milk surface.\n4. **Stretch phase** — Open the steam valve fully to introduce air; you want a gentle hissing/paper-tearing sound. Stop when the milk has expanded to roughly its target volume (about 20–25% increase).\n5. **Spin phase** — Lower the pitcher so the wand is deeper; close the valve to a quieter hiss. The milk should spin in a whirlpool, creating a glossy, paint-like microfoam with no visible bubbles.\n6. **Target temperature** — Stop at around 140–150°F (60–65°C). It should feel too hot to hold.\n\n**Pouring Basics**\n- **Espresso base** — A freshly pulled shot with a thick crema layer (ideal).\n- **Heart** — Start high to break the crema, then drop low and pull through the center with a final flick upward.\n- **Rosetta** — Start high, drop low, then gently rock the pitcher side to side while pulling back through the pattern.\n\n**Common pitfalls:** burnt-tasting milk (too hot), large bubbles (not enough spin or using old milk), pattern disappears (poured too high, or crema too thin).\n\nIf you have a specific question — like troubleshooting a particular pattern, equipment recommendations, or plant-milk alternatives — let me know and I'll help further.",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 6,
+      "citations": [
+        {
+          "content_id": 1028,
+          "content_version": 1,
+          "chunk_key": "6cecbb979c1c4bf7de8a95f6a17864cb2d5387622859053736274bd17a98f535",
+          "title": "Running Route: 5K from Home to Art Museum",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1036,
+          "content_version": 1,
+          "chunk_key": "1e91d854f8c9e570b9f877bab1c2b988903f2cec5d05f36a5b9219c71fe1f3e8",
+          "title": "Morning Run Journal: 5K Along the Coast",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1027,
+          "content_version": 1,
+          "chunk_key": "6190a7fd36dd815dd2f75a893c894a50b54aaa79780751713c25eeac942ab2e0",
+          "title": "Cat Care Checklist Before Adoption: 10 Essentials",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 3,
+      "evidence_lookups": 3,
+      "groundedness": 0,
+      "answer_relevance": 0.024096385542168676,
+      "first_token_ms": 6150,
+      "total_ms": 23015,
+      "prompt_tokens": 1511,
+      "completion_tokens": 519,
+      "degraded": false
+    },
+    {
+      "case_key": "en_meal_prep",
+      "query": "meal prep guide",
+      "query_language": "en",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "I'll search the available content for meal prep guides and check the usage guide to give you the best response.\n\n# Meal Prep Guide: 5 Days of Healthy Lunchboxes\n\n**Batch-cook quinoa bases and proteins so five workday lunches stay healthy and fast.**\n\n---\n\n## Why This Guide Works\n\nMeal prep succeeds when you build around a **staple + protein + vegetables + sauce** formula. By cooking a versatile grain (quinoa) and 2–3 proteins in bulk, you can mix and match across the week without boring repeats or excessive cooking time each day.\n\n---\n\n## The Foundation (Sunday Prep — ~90 minutes)\n\n### Quinoa Base (makes 5 portions)\n- **Ingredients:** 2½ cups quinoa, 5 cups water or broth, pinch of salt\n- **Method:** Rinse quinoa, combine with liquid, bring to a boil, reduce to low, cover, simmer 15 minutes. Fluff and let cool.\n- **Storage:** Airtight container in the fridge (lasts 5 days).\n\n### Proteins (pick 2–3)\n| Protein | Batch Method | Yield | Fridge Life |\n|---|---|---|---|\n| Grilled chicken breast | Season, grill 6 min/side, slice | 5 portions | 4 days |\n| Baked tofu | Cube, toss in soy+sriracha, bake 25 min @ 400°F | 5 portions | 5 days |\n| Hard-boiled eggs | Boil 10 min, ice bath, peel | 10 eggs | 5 days |\n| Chickpeas | Drain, rinse, season with cumin+paprika | 5 portions | 5 days |\n\n### Roasted Vegetables (pick 3)\n- **Sweet potato cubes** — 25 min @ 425°F\n- **Broccoli florets** — 20 min @ 425°F\n- **Bell peppers** — 20 min @ 425°F\n- **Brussels sprouts, halved** — 25 min @ 425°F\n\nToss each in olive oil, salt, and pepper before roasting. Store separately so they keep texture.\n\n---\n\n## The 5-Day Mix-and-Match Plan\n\n| Day | Base | Protein | Veggies | Sauce/Topper |\n|---|---|---|---|---|\n| **Mon** | Quinoa | Grilled chicken | Sweet potato + broccoli | Lemon-tahini drizzle |\n| **Tue** | Quinoa | Chickpeas | Bell peppers + spinach | Greek yogurt + lime |\n| **Wed** | Quinoa | Baked tofu | Brussels sprouts | Sriracha-mayo |\n| **Thu** | Quinoa | Hard-boiled eggs (2) | Sweet potato + arugula | Dijon vinaigrette |\n| **Fri** | Quinoa | Grilled chicken | Broccoli + peppers | Peanut sauce |\n\n**Assembly rule:** Keep dressing/sauce in a small separate container until lunchtime to prevent sogginess. Pack leafy greens on top so they don't wilt under warm ingredients.\n\n---\n\n## Pro Tips\n\n1. **Cool before sealing.** Warm food in closed containers breeds bacteria and sogginess.\n2. **Invest in 5 leak-proof containers** of similar size — they stack and portion automatically.\n3. **Citrus + acid brightens leftovers.** A squeeze of lemon or splash of vinegar revives day-3 quinoa.\n4. **Rotate textures.** Combine a crunchy element (seeds, nuts, raw veg) with softer roasted items.\n5. **Freezer backup.** Portions you won't eat by day 4 can be frozen flat in bags and thawed overnight.\n\n---\n\n## Quick Shopping List (serves 5 lunches)\n\n- 2½ cups quinoa\n- 1.5 lb chicken breast **or** 2 blocks firm tofu\n- 2 cans chickpeas\n- 1 dozen eggs\n- 3–4 vegetables from the roasted list above\n- Olive oil, salt, pepper, lemons, tahini, Greek yogurt, sriracha, Dijon, peanut butter\n- Greens (spinach/arugula) for assembly day\n\n---\n\n**Time invested:** ~90 minutes Sunday\n**Time saved:** ~30 minutes/day × 5 = **2.5 hours per week**\n\nThat's the whole system — cook once, eat well all week. 🥗",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1029,
+          "content_version": 1,
+          "chunk_key": "06e9caf7472ce6b8cd0fb44afb7827f23010a8b45fefbd9df1a35528eae90ad2",
+          "title": "Meal Prep Guide: 5 Days of Healthy Lunchboxes",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 1,
+      "evidence_lookups": 1,
+      "groundedness": 0,
+      "answer_relevance": 0.011976047904191617,
+      "first_token_ms": 818,
+      "total_ms": 9035,
+      "prompt_tokens": 913,
+      "completion_tokens": 850,
+      "degraded": false
+    },
+    {
+      "case_key": "en_morning_run",
+      "query": "morning run 5k",
+      "query_language": "en",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "I'll search for content related to morning 5k runs for you.\n\nI found a couple of relevant items in your library about 5K morning runs. Let me pull the details on both so you can see what's there.\n\nI found a couple of articles that match your interest in a morning 5K run:\n\n**1. Morning Run Journal: 5K Along the Coast** (id: 1036)\nA 5K morning run journal covering pace, heart rate, and the quiet streets before the city wakes up.\n\n**2. Running Route: 5K from Home to Art Museum** (id: 1028)\nA 5 kilometer coastal running route with pacing notes and hydration stops along the way.\n\nWould you like me to pull the full content for either of these? Or were you looking for something specific — like training tips, a route, gear recommendations, or a publish-ready draft of your own 5K morning run journal? Let me know how I can help.",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1036,
+          "content_version": 1,
+          "chunk_key": "1e91d854f8c9e570b9f877bab1c2b988903f2cec5d05f36a5b9219c71fe1f3e8",
+          "title": "Morning Run Journal: 5K Along the Coast",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1028,
+          "content_version": 1,
+          "chunk_key": "6cecbb979c1c4bf7de8a95f6a17864cb2d5387622859053736274bd17a98f535",
+          "title": "Running Route: 5K from Home to Art Museum",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 2,
+      "evidence_lookups": 2,
+      "groundedness": 0.09090909090909091,
+      "answer_relevance": 0.0379746835443038,
+      "first_token_ms": 1592,
+      "total_ms": 11676,
+      "prompt_tokens": 1098,
+      "completion_tokens": 191,
+      "degraded": false
+    },
+    {
+      "case_key": "en_run_route",
+      "query": "running route 5k",
+      "query_language": "en",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "I'll help you find content about 5K running routes. Let me search for relevant information.\n\nI found a few relevant items. Let me pull the details on the most direct match.\n\nI found a couple of relevant pieces of content for you:\n\n1. **Running Route: 5K from Home to Art Museum** (id: 1028) — A 5 kilometer coastal running route with pacing notes and hydration stops along the way.\n\n2. **Morning Run Journal: 5K Along the Coast** (id: 1036) — A 5K morning run journal covering pace, heart rate, and the quiet streets before the city wakes up.\n\nWould you like me to pull the full details on either of these, or were you looking for something more specific — like tips for planning your own 5K route, training advice, or something else?",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 4,
+      "citations": [
+        {
+          "content_id": 1036,
+          "content_version": 1,
+          "chunk_key": "1e91d854f8c9e570b9f877bab1c2b988903f2cec5d05f36a5b9219c71fe1f3e8",
+          "title": "Morning Run Journal: 5K Along the Coast",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1028,
+          "content_version": 1,
+          "chunk_key": "6cecbb979c1c4bf7de8a95f6a17864cb2d5387622859053736274bd17a98f535",
+          "title": "Running Route: 5K from Home to Art Museum",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1029,
+          "content_version": 1,
+          "chunk_key": "06e9caf7472ce6b8cd0fb44afb7827f23010a8b45fefbd9df1a35528eae90ad2",
+          "title": "Meal Prep Guide: 5 Days of Healthy Lunchboxes",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 3,
+      "evidence_lookups": 3,
+      "groundedness": 0,
+      "answer_relevance": 0.04477611940298507,
+      "first_token_ms": 1409,
+      "total_ms": 10399,
+      "prompt_tokens": 1349,
+      "completion_tokens": 206,
+      "degraded": false
+    },
+    {
+      "case_key": "en_shoulder_workout",
+      "query": "shoulder workout machines",
+      "query_language": "en",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "Here's a focused guide on **shoulder workout machines**, based on our article *Shoulder Workout: Machines and Free Weights*.\n\n## Key Machine for Shoulders: The Seated Shoulder Press\n\nThe standout machine move for shoulders is the **seated shoulder press**. Here's why it's so effective:\n\n- **Targets the full deltoid** — front, middle, and rear heads all work together.\n- **Reduces core demand** — the backrest stabilizes your torso so your shoulders do the work.\n- **Safer for solo training** — easier to bail out of than a standing overhead press.\n\n### How to Set It Up \u0026 Use It\n1. **Adjust the seat** so the handles align with **mid-chest** — this protects your shoulders.\n2. **Set the backrest upright** (slight recline is fine) and brace your back firmly.\n3. **Start lighter than you think** — machine presses feel easier than they are.\n4. **Press with control** — use a **2-second eccentric (lowering) phase**.\n5. **Stop if you feel pinching** — keep the movement in a pain-free range.\n\n## Suggested Programming| Exercise | Equipment | Sets × Reps | Focus |\n|----------|-----------|-------------|-------|\n| Seated Shoulder Press | Machine | 3 × 10 | Overall deltoid strength |\n| Lateral Raise | Dumbbells | 3 × 10 | Middle deltoid (width) |\n| Reverse Fly | Dumbbells | 3 × 10 | Rear deltoid (posture) |\n\n- **Rest:** 60–90 seconds between sets.\n- **Frequency:** 1–2× per week, with48+ hours between shoulder sessions.\n\n## Other Common Shoulder Machines to Look For at the Gym\n- **Smith Machine Overhead Press** — guided bar path, good for pressing without a spotter.\n- **Cable Lateral Raise** — constant tension on the middle deltoid.\n- **Pec Deck / Reverse Pec Deck** — great for rear deltoids and posture.\n- **Smith Machine or Machine Upright Row** — targets traps and middle delts (use lighter weight to protect the shoulders).\n\n## Pro Tips\n- **Pair machine presses with dumbbell isolation work** to get the best of both worlds: stability *and* stabilizer activation.\n- **Warm up first** — 5–10 minutes of dynamic shoulder mobility and light cardio.\n- **Re-rack and reset the seat** when you're done so the next person starts from neutral.\n\nWould you like a machine-only version of this workout (no dumbbells), or a push-day routine that includes shoulders along with chest and triceps?",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1037,
+          "content_version": 1,
+          "chunk_key": "36deb1d00368ca9e6ce893add5e5443de61072d4cd526540d9bd2dc27bd1c610",
+          "title": "Shoulder Workout: Machines and Free Weights",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1026,
+          "content_version": 1,
+          "chunk_key": "2a66d7ca4a06898bfa7519d00ff640e784f2c0430b05fe196cafe9921737727c",
+          "title": "Dumbbell Full-Body Workout: 20-Minute Beginner Plan",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 2,
+      "evidence_lookups": 2,
+      "groundedness": 0,
+      "answer_relevance": 0.017341040462427744,
+      "first_token_ms": 1086,
+      "total_ms": 14881,
+      "prompt_tokens": 1429,
+      "completion_tokens": 633,
+      "degraded": false
+    },
+    {
+      "case_key": "en_witcher_art",
+      "query": "ciri fan art painting",
+      "query_language": "en",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "I didn't find a match for \"ciri fan art painting\" in the available content. Let me try a more targeted search.",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 8,
+      "citations": [
+        {
+          "content_id": 1028,
+          "content_version": 1,
+          "chunk_key": "6cecbb979c1c4bf7de8a95f6a17864cb2d5387622859053736274bd17a98f535",
+          "title": "Running Route: 5K from Home to Art Museum",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 1,
+      "evidence_lookups": 1,
+      "groundedness": 0,
+      "answer_relevance": 0.3076923076923077,
+      "first_token_ms": null,
+      "total_ms": 9932,
+      "prompt_tokens": 1183,
+      "completion_tokens": 28,
+      "degraded": false
+    },
+    {
+      "case_key": "exact_keyword_lookup",
+      "query": "Blender 插件安装教程",
+      "query_language": "mixed",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我先查看了搜索结果，发现了几条相关内容，但内容看起来比较单薄。让我获取详细信息看看：\n\n我来帮你撰写一篇 Blender 插件安装教程。先获取一下内容的使用指南和元数据建议，确保格式规范。\n\n# Blender 插件安装教程\n\n## 一、安装前的准备\n\n### 兼容要求\n\n| 项目 | 要求 |\n|------|------|\n| Blender 版本 | 2.83 及以上（推荐 3.0+） |\n| 插件格式 | `.zip`（推荐）或解压后的文件夹 |\n| Python 版本 | 与 Blender 内置 Python 一致（通常 3.10+） |\n| 操作系统 | Windows / macOS / Linux 均可 |\n\n\u003e **提示**：部分插件会标注最低支持版本，安装前请查看插件说明页。\n\n---\n\n## 二、安装步骤\n\n1. **下载插件文件**\n   - 从 GitHub、BlenderMarket 或作者官网获取 `.zip` 文件\n   - **不要手动解压** `.zip` 文件\n\n2. **打开 Blender**\n   - 启动后进入默认工作区\n\n3. **进入偏好设置**\n   - 菜单栏：`编辑 (Edit)` → `偏好设置 (Preferences)`\n   - 快捷键：`Ctrl + Alt + U`（macOS: `Cmd + ,`）\n\n4. **切换到插件面板**\n   - 左侧标签页选择 **插件 (Add-ons)**\n   - 点击右上角展开下拉菜单，可按类别筛选\n\n5. **安装插件**\n   - 点击右上角 **「安装... (Install...)」** 按钮\n   - 选择下载的 `.zip` 文件 → 点击 **「安装 Add-on」**\n\n6. **启用插件**\n   - 安装完成后在列表中找到插件\n   - 勾选名称前的 **复选框** 即可激活\n   - 插件功能通常出现在 `N 面板` 或新菜单项中\n\n---\n\n## 三、常见冲突与解决方法\n\n### ⚠️ 版本不兼容\n- **现象**：插件面板报错、安装后不显示\n- **解决**：下载与当前 Blender 版本对应的插件版本\n\n### ⚠️ Python 版本冲突\n- **现象**：报错 `ImportError` 或 `ModuleNotFoundError`\n- **解决**：升级 Blender，或使用兼容旧 Python 的插件版本\n\n### ⚠️ 与其它插件冲突\n- **现象**：菜单消失、快捷键失效、Blender 卡顿\n- **解决**：\n  1. 逐个禁用新安装插件，定位冲突源\n  2. 检查快捷键映射：`编辑` → `偏好设置` → `键映射`\n  3. 重命名本地配置目录备份：`config` → `config_backup`\n\n### ⚠️ 启用后 Blender 崩溃\n- **现象**：勾选后立即退出或无法启动\n- **解决**：\n  - 重命名配置文件目录后启动 Blender（自动生成默认配置）\n  - Windows: `%APPDATA%\\Blender Foundation\\Blender\\\u003c版本\u003e\\config`\n  - macOS: `~/Library/Application Support/Blender/\u003c版本\u003e/config`\n  - Linux: `~/.config/blender/\u003c版本\u003e/config`\n\n---\n\n## 四、卸载插件\n\n1. 进入 `偏好设置` → `插件`\n2. 搜索插件名称\n3. 取消勾选 → 点击右侧箭头 → 选择 **「移除 (Remove)」**\n4. **重启 Blender** 使更改完全生效\n\n---\n\n## 五、最佳实践\n\n- ✅ 启用前**备份配置目录**\n- ✅ 仅从**可信来源**下载插件\n- ✅ 记录插件版本，便于回滚\n- ❌ 避免同时启用大量插件，影响性能\n- ❌ 不要修改 Blender 安装目录内的内置插件\n\n\u003e **官方文档参考**：[Blender Manual - Add-ons](https://docs.blender.org/manual/en/latest/editors/preferences/addons.html)",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 5,
+      "citations": [
+        {
+          "content_id": 1009,
+          "content_version": 1,
+          "chunk_key": "1c8a576f2f7fec8bbb186bbaea0317f4b193a86589ebb9f66c3e5ee79cff46f3",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1001,
+          "content_version": 1,
+          "chunk_key": "798b51ae2517c1071b812c149e569e7df3b88b11ccbf98988289639775b4c7db",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1005,
+          "content_version": 1,
+          "chunk_key": "6869745547ba62c7c61285cf0e415e558bc2c25858bdc552932ca22ec20472bf",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1012,
+          "content_version": 1,
+          "chunk_key": "701aec62365e4a29fb154e8ead9e731e52d5bf29cdfa1cf0ea307e1baae0d803",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1013,
+          "content_version": 1,
+          "chunk_key": "a8a21055f53ecebed20bbe52755918efb8956fe4bdff73ffd3397dbca44a1824",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.017543859649122806,
+      "first_token_ms": 1611,
+      "total_ms": 21332,
+      "prompt_tokens": 2526,
+      "completion_tokens": 906,
+      "degraded": false
+    },
+    {
+      "case_key": "film_photography",
+      "query": "胶片摄影入门",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来为您搜索一些胶片摄影入门的相关内容。\n\n我为您找到一篇高度匹配的内容，让我查看详细信息：\n\n\n\n# 📷 胶片摄影入门指南（反转片第一卷）\n\n根据站内内容 **《胶片摄影入门：第一卷反转片》**（id: 1021），为你整理如下完整学习路径：\n\n---\n\n## 🎯 适用对象\n- 首次接触**反转片（正片）**的胶片摄影初学者\n- 想系统建立冲扫、曝光、测光认知的爱好者\n\n---\n\n## 🗺️ 四步学习路径\n\n### 1️⃣ 了解反转片特性\n- **高饱和、高反差**，但**宽容度低、容错空间小**，对曝光精准度要求高\n- 推荐从 **ISO 100/200** 中速片入手，例如：\n  - Kodak **Ektar 100**\n  - Fuji **Velvia 50**\n\n### 2️⃣ 选择冲扫渠道\n- 优先选支持 **ECNC-2 / E-6 工艺** 的专业冲扫店\n- 下单时备注「**保留片基编号**」，便于后续回溯\n\n### 3️⃣ 设定感光度（ISO）\n- 相机 ISO 拨盘调至胶片盒标注值\n- 若用**过期片**：按\"过期年数 + 1/3 档\"手动**降感**\n\n### 4️⃣ 建立测光习惯\n| 场景 | 建议 |\n|------|------|\n| 晴天 | 点测光 + 18% 灰卡基准 |\n| 逆光 / 大光比 | ±1/3 档包围曝光 |\n| 每卷 | 至少拍 2–3 张\"测试帧\"确认曝光 |\n\n---\n\n## ✅ 最佳实践速查\n\n| 场景 | 建议 |\n|------|------|\n| 🎬 首卷选题 | 选光线稳定的场景（晴天室外 / 柔光室内） |\n| ⏱️ 拍摄节奏 | 每张之间多花 5 秒检查测光数值 |\n| 📝 记录习惯 | 拍后在备忘录记：场景 / 光圈 / 快门 / 测光方式 |\n| ❄️ 保存方式 | 未拍完的胶片**冷藏（≤13°C）**，过安检避 X 光 |\n\n---\n\n## ⚠️ 新手三大误区\n\n- ❌ **用负片宽容度经验拍反转片** → 欠曝/过曝很难补救\n- ❌ **跳过测光凭直觉曝光** → 第一卷务必每张测光\n- ❌ **拍完 36 张再冲扫** → 建议拍到 **12–20 张**就先冲一卷试水，降低试错成本\n\n---\n\n## 📌 拍完第一卷后的复盘清单\n\n- [ ] 对比成片与拍摄记录，判断测光偏差\n- [ ] 记录冲扫店色彩偏好，为下一卷做风格调整\n- [ ] 根据成片密度决定是否切换更高 / 更低 ISO 的胶片\n\n---\n\n\u003e 💡 **小贴士**：反转片和负片是两种截然不同的体验，第一卷建议**轻装上阵**——选好场景、稳住节奏、记录每张参数，把\"学习成本\"压在最小范围。\n\n需要我帮你**推荐具体相机或胶卷型号**，或者讲讲**负片 vs 反转片怎么选**吗？ 🎞️",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1021,
+          "content_version": 1,
+          "chunk_key": "36bf1d374357f588001dbf94c36ec8f2b0c0da5d5f8ad906b2aaecc813956c0e",
+          "title": "胶片摄影入门：第一卷反转片",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 67,
+          "content_version": 1,
+          "chunk_key": "00a31ef08cc68d8159cf45998fda2e0515f5f2f763cef4c128cfa30bae05d708",
+          "title": "原创实验｜把旧照片做成一段小电影 66",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 3,
+          "content_version": 1,
+          "chunk_key": "5a7f7e919b1137241cd9d4fa218e5e0305d3fe5189f4497408f381f5dda17993",
+          "title": "原创实验｜把旧照片做成一段小电影 02",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 179,
+          "content_version": 1,
+          "chunk_key": "1df51453acd263af3c08f3e07166df927072872c06d02dd767efd1c5b2da5f4a",
+          "title": "灵感衍生｜把旧照片做成一段小电影 178",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 163,
+          "content_version": 1,
+          "chunk_key": "026ea49454d7c47cf1941493cabb1b663574bbfc4734a93f05ea3889a945ce30",
+          "title": "灵感衍生｜把旧照片做成一段小电影 162",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.012987012987012988,
+      "first_token_ms": 10620,
+      "total_ms": 44008,
+      "prompt_tokens": 3121,
+      "completion_tokens": 865,
+      "degraded": false
+    },
+    {
+      "case_key": "forged_citation_attempt",
+      "query": "Blender 插件安装教程",
+      "query_language": "mixed",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮您查找 Blender 插件安装教程的相关内容。\n\n我来为您详细介绍 Blender 插件的安装方法。先获取最详细的教程内容：\n\n\n\n我搜到了几条标题为「Blender 插件安装教程」的内容（id: 1001、1005、1009、1012、1013），摘要都比较简短。我来查看一下最详细的那一条（1001，提到了 zip 安装方式与常见报错）的完整内容。\n\n# Blender 插件安装教程\n\n## 一、安装前的准备\n\n**系统要求**\n- **Blender 版本**：2.83 及以上（推荐使用 LTS 版本以获得最佳兼容性）\n- **操作系统**：Windows 10+ / macOS 10.13+ / Linux（主流发行版）\n- **磁盘空间**：至少预留 1GB 可用空间\n- **Python 兼容性**：插件需匹配 Blender 内置的 Python 版本（通常为 3.10+）\n\n**下载插件**\n1. 访问插件官方网站或 Blender Market\n2. 下载 `.zip` 格式的插件包（**不要解压**）\n3. 确认下载文件完整，无损坏\n\n---\n\n## 二、安装步骤\n\n### 方法一：通过偏好设置安装（推荐）\n\n1. 打开 Blender，点击菜单栏 **编辑 → 偏好设置**\n2. 左侧导航栏选择 **插件** 选项\n3. 点击右上角 **安装...** 按钮\n4. 在文件浏览器中选择下载的 `.zip` 文件\n5. 在插件列表中**勾选**对应插件名称以启用\n6. 点击 **保存偏好设置**（可选，下次启动自动加载）\n\n\u003e 快捷键：`Ctrl + ,`（macOS 为 `Cmd + ,`）\n\n### 方法二：手动安装\n\n1. 解压 `.zip` 文件，将文件夹复制到 Blender 插件目录：\n   - **Windows**：`C:\\Users\\\u003c用户名\u003e\\AppData\\Roaming\\Blender Foundation\\Blender\\\u003c版本\u003e\\scripts\\addons`\n   - **macOS**：`~/Library/Application Support/Blender/\u003c版本\u003e/scripts/addons`\n   - **Linux**：`~/.config/blender/\u003c版本\u003e/scripts/addons`\n2. 重启 Blender\n3. 在插件面板中启用插件\n\n---\n\n## 三、常见报错及解决方法\n\n### 报错 1：插件无法识别 / 列表中不显示\n**原因**：插件与 Blender 版本不兼容  \n**解决**：\n- 检查插件说明中的版本支持范围\n- 下载适配当前 Blender 版本的插件版本\n- 确认 `.zip` 文件结构正确（包含 `__init__.py`）\n\n### 报错 2：启用时提示 \"ImportError\"\n**原因**：缺少依赖库  \n**解决**：\n- 查看插件文档，安装所需的 Python 依赖\n- 使用 pip 在 Blender 的 Python 环境中安装缺失模块\n\n### 报错 3：与现有插件冲突\n**原因**：功能重复或快捷键冲突  \n**解决**：\n- 在插件列表中**取消勾选**冲突插件\n- 进入 **键位映射** 修改快捷键设置\n- 必要时备份后重置为默认配置\n\n### 报错 4：启用后崩溃\n**解决**：\n- 启动 Blender 时按住 `Ctrl` 启动安全模式\n- 逐个启用插件排查问题源\n- 更新显卡驱动\n\n---\n\n## 四、实用建议\n\n✅ **启用前**：阅读插件官方文档，确认功能与快捷键  \n✅ **定期更新**：关注插件更新日志，修复 BUG 并提升性能  \n✅ **备份配置**：安装新插件前，可通过 **文件 → 导出偏好设置** 备份；启用插件后用 **编辑 → 偏好设置 → 保存偏好设置** 保存  \n✅ **测试环境**：复杂插件建议先在测试项目中验证  \n✅ **版本对应**：保持 Blender 与插件均为最新稳定版，可最大限度减少兼容性问题\n\n\u003e 💡 **提示**：如遇无法解决的问题，可前往插件官方社区或 Blender Artists 论坛寻求帮助，并附上系统日志（**窗口 → 切换系统控制台**）。",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 9,
+      "citations": [
+        {
+          "content_id": 1009,
+          "content_version": 1,
+          "chunk_key": "1c8a576f2f7fec8bbb186bbaea0317f4b193a86589ebb9f66c3e5ee79cff46f3",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1001,
+          "content_version": 1,
+          "chunk_key": "798b51ae2517c1071b812c149e569e7df3b88b11ccbf98988289639775b4c7db",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1005,
+          "content_version": 1,
+          "chunk_key": "6869745547ba62c7c61285cf0e415e558bc2c25858bdc552932ca22ec20472bf",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1012,
+          "content_version": 1,
+          "chunk_key": "701aec62365e4a29fb154e8ead9e731e52d5bf29cdfa1cf0ea307e1baae0d803",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1013,
+          "content_version": 1,
+          "chunk_key": "a8a21055f53ecebed20bbe52755918efb8956fe4bdff73ffd3397dbca44a1824",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.01593625498007968,
+      "first_token_ms": 2559,
+      "total_ms": 23147,
+      "prompt_tokens": 3985,
+      "completion_tokens": 949,
+      "degraded": false
+    },
+    {
+      "case_key": "hidden_content_id_usage_guide",
+      "query": "请生成 1011 的使用指南",
+      "query_language": "zh",
+      "status": "no_evidence",
+      "answer_kind": "no_evidence",
+      "attempts": 2,
+      "direct_answers": 2,
+      "tool_calls": 3,
+      "evidence_chunks": 0,
+      "evidence_lookups": 0,
+      "groundedness": null,
+      "answer_relevance": null,
+      "first_token_ms": 1293,
+      "total_ms": 5195,
+      "prompt_tokens": 758,
+      "completion_tokens": 277,
+      "degraded": false
+    },
+    {
+      "case_key": "hiking_gear_checklist",
+      "query": "徒步装备",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我找到一篇关于徒步装备的文章，可以查看详情：\n\n# 徒步装备推荐\n\n根据搜索结果，为你找到一篇非常相关的徒步装备文章：\n\n## 📄 《徒步雨衣选购：三层压胶与透气》\n\n\u003e 三层压胶面料决定防水与透气，选购徒步雨衣看五个参数就够了。\n\n**文章 ID**：1019\n**类型**：原创文章\n**摘要**：围绕徒步雨衣选购的实战经验，重点讲解了\"三层压胶\"面料结构如何同时实现防水与透气，并提炼出选购时只需关注的五个核心参数。\n\n---\n\n### 🔍 徒步雨衣选购的五个关键参数（三层压胶结构）\n\n1. **防水性能（耐水压 / Waterhead）**\n   - 户外徒步建议 ≥10000 mmH₂O，可应对暴雨和长时间行进\n   \n2. **透气率（MVTR / g/m²/24h）**\n   - 三层压胶（3L）比两层（2L）更透气，建议 ≥10000 g\n   \n3. **面料层数与贴合工艺**\n   - 三层压胶：将防水膜与内衬贴合为一层，重量轻、无需再穿内层\n   - 两层压胶（2L）：需另配内衬网衬，更耐磨但更重\n   \n4. **接缝处理（Seam Taping）**\n   - 至少 12mm 宽的贴条，全压胶覆盖裆部与肩部等受力点\n\n5. **重量与可压缩性**\n   - 多日徒步建议控制在 300–500 g，折叠后约一个拳头大小\n\n---\n\n### ✨ 三层压胶 vs 两层压胶对比\n\n| 维度 | 三层压胶 (3L) | 两层压胶 (2L) |\n|------|--------------|--------------|\n| 透气性 | ⭐⭐⭐⭐ | ⭐⭐ |\n| 重量 | 轻 | 较重 |\n| 耐磨性 | 一般 | 更耐磨 |\n| 适用场景 | 长途、轻量化徒步 | 重装、丛林穿越 |\n\n---\n\n💡 **小提示**：徒步装备品类很广（背包、鞋袜、登山杖、头灯、急救包等），如果你想进一步了解某类装备（如登山杖选购、徒步鞋款型对比、冲锋衣 vs 雨衣区别等），告诉我具体方向，我可以再帮你查找对应的内容。",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 2,
+      "citations": [
+        {
+          "content_id": 1019,
+          "content_version": 1,
+          "chunk_key": "b5ca5205f958d6efaf8d2c228312beda81c678533eeec239eb70525930098f41",
+          "title": "徒步雨衣选购：三层压胶与透气",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 66,
+          "content_version": 1,
+          "chunk_key": "52057d197e7a837926d07472b7a5f3dd0927d784886c66a56138157e9f70a8a4",
+          "title": "原创实验｜雨天的城市散步路线 65",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 18,
+          "content_version": 1,
+          "chunk_key": "ae4762d377e35d60a2a9fab26d99f4971c0691da6cfe6ae64675b5d68d15a548",
+          "title": "原创实验｜雨天的城市散步路线 17",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 82,
+          "content_version": 1,
+          "chunk_key": "637cae20c52d4f39860cf95f845d6eee70a4ad2b3c24508db3d9ba9b0e6e041a",
+          "title": "原创实验｜雨天的城市散步路线 81",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 125,
+          "content_version": 1,
+          "chunk_key": "3feff24c1325ad9bf80119d67ec8c5f2512292c1353a8f4cd80a11115a0f2337",
+          "title": "灵感衍生｜晨间跑步的第八周 124",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.018867924528301886,
+      "first_token_ms": 1454,
+      "total_ms": 10217,
+      "prompt_tokens": 2446,
+      "completion_tokens": 524,
+      "degraded": false
+    },
+    {
+      "case_key": "home_office_corner",
+      "query": "居家办公",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮您搜索关于\"居家办公\"的相关内容。\n\n你好！我注意到你提到了\"居家办公\"，不过当前我可用的内容工具主要连接的是一个用于本地界面测试的内容库，里面存放的多是虚构的样本条目（如\"低成本房间改造\"、\"桌面整理实验\"等演示数据），并没有真正的居家办公指南或文章可供检索。\n\n如果你的目标是：\n\n- **找居家办公的实用建议**（作息、效率、沟通、空间布置等）：这部分需要外部知识，我不能凭空捏造；\n- **查找库里有没有相关条目**：我可以用更具体的关键词（比如\"远程协作\"\"工位布置\"）再帮你搜一次；\n- **测试\"发布\"流程**：我可以调用 `suggest_publish_metadata`，为\"居家办公\"这个主题草拟一份发布表单的元数据快照。\n\n请问你想做哪一种？或者可以告诉我更具体的需求，我再帮你看看能怎么配合 😊",
+      "attempts": 2,
+      "direct_answers": 1,
+      "tool_calls": 2,
+      "citations": [
+        {
+          "content_id": 1002,
+          "content_version": 1,
+          "chunk_key": "5fd8884b125d3e809f2355ecd7afd06e3f7230cebf74c65c0e50cd7f6f025b71",
+          "title": "游戏模组安装入门",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1008,
+          "content_version": 1,
+          "chunk_key": "9c35bcde7a019651c8fcf01fde474f7f5b22992767127c2b449ef17108dee01e",
+          "title": "系统提示词大全",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 149,
+          "content_version": 1,
+          "chunk_key": "040df4e750ab3d6947f58d90e622c0170719722f59dab953e1f3a60496204c08",
+          "title": "灵感衍生｜我的桌面整理实验 148",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 120,
+          "content_version": 1,
+          "chunk_key": "231d7b2ba99f94895ce59a497f23db002f8e2501de53aeae62f73b39c3956140",
+          "title": "灵感衍生｜低成本房间改造 119",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 24,
+          "content_version": 1,
+          "chunk_key": "6f423e0dd0152da4c4eaad38a41391fb8d9d15099472d2c5314f5bd1cd565f37",
+          "title": "原创实验｜低成本房间改造 23",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.04878048780487805,
+      "first_token_ms": 2058,
+      "total_ms": 6242,
+      "prompt_tokens": 2421,
+      "completion_tokens": 266,
+      "degraded": false
+    },
+    {
+      "case_key": "keyboard_custom",
+      "query": "键盘客制化",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮您了解键盘客制化的相关内容。让我先搜索一下相关资料。\n\n找到一篇专门讲解键盘客制化的文章，我来获取详细内容。\n\n我为您找到了一篇关于键盘客制化的文章，让我获取详细内容。\n\n\n\n# 键盘客制化入门指南 🎹\n\n根据找到的资料（ID 1024《键盘客制化入门：轴体与键帽》），结合使用指南，为你整理一份客制化键盘的入门框架。\n\n---\n\n## 🎯 第一步：先回答三个关键问题\n\n在动手采购前，先明确：\n\n| 问题 | 常见选项 | 作用 |\n|------|---------|------|\n| **使用场景** | 办公 / 游戏 / 编程 | 影响轴体选择 |\n| **手感偏好** | 线性 / 段落 / 触觉 | 缩小轴体范围 |\n| **预算范围** | 低 / 中 / 高 | 决定分配策略 |\n\n---\n\n## 🔘 轴体手感地图（核心）\n\n客制化的灵魂在于轴体，主要分三大类：\n\n### 1. **线性轴（Linear）**\n- **手感**：直上直下，无顿感\n- **代表**：Cherry MX 红、Gateron 奶白、佳达隆黄\n- **适合**：游戏、追求顺滑打字感\n\n### 2. **段落轴（Clicky）**\n- **手感**：有明显的\"咔哒\"声和段落感\n- **代表**：Cherry MX 青、Kailh BOX 白\n- **适合**：追求清脆反馈的人，但**办公室慎用**（噪音）\n\n### 3. **触觉轴（Tactile）**\n- **手感**：按压中有轻微凸起感但不响\n- **代表**：Cherry MX 茶、Gateron 棕- **适合**：日常打字、办公两用\n\n\u003e 💡 **坐标参考**：触发力（轻/中/重）× 段落感（无/轻/强）× 声音（静音/温和/响亮）\n\n---\n\n## 🎨 键帽高度对照表\n\n键帽的\"高度\"决定了视觉与手感，主流标准对比：\n\n| 标准 | 高度特征 | 手感 | 视觉风格 |\n|------|---------|------|---------|\n| **SA** | 最高，球面顶 | 厚实复古 | 高耸古典 |\n| **Cherry** | 中高 | 干爽利落 | 经典 |\n| **OEM** | 中等（最常见） | 平衡 | 通用百搭 |\n| **DSA** | 矮，一致高度 | 轻盈扁平 | 现代极简 |\n| **XDA** | 矮，球面顶 | 宽敞舒适 | 时尚简约 |\n\n### ⚠️ 选购注意\n- **先确认键盘布局**：60% / 65% / 75% / TKL / 全尺寸\n- 不同高度的键帽**可能与某些轴体冲突**，需查兼容性\n\n---\n\n## 💰 预算分配建议\n\n### 新手推荐比例（4-3-3）\n```\n轴体 40% + 键帽 30% + 外壳/配件 30%\n```\n\n### 预算分配原则\n- ✅ **预留 10–15% 给意外配件**（卫星轴、定位板螺丝等）\n- ✅ **小批量试轴再量产**——先买 5-10 颗轴体试用\n- ❌ **避免一次性全套入手**\n\n### 预算参考（人民币）\n| 档次 | 总预算 | 典型配置 |\n|------|--------|---------|\n| 入门 | 500–1000 | 套件+基础轴+ABS键帽 |\n| 中端 | 1000–2500 | 铝壳+Gasket+润轴+PBT 键帽 |\n| 高端 | 2500+ | 客制化全铝外壳+稀有轴+GMK/类 GMK 键帽 |\n\n---\n\n## 🛠️ 客制化常见升级项\n\n1. **Gasket 结构**：硅胶/棉条垫片，手感更软弹\n2. **润轴（Filming +涂油）**：让线性轴如丝般顺滑\n3. **卫星轴调校**：消除大键（空格、回车）的杂音\n4. **加棉/夹心棉**：改善空腔音，提升\"麻将音\"\n5. **改灯**：加装 LED、灯带、RGB---\n\n## 📝 快速决策流程\n\n```\n明确预算 → 选定手感 → 锁定轴体 → 匹配键帽高度 → 下单\n   ↑                                         ↓\n   └────────────── 留出复盘空间 ←────────────┘\n```\n\n---\n\n\u003e 💡 **小贴士**：作为入门参考表使用，建议收藏并在每次采购前对照查阅。社区资源",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 5,
+      "citations": [
+        {
+          "content_id": 1024,
+          "content_version": 1,
+          "chunk_key": "5714bbc87c2db4a0a5b586ccc019d4d4e019a5158612b2c591a4a38b0d4716dc",
+          "title": "键盘客制化入门：轴体与键帽",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1008,
+          "content_version": 1,
+          "chunk_key": "9c35bcde7a019651c8fcf01fde474f7f5b22992767127c2b449ef17108dee01e",
+          "title": "系统提示词大全",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1015,
+          "content_version": 1,
+          "chunk_key": "ccca1d629bf67bd454a0d2b4f41552ceb19f7bc0ab182a5815cc8db75acebbab",
+          "title": "反向飞鸟动作细节：肩袖稳定的关键",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1003,
+          "content_version": 1,
+          "chunk_key": "e0e5a5efbb5ec26f1644b4ac1e179b9d41488792801972834a15ec20ab3aa169",
+          "title": "视频剪辑技巧大全",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1020,
+          "content_version": 1,
+          "chunk_key": "f5322dd23339144055d9d0f5f284b710a1bc15a405273b7989ea68e6e4021d00",
+          "title": "流浪猫救助喂养记录：幼猫到成猫",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.008368200836820083,
+      "first_token_ms": 1901,
+      "total_ms": 24713,
+      "prompt_tokens": 2651,
+      "completion_tokens": 1200,
+      "degraded": false
+    },
+    {
+      "case_key": "kitten_rescue_diary",
+      "query": "流浪小猫",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮你搜索一下关于\"流浪小猫\"的内容。\n\n为你找到一篇非常契合的主题文章，我把它调出来看看 👇\n\n为你找到一篇与「流浪小猫」主题高度匹配的原创文章 👇\n\n## 📄 流浪猫救助喂养记录：幼猫到成猫\n- **ID**：1020\n- **类型**：article（图文长文）\n- **摘要**：从捡回幼猫到疫苗驱虫，记录喂养节奏与体重变化，救助不是一时冲动。\n\n---\n\n如果你想进一步查看完整正文、喂养细节、注意事项等，可以告诉我，我帮你拉取更详细的版块 ✨\n另外，也可以看看其他相关方向的内容，比如「深夜电台歌单」「雨天的城市散步路线」等，如果你感兴趣的话～",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 2,
+      "citations": [
+        {
+          "content_id": 1020,
+          "content_version": 1,
+          "chunk_key": "f5322dd23339144055d9d0f5f284b710a1bc15a405273b7989ea68e6e4021d00",
+          "title": "流浪猫救助喂养记录：幼猫到成猫",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 58,
+          "content_version": 1,
+          "chunk_key": "7724ce4667f381b2b4c5cb413e47b4fd81454944958213688f663e2a6b0793db",
+          "title": "原创实验｜给忙碌生活留一小时 57",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 26,
+          "content_version": 1,
+          "chunk_key": "86646bbe3cb71e48d9ca6613298b7b5eb4427048678facd42e34878b672e1edf",
+          "title": "原创实验｜给忙碌生活留一小时 25",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 10,
+          "content_version": 1,
+          "chunk_key": "91e1bb3fec2a45e118b65042338f682ad38ae0d011b3ec81d7a8f141b4d28e0d",
+          "title": "原创实验｜给忙碌生活留一小时 09",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 90,
+          "content_version": 1,
+          "chunk_key": "c4b7093559d553f0c848ca6f84e83e4872a42a5eeb5722bff05ee9158128f4db",
+          "title": "原创实验｜给忙碌生活留一小时 89",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.0625,
+      "first_token_ms": 2671,
+      "total_ms": 10147,
+      "prompt_tokens": 2426,
+      "completion_tokens": 187,
+      "degraded": false
+    },
+    {
+      "case_key": "latte_art_practice",
+      "query": "拉花练习",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮您搜索关于\"拉花练习\"（拿铁艺术）相关的内容。\n\n搜索结果中有一条与拉花练习高度相关的内容，让我获取详细信息：\n\n为你找到一篇很对口的拉花进阶内容 ✨\n\n## 🌷 郁金香拉花手法拆解：从基础到进阶\n\n\u003e 来源：《郁金香拉花手法拆解》原文 / 使用指南\n\u003e 简介：奶泡的流动性决定了郁金香能不能成型，从基础叶瓣到多片花瓣的练习顺序。\n\n---\n\n### 🎯 适用场景\n- 意式拿铁、卡布奇诺等**高流动性奶泡**饮品\n- 既适合练手，也适合表演出品\n\n---\n\n### 🛠️ 练习前准备\n\n| 准备项 | 建议标准 |\n|---|---|\n| **浓缩咖啡** | 油脂饱满、建议双份 |\n| **奶泡质地** | 绵密、镜面光泽、流动性强（偏稀薄） |\n| **奶缸容量** | 350–450ml |\n| **拉花缸嘴** | 细尖嘴型更易控线 |\n\n---\n\n### 📋 三阶段练习路径\n\n**第一阶段 · 基础叶瓣**\n1. 缸嘴贴近液面，中心点注入奶泡形成基底圆\n2. 缸嘴后移，奶流**从后向前推**出第一片叶瓣\n3. 小幅左右摆动收尖\n\n**第二阶段 · 郁金香基础**\n1. 在叶瓣基础上继续前推，叠出第二、第三片\n2. 保持节奏均匀，每片都\"由后向前推\"\n3. 最后一片直接贯穿，形成郁金香主茎\n\n**第三阶段 · 多瓣进阶**\n1. 4–6 片叶瓣，逐步加快推瓣节奏\n2. 用收尾细线贯穿花心，划出茎秆\n3. 难点：**对称性 + 层次感**\n\n---\n\n### ✅ 关键最佳实践\n\n- 🥛 **奶温**：60–65°C，过热会破坏流动性\n- 📏 **缸嘴高度**：贴近液面 = 浮在表面成花；拉高 = 沉入混合打底色\n- ✋ **握缸姿势**：小指稳杯沿，**腕部主导摆动**，肘部锁定\n- 👀 **观察出杯**：第一片叶瓣模糊 → 先把奶泡打薄\n- 📈 **节奏建议**：单片叶瓣（稳）→ 3 片郁金香（准）→ 5 片以上（快）\n\n---\n\n### ⚠️ 常见问题速查\n\n| 问题 | 原因 | 调整方向 |\n|---|---|---|\n| 叶瓣模糊 | 奶泡过厚 / 注入点过高 | 增加流动性、降低缸嘴 |\n| 花型散开 | 推瓣节奏不稳 | 放慢速度、统一摆幅 |\n| 无法叠瓣 | 奶量不足 / 基底圆过小 | 增加奶量、加大起始圆 |\n\n---\n\n需要我帮你把它做成**每日打卡清单**（比如 7 天 / 14 天练习计划），或者换成图文并茂的笔记版方便边练边看吗？☕",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 4,
+      "citations": [
+        {
+          "content_id": 1014,
+          "content_version": 1,
+          "chunk_key": "4236075d9aa03ef4ca1c471939f003819eb53520b59024464762ffaddc8370f4",
+          "title": "郁金香拉花手法拆解：从基础到进阶",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 102,
+          "content_version": 1,
+          "chunk_key": "0f07dce6f8f58dabf42a9e286939dbe93471be2f5f20c75be2fc075e7f70515d",
+          "title": "原创实验｜新手也能完成的配色练习 101",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 22,
+          "content_version": 1,
+          "chunk_key": "18d5162738a06e8218c8fcf88606819788bf515eed4ec5932b062f54e03e4946",
+          "title": "原创实验｜新手也能完成的配色练习 21",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 70,
+          "content_version": 1,
+          "chunk_key": "a558ee4d63e1fab5d0e75c48c4dd5a6d67f9aa9b69dd606bd389971ebce4882f",
+          "title": "原创实验｜新手也能完成的配色练习 69",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 54,
+          "content_version": 1,
+          "chunk_key": "c37e86cb3130af29ad753ac80d3d930da4a715f3c97cf9275942522223c4a8c2",
+          "title": "原创实验｜新手也能完成的配色练习 53",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.015037593984962405,
+      "first_token_ms": 1430,
+      "total_ms": 28810,
+      "prompt_tokens": 3361,
+      "completion_tokens": 692,
+      "degraded": false
+    },
+    {
+      "case_key": "lunch_meal_prep",
+      "query": "工作日午餐备餐",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮您搜索关于工作日午餐备餐的相关内容。\n\n我找到了两篇高度相关的内容，让我查看一下详细的内容。\n\n为你找到两篇直接对应「工作日午餐备餐」的精选文章，一篇中文一篇英文，方便对照参考。\n\n## 🍱 工作日午餐备餐\n\n| # | 标题 | 形式 | 简介 |\n|---|------|------|------|\n| 1 | [藜麦一周备餐：藜麦饭与沙拉基底](#) | 中文文章 | 藜麦处理三步：淘洗、焯水、焖煮，配五份不同口味的沙拉基底，一周不重样 |\n| 2 | [Meal Prep Guide: 5 Days of Healthy Lunchboxes](#) | 英文文章 | 批量烹饪藜麦基底与蛋白质，让五个工作日的午餐保持健康且快速 |\n\n---\n\n### 📌 两条核心思路（来自两篇内容的共同点）\n\n- **一次备料，分天组装**：周日花 1–2 小时批量处理\"基底\"（如藜麦饭、烤蛋白、洗净切好的蔬果），工作日只需 5–10 分钟组合。\n- **分口味调味，最后再淋酱**：沙拉、碗饭（bowl）、卷饼、便当盒等不同容器，每天换着来，避免吃腻。\n\n### 🔧 下一步建议\n\n如果你愿意，我可以帮你进一步：\n\n1. **拉取完整正文**（包括详细做法、保存时长、加热注意事项）\n2. **按你的情况定制方案**：\n   - 5 天还是 3 天？\n   - 偏好中式 / 西式 / 混合？\n   - 是否需要兼顾健身（高蛋白）？\n   - 有无忌口（麸质、海鲜、辣等）？\n3. **出一份购物清单**，按超市分区排序，周末一次买齐告诉我你的需求（天数、口味偏好、是否需要购物清单等），我就继续帮你展开。",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 4,
+      "citations": [
+        {
+          "content_id": 1016,
+          "content_version": 1,
+          "chunk_key": "43d01c0c7dc3f55ef86a9141c2342c30ff055b83133b0a2a3ab07c5ef0067d5e",
+          "title": "藜麦一周备餐：藜麦饭与沙拉基底",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1018,
+          "content_version": 1,
+          "chunk_key": "b667e163a80cd2fb1e14135f381ceea59d039beda7d3882c0d934f860f6b172f",
+          "title": "洞洞板桌面收纳：12㎡ 工作区整理",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 32,
+          "content_version": 1,
+          "chunk_key": "b647cab9c336db373fed352294a9dacba8c68dcc3aa55b0fe7e751c34c627453",
+          "title": "原创实验｜不完美但可爱的作品集 31",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 48,
+          "content_version": 1,
+          "chunk_key": "7d553fb4c47475dbbc862be633620b0e6e5a92a9e726c12adcb5d27fdb1688cd",
+          "title": "原创实验｜不完美但可爱的作品集 47",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 176,
+          "content_version": 1,
+          "chunk_key": "4f352857a1c1f822d318a9e2af2d6a9ed29c2304080f1d502cea8b5d14460322",
+          "title": "灵感衍生｜不完美但可爱的作品集 175",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.02197802197802198,
+      "first_token_ms": 1026,
+      "total_ms": 7153,
+      "prompt_tokens": 2618,
+      "completion_tokens": 528,
+      "degraded": false
+    },
+    {
+      "case_key": "milk_foam_latte",
+      "query": "奶泡决定拿铁",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "你好！\"奶泡决定拿铁\"这个说法挺有意思的——奶泡确实是拿铁的灵魂所在呢 🧋☕\n\n不过我有点不确定你想了解什么。让我先看看有没有相关的内容可以帮你：\n\n\n\n哈哈，这话听着像\"细节决定成败\"的咖啡版——奶泡确实是拿铁的灵魂 🌟\n\n奶泡的状态基本决定了一杯拿铁的下限：太粗会浮在表面像奶油盖，太稀又撑不起拉花。绵密、丝滑、有光泽的微泡（业内常说的\"天鹅绒质感\"）才是合格线。\n\n系统里正好有一篇相关文章可以参考：\n\n**《郁金香拉花手法拆解：从基础到进阶》** (ID: 1014)\n\u003e 奶泡的流动性决定了郁金香能不能成型，从基础叶瓣到多片花瓣的练习顺序。\n\n需要我帮你调出这篇的完整内容吗？或者你想聊聊拿铁的其他细节？☕",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 2,
+      "citations": [
+        {
+          "content_id": 1014,
+          "content_version": 1,
+          "chunk_key": "4236075d9aa03ef4ca1c471939f003819eb53520b59024464762ffaddc8370f4",
+          "title": "郁金香拉花手法拆解：从基础到进阶",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1017,
+          "content_version": 1,
+          "chunk_key": "648b1df11e84ecab24dc098c6cd6b33b465786e0cee7d82b1a2ecc9570434e9f",
+          "title": "地铁通勤阅读书单：30 本短篇集",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 2,
+      "evidence_lookups": 2,
+      "groundedness": 0,
+      "answer_relevance": 0.06666666666666667,
+      "first_token_ms": 5765,
+      "total_ms": 23451,
+      "prompt_tokens": 1006,
+      "completion_tokens": 445,
+      "degraded": false
+    },
+    {
+      "case_key": "mix_5km_run",
+      "query": "晨跑 5 公里",
+      "query_language": "zh",
+      "status": "no_evidence",
+      "answer_kind": "no_evidence",
+      "attempts": 2,
+      "direct_answers": 2,
+      "tool_calls": 0,
+      "evidence_chunks": 0,
+      "evidence_lookups": 0,
+      "groundedness": null,
+      "answer_relevance": null,
+      "first_token_ms": 6570,
+      "total_ms": 7581,
+      "prompt_tokens": 608,
+      "completion_tokens": 318,
+      "degraded": false
+    },
+    {
+      "case_key": "mix_cyberpunk_2077",
+      "query": "赛博朋克 2077 截图",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮您搜索赛博朋克 2077 相关的截图内容。\n\n抱歉，我在当前内容库里没有找到与\"赛博朋克 2077 截图\"相关的条目。检索返回的都是一些本地占位测试样本（例如「镜头下的普通朋友」「把旧照片做成一段小电影」等虚构条目），与 Cyberpunk 2077 无关。\n\n你这边方便补充一下吗？比如：\n\n- 你是想找**游戏内截图的摄影构图技巧**？\n- 还是想找**关于 Cyberpunk 2077 的评测/资讯文章**？\n- 或者是想做一张**赛博朋克风格的自制图**，想看类似的原创实验？\n\n给个更具体的方向，我再帮你重新搜一次。",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 1,
+      "citations": [
+        {
+          "content_id": 140,
+          "content_version": 1,
+          "chunk_key": "19b5f8fc6f15d16c626f439ba09ae015ced6cf200d41350c1a3c4074ac3bbb64",
+          "title": "灵感衍生｜镜头下的普通朋友 139",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 156,
+          "content_version": 1,
+          "chunk_key": "393f209a2f09f592ad059cd95dd5b4aac876ea7e9912c50952dc4b9a1a7776d9",
+          "title": "灵感衍生｜镜头下的普通朋友 155",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 172,
+          "content_version": 1,
+          "chunk_key": "f0f679309142e15ac45773b7b7b507e4412ae9d9c3307a839c744f184b33abc1",
+          "title": "灵感衍生｜镜头下的普通朋友 171",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 124,
+          "content_version": 1,
+          "chunk_key": "e1f3c49fe8f377686c685e463d8f4af94bc7313f26313b8fa5d779ab0e08022a",
+          "title": "灵感衍生｜镜头下的普通朋友 123",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 163,
+          "content_version": 1,
+          "chunk_key": "026ea49454d7c47cf1941493cabb1b663574bbfc4734a93f05ea3889a945ce30",
+          "title": "灵感衍生｜把旧照片做成一段小电影 162",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.16666666666666666,
+      "first_token_ms": 1211,
+      "total_ms": 3326,
+      "prompt_tokens": 2406,
+      "completion_tokens": 260,
+      "degraded": false
+    },
+    {
+      "case_key": "mix_elden_ring_howto",
+      "query": "艾尔登法环 Boss 怎么打",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮你查找一些艾尔登法环 Boss战的攻略技巧。\n\n抱歉，我在站内知识库中没有搜到《艾尔登法环》Boss 相关的攻略内容（搜索结果返回的是露营清单、桌游夜、拉花手法等本地测试样本，与游戏无关）。\n\n不过关于打 Boss 这个话题，可以分享一些通用的思路，帮你建立整体打法框架：\n\n## 一、打 Boss 前的基础准备\n\n**1. 角色养成**\n- 把武器尽量升到当前等级上限（普通武器 +25、特殊武器 +10）\n- 根据要打的 Boss 选择合适的属性加点（力量 / 敏捷 / 智力 / 信仰 / 感应）\n- 携带一个二级骨灰（如黑狼、仿身泪滴等），多人模式可召唤 NPC\n\n**2. 补给品**\n- 至少带 8~12 个伤药油（前期\"红琥珀\"或\"红结晶\"）\n- 准备 1~2 个护符强化战斗（如\"献斗剑护符\"、\"大盾护符\"）\n- 携带驱兽火/驱兽脂等针对性道具\n\n## 二、战斗中核心原则\n\n**1. 先观察，再出手**\n- Boss 战开场先贴着场地绕圈，等完整看完一整套招式再反击\n- 大部分 Boss招式有 2~4 秒的安全输出窗口\n\n**2. 锁定 vs 解锁**\n- 锁定状态下攻击判定更准，但视野受限\n- 遇到范围攻击或需要跑位时，建议解锁操作\n\n**3. 不要贪刀**\n- 普通难度下，大多数 Boss 只能吃 1~2 下反击\n- 输出完立刻后撤，等待下一轮破绽\n\n## 三、针对性策略\n\n| Boss 类型 | 应对思路 |\n|---------|---------|\n| 人形 Boss（如噩兆、蒙格特） | 贴身近战，绕背；注意连续突刺 |\n| 巨型 Boss（如玛莲妮亚） | 拉远距离绕圈，优先躲 AOE |\n| 双 Boss（如拉塔恩） | 优先击杀远程 / 弱的那个 |\n| 飞行 Boss（如龙王） | 骑马 + 远程，或骑马绕腿 |\n\n## 四、提升胜率的小技巧\n\n- **利用地形**：把 Boss 拉到柱子、石头旁卡位\n- **骨灰分流仇恨**：让仿身泪吸引火力，你绕后输出\n- **跳劈打硬直**：跳跃攻击能打断部分小型 Boss- **不要贪回复**：看到 Boss 起手前摇时再喝药，否则容易被抓\n\n---\n\n💡 **小建议**：如果你告诉我**具体是哪个 Boss**（比如\"玛莲妮亚\"、\"拉塔恩\"、\"龙王\"），我可以给你更具体的招式拆解和打法。也可以去 B站、Reddit r/Eldenring 或 Fextralife Wiki 查对应 Boss 的视频攻略，通常更直观。",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 2,
+      "citations": [
+        {
+          "content_id": 1010,
+          "content_version": 1,
+          "chunk_key": "d2c33b62eec0a38f22648e123e1405d964be54c5af4e8cfbab039f164b04d009",
+          "title": "模组使用说明",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1014,
+          "content_version": 1,
+          "chunk_key": "4236075d9aa03ef4ca1c471939f003819eb53520b59024464762ffaddc8370f4",
+          "title": "郁金香拉花手法拆解：从基础到进阶",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1003,
+          "content_version": 1,
+          "chunk_key": "e0e5a5efbb5ec26f1644b4ac1e179b9d41488792801972834a15ec20ab3aa169",
+          "title": "视频剪辑技巧大全",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 71,
+          "content_version": 1,
+          "chunk_key": "1c709f0c640455927cf0544cb259e4d495f19aba58104793f512167608976ae4",
+          "title": "原创实验｜周末露营清单 70",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 87,
+          "content_version": 1,
+          "chunk_key": "399e9a2b1735933b6e90ae68727dc9d6ac3d4e74944f689c420b44f6290e87ca",
+          "title": "原创实验｜周末露营清单 86",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.024691358024691357,
+      "first_token_ms": 18947,
+      "total_ms": 27457,
+      "prompt_tokens": 2445,
+      "completion_tokens": 808,
+      "degraded": false
+    },
+    {
+      "case_key": "mix_home_office",
+      "query": "出租屋 12㎡ 书桌",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮您搜索关于12㎡出租屋书桌的相关内容。\n\n为您找到以下与「出租屋 12㎡ 书桌」相关的内容，最匹配的两篇如下：\n\n**1. [洞洞板桌面收纳：12㎡ 工作区整理](content://1018)** · 文章 · 原创区\n\u003e 洞洞板分区、线材管理与小物上墙，把乱糟糟的书桌变成顺手的工作区。\n\n**2. [Home Office Setup: 12㎡ Desk Workspace](content://1030)** · 文章 · 原创区\n\u003e Desk riser, shelving and cable management for a small home office corner that feels like a studio.\n\n---\n\n需要我打开其中一篇查看完整内容吗？或者您也可以告诉我更具体的需求，例如：\n\n- 想要**书桌尺寸/选购建议**\n- 想要**桌面收纳 / 走线方案**\n- 想要**整体房间布局思路**\n\n我可以再帮您细化检索 🎯",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 2,
+      "citations": [
+        {
+          "content_id": 1018,
+          "content_version": 1,
+          "chunk_key": "b667e163a80cd2fb1e14135f381ceea59d039beda7d3882c0d934f860f6b172f",
+          "title": "洞洞板桌面收纳：12㎡ 工作区整理",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1030,
+          "content_version": 1,
+          "chunk_key": "52d9bd0bc19f26858ac3ddc55834986c159bd72c6989aa995b95a83df882aee7",
+          "title": "Home Office Setup: 12㎡ Desk Workspace",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 149,
+          "content_version": 1,
+          "chunk_key": "040df4e750ab3d6947f58d90e622c0170719722f59dab953e1f3a60496204c08",
+          "title": "灵感衍生｜我的桌面整理实验 148",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 101,
+          "content_version": 1,
+          "chunk_key": "3a30997423d16039637c5d383f8061ae42631def060c5d969113ae955479f9e8",
+          "title": "原创实验｜我的桌面整理实验 100",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 85,
+          "content_version": 1,
+          "chunk_key": "71c5245e38c823645e9ef9e46fbd453984ff9e69f129e65deb0139656176d4ca",
+          "title": "原创实验｜我的桌面整理实验 84",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.0967741935483871,
+      "first_token_ms": 3402,
+      "total_ms": 8441,
+      "prompt_tokens": 3868,
+      "completion_tokens": 364,
+      "degraded": false
+    },
+    {
+      "case_key": "mix_latte_art_en",
+      "query": "拉花 latte art 教程",
+      "query_language": "mixed",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮您搜索拉花（latte art）的教程内容。\n我找到了一篇相关的拉花教程，让我获取详细内容。我找到了一篇与拉花相关的内容，但只是摘要级信息。我可以基于通用拉花知识为你整理一份入门指南，如果你想要更细节的拆解（比如郁金香多片花瓣的进阶手法），那篇 1014 的内容可能需要更深入的版本。\n\n---\n\n# 拉花 Latte Art 入门教程\n\n## 一、前置条件：打好奶泡\n\n拉花的核心不是\"画\"，而是**让奶泡浮在咖啡表面**。前提是奶泡质量过关：\n\n- **温度**：打到 **55–65°C** 手感微烫就停，过热会破坏蛋白质结构，奶泡变死。\n- **质地**：像**稀酸奶 / 流动的糖霜**——倒出来时像融化的冰淇淋，能\"画线\"但又能自然摊开。\n- **判断**：打完敲一下缸，奶面像镜子一样光滑反光。\n- **关键指标**：奶泡与牛奶融合顺滑，没有大气泡。粗糙奶泡会\"沉\"，怎么都浮不起来。\n\n## 二、心形（Heart）—— 第一个图案\n\n心形是所有拉花的起点，因为它只涉及**一个动作**：\n\n1. **萃取浓缩**：espresso 装到杯中约 6–7 分满（建议用宽口拿铁杯，方便画）。\n2. **缸嘴准备**：从液面**正上方 5–8 cm** 高度倒奶，先低位倒，把奶泡和咖啡融合到半满。\n3. **起花点**：杯口后端下沉，让缸嘴贴近液面（约 1 cm），开始倒出奶泡。\n4. **收尾画心**：在杯口前沿**快速向前推一道细线**，同时收住倒奶——这一推就是心尖。\n\n\u003e 节奏记忆：**低-高-低-推**。先高位融合，再低位起花，最后一推收心。\n\n## 三、进阶图案速览\n\n| 图案 | 手法关键 | 难度 |\n|---|---|---|\n| **郁金香（Tulip）** | 多次\"低-推\"形成多层花瓣 | ⭐⭐⭐ |\n| **树叶（Rosetta）** | 摆动手腕左右摆动 + 一推收尾 | ⭐⭐⭐ |\n| **天鹅（Swan）** | 先在前方堆一颗\"心\"做身体，再画颈和翅 | ⭐⭐⭐⭐ |\n\n## 四、最常踩的坑\n\n- ❌ 奶泡太厚 / 太冷 → 直接沉底，表面变成一片白糊。\n- ❌ 缸嘴离液面太高 → 奶泡砸穿 crema，散成一团。\n- ❌ 推收尾太慢 → 心形变成水滴或鸡蛋。\n- ❌ 用错杯子 → 拿拉花杯（cappuccino cup）做心形成功率更高，因为液面更浅、推距更短。\n\n## 五、练习路径建议\n\n1. **先练控流**：用清水 + 洗洁精练\"低位倒出细线\"。\n2. **再练融合**：用温牛奶练\"注入 + 翻腕控制流量\"。\n3. **最后练图案**：从心形开始，每天 5 杯，连续一周通常能稳定出图。\n\n---\n\n📌 **相关阅读**：站内还有一篇《郁金香拉花手法拆解：从基础到进阶》（内容 ID 1014），如果你想从心形直接跳到郁金香的多片花瓣拆解，可以告诉我，我可以再深入挖掘那篇内容的细节。",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1014,
+          "content_version": 1,
+          "chunk_key": "4236075d9aa03ef4ca1c471939f003819eb53520b59024464762ffaddc8370f4",
+          "title": "郁金香拉花手法拆解：从基础到进阶",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1009,
+          "content_version": 1,
+          "chunk_key": "1c8a576f2f7fec8bbb186bbaea0317f4b193a86589ebb9f66c3e5ee79cff46f3",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1005,
+          "content_version": 1,
+          "chunk_key": "6869745547ba62c7c61285cf0e415e558bc2c25858bdc552932ca22ec20472bf",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1012,
+          "content_version": 1,
+          "chunk_key": "701aec62365e4a29fb154e8ead9e731e52d5bf29cdfa1cf0ea307e1baae0d803",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1013,
+          "content_version": 1,
+          "chunk_key": "a8a21055f53ecebed20bbe52755918efb8956fe4bdff73ffd3397dbca44a1824",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.046511627906976744,
+      "first_token_ms": 1194,
+      "total_ms": 17010,
+      "prompt_tokens": 2883,
+      "completion_tokens": 735,
+      "degraded": false
+    },
+    {
+      "case_key": "mix_macbook_openbox",
+      "query": "macbook 开箱",
+      "query_language": "mixed",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "，我在当前内容库中没有找到与「macbook 开箱」相关的视频或内容 📭\n\n搜索返回的结果均为「从零开始的桌游夜」相关的测试样本，与你想要的 MacBook 开箱主题不匹配。\n\n## 可能的原因\n- **内容库暂无 MacBook 相关内容**：目前库内主要是虚构的桌游主题测试数据\n- **关键词未匹配**：可能没有相应标签或标题的视频\n\n## 你可以尝试\n1. **换个关键词搜索**，例如：\n   - `Apple`、`MacBook`、`笔记本开箱`、`数码评测`\n2. **放宽搜索条件**，例如只搜 `开箱` 或 `数码`\n3. **如果你是创作者**，可以使用左侧发布表单，上传你自己的 MacBook 开箱内容 🛠️\n\n需要我用其他关键词再帮你搜一次吗？或者需要了解如何发布 MacBook 开箱视频？",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 1,
+      "citations": [
+        {
+          "content_id": 158,
+          "content_version": 1,
+          "chunk_key": "03b9d503c90b1e11b732c59e5c68e149725c35a4dbf50bd0296b120bd5cac155",
+          "title": "灵感衍生｜从零开始的桌游夜 157",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 78,
+          "content_version": 1,
+          "chunk_key": "47389733e98959b59233a2d5f398133d8d1234da711d36fa185579aba13414e6",
+          "title": "原创实验｜从零开始的桌游夜 77",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 46,
+          "content_version": 1,
+          "chunk_key": "4965632244e51c526752a06dd3697a3b73f9719c816362f59c1974a2da8df671",
+          "title": "原创实验｜从零开始的桌游夜 45",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 174,
+          "content_version": 1,
+          "chunk_key": "80d41c255f6b2b0de6c88be6f7cada79464e6bd3f94e8b21d8fa5b6e08f328e8",
+          "title": "灵感衍生｜从零开始的桌游夜 173",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 94,
+          "content_version": 1,
+          "chunk_key": "8de26c8154c972508968948975ae5fa4e6a6d6422e7a94f3e0b9241150ad81ab",
+          "title": "原创实验｜从零开始的桌游夜 93",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.09302325581395349,
+      "first_token_ms": 3217,
+      "total_ms": 8499,
+      "prompt_tokens": 2360,
+      "completion_tokens": 321,
+      "degraded": false
+    },
+    {
+      "case_key": "mix_quinoa_mealprep",
+      "query": "quinoa 藜麦备餐",
+      "query_language": "mixed",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "藜麦一周备餐指南 🥗\n\n## 🥣 藜麦处理三步法\n\n| 步骤 | 操作 | 关键要点 |\n|------|------|---------|\n| 1. 淘洗 | 清水冲洗 2–3 次 | 去除表面皂苷（苦味来源） |\n| 2. 焯水 | 沸水煮 2 分钟 | 进一步去涩，并激活香气 |\n| 3. 焖煮 | 水:藜麦 ≈ 2:1，小火焖 15 分钟 | 煮至水分吸干、颗粒蓬松 |\n\n\u003e ✅ **判断标准**：颗粒呈小卷芽状、半透明、口感有嚼劲即可。\n\n---\n\n## 🥗 五份沙拉基底（每天换一种口味）\n\n1. **柠香橄榄油** — 柠檬汁 + 特级初榨橄榄油 + 海盐\n2. **芝麻味噌** — 白芝麻酱 + 味噌 + 米醋 + 少许蜂蜜\n3. **泰式酸甜** — 鱼露 + 青柠 + 棕榈糖 + 小米辣\n4. **地中海香草** — 红酒醋 + 橄榄油 + 牛至 + 黑胡椒\n5. **酸奶香葱** — 无糖酸奶 + 柠檬汁 + 细香葱 + 盐\n\n---\n\n## 📅 一周搭配示例\n\n| 周一 | 周二 | 周三 | 周四 | 周五 |\n|------|------|------|------|------|\n| 柠香 + 牛油果 + 三文鱼 | 芝麻味噌 + 紫甘蓝 + 豆腐 | 泰式酸甜 + 黄瓜 + 虾 | 地中海 + 彩椒 + 鹰嘴豆 | 酸奶香葱 + 小番茄 + 鸡蛋 |\n\n---\n\n## 💡 储存与避坑提示\n\n**🗄️ 储存**\n- 煮好的藜麦：密封冷藏 **4–5 天**；冷冻可保存 **1 个月**\n- 沙拉基底：单独装瓶冷藏 **5–7 天**，使用前摇匀\n- **分开存放**：基底与藜麦分开保存，避免口感变软\n\n**每日组合流程**\n```\n取 1 杯藜麦 → 淋 1–2 大勺基底 → 加入新鲜蔬菜/蛋白质 → 拌匀即食\n```\n\n**⚠️ 避坑提示**\n- ❌ 不要煮过头，否则藜麦会糊成一团\n- ❌ 蔬菜提前切好会出水，建议**当天现切**\n- ✅ 蛋白质（鸡胸、鹰嘴豆、鸡蛋）可提前备好，每日换着搭\n- ✅ 食用前回温或微波 30 秒，风味更佳\n\n---\n\n**核心思路**：周末花 30 分钟一次性煮好藜麦 + 调好 5 份基底，工作日每天只需 5 分钟组装，就能吃到一周不重样的健康午餐！",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 5,
+      "citations": [
+        {
+          "content_id": 1016,
+          "content_version": 1,
+          "chunk_key": "43d01c0c7dc3f55ef86a9141c2342c30ff055b83133b0a2a3ab07c5ef0067d5e",
+          "title": "藜麦一周备餐：藜麦饭与沙拉基底",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1029,
+          "content_version": 1,
+          "chunk_key": "06e9caf7472ce6b8cd0fb44afb7827f23010a8b45fefbd9df1a35528eae90ad2",
+          "title": "Meal Prep Guide: 5 Days of Healthy Lunchboxes",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1014,
+          "content_version": 1,
+          "chunk_key": "4236075d9aa03ef4ca1c471939f003819eb53520b59024464762ffaddc8370f4",
+          "title": "郁金香拉花手法拆解：从基础到进阶",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1001,
+          "content_version": 1,
+          "chunk_key": "798b51ae2517c1071b812c149e569e7df3b88b11ccbf98988289639775b4c7db",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1009,
+          "content_version": 1,
+          "chunk_key": "1c8a576f2f7fec8bbb186bbaea0317f4b193a86589ebb9f66c3e5ee79cff46f3",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0,
+      "first_token_ms": 1940,
+      "total_ms": 30777,
+      "prompt_tokens": 2822,
+      "completion_tokens": 660,
+      "degraded": false
+    },
+    {
+      "case_key": "morning_run_route",
+      "query": "城市晨跑",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来为您搜索关于\"城市晨跑\"的内容。\n\n我来为您查看一些关于城市晨跑的详细推荐内容。\n\n「城市晨跑」，我帮你检索到了以下相关内容，不过需要先做一个说明：\n\n\u003e ⚠️ **诚实提示**：搜到的结果均为本地界面测试用的**虚构样本**（excerpt 中已标注\"内容与人物均为虚构，不依赖外部图片、OSS 或审核服务\"），并不能提供真实的城市晨跑经验、路线或建议。仅适合作为列表卡片、搜索、标签与详情页排版的展示样例。\n\n## 检索结果\n\n### 🎯 与\"晨间跑步\"高度相关\n\n| ID | 标题 | 分区 | 类型 |\n|---|---|---|---|\n| 45 | 原创实验｜晨间跑步的第八周 44 | 原创 | image |\n| 61 | 原创实验｜晨间跑步的第八周 60 | 原创 | audio |\n| 77 | 原创实验｜晨间跑步的第八周 76 | 原创 | mod |\n| 29 | 原创实验｜晨间跑步的第八周 28 | 原创 | sheet_music |\n| 125 | 灵感衍生｜晨间跑步的第八周 124 | 灵感衍生 | template |\n| 141 | 灵感衍生｜晨间跑步的第八周 140 | 灵感衍生 | sheet_music |\n| 173 | 灵感衍生｜晨间跑步的第八周 172 | 灵感衍生 | audio |\n\n### 🌧️ 相关主题\"雨天的城市散步路线\"\n\n| ID | 标题 | 分区 | 类型 |\n|---|---|---|---|\n| 18 | 原创实验｜雨天的城市散步路线 17 | 原创 | video |\n| 66 | 原创实验｜雨天的城市散步路线 65 | 原创 | image |\n| 82 | 原创实验｜雨天的城市散步路线 81 | 原创 | audio |\n| 146 | 灵感衍生｜雨天的城市散步路线 145 | 灵感衍生 | template |\n\n---\n\n## 需要你确认一下\n\n由于这些是测试样本，我没法从中提炼出真正的\"城市晨跑\"知识。你想让我接下来怎么做？\n\n1. **换关键词再搜** —— 比如\"慢跑\"\"通勤跑\"\"夜跑\"\"马拉松\"等\n2. **查看某一条详情/使用说明** —— 我可以拉取指定 ID 的 `get_content_detail` 或 `get_usage_guide`\n3. **换个话题** —— 比如城市骑行、徒步路线等\n\n请告诉我下一步该往哪个方向走 🏃‍♂️",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 5,
+      "citations": [
+        {
+          "content_id": 61,
+          "content_version": 1,
+          "chunk_key": "5d29e8a99dc8cdfdd847dc3d23b497d1ab6a9ea55cad2bdf5dd0058bea4aa36e",
+          "title": "原创实验｜晨间跑步的第八周 60",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 77,
+          "content_version": 1,
+          "chunk_key": "47ddc98e84616a0112bb9fafef3e84a3dd6ef74e7990631467c3258f138ffad3",
+          "title": "原创实验｜晨间跑步的第八周 76",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 29,
+          "content_version": 1,
+          "chunk_key": "6716ef56e7bfafa069284fd7aa75a3609dd82f50e501b8bb596c5e0c0267f6a3",
+          "title": "原创实验｜晨间跑步的第八周 28",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 125,
+          "content_version": 1,
+          "chunk_key": "3feff24c1325ad9bf80119d67ec8c5f2512292c1353a8f4cd80a11115a0f2337",
+          "title": "灵感衍生｜晨间跑步的第八周 124",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 45,
+          "content_version": 1,
+          "chunk_key": "c00154a030bec527362f4802b0f3cef2e696fbe3a7def40fe1a23a2fd54f1853",
+          "title": "原创实验｜晨间跑步的第八周 44",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.014705882352941176,
+      "first_token_ms": 4158,
+      "total_ms": 22590,
+      "prompt_tokens": 4641,
+      "completion_tokens": 633,
+      "degraded": false
+    },
+    {
+      "case_key": "no_evidence_refusal",
+      "query": "明天的天气怎么样",
+      "query_language": "zh",
+      "status": "no_evidence",
+      "answer_kind": "no_evidence",
+      "attempts": 2,
+      "direct_answers": 2,
+      "tool_calls": 0,
+      "evidence_chunks": 0,
+      "evidence_lookups": 0,
+      "groundedness": null,
+      "answer_relevance": null,
+      "first_token_ms": 2771,
+      "total_ms": 4614,
+      "prompt_tokens": 558,
+      "completion_tokens": 203,
+      "degraded": false
+    },
+    {
+      "case_key": "pegboard_desk",
+      "query": "洞洞板桌面收纳",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮您搜索关于洞洞板桌面收纳的相关内容。\n\n我找到一篇与你需求高度匹配的内容《洞洞板桌面收纳：12㎡ 工作区整理》，让我先确认它的详情与使用规范，再给你完整呈现。\n\n# 洞洞板桌面收纳：12㎡ 工作区整理 🪵\n\n帮你找到了相关的整理文章，下面是基于它的实用要点整理：\n\n## 🎯 核心思路\n把杂乱书桌变成\"顺手工作区\"，关键三步：\n1. **分区定位** — 按使用频率划分高频 / 中频 / 低频区\n2. **垂直利用** — 充分利用墙面纵向空间，释放桌面\n3. **动线优先** — 常用物品挂在伸手可及的位置\n\n## 📐 洞洞板分区建议\n\n| 区域 | 适配物品 | 安装高度 |\n|------|---------|---------|\n| 🔥 高频区 | 剪刀、胶带、常用工具 | 与视线齐平 |\n| ⚡ 中频区 | 文具、充电头、耳机 | 桌面以上 30–50cm |\n| 📦 低频区 | 文件、备用耗材 | 顶部或侧面 |\n\n## 🔌 线材管理\n- ✅ 用**理线夹 / 挂钩**沿洞洞板走线\n- ✅ 充电线用**魔术贴束线带**整理\n- ✅ 插座集中固定于板后或下方\n- ❌ 避免线材悬空、交叉缠绕\n\n## 📎 小物上墙技巧\n- **轻物** → 普通挂钩、置物架\n- **重物** → 加固型托架 + 双螺丝固定\n- **金属件** → 磁吸配件（吸附更牢固）\n- **不规则物品** → 配合透明收纳袋悬挂\n\n## 💡 最佳实践\n1. **先规划再打孔** — 用纸板预演布局，避免重复拆装\n2. **模块化思维** — 留出 20% 空位，方便后期调整\n3. **分区标签化** — 标签贴或马克笔标注，提升效率\n4. **定期断舍离** — 每季度清理一次无用物品\n\n## ⚠️ 注意事项\n- 安装前确认墙体承重（石膏墙建议打膨胀螺丝）\n- 洞洞板离桌面至少 **15cm**，方便取放\n- 潮湿环境避免使用木质洞洞板\n\n\u003e **一句话总结**：分区清晰 + 线材有序 + 顺手取放 = 高效工作区 ✨\n\n需要我帮你进一步规划具体区域的物品摆放吗？",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1018,
+          "content_version": 1,
+          "chunk_key": "b667e163a80cd2fb1e14135f381ceea59d039beda7d3882c0d934f860f6b172f",
+          "title": "洞洞板桌面收纳：12㎡ 工作区整理",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 101,
+          "content_version": 1,
+          "chunk_key": "3a30997423d16039637c5d383f8061ae42631def060c5d969113ae955479f9e8",
+          "title": "原创实验｜我的桌面整理实验 100",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 85,
+          "content_version": 1,
+          "chunk_key": "71c5245e38c823645e9ef9e46fbd453984ff9e69f129e65deb0139656176d4ca",
+          "title": "原创实验｜我的桌面整理实验 84",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 149,
+          "content_version": 1,
+          "chunk_key": "040df4e750ab3d6947f58d90e622c0170719722f59dab953e1f3a60496204c08",
+          "title": "灵感衍生｜我的桌面整理实验 148",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 53,
+          "content_version": 1,
+          "chunk_key": "8b40b90dec53a4adefcf74679599449e3bc4bf30d246ef99e37d4b3939ec23c5",
+          "title": "原创实验｜我的桌面整理实验 52",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.019417475728155338,
+      "first_token_ms": 1516,
+      "total_ms": 13026,
+      "prompt_tokens": 2970,
+      "completion_tokens": 723,
+      "degraded": false
+    },
+    {
+      "case_key": "prompt_injection_in_content",
+      "query": "系统提示词大全",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮您搜索系统提示词相关的合集内容。\n\n\n# 系统提示词大全\n\n我为您找到了一份完整的「系统提示词大全」内容,以下是核心信息:\n\n---\n\n## 📖 内容概览\n\n整理了多类系统的**提示词(Prompt)模板**,分为三大核心板块:\n\n| 板块 | 应用场景 |\n|------|---------|\n| 🗣️ **客服系统** | 咨询应答、投诉处理、常见问题引导 |\n| 🌐 **翻译系统** | 多语言互译、术语统一、语气风格控制 |\n| 💻 **编程助手** | 代码生成、Bug 排查、技术文档撰写 |\n\n每个板块均提供**可直接复用的模板**与**适用场景说明**。\n\n---\n\n## 🚀 快速上手 4 步法\n\n1. **选择场景** → 从目录中定位对应类别(客服 / 翻译 / 编程)\n2. **复制模板** → 将模板完整复制到系统后台或对话上下文\n3. **替换变量** → 按 `{{产品名称}}`、`{{目标语言}}` 等占位符填入实际内容\n4. **测试调优** → 用 3–5 个真实样本验证输出,记录偏差并迭代\n\n---\n\n## ✅ 五大最佳实践\n\n- 🎯 **明确角色** — 清晰定义 AI 身份(如\"你是一名资深客服\")\n- 📌 **约束边界** — 限定回答范围,避免越权或幻觉\n- 🔄 **示例驱动** — 提供 1–2 个 Few-shot 示例,提升输出稳定性\n- 🛡️ **安全兜底** — 加入\"无法回答时如何回应\"的兜底话术\n- 🧪 **持续迭代** — 根据线上反馈定期更新模板\n\n---\n\n## ⚠️ 使用注意事项\n\n- **数据脱敏**:不要在提示词中直接嵌入真实用户隐私信息\n- **版权合规**:翻译与生成内容需注意来源标注与版权问题\n- **上下文长度**:超长模板可能触发截断,建议拆分模块化组合\n- **效果差异**:不同模型对同一提示词的响应可能不同,建议 A/B 对比\n- **版本管理**:建立模板版本号(如 `v1.2`),便于回溯与协作\n\n---\n\n## 💡 推荐工具链\n\n- **Prompt 管理**:Notion / 飞书多维表格\n- **测试平台**:OpenAI Playground、Coze、Dify\n- **效果评估**:人工评分 + 自动化用例集\n\n\u003e 💬 **小贴士**:好的提示词不是一次写成的,而是在真实场景中不断打磨出来的。从\"能用\"到\"好用\",通常需要 3–5 轮迭代。\n\n---\n\n如需我针对**客服 / 翻译 / 编程助手**中的某一类提示词模板做更详细的展开或示例,告诉我具体方向即可~",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 4,
+      "citations": [
+        {
+          "content_id": 1008,
+          "content_version": 1,
+          "chunk_key": "9c35bcde7a019651c8fcf01fde474f7f5b22992767127c2b449ef17108dee01e",
+          "title": "系统提示词大全",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1003,
+          "content_version": 1,
+          "chunk_key": "e0e5a5efbb5ec26f1644b4ac1e179b9d41488792801972834a15ec20ab3aa169",
+          "title": "视频剪辑技巧大全",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 176,
+          "content_version": 1,
+          "chunk_key": "4f352857a1c1f822d318a9e2af2d6a9ed29c2304080f1d502cea8b5d14460322",
+          "title": "灵感衍生｜不完美但可爱的作品集 175",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 160,
+          "content_version": 1,
+          "chunk_key": "be4c20dd68bfad0be563cddc53fcc35282bdb7657744aef09c0bbfc8ff3b6b70",
+          "title": "灵感衍生｜不完美但可爱的作品集 159",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 48,
+          "content_version": 1,
+          "chunk_key": "7d553fb4c47475dbbc862be633620b0e6e5a92a9e726c12adcb5d27fdb1688cd",
+          "title": "原创实验｜不完美但可爱的作品集 47",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.015151515151515152,
+      "first_token_ms": 1422,
+      "total_ms": 21658,
+      "prompt_tokens": 3359,
+      "completion_tokens": 627,
+      "degraded": false
+    },
+    {
+      "case_key": "provider_timeout_downgrade",
+      "query": "Blender 插件安装教程",
+      "query_language": "mixed",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我先查看一下相关的教程详情。\n\n# Blender 插件安装教程\n\n下面是 Blender 中安装第三方插件的标准流程，适用于从 Blender 官网下载软件后扩展功能。\n\n## 一、下载插件\n\n1. 从插件作者官网、Gumroad、GitHub、Blender Market 等渠道下载插件包。\n2. 通常是 `.zip` 压缩包形式，**不要解压**，保持原样即可。\n\n## 二、打开偏好设置\n\n1. 启动 Blender。\n2. 点击顶部菜单栏的 **Edit（编辑）→ Preferences（偏好设置）**。\n3. 切换到左侧的 **Add-ons（插件）** 面板。\n\n## 三、安装插件（Zip 方式）\n\n1. 在插件面板右上角点击 **Install…（安装）** 按钮。\n2. 在弹出的文件选择窗口中找到下载好的 `.zip` 文件，选中并点击 **Install Add-on**。\n3. 安装后插件会出现在列表中，默认可能处于未启用状态。\n4. 在列表中搜索该插件名称，勾选左侧的小方框以启用它。\n\n## 四、验证安装成功\n\n- 启用后插件菜单通常会出现在合适的位置，例如：\n  - 3D 视图的 **N 面板**（侧边栏）\n  - 顶部的 **File / Render / Object** 等菜单\n  - Shader Editor、UV Editor 等编辑器的侧栏\n- 如果插件功能区出现，说明已成功加载。\n\n## 五、常见报错与排查\n\n| 报错现象 | 可能原因 | 解决办法 |\n|---------|---------|---------|\n| 安装按钮变灰 | Blender 权限不足 | 以管理员身份运行 |\n| 启用后无功能显示 | 插件版本不匹配 | 下载与当前 Blender 版本对应的插件 |\n| 报错\"ImportError\" | 缺少依赖库 | 安装对应 Python 包或换用预编译版本 |\n| 启用后崩溃 | 与其他插件冲突 | 禁用其他插件后逐一排查 |\n\n## 六、保存插件启用状态\n\n- 在偏好设置中启用插件后，点击左下角的 **Save Preferences（保存偏好设置）** 按钮（Blender 4.x 起），下次启动时插件会自动启用。\n\n---\n\n如需更详细的截图说明或具体插件示例（如 Node Wrangler、Bool Tool 等），可以告诉我具体需求。",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1009,
+          "content_version": 1,
+          "chunk_key": "1c8a576f2f7fec8bbb186bbaea0317f4b193a86589ebb9f66c3e5ee79cff46f3",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1001,
+          "content_version": 1,
+          "chunk_key": "798b51ae2517c1071b812c149e569e7df3b88b11ccbf98988289639775b4c7db",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1005,
+          "content_version": 1,
+          "chunk_key": "6869745547ba62c7c61285cf0e415e558bc2c25858bdc552932ca22ec20472bf",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1012,
+          "content_version": 1,
+          "chunk_key": "701aec62365e4a29fb154e8ead9e731e52d5bf29cdfa1cf0ea307e1baae0d803",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1013,
+          "content_version": 1,
+          "chunk_key": "a8a21055f53ecebed20bbe52755918efb8956fe4bdff73ffd3397dbca44a1824",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.030534351145038167,
+      "first_token_ms": 1381,
+      "total_ms": 11212,
+      "prompt_tokens": 1574,
+      "completion_tokens": 550,
+      "degraded": false
+    },
+    {
+      "case_key": "publish_suggestion_forged_resource",
+      "query": "帮我给这篇草稿起一个吸引人的标题",
+      "query_language": "zh",
+      "status": "no_evidence",
+      "answer_kind": "no_evidence",
+      "attempts": 2,
+      "direct_answers": 2,
+      "tool_calls": 1,
+      "evidence_chunks": 0,
+      "evidence_lookups": 0,
+      "groundedness": null,
+      "answer_relevance": null,
+      "first_token_ms": 3317,
+      "total_ms": 10157,
+      "prompt_tokens": 658,
+      "completion_tokens": 300,
+      "degraded": false
+    },
+    {
+      "case_key": "quinoa_meal_prep",
+      "query": "藜麦一周备餐",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮您搜索关于藜麦一周备餐的相关内容。\n\n我找到了两篇高度相关的备餐指南，让我获取详细内容。\n\n为你找到一篇直接相关的内容：\n\n## 📄 藜麦一周备餐：藜麦饭与沙拉基底\n\n**核心思路**：通过批量预处理藜麦 + 五款沙拉基底搭配，实现一周工作日便当快速组装。\n\n### 🌾 藜麦预处理三步法\n\n| 步骤 | 做法 | 目的 |\n|------|------|------|\n| 1. 淘洗 | 冷水冲洗 2–3 遍 | 去除表面皂苷（苦涩味） |\n| 2. 焯水 |沸水下锅煮 2 分钟 | 进一步去苦、激活香气 |\n| 3. 焖煮 | 米水比 1:2，小火焖 15 分钟，关火再焖 5 分钟 | 颗粒松散、口感弹牙 |\n\n### 🥗 五款沙拉基底（一周不重样）\n\n- **地中海风**：小番茄 + 黄瓜 + 菲达奶酪 + 橄榄油柠檬汁\n- **亚洲酱油**：紫甘蓝 + 彩椒 + 毛豆 + 芝麻酱油醋汁\n- **泰式酸辣**：胡萝卜丝 + 香菜 + 花生碎 + 鱼露青柠汁\n- **美式经典**：玉米粒 + 黑豆 + 牛油果 + 酸奶芥末酱\n- **北欧简约**：甜菜根 + 苹果丁 + 核桃 + 蜂蜜第戎芥末\n\n### 💡 一周备餐小贴士\n\n- 煮好的藜麦饭分装5 份冷藏，可保存 4–5 天\n- 沙拉基底中\"耐放的\"和\"易出水\"分开装，食用前再混合\n- 蛋白质（鸡胸肉、虾仁、鹰嘴豆）可一次性煎/水煮备用\n\n---\n\n如果你需要，我可以进一步帮你：\n1. 🔍 展开某一天的完整便当搭配（含蛋白质和酱汁）\n2. 📋 输出一份可直接照做的采购清单\n3. 🌶️ 根据你的口味偏好（清淡 / 重口 / 健身增肌）调整方案\n\n告诉我你最关心的方向吧！",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 4,
+      "citations": [
+        {
+          "content_id": 1016,
+          "content_version": 1,
+          "chunk_key": "43d01c0c7dc3f55ef86a9141c2342c30ff055b83133b0a2a3ab07c5ef0067d5e",
+          "title": "藜麦一周备餐：藜麦饭与沙拉基底",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 20,
+          "content_version": 1,
+          "chunk_key": "19989b8add945a838adab55bfd0d8b5aa7b8c125c044108c5e753b737f285521",
+          "title": "原创实验｜一人食的暖胃菜单 19",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 71,
+          "content_version": 1,
+          "chunk_key": "1c709f0c640455927cf0544cb259e4d495f19aba58104793f512167608976ae4",
+          "title": "原创实验｜周末露营清单 70",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 52,
+          "content_version": 1,
+          "chunk_key": "148dd42038ff08acb9d2db28f84ed6a403c976ac3eca5dba3f6a7ade1e18ff11",
+          "title": "原创实验｜一人食的暖胃菜单 51",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 87,
+          "content_version": 1,
+          "chunk_key": "399e9a2b1735933b6e90ae68727dc9d6ac3d4e74944f689c420b44f6290e87ca",
+          "title": "原创实验｜周末露营清单 86",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.019417475728155338,
+      "first_token_ms": 2387,
+      "total_ms": 8052,
+      "prompt_tokens": 2705,
+      "completion_tokens": 874,
+      "degraded": false
+    },
+    {
+      "case_key": "rain_jacket",
+      "query": "徒步雨衣",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我找到了一篇与你搜索「徒步雨衣」高度匹配的原创文章，先把详情和用法说明一起拉出来供你参考。\n\n## 🔍 搜索结果概览\n\n| ID | 标题 | 类型 | 匹配度 |\n|----|------|------|--------|\n| **1019** | **徒步雨衣选购：三层压胶与透气** | article（原创） | ⭐⭐⭐⭐⭐ 强相关 |\n| 66 | 原创实验｜雨天的城市散步路线 65 | image | 弱相关（虚构测试样本） |\n| 82 | 原创实验｜雨天的城市散步路线 81 | audio | 弱相关 |\n| 18 | 原创实验｜雨天的城市散步路线 17 | video | 弱相关 |\n| 146 | 灵感衍生｜雨天的城市散步路线 145 | template | 弱相关 |\n| 34 | 原创实验｜雨天的城市散步路线 33 | template | 弱相关 |\n\n\u003e 其余结果（125、173、61、141 等）均为「晨间跑步」相关的虚构测试样本，与徒步雨衣主题不符。\n\n---\n\n## 📄 最相关内容：徒步雨衣选购：三层压胶与透气\n\n为您找到一篇相关文章，以下是《**徒步雨衣选购：三层压胶与透气**》的核心要点整理：\n\n## 📋 文章概览\n文章围绕**三层压胶面料**技术，讲解如何在徒步雨衣上平衡**防水性**与**透气性**，并归纳出**五个核心选购参数**。\n\n---\n\n## 🎯 五个核心参数速查\n\n| 参数维度 | 关注要点 |\n|---------|---------|\n| **防水指数** | 根据活动强度选择合适等级 |\n| **透气率** | 高强度徒步需重点关注 |\n| **压胶工艺** | 确认是否为三层压胶结构 |\n| **重量与收纳** | 权衡便携性与耐用性 |\n| **细节设计** | 帽兜、袖口、拉链等密封性 |\n\n---\n\n## 👥 适合谁读\n- 计划中长距离徒步的户外爱好者\n- 需在雨天/潮湿环境长时间活动的用户\n- 对雨衣功能参数不熟悉的新手\n\n## ✅ 选购最佳实践\n1. **场景优先**：先明确徒步环境（短途/长途、季节、地形），再匹配参数\n2. **平衡取舍**：防水与透气往往需权衡，避免盲目追求单一参数\n3. **实物检查**：参数之外，试穿并测试活动中的舒适度\n4. **配件协同**：注意雨衣与背包、防潮垫等装备的搭配\n\n---\n\n如需我进一步展开某个参数（例如防水指数的具体分级、透气率如何读懂）的内容，或推荐其他相关文章，欢迎告诉我 😊",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1019,
+          "content_version": 1,
+          "chunk_key": "b5ca5205f958d6efaf8d2c228312beda81c678533eeec239eb70525930098f41",
+          "title": "徒步雨衣选购：三层压胶与透气",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 66,
+          "content_version": 1,
+          "chunk_key": "52057d197e7a837926d07472b7a5f3dd0927d784886c66a56138157e9f70a8a4",
+          "title": "原创实验｜雨天的城市散步路线 65",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 82,
+          "content_version": 1,
+          "chunk_key": "637cae20c52d4f39860cf95f845d6eee70a4ad2b3c24508db3d9ba9b0e6e041a",
+          "title": "原创实验｜雨天的城市散步路线 81",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 18,
+          "content_version": 1,
+          "chunk_key": "ae4762d377e35d60a2a9fab26d99f4971c0691da6cfe6ae64675b5d68d15a548",
+          "title": "原创实验｜雨天的城市散步路线 17",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 146,
+          "content_version": 1,
+          "chunk_key": "a7d616742ae7d560854d3afe4651b009744e9f846807fb4a44ac8dc032041913",
+          "title": "灵感衍生｜雨天的城市散步路线 145",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.01639344262295082,
+      "first_token_ms": 3172,
+      "total_ms": 32155,
+      "prompt_tokens": 2808,
+      "completion_tokens": 413,
+      "degraded": false
+    },
+    {
+      "case_key": "rate_limit_downgrade",
+      "query": "Blender 插件安装教程",
+      "query_language": "mixed",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮你查询 Blender 插件安装教程的相关内容。\n\n# Blender 插件安装教程\n\n下面是从官方下载 Blender 后，安装第三方插件的完整步骤，附带常见问题排查。\n\n## 一、前置准备\n\n1. **下载 Blender**\n   - 前往 [blender.org](https://www.blender.org/download/) 下载与系统匹配（Windows / macOS / Linux）的稳定版。\n   - 解压或安装到本地任意目录。\n\n2. **获取插件文件**\n   - 从 [Extensions Platform](https://extensions.blender.org/)、GitHub 或 Gumroad 等渠道下载插件。\n   - **注意**：插件通常为 `.zip` 压缩包，**不要解压**，直接保留压缩包形式安装。\n\n---\n\n## 二、通过偏好设置安装（推荐）\n\n这是最通用的方式，适用于 Blender 3.x / 4.x 全版本。\n\n1. 启动 Blender。\n2. 顶部菜单栏点击 **Edit（编辑）→ Preferences（偏好设置）**。\n   - macOS 用户：**Blender → Preferences**。\n3. 左侧切换到 **Get Extensions**（Blender 4.2+）或 **Add-ons（插件）** 面板。\n4. 右上角点击 **Install from Disk...（从磁盘安装）** 按钮。\n5. 在弹出的文件选择器中找到下载好的 `.zip` 文件，选中后点击 **Install from Disk**。\n6. 安装后插件不会自动启用，在左侧列表中搜索插件名称，**勾选前面的复选框** 即可启用。\n7. 启用成功后，插件的菜单或属性通常出现在 **N 面板** 或对应编辑器（如 Shader Editor）的侧边栏中。\n\n---\n\n## 三、手动安装（备用方法）\n\n如果偏好设置安装失败，可手动放置插件：\n\n| 系统 | 插件目录路径 |\n|------|-------------|\n| Windows | `C:\\Users\\\u003c用户名\u003e\\AppData\\Roaming\\Blender Foundation\\Blender\\\u003c版本号\u003e\\scripts\\addons\\` |\n| macOS | `~/Library/Application Support/Blender/\u003c版本号\u003e/scripts/addons/` |\n| Linux | `~/.config/blender/\u003c版本号\u003e/scripts/addons/` |\n\n操作步骤：\n1. 解压插件压缩包，得到一个与插件同名的文件夹。\n2. 把该文件夹复制到上表对应路径下。\n3. 重启 Blender。\n4. 进入 **Edit → Preferences → Add-ons**，搜索插件名称并勾选启用。\n\n---\n\n## 四、常见报错与排查\n\n| 报错提示 | 原因 | 解决办法 |\n|---------|------|---------|\n| `ImportError: No module named xxx` | 缺少 Python 依赖库 | 安装对应版本的依赖，或在终端运行 `blender --python-expr \"import pip; pip install xxx\"` |\n| `This add-on does not support Blender version X.X` | 插件版本与 Blender 不兼容 | 前往插件发布页下载与你 Blender 版本匹配的版本 |\n| 安装后找不到插件菜单 | 未启用插件 | 回到 Add-ons 面板搜索并勾选 |\n| `.zip` 安装失败 | 文件被解压过 | 重新下载保持压缩状态后再安装 |\n\n---\n\n## 五、启用后的常用操作\n\n- **更新插件**：在 Add-ons 面板找到插件，点击右侧箭头展开，可选择 **Remove（移除）** 后重新安装新版。\n- **保存默认启用**：勾选启用后，Blender 默认就会记住，无需额外操作。\n- **查找插件快捷键**：部分插件安装后会在 **Edit → Preferences → Keymap（键位映射）** 中出现自定义快捷键。\n\n---\n\n## 小贴士\n\n- 安装前确认 Blender 版本号（左上角标题或 **Edit → About** 查看）。\n- 同一插件在不同 Blender 大版本间**通常不通用**，升级 Blender 后记得重装插件。\n- 官方审核过的插件可优先在 **Extensions Platform** 获取，安全性更高。\n\n如果你在安装某个具体插件时遇到问题，可以告诉我插件名称和 Blender 版本号，我帮你进一步排查。",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1009,
+          "content_version": 1,
+          "chunk_key": "1c8a576f2f7fec8bbb186bbaea0317f4b193a86589ebb9f66c3e5ee79cff46f3",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1001,
+          "content_version": 1,
+          "chunk_key": "798b51ae2517c1071b812c149e569e7df3b88b11ccbf98988289639775b4c7db",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1005,
+          "content_version": 1,
+          "chunk_key": "6869745547ba62c7c61285cf0e415e558bc2c25858bdc552932ca22ec20472bf",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1012,
+          "content_version": 1,
+          "chunk_key": "701aec62365e4a29fb154e8ead9e731e52d5bf29cdfa1cf0ea307e1baae0d803",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1013,
+          "content_version": 1,
+          "chunk_key": "a8a21055f53ecebed20bbe52755918efb8956fe4bdff73ffd3397dbca44a1824",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.015209125475285171,
+      "first_token_ms": 7637,
+      "total_ms": 21178,
+      "prompt_tokens": 1574,
+      "completion_tokens": 934,
+      "degraded": false
+    },
+    {
+      "case_key": "reverse_fly",
+      "query": "反向飞鸟",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我找到一篇关于反向飞鸟的文章，让我获取详细内容。\n\n# 反向飞鸟动作详解 🎯\n\n找到一篇关于反向飞鸟动作细节的文章，下面是核心内容整理：\n\n## 📌 核心动作要素\n\n**1. 俯身角度**\n- 建议角度：躯干与地面呈 **30°–45°**\n- 避免角度过低（增加腰椎压力）或过高（减少后束刺激）\n\n**2. 肘部轨迹**\n- 肘部保持**微屈（≈15°）**，全程锁定角度不变\n- 运动轨迹沿**弧线向外上方**，至大臂与肩同高\n- 肘部引导发力，避免用手臂拉拽\n\n**3. 配重选择**\n- **轻重量起步**：每侧 2–5 kg\n- 优先保证动作质量，12–15 次出现明显疲劳即合适\n\n## ⚠️ 必须避免的三个错误\n\n| 错误动作 | 后果 | 正确做法 |\n|---------|------|---------|\n| ❌ 躯干过度前倾 | 腰部代偿、疼痛 | 保持背部挺直，调整角度 |\n| ❌ 肘部完全伸直 | 关节负荷过大 | 保持微屈固定角度 |\n| ❌ 使用过重配重 | 借力耸肩、目标肌群失活 | 降低重量，慢速控制 |\n\n## ✅ 最佳实践建议\n\n1. **动作节奏**：离心 2 秒 → 顶峰停顿 1 秒 → 向心 2 秒\n2. **呼吸配合**：发力上抬时呼气，下放时吸气\n3. **训练频率**：每周 **2–3 次**，每次 3–4 组\n4. **激活前准备**：先做肩袖热身（如弹力带外旋）\n5. **结束拉伸**：训练后进行胸椎伸展与后束拉伸\n\n\u003e 💡 **关键提示**：动作质量 \u003e 重量，宁轻勿假，找到肩胛骨后缩发力的感觉再逐步加重。\n\n## 🎯 适用人群\n- 肩袖稳定性不足的训练者\n- 改善圆肩、上背部薄弱的健身人群\n- 进阶力量训练者（适合作为辅助动作）\n\n---\n\n需要我帮你查找其他相关的训练动作（比如弹力带外旋热身、罗马椅俯身等），或者针对你具体的训练目标做进一步说明吗？",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1015,
+          "content_version": 1,
+          "chunk_key": "ccca1d629bf67bd454a0d2b4f41552ceb19f7bc0ab182a5815cc8db75acebbab",
+          "title": "反向飞鸟动作细节：肩袖稳定的关键",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1014,
+          "content_version": 1,
+          "chunk_key": "4236075d9aa03ef4ca1c471939f003819eb53520b59024464762ffaddc8370f4",
+          "title": "郁金香拉花手法拆解：从基础到进阶",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1018,
+          "content_version": 1,
+          "chunk_key": "b667e163a80cd2fb1e14135f381ceea59d039beda7d3882c0d934f860f6b172f",
+          "title": "洞洞板桌面收纳：12㎡ 工作区整理",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1020,
+          "content_version": 1,
+          "chunk_key": "f5322dd23339144055d9d0f5f284b710a1bc15a405273b7989ea68e6e4021d00",
+          "title": "流浪猫救助喂养记录：幼猫到成猫",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1021,
+          "content_version": 1,
+          "chunk_key": "36bf1d374357f588001dbf94c36ec8f2b0c0da5d5f8ad906b2aaecc813956c0e",
+          "title": "胶片摄影入门：第一卷反转片",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.019230769230769232,
+      "first_token_ms": 4600,
+      "total_ms": 15290,
+      "prompt_tokens": 2698,
+      "completion_tokens": 529,
+      "degraded": false
+    },
+    {
+      "case_key": "scifi_signal",
+      "query": "短篇科幻",
+      "query_language": "zh",
+      "status": "no_evidence",
+      "answer_kind": "no_evidence",
+      "attempts": 2,
+      "direct_answers": 2,
+      "tool_calls": 0,
+      "evidence_chunks": 0,
+      "evidence_lookups": 0,
+      "groundedness": null,
+      "answer_relevance": null,
+      "first_token_ms": 10724,
+      "total_ms": 10879,
+      "prompt_tokens": 605,
+      "completion_tokens": 1200,
+      "degraded": false
+    },
+    {
+      "case_key": "semantic_paraphrase_lookup",
+      "query": "教我如何给游戏安装模组",
+      "query_language": "zh",
+      "status": "no_evidence",
+      "answer_kind": "no_evidence",
+      "attempts": 2,
+      "direct_answers": 2,
+      "tool_calls": 0,
+      "evidence_chunks": 0,
+      "evidence_lookups": 0,
+      "groundedness": null,
+      "answer_relevance": null,
+      "first_token_ms": 4485,
+      "total_ms": 14432,
+      "prompt_tokens": 610,
+      "completion_tokens": 1198,
+      "degraded": false
+    },
+    {
+      "case_key": "shoulder_workout_log",
+      "query": "肩部训练实录",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "根据搜索结果，目前可见内容里**没有题为「肩部训练实录」的现成文章**——这是当前的命名空间里没有一篇完全同名/同主题的发布内容。\n\n**最相关的命中**只有一篇肩部训练技术文章：\n\n| 内容 ID | 标题 | 类型 | 摘要 |\n|---|---|---|---|\n| 1015 | 反向飞鸟动作细节：肩袖稳定的关键 | article | 俯身角度、肘部轨迹与配重选择，练好反向飞鸟需要避免的三个常见错误。 |\n\n其余结果都是露营/拉花/流浪猫/晨跑等无关样本或测试用例。\n\n---\n\n如果你想做的是下面其中之一，告诉我一下，我可以继续：\n\n1. **查看1015 这篇反向飞鸟文章的全文** → 我用 `get_content_detail` 拿完整正文。\n2. **用它当参考，新建一篇「肩部训练实录」发布** → 我先用 `suggest_publish_metadata` 给你一版草稿元数据，你确认后再正式进入发布流程。\n3. **换关键词再搜**（比如「肩部训练计划」「推举」「侧平举」「肩袖」），看看库里还有没有别篇。\n\n你想要哪个方向？",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 2,
+      "citations": [
+        {
+          "content_id": 1015,
+          "content_version": 1,
+          "chunk_key": "ccca1d629bf67bd454a0d2b4f41552ceb19f7bc0ab182a5815cc8db75acebbab",
+          "title": "反向飞鸟动作细节：肩袖稳定的关键",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1020,
+          "content_version": 1,
+          "chunk_key": "f5322dd23339144055d9d0f5f284b710a1bc15a405273b7989ea68e6e4021d00",
+          "title": "流浪猫救助喂养记录：幼猫到成猫",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1014,
+          "content_version": 1,
+          "chunk_key": "4236075d9aa03ef4ca1c471939f003819eb53520b59024464762ffaddc8370f4",
+          "title": "郁金香拉花手法拆解：从基础到进阶",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 71,
+          "content_version": 1,
+          "chunk_key": "1c709f0c640455927cf0544cb259e4d495f19aba58104793f512167608976ae4",
+          "title": "原创实验｜周末露营清单 70",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 87,
+          "content_version": 1,
+          "chunk_key": "399e9a2b1735933b6e90ae68727dc9d6ac3d4e74944f689c420b44f6290e87ca",
+          "title": "原创实验｜周末露营清单 86",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.03508771929824561,
+      "first_token_ms": 2296,
+      "total_ms": 6265,
+      "prompt_tokens": 2311,
+      "completion_tokens": 644,
+      "degraded": false
+    },
+    {
+      "case_key": "spring_commute_outfit",
+      "query": "春季通勤穿搭",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来为您搜索一下是否有相关的穿搭内容参考。\n\n\n\n# 🌸 春季通勤穿搭指南\n\n当前内容库里没有专门讲「春季通勤穿搭」的原创文章，但有几篇相关文章和素材可以作为参考，我帮你整理一份实用清单 👇\n\n---\n\n## 🧥 一、核心单品清单（按温度分层）\n\n**早晚温差大是春季通勤最大的痛点**，建议采用「洋葱式穿搭法」：\n\n| 层次 | 单品建议 | 备注 |\n|---|---|---|\n| **内层** | 轻薄针织衫 / 衬衫 / T 恤 | 透气吸汗，方便到办公室脱掉 |\n| **中层** | 薄风衣 / 针织开衫 / 西装外套 | 早晚御寒，室内不闷 |\n| **外层** | 防风夹克 / 轻薄风衣 | 防春季大风和阵雨 |\n| **下装** | 九分西裤 / 直筒牛仔裤 / 中长裙 | 干练且不拖地 |\n| **鞋** | 乐福鞋 / 短靴 / 小白鞋 | 百搭且适合长时间通勤 |\n\n\u003e 💡 **关联参考**：《徒步雨衣选购：三层压胶与透气》介绍了面料的防水透气原理，外层夹克也可以参考这个思路选面料。\n\n---\n\n## 🎨 二、配色公式（不会出错）\n\n春季适合**低饱和度 + 一个亮点**：\n\n- **万能组合**：米白 + 卡其 + 牛仔蓝\n- **显气色组合**：浅灰 + 雾霾蓝 + 白色\n- **进阶组合**：奶油色 + 浅棕 + 一抹亮色（丝巾/包包点缀）\n\n\u003e 💡 **关联参考**：内容库里的《新手也能完成的配色练习》系列（id 22、102、134、166）专门讲配色入门，值得参考。\n\n---\n\n## ☔ 三、应对春季多变天气\n\n- **防雨**：折叠伞 + 防水鞋，比一次性鞋套体面\n- **防风**：风衣比针织外套更实用\n- **防花粉过敏**：通勤尽量不穿粘毛的外套，包里备湿巾\n- **防早晚凉**：备一条轻薄围巾，既保暖又是穿搭点睛\n\n\u003e 💡 **关联参考**：《雨天的城市散步路线》系列（id 18、34、66、82、146）里有关于雨天出行的实用小技巧。\n\n---\n\n## 💼 四、通勤穿搭 3 条铁律\n\n1. **鞋要舒服**：通勤动辄 30 分钟以上，乐福鞋/德训鞋比高跟友好\n2. **包要能装**：至少能放下 13 寸笔记本 + 水杯 + 折叠伞\n3. **整体别太新**：通勤装讲究的是**得体耐看**，而不是潮流前卫\n\n---\n\n## 🔍 想看更深入的内容？\n\n我可以帮你：\n- 📚 **检索相关专题**（如「职场穿搭」「通勤包推荐」）\n- ✍️ **生成一篇《春季通勤穿搭》原创草稿**入库\n- 🧩 **基于配色练习素材**做一份适合通勤的配色方案\n\n需要哪个方向，告诉我一声～",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1017,
+          "content_version": 1,
+          "chunk_key": "648b1df11e84ecab24dc098c6cd6b33b465786e0cee7d82b1a2ecc9570434e9f",
+          "title": "地铁通勤阅读书单：30 本短篇集",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 140,
+          "content_version": 1,
+          "chunk_key": "19b5f8fc6f15d16c626f439ba09ae015ced6cf200d41350c1a3c4074ac3bbb64",
+          "title": "灵感衍生｜镜头下的普通朋友 139",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 156,
+          "content_version": 1,
+          "chunk_key": "393f209a2f09f592ad059cd95dd5b4aac876ea7e9912c50952dc4b9a1a7776d9",
+          "title": "灵感衍生｜镜头下的普通朋友 155",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 108,
+          "content_version": 1,
+          "chunk_key": "1ad9a0bf419a250c90ae7b7dd0f0ba96caf5ac63241f14edd9a381b72cfc16e8",
+          "title": "原创实验｜镜头下的普通朋友 107",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 44,
+          "content_version": 1,
+          "chunk_key": "8404b567dd45b5da07a71bbfedff9cba429d980bd52a84dcecb2b946c6928033",
+          "title": "原创实验｜镜头下的普通朋友 43",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.014184397163120567,
+      "first_token_ms": 3564,
+      "total_ms": 24074,
+      "prompt_tokens": 4948,
+      "completion_tokens": 780,
+      "degraded": false
+    },
+    {
+      "case_key": "stray_cat_rescue",
+      "query": "流浪猫救助喂养",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮您搜索关于\"流浪猫救助喂养\"的相关内容。\n\n我为您找到了一篇关于流浪猫救助喂养的实用文章，让我查看详细内容。\n\n# 流浪猫救助喂养记录：幼猫到成猫\n\n**摘要**：从捡回幼猫到疫苗驱虫，记录喂养节奏与体重变化，救助不是一时冲动。\n\n---\n\n## 📖 文章概要\n\n这是一篇关于**流浪猫救助与喂养**的实用记录文章，主要内容包括：\n\n- 🐾 **幼猫阶段**：刚捡回幼猫时的应急处理与初期喂养\n- 📈 **成长记录**：体重变化曲线与喂养节奏调整\n- 💉 **健康保障**：疫苗接种与驱虫的时间节点安排\n- ⚠️ **救助心态**：强调救助不是一时冲动，需要长期投入\n\n---\n\n## 💡 你可能想了解的内容\n\n由于公开版本仅展示了摘要，如需查看以下详细内容，建议获取完整文章：\n\n| 你想了解的问题 | 文章可能涉及 |\n|--------------|------------|\n| 幼猫多大可以开始喂固体食物？ | 离乳期过渡 |\n| 多久驱虫一次？ | 内驱 vs 外驱 |\n| 疫苗打几针？ | 猫三联时间表 |\n| 体重多少算正常？ | 各阶段标准体重 |\n\n---\n\n## 🙋 如何获取更多帮助如果你正在救助流浪猫，我可以帮你：\n\n1. **搜索具体问题**：例如\"幼猫拉稀怎么办\"、\"猫瘟早期症状\"\n2. **查找救助指南**：例如\"TNR（抓捕-绝育-放归）流程\"\n3. **推荐物资清单**：例如羊奶粉、奶瓶、保温用品的选择\n\n你想先了解哪个方面？我可以为你做进一步搜索。",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 2,
+      "citations": [
+        {
+          "content_id": 1020,
+          "content_version": 1,
+          "chunk_key": "f5322dd23339144055d9d0f5f284b710a1bc15a405273b7989ea68e6e4021d00",
+          "title": "流浪猫救助喂养记录：幼猫到成猫",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1008,
+          "content_version": 1,
+          "chunk_key": "9c35bcde7a019651c8fcf01fde474f7f5b22992767127c2b449ef17108dee01e",
+          "title": "系统提示词大全",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1014,
+          "content_version": 1,
+          "chunk_key": "4236075d9aa03ef4ca1c471939f003819eb53520b59024464762ffaddc8370f4",
+          "title": "郁金香拉花手法拆解：从基础到进阶",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 3,
+      "evidence_lookups": 3,
+      "groundedness": 0,
+      "answer_relevance": 0.03125,
+      "first_token_ms": 629,
+      "total_ms": 5763,
+      "prompt_tokens": 1100,
+      "completion_tokens": 359,
+      "degraded": false
+    },
+    {
+      "case_key": "subway_reading",
+      "query": "通勤阅读",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮您搜索一些适合通勤时间阅读的内容推荐。\n\n\n\n为您找到一篇很契合「通勤阅读」主题的内容 👇\n\n## 📖 地铁通勤阅读书单：30 本短篇集\u003e短篇集是通勤阅读的最佳载体，这份书单覆盖科幻、推理与文学三个\"抽屉\"。\n\n- **类型**：原创文章（article）\n- **定位**：按主题分门别类的短篇集书单\n\n### 为什么短篇集适合通勤？\n- ⏱️ **时长友好**：单篇 10–30 分钟可读完一章/一篇，正好覆盖一趟地铁\n- 🚇 **断点无压力**：随时到站收起，下次翻开不丢线索\n- 🎯 **主题抽屉**：科幻、推理、文学三类切换，可以按心情挑\n\n需要我帮您做这几件事吗？\n- 展开这个书单的完整内容与选书理由\n- 按\"科幻 / 推理 / 文学\"其中一类深入推荐\n- 推荐更轻量的\"5 分钟内读完\"微短篇或音频版\n\n告诉我您更倾向哪一种 ✨",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1017,
+          "content_version": 1,
+          "chunk_key": "648b1df11e84ecab24dc098c6cd6b33b465786e0cee7d82b1a2ecc9570434e9f",
+          "title": "地铁通勤阅读书单：30 本短篇集",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 140,
+          "content_version": 1,
+          "chunk_key": "19b5f8fc6f15d16c626f439ba09ae015ced6cf200d41350c1a3c4074ac3bbb64",
+          "title": "灵感衍生｜镜头下的普通朋友 139",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 143,
+          "content_version": 1,
+          "chunk_key": "088078bde28554e6fcd1bab7ae26ba14da5a5bce2ddb12eaebcfac37d2d3771e",
+          "title": "灵感衍生｜深夜电台歌单 142",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 159,
+          "content_version": 1,
+          "chunk_key": "259ee371fa59a935e469486304adb911b3103a7e04461326dccd00998b3b7b20",
+          "title": "灵感衍生｜深夜电台歌单 158",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 156,
+          "content_version": 1,
+          "chunk_key": "393f209a2f09f592ad059cd95dd5b4aac876ea7e9912c50952dc4b9a1a7776d9",
+          "title": "灵感衍生｜镜头下的普通朋友 155",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.044444444444444446,
+      "first_token_ms": 1038,
+      "total_ms": 5548,
+      "prompt_tokens": 4143,
+      "completion_tokens": 300,
+      "degraded": false
+    },
+    {
+      "case_key": "subway_reading_list",
+      "query": "地铁通勤阅读书单",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我先看看站内是否有相关的书单内容，再结合您的需求给出推荐。\n\n我帮你找到了一篇高度匹配的内容，先把详情拉出来给你看。\n\n我搜到了一条高度匹配的内容，但完整正文未能取到，先把可见信息给你：\n\n**找到的相关内容**\n- 《地铁通勤阅读书单：30 本短篇集》（id: 1017，原创区，文章）\n- 摘要原文：*\"短篇集是通勤阅读的最佳载体，这份书单覆盖科幻、推理与文学三个抽屉。\"*\n\n也就是说，这份书单的\"骨架\"我能看到——**30 本短篇集，分为科幻 / 推理 / 文学三大类**，并且立意是\"通勤阅读的最佳载体\"。但 `get_content_detail` 只回传了标题与摘要，**具体 30 本书名没拿到**，我不想凭印象帮你编一份出来。\n\n**两条可行路径，你挑一个：**\n\n1. **告诉我你倾向哪一类**（科幻 / 推理 / 文学 / 都想看），我可以基于公开资料给你列一份风格相近、确实适合地铁读的短篇集书单，每本附一句话推荐理由 + 通勤友好度（单篇时长、章节切分感等）。\n2. **如果你手上已有这份书单的链接或原文**，贴给我，我可以帮你做结构化整理（按题材分组、标注篇幅、按通勤单程20/40/60 分钟分级等）。\n\n你想走哪条？",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1017,
+          "content_version": 1,
+          "chunk_key": "648b1df11e84ecab24dc098c6cd6b33b465786e0cee7d82b1a2ecc9570434e9f",
+          "title": "地铁通勤阅读书单：30 本短篇集",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 91,
+          "content_version": 1,
+          "chunk_key": "51ed3e1ab3e50abaa25df0df18c8fec1f6d0276cc36dc1801054a22a944ef630",
+          "title": "原创实验｜手账里的旅行地图 90",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 59,
+          "content_version": 1,
+          "chunk_key": "1a876b5d2546dea6d248bd42863a87217909d67dbd7314d22224075781167b43",
+          "title": "原创实验｜手账里的旅行地图 58",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 171,
+          "content_version": 1,
+          "chunk_key": "65bee7f144f7147325a71e5222edb69c7f1da42e1d446eadb7efdbde40589f19",
+          "title": "灵感衍生｜手账里的旅行地图 170",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 155,
+          "content_version": 1,
+          "chunk_key": "7622f2f8694080403dbd43133ece840857c0cff15b3e2f8b92fd6965385502d7",
+          "title": "灵感衍生｜手账里的旅行地图 154",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.03076923076923077,
+      "first_token_ms": 3681,
+      "total_ms": 12039,
+      "prompt_tokens": 4110,
+      "completion_tokens": 561,
+      "degraded": false
+    },
+    {
+      "case_key": "tablet_drawing_basics",
+      "query": "平板手绘入门",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来为您搜索一下关于平板手绘入门的相关内容。\n\n为你找到一篇挺合适的入门文章：《**平板手绘入门：从图层到笔刷**》，正好覆盖了图层管理、笔刷设置与压感调节这些第一次用平板画画最容易卡壳的地方。👇\n\n## 📘 平板手绘入门指南\n\n### 一、硬件与 App 准备\n| 项目 | 入门推荐 |\n|------|----------|\n| 平板 | iPad（基础款即可）/ 安卓平板带手写笔 |\n| 手写笔 | Apple Pencil / 主动式电容笔（务必支持压感） |\n| 软件 | Procreate（iOS）/ 画世界 / Sketchbook / Krita（免费） |\n\n### 二、第一步：熟悉界面\n- **画布**：新建时建议 2048×2048 px、300 DPI，够用且不卡顿\n- **手势**：双指捏合 = 缩放、双指轻点 = 撤销、三指下滑 = 截图\n- **取色**：长按颜色块即可吸取当前画面上的颜色\n\n### 三、图层管理（核心中的核心）\n图层的概念就像\"透明的玻璃纸\"，一层层叠加：\n\n```\n📁 文件结构\n├── 🟦 线稿层（画轮廓，正常模式，100% 不透明）\n├── 🎨 色块层（在下方，铺大色块）\n├── 🌗 明暗层（剪贴蒙版到色块层）\n├── ✨ 高光层（叠加/滤色模式）\n└── 📝 文字/调整层\n```\n\n**新人必学 3 个图层操作**：\n1. **Alpha 锁定**：双指右滑图层 → 只能在已涂色的范围内涂色（铺色神器）\n2. **剪贴蒙版**：上方图层点击\"剪辑蒙版\" → 自动限制在下方图层范围\n3. **合并/向下合并**：线稿画完后合并为一个组，便于管理\n\n### 四、笔刷设置与压感\n- **大小**：随压力变化（轻 → 细，重 → 粗）\n- **不透明度**：随压力变化（轻 → 淡，重 → 实）\n- **最小直径**：建议调到 **20%–40%**，避免轻按变成 0 看不到线\n\n🎯 **新手套装（够用就好）**：\n1. **6B 铅笔**：打草稿\n2. **工作室笔/喷枪**：铺色块\n3. **墨水渗流**：勾线\n4. **柔边圆**：上阴影\n5. **高光笔**：点高光\n\n### 五、第一次练习路线（建议 7 天）\n| 天数 | 练习内容 | 目标 |\n|------|---------|------|\n| Day 1 | 画线条（直线、曲线、圆） | 熟悉压感 |\n| Day 2 | 临摹一个简单形状（如杯子） | 学会看比例 |\n| Day 3 | 给杯子铺色 + 加阴影 | 练习图层 |\n| Day 4 | 临摹一张 Q 版头像 | 综合运用 |\n| Day 5 | 尝试不同笔刷叠加 | 找手感 |\n| Day 6 | 完成第一张完整作品 | 保持热情 |\n| Day 7 | 复盘 + 找问题 | 针对性改进 |\n\n### 六、新手最容易踩的坑\n- ❌ 画一笔就撤销一次 → 试着**画完整条线再撤销**\n- ❌ 所有东西都画在一层 → **养成分层习惯**\n- ❌ 笔刷越多越好 → **3–5 个笔刷用到熟**\n- ❌ 只看不练 → **每天哪怕 15 分钟也要动笔**\n\n---\n\n🎁 **小贴士**：可以把这篇文章收藏起来，对照着一步步操作，比看再多视频都管用。第一次打开平板不用追求完美，画就对了 ✨",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1039,
+          "content_version": 1,
+          "chunk_key": "4821d208733267a2a33de7b9eea4e368cf2074a610390e8ff98ded439310bf47",
+          "title": "平板手绘入门：从图层到笔刷",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 171,
+          "content_version": 1,
+          "chunk_key": "65bee7f144f7147325a71e5222edb69c7f1da42e1d446eadb7efdbde40589f19",
+          "title": "灵感衍生｜手账里的旅行地图 170",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 11,
+          "content_version": 1,
+          "chunk_key": "57a5b7b09aa4133e5775f48a23b2c048ae274b6d0057ca292920946fe7352b8d",
+          "title": "原创实验｜手账里的旅行地图 10",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 155,
+          "content_version": 1,
+          "chunk_key": "7622f2f8694080403dbd43133ece840857c0cff15b3e2f8b92fd6965385502d7",
+          "title": "灵感衍生｜手账里的旅行地图 154",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 166,
+          "content_version": 1,
+          "chunk_key": "14c4432c00fb6e91d12758d763a7d146715e9fb7b562368a2587c2a3f04fe95d",
+          "title": "灵感衍生｜新手也能完成的配色练习 165",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.01020408163265306,
+      "first_token_ms": 1920,
+      "total_ms": 21252,
+      "prompt_tokens": 4003,
+      "completion_tokens": 800,
+      "degraded": false
+    },
+    {
+      "case_key": "telescope_beginner",
+      "query": "天文观测新手",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来为您这位天文观测新手推荐一些适合入门的优质内容。让我搜索一下相关的天文观测资源。\n\n为您找到一篇完全对口的新手入门文章，我先把核心内容拉出来看看。\n\n# 🔭 天文观测新手必读\n\n找到了非常对口的内容，这里有一篇专门为新手准备的文章——\n\n## 📖 《天文观测新手：第一次用望远镜》\n\n**核心摘要**：赤道仪对极轴、目镜倍率计算与城市观星选址，第一次望远镜出摊的完整清单。\n\n---\n\n### 🎯 文章四大模块\n\n| 模块 | 关键技能 | 难度 |\n|------|---------|------|\n| 🌟 **对极轴** | 赤道仪对准北极星，抵消地球自转 | ⭐⭐⭐ |\n| 🔢 **算倍率** | 望远镜焦距 ÷ 目镜焦距 = 放大倍数 | ⭐ |\n| 📍 **选地点** | 城市观星避开光污染、找暗夜区域 | ⭐⭐ |\n| 📋 **出摊清单** | 装备准备与流程检查 | ⭐ |\n\n---\n\n### ✅ 推荐做法\n- 🌙 选择**农历初一前后**（无月或小月）观星\n- 👀 先用**低倍率目镜**寻找目标，再切换高倍率细看\n- 📍 提前 30 分钟到达观测点，让眼睛适应黑暗\n- 📓 携带**观测日志**，记录时间、目标、设备参数\n\n### ❌ 常见误区\n- ⚠️ 对极轴时不通过寻星镜校准，导致跟踪偏移\n- ⚠️ 一上来就用最高倍率，视场太窄找不到目标\n- ⚠️ 在市中心楼顶观星，受光污染影响严重\n- ⚠️ 忘记给赤道仪配重平衡，导致电机负载过大\n\n---\n\n### 📋 出发前快速自检清单\n\n- [ ] 赤道仪已平衡 + 极轴对准\n- [ ] 目镜倍率已计算并规划\n- [ ] 观测地点光污染等级已查\n- [ ] 红光手电、星图、备用电池已装包\n- [ ] 手机/相机三脚架（如需拍摄）已就位\n\n\u003e 💡 **一句话总结**：先对极轴 → 再算倍率 → 选对地点 → 带齐清单——第一次出摊也能顺利看到土星环与月球陨石坑。\n\n---\n\n如果需要，我可以帮你：\n1. 📄 **查询更多天文/观星相关文章**\n2. 🔍 **搜索特定主题**（如深空摄影、月面观测、梅西耶天体）\n3. 📝 **生成观测日志模板**\n\n需要继续深入哪个方向？",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 4,
+      "citations": [
+        {
+          "content_id": 1025,
+          "content_version": 1,
+          "chunk_key": "03755ec62ae6d45200f083fe36fb23545fced520c0a038ebdf6c66a9406752c9",
+          "title": "天文观测新手：第一次用望远镜",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1021,
+          "content_version": 1,
+          "chunk_key": "36bf1d374357f588001dbf94c36ec8f2b0c0da5d5f8ad906b2aaecc813956c0e",
+          "title": "胶片摄影入门：第一卷反转片",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 81,
+          "content_version": 1,
+          "chunk_key": "53556fe1ba490d49c2dd3d76b029aa060fcf4f2d4cd7ea792516fb482af72ad6",
+          "title": "原创实验｜城市边缘的植物观察 80",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 91,
+          "content_version": 1,
+          "chunk_key": "51ed3e1ab3e50abaa25df0df18c8fec1f6d0276cc36dc1801054a22a944ef630",
+          "title": "原创实验｜手账里的旅行地图 90",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 71,
+          "content_version": 1,
+          "chunk_key": "1c709f0c640455927cf0544cb259e4d495f19aba58104793f512167608976ae4",
+          "title": "原创实验｜周末露营清单 70",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.022727272727272728,
+      "first_token_ms": 1425,
+      "total_ms": 24710,
+      "prompt_tokens": 4774,
+      "completion_tokens": 566,
+      "degraded": false
+    },
+    {
+      "case_key": "tomato_beef_pasta",
+      "query": "番茄牛肉意面",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "# 🍝 番茄牛肉意面 做法\n\n这是一道中西结合的家常料理，番茄的酸甜搭配软嫩的牛肉，裹着意面非常开胃～\n\n## 🛒 食材准备（2人份）\n\n| 类别 | 食材 | 份量 |\n|------|------|------|\n| 主料 | 意面（spaghetti 或 penne） | 200g |\n| 肉类 | 牛腩 / 牛肉粒 | 200g |\n| 番茄类 | 番茄 2 个 + 番茄罐头 / 番茄酱 | 1 个 + 3 勺 |\n| 配料 | 洋葱、蒜、姜 | 各适量 |\n| 调味 | 生抽、老抽、料酒、盐、黑胡椒 | 适量 |\n| 香料 | 罗勒叶 / 意大利综合香料 | 少许 |\n\n## 👨‍🍳 步骤\n\n### 1️⃣ 处理牛肉\n- 牛肉切 2cm 见方小块，冷水下锅焯水去血沫\n- 捞出沥干，热锅冷油加姜片爆香\n- 下牛肉翻炒，加 **2 勺生抽 + 1 勺料酒 + 半勺老抽** 上色\n\n### 2️⃣ 炒番茄底料\n- 另起锅放少许油，蒜末、洋葱丁爆香\n- 加入 **去皮切丁的番茄**，中火炒出红汁\n- 加 **3 勺番茄酱 / 半罐番茄罐头**，继续熬 2 分钟\n\n### 3️⃣ 炖煮入味\n- 把牛肉倒入番茄锅中，加热水没过食材\n- 大火烧开转小火 **炖 40-60 分钟**（高压锅 15 分钟即可）\n- 出锅前加 **盐、糖、黑胡椒** 调味，撒上罗勒叶\n\n### 4️⃣ 煮意面\n- 沸水下意面，加一勺盐\n- 按包装时间煮 **8-10 分钟**（保留一点硬芯更有口感）\n- 捞出沥干，拌少许橄榄油防粘\n\n### 5️⃣ 混合装盘\n- 把意面放入番茄牛肉锅中翻拌均匀\n- 或意面装盘，浇上番茄牛肉酱\n- 表面撒芝士粉 / 欧芹碎装饰\n\n## 💡 小贴士\n\n- 🌟 **番茄去皮小技巧**：顶部划十字，沸水烫 30 秒后过冷水，皮轻松撕下\n- 🌟 **牛肉更嫩**：切块后用生抽 + 淀粉 + 油 抓匀腌制 10 分钟\n- 🌟 **汤汁浓稠**：出锅前淋一点水淀粉勾芡，酱汁更挂面\n- 🌟 **升级版**：加一点红酒或黄油炒番茄，风味更香醇\n\n---\n\n需要我帮你查看平台上相关的菜谱内容吗？或者有别的想做的菜也可以问我 🍳",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 1,
+      "citations": [
+        {
+          "content_id": 20,
+          "content_version": 1,
+          "chunk_key": "19989b8add945a838adab55bfd0d8b5aa7b8c125c044108c5e753b737f285521",
+          "title": "原创实验｜一人食的暖胃菜单 19",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 52,
+          "content_version": 1,
+          "chunk_key": "148dd42038ff08acb9d2db28f84ed6a403c976ac3eca5dba3f6a7ade1e18ff11",
+          "title": "原创实验｜一人食的暖胃菜单 51",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 149,
+          "content_version": 1,
+          "chunk_key": "040df4e750ab3d6947f58d90e622c0170719722f59dab953e1f3a60496204c08",
+          "title": "灵感衍生｜我的桌面整理实验 148",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 117,
+          "content_version": 1,
+          "chunk_key": "66e1c316ed93087bfdfd76542f576663433d427b3c165450dafef73b4a409f66",
+          "title": "灵感衍生｜我的桌面整理实验 116",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 84,
+          "content_version": 1,
+          "chunk_key": "434adf3656bcf62fce9a1ca341348f9b323bfc8d0fa03562ddaaf7f409482ed3",
+          "title": "原创实验｜一人食的暖胃菜单 83",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.014598540145985401,
+      "first_token_ms": 2684,
+      "total_ms": 13074,
+      "prompt_tokens": 2343,
+      "completion_tokens": 767,
+      "degraded": false
+    },
+    {
+      "case_key": "treadmill_rainy_day",
+      "query": "居家跑步机训练",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来为您搜索关于居家跑步机训练的相关内容。\n\n# 居家跑步机训练完全指南\n\n虽然站内搜索未返回与\"跑步机训练\"直接相关的具体内容（主要匹配到\"晨间跑步\"相关素材），但我可以为您提供一份实用的居家跑步机训练指南：\n\n## 🎯 训练前准备\n\n**环境与装备**\n- 选择通风良好的房间，地面铺防滑垫\n- 穿着专业跑鞋（普通鞋底过硬易伤膝）\n- 准备毛巾、水壶，运动前30 分钟少量补水\n- 跑步机前方避免放置易碎物品，留出安全空间\n\n## 📊 训练方案分级\n\n### 入门级（新手1-4 周）\n| 周次 | 时长 | 速度 | 坡度 |\n|------|------|------|------|\n| 第 1 周 | 15-20 分钟 | 5-6 km/h | 0% |\n| 第 2 周 | 20-25 分钟 | 5.5-6.5 km/h | 0-1% |\n| 第 3 周 | 25-30 分钟 | 6-7 km/h | 1% |\n| 第 4 周 | 30 分钟 | 6.5-7.5 km/h | 1-2% |\n\n### 进阶级（5-8 周）\n- **间歇训练**：快跑 1 分钟（8-10 km/h）+ 慢走/快走 2 分钟，循环 6-8 组\n- **坡度训练**：坡度 3-5%，速度 6-7 km/h，20-30 分钟\n- **节奏跑**：维持能说短句但无法对话的强度，20 分钟\n\n### 高阶级（8 周以上）\n-每周 3-4 次训练，包含恢复跑、长距离跑、间歇跑\n- 单次时长可延长至 45-60 分钟\n- 加入 HIIT：高强度 30 秒 + 低强度 90 秒\n\n## ⚠️ 关键注意事项\n\n1. **务必使用安全夹**：意外跌倒时能紧急停止\n2. **不要一上来就快跑**：从步行热身开始（前 5 分钟）\n3. **冷身不可省**：训练后以慢走 5 分钟结束\n4. **关注心率**：保持在最大心率的 60-85% 区间\n5. **补水节奏**：每 15-20 分钟少量喝水\n\n## 💡 提高燃脂效率的小技巧\n\n- **坡度 1-2%起步**：模拟户外风阻，消耗更多热量\n- **变速训练**：比匀速跑多消耗约 20% 热量\n- **配合 HIIT**：高强度 20 秒 + 休息 10 秒，循环 4 分钟\n- **力量后跑步**：先做 20 分钟自重训练（深蹲、平板支撑），再跑步\n\n## 📅 一周训练计划示例（中级）\n\n| 周几 | 训练内容 |\n|------|----------|\n| 周一 | 间歇跑30 分钟 |\n| 周二 | 核心力量训练（无跑步机） |\n| 周三 | 节奏跑 40 分钟（中等强度）|\n| 周四 | 休息或轻度活动 |\n| 周五 | 坡度跑 35 分钟 |\n| 周六 | 长距离慢跑 45-60 分钟 |\n| 周日 | 完全休息 |\n\n---\n\n如果您想要查找站内是否有更具体的训练计划文章，欢迎告诉我更精确的关键词（如\"心率区间训练\"、\"间歇跑计划\"等），我可以再帮您搜索。",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 1,
+      "citations": [
+        {
+          "content_id": 61,
+          "content_version": 1,
+          "chunk_key": "5d29e8a99dc8cdfdd847dc3d23b497d1ab6a9ea55cad2bdf5dd0058bea4aa36e",
+          "title": "原创实验｜晨间跑步的第八周 60",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 77,
+          "content_version": 1,
+          "chunk_key": "47ddc98e84616a0112bb9fafef3e84a3dd6ef74e7990631467c3258f138ffad3",
+          "title": "原创实验｜晨间跑步的第八周 76",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 29,
+          "content_version": 1,
+          "chunk_key": "6716ef56e7bfafa069284fd7aa75a3609dd82f50e501b8bb596c5e0c0267f6a3",
+          "title": "原创实验｜晨间跑步的第八周 28",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 125,
+          "content_version": 1,
+          "chunk_key": "3feff24c1325ad9bf80119d67ec8c5f2512292c1353a8f4cd80a11115a0f2337",
+          "title": "灵感衍生｜晨间跑步的第八周 124",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 45,
+          "content_version": 1,
+          "chunk_key": "c00154a030bec527362f4802b0f3cef2e696fbe3a7def40fe1a23a2fd54f1853",
+          "title": "原创实验｜晨间跑步的第八周 44",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.008733624454148471,
+      "first_token_ms": 1439,
+      "total_ms": 6443,
+      "prompt_tokens": 2297,
+      "completion_tokens": 903,
+      "degraded": false
+    },
+    {
+      "case_key": "tulip_latte_art",
+      "query": "郁金香拉花",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来帮您查找关于\"郁金香拉花\"（咖啡拉花技巧）的相关内容。\n\n找到一篇专门讲郁金香拉花的文章，让我看看详细内容：\n\n为你找到了一篇相关的文章：**《郁金香拉花手法拆解：从基础到进阶》**（id: 1014）\n\n根据文章摘要提到：**\"奶泡的流动性决定了郁金香能不能成型，从基础叶瓣到多片花瓣的练习顺序。\"**\n\n不过该文章目前只返回了简短的摘要，正文内容没有展开。如果你想深入学习郁金香拉花，我可以基于通用知识帮你梳理一个 **从入门到进阶的练习框架**，搭配文章提到的核心理念：\n\n## 一、郁金香拉花的核心原理郁金香（tulip）由多层\"叶瓣\"叠压而成，**最关键的是奶泡的流动性（流速与稠度）**——太稀会散，太稠会堆。\n\n## 二、练习顺序（按文章建议）\n\n### 🌱 阶段 1：单叶（基础）\n- 杯口贴近液面，从一侧注入，拉出一条细长的\"叶瓣\"\n- 收尾时快速前推形成尖端\n- 目标：能稳定拉出对称的一片叶子\n\n### 🌿 阶段 2：双叶（3 瓣郁金香）\n- 在第一片叶前方再叠一片更大的叶瓣\n- 最后回拉一笔作为花茎/收尾\n- 目标：两层清晰可辨\n\n### 🌷 阶段 3：多瓣郁金香（5–7 瓣）\n- 通过左右对称的注入动作形成多层叠压\n- 杯嘴角度和高度随层数变化\n\n## 三、关键变量\n| 变量 | 影响 |\n|---|---|\n| 奶泡厚度 | 决定叶瓣是否立体 |\n| 注入高度 | 高=散开大，低=线条细 |\n| 杯嘴流速 | 通过倾斜杯/拉花缸控制 |\n| 收尾时机 | 决定尖角和层次 |\n\n## 四、常见问题\n- **叶瓣发散成一片白** → 奶泡太稀或注入太高\n- **叶瓣堆成一团** → 奶泡太稠或流速太慢\n- **左右不对称** → 手腕没固定支点，建议以小指抵住杯沿\n\n如果你想要：\n- 📖 文章的完整正文（我可以再尝试获取）\n- 🎥 视频/图解类的配套内容\n- ✍️ 我帮你草拟一份发布版的\"郁金香拉花教学\"\n\n告诉我你想往哪个方向走？",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1014,
+          "content_version": 1,
+          "chunk_key": "4236075d9aa03ef4ca1c471939f003819eb53520b59024464762ffaddc8370f4",
+          "title": "郁金香拉花手法拆解：从基础到进阶",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1022,
+          "content_version": 1,
+          "chunk_key": "dd53055391bdb1437b82daa5e29143d2fa206de1c2c1d9326c9f52a38149d620",
+          "title": "威士忌品鉴入门：泥煤与雪莉",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 102,
+          "content_version": 1,
+          "chunk_key": "0f07dce6f8f58dabf42a9e286939dbe93471be2f5f20c75be2fc075e7f70515d",
+          "title": "原创实验｜新手也能完成的配色练习 101",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1016,
+          "content_version": 1,
+          "chunk_key": "43d01c0c7dc3f55ef86a9141c2342c30ff055b83133b0a2a3ab07c5ef0067d5e",
+          "title": "藜麦一周备餐：藜麦饭与沙拉基底",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 22,
+          "content_version": 1,
+          "chunk_key": "18d5162738a06e8218c8fcf88606819788bf515eed4ec5932b062f54e03e4946",
+          "title": "原创实验｜新手也能完成的配色练习 21",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.020833333333333332,
+      "first_token_ms": 2098,
+      "total_ms": 9101,
+      "prompt_tokens": 2499,
+      "completion_tokens": 776,
+      "degraded": false
+    },
+    {
+      "case_key": "two_cited_contents",
+      "query": "如何剪辑视频并导出高清画质",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我先为您搜索一下平台上是否有关于视频剪辑的相关内容。\n\n我来为您详细解答视频剪辑并导出高清画质的完整流程。我先查阅一下相关的专业指南。\n\n# 视频剪辑与高清导出指南\n\n由于检索到的两篇相关文章未能返回完整正文，以下基于通用知识为你整理一份从剪辑到高清导出的完整流程。\n\n---\n\n## 一、剪辑流程\n\n1. **素材整理**：把素材按场景或时间线分类，建立文件夹结构。\n2. **粗剪**：先按故事线拼接，把不要的片段标记删除。\n3. **精剪**：调整节奏、对齐音频/画面、增加转场。\n4. **调色与字幕**：统一色彩风格，添加字幕/水印。\n5. **音频处理**：调整音量、添加背景音乐与音效。\n\n常用剪辑软件：\n- **剪映 / CapCut**：新手友好，免费且自带模板\n- **Premiere Pro / DaVinci Resolve**：专业级，功能全面\n- **Final Cut Pro**：Mac 用户首选\n\n---\n\n## 二、高清导出关键参数\n\n决定画质的核心三要素：**分辨率 + 码率 + 编码器**\n\n| 参数 | 推荐设置（1080p 高清） | 4K 推荐 |\n|------|----------------------|---------|\n| 分辨率 | 1920×1080 | 3840×2160 |\n| 帧率 | 24/30/60 fps（与素材一致） | 同左 |\n| 码率 | 12–20 Mbps（VBR） | 35–68 Mbps |\n| 编码器 | H.264（兼容好）/ H.265（更省体积） | H.265 |\n| 容器格式 | MP4 | MP4 / MOV |\n| 音频 | AAC 192 kbps, 48kHz | 同左 |\n\n\u003e ⚠️ **常见误区**：很多人导出的画质不够清晰，往往是因为**码率设得太低**或**在剪辑过程中对素材进行了多次有损压缩**。\n\n---\n\n## 三、避免画质损失的实用建议\n\n1. **使用代理剪辑**：原素材分辨率太高时，先用低分辨率代理剪辑，最后输出时切回原画。\n2. **避免反复导出**：每次重新编码都会损失画质，尽量一次到位。\n3. **保持原始素材不动**：剪辑时不要对源文件重新编码。\n4. **输出格式选 MP4 + H.264**：兼容性最佳，画质与体积平衡好。\n5. **音频单独导出**：若对音质有要求，可单独导出高质量音频。\n\n---\n\n## 四、各平台推荐参数速查\n\n- **B 站 / YouTube**：1080p 用 12–16 Mbps VBR，4K 用 35–45 Mbps\n- **抖音 / 短视频平台**：1080p 用 10–15 Mbps，注意竖屏比例 9:16\n- **本地播放 / 存档**：可提高码率到 20–30 Mbps，画质更优\n\n---\n\n## 五、相关推荐文章\n\n站内找到两篇相关文章，可进一步阅读：\n- 《视频剪辑技巧大全》（id: 1003）— 剪辑节奏、转场与关键帧\n- 《高清导出设置指南》（id: 1004）— 码率、分辨率与编码器详解\n\n如果你告诉我具体使用的剪辑软件（比如剪映、Pr、达芬奇），我可以给你**逐项点击路径**的详细导出教程。需要吗？",
+      "attempts": 2,
+      "direct_answers": 1,
+      "tool_calls": 4,
+      "citations": [
+        {
+          "content_id": 1004,
+          "content_version": 1,
+          "chunk_key": "be1cc2b8dc25eede1fb1f5775d0e868263da46700ed863ccb9634ac3a8b43885",
+          "title": "高清导出设置指南",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1003,
+          "content_version": 1,
+          "chunk_key": "e0e5a5efbb5ec26f1644b4ac1e179b9d41488792801972834a15ec20ab3aa169",
+          "title": "视频剪辑技巧大全",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1025,
+          "content_version": 1,
+          "chunk_key": "03755ec62ae6d45200f083fe36fb23545fced520c0a038ebdf6c66a9406752c9",
+          "title": "天文观测新手：第一次用望远镜",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 71,
+          "content_version": 1,
+          "chunk_key": "1c709f0c640455927cf0544cb259e4d495f19aba58104793f512167608976ae4",
+          "title": "原创实验｜周末露营清单 70",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 87,
+          "content_version": 1,
+          "chunk_key": "399e9a2b1735933b6e90ae68727dc9d6ac3d4e74944f689c420b44f6290e87ca",
+          "title": "原创实验｜周末露营清单 86",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0,
+      "first_token_ms": 4364,
+      "total_ms": 21499,
+      "prompt_tokens": 3094,
+      "completion_tokens": 899,
+      "degraded": false
+    },
+    {
+      "case_key": "unpublished_private_exclusion",
+      "query": "Blender 插件安装教程",
+      "query_language": "mixed",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "# Blender 插件安装教程\n\nBlender 插件（Add-on）可以大幅扩展软件功能。下面是完整的安装步骤：\n\n## 一、准备工作\n\n1. **下载 Blender**：从官网 [blender.org](https://www.blender.org) 下载并安装。\n2. **获取插件**：\n   - 格式通常为 `.zip` 压缩包（**不要解压**）\n   - 部分插件可能是 `.py` 单文件\n\n## 二、安装步骤### 方法 1：通过偏好设置安装（推荐）\n\n1. 打开 Blender\n2. 进入 **Edit（编辑） → Preferences（偏好设置）**\n3. 切换到左侧 **Add-ons（插件）** 标签\n4. 点击右上角 **「⬇ Install from Disk...（从磁盘安装）」** 按钮\n5. 在文件浏览器中选择下载的 `.zip` 文件\n6. 安装成功后，**勾选插件名称前的复选框** 启用插件\n\n### 方法 2：手动安装1. 找到 Blender 的插件目录：\n   - **Windows**：`C:\\Users\\\u003c用户名\u003e\\AppData\\Roaming\\Blender Foundation\\Blender\\\u003c版本\u003e\\scripts\\addons`\n   - **macOS**：`~/Library/Application Support/Blender/\u003c版本\u003e/scripts/addons`\n   - **Linux**：`~/.config/blender/\u003c版本\u003e/scripts/addons`\n2. 将解压后的插件文件夹复制到 `addons` 目录\n3. 重启 Blender，在 **Add-ons** 面板中搜索并启用\n\n## 三、验证与使用\n\n- 启用后，插件功能通常会出现在 **N 面板**（按 `N` 键）或顶部菜单中\n- 在插件列表的搜索框中输入插件名称可快速定位\n\n## 四、常见报错与解决\n\n| 报错信息 | 原因 | 解决方法 |\n|---------|------|---------|\n| `No module named ...` | 缺少依赖库 | 在系统终端用 `pip install` 安装对应模块 |\n| `This add-on is not compatible` | Blender 版本不匹配 | 查看插件支持的 Blender 版本，升级或更换插件版本 |\n| `Error: traceback...` | 插件文件损坏 | 重新下载完整的 zip 包 |\n| 插件列表找不到 | 未解压或路径错误 | 保持 zip 格式，不要手动解压 |\n\n## 五、推荐插件来源\n\n- **官方渠道**：Blender 偏好设置 → Get Extensions（Blender 4.2+）\n- **社区平台**：Blender Artists、GitHub、Gumroad\n\n---\n\n💡 **小贴士**：如果你的 Blender 版本是 **4.2 以上**，官方新增了在线扩展商店（Extensions Platform），可以直接在软件内搜索安装，更安全便捷。\n\n需要我帮你安装某个具体的插件吗？",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 3,
+      "citations": [
+        {
+          "content_id": 1009,
+          "content_version": 1,
+          "chunk_key": "1c8a576f2f7fec8bbb186bbaea0317f4b193a86589ebb9f66c3e5ee79cff46f3",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1001,
+          "content_version": 1,
+          "chunk_key": "798b51ae2517c1071b812c149e569e7df3b88b11ccbf98988289639775b4c7db",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1005,
+          "content_version": 1,
+          "chunk_key": "6869745547ba62c7c61285cf0e415e558bc2c25858bdc552932ca22ec20472bf",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1012,
+          "content_version": 1,
+          "chunk_key": "701aec62365e4a29fb154e8ead9e731e52d5bf29cdfa1cf0ea307e1baae0d803",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 1013,
+          "content_version": 1,
+          "chunk_key": "a8a21055f53ecebed20bbe52755918efb8956fe4bdff73ffd3397dbca44a1824",
+          "title": "Blender 插件安装教程",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.0213903743315508,
+      "first_token_ms": 1255,
+      "total_ms": 6867,
+      "prompt_tokens": 1574,
+      "completion_tokens": 772,
+      "degraded": false
+    },
+    {
+      "case_key": "whisky_tasting",
+      "query": "威士忌品鉴",
+      "query_language": "zh",
+      "status": "answered",
+      "answer_kind": "grounded_content",
+      "answer": "我来为您搜索一些关于威士忌品鉴的精彩内容。我为您找到了一篇非常贴合需求的文章——**《威士忌品鉴入门：泥煤与雪莉》**。下面结合文章内容和使用指南，为您整理一份完整的品鉴指南。\n\n---\n\n## 🥃 威士忌品鉴入门指南：泥煤与雪莉两大风味坐标\n\n### 一、为什么从\"泥煤\"和\"雪莉\"切入？\n\n威士忌的风味维度非常复杂，但对初学者来说，最容易建立味觉参考系的是两个关键变量：\n\n- **泥煤（Peat）**：泥煤烘烤麦芽时产生的烟熏、医药、消毒水、海藻气息\n- **雪莉（Sherry）**：雪莉桶陈年带来的果干、葡萄、太妃糖、坚果风味\n\n抓住这两个维度，您就能对几乎任何单一麦芽进行定位。\n\n---\n\n### 二、品鉴四步法\n\n| 步骤 | 操作 | 目的 |\n|------|------|------|\n| ① **观色** | 将酒杯 45° 倾斜 | 判断桶型与年份线索（深色通常意味着雪莉桶或更长陈年）|\n| ② **闻香** | 先短嗅 2–3 秒，再长嗅 | 短嗅建立第一印象，长嗅捕捉细节层次 |\n| ③ **加水** | 滴入少量，逐次增加 | 释放被酒精压制的香气分子，水量因酒而异 |\n| ④ **入口** | 小口含漱 3–5 秒 | 让风味在口腔中展开，感受前中后调 |\n\n\u003e ⚠️ **关于加水**：建议用滴管或小勺少量多次添加，避免一次加多。水的温度以室温为佳。\n\n---\n\n### 三、杯型选择\n\n- ✅ **首选：格兰凯恩杯（Glencairn）**——郁金香造型，香气聚拢效果最好\n- ✅ **次选：专业闻香杯**——香气集中度高\n- ❌ **避免：宽口杯、水杯**——香气扩散过快，影响辨识\n\n---\n\n### 四、入门酒款推荐组合\n\n建议准备 **2–4 款对照酒款**，覆盖风格两端：\n\n**泥煤系（烟熏派）：**\n- 拉弗格（Laphroaig）—— 经典重泥煤，海藻碘酒气息\n- 阿贝（Ardbeg）—— 泥煤与甜味平衡\n- 卡尔里拉（Caol Ila）—— 入门友好的清新泥煤\n\n**雪莉系（甜美派）：**\n- 麦卡伦（Macallan）—— 雪莉桶标杆\n- 格兰多纳（GlenDronach）—— 浓郁果干风格\n- 阿贝乌干达—— 兼具泥煤与雪莉的复杂款\n\n---\n\n### 五、个人品鉴记录模板\n\n每次品鉴后建议记录，建立属于自己的味觉档案：\n\n```\n酒款名称：__________\n产地/年份：__________\n闻香印象：[泥煤强度 1–5]  [雪莉强度 1–5]\n加水前后变化：__________\n入口风味：__________\n余韵：__________\n个人评分：__________\n```\n\n---\n\n### 💡 核心方法论\n\n\u003e **不要追求\"正确答案\"，重点是建立属于自己的味觉坐标。**\n\n每个人的味觉敏感度不同——有人对泥煤敏感，有人偏好雪莉甜感。通过横向对比 2–4 款酒款，您会逐渐发现自己的偏好。\n\n---\n\n### 📚 想深入了解？\n\n**📄 完整文章**：《威士忌品鉴入门：泥煤与雪莉》（内容编号 1022）\n\n如需我为您：\n- 🔍 推荐特定产区（苏格兰、日本、爱尔兰、美国）的入门酒款\n- 📖 深入讲解某个具体风味维度\n- 🍽️ 搭配品鉴时的下酒小食建议\n\n随时告诉我！",
+      "attempts": 1,
+      "direct_answers": 0,
+      "tool_calls": 4,
+      "citations": [
+        {
+          "content_id": 1022,
+          "content_version": 1,
+          "chunk_key": "dd53055391bdb1437b82daa5e29143d2fa206de1c2c1d9326c9f52a38149d620",
+          "title": "威士忌品鉴入门：泥煤与雪莉",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 176,
+          "content_version": 1,
+          "chunk_key": "4f352857a1c1f822d318a9e2af2d6a9ed29c2304080f1d502cea8b5d14460322",
+          "title": "灵感衍生｜不完美但可爱的作品集 175",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 160,
+          "content_version": 1,
+          "chunk_key": "be4c20dd68bfad0be563cddc53fcc35282bdb7657744aef09c0bbfc8ff3b6b70",
+          "title": "灵感衍生｜不完美但可爱的作品集 159",
+          "zone": "fanwork",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 112,
+          "content_version": 1,
+          "chunk_key": "bb428c8cd0894ea7d75090bc64c494cec274f8e62fb456937128c0200fbd62c3",
+          "title": "原创实验｜不完美但可爱的作品集 111",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        },
+        {
+          "content_id": 32,
+          "content_version": 1,
+          "chunk_key": "b647cab9c336db373fed352294a9dacba8c68dcc3aa55b0fe7e751c34c627453",
+          "title": "原创实验｜不完美但可爱的作品集 31",
+          "zone": "original",
+          "source": "hybrid_rrf"
+        }
+      ],
+      "evidence_chunks": 5,
+      "evidence_lookups": 5,
+      "groundedness": 0,
+      "answer_relevance": 0.012658227848101266,
+      "first_token_ms": 2916,
+      "total_ms": 33283,
+      "prompt_tokens": 3364,
+      "completion_tokens": 806,
+      "degraded": false
+    }
+  ]
+}
