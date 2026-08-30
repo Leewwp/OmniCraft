@@ -1,3 +1,18 @@
+## [2026-08-30] - Runtime architecture diagram (archify)
+
+### What was done:
+- Built an interactive runtime-architecture diagram for OmniCraft with archify (architecture type, showcase quality): `docs/working/2026-08-29-runtime-architecture.html` (+ `.archify.json` spec and visual-check screenshots/receipt).
+- Topology verified against architecture.md and code facts: sync path browser → Next.js (SSR/BFF) → Go API → PgBouncer → PostgreSQL; async backbone outbox → relay → Redis Streams → cmd/worker consumers (inbox idempotency + DLQ replay); Agent Chat (sync MiniMax SSE) vs content projection (async embedding → pgvector/OpenSearch); OSS presign, Green async review with callback contract, Tauri desktop agent out of scope.
+
+### Testing:
+- `validate --quality showcase`: 9/9 artifact checks, 0 errors, 0 warnings (exit 0).
+- `deliver`: exit 0; spec sha256 91dcd048… (7011 B), artifact sha256 7c7476d9… (721114 B).
+- `visual-check` (ARCHIFY_CHROME=Playwright Chrome for Testing): exit 0; containment ok at 1440×900 / 1600×1000 / 1920×1080 / 2048×1320, min projected text 6.2px, dark+light captures reviewed.
+
+### Notes:
+- Green → API callback edge was dropped from the graph (no clean corridor; api ports saturated); the contract stays in card text (`/api/v1/internal/ai-callback`, checksum-only inbound auth).
+- Files were untracked in docs/working/ and committed to main per user request.
+
 ## [2026-08-22] - Interview evidence orchestration spec (#204)
 
 ### What was done:

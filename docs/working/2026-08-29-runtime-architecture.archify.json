@@ -1,0 +1,345 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "OmniCraft 万象工坊 · 运行时架构",
+    "locale": "zh-CN",
+    "output": "2026-08-29-runtime-architecture.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "request-path",
+        "label": "同步请求主链路",
+        "focus": [
+          "browser",
+          "frontend",
+          "api",
+          "pgbouncer",
+          "pg"
+        ],
+        "note": "浏览器 → Next.js（SSR/BFF）→ Go API → PgBouncer → PostgreSQL。"
+      },
+      {
+        "id": "async-backbone",
+        "label": "异步事件骨干",
+        "focus": [
+          "api",
+          "pg",
+          "redis",
+          "worker",
+          "opensearch"
+        ],
+        "note": "事务内写 outbox，relay 发布到 Redis Streams，独立 Worker 幂等消费。"
+      },
+      {
+        "id": "agent-rag",
+        "label": "Agent 与 RAG",
+        "focus": [
+          "api",
+          "worker",
+          "llm",
+          "pg",
+          "opensearch"
+        ],
+        "note": "Agent Chat 同步走 MiniMax SSE；内容投影异步产出 embedding 与索引。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "browser",
+      "type": "external",
+      "label": "用户浏览器",
+      "sublabel": "Web 主站",
+      "pos": [
+        40,
+        430
+      ],
+      "size": [
+        130,
+        64
+      ]
+    },
+    {
+      "id": "frontend",
+      "type": "frontend",
+      "label": "Next.js 前端",
+      "sublabel": "SSR + BFF · :3000",
+      "pos": [
+        230,
+        430
+      ],
+      "size": [
+        140,
+        64
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "Go API Server",
+      "sublabel": "cmd/server · Gin :8080",
+      "tag": "模块化单体",
+      "pos": [
+        480,
+        422
+      ],
+      "size": [
+        160,
+        80
+      ]
+    },
+    {
+      "id": "pgbouncer",
+      "type": "database",
+      "label": "PgBouncer",
+      "sublabel": "连接池 :6432",
+      "pos": [
+        720,
+        434
+      ],
+      "size": [
+        130,
+        56
+      ]
+    },
+    {
+      "id": "pg",
+      "type": "database",
+      "label": "PostgreSQL 16",
+      "sublabel": "pgvector · outbox/inbox",
+      "pos": [
+        920,
+        426
+      ],
+      "size": [
+        150,
+        72
+      ]
+    },
+    {
+      "id": "redis",
+      "type": "messagebus",
+      "label": "Redis 7",
+      "sublabel": "Streams · 缓存 · 限流",
+      "pos": [
+        480,
+        168
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "Worker 进程",
+      "sublabel": "cmd/worker · 独立进程",
+      "tag": "relay + 6 类消费者",
+      "pos": [
+        880,
+        168
+      ],
+      "size": [
+        160,
+        80
+      ]
+    },
+    {
+      "id": "green",
+      "type": "external",
+      "label": "阿里云内容安全",
+      "sublabel": "Green 异步审核",
+      "pos": [
+        880,
+        30
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "opensearch",
+      "type": "database",
+      "label": "OpenSearch",
+      "sublabel": "RAG 内容索引",
+      "tag": "full-infra",
+      "pos": [
+        1130,
+        190
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "MiniMax LLM",
+      "sublabel": "OpenAI 兼容 · Chat/Embedding",
+      "pos": [
+        1130,
+        620
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "oss",
+      "type": "cloud",
+      "label": "阿里云 OSS",
+      "sublabel": "预签名直传 · 私有桶",
+      "pos": [
+        480,
+        620
+      ],
+      "size": [
+        160,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "自托管运行时（Docker Compose）",
+      "wraps": [
+        "frontend",
+        "api",
+        "pgbouncer",
+        "pg",
+        "redis",
+        "worker",
+        "opensearch"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "browser-to-frontend",
+      "from": "browser",
+      "to": "frontend",
+      "label": "HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "frontend-to-api",
+      "from": "frontend",
+      "to": "api",
+      "label": "REST /api/v1",
+      "variant": "emphasis"
+    },
+    {
+      "id": "api-to-pgbouncer",
+      "from": "api",
+      "to": "pgbouncer",
+      "label": "SQL",
+      "variant": "emphasis"
+    },
+    {
+      "id": "pgbouncer-to-pg",
+      "from": "pgbouncer",
+      "to": "pg"
+    },
+    {
+      "id": "api-to-redis",
+      "from": "api",
+      "to": "redis",
+      "label": "缓存 · 限流"
+    },
+    {
+      "id": "worker-to-redis",
+      "from": "worker",
+      "to": "redis",
+      "label": "Relay 发布",
+      "labelDy": -14,
+      "labelDx": -70
+    },
+    {
+      "id": "redis-to-worker",
+      "from": "redis",
+      "to": "worker",
+      "label": "Streams 消费",
+      "variant": "dashed",
+      "labelDy": 14,
+      "labelDx": 70
+    },
+    {
+      "id": "worker-to-pg",
+      "from": "worker",
+      "to": "pg",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "outbox 轮询",
+      "labelDy": 48
+    },
+    {
+      "id": "worker-to-opensearch",
+      "from": "worker",
+      "to": "opensearch",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "内容投影"
+    },
+    {
+      "id": "worker-to-green",
+      "from": "worker",
+      "to": "green",
+      "label": "异步送审"
+    },
+    {
+      "id": "worker-to-llm",
+      "from": "worker",
+      "to": "llm",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "Embedding"
+    },
+    {
+      "id": "api-to-llm",
+      "from": "api",
+      "to": "llm",
+      "fromSide": "bottom",
+      "toSide": "left",
+      "label": "Agent Chat · SSE"
+    },
+    {
+      "id": "api-to-oss",
+      "from": "api",
+      "to": "oss",
+      "label": "预签名 URL",
+      "labelDy": 90
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "同步请求主链路",
+      "items": [
+        "浏览器 → Next.js（SSR/BFF）→ Go API → PgBouncer → PostgreSQL",
+        "JWT 鉴权 · Redis 令牌桶限流 · JSON slog · OTel tracing · 内网 :9091 指标"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "异步事件骨干",
+      "items": [
+        "事务内写 outbox → relay → Redis Streams → cmd/worker 幂等消费，失败进 omnicraft:dead-letter 可 replay",
+        "Green 异步送审，回调 /api/v1/internal/ai-callback（checksum 认证）"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Agent 与 RAG",
+      "items": [
+        "Agent Chat：HTTP → DB → MiniMax Chat → SSE 流式返回",
+        "内容投影：outbox → Streams → Embedding → pgvector / OpenSearch；OSS 预签名直传不经手文件流"
+      ]
+    }
+  ]
+}
