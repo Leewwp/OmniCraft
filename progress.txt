@@ -1,3 +1,19 @@
+## [2026-09-01] - E2E 修复循环 R1：流程 1（IP 创建）云端闭环
+
+### What was done:
+- E2E 六流程修复循环批次 1（IP 创建）完整闭环：测试（15 截图报告）→ 诊断（3 缺陷代码级定位）→ 修复 B-002（774994f，heavy：API 边界签发私有 OSS 展示 URL，两阶段审查 APPROVE）+ B-003（6d1d781，IP tags 持久化+TagBadge）+ B-001（fecef1b，ui-spec 新节+studio/ips 双入口创建 IP 表单）→ 云端发布批次 R1（pg_dump 备份 omnicraft-backup-20260901-0418.sql → git archive fecef1b → up -d --build 2m57s）。
+- 发布验收全绿：三缺陷回归 R1~R5 PASS、流程 1 全量用例 T1.1~T1.5/T1.E1~E4 PASS；CORS 实测 app.leeppp.online 源 OSS 直传 200 无需 bucket 变更。
+- 新登记存量缺陷 B-004（admin 审批后 IP 缓存不失效 ≤300s，admin.go 自建无 rdb 实例致 InvalidateIPCacheForAdmin no-op），并入流程 2 批次修复。
+
+### Testing:
+- 云端实证：签名 URL 200/裸 URL 403；浏览器 UI 全链创建 IP（直传封面→pending→admin approve→公开可见）；psql ip_tags 实表核对；/healthz 200；8/8 容器 healthy。
+- 本地门（修复时）：go build/vet/test 全绿（32 包）、npm run build/lint、verify-project.sh、doc-validator --fix（B-002 改 config.go）。
+
+### Notes:
+- 状态台账：docs/working/2026-09-01-e2e-fix-loop-ledger.md（跨会话唯一依据）。
+- 运维注意：重建 backend 后必须 `docker compose restart nginx`（DNS 缓存致 /api 502 ~2 分钟）；发布前 pg_dump 强制。
+- 探查实体登记于台账清理清单（IP id=1/2/3，QA探查- 前缀），阶段 B 结束前处置。
+
 ## [2026-09-01] - 设计审查: 全站功能与 UI 审计 + 独立复核与修复方案（只审计不修复）
 
 ### What was done:
