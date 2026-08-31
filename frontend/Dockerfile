@@ -3,6 +3,11 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Optional registry override for hosts where registry.npmjs.org is slow or
+# unreachable (empty value keeps the npm default).
+ARG NPM_REGISTRY=
+RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi
+
 COPY package.json package-lock.json ./
 RUN npm ci
 

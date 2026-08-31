@@ -239,19 +239,41 @@ current compose command. The committed `ops/observability/prometheus.yml`
 also targets Alertmanager, PostgreSQL/Redis exporters, cAdvisor, Blackbox and
 node-exporter and loads rules backed by those targets. Starting it unchanged
 with those services absent produces blind/missing targets and is not an
-acceptable green monitoring state. Before changing the server, provide and
-statically validate a dedicated backend-only Prometheus config and a compose
-override/profile that mounts it. Until that deploy artifact exists, the
-3.6 GiB profile is an approved deployment decision, not an executable release
-command.
+acceptable green monitoring state.
 
-The existing compose limits for the six Web core services plus Prometheus add
-up to about 3.9 GiB. Limits are caps rather than reservations, but that still
-leaves no safe host headroom. The deploy artifact must use measured peak RSS
-to keep aggregate container limits at or below about 2.6 GiB, leaving roughly
-1 GiB for Ubuntu, Docker and page cache. Capture `docker stats`, host available
-memory and OOM evidence during smoke. Build immutable frontend/backend images
-in CI rather than concurrently on this host.
+The deploy artifact now exists and is validated statically before each
+deployment (`docker compose ... config`):
+
+- `docs/deploy/docker-compose.interview-lean.yml` — Compose override that
+  defers the ten observability/alerting services behind the
+  `full-observability` profile, adds the standalone `worker` (ADR 0005: the
+  API server never starts async consumers), and caps the resident limits of
+  the remaining services at ~2.5 GiB (postgres 512m, redis 256m, pgbouncer
+  128m, backend 512m, frontend 512m, nginx 64m, prometheus 256m, worker
+  256m, plus the one-shot `migrate` at 256m). Caps are sized from measured
+  idle RSS on this host (2026-08-31: redis 6 MiB, backend 7 MiB, postgres
+  39 MiB, pgbouncer 5 MiB, nginx 17 MiB, frontend 90 MiB) with headroom for
+  demo traffic.
+- `ops/observability/prometheus.interview-lean.yml` — backend-only
+  Prometheus config (single scrape job, no rule_files, no Alertmanager)
+  mounted over the full config by the same override.
+
+Deployment command on the interview host:
+
+```bash
+docker compose --env-file .env \
+  -f docker-compose.single-server.yml \
+  -f docker-compose.interview-lean.yml up -d --build
+```
+
+Capture `docker stats`, host available memory and OOM evidence during smoke.
+The lean profile preserves all current release and security contracts:
+immutable image references, Redis authentication, PgBouncer SCRAM, external
+secret/config override files, one-shot ledger-backed migrations, JSON log
+rotation, health/readiness checks, backups, and Nginx as the only public
+port owner. Building the frontend on this host peaks around 2 GiB: run it
+with the old stack stopped and rely on the host swap (5.9 GiB configured),
+or build images off-host and transfer them.
 
 The compose stack runs the forward-only migrations as a one-shot `migrate`
 container before the backend starts (`backend.depends_on.migrate:
