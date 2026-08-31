@@ -7,6 +7,7 @@ import { MessageSquareText, Users } from "lucide-react";
 import { IPCategoryTabs } from "@/components/ip/IPCategoryTabs";
 import { FollowButton } from "@/components/social/FollowButton";
 import { DiscussionBoard } from "@/components/social/DiscussionBoard";
+import { TagBadge } from "@/components/ui/TagBadge";
 
 interface IPItem {
   id: number;
@@ -14,9 +15,13 @@ interface IPItem {
   description?: string;
   category?: string;
   cover_url?: string;
+  tags?: string[];
   follower_count?: number;
   is_following?: boolean;
 }
+
+// TagBadge 6-color cycle from ui-spec.md TagBadge color mapping.
+const TAG_COLOR_CYCLE = ["blue", "green", "purple", "orange", "rose", "sky"] as const;
 
 interface IPDetailProps {
   ip: IPItem;
@@ -58,6 +63,15 @@ export function IPDetail({ ip }: IPDetailProps) {
             <p className="text-sm leading-relaxed text-foreground/90">
               {ip.description || t('ip.noDescription')}
             </p>
+            {ip.tags && ip.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5" aria-label={t('ip.tagsLabel')}>
+                {ip.tags.map((tag, index) => (
+                  <TagBadge key={tag} color={TAG_COLOR_CYCLE[index % TAG_COLOR_CYCLE.length]}>
+                    {tag}
+                  </TagBadge>
+                ))}
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-3">
               <FollowButton
                 targetType="ip"

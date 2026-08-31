@@ -14,6 +14,7 @@ interface IPItem {
   description?: string;
   category?: string;
   cover_url?: string;
+  tags?: string[];
 }
 
 interface IPResponse {

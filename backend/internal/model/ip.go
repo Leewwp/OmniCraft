@@ -14,6 +14,9 @@ type IP struct {
 	Status      string    `gorm:"size:20;not null;default:pending" json:"status"`
 	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt   time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	// Tags is not a column: ip_tags rows are joined back in the service layer
+	// so the JSON contract exposes them while GORM keeps ignoring them.
+	Tags []string `gorm:"-" json:"tags,omitempty"`
 }
 
 func (IP) TableName() string { return "ips" }

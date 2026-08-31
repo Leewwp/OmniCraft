@@ -27,6 +27,28 @@ func (r *IPRepository) CreateIP(ip *model.IP) error {
 	return r.db.Create(ip).Error
 }
 
+// Transaction runs fn with a repository bound to the transaction scope, so an
+// IP and its ip_tags rows commit or roll back atomically.
+func (r *IPRepository) Transaction(fn func(tx *IPRepository) error) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		txRepo := &IPRepository{db: tx}
+		return fn(txRepo)
+	})
+}
+
+func (r *IPRepository) CreateTags(tags []model.IPTag) error {
+	if len(tags) == 0 {
+		return nil
+	}
+	return r.db.Create(&tags).Error
+}
+
+func (r *IPRepository) GetTags(ipID int64) ([]model.IPTag, error) {
+	var tags []model.IPTag
+	err := r.db.Where("ip_id = ?", ipID).Order("tag ASC").Find(&tags).Error
+	return tags, err
+}
+
 func (r *IPRepository) FindByID(id int64) (*model.IP, error) {
 	var ip model.IP
 	err := r.db.First(&ip, id).Error

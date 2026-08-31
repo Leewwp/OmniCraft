@@ -1050,7 +1050,8 @@
     "sortHot": "最热门",
     "sortMostContents": "最多内容",
     "sortNewest": "最新",
-    "sortLabel": "IP 排序方式"
+    "sortLabel": "IP 排序方式",
+    "tagsLabel": "IP 标签"
   },
   "user": {
     "profile": "用户 #{id}",

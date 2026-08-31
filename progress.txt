@@ -2191,3 +2191,15 @@
 - go build/vet/test ./... all green (new tests: image service params, RiskLevel mapping incl. legacy shape, ObjectKeyFromURL round-trip, resolveScanURL sign/passthrough/fallback). Server probe with production client after redeploy: image over signed URL result=pass reason=nonLabel; risky text result=block. backend+worker rebuilt and healthy in release mode.
 ### Notes:
 - env_file changes need `up -d` recreate, not restart (restart keeps old injected env). Probe script kept at /opt/omnicraft/backend/cmd/probe-deps/ (untracked) for pre-loop dependency checks.
+## [2026-09-01] - E2E fix loop B-003: persist and display IP tags
+### What was done:
+- model.IP gained a non-column `Tags []string` (`gorm:"-"`, json `tags,omitempty`); IPRepository gained `Transaction`/`CreateTags`/`GetTags` mirroring the content_repo.go tag pattern.
+- IPService.CreateIP now normalizes tags (trim, drop empty, dedupe, 50-rune cap matching ip_tags.tag VARCHAR(50)) and writes the IP row + ip_tags rows in one transaction (search vector trigger fires in the same tx); the create response carries the normalized tags. GetIP backfills Tags from ip_tags (tag ASC) before caching so cached and fresh detail responses share the same contract.
+- IPDetail.tsx renders a TagBadge row under the description (ui-spec TagBadge: rounded-full/12px/h-5, 6-color cycle) and the /ip/[ipId] page type passes `tags` through; new i18n key `ip.tagsLabel` (zh+en).
+### Testing:
+- `go build ./...`, `go vet ./...`, `go test ./...` green; new service tests: create persists ip_tags rows, GetIP returns tags, no-tags path writes no rows, normalizeIPTags trim/dedupe/50-rune truncation (runes not bytes).
+- Local stack curl: login → POST /ips with duplicate/blank/over-length tags → 201 with normalized `tags`; ip_tags rows verified in psql (3 rows, long tag exactly length 50); GET /ips/:id returns tags; SSR HTML of /ip/226 renders the TagBadge row.
+- `npm run lint` (tsc) and `npm run build` green.
+### Notes:
+- Branch fix/ip-create-completeness, light lane, commit 1 of 2 (B-001 adds the /studio/publish/ip creation entry next).
+- List endpoints intentionally do not backfill tags (no consumer renders list tags; detail + create response cover the contract).
