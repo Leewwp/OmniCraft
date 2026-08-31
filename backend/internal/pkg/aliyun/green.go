@@ -127,17 +127,19 @@ func (c *GreenClient) imageModeration(ctx context.Context, imageURL string) (*Gr
 		return nil, err
 	}
 
-	serviceParams := map[string]interface{}{
-		"url": imageURL,
-	}
-	spJSON, err := json.Marshal(serviceParams)
+	spJSON, err := buildImageServiceParams(imageURL)
 	if err != nil {
 		return nil, err
 	}
 
 	req := &green20220302.ImageModerationRequest{
-		Service:           tea.String("query_security_check"),
-		ServiceParameters: tea.String(string(spJSON)),
+		// baselineCheck is the image moderation service accepted by the
+		// green-cip ImageModeration API (verified against the real API on
+		// 2026-09-01: "query_security_check" is rejected there with business
+		// code 401 "parameter invalid(service)", and the wire parameter key
+		// is "imageUrl", not "url").
+		Service:           tea.String("baselineCheck"),
+		ServiceParameters: tea.String(spJSON),
 	}
 	resp, err := client.ImageModeration(req)
 	if err != nil {
@@ -172,7 +174,11 @@ func (c *GreenClient) videoAsyncScan(ctx context.Context, params VideoScanParams
 	}
 
 	req := &green20220302.VideoModerationRequest{
-		Service:           tea.String("query_security_check"),
+		// videoDetection is the video file moderation service accepted by
+		// the green-cip VideoModeration API (verified against the real API
+		// on 2026-09-01: other names are rejected with
+		// "service is invalid").
+		Service:           tea.String("videoDetection"),
 		ServiceParameters: tea.String(spJSON),
 	}
 	resp, err := client.VideoModeration(req)
@@ -191,6 +197,21 @@ func (c *GreenClient) videoAsyncScan(ctx context.Context, params VideoScanParams
 		RawResponse: body,
 		TaskID:      extractTaskIDFromBody(body),
 	}, nil
+}
+
+// buildImageServiceParams constructs the ServiceParameters JSON for
+// ImageModeration. The baselineCheck service reads the target from
+// "imageUrl"; sending the OpenAI-style "url" key yields
+// "parameter is null(imageUrl)".
+func buildImageServiceParams(imageURL string) (string, error) {
+	serviceParams := map[string]interface{}{
+		"imageUrl": strings.TrimSpace(imageURL),
+	}
+	spJSON, err := json.Marshal(serviceParams)
+	if err != nil {
+		return "", err
+	}
+	return string(spJSON), nil
 }
 
 // buildVideoServiceParams constructs the ServiceParameters JSON for
@@ -287,8 +308,7 @@ func parseImageModerationResponse(resp *green20220302.ImageModerationResponse) (
 		return &GreenScanResult{Result: "pass", Reason: "no_data", RawResponse: body}, nil
 	}
 
-	resultList := extractResultList(data)
-	result, reason := parseImageResults(resultList)
+	result, reason := imageResultFromBody(body)
 
 	return &GreenScanResult{
 		Result:      result,
@@ -297,23 +317,62 @@ func parseImageModerationResponse(resp *green20220302.ImageModerationResponse) (
 	}, nil
 }
 
+// imageResultFromBody derives the normalized review result from a flattened
+// baselineCheck response body. The API reports an overall Data.RiskLevel
+// ("none"|"low"|"medium"|"high"); per-item entries additionally carry
+// Label/RiskLevel, and the legacy Suggestion field is honored as a fallback
+// so both wire shapes map onto pass/review/block.
+func imageResultFromBody(body map[string]interface{}) (string, string) {
+	data := extractData(body)
+	if data == nil {
+		return "pass", "no_data"
+	}
+
+	result, reason := parseImageResults(extractResultList(data))
+	if overall := imageResultFromRiskLevel(stringFromMap(data, "RiskLevel")); rankSuggestion(overall) > rankSuggestion(result) {
+		result = overall
+		reason = "risk_level"
+	}
+	return result, reason
+}
+
+// imageResultFromRiskLevel maps an Aliyun RiskLevel onto the platform's
+// normalized review result. "low" stays pass to keep false positives out of
+// the human review queue; "medium" routes to review and "high" blocks,
+// mirroring the text moderation mapping.
+func imageResultFromRiskLevel(level string) string {
+	switch strings.ToLower(strings.TrimSpace(level)) {
+	case "high":
+		return "block"
+	case "medium":
+		return "review"
+	default:
+		return "pass"
+	}
+}
+
 func parseImageResults(results []interface{}) (string, string) {
-	finalResult := "pass"
+	finalResult := ""
 	finalReason := ""
+	finalRank := 0
 	for _, r := range results {
 		rm, ok := r.(map[string]interface{})
 		if !ok {
 			continue
 		}
-		label := stringFromMap(rm, "Label")
-		suggestion := stringFromMap(rm, "Suggestion")
-
-		rank := rankSuggestion(suggestion)
-		currentRank := rankSuggestion(finalResult)
-		if rank > currentRank {
-			finalResult = toNormalizedResult(suggestion)
-			finalReason = label
+		candidate := imageResultFromRiskLevel(stringFromMap(rm, "RiskLevel"))
+		if s := stringFromMap(rm, "Suggestion"); candidate == "pass" && s != "" {
+			// Legacy/callback wire shape where items carry Suggestion.
+			candidate = toNormalizedResult(s)
 		}
+		if rank := rankSuggestion(candidate); rank > finalRank {
+			finalRank = rank
+			finalResult = candidate
+			finalReason = stringFromMap(rm, "Label")
+		}
+	}
+	if finalResult == "" {
+		finalResult = "pass"
 	}
 	if finalReason == "" {
 		finalReason = "image_scan"

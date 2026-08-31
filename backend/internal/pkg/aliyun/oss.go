@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -240,4 +241,27 @@ func ObjectURL(domain, ossKey string) string {
 		return ossKey
 	}
 	return strings.TrimRight(strings.TrimSpace(domain), "/") + "/" + strings.TrimLeft(ossKey, "/")
+}
+
+// ObjectKeyFromURL maps a platform delivery URL back to its OSS object key so
+// callers can derive signed read URLs for private-bucket objects. It accepts
+// only URLs under the configured delivery domain (query strings are stripped,
+// percent-encoding is decoded) and returns ok=false for anything else.
+func ObjectKeyFromURL(domain, rawURL string) (string, bool) {
+	rawURL = strings.TrimSpace(rawURL)
+	domain = strings.TrimRight(strings.TrimSpace(domain), "/")
+	if domain == "" || !IsPlatformObjectURL(domain, rawURL) {
+		return "", false
+	}
+	key := strings.TrimPrefix(rawURL, domain+"/")
+	if i := strings.Index(key, "?"); i >= 0 {
+		key = key[:i]
+	}
+	if decoded, err := url.PathUnescape(key); err == nil {
+		key = decoded
+	}
+	if strings.TrimLeft(key, "/") == "" {
+		return "", false
+	}
+	return key, true
 }

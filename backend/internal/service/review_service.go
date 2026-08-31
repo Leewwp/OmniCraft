@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -79,14 +80,21 @@ type ReviewService struct {
 	cfg         *config.Config
 	reputSvc    *ReputationService
 	green       greenScanner
+	oss         *aliyun.OSSClient
 	outbox      repository.OutboxWriter
 	archiveGate *ArchiveScanGate
 }
 
 func NewReviewService(db *gorm.DB, rdb *redis.Client, cfg *config.Config, reputSvc *ReputationService) *ReviewService {
 	var greenClient *aliyun.GreenClient
+	var ossClient *aliyun.OSSClient
 	if cfg != nil {
 		greenClient = aliyun.NewGreenClient(cfg.Green.AccessKeyID, cfg.Green.AccessKeySecret, cfg.Green.Region)
+		// Signing client for scan URLs: moderation objects live in the
+		// private bucket, and Aliyun cannot fetch unsigned platform URLs
+		// (probed 2026-09-01: Green received OSS 403 for them). nil when
+		// OSS is not configured, preserving local fail-open behavior.
+		ossClient, _ = aliyun.NewOSSClient(cfg.OSS.Endpoint, cfg.OSS.AccessKeyID, cfg.OSS.AccessKeySecret, cfg.OSS.BucketName)
 	}
 	return &ReviewService{
 		db:       db,
@@ -94,6 +102,7 @@ func NewReviewService(db *gorm.DB, rdb *redis.Client, cfg *config.Config, reputS
 		cfg:      cfg,
 		reputSvc: reputSvc,
 		green:    greenClient,
+		oss:      ossClient,
 	}
 }
 
@@ -136,7 +145,9 @@ func (s *ReviewService) ReviewImageURL(ctx context.Context, imageURL string) (st
 	if s == nil || s.green == nil {
 		return "", aliyun.ErrGreenNotConfigured
 	}
-	res, err := s.green.ImageModeration(ctx, imageURL)
+	// Aliyun fetches the URL server-side, so platform objects must be handed
+	// over as signed read URLs (private bucket); external URLs pass through.
+	res, err := s.green.ImageModeration(ctx, s.resolveScanURL(imageURL))
 	if err != nil {
 		return "", err
 	}
@@ -190,7 +201,7 @@ func (s *ReviewService) SubmitForAIReview(ctx context.Context, in SubmitReviewIn
 		if coverErr != nil {
 			return coverErr
 		}
-		coverRes, scanErr := s.green.ImageModeration(ctx, coverURL)
+		coverRes, scanErr := s.green.ImageModeration(ctx, s.resolveScanURL(coverURL))
 		if scanErr != nil {
 			return scanErr
 		}
@@ -204,7 +215,7 @@ func (s *ReviewService) SubmitForAIReview(ctx context.Context, in SubmitReviewIn
 			continue
 		}
 
-		scanURL := s.resolveScanObjectURL(ossKey)
+		scanURL := s.resolveScanURL(s.resolveScanObjectURL(ossKey))
 		if strings.HasPrefix(mime, "image/") {
 			imgRes, scanErr := s.green.ImageModeration(ctx, scanURL)
 			if scanErr != nil {
@@ -589,6 +600,33 @@ func (s *ReviewService) resolveScanObjectURL(ossKey string) string {
 		return ossKey
 	}
 	return aliyun.ObjectURL(s.cfg.OSS.Domain, ossKey)
+}
+
+// greenScanURLTTL bounds how long Aliyun has to fetch a signed scan URL after
+// submission. Generous relative to the provider timeout so slow fetches do not
+// hit an expired signature mid-scan.
+const greenScanURLTTL = 15 * time.Minute
+
+// resolveScanURL prepares a URL for Aliyun Green consumption. Moderation
+// objects live in the private bucket: an unsigned platform URL gets OSS 403
+// when Aliyun fetches it, so platform object URLs are re-signed as read URLs.
+// External (non-platform) URLs are passed through unchanged — they are already
+// publicly reachable, and resolveCoverScanURL gates cover inputs to platform
+// objects before this layer.
+func (s *ReviewService) resolveScanURL(rawURL string) string {
+	rawURL = strings.TrimSpace(rawURL)
+	if s.oss == nil || s.cfg == nil || rawURL == "" {
+		return rawURL
+	}
+	key, ok := aliyun.ObjectKeyFromURL(s.cfg.OSS.Domain, rawURL)
+	if !ok {
+		return rawURL
+	}
+	signed, err := s.oss.GetSignedURL(key, http.MethodGet, greenScanURLTTL)
+	if err != nil {
+		return rawURL
+	}
+	return signed
 }
 
 // resolveCoverScanURL verifies a cover URL is a platform OSS object before it
