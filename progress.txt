@@ -1,3 +1,23 @@
+## [2026-09-01] - 设计审查: 全站功能与 UI 审计 + 独立复核与修复方案（只审计不修复）
+
+### What was done:
+- 按用户目标 prompt（docs/working/2026-09-01-ux-audit-prompt.md）执行全站功能设计 + UI 设计审查，全程未修改任何业务代码。
+- Phase 1-2：5 个并行域子代理（账号/发布/审核/申诉；IP/PR/判官；社区/通知/反馈/主页；收藏/系列/搜索/Agent；Admin/横切）以代码 `文件:行号` + curl/psql 实证完成 14 条用户旅程与 §4 的 11 条断言验证，产出 96 条发现（F-001~F-096：P0×8、P1×34、P2×42、P3×12）与 5 份域笔记。
+- Phase 3：主审者浏览器走查（IAB，亮/暗 × 1440/375），截图 74 张至 screenshots/audit/；实测坐实 series 空态双 CTA（DOM count=2）、/original 375px 横向溢出 41px、封禁登录 403 后无错误提示（IAB 观测，Phase 5 判为与代码路径存在未解释分歧）、/agent gate 观测差异、首页 Active IPs 0。
+- Phase 4：主报告 docs/working/2026-09-01-design-audit-report.md + 交接清单 docs/working/2026-09-01-design-audit-findings.md（96 条，复核子代理唯一输入）。
+- Phase 5：全新子代理独立复核 96/96 条（证实 94 / 修正 2 [F-042 登录错误提示、F-083 agent gate 根因为 public-config 缓存] / 驳回 0），运行时独立复现 10 项关键证据；产出 docs/working/2026-09-01-design-audit-fix-plan.md（43 修复项 × 全字段，P0×7/P1×20/P2×13/P3×3，五批次 + issue 拆分清单 + 9 项不修项）。
+- Top 问题：封禁用户申诉死链（F-001）、判官考试字段断裂永 0 分（F-004）、判官闭案不生效（F-003/005）、作者看不到自己非 published 内容（F-002）、admin 举报处理 100% 静默失败（F-008）、用户 email 匿名泄露（F-006）、Agent 气泡亮色对比度 1.09:1（F-007）、admin config 保存会静默把 -1 改 +1（F-034）。
+
+### Testing:
+- 后端 curl 正常/错误路径实测（登录/封禁 403/401 矩阵、内容可见性、申诉、admin 契约、stats）；psql 构造罕见状态（封禁账号、under_review/banned 内容、空系列、删除系列行）全部按笔记附录恢复。
+- 浏览器走查覆盖全部一级导航页面 × 亮暗双主题 + 8 页移动端；关键证据截图存档。
+- 测试账号 seed-ui-001~014 密码统一临时重置为 Audit!2026pass（建议人工复位）。
+
+### Notes:
+- 审计期间另一并行会话在实现 IP 发布功能（IPPublishForm/studio/publish/ip，E2E fix-loop flow-1），与 F-022/FIX-25 重叠——执行修复批次 C 前须先与该产出对账。
+- F-042（封禁登录无错误提示）复核者无浏览器未能复现分歧，建议正常浏览器人工复验一次。
+- 本任务只产出文档（报告/清单/方案/笔记/截图）与本条 progress 记录，未勾选任何计划 checkbox、未 commit。
+
 ## [2026-09-01] - B-002: sign private-OSS display URLs at the API boundary
 
 ### What was done:
@@ -2203,3 +2223,17 @@
 ### Notes:
 - Branch fix/ip-create-completeness, light lane, commit 1 of 2 (B-001 adds the /studio/publish/ip creation entry next).
 - List endpoints intentionally do not backfill tags (no consumer renders list tags; detail + create response cover the contract).
+## [2026-09-01] - E2E fix loop B-001: IP creation entry and studio publish form
+### What was done:
+- ui-spec.md gained `## Page: /studio/publish/ip 创建 IP` (TOC 49→50): field contract aligned with CreateIPInput, presign cover chain, pending feedback contract, 1px border / shadow-none / 44px touch constraints.
+- New route `frontend/app/(protected)/studio/publish/ip/page.tsx` + `frontend/components/studio/IPPublishForm.tsx`: name (1-255 client validation), description, cover via reused FileUploader (attachment mode, fileType=image, single file — reused because it already owns presign+progress+error+i18n), category chips from ipCategoryOptions minus `all`, tags chips (Enter add, dedupe, cap 10, TagBadge remove), success panel「已提交，等待审核」+ 查看IP详情 link + 继续创建 (no silent success, no auto redirect).
+- cover_url assembled as `oss_domain + "/" + oss_key` (PublicConfig typed with oss_domain); CreateIP contract unchanged (full URL submitted; B-002 signs the response side).
+- Dual entry points: StudioSidebar「内容发布」组「创建 IP」(Boxes icon) + `/ips` header button and empty-state CTA (login-gated via useAuth).
+- i18n: studio.publishIP.* (22 keys), studio.sidebar.createIP, ip.createIP — zh + en.
+### Testing:
+- `go build/vet/test ./...` (32 pkgs), `npm run lint` (tsc), `npm run build` green; `/studio/publish/ip` route emitted.
+- Browser (repo Playwright/Chromium, local dev stack): login → /ips toolbar button visible → open form via toolbar → sidebar entry active → fill name/description/category/tags chips → submit → 201 + pending panel → detail page TagBadge row renders (screenshots/b003-b001-local-20260901/01–04).
+- Browser cover upload from localhost:3000 is blocked by the OSS bucket CORS rule (PUT preflight 403 AccessForbidden, origin not whitelisted); uploader surfaces the localized error and submission still succeeds without cover — pre-existing environment constraint shared with the settings avatar flow; cloud bucket untouched per task constraints. Server-side presign→PUT→object verified via curl (PUT 200), then IP created with the real cover: create + detail responses carry signed cover_url (B-002 DisplayURLSigner at both exits) and the browser loads the signed cover via next/image (screenshot 05).
+### Notes:
+- Branch fix/ip-create-completeness, light lane, commit 2 of 2.
+- verify-project.sh: all build/test gates pass; doc-validator --check fails only on 11 untracked docs/working/2026-09-01-* files owned by other threads (out of scope, untouched). No config.go/routes.go/migrations changes in this batch.
