@@ -2150,3 +2150,16 @@
 ### Notes:
 - Groundedness/relevance are verbatim-containment/lexical proxies that saturate for paraphrasing models — do not present 0.005 as a quality verdict; citation correctness is evidenced by server-side citation-truth re-resolution (231/231) and 0 visibility leak.
 - First-token/total latencies are local measurements, not production SLA.
+
+## [2026-08-31] - Interview host redeploy: lean single-server profile onto latest main
+### What was done:
+- Authored `docs/deploy/docker-compose.interview-lean.yml` (defers the ten observability/alerting services behind `full-observability`, adds the standalone `worker` per ADR 0005, caps resident limits at ~2.5 GiB from measured idle RSS) and `ops/observability/prometheus.interview-lean.yml` (backend-only scrape); runbook §6.2 updated to reference the deploy artifact (commit 1af08b8).
+- Fixed base single-server compose nginx healthcheck localhost→127.0.0.1 (0a139e3; busybox wget resolves ::1, conf listens IPv4 only — same fix the server carried ad hoc since July).
+- Frontend Dockerfile: optional `NPM_REGISTRY` build arg (npmmirror on the CN host).
+- Redeployed 43.139.183.130 from the June-era initdb deployment to current main: backups to `/opt/omnicraft-deploy-backup-20260831` (.env/override/compose/nginx + pg_dump), `down -v`, 70 forward migrations via one-shot `migrate` (ledger bootstrapped fresh), 8-service lean stack up.
+- Server `.env` updated: +GREEN_SEED (generated), +GREEN_UID (derived read-only via Aliyun STS GetCallerIdentity with the existing OSS AK — main account 1007798807068172), +LOG_IP_HASH_SECRET, +METRICS_TEXTFILE_DIR, +ALERTMANAGER_CONFIG_FILE, +NPM_REGISTRY. config_override.yaml: `web_agent_enabled: true`, `rate_limit_per_day: 50` (DeepSeek kept as openai_compat provider; MiniMax swap pending user key).
+### Testing:
+- migrate: applied 70 (0 skipped), `artifacts/migration-summary.json` written. Backend healthy in release mode (ValidateRelease caught missing LOG_IP_HASH_SECRET once, then passed). Public smoke from local Mac: `/healthz` ok; `/api/v1/config/public` shows web_agent_enabled true + captcha aliyun_v2; app page 200 with valid TLS. Prometheus target `omnicraft-backend` up. Worker polling outbox relay. RSS ~380 MiB total across 8 containers, host 2.6 GiB available; 20 G disk free after pruning June images.
+### Notes:
+- Two server-only gotchas: `/var/lib/omnicraft/config_override.yaml` was 0600 so the new non-root backend image silently fell back to debug mode (chmod 644 + restart); nginx healthcheck needed 127.0.0.1.
+- Pending user verification: browser-walk real register/login (Aliyun captcha + SMTP), agent chat with the DeepSeek key, MiniMax key swap. Rollback path: `/opt/omnicraft-deploy-backup-20260831` + previous image tags were pruned, so rollback is restore-dump + previous git commit rebuild.
