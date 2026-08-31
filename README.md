@@ -1,22 +1,101 @@
 # OmniCraft 万象工坊
 
-全民创意分享平台 —— 以 IP 二创内容聚合为核心，Agent 自动化为增值能力，GitHub 式 PR 协同为社区护城河。
+![Go](https://img.shields.io/badge/Go-1.25-00ADD8)
+![Next.js](https://img.shields.io/badge/Next.js-16-black)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-336791)
+![Redis](https://img.shields.io/badge/Redis-7-DC382D)
+![Verify Gate](https://img.shields.io/badge/verify--project-73%2F73%20mocked%20contracts-success)
 
-技术栈：**Next.js** + **Go/Gin** + **PostgreSQL** + **Redis** + **阿里云 OSS** + **Tauri**
+全民创意分享平台——以 IP 二创内容聚合为核心流量底座，Agent 自动化为增值能力，GitHub 式 PR 协同为社区护城河。
+
+这是一个**Web-only、本地可运行、本地可测试、具备 Live Demo 的工程化项目**：在模块化单体后端（Go/Gin）上实现了带权限过滤、服务端引用复核、可降级检索和可靠异步处理的单 Agent RAG 工作台。技术栈：Next.js + Go/Gin + PostgreSQL(pgvector) + Redis + 阿里云 OSS/Green。
 
 ---
 
-## 目录
+## 核心能力
 
-- [本地开发](#本地开发)
-- [Docker Compose 部署](#docker-compose-部署)
-- [环境变量说明](#环境变量说明)
-- [数据库初始化](#数据库初始化)
-- [数据库备份](#数据库备份)
-- [SBOM 与制品证明](#sbom-与制品证明)
-- [项目结构](#项目结构)
-- [API 文档](#api-文档)
-- [Tauri 客户端](#tauri-客户端)
+### 1. Agent/RAG 检索链路
+
+内容问答必须同时满足相关性、版本一致性和权限边界。核心取舍：**把模型当成不可信建议源，而不是权限或事实源**。
+
+```text
+用户问题
+  -> Agent ChatStream（服务端固定工具注册表）
+  -> search_content 工具
+      ├─ PostgreSQL keyword 召回（默认读路径）
+      ├─ pgvector 语义召回
+      └─ 应用层 RRF 融合（OpenSearch BM25 投影契约就绪，Phase 2 启用）
+  -> content_version / index_generation / is_current 复核
+  -> viewer-aware 可见性过滤
+  -> RevalidateCitations 服务端引用复核
+  -> SSE citation / done（模型只能基于服务端确认过的内容作答）
+```
+
+- chunk 绑定 `content_id/content_version/chunk_key/index_version`，检索、融合、复核全程使用稳定 chunk identity；
+- RRF 避免跨引擎 score 不可比；前 20 个候选批量复核，不足时按排序逐个补位；
+- citation 不向客户端暴露内部分数；客户端只消费服务端生成的 `content_id/title/zone/route/chunk_key`。
+
+### 2. 引用治理与 SSE 流式协议
+
+SSE 只允许服务端定义的七类 typed 事件（`start/tool_status/delta/citation/usage/done/error`）：工具调用片段按 index 在服务端合并、一轮 provider stream 完成后才执行工具；模型伪造 title/route/version/source 或 chunk key 时，输出前的 `RevalidateCitations` 直接丢弃；取消、provider 超时、存储错误使用稳定错误码，不把原始 err.Error() 泄漏给客户端。
+
+### 3. 可靠异步：Transactional Outbox / Worker / Inbox / DLQ
+
+```text
+业务事务（状态变更 + outbox_events 同事务提交）
+  -> relay at-least-once 投递 Redis Streams
+  -> 独立 cmd/worker 消费
+       (consumer_group, event_id) 数据库唯一约束幂等
+       指数退避重试 -> 永久失败进 DLQ -> 管理员 replay
+```
+
+DB 内副作用用 `ConsumeInboxTx`（业务写入与 inbox completion 同事务）；外部副作用（审核、embedding）必须自身幂等。明确 **at-least-once**，不声称 exactly-once。本地故障演练覆盖重复投递、ACK 丢失、Redis 停启恢复、DLQ replay。
+
+### 4. 索引世代与降级
+
+索引是可重建投影，不是业务真相源：rebuild 走 staging → validation → 原子切 alias → 提升 PostgreSQL `is_current`，失败保留旧世代可恢复；增量投影与 rebuild 互斥锁防并发。OpenSearch 不可用降级 PG keyword、embedding provider 失败降级 keyword-only，降级结果显式标记 source。
+
+### 5. 归档文件安全门
+
+Mod 压缩包先过应用层流式结构校验（路径穿越 / symlink / 加密条目 / 嵌套递归 / 解压配额，超限立即中断），再经 ClamAV worker 扫描进状态机与 append-only 审计；发布与下载双 clean-only gate，quarantine 对象即使被错误标记也永不签名下载。
+
+### 6. 全链路可观测
+
+OpenTelemetry W3C trace context 贯穿 HTTP → DB → LLM → SSE 与 Outbox → relay → Redis → Worker → Inbox（traceparent 进 outbox envelope）；`omnicraft-server` / `omnicraft-worker` 服务级命名。已捕获认证 MiniMax Chat 同步链路与异步 embedding 链路真实 trace，并通过 Collector 停机演练（观测丢失不影响业务健康路径）。
+
+---
+
+## 真实 Provider 评测（current-v1 冻结语料）
+
+语料与查询集冻结（63 golden cases / 169 published contents·chunks / generation 2，corpus identity 与 golden-set checksum 固化），真实 MiniMax Chat + embo-01 Embedding 差分运行（2026-08-26）：
+
+| 口径（K=10） | Recall@10 | MRR | nDCG@10 | citation precision | P95 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 同 run chunk keyword baseline | 0.413 | 0.370 | 0.380 | — | — |
+| **hybrid（keyword + pgvector + RRF）** | **0.492** | **0.437** | **0.450** | 0.170 | 164.8ms |
+
+- visibility leak count `0`；degradation success rate `1.000`；
+- K=20 对照（citation 0.162 / coverage 0.508）排除 Top-K 截断解释；
+- 历史 253-content baseline（citation precision 0.913）经 provenance 审计判定语料快照不可恢复、口径不可比——已如实废弃并重建可信口径，**不做「提升/回归」对比**。
+
+Agent 答案实测（同冻结语料，2026-08-29，63 case 真实工具循环）：**55/63 answered、0 降级、0 provider 错误**；SSE first-token P50 2078ms / P95 8259ms；平均 3226 tokens/答案（为此修复 MiniMax 流式 usage 两个缺陷）；引用平均 4.2 条/答案、全部通过服务端复核。groundedness/relevance 使用确定性代理指标（对转述型模型饱和，judge 层为规划中的后续叠加），不作为质量结论。
+
+> 证据原文：`docs/working/2026-08-26-rag-real-minimax-differential-evidence.md`、`2026-08-26-rag-provenance-and-current-corpus-v1.md`、`2026-08-29-agent-answer-eval-evidence.md`。
+
+## 运行时架构
+
+![runtime architecture](docs/architecture.png)
+
+（由 [docs/working/2026-08-29-runtime-architecture.html](docs/working/2026-08-29-runtime-architecture.html) 导出；交互版可直接用浏览器打开。完整技术架构设计见 [architecture.md](architecture.md)。）
+
+## 项目阶段与边界
+
+当前为本地开发与验证阶段（非生产上线系统）：
+
+- 默认读路径为 PostgreSQL keyword/pgvector + RRF；`features.rag_hybrid_enabled=false`——OpenSearch 投影契约与降级路径就绪，最终投影是显式的 **Phase 2 决策**（隔离实验：新世代 + 小语料 + 不切基线 alias + 记录回滚点）；
+- `observability.tracing.enabled=false`（演示时经环境变量开启）；`archive_malware_scan_enabled` / `desktop_deploy_enabled` 默认关闭；
+- 真实 MiniMax Chat/Embedding provider 已接入并有本地链路证据；ClamAV 当前主要为 fake scanner 与协议级测试；无生产用户量/QPS/SLA 数据；
+- Tauri 桌面客户端仅完成不安全原型关闭（见文末）。
 
 ---
 
@@ -38,7 +117,7 @@
 ### 1. 克隆仓库
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/Leewwp/OmniCraft.git
 cd OmniCraft
 ```
 
@@ -417,18 +496,18 @@ OmniCraft/
 │   ├── config/
 │   ├── internal/
 │   │   ├── handler/         # HTTP 处理器
-│   │   ├── service/         # 业务逻辑
+│   │   ├── service/         # 业务逻辑（agent_tools / agent_stream / rag / relay …）
 │   │   ├── repository/      # 数据访问
 │   │   ├── model/           # GORM 模型
 │   │   ├── middleware/      # 中间件
-│   │   └── pkg/             # 工具包
+│   │   └── pkg/             # 工具包（archivezip / clamav / llm / queue …）
 │   ├── migrations/          # SQL 迁移文件
 │   ├── config.yaml          # 应用配置
 │   └── Dockerfile
 ├── frontend/                # Next.js 前端
 │   ├── app/                 # App Router 页面
-│   ├── components/          # React 组件
-│   ├── lib/                 # 工具库
+│   ├── components/          # React 组件（agent/AgentCitationCard 等）
+│   ├── lib/
 │   │   └── api.ts           # API 请求封装
 │   └── Dockerfile
 ├── tauri-client/            # Tauri PC 客户端
