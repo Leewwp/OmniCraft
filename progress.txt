@@ -2163,3 +2163,13 @@
 ### Notes:
 - Two server-only gotchas: `/var/lib/omnicraft/config_override.yaml` was 0600 so the new non-root backend image silently fell back to debug mode (chmod 644 + restart); nginx healthcheck needed 127.0.0.1.
 - Pending user verification: browser-walk real register/login (Aliyun captcha + SMTP), agent chat with the DeepSeek key, MiniMax key swap. Rollback path: `/opt/omnicraft-deploy-backup-20260831` + previous image tags were pruned, so rollback is restore-dump + previous git commit rebuild.
+
+## [2026-09-01] - External dependency health check + Green moderation contract fixes
+### What was done:
+- Probed every external dependency on cloud + local with the repo's real client code (go run inside the cached golang builder image on the server, env from .env): OSS round-trip/presign/CORS, Green text+image, SMTP AUTH, captcha (already proven by real registration), Agent LLM. Report delivered; local .env gained the real OSS + Green creds (backup .env.bak-deps-check-20260901).
+- User re-enabled the disabled Green AccessKey (LTAI5t6z...5Xza) in RAM console; no server config change needed.
+- Fixed real moderation bugs found by live probing (commit 400e7f5): ImageModeration service must be baselineCheck with wire key imageUrl (old query_security_check/url pair was rejected 401 parameter invalid(service) — image scans never worked); baselineCheck responses carry RiskLevel, old parser read Suggestion and would normalize risky images to pass (fail-open) — now none/low->pass, medium->review, high->block with legacy fallback; VideoModeration service is videoDetection (probed live, old name rejected); Aliyun cannot fetch private-bucket objects (server-side OSS 403), so ReviewService now builds an OSS client from config and resolveScanURL re-signs platform scan URLs (15m TTL) at all Green entry points; ObjectKeyFromURL added to aliyun pkg (URL->key mapping with percent-decoding).
+### Testing:
+- go build/vet/test ./... all green (new tests: image service params, RiskLevel mapping incl. legacy shape, ObjectKeyFromURL round-trip, resolveScanURL sign/passthrough/fallback). Server probe with production client after redeploy: image over signed URL result=pass reason=nonLabel; risky text result=block. backend+worker rebuilt and healthy in release mode.
+### Notes:
+- env_file changes need `up -d` recreate, not restart (restart keeps old injected env). Probe script kept at /opt/omnicraft/backend/cmd/probe-deps/ (untracked) for pre-loop dependency checks.
