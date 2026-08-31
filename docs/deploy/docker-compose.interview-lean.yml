@@ -1,0 +1,143 @@
+# Interview-host lean profile (3.6 GiB usable memory) for the single-server
+# deployment. Applied as a Compose override on top of the committed base file:
+#
+#   docker compose --env-file .env \
+#     -f docker-compose.single-server.yml \
+#     -f docker-compose.interview-lean.yml up -d --build
+#
+# What this override changes (runbook §6.2 resource-constrained profile):
+#   - defers the ten resident observability/alerting services behind the
+#     "full-observability" profile; start them only on >= 8 GiB hosts or when
+#     observability is hosted separately;
+#   - adds the standalone worker (ADR 0005): the API server never starts
+#     async consumers, so without it the outbox relay and the review/
+#     notification queue topics are never consumed;
+#   - caps aggregate resident memory limits at <= 2.6 GiB. Caps are sized
+#     from measured idle RSS on the interview host (2026-08-31: redis 6 MiB,
+#     backend 7 MiB, postgres 39 MiB, pgbouncer 5 MiB, nginx 17 MiB,
+#     frontend 90 MiB) with headroom for demo traffic;
+#   - points Prometheus at the backend-only lean config. The committed
+#     ops/observability/prometheus.yml also targets exporters/cadvisor/
+#     blackbox/node-exporter, which are deferred on this host; loading it
+#     unchanged would present permanent blind targets.
+#
+# Deferred services can still be inspected without starting them:
+#   docker compose --profile full-observability ... config
+
+services:
+  postgres:
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  redis:
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  pgbouncer:
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  backend:
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  frontend:
+    build:
+      args:
+        # Empty by default (registry.npmjs.org); set NPM_REGISTRY in .env on
+        # hosts where the default registry is slow or unreachable.
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  nginx:
+    deploy:
+      resources:
+        limits:
+          memory: 64m
+
+  prometheus:
+    volumes:
+      # Same target path as the base mount: this replaces the full config
+      # (backend-only job list, no rule_files, no alertmanager).
+      - ./ops/observability/prometheus.interview-lean.yml:/etc/prometheus/prometheus.yml:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_DSN: "host=pgbouncer port=5432 user=${POSTGRES_USER:-omnicraft} password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD} dbname=${POSTGRES_DB:-omnicraft} sslmode=disable"
+      REDIS_ADDR: "redis:6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB:-0}
+      CONFIG_OVERRIDE_PATH: /app/config_override.yaml
+    volumes:
+      - /var/lib/omnicraft/config_override.yaml:/app/config_override.yaml:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["./worker"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  # ---------------------------------------------------------------------
+  # Deferred on the 3.6 GiB interview host (runbook §6.2). The profile
+  # marker excludes them from a plain `up`; pass
+  # --profile full-observability to opt back in on a larger host.
+  # ---------------------------------------------------------------------
+  alertmanager:
+    profiles: ["full-observability"]
+
+  postgres-exporter:
+    profiles: ["full-observability"]
+
+  redis-exporter:
+    profiles: ["full-observability"]
+
+  cadvisor:
+    profiles: ["full-observability"]
+
+  blackbox:
+    profiles: ["full-observability"]
+
+  node-exporter:
+    profiles: ["full-observability"]
+
+  loki:
+    profiles: ["full-observability"]
+
+  alloy:
+    profiles: ["full-observability"]
+
+  loki-gate:
+    profiles: ["full-observability"]

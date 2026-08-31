@@ -1,0 +1,23 @@
+# Backend-only Prometheus configuration for the 3.6 GiB interview host
+# (single-server-beta-runbook.md §6.2), mounted by
+# docs/deploy/docker-compose.interview-lean.yml.
+#
+# The committed prometheus.yml additionally targets node-exporter,
+# postgres-exporter, redis-exporter, cadvisor, blackbox and Alertmanager;
+# all of those services are deferred on this host, so loading it unchanged
+# would present permanent blind/down targets. No rule_files and no
+# alerting section here for the same reason. Retention stays bounded by the
+# compose command flags (--storage.tsdb.retention.time/size).
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  # Application metrics served by the backend's internal observability
+  # server. The endpoint is never published to a public interface.
+  - job_name: omnicraft-backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:9091"]
+        labels:
+          environment: interview-host
