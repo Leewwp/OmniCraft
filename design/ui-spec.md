@@ -20,7 +20,7 @@
 - Global Design Tokens
 - Global Interaction Patterns
 
-### Pages（49）
+### Pages（50）
 - Page: / 首页
 - Page: /recommend 推荐流
 - Page: /search 搜索页
@@ -60,6 +60,7 @@
 - Page: /studio 创作者工作室
 - Page: /studio/publish/original 发布原创
 - Page: /studio/publish/fanwork 发布二创
+- Page: /studio/publish/ip 创建 IP
 - Page: /studio/overview 数据概览
 - Page: /studio/series 内容系列管理
 - Page: /studio/favorites 收藏集管理
@@ -5100,6 +5101,65 @@ interface CollabUserPickerProps {
 - `screenshots/community-source-picker-desktop.png`：PC 表单含 IP、原创来源、二创来源，互斥清除可见。
 - `screenshots/community-source-picker-mobile.png`：移动来源选择结果层不溢出，validation 文案不遮挡提交按钮。
 - 交互检查：IP-only、original-source-only、fanwork-source-only 均可提交；无 IP/来源禁用提交；query prefill 成功和失败状态均覆盖。
+
+## Page: /studio/publish/ip 创建 IP
+
+**Key Constraints**
+- 位于 `(protected)` 路由组内，未登录由既有 auth guard 拦截；使用 `StudioLayout`（含 `StudioSidebar`）。
+- 表单字段与后端 `CreateIPInput` 对齐：name（必填 1-255）、description（可选）、cover_url（单图，可选）、category（单选，来源 `ipCategoryOptions` 排除 `all`）、tags（chips 输入，最多 10 个，单 tag ≤50 字符，提交由后端规范化）。
+- 封面走既有 presign 链：`POST /contents/oss-token`（file_type=image）→ PUT 上传 → 以 `oss_domain + "/" + oss_key` 组装规范裸 URL 提交；后端 CreateIP 契约不变（仍接收完整 cover_url），响应侧签名由 DisplayURLSigner 出口装饰。
+- 创建成功后 IP 处于 `pending`（AI 审核 + 管理员通过后才公开），页面必须给出明确的「已提交，等待审核」反馈并提供跳转 IP 详情页入口，禁止静默成功。
+- 遵守全局 Indigo 三档层级规则：本页表面 shadow-none、1px border、语义 token；所有交互目标 ≥44px。
+- 双入口：`/studio` 侧边栏「内容发布」组「创建 IP」项 + `/ips` 浏览页工具栏「创建 IP」按钮（登录态可见；空态 EmptyState 提供同目标 CTA）。
+
+**视觉层级**
+- 页面标题 `text-xl font-bold` + 表单卡片：`rounded-xl border border-border bg-card`，字段垂直排列。
+- 分类为 rounded-full chips 单选组（选中 `border-accent-emphasis bg-accent-subtle text-accent-emphasis`）；tags 使用 `TagBadge`（removable）。
+- 成功态：内联成功面板（1px border、`bg-accent-subtle` 淡色底）显示 pending 说明与跳转按钮，不自动重定向。
+
+**核心组件清单**
+- `FileUploader`（attachment 模式，fileType=image，单图）
+- `TagBadge`
+- `Input`、`Button`、`Toast`
+- `EmptyState`（仅 /ips 页空态复用）
+
+**布局规范**
+- 表单最大宽度 672px（max-w-2xl）居中；字段顺序：name → description → cover → category → tags → 提交按钮。
+- 元素间距 16px（gap-4 / space-y-6 分区）。
+
+**状态变体**
+- default: 空表单。
+- uploading: FileUploader 内嵌进度条，提交按钮不禁用但提交校验上传未完成时 toast 阻止。
+- loading: 提交按钮 Spinner + 禁用。
+- error: API 错误 toast + 字段级红字（name 必填/超长），保留用户输入。
+- success: 内联「已提交，等待审核」面板 + 「查看 IP 详情」链接 + 「继续创建」重置按钮。
+- 特殊状态：未登录访问由 protected 组重定向登录页。
+
+**响应式规则**
+- 移动 (≤700px): 表单全宽 `p-4`，chips 换行。
+- 平板 (≤1100px): 表单 max-w 720px 居中。
+- PC (>1100px): 表单 max-w 672px 居中。
+
+**暗色模式适配**
+- 背景 token: `canvas-default`/`card` dark 变体；边框 `border` dark 变体；文字 `foreground`/`muted-foreground` dark 变体。
+
+**交互细节**
+- name 前端校验 1-255 字符，空或超长时禁用提交并红字提示；后端 400 映射为字段错误。
+- tags 输入框 Enter 添加（preventDefault）、去重、trim、上限 10 个；TagBadge X 移除。
+- 提交成功 → toast + success 面板；不自动 redirect。
+- 破坏性操作无；「继续创建」重置表单无需 ConfirmModal。
+
+**可访问性**
+- 分类 chips 使用 `aria-pressed`；tags 容器有 i18n label。
+- 上传、提交按钮触控目标 ≥44px。
+
+**i18n key namespace**
+- `studio.publishIP.*`：title/nameLabel/namePlaceholder/nameRequired/nameTooLong/descriptionLabel/descriptionPlaceholder/coverLabel/coverHint/categoryLabel/categoryPlaceholder/tagLabel/tagPlaceholder/addTag/submit/submitting/successTitle/successPending/successView/successCreateAnother/failed。
+- `studio.sidebar.createIP`、`ip.createIP`（/ips 入口）。
+- 不硬编码任何用户可见文案。
+
+**Playwright 截图检查点**
+- `screenshots/b003-b001-local-20260901/`：创建表单（含分类 chips 与 tags chips）、提交成功 pending 面板、IP 详情页 TagBadge 行。
 
 ## Page: /studio/overview 数据概览
 

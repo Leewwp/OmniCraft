@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { AlertCircle, Check, Search, SearchX } from "lucide-react";
+import { AlertCircle, Check, Plus, Search, SearchX } from "lucide-react";
 import { IPCard } from "@/components/ip/IPCard";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SortSelect } from "@/components/ui/SortSelect";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface IPItem {
   id: number;
@@ -66,6 +68,7 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
   const t = useTranslations();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
 
   const [ips, setIPs] = useState<IPItem[]>(initialIPs);
   const [total, setTotal] = useState(initialTotal);
@@ -139,18 +142,29 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 py-6 md:px-6 md:py-8">
       {/* Header */}
-      <div className="mb-6 max-w-[720px]">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('ip.title')}</h1>
-          {total > 0 && (
-            <span className="rounded-full border border-primary/30 bg-accent-subtle px-2 py-0.5 text-xs font-semibold tabular-nums text-accent-emphasis">
-              {t('ip.totalCount', { total })}
-            </span>
-          )}
+      <div className="mb-6 flex max-w-[720px] items-start justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('ip.title')}</h1>
+            {total > 0 && (
+              <span className="rounded-full border border-primary/30 bg-accent-subtle px-2 py-0.5 text-xs font-semibold tabular-nums text-accent-emphasis">
+                {t('ip.totalCount', { total })}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t('ip.browseDescription')}
+          </p>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t('ip.browseDescription')}
-        </p>
+        {user && (
+          <Link
+            href="/studio/publish/ip"
+            className={buttonVariants({ className: "min-h-11 shrink-0 gap-1.5 rounded-full px-4" })}
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            {t('ip.createIP')}
+          </Link>
+        )}
       </div>
 
       {/* Search + Sort row */}
@@ -225,7 +239,20 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
           icon={SearchX}
           title={t('ip.notFound')}
           description={t('ip.notFoundHint')}
-          action={<Button onClick={() => { setCategory(""); setSearch(""); setSearchInput(""); }}>{t('ip.clearAllFilters')}</Button>}
+          action={
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button onClick={() => { setCategory(""); setSearch(""); setSearchInput(""); }}>{t('ip.clearAllFilters')}</Button>
+              {user && (
+                <Link
+                  href="/studio/publish/ip"
+                  className={buttonVariants({ variant: "outline", className: "min-h-11 gap-1.5 rounded-full px-4" })}
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  {t('ip.createIP')}
+                </Link>
+              )}
+            </div>
+          }
         />
       ) : (
         <>

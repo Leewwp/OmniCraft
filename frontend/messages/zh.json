@@ -1051,7 +1051,8 @@
     "sortMostContents": "最多内容",
     "sortNewest": "最新",
     "sortLabel": "IP 排序方式",
-    "tagsLabel": "IP 标签"
+    "tagsLabel": "IP 标签",
+    "createIP": "创建 IP"
   },
   "user": {
     "profile": "用户 #{id}",
@@ -1788,6 +1789,7 @@
       "analytics": "数据看板",
       "collaboration": "协作管理",
       "publishContent": "发布创作",
+      "createIP": "创建 IP",
       "overview": "数据概览",
       "followers": "粉丝分析",
       "myContent": "我的内容",
@@ -1942,6 +1944,30 @@
         "prompt": "角色 LoRA 提示词",
         "other": "其他二创内容"
       }
+    },
+    "publishIP": {
+      "title": "创建 IP",
+      "backToStudio": "返回工作室",
+      "nameLabel": "IP 名称",
+      "namePlaceholder": "为你的 IP 起一个名字...",
+      "nameRequired": "请输入 IP 名称",
+      "nameTooLong": "IP 名称不能超过 {max} 个字符",
+      "descriptionLabel": "IP 介绍",
+      "descriptionPlaceholder": "介绍这个 IP 的世界观、题材或创作方向...",
+      "coverLabel": "封面",
+      "coverHint": "可选；上传后作为 IP 封面展示。",
+      "categoryLabel": "分类",
+      "tagLabel": "标签",
+      "tagPlaceholder": "输入标签后回车添加",
+      "addTag": "添加标签",
+      "submit": "提交创建",
+      "submitting": "提交中...",
+      "cancel": "取消",
+      "successTitle": "已提交，等待审核",
+      "successPending": "IP「{name}」已提交。审核通过后将在 IP 库公开，在此之前仅自己可见。",
+      "successView": "查看 IP 详情",
+      "successCreateAnother": "继续创建",
+      "failed": "创建失败，请稍后再试"
     },
     "overview": {
       "title": "数据概览",

@@ -1050,7 +1050,8 @@
     "sortMostContents": "Most Content",
     "sortNewest": "Newest",
     "sortLabel": "Sort IPs",
-    "tagsLabel": "IP tags"
+    "tagsLabel": "IP tags",
+    "createIP": "Create IP"
   },
   "user": {
     "profile": "User #{id}",
@@ -1787,6 +1788,7 @@
       "analytics": "Analytics",
       "collaboration": "Collaboration",
       "publishContent": "Publish Content",
+      "createIP": "Create IP",
       "overview": "Overview",
       "followers": "Followers",
       "myContent": "My Content",
@@ -1941,6 +1943,30 @@
         "prompt": "Character LoRA prompts",
         "other": "Other fan creation content"
       }
+    },
+    "publishIP": {
+      "title": "Create IP",
+      "backToStudio": "Back to Studio",
+      "nameLabel": "IP Name",
+      "namePlaceholder": "Name your IP...",
+      "nameRequired": "IP name is required",
+      "nameTooLong": "IP name must be at most {max} characters",
+      "descriptionLabel": "IP Description",
+      "descriptionPlaceholder": "Describe the world, theme or creative direction of this IP...",
+      "coverLabel": "Cover",
+      "coverHint": "Optional; shown as the IP cover after upload.",
+      "categoryLabel": "Category",
+      "tagLabel": "Tags",
+      "tagPlaceholder": "Type a tag and press Enter",
+      "addTag": "Add Tag",
+      "submit": "Submit",
+      "submitting": "Submitting...",
+      "cancel": "Cancel",
+      "successTitle": "Submitted, pending review",
+      "successPending": "IP \"{name}\" has been submitted. It becomes public in the IP library after approval; until then only you can see it.",
+      "successView": "View IP Details",
+      "successCreateAnother": "Create Another",
+      "failed": "Creation failed, please try again later"
     },
     "overview": {
       "title": "Overview",

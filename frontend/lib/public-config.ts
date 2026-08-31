@@ -43,6 +43,8 @@ export interface PublicConfig {
   legal: PublicLegal;
   upload: PublicUpload;
   collaboration: PublicCollaboration;
+  /** Object delivery domain; empty when delivery is not configured. */
+  oss_domain: string;
 }
 
 let cachedConfig: PublicConfig | null = null;
