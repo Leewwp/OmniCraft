@@ -14,12 +14,13 @@ import (
 )
 
 type SearchHandler struct {
-	searchSvc *service.SearchService
-	cfg       *config.Config
+	searchSvc     *service.SearchService
+	cfg           *config.Config
+	displaySigner *service.DisplayURLSigner
 }
 
 func NewSearchHandler(searchSvc *service.SearchService, cfg *config.Config) *SearchHandler {
-	return &SearchHandler{searchSvc: searchSvc, cfg: cfg}
+	return &SearchHandler{searchSvc: searchSvc, cfg: cfg, displaySigner: service.NewDisplayURLSigner(cfg)}
 }
 
 func (h *SearchHandler) Suggestions(c *gin.Context) {
@@ -95,6 +96,12 @@ func (h *SearchHandler) SearchContents(c *gin.Context) {
 		return
 	}
 
+	if h.displaySigner != nil {
+		for i := range results {
+			h.displaySigner.DecorateContent(&results[i].ContentItem)
+		}
+	}
+
 	totalPages := int(total) / pageSize
 	if int(total)%pageSize > 0 {
 		totalPages++
@@ -129,6 +136,11 @@ func (h *SearchHandler) SearchUsers(c *gin.Context) {
 	}
 	if users == nil {
 		users = []repository.UserSearchResult{}
+	}
+	if h.displaySigner != nil {
+		for i := range users {
+			users[i].AvatarURL = h.displaySigner.SignURL(users[i].AvatarURL)
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"users": users, "total": total})
 }

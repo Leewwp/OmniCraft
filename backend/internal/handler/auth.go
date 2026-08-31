@@ -29,6 +29,7 @@ type AuthHandler struct {
 	captchaVerifier     captcha.CaptchaVerifier
 	rdb                 *redis.Client
 	cfg                 *config.Config
+	displaySigner       *service.DisplayURLSigner
 }
 
 type AuthCapabilities struct {
@@ -57,7 +58,7 @@ func buildAuthCapabilities(user *model.User, cfg *config.Config) (AuthCapabiliti
 func NewAuthHandler(authService *service.AuthService, verificationService *service.VerificationService, userRepo *repository.UserRepository, captchaVerifier captcha.CaptchaVerifier, rdb *redis.Client, cfg *config.Config) *AuthHandler {
 	// Wire up the circular dependency: VerificationService needs AuthService for pending registration flow
 	verificationService.SetAuthService(authService)
-	return &AuthHandler{authService: authService, verificationService: verificationService, userRepo: userRepo, captchaVerifier: captchaVerifier, rdb: rdb, cfg: cfg}
+	return &AuthHandler{authService: authService, verificationService: verificationService, userRepo: userRepo, captchaVerifier: captchaVerifier, rdb: rdb, cfg: cfg, displaySigner: service.NewDisplayURLSigner(cfg)}
 }
 
 func refreshCookieName(cfg *config.Config) string {
@@ -251,6 +252,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	h.clearLoginFailures(c, input.Email)
 	setRefreshCookie(c, h.cfg, tokens.RefreshToken)
 
+	h.displaySigner.DecorateUser(user)
 	c.JSON(http.StatusOK, gin.H{
 		"user":         user,
 		"capabilities": capabilities,
@@ -324,6 +326,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		return
 	}
 	c.Header("X-CSRF-Token", csrfToken)
+	h.displaySigner.DecorateUser(user)
 	c.JSON(http.StatusOK, gin.H{
 		"user":         user,
 		"csrf_token":   csrfToken,

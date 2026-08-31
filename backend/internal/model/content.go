@@ -64,6 +64,10 @@ type ContentAttachment struct {
 	LastScanJobID *int64     `json:"last_scan_job_id,omitempty"`
 	ScannedAt     *time.Time `json:"scanned_at,omitempty"`
 	CreatedAt     time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	// OSSURL is the short-lived signed display URL derived from OSSKey at the
+	// API serialization boundary (B-002). It is never persisted and never
+	// replaces the canonical oss_key.
+	OSSURL string `gorm:"-" json:"oss_url,omitempty"`
 }
 
 func (ContentAttachment) TableName() string { return "content_attachments" }

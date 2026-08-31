@@ -87,6 +87,10 @@ type ServiceContainer struct {
 	RAGProjection       *ragservice.Projection
 	ArchiveObjectStore  worker.ArchiveScanObjectStore
 	ArchiveScanner      worker.ArchiveScanner
+	// DisplayURLSigner issues short-lived signed GET URLs for display media
+	// at the API serialization boundary (B-002); nil-safe passthrough when
+	// OSS is not configured.
+	DisplayURLSigner *service.DisplayURLSigner
 }
 
 func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceContainer {
@@ -148,6 +152,7 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 
 	// Services
 	c.AuthService = service.NewAuthService(c.UserRepo, rdb, cfg)
+	c.DisplayURLSigner = service.NewDisplayURLSigner(cfg)
 
 	var mailSender mail.MailSender
 	var feedbackMailSender service.FeedbackMailSender

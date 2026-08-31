@@ -20,6 +20,7 @@ type IPHandler struct {
 	ipSvc          *service.IPService
 	contentRepo    *repository.ContentRepository
 	discussionRepo *repository.DiscussionRepository
+	displaySigner  *service.DisplayURLSigner
 }
 
 func NewIPHandler(db *gorm.DB) *IPHandler {
@@ -37,6 +38,7 @@ func NewIPHandlerWithCache(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *
 		ipSvc:          service.NewIPServiceWithReview(repository.NewIPRepository(db), rdb, &cfg.Cache, reviewSvc),
 		contentRepo:    repository.NewContentRepository(db),
 		discussionRepo: repository.NewDiscussionRepository(db),
+		displaySigner:  service.NewDisplayURLSigner(cfg),
 	}
 }
 
@@ -58,6 +60,7 @@ func (h *IPHandler) ListIPs(c *gin.Context) {
 		return
 	}
 
+	h.displaySigner.DecorateIPs(ips)
 	c.JSON(http.StatusOK, gin.H{
 		"ips":       ips,
 		"total":     total,
@@ -85,6 +88,7 @@ func (h *IPHandler) CreateIP(c *gin.Context) {
 		return
 	}
 
+	h.displaySigner.DecorateIP(ip)
 	c.JSON(http.StatusCreated, gin.H{"ip": ip})
 }
 
@@ -105,6 +109,9 @@ func (h *IPHandler) GetIP(c *gin.Context) {
 		return
 	}
 
+	// GetIP may be served from the Redis detail cache; the signature is
+	// re-issued on every response so it is never frozen into cached rows.
+	h.displaySigner.DecorateIP(ip)
 	c.JSON(http.StatusOK, gin.H{"ip": ip})
 }
 
@@ -133,7 +140,6 @@ func (h *IPHandler) GetIPContents(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	h.displaySigner.DecorateContents(items)
 	c.JSON(http.StatusOK, gin.H{"contents": items, "total": total, "page": page, "page_size": pageSize})
 }
-
-

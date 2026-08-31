@@ -17,6 +17,10 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	db := ctr.DB
 	userRepo := ctr.UserRepo
 	authService := ctr.AuthService
+	// displaySigner issues short-lived signed GET URLs for display media
+	// (covers, avatars, gallery attachments) at the API serialization
+	// boundary; nil-safe passthrough when OSS is not configured (B-002).
+	displaySigner := ctr.DisplayURLSigner
 	authHandler := handler.NewAuthHandler(authService, ctr.VerificationService, userRepo, ctr.CaptchaVerifier, rdb, cfg)
 
 	notifSvc := ctr.NotificationService
@@ -128,6 +132,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 
 	socialSvc := ctr.SocialService
 	socialHandler := handler.NewSocialHandlerWithService(socialSvc, db)
+	socialHandler.SetDisplayURLSigner(displaySigner)
 	social := v1.Group("/social")
 	{
 		social.GET("/comments", optAuth, socialHandler.ListComments)
@@ -149,6 +154,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	v1.POST("/collab-invites/:id/decline", authReq, collabInviteHandler.DeclineInvite)
 
 	collectionHandler := handler.NewCollectionHandler(db)
+	collectionHandler.SetDisplayURLSigner(displaySigner)
 	v1.GET("/collections", optAuth, collectionHandler.ListCollections)
 	v1.GET("/collections/:id", optAuth, collectionHandler.GetCollection)
 	v1.POST("/collections", authReq, collectionGuard, collectionHandler.CreateCollection)
@@ -159,6 +165,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	v1.PUT("/collections/:id/items/:itemId", authReq, collectionGuard, collectionHandler.UpdateItem)
 
 	seriesHandler := handler.NewSeriesHandler(db)
+	seriesHandler.SetDisplayURLSigner(displaySigner)
 	v1.POST("/series", authReq, seriesGuard, seriesHandler.CreateSeries)
 	v1.GET("/series", authReq, seriesHandler.ListSeries)
 	v1.GET("/series/candidates", authReq, seriesHandler.ListCandidates)
@@ -197,6 +204,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	dashboard.PATCH("/tag-suggestions/:id", tagHandler.UpdateTagSuggestion)
 
 	followHandler := handler.NewFollowHandler(db)
+	followHandler.SetDisplayURLSigner(displaySigner)
 	followHandler.SetNotificationService(notifSvc)
 
 	me := v1.Group("/users/me", authReq)
@@ -265,11 +273,13 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	me.DELETE("/history", histHandler.ClearHistory)
 
 	ipVisitHistoryHandler := handler.NewIPVisitHistoryHandler(db)
+	ipVisitHistoryHandler.SetDisplayURLSigner(displaySigner)
 	me.GET("/ip-visits", ipVisitHistoryHandler.ListRecent)
 	me.PUT("/ip-visits/:ipId", ipVisitHistoryHandler.RecordVisit)
 	me.POST("/ip-visits/merge", ipVisitHistoryHandler.MergeVisits)
 
 	discHandler := handler.NewDiscussionHandler(db)
+	discHandler.SetDisplayURLSigner(displaySigner)
 	ips.GET("/:id/discussions", optAuth, discHandler.ListDiscussions)
 	ips.POST("/:id/discussions", authReq, discHandler.CreateDiscussion)
 	ips.GET("/:id/discussions/search", optAuth, discHandler.SearchDiscussions)

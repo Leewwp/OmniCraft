@@ -22,6 +22,7 @@ import (
 type CollectionHandler struct {
 	collectionRepo *repository.CollectionRepository
 	collectionSvc  *service.CollectionService
+	displaySigner  *service.DisplayURLSigner
 }
 
 var (
@@ -45,6 +46,12 @@ func NewCollectionHandler(db *gorm.DB) *CollectionHandler {
 		collectionRepo: collectionRepo,
 		collectionSvc:  service.NewCollectionService(collectionRepo, repository.NewContentRepository(db)),
 	}
+}
+
+// SetDisplayURLSigner wires display URL signing for collected content covers
+// and author avatars (B-002).
+func (h *CollectionHandler) SetDisplayURLSigner(signer *service.DisplayURLSigner) {
+	h.displaySigner = signer
 }
 
 func (h *CollectionHandler) ListCollections(c *gin.Context) {
@@ -114,6 +121,11 @@ func (h *CollectionHandler) GetCollection(c *gin.Context) {
 		return
 	}
 
+	if h.displaySigner != nil {
+		for i := range items {
+			h.displaySigner.DecorateContent(&items[i].ContentItem)
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"collection": collection,
 		"items":      items,
@@ -254,6 +266,7 @@ func (h *CollectionHandler) AddItem(c *gin.Context) {
 		h.writeCollectionError(c, err)
 		return
 	}
+	h.displaySigner.DecorateContent(&item.ContentItem)
 	c.JSON(http.StatusCreated, gin.H{"item": item})
 }
 
@@ -287,6 +300,7 @@ func (h *CollectionHandler) UpdateItem(c *gin.Context) {
 		h.writeCollectionError(c, err)
 		return
 	}
+	h.displaySigner.DecorateContent(&item.ContentItem)
 	c.JSON(http.StatusOK, gin.H{"item": item})
 }
 

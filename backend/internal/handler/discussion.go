@@ -8,15 +8,17 @@ import (
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
+	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 type DiscussionHandler struct {
-	discRepo   *repository.DiscussionRepository
-	socialRepo *repository.SocialRepository
-	ipRepo     *repository.IPRepository
+	discRepo      *repository.DiscussionRepository
+	socialRepo    *repository.SocialRepository
+	ipRepo        *repository.IPRepository
+	displaySigner *service.DisplayURLSigner
 }
 
 func NewDiscussionHandler(db *gorm.DB) *DiscussionHandler {
@@ -25,6 +27,12 @@ func NewDiscussionHandler(db *gorm.DB) *DiscussionHandler {
 		socialRepo: repository.NewSocialRepository(db),
 		ipRepo:     repository.NewIPRepository(db),
 	}
+}
+
+// SetDisplayURLSigner wires display URL signing for discussion/comment author
+// avatars and linked IP covers (B-002).
+func (h *DiscussionHandler) SetDisplayURLSigner(signer *service.DisplayURLSigner) {
+	h.displaySigner = signer
 }
 
 func (h *DiscussionHandler) ListDiscussions(c *gin.Context) {
@@ -38,6 +46,7 @@ func (h *DiscussionHandler) ListDiscussions(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	h.displaySigner.DecorateDiscussions(discussions)
 	c.JSON(http.StatusOK, gin.H{"discussions": discussions, "total": total})
 }
 
@@ -83,6 +92,8 @@ func (h *DiscussionHandler) GetDiscussion(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	h.displaySigner.DecorateDiscussion(d)
+	h.displaySigner.DecorateComments(comments)
 	c.JSON(http.StatusOK, gin.H{"discussion": d, "comments": comments, "total": total})
 }
 
@@ -157,6 +168,7 @@ func (h *DiscussionHandler) SearchDiscussions(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR"})
 		return
 	}
+	h.displaySigner.DecorateDiscussions(discussions)
 	c.JSON(http.StatusOK, gin.H{"discussions": discussions})
 }
 
@@ -174,5 +186,6 @@ func (h *DiscussionHandler) ListByUser(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	h.displaySigner.DecorateDiscussions(discussions)
 	c.JSON(http.StatusOK, gin.H{"discussions": discussions, "total": total})
 }
