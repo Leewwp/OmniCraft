@@ -823,3 +823,34 @@ func TestSubmitForAIReviewWithoutSyncKeyKeepsLegacyBehavior(t *testing.T) {
 		require.Nil(t, r.ProviderTaskID, "HTTP direct path records keep a NULL provider_task_id")
 	}
 }
+
+func TestResolveScanURLSignsPlatformObjectURLAndPassesThroughExternal(t *testing.T) {
+	cfg := &config.Config{
+		OSS: config.OSSConfig{
+			Endpoint:        "http://127.0.0.1:9201",
+			AccessKeyID:     "test-ak",
+			AccessKeySecret: "test-sk",
+			BucketName:      "test-bucket",
+			Domain:          "http://127.0.0.1:9201/test-bucket",
+		},
+	}
+	svc := NewReviewService(nil, nil, cfg, nil)
+
+	platform := aliyun.ObjectURL(cfg.OSS.Domain, "probe/x.png")
+	signed := svc.resolveScanURL(platform)
+	require.NotEqual(t, platform, signed)
+	require.Contains(t, signed, "Signature=")
+	// The signed URL must round-trip back to the same object key.
+	key, ok := aliyun.ObjectKeyFromURL(cfg.OSS.Domain, signed)
+	require.True(t, ok)
+	require.Equal(t, "probe/x.png", key)
+
+	require.Equal(t, "https://example.com/external.png", svc.resolveScanURL("https://example.com/external.png"))
+}
+
+func TestResolveScanURLFallsBackWithoutOSSConfig(t *testing.T) {
+	svc := NewReviewService(nil, nil, &config.Config{}, nil)
+	const url = "https://cdn.example.com/attachment.png"
+	require.Equal(t, url, svc.resolveScanURL(url))
+	require.Nil(t, svc.oss)
+}

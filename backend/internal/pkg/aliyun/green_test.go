@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 const testCallbackURL = "https://api.leeppp.online/api/v1/internal/ai-callback"
@@ -110,5 +112,70 @@ func TestBuildVideoServiceParamsSeedCharset(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("overlong seed must be rejected")
+	}
+}
+
+func TestBuildImageServiceParamsUsesImageUrlKey(t *testing.T) {
+	spJSON, err := buildImageServiceParams("https://cdn.example.test/probe/x.png")
+	require.NoError(t, err)
+	require.Contains(t, spJSON, `"imageUrl"`)
+	require.NotContains(t, spJSON, `"url"`)
+}
+
+func TestImageResultFromBodyMapsRiskLevels(t *testing.T) {
+	item := func(label, riskLevel string) map[string]interface{} {
+		return map[string]interface{}{"Label": label, "RiskLevel": riskLevel}
+	}
+	cases := []struct {
+		name string
+		body map[string]interface{}
+		want string
+	}{
+		{
+			name: "overall none maps to pass",
+			body: map[string]interface{}{
+				"Code": 200,
+				"Data": map[string]interface{}{"RiskLevel": "none", "Result": []interface{}{item("nonLabel", "none")}},
+			},
+			want: "pass",
+		},
+		{
+			name: "overall medium maps to review",
+			body: map[string]interface{}{
+				"Code": 200,
+				"Data": map[string]interface{}{"RiskLevel": "medium", "Result": []interface{}{item("porn", "medium")}},
+			},
+			want: "review",
+		},
+		{
+			name: "overall high maps to block even when an item reads none",
+			body: map[string]interface{}{
+				"Code": 200,
+				"Data": map[string]interface{}{"RiskLevel": "high", "Result": []interface{}{item("contraband_act", "none")}},
+			},
+			want: "block",
+		},
+		{
+			name: "per-item risk escalates when overall is missing",
+			body: map[string]interface{}{
+				"Code": 200,
+				"Data": map[string]interface{}{"Result": []interface{}{item("nonLabel", "none"), item("politics", "high")}},
+			},
+			want: "block",
+		},
+		{
+			name: "legacy suggestion shape still recognized",
+			body: map[string]interface{}{
+				"Code": 200,
+				"Data": map[string]interface{}{"Result": []interface{}{map[string]interface{}{"Label": "porn", "Suggestion": "block"}}},
+			},
+			want: "block",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, _ := imageResultFromBody(tc.body)
+			require.Equal(t, tc.want, got)
+		})
 	}
 }
