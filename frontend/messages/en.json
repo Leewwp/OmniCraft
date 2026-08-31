@@ -1049,7 +1049,8 @@
     "sortHot": "Hottest",
     "sortMostContents": "Most Content",
     "sortNewest": "Newest",
-    "sortLabel": "Sort IPs"
+    "sortLabel": "Sort IPs",
+    "tagsLabel": "IP tags"
   },
   "user": {
     "profile": "User #{id}",

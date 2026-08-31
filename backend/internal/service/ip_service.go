@@ -60,6 +60,37 @@ type CreateIPInput struct {
 	Tags        []string `json:"tags"`
 }
 
+// iptagMaxLen mirrors ip_tags.tag VARCHAR(50) (migration 005).
+const iptagMaxLen = 50
+
+// normalizeIPTags trims each tag, drops empties, truncates to the column
+// length and removes duplicates (case-sensitive), preserving first-seen order.
+func normalizeIPTags(tags []string) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(tags))
+	normalized := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		trimmed := strings.TrimSpace(tag)
+		if trimmed == "" {
+			continue
+		}
+		if runes := []rune(trimmed); len(runes) > iptagMaxLen {
+			trimmed = string(runes[:iptagMaxLen])
+		}
+		if _, dup := seen[trimmed]; dup {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
+}
+
 func (s *IPService) CreateIP(ctx context.Context, input CreateIPInput, creatorID int64) (*model.IP, error) {
 	slug := generateSlug(input.Name)
 
@@ -79,9 +110,22 @@ func (s *IPService) CreateIP(ctx context.Context, input CreateIPInput, creatorID
 		Category:    input.Category,
 		CreatorID:   &creatorID,
 		Status:      "pending",
+		Tags:        normalizeIPTags(input.Tags),
 	}
 
-	if err := s.ipRepo.CreateIP(ip); err != nil {
+	// The IP row and its ip_tags rows commit atomically; the search vector
+	// trigger (trg_ip_tags_search_vector) fires inside the same transaction.
+	err = s.ipRepo.Transaction(func(txRepo *repository.IPRepository) error {
+		if err := txRepo.CreateIP(ip); err != nil {
+			return err
+		}
+		tagRows := make([]model.IPTag, 0, len(ip.Tags))
+		for _, tag := range ip.Tags {
+			tagRows = append(tagRows, model.IPTag{IPID: ip.ID, Tag: tag})
+		}
+		return txRepo.CreateTags(tagRows)
+	})
+	if err != nil {
 		return nil, err
 	}
 
@@ -151,6 +195,18 @@ func (s *IPService) GetIP(id int64) (*model.IP, error) {
 	}
 	if ip == nil {
 		return nil, ErrIPNotFound
+	}
+
+	// Backfill the gorm:"-" Tags field from ip_tags; the detail cache stores
+	// the assembled shape so hits and misses return the same contract.
+	tagRows, err := s.ipRepo.GetTags(id)
+	if err != nil {
+		slog.Error("failed to get ip tags", "ip_id", id, "error", err)
+	} else if len(tagRows) > 0 {
+		ip.Tags = make([]string, 0, len(tagRows))
+		for _, row := range tagRows {
+			ip.Tags = append(ip.Tags, row.Tag)
+		}
 	}
 
 	if s.rdb != nil && s.cacheCfg != nil {
