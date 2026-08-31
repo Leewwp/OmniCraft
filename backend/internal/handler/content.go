@@ -40,6 +40,7 @@ type ContentHandler struct {
 	cfg               *config.Config
 	queueProducer     queue.Producer
 	archiveGate       *service.ArchiveScanGate
+	displaySigner     *service.DisplayURLSigner
 }
 
 func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *ContentHandler {
@@ -77,6 +78,7 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 		cfg:               cfg,
 		queueProducer:     queue.NewNoopProducer(),
 		archiveGate:       service.NewArchiveScanGate(db, cfg.Features.ArchiveMalwareScanEnabled),
+		displaySigner:     service.NewDisplayURLSigner(cfg),
 	}
 }
 
@@ -197,6 +199,7 @@ func (h *ContentHandler) ListContents(c *gin.Context) {
 		return
 	}
 
+	h.displaySigner.DecorateContents(contents)
 	c.JSON(http.StatusOK, gin.H{
 		"contents":  contents,
 		"total":     total,
@@ -296,6 +299,7 @@ func (h *ContentHandler) CreateContent(c *gin.Context) {
 		return
 	}
 
+	h.displaySigner.DecorateContent(content)
 	c.JSON(http.StatusCreated, gin.H{"content": content})
 }
 
@@ -333,6 +337,8 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 		slog.Error("failed to get attachments", "content_id", id, "error", err)
 		attachments = nil
 	}
+	h.displaySigner.DecorateContent(content)
+	h.displaySigner.DecorateAttachments(attachments)
 	tags, err2 := h.contentRepo.GetTags(id)
 	if err2 != nil {
 		slog.Error("failed to get tags", "content_id", id, "error", err2)
@@ -450,6 +456,7 @@ func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
 		return
 	}
 
+	h.displaySigner.DecorateContents(contents)
 	c.JSON(http.StatusOK, gin.H{
 		"source_content_id": sourceID,
 		"source_zone":       source.Zone,

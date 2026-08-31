@@ -49,18 +49,20 @@ type UserHandler struct {
 	cfg            *config.Config
 	jwtSecret      string
 	avatarReviewer avatarReviewer
+	displaySigner  *service.DisplayURLSigner
 }
 
 func NewUserHandler(db *gorm.DB, authSvc *service.AuthService, rdb *redis.Client, cfg *config.Config, reviewers ...avatarReviewer) *UserHandler {
 	h := &UserHandler{
-		userRepo:    repository.NewUserRepository(db),
-		reputSvc:    service.NewReputationService(db),
-		contentRepo: repository.NewContentRepository(db),
-		followRepo:  repository.NewFollowRepository(db),
-		authSvc:     authSvc,
-		rdb:         rdb,
-		cfg:         cfg,
-		jwtSecret:   cfg.JWT.Secret,
+		userRepo:      repository.NewUserRepository(db),
+		reputSvc:      service.NewReputationService(db),
+		contentRepo:   repository.NewContentRepository(db),
+		followRepo:    repository.NewFollowRepository(db),
+		authSvc:       authSvc,
+		rdb:           rdb,
+		cfg:           cfg,
+		jwtSecret:     cfg.JWT.Secret,
+		displaySigner: service.NewDisplayURLSigner(cfg),
 	}
 	if len(reviewers) > 0 {
 		h.avatarReviewer = reviewers[0]
@@ -86,7 +88,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 		return
 	}
 
-	resp := sanitizeUser(user)
+	resp := h.sanitizeUser(user)
 	stats, followersCount := h.getUserStatsAndFollowers(id)
 	resp["stats"] = stats
 	resp["followers_count"] = followersCount
@@ -204,7 +206,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 
 	user, _ := h.userRepo.FindByID(id)
-	c.JSON(http.StatusOK, gin.H{"user": sanitizeUser(user)})
+	c.JSON(http.StatusOK, gin.H{"user": h.sanitizeUser(user)})
 }
 
 func (h *UserHandler) GetReputation(c *gin.Context) {
@@ -260,6 +262,7 @@ func (h *UserHandler) GetUserContents(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	h.displaySigner.DecorateContents(items)
 	c.JSON(http.StatusOK, gin.H{"contents": items, "total": total})
 }
 
@@ -280,6 +283,7 @@ func (h *UserHandler) GetMyContents(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	h.displaySigner.DecorateContents(items)
 	c.JSON(http.StatusOK, gin.H{"contents": items, "total": total})
 }
 
@@ -436,12 +440,19 @@ func (h *UserHandler) reviewAvatarImage(c *gin.Context, avatarURL string) error 
 		review, true, ErrAvatarBlocked, ErrAvatarModerationUnavailable)
 }
 
-func sanitizeUser(u *model.User) gin.H {
+// sanitizeUser projects a user for API responses. The avatar is a private-OSS
+// display URL, so it crosses the boundary signed (B-002); the caller's model
+// value is left untouched.
+func (h *UserHandler) sanitizeUser(u *model.User) gin.H {
+	avatarURL := u.AvatarURL
+	if h.displaySigner != nil {
+		avatarURL = h.displaySigner.SignURL(avatarURL)
+	}
 	return gin.H{
 		"id":                    u.ID,
 		"username":              u.Username,
 		"email":                 u.Email,
-		"avatar_url":            u.AvatarURL,
+		"avatar_url":            avatarURL,
 		"bio":                   u.Bio,
 		"reputation":            u.Reputation,
 		"preferred_locale":      u.PreferredLocale,

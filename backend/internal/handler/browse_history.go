@@ -13,18 +13,20 @@ import (
 	redisclient "omnicraft/backend/internal/pkg/redis"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
+	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 type BrowseHistoryHandler struct {
-	histRepo *repository.BrowseHistoryRepository
-	cfg      *config.Config
+	histRepo      *repository.BrowseHistoryRepository
+	cfg           *config.Config
+	displaySigner *service.DisplayURLSigner
 }
 
 func NewBrowseHistoryHandler(db *gorm.DB, cfg *config.Config) *BrowseHistoryHandler {
-	return &BrowseHistoryHandler{histRepo: repository.NewBrowseHistoryRepository(db), cfg: cfg}
+	return &BrowseHistoryHandler{histRepo: repository.NewBrowseHistoryRepository(db), cfg: cfg, displaySigner: service.NewDisplayURLSigner(cfg)}
 }
 
 func (h *BrowseHistoryHandler) RecordView(c *gin.Context) {
@@ -55,6 +57,12 @@ func (h *BrowseHistoryHandler) GetHistory(c *gin.Context) {
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
+	}
+	if h.displaySigner != nil {
+		for i := range items {
+			h.displaySigner.DecorateContent(items[i].Content)
+			h.displaySigner.DecorateContent(items[i].ContentItem)
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"items":          items,

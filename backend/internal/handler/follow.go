@@ -14,8 +14,9 @@ import (
 )
 
 type FollowHandler struct {
-	followRepo *repository.FollowRepository
-	notifSvc   *service.NotificationService
+	followRepo    *repository.FollowRepository
+	notifSvc      *service.NotificationService
+	displaySigner *service.DisplayURLSigner
 }
 
 func NewFollowHandler(db *gorm.DB) *FollowHandler {
@@ -24,6 +25,11 @@ func NewFollowHandler(db *gorm.DB) *FollowHandler {
 
 func (h *FollowHandler) SetNotificationService(ns *service.NotificationService) {
 	h.notifSvc = ns
+}
+
+// SetDisplayURLSigner wires display URL signing for follower avatars (B-002).
+func (h *FollowHandler) SetDisplayURLSigner(signer *service.DisplayURLSigner) {
+	h.displaySigner = signer
 }
 
 func (h *FollowHandler) FollowUser(c *gin.Context) {
@@ -97,6 +103,7 @@ func (h *FollowHandler) GetFollowers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
 		return
 	}
+	h.displaySigner.DecorateUsers(users)
 	c.JSON(http.StatusOK, gin.H{"users": users, "total": total})
 }
 

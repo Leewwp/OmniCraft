@@ -1,3 +1,21 @@
+## [2026-09-01] - B-002: sign private-OSS display URLs at the API boundary
+
+### What was done:
+- Fixed E2E defect B-002 (OSS private bucket → unsigned display URLs 403 in browsers / Next `/_next/image`): added `service.DisplayURLSigner` (`backend/internal/service/display_url.go`) that re-issues short-lived signed GET URLs at the handler/DTO serialization boundary, following the `resolveScanURL` precedent. DB and Redis keep canonical bare URLs; signatures are re-issued per response (cache-hit included). Only platform-domain URLs are signed (via `aliyun.ObjectKeyFromURL`/`GetSignedURL`); empty/relative/external URLs pass through; unconfigured OSS or signing failure fails open to the original URL.
+- Config: new `oss.display_url_ttl_sec` (default 3600 = architecture §6.2 1h budget, > 300s display cache TTL) in `config.go` + `config.yaml`; `docs/reference/config.md` synced via doc-validator `--fix`.
+- Attachment gallery: `model.ContentAttachment` gained transient `oss_url` (`gorm:"-"`), populated with the signed display URL at GetContent; `oss_key` stays canonical. Frontend `MediaGallery.tsx:81` already consumed `attachment.oss_url` (latent 404 fixed with zero frontend changes).
+- Coverage (signing at every serialization outlet): IP covers (List/Create/Get IP, GetIPContents, admin ListPendingIPs, ip-visit-history summaries), content covers+author avatars (List/Create/Get content, related fanworks, user contents, admin under-review/trash, search contents, series items/covers/detail cover, collection items, browse history), avatars (user Get/Update, auth Login/Me, search users, followers, DM conversation participants, comment/discussion authors + linked IP covers). Signer is constructed in the service container and handed to handlers via constructors/setters (`routes.go`); untouched: upload presign, GeneratePresignDownloadURL, resolveScanURL, outbox/worker payloads, bucket ACL.
+
+### Testing:
+- TDD (heavy lane): handler-boundary tests written first and confirmed failing (`TestGetIPResponseSignsPlatformCoverURLEveryTime`, `TestListIPsSignsOnlyPlatformCoverURLs`, `TestGetContentSignsCoverAvatarAndAttachmentURLs`, `TestAdminPendingIPListSignsPlatformCoverURLs` → 4 FAIL with missing Signature; fail-open guard test PASS), signer unit tests confirmed compile-red then green. All new tests use locally-constructed OSS clients (no real AK/SK) per `oss_upload_validation_test.go` convention.
+- `cd backend && go build ./... && go vet ./...` — pass; `go test ./...` — all packages ok (router composition rule satisfied via container-owned signer).
+- `tools/doc-validator` `--fix` (config.md synced) + `--check` — "All checks passed" (release profile).
+- `bash scripts/verify-project.sh` — full gate result recorded in the B-002 fix-loop ledger.
+
+### Notes:
+- Worktree `../OmniCraft-wt-b002`, branch `fix/b002-signed-display-urls`, single commit (heavy lane).
+- Signed URLs are issued against the bucket endpoint host (SDK `SignURL`), consistent with the download endpoint and `resolveScanURL`; frontend `next.config.ts` remotePatterns already allows `*.aliyuncs.com`, so signed display URLs are transparent to next/image and plain `<img>`.
+
 ## [2026-08-30] - Runtime architecture diagram (archify)
 
 ### What was done:

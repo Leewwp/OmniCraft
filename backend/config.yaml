@@ -60,6 +60,7 @@ oss:
   bucket_name: ""
   domain: ""
   download_url_ttl_sec: 300
+  display_url_ttl_sec: 3600
 
 green:
   access_key_id: ""

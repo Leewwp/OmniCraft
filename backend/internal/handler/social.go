@@ -18,12 +18,13 @@ import (
 )
 
 type SocialHandler struct {
-	socialSvc *service.SocialService
-	db        *gorm.DB
+	socialSvc     *service.SocialService
+	db            *gorm.DB
+	displaySigner *service.DisplayURLSigner
 }
 
 func NewSocialHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *SocialHandler {
-	return NewSocialHandlerWithService(service.NewSocialServiceWithRedis(
+	h := NewSocialHandlerWithService(service.NewSocialServiceWithRedis(
 		repository.NewSocialRepository(db),
 		repository.NewContentRepository(db),
 		repository.NewUserRepository(db),
@@ -31,10 +32,18 @@ func NewSocialHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Socia
 		rdb,
 		service.NewReviewService(db, rdb, cfg, nil),
 	), db)
+	h.SetDisplayURLSigner(service.NewDisplayURLSigner(cfg))
+	return h
 }
 
 func NewSocialHandlerWithService(socialSvc *service.SocialService, db *gorm.DB) *SocialHandler {
 	return &SocialHandler{socialSvc: socialSvc, db: db}
+}
+
+// SetDisplayURLSigner wires display URL signing for comment/discussion
+// author avatars and linked IP covers (B-002).
+func (h *SocialHandler) SetDisplayURLSigner(signer *service.DisplayURLSigner) {
+	h.displaySigner = signer
 }
 
 func (h *SocialHandler) PostComment(c *gin.Context) {
@@ -65,6 +74,7 @@ func (h *SocialHandler) PostComment(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		return
 	}
+	h.displaySigner.DecorateComment(comment)
 	c.JSON(http.StatusCreated, gin.H{"comment": comment})
 }
 
@@ -117,6 +127,7 @@ func (h *SocialHandler) EditComment(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
 		return
 	}
+	h.displaySigner.DecorateComment(comment)
 	c.JSON(http.StatusOK, gin.H{"comment": comment})
 }
 
@@ -143,6 +154,7 @@ func (h *SocialHandler) ListComments(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	h.displaySigner.DecorateComments(comments)
 	c.JSON(http.StatusOK, gin.H{"comments": comments, "total": total, "page": page, "page_size": pageSize})
 }
 
@@ -161,6 +173,7 @@ func (h *SocialHandler) ListDiscussions(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	h.displaySigner.DecorateDiscussions(discussions)
 	c.JSON(http.StatusOK, gin.H{"discussions": discussions, "total": total, "page": page, "page_size": pageSize})
 }
 
@@ -192,6 +205,7 @@ func (h *SocialHandler) PostDiscussion(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		return
 	}
+	h.displaySigner.DecorateDiscussion(d)
 	c.JSON(http.StatusCreated, gin.H{"discussion": d})
 }
 
@@ -206,6 +220,7 @@ func (h *SocialHandler) GetDiscussion(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "discussion not found"})
 		return
 	}
+	h.displaySigner.DecorateDiscussion(d)
 	c.JSON(http.StatusOK, gin.H{"discussion": d})
 }
 

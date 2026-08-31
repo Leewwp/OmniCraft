@@ -183,6 +183,12 @@ type OSSConfig struct {
 	BucketName      string `mapstructure:"bucket_name"`
 	Domain          string `mapstructure:"domain"`
 	DownloadURLTTL  int    `mapstructure:"download_url_ttl_sec"`
+	// DisplayURLTTL bounds the signed GET URLs issued for display media
+	// (covers, avatars, gallery attachments) at the API serialization
+	// boundary. Falls back to the architecture §6.2 1h budget and must stay
+	// above the Redis display cache TTL (300s) so cached rows never outlive
+	// their re-issued signatures.
+	DisplayURLTTL int `mapstructure:"display_url_ttl_sec"`
 }
 
 type GreenConfig struct {

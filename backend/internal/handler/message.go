@@ -20,10 +20,11 @@ import (
 )
 
 type MessageHandler struct {
-	msgRepo   *repository.MessageRepository
-	notifSvc  *service.NotificationService
-	cfg       *config.Config
-	reviewSvc service.TextReviewer
+	msgRepo       *repository.MessageRepository
+	notifSvc      *service.NotificationService
+	cfg           *config.Config
+	reviewSvc     service.TextReviewer
+	displaySigner *service.DisplayURLSigner
 }
 
 type MessageDTO struct {
@@ -61,6 +62,7 @@ func (h *MessageHandler) SetNotificationService(ns *service.NotificationService)
 func (h *MessageHandler) SetReviewService(cfg *config.Config, reviewSvc service.TextReviewer) {
 	h.cfg = cfg
 	h.reviewSvc = reviewSvc
+	h.displaySigner = service.NewDisplayURLSigner(cfg)
 }
 
 func (h *MessageHandler) ListConversations(c *gin.Context) {
@@ -80,7 +82,7 @@ func (h *MessageHandler) ListConversations(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"conversations": conversationDTOs(summaries),
+		"conversations": conversationDTOs(h.displaySigner, summaries),
 		"page":          page,
 		"page_size":     pageSize,
 	})
@@ -202,12 +204,12 @@ func (h *MessageHandler) LeaveConversation(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "left conversation"})
 }
 
-func conversationDTOs(summaries []repository.ConversationSummary) []ConversationDTO {
+func conversationDTOs(signer *service.DisplayURLSigner, summaries []repository.ConversationSummary) []ConversationDTO {
 	dtos := make([]ConversationDTO, 0, len(summaries))
 	for _, summary := range summaries {
 		dto := ConversationDTO{
 			ID:           summary.ID,
-			Participants: participantDTOs(summary.Participants),
+			Participants: participantDTOs(signer, summary.Participants),
 			UnreadCount:  summary.UnreadCount,
 			UpdatedAt:    formatMessageTime(summary.UpdatedAt),
 		}
@@ -220,13 +222,13 @@ func conversationDTOs(summaries []repository.ConversationSummary) []Conversation
 	return dtos
 }
 
-func participantDTOs(participants []repository.ConversationParticipantSummary) []ConversationParticipantDTO {
+func participantDTOs(signer *service.DisplayURLSigner, participants []repository.ConversationParticipantSummary) []ConversationParticipantDTO {
 	dtos := make([]ConversationParticipantDTO, 0, len(participants))
 	for _, participant := range participants {
 		dtos = append(dtos, ConversationParticipantDTO{
 			ID:        participant.ID,
 			Username:  participant.Username,
-			AvatarURL: participant.AvatarURL,
+			AvatarURL: signer.SignURL(participant.AvatarURL),
 		})
 	}
 	return dtos

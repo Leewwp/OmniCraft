@@ -119,6 +119,8 @@
 | `oss.access_key_id` | `string` | AccessKeyID |
 | `oss.access_key_secret` | `string` | AccessKeySecret |
 | `oss.bucket_name` | `string` | BucketName |
+| `oss.display_url_ttl_sec` | `int` | DisplayURLTTL bounds the signed GET URLs issued for display media
+(covers, avatars, gallery attachments) at the API s... |
 | `oss.domain` | `string` | Domain |
 | `oss.download_url_ttl_sec` | `int` | DownloadURLTTL |
 | `oss.endpoint` | `string` | Endpoint |

@@ -28,17 +28,18 @@ import (
 var errAdminAuditWriteFailed = errors.New("admin audit write failed")
 
 type AdminHandler struct {
-	ipSvc        *service.IPService
-	contentRepo  *repository.ContentRepository
-	userRepo     *repository.UserRepository
-	socialRepo   *repository.SocialRepository
-	llmConfigSvc *service.LLMConfigService
-	auditSvc     *service.AdminAuditService
-	cfg          *config.Config
-	rdb          *redis.Client
-	notifSvc     *service.NotificationService
-	dlqWorker    *worker.DLQWorker
-	mu           sync.Mutex
+	ipSvc         *service.IPService
+	contentRepo   *repository.ContentRepository
+	userRepo      *repository.UserRepository
+	socialRepo    *repository.SocialRepository
+	llmConfigSvc  *service.LLMConfigService
+	auditSvc      *service.AdminAuditService
+	cfg           *config.Config
+	rdb           *redis.Client
+	notifSvc      *service.NotificationService
+	dlqWorker     *worker.DLQWorker
+	displaySigner *service.DisplayURLSigner
+	mu            sync.Mutex
 }
 
 var sensitiveConfigFields = map[string]bool{
@@ -62,15 +63,16 @@ func NewAdminHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client, auditSv
 		dlqWorker = worker.NewDLQWorker(rdb)
 	}
 	return &AdminHandler{
-		ipSvc:        service.NewIPService(repository.NewIPRepository(db)),
-		contentRepo:  repository.NewContentRepository(db),
-		userRepo:     repository.NewUserRepository(db),
-		socialRepo:   repository.NewSocialRepository(db),
-		llmConfigSvc: service.NewLLMConfigService(repository.NewLLMConfigRepository(db), cfg),
-		auditSvc:     auditSvc,
-		cfg:          cfg,
-		rdb:          rdb,
-		dlqWorker:    dlqWorker,
+		ipSvc:         service.NewIPService(repository.NewIPRepository(db)),
+		contentRepo:   repository.NewContentRepository(db),
+		userRepo:      repository.NewUserRepository(db),
+		socialRepo:    repository.NewSocialRepository(db),
+		llmConfigSvc:  service.NewLLMConfigService(repository.NewLLMConfigRepository(db), cfg),
+		auditSvc:      auditSvc,
+		cfg:           cfg,
+		rdb:           rdb,
+		dlqWorker:     dlqWorker,
+		displaySigner: service.NewDisplayURLSigner(cfg),
 	}
 }
 
@@ -139,6 +141,7 @@ func (h *AdminHandler) ListPendingIPs(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	h.displaySigner.DecorateIPs(ips)
 	c.JSON(http.StatusOK, gin.H{"ips": ips, "total": total})
 }
 
@@ -209,6 +212,7 @@ func (h *AdminHandler) ListUnderReviewContents(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	h.displaySigner.DecorateContents(contents)
 	c.JSON(http.StatusOK, gin.H{"contents": contents, "total": total})
 }
 
@@ -230,6 +234,7 @@ func (h *AdminHandler) ListTrashedContents(c *gin.Context) {
 		Offset((page - 1) * pageSize).Limit(pageSize).
 		Find(&contents)
 
+	h.displaySigner.DecorateContents(contents)
 	c.JSON(http.StatusOK, gin.H{"contents": contents, "total": total, "page": page, "page_size": pageSize})
 }
 
