@@ -1,3 +1,16 @@
+## [2026-09-02] - Task T06 (#226): 「我的收藏」错链修复（FIX-07，light）
+
+### What was done:
+- HomePageClient/OriginalSidebar 侧栏「我的收藏/我的喜欢」href /studio/contents → /studio/favorites（未登录 redirect 参数同步；「我的原创/我的创作」指向我的内容页为正确目标未动）。
+- StudioSidebar 数据看板分组补「收藏集」入口（Heart 图标，i18n studio.sidebar.favorites zh/en）；IP 创建入口（fecef1b）保留。
+
+### Testing:
+- 浏览器验证：匿名首页/原创侧栏 href 均为 /login?redirect=/studio/favorites；登录后点击落地 /studio/favorites；studio 侧栏出现「收藏集」入口且 /studio/publish/ip 入口在位（截图 t06-favorites-1440.png / t06-studio-sidebar-1440.png）。
+- `npm run lint` + `npm run build` 绿。
+
+### Notes:
+- light 车道。i18n 键变更再现 dev server 缓存滞后（第三次，重启恢复）——已确认是 turbopack 长驻进程对 messages/*.json 的已知现象，非代码问题。
+
 ## [2026-09-02] - Task T04 (#224): 本地 worker 启动闭环 + 通知积压清理（FIX-09+31首项，light）
 
 ### What was done:

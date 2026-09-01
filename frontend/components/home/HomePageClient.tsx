@@ -151,7 +151,7 @@ export function HomePageClient({ apiBase, initialIPs, initialContents }: HomePag
     {
       label: t('home.management'),
       items: [
-        { icon: <Heart className="h-4 w-4" />, label: t('home.myFavorites'), href: user ? "/studio/contents" : "/login?redirect=/studio/contents" },
+        { icon: <Heart className="h-4 w-4" />, label: t('home.myFavorites'), href: user ? "/studio/favorites" : "/login?redirect=/studio/favorites" },
         { icon: <FileText className="h-4 w-4" />, label: t('home.myCreations'), href: user ? "/studio/contents" : "/login?redirect=/studio/contents" },
         { icon: <Clock className="h-4 w-4" />, label: t('nav.history'), href: user ? "/history" : "/login?redirect=/history" },
       ] as SidebarItem[],
