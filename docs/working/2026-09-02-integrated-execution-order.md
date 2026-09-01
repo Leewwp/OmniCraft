@@ -47,7 +47,7 @@
 串行主线（单 agent 默认；多 agent 并行注记见 §3.1）。段内无特别说明时顺序自由，但必须遵守票内 `## Blocked by`。
 
 ### 第 1 段 视觉基座（阻塞一切视觉工作）
-1. **U-01（#277）** 规范定稿：design-system.md + ui-spec.md 修订 + token 差异清单
+1. **U-01（#277）** 规范定稿：design-system.md + ui-spec.md 修订 + token 差异清单 ✅ 2026-09-02 完成（commit 518463f；design-system v3.0 分层画布/高度三档/形状语义/选中态/动效 + FIX-05 dark token 定稿，ui-spec FilterPills/IP hero/类目并入，差异清单 docs/working/2026-09-02-u02-token-diff-list.md）
 2. **U-02（#278）** token 换血：表面分层 + dark token 达标（FIX-05/F-111 收口）+ Button 三档高度
 
 ### 第 2 段 Agent 行为基线（保当前 demo 正确，A-06 继承）
