@@ -1,3 +1,16 @@
+## [2026-09-02] - Task T02 (#222): stats IP 统计状态词修复（FIX-02，light）
+
+### What was done:
+- stats_service.go IP 计数状态词 `published` → `approved`（附 Why 注释；内容统计处保持 published 不动——那里语义正确）。
+
+### Testing:
+- TDD：新增 stats_service_test.go（sqlite 内存：2 approved + pending/rejected/banned 各 1 + 1 published 内容），先红（actual 0）后绿（IPs=2、Contents=1）。
+- `go build/vet` 绿；重启本地后端 + DEL stats:summary 后 GET /api/v1/stats/summary → ips=16（=DB approved 数，此前恒 0）。
+- 首页视觉验证：「169 内容 / 16 活跃 IP / 27 创作者」，Active IPs 非 0（截图 screenshots/t02-home-stats-1440.png）。
+
+### Notes:
+- light 车道。后端 dev 进程重启一次使修复生效（go run 无热载）。
+
 ## [2026-09-02] - Task T01 (#221): 判官考试前后端字段对齐（FIX-01，heavy）
 
 ### What was done:
