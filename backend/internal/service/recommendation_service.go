@@ -307,7 +307,14 @@ func (s *RecommendationService) computeFinalScores(ctx context.Context, contentI
 
 	items := make([]ContentItemWithScore, 0, len(contents))
 	for _, content := range contents {
+		// 统一可见性口径（FIX-12+43）：推荐为公开发现面，私密与封禁作者内容不进入。
 		if content.Status != "published" || content.Zone != "original" {
+			continue
+		}
+		if content.DeletedAt != nil || !content.IsPublic {
+			continue
+		}
+		if content.Author.IsBanned || content.Author.DeletedAt != nil {
 			continue
 		}
 

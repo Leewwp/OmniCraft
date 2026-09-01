@@ -154,16 +154,17 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 	// author-deleted and banned rules.
 	if f.SourceOriginalID != nil || f.SourceFanworkID != nil {
 		q = ApplyContentVisibilityScope(q, f.ViewerID)
-	} else {
+	} else if f.IncludeAllStatuses {
+		// 作者自助列表（/users/me/contents）：全部状态，仅自身可见。
 		q = q.Where("deleted_at IS NULL")
-		switch {
-		case f.IncludeAllStatuses: // 自助列表标志优先于 Status 过滤
-
-		case f.Status != "":
-			q = q.Where("status = ?", f.Status)
-		default:
-			q = q.Where("status = ?", "published")
-		}
+	} else if f.Status != "" {
+		// 显式状态过滤（admin 终审队列等）：保留原语义。
+		q = q.Where("deleted_at IS NULL")
+		q = q.Where("status = ?", f.Status)
+	} else {
+		// 主列表统一 viewer-aware 可见性（FIX-12+43）：published + 公开 +
+		// 作者未封禁/未注销 + IP 未封禁（作者本人可见自己的私密内容）。
+		q = ApplyContentVisibilityScope(q, f.ViewerID)
 	}
 
 	if f.Zone != "" {

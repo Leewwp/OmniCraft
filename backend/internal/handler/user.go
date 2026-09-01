@@ -259,6 +259,7 @@ func (h *UserHandler) GetUserContents(c *gin.Context) {
 
 	items, total, err := h.contentRepo.ListContents(repository.ListContentsFilter{
 		AuthorID:    &id,
+		ViewerID:    middleware.GetUserID(c),
 		ContentType: contentType,
 		Page:        page,
 		PageSize:    pageSize,
