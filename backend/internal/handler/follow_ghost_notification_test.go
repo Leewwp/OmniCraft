@@ -20,7 +20,7 @@ import (
 // 物化为演示噪音）。修复后关注 IP 不得产生任何通知行；关注用户的真人通知保留。
 func TestFollowIPDoesNotEmitGhostNotification(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("file:followipghost?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Notification{}, &model.IP{}, &model.Follow{}))
 
@@ -54,7 +54,7 @@ func TestFollowIPDoesNotEmitGhostNotification(t *testing.T) {
 
 func TestFollowUserStillNotifiesTheRealTarget(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("file:followuserreal?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Notification{}, &model.Follow{}))
 
