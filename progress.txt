@@ -1,3 +1,17 @@
+## [2026-09-02] - Task T07 (#227): admin 后台入口与导航缺口（FIX-08，light）
+
+### What was done:
+- Header.tsx 用户菜单按 user.role==="admin" 插入「管理后台」项（LayoutDashboard 图标 → /admin/dashboard；普通用户不渲染）。
+- admin/layout.tsx ADMIN_NAV 补 /admin/notifications（navNotifications/Megaphone，广播页此前只能手输 URL）。
+- i18n：nav.adminPanel + admin.navNotifications zh/en。
+
+### Testing:
+- 浏览器验证：admin（seed-ui-001）用户菜单出现「管理后台」且点击落地 /admin/dashboard、后台侧栏含「系统通知」；普通用户（seed-ui-002）菜单无该项（截图 t07-admin-entry-1440.png）。
+- `npm run lint` + `npm run build` 绿。
+
+### Notes:
+- light 车道；Header 菜单结构遵循 ui-spec Component: Header（复用 DropdownMenuItem 既有形态）。
+
 ## [2026-09-02] - Task T06 (#226): 「我的收藏」错链修复（FIX-07，light）
 
 ### What was done:

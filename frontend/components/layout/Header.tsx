@@ -272,6 +272,12 @@ export function Header() {
                   <Shield className="mr-2 h-4 w-4" />
                   {t("nav.appeals")}
                 </DropdownMenuItem>
+                {user.role === "admin" && (
+                  <DropdownMenuItem onClick={() => goTo("/admin/dashboard")}>
+                    <LayoutDashboard className="mr-2 h-4 w-4" />
+                    {t("nav.adminPanel")}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="cursor-pointer text-destructive focus:text-destructive"

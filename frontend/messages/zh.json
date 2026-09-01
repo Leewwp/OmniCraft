@@ -70,7 +70,8 @@
     "notifications": "通知",
     "favorites": "我的喜欢",
     "myOriginal": "我的原创",
-    "agent": "AI Agent"
+    "agent": "AI Agent",
+    "adminPanel": "管理后台"
   },
   "auth": {
     "suspendedTitle": "账号已被封禁",
@@ -994,7 +995,8 @@
       "allActions": "全部操作",
       "noLogs": "暂无审计记录",
       "noMetadata": "无元数据"
-    }
+    },
+    "navNotifications": "系统通知"
   },
   "social": {
     "like": "点赞",
