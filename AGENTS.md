@@ -88,10 +88,13 @@ cd backend && go mod tidy          # 首次或新依赖
 cd frontend && npm install         # 首次或新依赖
 docker compose up -d postgres redis
 cd backend && go run cmd/server/main.go &
+cd backend && go run cmd/worker/main.go &   # 独立 worker（ADR0005）：只启一个；不开则评论/点赞/PR/申诉等动态通知滞留 Redis Stream 不落库
 cd frontend && npm run dev &
 ```
 
 **DO NOT skip this step.** 确保相关服务运行后再实现功能。
+
+通知积压检查（worker 消费后 lag 应回 0）：`redis-cli xinfo groups omnicraft:notification.create`。
 
 ### Step 3: 实现任务
 

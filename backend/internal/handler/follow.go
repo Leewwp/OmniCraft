@@ -74,9 +74,7 @@ func (h *FollowHandler) FollowIP(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
-	if h.notifSvc != nil {
-		h.notifSvc.Notify(0, "follow", "follow", "有人关注了你关注的IP", "", "ip", ipID, callerID)
-	}
+	// 不发 user_id=0 幽灵广播（FIX-31 首项）：向该 IP 真实粉丝的 fan-out 属 T55 范围。
 	c.JSON(http.StatusOK, gin.H{"message": "followed"})
 }
 

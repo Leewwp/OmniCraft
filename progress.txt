@@ -1,3 +1,18 @@
+## [2026-09-02] - Task T04 (#224): 本地 worker 启动闭环 + 通知积压清理（FIX-09+31首项，light）
+
+### What was done:
+- follow.go FollowIP 删除 Notify(0) 幽灵广播（「有人关注了你关注的IP」无收件人，user_id=0 物化为演示噪音；附注释指向 T55 fan-out）；FollowUser 真人通知保留。
+- 积压清理：DEL omnicraft:notification.create（9 条滞留）+ XGROUP CREATE … $ MKSTREAM 重建 group（跳过积压）。
+- AGENTS.md Step 2 补两行：`go run cmd/worker/main.go &`（注明 ADR0005 独立 worker、只启一个、不开则动态通知滞留）+ lag 检查命令（xinfo groups）。按 Phase 6 修正未动 compose/live-demo（已含 worker）。
+
+### Testing:
+- TDD：follow_ghost_notification_test.go 2 例——FollowIP 不产生任何通知行（先红 actual 1 后绿 0）、FollowUser 真人通知仍落库（target 收件）。go build/vet/test 全量绿。
+- 闭环实测：按新 Step 2 启动本地 worker → 他人内容（#1014 作者 9201）评论 201 → notifications 266→267（user 9201 comment 类型）→ lag 回 0；自评（内容 #2 作者=自己）正确不通知。
+- 积压复核：stream XLEN 0、无 user_id=0 新条目落库。
+
+### Notes:
+- light 车道。ADR0005 架构未动、未加进程内 fallback；FIX-31 其余项属 T55（#275）。
+
 ## [2026-09-02] - Task T05 (#225): admin reports 处理契约修复 + 错误透传（FIX-04，light）
 
 ### What was done:
