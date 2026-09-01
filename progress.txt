@@ -1,3 +1,17 @@
+## [2026-09-02] - Task T05 (#225): admin reports 处理契约修复 + 错误透传（FIX-04，light）
+
+### What was done:
+- admin/reports/page.tsx：Report 接口 resolution/explanation 字段（后端模型不存在）→ action_taken（omitempty）；onConfirm 改发后端唯一合法契约 {status: resolved|dismissed, action_taken}（原发 resolution/explanation 恒 400 且无反馈）；详情面板改读并展示 action_taken（新 i18n 键 admin.reports.actionTaken）。
+- 错误透传：onConfirm try/catch → setError(admin.reports.updateFailed) 并 rethrow（ConfirmModal 自身 catch 保持弹窗开启可重试）；详情视图补渲染 error 红字位（role=alert，原仅列表分支有）；点开维持/驳回时清残留 error。后端零改动。
+
+### Testing:
+- 浏览器验证（repo Playwright，admin seed-ui-001）：维持路径成功（report #3 resolved + 处理说明落库展示）、驳回路径成功（#2 dismissed）、列表状态实时变更；错误路径（route 拦截 PATCH→400）：弹窗保持打开 + 详情页红字「处理失败」+ 状态仍 pending，解除拦截后同弹窗重试成功转 resolved（截图 t05-error-path-1440.png / t05-admin-reports-1440.png）。
+- `npm run lint` + `npm run build` 绿。
+- 注记：i18n 键变更再现 dev server messages 缓存滞后，重启 dev server 后恢复（与 T20 同现象，非代码问题）。
+
+### Notes:
+- light 车道。「成立」不处置被举报目标的 enforcement 语义不在本票（F-116 范围，票面已明示边界）。
+
 ## [2026-09-02] - Task T02 (#222): stats IP 统计状态词修复（FIX-02，light）
 
 ### What was done:

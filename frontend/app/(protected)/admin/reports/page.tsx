@@ -18,8 +18,7 @@ interface Report {
   reporter_id: number;
   reason: string;
   status: string;
-  resolution: string;
-  explanation: string;
+  action_taken?: string;
   created_at: string;
   resolved_at: string | null;
 }
@@ -98,6 +97,7 @@ export default function AdminReportsPage() {
           <ArrowLeft className="h-4 w-4" />
           {t("common.back")}
         </button>
+        {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
 
         <div className="rounded-md border border-border bg-card p-4">
           <div className="flex items-start justify-between gap-4">
@@ -123,16 +123,10 @@ export default function AdminReportsPage() {
               <p className="text-xs font-medium text-muted-foreground">{t("admin.reports.reason")}</p>
               <p className="whitespace-pre-wrap text-sm">{selectedReport.reason}</p>
             </div>
-            {selectedReport.resolution && (
+            {selectedReport.action_taken && (
               <div>
-                <p className="text-xs font-medium text-muted-foreground">{t("admin.reports.resolution")}</p>
-                <p className="text-sm">{selectedReport.resolution}</p>
-              </div>
-            )}
-            {selectedReport.explanation && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">{t("admin.reports.explanation")}</p>
-                <p className="whitespace-pre-wrap text-sm">{selectedReport.explanation}</p>
+                <p className="text-xs font-medium text-muted-foreground">{t("admin.reports.actionTaken")}</p>
+                <p className="whitespace-pre-wrap text-sm">{selectedReport.action_taken}</p>
               </div>
             )}
           </div>
@@ -143,7 +137,7 @@ export default function AdminReportsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { setConfirmAction("resolve"); setConfirmOpen(true); }}
+              onClick={() => { setConfirmAction("resolve"); setError(""); setConfirmOpen(true); }}
               disabled={busy}
             >
               <CheckCircle className="mr-1.5 h-4 w-4 text-emerald-600" />
@@ -152,7 +146,7 @@ export default function AdminReportsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { setConfirmAction("dismiss"); setConfirmOpen(true); }}
+              onClick={() => { setConfirmAction("dismiss"); setError(""); setConfirmOpen(true); }}
               disabled={busy}
             >
               <XCircle className="mr-1.5 h-4 w-4 text-muted-foreground" />
@@ -172,10 +166,17 @@ export default function AdminReportsPage() {
           reasonLabel={t("admin.reports.explanation")}
           onConfirm={async (explanation) => {
             if (confirmAction) {
-              await api.patch(`/api/v1/admin/reports/${selectedReport.id}`, {
-                resolution: confirmAction === "resolve" ? "upheld" : "dismissed",
-                explanation,
-              });
+              try {
+                await api.patch(`/api/v1/admin/reports/${selectedReport.id}`, {
+                  status: confirmAction === "resolve" ? "resolved" : "dismissed",
+                  action_taken: explanation,
+                });
+              } catch (e) {
+                // surface the failure on the page; rethrow so the modal stays open for retry
+                silentError(e, { component: "AdminReportsPage", action: "patchReport" });
+                setError(t("admin.reports.updateFailed"));
+                throw e;
+              }
               setConfirmOpen(false);
               setSelectedReport(null);
               await loadReports();
