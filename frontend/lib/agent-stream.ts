@@ -140,15 +140,31 @@ export async function startAgentStream(
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
+  // SSE 事件行可能跨网络分块边界：必须行缓冲，只处理完整行，残行留待下一分块；
+  // 上限防御恶意超长行（done 事件含全量 answer+citations，正常远小于此值）。
+  const maxBufferedLineLength = 2 * 1024 * 1024;
+  let buffered = "";
   try {
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
-      const text = decoder.decode(value, { stream: true });
-      for (const line of text.split("\n")) {
+      buffered += decoder.decode(value, { stream: true });
+      if (buffered.length > maxBufferedLineLength) {
+        throw new Error("agent stream aborted: single line exceeded buffer limit");
+      }
+      let newlineIndex = buffered.indexOf("\n");
+      while (newlineIndex >= 0) {
+        const line = buffered.slice(0, newlineIndex);
+        buffered = buffered.slice(newlineIndex + 1);
+        newlineIndex = buffered.indexOf("\n");
         const event = parseAgentStreamLine(line);
         if (event) handlers.onEvent(event);
       }
+    }
+    const tail = buffered + decoder.decode();
+    if (tail) {
+      const event = parseAgentStreamLine(tail);
+      if (event) handlers.onEvent(event);
     }
   } catch (error) {
     if ((error as Error).name !== "AbortError") handlers.onError?.(error as Error);
