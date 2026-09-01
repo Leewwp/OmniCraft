@@ -1,3 +1,24 @@
+## [2026-09-02] - Task U-02 (#278): token 换血落地——分层画布 + dark token 达标 + Button 三档
+
+### What was done:
+- globals.css 按 U-01 差异清单全量换血：表面分层两对（--background/--canvas-default：light #ffffff→#f5f5f5、dark #0d1117→#010409，卡片族 card/popover 不动）；FIX-05 dark 三 token（--primary #6366f1→#4f46e5、--accent-emphasis #6366f1→#818cf8、--accent-hover #818cf8→#4338ca）；--radius-md 4px→8px（操作控件与卡片同档）。
+- Button 组件 size 档对齐三档高度：default h-8→h-9(36)、lg h-9→min-h-11(44)、xs h-6→h-7(28)、icon size-8→size-9、icon-lg size-9→size-11、icon-xs size-6→size-7；coarse-pointer 44px 规则保留。Input/Select h-8→h-9 对齐常规档。
+- 目检项 F-3 落地：10 个文件 15 处误用 bg-canvas-default 当卡片底改 bg-card（studio/series、series/[id]、RelatedContents、SeriesNav、RelatedFanworks、MediaGallery 封面框、ContentDetailOverlay 面板×3、messages 会话列表面板、AgentCitationCard、AgentToolStatus、AgentWorkspace 移动抽屉/建议按钮/两个提示框/错误框）；通栏条（Header/Sidebar/admin nav/original sticky 工具条）与表单控件（SortSelect/聊天输入条/textarea）保持 canvas 系随画布分层。
+- 治理测试同步：frontend/scripts/ui-governance/check-tokens.test.mjs 圆角期望 4px→8px（旧 U-01 治理批次的硬编码期望按 design-system v3.0 更新）。
+- 顺手修复 doc-validator 15 条 WARNING：docs/working/ 全部 15 份文档头部补/转 `**预计失效日期**: YYYY-MM-DD` 粗体格式（语义不变；两份无具体日期的按惯例补 2026-11-02 / 2026-10-31）。
+
+### Testing:
+- `npm run build` + `npm run lint`(tsc) green；`bash scripts/verify-project.sh --full` **全量通过**（74 mocked e2e + 24 包 go + doc-validator 0 issue）。
+- 浏览器验证（repo Playwright/Chromium 对 dev server）：20 张截图存 screenshots/u02-*.png（首页/IP 库/IP 详情#210/内容详情#2/Agent 工作台 × 亮暗 × 1440/375）；computed 校验 body 背景 light rgb(245,245,245)/dark rgb(1,4,9)、--radius-md 8px；AI 视觉复检确认亮色白卡浮于浅灰画布、暗色 #0d1117 卡浮于近黑画布、indigo 按钮白字双主题可读、无泥泞控件。
+- 对比度复算（WCAG 2.1，脚本重算）：dark primary+白 6.29 / accent-emphasis 对暗卡 6.34 / accent-hover+白 7.90 / 选中态药丸字亮 5.62 暗 5.47 / 画布正文 16.25(亮) 17.38(暗)，全部 ≥4.5:1；否决组合复核 #818cf8+白 2.98、#6366f1+白 4.47。
+- Agent 工作台截图期间临时 PATCH web_agent_enabled=true（admin API 热切换），完成后已关回 false（复核 public config=false）。
+- 环境注记：dev server（turbopack，长驻进程）对 globals.css 增量编译滞后一次，内容级修改触发重建后恢复正常，无需重启进程。
+
+### Notes:
+- 车道 light。差异清单 docs/working/2026-09-02-u02-token-diff-list.md A~D 全部落地，E/F 清单无扩散改动。
+- 已知交互面（差异清单 F-1）：light 下 outline Button hover 底色与画布同值，反馈依赖 border-strong 变化——本次截图目检 hover 可感知，未做清单外改动；U-04 sweep 时复查。
+- 本地测试账号：seed-ui-001（admin）密码 Audit!2026pass（审计期临时值，来源 2026-09-01-design-audit-report.md:116）；登录试错制造的 redis 限流键已清理。
+
 ## [2026-09-02] - Task U-01 (#277): 规范定稿 design-system.md v3.0 + ui-spec.md 修订 + U-02 token 差异清单
 
 ### What was done:
