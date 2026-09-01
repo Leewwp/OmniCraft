@@ -118,6 +118,11 @@
 - Mod 包：≤ 500MB
 - 乐谱：≤ 50MB，允许扩展名：mid, midi, xml, mxl, mscz, mscx, pdf
 
+### 内容可见性统一口径（FIX-12+43，T09）
+
+- **详情**：非 `published`、`is_public=false` 私密、作者已封禁/已注销的内容，仅作者本人与 admin 可读（HTTP 200）；其余视角一律 404（判官豁免钩子预留给盲投修复 T40）。服务端缓存仅缓存 published 公开视图；`view_count` 仅对 published 且非作者本人的访问计数。
+- **主列表 / 他人用户列表 / IP 内容列表**：统一 `ApplyContentVisibilityScope`（published + 未删除 + 作者未封禁未注销 + 所属 IP 未封禁 + is_public 或作者本人）；作者自助列表（/users/me/contents）走 `IncludeAllStatuses` 全状态例外；admin 终审队列显式 Status 过滤保留原语义。
+
 ### 内容下载（Task 121）
 
 - 下载 API：`GET /api/v1/contents/:id/download`，需认证且校验内容 `status=published`
