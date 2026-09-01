@@ -1,3 +1,20 @@
+## [2026-09-02] - Task T09 (#229): 内容可见性统一收口（FIX-12+43，heavy）
+
+### What was done:
+- 详情 viewer-aware：GetContent 出口 contentVisibleToViewer 门（非 published/私密/封禁或注销作者 → 仅作者/admin 200，其余 404；T40 判官豁免钩子注释预留）；详情缓存仅缓存 published+公开；view_count 仅 published 且非作者计数。
+- 主列表统一：repo ListContents 缺省分支改 ApplyContentVisibilityScope（含 ViewerID 透传：service 入口统一赋值 + GetUserContents/GetIPContents 直连点）；IncludeAllStatuses（自助）与显式 Status（admin 队列）保留原语义；热榜内存过滤补封禁作者排除；推荐管线 computeFinalScores 全量行循环补私密/删除/封禁作者拦截（审查 P1 项）。
+- 3 个既有测试按新口径更新（匿名读未发布=旧泄露行为改为作者视角/404 断言；publish 测试路由补 optAuth 对齐生产）；新增 content_visibility_scope_test.go（详情四视角矩阵 + 列表三态 + admin 队列）。
+- business-rules.md 新增「内容可见性统一口径」小节。
+
+### Testing:
+- TDD 红转绿；go 全量 32 包绿；主列表 scope 查询 EXPLAIN ANALYZE 实测 1.0ms（无热路径回归）。
+- curl 三角色（worktree 临时服务器 + 重启后主服务器复验）：匿名 banned 内容 404、作者 200、公共列表 50 行全 published 无私密。
+- 前端 SSR 404 已有 notFound() 兜底（零前端改动）；npm build 绿（前端未动）。
+- 两阶段联合审查：DONE_WITH_CONCERNS 的 P1（推荐管线绕过 scope）已修复；P3×4 记录（IP 封禁详情/列表口径差异、缓存 TTL 内作者状态滞后、source_original 嵌套泄露标题、均已注明为 T10/T40 后续范围或可接受边界）。
+
+### Notes:
+- heavy 车道：worktree codex/heavy/229 一票一 commit（1f62c53）合并 ef16ae6。
+
 ## [2026-09-02] - Task T08 (#228): 封禁理由全链路（FIX-16，heavy）
 
 ### What was done:
