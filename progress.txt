@@ -1,3 +1,21 @@
+## [2026-09-02] - Task T08 (#228): 封禁理由全链路（FIX-16，heavy）
+
+### What was done:
+- model.ContentItem 补 BanReason（gorm column ban_reason，040 列已存在零迁移）；json:"-" 全站默认不序列化。
+- 出口显式附加（marshal-map helper contentWithBanReason）：GetContent 仅 viewer==作者 || admin；GetMyContents（/users/me/contents 作者自助路径）逐项附加。
+- ListContentsFilter 新增 IncludeAllStatuses（仅 GetMyContents 开启，公开浏览路径不动；附优先级注释）——作者自助列表从此可见 banned/pending 等全部状态（此前默认 published 过滤，banned 行不可见）。
+- 前端：admin/contents banContent 发 {reason}（原发 {} 丢弃弹窗 reason）；studio/contents banned 行渲染「已封禁」destructive Badge + 封禁原因行（i18n studio.contents.banned/banReason zh/en）。
+
+### Testing:
+- TDD：content_ban_reason_test.go 5 例（匿名不含/作者含/admin含/他人不含 + me/contents 含 reason 与 banned 行出现）先红后绿。
+- go build/vet/test 全量 32 包绿；doc-validator --fix 无漂移；npm lint/build 绿。
+- 浏览器全链路：admin UI 封禁填原因（网络监听确认 POST body {reason}，DB ban_reason 落库 1035/111 两例）；作者 seed-ui-014 studio 列表见「已封禁」Badge + 「封禁原因: T08 验证…」（截图 t08-admin-ban-1440.png / t08-author-studio-1440.png）；API 复核 /users/me/contents banned 行携带 ban_reason。
+- 两阶段审查：规格 PASS（无泄露出口、IncludeAllStatuses 仅自助路径、GetContent 无变量遮蔽）；质量 PASS（3×P3：错误处理对齐 INTERNAL_ERROR 已修、优先级注释已加、isAdminRole 重复容忍不扩面）。
+
+### Notes:
+- heavy 车道：worktree codex/heavy/228 一票一 commit（e81cb93）合并 a3de204。
+- 本地留存两例 banned 演示数据（1035/111 带原因）；dev server 对 .tsx 页面组件也存在缓存滞后（第 5 次，重启恢复）——与 messages/globals 同类 turbopack 现象。
+
 ## [2026-09-02] - Task T07 (#227): admin 后台入口与导航缺口（FIX-08，light）
 
 ### What was done:
