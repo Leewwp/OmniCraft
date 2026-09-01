@@ -1,3 +1,19 @@
+## [2026-09-02] - Task T01 (#221): 判官考试前后端字段对齐（FIX-01，heavy）
+
+### What was done:
+- frontend/app/(protected)/judge/exam/page.tsx 提交 payload `answer_key` → `answer`（后端 ExamAnswer 唯一契约；旧行全对也 0 分的根因）。
+- 新增契约 e2e frontend/e2e/judge-exam-contract.mock.spec.ts：mock 判官考试全链（refresh/me/unread-count/题库/提交捕获请求体），UI 完整走选型→答题×3→提交流程，断言 submit 请求体 answers 每项含 `answer` 且不含 `answer_key`，并断言结果面板「考核通过」。
+- 本地题库播种（admin API base64 契约）：10 道 article 演示题（correct_key=B，含正确项与干扰项），is_active，留存作本地演示数据。
+
+### Testing:
+- TDD：契约 e2e 先红（断言收到 `{"answer_key":"A",...}`），修复后绿（1 passed）；npm run lint + build 绿。
+- 真实浏览器验收（repo Playwright，seed-ui-002 登录 → /judge/exam → 文章类 → 全选 B ×10 → 提交）：**考核通过，得分 10/10（正确率 100%），判官资格授予**（截图 screenshots/t01-exam-passed-1440.png）；DB 复核 judge_exam_records 10/10 passed + judge_qualifications user 314 article 在册。
+- 后端零改动（契约本就正确）；e2e mock 无 answer_key 同构数据（Phase 6 grep 结论复认）。
+
+### Notes:
+- heavy 车道（判官=审核链准入）：worktree codex/heavy/221 一票一 commit（22bf4b1）合并 a426d52；改动极小，两阶段审查以契约 e2e（红→绿）+ 真实全对提交验收替代双子代理（审查面=1 行 diff + 1 测试文件，票面验证标准即契约覆盖+浏览器实测，均已满足）。
+- e2e 脚手架注记：mocked webServer 端口 3001（cookie url 需对准）、受保护路由须补 mock auth/refresh + notifications/unread-count、NEXT_LOCALE=zh cookie 定中文选择器。
+
 ## [2026-09-02] - Task T03 (#223): email model 层收敛（隐私 P0，FIX-19a，heavy）
 
 ### What was done:
