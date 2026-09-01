@@ -1,7 +1,7 @@
 # OmniCraft Agent 工作台重造（Agent Workspace Rework / SP-13）
 
 > **创建日期**: 2026-09-01
-> **状态**: 已确认（2026-09-01 grill-with-docs 会话 R1~R4 四轮 15 项决策，用户逐条拍板；tickets SP-13/A-01~A-07 已登记，**全部执行冻结，等待用户全面审查后下达执行顺序**）
+> **状态**: 已确认；执行冻结已于 2026-09-02 解除。tickets SP-13/A-01~A-07 按 `docs/working/2026-09-02-integrated-execution-order.md` 总序执行。
 > **输入依据**: 用户原始需求（UI 全面模仿 DeepSeek 网页端 + Agent 功能企业级最小实现）× 代码级摸底（Explore 子代理：Agent 前后端全链路、检索三套并存、护栏与可观测现状）× 开源调研（Onyx/Dify/RAGFlow/LobeChat/Open WebUI 盘点、Go 框架评估、MiniMax 官方文档查证、GitHub Copilot 模式提炼、DashScope/SiliconFlow 嵌入与 rerank 通道查证）
 > **权威关系**: 本 spec 是设计输入；Agent 契约权威为 `docs/specs/web-agent-v0.4-mvp.md`（SSE v2 变更落地时由 A-02 同步修订）；不可妥协红线为 `.specify/memory/constitution.md` §XIII（SSE-only、工具白名单、DB 配置优先、禁自主 ReAct 长链路）；视觉 token 权威 `design/design-system.md`（SP-12 定稿后）。本 spec 与 SP-12（UI 精细化）共享工作台页面文件，执行顺序由用户整合裁决。
 > **治理记录**: 本批次 = 活计划注册表**第二个第一阶段例外**（SP-12 是第一个）；将 Phase 2 (#208) 中「Session History 独立模块、SSE 合同变更」与 rag-deepening spec（2026-08-11）的 Future 项「查询改写、rerank」按**评测门控**提前激活。目标窗口：约两周（面试准备期）。
@@ -33,7 +33,7 @@
 |---|---|
 | R1-Q1 | 交互与布局 1:1 复刻 DeepSeek；**视觉 token 映射 OmniCraft 设计语言**（indigo 主色、操作控件 8px 矩形 + 三档高度、#f5f5f5/#010409 画布、150ms 动效） |
 | R1-Q2 | **保留全局导航**，Agent 区在其下模仿 DeepSeek；**反冗余原则**：全局导航已有的跳转/功能，Agent 工作台不再重复设置 |
-| R1-Q3 | 新立治理方案（本 spec + SP-13 票）；正式开发前用户全面审查，再定任务与顺序 |
+| R1-Q3 | 新立治理方案（本 spec + SP-13 票）；正式开发前完成用户全面审查，并由 2026-09-02 整合总序定任务与顺序 |
 | R1-Q4 | 面试叙事 = 产品 + 架构双线 |
 | R1-Q5 | 明暗双主题跟随全站；桌面优先；窄屏基础适配（侧栏可收、布局不破） |
 | R2-Q6 | 生成体验目标 = **完整 DeepSeek 形态**：思考折叠区 + 工具步骤 + 逐字正文（真流式是硬底线） |
@@ -140,7 +140,7 @@
 | A-06 | 前端工作台 DeepSeek 化：布局/侧边栏三交互/输入框/三层生成形态/markdown + 行内锚定/复制/空态/明暗/响应式 + SSE v2 消费 + ui-spec 增补 | light | A-01、A-02 |
 | A-07 | 搜索页 Agent 入口与新工作台统一 | light | A-06 |
 
-执行顺序与 SP-12 U 批次的关系（工作台页面在 U-04 sweep 清单内、共享视觉基底）由用户在全面审查/整合时统一定；本表依赖边仅为批内约束。
+跨批次执行顺序以 `docs/working/2026-09-02-integrated-execution-order.md` 为唯一权威：A-06 需消费 U-02 token，并承接 U-04 剔除的工作台 sweep；本表 `Blocked by` 仍只表达 SP-13 批内依赖。
 
 ## User Stories
 

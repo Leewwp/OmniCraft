@@ -1,3 +1,20 @@
+## [2026-09-02] - 整合规划与闲时 goal 全面审计（文档/票面同步）
+
+### What was done:
+- 核验 `docs/working/2026-09-02-integrated-execution-order.md`、`docs/working/2026-09-02-idle-goal-prompt.md`、两份 2026-09-01 spec、IP 详情 handoff、Phase 6 fix-plan 与 GitHub #221~#290 实际状态；确认 T 票票内依赖统计为 35 张无内部前置，原“frontier 38”已修正。
+- 修订闲时 goal：明确 #221~#290 范围与 #204/#32 下游边界、按总序而非 API 返回顺序取票、解析跨批次前置、区分 COMPLETED 与 deferred/blocked、阻塞只跳到独立票、heavy 使用独立 worktree、环境启动幂等、阻塞收口不得误报投递门槛。
+- 修订本地规划文档：冻结解除与原型已交付状态、#237 收窄范围、A-06 完整前置、IP 搜索废弃方案和 Phase 1 时间窗口表述全部与整合总序对齐。
+- 同步 GitHub：#276/#282 标题移除执行冻结；#276/#280 清理 Agent 工作台旧范围；#237 重写为 admin IP 状态缓存失效收窄票；#288 `## Blocked by` 补齐 #283/#284/#278/#238/#239/#240。
+
+### Testing:
+- `git diff --check` 通过。
+- `cd tools/doc-validator && go run . --check --diff` 已执行；校验器报告仓库现有 14 个 working 文档缺少其要求的粗体 expiry header，未发现本轮新增的内容一致性错误，未修改无关历史文档。
+- GitHub 票面复核：#276/#280/#282/#288/#237 均保持 OPEN，标题、范围与依赖符合总序；未关闭或伪造任何未完成票。
+
+### Notes:
+- 用户提供的 `sess_d9d6ba3e-14b1-4286-9208-25567a825ca0.zcode-session` 未在 `/Users/pp` 或项目目录找到，本轮以工作区权威文档与 GitHub 实际状态完成核验。
+- 本轮无业务代码、迁移、配置或 routes 改动；所有本地改动需在本轮结束时一并提交。
+
 ## [2026-09-02] - 四批次整合裁决：冻结解除 + 跨批次执行总序定稿（U/T/#290/A 全量编排）
 
 ### What was done:
