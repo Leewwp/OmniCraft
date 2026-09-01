@@ -2063,7 +2063,9 @@
       "noContent": "You haven't published any content yet",
       "startCreating": "Start Creating",
       "edit": "Edit",
-      "delete": "Delete"
+      "delete": "Delete",
+      "banned": "Banned",
+      "banReason": "Ban reason"
     },
     "pr": {
       "title": "PR Management",
