@@ -57,7 +57,7 @@
 
 ### 第 3 段 审计快赢批次 A（FIX-01~09，解锁演示主线）
 6. **T03（#223）** email model 层收敛（隐私 P0，最先） ✅ 2026-09-02 完成（model json:"-" 全 Preload 出口收口 + public/self 两档 + login//auth/me 显式回填；7 例 TDD + curl 三角色 7 出口 + 两阶段审查；heavy worktree b2820bb 合并 3bfd5f9）
-7. T01（#221）判官考试字段对齐 ✅ 2026-09-02 完成（answer_key→answer 一行修复 + 契约 e2e 红→绿 + 本地题库播种后真实全对提交 10/10 资格授予；heavy 22bf4b1 合并 a426d52） → T02（#222）stats 状态词 ✅ 2026-09-02 完成（published→approved 一行修复 + TDD 单测红→绿；live ips=16 复核 + 首页 16 活跃 IP 视觉验证）→  → T05（#225）admin reports 契约 ✅ 2026-09-02 完成（{status,action_taken} 契约 + action_taken 展示 + 错误红字透传弹窗保持；维持/驳回/400 错误三路径浏览器验证）→  → T04（#224）本地 worker 启动 + 积压清理（D 批触达前提）→ T06（#226）收藏错链 → T07（#227）admin 导航缺口 → T08（#228）封禁理由全链路 → T09（#229）内容可见性 scope → T22（#242）热搜契约（join 过滤可见性 + 废弃假榜单）
+7. T01（#221）判官考试字段对齐 ✅ 2026-09-02 完成（answer_key→answer 一行修复 + 契约 e2e 红→绿 + 本地题库播种后真实全对提交 10/10 资格授予；heavy 22bf4b1 合并 a426d52） → T02（#222）stats 状态词 ✅ 2026-09-02 完成（published→approved 一行修复 + TDD 单测红→绿；live ips=16 复核 + 首页 16 活跃 IP 视觉验证）→  → T05（#225）admin reports 契约 ✅ 2026-09-02 完成（{status,action_taken} 契约 + action_taken 展示 + 错误红字透传弹窗保持；维持/驳回/400 错误三路径浏览器验证）→  → T04（#224）本地 worker 启动 ✅ 2026-09-02 完成（Notify(0) 幽灵删除 TDD 红→绿 + 9 条积压清理重建 group + AGENTS Step 2 worker 行与 lag 检查；闭环实测评论通知落库 lag=0）→  + 积压清理（D 批触达前提）→ T06（#226）收藏错链 → T07（#227）admin 导航缺口 → T08（#228）封禁理由全链路 → T09（#229）内容可见性 scope → T22（#242）热搜契约（join 过滤可见性 + 废弃假榜单）
 
 ### 第 4 段 UI 扩散
 8. **U-03（#279）** FilterPills 共享组件 + 全站筛选就地化
