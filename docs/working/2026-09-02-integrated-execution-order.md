@@ -1,6 +1,6 @@
 # 2026-09-02 四批次整合裁决与执行总序（唯一执行顺序权威）
 
-> 创建日期：2026-09-02 ｜ 预计失效日期：全部批次落地后（预计 2026-10 中旬）
+> 创建日期：2026-09-02 ｜ **预计失效日期**: 2026-10-31（全部批次落地后即失效；预计 10 月中旬完成）
 > 来源：用户 2026-09-02 整合指令（本会话）。输入 = 四个规划会话产物：
 > ① 全站设计审计（sess_71b4…，96+21 条发现 → 44 项修复 → SP-00~11 = #209~#220 → T01~T55 = #221~#275）
 > ② UI 精细化 SP-12（sess_95d3…，#276 + U-01~U-05 = #277~#281）
@@ -48,7 +48,7 @@
 
 ### 第 1 段 视觉基座（阻塞一切视觉工作）
 1. **U-01（#277）** 规范定稿：design-system.md + ui-spec.md 修订 + token 差异清单 ✅ 2026-09-02 完成（commit 518463f；design-system v3.0 分层画布/高度三档/形状语义/选中态/动效 + FIX-05 dark token 定稿，ui-spec FilterPills/IP hero/类目并入，差异清单 docs/working/2026-09-02-u02-token-diff-list.md）
-2. **U-02（#278）** token 换血：表面分层 + dark token 达标（FIX-05/F-111 收口）+ Button 三档高度
+2. **U-02（#278）** token 换血：表面分层 + dark token 达标（FIX-05/F-111 收口）+ Button 三档高度 ✅ 2026-09-02 完成（globals.css 两对画布 token + dark 三 token + radius-md 8px；Button/Input/Select 三档高度；15 处 bg-canvas-default 卡片面改 bg-card；verify-project.sh --full 全过；20 张亮暗×双断点截图 screenshots/u02-*；对比度复算全对 ≥4.5:1）——**第 1 段完成**（段边界 verify-project.sh --full 通过 2026-09-02）
 
 ### 第 2 段 Agent 行为基线（保当前 demo 正确，A-06 继承）
 3. **T18（#238）** 工作台气泡/引用卡代码修复（blocked_by #278 恰在此满足）

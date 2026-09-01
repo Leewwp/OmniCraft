@@ -1,7 +1,7 @@
 # 流程 1（IP 创建与审批链）E2E 测试报告 — 阶段 A 探查
 
 - 创建日期：2026-09-01
-- 预计失效：2026-09-15
+- **预计失效日期**: 2026-09-15
 - 被测环境：云端真实验收环境（https://app.leeppp.online / https://api.leeppp.online/api/v1，后端 environment=release）
 - 测试账号：创作者 demo01@leeppp.online（user_id=3「林间星光」）、管理员 admin@leeppp.online（user_id=2「万象站长」，role=admin）。密码不入本文件。
 - 红线遵守：未触碰 weipei08@outlook.com（id=1）任何数据；本测试只产生带「QA探查-」前缀的实体。
