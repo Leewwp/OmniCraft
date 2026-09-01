@@ -476,7 +476,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
             className="absolute inset-0 bg-black/50"
             onClick={() => setDrawerOpen(false)}
           />
-          <div className="relative h-full w-[85vw] max-w-[320px] bg-canvas-default shadow-md">
+          <div className="relative h-full w-[85vw] max-w-[320px] bg-card shadow-md">
             <AgentConversationSidebar
               conversations={conversations}
               activeId={activeId}
@@ -556,7 +556,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
                     <button
                       type="button"
                       onClick={() => handleSend(t(key))}
-                      className="inline-flex w-full items-center justify-center rounded-md border border-border-default bg-canvas-default px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="inline-flex w-full items-center justify-center rounded-md border border-border-default bg-card px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                     >
                       {t(key)}
                     </button>
@@ -587,7 +587,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
               {turnTools.length > 0 && <AgentToolStatus tools={turnTools} />}
 
               {lastAnswerKind === "no_evidence" && (
-                <div className="flex items-start gap-2 rounded-md border border-border-default bg-canvas-default px-3 py-2 text-sm text-fg-default">
+                <div className="flex items-start gap-2 rounded-md border border-border-default bg-card px-3 py-2 text-sm text-fg-default">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-fg-muted" aria-hidden="true" />
                   <div>
                     <p className="font-medium">{t("agent.noEvidence.title")}</p>
@@ -605,7 +605,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
               )}
 
               {turnDegraded && (
-                <div className="flex items-start gap-2 rounded-md border border-border-default bg-canvas-default px-3 py-2 text-sm text-fg-default">
+                <div className="flex items-start gap-2 rounded-md border border-border-default bg-card px-3 py-2 text-sm text-fg-default">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-fg-muted" aria-hidden="true" />
                   <div>
                     <p className="font-medium">{t("agent.degraded.title")}</p>
@@ -632,7 +632,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
               )}
 
               {turnError && lastMessageIsUser && (
-                <div className="flex items-start gap-2 rounded-md border border-border-destructive bg-canvas-default px-3 py-2 text-sm text-fg-default">
+                <div className="flex items-start gap-2 rounded-md border border-border-destructive bg-card px-3 py-2 text-sm text-fg-default">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
                   <div className="flex-1">
                     <p className="font-medium">{t("agent.workspace.errorTitle")}</p>

@@ -167,7 +167,7 @@ export function RelatedContents({
     >
       <div
         data-slot="related-contents-box"
-        className="rounded-lg border border-border-default bg-canvas-default p-4"
+        className="rounded-lg border border-border-default bg-card p-4"
       >
         {relatedRow}
 

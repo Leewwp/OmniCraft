@@ -66,7 +66,7 @@ export function AgentToolStatus({ tools }: AgentToolStatusProps) {
         return (
           <li
             key={`${tool.name}-${index}`}
-            className="inline-flex items-center gap-1.5 rounded border border-border-default bg-canvas-default px-2 py-1 text-xs text-fg-muted"
+            className="inline-flex items-center gap-1.5 rounded border border-border-default bg-card px-2 py-1 text-xs text-fg-muted"
           >
             <span className="text-fg-default">{t(labelKey)}</span>
             {seconds !== null && <span>{t("agent.tools.duration", { seconds })}</span>}

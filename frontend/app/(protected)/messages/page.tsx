@@ -83,7 +83,7 @@ export default function MessagesPage() {
       {tab === "messages" && (
         <section id="messages-panel-messages" role="tabpanel" aria-labelledby="messages-tab-messages" className="min-h-[420px]">
           <div className="hidden min-[701px]:grid min-[701px]:grid-cols-[280px_minmax(0,1fr)] min-[1101px]:grid-cols-[320px_minmax(0,1fr)]">
-            <div className="min-w-0 overflow-hidden rounded-l-md border border-r-0 border-border-default bg-canvas-default">
+            <div className="min-w-0 overflow-hidden rounded-l-md border border-r-0 border-border-default bg-card">
               <ConversationList
                 onSelect={(c) => setActiveConv(c)}
                 activeId={activeConv?.id}

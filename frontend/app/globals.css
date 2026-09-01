@@ -55,7 +55,7 @@
   --color-border-destructive: var(--border-destructive);
   --color-accent-hover: var(--accent-hover);
   --radius-sm: 3px;
-  --radius-md: 4px;
+  --radius-md: 8px;
   --radius-lg: 8px;
   --radius-xl: 12px;
   --radius-full: 9999px;
@@ -68,8 +68,8 @@
 }
 
 :root {
-  /* OmniCraft light palette — Indigo minimal */
-  --background: #ffffff;
+  /* OmniCraft light palette — Indigo minimal（SP-12 U-02 分层画布：画布 #f5f5f5，卡片/弹层保持 #ffffff） */
+  --background: #f5f5f5;
   --foreground: #18181b;
   --card: #ffffff;
   --card-foreground: #18181b;
@@ -109,14 +109,14 @@
 }
 
 .dark {
-  /* OmniCraft dark palette — Indigo minimal */
-  --background: #0d1117;
+  /* OmniCraft dark palette — Indigo minimal（SP-12 U-02 分层画布：画布退深 #010409，卡片族不动 #0d1117；FIX-05：primary/accent-hover 达 AA） */
+  --background: #010409;
   --foreground: #e6edf3;
   --card: #0d1117;
   --card-foreground: #e6edf3;
   --popover: #161b22;
   --popover-foreground: #e6edf3;
-  --primary: #6366f1;
+  --primary: #4f46e5;
   --primary-foreground: #ffffff;
   --secondary: #161b22;
   --secondary-foreground: #e6edf3;
@@ -124,7 +124,7 @@
   --muted-foreground: #848d97;
   --accent: #161b22;
   --accent-foreground: #e6edf3;
-  --accent-hover: #818cf8;
+  --accent-hover: #4338ca;
   --destructive: #f87171;
   --border: #30363d;
   --input: #30363d;
@@ -150,7 +150,7 @@
 
 /* OmniCraft Custom Design Tokens */
 :root {
-  --canvas-default: #ffffff;
+  --canvas-default: #f5f5f5;
   --canvas-subtle: #f5f5f5;
   --canvas-inset: #fafafa;
   --border-default: #e8e8e8;
@@ -184,7 +184,7 @@
 }
 
 .dark {
-  --canvas-default: #0d1117;
+  --canvas-default: #010409;
   --canvas-subtle: #161b22;
   --canvas-inset: #010409;
   --border-default: #30363d;
@@ -194,7 +194,7 @@
   --fg-default: #e6edf3;
   --fg-muted: #848d97;
   --fg-subtle: #6e7681;
-  --accent-emphasis: #6366f1;
+  --accent-emphasis: #818cf8;
   --accent-subtle: #6366f11a;
 
   /* Tag colors — dark */

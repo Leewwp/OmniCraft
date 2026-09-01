@@ -21,7 +21,7 @@ export function AgentCitationCard({ citation, index, onOpen }: AgentCitationCard
     <button
       type="button"
       onClick={(event) => onOpen(citation, event.currentTarget)}
-      className="flex h-auto w-full flex-col items-start gap-0.5 rounded-md border border-border-default bg-canvas-default px-3 py-2 text-left transition-colors hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-ring"
+      className="flex h-auto w-full flex-col items-start gap-0.5 rounded-md border border-border-default bg-card px-3 py-2 text-left transition-colors hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-ring"
     >
       <span className="flex w-full items-center gap-2 text-sm font-medium text-accent-emphasis">
         <span className="text-xs text-fg-muted">{String(index + 1).padStart(2, "0")}</span>
