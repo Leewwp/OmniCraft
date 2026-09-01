@@ -783,7 +783,9 @@
       "dismissConfirm": "Confirm dismissing this report? The report will be closed.",
       "confirmUphold": "Confirm Uphold",
       "confirmDismiss": "Confirm Dismiss",
-      "explanationPlaceholder": "Enter explanation (required)..."
+      "explanationPlaceholder": "Enter explanation (required)...",
+      "actionTaken": "Action taken",
+      "updateFailed": "Failed to update the report; please retry"
     },
     "ips": {
       "title": "IP Library Management",

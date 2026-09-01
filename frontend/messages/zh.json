@@ -783,7 +783,9 @@
       "dismissConfirm": "确认驳回此举报吗？驳回后举报将被关闭。",
       "confirmUphold": "确认维持",
       "confirmDismiss": "确认驳回",
-      "explanationPlaceholder": "请输入处理说明（必填）..."
+      "explanationPlaceholder": "请输入处理说明（必填）...",
+      "actionTaken": "处理说明",
+      "updateFailed": "处理失败，请稍后重试"
     },
     "ips": {
       "title": "IP 库管理",
