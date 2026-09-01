@@ -53,7 +53,7 @@
 ### 第 2 段 Agent 行为基线（保当前 demo 正确，A-06 继承）
 3. **T18（#238）** 工作台气泡/引用卡代码修复（blocked_by #278 恰在此满足） ✅ 2026-09-02 完成（气泡 bg-accent+白→bg-primary+primary-foreground 双主题 6.29:1；引用卡经 U-02 token 已达标仅验证；双主题截图 t18-bubble-*）
 4. **T19（#239）** SSE 跨 chunk 行缓冲 ✅ 2026-09-02 完成（前端行缓冲+2MiB 上限+流尾 flush；4 例分块单测；本地抽查 SSE 管线无丢事件，引用路径待真实 LLM key）
-5. **T20（#240）** 429 文案 / 用量 / markdown / 配置 TTL
+5. **T20（#240）** 429 文案 / 用量 / markdown / 配置 TTL ✅ 2026-09-02 完成（AgentStreamError 透传 code+429 专属文案+窗口内隐藏重试；start/usage 消费+本轮详情折叠区；助手消息受控 markdown（无 raw HTML 通道）；public config 5min TTL+gate 错误态重试）——**第 2 段完成**（段边界 verify-project.sh --full 通过 2026-09-02）
 
 ### 第 3 段 审计快赢批次 A（FIX-01~09，解锁演示主线）
 6. **T03（#223）** email model 层收敛（隐私 P0，最先）

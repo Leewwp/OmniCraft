@@ -47,10 +47,15 @@ export interface PublicConfig {
   oss_domain: string;
 }
 
+// Runtime flag flips (e.g. admin toggling web_agent_enabled) must reach the
+// client within a demo-visible window, so the cache carries a short TTL.
+const PUBLIC_CONFIG_TTL_MS = 5 * 60 * 1000;
+
 let cachedConfig: PublicConfig | null = null;
+let cachedAt = 0;
 
 export async function fetchPublicConfig(): Promise<PublicConfig> {
-  if (cachedConfig) return cachedConfig;
+  if (cachedConfig && Date.now() - cachedAt < PUBLIC_CONFIG_TTL_MS) return cachedConfig;
 
   const res = await fetch(`${API_URL}/api/v1/config/public`, {
     credentials: "include",
@@ -60,9 +65,11 @@ export async function fetchPublicConfig(): Promise<PublicConfig> {
   }
   const data = (await res.json()) as PublicConfig;
   cachedConfig = data;
+  cachedAt = Date.now();
   return data;
 }
 
 export function clearPublicConfigCache(): void {
   cachedConfig = null;
+  cachedAt = 0;
 }

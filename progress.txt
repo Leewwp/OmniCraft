@@ -1,3 +1,22 @@
+## [2026-09-02] - Task T20 (#240): Agent 打磨包——429 文案/用量与 trace/markdown/配置 TTL（FIX-39①②③⑤）
+
+### What was done:
+- ①41 错误码透传：agent-stream.ts 新增 AgentStreamError（携带 status+code，readErrorCode 的后端 code 不再丢弃）；AgentWorkspace 错误框对 AGENT_RATE_LIMIT_EXCEEDED 显示专属标题+窗口提示文案（每分钟/每日两种窗口说明），并在限流窗口内隐藏重试按钮（窗口内重试必败）；SSE error 事件同步捕获 error_code。
+- ②start/usage 事件消费：新增 turnTraceId/turnUsage 状态；消息区下方新增「本轮详情」折叠区（<details>，展示 Token 用量 输入/输出 + 追踪 ID，仅在非流式且有数据时渲染）。
+- ③助手消息接入受控 MarkdownRenderer：接入前核验其实现为 react-markdown 且未接 rehype-raw——无原始 HTML 通道；用户气泡保留 whitespace-pre-wrap，助手气泡 markdown 渲染（列表/标题/表格/代码块）。
+- ⑤public config 缓存 5 分钟 TTL（cachedAt 时间戳，clearPublicConfigCache 同步清）；AgentFeatureGate fetch 失败不再静默 fail-closed 显示禁用文案，改为显式错误框+重试按钮（配置不可得≠功能禁用）。
+- i18n：agent.workspace.{rateLimitTitle,rateLimitHint,traceLabel,turnDetails,turnUsage} + agent.gate.loadFailed，zh/en 同步。
+- 新增 frontend/tests/public-config-ttl.test.ts 2 例（TTL 窗口内不重取/过期重取/显式清缓存重取；失败不污染缓存）。
+
+### Testing:
+- `npm run build` + `npm run lint`(tsc) green；`node scripts/run-tests.mjs unit` 26+470 全过；`bash scripts/verify-project.sh --full` 全量通过（74 e2e）——第 2 段（T18/T19/T20）边界门通过。
+- 浏览器验证（repo Playwright）：429 复现（烧 5/分钟配额后第 6 次发送）专属文案+提示渲染、重试按钮隐藏（t20-rate-limit-1440.png）；历史 markdown 会话加载渲染 12 个真实标题元素、无 ##/** 原始标记（t20-markdown-1440.png）；降级回合折叠区展示用量 0/0 + 完整 trace id（t20-trace-details-1440.png）；flag 关闭后刷新一致显示「尚未开放」降级文案（t20-flag-off-1440.png）。
+- 环境注记：dev server 长驻进程对 messages/*.json 变更同样存在 turbopack 缓存滞后，重启 dev server 后恢复（与 U-02 globals.css 现象同类）；agent flag 验证期间两开两关，终态 false（public config 复核）。
+
+### Notes:
+- 车道 light。FIX-39④（搜索建议/Users tab/图标语义）属 T21 范围未动。
+- usage 事件在本地无 LLM 时也会发出（0/0），UI 已能消费；真实 token 数需 LLM key（外部输入待补，同 A-03/A-04）。
+
 ## [2026-09-02] - Task T19 (#239): Agent SSE 前端跨 chunk 行缓冲（FIX-44）
 
 ### What was done:

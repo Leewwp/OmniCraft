@@ -53,6 +53,20 @@ export interface AgentStreamHandlers {
   onClose?: () => void;
 }
 
+/** Carries the backend error code (e.g. AGENT_RATE_LIMIT_EXCEEDED) so the
+ *  workspace can render dedicated copy instead of a generic failure. */
+export class AgentStreamError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "AgentStreamError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
 /** 解析一行 SSE 数据。仅接受 `data: <json>` 且带 `type` 字段的事件；[DONE] 与空行忽略。
  *  事件经 lib/agent.ts 的 typed normalizer 校验，畸形 citation/tool 事件直接拒绝。 */
 export function parseAgentStreamLine(line: string): AgentStreamEvent | null {
@@ -130,11 +144,11 @@ export async function startAgentStream(
       handlers.onError?.(error instanceof Error ? error : new Error("authentication recovery failed"));
       return;
     }
-    handlers.onError?.(new Error(`agent stream failed: ${res.status}`));
+    handlers.onError?.(new AgentStreamError(`agent stream failed: ${res.status}`, res.status, code || undefined));
     return;
   }
   if (!res.ok || !res.body) {
-    handlers.onError?.(new Error(`agent stream failed: ${res.status}`));
+    handlers.onError?.(new AgentStreamError(`agent stream failed: ${res.status}`, res.status));
     return;
   }
 
