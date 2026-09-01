@@ -56,7 +56,7 @@
 5. **T20（#240）** 429 文案 / 用量 / markdown / 配置 TTL ✅ 2026-09-02 完成（AgentStreamError 透传 code+429 专属文案+窗口内隐藏重试；start/usage 消费+本轮详情折叠区；助手消息受控 markdown（无 raw HTML 通道）；public config 5min TTL+gate 错误态重试）——**第 2 段完成**（段边界 verify-project.sh --full 通过 2026-09-02）
 
 ### 第 3 段 审计快赢批次 A（FIX-01~09，解锁演示主线）
-6. **T03（#223）** email model 层收敛（隐私 P0，最先）
+6. **T03（#223）** email model 层收敛（隐私 P0，最先） ✅ 2026-09-02 完成（model json:"-" 全 Preload 出口收口 + public/self 两档 + login//auth/me 显式回填；7 例 TDD + curl 三角色 7 出口 + 两阶段审查；heavy worktree b2820bb 合并 3bfd5f9）
 7. T01（#221）判官考试字段对齐 → T02（#222）stats 状态词 → T05（#225）admin reports 契约 → T04（#224）本地 worker 启动 + 积压清理（D 批触达前提）→ T06（#226）收藏错链 → T07（#227）admin 导航缺口 → T08（#228）封禁理由全链路 → T09（#229）内容可见性 scope → T22（#242）热搜契约（join 过滤可见性 + 废弃假榜单）
 
 ### 第 4 段 UI 扩散

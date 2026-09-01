@@ -1,3 +1,22 @@
+## [2026-09-02] - Task T03 (#223): email model 层收敛（隐私 P0，FIX-19a，heavy）
+
+### What was done:
+- model/user.go Email json tag 改 "-"（附 Why 注释）：所有 Preload("Author") 序列化出口（内容列表/详情、讨论、评论、搜索、系列、推荐、followers/following）一次性不再泄露注册邮箱。
+- user.go sanitizeUser 拆两档：publicUser（去 email/preferred_locale）+ sanitizeUser（self 档 = public + email + preferred_locale）；GetUser 经 isSelfOrAdmin（caller==id || role==admin）选档；UpdateProfile（本人路径）沿用 self 档。
+- auth.go：新增 selfUserPayload 共享助手（marshal→map→显式回填 email），login 与 /auth/me 两个本人路径响应均带 email（前端 Header/设置页依赖 /auth/me email 不受影响）。
+- admin 用户管理端点零改动（raw SQL Select 显式列含 email，admin 语义保持）；admin feedback contact_email 同为 admin 面，保留。
+
+### Testing:
+- TDD：先写 7 例失败测试（模型序列化无 email 键/匿名 GetUser/他人 GetUser 三处红；self/admin//auth/me 原绿），修复后全绿。
+- `go build ./... && go vet ./... && go test ./...` 全量 32 包 0 FAIL（既有测试无依赖泄露 email 的断言）。
+- curl 三角色回归（worktree 临时服务器 :8099，配置覆盖端口避开主服务）：匿名 /users/313 无 email/preferred_locale ✓；admin GET 有 ✓；/auth/me self 有 email+locale ✓；内容详情 author 无 email ✓；followers 列表无 ✓；admin/users 列表保留 email ✓；搜索无泄露 ✓。
+- 两阶段审查（只读子代理）：规格符合性 DONE_WITH_CONCERNS（1 项：login 响应本人路径缺 email → 已修，其余全过、无其他泄露出口）；代码质量 PASS（3×P3：DB_ERROR 误标改 INTERNAL_ERROR、手写 int64Of/itoa 改 strconv——均已修；marshal 往返判定为可接受模式）。
+
+### Notes:
+- heavy 车道：独立 worktree codex/heavy/223，一票一 commit（b2820bb），审查通过后主 worktree 合并（3bfd5f9）。
+- email_verified_at 仍在 author 对象序列化（验证状态非邮箱地址，规格未涉，留待后续如需再收紧）。
+- 前端零改动：AuthContext email 消费全部走 /auth/me/login 本人路径。
+
 ## [2026-09-02] - Task T20 (#240): Agent 打磨包——429 文案/用量与 trace/markdown/配置 TTL（FIX-39①②③⑤）
 
 ### What was done:
