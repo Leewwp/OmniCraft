@@ -1,3 +1,104 @@
+## [2026-09-02] - 四批次整合裁决：冻结解除 + 跨批次执行总序定稿（U/T/#290/A 全量编排）
+
+### What was done:
+- 读取四个规划会话（全站审计 T01~T55 = #221~#275 / SP-12 U-01~U-05 = #277~#281 / SP-13 A-01~A-07 = #283~#289 / IP 详情重构 #290），核验 GitHub 票面依赖（## Blocked by 全量提取）与代码事实（ipCategory.ts:12 mod→home.other、IPBrowseClient.tsx:203-206 选中态基准，均属实）。
+- 冲突整合 11 项裁决（C-01~C-11），唯一实质裁剪 = U-04 剔除 Agent 工作台 sweep（移交 A-06 重建直接实现，避免先扫后拆废弃工作）；其余重叠按「行为基线前置 + 重建继承语义」处理（T17 可见性并入 #290 并收窄为 admin 缓存失效+B-004 折叠；T18/T19/T20 保留为 A-06 前置基线；mod label 归 U-04 先修、#290 仅校验）。
+- 产出跨批次执行总序唯一权威：`docs/working/2026-09-02-integrated-execution-order.md`（8 段串行主线：U 基座 → Agent 行为基线 → 审计快赢 A → UI 扩散 → #290+T17 → A 后端链 → T21+A-06/A-07 → 审计长尾；含多 agent 双车道注记）。
+- 票据维护：14 张冻结票横幅更新为「已解除（2026-09-02）」；#280（U-04 剔除工作台）、#237（T17 收窄）、#288（A-06 增补跨批次前置与承接范围）、#290（解冻注记 + mod label 继承 + 原型路由移除约定）范围修订并验证。不新增票据（全部执行单元已有票面，无需 to-tickets 立新票）。
+- AGENTS.md 注册表：SP-12/SP-13 行解冻注记 + 新增审计 T 批次行与 #290 行（此前未入表）；提交四个会话的全部本地产物（审计文档 10 份、两份 spec、#290 交互原型与 handoff、注册表/术语/进度）。
+
+### Testing:
+- 前端验证门：`npm run build`（exit 0，含原型路由构建）+ `npm run lint`（tsc --noEmit，exit 0）。
+- 票据修订验证：14/14 横幅替换成功；#280/#237/#288/#290 修订小节抽查确认。
+- 代码事实抽查：mod label 错映射与选中态基准两处锚点 grep 证实（见上）。
+
+### Notes:
+- DashScope API Key 仍待用户开通：A-03/A-04 本地 fail-open 实现不阻塞，消融结论在缺 key 期间标注「外部输入待补」，禁止 mock 冒充。
+- screenshots/ 目录在 .gitignore（原型截图 20 张仅存本地）；#290 落地时移除 /prototype/ip-detail-hub 脚手架路由。
+- 后续执行（含闲时任务）一律从 `docs/working/2026-09-02-integrated-execution-order.md` §3 取下一票，按 AGENTS.md 车道与验证门执行。
+
+## [2026-09-01] - Agent 工作台重造：四轮 15 项决策闭环并立项（SP-13 = #282，A-01~A-07 = #283~#289）
+
+### What was done:
+- grill-with-docs 会话（R1~R4 四轮 15 项决策；两个子代理：Agent 全链路代码摸底 + 开源调研）收口「Agent 工作台重造」。产品线 = DeepSeek 交互 1:1、视觉 token 映射本站设计语言（不推翻 SP-12 裁决；保留全局导航 + 反冗余原则；明暗双主题、桌面优先）；完整生成形态 = 思考折叠流式 + 工具步骤 + 逐字真流式（替换现伪流式）；markdown + 行内 [1][2] 锚定→引用卡片（服务端复验零改动）。架构线 = 会话续写模型（A-01 heavy：title/pinned_at 迁移、{conversation_id?,message} 续写、服务端 token 预算组装、自动标题、停止/失败保留）；SSE 契约 v2（A-02：真流式、think 转发不进引用复验、工具步骤事件，同步 web-agent-v0.4-mvp.md）；检索升级（A-03：DashScope text-embedding-v4@1536 零 DDL + hybrid on Postgres（pg_jieba 词法路，不启用 OpenSearch）+ 查询扩展（M3 生成 3-5 词、原始+扩展一次批量嵌入）+ qwen3-rerank 精排）；评测消融门禁（A-04：golden set 扩充 30-50 条、四配置消融 Recall@5/nDCG@5/citation precision 定三开关默认值）；护栏补口（A-05：chat 输入前置 Green（A4 语义）+ 输出事后异步审核）；前端 A-06/A-07。
+- 调研结论：无开源项目可直接引用（无一 Go 后端）；模式参考 = Onyx + GitHub Copilot 交互；零新框架/零新 SDK（现有 pkg/llm 已具备流式+function calling+think 处理）。否决项：bge-m3（固定 1024 + dimensions 参数 400）、Cohere（国内不可达）、自托管 BGE-reranker（lean 服务器负担）、gte-rerank（2026-05-30 已下线）。
+- 立项完成：spec `docs/superpowers/specs/2026-09-01-omnicraft-agent-workspace-rework-design.md`；SP-13 #282 + A-01~A-07 = #283~#289（ready-for-agent + 冻结横幅；sub-issues 挂接 7/7）；AGENTS.md 注册表新增第二个第一阶段例外行（拉回 #208 Session History/SSE 变更与 rag-deepening Future 项，评测门控）。
+- GREEN AccessKey 确认已恢复（2026-09-01 服务器探测文本+图片全绿，此前索引信息过时）；DashScope API Key 待用户开通（开通前本地 fail-open 不阻塞开发）。
+
+### Testing:
+- 零业务代码改动（spec 文档 + issue 操作 + CONTEXT.md 术语新增三条：会话续写/思考块/引用锚定）。发布后验证：#282 sub_issues=[283..289]、子票均带 ready-for-agent 与冻结横幅。
+
+### Notes:
+- 全部 A 票执行冻结：等用户全面审查后下达执行顺序；与 SP-12 U 批次共享工作台文件（U-04 sweep 含 Agent 工作台、A-06 消费 U-01/U-02 token）及 T18/T19/T20 预留依赖，跨批次顺序由用户整合裁决。
+- 延后清单成文：断线续传、消息编辑重发、附件上传、联网搜索、上下文摘要压缩、跨会话搜索、多 Agent/MCP、rerank 自托管、qwen3.7-text-embedding、P2 代操作（仅留确认卡+既有 REST 契约注记）。
+
+## [2026-09-01] - UI 精细化：设计语言裁决闭环并立项（SP-12 = #276，U-01~U-05 = #277~#281）
+
+### What was done:
+- grill-with-docs 会话三轮 16 项决策收口「UI 精细化」赛道六维设计语言：颜色不换（保 indigo #4F46E5 系，参考图只取形态）；表面分层（亮 #f5f5f5 画布+纯白卡片+1px #e8e8e8，暗卡片不动 #0d1117、画布退 #010409，两侧各只改 2 token 值）；操作控件 8px 圆角矩形+高度三档 28/36/44-48+「同排同高」硬规则；筛选=药丸（IP 库现有效果即选中态基准，零新 token）；全站 150ms 动效（active:scale 仅主 CTA）；筛选一律就地切换+URL 同步（IP 详情 [category] 路由 redirect 至 query）。门槛变更：投递简历以「全部页面改动落地（U 票+T 票+两个重构）」为新门槛，原 2026-09-03 窗口作废；用户整合所有方案后统一下达执行。
+- 立项完成：spec `docs/superpowers/specs/2026-09-01-omnicraft-ui-refinement-design.md`；SP-12 总览 #276 + U-01~U-05 = #277~#281（ready-for-agent，5 张原生子票挂接成功；依赖边用票内 `## Blocked by` 正文约定——REST dependencies API 已 404、GraphQL issueRelations 不存在，审计期「29 条原生边」操作无法复现）；全部 U 票带执行冻结横幅。
+- T18 (#238) 改造：dark token 裁决移入 U-01（定稿）/U-02（落地），票收缩为 Agent 气泡/引用卡代码修复，blocked_by #278；SP-10 (#219) 已留痕评论。
+- AGENTS.md 活计划注册表新增优先级 0 行 + 两阶段框架例外注记。
+- 审计漏网新缺陷（96 条之外）：ipCategory.ts mod 类目 label 误指 home.other → IP 详情类目双「其他」（收编入 U-04）。
+
+### Testing:
+- 零业务代码改动（spec 文档 + issue 操作）。发布后验证：SP-12 sub_issues=[277..281]；U-01~05 均带 ready-for-agent 与冻结横幅；T18 正文/blocked_by 已更新；评论已发（#238/#219）。
+
+### Notes:
+- 两个重构另开会话：IP 详情重构 grill 已在独立会话进行（贴吧式三模块方案，见记忆 omnicraft-ip-detail-refactor-design）；Agent 工作台重构待开。依赖预留：Agent 重构 blocked_by T18/T19/T20；IP 详情重构 blocked_by T17/T24。
+- 本批次插队 T 票 frontier 最前：先换视觉基底，功能票落新基底，避免同页两改两回归。
+
+## [2026-09-01] - 设计审计 Phase 8：修复工作切分为 55 张垂直切片票（to-tickets，T01~T55 = #221~#275）
+
+### What was done:
+- 用户经 to-tickets 批准（55 张细粒度 + GitHub 原生阻塞边）：把 44 项修复进一步切成 tracer-bullet 垂直切片——每张独立可演示、单上下文窗口可完成、声明阻塞边；大束票（FIX-36/22/29/39 等）拆为可独立交付的子票。
+- 发布：#221~#275（label ready-for-agent），每张含 Parent（SP-01~SP-11 = #210~#220，完整问题背景/根因锚点在 parent）/ What to build（端到端行为）/ Acceptance criteria / Blocked by；29 条原生 blocked_by 依赖边（dependencies API）；55/55 挂 parent 子票关系（sub-issues API）。
+- 依赖结构：36 张零阻塞可立即开工（含 FIX-01 一行解锁判官、FIX-19a email P0、FIX-09 worker 闭环）；最长链 3~4 步（email→评论 Preload→评论 UI→举报菜单）；两处同文件串行约束显式写票（judge_service.go：T41↔T39；CommentSection：T54 在 T46 后）。
+- 两处禁令随票重申：T35（FIX-30①）后端零改动；T18（FIX-05）暗色原值废止。
+
+### Testing:
+- 纯 issue 操作，零业务代码修改；发布后验证：ready-for-agent 开放票 67（55+11 SP+#204 既有）、#261 blocked_by=3、#211 子票=7。
+
+### Notes:
+- 票号映射：T01=#221 … T55=#275（连续）；frontier（无阻塞可开工）= #221~#226、#228~#231、#232~#256 中除有阻塞者外共 36 张，详见各票 Blocked by。
+- 与 E2E fix-loop 串行约定不变；T17（#237）动手前先对账台账 B-004。
+
+## [2026-09-01] - 设计审计 Phase 7：修复方案模块化拆分并立票（to-spec，SP-00~SP-11 = #209~#220）
+
+### What was done:
+- 用户指令：将审计问题与修复方案按模块拆分为互不影响、可并行开发的任务，完整保留问题背景/修复方案等内容（to-spec 流程）。
+- 按代码所有权把 44 项修复重组为 11 个模块 issue（SP-01~SP-11），每个 issue 完整携带：Problem Statement / Solution / User Stories（6-10 条）/ 逐 FIX 的根因锚点+修复方案（含 Phase 6 修订）/ 验证标准与车道 / Out of Scope / 跨模块依赖与共享文件协调。
+- 拆分原则：跨模块依赖全部降为子项级并声明（SP-05/FIX-29① ← SP-01/FIX-19 硬前置；SP-02/06 通知 ← SP-07 helper；SP-03/FIX-36① ← SP-02/FIX-12 判官豁免；SP-06/FIX-25 ←→ E2E B-004 对账）；同文件交叉仅函数级（admin.go 六模块分段、judge_service.go 闭案先于撤权等），总览含共享文件协调表。
+- GitHub 立票：总览 #209（无标签，只做协调）+ 11 个模块 issue #210~#220（label ready-for-agent）；fix-plan §3.1 已加立票指针。
+- 两处禁令在 issue 内显式重申：FIX-30① 原方案禁止执行（改纯前端）；FIX-05 暗色原值废止（dark bg-primary=4.47:1）。
+
+### Testing:
+- 纯 issue/文档操作，零业务代码修改；gh 创建后逐条核验（#210~#220 标题与 label 正确，#209 表格已回填实际编号）。
+
+### Notes:
+- 模块 issue 已带 ready-for-agent 标签，按 AGENTS.md 活计划注册表纪律，正式纳入排期前仍需登记（本次未改 AGENTS.md）。
+- 与 E2E fix-loop 的串行约定不变（共用工作树与云端）。
+
+## [2026-09-01] - 设计审计 Phase 6：执行前全量复核（96 条）与修复方案修订（只审计不修复）
+
+### What was done:
+- 用户指令：按项目实际代码与运行情况复核审计文档记录的问题是否真实存在/可复现、有无遗漏；再评估修复方案合理性（矛盾/风险/不必要/错误修法）；最后更新审查结果与修复方案。
+- 5 个全新域子代理（A~E 对应原五域）在运行环境逐条重验全部 96 条发现（代码亲读 + curl/psql/redis + F-042 真浏览器 Playwright 复验），并核查 43 项修复的每条承重声明、扫描遗漏。基线 main@f9d9ef7（审计文档写就后合入 774994f/6d1d781/fecef1b/f9d9ef7）。
+- 裁决：证实 90 / 修正 5（F-011 轻微、F-022 部分已被 fecef1b 修复、F-025 范围收窄、F-042 分歧收口、F-083 维持）/ 驳回 1（F-082 375px 溢出无法复现）。
+- 新增遗漏发现 21 条（F-097~F-117：P0×1、P1×3、P2×11、P3×6），最重要：F-105 [P0] email 经 Author Preload 全站泄露（model/user.go json tag 未隐藏，内容/讨论/评论/搜索/系列全出口，实测）；F-100 [P1] 判官考试答案可机械推算（question_data denylist 只删 correct_key，调度器题内嵌 votes 可算多数派）；F-109 [P1] Agent SSE 跨 chunk 丢事件（无行缓冲）；F-097 [P1] is_public=false 私密内容公共列表可见。
+- 修复方案修订并写入 fix-plan：FIX-05 暗色数值错误（bg-primary 实为 4.47:1，另发现 F-111 暗色按钮 123 处同根未达 AA）；FIX-30① 修法方向错误（DM 冷启动 guard 本就允许首条且是唯一防骚扰门，改纯前端、禁止放宽）；FIX-19 升级为 model 层（F-105）；FIX-23 重界定（fecef1b 已交付创建侧）+3 项加固；FIX-09 收缩（compose/lean/demo 均已有 worker，仅 AGENTS.md Step 2 缺）+积压清理步骤；§1.3 执行总序依赖矛盾纠正；9 项执行前提补齐（FIX-06/12/15/29/33/34/35/36/43）；新增 FIX-44；Phase 6 后共 44 项。
+- 文档更新：fix-plan（§0 修订记录 + 各条目内嵌 Phase 6 标注）、report（新增 §8 Phase 6 章节）、findings（头部指引 + 文末 Phase 6 增补全条目）。
+
+### Testing:
+- 运行时复现（全部只读或自建数据并恢复，各域台账见子代理报告）：admin config PascalCase 四环污染链、reports 400+status 合法值（resolved|dismissed）、stats ips=0（根因行仍在）、trending 契约（member=内容 ID 且 ZSet 全是非公开内容）、DLQ 字段契约（topic 恒空白）、IP reject 后缓存 stale、封禁登录 403→浏览器红字文案、375px 溢出复测=0、exam answer_key=0 分/answer=满分/单题可过、anonymous banned 内容 200、Redis stream lag=9 且残留 consumer 为 8-28 遗留条目（无隐藏 worker）。
+- 零业务代码修改、零 commit；git 工作区仅新增/修改本批 docs/working/ 文档与 progress.txt。
+
+### Notes:
+- F-042 了结：真浏览器错误文案正常显示（「账号已被封禁，请联系管理员」），审计截图为提交前态；残留=无申诉/工单指引（FIX-15）。
+- FIX-25 缓存半与 E2E 台账 B-004（e2e-fix-loop-ledger.md，流程 2 批次）同一缺陷，已在 fix-plan 交叉引用——执行前对账。
+- 操作性提醒：FIX-09 启动 worker 前先做 follow.go Notify(0) 删除并清理 stream 积压（9 条含 user_id=0），否则物化为演示噪音。
+- 测试账号密码仍为审计临时值 Audit!2026pass（待人工复位）。
+
 ## [2026-09-01] - E2E 修复循环 R1：流程 1（IP 创建）云端闭环
 
 ### What was done:
@@ -2253,3 +2354,22 @@
 ### Notes:
 - Branch fix/ip-create-completeness, light lane, commit 2 of 2.
 - verify-project.sh: all build/test gates pass; doc-validator --check fails only on 11 untracked docs/working/2026-09-01-* files owned by other threads (out of scope, untouched). No config.go/routes.go/migrations changes in this batch.
+## [2026-09-01] - IP 详情页「贴吧式社区枢纽」重构交互原型（prototype skill）
+### What was done:
+- 依据 docs/working/2026-09-01-ip-detail-refactor-handoff.md（三轮 grilling 定稿）交付可交互原型，不动任何生产代码：新路由 `frontend/app/(public)/prototype/ip-detail-hub/page.tsx`（生产构建下 notFound 兜底）+ `frontend/components/prototype/ip-detail-hub/`（copy.ts i18n 风格文案表、mock-data.ts 假数据、bits/diff 渲染器、share/discussion/proposal/search 五块组件、ip-hub-prototype 主组装）。
+- 覆盖交接文档 §4 全部 7 项：头部身份区（封面/名/类目/简介/TagBadge/三统计/FollowButton 契约 mock）+ 三模块页内 tab + 下级筛选（媒体 chips×四排序 / 讨论四排序含热门+置顶优先 / 提案四状态）+ 单页 query 同步（tab 用 push 支持浏览器后退，其余 replace，先例 IPBrowseClient）；内容分享瀑布流 + 作品详情浮层；讨论帖详情浮层（回帖可发、Esc/后退/遮罩关闭，pushState 实现）；共治提案（简介行内 diff 红删绿 ins 8 行展开、封面 160px 并排、标签 ±chips、双色进度条+60% 通过线刻度+剩 X 天+投票/已投锁定、未关注引导面板原地解锁、发起提案表单含字段多选与标签存在性校验、同 IP 单 open 提案约束按钮禁用、改动历史时间线、空态 CTA「第一个提案由你发起」）；IP 内搜索正交态（分组摘要每组前 3+计数+深入单模块+相关度/最新/最热）；场景切换浮条 ?scenario=member|guest|empty（←/→ 键循环）。
+- 视觉遵循 design-system.md token + 2026-09-01 精修方向（#f5f5f5 画布白卡片、pill 筛选选中态 IP 库基线、8px 矩形控件同排等高 min-h-9、150ms 过渡）；复用真实组件 TagBadge/Button/Input/Textarea/SortSelect/Tabs/EmptyState/Toast。
+### Testing:
+- `npm run lint`（tsc --noEmit）green；浏览器全流程验证（repo Playwright/Chromium 对本地 dev server）：21 张截图存 screenshots/proto-01~21*.png，覆盖默认/热门排序/讨论浮层+回帖/投票锁定/已通过/改动历史/搜索分组+深入/未关注引导+解锁/空态三模块/发起表单+标签校验/作品浮层。
+- URL 后退验证：tab push 态浏览器 back 正确回退（?tab=proposals&status=history → ?tab=discussions&sort=hot）。
+### Notes:
+- 原型文件全部带「原型专用，随时可删」注释；文案走 key 化结构（proposal.*/hub.*），转正式实现时迁入 messages/zh+en；mock 配置镜像未来 `ip_proposal.*` config。
+- 未提交 commit（工作区留待用户审查后处置）；验证脚本为一次性已删。已知简化：分页/无限滚动未做、搜索深入与 tab 参数组合（stab）是原型自定方案待正式票定夺、未登录跳登录未演示。
+## [2026-09-01] - IP 详情页原型修订：搜索改为 tab 内过滤 + 关注按钮定宽（用户反馈 R2）
+### What was done:
+- 搜索行为按用户拍板修订（替代 grilling Q8 方案 b 的分组摘要视图）：回车或输入框失焦提交搜索（commitSearch），主体三模块 tab 结构不变，结果在各 tab 内直接过滤；tab 计数随结果收缩（10/7/6 →「站台」6/4/2），媒体类型 chips 计数同步收缩；tab 内无结果显示 SearchEmpty（未找到 + 清空搜索）；提案 tab 搜索下状态筛选无匹配有专门文案；?q= push 保留后退可退出。删除 search-view.tsx（分组摘要/深入/相关度排序整体废弃）与 stab 参数。
+- 关注按钮（FollowButton 契约 mock）加 min-w-[104px] + justify-center：hover 时「已关注→取消关注」换文案不再引起按钮宽度与布局抖动（实测 104px→104px）。
+### Testing:
+- `npm run lint`（tsc）green；Playwright 全流程复验（proto-22~30 截图）：hover 宽度稳定、回车/失焦两种提交、计数收缩、tab 内空态、清空还原 10/7/6、提案 tab 搜索、浏览器后退到上一搜索态。
+### Notes:
+- 分组摘要视图被用户修订取代——正式实现票应按新口径写：搜索=tab 内过滤，不建聚合视图；相关度排序不再需要。
