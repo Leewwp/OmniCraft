@@ -21,20 +21,23 @@ func NewContentRepository(db *gorm.DB) *ContentRepository {
 func (r *ContentRepository) DB() *gorm.DB { return r.db }
 
 type ListContentsFilter struct {
-	Zone             string
-	IPID             *int64
-	SourceOriginalID *int64
-	SourceFanworkID  *int64
-	Category         string
-	ContentType      string
-	ContentTypes     []string
-	AuthorID         *int64
-	Status           string
-	Tags             []string
-	Sort             string
-	TimeRange        string
-	Page             int
-	PageSize         int
+	Zone string
+	// IncludeAllStatuses 用于作者自助列表（/users/me/contents）：列出全部
+	// 状态（含 banned/pending），公开浏览路径不得开启（FIX-16/T08）。
+	IncludeAllStatuses bool
+	IPID               *int64
+	SourceOriginalID   *int64
+	SourceFanworkID    *int64
+	Category           string
+	ContentType        string
+	ContentTypes       []string
+	AuthorID           *int64
+	Status             string
+	Tags               []string
+	Sort               string
+	TimeRange          string
+	Page               int
+	PageSize           int
 	// ViewerID lets source-linkage queries reuse the centralized content
 	// visibility scope (published, non-deleted, author/IP not banned, and
 	// is_public OR author-owned) for returned children.
@@ -153,9 +156,12 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 		q = ApplyContentVisibilityScope(q, f.ViewerID)
 	} else {
 		q = q.Where("deleted_at IS NULL")
-		if f.Status != "" {
+		switch {
+		case f.IncludeAllStatuses: // 自助列表标志优先于 Status 过滤
+
+		case f.Status != "":
 			q = q.Where("status = ?", f.Status)
-		} else {
+		default:
 			q = q.Where("status = ?", "published")
 		}
 	}

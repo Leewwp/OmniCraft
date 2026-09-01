@@ -17,6 +17,7 @@ export default function StudioContentsPage() {
     id: number; title: string; zone: string; content_type: string;
     view_count: number; like_count: number; comment_count: number;
     status: string;
+    ban_reason?: string;
   }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -38,6 +39,7 @@ export default function StudioContentsPage() {
         content_type: c.content_type as string, view_count: c.view_count as number,
         like_count: c.like_count as number, comment_count: c.comment_count as number,
         status: c.status as string,
+        ban_reason: typeof c.ban_reason === "string" ? c.ban_reason : undefined,
       }));
       const meta = res?.meta as Record<string, unknown> | undefined;
       const total = (res?.total as number) ?? (meta?.total as number) ?? incoming.length;
@@ -101,7 +103,15 @@ export default function StudioContentsPage() {
                   </Link>
                   <Badge variant="secondary" className="text-[10px]">{item.zone}</Badge>
                   <Badge variant="outline" className="text-[10px]">{item.content_type}</Badge>
+                  {item.status === "banned" && (
+                    <Badge className="bg-destructive/10 text-destructive border border-destructive/30 text-[10px]">
+                      {t('studio.contents.banned')}
+                    </Badge>
+                  )}
                 </div>
+                {item.status === "banned" && item.ban_reason && (
+                  <p className="mt-1 text-xs text-destructive">{t('studio.contents.banReason')}: {item.ban_reason}</p>
+                )}
                 <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" /> {item.view_count}</span>
                   <span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" /> {item.like_count}</span>
