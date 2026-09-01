@@ -1,7 +1,7 @@
 # 设计审查笔记 A：账号生命周期 / 内容发布全链路 / 审核处罚 / 举报 / 申诉
 
 - 创建日期：2026-09-01
-- 预计失效日期：2026-11-01
+- **预计失效日期**: 2026-11-01
 - 审查范围：J1 账号生命周期、J2 内容发布全链路（A-F 分支）、J5 举报、J6 申诉（含封禁死链检测）
 - 审查方式：代码走查（文件:行号）+ 运行时 curl/psql 复现。只审计不修复。
 - 环境：backend :8080（仅 `cmd/server` 在跑，无 `cmd/worker` 进程）、captcha provider=bypass、green 走本地通过语义、`archive_malware_scan_enabled=false`。
