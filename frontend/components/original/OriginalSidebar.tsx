@@ -44,7 +44,7 @@ export function SidebarWrapper() {
     {
       label: t("common.manage"),
       items: [
-        { icon: <Heart className="h-4 w-4" />, label: t("nav.favorites"), href: user ? "/studio/contents" : "/login?redirect=/studio/contents" },
+        { icon: <Heart className="h-4 w-4" />, label: t("nav.favorites"), href: user ? "/studio/favorites" : "/login?redirect=/studio/favorites" },
         { icon: <FileText className="h-4 w-4" />, label: t("nav.myOriginal"), href: user ? "/studio/contents" : "/login?redirect=/studio/contents" },
         { icon: <Clock className="h-4 w-4" />, label: t("nav.history"), href: user ? "/history" : "/login?redirect=/history" },
       ] as SidebarItem[],

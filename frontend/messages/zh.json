@@ -1806,7 +1806,8 @@
       "prManagement": "PR 管理",
       "contributors": "贡献者",
       "tagSuggestions": "标签建议",
-      "revenue": "收益数据"
+      "revenue": "收益数据",
+      "favorites": "收藏集"
     },
     "series": {
       "title": "内容系列管理",
