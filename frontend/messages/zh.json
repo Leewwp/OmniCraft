@@ -140,7 +140,7 @@
     "errorTermsVersionMismatch": "用户协议版本不匹配，请刷新页面",
     "errorPrivacyVersionMismatch": "隐私政策版本不匹配，请刷新页面",
     "errorEmailRequired": "请输入邮箱地址",
-    "captchaLoading": "正在加载验证码...",
+    "captchaLoading": "验证码加载中...",
     "captchaReady": "请先完成验证码再创建账号。",
     "captchaVerified": "验证码已通过",
     "captchaFailed": "验证码验证失败，请重试",
@@ -162,7 +162,6 @@
     "hidePassword": "隐藏密码",
     "showConfirmPassword": "显示确认密码",
     "hideConfirmPassword": "隐藏确认密码",
-    "captchaLoading": "验证码加载中...",
     "errorSessionExpired": "登录状态已过期，请重新登录"
   },
   "home": {
@@ -504,48 +503,48 @@
     },
     "userList": {
       "header": {
-        "title": "{name} \u7684\u6536\u85cf\u96c6",
-        "subtitle": "{count} \u4e2a\u53ef\u89c1\u6536\u85cf\u96c6"
+        "title": "{name} 的收藏集",
+        "subtitle": "{count} 个可见收藏集"
       },
       "actions": {
-        "create": "\u65b0\u5efa\u6536\u85cf\u96c6",
-        "refresh": "\u5237\u65b0"
+        "create": "新建收藏集",
+        "refresh": "刷新"
       },
       "form": {
-        "createTitle": "\u521b\u5efa\u6536\u85cf\u96c6",
-        "editTitle": "\u7f16\u8f91\u6536\u85cf\u96c6",
-        "zone": "\u5206\u533a",
-        "original": "\u539f\u521b",
-        "fanwork": "\u4e8c\u521b",
-        "title": "\u6807\u9898",
-        "description": "\u63cf\u8ff0",
-        "isPublic": "\u516c\u5f00\u6536\u85cf\u96c6"
+        "createTitle": "创建收藏集",
+        "editTitle": "编辑收藏集",
+        "zone": "分区",
+        "original": "原创",
+        "fanwork": "二创",
+        "title": "标题",
+        "description": "描述",
+        "isPublic": "公开收藏集"
       },
       "empty": {
-        "ownerTitle": "\u6682\u65e0\u6536\u85cf\u96c6",
-        "ownerDescription": "\u521b\u5efa\u6536\u85cf\u96c6\u6765\u6574\u7406\u5df2\u4fdd\u5b58\u7684\u5185\u5bb9\u3002",
-        "visitorTitle": "\u6682\u65e0\u516c\u5f00\u6536\u85cf\u96c6",
-        "visitorDescription": "\u8be5\u7528\u6237\u5c1a\u672a\u5206\u4eab\u4efb\u4f55\u6536\u85cf\u96c6\u3002"
+        "ownerTitle": "暂无收藏集",
+        "ownerDescription": "创建收藏集来整理已保存的内容。",
+        "visitorTitle": "暂无公开收藏集",
+        "visitorDescription": "该用户尚未分享任何收藏集。"
       },
       "error": {
-        "title": "\u6536\u85cf\u96c6\u4e0d\u53ef\u7528",
-        "description": "\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002"
+        "title": "收藏集不可用",
+        "description": "请稍后重试。"
       },
       "delete": {
-        "title": "\u5220\u9664\u6536\u85cf\u96c6\uff1f",
-        "description": "\u5c06\u79fb\u9664 {title}\uff0c\u5df2\u6536\u85cf\u5185\u5bb9\u4e0d\u4f1a\u88ab\u5220\u9664\u3002",
-        "confirm": "\u5220\u9664"
+        "title": "删除收藏集？",
+        "description": "将移除 {title}，已收藏内容不会被删除。",
+        "confirm": "删除"
       },
       "toast": {
-        "loadFailed": "\u6536\u85cf\u96c6\u52a0\u8f7d\u5931\u8d25",
-        "created": "\u6536\u85cf\u96c6\u5df2\u521b\u5efa",
-        "updated": "\u6536\u85cf\u96c6\u5df2\u66f4\u65b0",
-        "deleted": "\u6536\u85cf\u96c6\u5df2\u5220\u9664",
-        "saveFailed": "\u6536\u85cf\u96c6\u4fdd\u5b58\u5931\u8d25",
-        "deleteFailed": "\u6536\u85cf\u96c6\u5220\u9664\u5931\u8d25"
+        "loadFailed": "收藏集加载失败",
+        "created": "收藏集已创建",
+        "updated": "收藏集已更新",
+        "deleted": "收藏集已删除",
+        "saveFailed": "收藏集保存失败",
+        "deleteFailed": "收藏集删除失败"
       },
       "a11y": {
-        "grid": "\u7528\u6237\u6536\u85cf\u96c6"
+        "grid": "用户收藏集"
       }
     }
   },
@@ -1235,7 +1234,12 @@
       "stoppedNotice": "已停止生成",
       "suggestionLayout": "想找「无人站台」主题的视觉参考，最好能同时看到氛围图和文字叙事。",
       "suggestionMusic": "想用最短的练习理解和弦与主旋律的关系。",
-      "suggestionMod": "找一些适合新手的家具 Mod。"
+      "suggestionMod": "找一些适合新手的家具 Mod。",
+      "rateLimitTitle": "AI 请求过于频繁",
+      "rateLimitHint": "已触发限流：可能是每分钟限额（请约 1 分钟后再试）或每日限额（明天恢复）已用尽，此时重试必定失败。",
+      "traceLabel": "追踪 ID",
+      "turnDetails": "本轮详情",
+      "turnUsage": "Token 用量：输入 {prompt} / 输出 {completion}"
     },
     "tools": {
       "title": "工具状态",
@@ -1289,6 +1293,9 @@
       "conversationItem": "对话 #{id}",
       "streamStatus": "回答生成中",
       "jumpToLatest": "跳到最新消息"
+    },
+    "gate": {
+      "loadFailed": "功能配置加载失败，无法确认该功能是否可用。"
     }
   },
   "search": {
@@ -1511,8 +1518,8 @@
     "selectConversation": "选择一个对话开始聊天",
     "replyPlaceholder": "输入消息...",
     "startConversation": "开始对话",
-    "dmReplyRequired": "\u5bf9\u65b9\u5c1a\u672a\u56de\u590d\uff0c\u8bf7\u7b49\u5f85\u56de\u590d\u540e\u518d\u53d1\u9001\u65b0\u6d88\u606f",
-    "sendMessage": "\u53d1\u9001\u6d88\u606f",
+    "dmReplyRequired": "对方尚未回复，请等待回复后再发送新消息",
+    "sendMessage": "发送消息",
     "broadcastLabel": "广播",
     "systemLabel": "系统",
     "notificationOpensTarget": "可打开相关项",
@@ -1804,16 +1811,60 @@
       "subtitle": "整理公开内容并维护章节顺序。",
       "create": "创建系列",
       "delete": "删除系列",
-      "empty": { "title": "还没有内容系列", "description": "创建一个系列，把相关内容按顺序整理起来。" },
-      "list": { "ariaLabel": "我的内容系列" },
-      "detail": { "ariaLabel": "系列详情" },
-      "form": { "title": "系列标题", "description": "系列简介", "zone": "分区", "cover": "系列封面", "coverAutomatic": "自动使用首项封面", "createSubmit": "创建", "save": "保存修改" },
-      "items": { "title": "已添加内容", "ariaLabel": "系列内容排序列表", "empty": "系列中还没有内容", "add": "添加" },
-      "search": { "title": "添加内容", "label": "搜索可添加内容", "placeholder": "按标题搜索自己的内容..." },
-      "confirm": { "deleteTitle": "删除系列？", "deleteDescription": "删除“{title}”后，系列顺序会被移除，但不会删除内容。" },
-      "toast": { "created": "系列已创建", "saved": "系列已保存", "deleted": "系列已删除", "itemAdded": "内容已添加", "itemRemoved": "内容已移除", "reordered": "顺序已更新" },
-      "error": { "loadFailed": "系列加载失败，请重试。", "saveFailed": "保存失败，请重试。", "deleteFailed": "删除失败，请重试。", "itemFailed": "内容操作失败，请重试。" },
-      "a11y": { "backToList": "返回系列列表", "moveUp": "将 {title} 上移", "moveDown": "将 {title} 下移", "removeItem": "从系列移除 {title}" }
+      "empty": {
+        "title": "还没有内容系列",
+        "description": "创建一个系列，把相关内容按顺序整理起来。"
+      },
+      "list": {
+        "ariaLabel": "我的内容系列"
+      },
+      "detail": {
+        "ariaLabel": "系列详情"
+      },
+      "form": {
+        "title": "系列标题",
+        "description": "系列简介",
+        "zone": "分区",
+        "cover": "系列封面",
+        "coverAutomatic": "自动使用首项封面",
+        "createSubmit": "创建",
+        "save": "保存修改"
+      },
+      "items": {
+        "title": "已添加内容",
+        "ariaLabel": "系列内容排序列表",
+        "empty": "系列中还没有内容",
+        "add": "添加"
+      },
+      "search": {
+        "title": "添加内容",
+        "label": "搜索可添加内容",
+        "placeholder": "按标题搜索自己的内容..."
+      },
+      "confirm": {
+        "deleteTitle": "删除系列？",
+        "deleteDescription": "删除“{title}”后，系列顺序会被移除，但不会删除内容。"
+      },
+      "toast": {
+        "created": "系列已创建",
+        "saved": "系列已保存",
+        "deleted": "系列已删除",
+        "itemAdded": "内容已添加",
+        "itemRemoved": "内容已移除",
+        "reordered": "顺序已更新"
+      },
+      "error": {
+        "loadFailed": "系列加载失败，请重试。",
+        "saveFailed": "保存失败，请重试。",
+        "deleteFailed": "删除失败，请重试。",
+        "itemFailed": "内容操作失败，请重试。"
+      },
+      "a11y": {
+        "backToList": "返回系列列表",
+        "moveUp": "将 {title} 上移",
+        "moveDown": "将 {title} 下移",
+        "removeItem": "从系列移除 {title}"
+      }
     },
     "publish": {
       "originalTitle": "发布原创",

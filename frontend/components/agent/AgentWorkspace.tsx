@@ -13,10 +13,12 @@ import { silentError } from "@/lib/error-handler";
 import { getBrowserApiBase } from "@/lib/server-api";
 import {
   startAgentStream,
+  AgentStreamError,
   type AgentStreamCitation,
   type AgentStreamEvent,
   type AgentStreamTool,
 } from "@/lib/agent-stream";
+import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 import { toAgentCitation, type AgentCitation } from "@/lib/agent";
 import { AgentCitationList } from "@/components/agent/AgentCitationList";
 import { AgentToolStatus } from "@/components/agent/AgentToolStatus";
@@ -82,6 +84,9 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
   const [turnCitations, setTurnCitations] = useState<AgentStreamCitation[]>([]);
   const [turnDegraded, setTurnDegraded] = useState(false);
   const [lastAnswerKind, setLastAnswerKind] = useState<string | null>(null);
+  const [turnErrorCode, setTurnErrorCode] = useState<string | null>(null);
+  const [turnTraceId, setTurnTraceId] = useState<string | null>(null);
+  const [turnUsage, setTurnUsage] = useState<{ prompt_tokens: number; completion_tokens: number } | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -310,6 +315,21 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
   const handleStreamEvent = useCallback(
     (event: AgentStreamEvent) => {
       switch (event.type) {
+        case "start": {
+          if (event.trace_id) setTurnTraceId(event.trace_id);
+          break;
+        }
+        case "usage": {
+          const usage = event.usage as { prompt_tokens?: unknown; completion_tokens?: unknown } | undefined;
+          if (
+            usage &&
+            typeof usage.prompt_tokens === "number" &&
+            typeof usage.completion_tokens === "number"
+          ) {
+            setTurnUsage({ prompt_tokens: usage.prompt_tokens, completion_tokens: usage.completion_tokens });
+          }
+          break;
+        }
         case "delta": {
           if (!event.delta) break;
           const delta = event.delta;
@@ -367,6 +387,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
             controllerRef.current?.abort();
             break;
           }
+          setTurnErrorCode(event.error_code ?? null);
           setTurnError(true);
           setStreaming(false);
           controllerRef.current?.abort();
@@ -399,6 +420,9 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
     setTurnCitations([]);
     setTurnDegraded(false);
     setLastAnswerKind(null);
+    setTurnErrorCode(null);
+    setTurnTraceId(null);
+    setTurnUsage(null);
     setStreaming(true);
 
     const controller = new AbortController();
@@ -414,7 +438,8 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
       },
       {
         onEvent: handleStreamEvent,
-        onError: () => {
+        onError: (error) => {
+          setTurnErrorCode(error instanceof AgentStreamError ? error.code ?? null : null);
           setTurnError(true);
           setStreaming(false);
         },
@@ -570,13 +595,20 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
                 <div
                   key={`${message.id}-${message.role}`}
                   className={cn(
-                    "max-w-[85%] whitespace-pre-wrap rounded-md px-3 py-2 text-sm",
+                    "max-w-[85%] rounded-md px-3 py-2 text-sm",
                     message.role === "user"
-                      ? "ml-auto bg-primary text-primary-foreground"
+                      ? "ml-auto whitespace-pre-wrap bg-primary text-primary-foreground"
                       : "bg-canvas-subtle text-fg-default",
                   )}
                 >
-                  {message.content || (
+                  {message.content ? (
+                    message.role === "user" ? (
+                      message.content
+                    ) : (
+                      // 受控渲染：react-markdown 未接 rehype-raw，原始 HTML 一律转义（T20 核验）
+                      <MarkdownRenderer content={message.content} />
+                    )
+                  ) : (
                     <span aria-label={t("agent.a11y.streamStatus")}>
                       <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                     </span>
@@ -585,6 +617,25 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
               ))}
 
               {turnTools.length > 0 && <AgentToolStatus tools={turnTools} />}
+
+              {!streaming && (turnUsage || turnTraceId) && (
+                <details className="max-w-[85%] rounded-md border border-border-default bg-card px-3 py-1.5 text-xs text-fg-muted">
+                  <summary className="cursor-pointer select-none">{t("agent.workspace.turnDetails")}</summary>
+                  {turnUsage && (
+                    <p className="mt-1.5">
+                      {t("agent.workspace.turnUsage", {
+                        prompt: turnUsage.prompt_tokens,
+                        completion: turnUsage.completion_tokens,
+                      })}
+                    </p>
+                  )}
+                  {turnTraceId && (
+                    <p className="mt-1">
+                      {t("agent.workspace.traceLabel")}: <span className="font-mono">{turnTraceId}</span>
+                    </p>
+                  )}
+                </details>
+              )}
 
               {lastAnswerKind === "no_evidence" && (
                 <div className="flex items-start gap-2 rounded-md border border-border-default bg-card px-3 py-2 text-sm text-fg-default">
@@ -635,12 +686,26 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
                 <div className="flex items-start gap-2 rounded-md border border-border-destructive bg-card px-3 py-2 text-sm text-fg-default">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
                   <div className="flex-1">
-                    <p className="font-medium">{t("agent.workspace.errorTitle")}</p>
+                    {turnErrorCode === "AGENT_RATE_LIMIT_EXCEEDED" ? (
+                      <>
+                        <p className="font-medium">{t("agent.workspace.rateLimitTitle")}</p>
+                        <p className="mt-1 text-xs text-fg-muted">{t("agent.workspace.rateLimitHint")}</p>
+                      </>
+                    ) : (
+                      <p className="font-medium">{t("agent.workspace.errorTitle")}</p>
+                    )}
+                    {turnTraceId && (
+                      <p className="mt-1 text-xs text-fg-muted">
+                        {t("agent.workspace.traceLabel")}: <span className="font-mono">{turnTraceId}</span>
+                      </p>
+                    )}
                   </div>
-                  <Button variant="outline" size="sm" className="h-9" onClick={handleRetry}>
-                    <RotateCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-                    {t("agent.workspace.errorRetry")}
-                  </Button>
+                  {turnErrorCode !== "AGENT_RATE_LIMIT_EXCEEDED" && (
+                    <Button variant="outline" size="sm" className="h-9" onClick={handleRetry}>
+                      <RotateCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                      {t("agent.workspace.errorRetry")}
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
