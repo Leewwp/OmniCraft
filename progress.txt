@@ -1,3 +1,18 @@
+## [2026-09-02] - Task T18 (#238): Agent 气泡/引用卡对比度代码修复（FIX-05 收窄版）
+
+### What was done:
+- AgentWorkspace.tsx:575 用户气泡 `bg-accent text-white`（亮色 1.09:1 不可读）→ `bg-primary text-primary-foreground`（U-02 后双主题 #4F46E5+白 = 6.29:1）。
+- 引用卡标题（AgentCitationCard.tsx:26 `text-accent-emphasis`）代码零改动：U-02 已将 dark accent-emphasis 提亮 #818CF8（对 bg-card #0d1117 = 6.34:1）且卡片底已在 U-02 改 bg-card，票面「消费提亮后的 dark accent-emphasis」语义已满足，本票仅验证。
+
+### Testing:
+- `npm run lint`(tsc) green。
+- 浏览器验证（repo Playwright，登录 seed-ui-001 → /agent → 发送消息）：双主题 computed 气泡 rgb(79,70,229)+rgb(255,255,255)（即 #4F46E5+白，6.29:1）；AI 视觉复检亮暗截图确认气泡靛蓝底白字清晰可读、无低对比区域；截图 screenshots/t18-bubble-{light,dark}-1440.png。
+- agent flag 验证期间临时开启（PATCH admin config 热切换），完成后已关回（public config=false 复核）。
+
+### Notes:
+- 车道 light；范围严格按 2026-09-01 修订后的收窄票（token 裁决部分已由 U-01/U-02 承接，本票仅组件内代码修复）。
+- 对比度复算（U-02 同法）：气泡 6.29:1 双主题；引用卡标题 light #4F46E5 on #fff 6.29 / dark #818CF8 on #0d1117 6.34。
+
 ## [2026-09-02] - Task U-02 (#278): token 换血落地——分层画布 + dark token 达标 + Button 三档
 
 ### What was done:

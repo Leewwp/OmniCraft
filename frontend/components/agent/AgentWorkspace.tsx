@@ -572,7 +572,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
                   className={cn(
                     "max-w-[85%] whitespace-pre-wrap rounded-md px-3 py-2 text-sm",
                     message.role === "user"
-                      ? "ml-auto bg-accent text-white"
+                      ? "ml-auto bg-primary text-primary-foreground"
                       : "bg-canvas-subtle text-fg-default",
                   )}
                 >
