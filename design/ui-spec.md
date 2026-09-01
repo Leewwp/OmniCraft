@@ -20,15 +20,14 @@
 - Global Design Tokens
 - Global Interaction Patterns
 
-### Pages（50）
+### Pages（49）
 - Page: / 首页
 - Page: /recommend 推荐流
 - Page: /search 搜索页
 - Page: /ips IP 库
 - Page: /login 登录页
 - Page: /register 注册页
-- Page: /ip/[ipId] IP 详情页
-- Page: /ip/[ipId]/[category] IP 类目内容列表
+- Page: /ip/[ipId] IP 详情页（含类目就地切换，U-01 并入原独立类目页）
 - Page: /ip/[ipId]/discussions 讨论区列表
 - Page: /ip/[ipId]/discussions/[discussionId] 讨论详情
 - Page: /ip/[ipId]/discussions/new 发帖页
@@ -72,7 +71,7 @@
 - Page: /collections/[id] 收藏集详情（Task 122-124）
 - Page: /user/[userId]/collections 用户收藏集列表（Task 122-123）
 
-### Components（72）
+### Components（73）
 - Component: Button 与 Badge 共享动作原语
 - Component: Card 共享容器原语
 - Component: Form Controls 表单原语
@@ -86,6 +85,7 @@
 - Component: TagBadge
 - Component: IPCard
 - Component: IPCategoryTabs
+- Component: FilterPills 筛选药丸（U-01 新增，全站筛选形态基准）
 - Component: ContentDetail
 - Component: ContentDetailOverlay
 - Component: MediaGallery 媒体集画廊
@@ -155,8 +155,9 @@
 - **颜色 token**：使用 `design/design-system.md` 定义的 CSS 自定义属性，以 `--xxx` 格式引用（`--` 前缀的 CSS 自定义属性），使用时通过 `var()` 读取值：`--background`、`--foreground`、`--primary`、`--border` 等基础色，以及 `--canvas-default`、`--canvas-subtle`、`--border-default`、`--fg-muted`、`--accent-emphasis`、`--accent-subtle` 等自定义 token。标签颜色使用预设的 6 色体系 (blue/green/purple/orange/rose/sky)。所有颜色支持 light/dark 双模式，暗色模式通过根级 `.dark` 类自动切换。
 - **字体**：font-family: `--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif`，包含中文字体回退。等宽字体 `--font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace`。正文与标题只使用 12 / 14 / 16 / 20 / 24px 五档；紧凑指标数字例外须在组件章节登记。
 - **间距阶梯**：使用 4px 基线；卡片 12px、区块 16px、详情卡 20/24px、页面 gutter 16/24px、网格 gap 16px、区块间距 24/32px。
-- **圆角**：rounded-sm (3px) 小元素 / rounded-md (4px) 按钮/输入框 / rounded-lg (8px) 卡片/容器默认 / rounded-xl (12px) 大卡片 / rounded-full (9999px) 标签/药丸按钮。核心原则：统一圆角，`rounded-lg` (8px) 为默认，标签用 `rounded-full`。
-- **动效**：transition duration-150 ease-out（默认）；duration-300 ease-in-out（Modal/Sheet）
+- **圆角**：rounded-sm (3px) 小元素（checkbox）/ rounded-md (8px) 按钮/输入框（操作控件，与卡片同档，SP-12 U-01 起自 4px 提升）/ rounded-lg (8px) 卡片/容器默认 / rounded-xl (12px) 大卡片 / rounded-full (9999px) 筛选选择与信息标签（药丸）。核心原则：矩形=操作控件、药丸=选择/信息（形状语义见 design-system.md）。
+- **控件高度**：三档体系——紧凑 28px (`h-7`) / 常规 36px (`h-9`) / 表单与主 CTA 44-48px (`min-h-11`~`h-12`)；硬规则**同排控件同高**（SP-12 U-01 起生效，权威见 design-system.md「高度体系」）。
+- **动效**：transition duration-150 ease-out（默认）；duration-300 ease-in-out（Modal/Sheet）；`active:scale` 按压缩放仅限页面级主 CTA，hover 加深一档。
 - **层级**：静态卡片/面板使用 elevation 1，hover 使用 elevation 2，Dropdown/Drawer/Modal 使用 elevation 3；阴影必须配合 1px border，不得造成布局位移；`prefers-reduced-motion: reduce` 下禁用缩放、位移和脉冲。
 
 ## Global Interaction Patterns
@@ -170,9 +171,9 @@
 ## Component: Button 与 Badge 共享动作原语
 
 **视觉契约**
-- Button 使用 `rounded-md` (4px)、14px medium 字体和 1px 透明边框以稳定状态切换；default/outline/secondary/ghost/destructive/link 只消费既有语义 token，不引入任意色。
-- Primary hover 使用 `--accent-hover`；outline hover 使用 `--border-strong` + `--canvas-subtle`；destructive 使用 `--destructive`、`--border-destructive` 与既有白色前景 `--primary-foreground`，不得用未登记的红色常量。
-- 默认高度 32px，lg 36px；icon-only 在精细指针下按同档尺寸，在 coarse pointer 下保持 44px 目标。focus-visible 统一为 2px `--ring` + 2px background offset；disabled 保持 `opacity-50`、禁止交互且不触发 hover/active 位移。
+- Button 使用 `rounded-lg` (8px，SP-12 U-01 起与卡片同档)、14px medium 字体和 1px 透明边框以稳定状态切换；default/outline/secondary/ghost/destructive/link 只消费既有语义 token，不引入任意色。
+- Primary hover 使用 `--accent-hover`（dark 为 #4338CA，白字 7.90:1 ≥AA）；outline hover 使用 `--border-strong` + `--canvas-subtle`；destructive 使用 `--destructive`、`--border-destructive` 与既有白色前景 `--primary-foreground`，不得用未登记的红色常量。
+- 高度三档（SP-12 U-01 起）：紧凑 28px (`size="sm"`) / 常规 36px (`size` 缺省) / 表单与主 CTA 44px (`size="lg"`，`min-h-11`；48px 仅限页面 hero 主 CTA)；**同排控件同高**为硬规则，Button 的 size 档必须与所在行的输入框/下拉同档。icon-only 在精细指针下按同档尺寸，在 coarse pointer 下保持 44px 目标。focus-visible 统一为 2px `--ring` + 2px background offset；disabled 保持 `opacity-50`、禁止交互且不触发 hover/active 位移。
 - Badge 始终 `rounded-full`、12px medium、20px 高，无 elevation；可交互 Badge 仅做 150ms 颜色/边框过渡，focus-visible 与 Button 相同。
 
 **响应式与动效**
@@ -192,7 +193,8 @@
 **覆盖文件**: `checkbox.tsx`、`field.tsx`、`input.tsx`、`label.tsx`、`select.tsx`、`switch.tsx`、`textarea.tsx`
 
 **视觉契约**
-- Input/Select/Textarea 使用 `rounded-md` (4px)、1px `border-input`、`bg-background`、14px 正文；移动端输入文字保持 16px 以避免浏览器自动缩放，`md` 起恢复 14px。
+- Input/Select/Textarea 使用 `rounded-lg` (8px，SP-12 U-01 起与卡片同档)、1px `border-input`、`bg-background`、14px 正文；移动端输入文字保持 16px 以避免浏览器自动缩放，`md` 起恢复 14px。
+- 高度对齐控件三档：常规 36px；表单内取 44-48px 并与同排提交按钮同高（同排同高硬规则）。
 - hover（非 disabled）提升到 `border-strong`；focus-visible 使用 2px `--ring` + 2px background offset；invalid 使用 `border-destructive` + destructive ring，不以 placeholder 或颜色单独表达错误。
 - Label 为 14px medium；Field 间距使用 8px，hint/error 为 12px，error 保留 `role=alert`。
 - Checkbox 使用 16px 方形、`rounded-sm` (3px)、checked=`primary`；Switch 为 44×24px 药丸轨道，checked=`primary`、unchecked=`muted`，thumb 使用 elevation 1。两者沿用同一 focus/disabled 契约。
@@ -205,7 +207,7 @@
 
 **视觉契约**
 - Popup/Submenu 使用 `bg-popover` + 1px `border-border` + `rounded-lg` (8px) + elevation 3，不再用 ring 模拟边框或使用未登记的 shadow 档位。
-- Item 使用 `rounded-md` (4px)、14px、最小 32px 高；hover/focus 使用中性 `accent`，checked/selected 可使用 `accent-subtle` + `accent-emphasis`，destructive 只使用 destructive token。
+- Item 使用 `rounded-md`（--radius-md=8px，SP-12 U-01 起随操作控件档位）、14px、最小 32px 高；hover/focus 使用中性 `accent`，checked/selected 可使用 `accent-subtle` + `accent-emphasis`，destructive 只使用 destructive token。
 - Label/shortcut 使用 12px muted；separator 为 1px `border`。菜单宽度不得超过可用视口，长内容省略或纵向滚动。
 
 **动效与响应式**
@@ -617,63 +619,24 @@ interface FacetedSearchSidebarProps {
 - 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
 - **讨论区契约（#64 决策 19 / 审计问题 8 权威）**：compact 讨论区必须有「发起讨论」入口（有权限时），空讨论时也显示带 CTA 的空态；发帖动作受既有认证、封禁与信誉互动守卫约束，UI 不得承诺不可用的操作。讨论区列表页与发帖页已有自己的「发帖」入口，本节只约束 IP 详情页 compact 形态。
+- **类目内容就地切换（SP-12 U-01 定稿、U-03 落地；并入原独立页 `/ip/[ipId]/[category]` 规格）**：类目筛选为 FilterPills 形态（见 `Component: FilterPills`），点击就地刷新下方内容列表并同步 URL query（`router.replace`，不滚动不跳页）；SSR 首屏保留默认类目；旧路由 `/ip/[ipId]/[category]` redirect 至 query 参数形式；i18n 复用既有类目键。
 
 **视觉层级**
 - 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
-- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
-- 内容模块：带 1px 边框的卡片容器；IP 详情包含紧凑讨论区（DiscussionBoard compact）
+- 主容器：居中最大宽度，页面背景 `bg-background`（SP-12 分层画布：亮 #F5F5F5 画布 / 暗 #010409 画布，卡片浮于画布之上）
+- 内容模块：带 1px 边框的卡片容器（`bg-card`）；IP 详情包含紧凑讨论区（DiscussionBoard compact）
+
+**Hero 区控件规格（SP-12 U-01 新增）**
+- Hero 区（IP 封面/标题/标签/关注/粉丝数/讨论入口）内的可操作控件执行「同排控件同高」硬规则。
+- 「进入讨论区」与「关注」等 hero 主操作行：常规档 36px（`h-9`）或紧凑档 28px（`h-7`），**整行取同一档**；操作控件为 8px 圆角矩形按钮（操作语义，不用药丸）。
+- 内容标签（TagBadge）为药丸信息标签（h-5 级），与按钮同排时以 `items-center` 对齐，不参与同高约束但不得造成参差观感。
+- 类目筛选行（FilterPills）独立成行，44px 触控高度，与 hero 操作行之间保持区块间距（24/32px）。
 
 **核心组件清单**
 - `Header`
 - `ContentCard`
 - `MasonryGrid`
 - `DiscussionBoard`（compact：发起讨论入口 + 讨论列表摘要 + 空态 CTA）
-- `Footer`
-
-**布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
-
-**状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
-
-**响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
-
-**暗色模式适配**
-- 背景色 token: `canvas-default` -> `canvas-default.dark`
-- 边框色 token: `border-default` -> `border-default.dark`
-- 文字色 token: `foreground` -> `foreground.dark`
-- 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
-
-**交互细节**
-- 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
-- 破坏性操作必须 ConfirmModal 二次确认。
-- 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
-
-## Page: /ip/[ipId]/[category] IP 类目内容列表
-
-**Key Constraints**
-- 二创区页面/组件：依托于 ips.category 进行展示或跳转。
-- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
-
-**视觉层级**
-- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
-- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
-- 内容模块：带 1px 边框的卡片容器
-
-**核心组件清单**
-- `Header`
-- `ContentCard`
-- `MasonryGrid`
 - `Footer`
 
 **布局规范**
@@ -2316,6 +2279,53 @@ interface IPCategoryTabsProps {
 **关键交互**
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
 - 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+
+## Component: FilterPills 筛选药丸（SP-12 U-01 新增，全站筛选形态基准）
+
+> 覆盖文件：`frontend/components/ui/filter-pills.tsx`（U-03 从 /ips 现有实现提炼，归入 ui 原语目录）。
+> 权威：形态/选中态/动效 token 以 `design/design-system.md`「筛选选择控件」为唯一 token 权威，本节为组件规格。
+
+**Key Constraints**
+- 全站筛选/类目选择控件的唯一形态：药丸 `rounded-full`、44px 触控高度（`min-h-11`）、`aria-pressed` 表达选中。
+- 选中态全站唯一基准：`bg-accent-subtle` + `text-accent-emphasis` + 1px `border-accent-emphasis` + Check 图标（`h-3.5 w-3.5`）+ `font-semibold`；未选中：透明底/透明描边 + `text-muted-foreground`，hover `bg-muted` + `text-foreground`。零新 token。
+- 切换交互一律**就地切换 + URL query 同步**（`router.replace`，不滚动不跳页）；禁止整页跳转式筛选。
+- 操作按钮（提交/发布等）不得使用本组件形态（形状语义：矩形=操作、药丸=选择）。
+
+**Props 接口**
+```ts
+interface FilterPillsProps {
+  options: { value: string; label: string; count?: number }[];
+  value: string;
+  onChange: (value: string) => void;
+  ariaLabel: string;        // 容器 nav 的 aria-label（i18n）
+  className?: string;
+}
+```
+
+**布局规范**
+- 容器：`nav` + 横向 `overflow-x-auto`（溢出横向滚动，`scrollbar-width: none`，底部 `pb-1` 防裁切），项间 `gap-1`。
+- 每项：`inline-flex min-h-11 flex-shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-medium whitespace-nowrap`。
+- 移动端 (375px) 保持 44px 触控高度与横向滚动，不换行堆叠。
+
+**状态变体**
+- selected：见 Key Constraints 选中态基准（aria-pressed=true）。
+- default：透明底 + muted 文字。
+- hover：`bg-muted` + `text-foreground`，150ms 颜色过渡。
+- focus-visible：`ring-2 ring-ring`，与 Button 统一。
+- disabled/loading：整组 `opacity-50` 并保持当前选中态可见。
+
+**暗色模式适配**
+- 全部经 token 自动映射（accent-subtle/accent-emphasis dark 值）；dark `--accent-emphasis` #818CF8 对暗卡片 6.34:1 ≥AA（FIX-05 裁决）。
+
+**可访问性**
+- 容器 `nav` + `aria-label`；各项 `aria-pressed`；选中不得只靠颜色（Check 图标 + 描边 + 字重三线索）。
+- 键盘：Tab 逐项、Enter/Space 选中；横向滚动区域可用方向键滚动。
+
+**i18n key namespace**
+- 由接入方传入 options label（复用各页面既有类目/类型键，如 `home.*`）；本组件自身无常驻字符串，`ariaLabel` 必传。
+
+**收敛注记**
+- 既有筛选组件（ContentTypeFilter、IP 详情类目 tab 等）在 U-03/U-04 接入时收敛到本基准；收敛完成前不得新增偏离形态的筛选控件。
 
 ## Component: ContentDetail
 
