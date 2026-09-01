@@ -51,7 +51,7 @@
 2. **U-02（#278）** token 换血：表面分层 + dark token 达标（FIX-05/F-111 收口）+ Button 三档高度 ✅ 2026-09-02 完成（globals.css 两对画布 token + dark 三 token + radius-md 8px；Button/Input/Select 三档高度；15 处 bg-canvas-default 卡片面改 bg-card；verify-project.sh --full 全过；20 张亮暗×双断点截图 screenshots/u02-*；对比度复算全对 ≥4.5:1）——**第 1 段完成**（段边界 verify-project.sh --full 通过 2026-09-02）
 
 ### 第 2 段 Agent 行为基线（保当前 demo 正确，A-06 继承）
-3. **T18（#238）** 工作台气泡/引用卡代码修复（blocked_by #278 恰在此满足）
+3. **T18（#238）** 工作台气泡/引用卡代码修复（blocked_by #278 恰在此满足） ✅ 2026-09-02 完成（气泡 bg-accent+白→bg-primary+primary-foreground 双主题 6.29:1；引用卡经 U-02 token 已达标仅验证；双主题截图 t18-bubble-*）
 4. **T19（#239）** SSE 跨 chunk 行缓冲
 5. **T20（#240）** 429 文案 / 用量 / markdown / 配置 TTL
 
