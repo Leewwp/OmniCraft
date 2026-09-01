@@ -261,7 +261,7 @@ export function SeriesNav({ memberships, onNavigateInOverlay }: SeriesNavProps) 
   return (
     <nav
       aria-label={t("tabsLabel")}
-      className="rounded-lg border border-border-default bg-canvas-default p-4 shadow-none"
+      className="rounded-lg border border-border-default bg-card p-4 shadow-none"
     >
       {(visibleTabs.length > 1 || overflow.length > 0) && (
         <div className="mb-3 flex items-start gap-2">

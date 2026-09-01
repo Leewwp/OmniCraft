@@ -73,7 +73,7 @@ export function RelatedFanworks({
 
   const containerClass = embedded
     ? undefined
-    : "rounded-lg border border-border-default bg-canvas-default p-4";
+    : "rounded-lg border border-border-default bg-card p-4";
 
   if (status === "loading") {
     return (

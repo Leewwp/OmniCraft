@@ -202,7 +202,7 @@ export function MediaGallery({
     <section
       data-slot="detail-cover"
       className={cn(
-        "relative overflow-hidden rounded-lg border border-border-default bg-canvas-default",
+        "relative overflow-hidden rounded-lg border border-border-default bg-card",
         className,
       )}
     >

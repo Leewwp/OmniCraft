@@ -242,7 +242,7 @@ export default function StudioSeriesPage() {
       </div>
 
       {showCreate && (
-        <form onSubmit={(event) => void handleCreate(event)} className="space-y-3 rounded-lg border border-border-default bg-canvas-default p-4">
+        <form onSubmit={(event) => void handleCreate(event)} className="space-y-3 rounded-lg border border-border-default bg-card p-4">
           <div className="grid gap-3 md:grid-cols-2">
             <label className="space-y-1 text-sm text-fg-default"><span>{t("studio.series.form.title")}</span><Input value={createTitle} onChange={(event) => setCreateTitle(event.target.value)} required /></label>
             <label className="space-y-1 text-sm text-fg-default"><span>{t("studio.series.form.zone")}</span><select value={createZone} onChange={(event) => setCreateZone(event.target.value as SeriesZone)} className="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm"><option value="original">{t("series.detail.header.zoneOriginal")}</option><option value="fanwork">{t("series.detail.header.zoneFanwork")}</option></select></label>
@@ -256,7 +256,7 @@ export default function StudioSeriesPage() {
         <EmptyState icon={BookOpen} title={t("studio.series.empty.title")} description={t("studio.series.empty.description")} action={<Button type="button" onClick={() => setShowCreate(true)}>{t("studio.series.create")}</Button>} />
       ) : (
         <div className="grid min-h-[520px] grid-cols-1 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className={`${mobileDetailOpen ? "hidden lg:block" : "block"} rounded-lg border border-border-default bg-canvas-default p-2`} aria-label={t("studio.series.list.ariaLabel")}>
+          <aside className={`${mobileDetailOpen ? "hidden lg:block" : "block"} rounded-lg border border-border-default bg-card p-2`} aria-label={t("studio.series.list.ariaLabel")}>
             <div className="space-y-1">
               {series.map((item) => (
                 <button key={item.id} type="button" aria-current={selectedID === item.id ? "true" : undefined} disabled={Boolean(busyAction)} className={`flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm ${selectedID === item.id ? "bg-accent-subtle text-accent-emphasis" : "text-fg-muted hover:bg-canvas-subtle hover:text-fg-default"}`} onClick={() => { selectedIDRef.current = item.id; setSelectedID(item.id); setMobileDetailOpen(true); void loadDetail(item.id); }}>
@@ -266,7 +266,7 @@ export default function StudioSeriesPage() {
             </div>
           </aside>
 
-          <section className={`${mobileDetailOpen ? "block" : "hidden lg:block"} min-w-0 rounded-lg border border-border-default bg-canvas-default p-4`} aria-label={t("studio.series.detail.ariaLabel")}>
+          <section className={`${mobileDetailOpen ? "block" : "hidden lg:block"} min-w-0 rounded-lg border border-border-default bg-card p-4`} aria-label={t("studio.series.detail.ariaLabel")}>
             {detailLoading || !detail ? <Skeleton className="h-72 w-full" /> : (
               <>
                 <Button type="button" variant="ghost" className="mb-3 min-h-11 lg:hidden" onClick={() => setMobileDetailOpen(false)}><ArrowLeft className="h-4 w-4" />{t("studio.series.a11y.backToList")}</Button>

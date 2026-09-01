@@ -671,7 +671,7 @@ export function ContentDetailOverlay({
       ref={dialogRef}
       className={cn(
         "content-detail-overlay fixed inset-0 m-0 h-dvh w-full max-h-none max-w-none overflow-hidden border-0 bg-transparent p-0 text-foreground",
-        "lg:m-auto lg:h-[min(92dvh,900px)] lg:w-[min(1120px,calc(100%-2rem))] lg:rounded-lg lg:border lg:border-border lg:bg-canvas-default lg:shadow-[var(--elevation-3)]",
+        "lg:m-auto lg:h-[min(92dvh,900px)] lg:w-[min(1120px,calc(100%-2rem))] lg:rounded-lg lg:border lg:border-border lg:bg-card lg:shadow-[var(--elevation-3)]",
       )}
       aria-labelledby={titleId}
       data-closing={closing ? "true" : undefined}
@@ -686,11 +686,11 @@ export function ContentDetailOverlay({
       <div
         ref={shellRef}
         className={cn(
-          "grid h-full w-full grid-rows-[auto_minmax(0,1fr)] bg-canvas-default",
+          "grid h-full w-full grid-rows-[auto_minmax(0,1fr)] bg-card",
           closing && "pointer-events-none",
         )}
       >
-        <header className="flex items-center gap-2 border-b border-border bg-canvas-default px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] lg:px-4 lg:pb-2.5">
+        <header className="flex items-center gap-2 border-b border-border bg-card px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] lg:px-4 lg:pb-2.5">
           <button
             type="button"
             onClick={handleBack}
