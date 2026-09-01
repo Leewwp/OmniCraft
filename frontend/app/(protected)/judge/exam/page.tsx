@@ -92,7 +92,7 @@ export default function JudgeExamPage() {
         content_type: contentType,
         answers: Object.entries(answers).map(([qid, key]) => ({
           question_id: parseInt(qid),
-          answer_key: key,
+          answer: key,
         })),
       };
       const data = await api.post<{ record: { score: number; total: number; passed: boolean }; passed: boolean }>(
