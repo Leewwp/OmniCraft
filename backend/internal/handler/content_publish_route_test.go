@@ -64,7 +64,9 @@ func TestCreateContentRoutePublishesFanworkAndReadsBackSourceRelation(t *testing
 	}
 
 	getRec := httptest.NewRecorder()
+	// FIX-12+43：非 published 内容匿名不可读（旧测试匿名读回即泄露），作者视角读回。
 	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/contents/"+strconv.FormatInt(created.Content.ID, 10), nil)
+	getReq.Header.Set("Authorization", "Bearer "+token)
 	router.ServeHTTP(getRec, getReq)
 
 	if getRec.Code != http.StatusOK {
@@ -132,7 +134,9 @@ func TestCreateContentRoutePublishesFanworkWithSourceFanwork(t *testing.T) {
 	}
 
 	getRec := httptest.NewRecorder()
+	// FIX-12+43：非 published 内容匿名不可读（旧测试匿名读回即泄露），作者视角读回。
 	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/contents/"+strconv.FormatInt(created.Content.ID, 10), nil)
+	getReq.Header.Set("Authorization", "Bearer "+token)
 	router.ServeHTTP(getRec, getReq)
 
 	if getRec.Code != http.StatusOK {
@@ -509,7 +513,7 @@ func setupPublishRoute(t *testing.T, state publishRouteUserState) (*gin.Engine, 
 
 	router := gin.New()
 	router.POST("/api/v1/contents", authReq, publishGuard, handler.CreateContent)
-	router.GET("/api/v1/contents/:id", handler.GetContent)
+	router.GET("/api/v1/contents/:id", middleware.OptionalAuth(cfg, rdb, db), handler.GetContent)
 	router.PATCH("/api/v1/contents/:id", authReq, handler.UpdateContent)
 
 	now := time.Now()

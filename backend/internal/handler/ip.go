@@ -133,6 +133,7 @@ func (h *IPHandler) GetIPContents(c *gin.Context) {
 
 	items, total, err := h.contentRepo.ListContents(repository.ListContentsFilter{
 		IPID:     &id,
+		ViewerID: middleware.GetUserID(c),
 		Page:     page,
 		PageSize: pageSize,
 	})

@@ -38,10 +38,11 @@ func TestContentBanReasonVisibility(t *testing.T) {
 		return body
 	}
 
-	t.Run("anonymous view has no ban_reason", func(t *testing.T) {
-		body := getBody("")
-		c := body["content"].(map[string]any)
-		require.NotContains(t, c, "ban_reason")
+	t.Run("anonymous view is 404 (FIX-12+43), hence no ban_reason", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/contents/"+itoa64(content.ID), nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusNotFound, rec.Code)
 	})
 
 	t.Run("author view carries ban_reason", func(t *testing.T) {
@@ -56,11 +57,13 @@ func TestContentBanReasonVisibility(t *testing.T) {
 		require.Equal(t, "违反社区准则：搬运未署名", c["ban_reason"])
 	})
 
-	t.Run("other user view has no ban_reason", func(t *testing.T) {
+	t.Run("other user view is 404 (FIX-12+43)", func(t *testing.T) {
 		other := seedFavoritedStateUser(t, db, 30, "ban-other")
-		body := getBody(favoritedStateToken(t, cfg, other.ID, other.Role))
-		c := body["content"].(map[string]any)
-		require.NotContains(t, c, "ban_reason")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/contents/"+itoa64(content.ID), nil)
+		req.Header.Set("Authorization", "Bearer "+favoritedStateToken(t, cfg, other.ID, other.Role))
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusNotFound, rec.Code)
 	})
 }
 
