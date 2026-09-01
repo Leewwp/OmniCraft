@@ -3,6 +3,7 @@ package handler
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -253,8 +254,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	setRefreshCookie(c, h.cfg, tokens.RefreshToken)
 
 	h.displaySigner.DecorateUser(user)
+	userMap, err := h.selfUserPayload(user)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"user":         user,
+		"user":         userMap,
 		"capabilities": capabilities,
 		"tokens": gin.H{
 			"access_token": tokens.AccessToken,
@@ -306,6 +312,21 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	})
 }
 
+// selfUserPayload marshals the user (email hidden at model level, FIX-19a) and
+// re-attaches the email explicitly: login and /auth/me are self paths.
+func (h *AuthHandler) selfUserPayload(user *model.User) (map[string]any, error) {
+	payload, err := json.Marshal(user)
+	if err != nil {
+		return nil, err
+	}
+	userMap := map[string]any{}
+	if err := json.Unmarshal(payload, &userMap); err != nil {
+		return nil, err
+	}
+	userMap["email"] = user.Email
+	return userMap, nil
+}
+
 func (h *AuthHandler) Me(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
@@ -327,8 +348,13 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	}
 	c.Header("X-CSRF-Token", csrfToken)
 	h.displaySigner.DecorateUser(user)
+	userMap, err := h.selfUserPayload(user)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"user":         user,
+		"user":         userMap,
 		"csrf_token":   csrfToken,
 		"capabilities": capabilities,
 	})
