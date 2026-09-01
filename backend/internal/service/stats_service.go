@@ -43,7 +43,8 @@ func (s *StatsService) GetSummary(ctx context.Context) (StatsSummary, error) {
 	if err := s.db.WithContext(ctx).Table("users").Where("deleted_at IS NULL AND is_banned = false").Count(&summary.Users).Error; err != nil {
 		return summary, fmt.Errorf("count users: %w", err)
 	}
-	if err := s.db.WithContext(ctx).Table("ips").Where("status = ?", "published").Count(&summary.IPs).Error; err != nil {
+	// IP 状态词表是 pending/approved/rejected/banned（"published" 是内容状态词，曾使 Active IPs 恒 0）
+	if err := s.db.WithContext(ctx).Table("ips").Where("status = ?", "approved").Count(&summary.IPs).Error; err != nil {
 		return summary, fmt.Errorf("count ips: %w", err)
 	}
 	if err := s.db.WithContext(ctx).Table("content_items").Where("status = ? AND deleted_at IS NULL", "published").Count(&summary.Contents).Error; err != nil {
