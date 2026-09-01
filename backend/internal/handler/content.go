@@ -350,8 +350,19 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 		return
 	}
 
+	contentPayload := any(content)
+	// ban_reason 仅作者/admin 可见（FIX-16）：model 层不序列化，此处按 viewer 附加。
+	if userID == content.AuthorID || isAdminRole(c) {
+		m, err := contentWithBanReason(content)
+		if err != nil {
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
+			return
+		}
+		contentPayload = m
+	}
+
 	resp := gin.H{
-		"content":            content,
+		"content":            contentPayload,
 		"attachments":        attachments,
 		"tags":               tags,
 		"series_memberships": seriesMemberships,
@@ -752,4 +763,27 @@ func downloadURLTTL(cfg *config.Config, attachment model.ContentAttachment) time
 		ttlSec = 300
 	}
 	return time.Duration(ttlSec) * time.Second
+}
+
+// isAdminRole reports whether the caller holds the admin role.
+func isAdminRole(c *gin.Context) bool {
+	role, exists := c.Get(middleware.UserRoleKey)
+	return exists && role == "admin"
+}
+
+// contentWithBanReason marshals a content item (ban_reason hidden at model
+// level) and re-attaches the field explicitly for the author/admin view.
+func contentWithBanReason(content *model.ContentItem) (map[string]any, error) {
+	payload, err := json.Marshal(content)
+	if err != nil {
+		return nil, err
+	}
+	m := map[string]any{}
+	if err := json.Unmarshal(payload, &m); err != nil {
+		return nil, err
+	}
+	if content.BanReason != "" {
+		m["ban_reason"] = content.BanReason
+	}
+	return m, nil
 }

@@ -21,18 +21,21 @@ type ContentItem struct {
 	CoverWidth       *int         `gorm:"column:cover_width" json:"cover_width,omitempty"`
 	CoverHeight      *int         `gorm:"column:cover_height" json:"cover_height,omitempty"`
 	Status           string       `gorm:"size:20;not null;default:pending" json:"status"`
-	ViewCount        int64        `gorm:"not null;default:0" json:"view_count"`
-	LikeCount        int          `gorm:"not null;default:0" json:"like_count"`
-	DislikeCount     int          `gorm:"not null;default:0" json:"dislike_count"`
-	IsPublic         bool         `gorm:"not null;default:true" json:"is_public"`
-	AllowCopy        bool         `gorm:"not null;default:true" json:"allow_copy"`
-	AgentEnabled     bool         `gorm:"not null;default:false" json:"agent_enabled"`
-	IsPaid           bool         `gorm:"not null;default:false" json:"is_paid"`
-	Price            float64      `gorm:"type:numeric(10,2);default:0" json:"price"`
-	DownloadCount    int          `gorm:"not null;default:0" json:"download_count"`
-	DeletedAt        *time.Time   `gorm:"index" json:"deleted_at,omitempty"`
-	CreatedAt        time.Time    `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt        time.Time    `gorm:"autoUpdateTime" json:"updated_at"`
+	// BanReason 落库列（040 迁移已存在）；PII 敏感策略：model 不序列化，
+	// 仅作者/admin 视图在响应边界显式附加（FIX-16）。
+	BanReason     string     `gorm:"column:ban_reason" json:"-"`
+	ViewCount     int64      `gorm:"not null;default:0" json:"view_count"`
+	LikeCount     int        `gorm:"not null;default:0" json:"like_count"`
+	DislikeCount  int        `gorm:"not null;default:0" json:"dislike_count"`
+	IsPublic      bool       `gorm:"not null;default:true" json:"is_public"`
+	AllowCopy     bool       `gorm:"not null;default:true" json:"allow_copy"`
+	AgentEnabled  bool       `gorm:"not null;default:false" json:"agent_enabled"`
+	IsPaid        bool       `gorm:"not null;default:false" json:"is_paid"`
+	Price         float64    `gorm:"type:numeric(10,2);default:0" json:"price"`
+	DownloadCount int        `gorm:"not null;default:0" json:"download_count"`
+	DeletedAt     *time.Time `gorm:"index" json:"deleted_at,omitempty"`
+	CreatedAt     time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt     time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 func (ContentItem) TableName() string { return "content_items" }
