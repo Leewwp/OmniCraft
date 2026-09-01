@@ -2063,7 +2063,9 @@
       "noContent": "你还没有发布任何内容",
       "startCreating": "开始创作",
       "edit": "编辑",
-      "delete": "删除"
+      "delete": "删除",
+      "banned": "已封禁",
+      "banReason": "封禁原因"
     },
     "pr": {
       "title": "PR 管理",

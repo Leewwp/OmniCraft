@@ -59,11 +59,11 @@ export default function AdminContentsPage() {
     void loadContents();
   }, [loadContents]);
 
-  async function banContent(id: number) {
+  async function banContent(id: number, reason: string) {
     setBusy(true);
     setError("");
     try {
-      await api.post(`/api/v1/admin/contents/${id}/ban`, {});
+      await api.post(`/api/v1/admin/contents/${id}/ban`, { reason });
       setContents((prev) => prev.filter((c) => c.id !== id));
       setTotal((t) => t - 1);
     } catch (e) {
@@ -187,9 +187,9 @@ export default function AdminContentsPage() {
         confirmVariant="destructive"
         requireReason
         reasonLabel={t('admin.contents.banReason')}
-        onConfirm={async (_reason) => {
+        onConfirm={async (reason) => {
           if (confirmTarget) {
-            await banContent(confirmTarget.id);
+            await banContent(confirmTarget.id, reason);
           }
         }}
       />

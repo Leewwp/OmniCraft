@@ -283,13 +283,25 @@ func (h *UserHandler) GetMyContents(c *gin.Context) {
 		ContentType: contentType,
 		Page:        page,
 		PageSize:    pageSize,
+		// 作者自助列表包含全部状态（banned 行需携带 ban_reason 供作者知晓）。
+		IncludeAllStatuses: true,
 	})
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	h.displaySigner.DecorateContents(items)
-	c.JSON(http.StatusOK, gin.H{"contents": items, "total": total})
+	// 作者自助路径：附加 ban_reason（model 层不序列化，FIX-16）。
+	payloads := make([]map[string]any, 0, len(items))
+	for i := range items {
+		m, err := contentWithBanReason(&items[i])
+		if err != nil {
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
+			return
+		}
+		payloads = append(payloads, m)
+	}
+	c.JSON(http.StatusOK, gin.H{"contents": payloads, "total": total})
 }
 
 func (h *UserHandler) ChangePassword(c *gin.Context) {
