@@ -5,8 +5,11 @@ import (
 )
 
 type User struct {
-	ID                     int64      `gorm:"primaryKey;autoIncrement" json:"id"`
-	Email                  string     `gorm:"uniqueIndex;not null;size:255" json:"email"`
+	ID int64 `gorm:"primaryKey;autoIncrement" json:"id"`
+	// Email is PII: never serialized with the model (Author preloads, follower
+	// lists). Handlers that legitimately expose it (self view / auth me / admin)
+	// add it explicitly at the response boundary (FIX-19a).
+	Email                  string     `gorm:"uniqueIndex;not null;size:255" json:"-"`
 	PasswordHash           string     `gorm:"not null;size:255" json:"-"`
 	Username               string     `gorm:"uniqueIndex;not null;size:64" json:"username"`
 	AvatarURL              string     `gorm:"type:text" json:"avatar_url"`

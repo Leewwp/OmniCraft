@@ -88,7 +88,12 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 		return
 	}
 
-	resp := h.sanitizeUser(user)
+	var resp gin.H
+	if isSelfOrAdmin(c, id) {
+		resp = h.sanitizeUser(user)
+	} else {
+		resp = h.publicUser(user)
+	}
 	stats, followersCount := h.getUserStatsAndFollowers(id)
 	resp["stats"] = stats
 	resp["followers_count"] = followersCount
@@ -440,10 +445,20 @@ func (h *UserHandler) reviewAvatarImage(c *gin.Context, avatarURL string) error 
 		review, true, ErrAvatarBlocked, ErrAvatarModerationUnavailable)
 }
 
-// sanitizeUser projects a user for API responses. The avatar is a private-OSS
-// display URL, so it crosses the boundary signed (B-002); the caller's model
-// value is left untouched.
+// sanitizeUser projects a user for the SELF view (profile update response):
+// email and preferred_locale are included because the caller is the user.
+// The avatar is a private-OSS display URL, so it crosses the boundary signed
+// (B-002); the caller's model value is left untouched.
 func (h *UserHandler) sanitizeUser(u *model.User) gin.H {
+	resp := h.publicUser(u)
+	resp["email"] = u.Email
+	resp["preferred_locale"] = u.PreferredLocale
+	return resp
+}
+
+// publicUser projects a user for anonymous/other viewers: no email, no
+// preferred_locale (FIX-19a — registration email must never leak to others).
+func (h *UserHandler) publicUser(u *model.User) gin.H {
 	avatarURL := u.AvatarURL
 	if h.displaySigner != nil {
 		avatarURL = h.displaySigner.SignURL(avatarURL)
@@ -451,14 +466,22 @@ func (h *UserHandler) sanitizeUser(u *model.User) gin.H {
 	return gin.H{
 		"id":                    u.ID,
 		"username":              u.Username,
-		"email":                 u.Email,
 		"avatar_url":            avatarURL,
 		"bio":                   u.Bio,
 		"reputation":            u.Reputation,
-		"preferred_locale":      u.PreferredLocale,
 		"role":                  u.Role,
 		"is_banned":             u.IsBanned,
 		"accept_collab_invites": u.AcceptCollabInvites,
 		"created_at":            u.CreatedAt,
 	}
+}
+
+// isSelfOrAdmin reports whether the caller may see the self-tier projection
+// (email, preferred_locale) of the target user.
+func isSelfOrAdmin(c *gin.Context, targetID int64) bool {
+	if middleware.GetUserID(c) == targetID {
+		return true
+	}
+	role, exists := c.Get(middleware.UserRoleKey)
+	return exists && role == "admin"
 }
