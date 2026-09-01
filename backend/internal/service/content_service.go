@@ -666,7 +666,8 @@ func (s *ContentService) GetContent(id int64) (*model.ContentItem, error) {
 		return nil, ErrContentNotFound
 	}
 
-	if s.rdb != nil && s.cacheCfg != nil {
+	// 详情缓存仅缓存 published 公开视图（FIX-12+43）：受限内容不进缓存。
+	if s.rdb != nil && s.cacheCfg != nil && content.Status == "published" && content.IsPublic {
 		ttl := time.Duration(s.cacheCfg.ContentDetailTTL) * time.Second
 		redisclient.SetJSON(context.Background(), fmt.Sprintf("cache:content:%d", id), content, ttl)
 	}
@@ -694,6 +695,8 @@ func (s *ContentService) GetVisibleContent(id int64, viewerID int64) (*model.Con
 }
 
 func (s *ContentService) ListContents(filter repository.ListContentsFilter, viewerID int64) ([]model.ContentItem, int64, error) {
+	// 主列表统一 viewer-aware 可见性（FIX-12+43）。
+	filter.ViewerID = viewerID
 	// 推荐排序既服务 /original（zone=original）也服务 /recommend 推荐页
 	// （zone 为空，跨区请求由推荐管线/兜底决定可展示集合）。
 	if filter.Sort == "recommended" && (filter.Zone == "original" || filter.Zone == "") {
@@ -880,6 +883,9 @@ func (s *ContentService) getHotContents(ctx context.Context, filter repository.L
 			continue
 		}
 		if content.Status != "published" || content.DeletedAt != nil || !content.IsPublic {
+			continue
+		}
+		if content.Author.IsBanned || content.Author.DeletedAt != nil {
 			continue
 		}
 		if filter.Zone != "" && content.Zone != filter.Zone {

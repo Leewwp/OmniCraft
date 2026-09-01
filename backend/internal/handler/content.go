@@ -320,12 +320,22 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 		return
 	}
 
-	if err := h.contentRepo.IncrViewCount(id); err != nil {
-		slog.Error("failed to incr view count", "content_id", id, "error", err)
-	}
-	h.contentSvc.IncrViewCount(id)
-
 	userID := middleware.GetUserID(c)
+
+	// 内容可见性统一口径（FIX-12+43）：非 published / 私密 / 封禁作者的内容
+	// 仅作者与 admin 可读；判官读豁免钩子留待 T40（FIX-36d）。
+	if !contentVisibleToViewer(content, c) {
+		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+		return
+	}
+
+	// view_count 仅对 published 且非作者本人计数。
+	if content.Status == "published" && userID != content.AuthorID {
+		if err := h.contentRepo.IncrViewCount(id); err != nil {
+			slog.Error("failed to incr view count", "content_id", id, "error", err)
+		}
+		h.contentSvc.IncrViewCount(id)
+	}
 	if userID > 0 {
 		if err := h.browseHistoryRepo.Upsert(userID, id); err != nil {
 			slog.Error("failed to record browse history", "user_id", userID, "content_id", id, "error", err)
@@ -786,4 +796,21 @@ func contentWithBanReason(content *model.ContentItem) (map[string]any, error) {
 		m["ban_reason"] = content.BanReason
 	}
 	return m, nil
+}
+
+// contentVisibleToViewer enforces the unified content visibility rule at the
+// detail boundary: author and admin see everything; everyone else only
+// published, public content from a non-banned, non-deleted author.
+func contentVisibleToViewer(content *model.ContentItem, c *gin.Context) bool {
+	viewer := middleware.GetUserID(c)
+	if viewer != 0 && viewer == content.AuthorID {
+		return true
+	}
+	if role, exists := c.Get(middleware.UserRoleKey); exists && role == "admin" {
+		return true
+	}
+	return content.Status == "published" &&
+		content.IsPublic &&
+		!content.Author.IsBanned &&
+		content.Author.DeletedAt == nil
 }
