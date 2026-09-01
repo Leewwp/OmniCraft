@@ -70,7 +70,8 @@
     "notifications": "Notifications",
     "favorites": "My Favorites",
     "myOriginal": "My Originals",
-    "agent": "AI Agent"
+    "agent": "AI Agent",
+    "adminPanel": "Admin Console"
   },
   "auth": {
     "suspendedTitle": "Account suspended",
@@ -994,7 +995,8 @@
       "allActions": "All Actions",
       "noLogs": "No audit records",
       "noMetadata": "No metadata"
-    }
+    },
+    "navNotifications": "Notifications"
   },
   "social": {
     "like": "Like",
