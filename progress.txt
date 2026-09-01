@@ -1,3 +1,18 @@
+## [2026-09-02] - Task T19 (#239): Agent SSE 前端跨 chunk 行缓冲（FIX-44）
+
+### What was done:
+- frontend/lib/agent-stream.ts 读取循环改行缓冲：chunk 追加 buffer → 只处理含 \`\n\` 的完整行 → 残行留待下一 chunk → 流结束 flush 残留 buffer + decoder 尾字节；buffer 上限 2MiB，超限断流走 onError（防恶意超长行）。事件类型与 payload 结构零变化（前端消费方零改动）。
+- 新增 frontend/tests/agent-stream-chunking.test.ts 4 例：done 大事件（含中文长答案+引用数组）拆 3 chunk 完整解析、多字节 UTF-8 字符内跨界存活、流尾无换行残行仍送达、超长行（3MiB）断流报错。
+
+### Testing:
+- TDD：4 例新测试先跑确认 3 例红（跨 chunk 丢事件/UTF-8 界丢事件/超长行无报错），修复后全绿；`node scripts/run-tests.mjs unit` 26+468 全过无回归。
+- `npm run build`（Compiled successfully）+ `npm run lint` green。
+- 本地流式对话抽查（repo Playwright，agent flag 临时开启）：两次提问（"Blender 插件安装教程" / "郁金香拉花手法怎么练？"）均完整走通 SSE 管线——用户气泡、tool_status×5（已检索站内内容）、done 事件（本地无 AGENT_LLM_API_KEY，走 no_evidence 降级为预期路径）、conversation_id 回填（会话列表新增 对话#8/#9）全部渲染无丢失；截图 screenshots/t19-{stream-check,cited-check,deep-fullpage}*.png。带引用的回答路径依赖真实 LLM key（外部输入待补，与 A-04 DashScope 同类）；done 大事件分块解析由单测确定性覆盖。
+
+### Notes:
+- 车道 light（纯前端解析层 + 单测）。与 T20（usage 展示）共用事件管线——T20 执行时回归本票 4 例。
+- agent flag 已关回 false；临时脚本已删。
+
 ## [2026-09-02] - Task T18 (#238): Agent 气泡/引用卡对比度代码修复（FIX-05 收窄版）
 
 ### What was done:
