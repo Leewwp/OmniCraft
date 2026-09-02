@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Contract tests for scripts/ci/verify-workflows.sh against the real workflows
-# and mutated copies. Verifies stable job names, triggers (workflow_dispatch
-# only; push/pull_request forbidden), concurrency, minimal permissions,
-# SHA-pinned actions, lockfile cache keys, always-upload artifacts with 30-day
-# retention, absence of production secrets, and the Windows Tauri path-detected
-# job-level skip.
+# and mutated copies. Verifies stable job names, triggers (ci.yml: pull_request
+# + push to main + workflow_dispatch — public-repo standard hosted runners are
+# free, CI is the machine verification gate on every PR and main push;
+# tauri-ci.yml: dispatch-only so the slow Windows lane stays on-demand),
+# concurrency, minimal permissions, SHA-pinned actions, lockfile cache keys,
+# always-upload artifacts with 30-day retention, absence of production
+# secrets, and the Windows Tauri path-detected job-level skip.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -129,12 +131,20 @@ mutate "ci||__replace__||= success||!= success"
 expect_fail "project-gate must require success from every dependency"
 
 reset_fixtures
-mutate "ci||__replace__||\non:||\non:\n    pull_request:"
-expect_fail "ci.yml must not declare the pull_request trigger"
+mutate "ci||__strip__||pull_request"
+expect_fail "ci.yml must declare the pull_request trigger (PR verification loop)"
 
 reset_fixtures
-mutate "ci||__replace__||\non:||\non:\n    push:\n      branches: [main]"
-expect_fail "ci.yml must not declare the push trigger"
+mutate "ci||__strip__||push"
+expect_fail "ci.yml must declare the push trigger (post-merge main verification)"
+
+reset_fixtures
+mutate "ci||__replace__||    branches: [main]||    branches: [dev]"
+expect_fail "push trigger must fire for main only, not arbitrary branches"
+
+reset_fixtures
+mutate "ci||__replace__||  pull_request:||  pull_request:\n      paths: [ 'backend/**' ]"
+expect_fail "pull_request must run the full suite per PR; paths routing is deferred"
 
 reset_fixtures
 mutate "ci||__strip__||workflow_dispatch"
