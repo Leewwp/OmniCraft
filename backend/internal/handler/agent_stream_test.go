@@ -184,10 +184,18 @@ func TestAgentChatStreamEmitsTypedSSEEvents(t *testing.T) {
 	if answer, _ := doneData["answer"].(string); answer != "" {
 		t.Fatalf("no-evidence done answer = %q, want empty", answer)
 	}
-	for _, name := range names {
-		if name == "delta" {
-			t.Fatalf("no-evidence stream must not expose model delta: %v", names)
+	// A-02 truly streaming: model deltas stream live even on a turn whose
+	// final verdict is no_evidence; the done event stays the final word
+	// (empty answer), so the client replaces the streamed text.
+	var deltaText string
+	for _, e := range events {
+		if e.Name == "delta" {
+			delta, _ := e.Data["delta"].(string)
+			deltaText += delta
 		}
+	}
+	if deltaText != "hello world" {
+		t.Fatalf("live delta text = %q, want both provider chunks forwarded in order", deltaText)
 	}
 
 	// Reservation was consumed exactly once for this request.

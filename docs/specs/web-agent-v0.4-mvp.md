@@ -172,14 +172,29 @@ CREATE INDEX ON content_embeddings USING ivfflat (embedding vector_cosine_ops) W
   "suggested_description": "..."
 }
 
-// 产品化 POST /agent/chat/stream → typed SSE（示意）
+// 产品化 POST /agent/chat/stream → typed SSE（A-02 契约 v2，2026-09-02 定稿）
+// 事件集：start / think_delta / tool_status / delta / citation / usage / done / error
+// 真流式：正文与思考增量按 provider chunk 逐段转发（首事件延迟 ≈ 首 token 延迟），
+// 终态裁决在 done；done.message_id = 落库的 assistant 消息 id。
+event: start
+data: {"trace_id": "...", "conversation_id": 21, "answer_kind": "grounded_content"}
+event: think_delta
+data: {"delta": "思考增量片段（仅展示层：不进引用复验、不作为工具结果、不并入 answer）"}
+event: tool_status
+data: {"tool": {"name": "search_content", "args_summary": "像素风 游戏", "hits": 3, "status": "success", "duration_ms": 42}}
 event: delta
-data: {"text": "根据已检索内容..."}
+data: {"delta": "根据已检索内容..."}
 event: citation
-data: {"content_id": 123, "title": "...", "zone": "original"}
+data: {"citation": {"content_id": 123, "title": "...", "zone": "original"}}
+event: usage
+data: {"usage": {"prompt_tokens": 812, "completion_tokens": 240}}
 event: done
-data: {"trace_id": "...", "answer_kind": "grounded_content", "degraded": false}
+data: {"trace_id": "...", "conversation_id": 21, "message_id": 66, "answer_kind": "grounded_content", "answer": "最终裁决文本（no_evidence/degraded 时为空，客户端以 done 为准替换已流出正文）", "citations": [...], "tools": [...], "usage": {...}, "degraded": false}
+event: error
+data: {"error_code": "AGENT_PROVIDER_ERROR|AGENT_PROVIDER_TIMEOUT|STREAM_CANCELLED|AGENT_STORAGE_ERROR|AGENT_CONVERSATION_NOT_FOUND", "error_message": "安全文案，不含原始 Provider 错误"}
 ```
+
+**v2 语义要点**：① `<think>` 思考块由 provider 层分流为 think_delta 转发（MiniMax 标签式 + OpenAI 兼容 `reasoning_content` 通道），落库为独立 phase 标记行（`tool_calls={"phase":"think"}`）供历史回放，答案行不含 think；② no_evidence/degraded 轮的正文可能已流出——done 是最终裁决（answer 置空、answer_kind 标注），客户端据此替换显示（与 A-05 输出事后审核不阻塞流式同理）；③ 工具步骤事件携带服务端派生的参数摘要（检索词/content_id）与命中数、耗时，不含原始参数 JSON；④ T19 行缓冲语义（前端逐段累积 + 流尾 flush）继续成立——delta 事件形状不变，仅从「一次性全文」变为「逐段多次」。
 
 产品化目标不会新增让模型直接提交 draft/content/file ID 的写工具。内部 tool dispatcher、引用验证和限流语义见 §11.6、§11.9～§11.10；真实路由变更后由 doc-validator 刷新本节上方的自动路由表。
 

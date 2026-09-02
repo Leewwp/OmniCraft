@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -294,4 +295,60 @@ func firstUserMessage(history []model.AgentMessage) string {
 		}
 	}
 	return ""
+}
+
+// agentToolArgsSummary derives a display-safe one-line summary of a tool
+// call: the search query or the requested content id. Raw argument JSON is
+// never surfaced.
+func agentToolArgsSummary(name string, rawArgs json.RawMessage) string {
+	summary, err := deriveToolArgsSummary(name, rawArgs)
+	if err != nil {
+		return ""
+	}
+	return summary
+}
+
+func deriveToolArgsSummary(name string, rawArgs json.RawMessage) (string, error) {
+	switch name {
+	case ToolSearchContent:
+		var args struct {
+			Query string `json:"query"`
+		}
+		if err := json.Unmarshal(rawArgs, &args); err != nil {
+			return "", err
+		}
+		query := strings.TrimSpace(args.Query)
+		if query == "" {
+			return "", nil
+		}
+		return truncateChatRunes(query, 40), nil
+	default:
+		var args struct {
+			ContentID int64 `json:"content_id"`
+		}
+		if err := json.Unmarshal(rawArgs, &args); err != nil {
+			return "", err
+		}
+		if args.ContentID == 0 {
+			return "", nil
+		}
+		return fmt.Sprintf("content_id=%d", args.ContentID), nil
+	}
+}
+
+// agentToolHitCount counts the retrievable items a tool returned: the search
+// result count, or 1/0 for single-target lookups.
+func agentToolHitCount(outcome *AgentToolOutcome) int {
+	switch {
+	case len(outcome.Search) > 0:
+		return len(outcome.Search)
+	case outcome.Detail != nil:
+		return 1
+	case outcome.Guide != nil:
+		return 1
+	case outcome.Suggest != nil:
+		return 1
+	default:
+		return 0
+	}
 }
