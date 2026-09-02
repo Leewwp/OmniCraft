@@ -80,7 +80,7 @@ func (p *MiniMaxProvider) ChatStream(ctx context.Context, req ChatRequest, handl
 	// finish_reason ("stop" for plain answers, "tool_calls" for tool rounds)
 	// without sending a [DONE] sentinel, so the loop terminates on that chunk
 	// instead of demanding an OpenAI-style terminator.
-	stripper := newThinkStripper()
+	splitter := newThinkSplitter()
 	sawFinish := false
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
@@ -109,8 +109,10 @@ func (p *MiniMaxProvider) ChatStream(ctx context.Context, req ChatRequest, handl
 			continue
 		}
 		choice := chunk.Choices[0]
+		thinking, content := splitter.split(choice.Delta.Content)
 		delta := ChatDelta{
-			Content:   stripper.next(choice.Delta.Content),
+			Content:   content,
+			Thinking:  thinking,
 			ToolCalls: choice.Delta.ToolCalls,
 			Usage:     usageFromRaw(chunk.Usage.PromptTokens, chunk.Usage.CompletionTokens),
 			Done:      choice.FinishReason == "stop",
@@ -120,7 +122,9 @@ func (p *MiniMaxProvider) ChatStream(ctx context.Context, req ChatRequest, handl
 		}
 		if choice.FinishReason != "" {
 			sawFinish = true
-			delta.Content += stripper.flush()
+			flushThink, flushContent := splitter.splitFlush()
+			delta.Thinking += flushThink
+			delta.Content += flushContent
 		}
 		if err := handler(delta); err != nil {
 			return err
@@ -188,41 +192,45 @@ func (p *MiniMaxProvider) GetEmbedding(ctx context.Context, text string) (embedd
 const thinkOpen = "<think>"
 const thinkClose = "</think>"
 
-// thinkStripper removes MiniMax reasoning blocks. Blocks may span stream
-// chunks, so a stateful buffer keeps text inside an unclosed block until the
-// closing tag arrives or the stream ends.
-type thinkStripper struct {
+// thinkSplitter routes MiniMax reasoning blocks into a separate display-only
+// channel instead of discarding them. Blocks may span stream chunks, so a
+// stateful buffer keeps text inside an unclosed block until the closing tag
+// arrives or the stream ends.
+type thinkSplitter struct {
 	buf   string
 	depth int
 }
 
-func newThinkStripper() *thinkStripper { return &thinkStripper{} }
+func newThinkSplitter() *thinkSplitter { return &thinkSplitter{} }
 
-// next consumes one content chunk and returns only the text safe to emit
-// immediately; text inside an unclosed <think> block or a trailing fragment
-// that could start a tag in a later chunk stays buffered.
-func (s *thinkStripper) next(in string) string {
+// split consumes one content chunk and returns the (thinking, content)
+// increments that are safe to emit immediately; a trailing fragment that
+// could start a tag in a later chunk stays buffered.
+func (s *thinkSplitter) split(in string) (thinking, content string) {
 	if in == "" {
-		return ""
+		return "", ""
 	}
 	if s.buf == "" && s.depth == 0 && !strings.Contains(in, "<") {
-		return in
+		return "", in
 	}
 	s.buf += in
-	var out strings.Builder
+	var think strings.Builder
+	var body strings.Builder
 	for len(s.buf) > 0 {
 		openIdx := strings.Index(s.buf, thinkOpen)
 		closeIdx := strings.Index(s.buf, thinkClose)
 		if openIdx < 0 && closeIdx < 0 {
-			// No complete tag: emit everything except a trailing fragment that
-			// could begin a tag in a later chunk. While inside a reasoning block,
-			// discard the complete text instead of exposing it.
+			// No complete tag: route everything except a trailing fragment
+			// that could begin a tag in a later chunk.
 			cut := trailingTagPrefix(s.buf)
+			visible := s.buf[:len(s.buf)-cut]
 			if s.depth == 0 {
-				out.WriteString(s.buf[:len(s.buf)-cut])
+				body.WriteString(visible)
+			} else {
+				think.WriteString(visible)
 			}
 			s.buf = s.buf[len(s.buf)-cut:]
-			return out.String()
+			return think.String(), body.String()
 		}
 
 		nextIdx := openIdx
@@ -232,7 +240,9 @@ func (s *thinkStripper) next(in string) string {
 			nextTag = thinkClose
 		}
 		if s.depth == 0 {
-			out.WriteString(s.buf[:nextIdx])
+			body.WriteString(s.buf[:nextIdx])
+		} else {
+			think.WriteString(s.buf[:nextIdx])
 		}
 		s.buf = s.buf[nextIdx+len(nextTag):]
 		if nextTag == thinkOpen {
@@ -241,22 +251,28 @@ func (s *thinkStripper) next(in string) string {
 			s.depth--
 		}
 	}
-	return out.String()
+	return think.String(), body.String()
 }
 
-// flush returns anything left that is safe to emit at the end of a stream:
-// text before an unclosed think block, or a trailing partial open tag.
-func (s *thinkStripper) flush() string {
-	out := ""
+// splitFlush returns what is left at the end of a stream: body text before an
+// unclosed think block, and the unclosed reasoning remainder as thinking
+// (display-only, so an unterminated block is not lost).
+func (s *thinkSplitter) splitFlush() (thinking, content string) {
+	if len(s.buf) == 0 {
+		return "", ""
+	}
 	if s.depth == 0 {
-		out = s.buf
+		out := s.buf
 		if cut := trailingTagPrefix(s.buf); cut > 0 {
 			out = s.buf[:len(s.buf)-cut]
 		}
+		s.buf = ""
+		return "", out
 	}
+	think := s.buf
 	s.buf = ""
 	s.depth = 0
-	return out
+	return think, ""
 }
 
 // trailingTagPrefix returns the length of the longest suffix of s that is a
@@ -276,6 +292,8 @@ func trailingTagPrefix(s string) int {
 }
 
 func stripThink(content string) string {
-	s := newThinkStripper()
-	return s.next(content) + s.flush()
+	s := newThinkSplitter()
+	_, body := s.split(content)
+	_, flushBody := s.splitFlush()
+	return body + flushBody
 }

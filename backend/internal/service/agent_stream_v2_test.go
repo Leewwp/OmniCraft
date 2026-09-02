@@ -152,8 +152,9 @@ func TestAgentStreamV2DoneCarriesMessageID(t *testing.T) {
 	require.NotZero(t, done.MessageID, "done must carry the persisted assistant message id")
 
 	var answerRow model.AgentMessage
-	require.NoError(t, db.Where("role = ? AND (tool_calls IS NULL)", "assistant").First(&answerRow).Error)
-	require.Equal(t, answerRow.ID, done.MessageID)
+	require.NoError(t, db.First(&answerRow, done.MessageID).Error)
+	require.Equal(t, "assistant", answerRow.Role)
+	require.NotEqual(t, "think", answerRow.ToolCalls["phase"], "the answer row must not carry the think phase marker")
 }
 
 // A-02 semantic change (truly streaming replaces pseudo-streaming): on a
@@ -184,8 +185,7 @@ func TestAgentStreamV2NoEvidenceStreamsButDoneStaysEmpty(t *testing.T) {
 	require.Empty(t, done.Answer, "final verdict answer stays empty on no_evidence")
 	require.GreaterOrEqual(t, streamedDeltas, 1, "live deltas are allowed to stream before the verdict")
 
-	var persisted []model.AgentMessage
-	require.NoError(t, db.Where("role = ? AND (tool_calls IS NULL)", "assistant").Find(&persisted).Error)
-	require.Len(t, persisted, 1)
-	require.Empty(t, *persisted[0].Content, "persisted answer stays empty on no_evidence")
+	var persisted model.AgentMessage
+	require.NoError(t, db.First(&persisted, done.MessageID).Error)
+	require.Empty(t, *persisted.Content, "persisted answer stays empty on no_evidence")
 }

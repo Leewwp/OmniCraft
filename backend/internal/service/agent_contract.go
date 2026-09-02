@@ -85,7 +85,14 @@ func (c AgentCitation) MarshalJSON() ([]byte, error) {
 // AgentToolExecution reports one registered tool invocation without exposing
 // raw arguments or internal reasoning.
 type AgentToolExecution struct {
-	Name       string `json:"name"`
+	Name string `json:"name"`
+	// ArgsSummary is a server-derived, display-safe argument summary (for
+	// example the search query or the requested content id); raw tool
+	// argument JSON is never serialized into events.
+	ArgsSummary string `json:"args_summary,omitempty"`
+	// Hits counts how many retrievable items the tool returned (search
+	// result count, 1/0 for a detail lookup).
+	Hits       int    `json:"hits"`
 	Status     string `json:"status"`
 	DurationMs int64  `json:"duration_ms"`
 }

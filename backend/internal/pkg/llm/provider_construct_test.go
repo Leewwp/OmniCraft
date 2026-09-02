@@ -95,24 +95,9 @@ func TestOpenAICompatProvider_Chat_Serialization(t *testing.T) {
 		receivedBody, _ = io.ReadAll(r.Body)
 
 		resp := openAIResponse{
-			Choices: []struct {
-				Message struct {
-					Content   string     `json:"content"`
-					ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-				} `json:"message"`
-				Delta struct {
-					Content   string     `json:"content"`
-					ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-				} `json:"delta"`
-				FinishReason string `json:"finish_reason"`
-			}{
-				{
-					Message: struct {
-						Content   string     `json:"content"`
-						ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-					}{Content: "test response"},
-				},
-			},
+			Choices: []openAIChoice{{
+				Message: openAIMessage{Content: "test response"},
+			}},
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)

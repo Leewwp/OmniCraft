@@ -32,12 +32,14 @@ func TestThinkStripper(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newThinkStripper()
+			s := newThinkSplitter()
 			var got strings.Builder
 			for _, c := range tt.chunks {
-				got.WriteString(s.next(c))
+				_, content := s.split(c)
+				got.WriteString(content)
 			}
-			got.WriteString(s.flush())
+			_, flushContent := s.splitFlush()
+			got.WriteString(flushContent)
 			if got.String() != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, got.String())
 			}
@@ -143,24 +145,9 @@ func TestMiniMaxProvider_GetEmbedding_ErrorStatus(t *testing.T) {
 func TestMiniMaxProvider_Chat_StripsThink(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := openAIResponse{
-			Choices: []struct {
-				Message struct {
-					Content   string     `json:"content"`
-					ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-				} `json:"message"`
-				Delta struct {
-					Content   string     `json:"content"`
-					ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-				} `json:"delta"`
-				FinishReason string `json:"finish_reason"`
-			}{
-				{
-					Message: struct {
-						Content   string     `json:"content"`
-						ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-					}{Content: "<think>internal reasoning</think>visible answer"},
-				},
-			},
+			Choices: []openAIChoice{{
+				Message: openAIMessage{Content: "<think>internal reasoning</think>visible answer"},
+			}},
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)

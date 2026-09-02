@@ -23,7 +23,8 @@ func (w *agentSSEWriter) begin() {
 }
 
 // emit serializes one typed stream event and flushes it. The event name is
-// server-owned (start/tool_status/delta/citation/usage/done/error).
+// server-owned (A-02 v2 set: start/think_delta/tool_status/delta/citation/
+// usage/done/error).
 func (w *agentSSEWriter) emit(ev service.AgentStreamEvent) error {
 	w.c.SSEvent(string(ev.Type), ev)
 	w.c.Writer.Flush()

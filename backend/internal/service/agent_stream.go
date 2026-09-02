@@ -20,6 +20,7 @@ type AgentStreamEventType string
 
 const (
 	AgentEventStart      AgentStreamEventType = "start"
+	AgentEventThinkDelta AgentStreamEventType = "think_delta"
 	AgentEventToolStatus AgentStreamEventType = "tool_status"
 	AgentEventDelta      AgentStreamEventType = "delta"
 	AgentEventCitation   AgentStreamEventType = "citation"
@@ -43,12 +44,17 @@ const (
 )
 
 // AgentStreamEvent is the typed stream event. Only the fields relevant to the
-// event Type are populated; there are no raw prompts, tool arguments, internal
-// reasoning or Provider errors in any event.
+// event Type are populated; there are no raw prompts, raw tool arguments
+// (tool steps carry a server-derived summary only), internal reasoning
+// verbatim into non-think channels, or Provider errors in any event. The
+// think_delta event is display-only reasoning forwarded per A-02.
 type AgentStreamEvent struct {
 	Type           AgentStreamEventType `json:"type"`
 	TraceID        string               `json:"trace_id,omitempty"`
 	ConversationID int64                `json:"conversation_id,omitempty"`
+	// MessageID identifies the persisted assistant answer row; it is set on
+	// the done event so clients can reference the stored message.
+	MessageID     int64                `json:"message_id,omitempty"`
 	AnswerKind     AgentAnswerKind      `json:"answer_kind,omitempty"`
 	Delta          string               `json:"delta,omitempty"`
 	Tool           *AgentToolExecution  `json:"tool,omitempty"`
@@ -219,6 +225,7 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 	}
 
 	var answerBuf strings.Builder
+	var thinkingBuf strings.Builder
 	var executedTools []AgentToolExecution
 	citationCandidates := make([]AgentCitation, 0, policy.CitationMaxCount)
 	seenCitationKeys := make(map[string]bool, policy.CitationMaxCount)
@@ -241,8 +248,20 @@ loop:
 			if delta.Usage != nil {
 				lastUsage = delta.Usage
 			}
+			// A-02 real streaming: reasoning and body increments are
+			// forwarded as they arrive. Thinking is display-only; it never
+			// enters the answer buffer, tool results or citation revalidation.
+			if delta.Thinking != "" {
+				thinkingBuf.WriteString(delta.Thinking)
+				if err := handler(AgentStreamEvent{Type: AgentEventThinkDelta, Delta: delta.Thinking}); err != nil {
+					return err
+				}
+			}
 			if delta.Content != "" {
 				answerBuf.WriteString(delta.Content)
+				if err := handler(AgentStreamEvent{Type: AgentEventDelta, Delta: delta.Content}); err != nil {
+					return err
+				}
 			}
 			return nil
 		})
@@ -268,8 +287,14 @@ loop:
 
 		toolMessages := make([]llm.ChatMessage, 0, len(roundCalls))
 		for _, tc := range roundCalls {
+			toolStartedAt := time.Now()
 			outcome, toolErr := s.ExecuteTool(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments), userID, nil)
-			execution := AgentToolExecution{Name: tc.Function.Name, Status: AgentToolStatusSuccess}
+			execution := AgentToolExecution{
+				Name:        tc.Function.Name,
+				ArgsSummary: agentToolArgsSummary(tc.Function.Name, json.RawMessage(tc.Function.Arguments)),
+				Status:      AgentToolStatusSuccess,
+				DurationMs:  time.Since(toolStartedAt).Milliseconds(),
+			}
 			result := agentToolResult{OK: true}
 			if toolErr != nil {
 				execution.Status = AgentToolStatusError
@@ -285,6 +310,7 @@ loop:
 				}
 				traceAgentEvent(traceID, "tool_error", "tool", tc.Function.Name, "safe_error", result.Error)
 			} else if outcome != nil {
+				execution.Hits = agentToolHitCount(outcome)
 				result.Detail = outcome.Detail
 				result.Guide = outcome.Guide
 				result.Search = outcome.Search
@@ -380,12 +406,6 @@ loop:
 	citations := s.revalidateCitations(ctx, userID, citationCandidates, traceID)
 	kind := ClassifyGroundedAnswer(citations)
 	answer := answerBuf.String()
-	if kind == AgentAnswerGroundedContent && !degraded && answer != "" {
-		if err := handler(AgentStreamEvent{Type: AgentEventDelta, Delta: answer}); err != nil {
-			s.persistPartialTurn(conv.ID, answerBuf.String())
-			return err
-		}
-	}
 	for i := range citations {
 		if err := handler(AgentStreamEvent{Type: AgentEventCitation, Citation: &citations[i]}); err != nil {
 			s.persistPartialTurn(conv.ID, answerBuf.String())
@@ -405,20 +425,39 @@ loop:
 	if kind == AgentAnswerNoEvidence || degraded {
 		answer = ""
 	}
+	answerMessageID := int64(0)
 	if s.db != nil {
 		// The provider already finished; the client may disconnect at any
 		// moment, so the final answer persists on a detached bounded context.
 		storeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := s.db.WithContext(storeCtx).Create(&model.AgentMessage{
+		if think := thinkingBuf.String(); think != "" {
+			// A-02: the reasoning block persists as its own phase-marked row
+			// (tool_calls = {"phase":"think"}) ahead of the answer row, for
+			// history replay and audit; readers treat it as display-only.
+			if err := s.db.WithContext(storeCtx).Create(&model.AgentMessage{
+				ConversationID: conv.ID,
+				Role:           "assistant",
+				Content:        &think,
+				ToolCalls:      model.JSONMap{"phase": "think"},
+				CreatedAt:      time.Now(),
+			}).Error; err != nil {
+				cancel()
+				slog.Error("failed to persist agent thinking message", "error", err)
+				return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
+			}
+		}
+		answerRow := model.AgentMessage{
 			ConversationID: conv.ID,
 			Role:           "assistant",
 			Content:        &answer,
 			CreatedAt:      time.Now(),
-		}).Error; err != nil {
+		}
+		if err := s.db.WithContext(storeCtx).Create(&answerRow).Error; err != nil {
 			cancel()
 			slog.Error("failed to persist agent assistant message", "error", err)
 			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
 		}
+		answerMessageID = answerRow.ID
 		if err := s.db.WithContext(storeCtx).Model(conv).Update("updated_at", time.Now()).Error; err != nil {
 			cancel()
 			slog.Error("failed to update agent conversation timestamp", "error", err)
@@ -434,6 +473,7 @@ loop:
 		Type:           AgentEventDone,
 		TraceID:        traceID,
 		ConversationID: convID,
+		MessageID:      answerMessageID,
 		AnswerKind:     kind,
 		Answer:         answer,
 		Citations:      citations,

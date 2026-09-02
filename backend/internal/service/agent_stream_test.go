@@ -205,13 +205,11 @@ func TestAgentStreamModelToolIDsVisibilityCheckedAfterProviderCall(t *testing.T)
 	if provider.calls != 2 {
 		t.Fatalf("provider ChatStream calls = %d, want 2 (first round for tool call, second for answer)", provider.calls)
 	}
-	var toolSeen, citationSeen, deltaSeen bool
+	var toolSeen, citationSeen bool
 	doneKind := ""
 	doneAnswer := ""
 	for _, ev := range events {
 		switch ev.Type {
-		case AgentEventDelta:
-			deltaSeen = true
 		case AgentEventToolStatus:
 			toolSeen = true
 			if ev.Tool == nil {
@@ -234,9 +232,8 @@ func TestAgentStreamModelToolIDsVisibilityCheckedAfterProviderCall(t *testing.T)
 	if citationSeen {
 		t.Fatal("citations must not be emitted for forbidden content")
 	}
-	if deltaSeen {
-		t.Fatal("no-evidence answer must not emit model deltas")
-	}
+	// A-02: live model deltas may stream before the verdict; the done event
+	// keeps the final no_evidence semantics (empty answer).
 	if doneKind != "no_evidence" {
 		t.Fatalf("done answer_kind = %q, want no_evidence after forbidden tool result", doneKind)
 	}

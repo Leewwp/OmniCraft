@@ -72,6 +72,10 @@ type TokenUsage struct {
 
 type ChatDelta struct {
 	Content   string      `json:"content,omitempty"`
+	// Thinking carries a provider reasoning increment (display-only: the
+	// service forwards it as think_delta events; it never enters answers,
+	// tool results or citation revalidation).
+	Thinking  string      `json:"thinking,omitempty"`
 	ToolCalls []ToolCall  `json:"tool_calls,omitempty"`
 	Usage     *TokenUsage `json:"usage,omitempty"`
 	Done      bool        `json:"done"`

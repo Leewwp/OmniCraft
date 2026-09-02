@@ -73,19 +73,25 @@ type streamOptions struct {
 	IncludeUsage bool `json:"include_usage"`
 }
 
+// openAIMessage is the shared message/delta shape of the OpenAI-compatible
+// chat completion response.
+type openAIMessage struct {
+	Content   string     `json:"content"`
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+	// ReasoningContent is the OpenAI-compatible reasoning channel used by
+	// DeepSeek-R1/Qwen3-thinking style providers.
+	ReasoningContent string `json:"reasoning_content,omitempty"`
+}
+
+type openAIChoice struct {
+	Message      openAIMessage `json:"message"`
+	Delta        openAIMessage `json:"delta"`
+	FinishReason string        `json:"finish_reason"`
+}
+
 type openAIResponse struct {
-	Choices []struct {
-		Message struct {
-			Content   string     `json:"content"`
-			ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-		} `json:"message"`
-		Delta struct {
-			Content   string     `json:"content"`
-			ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-		} `json:"delta"`
-		FinishReason string `json:"finish_reason"`
-	} `json:"choices"`
-	Usage struct {
+	Choices []openAIChoice `json:"choices"`
+	Usage   struct {
 		PromptTokens     int `json:"prompt_tokens"`
 		CompletionTokens int `json:"completion_tokens"`
 	} `json:"usage"`
@@ -192,6 +198,7 @@ func (p *OpenAICompatProvider) ChatStream(ctx context.Context, req ChatRequest, 
 		}
 		delta := ChatDelta{
 			Content:   chunk.Choices[0].Delta.Content,
+			Thinking:  chunk.Choices[0].Delta.ReasoningContent,
 			ToolCalls: chunk.Choices[0].Delta.ToolCalls,
 			Usage:     usageFromRaw(chunk.Usage.PromptTokens, chunk.Usage.CompletionTokens),
 			Done:      chunk.Choices[0].FinishReason == "stop",
