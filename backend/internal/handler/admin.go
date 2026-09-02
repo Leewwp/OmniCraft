@@ -63,7 +63,7 @@ func NewAdminHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client, auditSv
 		dlqWorker = worker.NewDLQWorker(rdb)
 	}
 	return &AdminHandler{
-		ipSvc:         service.NewIPService(repository.NewIPRepository(db)),
+		ipSvc:         service.NewIPServiceWithInvalidation(repository.NewIPRepository(db), rdb),
 		contentRepo:   repository.NewContentRepository(db),
 		userRepo:      repository.NewUserRepository(db),
 		socialRepo:    repository.NewSocialRepository(db),

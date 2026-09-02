@@ -44,6 +44,13 @@ func NewIPServiceWithCache(ipRepo *repository.IPRepository, rdb *redis.Client, c
 	return &IPService{ipRepo: ipRepo, rdb: rdb, cacheCfg: cacheCfg}
 }
 
+// NewIPServiceWithInvalidation wires redis for cache invalidation only: the
+// service can drop cache:ip:* keys but never reads or writes them. Admin-side
+// listings must stay DB-fresh instead of joining the public list cache.
+func NewIPServiceWithInvalidation(ipRepo *repository.IPRepository, rdb *redis.Client) *IPService {
+	return &IPService{ipRepo: ipRepo, rdb: rdb}
+}
+
 func NewIPServiceWithReview(ipRepo *repository.IPRepository, rdb *redis.Client, cacheCfg *config.CacheConfig, reviewSvc *ReviewService) *IPService {
 	return &IPService{ipRepo: ipRepo, rdb: rdb, cacheCfg: cacheCfg, reviewSvc: reviewSvc}
 }
