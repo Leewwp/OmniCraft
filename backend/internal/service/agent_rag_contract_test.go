@@ -145,6 +145,11 @@ func seedCitationContractDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
+	// :memory: databases are per-connection; pin one connection so the async
+	// auto-title goroutine sees the same schema.
+	if sqlDB, dbErr := db.DB(); dbErr == nil {
+		sqlDB.SetMaxOpenConns(1)
+	}
 	require.NoError(t, db.AutoMigrate(
 		&model.User{}, &model.IP{}, &model.ContentItem{}, &model.ContentVersion{},
 		&model.RagChunk{}, &model.IndexProjectionStatus{}, &model.AgentConversation{}, &model.AgentMessage{},
@@ -228,7 +233,7 @@ func TestChatStreamEmitsExpandedCitationFromSearchResult(t *testing.T) {
 	svc.hybridRetriever = &contractRetriever{result: AgentRetrievalResult{Candidates: []AgentRetrievalCandidate{contractCandidate()}}}
 
 	var events []AgentStreamEvent
-	err := svc.ChatStream(context.Background(), 3, []llm.ChatMessage{{Role: "user", Content: "find this"}},
+	err := svc.ChatStream(context.Background(), 3, ChatTurnInput{Message: "find this"},
 		&ResolvedChatContext{Surface: model.AgentChatSurfaceSearch},
 		func(event AgentStreamEvent) error { events = append(events, event); return nil })
 	require.NoError(t, err)
@@ -255,7 +260,7 @@ func TestChatStreamDoesNotInventDetailCitationProvenance(t *testing.T) {
 	}})
 
 	var events []AgentStreamEvent
-	err := svc.ChatStream(context.Background(), 3, []llm.ChatMessage{{Role: "user", Content: "show details"}},
+	err := svc.ChatStream(context.Background(), 3, ChatTurnInput{Message: "show details"},
 		&ResolvedChatContext{Surface: model.AgentChatSurfaceSearch},
 		func(event AgentStreamEvent) error { events = append(events, event); return nil })
 	require.NoError(t, err)
@@ -283,7 +288,7 @@ func TestChatStreamKeepsDetailCitationSourceBoundToChunk(t *testing.T) {
 	svc.hybridRetriever = &contractRetriever{result: AgentRetrievalResult{Candidates: []AgentRetrievalCandidate{contractCandidate()}}}
 
 	var events []AgentStreamEvent
-	require.NoError(t, svc.ChatStream(context.Background(), 3, []llm.ChatMessage{{Role: "user", Content: "find this"}},
+	require.NoError(t, svc.ChatStream(context.Background(), 3, ChatTurnInput{Message: "find this"},
 		&ResolvedChatContext{Surface: model.AgentChatSurfaceSearch},
 		func(event AgentStreamEvent) error { events = append(events, event); return nil }))
 

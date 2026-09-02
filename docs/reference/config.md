@@ -12,6 +12,8 @@
 
 | 配置路径 | 类型 | 说明 |
 |----------|------|------|
+| `agent.chat_context_token_budget` | `int` | ChatContextTokenBudget caps the server-side assembled conversation
+history (estimated tokens; CJK-heavy so rune count... |
 | `agent.chat_max_context_messages` | `int` | ChatMaxContextMsgs |
 | `agent.citation_max_count` | `int` | CitationMaxCount |
 | `agent.conversation_list_limit` | `int` | ConversationListLimit |

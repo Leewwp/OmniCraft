@@ -318,6 +318,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		agent.POST("/chat/stream", agentHandler.ChatStream)
 		agent.GET("/conversations", agentHandler.ListConversations)
 		agent.GET("/conversations/:id", agentHandler.GetConversationMessages)
+		agent.PATCH("/conversations/:id", agentHandler.UpdateConversation)
 		agent.DELETE("/conversations/:id", agentHandler.DeleteConversation)
 	}
 

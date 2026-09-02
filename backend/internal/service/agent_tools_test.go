@@ -49,6 +49,11 @@ func seedAgentGroundingDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
 	}
+	// :memory: databases are per-connection; pinning one connection keeps the
+	// schema visible to the async auto-title goroutine and follow-up turns.
+	if sqlDB, dbErr := db.DB(); dbErr == nil {
+		sqlDB.SetMaxOpenConns(1)
+	}
 	if err := db.AutoMigrate(&model.User{}, &model.IP{}, &model.ContentItem{}, &model.AgentConversation{}, &model.AgentMessage{}, &model.ContentVersion{}, &model.RagChunk{}, &model.IndexProjectionStatus{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -312,7 +317,7 @@ func TestAgentGrounding(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveChatContext(visible): %v", err)
 		}
-		if err := svc.ChatStream(ctx, viewerID, []llm.ChatMessage{{Role: "user", Content: "tell me"}}, resolved, func(AgentStreamEvent) error { return nil }); err != nil {
+		if err := svc.ChatStream(ctx, viewerID, ChatTurnInput{Message: "tell me"}, resolved, func(AgentStreamEvent) error { return nil }); err != nil {
 			t.Fatalf("ChatStream(visible) err = %v", err)
 		}
 		if provider.streamCalls != beforeStream+1 {

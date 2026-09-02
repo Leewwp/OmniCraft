@@ -36,7 +36,7 @@ func TestAgentStreamProviderSeamAcceptsStreamingOnlyAdapter(t *testing.T) {
 	err := svc.ChatStream(
 		context.Background(),
 		1,
-		[]llm.ChatMessage{{Role: "user", Content: "hello"}},
+		ChatTurnInput{Message: "hello"},
 		&ResolvedChatContext{},
 		func(event AgentStreamEvent) error {
 			events = append(events, event)

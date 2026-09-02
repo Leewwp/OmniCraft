@@ -460,6 +460,7 @@ backend/
 | `PATCH` | `/api/v1/admin/feedback/:id` | adminFeedbackHandler.PatchFeedback |
 | `PATCH` | `/api/v1/admin/llm-configs/:id` | adminHandler.UpdateLLMConfig |
 | `PATCH` | `/api/v1/admin/reports/:id` | adminHandler.ResolveReport |
+| `PATCH` | `/api/v1/agent/conversations/:id` | agentHandler.UpdateConversation |
 | `PATCH` | `/api/v1/contents/:id` | contentHandler.UpdateContent |
 | `PATCH` | `/api/v1/dashboard/tag-suggestions/:id` | tagHandler.UpdateTagSuggestion |
 | `PATCH` | `/api/v1/discussions/:id/pin` | discHandler.PinDiscussion |

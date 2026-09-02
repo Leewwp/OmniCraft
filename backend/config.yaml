@@ -263,6 +263,7 @@ agent:
   chat_max_context_messages: 10
   conversation_list_limit: 50
   conversation_page_size: 20
+  chat_context_token_budget: 8000
 
 rate_limit:
   enabled: true

@@ -154,7 +154,7 @@ func runEvalCase(t *testing.T, tc agentEvalCase) (evalOutcome, *AgentService, *g
 		resolved := resolveEvalChatContext(t, svc, tc)
 		var events []AgentStreamEvent
 		streamErr := svc.ChatStream(context.Background(), evalViewerID,
-			[]llm.ChatMessage{{Role: "user", Content: tc.Query}}, resolved,
+			ChatTurnInput{Message: tc.Query}, resolved,
 			func(ev AgentStreamEvent) error { events = append(events, ev); return nil })
 		return deriveEvalOutcome(events, streamErr, provider), svc, db
 	}

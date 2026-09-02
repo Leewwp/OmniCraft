@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -293,12 +294,13 @@ func TestChatStreamHandlerRejectsOversizedMessages(t *testing.T) {
 	}
 	cfg := &config.Config{
 		Agent: config.AgentConfig{
-			WebAgentEnabled:     true,
-			MaxUserMessageChars: 8,
-			ChatMaxContextMsgs:  2,
-			MaxToolCallsPerTurn: 1,
-			MaxOutputTokens:     1200,
-			CitationMaxCount:    5,
+			WebAgentEnabled:        true,
+			MaxUserMessageChars:    8,
+			ChatMaxContextMsgs:     2,
+			ChatContextTokenBudget: 100000,
+			MaxToolCallsPerTurn:    1,
+			MaxOutputTokens:        1200,
+			CitationMaxCount:       5,
 		},
 	}
 	handler := &AgentHandler{
@@ -311,11 +313,7 @@ func TestChatStreamHandlerRejectsOversizedMessages(t *testing.T) {
 		handler.ChatStream(c)
 	})
 
-	body := bytes.NewBufferString(`{
-		"messages": [
-			{"role": "user", "content": "0123456789ABCDEF"}
-		]
-	}`)
+	body := bytes.NewBufferString(`{"message": "0123456789ABCDEF"}`)
 	req := httptest.NewRequest(http.MethodPost, "/agent/chat/stream", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -332,7 +330,12 @@ func TestChatStreamHandlerRejectsOversizedMessages(t *testing.T) {
 	}
 }
 
-func TestChatStreamHandlerFiltersRolesAndLimitsContextWindow(t *testing.T) {
+// TestChatStreamHandlerAssemblesServerSideContextWindow locks the A-01
+// server-side context assembly at the handler seam: the client sends only the
+// new message; the provider request is system + the stored conversation
+// history bounded by ChatMaxContextMsgs, and no client-authored role can leak
+// (there is no message array in the request body at all).
+func TestChatStreamHandlerAssemblesServerSideContextWindow(t *testing.T) {
 	provider := &recordingAgentHTTPProvider{
 		deltas: []llm.ChatDelta{{Content: "answer"}, {Done: true}},
 	}
@@ -340,19 +343,37 @@ func TestChatStreamHandlerFiltersRolesAndLimitsContextWindow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
 	}
+	// :memory: databases are per-connection; pin one connection so follow-up
+	// turns and the async title goroutine see the same schema.
+	if sqlDB, dbErr := db.DB(); dbErr == nil {
+		sqlDB.SetMaxOpenConns(1)
+	}
 	if err := db.AutoMigrate(&model.AgentConversation{}, &model.AgentMessage{}); err != nil {
 		t.Fatalf("migrate agent chat tables: %v", err)
 	}
+	// Seed an owner conversation with a long stored history.
+	conv := model.AgentConversation{UserID: 9, ContextType: "general"}
+	if err := db.Create(&conv).Error; err != nil {
+		t.Fatalf("seed conversation: %v", err)
+	}
+	seedRoles := []string{"user", "assistant"}
+	seedContents := []string{"old question", "old answer"}
+	for i := range seedRoles {
+		if err := db.Create(&model.AgentMessage{ConversationID: conv.ID, Role: seedRoles[i], Content: &seedContents[i]}).Error; err != nil {
+			t.Fatalf("seed message: %v", err)
+		}
+	}
 	cfg := &config.Config{
 		Agent: config.AgentConfig{
-			WebAgentEnabled:     true,
-			RateLimitPerMinute:  5,
-			RateLimitPerDay:     50,
-			MaxUserMessageChars: 64,
-			ChatMaxContextMsgs:  2,
-			MaxToolCallsPerTurn: 8,
-			MaxOutputTokens:     1200,
-			CitationMaxCount:    5,
+			WebAgentEnabled:        true,
+			RateLimitPerMinute:     5,
+			RateLimitPerDay:        50,
+			MaxUserMessageChars:    64,
+			ChatMaxContextMsgs:     2,
+			ChatContextTokenBudget: 100000,
+			MaxToolCallsPerTurn:    8,
+			MaxOutputTokens:        1200,
+			CitationMaxCount:       5,
 		},
 		RateLimit: config.RateLimitConfig{AgentWindowSec: 86400, AgentMinuteWindowSec: 60},
 	}
@@ -369,14 +390,7 @@ func TestChatStreamHandlerFiltersRolesAndLimitsContextWindow(t *testing.T) {
 		handler.ChatStream(c)
 	})
 
-	body := bytes.NewBufferString(`{
-		"messages": [
-			{"role": "system", "content": "drop-me"},
-			{"role": "assistant", "content": "old assistant"},
-			{"role": "user", "content": "1234567890"},
-			{"role": "user", "content": "tail"}
-		]
-	}`)
+	body := bytes.NewBufferString(`{"conversation_id": ` + strconv.FormatInt(conv.ID, 10) + `, "message": "tail"}`)
 	req := httptest.NewRequest(http.MethodPost, "/agent/chat/stream", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -385,23 +399,18 @@ func TestChatStreamHandlerFiltersRolesAndLimitsContextWindow(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
 	}
-	if len(provider.lastRequest.Messages) != 3 {
-		t.Fatalf("provider messages len = %d, want 3 (server-owned system prompt + 2 filtered user messages)", len(provider.lastRequest.Messages))
+	msgs := provider.lastRequest.Messages
+	if len(msgs) != 3 {
+		t.Fatalf("provider messages len = %d, want 3 (system + newest 2 history messages under the cap); got %#v", len(msgs), msgs)
 	}
-	if provider.lastRequest.Messages[0].Role != "system" {
-		t.Fatalf("first message = %#v, want server-owned system prompt", provider.lastRequest.Messages[0])
+	if msgs[0].Role != "system" {
+		t.Fatalf("first message = %#v, want server-owned system prompt", msgs[0])
 	}
-	if provider.lastRequest.Messages[1].Role != "user" || provider.lastRequest.Messages[1].Content != "1234567890" {
-		t.Fatalf("first forwarded message = %#v, want last context user message", provider.lastRequest.Messages[1])
+	if msgs[1].Role != "assistant" || msgs[1].Content != "old answer" {
+		t.Fatalf("first history message = %#v, want the stored assistant answer", msgs[1])
 	}
-	if provider.lastRequest.Messages[2].Role != "user" || provider.lastRequest.Messages[2].Content != "tail" {
-		t.Fatalf("second forwarded message = %#v, want last context message", provider.lastRequest.Messages[2])
-	}
-	clientRoles := provider.lastRequest.Messages[1:]
-	for _, msg := range clientRoles {
-		if msg.Role == "system" {
-			t.Fatalf("client-authored role leaked into provider request: %#v", clientRoles)
-		}
+	if msgs[2].Role != "user" || msgs[2].Content != "tail" {
+		t.Fatalf("last message = %#v, want the new turn message", msgs[2])
 	}
 }
 

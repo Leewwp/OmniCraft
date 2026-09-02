@@ -74,6 +74,7 @@ agent:
   upload_assist_max_file_mb: 10
   max_user_message_chars: 4000      # 用户消息最大字符数
   chat_max_context_messages: 10     # 对话上下文最大消息数
+  chat_context_token_budget: 8000   # 服务端上下文组装 token 预算（A-01，估算法：CJK 1 rune≈1 token）
   max_tool_calls_per_turn: 4        # 单轮工具调用上限（产品化计划新增）
   max_output_tokens: 1200           # 单轮最大输出 token（产品化计划新增）
   provider_timeout_sec: 30          # Provider 超时（产品化计划新增）
@@ -146,9 +147,12 @@ CREATE INDEX ON content_embeddings USING ivfflat (embedding vector_cosine_ops) W
 | `POST` | `/agent/search` | 自然语言搜索；产品化后结果/回答遵守 grounded citation 契约 |
 | `GET` | `/agent/usage-guide/:id?stream=true` | 当前同步/流式共用路径；产品化前必须加入 viewer-aware reload |
 | `POST` | `/agent/moderate/:id` | **待移除的普通用户旧入口**：当前可写 AI review，不得随 Web Agent 开启；审核仅保留在受权 admin/worker 链路 |
-| `POST` | `/agent/chat/stream` | 通用流式对话；产品化后使用 typed SSE events、server-owned surface 和可选 content ID |
-| `GET` | `/agent/conversations`、`/agent/conversations/:id` | 仅当前用户会话历史；只读请求不占 Provider 生成配额 |
+| `POST` | `/agent/chat/stream` | 通用流式对话；typed SSE events、server-owned surface 和可选 content ID。**A-01（2026-09-02）请求体硬切换**：`{conversation_id?, message, context?}`——首次省略 conversation_id 则服务端建会话并在 start/done 事件返回 id；续写由服务端按 token 预算组装上下文，客户端不再上传整段历史（旧 `{messages:[...]}` body 400 拒绝） |
+| `GET` | `/agent/conversations`、`/agent/conversations/:id` | 仅当前用户会话历史；只读请求不占 Provider 生成配额。列表排序（A-01）：置顶组 `pinned_at DESC`，其余 `updated_at DESC` |
+| `PATCH`（A-01 新增） | `/agent/conversations/:id` | owner-scoped 重命名（`{title}` ≤50 runes）与置顶/取消置顶（`{pinned: bool}`）；foreign/missing 均 404；`updated_at` 仅由聊天轮次推进 |
 | `DELETE`（产品化新增） | `/agent/conversations/:id` | owner-scoped 幂等清空当前会话/messages；missing/foreign 均 204，不删除脱敏 trace/聚合指标 |
+
+**会话模型（A-01，2026-09-02）**：`agent_conversations` 增 `title`（可空 VARCHAR(200)，首轮问答完成后异步生成摘要标题，失败回退首条用户消息截断 ≤50 runes；存量不回填，无 title 显示「未命名」）与 `pinned_at`（可空 TIMESTAMPTZ）；停止/失败保留会话与已流出的部分内容，删除仅发生在用户显式 DELETE（迁移 074）。
 
 **当前上传辅助请求与产品化 snapshot 约定**：
 

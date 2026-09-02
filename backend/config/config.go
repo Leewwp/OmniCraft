@@ -443,6 +443,10 @@ type AgentConfig struct {
 	ChatMaxContextMsgs    int    `mapstructure:"chat_max_context_messages"`
 	ConversationListLimit int    `mapstructure:"conversation_list_limit"`
 	ConversationPageSize  int    `mapstructure:"conversation_page_size"`
+	// ChatContextTokenBudget caps the server-side assembled conversation
+	// history (estimated tokens; CJK-heavy so rune count is a safe upper
+	// bound). The system prompt is always included outside this budget.
+	ChatContextTokenBudget int `mapstructure:"chat_context_token_budget"`
 }
 
 type CaptchaConfig struct {
@@ -1163,6 +1167,7 @@ func (c *Config) ValidateRelease() error {
 		requirePositiveInt(&errs, "agent.chat_max_context_messages", c.Agent.ChatMaxContextMsgs)
 		requirePositiveInt(&errs, "agent.conversation_list_limit", c.Agent.ConversationListLimit)
 		requirePositiveInt(&errs, "agent.conversation_page_size", c.Agent.ConversationPageSize)
+		requirePositiveInt(&errs, "agent.chat_context_token_budget", c.Agent.ChatContextTokenBudget)
 		requirePositiveInt(&errs, "rate_limit.agent_window_sec", c.RateLimit.AgentWindowSec)
 		requirePositiveInt(&errs, "rate_limit.agent_minute_window_sec", c.RateLimit.AgentMinuteWindowSec)
 		if c.Agent.ProviderMaxRetries < 0 {

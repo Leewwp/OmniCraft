@@ -3,12 +3,14 @@ package model
 import "time"
 
 type AgentConversation struct {
-	ID          int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID      int64     `gorm:"not null;index" json:"user_id"`
-	ContextType string    `gorm:"size:50;not null;default:''" json:"context_type"`
-	ContextID   *int64    `json:"context_id,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          int64      `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID      int64      `gorm:"not null;index" json:"user_id"`
+	ContextType string     `gorm:"size:50;not null;default:''" json:"context_type"`
+	ContextID   *int64     `json:"context_id,omitempty"`
+	Title       *string    `gorm:"size:200" json:"title,omitempty"`
+	PinnedAt    *time.Time `json:"pinned_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 type AgentMessage struct {
