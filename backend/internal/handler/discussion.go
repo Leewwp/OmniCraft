@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/response"
@@ -19,6 +20,7 @@ type DiscussionHandler struct {
 	socialRepo    *repository.SocialRepository
 	ipRepo        *repository.IPRepository
 	displaySigner *service.DisplayURLSigner
+	cfg           *config.Config
 }
 
 func NewDiscussionHandler(db *gorm.DB) *DiscussionHandler {
@@ -27,6 +29,18 @@ func NewDiscussionHandler(db *gorm.DB) *DiscussionHandler {
 		socialRepo: repository.NewSocialRepository(db),
 		ipRepo:     repository.NewIPRepository(db),
 	}
+}
+
+// SetConfig wires runtime config for the hot-sort decay parameter (#290).
+func (h *DiscussionHandler) SetConfig(cfg *config.Config) {
+	h.cfg = cfg
+}
+
+func (h *DiscussionHandler) hotDecayHours() float64 {
+	if h == nil || h.cfg == nil {
+		return 72
+	}
+	return h.cfg.Discussion.EffectiveHotDecayHours()
 }
 
 // SetDisplayURLSigner wires display URL signing for discussion/comment author
@@ -38,10 +52,12 @@ func (h *DiscussionHandler) SetDisplayURLSigner(signer *service.DisplayURLSigner
 func (h *DiscussionHandler) ListDiscussions(c *gin.Context) {
 	ipID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	sort := c.DefaultQuery("sort", "latest_reply")
+	query := c.Query("q")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 
-	discussions, total, err := h.discRepo.ListByIP(ipID, sort, page, pageSize)
+	decay := h.hotDecayHours()
+	discussions, total, err := h.discRepo.ListByIP(ipID, sort, query, decay, page, pageSize)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
@@ -126,23 +142,15 @@ func (h *DiscussionHandler) ReplyToDiscussion(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"comment": comment})
 }
 
+// PinDiscussion is admin-only (#290): the pin right moved from the IP creator
+// to system administrators so community self-governance cannot be abused by a
+// single point. The AdminRequired middleware enforces the role.
 func (h *DiscussionHandler) PinDiscussion(c *gin.Context) {
-	callerID := middleware.GetUserID(c)
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 
 	d, err := h.discRepo.GetByID(id)
 	if err != nil || d == nil {
 		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "discussion not found"})
-		return
-	}
-
-	var ipIDVal int64
-	if d.IPID != nil {
-		ipIDVal = *d.IPID
-	}
-	ip, _ := h.ipRepo.FindByID(ipIDVal)
-	if ip == nil || (ip.CreatorID == nil || *ip.CreatorID != callerID) {
-		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN"})
 		return
 	}
 

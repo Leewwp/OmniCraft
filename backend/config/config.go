@@ -58,6 +58,8 @@ type Config struct {
 	Limits         LimitsConfig         `mapstructure:"limits"`
 	Reputation     ReputationConfig     `mapstructure:"reputation"`
 	Judge          JudgeConfig          `mapstructure:"judge"`
+	IPProposal     IPProposalConfig     `mapstructure:"ip_proposal"`
+	Discussion     DiscussionConfig     `mapstructure:"discussion"`
 	Social         SocialConfig         `mapstructure:"social"`
 	Collaboration  CollaborationConfig  `mapstructure:"collaboration"`
 	BrowseHistory  BrowseHistoryConfig  `mapstructure:"browse_history"`
@@ -298,6 +300,49 @@ type JudgeConfig struct {
 	ExamPassRate     float64 `mapstructure:"exam_pass_rate"`
 	ErrorRateRevoke  float64 `mapstructure:"error_rate_revoke"`
 	ErrorRateWindow  int     `mapstructure:"error_rate_window"`
+}
+
+// IPProposalConfig carries the collaborative-governance proposal thresholds
+// (#290). Deliberately independent from JudgeConfig: proposals govern IP
+// profile edits by followers, judges arbitrate content violations.
+type IPProposalConfig struct {
+	MinVotes      int     `mapstructure:"min_votes"`
+	PassThreshold float64 `mapstructure:"pass_threshold"`
+	DeadlineDays  int     `mapstructure:"deadline_days"`
+}
+
+// DiscussionConfig carries discussion-list tuning. HotDecayHours feeds the
+// reply-count/age decay expression for the "hot" sort (#290).
+type DiscussionConfig struct {
+	HotDecayHours float64 `mapstructure:"hot_decay_hours"`
+}
+
+func (c IPProposalConfig) EffectiveMinVotes() int {
+	if c.MinVotes <= 0 {
+		return 10
+	}
+	return c.MinVotes
+}
+
+func (c IPProposalConfig) EffectivePassThreshold() float64 {
+	if c.PassThreshold <= 0 || c.PassThreshold > 1 {
+		return 0.6
+	}
+	return c.PassThreshold
+}
+
+func (c IPProposalConfig) EffectiveDeadlineDays() int {
+	if c.DeadlineDays <= 0 {
+		return 7
+	}
+	return c.DeadlineDays
+}
+
+func (c DiscussionConfig) EffectiveHotDecayHours() float64 {
+	if c.HotDecayHours <= 0 {
+		return 72
+	}
+	return c.HotDecayHours
 }
 
 type SocialConfig struct {

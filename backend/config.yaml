@@ -191,6 +191,14 @@ judge:
   error_rate_revoke: 0.50
   error_rate_window: 10
 
+ip_proposal:
+  min_votes: 10
+  pass_threshold: 0.60
+  deadline_days: 7
+
+discussion:
+  hot_decay_hours: 72
+
 social:
   report_auto_hide_rate: 0.10
   comment_fold_threshold: 0.30

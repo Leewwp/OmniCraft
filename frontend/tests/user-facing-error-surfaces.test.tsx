@@ -41,8 +41,6 @@ const rawErrorSurfaces = [
   "../app/(protected)/rehab/page.tsx",
   "../app/(protected)/settings/page.tsx",
   "../app/(protected)/settings/tag-groups/page.tsx",
-  "../app/(public)/ip/[ipId]/discussions/[discussionId]/page.tsx",
-  "../app/(public)/ip/[ipId]/discussions/page.tsx",
   "../components/agent/UploadAssistPanel.tsx",
   "../components/judge/VerdictDetail.tsx",
   "../components/social/CreatorSupportPanel.tsx",

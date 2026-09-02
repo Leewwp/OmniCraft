@@ -78,6 +78,7 @@ type ServiceContainer struct {
 	PRService           *service.PRService
 	VersionService      *service.VersionService
 	SearchService       *service.SearchService
+	IPProposalService   *service.IPProposalService
 	FeedbackService     *service.FeedbackService
 	AdminAuditService   *service.AdminAuditService
 	CollabInviteService *service.CollabInviteService
@@ -189,6 +190,12 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.PRService = service.NewPRService(c.PRRepo, c.VersionRepo, c.ContentRepo)
 	c.VersionService = service.NewVersionService(c.VersionRepo, c.ContentRepo)
 	c.SearchService = service.NewSearchService(c.SearchRepo, rdb)
+	c.IPProposalService = service.NewIPProposalService(
+		c.IPRepo, c.UserRepo, c.FollowRepo,
+		repository.NewIPProposalRepository(db), rdb, cfg,
+	)
+	c.IPProposalService.SetNotifier(c.NotificationService.Notify)
+	c.IPProposalService.SetReviewService(c.ReviewService)
 
 	uploadGrantTTL := 300
 	if cfg.Feedback.UploadGrantTTLSec > 0 {

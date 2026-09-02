@@ -2,11 +2,7 @@ import { getServerApiBase, getBrowserApiBase } from "@/lib/server-api";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslations } from 'next-intl/server';
-import { ContentCardData } from "@/components/content/ContentCard";
-import { IPDetail } from "@/components/ip/IPDetail";
-import { IPDetailContents } from "@/components/ip/IPDetailContents";
-import { RecordBrowseHistory } from "@/components/tracking/RecordBrowseHistory";
-import { normalizeContentList } from "@/lib/content";
+import { IPHubClient } from "@/components/ip/hub/IPHubClient";
 
 interface IPItem {
   id: number;
@@ -15,54 +11,26 @@ interface IPItem {
   category?: string;
   cover_url?: string;
   tags?: string[];
+  follower_count?: number;
+  is_following?: boolean;
 }
 
 interface IPResponse {
   ip?: IPItem;
-}
-
-interface ContentResponse {
-  contents?: ContentCardData[];
+  stats?: { follower_count?: number; discussion_count?: number; work_count?: number };
 }
 
 const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://omnicraft.com";
 
-
-async function fetchIP(apiBase: string, ipId: string): Promise<IPItem | null> {
+async function fetchIP(apiBase: string, ipId: string): Promise<IPResponse | null> {
   try {
     const res = await fetch(`${apiBase}/ips/${ipId}`, { cache: "no-store" });
     if (!res.ok) {
       return null;
     }
-    const data = (await res.json()) as IPResponse;
-    return data.ip || null;
+    return (await res.json()) as IPResponse;
   } catch {
     return null;
-  }
-}
-
-async function fetchContents(apiBase: string, ipId: string, sort: string, category: string) {
-  const params = new URLSearchParams({
-    ip_id: ipId,
-    zone: "fanwork",
-    sort,
-    time_range: "all",
-    page_size: "24",
-  });
-  if (category && category !== "all") {
-    params.set("content_type", category);
-  }
-  try {
-    const res = await fetch(`${apiBase}/contents?${params.toString()}`, {
-      cache: "no-store",
-    });
-    if (!res.ok) {
-      return [] as ContentCardData[];
-    }
-    const data = (await res.json()) as ContentResponse;
-    return normalizeContentList(data.contents);
-  } catch {
-    return [] as ContentCardData[];
   }
 }
 
@@ -74,7 +42,8 @@ export async function generateMetadata({
   const { ipId } = await params;
   const t = await getTranslations();
   const apiBase = getServerApiBase();
-  const ip = await fetchIP(apiBase, ipId);
+  const data = await fetchIP(apiBase, ipId);
+  const ip = data?.ip;
   if (!ip) {
     return { title: t('content.ipNotFound') };
   }
@@ -94,39 +63,26 @@ export async function generateMetadata({
   };
 }
 
+// /ip/[ipId] 贴吧式社区枢纽（#290）：单页三模块（分享/讨论/提案）+ IP 内搜索。
+// SSR 仅提供身份区与统计首屏；模块列表由 IPHubClient 客户端拉取。
 export default async function IPDetailPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ ipId: string }>;
-  searchParams: Promise<{ sort?: string; category?: string }>;
 }) {
   const { ipId } = await params;
-  const query = await searchParams;
-  const sort = query.sort || "hot";
-  const category = query.category || "all";
-
   const apiBase = getServerApiBase();
-  const [ip, contents] = await Promise.all([
-    fetchIP(apiBase, ipId),
-    fetchContents(apiBase, ipId, sort, category),
-  ]);
-
+  const data = await fetchIP(apiBase, ipId);
+  const ip = data?.ip;
   if (!ip) {
     notFound();
   }
 
-  return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6">
-      <RecordBrowseHistory contentType="ip" targetId={ip.id} />
-      <IPDetail ip={ip} />
-      <IPDetailContents
-        ipId={ip.id}
-        apiBase={getBrowserApiBase()}
-        initialContents={contents}
-        initialCategory={category}
-        initialSort={sort}
-      />
-    </div>
-  );
+  const stats = {
+    follower_count: data?.stats?.follower_count ?? ip.follower_count ?? 0,
+    discussion_count: data?.stats?.discussion_count ?? 0,
+    work_count: data?.stats?.work_count ?? 0,
+  };
+
+  return <IPHubClient ip={ip} stats={stats} apiBase={getBrowserApiBase()} />;
 }

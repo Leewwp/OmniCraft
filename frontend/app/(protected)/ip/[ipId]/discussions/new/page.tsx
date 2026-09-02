@@ -36,8 +36,9 @@ export default function NewDiscussionPage() {
         { title: title.trim(), body: body.trim() },
       );
       const discId = res.discussion?.id;
-      if (discId) router.push(`/ip/${ipId}/discussions/${discId}`);
-      else router.push(`/ip/${ipId}/discussions`);
+      // #290：讨论列表并入 /ip/[ipId] Hub 的 discussions tab（帖详情为浮层），
+      // 创建后直接回到该 tab，避免经旧路由多跳一次 301。
+      router.push(discId ? `/ip/${ipId}?tab=discussions&d=${discId}` : `/ip/${ipId}?tab=discussions`);
     } catch (e) {
       silentError(e, { component: 'NewDiscussionPage', action: 'handleSubmit' });
       setError(t(getUserFacingErrorKey(e)));

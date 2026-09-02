@@ -490,6 +490,50 @@
 | `is_current` | `BOOLEAN` | NOT NULL DEFAULT FALSE | is_current |
 | — | — | UNIQUE (`content_id`, `index_version`) | table constraint |
 
+### ip_profile_versions
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `ip_id` | `BIGINT` | NOT NULL -> ips.id | ip_id |
+| `proposal_id` | `BIGINT` | NOT NULL -> ip_proposals.id | proposal_id |
+| `snapshot` | `JSONB` | NOT NULL | snapshot |
+| `changes` | `JSONB` | NOT NULL | changes |
+| `yes_votes` | `INT` | NOT NULL DEFAULT 0 | yes_votes |
+| `no_votes` | `INT` | NOT NULL DEFAULT 0 | no_votes |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT now() | created_at |
+
+### ip_proposal_votes
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `proposal_id` | `BIGINT` | NOT NULL -> ip_proposals.id | proposal_id |
+| `voter_id` | `BIGINT` | NOT NULL -> users.id | voter_id |
+| `vote` | `VARCHAR(8)` | NOT NULL | vote |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT now() | created_at |
+| — | — | UNIQUE (`proposal_id`, `voter_id`) | table constraint |
+
+### ip_proposals
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `ip_id` | `BIGINT` | NOT NULL -> ips.id | ip_id |
+| `proposer_id` | `BIGINT` | NOT NULL -> users.id | proposer_id |
+| `status` | `VARCHAR(16)` | NOT NULL DEFAULT 'open' | status |
+| `description_change` | `TEXT` | - | description_change |
+| `cover_url_change` | `TEXT` | - | cover_url_change |
+| `tags_add` | `JSONB` | NOT NULL DEFAULT '[]' | tags_add |
+| `tags_remove` | `JSONB` | NOT NULL DEFAULT '[]' | tags_remove |
+| `moderation_state` | `VARCHAR(16)` | NOT NULL DEFAULT 'approved' | moderation_state |
+| `yes_votes` | `INT` | NOT NULL DEFAULT 0 | yes_votes |
+| `no_votes` | `INT` | NOT NULL DEFAULT 0 | no_votes |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT now() | created_at |
+| `deadline_at` | `TIMESTAMPTZ` | NOT NULL | deadline_at |
+| `closed_at` | `TIMESTAMPTZ` | - | closed_at |
+| `effective_at` | `TIMESTAMPTZ` | - | effective_at |
+
 ### ip_review_logs
 
 | 列名 | 类型 | 约束 | 说明 |

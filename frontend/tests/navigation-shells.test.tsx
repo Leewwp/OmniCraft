@@ -124,13 +124,13 @@ test("brand entry and page shells follow the unified page-shell width/gutter con
 });
 
 test("filter selected states share the colored pill contract with semantic state", async () => {
-  const [home, filterPills, originalPage, originalFeed, ips, ipDetailContents] = await Promise.all([
+  const [home, filterPills, originalPage, originalFeed, ips, ipShareTab] = await Promise.all([
     readFrontendSource("components/home/HomePageClient.tsx"),
     readFrontendSource("components/ui/filter-pills.tsx"),
     readFrontendSource("app/(public)/original/page.tsx"),
     readFrontendSource("components/original/OriginalFeedClient.tsx"),
     readFrontendSource("components/ip/IPBrowseClient.tsx"),
-    readFrontendSource("components/ip/IPDetailContents.tsx"),
+    readFrontendSource("components/ip/hub/IPShareTab.tsx"),
   ]);
 
   const pill = /border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold/;
@@ -150,10 +150,9 @@ test("filter selected states share the colored pill contract with semantic state
   assert.match(originalFeed, /<FilterPills/);
   assert.doesNotMatch(originalPage, /active\s*\?\s*"border-border bg-card/);
 
-  // IP surfaces consume the shared FilterPills for library + detail category filters.
+  // IP surfaces consume the shared FilterPills for library + hub share-tab filters.
   assert.match(ips, /<FilterPills/);
-  assert.match(ipDetailContents, /<FilterPills/);
-  assert.match(ipDetailContents, /router\.replace/);
+  assert.match(ipShareTab, /<FilterPills/);
 });
 
 function CollapseHarness() {

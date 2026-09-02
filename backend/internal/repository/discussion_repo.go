@@ -15,23 +15,48 @@ func NewDiscussionRepository(db *gorm.DB) *DiscussionRepository {
 	return &DiscussionRepository{db: db}
 }
 
-func (r *DiscussionRepository) ListByIP(ipID int64, sort string, page, pageSize int) ([]model.Discussion, int64, error) {
+// ListByIP returns one page of an IP's discussions. sort: latest_reply (默认)
+// / newest_post / most_replies / hot（log(回复数+1)/龄期衰减，#290）。
+// query（IP 内搜索）在标题/正文上做包含匹配；置顶帖在所有排序下优先。
+func (r *DiscussionRepository) ListByIP(ipID int64, sort, query string, hotDecayHours float64, page, pageSize int) ([]model.Discussion, int64, error) {
+	base := r.db.Model(&model.Discussion{}).Where("ip_id = ? AND status = ?", ipID, "published")
+	if query != "" {
+		like := "%" + query + "%"
+		base = base.Where("title LIKE ? OR body LIKE ?", like, like)
+	}
 	var total int64
-	r.db.Model(&model.Discussion{}).Where("ip_id = ?", ipID).Count(&total)
+	if err := base.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
 
-	q := r.db.Where("ip_id = ?", ipID)
+	q := base.Session(&gorm.Session{})
 	switch sort {
 	case "newest_post":
 		q = q.Order("is_pinned DESC, created_at DESC")
 	case "most_replies":
 		q = q.Order("is_pinned DESC, reply_count DESC")
+	case "hot":
+		// score = ln(reply_count+1) / (1 + age_hours / decay) —— 回复越多越热，
+		// 龄期按 config.discussion.hot_decay_hours 衰减；方言差异分别表达。
+		if hotDecayHours <= 0 {
+			hotDecayHours = 72
+		}
+		if r.db.Dialector.Name() == "sqlite" {
+			q = q.Order(fmt.Sprintf(
+				"is_pinned DESC, (ln(reply_count + 1) / (1 + ((strftime('%%s','now') - strftime('%%s', created_at)) / 3600.0) / %f)) DESC",
+				hotDecayHours))
+		} else {
+			q = q.Order(fmt.Sprintf(
+				"is_pinned DESC, (ln(reply_count + 1) / (1 + (EXTRACT(EPOCH FROM (now() - created_at)) / 3600.0) / %f)) DESC",
+				hotDecayHours))
+		}
 	default:
 		q = q.Order("is_pinned DESC, last_active_at DESC")
 	}
 
 	var discussions []model.Discussion
 	err := q.Preload("Author").
-		Offset((page-1)*pageSize).Limit(pageSize).
+		Offset((page - 1) * pageSize).Limit(pageSize).
 		Find(&discussions).Error
 	return discussions, total, err
 }
@@ -76,7 +101,7 @@ func (r *DiscussionRepository) SearchByKeyword(ipID int64, keyword string, page,
 	var discussions []model.Discussion
 	err := r.db.Where("ip_id = ? AND to_tsvector('simple', title || ' ' || body) @@ plainto_tsquery('simple', ?)", ipID, keyword).
 		Order("last_active_at DESC").
-		Offset((page-1)*pageSize).Limit(pageSize).
+		Offset((page - 1) * pageSize).Limit(pageSize).
 		Find(&discussions).Error
 	return discussions, err
 }
