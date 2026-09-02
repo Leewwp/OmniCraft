@@ -1,3 +1,20 @@
+## [2026-09-02] - Task #292: related-contents.test.tsx CI 不稳定修复（Phase 2 硬前置，light）
+
+### What was done:
+- **复现先行（任务书方法论）**：Docker `node:20-slim`（daocloud 镜像源）+ named volume 隔离 `frontend/node_modules` + 全新 `npm ci`，三轴命中 CI 环境。全套连跑 2 次绿后改单文件紧循环，**第 1 轮即红**，失败签名与 CI run 33646037393/33643480394 完全一致（`not ok - embedded related row`，`null == true`，栈定位 :251）。
+- **根因（两层叠加，埋点级实锤）**：①底层竞态——RTL render 的 React act 退出偶尔未冲刷 mock promise 微任务链，waitFor 首查看到 loading 中间态（组件行为本身正确，属测试对分阶段渲染的断言时机错误）；②放大器——`assert.equal(HTMLElement, null)` 失败时同步序列化挂满 React Fiber（循环引用 + _debugStack）的真实 DOM，**单次 ~1.9s**（埋点时间线：+139ms→+2047ms 事件循环整体冻结，nextTick/微任务/timeout0/心跳全断流），足以耗尽 waitFor 1s 超时并把重试循环变成必败；CI 354（empty branch）的失败即「立即断言 + 一次性 2s 序列化」。
+- **修复（纯测试侧，3 处 waitFor + 断言形式）**：双行用例等到 `related-fanworks` + `related-contents-similar` 两 slot 真实渲染；embedded 行用例等到 RF 行本身（非仅 block）；empty branch 把 block==null 折进 waitFor 且改 `assert.ok(!node)`（不触发深度序列化）。断言语义不变、更严；组件零改动；无 skip/无放宽。
+
+### Testing:
+- 复现环境（node:20/linux/npm ci 容器）：修复前 40 轮 2 红；修复后**单文件 100/100 绿 + 全套 ×3 全绿**（462 pass/0 fail 每轮）。
+- 本地（Node v26.7.0/既有 node_modules）：`npm run test:unit` 462 pass/0 fail/0 skipped（基线不降）；`lint`/`lint:ui`/`build` 全绿。
+- `bash scripts/ci/verify-workflows.tests.sh` 绿（CI 契约未误伤）。
+- 证据留档：宿主 `/tmp/omnicraft-related-contents-repro/`（single-1.log=红、run1/run2.log=绿基线）。
+
+### Notes:
+- 走 PR 路径实弹验证 Phase 1 刚启用的 pull_request 触发：分支 `fix/related-contents-flaky` → PR → CI 绿 → squash 合入（详见关票评论）。
+- 教训沉淀：node:test 下对 DOM 节点用 `assert.equal(node, null)` 属性能反模式（失败路径同步序列化 Fiber 树）；waitFor 回调内必须用 assert.ok/布尔形式。仓库内其他测试文件如有同型断言属潜在同类雷（本次未扫，属后续卫生项）。
+
 ## [2026-09-02] - Task CI-TRIGGER-P1: ci.yml 恢复 pull_request/push(main) 触发——CI 机器验证门 Phase 1 观察模式（light+TDD）
 
 ### What was done:
