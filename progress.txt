@@ -1,3 +1,17 @@
+## [2026-09-02] - 闲时任务 checkpoint 审核与文档收口（T09 后、T22 前）
+
+### What was done:
+- 对照 GitHub `#221~#290` 实际状态、`docs/working/2026-09-02-integrated-execution-order.md` 和闲时 goal 提示词：已完成票为 T01~T09、T18~T20、U-01~U-02，共 14 张 `CLOSED/COMPLETED`；T22（#242）仍 OPEN 且无阻塞，是下一张可执行票。
+- 修正总序 §1 的历史基线表述，新增当前 checkpoint：固定 goal 范围为 68 个执行单元，剩余 54 个；明确 T22 完成后先跑第 3 段 `verify-project.sh --full` 边界门。
+- 更新 `docs/working/2026-09-02-idle-goal-prompt.md`：固定 14/68 计数、T22 恢复点、14/45 摘要计数不作为完成依据，并要求关票显式使用 `--reason completed`。
+
+### Testing:
+- `gh issue list` 回读确认 14 张完成票均为 `CLOSED/COMPLETED`，#242 为 OPEN 且 `Blocked by: None`；未改动任何未完成票状态或范围。
+- `git diff --check` 通过；本轮仅修改总序、goal 提示词和 `progress.txt`，无业务代码、配置、迁移或 routes 改动。
+
+### Notes:
+- 本 checkpoint 不代表整合总序完成，也不代表 #204/#32 投递门槛完成；下一轮从 T22（#242）开始。
+
 ## [2026-09-02] - Task T09 (#229): 内容可见性统一收口（FIX-12+43，heavy）
 
 ### What was done:
