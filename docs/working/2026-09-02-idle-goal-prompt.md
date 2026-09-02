@@ -12,7 +12,7 @@
 
 本 goal 的执行范围固定为整合总序 §3 的执行单元：T01–T55（#221~#275）、U-01~U-05（#277~#281）、A-01~A-07（#283~#289）、#290 和语料 v2（CORPUS-01，#291，2026-09-02 修订新增）。语料 v2 的语料文本为外部输入（由独立闲时任务生成，见 `docs/working/2026-09-02-idle-corpus-goal-prompt.md`）：未就绪时按 §5 阻塞协议保持 OPEN 并跳过，禁止以 mock 语料入库，也不得自己执行语料生成。#276/#282 仅为协调父票，不实现、不关票。活计划中的 #204 面试证据收口、#32 简历与 live-demo 叙事、#207 已完成基线以及 #208 Phase 2 roadmap 不在本 goal 内；不得因它们仍为 OPEN 就擅自扩展范围。
 
-**当前 checkpoint（2026-09-02 晚间刷新，#290 已收口）**：固定范围共 69 个执行单元（含修订一新增的语料 v2 #291），已有 19 个以 GitHub `CLOSED/COMPLETED` 收口（T01~T09、T18~T20、T22、U-01~U-05、**#290 已于 6e6d77e 收口**——跨会话续作完成：后端提案域+Hub API+迁移 073、前端单页三模块 Hub、两阶段审查闭环（首轮双 REJECTED→全必须项修复→增量复审 DONE_WITH_CONCERNS+遗留 MINOR 修复）、全量门 EXIT=0、浏览器实测 15/15）。#290 的 heavy worktree `/Users/pp/Desktop/file/code/project/OmniCraft-heavy-290`（分支 codex/heavy/290，已 squash 合并）可清理（`git worktree remove`）。下一张可执行票 = 第 5 段 **T17（#237 收窄版：admin IP 状态变更缓存失效 + B-004 admin.go:66 折叠）**，随后第 6 段 A-01（#283）。恢复时照 §1 开场协议从 GitHub 票面状态对账即可，无在途未提交工作。本段仅为导航快照，计数与完成判断以总序 §1.1 与 GitHub 实际状态为准。
+**当前 checkpoint（2026-09-02 晚间刷新，#290 已收口）**：固定范围共 69 个执行单元（含修订一新增的语料 v2 #291），已有 19 个以 GitHub `CLOSED/COMPLETED` 收口（T01~T09、T18~T20、T22、U-01~U-05、**#290 已于 6e6d77e 收口**——跨会话续作完成：后端提案域+Hub API+迁移 073、前端单页三模块 Hub、两阶段审查闭环（首轮双 REJECTED→全必须项修复→增量复审 DONE_WITH_CONCERNS+遗留 MINOR 修复）、全量门 EXIT=0、浏览器实测 15/15）。#290 的 heavy worktree 已清理（分支 codex/heavy/290 已 squash 合并后 `git worktree remove`）。下一张可执行票 = 第 5 段 **T17（#237 收窄版：admin IP 状态变更缓存失效 + B-004 admin.go:66 折叠）**，随后第 6 段 A-01（#283）。恢复时照 §1 开场协议从 GitHub 票面状态对账即可，无在途未提交工作。本段仅为导航快照，计数与完成判断以总序 §1.1 与 GitHub 实际状态为准。
 
 ## 0. 角色与总原则
 
@@ -28,7 +28,7 @@
 1. `cd /Users/pp/Desktop/file/code/project/OmniCraft`；记录会话起点：`date +%s | tee /tmp/omnicraft-idle-start`（同时记住当前时刻；后续每次 `date +%s` 与起点相减即已运行秒数）。
 2. **跨任务心跳互斥**：读 `artifacts/idle-heartbeat.json`（整个 artifacts/ 已 gitignore）。若 `task=="corpus"` 且 now−ts < 1800 秒：开发任务有优先级，但语料任务只在波次边界让行——每 300 秒重读一次、最多等 30 分钟；心跳过期/消失则继续；30 分钟仍新鲜则输出「等待语料任务让行超时，本轮退出」并结束。无冲突则写入 `{"task":"dev","ts":<now>}`。
 3. 通读 `AGENTS.md` 的「活计划注册表」+ `docs/working/2026-09-02-integrated-execution-order.md` 全文。
-4. `git log --oneline -15` + `git status`：确认主工作树干净；若有未提交改动，先弄清来源再决定提交或报告，**禁止 git add . / git checkout -- 丢弃**。另检查 `/Users/pp/Desktop/file/code/project/OmniCraft-heavy-290`（若存在）：按上方 checkpoint 段对账 #290 在途状态。
+4. `git log --oneline -15` + `git status`：确认主工作树干净；若有未提交改动，先弄清来源再决定提交或报告，**禁止 git add . / git checkout -- 丢弃**。#290 worktree 已随收口清理，无需再检查。
 5. `gh -R Leewwp/OmniCraft issue list --state all --limit 100 --json number,state,stateReason,title` 只用于状态探测；候选顺序严格来自总序 §3，不按 API 返回顺序。逐票读取 `gh ... issue view <N>`，将票面别名（如 A-01/T18/U-02）解析为 GitHub 编号，并同时检查总序声明的跨批次前置。第一个“未完成、未阻塞、所有前置均为 `COMPLETED` 且位于当前段”的票才可执行；若文档与票面依赖不一致，先记录并暂停该票。若摘要计数与固定范围不一致，按总序 §1.1 重新计算，不修改范围来迁就摘要。
 6. 从该票继续。**禁止重做任何已完成的工作**；若发现已完成项存在回归，作为新缺陷记录（`progress.txt` + 总序备注），排入当前段末尾处理，不回滚整段。
 7. 每完成一票、每次提交、每个 heavy 里程碑后：刷新 `artifacts/idle-heartbeat.json` 的 ts，并对照 §4 检查已运行时长。
