@@ -10,7 +10,10 @@ import { cleanup, installDom, render, waitFor, fireEvent } from "./runtime-test-
 /* jsdom + real next/image can hang the node:test runner; stub the optimizer
    wrapper so ContentCard renders a plain <img> (same convention as
    source-linkage-components.test.tsx). */
-const requireForMocks = createRequire(import.meta.url) as NodeRequire;
+
+/* 渲染分阶段落定：block 在 similar loading 时即存在（且内部已含 end-hint），
+   related-fanworks 行要等 RF fetch 落定后才渲染。waitFor 必须等到断言所描述的
+   最终形态；在中间态上立即断言会与 CI（Node 20/linux）时序竞态。 */const requireForMocks = createRequire(import.meta.url) as NodeRequire;
 const Module = requireForMocks("node:module") as typeof import("node:module") & {
   _load: (request: string, parent: unknown, isMain: boolean) => unknown;
 };
@@ -200,6 +203,8 @@ test("block renders related row and similar row with dedupe: current content and
 
   await waitFor(() => {
     assert.ok(container.querySelector('[data-slot="related-contents"]'));
+    assert.ok(container.querySelector('[data-slot="related-fanworks"]'));
+    assert.ok(container.querySelector('[data-slot="related-contents-similar"]'));
   });
 
   const block = container.querySelector('[data-slot="related-contents"]');
@@ -245,6 +250,7 @@ test("embedded related row shares the single block container (no nested bordered
   );
   await waitFor(() => {
     assert.ok(container.querySelector('[data-slot="related-contents"]'));
+    assert.ok(container.querySelector('[data-slot="related-fanworks"]'));
   });
   const block = container.querySelector('[data-slot="related-contents"]');
   const relatedRow = block?.querySelector('[data-slot="related-fanworks"]');
@@ -276,8 +282,10 @@ test("empty branch: both rows empty renders only the end hint, no block titles",
   );
   await waitFor(() => {
     assert.ok(container.querySelector('[data-slot="related-contents-end"]'));
+    /* 不用 assert.equal(node, null)：失败时会同步序列化挂满 React Fiber 的 DOM，
+       单次 ~2s，足以耗尽 waitFor 1s 超时并把重试循环变成必败。 */
+    assert.ok(!container.querySelector('[data-slot="related-contents"]'));
   });
-  assert.equal(container.querySelector('[data-slot="related-contents"]'), null);
   const text = container.textContent ?? "";
   assert.match(text, /You've reached the end/);
   assert.doesNotMatch(text, /Related creations/);
