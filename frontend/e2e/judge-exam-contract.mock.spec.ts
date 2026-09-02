@@ -92,7 +92,7 @@ test("judge exam submit posts the backend answer contract (answer, not answer_ke
   }
   await page.getByRole("button", { name: "提交答案" }).click();
 
-  await expect(page.getByText("考核通过")).toBeVisible();
+  await expect(page.getByText("考核通过", { exact: true })).toBeVisible();
   expect(submitBodies).toHaveLength(1);
   const body = submitBodies[0] as {
     content_type: string;
