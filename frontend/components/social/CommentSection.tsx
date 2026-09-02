@@ -198,7 +198,7 @@ function CommentItem({
       <p className="mt-1 text-sm leading-relaxed text-foreground/90">{comment.body}</p>
       <div className="mt-2 flex items-center gap-2">
         <button
-          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-all duration-150 hover:text-foreground hover:bg-muted/50 active:scale-90 disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors duration-150 hover:text-foreground hover:bg-muted/50 disabled:opacity-50"
           disabled={reactionDisabled}
           onClick={() => onReact(comment.id, "like")}
         >
@@ -206,7 +206,7 @@ function CommentItem({
           {comment.like_count}
         </button>
         <button
-          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-all duration-150 hover:text-foreground hover:bg-muted/50 active:scale-90 disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors duration-150 hover:text-foreground hover:bg-muted/50 disabled:opacity-50"
           disabled={reactionDisabled}
           onClick={() => onReact(comment.id, "dislike")}
         >

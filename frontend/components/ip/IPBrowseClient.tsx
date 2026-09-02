@@ -160,7 +160,7 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
         {user && (
           <Link
             href="/studio/publish/ip"
-            className={buttonVariants({ className: "min-h-11 shrink-0 gap-1.5 rounded-full px-4" })}
+            className={buttonVariants({ className: "min-h-11 shrink-0 gap-1.5 px-4" })}
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             {t('ip.createIP')}
@@ -232,7 +232,7 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
               {user && (
                 <Link
                   href="/studio/publish/ip"
-                  className={buttonVariants({ variant: "outline", className: "min-h-11 gap-1.5 rounded-full px-4" })}
+                  className={buttonVariants({ variant: "outline", className: "min-h-11 gap-1.5 px-4" })}
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   {t('ip.createIP')}

@@ -43,7 +43,7 @@ export function TagBadge({
       className={cn(
         "inline-flex h-5 items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium outline-none select-none",
         colorStyles[color],
-        onClick && "cursor-pointer transition-[filter,box-shadow,transform] duration-150 hover:brightness-95 active:scale-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:active:scale-100",
+        onClick && "cursor-pointer transition-[filter,box-shadow] duration-150 hover:brightness-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className,
       )}
       onClick={onClick}

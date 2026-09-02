@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { MessageSquareText, Users } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
 import { FollowButton } from "@/components/social/FollowButton";
 import { DiscussionBoard } from "@/components/social/DiscussionBoard";
 import { TagBadge } from "@/components/ui/TagBadge";
@@ -71,27 +72,26 @@ export function IPDetail({ ip }: IPDetailProps) {
                 ))}
               </div>
             )}
+            {/* Hero 操作行：同排同高（紧凑档 28px），操作控件统一 8px 矩形（ui-spec §/ip/[ipId] Hero 区控件规格） */}
             <div className="flex flex-wrap items-center gap-3">
               <FollowButton
                 targetType="ip"
                 targetId={ip.id}
                 initialFollowing={ip.is_following ?? false}
               />
+              <Link
+                href={`/ip/${ip.id}/discussions`}
+                className={buttonVariants({ variant: "outline", size: "sm", className: "gap-1.5" })}
+              >
+                <MessageSquareText className="h-3.5 w-3.5" aria-hidden="true" />
+                {t('ip.enterDiscussion')}
+              </Link>
               {ip.follower_count != null && ip.follower_count > 0 && (
                 <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                   <Users className="h-3.5 w-3.5" />
                   {t('ip.followerCount', { count: ip.follower_count })}
                 </span>
               )}
-            </div>
-            <div>
-              <Link
-                href={`/ip/${ip.id}/discussions`}
-                className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs transition-all duration-150 hover:bg-muted hover:border-accent/20 active:scale-95"
-              >
-                <MessageSquareText className="h-3.5 w-3.5" />
-                {t('ip.enterDiscussion')}
-              </Link>
             </div>
           </div>
         </div>
