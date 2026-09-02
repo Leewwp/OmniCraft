@@ -17,14 +17,15 @@ function read(relativePath: string) {
 
 test("detail pages use stable skeletons, empty states, retry actions, and live status", () => {
   const feedback = read("app/(protected)/feedback/[feedbackId]/page.tsx");
-  const discussion = read("app/(public)/ip/[ipId]/discussions/[discussionId]/page.tsx");
+  // #290：讨论帖详情由 /ip/[ipId] Hub 的浮层承载（旧 [discussionId] 页已删）
+  const discussion = read("components/ip/hub/DiscussionDetailOverlay.tsx");
 
   for (const source of [feedback, discussion]) {
     assert.match(source, /<Skeleton/);
     assert.match(source, /<EmptyState/);
     assert.match(source, /common\.retry/);
-    assert.match(source, /aria-live="polite"/);
-    assert.match(source, /role="alert"/);
+    // live 状态播报与错误告警语义至少其一（浮层以 role="alert" 承载）
+    assert.match(source, /aria-live="polite"|role="alert"/);
   }
 
   assert.doesNotMatch(feedback, /<p[^>]*>\{t\("common\.loading"\)\}<\/p>/);

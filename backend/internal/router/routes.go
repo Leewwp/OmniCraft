@@ -88,6 +88,13 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		ips.POST("", authReq, ipHandler.CreateIP)
 		ips.GET("/:id", optAuth, ipHandler.GetIP)
 		ips.GET("/:id/contents", optAuth, ipHandler.GetIPContents)
+
+		proposalHandler := handler.NewIPProposalHandler(ctr.IPProposalService)
+		ips.GET("/:id/proposals", optAuth, proposalHandler.ListProposals)
+		ips.POST("/:id/proposals", authReq, proposalHandler.CreateProposal)
+		ips.GET("/:id/proposals/:proposalId", optAuth, proposalHandler.GetProposal)
+		ips.POST("/:id/proposals/:proposalId/vote", authReq, proposalHandler.SubmitVote)
+		ips.GET("/:id/versions", optAuth, proposalHandler.ListVersions)
 	}
 
 	prHandler := handler.NewPRHandlerWithService(ctr.PRService)
@@ -280,6 +287,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 
 	discHandler := handler.NewDiscussionHandler(db)
 	discHandler.SetDisplayURLSigner(displaySigner)
+	discHandler.SetConfig(cfg)
 	ips.GET("/:id/discussions", optAuth, discHandler.ListDiscussions)
 	ips.POST("/:id/discussions", authReq, discHandler.CreateDiscussion)
 	ips.GET("/:id/discussions/search", optAuth, discHandler.SearchDiscussions)
@@ -288,7 +296,8 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	{
 		discussions.GET("/:id", optAuth, discHandler.GetDiscussion)
 		discussions.POST("/:id/comments", authReq, commentsGuard, discHandler.ReplyToDiscussion)
-		discussions.PATCH("/:id/pin", authReq, discHandler.PinDiscussion)
+		// 置顶权收归系统管理员（#290 三轮裁决）；前端暂无入口，仅 API 操作
+		discussions.PATCH("/:id/pin", authReq, middleware.AdminRequired(), discHandler.PinDiscussion)
 	}
 
 	repHandler := handler.NewReputationHandler(db)

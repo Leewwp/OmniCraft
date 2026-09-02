@@ -1,3 +1,26 @@
+## [2026-09-02] - Task #290: IP 详情页贴吧式社区重构（heavy，第 5 段，跨会话续作收口）
+
+### What was done:
+- **续作恢复**：从前序中断会话（sess_751512dc）恢复，WIP commit 保护现场后对账——后端/前端主体已在，本轮补齐缺口并收口。
+- **规格缺口补齐**（对照 handoff §1 与 45 stories）：URL query 全量驱动（tab/type/sort/status/q + 301 落点 type 消费）；tab 计数随搜索命中收缩（三端点 total）+ 媒体 chips 计数分面（`GET /ips/:id/contents` 新增 `type_counts`，repo `CountByTypeWithinIP` TDD）；proposals 列表 q 过滤接线（此前 handler 丢弃 q）+ total/min_votes/pass_threshold 出参；`GetIPContents` 补 `zone=fanwork`（与 hubStats 口径一致）；讨论浮层浏览器后退关闭 + 发起讨论入口回归（旧页删除后丢失）；GLOSSARY「共治提案」新词条 + 「IP 详情页」改写；ui-spec 四章节改写（Hub 页 + 三处墓碑）。
+- **两阶段审查（均首轮 REJECTED）+ 全部必须项修复**：
+  - 规格侧：提案 AI 文本审核接线（`submitProposalForAIReview` 异步 fail-open，镜像 ip_service；container SetReviewService）；封面提案 UI（表单 URL 字段 + 卡片旧图→新图并排 160px）；简介行内 diff（红删绿增 + 8 行折叠）；双色进度条；通知深链 `?tab=proposals`（NotificationList/Dropdown ip_proposal_* 映射）。
+  - 质量侧：**BLOCKER** 301 泛型规则吞掉 `/discussions/new` 发帖页 → `:discussionId(\d+)` 数字约束 + `&d=` 深链；SubmitVote 原子自增（gorm.Expr）+ 采纳认领守卫（`WHERE status='open'` 抢占，方言中立防双采纳）；浮层 pushState 挂载一次（ref 持有 onClose）；提案列表分页 + myVote 批量（消 N+1）；gofmt 全部改动文件。
+  - 随票：唯一索引冲突→409 映射、缓存失效移到事务提交后、关注者扇出异步化、hubStats 错误日志、死写清理、GovernanceDisplay nil 安全、三 tab 过期响应守卫、hot 排序 repo 层测试（sqlite，Testing Decision 3）、迁移软删除豁免注记。
+- **e2e 重写**：`ip-detail-category.mock.spec.ts` → `ip-detail-hub.mock.spec.ts`（6 用例：tab 就地切换+URL+刷新还原、chips 计数、搜索收缩+后退、讨论浮层 Esc、提案卡门槛刻度、301 含数字约束回归锚点）；测试抓出并修复 301 规则顺序 bug（discussions 被泛型 :category 抢先匹配）与 stub CORS（credentials 模式 ACAO 回显 + 预检 204 无 body + Allow-Headers 回显）。
+
+### Testing:
+- 后端：`go build/vet/test ./...`（26 包）两轮全绿；新增 `TestListProposalsQueryFiltersAndTotal`、`TestCountByTypeWithinIP`、`TestListByIPHotSortPinnedFirstAndSearch`（TDD 先红后绿）。
+- 前端：tsc ✅、单测 462/462 ✅、生产 build ✅、mock 契约 81/81 ✅（全量门 `verify-project.sh --full` EXIT=0）。
+- 浏览器实测（真实后端 + 迁移 073 + 专用验证账号 hub验证员 rep=40）：15/15 步通过——身份区/计数、筛选就地+URL、搜索空态+后退、发起讨论入口、登录、提案创建、未关注投票→页内一键关注解锁→投票锁定、门槛刻度 1/10（后端 config 出参）；截图 7 张 `screenshots/hub-{light-1440-share,light-1440-search-empty,light-1440-proposals-loggedout,dark-1440-share,light-375-share,proposal-follow-hint,proposal-voted}.png`。
+- 增量复审（fix commits 3b6afc2/24f2d00）：**DONE_WITH_CONCERNS**——6 项必须修复全部 RESOLVED、无回归（SubmitVote 认领守卫方案被评估为与行锁等价且 sqlite 兼容理由成立）；两个遗留 MINOR（新测试文件 gofmt、409 唯一冲突字符串回退死分支）已在合并前顺手修复（gofmt + isUniqueViolationError 镜像 collection_repo 先例）。
+
+### Notes:
+- **MVP 记录偏差**（规格审查员裁定可接受）：新提案通知走 NotificationService.Notify 逐关注者扇出（异步、真实 user_id、Redis Stream→worker 落库），非票面「outbox 新事件」——规模化前建议迁 outbox 单事件。
+- 未随票（复审建议级）：改动历史时间线 diff 出参（Snapshot/Changes 仍不出参）、列表 error/empty 态区分、取关后 hub 统计漂移、Hub 列表分页 UI（当前单页 24/30）。
+- 运行环境陷阱：worktree 需 `npm ci`（Turbopack 拒绝跨目录 node_modules 符号链接）；主 checkout 的陈旧 dev server 占 3000 导致首轮浏览器验证打旧页面；后端 9091 观测端口被陈旧实例占用会令启动失败。
+- 计数：69 执行单元中 19 个完成（+1 = #290）；下一票 T17（#237 收窄版，同域紧随）。
+
 ## [2026-09-02] - 闲时中断诊断 + 两份闲时 goal 提示词落盘（v1.1 加固 + 语料生成）
 
 ### What was done:

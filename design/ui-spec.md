@@ -611,157 +611,77 @@ interface FacetedSearchSidebarProps {
 - 破坏性操作必须 ConfirmModal 二次确认。
 - 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
 
-## Page: /ip/[ipId] IP 详情页
+## Page: /ip/[ipId] IP 详情页（贴吧式社区枢纽，#290 重构）
 
 **Key Constraints**
-- 二创区页面/组件：依托于 ips.category 进行展示或跳转。
+- 单页 query 驱动：`/ip/[ipId]?tab=share|discussions|proposals&type=&sort=&status=&q=&d=`；tab/筛选就地切换（`router.replace`，不滚动不跳页），搜索 `?q=` 走 history push 可后退；刷新/分享链接/后退均还原状态；词表外的参数值回落默认。
+- 三模块页内切换：内容分享（媒体类型 FilterPills + 四排序 newest/hot/most_views/best_rated + OverlayMasonryGrid 作品卡）/ 讨论区（四排序 latest_reply/newest_post/most_replies/hot + 置顶标识 + 「发起讨论」入口）/ 提案投票（四状态筛选 open/adopted/rejected/history + 提案卡 + 发起表单 + 未关注引导）。
+- IP 内搜索：回车或失焦提交（输入过程不即时过滤）；搜索后停留在当前三模块结构，各 tab 内过滤同关键词；tab 计数与媒体类型 chips 计数随命中数收缩，清空搜索还原全量；当前 tab 无命中 → EmptyState「未找到与「q」相关的内容」。
+- 内容分享 tab 只收该 IP 的二创（zone=fanwork）；作品卡复用内容详情浮层（`Component: ContentDetailOverlay`）。
+- 讨论帖详情为页内浮层（DiscussionDetailOverlay）：标题/正文/作者 + 回帖；Esc、浏览器后退、点遮罩或 X 关闭；加载失败呈现 role="alert" + 重试。
+- 共治提案卡片：字段级 diff（简介文本块 / 封面 URL / 标签 +绿 −红 chips）+ 赞成/反对双色进度条 + 门槛刻度（取自后端 config，禁止前端硬编码）+ 剩余天数 + 投票按钮；已投显示所投选择并锁按钮；未关注者投票被拒（PROPOSAL_NOT_ELIGIBLE）→ 页内「关注后可参与共治投票」面板一键关注原地解锁。
+- 头部身份区：封面/名称/类目/简介/TagBadge 标签 + 关注数/讨论数/作品数三统计 + FollowButton（min-w-[104px] 固定宽度防 hover 抖动）；统计随搜索命中收缩展示。
+- 旧子路由 301 收敛：`/ip/[ipId]/[category]` → `?tab=share&type=<category>`；`/ip/[ipId]/discussions*` → `?tab=discussions`。
 - ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
-- 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
+- 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画；SSR 只提供身份区与统计首屏，模块列表客户端拉取。
 - 绝无 box-shadow（Indigo 扁平风），使用 1px border。
-- **讨论区契约（#64 决策 19 / 审计问题 8 权威）**：compact 讨论区必须有「发起讨论」入口（有权限时），空讨论时也显示带 CTA 的空态；发帖动作受既有认证、封禁与信誉互动守卫约束，UI 不得承诺不可用的操作。讨论区列表页与发帖页已有自己的「发帖」入口，本节只约束 IP 详情页 compact 形态。
-- **类目内容就地切换（SP-12 U-01 定稿、U-03 落地；并入原独立页 `/ip/[ipId]/[category]` 规格）**：类目筛选为 FilterPills 形态（见 `Component: FilterPills`），点击就地刷新下方内容列表并同步 URL query（`router.replace`，不滚动不跳页）；SSR 首屏保留默认类目；旧路由 `/ip/[ipId]/[category]` redirect 至 query 参数形式；i18n 复用既有类目键。
+- 信誉分 < 3：发帖/投票等互动受既有信誉守卫约束（服务端为准，UI 以服务端错误码呈现引导）。
 
 **视觉层级**
 - 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
 - 主容器：居中最大宽度，页面背景 `bg-background`（SP-12 分层画布：亮 #F5F5F5 画布 / 暗 #010409 画布，卡片浮于画布之上）
-- 内容模块：带 1px 边框的卡片容器（`bg-card`）；IP 详情包含紧凑讨论区（DiscussionBoard compact）
+- 身份区卡片：封面（208px 宽 / h-36）+ 名称/类目/简介/标签/统计/关注按钮；`bg-card` + 1px border
+- 粘性工具行（sticky top-[52px]）：搜索框（药丸形态输入）+ 三模块 tab（药丸 + 计数徽标）；背景 `bg-canvas-default` + 底边框
 
-**Hero 区控件规格（SP-12 U-01 新增）**
-- Hero 区（IP 封面/标题/标签/关注/粉丝数/讨论入口）内的可操作控件执行「同排控件同高」硬规则。
-- 「进入讨论区」与「关注」等 hero 主操作行：常规档 36px（`h-9`）或紧凑档 28px（`h-7`），**整行取同一档**；操作控件为 8px 圆角矩形按钮（操作语义，不用药丸）。
-- 内容标签（TagBadge）为药丸信息标签（h-5 级），与按钮同排时以 `items-center` 对齐，不参与同高约束但不得造成参差观感。
-- 类目筛选行（FilterPills）独立成行，44px 触控高度，与 hero 操作行之间保持区块间距（24/32px）。
+**控件规格（SP-12 精修方向延续）**
+- 三模块 tab 与筛选药丸：FilterPills 形态（见 `Component: FilterPills`）；tab 触控高度三档制中取 36/44px 档；选中态 = accent-subtle 底 + accent-emphasis 字 + 描边。
+- 搜索框：rounded-full 输入（信息输入类，非操作按钮），min-h-9；清空 X 按钮内嵌右侧。
+- 讨论卡/提案卡：8px 圆角矩形卡片容器，hover 边框 accent 化（150ms）。
+- Hero 操作行（关注按钮）：矩形操作控件，min-w-[104px] 固定宽度，同排同高。
 
 **核心组件清单**
-- `Header`
-- `ContentCard`
-- `MasonryGrid`
-- `DiscussionBoard`（compact：发起讨论入口 + 讨论列表摘要 + 空态 CTA）
-- `Footer`
+- `IPHubClient`（身份区 + 粘性搜索/tab 行 + 三模块编排）
+- `IPShareTab` / `IPDiscussionsTab` / `IPProposalsTab`
+- `DiscussionDetailOverlay`（#290 新增：讨论帖详情浮层）
+- `OverlayMasonryGrid`（作品卡网格，source="ip-page"；页面禁止直接使用裸 MasonryGrid）
+- `FilterPills`、`SortSelect`、`TagBadge`、`FollowButton`、`EmptyState`、`Skeleton`
 
 **布局规范**
-- 页面最大宽度：1280px / 满宽
-- 主内容区与侧边栏比例：无侧边栏（全宽）或 3:1/4:1
-- 区域间距（block）：32px (`space-y-8`)
-- 元素间距（inline）：16px (`gap-4`)
+- 页面最大宽度：1280px（max-w-7xl）
+- 无侧边栏全宽布局；区域间距（block）：24px（`gap-6`）；卡片内 16px（`p-4`）
+- 分享网格：2 列（≤700px）/ 3 列（≤1100px）/ 4 列（>1100px）
+- 讨论列表与提案列表：单列卡片纵排（`space-y-2` / `space-y-3`）
 
 **状态变体**
-- default: 默认数据展示或列表。
-- loading: 全屏加载骨架屏（Skeleton），不使用全屏遮罩 loading。
-- empty: 使用 EmptyState 组件（图标 + 标题 + 说明 + CTA）。
-- error: Toast 右上角报错或内联提示。
-- 特殊状态：信誉分不足、权限不足或未登录拦截。
+- default: 身份区 + 三模块 tab + 当前模块列表。
+- loading: 各模块自持骨架（分享=卡片网格骨架；讨论/提案=行卡骨架），身份区 SSR 直出。
+- empty: 各模块 EmptyState；无 open 提案 → CTA「第一个提案由你发起」；搜索无命中 → 「未找到与「q」相关的内容」+ 清空引导。
+- error: 列表加载失败静默为空态；浮层加载失败 role="alert" + 重试；投票/关注失败 Toast。
+- 特殊状态：未登录关注/投票跳登录；未关注投票弹页内关注引导。
 
 **响应式规则**
-- 移动 (≤700px): 单列瀑布流 2 列，隐藏侧边栏，折叠菜单。
-- 平板 (≤1100px): 瀑布流 3 列，卡片尺寸自适应。
-- PC (>1100px): 默认布局 4 列瀑布流，左右分布边距对齐。
+- 移动 (≤700px): 身份区封面与信息纵排；tab 行纵向堆叠（搜索框一行、tab 一行）；分享网格 2 列。
+- 平板 (≤1100px): 分享网格 3 列。
+- PC (>1100px): 分享网格 4 列，粘性工具行横排。
 
 **暗色模式适配**
 - 背景色 token: `canvas-default` -> `canvas-default.dark`
 - 边框色 token: `border-default` -> `border-default.dark`
 - 文字色 token: `foreground` -> `foreground.dark`
-- 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
+- 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)；diff 色（emerald/red 系）沿用语义色 token。
 
 **交互细节**
-- 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
+- 按钮 hover/active/disabled: 依据 Global Interaction Patterns；动效 150ms。
 - 破坏性操作必须 ConfirmModal 二次确认。
-- 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
+- 数据加载策略: SSR 身份区 + stats；模块列表与搜索计数客户端拉取（`cache: "no-store"`）。
 
-## Page: /ip/[ipId]/discussions 讨论区列表
+## Page: /ip/[ipId]/discussions 讨论区列表（已移除，#290）
 
-**Key Constraints**
-- 二创区页面/组件：依托于 ips.category 进行展示或跳转。
-- 信誉分 < 3 用户：发布/评论/点赞按钮 disabled，hover tooltip 提示「信誉分不足」。
-- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
+- 路由已删除：301 → `/ip/[ipId]?tab=discussions`。讨论列表并入 IP 详情页 Hub 的 discussions tab（见 `Page: /ip/[ipId]`）；本节仅作历史索引，不再是实现依据。
 
-**视觉层级**
-- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
-- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
-- 内容模块：搜索栏 + 讨论列表 + 发帖入口
+## Page: /ip/[ipId]/discussions/[discussionId] 讨论详情（已移除，#290）
 
-**核心组件清单**
-- `Header`
-- `DiscussionCard`
-- `EmptyState`
-- `LoadingSpinner`
-
-**布局规范**
-- 页面最大宽度：960px，居中
-- 搜索框 + 发帖按钮 → 讨论卡片列表（按活跃时间倒序）
-- 区域间距（block）：16px (`space-y-4`)
-
-**状态变体**
-- default: 讨论列表卡片（标题/作者/回复数/最后活跃时间）+ 搜索框。
-- loading: 骨架屏（Skeleton 灰色块列表）。
-- empty: "暂无讨论" EmptyState。
-- error: Toast 右上角报错。
-- 特殊状态：信誉分不足用户发帖按钮 disabled。
-
-**响应式规则**
-- 移动 (≤700px): 讨论列表全宽（margin 16px），卡片间距 12px。
-- 平板 (≤1100px): 内容区最大宽度 720px，居中。
-- PC (>1100px): 内容区最大宽度 960px，居中。
-
-**暗色模式适配**
-- 背景色 token: `canvas-default` -> `canvas-default.dark`
-- 边框色 token: `border-default` -> `border-default.dark`
-- 文字色 token: `foreground` -> `foreground.dark`
-- 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
-
-**交互细节**
-- 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
-- 破坏性操作必须 ConfirmModal 二次确认。
-- 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
-
-## Page: /ip/[ipId]/discussions/[discussionId] 讨论详情
-
-**Key Constraints**
-- 二创区页面/组件：依托于 ips.category 进行展示或跳转。
-- 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
-- 信誉分 < 3 用户：发布/评论/点赞按钮 disabled，hover tooltip 提示「信誉分不足」。
-- 绝无 box-shadow（Indigo 扁平风），使用 1px border。
-
-**视觉层级**
-- 顶部区域：导航栏 `h-[var(--header-h)]`，背景 `bg-canvas-default`，底边框 `border-b border-border`
-- 主容器：居中最大宽度，页面背景 `bg-canvas-subtle`
-- 内容模块：讨论主帖 + 回复列表，各模块带 1px border
-
-**核心组件清单**
-- `Header`
-- `DiscussionCard`
-- `ReplyList`
-- `CommentSection`（回复区复用楼中楼组件）
-- `EmptyState`
-- `LoadingSpinner`
-
-**布局规范**
-- 页面最大宽度：960px，居中
-- 讨论主帖 → 回复列表（按时间排序）
-- 区域间距（block）：24px (`space-y-6`)
-
-**状态变体**
-- default: 讨论标题/内容/作者 + 回复列表 + 回复输入框。
-- loading: 骨架屏（Skeleton）。
-- empty: 讨论不存在 404 EmptyState。
-- error: Toast 右上角报错。
-- 特殊状态：信誉分不足时回复按钮 disabled。
-
-**响应式规则**
-- 移动 (≤700px): 讨论详情全宽（margin 16px），回复列表卡片间距 12px。
-- 平板 (≤1100px): 内容区最大宽度 720px，居中。
-- PC (>1100px): 内容区最大宽度 960px，居中。
-
-**暗色模式适配**
-- 背景色 token: `canvas-default` -> `canvas-default.dark`
-- 边框色 token: `border-default` -> `border-default.dark`
-- 文字色 token: `foreground` -> `foreground.dark`
-- 图片/图标特殊处理: 图片和占位图 SVG 使用反色或透明度调整 (`opacity-90`)。
-
-**交互细节**
-- 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
-- 破坏性操作必须 ConfirmModal 二次确认。
-- 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
+- 路由已删除：301 → `/ip/[ipId]?tab=discussions`。讨论帖详情改为 IP 详情页内的 `DiscussionDetailOverlay` 浮层（Esc/浏览器后退/遮罩/X 关闭，含回帖），规格见 `Page: /ip/[ipId]`；本节仅作历史索引，不再是实现依据。
 
 ## Page: /ip/[ipId]/discussions/new 发帖页
 
@@ -2233,52 +2153,9 @@ interface IPCardProps {
 - 整卡是有完整可访问名称的 Link；Tab 聚焦、Enter 跳转。点击/键盘激活都记录最近 IP。
 - **最近访问（#64 决策 16-18 / #73 权威）**：匿名用户记录在本机 localStorage（`recent_ips`，去重保留 6 条，按最近访问排序）；登录后与独立 IP 访问历史模型幂等合并（重复按最新访问时间归并，服务器确认成功后清除本地记录；合并失败时保留本地，不丢失）。可见列表保持当前 6 条上限、按最近访问时间倒序。签入态历史来自账号绑定源（跨会话/跨设备一致），不依赖内容浏览历史。
 
-## Component: IPCategoryTabs
+## Component: IPCategoryTabs（已移除，#290）
 
-**Key Constraints**
-- 二创区页面/组件：依托于 ips.category 进行展示或跳转。
-- 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
-- 所有间距（gap/padding/margin）使用 Tailwind 类名。
-
-**Props 接口**
-```ts
-interface IPCategoryTabsProps {
-  className?: string;
-  data?: any;
-  isLoading?: boolean;
-  disabled?: boolean;
-  onAction?: (payload: any) => void;
-}
-```
-
-**视觉结构**
-- 外层容器: `<div className="border border-border-default rounded-md bg-canvas-default p-4">`
-- 内部布局: 依据业务包含 Flex 纵向/横向排列，以及 `gap-3` 分隔。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
-
-**尺寸规范**
-- 默认尺寸: height 自适应，padding 16px (p-4)
-- 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
-- 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
-
-**状态变体**
-- default: `bg-canvas-default text-foreground`
-- hover: `hover:bg-canvas-subtle` 并伴随图标颜色变深
-- active: `active:bg-canvas-subtle scale-95`
-- focus: `focus:outline-none focus:ring-2 focus:ring-accent-emphasis`
-- disabled: `opacity-50 cursor-not-allowed` 禁用事件
-- loading: 内部嵌 `Spinner` 并替换默认图标文本
-- empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
-
-**响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
-
-**暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
-
-**关键交互**
-- 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
-- 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
+- 组件已删除：IP 详情页重构为单页三模块 Hub 后，类目间跳转 tab 不再存在。类目/媒体类型筛选由 `Component: FilterPills` 承担（`IPShareTab` 内），模块切换由 Hub 三 tab（`IPHubClient`）承担。本节仅作历史索引，不再是实现依据；新代码禁止复活本组件。
 
 ## Component: FilterPills 筛选药丸（SP-12 U-01 新增，全站筛选形态基准）
 

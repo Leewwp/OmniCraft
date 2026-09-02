@@ -36,8 +36,11 @@ type ListContentsFilter struct {
 	Tags               []string
 	Sort               string
 	TimeRange          string
-	Page               int
-	PageSize           int
+	// Search does a title-substring filter (IP 内搜索, #290) on the list path;
+	// full-text relevance search stays on /contents/search.
+	Search   string
+	Page     int
+	PageSize int
 	// ViewerID lets source-linkage queries reuse the centralized content
 	// visibility scope (published, non-deleted, author/IP not banned, and
 	// is_public OR author-owned) for returned children.
@@ -187,6 +190,9 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 	} else if f.ContentType != "" {
 		q = q.Where("content_type = ?", f.ContentType)
 	}
+	if f.Search != "" {
+		q = q.Where("title LIKE ?", "%"+f.Search+"%")
+	}
 	if f.AuthorID != nil {
 		q = q.Where("author_id = ?", *f.AuthorID)
 	}
@@ -242,6 +248,33 @@ func (r *ContentRepository) ListContents(f ListContentsFilter) ([]model.ContentI
 	}
 
 	return items, total, nil
+}
+
+// CountByTypeWithinIP returns per-content_type hit counts for the IP share
+// tab facet chips (#290). It mirrors the share-tab list semantics (public
+// fanworks of this IP, optional title search) but ignores the active type
+// filter so chip counts stay comparable across pills.
+func (r *ContentRepository) CountByTypeWithinIP(ipID int64, search string) (map[string]int64, error) {
+	var rows []struct {
+		ContentType string
+		Count       int64
+	}
+	q := ApplyContentVisibilityScope(r.db.Model(&model.ContentItem{}), 0).
+		Where("content_items.ip_id = ?", ipID).
+		Where("content_items.zone = ?", "fanwork")
+	if search != "" {
+		q = q.Where("content_items.title LIKE ?", "%"+search+"%")
+	}
+	if err := q.Select("content_type, COUNT(*) AS count").
+		Group("content_type").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	counts := make(map[string]int64, len(rows))
+	for _, row := range rows {
+		counts[row.ContentType] = row.Count
+	}
+	return counts, nil
 }
 
 func (r *ContentRepository) UpdateContent(id int64, updates map[string]interface{}) error {

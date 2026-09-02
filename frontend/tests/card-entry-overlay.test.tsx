@@ -249,16 +249,19 @@ test("home feed and original zone wire the shared overlay with zone-page source"
   assert.match(originalFeed, /emptyText=\{t\("home\.noOriginalContent"\)\}/);
 });
 
-test("IP detail surfaces wire the shared overlay with ip-page source", () => {
-  const ipDetailContents = read("components/ip/IPDetailContents.tsx");
-  assert.match(ipDetailContents, /<OverlayMasonryGrid/);
-  assert.match(ipDetailContents, /source="ip-page"/);
-  assert.doesNotMatch(ipDetailContents, /<MasonryGrid/, "pages must not use the raw grid without overlay wiring");
-  assert.match(ipDetailContents, /items=\{contents\}/);
+test("IP hub surfaces wire the shared overlay with ip-page source", () => {
+  const ipShareTab = read("components/ip/hub/IPShareTab.tsx");
+  assert.match(ipShareTab, /<OverlayMasonryGrid/);
+  assert.match(ipShareTab, /source="ip-page"/);
+  assert.doesNotMatch(ipShareTab, /<MasonryGrid/, "pages must not use the raw grid without overlay wiring");
+  assert.match(ipShareTab, /items=\{contents\}/);
 
-  // The legacy /ip/[id]/[category] route now redirects to the query form (U-03).
-  const legacyCategoryRoute = read("app/(public)/ip/[ipId]/[category]/page.tsx");
-  assert.match(legacyCategoryRoute, /redirect\(/);
+  // Legacy /ip/[id]/[category] + /ip/[id]/discussions routes 301 to the hub
+  // query form via next.config redirects (#290).
+  const nextConfig = read("next.config.ts");
+  assert.match(nextConfig, /\/ip\/:ipId\/:category/);
+  assert.match(nextConfig, /tab=share/);
+  assert.match(nextConfig, /tab=discussions/);
 });
 
 test("direct-URL detail pages keep full-page rendering (deep links preserved)", () => {

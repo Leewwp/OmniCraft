@@ -84,7 +84,10 @@ export function NotificationDropdown() {
         case "comment": return `/content/${n.target_id}`;
         case "pr": return "/studio/pr-requests";
         case "user": return `/user/${n.target_id}`;
-        case "ip": return `/ip/${n.target_id}`;
+        case "ip":
+          // 共治提案通知深链到提案 tab（#290 story 36）
+          if (n.type?.startsWith("ip_proposal_")) return `/ip/${n.target_id}?tab=proposals`;
+          return `/ip/${n.target_id}`;
         default: return "/messages";
       }
     }

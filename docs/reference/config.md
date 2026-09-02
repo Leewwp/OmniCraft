@@ -72,6 +72,7 @@
 | `collaboration.max_invitees_per_publish` | `int` | MaxInviteesPerPublish |
 | `database.dsn` | `string` | DSN |
 | `database.read_dsn` | `string` | ReadDSN |
+| `discussion.hot_decay_hours` | `float64` | HotDecayHours |
 | `features.archive_malware_scan_enabled` | `bool` | ArchiveMalwareScanEnabled |
 | `features.creator_support_enabled` | `bool` | CreatorSupportEnabled |
 | `features.desktop_deploy_enabled` | `bool` | DesktopDeployEnabled |
@@ -84,6 +85,9 @@
 | `green.region` | `string` | Region |
 | `green.seed` | `string` | Seed is the callback signature seed (green.seed): release-required, [A-Za-z0-9_], max 64 chars. |
 | `green.uid` | `string` | UID is the Aliyun main account UID (green.uid): release-required, digits only (console account info, not RAM UID). |
+| `ip_proposal.deadline_days` | `int` | DeadlineDays |
+| `ip_proposal.min_votes` | `int` | MinVotes |
+| `ip_proposal.pass_threshold` | `float64` | PassThreshold |
 | `judge.error_rate_revoke` | `float64` | ErrorRateRevoke |
 | `judge.error_rate_window` | `int` | ErrorRateWindow |
 | `judge.exam_pass_rate` | `float64` | ExamPassRate |

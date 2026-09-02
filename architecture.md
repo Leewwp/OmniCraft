@@ -412,6 +412,9 @@ backend/
 | `GET` | `/api/v1/ips/:id/contents` | ipHandler.GetIPContents |
 | `GET` | `/api/v1/ips/:id/discussions` | discHandler.ListDiscussions |
 | `GET` | `/api/v1/ips/:id/discussions/search` | discHandler.SearchDiscussions |
+| `GET` | `/api/v1/ips/:id/proposals` | proposalHandler.ListProposals |
+| `GET` | `/api/v1/ips/:id/proposals/:proposalId` | proposalHandler.GetProposal |
+| `GET` | `/api/v1/ips/:id/versions` | proposalHandler.ListVersions |
 | `GET` | `/api/v1/ips/stats/category_counts` | ipStatsHandler.GetCategoryCounts |
 | `GET` | `/api/v1/judge/cases/:id/verdict` | judgeHandler.GetVerdictDetail |
 | `GET` | `/api/v1/judge/exam/:category` | judgeHandler.GetExam |
@@ -516,6 +519,8 @@ backend/
 | `POST` | `/api/v1/ips` | ipHandler.CreateIP |
 | `POST` | `/api/v1/ips/:id/discussions` | discHandler.CreateDiscussion |
 | `POST` | `/api/v1/ips/:id/follow` | followHandler.FollowIP |
+| `POST` | `/api/v1/ips/:id/proposals` | proposalHandler.CreateProposal |
+| `POST` | `/api/v1/ips/:id/proposals/:proposalId/vote` | proposalHandler.SubmitVote |
 | `POST` | `/api/v1/judge/exam/submit` | judgeHandler.SubmitExam |
 | `POST` | `/api/v1/judge/reasons/:id/vote` | judgeHandler.VoteReason |
 | `POST` | `/api/v1/judge/vote` | judgeHandler.SubmitVote |
