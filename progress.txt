@@ -1,3 +1,24 @@
+## [2026-09-02] - Task U-04 (#280): 第一批逐页 sweep——公开页+用户侧（SP-12，light）
+
+### What was done:
+- **必须项①IP 详情 hero 同排同高**：`IPDetail.tsx` 操作行重构——「进入讨论区」从裸 div+px-3 py-2（≈33px 无档）改为 `buttonVariants(outline, sm)` 与 FollowButton 同排同高（28px 紧凑档、8px 矩形操作语义），粉丝数并入同一 `items-center` 行；类目药丸行维持独立（U-03 成果）。
+- **必须项②mod 类目键修复**：`ipCategory.ts:12` `home.other` → `home.mod`（C-02 裁决落点；zh/en 的 home.mod="Mod" 均已存在，实测类目清单 `[全部,文字,图片,视频,音频,Mod,AI提示词,乐谱,其他]` 唯一「其他」）。
+- **四规则 sweep（公开页+用户侧，studio/admin/Agent 工作台除外）**：
+  - 动效：非主 CTA 的 `active:scale-*` 全清（TagBadge、FacetedSearchSidebar×4、DiscussionCard、CommentSection×2、IPDetail 旧讨论入口）；仅保留 ContentDetail 一键部署 CTA 的按压反馈（spec：主 CTA 保留）；DiscussionCard duration-200→150ms。
+  - 形状语义：FacetedSearchSidebar 类目/标签/类型筛选 chip rounded-{md,lg}→rounded-full（选择=药丸）；CommentSection 反应小操作 rounded→rounded-md（操作=8px 矩形）；ContentSidebar×2 与 RelatedFanworks 的药丸形主操作 CTA（rounded-full+bg-primary）改 buttonVariants 矩形；IPBrowseClient×2「创建 IP」CTA 去除 rounded-full 覆写。
+  - 高度档：ContentDetail 部署 CTA px-3 py-2（≈33px）→ h-9（36 常规档）。
+  - 判官 ReviewCard/VerdictDetail/exam 的 duration-300 为进度条填充动画（非控件状态切换），维持不动。
+- 逐页清单（grep 四规则 + 目检核销）：/、/recommend、/original、/ips、/ip/[id]、/content/[id]、/original/[id]、/collections(+/[id])、/search、/history、/user/[id]、/messages、/notifications、/settings、/appeals、/judge(考试/队列)、/publish、/login、/register、/help、/feedback——无其他偏离项残留（grep active:scale 仅剩部署 CTA；rounded-full 主操作已清；studio/IPPublishForm 留 U-05）。
+- FIX-40 空态双 CTA 对账：T24（#244）在第 8 段远端，本批未见重叠修复面。
+
+### Testing:
+- `npm run lint`（tsc）+ `npm run test:unit`（26+463 全绿）+ `npm run build` + mock e2e 77/77 通过。
+- DOM 实测（Playwright 1440/375）：关注按钮 28px = 进入讨论区 28px、同排（top 差 <2px）、圆角 8px；类目清单含唯一 Mod。
+- 截图 4 张存 `screenshots/u04-ip-detail-{light,dark}-1440.png`、`u04-ip-detail-light-375.png`、`u04-ips-light-375.png`（改造前对照 = u03-ip-detail-* 存档）。
+
+### Notes:
+- light 车道，main 直接提交。IAB 内嵌浏览器截图功能本日故障（guest capture failed），U-03/U-04 截图改由 Playwright Chromium 直连 dev server 产出（同等真实浏览器证据）。
+
 ## [2026-09-02] - Task U-03 (#279): FilterPills 共享组件与全站筛选就地化（SP-12，light）
 
 ### What was done:

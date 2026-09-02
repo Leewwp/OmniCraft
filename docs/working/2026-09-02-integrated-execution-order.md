@@ -68,7 +68,7 @@
 
 ### 第 4 段 UI 扩散
 8. **U-03（#279）** FilterPills 共享组件 + 全站筛选就地化 ✅ 2026-09-02 完成（`ui/filter-pills.tsx` 按 ui-spec 定稿；IP 库消费；IP 详情类目就地切换+URL replace+SSR 首屏+旧路由 redirect+删除 IPCategoryTabs；/original 类目/排序就地化（OriginalFeedClient）+删除旧 CategoryTabs/SortSelect；ContentTypeFilter 收敛药丸形态；mock e2e 77/77 含新增 ip-detail-category 契约（stub 18080 供 SSR+浏览器）；verify --full EXIT=0；真机 URL/滚动/刷新恢复/redirect 验证 + 截图 8 张 u03-*；light 直接 main 提交）
-9. **U-04（#280，已剔除工作台范围）** 第一批 sweep：公开页 + 用户侧 + 进入讨论区对齐 + mod label 修复
+9. **U-04（#280，已剔除工作台范围）** 第一批 sweep：公开页 + 用户侧 + 进入讨论区对齐 + mod label 修复 ✅ 2026-09-02 完成（hero 操作行同排同高 28px 档 + 8px 矩形（DOM 实测 28=28 同排 8px）；mod→home.mod 类目唯一化；非主 CTA active:scale 全清 + 筛选 chip 药丸化 + 药丸形主操作 CTA 矩形化（ContentSidebar/RelatedFanworks/IPBrowseClient 创建按钮）+ 部署 CTA 36px 档；22 页逐页清单核销；tsc/单测/build/mock e2e 77/77 绿；截图 u04-*×4；light 直接 main 提交）
 10. **U-05（#281）** 第二批 sweep：admin + studio
 
 ### 第 5 段 重构一：IP 详情页（#290）

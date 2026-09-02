@@ -7,7 +7,7 @@ import { AlertCircle, ArrowRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { normalizeContentList } from "@/lib/content";
 import { ContentCard, type ContentCardData } from "@/components/content/ContentCard";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 interface RelatedFanworksProps {
   sourceContentId: number;
@@ -147,7 +147,7 @@ export function RelatedFanworks({
           {createHref && (
             <Link
               href={createHref}
-              className="inline-flex items-center justify-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-all hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className={buttonVariants({ size: "sm", className: "gap-1.5" })}
             >
               {t("relatedFanworks.actions.create")}
             </Link>

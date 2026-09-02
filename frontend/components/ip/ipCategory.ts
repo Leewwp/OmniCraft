@@ -9,7 +9,7 @@ export const ipCategoryOptions: CategoryOption[] = [
   { key: "image", label: "home.image" },
   { key: "video", label: "home.video" },
   { key: "audio", label: "home.audio" },
-  { key: "mod", label: "home.other" },
+  { key: "mod", label: "home.mod" },
   { key: "prompt", label: "home.aiPrompt" },
   { key: "sheet_music", label: "home.sheetMusic" },
   { key: "other", label: "home.other" },
