@@ -24,11 +24,12 @@
 - **#290**：单票大重构（45 user stories，迁移 073+，heavy）。无票内依赖；spec 自述吸收 FIX-25 / F-064 / 类目页死排序 / mod label 错映射，不吸收 FIX-18（T12）/FIX-23（T15）。
 - 外部输入：DashScope API Key 待用户开通（A-03/A-04 真实数据用；本地 fail-open 不阻塞）；GREEN / MiniMax 已恢复可用。
 
-### 1.1 当前执行 checkpoint（2026-09-02，T09 收口后）
+### 1.1 当前执行 checkpoint（2026-09-02，第 3 段收口后）
 
-- 固定 goal 范围共 **68 个执行单元**：T01–T55（55）+ U-01~U-05（5）+ A-01~A-07（7）+ #290（1）。其中 **14 个已完成并在 GitHub 以 `CLOSED/COMPLETED` 收口**：T01~T09（9）、T18~T20（3）、U-01~U-02（2）；剩余 54 个，#276/#282 仍为协调父票不计入。
-- 第 3 段已完成 9/10；当前唯一下一票是 **T22（#242）**，票面 `Blocked by: None` 且仍 OPEN。T22 完成并关票后，必须先运行 `bash scripts/verify-project.sh --full` 作为第 3 段边界门，再进入第 4 段 U-03。
-- 用户 checkpoint 摘要中的“14/45”不是本总序固定范围的分母；后续 agent 以本节 68/14/54 和 GitHub 实际状态计数，不据此提前宣称总序或投递门槛完成。
+- 固定 goal 范围共 **68 个执行单元**：T01–T55（55）+ U-01~U-05（5）+ A-01~A-07（7）+ #290（1）。其中 **15 个已完成并在 GitHub 以 `CLOSED/COMPLETED` 收口**：T01~T09（9）、T18~T20（3）、T22（1）、U-01~U-02（2）；剩余 53 个，#276/#282 仍为协调父票不计入。
+- **第 3 段（审计快赢批次 A）已全部完成**：10/10 票收口，段边界 `verify-project.sh --full` 于 2026-09-02 通过（75/75 mock 契约 + 全部工程门；附带 e2e flaky 加固 593c527）。
+- 下一张可执行票是第 4 段 **U-03（#279）FilterPills 共享组件与全站筛选就地化**，无未满足前置；随后 U-04（#280，与 U-03 共享 `IPBrowseClient.tsx` 必须串行）→ U-05（#281）。注意 U-04 已剔除 Agent 工作台范围（C-01 裁决，移交 A-06）。
+- 用户 checkpoint 摘要中的“14/45”不是本总序固定范围的分母；后续 agent 以本节 68/15/53 和 GitHub 实际状态计数，不据此提前宣称总序或投递门槛完成。
 
 ## 2. 冲突整合裁决（重叠裁剪，逐项）
 
@@ -63,7 +64,7 @@
 
 ### 第 3 段 审计快赢批次 A（FIX-01~09，解锁演示主线）
 6. **T03（#223）** email model 层收敛（隐私 P0，最先） ✅ 2026-09-02 完成（model json:"-" 全 Preload 出口收口 + public/self 两档 + login//auth/me 显式回填；7 例 TDD + curl 三角色 7 出口 + 两阶段审查；heavy worktree b2820bb 合并 3bfd5f9）
-7. T01（#221）判官考试字段对齐 ✅ 2026-09-02 完成（answer_key→answer 一行修复 + 契约 e2e 红→绿 + 本地题库播种后真实全对提交 10/10 资格授予；heavy 22bf4b1 合并 a426d52） → T02（#222）stats 状态词 ✅ 2026-09-02 完成（published→approved 一行修复 + TDD 单测红→绿；live ips=16 复核 + 首页 16 活跃 IP 视觉验证）→  → T05（#225）admin reports 契约 ✅ 2026-09-02 完成（{status,action_taken} 契约 + action_taken 展示 + 错误红字透传弹窗保持；维持/驳回/400 错误三路径浏览器验证）→  → T04（#224）本地 worker 启动 ✅ 2026-09-02 完成（Notify(0) 幽灵删除 TDD 红→绿 + 9 条积压清理重建 group + AGENTS Step 2 worker 行与 lag 检查；闭环实测评论通知落库 lag=0）→  + 积压清理（D 批触达前提）→ T06（#226）收藏错链 ✅ 2026-09-02 完成（两处侧栏 href+redirect 修正、StudioSidebar 收藏集入口、IP 入口保留；浏览器三态验证）→  → T07（#227）admin 导航缺口 ✅ 2026-09-02 完成（Header role=admin 菜单项 + ADMIN_NAV 补广播页；admin 可见可跳转/普通用户不可见）→  → T08（#228）封禁理由全链路 ✅ 2026-09-02 完成（model 字段+作者/admin 出口+admin {reason} 发送+studio banned 行原因展示；TDD 5 例+浏览器全链路+两阶段审查；heavy e81cb93 合并 a3de204）→  → T09（#229）内容可见性 scope ✅ 2026-09-02 完成（详情 viewer-aware 404 + 列表/热榜/推荐统一 scope + 缓存与 view_count 门；TDD+curl+延迟实测+联合审查 P1 已修；heavy 1f62c53 合并 ef16ae6）→  → T22（#242）热搜契约 ✅ 2026-09-02 完成（GetTrending join content_items 解析真实标题 + content_id 契约 + ApplyContentVisibilityScope 公开口径过滤 banned/审核中/私密/已删/封禁作者；前端读 trending 契约渲染真实标题+深链 /content/{id}+空榜单降级；废弃 home.trendingN 假榜单键；TDD 契约测试红→绿 + curl 混合成员池实测 + 浏览器深链/降级验证 + 亮暗×1440/375 截图 4 张；light 直接 main 提交）
+7. T01（#221）判官考试字段对齐 ✅ 2026-09-02 完成（answer_key→answer 一行修复 + 契约 e2e 红→绿 + 本地题库播种后真实全对提交 10/10 资格授予；heavy 22bf4b1 合并 a426d52） → T02（#222）stats 状态词 ✅ 2026-09-02 完成（published→approved 一行修复 + TDD 单测红→绿；live ips=16 复核 + 首页 16 活跃 IP 视觉验证）→  → T05（#225）admin reports 契约 ✅ 2026-09-02 完成（{status,action_taken} 契约 + action_taken 展示 + 错误红字透传弹窗保持；维持/驳回/400 错误三路径浏览器验证）→  → T04（#224）本地 worker 启动 ✅ 2026-09-02 完成（Notify(0) 幽灵删除 TDD 红→绿 + 9 条积压清理重建 group + AGENTS Step 2 worker 行与 lag 检查；闭环实测评论通知落库 lag=0）→  + 积压清理（D 批触达前提）→ T06（#226）收藏错链 ✅ 2026-09-02 完成（两处侧栏 href+redirect 修正、StudioSidebar 收藏集入口、IP 入口保留；浏览器三态验证）→  → T07（#227）admin 导航缺口 ✅ 2026-09-02 完成（Header role=admin 菜单项 + ADMIN_NAV 补广播页；admin 可见可跳转/普通用户不可见）→  → T08（#228）封禁理由全链路 ✅ 2026-09-02 完成（model 字段+作者/admin 出口+admin {reason} 发送+studio banned 行原因展示；TDD 5 例+浏览器全链路+两阶段审查；heavy e81cb93 合并 a3de204）→  → T09（#229）内容可见性 scope ✅ 2026-09-02 完成（详情 viewer-aware 404 + 列表/热榜/推荐统一 scope + 缓存与 view_count 门；TDD+curl+延迟实测+联合审查 P1 已修；heavy 1f62c53 合并 ef16ae6）→  → T22（#242）热搜契约 ✅ 2026-09-02 完成（GetTrending join content_items 解析真实标题 + content_id 契约 + ApplyContentVisibilityScope 公开口径过滤 banned/审核中/私密/已删/封禁作者；前端读 trending 契约渲染真实标题+深链 /content/{id}+空榜单降级；废弃 home.trendingN 假榜单键；TDD 契约测试红→绿 + curl 混合成员池实测 + 浏览器深链/降级验证 + 亮暗×1440/375 截图 4 张；light 直接 main 提交 4375a3e）——**第 3 段完成**（段边界 verify-project.sh --full 通过 2026-09-02：75/75 + 全部工程门；附带修复两处既有 flaky e2e = 593c527：judge-exam 徽章改 exact 匹配、t97 设置保存 mock 加 300ms 延迟使乐观 UI 中间态可观测）
 
 ### 第 4 段 UI 扩散
 8. **U-03（#279）** FilterPills 共享组件 + 全站筛选就地化
