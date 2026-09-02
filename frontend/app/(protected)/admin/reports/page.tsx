@@ -109,7 +109,7 @@ export default function AdminReportsPage() {
                 {t("admin.reports.reporter")}: #{selectedReport.reporter_id} · {new Date(selectedReport.created_at).toLocaleString()}
               </p>
             </div>
-            <span className={cn("inline-flex rounded px-2 py-0.5 text-xs font-medium", STATUS_COLORS[selectedReport.status] || STATUS_COLORS.pending)}>
+            <span className={cn("inline-flex rounded-full px-2 py-0.5 text-xs font-medium", STATUS_COLORS[selectedReport.status] || STATUS_COLORS.pending)}>
               {selectedReport.status}
             </span>
           </div>
@@ -245,7 +245,7 @@ export default function AdminReportsPage() {
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <span className={cn("inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium", STATUS_COLORS[report.status] || STATUS_COLORS.pending)}>
+                  <span className={cn("inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium", STATUS_COLORS[report.status] || STATUS_COLORS.pending)}>
                     {report.status}
                   </span>
                   <Eye className="h-3.5 w-3.5 text-muted-foreground" />

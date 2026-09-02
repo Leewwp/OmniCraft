@@ -458,10 +458,11 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
           <div className="flex flex-wrap gap-2">
             {ORIGINAL_CATEGORIES.map((cat) => (
               <button key={cat} type="button" onClick={() => setCategory(cat)}
+                aria-pressed={category === cat}
                 className={cn(
-                  "rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all",
+                  "rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors duration-150",
                   category === cat
-                    ? "border-[var(--accent-emphasis)] bg-[var(--accent-subtle)] text-[var(--accent-emphasis)]"
+                    ? "border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold"
                     : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground"
                 )}>
                 {t(CATEGORY_I18N[cat])}
@@ -817,7 +818,7 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
           type="submit"
           size="lg"
           disabled={submitting || complianceViolation || galleryConfigLoading || galleryUnavailable || mediaItems.some((item) => item.status === "pending" || item.status === "uploading") || sourceMissing}
-          className="gap-2 rounded-full px-8"
+          className="gap-2 px-8"
         >
           <Send className="h-4 w-4" />
           {submitting ? t('studio.publish.submitting') : t('studio.publish.submit')}

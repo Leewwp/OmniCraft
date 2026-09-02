@@ -139,7 +139,7 @@ export default function AdminAuditLogsPage() {
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <span className={cn(
-                      "inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium",
+                      "inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium",
                       log.result === "success" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
                     )}>
                       {log.result}
