@@ -1,6 +1,6 @@
 # 语料 v2 注入与 Golden Set 冻结规格（CORPUS-01 · #291）
 
-> 创建日期：2026-09-02 ｜ **预计失效日期**: #291 收口后
+> 创建日期：2026-09-02 ｜ **预计失效日期**: 2026-10-31（原表述：#291 收口后）
 > 版本：**v1.0（2026-09-02 二轮修订）**——采纳外部审查 8 点，已对照 `069_rag_evaluation.sql`、`rag_eval/metrics.go`、`rag-deepening-design.md §6`、`agent-workspace-rework-design.md §7` 逐条核实。
 > 来源：用户 2026-09-02 批准的总序修订一 + 同日 golden set 审查采纳决定。
 > 权威关系：执行顺序以总序 §3 为准（第 6 段 A-03 与 A-04 之间）；**golden set 规模与指标合同由本 spec 统一定义**，`agent-workspace-rework-design.md §7` 的「30–50 条 / Recall@5」表述由本 spec 取代（K=5 保留为消融报告附加列）。
