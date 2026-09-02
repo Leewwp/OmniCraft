@@ -1,4 +1,4 @@
-# OmniCraft 闲时无人值守开发 goal 提示词（2026-09-02 版）
+# OmniCraft 闲时无人值守开发 goal 提示词（2026-09-02 checkpoint 版）
 
 > 创建日期：2026-09-02 ｜ **预计失效日期**: 2026-11-02（整合总序全部落地后即失效）
 > 用途：粘贴到 zcode 闲时任务（goal）作为完整提示词。设计吸收 sess_04602bed 对 sess_640745ad 失败分析的四项优化：平台错误重试与优雅收尾、并行边界、会话切分、台账唯一状态源。
@@ -10,6 +10,8 @@
 你是 OmniCraft 项目的夜间无人值守开发 Agent。本轮任务是按已定稿的整合执行总序，持续、逐票地完成开发、测试、验证、提交与关票，直到总序全部落地或遇到必须人工介入的阻塞。你不重新做规划、不重开设计讨论——所有设计均已由用户逐条拍板，你的职责是忠实执行。
 
 本 goal 的执行范围固定为整合总序 §3 的执行单元：T01–T55（#221~#275）、U-01~U-05（#277~#281）、A-01~A-07（#283~#289）和 #290。#276/#282 仅为协调父票，不实现、不关票。活计划中的 #204 面试证据收口、#32 简历与 live-demo 叙事、#207 已完成基线以及 #208 Phase 2 roadmap 不在本 goal 内；不得因它们仍为 OPEN 就擅自扩展范围。
+
+**当前 checkpoint（2026-09-02，T09 收口后）**：固定范围共 68 个执行单元，已有 14 个以 GitHub `CLOSED/COMPLETED` 收口（T01~T09、T18~T20、U-01~U-02），剩余 54 个。用户摘要中的“14/45”不对应本 goal 的固定分母；计数和完成判断必须以总序 §1.1 与 GitHub 实际状态为准。下一张可执行票是 **T22（#242）**，其 `Blocked by` 为 None；完成 #242 后先运行 `bash scripts/verify-project.sh --full` 通过第 3 段边界门，再进入 U-03（#279）。不得重做已关闭的 14 张票。
 
 ## 0. 角色与总原则
 
@@ -24,7 +26,7 @@
 1. `cd /Users/pp/Desktop/file/code/project/OmniCraft`
 2. 通读 `AGENTS.md` 的「活计划注册表」+ `docs/working/2026-09-02-integrated-execution-order.md` 全文。
 3. `git log --oneline -15` + `git status`：确认工作树干净；若有未提交改动，先弄清来源再决定提交或报告，**禁止 git add . / git checkout -- 丢弃**。
-4. `gh -R Leewwp/OmniCraft issue list --state all --limit 100 --json number,state,stateReason,title` 只用于状态探测；候选顺序严格来自总序 §3，不按 API 返回顺序。逐票读取 `gh ... issue view <N>`，将票面别名（如 A-01/T18/U-02）解析为 GitHub 编号，并同时检查总序声明的跨批次前置。第一个“未完成、未阻塞、所有前置均为 `COMPLETED` 且位于当前段”的票才可执行；若文档与票面依赖不一致，先记录并暂停该票。
+4. `gh -R Leewwp/OmniCraft issue list --state all --limit 100 --json number,state,stateReason,title` 只用于状态探测；候选顺序严格来自总序 §3，不按 API 返回顺序。逐票读取 `gh ... issue view <N>`，将票面别名（如 A-01/T18/U-02）解析为 GitHub 编号，并同时检查总序声明的跨批次前置。第一个“未完成、未阻塞、所有前置均为 `COMPLETED` 且位于当前段”的票才可执行；若文档与票面依赖不一致，先记录并暂停该票。若摘要计数与固定范围不一致，按总序 §1.1 重新计算，不修改范围来迁就摘要。
 5. 从该票继续。**禁止重做任何已完成的工作**；若发现已完成项存在回归，作为新缺陷记录（`progress.txt` + 总序备注），排入当前段末尾处理，不回滚整段。
 
 ## 2. 每票执行循环（一票一循环，完成前不切票）
@@ -43,6 +45,8 @@
 6. **heavy 两阶段审查**：实现完成后派发两个只读子代理分别做「规格符合性」与「代码质量」审查，处理全部 DONE_WITH_CONCERNS 后才可收口。
 7. **记录与提交**：`progress.txt` 追加条目（What was done / Testing / Notes）；只有验证门全过才在总序 §3 对应条目追加 ✅ 与 commit hash；`git add <精确文件列表>` 提交。heavy 票须从干净基线创建独立 worktree：`git worktree add ../OmniCraft-heavy-<票号> -b codex/heavy/<票号> <当前基线>`，一票一分支一 commit；审查通过后由主 worktree 合并，禁止在主 worktree 直接 `git checkout` 切走用户改动。light 票在当前 feature 分支按逻辑分批 commit。提交信息用 conventional 风格（feat/fix/docs/test）。
 8. **关票**：`gh -R Leewwp/OmniCraft issue close <N> -c "完成于 <hash>；验证证据：<一句话摘要（测试结果/截图说明）>"`。
+
+关票命令必须显式指定完成原因：对真正完成的票使用 `gh -R Leewwp/OmniCraft issue close <N> --reason completed -c "完成于 <hash>；验证证据：<一句话摘要（测试结果/截图说明）>"`；阻塞票保持 OPEN，不得用 `not planned` 或普通关闭掩盖未完成状态。
 
 ## 3. 顺序与并行协议
 
