@@ -124,15 +124,17 @@ test("brand entry and page shells follow the unified page-shell width/gutter con
 });
 
 test("filter selected states share the colored pill contract with semantic state", async () => {
-  const [home, originalTabs, originalPage, ips] = await Promise.all([
+  const [home, filterPills, originalPage, originalFeed, ips, ipDetailContents] = await Promise.all([
     readFrontendSource("components/home/HomePageClient.tsx"),
-    readFrontendSource("components/original/CategoryTabs.tsx"),
+    readFrontendSource("components/ui/filter-pills.tsx"),
     readFrontendSource("app/(public)/original/page.tsx"),
+    readFrontendSource("components/original/OriginalFeedClient.tsx"),
     readFrontendSource("components/ip/IPBrowseClient.tsx"),
+    readFrontendSource("components/ip/IPDetailContents.tsx"),
   ]);
 
   const pill = /border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold/;
-  for (const source of [home, originalTabs, ips]) {
+  for (const source of [home, filterPills]) {
     assert.match(source, pill, "selected state must use the shared colored pill");
     assert.match(source, /rounded-full/, "selected pill must be rounded-full");
     assert.match(source, /aria-pressed/, "selection must be exposed semantically");
@@ -140,13 +142,18 @@ test("filter selected states share the colored pill contract with semantic state
 
   // Selection must not rely on color alone: semantic attribute or text is required.
   assert.match(home, /aria-pressed=\{active\}/);
-  assert.match(originalTabs, /aria-pressed=\{active\}/);
-  assert.match(ips, /aria-pressed=\{active\}/);
+  assert.match(filterPills, /aria-pressed=\{active\}/);
 
-  // The original zone page delegates tabs to the shared component.
-  assert.match(originalPage, /<CategoryTabs/);
-  assert.match(originalPage, /border-b border-border-default bg-canvas-default/);
+  // The original zone page delegates the pill form + sticky row to the in-place feed client.
+  assert.match(originalPage, /<OriginalFeedClient/);
+  assert.match(originalFeed, /border-b border-border-default bg-canvas-default/);
+  assert.match(originalFeed, /<FilterPills/);
   assert.doesNotMatch(originalPage, /active\s*\?\s*"border-border bg-card/);
+
+  // IP surfaces consume the shared FilterPills for library + detail category filters.
+  assert.match(ips, /<FilterPills/);
+  assert.match(ipDetailContents, /<FilterPills/);
+  assert.match(ipDetailContents, /router\.replace/);
 });
 
 function CollapseHarness() {

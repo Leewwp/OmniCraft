@@ -1,10 +1,10 @@
-import { getServerApiBase } from "@/lib/server-api";
+import { getServerApiBase, getBrowserApiBase } from "@/lib/server-api";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslations } from 'next-intl/server';
-import { OverlayMasonryGrid } from "@/components/content/OverlayMasonryGrid";
 import { ContentCardData } from "@/components/content/ContentCard";
 import { IPDetail } from "@/components/ip/IPDetail";
+import { IPDetailContents } from "@/components/ip/IPDetailContents";
 import { RecordBrowseHistory } from "@/components/tracking/RecordBrowseHistory";
 import { normalizeContentList } from "@/lib/content";
 
@@ -41,7 +41,7 @@ async function fetchIP(apiBase: string, ipId: string): Promise<IPItem | null> {
   }
 }
 
-async function fetchContents(apiBase: string, ipId: string, sort: string) {
+async function fetchContents(apiBase: string, ipId: string, sort: string, category: string) {
   const params = new URLSearchParams({
     ip_id: ipId,
     zone: "fanwork",
@@ -49,6 +49,9 @@ async function fetchContents(apiBase: string, ipId: string, sort: string) {
     time_range: "all",
     page_size: "24",
   });
+  if (category && category !== "all") {
+    params.set("content_type", category);
+  }
   try {
     const res = await fetch(`${apiBase}/contents?${params.toString()}`, {
       cache: "no-store",
@@ -96,17 +99,17 @@ export default async function IPDetailPage({
   searchParams,
 }: {
   params: Promise<{ ipId: string }>;
-  searchParams: Promise<{ sort?: string }>;
+  searchParams: Promise<{ sort?: string; category?: string }>;
 }) {
-  const t = await getTranslations();
   const { ipId } = await params;
   const query = await searchParams;
   const sort = query.sort || "hot";
+  const category = query.category || "all";
 
   const apiBase = getServerApiBase();
   const [ip, contents] = await Promise.all([
     fetchIP(apiBase, ipId),
-    fetchContents(apiBase, ipId, sort),
+    fetchContents(apiBase, ipId, sort, category),
   ]);
 
   if (!ip) {
@@ -117,10 +120,13 @@ export default async function IPDetailPage({
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6">
       <RecordBrowseHistory contentType="ip" targetId={ip.id} />
       <IPDetail ip={ip} />
-      <section className="space-y-3 rounded-md border border-border bg-card p-4 ">
-        <h2 className="text-base font-semibold">{t('content.allContent')}</h2>
-        <OverlayMasonryGrid items={contents} source="ip-page" />
-      </section>
+      <IPDetailContents
+        ipId={ip.id}
+        apiBase={getBrowserApiBase()}
+        initialContents={contents}
+        initialCategory={category}
+        initialSort={sort}
+      />
     </div>
   );
 }

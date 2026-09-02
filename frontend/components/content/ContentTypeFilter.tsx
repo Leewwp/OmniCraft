@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { cn } from "@/lib/utils";
+import { FilterPills } from "@/components/ui/filter-pills";
 
 export const collectionContentTypes = [
   "all",
@@ -25,38 +25,24 @@ interface ContentTypeFilterProps {
   disabled?: boolean;
 }
 
+// 收敛至全站筛选形态基准 FilterPills（ui-spec §Component: FilterPills 收敛注记）：
+// 药丸 + aria-pressed + accent 选中态；就地 onChange 语义保持不变。
 export function ContentTypeFilter({ value, counts, onChange, disabled = false }: ContentTypeFilterProps) {
   const t = useTranslations();
   const selected = isCollectionContentType(value) ? value : "all";
 
   return (
-    <div role="tablist" aria-label={t("collections.filters.label")} className="flex gap-2 overflow-x-auto pb-1">
-      {collectionContentTypes.map((type) => {
-        const isSelected = selected === type;
-        return (
-          <button
-            key={type}
-            type="button"
-            role="tab"
-            aria-selected={isSelected}
-            aria-current={isSelected ? "true" : undefined}
-            disabled={disabled}
-            onClick={() => onChange(type)}
-            className={cn(
-              "min-h-11 shrink-0 rounded-md border px-3 text-sm transition-colors md:min-h-9",
-              isSelected
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-background text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t(`collections.filters.${type}`)}
-            {counts && type !== "all" && (
-              <span className="ml-1 text-xs opacity-80">{counts[type] ?? 0}</span>
-            )}
-          </button>
-        );
-      })}
-    </div>
+    <FilterPills
+      ariaLabel={t("collections.filters.label")}
+      options={collectionContentTypes.map((type) => ({
+        value: type,
+        label: t(`collections.filters.${type}`),
+        count: counts && type !== "all" ? counts[type] ?? 0 : undefined,
+      }))}
+      value={selected}
+      onChange={onChange}
+      disabled={disabled}
+    />
   );
 }
 

@@ -42,7 +42,7 @@ test("#81 original zone category filter narrows the stream and never mixes recom
 
   await page.goto("/original");
   await expect(page).toHaveURL(/\/original$/);
-  await expect(page.getByRole("tab", { name: "Recommended" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("button", { name: "Recommended", pressed: true })).toBeVisible();
   await expect(page.locator("article.group").first()).toBeVisible({ timeout: 15_000 });
   const initialCardCount = await page.locator("article.group").count();
   expect(initialCardCount).toBeGreaterThanOrEqual(5);
@@ -53,9 +53,9 @@ test("#81 original zone category filter narrows the stream and never mixes recom
   const recommendedCategories = new Set((recommendedEntry.body?.contents ?? []).map((c) => c.category));
   expect(recommendedCategories.size).toBeGreaterThan(1);
 
-  await page.getByRole("tab", { name: "Film & TV" }).click();
+  await page.getByRole("button", { name: "Film & TV" }).click();
   await expect(page).toHaveURL(/category=film_tv/);
-  await expect(page.getByRole("tab", { name: "Film & TV" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("button", { name: "Film & TV", pressed: true })).toBeVisible();
 
   const filteredEntry = await waitForContentsEntry(marker, (e) => e.url.includes("category=film_tv"));
   expect(filteredEntry.url).toContain("sort=hot");
