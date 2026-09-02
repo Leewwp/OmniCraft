@@ -24,12 +24,12 @@
 - **#290**：单票大重构（45 user stories，迁移 073+，heavy）。无票内依赖；spec 自述吸收 FIX-25 / F-064 / 类目页死排序 / mod label 错映射，不吸收 FIX-18（T12）/FIX-23（T15）。
 - 外部输入：**DashScope API Key 已就绪**（2026-09-02 由 health-agent/.env 迁入本地 `OmniCraft/.env`，已 gitignore；A-03 定稿正式配置键名，生产侧走外部 secret 覆盖文件注入）；**语料文本**（独立会话以 GLM flash 生成，仅阻塞语料 v2 入库与 A-04 真实消融，不阻塞 A-03 实现）；GREEN / MiniMax 已恢复可用。
 
-### 1.1 当前执行 checkpoint（2026-09-02，T17 收口后）
+### 1.1 当前执行 checkpoint（2026-09-02，A-01 收口后）
 
-- 固定 goal 范围共 **69 个执行单元**（2026-09-02 修订一 +1）：T01–T55（55）+ U-01~U-05（5）+ A-01~A-07（7）+ #290（1）+ 语料 v2 #291（1）。其中 **20 个已完成并在 GitHub 以 `CLOSED/COMPLETED` 收口**：T01~T09（9）、T17~T20（4）、T22（1）、U-01~U-05（5）、#290（1）；剩余 49 个，#276/#282 仍为协调父票不计入。
-- **第 3、4、5 段已全部收口**：第 5 段 = #290（6e6d77e）+ T17（18830a8，admin IP 缓存失效/B-004）；两段边界 verify-project.sh --full 均通过。
-- 下一张可执行票是 **第 6 段 A-01（#283，heavy：会话模型重构）**，随后 A-02（#284）→ [A-05（#287）→ A-03（#285）]。
-- 用户 checkpoint 摘要中的“14/45”不是本总序固定范围的分母；后续 agent 以本节 69/20/49 和 GitHub 实际状态计数，不据此提前宣称总序或投递门槛完成。
+- 固定 goal 范围共 **69 个执行单元**（2026-09-02 修订一 +1）：T01–T55（55）+ U-01~U-05（5）+ A-01~A-07（7）+ #290（1）+ 语料 v2 #291（1）。其中 **21 个已完成并在 GitHub 以 `CLOSED/COMPLETED` 收口**：T01~T09（9）、T17~T20（4）、T22（1）、U-01~U-05（5）、#290（1）、A-01（1）；剩余 48 个，#276/#282 仍为协调父票不计入。
+- **第 3、4、5 段已全部收口**；第 6 段已开工：A-01（fd4c33e）完成，下一张 = A-02（#284，SSE 契约 v2）→ [A-05（#287）→ A-03（#285）]。
+- **A-01 落地后的契约影响**：/agent/chat/stream 已硬切换新 body——旧前端（发 {messages}）在 A-06 前不可用（用户 2026-09-02 裁决接受）；A-06 完整前置 = A-01 ✅ + A-02 + U-02 ✅ + T18/19/20 ✅（仅差 A-02）。
+- 用户 checkpoint 摘要中的“14/45”不是本总序固定范围的分母；后续 agent 以本节 69/21/48 和 GitHub 实际状态计数，不据此提前宣称总序或投递门槛完成。
 
 ## 2. 冲突整合裁决（重叠裁剪，逐项）
 
@@ -76,7 +76,7 @@
 12. **T17（#237，收窄版）** admin IP 状态变更缓存失效 + B-004（admin.go:66）折叠——同域紧随 #290 ✅ 2026-09-02 完成（18830a8，light+TDD：`NewIPServiceWithInvalidation` 修正无 rdb 构造，admin 待审列表保持 DB 直读；TDD 3 例先红后绿 + curl 实测 approve/reject 立即命中新状态、reject 后 GET 前 redis 键=0 + 段边界 verify-project.sh --full EXIT=0；附带修复三份 working 文档失效日期格式合规）——**第 5 段完成**（段边界 verify-project.sh --full 通过 2026-09-02）
 
 ### 第 6 段 重构二后端链（SP-13）
-13. **A-01（#283，heavy）** 会话模型重构（title/pinned_at 迁移、续写、自动标题、停止保留）
+13. **A-01（#283，heavy）** 会话模型重构（title/pinned_at 迁移、续写、自动标题、停止保留） ✅ 2026-09-02 完成（fd4c33e，squash codex/heavy/283；迁移 074 + 请求体硬切换 `{conversation_id?, message}`（用户裁决，旧 body 400）+ 服务端 token 预算组装（chat_context_token_budget=8000）+ 异步自动标题 + PATCH 重命名/置顶（UpdateColumns 不扰动 updated_at）+ 停止/失败三路径保留半成品；heavy 两阶段审查双 DONE_WITH_CONCERNS→全修→增量复审 APPROVED（mutation 验证）；全量门 + live curl 真实 qwen-plus 三轮续写/掐断保留/越权 404；记录：#290 迁移 073 ledger 漏记已补账；本地 search_content tool_error 为 embedding provider 未配置的既有状态（A-03 范围））
 14. **A-02（#284）** SSE 契约 v2（真流式 + 思考块 + 工具步骤事件；同步 web-agent-v0.4-mvp.md；继承 T19 行缓冲语义）
 15. **A-05（#287）** 护栏补口（chat 输入前置 Green + 输出事后异步审核）
 16. **A-03（#285）** 检索管线升级（v4@1536 零 DDL + hybrid on Postgres + 查询扩展 + qwen3-rerank 三开关）
