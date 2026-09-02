@@ -1,3 +1,16 @@
+## [2026-09-02] - 闲时中断诊断 + 两份闲时 goal 提示词落盘（v1.1 加固 + 语料生成）
+
+### What was done:
+- 诊断两次闲时中断（rollout JSONL / 应用日志 / db.sqlite 证据链）：sess_751512dc 死于 `off-peak-ticket-expired`（会话恰好 3h00m19s——票据 ~3h 硬过期、retryable=false、turn 级死亡时任何提示词协议都无法执行、死后无自动重派）；sess_640745ad 死于同闲时通道 `MODEL_TLS_VALIDATION_FAILED`（子代理+父会话双杀）。转录里最后的 Write 工具报错是红鲱鱼。对照组 sess_ebd929a2（2h38m，模型主动 end_turn 干净收尾）证明既有断点续传设计有效。
+- `docs/working/2026-09-02-idle-goal-prompt.md` 升级 v1.1：①时长预算与主动收尾（≥2h 不开新票/不派审查，≥2h30m 强制收尾结束 turn）；②heavy 分支里程碑 WIP commit（「一任务一 commit」放宽为「一任务一合并」的生存性例外）；③审查子代理实现门禁一过立即派发 + 平台错误重试降级；④与语料生成任务心跳互斥（`artifacts/idle-heartbeat.json`，dev 优先）；checkpoint 段刷新至 #290 在途实况（worktree codex/heavy/290 约 40 文件未提交；剩余：e2e spec 重写 → tsc → 前端全量测试 → 浏览器验证 → 门禁 → 两阶段审查 → 合并关票）。
+- 新建 `docs/working/2026-09-02-idle-corpus-goal-prompt.md`：语料生成父-子编排 goal（波次 ≤3 子代理、每波验收合并、孤儿批次回收、manifest 幂等续跑、时间预算 2h15m/2h40m、dev 心跳优先让行、golden set 收口保留给 5.3 交互会话，附录含手动收口提示词）。
+
+### Testing:
+- 纯文档任务。诊断结论经 rollout 末条错误记录、turn.failed/后台轮失败日志、会话表时长（6232s/9499s/10818s）交叉验证；文档内 #290 状态与 `git -C ../OmniCraft-heavy-290 status`（40 文件改动/新增）及分支基点 456339f 对账一致。
+
+### Notes:
+- 未触碰 #290 worktree 任何文件；`artifacts/` 整体 gitignore（.gitignore:74），心跳文件不产生 git 噪音。3h 票据墙为单数据点推断（无反例），提示词按保守预算（2h/2h30m）设计，后续运行日志可再校准。
+
 ## [2026-09-02] - 第 4 段收口（U 批次全部落地）
 
 ### What was done:
