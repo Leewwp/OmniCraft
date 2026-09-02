@@ -7,37 +7,41 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Sidebar, type SidebarItem, type TrendingEntry } from "@/components/layout/Sidebar";
 import { api } from "@/lib/api";
 
-interface TrendingSearchItem {
-  query: string;
-  stat: string;
-  nameKey: string;
+interface TrendingContentItem {
+  title: string;
+  score: number;
+  contentId: number;
 }
 
 export function SidebarWrapper() {
   const { user } = useAuth();
   const t = useTranslations();
-  const [trendingSearches, setTrendingSearches] = useState<TrendingSearchItem[]>([]);
+  const [trendingContents, setTrendingContents] = useState<TrendingContentItem[]>([]);
 
   useEffect(() => {
-    api.get<{ items?: Array<{ name?: string; id?: string | number; participant_count?: number }> }>("/api/v1/search/trending")
+    api.get<{ trending?: Array<{ text?: string; score?: number; content_id?: number }> }>("/api/v1/search/trending")
       .then((data) => {
-        if (data && Array.isArray(data.items) && data.items.length > 0) {
-          const items: TrendingSearchItem[] = data.items.slice(0, 5).map((item, i) => ({
-            query: item.name || String(item.id || ""),
-            stat: item.participant_count ? String(item.participant_count) : "",
-            nameKey: `home.trending${i + 1}`,
-          }));
-          setTrendingSearches(items);
+        if (!data || !Array.isArray(data.trending)) {
+          return;
         }
+        const items: TrendingContentItem[] = data.trending
+          .filter((item) => item.text && item.content_id)
+          .slice(0, 5)
+          .map((item) => ({
+            title: item.text ?? "",
+            score: item.score ?? 0,
+            contentId: item.content_id ?? 0,
+          }));
+        setTrendingContents(items);
       })
       .catch(() => {});
   }, []);
 
-  const trendingTopics: TrendingEntry[] = trendingSearches.map((item, i) => ({
+  const trendingEntries: TrendingEntry[] = trendingContents.map((item, i) => ({
     rank: i + 1,
-    name: t(item.nameKey),
-    stat: item.stat ? `${item.stat} ${t("home.trendingParticipants")}` : "",
-    href: `/search?q=${encodeURIComponent(item.query)}`,
+    name: item.title,
+    stat: item.score > 0 ? `${t("home.trendingHeat")} ${item.score}` : "",
+    href: `/content/${item.contentId}`,
   }));
 
   const sections = [
@@ -54,7 +58,7 @@ export function SidebarWrapper() {
   return (
     <Sidebar
       sections={sections}
-      trending={trendingTopics.length > 0 ? { title: t("home.trendingTopics"), entries: trendingTopics } : undefined}
+      trending={trendingEntries.length > 0 ? { title: t("home.trendingContents"), entries: trendingEntries } : undefined}
     />
   );
 }
