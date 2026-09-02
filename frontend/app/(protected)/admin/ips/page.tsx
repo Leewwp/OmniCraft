@@ -123,7 +123,7 @@ export default function AdminIPsPage() {
                     <td className="px-4 py-3 text-xs text-muted-foreground">{ip.category || "-"}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{ip.submitter_id}</td>
                     <td className="px-4 py-3">
-                      <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
                         {ip.status}
                       </span>
                     </td>

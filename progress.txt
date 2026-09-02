@@ -1,3 +1,20 @@
+## [2026-09-02] - Task U-05 (#281): 第二批逐页 sweep——admin+studio（SP-12，light，纯视觉）
+
+### What was done:
+- **studio 发布表单**：PublishForm/IPPublishForm 提交与查看 IP 主 CTA 去 `rounded-full` 覆写（操作=8px 矩形，保留 px-8 与 lg 档）；两个表单的类目选择 chip 选中态从原始 `[var(--accent-*)]` 换语义 token 类（border/bg/text-accent-* + font-semibold，与 FilterPills 基准一致）+ PublishForm chip 补 aria-pressed + transition-colors。
+- **admin 状态徽章药丸化**：8 个 admin 页面（ips/audit-logs/contents/appeal/agent-config/feedback×2/reports/categories）共 20+ 个 `rounded`（4px，已退役半径）状态徽标 span → `rounded-full`（信息标签=药丸语义）；原生 checkbox 与 skeleton 占位不动。
+- **扫描结论**：admin/studio 无 active:scale 违例；侧栏宽度 200ms 过渡为面板布局动画（非控件状态切换）维持；studio 无裸 rounded 徽标。
+- 逐页清单（四规则核销）：admin 全套（contents/reports/ips/appeal/feedback/audit-logs/config/agent-config/categories/queue/broadcast/dashboard/users/notifications/overrides/analytics/security）+ studio（overview/contents/favorites/collections/publish×{original,fanwork,ip}/settings）。
+- 未改动任何后端/功能逻辑（全部 className/aria 级纯视觉改动）。
+
+### Testing:
+- `npm run lint`（tsc）+ `npm run test:unit`（26+463 全绿）+ `npm run build` + mock e2e 77/77 通过。
+- 登录实测（seed-ui-001 admin）：截图 7 张存 `screenshots/u05-{admin-contents,admin-feedback,studio-publish,studio-ip-publish}-{light,dark}-1440`；视觉核验——发布表单主 CTA 为 ~8px 矩形、类目 chips 药丸+indigo 选中态；admin 表格徽标全药丸化、操作按钮矩形统一。
+- 登录限流坑：连续 6 个独立浏览器上下文快速登录触发限流，最后一个截图会话被重定向 login——间隔 45s 重试成功。
+
+### Notes:
+- light 车道，main 直接提交。admin 状态色仍用 amber/emerald 原始调色板（非语义 token）——属颜色 token 债务，超出本票四规则（形状/高度/选中态/动效）范围，未动。
+
 ## [2026-09-02] - Task U-04 (#280): 第一批逐页 sweep——公开页+用户侧（SP-12，light）
 
 ### What was done:

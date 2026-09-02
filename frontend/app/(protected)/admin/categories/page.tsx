@@ -439,7 +439,7 @@ export default function AdminCategoriesPage() {
                       <td className="px-4 py-3 text-xs text-muted-foreground">{cat.parent_id ?? "-"}</td>
                       <td className="px-4 py-3">
                         <span
-                          className={`rounded px-2 py-0.5 text-xs ${
+                          className={`rounded-full px-2 py-0.5 text-xs ${
                             cat.is_active ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"
                           }`}
                         >
@@ -471,7 +471,7 @@ export default function AdminCategoriesPage() {
                       <td className="px-4 py-3 text-xs text-muted-foreground">{cat.parent_id ?? "-"}</td>
                       <td className="px-4 py-3">
                         <span
-                          className={`rounded px-2 py-0.5 text-xs ${
+                          className={`rounded-full px-2 py-0.5 text-xs ${
                             cat.is_active ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"
                           }`}
                         >

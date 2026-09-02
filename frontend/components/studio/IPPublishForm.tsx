@@ -137,7 +137,7 @@ export function IPPublishForm({ onBack }: IPPublishFormProps) {
           <div className="flex flex-wrap gap-3">
             <Link
               href={`/ip/${created.id}`}
-              className={buttonVariants({ size: "lg", className: "rounded-full px-8" })}
+              className={buttonVariants({ size: "lg", className: "px-8" })}
             >
               {t("successView")}
             </Link>
@@ -219,9 +219,9 @@ export function IPPublishForm({ onBack }: IPPublishFormProps) {
                 onClick={() => setCategory(active ? "" : option.key)}
                 aria-pressed={active}
                 className={cn(
-                  "min-h-11 rounded-full border px-3.5 text-xs font-medium transition-all",
+                  "min-h-11 rounded-full border px-3.5 text-xs font-medium transition-colors duration-150",
                   active
-                    ? "border-[var(--accent-emphasis)] bg-[var(--accent-subtle)] text-[var(--accent-emphasis)]"
+                    ? "border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold"
                     : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground",
                 )}
               >
@@ -274,7 +274,7 @@ export function IPPublishForm({ onBack }: IPPublishFormProps) {
           type="submit"
           size="lg"
           disabled={submitting || nameInvalid}
-          className="gap-2 rounded-full px-8"
+          className="gap-2 px-8"
         >
           <Send className="h-4 w-4" />
           {submitting ? t("submitting") : t("submit")}

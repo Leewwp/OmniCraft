@@ -144,7 +144,7 @@ export default function AgentConfigPage() {
         <h3 className="text-sm font-semibold">{t("agentConfig.activeConfig")}</h3>
         {activeConfig ? (
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-            <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
               <Check className="mr-1 inline h-3 w-3" />
               {activeConfig.config_name}
             </span>
@@ -179,7 +179,7 @@ export default function AgentConfigPage() {
                   <td className="px-4 py-2.5 text-muted-foreground">{cfg.model}</td>
                   <td className="px-4 py-2.5">
                     {cfg.is_active ? (
-                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                      <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
                         {t("common.enabled")}
                       </span>
                     ) : (

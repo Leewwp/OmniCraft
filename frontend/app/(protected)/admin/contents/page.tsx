@@ -132,7 +132,7 @@ export default function AdminContentsPage() {
                     <td className="px-4 py-3 text-xs text-muted-foreground">{c.author_id}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{c.view_count}</td>
                     <td className="px-4 py-3">
-                      <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
                         {c.status}
                       </span>
                     </td>

@@ -129,7 +129,7 @@ export default function AdminAppealPage() {
                     <td className="px-4 py-3 text-xs text-muted-foreground">{a.user_id}</td>
                     <td className="px-4 py-3 text-xs">
                       <span
-                        className={`rounded px-2 py-0.5 text-xs ${
+                        className={`rounded-full px-2 py-0.5 text-xs ${
                           a.target_type === "content"
                             ? "bg-blue-50 text-blue-700"
                             : "bg-purple-50 text-purple-700"
@@ -143,7 +143,7 @@ export default function AdminAppealPage() {
                       {a.reason}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
                         {a.status}
                       </span>
                     </td>
