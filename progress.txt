@@ -1,3 +1,24 @@
+## [2026-09-02] - Task U-03 (#279): FilterPills 共享组件与全站筛选就地化（SP-12，light）
+
+### What was done:
+- **FilterPills 共享组件**（`components/ui/filter-pills.tsx`，按 ui-spec §Component: FilterPills 定稿）：药丸 rounded-full + min-h-11 触控高度 + 横向滚动（scrollbar-width:none + pb-1）+ aria-pressed；选中态三线索（accent-subtle 底 + accent-emphasis 字 + 描边 + Check 图标 + font-semibold）；支持 count 徽标、loading/disabled（整组 opacity-50）；自身无常驻 i18n（ariaLabel 必传）。
+- **IP 库消费**：IPBrowseClient 内联药丸 nav 替换为 FilterPills（形态/行为与原基准一致）。
+- **IP 详情类目就地化**：新 `IPDetailContents` 客户端组件（FilterPills + 网格 + 客户端拉取 `/contents?ip_id&content_type` + `router.replace` URL 同步不滚动 + SSR 首屏保留默认类目）；`/ip/[ipId]` 服务端页支持 `?category=` 刷新恢复；hero 卡移除旧 IPCategoryTabs（药丸行独立成行）；旧路由 `/ip/[ipId]/[category]` 改为 redirect 桩（保留 sort）；删除 `IPCategoryTabs.tsx`。
+- **原创区就地化**：新 `OriginalFeedClient`（粘性行 FilterPills + ui/SortSelect + 客户端刷新 + URL replace；resolveDefaultSort 语义保留：类目收紧时默认 hot）；`/original` 服务端页保留 banner/stats/侧栏 SSR；删除旧 `CategoryTabs.tsx`/`original/SortSelect.tsx`（原 router.push 跳转式筛选退役）。
+- **ContentTypeFilter 收敛**：内部重写为 FilterPills（保留 value/counts/onChange/disabled API；collections 与 history 消费面零改动），矩形+primary 旧形态退役。
+- **i18n**：新增 `ip.contentCategories`（内容类目/Content categories）zh/en；旧 `home.trending*` 不涉及。
+- **测试**：新增 `tests/filter-pills.test.tsx`（nav 语义/aria-pressed/onChange/count/disabled）+ `e2e/ip-detail-category.mock.spec.ts`（stub HTTP 服务占 18080 同时供 SSR 与浏览器两侧 + CORS：就地切换 URL 同步/滚动 500→500/列表刷新/刷新恢复 + 旧路由 redirect 断言）；按新形态更新 page-shell-contract（/original 药丸改 button+pressed、键盘导航改 navigation 作用域）、t81-original-filter、collections.spec 的 role=tab 断言；navigation-shells/card-entry-overlay 源码契约指向新组件；删除两个旧跳转行为单测。
+
+### Testing:
+- `npm run lint`（tsc）、`npm run test:unit`（26+463 全绿）、`npm run build` 通过；mock e2e 77/77（含 2 新增）；`bash scripts/verify-project.sh --full` EXIT=0 全绿。
+- 真机浏览器验证（:3000/:8080 真实数据）：/original 点「影视」→ URL `?category=film_tv`、就地刷新（标题组变化）、无编程式滚动归零（600→234 为列表重排钳制）；/ip/210 点「图片」→ URL `?category=image`、选中态、滚动 500→500 精确保持、列表刷新；刷新后视频类目恢复；旧链接 `/ip/210/video?sort=newest` → `/ip/210?category=video&sort=newest`。
+- 截图 8 张存 `screenshots/u03-{original,ip-detail}-{light,dark}-{1440,375}.png`，亮暗主题与药丸选中态经视觉核验。
+- 已知边界：t81（release 层、需真实代理后端）仅更新定位器未执行，其契约由 --full 门内 page-shell + 源码契约覆盖。
+
+### Notes:
+- light 车道，main 直接提交。踩坑两处记录：① React StrictMode 双挂载会击穿「mounted ref 只跳首次」守卫（run1 置位→cleanup→run2 误触发 sync 导致 t69 系列目录 3 例确定性失败）——改「签名对比」守卫（category/sort 签名 vs 初始 URL 签名）双模式正确；② 长驻 dev server 对 messages JSON 的缓存再次导致新 i18n 键渲染为原始键（本日第二例），重启 dev server 解决——建议后续 i18n 改动后一律重启。
+- 全站盘点结论（票面清单项）：路由跳转式筛选 = IP 详情类目 tab（本票就地化+redirect）与 /original 类目/排序（本票就地化）；形态偏离 = ContentTypeFilter（本票收敛）；/ips、搜索页、collections、history 均已就地无需处理。
+
 ## [2026-09-02] - 第 3 段边界门 + e2e flaky 加固（T22 后 checkpoint）
 
 ### What was done:

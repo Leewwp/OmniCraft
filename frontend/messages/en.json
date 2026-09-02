@@ -1030,6 +1030,7 @@
     "cover": "IP Cover",
     "category": "Category: {category}",
     "uncategorized": "Uncategorized",
+    "contentCategories": "Content categories",
     "noDescription": "No IP description available",
     "noDescriptionShort": "No description",
     "enterDiscussion": "Enter Discussion",

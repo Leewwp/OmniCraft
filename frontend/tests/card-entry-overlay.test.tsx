@@ -239,26 +239,26 @@ test("exiting the overlay restores focus to the triggering card", async () => {
 
 test("home feed and original zone wire the shared overlay with zone-page source", () => {
   const home = read("components/home/HomePageClient.tsx");
-  const original = read("app/(public)/original/page.tsx");
-  for (const source of [home, original]) {
+  const originalFeed = read("components/original/OriginalFeedClient.tsx");
+  for (const source of [home, originalFeed]) {
     assert.match(source, /<OverlayMasonryGrid/);
     assert.match(source, /source="zone-page"/);
     assert.doesNotMatch(source, /<MasonryGrid/, "pages must not use the raw grid without overlay wiring");
   }
   assert.match(home, /items=\{contents\}/);
-  assert.match(original, /emptyText=\{t\("home\.noOriginalContent"\)\}/);
+  assert.match(originalFeed, /emptyText=\{t\("home\.noOriginalContent"\)\}/);
 });
 
-test("IP detail and IP category pages wire the shared overlay with ip-page source", () => {
-  const ipDetail = read("app/(public)/ip/[ipId]/page.tsx");
-  const ipCategory = read("app/(public)/ip/[ipId]/[category]/page.tsx");
-  for (const source of [ipDetail, ipCategory]) {
-    assert.match(source, /<OverlayMasonryGrid/);
-    assert.match(source, /source="ip-page"/);
-    assert.doesNotMatch(source, /<MasonryGrid/, "pages must not use the raw grid without overlay wiring");
-  }
-  assert.match(ipDetail, /items=\{contents\}/);
-  assert.match(ipCategory, /items=\{contents\}/);
+test("IP detail surfaces wire the shared overlay with ip-page source", () => {
+  const ipDetailContents = read("components/ip/IPDetailContents.tsx");
+  assert.match(ipDetailContents, /<OverlayMasonryGrid/);
+  assert.match(ipDetailContents, /source="ip-page"/);
+  assert.doesNotMatch(ipDetailContents, /<MasonryGrid/, "pages must not use the raw grid without overlay wiring");
+  assert.match(ipDetailContents, /items=\{contents\}/);
+
+  // The legacy /ip/[id]/[category] route now redirects to the query form (U-03).
+  const legacyCategoryRoute = read("app/(public)/ip/[ipId]/[category]/page.tsx");
+  assert.match(legacyCategoryRoute, /redirect\(/);
 });
 
 test("direct-URL detail pages keep full-page rendering (deep links preserved)", () => {

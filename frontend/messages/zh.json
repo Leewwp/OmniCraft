@@ -1030,6 +1030,7 @@
     "cover": "IP 封面",
     "category": "分类：{category}",
     "uncategorized": "未分类",
+    "contentCategories": "内容类目",
     "noDescription": "暂无 IP 介绍",
     "noDescriptionShort": "暂无简介",
     "enterDiscussion": "进入讨论区",

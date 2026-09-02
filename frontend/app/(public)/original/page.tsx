@@ -1,8 +1,7 @@
-import { getServerApiBase } from "@/lib/server-api";
+import { getServerApiBase, getBrowserApiBase } from "@/lib/server-api";
 import { getTranslations } from 'next-intl/server';
-import { OverlayMasonryGrid } from "@/components/content/OverlayMasonryGrid";
-import { SortSelect } from "@/components/original/SortSelect";
-import { CategoryTabs } from "@/components/original/CategoryTabs";
+import { ContentCardData } from "@/components/content/ContentCard";
+import { OriginalFeedClient } from "@/components/original/OriginalFeedClient";
 import { SidebarWrapper } from "@/components/original/OriginalSidebar";
 import { normalizeContentList } from "@/lib/content";
 import { resolveDefaultSort } from "@/lib/search-filters";
@@ -60,7 +59,7 @@ async function fetchStats(apiBase: string): Promise<StatsSummary | null> {
   } catch { return null; }
 }
 
-async function fetchContents(apiBase: string, search: Required<SearchParams>) {
+async function fetchContents(apiBase: string, search: Required<SearchParams>): Promise<ContentCardData[]> {
   const sort = resolveDefaultSort({ category: search.category, sort: search.sort });
   const params = new URLSearchParams({ zone: "original", sort, time_range: "all", page_size: "24" });
   if (search.category) params.set("category", search.category);
@@ -97,18 +96,14 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
           </div>
         </div>
 
-        {/* Category tabs + sort — unified sticky row */}
-        <div className="sticky top-[52px] z-40 border-b border-border-default bg-canvas-default px-4 py-2.5 md:px-6">
-          <div className="flex items-center gap-0">
-            <CategoryTabs categories={categories} currentCategory={current.category} />
-            <div className="ml-3 flex-shrink-0"><SortSelect /></div>
-          </div>
-        </div>
-
-        {/* Content masonry */}
-        <div className="px-4 pt-4 pb-16 md:px-6">
-          <OverlayMasonryGrid items={contents} emptyText={t("home.noOriginalContent")} source="zone-page" />
-        </div>
+        {/* Category pills + content — in-place switching client feed */}
+        <OriginalFeedClient
+          apiBase={getBrowserApiBase()}
+          categories={categories}
+          initialContents={contents}
+          initialCategory={current.category}
+          initialSort={current.sort}
+        />
       </div>
     </div>
   );

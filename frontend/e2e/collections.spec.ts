@@ -117,7 +117,7 @@ test("content type filter updates query and refetches collection detail", async 
   await mockAnonymousCollections(page);
 
   await page.goto("/collections/9");
-  await page.getByRole("tab", { name: "Video" }).click();
+  await page.getByRole("button", { name: "Video" }).click();
 
   await expect(page).toHaveURL(/content_type=video/);
   await expect(page.getByText("Public shelf")).toBeVisible();

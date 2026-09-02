@@ -4,7 +4,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { MessageSquareText, Users } from "lucide-react";
-import { IPCategoryTabs } from "@/components/ip/IPCategoryTabs";
 import { FollowButton } from "@/components/social/FollowButton";
 import { DiscussionBoard } from "@/components/social/DiscussionBoard";
 import { TagBadge } from "@/components/ui/TagBadge";
@@ -96,8 +95,6 @@ export function IPDetail({ ip }: IPDetailProps) {
             </div>
           </div>
         </div>
-
-        <IPCategoryTabs ipId={String(ip.id)} activeCategory="all" />
       </div>
 
       <DiscussionBoard ipId={ip.id} compact />

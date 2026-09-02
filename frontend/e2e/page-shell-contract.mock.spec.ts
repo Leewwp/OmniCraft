@@ -88,7 +88,7 @@ test.describe("unified page shell (#66)", () => {
     await expect(page.getByRole("button", { pressed: false }).first()).toBeVisible();
 
     await page.goto("/original");
-    active = page.getByRole("tab", { name: /推荐/, selected: true });
+    active = page.getByRole("button", { name: /推荐/, pressed: true });
     await expect(active).toBeVisible();
     await expect(active).toHaveAttribute("aria-pressed", "true");
     await expect(active).toHaveCSS("border-radius", "9999px");
@@ -102,9 +102,9 @@ test.describe("unified page shell (#66)", () => {
     await expect(active).toHaveCSS("border-color", "rgb(79, 70, 229)");
     await expect(active).toHaveCSS("background-color", "rgb(238, 242, 255)");
 
-    // Keyboard interaction: tab buttons are focusable and Enter triggers navigation.
+    // Keyboard interaction: filter pills are focusable and Enter triggers in-place switching.
     await page.goto("/original");
-    const tabs = page.getByRole("tab");
+    const tabs = page.getByRole("navigation", { name: "原创区" }).getByRole("button");
     await tabs.first().focus();
     await expect(tabs.first()).toBeFocused();
     await page.keyboard.press("Tab");

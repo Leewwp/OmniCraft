@@ -4,11 +4,12 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { AlertCircle, Check, Plus, Search, SearchX } from "lucide-react";
+import { AlertCircle, Plus, Search, SearchX } from "lucide-react";
 import { IPCard } from "@/components/ip/IPCard";
 import { Input } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterPills } from "@/components/ui/filter-pills";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SortSelect } from "@/components/ui/SortSelect";
 import { useAuth } from "@/contexts/AuthContext";
@@ -192,27 +193,13 @@ export function IPBrowseClient({ apiBase, initialIPs, initialTotal }: IPBrowseCl
       </div>
 
       {/* Category tabs */}
-      <nav aria-label={t('home.ipClassification')} className="mb-6 flex items-center gap-1 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
-        {IP_CATEGORIES.map((cat) => {
-          const active = category === cat.slug;
-          return (
-            <button
-              key={cat.slug || "__all__"}
-              type="button"
-              onClick={() => setCategory(cat.slug)}
-              aria-pressed={active}
-              className={`inline-flex min-h-11 flex-shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-medium transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                active
-                  ? "border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold"
-                  : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              {active && <Check className="h-3.5 w-3.5" aria-hidden="true" />}
-              {t(cat.labelKey)}
-            </button>
-          );
-        })}
-      </nav>
+      <FilterPills
+        ariaLabel={t('home.ipClassification')}
+        className="mb-6"
+        options={IP_CATEGORIES.map((cat) => ({ value: cat.slug, label: t(cat.labelKey) }))}
+        value={category}
+        onChange={setCategory}
+      />
 
       {/* IP Grid */}
       {loading ? (
