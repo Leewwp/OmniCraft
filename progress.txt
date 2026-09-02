@@ -1,3 +1,18 @@
+## [2026-09-02] - 第 3 段边界门 + e2e flaky 加固（T22 后 checkpoint）
+
+### What was done:
+- 第 3 段边界门 `bash scripts/verify-project.sh --full` 首跑 1/75 失败（judge-exam 契约 e2e 严格模式双匹配），单独重跑通过、整套重跑换 t97 失败——判定为两处既有 flaky（均与 T22 改动无关，T22 未触及判官/设置/私信任何文件）。
+- 根因修复（按协议「已完成项回归排入段末处理」）：① judge-exam `getByText("考核通过")` 子串匹配与页头卡片「资质考核+通过考核后」跨子元素拼接歧义 → 改 `{ exact: true }` 精确命中徽章；② t97 设置保存 `route.fulfill` 微任务级即时返回，乐观 UI 关断中间态在同一渲染批次内被 refreshUser 覆盖、不可观测 → PATCH 成功路径加 300ms 延迟使「乐观关→保存→回填」序列确定可断言。
+- 复跑门：`verify-project.sh --full` 全绿（75/75 mock 契约 + 全部工程门，EXIT=0）——**第 3 段（快赢批次 A）10/10 票收口完成**。
+- checkpoint 文档同步：总序 §1.1 与 §3 第 3 段完成标记、idle-goal-prompt 恢复点更新为 U-03（#279）。
+
+### Testing:
+- 两个加固 spec 单独跑 10/10 绿；完整 mock 套件 75/75 绿；verify-project.sh --full EXIT=0。
+- T22 关票证据已写入 #242（commit 4375a3e）。
+
+### Notes:
+- 计数：68 个执行单元中 15 个已完成收口（T01~T09、T18~T20、T22、U-01~U-02），剩余 53。下一票 U-03（#279，FilterPills 共享组件与全站筛选就地化，无未满足前置）。
+
 ## [2026-09-02] - Task T22 (#242): 热搜榜契约修复——真实公开内容（FIX-06，light）
 
 ### What was done:
