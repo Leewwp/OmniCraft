@@ -123,11 +123,15 @@ async function mockCollabSession(page: Page, options: { accept?: { status?: numb
     route.fulfill({ status: response.status ?? 200, contentType: "application/json", body: JSON.stringify(response.body) });
   });
 
-  await mockApiRoute(page, "**/api/v1/users/1", (route) => {
+  await mockApiRoute(page, "**/api/v1/users/1", async (route) => {
     if (options.patchFails) {
       route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ code: "DB_ERROR", message: "db error" }) });
       return;
     }
+    // Defer the save so the optimistic switch-off is observable before
+    // refreshUser() restores the mocked preference; an instant fulfill lets
+    // the whole toggle handler finish inside one render pass.
+    await new Promise((resolve) => setTimeout(resolve, 300));
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({}) });
   });
 }
