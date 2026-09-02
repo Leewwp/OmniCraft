@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strconv"
 
 	"omnicraft/backend/internal/repository"
 
@@ -22,30 +23,78 @@ func (s *SearchService) GetSuggestions(prefix string, limit int, viewerID int64)
 }
 
 type TrendingItem struct {
-	Text  string `json:"text"`
-	Score int64  `json:"score"`
+	Text      string `json:"text"`
+	Score     int64  `json:"score"`
+	ContentID int64  `json:"content_id"`
 }
+
+// hotRankContentsKey mirrors the hot rank ZSet maintained by likes/views and
+// the UpdateHotRank rebuild (members are content IDs).
+const hotRankContentsKey = "rank:hot:contents"
 
 func (s *SearchService) GetTrending(limit int) ([]TrendingItem, error) {
 	if limit <= 0 {
 		limit = 20
 	}
-	var results []TrendingItem
+	results := []TrendingItem{}
 	if s.rdb == nil {
 		return results, nil
 	}
 	ctx := context.Background()
-	items, err := s.rdb.ZRevRangeWithScores(ctx, "rank:hot:contents", 0, int64(limit-1)).Result()
+	// Over-fetch so invisible members (banned/under review) filtered out by
+	// the visibility join can still leave a full window.
+	fetch := int64(limit * 3)
+	if fetch > 300 {
+		fetch = 300
+	}
+	items, err := s.rdb.ZRevRangeWithScores(ctx, hotRankContentsKey, 0, fetch-1).Result()
+	if err != nil {
+		return results, err
+	}
+	ids := make([]int64, 0, len(items))
+	for _, z := range items {
+		if id, ok := parseHotRankMember(z.Member); ok {
+			ids = append(ids, id)
+		}
+	}
+	titles, err := s.searchRepo.ResolveTrendingContents(ctx, ids)
 	if err != nil {
 		return results, err
 	}
 	for _, z := range items {
+		if len(results) >= limit {
+			break
+		}
+		id, ok := parseHotRankMember(z.Member)
+		if !ok {
+			continue
+		}
+		title, visible := titles[id]
+		if !visible || title == "" {
+			continue
+		}
 		results = append(results, TrendingItem{
-			Text:  z.Member.(string),
-			Score: int64(z.Score),
+			Text:      title,
+			Score:     int64(z.Score),
+			ContentID: id,
 		})
 	}
 	return results, nil
+}
+
+func parseHotRankMember(member interface{}) (int64, bool) {
+	switch v := member.(type) {
+	case string:
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return 0, false
+		}
+		return id, true
+	case int64:
+		return v, true
+	default:
+		return 0, false
+	}
 }
 
 func (s *SearchService) SearchContents(query, zone, category, contentType string, tagFilters []string, sort, timeRange string, page, pageSize int, viewerID int64) ([]repository.ContentSearchResult, int64, error) {

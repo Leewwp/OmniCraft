@@ -137,6 +137,30 @@ func (r *SearchRepository) SearchSuggestions(prefix string, limit int, viewerID 
 	return results, nil
 }
 
+// ResolveTrendingContents maps hot-rank members (content IDs) to their titles
+// under the public visibility scope (FIX-06): unpublished, deleted, private or
+// banned-author entries are dropped so they never reach the discovery surface.
+func (r *SearchRepository) ResolveTrendingContents(ctx context.Context, ids []int64) (map[int64]string, error) {
+	if len(ids) == 0 {
+		return map[int64]string{}, nil
+	}
+	var rows []struct {
+		ID    int64  `gorm:"column:id"`
+		Title string `gorm:"column:title"`
+	}
+	if err := ApplyContentVisibilityScope(r.db.WithContext(ctx).Model(&model.ContentItem{}), 0).
+		Select("content_items.id, content_items.title").
+		Where("content_items.id IN ?", ids).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	titles := make(map[int64]string, len(rows))
+	for _, row := range rows {
+		titles[row.ID] = row.Title
+	}
+	return titles, nil
+}
+
 func (r *SearchRepository) SearchContents(query string, zone, category, contentType string, tagFilters []string, sort, timeRange string, page, pageSize int, viewerID int64) ([]ContentSearchResult, int64, error) {
 	if pageSize <= 0 || pageSize > 50 {
 		pageSize = 20

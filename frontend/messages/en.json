@@ -236,13 +236,8 @@
     "creatorsLabel": "Creators",
     "recommendedIps": "Recommended IPs",
     "browseAllIps": "Browse all IPs →",
-    "trendingTopics": "Trending Topics · This Week",
-    "trending1": "#SpringOutfitChallenge",
-    "trending2": "#WeekendKitchenDiary",
-    "trending3": "#DeskMakeover",
-    "trending4": "#DailyCats",
-    "trending5": "#MinimalLiving",
-    "trendingParticipants": "participants"
+    "trendingContents": "Trending Originals · This Week",
+    "trendingHeat": "heat"
   },
   "content": {
     "originalZone": "Original Zone",

@@ -1,3 +1,22 @@
+## [2026-09-02] - Task T22 (#242): 热搜榜契约修复——真实公开内容（FIX-06，light）
+
+### What was done:
+- 后端契约：`SearchService.GetTrending` 把 Redis ZSet `rank:hot:contents` 的 member（内容 ID）经新方法 `SearchRepository.ResolveTrendingContents` join `content_items` 解析为真实标题，`TrendingItem` 契约扩展为 `{text, score, content_id}`；超采样 limit×3（上限 300）保证过滤后仍能填满窗口，ZSet 分数序保留。
+- 可见性过滤（F-112）：join 复用 `ApplyContentVisibilityScope(db, 0)` 统一口径（published + 未删 + 作者未封禁/未注销 + IP 未封禁 + is_public），member 非数字/已删/不可见/空标题条目跳过——审计实证的「4 个 member 全是 banned/审核中」场景不再把封禁内容推上原创页。
+- 前端适配：`OriginalSidebar.tsx` 改读 `data.trending`（原读 `data.items` 双层错配）、渲染真实内容标题、深链 `/content/{content_id}`、热度分展示；空榜单时整个板块优雅隐藏（降级验证通过）。
+- i18n：废弃静态假榜单键 `home.trending1~5`/`trendingTopics`/`trendingParticipants`，新增 `home.trendingContents`（热门原创 · 本周）与 `home.trendingHeat`（热度），zh/en 同步。
+
+### Testing:
+- TDD：新增 `search_trending_contract_test.go`（miniredis + sqlite）先红（现状 6 条裸 ID 全透出）后绿：6 成员池（published/banned/under_review/private/deleted/banned-author）→ 仅 1 条可见项、字段断言 text=真实标题/score/content_id；空 ZSet → `trending:[]` 非空数组降级。
+- curl 实测（重启后端加载新码）：种入 133/132/5(banned)/41(under_review) 四成员 → 返回 2 条真实标题按分排序，banned/审核中被过滤。
+- 浏览器验证：原创页热搜渲染「灵感衍生｜我的桌面整理实验 132 heat 95」等真实条目；深链点击 → `/content/133` 标题一致；DEL 热搜键后板块消失、页面其余正常（优雅降级）；亮暗 × 1440/375 截图 4 张存 `screenshots/t22-trending-*`。
+- 验证门：`go build/vet/test ./...` 全绿、`npm run build` + `npm run lint`（tsc）通过；未触及 config/migrations/routes（无需 doc-validator）。
+
+### Notes:
+- light 车道，直接在 main 提交。为验证在本地 Redis 种入 4 个热榜成员（133/132 可见 + 5/41 不可见），保留作 live demo 数据（真实可见内容，非 mock 证据）。
+- 踩坑记录：GORM `default:true` 标签使结构体零值 `IsPublic:false` INSERT 被省略，测试夹具需 create 后显式 Update（与 T09 测试同法）；跑了多天的前端 dev server 会缓存 messages JSON，i18n 新键需重启 dev server 才生效（本次已重启）。
+- 待办衔接：T22 为第 3 段最后一张票，段边界 `verify-project.sh --full` 见后续 checkpoint 记录。
+
 ## [2026-09-02] - 闲时任务 checkpoint 审核与文档收口（T09 后、T22 前）
 
 ### What was done:
