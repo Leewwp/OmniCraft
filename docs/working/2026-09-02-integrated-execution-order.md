@@ -24,12 +24,12 @@
 - **#290**：单票大重构（45 user stories，迁移 073+，heavy）。无票内依赖；spec 自述吸收 FIX-25 / F-064 / 类目页死排序 / mod label 错映射，不吸收 FIX-18（T12）/FIX-23（T15）。
 - 外部输入：DashScope API Key 待用户开通（A-03/A-04 真实数据用；本地 fail-open 不阻塞）；GREEN / MiniMax 已恢复可用。
 
-### 1.1 当前执行 checkpoint（2026-09-02，U-04 收口后）
+### 1.1 当前执行 checkpoint（2026-09-02，第 4 段收口后）
 
-- 固定 goal 范围共 **68 个执行单元**：T01–T55（55）+ U-01~U-05（5）+ A-01~A-07（7）+ #290（1）。其中 **17 个已完成并在 GitHub 以 `CLOSED/COMPLETED` 收口**：T01~T09（9）、T18~T20（3）、T22（1）、U-01~U-04（4）；剩余 51 个，#276/#282 仍为协调父票不计入。
-- 第 3 段已收口；第 4 段进行中：U-03（a39b0fc）与 U-04（60accf0）已收口，剩 **U-05（#281）第二批 sweep：admin+studio**——完成后第 4 段收口并跑段边界 `verify-project.sh --full`。
-- 下一张可执行票是 **U-05（#281）**；注意 T41~T44 与 U-05 共享 studio 页面（T 票在第 8 段，当前无冲突）。
-- 用户 checkpoint 摘要中的“14/45”不是本总序固定范围的分母；后续 agent 以本节 68/17/51 和 GitHub 实际状态计数，不据此提前宣称总序或投递门槛完成。
+- 固定 goal 范围共 **68 个执行单元**：T01–T55（55）+ U-01~U-05（5）+ A-01~A-07（7）+ #290（1）。其中 **18 个已完成并在 GitHub 以 `CLOSED/COMPLETED` 收口**：T01~T09（9）、T18~T20（3）、T22（1）、U-01~U-05（5）；剩余 50 个，#276/#282 仍为协调父票不计入。
+- **第 3 段与第 4 段均已收口**（各自段边界 verify-project.sh --full 通过；U 批次全部落地 = U-01 规范 / U-02 token / U-03 FilterPills+就地化 / U-04 公开页 sweep / U-05 admin+studio sweep）。
+- 下一张可执行票是第 5 段 **#290 IP 详情页贴吧式重构（heavy：迁移 073+、共治提案域、单页三模块、IP 内搜索；消费 U-02/U-03 成果；原型 `/prototype/ip-detail-hub` 落地后移除）**，随后 T17（#237 收窄版）同域紧随。#290 必须 heavy 车道：独立 worktree + TDD + 两阶段审查。
+- 用户 checkpoint 摘要中的“14/45”不是本总序固定范围的分母；后续 agent 以本节 68/18/50 和 GitHub 实际状态计数，不据此提前宣称总序或投递门槛完成。
 
 ## 2. 冲突整合裁决（重叠裁剪，逐项）
 
@@ -69,7 +69,7 @@
 ### 第 4 段 UI 扩散
 8. **U-03（#279）** FilterPills 共享组件 + 全站筛选就地化 ✅ 2026-09-02 完成（`ui/filter-pills.tsx` 按 ui-spec 定稿；IP 库消费；IP 详情类目就地切换+URL replace+SSR 首屏+旧路由 redirect+删除 IPCategoryTabs；/original 类目/排序就地化（OriginalFeedClient）+删除旧 CategoryTabs/SortSelect；ContentTypeFilter 收敛药丸形态；mock e2e 77/77 含新增 ip-detail-category 契约（stub 18080 供 SSR+浏览器）；verify --full EXIT=0；真机 URL/滚动/刷新恢复/redirect 验证 + 截图 8 张 u03-*；light 直接 main 提交）
 9. **U-04（#280，已剔除工作台范围）** 第一批 sweep：公开页 + 用户侧 + 进入讨论区对齐 + mod label 修复 ✅ 2026-09-02 完成（hero 操作行同排同高 28px 档 + 8px 矩形（DOM 实测 28=28 同排 8px）；mod→home.mod 类目唯一化；非主 CTA active:scale 全清 + 筛选 chip 药丸化 + 药丸形主操作 CTA 矩形化（ContentSidebar/RelatedFanworks/IPBrowseClient 创建按钮）+ 部署 CTA 36px 档；22 页逐页清单核销；tsc/单测/build/mock e2e 77/77 绿；截图 u04-*×4；light 直接 main 提交）
-10. **U-05（#281）** 第二批 sweep：admin + studio ✅ 2026-09-02 完成（发布表单主 CTA 矩形化 + 类目 chip 选中态语义 token/aria-pressed；8 个 admin 页 20+ 状态徽章 4px→药丸；admin/studio 四规则逐页核销（无 active:scale 违例）；纯视觉零功能改动；tsc/单测/build/mock e2e 77/77 绿；登录实测截图 7 张 u05-*；light 直接 main 提交）——**第 4 段完成**（段边界 verify-project.sh --full 见 checkpoint 记录）
+10. **U-05（#281）** 第二批 sweep：admin + studio ✅ 2026-09-02 完成（发布表单主 CTA 矩形化 + 类目 chip 选中态语义 token/aria-pressed；8 个 admin 页 20+ 状态徽章 4px→药丸；admin/studio 四规则逐页核销（无 active:scale 违例）；纯视觉零功能改动；tsc/单测/build/mock e2e 77/77 绿；登录实测截图 7 张 u05-*；light 直接 main 提交 c93471a）——**第 4 段完成**（段边界 verify-project.sh --full 通过 2026-09-02：77/77 + 全部工程门 EXIT=0）
 
 ### 第 5 段 重构一：IP 详情页（#290）
 11. **#290** 贴吧式社区枢纽（heavy：迁移 073+、共治提案域、单页三模块、IP 内搜索；吸收可见性/F-064/类目页死排序；mod label 由 U-04 已修则仅校验继承；消费 U-02/U-03 成果；原型 `/prototype/ip-detail-hub` 为脚手架，落地后移除该原型路由）

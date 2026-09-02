@@ -1,3 +1,16 @@
+## [2026-09-02] - 第 4 段收口（U 批次全部落地）
+
+### What was done:
+- 第 4 段三票连续收口：U-03（a39b0fc，FilterPills+全站筛选就地化）、U-04（60accf0，公开页+用户侧 sweep + mod label）、U-05（c93471a，admin+studio sweep）；GitHub #279/#280/#281 均 `CLOSED/COMPLETED`。
+- 段边界 `bash scripts/verify-project.sh --full` 通过（77/77 mock 契约 + 全部工程门，EXIT=0）。
+- checkpoint 同步：总序 §1.1/§3 与 idle-goal-prompt 刷新至 #290（第 5 段，heavy）。
+
+### Testing:
+- 段门 EXIT=0；U 批次期间 mock 契约从 75 增至 77（新增 ip-detail-category 就地切换/redirect 契约）。
+
+### Notes:
+- 计数：68 个执行单元中 18 个完成收口（T01~T09、T18~T20、T22、U-01~U-05），剩余 50。下一票 #290（heavy：worktree codex/heavy/290 + TDD + 两阶段审查）。
+
 ## [2026-09-02] - Task U-05 (#281): 第二批逐页 sweep——admin+studio（SP-12，light，纯视觉）
 
 ### What was done:
