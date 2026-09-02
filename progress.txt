@@ -8,11 +8,14 @@
 
 ### Testing:
 - `bash scripts/ci/verify-workflows.tests.sh` 红→绿全过（含 4 条新触发断言 + 既有 20 条回归）；`bash scripts/ci/verify-workflows.sh` 对真实 workflows 输出 "workflow contract valid"。
-- 推送后 `gh run list` 验证触发器真实生效；**首跑预期红**（main@1168b1d 为 A-02 TDD 故意编译红，CI 如实报告而非故障）。
+- **push 触发实测生效**（run 33643480394，push@0d34757）：backend/docs/ops 三门绿，frontend 门红，project-gate 聚合正确报红。首跑预测"A-02 编译红"未兑现——backend 门全绿说明 1168b1d 新增的 `agent_stream_v2_test.go` 在 CI 上**通过**（与红灯注记不符，待 A-02 会话核对）。
+- **frontend 红的真相（重跑复验）**：失败均在 `tests/related-contents.test.tsx`，首跑败于 #354（empty branch）、重跑败于相邻 #353（embedded related row）——同文件两跑两败且用例不同 = CI 环境（ubuntu/Node 20/全新 npm ci）下该文件不稳定（疑似测试隔离/顺序问题），本地（macOS/Node 26/既有 node_modules）全绿 EXIT=0 复现不出。**非本次 CI 改动引入**（改动仅触发块，三门绿证明 workflow 健康）。
 
 ### Notes:
 - 免费前提自查：全部 job 均 `ubuntu-latest`/`windows-latest` 标准_runner（larger runner 才收费）；tauri-ci/security/sbom/performance 四个 workflow 本轮未动。
 - 契约测试为独立脚本（无 verify-project.sh 调用方），改 workflow 后需手动跑本测试——本次已跑。
+- **遗留发现一**：`related-contents.test.tsx` CI 不稳定——建议立 light 票修测试隔离（属 #90 媒体域）；在修复前 CI 红属已知噪音，Phase 2 开 required check 前必须先修，否则门禁被 flaky 卡死。
+- **遗留发现二**：本地 Node v26.7.0 vs CI 钉 Node 20——engines 口径内但行为有差，环境分歧会持续发生；对齐方案（本地 nvm 钉 20 或 CI 升版本）待用户裁决。
 
 ## [2026-09-02] - Task T17 (#237): admin IP 状态变更缓存失效（FIX-25 收窄版 + B-004 折叠，light+TDD，第 5 段完结）
 
