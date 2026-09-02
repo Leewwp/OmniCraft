@@ -15,6 +15,27 @@
 - admin 侧活跃 IP 状态变更端点仅 approve/reject 两个（`service.BanIP` 无调用方，不在 seam 内）；`InvalidateIPCacheForAdmin` 同时失效 `cache:ip:{id}` 与 `cache:ip:list:*`（后者经全局 redisclient.Client，生产与实例 rdb 同源）。
 - 未改 config/migrations/routes → 未跑 doc-validator --fix（仅 `--check` 合规）。
 
+## [2026-09-02] - Task A-01 (#283): Agent 后端会话模型重构（heavy，第 6 段，迁移 074）
+
+### What was done:
+- **迁移 074**：agent_conversations 增可空 `title` VARCHAR(200) + `pinned_at` TIMESTAMPTZ（存量不回填）；本地 dev 库经 `cmd/migrate` 应用并顺带补账 #290 漏记的 073 ledger 行。
+- **请求体硬切换（用户裁决）**：`POST /agent/chat/stream` 改 `{conversation_id?, message}`——首次省略则服务端建会话并在 start/done 事件返回 id；旧 `{messages}` body 400（用户明确接受 A-01→A-06 期间旧前端不可用，A-06 换新客户端）。
+- **服务端上下文组装**：`assembleChatContext` = system（预算外）+ 会话历史 newest-first 按 token 预算装填（新配置键 `chat_context_token_budget`=8000，CJK 1 rune≈1 token 保守估计；超长单条 budget/2 截尾保头）+ ChatMaxContextMsgs 双上限；替换客户端截尾 10 条。
+- **自动标题**：首轮完成（hadAssistantBefore=false，存量会话天然豁免）后 recovery.GoSafe 异步短调用（MaxTokens=64）生成 ≤50 runes 标题，失败回退 history 首条 user 消息截断；`WHERE title IS NULL` 防覆盖/防并发重复。
+- **PATCH /agent/conversations/:id**：重命名+置顶/取消置顶（owner-scoped UPDATE，foreign/missing 统一 404）；`UpdateColumns` 绕过 GORM auto-touch——PATCH 不扰动 updated_at（排序仅由聊天轮次推进，审查 P1 修复）；列表排序置顶组 pinned_at DESC NULLS LAST 优先。
+- **停止/失败保留**：删除逻辑整体移除；provider 错误 / 客户端取消 / emit 失败（tool_status/delta/citation/usage 四处）三路径统一 `persistPartialTurn`（detached 5s 上下文）保留已流出内容；成功路径最终落库同样 detached。
+- **owner-scoped pre-quota 门**：`EnsureConversationOwned` 在配额预留前 404（不可探测、不耗配额）；TOCTOU 由服务层复验兜底为 `AGENT_CONVERSATION_NOT_FOUND` SSE 终态（含专属安全文案）。
+- **heavy 两阶段审查**：首轮双 DONE_WITH_CONCERNS（各 1 P1：PATCH auto-touch 与契约矛盾；emit 失败不保留）→ P1×2+P2×7 全部修复 + 6 个锁定测试 → 增量复审 **APPROVED**（含 mutation 反向验证确认测试非恒真）→ 润色（消恒真 Eventually、参数遮蔽更名）。
+- **附带**：agent 测试 sqlite fixture 钉单连接（:memory: 每连接独立库 × 异步标题 goroutine 的坑）；本地 chat provider 经 DashScope compatible-mode + qwen-plus 走通（worktree .env 注入 AGENT_LLM_API_KEY，不提交）。
+
+### Testing:
+- 后端 build/vet/test 全绿（含 rag_eval 等全部调用方签名适配）；worktree 前端 test:unit/lint/lint:ui/build 全绿；`verify-project.sh`（plain）EXIT=0；doc-validator `--check --profile release` 全过（config.md/schema.md/architecture.md 路由表自动同步 + web-agent-v0.4-mvp.md 契约段改写）。
+- **live curl（:8099，真实 qwen-plus）**：三轮续写同会话追加（rows 29-36）；真实自动标题「幸运暗号：蓝色蘑菇」；PATCH 重命名/置顶/取消 + 置顶排序；越权 PATCH/chat 均 404；2 秒掐断后 105 字部分散文落库（旧代码会删整个会话）；provider 失败会话保留；旧 body 400。验证后测试会话已删、worktree config 复原、server 停止。
+- 已知边界（记录不修）：本地 search_content 因 embedding provider 未配置 tool_error（既有状态，A-03 范围）；首轮部分失败后落库的会话永无自动标题（手动重命名可用，PATCH 已提供）。
+
+### Notes:
+- squash 合并 fd4c33e（分支 codex/heavy/283 保留、worktree 已移除）；服务端组装的精确内容断言由 `TestChatStreamContinuesConversationWithServerAssembledHistory`（provider 请求逐条断言）锁定。
+
 ## [2026-09-02] - 交互式长会话开发边界分析 + 提示词落盘（段5收尾 + 段6实现线）
 
 ### What was done:
