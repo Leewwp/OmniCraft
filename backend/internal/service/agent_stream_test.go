@@ -77,6 +77,11 @@ func newStreamTestService(t *testing.T, provider llm.LLMProvider, cfg *config.Co
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
 	}
+	// :memory: databases are per-connection; pinning one connection keeps the
+	// schema visible to the async auto-title goroutine and follow-up turns.
+	if sqlDB, dbErr := db.DB(); dbErr == nil {
+		sqlDB.SetMaxOpenConns(1)
+	}
 	if err := db.AutoMigrate(&model.AgentConversation{}, &model.AgentMessage{}, &model.User{}, &model.ContentItem{}, &model.ContentVersion{}, &model.RagChunk{}, &model.IndexProjectionStatus{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -97,7 +102,7 @@ func newStreamTestService(t *testing.T, provider llm.LLMProvider, cfg *config.Co
 		t.Fatalf("seed projection status: %v", err)
 	}
 	if cfg == nil {
-		cfg = &config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, MaxToolCallsPerTurn: 8, CitationMaxCount: 5, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, MaxOutputTokens: 1200}}
+		cfg = &config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, MaxToolCallsPerTurn: 8, CitationMaxCount: 5, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, MaxOutputTokens: 1200, ChatContextTokenBudget: 100000}}
 	}
 	return NewAgentService(provider, nil, nil, nil, db, cfg), db
 }
@@ -132,7 +137,7 @@ func TestAgentStreamEmitsTypedEventsAndDoneContract(t *testing.T) {
 	err := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "hi"}},
+		ChatTurnInput{Message: "hi"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -191,7 +196,7 @@ func TestAgentStreamModelToolIDsVisibilityCheckedAfterProviderCall(t *testing.T)
 	err := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "find it"}},
+		ChatTurnInput{Message: "find it"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -259,7 +264,7 @@ func TestAgentStreamVisibleToolProducesCitationAndGroundedAnswer(t *testing.T) {
 	err := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "what is this"}},
+		ChatTurnInput{Message: "what is this"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -289,7 +294,7 @@ func TestAgentStreamVisibleToolProducesCitationAndGroundedAnswer(t *testing.T) {
 }
 
 func TestAgentStreamToolCallLimitStopsLoopWithStableDone(t *testing.T) {
-	cfg := &config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, MaxToolCallsPerTurn: 1, CitationMaxCount: 5, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, MaxOutputTokens: 1200}}
+	cfg := &config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, MaxToolCallsPerTurn: 1, CitationMaxCount: 5, MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, MaxOutputTokens: 1200, ChatContextTokenBudget: 100000}}
 	provider := &streamToolProvider{rounds: [][]llm.ChatDelta{
 		{toolCallDelta("get_content_detail", `{"content_id": 88}`)},
 		{toolCallDelta("get_content_detail", `{"content_id": 88}`)},
@@ -301,7 +306,7 @@ func TestAgentStreamToolCallLimitStopsLoopWithStableDone(t *testing.T) {
 	err := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "loop"}},
+		ChatTurnInput{Message: "loop"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -330,7 +335,7 @@ func TestAgentStreamProviderErrorEmitsSafeErrorEvent(t *testing.T) {
 	streamErr := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "hi"}},
+		ChatTurnInput{Message: "hi"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -368,7 +373,7 @@ func TestAgentStreamClientCancellationCancelsProviderContext(t *testing.T) {
 	err := svc.ChatStream(
 		ctx,
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "hi"}},
+		ChatTurnInput{Message: "hi"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -414,7 +419,7 @@ func TestAgentStreamUnknownToolNamesAreIgnoredWithStableDone(t *testing.T) {
 	err := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "hi"}},
+		ChatTurnInput{Message: "hi"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -450,7 +455,7 @@ func TestAgentStreamAppendsAssistantToolCallMessageBeforeToolResults(t *testing.
 	err := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "hi"}},
+		ChatTurnInput{Message: "hi"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -509,7 +514,7 @@ func TestAgentStreamAccumulatesStreamedToolCallFragmentsByIndex(t *testing.T) {
 	err := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "what is this"}},
+		ChatTurnInput{Message: "what is this"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)
@@ -577,7 +582,7 @@ func TestAgentStreamPassesThroughProviderUsageTokens(t *testing.T) {
 	err := svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "hi"}},
+		ChatTurnInput{Message: "hi"},
 		resolveGlobalChatContext(t, svc, 7),
 		func(ev AgentStreamEvent) error { events = append(events, ev); return nil },
 	)

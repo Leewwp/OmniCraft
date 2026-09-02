@@ -62,7 +62,7 @@ func TestAgentChatRouteAppliesRuntimeAgentQuota(t *testing.T) {
 	defer cleanup()
 
 	token := makeRoutesSecurityToken(cfg, 1, "user")
-	valid := `{"messages":[{"role":"user","content":"hi"}]}`
+	valid := `{"message":"hi"}`
 
 	// 1) Request-schema rejection happens BEFORE reservation: malformed bodies
 	// never consume quota and never reach the Provider.
@@ -159,7 +159,7 @@ func TestAgentConversationDeleteRouteDoesNotConsumeQuota(t *testing.T) {
 		t.Fatalf("DELETE missing conversation status = %d, want idempotent 204; body = %s", rec.Code, rec.Body.String())
 	}
 
-	valid := `{"messages":[{"role":"user","content":"hi"}]}`
+	valid := `{"message":"hi"}`
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/agent/chat/stream", strings.NewReader(valid))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -289,14 +289,15 @@ func buildRoutesSecurityRouter(t *testing.T) (*gin.Engine, *config.Config, func(
 			AgentMinuteWindowSec: 60,
 		},
 		Agent: config.AgentConfig{
-			WebAgentEnabled:     true,
-			RateLimitPerDay:     1,
-			RateLimitPerMinute:  5,
-			MaxUserMessageChars: 4000,
-			ChatMaxContextMsgs:  10,
-			MaxToolCallsPerTurn: 8,
-			MaxOutputTokens:     1200,
-			CitationMaxCount:    5,
+			WebAgentEnabled:        true,
+			RateLimitPerDay:        1,
+			RateLimitPerMinute:     5,
+			MaxUserMessageChars:    4000,
+			ChatMaxContextMsgs:     10,
+			ChatContextTokenBudget: 100000,
+			MaxToolCallsPerTurn:    8,
+			MaxOutputTokens:        1200,
+			CitationMaxCount:       5,
 		},
 		Reputation: config.ReputationConfig{
 			MinScoreForInteraction: 3,

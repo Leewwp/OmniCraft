@@ -69,7 +69,7 @@ func TestChatStreamStoresServerOwnedContentContext(t *testing.T) {
 	err = svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "What is this content about?"}},
+		ChatTurnInput{Message: "What is this content about?"},
 		resolved,
 		func(ev AgentStreamEvent) error {
 			if ev.Type == AgentEventDone {
@@ -132,7 +132,7 @@ func TestChatStreamGlobalSurfaceHasNoContentContext(t *testing.T) {
 	err = svc.ChatStream(
 		context.Background(),
 		7,
-		[]llm.ChatMessage{{Role: "user", Content: "hi"}},
+		ChatTurnInput{Message: "hi"},
 		resolved,
 		func(ev AgentStreamEvent) error { return nil },
 	)
@@ -164,6 +164,11 @@ func setupAgentChatDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
+	}
+	// :memory: databases are per-connection; pinning one connection keeps the
+	// schema visible to the async auto-title goroutine and follow-up turns.
+	if sqlDB, dbErr := db.DB(); dbErr == nil {
+		sqlDB.SetMaxOpenConns(1)
 	}
 	if err := db.AutoMigrate(&model.AgentConversation{}, &model.AgentMessage{}, &model.User{}, &model.ContentItem{}); err != nil {
 		t.Fatalf("migrate: %v", err)

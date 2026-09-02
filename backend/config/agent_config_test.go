@@ -41,6 +41,7 @@ func TestAgentConfigReleaseAcceptsPositiveLimits(t *testing.T) {
 	cfg.Agent.ProviderTimeoutSec = 60
 	cfg.Agent.ProviderMaxRetries = 2
 	cfg.Agent.CitationMaxCount = 5
+	cfg.Agent.ChatContextTokenBudget = 8000
 	require.NoError(t, cfg.ValidateRelease())
 }
 
@@ -58,6 +59,7 @@ func TestAgentConfigReleaseRequiresPositiveLimits(t *testing.T) {
 		{"zero provider timeout", func(c *Config) { c.Agent.ProviderTimeoutSec = 0 }, "agent.provider_timeout_sec"},
 		{"negative provider retries", func(c *Config) { c.Agent.ProviderMaxRetries = -1 }, "agent.provider_max_retries"},
 		{"zero citation max", func(c *Config) { c.Agent.CitationMaxCount = 0 }, "agent.citation_max_count"},
+		{"zero context budget", func(c *Config) { c.Agent.ChatContextTokenBudget = 0 }, "agent.chat_context_token_budget"},
 	}
 
 	for _, tc := range cases {

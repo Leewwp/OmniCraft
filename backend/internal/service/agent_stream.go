@@ -12,8 +12,6 @@ import (
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/pkg/llm"
-
-	"gorm.io/gorm"
 )
 
 // AgentStreamEventType is the server-owned SSE event name set for the chat
@@ -165,7 +163,9 @@ func (a *streamedToolCallAccumulator) calls() []llm.ToolCall {
 // and the request quota reserved by the caller before this method is invoked;
 // every outcome after that — success, timeout, Provider error, client
 // cancellation — consumes that reservation and emits a typed stream event.
-func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []llm.ChatMessage, resolved *ResolvedChatContext, handler func(ev AgentStreamEvent) error) error {
+// Conversation history is assembled server-side from the stored conversation
+// (A-01): the client only submits the new message.
+func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTurnInput, resolved *ResolvedChatContext, handler func(ev AgentStreamEvent) error) error {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return ErrAgentDisabled
 	}
@@ -177,7 +177,7 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []
 	if traceID == "" {
 		traceID = untracedTraceID
 	}
-	traceAgentEvent(traceID, "chat_start", "user_id", userID, "surface", resolved.Surface)
+	traceAgentEvent(traceID, "chat_start", "user_id", userID, "surface", resolved.Surface, "conversation_id", turn.ConversationID)
 	if err := ctx.Err(); err != nil {
 		return emitAgentStreamError(handler, agentContextErrorCode(err), err)
 	}
@@ -187,43 +187,19 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []
 		contextType = "content"
 	}
 
-	conv := &model.AgentConversation{
-		UserID:      userID,
-		ContextType: contextType,
-		ContextID:   resolved.ContentID,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-	}
-	if len(messages) > 0 && messages[0].Role == "user" && s.db != nil {
-		if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			if err := tx.Create(conv).Error; err != nil {
-				return err
-			}
-			for _, msg := range messages {
-				content := msg.Content
-				if err := tx.Create(&model.AgentMessage{
-					ConversationID: conv.ID,
-					Role:           msg.Role,
-					Content:        &content,
-					CreatedAt:      time.Now(),
-				}).Error; err != nil {
-					return err
-				}
-			}
-			return nil
-		}); err != nil {
-			slog.Error("failed to persist agent conversation", "error", err)
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return emitAgentStreamError(handler, agentContextErrorCode(err), err)
-			}
-			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
+	conv, history, hadAssistantBefore, err := s.resolveChatConversation(ctx, userID, turn, contextType, resolved.ContentID)
+	if err != nil {
+		if errors.Is(err, ErrAgentConversationNotFound) {
+			return emitAgentStreamError(handler, AgentErrorCodeConversationNotFound, err)
 		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return emitAgentStreamError(handler, agentContextErrorCode(err), err)
+		}
+		slog.Error("failed to resolve agent conversation", "error", err)
+		return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
 	}
 
-	convID := int64(0)
-	if conv != nil {
-		convID = conv.ID
-	}
+	convID := conv.ID
 	if err := handler(AgentStreamEvent{
 		Type:           AgentEventStart,
 		TraceID:        traceID,
@@ -236,7 +212,7 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, messages []
 	policy := s.ToolPolicy()
 	systemMsg := s.serverOwnedSystemPrompt(resolved.Surface, resolved.Content)
 	req := llm.ChatRequest{
-		Messages:  append([]llm.ChatMessage{systemMsg}, messages...),
+		Messages:  assembleChatContext(systemMsg, history, s.cfg.Agent.ChatContextTokenBudget, s.cfg.Agent.ChatMaxContextMsgs),
 		Tools:     s.ToolDefinitions(),
 		MaxTokens: policy.MaxOutputTokens,
 		Stream:    true,
@@ -356,6 +332,7 @@ loop:
 			}
 			executedTools = append(executedTools, execution)
 			if err := handler(AgentStreamEvent{Type: AgentEventToolStatus, Tool: &execution}); err != nil {
+				s.persistPartialTurn(conv.ID, answerBuf.String())
 				return err
 			}
 			resultJSON, err := json.Marshal(result)
@@ -390,18 +367,12 @@ loop:
 		}); emitErr != nil {
 			streamErr = errors.Join(streamErr, emitErr)
 		}
-		if conv != nil && s.db != nil {
-			// The request context is commonly canceled when the client disconnects.
-			// Cleanup must still run so an interrupted turn cannot leave orphaned
-			// conversation history behind.
-			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			if err := s.db.WithContext(cleanupCtx).Where("conversation_id = ?", conv.ID).Delete(&model.AgentMessage{}).Error; err != nil {
-				slog.Error("failed to clean up agent messages after stream failure", "error", err)
-			}
-			if err := s.db.WithContext(cleanupCtx).Delete(conv).Error; err != nil {
-				slog.Error("failed to clean up agent conversation after stream failure", "error", err)
-			}
-			cancel()
+		// A-01: stop/failure keeps the conversation and whatever partial
+		// content already streamed out; deletion happens only on the user's
+		// explicit DELETE. The request context is commonly canceled on client
+		// disconnect, so persistence runs on a detached bounded context.
+		if conv != nil {
+			s.persistPartialTurn(conv.ID, answerBuf.String())
 		}
 		return streamErr
 	}
@@ -411,11 +382,13 @@ loop:
 	answer := answerBuf.String()
 	if kind == AgentAnswerGroundedContent && !degraded && answer != "" {
 		if err := handler(AgentStreamEvent{Type: AgentEventDelta, Delta: answer}); err != nil {
+			s.persistPartialTurn(conv.ID, answerBuf.String())
 			return err
 		}
 	}
 	for i := range citations {
 		if err := handler(AgentStreamEvent{Type: AgentEventCitation, Citation: &citations[i]}); err != nil {
+			s.persistPartialTurn(conv.ID, answerBuf.String())
 			return err
 		}
 	}
@@ -425,25 +398,35 @@ loop:
 		usage = &AgentUsage{PromptTokens: lastUsage.PromptTokens, CompletionTokens: lastUsage.CompletionTokens}
 	}
 	if err := handler(AgentStreamEvent{Type: AgentEventUsage, Usage: usage}); err != nil {
+		s.persistPartialTurn(conv.ID, answerBuf.String())
 		return err
 	}
 
 	if kind == AgentAnswerNoEvidence || degraded {
 		answer = ""
 	}
-	if conv != nil && s.db != nil {
-		if err := s.db.WithContext(ctx).Create(&model.AgentMessage{
+	if s.db != nil {
+		// The provider already finished; the client may disconnect at any
+		// moment, so the final answer persists on a detached bounded context.
+		storeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := s.db.WithContext(storeCtx).Create(&model.AgentMessage{
 			ConversationID: conv.ID,
 			Role:           "assistant",
 			Content:        &answer,
 			CreatedAt:      time.Now(),
 		}).Error; err != nil {
+			cancel()
 			slog.Error("failed to persist agent assistant message", "error", err)
 			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
 		}
-		if err := s.db.WithContext(ctx).Model(conv).Update("updated_at", time.Now()).Error; err != nil {
+		if err := s.db.WithContext(storeCtx).Model(conv).Update("updated_at", time.Now()).Error; err != nil {
+			cancel()
 			slog.Error("failed to update agent conversation timestamp", "error", err)
 			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
+		}
+		cancel()
+		if !hadAssistantBefore {
+			s.scheduleAutoTitle(traceID, conv.ID, firstUserMessage(history))
 		}
 	}
 
@@ -490,6 +473,8 @@ func safeAgentStreamMessage(code AgentStreamEventType) string {
 	switch code {
 	case AgentErrorCodeStorage:
 		return "agent history unavailable"
+	case AgentStreamEventType(AgentErrorCodeConversationNotFound):
+		return "conversation no longer available"
 	case AgentErrorCodeCancelled:
 		return "stream cancelled"
 	case AgentErrorCodeProviderTimeout:

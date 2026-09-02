@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
@@ -230,13 +232,25 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		return
 	}
 	userID := middleware.GetUserID(c)
+	// A-01 hard cutover (2026-09-02): the body carries the new message and an
+	// optional conversation_id; the legacy full-history {messages:[...]} body
+	// is rejected so the old client cannot silently keep its old semantics.
 	var body struct {
-		Messages []llm.ChatMessage `json:"messages" binding:"required"`
-		Context  *ChatContextDTO   `json:"context,omitempty"`
+		ConversationID *int64          `json:"conversation_id,omitempty"`
+		Message        string          `json:"message"`
+		Context        *ChatContextDTO `json:"context,omitempty"`
 	}
-	if err := c.ShouldBindJSON(&body); err != nil {
+	if err := c.ShouldBindJSON(&body); err != nil || strings.TrimSpace(body.Message) == "" {
 		response.ValidationError(c, "invalid request parameters")
 		return
+	}
+	conversationID := int64(0)
+	if body.ConversationID != nil {
+		if *body.ConversationID <= 0 {
+			response.ValidationError(c, "invalid conversation id")
+			return
+		}
+		conversationID = *body.ConversationID
 	}
 
 	maxMsgLen := h.cfg.Agent.MaxUserMessageChars
@@ -244,34 +258,18 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		response.Error(c, http.StatusServiceUnavailable, "AGENT_CONFIG_INVALID", "agent limits are not configured")
 		return
 	}
-	maxCtxMsgs := h.cfg.Agent.ChatMaxContextMsgs
-	if maxCtxMsgs <= 0 {
-		response.Error(c, http.StatusServiceUnavailable, "AGENT_CONFIG_INVALID", "agent limits are not configured")
+	if h.cfg.Agent.ChatContextTokenBudget <= 0 || h.cfg.Agent.ChatMaxContextMsgs <= 0 {
+		response.Error(c, http.StatusServiceUnavailable, "AGENT_CONFIG_INVALID", "agent context limits are not configured")
 		return
 	}
 	if h.cfg.Agent.MaxToolCallsPerTurn <= 0 || h.cfg.Agent.MaxOutputTokens <= 0 || h.cfg.Agent.CitationMaxCount <= 0 {
 		response.Error(c, http.StatusServiceUnavailable, "AGENT_CONFIG_INVALID", "agent tool limits are not configured")
 		return
 	}
-
-	allowedRoles := map[string]bool{"user": true, "assistant": true}
-	filtered := make([]llm.ChatMessage, 0, len(body.Messages))
-	for _, msg := range body.Messages {
-		if !allowedRoles[msg.Role] {
-			continue
-		}
-		if len([]rune(msg.Content)) > maxMsgLen {
-			response.ValidationError(c, "message exceeds maximum length")
-			return
-		}
-		filtered = append(filtered, msg)
-	}
-	if len(filtered) == 0 {
-		response.ValidationError(c, "at least one user or assistant message is required")
+	message := strings.TrimSpace(body.Message)
+	if len([]rune(message)) > maxMsgLen {
+		response.ValidationError(c, "message exceeds maximum length")
 		return
-	}
-	if len(filtered) > maxCtxMsgs {
-		filtered = filtered[len(filtered)-maxCtxMsgs:]
 	}
 
 	var chatCtx *model.AgentChatContext
@@ -286,6 +284,19 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		chatCtx = &model.AgentChatContext{
 			Surface:   surface,
 			ContentID: body.Context.ContentID,
+		}
+	}
+
+	// Owner-scoped conversation gate BEFORE quota reservation: foreign or
+	// missing conversation ids neither consume a request nor leak existence.
+	if conversationID > 0 {
+		if err := h.agentSvc.EnsureConversationOwned(c.Request.Context(), userID, conversationID); err != nil {
+			if errors.Is(err, service.ErrAgentConversationNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "conversation not found"})
+				return
+			}
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
+			return
 		}
 	}
 
@@ -304,7 +315,10 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 	writer := &agentSSEWriter{c: c}
 	writer.begin()
 
-	if err := h.agentSvc.ChatStream(c.Request.Context(), userID, filtered, resolved, func(ev service.AgentStreamEvent) error {
+	if err := h.agentSvc.ChatStream(c.Request.Context(), userID, service.ChatTurnInput{
+		ConversationID: conversationID,
+		Message:        message,
+	}, resolved, func(ev service.AgentStreamEvent) error {
 		return writer.emit(ev)
 	}); err != nil {
 		// The service already emitted a safe SSE error event; no second JSON
@@ -318,6 +332,77 @@ type ChatContextDTO struct {
 	ContentID *int64 `json:"content_id,omitempty"`
 }
 
+// UpdateConversation renames and pins/unpins the current user's conversation.
+// Owner scoping is enforced in the UPDATE itself: missing, already-deleted and
+// foreign ids all return the same 404 so existence cannot be probed. The
+// conversation activity timestamp (updated_at) stays bound to chat turns
+// only: UpdateColumns deliberately skips GORM's auto-touch so a rename or
+// unpin never reorders the conversation list.
+func (h *AgentHandler) UpdateConversation(c *gin.Context) {
+	if !h.requireAgentFeature(c) {
+		return
+	}
+	userID := middleware.GetUserID(c)
+	convID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || convID <= 0 {
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "invalid conversation id")
+		return
+	}
+	var body struct {
+		Title  *string `json:"title,omitempty"`
+		Pinned *bool   `json:"pinned,omitempty"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.ValidationError(c, "invalid request parameters")
+		return
+	}
+
+	updates := map[string]interface{}{}
+	if body.Title != nil {
+		title := strings.TrimSpace(*body.Title)
+		if title == "" || len([]rune(title)) > service.ConversationTitleMaxRunes {
+			response.ValidationError(c, "invalid title")
+			return
+		}
+		updates["title"] = title
+	}
+	if body.Pinned != nil {
+		if *body.Pinned {
+			updates["pinned_at"] = time.Now()
+		} else {
+			updates["pinned_at"] = nil
+		}
+	}
+	if len(updates) == 0 {
+		response.ValidationError(c, "nothing to update")
+		return
+	}
+
+	result := h.db.Model(&model.AgentConversation{}).
+		Where("id = ? AND user_id = ?", convID, userID).
+		UpdateColumns(updates)
+	if result.Error != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", result.Error)
+		return
+	}
+	if result.RowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "conversation not found"})
+		return
+	}
+	var conv model.AgentConversation
+	if err := h.db.Where("id = ? AND user_id = ?", convID, userID).First(&conv).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Deleted between the UPDATE and the read-back: same 404 as any
+			// other owner-scoped miss.
+			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "conversation not found"})
+			return
+		}
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"conversation": conv})
+}
+
 func (h *AgentHandler) ListConversations(c *gin.Context) {
 	if !h.requireAgentFeature(c) {
 		return
@@ -329,7 +414,12 @@ func (h *AgentHandler) ListConversations(c *gin.Context) {
 		return
 	}
 	var conversations []model.AgentConversation
-	if err := h.db.Where("user_id = ?", userID).Order("updated_at DESC").Limit(listLimit).Find(&conversations).Error; err != nil {
+	// A-01: pinned group first (pinned_at desc), then the rest by updated_at
+	// desc — the workspace sidebar contract.
+	if err := h.db.Where("user_id = ?", userID).
+		Order("pinned_at DESC NULLS LAST").
+		Order("updated_at DESC").
+		Limit(listLimit).Find(&conversations).Error; err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
 		return
 	}

@@ -31,6 +31,8 @@
 | `context_id` | `BIGINT` | - | context_id |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+| `title` | `VARCHAR(200)` | - | title |
+| `pinned_at` | `TIMESTAMPTZ` | - | pinned_at |
 
 ### agent_messages
 

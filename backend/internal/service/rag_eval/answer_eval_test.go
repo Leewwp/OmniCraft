@@ -443,7 +443,7 @@ func runAnswerEvalAttempt(ctx context.Context, db *gorm.DB, chunkRepo *repositor
 
 	collector := &answerEvalStreamCollector{}
 	startedAt := time.Now()
-	streamErr := agentSvc.ChatStream(caseCtx, chatUserID, []llm.ChatMessage{{Role: "user", Content: golden.Query}}, &service.ResolvedChatContext{Surface: model.AgentChatSurfaceGlobal}, collector.handle)
+	streamErr := agentSvc.ChatStream(caseCtx, chatUserID, service.ChatTurnInput{Message: golden.Query}, &service.ResolvedChatContext{Surface: model.AgentChatSurfaceGlobal}, collector.handle)
 	attempt.TotalMs = time.Since(startedAt).Milliseconds()
 	if firstTokenMs, ok := measured.firstTokenLatencyMs(); ok {
 		attempt.FirstTokenMs = &firstTokenMs
