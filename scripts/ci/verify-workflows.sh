@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Contract-checks .github/workflows/ci.yml and .github/workflows/tauri-ci.yml:
-# stable job names, triggers (workflow_dispatch only; push/pull_request triggers
-# are removed so merges and PRs never spend Actions minutes, and local
-# verify-project.sh is the acceptance gate), concurrency, minimal permissions,
-# SHA-pinned actions, lockfile-derived cache keys, always-upload evidence
-# artifacts with 30-day retention, no production secret references, and the
-# Windows Tauri path-detected job-level skip.
+# stable job names, triggers (ci.yml: pull_request + push to main +
+# workflow_dispatch — public-repo standard hosted runners are free, so CI is
+# the machine verification gate on every PR and main push; tauri-ci.yml:
+# dispatch-only so the slow Windows lane stays on-demand), concurrency, minimal
+# permissions, SHA-pinned actions, lockfile-derived cache keys, always-upload
+# evidence artifacts with 30-day retention, no production secret references,
+# and the Windows Tauri path-detected job-level skip.
 # Usage: bash scripts/ci/verify-workflows.sh [-WorkflowsDir <dir>]
 set -u
 
@@ -204,14 +205,26 @@ def walk_steps(doc):
             yield step
 
 
-def check_shared(doc, name, required_jobs, lockfile_keys):
+def check_shared(doc, name, required_jobs, lockfile_keys, event_triggers=False):
     on = doc.get("on")
     if not isinstance(on, dict):
         fail(f"{name}: missing 'on' triggers")
-    if "pull_request" in on:
-        fail(f"{name}: pull_request trigger is forbidden (PR-time runs removed; local verify-project.sh is the PR gate)")
-    if "push" in on:
-        fail(f"{name}: push trigger is forbidden (on-demand dispatch only; merges never spend Actions minutes)")
+    if event_triggers:
+        pull_request = on.get("pull_request")
+        if not isinstance(pull_request, dict):
+            fail(f"{name}: pull_request trigger is required (PR verification loop)")
+        if "paths" in pull_request:
+            fail(f"{name}: pull_request paths filter is forbidden (full suite per PR; routing deferred)")
+        push = on.get("push")
+        if not isinstance(push, dict):
+            fail(f"{name}: push trigger is required (post-merge main verification)")
+        if push.get("branches") != ["main"]:
+            fail(f"{name}: push trigger must be scoped to branches: [main] only")
+    else:
+        if "pull_request" in on:
+            fail(f"{name}: pull_request trigger is forbidden (dispatch-only workflow)")
+        if "push" in on:
+            fail(f"{name}: push trigger is forbidden (dispatch-only workflow)")
     if "workflow_dispatch" not in on:
         fail(f"{name}: workflow_dispatch trigger is required for on-demand verification")
 
@@ -277,7 +290,7 @@ if os.path.exists(ci_path):
     with open(ci_path, encoding="utf-8") as f:
         ci = parse_document(f.read())
     check_shared(ci, "ci.yml", ["backend", "frontend", "docs", "project-gate"],
-                 ["go.sum", "package-lock.json"])
+                 ["go.sum", "package-lock.json"], event_triggers=True)
     dispatch = ci.get("on", {}).get("workflow_dispatch")
     if not isinstance(dispatch, dict) or "inputs" not in dispatch:
         fail("ci.yml: workflow_dispatch must guard the failure_probe input")

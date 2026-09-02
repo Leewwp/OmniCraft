@@ -1,3 +1,19 @@
+## [2026-09-02] - Task CI-TRIGGER-P1: ci.yml 恢复 pull_request/push(main) 触发——CI 机器验证门 Phase 1 观察模式（light+TDD）
+
+### What was done:
+- **背景裁决**：PR #124（2026-08-10）因"私有仓库全量计费，每天烧 ~$1.5"砍掉 pull_request/push 触发、仅留 dispatch/schedule。现仓库已公开（API 验证 visibility=public），官方文档明确公开仓库标准托管 runner 免费——计费约束消失，CI 从"agent 本地自述"升级为"机器裁决"。
+- **TDD 红灯**：`verify-workflows.tests.sh` 契约先行翻转——旧用例"pull_request/push 禁止"改为四条新断言：pull_request 必含（PR 验证回路）、push 必含（合并后兜底）、push 必须 `branches: [main]`（不许乱扩分支）、pull_request 禁 paths 过滤（每 PR 全量套件，路由属二期）。跑出预期红（ci.yml 缺 pull_request）。
+- **转绿**：`verify-workflows.sh` 的 `check_shared` 参数化 `event_triggers`（ci=True：三项新断言；tauri 保持 dispatch-only，慢速 Windows 车道维持手动）；ci.yml `on:` 加 `push: branches: [main]` + `pull_request:`。
+- **Phase 2 未做（按用户裁决待 A-02 收口窗口）**：分支保护 required check（project-gate）+ enforce_admins、goal 提示词 §2.7 改 PR 合并流程（push 分支 → PR → `gh pr merge --auto --squash`）、"改动前切出的分支须先 sync main 才触发 PR CI"规则。
+
+### Testing:
+- `bash scripts/ci/verify-workflows.tests.sh` 红→绿全过（含 4 条新触发断言 + 既有 20 条回归）；`bash scripts/ci/verify-workflows.sh` 对真实 workflows 输出 "workflow contract valid"。
+- 推送后 `gh run list` 验证触发器真实生效；**首跑预期红**（main@1168b1d 为 A-02 TDD 故意编译红，CI 如实报告而非故障）。
+
+### Notes:
+- 免费前提自查：全部 job 均 `ubuntu-latest`/`windows-latest` 标准_runner（larger runner 才收费）；tauri-ci/security/sbom/performance 四个 workflow 本轮未动。
+- 契约测试为独立脚本（无 verify-project.sh 调用方），改 workflow 后需手动跑本测试——本次已跑。
+
 ## [2026-09-02] - Task T17 (#237): admin IP 状态变更缓存失效（FIX-25 收窄版 + B-004 折叠，light+TDD，第 5 段完结）
 
 ### What was done:
