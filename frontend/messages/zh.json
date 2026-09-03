@@ -1123,6 +1123,7 @@
     "following": "已关注",
     "follow": "关注",
     "editProfile": "编辑资料",
+    "sendMessage": "发私信",
     "tabPublish": "发布",
     "tabFavorites": "收藏",
     "tabCollections": "收藏集",
@@ -1613,6 +1614,14 @@
     "startConversation": "开始对话",
     "dmReplyRequired": "对方尚未回复，请等待回复后再发送新消息",
     "sendMessage": "发送消息",
+    "compose": {
+      "title": "给 {name} 发私信",
+      "description": "发送第一条消息后将建立对话；在对方回复前无法连续发送第二条。",
+      "label": "消息内容",
+      "placeholder": "输入第一封私信…",
+      "success": "私信已发送",
+      "blocked": "内容包含违规内容，无法发送"
+    },
     "broadcastLabel": "广播",
     "systemLabel": "系统",
     "notificationOpensTarget": "可打开相关项",

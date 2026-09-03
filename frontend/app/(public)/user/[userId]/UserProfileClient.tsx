@@ -9,6 +9,7 @@ import { ContentCardData } from "@/components/content/ContentCard";
 import { MasonryGrid } from "@/components/content/MasonryGrid";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/social/FollowButton";
+import { MessageComposeButton } from "@/components/social/MessageComposeButton";
 import { normalizeContentList } from "@/lib/content";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { useTranslations } from 'next-intl';
@@ -86,7 +87,11 @@ export function UserProfileClient({ userId, displayName }: UserProfileClientProp
     <div className="space-y-4">
       <div className="flex items-center gap-4">
         {!isOwnProfile && (
-          <FollowButton targetType="user" targetId={userId} />
+          <>
+            <FollowButton targetType="user" targetId={userId} />
+            {/* FIX-30①/T35：任意用户可发起私信（纯前端入口，后端 guard 不动）。 */}
+            <MessageComposeButton userId={userId} displayName={displayName} />
+          </>
         )}
         {isOwnProfile && (
           <Button size="sm" variant="outline" onClick={() => router.push("/settings")}>
