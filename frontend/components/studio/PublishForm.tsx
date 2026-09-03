@@ -24,6 +24,7 @@ import { normalizeContentDetailResponse } from "@/lib/content";
 import type { UploadedAsset } from "@/components/content/FileUploader";
 import { fetchPublicConfig } from "@/lib/public-config";
 import { silentError } from "@/lib/error-handler";
+import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 
 const ORIGINAL_CATEGORIES = [
   "film_tv", "gaming", "literature", "pet", "food",
@@ -418,8 +419,9 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
       }
       toast("success", t('studio.publish.success'));
       router.push("/studio/contents");
-    } catch {
-      toast("error", t('studio.publish.failed'));
+    } catch (error) {
+      silentError(error, { component: "PublishForm", action: "handleSubmit" });
+      toast("error", t(getUserFacingErrorKey(error, "studio.publish.failed")));
     } finally {
       setSubmitting(false);
     }

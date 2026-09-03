@@ -96,7 +96,9 @@ export function IPPublishForm({ onBack }: IPPublishFormProps) {
       toast("success", t("successTitle"));
     } catch (error) {
       silentError(error, { component: "IPPublishForm", action: "handleSubmit" });
-      toast("error", t(getUserFacingErrorKey(error, "failed")));
+      /* getUserFacingErrorKey 返回全路径 key，必须用根作用域 tRoot；
+         组件级 t 作用域是 studio.publishIP，会把映射 key 拼成不存在的嵌套路径 */
+      toast("error", tRoot(getUserFacingErrorKey(error, "studio.publishIP.failed")));
     } finally {
       setSubmitting(false);
     }

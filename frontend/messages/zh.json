@@ -43,7 +43,10 @@
       "votes": "票"
     },
     "rateLimited": "操作过于频繁，请稍后再试",
-    "endReached": "已经到底了"
+    "endReached": "已经到底了",
+    "insufficientReputation": "信誉分不足，暂时无法执行该操作",
+    "blocked": "你已被限制执行该操作",
+    "alreadyReported": "你已举报过该内容"
   },
   "nav": {
     "siteName": "万象工坊",
@@ -163,7 +166,10 @@
     "hidePassword": "隐藏密码",
     "showConfirmPassword": "显示确认密码",
     "hideConfirmPassword": "隐藏确认密码",
-    "errorSessionExpired": "登录状态已过期，请重新登录"
+    "errorSessionExpired": "登录状态已过期，请重新登录",
+    "captchaRequired": "请先完成验证码验证",
+    "captchaUnavailable": "验证码服务暂时不可用，请稍后重试",
+    "errorInvalidPassword": "当前密码不正确"
   },
   "home": {
     "heroTitle": "发现、分享、共创你的热爱。",
@@ -625,7 +631,17 @@
     "errorIpRequired": "二创区发布必须选择 IP",
     "errorCoverRequired": "请上传封面图",
     "errorAttachmentRequired": "请至少上传一个内容附件",
-    "errorPublishFailed": "发布失败，请稍后重试"
+    "errorPublishFailed": "发布失败，请稍后重试",
+    "frozen": "发布功能已被冻结：因近期多次违规，发布暂停 7 天，到期自动解冻；完成素质课程可申请提前解除限制。",
+    "fileTooLarge": "文件超出大小限制，请压缩后重试",
+    "invalidMimeType": "不支持的文件类型",
+    "mediaSetInvalid": "媒体组合不符合画廊规范，请检查封面与媒体列表",
+    "sourceNotAllowedForOriginal": "原创内容不能添加来源归属",
+    "fanworkSourceRequired": "二次创作需关联 IP 或选择灵感来源",
+    "multipleSourceConflict": "只能选择一个来源（IP / 原作 / 灵感作品）",
+    "sourceOriginalUnavailable": "所选原作不存在或已不可用",
+    "sourceFanworkUnavailable": "所选灵感作品不存在或已不可用",
+    "sourceImmutable": "来源归属创建后不可修改"
   },
   "capabilities": {
     "deniedBanned": "账号当前已被封禁，无法进行互动操作。",
@@ -702,7 +718,9 @@
       "judgeReasons": "判官理由（按赞数排序）",
       "noReasons": "暂无判官提交理由",
       "loadFailed": "加载判决详情失败"
-    }
+    },
+    "insufficientQuestions": "该类别题库不足，暂时无法开始考核，请稍后再试",
+    "readingTimeTooShort": "阅读时间不足，请先完整阅读说明"
   },
   "dashboard": {
     "title": "创作者后台",
@@ -1383,7 +1401,8 @@
     "thinking": {
       "label": "已深度思考",
       "streamingLabel": "思考中…"
-    }
+    },
+    "rateLimited": "AI 助手请求过于频繁，请稍后再试"
   },
   "search": {
     "saveSearch": "保存此搜索",
@@ -1427,7 +1446,9 @@
     "usersNoResults": "没有匹配的用户",
     "usersNoResultsHint": "换个关键词试试，或用完整用户名搜索",
     "userReputation": "信誉 {value}",
-    "suggestionsLabel": "搜索建议"
+    "suggestionsLabel": "搜索建议",
+    "missingQuery": "请输入搜索关键词",
+    "queryTooLong": "搜索关键词过长，请精简后重试"
   },
   "recommend": {
     "title": "为你推荐",
@@ -1516,7 +1537,8 @@
     "rejected": "已驳回",
     "noAppeals": "暂无申诉记录",
     "loadFailed": "加载失败",
-    "submitFailed": "提交失败"
+    "submitFailed": "提交失败",
+    "exists": "该目标已有待处理的申诉，请等待处理完成"
   },
   "history": {
     "title": "浏览历史",
@@ -2389,22 +2411,7 @@
     "pageErrorDesc": "发生了意外错误，请稍后重试",
     "notFound": "页面未找到",
     "notFoundDesc": "您访问的页面不存在或已被移除",
-    "backHome": "返回首页",
-    "INVALID_ID": "无效的 ID",
-    "USER_NOT_FOUND": "用户不存在",
-    "DB_ERROR": "数据库错误",
-    "FORBIDDEN": "权限不足",
-    "INVALID_BODY": "请求格式错误",
-    "NO_FIELDS": "未提供更新字段",
-    "VALIDATION_ERROR": "输入验证失败",
-    "INVALID_PASSWORD": "密码不正确",
-    "INTERNAL_ERROR": "服务器内部错误",
-    "COURSE_NOT_FOUND": "课程未找到",
-    "ALREADY_COMPLETED": "已完成",
-    "FEATURE_DISABLED": "功能未启用",
-    "UNAUTHORIZED": "未登录",
-    "NOT_FOUND": "资源不存在",
-    "CONFLICT": "资源冲突"
+    "backHome": "返回首页"
   },
   "markdown": {
     "copyCode": "复制代码",
