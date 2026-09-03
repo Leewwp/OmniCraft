@@ -224,6 +224,7 @@
 - 顶部全站搜索只负责关键词建议、历史、热搜和普通搜索，不提供 Agent 模式切换；自然语言问答和受控协助统一进入 Agent 工作台。
 - Agent 回答中的有效引用渲染为 Agent 引用卡片。点击后与推荐流共用内容详情浮层；关闭浮层必须恢复原会话滚动位置和引用触发点焦点。直接访问内容 URL 仍使用完整详情页。
 - Web Agent 默认只检索 viewer 可见的 published 内容；私有草稿、上传文件和个人数据仅在用户显式选择且业务 API 再次授权后进入上下文。
+- 检索管线升级（2026-09-03 A-03）：`search_content` 与自然语言搜索在 `features.rag_hybrid_enabled` 开启后走 hybrid（词法路消费 041/042 pg_jieba `search_vector` 现役索引 + 向量路 RRF k=60 融合）；`features.rag_query_expansion_enabled` 开启后原始查询先经 M3 短调用扩展为 ≤5 个检索词、兄弟查询单次批量嵌入、双路逐词检索（扩展词在工具步骤摘要展示）；`features.rag_rerank_enabled` 开启后 RRF top-20 经 DashScope qwen3-rerank（SiliconFlow 备路）重排取 top-10。三开关默认 off，默认值由 A-04 消融数据裁决。降级链：rerank 失败→保 RRF 序 + `rerank_unavailable`；向量不可用→关键词路 + degraded；词法 OpenSearch 失败→Postgres 兜底。
 - 模型输出是不可信建议，不能直接成为权限决定或写操作；工具名、参数、调用轮数、内容可见性和预算均由服务端确定性校验。
 - `agent.web_agent_enabled` 仓库默认保持 `false`；真实 Provider、原子限流/预算、引用评测、错误降级和浏览器证据通过后，生产配置才可开启。
 - 当前 Tauri HMAC + WebView 直接文件命令属于禁用原型，不是可发布能力。D-02～D-05 与 R-02 未完成前必须保持 `features.desktop_deploy_enabled=false`，不得宣传客户端 Agent 可执行本地下载/配置。

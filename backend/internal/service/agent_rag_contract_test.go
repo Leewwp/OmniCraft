@@ -315,3 +315,48 @@ func TestExpandedCitationSSEPayloadHasNoScoreOrVisibilityFlag(t *testing.T) {
 	require.NotContains(t, encoded, `"score"`)
 	require.NotContains(t, encoded, `"visibility_checked"`)
 }
+
+
+// A-03: the hybrid search_content tool carries the query-expansion terms on
+// its outcome so the stream loop can surface them in the tool step summary.
+func TestSearchContentSurfacesExpandedQueries(t *testing.T) {
+	db := seedAgentGroundingDB(t)
+	svc := newContractService(db)
+	retriever := &contractRetriever{result: AgentRetrievalResult{
+		Candidates:      []AgentRetrievalCandidate{contractCandidate()},
+		ExpandedQueries: []string{"攻略", "教程"},
+	}}
+	svc.SetContentRetriever(retriever)
+
+	outcome, err := svc.ExecuteTool(context.Background(), ToolSearchContent, json.RawMessage(`{"query":"怎么玩"}`), 3, nil)
+	require.NoError(t, err)
+	require.Equal(t, []string{"攻略", "教程"}, outcome.ExpandedQueries)
+}
+
+// A-03: a stream turn renders the expansion terms inside the tool_status
+// event's server-derived argument summary (process-panel display).
+func TestChatStreamToolStepShowsExpandedQueries(t *testing.T) {
+	provider := &streamToolProvider{rounds: [][]llm.ChatDelta{
+		{toolCallDelta("search_content", `{"query":"怎么玩"}`)},
+		{{Content: "Grounded answer about Published Test Content"}, {Done: true}},
+	}}
+	hybridCfg := continuationTestConfig(100000)
+	hybridCfg.Features.RAGHybridEnabled = true
+	svc, _ := newStreamTestService(t, provider, hybridCfg)
+	svc.SetContentRetriever(&contractRetriever{result: AgentRetrievalResult{
+		Candidates:      []AgentRetrievalCandidate{contractCandidate()},
+		ExpandedQueries: []string{"攻略", "教程"},
+	}})
+
+	var tool *AgentToolExecution
+	err := svc.ChatStream(context.Background(), 7, ChatTurnInput{Message: "怎么玩"}, resolveGlobalChatContext(t, svc, 7), func(ev AgentStreamEvent) error {
+		if ev.Type == AgentEventToolStatus && ev.Tool != nil {
+			tool = ev.Tool
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	require.NotNil(t, tool)
+	require.Contains(t, tool.ArgsSummary, "怎么玩", "original query stays in the summary")
+	require.Contains(t, tool.ArgsSummary, "expanded: 攻略 / 教程", "expansion terms must surface in the tool step")
+}
