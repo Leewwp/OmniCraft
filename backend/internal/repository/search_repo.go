@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"omnicraft/backend/config"
@@ -14,10 +15,38 @@ import (
 
 type SearchRepository struct {
 	db *gorm.DB
+
+	// ftsConfigOnce caches the text-search configuration selection (A-03):
+	// pg_jieba's jiebacfg when the extension is installed (041/042 maintain
+	// the stored search_vector with it), the built-in 'simple' otherwise.
+	ftsConfigOnce sync.Once
+	ftsConfig     string
 }
 
 func NewSearchRepository(db *gorm.DB) *SearchRepository {
 	return &SearchRepository{db: db}
+}
+
+// ftsQueryConfig returns the allowlisted text-search configuration used for
+// every tsquery/ts_rank call: "jiebacfg" when pg_jieba is present, "simple"
+// otherwise (mirroring the 041/042 trigger fallback). The value only ever
+// comes from this allowlist, never from user input, so interpolating it into
+// SQL is safe; detection failure degrades to the historical 'simple'.
+func (r *SearchRepository) ftsQueryConfig() string {
+	r.ftsConfigOnce.Do(func() {
+		r.ftsConfig = "simple"
+		if r.db == nil || r.db.Dialector.Name() == "sqlite" {
+			return
+		}
+		var exists bool
+		if err := r.db.Raw("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'pg_jieba')").Scan(&exists).Error; err != nil {
+			return
+		}
+		if exists {
+			r.ftsConfig = "jiebacfg"
+		}
+	})
+	return r.ftsConfig
 }
 
 type SearchSuggestion struct {
@@ -49,13 +78,17 @@ func (r *SearchRepository) SearchRAGChunks(ctx context.Context, query string, to
 		topK = config.RAGDefaultBM25TopK
 	}
 	pattern := "%" + query + "%"
+	cfg := r.ftsQueryConfig()
 	var results []RAGChunkSearchResult
-	err := r.db.WithContext(ctx).Raw(`
+	// A-03: the lexical fallback consumes the 041-maintained
+	// content_items.search_vector (pg_jieba when installed) for matching and
+	// primary ranking instead of recomputing a runtime 'simple' vector; the
+	// chunk-level rank orders chunks inside one content item. The config
+	// token is allowlist-only (ftsQueryConfig), never user input.
+	err := r.db.WithContext(ctx).Raw(fmt.Sprintf(`
 		SELECT rc.*, ci.title,
-		       ts_rank_cd(
-			   to_tsvector('simple', concat_ws(' ', ci.title, rc.heading, rc.text)),
-			   plainto_tsquery('simple', ?)
-		       ) AS score
+		       ts_rank_cd(ci.search_vector, plainto_tsquery('%s', ?)) AS content_rank,
+		       ts_rank_cd(to_tsvector('%[1]s', concat_ws(' ', rc.heading, rc.text)), plainto_tsquery('%[1]s', ?)) AS score
 		FROM rag_chunks AS rc
 		JOIN content_items AS ci ON ci.id = rc.content_id
 		JOIN index_projection_status AS ips
@@ -75,14 +108,14 @@ func (r *SearchRepository) SearchRAGChunks(ctx context.Context, query string, to
 		  ))
 		  AND (ci.is_public = TRUE OR ci.author_id = ?)
 		  AND (
-			  to_tsvector('simple', concat_ws(' ', ci.title, rc.heading, rc.text)) @@ plainto_tsquery('simple', ?)
+			  ci.search_vector @@ plainto_tsquery('%[1]s', ?)
 			  OR ci.title ILIKE ?
 			  OR rc.heading ILIKE ?
 			  OR rc.text ILIKE ?
 		  )
-		ORDER BY score DESC, rc.chunk_key ASC
+		ORDER BY content_rank DESC, score DESC, rc.chunk_key ASC
 		LIMIT ?
-	`, query, viewerID, query, pattern, pattern, pattern, topK).Scan(&results).Error
+	`, cfg), query, query, viewerID, query, pattern, pattern, pattern, topK).Scan(&results).Error
 	return results, err
 }
 
@@ -250,12 +283,14 @@ func (r *SearchRepository) searchContentsWithQuery(query, zone, category, conten
 		`, tagFilters)
 	}
 
-	// Full-text search conditions
-	searchCond := `
-		content_items.search_vector @@ to_tsquery('simple', ?)
+	// Full-text search conditions; the text-search config follows the
+	// jiebacfg/simple selection of the 041-maintained search_vector (A-03).
+	cfg := r.ftsQueryConfig()
+	searchCond := fmt.Sprintf(`
+		content_items.search_vector @@ to_tsquery('%s', ?)
 		OR content_items.title ILIKE ?
 		OR EXISTS (SELECT 1 FROM content_tags ct2 WHERE ct2.content_item_id = content_items.id AND ct2.tag ILIKE ?)
-	`
+	`, cfg)
 
 	// Count
 	countQuery := q.Where(searchCond, tsQuery, ilikePattern, ilikePattern)
@@ -266,12 +301,12 @@ func (r *SearchRepository) searchContentsWithQuery(query, zone, category, conten
 
 	// Data query with score and headline
 	var results []ContentSearchResult
-	if err := q.Select(`
+	if err := q.Select(fmt.Sprintf(`
 		content_items.*,
-		COALESCE(ts_rank_cd(content_items.search_vector, to_tsquery('simple', ?)), 0) AS score,
-		ts_headline('simple', COALESCE(content_items.title, '') || ' ' || COALESCE(content_items.description, ''),
-			phraseto_tsquery('simple', ?), 'MaxWords=35,MinWords=10,ShortWord=3,MaxFragments=3,FragmentDelimiter=...') AS headline
-	`, tsQuery, query).
+		COALESCE(ts_rank_cd(content_items.search_vector, to_tsquery('%s', ?)), 0) AS score,
+		ts_headline('%[1]s', COALESCE(content_items.title, '') || ' ' || COALESCE(content_items.description, ''),
+			phraseto_tsquery('%[1]s', ?), 'MaxWords=35,MinWords=10,ShortWord=3,MaxFragments=3,FragmentDelimiter=...') AS headline
+	`, cfg), tsQuery, query).
 		Where(searchCond, tsQuery, ilikePattern, ilikePattern).
 		Order("score DESC").
 		Offset(offset).Limit(pageSize).

@@ -79,6 +79,10 @@ features:
   archive_malware_scan_enabled: false
   # RAG remains opt-in until the full T04-T07 slice is complete.
   rag_hybrid_enabled: false
+  # A-03 retrieval upgrades: both default off until the A-04 ablation
+  # decides their default values with real data.
+  rag_query_expansion_enabled: false
+  rag_rerank_enabled: false
 
 rag:
   chunking:
@@ -86,6 +90,19 @@ rag:
     overlap_tokens: 48
     version: 1
     tokenizer_encoding: "cl100k_base"
+  # A-03 rerank chain (gated by features.rag_rerank_enabled): RRF top-N →
+  # primary (DashScope qwen3-rerank) → fallback (SiliconFlow) → RRF order
+  # with a degraded marker. Keys come from env (RAG_RERANK_API_KEY /
+  # RAG_RERANK_FALLBACK_API_KEY), never from this file.
+  rerank:
+    provider: "dashscope"
+    model: "qwen3-rerank"
+    api_base: ""
+    fallback_provider: "siliconflow"
+    fallback_model: "bge-reranker-v2-m3"
+    fallback_api_base: ""
+    input_topk: 20
+    timeout_sec: 30
   index:
     # Host-local default; Compose overrides this with the service DNS name.
     url: "http://127.0.0.1:9200"

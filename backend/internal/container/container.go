@@ -254,6 +254,16 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 		ragservice.NewDatabaseVisibilityFilter(db),
 		cfg.RAG.Hybrid,
 	)
+	// A-03 retrieval upgrades, each behind its feature flag; defaults stay
+	// off until the A-04 ablation decides them.
+	if cfg.Features.RAGQueryExpansionEnabled {
+		c.HybridRetriever.SetQueryExpander(ragservice.NewLLMQueryExpander(provider))
+	}
+	if cfg.Features.RAGRerankEnabled {
+		if reranker, inputTopK := llm.NewRerankerFromConfig(cfg.RAG.Rerank); reranker != nil {
+			c.HybridRetriever.SetReranker(reranker, inputTopK)
+		}
+	}
 	if cfg.Features.RAGHybridEnabled {
 		c.AgentService.SetContentRetriever(&agentRAGRetriever{retriever: c.HybridRetriever})
 	}

@@ -50,6 +50,40 @@ func NewProviderFromConfig(providerType, apiKey, apiBase, model, embedModel stri
 	}
 }
 
+// NewRerankerFromConfig builds the A-03 rerank chain from rag.rerank config:
+// a primary reranker plus an optional fallback. A side without an API key is
+// skipped; when neither side is usable the returned reranker is nil and the
+// caller keeps the RRF order (degradation chain: primary → fallback → RRF).
+func NewRerankerFromConfig(cfg config.RAGRerankConfig) (Reranker, int) {
+	timeout := time.Duration(cfg.TimeoutSec) * time.Second
+	primary := buildReranker(cfg.Provider, cfg.APIKey, cfg.APIBase, cfg.Model, timeout)
+	fallback := buildReranker(cfg.FallbackProvider, cfg.FallbackAPIKey, cfg.FallbackAPIBase, cfg.FallbackModel, timeout)
+	switch {
+	case primary != nil && fallback != nil:
+		return NewFallbackReranker(primary, fallback), cfg.InputTopK
+	case primary != nil:
+		return primary, cfg.InputTopK
+	case fallback != nil:
+		return fallback, cfg.InputTopK
+	default:
+		return nil, cfg.InputTopK
+	}
+}
+
+func buildReranker(provider, apiKey, apiBase, model string, timeout time.Duration) Reranker {
+	if strings.TrimSpace(apiKey) == "" || strings.TrimSpace(model) == "" {
+		return nil
+	}
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "dashscope", "":
+		return NewDashScopeReranker(apiKey, apiBase, model, timeout)
+	case "siliconflow":
+		return NewSiliconFlowReranker(apiKey, apiBase, model, timeout)
+	default:
+		return nil
+	}
+}
+
 // unsupportedProvider fails closed instead of silently routing a misspelled
 // provider to Qwen with an incompatible model/base/embedding tuple.
 type unsupportedProvider struct {
