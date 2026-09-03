@@ -1,3 +1,21 @@
+## [2026-09-03] - Task A-05 (#287): Agent chat 护栏补口——输入前置 Green + 输出事后异步审核
+
+### What was done:
+- **输入前置**：`AgentService.ModerateChatInput` 复用统一 `RunModerationGate`（A4 分环境语义）——block/violation 归一为 block → 422 CONTENT_BLOCKED 不落库；release 审核不可用 → 503 fail-closed；local Green 未配置 → 显式 fail-open（结构化日志）。门位于 SSE 开流与配额预留之前：违规输入不消耗配额、不触达 Provider（单测断言 provider.calls=0）。
+- **输出事后**：`scheduleOutputModeration` 落库答案后 `recovery.GoSafe` + 15s 预算异步过审；block 则标记 `tool_calls={moderation:blocked}`，原文留库供审计；扫描不可用 fail-open 仅结构化日志（事后审计非准入门，全环境一致）。
+- **历史脱敏**：`GetConversationMessages` 改 DTO 投影——被标记行 content 键整体省略 + moderation 标记透出；think 行透出 phase（A-06 消费）；前端 AgentWorkspace 历史加载对 blocked 行渲染占位提示（i18n zh/en）。
+- greenClient 字段接口化（agentGreenScanner seam）+ `SetGreenScanner` 测试注入口；构造器防 typed-nil 接口。
+- 本票为 Phase 2 PR 门禁时代第一张功能票：feature 分支 codex/light/287-agent-guardrails → PR #294 → CI 五门全绿 → squash 合并 6cef43b。
+
+### Testing:
+- go build/vet/test 全绿（新增 service 11 例 + handler 4 例，全仓无回归）；npm run build + tsc 绿。
+- live curl（8099 验证实例，DashScope qwen-plus 真流式）：正常路径完整 SSE v2 事件流（11 delta + done.message_id）；输入门 fail-open 日志实录（action=agent_chat_input policy=fail_open reason=green_not_configured）；空消息 400 校验不变；psql 模拟标记后历史接口实测返回 moderation=blocked 且 content 键省略。
+- 真实 Green block 的 422 路径本地无凭证不可复现，由 handler 单测锁定语义；未触 config/migrations/routes，无 doc-validator 触发。
+
+### Notes:
+- 坑位复用：compatible-mode base 勿带尾 /v1（provider 自拼 /v1/chat/completions）；9091 观测口与旧服务互斥需先清；`go run` 残留进程占 8080/9091 来源确认后清理。
+- 仓库未开通 PR auto-merge（GraphQL 拒绝 enablePullRequestAutoMerge），流程为手动轮询 CI 绿后 `gh pr merge --squash`。
+
 ## [2026-09-03] - Task CI-GATE-P2: Phase 2 门禁模式落地——main 分支保护 + goal 提示词/AGENTS PR 合并流程改写
 
 ### What was done:
