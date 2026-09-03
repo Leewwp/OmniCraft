@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { Search, Loader2, Sparkles, ArrowLeft } from "lucide-react";
+import { Search, Loader2, Sparkles } from "lucide-react";
 import { api, ApiRequestError } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
@@ -129,7 +129,7 @@ export function SearchAgentInput({ onResults, onKeywordFallback, className }: Se
           )}
           onClick={() => setMode("keyword")}
         >
-          <ArrowLeft className="h-3 w-3" />
+          <Search className="h-3 w-3" />
           {t("agent.keywordSearch")}
         </button>
       </div>

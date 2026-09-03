@@ -1,3 +1,22 @@
+## [2026-09-03] - Task T21 (#241): 搜索可达性——建议下拉 + Users tab + 图标语义
+
+### What was done:
+- 后端：SearchSuggestions ILIKE 前缀 → **contains 匹配**（中文子串可命中；性能注：'%x%' 不走 btree，当前 169 内容量级顺序扫可忽略，若慢上 pg_trgm GIN——代码注释注明）；新增中缀匹配单测（TestSearchSuggestionsMatchMidString「镜头」命中标题中段）。
+- 前端：GlobalSearchInput 新增建议下拉（300ms 防抖 + 代际计数防陈旧响应 + combobox/listbox a11y + ↑↓/Esc/点击导航，i18n zh/en）；搜索页结果区 Tabs（内容｜用户），Users tab 懒加载 /api/v1/users/search 渲染用户行（头像占位/用户名/信誉，链接 /user/:id）；SearchAgentInput keyword 切换图标 ArrowLeft→Search。
+- 搜索页 URL q 参数取数（首挂载读 q 并立即内容搜索——修复建议下拉跳转落空态的先存缺陷）。
+- 复验修复：补齐丢失的 resultTabsLabel/userReputation（zh/en）——缺失曾致 MISSING_MESSAGE + /search 页水合副本两棵树（根因：SSR/客户端错误回退渲染不一致触发 remount；补齐后 tab 唯一）。
+
+### Testing:
+- go build/vet 绿 + repository/handler 包全绿；npm tsc 绿。
+- 无头 Chromium 真实事件复验全过：建议下拉「镜头」6 条中缀命中（screenshots/t21-suggestions.png）；Users tab 点击「慢速」→ 慢速快门11 信誉 19 真实数据渲染（screenshots/t21-users-tab.png）；URL 取数「配色」→ 内容结果渲染（正文取证）。
+- IAB 会话的点击阻断为工具层问题（合成事件不激活 base-ui Tab + capture 故障），非产品缺陷。
+
+### Notes:
+- contains 性能说明（票面验收项）：'%x%' 不走 btree，当前内容量级顺序扫可忽略；若建议变慢，pg_trgm GIN 索引为既定逃生门（代码注释注明）。
+- 坑位：turbopack 热载在分支切换后会回退到工作树版本（切分支=换代码），验证前确认工作树在正确分支；无头 Playwright（chromium.launch）是可信事件验证的可靠路径，优先于 IAB。
+- 图标语义：SearchAgentInput keyword 切换 ArrowLeft→Search（代码级变更，无视觉回归面）。
+
+
 ## [2026-09-03] - Task A-03 (#285): 检索管线升级——v4 嵌入 + hybrid on Postgres(jieba) + 查询扩展 + qwen3-rerank
 
 ### What was done:

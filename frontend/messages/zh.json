@@ -1398,7 +1398,14 @@
       "searchSaved": "搜索已保存",
       "saveFailed": "保存失败，请重试",
       "loadedSearch": "已加载搜索「{name}」"
-    }
+    },
+    "resultTabsLabel": "结果类型",
+    "tabContents": "内容",
+    "tabUsers": "用户",
+    "usersNoResults": "没有匹配的用户",
+    "usersNoResultsHint": "换个关键词试试，或用完整用户名搜索",
+    "userReputation": "信誉 {value}",
+    "suggestionsLabel": "搜索建议"
   },
   "recommend": {
     "title": "为你推荐",
