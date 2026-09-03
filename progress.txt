@@ -1,3 +1,24 @@
+## [2026-09-03] - Task A-03 (#285): 检索管线升级——v4 嵌入 + hybrid on Postgres(jieba) + 查询扩展 + qwen3-rerank
+
+### What was done:
+- **llm 基座**：openai_compat `GetEmbeddings` 批量（v4 上限 10 条/次内部切分、顺序保持、数量不匹配显式失败）+ dimensions 请求参数 + 独立 embedding key（默认回退 chat key）；单文本路径保持既有 string 线格式（embo-01 现役契约不破坏）；DashScope qwen3-rerank 原生客户端（新版 results 字段）+ SiliconFlow bge-reranker-v2-m3 备路 + FallbackReranker 降级链。
+- **rag 管线**：HybridRetriever 查询扩展扇出（原词+扩展词双路逐词检索）+ FuseRRFLists 多列表 RRF（重叠跨列表累加）+ rerank seam（融合 top-20 → 相关性重排 top-10，失败保 RRF 序 + rerank_unavailable 降级标记）；兄弟查询单次批量嵌入；LLMQueryExpander（M3 短调用 cap 200 token，容错解析，失败吞掉不阻塞）；ProviderChunkEmbedder 批量优先。
+- **jieba 词法路**：SearchRepository 检测 pg_jieba（sync.Once 白名单）；SearchRAGChunks 匹配+主排序改消费 041/042 现役 content_items.search_vector（此前运行时现算 'simple' 向量、中文分词全失效——本票核心修复）；SearchContents 配置随检测切换。
+- **配置**：features.rag_query_expansion_enabled / rag_rerank_enabled（默认 off，A-04 消融裁决）+ rag.rerank 段（key 走 env）；.env.example 三键；doc-validator --fix 同步 config.md；business-rules 双端 Agent 边界小节补检索升级描述。
+- **透出**：扩展词经 RetrievalResult→adapter→AgentToolOutcome→流内 tool_status ArgsSummary（+expanded: t1 / t2）；NLSearch 契约新增 expanded_queries。
+- 合并：PR #296（分支同步 main 后 CLEAN 合并 = 619cda9，CI project-gate 全绿）。
+
+### Testing:
+- 单测新增 26 例（llm 12 + rag 10 + repo 2 + service 2）；后端全量 build/vet/test 绿 + npm build/tsc 绿 + verify-project.sh --full **81/81 EXIT=0（段边界）**。
+- 真实冒烟（DashScope，三开关全开）：admin rebuild 全量重嵌入 **169/169 chunks = text-embedding-v4**（2m52s，批量端点）；口语化查询「想看新手能上手的配色教程」top5 全相关命中（hybrid_rrf/degraded=false）+ 真实扩展词 5 个 + rerank 主路 ws-host 原生端点无降级。
+- 附带修复：流内工具失败时 outcome nil 空指针（测试实抓）；测试夹具补 search_vector 列。
+
+### Notes:
+- 坑位：本地 OpenSearch 残留无 PG 世代背书的 stale rag-v2 索引（上次崩溃重建残骸）→ rebuild 撞名 503 且 handler 吞根因不落日志；清残骸索引后正常。main 分支保护 strict 模式：PR 期间 main 前进会使分支 BEHIND，须 merge main 重推等 CI 重跑再合并。
+- DASHSCOPE_EMBEDDING_BASE_URL（/api/v1 尾）不适用于 compatible-mode provider——正确 base = 专属主机 + /compatible-mode（provider 自拼 /v1/embeddings）。
+- 三开关默认 off（红线 9）；A-04 消融数据出来前不得擅自开默认。
+- 第 6 段实现票全部完成；语料 v2 #291/A-04 #286 均外部输入门控，前沿推进第 7 段 T21。
+
 ## [2026-09-03] - Task A-05 (#287): Agent chat 护栏补口——输入前置 Green + 输出事后异步审核
 
 ### What was done:
