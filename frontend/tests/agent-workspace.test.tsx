@@ -1628,15 +1628,20 @@ test("three-layer generation: thinking block streams open then auto-collapses, t
     fireEvent.submit(composer.closest("form")!);
     await waitFor(() => assert.ok(view.getByText("这是带思考过程的回答。")), { timeout: 3000 });
 
-    /* 思考折叠区：完成后自动折叠，可重新展开。 */
-    const thinkToggle = view.getByRole("button", { name: /Thought process/ });
-    assert.equal(thinkToggle.getAttribute("aria-expanded"), "false", "thinking must auto-collapse on done");
-    fireEvent.click(thinkToggle);
-    await waitFor(() => assert.ok(view.getByText(/先把口语化需求扩展为检索词/)));
+    /* 思考折叠区：完成后自动折叠，可重新展开。done→activeId→历史回载会交换
+       折叠块实例（流式块→服务端 think 行），点击可能落在交换窗口——轮询展开。 */
+    await waitFor(() => {
+      const toggle = view.getByRole("button", { name: /Thought process/ });
+      assert.equal(toggle.getAttribute("aria-expanded"), "false", "thinking must auto-collapse on done");
+      fireEvent.click(toggle);
+      assert.ok(view.getByText(/先把口语化需求扩展为检索词/));
+    }, { timeout: 3000 });
 
     /* 工具步骤区：折叠态展示计数，展开可见参数摘要与命中数。 */
-    fireEvent.click(view.getByRole("button", { name: "Tool activity" }));
-    await waitFor(() => assert.ok(view.getByText("Searched site content")));
+    await waitFor(() => {
+      fireEvent.click(view.getByRole("button", { name: "Tool activity" }));
+      assert.ok(view.getByText("Searched site content"));
+    }, { timeout: 3000 });
     assert.ok(view.getByText(/治愈 素材/), "args summary incl. expansion terms is visible");
     assert.ok(view.getByText("3 hits"), "hit count is visible");
     assert.ok(view.getByText("2s"), "duration summary is visible");
@@ -1826,7 +1831,11 @@ test("regenerate keeps the user message, drops the previous answer rows and re-s
     fireEvent.submit(composer.closest("form")!);
     await waitFor(() => assert.ok(view.getByText("第一版回答")), { timeout: 3000 });
 
-    fireEvent.click(view.getByRole("button", { name: "Regenerate" }));
+    const regenerateButton = await waitFor(() =>
+      view.getByRole("button", { name: "Regenerate" }),
+      { timeout: 3000 },
+    );
+    fireEvent.click(regenerateButton);
     await waitFor(() => assert.ok(view.getByText("第二版回答")), { timeout: 3000 });
     assert.equal(view.queryByText("第一版回答"), null, "old answer rows are dropped");
     assert.ok(view.getByText("重新生成我"), "the user message stays");
