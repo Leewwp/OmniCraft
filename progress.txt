@@ -1,3 +1,17 @@
+## [2026-09-03] - Task CI-GATE-P2: Phase 2 门禁模式落地——main 分支保护 + goal 提示词/AGENTS PR 合并流程改写
+
+### What was done:
+- **#292 修复复核通过（原会话复核+抽查）**：c52cea4（PR #293）双路径 CI 绿（pull_request run 33657569417 + push run 33658703256 五门全 success）；抽查 diff 仅 `related-contents.test.tsx` +12 行（断言加强非放宽、无 skip、组件零改动）；本地独立复跑 test:unit 488 pass/0 fail/0 skipped + `verify-workflows.tests.sh` 绿；check 名 `project-gate` 与保护配置精确对上。
+- goal 提示词 §2.7 heavy/light 合并流程改写为 PR 流程（push 分支凭证 URL → `gh pr create` → `gh pr merge --squash --auto`）+ 旧分支 sync main 规则；AGENTS.md 执行车道补 PR 合并条目。
+- main 分支保护启用：required_status_checks（strict + contexts=[project-gate]）+ enforce_admins=true，保留禁 force-push/删除。本 docs 提交在开保护**前**直推——自此之后 main 一切合并由 CI 机器裁决。
+
+### Testing:
+- `gh api repos/Leewwp/OmniCraft/branches/main/protection` 验证 enforce_admins.enabled=true（见提交后验证）；c52cea4 check-runs 五门 success。
+
+### Notes:
+- 直推 main 时代结束：含纯文档改动在内的一切合并需走 PR（CI 约 8 分钟）；旧分支（基线早于 0d34757）开 PR 前须 sync main。
+- 遗留卫生项（#292 会话记录）：仓内其他测试可能存在同型 `assert.equal(DOMNode, null)` 反模式，未扫，待后续卫生票。
+
 ## [2026-09-02] - Task #292: related-contents.test.tsx CI 不稳定修复（Phase 2 硬前置，light）
 
 ### What was done:
