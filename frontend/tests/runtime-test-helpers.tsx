@@ -12,6 +12,7 @@ for (const [key, value] of Object.entries({
   self: dom.window,
   document: dom.window.document,
   navigator: dom.window.navigator,
+  getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
   Element: dom.window.Element,
   HTMLElement: dom.window.HTMLElement,
   Node: dom.window.Node,

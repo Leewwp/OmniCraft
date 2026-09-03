@@ -124,6 +124,14 @@ export function normalizeAgentTool(raw: unknown): AgentStreamTool | null {
     return null;
   }
   const normalized: AgentStreamTool = { name: name.trim(), status };
+  const argsSummary = candidate.args_summary;
+  if (typeof argsSummary === "string" && argsSummary.trim() !== "") {
+    normalized.args_summary = argsSummary.trim();
+  }
+  const hits = candidate.hits;
+  if (typeof hits === "number" && Number.isInteger(hits) && hits >= 0) {
+    normalized.hits = hits;
+  }
   const durationMs = candidate.duration_ms;
   if (typeof durationMs === "number" && Number.isFinite(durationMs) && durationMs >= 0) {
     normalized.duration_ms = Math.floor(durationMs);
@@ -158,6 +166,10 @@ export function normalizeAgentEvent(raw: unknown): AgentStreamEvent | null {
       if (typeof answerKind === "string" && answerKind !== "") event.answer_kind = answerKind;
       return event;
     }
+    case "think_delta": {
+      const delta = candidate.delta;
+      return typeof delta === "string" ? { type: "think_delta", delta } : null;
+    }
     case "tool_status": {
       const tool = normalizeAgentTool(candidate.tool);
       return tool ? { type: "tool_status", tool } : null;
@@ -176,9 +188,15 @@ export function normalizeAgentEvent(raw: unknown): AgentStreamEvent | null {
     }
     case "done": {
       const event: { type: "done" } & AgentStreamEvent = { type: "done" };
+      const traceId = candidate.trace_id;
+      if (typeof traceId === "string" && traceId !== "") event.trace_id = traceId;
       const conversationId = candidate.conversation_id;
       if (typeof conversationId === "number" && Number.isInteger(conversationId) && conversationId > 0) {
         event.conversation_id = conversationId;
+      }
+      const messageId = candidate.message_id;
+      if (typeof messageId === "number" && Number.isInteger(messageId) && messageId > 0) {
+        event.message_id = messageId;
       }
       const answerKind = candidate.answer_kind;
       if (typeof answerKind === "string" && answerKind !== "") event.answer_kind = answerKind;
@@ -193,6 +211,16 @@ export function normalizeAgentEvent(raw: unknown): AgentStreamEvent | null {
         event.tools = candidate.tools
           .map(normalizeAgentTool)
           .filter((tool): tool is AgentStreamTool => tool !== null);
+      }
+      const usage = candidate.usage;
+      if (typeof usage === "object" && usage !== null) {
+        const tokens = usage as Record<string, unknown>;
+        if (typeof tokens.prompt_tokens === "number" && typeof tokens.completion_tokens === "number") {
+          event.usage = {
+            prompt_tokens: tokens.prompt_tokens,
+            completion_tokens: tokens.completion_tokens,
+          };
+        }
       }
       if (typeof candidate.degraded === "boolean") event.degraded = candidate.degraded;
       return event;

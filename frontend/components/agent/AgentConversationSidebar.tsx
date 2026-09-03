@@ -1,13 +1,21 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
+import { MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pin, PinOff, Plus, Trash2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 export interface AgentConversationSummary {
   id: number;
   context_type?: string;
+  title?: string | null;
+  pinned_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -20,14 +28,22 @@ interface AgentConversationSidebarProps {
   onToggleCollapse: () => void;
   onSelect: (id: number) => void;
   onNewConversation: () => void;
+  /** A-06 侧边栏 ⋯ 菜单三交互（对接 A-01 PATCH / DELETE API，由外壳实现）。 */
+  onRename?: (id: number, title: string) => void;
+  onTogglePin?: (id: number, pinned: boolean) => void;
+  onDelete?: (id: number) => void;
   onRequestClose?: () => void;
-  /** 会话全文搜索（A1.6）生产 API 由 Web Agent Productization 提供，本票不实现。 */
   disabled?: boolean;
 }
 
-type ConversationGroupKey = "today" | "yesterday" | "earlier";
+/** PATCH 契约同款长度上限（service.ConversationTitleMaxRunes = 50）。 */
+const TITLE_MAX_RUNES = 50;
 
-function groupKey(updatedAt?: string): ConversationGroupKey {
+type ConversationGroupKey = "pinned" | "today" | "yesterday" | "earlier";
+
+function groupKey(conversation: AgentConversationSummary): ConversationGroupKey {
+  if (conversation.pinned_at) return "pinned";
+  const updatedAt = conversation.updated_at;
   if (!updatedAt) return "earlier";
   const date = new Date(updatedAt);
   if (Number.isNaN(date.getTime())) return "earlier";
@@ -40,12 +56,12 @@ function groupKey(updatedAt?: string): ConversationGroupKey {
   return "earlier";
 }
 
-const GROUP_KEYS: ConversationGroupKey[] = ["today", "yesterday", "earlier"];
+const GROUP_KEYS: ConversationGroupKey[] = ["pinned", "today", "yesterday", "earlier"];
 
 /**
- * Agent 工作台会话侧栏（A1.6 契约）：折叠按钮 → 全宽「开启新对话」→ 会话历史
- * （保留非空时间分组）。可收为 56–64px 窄栏并持久化；会话全文搜索入口由
- * Web Agent Productization 计划提供生产数据源后接线。
+ * Agent 工作台会话侧栏（A1.6 + A-06）：折叠按钮 → 全宽「开启新对话」→ 会话历史
+ * （置顶分组置顶，其余按时间分组）。每项悬停 ⋯ 菜单 = 重命名 / 置顶(取消置顶) /
+ * 删除；重命名内联输入（Enter 提交 / Esc 取消）。折叠态持久化由外壳负责。
  */
 export function AgentConversationSidebar({
   conversations,
@@ -55,16 +71,21 @@ export function AgentConversationSidebar({
   onToggleCollapse,
   onSelect,
   onNewConversation,
+  onRename,
+  onTogglePin,
+  onDelete,
   onRequestClose,
   disabled,
 }: AgentConversationSidebarProps) {
   const t = useTranslations();
+  const [renamingId, setRenamingId] = useState<number | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
 
   const groups = useMemo(() => {
     const buckets = new Map<ConversationGroupKey, AgentConversationSummary[]>();
     for (const key of GROUP_KEYS) buckets.set(key, []);
     for (const conversation of conversations) {
-      buckets.get(groupKey(conversation.updated_at))?.push(conversation);
+      buckets.get(groupKey(conversation))?.push(conversation);
     }
     return GROUP_KEYS.map((key) => ({
       key,
@@ -80,6 +101,17 @@ export function AgentConversationSidebar({
   const expandLabel = onRequestClose
     ? t("agent.workspace.closeConversations")
     : t("agent.workspace.expandSidebar");
+
+  function startRename(conversation: AgentConversationSummary) {
+    setRenamingId(conversation.id);
+    setRenameDraft(conversation.title ?? "");
+  }
+
+  function commitRename(id: number) {
+    const trimmed = renameDraft.trim();
+    setRenamingId(null);
+    if (trimmed !== "") onRename?.(id, trimmed.slice(0, TITLE_MAX_RUNES));
+  }
 
   if (collapsed) {
     return (
@@ -158,29 +190,90 @@ export function AgentConversationSidebar({
                 <ul className="space-y-0.5">
                   {group.items.map((conversation) => {
                     const active = conversation.id === activeId;
+                    const renaming = renamingId === conversation.id;
+                    const pinned = Boolean(conversation.pinned_at);
                     return (
-                      <li key={conversation.id}>
-                        <button
-                          type="button"
-                          aria-label={t("agent.a11y.conversationItem", { id: conversation.id })}
-                          aria-current={active ? "page" : undefined}
-                          onClick={() => onSelect(conversation.id)}
-                          disabled={disabled}
-                          className={cn(
-                            "flex h-10 w-full items-center justify-between gap-2 rounded-md px-2 text-left text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring disabled:pointer-events-none disabled:opacity-50",
-                            active
-                              ? "bg-accent-subtle font-medium text-accent-emphasis"
-                              : "text-fg-default hover:bg-canvas-subtle",
-                          )}
-                        >
-                          <span className="truncate">{t("agent.workspace.untitled")}</span>
-                          <time
-                            dateTime={conversation.updated_at}
-                            className="shrink-0 text-xs text-fg-muted"
+                      <li key={conversation.id} className="group/item">
+                        {renaming ? (
+                          <input
+                            autoFocus
+                            aria-label={t("agent.workspace.renameInputLabel", { id: conversation.id })}
+                            value={renameDraft}
+                            maxLength={TITLE_MAX_RUNES * 2}
+                            onChange={(event) => setRenameDraft(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                commitRename(conversation.id);
+                              } else if (event.key === "Escape") {
+                                event.preventDefault();
+                                setRenamingId(null);
+                              }
+                            }}
+                            onBlur={() => commitRename(conversation.id)}
+                            className="h-10 w-full rounded-md border border-ring bg-canvas-default px-2 text-sm text-fg-default focus:outline-none focus:ring-2 focus:ring-ring"
+                          />
+                        ) : (
+                          <div
+                            className={cn(
+                              "flex h-10 w-full items-center gap-1 rounded-md pl-2 pr-1 text-left text-sm transition-colors",
+                              active
+                                ? "bg-accent-subtle font-medium text-accent-emphasis"
+                                : "text-fg-default hover:bg-canvas-subtle",
+                            )}
                           >
-                            {formatTime(conversation.updated_at)}
-                          </time>
-                        </button>
+                            <button
+                              type="button"
+                              aria-label={
+                                conversation.title
+                                  ? conversation.title
+                                  : t("agent.a11y.conversationItem", { id: conversation.id })
+                              }
+                              aria-current={active ? "page" : undefined}
+                              onClick={() => onSelect(conversation.id)}
+                              disabled={disabled}
+                              className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch rounded-md py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                            >
+                              {pinned && <Pin className="h-3 w-3 shrink-0" aria-hidden="true" />}
+                              <span className="truncate">
+                                {conversation.title?.trim() || t("agent.workspace.untitled")}
+                              </span>
+                              <time
+                                dateTime={conversation.updated_at}
+                                className="ml-auto shrink-0 pl-1 text-xs font-normal text-fg-muted"
+                              >
+                                {formatTime(conversation.updated_at)}
+                              </time>
+                            </button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger
+                                aria-label={t("agent.workspace.menuLabel", { id: conversation.id })}
+                                className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100 data-[popup-open]:opacity-100"
+                              >
+                                <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => startRename(conversation)}>
+                                  {t("agent.workspace.menuRename")}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => onTogglePin?.(conversation.id, !pinned)}
+                                >
+                                  {pinned
+                                    ? t("agent.workspace.menuUnpin")
+                                    : t("agent.workspace.menuPin")}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  onClick={() => onDelete?.(conversation.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                                  {t("agent.workspace.menuDelete")}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        )}
                       </li>
                     );
                   })}

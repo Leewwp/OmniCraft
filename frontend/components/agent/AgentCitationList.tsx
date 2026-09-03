@@ -7,10 +7,12 @@ import { AgentCitationCard } from "@/components/agent/AgentCitationCard";
 interface AgentCitationListProps {
   citations: AgentCitation[];
   onOpen: (citation: AgentCitation, trigger: HTMLElement) => void;
+  /** 行内 [n] 锚定：当前高亮的引用序号（0 基）。 */
+  highlightedIndex?: number | null;
 }
 
 /** The shared citation list keeps the Agent workspace's citation contract in one place. */
-export function AgentCitationList({ citations, onOpen }: AgentCitationListProps) {
+export function AgentCitationList({ citations, onOpen, highlightedIndex }: AgentCitationListProps) {
   const t = useTranslations();
 
   if (citations.length === 0) return null;
@@ -26,7 +28,12 @@ export function AgentCitationList({ citations, onOpen }: AgentCitationListProps)
       <ul className="mt-2 grid gap-2 sm:grid-cols-2">
         {citations.map((citation, index) => (
           <li key={`${citation.contentId}-${index}`}>
-            <AgentCitationCard citation={citation} index={index} onOpen={onOpen} />
+            <AgentCitationCard
+              citation={citation}
+              index={index}
+              onOpen={onOpen}
+              highlighted={highlightedIndex === index}
+            />
           </li>
         ))}
       </ul>

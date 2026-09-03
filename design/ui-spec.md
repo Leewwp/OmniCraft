@@ -3309,12 +3309,14 @@ interface ConfirmModalProps {
 - 遮罩点击: 关闭 Modal。
 - ESC: 关闭 Modal。
 
-## Page: /agent Agent 工作台
+## Page: /agent Agent 工作台（A-06 DeepSeek 化形态）
 
 **Key Constraints**
 - 受保护路由；只有 config 中 `agent.web_agent_enabled=true` 且用户已登录并满足现有邮箱验证要求时可进入。
 - Agent 是顶部导航进入的独立全页工作台。不得在 Root Layout 挂载全站右下角聊天入口；现有 `AgentChatWidget.tsx` 仅是待迁移的旧实现名。
-- 遵守全局 Indigo 三档层级规则：静置面板 `--elevation-1`，抽屉/搜索浮层 `--elevation-3`，阴影永远配合 1px border，不单独承担分隔；视觉方向在已批准的 P-01 决策范围内实现。
+- 遵守全局 Indigo 三档层级规则：静置面板 `--elevation-1`，抽屉/搜索浮层 `--elevation-3`，阴影永远配合 1px border，不单独承担分隔；视觉 token 全部取自 SP-12 U-01/U-02 定稿（8px 矩形操作控件、高度三档、#f5f5f5 亮画布/#010409 暗画布、150ms 动效）。
+- **反冗余原则**：全局导航已有的跳转/功能不在工作台重复；引用卡片打开 ContentDetailOverlay 属内容导航，不违反反冗余。
+- 请求契约 = A-01 续写模型：`{conversation_id?, message, context}`，上下文由服务端按 token 预算组装；客户端不再上传历史。
 - 唯一滚动模型：工作台固定为 Header 下方剩余视口高度，外壳与会话侧栏/主列不滚动，仅对话正文区域纵向滚动。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
 
@@ -3334,64 +3336,71 @@ interface AgentCitation {
 
 interface AgentToolStatus {
   name: 'search_content' | 'get_content_detail' | 'get_usage_guide' | 'suggest_publish_metadata';
-  status: 'running' | 'success' | 'failed';
-  label: string;
+  status: 'running' | 'success' | 'failed' | 'error' | 'skipped';
+  args_summary?: string;   // 服务端派生的参数摘要（检索词/查询扩展词），不含原始 JSON
+  hits?: number;           // 检索命中数
+  duration_ms?: number;
 }
 ```
 
 **视觉结构**
 - 页面外层：受保护的全高工作区，位于共享 Header 下方。
-- 桌面布局：会话侧栏 + 主对话区；主区包含标题/会话动作、消息列表、工具状态、引用列表和固定输入区。
-- 会话侧栏（A1.6 契约）：展开态自上而下为 折叠按钮 → 搜索触发框 → 全宽"开启新对话" → 会话历史（保留非空时间分组）；可收为 56–64px 窄栏并持久化（localStorage），收起态保留 展开/搜索/新对话 三图标和 Tooltip。
-- 移动布局：单列全高页面，会话导航折叠即关闭抽屉，顶部标题与底部输入区保持可达。
-- 图标: `<Icon className="text-fg-muted w-4 h-4" />`
+- 桌面布局：会话侧栏 + 主对话区；主区包含会话标题行、消息流（三层生成形态）、引用列表和固定输入区。
+- **三层生成形态（A-06 核心，DeepSeek 同构顺序）**：思考折叠区（AgentThinkingBlock，流式展开→完成自动折叠，可手动重开）→ 工具步骤区（AgentToolStatus 可折叠，流式展开→完成折叠，展示步骤数/命中数/参数摘要/耗时）→ 逐字正文（react-markdown 受控渲染 + 行内 [n] 角标）。
+- 会话侧栏：展开态自上而下为 折叠按钮 → 全宽”开启新对话” → 会话历史；**置顶分组（Pinned）在最前，其后 Today/Yesterday/Earlier 时间分组**；每项显示 title（无 title 显示「未命名」）+ 置顶图钉 + 更新时间；悬停/聚焦显示 ⋯ 菜单 = 重命名 / 置顶(取消置顶) / 删除。可收为 56px 窄栏并持久化（localStorage）。
+- 移动布局：单列全高页面，会话导航收进抽屉（Esc 关闭），顶部标题与底部输入区保持可达。
+- 图标: `<Icon className=”text-fg-muted w-4 h-4” />`
 
 **尺寸规范**
 - 页面高度：`calc(100dvh - var(--header-h))`，外壳与主列不滚动，仅对话正文区域纵向滚动。
+- 输入区自动增高：单行起步，随内容长高，约 8 行（208px）封顶转内部滚动。
 - 字号: `text-sm` (14px) 主要信息，`text-xs` 辅助说明
 - 间距: 元素间隙 8px (`gap-2`) 或 12px (`gap-3`)
 
 **状态变体**
-- empty：展开后显示能力说明、隐私提示、建议问题和输入框。
-- streaming：回答增量渲染，显示停止按钮；可视文本持续更新，但 `aria-live="polite"` 按完整短句/节流批次播报，不能逐 token 打断读屏。
-- tool-running：显示短状态，例如“正在检索内容”，不得展示原始参数或 chain-of-thought。
-- grounded-success：回答下方展示引用列表；站内事实回答至少一个有效引用。
-- no-evidence：显示“未找到足够依据”和普通关键词搜索 CTA，不伪造回答。
-- degraded：Provider 不可用但搜索可用时，显示降级说明和搜索结果，不渲染模型总结。
-- stopped：保留已收到的内容并显示“已停止生成”；允许重新发送。
-- error：显示稳定的本地化错误与重试；保留用户输入和上一份成功回答。
+- empty：居中欢迎（图标 + 标题 + 描述）+ 推荐向建议 chips（药丸形态，点击直接发送）。
+- thinking（流式）：思考折叠区展开跟随 think_delta；完成后自动折叠为「已深度思考」行。
+- streaming：正文逐字增量渲染，显示停止按钮；`aria-live=”polite”` 按完整短句/节流批次播报，不能逐 token 打断读屏。
+- tool-running：工具步骤区展开跟随新增步骤；只展示用户向短文案、参数摘要、命中数与耗时（≥1s），不得展示原始参数 JSON 或 chain-of-thought。
+- grounded-success：回答下方展示引用列表；站内事实回答至少一个有效引用；行内 [n] 角标可点击锚定。
+- no-evidence：done 终态裁决撤下已流出正文，显示「未找到足够依据」和普通关键词搜索 CTA，不伪造回答。
+- degraded：Provider 不可用但搜索可用时，撤下模型总结，显示降级说明和关键词回退结果。
+- stopped：保留已收到的内容（含思考块）并显示「已停止生成」；允许重新发送。
+- error：显示稳定的本地化错误与重试；保留用户输入和上一份成功回答；429 用专属文案且窗口内隐藏重试。
+- moderation-blocked（A-05 历史回放）：被标记回答不回传原文，渲染占位提示卡。
 - disabled：请求中仅禁用会产生冲突的动作，停止和关闭仍可用。
 
-**会话全文搜索（A1.6 契约）**
-- 搜索全部未删除会话的标题与消息正文，不受侧栏加载范围限制；每条命中独立按时间倒序显示 来源/片段/日期，点击精确定位并短暂高亮。
-- 桌面 `min(720px,92vw)`、高度 ≤ 80dvh、视口居中；移动全屏。
-- 含快捷键、键盘导航、空态（不重复提供清空按钮）与焦点恢复；浮层内 Esc 先清空查询词，再次 Esc 关闭搜索层并恢复触发焦点。
-- 生产数据来源为 owner-scoped 会话搜索 API（由 Web Agent Productization 实现）；P-01 原型仅以 mock 验证交互。
-
 **响应式行为**
-- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
+- 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行；701px 为侧栏常驻/抽屉分界。
 
 **暗色模式适配**
-- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量。
+- 全局切换暗色类后组件自动映射 `canvas-default.dark` 等 token 变量；代码块高亮 token 配色随 `.dark` 覆盖（globals.css hljs 段）。
 
 **关键交互**
 - Enter 发送，Shift+Enter 换行；流式时发送按钮切换为停止。
+- **行内引用锚定（A-06）**：正文句末 `[1][2]` 渲染为可点击 sup 角标（`markdown.citationJump` a11y 名）；点击滚动到对应引用卡片（`#agent-citation-{index}`）并短暂高亮（ring-2，约 1.8s）+ 聚焦；超出引用数或无引用时渲染为纯文本 sup。纯展示层映射，服务端复验语义零改动。
 - 引用必须是站内有效 `id/title/zone` 形成的可聚焦 Agent 引用卡片；点击后打开共享 `ContentDetailOverlay`，无效引用只显示不可点击 fallback 或直接丢弃；详情浮层关闭后恢复原会话滚动位置并把焦点返回引用卡片。
-- 工具状态只展示名称、用户友好结果和耗时摘要；不展示 system prompt、工具 JSON 或内部推理。
-- Esc 只关闭当前打开的内容详情浮层、会话搜索层或会话抽屉，不离开 Agent 工作台。
-- “开始新对话”不删除旧会话且无需确认；“清空当前历史”使用 `ConfirmModal` 并调用 owner-scoped `DELETE /api/v1/agent/conversations/:id`。取消不发请求；成功聚焦新输入框；失败保留当前消息并把焦点返回 trigger。该删除不会同时删除服务器脱敏 trace、审计或聚合用量记录。
+- **消息操作（A-06）**：最后一条 assistant 消息悬停/聚焦显示操作行 = 复制（clipboard + toast）/ 重新生成（保留用户消息、撤下本轮 think/answer 行重发同一 query）；流式中 = 停止（composer 内切换）。
+- **侧边栏 ⋯ 菜单（A-06）**：重命名 = 内联输入（Enter 提交 PATCH title / Esc 取消，≤50 rune）；置顶切换 PATCH pinned（列表置顶分组重排）；删除 = ConfirmModal + owner-scoped `DELETE /api/v1/agent/conversations/:id`，取消不发请求。头部不再放置删除按钮（反冗余）。
+- “开始新对话”不删除旧会话且无需确认。删除不会同时删除服务器脱敏 trace、审计或聚合用量记录。
+- 会话标题：active 会话显示 title（无 title 显示「未命名 #id」）；自动标题由服务端首轮后异步生成。
 - 仅当用户停留在消息底部附近时自动跟随流式内容；用户向上阅读后停止抢滚动，并显示可聚焦的“跳到最新”按钮。
 - 所有可交互元素使用设计系统可见 focus ring；动画遵守 `prefers-reduced-motion`，流式文本本身不使用逐 token 位移动画。
+- 代码块：rehype-highlight 高亮 + 悬停复制按钮（markdown.copyCode）；外链（http/https 绝对地址）`target=_blank rel=noopener noreferrer`，站内相对链接原样。
+- Esc 只关闭当前打开的内容详情浮层或会话抽屉，不离开 Agent 工作台。
 
 **可访问性与响应式**
 - PC：全页双栏工作区；会话栏可收起，主对话列保持可读行宽，引用卡片不挤压消息正文。
-- 移动：占满安全区域内可用宽高，顶部固定标题/会话入口，底部固定输入区。
-- 所有按钮触控目标不少于 44px；引用关系不能只靠颜色表达。
+- 移动：占满安全区内可用宽高，顶部固定标题/会话入口，底部固定输入区。
+- 所有按钮触控目标不少于 44px；引用关系不能只靠颜色表达（角标带数字、卡片带序号）。
 - 对话列表使用语义列表；流式内容不在每个 token 到达时抢焦点。
 - 在 320/375/414/768/1024/1440px 检查无横向溢出；长标题、URL 和错误码必须可换行或截断且保留可访问名称。
 
+**会话全文搜索（后续产品化，当前未实现）**
+- 跨会话全文搜索属范围外（SP-13 明确延后）；侧栏当前不提供搜索触发框。owner-scoped 会话搜索 API 由后续计划提供后按 A1.6 契约接线。
+
 **i18n key namespace**
-- `agent.chat.*`、`agent.tools.*`、`agent.citations.*`、`agent.noEvidence.*`、`agent.degraded.*`、`agent.errors.*`、`agent.a11y.*`。
+- `agent.chat.*`、`agent.workspace.*`（侧栏/菜单/复制/删除确认等）、`agent.thinking.*`、`agent.tools.*`、`agent.citations.*`、`agent.noEvidence.*`、`agent.degraded.*`、`agent.errors.*`、`agent.a11y.*`、`markdown.copyCode`/`markdown.citationJump`（共享 markdown 渲染器命名空间）。zh/en 双语同步。
 
 **Playwright 截图检查点**
 - `screenshots/web-agent-grounded-desktop.png`
@@ -3399,6 +3408,7 @@ interface AgentToolStatus {
 - `screenshots/web-agent-citation-overlay-desktop.png`
 - `screenshots/web-agent-no-evidence.png`
 - `screenshots/web-agent-degraded-search.png`
+- A-06 追加：`screenshots/a06-thinking-desktop.png`、`screenshots/a06-sidebar-menu.png`、`screenshots/a06-citation-anchor.png`、`screenshots/a06-dark-desktop.png`、`screenshots/a06-narrow-mobile.png`
 
 ## Component: UploadAssistPanel
 
