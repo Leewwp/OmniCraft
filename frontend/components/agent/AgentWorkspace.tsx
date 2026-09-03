@@ -622,9 +622,10 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
   const lastMessageIsUser = messages[messages.length - 1]?.role === "user";
 
   function renderTurnExtrasBefore(message: WorkspaceMessage, index: number) {
-    /* 当前轮的 answer 消息（或流中尚无 answer 时的轮尾）前渲染 思考块+工具步骤。
-       done 后服务端历史回载会替换流式 answer 行（客户端 id 失联）——回退锚定到
-       轮尾最后一条 answer 行；ref 为 null（no_evidence/degraded 撤答）时只走轮尾。 */
+    /* 当前轮的 answer 消息前渲染 思考块+工具步骤。done 后服务端历史回载会替换
+       流式 answer 行（客户端 id 失联）——回退锚定到轮尾最后一条 answer 行；
+       ref 为 null（no_evidence/degraded 撤答或流中尚无 answer）时由 map 后的
+       轮尾兜底块渲染，此处不重复。 */
     const isTurnAnswer =
       turnAnswerIdRef.current !== null && message.id === turnAnswerIdRef.current;
     const isOrphanAnchor =
@@ -635,11 +636,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
       message.role === "assistant" &&
       message.phase !== "think" &&
       !message.moderationBlocked;
-    const isTurnTail =
-      index === messages.length - 1 &&
-      turnAnswerIdRef.current === null &&
-      (streaming || turnExtrasPresent);
-    if (!isTurnAnswer && !isOrphanAnchor && !isTurnTail) return null;
+    if (!isTurnAnswer && !isOrphanAnchor) return null;
     return (
       <Fragment key={`turn-extras-${message.id}`}>
         {turnThinking !== "" && <AgentThinkingBlock content={turnThinking} streaming={streaming} />}
