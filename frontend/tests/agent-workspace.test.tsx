@@ -1788,11 +1788,19 @@ test("assistant message actions: copy writes to the clipboard with a toast", asy
     await waitFor(() => assert.ok(view.getByText("可复制的回答。")), { timeout: 3000 });
 
     /* 操作行只在 !streaming 且历史回载完成后出现（done→activeId→回载存在
-       中间窗口）：waitFor 等按钮，避免流式/骨架窗口内的时序竞态。 */
-    const copyButton = await waitFor(() => view.getByRole("button", { name: "Copy response" }), { timeout: 3000 });
-    fireEvent.click(copyButton);
-    await waitFor(() => assert.equal(writes[0], "可复制的回答。"));
-    await waitFor(() => assert.ok(view.getByText("Copied to clipboard")));
+       中间窗口）：waitFor 等按钮；但回载交换窗口内点击可能落在已卸载元素
+       （main push CI 实测闪断：点击后 1s 内 writes 仍空）——轮询内重查补点
+       直至剪贴板真写入。 */
+    await waitFor(
+      () => {
+        if (writes.length === 0) {
+          fireEvent.click(view.getByRole("button", { name: "Copy response" }));
+        }
+        assert.equal(writes[0], "可复制的回答。");
+      },
+      { timeout: 8000 },
+    );
+    await waitFor(() => assert.ok(view.getByText("Copied to clipboard")), { timeout: 3000 });
   } finally {
     stub.restore();
   }
