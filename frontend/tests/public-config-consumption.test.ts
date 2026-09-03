@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { applyTypeOrder } from "@/components/studio/ContentTypeGrid";
-import { uploadMaxMBForType, type PublicConfig } from "@/lib/public-config";
+import { uploadMaxMBForType, commentFoldThreshold, isHighDislikeRatio, COMMENT_FOLD_THRESHOLD_FALLBACK, type PublicConfig } from "@/lib/public-config";
 
 const baseConfig = {
   features: {} as PublicConfig["features"],
@@ -55,4 +55,24 @@ test("uploadMaxMBForType consumes runtime limits and falls back safely (T25)", (
   assert.equal(uploadMaxMBForType({ ...baseConfig } as PublicConfig, "mod"), 500, "missing limits → baseline fallback");
   assert.equal(uploadMaxMBForType({ ...baseConfig, limits: { video_max_mb: 0 } } as PublicConfig, "video"), 300, "zero cap is treated as unset");
   assert.equal(uploadMaxMBForType({ ...baseConfig } as PublicConfig, "audio"), 20, "unmapped type keeps the generic 20MB default");
+});
+
+test("comment fold rules consume the configured threshold (T47)", () => {
+  assert.equal(
+    commentFoldThreshold({ ...baseConfig, social: { comment_fold_threshold: 0.2 } } as PublicConfig),
+    0.2,
+    "configured threshold wins",
+  );
+  assert.equal(commentFoldThreshold(null), COMMENT_FOLD_THRESHOLD_FALLBACK, "no config → baseline 0.30");
+  assert.equal(
+    commentFoldThreshold({ ...baseConfig, social: { comment_fold_threshold: 0 } } as PublicConfig),
+    COMMENT_FOLD_THRESHOLD_FALLBACK,
+    "out-of-range threshold falls back",
+  );
+
+  /* business-rules：点踩/点赞 比 ≥ 阈值折叠；点赞 0 且有点踩视为无穷大 */
+  assert.equal(isHighDislikeRatio(10, 3, 0.30), true, "3/10 = 0.30 ≥ 0.30 folds");
+  assert.equal(isHighDislikeRatio(10, 2, 0.30), false, "2/10 = 0.20 stays");
+  assert.equal(isHighDislikeRatio(0, 1, 0.30), true, "zero likes with dislikes folds");
+  assert.equal(isHighDislikeRatio(5, 0, 0.30), false, "no dislikes never folds");
 });
