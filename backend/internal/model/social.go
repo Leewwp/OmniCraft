@@ -39,8 +39,11 @@ type Comment struct {
 	Body          string       `gorm:"type:text;not null" json:"body"`
 	Status        string       `gorm:"size:20;not null;default:published" json:"status"`
 	LikeCount     int          `gorm:"not null;default:0" json:"like_count"`
-	UpdatedAt     time.Time    `gorm:"autoUpdateTime" json:"updated_at"`
-	CreatedAt     time.Time    `gorm:"autoCreateTime" json:"created_at"`
+	/* T47（FIX-29c）：赞/踩展示计数由仓储层从 reactions 聚合回填——
+	   comments.like_count 冗余列从未被维护，禁止直接读列。 */
+	DislikeCount int       `gorm:"-" json:"dislike_count"`
+	UpdatedAt    time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	CreatedAt    time.Time `gorm:"autoCreateTime" json:"created_at"`
 }
 
 func (Comment) TableName() string { return "comments" }

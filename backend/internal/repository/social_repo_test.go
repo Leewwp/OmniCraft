@@ -140,3 +140,61 @@ func TestListCommentsByParentIDs(t *testing.T) {
 }
 
 func ptrInt64(v int64) *int64 { return &v }
+
+// T47（FIX-29c）：赞/踩计数必须来自 reactions 聚合（comments.like_count
+// 冗余列从未被维护，禁止直接读）。
+func TestListCommentsPopulatesReactionCountsFromReactions(t *testing.T) {
+	db := setupSocialCommentsDB(t)
+	if err := db.Exec(`
+		CREATE TABLE reactions (
+			id integer PRIMARY KEY AUTOINCREMENT,
+			user_id integer NOT NULL,
+			target_type text NOT NULL,
+			target_id integer NOT NULL,
+			reaction text NOT NULL,
+			created_at datetime
+		)`).Error; err != nil {
+		t.Fatalf("create reactions table: %v", err)
+	}
+	author := model.User{ID: 9301, Email: "t47@seed.omnicraft.local", PasswordHash: "x", Username: "t47_author"}
+	if err := db.Create(&author).Error; err != nil {
+		t.Fatalf("seed author: %v", err)
+	}
+	contentID := int64(7401)
+	rows := []model.Comment{
+		{ID: 8301, ContentItemID: &contentID, AuthorID: author.ID, Body: "hot", Status: "published"},
+		{ID: 8302, ContentItemID: &contentID, AuthorID: author.ID, Body: "calm", Status: "published"},
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatalf("seed comments: %v", err)
+	}
+	reactions := []model.Reaction{
+		{UserID: 1, TargetType: "comment", TargetID: 8301, Reaction: "like"},
+		{UserID: 2, TargetType: "comment", TargetID: 8301, Reaction: "dislike"},
+		{UserID: 3, TargetType: "comment", TargetID: 8301, Reaction: "dislike"},
+		{UserID: 4, TargetType: "comment", TargetID: 8302, Reaction: "like"},
+		/* 干扰项：非评论目标不计数 */
+		{UserID: 5, TargetType: "content", TargetID: 8301, Reaction: "dislike"},
+	}
+	for i := range reactions {
+		if err := db.Create(&reactions[i]).Error; err != nil {
+			t.Fatalf("seed reaction: %v", err)
+		}
+	}
+
+	repo := NewSocialRepository(db)
+	got, _, err := repo.ListComments(contentID, nil, 1, 20)
+	if err != nil {
+		t.Fatalf("ListComments() error = %v", err)
+	}
+	byID := map[int64]model.Comment{}
+	for _, c := range got {
+		byID[c.ID] = c
+	}
+	if byID[8301].LikeCount != 1 || byID[8301].DislikeCount != 2 {
+		t.Fatalf("comment 8301 counts = %d/%d, want 1/2 from reactions aggregate", byID[8301].LikeCount, byID[8301].DislikeCount)
+	}
+	if byID[8302].LikeCount != 1 || byID[8302].DislikeCount != 0 {
+		t.Fatalf("comment 8302 counts = %d/%d, want 1/0", byID[8302].LikeCount, byID[8302].DislikeCount)
+	}
+}

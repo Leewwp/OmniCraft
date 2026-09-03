@@ -55,6 +55,9 @@ func setupPublicConfigTestRouter(t *testing.T) *gin.Engine {
 			TypeOrderOriginal: []string{"image", "article", "video"},
 			TypeOrderFanwork:  []string{"mod", "prompt", "image"},
 		},
+		Social: config.SocialConfig{
+			CommentFoldThreshold: 0.30,
+		},
 		Collaboration: config.CollaborationConfig{
 			InviteDailyLimit:       20,
 			InviteExpireDays:       7,
@@ -118,7 +121,9 @@ func TestPublicConfigAllowlist(t *testing.T) {
 	}
 
 	body := w.Body.String()
-	forbidden := []string{"secret", "access_key", "api_key", "dsn", "password", "hmac", "private", "cdn", "ttl", "rate_limit", "threshold", "min_score"}
+	// T47（FIX-29c）按票面裁决暴露 comment_fold_threshold，故 'threshold'
+	// 不再是禁词；其余敏感词照旧全量禁止。
+	forbidden := []string{"secret", "access_key", "api_key", "dsn", "password", "hmac", "private", "cdn", "ttl", "rate_limit", "min_score", "auto_hide"}
 	for _, word := range forbidden {
 		if strings.Contains(strings.ToLower(body), strings.ToLower(word)) {
 			t.Errorf("public config must not contain '%s'", word)
@@ -131,8 +136,16 @@ func TestPublicConfigAllowlist(t *testing.T) {
 	if _, has := resp["judge"]; has {
 		t.Error("public config must not expose 'judge'")
 	}
-	if _, has := resp["social"]; has {
-		t.Error("public config must not expose 'social'")
+	// T47：social 仅允许暴露 comment_fold_threshold（折叠展示阈值），
+	// report_auto_hide_rate 等审核旋钮保持 server-only。
+	social, ok := resp["social"].(map[string]interface{})
+	if !ok {
+		t.Fatal("response must contain 'social' object (comment_fold_threshold)")
+	}
+	for key := range social {
+		if key != "comment_fold_threshold" {
+			t.Errorf("social must not expose server-only key '%s'", key)
+		}
 	}
 	if _, has := resp["cache"]; has {
 		t.Error("public config must not expose 'cache'")
@@ -314,5 +327,27 @@ func TestPublicConfigExposesPublishTypeOrderAndUploadCaps(t *testing.T) {
 		if got != wantValue {
 			t.Errorf("limits.%s = %d, want %d", key, got, wantValue)
 		}
+	}
+}
+
+// T47（FIX-29c）：评论折叠阈值随公开配置下发（前端禁止硬编码 0.30）。
+func TestPublicConfigExposesCommentFoldThreshold(t *testing.T) {
+	r := setupPublicConfigTestRouter(t)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/config/public", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp struct {
+		Social struct {
+			CommentFoldThreshold float64 `json:"comment_fold_threshold"`
+		} `json:"social"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Social.CommentFoldThreshold <= 0 || resp.Social.CommentFoldThreshold >= 1 {
+		t.Fatalf("social.comment_fold_threshold = %v, want a configured ratio in (0,1)", resp.Social.CommentFoldThreshold)
 	}
 }

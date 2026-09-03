@@ -70,6 +70,13 @@ type PublicLimitsDTO struct {
 	SheetMusicMaxMB int `json:"sheet_music_max_mb"`
 }
 
+// PublicSocialDTO exposes the comment fold ratio the frontend needs for
+// noise reduction display (T47 / FIX-29c). Auto-hide rates and other
+// moderation knobs stay server-only.
+type PublicSocialDTO struct {
+	CommentFoldThreshold float64 `json:"comment_fold_threshold"`
+}
+
 type PublicConfigResponse struct {
 	Features      PublicFeaturesDTO      `json:"features"`
 	Captcha       PublicCaptchaDTO       `json:"captcha"`
@@ -79,6 +86,7 @@ type PublicConfigResponse struct {
 	Collaboration PublicCollaborationDTO `json:"collaboration"`
 	Publish       PublicPublishDTO       `json:"publish"`
 	Limits        PublicLimitsDTO        `json:"limits"`
+	Social        PublicSocialDTO        `json:"social"`
 	// OSSDomain is the configured object delivery domain (#111). Clients use
 	// it to compose stable object URLs from upload grants (e.g. avatar_url =
 	// oss_domain + "/" + oss_key). Empty when delivery is not configured.
@@ -136,6 +144,9 @@ func (h *PublicConfigHandler) GetPublicConfig(c *gin.Context) {
 			TextMaxMB:       h.cfg.Limits.TextMaxMB,
 			ModMaxMB:        h.cfg.Limits.ModMaxMB,
 			SheetMusicMaxMB: h.cfg.Limits.SheetMusicMaxMB,
+		},
+		Social: PublicSocialDTO{
+			CommentFoldThreshold: h.cfg.Social.CommentFoldThreshold,
 		},
 		OSSDomain: strings.TrimRight(strings.TrimSpace(h.cfg.OSS.Domain), "/"),
 	}

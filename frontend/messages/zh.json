@@ -1091,7 +1091,9 @@
     "loadMoreComments": "加载更多评论",
     "commentBlocked": "内容未通过安全审核，请修改后重试",
     "moderationUnavailable": "审核服务暂时不可用，请稍后重试",
-    "commentCount": "{count} 条评论"
+    "commentCount": "{count} 条评论",
+    "commentFolded": "已折叠 · 点击显示",
+    "commentCollapse": "收起"
   },
   "pr": {
     "submit": "提交修改申请",
