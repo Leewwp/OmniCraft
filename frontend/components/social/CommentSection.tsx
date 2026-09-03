@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { MessageCircle, Send, ThumbsUp, ThumbsDown, Reply, Pencil, Trash2 } from "lucide-react";
+import { MessageCircle, Send, ThumbsUp, ThumbsDown, Reply, Pencil, Trash2, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { useToast } from "@/components/ui/Toast";
 import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
-import { api } from "@/lib/api";
+import { api, ApiRequestError } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
@@ -338,6 +339,7 @@ function CommentItem({
   const t = useTranslations();
   const locale = useLocale();
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const reactionDisabled = !user || !canInteract;
   const isOwn = currentUserId !== undefined && comment.author_id === currentUserId;
@@ -347,6 +349,26 @@ function CommentItem({
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  /* T54：已举报态（成功或 409 重复举报都进入；重复举报有提示文案） */
+  const [reported, setReported] = useState(false);
+
+  /* T54：举报走既有端点；409 提示后与成功同样进入已举报态（ReactionBar 同款语义） */
+  async function submitReport(reason: string) {
+    try {
+      await api.post(`/api/v1/social/comments/${comment.id}/report`, { reason });
+      setReported(true);
+      toast("success", t('social.reported'));
+    } catch (e) {
+      if (e instanceof ApiRequestError && e.status === 409) {
+        setReported(true);
+        toast("error", t(getUserFacingErrorKey(e, "social.reportFailed")));
+        return;
+      }
+      toast("error", t(getUserFacingErrorKey(e, "social.reportFailed")));
+      silentError(e, { component: 'CommentSection', action: 'reportComment' });
+    }
+  }
 
   async function confirmEdit() {
     const trimmed = editText.trim();
@@ -428,6 +450,21 @@ function CommentItem({
                 {t('social.reply')}
               </button>
             )}
+            {user && (reported ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs text-muted-foreground" aria-label={t('social.reported')}>
+                <Flag className="h-3 w-3" />
+                {t('social.reported')}
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors duration-150 hover:bg-muted/50 hover:text-foreground"
+                onClick={() => setReportOpen(true)}
+              >
+                <Flag className="h-3 w-3" />
+                {t('social.report')}
+              </button>
+            ))}
             {isOwn && !editing && (
               <>
                 <button
@@ -510,6 +547,17 @@ function CommentItem({
         confirmVariant="destructive"
         onConfirm={() => { onDelete(comment); setDeleteOpen(false); }}
       />
+
+      <ConfirmModal
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        title={t('social.reportDialogTitle')}
+        description={t('social.reportReason')}
+        reasonLabel={t('social.reportReason')}
+        confirmLabel={t('social.report')}
+        requireReason
+        onConfirm={submitReport}
+      />
     </div>
   );
 }
@@ -534,12 +582,31 @@ function ReplyItem({
   const t = useTranslations();
   const locale = useLocale();
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const reactionDisabled = !user || !canInteract;
   const isOwn = currentUserId !== undefined && reply.author_id === currentUserId;
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reported, setReported] = useState(false);
+
+  async function submitReport(reason: string) {
+    try {
+      await api.post(`/api/v1/social/comments/${reply.id}/report`, { reason });
+      setReported(true);
+      toast("success", t('social.reported'));
+    } catch (e) {
+      if (e instanceof ApiRequestError && e.status === 409) {
+        setReported(true);
+        toast("error", t(getUserFacingErrorKey(e, "social.reportFailed")));
+        return;
+      }
+      toast("error", t(getUserFacingErrorKey(e, "social.reportFailed")));
+      silentError(e, { component: 'CommentSection', action: 'reportReply' });
+    }
+  }
 
   async function confirmEdit() {
     const trimmed = editText.trim();
@@ -592,6 +659,21 @@ function ReplyItem({
         >
           <ThumbsUp className="h-3 w-3" />
         </button>
+        {user && (reported ? (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs text-muted-foreground" aria-label={t('social.reported')}>
+            <Flag className="h-3 w-3" />
+            {t('social.reported')}
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors duration-150 hover:bg-muted/50 hover:text-foreground"
+            onClick={() => setReportOpen(true)}
+          >
+            <Flag className="h-3 w-3" />
+            {t('social.report')}
+          </button>
+        ))}
         {isOwn && !editing && (
           <>
             <button
@@ -621,6 +703,17 @@ function ReplyItem({
         description={t('social.deleteReplyDesc')}
         confirmVariant="destructive"
         onConfirm={() => { onDelete(reply, rootId); setDeleteOpen(false); }}
+      />
+
+      <ConfirmModal
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        title={t('social.reportDialogTitle')}
+        description={t('social.reportReason')}
+        reasonLabel={t('social.reportReason')}
+        confirmLabel={t('social.report')}
+        requireReason
+        onConfirm={submitReport}
       />
     </div>
   );

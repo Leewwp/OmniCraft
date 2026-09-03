@@ -36,6 +36,7 @@ const intlMessages = {
     reason: "Reason",
     loading: "Loading",
     userLabel: "User #{id}",
+    alreadyReported: "You have already reported this content",
   },
   social: {
     comments: "Comments",
@@ -63,6 +64,11 @@ const intlMessages = {
     loadMoreComments: "Load more comments",
     like: "Like",
     dislike: "Dislike",
+    report: "Report",
+    reportDialogTitle: "Report this content",
+    reportReason: "Please describe the reason for reporting:",
+    reported: "Reported",
+    reportFailed: "Failed to submit report.",
   },
 };
 
@@ -285,4 +291,46 @@ test("load-more appends the next page when total exceeds the first page", async 
 
   await waitFor(() => assert.ok(calls.get.some((p) => p.includes("page=2"))));
   await waitFor(() => assert.ok(view.getByText("second page body")));
+});
+
+test("report submits with a reason and a repeat 409 shows the already-reported notice", async () => {
+  let reportCalls = 0;
+  const calls = installCommentMocks([topLevelComment], 1);
+  api.post = (async <T,>(path: string, body?: unknown): Promise<T> => {
+    calls.post.push({ path, body });
+    if (path === "/api/v1/auth/refresh") {
+      throw new ApiRequestError("UNAUTHORIZED", "not logged in", 401);
+    }
+    if (path === "/api/v1/auth/login") {
+      return { user: testUser, tokens: { access_token: validAccessToken() }, capabilities: { can_interact: true } } as T;
+    }
+    if (path === "/api/v1/social/comments/1001/report") {
+      reportCalls += 1;
+      if (reportCalls === 1) return { message: "reported" } as T;
+      throw new ApiRequestError("ALREADY_REPORTED", "already reported", 409);
+    }
+    return {} as T;
+  }) as typeof api.post;
+
+  const view = renderCommentSection();
+  await waitFor(() => assert.ok(view.getByText("top level body")));
+  await login(view);
+
+  /* 第一次举报：填原因提交 → 已举报态 */
+  fireEvent.click(view.getByRole("button", { name: "Report" }));
+  const dialog = view.getByRole("dialog", { name: "Report this content" });
+  fireEvent.change(within(dialog).getByLabelText("Please describe the reason for reporting:"), { target: { value: "spam" } });
+  await act(async () => {
+    fireEvent.click(within(dialog).getByRole("button", { name: "Report" }));
+    await Promise.resolve();
+  });
+  await waitFor(() => {
+    const reportPost = calls.post.find((c) => c.path === "/api/v1/social/comments/1001/report");
+    assert.ok(reportPost, "report POST should fire");
+    assert.equal((reportPost!.body as { reason: string }).reason, "spam");
+  });
+  await waitFor(() => assert.ok(view.getAllByText("Reported").length >= 1, "reported state should render (toast and/or button state)"));
+
+  /* 409 之后按钮进入已举报态，不再可发起 */
+  assert.ok(view.queryByRole("button", { name: "Report" }) === null, "report button should be replaced by the reported state");
 });
