@@ -22,7 +22,7 @@ import { CollabUserPicker, type CollabUser } from "@/components/content/CollabUs
 import { Skeleton } from "@/components/ui/skeleton";
 import { normalizeContentDetailResponse } from "@/lib/content";
 import type { UploadedAsset } from "@/components/content/FileUploader";
-import { fetchPublicConfig } from "@/lib/public-config";
+import { fetchPublicConfig, uploadMaxMBForType, type PublicConfig } from "@/lib/public-config";
 import { silentError } from "@/lib/error-handler";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 
@@ -120,6 +120,21 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
   const isFilePrimary = FILE_PRIMARY_TYPES.includes(contentType);
   const mediaContentType = contentType === "image" || contentType === "video" ? contentType : null;
   const isMediaGallery = mediaContentType !== null;
+
+  useEffect(() => {
+    /* T25：上传上限随公开配置下发（admin 改配置即时生效，无需发版） */
+    let active = true;
+    fetchPublicConfig()
+      .then((config) => {
+        if (active) setPublicConfig(config);
+      })
+      .catch((error) => {
+        silentError(error, { component: "PublishForm", action: "fetchUploadLimits" });
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!mediaContentType) {
@@ -222,6 +237,8 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [briefDesc, setBriefDesc] = useState("");
+  /* T25：公开配置（上传上限动态消费） */
+  const [publicConfig, setPublicConfig] = useState<PublicConfig | null>(null);
 
   // Zone-specific
   const [category, setCategory] = useState("");
@@ -433,7 +450,7 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
       : "text"
   ) as "image" | "video" | "text" | "mod" | "sheet_music";
 
-  const maxMB = contentType === "mod" ? 500 : contentType === "sheet_music" ? 50 : contentType === "video" ? 300 : 20;
+  const maxMB = uploadMaxMBForType(publicConfig, fileType);
 
   return (
     <form onSubmit={handleSubmit} className="max-w-2xl space-y-6">

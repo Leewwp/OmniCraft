@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ArrowLeft, CheckCircle2, Send } from "lucide-react";
@@ -11,7 +11,7 @@ import { FileUploader, type UploadedAsset } from "@/components/content/FileUploa
 import { ipCategoryOptions } from "@/components/ip/ipCategory";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
-import { fetchPublicConfig } from "@/lib/public-config";
+import { fetchPublicConfig, uploadMaxMBForType } from "@/lib/public-config";
 import { silentError } from "@/lib/error-handler";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
@@ -45,6 +45,22 @@ export function IPPublishForm({ onBack }: IPPublishFormProps) {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [cover, setCover] = useState<UploadedAsset | null>(null);
+  /* T25：封面上传上限随公开配置下发 */
+  const [coverMaxMB, setCoverMaxMB] = useState(20);
+
+  useEffect(() => {
+    let active = true;
+    fetchPublicConfig()
+      .then((config) => {
+        if (active) setCoverMaxMB(uploadMaxMBForType(config, "image"));
+      })
+      .catch(() => {
+        /* 配置不可用时保持 20MB 兜底 */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
   const [submitting, setSubmitting] = useState(false);
   const [nameError, setNameError] = useState("");
   const [created, setCreated] = useState<CreatedIP | null>(null);
@@ -201,7 +217,7 @@ export function IPPublishForm({ onBack }: IPPublishFormProps) {
         <label className="mb-1.5 block text-sm font-medium text-foreground">{t("coverLabel")}</label>
         <FileUploader
           fileType="image"
-          maxMB={20}
+          maxMB={coverMaxMB}
           accept="image/*"
           disabled={submitting}
           onUploaded={(files) => setCover(files[0] ?? null)}
