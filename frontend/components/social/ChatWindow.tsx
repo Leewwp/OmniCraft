@@ -85,7 +85,7 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
       ]);
     } catch (error) {
       toast("error", error instanceof ApiRequestError && error.code === "DM_REPLY_REQUIRED"
-        ? t("messages.chat.replyRequired")
+        ? t("messages.dmReplyRequired")
         : t("messages.error.send"));
     } finally {
       setIsSending(false);
