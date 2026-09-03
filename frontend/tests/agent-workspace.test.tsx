@@ -1831,12 +1831,14 @@ test("regenerate keeps the user message, drops the previous answer rows and re-s
     fireEvent.submit(composer.closest("form")!);
     await waitFor(() => assert.ok(view.getByText("第一版回答")), { timeout: 3000 });
 
-    const regenerateButton = await waitFor(() =>
+    await waitFor(() =>
       view.getByRole("button", { name: "Regenerate" }),
       { timeout: 3000 },
     );
-    fireEvent.click(regenerateButton);
-    await waitFor(() => assert.ok(view.getByText("第二版回答")), { timeout: 3000 });
+    /* done→activeId→历史回载交换窗口内点击可能落在已卸载元素：先稳定再重查点击。 */
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    fireEvent.click(view.getByRole("button", { name: "Regenerate" }));
+    await waitFor(() => assert.ok(view.getByText("第二版回答")), { timeout: 8000 });
     assert.equal(view.queryByText("第一版回答"), null, "old answer rows are dropped");
     assert.ok(view.getByText("重新生成我"), "the user message stays");
     assert.equal(bodies[1].message, "重新生成我");
