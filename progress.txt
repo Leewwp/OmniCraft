@@ -1,3 +1,28 @@
+## [2026-09-03] - Task A-06 (#288): 前端工作台 DeepSeek 化（⏸ 中断于浏览器真跑验证收尾——实现全落地，验证 6/12 真跑过 + mock 13/13，下轮续）
+
+### What was done:
+- **分支 `feat/a06-agent-workspace-deepseek`（基线 89d5a48，已 sync main 至 2c5f5a6），5 个 commit**：
+  - dda3466 SSE v2 消费层：think_delta 事件 + 工具 args_summary/hits + done.trace_id/message_id/usage（normalizer 拒绝畸形）。
+  - a10f876 工作台主体：请求体切换 A-01 续写契约 `{conversation_id?, message, context}`（旧 `messages` body 移除，chat 自此恢复可用）；三层生成形态（AgentThinkingBlock 流式展开→完成折叠 + AgentToolStatus 可折叠含检索词/命中数/耗时 + 逐字正文）；侧边栏 ⋯ 菜单（重命名内联 PATCH title≤50 / 置顶 PATCH pinned / 删除 ConfirmModal+DELETE）+ 置顶分组置前 + title 显示；消息操作（复制 clipboard+toast / 重新生成保留用户行重发）；输入自动增高（8 行 208px 封顶内滚）；行内 [1][2] 锚定（MarkdownRenderer citationAnchors prop → sup 角标点击滚动+高亮+聚焦 #agent-citation-{n}，纯展示层）；markdown 升级（rehype-highlight 高亮 + 代码块复制 + 外链 target=_blank rel=noopener，globals.css hljs 双主题 token）；空态建议 chips 药丸化；i18n zh/en 同步（agent.thinking/markdown.*/workspace 菜单等 30+ 键）。
+  - fa0ca8e mock e2e 升级 v2（think/工具折叠展开/[1] 锚定高亮/重命名置顶 PATCH/删除走 ⋯ 菜单）。
+  - e12eb76 ui-spec `## Page: /agent` 章节改写为 A-06 形态（第⑩项）。
+  - 47c58b6 服务端提示词一行增补句末引用序号指示（spec R2-Q9 行内锚定模型侧前提；复验语义零改动）。
+- **测试**：单测 470/470 绿（新增 7 例：续写契约 body/三层形态/历史 think 回放/重命名 PATCH/置顶 PATCH/复制/重新生成）；lint+tsc 绿；npm run build 绿；agent mock e2e 13/13 绿。
+- **测试基建**：runtime-test-helpers 补 getComputedStyle 全局（base-ui Menu 在 jsdom 必需）；api mock 支持 PATCH。
+
+### Testing:
+- 真跑（无头 Chromium + 真实 DashScope qwen-plus 真流式 + v4 检索）：PASS = 登录/空态/**真流式逐字渲染（45 delta）**/侧边栏菜单开合/**置顶 PATCH+分组**/输入自动增高；截图 a06-grounded-desktop / a06-sidebar-menu / a06-pinned-group。
+- FAIL（6 项）均为同一根因下游：**本地 chat 真跑 = no_evidence**——search_content hits=10 成功但引用候选为空（`citationFromSearchSummary` 要求 ChunkKey/ContentVersion/ChunkIndex/Source，非 hybrid 路径摘要不带 → 候选 0 → no_evidence）。此为 A-03/A-04 检索域既有状态（三开关 off 待 A-04），受总序 §3.2 RAG 冻结点护栏约束**不在 A-06 修**。引用卡/锚定/overlay/复制按钮（依赖 grounded turn）已由 mock e2e 13/13 + 单测覆盖。
+- 脚本侧已知误报：zh `agent.tools.title`="工具状态"（脚本用错标签）、rename 定位器待修——下轮修正 frontend/a06-verify.mjs（未跟踪文件，留在分支工作树）。
+
+### Notes（下轮恢复点）:
+- **环境 rig（8080 在跑，勿杀）**：`/tmp/omnicraft-server-a06` + env = `AGENT_WEB_AGENT_ENABLED=true AGENT_LLM_MODEL=qwen-plus AGENT_LLM_API_BASE=https://dashscope.aliyuncs.com/compatible-mode AGENT_EMBEDDING_MODEL=text-embedding-v4 AGENT_EMBEDDING_API_BASE=<maas主机>/compatible-mode AGENT_EMBEDDING_API_KEY=$DASHSCOPE_API_KEY`（root .env 需 set -a source）；前端 dev :3000 在跑。
+- 测试账号 a06-verify@seed.omnicraft.local / A06Verify#2026（DB 直插 bcrypt，id=339）。
+- **剩余验证门**：①修 a06-verify.mjs 两处定位器后重跑（工具步骤折叠 zh 标签 + rename input）；②`npm run test:contracts` 全量（81+13 新 spec 预期 94 例）；③后端三件套（agent_service.go 已过 build/vet/Agent 测试，跑全量 go test ./...）；④暗色/窄屏截图补齐；⑤no_evidence 拒答真跑截图（行为正确性）。
+- **合并前**：分支已含 main 全部历史；PR → CI project-gate → squash；关票 #288 + 总序 §3 第 20 条 ✅ + AGENTS SP-13 行计数 25→26/69 + 心跳。
+- done 终态裁决语义落地：no_evidence/degraded 撤下已流出正文；正常轮 done.answer 替换已流出正文（A-02 v2 语义）。
+
+
 ## [2026-09-03] - Task T21 (#241): 搜索可达性——建议下拉 + Users tab + 图标语义（✅ 已收口：PR #298 → ac4f393，CI 全绿合并 + 关票；单测角色断言 searchbox→combobox 随批修复）
 
 ### What was done:
