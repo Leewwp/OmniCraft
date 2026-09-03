@@ -1,3 +1,17 @@
+## [2026-09-03] - Task T21 回归修复: t72 排序控件契约探针锚定（✅ PR #300 → f898a08，CI 五门全绿 squash 合并）
+
+### What was done:
+- 根因：T21 给 GlobalSearchInput 加 `role="combobox"` 后页面存在两个 combobox，t72 spec 五处裸探针 `document.querySelector('[role="combobox"]')` 抓到 DOM 首个匹配（头部搜索框），其 sticky 容器 zIndex=auto → `Number(NaN) < 50` 失败（contracts 80/81，verify --full EXIT=1）。
+- 修复（仅测试代码，不改产品代码）：探针改为经 open listbox 的 `aria-controls` owner 关系回溯排序 combobox（base-ui Select open 时 trigger 带 aria-controls=listbox.id）；补防回归断言（页面多 combobox 时锚定探针必须解析出排序控件：count>1 + aria-label 含「排序方式」+ aria-haspopup=listbox）。
+- CI scoped 门不覆盖 mocked contracts（t72 回归因此漏网）——本地 `npm run test:contracts` 全量是前端收口必跑项（已写入本轮纪律）。
+
+### Testing:
+- 单 spec 复现红（sticky toolbar 1 例 NaN）→ 修复后 t72 10/10 绿；全量 mocked contracts **81/81 绿**。CI project-gate 五门全绿（PR #300）。
+
+### Notes:
+- 教训：加 `role="combobox"` 类语义属性时，e2e 内 `querySelector` 裸探针按 DOM 顺序取元素是隐性契约；共享 role 的组件上线前跑全量 contracts。
+
+
 ## [2026-09-03] - Task T21 (#241): 搜索可达性——建议下拉 + Users tab + 图标语义（✅ 已收口：PR #298 → ac4f393，CI 全绿合并 + 关票；单测角色断言 searchbox→combobox 随批修复）
 
 ### What was done:
