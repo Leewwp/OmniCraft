@@ -12,6 +12,7 @@ import (
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/pkg/llm"
+	"omnicraft/backend/internal/pkg/recovery"
 )
 
 // AgentStreamEventType is the server-owned SSE event name set for the chat
@@ -41,6 +42,15 @@ const (
 	// AgentErrorCodeStorage marks a persistence failure without exposing the
 	// underlying database error to the client.
 	AgentErrorCodeStorage = "AGENT_STORAGE_ERROR"
+)
+
+var (
+	// ErrAgentInputBlocked is returned by ModerateChatInput when Green flags
+	// the chat input; the handler maps it to a 422 CONTENT_BLOCKED rejection.
+	ErrAgentInputBlocked = errors.New("agent chat input rejected by content moderation")
+	// ErrAgentModerationUnavailable is returned when the input gate cannot run
+	// and the A4 environment semantics require fail-closed (release mode).
+	ErrAgentModerationUnavailable = errors.New("agent content moderation unavailable")
 )
 
 // AgentStreamEvent is the typed stream event. Only the fields relevant to the
@@ -467,6 +477,9 @@ loop:
 		if !hadAssistantBefore {
 			s.scheduleAutoTitle(traceID, conv.ID, firstUserMessage(history))
 		}
+		// A-05: the persisted answer is audited asynchronously after the
+		// turn; a flagged row is redacted by the history endpoint.
+		s.scheduleOutputModeration(traceID, answerMessageID, answer)
 	}
 
 	if err := handler(AgentStreamEvent{
@@ -486,6 +499,75 @@ loop:
 
 	traceAgentEvent(traceID, "chat_done", "conversation_id", convID, "surface", resolved.Surface, "answer_kind", kind, "tools", len(executedTools))
 	return nil
+}
+
+// ModerateChatInput applies the A-05 input admission gate over a chat message
+// before the turn starts. A "block" (or normalized "violation") result
+// rejects the input. Availability follows the A4 environment semantics via
+// RunModerationGate: release mode fails closed on any moderation failure,
+// while local/test mode fails open when Green is not configured (recorded via
+// structured logs). Blank text is skipped without an external call.
+func (s *AgentService) ModerateChatInput(ctx context.Context, text string) error {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return nil
+	}
+	var review func(context.Context) (string, error)
+	if s.greenClient != nil {
+		review = func(ctx context.Context) (string, error) {
+			res, err := s.greenClient.TextModeration(ctx, trimmed)
+			if err != nil {
+				return "", err
+			}
+			return NormalizeReviewResult(res.Result), nil
+		}
+	}
+	return RunModerationGate(ctx, s.cfg, "agent_chat_input", "content moderation", "chat turn",
+		review, true, ErrAgentInputBlocked, ErrAgentModerationUnavailable)
+}
+
+// scheduleOutputModeration asynchronously audits a persisted assistant answer
+// through Green text moderation (A-05). It is a post-turn audit, never an
+// admission gate: it must not block or fail the stream. On "block" the stored
+// answer row is flagged (tool_calls = {"moderation":"blocked"}) so the
+// conversation history returns a redacted representation; the raw text stays
+// stored for audit. Scan unavailability is fail-open with structured logs in
+// every environment — hiding every answer because the scanner is down would
+// break the product, unlike the input gate's release fail-closed semantics.
+func (s *AgentService) scheduleOutputModeration(traceID string, messageID int64, answer string) {
+	if s.db == nil || s.greenClient == nil {
+		return
+	}
+	text := strings.TrimSpace(answer)
+	if text == "" {
+		return
+	}
+	recovery.GoSafe(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		res, err := s.greenClient.TextModeration(ctx, text)
+		envMode := "unknown"
+		if s.cfg != nil {
+			envMode = s.cfg.Server.Mode
+		}
+		if err != nil {
+			slog.Warn("agent output moderation skipped, answer kept visible",
+				"action", "agent_chat_output", "env_mode", envMode, "policy", "fail_open", "reason", err.Error())
+			traceAgentEvent(traceID, "output_moderation_skipped", "message_id", messageID)
+			return
+		}
+		if NormalizeReviewResult(res.Result) != "block" {
+			return
+		}
+		if err := s.db.WithContext(ctx).Model(&model.AgentMessage{}).
+			Where("id = ?", messageID).
+			Update("tool_calls", model.JSONMap{"moderation": "blocked"}).Error; err != nil {
+			slog.Error("failed to flag moderated agent answer", "message_id", messageID, "error", err)
+			traceAgentEvent(traceID, "output_moderation_flag_failed", "message_id", messageID)
+			return
+		}
+		traceAgentEvent(traceID, "output_moderation_blocked", "message_id", messageID)
+	})
 }
 
 // safeAgentStreamCode maps a stream failure to a safe event code without

@@ -1276,6 +1276,7 @@
       "groupYesterday": "Yesterday",
       "groupEarlier": "Earlier",
       "transcriptLabel": "Chat transcript",
+      "messageHiddenByModeration": "This reply was hidden after failing a safety check",
       "composerLabel": "Ask the agent",
       "inputPlaceholder": "Describe the works, sources or usage you want to find",
       "send": "Send",

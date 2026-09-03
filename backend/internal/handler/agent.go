@@ -308,6 +308,24 @@ func (h *AgentHandler) ChatStream(c *gin.Context) {
 		return
 	}
 
+	// A-05 input admission gate: the chat message is moderated BEFORE the SSE
+	// stream opens and BEFORE quota reservation — a blocked input is the
+	// requester's own fault and must neither consume quota nor reach the
+	// Provider. A4 environment semantics: block → 422 CONTENT_BLOCKED;
+	// moderation unavailable in release mode → 503 (fail-closed).
+	if err := h.agentSvc.ModerateChatInput(c.Request.Context(), message); err != nil {
+		if errors.Is(err, service.ErrAgentInputBlocked) {
+			response.Error(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "content was rejected by content moderation")
+			return
+		}
+		if errors.Is(err, service.ErrAgentModerationUnavailable) {
+			response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "content moderation unavailable")
+			return
+		}
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
+		return
+	}
+
 	if !h.reserveGenerationQuota(c) {
 		return
 	}
@@ -478,7 +496,42 @@ func (h *AgentHandler) GetConversationMessages(c *gin.Context) {
 	if hasMore {
 		messages = messages[:pageSize]
 	}
-	c.JSON(http.StatusOK, gin.H{"conversation": conv, "messages": messages, "page": page, "page_size": pageSize, "has_more": hasMore})
+	dtos := make([]agentConversationMessageDTO, len(messages))
+	for i := range messages {
+		dtos[i] = agentMessageHistoryDTO(messages[i])
+	}
+	c.JSON(http.StatusOK, gin.H{"conversation": conv, "messages": dtos, "page": page, "page_size": pageSize, "has_more": hasMore})
+}
+
+// agentConversationMessageDTO is the history projection served by
+// GetConversationMessages (A-05): answer rows flagged by the post-turn output
+// audit (tool_calls.moderation = "blocked") are redacted — content omitted,
+// moderation marker exposed so clients render a placeholder instead of the
+// stored text. Think rows surface their phase marker for replay clients.
+type agentConversationMessageDTO struct {
+	ID         int64     `json:"id"`
+	Role       string    `json:"role"`
+	Content    *string   `json:"content,omitempty"`
+	Phase      string    `json:"phase,omitempty"`
+	Moderation string    `json:"moderation,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+func agentMessageHistoryDTO(m model.AgentMessage) agentConversationMessageDTO {
+	dto := agentConversationMessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, CreatedAt: m.CreatedAt}
+	if m.ToolCalls == nil {
+		return dto
+	}
+	if phase, _ := m.ToolCalls["phase"].(string); phase != "" {
+		dto.Phase = phase
+	}
+	if moderation, _ := m.ToolCalls["moderation"].(string); moderation == "blocked" {
+		dto.Moderation = "blocked"
+		// Redacted in the API projection only; the raw answer stays stored
+		// for audit and admin review.
+		dto.Content = nil
+	}
+	return dto
 }
 
 // DeleteConversation deletes only the current user's conversation and its

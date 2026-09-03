@@ -47,6 +47,7 @@ interface AgentMessageDTO {
   id: number;
   role: string;
   content?: string | null;
+  moderation?: string;
 }
 
 let nextMessageId = 1;
@@ -147,12 +148,26 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
         if (cancelled) return;
         setMessages(
           (data.messages ?? [])
-            .filter((message) => message.role === "user" || (message.content ?? "").trim() !== "")
-            .map((message) => ({
-              id: message.id,
-              role: message.role === "user" ? "user" : "assistant",
-              content: message.content ?? "",
-            })),
+            .filter(
+              (message) =>
+                message.role === "user" ||
+                message.moderation === "blocked" ||
+                (message.content ?? "").trim() !== "",
+            )
+            .map((message) =>
+              /* A-05 输出事后审核：被标记回答不回传原文，渲染占位提示。 */
+              message.moderation === "blocked"
+                ? {
+                    id: message.id,
+                    role: "assistant" as const,
+                    content: t("agent.workspace.messageHiddenByModeration"),
+                  }
+                : {
+                    id: message.id,
+                    role: message.role === "user" ? ("user" as const) : ("assistant" as const),
+                    content: message.content ?? "",
+                  },
+            ),
         );
       })
       .catch((error) => {

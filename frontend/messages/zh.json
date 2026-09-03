@@ -1276,6 +1276,7 @@
       "groupYesterday": "昨天",
       "groupEarlier": "更早",
       "transcriptLabel": "对话正文",
+      "messageHiddenByModeration": "该回复未通过安全审核，已隐藏",
       "composerLabel": "向 Agent 提问",
       "inputPlaceholder": "描述你要找的作品、来源或使用方式",
       "send": "发送",

@@ -35,7 +35,7 @@ type AgentService struct {
 	searchRepo      *repository.SearchRepository
 	ragChunkRepo    *repository.RagChunkRepository
 	hybridRetriever AgentContentRetriever
-	greenClient     *aliyun.GreenClient
+	greenClient     agentGreenScanner
 	db              *gorm.DB
 	cfg             *config.Config
 	queueProducer   queue.Producer
@@ -47,6 +47,13 @@ type AgentService struct {
 // legacy non-streaming and embedding callers behind the compatibility shell.
 type agentChatStreamer interface {
 	ChatStream(ctx context.Context, req llm.ChatRequest, handler func(delta llm.ChatDelta) error) error
+}
+
+// agentGreenScanner is the Green text scan seam consumed by the Agent chat
+// guardrails (A-05): the input admission gate and the post-turn output audit.
+// *aliyun.GreenClient is the production implementation; tests inject a fake.
+type agentGreenScanner interface {
+	TextModeration(ctx context.Context, text string) (*aliyun.GreenScanResult, error)
 }
 
 // AgentRetrievalCandidate is the service-owned boundary for RAG results. The
@@ -90,10 +97,14 @@ func newAgentServiceWithChatStreamer(provider llm.LLMProvider, chatStreamer agen
 		chatStreamer:  chatStreamer,
 		embeddingRepo: embeddingRepo,
 		contentRepo:   contentRepo,
-		greenClient:   greenClient,
 		db:            db,
 		cfg:           cfg,
 		queueProducer: queue.NewNoopProducer(),
+	}
+	// A nil *aliyun.GreenClient must leave the interface nil (not a typed-nil
+	// pointer) so unconfigured environments take the explicit skip paths.
+	if greenClient != nil {
+		svc.greenClient = greenClient
 	}
 	if db != nil {
 		svc.ragChunkRepo = repository.NewRagChunkRepository(db)
@@ -102,6 +113,12 @@ func newAgentServiceWithChatStreamer(provider llm.LLMProvider, chatStreamer agen
 		svc.vectorSearch = embeddingRepo.VectorSearch
 	}
 	return svc
+}
+
+// SetGreenScanner injects the Green text scan seam. Tests substitute a fake
+// to assert chat guardrail semantics without real credentials.
+func (s *AgentService) SetGreenScanner(sc agentGreenScanner) {
+	s.greenClient = sc
 }
 
 type UploadAssistResult struct {
