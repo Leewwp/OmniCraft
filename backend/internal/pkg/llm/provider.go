@@ -90,10 +90,12 @@ type LLMProvider interface {
 // providerConfig carries bounded timeout/retry tuning read from
 // cfg.Agent.ProviderTimeoutSec / ProviderMaxRetries.
 type providerConfig struct {
-	timeout          time.Duration
-	maxRetries       int
-	embeddingAPIBase string
-	embeddingGroupID string
+	timeout             time.Duration
+	maxRetries          int
+	embeddingAPIBase    string
+	embeddingGroupID    string
+	embeddingAPIKey     string
+	embeddingDimensions int
 }
 
 // ProviderOption configures timeout and retry behavior of a concrete provider.
@@ -120,4 +122,18 @@ func WithEmbeddingAPIBase(base string) ProviderOption {
 // parameter. It is intentionally kept out of public config responses.
 func WithEmbeddingGroupID(groupID string) ProviderOption {
 	return func(c *providerConfig) { c.embeddingGroupID = groupID }
+}
+
+// WithEmbeddingAPIKey overrides the API key for embedding calls only, so the
+// chat credential and the embedding credential can live on different vendor
+// accounts (DashScope embedding + any chat provider).
+func WithEmbeddingAPIKey(key string) ProviderOption {
+	return func(c *providerConfig) { c.embeddingAPIKey = key }
+}
+
+// WithEmbeddingDimensions pins the embedding vector dimensionality in the
+// request payload for models that accept a dimensions parameter
+// (DashScope text-embedding-v4, OpenAI text-embedding-3 family).
+func WithEmbeddingDimensions(dimensions int) ProviderOption {
+	return func(c *providerConfig) { c.embeddingDimensions = dimensions }
 }

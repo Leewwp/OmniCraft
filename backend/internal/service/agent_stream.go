@@ -366,6 +366,12 @@ loop:
 					}
 				}
 			}
+			// A-03: expansion terms surface in the tool step summary so the
+			// process panel can show what the retrieval fanned out to. The
+			// outcome is nil when the tool itself failed.
+			if outcome != nil && len(outcome.ExpandedQueries) > 0 {
+				execution.ArgsSummary += " +expanded: " + strings.Join(outcome.ExpandedQueries, " / ")
+			}
 			executedTools = append(executedTools, execution)
 			if err := handler(AgentStreamEvent{Type: AgentEventToolStatus, Tool: &execution}); err != nil {
 				s.persistPartialTurn(conv.ID, answerBuf.String())

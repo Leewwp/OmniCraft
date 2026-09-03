@@ -210,12 +210,17 @@ type FeaturesConfig struct {
 	DesktopDeployEnabled      bool `mapstructure:"desktop_deploy_enabled"`
 	ArchiveMalwareScanEnabled bool `mapstructure:"archive_malware_scan_enabled"`
 	RAGHybridEnabled          bool `mapstructure:"rag_hybrid_enabled"`
+	// RAGQueryExpansionEnabled and RAGRerankEnabled gate the A-03 retrieval
+	// upgrades; defaults stay off until A-04 ablation decides them.
+	RAGQueryExpansionEnabled bool `mapstructure:"rag_query_expansion_enabled"`
+	RAGRerankEnabled         bool `mapstructure:"rag_rerank_enabled"`
 }
 
 type RAGConfig struct {
 	Chunking RAGChunkingConfig `mapstructure:"chunking"`
 	Index    RAGIndexConfig    `mapstructure:"index"`
 	Hybrid   RAGHybridConfig   `mapstructure:"hybrid"`
+	Rerank   RAGRerankConfig   `mapstructure:"rerank"`
 }
 
 type RAGChunkingConfig struct {
@@ -242,6 +247,23 @@ type RAGHybridConfig struct {
 	VectorTopK int `mapstructure:"vector_topk"`
 	RRFK       int `mapstructure:"rrf_k"`
 	FinalTopK  int `mapstructure:"final_topk"`
+}
+
+// RAGRerankConfig carries the A-03 rerank chain: a primary provider
+// (DashScope qwen3-rerank by default) with an optional SiliconFlow fallback.
+// API keys are env-injected (RAG_RERANK_API_KEY / RAG_RERANK_FALLBACK_API_KEY)
+// and stay out of config files.
+type RAGRerankConfig struct {
+	Provider         string `mapstructure:"provider"`
+	Model            string `mapstructure:"model"`
+	APIBase          string `mapstructure:"api_base"`
+	APIKey           string `mapstructure:"api_key" json:"-"`
+	FallbackProvider string `mapstructure:"fallback_provider"`
+	FallbackModel    string `mapstructure:"fallback_model"`
+	FallbackAPIBase  string `mapstructure:"fallback_api_base"`
+	FallbackAPIKey   string `mapstructure:"fallback_api_key" json:"-"`
+	InputTopK        int    `mapstructure:"input_topk"`
+	TimeoutSec       int    `mapstructure:"timeout_sec"`
 }
 
 // ArchiveScanConfig carries the archive malware scanning quotas, timeout and
@@ -429,6 +451,7 @@ type AgentConfig struct {
 	EmbeddingModel        string `mapstructure:"embedding_model"`
 	EmbeddingAPIBase      string `mapstructure:"embedding_api_base"`
 	EmbeddingGroupID      string `mapstructure:"embedding_group_id" json:"-"`
+	EmbeddingAPIKey       string `mapstructure:"embedding_api_key" json:"-"`
 	EmbeddingDimensions   int    `mapstructure:"embedding_dimensions"`
 	RateLimitPerDay       int    `mapstructure:"rate_limit_per_day"`
 	RateLimitPerMinute    int    `mapstructure:"rate_limit_per_minute"`
@@ -766,11 +789,20 @@ func OverrideFromEnv(cfg *Config) {
 	if v := os.Getenv("AGENT_EMBEDDING_API_BASE"); v != "" {
 		cfg.Agent.EmbeddingAPIBase = v
 	}
+	if v := os.Getenv("AGENT_EMBEDDING_API_KEY"); v != "" {
+		cfg.Agent.EmbeddingAPIKey = v
+	}
 	if v := os.Getenv("AGENT_EMBEDDING_GROUP_ID"); v != "" {
 		cfg.Agent.EmbeddingGroupID = v
 	}
 	if v := os.Getenv("RAG_INDEX_EMBEDDING_MODEL"); v != "" {
 		cfg.RAG.Index.EmbeddingModel = v
+	}
+	if v := os.Getenv("RAG_RERANK_API_KEY"); v != "" {
+		cfg.RAG.Rerank.APIKey = v
+	}
+	if v := os.Getenv("RAG_RERANK_FALLBACK_API_KEY"); v != "" {
+		cfg.RAG.Rerank.FallbackAPIKey = v
 	}
 	if v := os.Getenv("RAG_INDEX_URL"); v != "" {
 		cfg.RAG.Index.URL = v

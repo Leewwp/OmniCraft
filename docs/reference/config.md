@@ -19,6 +19,7 @@ history (estimated tokens; CJK-heavy so rune count... |
 | `agent.conversation_list_limit` | `int` | ConversationListLimit |
 | `agent.conversation_page_size` | `int` | ConversationPageSize |
 | `agent.embedding_api_base` | `string` | EmbeddingAPIBase |
+| `agent.embedding_api_key` | `string` | EmbeddingAPIKey |
 | `agent.embedding_dimensions` | `int` | EmbeddingDimensions |
 | `agent.embedding_group_id` | `string` | EmbeddingGroupID |
 | `agent.embedding_model` | `string` | EmbeddingModel |
@@ -80,6 +81,9 @@ history (estimated tokens; CJK-heavy so rune count... |
 | `features.desktop_deploy_enabled` | `bool` | DesktopDeployEnabled |
 | `features.payment_enabled` | `bool` | PaymentEnabled |
 | `features.rag_hybrid_enabled` | `bool` | RAGHybridEnabled |
+| `features.rag_query_expansion_enabled` | `bool` | RAGQueryExpansionEnabled and RAGRerankEnabled gate the A-03 retrieval
+upgrades; defaults stay off until A-04 ablation... |
+| `features.rag_rerank_enabled` | `bool` | RAGRerankEnabled |
 | `feedback.upload_grant_ttl_sec` | `int` | UploadGrantTTLSec |
 | `green.access_key_id` | `string` | AccessKeyID |
 | `green.access_key_secret` | `string` | AccessKeySecret |
@@ -153,6 +157,16 @@ history (estimated tokens; CJK-heavy so rune count... |
 | `rag.index.response_body_max_bytes` | `int` | ResponseBodyMaxBytes |
 | `rag.index.timeout_sec` | `int` | TimeoutSec |
 | `rag.index.url` | `string` | URL |
+| `rag.rerank.api_base` | `string` | APIBase |
+| `rag.rerank.api_key` | `string` | APIKey |
+| `rag.rerank.fallback_api_base` | `string` | FallbackAPIBase |
+| `rag.rerank.fallback_api_key` | `string` | FallbackAPIKey |
+| `rag.rerank.fallback_model` | `string` | FallbackModel |
+| `rag.rerank.fallback_provider` | `string` | FallbackProvider |
+| `rag.rerank.input_topk` | `int` | InputTopK |
+| `rag.rerank.model` | `string` | Model |
+| `rag.rerank.provider` | `string` | Provider |
+| `rag.rerank.timeout_sec` | `int` | TimeoutSec |
 | `rate_limit.agent_minute_window_sec` | `int` | AgentMinuteWindowSec |
 | `rate_limit.agent_window_sec` | `int` | AgentWindowSec |
 | `rate_limit.credential_per_minute` | `int` | CredentialPerMinute |
