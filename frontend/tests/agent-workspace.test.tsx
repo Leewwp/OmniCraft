@@ -1750,7 +1750,15 @@ test("sidebar ⋯ menu pin toggle PATCHes pinned state and refreshes the list", 
 test("assistant message actions: copy writes to the clipboard with a toast", async () => {
   installDom();
   const writes: string[] = [];
-  Object.defineProperty(window.navigator, "clipboard", {
+  /* jsdom 的 navigator.clipboard 存在与否随版本/平台变化：先摘除再以可配置
+     属性注入 stub，避免 CI（Node 20）上对只读属性 defineProperty 抛错。 */
+  const navigatorWithClipboard = window.navigator as Navigator & { clipboard?: unknown };
+  try {
+    delete navigatorWithClipboard.clipboard;
+  } catch {
+    /* 属性可能定义在原型链上（不可直接 delete），忽略后仍尝试 defineProperty。 */
+  }
+  Object.defineProperty(navigatorWithClipboard, "clipboard", {
     configurable: true,
     value: { writeText: async (text: string) => { writes.push(text); } },
   });
@@ -1774,7 +1782,10 @@ test("assistant message actions: copy writes to the clipboard with a toast", asy
     fireEvent.submit(composer.closest("form")!);
     await waitFor(() => assert.ok(view.getByText("可复制的回答。")), { timeout: 3000 });
 
-    fireEvent.click(view.getByRole("button", { name: "Copy response" }));
+    /* 操作行只在 !streaming 且历史回载完成后出现（done→activeId→回载存在
+       中间窗口）：waitFor 等按钮，避免流式/骨架窗口内的时序竞态。 */
+    const copyButton = await waitFor(() => view.getByRole("button", { name: "Copy response" }), { timeout: 3000 });
+    fireEvent.click(copyButton);
     await waitFor(() => assert.equal(writes[0], "可复制的回答。"));
     await waitFor(() => assert.ok(view.getByText("Copied to clipboard")));
   } finally {
