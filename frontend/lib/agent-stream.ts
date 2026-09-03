@@ -21,22 +21,28 @@ export interface AgentStreamCitation {
 export interface AgentStreamTool {
   name: string;
   status: "running" | "success" | "failed" | "error" | "skipped";
+  args_summary?: string;
+  hits?: number;
   duration_ms?: number;
 }
 
 export type AgentStreamEvent =
   | { type: "start"; trace_id?: string; conversation_id?: number; answer_kind?: string }
+  | { type: "think_delta"; delta?: string }
   | { type: "tool_status"; tool?: AgentStreamTool }
   | { type: "delta"; delta?: string }
   | { type: "citation"; citation?: AgentStreamCitation }
   | { type: "usage"; usage?: unknown }
   | {
       type: "done";
+      trace_id?: string;
       conversation_id?: number;
+      message_id?: number;
       answer_kind?: string;
       answer?: string;
       citations?: AgentStreamCitation[];
       tools?: AgentStreamTool[];
+      usage?: { prompt_tokens: number; completion_tokens: number };
       degraded?: boolean;
     }
   | {

@@ -405,6 +405,48 @@ test("parseAgentStreamLine decodes typed SSE events and ignores non-data lines",
   assert.equal(parseAgentStreamLine("data: not-json"), null);
 });
 
+test("parseAgentStreamLine decodes SSE v2 events: think_delta, tool step details, done.message_id/usage", () => {
+  assert.deepEqual(parseAgentStreamLine('data: {"type":"think_delta","delta":"先想一下"}'), {
+    type: "think_delta",
+    delta: "先想一下",
+  });
+  assert.equal(parseAgentStreamLine('data: {"type":"think_delta"}'), null);
+  assert.deepEqual(
+    parseAgentStreamLine(
+      'data: {"type":"tool_status","tool":{"name":"search_content","args_summary":"像素风 游戏 +expanded: 治愈 素材","hits":3,"status":"success","duration_ms":42}}',
+    ),
+    {
+      type: "tool_status",
+      tool: {
+        name: "search_content",
+        args_summary: "像素风 游戏 +expanded: 治愈 素材",
+        hits: 3,
+        status: "success",
+        duration_ms: 42,
+      },
+    },
+  );
+  assert.deepEqual(
+    parseAgentStreamLine(
+      'data: {"type":"done","trace_id":"t9","conversation_id":21,"message_id":66,"answer_kind":"grounded_content","usage":{"prompt_tokens":812,"completion_tokens":240},"degraded":false}',
+    ),
+    {
+      type: "done",
+      trace_id: "t9",
+      conversation_id: 21,
+      message_id: 66,
+      answer_kind: "grounded_content",
+      usage: { prompt_tokens: 812, completion_tokens: 240 },
+      degraded: false,
+    },
+  );
+  /* v1 形状的 done（无 message_id/usage）仍可解析——历史回放兼容。 */
+  assert.deepEqual(parseAgentStreamLine('data: {"type":"done","conversation_id":7}'), {
+    type: "done",
+    conversation_id: 7,
+  });
+});
+
 test("startAgentStream POSTs the surface contract and emits events in order", async () => {
   const stub = installSSEFetch(streamEvents());
   const events: AgentStreamEvent[] = [];
