@@ -1,4 +1,4 @@
-## [2026-09-03] - Task T21 (#241): 搜索可达性——建议下拉 + Users tab + 图标语义
+## [2026-09-03] - Task T21 (#241): 搜索可达性——建议下拉 + Users tab + 图标语义（✅ 已收口：PR #298 → ac4f393，CI 全绿合并 + 关票；单测角色断言 searchbox→combobox 随批修复）
 
 ### What was done:
 - 后端：SearchSuggestions ILIKE 前缀 → **contains 匹配**（中文子串可命中；性能注：'%x%' 不走 btree，当前 169 内容量级顺序扫可忽略，若慢上 pg_trgm GIN——代码注释注明）；新增中缀匹配单测（TestSearchSuggestionsMatchMidString「镜头」命中标题中段）。
