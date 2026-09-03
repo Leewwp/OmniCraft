@@ -72,6 +72,7 @@ CI 与本地 `go.mod` / `package.json` 的 `engines` 字段必须与上表一致
 - **light（默认）**：可在一条 feature 分支上批量完成多个相关小项；按逻辑分批 commit；编写/更新与改动直接相关的测试并通过项目验证门；自查替代正式两阶段审查。
 - **heavy**：涉及安全、发布门、数据库迁移结构、支付、auth、生产配置或桌面制品时必须使用。规则：一任务一 worktree 一分支一 commit；TDD（先写失败测试确认预期失败，再最小实现）；合并前两阶段审查（规格符合性 → 代码质量）并处理 `DONE_WITH_CONCERNS`。
 - 计划文件可用 `[light]` / `[heavy]` 标注单个 Task 覆盖默认值；真实凭证/外部输入缺失时**阻塞**（见下节），不得以模拟证据替代真实验证门。
+- **合并 main 一律走 PR（2026-09-03 Phase 2 起）**：push 分支 → `gh pr create` → `gh pr merge --squash --auto`（CI `project-gate` 绿后自动合并）。main 已启用分支保护（required check `project-gate` + `enforce_admins`），直推 main 会被拒；分支基线早于 0d34757（2026-09-02）的旧分支开 PR 前须先 sync main，否则 PR 不触发 CI。
 
 ## MANDATORY: Agent 工作流程
 
