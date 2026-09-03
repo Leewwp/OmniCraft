@@ -19,10 +19,19 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TagBadge } from "@/components/ui/TagBadge";
-import { Bookmark, Grid3X3, List, Search, SlidersHorizontal, X } from "lucide-react";
+import { Bookmark, Grid3X3, List, Search, SlidersHorizontal, User, X } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { silentError } from "@/lib/error-handler";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
+
+interface UserSearchRow {
+  id: number;
+  username: string;
+  avatar_url?: string;
+  reputation: number;
+  role: string;
+}
 
 export default function SearchPage() {
   const t = useTranslations();
@@ -37,9 +46,41 @@ export default function SearchPage() {
   const [saveName, setSaveName] = useState("");
   const [saveBusy, setSaveBusy] = useState(false);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [resultTab, setResultTab] = useState<"content" | "users">("content");
+  const [userResults, setUserResults] = useState<UserSearchRow[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersSearched, setUsersSearched] = useState(false);
   const openFilterButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeFilterButtonRef = useRef<HTMLButtonElement | null>(null);
   const normalizedFilters = normalizeSearchFilters(filterConfig);
+
+  /* Users tab (T21): fetch real user results from users/search only while the
+   * tab is active, keyed by the current query. */
+  useEffect(() => {
+    if (resultTab !== "users" || !query.trim()) return;
+    let cancelled = false;
+    setUsersLoading(true);
+    api
+      .get<{ users?: UserSearchRow[] }>(`/api/v1/users/search?q=${encodeURIComponent(query)}&limit=20`)
+      .then((data) => {
+        if (cancelled) return;
+        setUserResults(data.users ?? []);
+        setUsersSearched(true);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          silentError(e, { component: "SearchPage", action: "user search" });
+          setUserResults([]);
+          setUsersSearched(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setUsersLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [resultTab, query]);
 
   useEffect(() => {
     if (filterDrawerOpen) {
@@ -310,57 +351,122 @@ export default function SearchPage() {
             )}
           </div>
 
-          {/* Error */}
-          {error && (
-            <div className="rounded-md border border-border bg-card p-4 text-center ">
-              <p className="text-sm text-destructive">{error}</p>
-              <Button size="sm" variant="outline" className="mt-2" onClick={() => query && void doSearch(query, filterConfig)}>
-                {t("common.retry")}
-              </Button>
-            </div>
-          )}
+          <Tabs
+            value={resultTab}
+            onValueChange={(value) => setResultTab(value === "users" ? "users" : "content")}
+          >
+            <TabsList aria-label={t("search.resultTabsLabel")}>
+              <TabsTrigger value="content">{t("search.tabContents")}</TabsTrigger>
+              <TabsTrigger value="users">{t("search.tabUsers")}</TabsTrigger>
+            </TabsList>
 
-          {/* Loading */}
-          {loading && (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <Skeleton key={i} className="aspect-[3/4] w-full" />
-              ))}
-            </div>
-          )}
+            <TabsContent value="content" className="mt-4 space-y-6">
+              {/* Error */}
+              {error && (
+                <div className="rounded-md border border-border bg-card p-4 text-center ">
+                  <p className="text-sm text-destructive">{error}</p>
+                  <Button size="sm" variant="outline" className="mt-2" onClick={() => query && void doSearch(query, filterConfig)}>
+                    {t("common.retry")}
+                  </Button>
+                </div>
+              )}
 
-          {/* Empty */}
-          {!loading && !error && query && results.length === 0 && (
-            <EmptyState
-              icon={Search}
-              title={t("search.noResults")}
-              description={t("search.noResultsHint")}
-              className="p-12"
-            />
-          )}
+              {/* Loading */}
+              {loading && (
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <Skeleton key={i} className="aspect-[3/4] w-full" />
+                  ))}
+                </div>
+              )}
 
-          {/* No query yet */}
-          {!loading && !error && !query && (
-            <EmptyState
-              icon={Search}
-              title={t("search.startSearch")}
-              description={t("search.startSearchHint")}
-              className="p-12"
-            />
-          )}
+              {/* Empty */}
+              {!loading && !error && query && results.length === 0 && (
+                <EmptyState
+                  icon={Search}
+                  title={t("search.noResults")}
+                  description={t("search.noResultsHint")}
+                  className="p-12"
+                />
+              )}
 
-          {/* Results */}
-          {!loading && results.length > 0 && (
-            viewMode === "list" ? (
-              <div className="space-y-3">
-                {results.map((item) => (
-                  <ContentCard key={item.id} data={item} />
-                ))}
-              </div>
-            ) : (
-              <MasonryGrid items={results} />
-            )
-          )}
+              {/* No query yet */}
+              {!loading && !error && !query && (
+                <EmptyState
+                  icon={Search}
+                  title={t("search.startSearch")}
+                  description={t("search.startSearchHint")}
+                  className="p-12"
+                />
+              )}
+
+              {/* Results */}
+              {!loading && results.length > 0 && (
+                viewMode === "list" ? (
+                  <div className="space-y-3">
+                    {results.map((item) => (
+                      <ContentCard key={item.id} data={item} />
+                    ))}
+                  </div>
+                ) : (
+                  <MasonryGrid items={results} />
+                )
+              )}
+            </TabsContent>
+
+            <TabsContent value="users" className="mt-4 space-y-6">
+              {usersLoading && (
+                <div className="space-y-3">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Skeleton key={i} className="h-14 w-full" />
+                  ))}
+                </div>
+              )}
+              {!usersLoading && usersSearched && userResults.length === 0 && (
+                <EmptyState
+                  icon={User}
+                  title={t("search.usersNoResults")}
+                  description={t("search.usersNoResultsHint")}
+                  className="p-12"
+                />
+              )}
+              {!usersLoading && userResults.length > 0 && (
+                <ul className="space-y-2">
+                  {userResults.map((row) => (
+                    <li key={row.id}>
+                      <a
+                        href={row.id ? `/user/${row.id}` : "#"}
+                        className="flex items-center gap-3 rounded-md border border-border bg-card p-3 transition-colors hover:border-ring"
+                      >
+                        {row.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- 远程头像域不受 next/image 管辖
+                          <img src={row.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" />
+                        ) : (
+                          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-canvas-subtle text-sm font-bold text-muted-foreground">
+                            {row.username.slice(0, 1).toUpperCase()}
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-bold text-foreground">{row.username}</span>
+                          <span className="block text-xs text-muted-foreground">
+                            {t("search.userReputation", { value: row.reputation })}
+                          </span>
+                        </span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {!usersLoading && !usersSearched && !query && (
+                <EmptyState
+                  icon={User}
+                  title={t("search.startSearch")}
+                  description={t("search.startSearchHint")}
+                  className="p-12"
+                />
+              )}
+            </TabsContent>
+          </Tabs>
         </main>
       </div>
     </div>

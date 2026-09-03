@@ -440,3 +440,21 @@ func TestReportUpdateStatusPersistsActionTaken(t *testing.T) {
 		t.Fatalf("action_taken = %q, want content hidden", updated.ActionTaken)
 	}
 }
+
+
+// TestSearchSuggestionsMatchMidString locks the T21 contains semantics: a
+// query that appears mid-title (typical Chinese substring input) must surface
+// the suggestion — the legacy prefix-only pattern could not.
+func TestSearchSuggestionsMatchMidString(t *testing.T) {
+	db := setupContentVisibilityTestDB(t)
+	author := createVisibilityUser(t, db, "suggest-mid@example.com", "suggest-mid", false)
+	createVisibilityContent(t, db, "我的镜头笔记", author.ID, nil, true, nil)
+
+	suggestions, err := NewSearchRepository(db).SearchSuggestions("镜头", 20, author.ID)
+	if err != nil {
+		t.Fatalf("SearchSuggestions: %v", err)
+	}
+	if !searchSuggestionTexts(suggestions)["我的镜头笔记"] {
+		t.Fatalf("mid-string query must match, got %#v", suggestions)
+	}
+}
