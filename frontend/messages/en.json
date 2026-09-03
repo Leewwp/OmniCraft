@@ -1398,7 +1398,14 @@
       "searchSaved": "Search saved",
       "saveFailed": "Save failed, please retry",
       "loadedSearch": "Loaded search \"{name}\""
-    }
+    },
+    "resultTabsLabel": "Result type",
+    "tabContents": "Contents",
+    "tabUsers": "Users",
+    "usersNoResults": "No matching users",
+    "usersNoResultsHint": "Try another keyword or search by full username",
+    "userReputation": "Reputation {value}",
+    "suggestionsLabel": "Search suggestions"
   },
   "recommend": {
     "title": "Recommended for you",

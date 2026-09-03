@@ -124,7 +124,12 @@ func (r *SearchRepository) SearchSuggestions(prefix string, limit int, viewerID 
 		limit = 10
 	}
 	var results []SearchSuggestion
-	likePattern := prefix + "%"
+	// Contains matching (T21/FIX-39b): a prefix-only pattern cannot surface
+	// Chinese substrings ("镜头" inside "我的镜头笔记") because users rarely
+	// type from the first character. Cost note: '%x%' defeats btree indexes;
+	// at the current content scale the sequential scan stays negligible and a
+	// pg_trgm GIN index is the escape hatch if suggestions ever slow down.
+	likePattern := "%" + prefix + "%"
 
 	var sql string
 	if r.db.Dialector.Name() == "sqlite" {
