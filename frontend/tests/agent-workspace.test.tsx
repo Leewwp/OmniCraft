@@ -1094,7 +1094,8 @@ test("protected /agent page wires Header, feature gate and workspace", async () 
   assert.match(page, /<Header \/>/);
   assert.match(page, /AgentFeatureGate/);
   assert.match(page, /capability="webAgent"/);
-  assert.match(page, /<AgentWorkspace \/>/);
+  /* A-07：工作台经 AgentWorkspacePanel 接线并携带 initialQuery（/agent?q= 预填）。 */
+  assert.match(page, /<AgentWorkspace initialQuery=/);
 });
 
 test("workspace wires citations to the shared overlay with agent source", async () => {
