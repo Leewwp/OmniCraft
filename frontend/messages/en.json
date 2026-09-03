@@ -1123,6 +1123,7 @@
     "following": "Following",
     "follow": "Follow",
     "editProfile": "Edit Profile",
+    "sendMessage": "Message",
     "tabPublish": "Published",
     "tabFavorites": "Favorites",
     "tabCollections": "Collections",
@@ -1613,6 +1614,14 @@
     "startConversation": "Start a conversation",
     "dmReplyRequired": "Wait for the recipient to reply before sending another message.",
     "sendMessage": "Send message",
+    "compose": {
+      "title": "Message {name}",
+      "description": "Your first message starts the conversation; a second one waits until they reply.",
+      "label": "Message",
+      "placeholder": "Write your first message…",
+      "success": "Message sent",
+      "blocked": "The content violates community rules and cannot be sent"
+    },
     "broadcastLabel": "Broadcast",
     "systemLabel": "System",
     "notificationOpensTarget": "Opens related item",
