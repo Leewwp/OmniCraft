@@ -1055,7 +1055,7 @@ test("Header hides the /agent entry when web_agent_enabled=false but keeps keywo
     await waitFor(() => assert.equal(view.queryByRole("link", { name: "AI Agent" }), null));
     assert.equal(view.queryByRole("button", { name: /agent/i }), null, "no Agent mode switch anywhere in Header");
 
-    const searchbox = view.getByRole("searchbox");
+    const searchbox = view.getByRole("combobox");
     fireEvent.change(searchbox, { target: { value: "mod guide" } });
     fireEvent.submit(searchbox.closest("form") as HTMLFormElement);
     await waitFor(() =>
@@ -1111,10 +1111,10 @@ test("Header search is keyword-only via GlobalSearchInput with no Agent mode tog
   try {
     const view = renderWithIntl(<Header />);
     await waitFor(() => assert.ok(view.getByRole("link", { name: "AI Agent" })));
-    assert.equal(view.getAllByRole("searchbox").length, 1, "exactly one keyword search box");
+    assert.equal(view.getAllByRole("combobox").length, 1, "exactly one keyword search box");
     assert.equal(view.queryByRole("button", { name: /agent mode|AI 助手|keyword search/i }), null);
 
-    const searchbox = view.getByRole("searchbox");
+    const searchbox = view.getByRole("combobox");
     fireEvent.change(searchbox, { target: { value: "furniture mods" } });
     fireEvent.submit(searchbox.closest("form") as HTMLFormElement);
     await waitFor(() =>
