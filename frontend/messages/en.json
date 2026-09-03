@@ -1304,7 +1304,25 @@
       "rateLimitHint": "Rate limited: either the per-minute quota (retry in ~1 minute) or the daily quota (resets tomorrow) is exhausted; retrying now will fail.",
       "traceLabel": "Trace ID",
       "turnDetails": "Turn details",
-      "turnUsage": "Token usage: {prompt} in / {completion} out"
+      "turnUsage": "Token usage: {prompt} in / {completion} out",
+      "groupPinned": "Pinned",
+      "menuLabel": "Conversation actions",
+      "menuRename": "Rename",
+      "menuPin": "Pin",
+      "menuUnpin": "Unpin",
+      "menuDelete": "Delete conversation",
+      "renameInputLabel": "Rename conversation {id}",
+      "renameFailed": "Rename failed, please try again later",
+      "pinFailed": "Pin action failed, please try again later",
+      "deleteConfirmTitle": "Delete this conversation?",
+      "deleteConfirmDescription": "All messages in this conversation will be deleted. This cannot be undone.",
+      "deleteConfirmAction": "Delete conversation",
+      "deleteSuccess": "Conversation deleted",
+      "deleteFailed": "Delete failed, please try again later",
+      "copyMessage": "Copy response",
+      "copySuccess": "Copied to clipboard",
+      "copyFailed": "Copy failed, please select the text manually",
+      "regenerate": "Regenerate"
     },
     "tools": {
       "title": "Tool activity",
@@ -1336,7 +1354,9 @@
       "unknownSuccess": "Tool finished",
       "unknownFailed": "Tool failed",
       "unknownSkipped": "Tool skipped",
-      "duration": "{seconds}s"
+      "duration": "{seconds}s",
+      "stepsSummary": "{count} tool steps",
+      "hits": "{count} hits"
     },
     "citations": {
       "title": "Site references",
@@ -1361,6 +1381,10 @@
     },
     "gate": {
       "loadFailed": "Failed to load feature config; cannot confirm whether this feature is available."
+    },
+    "thinking": {
+      "label": "Thought process",
+      "streamingLabel": "Thinking…"
     }
   },
   "search": {
@@ -2375,5 +2399,9 @@
     "UNAUTHORIZED": "Not logged in",
     "NOT_FOUND": "Resource not found",
     "CONFLICT": "Resource conflict"
+  },
+  "markdown": {
+    "copyCode": "Copy code",
+    "citationJump": "Jump to citation {index}"
   }
 }

@@ -1304,7 +1304,25 @@
       "rateLimitHint": "已触发限流：可能是每分钟限额（请约 1 分钟后再试）或每日限额（明天恢复）已用尽，此时重试必定失败。",
       "traceLabel": "追踪 ID",
       "turnDetails": "本轮详情",
-      "turnUsage": "Token 用量：输入 {prompt} / 输出 {completion}"
+      "turnUsage": "Token 用量：输入 {prompt} / 输出 {completion}",
+      "groupPinned": "置顶",
+      "menuLabel": "会话操作",
+      "menuRename": "重命名",
+      "menuPin": "置顶",
+      "menuUnpin": "取消置顶",
+      "menuDelete": "删除会话",
+      "renameInputLabel": "会话 {id} 重命名输入框",
+      "renameFailed": "重命名失败，请稍后重试",
+      "pinFailed": "置顶操作失败，请稍后重试",
+      "deleteConfirmTitle": "删除此会话？",
+      "deleteConfirmDescription": "会话内的全部消息将被删除，且不可恢复。",
+      "deleteConfirmAction": "删除会话",
+      "deleteSuccess": "会话已删除",
+      "deleteFailed": "删除失败，请稍后重试",
+      "copyMessage": "复制回答",
+      "copySuccess": "已复制到剪贴板",
+      "copyFailed": "复制失败，请手动选择文本",
+      "regenerate": "重新生成"
     },
     "tools": {
       "title": "工具状态",
@@ -1336,7 +1354,9 @@
       "unknownSuccess": "处理完成",
       "unknownFailed": "处理失败",
       "unknownSkipped": "已跳过",
-      "duration": "{seconds}s"
+      "duration": "{seconds}s",
+      "stepsSummary": "{count} 个工具步骤",
+      "hits": "{count} 条命中"
     },
     "citations": {
       "title": "站内依据",
@@ -1361,6 +1381,10 @@
     },
     "gate": {
       "loadFailed": "功能配置加载失败，无法确认该功能是否可用。"
+    },
+    "thinking": {
+      "label": "已深度思考",
+      "streamingLabel": "思考中…"
     }
   },
   "search": {
@@ -2375,5 +2399,9 @@
     "UNAUTHORIZED": "未登录",
     "NOT_FOUND": "资源不存在",
     "CONFLICT": "资源冲突"
+  },
+  "markdown": {
+    "copyCode": "复制代码",
+    "citationJump": "跳转到引用 {index}"
   }
 }

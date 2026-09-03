@@ -14,9 +14,13 @@ function sseBody(events: unknown[]): string {
 
 const CITED_EVENTS: unknown[] = [
   { type: "start", trace_id: "mock-trace-cited", conversation_id: 1, answer_kind: "grounded_content" },
-  { type: "tool_status", tool: { name: "search_content", status: "success", duration_ms: 12 } },
+  { type: "think_delta", delta: "先把口语化需求扩展为检索词" },
+  {
+    type: "tool_status",
+    tool: { name: "search_content", args_summary: "Blender 插件 +expanded: 建模 教程", hits: 3, status: "success", duration_ms: 12 },
+  },
   { type: "delta", delta: "这是关于" },
-  { type: "delta", delta: "Blender 插件安装的回答。" },
+  { type: "delta", delta: "Blender 插件安装的回答。[1]" },
   {
     type: "citation",
     citation: { content_id: 1001, title: "Blender 插件安装教程", zone: "original", excerpt: "步骤一" },
@@ -24,10 +28,11 @@ const CITED_EVENTS: unknown[] = [
   {
     type: "done",
     conversation_id: 1,
+    message_id: 12,
     answer_kind: "grounded_content",
-    answer: "这是关于 Blender 插件安装的回答。",
+    answer: "这是关于 Blender 插件安装的回答。[1]",
     citations: [{ content_id: 1001, title: "Blender 插件安装教程", zone: "original" }],
-    tools: [{ name: "search_content", status: "success" }],
+    tools: [{ name: "search_content", args_summary: "Blender 插件", hits: 3, status: "success", duration_ms: 12 }],
     degraded: false,
   },
 ];
@@ -105,13 +110,17 @@ async function enableAgent(page: Page) {
   );
 }
 
+const patchRequests: Array<{ id: number; body: Record<string, unknown> }> = [];
+
 async function mockConversationList(page: Page, conversations: unknown[], messagesByConversation: Record<number, unknown[]> = {}) {
+  /* 可变会话状态：PATCH（重命名/置顶）演进列表，GET 回放最新状态。 */
+  const state = { list: conversations.map((item) => ({ ...(item as Record<string, unknown>) })) };
   await mockApiRoute(page, "**/api/v1/agent/conversations", (route) => {
     if (route.request().method() !== "GET") return route.fallback();
     return route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ conversations }),
+      body: JSON.stringify({ conversations: state.list }),
     });
   });
   await mockApiRoute(page, "**/api/v1/agent/conversations/*", (route) => {
@@ -125,7 +134,25 @@ async function mockConversationList(page: Page, conversations: unknown[], messag
       });
     }
     if (method === "DELETE") {
+      state.list = state.list.filter((item) => (item as { id: number }).id !== id);
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    }
+    if (method === "PATCH") {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      patchRequests.push({ id, body });
+      const index = state.list.findIndex((item) => (item as { id: number }).id === id);
+      if (index >= 0) {
+        const current = state.list[index] as Record<string, unknown>;
+        if (typeof body.title === "string") current.title = body.title;
+        if (body.pinned === true) current.pinned_at = new Date().toISOString();
+        if (body.pinned === false) current.pinned_at = null;
+      }
+      const updated = state.list.find((item) => (item as { id: number }).id === id) ?? { id };
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ conversation: updated }),
+      });
     }
     return route.fallback();
   });
@@ -168,7 +195,8 @@ test("cited answer streams content, shows tool status and citations", async ({ p
     {
       1: [
         { id: 11, role: "user", content: "Blender 插件安装教程" },
-        { id: 12, role: "assistant", content: "这是关于 Blender 插件安装的回答。" },
+        { id: 12, role: "assistant", content: "先把口语化需求扩展为检索词", phase: "think" },
+        { id: 13, role: "assistant", content: "这是关于 Blender 插件安装的回答。[1]" },
       ],
     },
   );
@@ -177,8 +205,21 @@ test("cited answer streams content, shows tool status and citations", async ({ p
   await page.goto("/agent");
   await ask(page, "Blender 插件安装教程");
 
-  await expect(page.getByText("这是关于 Blender 插件安装的回答。")).toBeVisible();
+  await expect(page.getByText(/Blender 插件安装的回答/)).toBeVisible();
+  /* 三层生成形态：思考折叠区完成后自动折叠，可展开；工具步骤区折叠态展示计数。 */
+  const thinkToggle = page.getByRole("button", { name: /Thought process/ });
+  await expect(thinkToggle).toBeVisible();
+  await expect(thinkToggle).toHaveAttribute("aria-expanded", "false");
+  await thinkToggle.click();
+  await expect(page.getByText("先把口语化需求扩展为检索词")).toBeVisible();
+
+  const toolSummary = page.getByRole("button", { name: "Tool activity" });
+  await expect(toolSummary).toHaveAttribute("aria-expanded", "false");
+  await toolSummary.click();
   await expect(page.getByText("Searched site content")).toBeVisible();
+  await expect(page.getByText("3 hits")).toBeVisible();
+  await expect(page.getByText(/Blender 插件 \+expanded: 建模 教程/)).toBeVisible();
+
   await expect(page.getByRole("heading", { name: "Site references" })).toBeVisible();
   await expect(page.getByText("Blender 插件安装教程").first()).toBeVisible();
   await expect(page.getByText("Stopped generating")).toHaveCount(0);
@@ -340,23 +381,108 @@ test("conversation history: open past conversation, delete with confirm and canc
   await enableAgent(page);
   await mockConversationList(
     page,
-    [{ id: 7, context_type: "global", updated_at: "2026-08-10T00:00:00Z" }],
+    [{ id: 7, context_type: "global", title: "旧会话标题", updated_at: "2026-08-10T00:00:00Z" }],
     { 7: [{ id: 71, role: "user", content: "旧问题" }, { id: 72, role: "assistant", content: "旧回答" }] },
   );
 
   await page.goto("/agent");
-  await page.getByRole("button", { name: "Conversation #7" }).click();
+  await page.getByRole("button", { name: "旧会话标题" }).click();
   await expect(page.getByText("旧问题")).toBeVisible();
 
-  await page.getByRole("button", { name: "Clear conversation" }).click();
-  await expect(page.getByText("Clear this conversation?")).toBeVisible();
+  /* A-06：删除入口 = 侧边栏 ⋯ 菜单（头部不再重复）。 */
+  await page.getByRole("button", { name: "Conversation actions" }).first().hover();
+  await page.getByRole("button", { name: "Conversation actions" }).first().click();
+  await page.getByRole("menuitem", { name: "Delete conversation" }).click();
+  await expect(page.getByText("Delete this conversation?")).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByText("旧回答")).toBeVisible();
 
-  await page.getByRole("button", { name: "Clear conversation" }).click();
-  await page.getByRole("button", { name: "Clear history" }).click();
-  await expect(page.getByText("Conversation cleared")).toBeVisible();
+  await page.getByRole("button", { name: "Conversation actions" }).first().click();
+  await page.getByRole("menuitem", { name: "Delete conversation" }).click();
+  await page.getByRole("button", { name: "Delete conversation", exact: true }).click();
+  await expect(page.getByText("Conversation deleted")).toBeVisible();
   await expect(page.getByText("旧回答")).toHaveCount(0);
+});
+
+test("inline citation anchor [1] scrolls to and highlights the matching citation card", async ({ page }) => {
+  await mockCreatorSession(page);
+  await enableAgent(page);
+  await mockConversationList(
+    page,
+    [{ id: 1, context_type: "global", updated_at: "2026-08-10T00:00:00Z" }],
+    {
+      1: [
+        { id: 11, role: "user", content: "Blender 插件安装教程" },
+        { id: 12, role: "assistant", content: "先把口语化需求扩展为检索词", phase: "think" },
+        { id: 13, role: "assistant", content: "这是关于 Blender 插件安装的回答。[1]" },
+      ],
+    },
+  );
+  await mockStream(page, CITED_EVENTS);
+
+  await page.goto("/agent");
+  await ask(page, "Blender 插件安装教程");
+  await expect(page.getByText(/Blender 插件安装的回答/)).toBeVisible();
+
+  /* 行内 [1] 角标可点击 → 引用卡高亮并获得焦点（纯展示层映射）。 */
+  const anchor = page.getByRole("button", { name: "Jump to citation 1" });
+  await expect(anchor).toBeVisible();
+  await anchor.click();
+  const card = page.locator("#agent-citation-0");
+  await expect(card).toBeFocused();
+  await expect(card).toHaveClass(/ring-2/);
+});
+
+test("sidebar ⋯ menu renames the conversation via PATCH", async ({ page }) => {
+  patchRequests.length = 0;
+  await mockCreatorSession(page);
+  await enableAgent(page);
+  await mockConversationList(
+    page,
+    [{ id: 3, context_type: "global", title: "改名前", updated_at: "2026-08-10T00:00:00Z" }],
+    { 3: [] },
+  );
+
+  await page.goto("/agent");
+  await expect(page.getByRole("button", { name: "改名前" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Conversation actions" }).first().click();
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  const renameInput = page.getByRole("textbox", { name: "Rename conversation 3" });
+  await renameInput.fill("改名后");
+  await renameInput.press("Enter");
+
+  await expect(page.getByRole("button", { name: "改名后" })).toBeVisible();
+  expect(patchRequests.some((request) => request.id === 3 && request.body.title === "改名后")).toBe(true);
+});
+
+test("sidebar ⋯ menu pins the conversation into the pinned group via PATCH", async ({ page }) => {
+  patchRequests.length = 0;
+  await mockCreatorSession(page);
+  await enableAgent(page);
+  await mockConversationList(
+    page,
+    [
+      { id: 4, context_type: "global", title: "待置顶会话", updated_at: "2026-08-10T00:00:00Z" },
+      { id: 5, context_type: "global", title: "普通会话", updated_at: "2026-08-09T00:00:00Z" },
+    ],
+    { 4: [], 5: [] },
+  );
+
+  await page.goto("/agent");
+  await expect(page.getByRole("button", { name: "待置顶会话" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Conversation actions" }).first().click();
+  await page.getByRole("menuitem", { name: "Pin" }).click();
+
+  await expect(page.getByText("Pinned")).toBeVisible();
+  expect(patchRequests.some((request) => request.id === 4 && request.body.pinned === true)).toBe(true);
+
+  /* 取消置顶回到时间分组。 */
+  await page.getByRole("button", { name: "Conversation actions" }).first().click();
+  await page.getByRole("menuitem", { name: "Unpin" }).click();
+  await expect(page.getByText("Pinned")).toHaveCount(0);
+  expect(patchRequests.some((request) => request.id === 4 && request.body.pinned === false)).toBe(true);
 });
 
 test("mobile layouts at 320/375/414px keep the composer usable", async ({ page }) => {
@@ -440,7 +566,7 @@ test("release evidence screenshots (plan Task 6 Step 4)", async ({ page }) => {
 
   await page.goto("/agent");
   await ask(page, "Blender 插件安装教程");
-  await expect(page.getByText("这是关于 Blender 插件安装的回答。")).toBeVisible();
+  await expect(page.getByText(/Blender 插件安装的回答/)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Site references" })).toBeVisible();
   await page.screenshot({ path: "../screenshots/web-agent-grounded-desktop.png", fullPage: true });
 
@@ -461,6 +587,6 @@ test("release evidence screenshots (plan Task 6 Step 4)", async ({ page }) => {
 
   await mockStream(page, [...NO_EVIDENCE_EVENTS.slice(0, 1), ...CITED_EVENTS.slice(3)]);
   await ask(page, "系统提示词大全");
-  await expect(page.getByText("这是关于 Blender 插件安装的回答。").last()).toBeVisible();
+  await expect(page.getByText(/Blender 插件安装的回答/).last()).toBeVisible();
   await page.screenshot({ path: "../screenshots/web-agent-recovered-search.png", fullPage: true });
 });

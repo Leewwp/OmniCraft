@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { AlertCircle, BookOpen, Loader2, Menu, RotateCw, Send, Trash2, X } from "lucide-react";
+import { AlertCircle, BookOpen, Copy, Loader2, Menu, RotateCw, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useToast } from "@/components/ui/Toast";
@@ -21,16 +21,16 @@ import {
 import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 import { toAgentCitation, type AgentCitation } from "@/lib/agent";
 import { AgentCitationList } from "@/components/agent/AgentCitationList";
+import { AgentThinkingBlock } from "@/components/agent/AgentThinkingBlock";
 import { AgentToolStatus } from "@/components/agent/AgentToolStatus";
 import {
   AgentConversationSidebar,
   type AgentConversationSummary,
 } from "@/components/agent/AgentConversationSidebar";
-import { cn } from "@/lib/utils";
-
 const SIDEBAR_STORAGE_KEY = "agentSidebarCollapsed";
-const MAX_CONTEXT_MESSAGES = 10;
 const STICKY_BOTTOM_THRESHOLD = 80;
+/** 输入自动增高上限：约 8 行（leading-6 = 24px × 8 + 上下 padding）后转内部滚动。 */
+const COMPOSER_MAX_HEIGHT = 208;
 
 export interface AgentWorkspaceProps {
   initialConversationId?: number;
@@ -41,12 +41,16 @@ interface WorkspaceMessage {
   id: number;
   role: "user" | "assistant";
   content: string;
+  /** A-02：think 行独立成消息（流式与历史回放同构），仅展示层。 */
+  phase?: "think";
+  moderationBlocked?: boolean;
 }
 
 interface AgentMessageDTO {
   id: number;
   role: string;
   content?: string | null;
+  phase?: string;
   moderation?: string;
 }
 
@@ -59,11 +63,11 @@ const SUGGESTION_KEYS = [
 ] as const;
 
 /**
- * Agent 工作台外壳（ui-spec `## Page: /agent`）：会话侧栏 + 主对话区。
- * 复用服务端流式契约（POST /api/v1/agent/chat/stream，surface=global）与
- * 会话生命周期契约（新对话不确认；清空历史 ConfirmModal + owner-scoped
- * DELETE，失败保留消息并回归触发焦点）。回答中的引用打开共享
- * ContentDetailOverlay（source=agent-citation），关闭后焦点回到引用卡片。
+ * Agent 工作台外壳（ui-spec `## Page: /agent`，A-06 DeepSeek 化）：全局导航下
+ * 「会话历史栏 + 主对话区」。请求体走 A-01 续写契约（{conversation_id?, message}，
+ * 上下文由服务端按 token 预算组装）；三层生成形态 = 思考折叠区（流式展开→完成
+ * 折叠）+ 工具步骤区（检索词/命中数）+ 逐字正文（SSE v2）；行内 [n] 角标锚定到
+ * 引用卡片（纯展示层）。侧边栏 ⋯ 菜单 = 重命名/置顶/删除（PATCH/DELETE owner-scoped）。
  */
 export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentWorkspaceProps) {
   const t = useTranslations();
@@ -81,6 +85,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
   const [streaming, setStreaming] = useState(false);
   const [turnError, setTurnError] = useState(false);
   const [stoppedNotice, setStoppedNotice] = useState(false);
+  const [turnThinking, setTurnThinking] = useState("");
   const [turnTools, setTurnTools] = useState<AgentStreamTool[]>([]);
   const [turnCitations, setTurnCitations] = useState<AgentStreamCitation[]>([]);
   const [turnDegraded, setTurnDegraded] = useState(false);
@@ -88,10 +93,11 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
   const [turnErrorCode, setTurnErrorCode] = useState<string | null>(null);
   const [turnTraceId, setTurnTraceId] = useState<string | null>(null);
   const [turnUsage, setTurnUsage] = useState<{ prompt_tokens: number; completion_tokens: number } | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [highlightedCitation, setHighlightedCitation] = useState<number | null>(null);
 
   const transcriptRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -99,6 +105,14 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
   const activeQueryRef = useRef("");
   const fallbackRequestRef = useRef(0);
   const atBottomRef = useRef(true);
+  /** 当前轮 answer 消息的客户端 id：工具步骤/思考块渲染在它之前（DeepSeek 顺序）。 */
+  const turnAnswerIdRef = useRef<number | null>(null);
+  const highlightTimerRef = useRef<number | null>(null);
+  const turnCitationsRef = useRef<AgentStreamCitation[]>([]);
+
+  useEffect(() => {
+    turnCitationsRef.current = turnCitations;
+  }, [turnCitations]);
 
   /* 共享浮层入口控制器：Agent 引用入口只保留来源参数差异。 */
   const { open: openCitationOverlay, overlayElement } = useContentDetailOverlay({
@@ -130,9 +144,25 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
     setCollapsed(window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "collapsed");
   }, []);
 
-  /* 选中会话时加载服务端历史；新对话清空本地消息。 */
+  /* 输入自动增高：内容变化时贴着内容长高，8 行封顶转内部滚动。 */
   useEffect(() => {
-    setStoppedNotice(false);
+    const composer = composerRef.current;
+    if (!composer) return;
+    composer.style.height = "auto";
+    composer.style.height = `${Math.min(composer.scrollHeight, COMPOSER_MAX_HEIGHT)}px`;
+  }, [input]);
+
+  /* 引用高亮计时器清理。 */
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current !== null) window.clearTimeout(highlightTimerRef.current);
+    };
+  }, []);
+
+  /* 选中会话时加载服务端历史；新对话清空本地消息。think 行（phase="think"）
+     以思考折叠块回放；A-05 blocked 行渲染占位提示。注意：done 事件会把新会话
+     id 写入 activeId，此处不得重置轮内状态（citations/tools 属于刚完成的轮）。 */
+  useEffect(() => {
     if (activeId === null) {
       setMessages([]);
       setMessagesLoading(false);
@@ -146,27 +176,37 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
       .get<{ messages?: AgentMessageDTO[] }>(`/api/v1/agent/conversations/${activeId}`)
       .then((data) => {
         if (cancelled) return;
+        /* 服务端 think 行接管历史回放：清掉轮内思考态，避免与流式思考块双渲染。 */
+        setTurnThinking("");
         setMessages(
           (data.messages ?? [])
             .filter(
               (message) =>
                 message.role === "user" ||
+                message.phase === "think" ||
                 message.moderation === "blocked" ||
                 (message.content ?? "").trim() !== "",
             )
             .map((message) =>
-              /* A-05 输出事后审核：被标记回答不回传原文，渲染占位提示。 */
               message.moderation === "blocked"
                 ? {
                     id: message.id,
                     role: "assistant" as const,
                     content: t("agent.workspace.messageHiddenByModeration"),
+                    moderationBlocked: true,
                   }
-                : {
-                    id: message.id,
-                    role: message.role === "user" ? ("user" as const) : ("assistant" as const),
-                    content: message.content ?? "",
-                  },
+                : message.phase === "think"
+                  ? {
+                      id: message.id,
+                      role: "assistant" as const,
+                      content: message.content ?? "",
+                      phase: "think" as const,
+                    }
+                  : {
+                      id: message.id,
+                      role: message.role === "user" ? ("user" as const) : ("assistant" as const),
+                      content: message.content ?? "",
+                    },
             ),
         );
       })
@@ -182,6 +222,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
   /* 仅停留在底部附近时自动跟随流式内容；向上阅读后停止抢滚动。 */
@@ -189,7 +230,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
     if (!atBottomRef.current) return;
     const transcript = transcriptRef.current;
     if (transcript) transcript.scrollTop = transcript.scrollHeight;
-  }, [messages]);
+  }, [messages, turnThinking, turnTools]);
 
   /* Esc 关闭移动端会话抽屉（不离开工作台）。 */
   useEffect(() => {
@@ -200,6 +241,21 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [drawerOpen]);
+
+  function resetTurnExtras() {
+    setTurnThinking("");
+    setTurnTools([]);
+    setTurnCitations([]);
+    setTurnDegraded(false);
+    setTurnError(false);
+    setStoppedNotice(false);
+    setLastAnswerKind(null);
+    setTurnErrorCode(null);
+    setTurnTraceId(null);
+    setTurnUsage(null);
+    setHighlightedCitation(null);
+    turnAnswerIdRef.current = null;
+  }
 
   function focusComposer() {
     window.requestAnimationFrame(() => {
@@ -227,8 +283,10 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
 
   const handleSelectConversation = useCallback((id: number) => {
     fallbackRequestRef.current += 1;
+    resetTurnExtras();
     setActiveId(id);
     setDrawerOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleNewConversation = useCallback(() => {
@@ -236,37 +294,10 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
     fallbackRequestRef.current += 1;
     setActiveId(null);
     setMessages([]);
-    setTurnCitations([]);
-    setTurnDegraded(false);
-    setTurnTools([]);
-    setTurnError(false);
-    setStoppedNotice(false);
-    setLastAnswerKind(null);
+    resetTurnExtras();
     setDrawerOpen(false);
     focusComposer();
   }, [streaming]);
-
-  const handleClearConfirm = useCallback(async () => {
-    if (activeId === null) return;
-    try {
-      await api.delete(`/api/v1/agent/conversations/${activeId}`);
-      fallbackRequestRef.current += 1;
-      setActiveId(null);
-      setMessages([]);
-      setTurnCitations([]);
-      setTurnDegraded(false);
-      setTurnTools([]);
-      setTurnError(false);
-      setStoppedNotice(false);
-      setLastAnswerKind(null);
-      toast("success", t("agent.workspace.clearHistorySuccess"));
-      void loadConversations();
-      focusComposer();
-    } catch (error) {
-      silentError(error, { component: "AgentWorkspace", action: "clear conversation" });
-      toast("error", t("agent.workspace.clearHistoryFailed"));
-    }
-  }, [activeId, loadConversations, toast, t]);
 
   const handleCitationOpen = useCallback(
     (citation: AgentCitation, trigger: HTMLElement) => {
@@ -278,6 +309,72 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
     },
     [onCitationOpen, openCitationOverlay],
   );
+
+  /* 行内 [n] 角标 → 高亮并滚动到对应引用卡片（纯展示层映射）。 */
+  const handleCitationRef = useCallback((index: number) => {
+    const citations = turnCitationsRef.current;
+    if (index < 0 || index >= citations.length) return;
+    const target = document.getElementById(`agent-citation-${index}`);
+    target?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    target?.focus({ preventScroll: true });
+    setHighlightedCitation(index);
+    if (highlightTimerRef.current !== null) window.clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = window.setTimeout(() => setHighlightedCitation(null), 1800);
+  }, []);
+
+  const handleRename = useCallback(
+    async (id: number, title: string) => {
+      try {
+        const data = await api.patch<{ conversation?: AgentConversationSummary }>(
+          `/api/v1/agent/conversations/${id}`,
+          { title },
+        );
+        if (data.conversation) {
+          setConversations((previous) =>
+            previous.map((item) => (item.id === id ? { ...item, ...data.conversation } : item)),
+          );
+        }
+      } catch (error) {
+        silentError(error, { component: "AgentWorkspace", action: "rename conversation" });
+        toast("error", t("agent.workspace.renameFailed"));
+      }
+    },
+    [toast, t],
+  );
+
+  const handleTogglePin = useCallback(
+    async (id: number, pinned: boolean) => {
+      try {
+        await api.patch(`/api/v1/agent/conversations/${id}`, { pinned });
+        await loadConversations();
+      } catch (error) {
+        silentError(error, { component: "AgentWorkspace", action: "toggle pin" });
+        toast("error", t("agent.workspace.pinFailed"));
+      }
+    },
+    [loadConversations, toast, t],
+  );
+
+  const handleDeleteConfirm = useCallback(async () => {
+    const id = confirmDeleteId;
+    if (id === null) return;
+    setConfirmDeleteId(null);
+    try {
+      await api.delete(`/api/v1/agent/conversations/${id}`);
+      if (activeId === id) {
+        fallbackRequestRef.current += 1;
+        setActiveId(null);
+        setMessages([]);
+        resetTurnExtras();
+        focusComposer();
+      }
+      toast("success", t("agent.workspace.deleteSuccess"));
+      void loadConversations();
+    } catch (error) {
+      silentError(error, { component: "AgentWorkspace", action: "delete conversation" });
+      toast("error", t("agent.workspace.deleteFailed"));
+    }
+  }, [activeId, confirmDeleteId, loadConversations, toast, t]);
 
   const loadKeywordFallback = useCallback(async (query: string, requestId: number) => {
     const trimmed = query.trim();
@@ -334,6 +431,12 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
           if (event.trace_id) setTurnTraceId(event.trace_id);
           break;
         }
+        case "think_delta": {
+          const delta = event.delta;
+          if (!delta) break;
+          setTurnThinking((previous) => previous + delta);
+          break;
+        }
         case "usage": {
           const usage = event.usage as { prompt_tokens?: unknown; completion_tokens?: unknown } | undefined;
           if (
@@ -351,10 +454,12 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
           setMessages((previous) => {
             const next = [...previous];
             const last = next[next.length - 1];
-            if (last && last.role === "assistant") {
+            if (last && last.role === "assistant" && last.phase !== "think") {
               next[next.length - 1] = { ...last, content: last.content + delta };
             } else {
-              next.push({ id: nextMessageId++, role: "assistant", content: delta });
+              const id = nextMessageId++;
+              turnAnswerIdRef.current = id;
+              next.push({ id, role: "assistant", content: delta });
             }
             return next;
           });
@@ -373,16 +478,39 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
           break;
         }
         case "done": {
+          if (event.trace_id) setTurnTraceId(event.trace_id);
           if (event.conversation_id) {
             setActiveId(event.conversation_id);
             void loadConversations();
           }
+          if (event.usage) setTurnUsage(event.usage);
           if (event.citations) setTurnCitations(event.citations);
           setTurnDegraded(Boolean(event.degraded));
+          /* A-02 v2：done 是终态裁决。no_evidence/degraded 撤下已流出正文
+             （模型总结不得展示）；正常轮 answer 存在则以服务端终稿替换已流出
+             正文，answer 为空则移除空泡。 */
           if (event.degraded || event.answer_kind === "no_evidence") {
+            turnAnswerIdRef.current = null;
             setMessages((previous) => {
-              const last = previous[previous.length - 1];
-              return last?.role === "assistant" ? previous.slice(0, -1) : previous;
+              const next = [...previous];
+              const last = next[next.length - 1];
+              if (last && last.role === "assistant" && last.phase !== "think") next.splice(next.length - 1, 1);
+              return next;
+            });
+          } else if (typeof event.answer === "string") {
+            const finalAnswer: string = event.answer;
+            if (finalAnswer === "") turnAnswerIdRef.current = null;
+            setMessages((previous) => {
+              const next = [...previous];
+              const last = next[next.length - 1];
+              if (last && last.role === "assistant" && last.phase !== "think") {
+                if (finalAnswer === "") {
+                  next.splice(next.length - 1, 1);
+                } else {
+                  next[next.length - 1] = { ...last, content: finalAnswer };
+                }
+              }
+              return next;
             });
           }
           setLastAnswerKind(event.answer_kind ?? null);
@@ -393,9 +521,12 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
           if (event.degraded && event.degraded_reason === "provider_error") {
             setTurnError(false);
             setTurnDegraded(true);
+            turnAnswerIdRef.current = null;
             setMessages((previous) => {
-              const last = previous[previous.length - 1];
-              return last?.role === "assistant" ? previous.slice(0, -1) : previous;
+              const next = [...previous];
+              const last = next[next.length - 1];
+              if (last && last.role === "assistant" && last.phase !== "think") next.splice(next.length - 1, 1);
+              return next;
             });
             void loadKeywordFallback(activeQueryRef.current, fallbackRequestRef.current);
             setStreaming(false);
@@ -415,53 +546,38 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
     [loadConversations, loadKeywordFallback],
   );
 
-  function handleSend(overrideMessage?: string) {
-    const trimmed = (overrideMessage ?? input).trim();
-    if (!trimmed || streaming) return;
-
-    const userMessage: WorkspaceMessage = {
-      id: nextMessageId++,
-      role: "user",
-      content: trimmed,
+  /* 发起一轮对话（A-01 续写契约）：上下文由服务端组装，客户端只带
+     conversation_id + message。regenerate 复用同一入口且不重复落用户行。 */
+  function startTurn(query: string) {
+    const body: Record<string, unknown> = {
+      message: query,
+      context: { surface: "global" },
     };
-    const history = [...messages, userMessage];
-    activeQueryRef.current = trimmed;
+    if (activeId !== null) body.conversation_id = activeId;
+    activeQueryRef.current = query;
     fallbackRequestRef.current += 1;
-    setMessages(history);
-    if (overrideMessage === undefined) setInput("");
-    setTurnError(false);
-    setStoppedNotice(false);
-    setTurnTools([]);
-    setTurnCitations([]);
-    setTurnDegraded(false);
-    setLastAnswerKind(null);
-    setTurnErrorCode(null);
-    setTurnTraceId(null);
-    setTurnUsage(null);
+    resetTurnExtras();
     setStreaming(true);
 
     const controller = new AbortController();
     controllerRef.current = controller;
-    void startAgentStream(
-      fetch,
-      `${apiBase}/agent/chat/stream`,
-      {
-        messages: history
-          .slice(-MAX_CONTEXT_MESSAGES)
-          .map((message) => ({ role: message.role, content: message.content })),
-        context: { surface: "global" },
+    void startAgentStream(fetch, `${apiBase}/agent/chat/stream`, body, {
+      onEvent: handleStreamEvent,
+      onError: (error) => {
+        setTurnErrorCode(error instanceof AgentStreamError ? error.code ?? null : null);
+        setTurnError(true);
+        setStreaming(false);
       },
-      {
-        onEvent: handleStreamEvent,
-        onError: (error) => {
-          setTurnErrorCode(error instanceof AgentStreamError ? error.code ?? null : null);
-          setTurnError(true);
-          setStreaming(false);
-        },
-        onClose: () => setStreaming(false),
-      },
-      controller.signal,
-    );
+      onClose: () => setStreaming(false),
+    }, controller.signal);
+  }
+
+  function handleSend(overrideMessage?: string) {
+    const trimmed = (overrideMessage ?? input).trim();
+    if (!trimmed || streaming) return;
+    setMessages((previous) => [...previous, { id: nextMessageId++, role: "user", content: trimmed }]);
+    if (overrideMessage === undefined) setInput("");
+    startTurn(trimmed);
   }
 
   function handleStop() {
@@ -470,21 +586,64 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
     setStreaming(false);
   }
 
-  function handleRetry() {
-    if (messages.length === 0) return;
-    const lastUserMessage = [...messages].reverse().find((message) => message.role === "user");
-    if (lastUserMessage) {
-      setMessages((previous) => previous.slice(0, -1));
-      handleSend(lastUserMessage.content);
+  /* 重新生成：保留到最后一跳用户消息为止的历史，撤下其后的 think/answer 行重发。 */
+  function handleRegenerate() {
+    if (streaming) return;
+    let lastUserIndex = -1;
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index].role === "user") {
+        lastUserIndex = index;
+        break;
+      }
+    }
+    if (lastUserIndex < 0) return;
+    const query = messages[lastUserIndex].content;
+    setMessages(messages.slice(0, lastUserIndex + 1));
+    startTurn(query);
+  }
+
+  async function handleCopyMessage(content: string) {
+    if (content.trim() === "") return;
+    try {
+      await navigator.clipboard.writeText(content);
+      toast("success", t("agent.workspace.copySuccess"));
+    } catch {
+      toast("error", t("agent.workspace.copyFailed"));
     }
   }
 
-  const lastMessageIsUser = messages[messages.length - 1]?.role === "user";
-  const lastUserQuery = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
+  const activeConversation = conversations.find((conversation) => conversation.id === activeId) ?? null;
   const headerTitle =
     activeId === null
       ? t("agent.workspace.newConversation")
-      : `${t("agent.workspace.untitled")} #${activeId}`;
+      : activeConversation?.title?.trim() || `${t("agent.workspace.untitled")} #${activeId}`;
+  const turnExtrasPresent = turnThinking !== "" || turnTools.length > 0;
+  const lastAnswerIndex = messages.map((message) => message.role).lastIndexOf("assistant");
+  const lastMessageIsUser = messages[messages.length - 1]?.role === "user";
+
+  function renderTurnExtrasBefore(message: WorkspaceMessage, index: number) {
+    /* 当前轮的 answer 消息前渲染 思考块+工具步骤。done 后服务端历史回载会替换
+       流式 answer 行（客户端 id 失联）——回退锚定到轮尾最后一条 answer 行；
+       ref 为 null（no_evidence/degraded 撤答或流中尚无 answer）时由 map 后的
+       轮尾兜底块渲染，此处不重复。 */
+    const isTurnAnswer =
+      turnAnswerIdRef.current !== null && message.id === turnAnswerIdRef.current;
+    const isOrphanAnchor =
+      turnAnswerIdRef.current !== null &&
+      !isTurnAnswer &&
+      index === lastAnswerIndex &&
+      !streaming &&
+      message.role === "assistant" &&
+      message.phase !== "think" &&
+      !message.moderationBlocked;
+    if (!isTurnAnswer && !isOrphanAnchor) return null;
+    return (
+      <Fragment key={`turn-extras-${message.id}`}>
+        {turnThinking !== "" && <AgentThinkingBlock content={turnThinking} streaming={streaming} />}
+        {turnTools.length > 0 && <AgentToolStatus tools={turnTools} live={streaming} />}
+      </Fragment>
+    );
+  }
 
   return (
     <main
@@ -505,6 +664,9 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
           }}
           onSelect={handleSelectConversation}
           onNewConversation={handleNewConversation}
+          onRename={handleRename}
+          onTogglePin={handleTogglePin}
+          onDelete={(id) => setConfirmDeleteId(id)}
         />
       </div>
 
@@ -526,6 +688,9 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
               onToggleCollapse={() => setDrawerOpen(false)}
               onSelect={handleSelectConversation}
               onNewConversation={handleNewConversation}
+              onRename={handleRename}
+              onTogglePin={handleTogglePin}
+              onDelete={(id) => setConfirmDeleteId(id)}
               onRequestClose={() => setDrawerOpen(false)}
             />
           </div>
@@ -548,18 +713,6 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
           <h1 className="min-w-0 flex-1 truncate px-1 text-sm font-semibold text-fg-default">
             {headerTitle}
           </h1>
-          {activeId !== null && !streaming && (
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-label={t("agent.workspace.clearHistory")}
-              onClick={() => setConfirmOpen(true)}
-              className="h-10 shrink-0 text-fg-muted hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">{t("agent.workspace.clearHistory")}</span>
-            </Button>
-          )}
         </header>
 
         <div
@@ -581,7 +734,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
             <div className="mx-auto mt-16 max-w-sm rounded-md border border-border-destructive px-4 py-3 text-sm text-fg-default">
               {t("agent.workspace.conversationLoadFailed")}
             </div>
-          ) : messages.length === 0 && !streaming ? (
+          ) : messages.length === 0 && !streaming && !turnExtrasPresent ? (
             <section className="mx-auto flex max-w-md flex-col items-center px-4 pt-24 text-center">
               <div className="flex size-14 items-center justify-center rounded-full bg-accent-subtle text-accent-emphasis">
                 <BookOpen className="size-6" aria-hidden="true" />
@@ -590,13 +743,13 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
                 {t("agent.workspace.emptyTitle")}
               </h2>
               <p className="mt-2 text-sm text-fg-muted">{t("agent.workspace.emptyDescription")}</p>
-              <ul className="mt-5 flex flex-col gap-2">
+              <ul className="mt-5 flex flex-wrap items-center justify-center gap-2">
                 {SUGGESTION_KEYS.map((key) => (
                   <li key={key}>
                     <button
                       type="button"
                       onClick={() => handleSend(t(key))}
-                      className="inline-flex w-full items-center justify-center rounded-md border border-border-default bg-card px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="inline-flex items-center rounded-full border border-border-default bg-card px-3 py-1.5 text-sm text-fg-muted transition-colors duration-150 hover:border-border-strong hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                     >
                       {t(key)}
                     </button>
@@ -606,32 +759,65 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
             </section>
           ) : (
             <div className="mx-auto flex max-w-3xl flex-col gap-3">
-              {messages.map((message) => (
-                <div
-                  key={`${message.id}-${message.role}`}
-                  className={cn(
-                    "max-w-[85%] rounded-md px-3 py-2 text-sm",
-                    message.role === "user"
-                      ? "ml-auto whitespace-pre-wrap bg-primary text-primary-foreground"
-                      : "bg-canvas-subtle text-fg-default",
-                  )}
-                >
-                  {message.content ? (
-                    message.role === "user" ? (
-                      message.content
-                    ) : (
-                      // 受控渲染：react-markdown 未接 rehype-raw，原始 HTML 一律转义（T20 核验）
-                      <MarkdownRenderer content={message.content} />
-                    )
+              {messages.map((message, index) => (
+                <Fragment key={`${message.id}-${message.role}-${message.phase ?? "body"}`}>
+                  {renderTurnExtrasBefore(message, index)}
+                  {message.phase === "think" ? (
+                    <AgentThinkingBlock content={message.content} streaming={false} />
+                  ) : message.role === "user" ? (
+                    <div className="ml-auto max-w-[85%] whitespace-pre-wrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">
+                      {message.content}
+                    </div>
+                  ) : message.moderationBlocked ? (
+                    <div className="max-w-[85%] rounded-md border border-border-default bg-card px-3 py-2 text-sm text-fg-muted">
+                      {message.content}
+                    </div>
                   ) : (
-                    <span aria-label={t("agent.a11y.streamStatus")}>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                    </span>
+                    <div className="group/message max-w-[85%] rounded-md bg-canvas-subtle px-3 py-2 text-sm">
+                      {message.content ? (
+                        // 受控渲染：react-markdown 未接 rehype-raw，原始 HTML 一律转义（T20 核验）
+                        <MarkdownRenderer
+                          content={message.content}
+                          onCitationRef={handleCitationRef}
+                          citationCount={turnCitations.length}
+                        />
+                      ) : (
+                        <span aria-label={t("agent.a11y.streamStatus")}>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                        </span>
+                      )}
+                      {!streaming && message.content && index === lastAnswerIndex && (
+                        <div className="mt-1.5 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover/message:opacity-100 focus-within:opacity-100">
+                          <button
+                            type="button"
+                            aria-label={t("agent.workspace.copyMessage")}
+                            onClick={() => void handleCopyMessage(message.content)}
+                            className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                          >
+                            <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={t("agent.workspace.regenerate")}
+                            onClick={handleRegenerate}
+                            className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                          >
+                            <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )}
-                </div>
+                </Fragment>
               ))}
 
-              {turnTools.length > 0 && <AgentToolStatus tools={turnTools} />}
+              {/* 轮内尚无 answer 消息时（纯思考/工具中或提前停止），轮尾兜底渲染。 */}
+              {turnAnswerIdRef.current === null && (streaming || turnExtrasPresent) && (
+                <Fragment key="turn-extras-tail">
+                  {turnThinking !== "" && <AgentThinkingBlock content={turnThinking} streaming={streaming} />}
+                  {turnTools.length > 0 && <AgentToolStatus tools={turnTools} live={streaming} />}
+                </Fragment>
+              )}
 
               {!streaming && (turnUsage || turnTraceId) && (
                 <details className="max-w-[85%] rounded-md border border-border-default bg-card px-3 py-1.5 text-xs text-fg-muted">
@@ -658,9 +844,9 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
                   <div>
                     <p className="font-medium">{t("agent.noEvidence.title")}</p>
                     <p className="mt-1 text-xs text-fg-muted">{t("agent.noEvidence.description")}</p>
-                    {lastUserQuery && (
+                    {activeQueryRef.current && (
                       <Link
-                        href={`/search?q=${encodeURIComponent(lastUserQuery)}`}
+                        href={`/search?q=${encodeURIComponent(activeQueryRef.current)}`}
                         className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent-emphasis underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-ring"
                       >
                         {t("agent.noEvidence.searchCta")}
@@ -676,9 +862,9 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
                   <div>
                     <p className="font-medium">{t("agent.degraded.title")}</p>
                     <p className="mt-1 text-xs text-fg-muted">{t("agent.degraded.description")}</p>
-                    {lastUserQuery && (
+                    {activeQueryRef.current && (
                       <Link
-                        href={`/search?q=${encodeURIComponent(lastUserQuery)}`}
+                        href={`/search?q=${encodeURIComponent(activeQueryRef.current)}`}
                         className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent-emphasis underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-ring"
                       >
                         {t("agent.noEvidence.searchCta")}
@@ -691,6 +877,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
               <AgentCitationList
                 citations={turnCitations.map(toAgentCitation)}
                 onOpen={handleCitationOpen}
+                highlightedIndex={highlightedCitation}
               />
 
               {stoppedNotice && (
@@ -716,7 +903,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
                     )}
                   </div>
                   {turnErrorCode !== "AGENT_RATE_LIMIT_EXCEEDED" && (
-                    <Button variant="outline" size="sm" className="h-9" onClick={handleRetry}>
+                    <Button variant="outline" size="sm" className="h-9" onClick={handleRegenerate}>
                       <RotateCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
                       {t("agent.workspace.errorRetry")}
                     </Button>
@@ -751,7 +938,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
           <div className="flex items-end gap-2">
             <textarea
               ref={composerRef}
-              rows={2}
+              rows={1}
               aria-label={t("agent.workspace.composerLabel")}
               placeholder={t("agent.workspace.inputPlaceholder")}
               value={input}
@@ -763,7 +950,8 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
                 }
               }}
               disabled={streaming}
-              className="min-h-11 flex-1 resize-none rounded-md border border-border-default bg-canvas-default px-3 py-2 text-sm text-fg-default placeholder:text-fg-muted focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+              style={{ maxHeight: COMPOSER_MAX_HEIGHT }}
+              className="min-h-11 flex-1 resize-none self-auto overflow-y-auto rounded-md border border-border-default bg-canvas-default px-3 py-2 text-sm leading-6 text-fg-default placeholder:text-fg-muted focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
             />
             {streaming ? (
               <Button
@@ -794,12 +982,14 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
       {overlayElement}
 
       <ConfirmModal
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title={t("agent.workspace.clearHistoryConfirmTitle")}
-        description={t("agent.workspace.clearHistoryConfirmDescription")}
-        confirmLabel={t("agent.workspace.clearHistoryConfirmAction")}
-        onConfirm={() => handleClearConfirm()}
+        open={confirmDeleteId !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDeleteId(null);
+        }}
+        title={t("agent.workspace.deleteConfirmTitle")}
+        description={t("agent.workspace.deleteConfirmDescription")}
+        confirmLabel={t("agent.workspace.deleteConfirmAction")}
+        onConfirm={() => void handleDeleteConfirm()}
       />
     </main>
   );

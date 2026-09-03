@@ -715,6 +715,10 @@ func (s *AgentService) serverOwnedSystemPrompt(surface model.AgentChatSurface, c
 	default:
 		parts = append(parts, "surface=global")
 	}
+	// A-06 行内引用锚定（SP-13 R2-Q9）：指示模型在句末标注引用序号，前端把
+	// [n] 渲染为可点击角标并映射到服务端复验后的引用卡片（纯展示层，复验
+	// 语义与引用候选收集逻辑零改动）。
+	parts = append(parts, "when your answer relies on retrieved results, mark the sentence end with 1-based citation indexes like [1] or [2], where n is the position of the result in the search output you used")
 	return llm.ChatMessage{
 		Role:    "system",
 		Content: "[OmniCraft Agent Context] " + strings.Join(parts, "; "),
