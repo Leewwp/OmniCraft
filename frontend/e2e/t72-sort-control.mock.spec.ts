@@ -166,7 +166,9 @@ test.describe("shared sort control across zones (#72)", () => {
         page.evaluate(() => {
           const listbox = document.querySelector('[role="listbox"]');
           const popup = listbox?.parentElement;
-          const combo = document.querySelector('[role="combobox"]');
+          const combo = listbox instanceof HTMLElement
+            ? document.querySelector(`[role="combobox"][aria-controls="${listbox.id}"]`)
+            : null;
           if (!(popup instanceof HTMLElement) || !(combo instanceof HTMLElement)) return null;
           const p = popup.getBoundingClientRect();
           const c = combo.getBoundingClientRect();
@@ -184,7 +186,9 @@ test.describe("shared sort control across zones (#72)", () => {
     const settled = await page.evaluate(() => {
       const listbox = document.querySelector('[role="listbox"]');
       const popup = listbox?.parentElement;
-      const combo = document.querySelector('[role="combobox"]');
+      const combo = listbox instanceof HTMLElement
+        ? document.querySelector(`[role="combobox"][aria-controls="${listbox.id}"]`)
+        : null;
       if (!(popup instanceof HTMLElement) || !(combo instanceof HTMLElement)) return null;
       const p = popup.getBoundingClientRect();
       const c = combo.getBoundingClientRect();
@@ -202,6 +206,25 @@ test.describe("shared sort control across zones (#72)", () => {
     expect(Number(settled!.toolbarZ)).toBeLessThan(50);
     expect(settled!.popupBottom).toBeLessThanOrEqual(settled!.viewportH);
     expect(settled!.popupTop).toBeGreaterThanOrEqual(settled!.triggerBottom);
+
+    // Anti-regression (T21 header search also exposes role="combobox"): with multiple
+    // comboboxes in DOM, the probe must resolve the sort trigger via the open listbox's
+    // aria-controls owner — never the first combobox in document order.
+    const anchoring = await page.evaluate(() => {
+      const listbox = document.querySelector('[role="listbox"]');
+      const combo = listbox instanceof HTMLElement
+        ? document.querySelector(`[role="combobox"][aria-controls="${listbox.id}"]`)
+        : null;
+      return {
+        comboboxCount: document.querySelectorAll('[role="combobox"]').length,
+        label: combo?.getAttribute("aria-label") ?? null,
+        hasPopup: combo?.getAttribute("aria-haspopup") ?? null,
+      };
+    });
+    expect(anchoring.comboboxCount).toBeGreaterThan(1);
+    expect(anchoring.label).toContain("排序方式");
+    expect(anchoring.hasPopup).toBe("listbox");
+
     await page.screenshot({ path: `${SHOT_DIR}/web-t72-sort-desktop.png` });
     await page.keyboard.press("Escape");
   });
@@ -214,7 +237,9 @@ test.describe("shared sort control across zones (#72)", () => {
     const geometry = await page.evaluate(() => {
       const listbox = document.querySelector('[role="listbox"]');
       const popup = listbox?.parentElement;
-      const combo = document.querySelector('[role="combobox"]');
+      const combo = listbox instanceof HTMLElement
+        ? document.querySelector(`[role="combobox"][aria-controls="${listbox.id}"]`)
+        : null;
       if (!(popup instanceof HTMLElement) || !(combo instanceof HTMLElement)) return null;
       const p = popup.getBoundingClientRect();
       const c = combo.getBoundingClientRect();
@@ -247,7 +272,9 @@ test.describe("shared sort control across zones (#72)", () => {
         page.evaluate(() => {
           const listbox = document.querySelector('[role="listbox"]');
           const popup = listbox?.parentElement;
-          const combo = document.querySelector('[role="combobox"]');
+          const combo = listbox instanceof HTMLElement
+            ? document.querySelector(`[role="combobox"][aria-controls="${listbox.id}"]`)
+            : null;
           if (!(popup instanceof HTMLElement) || !(combo instanceof HTMLElement)) return null;
           const p = popup.getBoundingClientRect();
           const c = combo.getBoundingClientRect();
@@ -260,7 +287,9 @@ test.describe("shared sort control across zones (#72)", () => {
     const geometry = await page.evaluate(() => {
       const listbox = document.querySelector('[role="listbox"]');
       const popup = listbox?.parentElement;
-      const combo = document.querySelector('[role="combobox"]');
+      const combo = listbox instanceof HTMLElement
+        ? document.querySelector(`[role="combobox"][aria-controls="${listbox.id}"]`)
+        : null;
       if (!(popup instanceof HTMLElement) || !(combo instanceof HTMLElement)) return null;
       const p = popup.getBoundingClientRect();
       const c = combo.getBoundingClientRect();
