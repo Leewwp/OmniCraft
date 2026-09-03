@@ -43,7 +43,10 @@
       "days": "days",
       "times": "times",
       "votes": "votes"
-    }
+    },
+    "insufficientReputation": "Your reputation score is too low for this action",
+    "blocked": "You are blocked from this action",
+    "alreadyReported": "You have already reported this content"
   },
   "nav": {
     "siteName": "OmniCraft",
@@ -163,7 +166,10 @@
     "strength_weak": "Weak",
     "strength_medium": "Medium",
     "strength_strong": "Strong",
-    "backToRegister": "Back to Register"
+    "backToRegister": "Back to Register",
+    "captchaRequired": "Please complete the captcha verification first",
+    "captchaUnavailable": "Captcha verification is temporarily unavailable. Please try again later.",
+    "errorInvalidPassword": "The current password is incorrect"
   },
   "home": {
     "heroTitle": "Discover, share, and co-create your passion.",
@@ -625,7 +631,17 @@
     "errorIpRequired": "Fanwork requires an IP selection",
     "errorCoverRequired": "Please upload a cover image",
     "errorAttachmentRequired": "Please upload at least one attachment",
-    "errorPublishFailed": "Publishing failed. Please try again later."
+    "errorPublishFailed": "Publishing failed. Please try again later.",
+    "frozen": "Publishing is frozen: due to recent repeated violations, publishing is suspended for 7 days and will automatically unfreeze when the period ends. Completing the integrity course can help lift the restriction early.",
+    "fileTooLarge": "The file exceeds the size limit. Please compress it and try again",
+    "invalidMimeType": "Unsupported file type",
+    "mediaSetInvalid": "The media set violates the gallery contract. Please check the cover and media list",
+    "sourceNotAllowedForOriginal": "Original content cannot carry a source attribution",
+    "fanworkSourceRequired": "Fanwork must link to an IP or select an inspiration source",
+    "multipleSourceConflict": "Only one source may be set (IP, original, or inspiration work)",
+    "sourceOriginalUnavailable": "The selected original content does not exist or is unavailable",
+    "sourceFanworkUnavailable": "The selected fanwork does not exist or is unavailable",
+    "sourceImmutable": "Source attribution is immutable after creation"
   },
   "capabilities": {
     "deniedBanned": "Your account is banned and cannot perform interactions.",
@@ -702,7 +718,9 @@
       "judgeReasons": "Judge Reasoning (sorted by upvotes)",
       "noReasons": "No judge reasoning submitted",
       "loadFailed": "Failed to load verdict details"
-    }
+    },
+    "insufficientQuestions": "Not enough questions are available for this category. Please try again later",
+    "readingTimeTooShort": "Reading time was too short. Please read the instructions fully first"
   },
   "dashboard": {
     "title": "Creator Dashboard",
@@ -1383,7 +1401,8 @@
     "thinking": {
       "label": "Thought process",
       "streamingLabel": "Thinking…"
-    }
+    },
+    "rateLimited": "Too many AI assistant requests. Please try again later"
   },
   "search": {
     "saveSearch": "Save this search",
@@ -1427,7 +1446,9 @@
     "usersNoResults": "No matching users",
     "usersNoResultsHint": "Try another keyword or search by full username",
     "userReputation": "Reputation {value}",
-    "suggestionsLabel": "Search suggestions"
+    "suggestionsLabel": "Search suggestions",
+    "missingQuery": "Please enter a search keyword",
+    "queryTooLong": "The search keyword is too long. Please shorten it"
   },
   "recommend": {
     "title": "Recommended for you",
@@ -1516,7 +1537,8 @@
     "rejected": "Rejected",
     "noAppeals": "No appeal records",
     "loadFailed": "Failed to load",
-    "submitFailed": "Failed to submit"
+    "submitFailed": "Failed to submit",
+    "exists": "A pending appeal already exists for this target. Please wait until it is resolved"
   },
   "history": {
     "title": "Browsing History",
@@ -2389,22 +2411,7 @@
     "pageErrorDesc": "An unexpected error occurred. Please try again later.",
     "notFound": "Page not found",
     "notFoundDesc": "The page you're looking for doesn't exist or has been removed.",
-    "backHome": "Back to home",
-    "INVALID_ID": "Invalid ID",
-    "USER_NOT_FOUND": "User not found",
-    "DB_ERROR": "Database error",
-    "FORBIDDEN": "Access denied",
-    "INVALID_BODY": "Invalid request format",
-    "NO_FIELDS": "No update fields provided",
-    "VALIDATION_ERROR": "Validation failed",
-    "INVALID_PASSWORD": "Incorrect password",
-    "INTERNAL_ERROR": "Internal server error",
-    "COURSE_NOT_FOUND": "Course not found",
-    "ALREADY_COMPLETED": "Already completed",
-    "FEATURE_DISABLED": "Feature not available",
-    "UNAUTHORIZED": "Not logged in",
-    "NOT_FOUND": "Resource not found",
-    "CONFLICT": "Resource conflict"
+    "backHome": "Back to home"
   },
   "markdown": {
     "copyCode": "Copy code",
