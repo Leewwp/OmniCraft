@@ -261,25 +261,33 @@ test("SeriesNav overlay directory keyboard flow selects chapters and Escape rest
     fireEvent.click(trigger);
     await waitFor(() => assert.equal(view.getAllByRole("option").length, 3));
     const options = view.getAllByRole("option");
+    /* 聚焦当前章节项在被动 effect 中执行（提交后异步冲刷，CI 负载下可能晚于
+       DOM 出现）：先等焦点真正落位再发键，避免按键发在 body 上。 */
+    await waitFor(() => assert.ok(document.activeElement === options[1]));
 
     act(() => fireEvent.keyDown(document.activeElement as Element, { key: "ArrowDown" }));
-    assert.equal(document.activeElement, options[2], "ArrowDown must move to the next option");
+    assert.ok(document.activeElement === options[2], "ArrowDown must move to the next option");
     act(() => fireEvent.keyDown(document.activeElement as Element, { key: "ArrowUp" }));
-    assert.equal(document.activeElement, options[1], "ArrowUp must move back");
+    assert.ok(document.activeElement === options[1], "ArrowUp must move back");
     act(() => fireEvent.keyDown(document.activeElement as Element, { key: "ArrowUp" }));
-    assert.equal(document.activeElement, options[0], "ArrowUp must wrap around");
+    assert.ok(document.activeElement === options[0], "ArrowUp must wrap around");
 
     act(() => fireEvent.keyDown(document.activeElement as Element, { key: "Enter" }));
     assert.deepEqual(pushed, [10], "Enter on an option must push that chapter");
 
     fireEvent.click(trigger);
     await waitFor(() => assert.equal(view.getAllByRole("option").length, 3));
+    /* 重开后焦点效应同样异步落位：Escape 必须发在选项上，否则关不掉目录。 */
+    await waitFor(() =>
+      assert.ok(view.getAllByRole("option").some((option) => option === document.activeElement)),
+    );
     await act(async () => {
       fireEvent.keyDown(document.activeElement as Element, { key: "Escape" });
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     assert.equal(view.queryByRole("listbox"), null, "Escape must close the directory");
-    assert.equal(document.activeElement, trigger, "Escape must return focus to the catalog trigger");
+    /* 布尔恒等断言：失败时不序列化整棵 Fiber 树（c52cea4 的既定教训）。 */
+    assert.ok(document.activeElement === trigger, "Escape must return focus to the catalog trigger");
   } finally {
     restoreFetch();
   }
