@@ -16,15 +16,17 @@ import (
 )
 
 type OpenAICompatProvider struct {
-	apiKey       string
-	apiBase      string
-	embedAPIBase string
-	embedGroupID string
-	model        string
-	embedModel   string
-	client       *http.Client
-	maxRetries   int
-	system       string
+	apiKey           string
+	apiBase          string
+	embedAPIBase     string
+	embedGroupID     string
+	embedAPIKey      string
+	embedDimensions  int
+	model            string
+	embedModel       string
+	client           *http.Client
+	maxRetries       int
+	system           string
 }
 
 func NewOpenAICompatProvider(apiKey, apiBase, model, embedModel string, opts ...ProviderOption) *OpenAICompatProvider {
@@ -37,15 +39,17 @@ func NewOpenAICompatProvider(apiKey, apiBase, model, embedModel string, opts ...
 		opt(&cfg)
 	}
 	return &OpenAICompatProvider{
-		apiKey:       apiKey,
-		apiBase:      apiBase,
-		embedAPIBase: strings.TrimRight(defaultString(cfg.embeddingAPIBase, apiBase), "/"),
-		embedGroupID: cfg.embeddingGroupID,
-		model:        model,
-		embedModel:   embedModel,
-		client:       &http.Client{Timeout: cfg.timeout, Transport: otelhttp.NewTransport(http.DefaultTransport)},
-		maxRetries:   cfg.maxRetries,
-		system:       "openai_compatible",
+		apiKey:          apiKey,
+		apiBase:         apiBase,
+		embedAPIBase:    strings.TrimRight(defaultString(cfg.embeddingAPIBase, apiBase), "/"),
+		embedGroupID:    cfg.embeddingGroupID,
+		embedAPIKey:     defaultString(cfg.embeddingAPIKey, apiKey),
+		embedDimensions: cfg.embeddingDimensions,
+		model:           model,
+		embedModel:      embedModel,
+		client:          &http.Client{Timeout: cfg.timeout, Transport: otelhttp.NewTransport(http.DefaultTransport)},
+		maxRetries:      cfg.maxRetries,
+		system:          "openai_compatible",
 	}
 }
 
@@ -106,12 +110,16 @@ func (p *OpenAICompatProvider) doPost(ctx context.Context, path string, body int
 }
 
 func (p *OpenAICompatProvider) doPostAt(ctx context.Context, base, path string, body interface{}) (resp *http.Response, started time.Time, err error) {
+	return p.doPostAtWithKey(ctx, base, path, p.apiKey, body)
+}
+
+func (p *OpenAICompatProvider) doPostAtWithKey(ctx context.Context, base, path, key string, body interface{}) (resp *http.Response, started time.Time, err error) {
 	started = time.Now()
 	b, err := json.Marshal(body)
 	if err != nil {
 		return nil, started, err
 	}
-	resp, err = retryDo(ctx, p.client, strings.TrimRight(base, "/")+path, p.apiKey, b, p.maxRetries)
+	resp, err = retryDo(ctx, p.client, strings.TrimRight(base, "/")+path, key, b, p.maxRetries)
 	return resp, started, err
 }
 
@@ -226,9 +234,13 @@ func usageFromRaw(prompt, completion int) *TokenUsage {
 	return &TokenUsage{PromptTokens: prompt, CompletionTokens: completion}
 }
 
+// openAIEmbeddingRequest carries either a single input string or a batch
+// (Input any) plus the optional dimensions pin for models like
+// text-embedding-v4.
 type openAIEmbeddingRequest struct {
-	Model string `json:"model"`
-	Input string `json:"input"`
+	Model      string `json:"model"`
+	Input      any    `json:"input"`
+	Dimensions int    `json:"dimensions,omitempty"`
 }
 
 type openAIEmbeddingResponse struct {
@@ -238,14 +250,60 @@ type openAIEmbeddingResponse struct {
 }
 
 func (p *OpenAICompatProvider) GetEmbedding(ctx context.Context, text string) (embedding []float32, err error) {
+	// Single-text calls keep the historical string wire format: the legacy
+	// embo-01/MiniMax path is live in production and its contract must not
+	// silently become an array.
 	ctx, span := startLLMSpan(ctx, "embedding", p.embedModel, p.system, 0)
 	defer func() { finishLLMSpan(span, err, nil) }()
-	payload := openAIEmbeddingRequest{Model: p.embedModel, Input: text}
+	payload := openAIEmbeddingRequest{Model: p.embedModel, Input: text, Dimensions: p.embedDimensions}
+	vectors, err := p.embedRequest(ctx, payload, 1)
+	if err != nil {
+		return nil, err
+	}
+	return vectors[0], nil
+}
+
+// embeddingBatchCap is the per-request input cap of DashScope
+// text-embedding-v4 (10 texts / 33K tokens). The token-side cap is owned by
+// callers chunking their texts; the item-side cap is enforced here so no
+// caller can blow the API limit by accident.
+const embeddingBatchCap = 10
+
+// GetEmbeddings embeds a list of texts over the OpenAI-compatible
+// /v1/embeddings endpoint, splitting into subrequests of at most
+// embeddingBatchCap items. Ordering of the returned vectors matches the input
+// texts exactly.
+func (p *OpenAICompatProvider) GetEmbeddings(ctx context.Context, texts []string) (embeddings [][]float32, err error) {
+	if len(texts) == 0 {
+		return nil, nil
+	}
+	ctx, span := startLLMSpan(ctx, "embedding", p.embedModel, p.system, 0)
+	defer func() { finishLLMSpan(span, err, nil) }()
+
+	embeddings = make([][]float32, 0, len(texts))
+	for start := 0; start < len(texts); start += embeddingBatchCap {
+		end := start + embeddingBatchCap
+		if end > len(texts) {
+			end = len(texts)
+		}
+		payload := openAIEmbeddingRequest{Model: p.embedModel, Input: texts[start:end], Dimensions: p.embedDimensions}
+		batch, batchErr := p.embedRequest(ctx, payload, end-start)
+		if batchErr != nil {
+			return nil, batchErr
+		}
+		embeddings = append(embeddings, batch...)
+	}
+	return embeddings, nil
+}
+
+// embedRequest performs one /v1/embeddings HTTP call and validates that the
+// provider returned exactly expect vectors.
+func (p *OpenAICompatProvider) embedRequest(ctx context.Context, payload openAIEmbeddingRequest, expect int) ([][]float32, error) {
 	path := "/v1/embeddings"
 	if p.embedGroupID != "" {
 		path += "?GroupId=" + url.QueryEscape(p.embedGroupID)
 	}
-	resp, started, err := p.doPostAt(ctx, p.embedAPIBase, path, payload)
+	resp, started, err := p.doPostAtWithKey(ctx, p.embedAPIBase, path, p.embedAPIKey, payload)
 	defer func() { observability.ObserveExternalCall("llm", started, err) }()
 	if err != nil {
 		return nil, err
@@ -258,8 +316,15 @@ func (p *OpenAICompatProvider) GetEmbedding(ctx context.Context, text string) (e
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
-	if len(result.Data) == 0 {
-		return nil, fmt.Errorf("no embeddings in response")
+	if len(result.Data) != expect {
+		return nil, fmt.Errorf("embedding count mismatch: sent %d, got %d", expect, len(result.Data))
 	}
-	return result.Data[0].Embedding, nil
+	vectors := make([][]float32, len(result.Data))
+	for i, item := range result.Data {
+		if len(item.Embedding) == 0 {
+			return nil, fmt.Errorf("empty embedding at index %d", i)
+		}
+		vectors[i] = item.Embedding
+	}
+	return vectors, nil
 }

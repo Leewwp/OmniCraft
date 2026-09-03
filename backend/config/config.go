@@ -429,6 +429,7 @@ type AgentConfig struct {
 	EmbeddingModel        string `mapstructure:"embedding_model"`
 	EmbeddingAPIBase      string `mapstructure:"embedding_api_base"`
 	EmbeddingGroupID      string `mapstructure:"embedding_group_id" json:"-"`
+	EmbeddingAPIKey       string `mapstructure:"embedding_api_key" json:"-"`
 	EmbeddingDimensions   int    `mapstructure:"embedding_dimensions"`
 	RateLimitPerDay       int    `mapstructure:"rate_limit_per_day"`
 	RateLimitPerMinute    int    `mapstructure:"rate_limit_per_minute"`
@@ -765,6 +766,9 @@ func OverrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("AGENT_EMBEDDING_API_BASE"); v != "" {
 		cfg.Agent.EmbeddingAPIBase = v
+	}
+	if v := os.Getenv("AGENT_EMBEDDING_API_KEY"); v != "" {
+		cfg.Agent.EmbeddingAPIKey = v
 	}
 	if v := os.Getenv("AGENT_EMBEDDING_GROUP_ID"); v != "" {
 		cfg.Agent.EmbeddingGroupID = v

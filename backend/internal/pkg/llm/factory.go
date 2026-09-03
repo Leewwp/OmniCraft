@@ -15,6 +15,13 @@ func NewProvider(cfg *config.Config) LLMProvider {
 	apiBase := cfg.Agent.LLMAPIBase
 	model := cfg.Agent.LLMModel
 	embedModel := cfg.Agent.EmbeddingModel
+	// Embedding credential defaults to the chat key unless a dedicated
+	// embedding key is configured (DashScope embedding next to a different
+	// chat vendor).
+	embedAPIKey := cfg.Agent.EmbeddingAPIKey
+	if strings.TrimSpace(embedAPIKey) == "" {
+		embedAPIKey = apiKey
+	}
 	timeout := time.Duration(cfg.Agent.ProviderTimeoutSec) * time.Second
 	if timeout <= 0 {
 		timeout = 60 * time.Second
@@ -25,6 +32,8 @@ func NewProvider(cfg *config.Config) LLMProvider {
 		WithMaxRetries(cfg.Agent.ProviderMaxRetries),
 		WithEmbeddingAPIBase(cfg.Agent.EmbeddingAPIBase),
 		WithEmbeddingGroupID(cfg.Agent.EmbeddingGroupID),
+		WithEmbeddingAPIKey(embedAPIKey),
+		WithEmbeddingDimensions(cfg.Agent.EmbeddingDimensions),
 	)
 }
 
