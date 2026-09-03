@@ -84,6 +84,7 @@ type AgentToolOutcome struct {
 	Suggest          *UploadAssistResult  `json:"suggest,omitempty"`
 	Degraded         bool                 `json:"-"`
 	RetrievalSources map[string]string    `json:"-"`
+	ExpandedQueries  []string             `json:"-"`
 }
 
 // AgentToolPolicy exposes the config-driven budget used to stop the tool loop
@@ -273,6 +274,7 @@ func (s *AgentService) toolSearchContent(ctx context.Context, rawArgs json.RawMe
 			Search:           summaries,
 			Degraded:         result.Degraded != "",
 			RetrievalSources: retrievalSourceMap(summaries),
+			ExpandedQueries:  result.ExpandedQueries,
 		}, nil
 	}
 	if s.vectorSearch == nil || s.embeddingRepo == nil {

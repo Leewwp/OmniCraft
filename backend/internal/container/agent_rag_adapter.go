@@ -36,5 +36,5 @@ func (r *agentRAGRetriever) Retrieve(ctx context.Context, query string, viewerID
 			Source:          candidate.Source,
 		})
 	}
-	return service.AgentRetrievalResult{Candidates: candidates, Degraded: result.Degraded}, nil
+	return service.AgentRetrievalResult{Candidates: candidates, Degraded: result.Degraded, ExpandedQueries: result.ExpandedQueries}, nil
 }

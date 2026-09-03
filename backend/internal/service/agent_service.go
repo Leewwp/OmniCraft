@@ -78,6 +78,9 @@ type AgentRetrievalCandidate struct {
 type AgentRetrievalResult struct {
 	Candidates []AgentRetrievalCandidate
 	Degraded   string
+	// ExpandedQueries mirrors the query-expansion terms used by the hybrid
+	// pipeline (A-03), for display in the tool step panel.
+	ExpandedQueries []string
 }
 
 type AgentContentRetriever interface {
@@ -342,6 +345,9 @@ type ContentSummary struct {
 type NLSearchResult struct {
 	Results  []ContentSummary `json:"results"`
 	Degraded bool             `json:"degraded"`
+	// ExpandedQueries lists the query-expansion terms used for this search
+	// (A-03); omitted when expansion is disabled or produced nothing.
+	ExpandedQueries []string `json:"expanded_queries,omitempty"`
 }
 
 func (s *AgentService) NLSearch(ctx context.Context, query string, viewerID int64) (*NLSearchResult, error) {
@@ -357,8 +363,9 @@ func (s *AgentService) NLSearch(ctx context.Context, query string, viewerID int6
 			return nil, err
 		}
 		return &NLSearchResult{
-			Results:  retrievalSummaries(result.Candidates),
-			Degraded: result.Degraded != "",
+			Results:         retrievalSummaries(result.Candidates),
+			Degraded:        result.Degraded != "",
+			ExpandedQueries: result.ExpandedQueries,
 		}, nil
 	}
 
