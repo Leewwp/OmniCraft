@@ -1,10 +1,12 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ContentTypeGrid, type ContentType } from "@/components/studio/ContentTypeGrid";
+import { ContentTypeGrid, applyTypeOrder, type ContentType } from "@/components/studio/ContentTypeGrid";
 import { PublishForm, type PrefillWarning } from "@/components/studio/PublishForm";
+import { fetchPublicConfig } from "@/lib/public-config";
+import { silentError } from "@/lib/error-handler";
 
 const CONTENT_TYPE_KEYS = [
   { value: "image", icon: "🖼️" },
@@ -51,11 +53,27 @@ function resolvePrefill(searchParams: URLSearchParams): {
 
 function PublishFanworkClient() {
   const [selectedType, setSelectedType] = useState<string | null>(null);
+  /* T25：类型清单与顺序跟随 /config/public 下发的运营配置 */
+  const [typeOrder, setTypeOrder] = useState<string[] | null>(null);
   const t = useTranslations("studio.publish");
   const searchParams = useSearchParams();
   const prefill = resolvePrefill(searchParams);
 
-  const contentTypes: ContentType[] = CONTENT_TYPE_KEYS.map(({ value, icon }) => ({
+  useEffect(() => {
+    let active = true;
+    fetchPublicConfig()
+      .then((config) => {
+        if (active) setTypeOrder(config.publish?.type_order_fanwork ?? null);
+      })
+      .catch((error) => {
+        silentError(error, { component: "PublishFanworkPage", action: "fetchTypeOrder" });
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const contentTypes: ContentType[] = applyTypeOrder(CONTENT_TYPE_KEYS, typeOrder).map(({ value, icon }) => ({
     value,
     icon,
     label: t(`typeLabel.${value}`),
