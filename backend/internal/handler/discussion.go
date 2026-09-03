@@ -108,6 +108,17 @@ func (h *DiscussionHandler) GetDiscussion(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	// T46（FIX-29b）：随顶层一页带回其子回复（两级展示），total 仍计顶层。
+	parentIDs := make([]int64, 0, len(comments))
+	for _, comment := range comments {
+		parentIDs = append(parentIDs, comment.ID)
+	}
+	children, err := h.socialRepo.ListCommentsByParentIDs(parentIDs)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	comments = append(comments, children...)
 	h.displaySigner.DecorateDiscussion(d)
 	h.displaySigner.DecorateComments(comments)
 	c.JSON(http.StatusOK, gin.H{"discussion": d, "comments": comments, "total": total})

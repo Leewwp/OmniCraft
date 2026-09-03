@@ -10,7 +10,7 @@ import {
   normalizeSearchFilters,
   type SearchFilterConfig,
 } from "@/lib/search-filters";
-import { SearchAgentInput } from "@/components/agent/SearchAgentInput";
+import { GlobalSearchInput } from "@/components/search/GlobalSearchInput";
 import { AgentFeatureGate } from "@/components/agent/AgentFeatureGate";
 import { FacetedSearchSidebar } from "@/components/layout/FacetedSearchSidebar";
 import { ContentCard, type ContentCardData } from "@/components/content/ContentCard";
@@ -19,7 +19,8 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TagBadge } from "@/components/ui/TagBadge";
-import { Bookmark, Grid3X3, List, Search, SlidersHorizontal, User, X } from "lucide-react";
+import { Bookmark, Grid3X3, List, Search, SlidersHorizontal, Sparkles, User, X } from "lucide-react";
+import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { silentError } from "@/lib/error-handler";
@@ -121,15 +122,15 @@ export default function SearchPage() {
     }
   }, [t]);
 
-  function handleSearch(r: Record<string, unknown>[], q: string) {
+  /* 搜索页主体输入 keyword-only（A-07）：提交执行站内内容搜索；自然语言问
+   * 答通过「问 AI 助手」入口进入 /agent 工作台（带当前 query 预填）。
+   * 未登录 / feature flag 关闭不改变关键词搜索能力，也不渲染 Agent 入口。 */
+  function handleSearchSubmit(q: string) {
     setQuery(q);
-    if (r.length > 0) {
-      setResults(normalizeContentList(r));
-    } else {
-      // Fallback to keyword search
-      void doSearch(q, filterConfig);
-    }
+    void doSearch(q, filterConfig);
   }
+
+  const agentEntryHref = query.trim() ? `/agent?q=${encodeURIComponent(query.trim())}` : "/agent";
 
   function handleFilterChange(config: SearchFilterConfig) {
     const nextConfig = normalizeSearchFilters(config);
@@ -156,37 +157,29 @@ export default function SearchPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-6 px-4 py-6">
-      {/* Top: Search Input */}
-      <div className="rounded-md border border-border bg-card p-4 ">
-        <AgentFeatureGate
-          capability="webAgent"
-          fallback={
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void doSearch(query, filterConfig);
-                  }}
-                  placeholder={t("agent.searchKeywordPlaceholder")}
-                  className="w-full rounded-md border border-border bg-background py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                />
-              </div>
-              <Button
-                size="sm"
-                onClick={() => void doSearch(query, filterConfig)}
-                disabled={!query.trim()}
-                aria-label={t("discussion.search")}
-              >
-                <Search className="h-4 w-4" />
-              </Button>
-            </div>
-          }
-        >
-          <SearchAgentInput onResults={handleSearch} />
+      {/* Top: Search Input (keyword-only, A-07) + Agent 入口（门控） */}
+      <div className="rounded-md border border-border bg-card p-4">
+        <GlobalSearchInput
+          size="lg"
+          value={query}
+          onValueChange={setQuery}
+          onSubmit={handleSearchSubmit}
+          placeholder={t("agent.searchKeywordPlaceholder")}
+          submitLabel={t("discussion.search")}
+          isLoading={loading}
+        />
+        <AgentFeatureGate capability="webAgent" fallback={null}>
+          <div className="mt-3 flex items-center gap-2 border-t border-border pt-3 text-sm">
+            <Sparkles className="h-4 w-4 shrink-0 text-accent-emphasis" aria-hidden="true" />
+            <span className="text-muted-foreground">{t("agent.searchAgentEntryHint")}</span>
+            <Link
+              href={agentEntryHref}
+              className="inline-flex items-center gap-1 font-medium text-accent-emphasis underline-offset-2 hover:underline focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {t("agent.searchAgentEntryCta")}
+              <span aria-hidden="true">→</span>
+            </Link>
+          </div>
         </AgentFeatureGate>
       </div>
 
