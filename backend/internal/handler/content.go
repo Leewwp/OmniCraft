@@ -115,6 +115,11 @@ func (h *ContentHandler) GenerateOSSToken(c *gin.Context) {
 	if err != nil {
 		var validationErr *service.UploadValidationError
 		if errors.As(err, &validationErr) {
+			// T25（FIX-41）：超限走专用码（前端出专属文案），其余参数错误保持通用码。
+			if validationErr.Code != "" {
+				response.Error(c, http.StatusBadRequest, validationErr.Code, validationErr.Message)
+				return
+			}
 			response.ValidationError(c, "invalid request parameters")
 			return
 		}

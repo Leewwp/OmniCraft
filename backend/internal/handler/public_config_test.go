@@ -43,6 +43,18 @@ func setupPublicConfigTestRouter(t *testing.T) *gin.Engine {
 			VideoGalleryMinItems: 1,
 			VideoGalleryMaxItems: 3,
 		},
+		Limits: config.LimitsConfig{
+			VideoMaxMB:      300,
+			VideoMaxSec:     180,
+			ImageMaxMB:      20,
+			TextMaxMB:       10,
+			ModMaxMB:        500,
+			SheetMusicMaxMB: 50,
+		},
+		Publish: config.PublishConfig{
+			TypeOrderOriginal: []string{"image", "article", "video"},
+			TypeOrderFanwork:  []string{"mod", "prompt", "image"},
+		},
 		Collaboration: config.CollaborationConfig{
 			InviteDailyLimit:       20,
 			InviteExpireDays:       7,
@@ -113,9 +125,6 @@ func TestPublicConfigAllowlist(t *testing.T) {
 		}
 	}
 
-	if _, has := resp["limits"]; has {
-		t.Error("public config must not expose 'limits'")
-	}
 	if _, has := resp["reputation"]; has {
 		t.Error("public config must not expose 'reputation'")
 	}
@@ -253,5 +262,57 @@ func TestPublicConfigNormalizesOmittedGalleryLimits(t *testing.T) {
 	}
 	if resp.Upload != (PublicUploadDTO{ImageGalleryMinItems: 2, ImageGalleryMaxItems: 9, VideoGalleryMinItems: 1, VideoGalleryMaxItems: 3}) {
 		t.Fatalf("upload limits = %#v, want specification defaults", resp.Upload)
+	}
+}
+
+// T25（FIX-41）：发布类型顺序与上传大小上限随公开配置下发（脱敏数值，
+// 前端动态消费，admin 改配置无需发版）。
+func TestPublicConfigExposesPublishTypeOrderAndUploadCaps(t *testing.T) {
+	r := setupPublicConfigTestRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/config/public", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Publish struct {
+			TypeOrderOriginal []string `json:"type_order_original"`
+			TypeOrderFanwork  []string `json:"type_order_fanwork"`
+		} `json:"publish"`
+		Limits map[string]int `json:"limits"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if len(resp.Publish.TypeOrderOriginal) != 3 || resp.Publish.TypeOrderOriginal[0] != "image" {
+		t.Errorf("publish.type_order_original = %v, want config order", resp.Publish.TypeOrderOriginal)
+	}
+	if len(resp.Publish.TypeOrderFanwork) != 3 || resp.Publish.TypeOrderFanwork[0] != "mod" {
+		t.Errorf("publish.type_order_fanwork = %v, want config order", resp.Publish.TypeOrderFanwork)
+	}
+
+	wantCaps := map[string]int{
+		"video_max_mb":      300,
+		"image_max_mb":      20,
+		"text_max_mb":       10,
+		"mod_max_mb":        500,
+		"sheet_music_max_mb": 50,
+	}
+	if len(resp.Limits) != len(wantCaps) {
+		t.Fatalf("limits object has %d keys %v, want exactly the %d upload caps", len(resp.Limits), resp.Limits, len(wantCaps))
+	}
+	for key, wantValue := range wantCaps {
+		got, has := resp.Limits[key]
+		if !has {
+			t.Errorf("limits must contain '%s'", key)
+			continue
+		}
+		if got != wantValue {
+			t.Errorf("limits.%s = %d, want %d", key, got, wantValue)
+		}
 	}
 }

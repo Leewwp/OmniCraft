@@ -112,6 +112,34 @@ func TestGeneratePresignUploadURLKeepsOtherTypesOnTheirOwnContract(t *testing.T)
 	}
 }
 
+// T25（FIX-41）：超限必须带专用码 FILE_TOO_LARGE（前端按码出专属文案），
+// 其他参数类错误保持无码（handler 兜底 VALIDATION_ERROR）。
+func TestGeneratePresignUploadURLOversizeCarriesFileTooLargeCode(t *testing.T) {
+	svc := newTestOSSService(t)
+
+	_, err := svc.GeneratePresignUploadURL(t.Context(), PresignUploadRequest{
+		FileName: "huge.mp4", FileType: "video", MimeType: "video/mp4", FileSize: 301 * 1024 * 1024,
+	}, 42)
+	validation, ok := err.(*UploadValidationError)
+	if !ok {
+		t.Fatalf("oversize presign err = %T, want *UploadValidationError", err)
+	}
+	if validation.Code != "FILE_TOO_LARGE" {
+		t.Fatalf("oversize code = %q, want FILE_TOO_LARGE", validation.Code)
+	}
+
+	_, err = svc.GeneratePresignUploadURL(t.Context(), PresignUploadRequest{
+		FileName: "face.bin", FileType: "image", MimeType: "application/octet-stream", FileSize: 1024,
+	}, 42)
+	validation, ok = err.(*UploadValidationError)
+	if !ok {
+		t.Fatalf("mime presign err = %T, want *UploadValidationError", err)
+	}
+	if validation.Code != "" {
+		t.Fatalf("non-size validation code = %q, want empty (generic VALIDATION_ERROR)", validation.Code)
+	}
+}
+
 // newTestOSSService builds an OSSService with a locally-constructed client:
 // NewOSSClient only assembles the SDK objects (no network I/O), so presign
 // validation logic is fully exercisable without real OSS credentials.

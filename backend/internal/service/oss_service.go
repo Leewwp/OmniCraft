@@ -23,8 +23,13 @@ import (
 
 var ErrOSSNotConfigured = errors.New("oss config is incomplete")
 
+// UploadValidationError marks presign requests that fail input validation.
+// Code carries a machine-readable business code the handler forwards to the
+// client when set (T25: oversize → FILE_TOO_LARGE); empty means a generic
+// VALIDATION_ERROR.
 type UploadValidationError struct {
 	Message string
+	Code    string
 }
 
 func (e *UploadValidationError) Error() string {
@@ -293,7 +298,7 @@ func (s *OSSService) validateUploadByType(fileType, mimeType string, fileSize in
 
 	limitBytes := int64(limitMB) * 1024 * 1024
 	if fileSize > limitBytes {
-		return &UploadValidationError{Message: fmt.Sprintf("file size exceeds %dMB", limitMB)}
+		return &UploadValidationError{Code: "FILE_TOO_LARGE", Message: fmt.Sprintf("file size exceeds %dMB", limitMB)}
 	}
 
 	return nil
