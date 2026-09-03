@@ -1,3 +1,49 @@
+## [2026-09-03] - Task A-07 (#289): 搜索页 Agent 入口与新工作台统一（✅ 已收口：PR #306 → a0fc7da，CI 五门全绿 squash 合并 + GitHub CLOSED；道 2 前端清票道执行）
+
+### What was done:
+- `GlobalSearchInput.tsx` 扩展可选受控 props（value/onValueChange/onSubmit/isLoading/disabled/placeholder/submitLabel，对齐 ui-spec Props 接口）+ useId 修复同屏双实例 listbox id 冲突；Header 非受控行为不变。
+- 搜索页 keyword-only 化：删 AgentFeatureGate 双路径，退役删除 `SearchAgentInput.tsx`（旧 `/api/v1/agent/search` 调用与自有降级文案一并移除）；NLSearch 后端已无前端消费者，开清理票 #309。
+- 门控「问 AI 助手」入口行带当前 query 跳 `/agent?q=`；`AgentWorkspace` 新增 `initialQuery` 首挂载预填 composer；与工作台（A-06）no_evidence/degraded「跳回搜索」CTA 形成闭环——降级一致性由工作台单一承载（反冗余）。
+- i18n zh/en：删 5 个旧键增 2 个新键；新增测试 `search-agent-entry.test.tsx` 9 例。
+
+### Testing:
+- 单测 479/479；`npm run build` + `npm run lint`（tsc）绿；contracts 全量 84/84（t72 教训覆盖）。
+- 隔离栈浏览器 rig 12/12（pg 5433/redis 6380/backend 8083/前端 3100，DashScope 真 LLM，无头 Chromium）：匿名无入口无切换、建议中缀命中（T21 语义保持）、入口 href 带 q、composer 预填、degraded 统一展示 + CTA 回搜闭环、移动视口。截图 `screenshots/a07-*`×7。
+
+### Notes:
+- 分支 feat/a07-search-agent-entry（worktree OmniCraft-wt-l2，基线 ca8a589），道 2 双车道并行模式（道 1 同时做语料注入）。
+- 遗留发现：ChatWindow 坏 i18n key（见下条 #308）；`/api/v1/agent/search` 无消费者（#309）。
+
+
+## [2026-09-03] - Task T35 (#255): 用户主页「发私信」入口（✅ 已收口：PR #307 → acaeba0，CI 五门全绿 squash 合并 + GitHub CLOSED；道 2 顺带收口）
+
+### What was done:
+- 新增 `MessageComposeButton`（他人主页与 FollowButton 并排；未登录跳 /login；禁言禁用 + 原因透出）；撰写弹窗（ConfirmModal 同款焦点管理）走既有 `POST /messages`——首条天然放行，guard 零放宽；DM_REPLY_REQUIRED/CONTENT_BLOCKED 行内本地化提示。
+- i18n 增 `user.sendMessage` + `messages.compose.*`；新增测试 `message-compose-entry.test.tsx` 7 例。
+
+### Testing:
+- 单测 486/486；build/lint 绿；contracts 84/84 基线保持。
+- 隔离栈 rig 10/10：首条 HTTP 201、/messages 会话创建、连续第二条 HTTP 403 +「对方尚未回复」行内提示、匿名跳登录、own 主页隐藏。截图 `screenshots/t35-*`×4。
+
+### Notes:
+- 纯前端零后端 diff（票面要求）。
+- dev StrictMode 并发 refresh 触发后端重放防护致跨 full-load 会话 401（AuthContext refresh 无单飞，FIX-32 相邻域既有缺陷，非本票范围）。
+
+
+## [2026-09-03] - 修复: ChatWindow DM_REPLY_REQUIRED 坏 i18n key（PR #308 → 43eb31f，CI 五门全绿；T35 收口时发现的既有缺陷）
+
+### What was done:
+- `ChatWindow.tsx` DM_REPLY_REQUIRED 403 toast 由不存在的 `messages.chat.replyRequired` 改指真实 `messages.dmReplyRequired`（与 T35 的 MessageComposeButton 同一 canonical key）。
+- 根因 = mock 漂移：`messages-components.test.tsx` 与 `collab-invite-card.test.tsx` 夹具自行发明了生产目录不存在的 `chat.replyRequired` 条目，而断言断的是同文案顶层 key——测试恒绿、生产渲染坏 key。两处夹具同步删除虚构条目。
+
+### Testing:
+- 两测试文件 13/13 + 12/12 绿（现经真实 key 渲染）；tsc 绿；PR #308 五门全绿。
+
+### Notes:
+- 第 7 段段边界 verify --full 通过（2026-09-03）：全部门 + mocked contracts 84/84——contracts 相因道 1 占用 3001 保留端口分两次补齐（编排会话协调道 1 挪端口后重跑）。
+
+
+
 ## [2026-09-03] - main CI 前端单测闪断加固第三轮（copy 轮询补点 + SeriesNav 焦点落位）
 
 ### What was done:

@@ -26,8 +26,8 @@
 
 ### 1.1 当前执行 checkpoint（2026-09-02，A-02 收口后）
 
-- 固定 goal 范围共 **69 个执行单元**（2026-09-02 修订一 +1）：T01–T55（55）+ U-01~U-05（5）+ A-01~A-07（7）+ #290（1）+ 语料 v2 #291（1）。其中 **26 个已完成并在 GitHub 以 `CLOSED/COMPLETED` 收口**：T01~T09（9）、T17~T22（6）、U-01~U-05（5）、#290（1）、A-01/A-02/A-03/A-05/A-06（5）；剩余 43 个，#276/#282 仍为协调父票不计入。
-- **第 3、4、5 段已全部收口**；第 6 段实现票全部完成：A-01（fd4c33e）+ A-02（8517032）+ A-05（6cef43b）+ A-03（619cda9，段边界 verify --full 81/81 通过 2026-09-03）。第 6 段余下 = **语料 v2（#291，blocked_by 语料文本外部输入，未就绪则保持 OPEN 跳过）→ A-04（#286，blocked_by #291）**；两者均外部输入门控时按阻塞协议跳过。第 7 段进行中：T21（#241，ac4f393）+ A-06（#288，5010ac7，含 t72 回归修复 f898a08）完成，下一张 = **A-07（#289 搜索页 Agent 入口统一，前置 A-06 已满足）**；A-07 收口后跑段边界 verify --full。
+- 固定 goal 范围共 **69 个执行单元**（2026-09-02 修订一 +1）：T01–T55（55）+ U-01~U-05（5）+ A-01~A-07（7）+ #290（1）+ 语料 v2 #291（1）。其中 **28 个已完成并在 GitHub 以 `CLOSED/COMPLETED` 收口**：T01~T09（9）、T17~T22（6）、T35（1）、U-01~U-05（5）、#290（1）、A-01/A-02/A-03/A-05/A-06/A-07（6）；剩余 41 个，#276/#282 仍为协调父票不计入。
+- **第 3、4、5 段已全部收口**；第 6 段实现票全部完成：A-01（fd4c33e）+ A-02（8517032）+ A-05（6cef43b）+ A-03（619cda9，段边界 verify --full 81/81 通过 2026-09-03）。第 6 段余下 = **语料 v2（#291，语料文本已于 2026-09-03 生成就绪 1600/1600 并进入本地注入执行）→ A-04（#286，blocked_by #291）**。**第 7 段已完成**（T21 ac4f393 + A-06 5010ac7 含 t72 回归修复 f898a08 + A-07 a0fc7da；段边界 verify --full 通过 2026-09-03——全部门 + mocked contracts 84/84，contracts 相因并行注入会话占用 3001 保留端口分两次补齐）。**下一前沿 = 第 8 段长尾 T 票**（道 2 前端清票道已顺带完成 D 批 T35 acaeba0）；#291 注入收口后 A-04 解锁。
 - **A-06 前置已全部满足**：A-01 ✅ + A-02 ✅ + U-02 ✅ + T18/19/20 ✅——工作台 DeepSeek 化可随时开工（第 7 段）。
 - 用户 checkpoint 摘要中的“14/45”不是本总序固定范围的分母；后续 agent 以本节 69/22/47 和 GitHub 实际状态计数，不据此提前宣称总序或投递门槛完成。
 
@@ -80,19 +80,19 @@
 14. **A-02（#284）** SSE 契约 v2（真流式 + 思考块 + 工具步骤事件；同步 web-agent-v0.4-mvp.md；继承 T19 行缓冲语义） ✅ 2026-09-02 完成（8517032，light+TDD：真流式逐段转发（删除轮末整段）+ ChatDelta.Thinking 双通道（MiniMax 标签分流 thinkSplitter/openai_compat reasoning_content）+ think_delta 仅展示层（phase 标记行落库）+ 工具步骤 args_summary/hits/duration_ms + done.message_id；no_evidence 语义升级为「正文可流出、done 终态裁决」；v2 五测先红后绿 + live 计时（首 delta 448ms≪全程 2.25s、15 delta 渐次、message_id=42）；web-agent-v0.4-mvp.md v2 契约段定稿）
 15. **A-05（#287）** 护栏补口（chat 输入前置 Green + 输出事后异步审核） ✅ 2026-09-03 完成（6cef43b，PR #294，CI project-gate 五门全绿 squash 合并；ModerateChatInput 复用 RunModerationGate A4 语义——422/503/本地 fail-open，门在配额预留与开流之前；scheduleOutputModeration GoSafe 异步标记 tool_calls={moderation:blocked} 原文留库；历史 DTO 脱敏 + 前端占位提示；live curl 8099 qwen-plus 真流式实测 + psql 模拟标记脱敏验证；service 11 例 + handler 4 例）
 16. **A-03（#285）** 检索管线升级（v4@1536 零 DDL + hybrid on Postgres + 查询扩展 + qwen3-rerank 三开关） ✅ 2026-09-03 完成（619cda9，PR #296；四批次：llm 基座（批量嵌入 10/批+dimensions+独立 key+双 rerank 客户端降级链）→ rag 管线（多列表 RRF+扩展器+rerank seam+批量 chunk embedder）→ 三开关配置+rerank 工厂+jieba 词法适配器（SearchRAGChunks 改消费 041 现役 search_vector，此前运行时现算 simple 中文分词失效）→ 扩展词透出工具步骤；单测 26 例+全量门+段边界 verify --full 81/81 EXIT=0；真实冒烟 v4 重嵌入 169/169+扩展词真实产出+hybrid 无降级+相关性实测；三开关默认 off 留 A-04 裁决）
-17. **语料 v2（CORPUS-01，#291）** 合成语料注入与 golden set 冻结（blocked_by A-03 + 语料文本外部输入；spec = docs/working/2026-09-02-corpus-v2-seed-spec.md；本地注入走真实发布管线与审核流转；golden set 需含 #290 IP 内搜索分层；生产种子 2k–5k 为人工执行清单，不属本 goal——红线 10）
+17. **语料 v2（CORPUS-01，#291）** 合成语料注入与 golden set 冻结（blocked_by A-03 + 语料文本外部输入；spec = docs/working/2026-09-02-corpus-v2-seed-spec.md；本地注入走真实发布管线与审核流转；golden set 需含 #290 IP 内搜索分层；生产种子 2k–5k 为人工执行清单，不属本 goal——红线 10）——**2026-09-03：语料文本已生成（1600/1600，artifacts/corpus-v2/，checksums 入 manifest 未冻结），本地注入与 golden set 草稿执行中；golden set 冻结须用户复核（finalize_in_goal=false）**
 18. **A-04（#286）** 评测消融与门禁（blocked_by A-03 + 语料 v2 #291；DashScope key 已就绪；语料未冻结时实现+mock 管线先行、真实消融结论标注待补）
 
 ### 第 7 段 重构二前端收口
 19. **T21（#241）** 搜索建议 + Users tab + 图标语义（先于 A-07 稳住搜索页功能面） ✅ 2026-09-03 完成（ac4f393，PR #298；建议下拉 contains 匹配 + 搜索页 Users tab（/users/search 真实数据）+ URL q 取数修复先存缺陷 + 图标语义；无头 Chromium 真实事件复验三项全过 + 截图 t21-*；中途水合副本现象根因 = i18n 键丢失已修）。**回归修复注记（2026-09-03，f898a08，PR #300）**：T21 的 combobox 语义使 t72 契约探针抓错元素（contracts 80/81→NaN）；探针改经 open listbox aria-controls 锚定 + 防回归断言，contracts 恢复 81/81
 20. **A-06（#288）** 工作台 DeepSeek 化（前置已全部满足：A-01/A-02/U-02/T18/T19/T20；吸收 U-04 剔除的工作台 sweep 范围；对比度与行缓冲语义不得回退） ✅ 2026-09-03 完成（5010ac7，PR #302，CI project-gate 五门全绿 squash 合并；SSE v2 消费层/续写契约请求体切换（chat 恢复可用）/三层生成形态/侧边栏 ⋯ 三交互+置顶分组/行内 [1][2] 锚定（服务端提示词一行 R2-Q9）/markdown 高亮复制外链安全/消息复制重新生成/输入自动增高/空态 chips/i18n zh/en/ui-spec 章节更新/双渲染修复；单测 470 绿 + contracts 全量 84/84 + 后端 build/vet/test 全绿 + 浏览器真跑 17/17（DashScope 真流式逐字/grounded 引用/[1] 锚定聚焦高亮/详情浮层/复制剪贴板实文/重命名/置顶/删除/自动增高/暗色/窄屏 0 溢出；截图 a06-* 8 张）；已知边界：非 hybrid 检索路径摘要缺 chunk 字段→纯 search 轮 no_evidence，A-04 范围不本票修）
-21. **A-07（#289）** 搜索页 Agent 入口统一（blocked_by A-06）
+21. **A-07（#289）** 搜索页 Agent 入口统一（blocked_by A-06） ✅ 2026-09-03 完成（a0fc7da，PR #306，CI 五门全绿 squash 合并；搜索页 keyword-only 受控 GlobalSearchInput（扩展受控 props + useId 修同屏双实例 listbox id 冲突）+ 退役删除 SearchAgentInput（旧 /agent/search 调用与自有降级文案一并移除；NLSearch 下线清理票 #309）+ 门控「问 AI 助手」入口带 query 跳 /agent?q= + AgentWorkspace initialQuery 预填，与工作台 no_evidence/degraded「跳回搜索」CTA 成闭环；单测 479 绿 + contracts 84/84 + 隔离栈浏览器 rig 12/12 + 截图 a07-*×7；道 2 前端清票道执行）——**第 7 段完成**
 
 ### 第 8 段 审计长尾（批次 B→C→D→E，票内 DAG 不变）
 按 fix-plan §1.3 总序 + 票面 Blocked by 执行剩余 T 票：
 - **B 审核链路**：T29（#249 申诉五步）、T30（#250 注销软删除，触及迁移按 heavy）、T31（#251）、T32（#252）、T33（#253）、T10（#230）、T11（#231）→ T41（#261）→ T42（#262）→ T43（#263）→ T44（#264）
 - **C PR/IP 协作**：T13（#233）→ T14（#234）→ {T48（#268）、T49（#269）、T50（#270）、T51（#271）}；T12（#232）、T15（#235）、T16（#236）→ T52（#272）
-- **D 触达反馈**：T45（#265，前置 T03 已在第 3 段完成）→ T46（#266）→ {T47（#267）、T54（#274）}；T23（#243）、T25（#245）、T35（#255）、T36（#256）、T53（#273）、T55（#275）
+- **D 触达反馈**：T45（#265，前置 T03 已在第 3 段完成）→ T46（#266）→ {T47（#267）、T54（#274）}；T23（#243）、T25（#245）、~~T35（#255）~~ ✅ 2026-09-03 完成（acaeba0，PR #307：用户主页 MessageComposeButton 发起首条私信，纯前端零后端 diff；单测 486 绿 + 隔离栈 rig 10/10 含首条 201/连续第二条 403 行内提示；道 2 顺带收口；遗留 ChatWindow 坏 i18n key 已由 PR #308 修复、NLSearch 无消费者开清理票 #309）、T36（#256）、T53（#273）、T55（#275）
 - **E admin/判官/打磨**：T26（#246）、T27（#247）、T28（#248）、T34（#254）、T37~T39（#257~#259）、T40（#260）、T24（#244）
 
 ### 3.1 并行注记（仅当多 agent 同时在场）
