@@ -46,7 +46,7 @@ func (r *SocialRepository) ListComments(contentID int64, parentID *int64, page, 
 	}
 	q.Count(&total)
 	offset := (page - 1) * pageSize
-	err := q.Order("created_at ASC").Offset(offset).Limit(pageSize).Find(&comments).Error
+	err := q.Preload("Author").Order("created_at ASC").Offset(offset).Limit(pageSize).Find(&comments).Error
 	return comments, total, err
 }
 
