@@ -1,19 +1,42 @@
-## [2026-09-03] - Task T21 (#241): 搜索可达性——建议下拉 + Users tab + 图标语义【⏸ 中断于浏览器复验】
+## [2026-09-03] - Task T21 (#241): 搜索可达性——建议下拉 + Users tab + 图标语义
 
 ### What was done:
 - 后端：SearchSuggestions ILIKE 前缀 → **contains 匹配**（中文子串可命中；性能注：'%x%' 不走 btree，当前 169 内容量级顺序扫可忽略，若慢上 pg_trgm GIN——代码注释注明）；新增中缀匹配单测（TestSearchSuggestionsMatchMidString「镜头」命中标题中段）。
 - 前端：GlobalSearchInput 新增建议下拉（300ms 防抖 + 代际计数防陈旧响应 + combobox/listbox a11y + ↑↓/Esc/点击导航，i18n zh/en）；搜索页结果区 Tabs（内容｜用户），Users tab 懒加载 /api/v1/users/search 渲染用户行（头像占位/用户名/信誉，链接 /user/:id）；SearchAgentInput keyword 切换图标 ArrowLeft→Search。
-- 分支 codex/light/241-search-reachability 已推送（基于 619cda9——开 PR 前须 sync main 至 98c7fdc+，strict 保护要求）。
+- 搜索页 URL q 参数取数（首挂载读 q 并立即内容搜索——修复建议下拉跳转落空态的先存缺陷）。
+- 复验修复：补齐丢失的 resultTabsLabel/userReputation（zh/en）——缺失曾致 MISSING_MESSAGE + /search 页水合副本两棵树（根因：SSR/客户端错误回退渲染不一致触发 remount；补齐后 tab 唯一）。
 
 ### Testing:
 - go build/vet 绿 + repository/handler 包全绿；npm tsc 绿。
-- 建议下拉浏览器实测通过：首页全局搜索输入「镜头」（票面验收例）→ 下拉 6 条「镜头下的普通朋友」中缀命中（DOM+条目文本取证；API 响应 curl 复核）。
-- /users/search curl 实测返回真实用户（慢速快门11，total=1）。
+- 无头 Chromium 真实事件复验全过：建议下拉「镜头」6 条中缀命中（screenshots/t21-suggestions.png）；Users tab 点击「慢速」→ 慢速快门11 信誉 19 真实数据渲染（screenshots/t21-users-tab.png）；URL 取数「配色」→ 内容结果渲染（正文取证）。
+- IAB 会话的点击阻断为工具层问题（合成事件不激活 base-ui Tab + capture 故障），非产品缺陷。
 
-### Notes（⏸ 中断点，下会话恢复用）:
-- **未关票**：Users tab 的浏览器点击链路未打通——IAB 会话中 [role=tab] 的 Playwright 点击（含 force）超时、合成 pointer 事件不激活 base-ui Tab（users/search 请求未发出）。取证发现 /search 页存在两棵树（client `_r_` id 可见 + SSR `_R_` id 0×0 残留）——水合副本现象**待排查是否本票 Tabs 引入**（恢复时先 stash 本分支改动跑 stock /search 复测可定位）。恢复路径：新浏览器会话/computer-use Chrome 真实事件复验 Users tab + 补 t21-* 截图（IAB capture 故障未能截图）+ avatar_url 相对路径渲染检查 → 复验通过后 sync main → PR → CI 绿 → squash 合并 → 关票 #241。
-- 环境现状：:3000（npm dev，T21 代码热载）与 :8080（/tmp/omnicraft-server-t21）仍在跑；8099 已清。
-- 本轮已收口：A-05（#287，6cef43b + 收口 PR #295）、A-03（#285，619cda9 + 收口 PR #297），**24/69**；第 6 段实现票全完，语料 v2 #291 / A-04 #286 均外部输入门控。
+### Notes:
+- contains 性能说明（票面验收项）：'%x%' 不走 btree，当前内容量级顺序扫可忽略；若建议变慢，pg_trgm GIN 索引为既定逃生门（代码注释注明）。
+- 坑位：turbopack 热载在分支切换后会回退到工作树版本（切分支=换代码），验证前确认工作树在正确分支；无头 Playwright（chromium.launch）是可信事件验证的可靠路径，优先于 IAB。
+- 图标语义：SearchAgentInput keyword 切换 ArrowLeft→Search（代码级变更，无视觉回归面）。
+
+
+## [2026-09-03] - Task A-03 (#285): 检索管线升级——v4 嵌入 + hybrid on Postgres(jieba) + 查询扩展 + qwen3-rerank
+
+### What was done:
+- **llm 基座**：openai_compat `GetEmbeddings` 批量（v4 上限 10 条/次内部切分、顺序保持、数量不匹配显式失败）+ dimensions 请求参数 + 独立 embedding key（默认回退 chat key）；单文本路径保持既有 string 线格式（embo-01 现役契约不破坏）；DashScope qwen3-rerank 原生客户端（新版 results 字段）+ SiliconFlow bge-reranker-v2-m3 备路 + FallbackReranker 降级链。
+- **rag 管线**：HybridRetriever 查询扩展扇出（原词+扩展词双路逐词检索）+ FuseRRFLists 多列表 RRF（重叠跨列表累加）+ rerank seam（融合 top-20 → 相关性重排 top-10，失败保 RRF 序 + rerank_unavailable 降级标记）；兄弟查询单次批量嵌入；LLMQueryExpander（M3 短调用 cap 200 token，容错解析，失败吞掉不阻塞）；ProviderChunkEmbedder 批量优先。
+- **jieba 词法路**：SearchRepository 检测 pg_jieba（sync.Once 白名单）；SearchRAGChunks 匹配+主排序改消费 041/042 现役 content_items.search_vector（此前运行时现算 'simple' 向量、中文分词全失效——本票核心修复）；SearchContents 配置随检测切换。
+- **配置**：features.rag_query_expansion_enabled / rag_rerank_enabled（默认 off，A-04 消融裁决）+ rag.rerank 段（key 走 env）；.env.example 三键；doc-validator --fix 同步 config.md；business-rules 双端 Agent 边界小节补检索升级描述。
+- **透出**：扩展词经 RetrievalResult→adapter→AgentToolOutcome→流内 tool_status ArgsSummary（+expanded: t1 / t2）；NLSearch 契约新增 expanded_queries。
+- 合并：PR #296（分支同步 main 后 CLEAN 合并 = 619cda9，CI project-gate 全绿）。
+
+### Testing:
+- 单测新增 26 例（llm 12 + rag 10 + repo 2 + service 2）；后端全量 build/vet/test 绿 + npm build/tsc 绿 + verify-project.sh --full **81/81 EXIT=0（段边界）**。
+- 真实冒烟（DashScope，三开关全开）：admin rebuild 全量重嵌入 **169/169 chunks = text-embedding-v4**（2m52s，批量端点）；口语化查询「想看新手能上手的配色教程」top5 全相关命中（hybrid_rrf/degraded=false）+ 真实扩展词 5 个 + rerank 主路 ws-host 原生端点无降级。
+- 附带修复：流内工具失败时 outcome nil 空指针（测试实抓）；测试夹具补 search_vector 列。
+
+### Notes:
+- 坑位：本地 OpenSearch 残留无 PG 世代背书的 stale rag-v2 索引（上次崩溃重建残骸）→ rebuild 撞名 503 且 handler 吞根因不落日志；清残骸索引后正常。main 分支保护 strict 模式：PR 期间 main 前进会使分支 BEHIND，须 merge main 重推等 CI 重跑再合并。
+- DASHSCOPE_EMBEDDING_BASE_URL（/api/v1 尾）不适用于 compatible-mode provider——正确 base = 专属主机 + /compatible-mode（provider 自拼 /v1/embeddings）。
+- 三开关默认 off（红线 9）；A-04 消融数据出来前不得擅自开默认。
+- 第 6 段实现票全部完成；语料 v2 #291/A-04 #286 均外部输入门控，前沿推进第 7 段 T21。
 
 ## [2026-09-03] - Task A-05 (#287): Agent chat 护栏补口——输入前置 Green + 输出事后异步审核
 
