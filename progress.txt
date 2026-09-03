@@ -1,3 +1,16 @@
+## [2026-09-03] - main CI 前端单测闪断加固第三轮（copy 轮询补点 + SeriesNav 焦点落位）
+
+### What was done:
+- 收尾核查发现 main push CI（84e20fb run 33747406401）Frontend gates 红灯：470 例中 1 例闪断 `agent-workspace.test.tsx` copy 用例；重跑（--failed）换 `series-nav.test.tsx` 键盘流用例闪断——同一 suite 多个时序敏感用例在 CI 负载下轮流闪断，均非产品回归。
+- copy 用例改确定性修法：waitFor 轮询内「writes 为空则重查按钮补点」直至剪贴板真写入（原修法只 waitFor 按钮就点击，回载交换窗口内点击可落在已卸载元素——main 实测点击后 1s writes 仍空）。
+- SeriesNav 键盘流用例：聚焦当前章节项在被动 effect 中异步冲刷，可能晚于 DOM 出现——打开/重开后先 waitFor 焦点落位再发键；activeElement 断言改布尔恒等（失败时不再序列化整棵 Fiber 树，c52cea4 既定教训）。
+
+### Testing:
+- 两文件本地压测 33+ 连跑全绿；全套单测 470/470 绿；npm run lint（tsc）绿。
+
+### Notes:
+- 纯测试代码改动，无产品代码变更。分支 test/main-ci-flaky-hardening。
+
 ## [2026-09-03] - Task A-06 (#288): 前端工作台 DeepSeek 化（✅ 已收口：PR #302 → 5010ac7，CI 五门全绿 squash 合并 + GitHub CLOSED/COMPLETED；含三轮 CI 时序加固——复制/思考块/Regenerate 单测均改 waitFor 轮询 + clipboard stub TS2790 修复）
 
 ### What was done:
