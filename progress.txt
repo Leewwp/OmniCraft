@@ -1,26 +1,32 @@
-## [2026-09-03] - Task A-06 (#288): 前端工作台 DeepSeek 化（⏸ 中断于浏览器真跑验证收尾——实现全落地，验证 6/12 真跑过 + mock 13/13，下轮续）
+## [2026-09-03] - Task A-06 (#288): 前端工作台 DeepSeek 化（✅ 实现与验证门全过，待 PR 合并收口——progress 以本条为准）
 
 ### What was done:
-- **分支 `feat/a06-agent-workspace-deepseek`（基线 89d5a48，已 sync main 至 2c5f5a6），5 个 commit**：
-  - dda3466 SSE v2 消费层：think_delta 事件 + 工具 args_summary/hits + done.trace_id/message_id/usage（normalizer 拒绝畸形）。
-  - a10f876 工作台主体：请求体切换 A-01 续写契约 `{conversation_id?, message, context}`（旧 `messages` body 移除，chat 自此恢复可用）；三层生成形态（AgentThinkingBlock 流式展开→完成折叠 + AgentToolStatus 可折叠含检索词/命中数/耗时 + 逐字正文）；侧边栏 ⋯ 菜单（重命名内联 PATCH title≤50 / 置顶 PATCH pinned / 删除 ConfirmModal+DELETE）+ 置顶分组置前 + title 显示；消息操作（复制 clipboard+toast / 重新生成保留用户行重发）；输入自动增高（8 行 208px 封顶内滚）；行内 [1][2] 锚定（MarkdownRenderer citationAnchors prop → sup 角标点击滚动+高亮+聚焦 #agent-citation-{n}，纯展示层）；markdown 升级（rehype-highlight 高亮 + 代码块复制 + 外链 target=_blank rel=noopener，globals.css hljs 双主题 token）；空态建议 chips 药丸化；i18n zh/en 同步（agent.thinking/markdown.*/workspace 菜单等 30+ 键）。
-  - fa0ca8e mock e2e 升级 v2（think/工具折叠展开/[1] 锚定高亮/重命名置顶 PATCH/删除走 ⋯ 菜单）。
-  - e12eb76 ui-spec `## Page: /agent` 章节改写为 A-06 形态（第⑩项）。
-  - 47c58b6 服务端提示词一行增补句末引用序号指示（spec R2-Q9 行内锚定模型侧前提；复验语义零改动）。
-- **测试**：单测 470/470 绿（新增 7 例：续写契约 body/三层形态/历史 think 回放/重命名 PATCH/置顶 PATCH/复制/重新生成）；lint+tsc 绿；npm run build 绿；agent mock e2e 13/13 绿。
-- **测试基建**：runtime-test-helpers 补 getComputedStyle 全局（base-ui Menu 在 jsdom 必需）；api mock 支持 PATCH。
+- **分支 `feat/a06-agent-workspace-deepseek`，7 个实现 commit**：dda3466 SSE v2 消费层（think_delta/工具 args_summary+hits/done.trace_id+message_id+usage）；a10f876 主体（请求体硬切换 A-01 续写契约 `{conversation_id?, message, context}`——chat 自 A-01 后不可用状态就此恢复；三层生成形态；侧边栏 ⋯ 三交互 PATCH/DELETE + 置顶分组 + title；消息复制/重新生成；输入自动增高 8 行 208px 封顶；行内 [1][2] 锚定 sup 角标→引用卡滚动高亮聚焦；rehype-highlight 高亮 + 代码块复制 + 外链 noopener；空态 chips；i18n zh/en 30+ 键）；fa0ca8e mock e2e v2；e12eb76 ui-spec `## Page: /agent` 改写（第⑩项）；47c58b6 服务端提示词句末引用序号指示（R2-Q9，复验语义零改动）；c3b3f9a WIP checkpoint；002e786 双渲染修复（真跑 strict violation 实抓：no_evidence 撤答轮 in-map 尾分支与 map 后尾兜底重复）。
+- 测试基建：runtime-test-helpers 补 getComputedStyle（base-ui Menu jsdom 必需）；api mock 支持 PATCH。
 
 ### Testing:
-- 真跑（无头 Chromium + 真实 DashScope qwen-plus 真流式 + v4 检索）：PASS = 登录/空态/**真流式逐字渲染（45 delta）**/侧边栏菜单开合/**置顶 PATCH+分组**/输入自动增高；截图 a06-grounded-desktop / a06-sidebar-menu / a06-pinned-group。
-- FAIL（6 项）均为同一根因下游：**本地 chat 真跑 = no_evidence**——search_content hits=10 成功但引用候选为空（`citationFromSearchSummary` 要求 ChunkKey/ContentVersion/ChunkIndex/Source，非 hybrid 路径摘要不带 → 候选 0 → no_evidence）。此为 A-03/A-04 检索域既有状态（三开关 off 待 A-04），受总序 §3.2 RAG 冻结点护栏约束**不在 A-06 修**。引用卡/锚定/overlay/复制按钮（依赖 grounded turn）已由 mock e2e 13/13 + 单测覆盖。
-- 脚本侧已知误报：zh `agent.tools.title`="工具状态"（脚本用错标签）、rename 定位器待修——下轮修正 frontend/a06-verify.mjs（未跟踪文件，留在分支工作树）。
+- 单测 **470/470**（新增 7 例：续写 body/三层形态/历史 think 回放/重命名/置顶/复制/重新生成）；lint+tsc+build 绿；**mock contracts 全量 84/84**；后端 build/vet/**test ./... 全绿**。
+- **浏览器真跑 17/17 全过**（无头 Chromium + 真实 DashScope qwen-plus 真流式 + v4 检索，账号 a06-verify@seed.omnicraft.local）：登录/空态/真流式逐字（45 delta）/轮结束/工具步骤折叠展开/grounded 引用列表/[1] 锚定点击→#agent-citation-0 聚焦+ring 高亮/引用卡→ContentDetailOverlay 详情浮层/复制（剪贴板实文核对「《原创实验｜新手也能完成的配色练习 05》是一份…」）/重命名/置顶分组/菜单/删除（取消不发请求+确认删除）/自动增高（44→208px 封顶）/暗色（header 主题切换实测）/窄屏抽屉（overflowX=0）。截图 a06-* 8 张。
+- no_evidence 拒答卡真跑截图（a06-no-evidence.png，行为正确性）；grounded 轮由 detail 引导 query 确定性触发（legacy detail 引用路径）。
 
-### Notes（下轮恢复点）:
-- **环境 rig（8080 在跑，勿杀）**：`/tmp/omnicraft-server-a06` + env = `AGENT_WEB_AGENT_ENABLED=true AGENT_LLM_MODEL=qwen-plus AGENT_LLM_API_BASE=https://dashscope.aliyuncs.com/compatible-mode AGENT_EMBEDDING_MODEL=text-embedding-v4 AGENT_EMBEDDING_API_BASE=<maas主机>/compatible-mode AGENT_EMBEDDING_API_KEY=$DASHSCOPE_API_KEY`（root .env 需 set -a source）；前端 dev :3000 在跑。
-- 测试账号 a06-verify@seed.omnicraft.local / A06Verify#2026（DB 直插 bcrypt，id=339）。
-- **剩余验证门**：①修 a06-verify.mjs 两处定位器后重跑（工具步骤折叠 zh 标签 + rename input）；②`npm run test:contracts` 全量（81+13 新 spec 预期 94 例）；③后端三件套（agent_service.go 已过 build/vet/Agent 测试，跑全量 go test ./...）；④暗色/窄屏截图补齐；⑤no_evidence 拒答真跑截图（行为正确性）。
-- **合并前**：分支已含 main 全部历史；PR → CI project-gate → squash；关票 #288 + 总序 §3 第 20 条 ✅ + AGENTS SP-13 行计数 25→26/69 + 心跳。
-- done 终态裁决语义落地：no_evidence/degraded 撤下已流出正文；正常轮 done.answer 替换已流出正文（A-02 v2 语义）。
+### Notes:
+- **检索域既有边界（非 A-06 缺陷，A-04 范围）**：非 hybrid 路径（三开关默认 off）search 摘要不带 chunk 字段 → `citationFromSearchSummary` 全拒 → 纯 search 轮恒 no_evidence；grounded 需模型调 get_content_detail（legacy 宽松引用路径）。受总序 §3.2 RAG 冻结点护栏，不在本票修；A-04 消融裁决开关默认后此边界自然收窄。
+- 本地 rig（8080 在跑）：`/tmp/omnicraft-server-a06` + env（AGENT_WEB_AGENT_ENABLED=true + qwen-plus chat + v4 embedding，base 均无尾 /v1）；root .env 需 `set -a && source`。脚本 frontend/a06-verify*.mjs（未跟踪，可复用）。
+- 验证脚本坑位：无头 Chromium 剪贴板需 context permissions: ["clipboard-read","clipboard-write"]；原生 <dialog> 隐式 role 必须用 getByRole（CSS [role=dialog] 匹配不到）；终态断言先等发送按钮回归（流式竞态）。
+
+
+## [2026-09-03] - Task T21 回归修复: t72 排序控件契约探针锚定（✅ PR #300 → f898a08，CI 五门全绿 squash 合并）
+
+### What was done:
+- 根因：T21 给 GlobalSearchInput 加 `role="combobox"` 后页面存在两个 combobox，t72 spec 五处裸探针 `document.querySelector('[role="combobox"]')` 抓到 DOM 首个匹配（头部搜索框），其 sticky 容器 zIndex=auto → `Number(NaN) < 50` 失败（contracts 80/81，verify --full EXIT=1）。
+- 修复（仅测试代码，不改产品代码）：探针改为经 open listbox 的 `aria-controls` owner 关系回溯排序 combobox（base-ui Select open 时 trigger 带 aria-controls=listbox.id）；补防回归断言（页面多 combobox 时锚定探针必须解析出排序控件：count>1 + aria-label 含「排序方式」+ aria-haspopup=listbox）。
+- CI scoped 门不覆盖 mocked contracts（t72 回归因此漏网）——本地 `npm run test:contracts` 全量是前端收口必跑项（已写入本轮纪律）。
+
+### Testing:
+- 单 spec 复现红（sticky toolbar 1 例 NaN）→ 修复后 t72 10/10 绿；全量 mocked contracts **81/81 绿**。CI project-gate 五门全绿（PR #300）。
+
+### Notes:
+- 教训：加 `role="combobox"` 类语义属性时，e2e 内 `querySelector` 裸探针按 DOM 顺序取元素是隐性契约；共享 role 的组件上线前跑全量 contracts。
 
 
 ## [2026-09-03] - Task T21 (#241): 搜索可达性——建议下拉 + Users tab + 图标语义（✅ 已收口：PR #298 → ac4f393，CI 全绿合并 + 关票；单测角色断言 searchbox→combobox 随批修复）
