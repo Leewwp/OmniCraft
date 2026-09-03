@@ -10,6 +10,7 @@ import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
 import { api, ApiRequestError } from "@/lib/api";
+import { fetchPublicConfig, commentFoldThreshold, isHighDislikeRatio } from "@/lib/public-config";
 import { silentError } from "@/lib/error-handler";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,8 @@ interface Comment {
   author_id: number;
   author?: { id: number; username: string; avatar_url?: string };
   body: string;
+  like_count?: number;
+  dislike_count?: number;
   parent_id: number | null;
   created_at: string;
   updated_at?: string;
@@ -44,6 +47,22 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
   /* 每条顶层评论的子回复：懒加载（GET ?parent_id=），两级扁平展示 */
   const [repliesByRoot, setRepliesByRoot] = useState<Record<number, Comment[]>>({});
   const [expandedRoots, setExpandedRoots] = useState<Set<number>>(new Set());
+  /* T47：折叠阈值随公开配置下发（business-rules：点踩/点赞比 ≥ 阈值默认折叠） */
+  const [foldThreshold, setFoldThreshold] = useState(0.30);
+
+  useEffect(() => {
+    let active = true;
+    fetchPublicConfig()
+      .then((config) => {
+        if (active) setFoldThreshold(commentFoldThreshold(config));
+      })
+      .catch(() => {
+        /* 配置不可用时保持基线兜底 */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const canComment = !!user && capabilities.can_interact;
   const denialKey = interactionDenialKey(capabilities.interaction_denial_reason);
@@ -278,6 +297,7 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
                 onReact={reactToComment}
                 onSaveEdit={saveEdit}
                 onDelete={(target, rootId) => void deleteComment(target, rootId)}
+                foldThreshold={foldThreshold}
               />
             ))}
           </div>
@@ -318,6 +338,7 @@ function CommentItem({
   expanded,
   canInteract,
   currentUserId,
+  foldThreshold,
   onToggleReplies,
   onReply,
   onReact,
@@ -330,6 +351,7 @@ function CommentItem({
   expanded: boolean;
   canInteract: boolean;
   currentUserId?: number;
+  foldThreshold: number;
   onToggleReplies: () => void;
   onReply: (text: string) => void;
   onReact: (id: number, reaction: "like" | "dislike") => void;
@@ -343,6 +365,10 @@ function CommentItem({
 
   const reactionDisabled = !user || !canInteract;
   const isOwn = currentUserId !== undefined && comment.author_id === currentUserId;
+  /* T47：高踩比默认折叠，点击「已折叠 · 点击显示」展开 */
+  const shouldFold = isHighDislikeRatio(comment.like_count ?? 0, comment.dislike_count ?? 0, foldThreshold);
+  const [foldRevealed, setFoldRevealed] = useState(false);
+  const folded = shouldFold && !foldRevealed;
 
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -399,6 +425,17 @@ function CommentItem({
             </p>
           </div>
 
+          {folded ? (
+            /* T47：高踩比默认折叠——仅保留作者行与展开开关 */
+            <button
+              type="button"
+              className="mt-1.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors duration-150 hover:bg-muted/50 hover:text-foreground"
+              onClick={() => setFoldRevealed(true)}
+            >
+              {t('social.commentFolded')}
+            </button>
+          ) : (
+            <>
           {editing ? (
             <div className="mt-1.5 space-y-1.5">
               <textarea
@@ -430,6 +467,7 @@ function CommentItem({
               onClick={() => onReact(comment.id, "like")}
             >
               <ThumbsUp className="h-3 w-3" />
+              {(comment.like_count ?? 0) > 0 && <span>{comment.like_count}</span>}
             </button>
             <button
               type="button"
@@ -439,6 +477,7 @@ function CommentItem({
               onClick={() => onReact(comment.id, "dislike")}
             >
               <ThumbsDown className="h-3 w-3" />
+              {(comment.dislike_count ?? 0) > 0 && <span>{comment.dislike_count}</span>}
             </button>
             {user && (
               <button
@@ -529,12 +568,24 @@ function CommentItem({
                   rootId={comment.id}
                   canInteract={canInteract}
                   currentUserId={currentUserId}
+                  foldThreshold={foldThreshold}
                   onReact={onReact}
                   onSaveEdit={onSaveEdit}
                   onDelete={onDelete}
                 />
               ))}
             </div>
+          )}
+          {shouldFold && (
+            <button
+              type="button"
+              className="mt-1 text-xs text-muted-foreground underline-offset-2 transition-colors duration-150 hover:text-foreground hover:underline"
+              onClick={() => setFoldRevealed(false)}
+            >
+              {t('social.commentCollapse')}
+            </button>
+          )}
+            </>
           )}
         </div>
       </div>
@@ -567,6 +618,7 @@ function ReplyItem({
   rootId,
   canInteract,
   currentUserId,
+  foldThreshold,
   onReact,
   onSaveEdit,
   onDelete,
@@ -575,6 +627,7 @@ function ReplyItem({
   rootId: number;
   canInteract: boolean;
   currentUserId?: number;
+  foldThreshold: number;
   onReact: (id: number, reaction: "like" | "dislike") => void;
   onSaveEdit: (id: number, newText: string) => Promise<boolean>;
   onDelete: (comment: Comment, rootId?: number) => void;
@@ -586,6 +639,10 @@ function ReplyItem({
 
   const reactionDisabled = !user || !canInteract;
   const isOwn = currentUserId !== undefined && reply.author_id === currentUserId;
+  /* T47：高踩比回复同样默认折叠 */
+  const shouldFold = isHighDislikeRatio(reply.like_count ?? 0, reply.dislike_count ?? 0, foldThreshold);
+  const [foldRevealed, setFoldRevealed] = useState(false);
+  const folded = shouldFold && !foldRevealed;
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -628,6 +685,16 @@ function ReplyItem({
         </p>
       </div>
 
+      {folded ? (
+        <button
+          type="button"
+          className="mt-1 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors duration-150 hover:bg-muted/50 hover:text-foreground"
+          onClick={() => setFoldRevealed(true)}
+        >
+          {t('social.commentFolded')}
+        </button>
+      ) : (
+        <>
       {editing ? (
         <div className="mt-1 space-y-1.5">
           <textarea
@@ -658,6 +725,7 @@ function ReplyItem({
           onClick={() => onReact(reply.id, "like")}
         >
           <ThumbsUp className="h-3 w-3" />
+          {(reply.like_count ?? 0) > 0 && <span>{reply.like_count}</span>}
         </button>
         {user && (reported ? (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs text-muted-foreground" aria-label={t('social.reported')}>
@@ -695,6 +763,18 @@ function ReplyItem({
           </>
         )}
       </div>
+
+      {shouldFold && !folded && (
+        <button
+          type="button"
+          className="mt-1 text-xs text-muted-foreground underline-offset-2 transition-colors duration-150 hover:text-foreground hover:underline"
+          onClick={() => setFoldRevealed(false)}
+        >
+          {t('social.commentCollapse')}
+        </button>
+      )}
+        </>
+      )}
 
       <ConfirmModal
         open={deleteOpen}

@@ -47,7 +47,11 @@ func (r *SocialRepository) ListComments(contentID int64, parentID *int64, page, 
 	q.Count(&total)
 	offset := (page - 1) * pageSize
 	err := q.Preload("Author").Order("created_at ASC").Offset(offset).Limit(pageSize).Find(&comments).Error
-	return comments, total, err
+	if err != nil {
+		return nil, total, err
+	}
+	r.fillReactionCounts(comments)
+	return comments, total, nil
 }
 
 func (r *SocialRepository) ListCommentsByTarget(targetType string, targetID int64, page, pageSize int) ([]model.Comment, int64, error) {
@@ -65,7 +69,11 @@ func (r *SocialRepository) ListCommentsByTarget(targetType string, targetID int6
 	err := q.Preload("Author").Order("created_at ASC").
 		Offset((page - 1) * pageSize).Limit(pageSize).
 		Find(&comments).Error
-	return comments, total, err
+	if err != nil {
+		return nil, total, err
+	}
+	r.fillReactionCounts(comments)
+	return comments, total, nil
 }
 
 // ListCommentsByParentIDs returns published children of the given comments in
@@ -80,7 +88,51 @@ func (r *SocialRepository) ListCommentsByParentIDs(parentIDs []int64) ([]model.C
 		Where("parent_id IN ? AND status = ?", parentIDs, "published").
 		Preload("Author").Order("created_at ASC").
 		Find(&children).Error
-	return children, err
+	if err != nil {
+		return nil, err
+	}
+	r.fillReactionCounts(children)
+	return children, nil
+}
+
+/*
+fillReactionCounts 回填赞/踩展示计数（T47/FIX-29c）：按 reactions 聚合，
+
+	comments.like_count 冗余列从未被维护，禁止直接读。
+*/
+func (r *SocialRepository) fillReactionCounts(comments []model.Comment) {
+	if len(comments) == 0 {
+		return
+	}
+	ids := make([]int64, 0, len(comments))
+	for _, c := range comments {
+		ids = append(ids, c.ID)
+	}
+	var rows []struct {
+		TargetID int64
+		Reaction string
+		Total    int64
+	}
+	if err := r.db.Model(&model.Reaction{}).
+		Select("target_id, reaction, COUNT(*) AS total").
+		Where("target_type = ? AND target_id IN ?", "comment", ids).
+		Group("target_id, reaction").
+		Scan(&rows).Error; err != nil {
+		return
+	}
+	likes := map[int64]int64{}
+	dislikes := map[int64]int64{}
+	for _, row := range rows {
+		if row.Reaction == "like" {
+			likes[row.TargetID] = row.Total
+		} else if row.Reaction == "dislike" {
+			dislikes[row.TargetID] = row.Total
+		}
+	}
+	for i := range comments {
+		comments[i].LikeCount = int(likes[comments[i].ID])
+		comments[i].DislikeCount = int(dislikes[comments[i].ID])
+	}
 }
 
 func (r *SocialRepository) DeleteComment(id int64) error {

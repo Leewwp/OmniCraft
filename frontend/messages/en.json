@@ -1091,7 +1091,9 @@
     "loadMoreComments": "Load more comments",
     "commentBlocked": "Your content did not pass safety review. Please revise and try again",
     "moderationUnavailable": "The moderation service is temporarily unavailable. Please try again later",
-    "commentCount": "{count} comments"
+    "commentCount": "{count} comments",
+    "commentFolded": "Collapsed · click to show",
+    "commentCollapse": "Collapse"
   },
   "pr": {
     "submit": "Submit Edit Proposal",
