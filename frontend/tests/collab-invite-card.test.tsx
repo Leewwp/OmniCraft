@@ -107,7 +107,6 @@ const intlMessages = {
       sending: "Sending",
       timeUnknown: "Time unavailable",
       collabInviteSummary: "Collaboration invitation",
-      replyRequired: "Wait for the recipient to reply before sending another message.",
     },
     conversations: {
       searchLabel: "Search conversations",

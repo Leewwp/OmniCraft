@@ -111,7 +111,6 @@ const intlMessages = {
       inputPlaceholder: "Type a message...",
       selectConversation: "Select a conversation",
       collabInviteSummary: "Collaboration invitation",
-      replyRequired: "Wait for the recipient to reply before sending another message.",
     },
     error: {
       conversations: "Could not load conversations.",
