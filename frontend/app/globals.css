@@ -285,3 +285,83 @@
     --tw-translate-y: 0 !important;
   }
 }
+
+/* highlight.js 代码块 token 配色（A-06）：走语义前景色阶，暗色由 .dark 覆盖；
+   只染 token 颜色，容器边框/背景沿用 prose-pre 既有 token。 */
+.hljs-comment,
+.hljs-quote {
+  color: var(--fg-muted, #71717a);
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-tag,
+.hljs-name {
+  color: #7c3aed;
+}
+.dark .hljs-keyword,
+.dark .hljs-selector-tag,
+.dark .hljs-tag,
+.dark .hljs-name {
+  color: #a78bfa;
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-addition {
+  color: #15803d;
+}
+.dark .hljs-string,
+.dark .hljs-regexp,
+.dark .hljs-addition {
+  color: #4ade80;
+}
+.hljs-number,
+.hljs-literal,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-attr,
+.hljs-attribute {
+  color: #b45309;
+}
+.dark .hljs-number,
+.dark .hljs-literal,
+.dark .hljs-variable,
+.dark .hljs-template-variable,
+.dark .hljs-attr,
+.dark .hljs-attribute {
+  color: #fbbf24;
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-section,
+.hljs-built_in {
+  color: #1d4ed8;
+}
+.dark .hljs-title,
+.dark .hljs-title.function_,
+.dark .hljs-section,
+.dark .hljs-built_in {
+  color: #60a5fa;
+}
+.hljs-type,
+.hljs-title.class_,
+.hljs-params {
+  color: #0e7490;
+}
+.dark .hljs-type,
+.dark .hljs-title.class_,
+.dark .hljs-params {
+  color: #22d3ee;
+}
+.hljs-deletion {
+  color: #be123c;
+}
+.dark .hljs-deletion {
+  color: #fb7185;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}
