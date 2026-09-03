@@ -1752,13 +1752,13 @@ test("assistant message actions: copy writes to the clipboard with a toast", asy
   const writes: string[] = [];
   /* jsdom 的 navigator.clipboard 存在与否随版本/平台变化：先摘除再以可配置
      属性注入 stub，避免 CI（Node 20）上对只读属性 defineProperty 抛错。 */
-  const navigatorWithClipboard = window.navigator as Navigator & { clipboard?: unknown };
+  const navigatorRecord = window.navigator as unknown as Record<string, unknown>;
   try {
-    delete navigatorWithClipboard.clipboard;
+    delete navigatorRecord.clipboard;
   } catch {
     /* 属性可能定义在原型链上（不可直接 delete），忽略后仍尝试 defineProperty。 */
   }
-  Object.defineProperty(navigatorWithClipboard, "clipboard", {
+  Object.defineProperty(navigatorRecord, "clipboard", {
     configurable: true,
     value: { writeText: async (text: string) => { writes.push(text); } },
   });
