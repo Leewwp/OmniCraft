@@ -68,6 +68,21 @@ func (r *SocialRepository) ListCommentsByTarget(targetType string, targetID int6
 	return comments, total, err
 }
 
+// ListCommentsByParentIDs returns published children of the given comments in
+// one query (T46: discussion detail ships top-level page plus its children so
+// the client can nest without extra round-trips).
+func (r *SocialRepository) ListCommentsByParentIDs(parentIDs []int64) ([]model.Comment, error) {
+	if len(parentIDs) == 0 {
+		return nil, nil
+	}
+	var children []model.Comment
+	err := r.db.Model(&model.Comment{}).
+		Where("parent_id IN ? AND status = ?", parentIDs, "published").
+		Preload("Author").Order("created_at ASC").
+		Find(&children).Error
+	return children, err
+}
+
 func (r *SocialRepository) DeleteComment(id int64) error {
 	return r.db.Model(&model.Comment{}).Where("id = ?", id).Update("status", "hidden").Error
 }

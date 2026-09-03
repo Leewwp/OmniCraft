@@ -46,6 +46,9 @@ export const ERROR_CODE_MESSAGE_KEYS: Record<string, string> = {
   // 申诉与举报
   APPEAL_EXISTS: "appeals.exists",
   ALREADY_REPORTED: "common.alreadyReported",
+  // 评论审核门（A4 语义：422 拦截 / 503 不可用）
+  CONTENT_BLOCKED: "social.commentBlocked",
+  MODERATION_UNAVAILABLE: "social.moderationUnavailable",
   // 搜索
   MISSING_QUERY: "search.missingQuery",
   QUERY_TOO_LONG: "search.queryTooLong",

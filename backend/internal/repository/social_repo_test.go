@@ -99,3 +99,44 @@ func TestListCommentsPreloadsAuthor(t *testing.T) {
 		t.Fatalf("comment payload contains an email key: %s", payload)
 	}
 }
+
+// T46（FIX-29b）：讨论详情的子回复要随顶层一页取回（嵌套展示修复）。
+func TestListCommentsByParentIDs(t *testing.T) {
+	db := setupSocialCommentsDB(t)
+	author := model.User{
+		ID: 9201, Email: "t46-author@seed.omnicraft.local", PasswordHash: "x",
+		Username: "t46_author",
+	}
+	if err := db.Create(&author).Error; err != nil {
+		t.Fatalf("seed author: %v", err)
+	}
+	discussionID := int64(5501)
+	rows := []model.Comment{
+		{ID: 8101, DiscussionID: &discussionID, TargetType: "discussion", TargetID: discussionID, AuthorID: author.ID, Body: "top-1", Status: "published"},
+		{ID: 8102, DiscussionID: &discussionID, TargetType: "discussion", TargetID: discussionID, AuthorID: author.ID, Body: "child-of-8101", ParentID: ptrInt64(8101), Status: "published"},
+		{ID: 8103, DiscussionID: &discussionID, TargetType: "discussion", TargetID: discussionID, AuthorID: author.ID, Body: "child-of-8101-hidden", ParentID: ptrInt64(8101), Status: "hidden"},
+		{ID: 8104, DiscussionID: &discussionID, TargetType: "discussion", TargetID: discussionID, AuthorID: author.ID, Body: "child-of-8102", ParentID: ptrInt64(8102), Status: "published"},
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatalf("seed comments: %v", err)
+	}
+
+	repo := NewSocialRepository(db)
+	got, err := repo.ListCommentsByParentIDs([]int64{8101})
+	if err != nil {
+		t.Fatalf("ListCommentsByParentIDs() error = %v", err)
+	}
+	if len(got) != 1 || got[0].ID != 8102 {
+		t.Fatalf("children = %#v, want only published child 8102", got)
+	}
+	if got[0].Author.ID != author.ID {
+		t.Fatalf("child Author.ID = %d, want %d (Preload missing)", got[0].Author.ID, author.ID)
+	}
+
+	empty, err := repo.ListCommentsByParentIDs(nil)
+	if err != nil || len(empty) != 0 {
+		t.Fatalf("nil parent ids should be a no-op, got %#v err=%v", empty, err)
+	}
+}
+
+func ptrInt64(v int64) *int64 { return &v }
