@@ -1,4 +1,4 @@
-## [2026-09-03] - Task A-06 (#288): 前端工作台 DeepSeek 化（✅ 实现与验证门全过，待 PR 合并收口——progress 以本条为准）
+## [2026-09-03] - Task A-06 (#288): 前端工作台 DeepSeek 化（✅ 已收口：PR #302 → 5010ac7，CI 五门全绿 squash 合并 + GitHub CLOSED/COMPLETED；含三轮 CI 时序加固——复制/思考块/Regenerate 单测均改 waitFor 轮询 + clipboard stub TS2790 修复）
 
 ### What was done:
 - **分支 `feat/a06-agent-workspace-deepseek`，7 个实现 commit**：dda3466 SSE v2 消费层（think_delta/工具 args_summary+hits/done.trace_id+message_id+usage）；a10f876 主体（请求体硬切换 A-01 续写契约 `{conversation_id?, message, context}`——chat 自 A-01 后不可用状态就此恢复；三层生成形态；侧边栏 ⋯ 三交互 PATCH/DELETE + 置顶分组 + title；消息复制/重新生成；输入自动增高 8 行 208px 封顶；行内 [1][2] 锚定 sup 角标→引用卡滚动高亮聚焦；rehype-highlight 高亮 + 代码块复制 + 外链 noopener；空态 chips；i18n zh/en 30+ 键）；fa0ca8e mock e2e v2；e12eb76 ui-spec `## Page: /agent` 改写（第⑩项）；47c58b6 服务端提示词句末引用序号指示（R2-Q9，复验语义零改动）；c3b3f9a WIP checkpoint；002e786 双渲染修复（真跑 strict violation 实抓：no_evidence 撤答轮 in-map 尾分支与 map 后尾兜底重复）。
@@ -13,6 +13,7 @@
 - **检索域既有边界（非 A-06 缺陷，A-04 范围）**：非 hybrid 路径（三开关默认 off）search 摘要不带 chunk 字段 → `citationFromSearchSummary` 全拒 → 纯 search 轮恒 no_evidence；grounded 需模型调 get_content_detail（legacy 宽松引用路径）。受总序 §3.2 RAG 冻结点护栏，不在本票修；A-04 消融裁决开关默认后此边界自然收窄。
 - 本地 rig（8080 在跑）：`/tmp/omnicraft-server-a06` + env（AGENT_WEB_AGENT_ENABLED=true + qwen-plus chat + v4 embedding，base 均无尾 /v1）；root .env 需 `set -a && source`。脚本 frontend/a06-verify*.mjs（未跟踪，可复用）。
 - 验证脚本坑位：无头 Chromium 剪贴板需 context permissions: ["clipboard-read","clipboard-write"]；原生 <dialog> 隐式 role 必须用 getByRole（CSS [role=dialog] 匹配不到）；终态断言先等发送按钮回归（流式竞态）。
+- **收口链**：PR #302（分支 feat/a06-agent-workspace-deepseek，9 commit squash = 5010ac7）三轮 CI（两轮单测时序红→加固后五门全绿）；票 #288 CLOSED/COMPLETED；分支引用已删；总序 §3 第 20 条 ✅ + §1.1 26/69 + AGENTS SP-13 行 26/69。
 
 
 ## [2026-09-03] - Task T21 回归修复: t72 排序控件契约探针锚定（✅ PR #300 → f898a08，CI 五门全绿 squash 合并）
