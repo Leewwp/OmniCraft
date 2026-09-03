@@ -183,7 +183,8 @@ function CommentItem({
     <div className="rounded-md border border-border bg-card p-3 ">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium">
-          {comment.author?.username ?? t('common.userLabel', { id: comment.author_id })}
+          {/* 空串兜底：?? 只兜 null/undefined，零值 author.username 是 "" 会渲染空白 */}
+          {comment.author?.username || t('common.userLabel', { id: comment.author_id })}
         </p>
         <p className="text-[10px] text-muted-foreground">
           {new Date(comment.created_at).toLocaleDateString(locale === "en" ? "en-US" : "zh-CN", {
@@ -220,7 +221,7 @@ function CommentItem({
             <div key={reply.id} className="rounded border border-border bg-muted/10 p-2">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium">
-                  {reply.author?.username ?? t('common.userLabel', { id: reply.author_id })}
+                  {reply.author?.username || t('common.userLabel', { id: reply.author_id })}
                 </p>
                 <p className="text-[10px] text-muted-foreground">
                   {new Date(reply.created_at).toLocaleDateString(locale === "en" ? "en-US" : "zh-CN")}
