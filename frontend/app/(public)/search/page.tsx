@@ -88,6 +88,17 @@ export default function SearchPage() {
     }
   }, [filterDrawerOpen]);
 
+  /* URL 取数（T21 搜索可达性）：全局搜索框/建议下拉跳转 /search?q= 时，
+   * 首挂载读一次 q 并立即执行内容搜索（此前直接落地为空态）。 */
+  useEffect(() => {
+    const q = (new URLSearchParams(window.location.search).get("q") || "").trim();
+    if (q) {
+      setQuery(q);
+      void doSearch(q, filterConfig);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function closeFilterDrawer() {
     setFilterDrawerOpen(false);
     requestAnimationFrame(() => openFilterButtonRef.current?.focus());
