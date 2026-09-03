@@ -34,6 +34,8 @@ const COMPOSER_MAX_HEIGHT = 208;
 
 export interface AgentWorkspaceProps {
   initialConversationId?: number;
+  /** A-07：外部入口（搜索页「问 AI 助手」/agent?q=）带来的首轮预填问题，仅首挂载生效。 */
+  initialQuery?: string;
   onCitationOpen?: (citation: AgentCitation) => void;
 }
 
@@ -69,7 +71,7 @@ const SUGGESTION_KEYS = [
  * 折叠）+ 工具步骤区（检索词/命中数）+ 逐字正文（SSE v2）；行内 [n] 角标锚定到
  * 引用卡片（纯展示层）。侧边栏 ⋯ 菜单 = 重命名/置顶/删除（PATCH/DELETE owner-scoped）。
  */
-export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentWorkspaceProps) {
+export function AgentWorkspace({ initialConversationId, initialQuery, onCitationOpen }: AgentWorkspaceProps) {
   const t = useTranslations();
   const { toast } = useToast();
   const apiBase = getBrowserApiBase();
@@ -81,7 +83,7 @@ export function AgentWorkspace({ initialConversationId, onCitationOpen }: AgentW
   const [messages, setMessages] = useState<WorkspaceMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [messagesLoadError, setMessagesLoadError] = useState(false);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(() => (initialQuery ?? "").trim());
   const [streaming, setStreaming] = useState(false);
   const [turnError, setTurnError] = useState(false);
   const [stoppedNotice, setStoppedNotice] = useState(false);
