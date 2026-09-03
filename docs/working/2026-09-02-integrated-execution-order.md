@@ -26,8 +26,8 @@
 
 ### 1.1 当前执行 checkpoint（2026-09-02，A-02 收口后）
 
-- 固定 goal 范围共 **69 个执行单元**（2026-09-02 修订一 +1）：T01–T55（55）+ U-01~U-05（5）+ A-01~A-07（7）+ #290（1）+ 语料 v2 #291（1）。其中 **22 个已完成并在 GitHub 以 `CLOSED/COMPLETED` 收口**：T01~T09（9）、T17~T20（4）、T22（1）、U-01~U-05（5）、#290（1）、A-01/A-02（2）；剩余 47 个，#276/#282 仍为协调父票不计入。
-- **第 3、4、5 段已全部收口**；第 6 段进行中：A-01（fd4c33e）+ A-02（8517032）完成，下一张 = **A-05（#287 护栏补口）→ A-03（#285 检索管线升级，RAG 冻结点前最后实现票 + 段边界 verify --full）**。
+- 固定 goal 范围共 **69 个执行单元**（2026-09-02 修订一 +1）：T01–T55（55）+ U-01~U-05（5）+ A-01~A-07（7）+ #290（1）+ 语料 v2 #291（1）。其中 **23 个已完成并在 GitHub 以 `CLOSED/COMPLETED` 收口**：T01~T09（9）、T17~T20（4）、T22（1）、U-01~U-05（5）、#290（1）、A-01/A-02/A-05（3）；剩余 46 个，#276/#282 仍为协调父票不计入。
+- **第 3、4、5 段已全部收口**；第 6 段进行中：A-01（fd4c33e）+ A-02（8517032）+ A-05（6cef43b）完成，下一张 = **A-03（#285 检索管线升级，RAG 冻结点前最后实现票 + 段边界 verify --full）→ 语料 v2（#291，外部输入就绪时）→ A-04（#286）**。
 - **A-06 前置已全部满足**：A-01 ✅ + A-02 ✅ + U-02 ✅ + T18/19/20 ✅——工作台 DeepSeek 化可随时开工（第 7 段）。
 - 用户 checkpoint 摘要中的“14/45”不是本总序固定范围的分母；后续 agent 以本节 69/22/47 和 GitHub 实际状态计数，不据此提前宣称总序或投递门槛完成。
 
@@ -78,7 +78,7 @@
 ### 第 6 段 重构二后端链（SP-13）
 13. **A-01（#283，heavy）** 会话模型重构（title/pinned_at 迁移、续写、自动标题、停止保留） ✅ 2026-09-02 完成（fd4c33e，squash codex/heavy/283；迁移 074 + 请求体硬切换 `{conversation_id?, message}`（用户裁决，旧 body 400）+ 服务端 token 预算组装（chat_context_token_budget=8000）+ 异步自动标题 + PATCH 重命名/置顶（UpdateColumns 不扰动 updated_at）+ 停止/失败三路径保留半成品；heavy 两阶段审查双 DONE_WITH_CONCERNS→全修→增量复审 APPROVED（mutation 验证）；全量门 + live curl 真实 qwen-plus 三轮续写/掐断保留/越权 404；记录：#290 迁移 073 ledger 漏记已补账；本地 search_content tool_error 为 embedding provider 未配置的既有状态（A-03 范围））
 14. **A-02（#284）** SSE 契约 v2（真流式 + 思考块 + 工具步骤事件；同步 web-agent-v0.4-mvp.md；继承 T19 行缓冲语义） ✅ 2026-09-02 完成（8517032，light+TDD：真流式逐段转发（删除轮末整段）+ ChatDelta.Thinking 双通道（MiniMax 标签分流 thinkSplitter/openai_compat reasoning_content）+ think_delta 仅展示层（phase 标记行落库）+ 工具步骤 args_summary/hits/duration_ms + done.message_id；no_evidence 语义升级为「正文可流出、done 终态裁决」；v2 五测先红后绿 + live 计时（首 delta 448ms≪全程 2.25s、15 delta 渐次、message_id=42）；web-agent-v0.4-mvp.md v2 契约段定稿）
-15. **A-05（#287）** 护栏补口（chat 输入前置 Green + 输出事后异步审核）
+15. **A-05（#287）** 护栏补口（chat 输入前置 Green + 输出事后异步审核） ✅ 2026-09-03 完成（6cef43b，PR #294，CI project-gate 五门全绿 squash 合并；ModerateChatInput 复用 RunModerationGate A4 语义——422/503/本地 fail-open，门在配额预留与开流之前；scheduleOutputModeration GoSafe 异步标记 tool_calls={moderation:blocked} 原文留库；历史 DTO 脱敏 + 前端占位提示；live curl 8099 qwen-plus 真流式实测 + psql 模拟标记脱敏验证；service 11 例 + handler 4 例）
 16. **A-03（#285）** 检索管线升级（v4@1536 零 DDL + hybrid on Postgres + 查询扩展 + qwen3-rerank 三开关）
 17. **语料 v2（CORPUS-01，#291）** 合成语料注入与 golden set 冻结（blocked_by A-03 + 语料文本外部输入；spec = docs/working/2026-09-02-corpus-v2-seed-spec.md；本地注入走真实发布管线与审核流转；golden set 需含 #290 IP 内搜索分层；生产种子 2k–5k 为人工执行清单，不属本 goal——红线 10）
 18. **A-04（#286）** 评测消融与门禁（blocked_by A-03 + 语料 v2 #291；DashScope key 已就绪；语料未冻结时实现+mock 管线先行、真实消融结论标注待补）
