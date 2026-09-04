@@ -163,6 +163,7 @@
 - 错误率撤权：最近 N 次（配置窗口从 config.yaml > judge.error_rate_window 读取且最小为 10；累计有效判定需 > 10）判定中错误率 > 50%，撤权 + 扣 1 信誉分
 - 判决结束条件：总投票人数 ≥ 阈值（MVP 默认 20，可配置，目标 100）
 - 判决结果：「不违规」比例 ≥ 60% → 恢复展示；< 60% → 有争议，不予展示（管理员可手动恢复）
+- 闭案回写（FIX-10）：closed_approve → 内容从 under_review 条件恢复 published（守卫保证 admin/AI 终态 banned 不被众裁覆盖）并重发索引事件；closed_reject → banned + ban_reason（judge_verdict 前缀），**不扣信誉分**（扣分语义属 AI/admin 通道）；两态均通知作者（content_status 契约）并立即失效内容缓存。banned 结果可 admin restore、可申诉
 - 判决详情页：投票后展示当前投票分布 + 其他判官提交的理由列表（可点赞/点踩，按赞数排序）
 
 ### 自动风控阈值（PRD §6.2，从 config.yaml > social 读取）
