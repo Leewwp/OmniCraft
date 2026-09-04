@@ -303,6 +303,9 @@ func (s *SocialService) Report(targetType string, targetID int64, reporterID int
 		ratio := float64(count) / float64(content.ViewCount)
 		if ratio >= threshold {
 			s.contentRepo.UpdateContent(targetID, map[string]interface{}{"status": "under_review"})
+			// 审核决策即时生效（FIX-38）：auto-hide 后立即失效公共读路径缓存，
+			// 否则被隐藏内容在 TTL 窗口内仍可读。
+			InvalidateContentCaches(s.rdb, targetID)
 		}
 	}
 	return nil
