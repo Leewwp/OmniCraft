@@ -107,9 +107,13 @@ rag:
     timeout_sec: 30
   index:
     # Host-local default; Compose overrides this with the service DNS name.
+    # OpenSearch is the optional lexical fallback (full-infra); the canonical
+    # lexical primary is rag.hybrid.keyword_source = postgres.
     url: "http://127.0.0.1:9200"
     generation_start: 1
-    embedding_model: "text-embedding-3-small"
+    # Must stay in sync with agent.embedding_model when hybrid RAG is enabled
+    # (config validation enforces the equality).
+    embedding_model: "text-embedding-v4"
     health_poll_interval_sec: 1
     timeout_sec: 10
     audit_timeout_sec: 2
@@ -121,6 +125,9 @@ rag:
     vector_topk: 200
     rrf_k: 60
     final_topk: 10
+    # Lexical primary: postgres (pg_jieba, viewer-scoped) is canonical;
+    # opensearch inverts primary/fallback for full-infra stacks.
+    keyword_source: "postgres"
 
 # Archive malware scanning quotas, timeout and retry policy (design §4/§6).
 # Server-side skeleton only (S01); the scan worker and gates consume it.
@@ -264,15 +271,29 @@ upload:
     
 agent:
   web_agent_enabled: false
-  llm_provider: "openai_compat"        # 或 "minimax" / "qwen"；切换时必须同步 embedding_model 并重建向量
-  llm_model: "deepseek-chat"           # 按实际选择
-  llm_api_base: "https://api.deepseek.com"
+  # Canonical profile (docs/reference/agent-runtime-matrix.md): MiniMax-M3
+  # chat through the minimax adapter (tool calls + <think> splitting), with
+  # DashScope text-embedding-v4 through a separate openai_compat embedding
+  # provider. The native "qwen" adapter is retired for agent use — DashScope
+  # chat belongs behind openai_compat with the compatible-mode base.
+  llm_provider: "minimax"
+  llm_model: "MiniMax-M3"
+  llm_api_base: "https://api.minimaxi.com"
   llm_api_key: ""                      # 留空，改用 env var AGENT_LLM_API_KEY 注入（config.go 已实现）
-  embedding_model: "text-embedding-3-small"
+  # Embedding follows llm_provider when embedding_provider is empty. The
+  # canonical split wiring routes embeddings to openai_compat (DashScope) and
+  # requires its own AGENT_EMBEDDING_API_KEY — cross-vendor embedding never
+  # borrows the chat credential (fail-closed, factory + preflight enforce).
+  embedding_provider: "openai_compat"
+  embedding_model: "text-embedding-v4"
+  embedding_api_base: "https://dashscope.aliyuncs.com/compatible-mode"  # 不要带尾部 /v1
+  embedding_api_key: ""                # 留空，env var AGENT_EMBEDDING_API_KEY 注入
   embedding_dimensions: 1536
   rate_limit_per_day: 50
   rate_limit_per_minute: 5
   max_tool_calls_per_turn: 8
+  # Canonical candidate is 4096 (M-series thinking consumes the output
+  # budget); raise only after the thinking/answer token measurement lands.
   max_output_tokens: 1200
   provider_timeout_sec: 60
   provider_max_retries: 2
