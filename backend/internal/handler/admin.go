@@ -277,6 +277,12 @@ func (h *AdminHandler) BanContent(c *gin.Context) {
 	// 审核决策即时生效（FIX-38）：封禁后立即失效公共读路径缓存，
 	// 否则 banned 内容在 TTL 窗口内仍以旧缓存返回 200。
 	service.InvalidateContentCaches(h.rdb, id)
+	// 封禁通知作者（FIX-17a）：body 带 admin 填写的 reason。
+	if h.notifSvc != nil {
+		if content, err := h.contentRepo.FindByID(id); err == nil && content != nil {
+			h.notifSvc.NotifyContentStatus(content.AuthorID, content.ID, content.Title, "banned", body.Reason, middleware.GetUserID(c))
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "content banned"})
 }
 
@@ -313,6 +319,12 @@ func (h *AdminHandler) RestoreContent(c *gin.Context) {
 	}
 	// 审核决策即时生效（FIX-38）：恢复后立即失效残留的陈旧缓存键。
 	service.InvalidateContentCaches(h.rdb, id)
+	// 恢复通知作者（FIX-17a）：告知内容重新公开。
+	if h.notifSvc != nil {
+		if content, err := h.contentRepo.FindByID(id); err == nil && content != nil {
+			h.notifSvc.NotifyContentStatus(content.AuthorID, content.ID, content.Title, "published", "", middleware.GetUserID(c))
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "content restored"})
 }
 

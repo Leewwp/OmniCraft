@@ -304,3 +304,46 @@ func (s *NotificationService) Notify(userID int64, channel, notifType, title, bo
 		}
 	})
 }
+
+// NotifyContentStatus delivers the author-facing content status-change
+// notification (FIX-17): channel=system, type=content_status, target=content,
+// and the body carries the reason when one is known. Unknown statuses are
+// dropped so callers can pass transitions through unconditionally. Copy stays
+// in backend Chinese templates on purpose; locale templating is a registered
+// non-goal for this phase.
+func (s *NotificationService) NotifyContentStatus(authorID, contentID int64, contentTitle, status, reason string, senderID int64) {
+	title, body, ok := contentStatusNotificationCopy(contentTitle, status, reason)
+	if !ok {
+		return
+	}
+	s.Notify(authorID, "system", "content_status", title, body, "content", contentID, senderID)
+}
+
+// contentStatusNotificationCopy renders the author-facing copy for a content
+// status transition. ok=false means the status has no author notification.
+func contentStatusNotificationCopy(contentTitle, status, reason string) (title, body string, ok bool) {
+	if contentTitle == "" {
+		contentTitle = "你的内容"
+	}
+	reasonSuffix := ""
+	if reason != "" {
+		reasonSuffix = "原因：" + reason
+	}
+	switch status {
+	case "banned":
+		title = "内容已被封禁"
+		body = "《" + contentTitle + "》已被封禁。"
+	case "under_review":
+		title = "内容进入人工复核"
+		body = "《" + contentTitle + "》已进入人工复核。"
+	case "published":
+		title = "内容已通过审核"
+		body = "《" + contentTitle + "》已通过审核并公开发布。"
+	default:
+		return "", "", false
+	}
+	if reasonSuffix != "" {
+		body += reasonSuffix
+	}
+	return title, body, true
+}
