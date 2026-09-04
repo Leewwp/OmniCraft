@@ -359,3 +359,32 @@ func (h *SocialHandler) ReportComment(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, gin.H{"message": "reported"})
 }
+
+// ListMyReports returns the caller's own reports with handling status and
+// action-taken notes (FIX-28a). The reporter_id filter is derived from the
+// auth context so other users' reports can never leak.
+func (h *SocialHandler) ListMyReports(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+	if callerID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		return
+	}
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	searchRepo := repository.NewSearchRepository(h.db)
+	reports, total, err := searchRepo.ListReportsByReporter(callerID, page, pageSize)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	if reports == nil {
+		reports = []model.Report{}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"reports":   reports,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
+}
