@@ -68,21 +68,20 @@ func seedAgentGroundingDB(t *testing.T) *gorm.DB {
 	}
 
 	now := time.Now()
-	// NOTE: GORM replaces zero values of `default`-tagged fields on Create
-	// (IsPublic default:true would store true), so fixtures are inserted with
-	// raw SQL to keep deterministic visibility states.
+	// content_items 的 is_public/allow_copy 无 gorm 默认值（#318 修复后显式
+	// 零值原样落库），夹具裸 SQL 必须带全两列以保持确定性可见性状态。
 	contents := []model.ContentItem{
-		{ID: 100, Title: "Published Public", AuthorID: 1, Zone: "original", ContentType: "mod", Status: "published", IsPublic: true, CreatedAt: now, UpdatedAt: now},
-		{ID: 101, Title: "Private Other Author", AuthorID: 1, Zone: "original", ContentType: "mod", Status: "published", IsPublic: false, CreatedAt: now, UpdatedAt: now},
-		{ID: 102, Title: "Banned Author Content", AuthorID: 2, Zone: "original", ContentType: "mod", Status: "published", IsPublic: true, CreatedAt: now, UpdatedAt: now},
-		{ID: 103, Title: "Under Review", AuthorID: 1, Zone: "original", ContentType: "mod", Status: "under_review", IsPublic: true, CreatedAt: now, UpdatedAt: now},
-		{ID: 104, Title: "Soft Deleted", AuthorID: 1, Zone: "original", ContentType: "mod", Status: "published", IsPublic: true, DeletedAt: &now, CreatedAt: now, UpdatedAt: now},
-		{ID: 105, Title: "Viewer Own Private", AuthorID: 3, Zone: "original", ContentType: "mod", Status: "published", IsPublic: false, CreatedAt: now, UpdatedAt: now},
+		{ID: 100, Title: "Published Public", AuthorID: 1, Zone: "original", ContentType: "mod", Status: "published", IsPublic: true, AllowCopy: true, CreatedAt: now, UpdatedAt: now},
+		{ID: 101, Title: "Private Other Author", AuthorID: 1, Zone: "original", ContentType: "mod", Status: "published", IsPublic: false, AllowCopy: true, CreatedAt: now, UpdatedAt: now},
+		{ID: 102, Title: "Banned Author Content", AuthorID: 2, Zone: "original", ContentType: "mod", Status: "published", IsPublic: true, AllowCopy: true, CreatedAt: now, UpdatedAt: now},
+		{ID: 103, Title: "Under Review", AuthorID: 1, Zone: "original", ContentType: "mod", Status: "under_review", IsPublic: true, AllowCopy: true, CreatedAt: now, UpdatedAt: now},
+		{ID: 104, Title: "Soft Deleted", AuthorID: 1, Zone: "original", ContentType: "mod", Status: "published", IsPublic: true, AllowCopy: true, DeletedAt: &now, CreatedAt: now, UpdatedAt: now},
+		{ID: 105, Title: "Viewer Own Private", AuthorID: 3, Zone: "original", ContentType: "mod", Status: "published", IsPublic: false, AllowCopy: true, CreatedAt: now, UpdatedAt: now},
 	}
 	for _, c := range contents {
 		if err := db.Exec(
-			"INSERT INTO content_items (id, title, description, author_id, zone, content_type, status, is_public, created_at, updated_at, deleted_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-			c.ID, c.Title, c.Description, c.AuthorID, c.Zone, c.ContentType, c.Status, c.IsPublic, c.CreatedAt, c.UpdatedAt, c.DeletedAt,
+			"INSERT INTO content_items (id, title, description, author_id, zone, content_type, status, is_public, allow_copy, created_at, updated_at, deleted_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+			c.ID, c.Title, c.Description, c.AuthorID, c.Zone, c.ContentType, c.Status, c.IsPublic, c.AllowCopy, c.CreatedAt, c.UpdatedAt, c.DeletedAt,
 		).Error; err != nil {
 			t.Fatalf("seed content %d: %v", c.ID, err)
 		}
