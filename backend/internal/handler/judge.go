@@ -190,13 +190,19 @@ func (h *JudgeHandler) VoteReason(c *gin.Context) {
 		response.ValidationError(c, "invalid request parameters")
 		return
 	}
-	rv := model.JudgeReasonVote{
-		ReasonOwnerVoteID: voteID,
-		VoterID:           callerID,
-		VoteType:          body.VoteType,
-	}
-	if err := h.judgeRepo.CreateReasonVote(&rv); err != nil {
-		response.SafeErrorResponse(c, http.StatusConflict, "ERROR", err)
+	// T38（FIX-36b）：守卫下沉 service——禁自赞（409）、判官资格校验（403）、
+	// 重复投票幂等/反方向切换。
+	if err := h.judgeSvc.VoteReason(voteID, callerID, body.VoteType); err != nil {
+		switch err {
+		case service.ErrReasonVoteNotFound:
+			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "reason target vote not found"})
+		case service.ErrReasonSelfVote:
+			c.JSON(http.StatusConflict, gin.H{"code": "REASON_SELF_VOTE", "message": "cannot vote on your own reason"})
+		case service.ErrJudgeQualificationRequired:
+			c.JSON(http.StatusForbidden, gin.H{"code": "JUDGE_QUALIFICATION_REQUIRED", "message": "judge qualification required"})
+		default:
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		}
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "reason vote submitted"})

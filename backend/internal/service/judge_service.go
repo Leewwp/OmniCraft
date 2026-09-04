@@ -26,6 +26,10 @@ var (
 	ErrExamSessionExpired = errors.New("exam session expired or missing")
 	// T37（FIX-36a）：已持有有效资格再考拦截。
 	ErrAlreadyQualified = errors.New("already qualified for this content type")
+	// T38（FIX-36b）：理由投票守卫。
+	ErrReasonSelfVote             = errors.New("cannot vote on your own reason")
+	ErrJudgeQualificationRequired = errors.New("judge qualification required")
+	ErrReasonVoteNotFound         = errors.New("reason target vote not found")
 )
 
 const examQuestionCount = 10
@@ -364,11 +368,31 @@ func (s *JudgeService) checkAndRevokeIfNeeded(judgeID int64) error {
 	return nil
 }
 
-func (s *JudgeService) GetVerdictDetail(caseID int64) (*model.JudgeCase, []model.JudgeVote, error) {
+func (s *JudgeService) GetVerdictDetail(caseID int64) (*model.JudgeCase, []repository.VerdictVoteItem, error) {
 	judgeCase, err := s.judgeRepo.FindCase(caseID)
 	if err != nil || judgeCase == nil {
 		return nil, nil, ErrCaseNotFound
 	}
-	votes, err := s.judgeRepo.ListVotesForCase(caseID)
+	votes, err := s.judgeRepo.ListVerdictVotes(caseID)
 	return judgeCase, votes, err
+}
+
+// VoteReason（T38/FIX-36b）：理由投票守卫——禁自赞（owner==caller），
+// 投票人须持任一有效判官资格；重复投票幂等，反方向切换。
+func (s *JudgeService) VoteReason(voteID int64, voterID int64, voteType string) error {
+	vote, err := s.judgeRepo.GetVoteByID(voteID)
+	if err != nil {
+		return ErrReasonVoteNotFound
+	}
+	if vote.JudgeID == voterID {
+		return ErrReasonSelfVote
+	}
+	quals, err := s.judgeRepo.GetUserQualifications(voterID)
+	if err != nil {
+		return err
+	}
+	if len(quals) == 0 {
+		return ErrJudgeQualificationRequired
+	}
+	return s.judgeRepo.UpsertReasonVote(voteID, voterID, voteType)
 }
