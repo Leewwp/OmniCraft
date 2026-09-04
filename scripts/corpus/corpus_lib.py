@@ -28,6 +28,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import unicodedata
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
@@ -136,6 +137,21 @@ def ensure_title(title: str, body_md: str, key: str, limit: int = 40) -> str:
     if len(text) > limit:
         text = text[:limit]
     return text or ("untitled %s" % key)
+
+
+def normalized_title(title: str) -> str:
+    """Retrieval-side title key (golden-set v2 annotation spec §6.1): NFC,
+    strip ONE outer 《》 wrap pair, then trim. Canonical titles keep their
+    brackets everywhere else (source, DB, index, display); only the
+    known_item_exact query surface normalizes, so a query written without
+    brackets still matches 《-wrapped canonical titles. Inner brackets
+    (《西游记》狮驼遗事 style) are canonical content, not wrap, and stay."""
+    text = unicodedata.normalize("NFC", (title or "")).strip()
+    if len(text) >= 2 and text.startswith("《") and text.endswith("》"):
+        inner = text[1:-1].strip()
+        if inner:
+            return inner
+    return text
 
 
 def build_description(body_md: str, limit: int = 120) -> str:
