@@ -1318,7 +1318,7 @@ interface FacetedSearchSidebarProps {
 - 投票分布实时显示
 
 **状态变体**
-- default: 案例详情 + 违规/不违规投票按钮 + 理由输入 + 投票分布。
+- default: 受控内容预览（内容预警横幅 + 点击后加载内容本体 + 案件类型标签）+ 违规/不违规投票按钮 + 理由输入 + 投票分布 + 跳过本案/举报此内容。
 - loading: 骨架屏（Skeleton 灰色块）。
 - empty: 队列空时 EmptyState"暂无待审内容"。
 - error: Toast 右上角报错。
@@ -3197,6 +3197,7 @@ interface ExamQuestionProps {
 **Key Constraints**
 - 赛博判官业务规则：只有具有对应类型的判官权限（judge_qualifications）或通过考核才能操作。
 - 信誉分必须 >= 3 才能行使众裁权利，否则禁用功能。
+- 受控内容预览（T40/FIX-36d）：内容预警横幅常驻；内容本体点击「查看内容」后才请求（持资格判官读 under_review 豁免），媒体需再点「加载媒体」二次确认后才渲染；卡片提供「跳过本案」与「举报此内容」入口；已投案件不再出现在本人队列。
 - ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
 - 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
