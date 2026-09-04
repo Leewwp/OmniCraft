@@ -934,6 +934,12 @@
       "confirmApprove": "Approve",
       "confirmReject": "Reject",
       "opinion": "Handling opinion",
+      "statusFilter": "Status filter",
+      "statusPending": "Pending",
+      "statusApproved": "Approved",
+      "statusRejected": "Rejected",
+      "statusAll": "All",
+      "viewContent": "View content",
       "loadFailed": "Failed to load appeal list",
       "processFailed": "Failed to process appeal"
     },
@@ -1577,6 +1583,7 @@
     "noAppeals": "No appeal records",
     "loadFailed": "Failed to load",
     "submitFailed": "Failed to submit",
+    "adminResponse": "Admin response",
     "exists": "A pending appeal already exists for this target. Please wait until it is resolved"
   },
   "history": {
@@ -1968,7 +1975,8 @@
       "contributors": "Contributors",
       "tagSuggestions": "Tag Suggestions",
       "revenue": "Revenue",
-      "favorites": "Collections"
+      "favorites": "Collections",
+      "myIPs": "My IPs"
     },
     "series": {
       "title": "Content series",
@@ -2318,6 +2326,25 @@
         "saveFailed": "Failed to save collection",
         "deleteFailed": "Failed to delete collection"
       }
+    },
+    "myIPs": {
+      "title": "My IPs",
+      "subtitle": "Review the status and feedback of IPs you created",
+      "empty": "You haven't created any IPs yet",
+      "create": "Create IP",
+      "colName": "Name",
+      "colCategory": "Category",
+      "colStatus": "Status",
+      "colDate": "Submitted",
+      "colReason": "Review note",
+      "colActions": "Actions",
+      "statusPending": "Pending",
+      "statusApproved": "Approved",
+      "statusRejected": "Rejected",
+      "noReason": "-",
+      "resubmit": "Resubmit",
+      "view": "View",
+      "loadFailed": "Failed to load IP list"
     }
   },
   "adminNotifications": {
