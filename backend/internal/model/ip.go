@@ -17,6 +17,9 @@ type IP struct {
 	// Tags is not a column: ip_tags rows are joined back in the service layer
 	// so the JSON contract exposes them while GORM keeps ignoring them.
 	Tags []string `gorm:"-" json:"tags,omitempty"`
+	// ReviewReason is not a column: the owner-facing listing (T52) joins the
+	// latest ip_review_logs reason for rejected IPs in the service layer.
+	ReviewReason string `gorm:"-" json:"review_reason,omitempty"`
 }
 
 func (IP) TableName() string { return "ips" }

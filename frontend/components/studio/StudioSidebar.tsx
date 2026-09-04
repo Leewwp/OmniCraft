@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   PanelLeftClose, PanelLeft, FilePlus, LayoutDashboard,
-  FileText, GitPullRequest, Users, Tags, BarChart3, DollarSign, BookOpen, Boxes, Heart, X,
+  FileText, GitPullRequest, Users, Tags, BarChart3, DollarSign, BookOpen, Boxes, Heart, X, Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -48,6 +48,7 @@ export function StudioSidebar() {
         { icon: LayoutDashboard, label: t('studio.sidebar.overview'), href: "/studio/overview" },
         { icon: BarChart3, label: t('studio.sidebar.followers'), href: "/studio/followers" },
         { icon: FileText, label: t('studio.sidebar.myContent'), href: "/studio/contents" },
+        { icon: Package, label: t('studio.sidebar.myIPs'), href: "/studio/ips" },
         { icon: BookOpen, label: t('studio.sidebar.series'), href: "/studio/series" },
         { icon: Heart, label: t('studio.sidebar.favorites'), href: "/studio/favorites" },
       ],

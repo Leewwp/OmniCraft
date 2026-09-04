@@ -505,6 +505,8 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
               placeholder={t('studio.publish.ipSearchPlaceholder')}
               searchLabel={t('studio.publish.ipLabel')}
               loadingLabel={t('studio.publish.ipSearching')}
+              createHref="/studio/publish/ip"
+              createLabel={t('studio.myIPs.create')}
             />
           </div>
           {prefillLoading ? (
