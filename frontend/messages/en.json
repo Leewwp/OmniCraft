@@ -723,7 +723,9 @@
     },
     "insufficientQuestions": "Not enough questions are available for this category. Please try again later",
     "readingTimeTooShort": "Reading time was too short. Please read the instructions fully first",
-    "loadMore": "Load more cases"
+    "loadMore": "Load more cases",
+    "examSessionExpired": "Exam session expired. Please select a type to draw questions again",
+    "examAlreadyQualified": "You already hold the qualification for this content type"
   },
   "dashboard": {
     "title": "Creator Dashboard",

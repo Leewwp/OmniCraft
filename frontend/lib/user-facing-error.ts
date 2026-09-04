@@ -55,6 +55,8 @@ export const ERROR_CODE_MESSAGE_KEYS: Record<string, string> = {
   // 判官考核
   INSUFFICIENT_QUESTIONS: "judge.insufficientQuestions",
   READING_TIME_TOO_SHORT: "judge.readingTimeTooShort",
+  EXAM_SESSION_EXPIRED: "judge.examSessionExpired",
+  ALREADY_QUALIFIED: "judge.examAlreadyQualified",
 };
 
 export function getUserFacingErrorKey(error: unknown, fallbackKey = "common.operationFailed"): string {
