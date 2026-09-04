@@ -1,3 +1,16 @@
+## [2026-09-04] - 编排：道 B 闲时清票提示词 + 34/69 计数回写 + 道 A bug 批派发
+
+### What was done:
+- 新增 `docs/working/2026-09-04-longtask-laneb-seg8b-prompt.md`（道 B 闲时通道提示词：第 8 段 B 批子链 T10/T11/T41/T42/T43/T44 + 备 T53/T55；含可中断续跑协议、多会话并行红线、隔离端口 5437/6384/8086/3202/9096）。
+- 总序 §1.1 checkpoint 与第 8 段 D 批行回写道 3 收口（6 票，main=1b107b3）；AGENTS SP-13 行计数 28→34/69（道 3 移交的文档欠账收口）。
+- 派发决定：道 A = 产品 bug 批 #319→#318→#320→#321（#323 顺手；#322 并入 T32 执行）；golden set 复核与 8080 注入栈不受影响。
+
+### Testing:
+- `doc-validator --check --profile release` 提交前本地验证（本 PR 仅文档）。
+
+### Notes:
+- 道 A 由编排会话本窗执行（worktree OmniCraft-wt-la，隔离端口 5436/6383/8085/3201/9095）；#319 为 A-04 硬前置，提前并行拆解。
+
 ## [2026-09-03] - Task A-07 (#289): 搜索页 Agent 入口与新工作台统一（✅ 已收口：PR #306 → a0fc7da，CI 五门全绿 squash 合并 + GitHub CLOSED；道 2 前端清票道执行）
 
 ### What was done:
