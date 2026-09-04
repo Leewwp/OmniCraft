@@ -487,7 +487,7 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 		// the standard form keeps sqlite-backed tests executable.
 		"resolved_at": gorm.Expr("CURRENT_TIMESTAMP"),
 	}
-	entry := h.auditEntry(c, "appeal_resolve", "appeal", strconv.FormatInt(id, 10), map[string]any{"appeal_id": id, "decision": body.Status, "reason": body.AdminResponse})
+	entry := h.auditEntry(c, "appeal_resolve", "appeal", strconv.FormatInt(id, 10), map[string]any{"appeal_id": id, "decision": body.Status, "reason": body.AdminResponse, "target_type": appeal.TargetType})
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
 		if err := tx.Model(&model.Appeal{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 			return err
@@ -501,6 +501,10 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 			return tx.Model(&model.ContentItem{}).Where("id = ?", appeal.TargetID).Updates(targetUpdates).Error
 		case "comment":
 			return tx.Model(&model.Comment{}).Where("id = ?", appeal.TargetID).Updates(targetUpdates).Error
+		case "account":
+			// T29（FIX-15）：账号申诉批准 = 解封（is_banned=false + 清
+			// ban_reason），与 appeal 解析同事务落库。
+			return tx.Model(&model.User{}).Where("id = ?", appeal.TargetID).Updates(targetUpdates).Error
 		default:
 			return nil
 		}
@@ -514,6 +518,10 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 	// 申诉批准（content 目标）回写 published 后立即失效缓存（FIX-38）。
 	if appeal.TargetType == "content" && len(service.AppealTargetUpdates(appeal.TargetType, body.Status)) > 0 {
 		service.InvalidateContentCaches(h.rdb, appeal.TargetID)
+	}
+	// T29（FIX-15）：账号申诉解封后立即失效用户状态缓存，解封即时生效。
+	if appeal.TargetType == "account" && len(service.AppealTargetUpdates(appeal.TargetType, body.Status)) > 0 {
+		middleware.InvalidateUserStatusCache(h.rdb, appeal.TargetID)
 	}
 	if h.notifSvc != nil {
 		adminID := middleware.GetUserID(c)

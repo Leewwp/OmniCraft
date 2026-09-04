@@ -103,6 +103,8 @@
     "loginNow": "Log in now",
     "errorInvalidCredentials": "Invalid email or password",
     "errorBanned": "Account has been banned. Please contact support.",
+    "bannedFeedbackHint": "To appeal or ask questions, reach us via the feedback form:",
+    "bannedFeedbackEntry": "Submit feedback",
     "errorLoginFailed": "Login failed. Please try again later.",
     "errorNetwork": "Network error. Please check your connection and try again.",
     "errorSessionExpired": "Your session has expired. Please log in again.",
@@ -720,7 +722,8 @@
       "loadFailed": "Failed to load verdict details"
     },
     "insufficientQuestions": "Not enough questions are available for this category. Please try again later",
-    "readingTimeTooShort": "Reading time was too short. Please read the instructions fully first"
+    "readingTimeTooShort": "Reading time was too short. Please read the instructions fully first",
+    "loadMore": "Load more cases"
   },
   "dashboard": {
     "title": "Creator Dashboard",
@@ -1557,6 +1560,8 @@
     "newAppeal": "New Appeal",
     "typeContent": "Content",
     "typeComment": "Comment",
+    "typeAccount": "Account (ban appeal)",
+    "accountHint": "No target ID is needed for an account appeal; it will be linked to your account automatically.",
     "targetId": "Target ID",
     "reason": "Appeal reason",
     "submit": "Submit",
