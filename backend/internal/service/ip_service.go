@@ -71,8 +71,14 @@ type CreateIPInput struct {
 // iptagMaxLen mirrors ip_tags.tag VARCHAR(50) (migration 005).
 const iptagMaxLen = 50
 
+// iptagMaxCount matches the client-side IPPublishForm cap (10). The server
+// must not rely on the client: without a cap, arbitrary tag counts reach
+// ip_tags and the public display path (T15/F-102).
+const iptagMaxCount = 10
+
 // normalizeIPTags trims each tag, drops empties, truncates to the column
-// length and removes duplicates (case-sensitive), preserving first-seen order.
+// length, removes duplicates (case-sensitive), preserving first-seen order,
+// and caps the list at iptagMaxCount entries.
 func normalizeIPTags(tags []string) []string {
 	if len(tags) == 0 {
 		return nil
@@ -92,6 +98,9 @@ func normalizeIPTags(tags []string) []string {
 		}
 		seen[trimmed] = struct{}{}
 		normalized = append(normalized, trimmed)
+		if len(normalized) >= iptagMaxCount {
+			break
+		}
 	}
 	if len(normalized) == 0 {
 		return nil
@@ -152,6 +161,7 @@ func (s *IPService) submitIPForAIReview(ctx context.Context, ip *model.IP, creat
 				"target_id":       reviewInput.TargetID,
 				"title":           reviewInput.Title,
 				"description":     reviewInput.Description,
+				"tags":            reviewInput.Tags,
 				"author_id":       reviewInput.AuthorID,
 				"cover_image_url": reviewInput.CoverImageURL,
 			})
@@ -178,6 +188,7 @@ func ipReviewInput(ip *model.IP, creatorID int64) SubmitReviewInput {
 		TargetID:      ip.ID,
 		Title:         ip.Name,
 		Description:   ip.Description,
+		Tags:          ip.Tags,
 		AuthorID:      creatorID,
 		CoverImageURL: ip.CoverURL,
 	}

@@ -85,7 +85,10 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	ips := v1.Group("/ips")
 	{
 		ips.GET("", optAuth, ipHandler.ListIPs)
-		ips.POST("", authReq, ipHandler.CreateIP)
+		// T15 (F-103): IP creation enters the review queue and publishes
+		// public free text, so it carries the same publishing guard + upload
+		// rate limit as content creation.
+		ips.POST("", authReq, publishGuard, middleware.UploadRateLimit(rdb, &cfg.RateLimit), ipHandler.CreateIP)
 		ips.GET("/:id", optAuth, ipHandler.GetIP)
 		ips.GET("/:id/contents", optAuth, ipHandler.GetIPContents)
 

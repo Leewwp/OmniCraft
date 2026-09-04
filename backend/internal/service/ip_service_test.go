@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -99,6 +100,37 @@ func TestNormalizeIPTagsTrimsDedupesAndTruncates(t *testing.T) {
 	normalized = normalizeIPTags([]string{multibyte})
 	require.Len(t, normalized, 1)
 	require.Len(t, []rune(normalized[0]), iptagMaxLen, "truncation counts runes (Postgres CHAR length), not bytes")
+}
+
+// T15 (F-102): the server must cap tag count at the same limit the client
+// enforces (10) — the client-side cap alone lets arbitrary tag counts reach
+// ip_tags and the public display path.
+func TestNormalizeIPTagsCapsAtTenEntries(t *testing.T) {
+	input := make([]string, 0, 14)
+	for i := 1; i <= 14; i++ {
+		input = append(input, fmt.Sprintf("tag%02d", i))
+	}
+
+	got := normalizeIPTags(input)
+
+	require.Len(t, got, 10, "normalizeIPTags must cap the tag list at 10 entries")
+	require.Equal(t, []string{"tag01", "tag02", "tag03", "tag04", "tag05", "tag06", "tag07", "tag08", "tag09", "tag10"},
+		got, "cap keeps the first-seen order and drops the overflow")
+}
+
+// T15 (F-101): tags are public free text and must enter the Green text review
+// channel alongside name/description instead of skipping review entirely.
+func TestIPReviewInputCarriesTags(t *testing.T) {
+	ip := &model.IP{
+		ID:          11,
+		Name:        "示例 IP",
+		Slug:        "example-ip",
+		Description: "desc",
+		Tags:        []string{"奇幻", "冒险"},
+	}
+	in := ipReviewInput(ip, 42)
+
+	require.Equal(t, []string{"奇幻", "冒险"}, in.Tags, "IP tags must enter the text review input")
 }
 
 func setupIPServiceDB(t *testing.T) *gorm.DB {

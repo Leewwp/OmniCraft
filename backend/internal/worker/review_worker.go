@@ -38,6 +38,7 @@ func (w *ReviewWorker) Handle(ctx context.Context, msg queue.Message) error {
 		ContentType    string                 `json:"content_type,omitempty"`
 		Title          string                 `json:"title,omitempty"`
 		Description    string                 `json:"description,omitempty"`
+		Tags           []string               `json:"tags,omitempty"`
 		AuthorID       int64                  `json:"author_id,omitempty"`
 		CoverImageURL  string                 `json:"cover_image_url,omitempty"`
 		Result         string                 `json:"result,omitempty"`
@@ -63,6 +64,7 @@ func (w *ReviewWorker) Handle(ctx context.Context, msg queue.Message) error {
 			ContentType:   payload.ContentType,
 			Title:         payload.Title,
 			Description:   payload.Description,
+			Tags:          payload.Tags,
 			AuthorID:      payload.AuthorID,
 			CoverImageURL: payload.CoverImageURL,
 			// #195 at-least-once idempotency: Redis Streams re-delivers the

@@ -27,10 +27,12 @@ import (
 // greenScanner method set without exposing the interface type.
 type countingGreenScanner struct {
 	textScans int
+	lastText  string
 }
 
 func (c *countingGreenScanner) TextModeration(ctx context.Context, text string) (*aliyun.GreenScanResult, error) {
 	c.textScans++
+	c.lastText = text
 	return &aliyun.GreenScanResult{Result: "pass"}, nil
 }
 
@@ -182,6 +184,40 @@ func TestReviewWorkerSubmitAIReviewRedeliveryIsIdempotent(t *testing.T) {
 	var status string
 	require.NoError(t, db.Raw(`SELECT status FROM content_items WHERE id = ?`, contentID).Scan(&status).Error)
 	require.Equal(t, "published", status)
+}
+
+// T15 (F-101): the ip.review queue path must forward tags so the worker-side
+// Green text scan sees the same text as the HTTP direct path — tags must not
+// silently drop out of review when the submission travels through the stream.
+func TestReviewWorkerSubmitAIReviewForwardsTagsToTextScan(t *testing.T) {
+	ww, db, scanner := setupReviewWorkerTest(t)
+	ctx := context.Background()
+
+	_, contentID := seedReviewWorkerContent(t, db)
+
+	payload, err := json.Marshal(map[string]interface{}{
+		"action":       "submit_ai_review",
+		"target_type":  "content",
+		"target_id":    contentID,
+		"content_type": "video",
+		"title":        "worker tags fixture",
+		"description":  "body",
+		"author_id":    0,
+		"tags":         []string{"奇幻", "冒险"},
+	})
+	require.NoError(t, err)
+
+	msg := queue.Message{
+		ID:      "1724600000001-0",
+		Topic:   "ip.review",
+		Group:   "omnicraft-ip-review",
+		Payload: payload,
+	}
+
+	require.NoError(t, ww.Handle(ctx, msg))
+	require.Equal(t, 1, scanner.textScans)
+	require.Contains(t, scanner.lastText, "奇幻", "worker text scan must include tags from the payload")
+	require.Contains(t, scanner.lastText, "冒险", "worker text scan must include tags from the payload")
 }
 
 // TestReviewWorkerUnknownActionReturnsError proves an unknown action is a
