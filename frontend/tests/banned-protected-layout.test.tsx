@@ -30,6 +30,7 @@ Module._load = function loadWithT29Stubs(request: string, parent: unknown, isMai
     return {
       useRouter: () => ({ push: () => undefined, replace: () => undefined }),
       usePathname: () => state.pathname,
+      useSearchParams: () => new URLSearchParams(),
     };
   }
   if (request === "@/contexts/AuthContext") {

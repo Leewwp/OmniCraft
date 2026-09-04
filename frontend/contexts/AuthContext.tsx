@@ -100,6 +100,12 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+// T32（#322）：应用级 refresh 单飞——StrictMode 双挂载 / fetchMe 与轮询并发的
+// 多个 refresh 调用共享同一 in-flight promise，杜绝轮换 refresh token 被双发
+// 消费后第二次 401 清空会话弹回登录页。模块级变量跨 provider 实例共享；
+// finally 必清，不跨「刷新窗口」残留。
+let authRefreshInFlight: Promise<boolean> | null = null;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -109,22 +115,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const previousUserRef = useRef<User | null>(null);
 
   const refresh = useCallback(async (): Promise<boolean> => {
-    try {
-      const data = await api.post<{ tokens: { access_token: string } }>(
-        "/api/v1/auth/refresh",
-        {}
-      );
-      saveTokens(data.tokens.access_token);
-      setAccessToken(data.tokens.access_token);
-      return true;
-    } catch (e) {
-      silentError(e, { component: "AuthContext", action: "refresh" });
-      clearTokens();
-      setAccessToken(null);
-      setUser(null);
-      setCapabilities(FAIL_CLOSED_CAPABILITIES);
-      return false;
+    if (authRefreshInFlight) {
+      return authRefreshInFlight;
     }
+    authRefreshInFlight = (async () => {
+      try {
+        const data = await api.post<{ tokens: { access_token: string } }>(
+          "/api/v1/auth/refresh",
+          {}
+        );
+        saveTokens(data.tokens.access_token);
+        setAccessToken(data.tokens.access_token);
+        return true;
+      } catch (e) {
+        silentError(e, { component: "AuthContext", action: "refresh" });
+        clearTokens();
+        setAccessToken(null);
+        setUser(null);
+        setCapabilities(FAIL_CLOSED_CAPABILITIES);
+        return false;
+      } finally {
+        authRefreshInFlight = null;
+      }
+    })();
+    return authRefreshInFlight;
   }, []);
 
   const fetchMe = useCallback(async () => {
