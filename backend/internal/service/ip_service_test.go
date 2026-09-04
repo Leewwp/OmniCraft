@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -119,4 +120,59 @@ func seedIPServiceUser(t *testing.T, db *gorm.DB, id int64, username string) mod
 		t.Fatalf("create user: %v", err)
 	}
 	return user
+}
+
+// #320: 纯中文（非拉丁）名清洗后 slug 坍缩为 ip-<字节数>——同字节长度的不同名
+// 共享同一 slug；旧兜底只试一次 slug-creatorID 且不复查，同 creator 第二个
+// 同字数名撞唯一索引直接 500。不同名必须得到不同 slug。
+func TestGenerateSlugDistinctForSameByteLengthCJKNames(t *testing.T) {
+	a := generateSlug("海贼王")
+	b := generateSlug("火影忍")
+	if a == b {
+		t.Fatalf("same byte-length CJK names must not collapse to one slug: %q", a)
+	}
+	for _, s := range []string{a, b} {
+		if s == "" {
+			t.Fatal("slug must not be empty")
+		}
+	}
+}
+
+// #320: 同一 creator 连续创建多个同字节长度中文名 IP 不得因 slug 冲突失败。
+func TestCreateIPSameCreatorRepeatedCJKLengthsAllSucceed(t *testing.T) {
+	db := setupIPServiceDB(t)
+	creator := seedIPServiceUser(t, db, 2, "ip-cjk-creator")
+	svc := NewIPService(repository.NewIPRepository(db))
+
+	slugs := map[string]bool{}
+	for _, name := range []string{"海贼王", "火影忍", "死神录"} {
+		ip, err := svc.CreateIP(context.Background(), CreateIPInput{
+			Name:     name,
+			Category: "game",
+		}, creator.ID)
+		if err != nil {
+			t.Fatalf("create %s: %v (slug collision 500, #320)", name, err)
+		}
+		if slugs[ip.Slug] {
+			t.Fatalf("duplicate slug %q across distinct names", ip.Slug)
+		}
+		slugs[ip.Slug] = true
+	}
+}
+
+// #320: 同名反复创建耗尽全部兜底变体后返回 ErrIPSlugTaken（handler 映射 409），
+// 而不是撞唯一索引冒 500。
+func TestCreateIPSlugExhaustionReturnsSlugTaken(t *testing.T) {
+	db := setupIPServiceDB(t)
+	creator := seedIPServiceUser(t, db, 3, "ip-exhaust-creator")
+	svc := NewIPService(repository.NewIPRepository(db))
+
+	for i := 0; i < 9; i++ { // base + creator 后缀 + 2..8 号尾缀 = 9 个可用变体
+		if _, err := svc.CreateIP(context.Background(), CreateIPInput{Name: "同名字库", Category: "game"}, creator.ID); err != nil {
+			t.Fatalf("create #%d should succeed: %v", i+1, err)
+		}
+	}
+	if _, err := svc.CreateIP(context.Background(), CreateIPInput{Name: "同名字库", Category: "game"}, creator.ID); !errors.Is(err, ErrIPSlugTaken) {
+		t.Fatalf("exhausted create should return ErrIPSlugTaken, got %v", err)
+	}
 }
