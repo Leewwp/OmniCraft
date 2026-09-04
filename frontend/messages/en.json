@@ -720,7 +720,8 @@
       "loadFailed": "Failed to load verdict details"
     },
     "insufficientQuestions": "Not enough questions are available for this category. Please try again later",
-    "readingTimeTooShort": "Reading time was too short. Please read the instructions fully first"
+    "readingTimeTooShort": "Reading time was too short. Please read the instructions fully first",
+    "loadMore": "Load more cases"
   },
   "dashboard": {
     "title": "Creator Dashboard",
