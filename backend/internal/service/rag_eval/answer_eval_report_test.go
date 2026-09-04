@@ -163,3 +163,56 @@ func TestWriteAnswerEvalReportContract(t *testing.T) {
 		}
 	}
 }
+
+// H2/H6/H7: the v2 answer artifact carries per-layer aggregates with raw
+// numerator/denominator when cases are annotated; v1 cases produce none.
+func TestBuildLayeredAnswerSummary(t *testing.T) {
+	pass := true
+	hardFail := false
+	allZero := true
+	leaked := false
+	answered := AnswerStatusAnswered
+	cases := []AnswerEvalCaseResult{
+		{
+			CaseKey: "na-0001", Status: answered, PrimaryLayer: LayerNoAnswer, NoAnswerStrategy: NoAnswerStrictNotFound,
+			NoAnswer: &NoAnswerJudgeResult{Strategy: NoAnswerStrictNotFound, Pass: pass, Refused: true},
+		},
+		{
+			CaseKey: "na-0002", Status: answered, PrimaryLayer: LayerNoAnswer, NoAnswerStrategy: NoAnswerStrictNotFound,
+			NoAnswer: &NoAnswerJudgeResult{Strategy: NoAnswerStrictNotFound, HardFail: hardFail, Refused: false},
+		},
+		{
+			CaseKey: "vi-0001", Status: answered, PrimaryLayer: LayerVisibility,
+			VisibilityLeak: &VisibilityLeakReport{AllZero: allZero},
+		},
+		{
+			CaseKey: "vi-0002", Status: answered, PrimaryLayer: LayerVisibility,
+			VisibilityLeak: &VisibilityLeakReport{AllZero: !leaked},
+		},
+	}
+
+	layers := BuildLayeredAnswerSummary(cases)
+	strict := layers["no_answer/strict_not_found"]
+	if strict.CaseCount != 2 || strict.Answered != 2 {
+		t.Fatalf("strict summary = %+v", strict)
+	}
+	if strict.NoAnswerPass.Value != 0.5 || strict.NoAnswerPass.Denominator != 2 {
+		t.Fatalf("strict pass rate = %+v, want 1/2", strict.NoAnswerPass)
+	}
+	if strict.RefusalRate.Value != 0.5 {
+		t.Fatalf("strict refusal rate = %+v, want 1/2", strict.RefusalRate)
+	}
+	vi := layers[LayerVisibility]
+	if vi.LeakFreeRate.Value != 1 || vi.LeakFreeRate.Denominator != 2 {
+		t.Fatalf("vi leak-free rate = %+v, want 2/2", vi.LeakFreeRate)
+	}
+	if _, ok := layers[LayerNoAnswer]; ok {
+		t.Fatal("na without a strategy must not form a bare-layer group")
+	}
+
+	// v1 cases (no layer annotation) produce no layer summaries
+	v1 := BuildLayeredAnswerSummary([]AnswerEvalCaseResult{{CaseKey: "exact_keyword_lookup", Status: answered}})
+	if v1 != nil {
+		t.Fatalf("v1 layers = %+v, want nil", v1)
+	}
+}
