@@ -143,7 +143,7 @@
 
 - 通知自动创建：后端在评论、点赞、关注、系统公告等事件发生时自动创建 `notifications` 记录
 - 通知类型枚举：`comment`、`like`、`follow`、`system`、`mention`、`appeal_result`、`content_status`
-- 前端 Entry Header 通知铃铛显示未读数（`GET /api/v1/notifications/unread-count` 轮询，5 分钟间隔）
+- 前端 Entry Header 通知铃铛显示未读数（`GET /api/v1/notifications/unread-count` 轮询，30 秒间隔，与 AuthContext.pollUnread 实现一致）
 - 消息中心页面 `/messages` 包含通知列表和私信对话列表两个 Tab
 - 私信 UI（Task 116）：左侧对话列表 + 右侧对话窗口；Websocket 或 SSE 实现实时消息（MVP 使用 SSE）
 

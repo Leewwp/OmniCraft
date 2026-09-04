@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { NotificationList } from "@/components/social/NotificationList";
 import { ConversationList, type Conversation } from "@/components/social/ConversationList";
@@ -10,12 +11,30 @@ import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 import type { Notification } from "@/components/social/NotificationList";
 
 export default function MessagesPage() {
+  return (
+    <Suspense fallback={null}>
+      <MessagesPageContent />
+    </Suspense>
+  );
+}
+
+function MessagesPageContent() {
   const t = useTranslations();
   const { user } = useAuth();
-  const [tab, setTab] = useState<"notifications" | "messages">("notifications");
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<"notifications" | "messages">(
+    searchParams.get("tab") === "messages" ? "messages" : "notifications"
+  );
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  // 会话 Tab 未读真实聚合（FIX-31b/F-093）：由 ConversationList 上抛。
+  const [convUnreadCount, setConvUnreadCount] = useState(0);
+
+  // ?tab=messages 深链（FIX-31b：私信通知归位到会话 Tab）。
+  useEffect(() => {
+    if (searchParams.get("tab") === "messages") setTab("messages");
+  }, [searchParams]);
 
   return (
     <div className="mx-auto w-full max-w-[1180px] space-y-4 px-4 py-6 md:px-6">
@@ -25,7 +44,7 @@ export default function MessagesPage() {
           <p className="mt-1 text-sm text-fg-muted" aria-live="polite">
             {tab === "notifications"
               ? t("messages.tabs.notificationsCount", { count: unreadCount })
-              : t("messages.tabs.conversationsCount", { count: 0 })}
+              : t("messages.tabs.conversationsCount", { count: convUnreadCount })}
           </p>
         </div>
       </div>
@@ -87,6 +106,7 @@ export default function MessagesPage() {
               <ConversationList
                 onSelect={(c) => setActiveConv(c)}
                 activeId={activeConv?.id}
+                onUnreadCountChange={setConvUnreadCount}
               />
             </div>
             <div className="min-w-0">
@@ -104,6 +124,7 @@ export default function MessagesPage() {
               <ConversationList
                 onSelect={(c) => setActiveConv(c)}
                 activeId={undefined}
+                onUnreadCountChange={setConvUnreadCount}
               />
             )}
           </div>
