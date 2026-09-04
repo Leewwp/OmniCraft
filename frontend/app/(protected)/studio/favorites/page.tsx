@@ -187,10 +187,13 @@ export default function StudioFavoritesPage() {
                   </h2>
                   <p className="text-xs text-muted-foreground">{t(`studio.favorites.zone.${zone}.description`)}</p>
                 </div>
-                <Button type="button" className="w-full sm:w-auto" onClick={() => openCreate(zone)}>
-                  <FolderPlus className="h-4 w-4" />
-                  {t("studio.favorites.actions.create")}
-                </Button>
+                {/* T24（FIX-40②）：zone 空态时隐藏区头创建按钮——空态按钮是唯一创建入口，防双 CTA 同屏 */}
+                {grouped[zone].length > 0 && (
+                  <Button type="button" className="w-full sm:w-auto" onClick={() => openCreate(zone)}>
+                    <FolderPlus className="h-4 w-4" />
+                    {t("studio.favorites.actions.create")}
+                  </Button>
+                )}
               </div>
 
               {loading ? (
