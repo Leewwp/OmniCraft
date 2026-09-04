@@ -29,6 +29,7 @@ Usage (each subcommand is resumable):
   python3 corpus_injector.py backfill-timestamps
   python3 corpus_injector.py verify
   python3 corpus_injector.py smoke --n 20
+  python3 corpus_injector.py fix-titles [--apply]
   python3 corpus_injector.py export-mapping
 
 Environment:
@@ -403,6 +404,33 @@ def wait_index_ready(content_id: int, min_version: int, timeout: float = 180.0) 
     return False
 
 
+def wait_projection_after(content_id: int, db_clock: str, timeout: float = 180.0) -> bool:
+    """Wait until the current projection of content_id is ready again with
+    last_indexed_at past db_clock (a SELECT now() captured right before the
+    triggering write, on the DB clock so client skew cannot fake a pass). A
+    projection that lands in state=failed surfaces its error summary."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        row = psql_scalar(
+            "SELECT ips.last_indexed_at FROM index_projection_status ips "
+            "WHERE ips.content_id = %d AND ips.is_current = TRUE AND ips.state = 'ready' "
+            "AND ips.last_indexed_at >= '%s'::timestamptz" % (content_id, db_clock)
+        )
+        if row is not None:
+            return True
+        failed = psql_scalar(
+            "SELECT state || ': ' || error_summary FROM index_projection_status ips "
+            "WHERE ips.content_id = %d AND (ips.created_at >= '%s'::timestamptz "
+            "OR ips.last_indexed_at >= '%s'::timestamptz) "
+            "AND ips.state <> 'ready' ORDER BY ips.id DESC LIMIT 1" % (content_id, db_clock, db_clock)
+        )
+        if failed:
+            log("  projection of content %d failed after patch: %s" % (content_id, failed[:200]))
+            return False
+        time.sleep(2.0)
+    return False
+
+
 def ai_callback_pass(api: Api, content_id: int, task_id: str) -> None:
     content_json = json.dumps(
         {
@@ -762,6 +790,97 @@ def cmd_export_mapping() -> None:
     log("export-mapping: %d rows -> %s" % (count, MAPPING_PATH))
 
 
+def cmd_fix_titles(api: Api, apply: bool) -> None:
+    """Golden-set v2 step 3 stage B: repair content_items titles that drifted
+    from the reviewed corpus expectation (titled rows keep the raw title;
+    fallback rows use the approved display_title) through PATCH /contents/:id
+    with the author token.
+
+    The PATCH rides the production edit path: published title edits go through
+    incremental re-review (T43), stay published on pass, and emit
+    content.updated so the RAG projection re-chunks with the new title prefix.
+    Direct DB writes are forbidden for content changes — they bypass publish
+    events, which is exactly how the three vacuum rows lost their titles."""
+    index_rows, _, _ = load_corpus()
+    meta_by_key = {row["corpus_item_key"]: row for row in index_rows}
+    mapping = {}
+    with open(MAPPING_PATH, "r", encoding="utf-8") as fh:
+        for line in fh:
+            if line.strip():
+                m = json.loads(line)
+                mapping[m["corpus_item_key"]] = m["content_id"]
+
+    # one bulk read of every corpus title: per-row docker-psql round trips
+    # would make this scan take minutes over 1600 items. The \x1f separator
+    # keeps empty titles distinguishable from absent rows.
+    bulk_sql = (
+        "SELECT c.id || chr(31) || COALESCE(c.title, '') FROM content_items c "
+        "JOIN content_tags ct ON ct.content_item_id = c.id WHERE ct.tag LIKE 'c2:%'"
+    )
+    proc = subprocess.run(PSQL + ["-t", "-A", "-c", bulk_sql], capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError("psql failed: %s" % proc.stderr.strip()[:400])
+    titles_by_id: Dict[int, str] = {}
+    for line in proc.stdout.splitlines():
+        if not line.strip():
+            continue
+        cid_s, _, title = line.partition(chr(31))
+        titles_by_id[int(cid_s)] = title
+
+    diffs = []
+    for key in sorted(meta_by_key):
+        row = meta_by_key[key]
+        # want must stay byte-exact with the reviewed expectation: raw titles
+        # are canonical (verbatim) and fallback display_titles are frozen
+        # formula/handcrafted values (the formula window can legitimately end
+        # on a space). Strip is for the emptiness test only.
+        raw = row.get("title") or ""
+        if raw.strip():
+            want = raw
+        else:
+            want = row.get("display_title") or ""
+        if not want:
+            raise RuntimeError("no reviewed title for %s" % key)
+        cid = mapping.get(key)
+        if cid is None:
+            raise RuntimeError("no content mapping for %s" % key)
+        if cid not in titles_by_id:
+            raise RuntimeError("content %d (%s) missing from DB" % (cid, key))
+        if titles_by_id[cid] != want:
+            diffs.append((key, cid, titles_by_id[cid], want))
+
+    log("fix-titles: %d drifted rows out of %d" % (len(diffs), len(meta_by_key)))
+    for key, cid, got, want in diffs:
+        log("  %s -> content %d: %r -> %r" % (key, cid, got[:60], want[:60]))
+    if not diffs:
+        return
+    if not apply:
+        log("dry-run only; pass --apply to PATCH through the edit re-review path")
+        return
+
+    for key, cid, got, want in diffs:
+        status = psql_scalar("SELECT status FROM content_items WHERE id = %d" % cid)
+        if status != "published":
+            raise RuntimeError("content %d (%s) status=%s; only published rows are fixable" % (cid, key, status))
+        email = psql_scalar(
+            "SELECT u.email FROM content_items c JOIN users u ON u.id = c.author_id WHERE c.id = %d" % cid
+        )
+        if not email:
+            raise RuntimeError("author of content %d (%s) missing from users" % (cid, key))
+        token, _ = api.login(email)
+        db_clock = (psql_scalar("SELECT now()") or "").strip()
+        code, payload = api._request("PATCH", "/contents/%d" % cid, {"title": want}, token=token)
+        if code != 200:
+            raise RuntimeError("patch content %d (%s) failed (%d): %s" % (cid, key, code, str(payload)[:200]))
+        got2 = psql_scalar("SELECT 'x' || COALESCE(title, '') FROM content_items WHERE id = %d" % cid)
+        if got2 is None or got2[1:] != want:
+            raise RuntimeError("patch content %d (%s) accepted but title still %r" % (cid, key, got2))
+        if not wait_projection_after(cid, db_clock):
+            raise RuntimeError("re-projection of content %d (%s) not ready after patch" % (cid, key))
+        log("  fixed %s -> content %d (projection ready)" % (key, cid))
+    log("fix-titles: %d/%d rows fixed" % (len(diffs), len(diffs)))
+
+
 def cmd_smoke(api: Api, n: int) -> None:
     """Exact-title retrieval smoke: n random exact-form items must hit."""
     import random
@@ -819,6 +938,8 @@ def main() -> None:
     sub.add_parser("verify")
     p_smoke = sub.add_parser("smoke")
     p_smoke.add_argument("--n", type=int, default=20)
+    p_fix = sub.add_parser("fix-titles")
+    p_fix.add_argument("--apply", action="store_true", help="PATCH drifted titles (default: dry-run)")
     sub.add_parser("export-mapping")
     args = parser.parse_args()
 
@@ -840,6 +961,8 @@ def main() -> None:
         cmd_verify()
     elif args.cmd == "smoke":
         cmd_smoke(api, args.n)
+    elif args.cmd == "fix-titles":
+        cmd_fix_titles(api, args.apply)
     elif args.cmd == "export-mapping":
         cmd_export_mapping()
 
