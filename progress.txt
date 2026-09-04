@@ -1,3 +1,17 @@
+## [2026-09-04] - Task #321: ContentHandler.SetQueueProducer 透传修复（道 A 产品 bug 批第 4 票）
+
+### What was done:
+- 根因：`ContentHandler.SetQueueProducer` 只设 handler 自己的 `queueProducer` 字段，不透传 `h.contentSvc`（对比紧邻的 SetOutboxRepository/SetArchiveScanRepository 均有透传）——服务层恒见 NoopProducer，发布永远走同步审核兜底，`submit_ai_review` 消息从不入流（#316 注入调查发现 handler/content.go:85）。
+- 修复：① handler 透传 producer 给 contentSvc（有真实队列的部署回归架构意图的异步审核路径，worker 侧复用同一 SubmitForAIReview + #195 幂等键）；② ReviewWorker.Handle 对 `ErrGreenNotConfigured` 警告并 ACK——Green 未配置是永久配置态，与同步路径的 A4 本地 fail-open 语义对齐，不再无意义重试进 DLQ。
+
+### Testing:
+- TDD 先红后绿 2 例：路由级「POST /contents 后 content.review 入 producer」（修复前红：Noop 走同步兜底零发布）+ worker「Green 未配置 ACK 不上抛」（修复前红：ErrGreenNotConfigured 原样返回）。
+- `go build/vet/test ./...` 32 包全绿。
+
+### Notes:
+- worktree OmniCraft-wt-la，分支 lanea/321-queue-producer（基线 6501a36）。
+- 行为变更评估（票面要求）：有 worker 的部署从「同步审核」回到「异步审核」= 回归 #137/#138 架构意图；Green 未配置环境 sync/async 两路同为 fail-open（内容停留 pending，不 DLQ 噪音）。本地无 worker 部署（NoopProducer）行为不变。
+
 ## [2026-09-04] - Task #320: CreateIP slug 冲突 500 修复（道 A 产品 bug 批第 3 票）
 
 ### What was done:
