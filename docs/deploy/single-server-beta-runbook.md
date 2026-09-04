@@ -204,7 +204,7 @@ The committed single-server compose defines 17 services: six resident Web
 core services, the one-shot `migrate` release gate, and ten resident
 observability/alerting services. Its declared resident memory limits total
 about 5.7 GiB before Ubuntu, Docker and filesystem cache, so it must not be
-started as a full stack on the current 3.6 GiB interview host.
+started as a full stack on the current 3.6 GiB lean host.
 
 On a host with sufficient capacity (8 GiB minimum is the current operational
 target, or when observability is hosted separately), start the full profile:
@@ -214,9 +214,9 @@ docker compose --env-file .env -f docker-compose.single-server.yml up -d --build
 docker compose --env-file .env -f docker-compose.single-server.yml ps
 ```
 
-### 6.2 Resource-constrained interview profile (3.6 GiB)
+### 6.2 Resource-constrained lean profile (3.6 GiB)
 
-The Web-only interview host uses this explicit service boundary:
+The Web-only lean host uses this explicit service boundary:
 
 - resident Web core: `postgres`, `redis`, `pgbouncer`, `backend`, `frontend`,
   `nginx`;
@@ -227,7 +227,7 @@ The Web-only interview host uses this explicit service boundary:
   `redis-exporter`, `cadvisor`, `blackbox`, `node-exporter`, `loki`, `alloy`
   and `loki-gate`.
 
-This profile is a deliberate interview/demo capacity trade-off, not evidence
+This profile is a deliberate demo capacity trade-off, not evidence
 that the full production observability gate is running. It must preserve all
 current release and security contracts: immutable image references, Redis
 authentication, PgBouncer SCRAM, external secret/config override files,
@@ -244,7 +244,7 @@ acceptable green monitoring state.
 The deploy artifact now exists and is validated statically before each
 deployment (`docker compose ... config`):
 
-- `docs/deploy/docker-compose.interview-lean.yml` — Compose override that
+- `docs/deploy/docker-compose.lean.yml` — Compose override that
   defers the ten observability/alerting services behind the
   `full-observability` profile, adds the standalone `worker` (ADR 0005: the
   API server never starts async consumers), and caps the resident limits of
@@ -254,16 +254,16 @@ deployment (`docker compose ... config`):
   idle RSS on this host (2026-08-31: redis 6 MiB, backend 7 MiB, postgres
   39 MiB, pgbouncer 5 MiB, nginx 17 MiB, frontend 90 MiB) with headroom for
   demo traffic.
-- `ops/observability/prometheus.interview-lean.yml` — backend-only
+- `ops/observability/prometheus.lean.yml` — backend-only
   Prometheus config (single scrape job, no rule_files, no Alertmanager)
   mounted over the full config by the same override.
 
-Deployment command on the interview host:
+Deployment command on the lean host:
 
 ```bash
 docker compose --env-file .env \
   -f docker-compose.single-server.yml \
-  -f docker-compose.interview-lean.yml up -d --build
+  -f docker-compose.lean.yml up -d --build
 ```
 
 Capture `docker stats`, host available memory and OOM evidence during smoke.
