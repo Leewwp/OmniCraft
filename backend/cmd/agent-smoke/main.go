@@ -3,9 +3,10 @@ package main
 // agent-smoke is the opt-in real-provider smoke for the deterministic Agent
 // evaluation gate (plan Task 5 Step 3). It records model/provider, latency,
 // token usage, cost estimate and qualitative output as manual release
-// evidence. It is never part of unit CI: missing credentials block
-// real-provider release verification without affecting the deterministic
-// evaluation tests.
+// evidence, plus single-call embedding and rerank probes so the whole
+// provider surface is verifiable from the root .env in one run. It is never
+// part of unit CI: missing credentials block real-provider release
+// verification without affecting the deterministic evaluation tests.
 
 import (
 	"context"
@@ -123,6 +124,55 @@ func providerModel(provider llm.LLMProvider) string {
 	}
 }
 
+// probeOutcome records one embedding/rerank probe: either a successful call
+// (dimensions / result count), an explicit skip (no credential) or an error.
+type probeOutcome struct {
+	Model      string `json:"model,omitempty"`
+	LatencyMs  int64  `json:"latency_ms"`
+	Dimensions int    `json:"dimensions,omitempty"`
+	Results    int    `json:"results,omitempty"`
+	TopIndex   *int   `json:"top_index,omitempty"`
+	Skipped    string `json:"skipped,omitempty"`
+	Error      string `json:"error,omitempty"`
+}
+
+func runEmbeddingProbe(ctx context.Context, provider llm.LLMProvider, model string) *probeOutcome {
+	out := &probeOutcome{Model: model}
+	start := time.Now()
+	defer func() { out.LatencyMs = time.Since(start).Milliseconds() }()
+	vector, err := provider.GetEmbedding(ctx, "OmniCraft agent-smoke embedding probe")
+	if err != nil {
+		out.Error = "embedding call failed"
+		return out
+	}
+	out.Dimensions = len(vector)
+	return out
+}
+
+func runRerankProbe(ctx context.Context, cfg *config.Config) *probeOutcome {
+	reranker, _ := llm.NewRerankerFromConfig(cfg.RAG.Rerank)
+	if reranker == nil {
+		return &probeOutcome{Skipped: "no rerank key configured (RAG_RERANK_API_KEY / DASHSCOPE_API_KEY)"}
+	}
+	out := &probeOutcome{Model: cfg.RAG.Rerank.Model}
+	start := time.Now()
+	defer func() { out.LatencyMs = time.Since(start).Milliseconds() }()
+	results, err := reranker.Rerank(ctx, "Blender 插件安装教程", []string{
+		"Blender 插件的安装步骤与版本兼容性说明",
+		"今天的午餐推荐与营养搭配",
+		"Blender 插件卸载与残留配置清理",
+	}, 3)
+	if err != nil {
+		out.Error = "rerank call failed"
+		return out
+	}
+	out.Results = len(results)
+	if len(results) > 0 {
+		out.TopIndex = &results[0].Index
+	}
+	return out
+}
+
 func main() {
 	cfg := config.Load()
 	if strings.TrimSpace(cfg.Agent.LLMAPIKey) == "" {
@@ -153,17 +203,23 @@ func main() {
 			runCase(ctx, provider, c)
 		}
 	}
+	embeddingProbe := runEmbeddingProbe(ctx, provider, cfg.Agent.EmbeddingModel)
+	rerankProbe := runRerankProbe(ctx, cfg)
 
 	report := struct {
-		Provider string       `json:"provider"`
-		Model    string       `json:"model"`
-		RanAt    string       `json:"ran_at"`
-		Cases    []*smokeCase `json:"cases"`
+		Provider  string        `json:"provider"`
+		Model     string        `json:"model"`
+		RanAt     string        `json:"ran_at"`
+		Cases     []*smokeCase  `json:"cases"`
+		Embedding *probeOutcome `json:"embedding"`
+		Rerank    *probeOutcome `json:"rerank"`
 	}{
-		Provider: cfg.Agent.LLMProvider,
-		Model:    providerModel(provider),
-		RanAt:    time.Now().Format(time.RFC3339),
-		Cases:    cases,
+		Provider:  cfg.Agent.LLMProvider,
+		Model:     providerModel(provider),
+		RanAt:     time.Now().Format(time.RFC3339),
+		Cases:     cases,
+		Embedding: embeddingProbe,
+		Rerank:    rerankProbe,
 	}
 	data, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {

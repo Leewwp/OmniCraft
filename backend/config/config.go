@@ -251,8 +251,9 @@ type RAGHybridConfig struct {
 
 // RAGRerankConfig carries the A-03 rerank chain: a primary provider
 // (DashScope qwen3-rerank by default) with an optional SiliconFlow fallback.
-// API keys are env-injected (RAG_RERANK_API_KEY / RAG_RERANK_FALLBACK_API_KEY)
-// and stay out of config files.
+// API keys are env-injected (RAG_RERANK_API_KEY / RAG_RERANK_FALLBACK_API_KEY
+// with DASHSCOPE_API_KEY as the primary-side shared-key fallback) and stay
+// out of config files.
 type RAGRerankConfig struct {
 	Provider         string `mapstructure:"provider"`
 	Model            string `mapstructure:"model"`
@@ -800,9 +801,20 @@ func OverrideFromEnv(cfg *Config) {
 	}
 	if v := os.Getenv("RAG_RERANK_API_KEY"); v != "" {
 		cfg.RAG.Rerank.APIKey = v
+	} else if v := os.Getenv("DASHSCOPE_API_KEY"); v != "" {
+		// Shared-key fallback: rerank defaults to the DashScope provider, so
+		// the Bailian master key from the root .env applies unless a dedicated
+		// rerank key is configured.
+		cfg.RAG.Rerank.APIKey = v
 	}
 	if v := os.Getenv("RAG_RERANK_FALLBACK_API_KEY"); v != "" {
 		cfg.RAG.Rerank.FallbackAPIKey = v
+	}
+	if v := os.Getenv("RAG_RERANK_API_BASE"); v != "" {
+		cfg.RAG.Rerank.APIBase = v
+	}
+	if v := os.Getenv("RAG_RERANK_FALLBACK_API_BASE"); v != "" {
+		cfg.RAG.Rerank.FallbackAPIBase = v
 	}
 	if v := os.Getenv("RAG_INDEX_URL"); v != "" {
 		cfg.RAG.Index.URL = v
