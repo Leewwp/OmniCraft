@@ -25,10 +25,17 @@ type TagService struct {
 	contentRepo *repository.ContentRepository
 	rdb         *redis.Client
 	cfg         *config.CacheConfig
+	notifSvc    *NotificationService
 }
 
 func NewTagService(tagRepo *repository.TagRepository, contentRepo *repository.ContentRepository, rdb *redis.Client, cfg *config.CacheConfig) *TagService {
 	return &TagService{tagRepo: tagRepo, contentRepo: contentRepo, rdb: rdb, cfg: cfg}
+}
+
+// SetNotificationService wires the author-facing notification channel
+// (T49/FIX-22c). nil keeps the local/test path notification-free.
+func (s *TagService) SetNotificationService(ns *NotificationService) {
+	s.notifSvc = ns
 }
 
 func (s *TagService) GetFacetedTags(category string, selectedTags []string) ([]model.Tag, error) {
@@ -57,7 +64,18 @@ func (s *TagService) SuggestTag(contentItemID int64, userID int64, tag, action s
 		Action:        action,
 		Status:        "pending",
 	}
-	return s.tagRepo.CreateTagSuggestion(suggestion)
+	if err := s.tagRepo.CreateTagSuggestion(suggestion); err != nil {
+		return err
+	}
+
+	// T49 (FIX-22c): close the feedback loop — the content author learns a
+	// new tag suggestion arrived. The suggester never notifies themselves.
+	if s.notifSvc != nil && content.AuthorID != userID {
+		title := "收到新的标签建议"
+		body := fmt.Sprintf("《%s》收到新的标签建议：%s %s", content.Title, action, tag)
+		s.notifSvc.Notify(content.AuthorID, "system", "tag_suggestion", title, body, "content", contentItemID, userID)
+	}
+	return nil
 }
 
 func (s *TagService) checkTagSuggestRateLimit(userID, contentItemID int64, now time.Time) error {

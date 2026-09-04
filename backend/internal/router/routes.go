@@ -208,6 +208,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	v1.GET("/categories", optAuth, catHandler.ListCategories)
 
 	tagHandler := handler.NewTagHandler(db, rdb, &cfg.Cache, cfg.RateLimit.MaxQueryChars)
+	tagHandler.SetNotificationService(notifSvc)
 	v1.GET("/tags/faceted", optAuth, tagHandler.GetFacetedTags)
 	v1.GET("/tags/search", optAuth, tagHandler.SearchTags)
 	contents.POST("/:id/tags/suggest", authReq, tagHandler.SuggestTag)
@@ -229,6 +230,8 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		me.DELETE("/saved-searches/:id", tagHandler.DeleteSavedSearch)
 		me.GET("/followers/stats", followHandler.GetFollowerStats)
 		me.GET("/contents", userHandler.GetMyContents)
+		// T49: one-request to-do aggregation (open PRs + pending tag suggestions).
+		me.GET("/pending-tasks", userHandler.GetMyPendingTasks)
 		// T52: the creator's own IPs across every status + latest reject reason.
 		me.GET("/ips", ipHandler.GetMyIPs)
 	}

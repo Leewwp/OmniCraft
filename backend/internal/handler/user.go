@@ -273,6 +273,68 @@ func (h *UserHandler) GetUserContents(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"contents": items, "total": total})
 }
 
+// GetMyPendingTasks serves GET /users/me/pending-tasks (T49/FIX-22c): the
+// caller's to-dos in one request — open PRs and pending tag suggestions on
+// their own contents. Items on other users' contents never appear.
+func (h *UserHandler) GetMyPendingTasks(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+	db := h.contentRepo.DB()
+
+	type pendingTask struct {
+		Type  string `json:"type"`
+		ID    int64  `json:"id"`
+		Title string `json:"title"`
+	}
+	tasks := make([]pendingTask, 0)
+
+	var prs []struct {
+		ID      int64
+		Message string
+		Title   string
+	}
+	if err := db.Raw(
+		`SELECT pr.id, pr.message, c.title AS title
+		 FROM pull_requests pr JOIN content_items c ON c.id = pr.content_item_id
+		 WHERE c.author_id = ? AND pr.status = 'open' AND c.deleted_at IS NULL
+		 ORDER BY pr.id DESC LIMIT 50`, callerID).Scan(&prs).Error; err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	for _, pr := range prs {
+		title := pr.Title
+		if pr.Message != "" {
+			title = pr.Message
+		}
+		tasks = append(tasks, pendingTask{Type: "pr", ID: pr.ID, Title: title})
+	}
+
+	var sugs []struct {
+		ID     int64
+		Tag    string
+		Action string
+		Title  string
+	}
+	if err := db.Raw(
+		`SELECT ts.id, ts.tag, ts.action, c.title AS title
+		 FROM tag_suggestions ts JOIN content_items c ON c.id = ts.content_item_id
+		 WHERE c.author_id = ? AND ts.status = 'pending' AND c.deleted_at IS NULL
+		 ORDER BY ts.id DESC LIMIT 50`, callerID).Scan(&sugs).Error; err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	for _, sug := range sugs {
+		verb := sug.Action
+		if verb == "add" {
+			verb = "添加"
+		} else if verb == "remove" {
+			verb = "移除"
+		}
+		tasks = append(tasks, pendingTask{Type: "tag", ID: sug.ID, Title: "《" + sug.Title + "》标签" + verb + "：" + sug.Tag})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"tasks": tasks, "total": len(tasks)})
+}
+
 func (h *UserHandler) GetMyContents(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 
