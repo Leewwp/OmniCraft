@@ -9,7 +9,7 @@ import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 interface ContentItem {
@@ -22,10 +22,14 @@ interface ContentItem {
   report_count?: number;
   view_count: number;
   created_at: string;
+  deleted_at?: string;
 }
+
+type ContentsView = "list" | "trash";
 
 export default function AdminContentsPage() {
   const t = useTranslations();
+  const [view, setView] = useState<ContentsView>("list");
   const [contents, setContents] = useState<ContentItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -35,6 +39,8 @@ export default function AdminContentsPage() {
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmTarget, setConfirmTarget] = useState<ContentItem | null>(null);
+  // T27（FIX-34）：回收站视图的 restore 与 ban 共用 ConfirmModal，mode 区分。
+  const [confirmMode, setConfirmMode] = useState<"ban" | "restore">("ban");
 
   const pageSize = 20;
 
@@ -42,9 +48,10 @@ export default function AdminContentsPage() {
     setLoading(true);
     setError("");
     try {
-      const data = await api.get<{ contents: ContentItem[]; total: number }>(
-        `/api/v1/admin/contents?page=${page}&page_size=${pageSize}`
-      );
+      const endpoint = view === "trash"
+        ? `/api/v1/admin/contents/trash?page=${page}&page_size=${pageSize}`
+        : `/api/v1/admin/contents?page=${page}&page_size=${pageSize}`;
+      const data = await api.get<{ contents: ContentItem[]; total: number }>(endpoint);
       setContents(data.contents || []);
       setTotal(data.total || 0);
     } catch (e) {
@@ -53,11 +60,17 @@ export default function AdminContentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, t]);
+  }, [view, page, t]);
 
   useEffect(() => {
     void loadContents();
   }, [loadContents]);
+
+  function switchView(next: ContentsView) {
+    if (next === view) return;
+    setView(next);
+    setPage(1);
+  }
 
   async function banContent(id: number, reason: string) {
     setBusy(true);
@@ -69,6 +82,23 @@ export default function AdminContentsPage() {
     } catch (e) {
       silentError(e, { component: 'AdminContentsPage', action: 'banContent' });
       setError(t(getUserFacingErrorKey(e, "admin.contents.banFailed")));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restoreContent(id: number) {
+    setBusy(true);
+    setError("");
+    try {
+      // T27（FIX-34）：restore 同时清 deleted_at 并补发索引事件（后端），
+      // 前端从回收站列表移除即可。
+      await api.patch(`/api/v1/admin/contents/${id}/restore`, {});
+      setContents((prev) => prev.filter((c) => c.id !== id));
+      setTotal((t) => t - 1);
+    } catch (e) {
+      silentError(e, { component: 'AdminContentsPage', action: 'restoreContent' });
+      setError(t(getUserFacingErrorKey(e, "admin.contents.restoreFailed")));
     } finally {
       setBusy(false);
     }
@@ -90,24 +120,54 @@ export default function AdminContentsPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between rounded-md border border-border bg-card p-4 ">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card p-4 ">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{t('admin.contents.title')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {t('admin.contents.subtitle', { total })}
           </p>
         </div>
+        {/* T27（FIX-34）：回收站视图切换（pill 风格，选中态高亮）。 */}
+        <div className="flex items-center gap-1 rounded-full border border-border bg-canvas-subtle p-1" role="tablist" aria-label={t('admin.contents.title')}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "list"}
+            onClick={() => switchView("list")}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${view === "list" ? "bg-background text-foreground shadow-none border border-border" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            {t('admin.contents.listTab')}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "trash"}
+            onClick={() => switchView("trash")}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${view === "trash" ? "bg-background text-foreground shadow-none border border-border" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            {t('admin.contents.trashTab')}
+          </button>
+        </div>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {contents.length === 0 ? (
-        <EmptyState
-          icon={ShieldCheck}
-          title={t("admin.contents.noContents")}
-          description={t("admin.contents.noContentsHint")}
-          className="p-12"
-        />
+        view === "trash" ? (
+          <EmptyState
+            icon={Trash2}
+            title={t("admin.contents.noTrashedContents")}
+            description={t("admin.contents.noTrashedHint")}
+            className="p-12"
+          />
+        ) : (
+          <EmptyState
+            icon={ShieldCheck}
+            title={t("admin.contents.noContents")}
+            description={t("admin.contents.noContentsHint")}
+            className="p-12"
+          />
+        )
       ) : (
         <>
           <div className="overflow-x-auto rounded-md border border-border bg-card ">
@@ -119,7 +179,11 @@ export default function AdminContentsPage() {
                   <th className="px-4 py-3 font-medium">{t('admin.contents.colZone')}</th>
                   <th className="px-4 py-3 font-medium">{t('admin.contents.colAuthor')}</th>
                   <th className="px-4 py-3 font-medium">{t('admin.contents.colViews')}</th>
-                  <th className="px-4 py-3 font-medium">{t('admin.contents.colStatus')}</th>
+                  {view === "trash" ? (
+                    <th className="px-4 py-3 font-medium">{t('admin.contents.colDeletedAt')}</th>
+                  ) : (
+                    <th className="px-4 py-3 font-medium">{t('admin.contents.colStatus')}</th>
+                  )}
                   <th className="px-4 py-3 font-medium">{t('admin.contents.colActions')}</th>
                 </tr>
               </thead>
@@ -131,27 +195,48 @@ export default function AdminContentsPage() {
                     <td className="px-4 py-3 text-xs text-muted-foreground">{c.zone}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{c.author_id}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{c.view_count}</td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
-                        {c.status}
-                      </span>
-                    </td>
+                    {view === "trash" ? (
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {c.deleted_at ? new Date(c.deleted_at).toLocaleString() : "-"}
+                      </td>
+                    ) : (
+                      <td className="px-4 py-3">
+                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
+                          {c.status}
+                        </span>
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
                         <Link href={`/content/${c.id}`} target="_blank">
                           <Button size="sm" variant="outline">{t('common.view')}</Button>
                         </Link>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          disabled={busy}
-                          onClick={() => {
-                            setConfirmTarget(c);
-                            setConfirmOpen(true);
-                          }}
-                        >
-                          {t('admin.contents.ban')}
-                        </Button>
+                        {view === "trash" ? (
+                          <Button
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => {
+                              setConfirmTarget(c);
+                              setConfirmMode("restore");
+                              setConfirmOpen(true);
+                            }}
+                          >
+                            {t('admin.contents.restore')}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            disabled={busy}
+                            onClick={() => {
+                              setConfirmTarget(c);
+                              setConfirmMode("ban");
+                              setConfirmOpen(true);
+                            }}
+                          >
+                            {t('admin.contents.ban')}
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -178,21 +263,37 @@ export default function AdminContentsPage() {
         </>
       )}
 
-      <ConfirmModal
-        open={confirmOpen}
-        onOpenChange={(v) => { setConfirmOpen(v); if (!v) setConfirmTarget(null); }}
-        title={t('admin.contents.banTitle')}
-        description={confirmTarget ? t('admin.contents.banConfirm', { title: confirmTarget.title }) : ""}
-        confirmLabel={t('admin.contents.confirmBan')}
-        confirmVariant="destructive"
-        requireReason
-        reasonLabel={t('admin.contents.banReason')}
-        onConfirm={async (reason) => {
-          if (confirmTarget) {
-            await banContent(confirmTarget.id, reason);
-          }
-        }}
-      />
+      {confirmMode === "restore" ? (
+        <ConfirmModal
+          open={confirmOpen}
+          onOpenChange={(v) => { setConfirmOpen(v); if (!v) setConfirmTarget(null); }}
+          title={t('admin.contents.restoreTitle')}
+          description={confirmTarget ? t('admin.contents.restoreConfirm', { title: confirmTarget.title }) : ""}
+          confirmLabel={t('admin.contents.confirmRestore')}
+          confirmVariant="default"
+          onConfirm={async () => {
+            if (confirmTarget) {
+              await restoreContent(confirmTarget.id);
+            }
+          }}
+        />
+      ) : (
+        <ConfirmModal
+          open={confirmOpen}
+          onOpenChange={(v) => { setConfirmOpen(v); if (!v) setConfirmTarget(null); }}
+          title={t('admin.contents.banTitle')}
+          description={confirmTarget ? t('admin.contents.banConfirm', { title: confirmTarget.title }) : ""}
+          confirmLabel={t('admin.contents.confirmBan')}
+          confirmVariant="destructive"
+          requireReason
+          reasonLabel={t('admin.contents.banReason')}
+          onConfirm={async (reason) => {
+            if (confirmTarget) {
+              await banContent(confirmTarget.id, reason);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
