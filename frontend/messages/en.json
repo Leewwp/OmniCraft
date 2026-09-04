@@ -2255,7 +2255,21 @@
     "pr": {
       "title": "PR Management",
       "subtitle": "Manage content collaboration requests",
-      "empty": "PR requests will appear here"
+      "empty": "PR requests will appear here",
+      "create": {
+        "title": "Propose a Change (PR)",
+        "baseVersionLabel": "Choose base version",
+        "messageLabel": "Describe your change",
+        "messagePlaceholder": "Explain to the author what this change does…",
+        "newTextLabel": "New text",
+        "newTextPlaceholder": "Paste or write the full revised text here…",
+        "submit": "Submit PR",
+        "submitting": "Submitting…",
+        "success": "PR submitted, waiting for the author's review",
+        "loadFailed": "Failed to load versions",
+        "selectVersionRequired": "Please choose a base version",
+        "backToList": "Back to PR list"
+      }
     },
     "contributors": {
       "title": "Contributors",

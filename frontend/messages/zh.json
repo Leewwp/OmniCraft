@@ -2255,7 +2255,21 @@
     "pr": {
       "title": "PR 管理",
       "subtitle": "管理内容协同修改请求",
-      "empty": "PR 请求将在此处显示"
+      "empty": "PR 请求将在此处显示",
+      "create": {
+        "title": "发起修改建议（PR）",
+        "baseVersionLabel": "选择基准版本",
+        "messageLabel": "说明你的修改",
+        "messagePlaceholder": "向作者说明这次修改的意图…",
+        "newTextLabel": "新文本",
+        "newTextPlaceholder": "在此粘贴或撰写修改后的完整文本…",
+        "submit": "提交 PR",
+        "submitting": "提交中…",
+        "success": "PR 已提交，等待作者审核",
+        "loadFailed": "加载版本信息失败",
+        "selectVersionRequired": "请选择基准版本",
+        "backToList": "返回 PR 列表"
+      }
     },
     "contributors": {
       "title": "贡献者",
