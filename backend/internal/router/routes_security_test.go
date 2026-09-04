@@ -123,7 +123,6 @@ func TestAgentRoutesRequireAuthentication(t *testing.T) {
 		body   string
 	}{
 		{http.MethodPost, "/api/v1/agent/chat/stream", `{"messages":[{"role":"user","content":"hi"}]}`},
-		{http.MethodPost, "/api/v1/agent/search", `{"query":"hi"}`},
 		{http.MethodGet, "/api/v1/agent/conversations", ""},
 		{http.MethodDelete, "/api/v1/agent/conversations/1", ""},
 	} {

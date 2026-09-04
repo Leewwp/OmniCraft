@@ -70,26 +70,6 @@ func TestSearchContentHonorsDisabledRAGFeatureFlag(t *testing.T) {
 	require.Empty(t, outcome.Search[0].Source)
 }
 
-func TestNLSearchDisabledRAGFallbackKeepsLegacySummaryShape(t *testing.T) {
-	db := seedAgentGroundingDB(t)
-	require.NoError(t, db.AutoMigrate(&model.ContentTag{}))
-	svc := NewAgentService(
-		&recordingToolProvider{},
-		nil,
-		repository.NewContentRepository(db),
-		nil,
-		db,
-		&config.Config{Agent: config.AgentConfig{WebAgentEnabled: true}},
-	)
-	svc.searchRepo = repository.NewSearchRepository(db)
-
-	result, err := svc.NLSearch(context.Background(), "Published", 3)
-	require.NoError(t, err)
-	require.True(t, result.Degraded)
-	require.NotEmpty(t, result.Results)
-	require.Empty(t, result.Results[0].Source)
-}
-
 func contractCandidate() AgentRetrievalCandidate {
 	return AgentRetrievalCandidate{
 		ChunkKey:        strings.Repeat("a", 64),

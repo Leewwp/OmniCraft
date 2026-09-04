@@ -16,7 +16,6 @@ import (
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
-	"omnicraft/backend/internal/observability"
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/llm"
 	"omnicraft/backend/internal/pkg/queue"
@@ -337,107 +336,6 @@ type ContentSummary struct {
 	Source         string   `json:"source,omitempty"`
 	Score          float64  `json:"-"`
 	Tags           []string `json:"tags,omitempty"`
-}
-
-// NLSearchResult carries the search outcome. Degraded=true means conversational
-// (embedding) search was unavailable and the server fell back to normal
-// keyword search; the UI then shows localized copy instead of a model answer.
-type NLSearchResult struct {
-	Results  []ContentSummary `json:"results"`
-	Degraded bool             `json:"degraded"`
-	// ExpandedQueries lists the query-expansion terms used for this search
-	// (A-03); omitted when expansion is disabled or produced nothing.
-	ExpandedQueries []string `json:"expanded_queries,omitempty"`
-}
-
-func (s *AgentService) NLSearch(ctx context.Context, query string, viewerID int64) (*NLSearchResult, error) {
-	if !s.cfg.Agent.WebAgentEnabled {
-		return nil, ErrAgentDisabled
-	}
-	if s.ragHybridEnabled() {
-		if s.hybridRetriever == nil {
-			return nil, errors.New("hybrid retrieval unavailable")
-		}
-		result, err := s.hybridRetriever.Retrieve(ctx, strings.TrimSpace(query), viewerID)
-		if err != nil {
-			return nil, err
-		}
-		return &NLSearchResult{
-			Results:         retrievalSummaries(result.Candidates),
-			Degraded:        result.Degraded != "",
-			ExpandedQueries: result.ExpandedQueries,
-		}, nil
-	}
-
-	embedding, err := s.llmProvider.GetEmbedding(ctx, query)
-	if err == nil && s.vectorSearch != nil {
-		results, err := s.vectorSearch(embedding, 20)
-		if err != nil {
-			return nil, err
-		}
-
-		contentIDs := make([]int64, 0, len(results))
-		scoreMap := make(map[int64]float64, len(results))
-		for _, r := range results {
-			contentIDs = append(contentIDs, r.ContentItemID)
-			scoreMap[r.ContentItemID] = r.Score
-		}
-
-		contents, err := s.listVisibleNLSearchContents(contentIDs, viewerID)
-		if err != nil {
-			return nil, err
-		}
-
-		summaries := make([]ContentSummary, 0, len(contents))
-		for _, content := range contents {
-			summaries = append(summaries, ContentSummary{
-				ID:          content.ID,
-				Title:       content.Title,
-				ContentType: content.ContentType,
-				Score:       scoreMap[content.ID],
-			})
-		}
-		return &NLSearchResult{Results: summaries}, nil
-	}
-
-	// Conversational search is unavailable (embedding failure or missing
-	// vector search). Degrade to normal keyword search through the shared
-	// viewer-aware search path; never fabricate an answer.
-	fallback, fallbackErr := s.keywordSearchFallback(ctx, query, viewerID)
-	if fallbackErr != nil {
-		if err != nil {
-			return nil, err
-		}
-		return nil, fallbackErr
-	}
-	traceID := observability.TraceID(ctx)
-	if traceID == "" {
-		traceID = untracedTraceID
-	}
-	traceAgentEvent(traceID, "nl_search_degraded", "user_id", viewerID)
-	return &NLSearchResult{Results: fallback, Degraded: true}, nil
-}
-
-// keywordSearchFallback runs the standard keyword search with the same
-// viewer-aware visibility rules as conversational search.
-func (s *AgentService) keywordSearchFallback(ctx context.Context, query string, viewerID int64) ([]ContentSummary, error) {
-	if s.searchRepo == nil {
-		return nil, errors.New("keyword search unavailable")
-	}
-	results, _, err := s.searchRepo.SearchContents(strings.TrimSpace(query), "", "", "", nil, "", "", 1, 10, viewerID)
-	if err != nil {
-		return nil, err
-	}
-	summaries := make([]ContentSummary, 0, len(results))
-	for _, r := range results {
-		summary := ContentSummary{
-			ID:          r.ID,
-			Title:       r.Title,
-			ContentType: r.ContentType,
-		}
-		summaries = append(summaries, summary)
-	}
-	return summaries, nil
 }
 
 // CheckContentVisible is the handler-side viewer-aware precheck for

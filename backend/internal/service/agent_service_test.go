@@ -85,7 +85,7 @@ func TestUploadAssistSanitizesLLMOutput(t *testing.T) {
 	}
 }
 
-func TestNLSearchUsesSharedContentVisibility(t *testing.T) {
+func TestAgentVectorRetrievalUsesSharedContentVisibility(t *testing.T) {
 	db := setupAgentVisibilityDB(t)
 	viewer := createAgentUser(t, db, "viewer@example.com", "viewer", false)
 	other := createAgentUser(t, db, "other@example.com", "other", false)
@@ -125,16 +125,18 @@ func TestNLSearchUsesSharedContentVisibility(t *testing.T) {
 		}, nil
 	}
 
-	result, err := svc.NLSearch(context.Background(), "query", viewer.ID)
+	// #309：NLSearch HTTP 面已下线；可见性收敛在共享 helper（chat 工具
+	// 链向量检索同款路径），行为测试改打 helper 直测。
+	contents, err := svc.listVisibleNLSearchContents([]int64{
+		visible.ID, privateViewer.ID, privateOther.ID,
+		bannedAuthorContent.ID, deletedAuthorContent.ID, bannedIPContent.ID,
+	}, viewer.ID)
 	if err != nil {
-		t.Fatalf("NLSearch: %v", err)
-	}
-	if result.Degraded {
-		t.Fatal("NLSearch must not report degraded mode on healthy conversational search")
+		t.Fatalf("listVisibleNLSearchContents: %v", err)
 	}
 
 	got := map[int64]bool{}
-	for _, res := range result.Results {
+	for _, res := range contents {
 		got[res.ID] = true
 	}
 	if !got[visible.ID] || !got[privateViewer.ID] {
