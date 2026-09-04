@@ -17,6 +17,18 @@ func NewAdminAuditHandler(auditSvc *service.AdminAuditService) *AdminAuditHandle
 	return &AdminAuditHandler{auditSvc: auditSvc}
 }
 
+func (h *AdminAuditHandler) ListAuditActions(c *gin.Context) {
+	actions, err := h.auditSvc.DistinctActions(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "Failed to list audit actions"})
+		return
+	}
+	if actions == nil {
+		actions = []string{}
+	}
+	c.JSON(http.StatusOK, gin.H{"actions": actions})
+}
+
 func (h *AdminAuditHandler) ListAuditLogs(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))

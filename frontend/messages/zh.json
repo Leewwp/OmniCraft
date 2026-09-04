@@ -823,7 +823,8 @@
       "goReports": "举报处理",
       "goFeedback": "反馈管理",
       "goAppeals": "申诉处理",
-      "goQueue": "队列监控"
+      "goQueue": "队列监控",
+      "partialLoadFailed": "部分仪表盘数据加载失败"
     },
     "reports": {
       "title": "举报处理",
@@ -1067,7 +1068,13 @@
       "dlq": "死信队列",
       "noDLQ": "死信队列为空",
       "loadFailed": "加载队列数据失败",
-      "readOnlyNote": "Beta 阶段队列页面为只读模式，不支持重放操作。"
+      "readOnlyNote": "队列页面支持实时监控各 topic 积压与失败数；死信条目可重放回原 topic（原条目保留在死信队列）。",
+      "replay": "重放",
+      "replayTitle": "重放死信条目",
+      "replayConfirm": "将条目 {id} 重投回原 topic「{topic}」？原条目保留在死信队列中，不会删除。",
+      "replaySuccess": "条目 {id} 已重投回原 topic（原条目保留在死信队列）",
+      "replayFailed": "条目 {id} 重放失败，请稍后重试",
+      "retries": "重试 {count} 次"
     },
     "auditLogs": {
       "title": "审计日志",
@@ -1584,7 +1591,10 @@
     "activate": "激活",
     "deleteConfig": "删除配置",
     "deleteTitle": "删除 LLM 配置",
-    "deleteDescription": "确认删除配置「{name}」吗？此操作不可撤销。"
+    "deleteDescription": "确认删除配置「{name}」吗？此操作不可撤销。",
+    "activateNotFound": "配置不存在（可能已被删除），请刷新列表",
+    "activateFailed": "激活失败，请稍后重试",
+    "testFailed": "连接测试失败"
   },
   "appeals": {
     "title": "我的申诉",
