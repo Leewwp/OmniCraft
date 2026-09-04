@@ -222,7 +222,7 @@ func TestAgentChatStreamFlagOnEmitsExpandedCitationAndDegradedStatus(t *testing.
 		wantDegraded bool
 	}{
 		{name: "grounded", source: "hybrid_rrf"},
-		{name: "keyword fallback", degraded: "keyword_pg", source: "bm25", wantDegraded: true},
+		{name: "keyword fallback", degraded: "keyword_fallback", source: "bm25", wantDegraded: true},
 	}
 
 	for _, tc := range cases {

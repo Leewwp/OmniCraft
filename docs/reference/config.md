@@ -23,6 +23,8 @@ history (estimated tokens; CJK-heavy so rune count... |
 | `agent.embedding_dimensions` | `int` | EmbeddingDimensions |
 | `agent.embedding_group_id` | `string` | EmbeddingGroupID |
 | `agent.embedding_model` | `string` | EmbeddingModel |
+| `agent.embedding_provider` | `string` | EmbeddingProvider routes embeddings to a different adapter than chat
+(canonical profile: minimax chat + openai_compat... |
 | `agent.hmac_secret` | `string` | HMACSecret |
 | `agent.llm_api_base` | `string` | LLMAPIBase |
 | `agent.llm_api_key` | `string` | LLMAPIKey |
@@ -146,6 +148,8 @@ upgrades; defaults stay off until A-04 ablation... |
 | `rag.chunking.version` | `int` | ChunkingVersion |
 | `rag.hybrid.bm25_topk` | `int` | BM25TopK |
 | `rag.hybrid.final_topk` | `int` | FinalTopK |
+| `rag.hybrid.keyword_source` | `string` | KeywordSource selects the lexical primary: "postgres" (canonical
+pg_jieba path, default) or "opensearch" (optional ac... |
 | `rag.hybrid.rrf_k` | `int` | RRFK |
 | `rag.hybrid.vector_topk` | `int` | VectorTopK |
 | `rag.index.audit_timeout_sec` | `int` | AuditTimeoutSec |

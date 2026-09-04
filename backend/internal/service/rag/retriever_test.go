@@ -82,7 +82,7 @@ func TestRRFCombinesSameChunkAndUsesStableTieBreak(t *testing.T) {
 	}
 }
 
-func TestHybridRetrieverFallsBackToPostgresKeywordWhenOpenSearchFails(t *testing.T) {
+func TestHybridRetrieverFallsBackToKeywordFallbackWhenPrimaryFails(t *testing.T) {
 	r := NewHybridRetriever(
 		fakeRetrievalProvider{err: ErrRetrievalUnavailable},
 		fakeRetrievalProvider{results: []RetrievalCandidate{candidate("pg", 1)}},
@@ -96,11 +96,47 @@ func TestHybridRetrieverFallsBackToPostgresKeywordWhenOpenSearchFails(t *testing
 	if err != nil {
 		t.Fatalf("Retrieve() error = %v", err)
 	}
-	if got.Degraded != RetrievalDegradedKeywordPG {
-		t.Fatalf("degraded = %q, want %q", got.Degraded, RetrievalDegradedKeywordPG)
+	if got.Degraded != RetrievalDegradedKeywordFallback {
+		t.Fatalf("degraded = %q, want %q", got.Degraded, RetrievalDegradedKeywordFallback)
 	}
 	if keys := candidateKeys(got.Candidates); !reflect.DeepEqual(keys, []string{"pg", "vec"}) {
 		t.Fatalf("candidate keys = %v, want [pg vec]", keys)
+	}
+}
+
+type viewerRecordingKeyword struct {
+	viewerIDs []int64
+	results   []RetrievalCandidate
+}
+
+func (p *viewerRecordingKeyword) Search(_ context.Context, _ string, _ int, viewerID int64) ([]RetrievalCandidate, error) {
+	p.viewerIDs = append(p.viewerIDs, viewerID)
+	return append([]RetrievalCandidate(nil), p.results...), nil
+}
+
+// The lexical primary must receive the real viewer identity so viewer-scoped
+// backends (Postgres FTS) pre-filter restricted content instead of ranking it
+// first and filtering after the fact.
+func TestHybridRetrieverPassesViewerIdentityToLexicalPrimary(t *testing.T) {
+	primary := &viewerRecordingKeyword{results: []RetrievalCandidate{candidate("pg", 1)}}
+	r := NewHybridRetriever(
+		primary,
+		fakeRetrievalProvider{results: []RetrievalCandidate{candidate("os", 2)}},
+		fakeVectorProvider{results: []RetrievalCandidate{candidate("vec", 3)}},
+		fakeQueryEmbedder{vector: []float32{1}},
+		fakeVisibility{},
+		config.RAGHybridConfig{BM25TopK: 200, VectorTopK: 200, RRFK: 60, FinalTopK: 10},
+	)
+
+	got, err := r.Retrieve(context.Background(), "query", 42)
+	if err != nil {
+		t.Fatalf("Retrieve() error = %v", err)
+	}
+	if got.Degraded != "" {
+		t.Fatalf("primary success must not be marked degraded, got %q", got.Degraded)
+	}
+	if len(primary.viewerIDs) != 1 || primary.viewerIDs[0] != 42 {
+		t.Fatalf("lexical primary viewer ids = %v, want [42]", primary.viewerIDs)
 	}
 }
 

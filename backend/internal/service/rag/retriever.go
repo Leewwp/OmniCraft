@@ -18,9 +18,11 @@ const (
 	RetrievalSourceVector  = "vector"
 	RetrievalSourceHybrid  = "hybrid_rrf"
 
-	RetrievalDegradedKeywordPG        = "keyword_pg"
-	RetrievalDegradedKeywordOnly      = "keyword_only"
-	RetrievalDegradedVectorOnly       = "vector_only"
+	// RetrievalDegradedKeywordFallback marks runs where the lexical primary
+	// failed and the optional fallback backend served the keyword leg.
+	RetrievalDegradedKeywordFallback   = "keyword_fallback"
+	RetrievalDegradedKeywordOnly       = "keyword_only"
+	RetrievalDegradedVectorOnly        = "vector_only"
 	RetrievalDegradedRerankUnavailable = "rerank_unavailable"
 )
 
@@ -92,25 +94,30 @@ type QueryExpander interface {
 }
 
 type HybridRetriever struct {
-	openSearch KeywordRetriever
-	postgres   KeywordRetriever
-	vector     VectorRetriever
-	embedder   QueryEmbedder
-	visibility VisibilityFilter
-	config     config.RAGHybridConfig
-	expander   QueryExpander
-	reranker   llm.Reranker
-	rerankIn   int
+	// keywordPrimary is the canonical lexical path (container default: the
+	// pg_jieba Postgres retriever, viewer-scoped). keywordFallback is the
+	// optional accelerator backend (OpenSearch on full-infra stacks) used
+	// only when the primary errors; it may ignore the viewer identity and
+	// then relies on the post-retrieval visibility filter.
+	keywordPrimary  KeywordRetriever
+	keywordFallback KeywordRetriever
+	vector          VectorRetriever
+	embedder        QueryEmbedder
+	visibility      VisibilityFilter
+	config          config.RAGHybridConfig
+	expander        QueryExpander
+	reranker        llm.Reranker
+	rerankIn        int
 }
 
-func NewHybridRetriever(openSearch, postgres KeywordRetriever, vector VectorRetriever, embedder QueryEmbedder, visibility VisibilityFilter, cfg config.RAGHybridConfig) *HybridRetriever {
+func NewHybridRetriever(keywordPrimary, keywordFallback KeywordRetriever, vector VectorRetriever, embedder QueryEmbedder, visibility VisibilityFilter, cfg config.RAGHybridConfig) *HybridRetriever {
 	return &HybridRetriever{
-		openSearch: openSearch,
-		postgres:   postgres,
-		vector:     vector,
-		embedder:   embedder,
-		visibility: visibility,
-		config:     cfg,
+		keywordPrimary:  keywordPrimary,
+		keywordFallback: keywordFallback,
+		vector:          vector,
+		embedder:        embedder,
+		visibility:      visibility,
+		config:          cfg,
 	}
 }
 
@@ -150,13 +157,13 @@ func (r *HybridRetriever) Retrieve(ctx context.Context, query string, viewerID i
 	bm25TopK := r.topK(r.config.BM25TopK, config.RAGDefaultBM25TopK)
 	keywordLists := make([][]RetrievalCandidate, 0, len(queries))
 	keywordFailures := 0
-	keywordPGFallback := false
+	keywordFallbackUsed := false
 	for _, q := range queries {
-		keyword, keywordErr := r.searchKeyword(ctx, q)
-		if keywordErr != nil && r.postgres != nil {
-			keyword, keywordErr = r.postgres.Search(ctx, q, bm25TopK, viewerID)
+		keyword, keywordErr := r.searchKeyword(ctx, q, viewerID)
+		if keywordErr != nil && r.keywordFallback != nil {
+			keyword, keywordErr = r.keywordFallback.Search(ctx, q, bm25TopK, viewerID)
 			if keywordErr == nil {
-				keywordPGFallback = true
+				keywordFallbackUsed = true
 			}
 		}
 		if keywordErr != nil {
@@ -170,8 +177,8 @@ func (r *HybridRetriever) Retrieve(ctx context.Context, query string, viewerID i
 	// The keyword side counts as failed only when every sibling query failed
 	// (partial expansion failures keep the surviving lists in play).
 	keywordSideFailed := len(queries) > 0 && keywordFailures == len(queries)
-	if keywordPGFallback {
-		degraded = RetrievalDegradedKeywordPG
+	if keywordFallbackUsed {
+		degraded = RetrievalDegradedKeywordFallback
 	}
 
 	vectorLists, vectorErr := r.searchVectors(ctx, queries, viewerID)
@@ -399,11 +406,16 @@ func (r *HybridRetriever) filterVisibleWithBackfill(ctx context.Context, viewerI
 	return filtered, nil
 }
 
-func (r *HybridRetriever) searchKeyword(ctx context.Context, query string) ([]RetrievalCandidate, error) {
-	if r.openSearch == nil {
+// searchKeyword runs the lexical primary with the real viewer identity so
+// viewer-scoped backends (Postgres FTS) pre-filter restricted content instead
+// of ranking it first and filtering later. Backends without viewer support
+// (OpenSearch) ignore the argument and rely on the post-retrieval visibility
+// filter.
+func (r *HybridRetriever) searchKeyword(ctx context.Context, query string, viewerID int64) ([]RetrievalCandidate, error) {
+	if r.keywordPrimary == nil {
 		return nil, ErrRetrievalUnavailable
 	}
-	return r.openSearch.Search(ctx, query, r.topK(r.config.BM25TopK, config.RAGDefaultBM25TopK), 0)
+	return r.keywordPrimary.Search(ctx, query, r.topK(r.config.BM25TopK, config.RAGDefaultBM25TopK), viewerID)
 }
 
 func (r *HybridRetriever) searchVector(ctx context.Context, query string, viewerID int64) ([]RetrievalCandidate, error) {

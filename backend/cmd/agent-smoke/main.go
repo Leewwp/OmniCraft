@@ -1,12 +1,15 @@
 package main
 
-// agent-smoke is the opt-in real-provider smoke for the deterministic Agent
-// evaluation gate (plan Task 5 Step 3). It records model/provider, latency,
-// token usage, cost estimate and qualitative output as manual release
-// evidence, plus single-call embedding and rerank probes so the whole
-// provider surface is verifiable from the root .env in one run. It is never
-// part of unit CI: missing credentials block real-provider release
-// verification without affecting the deterministic evaluation tests.
+// agent-smoke is the opt-in real-provider surface probe: one non-streaming
+// Chat per case (tools included), a single-call embedding probe and a rerank
+// probe, so the whole provider surface is verifiable from the root .env in
+// one run. It is an observability script, NOT a full agent-loop gate —
+// streaming, tool-result second rounds, SSE think_delta and degraded /
+// no-evidence behavior are covered by the AgentService unit tests and the
+// env-gated answer eval (OMNICRAFT_AGENT_ANSWER_EVAL), not by this binary.
+// Errors are recorded in the report rather than failing the process.
+// It is never part of unit CI: missing credentials block real-provider
+// release verification without affecting the deterministic evaluation tests.
 
 import (
 	"context"
@@ -119,6 +122,10 @@ func providerModel(provider llm.LLMProvider) string {
 		return p.Model()
 	case *llm.MiniMaxProvider:
 		return p.Model()
+	case *llm.CompositeProvider:
+		// Split wiring (canonical profile): report the chat-side model; the
+		// embedding-side identity is carried by the embedding_provider field.
+		return p.Model()
 	default:
 		return "unknown"
 	}
@@ -207,19 +214,23 @@ func main() {
 	rerankProbe := runRerankProbe(ctx, cfg)
 
 	report := struct {
-		Provider  string        `json:"provider"`
-		Model     string        `json:"model"`
-		RanAt     string        `json:"ran_at"`
-		Cases     []*smokeCase  `json:"cases"`
-		Embedding *probeOutcome `json:"embedding"`
-		Rerank    *probeOutcome `json:"rerank"`
+		Provider          string        `json:"provider"`
+		Model             string        `json:"model"`
+		EmbeddingProvider string        `json:"embedding_provider,omitempty"`
+		EmbeddingModel    string        `json:"embedding_model"`
+		RanAt             string        `json:"ran_at"`
+		Cases             []*smokeCase  `json:"cases"`
+		Embedding         *probeOutcome `json:"embedding"`
+		Rerank            *probeOutcome `json:"rerank"`
 	}{
-		Provider:  cfg.Agent.LLMProvider,
-		Model:     providerModel(provider),
-		RanAt:     time.Now().Format(time.RFC3339),
-		Cases:     cases,
-		Embedding: embeddingProbe,
-		Rerank:    rerankProbe,
+		Provider:          cfg.Agent.LLMProvider,
+		Model:             providerModel(provider),
+		EmbeddingProvider: strings.TrimSpace(cfg.Agent.EmbeddingProvider),
+		EmbeddingModel:    cfg.Agent.EmbeddingModel,
+		RanAt:             time.Now().Format(time.RFC3339),
+		Cases:             cases,
+		Embedding:         embeddingProbe,
+		Rerank:            rerankProbe,
 	}
 	data, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {

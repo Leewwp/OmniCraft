@@ -45,7 +45,7 @@ func TestDefaultRAGChunkingConfig(t *testing.T) {
 	require.Equal(t, "cl100k_base", cfg.RAG.Chunking.TokenizerEncoding)
 	require.Equal(t, "http://127.0.0.1:9200", cfg.RAG.Index.URL)
 	require.Equal(t, 1, cfg.RAG.Index.GenerationStart)
-	require.Equal(t, "text-embedding-3-small", cfg.RAG.Index.EmbeddingModel)
+	require.Equal(t, "text-embedding-v4", cfg.RAG.Index.EmbeddingModel)
 	require.Equal(t, 1, cfg.RAG.Index.HealthPollIntervalSec)
 	require.Equal(t, 10, cfg.RAG.Index.TimeoutSec)
 	require.Equal(t, 2, cfg.RAG.Index.AuditTimeoutSec)
@@ -56,6 +56,9 @@ func TestDefaultRAGChunkingConfig(t *testing.T) {
 	require.Equal(t, 200, cfg.RAG.Hybrid.VectorTopK)
 	require.Equal(t, 60, cfg.RAG.Hybrid.RRFK)
 	require.Equal(t, 10, cfg.RAG.Hybrid.FinalTopK)
+	// Canonical profile: the pg_jieba Postgres retriever is the lexical
+	// primary; OpenSearch is the optional fallback.
+	require.Equal(t, "postgres", cfg.RAG.Hybrid.KeywordSource)
 }
 
 func TestValidateReleaseRejectsInvalidRAGChunkingConfig(t *testing.T) {

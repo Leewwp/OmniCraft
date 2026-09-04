@@ -24,7 +24,11 @@ func setupPublicConfigTestRouter(t *testing.T) *gin.Engine {
 			DesktopDeployEnabled:  false,
 		},
 		Agent: config.AgentConfig{
-			WebAgentEnabled: false,
+			WebAgentEnabled:   false,
+			LLMProvider:       "minimax",
+			LLMModel:          "MiniMax-M3",
+			EmbeddingProvider: "openai_compat",
+			EmbeddingModel:    "text-embedding-v4",
 		},
 		Captcha: config.CaptchaConfig{
 			Provider: "aliyun_v2",
@@ -258,6 +262,34 @@ func TestPublicConfigExposesOnlyCollaborationMaxInviteesPerPublish(t *testing.T)
 	}
 }
 
+// Agent 模型身份（provider/model 名）随公开配置下发；凭证与端点永不暴露。
+func TestPublicConfigExposesAgentModelIdentity(t *testing.T) {
+	r := setupPublicConfigTestRouter(t)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/config/public", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp struct {
+		Agent struct {
+			ChatProvider      string `json:"chat_provider"`
+			ChatModel         string `json:"chat_model"`
+			EmbeddingProvider string `json:"embedding_provider"`
+			EmbeddingModel    string `json:"embedding_model"`
+		} `json:"agent"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Agent.ChatProvider != "minimax" || resp.Agent.ChatModel != "MiniMax-M3" {
+		t.Errorf("agent chat identity = %s/%s, want minimax/MiniMax-M3", resp.Agent.ChatProvider, resp.Agent.ChatModel)
+	}
+	if resp.Agent.EmbeddingProvider != "openai_compat" || resp.Agent.EmbeddingModel != "text-embedding-v4" {
+		t.Errorf("agent embedding identity = %s/%s, want openai_compat/text-embedding-v4", resp.Agent.EmbeddingProvider, resp.Agent.EmbeddingModel)
+	}
+}
+
 func TestPublicConfigNormalizesOmittedGalleryLimits(t *testing.T) {
 	cfg := &config.Config{}
 	r := gin.New()
@@ -309,10 +341,10 @@ func TestPublicConfigExposesPublishTypeOrderAndUploadCaps(t *testing.T) {
 	}
 
 	wantCaps := map[string]int{
-		"video_max_mb":      300,
-		"image_max_mb":      20,
-		"text_max_mb":       10,
-		"mod_max_mb":        500,
+		"video_max_mb":       300,
+		"image_max_mb":       20,
+		"text_max_mb":        10,
+		"mod_max_mb":         500,
 		"sheet_music_max_mb": 50,
 	}
 	if len(resp.Limits) != len(wantCaps) {
