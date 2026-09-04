@@ -74,6 +74,17 @@ export default function StudioOverviewPage() {
     }
   }, [t, toast]);
 
+  // T49 (FIX-22c): 待办卡真实数据——一次请求聚合 open PR + pending 标签建议
+  const loadPendingTasks = useCallback(async () => {
+    try {
+      const res = await api.get("/api/v1/users/me/pending-tasks") as { tasks?: Array<{ type: "pr" | "tag"; id: number; title: string }> } | null;
+      setPendingTasks(res?.tasks ?? []);
+    } catch {
+      // 待办卡为辅助信息，加载失败静默保持空态
+      setPendingTasks([]);
+    }
+  }, []);
+
   const loadTrend = useCallback(async () => {
     setTrendError("");
     try {
@@ -99,7 +110,8 @@ export default function StudioOverviewPage() {
       await loadTrend();
     }
     void fetchData();
-  }, [loadContents, loadTrend]);
+    void loadPendingTasks();
+  }, [loadContents, loadTrend, loadPendingTasks]);
 
   /*
    * The ranking endpoint is paginated even though the first view only shows
