@@ -1,7 +1,7 @@
 # 语料 v2 注入与 Golden Set 冻结规格（CORPUS-01 · #291）
 
 > 创建日期：2026-09-02 ｜ **预计失效日期**: 2026-10-31（原表述：#291 收口后）
-> 版本：**v1.0（2026-09-02 二轮修订）**——采纳外部审查 8 点，已对照 `069_rag_evaluation.sql`、`rag_eval/metrics.go`、`rag-deepening-design.md §6`、`agent-workspace-rework-design.md §7` 逐条核实。
+> 版本：**v1.1（2026-09-04 修订）**——golden set 分层配比与两处指标语义由 `2026-09-04-golden-set-v2-annotation-spec.md`（v2 可执行合同）取代，见 §1/§3/§5 内 v1.1 标注；其余正文继承 v1.0（2026-09-02 二轮修订，采纳外部审查 8 点，已对照 `069_rag_evaluation.sql`、`rag_eval/metrics.go`、`rag-deepening-design.md §6`、`agent-workspace-rework-design.md §7` 逐条核实）。
 > 来源：用户 2026-09-02 批准的总序修订一 + 同日 golden set 审查采纳决定。
 > 权威关系：执行顺序以总序 §3 为准（第 6 段 A-03 与 A-04 之间）；**golden set 规模与指标合同由本 spec 统一定义**，`agent-workspace-rework-design.md §7` 的「30–50 条 / Recall@5」表述由本 spec 取代（K=5 保留为消融报告附加列）。
 
@@ -17,6 +17,8 @@
 | --- | --- | --- |
 | IP | 16 个真实头部 IP（2026-09-02 用户授权自热门榜候选选定，名单冻结见附录 B；不爬取任何内容） | 演示可理解性；面试追问可接 |
 | 品类 | 长篇同人（多章节深标题链，占比 ≥40% 以撑 chunk 总量）/ 短篇 / 设定集（2–3% 含 Markdown 表格）/ 讨论首帖（含无标题短帖样本） | 覆盖 chunker 三边界；达 chunks 目标 |
+
+> **（v1.1 增补，2026-09-04）无标题短帖样本的标题语义**：意图性无标题短帖保留 `raw_title=""`，检索/展示用确定性 `display_title` 回退（`title_origin=fallback`），且**不得进入 golden set known-item exact 层**；意外缺失标题的条目以 LLM 生成候选并**全量人工复核**（`title_origin=generated`；有正式标题者 `title_origin=raw`）。index 与 DB 统一保存实际展示/检索标题并保留 `title_origin` 供审计。
 | 标题形态 | 精确型 / 模糊型 / 部分重叠型按比例混合 | golden set 精确/语义分层的真值基础 |
 | 可见性 | 公开 / 仅粉丝 / 私密分层；虚拟作者 20–30 个 + 作者-粉丝关系网（冻结 fixture） | 可见性过滤与引用复核的评测与演示弹药 |
 | 版本链 | 约 10% 内容带 2–4 个版本 | 过期引用丢弃的演示弹药 |
@@ -50,6 +52,7 @@ pg_dump 备份 → 稳定 release 后低峰窗口 → 同一脚本指向生产 H
 - **机器真源 = PostgreSQL `eval_golden_cases`（069 迁移，schema_version 随导出）**；JSONL 仅为草稿与 CI 导出物（对齐 rag-deepening §6"PostgreSQL 为唯一真源"）。草稿阶段用 `corpus_item_key`，#291 注入后映射为 DB content_id 再冻结。
 - **规模：总量 150–200 条**，其中含 **≥30–50 条「口语化推荐场景」子层**（口语化兴趣描述 → 期望命中实体集合，吸收 rework design §7 的扩充目标，归入语义层）。
 - **配比（primary_layer）与取整**：精确 = floor(N×0.4)、语义 = floor(N×0.3)（含口语化推荐子层）、可见性 = floor(N×0.15)、无答案 = N − 前三者（承接取整误差）。
+  - **（v1.1 修订，2026-09-04）本条四层固定配比已由 v2 六层方案取代**：known_item_exact 64 / semantic_discovery 48 / body_evidence 24 / hard_neighbor 16 / no_answer 20（域外 12 + 域内 8）/ visibility 24，合计 196（仍在 150–200 区间）。依据 = 检索有效性审计（`2026-09-04-golden-set-audit-report.md`：semantic 48/48 标题复读、29 条权限矛盾、no_answer 重复等）+ 用户 2026-09-04 两轮裁决。分层与配额权威转至 `2026-09-04-golden-set-v2-annotation-spec.md`，本条保留为历史口径；语言与冷热不变量（下行）继续有效。
 - **语言与冷热不变量（沿 069 设计口径）**：zh ≥ 50%、en ≥ 20%、mixed ≥ 10%；冷门查询 ≥ 20%。
 - **字段（069 表对齐）**：`case_key`（唯一）、`query`、`query_language`、`viewer_context`（匿名 / 非粉丝 fixture 用户 / 粉丝 / 作者）、`relevant_evidence`（(content_id, content_version, source_start, source_end) 列表）、`relevant_content_ids`（0..n，空集仅限无答案类）、`expected_citations`（必须被引用的证据子集）、`forbidden_content_ids`（必须不出现：隐藏/私密/未审核/封禁/陷阱干扰项）、`answer_rubric`、`classification`（primary_layer / query_form(exact|semantic) / visibility_context / ip_scope / answerability / 内容类型 / 冷热带）。
 
@@ -73,8 +76,8 @@ pg_dump 备份 → 稳定 release 后低峰窗口 → 同一脚本指向生产 H
 | MRR | 首个 relevant 排名倒数 | `metrics.go` 既有 |
 | nDCG@10 | 二值相关度折扣增益（`NDCGAt10` 既有；@5 由 K 参数化） | |
 | citation precision | 引用中属于 relevant/expected 的占比 | A-04 主口径 |
-| no_answer_trap_hit@10 | 无答案 case 的 Top-10 命中登记干扰项即计阳 | 目标 0；拒答率单独统计，不复用 Recall |
-| visibility_leak | 四泄漏面命中 forbidden_content_ids 的 case 数 | 目标 0；含引用/正文/工具步骤，不止返回 ID |
+| no_answer_trap_hit@10 | 无答案 case 的 Top-10 命中登记干扰项即计阳 | **（v1.1 修订）仅作检索层诊断，strict 策略亦不据此判整条失败；硬失败发生在引用/回答声明层**。拒答率单独统计，不复用 Recall |
+| visibility_leak | 四泄漏面命中 forbidden_content_ids 的 case 数 | 目标 0；含引用/正文/工具步骤，不止返回 ID。**（v1.1 增补）不存在/编造的作品无 corpus key，不进 forbidden_content_ids，写入 answer_rubric 禁止声明** |
 
 ## 6. 依赖与外部输入
 

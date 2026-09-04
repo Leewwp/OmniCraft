@@ -1,0 +1,208 @@
+{"old_case_key":"gs-c2-0001","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0001","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 31 条），查询随新标题重生成；保留「在IP内：」前缀"}
+{"old_case_key":"gs-c2-0002","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0002","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0003","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0003","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0004","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0004","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0005","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0005","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0006","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0006","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0007","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0007","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0008","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0008","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0009","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0009","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0010","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0010","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 28 条），查询随新标题重生成；保留「在IP内：」前缀"}
+{"old_case_key":"gs-c2-0011","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0011","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 31 条），查询随新标题重生成；保留「在IP内：」前缀"}
+{"old_case_key":"gs-c2-0012","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0012","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0013","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0013","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 35 条），查询随新标题重生成；保留「在IP内：」前缀"}
+{"old_case_key":"gs-c2-0014","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0014","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 31 条），查询随新标题重生成；保留「在IP内：」前缀"}
+{"old_case_key":"gs-c2-0015","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0015","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 27 条），查询随新标题重生成；保留「在IP内：」前缀"}
+{"old_case_key":"gs-c2-0016","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0016","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 32 条），查询随新标题重生成；保留「在IP内：」前缀"}
+{"old_case_key":"gs-c2-0017","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0017","v2_layer":"known_item_exact","note":"查询与目标原样保留；ASCII冒号（#319 已修，回归观测子集）"}
+{"old_case_key":"gs-c2-0018","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0018","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 32 条），查询随新标题重生成"}
+{"old_case_key":"gs-c2-0019","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0019","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0020","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0020","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0021","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0021","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0022","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0022","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0023","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0023","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0024","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0024","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 32 条），查询随新标题重生成"}
+{"old_case_key":"gs-c2-0025","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0025","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 32 条），查询随新标题重生成"}
+{"old_case_key":"gs-c2-0026","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0026","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0027","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0027","v2_layer":"known_item_exact","note":"查询与目标原样保留；ASCII冒号（#319 已修，回归观测子集）"}
+{"old_case_key":"gs-c2-0028","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0028","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0029","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0029","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 32 条），查询随新标题重生成"}
+{"old_case_key":"gs-c2-0030","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0030","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0031","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0031","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0032","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0032","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 34 条），查询随新标题重生成"}
+{"old_case_key":"gs-c2-0033","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0033","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0034","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0034","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0035","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0035","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0036","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0036","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0037","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0037","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0038","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0038","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 28 条），查询随新标题重生成"}
+{"old_case_key":"gs-c2-0039","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0039","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 29 条），查询随新标题重生成"}
+{"old_case_key":"gs-c2-0040","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0040","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 34 条），查询随新标题重生成"}
+{"old_case_key":"gs-c2-0041","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0041","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 29 条），查询随新标题重生成"}
+{"old_case_key":"gs-c2-0042","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0042","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0043","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0043","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0044","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0044","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0045","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0045","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 31 条），查询随新标题重生成"}
+{"old_case_key":"gs-c2-0046","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0046","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0047","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0047","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0048","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0048","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 29 条），查询随新标题重生成"}
+{"old_case_key":"gs-c2-0049","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0049","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0050","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0050","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0051","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0051","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0052","old_layer":"exact","disposition":"target_swap","v2_case_key":"ke-0052","v2_layer":"known_item_exact","note":"换同IP public title_form=exact 目标（候选池 30 条），查询随新标题重生成；ASCII冒号（#319 已修，回归观测子集）"}
+{"old_case_key":"gs-c2-0053","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0053","v2_layer":"known_item_exact","note":"查询与目标原样保留；ASCII冒号（#319 已修，回归观测子集）"}
+{"old_case_key":"gs-c2-0054","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0054","v2_layer":"known_item_exact","note":"查询与目标原样保留；ASCII冒号（#319 已修，回归观测子集）"}
+{"old_case_key":"gs-c2-0055","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0055","v2_layer":"known_item_exact","note":"查询与目标原样保留；ASCII冒号（#319 已修，回归观测子集）"}
+{"old_case_key":"gs-c2-0056","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0056","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0057","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0057","v2_layer":"known_item_exact","note":"查询与目标原样保留；ASCII冒号（#319 已修，回归观测子集）"}
+{"old_case_key":"gs-c2-0058","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0058","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0059","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0059","v2_layer":"known_item_exact","note":"查询与目标原样保留；ASCII冒号（#319 已修，回归观测子集）"}
+{"old_case_key":"gs-c2-0060","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0060","v2_layer":"known_item_exact","note":"查询与目标原样保留；ASCII冒号（#319 已修，回归观测子集）"}
+{"old_case_key":"gs-c2-0061","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0061","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0062","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0062","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0063","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0063","v2_layer":"known_item_exact","note":"查询与目标原样保留；ASCII冒号（#319 已修，回归观测子集）"}
+{"old_case_key":"gs-c2-0064","old_layer":"exact","disposition":"keep","v2_case_key":"ke-0064","v2_layer":"known_item_exact","note":"查询与目标原样保留"}
+{"old_case_key":"gs-c2-0065","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0001","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0066","old_layer":"semantic","disposition":"target_swap+rewrite","v2_case_key":"sd-0002","v2_layer":"semantic_discovery","note":"先换同IP public fuzzy/partial 目标（候选池 39 条）再藏标题重写+三档标注"}
+{"old_case_key":"gs-c2-0067","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0003","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0068","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0004","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0069","old_layer":"semantic","disposition":"target_swap+rewrite","v2_case_key":"sd-0005","v2_layer":"semantic_discovery","note":"先换同IP public fuzzy/partial 目标（候选池 35 条）再藏标题重写+三档标注"}
+{"old_case_key":"gs-c2-0070","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0006","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0071","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0007","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0072","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0008","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0073","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0009","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0074","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0010","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0075","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0011","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0076","old_layer":"semantic","disposition":"target_swap+rewrite","v2_case_key":"sd-0012","v2_layer":"semantic_discovery","note":"先换同IP public fuzzy/partial 目标（候选池 37 条）再藏标题重写+三档标注"}
+{"old_case_key":"gs-c2-0077","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0013","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0078","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0014","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0079","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0015","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0080","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0016","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0081","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0017","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0082","old_layer":"semantic","disposition":"target_swap+rewrite","v2_case_key":"sd-0018","v2_layer":"semantic_discovery","note":"先换同IP public fuzzy/partial 目标（候选池 37 条）再藏标题重写+三档标注"}
+{"old_case_key":"gs-c2-0083","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0019","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0084","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0020","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0085","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0021","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0086","old_layer":"semantic","disposition":"target_swap+rewrite","v2_case_key":"sd-0022","v2_layer":"semantic_discovery","note":"先换同IP public fuzzy/partial 目标（候选池 38 条）再藏标题重写+三档标注"}
+{"old_case_key":"gs-c2-0087","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0023","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0088","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0024","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0089","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0025","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0090","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0026","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0091","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0027","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0092","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0028","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0093","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0029","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0094","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0030","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0095","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0031","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0096","old_layer":"semantic","disposition":"target_swap+rewrite","v2_case_key":"sd-0032","v2_layer":"semantic_discovery","note":"先换同IP public fuzzy/partial 目标（候选池 34 条）再藏标题重写+三档标注"}
+{"old_case_key":"gs-c2-0097","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0033","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0098","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0034","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0099","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0035","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0100","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0036","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0101","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0037","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0102","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0038","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0103","old_layer":"semantic","disposition":"target_swap+rewrite","v2_case_key":"sd-0039","v2_layer":"semantic_discovery","note":"先换同IP public fuzzy/partial 目标（候选池 38 条）再藏标题重写+三档标注"}
+{"old_case_key":"gs-c2-0104","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0040","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0105","old_layer":"semantic","disposition":"target_swap+rewrite","v2_case_key":"sd-0041","v2_layer":"semantic_discovery","note":"先换同IP public fuzzy/partial 目标（候选池 34 条）再藏标题重写+三档标注"}
+{"old_case_key":"gs-c2-0106","old_layer":"semantic","disposition":"target_swap+rewrite","v2_case_key":"sd-0042","v2_layer":"semantic_discovery","note":"先换同IP public fuzzy/partial 目标（候选池 35 条）再藏标题重写+三档标注"}
+{"old_case_key":"gs-c2-0107","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0043","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0108","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0044","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0109","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0045","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0110","old_layer":"semantic","disposition":"target_swap+rewrite","v2_case_key":"sd-0046","v2_layer":"semantic_discovery","note":"先换同IP public fuzzy/partial 目标（候选池 35 条）再藏标题重写+三档标注"}
+{"old_case_key":"gs-c2-0111","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0047","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0112","old_layer":"semantic","disposition":"rewrite","v2_case_key":"sd-0048","v2_layer":"semantic_discovery","note":"藏标题重写（不复用标题独特短语）+ expected/acceptable/forbidden 三档"}
+{"old_case_key":"gs-c2-0113","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0001","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0114","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0002","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0115","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0003","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0116","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0004","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0117","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0005","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0118","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0006","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0119","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0007","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0120","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0008","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0121","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0009","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0122","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0010","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0123","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0011","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0124","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0012","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0125","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0013","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0126","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0014","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0127","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0015","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0128","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0016","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0129","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0017","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0130","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0018","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0131","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0019","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0132","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0020","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0133","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0021","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0134","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0022","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0135","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0023","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0136","old_layer":"visibility","disposition":"keep+principal","v2_case_key":"vi-0024","v2_layer":"visibility","note":"保留；principal=anon+fixture:viewer-anon 双身份，四泄漏面零"}
+{"old_case_key":"gs-c2-0137","old_layer":"no_answer","disposition":"keep+strategy","v2_case_key":"na-0001","v2_layer":"no_answer","note":"策略=related_recommendation_allowed；干扰项重抽为真·近邻（人工判）"}
+{"old_case_key":"gs-c2-0138","old_layer":"no_answer","disposition":"keep+strategy","v2_case_key":"na-0002","v2_layer":"no_answer","note":"策略=strict_not_found；干扰项重抽为真·近邻（人工判）"}
+{"old_case_key":"gs-c2-0139","old_layer":"no_answer","disposition":"keep+strategy","v2_case_key":"na-0003","v2_layer":"no_answer","note":"策略=related_recommendation_allowed；干扰项重抽为真·近邻（人工判）"}
+{"old_case_key":"gs-c2-0140","old_layer":"no_answer","disposition":"keep+strategy","v2_case_key":"na-0004","v2_layer":"no_answer","note":"策略=related_recommendation_allowed；干扰项重抽为真·近邻（人工判）"}
+{"old_case_key":"gs-c2-0142","old_layer":"no_answer","disposition":"keep+strategy","v2_case_key":"na-0005","v2_layer":"no_answer","note":"策略=related_recommendation_allowed；干扰项重抽为真·近邻（人工判）"}
+{"old_case_key":"gs-c2-0143","old_layer":"no_answer","disposition":"keep+strategy","v2_case_key":"na-0006","v2_layer":"no_answer","note":"策略=related_recommendation_allowed；干扰项重抽为真·近邻（人工判）"}
+{"old_case_key":"gs-c2-0144","old_layer":"no_answer","disposition":"keep+strategy","v2_case_key":"na-0007","v2_layer":"no_answer","note":"策略=related_recommendation_allowed；干扰项重抽为真·近邻（人工判）"}
+{"old_case_key":"gs-c2-0145","old_layer":"no_answer","disposition":"keep+strategy","v2_case_key":"na-0008","v2_layer":"no_answer","note":"策略=related_recommendation_allowed；干扰项重抽为真·近邻（人工判）"}
+{"old_case_key":"gs-c2-0148","old_layer":"no_answer","disposition":"keep+strategy","v2_case_key":"na-0009","v2_layer":"no_answer","note":"策略=related_recommendation_allowed；干扰项重抽为真·近邻（人工判）"}
+{"old_case_key":"gs-c2-0149","old_layer":"no_answer","disposition":"keep+strategy","v2_case_key":"na-0010","v2_layer":"no_answer","note":"策略=strict_not_found；干扰项重抽为真·近邻（人工判）"}
+{"old_case_key":"gs-c2-0150","old_layer":"no_answer","disposition":"keep+strategy","v2_case_key":"na-0011","v2_layer":"no_answer","note":"策略=related_recommendation_allowed；干扰项重抽为真·近邻（人工判）"}
+{"old_case_key":"gs-c2-0155","old_layer":"no_answer","disposition":"keep+strategy","v2_case_key":"na-0012","v2_layer":"no_answer","note":"策略=related_recommendation_allowed；干扰项重抽为真·近邻（人工判）"}
+{"old_case_key":"gs-c2-0141","old_layer":"no_answer","disposition":"drop(merged)","v2_case_key":"na-0010","v2_layer":"no_answer","note":"与 na-0010（gs-c2-0149）同题，合并删除"}
+{"old_case_key":"gs-c2-0146","old_layer":"no_answer","disposition":"drop(merged)","v2_case_key":"na-0002","v2_layer":"no_answer","note":"与 na-0002（gs-c2-0138）同题，合并删除"}
+{"old_case_key":"gs-c2-0147","old_layer":"no_answer","disposition":"drop(merged)","v2_case_key":"na-0003","v2_layer":"no_answer","note":"与 na-0003（gs-c2-0139）同题，合并删除"}
+{"old_case_key":"gs-c2-0151","old_layer":"no_answer","disposition":"drop(merged)","v2_case_key":"na-0006","v2_layer":"no_answer","note":"与 na-0006（gs-c2-0143）同题，合并删除"}
+{"old_case_key":"gs-c2-0152","old_layer":"no_answer","disposition":"drop(merged)","v2_case_key":"na-0007","v2_layer":"no_answer","note":"与 na-0007（gs-c2-0144）同题，合并删除"}
+{"old_case_key":"gs-c2-0153","old_layer":"no_answer","disposition":"drop(merged)","v2_case_key":"na-0001","v2_layer":"no_answer","note":"与 na-0001（gs-c2-0137）同题，合并删除"}
+{"old_case_key":"gs-c2-0154","old_layer":"no_answer","disposition":"drop(merged)","v2_case_key":"na-0002","v2_layer":"no_answer","note":"与 na-0002（gs-c2-0138）同题，合并删除"}
+{"old_case_key":"gs-c2-0156","old_layer":"no_answer","disposition":"drop(merged)","v2_case_key":"na-0009","v2_layer":"no_answer","note":"与 na-0009（gs-c2-0148）同题，合并删除"}
+{"old_case_key":"gs-c2-0157","old_layer":"no_answer","disposition":"drop(merged)","v2_case_key":"na-0010","v2_layer":"no_answer","note":"与 na-0010（gs-c2-0149）同题，合并删除"}
+{"old_case_key":"gs-c2-0158","old_layer":"no_answer","disposition":"drop(merged)","v2_case_key":"na-0005","v2_layer":"no_answer","note":"与 na-0005（gs-c2-0142）同题，合并删除"}
+{"old_case_key":"gs-c2-0159","old_layer":"no_answer","disposition":"drop(merged)","v2_case_key":"na-0006","v2_layer":"no_answer","note":"与 na-0006（gs-c2-0143）同题，合并删除"}
+{"old_case_key":"gs-c2-0160","old_layer":"no_answer","disposition":"drop(merged)","v2_case_key":"na-0004","v2_layer":"no_answer","note":"与 na-0004（gs-c2-0140）同题，合并删除"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"na-0013","v2_layer":"no_answer","note":"域内新增 1/8：IP 内合理主题、检索验证零精确对应；策略按查询形态定"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"na-0014","v2_layer":"no_answer","note":"域内新增 2/8：IP 内合理主题、检索验证零精确对应；策略按查询形态定"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"na-0015","v2_layer":"no_answer","note":"域内新增 3/8：IP 内合理主题、检索验证零精确对应；策略按查询形态定"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"na-0016","v2_layer":"no_answer","note":"域内新增 4/8：IP 内合理主题、检索验证零精确对应；策略按查询形态定"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"na-0017","v2_layer":"no_answer","note":"域内新增 5/8：IP 内合理主题、检索验证零精确对应；策略按查询形态定"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"na-0018","v2_layer":"no_answer","note":"域内新增 6/8：IP 内合理主题、检索验证零精确对应；策略按查询形态定"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"na-0019","v2_layer":"no_answer","note":"域内新增 7/8：IP 内合理主题、检索验证零精确对应；策略按查询形态定"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"na-0020","v2_layer":"no_answer","note":"域内新增 8/8：IP 内合理主题、检索验证零精确对应；策略按查询形态定"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0001","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0002","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0003","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0004","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0005","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0006","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0007","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0008","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0009","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0010","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0011","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0012","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0013","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0014","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0015","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0016","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0017","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0018","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0019","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0020","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0021","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0022","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0023","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"be-0024","v2_layer":"body_evidence","note":"正文出题：只见 chunk 正文，答案关键信息不得出现在标题；span=codepoint 半开区间"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"hn-0001","v2_layer":"hard_neighbor","note":"同 IP 近邻：多检索配置 Top-K 候选并集挖掘 + 人工判三档"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"hn-0002","v2_layer":"hard_neighbor","note":"同 IP 近邻：多检索配置 Top-K 候选并集挖掘 + 人工判三档"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"hn-0003","v2_layer":"hard_neighbor","note":"同 IP 近邻：多检索配置 Top-K 候选并集挖掘 + 人工判三档"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"hn-0004","v2_layer":"hard_neighbor","note":"同 IP 近邻：多检索配置 Top-K 候选并集挖掘 + 人工判三档"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"hn-0005","v2_layer":"hard_neighbor","note":"同 IP 近邻：多检索配置 Top-K 候选并集挖掘 + 人工判三档"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"hn-0006","v2_layer":"hard_neighbor","note":"同 IP 近邻：多检索配置 Top-K 候选并集挖掘 + 人工判三档"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"hn-0007","v2_layer":"hard_neighbor","note":"同 IP 近邻：多检索配置 Top-K 候选并集挖掘 + 人工判三档"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"hn-0008","v2_layer":"hard_neighbor","note":"同 IP 近邻：多检索配置 Top-K 候选并集挖掘 + 人工判三档"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"hn-0009","v2_layer":"hard_neighbor","note":"同 IP 近邻：多检索配置 Top-K 候选并集挖掘 + 人工判三档"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"hn-0010","v2_layer":"hard_neighbor","note":"同 IP 近邻：多检索配置 Top-K 候选并集挖掘 + 人工判三档"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"hn-0011","v2_layer":"hard_neighbor","note":"同 IP 近邻：多检索配置 Top-K 候选并集挖掘 + 人工判三档"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"hn-0012","v2_layer":"hard_neighbor","note":"同 IP 近邻：多检索配置 Top-K 候选并集挖掘 + 人工判三档"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"hn-0013","v2_layer":"hard_neighbor","note":"同 IP 近邻：多检索配置 Top-K 候选并集挖掘 + 人工判三档"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"hn-0014","v2_layer":"hard_neighbor","note":"同 IP 近邻：多检索配置 Top-K 候选并集挖掘 + 人工判三档"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"hn-0015","v2_layer":"hard_neighbor","note":"同 IP 近邻：多检索配置 Top-K 候选并集挖掘 + 人工判三档"}
+{"old_case_key":"-","old_layer":"-","disposition":"new","v2_case_key":"hn-0016","v2_layer":"hard_neighbor","note":"同 IP 近邻：多检索配置 Top-K 候选并集挖掘 + 人工判三档"}
