@@ -3068,6 +3068,7 @@ interface VersionHistoryProps {
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
 - empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
+- empty（FIX-42，T51）: 空态文案必须说明版本来源（发布/编辑/PR 合并产生版本）与存量内容无 v1 的原因（版本功能上线前发布，不回填）；走 `content.noVersionHistory` i18n key，`text-muted-foreground` 一行展示，不使用红色 destructive 边框（空态非错误）。
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。

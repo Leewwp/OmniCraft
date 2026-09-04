@@ -66,6 +66,11 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 	recSvc := service.NewRecommendationService(db, embeddingRepo, repo, contentSvc, rdb, &cfg.Recommendation)
 	contentSvc.SetRecommendationService(recSvc)
 
+	// FIX-42: this handler-local service instance is the one wired to
+	// POST /contents (routes.go builds its own handlers), so publish-time
+	// initial version creation must bind here too, not only on the container.
+	contentSvc.SetVersionService(service.NewVersionService(repository.NewVersionRepository(db), repo))
+
 	return &ContentHandler{
 		contentSvc:        contentSvc,
 		contentRepo:       repo,

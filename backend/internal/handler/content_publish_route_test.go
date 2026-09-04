@@ -489,7 +489,7 @@ func setupPublishRoute(t *testing.T, state publishRouteUserState) (*gin.Engine, 
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.User{}, &model.ContentItem{}, &model.ContentAttachment{}, &model.ContentTag{}, &model.IP{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.ContentItem{}, &model.ContentAttachment{}, &model.ContentTag{}, &model.IP{}, &model.ContentVersion{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
@@ -598,7 +598,7 @@ func TestCreateContentRoutePublishesAIReviewToQueueProducer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.User{}, &model.ContentItem{}, &model.ContentAttachment{}, &model.ContentTag{}, &model.IP{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.ContentItem{}, &model.ContentAttachment{}, &model.ContentTag{}, &model.IP{}, &model.ContentVersion{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 

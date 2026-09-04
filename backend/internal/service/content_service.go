@@ -45,6 +45,7 @@ var (
 
 type ContentService struct {
 	contentRepo            *repository.ContentRepository
+	versionSvc             *VersionService
 	reviewSvc              *ReviewService
 	rdb                    *redis.Client
 	cacheCfg               *config.CacheConfig
@@ -90,6 +91,13 @@ func NewContentServiceWithCache(contentRepo *repository.ContentRepository, revie
 
 func NewContentServiceWithOSS(contentRepo *repository.ContentRepository, reviewSvc *ReviewService, rdb *redis.Client, cacheCfg *config.CacheConfig, ossSvc *OSSService) *ContentService {
 	return &ContentService{contentRepo: contentRepo, reviewSvc: reviewSvc, rdb: rdb, cacheCfg: cacheCfg, ossSvc: ossSvc, archiveValidator: ossSvc}
+}
+
+// SetVersionService wires the version lineage (FIX-42): once set, every
+// successful publish writes its initial v1 snapshot inside the publish
+// transaction. Leaving it unset keeps legacy local constructions unchanged.
+func (s *ContentService) SetVersionService(versionSvc *VersionService) {
+	s.versionSvc = versionSvc
 }
 
 func (s *ContentService) SetRecommendationService(recSvc *RecommendationService) {
@@ -402,6 +410,17 @@ func (s *ContentService) PublishContentWithContext(ctx context.Context, input Pu
 
 		if err := txRepo.CreateContent(content); err != nil {
 			return err
+		}
+
+		// FIX-42: the initial v1 snapshot rides the publish transaction, so a
+		// published content always has at least one version and can never end
+		// up published with an empty lineage. Unwired constructions skip this
+		// (legacy local call sites keep their old behaviour).
+		if s.versionSvc != nil {
+			txVersions := s.versionSvc.WithDB(txRepo.DB())
+			if _, err := txVersions.CreateInitialVersion(content.ID, authorID, input.Description); err != nil {
+				return err
+			}
 		}
 
 		if len(attachments) > 0 {

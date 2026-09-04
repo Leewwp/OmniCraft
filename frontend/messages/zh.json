@@ -284,7 +284,7 @@
     "allContent": "全部内容",
     "categoryMod": "Mod",
     "versionHistory": "版本历史",
-    "noVersionHistory": "暂无版本历史",
+    "noVersionHistory": "暂无版本历史。内容发布、编辑与 PR 合并都会产生版本；此内容发布于版本功能上线前，因此没有版本记录。",
     "latest": "最新",
     "preview": "预览",
     "restoreVersion": "恢复到此版本",
