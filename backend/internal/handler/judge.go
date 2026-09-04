@@ -35,10 +35,44 @@ func NewJudgeHandler(db *gorm.DB, cfg *config.Config, auditSvc *service.AdminAud
 	}
 }
 
+// sanitizeExamQuestion 构造考试题的对外形态（T37/F-100 allowlist）：只透出
+// 题干与选项。question_data 其余字段一律不下发——调度器生成的题内嵌
+// votes_approve/votes_reject 可机械推算正确答案，admin 手工题的 explanation
+// 常含答案明文。题干兼容 prompt 与调度器的 question 两种字段名。
+func sanitizeExamQuestion(q model.JudgeQuestion) gin.H {
+	var data map[string]interface{}
+	if err := json.Unmarshal(q.QuestionData, &data); err != nil {
+		slog.Warn("judge question: failed to unmarshal question data", "question_id", q.ID, "error", err)
+		data = map[string]interface{}{}
+	}
+	prompt := data["prompt"]
+	if prompt == nil {
+		prompt = data["question"]
+	}
+	return gin.H{
+		"id":           q.ID,
+		"content_type": q.ContentType,
+		"question": gin.H{
+			"prompt":  prompt,
+			"options": data["options"],
+		},
+	}
+}
+
 func (h *JudgeHandler) GetExam(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+	if callerID == 0 {
+		// T37：抽题会话按 用户+类型 绑定，匿名不可抽题。
+		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		return
+	}
 	category := c.Param("category")
-	questions, err := h.judgeSvc.GetExam(category)
+	questions, err := h.judgeSvc.GetExam(category, callerID)
 	if err != nil {
+		if err == service.ErrAlreadyQualified {
+			c.JSON(http.StatusConflict, gin.H{"code": "ALREADY_QUALIFIED", "message": "you already hold the qualification for this content type"})
+			return
+		}
 		if err == service.ErrInsufficientQuestions {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "INSUFFICIENT_QUESTIONS", "message": "not enough questions available for this category"})
 			return
@@ -49,17 +83,7 @@ func (h *JudgeHandler) GetExam(c *gin.Context) {
 
 	sanitized := make([]gin.H, 0, len(questions))
 	for _, q := range questions {
-		var data map[string]interface{}
-		if err := json.Unmarshal(q.QuestionData, &data); err != nil {
-			slog.Warn("judge question: failed to unmarshal question data", "question_id", q.ID, "error", err)
-			data = map[string]interface{}{}
-		}
-		delete(data, "correct_key")
-		sanitized = append(sanitized, gin.H{
-			"id":           q.ID,
-			"content_type": q.ContentType,
-			"question":     data,
-		})
+		sanitized = append(sanitized, sanitizeExamQuestion(q))
 	}
 	c.JSON(http.StatusOK, gin.H{"questions": sanitized})
 }
@@ -77,6 +101,19 @@ func (h *JudgeHandler) SubmitExam(c *gin.Context) {
 	}
 	record, passed, err := h.judgeSvc.SubmitExam(input, callerID)
 	if err != nil {
+		if err == service.ErrAlreadyQualified {
+			c.JSON(http.StatusConflict, gin.H{"code": "ALREADY_QUALIFIED", "message": "you already hold the qualification for this content type"})
+			return
+		}
+		if err == service.ErrExamSessionExpired {
+			// T37：会话缺失/TTL 过期——必须重新抽题，不得按新题集评分。
+			c.JSON(http.StatusConflict, gin.H{"code": "EXAM_SESSION_EXPIRED", "message": "exam session expired, please draw questions again"})
+			return
+		}
+		if err == service.ErrInsufficientQuestions {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "INSUFFICIENT_QUESTIONS", "message": "not enough questions available for this category"})
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		return
 	}

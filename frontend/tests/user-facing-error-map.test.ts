@@ -43,6 +43,8 @@ test("error-code map covers the audited high-frequency codes (FIX-26)", () => {
     ["QUERY_TOO_LONG", "search.queryTooLong"],
     ["INSUFFICIENT_QUESTIONS", "judge.insufficientQuestions"],
     ["READING_TIME_TOO_SHORT", "judge.readingTimeTooShort"],
+    ["EXAM_SESSION_EXPIRED", "judge.examSessionExpired"],
+    ["ALREADY_QUALIFIED", "judge.examAlreadyQualified"],
     ["AGENT_RATE_LIMIT_EXCEEDED", "agent.rateLimited"],
   ];
 
