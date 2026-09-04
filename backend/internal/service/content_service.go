@@ -926,7 +926,6 @@ func (s *ContentService) UpdateContentWithContext(ctx context.Context, id int64,
 	}
 
 	s.invalidateContentCache(id)
-	s.invalidateContentListCache()
 
 	return nil
 }
@@ -959,7 +958,6 @@ func (s *ContentService) DeleteContentWithContext(ctx context.Context, id int64,
 	}
 
 	s.invalidateContentCache(id)
-	s.invalidateContentListCache()
 
 	return nil
 }
@@ -1126,11 +1124,10 @@ func (s *ContentService) FlushViewCounts(ctx context.Context) error {
 }
 
 func (s *ContentService) invalidateContentCache(id int64) {
-	if s.rdb == nil {
-		return
-	}
-	ctx := context.Background()
-	s.rdb.Del(ctx, fmt.Sprintf("cache:content:%d", id))
+	// Author-path invalidation delegates to the shared helper so moderation
+	// write points (admin ban/restore, appeals, report auto-hide) and the
+	// author edit/delete path drop exactly the same keys (FIX-38).
+	InvalidateContentCaches(s.rdb, id)
 }
 
 func (s *ContentService) invalidateContentListCache() {

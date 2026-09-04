@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/events"
 	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
@@ -39,6 +41,7 @@ type AdminHandler struct {
 	notifSvc      *service.NotificationService
 	dlqWorker     *worker.DLQWorker
 	displaySigner *service.DisplayURLSigner
+	contentOutbox repository.OutboxWriter
 	mu            sync.Mutex
 }
 
@@ -78,6 +81,13 @@ func NewAdminHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client, auditSv
 
 func (h *AdminHandler) SetNotificationService(ns *service.NotificationService) {
 	h.notifSvc = ns
+}
+
+// SetContentOutbox attaches the transactional outbox used to re-emit content
+// index events (e.g. TopicContentPublished on admin restore) inside the same
+// audit transaction as the status write.
+func (h *AdminHandler) SetContentOutbox(outbox repository.OutboxWriter) {
+	h.contentOutbox = outbox
 }
 
 type broadcastRequest struct {
@@ -264,6 +274,9 @@ func (h *AdminHandler) BanContent(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	// 审核决策即时生效（FIX-38）：封禁后立即失效公共读路径缓存，
+	// 否则 banned 内容在 TTL 窗口内仍以旧缓存返回 200。
+	service.InvalidateContentCaches(h.rdb, id)
 	c.JSON(http.StatusOK, gin.H{"message": "content banned"})
 }
 
@@ -275,7 +288,22 @@ func (h *AdminHandler) RestoreContent(c *gin.Context) {
 	}
 	entry := h.auditEntry(c, "content_restore", "content", strconv.FormatInt(id, 10), map[string]any{"content_id": id})
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
-		return tx.Model(&model.ContentItem{}).Where("id = ?", id).Updates(map[string]interface{}{"status": "published", "ban_reason": ""}).Error
+		var content model.ContentItem
+		if err := tx.First(&content, id).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		if err := tx.Model(&model.ContentItem{}).Where("id = ?", id).Updates(map[string]interface{}{"status": "published", "ban_reason": ""}).Error; err != nil {
+			return err
+		}
+		// restore 重新进入公共索引（FIX-34）：仅真实的非 published → published
+		// 转换在审计事务内补发 TopicContentPublished，重复 restore 幂等不重发。
+		if h.contentOutbox == nil || content.Status == "published" {
+			return nil
+		}
+		return h.emitContentRestoredEvent(c.Request.Context(), tx, &content)
 	}); err != nil {
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to restore content") {
 			return
@@ -283,7 +311,28 @@ func (h *AdminHandler) RestoreContent(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	// 审核决策即时生效（FIX-38）：恢复后立即失效残留的陈旧缓存键。
+	service.InvalidateContentCaches(h.rdb, id)
 	c.JSON(http.StatusOK, gin.H{"message": "content restored"})
+}
+
+// emitContentRestoredEvent writes the TopicContentPublished outbox row inside
+// the admin restore transaction, mirroring ReviewService's publish emission
+// so the RAG/index projection sees restored content again.
+func (h *AdminHandler) emitContentRestoredEvent(ctx context.Context, tx *gorm.DB, content *model.ContentItem) error {
+	traceparent, tracestate := events.FromContext(ctx)
+	env, err := events.NewContentEnvelope(events.TopicContentPublished, content.ID, traceparent, tracestate,
+		events.ContentEventPayload{
+			ContentID:   content.ID,
+			AuthorID:    content.AuthorID,
+			ContentType: content.ContentType,
+			Status:      "published",
+		})
+	if err != nil {
+		return err
+	}
+	row := events.ToOutboxEvent(env)
+	return h.contentOutbox.CreateTx(ctx, tx, &row)
 }
 
 func (h *AdminHandler) BanUser(c *gin.Context) {
@@ -391,7 +440,9 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 		"status":         body.Status,
 		"admin_response": body.AdminResponse,
 		"resolved_by":    middleware.GetUserID(c),
-		"resolved_at":    gorm.Expr("NOW()"),
+		// CURRENT_TIMESTAMP is SQL-standard and equals NOW() on Postgres;
+		// the standard form keeps sqlite-backed tests executable.
+		"resolved_at": gorm.Expr("CURRENT_TIMESTAMP"),
 	}
 	entry := h.auditEntry(c, "appeal_resolve", "appeal", strconv.FormatInt(id, 10), map[string]any{"appeal_id": id, "decision": body.Status, "reason": body.AdminResponse})
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
@@ -416,6 +467,10 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
+	}
+	// 申诉批准（content 目标）回写 published 后立即失效缓存（FIX-38）。
+	if appeal.TargetType == "content" && len(service.AppealTargetUpdates(appeal.TargetType, body.Status)) > 0 {
+		service.InvalidateContentCaches(h.rdb, appeal.TargetID)
 	}
 	if h.notifSvc != nil {
 		adminID := middleware.GetUserID(c)
