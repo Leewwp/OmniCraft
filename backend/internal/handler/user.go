@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
@@ -369,13 +370,17 @@ func (h *UserHandler) DeleteAccount(c *gin.Context) {
 	anonName := fmt.Sprintf("已注销用户_%d", callerID)
 	anonEmail := fmt.Sprintf("deleted_%d@anon.local", callerID)
 	randomHash, _ := bcrypt.GenerateFromPassword([]byte(hex.EncodeToString(make([]byte, 32))), bcrypt.DefaultCost)
+	// T30（FIX-20）：注销 = deleted_at 软删除 + 匿名化清写（username/email/
+	// avatar/bio，防 PII 残留）；不再伪装封禁（is_banned 不设、ban_reason 清空），
+	// 鉴权走 middleware 现成 deleted → 401 "user not found or deleted" 分支。
+	deletedAt := time.Now()
 	updates := map[string]interface{}{
 		"username":      anonName,
 		"email":         anonEmail,
 		"avatar_url":    "",
 		"bio":           "",
-		"is_banned":     true,
-		"ban_reason":    "self_deleted",
+		"deleted_at":    deletedAt,
+		"ban_reason":    "",
 		"password_hash": string(randomHash),
 	}
 
