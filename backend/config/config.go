@@ -247,6 +247,10 @@ type RAGHybridConfig struct {
 	VectorTopK int `mapstructure:"vector_topk"`
 	RRFK       int `mapstructure:"rrf_k"`
 	FinalTopK  int `mapstructure:"final_topk"`
+	// KeywordSource selects the lexical primary: "postgres" (canonical
+	// pg_jieba path, default) or "opensearch" (optional accelerator for
+	// full-infra stacks). The other backend, when wired, serves as fallback.
+	KeywordSource string `mapstructure:"keyword_source"`
 }
 
 // RAGRerankConfig carries the A-03 rerank chain: a primary provider
@@ -444,12 +448,16 @@ type PublishConfig struct {
 }
 
 type AgentConfig struct {
-	WebAgentEnabled       bool   `mapstructure:"web_agent_enabled"`
-	LLMProvider           string `mapstructure:"llm_provider"`
-	LLMModel              string `mapstructure:"llm_model"`
-	LLMAPIBase            string `mapstructure:"llm_api_base"`
-	LLMAPIKey             string `mapstructure:"llm_api_key" json:"-"`
-	EmbeddingModel        string `mapstructure:"embedding_model"`
+	WebAgentEnabled bool   `mapstructure:"web_agent_enabled"`
+	LLMProvider     string `mapstructure:"llm_provider"`
+	LLMModel        string `mapstructure:"llm_model"`
+	LLMAPIBase      string `mapstructure:"llm_api_base"`
+	LLMAPIKey       string `mapstructure:"llm_api_key" json:"-"`
+	EmbeddingModel  string `mapstructure:"embedding_model"`
+	// EmbeddingProvider routes embeddings to a different adapter than chat
+	// (canonical profile: minimax chat + openai_compat DashScope embeddings).
+	// Empty means "follow llm_provider" (single-provider wiring).
+	EmbeddingProvider     string `mapstructure:"embedding_provider"`
 	EmbeddingAPIBase      string `mapstructure:"embedding_api_base"`
 	EmbeddingGroupID      string `mapstructure:"embedding_group_id" json:"-"`
 	EmbeddingAPIKey       string `mapstructure:"embedding_api_key" json:"-"`
@@ -786,6 +794,9 @@ func OverrideFromEnv(cfg *Config) {
 		if strings.TrimSpace(os.Getenv("RAG_INDEX_EMBEDDING_MODEL")) == "" {
 			cfg.RAG.Index.EmbeddingModel = v
 		}
+	}
+	if v := os.Getenv("AGENT_EMBEDDING_PROVIDER"); v != "" {
+		cfg.Agent.EmbeddingProvider = v
 	}
 	if v := os.Getenv("AGENT_EMBEDDING_API_BASE"); v != "" {
 		cfg.Agent.EmbeddingAPIBase = v
@@ -1190,6 +1201,11 @@ func (c *Config) ValidateRelease() error {
 		requirePositiveInt(&errs, "rag.hybrid.vector_topk", c.RAG.Hybrid.VectorTopK)
 		requirePositiveInt(&errs, "rag.hybrid.rrf_k", c.RAG.Hybrid.RRFK)
 		requirePositiveInt(&errs, "rag.hybrid.final_topk", c.RAG.Hybrid.FinalTopK)
+		switch strings.ToLower(strings.TrimSpace(c.RAG.Hybrid.KeywordSource)) {
+		case "", "postgres", "opensearch":
+		default:
+			errs = append(errs, "rag.hybrid.keyword_source must be postgres or opensearch")
+		}
 	}
 
 	if c.Relay.BatchSize < RelayMinBatchSize || c.Relay.BatchSize > RelayMaxBatchSize {
@@ -1201,6 +1217,11 @@ func (c *Config) ValidateRelease() error {
 
 	if c.Agent.WebAgentEnabled {
 		requireNonEmpty(&errs, "agent.llm_api_key", c.Agent.LLMAPIKey)
+		if p := strings.TrimSpace(c.Agent.EmbeddingProvider); p != "" &&
+			!strings.EqualFold(p, strings.TrimSpace(c.Agent.LLMProvider)) &&
+			strings.TrimSpace(c.Agent.EmbeddingAPIKey) == "" {
+			errs = append(errs, "agent.embedding_provider differs from agent.llm_provider: agent.embedding_api_key is required (cross-vendor embedding must not borrow the chat credential)")
+		}
 		requirePositiveInt(&errs, "agent.rate_limit_per_day", c.Agent.RateLimitPerDay)
 		requirePositiveInt(&errs, "agent.rate_limit_per_minute", c.Agent.RateLimitPerMinute)
 		requirePositiveInt(&errs, "agent.max_tool_calls_per_turn", c.Agent.MaxToolCallsPerTurn)

@@ -68,6 +68,11 @@ type AnswerEvalCaseResult struct {
 	// summaries only). It is the fourth visibility leak surface (H7).
 	ToolSteps []ToolStepRecord `json:"tool_steps,omitempty"`
 
+	// RetrievedIDs are the content ids the retrieval tool actually returned
+	// for the final attempt (visibility leak surface 1 and the no-answer
+	// judge's recommendation-truth input). Empty when retrieval never ran.
+	RetrievedIDs []int64 `json:"retrieved_ids,omitempty"`
+
 	// v2 annotation fields (H2/H6/H7): the principal the case ran under, its
 	// layer/split, the dual-strategy no-answer judge outcome and the
 	// four-surface visibility leak accounting. v1 runs leave them zero.
@@ -82,24 +87,32 @@ type AnswerEvalCaseResult struct {
 // AnswerEvalMetadata records the run identity required to reproduce or audit
 // the measurement. It intentionally contains no credential material.
 type AnswerEvalMetadata struct {
-	RanAt                 string `json:"ran_at"`
-	GitCommit             string `json:"git_commit,omitempty"`
-	Provider              string `json:"provider"`
-	ChatModel             string `json:"chat_model"`
-	EmbeddingModel        string `json:"embedding_model"`
-	QueryEmbeddingStandin bool   `json:"query_embedding_standin"`
-	RetrieverVersion      string `json:"retriever_version"`
-	KeywordSource         string `json:"keyword_source"`
-	DatasetChecksum       string `json:"dataset_checksum"`
-	CorpusContentChecksum string `json:"corpus_content_checksum"`
-	CorpusContents        int64  `json:"corpus_contents"`
-	CorpusEmbeddings      int64  `json:"corpus_embeddings"`
-	ProjectionGeneration  int    `json:"projection_generation"`
-	ChunkingVersion       string `json:"chunking_version"`
-	IndexVersion          string `json:"index_version"`
-	FinalTopK             int    `json:"final_top_k"`
-	GoVersion             string `json:"go_version"`
-	ChatViewerUserID      int64  `json:"chat_viewer_user_id"`
+	RanAt          string `json:"ran_at"`
+	GitCommit      string `json:"git_commit,omitempty"`
+	Provider       string `json:"provider"`
+	ChatModel      string `json:"chat_model"`
+	EmbeddingModel string `json:"embedding_model"`
+	// Split-wiring identity (canonical profile: minimax chat +
+	// openai_compat/DashScope embeddings). Endpoints are host bases only,
+	// never credentials.
+	EmbeddingProvider     string          `json:"embedding_provider,omitempty"`
+	ChatAPIBase           string          `json:"chat_api_base,omitempty"`
+	EmbeddingAPIBase      string          `json:"embedding_api_base,omitempty"`
+	EmbeddingDimensions   int             `json:"embedding_dimensions,omitempty"`
+	FeatureFlags          map[string]bool `json:"feature_flags,omitempty"`
+	QueryEmbeddingStandin bool            `json:"query_embedding_standin"`
+	RetrieverVersion      string          `json:"retriever_version"`
+	KeywordSource         string          `json:"keyword_source"`
+	DatasetChecksum       string          `json:"dataset_checksum"`
+	CorpusContentChecksum string          `json:"corpus_content_checksum"`
+	CorpusContents        int64           `json:"corpus_contents"`
+	CorpusEmbeddings      int64           `json:"corpus_embeddings"`
+	ProjectionGeneration  int             `json:"projection_generation"`
+	ChunkingVersion       string          `json:"chunking_version"`
+	IndexVersion          string          `json:"index_version"`
+	FinalTopK             int             `json:"final_top_k"`
+	GoVersion             string          `json:"go_version"`
+	ChatViewerUserID      int64           `json:"chat_viewer_user_id"`
 	// PrincipalMode discloses how chat identity was chosen: "global-v1" (one
 	// seeded user for every case) or "per-case-v2" (H2: each case runs its
 	// annotated principal; anonymous principals chat as the seeded
