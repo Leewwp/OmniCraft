@@ -1,3 +1,19 @@
+## [2026-09-04] - 仓库整理：分支/worktree 清理 + 11 个浏览器验证 rig 入仓 + 协调文档回写
+
+### What was done:
+- 分支审计：本地 10 条开发分支（lanea/anchor、lanea/base、coord/docs-laneb-prompt、lane3/{t47,t25,t54,t46,t45,t23,seg8d-tickets}）经 `git cherry main` 逐条验证 patch 等价计数为 0（全部经 squash PR 合入 main），统一删除。
+- worktree 清理：wt-l3（lane3/t47-comment-fold）内 7 个未跟踪验证 rig（t23/t25/t45/t46/t47/t47-rerun-t72/t54-verify.mjs）先拷回主仓 frontend/ 再删目录；wt-la（lanea/base）干净直接删；清掉 wt-l3 残留的 `next dev -p 3200` 僵尸进程（道 3 已收口，隔离栈无人消费）。
+- rig 入仓：主仓 4 个（a06-verify/a06-verify2/a07-verify/t35-verify）+ 拷回 7 个共 11 个浏览器验证脚本提交入仓（沿用 bc1ec3e 审计脚本入仓先例；A-04 回归/复查可复跑）。脚本内仅含 `.local` 种子域一次性测试账号密码，无真实凭证。
+- 协调文档回写：AGENTS.md SP-13 行 + 整合总序 1.1 节补道 A bug 批收口注记（PR #326/#328/#329/#330，main=7326ad9；#323 残余开票、道 B 未开工）与 #291 审计检查点注记（PR #327 不构成冻结），并同步删除总序/AGENTS 中已失效的「冻结后修 #319」链节点。
+
+### Testing:
+- doc-validator `--check --profile release` 通过；`git status` 干净（仅本次新增文件）。
+- gh 核对：无项目 PR 待合并（开放 PR 全为 dependabot 依赖升级）；#323 OPEN、#322 并入 T32 口径不变。
+
+### Notes:
+- 纯仓库整理，无生产代码改动；chore 车道单 commit，走 PR squash 合并。
+- 远端 lanea/*、coord/*、docs/* 分支已随 PR 合并自动删除（fetch --prune 已收敛）；dependabot 分支随其 PR 保留。
+
 ## [2026-09-04] - Task #321: ContentHandler.SetQueueProducer 透传修复（道 A 产品 bug 批第 4 票）
 
 ### What was done:
