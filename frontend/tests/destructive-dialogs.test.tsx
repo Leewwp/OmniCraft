@@ -7,9 +7,8 @@ import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { act, cleanup, fireEvent, installDom, renderWithIntl } from "./runtime-test-helpers";
 
 const auditedSources = [
-  "../app/(protected)/dashboard/contents/page.tsx",
-  "../app/(protected)/dashboard/contributors/page.tsx",
-  "../app/(protected)/dashboard/pr-requests/page.tsx",
+  "../app/(protected)/studio/contributors/page.tsx",
+  "../app/(protected)/studio/pr-requests/page.tsx",
   "../app/(protected)/settings/page.tsx",
   "../app/(protected)/admin/agent-config/page.tsx",
   "../components/content/VersionHistory.tsx",

@@ -25,7 +25,7 @@ export function SubmitPREntry({ contentId, authorId, allowCopy, zone }: SubmitPR
 
   return (
     <Link
-      href={`/dashboard/pr-requests?content_id=${contentId}&create=1`}
+      href={`/studio/pr-requests?content_id=${contentId}&create=1`}
       className="inline-flex items-center rounded-md border border-border px-3 py-2 text-xs hover:bg-muted"
     >
       {t('pr.submit')}
