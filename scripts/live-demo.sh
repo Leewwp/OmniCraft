@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Repeatable local-only bootstrap for the interview/demo stack. This script
+# Repeatable local-only bootstrap for the local demo stack. This script
 # never creates or rewrites .env; runtime overrides live under artifacts/.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

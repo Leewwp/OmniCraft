@@ -80,13 +80,11 @@ OpenTelemetry W3C trace context 贯穿 HTTP → DB → LLM → SSE 与 Outbox �
 
 Agent 答案实测（同冻结语料，2026-08-29，63 case 真实工具循环）：**55/63 answered、0 降级、0 provider 错误**；SSE first-token P50 2078ms / P95 8259ms；平均 3226 tokens/答案（为此修复 MiniMax 流式 usage 两个缺陷）；引用平均 4.2 条/答案、全部通过服务端复核。groundedness/relevance 使用确定性代理指标（对转述型模型饱和，judge 层为规划中的后续叠加），不作为质量结论。
 
-> 证据原文：`docs/working/2026-08-26-rag-real-minimax-differential-evidence.md`、`2026-08-26-rag-provenance-and-current-corpus-v1.md`、`2026-08-29-agent-answer-eval-evidence.md`。
-
 ## 运行时架构
 
 ![runtime architecture](docs/architecture.png)
 
-（由 [docs/working/2026-08-29-runtime-architecture.html](docs/working/2026-08-29-runtime-architecture.html) 导出；交互版可直接用浏览器打开。完整技术架构设计见 [architecture.md](architecture.md)。）
+（完整技术架构设计见 [architecture.md](architecture.md)。）
 
 ## 项目阶段与边界
 
@@ -255,16 +253,16 @@ docker compose logs -f
 | redis | 6379 | Redis 7 |
 | migrate | 无 | 发布时一次性执行前向迁移，成功后退出 |
 
-### 3.6 GiB 面试部署档
+### 3.6 GiB 精简部署档
 
-资源受限的面试服务器常驻 `nginx`、`frontend`、`backend`、`postgres`、
+资源受限的低配服务器常驻 `nginx`、`frontend`、`backend`、`postgres`、
 `pgbouncer`、`redis` 和精简 `prometheus`；`migrate` 在每次发布时运行并
 退出。Prometheus 只抓取 backend 的内网 `:9091/metrics`，不得直接沿用
 需要 Alertmanager、exporter、cAdvisor、Blackbox 和 node-exporter 的完整
 配置。
 
 该档保留结构化日志、Docker 日志轮转、健康/就绪检查、指标接口与备份恢复
-能力，但暂缓 Loki/Alloy/loki-gate 和完整告警链。它是 Web-only 面试展示
+能力，但暂缓 Loki/Alloy/loki-gate 和完整告警链。它是 Web-only 演示展示
 档，不等同于完整生产观测档；完整服务清单、资源条件和切换前置门见单服务器
 运行手册。
 
@@ -480,9 +478,7 @@ bash scripts/release/staging-drill.sh -EnvironmentFile "$OMNICRAFT_STAGING_ENV_F
 OmniCraft/
 ├── README.md                # 本文件
 ├── architecture.md          # 技术架构设计
-├── task.json                # 任务列表
 ├── CLAUDE.md                # Agent 工作指南
-├── progress.txt             # 开发进度日志
 ├── .env.example             # 环境变量模板（开发）
 ├── .env.production.example  # 环境变量模板（生产，占位符被 preflight 拒绝）
 ├── docker-compose.yml       # Docker Compose 编排
@@ -558,5 +554,3 @@ pnpm tauri build
 ```
 
 客户端通过 `omnicraft://` URL Scheme 与 Web 前端联动。当前仓库仅完成了不安全原型的关闭（D-01）；HMAC 验签和 WebView 直接文件命令仍属于禁止发布的旧实现。`features.desktop_deploy_enabled` 必须保持 `false`，直至 D-02～D-05 与 R-02 完成短时单次 grant、Ed25519 canonical script、严格 Rust schema/路径边界、原生确认和端到端安全验证。
-
-Web/桌面 Agent 的产品边界见 `docs/superpowers/specs/2026-07-16-omnicraft-dual-surface-agent-productization-design.md`。Web Agent 产品化计划见 `docs/superpowers/plans/2026-07-16-omnicraft-web-agent-productization.md`。
