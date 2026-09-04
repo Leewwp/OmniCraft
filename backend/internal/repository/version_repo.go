@@ -37,19 +37,6 @@ func (r *VersionRepository) ListByContent(contentID int64) ([]model.ContentVersi
 	return versions, err
 }
 
-func (r *VersionRepository) ListByContentPaged(contentID int64, page, pageSize int) ([]model.ContentVersion, int64, error) {
-	var total int64
-	if err := r.db.Model(&model.ContentVersion{}).Where("content_item_id = ? AND status != ?", contentID, "pending").Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-	var versions []model.ContentVersion
-	err := r.db.Where("content_item_id = ? AND status != ?", contentID, "pending").
-		Order("version_number ASC").
-		Offset((page - 1) * pageSize).Limit(pageSize).
-		Find(&versions).Error
-	return versions, total, err
-}
-
 // ListByContentPagedForViewer hides proposed versions from everyone except
 // the content author: proposed snapshots are PR working copies, not part of
 // the published lineage readers may browse (FIX-21).

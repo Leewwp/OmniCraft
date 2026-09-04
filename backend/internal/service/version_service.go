@@ -157,10 +157,6 @@ func (s *VersionService) ListVersions(contentID int64) ([]model.ContentVersion, 
 	return s.versionRepo.ListByContent(contentID)
 }
 
-func (s *VersionService) ListVersionsPaged(contentID int64, page, pageSize int) ([]model.ContentVersion, int64, error) {
-	return s.versionRepo.ListByContentPaged(contentID, page, pageSize)
-}
-
 // ListVersionsPagedForViewer hides proposed versions from everyone but the
 // content author: readers only ever see the active lineage (FIX-21①).
 func (s *VersionService) ListVersionsPagedForViewer(contentID int64, page, pageSize int, viewerID int64) ([]model.ContentVersion, int64, error) {

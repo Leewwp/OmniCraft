@@ -53,6 +53,8 @@ func (h *PRHandler) SubmitPR(c *gin.Context) {
 			response.SafeErrorResponse(c, http.StatusForbidden, "BLOCKED", err)
 		case service.ErrPRConflict:
 			response.Conflict(c, "resource conflict")
+		case service.ErrPRBaseInvalid:
+			response.Error(c, http.StatusBadRequest, "INVALID_BASE_VERSION", "base version does not belong to the content")
 		default:
 			response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		}

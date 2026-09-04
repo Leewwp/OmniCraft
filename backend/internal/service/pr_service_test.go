@@ -153,6 +153,16 @@ func TestSubmitPRPersistsProposedVersion(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total)
 	require.False(t, containsVersionStatus(readerVersions, "proposed"))
+
+	// base 版本必须属于该内容：跨内容 id 拒绝（防两个版本链被拼接）
+	otherContentID, otherVersionID := seedPRContent(t, db, seedPRUser(t, db, "other"), "other body")
+	require.NotEqual(t, otherVersionID, baseVersionID)
+	_, err = svc.SubmitPR(SubmitPRInput{
+		ContentItemID: otherContentID,
+		BaseVersionID: baseVersionID, // 属于第一个内容
+		NewText:       "x",
+	}, submitter)
+	require.ErrorIs(t, err, ErrPRBaseInvalid)
 }
 
 func containsVersionStatus(versions []model.ContentVersion, status string) bool {

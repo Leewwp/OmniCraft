@@ -22,6 +22,7 @@ var (
 	ErrPRForbidden        = errors.New("only content author can manage this pr")
 	ErrPRInvalidState     = errors.New("pr is already resolved")
 	ErrPRMergeTextMissing = errors.New("merged text required")
+	ErrPRBaseInvalid      = errors.New("base version does not belong to the content")
 )
 
 type PRService struct {
@@ -73,6 +74,17 @@ func (s *PRService) SubmitPR(input SubmitPRInput, submitterID int64) (*model.Pul
 		return nil, ErrPRBlocked
 	}
 
+	// The base version must belong to this content: the proposed snapshot
+	// and the later merge both parent onto it, so a cross-content id would
+	// splice two lineages together (FK alone only checks existence).
+	base, err := s.versionRepo.FindByID(input.BaseVersionID)
+	if err != nil {
+		return nil, err
+	}
+	if base == nil || base.ContentItemID != input.ContentItemID {
+		return nil, ErrPRBaseInvalid
+	}
+
 	latest, err := s.versionRepo.GetLatest(input.ContentItemID)
 	if err != nil {
 		return nil, err
@@ -121,14 +133,6 @@ func (s *PRService) SubmitPR(input SubmitPRInput, submitterID int64) (*model.Pul
 		return nil, err
 	}
 
-	return pr, nil
-}
-
-func (s *PRService) GetPR(id int64) (*model.PullRequest, error) {
-	pr, err := s.prRepo.FindByID(id)
-	if err != nil || pr == nil {
-		return nil, ErrPRNotFound
-	}
 	return pr, nil
 }
 
@@ -185,11 +189,7 @@ func (s *PRService) AcceptPR(prID int64, callerID int64) error {
 
 	if s.notifSvc != nil {
 		// accept 只标记采纳：正文要等 merge 才应用（FIX-21③）。
-		title := "PR 已采纳，待合并生效"
-		if content != nil {
-			title = "PR 已采纳，待合并生效：" + content.Title
-		}
-		s.notifSvc.Notify(pr.SubmitterID, "pr", "pr_accepted", title, "", "pr", prID, callerID)
+		s.notifSvc.Notify(pr.SubmitterID, "pr", "pr_accepted", "PR 已采纳，待合并生效："+content.Title, "", "pr", prID, callerID)
 	}
 	return nil
 }
@@ -220,11 +220,7 @@ func (s *PRService) RejectPR(prID int64, callerID int64, reason string) error {
 	}
 
 	if s.notifSvc != nil {
-		title := "PR 已被拒绝"
-		if content != nil {
-			title = "PR 已被拒绝：" + content.Title
-		}
-		s.notifSvc.Notify(pr.SubmitterID, "pr", "pr_rejected", title, reason, "pr", prID, callerID)
+		s.notifSvc.Notify(pr.SubmitterID, "pr", "pr_rejected", "PR 已被拒绝："+content.Title, reason, "pr", prID, callerID)
 	}
 	return nil
 }
