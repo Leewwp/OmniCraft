@@ -58,10 +58,12 @@ export default function AdminIPsPage() {
     void loadIPs();
   }, [loadIPs]);
 
-  async function handleAction(ipId: number, action: "approve" | "reject") {
+  async function handleAction(ipId: number, action: "approve" | "reject", reason?: string) {
     setError("");
     try {
-      await api.post(`/api/v1/admin/ips/${ipId}/${action}`, {});
+      // T16 (FIX-24): reject 透传 admin 填写的原因（后端 binding required，
+      // 落 ip_review_logs 并通知创建者）。
+      await api.post(`/api/v1/admin/ips/${ipId}/${action}`, action === "reject" ? { reason: reason ?? "" } : {});
       setIps((prev) => prev.filter((ip) => ip.id !== ipId));
       setTotal((t) => t - 1);
     } catch (e) {
@@ -192,9 +194,9 @@ export default function AdminIPsPage() {
         confirmVariant={confirmAction?.action === "approve" ? "default" : "destructive"}
         requireReason={confirmAction?.action === "reject"}
         reasonLabel={t('admin.ips.rejectReason')}
-        onConfirm={async (_reason) => {
+        onConfirm={async (reason) => {
           if (confirmAction) {
-            await handleAction(confirmAction.ipId, confirmAction.action);
+            await handleAction(confirmAction.ipId, confirmAction.action, reason);
           }
         }}
       />
