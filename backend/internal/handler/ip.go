@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -86,6 +87,10 @@ func (h *IPHandler) CreateIP(c *gin.Context) {
 
 	ip, err := h.ipSvc.CreateIP(c.Request.Context(), input, callerID)
 	if err != nil {
+		if errors.Is(err, service.ErrIPSlugTaken) {
+			c.JSON(http.StatusConflict, gin.H{"code": "IP_SLUG_TAKEN", "message": "could not derive a unique slug for this name, try a different name"})
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "INTERNAL_ERROR", err)
 		return
 	}
