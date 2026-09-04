@@ -187,6 +187,7 @@ export default function JudgeQueuePage() {
             disabled={isInteractionBlocked}
             submitting={submitting}
             onVote={(caseId, vote, reason) => void handleVote(caseId, vote, reason)}
+            onSkip={goNextCase}
           />
 
           {hasMore && currentIndex >= cases.length - 3 && (

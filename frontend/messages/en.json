@@ -284,7 +284,7 @@
     "allContent": "All Content",
     "categoryMod": "Mod",
     "versionHistory": "Version History",
-    "noVersionHistory": "No version history",
+    "noVersionHistory": "No version history yet. Publishing, edits and merged PRs create versions; this content predates versioning, so it has no records.",
     "latest": "Latest",
     "preview": "Preview",
     "restoreVersion": "Restore this version",
@@ -707,7 +707,13 @@
       "reject": "Violation",
       "confirmVote": "Confirm vote: \"{vote}\"",
       "reasonPlaceholder": "Optional: provide your reasoning",
-      "confirm": "Confirm"
+      "confirm": "Confirm",
+      "previewWarning": "This content entered crowd review after a report and may be controversial. View with care.",
+      "previewLoadButton": "View content",
+      "previewLoadFailed": "Failed to load content preview",
+      "mediaLoadButton": "Load media",
+      "skipCase": "Skip this case",
+      "reportThisContent": "Report this content"
     },
     "verdict": {
       "title": "Verdict Details",
@@ -890,7 +896,17 @@
       "confirmBan": "Confirm ban",
       "banReason": "Ban reason",
       "loadFailed": "Failed to load content review list",
-      "banFailed": "Failed to ban content"
+      "banFailed": "Failed to ban content",
+      "listTab": "Contents",
+      "trashTab": "Trash",
+      "restore": "Restore",
+      "restoreTitle": "Restore content",
+      "restoreConfirm": "Restore \"{title}\"? It will be republished and visible on the site.",
+      "confirmRestore": "Restore",
+      "restoreFailed": "Failed to restore. Please try again.",
+      "colDeletedAt": "Deleted at",
+      "noTrashedContents": "Trash is empty",
+      "noTrashedHint": "Deleted content appears here and can be restored anytime"
     },
     "users": {
       "title": "User Management",
