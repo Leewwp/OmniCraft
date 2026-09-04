@@ -189,6 +189,9 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.NotificationService = service.NewNotificationService(c.NotificationRepo)
 	// AI 审核结果与 IP 级联下架通知作者（FIX-17a）。
 	c.ReviewService.SetNotificationService(c.NotificationService)
+	// 判官闭案回写内容状态 + 作者通知（FIX-10）。
+	c.JudgeService.SetNotificationService(c.NotificationService)
+	c.JudgeService.SetContentOutcomeWriter(db, rdb, c.OutboxRepo)
 	c.PRService = service.NewPRService(c.PRRepo, c.VersionRepo, c.ContentRepo)
 	c.VersionService = service.NewVersionService(c.VersionRepo, c.ContentRepo)
 	c.SearchService = service.NewSearchService(c.SearchRepo, rdb)
