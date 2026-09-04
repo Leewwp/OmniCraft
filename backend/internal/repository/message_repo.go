@@ -341,12 +341,24 @@ func (r *MessageRepository) IsParticipant(userID, convID int64) (bool, error) {
 }
 
 func (r *MessageRepository) UpdateLastRead(userID, convID int64) error {
-	return r.db.Model(&model.ConversationParticipant{}).
-		Where("user_id = ? AND conversation_id = ?", userID, convID).
-		Updates(map[string]interface{}{
-			"last_read_at": time.Now().UTC(),
-			"unread_count": 0,
-		}).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.ConversationParticipant{}).
+			Where("user_id = ? AND conversation_id = ?", userID, convID).
+			Updates(map[string]interface{}{
+				"last_read_at": time.Now().UTC(),
+				"unread_count": 0,
+			}).Error; err != nil {
+			return err
+		}
+		// T36（FIX-30b）已读联动：读会话即在同一事务把该会话对应的 message
+		// 通知标记已读——铃铛未读与会话未读双通道保持一致。
+		return tx.Model(&model.Notification{}).
+			Where(
+				"user_id = ? AND type = ? AND target_type = ? AND is_read = ? AND target_id IN (SELECT id FROM messages WHERE conversation_id = ?)",
+				userID, "message", "message", false, convID,
+			).
+			Update("is_read", true).Error
+	})
 }
 
 func (r *MessageRepository) DeleteMessage(msgID, userID int64) error {

@@ -44,11 +44,11 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
     });
   }, []);
 
-  const loadMessages = useCallback(async () => {
+  const loadMessages = useCallback(async (silent = false) => {
     if (!conversation) return;
     const requestId = ++requestIdRef.current;
     const conversationId = conversation.id;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setLoadError(false);
     try {
       const data = await api.get<{ messages?: Message[] }>(`/api/v1/messages/${conversationId}`);
@@ -65,6 +65,16 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
     setMessages([]);
     void loadMessages();
   }, [loadMessages]);
+
+  // T36（FIX-30b）：30s 静默轮询拉新消息——读会话即清会话未读与对应通知
+  // 已读（后端已读联动），双端未读保持一致。SSE 实时推送属 Phase 2。
+  useEffect(() => {
+    if (!conversation) return;
+    const timer = setInterval(() => {
+      void loadMessages(true);
+    }, 30_000);
+    return () => clearInterval(timer);
+  }, [conversation, loadMessages]);
 
   useEffect(() => {
     scrollToBottom();

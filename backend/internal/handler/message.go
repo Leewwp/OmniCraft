@@ -123,7 +123,9 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 	}
 
 	if h.notifSvc != nil {
-		h.notifSvc.Notify(body.RecipientID, "system", "message", "新私信", body.Text, "message", msg.ID, callerID)
+		// T36（FIX-30b）：通知 body 只带摘要——私信全文仅存在于会话内，
+		// 不得经通知列表/下拉泄露。
+		h.notifSvc.Notify(body.RecipientID, "system", "message", "新私信", "你有一条新私信", "message", msg.ID, callerID)
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": messageDTO(*msg)})
