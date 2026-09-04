@@ -217,10 +217,43 @@ test("category English edit field names the English value", async () => {
   }
 });
 
+// Complete snake_case payload as served by GET /admin/config after T26
+// (FIX-33). The page no longer fabricates defaults for missing fields, so the
+// accessibility fixture must mirror the real catalog.
+const fullAdminConfig = {
+  config: {
+    limits: {
+      video_max_mb: 300,
+      video_max_sec: 180,
+      image_max_mb: 20,
+      text_max_mb: 10,
+      mod_max_mb: 500,
+      sheet_music_max_mb: 50,
+    },
+    features: { payment_enabled: false, creator_support_enabled: false },
+    reputation: {
+      quality_content_threshold: 10,
+      quality_comment_threshold: 5,
+      repeat_violation_window_days: 7,
+      repeat_violation_threshold: 2,
+      repeat_violation_extra_penalty: -1,
+    },
+    agent: { web_agent_enabled: false, rate_limit_per_day: 50 },
+    social: { report_auto_hide_rate: 0.1, comment_fold_threshold: 0.3 },
+    judge: {
+      min_votes_required: 20,
+      pass_threshold: 0.6,
+      exam_pass_rate: 0.8,
+      error_rate_revoke: 0.5,
+      error_rate_window: 10,
+    },
+  },
+};
+
 test("system config exposes a label for every field and switch", async () => {
   installDom();
   const originalGet = api.get;
-  api.get = async <T,>() => ({ config: {} } as T);
+  api.get = async <T,>() => fullAdminConfig as T;
   try {
     const { render } = await import("@testing-library/react");
     const ConfigPage = (await import("../app/(protected)/admin/config/page")).default;
@@ -234,6 +267,29 @@ test("system config exposes a label for every field and switch", async () => {
     assert.equal(fields.length, 19);
     for (const field of fields) assert.ok(field.labels?.length, field.id);
     for (const control of view.getAllByRole("switch")) assert.ok(control.getAttribute("aria-label"));
+  } finally {
+    api.get = originalGet;
+  }
+});
+
+test("system config shows retry state without form when config is incomplete", async () => {
+  installDom();
+  const originalGet = api.get;
+  // T26 FIX-33: missing fields (e.g. legacy PascalCase payload) must disable
+  // the page instead of silently fabricating default values.
+  api.get = async <T,>() => ({ config: {} } as T);
+  try {
+    const { render } = await import("@testing-library/react");
+    const ConfigPage = (await import("../app/(protected)/admin/config/page")).default;
+    const view = render(
+      <IntlProvider locale="en" messages={enMessages}>
+        <ConfigPage />
+      </IntlProvider>,
+    );
+    await waitFor(() => assert.ok(view.getByRole("alert")));
+    assert.ok(view.getByRole("button", { name: /retry/i }));
+    assert.equal(view.queryAllByRole("switch").length, 0);
+    assert.equal(view.queryAllByRole("spinbutton").length, 0);
   } finally {
     api.get = originalGet;
   }
