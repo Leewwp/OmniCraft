@@ -329,22 +329,10 @@ func (h *AdminHandler) RestoreContent(c *gin.Context) {
 }
 
 // emitContentRestoredEvent writes the TopicContentPublished outbox row inside
-// the admin restore transaction, mirroring ReviewService's publish emission
-// so the RAG/index projection sees restored content again.
+// the admin restore transaction through the shared content event emitter, so
+// the RAG/index projection sees restored content again.
 func (h *AdminHandler) emitContentRestoredEvent(ctx context.Context, tx *gorm.DB, content *model.ContentItem) error {
-	traceparent, tracestate := events.FromContext(ctx)
-	env, err := events.NewContentEnvelope(events.TopicContentPublished, content.ID, traceparent, tracestate,
-		events.ContentEventPayload{
-			ContentID:   content.ID,
-			AuthorID:    content.AuthorID,
-			ContentType: content.ContentType,
-			Status:      "published",
-		})
-	if err != nil {
-		return err
-	}
-	row := events.ToOutboxEvent(env)
-	return h.contentOutbox.CreateTx(ctx, tx, &row)
+	return service.EmitContentStatusEventTx(ctx, tx, h.contentOutbox, events.TopicContentPublished, content, "published")
 }
 
 func (h *AdminHandler) BanUser(c *gin.Context) {

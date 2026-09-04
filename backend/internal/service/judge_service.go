@@ -1,13 +1,18 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
+	"omnicraft/backend/internal/pkg/events"
 	"omnicraft/backend/internal/repository"
+
+	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 var (
@@ -24,10 +29,31 @@ type JudgeService struct {
 	judgeRepo *repository.JudgeRepository
 	reputSvc  *ReputationService
 	cfg       *config.Config
+	// 闭案回写 seam（FIX-10）：db/rdb/outbox/通知仅在装配后可用。
+	db       *gorm.DB
+	rdb      *redis.Client
+	outbox   repository.OutboxWriter
+	notifSvc *NotificationService
 }
 
 func NewJudgeService(judgeRepo *repository.JudgeRepository, reputSvc *ReputationService, cfg *config.Config) *JudgeService {
 	return &JudgeService{judgeRepo: judgeRepo, reputSvc: reputSvc, cfg: cfg}
+}
+
+// SetNotificationService attaches the author-notification seam used when a
+// closed judge case changes the content status (FIX-17a contract).
+func (s *JudgeService) SetNotificationService(ns *NotificationService) {
+	s.notifSvc = ns
+}
+
+// SetContentOutcomeWriter wires the write-back seam for closed judge cases
+// (FIX-10): the content conditional update, its index event and the cache
+// invalidation all run through these handles. Unwired (nil db) the outcome
+// write-back is skipped, which keeps exam/qualification paths hermetic.
+func (s *JudgeService) SetContentOutcomeWriter(db *gorm.DB, rdb *redis.Client, outbox repository.OutboxWriter) {
+	s.db = db
+	s.rdb = rdb
+	s.outbox = outbox
 }
 
 func (s *JudgeService) GetExam(contentType string) ([]model.JudgeQuestion, error) {
@@ -160,6 +186,8 @@ func (s *JudgeService) SubmitVote(input SubmitVoteInput, judgeID int64) error {
 		}
 		if err := s.judgeRepo.CloseCase(input.CaseID, newStatus, int(approve), int(reject)); err != nil {
 			slog.Error("failed to close judge case", "case_id", input.CaseID, "error", err)
+		} else {
+			s.applyCaseOutcome(input.CaseID, judgeCase.TargetID, newStatus)
 		}
 	}
 
@@ -167,6 +195,69 @@ func (s *JudgeService) SubmitVote(input SubmitVoteInput, judgeID int64) error {
 		slog.Error("failed to check and revoke judge", "judge_id", judgeID, "error", err)
 	}
 	return nil
+}
+
+// applyCaseOutcome lets a closed judge case take effect on its target
+// content (FIX-10). closed_approve conditionally restores the content to
+// published (the under_review guard can never overwrite an admin/AI terminal
+// banned verdict) and re-emits the index event; closed_reject bans it with a
+// judge_verdict reason and skips the reputation penalty — penalty semantics
+// belong to the AI/admin channels. Both paths invalidate the public content
+// cache and notify the author through the FIX-17a contract. Best-effort after
+// the vote/case commit: a write-back failure is logged but never rolls back
+// the vote, and the conditional update keeps replays idempotent.
+func (s *JudgeService) applyCaseOutcome(caseID, contentID int64, outcome string) {
+	if s.db == nil {
+		return
+	}
+	var content model.ContentItem
+	if err := s.db.First(&content, contentID).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			slog.Error("judge case outcome: failed to load content", "case_id", caseID, "content_id", contentID, "error", err)
+		}
+		return
+	}
+
+	var status, topic, reason string
+	switch outcome {
+	case "closed_approve":
+		status, topic = "published", events.TopicContentPublished
+	case "closed_reject":
+		status, topic, reason = "banned", events.TopicContentBanned, "judge_verdict: 不违规比例未达 60%"
+	default:
+		return
+	}
+
+	updates := map[string]interface{}{"status": status}
+	if status == "banned" {
+		updates["ban_reason"] = reason
+	}
+	applied := false
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&model.ContentItem{}).
+			Where("id = ? AND status = ?", contentID, "under_review").
+			Updates(updates)
+		if res.Error != nil {
+			return res.Error
+		}
+		applied = res.RowsAffected > 0
+		if !applied || s.outbox == nil {
+			return nil
+		}
+		return EmitContentStatusEventTx(context.Background(), tx, s.outbox, topic, &content, status)
+	})
+	if err != nil {
+		slog.Error("judge case outcome: failed to write back content status", "case_id", caseID, "content_id", contentID, "error", err)
+		return
+	}
+	InvalidateContentCaches(s.rdb, contentID)
+	if applied && s.notifSvc != nil {
+		notifyReason := ""
+		if status == "banned" {
+			notifyReason = reason
+		}
+		s.notifSvc.NotifyContentStatus(content.AuthorID, content.ID, content.Title, status, notifyReason, 0)
+	}
 }
 
 func (s *JudgeService) checkAndRevokeIfNeeded(judgeID int64) error {

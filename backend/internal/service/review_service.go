@@ -447,22 +447,7 @@ func (s *ReviewService) ArchiveScanClean(ctx context.Context, attachmentID int64
 // (unwired service) is a no-op for backwards-compatible callers; the container
 // always wires one.
 func (s *ReviewService) emitContentEvent(ctx context.Context, tx *gorm.DB, topic string, content model.ContentItem, newStatus string) error {
-	if s.outbox == nil {
-		return nil
-	}
-	traceparent, tracestate := events.FromContext(ctx)
-	env, err := events.NewContentEnvelope(topic, content.ID, traceparent, tracestate,
-		events.ContentEventPayload{
-			ContentID:   content.ID,
-			AuthorID:    content.AuthorID,
-			ContentType: content.ContentType,
-			Status:      newStatus,
-		})
-	if err != nil {
-		return err
-	}
-	row := events.ToOutboxEvent(env)
-	return s.outbox.CreateTx(ctx, tx, &row)
+	return EmitContentStatusEventTx(ctx, tx, s.outbox, topic, &content, newStatus)
 }
 
 func (s *ReviewService) processIPReviewResult(tx *gorm.DB, ipID int64, result string) error {
