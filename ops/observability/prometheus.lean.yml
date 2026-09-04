@@ -1,6 +1,6 @@
-# Backend-only Prometheus configuration for the 3.6 GiB interview host
+# Backend-only Prometheus configuration for the 3.6 GiB lean host
 # (single-server-beta-runbook.md §6.2), mounted by
-# docs/deploy/docker-compose.interview-lean.yml.
+# docs/deploy/docker-compose.lean.yml.
 #
 # The committed prometheus.yml additionally targets node-exporter,
 # postgres-exporter, redis-exporter, cadvisor, blackbox and Alertmanager;
@@ -20,4 +20,4 @@ scrape_configs:
     static_configs:
       - targets: ["backend:9091"]
         labels:
-          environment: interview-host
+          environment: lean-host

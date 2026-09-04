@@ -1,9 +1,9 @@
-# Interview-host lean profile (3.6 GiB usable memory) for the single-server
+# Lean profile for low-resource hosts (3.6 GiB usable memory) for the single-server
 # deployment. Applied as a Compose override on top of the committed base file:
 #
 #   docker compose --env-file .env \
 #     -f docker-compose.single-server.yml \
-#     -f docker-compose.interview-lean.yml up -d --build
+#     -f docker-compose.lean.yml up -d --build
 #
 # What this override changes (runbook §6.2 resource-constrained profile):
 #   - defers the ten resident observability/alerting services behind the
@@ -13,7 +13,7 @@
 #     async consumers, so without it the outbox relay and the review/
 #     notification queue topics are never consumed;
 #   - caps aggregate resident memory limits at <= 2.6 GiB. Caps are sized
-#     from measured idle RSS on the interview host (2026-08-31: redis 6 MiB,
+#     from measured idle RSS on the lean host (2026-08-31: redis 6 MiB,
 #     backend 7 MiB, postgres 39 MiB, pgbouncer 5 MiB, nginx 17 MiB,
 #     frontend 90 MiB) with headroom for demo traffic;
 #   - points Prometheus at the backend-only lean config. The committed
@@ -70,7 +70,7 @@ services:
     volumes:
       # Same target path as the base mount: this replaces the full config
       # (backend-only job list, no rule_files, no alertmanager).
-      - ./ops/observability/prometheus.interview-lean.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/observability/prometheus.lean.yml:/etc/prometheus/prometheus.yml:ro
     deploy:
       resources:
         limits:
@@ -111,7 +111,7 @@ services:
           memory: 256m
 
   # ---------------------------------------------------------------------
-  # Deferred on the 3.6 GiB interview host (runbook §6.2). The profile
+  # Deferred on the 3.6 GiB lean host (runbook §6.2). The profile
   # marker excludes them from a plain `up`; pass
   # --profile full-observability to opt back in on a larger host.
   # ---------------------------------------------------------------------

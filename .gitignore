@@ -79,4 +79,21 @@ frontend/screenshots/
 # Local dev/test artifacts
 frontend/.cache/
 frontend/public/seed-media/real/
-tasks/未命名.md
+
+# ===== 内部开发/设计文档：2026-09-04 起仅本地保留，不再进入公开仓库 =====
+# （历史提交中的旧版本仍在 git 历史里；本地文件不受影响）
+/AGENTS.md
+/progress.txt
+/headings.txt
+/headings.json
+/OmniCraft（万象工坊）V0.3*.md
+/docs/working/
+/docs/archive/
+/docs/superpowers/
+/docs/agents/
+/docs/history/
+/docs/assets/
+/.specify/
+/tasks/
+/prototypes/
+/scripts/overnight/

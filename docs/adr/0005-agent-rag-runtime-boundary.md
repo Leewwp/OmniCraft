@@ -7,7 +7,7 @@
 
 ## Context
 
-OmniCraft 当前是 Go/Gin 模块化单体，Agent 通过站内工具与 SSE 提供能力。面试展示需要可靠异步、混合检索、引用安全与可观测性，但当前没有独立扩缩容或跨团队发布证据足以证明拆分 Agent/Search 微服务的必要性。过早拆服务会新增部署、契约、网络失败与数据一致性成本，也会弱化对真实业务闭环的投入。
+OmniCraft 当前是 Go/Gin 模块化单体，Agent 通过站内工具与 SSE 提供能力。对外演示需要可靠异步、混合检索、引用安全与可观测性，但当前没有独立扩缩容或跨团队发布证据足以证明拆分 Agent/Search 微服务的必要性。过早拆服务会新增部署、契约、网络失败与数据一致性成本，也会弱化对真实业务闭环的投入。
 
 ## Decision
 
@@ -20,7 +20,7 @@ OmniCraft 当前是 Go/Gin 模块化单体，Agent 通过站内工具与 SSE 提
 
 - 本地默认 Compose 仍需 backend + Worker，但 OpenSearch/OTel/Jaeger/ClamAV 只在对应 full-infra/security profile 启动。
 - 模块接口必须允许替换检索投影与测试故障注入，但不得为未来微服务预建空 RPC 层。
-- 可在简历中描述“设计了可演进边界”；只有 Worker、RAG、追踪和评测真实完成后才能写“实现”。
+- 对外只能宣称「设计了可演进边界」；只有 Worker、RAG、追踪和评测真实完成后才能宣称「实现」。
 
 ## T10 Review (2026-08-19)
 
