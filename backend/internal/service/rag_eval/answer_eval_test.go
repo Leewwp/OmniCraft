@@ -123,6 +123,7 @@ type answerEvalStreamCollector struct {
 	degradedReason string
 	errorCode      string
 	toolCalls      int
+	toolSteps      []ToolStepRecord
 }
 
 func (c *answerEvalStreamCollector) handle(ev service.AgentStreamEvent) error {
@@ -141,6 +142,9 @@ func (c *answerEvalStreamCollector) handle(ev service.AgentStreamEvent) error {
 		}
 	case service.AgentEventToolStatus:
 		c.toolCalls++
+		if ev.Tool != nil {
+			c.toolSteps = append(c.toolSteps, ToolStepRecord{Name: ev.Tool.Name, ArgsSummary: ev.Tool.ArgsSummary})
+		}
 	case service.AgentEventDone:
 		c.kind = ev.AnswerKind
 		c.degraded = ev.Degraded
@@ -252,12 +256,13 @@ func TestAgentAnswerEval(t *testing.T) {
 	corpusChecksum := contentCorpusChecksum(t, db)
 	chunkRepo := repository.NewRagChunkRepository(db)
 
-	// ChatStream persists conversations with a users FK, so the runner chats as
-	// a seeded user instead of the anonymous viewer 0. To keep the retrieval
-	// scope identical to the golden cases' anonymous viewer, the user must own
-	// no private content inside the published corpus; ownership of other
-	// users' private content is invisible to both identities.
-	chatUserID := resolveAnswerEvalChatUser(t, db)
+	// H2: answer eval switches identity per case principal instead of one
+	// global chat user. Anonymous principals (and legacy numeric viewer 0)
+	// still chat as a seeded user owning no private corpus content — the
+	// visibility scope equals the anonymous viewer because ChatStream
+	// requires a users FK; fixture principals chat as the fixture account.
+	anonChatUserID := resolveAnswerEvalChatUser(t, db)
+	registry := &FixturePrincipalRegistry{DB: db}
 	maxAttempts := 2
 	if raw := strings.TrimSpace(os.Getenv(answerEvalAttemptsEnv)); raw != "" {
 		parsed := 0
@@ -269,12 +274,36 @@ func TestAgentAnswerEval(t *testing.T) {
 
 	results := make([]AnswerEvalCaseResult, 0, len(cases))
 	for _, c := range cases {
-		result := runAnswerEvalCase(ctx, db, chunkRepo, provider, retriever, searchRepo, &evalCfg, c, chatUserID, maxAttempts)
-		results = append(results, result)
-		t.Logf("case %s: status=%s kind=%s attempts=%d direct=%d first_token=%s total=%dms prompt=%s completion=%s groundedness=%s citations=%d evidence=%d",
-			result.CaseKey, result.Status, result.AnswerKind, result.Attempts, result.DirectAnswers, msPtrString(result.FirstTokenMs), result.TotalMs,
-			intPtrString(result.PromptTokens), intPtrString(result.CompletionTokens), floatPtrString(result.Groundedness),
-			len(result.Citations), result.EvidenceChunks)
+		vc, err := ParseViewerContext(c.ViewerContext)
+		if err != nil {
+			t.Fatalf("case %s viewer_context: %v", c.CaseKey, err)
+		}
+		cl, err := ParseClassificationV2(c.Classification)
+		if err != nil {
+			t.Fatalf("case %s classification: %v", c.CaseKey, err)
+		}
+		principalKeys := PrincipalKeysForCase(cl.PrimaryLayer, vc.PrincipalKey)
+		for _, principalKey := range principalKeys {
+			identity, err := ResolveViewerIdentity(ctx, ViewerContext{PrincipalKey: principalKey}, registry)
+			if err != nil {
+				t.Fatalf("case %s principal %q: %v", c.CaseKey, principalKey, err)
+			}
+			chatUserID := identity.ViewerUserID
+			if identity.IsAnonymous {
+				chatUserID = anonChatUserID
+			}
+			result := runAnswerEvalCase(ctx, db, chunkRepo, provider, retriever, searchRepo, &evalCfg, c, chatUserID, maxAttempts)
+			result.PrincipalKey = identity.PrincipalKey
+			result.PrimaryLayer = cl.PrimaryLayer
+			result.Split = cl.Split
+			result.NoAnswerStrategy = cl.NoAnswerStrategy
+			applyAnswerLayerJudges(ctx, t, db, c, cl, &result, identity)
+			results = append(results, result)
+			t.Logf("case %s [principal=%s layer=%s]: status=%s kind=%s attempts=%d direct=%d first_token=%s total=%dms prompt=%s completion=%s groundedness=%s citations=%d evidence=%d",
+				result.CaseKey, result.PrincipalKey, result.PrimaryLayer, result.Status, result.AnswerKind, result.Attempts, result.DirectAnswers, msPtrString(result.FirstTokenMs), result.TotalMs,
+				intPtrString(result.PromptTokens), intPtrString(result.CompletionTokens), floatPtrString(result.Groundedness),
+				len(result.Citations), result.EvidenceChunks)
+		}
 	}
 
 	answered := countAnswerStatus(results, AnswerStatusAnswered)
@@ -327,12 +356,15 @@ func TestAgentAnswerEval(t *testing.T) {
 		IndexVersion:          fmt.Sprintf("%d", projectionGeneration),
 		FinalTopK:             evalCfg.RAG.Hybrid.FinalTopK,
 		GoVersion:             runtime.Version(),
-		ChatViewerUserID:      chatUserID,
+		ChatViewerUserID:      anonChatUserID,
+		PrincipalMode:         "per-case-v2",
 		Note: "local answer-producing measurement over the frozen current-v1 corpus; " +
 			"real provider chat and query embeddings; in-process AgentService tool loop " +
-			"(not HTTP); chat runs as a seeded user owning no private corpus content so " +
-			"the retrieval scope equals the golden cases' anonymous viewer; groundedness " +
-			"is a deterministic verbatim-containment proxy, not a production quality certificate",
+			"(not HTTP); chat identity switches per case principal (H2): anonymous " +
+			"principals chat as a seeded user owning no private corpus content so the " +
+			"retrieval scope equals the anonymous viewer, fixture principals chat as " +
+			"the fixture account; groundedness is a deterministic verbatim-containment " +
+			"proxy, not a production quality certificate",
 	}
 	report := BuildAnswerEvalReport(meta, results)
 	if err := WriteAnswerEvalReport(reportPath, report); err != nil {
@@ -369,6 +401,97 @@ func resolveAnswerEvalChatUser(t *testing.T, db *gorm.DB) int64 {
 		t.Fatalf("no seeded user without private corpus content; pass %s explicitly", answerEvalUserIDEnv)
 	}
 	return userID
+}
+
+// applyAnswerLayerJudges runs the v2 layer-specific judges on one case: the
+// no-answer dual-strategy judge (H6) and the four-surface visibility leak
+// accounting (H7). Cases without a layer annotation (v1) skip both.
+func applyAnswerLayerJudges(ctx context.Context, t *testing.T, db *gorm.DB, golden model.EvalGoldenCase, cl Classification, result *AnswerEvalCaseResult, identity ViewerIdentity) {
+	t.Helper()
+	switch cl.PrimaryLayer {
+	case LayerNoAnswer:
+		if cl.NoAnswerStrategy == "" || result.Status != AnswerStatusAnswered {
+			return
+		}
+		rubric, err := ParseAnswerRubric(golden.AnswerRubric)
+		if err != nil {
+			t.Fatalf("case %s answer_rubric: %v", golden.CaseKey, err)
+		}
+		citations, err := ParseCitations(golden.ExpectedCitations)
+		if err != nil {
+			t.Fatalf("case %s expected_citations: %v", golden.CaseKey, err)
+		}
+		var expectedIDs []int64
+		for _, citation := range citations {
+			expectedIDs = append(expectedIDs, citation.ContentID)
+		}
+		judge := JudgeNoAnswer(NoAnswerJudgeInput{
+			Strategy:        cl.NoAnswerStrategy,
+			Answer:          result.Answer,
+			Citations:       result.Citations,
+			ExpectedIDs:     expectedIDs,
+			AcceptableIDs:   rubric.AcceptableContentIDs,
+			MustNotClaim:    rubric.MustNotClaim,
+			KnownContentIDs: loadAnswerEvalKnownContentIDs(ctx, t, db),
+		})
+		result.NoAnswer = &judge
+	case LayerVisibility:
+		forbidden, err := ParseInt64List(golden.ForbiddenContentIDs)
+		if err != nil || len(forbidden) == 0 {
+			return
+		}
+		leak := EvaluateVisibilityLeaks(VisibilityLeakInput{
+			ForbiddenIDs: forbidden,
+			ForbiddenDoc: loadAnswerEvalForbiddenDocs(ctx, t, db, forbidden),
+			Citations:    result.Citations,
+			Answer:       result.Answer,
+			ToolSteps:    result.ToolSteps,
+		})
+		result.VisibilityLeak = &leak
+	}
+}
+
+// loadAnswerEvalKnownContentIDs is the existence universe for the
+// related-recommendation truth check: published, non-deleted, public content.
+func loadAnswerEvalKnownContentIDs(ctx context.Context, t *testing.T, db *gorm.DB) map[int64]bool {
+	t.Helper()
+	var ids []int64
+	err := db.WithContext(ctx).
+		Table("content_items").
+		Where("status = ? AND deleted_at IS NULL AND is_public = TRUE", "published").
+		Pluck("id", &ids).Error
+	if err != nil {
+		t.Fatalf("load known content ids: %v", err)
+	}
+	known := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		known[id] = true
+	}
+	return known
+}
+
+// loadAnswerEvalForbiddenDocs loads the title/description identity of the
+// restricted documents for answer/tool-surface mention detection.
+func loadAnswerEvalForbiddenDocs(ctx context.Context, t *testing.T, db *gorm.DB, ids []int64) []ForbiddenDoc {
+	t.Helper()
+	var rows []struct {
+		ID          int64
+		Title       string
+		Description string
+	}
+	err := db.WithContext(ctx).
+		Table("content_items").
+		Select("id, title, COALESCE(description, '') AS description").
+		Where("id IN ?", ids).
+		Scan(&rows).Error
+	if err != nil {
+		t.Fatalf("load forbidden docs: %v", err)
+	}
+	docs := make([]ForbiddenDoc, 0, len(rows))
+	for _, r := range rows {
+		docs = append(docs, ForbiddenDoc{ContentID: r.ID, Title: r.Title, Summary: r.Description})
+	}
+	return docs
 }
 
 func runAnswerEvalCase(ctx context.Context, db *gorm.DB, chunkRepo *repository.RagChunkRepository, provider llm.LLMProvider, retriever *ragservice.HybridRetriever, searchRepo *repository.SearchRepository, cfg *config.Config, golden model.EvalGoldenCase, chatUserID int64, maxAttempts int) AnswerEvalCaseResult {
@@ -411,6 +534,7 @@ func runAnswerEvalCase(ctx context.Context, db *gorm.DB, chunkRepo *repository.R
 		result.AnswerKind = attemptResult.AnswerKind
 		result.Answer = attemptResult.Answer
 		result.ToolCalls = attemptResult.ToolCalls
+		result.ToolSteps = attemptResult.ToolSteps
 		result.Citations = attemptResult.Citations
 		result.EvidenceChunks = attemptResult.EvidenceChunks
 		result.EvidenceLookups = attemptResult.EvidenceLookups
@@ -459,6 +583,7 @@ func runAnswerEvalAttempt(ctx context.Context, db *gorm.DB, chunkRepo *repositor
 	}
 	attempt.AnswerKind = string(collector.kind)
 	attempt.ToolCalls = collector.toolCalls
+	attempt.ToolSteps = collector.toolSteps
 	if collector.usage != nil {
 		prompt := collector.usage.PromptTokens
 		completion := collector.usage.CompletionTokens

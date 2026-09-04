@@ -63,6 +63,20 @@ type AnswerEvalCaseResult struct {
 	Degraded         bool                 `json:"degraded"`
 	DegradedReason   string               `json:"degraded_reason,omitempty"`
 	ErrorCode        string               `json:"error_code,omitempty"`
+
+	// ToolSteps mirrors the SSE tool-step events the client saw (display-safe
+	// summaries only). It is the fourth visibility leak surface (H7).
+	ToolSteps []ToolStepRecord `json:"tool_steps,omitempty"`
+
+	// v2 annotation fields (H2/H6/H7): the principal the case ran under, its
+	// layer/split, the dual-strategy no-answer judge outcome and the
+	// four-surface visibility leak accounting. v1 runs leave them zero.
+	PrincipalKey     string                `json:"principal_key,omitempty"`
+	PrimaryLayer     string                `json:"primary_layer,omitempty"`
+	Split            string                `json:"split,omitempty"`
+	NoAnswerStrategy string                `json:"no_answer_strategy,omitempty"`
+	NoAnswer         *NoAnswerJudgeResult  `json:"no_answer,omitempty"`
+	VisibilityLeak   *VisibilityLeakReport `json:"visibility_leak,omitempty"`
 }
 
 // AnswerEvalMetadata records the run identity required to reproduce or audit
@@ -86,7 +100,12 @@ type AnswerEvalMetadata struct {
 	FinalTopK             int    `json:"final_top_k"`
 	GoVersion             string `json:"go_version"`
 	ChatViewerUserID      int64  `json:"chat_viewer_user_id"`
-	Note                  string `json:"note"`
+	// PrincipalMode discloses how chat identity was chosen: "global-v1" (one
+	// seeded user for every case) or "per-case-v2" (H2: each case runs its
+	// annotated principal; anonymous principals chat as the seeded
+	// anonymous-equivalent user).
+	PrincipalMode string `json:"principal_mode,omitempty"`
+	Note          string `json:"note"`
 }
 
 // AnswerEvalSummary aggregates the per-case results with effective
@@ -118,6 +137,26 @@ type AnswerEvalReport struct {
 	Metadata      AnswerEvalMetadata     `json:"metadata"`
 	Summary       AnswerEvalSummary      `json:"summary"`
 	Cases         []AnswerEvalCaseResult `json:"cases"`
+	// Layers carries the v2 per-layer answer aggregates when the run used
+	// annotated v2 cases (na/vi answer-layer metrics); v1 runs omit it.
+	Layers map[string]AnswerLayerSummary `json:"layers,omitempty"`
+}
+
+// AnswerLayerSummary aggregates the v2 answer-layer metrics of one layer
+// group (contract §8: na 回答层 strict=拒答率+零编造、related=诚实声明率+推荐
+// 真实性；vi 四泄漏面泄漏率=0 硬门).
+type AnswerLayerSummary struct {
+	GroupKey         string     `json:"group_key"`
+	CaseCount        int        `json:"case_count"`
+	Answered         int        `json:"answered"`
+	NoEvidence       int        `json:"no_evidence"`
+	Degraded         int        `json:"degraded"`
+	ProviderErrors   int        `json:"provider_errors"`
+	NoAnswerPass     RateWithCI `json:"no_answer_pass"`
+	NoAnswerHardFail RateWithCI `json:"no_answer_hard_fail"`
+	RefusalRate      RateWithCI `json:"refusal_rate"`
+	HonestDisclaimer RateWithCI `json:"honest_disclaimer_rate"`
+	LeakFreeRate     RateWithCI `json:"leak_free_rate"`
 }
 
 // SplitAnswerSentences splits an answer into sentences for deterministic
@@ -253,7 +292,95 @@ func BuildAnswerEvalReport(meta AnswerEvalMetadata, cases []AnswerEvalCaseResult
 		Metadata:      meta,
 		Summary:       summary,
 		Cases:         cases,
+		Layers:        BuildLayeredAnswerSummary(cases),
 	}
+}
+
+// BuildLayeredAnswerSummary aggregates the v2 answer-layer metrics per
+// primary-layer group. It returns nil when no case carries a layer
+// annotation (v1 runs), so the artifact shape stays v1 for v1 data.
+func BuildLayeredAnswerSummary(cases []AnswerEvalCaseResult) map[string]AnswerLayerSummary {
+	type layerAcc struct {
+		summary          AnswerLayerSummary
+		noAnswerTotal    float64
+		noAnswerPass     float64
+		noAnswerHardFail float64
+		strictTotal      float64
+		refused          float64
+		relatedTotal     float64
+		disclaimed       float64
+		leakTotal        float64
+		leakFree         float64
+	}
+	accs := map[string]*layerAcc{}
+	for i := range cases {
+		c := &cases[i]
+		if c.PrimaryLayer == "" {
+			continue
+		}
+		key := c.PrimaryLayer
+		if c.NoAnswerStrategy != "" {
+			key += "/" + c.NoAnswerStrategy
+		}
+		acc := accs[key]
+		if acc == nil {
+			acc = &layerAcc{}
+			acc.summary.GroupKey = key
+			accs[key] = acc
+		}
+		acc.summary.CaseCount++
+		switch c.Status {
+		case AnswerStatusAnswered:
+			acc.summary.Answered++
+		case AnswerStatusNoEvidence:
+			acc.summary.NoEvidence++
+		case AnswerStatusDegraded:
+			acc.summary.Degraded++
+		case AnswerStatusProvError:
+			acc.summary.ProviderErrors++
+		}
+		if c.NoAnswer != nil {
+			acc.noAnswerTotal++
+			if c.NoAnswer.Pass {
+				acc.noAnswerPass++
+			}
+			if c.NoAnswer.HardFail {
+				acc.noAnswerHardFail++
+			}
+			switch c.NoAnswer.Strategy {
+			case NoAnswerStrictNotFound:
+				acc.strictTotal++
+				if c.NoAnswer.Refused {
+					acc.refused++
+				}
+			case NoAnswerRelatedRecommendationOK:
+				acc.relatedTotal++
+				if c.NoAnswer.HonestDisclaimer {
+					acc.disclaimed++
+				}
+			}
+		}
+		if c.VisibilityLeak != nil {
+			acc.leakTotal++
+			if c.VisibilityLeak.AllZero {
+				acc.leakFree++
+			}
+		}
+	}
+	if len(accs) == 0 {
+		return nil
+	}
+	out := make(map[string]AnswerLayerSummary, len(accs))
+	for key, acc := range accs {
+		s := acc.summary
+		s.NoAnswerPass = NewRate(acc.noAnswerPass, acc.noAnswerTotal)
+		s.NoAnswerHardFail = NewRate(acc.noAnswerHardFail, acc.noAnswerTotal)
+		s.RefusalRate = NewRate(acc.refused, acc.strictTotal)
+		s.HonestDisclaimer = NewRate(acc.disclaimed, acc.relatedTotal)
+		s.LeakFreeRate = NewRate(acc.leakFree, acc.leakTotal)
+		out[key] = s
+	}
+	return out
 }
 
 func meanOf(values []float64) *float64 {

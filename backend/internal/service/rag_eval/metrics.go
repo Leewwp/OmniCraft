@@ -20,29 +20,74 @@ type Citation struct {
 
 // EvidenceSpan mirrors one relevant_evidence entry: the annotated evidence
 // span on (content_id, content_version), resolved to chunk keys under the
-// current chunking_version at eval time.
+// current chunking_version at eval time. SourceStart/SourceEnd are Unicode
+// code point half-open [start,end) offsets into the source body (contract
+// §3); chunk_key/chunking_version are the freeze-time snapshot used only for
+// cross-checking, never as truth (H5).
 type EvidenceSpan struct {
-	ContentID      int64 `json:"content_id"`
-	ContentVersion int64 `json:"content_version"`
-	SourceStart    int   `json:"source_start"`
-	SourceEnd      int   `json:"source_end"`
+	ContentID       int64  `json:"content_id"`
+	ContentVersion  int64  `json:"content_version"`
+	SourceStart     int    `json:"source_start"`
+	SourceEnd       int    `json:"source_end"`
+	ChunkKey        string `json:"chunk_key,omitempty"`
+	ChunkingVersion int    `json:"chunking_version,omitempty"`
+	Reason          string `json:"reason,omitempty"`
 }
 
-// ViewerContext mirrors the viewer_context jsonb payload: 0 means anonymous.
+// ViewerContext mirrors the viewer_context jsonb payload. v2 rows carry
+// principal_key ("anon" / "fixture:viewer-anon" / "fixture:author:*");
+// frozen data never stores environment-specific numeric ids (contract §3).
+// v1 rows carry a numeric viewer_user_id (0 = anonymous), which stays the
+// legacy resolution path.
 type ViewerContext struct {
-	ViewerUserID int64 `json:"viewer_user_id"`
+	ViewerUserID int64  `json:"viewer_user_id"`
+	PrincipalKey string `json:"principal_key,omitempty"`
 }
 
 // Classification mirrors the classification jsonb payload: content type
-// (mod/guide/article/...) and query popularity band (cold/hot/normal).
+// (mod/guide/article/...), query popularity band (cold/hot/normal) and the
+// v2 annotation fields (primary_layer/split/no_answer_strategy and the
+// carried dimensions). Legacy v1 classifications parse with the v2 fields
+// empty.
 type Classification struct {
-	ContentType string `json:"content_type"`
-	Popularity  string `json:"popularity"`
+	ContentType      string `json:"content_type"`
+	Popularity       string `json:"popularity"`
+	PrimaryLayer     string `json:"primary_layer,omitempty"`
+	Split            string `json:"split,omitempty"`
+	NoAnswerStrategy string `json:"no_answer_strategy,omitempty"`
+	IPScope          *bool  `json:"ip_scope,omitempty"`
+	IP               *int64 `json:"ip,omitempty"`
+	Language         string `json:"language,omitempty"`
+	TemperatureBand  string `json:"temperature_band,omitempty"`
+	CorpusVisibility string `json:"corpus_visibility,omitempty"`
+}
+
+// Layer returns the primary layer, falling back to "unknown" so grouping
+// never silently drops a case.
+func (c Classification) Layer() string {
+	if c.PrimaryLayer == "" {
+		return "unknown"
+	}
+	return c.PrimaryLayer
+}
+
+// IsKnownLayer reports whether the layer is one of the six v2 layers.
+func (c Classification) IsKnownLayer() bool {
+	for _, l := range V2Layers {
+		if c.PrimaryLayer == l {
+			return true
+		}
+	}
+	return false
 }
 
 // ParseInt64List reads a jsonb integer array (relevant/forbidden content
-// ids) into a sorted deduped slice.
+// ids) into a sorted deduped slice. A nil/absent payload parses as empty:
+// fresh struct rows (zero-value JSONB) behave like the column default.
 func ParseInt64List(raw model.JSONB) ([]int64, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
 	var ids []int64
 	if err := json.Unmarshal(raw, &ids); err != nil {
 		return nil, err
@@ -59,8 +104,11 @@ func ParseInt64List(raw model.JSONB) ([]int64, error) {
 	return dedup, nil
 }
 
-// ParseCitations reads a jsonb citation array.
+// ParseCitations reads a jsonb citation array (nil/absent parses as empty).
 func ParseCitations(raw model.JSONB) ([]Citation, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
 	var citations []Citation
 	if err := json.Unmarshal(raw, &citations); err != nil {
 		return nil, err
@@ -68,8 +116,12 @@ func ParseCitations(raw model.JSONB) ([]Citation, error) {
 	return citations, nil
 }
 
-// ParseEvidenceSpans reads a jsonb relevant_evidence array.
+// ParseEvidenceSpans reads a jsonb relevant_evidence array (nil/absent
+// parses as empty).
 func ParseEvidenceSpans(raw model.JSONB) ([]EvidenceSpan, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
 	var spans []EvidenceSpan
 	if err := json.Unmarshal(raw, &spans); err != nil {
 		return nil, err
@@ -77,8 +129,12 @@ func ParseEvidenceSpans(raw model.JSONB) ([]EvidenceSpan, error) {
 	return spans, nil
 }
 
-// ParseViewerContext reads the viewer_context jsonb payload.
+// ParseViewerContext reads the viewer_context jsonb payload (nil/absent
+// parses as the anonymous legacy context).
 func ParseViewerContext(raw model.JSONB) (ViewerContext, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ViewerContext{}, nil
+	}
 	var vc ViewerContext
 	if err := json.Unmarshal(raw, &vc); err != nil {
 		return vc, err
