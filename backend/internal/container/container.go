@@ -290,6 +290,8 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 
 	// Wire notification service
 	c.SocialService.SetNotificationService(c.NotificationService)
+	// 举报 auto-hide 触发众裁（FIX-11）：复用 AI 审核路径的幂等建案。
+	c.SocialService.SetJudgeCaseEnsurer(c.ReviewService)
 	c.PRService.SetNotificationService(c.NotificationService)
 
 	// Wire agent service with queue producer
