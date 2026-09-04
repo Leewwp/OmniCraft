@@ -549,6 +549,13 @@ func (s *ReviewService) applyRepeatViolationPenalty(ctx context.Context, tx *gor
 	return nil
 }
 
+// EnsureContentJudgeCase creates the crowd-judge case for a content that
+// entered manual review, idempotently (an existing open case is reused).
+// Shared by the AI review path and the report auto-hide path (FIX-11).
+func (s *ReviewService) EnsureContentJudgeCase(tx *gorm.DB, content model.ContentItem) error {
+	return s.ensureJudgeCase(tx, content)
+}
+
 func (s *ReviewService) ensureJudgeCase(tx *gorm.DB, content model.ContentItem) error {
 	var count int64
 	if err := tx.Model(&model.JudgeCase{}).

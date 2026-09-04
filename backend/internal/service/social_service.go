@@ -12,6 +12,7 @@ import (
 	"omnicraft/backend/internal/repository"
 
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 var (
@@ -33,13 +34,14 @@ type TextReviewer interface {
 }
 
 type SocialService struct {
-	socialRepo  *repository.SocialRepository
-	contentRepo *repository.ContentRepository
-	userRepo    *repository.UserRepository
-	cfg         *config.Config
-	rdb         *redis.Client
-	notifSvc    *NotificationService
-	reviewSvc   TextReviewer
+	socialRepo       *repository.SocialRepository
+	contentRepo      *repository.ContentRepository
+	userRepo         *repository.UserRepository
+	cfg              *config.Config
+	rdb              *redis.Client
+	notifSvc         *NotificationService
+	reviewSvc        TextReviewer
+	judgeCaseEnsurer JudgeCaseEnsurer
 }
 
 func NewSocialService(sRepo *repository.SocialRepository, cRepo *repository.ContentRepository, uRepo *repository.UserRepository, cfg *config.Config, reviewSvc TextReviewer) *SocialService {
@@ -65,6 +67,20 @@ func NewSocialServiceWithRedis(sRepo *repository.SocialRepository, cRepo *reposi
 
 func (s *SocialService) SetNotificationService(ns *NotificationService) {
 	s.notifSvc = ns
+}
+
+// JudgeCaseEnsurer is the shared seam for creating a crowd-judge case for a
+// content that entered manual review (FIX-11): the AI review path and the
+// report auto-hide path funnel through the same idempotent creation.
+type JudgeCaseEnsurer interface {
+	EnsureContentJudgeCase(tx *gorm.DB, content model.ContentItem) error
+}
+
+// SetJudgeCaseEnsurer wires the judge-case creation seam used by the report
+// auto-hide path (FIX-11). Unwired (nil) the auto-hide still hides the
+// content but skips case creation.
+func (s *SocialService) SetJudgeCaseEnsurer(ensurer JudgeCaseEnsurer) {
+	s.judgeCaseEnsurer = ensurer
 }
 
 type PostCommentInput struct {
@@ -302,10 +318,35 @@ func (s *SocialService) Report(targetType string, targetID int64, reporterID int
 		threshold := s.cfg.Social.ReportAutoHideRate
 		ratio := float64(count) / float64(content.ViewCount)
 		if ratio >= threshold {
-			s.contentRepo.UpdateContent(targetID, map[string]interface{}{"status": "under_review"})
-			// 审核决策即时生效（FIX-38）：auto-hide 后立即失效公共读路径缓存，
-			// 否则被隐藏内容在 TTL 窗口内仍可读。
-			InvalidateContentCaches(s.rdb, targetID)
+			// 守卫：只有 under_review/published 会被隐藏——banned 终态不可被
+			// 举报打回复核（FIX-11）；真实发生隐藏才触发众裁与作者通知。
+			hidden := false
+			if err := s.contentRepo.Transaction(func(txRepo *repository.ContentRepository) error {
+				res := txRepo.DB().Model(&model.ContentItem{}).
+					Where("id = ? AND status IN ?", targetID, []string{"under_review", "published"}).
+					Update("status", "under_review")
+				if res.Error != nil {
+					return res.Error
+				}
+				hidden = res.RowsAffected > 0
+				if !hidden {
+					return nil
+				}
+				// 隐藏的内容必须有众裁出口（FIX-11）：与 AI 审核转复核路径
+				// 复用同一幂等建案逻辑，举报达阈值不再无限期滞留。
+				if s.judgeCaseEnsurer != nil {
+					return s.judgeCaseEnsurer.EnsureContentJudgeCase(txRepo.DB(), *content)
+				}
+				return nil
+			}); err != nil {
+				return err
+			}
+			if hidden {
+				InvalidateContentCaches(s.rdb, targetID)
+				if s.notifSvc != nil {
+					s.notifSvc.NotifyContentStatus(content.AuthorID, content.ID, content.Title, "under_review", "举报达到阈值，内容进入众裁复核", 0)
+				}
+			}
 		}
 	}
 	return nil
