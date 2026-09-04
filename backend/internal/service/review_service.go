@@ -83,6 +83,7 @@ type ReviewService struct {
 	oss         *aliyun.OSSClient
 	outbox      repository.OutboxWriter
 	archiveGate *ArchiveScanGate
+	notifSvc    *NotificationService
 }
 
 func NewReviewService(db *gorm.DB, rdb *redis.Client, cfg *config.Config, reputSvc *ReputationService) *ReviewService {
@@ -339,6 +340,7 @@ func (s *ReviewService) applyContentReviewResult(ctx context.Context, tx *gorm.D
 				return err
 			}
 		}
+		s.notifyContentStatus(&content, "banned", "AI 审核判定违规")
 		return s.applyRepeatViolationPenalty(ctx, tx, content.AuthorID)
 	case "review":
 		res := tx.Model(&model.ContentItem{}).
@@ -350,6 +352,7 @@ func (s *ReviewService) applyContentReviewResult(ctx context.Context, tx *gorm.D
 		if res.RowsAffected == 0 {
 			return nil
 		}
+		s.notifyContentStatus(&content, "under_review", "AI 审核转人工复核")
 		return s.ensureJudgeCase(tx, content)
 	default:
 		if s.archiveGate != nil {
@@ -378,11 +381,23 @@ func (s *ReviewService) applyContentReviewResult(ctx context.Context, tx *gorm.D
 		if content.Status == "published" {
 			return nil
 		}
+		s.notifyContentStatus(&content, "published", "")
 		if err := s.emitContentEvent(ctx, tx, events.TopicContentPublished, content, "published"); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// notifyContentStatus informs the author about a content status transition
+// decided by the AI review channel. Best-effort by design (FIX-17): the
+// notification goes through the queue/safe-goroutine seam and never blocks the
+// status transition itself.
+func (s *ReviewService) notifyContentStatus(content *model.ContentItem, status, reason string) {
+	if s.notifSvc == nil || content == nil {
+		return
+	}
+	s.notifSvc.NotifyContentStatus(content.AuthorID, content.ID, content.Title, status, reason, 0)
 }
 
 // ArchiveScanClean resumes a content pass that was recorded before its mod
@@ -461,10 +476,38 @@ func (s *ReviewService) processIPReviewResult(tx *gorm.DB, ipID int64, result st
 	if result != "block" && result != "violation" {
 		return nil
 	}
+	// Snapshot the not-yet-banned contents before the cascade so the author
+	// notification can dedupe per author and mention the affected count.
+	var affected []model.ContentItem
+	if err := tx.Where("ip_id = ? AND status <> ?", ipID, "banned").Find(&affected).Error; err != nil {
+		return err
+	}
 	if err := tx.Model(&model.IP{}).Where("id = ?", ipID).Update("status", "banned").Error; err != nil {
 		return err
 	}
-	return tx.Model(&model.ContentItem{}).Where("ip_id = ?", ipID).Update("status", "banned").Error
+	if err := tx.Model(&model.ContentItem{}).Where("ip_id = ?", ipID).Update("status", "banned").Error; err != nil {
+		return err
+	}
+	s.notifyIPCascadeDowned(&ip, affected)
+	return nil
+}
+
+// notifyIPCascadeDowned notifies each affected author exactly once about the
+// IP cascade ban (FIX-17): one notification per author, never per content, so
+// a large IP cannot flood an author's notification feed.
+func (s *ReviewService) notifyIPCascadeDowned(ip *model.IP, affected []model.ContentItem) {
+	if s.notifSvc == nil || len(affected) == 0 {
+		return
+	}
+	byAuthor := make(map[int64][]model.ContentItem)
+	for _, content := range affected {
+		byAuthor[content.AuthorID] = append(byAuthor[content.AuthorID], content)
+	}
+	for authorID, contents := range byAuthor {
+		reason := fmt.Sprintf("所属 IP《%s》审核未通过，该 IP 下你的 %d 篇内容已随之下架", ip.Name, len(contents))
+		representative := contents[0]
+		s.notifSvc.NotifyContentStatus(authorID, representative.ID, representative.Title, "banned", reason, 0)
+	}
 }
 
 func (s *ReviewService) applyRepeatViolationPenalty(ctx context.Context, tx *gorm.DB, authorID int64) error {
@@ -668,4 +711,11 @@ func NormalizeReviewResult(result string) string {
 	default:
 		return "pass"
 	}
+}
+
+// SetNotificationService attaches the notification service used to inform
+// authors about content status transitions decided by the AI review channel
+// and IP cascade bans.
+func (s *ReviewService) SetNotificationService(ns *NotificationService) {
+	s.notifSvc = ns
 }
