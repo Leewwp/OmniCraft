@@ -78,10 +78,20 @@ func TestNewProviderFromConfig_RoutesCorrectly(t *testing.T) {
 		}
 	})
 
-	t.Run("empty_type_defaults_to_qwen", func(t *testing.T) {
+	t.Run("empty_type_defaults_to_openai_compat", func(t *testing.T) {
 		p := NewProviderFromConfig("", "key", "", "model", "embed")
-		if _, ok := p.(*QwenProvider); !ok {
-			t.Errorf("expected *QwenProvider for empty type, got %T", p)
+		if _, ok := p.(*OpenAICompatProvider); !ok {
+			t.Errorf("expected *OpenAICompatProvider for empty type, got %T", p)
+		}
+	})
+
+	t.Run("qwen_native_retired_fails_closed", func(t *testing.T) {
+		p := NewProviderFromConfig("qwen", "key", "", "model", "embed")
+		if _, ok := p.(*failingProvider); !ok {
+			t.Errorf("expected *failingProvider for retired native qwen, got %T", p)
+		}
+		if _, err := p.Chat(context.Background(), ChatRequest{}); err == nil || !strings.Contains(err.Error(), "retired") {
+			t.Fatalf("native qwen error = %v, want retirement reason", err)
 		}
 	})
 }

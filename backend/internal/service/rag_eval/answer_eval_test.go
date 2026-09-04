@@ -82,9 +82,13 @@ func (p *firstTokenMeasuringProvider) firstTokenLatencyMs() (int64, bool) {
 }
 
 // answerEvalRAGAdapter maps the hybrid retriever contract onto the
-// AgentService boundary. It mirrors the container's agentRAGRetriever.
+// AgentService boundary. It mirrors the container's agentRAGRetriever and
+// records the retrieved content ids so the visibility leak surface 1 and the
+// no-answer judge's recommendation-truth check see the real retrieval ids.
 type answerEvalRAGAdapter struct {
-	retriever *ragservice.HybridRetriever
+	retriever    *ragservice.HybridRetriever
+	retrievedIDs []int64
+	seenIDs      map[int64]bool
 }
 
 func (r *answerEvalRAGAdapter) Retrieve(ctx context.Context, query string, viewerID int64) (service.AgentRetrievalResult, error) {
@@ -92,8 +96,15 @@ func (r *answerEvalRAGAdapter) Retrieve(ctx context.Context, query string, viewe
 	if err != nil {
 		return service.AgentRetrievalResult{}, err
 	}
+	if r.seenIDs == nil {
+		r.seenIDs = map[int64]bool{}
+	}
 	candidates := make([]service.AgentRetrievalCandidate, 0, len(result.Candidates))
 	for _, candidate := range result.Candidates {
+		if !r.seenIDs[candidate.ContentID] {
+			r.seenIDs[candidate.ContentID] = true
+			r.retrievedIDs = append(r.retrievedIDs, candidate.ContentID)
+		}
 		candidates = append(candidates, service.AgentRetrievalCandidate{
 			ChunkKey:        candidate.ChunkKey,
 			ContentID:       candidate.ContentID,
@@ -228,15 +239,15 @@ func TestAgentAnswerEval(t *testing.T) {
 	embeddingRepo := repository.NewEmbeddingRepository(db)
 
 	keywordSourceName := "postgres-keyword"
-	var keywordSource ragservice.KeywordRetriever = unavailableKeywordRetriever{}
+	var keywordFallback ragservice.KeywordRetriever
 	if openSearchURL := strings.TrimSpace(os.Getenv(hybridOpenSearchEnv)); openSearchURL != "" {
 		openSearch := repository.NewOpenSearchRepositoryWithLimits(openSearchURL, &http.Client{Timeout: 2 * time.Second}, repository.OpenSearchResponseLimits{})
-		keywordSource = ragservice.NewOpenSearchKeywordRetriever(openSearch)
-		keywordSourceName = "opensearch"
+		keywordFallback = ragservice.NewOpenSearchKeywordRetriever(openSearch)
+		keywordSourceName = "postgres-keyword+opensearch-fallback"
 	}
 	retriever := ragservice.NewHybridRetriever(
-		keywordSource,
 		ragservice.NewPostgresKeywordRetriever(searchRepo),
+		keywordFallback,
 		ragservice.NewPostgresVectorRetriever(embeddingRepo, embeddingModel),
 		provider,
 		ragservice.NewDatabaseVisibilityFilter(db),
@@ -320,11 +331,20 @@ func TestAgentAnswerEval(t *testing.T) {
 	}
 	if filtered {
 		meta := AnswerEvalMetadata{
-			RanAt:          time.Now().UTC().Format(time.RFC3339),
-			Provider:       evalCfg.Agent.LLMProvider,
-			ChatModel:      evalCfg.Agent.LLMModel,
-			EmbeddingModel: embeddingModel,
-			Note:           "filtered smoke run; not a summary artifact",
+			RanAt:               time.Now().UTC().Format(time.RFC3339),
+			Provider:            evalCfg.Agent.LLMProvider,
+			ChatModel:           evalCfg.Agent.LLMModel,
+			EmbeddingModel:      embeddingModel,
+			EmbeddingProvider:   evalCfg.Agent.EmbeddingProvider,
+			ChatAPIBase:         evalCfg.Agent.LLMAPIBase,
+			EmbeddingAPIBase:    evalCfg.Agent.EmbeddingAPIBase,
+			EmbeddingDimensions: evalCfg.Agent.EmbeddingDimensions,
+			FeatureFlags: map[string]bool{
+				"hybrid":          evalCfg.Features.RAGHybridEnabled,
+				"query_expansion": evalCfg.Features.RAGQueryExpansionEnabled,
+				"rerank":          evalCfg.Features.RAGRerankEnabled,
+			},
+			Note: "filtered smoke run; not a summary artifact",
 		}
 		report := BuildAnswerEvalReport(meta, results)
 		if err := WriteAnswerEvalReport(reportPath, report); err != nil {
@@ -339,11 +359,20 @@ func TestAgentAnswerEval(t *testing.T) {
 		providerName = "unknown"
 	}
 	meta := AnswerEvalMetadata{
-		RanAt:                 time.Now().UTC().Format(time.RFC3339),
-		GitCommit:             strings.TrimSpace(os.Getenv(answerEvalCommitEnv)),
-		Provider:              providerName,
-		ChatModel:             evalCfg.Agent.LLMModel,
-		EmbeddingModel:        embeddingModel,
+		RanAt:               time.Now().UTC().Format(time.RFC3339),
+		GitCommit:           strings.TrimSpace(os.Getenv(answerEvalCommitEnv)),
+		Provider:            providerName,
+		ChatModel:           evalCfg.Agent.LLMModel,
+		EmbeddingModel:      embeddingModel,
+		EmbeddingProvider:   evalCfg.Agent.EmbeddingProvider,
+		ChatAPIBase:         evalCfg.Agent.LLMAPIBase,
+		EmbeddingAPIBase:    evalCfg.Agent.EmbeddingAPIBase,
+		EmbeddingDimensions: evalCfg.Agent.EmbeddingDimensions,
+		FeatureFlags: map[string]bool{
+			"hybrid":          evalCfg.Features.RAGHybridEnabled,
+			"query_expansion": evalCfg.Features.RAGQueryExpansionEnabled,
+			"rerank":          evalCfg.Features.RAGRerankEnabled,
+		},
 		QueryEmbeddingStandin: false,
 		RetrieverVersion:      "hybrid-rrf-pg-fallback-v1",
 		KeywordSource:         keywordSourceName,
@@ -410,7 +439,22 @@ func applyAnswerLayerJudges(ctx context.Context, t *testing.T, db *gorm.DB, gold
 	t.Helper()
 	switch cl.PrimaryLayer {
 	case LayerNoAnswer:
-		if cl.NoAnswerStrategy == "" || result.Status != AnswerStatusAnswered {
+		if cl.NoAnswerStrategy == "" {
+			return
+		}
+		switch result.Status {
+		case AnswerStatusAnswered:
+			// Judged on the grounded answer as before.
+		case AnswerStatusNoEvidence:
+			// The model answered directly without retrieval: the raw answer
+			// text is kept on the result precisely so this judge can score
+			// refusal behavior. A substantive non-refusal direct answer must
+			// count as a no-answer failure, not silently pass. Skip only when
+			// nothing was produced.
+			if strings.TrimSpace(result.Answer) == "" {
+				return
+			}
+		default:
 			return
 		}
 		rubric, err := ParseAnswerRubric(golden.AnswerRubric)
@@ -429,6 +473,7 @@ func applyAnswerLayerJudges(ctx context.Context, t *testing.T, db *gorm.DB, gold
 			Strategy:        cl.NoAnswerStrategy,
 			Answer:          result.Answer,
 			Citations:       result.Citations,
+			RetrievedIDs:    result.RetrievedIDs,
 			ExpectedIDs:     expectedIDs,
 			AcceptableIDs:   rubric.AcceptableContentIDs,
 			MustNotClaim:    rubric.MustNotClaim,
@@ -443,6 +488,7 @@ func applyAnswerLayerJudges(ctx context.Context, t *testing.T, db *gorm.DB, gold
 		leak := EvaluateVisibilityLeaks(VisibilityLeakInput{
 			ForbiddenIDs: forbidden,
 			ForbiddenDoc: loadAnswerEvalForbiddenDocs(ctx, t, db, forbidden),
+			RetrievedIDs: result.RetrievedIDs,
 			Citations:    result.Citations,
 			Answer:       result.Answer,
 			ToolSteps:    result.ToolSteps,
@@ -519,6 +565,8 @@ func runAnswerEvalCase(ctx context.Context, db *gorm.DB, chunkRepo *repository.R
 				result.DirectAnswers = directAnswers
 				result.Status = AnswerStatusNoEvidence
 				result.AnswerKind = attemptResult.AnswerKind
+				result.Answer = attemptResult.Answer
+				result.RetrievedIDs = attemptResult.RetrievedIDs
 				result.ToolCalls = attemptResult.ToolCalls
 				result.FirstTokenMs = attemptResult.FirstTokenMs
 				result.TotalMs = attemptResult.TotalMs
@@ -533,6 +581,7 @@ func runAnswerEvalCase(ctx context.Context, db *gorm.DB, chunkRepo *repository.R
 		result.Status = attemptResult.Status
 		result.AnswerKind = attemptResult.AnswerKind
 		result.Answer = attemptResult.Answer
+		result.RetrievedIDs = attemptResult.RetrievedIDs
 		result.ToolCalls = attemptResult.ToolCalls
 		result.ToolSteps = attemptResult.ToolSteps
 		result.Citations = attemptResult.Citations
@@ -563,7 +612,8 @@ func runAnswerEvalAttempt(ctx context.Context, db *gorm.DB, chunkRepo *repositor
 	measured := &firstTokenMeasuringProvider{LLMProvider: provider}
 	agentSvc := service.NewAgentService(measured, repository.NewEmbeddingRepository(db), repository.NewContentRepository(db), nil, db, cfg)
 	agentSvc.SetSearchRepository(searchRepo)
-	agentSvc.SetContentRetriever(&answerEvalRAGAdapter{retriever: retriever})
+	ragAdapter := &answerEvalRAGAdapter{retriever: retriever}
+	agentSvc.SetContentRetriever(ragAdapter)
 
 	collector := &answerEvalStreamCollector{}
 	startedAt := time.Now()
@@ -581,6 +631,7 @@ func runAnswerEvalAttempt(ctx context.Context, db *gorm.DB, chunkRepo *repositor
 		}
 		return attempt, true
 	}
+	attempt.RetrievedIDs = ragAdapter.retrievedIDs
 	attempt.AnswerKind = string(collector.kind)
 	attempt.ToolCalls = collector.toolCalls
 	attempt.ToolSteps = collector.toolSteps
@@ -609,8 +660,11 @@ func runAnswerEvalAttempt(ctx context.Context, db *gorm.DB, chunkRepo *repositor
 		return attempt, true
 	}
 	if len(collector.citations) == 0 {
-		// The model answered without retrieval. The service contract discards
-		// the answer for no-evidence turns, so there is nothing to score.
+		// The service contract discards no-evidence answers for the client,
+		// but the model still produced text. Keep it on the attempt so the
+		// no-answer layer can judge refusal behavior on direct answers
+		// instead of silently skipping them.
+		attempt.Answer = strings.TrimSpace(collector.answer)
 		attempt.Status = AnswerStatusNoEvidence
 		return attempt, false
 	}
