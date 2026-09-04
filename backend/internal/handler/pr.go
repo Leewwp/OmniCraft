@@ -16,7 +16,15 @@ import (
 )
 
 type PRHandler struct {
-	prSvc *service.PRService
+	prSvc    *service.PRService
+	notifSvc *service.NotificationService
+}
+
+// SetNotificationService wires the contributor-facing notification channel
+// (T50: blocking/unblocking a contributor notifies them). nil keeps the
+// local/test path notification-free.
+func (h *PRHandler) SetNotificationService(ns *service.NotificationService) {
+	h.notifSvc = ns
 }
 
 func NewPRHandler(db *gorm.DB) *PRHandler {
@@ -222,6 +230,11 @@ func (h *PRHandler) BlockContributor(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	if h.notifSvc != nil {
+		title := "协作权限变更"
+		body := "作者已限制你对其内容的协作（PR 提交将被拒绝）。如有疑问请联系平台。"
+		h.notifSvc.Notify(userID, "system", "contributor_blocked", title, body, "user", callerID, callerID)
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "contributor blocked"})
 }
 
@@ -235,6 +248,11 @@ func (h *PRHandler) UnblockContributor(c *gin.Context) {
 	if err := h.prSvc.UnblockContributor(callerID, userID); err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
+	}
+	if h.notifSvc != nil {
+		title := "协作权限恢复"
+		body := "作者已恢复你对内容的协作权限。"
+		h.notifSvc.Notify(userID, "system", "contributor_unblocked", title, body, "user", callerID, callerID)
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "contributor unblocked"})
 }
