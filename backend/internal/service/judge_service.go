@@ -211,7 +211,7 @@ func (s *JudgeService) GetJudgeQueue(userID int64, page, pageSize int) ([]model.
 		return []model.JudgeCase{}, 0, nil
 	}
 
-	return s.judgeRepo.ListOpenCases(types, page, pageSize)
+	return s.judgeRepo.ListOpenCases(types, userID, page, pageSize)
 }
 
 func (s *JudgeService) SubmitVote(input SubmitVoteInput, judgeID int64) error {

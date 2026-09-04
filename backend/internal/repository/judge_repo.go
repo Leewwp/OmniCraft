@@ -71,10 +71,13 @@ func (r *JudgeRepository) FindCase(id int64) (*model.JudgeCase, error) {
 	return &c, nil
 }
 
-func (r *JudgeRepository) ListOpenCases(qualifiedTypes []string, page, pageSize int) ([]model.JudgeCase, int64, error) {
+func (r *JudgeRepository) ListOpenCases(qualifiedTypes []string, judgeID int64, page, pageSize int) ([]model.JudgeCase, int64, error) {
 	var cases []model.JudgeCase
 	var total int64
-	q := r.db.Model(&model.JudgeCase{}).Where("status = ? AND target_type IN ?", "open", qualifiedTypes)
+	// T40（FIX-36d）：排除本人已投案件——投票后不再出现在队列。
+	q := r.db.Model(&model.JudgeCase{}).
+		Where("status = ? AND target_type IN ?", "open", qualifiedTypes).
+		Where("NOT EXISTS (SELECT 1 FROM judge_votes v WHERE v.case_id = judge_cases.id AND v.judge_id = ?)", judgeID)
 	q.Count(&total)
 	offset := (page - 1) * pageSize
 	err := q.Order("created_at ASC").Offset(offset).Limit(pageSize).Find(&cases).Error
