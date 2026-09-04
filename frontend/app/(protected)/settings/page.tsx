@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
+import ReputationDetail from "@/components/settings/ReputationDetail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -266,6 +267,9 @@ export default function SettingsPage() {
       {!isVerified && (
         <VerificationReminderCard email={user?.email || ""} />
       )}
+
+      {/* T33（FIX-37）：信誉明细自查（/reputation-logs/me 唯一消费面）。 */}
+      <ReputationDetail />
 
       <div className="space-y-2 rounded-md border border-border bg-card p-4">
         <h3 className="text-sm font-semibold">{t("settings.legalTitle")}</h3>

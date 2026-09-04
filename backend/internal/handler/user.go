@@ -223,6 +223,13 @@ func (h *UserHandler) GetReputation(c *gin.Context) {
 		return
 	}
 
+	// T33（FIX-37）：处罚日志（ai_violation 等 reason）只对本人与 admin 开放，
+	// 不对他人外泄。
+	if middleware.GetUserID(c) != id && !middleware.IsAdmin(c) {
+		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "reputation logs are only visible to the owner or admins"})
+		return
+	}
+
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	if page < 1 {
