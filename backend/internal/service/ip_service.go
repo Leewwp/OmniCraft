@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"regexp"
 	"strings"
@@ -99,14 +100,9 @@ func normalizeIPTags(tags []string) []string {
 }
 
 func (s *IPService) CreateIP(ctx context.Context, input CreateIPInput, creatorID int64) (*model.IP, error) {
-	slug := generateSlug(input.Name)
-
-	existing, err := s.ipRepo.FindBySlug(slug)
+	slug, err := s.uniqueSlug(generateSlug(input.Name), creatorID)
 	if err != nil {
 		return nil, err
-	}
-	if existing != nil {
-		slug = fmt.Sprintf("%s-%d", slug, creatorID)
 	}
 
 	ip := &model.IP{
@@ -358,6 +354,34 @@ var _ = json.Marshal
 var nonAlphanumeric = regexp.MustCompile(`[^a-z0-9-]`)
 var multiDash = regexp.MustCompile(`-+`)
 
+// uniqueSlug resolves a free slug: the bare slug first, then creator-suffixed
+// variants with an ordinal tail. The single-shot fallback that preceded it
+// never re-checked the suffixed candidate, so a second same-length CJK name
+// from the same creator hit the unique index and surfaced as a 500 (#320).
+func (s *IPService) uniqueSlug(base string, creatorID int64) (string, error) {
+	existing, err := s.ipRepo.FindBySlug(base)
+	if err != nil {
+		return "", err
+	}
+	if existing == nil {
+		return base, nil
+	}
+	for i := 0; i < 8; i++ {
+		candidate := fmt.Sprintf("%s-%d", base, creatorID)
+		if i > 0 {
+			candidate = fmt.Sprintf("%s-%d-%d", base, creatorID, i+1)
+		}
+		existing, err := s.ipRepo.FindBySlug(candidate)
+		if err != nil {
+			return "", err
+		}
+		if existing == nil {
+			return candidate, nil
+		}
+	}
+	return "", ErrIPSlugTaken
+}
+
 func generateSlug(name string) string {
 	lower := strings.Map(func(r rune) rune {
 		if unicode.IsSpace(r) {
@@ -371,7 +395,12 @@ func generateSlug(name string) string {
 	slug = strings.Trim(slug, "-")
 
 	if slug == "" {
-		slug = fmt.Sprintf("ip-%d", len(name))
+		// Pure non-Latin names (e.g. Chinese) sanitize to empty; a length-based
+		// fallback collapsed every same-byte-length name onto one slug (#320).
+		// A deterministic FNV-1a hash of the name keeps distinct names apart.
+		h := fnv.New32a()
+		_, _ = h.Write([]byte(name))
+		slug = fmt.Sprintf("ip-%d", h.Sum32())
 	}
 	if len(slug) > 200 {
 		slug = slug[:200]

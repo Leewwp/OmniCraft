@@ -1,3 +1,18 @@
+## [2026-09-04] - Task #320: CreateIP slug 冲突 500 修复（道 A 产品 bug 批第 3 票）
+
+### What was done:
+- 根因：`generateSlug` 对纯非拉丁名（中文清洗后为空）回退 `ip-<字节数>`——同字节长度不同名坍缩同一 slug；`CreateIP` 冲突兜底只试一次 `slug-creatorID` 且不复查唯一性，同 creator 第二个同字数名撞唯一索引 → 500。
+- 修复：① 空清洗名改用名称 FNV-1a 哈希确定性后缀（不同名不同 slug）；② 新增 `uniqueSlug` 可用性循环（bare → `-creatorID` → `-creatorID-2..8`，耗尽返回既有死错误 `ErrIPSlugTaken`）；③ handler 映射 `ErrIPSlugTaken` → 409 `IP_SLUG_TAKEN`（原任何错都 500）。
+
+### Testing:
+- TDD 先红后绿 3 例：同字节长度中文名 slug 必不同 / 同 creator 连建 3 个同字数名全成功且 slug 唯一 / 同名建满 9 个变体后第 10 次返回 ErrIPSlugTaken。
+- `go build/vet/test ./...` 32 包全绿。
+- 隔离栈 API 实测：同 creator 建海贼王/火影忍/死神录 → 3×201，slug ip-356578111 / ip-603941166 / ip-1438614038 各异（修复前第三个撞 ip-9-2 → 500）。
+
+### Notes:
+- worktree OmniCraft-wt-la，分支 lanea/320-ip-slug（基线 6501a36）。
+- 存量已注入 DB 的 ip-9 式 slug 不受影响（仅新生成路径变化）；注入侧轮转 creator 的绕过手法自本票起不再需要。
+
 ## [2026-09-04] - Task #318: CreateContent 丢失 is_public=false 修复（道 A 产品 bug 批第 2 票）
 
 ### What was done:
