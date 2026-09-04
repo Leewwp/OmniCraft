@@ -44,7 +44,11 @@ type SubmitReviewInput struct {
 	ContentType string
 	Title       string
 	Description string
-	AuthorID    int64
+	// Tags joins the text scan channel (T15/F-101): they are public free
+	// text and must not skip review just because they live outside the
+	// description body.
+	Tags     []string
+	AuthorID int64
 	// CoverImageURL is the cover image of the reviewed target (content
 	// CoverImageURL / IP CoverURL). Only platform-verified OSS object URLs are
 	// scanned; anything else fails the submission with
@@ -184,7 +188,13 @@ func (s *ReviewService) SubmitForAIReview(ctx context.Context, in SubmitReviewIn
 	result := "pass"
 	raw := map[string]interface{}{"source": "green"}
 
-	textResult, err := s.green.TextModeration(ctx, strings.TrimSpace(in.Title+"\n"+in.Description))
+	// T15 (F-101): tags are part of the scanned text — same channel and same
+	// merge semantics as title/description.
+	scannedText := in.Title + "\n" + in.Description
+	if len(in.Tags) > 0 {
+		scannedText += "\n" + strings.Join(in.Tags, "\n")
+	}
+	textResult, err := s.green.TextModeration(ctx, strings.TrimSpace(scannedText))
 	if err != nil {
 		return err
 	}
