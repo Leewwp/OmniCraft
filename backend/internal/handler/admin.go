@@ -817,17 +817,31 @@ func (h *AdminHandler) ResolveReport(c *gin.Context) {
 		return
 	}
 	entry := h.auditEntry(c, "report_resolve", "report", strconv.FormatInt(id, 10), map[string]any{"report_id": id, "decision": body.Status, "reason": body.ActionTaken})
+	var rowsAffected int64
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
-		return tx.Model(&model.Report{}).Where("id = ?", id).Updates(map[string]interface{}{
+		res := tx.Model(&model.Report{}).Where("id = ?", id).Updates(map[string]interface{}{
 			"status":       body.Status,
 			"action_taken": body.ActionTaken,
-		}).Error
+		})
+		rowsAffected = res.RowsAffected
+		return res.Error
 	}); err != nil {
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to update report") {
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
+	}
+	// Reporter feedback loop (FIX-28a): notify the reporter once the row was
+	// actually updated. Zero rows means the report id does not exist; the
+	// existence guard itself is SP-09/FIX-34 scope.
+	if rowsAffected > 0 && h.notifSvc != nil {
+		var report model.Report
+		if err := h.contentRepo.DB().Select("id", "reporter_id").Where("id = ?", id).First(&report).Error; err != nil {
+			slog.Warn("failed to load report for reporter notification", "report_id", id, "error", err)
+		} else if report.ReporterID > 0 {
+			h.notifSvc.NotifyReportResolution(report.ReporterID, report.ID, body.Status, body.ActionTaken, middleware.GetUserID(c))
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "report updated"})
 }

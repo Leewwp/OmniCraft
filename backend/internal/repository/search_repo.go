@@ -571,6 +571,36 @@ func (r *SearchRepository) ListReports(status, targetType string, page, pageSize
 	return reports, total, nil
 }
 
+// ListReportsByReporter returns a reporter's own reports (FIX-28a): the
+// reporter_id filter is mandatory, so the me-endpoint cannot leak other
+// users' reports.
+func (r *SearchRepository) ListReportsByReporter(reporterID int64, page, pageSize int) ([]model.Report, int64, error) {
+	if pageSize <= 0 || pageSize > 50 {
+		pageSize = 20
+	}
+	if page < 1 {
+		page = 1
+	}
+	offset := (page - 1) * pageSize
+
+	baseQuery := r.db.Model(&model.Report{}).Where("reporter_id = ?", reporterID)
+
+	var total int64
+	if err := baseQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var reports []model.Report
+	if err := baseQuery.
+		Order("created_at DESC").
+		Offset(offset).Limit(pageSize).
+		Find(&reports).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return reports, total, nil
+}
+
 func (r *SearchRepository) UpdateReportStatus(id int64, status, actionTaken string) error {
 	return r.db.Model(&model.Report{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"status":       status,

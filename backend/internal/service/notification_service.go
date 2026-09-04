@@ -319,6 +319,39 @@ func (s *NotificationService) NotifyContentStatus(authorID, contentID int64, con
 	s.Notify(authorID, "system", "content_status", title, body, "content", contentID, senderID)
 }
 
+// NotifyReportResolution closes the reporter feedback loop (FIX-28a): when an
+// admin resolves or dismisses a report, the reporter gets a system
+// notification whose body carries the action-taken note. Unknown statuses are
+// dropped. Copy stays in backend Chinese templates on purpose; locale
+// templating is a registered non-goal for this phase.
+func (s *NotificationService) NotifyReportResolution(reporterID, reportID int64, status, actionTaken string, senderID int64) {
+	title, body, ok := reportResolutionNotificationCopy(status, actionTaken)
+	if !ok {
+		return
+	}
+	s.Notify(reporterID, "system", "report_result", title, body, "report", reportID, senderID)
+}
+
+// reportResolutionNotificationCopy renders the reporter-facing copy for a
+// report resolution. ok=false means the status has no reporter notification.
+func reportResolutionNotificationCopy(status, actionTaken string) (title, body string, ok bool) {
+	switch status {
+	case "resolved":
+		title = "举报已处理"
+		if actionTaken == "" {
+			actionTaken = "经核实举报成立"
+		}
+	case "dismissed":
+		title = "举报已处理"
+		if actionTaken == "" {
+			actionTaken = "经核实举报不成立"
+		}
+	default:
+		return "", "", false
+	}
+	return title, actionTaken, true
+}
+
 // contentStatusNotificationCopy renders the author-facing copy for a content
 // status transition. ok=false means the status has no author notification.
 func contentStatusNotificationCopy(contentTitle, status, reason string) (title, body string, ok bool) {
