@@ -707,7 +707,13 @@
       "reject": "Violation",
       "confirmVote": "Confirm vote: \"{vote}\"",
       "reasonPlaceholder": "Optional: provide your reasoning",
-      "confirm": "Confirm"
+      "confirm": "Confirm",
+      "previewWarning": "This content entered crowd review after a report and may be controversial. View with care.",
+      "previewLoadButton": "View content",
+      "previewLoadFailed": "Failed to load content preview",
+      "mediaLoadButton": "Load media",
+      "skipCase": "Skip this case",
+      "reportThisContent": "Report this content"
     },
     "verdict": {
       "title": "Verdict Details",
