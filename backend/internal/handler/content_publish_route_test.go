@@ -576,3 +576,92 @@ func createPublishContent(t *testing.T, db *gorm.DB, title, zone, status string)
 	}
 	return item
 }
+
+type recordingQueueProducer struct {
+	topics chan string
+}
+
+func (p *recordingQueueProducer) Publish(ctx context.Context, topic string, payload []byte) error {
+	select {
+	case p.topics <- topic:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return nil
+}
+
+// #321: ContentHandler.SetQueueProducer 必须透传 contentSvc——否则服务层恒见
+// NoopProducer，发布永远走同步审核兜底，submit_ai_review 消息从不入流。
+func TestCreateContentRoutePublishesAIReviewToQueueProducer(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.User{}, &model.ContentItem{}, &model.ContentAttachment{}, &model.ContentTag{}, &model.IP{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	cfg := &config.Config{}
+	cfg.JWT.Secret = "publish-route-secret"
+	cfg.Reputation.MinScoreForInteraction = 3
+	cfg.Cache.PublishFreezeTTL = 604800
+
+	handler := NewContentHandler(db, cfg, nil)
+	producer := &recordingQueueProducer{topics: make(chan string, 4)}
+	handler.SetQueueProducer(producer)
+
+	authReq := middleware.AuthRequired(cfg, nil, db)
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("miniredis: %v", err)
+	}
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { rdb.Close(); mr.Close() })
+	publishGuard := middleware.InteractionRequired(cfg, db, rdb, middleware.InteractionPolicy{
+		RequireVerifiedEmail:   true,
+		RequireReputation:      true,
+		RequireNoPublishFreeze: true,
+	})
+
+	router := gin.New()
+	router.POST("/api/v1/contents", authReq, publishGuard, handler.CreateContent)
+
+	now := time.Now()
+	viewer := model.User{
+		Email: "queue-producer-viewer@example.com", Username: "queue-producer-viewer",
+		PasswordHash: "hash", Reputation: 10, Role: "user", EmailVerifiedAt: &now,
+	}
+	if err := db.Create(&viewer).Error; err != nil {
+		t.Fatalf("create viewer: %v", err)
+	}
+	pair, err := jwtutil.GenerateTokenPair(viewer.ID, viewer.Role, cfg.JWT.Secret, 120, 7)
+	if err != nil {
+		t.Fatalf("generate token: %v", err)
+	}
+
+	body := `{"title":"Queue routed review","zone":"original","content_type":"article","is_public":true,"allow_copy":true}`
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/contents", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+pair.AccessToken)
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, want 201; body = %s", rec.Code, rec.Body.String())
+	}
+
+	// The publish is fire-and-forget (recovery.GoSafe): poll for the topic.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		select {
+		case topic := <-producer.topics:
+			if topic == "content.review" {
+				return // submit_ai_review reached the queue
+			}
+		case <-time.After(50 * time.Millisecond):
+			if time.Now().After(deadline) {
+				t.Fatal("content.review was never published: SetQueueProducer did not propagate to the content service (#321)")
+			}
+		}
+	}
+}

@@ -84,6 +84,10 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 
 func (h *ContentHandler) SetQueueProducer(p queue.Producer) {
 	h.queueProducer = p
+	// #321: the producer must reach the content service too — without the
+	// propagation every publish took the synchronous review fallback and
+	// submit_ai_review messages never reached the worker queue.
+	h.contentSvc.SetQueueProducer(p)
 }
 
 // SetOutboxRepository wires the transactional outbox into the content

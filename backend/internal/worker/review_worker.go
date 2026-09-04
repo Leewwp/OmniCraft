@@ -3,11 +3,13 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 
 	"gorm.io/gorm"
 
+	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/queue"
 	"omnicraft/backend/internal/service"
 )
@@ -71,6 +73,13 @@ func (w *ReviewWorker) Handle(ctx context.Context, msg queue.Message) error {
 			SyncKey: "sync:" + msg.ID,
 		}
 		if err := w.reviewSvc.SubmitForAIReview(ctx, input); err != nil {
+			// #321: Green 未配置是永久配置态而非瞬时故障——与同步路径的
+			// A4 本地 fail-open 对齐：警告并 ACK，不做无意义的重试/DLQ。
+			if errors.Is(err, aliyun.ErrGreenNotConfigured) {
+				slog.Warn("review_worker: green not configured, acknowledging submit (A4 local fail-open)",
+					"msg_id", msg.ID, "target_type", payload.TargetType, "target_id", payload.TargetID)
+				return nil
+			}
 			slog.Error("review_worker: SubmitForAIReview failed",
 				"target_type", payload.TargetType, "target_id", payload.TargetID, "error", err)
 			return err
