@@ -157,8 +157,8 @@ func seedCitationContractDB(t *testing.T) *gorm.DB {
 	require.NoError(t, db.Create(&model.User{ID: 1, Username: "author", Email: "author@example.com"}).Error)
 	now := time.Now()
 	require.NoError(t, db.Exec(
-		"INSERT INTO content_items (id, title, author_id, zone, content_type, status, is_public, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		100, "Published Public", 1, "original", "mod", "published", true, now, now,
+		"INSERT INTO content_items (id, title, author_id, zone, content_type, status, is_public, allow_copy, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		100, "Published Public", 1, "original", "mod", "published", true, true, now, now,
 	).Error)
 	require.NoError(t, db.Create(&model.ContentVersion{
 		ID: 70, ContentItemID: 100, AuthorID: 1, VersionNumber: 7,
