@@ -212,6 +212,8 @@ func (h *AdminHandler) ApproveIP(c *gin.Context) {
 		return
 	}
 	entry := h.auditEntry(c, "ip_approve", "ip", strconv.FormatInt(id, 10), map[string]any{"ip_id": id, "decision": "approved"})
+	var creatorID int64
+	var ipName string
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
 		var ip model.IP
 		if err := tx.First(&ip, id).Error; err != nil {
@@ -220,6 +222,10 @@ func (h *AdminHandler) ApproveIP(c *gin.Context) {
 			}
 			return err
 		}
+		if ip.CreatorID != nil {
+			creatorID = *ip.CreatorID
+		}
+		ipName = ip.Name
 		return tx.Model(&model.IP{}).Where("id = ?", id).Update("status", "approved").Error
 	}); err != nil {
 		if h.respondAuditTxError(c, err, http.StatusBadRequest, "ERROR", "failed to approve ip") {
@@ -227,6 +233,11 @@ func (h *AdminHandler) ApproveIP(c *gin.Context) {
 		}
 		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		return
+	}
+	// T16: approve/reject both notify the creator (T52 consumes this to make
+	// IP status knowable without polling).
+	if h.notifSvc != nil && creatorID != 0 {
+		h.notifSvc.NotifyIPDecision(creatorID, id, ipName, "approved", "", middleware.GetUserID(c))
 	}
 	h.ipSvc.InvalidateIPCacheForAdmin(id)
 	c.JSON(http.StatusOK, gin.H{"message": "ip approved"})
@@ -238,7 +249,24 @@ func (h *AdminHandler) RejectIP(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid ip id"})
 		return
 	}
+	// T16 (FIX-24): the rejection reason is mandatory and lands in
+	// ip_review_logs so the creator can see why the IP was rejected.
+	var body struct {
+		Reason string `json:"reason" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "REASON_REQUIRED", "message": "a rejection reason is required"})
+		return
+	}
+	reason := strings.TrimSpace(body.Reason)
+	if reason == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "REASON_REQUIRED", "message": "a rejection reason is required"})
+		return
+	}
+	adminID := middleware.GetUserID(c)
 	entry := h.auditEntry(c, "ip_reject", "ip", strconv.FormatInt(id, 10), map[string]any{"ip_id": id, "decision": "rejected"})
+	var creatorID int64
+	var ipName string
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
 		var ip model.IP
 		if err := tx.First(&ip, id).Error; err != nil {
@@ -247,13 +275,28 @@ func (h *AdminHandler) RejectIP(c *gin.Context) {
 			}
 			return err
 		}
-		return tx.Model(&model.IP{}).Where("id = ?", id).Update("status", "rejected").Error
+		if ip.CreatorID != nil {
+			creatorID = *ip.CreatorID
+		}
+		ipName = ip.Name
+		if err := tx.Model(&model.IP{}).Where("id = ?", id).Update("status", "rejected").Error; err != nil {
+			return err
+		}
+		return tx.Create(&model.IPReviewLog{
+			IPID:       id,
+			ReviewerID: &adminID,
+			Action:     "reject",
+			Reason:     reason,
+		}).Error
 	}); err != nil {
 		if h.respondAuditTxError(c, err, http.StatusBadRequest, "ERROR", "failed to reject ip") {
 			return
 		}
 		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		return
+	}
+	if h.notifSvc != nil && creatorID != 0 {
+		h.notifSvc.NotifyIPDecision(creatorID, id, ipName, "rejected", reason, adminID)
 	}
 	h.ipSvc.InvalidateIPCacheForAdmin(id)
 	c.JSON(http.StatusOK, gin.H{"message": "ip rejected"})
