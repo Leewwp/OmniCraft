@@ -684,6 +684,12 @@ func (h *AdminHandler) PatchConfig(c *gin.Context) {
 		}
 	}
 	if reputation, ok := patches["reputation"].(map[string]interface{}); ok {
+		if v, ok := reputation["quality_content_threshold"].(float64); ok {
+			h.cfg.Reputation.QualityContentThreshold = int(v)
+		}
+		if v, ok := reputation["quality_comment_threshold"].(float64); ok {
+			h.cfg.Reputation.QualityCommentThreshold = int(v)
+		}
 		if v, ok := reputation["repeat_violation_threshold"].(float64); ok {
 			h.cfg.Reputation.RepeatViolationThreshold = int(v)
 		}
@@ -692,6 +698,23 @@ func (h *AdminHandler) PatchConfig(c *gin.Context) {
 		}
 		if v, ok := reputation["repeat_violation_extra_penalty"].(float64); ok {
 			h.cfg.Reputation.RepeatViolationExtraPenalty = int(v)
+		}
+	}
+	if judge, ok := patches["judge"].(map[string]interface{}); ok {
+		if v, ok := judge["min_votes_required"].(float64); ok {
+			h.cfg.Judge.MinVotesRequired = int(v)
+		}
+		if v, ok := judge["pass_threshold"].(float64); ok {
+			h.cfg.Judge.PassThreshold = v
+		}
+		if v, ok := judge["exam_pass_rate"].(float64); ok {
+			h.cfg.Judge.ExamPassRate = v
+		}
+		if v, ok := judge["error_rate_revoke"].(float64); ok {
+			h.cfg.Judge.ErrorRateRevoke = v
+		}
+		if v, ok := judge["error_rate_window"].(float64); ok {
+			h.cfg.Judge.ErrorRateWindow = int(v)
 		}
 	}
 	if agent, ok := patches["agent"].(map[string]interface{}); ok {
