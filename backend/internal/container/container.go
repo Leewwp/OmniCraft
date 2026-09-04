@@ -187,6 +187,8 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.StatsService = service.NewStatsService(db, rdb)
 	c.IPStatsService = service.NewIPStatsService(db, rdb)
 	c.NotificationService = service.NewNotificationService(c.NotificationRepo)
+	// AI 审核结果与 IP 级联下架通知作者（FIX-17a）。
+	c.ReviewService.SetNotificationService(c.NotificationService)
 	c.PRService = service.NewPRService(c.PRRepo, c.VersionRepo, c.ContentRepo)
 	c.VersionService = service.NewVersionService(c.VersionRepo, c.ContentRepo)
 	c.SearchService = service.NewSearchService(c.SearchRepo, rdb)
