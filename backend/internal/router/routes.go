@@ -291,7 +291,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	me.PUT("/ip-visits/:ipId", ipVisitHistoryHandler.RecordVisit)
 	me.POST("/ip-visits/merge", ipVisitHistoryHandler.MergeVisits)
 
-	discHandler := handler.NewDiscussionHandler(db)
+	// T12（FIX-18）：注入共享 SocialService——讨论发帖/回复统一走信誉门 +
+	// Green 审核 + 楼主通知，与 /social 路由同一套治理。
+	discHandler := handler.NewDiscussionHandler(db, socialSvc)
 	discHandler.SetDisplayURLSigner(displaySigner)
 	discHandler.SetConfig(cfg)
 	ips.GET("/:id/discussions", optAuth, discHandler.ListDiscussions)
