@@ -280,6 +280,64 @@ func (h *UserHandler) GetUserContents(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"contents": items, "total": total})
 }
 
+// GetMyContributors serves GET /users/me/contributors (T50/FIX-22d): the
+// server-side contributor aggregation for the studio page. Per user: merged
+// PR count across the caller's contents, source (merged|invite) and the real
+// author-blocklist state. Replaces the page's per-content PR fan-out with a
+// single request.
+func (h *UserHandler) GetMyContributors(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+	db := h.contentRepo.DB()
+
+	type contributorRow struct {
+		UserID   int64
+		Username string
+		PRCount  int
+		Blocked  int
+	}
+	var rows []contributorRow
+	if err := db.Raw(
+		`SELECT cc.user_id,
+		        u.username,
+		        COALESCE(SUM(cc.pr_count), 0) AS pr_count,
+		        MAX(CASE WHEN ab.blocked_id IS NOT NULL THEN 1 ELSE 0 END) AS blocked
+		 FROM content_contributors cc
+		 JOIN content_items c ON c.id = cc.content_item_id AND c.deleted_at IS NULL
+		 JOIN users u ON u.id = cc.user_id
+		 LEFT JOIN author_blocklist ab ON ab.author_id = ? AND ab.blocked_id = cc.user_id
+		 WHERE c.author_id = ?
+		 GROUP BY cc.user_id, u.username
+		 ORDER BY pr_count DESC, cc.user_id ASC`, callerID, callerID).Scan(&rows).Error; err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+
+	type contributor struct {
+		UserID   int64  `json:"user_id"`
+		Username string `json:"username"`
+		PRCount  int    `json:"pr_count"`
+		Source   string `json:"source"`
+		Blocked  bool   `json:"blocked"`
+	}
+	contributors := make([]contributor, 0, len(rows))
+	for _, row := range rows {
+		// pr_count=0 rows only come from accepted collaboration invites
+		// (InsertContributorIfAbsent); merged PRs always bump the count.
+		source := "invite"
+		if row.PRCount > 0 {
+			source = "merged"
+		}
+		contributors = append(contributors, contributor{
+			UserID:   row.UserID,
+			Username: row.Username,
+			PRCount:  row.PRCount,
+			Source:   source,
+			Blocked:  row.Blocked == 1,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"contributors": contributors, "total": len(contributors)})
+}
+
 // GetMyPendingTasks serves GET /users/me/pending-tasks (T49/FIX-22c): the
 // caller's to-dos in one request — open PRs and pending tag suggestions on
 // their own contents. Items on other users' contents never appear.
