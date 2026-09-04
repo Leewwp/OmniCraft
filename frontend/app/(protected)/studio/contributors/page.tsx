@@ -13,6 +13,7 @@ interface Contributor {
   user_id: number;
   username: string;
   contribution_count: number;
+  source: "merged" | "invite" | string;
   blocked: boolean;
 }
 
@@ -33,27 +34,20 @@ export default function ContributorsPage() {
     setError("");
     setLoading(true);
     try {
-      const data = await api.get<{ contents?: { id: number }[] }>(
-        `/api/v1/contents?author_id=${user!.id}&page=1&page_size=50&sort=newest&time_range=all`
+      // T50 (FIX-22d): 服务端聚合（PR 计数/来源/真实屏蔽状态），替换前端
+      // 逐内容 N+1 拼装与恒为 false 的 blocked。
+      const data = await api.get<{ contributors?: Array<Omit<Contributor, "contribution_count"> & { pr_count: number }> }>(
+        "/api/v1/users/me/contributors"
       );
-      const contents = data.contents || [];
-      const allContributors: Contributor[] = [];
-      for (const c of contents) {
-        try {
-          const prData = await api.get<{ prs?: { submitter_id: number; status: string }[] }>(`/api/v1/contents/${c.id}/prs`);
-          for (const pr of prData.prs || []) {
-            if (pr.status === "accepted") {
-              const existing = allContributors.find((co) => co.user_id === pr.submitter_id);
-              if (existing) {
-                existing.contribution_count += 1;
-              } else {
-                allContributors.push({ user_id: pr.submitter_id, username: t('common.userLabel', { id: pr.submitter_id }), contribution_count: 1, blocked: false });
-              }
-            }
-          }
-        } catch (e) { silentError(e, { component: 'ContributorsPage', action: 'loadPRsForContent' }); }
-      }
-      setContributors(allContributors);
+      setContributors(
+        (data.contributors || []).map((c) => ({
+          user_id: c.user_id,
+          username: c.username || t('common.userLabel', { id: c.user_id }),
+          contribution_count: c.pr_count,
+          source: c.source,
+          blocked: c.blocked,
+        }))
+      );
     } catch (e) {
       silentError(e, { component: 'ContributorsPage', action: 'loadContributors' });
       setError(t('dashboard.contributors.loadFailed'));
