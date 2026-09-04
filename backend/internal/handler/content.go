@@ -41,6 +41,7 @@ type ContentHandler struct {
 	queueProducer     queue.Producer
 	archiveGate       *service.ArchiveScanGate
 	displaySigner     *service.DisplayURLSigner
+	judgeRepo         *repository.JudgeRepository
 }
 
 func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *ContentHandler {
@@ -65,9 +66,15 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 	recSvc := service.NewRecommendationService(db, embeddingRepo, repo, contentSvc, rdb, &cfg.Recommendation)
 	contentSvc.SetRecommendationService(recSvc)
 
+	// FIX-42: this handler-local service instance is the one wired to
+	// POST /contents (routes.go builds its own handlers), so publish-time
+	// initial version creation must bind here too, not only on the container.
+	contentSvc.SetVersionService(service.NewVersionService(repository.NewVersionRepository(db), repo))
+
 	return &ContentHandler{
 		contentSvc:        contentSvc,
 		contentRepo:       repo,
+		judgeRepo:         repository.NewJudgeRepository(db),
 		seriesSvc:         service.NewSeriesService(repository.NewSeriesRepository(db)),
 		browseHistoryRepo: repository.NewBrowseHistoryRepository(db),
 		collectionRepo:    repository.NewCollectionRepository(db),
@@ -333,7 +340,7 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 
 	// 内容可见性统一口径（FIX-12+43）：非 published / 私密 / 封禁作者的内容
 	// 仅作者与 admin 可读；判官读豁免钩子留待 T40（FIX-36d）。
-	if !contentVisibleToViewer(content, c) {
+	if !h.contentVisibleToViewer(content, c) {
 		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
 		return
 	}
@@ -819,13 +826,20 @@ func contentWithBanReason(content *model.ContentItem) (map[string]any, error) {
 // contentVisibleToViewer enforces the unified content visibility rule at the
 // detail boundary: author and admin see everything; everyone else only
 // published, public content from a non-banned, non-deleted author.
-func contentVisibleToViewer(content *model.ContentItem, c *gin.Context) bool {
+func (h *ContentHandler) contentVisibleToViewer(content *model.ContentItem, c *gin.Context) bool {
 	viewer := middleware.GetUserID(c)
 	if viewer != 0 && viewer == content.AuthorID {
 		return true
 	}
 	if role, exists := c.Get(middleware.UserRoleKey); exists && role == "admin" {
 		return true
+	}
+	// T40（FIX-36d）：持对应类型有效资格的判官可读 under_review 内容（审案
+	// 预览）。banned/私密不在此豁免范围内，照旧 404。
+	if viewer != 0 && content.Status == "under_review" {
+		if qualified, err := h.judgeRepo.CheckQualification(viewer, content.ContentType); err == nil && qualified {
+			return true
+		}
 	}
 	return content.Status == "published" &&
 		content.IsPublic &&
