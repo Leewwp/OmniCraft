@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
@@ -15,13 +15,18 @@ export default function ProtectedLayout({
   const t = useTranslations("auth");
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     if (!isLoading && !user) {
-      const redirect = encodeURIComponent(pathname);
+      // T32（FIX-32）：回跳保参——受保护页常带筛选/预填 query（如
+      // /appeals?target_type=account），登录后原样恢复。
+      const qs = searchParams.toString();
+      const target = qs ? `${pathname}?${qs}` : pathname;
+      const redirect = encodeURIComponent(target);
       router.replace(`/login?redirect=${redirect}`);
     }
-  }, [user, isLoading, router, pathname]);
+  }, [user, isLoading, router, pathname, searchParams]);
 
   if (isLoading) {
     return (
