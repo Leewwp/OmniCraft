@@ -719,7 +719,9 @@
       "result": "Verdict: {result}",
       "judgeReasons": "Judge Reasoning (sorted by upvotes)",
       "noReasons": "No judge reasoning submitted",
-      "loadFailed": "Failed to load verdict details"
+      "loadFailed": "Failed to load verdict details",
+      "selfVoteForbidden": "You cannot vote on your own reason",
+      "qualificationRequired": "Judge qualification required to vote on reasons"
     },
     "insufficientQuestions": "Not enough questions are available for this category. Please try again later",
     "readingTimeTooShort": "Reading time was too short. Please read the instructions fully first",
