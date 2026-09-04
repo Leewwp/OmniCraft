@@ -263,7 +263,10 @@ func TestLoginAndMeReturnConsistentInteractionCapabilities(t *testing.T) {
 	}
 }
 
-func TestMeKeepsBannedAuthenticationSemantics(t *testing.T) {
+// T29（FIX-15）：封禁用户持有效 token 访问 /auth/me 返回 200 + capabilities
+// （can_interact=false + USER_BANNED），使前端封禁屏可达；其余 authReq 路由
+// 仍由中间件 401（见 middleware 白名单矩阵测试）。
+func TestMeBannedReturns200WithCapabilities(t *testing.T) {
 	r, _, db, rdb, mr := setupAuthCookieTestRouter(t)
 	defer mr.Close()
 	user := insertCookieTestUser(t, db, "me-banned@test.com", "me-banned", "password123")
@@ -288,11 +291,27 @@ func TestMeKeepsBannedAuthenticationSemantics(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), "USER_BANNED") {
-		t.Fatalf("banned me: expected 401 USER_BANNED, got %d body=%s", w.Code, w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("banned me: expected 200, got %d body=%s", w.Code, w.Body.String())
 	}
-	if strings.Contains(w.Body.String(), "capabilities") {
-		t.Fatalf("banned me must not bypass auth semantics: %s", w.Body.String())
+	var body struct {
+		User         map[string]any `json:"user"`
+		Capabilities struct {
+			CanInteract             bool   `json:"can_interact"`
+			InteractionDenialReason string `json:"interaction_denial_reason"`
+		} `json:"capabilities"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal me body: %v", err)
+	}
+	if body.User["id"] == nil {
+		t.Fatalf("banned me must still return user payload: %s", w.Body.String())
+	}
+	if body.Capabilities.CanInteract {
+		t.Fatalf("banned me must deny interaction: %s", w.Body.String())
+	}
+	if body.Capabilities.InteractionDenialReason != "USER_BANNED" {
+		t.Fatalf("expected USER_BANNED denial reason, got %q body=%s", body.Capabilities.InteractionDenialReason, w.Body.String())
 	}
 }
 
