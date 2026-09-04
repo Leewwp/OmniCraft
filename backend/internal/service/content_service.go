@@ -924,8 +924,9 @@ func (s *ContentService) UpdateContentWithContext(ctx context.Context, id int64,
 	}
 	// 已发布内容的 title/cover 变更走增量复审：审核体系不被编辑绕过
 	// （FIX-13）。block → banned + 扣分链路（与 AI 通道一致）；pass → 保持
-	// published 但落 ai_review_records 编辑审计。
-	if content.Status == "published" && contentEditTouchesModeratedFields(content, updates) {
+	// published 但落 ai_review_records 编辑审计。reviewSvc 未装配（最小构造
+	// 的测试路径）时无复审能力，退回直更路径。
+	if content.Status == "published" && s.reviewSvc != nil && contentEditTouchesModeratedFields(content, updates) {
 		return s.updatePublishedWithReReview(ctx, content, updates)
 	}
 	// A published edit is a RAG-index refresh event: the content write and the
