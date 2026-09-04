@@ -1,3 +1,19 @@
+## [2026-09-04] - Task #318: CreateContent 丢失 is_public=false 修复（道 A 产品 bug 批第 2 票）
+
+### What was done:
+- 根因：`model.ContentItem` 的 `IsPublic`/`AllowCopy` 带 gorm `default:true` 标签——GORM 在 INSERT 时剔除带 default 标签的零值字段，显式 false 被数据库列默认值 true 静默覆盖（sqlite 探针实证：带 tag 落库 true、去 tag 落库 false；`Select("*")`/显式字段 Select 均无法绕过）。
+- 修复：去掉两字段 gorm default 标签（列默认值仍由 SQL 迁移持有，仅非 ORM 直插场景消费）；handler→service 链路本就正确传值，漂移纯在 ORM 层。`AllowCopy` 同类一并修复（allow_copy=false 同样被覆盖）。
+- 夹具镜像生产：`agent_tools_test.go`/`agent_rag_contract_test.go` 两处裸 SQL 种子补 `allow_copy` 列（原依赖隐式默认）；删除「GORM 会替换零值」的旧注释 workaround。
+
+### Testing:
+- TDD 红绿双向：新增 `TestPublishContentPersistsExplicitRestrictedFlags`（还原 tag → FAIL 复现漂移；去 tag → PASS）；`go build/vet/test ./...` 32 包全绿。
+- 隔离栈 API 实测（backend 8085 干净单进程）：POST /contents is_public=false → DB `is_public=f allow_copy=f`（id=5）；同请求打在修复前进程上落库 t/t（id=4）= bug 活体复现对照。注册走 captcha bypass + DB 补 email_verified_at（本地验证链不本票范围）。
+
+### Notes:
+- worktree OmniCraft-wt-la，分支 lanea/318-is-public-persist（基线 7109b6f）。
+- 坑位：`pkill -f "go run cmd/server/main.go"` 杀不死 go run 的子二进制——重启栈必须按端口 lsof 找 PID 杀，否则旧进程继续服务造成「修复不生效」假象（本票验证时踩中）。
+- 注入侧补偿过的 400 条受限条目不受影响（DB 已纠正）；存量其他环境如有点击 publish 建的受限条目需按需核查，不属本票。
+
 ## [2026-09-04] - Task #319: 搜索 tsquery 冒号解析修复（道 A 产品 bug 批第 1 票）
 
 ### What was done:

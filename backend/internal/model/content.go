@@ -27,8 +27,11 @@ type ContentItem struct {
 	ViewCount     int64      `gorm:"not null;default:0" json:"view_count"`
 	LikeCount     int        `gorm:"not null;default:0" json:"like_count"`
 	DislikeCount  int        `gorm:"not null;default:0" json:"dislike_count"`
-	IsPublic      bool       `gorm:"not null;default:true" json:"is_public"`
-	AllowCopy     bool       `gorm:"not null;default:true" json:"allow_copy"`
+	// IsPublic/AllowCopy 不带 gorm default 标签：带 default:true 时 GORM 会在
+	// INSERT 剔除零值字段，显式 false 被数据库默认 true 悄悄覆盖（#318 受限
+	// 内容可见性漂移）。列默认值由 SQL 迁移持有，仅供非 ORM 直插场景。
+	IsPublic     bool `gorm:"not null" json:"is_public"`
+	AllowCopy    bool `gorm:"not null" json:"allow_copy"`
 	AgentEnabled  bool       `gorm:"not null;default:false" json:"agent_enabled"`
 	IsPaid        bool       `gorm:"not null;default:false" json:"is_paid"`
 	Price         float64    `gorm:"type:numeric(10,2);default:0" json:"price"`
