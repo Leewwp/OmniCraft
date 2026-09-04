@@ -1240,6 +1240,27 @@
       "a11y": {
         "acceptInvites": "接收联合创作邀请"
       }
+    },
+    "reputation": {
+      "title": "信誉明细",
+      "total": "共 {total} 条",
+      "empty": "暂无信誉变动记录",
+      "loadFailed": "信誉明细加载失败",
+      "loadMore": "加载更多",
+      "loading": "加载中...",
+      "reasons": {
+        "ai_violation": "AI 审核违规",
+        "judge_error_rate": "众裁错误率调整",
+        "rehab": "康复课程",
+        "quality_content": "优质内容",
+        "quality_comment": "优质评论",
+        "pr_merged": "PR 已合并",
+        "tag_recognized": "标签建议被认可",
+        "valid_report": "有效举报",
+        "malicious_report": "恶意举报",
+        "malicious_tag_report": "恶意标签举报",
+        "admin_adjust": "管理员调整"
+      }
     }
   },
   "tagGroups": {
