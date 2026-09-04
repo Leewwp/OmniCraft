@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -253,9 +254,18 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 			HealthPollIntervalSec: cfg.RAG.Index.HealthPollIntervalSec,
 		},
 	)
+	// Lexical primary follows rag.hybrid.keyword_source: the pg_jieba
+	// Postgres retriever is the canonical path (viewer-scoped queries); the
+	// OpenSearch retriever serves as the optional fallback. Full-infra stacks
+	// may invert the pair explicitly.
+	var keywordPrimary ragservice.KeywordRetriever = ragservice.NewPostgresKeywordRetriever(c.SearchRepo)
+	var keywordFallback ragservice.KeywordRetriever = ragservice.NewOpenSearchKeywordRetriever(c.OpenSearchRepo)
+	if strings.EqualFold(strings.TrimSpace(cfg.RAG.Hybrid.KeywordSource), "opensearch") {
+		keywordPrimary, keywordFallback = keywordFallback, keywordPrimary
+	}
 	c.HybridRetriever = ragservice.NewHybridRetriever(
-		ragservice.NewOpenSearchKeywordRetriever(c.OpenSearchRepo),
-		ragservice.NewPostgresKeywordRetriever(c.SearchRepo),
+		keywordPrimary,
+		keywordFallback,
 		ragservice.NewPostgresVectorRetriever(c.EmbeddingRepo, cfg.RAG.Index.EmbeddingModel),
 		provider,
 		ragservice.NewDatabaseVisibilityFilter(db),
