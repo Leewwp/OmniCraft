@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { PRCard, PRCardData } from "@/components/pr/PRCard";
+import { CreatePRPanel } from "@/components/pr/CreatePRPanel";
 import { DiffViewer } from "@/components/pr/DiffViewer";
 import { MergeEditor } from "@/components/pr/MergeEditor";
 import { Button } from "@/components/ui/button";
@@ -26,8 +28,19 @@ interface PRDetail extends PRCardData {
 }
 
 export default function PRRequestsPage() {
+  return (
+    <Suspense fallback={null}>
+      <PRRequestsPageInner />
+    </Suspense>
+  );
+}
+
+function PRRequestsPageInner() {
   const t = useTranslations();
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const createContentId = Number(searchParams.get("content_id") ?? "0");
+  const createMode = searchParams.get("create") === "1" && Number.isFinite(createContentId) && createContentId > 0;
   const [prs, setPRs] = useState<PRCardData[]>([]);
   const [activePR, setActivePR] = useState<PRDetail | null>(null);
   const [baseText, setBaseText] = useState("");
@@ -141,6 +154,12 @@ export default function PRRequestsPage() {
       </section>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
+
+      {createMode ? (
+        <section aria-label={t('studio.pr.create.title')}>
+          <CreatePRPanel contentId={createContentId} />
+        </section>
+      ) : null}
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[420px_1fr]">
         <div className="space-y-3 rounded-md border border-border bg-card p-3 ">
