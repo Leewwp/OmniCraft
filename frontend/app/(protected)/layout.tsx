@@ -40,12 +40,20 @@ export default function ProtectedLayout({
   }
 
   if (user.is_banned) {
+    // T29（FIX-15）：/appeals 是封禁用户唯一申诉出路，放行 children 渲染，
+    // 封禁屏不得整页替换（否则申诉链接自循环）；其余受保护页仍封禁屏。
+    if (pathname.startsWith("/appeals")) {
+      return <>{children}</>;
+    }
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center space-y-4">
           <h1 className="text-2xl font-bold text-fg-default">{t("suspendedTitle")}</h1>
           <p className="text-fg-muted">{t("suspendedDescription")}</p>
-          <Link href="/appeals" className="text-accent-emphasis hover:underline">
+          <Link
+            href="/appeals?target_type=account"
+            className="text-accent-emphasis hover:underline"
+          >
             {t("submitAppeal")}
           </Link>
         </div>

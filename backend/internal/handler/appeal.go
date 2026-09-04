@@ -28,11 +28,20 @@ func NewAppealHandler(db *gorm.DB) *AppealHandler {
 func (h *AppealHandler) SubmitAppeal(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	var body struct {
-		TargetType string `json:"target_type" binding:"required,oneof=content comment"`
-		TargetID   int64  `json:"target_id" binding:"required"`
+		TargetType string `json:"target_type" binding:"required,oneof=content comment account"`
+		TargetID   int64  `json:"target_id"`
 		Reason     string `json:"reason" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
+		response.ValidationError(c, "invalid request parameters")
+		return
+	}
+
+	// T29（FIX-15）：account 申诉固定指向申诉者本人（免填 target_id，
+	// 忽略请求体值防止替他人提交账号申诉）；其余目标仍要求有效 id。
+	if body.TargetType == "account" {
+		body.TargetID = callerID
+	} else if body.TargetID <= 0 {
 		response.ValidationError(c, "invalid request parameters")
 		return
 	}
