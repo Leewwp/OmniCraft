@@ -132,7 +132,9 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
   const totalVotes = caseData.vote_approve + caseData.vote_reject;
   const approvePct = totalVotes > 0 ? Math.round((caseData.vote_approve / totalVotes) * 100) : 0;
   const rejectPct = totalVotes > 0 ? Math.round((caseData.vote_reject / totalVotes) * 100) : 0;
-  const isClosed = caseData.status === "closed";
+  // T39（FIX-03）：结案终态是 closed_approve/closed_reject 前缀——
+  // 旧词表（=== "closed"）恒假导致结案横幅永不显示。
+  const isClosed = caseData.status.startsWith("closed_");
   const isNotViolation = isClosed && caseData.vote_approve / Math.max(totalVotes, 1) >= 0.6;
   const verdictLabel = isNotViolation ? t('judge.reviewCard.approve') : t('judge.reviewCard.reject');
 

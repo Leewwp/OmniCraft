@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"omnicraft/backend/config"
@@ -255,6 +256,8 @@ func (s *JudgeService) SubmitVote(input SubmitVoteInput, judgeID int64) error {
 			slog.Error("failed to close judge case", "case_id", input.CaseID, "error", err)
 		} else {
 			s.applyCaseOutcome(input.CaseID, judgeCase.TargetID, newStatus)
+			// T39（FIX-03）：闭案提交后对多数派在册判官 +1 准确率奖励（幂等）。
+			s.awardMajorityAccuracy(input.CaseID, newStatus)
 		}
 	}
 
@@ -262,6 +265,40 @@ func (s *JudgeService) SubmitVote(input SubmitVoteInput, judgeID int64) error {
 		slog.Error("failed to check and revoke judge", "judge_id", judgeID, "error", err)
 	}
 	return nil
+}
+
+// awardMajorityAccuracy（T39/FIX-03）：闭案提交后对与多数派一致的在册判官
+// 发放 judge_accuracy +1 奖励。best-effort：失败仅记日志，不回滚投票与闭案。
+// 幂等由 AwardJudgeAccuracy 内的 (user, reason, related_id) 去重保证。
+func (s *JudgeService) awardMajorityAccuracy(caseID int64, newStatus string) {
+	if s.reputSvc == nil {
+		return
+	}
+	winningVote := "approve"
+	if newStatus == "closed_reject" {
+		winningVote = "reject"
+	}
+	votes, err := s.judgeRepo.ListVotesForCase(caseID)
+	if err != nil {
+		slog.Error("judge accuracy award: failed to list votes", "case_id", caseID, "error", err)
+		return
+	}
+	for _, v := range votes {
+		if v.Vote != winningVote {
+			continue
+		}
+		quals, err := s.judgeRepo.GetUserQualifications(v.JudgeID)
+		if err != nil {
+			slog.Warn("judge accuracy award: failed to load qualifications", "case_id", caseID, "judge_id", v.JudgeID, "error", err)
+			continue
+		}
+		if len(quals) == 0 {
+			continue
+		}
+		if err := s.reputSvc.AwardJudgeAccuracy(v.JudgeID, caseID); err != nil {
+			slog.Warn("judge accuracy award failed", "case_id", caseID, "judge_id", v.JudgeID, "error", err)
+		}
+	}
 }
 
 // applyCaseOutcome lets a closed judge case take effect on its target
@@ -337,10 +374,19 @@ func (s *JudgeService) checkAndRevokeIfNeeded(judgeID int64) error {
 		return nil
 	}
 
+	// T39（FIX-03）：outcome 阈值与闭案口径同源（judge.pass_threshold，缺省 0.6），
+	// 避免调整闭案阈值时撤权仍按旧口径误判。
+	threshold := s.cfg.Judge.PassThreshold
+	if threshold == 0 {
+		threshold = 0.6
+	}
+
 	wrong := 0
 	for _, v := range votes {
 		judgeCase, err := s.judgeRepo.FindCase(v.CaseID)
-		if err != nil || judgeCase == nil || judgeCase.Status != "closed" {
+		if err != nil || judgeCase == nil || !strings.HasPrefix(judgeCase.Status, "closed_") {
+			// T39（FIX-03）：结案终态是 closed_approve/closed_reject——
+			// 旧词表（== "closed"）恒假导致撤权为死代码。
 			continue
 		}
 		totalVotes := judgeCase.VoteApprove + judgeCase.VoteReject
@@ -348,7 +394,7 @@ func (s *JudgeService) checkAndRevokeIfNeeded(judgeID int64) error {
 			continue
 		}
 		outcome := "approve"
-		if float64(judgeCase.VoteApprove)/float64(totalVotes) < 0.6 {
+		if float64(judgeCase.VoteApprove)/float64(totalVotes) < threshold {
 			outcome = "reject"
 		}
 		if v.Vote != outcome {
