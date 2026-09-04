@@ -604,6 +604,15 @@ func (h *ContentHandler) UpdateContent(c *gin.Context) {
 			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "not content author"})
 			return
 		}
+		// banned 终态禁改（FIX-13）：删除仍允许，编辑引导走申诉。
+		if err == service.ErrContentBanned {
+			c.JSON(http.StatusForbidden, gin.H{"code": "CONTENT_BANNED", "message": "content is banned and cannot be edited"})
+			return
+		}
+		if err == service.ErrCoverNotPlatformOSSObject {
+			response.ValidationError(c, "cover image must be a platform OSS object")
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
