@@ -156,7 +156,9 @@ export default function SettingsPage() {
     if (!deleteConfirm) return;
     setDeleteBusy(true);
     try {
-      await api.delete("/api/v1/users/me");
+      // T30（FIX-20）：后端要求密码确认（binding required），补传 body——
+      // 现状 api.delete 无 body 恒 400，注销功能死路。
+      await api.deleteWithBody("/api/v1/users/me", { password: deletePw });
       logout();
       router.push("/");
     } catch (e) {
