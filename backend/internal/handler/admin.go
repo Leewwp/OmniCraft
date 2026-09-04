@@ -29,6 +29,56 @@ import (
 
 var errAdminAuditWriteFailed = errors.New("admin audit write failed")
 
+// errAppealTargetGone（T31 / FIX-27）：批准申诉时目标已删除/作者被封禁/
+// account 目标已注销——事务内 sentinel，由 ResolveAppeal 映射 409。
+var errAppealTargetGone = errors.New("appeal target is no longer available")
+
+// checkAppealTargetResolvable guards approved appeals against writing state
+// back to targets that can no longer be restored: deleted content or content
+// whose author is banned, comments whose author is banned (comments carry no
+// deleted_at — hiding is a status transition), and accounts already deleted.
+func checkAppealTargetResolvable(tx *gorm.DB, targetType string, targetID int64) error {
+	var authorID int64
+	switch targetType {
+	case "content":
+		var item model.ContentItem
+		if err := tx.Select("id, author_id, deleted_at").First(&item, targetID).Error; err != nil {
+			return err
+		}
+		if item.DeletedAt != nil {
+			return errAppealTargetGone
+		}
+		authorID = item.AuthorID
+	case "comment":
+		var comment model.Comment
+		if err := tx.Select("id, author_id").First(&comment, targetID).Error; err != nil {
+			return err
+		}
+		authorID = comment.AuthorID
+	case "account":
+		var user model.User
+		if err := tx.Select("id, deleted_at").First(&user, targetID).Error; err != nil {
+			return err
+		}
+		if user.DeletedAt != nil {
+			return errAppealTargetGone
+		}
+		return nil
+	default:
+		return nil
+	}
+	if authorID != 0 {
+		var banned bool
+		if err := tx.Model(&model.User{}).Select("is_banned").Where("id = ?", authorID).Scan(&banned).Error; err != nil {
+			return err
+		}
+		if banned {
+			return errAppealTargetGone
+		}
+	}
+	return nil
+}
+
 type AdminHandler struct {
 	ipSvc         *service.IPService
 	contentRepo   *repository.ContentRepository
@@ -407,10 +457,23 @@ func (h *AdminHandler) ListAppeals(c *gin.Context) {
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
+	// T31（FIX-27）：status 筛选——默认 pending 保持历史兼容；all 全量。
+	status := c.DefaultQuery("status", "pending")
+	switch status {
+	case "pending", "approved", "rejected", "all":
+	default:
+		status = "pending"
+	}
+	applyStatus := func(q *gorm.DB) *gorm.DB {
+		if status == "all" {
+			return q
+		}
+		return q.Where("status = ?", status)
+	}
 	var appeals []map[string]interface{}
 	var total int64
-	h.userRepo.DB().Model(&struct{ ID uint }{}).Table("appeals").Where("status = ?", "pending").Count(&total)
-	h.userRepo.DB().Table("appeals").Where("status = ?", "pending").
+	applyStatus(h.userRepo.DB().Table("appeals")).Count(&total)
+	applyStatus(h.userRepo.DB().Table("appeals")).
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&appeals)
 	c.JSON(http.StatusOK, gin.H{"appeals": appeals, "total": total})
 }
@@ -435,6 +498,11 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"code": "APPEAL_NOT_FOUND", "message": "appeal not found"})
 		return
 	}
+	// T31（FIX-27）：非 pending 不可重复处理——防止重复改目标状态与重复通知。
+	if appeal.Status != "pending" {
+		c.JSON(http.StatusConflict, gin.H{"code": "APPEAL_ALREADY_RESOLVED", "message": "appeal has already been resolved"})
+		return
+	}
 
 	updates := map[string]interface{}{
 		"status":         body.Status,
@@ -448,6 +516,13 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
 		if err := tx.Model(&model.Appeal{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 			return err
+		}
+		// T31（FIX-27）批准边界守卫：目标已删除/作者被封禁（account 目标已注销）
+		// 时拒绝批准，避免把不可恢复的目标强行回写（与目标更新同事务判定）。
+		if body.Status == "approved" {
+			if err := checkAppealTargetResolvable(tx, appeal.TargetType, appeal.TargetID); err != nil {
+				return err
+			}
 		}
 		targetUpdates := service.AppealTargetUpdates(appeal.TargetType, body.Status)
 		if len(targetUpdates) == 0 {
@@ -466,6 +541,10 @@ func (h *AdminHandler) ResolveAppeal(c *gin.Context) {
 			return nil
 		}
 	}); err != nil {
+		if errors.Is(err, errAppealTargetGone) {
+			c.JSON(http.StatusConflict, gin.H{"code": "APPEAL_TARGET_GONE", "message": "appeal target is no longer available"})
+			return
+		}
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to resolve appeal") {
 			return
 		}

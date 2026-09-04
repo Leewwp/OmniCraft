@@ -21,6 +21,7 @@ interface Appeal {
   target_id: number;
   reason: string;
   status: string;
+  admin_response?: string;
   created_at: string;
 }
 
@@ -258,6 +259,13 @@ function AppealsPageContent() {
                   }`}>{getStatusLabel(a.status)}</span>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">{a.reason}</p>
+                {/* T31（FIX-27）：admin 处理意见对申诉人可见。 */}
+                {a.status !== "pending" && a.admin_response && (
+                  <p className="mt-2 rounded-md border border-border bg-background p-2 text-sm">
+                    <span className="text-muted-foreground">{t('appeals.adminResponse')}：</span>
+                    {a.admin_response}
+                  </p>
+                )}
                 <p className="mt-1 text-xs text-muted-foreground">
                   {new Date(a.created_at).toLocaleString(locale === "en" ? "en-US" : "zh-CN")}
                 </p>

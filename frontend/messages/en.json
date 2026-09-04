@@ -929,6 +929,12 @@
       "confirmApprove": "Approve",
       "confirmReject": "Reject",
       "opinion": "Handling opinion",
+      "statusFilter": "Status filter",
+      "statusPending": "Pending",
+      "statusApproved": "Approved",
+      "statusRejected": "Rejected",
+      "statusAll": "All",
+      "viewContent": "View content",
       "loadFailed": "Failed to load appeal list",
       "processFailed": "Failed to process appeal"
     },
@@ -1572,6 +1578,7 @@
     "noAppeals": "No appeal records",
     "loadFailed": "Failed to load",
     "submitFailed": "Failed to submit",
+    "adminResponse": "Admin response",
     "exists": "A pending appeal already exists for this target. Please wait until it is resolved"
   },
   "history": {
