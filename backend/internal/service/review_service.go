@@ -289,7 +289,12 @@ func (s *ReviewService) ProcessAICallback(ctx context.Context, in AICallbackInpu
 	// pass the check; the unique index converts the losing insert into a
 	// no-op. The record is written before the repeat-violation count so the
 	// current violation is visible inside the window.
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	// Cache invalidation (#347 micro-fix, T10 gap) runs after the transaction
+	// commits (judge_service T41 precedent): the closure collects every
+	// content whose status may have changed, and a commit failure skips the
+	// invalidation entirely.
+	var invalidated []int64
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		recorded, err := s.recordAIReview(ctx, tx, in.TargetType, in.TargetID, result, in.RawResponse, providerTaskID)
 		if err != nil {
 			return err
@@ -299,13 +304,27 @@ func (s *ReviewService) ProcessAICallback(ctx context.Context, in AICallbackInpu
 		}
 
 		if strings.EqualFold(in.TargetType, "ip") {
-			return s.processIPReviewResult(tx, in.TargetID, result)
+			affected, err := s.processIPReviewResult(tx, in.TargetID, result)
+			if err != nil {
+				return err
+			}
+			invalidated = affected
+			return nil
 		}
 		if !strings.EqualFold(in.TargetType, "content") {
 			return nil
 		}
-		return s.applyContentReviewResult(ctx, tx, in.TargetID, result)
+		if err := s.applyContentReviewResult(ctx, tx, in.TargetID, result); err != nil {
+			return err
+		}
+		invalidated = []int64{in.TargetID}
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+	InvalidateContentCaches(s.rdb, invalidated...)
+	return nil
 }
 
 // applyContentReviewResult transitions a content item according to the
@@ -409,7 +428,8 @@ func (s *ReviewService) ArchiveScanClean(ctx context.Context, attachmentID int64
 	if s == nil || s.db == nil {
 		return errors.New("review service not initialized")
 	}
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var invalidated int64
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var attachment model.ContentAttachment
 		if err := tx.Where("id = ?", attachmentID).First(&attachment).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -438,8 +458,21 @@ func (s *ReviewService) ArchiveScanClean(ctx context.Context, attachmentID int64
 		if latest.Result != "pass" {
 			return nil
 		}
-		return s.applyContentReviewResult(ctx, tx, content.ID, "pass")
+		if err := s.applyContentReviewResult(ctx, tx, content.ID, "pass"); err != nil {
+			return err
+		}
+		invalidated = content.ID
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+	// Cache invalidation after commit (#347)：clean-scan 发布也改公开状态，
+	// 同样立即失效（T10 helper）。
+	if invalidated > 0 {
+		InvalidateContentCaches(s.rdb, invalidated)
+	}
+	return nil
 }
 
 // emitContentEvent writes one outbox row inside the caller's transaction, so
@@ -450,31 +483,38 @@ func (s *ReviewService) emitContentEvent(ctx context.Context, tx *gorm.DB, topic
 	return EmitContentStatusEventTx(ctx, tx, s.outbox, topic, &content, newStatus)
 }
 
-func (s *ReviewService) processIPReviewResult(tx *gorm.DB, ipID int64, result string) error {
+// processIPReviewResult applies the AI verdict to the IP and cascades the
+// ban to its contents. It returns the content ids whose status may have
+// changed so the caller can drop their caches after commit (#347).
+func (s *ReviewService) processIPReviewResult(tx *gorm.DB, ipID int64, result string) ([]int64, error) {
 	var ip model.IP
 	if err := tx.First(&ip, ipID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrReviewTargetNotFound
+			return nil, ErrReviewTargetNotFound
 		}
-		return err
+		return nil, err
 	}
 	if result != "block" && result != "violation" {
-		return nil
+		return nil, nil
 	}
 	// Snapshot the not-yet-banned contents before the cascade so the author
 	// notification can dedupe per author and mention the affected count.
 	var affected []model.ContentItem
 	if err := tx.Where("ip_id = ? AND status <> ?", ipID, "banned").Find(&affected).Error; err != nil {
-		return err
+		return nil, err
 	}
 	if err := tx.Model(&model.IP{}).Where("id = ?", ipID).Update("status", "banned").Error; err != nil {
-		return err
+		return nil, err
 	}
 	if err := tx.Model(&model.ContentItem{}).Where("ip_id = ?", ipID).Update("status", "banned").Error; err != nil {
-		return err
+		return nil, err
 	}
 	s.notifyIPCascadeDowned(&ip, affected)
-	return nil
+	ids := make([]int64, 0, len(affected))
+	for _, content := range affected {
+		ids = append(ids, content.ID)
+	}
+	return ids, nil
 }
 
 // notifyIPCascadeDowned notifies each affected author exactly once about the
