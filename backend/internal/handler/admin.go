@@ -29,6 +29,10 @@ import (
 
 var errAdminAuditWriteFailed = errors.New("admin audit write failed")
 
+// errAdminTargetMissing（T27 / FIX-34）：前置存在性校验通过后，事务内
+// Updates 仍影响 0 行（并发删除竞态）——由调用方映射 404，不落成功审计行。
+var errAdminTargetMissing = errors.New("admin target no longer exists")
+
 // errAppealTargetGone（T31 / FIX-27）：批准申诉时目标已删除/作者被封禁/
 // account 目标已注销——事务内 sentinel，由 ResolveAppeal 映射 409。
 var errAppealTargetGone = errors.New("appeal target is no longer available")
@@ -353,14 +357,36 @@ func (h *AdminHandler) BanContent(c *gin.Context) {
 	if err := c.ShouldBindJSON(&body); err != nil {
 		slog.Warn("ban content: failed to bind json", "error", err)
 	}
+	// T27（FIX-34）：前置存在性校验——不存在的 ID 返回 404，不再 200 假成功
+	// 污染审计日志。
+	var content model.ContentItem
+	if err := h.contentRepo.DB().First(&content, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "CONTENT_NOT_FOUND", "message": "content not found"})
+			return
+		}
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
 	updates := map[string]interface{}{"status": "banned"}
 	if body.Reason != "" {
 		updates["ban_reason"] = body.Reason
 	}
 	entry := h.auditEntry(c, "content_ban", "content", strconv.FormatInt(id, 10), map[string]any{"content_id": id, "reason": body.Reason})
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
-		return tx.Model(&model.ContentItem{}).Where("id = ?", id).Updates(updates).Error
+		res := tx.Model(&model.ContentItem{}).Where("id = ?", id).Updates(updates)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return errAdminTargetMissing
+		}
+		return nil
 	}); err != nil {
+		if errors.Is(err, errAdminTargetMissing) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "CONTENT_NOT_FOUND", "message": "content not found"})
+			return
+		}
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to ban content") {
 			return
 		}
@@ -385,17 +411,28 @@ func (h *AdminHandler) RestoreContent(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid content id"})
 		return
 	}
+	// T27（FIX-34）：前置存在性校验——不存在的 ID 返回 404（此前 return nil
+	// 落入 200 假成功并写成功审计行）。
+	var content model.ContentItem
+	if err := h.contentRepo.DB().First(&content, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "CONTENT_NOT_FOUND", "message": "content not found"})
+			return
+		}
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
 	entry := h.auditEntry(c, "content_restore", "content", strconv.FormatInt(id, 10), map[string]any{"content_id": id})
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
-		var content model.ContentItem
-		if err := tx.First(&content, id).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil
-			}
-			return err
+		// T27（FIX-34）：restore 必须同事务清 deleted_at——否则内容
+		// status=published 却仍留在回收站，且前台查询（deleted_at IS NULL）
+		// 永远不可见。
+		res := tx.Model(&model.ContentItem{}).Where("id = ?", id).Updates(map[string]interface{}{"status": "published", "ban_reason": "", "deleted_at": nil})
+		if res.Error != nil {
+			return res.Error
 		}
-		if err := tx.Model(&model.ContentItem{}).Where("id = ?", id).Updates(map[string]interface{}{"status": "published", "ban_reason": ""}).Error; err != nil {
-			return err
+		if res.RowsAffected == 0 {
+			return errAdminTargetMissing
 		}
 		// restore 重新进入公共索引（FIX-34）：仅真实的非 published → published
 		// 转换在审计事务内补发 TopicContentPublished，重复 restore 幂等不重发。
@@ -404,6 +441,10 @@ func (h *AdminHandler) RestoreContent(c *gin.Context) {
 		}
 		return h.emitContentRestoredEvent(c.Request.Context(), tx, &content)
 	}); err != nil {
+		if errors.Is(err, errAdminTargetMissing) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "CONTENT_NOT_FOUND", "message": "content not found"})
+			return
+		}
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to restore content") {
 			return
 		}
@@ -440,10 +481,40 @@ func (h *AdminHandler) BanUser(c *gin.Context) {
 	if err := c.ShouldBindJSON(&body); err != nil {
 		slog.Warn("ban user: failed to bind json", "error", err)
 	}
+	// T27（FIX-34）：前置存在性校验 + 目标守卫——不存在的 ID 返回 404；
+	// admin 目标与调用者自身拒绝封禁（此前仅前端按钮禁用，API 可绕过）。
+	var target model.User
+	if err := h.userRepo.DB().First(&target, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to load user"})
+		return
+	}
+	if callerID := middleware.GetUserID(c); target.ID == callerID {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "SELF_BAN_FORBIDDEN", "message": "you cannot ban yourself"})
+		return
+	}
+	if target.Role == "admin" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "ADMIN_TARGET_FORBIDDEN", "message": "admin accounts cannot be banned"})
+		return
+	}
 	entry := h.auditEntry(c, "user_ban", "user", strconv.FormatInt(id, 10), map[string]any{"target_user_id": id, "reason": body.Reason})
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
-		return tx.Model(&model.User{}).Where("id = ?", id).Updates(map[string]interface{}{"is_banned": true, "ban_reason": body.Reason}).Error
+		res := tx.Model(&model.User{}).Where("id = ?", id).Updates(map[string]interface{}{"is_banned": true, "ban_reason": body.Reason})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return errAdminTargetMissing
+		}
+		return nil
 	}); err != nil {
+		if errors.Is(err, errAdminTargetMissing) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+			return
+		}
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to ban user") {
 			return
 		}
@@ -460,10 +531,31 @@ func (h *AdminHandler) UnbanUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
 		return
 	}
+	// T27（FIX-34）：前置存在性校验——不存在的 ID 返回 404。
+	var target model.User
+	if err := h.userRepo.DB().First(&target, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to load user"})
+		return
+	}
 	entry := h.auditEntry(c, "user_unban", "user", strconv.FormatInt(id, 10), map[string]any{"target_user_id": id})
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
-		return tx.Model(&model.User{}).Where("id = ?", id).Updates(map[string]interface{}{"is_banned": false, "ban_reason": ""}).Error
+		res := tx.Model(&model.User{}).Where("id = ?", id).Updates(map[string]interface{}{"is_banned": false, "ban_reason": ""})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return errAdminTargetMissing
+		}
+		return nil
 	}); err != nil {
+		if errors.Is(err, errAdminTargetMissing) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+			return
+		}
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to unban user") {
 			return
 		}
@@ -969,6 +1061,17 @@ func (h *AdminHandler) ResolveReport(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "VALIDATION_ERROR", "message": "status must be resolved or dismissed"})
 		return
 	}
+	// T27（FIX-34 / F-114）：前置存在性校验——不存在的 ID 返回 404，不再
+	// 200 假成功 + 成功审计行。
+	var report model.Report
+	if err := h.contentRepo.DB().First(&report, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "REPORT_NOT_FOUND", "message": "report not found"})
+			return
+		}
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
 	entry := h.auditEntry(c, "report_resolve", "report", strconv.FormatInt(id, 10), map[string]any{"report_id": id, "decision": body.Status, "reason": body.ActionTaken})
 	var rowsAffected int64
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
@@ -977,8 +1080,18 @@ func (h *AdminHandler) ResolveReport(c *gin.Context) {
 			"action_taken": body.ActionTaken,
 		})
 		rowsAffected = res.RowsAffected
-		return res.Error
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return errAdminTargetMissing
+		}
+		return nil
 	}); err != nil {
+		if errors.Is(err, errAdminTargetMissing) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "REPORT_NOT_FOUND", "message": "report not found"})
+			return
+		}
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to update report") {
 			return
 		}
