@@ -57,6 +57,9 @@ export function SidebarWrapper() {
 
   return (
     <Sidebar
+      // T24（FIX-40① 防御性可选）：与 home 同型——窄视口隐藏侧栏让内容全宽
+      //（F-082 Phase 6 复测 overflow=0 未能复现，此为同构防御，Safari 手工复测备注留档）。
+      className="hidden md:block"
       sections={sections}
       trending={trendingEntries.length > 0 ? { title: t("home.trendingContents"), entries: trendingEntries } : undefined}
     />

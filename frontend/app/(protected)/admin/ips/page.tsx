@@ -16,7 +16,7 @@ interface IPItem {
   description: string;
   cover_image_url: string;
   status: string;
-  submitter_id: number;
+  creator_id?: number;
   created_at: string;
 }
 
@@ -123,7 +123,7 @@ export default function AdminIPsPage() {
                     <td className="px-4 py-3 font-medium">{ip.name}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{ip.slug}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{ip.category || "-"}</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{ip.submitter_id}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{ip.creator_id ?? "-"}</td>
                     <td className="px-4 py-3">
                       <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
                         {ip.status}

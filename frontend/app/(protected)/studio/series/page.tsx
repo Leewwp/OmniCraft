@@ -238,7 +238,10 @@ export default function StudioSeriesPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><h1 className="text-xl font-semibold text-fg-default">{t("studio.series.title")}</h1><p className="mt-1 text-sm text-fg-muted">{t("studio.series.subtitle")}</p></div>
-        <Button type="button" onClick={() => setShowCreate((value) => !value)}><Plus className="h-4 w-4" />{t("studio.series.create")}</Button>
+        {/* T24（FIX-40②）：空态时隐藏页头 CTA——空态按钮是唯一创建入口，防双 CTA 同屏 */}
+        {series.length > 0 && (
+          <Button type="button" onClick={() => setShowCreate((value) => !value)}><Plus className="h-4 w-4" />{t("studio.series.create")}</Button>
+        )}
       </div>
 
       {showCreate && (
@@ -253,7 +256,9 @@ export default function StudioSeriesPage() {
       )}
 
       {series.length === 0 ? (
-        <EmptyState icon={BookOpen} title={t("studio.series.empty.title")} description={t("studio.series.empty.description")} action={<Button type="button" onClick={() => setShowCreate(true)}>{t("studio.series.create")}</Button>} />
+        showCreate ? null : (
+          <EmptyState icon={BookOpen} title={t("studio.series.empty.title")} description={t("studio.series.empty.description")} action={<Button type="button" onClick={() => setShowCreate(true)}>{t("studio.series.create")}</Button>} />
+        )
       ) : (
         <div className="grid min-h-[520px] grid-cols-1 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
           <aside className={`${mobileDetailOpen ? "hidden lg:block" : "block"} rounded-lg border border-border-default bg-card p-2`} aria-label={t("studio.series.list.ariaLabel")}>
@@ -270,11 +275,17 @@ export default function StudioSeriesPage() {
             {detailLoading || !detail ? <Skeleton className="h-72 w-full" /> : (
               <>
                 <Button type="button" variant="ghost" className="mb-3 min-h-11 lg:hidden" onClick={() => setMobileDetailOpen(false)}><ArrowLeft className="h-4 w-4" />{t("studio.series.a11y.backToList")}</Button>
-                <div className="mb-5 flex items-center justify-between gap-2"><div><h2 className="text-lg font-semibold text-fg-default">{detail.series.title}</h2><p className="text-xs text-fg-muted">{detail.series.zone === "fanwork" ? t("series.detail.header.zoneFanwork") : t("series.detail.header.zoneOriginal")}</p></div><Button type="button" variant="destructive" size="sm" disabled={Boolean(busyAction)} className="min-h-11" onClick={() => setConfirmDelete(true)}><Trash2 className="h-4 w-4" />{t("studio.series.delete")}</Button></div>
+                {/* T24（FIX-40③）：详情面板标题去重——系列名只在下方编辑表单 title 字段出现一次，
+                    面板顶行保留 zone 副标题；Delete 危险按钮移至面板底部（远离编辑区+分隔线，防误触，
+                    ConfirmModal 二次确认保持不变）。 */}
+                <div className="mb-5"><p className="text-xs text-fg-muted">{detail.series.zone === "fanwork" ? t("series.detail.header.zoneFanwork") : t("series.detail.header.zoneOriginal")}</p></div>
                 <div className="grid gap-3 md:grid-cols-2"><label className="space-y-1 text-sm text-fg-default"><span>{t("studio.series.form.title")}</span><Input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} /></label><label className="space-y-1 text-sm text-fg-default"><span>{t("studio.series.form.zone")}</span><Input value={detail.series.zone === "fanwork" ? t("series.detail.header.zoneFanwork") : t("series.detail.header.zoneOriginal")} disabled /></label></div>
                 <label className="mt-3 block space-y-1 text-sm text-fg-default"><span>{t("studio.series.form.description")}</span><Textarea value={editDescription} onChange={(event) => setEditDescription(event.target.value)} rows={3} /></label>
                 <label className="mt-3 block space-y-1 text-sm text-fg-default"><span>{t("studio.series.form.cover")}</span><select value={editCoverID} onChange={(event) => setEditCoverID(event.target.value)} className="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm"><option value="">{t("studio.series.form.coverAutomatic")}</option>{detail.items.map((item) => <option key={item.id} value={item.content_item_id}>{item.content.title}</option>)}</select></label>
                 <div className="mt-3 flex justify-end"><Button type="button" disabled={Boolean(busyAction)} className="min-h-11" onClick={() => void handleSave()}><Save className="h-4 w-4" />{t("studio.series.form.save")}</Button></div>
+
+                {/* T24（FIX-40③）：Delete 移至面板底部，与编辑区拉开间距并用分隔线隔离 */}
+                <div className="mt-8 flex justify-end border-t border-border-default pt-4"><Button type="button" variant="destructive" size="sm" disabled={Boolean(busyAction)} className="min-h-11" onClick={() => setConfirmDelete(true)}><Trash2 className="h-4 w-4" />{t("studio.series.delete")}</Button></div>
 
                 <div className="mt-6"><h3 className="mb-2 text-sm font-semibold text-fg-default">{t("studio.series.items.title")}</h3>{detail.items.length === 0 ? <EmptyState icon={BookOpen} title={t("studio.series.items.empty")} /> : <ol className="divide-y divide-border-default rounded-md border border-border-default" aria-label={t("studio.series.items.ariaLabel")}>
                   {detail.items.map((item, index) => <li key={item.id} className="flex min-h-14 items-center gap-2 px-3 py-2"><span className="w-7 text-xs text-fg-muted">{index + 1}</span><span className="min-w-0 flex-1 truncate text-sm text-fg-default">{item.content.title}</span><Button type="button" variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label={t("studio.series.a11y.moveUp", { title: item.content.title })} disabled={Boolean(busyAction) || index === 0} onClick={() => void moveItem(index, -1)}><ArrowUp className="h-4 w-4" /></Button><Button type="button" variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label={t("studio.series.a11y.moveDown", { title: item.content.title })} disabled={Boolean(busyAction) || index === detail.items.length - 1} onClick={() => void moveItem(index, 1)}><ArrowDown className="h-4 w-4" /></Button><Button type="button" variant="ghost" size="icon" className="min-h-11 min-w-11" aria-label={t("studio.series.a11y.removeItem", { title: item.content.title })} disabled={Boolean(busyAction)} onClick={() => void handleRemove(item.id)}><X className="h-4 w-4" /></Button></li>)}

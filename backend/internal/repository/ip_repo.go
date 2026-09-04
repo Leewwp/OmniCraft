@@ -116,7 +116,9 @@ func (r *IPRepository) ListIPs(f ListIPsFilter) ([]model.IP, int64, error) {
 	}
 
 	switch f.Sort {
-	case "most_content":
+	// T24（FIX-40⑤）：前端词表为 most_contents（复数），后端历史词为
+	// most_content——双收别名防再次漂移。
+	case "most_content", "most_contents":
 		q = q.Select("ips.*, (SELECT COUNT(*) FROM content_items WHERE ip_id = ips.id AND status = 'published') AS content_count").
 			Order("content_count DESC")
 	default:
