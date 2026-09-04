@@ -101,6 +101,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	}
 
 	prHandler := handler.NewPRHandlerWithService(ctr.PRService)
+	prHandler.SetNotificationService(notifSvc)
 	contentHandler := handler.NewContentHandler(db, cfg, rdb)
 	contentHandler.SetQueueProducer(ctr.QueueProducer)
 	contentHandler.SetOutboxRepository(ctr.OutboxRepo)
@@ -232,6 +233,8 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		me.GET("/contents", userHandler.GetMyContents)
 		// T49: one-request to-do aggregation (open PRs + pending tag suggestions).
 		me.GET("/pending-tasks", userHandler.GetMyPendingTasks)
+		// T50: server-side contributor aggregation for the studio page.
+		me.GET("/contributors", userHandler.GetMyContributors)
 		// T52: the creator's own IPs across every status + latest reject reason.
 		me.GET("/ips", ipHandler.GetMyIPs)
 	}
