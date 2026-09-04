@@ -722,7 +722,8 @@
       "loadFailed": "加载判决详情失败"
     },
     "insufficientQuestions": "该类别题库不足，暂时无法开始考核，请稍后再试",
-    "readingTimeTooShort": "阅读时间不足，请先完整阅读说明"
+    "readingTimeTooShort": "阅读时间不足，请先完整阅读说明",
+    "loadMore": "加载更多待审案件"
   },
   "dashboard": {
     "title": "创作者后台",
