@@ -284,7 +284,7 @@
     "allContent": "All Content",
     "categoryMod": "Mod",
     "versionHistory": "Version History",
-    "noVersionHistory": "No version history",
+    "noVersionHistory": "No version history yet. Publishing, edits and merged PRs create versions; this content predates versioning, so it has no records.",
     "latest": "Latest",
     "preview": "Preview",
     "restoreVersion": "Restore this version",
