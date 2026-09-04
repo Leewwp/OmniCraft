@@ -21,6 +21,7 @@ import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
 import { SheetMusicViewer } from "@/components/content/SheetMusicViewer";
 import { DownloadButton } from "@/components/content/DownloadButton";
 import { CollectionPicker } from "@/components/content/CollectionPicker";
+import { SubmitPREntry } from "@/components/pr/SubmitPREntry";
 import { UsageGuidePanel } from "@/components/agent/UsageGuidePanel";
 import { ReactionBar } from "@/components/social/ReactionBar";
 import { CommentSection } from "@/components/social/CommentSection";
@@ -468,6 +469,13 @@ export function ContentDetail({
           open={collectionPickerOpen}
           onOpenChange={setCollectionPickerOpen}
           onMembershipChange={setIsFavorited}
+        />
+        {/* T48 (FIX-22b): 贡献者 PR 提交入口（fanwork + allow_copy + 非作者才渲染） */}
+        <SubmitPREntry
+          contentId={data.id}
+          authorId={data.author_id ?? data.author?.id}
+          allowCopy={data.allow_copy}
+          zone={data.zone}
         />
       </div>
 
