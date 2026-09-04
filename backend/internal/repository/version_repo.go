@@ -37,13 +37,20 @@ func (r *VersionRepository) ListByContent(contentID int64) ([]model.ContentVersi
 	return versions, err
 }
 
-func (r *VersionRepository) ListByContentPaged(contentID int64, page, pageSize int) ([]model.ContentVersion, int64, error) {
+// ListByContentPagedForViewer hides proposed versions from everyone except
+// the content author: proposed snapshots are PR working copies, not part of
+// the published lineage readers may browse (FIX-21).
+func (r *VersionRepository) ListByContentPagedForViewer(contentID int64, page, pageSize int, viewerIsAuthor bool) ([]model.ContentVersion, int64, error) {
+	scope := "status != 'pending'"
+	if !viewerIsAuthor {
+		scope = "status = 'active'"
+	}
 	var total int64
-	if err := r.db.Model(&model.ContentVersion{}).Where("content_item_id = ? AND status != ?", contentID, "pending").Count(&total).Error; err != nil {
+	if err := r.db.Model(&model.ContentVersion{}).Where("content_item_id = ? AND "+scope, contentID).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var versions []model.ContentVersion
-	err := r.db.Where("content_item_id = ? AND status != ?", contentID, "pending").
+	err := r.db.Where("content_item_id = ? AND "+scope, contentID).
 		Order("version_number ASC").
 		Offset((page - 1) * pageSize).Limit(pageSize).
 		Find(&versions).Error
@@ -77,7 +84,10 @@ func (r *VersionRepository) SetLatest(contentID int64, versionID int64) error {
 
 func (r *VersionRepository) GetVersionChain(contentID int64) ([]model.ContentVersion, error) {
 	var versions []model.ContentVersion
-	err := r.db.Where("content_item_id = ?", contentID).
+	// proposed snapshots live outside the published lineage: applying them
+	// during reconstruction would splice PR working copies into reader-visible
+	// bodies (FIX-21).
+	err := r.db.Where("content_item_id = ? AND status != ?", contentID, "proposed").
 		Order("version_number ASC").Find(&versions).Error
 	return versions, err
 }
