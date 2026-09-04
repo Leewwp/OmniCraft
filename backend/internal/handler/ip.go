@@ -72,6 +72,33 @@ func (h *IPHandler) ListIPs(c *gin.Context) {
 	})
 }
 
+// GetMyIPs serves GET /users/me/ips: the caller's own IPs across every
+// status, with the latest reject reason on rejected rows (T52/FIX-23b).
+// The me route group already enforces auth.
+func (h *IPHandler) GetMyIPs(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+	if callerID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	ips, total, err := h.ipSvc.ListMyIPs(c.Request.Context(), callerID, page, pageSize)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	h.displaySigner.DecorateIPs(ips)
+	c.JSON(http.StatusOK, gin.H{
+		"ips":       ips,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
+}
+
 func (h *IPHandler) CreateIP(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	if callerID == 0 {
