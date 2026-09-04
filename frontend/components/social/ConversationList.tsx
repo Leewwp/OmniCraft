@@ -20,9 +20,11 @@ interface ConversationListProps {
   onSelect: (conversation: Conversation) => void;
   activeId?: number;
   onRetry?: () => void;
+  // 会话未读总数上抛（FIX-31b/F-093）：消息页会话 Tab 计数改真实聚合。
+  onUnreadCountChange?: (count: number) => void;
 }
 
-export function ConversationList({ onSelect, activeId, onRetry }: ConversationListProps) {
+export function ConversationList({ onSelect, activeId, onRetry, onUnreadCountChange }: ConversationListProps) {
   const t = useTranslations();
   const locale = useLocale();
   const { user } = useAuth();
@@ -35,13 +37,15 @@ export function ConversationList({ onSelect, activeId, onRetry }: ConversationLi
     try {
       setError(false);
       const data = await api.get<{ conversations?: Conversation[] }>("/api/v1/messages");
-      setConversations(data.conversations || []);
+      const next = data.conversations || [];
+      setConversations(next);
+      onUnreadCountChange?.(next.reduce((sum, c) => sum + (c.unread_count ?? (c.unread ? 1 : 0)), 0));
     } catch {
       setError(true);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onUnreadCountChange]);
 
   useEffect(() => {
     if (user) void loadConversations();

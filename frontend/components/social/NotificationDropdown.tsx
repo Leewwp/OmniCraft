@@ -7,6 +7,7 @@ import { Bell, Heart, MessageCircle, UserPlus, GitPullRequest, Info, Megaphone }
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { resolveNotificationHref } from "@/lib/notification-url";
 
 interface Notification {
   id: number;
@@ -76,22 +77,18 @@ export function NotificationDropdown() {
 
   if (!user) return null;
 
-  function getNotificationUrl(n: Notification): string {
-    if (n.target_type && n.target_id) {
-      switch (n.target_type) {
-        case "content": return `/content/${n.target_id}`;
-        case "discussion":
-        case "comment": return `/content/${n.target_id}`;
-        case "pr": return "/studio/pr-requests";
-        case "user": return `/user/${n.target_id}`;
-        case "ip":
-          // 共治提案通知深链到提案 tab（#290 story 36）
-          if (n.type?.startsWith("ip_proposal_")) return `/ip/${n.target_id}?tab=proposals`;
-          return `/ip/${n.target_id}`;
-        default: return "/messages";
-      }
+  // 下拉项点击（FIX-31b）：未读先标记已读（不阻塞跳转），统一走深链映射
+  // （讨论二跳、申诉/反馈/私信各归位）。
+  async function openNotification(n: Notification) {
+    setOpen(false);
+    if (!n.is_read) {
+      setNotifications((prev) => prev.map((item) => (item.id === n.id ? { ...item, is_read: true } : item)));
+      api.patch(`/api/v1/notifications/${n.id}/read`, {}).catch(() => {
+        // 标记失败静默：下次轮询/打开下拉自然校正
+      });
     }
-    return "/messages";
+    const href = await resolveNotificationHref(n);
+    router.push(href);
   }
 
   const channelLabels: Record<string, string> = {
@@ -175,10 +172,7 @@ export function NotificationDropdown() {
                 notifications.map((n) => (
                   <button
                     key={n.id}
-                    onClick={() => {
-                      setOpen(false);
-                      router.push("/messages");
-                    }}
+                    onClick={() => { void openNotification(n); }}
                     className={cn(
                       "flex min-h-[72px] w-full items-start gap-3 border-b border-border-default px-4 py-3 text-left transition-colors hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent-emphasis",
                       !n.is_read && "bg-accent-subtle"
