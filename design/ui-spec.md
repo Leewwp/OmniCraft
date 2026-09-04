@@ -86,6 +86,7 @@
 - Component: IPCard
 - Component: IPCategoryTabs
 - Component: FilterPills 筛选药丸（U-01 新增，全站筛选形态基准）
+- Component: ContentStatusBadge 内容状态徽标（T44/FIX-14 新增）
 - Component: ContentDetail
 - Component: ContentDetailOverlay
 - Component: MediaGallery 媒体集画廊
@@ -179,6 +180,19 @@
 **响应式与动效**
 - 移动端不缩小文字；独立动作或 icon-only 动作保持 44px 触控目标，密集工具栏可沿用 U-02A 已批准的 coarse-pointer 媒体规则。
 - active 反馈不得通过会导致布局抖动的 margin/border-width 实现；reduced-motion 下禁用位移与缩放。
+
+## Component: ContentStatusBadge 内容状态徽标（T44/FIX-14 新增）
+
+**覆盖文件**: `components/studio/ContentStatusBadge.tsx`（消费 Badge 原语，variant=outline + 语义 token className）
+
+**视觉契约**
+- 信息药丸：复用 Badge 原语形态（`rounded-full`、12px medium、20px 高、1px 边框），`text-[10px]` 与 studio 列表行的 zone/type 徽标同档。
+- 状态映射（仅非 published 显示——已发布是常态不标注）：draft=`canvas-subtle`/`fg-muted`（中性）；pending=`primary/10` 底 + `primary` 字（进行中）；under_review=`accent-subtle` 底 + `accent-emphasis` 字（复核）；banned=`destructive/10` 底 + `destructive` 字 + `border-destructive/30`（终态警示）。全部消费既有语义 token，不引入任意色。
+- 不用颜色单独表达状态：文案 i18n（zh 草稿/审核中/复核中/已封禁，en Draft/In review/Under re-review/Banned）与颜色一一对应同现。
+
+**行为契约**
+- 未知/未来状态返回 null（不渲染），状态词表收敛在组件内 `STATUS_STYLES`/`STATUS_KEYS`。
+- banned 行在 studio 列表额外携带 ban_reason 文本与「去申诉」outline 按钮（`/appeals?target_type=content&target_id=` 预填跳转）；编辑按钮 disabled（终态禁改，T43/FIX-13 的前端呼应）。
 
 ## Component: Card 共享容器原语
 
