@@ -575,11 +575,28 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
-	var users []map[string]interface{}
+	// T28（FIX-35）：search 服务端化（username/email 大小写不敏感模糊匹配）+
+	// id DESC 稳定排序——此前前端只过滤当前页 20 条，跨页命中不可能，且无
+	// ORDER BY 时翻页可能重复/漏。LOWER+LIKE 而非 ILIKE：sqlite 单测可执行。
+	base := func() *gorm.DB {
+		q := h.userRepo.DB().Table("users")
+		if search := strings.TrimSpace(c.Query("search")); search != "" {
+			like := "%" + strings.ToLower(search) + "%"
+			q = q.Where("LOWER(username) LIKE ? OR LOWER(email) LIKE ?", like, like)
+		}
+		return q
+	}
 	var total int64
-	h.userRepo.DB().Model(&struct{ ID uint }{}).Table("users").Count(&total)
-	h.userRepo.DB().Table("users").Select("id, username, email, role, is_banned, reputation, created_at").
-		Offset((page - 1) * pageSize).Limit(pageSize).Find(&users)
+	if err := base().Count(&total).Error; err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	var users []map[string]interface{}
+	if err := base().Order("id DESC").
+		Offset((page - 1) * pageSize).Limit(pageSize).Find(&users).Error; err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"users": users, "total": total})
 }
 
@@ -991,10 +1008,16 @@ func (h *AdminHandler) ActivateLLMConfig(c *gin.Context) {
 	if err := h.withAuditTx(c, &entry, func(tx *gorm.DB) error {
 		return h.llmConfigSvc.ActivateConfigTx(tx, id)
 	}); err != nil {
+		// T28（FIX-35）：404（配置不存在）与 500（DB 故障）区分——此前任何
+		// 错误统一 404，排障时误导方向。
+		if errors.Is(err, service.ErrConfigNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "CONFIG_NOT_FOUND", "message": "config not found"})
+			return
+		}
 		if h.respondAuditTxError(c, err, http.StatusInternalServerError, "DB_ERROR", "failed to activate config") {
 			return
 		}
-		c.JSON(http.StatusNotFound, gin.H{"code": "CONFIG_NOT_FOUND", "message": "config not found"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "failed to activate config"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "config activated"})
