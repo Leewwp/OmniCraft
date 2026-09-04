@@ -1617,6 +1617,7 @@ interface FacetedSearchSidebarProps {
 - 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
 - 破坏性操作必须 ConfirmModal 二次确认。
 - 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
+- 驳回原因（T16/FIX-24）：reject 的 ConfirmModal `requireReason` 必填，原因随 `{reason}` 提交落库 `ip_review_logs` 并以 ip_status 系统通知告知创建者；approve 同步发送通过通知。IP 状态机无回退——创建者重提路径 = 重新新建（产品已接受，不提供「修改后重审」）。
 
 ## Page: /admin/contents 内容终审
 
