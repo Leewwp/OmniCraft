@@ -153,29 +153,6 @@ func (h *AgentHandler) ComplianceCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func (h *AgentHandler) NLSearch(c *gin.Context) {
-	if !h.requireAgentFeature(c) {
-		return
-	}
-	var body struct {
-		Query string `json:"query" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&body); err != nil {
-		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "invalid request parameters")
-		return
-	}
-	if !h.reserveGenerationQuota(c) {
-		return
-	}
-	viewerID := middleware.GetUserID(c)
-	result, err := h.agentSvc.NLSearch(c.Request.Context(), body.Query, viewerID)
-	if err != nil {
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
-		return
-	}
-	c.JSON(http.StatusOK, result)
-}
-
 func (h *AgentHandler) UsageGuide(c *gin.Context) {
 	if !h.requireAgentFeature(c) {
 		return
