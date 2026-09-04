@@ -62,6 +62,42 @@ func TestSplitAndNormalize_ChineseWithSpaces(t *testing.T) {
 	}
 }
 
+// #319: to_tsquery 对含 tsquery 保留字符/边界的查询报 syntax error。splitAndNormalize
+// 必须把一切非字母非数字字符（半角冒号、全角「：」「·」、括号引号等）当切词边界，
+// 否则词尾粘着的冒号再拼 ":*" 会产出 "PIECE::**" 这类畸形串，含冒号标题的精确搜索整条失配。
+func TestToTSQuery_AsciiColonIsBoundary(t *testing.T) {
+	result := toTSQuery("ONE PIECE: Three Days After the Tide")
+	want := "ONE:* & PIECE:* & Three:* & Days:* & After:* & the:* & Tide:*"
+	if result != want {
+		t.Errorf("ascii colon must split words, got %q want %q", result, want)
+	}
+}
+
+func TestToTSQuery_FullWidthPunctuationIsBoundary(t *testing.T) {
+	result := toTSQuery("崩坏：星穹铁道·罗浮外史")
+	want := "崩坏:* & 星穹铁道:* & 罗浮外史:*"
+	if result != want {
+		t.Errorf("full-width punctuation must split words, got %q want %q", result, want)
+	}
+}
+
+// 纯标点查询不得回退拼 query+":*"（依旧语法错）；空串让 to_tsquery 退化为空
+// tsquery（仅 NOTICE 不报错、@@ 恒 false），ILIKE 兜底条件仍然生效。
+func TestToTSQuery_PunctuationOnlyQueryIsEmpty(t *testing.T) {
+	for _, q := range []string{"！！！", "《》·：", ":", " & | "} {
+		if got := toTSQuery(q); got != "" {
+			t.Errorf("punctuation-only query %q must yield empty tsquery, got %q", q, got)
+		}
+	}
+}
+
+func TestSplitAndNormalize_KeepsAlphanumericRuns(t *testing.T) {
+	words := splitAndNormalize("v2 版本-note（测试）")
+	if len(words) != 4 || words[0] != "v2" || words[1] != "版本" || words[2] != "note" || words[3] != "测试" {
+		t.Fatalf("expected [v2 版本 note 测试], got %v", words)
+	}
+}
+
 func TestContentVisibilitySQL_ContainsRequiredClausesAndArgs(t *testing.T) {
 	clause, args := ContentVisibilitySQL(42)
 
@@ -440,7 +476,6 @@ func TestReportUpdateStatusPersistsActionTaken(t *testing.T) {
 		t.Fatalf("action_taken = %q, want content hidden", updated.ActionTaken)
 	}
 }
-
 
 // TestSearchSuggestionsMatchMidString locks the T21 contains semantics: a
 // query that appears mid-title (typical Chinese substring input) must surface

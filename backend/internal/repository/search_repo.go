@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
@@ -462,35 +463,43 @@ func (r *SearchRepository) SearchIPs(query string, category string, page, pageSi
 
 func toTSQuery(query string) string {
 	words := splitAndNormalize(query)
-	result := ""
-	for i, w := range words {
-		if i > 0 {
-			result += " & "
-		}
-		result += w + ":*"
+	if len(words) == 0 {
+		// Punctuation-only input must not fall back to `query + ":*"`: any
+		// tsquery boundary character in it is a syntax error for to_tsquery
+		// (#319). The empty tsquery only disables the FTS arm (NOTICE, no
+		// error, @@ is always false); the ILIKE fallbacks still apply.
+		return ""
 	}
-	if result == "" {
-		result = query + ":*"
+	parts := make([]string, 0, len(words))
+	for _, w := range words {
+		parts = append(parts, w+":*")
 	}
-	return result
+	return strings.Join(parts, " & ")
 }
 
+// splitAndNormalize tokenizes a user query into runs of letters/digits.
+// Everything else — whitespace, tsquery operators (&|!()<->'), and any
+// half/full-width punctuation such as : ：·《》 — is a token boundary. The
+// text-search parser treats those characters as lexeme separators too, so
+// splitting here is what keeps the hand-built to_tsquery input operator-safe
+// (#319: a colon glued to a word produced "PIECE::**"-style syntax errors).
 func splitAndNormalize(query string) []string {
 	var words []string
-	current := ""
-	for _, r := range query {
-		if r == ' ' || r == '&' || r == '|' || r == '!' || r == '(' || r == ')' {
-			if current != "" {
-				words = append(words, current)
-				current = ""
-			}
-		} else {
-			current += string(r)
+	var current strings.Builder
+	flush := func() {
+		if current.Len() > 0 {
+			words = append(words, current.String())
+			current.Reset()
 		}
 	}
-	if current != "" {
-		words = append(words, current)
+	for _, r := range query {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			current.WriteRune(r)
+			continue
+		}
+		flush()
 	}
+	flush()
 	return words
 }
 
