@@ -45,19 +45,28 @@ interface ConfigData {
   };
 }
 
-const defaultConfig: ConfigData = {
-  limits: { video_max_mb: 300, video_max_sec: 180, image_max_mb: 20, text_max_mb: 10, mod_max_mb: 500, sheet_music_max_mb: 50 },
-  features: { payment_enabled: false, creator_support_enabled: false },
-  reputation: { quality_content_threshold: 10, quality_comment_threshold: 5, repeat_violation_window_days: 7, repeat_violation_threshold: 2, repeat_violation_extra_penalty: 1 },
-  agent: { web_agent_enabled: false, rate_limit_per_day: 50 },
-  social: { report_auto_hide_rate: 0.1, comment_fold_threshold: 0.3 },
-  judge: { min_votes_required: 20, pass_threshold: 0.8, exam_pass_rate: 0.8, error_rate_revoke: 0.5, error_rate_window: 10 },
-};
+// No client-side default config: fabricating defaults is exactly how the
+// config-pollution chain starts (open page → save → persist fake values).
+// When the backend config is missing or incomplete the page must stay
+// read-only with a retry affordance (T26 FIX-33).
+function isCompleteConfig(value: unknown): value is ConfigData {
+  if (!value || typeof value !== "object") return false;
+  const c = value as Partial<ConfigData>;
+  return (
+    typeof c.limits?.video_max_mb === "number" &&
+    typeof c.features?.payment_enabled === "boolean" &&
+    typeof c.reputation?.quality_content_threshold === "number" &&
+    typeof c.agent?.web_agent_enabled === "boolean" &&
+    typeof c.social?.report_auto_hide_rate === "number" &&
+    typeof c.judge?.pass_threshold === "number"
+  );
+}
 
 export default function AdminConfigPage() {
   const t = useTranslations();
-  const [config, setConfig] = useState<ConfigData>(defaultConfig);
+  const [config, setConfig] = useState<ConfigData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -66,28 +75,34 @@ export default function AdminConfigPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingPatch, setPendingPatch] = useState<Record<string, unknown> | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const data = await api.get<{ config: ConfigData }>("/api/v1/admin/config");
-        if (data.config) {
-          setConfig({
-            limits: { ...defaultConfig.limits, ...data.config.limits },
-            features: { ...defaultConfig.features, ...data.config.features },
-            reputation: { ...defaultConfig.reputation, ...data.config.reputation },
-            agent: { ...defaultConfig.agent, ...data.config.agent },
-            social: { ...defaultConfig.social, ...data.config.social },
-            judge: { ...defaultConfig.judge, ...data.config.judge },
-          });
-        }
-      } catch (e) {
-        silentError(e, { component: 'AdminConfigPage', action: 'loadConfig' });
-        setError(t(getUserFacingErrorKey(e, "admin.config.loadFailed")));
-      } finally {
-        setLoading(false);
+  async function loadConfig() {
+    setLoading(true);
+    setLoadFailed(false);
+    setError("");
+    try {
+      const data = await api.get<{ config: unknown }>("/api/v1/admin/config");
+      // Missing fields (e.g. a stale backend still serializing PascalCase)
+      // must be treated as a load failure instead of silently falling back.
+      if (isCompleteConfig(data.config)) {
+        setConfig(data.config);
+      } else {
+        setConfig(null);
+        setLoadFailed(true);
+        setError(t("admin.config.loadFailed"));
       }
-    })();
+    } catch (e) {
+      silentError(e, { component: 'AdminConfigPage', action: 'loadConfig' });
+      setConfig(null);
+      setLoadFailed(true);
+      setError(t(getUserFacingErrorKey(e, "admin.config.loadFailed")));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadConfig();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t]);
 
   async function saveConfig(patch: Record<string, unknown>) {
@@ -95,16 +110,11 @@ export default function AdminConfigPage() {
     setError("");
     setSaved(false);
     try {
-      const data = await api.patch<{ config: ConfigData }>("/api/v1/admin/config", patch);
-      if (data.config) {
-        setConfig((prev) => ({
-          limits: { ...prev.limits, ...data.config!.limits },
-          features: { ...prev.features, ...data.config!.features },
-          reputation: { ...prev.reputation, ...data.config!.reputation },
-          agent: { ...prev.agent, ...data.config!.agent },
-          social: { ...prev.social, ...data.config!.social },
-          judge: { ...prev.judge, ...data.config!.judge },
-        }));
+      const data = await api.patch<{ config: unknown }>("/api/v1/admin/config", patch);
+      // Replace (not merge) with the server view of the config so the UI can
+      // never keep displaying values the backend did not accept.
+      if (isCompleteConfig(data.config)) {
+        setConfig(data.config);
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -116,49 +126,34 @@ export default function AdminConfigPage() {
     }
   }
 
+  // Field updaters only run from the main form, which renders exclusively
+  // with a loaded config; the guards keep the null state honest for TS.
   function updateLimits(key: string, value: number) {
-    setConfig((prev) => ({
-      ...prev,
-      limits: { ...prev.limits, [key]: value },
-    }));
+    setConfig((prev) => (prev ? { ...prev, limits: { ...prev.limits, [key]: value } } : prev));
   }
 
   function updateReputation(key: string, value: number) {
-    setConfig((prev) => ({
-      ...prev,
-      reputation: { ...prev.reputation, [key]: value },
-    }));
+    setConfig((prev) => (prev ? { ...prev, reputation: { ...prev.reputation, [key]: value } } : prev));
   }
 
   function updateJudge(key: string, value: number) {
-    setConfig((prev) => ({
-      ...prev,
-      judge: { ...prev.judge, [key]: value },
-    }));
+    setConfig((prev) => (prev ? { ...prev, judge: { ...prev.judge, [key]: value } } : prev));
   }
 
   function updateAgent(key: string, value: number | boolean) {
-    setConfig((prev) => ({
-      ...prev,
-      agent: { ...prev.agent, [key]: value },
-    }));
+    setConfig((prev) => (prev ? { ...prev, agent: { ...prev.agent, [key]: value } } : prev));
   }
 
   function updateSocial(key: string, value: number) {
-    setConfig((prev) => ({
-      ...prev,
-      social: { ...prev.social, [key]: value },
-    }));
+    setConfig((prev) => (prev ? { ...prev, social: { ...prev.social, [key]: value } } : prev));
   }
 
   function updateFeatures(key: string, value: boolean) {
-    setConfig((prev) => ({
-      ...prev,
-      features: { ...prev.features, [key]: value },
-    }));
+    setConfig((prev) => (prev ? { ...prev, features: { ...prev.features, [key]: value } } : prev));
   }
 
   function buildPatch(): Record<string, unknown> {
+    if (!config) return {};
     return {
       limits: { ...config.limits },
       features: { ...config.features },
@@ -170,6 +165,10 @@ export default function AdminConfigPage() {
   }
 
   function prepareSave() {
+    if (!config) {
+      setError(t("admin.config.loadFailed"));
+      return;
+    }
     const invalidField = document.querySelector<HTMLInputElement>("[data-config-field]:invalid");
     if (invalidField) {
       setInvalidFieldId(invalidField.id);
@@ -190,6 +189,21 @@ export default function AdminConfigPage() {
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="h-6 w-full animate-pulse rounded bg-muted" />
           ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Load failed (or incomplete payload): no fabricated defaults, no saving —
+  // offer a retry instead (T26 FIX-33).
+  if (!config) {
+    return (
+      <div className="space-y-4 p-6">
+        <div className="space-y-3 rounded-md border border-destructive/30 bg-destructive/5 p-6">
+          <p role="alert" className="text-sm text-destructive">{t("admin.config.loadFailed")}</p>
+          <Button size="sm" variant="outline" onClick={loadConfig}>
+            {t("common.retry")}
+          </Button>
         </div>
       </div>
     );
@@ -327,7 +341,10 @@ export default function AdminConfigPage() {
             <FieldRow id="config-quality-comment-threshold" label={t('admin.config.qualityCommentThreshold')} value={config.reputation.quality_comment_threshold} onChange={(v) => updateReputation("quality_comment_threshold", v)} min={1} />
             <FieldRow id="config-repeat-violation-window" label={t('admin.config.repeatViolationWindow')} value={config.reputation.repeat_violation_window_days} onChange={(v) => updateReputation("repeat_violation_window_days", v)} min={1} unit={t('common.units.days')} />
             <FieldRow id="config-repeat-violation-threshold" label={t('admin.config.repeatViolationThreshold')} value={config.reputation.repeat_violation_threshold} onChange={(v) => updateReputation("repeat_violation_threshold", v)} min={1} unit={t('common.units.times')} />
-            <FieldRow id="config-repeat-violation-penalty" label={t('admin.config.repeatViolationPenalty')} value={config.reputation.repeat_violation_extra_penalty} onChange={(v) => updateReputation("repeat_violation_extra_penalty", v)} min={0} />
+            {/* F-115: penalty semantics allow negative values (extra punishment);
+                min=0 would trip native :invalid on the real -1 value and block
+                every save once the snake_case contract lands. */}
+            <FieldRow id="config-repeat-violation-penalty" label={t('admin.config.repeatViolationPenalty')} value={config.reputation.repeat_violation_extra_penalty} onChange={(v) => updateReputation("repeat_violation_extra_penalty", v)} min={-10} />
           </div>
         </div>
 
