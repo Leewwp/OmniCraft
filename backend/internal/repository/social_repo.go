@@ -150,6 +150,20 @@ func (r *SocialRepository) CreateDiscussion(d *model.Discussion) error {
 	return r.db.Create(d).Error
 }
 
+// IncrementDiscussionReplyCount maintains the discussion reply counter and
+// last_active_at (latest_reply sort driver). T12/FIX-18 unified semantics:
+// called from SocialService.PostComment's discussion branch so every entry
+// point (/discussions/:id/comments and /social/comments with discussion_id)
+// increments exactly once per comment — no double counting, no missed count.
+// Column semantics mirror DiscussionRepository.IncrementReplyCount.
+func (r *SocialRepository) IncrementDiscussionReplyCount(id int64) error {
+	return r.db.Model(&model.Discussion{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"reply_count":    gorm.Expr("reply_count + 1"),
+			"last_active_at": gorm.Expr("NOW()"),
+		}).Error
+}
+
 func (r *SocialRepository) FindDiscussion(id int64) (*model.Discussion, error) {
 	var d model.Discussion
 	err := r.db.First(&d, id).Error

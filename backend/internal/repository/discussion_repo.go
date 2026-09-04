@@ -99,7 +99,8 @@ func (r *DiscussionRepository) IncrementReplyCount(id int64) error {
 
 func (r *DiscussionRepository) SearchByKeyword(ipID int64, keyword string, page, pageSize int) ([]model.Discussion, error) {
 	var discussions []model.Discussion
-	err := r.db.Where("ip_id = ? AND to_tsvector('simple', title || ' ' || body) @@ plainto_tsquery('simple', ?)", ipID, keyword).
+	// T12/F-106 顺带收口：搜索结果与列表一样只透出 published 讨论。
+	err := r.db.Where("ip_id = ? AND status = ? AND to_tsvector('simple', title || ' ' || body) @@ plainto_tsquery('simple', ?)", ipID, "published", keyword).
 		Order("last_active_at DESC").
 		Offset((page - 1) * pageSize).Limit(pageSize).
 		Find(&discussions).Error
@@ -116,6 +117,8 @@ func (r *DiscussionRepository) ListByUser(userID int64, page, pageSize int) ([]m
 		userID,
 		commentSubq,
 	)
+	// T12/F-106 顺带收口：用户主页讨论列表同样只透出 published 讨论。
+	base = base.Where("status = ?", "published")
 
 	var total int64
 	base.Model(&model.Discussion{}).Count(&total)

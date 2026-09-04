@@ -1,12 +1,12 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
-	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -19,15 +19,20 @@ type DiscussionHandler struct {
 	discRepo      *repository.DiscussionRepository
 	socialRepo    *repository.SocialRepository
 	ipRepo        *repository.IPRepository
+	socialSvc     *service.SocialService
 	displaySigner *service.DisplayURLSigner
 	cfg           *config.Config
 }
 
-func NewDiscussionHandler(db *gorm.DB) *DiscussionHandler {
+// NewDiscussionHandler takes the shared SocialService so discussion creation
+// and replies go through the same reputation gate, Green text moderation and
+// owner notification as /social routes (T12/FIX-18 route duality fix).
+func NewDiscussionHandler(db *gorm.DB, socialSvc *service.SocialService) *DiscussionHandler {
 	return &DiscussionHandler{
 		discRepo:   repository.NewDiscussionRepository(db),
 		socialRepo: repository.NewSocialRepository(db),
 		ipRepo:     repository.NewIPRepository(db),
+		socialSvc:  socialSvc,
 	}
 }
 
@@ -79,14 +84,15 @@ func (h *DiscussionHandler) CreateDiscussion(c *gin.Context) {
 		return
 	}
 
-	d := &model.Discussion{
-		IPID:     &ipID,
-		AuthorID: callerID,
-		Title:    body.Title,
-		Body:     body.Body,
-	}
-	if err := h.discRepo.Create(d); err != nil {
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+	// T12（FIX-18）：改走 SocialService.PostDiscussion——信誉门 + Green 审核
+	// 与 /social/discussions 同一套治理（此前直写 repo 绕过双门）。
+	d, err := h.socialSvc.PostDiscussion(c.Request.Context(), service.PostDiscussionInput{
+		IPID:  &ipID,
+		Title: body.Title,
+		Body:  body.Body,
+	}, callerID)
+	if err != nil {
+		h.respondSocialServiceError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"discussion": d})
@@ -99,6 +105,12 @@ func (h *DiscussionHandler) GetDiscussion(c *gin.Context) {
 
 	d, err := h.discRepo.GetByID(id)
 	if err != nil || d == nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "discussion not found"})
+		return
+	}
+	// T12/F-106 顺带收口：未发布（under_review/hidden）讨论不透出详情；
+	// admin 置顶走 PinDiscussion（不经此读路径），不受影响。
+	if d.Status != "published" {
 		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "discussion not found"})
 		return
 	}
@@ -128,6 +140,8 @@ func (h *DiscussionHandler) ReplyToDiscussion(c *gin.Context) {
 	callerID := middleware.GetUserID(c)
 	discID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 
+	// 前端 ReplyList 发 content（service 输入是 body）：保留本地 binding 做
+	// 字段映射（T12 前提①），否则全站讨论回复 400。
 	var body struct {
 		Content  string `json:"content" binding:"required"`
 		ParentID *int64 `json:"parent_id"`
@@ -137,20 +151,35 @@ func (h *DiscussionHandler) ReplyToDiscussion(c *gin.Context) {
 		return
 	}
 
-	comment := &model.Comment{
+	// T12（FIX-18）：改走 SocialService.PostComment——信誉门 + Green 审核 +
+	// 楼主通知一并复用；reply_count/last_active_at 由 service 的 discussion
+	// 分支统一递增（一条评论只计一次，handler 不再手动 IncrementReplyCount）。
+	comment, err := h.socialSvc.PostComment(c.Request.Context(), service.PostCommentInput{
 		DiscussionID: &discID,
-		TargetType:   "discussion",
-		TargetID:     discID,
-		AuthorID:     callerID,
-		Body:         body.Content,
 		ParentID:     body.ParentID,
-	}
-	if err := h.socialRepo.CreateComment(comment); err != nil {
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		Body:         body.Content,
+	}, callerID)
+	if err != nil {
+		h.respondSocialServiceError(c, err)
 		return
 	}
-	h.discRepo.IncrementReplyCount(discID)
 	c.JSON(http.StatusCreated, gin.H{"comment": comment})
+}
+
+// respondSocialServiceError maps SocialService domain errors to the same HTTP
+// contract SocialHandler uses, so both discussion write paths (/ips and
+// /social) answer with identical status codes and error codes.
+func (h *DiscussionHandler) respondSocialServiceError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, service.ErrLowReputation):
+		response.Forbidden(c, "reputation score too low to perform this action")
+	case errors.Is(err, service.ErrTextBlocked):
+		response.Error(c, http.StatusUnprocessableEntity, "CONTENT_BLOCKED", "content was rejected by content moderation")
+	case errors.Is(err, service.ErrModerationUnavailable):
+		response.Error(c, http.StatusServiceUnavailable, "MODERATION_UNAVAILABLE", "content moderation is temporarily unavailable, please try again later")
+	default:
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+	}
 }
 
 // PinDiscussion is admin-only (#290): the pin right moved from the IP creator

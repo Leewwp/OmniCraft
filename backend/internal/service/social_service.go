@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"omnicraft/backend/config"
@@ -109,6 +110,16 @@ func (s *SocialService) PostComment(ctx context.Context, input PostCommentInput,
 
 	if err := s.socialRepo.CreateComment(comment); err != nil {
 		return nil, err
+	}
+
+	// T12（FIX-18）前提②定夺：对讨论的评论统一在此维护 reply_count 与
+	// last_active_at（latest_reply 排序驱动）。讨论路由与 /social/comments
+	// 两个入口经同一分支，一条评论只递增一次——防双计；handler 不再手动
+	// IncrementReplyCount。递增失败不回滚已创建的评论，仅记录日志。
+	if input.DiscussionID != nil {
+		if err := s.socialRepo.IncrementDiscussionReplyCount(*input.DiscussionID); err != nil {
+			slog.Warn("failed to increment discussion reply_count", "discussion_id", *input.DiscussionID, "error", err)
+		}
 	}
 
 	if s.notifSvc != nil {
