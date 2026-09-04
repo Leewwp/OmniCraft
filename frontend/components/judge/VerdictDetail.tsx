@@ -45,6 +45,8 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
   const [votes, setVotes] = useState<VoteWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // T38：理由投票的轻提示（自赞/无资格等），不阻塞 verdict 主体渲染。
+  const [voteNotice, setVoteNotice] = useState("");
 
   const loadVerdict = useCallback(async () => {
     setLoading(true);
@@ -68,6 +70,7 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
   }, [loadVerdict]);
 
   async function voteReason(voteId: number, voteType: "up" | "down") {
+    setVoteNotice("");
     try {
       await api.post(`/api/v1/judge/reasons/${voteId}/vote`, { vote_type: voteType });
       setVotes((prev) =>
@@ -84,7 +87,10 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
         })
       );
     } catch (e) {
-      if (!(e instanceof ApiRequestError && e.status === 409)) {
+      // T38：守卫类失败给明确提示，其余沿用静默降级。
+      if (e instanceof ApiRequestError && (e.code === "REASON_SELF_VOTE" || e.code === "JUDGE_QUALIFICATION_REQUIRED")) {
+        setVoteNotice(t(getUserFacingErrorKey(e)));
+      } else if (!(e instanceof ApiRequestError && e.status === 409)) {
         setError(t(getUserFacingErrorKey(e)));
         silentError(e, { component: 'VerdictDetail', action: 'voteReason' });
       }
@@ -181,6 +187,11 @@ export default function VerdictDetail({ caseId }: VerdictDetailProps) {
           <p className="text-xs font-medium text-muted-foreground">
             {t('judge.verdict.judgeReasons')}
           </p>
+          {voteNotice && (
+            <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive" role="status">
+              {voteNotice}
+            </p>
+          )}
           {sortedReasons.map((v) => (
             <div
               key={v.id}

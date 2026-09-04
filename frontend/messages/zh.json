@@ -719,7 +719,9 @@
       "result": "判决结果：{result}",
       "judgeReasons": "判官理由（按赞数排序）",
       "noReasons": "暂无判官提交理由",
-      "loadFailed": "加载判决详情失败"
+      "loadFailed": "加载判决详情失败",
+      "selfVoteForbidden": "不能给自己的判定理由点赞",
+      "qualificationRequired": "需要判官资格才能参与理由投票"
     },
     "insufficientQuestions": "该类别题库不足，暂时无法开始考核，请稍后再试",
     "readingTimeTooShort": "阅读时间不足，请先完整阅读说明",
