@@ -141,6 +141,27 @@ class BreakerTests(unittest.TestCase):
         self.assertFalse(breaker.tripped)
 
 
+class NormalizedTitleTests(unittest.TestCase):
+    def test_strips_one_outer_wrap_pair(self):
+        self.assertEqual(lib.normalized_title("《琥珀封存的雨季》"), "琥珀封存的雨季")
+
+    def test_keeps_inner_brackets(self):
+        title = "《西游记》狮驼遗事：最后的巡山令"
+        self.assertEqual(lib.normalized_title(title), title)
+
+    def test_nfc_normalizes_composed_forms(self):
+        # e-acute as decomposed (e + combining acute) must fold to composed
+        self.assertEqual(lib.normalized_title("cafe\u0301"), "caf\u00e9")
+
+    def test_trims_whitespace(self):
+        self.assertEqual(lib.normalized_title("  标题 "), "标题")
+
+    def test_empty_and_degenerate(self):
+        self.assertEqual(lib.normalized_title(""), "")
+        self.assertEqual(lib.normalized_title("《》"), "《》")
+        self.assertEqual(lib.normalized_title(None), "")
+
+
 class DescriptionTests(unittest.TestCase):
     def test_strips_markdown_and_clips(self):
         body = "# 标题\n\n**加粗**段落`code`[链接](x)继续" + "很长的正文" * 100

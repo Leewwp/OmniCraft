@@ -152,6 +152,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		social.POST("/reactions", authReq, reactionsGuard, socialHandler.React)
 		social.GET("/reactions", optAuth, socialHandler.ListReactions)
 		social.POST("/comments/:id/report", authReq, reportsGuard, socialHandler.ReportComment)
+		social.GET("/reports/me", authReq, socialHandler.ListMyReports)
 	}
 	contents.POST("/:id/report", authReq, reportsGuard, socialHandler.ReportContent)
 
