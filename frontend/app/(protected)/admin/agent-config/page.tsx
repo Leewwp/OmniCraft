@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Fragment } from "react";
 import { useTranslations } from "next-intl";
-import { api } from "@/lib/api";
+import { api, ApiRequestError } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,9 @@ export default function AgentConfigPage() {
   const [configs, setConfigs] = useState<LLMConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [testResult, setTestResult] = useState<Record<number, string>>({});
+  // T28（FIX-35）：测试失败展示后端安全文案（此前只显 fail 图标无原因）。
+  type TestState = { state: "testing" | "ok" | "fail"; message?: string };
+  const [testResult, setTestResult] = useState<Record<number, TestState>>({});
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -103,23 +105,32 @@ export default function AgentConfigPage() {
   }
 
   async function handleActivate(id: number) {
+    setError("");
     try {
       await api.post(`/api/v1/admin/llm-configs/${id}/activate`, {});
       await load();
     } catch (e) {
       silentError(e, { component: 'AdminAgentConfigPage', action: 'handleActivate' });
-      setError(t(getUserFacingErrorKey(e)));
+      // T28（FIX-35）：区分 404（配置已不存在）与 500/其他（服务端故障）。
+      const status = e instanceof ApiRequestError ? e.status : undefined;
+      if (status === 404) {
+        setError(t("agentConfig.activateNotFound"));
+      } else {
+        setError(t(getUserFacingErrorKey(e, "agentConfig.activateFailed")));
+      }
     }
   }
 
   async function handleTest(id: number) {
-    setTestResult((prev) => ({ ...prev, [id]: "testing" }));
+    setTestResult((prev) => ({ ...prev, [id]: { state: "testing" } }));
     try {
       await api.post(`/api/v1/admin/llm-configs/${id}/test`, {});
-      setTestResult((prev) => ({ ...prev, [id]: "ok" }));
+      setTestResult((prev) => ({ ...prev, [id]: { state: "ok" } }));
     } catch (e) {
       silentError(e, { component: 'AdminAgentConfigPage', action: 'handleTest' });
-      setTestResult((prev) => ({ ...prev, [id]: "fail" }));
+      // T28（FIX-35）：后端 SafeErrorResponse 已返回安全文案，透出展示。
+      const message = e instanceof ApiRequestError && e.message ? e.message : "";
+      setTestResult((prev) => ({ ...prev, [id]: { state: "fail", message } }));
     }
   }
 
@@ -173,7 +184,8 @@ export default function AgentConfigPage() {
             </thead>
             <tbody>
               {configs.map((cfg) => (
-                <tr key={cfg.id} className="border-b border-border last:border-0">
+                <Fragment key={cfg.id}>
+                <tr className="border-b border-border last:border-0">
                   <td className="px-4 py-2.5 font-medium">{cfg.config_name}</td>
                   <td className="px-4 py-2.5 text-muted-foreground">{cfg.provider_type}</td>
                   <td className="px-4 py-2.5 text-muted-foreground">{cfg.model}</td>
@@ -190,9 +202,9 @@ export default function AgentConfigPage() {
                     <div className="flex items-center justify-end gap-1">
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleTest(cfg.id)}
                         title={t("agentConfig.testConnection")}>
-                        {testResult[cfg.id] === "testing" ? <Loader2 className="h-4 w-4 animate-spin" /> :
-                         testResult[cfg.id] === "ok" ? <Check className="h-4 w-4 text-emerald-600" /> :
-                         testResult[cfg.id] === "fail" ? <Wifi className="h-4 w-4 text-red-500" /> :
+                        {testResult[cfg.id]?.state === "testing" ? <Loader2 className="h-4 w-4 animate-spin" /> :
+                         testResult[cfg.id]?.state === "ok" ? <Check className="h-4 w-4 text-emerald-600" /> :
+                         testResult[cfg.id]?.state === "fail" ? <Wifi className="h-4 w-4 text-red-500" /> :
                          <Wifi className="h-4 w-4" />}
                       </Button>
                       {!cfg.is_active && (
@@ -212,6 +224,14 @@ export default function AgentConfigPage() {
                     </div>
                   </td>
                 </tr>
+                {testResult[cfg.id]?.state === "fail" && (
+                  <tr className="border-b border-border last:border-0">
+                    <td colSpan={5} className="px-4 pb-2 text-xs text-destructive">
+                      {testResult[cfg.id]?.message || t("agentConfig.testFailed")}
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

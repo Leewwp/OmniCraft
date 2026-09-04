@@ -23,7 +23,9 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  // T28（FIX-35）：search 服务端化——此前只过滤当前页 20 条，跨页命中不可能。
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -33,12 +35,24 @@ export default function AdminUsersPage() {
 
   const pageSize = 20;
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const loadUsers = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("page_size", String(pageSize));
+      if (debouncedSearch) params.set("search", debouncedSearch);
       const data = await api.get<{ users: UserItem[]; total: number }>(
-        `/api/v1/admin/users?page=${page}&page_size=${pageSize}`
+        `/api/v1/admin/users?${params.toString()}`
       );
       setUsers(data.users || []);
       setTotal(data.total || 0);
@@ -48,7 +62,7 @@ export default function AdminUsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, t]);
+  }, [page, debouncedSearch, t]);
 
   useEffect(() => {
     void loadUsers();
@@ -86,14 +100,7 @@ export default function AdminUsersPage() {
     }
   }
 
-  const filteredUsers = search
-    ? users.filter(
-        (u) =>
-          u.username.toLowerCase().includes(search.toLowerCase()) ||
-          u.email.toLowerCase().includes(search.toLowerCase())
-      )
-    : users;
-
+  // T28（FIX-35）：过滤已由服务端 search 完成，前端不再二次过滤当前页。
   const totalPages = Math.ceil(total / pageSize);
 
   if (loading) {
@@ -131,7 +138,7 @@ export default function AdminUsersPage() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {filteredUsers.length === 0 ? (
+      {users.length === 0 ? (
         <div className="rounded-md border border-border bg-card p-12 text-center ">
           <p className="text-sm text-muted-foreground">{t('admin.users.noMatch')}</p>
         </div>
@@ -151,7 +158,7 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.map((u) => (
+                {users.map((u) => (
                   <tr key={u.id} className="border-b border-border hover:bg-muted/20">
                     <td className="px-4 py-3 text-xs text-muted-foreground">{u.id}</td>
                     <td className="px-4 py-3 font-medium">{u.username}</td>

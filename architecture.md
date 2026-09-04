@@ -374,6 +374,7 @@ backend/
 | `GET` | `/api/v1/admin/appeals` | adminHandler.ListAppeals |
 | `GET` | `/api/v1/admin/archive-scan-jobs/:id` | adminArchiveScanHandler.GetJob |
 | `GET` | `/api/v1/admin/audit-logs` | adminAuditHandler.ListAuditLogs |
+| `GET` | `/api/v1/admin/audit-logs/actions` | adminAuditHandler.ListAuditActions |
 | `GET` | `/api/v1/admin/config` | adminHandler.GetConfig |
 | `GET` | `/api/v1/admin/contents` | adminHandler.ListUnderReviewContents |
 | `GET` | `/api/v1/admin/contents/trash` | adminHandler.ListTrashedContents |
