@@ -67,7 +67,10 @@ function AppealsPageContent() {
   const [reportsPage, setReportsPage] = useState(1);
   const [reportsHasMore, setReportsHasMore] = useState(false);
   const [reportsLoadingMore, setReportsLoadingMore] = useState(false);
-  const [tab, setTab] = useState("appeals");
+  const [tab, setTab] = useState(
+    // ?tab=reports 深链（FIX-31b：举报结果通知归位到「我的举报」）。
+    searchParams.get("tab") === "reports" ? "reports" : "appeals"
+  );
 
   useEffect(() => {
     if (!user) return;

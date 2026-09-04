@@ -426,7 +426,8 @@ func (s *FeedbackService) patchTicket(ctx context.Context, ticketID int64, input
 }
 
 func (s *FeedbackService) NotifyPatchTicket(ctx context.Context, ticket *model.FeedbackTicket, input AdminPatchFeedbackInput) error {
-	if input.Status == "closed" || input.Status == "reopened" {
+	// resolved 与 closed/reopened 一样通知提交者（FIX-31b：处理进展不再静默）。
+	if input.Status == "closed" || input.Status == "reopened" || input.Status == "resolved" {
 		if err := s.deliverAdminFeedbackUpdate(ctx, ticket, 0, feedbackActionStatus(input.Status)); err != nil {
 			return err
 		}
@@ -645,6 +646,9 @@ func feedbackActionStatus(status string) string {
 	if status == "reopened" {
 		return "reopened"
 	}
+	if status == "resolved" {
+		return "resolved"
+	}
 	return "updated"
 }
 
@@ -656,6 +660,8 @@ func feedbackNotificationText(action string) (string, string) {
 		return "Feedback ticket closed", "Your feedback ticket was closed by an admin."
 	case "reopened":
 		return "Feedback ticket reopened", "Your feedback ticket was reopened by an admin."
+	case "resolved":
+		return "Feedback ticket resolved", "Your feedback ticket was resolved by an admin."
 	default:
 		return "Feedback ticket updated", "Your feedback ticket was updated by an admin."
 	}

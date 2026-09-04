@@ -225,10 +225,11 @@ func (s *SocialService) React(input ReactInput, userID int64) (string, error) {
 		return "", err
 	}
 
-	if action == "created" && input.TargetType == "content" && s.notifSvc != nil {
+	// 点踩不通知作者（FIX-31b：减少负面轰炸），仅点赞产生通知。
+	if action == "created" && input.TargetType == "content" && input.Reaction == "like" && s.notifSvc != nil {
 		content, cErr := s.contentRepo.FindByID(input.TargetID)
 		if cErr == nil && content != nil && content.AuthorID != userID {
-			s.notifSvc.Notify(content.AuthorID, "like", input.Reaction, "新的赞", "", "content", content.ID, userID)
+			s.notifSvc.Notify(content.AuthorID, "like", "like", "新的赞", "", "content", content.ID, userID)
 		}
 	}
 

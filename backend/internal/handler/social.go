@@ -85,8 +85,18 @@ func (h *SocialHandler) DeleteComment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid comment id"})
 		return
 	}
+	// 错误风格与 EditComment 对齐（FIX-31b/F-093）：404/403 专用码，不再落
+	// 400 "ERROR" 通配透传底层错误。
 	if err := h.socialSvc.DeleteComment(id, callerID); err != nil {
-		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
+		if err == service.ErrCommentNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "comment not found"})
+			return
+		}
+		if err == service.ErrCommentForbidden {
+			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "not comment author"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "DB_ERROR", "message": "database error"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})

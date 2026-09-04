@@ -40,6 +40,9 @@ export interface UnreadCounts {
   system: number;
   pr: number;
   follow: number;
+  // 广播未读（FIX-31b）：后端 unread-count 已按 channel 聚合返回，缺键会让
+  // 下拉的广播角标永不显示。
+  broadcast: number;
 }
 
 export interface InteractionCapabilities {
@@ -101,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [capabilities, setCapabilities] = useState<InteractionCapabilities>(FAIL_CLOSED_CAPABILITIES);
-  const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({ total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0 });
+  const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({ total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0, broadcast: 0 });
   const [ipHistoryVersion, setIPHistoryVersion] = useState(0);
   const previousUserRef = useRef<User | null>(null);
 
@@ -164,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) {
-      setUnreadCounts({ total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0 });
+      setUnreadCounts({ total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0, broadcast: 0 });
       return;
     }
     let cancelled = false;
@@ -172,7 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const data = await api.get<{ unread_counts: UnreadCounts }>("/api/v1/notifications/unread-count");
         if (cancelled) return;
-        setUnreadCounts(data.unread_counts || { total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0 });
+        setUnreadCounts(data.unread_counts || { total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0, broadcast: 0 });
       } catch (e) {
         silentError(e, { component: "AuthContext", action: "pollUnread" });
       }
