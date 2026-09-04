@@ -824,6 +824,34 @@ func TestSubmitForAIReviewWithoutSyncKeyKeepsLegacyBehavior(t *testing.T) {
 	}
 }
 
+// T15 (F-101): tags are public free text; the Green text scan must see them
+// alongside title/description so a banned term hidden in a tag cannot skip
+// review entirely.
+func TestSubmitForAIReviewScansTagsAlongsideTitleAndDescription(t *testing.T) {
+	svc, db, _ := setupReviewServiceTest(t)
+	ctx := context.Background()
+
+	userID := seedReviewUser(t, db)
+	contentID := seedReviewContent(t, db, userID)
+
+	green := &fakeGreenScanner{}
+	svc.green = green
+
+	require.NoError(t, svc.SubmitForAIReview(ctx, SubmitReviewInput{
+		TargetType:  "content",
+		TargetID:    contentID,
+		Title:       "tags fixture",
+		Description: "body text",
+		Tags:        []string{"奇幻", "冒险"},
+	}))
+
+	require.Len(t, green.textCalls, 1)
+	require.Contains(t, green.textCalls[0], "tags fixture", "title stays part of the scanned text")
+	require.Contains(t, green.textCalls[0], "body text", "description stays part of the scanned text")
+	require.Contains(t, green.textCalls[0], "奇幻", "tags must enter the scanned text")
+	require.Contains(t, green.textCalls[0], "冒险", "tags must enter the scanned text")
+}
+
 func TestResolveScanURLSignsPlatformObjectURLAndPassesThroughExternal(t *testing.T) {
 	cfg := &config.Config{
 		OSS: config.OSSConfig{
