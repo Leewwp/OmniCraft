@@ -76,6 +76,14 @@ export async function refreshCSRFHeader(headers: Record<string, string>) {
   await ensureCSRFHeader(headers, true);
 }
 
+// refreshSession is the app-wide single-flight refresh entry (#322 / T32):
+// AuthContext and any direct caller share the same in-flight promise, so
+// concurrent 401s (or StrictMode double-mounts) can never double-consume a
+// rotating refresh token. Returns false when the session cannot be restored.
+export async function refreshSession(): Promise<boolean> {
+  return doRefreshToken();
+}
+
 let refreshPromise: Promise<boolean> | null = null;
 
 let inMemoryAccessToken: string | null = null;
@@ -192,7 +200,14 @@ async function request<T>(
       throw new ApiRequestError(errBody.code, errBody.message, retryRes.status);
     }
 
-    if (res.status === 401 && errBody.code === "TOKEN_EXPIRED" && token) {
+    // T32（FIX-32）：会话过期真码 UNAUTHORIZED 与旧 TOKEN_EXPIRED 同构处理——
+    // 401 且携带本地 token 时先静默刷新重试一次（USER_BANNED 等其他 401 码
+    // 不触发刷新；刷新后重试仍 401 则抛错，天然防循环）。
+    if (
+      res.status === 401 &&
+      (errBody.code === "TOKEN_EXPIRED" || errBody.code === "UNAUTHORIZED") &&
+      token
+    ) {
       const refreshed = await doRefreshToken();
       if (refreshed) {
         headers["Authorization"] = `Bearer ${inMemoryAccessToken}`;
