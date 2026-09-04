@@ -16,12 +16,14 @@ import (
 type AppealHandler struct {
 	appealRepo  *repository.AppealRepository
 	contentRepo *repository.ContentRepository
+	socialRepo  *repository.SocialRepository
 }
 
 func NewAppealHandler(db *gorm.DB) *AppealHandler {
 	return &AppealHandler{
 		appealRepo:  repository.NewAppealRepository(db),
 		contentRepo: repository.NewContentRepository(db),
+		socialRepo:  repository.NewSocialRepository(db),
 	}
 }
 
@@ -38,15 +40,38 @@ func (h *AppealHandler) SubmitAppeal(c *gin.Context) {
 	}
 
 	// T29（FIX-15）：account 申诉固定指向申诉者本人（免填 target_id，
-	// 忽略请求体值防止替他人提交账号申诉）；其余目标仍要求有效 id。
+	// 忽略请求体值防止替他人提交账号申诉；本人存在性由 token 保证）。
+	// T31（FIX-27）：content/comment 目标必须真实存在，防假 id 污染 admin 队列。
 	if body.TargetType == "account" {
 		body.TargetID = callerID
-	} else if body.TargetID <= 0 {
-		response.ValidationError(c, "invalid request parameters")
-		return
+	} else {
+		if body.TargetID <= 0 {
+			response.ValidationError(c, "invalid request parameters")
+			return
+		}
+		switch body.TargetType {
+		case "content":
+			item, err := h.contentRepo.FindByID(body.TargetID)
+			if err != nil || item == nil {
+				c.JSON(http.StatusNotFound, gin.H{"code": "TARGET_NOT_FOUND", "message": "appeal target not found"})
+				return
+			}
+		case "comment":
+			comment, err := h.socialRepo.FindComment(body.TargetID)
+			if err != nil || comment == nil {
+				c.JSON(http.StatusNotFound, gin.H{"code": "TARGET_NOT_FOUND", "message": "appeal target not found"})
+				return
+			}
+		}
 	}
 
-	hasPending, _ := h.appealRepo.HasPendingAppeal(callerID, body.TargetType, body.TargetID)
+	// T31（FIX-27 / F-099）：查重失败 fail-closed——DB 错误静默放行会让同一
+	// 目标产生双 pending（appeals 表无 UNIQUE 兜底）。
+	hasPending, err := h.appealRepo.HasPendingAppeal(callerID, body.TargetType, body.TargetID)
+	if err != nil {
+		response.SafeErrorResponse(c, http.StatusServiceUnavailable, "APPEAL_CHECK_UNAVAILABLE", err)
+		return
+	}
 	if hasPending {
 		c.JSON(http.StatusConflict, gin.H{"code": "APPEAL_EXISTS", "message": "pending appeal already exists"})
 		return

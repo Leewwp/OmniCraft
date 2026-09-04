@@ -932,6 +932,12 @@
       "confirmApprove": "确认通过",
       "confirmReject": "确认驳回",
       "opinion": "处理意见",
+      "statusFilter": "状态筛选",
+      "statusPending": "待处理",
+      "statusApproved": "已通过",
+      "statusRejected": "已驳回",
+      "statusAll": "全部",
+      "viewContent": "查看内容",
       "loadFailed": "加载申诉列表失败",
       "processFailed": "处理申诉失败"
     },
@@ -1575,6 +1581,7 @@
     "noAppeals": "暂无申诉记录",
     "loadFailed": "加载失败",
     "submitFailed": "提交失败",
+    "adminResponse": "处理意见",
     "exists": "该目标已有待处理的申诉，请等待处理完成"
   },
   "history": {

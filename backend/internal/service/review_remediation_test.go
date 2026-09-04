@@ -70,8 +70,9 @@ func TestApprovedAppealRestoresContentStatus(t *testing.T) {
 	if updates["status"] != "published" {
 		t.Fatalf("approved content appeal updates = %#v, want published status", updates)
 	}
-	if updates := appealTargetUpdates("comment", "approved"); len(updates) != 0 {
-		t.Fatalf("comment appeal should not use content updates, got %#v", updates)
+	// T31（FIX-27）：comment approved 恢复 hidden → published（行为变更）。
+	if updates := appealTargetUpdates("comment", "approved"); updates["status"] != "published" {
+		t.Fatalf("approved comment appeal should restore published status, got %#v", updates)
 	}
 	if updates := appealTargetUpdates("content", "rejected"); len(updates) != 0 {
 		t.Fatalf("rejected content appeal should not restore target, got %#v", updates)

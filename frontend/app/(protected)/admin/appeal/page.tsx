@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
@@ -36,13 +37,15 @@ export default function AdminAppealPage() {
   } | null>(null);
 
   const pageSize = 20;
+  // T31（FIX-27）：status 筛选（默认 pending 保持历史行为；all 全量）。
+  const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
 
   const loadAppeals = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const data = await api.get<{ appeals: AppealItem[]; total: number }>(
-        `/api/v1/admin/appeals?page=${page}&page_size=${pageSize}`
+        `/api/v1/admin/appeals?page=${page}&page_size=${pageSize}&status=${statusFilter}`
       );
       setAppeals(data.appeals || []);
       setTotal(data.total || 0);
@@ -52,7 +55,7 @@ export default function AdminAppealPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, t]);
+  }, [page, statusFilter, t]);
 
   useEffect(() => {
     void loadAppeals();
@@ -66,8 +69,9 @@ export default function AdminAppealPage() {
         status,
         admin_response: response,
       });
-      setAppeals((prev) => prev.filter((a) => a.id !== id));
-      setTotal((t) => t - 1);
+      // T31（FIX-27）：status 筛选下处理后重拉列表（pending 视图行自然消失，
+      // approved/rejected 视图行刷新为已处理态）。
+      await loadAppeals();
     } catch (e) {
       silentError(e, { component: 'AdminAppealPage', action: 'resolveAppeal' });
       setError(t(getUserFacingErrorKey(e, "admin.appeals.processFailed")));
@@ -99,6 +103,20 @@ export default function AdminAppealPage() {
             {t('admin.appeals.subtitle', { total })}
           </p>
         </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => {
+            setPage(1);
+            setStatusFilter(e.target.value as typeof statusFilter);
+          }}
+          aria-label={t('admin.appeals.statusFilter')}
+          className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+        >
+          <option value="pending">{t('admin.appeals.statusPending')}</option>
+          <option value="approved">{t('admin.appeals.statusApproved')}</option>
+          <option value="rejected">{t('admin.appeals.statusRejected')}</option>
+          <option value="all">{t('admin.appeals.statusAll')}</option>
+        </select>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -138,7 +156,18 @@ export default function AdminAppealPage() {
                         {a.target_type}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{a.target_id}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {a.target_id}
+                      {/* T31（FIX-27）：content 申诉行内直达预览。 */}
+                      {a.target_type === "content" && (
+                        <Link
+                          href={`/content/${a.target_id}`}
+                          className="ml-2 text-primary hover:underline"
+                        >
+                          {t('admin.appeals.viewContent')}
+                        </Link>
+                      )}
+                    </td>
                     <td className="max-w-[200px] truncate px-4 py-3 text-xs text-muted-foreground">
                       {a.reason}
                     </td>
