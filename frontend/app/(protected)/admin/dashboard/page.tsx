@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { api, ApiRequestError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { silentError } from "@/lib/error-handler";
 import { AdminMetricCard } from "@/components/admin/AdminMetricCard";
+import { Button } from "@/components/ui/button";
 import { Flag, AlertTriangle, MessageSquare, ListOrdered } from "lucide-react";
 
 interface ReportStats {
@@ -32,25 +33,34 @@ export default function AdminDashboardPage() {
   const [openFeedback, setOpenFeedback] = useState<number | null>(null);
   const [pendingAppeals, setPendingAppeals] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  // T28（FIX-35 / F-117）：部分加载失败可见——此前 .catch(()=>null) 把失败
+  // 伪装成空态（"-"}, 无法区分「无数据」与「加载失败」。
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
-    try {
-      const [reports, queue, feedback, appeals] = await Promise.all([
-        api.get<ReportStats>("/api/v1/admin/reports/stats").catch(() => null),
-        api.get<QueueStats>("/api/v1/admin/queue/stats").catch(() => null),
-        api.get<FeedbackListResponse>("/api/v1/admin/feedback?status=open&page=1&page_size=1").catch(() => null),
-        api.get<AppealListResponse>("/api/v1/admin/appeals?status=pending&page=1&page_size=1").catch(() => null),
-      ]);
-      if (reports) setReportStats(reports);
-      if (queue) setQueueStats(queue);
-      if (feedback) setOpenFeedback(feedback.total);
-      if (appeals) setPendingAppeals(appeals.total);
-    } catch (e) {
-      silentError(e, { component: "AdminDashboardPage", action: "loadDashboard" });
-    } finally {
-      setLoading(false);
+    setLoadFailed(false);
+    const results = await Promise.allSettled([
+      api.get<ReportStats>("/api/v1/admin/reports/stats"),
+      api.get<QueueStats>("/api/v1/admin/queue/stats"),
+      api.get<FeedbackListResponse>("/api/v1/admin/feedback?status=open&page=1&page_size=1"),
+      api.get<AppealListResponse>("/api/v1/admin/appeals?status=pending&page=1&page_size=1"),
+    ]);
+    let failures = 0;
+    for (const r of results) {
+      if (r.status === "rejected") {
+        failures++;
+        silentError(r.reason, { component: "AdminDashboardPage", action: "loadDashboard" });
+      }
     }
+    if (failures < results.length) {
+      if (results[0].status === "fulfilled") setReportStats(results[0].value);
+      if (results[1].status === "fulfilled") setQueueStats(results[1].value);
+      if (results[2].status === "fulfilled") setOpenFeedback(results[2].value.total);
+      if (results[3].status === "fulfilled") setPendingAppeals(results[3].value.total);
+    }
+    if (failures > 0) setLoadFailed(true);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -65,6 +75,15 @@ export default function AdminDashboardPage() {
         <h1 className="text-2xl font-bold tracking-tight">{t("admin.dashboard.title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("admin.dashboard.subtitle")}</p>
       </div>
+
+      {loadFailed && !loading && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-card p-3">
+          <p role="alert" className="text-sm text-destructive">{t("admin.dashboard.partialLoadFailed")}</p>
+          <Button variant="outline" size="sm" onClick={() => void loadDashboard()}>
+            {t("common.retry")}
+          </Button>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <AdminMetricCard

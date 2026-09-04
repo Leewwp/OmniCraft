@@ -392,6 +392,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		admin.POST("/feedback/:id/replies", adminFeedbackHandler.ReplyFeedback)
 		admin.POST("/notifications/broadcast", adminHandler.BroadcastNotification)
 		admin.GET("/audit-logs", adminAuditHandler.ListAuditLogs)
+		admin.GET("/audit-logs/actions", adminAuditHandler.ListAuditActions)
 		admin.POST("/rag/rebuild", adminRAGHandler.Rebuild)
 		admin.GET("/archive-scan-jobs/:id", archiveScanAdminRateLimit, adminArchiveScanHandler.GetJob)
 		admin.POST("/archive-scan-jobs/:id/manual-review", archiveScanAdminRateLimit, adminArchiveScanHandler.StartManualReview)

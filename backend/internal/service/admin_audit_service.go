@@ -144,6 +144,19 @@ func (s *AdminAuditService) List(ctx context.Context, filter AdminAuditFilter) (
 	return s.repo.List(repoFilter)
 }
 
+// DistinctActions（T28 / FIX-35）：audit 动作下拉的后端唯一来源——前端硬编码
+// 词表永远落后于新增 action（llm_config_*/dlq_replay/rag_rebuild 等），改为
+// distinct + 排序实时返回。
+func (s *AdminAuditService) DistinctActions(ctx context.Context) ([]string, error) {
+	var actions []string
+	err := s.db.WithContext(ctx).
+		Model(&model.AdminAuditLog{}).
+		Distinct().
+		Order("action").
+		Pluck("action", &actions).Error
+	return actions, err
+}
+
 func filterMetadata(action string, raw map[string]interface{}) model.JSONMap {
 	if raw == nil {
 		return model.JSONMap{}
