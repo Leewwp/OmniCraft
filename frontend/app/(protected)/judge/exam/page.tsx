@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
-import { api } from "@/lib/api";
+import { api, ApiRequestError } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import { Button } from "@/components/ui/button";
@@ -104,6 +104,10 @@ export default function JudgeExamPage() {
     } catch (e) {
       silentError(e, { component: 'JudgeExamPage', action: 'submitExam' });
       setError(t(getUserFacingErrorKey(e, "judge.examSubmitFailed")));
+      // T37：会话过期/缺失必须重新抽题，回退到类型选择页。
+      if (e instanceof ApiRequestError && e.code === "EXAM_SESSION_EXPIRED") {
+        setPhase("select-type");
+      }
     } finally {
       setLoading(false);
     }

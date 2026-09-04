@@ -723,7 +723,9 @@
     },
     "insufficientQuestions": "该类别题库不足，暂时无法开始考核，请稍后再试",
     "readingTimeTooShort": "阅读时间不足，请先完整阅读说明",
-    "loadMore": "加载更多待审案件"
+    "loadMore": "加载更多待审案件",
+    "examSessionExpired": "考试会话已过期，请重新选择类型抽题",
+    "examAlreadyQualified": "你已持有该类型的判官资格，无需再考"
   },
   "dashboard": {
     "title": "创作者后台",
