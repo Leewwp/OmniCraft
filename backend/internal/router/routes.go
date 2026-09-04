@@ -229,6 +229,8 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		me.DELETE("/saved-searches/:id", tagHandler.DeleteSavedSearch)
 		me.GET("/followers/stats", followHandler.GetFollowerStats)
 		me.GET("/contents", userHandler.GetMyContents)
+		// T52: the creator's own IPs across every status + latest reject reason.
+		me.GET("/ips", ipHandler.GetMyIPs)
 	}
 
 	searchHandler := handler.NewSearchHandler(ctr.SearchService, cfg)
