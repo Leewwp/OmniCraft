@@ -120,6 +120,14 @@ func (s *ReputationService) AwardTagRecognized(userID int64, tagSuggestionID int
 }
 
 func (s *ReputationService) AwardJudgeAccuracy(userID int64, caseID int64) error {
+	// T39（FIX-03）：同案幂等（闭案并发触发/重复调用只记一次）。
+	var count int64
+	s.db.Model(&model.ReputationLog{}).
+		Where("user_id = ? AND reason = 'judge_accuracy' AND related_id = ?", userID, caseID).
+		Count(&count)
+	if count > 0 {
+		return nil
+	}
 	return s.AddReputation(userID, s.score(1, func() int { return s.cfg.Reputation.ScoreJudgeAccuracy }), "judge_accuracy", &caseID)
 }
 

@@ -160,7 +160,8 @@
 ### 赛博判官
 - 题库不存在时：该类型内容不开放众裁
 - 考核通过线：≥ 80% 正确率
-- 错误率撤权：最近 N 次（配置窗口从 config.yaml > judge.error_rate_window 读取且最小为 10；累计有效判定需 > 10）判定中错误率 > 50%，撤权 + 扣 1 信誉分
+- 错误率撤权：最近 N 次（配置窗口从 config.yaml > judge.error_rate_window 读取且最小为 10；累计有效判定需 > 10）判定中错误率 > 50%，撤权 + 扣 1 信誉分；撤权重算的多数派口径读 `judge.pass_threshold` 与闭案阈值同源（T39/FIX-03），结案终态一律按 `closed_approve`/`closed_reject` 前缀匹配
+- 准确率奖励（T39/FIX-03）：闭案后与多数派一致的在册判官 +1 信誉分（reputation_log reason=`judge_accuracy`，按案幂等）；少数派不奖励
 - 判决结束条件：总投票人数 ≥ 阈值（MVP 默认 20，可配置，目标 100）
 - 判决结果：「不违规」比例 ≥ 60% → 恢复展示；< 60% → 有争议，不予展示（管理员可手动恢复）
 - 闭案回写（FIX-10）：closed_approve → 内容从 under_review 条件恢复 published（守卫保证 admin/AI 终态 banned 不被众裁覆盖）并重发索引事件；closed_reject → banned + ban_reason（judge_verdict 前缀），**不扣信誉分**（扣分语义属 AI/admin 通道）；两态均通知作者（content_status 契约）并立即失效内容缓存。banned 结果可 admin restore、可申诉
