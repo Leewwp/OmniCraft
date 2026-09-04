@@ -1,3 +1,18 @@
+## [2026-09-04] - Task #319: 搜索 tsquery 冒号解析修复（道 A 产品 bug 批第 1 票）
+
+### What was done:
+- 根因：`toTSQuery` 手工拼 tsquery，但 `splitAndNormalize` 只在空格与 `&|!()` 切词——ASCII 冒号粘在词尾再拼 `":*"` 产出 `PIECE::**` 畸形串，`to_tsquery` 直接 syntax error，含冒号标题的精确搜索整条失配（#316 冒烟 20 中 2 条 miss 的机制；golden set 多条 exact 查询同受影响，A-04 前置）。
+- 修复：`splitAndNormalize` 改为按「非字母非数字」Unicode 边界切词（半角 `:`、全角「：」「·」《》等一律边界，与 PG 文本搜索解析器的词素边界一致）；`toTSQuery` 删除「空结果回退拼 `query+":*"`」——纯标点查询返回空串，`to_tsquery(cfg,'')` 仅 NOTICE 不报错、`@@` 恒 false，ILIKE 兜底条件仍生效。
+
+### Testing:
+- TDD 先红后绿：新增 4 例（ASCII 冒号切词/全角标点切词/纯标点空串/字母数字游程保持）；`go test ./...` 32 包全绿 + build/vet 绿。
+- PG 实证（隔离栈 lanea-pg@5436，72 迁移）：修复形态 `to_tsquery('simple','PIECE::**')` → ERROR 复现；`ts_rank_cd`/`ts_headline`/`@@` 对空 tsquery 均安全。
+- curl 隔离栈（backend 8085）：① ASCII 冒号原查询 `ONE PIECE: Three Days After the Tide` → 200 total=1 精确命中（修复前 500）；② 全角 `崩坏：星穹铁道·罗浮外史` → 200 total=1；③ 纯标点 `！！！《》` → 200 total=0（修复前 500）；④ 无关词 → 0 无误中。
+
+### Notes:
+- worktree OmniCraft-wt-la（道 A），分支 lanea/319-tsquery-colon；RAG 冻结点护栏允许：本票排在 A-04 之前（#319 为其评测有效性前置）。
+- 范围收敛：仅动 SearchContents/SearchIPs 共用的 toTSQuery/splitAndNormalize；SearchRAGChunks 走 plainto_tsquery 本就安全，未动。
+
 ## [2026-09-04] - 编排：道 B 闲时清票提示词 + 34/69 计数回写 + 道 A bug 批派发
 
 ### What was done:
