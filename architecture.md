@@ -452,6 +452,7 @@ backend/
 | `GET` | `/api/v1/users/me/history` | histHandler.GetHistory |
 | `GET` | `/api/v1/users/me/ip-visits` | ipVisitHistoryHandler.ListRecent |
 | `GET` | `/api/v1/users/me/ips` | ipHandler.GetMyIPs |
+| `GET` | `/api/v1/users/me/pending-tasks` | userHandler.GetMyPendingTasks |
 | `GET` | `/api/v1/users/me/saved-searches` | tagHandler.ListSavedSearches |
 | `GET` | `/api/v1/users/me/tag-groups` | tagHandler.ListTagGroups |
 | `GET` | `/api/v1/users/search` | searchHandler.SearchUsers |
