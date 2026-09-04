@@ -437,6 +437,7 @@ backend/
 | `GET` | `/api/v1/social/discussions` | socialHandler.ListDiscussions |
 | `GET` | `/api/v1/social/discussions/:id` | socialHandler.GetDiscussion |
 | `GET` | `/api/v1/social/reactions` | socialHandler.ListReactions |
+| `GET` | `/api/v1/social/reports/me` | socialHandler.ListMyReports |
 | `GET` | `/api/v1/stats/summary` | statsHandler.GetSummary |
 | `GET` | `/api/v1/tags/faceted` | tagHandler.GetFacetedTags |
 | `GET` | `/api/v1/tags/search` | tagHandler.SearchTags |
