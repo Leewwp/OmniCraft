@@ -284,7 +284,7 @@
     "allContent": "All Content",
     "categoryMod": "Mod",
     "versionHistory": "Version History",
-    "noVersionHistory": "No version history",
+    "noVersionHistory": "No version history yet. Publishing, edits and merged PRs create versions; this content predates versioning, so it has no records.",
     "latest": "Latest",
     "preview": "Preview",
     "restoreVersion": "Restore this version",
@@ -829,7 +829,8 @@
       "goReports": "Reports",
       "goFeedback": "Feedback",
       "goAppeals": "Appeals",
-      "goQueue": "Queue Monitor"
+      "goQueue": "Queue Monitor",
+      "partialLoadFailed": "Some dashboard data failed to load"
     },
     "reports": {
       "title": "Report Management",
@@ -1073,7 +1074,13 @@
       "dlq": "Dead Letter Queue",
       "noDLQ": "DLQ is empty",
       "loadFailed": "Failed to load queue data",
-      "readOnlyNote": "Queue page is read-only during Beta. Replay controls are not available."
+      "readOnlyNote": "This page monitors per-topic depth, lag and failures; dead-letter entries can be replayed back to their original topic (the original entry stays in the DLQ).",
+      "replay": "Replay",
+      "replayTitle": "Replay dead-letter entry",
+      "replayConfirm": "Re-deliver entry {id} back to its original topic \"{topic}\"? The original entry stays in the dead-letter queue and is not removed.",
+      "replaySuccess": "Entry {id} re-delivered to its original topic (original entry kept in the DLQ)",
+      "replayFailed": "Failed to replay entry {id}. Please try again.",
+      "retries": "{count} retries"
     },
     "auditLogs": {
       "title": "Audit Logs",
@@ -1590,7 +1597,10 @@
     "activate": "Activate",
     "deleteConfig": "Delete configuration",
     "deleteTitle": "Delete LLM configuration",
-    "deleteDescription": "Delete configuration \"{name}\"? This action cannot be undone."
+    "deleteDescription": "Delete configuration \"{name}\"? This action cannot be undone.",
+    "activateNotFound": "Config no longer exists (it may have been deleted). Refresh the list.",
+    "activateFailed": "Activation failed. Please try again.",
+    "testFailed": "Connection test failed"
   },
   "appeals": {
     "title": "My Appeals",

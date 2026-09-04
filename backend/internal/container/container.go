@@ -197,6 +197,8 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	// merge 事务（版本+正文+索引事件）/ 缓存失效 / +3 信誉分（FIX-21）。
 	c.PRService.SetMergeSupport(rdb, c.OutboxRepo, c.ReputationService)
 	c.VersionService = service.NewVersionService(c.VersionRepo, c.ContentRepo)
+	// FIX-42: 发布事务内建初始版本 v1（full=description）。
+	c.ContentService.SetVersionService(c.VersionService)
 	c.SearchService = service.NewSearchService(c.SearchRepo, rdb)
 	c.IPProposalService = service.NewIPProposalService(
 		c.IPRepo, c.UserRepo, c.FollowRepo,
