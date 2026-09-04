@@ -170,14 +170,20 @@ func OptionalAuth(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.Han
 
 func AdminRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		role, exists := c.Get(UserRoleKey)
-		if !exists || role != "admin" {
+		if !IsAdmin(c) {
 			c.JSON(403, gin.H{"code": "FORBIDDEN", "message": "admin access required"})
 			c.Abort()
 			return
 		}
 		c.Next()
 	}
+}
+
+// IsAdmin reports whether the current context carries the admin role. Works
+// after both AuthRequired and OptionalAuth resolved the identity.
+func IsAdmin(c *gin.Context) bool {
+	role, exists := c.Get(UserRoleKey)
+	return exists && role == "admin"
 }
 
 func GetUserID(c *gin.Context) int64 {

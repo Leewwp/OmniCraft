@@ -14,6 +14,10 @@ func NewPRRepository(db *gorm.DB) *PRRepository {
 	return &PRRepository{db: db}
 }
 
+// DB exposes the underlying connection so the merge path can run version,
+// PR, content and outbox writes inside one transaction (FIX-21).
+func (r *PRRepository) DB() *gorm.DB { return r.db }
+
 func (r *PRRepository) CreatePR(pr *model.PullRequest) error {
 	return r.db.Create(pr).Error
 }
