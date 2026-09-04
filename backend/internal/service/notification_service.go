@@ -319,6 +319,46 @@ func (s *NotificationService) NotifyContentStatus(authorID, contentID int64, con
 	s.Notify(authorID, "system", "content_status", title, body, "content", contentID, senderID)
 }
 
+// NotifyIPDecision delivers the IP-creator-facing review decision
+// notification (T16/FIX-24): channel=system, type=ip_status, target=ip, and
+// the body carries the admin-provided reason on rejection. Unknown decisions
+// are dropped so callers can pass transitions through unconditionally. Copy
+// stays in backend Chinese templates on purpose; locale templating is a
+// registered non-goal for this phase.
+func (s *NotificationService) NotifyIPDecision(creatorID, ipID int64, ipName, decision, reason string, senderID int64) {
+	title, body, ok := ipDecisionNotificationCopy(ipName, decision, reason)
+	if !ok {
+		return
+	}
+	s.Notify(creatorID, "system", "ip_status", title, body, "ip", ipID, senderID)
+}
+
+// ipDecisionNotificationCopy renders the creator-facing copy for an IP
+// review decision. ok=false means the decision has no creator notification.
+func ipDecisionNotificationCopy(ipName, decision, reason string) (title, body string, ok bool) {
+	if ipName == "" {
+		ipName = "你提交的 IP"
+	}
+	reasonSuffix := ""
+	if reason != "" {
+		reasonSuffix = "原因：" + reason
+	}
+	switch decision {
+	case "approved":
+		title = "IP 已通过审核"
+		body = "「" + ipName + "」已通过审核并在 IP 库公开。"
+	case "rejected":
+		title = "IP 未通过审核"
+		body = "「" + ipName + "」未通过审核。你可以调整后重新提交。"
+	default:
+		return "", "", false
+	}
+	if reasonSuffix != "" {
+		body += reasonSuffix
+	}
+	return title, body, true
+}
+
 // NotifyReportResolution closes the reporter feedback loop (FIX-28a): when an
 // admin resolves or dismisses a report, the reporter gets a system
 // notification whose body carries the action-taken note. Unknown statuses are
