@@ -1234,6 +1234,27 @@
       "a11y": {
         "acceptInvites": "Accept collaboration invites"
       }
+    },
+    "reputation": {
+      "title": "Reputation details",
+      "total": "{total} entries",
+      "empty": "No reputation changes yet",
+      "loadFailed": "Failed to load reputation details",
+      "loadMore": "Load more",
+      "loading": "Loading...",
+      "reasons": {
+        "ai_violation": "AI moderation violation",
+        "judge_error_rate": "Judge error rate adjustment",
+        "rehab": "Rehabilitation course",
+        "quality_content": "Quality content",
+        "quality_comment": "Quality comment",
+        "pr_merged": "PR merged",
+        "tag_recognized": "Tag suggestion recognized",
+        "valid_report": "Valid report",
+        "malicious_report": "Malicious report",
+        "malicious_tag_report": "Malicious tag report",
+        "admin_adjust": "Admin adjustment"
+      }
     }
   },
   "tagGroups": {
