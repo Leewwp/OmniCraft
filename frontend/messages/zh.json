@@ -1964,7 +1964,8 @@
       "contributors": "贡献者",
       "tagSuggestions": "标签建议",
       "revenue": "收益数据",
-      "favorites": "收藏集"
+      "favorites": "收藏集",
+      "myIPs": "我的 IP"
     },
     "series": {
       "title": "内容系列管理",
@@ -2314,6 +2315,25 @@
         "saveFailed": "收藏集保存失败",
         "deleteFailed": "收藏集删除失败"
       }
+    },
+    "myIPs": {
+      "title": "我的 IP",
+      "subtitle": "查看你创建的 IP 的审核状态与原因",
+      "empty": "还没有创建任何 IP",
+      "create": "创建 IP",
+      "colName": "名称",
+      "colCategory": "分类",
+      "colStatus": "状态",
+      "colDate": "提交时间",
+      "colReason": "审核意见",
+      "colActions": "操作",
+      "statusPending": "审核中",
+      "statusApproved": "已通过",
+      "statusRejected": "未通过",
+      "noReason": "-",
+      "resubmit": "重新提交",
+      "view": "查看",
+      "loadFailed": "加载 IP 列表失败"
     }
   },
   "adminNotifications": {

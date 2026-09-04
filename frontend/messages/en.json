@@ -1964,7 +1964,8 @@
       "contributors": "Contributors",
       "tagSuggestions": "Tag Suggestions",
       "revenue": "Revenue",
-      "favorites": "Collections"
+      "favorites": "Collections",
+      "myIPs": "My IPs"
     },
     "series": {
       "title": "Content series",
@@ -2314,6 +2315,25 @@
         "saveFailed": "Failed to save collection",
         "deleteFailed": "Failed to delete collection"
       }
+    },
+    "myIPs": {
+      "title": "My IPs",
+      "subtitle": "Review the status and feedback of IPs you created",
+      "empty": "You haven't created any IPs yet",
+      "create": "Create IP",
+      "colName": "Name",
+      "colCategory": "Category",
+      "colStatus": "Status",
+      "colDate": "Submitted",
+      "colReason": "Review note",
+      "colActions": "Actions",
+      "statusPending": "Pending",
+      "statusApproved": "Approved",
+      "statusRejected": "Rejected",
+      "noReason": "-",
+      "resubmit": "Resubmit",
+      "view": "View",
+      "loadFailed": "Failed to load IP list"
     }
   },
   "adminNotifications": {

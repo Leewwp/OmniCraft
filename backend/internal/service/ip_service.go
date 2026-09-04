@@ -194,6 +194,36 @@ func ipReviewInput(ip *model.IP, creatorID int64) SubmitReviewInput {
 	}
 }
 
+// ListMyIPs lists the creator's own IPs across every status and decorates
+// rejected rows with the latest ip_review_logs reason (T52/FIX-23b), so the
+// creator never has to guess why an IP was rejected.
+func (s *IPService) ListMyIPs(ctx context.Context, creatorID int64, page, pageSize int) ([]model.IP, int64, error) {
+	ips, total, err := s.ipRepo.ListByCreator(creatorID, page, pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	ids := make([]int64, 0, len(ips))
+	for _, ip := range ips {
+		if ip.Status == "rejected" {
+			ids = append(ids, ip.ID)
+		}
+	}
+	if len(ids) > 0 {
+		reasons, err := s.ipRepo.LatestRejectReasons(ids)
+		if err != nil {
+			slog.Error("failed to load reject reasons", "creator_id", creatorID, "error", err)
+		} else {
+			for i := range ips {
+				if reason, ok := reasons[ips[i].ID]; ok {
+					ips[i].ReviewReason = reason
+				}
+			}
+		}
+	}
+	return ips, total, nil
+}
+
 func (s *IPService) GetIP(id int64) (*model.IP, error) {
 	if s.rdb != nil && s.cacheCfg != nil {
 		cacheKey := fmt.Sprintf("cache:ip:%d", id)

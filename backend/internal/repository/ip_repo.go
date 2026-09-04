@@ -131,6 +131,54 @@ func (r *IPRepository) ListIPs(f ListIPsFilter) ([]model.IP, int64, error) {
 	return ips, total, nil
 }
 
+// ListByCreator lists the creator's own IPs across every status (pending /
+// approved / rejected / banned) — the owner-facing "my IPs" listing (T52).
+// Unlike ListIPs it applies no visibility defaults: the creator always sees
+// their own rows.
+func (r *IPRepository) ListByCreator(creatorID int64, page, pageSize int) ([]model.IP, int64, error) {
+	var ips []model.IP
+	var total int64
+
+	q := r.db.Model(&model.IP{}).Where("creator_id = ?", creatorID)
+
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	if err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&ips).Error; err != nil {
+		return nil, 0, err
+	}
+	return ips, total, nil
+}
+
+// LatestRejectReasons returns, per IP, the reason from its most recent
+// reject review-log row (T52). Missing keys mean "no reject row".
+func (r *IPRepository) LatestRejectReasons(ipIDs []int64) (map[int64]string, error) {
+	reasons := make(map[int64]string, len(ipIDs))
+	if len(ipIDs) == 0 {
+		return reasons, nil
+	}
+	var rows []model.IPReviewLog
+	if err := r.db.
+		Where("ip_id IN ? AND action = ?", ipIDs, "reject").
+		Order("created_at DESC, id DESC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		// First hit per IP (ordered newest-first) wins.
+		if _, seen := reasons[row.IPID]; !seen {
+			reasons[row.IPID] = row.Reason
+		}
+	}
+	return reasons, nil
+}
+
 func (r *IPRepository) UpdateStatus(id int64, status string) error {
 	return r.db.Model(&model.IP{}).Where("id = ?", id).Update("status", status).Error
 }
