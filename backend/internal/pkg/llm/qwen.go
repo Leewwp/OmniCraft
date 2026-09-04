@@ -19,6 +19,7 @@ const qwenBaseURL = "https://dashscope.aliyuncs.com/compatible-mode"
 
 type QwenProvider struct {
 	apiKey     string
+	baseURL    string
 	model      string
 	embedModel string
 	client     *http.Client
@@ -29,12 +30,20 @@ func NewQwenProvider(apiKey, model, embedModel string, opts ...ProviderOption) *
 	if apiKey == "" {
 		apiKey = os.Getenv("AGENT_LLM_API_KEY")
 	}
+	// The chat base follows AGENT_LLM_API_BASE so the root .env stays the
+	// single place where provider endpoints are managed; dedicated DashScope
+	// hosts keep working by pointing that variable at the instance base.
+	base := qwenBaseURL
+	if v := strings.TrimSpace(os.Getenv("AGENT_LLM_API_BASE")); v != "" {
+		base = strings.TrimRight(v, "/")
+	}
 	cfg := providerConfig{timeout: 60 * time.Second, maxRetries: 2}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 	return &QwenProvider{
 		apiKey:     apiKey,
+		baseURL:    base,
 		model:      model,
 		embedModel: embedModel,
 		client:     &http.Client{Timeout: cfg.timeout, Transport: otelhttp.NewTransport(http.DefaultTransport)},
@@ -52,7 +61,7 @@ func (p *QwenProvider) doPost(ctx context.Context, path string, body interface{}
 	if err != nil {
 		return nil, started, err
 	}
-	resp, err = retryDo(ctx, p.client, qwenBaseURL+path, p.apiKey, b, p.maxRetries)
+	resp, err = retryDo(ctx, p.client, p.baseURL+path, p.apiKey, b, p.maxRetries)
 	return resp, started, err
 }
 

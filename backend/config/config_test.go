@@ -162,6 +162,47 @@ func TestLoadAppliesRAGHybridFinalTopKEnvOverride(t *testing.T) {
 	require.Equal(t, 20, Load().RAG.Hybrid.FinalTopK)
 }
 
+func TestLoadRAGRerankKeyFallsBackToDashScopeMasterKey(t *testing.T) {
+	t.Setenv("DASHSCOPE_API_KEY", "dash-master-key")
+	t.Setenv("RAG_RERANK_API_KEY", "")
+	t.Setenv("RAG_RERANK_API_BASE", "https://rerank.example.com")
+	t.Setenv("RAG_RERANK_FALLBACK_API_BASE", "https://fallback.example.com")
+	tmp := t.TempDir()
+	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte("rag:\n  rerank:\n    provider: dashscope\n"), 0o600))
+	previousWD, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmp))
+	t.Cleanup(func() { require.NoError(t, os.Chdir(previousWD)) })
+	cfg := Load()
+	require.Equal(t, "dash-master-key", cfg.RAG.Rerank.APIKey)
+	require.Equal(t, "https://rerank.example.com", cfg.RAG.Rerank.APIBase)
+	require.Equal(t, "https://fallback.example.com", cfg.RAG.Rerank.FallbackAPIBase)
+}
+
+func TestLoadExplicitRAGRerankKeyWinsOverDashScopeFallback(t *testing.T) {
+	t.Setenv("DASHSCOPE_API_KEY", "dash-master-key")
+	t.Setenv("RAG_RERANK_API_KEY", "dedicated-rerank-key")
+	tmp := t.TempDir()
+	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte("rag:\n  rerank:\n    provider: dashscope\n"), 0o600))
+	previousWD, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmp))
+	t.Cleanup(func() { require.NoError(t, os.Chdir(previousWD)) })
+	require.Equal(t, "dedicated-rerank-key", Load().RAG.Rerank.APIKey)
+}
+
+func TestLoadRAGRerankKeyStaysEmptyWithoutAnyKeyEnv(t *testing.T) {
+	t.Setenv("DASHSCOPE_API_KEY", "")
+	t.Setenv("RAG_RERANK_API_KEY", "")
+	tmp := t.TempDir()
+	require.NoError(t, os.WriteFile(tmp+"/config.yaml", []byte("rag:\n  rerank:\n    provider: dashscope\n"), 0o600))
+	previousWD, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmp))
+	t.Cleanup(func() { require.NoError(t, os.Chdir(previousWD)) })
+	require.Empty(t, Load().RAG.Rerank.APIKey)
+}
+
 func TestLoadDoesNotLetGenericAgentEnvShadowAgentSection(t *testing.T) {
 	t.Setenv("AGENT", "1")
 	t.Setenv("AGENT_WEB_AGENT_ENABLED", "true")

@@ -92,8 +92,10 @@ rag:
     tokenizer_encoding: "cl100k_base"
   # A-03 rerank chain (gated by features.rag_rerank_enabled): RRF top-N →
   # primary (DashScope qwen3-rerank) → fallback (SiliconFlow) → RRF order
-  # with a degraded marker. Keys come from env (RAG_RERANK_API_KEY /
-  # RAG_RERANK_FALLBACK_API_KEY), never from this file.
+  # with a degraded marker. Keys and endpoint overrides come from env
+  # (RAG_RERANK_API_KEY / RAG_RERANK_FALLBACK_API_KEY / RAG_RERANK_API_BASE /
+  # RAG_RERANK_FALLBACK_API_BASE), never from this file; the primary key
+  # falls back to the shared DASHSCOPE_API_KEY from the root .env.
   rerank:
     provider: "dashscope"
     model: "qwen3-rerank"
