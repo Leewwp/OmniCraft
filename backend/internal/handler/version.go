@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -42,7 +43,8 @@ func (h *VersionHandler) ListVersions(c *gin.Context) {
 		pageSize = 20
 	}
 
-	versions, total, err := h.versionSvc.ListVersionsPaged(contentID, page, pageSize)
+	// proposed versions are author-only in the list (FIX-21①).
+	versions, total, err := h.versionSvc.ListVersionsPagedForViewer(contentID, page, pageSize, middleware.GetUserID(c))
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
@@ -50,10 +52,10 @@ func (h *VersionHandler) ListVersions(c *gin.Context) {
 
 	totalPages := int(math.Ceil(float64(total) / float64(pageSize)))
 	c.JSON(http.StatusOK, gin.H{
-		"versions":   versions,
-		"total":      total,
-		"page":       page,
-		"page_size":  pageSize,
+		"versions":    versions,
+		"total":       total,
+		"page":        page,
+		"page_size":   pageSize,
 		"total_pages": totalPages,
 	})
 }
@@ -65,13 +67,19 @@ func (h *VersionHandler) GetVersion(c *gin.Context) {
 		return
 	}
 
-	content, err := h.versionSvc.GetVersionContent(id)
+	// participant gate: content author / proposed submitter / admin — the
+	// version text of banned content must not leak to arbitrary readers
+	// (F-056, FIX-21④).
+	content, err := h.versionSvc.GetVersionForViewer(id, middleware.GetUserID(c), middleware.IsAdmin(c))
 	if err != nil {
-		if err == service.ErrVersionNotFound {
+		switch err {
+		case service.ErrVersionNotFound:
 			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "version not found"})
-			return
+		case service.ErrVersionForbidden:
+			response.SafeErrorResponse(c, http.StatusForbidden, "FORBIDDEN", err)
+		default:
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		}
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 

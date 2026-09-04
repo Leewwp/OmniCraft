@@ -69,9 +69,19 @@ func (h *PRHandler) GetPR(c *gin.Context) {
 		return
 	}
 
-	pr, err := h.prSvc.GetPR(id)
+	// participant gate: content author / PR submitter / admin (FIX-21④).
+	isAdmin := middleware.IsAdmin(c)
+
+	pr, err := h.prSvc.GetPRForViewer(id, middleware.GetUserID(c), isAdmin)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "pr not found"})
+		switch err {
+		case service.ErrPRNotFound, service.ErrContentNotFound:
+			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "pr not found"})
+		case service.ErrPRForbidden:
+			response.SafeErrorResponse(c, http.StatusForbidden, "FORBIDDEN", err)
+		default:
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		}
 		return
 	}
 
@@ -119,7 +129,16 @@ func (h *PRHandler) AcceptPR(c *gin.Context) {
 	}
 
 	if err := h.prSvc.AcceptPR(id, callerID); err != nil {
-		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
+		switch err {
+		case service.ErrPRNotFound, service.ErrContentNotFound:
+			response.SafeErrorResponse(c, http.StatusNotFound, "NOT_FOUND", err)
+		case service.ErrPRForbidden:
+			response.SafeErrorResponse(c, http.StatusForbidden, "FORBIDDEN", err)
+		case service.ErrPRInvalidState:
+			response.Conflict(c, "pr already resolved")
+		default:
+			response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
+		}
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "pr accepted"})
@@ -141,7 +160,16 @@ func (h *PRHandler) RejectPR(c *gin.Context) {
 	}
 
 	if err := h.prSvc.RejectPR(id, callerID, body.Reason); err != nil {
-		response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
+		switch err {
+		case service.ErrPRNotFound, service.ErrContentNotFound:
+			response.SafeErrorResponse(c, http.StatusNotFound, "NOT_FOUND", err)
+		case service.ErrPRForbidden:
+			response.SafeErrorResponse(c, http.StatusForbidden, "FORBIDDEN", err)
+		case service.ErrPRInvalidState:
+			response.Conflict(c, "pr already resolved")
+		default:
+			response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
+		}
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "pr rejected"})
@@ -165,10 +193,14 @@ func (h *PRHandler) ManualMerge(c *gin.Context) {
 	version, err := h.prSvc.ManualMerge(id, callerID, body.MergedText)
 	if err != nil {
 		switch err {
-		case service.ErrPRNotFound:
+		case service.ErrPRNotFound, service.ErrContentNotFound:
 			response.SafeErrorResponse(c, http.StatusNotFound, "NOT_FOUND", err)
 		case service.ErrPRForbidden:
 			response.SafeErrorResponse(c, http.StatusForbidden, "FORBIDDEN", err)
+		case service.ErrPRInvalidState:
+			response.Conflict(c, "pr already resolved")
+		case service.ErrPRMergeTextMissing:
+			response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", "merged text required")
 		default:
 			response.SafeErrorResponse(c, http.StatusBadRequest, "ERROR", err)
 		}
