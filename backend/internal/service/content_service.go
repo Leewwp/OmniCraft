@@ -30,6 +30,7 @@ import (
 var (
 	ErrContentNotFound             = errors.New("content not found")
 	ErrContentForbidden            = errors.New("forbidden: not content author")
+	ErrContentBanned               = errors.New("content is banned and cannot be edited")
 	ErrPublishFrozen               = errors.New("publish permission is temporarily frozen")
 	ErrSourceNotAllowedForOriginal = errors.New("source fields are not allowed on original content")
 	ErrFanworkSourceRequired       = errors.New("fanwork content must specify an IP or a source")
@@ -909,6 +910,25 @@ func (s *ContentService) UpdateContentWithContext(ctx context.Context, id int64,
 	if content.AuthorID != authorID {
 		return ErrContentForbidden
 	}
+	// banned 是 admin/AI/判官通道的终态：编辑被拒（删除仍允许），作者必须
+	// 走申诉或 admin restore（FIX-13）。
+	if content.Status == "banned" {
+		return ErrContentBanned
+	}
+	// 封面必须是平台 OSS 对象（非空时）：PATCH 契约的 cover_image_url 直接入
+	// 库并在响应边界签名，外链封面既无法签名也绕过图片审核（FIX-13）。
+	if cover, ok := updates["cover_image_url"].(string); ok && cover != "" && s.reviewSvc != nil {
+		if _, err := s.reviewSvc.resolveCoverScanURL(cover); err != nil {
+			return err
+		}
+	}
+	// 已发布内容的 title/cover 变更走增量复审：审核体系不被编辑绕过
+	// （FIX-13）。block → banned + 扣分链路（与 AI 通道一致）；pass → 保持
+	// published 但落 ai_review_records 编辑审计。reviewSvc 未装配（最小构造
+	// 的测试路径）时无复审能力，退回直更路径。
+	if content.Status == "published" && s.reviewSvc != nil && contentEditTouchesModeratedFields(content, updates) {
+		return s.updatePublishedWithReReview(ctx, content, updates)
+	}
 	// A published edit is a RAG-index refresh event: the content write and the
 	// outbox insert share one transaction so a failed event never leaves the
 	// visible content ahead of the event (and vice versa).
@@ -927,6 +947,87 @@ func (s *ContentService) UpdateContentWithContext(ctx context.Context, id int64,
 
 	s.invalidateContentCache(id)
 
+	return nil
+}
+
+// contentEditTouchesModeratedFields reports whether the update actually
+// changes the title or cover of the content — the two PATCH-contract fields
+// that feed Green moderation (the body only changes through PR merge).
+func contentEditTouchesModeratedFields(content *model.ContentItem, updates map[string]interface{}) bool {
+	if title, ok := updates["title"].(string); ok && title != content.Title {
+		return true
+	}
+	if cover, ok := updates["cover_image_url"].(string); ok && cover != content.CoverImageURL {
+		return true
+	}
+	return false
+}
+
+// updatePublishedWithReReview applies a title/cover edit of published content
+// through an incremental Green re-review. The scan result, the status
+// transition and (unless blocked) the field update commit in one transaction;
+// a blocked edit leaves the old values in place and lands on the same
+// banned + penalty chain as the initial AI review. Without a configured
+// Green scanner the edit proceeds (local fail-open, A4 semantics) but the
+// audit record is still written.
+func (s *ContentService) updatePublishedWithReReview(ctx context.Context, content *model.ContentItem, updates map[string]interface{}) error {
+	result := "pass"
+	raw := map[string]interface{}{"source": "edit_re_review"}
+	// green == nil 即未配置（A4 fail-open 语义与提交路径一致）。
+	greenMissing := s.reviewSvc == nil || s.reviewSvc.green == nil
+	if !greenMissing {
+		if title, ok := updates["title"].(string); ok && title != "" {
+			textResult, err := s.reviewSvc.ReviewText(ctx, title)
+			if err != nil {
+				if !errors.Is(err, aliyun.ErrGreenNotConfigured) {
+					return err
+				}
+				greenMissing = true
+			} else {
+				result = MergeReviewResult(result, textResult)
+			}
+		}
+		if cover, ok := updates["cover_image_url"].(string); ok && cover != "" && !greenMissing {
+			imageResult, err := s.reviewSvc.ReviewImageURL(ctx, cover)
+			if err != nil {
+				if !errors.Is(err, aliyun.ErrGreenNotConfigured) {
+					return err
+				}
+				greenMissing = true
+			} else {
+				result = MergeReviewResult(result, imageResult)
+			}
+		}
+	}
+	if greenMissing {
+		// A4 fail-open：本地无 Green 配置时跳过扫描，但保留编辑审计记录。
+		raw["green_skipped"] = true
+	}
+
+	if err := s.contentRepo.Transaction(func(txRepo *repository.ContentRepository) error {
+		tx := txRepo.DB()
+		if _, err := s.reviewSvc.recordAIReview(ctx, tx, "content", content.ID, result, raw, ""); err != nil {
+			return err
+		}
+		if err := s.reviewSvc.applyContentReviewResult(ctx, tx, content.ID, result); err != nil {
+			return err
+		}
+		if result == "block" {
+			// 被拒的新值不生效：仅保留状态与审计转换。
+			return nil
+		}
+		if err := txRepo.UpdateContent(content.ID, updates); err != nil {
+			return err
+		}
+		if s.outbox != nil {
+			return s.emitContentEvent(ctx, tx, events.TopicContentUpdated, content)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	s.invalidateContentCache(content.ID)
 	return nil
 }
 
