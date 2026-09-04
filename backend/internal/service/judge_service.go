@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
+	"time"
 
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
@@ -20,10 +22,17 @@ var (
 	ErrAlreadyVoted          = errors.New("already voted on this case")
 	ErrCaseNotFound          = errors.New("judge case not found")
 	ErrNoQualification       = errors.New("no judge qualification for this content type")
+	// T37（FIX-36a）：抽题会话缺失或过期——提交必须按会话题集评分，不得重新抽题。
+	ErrExamSessionExpired = errors.New("exam session expired or missing")
+	// T37（FIX-36a）：已持有有效资格再考拦截。
+	ErrAlreadyQualified = errors.New("already qualified for this content type")
 )
 
 const examQuestionCount = 10
 const examPassRate = 0.8
+
+// examSessionTTL（T37）：抽题会话窗口，过期后提交返回「会话过期，请重新抽题」。
+const examSessionTTL = 15 * time.Minute
 
 type JudgeService struct {
 	judgeRepo *repository.JudgeRepository
@@ -56,7 +65,22 @@ func (s *JudgeService) SetContentOutcomeWriter(db *gorm.DB, rdb *redis.Client, o
 	s.outbox = outbox
 }
 
-func (s *JudgeService) GetExam(contentType string) ([]model.JudgeQuestion, error) {
+// examSessionKey（T37）：抽题会话键，按 用户+内容类型 隔离。
+func examSessionKey(userID int64, contentType string) string {
+	return fmt.Sprintf("judge:exam:%d:%s", userID, contentType)
+}
+
+// GetExam 抽题并绑定考试会话（T37）：题集与 correct_key 映射写入 Redis（TTL 15min），
+// SubmitExam 仅按该会话题集评分。已持有有效资格的用户拒绝再考。
+func (s *JudgeService) GetExam(contentType string, userID int64) ([]model.JudgeQuestion, error) {
+	qualified, err := s.judgeRepo.CheckQualification(userID, contentType)
+	if err != nil {
+		return nil, err
+	}
+	if qualified {
+		return nil, ErrAlreadyQualified
+	}
+
 	count, err := s.judgeRepo.CountQuestions(contentType)
 	if err != nil {
 		return nil, err
@@ -64,7 +88,33 @@ func (s *JudgeService) GetExam(contentType string) ([]model.JudgeQuestion, error
 	if count < examQuestionCount {
 		return nil, ErrInsufficientQuestions
 	}
-	return s.judgeRepo.GetRandomQuestions(contentType, examQuestionCount)
+	questions, err := s.judgeRepo.GetRandomQuestions(contentType, examQuestionCount)
+	if err != nil {
+		return nil, err
+	}
+
+	// 会话绑定：question_id → correct_key（服务端持有，不下发答案字段）。
+	if s.rdb != nil {
+		session := make(map[int64]string, len(questions))
+		for _, q := range questions {
+			var data map[string]interface{}
+			if err := json.Unmarshal(q.QuestionData, &data); err != nil {
+				continue
+			}
+			if key, ok := data["correct_key"].(string); ok {
+				session[q.ID] = key
+			}
+		}
+		payload, err := json.Marshal(session)
+		if err == nil {
+			if err := s.rdb.Set(context.Background(), examSessionKey(userID, contentType), payload, examSessionTTL).Err(); err != nil {
+				slog.Error("judge exam: failed to bind exam session", "user_id", userID, "content_type", contentType, "error", err)
+			}
+		} else {
+			slog.Error("judge exam: failed to marshal exam session", "user_id", userID, "content_type", contentType, "error", err)
+		}
+	}
+	return questions, nil
 }
 
 type ExamAnswer struct {
@@ -77,31 +127,39 @@ type SubmitExamInput struct {
 	Answers     []ExamAnswer `json:"answers" binding:"required"`
 }
 
+// SubmitExam 按抽题会话评分（T37）：total=服务端下发题数（会话题集长度）而非
+// len(answers)——单题提交不再可过；会话缺失/过期一律拒绝，不重新抽题。
 func (s *JudgeService) SubmitExam(input SubmitExamInput, userID int64) (*model.JudgeExamRecord, bool, error) {
-	questions, err := s.judgeRepo.GetRandomQuestions(input.ContentType, examQuestionCount)
-	if err != nil || len(questions) == 0 {
-		return nil, false, ErrInsufficientQuestions
+	qualified, err := s.judgeRepo.CheckQualification(userID, input.ContentType)
+	if err != nil {
+		return nil, false, err
+	}
+	if qualified {
+		return nil, false, ErrAlreadyQualified
 	}
 
-	questionMap := make(map[int64]string)
-	for _, q := range questions {
-		var data map[string]interface{}
-		if err := json.Unmarshal(q.QuestionData, &data); err == nil {
-			if correctKey, ok := data["correct_key"].(string); ok {
-				questionMap[int64(q.ID)] = correctKey
-			}
-		}
+	if s.rdb == nil {
+		return nil, false, ErrExamSessionExpired
+	}
+	key := examSessionKey(userID, input.ContentType)
+	raw, err := s.rdb.Get(context.Background(), key).Result()
+	if err != nil {
+		// redis.Nil（未抽题或 TTL 过期）与其他读取错误都不得回退到重新抽题评分。
+		return nil, false, ErrExamSessionExpired
+	}
+	var session map[int64]string
+	if err := json.Unmarshal([]byte(raw), &session); err != nil || len(session) == 0 {
+		return nil, false, ErrExamSessionExpired
 	}
 
 	correct := 0
 	for _, a := range input.Answers {
-		if expected, ok := questionMap[a.QuestionID]; ok && expected == a.Answer {
+		if expected, ok := session[a.QuestionID]; ok && expected == a.Answer {
 			correct++
 		}
 	}
-
-	total := len(input.Answers)
-	passed := float64(correct)/float64(total) >= examPassRate
+	total := len(session)
+	passed := total > 0 && float64(correct)/float64(total) >= examPassRate
 
 	record := &model.JudgeExamRecord{
 		UserID:      userID,
@@ -112,6 +170,11 @@ func (s *JudgeService) SubmitExam(input SubmitExamInput, userID int64) (*model.J
 	}
 	if err := s.judgeRepo.CreateExamRecord(record); err != nil {
 		return nil, false, err
+	}
+
+	// 会话一次性：提交即消费，防同一会话重复提交。
+	if err := s.rdb.Del(context.Background(), key).Err(); err != nil {
+		slog.Warn("judge exam: failed to consume exam session", "user_id", userID, "content_type", input.ContentType, "error", err)
 	}
 
 	if passed {
