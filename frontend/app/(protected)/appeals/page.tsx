@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
@@ -23,10 +24,23 @@ interface Appeal {
 }
 
 export default function AppealsPage() {
+  return (
+    <Suspense fallback={null}>
+      <AppealsPageContent />
+    </Suspense>
+  );
+}
+
+function AppealsPageContent() {
   const t = useTranslations();
   const { toast } = useToast();
   const locale = useLocale();
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  // 申诉入口预填（FIX-14）：/appeals?target_type=content&target_id=123 自动
+  // 展开表单并带出目标，免手填数字 id。
+  const presetType = searchParams.get("target_type") ?? "";
+  const presetId = searchParams.get("target_id") ?? "";
   const [appeals, setAppeals] = useState<Appeal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -41,6 +55,13 @@ export default function AppealsPage() {
     if (!user) return;
     void loadAppeals(1, false);
   }, [user]);
+
+  useEffect(() => {
+    if (presetType && presetId) {
+      setShowForm(true);
+      setForm((f) => ({ ...f, target_type: presetType, target_id: presetId }));
+    }
+  }, [presetType, presetId]);
 
   async function loadAppeals(nextPage = 1, append = false) {
     setError("");
