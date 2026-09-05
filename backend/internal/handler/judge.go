@@ -6,11 +6,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"omnicraft/backend/config"
 	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/response"
-	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -18,20 +16,22 @@ import (
 )
 
 type JudgeHandler struct {
-	judgeSvc  *service.JudgeService
-	judgeRepo *repository.JudgeRepository
-	auditSvc  *service.AdminAuditService
-	db        *gorm.DB
+	judgeSvc *service.JudgeService
+	auditSvc *service.AdminAuditService
+	db       *gorm.DB
 }
 
-func NewJudgeHandler(db *gorm.DB, cfg *config.Config, auditSvc *service.AdminAuditService) *JudgeHandler {
-	judgeRepo := repository.NewJudgeRepository(db)
-	reputSvc := service.NewReputationService(db)
+// NewJudgeHandler consumes the container-wired JudgeService (#379/F-A001):
+// the exam-session gate (T37) and the closed-case write-back/notification
+// seams (FIX-10/17a) only work on the instance assembled in container.go
+// (SetContentOutcomeWriter + SetNotificationService). Building a bare
+// service here silently regressed every judge route — sessions never bound,
+// submissions always 409, outcomes never written back.
+func NewJudgeHandler(db *gorm.DB, judgeSvc *service.JudgeService, auditSvc *service.AdminAuditService) *JudgeHandler {
 	return &JudgeHandler{
-		judgeSvc:  service.NewJudgeService(judgeRepo, reputSvc, cfg),
-		judgeRepo: judgeRepo,
-		auditSvc:  auditSvc,
-		db:        db,
+		judgeSvc: judgeSvc,
+		auditSvc: auditSvc,
+		db:       db,
 	}
 }
 
