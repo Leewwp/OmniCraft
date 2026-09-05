@@ -188,7 +188,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	v1.DELETE("/series/:id/items/:itemId", authReq, seriesGuard, seriesHandler.RemoveItem)
 	v1.PUT("/series/:id/items/reorder", authReq, seriesGuard, seriesHandler.ReorderItems)
 
-	judgeHandler := handler.NewJudgeHandler(db, cfg, ctr.AdminAuditService)
+	// #379/F-A001: judge 路由必须消费容器级 JudgeService（自建裸实例曾让
+	// 考试会话/闭案回写/作者通知全链静默失效）。
+	judgeHandler := handler.NewJudgeHandler(db, ctr.JudgeService, ctr.AdminAuditService)
 	judge := v1.Group("/judge")
 	{
 		judge.GET("/exam/:category", optAuth, judgeHandler.GetExam)
