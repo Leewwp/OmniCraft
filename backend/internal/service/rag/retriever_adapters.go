@@ -3,6 +3,7 @@ package rag
 import (
 	"context"
 	"sort"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -108,6 +109,11 @@ func (r *PostgresVectorRetriever) Search(ctx context.Context, embedding []float3
 	for _, result := range results {
 		candidate := candidateFromChunk(result.RagChunk)
 		candidate.EmbeddingModel = r.embeddingModel
+		// corpus chunks often carry no heading; the content title keeps the
+		// citation contract (non-empty title) satisfiable on the vector path
+		if strings.TrimSpace(candidate.Title) == "" {
+			candidate.Title = result.Title
+		}
 		candidates = append(candidates, candidate)
 	}
 	return candidates, nil

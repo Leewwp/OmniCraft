@@ -38,7 +38,10 @@ func loadDefaultConfigForTest(t *testing.T) *Config {
 
 func TestDefaultRAGChunkingConfig(t *testing.T) {
 	cfg := loadDefaultConfigForTest(t)
-	require.False(t, cfg.Features.RAGHybridEnabled)
+	// A-04 裁决（2026-09-05）：hybrid 默认开（C1）；扩展/rerank 维持默认关。
+	require.True(t, cfg.Features.RAGHybridEnabled)
+	require.False(t, cfg.Features.RAGQueryExpansionEnabled)
+	require.False(t, cfg.Features.RAGRerankEnabled)
 	require.Equal(t, 512, cfg.RAG.Chunking.MaxTokens)
 	require.Equal(t, 48, cfg.RAG.Chunking.OverlapTokens)
 	require.Equal(t, 1, cfg.RAG.Chunking.ChunkingVersion)
