@@ -49,6 +49,13 @@ func (w *NotificationWorker) Handle(ctx context.Context, msg queue.Message) erro
 	slog.Info("notification_worker: processing message",
 		"msg_id", msg.ID, "user_id", payload.UserID, "channel", payload.Channel, "type", payload.Type)
 
+	// System callers pass sender_id=0 ("no sender"); persisting 0 violates
+	// notifications_sender_id_fkey on Postgres, so map it to NULL here. A
+	// real sender id is kept untouched.
+	var senderID *int64
+	if payload.SenderID != 0 {
+		senderID = &payload.SenderID
+	}
 	n := &model.Notification{
 		UserID:     payload.UserID,
 		Channel:    payload.Channel,
@@ -57,7 +64,7 @@ func (w *NotificationWorker) Handle(ctx context.Context, msg queue.Message) erro
 		Body:       &payload.Body,
 		TargetType: &payload.TargetType,
 		TargetID:   &payload.TargetID,
-		SenderID:   &payload.SenderID,
+		SenderID:   senderID,
 	}
 
 	_, err := ConsumeInboxTx(ctx, w.db, msg.Group, InboxEventID(msg.Group, msg), func(ctx context.Context, tx *gorm.DB) error {
