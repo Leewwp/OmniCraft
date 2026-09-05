@@ -44,7 +44,7 @@
 | 层 | 内容 | 触发 |
 |---|---|---|
 | L1 PR fast gate | go test/build/vet + fake provider 工具循环与 SSE 契约 + 检索/可见性/引用 fixture + 配置与文档一致性 | 每次 PR（CI，无真实 key） |
-| L2 真实评测（本地/手动） | env 门控 answer eval（`OMNICRAFT_AGENT_ANSWER_EVAL=1`）+ A-04 五配置消融（C0 v4 纯向量 → C1 +hybrid → C2 +扩展 → C3 +rerank → C4 全开；dev split） | 人工/夜跑，证据归档本地；真实 Provider 失败只能记 `external-input-missing`，不得以 mock 冒充 |
+| L2 真实评测（本地/手动） | env 门控 answer eval（`OMNICRAFT_AGENT_ANSWER_EVAL=1`）+ A-04 五配置消融（C0 v4 纯向量 → C1 单开 hybrid → C2 单开查询扩展 → C3 单开 rerank → C4 全开；C1–C3 为单开口径以隔离单变量增益，累加式会使 C3≡C4 重复；dev split） | 人工/夜跑，证据归档本地；真实 Provider 失败只能记 `external-input-missing`，不得以 mock 冒充 |
 | L3 rehearsal | `scripts/real-provider-preflight.sh`（静态：fail-closed 守卫、v4 维度=1536、rerank 配对）+ `agent-smoke`（**表面探针**：非流式 Chat×4 + embedding/rerank 单发；**不是完整 Agent 门**——流式/工具二轮/SSE 行为由 L1 单测与 L2 覆盖） | 真实证据前手动 |
 
 **证据纪律**：所有评测工件必须记录 chat provider/model/base、embedding provider/model/维度/base、rerank model、三开关、dataset/split checksum、脚本版本；评测脚本禁止隐式替换模型（从 env 读取并断言，不得硬编码 pin）。
