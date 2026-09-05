@@ -289,6 +289,12 @@ func (s *NotificationService) Notify(userID int64, channel, notifType, title, bo
 		return
 	}
 	recovery.GoSafe(func() {
+		// sender_id=0 means "no sender" (system calls); 0 violates the users
+		// FK, so persist NULL — same normalisation the queue worker applies.
+		var senderRef *int64
+		if senderID != 0 {
+			senderRef = &senderID
+		}
 		n := &model.Notification{
 			UserID:     userID,
 			Channel:    channel,
@@ -297,7 +303,7 @@ func (s *NotificationService) Notify(userID int64, channel, notifType, title, bo
 			Body:       &body,
 			TargetType: &targetType,
 			TargetID:   &targetID,
-			SenderID:   &senderID,
+			SenderID:   senderRef,
 		}
 		if err := s.notifRepo.Create(n); err != nil {
 			slog.Error("failed to create notification", "error", err, "user_id", userID, "channel", channel)
