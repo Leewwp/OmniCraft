@@ -172,6 +172,9 @@ def main():
     results = {}  # v2_key -> per-config rows
     for label, feats in CONFIGS.items():
         intended = {s: (s in feats) for s in SWITCHES}
+        intended_short = {"hybrid": intended["rag_hybrid_enabled"],
+                          "query_expansion": intended["rag_query_expansion_enabled"],
+                          "rerank": intended["rag_rerank_enabled"]}
         over = "/tmp/gsv2/override-%s.yaml" % label
         with open(over, "w", encoding="utf-8") as fh:
             fh.write("features:\n")
@@ -179,9 +182,11 @@ def main():
                 fh.write("  %s: %s\n" % (s, "true" if intended[s] else "false"))
         cmd = ["go", "run", "./cmd/rag-probe", "-in", inpath,
                "-out", "/tmp/gsv2/probe-%s.jsonl" % label, "-label", label]
+        probe_env = dict(env)
+        probe_env["CONFIG_OVERRIDE_PATH"] = over
         print("running config", label, json.dumps(intended), flush=True)
         proc = subprocess.run(cmd, capture_output=True, text=True,
-                              cwd=os.path.join(REPO, "backend"), env=dict(env))
+                              cwd=os.path.join(REPO, "backend"), env=probe_env)
         if not os.path.exists("/tmp/gsv2/probe-%s.jsonl" % label):
             print(proc.stdout[-2000:], proc.stderr[-2000:])
             raise SystemExit("probe failed for " + label)
@@ -190,9 +195,13 @@ def main():
             header = json.loads(fh.readline())
         if header.get("kind") != "rag-probe":
             raise SystemExit("unexpected probe header for " + label)
-        if header.get("switches") != intended:
+        if header.get("switches") != intended_short:
             raise SystemExit("switch drift for %s: header=%s intended=%s（config.yaml 基线或覆盖未生效）"
-                             % (label, header.get("switches"), intended))
+                             % (label, header.get("switches"), intended_short))
+        rt = header.get("runtime", {})
+        if rt.get("keyword_source") not in (None, "postgres"):
+            raise SystemExit("词法主路须为 postgres（冻结证据重跑），header=%r"
+                             % rt.get("keyword_source"))
         rt = header.get("runtime", {})
         if rt.get("embedding", {}).get("model") not in (None, EMBED_MODEL):
             raise SystemExit("probe embedding model %s != %s" % (rt["embedding"].get("model"), EMBED_MODEL))
