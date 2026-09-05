@@ -26,6 +26,12 @@ interface AppealListResponse {
   total: number;
 }
 
+// F-A003: 部分统计缺失时 reduce/后端都可能产出 NaN；`?? "-"` 只拦
+// nullish 不拦 NaN，会把 NaN 直接喂给 React children 触发告警。
+function formatMetricValue(value: number | null | undefined): number | "-" {
+  return Number.isFinite(value) ? (value as number) : "-";
+}
+
 export default function AdminDashboardPage() {
   const t = useTranslations();
   const [reportStats, setReportStats] = useState<ReportStats | null>(null);
@@ -67,7 +73,8 @@ export default function AdminDashboardPage() {
     void loadDashboard();
   }, [loadDashboard]);
 
-  const totalQueueFailures = queueStats?.topics?.reduce((sum, t) => sum + t.failure_count, 0) ?? null;
+  const totalQueueFailures =
+    queueStats?.topics?.reduce((sum, topic) => sum + (Number.isFinite(topic.failure_count) ? topic.failure_count : 0), 0) ?? null;
 
   return (
     <div className="space-y-6 p-6">
@@ -88,27 +95,27 @@ export default function AdminDashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <AdminMetricCard
           label={t("admin.dashboard.pendingReports")}
-          value={reportStats?.pending_count ?? "-"}
+          value={formatMetricValue(reportStats?.pending_count)}
           icon={Flag}
           variant={(reportStats?.pending_count ?? 0) > 0 ? "warning" : "default"}
           loading={loading}
         />
         <AdminMetricCard
           label={t("admin.dashboard.openFeedback")}
-          value={openFeedback ?? "-"}
+          value={formatMetricValue(openFeedback)}
           icon={MessageSquare}
           loading={loading}
         />
         <AdminMetricCard
           label={t("admin.dashboard.pendingAppeals")}
-          value={pendingAppeals ?? "-"}
+          value={formatMetricValue(pendingAppeals)}
           icon={AlertTriangle}
           variant={(pendingAppeals ?? 0) > 0 ? "warning" : "default"}
           loading={loading}
         />
         <AdminMetricCard
           label={t("admin.dashboard.queueFailures")}
-          value={totalQueueFailures ?? "-"}
+          value={formatMetricValue(totalQueueFailures)}
           icon={ListOrdered}
           variant={(totalQueueFailures ?? 0) > 0 ? "danger" : "default"}
           loading={loading}
