@@ -157,6 +157,10 @@ if in_scope Backend; then
   run_checked "$REPO_ROOT/backend" backend backend-go-test go test ./...
   run_checked "$REPO_ROOT/backend" backend backend-go-vet go vet ./...
   run_checked "$REPO_ROOT/backend" backend backend-go-build go build ./...
+  # #383 (SP-13 §7): mocked ablation contract — replay the frozen A-04
+  # fixture sample through the deterministic judges (zero providers, zero DB)
+  # so judge drift breaks the gate instead of only the next real ablation run.
+  run_checked "$REPO_ROOT/backend" backend backend-rag-eval-replay go test ./internal/service/rag_eval/ -run 'TestAblation' -count=1 -v
 fi
 
 if in_scope Frontend; then
