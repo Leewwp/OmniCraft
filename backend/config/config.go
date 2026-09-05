@@ -46,41 +46,41 @@ func ValidGreenSeed(seed string) bool {
 }
 
 type Config struct {
-	Server         ServerConfig         `mapstructure:"server"`
-	Web            WebConfig            `mapstructure:"web"`
-	Database       DatabaseConfig       `mapstructure:"database"`
-	Redis          RedisConfig          `mapstructure:"redis"`
-	JWT            JWTConfig            `mapstructure:"jwt"`
-	OSS            OSSConfig            `mapstructure:"oss"`
-	Green          GreenConfig          `mapstructure:"green"`
-	Security       SecurityConfig       `mapstructure:"security"`
-	Features       FeaturesConfig       `mapstructure:"features"`
-	Limits         LimitsConfig         `mapstructure:"limits"`
-	Reputation     ReputationConfig     `mapstructure:"reputation"`
-	Judge          JudgeConfig          `mapstructure:"judge"`
-	IPProposal     IPProposalConfig     `mapstructure:"ip_proposal"`
-	Discussion     DiscussionConfig     `mapstructure:"discussion"`
-	Social         SocialConfig         `mapstructure:"social"`
-	Collaboration  CollaborationConfig  `mapstructure:"collaboration"`
-	BrowseHistory  BrowseHistoryConfig  `mapstructure:"browse_history"`
-	Upload         UploadConfig         `mapstructure:"upload"`
-	Publish        PublishConfig        `mapstructure:"publish"`
-	ArchiveScan    ArchiveScanConfig    `mapstructure:"archive_scan"`
-	Agent          AgentConfig          `mapstructure:"agent"`
-	RAG            RAGConfig            `mapstructure:"rag"`
-	SMTP           SMTPConfig           `mapstructure:"smtp"`
-	Captcha        CaptchaConfig        `mapstructure:"captcha"`
-	Verification   VerificationConfig   `mapstructure:"verification"`
-	Legal          LegalConfig          `mapstructure:"legal"`
-	Client         ClientConfig         `mapstructure:"client"`
-	Feedback       FeedbackConfig       `mapstructure:"feedback"`
-	Cache          CacheConfig          `mapstructure:"cache"`
-	RateLimit      RateLimitConfig      `mapstructure:"rate_limit"`
-	Recommendation RecommendationConfig `mapstructure:"recommendation"`
-	Queue          queue.QueueConfig    `mapstructure:"queue"`
-	Relay          RelayConfig          `mapstructure:"relay"`
-	Worker         WorkerConfig         `mapstructure:"worker"`
-	Observability  ObservabilityConfig  `mapstructure:"observability"`
+	Server         ServerConfig         `mapstructure:"server" json:"server"`
+	Web            WebConfig            `mapstructure:"web" json:"web"`
+	Database       DatabaseConfig       `mapstructure:"database" json:"database"`
+	Redis          RedisConfig          `mapstructure:"redis" json:"redis"`
+	JWT            JWTConfig            `mapstructure:"jwt" json:"jwt"`
+	OSS            OSSConfig            `mapstructure:"oss" json:"oss"`
+	Green          GreenConfig          `mapstructure:"green" json:"green"`
+	Security       SecurityConfig       `mapstructure:"security" json:"security"`
+	Features       FeaturesConfig       `mapstructure:"features" json:"features"`
+	Limits         LimitsConfig         `mapstructure:"limits" json:"limits"`
+	Reputation     ReputationConfig     `mapstructure:"reputation" json:"reputation"`
+	Judge          JudgeConfig          `mapstructure:"judge" json:"judge"`
+	IPProposal     IPProposalConfig     `mapstructure:"ip_proposal" json:"ip_proposal"`
+	Discussion     DiscussionConfig     `mapstructure:"discussion" json:"discussion"`
+	Social         SocialConfig         `mapstructure:"social" json:"social"`
+	Collaboration  CollaborationConfig  `mapstructure:"collaboration" json:"collaboration"`
+	BrowseHistory  BrowseHistoryConfig  `mapstructure:"browse_history" json:"browse_history"`
+	Upload         UploadConfig         `mapstructure:"upload" json:"upload"`
+	Publish        PublishConfig        `mapstructure:"publish" json:"publish"`
+	ArchiveScan    ArchiveScanConfig    `mapstructure:"archive_scan" json:"archive_scan"`
+	Agent          AgentConfig          `mapstructure:"agent" json:"agent"`
+	RAG            RAGConfig            `mapstructure:"rag" json:"rag"`
+	SMTP           SMTPConfig           `mapstructure:"smtp" json:"smtp"`
+	Captcha        CaptchaConfig        `mapstructure:"captcha" json:"captcha"`
+	Verification   VerificationConfig   `mapstructure:"verification" json:"verification"`
+	Legal          LegalConfig          `mapstructure:"legal" json:"legal"`
+	Client         ClientConfig         `mapstructure:"client" json:"client"`
+	Feedback       FeedbackConfig       `mapstructure:"feedback" json:"feedback"`
+	Cache          CacheConfig          `mapstructure:"cache" json:"cache"`
+	RateLimit      RateLimitConfig      `mapstructure:"rate_limit" json:"rate_limit"`
+	Recommendation RecommendationConfig `mapstructure:"recommendation" json:"recommendation"`
+	Queue          queue.QueueConfig    `mapstructure:"queue" json:"queue"`
+	Relay          RelayConfig          `mapstructure:"relay" json:"relay"`
+	Worker         WorkerConfig         `mapstructure:"worker" json:"worker"`
+	Observability  ObservabilityConfig  `mapstructure:"observability" json:"observability"`
 }
 
 // RelayConfig carries the outbox relay loop tuning (issue #200): batch size
@@ -90,8 +90,8 @@ type Config struct {
 // reach the public config response. All limits are read from config, never
 // hardcoded.
 type RelayConfig struct {
-	BatchSize       int `mapstructure:"batch_size"`
-	PollIntervalSec int `mapstructure:"poll_interval_sec"`
+	BatchSize       int `mapstructure:"batch_size" json:"batch_size"`
+	PollIntervalSec int `mapstructure:"poll_interval_sec" json:"poll_interval_sec"`
 }
 
 // Relay tuning bounds guard the relay loop against nonsense configuration in
@@ -109,56 +109,56 @@ const (
 // topic; messages of a topic are distributed across them by the consumer
 // group semantics.
 type WorkerConfig struct {
-	Enabled     bool   `mapstructure:"enabled"`
-	Concurrency int    `mapstructure:"concurrency"`
-	ServiceName string `mapstructure:"service_name"`
+	Enabled     bool   `mapstructure:"enabled" json:"enabled"`
+	Concurrency int    `mapstructure:"concurrency" json:"concurrency"`
+	ServiceName string `mapstructure:"service_name" json:"service_name"`
 }
 
 type ObservabilityConfig struct {
-	MetricsPort          string              `mapstructure:"metrics_port"`
-	LogLevel             string              `mapstructure:"log_level"`
+	MetricsPort          string              `mapstructure:"metrics_port" json:"metrics_port"`
+	LogLevel             string              `mapstructure:"log_level" json:"log_level"`
 	LogIPHashSecret      string              `mapstructure:"log_ip_hash_secret" json:"-"`
-	LogIPKeyID           string              `mapstructure:"log_ip_key_id"`
-	ReadHeaderTimeoutSec int                 `mapstructure:"read_header_timeout_sec"`
-	IPKeyRotation        IPKeyRotationConfig `mapstructure:"ip_key_rotation"`
-	Readiness            ReadinessConfig     `mapstructure:"readiness"`
-	Tracing              TracingConfig       `mapstructure:"tracing"`
+	LogIPKeyID           string              `mapstructure:"log_ip_key_id" json:"log_ip_key_id"`
+	ReadHeaderTimeoutSec int                 `mapstructure:"read_header_timeout_sec" json:"read_header_timeout_sec"`
+	IPKeyRotation        IPKeyRotationConfig `mapstructure:"ip_key_rotation" json:"ip_key_rotation"`
+	Readiness            ReadinessConfig     `mapstructure:"readiness" json:"readiness"`
+	Tracing              TracingConfig       `mapstructure:"tracing" json:"tracing"`
 }
 
 type TracingConfig struct {
-	Enabled     bool    `mapstructure:"enabled"`
-	Endpoint    string  `mapstructure:"endpoint"`
-	SampleRatio float64 `mapstructure:"sample_ratio"`
-	Backend     string  `mapstructure:"backend"`
-	ServiceName string  `mapstructure:"service_name"`
+	Enabled     bool    `mapstructure:"enabled" json:"enabled"`
+	Endpoint    string  `mapstructure:"endpoint" json:"endpoint"`
+	SampleRatio float64 `mapstructure:"sample_ratio" json:"sample_ratio"`
+	Backend     string  `mapstructure:"backend" json:"backend"`
+	ServiceName string  `mapstructure:"service_name" json:"service_name"`
 }
 
 // IPKeyRotationConfig limits the previous IP-hash key to an explicit
 // rotation window so past hashes can be correlated only while rotating.
 type IPKeyRotationConfig struct {
 	PreviousSecret string `mapstructure:"previous_secret" json:"-"`
-	PreviousKeyID  string `mapstructure:"previous_key_id"`
-	ActiveFrom     string `mapstructure:"active_from"`
-	ActiveUntil    string `mapstructure:"active_until"`
+	PreviousKeyID  string `mapstructure:"previous_key_id" json:"previous_key_id"`
+	ActiveFrom     string `mapstructure:"active_from" json:"active_from"`
+	ActiveUntil    string `mapstructure:"active_until" json:"active_until"`
 }
 
 type ReadinessConfig struct {
-	DBTimeoutSec    int `mapstructure:"db_timeout_sec"`
-	RedisTimeoutSec int `mapstructure:"redis_timeout_sec"`
+	DBTimeoutSec    int `mapstructure:"db_timeout_sec" json:"db_timeout_sec"`
+	RedisTimeoutSec int `mapstructure:"redis_timeout_sec" json:"redis_timeout_sec"`
 }
 
 type ServerConfig struct {
-	Port            string `mapstructure:"port"`
-	Mode            string `mapstructure:"mode"`
-	ShutdownTimeout int    `mapstructure:"shutdown_timeout"`
-	ReadTimeout     int    `mapstructure:"read_timeout"`
-	WriteTimeout    int    `mapstructure:"write_timeout"`
-	IdleTimeout     int    `mapstructure:"idle_timeout"`
+	Port            string `mapstructure:"port" json:"port"`
+	Mode            string `mapstructure:"mode" json:"mode"`
+	ShutdownTimeout int    `mapstructure:"shutdown_timeout" json:"shutdown_timeout"`
+	ReadTimeout     int    `mapstructure:"read_timeout" json:"read_timeout"`
+	WriteTimeout    int    `mapstructure:"write_timeout" json:"write_timeout"`
+	IdleTimeout     int    `mapstructure:"idle_timeout" json:"idle_timeout"`
 }
 
 type SecurityConfig struct {
-	AllowedOrigins []string `mapstructure:"allowed_origins"`
-	TrustedProxies []string `mapstructure:"trusted_proxies"`
+	AllowedOrigins []string `mapstructure:"allowed_origins" json:"allowed_origins"`
+	TrustedProxies []string `mapstructure:"trusted_proxies" json:"trusted_proxies"`
 }
 
 type DatabaseConfig struct {
@@ -169,34 +169,34 @@ type DatabaseConfig struct {
 type RedisConfig struct {
 	Addr     string `mapstructure:"addr" json:"-"`
 	Password string `mapstructure:"password" json:"-"`
-	DB       int    `mapstructure:"db"`
+	DB       int    `mapstructure:"db" json:"db"`
 }
 
 type JWTConfig struct {
 	Secret          string `mapstructure:"secret" json:"-"`
-	AccessTokenTTL  int    `mapstructure:"access_token_ttl"`
-	RefreshTokenTTL int    `mapstructure:"refresh_token_ttl"`
+	AccessTokenTTL  int    `mapstructure:"access_token_ttl" json:"access_token_ttl"`
+	RefreshTokenTTL int    `mapstructure:"refresh_token_ttl" json:"refresh_token_ttl"`
 }
 
 type OSSConfig struct {
-	Endpoint        string `mapstructure:"endpoint"`
+	Endpoint        string `mapstructure:"endpoint" json:"endpoint"`
 	AccessKeyID     string `mapstructure:"access_key_id" json:"-"`
 	AccessKeySecret string `mapstructure:"access_key_secret" json:"-"`
-	BucketName      string `mapstructure:"bucket_name"`
-	Domain          string `mapstructure:"domain"`
-	DownloadURLTTL  int    `mapstructure:"download_url_ttl_sec"`
+	BucketName      string `mapstructure:"bucket_name" json:"bucket_name"`
+	Domain          string `mapstructure:"domain" json:"domain"`
+	DownloadURLTTL  int    `mapstructure:"download_url_ttl_sec" json:"download_url_ttl_sec"`
 	// DisplayURLTTL bounds the signed GET URLs issued for display media
 	// (covers, avatars, gallery attachments) at the API serialization
 	// boundary. Falls back to the architecture §6.2 1h budget and must stay
 	// above the Redis display cache TTL (300s) so cached rows never outlive
 	// their re-issued signatures.
-	DisplayURLTTL int `mapstructure:"display_url_ttl_sec"`
+	DisplayURLTTL int `mapstructure:"display_url_ttl_sec" json:"display_url_ttl_sec"`
 }
 
 type GreenConfig struct {
 	AccessKeyID     string `mapstructure:"access_key_id" json:"-"`
 	AccessKeySecret string `mapstructure:"access_key_secret" json:"-"`
-	Region          string `mapstructure:"region"`
+	Region          string `mapstructure:"region" json:"region"`
 	CallbackURL     string `mapstructure:"callback_url" json:"-"`
 	// Seed is the callback signature seed (green.seed): release-required, [A-Za-z0-9_], max 64 chars.
 	Seed string `mapstructure:"seed" json:"-"`
@@ -205,48 +205,52 @@ type GreenConfig struct {
 }
 
 type FeaturesConfig struct {
-	PaymentEnabled            bool `mapstructure:"payment_enabled"`
-	CreatorSupportEnabled     bool `mapstructure:"creator_support_enabled"`
-	DesktopDeployEnabled      bool `mapstructure:"desktop_deploy_enabled"`
-	ArchiveMalwareScanEnabled bool `mapstructure:"archive_malware_scan_enabled"`
-	RAGHybridEnabled          bool `mapstructure:"rag_hybrid_enabled"`
+	PaymentEnabled            bool `mapstructure:"payment_enabled" json:"payment_enabled"`
+	CreatorSupportEnabled     bool `mapstructure:"creator_support_enabled" json:"creator_support_enabled"`
+	DesktopDeployEnabled      bool `mapstructure:"desktop_deploy_enabled" json:"desktop_deploy_enabled"`
+	ArchiveMalwareScanEnabled bool `mapstructure:"archive_malware_scan_enabled" json:"archive_malware_scan_enabled"`
+	RAGHybridEnabled          bool `mapstructure:"rag_hybrid_enabled" json:"rag_hybrid_enabled"`
 	// RAGQueryExpansionEnabled and RAGRerankEnabled gate the A-03 retrieval
 	// upgrades; defaults stay off until A-04 ablation decides them.
-	RAGQueryExpansionEnabled bool `mapstructure:"rag_query_expansion_enabled"`
-	RAGRerankEnabled         bool `mapstructure:"rag_rerank_enabled"`
+	RAGQueryExpansionEnabled bool `mapstructure:"rag_query_expansion_enabled" json:"rag_query_expansion_enabled"`
+	RAGRerankEnabled         bool `mapstructure:"rag_rerank_enabled" json:"rag_rerank_enabled"`
 }
 
 type RAGConfig struct {
-	Chunking RAGChunkingConfig `mapstructure:"chunking"`
-	Index    RAGIndexConfig    `mapstructure:"index"`
-	Hybrid   RAGHybridConfig   `mapstructure:"hybrid"`
-	Rerank   RAGRerankConfig   `mapstructure:"rerank"`
+	Chunking RAGChunkingConfig `mapstructure:"chunking" json:"chunking"`
+	Index    RAGIndexConfig    `mapstructure:"index" json:"index"`
+	Hybrid   RAGHybridConfig   `mapstructure:"hybrid" json:"hybrid"`
+	Rerank   RAGRerankConfig   `mapstructure:"rerank" json:"rerank"`
 }
 
 type RAGChunkingConfig struct {
-	MaxTokens         int    `mapstructure:"max_tokens"`
-	OverlapTokens     int    `mapstructure:"overlap_tokens"`
-	ChunkingVersion   int    `mapstructure:"version"`
-	TokenizerEncoding string `mapstructure:"tokenizer_encoding"`
+	MaxTokens         int    `mapstructure:"max_tokens" json:"max_tokens"`
+	OverlapTokens     int    `mapstructure:"overlap_tokens" json:"overlap_tokens"`
+	ChunkingVersion   int    `mapstructure:"version" json:"version"`
+	TokenizerEncoding string `mapstructure:"tokenizer_encoding" json:"tokenizer_encoding"`
 }
 
 type RAGIndexConfig struct {
-	URL                   string `mapstructure:"url"`
-	GenerationStart       int    `mapstructure:"generation_start"`
-	EmbeddingModel        string `mapstructure:"embedding_model"`
-	HealthPollIntervalSec int    `mapstructure:"health_poll_interval_sec"`
-	TimeoutSec            int    `mapstructure:"timeout_sec"`
-	AuditTimeoutSec       int    `mapstructure:"audit_timeout_sec"`
-	LockCleanupTimeoutSec int    `mapstructure:"lock_cleanup_timeout_sec"`
-	ErrorBodyMaxBytes     int    `mapstructure:"error_body_max_bytes"`
-	ResponseBodyMaxBytes  int    `mapstructure:"response_body_max_bytes"`
+	URL                   string `mapstructure:"url" json:"url"`
+	GenerationStart       int    `mapstructure:"generation_start" json:"generation_start"`
+	EmbeddingModel        string `mapstructure:"embedding_model" json:"embedding_model"`
+	HealthPollIntervalSec int    `mapstructure:"health_poll_interval_sec" json:"health_poll_interval_sec"`
+	TimeoutSec            int    `mapstructure:"timeout_sec" json:"timeout_sec"`
+	AuditTimeoutSec       int    `mapstructure:"audit_timeout_sec" json:"audit_timeout_sec"`
+	LockCleanupTimeoutSec int    `mapstructure:"lock_cleanup_timeout_sec" json:"lock_cleanup_timeout_sec"`
+	ErrorBodyMaxBytes     int    `mapstructure:"error_body_max_bytes" json:"error_body_max_bytes"`
+	ResponseBodyMaxBytes  int    `mapstructure:"response_body_max_bytes" json:"response_body_max_bytes"`
 }
 
 type RAGHybridConfig struct {
-	BM25TopK   int `mapstructure:"bm25_topk"`
-	VectorTopK int `mapstructure:"vector_topk"`
-	RRFK       int `mapstructure:"rrf_k"`
-	FinalTopK  int `mapstructure:"final_topk"`
+	BM25TopK   int `mapstructure:"bm25_topk" json:"bm25_topk"`
+	VectorTopK int `mapstructure:"vector_topk" json:"vector_topk"`
+	RRFK       int `mapstructure:"rrf_k" json:"rrf_k"`
+	FinalTopK  int `mapstructure:"final_topk" json:"final_topk"`
+	// KeywordSource selects the lexical primary: "postgres" (canonical
+	// pg_jieba path, default) or "opensearch" (optional accelerator for
+	// full-infra stacks). The other backend, when wired, serves as fallback.
+	KeywordSource string `mapstructure:"keyword_source" json:"keyword_source"`
 }
 
 // RAGRerankConfig carries the A-03 rerank chain: a primary provider
@@ -255,16 +259,16 @@ type RAGHybridConfig struct {
 // with DASHSCOPE_API_KEY as the primary-side shared-key fallback) and stay
 // out of config files.
 type RAGRerankConfig struct {
-	Provider         string `mapstructure:"provider"`
-	Model            string `mapstructure:"model"`
-	APIBase          string `mapstructure:"api_base"`
+	Provider         string `mapstructure:"provider" json:"provider"`
+	Model            string `mapstructure:"model" json:"model"`
+	APIBase          string `mapstructure:"api_base" json:"api_base"`
 	APIKey           string `mapstructure:"api_key" json:"-"`
-	FallbackProvider string `mapstructure:"fallback_provider"`
-	FallbackModel    string `mapstructure:"fallback_model"`
-	FallbackAPIBase  string `mapstructure:"fallback_api_base"`
+	FallbackProvider string `mapstructure:"fallback_provider" json:"fallback_provider"`
+	FallbackModel    string `mapstructure:"fallback_model" json:"fallback_model"`
+	FallbackAPIBase  string `mapstructure:"fallback_api_base" json:"fallback_api_base"`
 	FallbackAPIKey   string `mapstructure:"fallback_api_key" json:"-"`
-	InputTopK        int    `mapstructure:"input_topk"`
-	TimeoutSec       int    `mapstructure:"timeout_sec"`
+	InputTopK        int    `mapstructure:"input_topk" json:"input_topk"`
+	TimeoutSec       int    `mapstructure:"timeout_sec" json:"timeout_sec"`
 }
 
 // ArchiveScanConfig carries the archive malware scanning quotas, timeout and
@@ -272,72 +276,72 @@ type RAGRerankConfig struct {
 // from config, never hardcoded. This ticket (S01) only builds the skeleton;
 // the worker (S03) and gates (S04) consume it.
 type ArchiveScanConfig struct {
-	MaxUploadSizeMB        int    `mapstructure:"max_upload_size_mb"`
-	MaxZipEntries          int    `mapstructure:"max_zip_entries"`
-	MaxEntryUncompressedMB int    `mapstructure:"max_entry_uncompressed_mb"`
-	MaxTotalUncompressedMB int    `mapstructure:"max_total_uncompressed_mb"`
-	MaxRecursionDepth      int    `mapstructure:"max_recursion_depth"`
-	ScanTimeoutSec         int    `mapstructure:"scan_timeout_sec"`
-	ClamdAddress           string `mapstructure:"clamd_address"`
-	RetryBackoffSec        []int  `mapstructure:"retry_backoff_sec"`
-	URLTTLSec              int    `mapstructure:"url_ttl_sec"`
+	MaxUploadSizeMB        int    `mapstructure:"max_upload_size_mb" json:"max_upload_size_mb"`
+	MaxZipEntries          int    `mapstructure:"max_zip_entries" json:"max_zip_entries"`
+	MaxEntryUncompressedMB int    `mapstructure:"max_entry_uncompressed_mb" json:"max_entry_uncompressed_mb"`
+	MaxTotalUncompressedMB int    `mapstructure:"max_total_uncompressed_mb" json:"max_total_uncompressed_mb"`
+	MaxRecursionDepth      int    `mapstructure:"max_recursion_depth" json:"max_recursion_depth"`
+	ScanTimeoutSec         int    `mapstructure:"scan_timeout_sec" json:"scan_timeout_sec"`
+	ClamdAddress           string `mapstructure:"clamd_address" json:"clamd_address"`
+	RetryBackoffSec        []int  `mapstructure:"retry_backoff_sec" json:"retry_backoff_sec"`
+	URLTTLSec              int    `mapstructure:"url_ttl_sec" json:"url_ttl_sec"`
 }
 
 type LimitsConfig struct {
-	VideoMaxMB      int `mapstructure:"video_max_mb"`
-	VideoMaxSec     int `mapstructure:"video_max_sec"`
-	ImageMaxMB      int `mapstructure:"image_max_mb"`
-	TextMaxMB       int `mapstructure:"text_max_mb"`
-	ModMaxMB        int `mapstructure:"mod_max_mb"`
-	SheetMusicMaxMB int `mapstructure:"sheet_music_max_mb"`
+	VideoMaxMB      int `mapstructure:"video_max_mb" json:"video_max_mb"`
+	VideoMaxSec     int `mapstructure:"video_max_sec" json:"video_max_sec"`
+	ImageMaxMB      int `mapstructure:"image_max_mb" json:"image_max_mb"`
+	TextMaxMB       int `mapstructure:"text_max_mb" json:"text_max_mb"`
+	ModMaxMB        int `mapstructure:"mod_max_mb" json:"mod_max_mb"`
+	SheetMusicMaxMB int `mapstructure:"sheet_music_max_mb" json:"sheet_music_max_mb"`
 }
 
 type ReputationConfig struct {
-	QualityContentThreshold     int `mapstructure:"quality_content_threshold"`
-	QualityCommentThreshold     int `mapstructure:"quality_comment_threshold"`
-	MinScoreForInteraction      int `mapstructure:"min_score_for_interaction"`
-	RepeatViolationWindowDays   int `mapstructure:"repeat_violation_window_days"`
-	RepeatViolationThreshold    int `mapstructure:"repeat_violation_threshold"`
-	RepeatViolationExtraPenalty int `mapstructure:"repeat_violation_extra_penalty"`
+	QualityContentThreshold     int `mapstructure:"quality_content_threshold" json:"quality_content_threshold"`
+	QualityCommentThreshold     int `mapstructure:"quality_comment_threshold" json:"quality_comment_threshold"`
+	MinScoreForInteraction      int `mapstructure:"min_score_for_interaction" json:"min_score_for_interaction"`
+	RepeatViolationWindowDays   int `mapstructure:"repeat_violation_window_days" json:"repeat_violation_window_days"`
+	RepeatViolationThreshold    int `mapstructure:"repeat_violation_threshold" json:"repeat_violation_threshold"`
+	RepeatViolationExtraPenalty int `mapstructure:"repeat_violation_extra_penalty" json:"repeat_violation_extra_penalty"`
 
 	// Score values (positive = award, negative = penalty).
 	// Zero means "use the hardcoded default in reputation_service.go".
-	ScoreQualityContent     int `mapstructure:"score_quality_content"`
-	ScorePRMerged           int `mapstructure:"score_pr_merged"`
-	ScoreQualityComment     int `mapstructure:"score_quality_comment"`
-	ScoreTagRecognized      int `mapstructure:"score_tag_recognized"`
-	ScoreJudgeAccuracy      int `mapstructure:"score_judge_accuracy"`
-	ScoreRehabCourse        int `mapstructure:"score_rehab_course"`
-	ScoreValidReport        int `mapstructure:"score_valid_report"`
-	ScoreMaliciousContent   int `mapstructure:"score_malicious_content"`
-	ScoreMaliciousPR        int `mapstructure:"score_malicious_pr"`
-	ScoreMaliciousComment   int `mapstructure:"score_malicious_comment"`
-	ScoreMaliciousReport    int `mapstructure:"score_malicious_report"`
-	ScoreMaliciousTagReport int `mapstructure:"score_malicious_tag_report"`
-	ScoreJudgeError         int `mapstructure:"score_judge_error"`
+	ScoreQualityContent     int `mapstructure:"score_quality_content" json:"score_quality_content"`
+	ScorePRMerged           int `mapstructure:"score_pr_merged" json:"score_pr_merged"`
+	ScoreQualityComment     int `mapstructure:"score_quality_comment" json:"score_quality_comment"`
+	ScoreTagRecognized      int `mapstructure:"score_tag_recognized" json:"score_tag_recognized"`
+	ScoreJudgeAccuracy      int `mapstructure:"score_judge_accuracy" json:"score_judge_accuracy"`
+	ScoreRehabCourse        int `mapstructure:"score_rehab_course" json:"score_rehab_course"`
+	ScoreValidReport        int `mapstructure:"score_valid_report" json:"score_valid_report"`
+	ScoreMaliciousContent   int `mapstructure:"score_malicious_content" json:"score_malicious_content"`
+	ScoreMaliciousPR        int `mapstructure:"score_malicious_pr" json:"score_malicious_pr"`
+	ScoreMaliciousComment   int `mapstructure:"score_malicious_comment" json:"score_malicious_comment"`
+	ScoreMaliciousReport    int `mapstructure:"score_malicious_report" json:"score_malicious_report"`
+	ScoreMaliciousTagReport int `mapstructure:"score_malicious_tag_report" json:"score_malicious_tag_report"`
+	ScoreJudgeError         int `mapstructure:"score_judge_error" json:"score_judge_error"`
 }
 
 type JudgeConfig struct {
-	MinVotesRequired int     `mapstructure:"min_votes_required"`
-	PassThreshold    float64 `mapstructure:"pass_threshold"`
-	ExamPassRate     float64 `mapstructure:"exam_pass_rate"`
-	ErrorRateRevoke  float64 `mapstructure:"error_rate_revoke"`
-	ErrorRateWindow  int     `mapstructure:"error_rate_window"`
+	MinVotesRequired int     `mapstructure:"min_votes_required" json:"min_votes_required"`
+	PassThreshold    float64 `mapstructure:"pass_threshold" json:"pass_threshold"`
+	ExamPassRate     float64 `mapstructure:"exam_pass_rate" json:"exam_pass_rate"`
+	ErrorRateRevoke  float64 `mapstructure:"error_rate_revoke" json:"error_rate_revoke"`
+	ErrorRateWindow  int     `mapstructure:"error_rate_window" json:"error_rate_window"`
 }
 
 // IPProposalConfig carries the collaborative-governance proposal thresholds
 // (#290). Deliberately independent from JudgeConfig: proposals govern IP
 // profile edits by followers, judges arbitrate content violations.
 type IPProposalConfig struct {
-	MinVotes      int     `mapstructure:"min_votes"`
-	PassThreshold float64 `mapstructure:"pass_threshold"`
-	DeadlineDays  int     `mapstructure:"deadline_days"`
+	MinVotes      int     `mapstructure:"min_votes" json:"min_votes"`
+	PassThreshold float64 `mapstructure:"pass_threshold" json:"pass_threshold"`
+	DeadlineDays  int     `mapstructure:"deadline_days" json:"deadline_days"`
 }
 
 // DiscussionConfig carries discussion-list tuning. HotDecayHours feeds the
 // reply-count/age decay expression for the "hot" sort (#290).
 type DiscussionConfig struct {
-	HotDecayHours float64 `mapstructure:"hot_decay_hours"`
+	HotDecayHours float64 `mapstructure:"hot_decay_hours" json:"hot_decay_hours"`
 }
 
 func (c IPProposalConfig) EffectiveMinVotes() int {
@@ -369,34 +373,34 @@ func (c DiscussionConfig) EffectiveHotDecayHours() float64 {
 }
 
 type SocialConfig struct {
-	ReportAutoHideRate   float64 `mapstructure:"report_auto_hide_rate"`
-	CommentFoldThreshold float64 `mapstructure:"comment_fold_threshold"`
+	ReportAutoHideRate   float64 `mapstructure:"report_auto_hide_rate" json:"report_auto_hide_rate"`
+	CommentFoldThreshold float64 `mapstructure:"comment_fold_threshold" json:"comment_fold_threshold"`
 }
 
 // CollaborationConfig carries server-only collaboration invite limits.
 // Only MaxInviteesPerPublish is exposed through the public config endpoint;
 // daily limits, expiry and contributor capacity must never reach the client.
 type CollaborationConfig struct {
-	InviteDailyLimit       int `mapstructure:"invite_daily_limit"`
-	InviteExpireDays       int `mapstructure:"invite_expire_days"`
-	MaxInviteesPerPublish  int `mapstructure:"max_invitees_per_publish"`
-	MaxContributorsPerItem int `mapstructure:"max_contributors_per_item"`
+	InviteDailyLimit       int `mapstructure:"invite_daily_limit" json:"invite_daily_limit"`
+	InviteExpireDays       int `mapstructure:"invite_expire_days" json:"invite_expire_days"`
+	MaxInviteesPerPublish  int `mapstructure:"max_invitees_per_publish" json:"max_invitees_per_publish"`
+	MaxContributorsPerItem int `mapstructure:"max_contributors_per_item" json:"max_contributors_per_item"`
 }
 
 type BrowseHistoryConfig struct {
-	RetentionDays int    `mapstructure:"retention_days"`
-	CleanupTime   string `mapstructure:"cleanup_time"`
+	RetentionDays int    `mapstructure:"retention_days" json:"retention_days"`
+	CleanupTime   string `mapstructure:"cleanup_time" json:"cleanup_time"`
 }
 
 type UploadConfig struct {
-	SheetMusicExtensions []string `mapstructure:"sheet_music_extensions"`
+	SheetMusicExtensions []string `mapstructure:"sheet_music_extensions" json:"sheet_music_extensions"`
 	// Media set (media gallery) size bounds for newly published image/video
 	// content. Zero means "use the specification default" so tests and
 	// minimal configs keep working.
-	ImageGalleryMinItems int `mapstructure:"image_gallery_min_items"`
-	ImageGalleryMaxItems int `mapstructure:"image_gallery_max_items"`
-	VideoGalleryMinItems int `mapstructure:"video_gallery_min_items"`
-	VideoGalleryMaxItems int `mapstructure:"video_gallery_max_items"`
+	ImageGalleryMinItems int `mapstructure:"image_gallery_min_items" json:"image_gallery_min_items"`
+	ImageGalleryMaxItems int `mapstructure:"image_gallery_max_items" json:"image_gallery_max_items"`
+	VideoGalleryMinItems int `mapstructure:"video_gallery_min_items" json:"video_gallery_min_items"`
+	VideoGalleryMaxItems int `mapstructure:"video_gallery_max_items" json:"video_gallery_max_items"`
 }
 
 // NormalizedGalleryLimits fills only omitted media-gallery limits with the
@@ -436,130 +440,134 @@ func (u UploadConfig) ValidateGalleryLimits() error {
 }
 
 type PublishConfig struct {
-	RequireReview     bool     `mapstructure:"require_review"`
-	MaxDailyPosts     int      `mapstructure:"max_daily_posts"`
-	FreezeOnViolation bool     `mapstructure:"freeze_on_violation"`
-	TypeOrderOriginal []string `mapstructure:"type_order_original"`
-	TypeOrderFanwork  []string `mapstructure:"type_order_fanwork"`
+	RequireReview     bool     `mapstructure:"require_review" json:"require_review"`
+	MaxDailyPosts     int      `mapstructure:"max_daily_posts" json:"max_daily_posts"`
+	FreezeOnViolation bool     `mapstructure:"freeze_on_violation" json:"freeze_on_violation"`
+	TypeOrderOriginal []string `mapstructure:"type_order_original" json:"type_order_original"`
+	TypeOrderFanwork  []string `mapstructure:"type_order_fanwork" json:"type_order_fanwork"`
 }
 
 type AgentConfig struct {
-	WebAgentEnabled       bool   `mapstructure:"web_agent_enabled"`
-	LLMProvider           string `mapstructure:"llm_provider"`
-	LLMModel              string `mapstructure:"llm_model"`
-	LLMAPIBase            string `mapstructure:"llm_api_base"`
-	LLMAPIKey             string `mapstructure:"llm_api_key" json:"-"`
-	EmbeddingModel        string `mapstructure:"embedding_model"`
-	EmbeddingAPIBase      string `mapstructure:"embedding_api_base"`
+	WebAgentEnabled bool   `mapstructure:"web_agent_enabled" json:"web_agent_enabled"`
+	LLMProvider     string `mapstructure:"llm_provider" json:"llm_provider"`
+	LLMModel        string `mapstructure:"llm_model" json:"llm_model"`
+	LLMAPIBase      string `mapstructure:"llm_api_base" json:"llm_api_base"`
+	LLMAPIKey       string `mapstructure:"llm_api_key" json:"-"`
+	EmbeddingModel  string `mapstructure:"embedding_model" json:"embedding_model"`
+	// EmbeddingProvider routes embeddings to a different adapter than chat
+	// (canonical profile: minimax chat + openai_compat DashScope embeddings).
+	// Empty means "follow llm_provider" (single-provider wiring).
+	EmbeddingProvider     string `mapstructure:"embedding_provider" json:"embedding_provider"`
+	EmbeddingAPIBase      string `mapstructure:"embedding_api_base" json:"embedding_api_base"`
 	EmbeddingGroupID      string `mapstructure:"embedding_group_id" json:"-"`
 	EmbeddingAPIKey       string `mapstructure:"embedding_api_key" json:"-"`
-	EmbeddingDimensions   int    `mapstructure:"embedding_dimensions"`
-	RateLimitPerDay       int    `mapstructure:"rate_limit_per_day"`
-	RateLimitPerMinute    int    `mapstructure:"rate_limit_per_minute"`
-	MaxToolCallsPerTurn   int    `mapstructure:"max_tool_calls_per_turn"`
-	MaxOutputTokens       int    `mapstructure:"max_output_tokens"`
-	ProviderTimeoutSec    int    `mapstructure:"provider_timeout_sec"`
-	ProviderMaxRetries    int    `mapstructure:"provider_max_retries"`
-	CitationMaxCount      int    `mapstructure:"citation_max_count"`
-	UploadAssistMaxFileMB int    `mapstructure:"upload_assist_max_file_mb"`
+	EmbeddingDimensions   int    `mapstructure:"embedding_dimensions" json:"embedding_dimensions"`
+	RateLimitPerDay       int    `mapstructure:"rate_limit_per_day" json:"rate_limit_per_day"`
+	RateLimitPerMinute    int    `mapstructure:"rate_limit_per_minute" json:"rate_limit_per_minute"`
+	MaxToolCallsPerTurn   int    `mapstructure:"max_tool_calls_per_turn" json:"max_tool_calls_per_turn"`
+	MaxOutputTokens       int    `mapstructure:"max_output_tokens" json:"max_output_tokens"`
+	ProviderTimeoutSec    int    `mapstructure:"provider_timeout_sec" json:"provider_timeout_sec"`
+	ProviderMaxRetries    int    `mapstructure:"provider_max_retries" json:"provider_max_retries"`
+	CitationMaxCount      int    `mapstructure:"citation_max_count" json:"citation_max_count"`
+	UploadAssistMaxFileMB int    `mapstructure:"upload_assist_max_file_mb" json:"upload_assist_max_file_mb"`
 	HMACSecret            string `mapstructure:"hmac_secret" json:"-"`
-	MaxUserMessageChars   int    `mapstructure:"max_user_message_chars"`
-	ChatMaxContextMsgs    int    `mapstructure:"chat_max_context_messages"`
-	ConversationListLimit int    `mapstructure:"conversation_list_limit"`
-	ConversationPageSize  int    `mapstructure:"conversation_page_size"`
+	MaxUserMessageChars   int    `mapstructure:"max_user_message_chars" json:"max_user_message_chars"`
+	ChatMaxContextMsgs    int    `mapstructure:"chat_max_context_messages" json:"chat_max_context_messages"`
+	ConversationListLimit int    `mapstructure:"conversation_list_limit" json:"conversation_list_limit"`
+	ConversationPageSize  int    `mapstructure:"conversation_page_size" json:"conversation_page_size"`
 	// ChatContextTokenBudget caps the server-side assembled conversation
 	// history (estimated tokens; CJK-heavy so rune count is a safe upper
 	// bound). The system prompt is always included outside this budget.
-	ChatContextTokenBudget int `mapstructure:"chat_context_token_budget"`
+	ChatContextTokenBudget int `mapstructure:"chat_context_token_budget" json:"chat_context_token_budget"`
 }
 
 type CaptchaConfig struct {
-	Provider        string `mapstructure:"provider"`
-	Prefix          string `mapstructure:"prefix"`
-	SceneID         string `mapstructure:"scene_id"`
-	Region          string `mapstructure:"region"`
+	Provider        string `mapstructure:"provider" json:"provider"`
+	Prefix          string `mapstructure:"prefix" json:"prefix"`
+	SceneID         string `mapstructure:"scene_id" json:"scene_id"`
+	Region          string `mapstructure:"region" json:"region"`
 	AccessKeyID     string `mapstructure:"access_key_id" json:"-"`
 	AccessKeySecret string `mapstructure:"access_key_secret" json:"-"`
-	TicketTTLSec    int    `mapstructure:"ticket_ttl_sec"`
+	TicketTTLSec    int    `mapstructure:"ticket_ttl_sec" json:"ticket_ttl_sec"`
 }
 
 type ClientConfig struct {
-	DownloadEnabled bool   `mapstructure:"download_enabled"`
-	DownloadURL     string `mapstructure:"download_url"`
-	LatestVersion   string `mapstructure:"latest_version"`
+	DownloadEnabled bool   `mapstructure:"download_enabled" json:"download_enabled"`
+	DownloadURL     string `mapstructure:"download_url" json:"download_url"`
+	LatestVersion   string `mapstructure:"latest_version" json:"latest_version"`
 }
 
 type FeedbackConfig struct {
-	UploadGrantTTLSec int `mapstructure:"upload_grant_ttl_sec"`
+	UploadGrantTTLSec int `mapstructure:"upload_grant_ttl_sec" json:"upload_grant_ttl_sec"`
 }
 
 type WebConfig struct {
-	PublicBaseURL string `mapstructure:"public_base_url"`
+	PublicBaseURL string `mapstructure:"public_base_url" json:"public_base_url"`
 }
 
 type SMTPConfig struct {
-	Mode        string `mapstructure:"mode"`
-	Host        string `mapstructure:"host"`
-	Port        int    `mapstructure:"port"`
-	User        string `mapstructure:"user"`
+	Mode        string `mapstructure:"mode" json:"mode"`
+	Host        string `mapstructure:"host" json:"host"`
+	Port        int    `mapstructure:"port" json:"port"`
+	User        string `mapstructure:"user" json:"user"`
 	Password    string `mapstructure:"password" json:"-"`
-	FromAddress string `mapstructure:"from_address"`
+	FromAddress string `mapstructure:"from_address" json:"from_address"`
 }
 
 type VerificationConfig struct {
-	EmailTTLSec           int `mapstructure:"email_ttl_sec"`
-	ResetTTLSec           int `mapstructure:"reset_ttl_sec"`
-	ResendCooldownSec     int `mapstructure:"resend_cooldown_sec"`
-	LoginCaptchaThreshold int `mapstructure:"login_captcha_threshold"`
-	PasswordMinLength     int `mapstructure:"password_min_length"`
-	RegisterPendingTTLSec int `mapstructure:"register_pending_ttl_sec"`
+	EmailTTLSec           int `mapstructure:"email_ttl_sec" json:"email_ttl_sec"`
+	ResetTTLSec           int `mapstructure:"reset_ttl_sec" json:"reset_ttl_sec"`
+	ResendCooldownSec     int `mapstructure:"resend_cooldown_sec" json:"resend_cooldown_sec"`
+	LoginCaptchaThreshold int `mapstructure:"login_captcha_threshold" json:"login_captcha_threshold"`
+	PasswordMinLength     int `mapstructure:"password_min_length" json:"password_min_length"`
+	RegisterPendingTTLSec int `mapstructure:"register_pending_ttl_sec" json:"register_pending_ttl_sec"`
 }
 
 type LegalConfig struct {
-	CurrentTermsVersion   string `mapstructure:"current_terms_version"`
-	CurrentPrivacyVersion string `mapstructure:"current_privacy_version"`
+	CurrentTermsVersion   string `mapstructure:"current_terms_version" json:"current_terms_version"`
+	CurrentPrivacyVersion string `mapstructure:"current_privacy_version" json:"current_privacy_version"`
 }
 
 type CacheConfig struct {
-	ContentListTTL         int `mapstructure:"content_list_ttl"`
-	ContentDetailTTL       int `mapstructure:"content_detail_ttl"`
-	IPListTTL              int `mapstructure:"ip_list_ttl"`
-	IPDetailTTL            int `mapstructure:"ip_detail_ttl"`
-	ViewCountFlushInterval int `mapstructure:"view_count_flush_interval"`
-	HotRankZSetTTL         int `mapstructure:"hot_rank_zset_ttl"`
-	UserStatusTTL          int `mapstructure:"user_status_ttl"`
-	TagCacheTTL            int `mapstructure:"tag_cache_ttl"`
-	EmailVerifyTTL         int `mapstructure:"email_verify_ttl"`
-	PasswordResetTTL       int `mapstructure:"password_reset_ttl"`
-	PublishFreezeTTL       int `mapstructure:"publish_freeze_ttl"`
+	ContentListTTL         int `mapstructure:"content_list_ttl" json:"content_list_ttl"`
+	ContentDetailTTL       int `mapstructure:"content_detail_ttl" json:"content_detail_ttl"`
+	IPListTTL              int `mapstructure:"ip_list_ttl" json:"ip_list_ttl"`
+	IPDetailTTL            int `mapstructure:"ip_detail_ttl" json:"ip_detail_ttl"`
+	ViewCountFlushInterval int `mapstructure:"view_count_flush_interval" json:"view_count_flush_interval"`
+	HotRankZSetTTL         int `mapstructure:"hot_rank_zset_ttl" json:"hot_rank_zset_ttl"`
+	UserStatusTTL          int `mapstructure:"user_status_ttl" json:"user_status_ttl"`
+	TagCacheTTL            int `mapstructure:"tag_cache_ttl" json:"tag_cache_ttl"`
+	EmailVerifyTTL         int `mapstructure:"email_verify_ttl" json:"email_verify_ttl"`
+	PasswordResetTTL       int `mapstructure:"password_reset_ttl" json:"password_reset_ttl"`
+	PublishFreezeTTL       int `mapstructure:"publish_freeze_ttl" json:"publish_freeze_ttl"`
 }
 
 type RateLimitConfig struct {
-	Enabled              bool  `mapstructure:"enabled"`
-	NormalPerMinute      int   `mapstructure:"normal_per_minute"`
-	UploadPerHour        int   `mapstructure:"upload_per_hour"`
-	NormalWindowSec      int   `mapstructure:"normal_window_sec"`
-	UploadWindowSec      int   `mapstructure:"upload_window_sec"`
-	AgentWindowSec       int   `mapstructure:"agent_window_sec"`
-	AgentMinuteWindowSec int   `mapstructure:"agent_minute_window_sec"`
-	CredentialPerMinute  int   `mapstructure:"credential_per_minute"`
-	SearchPerMinute      int   `mapstructure:"search_per_minute"`
-	MaxJSONBodyBytes     int64 `mapstructure:"max_json_body_bytes"`
-	MaxQueryChars        int   `mapstructure:"max_query_chars"`
-	MaxSearchLimit       int   `mapstructure:"max_search_limit"`
-	MaxSearchPage        int   `mapstructure:"max_search_page"`
+	Enabled              bool  `mapstructure:"enabled" json:"enabled"`
+	NormalPerMinute      int   `mapstructure:"normal_per_minute" json:"normal_per_minute"`
+	UploadPerHour        int   `mapstructure:"upload_per_hour" json:"upload_per_hour"`
+	NormalWindowSec      int   `mapstructure:"normal_window_sec" json:"normal_window_sec"`
+	UploadWindowSec      int   `mapstructure:"upload_window_sec" json:"upload_window_sec"`
+	AgentWindowSec       int   `mapstructure:"agent_window_sec" json:"agent_window_sec"`
+	AgentMinuteWindowSec int   `mapstructure:"agent_minute_window_sec" json:"agent_minute_window_sec"`
+	CredentialPerMinute  int   `mapstructure:"credential_per_minute" json:"credential_per_minute"`
+	SearchPerMinute      int   `mapstructure:"search_per_minute" json:"search_per_minute"`
+	MaxJSONBodyBytes     int64 `mapstructure:"max_json_body_bytes" json:"max_json_body_bytes"`
+	MaxQueryChars        int   `mapstructure:"max_query_chars" json:"max_query_chars"`
+	MaxSearchLimit       int   `mapstructure:"max_search_limit" json:"max_search_limit"`
+	MaxSearchPage        int   `mapstructure:"max_search_page" json:"max_search_page"`
 }
 
 type RecommendationConfig struct {
-	Enabled                      bool    `mapstructure:"enabled"`
-	HotDecayHours                float64 `mapstructure:"hot_decay_hours"`
-	PersonalizationWeight        float64 `mapstructure:"personalization_weight"`
-	MinInteractionForPersonalize int     `mapstructure:"min_interaction_for_personalize"`
-	EmbeddingTopk                int     `mapstructure:"embedding_topk"`
-	TrendingWindowDays           int     `mapstructure:"trending_window_days"`
-	RefreshIntervalH             int     `mapstructure:"refresh_interval_h"`
-	RankIntervalMin              int     `mapstructure:"rank_interval_min"`
-	EmbeddingMultiplier          int     `mapstructure:"embedding_multiplier"`
+	Enabled                      bool    `mapstructure:"enabled" json:"enabled"`
+	HotDecayHours                float64 `mapstructure:"hot_decay_hours" json:"hot_decay_hours"`
+	PersonalizationWeight        float64 `mapstructure:"personalization_weight" json:"personalization_weight"`
+	MinInteractionForPersonalize int     `mapstructure:"min_interaction_for_personalize" json:"min_interaction_for_personalize"`
+	EmbeddingTopk                int     `mapstructure:"embedding_topk" json:"embedding_topk"`
+	TrendingWindowDays           int     `mapstructure:"trending_window_days" json:"trending_window_days"`
+	RefreshIntervalH             int     `mapstructure:"refresh_interval_h" json:"refresh_interval_h"`
+	RankIntervalMin              int     `mapstructure:"rank_interval_min" json:"rank_interval_min"`
+	EmbeddingMultiplier          int     `mapstructure:"embedding_multiplier" json:"embedding_multiplier"`
 }
 
 var Cfg *Config
@@ -786,6 +794,9 @@ func OverrideFromEnv(cfg *Config) {
 		if strings.TrimSpace(os.Getenv("RAG_INDEX_EMBEDDING_MODEL")) == "" {
 			cfg.RAG.Index.EmbeddingModel = v
 		}
+	}
+	if v := os.Getenv("AGENT_EMBEDDING_PROVIDER"); v != "" {
+		cfg.Agent.EmbeddingProvider = v
 	}
 	if v := os.Getenv("AGENT_EMBEDDING_API_BASE"); v != "" {
 		cfg.Agent.EmbeddingAPIBase = v
@@ -1190,6 +1201,11 @@ func (c *Config) ValidateRelease() error {
 		requirePositiveInt(&errs, "rag.hybrid.vector_topk", c.RAG.Hybrid.VectorTopK)
 		requirePositiveInt(&errs, "rag.hybrid.rrf_k", c.RAG.Hybrid.RRFK)
 		requirePositiveInt(&errs, "rag.hybrid.final_topk", c.RAG.Hybrid.FinalTopK)
+		switch strings.ToLower(strings.TrimSpace(c.RAG.Hybrid.KeywordSource)) {
+		case "", "postgres", "opensearch":
+		default:
+			errs = append(errs, "rag.hybrid.keyword_source must be postgres or opensearch")
+		}
 	}
 
 	if c.Relay.BatchSize < RelayMinBatchSize || c.Relay.BatchSize > RelayMaxBatchSize {
@@ -1201,6 +1217,11 @@ func (c *Config) ValidateRelease() error {
 
 	if c.Agent.WebAgentEnabled {
 		requireNonEmpty(&errs, "agent.llm_api_key", c.Agent.LLMAPIKey)
+		if p := strings.TrimSpace(c.Agent.EmbeddingProvider); p != "" &&
+			!strings.EqualFold(p, strings.TrimSpace(c.Agent.LLMProvider)) &&
+			strings.TrimSpace(c.Agent.EmbeddingAPIKey) == "" {
+			errs = append(errs, "agent.embedding_provider differs from agent.llm_provider: agent.embedding_api_key is required (cross-vendor embedding must not borrow the chat credential)")
+		}
 		requirePositiveInt(&errs, "agent.rate_limit_per_day", c.Agent.RateLimitPerDay)
 		requirePositiveInt(&errs, "agent.rate_limit_per_minute", c.Agent.RateLimitPerMinute)
 		requirePositiveInt(&errs, "agent.max_tool_calls_per_turn", c.Agent.MaxToolCallsPerTurn)

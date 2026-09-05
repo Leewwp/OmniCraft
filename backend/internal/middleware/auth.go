@@ -3,6 +3,7 @@ package middleware
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +17,25 @@ import (
 
 const UserIDKey = "userID"
 const UserRoleKey = "userRole"
+
+// bannedWhitelistAllowed reports whether the request may proceed for a banned
+// user (FIX-15 / T29): the self-service appeal path plus /auth/me (so the
+// frontend ban screen can render capabilities) are the only sanctioned escape
+// hatches. The whitelist is exact per method+path to avoid loosening any
+// other authReq route; handlers still scope access by callerID, so a banned
+// user can only read/write their own appeals.
+func bannedWhitelistAllowed(method, path string) bool {
+	switch {
+	case method == http.MethodGet && path == "/api/v1/auth/me":
+		return true
+	case method == http.MethodGet && path == "/api/v1/appeals/me":
+		return true
+	case method == http.MethodPost && path == "/api/v1/appeals":
+		return true
+	default:
+		return false
+	}
+}
 
 func AuthRequired(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.HandlerFunc {
 	var dbInstance *gorm.DB
@@ -97,7 +117,7 @@ func AuthRequired(cfg *config.Config, rdb *redis.Client, db ...*gorm.DB) gin.Han
 			return
 		}
 
-		if status.IsBanned {
+		if status.IsBanned && !bannedWhitelistAllowed(c.Request.Method, c.Request.URL.Path) {
 			c.JSON(401, gin.H{"code": service.DenialReasonUserBanned, "message": "account has been banned"})
 			c.Abort()
 			return

@@ -374,6 +374,7 @@ backend/
 | `GET` | `/api/v1/admin/appeals` | adminHandler.ListAppeals |
 | `GET` | `/api/v1/admin/archive-scan-jobs/:id` | adminArchiveScanHandler.GetJob |
 | `GET` | `/api/v1/admin/audit-logs` | adminAuditHandler.ListAuditLogs |
+| `GET` | `/api/v1/admin/audit-logs/actions` | adminAuditHandler.ListAuditActions |
 | `GET` | `/api/v1/admin/config` | adminHandler.GetConfig |
 | `GET` | `/api/v1/admin/contents` | adminHandler.ListUnderReviewContents |
 | `GET` | `/api/v1/admin/contents/trash` | adminHandler.ListTrashedContents |
@@ -448,9 +449,12 @@ backend/
 | `GET` | `/api/v1/users/:id/following` | followHandler.GetFollowing |
 | `GET` | `/api/v1/users/:id/reputation` | userHandler.GetReputation |
 | `GET` | `/api/v1/users/me/contents` | userHandler.GetMyContents |
+| `GET` | `/api/v1/users/me/contributors` | userHandler.GetMyContributors |
 | `GET` | `/api/v1/users/me/followers/stats` | followHandler.GetFollowerStats |
 | `GET` | `/api/v1/users/me/history` | histHandler.GetHistory |
 | `GET` | `/api/v1/users/me/ip-visits` | ipVisitHistoryHandler.ListRecent |
+| `GET` | `/api/v1/users/me/ips` | ipHandler.GetMyIPs |
+| `GET` | `/api/v1/users/me/pending-tasks` | userHandler.GetMyPendingTasks |
 | `GET` | `/api/v1/users/me/saved-searches` | tagHandler.ListSavedSearches |
 | `GET` | `/api/v1/users/me/tag-groups` | tagHandler.ListTagGroups |
 | `GET` | `/api/v1/users/search` | searchHandler.SearchUsers |

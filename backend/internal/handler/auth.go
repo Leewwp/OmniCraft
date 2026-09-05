@@ -47,7 +47,9 @@ func buildAuthCapabilities(user *model.User, cfg *config.Config) (AuthCapabiliti
 		Reputation:      user.Reputation,
 	}
 	decision := service.EvaluateInteractionAccess(status, cfg, true, true)
-	if !decision.Allowed && !service.IsSoftDenialReason(decision.DenialReason) {
+	// T29（FIX-15）：USER_BANNED 与软拒绝一致，以 capabilities 表达
+	// （can_interact=false），封禁屏借 /auth/me 200 可达；硬失败仍 503。
+	if !decision.Allowed && !service.IsSoftDenialReason(decision.DenialReason) && decision.DenialReason != service.DenialReasonUserBanned {
 		return AuthCapabilities{}, decision.DenialReason
 	}
 	return AuthCapabilities{

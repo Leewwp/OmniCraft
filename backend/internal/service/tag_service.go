@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -25,10 +26,25 @@ type TagService struct {
 	contentRepo *repository.ContentRepository
 	rdb         *redis.Client
 	cfg         *config.CacheConfig
+	notifSvc    *NotificationService
+	reputSvc    *ReputationService
 }
 
 func NewTagService(tagRepo *repository.TagRepository, contentRepo *repository.ContentRepository, rdb *redis.Client, cfg *config.CacheConfig) *TagService {
 	return &TagService{tagRepo: tagRepo, contentRepo: contentRepo, rdb: rdb, cfg: cfg}
+}
+
+// SetNotificationService wires the author-facing notification channel
+// (T49/FIX-22c). nil keeps the local/test path notification-free.
+func (s *TagService) SetNotificationService(ns *NotificationService) {
+	s.notifSvc = ns
+}
+
+// SetReputationService wires the incentive channel (T33/FIX-37): approving
+// another user's tag suggestion awards +1 tag_recognized. nil keeps the path
+// inert (tests / callers that do not carry reputation semantics).
+func (s *TagService) SetReputationService(rs *ReputationService) {
+	s.reputSvc = rs
 }
 
 func (s *TagService) GetFacetedTags(category string, selectedTags []string) ([]model.Tag, error) {
@@ -57,7 +73,18 @@ func (s *TagService) SuggestTag(contentItemID int64, userID int64, tag, action s
 		Action:        action,
 		Status:        "pending",
 	}
-	return s.tagRepo.CreateTagSuggestion(suggestion)
+	if err := s.tagRepo.CreateTagSuggestion(suggestion); err != nil {
+		return err
+	}
+
+	// T49 (FIX-22c): close the feedback loop — the content author learns a
+	// new tag suggestion arrived. The suggester never notifies themselves.
+	if s.notifSvc != nil && content.AuthorID != userID {
+		title := "收到新的标签建议"
+		body := fmt.Sprintf("《%s》收到新的标签建议：%s %s", content.Title, action, tag)
+		s.notifSvc.Notify(content.AuthorID, "system", "tag_suggestion", title, body, "content", contentItemID, userID)
+	}
+	return nil
 }
 
 func (s *TagService) checkTagSuggestRateLimit(userID, contentItemID int64, now time.Time) error {
@@ -116,6 +143,14 @@ func (s *TagService) ApproveTagSuggestion(id int64, callerID int64) error {
 	if sg.Action == "add" {
 		s.contentRepo.AddTag(sg.ContentItemID, sg.Tag)
 		s.tagRepo.IncrementUsage(sg.Tag)
+		// T33（FIX-37）：认可他人标签建议 → 建议者 +1 tag_recognized
+		//（business-rules 承诺接线；作者本人建议不自我激励）。加分失败只记
+		// 日志不回滚标签写入——激励可事后补偿，标签生效是主语义。
+		if s.reputSvc != nil && sg.UserID != content.AuthorID {
+			if err := s.reputSvc.AwardTagRecognized(sg.UserID, sg.ID); err != nil {
+				slog.Warn("failed to award tag_recognized reputation", "suggestion_id", sg.ID, "user_id", sg.UserID, "error", err)
+			}
+		}
 	} else if sg.Action == "remove" {
 		s.contentRepo.RemoveTag(sg.ContentItemID, sg.Tag)
 	}

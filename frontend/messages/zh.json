@@ -99,6 +99,8 @@
     "loginNow": "立即登录",
     "errorInvalidCredentials": "邮箱或密码不正确",
     "errorBanned": "账号已被封禁，请联系管理员",
+    "bannedFeedbackHint": "如需申诉或有疑问，可通过工单联系我们：",
+    "bannedFeedbackEntry": "提交工单",
     "errorLoginFailed": "登录失败，请稍后重试",
     "errorNetwork": "网络错误，请检查连接后重试",
     "errorUsernameTooShort": "用户名至少 2 个字符",
@@ -282,7 +284,7 @@
     "allContent": "全部内容",
     "categoryMod": "Mod",
     "versionHistory": "版本历史",
-    "noVersionHistory": "暂无版本历史",
+    "noVersionHistory": "暂无版本历史。内容发布、编辑与 PR 合并都会产生版本；此内容发布于版本功能上线前，因此没有版本记录。",
     "latest": "最新",
     "preview": "预览",
     "restoreVersion": "恢复到此版本",
@@ -705,7 +707,13 @@
       "reject": "违规",
       "confirmVote": "确认投「{vote}」",
       "reasonPlaceholder": "可选：填写判定理由",
-      "confirm": "确认"
+      "confirm": "确认",
+      "previewWarning": "该内容因被举报进入众裁审核，可能包含争议内容，请谨慎查看",
+      "previewLoadButton": "查看内容",
+      "previewLoadFailed": "内容预览加载失败",
+      "mediaLoadButton": "加载媒体",
+      "skipCase": "跳过本案",
+      "reportThisContent": "举报此内容"
     },
     "verdict": {
       "title": "判决详情",
@@ -717,10 +725,15 @@
       "result": "判决结果：{result}",
       "judgeReasons": "判官理由（按赞数排序）",
       "noReasons": "暂无判官提交理由",
-      "loadFailed": "加载判决详情失败"
+      "loadFailed": "加载判决详情失败",
+      "selfVoteForbidden": "不能给自己的判定理由点赞",
+      "qualificationRequired": "需要判官资格才能参与理由投票"
     },
     "insufficientQuestions": "该类别题库不足，暂时无法开始考核，请稍后再试",
-    "readingTimeTooShort": "阅读时间不足，请先完整阅读说明"
+    "readingTimeTooShort": "阅读时间不足，请先完整阅读说明",
+    "loadMore": "加载更多待审案件",
+    "examSessionExpired": "考试会话已过期，请重新选择类型抽题",
+    "examAlreadyQualified": "你已持有该类型的判官资格，无需再考"
   },
   "dashboard": {
     "title": "创作者后台",
@@ -816,7 +829,8 @@
       "goReports": "举报处理",
       "goFeedback": "反馈管理",
       "goAppeals": "申诉处理",
-      "goQueue": "队列监控"
+      "goQueue": "队列监控",
+      "partialLoadFailed": "部分仪表盘数据加载失败"
     },
     "reports": {
       "title": "举报处理",
@@ -883,7 +897,17 @@
       "confirmBan": "确认封禁",
       "banReason": "封禁原因",
       "loadFailed": "加载待审内容失败",
-      "banFailed": "封禁失败"
+      "banFailed": "封禁失败",
+      "listTab": "内容列表",
+      "trashTab": "回收站",
+      "restore": "恢复",
+      "restoreTitle": "恢复内容",
+      "restoreConfirm": "确认恢复「{title}」？恢复后将重新发布并前台可见。",
+      "confirmRestore": "确认恢复",
+      "restoreFailed": "恢复失败，请稍后重试",
+      "colDeletedAt": "删除时间",
+      "noTrashedContents": "回收站为空",
+      "noTrashedHint": "被删除的内容会出现在这里，可随时恢复"
     },
     "users": {
       "title": "用户管理",
@@ -927,6 +951,12 @@
       "confirmApprove": "确认通过",
       "confirmReject": "确认驳回",
       "opinion": "处理意见",
+      "statusFilter": "状态筛选",
+      "statusPending": "待处理",
+      "statusApproved": "已通过",
+      "statusRejected": "已驳回",
+      "statusAll": "全部",
+      "viewContent": "查看内容",
       "loadFailed": "加载申诉列表失败",
       "processFailed": "处理申诉失败"
     },
@@ -1044,7 +1074,13 @@
       "dlq": "死信队列",
       "noDLQ": "死信队列为空",
       "loadFailed": "加载队列数据失败",
-      "readOnlyNote": "Beta 阶段队列页面为只读模式，不支持重放操作。"
+      "readOnlyNote": "队列页面支持实时监控各 topic 积压与失败数；死信条目可重放回原 topic（原条目保留在死信队列）。",
+      "replay": "重放",
+      "replayTitle": "重放死信条目",
+      "replayConfirm": "将条目 {id} 重投回原 topic「{topic}」？原条目保留在死信队列中，不会删除。",
+      "replaySuccess": "条目 {id} 已重投回原 topic（原条目保留在死信队列）",
+      "replayFailed": "条目 {id} 重放失败，请稍后重试",
+      "retries": "重试 {count} 次"
     },
     "auditLogs": {
       "title": "审计日志",
@@ -1220,6 +1256,27 @@
       },
       "a11y": {
         "acceptInvites": "接收联合创作邀请"
+      }
+    },
+    "reputation": {
+      "title": "信誉明细",
+      "total": "共 {total} 条",
+      "empty": "暂无信誉变动记录",
+      "loadFailed": "信誉明细加载失败",
+      "loadMore": "加载更多",
+      "loading": "加载中...",
+      "reasons": {
+        "ai_violation": "AI 审核违规",
+        "judge_error_rate": "众裁错误率调整",
+        "rehab": "康复课程",
+        "quality_content": "优质内容",
+        "quality_comment": "优质评论",
+        "pr_merged": "PR 已合并",
+        "tag_recognized": "标签建议被认可",
+        "valid_report": "有效举报",
+        "malicious_report": "恶意举报",
+        "malicious_tag_report": "恶意标签举报",
+        "admin_adjust": "管理员调整"
       }
     }
   },
@@ -1540,7 +1597,10 @@
     "activate": "激活",
     "deleteConfig": "删除配置",
     "deleteTitle": "删除 LLM 配置",
-    "deleteDescription": "确认删除配置「{name}」吗？此操作不可撤销。"
+    "deleteDescription": "确认删除配置「{name}」吗？此操作不可撤销。",
+    "activateNotFound": "配置不存在（可能已被删除），请刷新列表",
+    "activateFailed": "激活失败，请稍后重试",
+    "testFailed": "连接测试失败"
   },
   "appeals": {
     "title": "我的申诉",
@@ -1557,6 +1617,8 @@
     "newAppeal": "新建申诉",
     "typeContent": "内容",
     "typeComment": "评论",
+    "typeAccount": "账号（封禁申诉）",
+    "accountHint": "账号申诉无需填写目标 ID，将自动关联你的账号。",
     "targetId": "目标 ID",
     "reason": "申诉理由",
     "submit": "提交",
@@ -1568,6 +1630,7 @@
     "noAppeals": "暂无申诉记录",
     "loadFailed": "加载失败",
     "submitFailed": "提交失败",
+    "adminResponse": "处理意见",
     "exists": "该目标已有待处理的申诉，请等待处理完成"
   },
   "history": {
@@ -1959,7 +2022,8 @@
       "contributors": "贡献者",
       "tagSuggestions": "标签建议",
       "revenue": "收益数据",
-      "favorites": "收藏集"
+      "favorites": "收藏集",
+      "myIPs": "我的 IP"
     },
     "series": {
       "title": "内容系列管理",
@@ -2238,7 +2302,21 @@
     "pr": {
       "title": "PR 管理",
       "subtitle": "管理内容协同修改请求",
-      "empty": "PR 请求将在此处显示"
+      "empty": "PR 请求将在此处显示",
+      "create": {
+        "title": "发起修改建议（PR）",
+        "baseVersionLabel": "选择基准版本",
+        "messageLabel": "说明你的修改",
+        "messagePlaceholder": "向作者说明这次修改的意图…",
+        "newTextLabel": "新文本",
+        "newTextPlaceholder": "在此粘贴或撰写修改后的完整文本…",
+        "submit": "提交 PR",
+        "submitting": "提交中…",
+        "success": "PR 已提交，等待作者审核",
+        "loadFailed": "加载版本信息失败",
+        "selectVersionRequired": "请选择基准版本",
+        "backToList": "返回 PR 列表"
+      }
     },
     "contributors": {
       "title": "贡献者",
@@ -2309,6 +2387,25 @@
         "saveFailed": "收藏集保存失败",
         "deleteFailed": "收藏集删除失败"
       }
+    },
+    "myIPs": {
+      "title": "我的 IP",
+      "subtitle": "查看你创建的 IP 的审核状态与原因",
+      "empty": "还没有创建任何 IP",
+      "create": "创建 IP",
+      "colName": "名称",
+      "colCategory": "分类",
+      "colStatus": "状态",
+      "colDate": "提交时间",
+      "colReason": "审核意见",
+      "colActions": "操作",
+      "statusPending": "审核中",
+      "statusApproved": "已通过",
+      "statusRejected": "未通过",
+      "noReason": "-",
+      "resubmit": "重新提交",
+      "view": "查看",
+      "loadFailed": "加载 IP 列表失败"
     }
   },
   "adminNotifications": {

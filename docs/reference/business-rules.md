@@ -123,6 +123,12 @@
 - **详情**：非 `published`、`is_public=false` 私密、作者已封禁/已注销的内容，仅作者本人与 admin 可读（HTTP 200）；其余视角一律 404（判官豁免钩子预留给盲投修复 T40）。服务端缓存仅缓存 published 公开视图；`view_count` 仅对 published 且非作者本人的访问计数。
 - **主列表 / 他人用户列表 / IP 内容列表**：统一 `ApplyContentVisibilityScope`（published + 未删除 + 作者未封禁未注销 + 所属 IP 未封禁 + is_public 或作者本人）；作者自助列表（/users/me/contents）走 `IncludeAllStatuses` 全状态例外；admin 终审队列显式 Status 过滤保留原语义。
 
+### 版本历史（FIX-42，T51）
+
+- **版本来源**：①发布——内容发布成功后随发布事务创建初始版本 v1（`storage_type=full`，全文=发布时的 `description`，`is_latest=true`）；②PR 合并——合并事务内新建 full 版本并翻转 `is_latest`（proposed 快照仅是提交时的建议稿）。编辑不产生新版本（最小实现边界，见 FIX-42）。
+- **存量内容不回填**：FIX-42 接线（2026-09-05）前发布的内容没有 v1，版本列表为空；不做懒补，前端空态文案（`content.noVersionHistory`）已向用户说明原因。
+- **读取口径**：`GET /contents/:id/versions` 对读者只暴露 active lineage（proposed 版本仅作者/提交者/admin 可见，FIX-21①）。
+
 ### 内容下载（Task 121）
 
 - 下载 API：`GET /api/v1/contents/:id/download`，需认证且校验内容 `status=published`
@@ -160,7 +166,8 @@
 ### 赛博判官
 - 题库不存在时：该类型内容不开放众裁
 - 考核通过线：≥ 80% 正确率
-- 错误率撤权：最近 N 次（配置窗口从 config.yaml > judge.error_rate_window 读取且最小为 10；累计有效判定需 > 10）判定中错误率 > 50%，撤权 + 扣 1 信誉分
+- 错误率撤权：最近 N 次（配置窗口从 config.yaml > judge.error_rate_window 读取且最小为 10；累计有效判定需 > 10）判定中错误率 > 50%，撤权 + 扣 1 信誉分；撤权重算的多数派口径读 `judge.pass_threshold` 与闭案阈值同源（T39/FIX-03），结案终态一律按 `closed_approve`/`closed_reject` 前缀匹配
+- 准确率奖励（T39/FIX-03）：闭案后与多数派一致的在册判官 +1 信誉分（reputation_log reason=`judge_accuracy`，按案幂等）；少数派不奖励
 - 判决结束条件：总投票人数 ≥ 阈值（MVP 默认 20，可配置，目标 100）
 - 判决结果：「不违规」比例 ≥ 60% → 恢复展示；< 60% → 有争议，不予展示（管理员可手动恢复）
 - 闭案回写（FIX-10）：closed_approve → 内容从 under_review 条件恢复 published（守卫保证 admin/AI 终态 banned 不被众裁覆盖）并重发索引事件；closed_reject → banned + ban_reason（judge_verdict 前缀），**不扣信誉分**（扣分语义属 AI/admin 通道）；两态均通知作者（content_status 契约）并立即失效内容缓存。banned 结果可 admin restore、可申诉

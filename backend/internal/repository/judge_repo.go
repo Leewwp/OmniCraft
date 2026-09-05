@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"omnicraft/backend/internal/model"
 
 	"gorm.io/gorm"
@@ -69,10 +71,13 @@ func (r *JudgeRepository) FindCase(id int64) (*model.JudgeCase, error) {
 	return &c, nil
 }
 
-func (r *JudgeRepository) ListOpenCases(qualifiedTypes []string, page, pageSize int) ([]model.JudgeCase, int64, error) {
+func (r *JudgeRepository) ListOpenCases(qualifiedTypes []string, judgeID int64, page, pageSize int) ([]model.JudgeCase, int64, error) {
 	var cases []model.JudgeCase
 	var total int64
-	q := r.db.Model(&model.JudgeCase{}).Where("status = ? AND target_type IN ?", "open", qualifiedTypes)
+	// T40（FIX-36d）：排除本人已投案件——投票后不再出现在队列。
+	q := r.db.Model(&model.JudgeCase{}).
+		Where("status = ? AND target_type IN ?", "open", qualifiedTypes).
+		Where("NOT EXISTS (SELECT 1 FROM judge_votes v WHERE v.case_id = judge_cases.id AND v.judge_id = ?)", judgeID)
 	q.Count(&total)
 	offset := (page - 1) * pageSize
 	err := q.Order("created_at ASC").Offset(offset).Limit(pageSize).Find(&cases).Error
@@ -108,6 +113,65 @@ func (r *JudgeRepository) ListVotesForCase(caseID int64) ([]model.JudgeVote, err
 	var votes []model.JudgeVote
 	err := r.db.Where("case_id = ?", caseID).Find(&votes).Error
 	return votes, err
+}
+
+// GetVoteByID 按 ID 取投票（T38 理由投票守卫需 owner 判定）。
+func (r *JudgeRepository) GetVoteByID(id int64) (*model.JudgeVote, error) {
+	var vote model.JudgeVote
+	if err := r.db.First(&vote, id).Error; err != nil {
+		return nil, err
+	}
+	return &vote, nil
+}
+
+// UpsertReasonVote（T38）：同方向重复投票幂等，反方向切换（UNIQUE 维度单行）。
+func (r *JudgeRepository) UpsertReasonVote(voteID, voterID int64, voteType string) error {
+	var existing model.JudgeReasonVote
+	err := r.db.Where("reason_owner_vote_id = ? AND voter_id = ?", voteID, voterID).First(&existing).Error
+	if err == nil {
+		if existing.VoteType == voteType {
+			return nil
+		}
+		existing.VoteType = voteType
+		return r.db.Save(&existing).Error
+	}
+	return r.db.Create(&model.JudgeReasonVote{
+		ReasonOwnerVoteID: voteID,
+		VoterID:           voterID,
+		VoteType:          voteType,
+	}).Error
+}
+
+// VerdictVoteItem（T38/FIX-36b）：verdict 投票条目对外契约——join users 取
+// 昵称 + reason votes 聚合赞/踩（裸 JudgeVote 缺 judge_name/upvotes/downvotes，
+// 前端渲染 NaN）。定义在 repository 层避免与 service 循环依赖。
+type VerdictVoteItem struct {
+	ID        int64     `json:"id"`
+	JudgeID   int64     `json:"judge_id"`
+	JudgeName string    `json:"judge_name"`
+	Vote      string    `json:"vote"`
+	Reason    *string   `json:"reason"`
+	CreatedAt time.Time `json:"created_at"`
+	Upvotes   int64     `json:"upvotes"`
+	Downvotes int64     `json:"downvotes"`
+}
+
+// ListVerdictVotes（T38/FIX-36b）：verdict 投票契约——join users 取昵称，
+// LEFT JOIN reason votes 聚合赞/踩计数。
+func (r *JudgeRepository) ListVerdictVotes(caseID int64) ([]VerdictVoteItem, error) {
+	var rows []VerdictVoteItem
+	err := r.db.Raw(`
+		SELECT v.id, v.judge_id, u.username AS judge_name, v.vote, v.reason, v.created_at,
+		       COALESCE(SUM(CASE WHEN rv.vote_type = 'up' THEN 1 ELSE 0 END), 0)   AS upvotes,
+		       COALESCE(SUM(CASE WHEN rv.vote_type = 'down' THEN 1 ELSE 0 END), 0) AS downvotes
+		FROM judge_votes v
+		JOIN users u ON u.id = v.judge_id
+		LEFT JOIN judge_reason_votes rv ON rv.reason_owner_vote_id = v.id
+		WHERE v.case_id = ?
+		GROUP BY v.id, v.judge_id, u.username, v.vote, v.reason, v.created_at
+		ORDER BY v.created_at ASC
+	`, caseID).Scan(&rows).Error
+	return rows, err
 }
 
 func (r *JudgeRepository) CreateReasonVote(rv *model.JudgeReasonVote) error {

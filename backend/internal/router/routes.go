@@ -85,7 +85,10 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	ips := v1.Group("/ips")
 	{
 		ips.GET("", optAuth, ipHandler.ListIPs)
-		ips.POST("", authReq, ipHandler.CreateIP)
+		// T15 (F-103): IP creation enters the review queue and publishes
+		// public free text, so it carries the same publishing guard + upload
+		// rate limit as content creation.
+		ips.POST("", authReq, publishGuard, middleware.UploadRateLimit(rdb, &cfg.RateLimit), ipHandler.CreateIP)
 		ips.GET("/:id", optAuth, ipHandler.GetIP)
 		ips.GET("/:id/contents", optAuth, ipHandler.GetIPContents)
 
@@ -98,6 +101,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	}
 
 	prHandler := handler.NewPRHandlerWithService(ctr.PRService)
+	prHandler.SetNotificationService(notifSvc)
 	contentHandler := handler.NewContentHandler(db, cfg, rdb)
 	contentHandler.SetQueueProducer(ctr.QueueProducer)
 	contentHandler.SetOutboxRepository(ctr.OutboxRepo)
@@ -205,6 +209,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	v1.GET("/categories", optAuth, catHandler.ListCategories)
 
 	tagHandler := handler.NewTagHandler(db, rdb, &cfg.Cache, cfg.RateLimit.MaxQueryChars)
+	tagHandler.SetNotificationService(notifSvc)
 	v1.GET("/tags/faceted", optAuth, tagHandler.GetFacetedTags)
 	v1.GET("/tags/search", optAuth, tagHandler.SearchTags)
 	contents.POST("/:id/tags/suggest", authReq, tagHandler.SuggestTag)
@@ -226,6 +231,12 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		me.DELETE("/saved-searches/:id", tagHandler.DeleteSavedSearch)
 		me.GET("/followers/stats", followHandler.GetFollowerStats)
 		me.GET("/contents", userHandler.GetMyContents)
+		// T49: one-request to-do aggregation (open PRs + pending tag suggestions).
+		me.GET("/pending-tasks", userHandler.GetMyPendingTasks)
+		// T50: server-side contributor aggregation for the studio page.
+		me.GET("/contributors", userHandler.GetMyContributors)
+		// T52: the creator's own IPs across every status + latest reject reason.
+		me.GET("/ips", ipHandler.GetMyIPs)
 	}
 
 	searchHandler := handler.NewSearchHandler(ctr.SearchService, cfg)
@@ -286,7 +297,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	me.PUT("/ip-visits/:ipId", ipVisitHistoryHandler.RecordVisit)
 	me.POST("/ip-visits/merge", ipVisitHistoryHandler.MergeVisits)
 
-	discHandler := handler.NewDiscussionHandler(db)
+	// T12（FIX-18）：注入共享 SocialService——讨论发帖/回复统一走信誉门 +
+	// Green 审核 + 楼主通知，与 /social 路由同一套治理。
+	discHandler := handler.NewDiscussionHandler(db, socialSvc)
 	discHandler.SetDisplayURLSigner(displaySigner)
 	discHandler.SetConfig(cfg)
 	ips.GET("/:id/discussions", optAuth, discHandler.ListDiscussions)
@@ -379,6 +392,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		admin.POST("/feedback/:id/replies", adminFeedbackHandler.ReplyFeedback)
 		admin.POST("/notifications/broadcast", adminHandler.BroadcastNotification)
 		admin.GET("/audit-logs", adminAuditHandler.ListAuditLogs)
+		admin.GET("/audit-logs/actions", adminAuditHandler.ListAuditActions)
 		admin.POST("/rag/rebuild", adminRAGHandler.Rebuild)
 		admin.GET("/archive-scan-jobs/:id", archiveScanAdminRateLimit, adminArchiveScanHandler.GetJob)
 		admin.POST("/archive-scan-jobs/:id/manual-review", archiveScanAdminRateLimit, adminArchiveScanHandler.StartManualReview)

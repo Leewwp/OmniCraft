@@ -44,7 +44,12 @@ func (w *DLQWorker) Consume(ctx context.Context, limit int64) ([]DLQEntry, error
 		entry := DLQEntry{ID: msg.ID}
 		if data, ok := msg.Values["data"]; ok {
 			if dataStr, ok := data.(string); ok {
-				json.Unmarshal([]byte(dataStr), &entry)
+				if json.Unmarshal([]byte(dataStr), &entry) == nil {
+					// T28（FIX-35 / F-113）：payload 里的 id 在入 stream 前必然
+					// 为空（写入方尚不知道 msg id），unmarshal 不得覆盖 stream id，
+					// 否则 replay UI 拿到空 id 永远失败。
+					entry.ID = msg.ID
+				}
 			}
 		}
 		entries = append(entries, entry)

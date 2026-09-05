@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
@@ -222,6 +223,13 @@ func (h *UserHandler) GetReputation(c *gin.Context) {
 		return
 	}
 
+	// T33（FIX-37）：处罚日志（ai_violation 等 reason）只对本人与 admin 开放，
+	// 不对他人外泄。
+	if middleware.GetUserID(c) != id && !middleware.IsAdmin(c) {
+		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "reputation logs are only visible to the owner or admins"})
+		return
+	}
+
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	if page < 1 {
@@ -270,6 +278,126 @@ func (h *UserHandler) GetUserContents(c *gin.Context) {
 	}
 	h.displaySigner.DecorateContents(items)
 	c.JSON(http.StatusOK, gin.H{"contents": items, "total": total})
+}
+
+// GetMyContributors serves GET /users/me/contributors (T50/FIX-22d): the
+// server-side contributor aggregation for the studio page. Per user: merged
+// PR count across the caller's contents, source (merged|invite) and the real
+// author-blocklist state. Replaces the page's per-content PR fan-out with a
+// single request.
+func (h *UserHandler) GetMyContributors(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+	db := h.contentRepo.DB()
+
+	type contributorRow struct {
+		UserID   int64
+		Username string
+		PRCount  int
+		Blocked  int
+	}
+	var rows []contributorRow
+	if err := db.Raw(
+		`SELECT cc.user_id,
+		        u.username,
+		        COALESCE(SUM(cc.pr_count), 0) AS pr_count,
+		        MAX(CASE WHEN ab.blocked_id IS NOT NULL THEN 1 ELSE 0 END) AS blocked
+		 FROM content_contributors cc
+		 JOIN content_items c ON c.id = cc.content_item_id AND c.deleted_at IS NULL
+		 JOIN users u ON u.id = cc.user_id
+		 LEFT JOIN author_blocklist ab ON ab.author_id = ? AND ab.blocked_id = cc.user_id
+		 WHERE c.author_id = ?
+		 GROUP BY cc.user_id, u.username
+		 ORDER BY pr_count DESC, cc.user_id ASC`, callerID, callerID).Scan(&rows).Error; err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+
+	type contributor struct {
+		UserID   int64  `json:"user_id"`
+		Username string `json:"username"`
+		PRCount  int    `json:"pr_count"`
+		Source   string `json:"source"`
+		Blocked  bool   `json:"blocked"`
+	}
+	contributors := make([]contributor, 0, len(rows))
+	for _, row := range rows {
+		// pr_count=0 rows only come from accepted collaboration invites
+		// (InsertContributorIfAbsent); merged PRs always bump the count.
+		source := "invite"
+		if row.PRCount > 0 {
+			source = "merged"
+		}
+		contributors = append(contributors, contributor{
+			UserID:   row.UserID,
+			Username: row.Username,
+			PRCount:  row.PRCount,
+			Source:   source,
+			Blocked:  row.Blocked == 1,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"contributors": contributors, "total": len(contributors)})
+}
+
+// GetMyPendingTasks serves GET /users/me/pending-tasks (T49/FIX-22c): the
+// caller's to-dos in one request — open PRs and pending tag suggestions on
+// their own contents. Items on other users' contents never appear.
+func (h *UserHandler) GetMyPendingTasks(c *gin.Context) {
+	callerID := middleware.GetUserID(c)
+	db := h.contentRepo.DB()
+
+	type pendingTask struct {
+		Type  string `json:"type"`
+		ID    int64  `json:"id"`
+		Title string `json:"title"`
+	}
+	tasks := make([]pendingTask, 0)
+
+	var prs []struct {
+		ID      int64
+		Message string
+		Title   string
+	}
+	if err := db.Raw(
+		`SELECT pr.id, pr.message, c.title AS title
+		 FROM pull_requests pr JOIN content_items c ON c.id = pr.content_item_id
+		 WHERE c.author_id = ? AND pr.status = 'open' AND c.deleted_at IS NULL
+		 ORDER BY pr.id DESC LIMIT 50`, callerID).Scan(&prs).Error; err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	for _, pr := range prs {
+		title := pr.Title
+		if pr.Message != "" {
+			title = pr.Message
+		}
+		tasks = append(tasks, pendingTask{Type: "pr", ID: pr.ID, Title: title})
+	}
+
+	var sugs []struct {
+		ID     int64
+		Tag    string
+		Action string
+		Title  string
+	}
+	if err := db.Raw(
+		`SELECT ts.id, ts.tag, ts.action, c.title AS title
+		 FROM tag_suggestions ts JOIN content_items c ON c.id = ts.content_item_id
+		 WHERE c.author_id = ? AND ts.status = 'pending' AND c.deleted_at IS NULL
+		 ORDER BY ts.id DESC LIMIT 50`, callerID).Scan(&sugs).Error; err != nil {
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	for _, sug := range sugs {
+		verb := sug.Action
+		if verb == "add" {
+			verb = "添加"
+		} else if verb == "remove" {
+			verb = "移除"
+		}
+		tasks = append(tasks, pendingTask{Type: "tag", ID: sug.ID, Title: "《" + sug.Title + "》标签" + verb + "：" + sug.Tag})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"tasks": tasks, "total": len(tasks)})
 }
 
 func (h *UserHandler) GetMyContents(c *gin.Context) {
@@ -369,13 +497,17 @@ func (h *UserHandler) DeleteAccount(c *gin.Context) {
 	anonName := fmt.Sprintf("已注销用户_%d", callerID)
 	anonEmail := fmt.Sprintf("deleted_%d@anon.local", callerID)
 	randomHash, _ := bcrypt.GenerateFromPassword([]byte(hex.EncodeToString(make([]byte, 32))), bcrypt.DefaultCost)
+	// T30（FIX-20）：注销 = deleted_at 软删除 + 匿名化清写（username/email/
+	// avatar/bio，防 PII 残留）；不再伪装封禁（is_banned 不设、ban_reason 清空），
+	// 鉴权走 middleware 现成 deleted → 401 "user not found or deleted" 分支。
+	deletedAt := time.Now()
 	updates := map[string]interface{}{
 		"username":      anonName,
 		"email":         anonEmail,
 		"avatar_url":    "",
 		"bio":           "",
-		"is_banned":     true,
-		"ban_reason":    "self_deleted",
+		"deleted_at":    deletedAt,
+		"ban_reason":    "",
 		"password_hash": string(randomHash),
 	}
 

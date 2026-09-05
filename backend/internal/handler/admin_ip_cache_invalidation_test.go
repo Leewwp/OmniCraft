@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -31,7 +32,7 @@ func setupAdminIPCacheRouter(t *testing.T) (*gin.Engine, *gorm.DB, *miniredis.Mi
 
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.IP{}, &model.IPTag{}, &model.AdminAuditLog{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.IP{}, &model.IPTag{}, &model.AdminAuditLog{}, &model.IPReviewLog{}))
 
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
@@ -113,7 +114,10 @@ func TestAdminRejectIPInvalidatesDetailAndListCache(t *testing.T) {
 	require.True(t, mr.Exists("cache:ip:1"), "前置条件：详情缓存已预热")
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/admin/ips/1/reject", nil)
+	// T16 起 reject 契约要求 reason（binding required），与状态更新同事务落
+	// ip_review_logs，因此该 setup 也迁移了该表。
+	req := httptest.NewRequest(http.MethodPost, "/admin/ips/1/reject", strings.NewReader(`{"reason":"T16 缓存失效回归原因"}`))
+	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 

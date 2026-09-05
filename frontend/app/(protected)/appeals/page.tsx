@@ -21,6 +21,7 @@ interface Appeal {
   target_id: number;
   reason: string;
   status: string;
+  admin_response?: string;
   created_at: string;
 }
 
@@ -79,7 +80,8 @@ function AppealsPageContent() {
   }, [user]);
 
   useEffect(() => {
-    if (presetType && presetId) {
+    // T29（FIX-15）：account 申诉（封禁出路）无 target_id，预填 target_type 即展开。
+    if (presetType === "account" || (presetType && presetId)) {
       setShowForm(true);
       setForm((f) => ({ ...f, target_type: presetType, target_id: presetId }));
     }
@@ -128,14 +130,21 @@ function AppealsPageContent() {
   }
 
   async function submitAppeal() {
-    if (!form.target_id || !form.reason) return;
+    // T29（FIX-15）：account 申诉免填 target_id（服务端强制为本人）。
+    const isAccount = form.target_type === "account";
+    if (!form.reason || (!isAccount && !form.target_id)) return;
     setSubmitting(true);
     try {
-      await api.post("/api/v1/appeals", {
-        target_type: form.target_type,
-        target_id: parseInt(form.target_id),
-        reason: form.reason,
-      });
+      await api.post(
+        "/api/v1/appeals",
+        isAccount
+          ? { target_type: form.target_type, reason: form.reason }
+          : {
+              target_type: form.target_type,
+              target_id: parseInt(form.target_id),
+              reason: form.reason,
+            }
+      );
       setShowForm(false);
       setForm({ target_type: "content", target_id: "", reason: "" });
       void loadAppeals();
@@ -196,14 +205,20 @@ function AppealsPageContent() {
               >
                 <option value="content">{t('appeals.typeContent')}</option>
                 <option value="comment">{t('appeals.typeComment')}</option>
+                <option value="account">{t('appeals.typeAccount')}</option>
               </select>
-              <input
-                type="number"
-                placeholder={t('appeals.targetId')}
-                value={form.target_id}
-                onChange={(e) => setForm((f) => ({ ...f, target_id: e.target.value }))}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-              />
+              {form.target_type !== "account" && (
+                <input
+                  type="number"
+                  placeholder={t('appeals.targetId')}
+                  value={form.target_id}
+                  onChange={(e) => setForm((f) => ({ ...f, target_id: e.target.value }))}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                />
+              )}
+              {form.target_type === "account" && (
+                <p className="text-xs text-muted-foreground">{t('appeals.accountHint')}</p>
+              )}
               <textarea
                 placeholder={t('appeals.reason')}
                 value={form.reason}
@@ -244,6 +259,13 @@ function AppealsPageContent() {
                   }`}>{getStatusLabel(a.status)}</span>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">{a.reason}</p>
+                {/* T31（FIX-27）：admin 处理意见对申诉人可见。 */}
+                {a.status !== "pending" && a.admin_response && (
+                  <p className="mt-2 rounded-md border border-border bg-background p-2 text-sm">
+                    <span className="text-muted-foreground">{t('appeals.adminResponse')}：</span>
+                    {a.admin_response}
+                  </p>
+                )}
                 <p className="mt-1 text-xs text-muted-foreground">
                   {new Date(a.created_at).toLocaleString(locale === "en" ? "en-US" : "zh-CN")}
                 </p>

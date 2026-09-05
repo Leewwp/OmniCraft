@@ -103,6 +103,8 @@
     "loginNow": "Log in now",
     "errorInvalidCredentials": "Invalid email or password",
     "errorBanned": "Account has been banned. Please contact support.",
+    "bannedFeedbackHint": "To appeal or ask questions, reach us via the feedback form:",
+    "bannedFeedbackEntry": "Submit feedback",
     "errorLoginFailed": "Login failed. Please try again later.",
     "errorNetwork": "Network error. Please check your connection and try again.",
     "errorSessionExpired": "Your session has expired. Please log in again.",
@@ -282,7 +284,7 @@
     "allContent": "All Content",
     "categoryMod": "Mod",
     "versionHistory": "Version History",
-    "noVersionHistory": "No version history",
+    "noVersionHistory": "No version history yet. Publishing, edits and merged PRs create versions; this content predates versioning, so it has no records.",
     "latest": "Latest",
     "preview": "Preview",
     "restoreVersion": "Restore this version",
@@ -705,7 +707,13 @@
       "reject": "Violation",
       "confirmVote": "Confirm vote: \"{vote}\"",
       "reasonPlaceholder": "Optional: provide your reasoning",
-      "confirm": "Confirm"
+      "confirm": "Confirm",
+      "previewWarning": "This content entered crowd review after a report and may be controversial. View with care.",
+      "previewLoadButton": "View content",
+      "previewLoadFailed": "Failed to load content preview",
+      "mediaLoadButton": "Load media",
+      "skipCase": "Skip this case",
+      "reportThisContent": "Report this content"
     },
     "verdict": {
       "title": "Verdict Details",
@@ -717,10 +725,15 @@
       "result": "Verdict: {result}",
       "judgeReasons": "Judge Reasoning (sorted by upvotes)",
       "noReasons": "No judge reasoning submitted",
-      "loadFailed": "Failed to load verdict details"
+      "loadFailed": "Failed to load verdict details",
+      "selfVoteForbidden": "You cannot vote on your own reason",
+      "qualificationRequired": "Judge qualification required to vote on reasons"
     },
     "insufficientQuestions": "Not enough questions are available for this category. Please try again later",
-    "readingTimeTooShort": "Reading time was too short. Please read the instructions fully first"
+    "readingTimeTooShort": "Reading time was too short. Please read the instructions fully first",
+    "loadMore": "Load more cases",
+    "examSessionExpired": "Exam session expired. Please select a type to draw questions again",
+    "examAlreadyQualified": "You already hold the qualification for this content type"
   },
   "dashboard": {
     "title": "Creator Dashboard",
@@ -816,7 +829,8 @@
       "goReports": "Reports",
       "goFeedback": "Feedback",
       "goAppeals": "Appeals",
-      "goQueue": "Queue Monitor"
+      "goQueue": "Queue Monitor",
+      "partialLoadFailed": "Some dashboard data failed to load"
     },
     "reports": {
       "title": "Report Management",
@@ -883,7 +897,17 @@
       "confirmBan": "Confirm ban",
       "banReason": "Ban reason",
       "loadFailed": "Failed to load content review list",
-      "banFailed": "Failed to ban content"
+      "banFailed": "Failed to ban content",
+      "listTab": "Contents",
+      "trashTab": "Trash",
+      "restore": "Restore",
+      "restoreTitle": "Restore content",
+      "restoreConfirm": "Restore \"{title}\"? It will be republished and visible on the site.",
+      "confirmRestore": "Restore",
+      "restoreFailed": "Failed to restore. Please try again.",
+      "colDeletedAt": "Deleted at",
+      "noTrashedContents": "Trash is empty",
+      "noTrashedHint": "Deleted content appears here and can be restored anytime"
     },
     "users": {
       "title": "User Management",
@@ -927,6 +951,12 @@
       "confirmApprove": "Approve",
       "confirmReject": "Reject",
       "opinion": "Handling opinion",
+      "statusFilter": "Status filter",
+      "statusPending": "Pending",
+      "statusApproved": "Approved",
+      "statusRejected": "Rejected",
+      "statusAll": "All",
+      "viewContent": "View content",
       "loadFailed": "Failed to load appeal list",
       "processFailed": "Failed to process appeal"
     },
@@ -1044,7 +1074,13 @@
       "dlq": "Dead Letter Queue",
       "noDLQ": "DLQ is empty",
       "loadFailed": "Failed to load queue data",
-      "readOnlyNote": "Queue page is read-only during Beta. Replay controls are not available."
+      "readOnlyNote": "This page monitors per-topic depth, lag and failures; dead-letter entries can be replayed back to their original topic (the original entry stays in the DLQ).",
+      "replay": "Replay",
+      "replayTitle": "Replay dead-letter entry",
+      "replayConfirm": "Re-deliver entry {id} back to its original topic \"{topic}\"? The original entry stays in the dead-letter queue and is not removed.",
+      "replaySuccess": "Entry {id} re-delivered to its original topic (original entry kept in the DLQ)",
+      "replayFailed": "Failed to replay entry {id}. Please try again.",
+      "retries": "{count} retries"
     },
     "auditLogs": {
       "title": "Audit Logs",
@@ -1220,6 +1256,27 @@
       },
       "a11y": {
         "acceptInvites": "Accept collaboration invites"
+      }
+    },
+    "reputation": {
+      "title": "Reputation details",
+      "total": "{total} entries",
+      "empty": "No reputation changes yet",
+      "loadFailed": "Failed to load reputation details",
+      "loadMore": "Load more",
+      "loading": "Loading...",
+      "reasons": {
+        "ai_violation": "AI moderation violation",
+        "judge_error_rate": "Judge error rate adjustment",
+        "rehab": "Rehabilitation course",
+        "quality_content": "Quality content",
+        "quality_comment": "Quality comment",
+        "pr_merged": "PR merged",
+        "tag_recognized": "Tag suggestion recognized",
+        "valid_report": "Valid report",
+        "malicious_report": "Malicious report",
+        "malicious_tag_report": "Malicious tag report",
+        "admin_adjust": "Admin adjustment"
       }
     }
   },
@@ -1540,7 +1597,10 @@
     "activate": "Activate",
     "deleteConfig": "Delete configuration",
     "deleteTitle": "Delete LLM configuration",
-    "deleteDescription": "Delete configuration \"{name}\"? This action cannot be undone."
+    "deleteDescription": "Delete configuration \"{name}\"? This action cannot be undone.",
+    "activateNotFound": "Config no longer exists (it may have been deleted). Refresh the list.",
+    "activateFailed": "Activation failed. Please try again.",
+    "testFailed": "Connection test failed"
   },
   "appeals": {
     "title": "My Appeals",
@@ -1557,6 +1617,8 @@
     "newAppeal": "New Appeal",
     "typeContent": "Content",
     "typeComment": "Comment",
+    "typeAccount": "Account (ban appeal)",
+    "accountHint": "No target ID is needed for an account appeal; it will be linked to your account automatically.",
     "targetId": "Target ID",
     "reason": "Appeal reason",
     "submit": "Submit",
@@ -1568,6 +1630,7 @@
     "noAppeals": "No appeal records",
     "loadFailed": "Failed to load",
     "submitFailed": "Failed to submit",
+    "adminResponse": "Admin response",
     "exists": "A pending appeal already exists for this target. Please wait until it is resolved"
   },
   "history": {
@@ -1959,7 +2022,8 @@
       "contributors": "Contributors",
       "tagSuggestions": "Tag Suggestions",
       "revenue": "Revenue",
-      "favorites": "Collections"
+      "favorites": "Collections",
+      "myIPs": "My IPs"
     },
     "series": {
       "title": "Content series",
@@ -2238,7 +2302,21 @@
     "pr": {
       "title": "PR Management",
       "subtitle": "Manage content collaboration requests",
-      "empty": "PR requests will appear here"
+      "empty": "PR requests will appear here",
+      "create": {
+        "title": "Propose a Change (PR)",
+        "baseVersionLabel": "Choose base version",
+        "messageLabel": "Describe your change",
+        "messagePlaceholder": "Explain to the author what this change does…",
+        "newTextLabel": "New text",
+        "newTextPlaceholder": "Paste or write the full revised text here…",
+        "submit": "Submit PR",
+        "submitting": "Submitting…",
+        "success": "PR submitted, waiting for the author's review",
+        "loadFailed": "Failed to load versions",
+        "selectVersionRequired": "Please choose a base version",
+        "backToList": "Back to PR list"
+      }
     },
     "contributors": {
       "title": "Contributors",
@@ -2309,6 +2387,25 @@
         "saveFailed": "Failed to save collection",
         "deleteFailed": "Failed to delete collection"
       }
+    },
+    "myIPs": {
+      "title": "My IPs",
+      "subtitle": "Review the status and feedback of IPs you created",
+      "empty": "You haven't created any IPs yet",
+      "create": "Create IP",
+      "colName": "Name",
+      "colCategory": "Category",
+      "colStatus": "Status",
+      "colDate": "Submitted",
+      "colReason": "Review note",
+      "colActions": "Actions",
+      "statusPending": "Pending",
+      "statusApproved": "Approved",
+      "statusRejected": "Rejected",
+      "noReason": "-",
+      "resubmit": "Resubmit",
+      "view": "View",
+      "loadFailed": "Failed to load IP list"
     }
   },
   "adminNotifications": {

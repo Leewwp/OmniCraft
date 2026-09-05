@@ -77,6 +77,16 @@ type PublicSocialDTO struct {
 	CommentFoldThreshold float64 `json:"comment_fold_threshold"`
 }
 
+// PublicAgentDTO exposes the non-sensitive agent model identity so clients
+// and evidence tooling can show what is actually running. Provider and model
+// names only — never credentials, keyed endpoints or limits.
+type PublicAgentDTO struct {
+	ChatProvider      string `json:"chat_provider"`
+	ChatModel         string `json:"chat_model"`
+	EmbeddingProvider string `json:"embedding_provider,omitempty"`
+	EmbeddingModel    string `json:"embedding_model,omitempty"`
+}
+
 type PublicConfigResponse struct {
 	Features      PublicFeaturesDTO      `json:"features"`
 	Captcha       PublicCaptchaDTO       `json:"captcha"`
@@ -87,6 +97,7 @@ type PublicConfigResponse struct {
 	Publish       PublicPublishDTO       `json:"publish"`
 	Limits        PublicLimitsDTO        `json:"limits"`
 	Social        PublicSocialDTO        `json:"social"`
+	Agent         PublicAgentDTO         `json:"agent"`
 	// OSSDomain is the configured object delivery domain (#111). Clients use
 	// it to compose stable object URLs from upload grants (e.g. avatar_url =
 	// oss_domain + "/" + oss_key). Empty when delivery is not configured.
@@ -147,6 +158,12 @@ func (h *PublicConfigHandler) GetPublicConfig(c *gin.Context) {
 		},
 		Social: PublicSocialDTO{
 			CommentFoldThreshold: h.cfg.Social.CommentFoldThreshold,
+		},
+		Agent: PublicAgentDTO{
+			ChatProvider:      h.cfg.Agent.LLMProvider,
+			ChatModel:         h.cfg.Agent.LLMModel,
+			EmbeddingProvider: strings.TrimSpace(h.cfg.Agent.EmbeddingProvider),
+			EmbeddingModel:    h.cfg.Agent.EmbeddingModel,
 		},
 		OSSDomain: strings.TrimRight(strings.TrimSpace(h.cfg.OSS.Domain), "/"),
 	}

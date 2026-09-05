@@ -1318,7 +1318,7 @@ interface FacetedSearchSidebarProps {
 - 投票分布实时显示
 
 **状态变体**
-- default: 案例详情 + 违规/不违规投票按钮 + 理由输入 + 投票分布。
+- default: 受控内容预览（内容预警横幅 + 点击后加载内容本体 + 案件类型标签）+ 违规/不违规投票按钮 + 理由输入 + 投票分布 + 跳过本案/举报此内容。
 - loading: 骨架屏（Skeleton 灰色块）。
 - empty: 队列空时 EmptyState"暂无待审内容"。
 - error: Toast 右上角报错。
@@ -1617,6 +1617,7 @@ interface FacetedSearchSidebarProps {
 - 按钮 hover/active/disabled: 依据 Global Interaction Patterns。
 - 破坏性操作必须 ConfirmModal 二次确认。
 - 数据加载策略: SSR 基础页面框架，SWR/客户端流式加载动态或个性化数据列表。
+- 驳回原因（T16/FIX-24）：reject 的 ConfirmModal `requireReason` 必填，原因随 `{reason}` 提交落库 `ip_review_logs` 并以 ip_status 系统通知告知创建者；approve 同步发送通过通知。IP 状态机无回退——创建者重提路径 = 重新新建（产品已接受，不提供「修改后重审」）。
 
 ## Page: /admin/contents 内容终审
 
@@ -3067,6 +3068,7 @@ interface VersionHistoryProps {
 - disabled: `opacity-50 cursor-not-allowed` 禁用事件
 - loading: 内部嵌 `Spinner` 并替换默认图标文本
 - empty/error: 显示红色边框 `border-border-destructive` 或局部 EmptyState
+- empty（FIX-42，T51）: 空态文案必须说明版本来源（发布/编辑/PR 合并产生版本）与存量内容无 v1 的原因（版本功能上线前发布，不回填）；走 `content.noVersionHistory` i18n key，`text-muted-foreground` 一行展示，不使用红色 destructive 边框（空态非错误）。
 
 **响应式行为**
 - 内部采用 Flex/Grid wrap，小屏下 `flex-col`，大屏下排成一行。
@@ -3195,6 +3197,7 @@ interface ExamQuestionProps {
 **Key Constraints**
 - 赛博判官业务规则：只有具有对应类型的判官权限（judge_qualifications）或通过考核才能操作。
 - 信誉分必须 >= 3 才能行使众裁权利，否则禁用功能。
+- 受控内容预览（T40/FIX-36d）：内容预警横幅常驻；内容本体点击「查看内容」后才请求（持资格判官读 under_review 豁免），媒体需再点「加载媒体」二次确认后才渲染；卡片提供「跳过本案」与「举报此内容」入口；已投案件不再出现在本人队列。
 - ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
 - 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
@@ -5131,12 +5134,12 @@ interface CollabUserPickerProps {
 - PC (>1100px)：主区最大宽度 `1280px`；左侧为 series 列表栏 `320px`，右侧为详情/编辑区 `minmax(0,1fr)`；两栏同级，使用 1px border 分隔，不嵌套卡片。
 - 平板 (701-1100px)：列表栏宽 `280px`，详情区自适应；添加内容搜索结果单列。
 - 移动 (<=700px)：StudioSidebar 默认收起；本页采用列表/详情两步视图，选中 series 后详情全屏显示，顶部提供返回列表图标按钮。
-- 详情区结构：元信息表单 -> 已添加内容有序列表 -> 添加内容搜索区。
+- 详情区结构：zone 副标题 -> 元信息表单（系列名仅在 title 字段出现一次，不重复渲染只读标题）-> 保存 -> 已添加内容有序列表 -> 添加内容搜索区 -> 底部危险区（删除按钮，分隔线隔离、远离编辑区防误触）。
 
 **状态变体**
 - default：左侧列出我的系列，右侧显示选中系列详情和 items。
 - loading：列表和详情分别显示骨架，避免整页空白。
-- empty：无系列时显示 EmptyState + 创建按钮；选中系列无 items 时显示局部 EmptyState。
+- empty：无系列时显示 EmptyState + 创建按钮；空态且创建表单未开时页头创建按钮隐藏（单 CTA，T24/FIX-40②）；选中系列无 items 时显示局部 EmptyState。
 - error：Toast + 局部错误；列表加载失败不显示详情区假数据。
 - success：创建、保存、添加、移除、重排、删除成功均使用 Toast；保存后保持当前选中系列。
 - disabled：保存中禁用表单；删除默认不可用状态不适用；无权限/信誉不足时创建和管理控件 disabled 或由受保护布局拦截。
