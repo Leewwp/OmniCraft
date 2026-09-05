@@ -9,7 +9,7 @@ import {
   useRef,
   ReactNode,
 } from "react";
-import { api, ApiRequestError, setAccessToken, getAccessToken } from "@/lib/api";
+import { api, ApiRequestError, setAccessToken, getAccessToken, refreshSession } from "@/lib/api";
 import {
   saveTokens,
   clearTokens,
@@ -100,12 +100,6 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-// T32（#322）：应用级 refresh 单飞——StrictMode 双挂载 / fetchMe 与轮询并发的
-// 多个 refresh 调用共享同一 in-flight promise，杜绝轮换 refresh token 被双发
-// 消费后第二次 401 清空会话弹回登录页。模块级变量跨 provider 实例共享；
-// finally 必清，不跨「刷新窗口」残留。
-let authRefreshInFlight: Promise<boolean> | null = null;
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -113,32 +107,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [unreadCounts, setUnreadCounts] = useState<UnreadCounts>({ total: 0, reply: 0, like: 0, system: 0, pr: 0, follow: 0, broadcast: 0 });
   const [ipHistoryVersion, setIPHistoryVersion] = useState(0);
   const previousUserRef = useRef<User | null>(null);
+  // 会话代际：login/logout 都会推进。迟到的 refresh 失败回调只有在代际未变
+  // （期间没有发生登录/登出）时才允许清空用户态，否则会把刚建立的会话抹掉。
+  const authEpochRef = useRef(0);
 
+  // #381：统一走 api.ts 的应用级单飞（refreshSession → doRefreshToken）。
+  // 此前这里自建了一条 authRefreshInFlight 管线，与 api.ts 的 refreshPromise
+  // 互不感知——同一标签页内两管线并发会对同一 refresh cookie 双发轮换请求，
+  // 打进服务端轮换竞态窗口。失败时仅复位本地状态，跳转交给 (protected) 守卫。
   const refresh = useCallback(async (): Promise<boolean> => {
-    if (authRefreshInFlight) {
-      return authRefreshInFlight;
+    const epoch = authEpochRef.current;
+    const ok = await refreshSession();
+    if (authEpochRef.current !== epoch) {
+      // 期间发生了 login/logout：无论成败都不得回写，否则迟到的失败会抹掉
+      // 刚登录的会话、迟到的成功会在登出后复活 token。
+      return ok;
     }
-    authRefreshInFlight = (async () => {
-      try {
-        const data = await api.post<{ tokens: { access_token: string } }>(
-          "/api/v1/auth/refresh",
-          {}
-        );
-        saveTokens(data.tokens.access_token);
-        setAccessToken(data.tokens.access_token);
-        return true;
-      } catch (e) {
-        silentError(e, { component: "AuthContext", action: "refresh" });
-        clearTokens();
-        setAccessToken(null);
-        setUser(null);
-        setCapabilities(FAIL_CLOSED_CAPABILITIES);
-        return false;
-      } finally {
-        authRefreshInFlight = null;
+    if (!ok) {
+      silentError("refresh failed", { component: "AuthContext", action: "refresh" });
+      clearTokens();
+      setAccessToken(null);
+      setUser(null);
+      setCapabilities(FAIL_CLOSED_CAPABILITIES);
+    } else {
+      const token = getAccessToken();
+      if (token) {
+        saveTokens(token);
       }
-    })();
-    return authRefreshInFlight;
+    }
+    return ok;
   }, []);
 
   const fetchMe = useCallback(async () => {
@@ -223,6 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }>("/api/v1/auth/login", { email, password });
     saveTokens(data.tokens.access_token);
     setAccessToken(data.tokens.access_token);
+    authEpochRef.current += 1;
     setUser(data.user);
     setCapabilities(readCapabilities(data));
   }, []);
@@ -235,6 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // already logged out
       }
     } finally {
+      authEpochRef.current += 1;
       clearTokens();
       setAccessToken(null);
       setUser(null);
