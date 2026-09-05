@@ -1,7 +1,10 @@
 package jwtutil
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -36,10 +39,18 @@ func GenerateAccessToken(userID int64, role string, secret string, ttlMinutes in
 }
 
 func GenerateRefreshToken(userID int64, role string, secret string, ttlDays int) (string, error) {
+	// jti 必须每次签发唯一：iat 只有秒级精度，无 jti 时同一秒内的两次签发会产出
+	// 完全相同的字符串，轮换「拉黑旧 token」会把刚签发的新 token 一并拉黑，
+	// 下一次 refresh 必 401（#381 会话自毁根因）。
+	jti := make([]byte, 16)
+	if _, err := rand.Read(jti); err != nil {
+		return "", fmt.Errorf("generate jti: %w", err)
+	}
 	claims := Claims{
 		UserID: userID,
 		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        hex.EncodeToString(jti),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(ttlDays) * 24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Subject:   "refresh",

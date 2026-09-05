@@ -231,6 +231,32 @@ export function installDom() {
   return dom;
 }
 
+// 把 lib/api 裸 fetch 的 auth 端点（/auth/csrf、/auth/refresh）钉在本进程内，
+// 防止单测挂载 AuthProvider 时打真实网络（#381 后 AuthContext 走 refreshSession
+// 裸 fetch 管线）。返回恢复函数。
+export function installAuthFetchStub(options?: { refreshStatus?: number }) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const path = String(input);
+    if (path.endsWith("/auth/csrf")) {
+      return new Response(JSON.stringify({ csrf_token: "test-csrf" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (path.endsWith("/auth/refresh")) {
+      return new Response(
+        JSON.stringify({ code: "INVALID_TOKEN", message: "not logged in" }),
+        { status: options?.refreshStatus ?? 401, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    return originalFetch(input, init);
+  }) as typeof fetch;
+  return () => {
+    globalThis.fetch = originalFetch;
+  };
+}
+
 export function renderWithIntl(node: React.ReactNode) {
   const originalConsoleError = console.error;
   console.error = (...args: unknown[]) => {

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -382,6 +383,35 @@ func (s *AuthService) IsTokenBlacklisted(accessToken string) bool {
 	return val == "1"
 }
 
+// refreshReplayGraceSeconds：轮换后旧 token 的幂等重放窗口（秒）。并发换发、
+// 或硬导航打断在途 refresh 导致浏览器错过 Set-Cookie 的请求，在此窗口内持旧
+// token 重放时返回同一新 token 对而不是 401——服务端只发生一次真实轮换，其余
+// 复用（#381；Auth0/IdentityServer 同款 rotation grace 语义）。
+const refreshReplayGraceSeconds = 60
+
+// luaRotateRefreshToken 原子完成「活跃校验 → 旧键转重放记录 → 写新白名单」，
+// 消除检查与轮换之间的 TOCTOU 窗口：
+//
+//	KEYS[1] = 旧 token 白名单键（活跃="1"；轮换后=重放 JSON，TTL=grace）
+//	KEYS[2] = 新 token 白名单键
+//	KEYS[3] = user:tokens:<uid> 集合
+//	ARGV[1] = 新 token 对 JSON；ARGV[2] = grace 秒；ARGV[3] = 新 token TTL 秒
+//
+// 返回 1 = 本次完成真实轮换；-1 = 旧键不存在（从未有效或已过 grace）；否则返回
+// 存储的重放 JSON（调用方反序列化后原样返回）。
+var luaRotateRefreshToken = redis.NewScript(`
+local cur = redis.call('GET', KEYS[1])
+if not cur then return -1 end
+if cur == '1' then
+	redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[2]))
+	redis.call('SET', KEYS[2], '1', 'EX', tonumber(ARGV[3]))
+	redis.call('SADD', KEYS[3], KEYS[2])
+	redis.call('EXPIRE', KEYS[3], tonumber(ARGV[3]))
+	return 1
+end
+return cur
+`)
+
 func (s *AuthService) RefreshToken(refreshToken string) (*jwtutil.TokenPair, error) {
 	claims, err := jwtutil.ParseToken(refreshToken, s.cfg.JWT.Secret)
 	if err != nil {
@@ -393,12 +423,6 @@ func (s *AuthService) RefreshToken(refreshToken string) (*jwtutil.TokenPair, err
 
 	if s.IsTokenBlacklisted(refreshToken) {
 		return nil, ErrTokenInvalid
-	}
-	if s.redis != nil {
-		ok, err := s.refreshTokenExists(int64(claims.UserID), refreshToken)
-		if err != nil || !ok {
-			return nil, ErrTokenInvalid
-		}
 	}
 
 	user, err := s.userRepo.FindByID(int64(claims.UserID))
@@ -420,18 +444,51 @@ func (s *AuthService) RefreshToken(refreshToken string) (*jwtutil.TokenPair, err
 		return nil, fmt.Errorf("failed to generate tokens: %w", err)
 	}
 
-	ttl := time.Until(claims.ExpiresAt.Time)
-	if ttl > 0 && s.redis != nil {
-		ctx := context.Background()
-		key := fmt.Sprintf("blacklist:token:%s", refreshToken)
-		s.redis.Set(ctx, key, "1", ttl)
-		s.redis.Del(ctx, buildRefreshTokenKey(int64(claims.UserID), refreshToken))
-	}
-	if err := s.storeRefreshToken(user.ID, tokens.RefreshToken); err != nil {
-		return nil, err
+	if s.redis == nil {
+		// 无 Redis 的测试/降级路径：无白名单可校验，保持既有放行语义。
+		return tokens, nil
 	}
 
-	return tokens, nil
+	newPairJSON, err := json.Marshal(tokens)
+	if err != nil {
+		return nil, fmt.Errorf("marshal token pair: %w", err)
+	}
+	newTTL := time.Duration(s.cfg.JWT.RefreshTokenTTL) * 24 * time.Hour
+	if newTTL <= 0 {
+		newTTL = 7 * 24 * time.Hour
+	}
+
+	res, err := luaRotateRefreshToken.Run(
+		context.Background(),
+		s.redis,
+		[]string{
+			buildRefreshTokenKey(user.ID, refreshToken),
+			buildRefreshTokenKey(user.ID, tokens.RefreshToken),
+			fmt.Sprintf("user:tokens:%d", user.ID),
+		},
+		string(newPairJSON),
+		strconv.Itoa(refreshReplayGraceSeconds),
+		strconv.Itoa(int(newTTL/time.Second)),
+	).Result()
+	if err != nil {
+		// Redis 基础设施故障：fail-closed（handler 会话失效），不得放行未校验轮换。
+		return nil, fmt.Errorf("rotate refresh token: %w", err)
+	}
+	switch v := res.(type) {
+	case int64:
+		if v == 1 {
+			return tokens, nil
+		}
+		return nil, ErrTokenInvalid
+	case string:
+		var replayed jwtutil.TokenPair
+		if err := json.Unmarshal([]byte(v), &replayed); err != nil || replayed.RefreshToken == "" {
+			return nil, ErrTokenInvalid
+		}
+		return &replayed, nil
+	default:
+		return nil, ErrTokenInvalid
+	}
 }
 
 func (s *AuthService) storeRefreshToken(userID int64, refreshToken string) error {
@@ -451,14 +508,6 @@ func (s *AuthService) storeRefreshToken(userID int64, refreshToken string) error
 	s.redis.SAdd(ctx, tokenSetKey, key)
 	s.redis.Expire(ctx, tokenSetKey, ttl)
 	return nil
-}
-
-func (s *AuthService) refreshTokenExists(userID int64, refreshToken string) (bool, error) {
-	if s.redis == nil {
-		return true, nil
-	}
-	exists, err := s.redis.Exists(context.Background(), buildRefreshTokenKey(userID, refreshToken)).Result()
-	return exists == 1, err
 }
 
 func (s *AuthService) ChangePassword(userID int64, newPassword string) error {
