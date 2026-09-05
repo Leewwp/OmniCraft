@@ -187,8 +187,9 @@ export default function AdminQueuePage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {dlqEntries.map((entry) => (
-                <div key={entry.id} className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+              {dlqEntries.map((entry, index) => (
+                // F-A004: DLQ 条目 id 可能缺失/重复——复合兜底保 key 唯一。
+                <div key={entry.id || `${entry.original_topic}:${entry.failed_at}:${index}`} className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-mono font-medium">{entry.original_topic}</span>
                     <div className="flex items-center gap-2">
