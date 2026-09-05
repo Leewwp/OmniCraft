@@ -4,6 +4,7 @@ import ts from "typescript";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { I18N_NAMESPACES, validateI18nParity } from "./check-i18n-parity.mjs";
+import { validateI18nKeyReferences } from "./check-i18n-keys.mjs";
 import { checkRawErrorPolicy, measureSourcePolicy } from "./check-source-policy.mjs";
 import { validateTokenContract } from "./check-tokens.mjs";
 
@@ -140,6 +141,12 @@ export async function runAllChecks(frontendRoot = defaultFrontendRoot()) {
       errors: validateI18nParity(JSON.parse(enJson), JSON.parse(zhJson), {
         namespaces: I18N_NAMESPACES,
       }),
+    },
+    {
+      // #380/F-A006: referenced-key existence — catches a key missing from
+      // BOTH catalogs (the parity counter is blind to that shape).
+      name: "i18n key references",
+      errors: validateI18nKeyReferences(sources, JSON.parse(zhJson), JSON.parse(enJson)),
     },
     {
       name: "native dialogs",
