@@ -19,7 +19,7 @@ var strictNotFoundMarkers = []string{
 	"库内没有", "没有找到相关", "查不到", "检索不到", "没有对应的内容", "没有对应的",
 	// A-04 dev-run additions: honest phrasings qwen-plus actually produces
 	// (previously judged as substitution hard-fails).
-	"没有直接", "暂未收录", "没有收录", "检索结果中没有", "没有搜索到", "未收录",
+	"没有直接", "暂未收录", "没有收录", "检索结果中没有", "没有搜索到", "未收录", "未直接出现", "并未发现", "未发现",
 	"not found", "no match", "does not appear", "does not exist", "doesn't appear", "couldn't find", "could not find", "no results", "no relevant",
 }
 

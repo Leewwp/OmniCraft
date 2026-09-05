@@ -60,13 +60,15 @@
 
 ## 6. 决策日志
 
+- **2026-09-05（A-04 终局，用户裁决）**：dev 156×5 消融长跑（875 次真实生成，qwen-plus 评测变体身份）定三开关默认值 = **C1：`rag_hybrid_enabled=true`（config.yaml 已回写），`rag_query_expansion/rerank` 维持 off**。依据：hybrid 使 be/hn Recall@5 拉满（0.895→1.000 / 0.917→1.000）、answered 120→173、no_evidence 52→2；C4（+扩展+rerank）sd Recall@5 0.921→0.658、hn 1.000→0.667 明确退化。**结构性事实**：expansion/rerank 仅挂在 HybridRetriever 上，agent 工具在 hybrid off 时走 legacy 向量路径 → C2/C3 单开在生产聊天路径为 no-op（175/175 检索逐案例一致），不据此宣称扩展/rerank 无效（检索器层的单开增益以冻结 probe 证据为准，且与 hybrid 组合的归因留待 Phase 2 离阵单元）。vi 四泄漏面 38/38 全绿（标题回声不判泄漏）；na hard fail 3/14 为真实「相似文顶替」。评测工具：`backend/cmd/rag-eval` + `scripts/corpus/a04_ablation.py`（断点续跑+离线重判）；判官词表三轮修订（#319 同类教训）。
 - **2026-09-05**：M3 冒烟（minimax 适配器：工具 ✓ / 流式思考 thinkRunes=326 正文干净 ✓ / 表面探针 ✓；openai_compat 接线流式双败 → 红线 1）→ canonical chat 定 MiniMax-M3；单 provider 耦合（chat 与 embedding 共实例）由 CompositeProvider 解除；原生 qwen 退役；`keyword_pg` 降级标记更名 `keyword_fallback`（PG 词法已是规范路径而非降级态）。
 - **2026-09-04/05**：审计裁定 A-04 采用五配置（embo-01 基线出局：①→② 双变量混淆 + 语料已全量 v4 化；embo 对照列为 Phase 2 独立实验）；`llm_configs` Phase 1 降级为登记+测试。
 - **2026-09-01（SP-13）**：v4@1536 零 DDL 换代、qwen3-rerank 链、hybrid on Postgres 不启用 OpenSearch、三开关默认 off 待 A-04。
 
 ## 7. 待决项
 
-- A-04 消融（golden set 冻结后）：定 `rag_hybrid/query_expansion/rerank` 三开关默认值。
+- ~~A-04 消融（golden set 冻结后）：定 `rag_hybrid/query_expansion/rerank` 三开关默认值。~~（2026-09-05 已裁决 = C1，见决策日志）
+- C4 退化归因（扩展 vs rerank）：如需拆解可补跑 C1+扩展 / C1+rerank 离阵单元（Phase 2，非默认依赖）。
 - `max_output_tokens` 4096 候选值的思考/正文 token 实测。
 - A-04 定默认后退役 `content_embeddings` 写路径（IndexerWorker 仅在 hybrid off 时维护旧表）。
 - qwen-plus 变体的 `enable_thinking` 开关（如需让变体也具备思考形态）。

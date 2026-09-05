@@ -201,8 +201,20 @@ def main():
     ap.add_argument("--max-cases", type=int, default=0)
     ap.add_argument("--confirm-test-run", action="store_true")
     ap.add_argument("--skip-generation", action="store_true")
+    ap.add_argument("--rejudge", action="store_true", help="re-apply judges to stored rows (no provider calls), then rebuild the comparison")
+    ap.add_argument("--compare-only", action="store_true", help="rebuild the comparison from existing summaries")
     ap.add_argument("--configs", default=",".join(CONFIGS), help="comma-separated config labels subset")
     args = ap.parse_args()
+    if args.compare_only:
+        summaries = {}
+        for label in args.configs.split(","):
+            if not label:
+                continue
+            sp = os.path.join(OUT_ROOT, args.split, label + ".summary.json")
+            with open(sp, encoding="utf-8") as fh:
+                summaries[label] = json.load(fh)
+        build_comparison(summaries, args.split, os.path.join(OUT_ROOT, args.split))
+        return
     if args.split == "test" and not args.confirm_test_run:
         raise SystemExit("test split 须 --confirm-test-run（冻结后单次运行）")
 
@@ -216,6 +228,26 @@ def main():
 
     summaries = {}
     for label in wanted:
+        if args.rejudge:
+            outjsonl = os.path.join(outdir, label + ".jsonl")
+            summary = os.path.join(outdir, label + ".summary.json")
+            over = os.path.join(outdir, "override-%s.yaml" % label)
+            if not os.path.exists(over):
+                with open(over, "w", encoding="utf-8") as fh:
+                    fh.write("features:\n")
+                    for sw in SWITCHES:
+                        fh.write("  %s: %s\n" % (sw, "true" if sw in CONFIGS[label] else "false"))
+            cmd = ["go", "run", "./cmd/rag-eval", "-label", label, "-split", args.split,
+                   "-out", outjsonl, "-summary", summary, "-rejudge"]
+            run_env = dict(env)
+            run_env["CONFIG_OVERRIDE_PATH"] = over
+            print(">> rejudging", label, flush=True)
+            proc = subprocess.run(cmd, cwd=os.path.join(REPO, "backend"), env=run_env)
+            if proc.returncode != 0:
+                raise SystemExit("rejudge failed for " + label)
+            with open(summary, encoding="utf-8") as fh:
+                summaries[label] = json.load(fh)
+            continue
         summaries[label] = run_config(label, CONFIGS[label], args.split, outdir, env,
                                       args.resume, args.max_cases, args.confirm_test_run,
                                       args.skip_generation)
