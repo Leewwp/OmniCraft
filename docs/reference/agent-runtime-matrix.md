@@ -36,7 +36,7 @@
 2. **DashScope 端点不带尾部 `/v1`**：provider 自行追加 `/v1/chat/completions` 与 `/v1/embeddings`。
 3. **跨厂商拆分必须自带 embedding key**：`embedding_provider ≠ llm_provider` 且 `AGENT_EMBEDDING_API_KEY` 为空 → 启动校验（release）、工厂（任何模式）、preflight 三处 fail-closed；embedding key 永不回退 chat key（跨厂商回退必然 401）。
 4. **hybrid 开启时 `rag.index.embedding_model` 必须等于 `agent.embedding_model`**（config 校验强制；两者随 canonical 同步为 v4）。
-5. `max_output_tokens` 当前 1200；canonical 候选 4096（M 系思考消耗输出预算），**须先有思考/正文 token 实测再调整**。
+5. `max_output_tokens` = **4096**（2026-09-06 实测定版，#384）：canonical MiniMax-M3 生产 SSE 路径 30 问 × {1200, 4096}——1200 截断率 33%（思考共享输出预算，贴顶轮恒等于上限）且总时长反增；4096 零贴顶（max completion 1863）、输出 token 均值反降 13%、总时长 -16%，TTFT 持平。实测工件：artifacts/max-output-tokens-2026-09-06/（本地）。
 6. `llm_configs`（admin 管理台）是**配置登记 + 连接测试**，不参与运行时 Provider 选择；激活不改变运行中的 Agent（运行时身份以 OTel span 与 `/api/v1/config/public` 为准）。动态 resolver 属 Phase 2。
 
 ## 4. 验证口径（三层门禁）
@@ -69,6 +69,6 @@
 
 - ~~A-04 消融（golden set 冻结后）：定 `rag_hybrid/query_expansion/rerank` 三开关默认值。~~（2026-09-05 已裁决 = C1，见决策日志）
 - C4 退化归因（扩展 vs rerank）：如需拆解可补跑 C1+扩展 / C1+rerank 离阵单元（Phase 2，非默认依赖）。
-- `max_output_tokens` 4096 候选值的思考/正文 token 实测。
+- ~~`max_output_tokens` 4096 候选值的思考/正文 token 实测。~~（2026-09-06 #384 实测完成，4096 回写为 canonical 默认，见决策日志第 5 条）
 - A-04 定默认后退役 `content_embeddings` 写路径（IndexerWorker 仅在 hybrid off 时维护旧表）。
 - qwen-plus 变体的 `enable_thinking` 开关（如需让变体也具备思考形态）。
