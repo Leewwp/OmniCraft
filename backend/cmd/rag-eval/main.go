@@ -58,6 +58,7 @@ const (
 var pathologicalCases = []string{"sd-0027", "sd-0040"}
 
 type genRun struct {
+	Phase          string                       `json:"phase"` // always "generation" (checkpoint/resume key)
 	CaseKey        string                       `json:"case_key"`
 	PrincipalKey   string                       `json:"principal_key"`
 	Query          string                       `json:"query"`
@@ -94,6 +95,7 @@ func main() {
 	resume := flag.Bool("resume", false, "skip (case,principal,phase) records already present in -out")
 	maxCases := flag.Int("max-cases", 0, "cap the number of cases (smoke only; 0 = all)")
 	skipGeneration := flag.Bool("skip-generation", false, "retrieval measurement only")
+	rejudge := flag.Bool("rejudge", false, "re-apply the deterministic judges to stored generation rows (no provider calls) and rewrite the summary")
 	sleepMs := flag.Int("sleep-ms", 150, "pause between generation calls (provider courtesy)")
 	flag.Parse()
 	if *out == "" || *summaryPath == "" {
@@ -232,11 +234,10 @@ func main() {
 				if json.Unmarshal([]byte(line), &cl) == nil && cl.Phase != "" {
 					done[cl.Phase+"|"+cl.CaseKey+"|"+cl.PrincipalKey] = true
 				}
-				if cl.Phase == "generation" {
-					var prior genRun
-					if json.Unmarshal([]byte(line), &prior) == nil && prior.CaseKey != "" {
-						priorGen[prior.CaseKey+"|"+prior.PrincipalKey] = prior
-					}
+				var probe genRun
+				if json.Unmarshal([]byte(line), &probe) == nil && probe.CaseKey != "" && probe.Status != "" {
+					// generation row (legacy rows carry no phase field)
+					priorGen[probe.CaseKey+"|"+probe.PrincipalKey] = probe
 				}
 			}
 		}
@@ -269,6 +270,10 @@ func main() {
 			"cases": len(selected), "ran_at": time.Now().UTC().Format(time.RFC3339),
 		})
 		fmt.Fprintln(fh, string(header))
+	}
+
+	if *rejudge {
+		rejudgeAndExit(*out, *summaryPath, db, all, publicIDs)
 	}
 
 	// ---- phase 1: retrieval measurement via the production search tool
@@ -368,38 +373,8 @@ func main() {
 					continue
 				}
 				run := generateOne(ctx, ctr, c, principalKey, fixtureUserID, retrievedByCase)
-				run.Deterministic = ptrOf(rageval.JudgeDeterministicAssertions(run.Answer, rubric.DeterministicAssertions))
-				if cl.Layer() == rageval.LayerNoAnswer {
-					run.NoAnswer = ptrOfNoAnswer(rageval.JudgeNoAnswer(rageval.NoAnswerJudgeInput{
-						Strategy: cl.NoAnswerStrategy, Answer: run.Answer, Citations: run.Citations,
-						RetrievedIDs: run.RetrievedIDs, ExpectedIDs: expectedIDs,
-						AcceptableIDs: rubric.AcceptableContentIDs, MustNotClaim: rubric.MustNotClaim,
-						KnownContentIDs: publicIDs,
-					}))
-				}
-				if cl.Layer() == rageval.LayerVisibility {
-					run.VisibilityLeak = ptrOfLeak(rageval.EvaluateVisibilityLeaks(rageval.VisibilityLeakInput{
-						ForbiddenIDs: forbiddenIDs, ForbiddenDoc: forbiddenDocs, RetrievedIDs: run.RetrievedIDs,
-						Citations: run.Citations, Answer: run.Answer, ToolSteps: run.ToolSteps,
-					}))
-				}
-				if len(run.Citations) > 0 {
-					tier := map[int64]bool{}
-					for _, id := range expectedIDs {
-						tier[id] = true
-					}
-					for _, id := range rubric.AcceptableContentIDs {
-						tier[id] = true
-					}
-					hits := 0
-					for _, cit := range run.Citations {
-						if tier[cit.ContentID] {
-							hits++
-						}
-					}
-					p := float64(hits) / float64(len(run.Citations))
-					run.CitationPrecision = &p
-				}
+				run.Phase = "generation"
+				judgeGeneration(c.Query, cl, rubric, expectedIDs, forbiddenIDs, forbiddenDocs, publicIDs, &run)
 				genRuns = append(genRuns, run)
 				answerCases = append(answerCases, answerCaseOf(c, cl, run))
 				if err := enc.Encode(run); err != nil {
@@ -445,6 +420,57 @@ func main() {
 	}
 	slog.Info("rag-eval done", "label", *label, "split", *split, "cases", len(selected),
 		"generation_runs", len(genRuns), "summary", *summaryPath)
+}
+
+// judgeGeneration applies the deterministic judges to one produced run in
+// place. It is shared by the live run and -rejudge so judge refinements can
+// be re-applied to stored answers without re-calling the provider.
+func judgeGeneration(query string, cl rageval.Classification, rubric rageval.AnswerRubric,
+	expectedIDs, forbiddenIDs []int64, forbiddenDocs []rageval.ForbiddenDoc,
+	publicIDs map[int64]bool, run *genRun) {
+	run.Deterministic = ptrOf(rageval.JudgeDeterministicAssertions(run.Answer, rubric.DeterministicAssertions))
+	if cl.Layer() == rageval.LayerNoAnswer {
+		run.NoAnswer = ptrOfNoAnswer(rageval.JudgeNoAnswer(rageval.NoAnswerJudgeInput{
+			Strategy: cl.NoAnswerStrategy, Answer: run.Answer, Citations: run.Citations,
+			RetrievedIDs: run.RetrievedIDs, ExpectedIDs: expectedIDs,
+			AcceptableIDs: rubric.AcceptableContentIDs, MustNotClaim: rubric.MustNotClaim,
+			KnownContentIDs: publicIDs,
+		}))
+	}
+	if cl.Layer() == rageval.LayerVisibility {
+		// Title echo: when the forbidden title is part of the user's own
+		// query, restating it is not a disclosure — the title surface is
+		// suppressed for those docs (summary and bounded-id matching stay).
+		queryNorm := rageval.NormalizeAssertionText(query)
+		docs := make([]rageval.ForbiddenDoc, len(forbiddenDocs))
+		for i, d := range forbiddenDocs {
+			if d.Title != "" && strings.Contains(queryNorm, rageval.NormalizeAssertionText(d.Title)) {
+				d.Title = ""
+			}
+			docs[i] = d
+		}
+		run.VisibilityLeak = ptrOfLeak(rageval.EvaluateVisibilityLeaks(rageval.VisibilityLeakInput{
+			ForbiddenIDs: forbiddenIDs, ForbiddenDoc: docs, RetrievedIDs: run.RetrievedIDs,
+			Citations: run.Citations, Answer: run.Answer, ToolSteps: run.ToolSteps,
+		}))
+	}
+	if len(run.Citations) > 0 {
+		tier := map[int64]bool{}
+		for _, id := range expectedIDs {
+			tier[id] = true
+		}
+		for _, id := range rubric.AcceptableContentIDs {
+			tier[id] = true
+		}
+		hits := 0
+		for _, cit := range run.Citations {
+			if tier[cit.ContentID] {
+				hits++
+			}
+		}
+		p := float64(hits) / float64(len(run.Citations))
+		run.CitationPrecision = &p
+	}
 }
 
 // generateOne drives one ChatStream turn and collects the four observable
@@ -627,4 +653,114 @@ func layerOfCase(caseKey string) string {
 		return caseKey[:idx]
 	}
 	return "unknown"
+}
+
+// rejudgeAndExit re-runs the deterministic judges over stored generation
+// rows (judge vocabulary refinements, title-echo handling) without touching
+// the provider, rewrites the checkpoint rows and refreshes the summary's
+// generation-side fields. Retrieval groups are carried over from the previous
+// summary: retrieval is not re-measured.
+func rejudgeAndExit(outPath, summaryPath string, db *gorm.DB, all []model.EvalGoldenCase, publicIDs map[int64]bool) {
+	byKey := make(map[string]model.EvalGoldenCase, len(all))
+	for _, c := range all {
+		byKey[c.CaseKey] = c
+	}
+	raw, err := os.ReadFile(outPath)
+	if err != nil {
+		slog.Error("rejudge: read rows", "error", err)
+		os.Exit(1)
+	}
+	var kept []string
+	var genRuns []genRun
+	var answerCases []rageval.AnswerEvalCaseResult
+	for _, line := range strings.Split(string(raw), "\n") {
+		if line == "" {
+			continue
+		}
+		var probe genRun
+		if json.Unmarshal([]byte(line), &probe) != nil || probe.CaseKey == "" || probe.Status == "" {
+			kept = append(kept, line)
+			continue
+		}
+		c, ok := byKey[probe.CaseKey]
+		if !ok {
+			slog.Error("rejudge: unknown case", "case", probe.CaseKey)
+			os.Exit(1)
+		}
+		classification, err := rageval.ParseClassificationV2(c.Classification)
+		if err != nil {
+			slog.Error("rejudge: classification", "case", c.CaseKey, "error", err)
+			os.Exit(1)
+		}
+		rubric, err := rageval.ParseAnswerRubric(c.AnswerRubric)
+		if err != nil {
+			slog.Error("rejudge: rubric", "case", c.CaseKey, "error", err)
+			os.Exit(1)
+		}
+		citations, err := rageval.ParseCitations(c.ExpectedCitations)
+		if err != nil {
+			slog.Error("rejudge: expected citations", "case", c.CaseKey, "error", err)
+			os.Exit(1)
+		}
+		var expectedIDs []int64
+		for _, cit := range citations {
+			expectedIDs = append(expectedIDs, cit.ContentID)
+		}
+		forbiddenIDs, err := rageval.ParseInt64List(c.ForbiddenContentIDs)
+		if err != nil {
+			slog.Error("rejudge: forbidden ids", "case", c.CaseKey, "error", err)
+			os.Exit(1)
+		}
+		forbiddenDocs := forbiddenDocsOf(context.Background(), db, forbiddenIDs)
+		run := probe
+		run.Phase = "generation"
+		judgeGeneration(c.Query, classification, rubric, expectedIDs, forbiddenIDs, forbiddenDocs, publicIDs, &run)
+		genRuns = append(genRuns, run)
+		answerCases = append(answerCases, answerCaseOf(c, classification, run))
+		encoded, err := json.Marshal(run)
+		if err != nil {
+			slog.Error("rejudge: encode row", "error", err)
+			os.Exit(1)
+		}
+		kept = append(kept, string(encoded))
+	}
+	if err := os.WriteFile(outPath, []byte(strings.Join(kept, "\n")+"\n"), 0o644); err != nil {
+		slog.Error("rejudge: rewrite rows", "error", err)
+		os.Exit(1)
+	}
+
+	// refresh the generation-side summary fields, keeping retrieval groups
+	prevRaw, err := os.ReadFile(summaryPath)
+	if err != nil {
+		slog.Error("rejudge: read previous summary", "error", err)
+		os.Exit(1)
+	}
+	var prev map[string]any
+	if err := json.Unmarshal(prevRaw, &prev); err != nil {
+		slog.Error("rejudge: parse previous summary", "error", err)
+		os.Exit(1)
+	}
+	prev["generation_layers"] = rageval.BuildLayeredAnswerSummary(answerCases)
+	prev["citation_precision"] = citationPrecisionByLayer(genRuns)
+	prev["deterministic_pass"] = deterministicPassByLayer(genRuns)
+	prev["rejudged_at"] = time.Now().UTC().Format(time.RFC3339)
+	data, err := json.MarshalIndent(prev, "", "  ")
+	if err != nil {
+		slog.Error("rejudge: marshal summary", "error", err)
+		os.Exit(1)
+	}
+	if err := os.WriteFile(summaryPath, append(data, '\n'), 0o644); err != nil {
+		slog.Error("rejudge: write summary", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("rag-eval rejudge done", "rows", len(genRuns), "summary", summaryPath)
+	os.Exit(0)
+}
+
+// rejudgeAndExit re-runs the deterministic judges over stored generation
+// rows (judge vocabulary refinements, title-echo handling) without touching
+// the provider, rewrites the checkpoint rows and refreshes the summary's
+// generation-side fields. Retrieval groups are carried over from the previous
+// summary: retrieval is not re-measured.
+func rejudgeAndExist(outPath, summaryPath string, all []model.EvalGoldenCase, publicIDs map[int64]bool) {
 }
