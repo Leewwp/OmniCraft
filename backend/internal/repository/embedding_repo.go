@@ -26,6 +26,9 @@ type EmbeddingSearchResult struct {
 type ChunkEmbeddingSearchResult struct {
 	model.RagChunk
 	Score float64 `gorm:"column:score"`
+	// Title is the content item title (ci.title); chunks without a heading
+	// carry no title of their own, and citation building requires one.
+	Title string `gorm:"column:content_title"`
 }
 
 func (r *EmbeddingRepository) UpsertEmbedding(contentItemID int64, embedding []float32) error {
@@ -66,6 +69,7 @@ func (r *EmbeddingRepository) VectorSearchChunks(ctx context.Context, embedding 
 	var results []ChunkEmbeddingSearchResult
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT rc.*,
+		       ci.title AS content_title,
 		       1 - (ce.embedding <=> ?) AS score
 		FROM chunk_embeddings AS ce
 		JOIN rag_chunks AS rc ON rc.id = ce.chunk_id

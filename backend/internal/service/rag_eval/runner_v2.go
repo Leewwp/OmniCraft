@@ -53,9 +53,11 @@ type LayeredCaseResult struct {
 	ForbiddenIDs   []int64 `json:"forbidden_ids,omitempty"`
 	RecallAt1      float64 `json:"recall_at_1"`
 	RecallAt3      float64 `json:"recall_at_3"`
+	RecallAt5      float64 `json:"recall_at_5"`
 	RecallAt10     float64 `json:"recall_at_10"`
 	RecallAt20     float64 `json:"recall_at_20"`
 	MRR            float64 `json:"mrr"`
+	GradedNDCGAt5  float64 `json:"graded_ndcg_at_5"`
 	GradedNDCGAt10 float64 `json:"graded_ndcg_at_10"`
 	TrapHitAt10    []int64 `json:"trap_hit_at_10,omitempty"`
 	LeakedIDs      []int64 `json:"leaked_ids,omitempty"`
@@ -84,9 +86,11 @@ type LayerMetrics struct {
 
 	RecallAt1  RateWithCI `json:"recall_at_1"`
 	RecallAt3  RateWithCI `json:"recall_at_3"`
+	RecallAt5  RateWithCI `json:"recall_at_5"`
 	RecallAt10 RateWithCI `json:"recall_at_10"`
 	RecallAt20 RateWithCI `json:"recall_at_20"`
 	MRR        RateWithCI `json:"mrr"`
+	NDCGAt5    RateWithCI `json:"ndcg_at_5"`
 	NDCGAt10   RateWithCI `json:"ndcg_at_10"`
 
 	TrapHitAt10        RateWithCI `json:"trap_hit_at_10"`
@@ -270,10 +274,13 @@ func runLayeredCase(ctx context.Context, in layeredCaseInput, principalKey strin
 	cr.RetrievedIDs = ids
 	cr.RecallAt1 = RecallAtK(ids, in.expected, 1)
 	cr.RecallAt3 = RecallAtK(ids, in.expected, 3)
+	cr.RecallAt5 = RecallAtK(ids, in.expected, 5)
 	cr.RecallAt10 = RecallAtK(ids, in.expected, 10)
 	cr.RecallAt20 = RecallAtK(ids, in.expected, 20)
 	cr.MRR = MRR(ids, in.expected)
-	cr.GradedNDCGAt10 = GradedNDCGAtK(ids, GradedGains(in.expected, in.acceptable), 10)
+	gains := GradedGains(in.expected, in.acceptable)
+	cr.GradedNDCGAt5 = GradedNDCGAtK(ids, gains, 5)
+	cr.GradedNDCGAt10 = GradedNDCGAtK(ids, gains, 10)
 	cr.TrapHitAt10 = TrapHitAtK(ids, in.forbidden, 10)
 	cr.LeakedIDs = VisibilityLeaks(ids, in.forbidden)
 
@@ -335,12 +342,12 @@ type layerAccumulator struct {
 	caseCount    int
 	successful   int
 
-	recall1, recall3, recall10, recall20 rateAccumulator
-	mrr                                  rateAccumulator
-	ndcg10                               rateAccumulator
-	trapHit                              rateAccumulator
-	leak                                 rateAccumulator
-	evidenceResolved                     rateAccumulator
+	recall1, recall3, recall5, recall10, recall20 rateAccumulator
+	mrr                                           rateAccumulator
+	ndcg5, ndcg10                                 rateAccumulator
+	trapHit                                       rateAccumulator
+	leak                                          rateAccumulator
+	evidenceResolved                              rateAccumulator
 }
 
 func groupFor(groups map[string]*layerAccumulator, cr *LayeredCaseResult) *layerAccumulator {
@@ -368,12 +375,14 @@ func (a *layerAccumulator) add(cr *LayeredCaseResult) {
 	a.successful++
 	a.recall1.add(cr.RecallAt1*float64(len(cr.ExpectedIDs)), float64(len(cr.ExpectedIDs)))
 	a.recall3.add(cr.RecallAt3*float64(len(cr.ExpectedIDs)), float64(len(cr.ExpectedIDs)))
+	a.recall5.add(cr.RecallAt5*float64(len(cr.ExpectedIDs)), float64(len(cr.ExpectedIDs)))
 	a.recall10.add(cr.RecallAt10*float64(len(cr.ExpectedIDs)), float64(len(cr.ExpectedIDs)))
 	a.recall20.add(cr.RecallAt20*float64(len(cr.ExpectedIDs)), float64(len(cr.ExpectedIDs)))
 	if len(cr.ExpectedIDs) > 0 {
 		a.mrr.add(cr.MRR, 1)
 	}
 	if len(cr.ExpectedIDs) > 0 || len(cr.AcceptableIDs) > 0 {
+		a.ndcg5.add(cr.GradedNDCGAt5, 1)
 		a.ndcg10.add(cr.GradedNDCGAt10, 1)
 	}
 	if len(cr.ForbiddenIDs) > 0 {
@@ -397,9 +406,11 @@ func (a *layerAccumulator) metrics(groupKey string) *LayerMetrics {
 		Successful:         a.successful,
 		RecallAt1:          a.recall1.rate(),
 		RecallAt3:          a.recall3.rate(),
+		RecallAt5:          a.recall5.rate(),
 		RecallAt10:         a.recall10.rate(),
 		RecallAt20:         a.recall20.rate(),
 		MRR:                a.mrr.rate(),
+		NDCGAt5:            a.ndcg5.rate(),
 		NDCGAt10:           a.ndcg10.rate(),
 		TrapHitAt10:        a.trapHit.rate(),
 		VisibilityLeakRate: a.leak.rate(),

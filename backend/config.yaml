@@ -78,7 +78,7 @@ features:
   # release mode additionally requires the full archive_scan.* block below.
   archive_malware_scan_enabled: false
   # RAG remains opt-in until the full T04-T07 slice is complete.
-  rag_hybrid_enabled: false
+  rag_hybrid_enabled: true
   # A-03 retrieval upgrades: both default off until the A-04 ablation
   # decides their default values with real data.
   rag_query_expansion_enabled: false

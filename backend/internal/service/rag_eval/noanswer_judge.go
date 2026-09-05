@@ -17,7 +17,10 @@ import (
 var strictNotFoundMarkers = []string{
 	"找不到", "没有找到", "未找到", "暂无", "无法找到", "没有相关的", "没有相关内容",
 	"库内没有", "没有找到相关", "查不到", "检索不到", "没有对应的内容", "没有对应的",
-	"not found", "no match", "couldn't find", "could not find", "no results", "no relevant",
+	// A-04 dev-run additions: honest phrasings qwen-plus actually produces
+	// (previously judged as substitution hard-fails).
+	"没有直接", "暂未收录", "没有收录", "检索结果中没有", "没有搜索到", "未收录", "未直接出现", "并未发现", "未发现",
+	"not found", "no match", "does not appear", "does not exist", "doesn't appear", "couldn't find", "could not find", "no results", "no relevant",
 }
 
 // related-recommendation disclaimers: the answer must explicitly say there is
@@ -25,6 +28,8 @@ var strictNotFoundMarkers = []string{
 var relatedDisclaimerMarkers = []string{
 	"没有完全对应", "没有完全匹配", "没有 exact 对应", "不完全对应", "没有严格对应", "找不到完全",
 	"没有完全一致", "不完全一致", "no exact match", "not an exact match", "no exact",
+	// A-04 dev-run additions (same lesson as the strict list).
+	"没有直接描写", "没有直接对应", "没有直接涉及", "没有严格匹配", "没有确切的", "没有完全相符",
 }
 
 // NoAnswerJudgeInput carries everything the deterministic judge needs: the
@@ -68,10 +73,12 @@ func JudgeNoAnswer(input NoAnswerJudgeInput) NoAnswerJudgeResult {
 	result := NoAnswerJudgeResult{Strategy: input.Strategy}
 	switch input.Strategy {
 	case NoAnswerStrictNotFound:
-		result.Refused = containsAnyMarker(input.Answer, strictNotFoundMarkers)
+		result.Refused = containsAnyMarker(input.Answer, strictNotFoundMarkers) ||
+			containsNegatedFind(input.Answer)
 	case NoAnswerRelatedRecommendationOK:
 		result.HonestDisclaimer = containsAnyMarker(input.Answer, relatedDisclaimerMarkers) ||
-			containsAnyMarker(input.Answer, strictNotFoundMarkers)
+			containsAnyMarker(input.Answer, strictNotFoundMarkers) ||
+			containsNegatedFind(input.Answer)
 	default:
 		result.Reason = fmt.Sprintf("unknown no_answer_strategy %q (want %q or %q)",
 			input.Strategy, NoAnswerStrictNotFound, NoAnswerRelatedRecommendationOK)
@@ -175,6 +182,41 @@ func recommendedIDs(citations []AnswerEvalCitation, retrieved, expected, accepta
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	return ids
+}
+
+// containsNegatedFind matches English negated-existence sentences the fixed
+// marker vocabulary cannot enumerate ("No cookbook recipes were found in the
+// search results"): a negation token followed by find/match/result/locate
+// within one sentence-clause span.
+func containsNegatedFind(text string) bool {
+	lower := strings.ToLower(text)
+	negations := []string{"no ", "not ", "none ", "without ", "couldn't ", "cannot ", "can't ", "unable to "}
+	findings := []string{"found", "match", "matches", "result", "results", "locate"}
+	for _, neg := range negations {
+		start := 0
+		for {
+			idx := strings.Index(lower[start:], neg)
+			if idx < 0 {
+				break
+			}
+			at := start + idx + len(neg)
+			end := at + 80
+			if end > len(lower) {
+				end = len(lower)
+			}
+			clause := lower[at:end]
+			if cut := strings.IndexAny(clause, ".。\n"); cut >= 0 {
+				clause = clause[:cut]
+			}
+			for _, f := range findings {
+				if strings.Contains(clause, f) {
+					return true
+				}
+			}
+			start = at
+		}
+	}
+	return false
 }
 
 func containsAnyMarker(text string, markers []string) bool {

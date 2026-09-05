@@ -142,3 +142,30 @@ func TestJudgeNoAnswerUnknownStrategy(t *testing.T) {
 		t.Fatalf("unknown strategy = %+v, want a data error", result)
 	}
 }
+
+// A-04 dev-run phrasings: previously false hard-fails.
+func TestJudgeNoAnswerHonestPhrasingVariants(t *testing.T) {
+	related := JudgeNoAnswer(NoAnswerJudgeInput{
+		Strategy: NoAnswerRelatedRecommendationOK,
+		Answer:   "目前检索结果中没有直接描写“复印机成精”的职场故事，但存在若干风格高度契合的优质文本：",
+	})
+	if related.HardFail || !related.Pass {
+		t.Fatalf("没有直接描写 must count as an honest disclaimer: %+v", related)
+	}
+	english := JudgeNoAnswer(NoAnswerJudgeInput{
+		Strategy: NoAnswerRelatedRecommendationOK,
+		Answer:   "No cookbook recipes authored by sentient spoons were found in the search results. The retrieved content includes fanworks.",
+	})
+	if english.HardFail || !english.Pass {
+		t.Fatalf("negated English existence statement must count as a disclaimer: %+v", english)
+	}
+}
+
+func TestContainsNegatedFindNoFalsePositiveOnPositive(t *testing.T) {
+	if containsNegatedFind("Three recipes were found and they are great") {
+		t.Fatal("positive existence sentence must not match the negation heuristic")
+	}
+	if !containsNegatedFind("No cookbook recipes were found in the search results") {
+		t.Fatal("negated sentence must match")
+	}
+}
