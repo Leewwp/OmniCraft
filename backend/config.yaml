@@ -292,9 +292,11 @@ agent:
   rate_limit_per_day: 50
   rate_limit_per_minute: 5
   max_tool_calls_per_turn: 8
-  # Canonical candidate is 4096 (M-series thinking consumes the output
-  # budget); raise only after the thinking/answer token measurement lands.
-  max_output_tokens: 1200
+  # 4096 measured 2026-09-06 on canonical MiniMax-M3 (#384, 30 questions x
+  # {1200,4096} over the production SSE path): 1200 truncated 33% of answers
+  # (thinking shares the output budget) while 4096 never neared the cap
+  # (max 1863), used fewer output tokens overall, and cut mean latency 16%.
+  max_output_tokens: 4096
   provider_timeout_sec: 60
   provider_max_retries: 2
   citation_max_count: 5
