@@ -7,7 +7,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { api, ApiRequestError, setAccessToken } from "@/lib/api";
 import { ToastProvider } from "@/components/ui/Toast";
 import { CommentSection } from "@/components/social/CommentSection";
-import { act, cleanup, fireEvent, installDom, render, waitFor } from "./runtime-test-helpers";
+import { act, cleanup, fireEvent, installAuthFetchStub, installDom, render, waitFor } from "./runtime-test-helpers";
 
 const { within } = require("@testing-library/react") as typeof import("@testing-library/react");
 
@@ -16,6 +16,8 @@ const originalPost = api.post;
 const originalPatch = api.patch;
 const originalDelete = api.delete;
 const originalConsoleWarn = console.warn;
+
+let restoreAuthFetch: (() => void) | null = null;
 
 const testUser = {
   id: 7,
@@ -93,6 +95,7 @@ const secondPageComment = {
 
 test.beforeEach(() => {
   installDom();
+  restoreAuthFetch = installAuthFetchStub();
   setAccessToken(null);
   Object.defineProperty(globalThis, "localStorage", {
     configurable: true,
@@ -107,6 +110,8 @@ test.beforeEach(() => {
 
 test.afterEach(() => {
   cleanup();
+  restoreAuthFetch?.();
+  restoreAuthFetch = null;
   api.get = originalGet;
   api.post = originalPost;
   api.patch = originalPatch;
