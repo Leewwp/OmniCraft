@@ -69,7 +69,7 @@ test("repository-wide UI governance gate passes on the current baseline", async 
   assert.deepEqual(failed.map((check) => check.name), []);
   assert.deepEqual(
     result.checks.map((check) => check.name),
-    ["tokens", "i18n parity", "native dialogs", "undefined tokens", "source policy"],
+    ["tokens", "i18n parity", "i18n key references", "native dialogs", "undefined tokens", "source policy"],
   );
   assert.deepEqual(Object.keys(result.measure).sort(), [
     "ariaLabels",

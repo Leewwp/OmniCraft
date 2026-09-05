@@ -253,4 +253,24 @@ content. Zero means "use the specification defa... |
 
 <!-- END AUTO-GENERATED: §7 -->
 
+### 7.1 队列与 worker 运行参数（queue / relay 节）
+
+> 手写小节：`queue.QueueConfig` 定义在 `backend/internal/pkg/queue/queue.go`（不在
+> `config/config.go` 的自动扫描范围内，故不入上方注册表），运行时真源仍是 `backend/config.yaml`。
+> 全部由独立 worker 进程消费（ADR 0005）；API server 从不启动异步消费者。
+
+| 配置路径 | 类型 | 默认值（config.yaml） | 说明 |
+|----------|------|----------------------|------|
+| `queue.enabled` | `bool` | `true` | 队列总开关；关闭时队列生产者退化为 NoopProducer（通知直写 DB） |
+| `queue.max_attempts` | `int` | `3` | 单条消息最大投递尝试次数，超限进入 DLQ |
+| `queue.retry_backoff_sec` | `[]int` | `[10, 60, 300]` | 逐次重试的退避间隔（秒），按尝试轮次取值 |
+| `queue.dlq_ttl_hours` | `int` | `168` | 死信条目保留时长（小时），过期由清理任务回收 |
+| `queue.maxlen` | `int64` | `100000` | 每个 topic 的 Redis Stream 最大长度，超限从头裁剪 |
+| `queue.worker_review` | `int` | `2` | 审核 topic（content.review / ip.review）消费者并发数 |
+| `queue.worker_notification` | `int` | `1` | 通知 topic（notification.create）消费者并发数 |
+| `queue.worker_embedding` | `int` | `1` | 嵌入 topic（content.embedding）消费者并发数 |
+| `queue.worker_count` | `int` | `1` | 其余 topic（索引等事件）的默认消费者并发数 |
+| `relay.batch_size` | `int` | `100` | outbox relay 单轮认领的事件数上限（issue #200） |
+| `relay.poll_interval_sec` | `int` | `1` | outbox relay 轮询间隔（秒），约束投递延迟下限 |
+
 ---
