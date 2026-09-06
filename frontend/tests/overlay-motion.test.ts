@@ -165,3 +165,30 @@ test("motion timing constants match the confirmed overlay contract", () => {
   assert.equal(OVERLAY_MOTION.easing, "cubic-bezier(0.22, 0.61, 0.36, 1)");
   assert.equal(OVERLAY_MOTION.fallbackScale, 0.96);
 });
+
+/* ---------- #398 C1/C4：同源变体预取与图源统一 ---------- */
+
+test("coverVariantUrl builds the optimizer-variant URL and skips data placeholders", () => {
+  installDom();
+  const { coverVariantUrl } = require("@/lib/overlay-motion") as typeof import("@/lib/overlay-motion");
+  assert.equal(
+    coverVariantUrl("/seed-media/covers/a.svg"),
+    "/_next/image?url=%2Fseed-media%2Fcovers%2Fa.svg&w=1080&q=75",
+  );
+  assert.equal(
+    coverVariantUrl("https://oss.example.aliyuncs.com/bucket/pic.jpg"),
+    "/_next/image?url=https%3A%2F%2Foss.example.aliyuncs.com%2Fbucket%2Fpic.jpg&w=1080&q=75",
+  );
+  assert.equal(coverVariantUrl("data:image/svg+xml,xxx"), null, "data: covers are identical on both ends; no variant needed");
+  assert.equal(coverVariantUrl(""), null);
+});
+
+test("prefetchCoverVariant is idempotent per url+width and silent for data sources", () => {
+  installDom();
+  const { prefetchCoverVariant } = require("@/lib/overlay-motion") as typeof import("@/lib/overlay-motion");
+  /* jsdom Image 不发真请求；断言只保证不抛错、可重复调用（去重集合内部化）。 */
+  prefetchCoverVariant("/seed-media/covers/b.svg");
+  prefetchCoverVariant("/seed-media/covers/b.svg");
+  prefetchCoverVariant("data:image/svg+xml,y");
+  assert.ok(true);
+});

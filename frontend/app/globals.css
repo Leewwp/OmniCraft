@@ -383,3 +383,12 @@
 ::view-transition-new(content-detail-cover) {
   animation-duration: 300ms;
 }
+
+/* #398 C3 快照纯净：浮层打开期间锁定触发卡片的 hover 缩放过渡——VT 旧快照
+   捕获时命名 <img> 必须处于未变换位姿（回退动画半途入镜会表现为取景跳变）。
+   锁由 ContentDetailOverlay 在打开时设置、完全关闭后移除；卡片已被浮层
+   dialog 盖住，瞬时归位不可见。 */
+[data-overlay-motion-lock] [data-slot="card-cover-aspect"] img {
+  transition: none !important;
+  transform: none !important;
+}
