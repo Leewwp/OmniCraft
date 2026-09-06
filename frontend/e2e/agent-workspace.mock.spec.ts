@@ -196,7 +196,15 @@ test("cited answer streams content, shows tool status and citations", async ({ p
       1: [
         { id: 11, role: "user", content: "Blender 插件安装教程" },
         { id: 12, role: "assistant", content: "先把口语化需求扩展为检索词", phase: "think" },
-        { id: 13, role: "assistant", content: "这是关于 Blender 插件安装的回答。[1]" },
+        /* N4 后引用由历史端点随答案行直出（迁移 077 落库），客户端回填合并
+           临时方案已删除——历史夹具必须镜像该合同，引用列表才能在 done 后
+           的会话重放中存活。 */
+        {
+          id: 13,
+          role: "assistant",
+          content: "这是关于 Blender 插件安装的回答。[1]",
+          citations: [{ content_id: 1001, title: "Blender 插件安装教程", zone: "original", excerpt: "步骤一" }],
+        },
       ],
     },
   );
@@ -404,7 +412,7 @@ test("conversation history: open past conversation, delete with confirm and canc
   await expect(page.getByText("旧回答")).toHaveCount(0);
 });
 
-test("inline citation anchor [1] scrolls to and highlights the matching citation card", async ({ page }) => {
+test("inline citation badge [1] opens the cited content overlay directly", async ({ page }) => {
   await mockCreatorSession(page);
   await enableAgent(page);
   await mockConversationList(
@@ -414,9 +422,40 @@ test("inline citation anchor [1] scrolls to and highlights the matching citation
       1: [
         { id: 11, role: "user", content: "Blender 插件安装教程" },
         { id: 12, role: "assistant", content: "先把口语化需求扩展为检索词", phase: "think" },
-        { id: 13, role: "assistant", content: "这是关于 Blender 插件安装的回答。[1]" },
+        {
+          id: 13,
+          role: "assistant",
+          content: "这是关于 Blender 插件安装的回答。[1]",
+          citations: [{ content_id: 1001, title: "Blender 插件安装教程", zone: "original", excerpt: "步骤一" }],
+        },
       ],
     },
+  );
+  /* 角标直开浮窗的落点：被引用内容详情 + 关联行（浮层层内拉取）。 */
+  await mockApiRoute(page, "**/api/v1/contents/1001", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        content: {
+          id: 1001,
+          title: "Blender 插件安装教程",
+          description: "步骤一",
+          body: "详细正文。",
+          content_type: "article",
+          category: "gaming",
+          zone: "original",
+          status: "published",
+          author: { id: 42, username: "Ada" },
+          created_at: "2026-07-01T00:00:00Z",
+        },
+        attachments: [],
+        tags: [],
+      }),
+    }),
+  );
+  await mockApiRoute(page, "**/api/v1/contents/1001/related-fanworks", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ items: [], total: 0 }) }),
   );
   await mockStream(page, CITED_EVENTS);
 
@@ -424,13 +463,15 @@ test("inline citation anchor [1] scrolls to and highlights the matching citation
   await ask(page, "Blender 插件安装教程");
   await expect(page.getByText(/Blender 插件安装的回答/)).toBeVisible();
 
-  /* 行内 [1] 角标可点击 → 引用卡高亮并获得焦点（纯展示层映射）。 */
-  const anchor = page.getByRole("button", { name: "Jump to citation 1" });
-  await expect(anchor).toBeVisible();
-  await anchor.click();
-  const card = page.locator("#agent-citation-0");
-  await expect(card).toBeFocused();
-  await expect(card).toHaveClass(/ring-2/);
+  /* 行内 [1] 角标直开共享内容浮窗（2026-09-06 实测修复后的契约，与站内其它
+     「点链接开浮窗」一致）；答案行下方引用卡（#agent-citation-0）仍在。 */
+  const badge = page.getByRole("button", { name: "Jump to citation 1" });
+  await expect(badge).toBeVisible();
+  await expect(page.locator("#agent-citation-0")).toBeVisible();
+  await badge.click();
+  await expect(page.getByRole("dialog", { name: "Blender 插件安装教程" })).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
 test("sidebar ⋯ menu renames the conversation via PATCH", async ({ page }) => {
@@ -527,9 +568,15 @@ test("release evidence screenshots (plan Task 6 Step 4)", async ({ page }) => {
       { id: 2, context_type: "global", updated_at: "2026-08-10T00:00:00Z" },
     ],
     {
+      /* N4 合同：答案行引用由历史端点直出（与 done 事件一致）。 */
       1: [
         { id: 11, role: "user", content: "Blender 插件安装教程" },
-        { id: 12, role: "assistant", content: "这是关于 Blender 插件安装的回答。" },
+        {
+          id: 12,
+          role: "assistant",
+          content: "这是关于 Blender 插件安装的回答。[1]",
+          citations: [{ content_id: 1001, title: "Blender 插件安装教程", zone: "original", excerpt: "步骤一" }],
+        },
       ],
       2: [
         { id: 21, role: "user", content: "明天的天气怎么样" },
