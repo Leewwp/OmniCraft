@@ -615,8 +615,17 @@ func (s *AgentService) serverOwnedSystemPrompt(surface model.AgentChatSurface, c
 	}
 	// A-06 行内引用锚定（SP-13 R2-Q9）：指示模型在句末标注引用序号，前端把
 	// [n] 渲染为可点击角标并映射到服务端复验后的引用卡片（纯展示层，复验
-	// 语义与引用候选收集逻辑零改动）。
-	parts = append(parts, "when your answer relies on retrieved results, mark the sentence end with 1-based citation indexes like [1] or [2], where n is the position of the result in the search output you used")
+	// 语义与引用候选收集逻辑零改动）。引用上限之外的标注由流式收口剥离
+	// （stripOrphanCitationMarkers），此处要求模型克制标注以减少剥离量。
+	parts = append(parts, "when your answer relies on retrieved results, mark the sentence end with 1-based citation indexes like [1] or [2], where n is the position of the result in the search output you used; only mark results you actually used and keep the total number of distinct marks small")
+	// 2026-09-06 实测修复（浏览器验收会话）：两个高频体验缺陷的 prompt 层缓解。
+	// ① 推荐/发现类请求模型会跳过工具直接凭常识作答，而 grounded 契约会把
+	// 无引用回答整体替换为拒答 → 强制先检索再回答；
+	// ② 工具输出含内部 id，模型原样复述暴露实现细节 → 禁止在回答中出现。
+	// （"思考/回答跟随用户语言"指令经实测无法约束 M3 思考链语言，按用户裁决
+	// 移除；该问题仍未解决，待换方案重试。）
+	parts = append(parts, "for any request to find, search, recommend, compare or summarize site content, you must call the cited_search tool first and ground the answer only in its results; never recommend or describe site content from your own knowledge")
+	parts = append(parts, "never mention internal numeric content ids in your answer")
 	return llm.ChatMessage{
 		Role:    "system",
 		Content: "[OmniCraft Agent Context] " + strings.Join(parts, "; "),

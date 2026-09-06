@@ -31,6 +31,10 @@ const HISTORY_KEY = "contentOverlayDepth";
 const OVERLAY_EASING = "cubic-bezier(0.22,0.61,0.36,1)";
 /** 入场转场等待层数据的保险时限：超时按降级路径淡入，避免不可见卡死。 */
 const ENTRANCE_SAFETY_MS = 2000;
+/** 打开瞬间的外壳反馈淡入时长：数据未到也先有响应（骨架先行）。 */
+const SHELL_FEEDBACK_MS = 160;
+/** 封面媒体就绪门上限：转场开始前最多等这么久让封面图完成加载。 */
+const COVER_READY_CAP_MS = 150;
 
 /** 层布局：single = 单列（overlay-scroller 滚动）；split-media = 桌面双栏
     （≥1100px 时唯一滚动容器为层内 layer-scroller）。 */
@@ -169,8 +173,9 @@ export function ContentDetailOverlay({
   }, [open]);
 
   /* 原生 modal dialog + html/body 双重滚动锁定（含滚动条宽度 padding 补偿）。
-     外壳先以 opacity 0 呈现，入场转场从 source 几何放大到最终封面几何；
-     层数据迟迟未就绪时由保险定时器兜底淡入。 */
+     打开立即以短淡入给出视觉反馈（骨架先行；2026-09-06 实测修复：原先外壳
+     在层数据落定前保持 opacity 0，点击后存在无响应死区）；层数据落定后再
+     从 source 几何做封面共享元素转场，数据迟迟未就绪由保险定时器兜底。 */
   useEffect(() => {
     if (stack.length === 0) return;
     const dialog = dialogRef.current;
@@ -179,9 +184,14 @@ export function ContentDetailOverlay({
     }
     const shell = shellRef.current;
     if (shell && !entranceDoneRef.current) {
-      shell.style.opacity = "0";
+      shell.style.transition = "none";
       shell.style.transform = "none";
-      shell.style.transition = "";
+      shell.style.opacity = "0";
+      void nextFrame().then(() => {
+        if (entranceDoneRef.current) return;
+        shell.style.transition = `opacity ${SHELL_FEEDBACK_MS}ms ${OVERLAY_MOTION.easing}`;
+        shell.style.opacity = "1";
+      });
     }
     if (safetyTimerRef.current === null && !entranceDoneRef.current) {
       safetyTimerRef.current = window.setTimeout(() => {
@@ -375,8 +385,10 @@ export function ContentDetailOverlay({
     [runFallbackOpen],
   );
 
-  /* VT 开：回调内同步完成 DOM 换名（快照内命名唯一），t.finished reject 或
-     同步 Abort 时恢复并走 FLIP 兜底。 */
+  /* VT 开：回调内同步完成 DOM 换名（快照内命名唯一）。兜底挂在 ready 上
+     （2026-09-06 实测修复）：VT 被浏览器跳过时 ready reject 而 finished 可能
+     仍正常 resolve，只挂 finished 的失败分支会漏掉 FLIP 兜底、浮层瞬间凭空
+     出现。 */
   const runVtOpen = useCallback(
     (token: number, shell: HTMLElement, cover: HTMLElement) => {
       const cardAnchor = sourceAnchorRef.current;
@@ -391,18 +403,25 @@ export function ContentDetailOverlay({
           shell.style.opacity = "1";
         });
         transitionRef.current = transition;
+        let fallbackStarted = false;
+        const startFallback = () => {
+          if (fallbackStarted) return;
+          fallbackStarted = true;
+          transitionRef.current = null;
+          cover.style.removeProperty("view-transition-name");
+          cardAnchor?.style.removeProperty("view-transition-name");
+          runFlipOpen(token, shell, cover);
+        };
+        transition.ready.then(() => {}, startFallback);
         transition.finished.then(
           () => {
-            if (transitionRef.current !== transition) return;
+            if (fallbackStarted || transitionRef.current !== transition) return;
             transitionRef.current = null;
             cover.style.removeProperty("view-transition-name");
           },
           () => {
             if (transitionRef.current !== transition) return;
-            transitionRef.current = null;
-            cover.style.removeProperty("view-transition-name");
-            cardAnchor?.style.removeProperty("view-transition-name");
-            runFlipOpen(token, shell, cover);
+            startFallback();
           },
         );
       } catch {
@@ -415,7 +434,9 @@ export function ContentDetailOverlay({
   );
 
   /* 入场：reducedMotion() ? fade : (!sourceRect ? fallback : (vtEnabled() ? vt : flip))。
-     由顶层 onMotionReady 触发（层数据落定、封面几何可测时），每次打开只跑一次。 */
+     由顶层 onMotionReady 触发（层数据落定、封面几何可测时），每次打开只跑一次。
+     vt/flip 启动前有封面媒体就绪门：最多等 COVER_READY_CAP_MS，避免变形过程中
+     是空框、图片加载完成后突现（2026-09-06 实测修复）。 */
   const runEntranceMotion = useCallback(() => {
     if (entranceDoneRef.current) return;
     entranceDoneRef.current = true;
@@ -439,15 +460,28 @@ export function ContentDetailOverlay({
       return;
     }
     const cover = getTopCover();
-    if (path === "vt" && cover) {
-      runVtOpen(token, shell, cover);
+    if (!cover) {
+      runFallbackOpen(token, shell);
       return;
     }
-    if (path === "flip" && cover) {
-      runFlipOpen(token, shell, cover);
-      return;
-    }
-    runFallbackOpen(token, shell);
+    const media = cover.querySelector("img");
+    const ready =
+      media instanceof HTMLImageElement && !(media.complete && media.naturalWidth > 0)
+        ? new Promise<void>((resolve) => {
+            media.addEventListener("load", () => resolve(), { once: true });
+            media.addEventListener("error", () => resolve(), { once: true });
+          })
+        : Promise.resolve();
+    void Promise.race([
+      ready,
+      new Promise<void>((resolve) => {
+        window.setTimeout(resolve, COVER_READY_CAP_MS);
+      }),
+    ]).then(() => {
+      if (token !== motionRunRef.current || closingRef.current) return;
+      if (path === "vt") runVtOpen(token, shell, cover);
+      else runFlipOpen(token, shell, cover);
+    });
   }, [cancelActiveMotion, getTopCover, runFallbackOpen, runFlipOpen, runVtOpen]);
 
   const handleMotionReady = useCallback(() => {
@@ -533,19 +567,28 @@ export function ContentDetailOverlay({
             shell.style.opacity = "0";
           });
           transitionRef.current = transition;
+          /* 兜底挂在 ready 上（与开路径同因）：跳过场景 finished 可能正常
+             resolve，只挂 finished 失败分支会漏掉 FLIP 兜底。 */
+          let fallbackStarted = false;
+          const startFallback = () => {
+            if (fallbackStarted) return;
+            fallbackStarted = true;
+            transitionRef.current = null;
+            cardAnchor?.style.removeProperty("view-transition-name");
+            shell.style.transition = "none";
+            shell.style.opacity = "1";
+            runFlipClose(token, shell, cover);
+          };
+          transition.ready.then(() => {}, startFallback);
           transition.finished.then(
             () => {
-              if (transitionRef.current !== transition) return;
+              if (fallbackStarted || transitionRef.current !== transition) return;
               transitionRef.current = null;
               cardAnchor?.style.removeProperty("view-transition-name");
             },
             () => {
               if (transitionRef.current !== transition) return;
-              transitionRef.current = null;
-              cardAnchor?.style.removeProperty("view-transition-name");
-              shell.style.transition = "none";
-              shell.style.opacity = "1";
-              runFlipClose(token, shell, cover);
+              startFallback();
             },
           );
         } catch {
@@ -733,14 +776,21 @@ export function ContentDetailOverlay({
           {stack.map((layer, index) => (
             <div
               key={`${index}:${layer.entry.contentId}`}
+              /* 层推入/弹出的缓动用内联样式：模板字符串拼出的 Tailwind 类不会
+                 被 JIT 生成，写进类名等于没写（2026-09-06 实测修复）。 */
+              style={
+                stackMove && index === depth - 1
+                  ? { animationTimingFunction: OVERLAY_EASING }
+                  : undefined
+              }
               className={cn(
                 index === depth - 1
                   ? cn(
                       "h-full",
                       stackMove === "push" &&
-                        `animate-in fade-in-0 slide-in-from-right-12 duration-[240ms] ease-[${OVERLAY_EASING}]`,
+                        "animate-in fade-in-0 slide-in-from-right-12 duration-[240ms]",
                       stackMove === "pop" &&
-                        `animate-in fade-in-0 slide-in-from-left-12 duration-[240ms] ease-[${OVERLAY_EASING}]`,
+                        "animate-in fade-in-0 slide-in-from-left-12 duration-[240ms]",
                     )
                   : "hidden",
               )}
