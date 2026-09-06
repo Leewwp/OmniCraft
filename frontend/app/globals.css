@@ -365,3 +365,21 @@
 .hljs-strong {
   font-weight: 600;
 }
+
+/* 内容详情浮层共享元素转场（View Transitions 路径）：root 层做旧/新快照交叉
+   淡化，命名封面层与 FLIP 兜底路径共用时长与缓动，保证两条路径观感一致；
+   old/new 快照与 group 同长，避免交叉淡化提前结束造成的收尾跳变。 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+}
+
+::view-transition-group(content-detail-cover) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+::view-transition-old(content-detail-cover),
+::view-transition-new(content-detail-cover) {
+  animation-duration: 300ms;
+}

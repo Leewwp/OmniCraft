@@ -46,6 +46,9 @@ interface WorkspaceMessage {
   /** A-02：think 行独立成消息（流式与历史回放同构），仅展示层。 */
   phase?: "think";
   moderationBlocked?: boolean;
+  /** 2026-09-06 实测修复：引用随答案消息持久化。原先引用只存轮内临时态，
+     下一轮开始后上一轮的跳转入口整体消失（用户实测发现的「没有入口」）。 */
+  citations?: AgentStreamCitation[];
 }
 
 interface AgentMessageDTO {
@@ -99,7 +102,6 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
-  const [highlightedCitation, setHighlightedCitation] = useState<number | null>(null);
 
   const transcriptRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -109,7 +111,6 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   const atBottomRef = useRef(true);
   /** 当前轮 answer 消息的客户端 id：工具步骤/思考块渲染在它之前（DeepSeek 顺序）。 */
   const turnAnswerIdRef = useRef<number | null>(null);
-  const highlightTimerRef = useRef<number | null>(null);
   const turnCitationsRef = useRef<AgentStreamCitation[]>([]);
 
   useEffect(() => {
@@ -154,13 +155,6 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     composer.style.height = `${Math.min(composer.scrollHeight, COMPOSER_MAX_HEIGHT)}px`;
   }, [input]);
 
-  /* 引用高亮计时器清理。 */
-  useEffect(() => {
-    return () => {
-      if (highlightTimerRef.current !== null) window.clearTimeout(highlightTimerRef.current);
-    };
-  }, []);
-
   /* 选中会话时加载服务端历史；新对话清空本地消息。think 行（phase="think"）
      以思考折叠块回放；A-05 blocked 行渲染占位提示。注意：done 事件会把新会话
      id 写入 activeId，此处不得重置轮内状态（citations/tools 属于刚完成的轮）。 */
@@ -180,8 +174,16 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         if (cancelled) return;
         /* 服务端 think 行接管历史回放：清掉轮内思考态，避免与流式思考块双渲染。 */
         setTurnThinking("");
-        setMessages(
-          (data.messages ?? [])
+        /* 历史接口不返回引用，而 done 把新会话 id 写入 activeId 会触发本次
+           替换：刚完成轮挂在本地消息上的 citations 若不回填，跳转入口立即
+           消失（2026-09-06 实测修复）。按「最后一条 assistant 消息内容一致」
+           回填，内容不一致（会话切换等）不合并。用户裁决保留此临时方案：
+           摘除实测回归 6 个引用测试；正式解法 = 历史接口返回引用（N4）。 */
+        setMessages((previous) => {
+          const previousLastAnswer = [...previous]
+            .reverse()
+            .find((item) => item.role === "assistant" && item.phase !== "think" && !item.moderationBlocked);
+          const replayed: WorkspaceMessage[] = (data.messages ?? [])
             .filter(
               (message) =>
                 message.role === "user" ||
@@ -209,8 +211,19 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                       role: message.role === "user" ? ("user" as const) : ("assistant" as const),
                       content: message.content ?? "",
                     },
-            ),
-        );
+            );
+          const serverLastAnswer = [...replayed]
+            .reverse()
+            .find((item) => item.role === "assistant" && item.phase !== "think" && !item.moderationBlocked);
+          if (
+            previousLastAnswer?.citations?.length &&
+            serverLastAnswer &&
+            serverLastAnswer.content === previousLastAnswer.content
+          ) {
+            serverLastAnswer.citations = previousLastAnswer.citations;
+          }
+          return replayed;
+        });
       })
       .catch((error) => {
         if (!cancelled) {
@@ -255,7 +268,6 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     setTurnErrorCode(null);
     setTurnTraceId(null);
     setTurnUsage(null);
-    setHighlightedCitation(null);
     turnAnswerIdRef.current = null;
   }
 
@@ -312,17 +324,25 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     [onCitationOpen, openCitationOverlay],
   );
 
-  /* 行内 [n] 角标 → 高亮并滚动到对应引用卡片（纯展示层映射）。 */
-  const handleCitationRef = useCallback((index: number) => {
-    const citations = turnCitationsRef.current;
-    if (index < 0 || index >= citations.length) return;
-    const target = document.getElementById(`agent-citation-${index}`);
-    target?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    target?.focus({ preventScroll: true });
-    setHighlightedCitation(index);
-    if (highlightTimerRef.current !== null) window.clearTimeout(highlightTimerRef.current);
-    highlightTimerRef.current = window.setTimeout(() => setHighlightedCitation(null), 1800);
-  }, []);
+  /* 行内 [n] 角标 → 直接打开共享内容浮层（2026-09-06 实测修复：原先只高亮
+     滚动到底部引用卡片，与其它页面「点链接开浮窗」的契约不一致）。index 为
+     0 基；citations 缺省回落到当前轮的流式引用（仅进行中的回答消息），历史
+     消息传空数组即不响应。 */
+  const handleCitationRef = useCallback(
+    (index: number, citations?: AgentStreamCitation[]) => {
+      const list = citations ?? turnCitationsRef.current;
+      const citation = list[index];
+      if (!citation || citation.content_id <= 0) return;
+      openCitationOverlay(
+        {
+          contentId: citation.content_id,
+          zone: citation.zone === "fanwork" ? "fanwork" : "original",
+        },
+        null,
+      );
+    },
+    [openCitationOverlay],
+  );
 
   const handleRename = useCallback(
     async (id: number, title: string) => {
@@ -509,11 +529,19 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                 if (finalAnswer === "") {
                   next.splice(next.length - 1, 1);
                 } else {
-                  next[next.length - 1] = { ...last, content: finalAnswer };
+                  next[next.length - 1] = {
+                    ...last,
+                    content: finalAnswer,
+                    citations:
+                      event.citations && event.citations.length > 0 ? event.citations : undefined,
+                  };
                 }
               }
               return next;
             });
+            /* 引用已随答案消息持久化，清掉轮内临时态：底部列表交给消息自渲染，
+               避免同轮引用双渲染（provider-error 兜底的引用仍走底部列表）。 */
+            if (event.citations && event.citations.length > 0) setTurnCitations([]);
           }
           setLastAnswerKind(event.answer_kind ?? null);
           setStreaming(false);
@@ -761,7 +789,17 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
             </section>
           ) : (
             <div className="mx-auto flex max-w-3xl flex-col gap-3">
-              {messages.map((message, index) => (
+              {messages.map((message, index) => {
+                /* 引用锚定数据源：答案消息自带 citations（done 后持久化）；进行中
+                   的回答消息（id 命中轮内 answer id 且尚未附加）回落到轮内流式
+                   引用；其余消息（历史等）无引用可用，角标渲染为纯文本。 */
+                const inlineCitations =
+                  message.citations ??
+                  (message.id === turnAnswerIdRef.current ? undefined : []);
+                const inlineCitationCount = inlineCitations
+                  ? inlineCitations.length
+                  : turnCitations.length;
+                return (
                 <Fragment key={`${message.id}-${message.role}-${message.phase ?? "body"}`}>
                   {renderTurnExtrasBefore(message, index)}
                   {message.phase === "think" ? (
@@ -775,43 +813,56 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                       {message.content}
                     </div>
                   ) : (
-                    <div className="group/message max-w-[85%] rounded-md bg-canvas-subtle px-3 py-2 text-sm">
-                      {message.content ? (
-                        // 受控渲染：react-markdown 未接 rehype-raw，原始 HTML 一律转义（T20 核验）
-                        <MarkdownRenderer
-                          content={message.content}
-                          onCitationRef={handleCitationRef}
-                          citationCount={turnCitations.length}
+                    <>
+                      <div className="group/message max-w-[85%] rounded-md bg-canvas-subtle px-3 py-2 text-sm">
+                        {message.content ? (
+                          // 受控渲染：react-markdown 未接 rehype-raw，原始 HTML 一律转义（T20 核验）
+                          <MarkdownRenderer
+                            content={message.content}
+                            onCitationRef={(citationIndex) =>
+                              handleCitationRef(citationIndex, inlineCitations)
+                            }
+                            citationCount={inlineCitationCount}
+                          />
+                        ) : (
+                          <span aria-label={t("agent.a11y.streamStatus")}>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                          </span>
+                        )}
+                        {!streaming && message.content && index === lastAnswerIndex && (
+                          <div className="mt-1.5 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover/message:opacity-100 focus-within:opacity-100">
+                            <button
+                              type="button"
+                              aria-label={t("agent.workspace.copyMessage")}
+                              onClick={() => void handleCopyMessage(message.content)}
+                              className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                            >
+                              <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={t("agent.workspace.regenerate")}
+                              onClick={handleRegenerate}
+                              className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                            >
+                              <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {/* 引用随消息持久化（2026-09-06 实测修复）：每条有引用的
+                         回答消息下方都保留跳转入口，不再随下一轮开始而消失。 */}
+                      {inlineCitations && inlineCitations.length > 0 && (
+                        <AgentCitationList
+                          citations={inlineCitations.map(toAgentCitation)}
+                          onOpen={handleCitationOpen}
                         />
-                      ) : (
-                        <span aria-label={t("agent.a11y.streamStatus")}>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                        </span>
                       )}
-                      {!streaming && message.content && index === lastAnswerIndex && (
-                        <div className="mt-1.5 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover/message:opacity-100 focus-within:opacity-100">
-                          <button
-                            type="button"
-                            aria-label={t("agent.workspace.copyMessage")}
-                            onClick={() => void handleCopyMessage(message.content)}
-                            className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                          >
-                            <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={t("agent.workspace.regenerate")}
-                            onClick={handleRegenerate}
-                            className="inline-flex size-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-canvas-default hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                          >
-                            <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                    </>
                   )}
                 </Fragment>
-              ))}
+                );
+              })}
 
               {/* 轮内尚无 answer 消息时（纯思考/工具中或提前停止），轮尾兜底渲染。 */}
               {turnAnswerIdRef.current === null && (streaming || turnExtrasPresent) && (
@@ -879,7 +930,6 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
               <AgentCitationList
                 citations={turnCitations.map(toAgentCitation)}
                 onOpen={handleCitationOpen}
-                highlightedIndex={highlightedCitation}
               />
 
               {stoppedNotice && (

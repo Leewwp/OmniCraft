@@ -270,7 +270,7 @@ upload:
   video_gallery_max_items: 3
     
 agent:
-  web_agent_enabled: false
+  web_agent_enabled: true
   # Canonical profile (docs/reference/agent-runtime-matrix.md): MiniMax-M3
   # chat through the minimax adapter (tool calls + <think> splitting), with
   # DashScope text-embedding-v4 through a separate openai_compat embedding
@@ -299,7 +299,9 @@ agent:
   max_output_tokens: 4096
   provider_timeout_sec: 60
   provider_max_retries: 2
-  citation_max_count: 5
+  # 2026-09-06 实测：模型自然产出 12-25 个引用标注，5 的上限把推荐列表的
+  # 大半变成前端死引用；上限提到 12 覆盖常规检索轮，仍由流式收口剥离兜底。
+  citation_max_count: 12
   upload_assist_max_file_mb: 10
   max_user_message_chars: 4000
   chat_max_context_messages: 10
