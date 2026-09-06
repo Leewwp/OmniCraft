@@ -151,6 +151,20 @@ function aspectFrame(page: Page, title: string) {
   return page.locator(`[aria-label="${title}"] [data-slot="card-cover-aspect"]`);
 }
 
+/** #398 C2：无 cover 尺寸元数据的历史内容在图片加载后用实测 intrinsic 回填
+    比例盒（与浮窗媒体链同源）。next/image 优化器按渲染宽度重采样，实测像素
+    不恒定但比例恒定（fixture ratio-16-10 = 1.6），按比例断言。 */
+async function expectMeasuredAspectRatio(page: Page, title: string, expected: number) {
+  await expect
+    .poll(async () =>
+      aspectFrame(page, title).evaluate((el) => {
+        const match = el.getAttribute("style")?.match(/aspect-ratio:\s*([\d.]+)\s*\/\s*([\d.]+)/);
+        return match ? Number(match[1]) / Number(match[2]) : 0;
+      }),
+    )
+    .toBeCloseTo(expected, 1);
+}
+
 /**
  * 卡片瀑布流无水平溢出：仅断言卡片区域（data-slot="card-cover"）不超出视口。
  * 页面级 390px 视口存在既有 26px 溢出（原创区页头标题/分类 Tab 行，非本票
@@ -193,7 +207,7 @@ test("original feed renders data-driven natural ratios with the extreme height c
   await expect(aspectFrame(page, "Landscape 16:9")).toHaveAttribute("style", /aspect-ratio:\s*1600 \/ 900/);
   await expect(aspectFrame(page, "Square 1:1")).toHaveAttribute("style", /aspect-ratio:\s*1000 \/ 1000/);
   await expect(aspectFrame(page, "Video poster 9:16")).toHaveAttribute("style", /aspect-ratio:\s*720 \/ 1280/);
-  await expect(aspectFrame(page, "Legacy no size")).toHaveAttribute("style", /aspect-ratio:\s*3 \/ 4/);
+  await expectMeasuredAspectRatio(page, "Legacy no size", 320 / 200);
 
   await expect(aspectFrame(page, "Extreme tall 1:4")).toHaveAttribute("style", /max-height:\s*400px/);
   await expect(aspectFrame(page, "Extreme wide 5:1")).toHaveAttribute("style", /max-height:\s*400px/);
@@ -261,7 +275,8 @@ test("search grid mixes fanwork and original cards from the shared fact source",
   const fanwork = page.locator('[aria-label="Fanwork extreme 1:5"]');
   await expect(fanwork).toHaveClass(/border border-border/);
   await expect(aspectFrame(page, "Fanwork extreme 1:5")).toHaveAttribute("style", /max-height:\s*400px/);
-  await expect(aspectFrame(page, "Fanwork legacy video")).toHaveAttribute("style", /aspect-ratio:\s*3 \/ 4/);
+  /* 同上：legacy video 无 poster 尺寸 → 实测回填 16:10。 */
+  await expectMeasuredAspectRatio(page, "Fanwork legacy video", 320 / 200);
 
   await assertCardsFitViewport(page);
   await page.screenshot({ path: path.join(SCREENSHOTS, "t87-search-mixed-zones-shared-card.png"), fullPage: true });

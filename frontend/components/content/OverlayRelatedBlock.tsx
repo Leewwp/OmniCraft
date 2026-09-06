@@ -14,7 +14,8 @@ interface OverlayRelatedBlockProps {
   related: RelatedCardEntry[];
   relatedLabelKey: string;
   onOpenRelated: (entry: { id: number; zone?: string }, trigger: HTMLElement) => void;
-  onNavigateSeries: (contentId: number) => void;
+  /** trigger 透传给浮层压栈（弹层时焦点还给触发钮，与关联列表行同一契约）。 */
+  onNavigateSeries: (contentId: number, trigger?: HTMLElement | null) => void;
 }
 
 function isValidMembership(value: SeriesMembership | undefined): value is SeriesMembership {
@@ -103,7 +104,7 @@ export function OverlayRelatedBlock({
             <button
               type="button"
               disabled={!previous}
-              onClick={() => previous && onNavigateSeries(previous.id)}
+              onClick={(event) => previous && onNavigateSeries(previous.id, event.currentTarget)}
               aria-label={
                 previous
                   ? t("overlayVariant.previousChapterA11y", { title: previous.title })
@@ -117,7 +118,7 @@ export function OverlayRelatedBlock({
             <button
               type="button"
               disabled={!next}
-              onClick={() => next && onNavigateSeries(next.id)}
+              onClick={(event) => next && onNavigateSeries(next.id, event.currentTarget)}
               aria-label={
                 next ? t("overlayVariant.nextChapterA11y", { title: next.title }) : t("overlayVariant.nextChapter")
               }

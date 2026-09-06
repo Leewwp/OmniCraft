@@ -111,9 +111,10 @@ function handleSsrApi(req: IncomingMessage, res: ServerResponse) {
   if (url.pathname === "/api/v1/series/7") {
     return json(res, 200, SERIES_DETAIL);
   }
-  /* 原创区瀑布流 SSR 合同：第3章作为可点击卡片进入浮层。 */
+  /* 原创区瀑布流 SSR 合同：第3章（常规用例）与第10章（末章边界）作为
+     可点击卡片进入浮层。 */
   if (url.pathname === "/api/v1/contents" && url.searchParams.get("zone") === "original") {
-    return json(res, 200, { contents: [contentCard(603)], total: 1 });
+    return json(res, 200, { contents: [contentCard(603), contentCard(610)], total: 2 });
   }
   return json(res, 404, { code: "NOT_FOUND", message: url.pathname });
 }
@@ -171,14 +172,26 @@ function overlayNav(dialog: ReturnType<Page["getByRole"]>) {
   return dialog.locator('nav[aria-label="所属内容系列"]');
 }
 
+/* #397 R2：无附件文章 → 自动文字封面 3:4 = 竖版 → variant 路径整个移除
+   header，标题迁移为 sr-only h2（dialog aria-labelledby 三职之一）。按
+   level+name 锚定对 variant/split-media 两种壳层同构适用。 */
+function overlayTitle(dialog: ReturnType<Page["getByRole"]>, title: string) {
+  return dialog.getByRole("heading", { level: 2, name: title });
+}
+
+/* variant 右栏关联内容块（#397 布局钉死：系列跳转行在此，浮窗内无 SeriesNav）。 */
+function overlayRelatedBlock(dialog: ReturnType<Page["getByRole"]>) {
+  return dialog.locator('[data-slot="overlay-related-block"]');
+}
+
 async function openOverlayFromFeed(page: Page, chapterTitle: string) {
   await page.goto("/original");
   await expect(page.getByRole("article").filter({ hasText: chapterTitle })).toBeVisible();
   await page.getByRole("article").filter({ hasText: chapterTitle }).locator("button").first().click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
-  await expect(dialog.locator("header h2")).toHaveText(chapterTitle);
-  await expect(overlayNav(dialog)).toBeVisible();
+  await expect(overlayTitle(dialog, chapterTitle)).toBeVisible();
+  await expect(overlayRelatedBlock(dialog).getByText("同系列 · 山海纪行")).toBeVisible();
   return dialog;
 }
 
@@ -204,110 +217,90 @@ test.describe("Ticket 69: 浮窗内系列目录与章节导航 (#69)", () => {
     await page.screenshot({ path: path.join(SCREENSHOTS, "web-t69-series-dir-standalone.png") });
   });
 
-  test("desktop: directory opens in the overlay stack, chapter selection pushes without page navigation, back retraces", async ({ page }) => {
+  test("desktop: series jump lives in the variant related block, chapter push stays in the overlay stack, back retraces", async ({ page }) => {
     await mockClientApis(page);
     await page.setViewportSize({ width: 1440, height: 900 });
 
     const dialog = await openOverlayFromFeed(page, "第三章：迷雾");
-    const nav = overlayNav(dialog);
+    /* R2 布局钉死：同系列跳转 = 关联内容块内一行（系列名 + 第 X/Y 篇 + 上一章/
+       下一章，边界禁用）；目录 listbox 仅存于全页 SeriesNav（浮窗内随 #397 移除）。 */
+    const seriesRow = overlayRelatedBlock(dialog);
+    await expect(seriesRow.getByText("第 3/10 篇")).toBeVisible();
 
-    /* 浮层内上一章/目录/下一章都是按钮，不整页跳转。 */
-    await expect(nav.getByRole("button", { name: /上一章：第二章：山雨/ })).toBeVisible();
-    await expect(nav.getByRole("button", { name: /下一章：第四章：星轨/ })).toBeVisible();
-    const catalogTrigger = nav.getByRole("button", { name: "查看 山海纪行 系列目录" });
-    await expect(catalogTrigger).toHaveAttribute("aria-haspopup", "listbox");
-    await expect(nav.getByRole("link")).toHaveCount(0, { timeout: 3_000 });
+    /* 上一章/下一章都是按钮，不整页跳转。 */
+    const prevButton = seriesRow.getByRole("button", { name: "上一章：第二章：山雨" });
+    await expect(prevButton).toBeVisible();
+    await expect(seriesRow.getByRole("button", { name: "下一章：第四章：星轨" })).toBeVisible();
+    await expect(seriesRow.getByRole("link")).toHaveCount(0, { timeout: 3_000 });
+    await expect(seriesRow.getByRole("listbox")).toHaveCount(0);
 
     /* 下一章压栈：标题切换且 URL 不变。 */
-    await nav.getByRole("button", { name: /下一章：第四章：星轨/ }).click();
-    await expect(dialog.locator("header h2")).toHaveText("第四章：星轨");
+    await seriesRow.getByRole("button", { name: "下一章：第四章：星轨" }).click();
+    await expect(overlayTitle(dialog, "第四章：星轨")).toBeVisible();
     expect(page.url()).toMatch(/\/original$/);
 
-    /* 返回逐层恢复上一章。 */
-    await dialog.getByRole("button", { name: /返回 第三章：迷雾/ }).click();
-    await expect(dialog.locator("header h2")).toHaveText("第三章：迷雾");
-    await expect(nav.getByRole("button", { name: /上一章：第二章：山雨/ })).toBeVisible();
+    /* 返回逐层恢复上一章（variant 悬浮返回钮 aria-label = 「返回到：XXX」）。 */
+    await dialog.getByRole("button", { name: /返回到：第三章：迷雾/ }).click();
+    await expect(overlayTitle(dialog, "第三章：迷雾")).toBeVisible();
+    await expect(seriesRow.getByRole("button", { name: "上一章：第二章：山雨" })).toBeVisible();
 
-    /* 目录：有界高度、内部滚动、listbox 语义、当前章节 aria-selected。 */
-    await catalogTrigger.click();
-    const listbox = dialog.getByRole("listbox");
-    await expect(listbox).toBeVisible();
-    await expect(listbox).toHaveClass(/max-h-72/);
-    await expect(listbox).toHaveClass(/overflow-y-auto/);
-    const options = listbox.getByRole("option");
-    await expect(options).toHaveCount(10);
-    await expect(options.nth(2)).toHaveAttribute("aria-selected", "true");
-    await expect(options.nth(2)).toContainText("第三章：迷雾");
-    await expect(options.nth(1)).toHaveAttribute("aria-selected", "false");
-    await page.screenshot({ path: path.join(SCREENSHOTS, "web-t69-series-dir-desktop.png") });
+    /* 首章边界：连续上一章到第一章，上一章禁用（aria-label 退化为无章节名）。 */
+    await seriesRow.getByRole("button", { name: "上一章：第二章：山雨" }).click();
+    await expect(overlayTitle(dialog, "第二章：山雨")).toBeVisible();
+    await overlayRelatedBlock(dialog).getByRole("button", { name: "上一章：第一章：启程" }).click();
+    await expect(overlayTitle(dialog, "第一章：启程")).toBeVisible();
+    await expect(overlayRelatedBlock(dialog).getByRole("button", { name: "上一章", exact: true })).toBeDisabled();
+    await expect(overlayRelatedBlock(dialog).getByRole("button", { name: "下一章：第二章：山雨" })).toBeVisible();
 
-    /* 目录内选择第一章：压栈、首章上一章禁用、无整页跳转。 */
-    await options.filter({ hasText: "第一章：启程" }).click();
-    await expect(dialog.locator("header h2")).toHaveText("第一章：启程");
-    expect(page.url()).toMatch(/\/original$/);
-    const firstPrev = nav.getByRole("button", { name: "上一章不可用，已是第一章" });
-    await expect(firstPrev).toBeDisabled();
-    await expect(firstPrev).toHaveAttribute("aria-disabled", "true");
-    await expect(nav.getByText("已是第一章")).toBeVisible();
-    await expect(nav.getByRole("button", { name: /下一章：第二章：山雨/ })).toBeVisible();
-
-    /* 目录内选择末章：下一章禁用。 */
-    await nav.getByRole("button", { name: "查看 山海纪行 系列目录" }).click();
-    await dialog.getByRole("option", { name: /第十章：归途/ }).click();
-    await expect(dialog.locator("header h2")).toHaveText("第十章：归途");
-    const lastNext = nav.getByRole("button", { name: "下一章不可用，已是最后一章" });
-    await expect(lastNext).toBeDisabled();
-    await expect(nav.getByText("已是最后一章")).toBeVisible();
-
-    /* 浏览器后退逐层恢复先前章节。 */
+    /* 浏览器后退逐层恢复先前章节并最终关闭浮窗。 */
     await page.goBack();
-    await expect(dialog.locator("header h2")).toHaveText("第一章：启程");
+    await expect(overlayTitle(dialog, "第二章：山雨")).toBeVisible();
     await page.goBack();
-    await expect(dialog.locator("header h2")).toHaveText("第三章：迷雾");
+    await expect(overlayTitle(dialog, "第三章：迷雾")).toBeVisible();
     await page.goBack();
     await expect(dialog).not.toBeVisible();
     expect(page.url()).toMatch(/\/original$/);
     await page.screenshot({ path: path.join(SCREENSHOTS, "web-t69-series-dir-return.png") });
+
+    /* 末章边界：从信息流直接打开第十章，下一章禁用。 */
+    await openOverlayFromFeed(page, "第十章：归途");
+    await expect(overlayRelatedBlock(dialog).getByText("第 10/10 篇")).toBeVisible();
+    await expect(overlayRelatedBlock(dialog).getByRole("button", { name: "下一章", exact: true })).toBeDisabled();
+    await page.screenshot({ path: path.join(SCREENSHOTS, "web-t69-series-dir-desktop.png") });
   });
 
-  test("keyboard: directory opens with focus inside, arrows move, Enter pushes, Escape closes and returns focus", async ({ page }) => {
+  test("keyboard: series buttons are focusable, Enter pushes, Escape retraces and closes", async ({ page }) => {
     await mockClientApis(page);
     await page.setViewportSize({ width: 1440, height: 900 });
     const dialog = await openOverlayFromFeed(page, "第三章：迷雾");
-    const nav = overlayNav(dialog);
 
-    await nav.getByRole("button", { name: "查看 山海纪行 系列目录" }).focus();
-    await page.keyboard.press("ArrowDown");
-    const listbox = dialog.getByRole("listbox");
-    await expect(listbox).toBeVisible();
-    /* 打开后焦点进入选择器并落在当前章节。 */
-    await expect(dialog.getByRole("option", { name: /当前章节：第 3 章：第三章：迷雾/ })).toBeFocused();
-
-    await page.keyboard.press("ArrowUp");
-    await expect(dialog.getByRole("option", { name: /第 2 章：第二章：山雨/ })).toBeFocused();
-    await page.keyboard.press("ArrowUp");
-    await expect(dialog.getByRole("option", { name: /第 1 章：第一章：启程/ })).toBeFocused();
+    /* 键盘推进：聚焦关联块下一章按钮后 Enter 压栈，标题切换且无整页跳转。 */
+    const nextButton = overlayRelatedBlock(dialog).getByRole("button", { name: "下一章：第四章：星轨" });
+    await nextButton.focus();
     await page.keyboard.press("Enter");
-    await expect(dialog.locator("header h2")).toHaveText("第一章：启程");
+    await expect(overlayTitle(dialog, "第四章：星轨")).toBeVisible();
     expect(page.url()).toMatch(/\/original$/);
 
-    /* 重开目录，Escape 关闭并把焦点还给「目录」trigger。 */
-    await nav.getByRole("button", { name: "查看 山海纪行 系列目录" }).focus();
-    await page.keyboard.press("ArrowDown");
-    await expect(listbox).toBeVisible();
+    /* Escape 逐层返回：弹层后焦点还给压栈触发钮（AC4 焦点恢复契约）。 */
     await page.keyboard.press("Escape");
-    await expect(dialog.getByRole("listbox")).not.toBeVisible();
-    await expect(nav.getByRole("button", { name: "查看 山海纪行 系列目录" })).toBeFocused();
+    await expect(overlayTitle(dialog, "第三章：迷雾")).toBeVisible();
+    await expect(nextButton).toBeFocused();
+
+    /* 栈底再按 Escape 关闭浮窗。 */
+    await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
   });
 
   test("mobile and tablet: series actions and directory stay inside their containers", async ({ page }) => {
     await mockClientApis(page);
     await page.setViewportSize({ width: 1440, height: 900 });
     const dialog = await openOverlayFromFeed(page, "第三章：迷雾");
-    const nav = overlayNav(dialog);
 
-    /* 浮层保持打开时缩到移动宽度：系列操作行与目录不得越出容器。 */
+    /* 浮层保持打开时缩到移动宽度：<1100px 退出 variant，回到单列布局，
+       SeriesNav（含目录）随默认尾部渲染。 */
     await page.setViewportSize({ width: 390, height: 844 });
+    const nav = overlayNav(dialog);
+    await expect(nav).toBeVisible();
     const mobileBox = await nav.boundingBox();
     assertBox(mobileBox);
     for (const name of [/上一章：第二章：山雨/, /系列目录/, /下一章：第四章：星轨/]) {

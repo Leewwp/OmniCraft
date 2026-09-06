@@ -122,9 +122,20 @@ async function mockClientApis(page: Page, similarHandler: (requestUrl: string) =
   await mockApiRoute(page, "**/api/v1/social/reactions?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ counts: { like: 0, dislike: 0 }, viewer_reaction: null }) }));
   await mockApiRoute(page, "**/api/v1/contents/601/versions", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ versions: [] }) }));
 
-  /* 关联行（RF 组件客户端拉取）。 */
+  /* 关联行（RF 组件客户端拉取）。612 的衍生列表给 613——#397 R2 后浮窗
+     variant 关联块 = ①原创 ②同系列 ③衍生二创（相似行不进浮窗），浮层内
+     下钻改走衍生行。 */
+  const INNER_DERIVATIVE = {
+    id: 613,
+    title: "相似 613",
+    zone: "fanwork",
+    content_type: "article",
+    category: "art",
+    author: { id: 45, username: "Dee" },
+    like_count: 3,
+  };
   await mockApiRoute(page, "**/api/v1/contents/601/related-fanworks?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ contents: DERIVATIVES, total: DERIVATIVES.length, page: 1, page_size: 8 }) }));
-  await mockApiRoute(page, "**/api/v1/contents/612/related-fanworks?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ contents: [], total: 0 }) }));
+  await mockApiRoute(page, "**/api/v1/contents/612/related-fanworks?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ contents: [INNER_DERIVATIVE], total: 1, page: 1, page_size: 8 }) }));
   await mockApiRoute(page, "**/api/v1/contents/502/related-fanworks?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ contents: [], total: 0 }) }));
 
   /* 相似内容：固定 list 合同（AC2）。仅对 601 的固定合同（zone=fanwork、
@@ -193,30 +204,27 @@ test.describe("Ticket 10: 相关内容块与到底提示（桌面/web）(#90)", 
 
     await page.screenshot({ path: path.join(SCREENSHOTS, "t90-related-contents-desktop.png"), fullPage: false });
 
-    /* AC3：相关卡片在当前浮层导航栈内打开。 */
+    /* AC3：相关卡片在当前浮层导航栈内打开。#397 R2：无附件文章 → variant
+       壳层（无 header），标题断言走 sr-only h2（level+name 同构锚定）。 */
     await block.locator('[data-slot="related-contents-similar"] [data-slot="card-cover"]').nth(0).click();
     const dialog = page.getByRole("dialog");
-    const overlayTitle = dialog.locator("header h2");
     await expect(dialog).toBeVisible();
-    await expect(overlayTitle).toHaveText("相似 612");
+    await expect(dialog.getByRole("heading", { level: 2, name: "相似 612" })).toBeVisible();
 
-    /* 浮层内继续下钻：612 的相似行卡片压栈（栈深 ≤5 沿用既有机制）。
-       612 的相似行去重后首卡是 601，显式点击「相似 613」卡片。 */
-    const innerBlock = dialog.locator('[data-slot="related-contents"]');
+    /* 浮层内继续下钻：variant 关联块的衍生行（612 → 613）压栈（栈深 ≤5 沿用
+       既有机制）。 */
+    const innerBlock = dialog.locator('[data-slot="overlay-related-block"]');
     await innerBlock.scrollIntoViewIfNeeded();
     await expect(innerBlock).toBeVisible();
-    await expect(innerBlock.locator('[data-slot="related-contents-similar"] [data-slot="card-cover"]')).toHaveCount(8);
-    await innerBlock
-      .locator('[data-slot="related-contents-similar"] article')
-      .filter({ hasText: "相似 613" })
-      .locator("button")
-      .click();
-    await expect(overlayTitle).toHaveText("相似 613");
-    await expect(dialog.getByRole("button", { name: /返回 相似 612/ })).toBeVisible();
+    await expect(innerBlock.locator('[data-slot="related-list"] button')).toHaveCount(1);
+    await innerBlock.locator('[data-slot="related-list"] button').filter({ hasText: "相似 613" }).click();
+    await expect(dialog.getByRole("heading", { level: 2, name: "相似 613" })).toBeVisible();
+    /* variant 悬浮返回钮 aria-label = 「返回到：XXX」（#397 用户裁决格式）。 */
+    await expect(dialog.getByRole("button", { name: /返回到：相似 612/ })).toBeVisible();
 
     /* 逐层返回。 */
-    await dialog.getByRole("button", { name: /返回 相似 612/ }).click();
-    await expect(overlayTitle).toHaveText("相似 612");
+    await dialog.getByRole("button", { name: /返回到：相似 612/ }).click();
+    await expect(dialog.getByRole("heading", { level: 2, name: "相似 612" })).toBeVisible();
     await page.screenshot({ path: path.join(SCREENSHOTS, "t90-related-contents-overlay-stack.png") });
   });
 
