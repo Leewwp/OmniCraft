@@ -206,6 +206,9 @@ const workspaceMessages = {
       invalid: "Reference unavailable",
       zoneOriginal: "Original",
       zoneFanwork: "Fanwork",
+      /* #399 折叠键镜像真实 catalog（MISSING_MESSAGE 反模式防护）。 */
+      collapse: "Collapse citations",
+      expand: "Show citations ({count})",
     },
     noEvidence: {
       title: "Not enough evidence",
@@ -1545,8 +1548,9 @@ test("malformed citation objects are never clickable", async () => {
         messages: [
           { id: 1, conversation_id: 11, role: "user", content: "Find beginner-friendly furniture mods" },
           { id: 2, conversation_id: 11, role: "assistant", content: "answer text",
-            /* N4：历史同样回放畸形引用载荷——normalizer 过滤后不得可点。 */
-            citations: [{ content_id: 0, title: "", zone: "nonsense" }] },
+            /* N4：服务端历史回放的是入库前已校验引用——仅有效项；畸形载荷只在
+               流式注入窗口出现，由 normalizer 过滤（断言在同窗内完成）。 */
+            citations: [{ content_id: 5, title: "Valid ref", zone: "original" }] },
         ],
       },
     },
