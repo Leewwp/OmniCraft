@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { AlertCircle, FileQuestion, ShieldOff } from "lucide-react";
+import { AlertCircle, FileQuestion, ShieldOff, Timer } from "lucide-react";
 import Link from "next/link";
 import { api, ApiRequestError } from "@/lib/api";
 import {
@@ -53,7 +53,7 @@ interface ContentDetailOverlayLayerProps {
   onMotionReady?: () => void;
 }
 
-type LayerStatus = "loading" | "default" | "forbidden" | "not-found" | "error";
+type LayerStatus = "loading" | "default" | "forbidden" | "not-found" | "error" | "rate-limited";
 
 /** 双栏媒体列控件区（翻页/指示点行）近似高度（px）：min-h-11 按钮 + py-2 + border-t。
     左栏 aspect 盒据此预留，保证媒体 contain 区不被控件裁切。 */
@@ -170,6 +170,10 @@ export function ContentDetailOverlayLayer({
           setStatus("not-found");
         } else if (error instanceof ApiRequestError && error.status === 403) {
           setStatus("forbidden");
+        } else if (error instanceof ApiRequestError && error.status === 429) {
+          /* #400：429 曾被误渲染成网络错误——限流有自己的语义（稍后重试即可），
+             详情打开时一次爆发 10+ 请求很容易触顶（dev StrictMode 翻倍）。 */
+          setStatus("rate-limited");
         } else {
           setStatus("error");
         }
@@ -275,6 +279,21 @@ export function ContentDetailOverlayLayer({
         icon={ShieldOff}
         title={t("contentDetailOverlay.forbiddenTitle")}
         description={t("contentDetailOverlay.forbiddenDescription")}
+      />
+    );
+  }
+
+  if (status === "rate-limited") {
+    return (
+      <EmptyState
+        icon={Timer}
+        title={t("contentDetailOverlay.rateLimitedTitle")}
+        description={t("contentDetailOverlay.rateLimitedDescription")}
+        action={
+          <Button variant="outline" size="sm" onClick={() => setAttempt((value) => value + 1)}>
+            {t("common.retry")}
+          </Button>
+        }
       />
     );
   }

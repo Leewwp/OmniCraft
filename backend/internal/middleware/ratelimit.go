@@ -39,13 +39,13 @@ func RateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		if count == 1 {
-			windowTTL := 2 * time.Minute
-			if cfg.NormalWindowSec > 0 {
-				windowTTL = time.Duration(cfg.NormalWindowSec) * time.Second
-			}
-			rdb.Expire(ctx, key, windowTTL)
+		/* #400：无条件续期——原先仅 count==1 时设置 TTL，INCR 与 EXPIRE 之间失败
+		   （或既有泄漏 key）会永生；固定窗口 TTL ≥ 窗口长度，重复刷新无害。 */
+		windowTTL := 2 * time.Minute
+		if cfg.NormalWindowSec > 0 {
+			windowTTL = time.Duration(cfg.NormalWindowSec) * time.Second
 		}
+		rdb.Expire(ctx, key, windowTTL)
 		if int(count) > limit {
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"code":    "RATE_LIMIT_EXCEEDED",
@@ -83,13 +83,11 @@ func UploadRateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.Handler
 			c.Next()
 			return
 		}
-		if count == 1 {
-			uploadWindowTTL := 2 * time.Hour
-			if cfg.UploadWindowSec > 0 {
-				uploadWindowTTL = time.Duration(cfg.UploadWindowSec) * time.Second
-			}
-			rdb.Expire(ctx, key, uploadWindowTTL)
+		uploadWindowTTL := 2 * time.Hour
+		if cfg.UploadWindowSec > 0 {
+			uploadWindowTTL = time.Duration(cfg.UploadWindowSec) * time.Second
 		}
+		rdb.Expire(ctx, key, uploadWindowTTL)
 		if int(count) > limit {
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"code":    "UPLOAD_RATE_LIMIT_EXCEEDED",
@@ -139,9 +137,7 @@ func CredentialRateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.Han
 				c.Abort()
 				return
 			}
-			if count == 1 {
-				rdb.Expire(ctx, key, credWindowTTL)
-			}
+			rdb.Expire(ctx, key, credWindowTTL)
 			if int(count) > limit {
 				c.JSON(http.StatusTooManyRequests, gin.H{
 					"code":    "CREDENTIAL_RATE_LIMIT_EXCEEDED",
@@ -189,9 +185,7 @@ func RedisFixedWindowLimit(rdb *redis.Client, keyPrefix string, limit int, windo
 			c.Next()
 			return
 		}
-		if count == 1 {
-			rdb.Expire(ctx, key, 2*window)
-		}
+		rdb.Expire(ctx, key, 2*window)
 		if int(count) > limit {
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"code":    "RATE_LIMIT_EXCEEDED",
@@ -250,9 +244,7 @@ func CommentEditRateLimit(rdb *redis.Client) gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		if count == 1 {
-			rdb.Expire(ctx, key, 60*time.Second)
-		}
+		rdb.Expire(ctx, key, 60*time.Second)
 		if int(count) > limit {
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"code":    "COMMENT_EDIT_RATE_LIMIT",
