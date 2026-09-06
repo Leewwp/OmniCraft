@@ -152,7 +152,10 @@ export function ContentDetailOverlay({
 
   /* 打开/关闭契约：open 翻转时初始化首层（保存触发元素、页面滚动与 source 几何），
      关闭时走 finalizeClose（幂等）。source 测量必须先于任何布局变更（滚动锁、
-     overlay 插入），见原型 §4.3。 */
+     overlay 插入），见原型 §4.3。
+     #398 C3：打开瞬间锁定触发卡片的 hover 缩放（globals.css 以
+     [data-overlay-motion-lock] 归位），VT 旧快照捕获时 <img> 处于未变换位姿；
+     finalizeClose 移除锁。 */
   useEffect(() => {
     if (open && !lastOpenRef.current) {
       const trigger =
@@ -163,6 +166,7 @@ export function ContentDetailOverlay({
       sourceAnchorRef.current = trigger
         ? (trigger.querySelector<HTMLElement>(`[data-slot="${OVERLAY_CARD_COVER_SLOT}"]`) ?? trigger)
         : null;
+      trigger?.setAttribute("data-overlay-motion-lock", "");
       restoreRef.current = { trigger, windowY: window.scrollY };
       setStack([
         { entry: { contentId, zone, source, contextList, contextIndex }, trigger, scrollTop: 0, title: null },
@@ -288,6 +292,14 @@ export function ContentDetailOverlay({
 
   /* ---------- 共享元素转场（#67 原型 §5 契约 / #64 决策 7-12） ---------- */
 
+  /* #398 C1：VT 命名下沉到封面 <img> 本身（盒内 object-contain、同源变体）——
+     命名盒会把底色/边框/控件条差异一起烘进快照；命名 <img> 让 group 只承载
+     图像内容，两端底色差异随 root 交叉淡化消化。无 <img>（视频/骨架）时回退
+     命名盒。 */
+  function getVtElement(host: HTMLElement): HTMLElement {
+    return host.querySelector<HTMLElement>("img") ?? host;
+  }
+
   const getTopCover = useCallback((): HTMLElement | null => {
     const scroller = scrollerRef.current;
     if (!scroller) return null;
@@ -324,8 +336,13 @@ export function ContentDetailOverlay({
       cover.style.transform = "";
       cover.style.transformOrigin = "";
       cover.style.removeProperty("view-transition-name");
+      getVtElement(cover).style.removeProperty("view-transition-name");
     }
-    sourceAnchorRef.current?.style.removeProperty("view-transition-name");
+    const cardAnchor = sourceAnchorRef.current;
+    if (cardAnchor) {
+      cardAnchor.style.removeProperty("view-transition-name");
+      getVtElement(cardAnchor).style.removeProperty("view-transition-name");
+    }
     const transition = transitionRef.current;
     transitionRef.current = null;
     if (transition && typeof transition.skipTransition === "function") {
@@ -390,18 +407,20 @@ export function ContentDetailOverlay({
   /* VT 开：回调内同步完成 DOM 换名（快照内命名唯一）。兜底挂在 ready 上
      （2026-09-06 实测修复）：VT 被浏览器跳过时 ready reject 而 finished 可能
      仍正常 resolve，只挂 finished 的失败分支会漏掉 FLIP 兜底、浮层瞬间凭空
-     出现。 */
+     出现。#398：命名落在两端 <img>（getVtElement）。 */
   const runVtOpen = useCallback(
     (token: number, shell: HTMLElement, cover: HTMLElement) => {
       const cardAnchor = sourceAnchorRef.current;
+      const coverVt = getVtElement(cover);
+      const cardVt = cardAnchor ? getVtElement(cardAnchor) : null;
       shell.style.transition = "";
       shell.style.opacity = "1";
       shell.style.transform = "";
       try {
-        cardAnchor?.style.setProperty("view-transition-name", OVERLAY_VT_NAME);
+        cardVt?.style.setProperty("view-transition-name", OVERLAY_VT_NAME);
         const transition = document.startViewTransition(() => {
-          cover.style.setProperty("view-transition-name", OVERLAY_VT_NAME);
-          cardAnchor?.style.removeProperty("view-transition-name");
+          coverVt.style.setProperty("view-transition-name", OVERLAY_VT_NAME);
+          cardVt?.style.removeProperty("view-transition-name");
           shell.style.opacity = "1";
         });
         transitionRef.current = transition;
@@ -410,8 +429,8 @@ export function ContentDetailOverlay({
           if (fallbackStarted) return;
           fallbackStarted = true;
           transitionRef.current = null;
-          cover.style.removeProperty("view-transition-name");
-          cardAnchor?.style.removeProperty("view-transition-name");
+          coverVt.style.removeProperty("view-transition-name");
+          cardVt?.style.removeProperty("view-transition-name");
           runFlipOpen(token, shell, cover);
         };
         transition.ready.then(() => {}, startFallback);
@@ -419,7 +438,7 @@ export function ContentDetailOverlay({
           () => {
             if (fallbackStarted || transitionRef.current !== transition) return;
             transitionRef.current = null;
-            cover.style.removeProperty("view-transition-name");
+            coverVt.style.removeProperty("view-transition-name");
           },
           () => {
             if (transitionRef.current !== transition) return;
@@ -428,7 +447,7 @@ export function ContentDetailOverlay({
         );
       } catch {
         if (transitionRef.current !== null) return;
-        cardAnchor?.style.removeProperty("view-transition-name");
+        cardVt?.style.removeProperty("view-transition-name");
         runFlipOpen(token, shell, cover);
       }
     },
@@ -437,8 +456,9 @@ export function ContentDetailOverlay({
 
   /* 入场：reducedMotion() ? fade : (!sourceRect ? fallback : (vtEnabled() ? vt : flip))。
      由顶层 onMotionReady 触发（层数据落定、封面几何可测时），每次打开只跑一次。
-     vt/flip 启动前有封面媒体就绪门：最多等 COVER_READY_CAP_MS，避免变形过程中
-     是空框、图片加载完成后突现（2026-09-06 实测修复）。 */
+     vt/flip 启动前有封面媒体就绪门（#398 C4：decode 真就绪 + 150ms 极端网络
+     兜底；点击卡片的同源变体预取使解码通常已完成），避免变形过程中是空框、
+     图片加载完成后突现（2026-09-06 实测修复）。超高图首项走 fallback（C2）。 */
   const runEntranceMotion = useCallback(() => {
     if (entranceDoneRef.current) return;
     entranceDoneRef.current = true;
@@ -466,13 +486,27 @@ export function ContentDetailOverlay({
       runFallbackOpen(token, shell);
       return;
     }
+    /* #398 C2：超高图首项不共享元素转场——卡片端按 400px 高度上限 contain 整图、
+       浮窗端按 3:4 名义宽 + 内部滚动（顶部裁切），两端取景语义无法统一，强行
+       变形必现「先完整展示后被截断」；退化为居中缩淡（无换图、无跳变）。 */
+    if (cover.dataset.ultraTall === "true") {
+      runFallbackOpen(token, shell);
+      return;
+    }
+    /* #398 C4 真就绪：等浮窗实际渲染的封面 <img> 解码完成（decode 优于 load——
+       保证已光栅化）；点击卡片瞬间的同源变体预取（ContentCard）使解码在数据
+       落定前大概率已完成，150ms 上限仅极端网络兜底。 */
     const media = cover.querySelector("img");
     const ready =
-      media instanceof HTMLImageElement && !(media.complete && media.naturalWidth > 0)
-        ? new Promise<void>((resolve) => {
-            media.addEventListener("load", () => resolve(), { once: true });
-            media.addEventListener("error", () => resolve(), { once: true });
-          })
+      media instanceof Element && media.tagName === "IMG"
+        ? (media as HTMLImageElement).complete && (media as HTMLImageElement).naturalWidth > 0
+          ? Promise.resolve()
+          : typeof (media as HTMLImageElement).decode === "function"
+            ? (media as HTMLImageElement).decode().catch(() => {})
+            : new Promise<void>((resolve) => {
+                media.addEventListener("load", () => resolve(), { once: true });
+                media.addEventListener("error", () => resolve(), { once: true });
+              })
         : Promise.resolve();
     void Promise.race([
       ready,
@@ -514,6 +548,8 @@ export function ContentDetailOverlay({
     setLayerLayouts({});
     const restore = restoreRef.current;
     restoreRef.current = null;
+    /* #398 C3：解除触发卡片的 hover 缩放锁定（打开时设置）。 */
+    restore?.trigger?.removeAttribute("data-overlay-motion-lock");
     onOpenChangeRef.current(false);
     window.requestAnimationFrame(() => {
       if (restore) {
@@ -549,10 +585,11 @@ export function ContentDetailOverlay({
         `transform ${OVERLAY_MOTION.closeDuration}ms ${OVERLAY_MOTION.easing}`;
       shell.style.opacity = "0";
       shell.style.transform = `scale(${OVERLAY_MOTION.fallbackScale})`;
-    } else {
-      const cover = getTopCover();
-      const sourceRect = measureSourceRect(restoreRef.current?.trigger ?? null);
-      if (!cover || !sourceRect || !rectHasArea(readElementRect(cover))) {
+      } else {
+        const cover = getTopCover();
+        const sourceRect = measureSourceRect(restoreRef.current?.trigger ?? null);
+        /* 超高图当前项同样退化为居中缩淡（与开路径同因，见 runEntranceMotion）。 */
+        if (!cover || !sourceRect || !rectHasArea(readElementRect(cover)) || cover.dataset.ultraTall === "true") {
         shell.style.transition =
           `opacity ${OVERLAY_MOTION.closeDuration}ms ${OVERLAY_MOTION.easing}, ` +
           `transform ${OVERLAY_MOTION.closeDuration}ms ${OVERLAY_MOTION.easing}`;
@@ -560,11 +597,13 @@ export function ContentDetailOverlay({
         shell.style.transform = `scale(${OVERLAY_MOTION.fallbackScale})`;
       } else if (path === "vt") {
         const cardAnchor = sourceAnchorRef.current;
-        cover.style.setProperty("view-transition-name", OVERLAY_VT_NAME);
+        const coverVt = getVtElement(cover);
+        const cardVt = cardAnchor ? getVtElement(cardAnchor) : null;
+        coverVt.style.setProperty("view-transition-name", OVERLAY_VT_NAME);
         try {
           const transition = document.startViewTransition(() => {
-            cardAnchor?.style.setProperty("view-transition-name", OVERLAY_VT_NAME);
-            cover.style.removeProperty("view-transition-name");
+            cardVt?.style.setProperty("view-transition-name", OVERLAY_VT_NAME);
+            coverVt.style.removeProperty("view-transition-name");
             shell.style.transition = "none";
             shell.style.opacity = "0";
           });
@@ -576,7 +615,7 @@ export function ContentDetailOverlay({
             if (fallbackStarted) return;
             fallbackStarted = true;
             transitionRef.current = null;
-            cardAnchor?.style.removeProperty("view-transition-name");
+            cardVt?.style.removeProperty("view-transition-name");
             shell.style.transition = "none";
             shell.style.opacity = "1";
             runFlipClose(token, shell, cover);
@@ -586,7 +625,7 @@ export function ContentDetailOverlay({
             () => {
               if (fallbackStarted || transitionRef.current !== transition) return;
               transitionRef.current = null;
-              cardAnchor?.style.removeProperty("view-transition-name");
+              cardVt?.style.removeProperty("view-transition-name");
             },
             () => {
               if (transitionRef.current !== transition) return;
@@ -595,7 +634,7 @@ export function ContentDetailOverlay({
           );
         } catch {
           if (transitionRef.current !== null) return;
-          cardAnchor?.style.removeProperty("view-transition-name");
+          cardVt?.style.removeProperty("view-transition-name");
           runFlipClose(token, shell, cover);
         }
       } else {

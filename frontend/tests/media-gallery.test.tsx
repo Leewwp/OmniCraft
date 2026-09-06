@@ -124,20 +124,29 @@ test("normalizeAttachment drops non-positive dimensions and keeps NULL legacy ro
   assert.equal(legacy?.sort_order, undefined);
 });
 
+
+/* #398 C1：浮窗封面走 next/image 优化器变体（与卡片同管线）；断言解出原始 url 比对。 */
+function imageSource(img: HTMLImageElement | null | undefined): string | null {
+  const src = img?.getAttribute("src");
+  if (!src) return null;
+  const match = src.match(/[?&]url=([^&]+)/);
+  return match ? decodeURIComponent(match[1]) : src;
+}
+
 /* ---------- 渲染顺序与稳定几何（AC1） ---------- */
 
 test("MediaGallery renders all items in server order with current item visible and others hidden", () => {
   const { container } = renderGallery();
   const images = Array.from(container.querySelectorAll("img"));
   assert.deepEqual(
-    images.map((img) => img.getAttribute("src")),
+    images.map((img) => imageSource(img)),
     ["/seed-media/gallery/item-1.jpg", "/seed-media/gallery/item-2.jpg", "/seed-media/gallery/item-3.jpg"],
   );
   const wrappers = Array.from(mediaScroller(container).children) as HTMLElement[];
   assert.equal(wrappers.length, 3);
   const current = wrappers.filter((el) => el.getAttribute("aria-current") === "true");
   assert.equal(current.length, 1);
-  assert.equal(current[0]?.querySelector("img")?.getAttribute("src"), "/seed-media/gallery/item-1.jpg");
+  assert.equal(imageSource(current[0]?.querySelector("img")), "/seed-media/gallery/item-1.jpg");
   const nonCurrent = wrappers.filter((el) => el.getAttribute("aria-current") !== "true");
   assert.equal(nonCurrent.length, 2);
   for (const el of nonCurrent) {
@@ -264,8 +273,8 @@ test("MediaGallery shows a stable error placeholder for a failed media item with
   assert.ok(container.textContent?.includes("Failed to load media"));
   const next = container.querySelector('button[aria-label="Next media"]') as HTMLButtonElement;
   fireEvent.click(next);
-  const currentImage = container.querySelector('[aria-current="true"] img');
-  assert.equal(currentImage?.getAttribute("src"), "/seed-media/gallery/item-2.jpg");
+  const currentImage = container.querySelector<HTMLImageElement>('[aria-current="true"] img');
+  assert.equal(imageSource(currentImage), "/seed-media/gallery/item-2.jpg");
 });
 
 test("MediaGallery invokes onOpenViewer on image click with the current index", () => {
