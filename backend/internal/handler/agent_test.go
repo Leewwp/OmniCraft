@@ -451,3 +451,73 @@ func newTestQuotaReserver(t *testing.T, cfg *config.Config) (*middleware.AgentQu
 	}
 	return middleware.NewAgentQuotaReserver(rdb, cfg), cleanup
 }
+
+// N4：历史端点随答案行回放落库引用；blocked 行引用随正文一并脱敏。
+func TestGetConversationMessagesReplaysPersistedCitations(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.AgentConversation{}, &model.AgentMessage{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	conv := model.AgentConversation{ID: 1, UserID: 1, ContextType: "general"}
+	if err := db.Create(&conv).Error; err != nil {
+		t.Fatalf("seed conversation: %v", err)
+	}
+	answer := "answer [1]"
+	blocked := "blocked answer"
+	db.Create(&model.AgentMessage{ConversationID: conv.ID, Role: "user", Content: ptr("q")})
+	db.Create(&model.AgentMessage{
+		ConversationID: conv.ID,
+		Role:           "assistant",
+		Content:        &answer,
+		Citations: []model.AgentCitation{
+			{ContentID: 7, Title: "Cited", Zone: "original", Excerpt: "ex", ChunkKey: "k", ChunkIndex: 2, Source: "vector"},
+		},
+	})
+	db.Create(&model.AgentMessage{
+		ConversationID: conv.ID,
+		Role:           "assistant",
+		Content:        &blocked,
+		ToolCalls:      model.JSONMap{"moderation": "blocked"},
+		Citations: []model.AgentCitation{
+			{ContentID: 9, Title: "Hidden", Zone: "fanwork"},
+		},
+	})
+
+	handler := NewAgentHandler(db, &config.Config{Agent: config.AgentConfig{WebAgentEnabled: true, ConversationPageSize: 10}}, nil)
+	router := gin.New()
+	router.GET("/agent/conversations/:id", func(c *gin.Context) {
+		c.Set(middleware.UserIDKey, int64(1))
+		handler.GetConversationMessages(c)
+	})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/agent/conversations/1", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var payload struct {
+		Messages []struct {
+			Role        string               `json:"role"`
+			Content     *string              `json:"content"`
+			Moderation  string               `json:"moderation"`
+			Citations   []model.AgentCitation `json:"citations"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(payload.Messages) != 3 {
+		t.Fatalf("messages = %d, want 3", len(payload.Messages))
+	}
+	if got := payload.Messages[1].Citations; len(got) != 1 || got[0].ContentID != 7 || got[0].Title != "Cited" || got[0].ChunkKey != "k" {
+		t.Fatalf("answer citations = %#v, want the persisted full-form citation", got)
+	}
+	if payload.Messages[2].Moderation != "blocked" || payload.Messages[2].Content != nil || len(payload.Messages[2].Citations) != 0 {
+		t.Fatalf("blocked row must drop content and citations: %#v", payload.Messages[2])
+	}
+}
+
+func ptr(s string) *string { return &s }

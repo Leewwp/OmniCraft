@@ -730,7 +730,7 @@ test("workspace streams an answer and renders citation cards", async () => {
         conversation: conversation(7, now.toISOString()),
         messages: [
           { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
-          { id: 2, conversation_id: 7, role: "assistant", content: "hello world" },
+          { id: 2, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
         ],
       },
     },
@@ -806,7 +806,7 @@ test("clicking a citation opens the shared ContentDetailOverlay with agent sourc
         conversation: conversation(7, now.toISOString()),
         messages: [
           { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
-          { id: 2, conversation_id: 7, role: "assistant", content: "hello world" },
+          { id: 2, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
         ],
       },
     },
@@ -867,6 +867,7 @@ test("citation cards persist under their own answer after a follow-up turn", asy
     },
   ]);
   const originalFetch = globalThis.fetch;
+  /* N4 契约：历史 mock 的答案行携带落库引用（服务端读路径直出）。 */
   installApiMock([
     { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [conversation(7, now.toISOString())] } },
     {
@@ -874,8 +875,13 @@ test("citation cards persist under their own answer after a follow-up turn", asy
       response: {
         conversation: conversation(7, now.toISOString()),
         messages: [
-          { id: 1, conversation_id: 7, role: "user", content: "first question" },
-          { id: 2, conversation_id: 7, role: "assistant", content: "first answer" },
+          /* id 用 101+ 段：避免与直播消息的本地计数器 id（1,2,…）撞 React key。 */
+          { id: 101, conversation_id: 7, role: "user", content: "first question" },
+          { id: 102, conversation_id: 7, role: "assistant", content: "first answer",
+            citations: [{ content_id: 3, title: "Cited content", zone: "original" }] },
+          { id: 103, conversation_id: 7, role: "user", content: "second question" },
+          { id: 104, conversation_id: 7, role: "assistant", content: "second answer",
+            citations: [{ content_id: 4, title: "Second reference", zone: "fanwork" }] },
         ],
       },
     },
@@ -901,9 +907,9 @@ test("citation cards persist under their own answer after a follow-up turn", asy
     fireEvent.submit(composer.closest("form")!);
     await waitFor(() => assert.ok(view.getByText("second answer")), { timeout: 3000 });
 
-    /* 第二轮完成后，第一轮的引用卡片必须仍在（随消息持久化），第二轮的新卡片同屏。 */
-    assert.ok(view.getByRole("button", { name: /Cited content/ }), "turn-one citation card persists");
-    assert.ok(view.getByRole("button", { name: /Second reference/ }), "turn-two citation card renders");
+    /* 第二轮完成后，第一轮的引用卡片必须仍在（历史端点回放落库引用），第二轮的新卡片同屏。 */
+    assert.ok(view.getAllByRole("button", { name: /Cited content/ }).length >= 1, "turn-one citation card persists");
+    assert.ok(view.getAllByRole("button", { name: /Second reference/ }).length >= 1, "turn-two citation card renders");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -934,7 +940,9 @@ test("clicking an inline citation badge opens the shared overlay directly", asyn
         conversation: conversation(7, now.toISOString()),
         messages: [
           { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
-          { id: 2, conversation_id: 7, role: "assistant", content: "see this [1] please" },
+          { id: 2, conversation_id: 7, role: "assistant", content: "see this [1] please",
+            /* N4：历史回放有效落库引用——角标点击直开浮窗。 */
+            citations: [{ content_id: 3, title: "Cited content", zone: "original" }] },
         ],
       },
     },
@@ -1191,7 +1199,7 @@ test("empty state suggestions send the suggested question directly", async () =>
       response: {
         messages: [
           { id: 1, conversation_id: 7, role: "user", content: "Find beginner-friendly furniture mods" },
-          { id: 2, conversation_id: 7, role: "assistant", content: "hello world" },
+          { id: 2, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
         ],
       },
     },
@@ -1536,7 +1544,9 @@ test("malformed citation objects are never clickable", async () => {
         conversation: conversation(11, now.toISOString()),
         messages: [
           { id: 1, conversation_id: 11, role: "user", content: "Find beginner-friendly furniture mods" },
-          { id: 2, conversation_id: 11, role: "assistant", content: "answer text" },
+          { id: 2, conversation_id: 11, role: "assistant", content: "answer text",
+            /* N4：历史同样回放畸形引用载荷——normalizer 过滤后不得可点。 */
+            citations: [{ content_id: 0, title: "", zone: "nonsense" }] },
         ],
       },
     },
@@ -1645,7 +1655,7 @@ test("closing the citation overlay restores citation focus and the transcript sc
         conversation: conversation(7, now.toISOString()),
         messages: [
           { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
-          { id: 2, conversation_id: 7, role: "assistant", content: "hello world" },
+          { id: 2, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
         ],
       },
     },
