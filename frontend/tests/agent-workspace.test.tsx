@@ -953,12 +953,27 @@ test("clicking an inline citation badge opens the shared overlay directly", asyn
     fireEvent.submit(composer.closest("form")!);
     await waitFor(() => assert.ok(view.getByText(/see this/)), { timeout: 3000 });
 
-    const badge = await waitFor(() => view.getByRole("button", { name: "Jump to citation 1" }));
-    fireEvent.click(badge);
-    const dialog = await waitFor(() => view.getByRole("dialog"));
-    assert.ok(
-      within(dialog).getAllByRole("heading", { name: "Cited content" }).length >= 1,
-      "inline badge click must open the content overlay directly",
+    /* 等引用卡片出现 = done 事件已结算（角标按钮只在 done 后可点）。此后 done 触发的
+       会话历史回放仍可能把整棵消息树原子替换，点击落在 detached 节点上即静默失效
+       （CI 闪断形态，同 copy 点击反模式）：轮询补点兜底，点击前重查新鲜节点。 */
+    await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })), { timeout: 3000 });
+    let dialog: HTMLElement | undefined;
+    for (let attempt = 0; attempt < 5 && !dialog; attempt += 1) {
+      try {
+        fireEvent.click(view.getByRole("button", { name: "Jump to citation 1" }));
+      } catch {
+        /* 消息树替换的过渡帧：角标暂不可查，下一轮重查再点。 */
+      }
+      dialog = await waitFor(() => view.getByRole("dialog"), { timeout: 600 }).catch(() => undefined);
+    }
+    assert.ok(dialog, "inline badge click must open the content overlay directly");
+    await waitFor(
+      () =>
+        assert.ok(
+          within(dialog).getAllByRole("heading", { name: "Cited content" }).length >= 1,
+          "opened overlay must render the cited content heading",
+        ),
+      { timeout: 2000 },
     );
   } finally {
     globalThis.fetch = originalFetch;
