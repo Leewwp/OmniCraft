@@ -387,6 +387,11 @@
     "backToZonePage": "Back to content page",
     "backToIpPage": "Back to IP detail",
     "backToAgent": "Back to conversation",
+    "backToTarget": "Back to: {target}",
+    "sourceNounRecommendation": "recommendations",
+    "sourceNounZonePage": "the content list",
+    "sourceNounIpPage": "the IP detail page",
+    "sourceNounAgent": "the AI assistant",
     "openRelated": "Open content detail: {title}",
     "notFoundTitle": "Content not found or deleted",
     "notFoundDescription": "This work may have been deleted by its author, or your account cannot view it.",
@@ -399,6 +404,16 @@
     "sourceOriginal": "Related original",
     "derivatives": "Derivative fanworks",
     "viewAll": "View all"
+  },
+  "overlayVariant": {
+    "relatedTitle": "Related content",
+    "originalBadge": "Original",
+    "seriesLabel": "Series · {title}",
+    "seriesPosition": "Part {current}/{total}",
+    "previousChapter": "Previous",
+    "nextChapter": "Next",
+    "previousChapterA11y": "Previous: {title}",
+    "nextChapterA11y": "Next: {title}"
   },
   "collections": {
     "picker": {

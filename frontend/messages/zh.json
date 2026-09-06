@@ -387,6 +387,11 @@
     "backToZonePage": "返回内容页",
     "backToIpPage": "返回 IP 详情",
     "backToAgent": "返回对话",
+    "backToTarget": "返回到：{target}",
+    "sourceNounRecommendation": "推荐流",
+    "sourceNounZonePage": "内容列表",
+    "sourceNounIpPage": "IP 详情页",
+    "sourceNounAgent": "AI 助手",
     "openRelated": "打开内容详情：{title}",
     "notFoundTitle": "内容不存在或已删除",
     "notFoundDescription": "这件作品可能已被作者删除，或当前账号没有查看权限。",
@@ -399,6 +404,16 @@
     "sourceOriginal": "关联原创",
     "derivatives": "衍生二创",
     "viewAll": "查看全部"
+  },
+  "overlayVariant": {
+    "relatedTitle": "关联内容",
+    "originalBadge": "原创",
+    "seriesLabel": "同系列 · {title}",
+    "seriesPosition": "第 {current}/{total} 篇",
+    "previousChapter": "上一章",
+    "nextChapter": "下一章",
+    "previousChapterA11y": "上一章：{title}",
+    "nextChapterA11y": "下一章：{title}"
   },
   "collections": {
     "picker": {

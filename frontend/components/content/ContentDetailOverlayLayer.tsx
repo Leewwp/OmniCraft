@@ -21,6 +21,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonDetail } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/social/FollowButton";
+import { CommentSection } from "@/components/social/CommentSection";
+import { OverlayVariantLayout } from "@/components/content/OverlayVariantLayout";
+import { OverlayRelatedBlock } from "@/components/content/OverlayRelatedBlock";
+import { isPortraitMediaSet, useOverlayMedia } from "@/lib/overlay-media";
 
 export type OverlaySource = "recommendation" | "zone-page" | "ip-page" | "agent-citation";
 
@@ -37,8 +41,10 @@ interface ContentDetailOverlayLayerProps {
   entry: OverlayEntry;
   /** 层在浮层导航栈中的下标（0 起），用于向浮层回报布局归属。 */
   layerIndex: number;
-  /** #88 布局回报：image/video 媒体集内容 = "split-media"（桌面双栏），其余 "single"。 */
-  onLayoutChange: (index: number, layout: "single" | "split-media") => void;
+  /** #88/#397 布局回报：image/video 媒体集内容 = "split-media"（桌面双栏）；
+      竖屏集新版布局（含全类型封面链、混合集）= "variant"（≥1100px，滚动归属同
+      split-media、壳层去 header）；其余 "single"。 */
+  onLayoutChange: (index: number, layout: "single" | "split-media" | "variant") => void;
   onPush: (entry: OverlayEntry, trigger: HTMLElement | null) => void;
   /** #89 连续浏览：媒体集最后一项继续上滑时请求切换到上下文列表下一篇。 */
   onSwitchNext?: (entry: OverlayEntry) => void;
@@ -106,6 +112,11 @@ export function ContentDetailOverlayLayer({
     onTitleChangeRef.current = onTitleChange;
   }, [onTitleChange]);
 
+  /* #397 全类型媒体链（真实媒体集 → 内容封面 → 自动文字封面）：cover_width/height
+     全库为 0，封面项须 Image 预加载实测 intrinsic 尺寸后再判朝向；实测完成前
+     ready=false（布局判定与入场转场等几何就绪，避免横竖误判/转场目标几何跳变）。 */
+  const { media: chainMedia, ready: chainReady } = useOverlayMedia(status === "default" ? detail : null);
+
   const onMotionReadyRef = useRef(onMotionReady);
   useEffect(() => {
     onMotionReadyRef.current = onMotionReady;
@@ -117,13 +128,16 @@ export function ContentDetailOverlayLayer({
   }, [onLayoutChange]);
 
   /* 状态离开 loading（default/forbidden/not-found/error）后触发一次入场转场；
-     错误态没有封面几何，浮层会走居中缩淡降级。 */
+     错误态没有封面几何，浮层会走居中缩淡降级。#397：default 态等媒体几何实测
+     就绪（chainReady）再触发——封面链实测期间朝向与锚点几何未定，先行起跑会在
+     版式切换瞬间产生转场目标跳变；网络悬挂由浮层 2s 保险定时器兜底。 */
+  const motionGate = status === "loading" ? false : status !== "default" ? true : chainReady;
   const motionFiredRef = useRef(false);
   useEffect(() => {
-    if (status === "loading" || motionFiredRef.current) return;
+    if (!motionGate || motionFiredRef.current) return;
     motionFiredRef.current = true;
     onMotionReadyRef.current?.();
-  }, [status]);
+  }, [motionGate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -179,8 +193,10 @@ export function ContentDetailOverlayLayer({
     };
   }, [entry.contentId, attempt]);
 
-  /* #88 布局回报：数据落定后按内容类型与媒体集是否非空决定双栏归属。
-     浮层据此切换唯一滚动容器（overlay-scroller ↔ 层内 layer-scroller）。 */
+  /* #88/#397 布局回报：数据落定后按内容类型、媒体集与朝向判定布局归属。
+     浮层据此切换唯一滚动容器（overlay-scroller ↔ 层内 layer-scroller）；
+     variant 生效条件 = ≥1100px + 媒体链几何就绪 + 任一素材 w/h < 16/9（混合集
+     一律新版；全部 ≥16:9 保留现设计；全部缺几何不判竖）。 */
   useEffect(() => {
     if (status !== "default" || !detail?.content) return;
     const { media: mediaItems } = selectMediaItems(
@@ -188,12 +204,17 @@ export function ContentDetailOverlayLayer({
       detail.content.content_type,
       detail.content.content_type === "video" ? detail.content.cover_image_url : undefined,
     );
-    const isSplit =
+    const legacySplit =
       (detail.content.content_type === "image" || detail.content.content_type === "video") &&
       mediaItems.length > 0;
-    onLayoutChangeRef.current?.(layerIndex, isSplit ? "split-media" : "single");
+    const variantActive =
+      chainReady && chainMedia.length > 0 && isPortraitMediaSet(chainMedia) && isDesktop;
+    onLayoutChangeRef.current?.(
+      layerIndex,
+      variantActive ? "variant" : legacySplit ? "split-media" : "single",
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, detail, layerIndex]);
+  }, [status, detail, layerIndex, chainMedia, chainReady, isDesktop]);
 
   /* #89 连续浏览：媒体集最后一项继续上滑 → 切换上下文列表下一篇（仅移动端）；
      上下文列表到底时不再切换，显示「已经到底」提示。浮层内关联内容等无
@@ -372,6 +393,46 @@ export function ContentDetailOverlayLayer({
       }
     />
   );
+
+  /* #397 竖屏集新版布局（胜者记录 §7 = A 基底 + C 逐张自适应 + 方案二 float 壳层）：
+     生效条件 = ≥1100px + 媒体链几何就绪 + 任一素材竖图（含全类型封面链兜底）。
+     右栏 = ContentDetail（mediaSlot="variant" 隐藏行内媒体）+ 关联内容块（布局
+     钉死）+ 评论区末块；关注按钮随作者行渲染（creator 侧栏不进右栏）。 */
+  if (chainReady && chainMedia.length > 0 && isPortraitMediaSet(chainMedia) && isDesktop) {
+    return (
+      <OverlayVariantLayout
+        media={chainMedia}
+        onFirstMediaSettled={(state) => setCoverReady(state === "ready")}
+      >
+        <ContentDetail
+          data={{ ...content, attachments: detail.attachments, tags: detail.tags }}
+          coverSync
+          mediaSlot="variant"
+          coverReady={coverReady}
+          sourceOriginal={isFanwork ? detail.sourceOriginal : undefined}
+          sourceFanwork={isFanwork ? detail.sourceFanwork : undefined}
+          authorAction={
+            content.author?.id ? <FollowButton targetType="user" targetId={content.author.id} /> : undefined
+          }
+          variantTail={
+            <>
+              <OverlayRelatedBlock
+                sourceOriginal={isFanwork ? detail.sourceOriginal ?? null : null}
+                series={content.series_memberships ?? []}
+                related={relatedEntries}
+                relatedLabelKey={relatedLabelKey}
+                onOpenRelated={handleOpenEntry}
+                onNavigateSeries={handleNavigateInOverlay}
+              />
+              <section className="rounded-md border border-border bg-card p-4">
+                <CommentSection contentId={content.id} />
+              </section>
+            </>
+          }
+        />
+      </OverlayVariantLayout>
+    );
+  }
 
   if (isSplitMedia) {
     return (
