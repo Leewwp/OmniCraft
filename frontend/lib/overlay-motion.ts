@@ -120,6 +120,41 @@ export function viewTransitionAvailable(): boolean {
   );
 }
 
+/* ── C1/C4 图源统一与真就绪（#398 动效契约）──────────────────────────────
+   转场两端同一源图：卡片封面与浮窗封面都走 next/image 优化器（不再用 MB 级
+   原图 <img>），点击卡片瞬间预取浮窗显示宽度的变体并 decode——浮窗封面挂载
+   时大概率已解码，150ms 就绪门退化为极端网络兜底。 */
+
+/** 浮窗封面变体宽度（CSS 显示宽 ≈540-672px，@2x 设备像素 ≈1080-1344）。 */
+export const OVERLAY_COVER_VARIANT_WIDTH = 1080;
+
+/** 构造与 next/image 同优化器的变体地址；data: 占位与空值不参与（两侧同串）。 */
+export function coverVariantUrl(url: string, width = OVERLAY_COVER_VARIANT_WIDTH): string | null {
+  if (typeof window === "undefined" || !url || url.startsWith("data:")) return null;
+  return `/_next/image?url=${encodeURIComponent(url)}&w=${width}&q=75`;
+}
+
+const prefetchedCoverVariants = new Set<string>();
+
+/** 点击卡片瞬间的同源变体预取 + 解码（去重；失败静默——就绪门仍以浮窗实际
+    渲染的 <img> 解码状态为准，预取只是预热）。 */
+export function prefetchCoverVariant(url: string, width = OVERLAY_COVER_VARIANT_WIDTH): void {
+  if (typeof window === "undefined" || !url || url.startsWith("data:")) return;
+  const key = `${width}:${url}`;
+  if (prefetchedCoverVariants.has(key)) return;
+  prefetchedCoverVariants.add(key);
+  const variant = coverVariantUrl(url, width);
+  if (!variant) return;
+  const probe = new window.Image();
+  probe.decoding = "async";
+  probe.src = variant;
+  try {
+    void probe.decode?.().catch(() => {});
+  } catch {
+    /* 旧实现无 decode：仅预取加载即可 */
+  }
+}
+
 /** 双 rAF + 120ms setTimeout 双保险（原型 §4.2：避免 VT 期间 rAF 挂起）。 */
 export function nextFrame(): Promise<void> {
   return new Promise((resolve) => {

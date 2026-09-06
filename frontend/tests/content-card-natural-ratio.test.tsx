@@ -4,7 +4,7 @@ import React from "react";
 import { createRequire } from "node:module";
 import { IntlProvider } from "use-intl";
 import enMessages from "@/messages/en.json";
-import { cleanup, installDom, render } from "./runtime-test-helpers";
+import { act, cleanup, fireEvent, installDom, render } from "./runtime-test-helpers";
 import {
   normalizeContentItem,
   normalizeContentListResponse,
@@ -143,4 +143,29 @@ test("normalizeContentListResponse keeps cover size on list items", () => {
   });
   assert.equal(items[0]?.cover_width, 1600);
   assert.equal(items[0]?.cover_height, 900);
+});
+
+test("missing cover size adopts the measured intrinsic ratio after load (#398 C2)", () => {
+  const view = renderCard({ content_type: "image", cover_image_url: "/probe.png" });
+  void view;
+  const frame = coverAspectSlot();
+  assert.equal(frame.style.aspectRatio, "3 / 4", "defensive 3:4 before the cover loads");
+  const img = document.querySelector('img[alt="Ratio card"]') as HTMLImageElement;
+  Object.defineProperty(img, "naturalWidth", { value: 1600, configurable: true });
+  Object.defineProperty(img, "naturalHeight", { value: 900, configurable: true });
+  act(() => {
+    fireEvent.load(img);
+  });
+  assert.equal(frame.style.aspectRatio, "1600 / 900", "adopts the measured intrinsic ratio");
+});
+
+test("metadata cover size is never overridden by the load measurement", () => {
+  renderCard({ content_type: "image", cover_image_url: "/meta.png", cover_width: 1000, cover_height: 1000 });
+  const img = document.querySelector('img[alt="Ratio card"]') as HTMLImageElement;
+  Object.defineProperty(img, "naturalWidth", { value: 1600, configurable: true });
+  Object.defineProperty(img, "naturalHeight", { value: 900, configurable: true });
+  act(() => {
+    fireEvent.load(img);
+  });
+  assert.equal(coverAspectSlot().style.aspectRatio, "1000 / 1000", "contract metadata stays authoritative");
 });

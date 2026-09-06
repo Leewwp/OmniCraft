@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
+import Image from "next/image";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MediaViewer } from "@/components/content/MediaViewer";
@@ -71,13 +72,17 @@ interface MediaSlideProps {
   onSettle: (state: "ready" | "error") => void;
 }
 
-/** 媒体项渲染：contain 不裁切；超高图 h-auto 超出锚点盒高度 → 内部滚动。 */
+/** 媒体项渲染：contain 不裁切；超高图 h-auto 超出锚点盒高度 → 内部滚动。
+    #398 C1 图源统一：远程/本地图片走 next/image 同源变体（与卡片封面同一
+    优化器管线，转场两端不再出现「变体 vs 原图」换图感）；data: 文字封面
+    保持普通 <img>（转场两端同一 data 串，渲染天然一致）。 */
 function MediaSlide({ item, index, total, onSettle }: MediaSlideProps) {
   const t = useTranslations();
   const tall = isUltraTallItem(item);
   const settleIfFirst = (state: "ready" | "error") => {
     if (index === 0) onSettle(state);
   };
+  const alt = t("media.gallery.imageAlt", { current: index + 1, total });
 
   if (item.type === "video") {
     return (
@@ -95,17 +100,48 @@ function MediaSlide({ item, index, total, onSettle }: MediaSlideProps) {
     );
   }
 
+  if (item.url.startsWith("data:")) {
+    return (
+      <div className={cn("relative", tall ? "h-auto" : "h-full")}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={item.url}
+          alt={alt}
+          draggable={false}
+          className={cn("w-full cursor-zoom-in object-contain", tall ? "h-auto" : "h-full")}
+          onLoad={() => settleIfFirst("ready")}
+          onError={() => settleIfFirst("error")}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={cn("relative", tall ? "h-auto" : "h-full")}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={item.url}
-        alt={t("media.gallery.imageAlt", { current: index + 1, total })}
-        draggable={false}
-        className={cn("w-full cursor-zoom-in object-contain", tall ? "h-auto" : "h-full")}
-        onLoad={() => settleIfFirst("ready")}
-        onError={() => settleIfFirst("error")}
-      />
+      {tall ? (
+        <Image
+          src={item.url}
+          alt={alt}
+          width={item.width || 600}
+          height={item.height || 1400}
+          draggable={false}
+          className="h-auto w-full cursor-zoom-in object-contain"
+          sizes="(min-width: 1100px) 620px, 100vw"
+          onLoad={() => settleIfFirst("ready")}
+          onError={() => settleIfFirst("error")}
+        />
+      ) : (
+        <Image
+          src={item.url}
+          alt={alt}
+          fill
+          draggable={false}
+          className="cursor-zoom-in object-contain"
+          sizes="(min-width: 1100px) 620px, 100vw"
+          onLoad={() => settleIfFirst("ready")}
+          onError={() => settleIfFirst("error")}
+        />
+      )}
     </div>
   );
 }
@@ -271,9 +307,12 @@ export function OverlayVariantLayout({ media, onFirstMediaSettled, children }: O
         className="group/media relative h-full shrink-0 overflow-hidden bg-black"
         style={{ width: paneWidth(area, ratio, tall), transition: PANE_TRANSITION }}
       >
-        {/* 锚点盒（R3 契约）：不含翻页控件；超高图内部竖向滚动。 */}
+        {/* 锚点盒（R3 契约）：不含翻页控件；超高图内部竖向滚动。
+            data-ultra-tall：超高图当前项标记——浮层转场据此退化居中缩淡（C2，
+            卡片 400px contain 整图 vs 面板 3:4 名义宽顶部裁切，取景无法统一）。 */}
         <div
           data-slot="detail-cover"
+          data-ultra-tall={tall ? "true" : undefined}
           className="h-full w-full overflow-y-auto overflow-x-hidden"
           onClick={handleCoverClick}
         >

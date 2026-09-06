@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import Image from "next/image";
 import { ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MediaViewer } from "@/components/content/MediaViewer";
@@ -201,6 +202,9 @@ export function MediaGallery({
   return (
     <section
       data-slot="detail-cover"
+      /* #398 C2：超高图首项标记——浮层转场据此退化为居中缩淡（两端取景语义
+       （卡片 400px 上限 contain 整图 vs 画廊限高滚动顶部裁切）无法统一）。 */
+      data-ultra-tall={ultraTallContainer ? "true" : undefined}
       className={cn(
         "relative overflow-hidden rounded-lg border border-border-default bg-card",
         className,
@@ -244,17 +248,38 @@ export function MediaGallery({
                       <ImageOff className="h-8 w-8" aria-hidden="true" />
                       <span className="text-xs">{t("media.gallery.error.loadFailed")}</span>
                     </div>
-                  ) : (
-                    <img
+                  ) : tall ? (
+                    /* #398 C1 图源统一：浮窗封面与卡片封面同走 next/image 优化器
+                       （不再加载 MB 级原图），转场两端同源变体、同 object-contain。 */
+                    <Image
                       src={item.url}
                       alt={t("media.gallery.imageAlt", {
                         current: itemIndex + 1,
                         total: items.length,
                       })}
-                      className={cn(
-                        "w-full object-contain",
-                        tall ? "h-auto" : "h-full",
-                      )}
+                      width={item.width || 600}
+                      height={item.height || 1400}
+                      className="h-auto w-full object-contain"
+                      sizes="(min-width: 1100px) 672px, 100vw"
+                      onLoad={() => {
+                        setLoaded((prev) => ({ ...prev, [item.id]: true }));
+                        if (itemIndex === 0) settleFirstMedia("ready");
+                      }}
+                      onError={() => {
+                        setFailed((prev) => ({ ...prev, [item.id]: true }));
+                        if (itemIndex === 0) settleFirstMedia("error");
+                      }}
+                    />
+                  ) : (
+                    <Image
+                      src={item.url}
+                      alt={t("media.gallery.imageAlt", {
+                        current: itemIndex + 1,
+                        total: items.length,
+                      })}
+                      fill
+                      className="object-contain"
+                      sizes="(min-width: 1100px) 672px, 100vw"
                       onLoad={() => {
                         setLoaded((prev) => ({ ...prev, [item.id]: true }));
                         if (itemIndex === 0) settleFirstMedia("ready");

@@ -202,6 +202,23 @@ const LANDSCAPE_DETAIL = {
   tags: [],
 };
 
+/* 超高图单张（h/w≈2.33 → 转场退化居中缩淡，C2）。 */
+const TALL_DETAIL = {
+  content: {
+    id: 26,
+    title: "Tall Single Work",
+    zone: "original",
+    content_type: "image",
+    author: { id: 9, username: "Media Author" },
+    status: "published",
+    description: "Tall body",
+  },
+  attachments: [
+    { id: 71, content_item_id: 26, file_type: "image", oss_key: "/seed-media/real/gallery/t01.svg", width: 600, height: 1400, sort_order: 0 },
+  ],
+  tags: [],
+};
+
 /* fanwork + 关联原创 + 系列 + 衍生二创（关联内容块三行全出）。 */
 const RELATED_DETAIL = {
   content: {
@@ -236,6 +253,7 @@ const detailByPath = new Map<string, unknown>([
   ["/api/v1/contents/23", MIXED_DETAIL],
   ["/api/v1/contents/24", LANDSCAPE_DETAIL],
   ["/api/v1/contents/25", RELATED_DETAIL],
+  ["/api/v1/contents/26", TALL_DETAIL],
 ]);
 
 const originalGet = api.get;
@@ -296,6 +314,10 @@ function OverlayHarness({ entryId, zone }: { entryId: number; zone: "original" |
         }}
       >
         Open overlay
+        {/* 触发锚点结构：模拟卡片封面（VT 命名下沉 <img> 断言用）。 */}
+        <span data-slot="card-cover">
+          <img src="/seed-media/covers/trigger.svg" alt="" />
+        </span>
       </button>
       {entry && (
         <ContentDetailOverlay
@@ -453,4 +475,113 @@ test("#397 clicking the media (pane center) opens MediaViewer above the overlay"
   });
   await waitFor(() => assert.equal(document.querySelectorAll("dialog[open]").length, 2, "viewer dialog stacks on top"));
   assert.ok(document.querySelector('[data-slot="variant-media-pane"] img'), "pane media still rendered underneath");
+});
+
+/* ── #398 R3 动效契约（壳层）：motion-lock 生命周期 / VT 命名落 <img> / 超高图退化 ── */
+
+function installVtStub() {
+  const captured: Array<() => void> = [];
+  const fake = {
+    ready: Promise.resolve(),
+    finished: new Promise<void>(() => {}),
+    skipTransition: () => {},
+  };
+  (document as Document & { startViewTransition?: unknown }).startViewTransition = (callback: () => void) => {
+    captured.push(callback);
+    return fake as unknown as ViewTransition;
+  };
+  return {
+    captured,
+    available: () => typeof document.startViewTransition === "function",
+  };
+}
+
+test("#398 C3: motion lock covers the trigger card during open and clears after exit", async () => {
+  installApiMock();
+  const view = renderOverlay(<OverlayHarness entryId={21} zone="original" />, true);
+  const trigger = view.getByRole("button", { name: "Open overlay" });
+  await act(async () => {
+    fireEvent.click(trigger);
+    await Promise.resolve();
+  });
+  await waitFor(() => assert.ok(view.getByRole("dialog")));
+  await waitFor(() => assert.equal(trigger.getAttribute("data-overlay-motion-lock"), ""));
+  /* 完全退出（悬浮关闭钮 = 全退；jsdom 不派发 dialog cancel，不走 Esc）后锁解除。 */
+  await act(async () => {
+    fireEvent.click(view.getByRole("button", { name: "Close content detail" }));
+    await Promise.resolve();
+  });
+  await waitFor(() => assert.equal(trigger.getAttribute("data-overlay-motion-lock"), null), { timeout: 3000 });
+});
+
+test("#398 C1: VT naming lands on the cover <img> on both ends (not the boxes)", async () => {
+  installApiMock();
+  /* jsdom 无布局：source 测量门与锚点可见性判定都依赖 rect，给全元素桩非零
+     矩形，让路径选择走到 vt 分支。 */
+  const proto = window.HTMLElement.prototype as HTMLElement & {
+    getBoundingClientRect: () => DOMRect;
+    getClientRects: () => DOMRect[];
+  };
+  const originalGBCR = proto.getBoundingClientRect;
+  const originalGCR = proto.getClientRects;
+  const stubRect = () => ({ x: 10, y: 10, width: 120, height: 160, top: 10, left: 10, right: 130, bottom: 170, toJSON: () => ({}) }) as unknown as DOMRect;
+  proto.getBoundingClientRect = stubRect;
+  /* 真浏览器里 display:none 元素 getClientRects 为空——getTopCover 据此跳过
+     行内隐藏锚点；jsdom 无布局，用「祖先带 hidden 类」近似 display:none。 */
+  proto.getClientRects = function (this: HTMLElement) {
+    return this.closest('[class*=":hidden"], [class~="hidden"]') ? [] : [stubRect()];
+  } as unknown as typeof proto.getClientRects;
+  try {
+  const view = renderOverlay(<OverlayHarness entryId={21} zone="original" />, true);
+  const vt = installVtStub();
+  const trigger = view.getByRole("button", { name: "Open overlay" });
+  await act(async () => {
+    fireEvent.click(trigger);
+    await Promise.resolve();
+  });
+  await waitFor(() => assert.ok(view.getByRole("dialog")));
+  /* decode 门在 jsdom 走 load-event 兜底，150ms 上限后起跑 → 捕获 startViewTransition。 */
+  await waitFor(() => assert.ok(vt.captured.length >= 1, "VT open must start"), { timeout: 3000 });
+  const pane = document.querySelector('[data-slot="variant-media-pane"]');
+  const paneImg = pane?.querySelector("img") ?? null;
+  assert.ok(paneImg, "pane image must exist before VT starts");
+  const cardCover = trigger.querySelector('[data-slot="card-cover"]');
+  const cardImg = cardCover?.querySelector("img") ?? null;
+  assert.ok(cardImg);
+  assert.equal(
+    (cardImg as HTMLElement).style.getPropertyValue("view-transition-name"),
+    "content-detail-cover",
+    "card side names the img",
+  );
+  /* 执行 VT 回调：浮窗侧换名、卡片侧除名。 */
+  await act(async () => {
+    vt.captured[0]();
+    await Promise.resolve();
+  });
+  assert.equal((paneImg as HTMLElement).style.getPropertyValue("view-transition-name"), "content-detail-cover");
+  assert.equal((cardImg as HTMLElement).style.getPropertyValue("view-transition-name"), "");
+  } finally {
+    proto.getBoundingClientRect = originalGBCR;
+    proto.getClientRects = originalGCR;
+  }
+});
+
+test("#398 C2: ultra-tall first item degrades to fallback (no shared-element VT)", async () => {
+  installApiMock();
+  const view = renderOverlay(<OverlayHarness entryId={26} zone="original" />, true);
+  const vt = installVtStub();
+  const trigger = view.getByRole("button", { name: "Open overlay" });
+  await act(async () => {
+    fireEvent.click(trigger);
+    await Promise.resolve();
+  });
+  await waitFor(() => assert.ok(view.getByRole("dialog")));
+  await waitFor(() => assert.ok(document.querySelector('[data-slot="variant-media-pane"]')));
+  const anchor = document.querySelector('[data-slot="detail-cover"]');
+  assert.equal(anchor?.getAttribute("data-ultra-tall"), "true", "tall anchor tags itself");
+  /* 等过 decode 门窗口（150ms 上限）+ 余量：不应有 VT 捕获。 */
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  assert.equal(vt.captured.length, 0, "tall first item must not start a shared-element transition");
+  const paneImg = document.querySelector('[data-slot="variant-media-pane"] img') as HTMLElement | null;
+  assert.equal(paneImg?.style.getPropertyValue("view-transition-name") ?? "", "");
 });
