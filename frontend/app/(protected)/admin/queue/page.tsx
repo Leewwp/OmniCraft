@@ -13,11 +13,14 @@ interface QueueStats {
   topics: QueueTopic[];
 }
 
+// F-B001（#393）：字段契约与后端 queue.QueueStats 对齐（observability.go）——
+// 此前期望 {name,lag,failure_count} 而后端返回 {topic,pending_count,failed_total}，
+// 主题名与 key 全 undefined：表格 5 行空白 + React duplicate key 告警。
 interface QueueTopic {
-  name: string;
+  topic: string;
   depth: number;
-  lag: number;
-  failure_count: number;
+  pending_count: number;
+  failed_total: number;
 }
 
 // T28（FIX-35 / F-113）：字段契约与后端 worker.DLQEntry 对齐（dlq_worker.go）——
@@ -139,13 +142,13 @@ export default function AdminQueuePage() {
                 </thead>
                 <tbody>
                   {stats.topics.map((topic) => (
-                    <tr key={topic.name} className="border-b border-border last:border-b-0">
-                      <td className="py-2 font-mono text-xs">{topic.name}</td>
+                    <tr key={topic.topic} className="border-b border-border last:border-b-0">
+                      <td className="py-2 font-mono text-xs">{topic.topic}</td>
                       <td className="py-2 text-right">{topic.depth}</td>
-                      <td className="py-2 text-right">{topic.lag}</td>
+                      <td className="py-2 text-right">{topic.pending_count}</td>
                       <td className="py-2 text-right">
-                        {topic.failure_count > 0 ? (
-                          <span className="text-red-600 font-medium">{topic.failure_count}</span>
+                        {topic.failed_total > 0 ? (
+                          <span className="text-red-600 font-medium">{topic.failed_total}</span>
                         ) : (
                           <span className="text-muted-foreground">0</span>
                         )}
