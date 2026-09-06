@@ -1475,7 +1475,9 @@
       "count": "{count} verified references",
       "invalid": "Reference unavailable",
       "zoneOriginal": "Original",
-      "zoneFanwork": "Fanwork"
+      "zoneFanwork": "Fanwork",
+      "collapse": "Collapse citations",
+      "expand": "Show citations ({count})"
     },
     "noEvidence": {
       "title": "Not enough evidence",
