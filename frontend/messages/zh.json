@@ -1475,7 +1475,9 @@
       "count": "{count} 条已校验引用",
       "invalid": "该引用不可用",
       "zoneOriginal": "原文",
-      "zoneFanwork": "同人"
+      "zoneFanwork": "同人",
+      "collapse": "收起引用",
+      "expand": "展开引用（{count} 条）"
     },
     "noEvidence": {
       "title": "未找到足够依据",
