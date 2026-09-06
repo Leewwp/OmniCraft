@@ -585,3 +585,26 @@ test("#398 C2: ultra-tall first item degrades to fallback (no shared-element VT)
   const paneImg = document.querySelector('[data-slot="variant-media-pane"] img') as HTMLElement | null;
   assert.equal(paneImg?.style.getPropertyValue("view-transition-name") ?? "", "");
 });
+
+/* ── #400 子项 2：429 限流有自己的语义（不再误渲染为网络错误） ── */
+
+test("#400 rate-limited detail renders the retry state instead of a network error", async () => {
+  installApiMock();
+  const view = renderOverlay(<OverlayHarness entryId={21} zone="original" />, true);
+  const originalGet2 = api.get;
+  api.get = async function <T>(requestPath: string): Promise<T> {
+    if (requestPath.match(/^\/api\/v1\/contents\/\d+$/)) {
+      throw new ApiRequestError("RATE_LIMIT_EXCEEDED", "too many requests", 429);
+    }
+    return originalGet2(requestPath);
+  };
+  const trigger = view.getByRole("button", { name: "Open overlay" });
+  await act(async () => {
+    fireEvent.click(trigger);
+    await Promise.resolve();
+  });
+  await waitFor(() => assert.ok(document.body.textContent?.includes("操作太频繁了".replace("操作太频繁了", "Too many requests"))));
+  /* 不是网络错误文案。 */
+  assert.equal(document.body.textContent?.includes("failed to load"), false);
+  api.get = originalGet2;
+});

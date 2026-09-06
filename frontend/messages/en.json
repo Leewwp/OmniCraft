@@ -403,7 +403,9 @@
     "ip": "Belongs to IP",
     "sourceOriginal": "Related original",
     "derivatives": "Derivative fanworks",
-    "viewAll": "View all"
+    "viewAll": "View all",
+    "rateLimitedTitle": "Too many requests",
+    "rateLimitedDescription": "The request hit a rate limit. Wait a moment and retry; closing the detail still returns you to your previous position."
   },
   "overlayVariant": {
     "relatedTitle": "Related content",

@@ -403,7 +403,9 @@
     "ip": "所属 IP",
     "sourceOriginal": "关联原创",
     "derivatives": "衍生二创",
-    "viewAll": "查看全部"
+    "viewAll": "查看全部",
+    "rateLimitedTitle": "操作太频繁了",
+    "rateLimitedDescription": "请求触发了限流保护，稍等片刻再试即可；关闭详情后仍会回到原来的浏览位置。"
   },
   "overlayVariant": {
     "relatedTitle": "关联内容",

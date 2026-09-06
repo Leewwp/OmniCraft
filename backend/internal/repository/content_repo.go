@@ -311,7 +311,11 @@ func (r *ContentRepository) BatchIncrViewCounts(batch map[int64]int64) error {
 		return nil
 	}
 
-	caseStmt := "view_count = CASE id "
+	/* #400：CASE 表达式交给 UpdateColumn 的列赋值——表达式本身不得再带
+	   "view_count = " 前缀，否则生成 SET view_count = view_count = CASE ...
+	   （内层 = 是 boolean 比较），PostgreSQL 以 SQLSTATE 42804 拒绝
+	   （bigint 列收到 boolean）；sqlite 宽松类型不报错故线上才暴露。 */
+	caseStmt := "CASE id "
 	var ids []int64
 	for id, delta := range batch {
 		caseStmt += fmt.Sprintf("WHEN %d THEN view_count + %d ", id, delta)
