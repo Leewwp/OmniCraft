@@ -19,7 +19,7 @@ import {
   type AgentStreamTool,
 } from "@/lib/agent-stream";
 import { MarkdownRenderer } from "@/components/content/MarkdownRenderer";
-import { toAgentCitation, type AgentCitation } from "@/lib/agent";
+import { normalizeAgentCitation, toAgentCitation, type AgentCitation } from "@/lib/agent";
 import { AgentCitationList } from "@/components/agent/AgentCitationList";
 import { AgentThinkingBlock } from "@/components/agent/AgentThinkingBlock";
 import { AgentToolStatus } from "@/components/agent/AgentToolStatus";
@@ -57,6 +57,8 @@ interface AgentMessageDTO {
   content?: string | null;
   phase?: string;
   moderation?: string;
+  /** N4：历史端点随答案行回放落库引用（完整形态；畸形项由 normalizer 剔除）。 */
+  citations?: AgentStreamCitation[];
 }
 
 let nextMessageId = 1;
@@ -172,18 +174,12 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
       .get<{ messages?: AgentMessageDTO[] }>(`/api/v1/agent/conversations/${activeId}`)
       .then((data) => {
         if (cancelled) return;
-        /* 服务端 think 行接管历史回放：清掉轮内思考态，避免与流式思考块双渲染。 */
+        /* 服务端 think 行接管历史回放：清掉轮内思考态，避免与流式思考块双渲染。
+           N4 落地后引用由历史端点随答案行返回（迁移 077 落库 + 读路径直出），
+           前端会话内回填合并临时方案随之删除——历史回放的跳转入口来自服务端。 */
         setTurnThinking("");
-        /* 历史接口不返回引用，而 done 把新会话 id 写入 activeId 会触发本次
-           替换：刚完成轮挂在本地消息上的 citations 若不回填，跳转入口立即
-           消失（2026-09-06 实测修复）。按「最后一条 assistant 消息内容一致」
-           回填，内容不一致（会话切换等）不合并。用户裁决保留此临时方案：
-           摘除实测回归 6 个引用测试；正式解法 = 历史接口返回引用（N4）。 */
-        setMessages((previous) => {
-          const previousLastAnswer = [...previous]
-            .reverse()
-            .find((item) => item.role === "assistant" && item.phase !== "think" && !item.moderationBlocked);
-          const replayed: WorkspaceMessage[] = (data.messages ?? [])
+        setMessages(
+          (data.messages ?? [])
             .filter(
               (message) =>
                 message.role === "user" ||
@@ -191,39 +187,34 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                 message.moderation === "blocked" ||
                 (message.content ?? "").trim() !== "",
             )
-            .map((message) =>
-              message.moderation === "blocked"
-                ? {
-                    id: message.id,
-                    role: "assistant" as const,
-                    content: t("agent.workspace.messageHiddenByModeration"),
-                    moderationBlocked: true,
-                  }
-                : message.phase === "think"
-                  ? {
-                      id: message.id,
-                      role: "assistant" as const,
-                      content: message.content ?? "",
-                      phase: "think" as const,
-                    }
-                  : {
-                      id: message.id,
-                      role: message.role === "user" ? ("user" as const) : ("assistant" as const),
-                      content: message.content ?? "",
-                    },
-            );
-          const serverLastAnswer = [...replayed]
-            .reverse()
-            .find((item) => item.role === "assistant" && item.phase !== "think" && !item.moderationBlocked);
-          if (
-            previousLastAnswer?.citations?.length &&
-            serverLastAnswer &&
-            serverLastAnswer.content === previousLastAnswer.content
-          ) {
-            serverLastAnswer.citations = previousLastAnswer.citations;
-          }
-          return replayed;
-        });
+            .map((message): WorkspaceMessage => {
+              if (message.moderation === "blocked") {
+                return {
+                  id: message.id,
+                  role: "assistant",
+                  content: t("agent.workspace.messageHiddenByModeration"),
+                  moderationBlocked: true,
+                };
+              }
+              if (message.phase === "think") {
+                return {
+                  id: message.id,
+                  role: "assistant",
+                  content: message.content ?? "",
+                  phase: "think",
+                };
+              }
+              const validCitations = (message.citations ?? []).filter(
+                (citation): citation is AgentStreamCitation => normalizeAgentCitation(citation) !== null,
+              );
+              return {
+                id: message.id,
+                role: message.role === "user" ? "user" : "assistant",
+                content: message.content ?? "",
+                ...(validCitations.length > 0 ? { citations: validCitations } : {}),
+              };
+            }),
+        );
       })
       .catch((error) => {
         if (!cancelled) {

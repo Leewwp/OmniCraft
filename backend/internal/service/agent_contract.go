@@ -1,6 +1,10 @@
 package service
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"omnicraft/backend/internal/model"
+)
 
 // AgentAnswerKind is a server-owned enum that determines whether an answer
 // must carry citations. The model never chooses citation requirements; the
@@ -120,4 +124,29 @@ type AgentAnswer struct {
 type AgentErrorDTO struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+}
+
+// citationsToModel maps the stream citation contract onto the persistence
+// shape (N4): storage keeps the complete 9-field form including RAG
+// provenance; the stream-side legacy-minimal MarshalJSON stays a wire
+// concern only.
+func citationsToModel(citations []AgentCitation) []model.AgentCitation {
+	if len(citations) == 0 {
+		return nil
+	}
+	out := make([]model.AgentCitation, len(citations))
+	for i := range citations {
+		out[i] = model.AgentCitation{
+			ContentID:      citations[i].ContentID,
+			ContentVersion: citations[i].ContentVersion,
+			ChunkKey:       citations[i].ChunkKey,
+			ChunkIndex:     citations[i].ChunkIndex,
+			Title:          citations[i].Title,
+			Zone:           citations[i].Zone,
+			Route:          citations[i].Route,
+			Excerpt:        citations[i].Excerpt,
+			Source:         citations[i].Source,
+		}
+	}
+	return out
 }
