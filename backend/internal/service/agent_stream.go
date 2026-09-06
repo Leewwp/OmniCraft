@@ -469,7 +469,10 @@ loop:
 			ConversationID: conv.ID,
 			Role:           "assistant",
 			Content:        &answer,
-			CreatedAt:      time.Now(),
+			// N4：引用随答案行落库（完整 9 字段形态，含 RAG 溯源），历史端点
+			// 直接回放跳转入口；think 行不落引用。
+			Citations: citationsToModel(citations),
+			CreatedAt: time.Now(),
 		}
 		if err := s.db.WithContext(storeCtx).Create(&answerRow).Error; err != nil {
 			cancel()
