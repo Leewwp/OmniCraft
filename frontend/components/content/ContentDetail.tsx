@@ -54,9 +54,11 @@ interface ContentDetailProps {
   /** 浮层封面同步（#64 决策 11）：开启后正文在封面加载落定前保持布局不可见。 */
   coverSync?: boolean;
   /** #88 桌面双栏：媒体区由浮层层（Overlay Layer）在左栏另行渲染（≥1100px），
-       行内媒体区仅保留给 <1100px 单列视图（min-[1100px]:hidden）。 */
-  mediaSlot?: "inline" | "split";
-  /** #88 双栏模式下行外媒体区（左栏 MediaGallery）的首项加载落定信号。 */
+       行内媒体区仅保留给 <1100px 单列视图（min-[1100px]:hidden）。
+       #397 "variant" = 竖屏集新版布局（左媒体列由 OverlayVariantLayout 承担），
+       行内媒体区隐藏语义同 "split"。 */
+  mediaSlot?: "inline" | "split" | "variant";
+  /** #88/#397 行外媒体区（左栏媒体列）的首项加载落定信号。 */
   coverReady?: boolean;
   /** #89 连续浏览：移动端行内媒体集最后一项继续上滑时触发（上层切篇）。 */
   onGalleryReachEnd?: () => void;
@@ -73,6 +75,11 @@ interface ContentDetailProps {
   relatedFanworksSummary?: Array<{ id: number; title: string; zone: "original" | "fanwork" }>;
   /** #69 浮层内系列导航：章节切换/目录选择压入浮层导航栈（不整页跳转）；独立详情页不传。 */
   onNavigateInOverlay?: (contentId: number, trigger?: HTMLElement | null) => void;
+  /** #397 竖屏集新版布局：作者元信息行右缘的扩展动作（如关注按钮）。 */
+  authorAction?: React.ReactNode;
+  /** #397 竖屏集新版布局：替换默认尾部（系列导航/相关行/评论/相关内容）。
+      胜者记录 §7 布局钉死 = 内容详情 → 关联内容块 → 评论区（右栏末块）。 */
+  variantTail?: React.ReactNode;
 }
 
 function getTypeLabel(t: (key: string) => string, contentType: string): string {
@@ -168,6 +175,8 @@ export function ContentDetail({
   onOpenRelatedDetail,
   relatedFanworksSummary,
   onNavigateInOverlay,
+  authorAction,
+  variantTail,
 }: ContentDetailProps) {
   const t = useTranslations();
   const locale = useLocale();
@@ -211,7 +220,7 @@ export function ContentDetail({
      落定事件；正文 reveal 改由左栏行外媒体区的 coverReady 信号驱动（任一路径落定即显示，
      错误态同 reveal，与 ui-spec:2411 稳定占位符语义一致）。 */
   const settled =
-    coverState !== "loading" || (mediaSlot === "split" && coverReady !== undefined);
+    coverState !== "loading" || (mediaSlot !== "inline" && coverReady !== undefined);
   const bodyVisible = !coverSync || settled;
 
   async function handleTagSuggestion(tag: string, action: "add" | "remove") {
@@ -265,6 +274,7 @@ export function ContentDetail({
               })}
             </span>
           )}
+          {authorAction && <span className="ml-auto">{authorAction}</span>}
         </div>
 
         {/* 来源归因（ui-spec:2635）：标题/作者元信息之后、正文之前；仅 fanwork 且存在内容级来源时渲染。 */}
@@ -284,7 +294,7 @@ export function ContentDetail({
           carries data-slot="detail-cover" so the overlay FLIP/cover-sync
           contract keeps working on the shared surface. #88 双栏模式下该行内
           媒体区在 ≥1100px 隐藏（由 Overlay 层的左栏媒体列承担）。 */}
-      <div className={cn(mediaSlot === "split" && "min-[1100px]:hidden")}>
+      <div className={cn(mediaSlot !== "inline" && "min-[1100px]:hidden")}>
         {usesGallery ? (
           <MediaGallery
             items={mediaItems}
@@ -486,6 +496,10 @@ export function ContentDetail({
         initialDislikes={data.dislike_count ?? 0}
       />
 
+      {/* #397 竖屏集新版布局：variantTail 替换默认尾部（关联内容块 + 评论区末块，
+          胜者记录 §7 布局钉死）。 */}
+      {variantTail ?? (
+      <>
       {data.series_memberships && data.series_memberships.length > 0 && (
         <SeriesNav memberships={data.series_memberships} onNavigateInOverlay={onNavigateInOverlay} />
       )}
@@ -516,6 +530,8 @@ export function ContentDetail({
         }
         onOpenDetail={onOpenRelatedDetail}
       />
+      </>
+      )}
       </div>
     </div>
   );

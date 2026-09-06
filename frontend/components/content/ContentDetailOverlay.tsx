@@ -37,8 +37,9 @@ const SHELL_FEEDBACK_MS = 160;
 const COVER_READY_CAP_MS = 150;
 
 /** 层布局：single = 单列（overlay-scroller 滚动）；split-media = 桌面双栏
-    （≥1100px 时唯一滚动容器为层内 layer-scroller）。 */
-type LayerLayout = "single" | "split-media";
+    （≥1100px 时唯一滚动容器为层内 layer-scroller）；variant = #397 竖屏集新版
+    布局（滚动归属同 split-media；壳层去 header，返回/关闭改悬浮半透明圆钮）。 */
+type LayerLayout = "single" | "split-media" | "variant";
 
 /** #88 桌面双栏视口判定：与 ui-spec 全局三档（PC > 1100px）一致。 */
 function isSplitViewport(): boolean {
@@ -129,12 +130,13 @@ export function ContentDetailOverlay({
     setLayerLayouts((prev) => (prev[index] === layout ? prev : { ...prev, [index]: layout }));
   }, []);
 
-  /* 当前唯一滚动容器：#88 桌面双栏（split-media 且 ≥1100px）时取顶层可见层的
-     layer-scroller（跳过 display:none 的底层），否则回到 overlay-scroller。 */
+  /* 当前唯一滚动容器：#88 桌面双栏（split-media/variant 且 ≥1100px）时取顶层
+     可见层的 layer-scroller（跳过 display:none 的底层），否则回到 overlay-scroller。 */
   const resolveActiveScroller = useCallback((): HTMLElement | null => {
     const scroller = scrollerRef.current;
     if (!scroller) return null;
-    if (layerLayoutsRef.current[stackRef.current.length - 1] !== "split-media" || !isSplitViewport()) {
+    const mode = layerLayoutsRef.current[stackRef.current.length - 1];
+    if ((mode !== "split-media" && mode !== "variant") || !isSplitViewport()) {
       return scroller;
     }
     const candidates = scroller.querySelectorAll<HTMLElement>('[data-slot="layer-scroller"]');
@@ -683,6 +685,10 @@ export function ContentDetailOverlay({
   const top = depth > 0 ? stack[depth - 1] : null;
   const previous = depth > 1 ? stack[depth - 2] : null;
   const topLayout: LayerLayout = (layerLayouts[depth - 1] ?? "single") as LayerLayout;
+  /* #397 方案二 float 壳层：顶层为 variant 时整个移除 header（grid 单行），
+     返回/关闭改悬浮半透明圆钮；sr-only 标题保留（无障碍名称/初始焦点/多层栈
+     返回文案三职迁移不可遗漏）。 */
+  const topIsVariant = topLayout === "variant";
 
   function sourceReturnLabel(entrySource: OverlaySource): string {
     switch (entrySource) {
@@ -697,6 +703,19 @@ export function ContentDetailOverlay({
     }
   }
 
+  function sourceNounLabel(entrySource: OverlaySource): string {
+    switch (entrySource) {
+      case "agent-citation":
+        return t("contentDetailOverlay.sourceNounAgent");
+      case "recommendation":
+        return t("contentDetailOverlay.sourceNounRecommendation");
+      case "ip-page":
+        return t("contentDetailOverlay.sourceNounIpPage");
+      default:
+        return t("contentDetailOverlay.sourceNounZonePage");
+    }
+  }
+
   const returnLabel = previous
     ? previous.title
       ? t("contentDetailOverlay.returnTo", { title: previous.title })
@@ -704,6 +723,14 @@ export function ContentDetailOverlay({
     : top
       ? sourceReturnLabel(top.entry.source)
       : "";
+
+  /* 悬浮返回钮文案（#397 用户裁决格式「返回到：XXX」）：多层栈 = 上一层标题；
+     栈底 = 来源入口名词（推荐流/内容列表/IP 详情页/AI 助手）。 */
+  const backTooltip = t("contentDetailOverlay.backToTarget", {
+    target: previous?.title
+      ? previous.title
+      : sourceNounLabel((previous ?? top)?.entry.source ?? "zone-page"),
+  });
 
   const topTitle = top?.title ?? "";
 
@@ -729,47 +756,90 @@ export function ContentDetailOverlay({
       <div
         ref={shellRef}
         className={cn(
-          "grid h-full w-full grid-rows-[auto_minmax(0,1fr)] bg-card",
+          "relative grid h-full w-full bg-card",
+          topIsVariant ? "grid-rows-[minmax(0,1fr)]" : "grid-rows-[auto_minmax(0,1fr)]",
           closing && "pointer-events-none",
         )}
       >
-        <header className="flex items-center gap-2 border-b border-border bg-card px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] lg:px-4 lg:pb-2.5">
-          <button
-            type="button"
-            onClick={handleBack}
-            aria-label={returnLabel}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          </button>
-          <div className="min-w-0 flex-1">
+        {/* #397 方案二 float：variant 顶层整个不渲染 header，返回/关闭由壳层悬浮
+            圆钮承担（返回钮 hover 显示「返回到：XXX」）；sr-only 标题保留 dialog
+            无障碍名称（aria-labelledby）、初始焦点锚点与多层栈返回文案三职。 */}
+        {!topIsVariant && (
+          <header className="flex items-center gap-2 border-b border-border bg-card px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] lg:px-4 lg:pb-2.5">
+            <button
+              type="button"
+              onClick={handleBack}
+              aria-label={returnLabel}
+              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <div className="min-w-0 flex-1">
+              <h2
+                id={titleId}
+                ref={titleRef}
+                tabIndex={-1}
+                className="truncate text-base font-semibold text-foreground focus:outline-none"
+              >
+                {topTitle || t("contentDetailOverlay.title")}
+              </h2>
+              <p className="truncate text-xs text-muted-foreground">{returnLabel}</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleExit}
+              aria-label={t("contentDetailOverlay.close")}
+              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </header>
+        )}
+        {topIsVariant && (
+          <>
             <h2
               id={titleId}
               ref={titleRef}
               tabIndex={-1}
-              className="truncate text-base font-semibold text-foreground focus:outline-none"
+              className="sr-only focus:outline-none"
             >
               {topTitle || t("contentDetailOverlay.title")}
             </h2>
-            <p className="truncate text-xs text-muted-foreground">{returnLabel}</p>
-          </div>
-          <button
-            type="button"
-            onClick={handleExit}
-            aria-label={t("contentDetailOverlay.close")}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </header>
+            <div className="group/back absolute left-3 top-3 z-20">
+              <button
+                type="button"
+                onClick={handleBack}
+                aria-label={backTooltip}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur transition-colors hover:bg-black/50 focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+              </button>
+              <span
+                role="tooltip"
+                className="pointer-events-none absolute left-12 top-1/2 z-30 -translate-y-1/2 whitespace-nowrap rounded-md bg-black/70 px-2.5 py-1 text-xs text-white opacity-0 backdrop-blur transition-opacity duration-150 group-hover/back:opacity-100"
+              >
+                {backTooltip}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleExit}
+              aria-label={t("contentDetailOverlay.close")}
+              title={t("contentDetailOverlay.close")}
+              className="absolute right-4 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur transition-colors hover:bg-black/45 focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </>
+        )}
 
         <div
           ref={scrollerRef}
           data-slot="overlay-scroller"
           className={cn(
             "min-h-0 overflow-y-auto overscroll-contain px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 lg:px-6",
-            /* #88 桌面双栏：顶层为 split-media 时滚动改由层内信息列承担。 */
-            topLayout === "split-media" &&
+            /* #88/#397 桌面双栏与竖屏集新版布局：滚动改由层内信息列承担。 */
+            (topLayout === "split-media" || topLayout === "variant") &&
               "min-[1100px]:h-full min-[1100px]:overflow-hidden",
           )}
         >
