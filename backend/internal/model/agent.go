@@ -19,7 +19,26 @@ type AgentMessage struct {
 	Role           string    `gorm:"size:20;not null" json:"role"`
 	Content        *string   `json:"content,omitempty"`
 	ToolCalls      JSONMap   `gorm:"type:jsonb" json:"tool_calls,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
+	// N4: the done event's validated citations persist on the answer row so
+	// the history endpoint can replay jump entries for past turns. Nullable
+	// jsonb — legacy rows (and think rows) keep NULL = "no citations".
+	Citations []AgentCitation `gorm:"serializer:json;type:jsonb;column:citations" json:"citations,omitempty"`
+	CreatedAt time.Time       `json:"created_at"`
+}
+
+// AgentCitation is the server-owned citation contract shared by the stream
+// done event and the persisted/history projections (moved to the model layer
+// for N4 persistence; the service aliases it as its canonical name).
+type AgentCitation struct {
+	ContentID      int64  `json:"content_id"`
+	ContentVersion int    `json:"content_version"`
+	ChunkKey       string `json:"chunk_key"`
+	ChunkIndex     int    `json:"chunk_index"`
+	Title          string `json:"title"`
+	Zone           string `json:"zone"`
+	Route          string `json:"route"`
+	Excerpt        string `json:"excerpt"`
+	Source         string `json:"source"`
 }
 
 // AgentChatSurface is a server-owned enum describing where a chat request was

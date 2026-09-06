@@ -486,27 +486,33 @@ func (h *AgentHandler) GetConversationMessages(c *gin.Context) {
 // moderation marker exposed so clients render a placeholder instead of the
 // stored text. Think rows surface their phase marker for replay clients.
 type agentConversationMessageDTO struct {
-	ID         int64     `json:"id"`
-	Role       string    `json:"role"`
-	Content    *string   `json:"content,omitempty"`
-	Phase      string    `json:"phase,omitempty"`
-	Moderation string    `json:"moderation,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID      int64                `json:"id"`
+	Role    string               `json:"role"`
+	Content *string              `json:"content,omitempty"`
+	// N4：答案行落库的引用随历史回放（完整形态；前端 toAgentCitation 兼容）。
+	Citations  []model.AgentCitation `json:"citations,omitempty"`
+	Phase      string                `json:"phase,omitempty"`
+	Moderation string                `json:"moderation,omitempty"`
+	CreatedAt  time.Time             `json:"created_at"`
 }
 
 func agentMessageHistoryDTO(m model.AgentMessage) agentConversationMessageDTO {
 	dto := agentConversationMessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, CreatedAt: m.CreatedAt}
 	if m.ToolCalls == nil {
+		dto.Citations = m.Citations
 		return dto
 	}
+	dto.Citations = m.Citations
 	if phase, _ := m.ToolCalls["phase"].(string); phase != "" {
 		dto.Phase = phase
 	}
 	if moderation, _ := m.ToolCalls["moderation"].(string); moderation == "blocked" {
 		dto.Moderation = "blocked"
 		// Redacted in the API projection only; the raw answer stays stored
-		// for audit and admin review.
+		// for audit and admin review. Citations drop with the redacted text
+		// (they only ever referenced the hidden answer).
 		dto.Content = nil
+		dto.Citations = nil
 	}
 	return dto
 }

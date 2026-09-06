@@ -44,6 +44,7 @@
 | `content` | `TEXT` | - | content |
 | `tool_calls` | `JSONB` | - | tool_calls |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `citations` | `JSONB` | - | citations |
 
 ### ai_review_records
 
