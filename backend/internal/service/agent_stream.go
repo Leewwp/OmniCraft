@@ -422,6 +422,9 @@ loop:
 	citations := s.revalidateCitations(ctx, userID, citationCandidates, traceID)
 	kind := ClassifyGroundedAnswer(citations)
 	answer := answerBuf.String()
+	// 引用上限之外的 [n] 标注是死引用（前端渲染为不可点角标）：终稿与落库前
+	// 统一剥离，SSE delta 阶段已流出的角标由 done 终稿替换回收。
+	answer = stripOrphanCitationMarkers(answer, len(citations))
 	for i := range citations {
 		if err := handler(AgentStreamEvent{Type: AgentEventCitation, Citation: &citations[i]}); err != nil {
 			s.persistPartialTurn(conv.ID, answerBuf.String())
@@ -621,4 +624,50 @@ func emitAgentStreamError(handler func(ev AgentStreamEvent) error, code string, 
 		return errors.Join(cause, err)
 	}
 	return cause
+}
+
+// stripOrphanCitationMarkers removes plain [n] citation markers that no longer
+// resolve to a kept citation (n 超出保留引用数或非法)。模型自然产出的标注量
+// 常超过 citation_max_count，残留的角标在前端渲染为不可点死引用；终稿与落库
+// 前统一剥离。Markdown 链接形如 [1](url) 的数字文本不受影响。
+func stripOrphanCitationMarkers(answer string, kept int) string {
+	if kept <= 0 {
+		return answer
+	}
+	var b strings.Builder
+	b.Grow(len(answer))
+	for i := 0; i < len(answer); {
+		if answer[i] == '[' {
+			if end := strings.IndexByte(answer[i+1:], ']'); end > 0 {
+				inner := answer[i+1 : i+1+end]
+				if n, ok := parseCitationMarker(inner); ok {
+					next := i + end + 2
+					followedByParen := next < len(answer) && answer[next] == '('
+					if !followedByParen && (n > kept || n <= 0) {
+						i = next
+						continue
+					}
+				}
+			}
+		}
+		b.WriteByte(answer[i])
+		i++
+	}
+	return b.String()
+}
+
+// parseCitationMarker accepts short pure-digit marker bodies only ("12", not
+// "1,2" or long digit runs that are unlikely citation marks).
+func parseCitationMarker(inner string) (int, bool) {
+	if len(inner) == 0 || len(inner) > 3 {
+		return 0, false
+	}
+	n := 0
+	for k := 0; k < len(inner); k++ {
+		if inner[k] < '0' || inner[k] > '9' {
+			return 0, false
+		}
+		n = n*10 + int(inner[k]-'0')
+	}
+	return n, true
 }

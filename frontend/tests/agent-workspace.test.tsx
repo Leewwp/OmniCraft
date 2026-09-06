@@ -835,6 +835,136 @@ test("clicking a citation opens the shared ContentDetailOverlay with agent sourc
   );
 });
 
+/* ---------- AgentWorkspace：引用随消息持久化与行内角标直开浮窗（2026-09-06 实测修复） ---------- */
+
+test("citation cards persist under their own answer after a follow-up turn", async () => {
+  installDom();
+  const now = new Date();
+  const turnOne = sseResponse([
+    { type: "start", trace_id: "t1", conversation_id: 7, answer_kind: "grounded_content" },
+    { type: "delta", delta: "first answer" },
+    {
+      type: "done",
+      conversation_id: 7,
+      answer_kind: "grounded_content",
+      answer: "first answer",
+      citations: [{ content_id: 3, title: "Cited content", zone: "original" }],
+      tools: [],
+      degraded: false,
+    },
+  ]);
+  const turnTwo = sseResponse([
+    { type: "start", trace_id: "t2", conversation_id: 7, answer_kind: "grounded_content" },
+    { type: "delta", delta: "second answer" },
+    {
+      type: "done",
+      conversation_id: 7,
+      answer_kind: "grounded_content",
+      answer: "second answer",
+      citations: [{ content_id: 4, title: "Second reference", zone: "fanwork" }],
+      tools: [],
+      degraded: false,
+    },
+  ]);
+  const originalFetch = globalThis.fetch;
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [conversation(7, now.toISOString())] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: conversation(7, now.toISOString()),
+        messages: [
+          { id: 1, conversation_id: 7, role: "user", content: "first question" },
+          { id: 2, conversation_id: 7, role: "assistant", content: "first answer" },
+        ],
+      },
+    },
+  ]);
+  const apiMockedFetch = globalThis.fetch;
+  let streamCalls = 0;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes("/api/v1/agent/chat/stream")) {
+      streamCalls += 1;
+      return streamCalls === 1 ? turnOne : turnTwo;
+    }
+    return apiMockedFetch(input, init);
+  }) as typeof fetch;
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
+    fireEvent.change(composer, { target: { value: "first question" } });
+    fireEvent.submit(composer.closest("form")!);
+    await waitFor(() => assert.ok(view.getByText("first answer")), { timeout: 3000 });
+    await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })));
+
+    fireEvent.change(composer, { target: { value: "second question" } });
+    fireEvent.submit(composer.closest("form")!);
+    await waitFor(() => assert.ok(view.getByText("second answer")), { timeout: 3000 });
+
+    /* 第二轮完成后，第一轮的引用卡片必须仍在（随消息持久化），第二轮的新卡片同屏。 */
+    assert.ok(view.getByRole("button", { name: /Cited content/ }), "turn-one citation card persists");
+    assert.ok(view.getByRole("button", { name: /Second reference/ }), "turn-two citation card renders");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("clicking an inline citation badge opens the shared overlay directly", async () => {
+  installDom();
+  const now = new Date();
+  const events = sseResponse([
+    { type: "start", trace_id: "t1", conversation_id: 7, answer_kind: "grounded_content" },
+    { type: "delta", delta: "see this [1] please" },
+    {
+      type: "done",
+      conversation_id: 7,
+      answer_kind: "grounded_content",
+      answer: "see this [1] please",
+      citations: [{ content_id: 3, title: "Cited content", zone: "original" }],
+      tools: [],
+      degraded: false,
+    },
+  ]);
+  const originalFetch = globalThis.fetch;
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [conversation(7, now.toISOString())] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: conversation(7, now.toISOString()),
+        messages: [
+          { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
+          { id: 2, conversation_id: 7, role: "assistant", content: "see this [1] please" },
+        ],
+      },
+    },
+    { method: "GET", path: "/api/v1/contents/3", response: CONTENT_DETAIL },
+    { method: "GET", path: "/api/v1/contents/3/related-fanworks", response: { contents: [], total: 0 } },
+  ]);
+  const apiMockedFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes("/api/v1/agent/chat/stream")) return events;
+    return apiMockedFetch(input, init);
+  }) as typeof fetch;
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
+    fireEvent.change(composer, { target: { value: "find me a guide" } });
+    fireEvent.submit(composer.closest("form")!);
+    await waitFor(() => assert.ok(view.getByText(/see this/)), { timeout: 3000 });
+
+    const badge = await waitFor(() => view.getByRole("button", { name: "Jump to citation 1" }));
+    fireEvent.click(badge);
+    const dialog = await waitFor(() => view.getByRole("dialog"));
+    assert.ok(
+      within(dialog).getAllByRole("heading", { name: "Cited content" }).length >= 1,
+      "inline badge click must open the content overlay directly",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 /* ---------- AgentWorkspace：流式失败与重试 ---------- */
 
 test("stream error shows a localized banner and retry resends", async () => {
