@@ -166,7 +166,7 @@ test("motion timing constants match the confirmed overlay contract", () => {
   assert.equal(OVERLAY_MOTION.fallbackScale, 0.96);
 });
 
-/* ---------- #398 C1/C4：同源变体预取与图源统一 ---------- */
+/* ---------- #398 C1/C4 + #409 F1：三处同源渲染地址与预取 ---------- */
 
 test("coverVariantUrl builds the optimizer-variant URL and skips data placeholders", () => {
   installDom();
@@ -183,11 +183,33 @@ test("coverVariantUrl builds the optimizer-variant URL and skips data placeholde
   assert.equal(coverVariantUrl(""), null);
 });
 
-test("prefetchCoverVariant is idempotent per url+width and silent for data sources", () => {
+test("#409 F1 coverRenderSrc is the single canonical render source across the transition pipeline", () => {
+  const { coverRenderSrc } = require("@/lib/overlay-motion") as typeof import("@/lib/overlay-motion");
+  /* 位图 → 唯一规范变体（卡片封面 / 预取 / 浮窗首帧三处共用同一 URL 串）。 */
+  assert.equal(
+    coverRenderSrc("https://oss.example.aliyuncs.com/bucket/pic.jpg"),
+    "/_next/image?url=https%3A%2F%2Foss.example.aliyuncs.com%2Fbucket%2Fpic.jpg&w=1080&q=75",
+  );
+  assert.equal(
+    coverRenderSrc("/seed-media/real/covers/cover.png"),
+    "/_next/image?url=%2Fseed-media%2Freal%2Fcovers%2Fcover.png&w=1080&q=75",
+  );
+  /* SVG → 原地址直通（优化器对 SVG 返回 400；next/image 对 .svg 本就直通）。 */
+  assert.equal(coverRenderSrc("/seed-media/real/gallery/r2-portrait.svg"), "/seed-media/real/gallery/r2-portrait.svg");
+  assert.equal(coverRenderSrc("/seed-media/a.SVG?x=1"), "/seed-media/a.SVG?x=1");
+  /* data: 占位 → 原地址（两端同串）。空值 → null。 */
+  assert.equal(coverRenderSrc("data:image/svg+xml,xxx"), "data:image/svg+xml,xxx");
+  assert.equal(coverRenderSrc(null), null);
+  assert.equal(coverRenderSrc(undefined), null);
+});
+
+test("prefetchCoverVariant is idempotent per url+width and silent for data and passthrough sources", () => {
   installDom();
   const { prefetchCoverVariant } = require("@/lib/overlay-motion") as typeof import("@/lib/overlay-motion");
-  /* jsdom Image 不发真请求；断言只保证不抛错、可重复调用（去重集合内部化）。 */
-  prefetchCoverVariant("/seed-media/covers/b.svg");
+  /* jsdom Image 不发真请求；断言只保证不抛错、可重复调用（去重集合内部化）。
+     #409 F1：SVG/data: 为直通源（渲染端不经优化器），预取直接跳过。 */
+  prefetchCoverVariant("https://oss.example.aliyuncs.com/bucket/pic.jpg");
+  prefetchCoverVariant("https://oss.example.aliyuncs.com/bucket/pic.jpg");
   prefetchCoverVariant("/seed-media/covers/b.svg");
   prefetchCoverVariant("data:image/svg+xml,y");
   assert.ok(true);

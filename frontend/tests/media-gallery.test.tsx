@@ -133,6 +133,34 @@ function imageSource(img: HTMLImageElement | null | undefined): string | null {
   return match ? decodeURIComponent(match[1]) : src;
 }
 
+/* ---------- #409 F1：三处同源渲染地址 + 首帧保持 ---------- */
+
+test("#409 F1: gallery images render the canonical variant source (same URL string as card cover and prefetch)", () => {
+  const { container } = renderGallery();
+  const images = Array.from(container.querySelectorAll("img"));
+  assert.ok(images.length >= 3);
+  for (const img of images) {
+    const src = img.getAttribute("src") ?? "";
+    assert.ok(
+      src.startsWith("/_next/image?url=") && src.includes("&w=1080&q=75"),
+      `expected canonical variant src, got ${src}`,
+    );
+  }
+});
+
+test("#409 F1: firstItemHoldSrc renders the card cover source on the first item until cleared", () => {
+  const holdSrc = "/_next/image?url=%2Fseed-media%2Freal%2Fcovers%2Fcard-cover.jpg&w=1080&q=75";
+  const held = renderGallery({ firstItemHoldSrc: holdSrc });
+  const heldSrc = held.container.querySelector('[aria-current="true"] img')?.getAttribute("src");
+  assert.equal(heldSrc, holdSrc, "entrance window: first item renders the held card-cover source");
+  cleanup();
+
+  /* 落定后清除 hold → 回到自身规范变体。 */
+  const settled = renderGallery({ firstItemHoldSrc: null });
+  const settledSrc = settled.container.querySelector('[aria-current="true"] img')?.getAttribute("src");
+  assert.equal(settledSrc, "/_next/image?url=%2Fseed-media%2Fgallery%2Fitem-1.jpg&w=1080&q=75");
+});
+
 /* ---------- 渲染顺序与稳定几何（AC1） ---------- */
 
 test("MediaGallery renders all items in server order with current item visible and others hidden", () => {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { selectMediaItems, type MediaGalleryItem } from "@/components/content/MediaGallery";
 import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
+import { coverRenderSrc } from "@/lib/overlay-motion";
 import type { NormalizedContentDetailResponse } from "@/lib/content";
 
 /**
@@ -138,7 +139,9 @@ export function useOverlayMedia(detail: NormalizedContentDetailResponse | null):
         });
         settle();
       };
-      probe.src = item.url;
+      /* #409 F1：探针走规范变体（coverRenderSrc）——实测 intrinsic 与变体无关，
+         但这一请求恰好预热浮窗首帧将渲染的同一 URL（卡片端已预取则命中缓存）。 */
+      probe.src = coverRenderSrc(item.url) ?? item.url;
     }
     return () => {
       cancelled = true;

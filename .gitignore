@@ -79,6 +79,8 @@ frontend/screenshots/
 # Local dev/test artifacts
 frontend/.cache/
 frontend/public/seed-media/real/
+# 隔离栈本地配置覆盖（长时会话独立端口，仅本机）
+backend/config.override.local.yaml
 
 # ===== 内部开发/设计文档：2026-09-04 起仅本地保留，不再进入公开仓库 =====
 # （历史提交中的旧版本仍在 git 历史里；本地文件不受影响）
