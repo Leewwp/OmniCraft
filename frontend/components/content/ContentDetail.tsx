@@ -2,7 +2,7 @@
 
 import { useTranslations, useLocale } from "next-intl";
 import { useState, useEffect } from "react";
-import Image from "next/image";
+import { coverRenderSrc } from "@/lib/overlay-motion";
 import {
   FileText,
   Image as ImageIcon,
@@ -80,6 +80,9 @@ interface ContentDetailProps {
   /** #397 竖屏集新版布局：替换默认尾部（系列导航/相关行/评论/相关内容）。
       胜者记录 §7 布局钉死 = 内容详情 → 关联内容块 → 评论区（右栏末块）。 */
   variantTail?: React.ReactNode;
+  /** #409 F1 首帧保持：入场转场未落定期，封面/媒体集首项以卡片封面 src
+      渲染（媒体链与卡片封面不同文件时防动效期间换图）；落定后由上层清除。 */
+  coverHoldSrc?: string | null;
 }
 
 function getTypeLabel(t: (key: string) => string, contentType: string): string {
@@ -119,9 +122,11 @@ interface CoverImageProps {
   coverSync?: boolean;
   coverState: "loading" | "ready" | "error";
   onCoverSettled: (state: "ready" | "error") => void;
+  /** #409 F1 首帧保持：入场未落定期渲染卡片封面 src（防动效期间换图）。 */
+  holdSrc?: string | null;
 }
 
-function CoverImage({ url, contentType, title, typeLabel, coverSync, coverState, onCoverSettled }: CoverImageProps) {
+function CoverImage({ url, contentType, title, typeLabel, coverSync, coverState, onCoverSettled, holdSrc }: CoverImageProps) {
   const Icon = getTypeIcon(contentType || "other");
   const showImage = Boolean(url && coverState !== "error");
   const showSkeleton = Boolean(coverSync && url && coverState === "loading");
@@ -134,14 +139,15 @@ function CoverImage({ url, contentType, title, typeLabel, coverSync, coverState,
       {/* 封面与正文共享同一水平框架：外层 w-full 恒定，高度上限只裁内框不缩宽度（#64 决策 12）。 */}
       <div className="relative aspect-[16/9] max-h-96 w-full">
         {showImage && url ? (
-          <Image
-            src={url}
+          /* #409 F1 同源图：与卡片封面/点击预取同一规范变体（coverRenderSrc）。 */
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={holdSrc || coverRenderSrc(url) || url}
             alt={title}
-            fill
-            className={cn("object-cover", showSkeleton && "opacity-0")}
+            draggable={false}
+            className={cn("absolute inset-0 h-full w-full object-cover", showSkeleton && "opacity-0")}
             onLoad={() => onCoverSettled("ready")}
             onError={() => onCoverSettled("error")}
-            sizes="(max-width: 768px) 100vw, 800px"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
@@ -177,6 +183,7 @@ export function ContentDetail({
   onNavigateInOverlay,
   authorAction,
   variantTail,
+  coverHoldSrc,
 }: ContentDetailProps) {
   const t = useTranslations();
   const locale = useLocale();
@@ -300,6 +307,7 @@ export function ContentDetail({
             items={mediaItems}
             onFirstMediaSettled={setCoverState}
             onReachEnd={onGalleryReachEnd}
+            firstItemHoldSrc={coverHoldSrc}
           />
         ) : (
           <CoverImage
@@ -310,6 +318,7 @@ export function ContentDetail({
             coverSync={coverSync}
             coverState={coverState}
             onCoverSettled={setCoverState}
+            holdSrc={coverHoldSrc}
           />
         )}
         {/* #89 连续浏览：上下文列表到底提示（随媒体区一起在双栏桌面端隐藏，

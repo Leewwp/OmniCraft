@@ -2,9 +2,9 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import Image from "next/image";
 import { ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { coverRenderSrc } from "@/lib/overlay-motion";
 import { MediaViewer } from "@/components/content/MediaViewer";
 import type { AttachmentData } from "@/lib/content";
 
@@ -27,6 +27,9 @@ interface MediaGalleryProps {
   onReachEnd?: () => void;
   /** 浮层封面同步（#64 决策 11）：首项媒体加载落定/失败时回调一次，驱动主体 reveal。 */
   onFirstMediaSettled?: (state: "ready" | "error") => void;
+  /** #409 F1 首帧保持：入场转场未落定期间，首项图片以卡片封面 src 渲染
+      （媒体链与卡片封面不同文件时防动效期间换图）；落定后由上层清除。 */
+  firstItemHoldSrc?: string | null;
 }
 
 /** 防御性默认比例（AC4）：宽高缺失/历史数据时使用 3:4，不报错不隐藏。 */
@@ -104,6 +107,7 @@ export function MediaGallery({
   onOpenViewer,
   onReachEnd,
   onFirstMediaSettled,
+  firstItemHoldSrc,
 }: MediaGalleryProps) {
   const t = useTranslations();
   const [index, setIndex] = useState(() => clampIndex(initialIndex ?? 0, items.length));
@@ -248,38 +252,27 @@ export function MediaGallery({
                       <ImageOff className="h-8 w-8" aria-hidden="true" />
                       <span className="text-xs">{t("media.gallery.error.loadFailed")}</span>
                     </div>
-                  ) : tall ? (
-                    /* #398 C1 图源统一：浮窗封面与卡片封面同走 next/image 优化器
-                       （不再加载 MB 级原图），转场两端同源变体、同 object-contain。 */
-                    <Image
-                      src={item.url}
-                      alt={t("media.gallery.imageAlt", {
-                        current: itemIndex + 1,
-                        total: items.length,
-                      })}
-                      width={item.width || 600}
-                      height={item.height || 1400}
-                      className="h-auto w-full object-contain"
-                      sizes="(min-width: 1100px) 672px, 100vw"
-                      onLoad={() => {
-                        setLoaded((prev) => ({ ...prev, [item.id]: true }));
-                        if (itemIndex === 0) settleFirstMedia("ready");
-                      }}
-                      onError={() => {
-                        setFailed((prev) => ({ ...prev, [item.id]: true }));
-                        if (itemIndex === 0) settleFirstMedia("error");
-                      }}
-                    />
                   ) : (
-                    <Image
-                      src={item.url}
+                    /* #409 F1 同源图：封面一律经 coverRenderSrc 取唯一规范变体
+                       （SVG/data: 直通），与卡片封面、点击预取同一 URL 串；
+                       #398 C1 的 next/image sizes 无法跨端钉死同一变体。
+                       首帧保持：入场未落定时首项图片渲染卡片封面 src（hold）。 */
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={
+                        (itemIndex === 0 && firstItemHoldSrc) ||
+                        coverRenderSrc(item.url) ||
+                        item.url
+                      }
                       alt={t("media.gallery.imageAlt", {
                         current: itemIndex + 1,
                         total: items.length,
                       })}
-                      fill
-                      className="object-contain"
-                      sizes="(min-width: 1100px) 672px, 100vw"
+                      draggable={false}
+                      className={cn(
+                        "object-contain",
+                        tall ? "h-auto w-full" : "absolute inset-0 h-full w-full",
+                      )}
                       onLoad={() => {
                         setLoaded((prev) => ({ ...prev, [item.id]: true }));
                         if (itemIndex === 0) settleFirstMedia("ready");

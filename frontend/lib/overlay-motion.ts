@@ -121,25 +121,39 @@ export function viewTransitionAvailable(): boolean {
 }
 
 /* ── C1/C4 图源统一与真就绪（#398 动效契约）──────────────────────────────
-   转场两端同一源图：卡片封面与浮窗封面都走 next/image 优化器（不再用 MB 级
-   原图 <img>），点击卡片瞬间预取浮窗显示宽度的变体并 decode——浮窗封面挂载
-   时大概率已解码，150ms 就绪门退化为极端网络兜底。 */
+   ── F1 三处同源（#409 动效契约重建）─────────────────────────────────────
+   转场管线三处渲染端（卡片封面 / 点击预取 / 浮窗首帧）强制解析为同一 URL 串：
+   位图统一走唯一规范变体（w=1080，优化器同管线）；SVG 与 data: 占位直通原地址
+   （优化器对 SVG 返回 400，next/image 对 .svg 本就直通——两侧同串即同源）。
+   「一闪一闪」的直接根因就是三处宽度源互不一致（卡片 sizes 响应式 /
+   预取 1080 / 浮窗 sizes 620-800px），各自命中不同变体文件。 */
 
 /** 浮窗封面变体宽度（CSS 显示宽 ≈540-672px，@2x 设备像素 ≈1080-1344）。 */
 export const OVERLAY_COVER_VARIANT_WIDTH = 1080;
 
-/** 构造与 next/image 同优化器的变体地址；data: 占位与空值不参与（两侧同串）。 */
+/** 构造与 next/image 同优化器的规范变体地址；data: 占位与空值不参与（两侧同串）。 */
 export function coverVariantUrl(url: string, width = OVERLAY_COVER_VARIANT_WIDTH): string | null {
-  if (typeof window === "undefined" || !url || url.startsWith("data:")) return null;
+  if (!url || url.startsWith("data:")) return null;
   return `/_next/image?url=${encodeURIComponent(url)}&w=${width}&q=75`;
+}
+
+/** 渲染端同源封面地址（#409 契约）：卡片封面与浮窗首帧一律经此函数取 src——
+    位图 = 唯一规范变体；SVG / data: = 原地址直通。纯字符串函数（SSR 安全）。 */
+export function coverRenderSrc(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith("data:")) return url;
+  if (/\.svg($|\?)/i.test(url)) return url;
+  return coverVariantUrl(url);
 }
 
 const prefetchedCoverVariants = new Set<string>();
 
 /** 点击卡片瞬间的同源变体预取 + 解码（去重；失败静默——就绪门仍以浮窗实际
-    渲染的 <img> 解码状态为准，预取只是预热）。 */
+    渲染的 <img> 解码状态为准，预取只是预热）。直通源（SVG/data:）无需预取：
+    优化器对 SVG 返回 400，data: 已内联。 */
 export function prefetchCoverVariant(url: string, width = OVERLAY_COVER_VARIANT_WIDTH): void {
-  if (typeof window === "undefined" || !url || url.startsWith("data:")) return;
+  if (typeof window === "undefined" || !url) return;
+  if (coverRenderSrc(url) === url) return;
   const key = `${width}:${url}`;
   if (prefetchedCoverVariants.has(key)) return;
   prefetchedCoverVariants.add(key);

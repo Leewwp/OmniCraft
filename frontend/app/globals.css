@@ -366,12 +366,21 @@
   font-weight: 600;
 }
 
-/* 内容详情浮层共享元素转场（View Transitions 路径）：root 层做旧/新快照交叉
-   淡化，命名封面层与 FLIP 兜底路径共用时长与缓动，保证两条路径观感一致；
-   old/new 快照与 group 同长，避免交叉淡化提前结束造成的收尾跳变。 */
+/* 内容详情浮层共享元素转场（View Transitions 路径，#409 F1 单一时间轴）：
+   root 交叉淡化 = 壳层不透明度时间线，必须与命名封面组同帧起跑、同长结束、
+   同一缓动族（开 300ms / 关 240ms）——旧 180ms 档与壳层 160ms 先行淡入并存的
+   档位差是「浮窗与图片不同步」的直接根因，二者均已移除。关闭方向由
+   html[data-vt-close]（ContentDetailOverlay 关场起跑前设置）统一压到 240ms 档，
+   几何与缓动方向互逆（同一曲线族反向播放）。 */
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: 180ms;
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+html[data-vt-close]::view-transition-old(root),
+html[data-vt-close]::view-transition-new(root) {
+  animation-duration: 240ms;
 }
 
 ::view-transition-group(content-detail-cover) {
@@ -379,9 +388,18 @@
   animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
+html[data-vt-close]::view-transition-group(content-detail-cover) {
+  animation-duration: 240ms;
+}
+
 ::view-transition-old(content-detail-cover),
 ::view-transition-new(content-detail-cover) {
   animation-duration: 300ms;
+}
+
+html[data-vt-close]::view-transition-old(content-detail-cover),
+html[data-vt-close]::view-transition-new(content-detail-cover) {
+  animation-duration: 240ms;
 }
 
 /* #398 C3 快照纯净：浮层打开期间锁定触发卡片的 hover 缩放过渡——VT 旧快照
