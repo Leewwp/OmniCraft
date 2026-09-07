@@ -1,13 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { OverlayMasonryGrid } from "@/components/content/OverlayMasonryGrid";
 import { ContentCardData } from "@/components/content/ContentCard";
+import {
+  useContentInfiniteFeed,
+  type ContentFeedPage,
+} from "@/components/content/use-content-infinite-feed";
+import { SkeletonCard } from "@/components/ui/skeleton";
 import { FilterPills } from "@/components/ui/filter-pills";
 import { SortSelect as SharedSortSelect } from "@/components/ui/SortSelect";
-import { normalizeContentList } from "@/lib/content";
 import { resolveDefaultSort } from "@/lib/search-filters";
 
 interface CategoryTab {
@@ -16,14 +20,12 @@ interface CategoryTab {
   name_i18n?: Record<string, string>;
 }
 
-interface ContentResponse {
-  contents?: unknown[];
-}
-
 interface OriginalFeedClientProps {
   apiBase: string;
   categories: CategoryTab[];
   initialContents: ContentCardData[];
+  /** SSR 首屏 total（与 initialContents 同签名）。 */
+  initialTotal: number | null;
   initialCategory: string;
   initialSort: string;
 }
@@ -35,35 +37,90 @@ const SORT_OPTIONS_KEYS = [
   { value: "most_views", labelKey: "content.sortMostViewed" },
 ];
 
-// 原创区筛选就地化（SP-12 U-03）：类目药丸与排序点击仅客户端刷新
-// 列表并 router.replace 同步 URL，不滚动不跳页；SSR 首屏由服务端供给。
-export function OriginalFeedClient({ apiBase, categories, initialContents, initialCategory, initialSort }: OriginalFeedClientProps) {
+/** 原创区内容流段（#410 F2）：useContentInfiniteFeed + 骨架/错误/终态。 */
+function OriginalFeedSection({
+  apiBase,
+  category,
+  sort,
+  initialPage,
+  emptyText,
+  loadFailedText,
+  retryText,
+}: {
+  apiBase: string;
+  category: string;
+  sort: string;
+  initialPage: ContentFeedPage | null;
+  emptyText: string;
+  loadFailedText: string;
+  retryText: string;
+}) {
+  const feed = useContentInfiniteFeed({
+    apiBase,
+    filters: { zone: "original", category: category || undefined, sort },
+    initialPage,
+  });
+  const { items, hasMore, isLoading, isLoadingMore, showInitialError, loadError } = feed;
+
+  if (isLoading && items.length === 0) {
+    return (
+      <div aria-busy="true" className="grid grid-cols-2 gap-4 min-[701px]:grid-cols-3 min-[1101px]:grid-cols-4">
+        <SkeletonCard count={12} zone="original" />
+      </div>
+    );
+  }
+
+  if (showInitialError && items.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-md border border-border-default bg-card p-8 text-center text-sm text-muted-foreground">
+        <span>{loadFailedText}</span>
+        <button
+          type="button"
+          onClick={() => feed.retryInitial()}
+          className="rounded-md border border-border-default px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-canvas-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {retryText}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <OverlayMasonryGrid
+      items={items}
+      emptyText={emptyText}
+      source="zone-page"
+      isLoadingMore={isLoadingMore}
+      hasMore={hasMore}
+      loadError={loadError}
+      onLoadMore={feed.loadMore}
+      onRetry={feed.retryLoadMore}
+    />
+  );
+}
+
+// 原创区筛选就地化（SP-12 U-03）：类目药丸与排序点击仅客户端刷新列表并
+// router.replace 同步 URL，不滚动不跳页；SSR 首屏由服务端供给。
+// #410 F2：筛选签名重挂 feed 段 = 重置回第 1 页 + 无限滚动（页大小 12）。
+export function OriginalFeedClient({
+  apiBase,
+  categories,
+  initialContents,
+  initialTotal,
+  initialCategory,
+  initialSort,
+}: OriginalFeedClientProps) {
   const t = useTranslations();
   const router = useRouter();
   const [category, setCategory] = useState(initialCategory);
   const [sort, setSort] = useState(initialSort || "recommended");
-  const [contents, setContents] = useState<ContentCardData[]>(initialContents);
-  const [loading, setLoading] = useState(false);
+  const initialSignature = `${initialCategory}|${resolveDefaultSort({ category: initialCategory, sort: initialSort })}`;
+  const isInitialSignature =
+    category === initialCategory &&
+    resolveDefaultSort({ category, sort }) === initialSignature.split("|")[1];
   // Signature guard: skip the first effect run (and StrictMode re-runs of it);
   // only real filter changes past the initial URL state trigger sync.
-  const lastApplied = useRef<string>(`${initialCategory}|${resolveDefaultSort({ category: initialCategory, sort: initialSort })}`);
-
-  const fetchContents = useCallback(async (nextCategory: string, nextSort: string) => {
-    setLoading(true);
-    const effectiveSort = resolveDefaultSort({ category: nextCategory, sort: nextSort });
-    const params = new URLSearchParams({ zone: "original", sort: effectiveSort, time_range: "all", page_size: "24" });
-    if (nextCategory) params.set("category", nextCategory);
-    try {
-      const res = await fetch(`${apiBase}/contents?${params.toString()}`, { cache: "no-store" });
-      if (!res.ok) throw new Error("FETCH_FAILED");
-      const data = (await res.json()) as ContentResponse;
-      setContents(normalizeContentList(data.contents));
-    } catch {
-      setContents([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [apiBase]);
+  const lastApplied = useRef(initialSignature);
 
   useEffect(() => {
     const effectiveSort = resolveDefaultSort({ category, sort });
@@ -77,8 +134,7 @@ export function OriginalFeedClient({ apiBase, categories, initialContents, initi
     if (effectiveSort !== "recommended") qs.set("sort", effectiveSort);
     const query = qs.toString();
     router.replace(query ? `/original?${query}` : "/original", { scroll: false });
-    void fetchContents(category, sort);
-  }, [category, sort, router, fetchContents]);
+  }, [category, sort, router]);
 
   return (
     <>
@@ -88,7 +144,6 @@ export function OriginalFeedClient({ apiBase, categories, initialContents, initi
           <FilterPills
             ariaLabel={t("content.originalZone")}
             className="flex-1"
-            loading={loading}
             options={categories.map((cat) => ({
               value: cat.slug,
               label: cat.i18n ? t(cat.i18n) : cat.name_i18n?.zh || cat.name_i18n?.en || cat.slug,
@@ -109,7 +164,16 @@ export function OriginalFeedClient({ apiBase, categories, initialContents, initi
 
       {/* Content masonry */}
       <div className="px-4 pt-4 pb-16 md:px-6">
-        <OverlayMasonryGrid items={contents} emptyText={t("home.noOriginalContent")} source="zone-page" />
+        <OriginalFeedSection
+          key={`${category}|${resolveDefaultSort({ category, sort })}`}
+          apiBase={apiBase}
+          category={category}
+          sort={resolveDefaultSort({ category, sort })}
+          initialPage={isInitialSignature ? { items: initialContents, total: initialTotal } : null}
+          emptyText={t("home.noOriginalContent")}
+          loadFailedText={t("home.contentLoadFailed")}
+          retryText={t("common.retry")}
+        />
       </div>
     </>
   );
