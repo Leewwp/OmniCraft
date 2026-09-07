@@ -20,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
 async function fetchFirstPage(apiBase: string): Promise<{ items: ContentDetailData[]; total: number | null; error: boolean }> {
   try {
     const res = await fetch(
-      `${apiBase}/contents?sort=recommended&page=1&page_size=24`,
+      `${apiBase}/contents?sort=recommended&page=1&page_size=12`,
       { cache: "no-store" },
     );
     if (!res.ok) return { items: [], total: null, error: true };

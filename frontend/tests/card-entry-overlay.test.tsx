@@ -245,7 +245,8 @@ test("home feed and original zone wire the shared overlay with zone-page source"
     assert.match(source, /source="zone-page"/);
     assert.doesNotMatch(source, /<MasonryGrid/, "pages must not use the raw grid without overlay wiring");
   }
-  assert.match(home, /items=\{contents\}/);
+  /* #410 F2：feed 段接线（items 经 useContentInfiniteFeed 供给 OverlayMasonryGrid）。 */
+  assert.match(home, /<OverlayMasonryGrid[\s\S]*?items=\{items\}/);
   assert.match(originalFeed, /emptyText=\{t\("home\.noOriginalContent"\)\}/);
 });
 

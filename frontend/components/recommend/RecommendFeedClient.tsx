@@ -1,20 +1,17 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { AlertCircle, Compass, RotateCw } from "lucide-react";
-import useSWRInfinite from "swr/infinite";
 import { MasonryGrid } from "@/components/content/MasonryGrid";
-import { ContentCard, type ContentCardData } from "@/components/content/ContentCard";
+import type { ContentCardData } from "@/components/content/ContentCard";
 import { useContentDetailOverlay } from "@/components/content/use-content-detail-overlay";
+import { useContentInfiniteFeed } from "@/components/content/use-content-infinite-feed";
 import { EmptyState } from "@/components/ui/empty-state";
 import { buttonVariants } from "@/components/ui/button";
 import { SkeletonCard } from "@/components/ui/skeleton";
-import { normalizeContentList } from "@/lib/content";
 import { cn } from "@/lib/utils";
-
-const PAGE_SIZE = 24;
 
 interface RecommendFeedClientProps {
   apiBase: string;
@@ -23,14 +20,9 @@ interface RecommendFeedClientProps {
   initialError: boolean;
 }
 
-interface RecommendPageData {
-  items: ContentCardData[];
-  total: number | null;
-}
-
 /**
  * /recommend 推荐流：单一"为你推荐"内容流（无分区标签），SSR 首屏 +
- * SWR useSWRInfinite 无限滚动（sort=recommended，page=2,3... 追加）；
+ * 无限滚动（sort=recommended，page=2,3... 追加，页大小 12 = 全局裁决）；
  * 卡片点击打开共享 ContentDetailOverlay（source=recommendation），
  * 关闭后恢复页面滚动位置。
  */
@@ -45,69 +37,13 @@ export function RecommendFeedClient({
     source: "recommendation",
   });
 
-  const firstPageRef = useRef<RecommendPageData | null>(null);
-  firstPageRef.current = initialError ? null : { items: initialItems, total: initialTotal };
-  const firstPageUrl = `${apiBase}/contents?sort=recommended&page=1&page_size=${PAGE_SIZE}`;
-
-  const getKey = useCallback(
-    (pageIndex: number) =>
-      `${apiBase}/contents?sort=recommended&page=${pageIndex + 1}&page_size=${PAGE_SIZE}`,
-    [apiBase],
-  );
-
-  const fetcher = useCallback(
-    async (url: string): Promise<RecommendPageData> => {
-      const cached = firstPageRef.current;
-      if (cached && url === firstPageUrl) return cached;
-      const res = await fetch(url, { cache: "no-store" });
-      if (!res.ok) throw new Error("RECOMMEND_FETCH_FAILED");
-      const data = (await res.json()) as { contents?: unknown[]; total?: number };
-      return {
-        items: normalizeContentList(data.contents),
-        total: typeof data.total === "number" ? data.total : null,
-      };
-    },
-    [firstPageUrl],
-  );
-
-  const {
-    data,
-    size,
-    setSize,
-    error: swrError,
-    isValidating,
-    mutate,
-  } = useSWRInfinite(getKey, fetcher, {
-    initialSize: initialError ? 0 : 1,
-    fallbackData: firstPageRef.current ? [firstPageRef.current] : [],
-    revalidateFirstPage: false,
-    revalidateIfStale: false,
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    shouldRetryOnError: false,
-    dedupingInterval: 60000,
+  const feed = useContentInfiniteFeed({
+    apiBase,
+    filters: { sort: "recommended" },
+    initialPage: initialError ? null : { items: initialItems, total: initialTotal },
+    initialError,
   });
-
-  const items = useMemo(() => data?.flatMap((page) => page.items) ?? initialItems, [data, initialItems]);
-  const total = data?.[data.length - 1]?.total ?? initialTotal;
-  const hasMore = total !== null ? items.length < total : items.length >= PAGE_SIZE;
-
-  const isLoading = isValidating && data === undefined;
-  const isLoadingMore = isValidating && size > 1;
-  const showInitialError = initialError || (swrError !== undefined && size <= 1);
-  const loadError = swrError !== undefined && size > 1;
-
-  const retryInitial = useCallback(() => {
-    void setSize((current) => (current === 0 ? 1 : current));
-  }, [setSize]);
-
-  const loadMore = useCallback(() => {
-    void setSize((current) => current + 1);
-  }, [setSize]);
-
-  const retryLoadMore = useCallback(() => {
-    void mutate();
-  }, [mutate]);
+  const { items, hasMore, isLoading, isLoadingMore, showInitialError, loadError } = feed;
 
   const openDetail = useCallback(
     (data: ContentCardData, trigger: HTMLElement) => {
@@ -148,7 +84,7 @@ export function RecommendFeedClient({
         title={t("recommend.errorTitle")}
         description={t("recommend.errorDescription")}
         action={
-          <button type="button" onClick={() => void retryInitial()} className={cn(buttonVariants({ variant: "outline" }))}>
+          <button type="button" onClick={() => feed.retryInitial()} className={cn(buttonVariants({ variant: "outline" }))}>
             <RotateCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
             {t("recommend.retryAction")}
           </button>
@@ -180,8 +116,8 @@ export function RecommendFeedClient({
         isLoadingMore={isLoadingMore}
         hasMore={hasMore}
         loadError={loadError}
-        onLoadMore={loadMore}
-        onRetry={retryLoadMore}
+        onLoadMore={feed.loadMore}
+        onRetry={feed.retryLoadMore}
       />
       {overlayElement}
     </>
