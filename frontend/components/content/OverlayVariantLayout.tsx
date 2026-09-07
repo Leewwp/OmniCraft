@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import Image from "next/image";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { coverRenderSrc } from "@/lib/overlay-motion";
 import { MediaViewer } from "@/components/content/MediaViewer";
 import type { MediaGalleryItem } from "@/components/content/MediaGallery";
 import { isUltraTallItem, itemAspectRatio } from "@/lib/overlay-media";
@@ -70,13 +70,15 @@ interface MediaSlideProps {
   total: number;
   /** 首项媒体加载落定/失败回调一次（驱动正文 reveal，同 split 路径 coverReady）。 */
   onSettle: (state: "ready" | "error") => void;
+  /** #409 F1 首帧保持：入场未落定期首项图片渲染卡片封面 src（防换图）。 */
+  holdSrc?: string | null;
 }
 
 /** 媒体项渲染：contain 不裁切；超高图 h-auto 超出锚点盒高度 → 内部滚动。
-    #398 C1 图源统一：远程/本地图片走 next/image 同源变体（与卡片封面同一
-    优化器管线，转场两端不再出现「变体 vs 原图」换图感）；data: 文字封面
-    保持普通 <img>（转场两端同一 data 串，渲染天然一致）。 */
-function MediaSlide({ item, index, total, onSettle }: MediaSlideProps) {
+    #409 F1 同源图：图片一律经 coverRenderSrc 取唯一规范变体（SVG/data:
+    直通），与卡片封面、点击预取同一 URL 串；next/image 的响应式 sizes
+    无法跨端钉死同一变体，故用受控 <img>。 */
+function MediaSlide({ item, index, total, onSettle, holdSrc }: MediaSlideProps) {
   const t = useTranslations();
   const tall = isUltraTallItem(item);
   const settleIfFirst = (state: "ready" | "error") => {
@@ -100,48 +102,20 @@ function MediaSlide({ item, index, total, onSettle }: MediaSlideProps) {
     );
   }
 
-  if (item.url.startsWith("data:")) {
-    return (
-      <div className={cn("relative", tall ? "h-auto" : "h-full")}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={item.url}
-          alt={alt}
-          draggable={false}
-          className={cn("w-full cursor-zoom-in object-contain", tall ? "h-auto" : "h-full")}
-          onLoad={() => settleIfFirst("ready")}
-          onError={() => settleIfFirst("error")}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className={cn("relative", tall ? "h-auto" : "h-full")}>
-      {tall ? (
-        <Image
-          src={item.url}
-          alt={alt}
-          width={item.width || 600}
-          height={item.height || 1400}
-          draggable={false}
-          className="h-auto w-full cursor-zoom-in object-contain"
-          sizes="(min-width: 1100px) 620px, 100vw"
-          onLoad={() => settleIfFirst("ready")}
-          onError={() => settleIfFirst("error")}
-        />
-      ) : (
-        <Image
-          src={item.url}
-          alt={alt}
-          fill
-          draggable={false}
-          className="cursor-zoom-in object-contain"
-          sizes="(min-width: 1100px) 620px, 100vw"
-          onLoad={() => settleIfFirst("ready")}
-          onError={() => settleIfFirst("error")}
-        />
-      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={(index === 0 && holdSrc) || coverRenderSrc(item.url) || item.url}
+        alt={alt}
+        draggable={false}
+        className={cn(
+          "cursor-zoom-in object-contain",
+          tall ? "h-auto w-full" : "absolute inset-0 h-full w-full",
+        )}
+        onLoad={() => settleIfFirst("ready")}
+        onError={() => settleIfFirst("error")}
+      />
     </div>
   );
 }
@@ -248,16 +222,39 @@ export interface OverlayVariantLayoutProps {
   media: MediaGalleryItem[];
   /** 首项媒体加载落定信号（驱动正文 reveal，同 split 路径 coverReady 契约）。 */
   onFirstMediaSettled?: (state: "ready" | "error") => void;
+  /** #409 F1 首帧保持：入场未落定期首项图片渲染卡片封面 src（防换图）。 */
+  holdSrc?: string | null;
+  /** #409 F1 起跑前几何冻结：true 时媒体列 width 过渡关闭（挂载期从百分比到
+      实测像素的过渡不得发生在入场转场窗口内）；落定后恢复逐张过渡。 */
+  freezeGeometry?: boolean;
+  /** #409 F1 几何稳定门：根区完成首次实测（ResizeObserver 回报）后回调一次，
+      浮层据此放行入场转场（测量在几何稳定后进行）。 */
+  onPaneMeasured?: () => void;
   /** 右栏内容（标题/作者/正文/关联内容块/评论区 = 末块）。 */
   children: ReactNode;
 }
 
-export function OverlayVariantLayout({ media, onFirstMediaSettled, children }: OverlayVariantLayoutProps) {
+export function OverlayVariantLayout({
+  media,
+  onFirstMediaSettled,
+  holdSrc,
+  freezeGeometry,
+  onPaneMeasured,
+  children,
+}: OverlayVariantLayoutProps) {
   const [index, setIndex] = useState(0);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const { ref: rootRef, area } = useMediaArea();
   const firstSettledRef = useRef(false);
+  const measuredOnceRef = useRef(false);
   const viewerTriggerRef = useRef<HTMLElement | null>(null);
+
+  /* #409 F1：首次实测到达即回报一次（后续 Resize 不再触发）。 */
+  useEffect(() => {
+    if (!area || measuredOnceRef.current) return;
+    measuredOnceRef.current = true;
+    onPaneMeasured?.();
+  }, [area, onPaneMeasured]);
 
   const at = clampIndex(index, media.length);
   const current = media[at];
@@ -301,11 +298,16 @@ export function OverlayVariantLayout({ media, onFirstMediaSettled, children }: O
       data-slot="variant-root"
       className="relative flex h-full min-h-0 w-full min-[1100px]:-mx-6 min-[1100px]:-mb-6 min-[1100px]:-mt-4 min-[1100px]:h-[calc(100%+2.5rem)]"
     >
-      {/* 媒体列：宽 = 可用高 × 当前图比例（逐张自适应过渡），黑底满幅贴边。 */}
+      {/* 媒体列：宽 = 可用高 × 当前图比例（逐张自适应过渡），黑底满幅贴边。
+          #409 F1：入场未落定（freezeGeometry）时 width 过渡关闭——挂载期从
+          百分比兜底到实测像素的过渡不得与共享元素转场同窗发生。 */}
       <div
         data-slot="variant-media-pane"
         className="group/media relative h-full shrink-0 overflow-hidden bg-black"
-        style={{ width: paneWidth(area, ratio, tall), transition: PANE_TRANSITION }}
+        style={{
+          width: paneWidth(area, ratio, tall),
+          transition: freezeGeometry ? "none" : PANE_TRANSITION,
+        }}
       >
         {/* 锚点盒（R3 契约）：不含翻页控件；超高图内部竖向滚动。
             data-ultra-tall：超高图当前项标记——浮层转场据此退化居中缩淡（C2，
@@ -316,7 +318,13 @@ export function OverlayVariantLayout({ media, onFirstMediaSettled, children }: O
           className="h-full w-full overflow-y-auto overflow-x-hidden"
           onClick={handleCoverClick}
         >
-          <MediaSlide item={current} index={at} total={media.length} onSettle={settleFirstMedia} />
+          <MediaSlide
+            item={current}
+            index={at}
+            total={media.length}
+            onSettle={settleFirstMedia}
+            holdSrc={holdSrc}
+          />
         </div>
         {showControls && (
           <>

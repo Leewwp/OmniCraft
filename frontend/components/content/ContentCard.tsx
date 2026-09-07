@@ -8,7 +8,7 @@ import { Heart, MessageCircle } from "lucide-react";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { cn } from "@/lib/utils";
 import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
-import { prefetchCoverVariant } from "@/lib/overlay-motion";
+import { coverRenderSrc, prefetchCoverVariant } from "@/lib/overlay-motion";
 
 export interface ContentCardData {
   id: number;
@@ -94,10 +94,12 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
     hasEffectiveSize &&
     Math.max(effectiveWidth! / effectiveHeight!, effectiveHeight! / effectiveWidth!) >
       COVER_EXTREME_RATIO_THRESHOLD;
-  /* 图片加载落定后（仅在元数据缺失时）回填实测比例。 */
-  function handleCoverLoad(event: React.SyntheticEvent<HTMLImageElement>) {
+  /* 图片加载落定后（仅在元数据缺失时）回填实测比例。两条进入路径：
+     onLoad 事件 + 回调 ref 的 complete 自愈——SSR 出的 <img> 在 React 水合
+     挂上 onLoad 之前就可能完成加载（快网/缓存/测试桩即时响应），事件会被
+     错过，next/image 内部自带同款自愈，受控 <img> 须自己补（#409）。 */
+  function measureIntrinsic(img: HTMLImageElement) {
     if (hasCoverSize) return;
-    const img = event.currentTarget;
     if (img.naturalWidth > 0 && img.naturalHeight > 0) {
       setMeasuredCover((prev) =>
         prev?.w === img.naturalWidth && prev?.h === img.naturalHeight
@@ -105,6 +107,12 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
           : { w: img.naturalWidth, h: img.naturalHeight },
       );
     }
+  }
+  function handleCoverLoad(event: React.SyntheticEvent<HTMLImageElement>) {
+    measureIntrinsic(event.currentTarget);
+  }
+  function coverImgRef(img: HTMLImageElement | null) {
+    if (img?.complete) measureIntrinsic(img);
   }
 
   const typeLabel = contentType === "sheet_music" ? t('home.sheetMusic') : contentType === "prompt" ? t('home.aiPrompt') : contentType === "mod" ? t('home.mod') : contentType === "video" ? t('home.video') : contentType === "audio" ? t('home.audio') : contentType === "image" ? t('home.image') : t('home.text');
@@ -129,21 +137,41 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
         }}
       >
         {coverUrl ? (
-          <Image
-            src={coverUrl}
-            alt={displayTitle}
-            fill
-            className={cn(
-              "object-contain transition-transform duration-300 motion-reduce:transform-none",
-              isOriginal ? "group-hover:scale-105" : "group-hover:scale-[1.03]",
-            )}
-            sizes="(max-width: 450px) 100vw, (max-width: 700px) 50vw, (max-width: 1100px) 33vw, 25vw"
-            onLoad={handleCoverLoad}
-          />
+          onOpenDetail ? (
+            /* #409 F1 同源图契约：浮窗模式卡片封面与点击预取、浮窗首帧渲染同一
+               URL 串（规范变体/SVG 直通）——三处不同宽度源是转场闪烁的直接根因。
+               next/image 的响应式 sizes 无法跨端钉死同一变体，故用受控 <img>。 */
+            <img
+              src={coverRenderSrc(coverUrl) ?? coverUrl}
+              alt={displayTitle}
+              loading="lazy"
+              decoding="async"
+              draggable={false}
+              ref={coverImgRef}
+              className={cn(
+                "absolute inset-0 h-full w-full object-contain transition-transform duration-300 motion-reduce:transform-none",
+                isOriginal ? "group-hover:scale-105" : "group-hover:scale-[1.03]",
+              )}
+              onLoad={handleCoverLoad}
+            />
+          ) : (
+            <Image
+              src={coverUrl}
+              alt={displayTitle}
+              fill
+              className={cn(
+                "object-contain transition-transform duration-300 motion-reduce:transform-none",
+                isOriginal ? "group-hover:scale-105" : "group-hover:scale-[1.03]",
+              )}
+              sizes="(max-width: 450px) 100vw, (max-width: 700px) 50vw, (max-width: 1100px) 33vw, 25vw"
+              onLoad={handleCoverLoad}
+            />
+          )
         ) : (
           <img
             src={placeholderSrc}
             alt={displayTitle}
+            ref={coverImgRef}
             className={cn(
               "h-full w-full object-contain transition-transform duration-300 motion-reduce:transform-none",
               isOriginal ? "group-hover:scale-105" : "group-hover:scale-[1.03]",

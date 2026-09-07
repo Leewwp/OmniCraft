@@ -51,6 +51,10 @@ interface ContentDetailOverlayLayerProps {
   onTitleChange: (title: string) => void;
   /** 层数据落定（含错误态）后通知浮层：入场转场可测量封面几何并启动。 */
   onMotionReady?: () => void;
+  /** #409 F1 首帧保持：入场未落定期封面以卡片封面 src 渲染（防动效期间换图）。 */
+  motionHoldSrc?: string | null;
+  /** #409 F1 入场落定标记：true 表示首帧保持与几何冻结可以解除。 */
+  motionSettled?: boolean;
 }
 
 type LayerStatus = "loading" | "default" | "forbidden" | "not-found" | "error" | "rate-limited";
@@ -87,6 +91,8 @@ export function ContentDetailOverlayLayer({
   onSwitchNext,
   onTitleChange,
   onMotionReady,
+  motionHoldSrc,
+  motionSettled,
 }: ContentDetailOverlayLayerProps) {
   const t = useTranslations();
   const [status, setStatus] = useState<LayerStatus>("loading");
@@ -117,6 +123,14 @@ export function ContentDetailOverlayLayer({
      ready=false（布局判定与入场转场等几何就绪，避免横竖误判/转场目标几何跳变）。 */
   const { media: chainMedia, ready: chainReady } = useOverlayMedia(status === "default" ? detail : null);
 
+  /* #409 F1 起跑前几何冻结（variant 路径）：竖屏集新版布局的媒体列宽度由
+     ResizeObserver 实测驱动（挂载期从百分比兜底到实测像素）；转场起跑须等
+     首次实测到达（几何稳定后测量），否则目标矩形在动画中段跳变。 */
+  const variantActive =
+    chainReady && chainMedia.length > 0 && isPortraitMediaSet(chainMedia) && isDesktop;
+  const [paneMeasured, setPaneMeasured] = useState(false);
+  const handlePaneMeasured = useCallback(() => setPaneMeasured(true), []);
+
   const onMotionReadyRef = useRef(onMotionReady);
   useEffect(() => {
     onMotionReadyRef.current = onMotionReady;
@@ -129,9 +143,14 @@ export function ContentDetailOverlayLayer({
 
   /* 状态离开 loading（default/forbidden/not-found/error）后触发一次入场转场；
      错误态没有封面几何，浮层会走居中缩淡降级。#397：default 态等媒体几何实测
-     就绪（chainReady）再触发——封面链实测期间朝向与锚点几何未定，先行起跑会在
-     版式切换瞬间产生转场目标跳变；网络悬挂由浮层 2s 保险定时器兜底。 */
-  const motionGate = status === "loading" ? false : status !== "default" ? true : chainReady;
+     就绪（chainReady）再触发；#409 F1：variant 布局再等媒体列首次实测
+     （paneMeasured）。网络悬挂由浮层 2s 保险定时器兜底。 */
+  const motionGate =
+    status === "loading"
+      ? false
+      : status !== "default"
+        ? true
+        : chainReady && (!variantActive || paneMeasured);
   const motionFiredRef = useRef(false);
   useEffect(() => {
     if (!motionGate || motionFiredRef.current) return;
@@ -417,17 +436,21 @@ export function ContentDetailOverlayLayer({
      生效条件 = ≥1100px + 媒体链几何就绪 + 任一素材竖图（含全类型封面链兜底）。
      右栏 = ContentDetail（mediaSlot="variant" 隐藏行内媒体）+ 关联内容块（布局
      钉死）+ 评论区末块；关注按钮随作者行渲染（creator 侧栏不进右栏）。 */
-  if (chainReady && chainMedia.length > 0 && isPortraitMediaSet(chainMedia) && isDesktop) {
+  if (variantActive) {
     return (
       <OverlayVariantLayout
         media={chainMedia}
         onFirstMediaSettled={(state) => setCoverReady(state === "ready")}
+        holdSrc={motionHoldSrc}
+        freezeGeometry={!motionSettled}
+        onPaneMeasured={handlePaneMeasured}
       >
         <ContentDetail
           data={{ ...content, attachments: detail.attachments, tags: detail.tags }}
           coverSync
           mediaSlot="variant"
           coverReady={coverReady}
+          coverHoldSrc={motionHoldSrc}
           sourceOriginal={isFanwork ? detail.sourceOriginal : undefined}
           sourceFanwork={isFanwork ? detail.sourceFanwork : undefined}
           authorAction={
@@ -487,6 +510,7 @@ export function ContentDetailOverlayLayer({
             coverSync
             mediaSlot="split"
             coverReady={coverReady}
+            coverHoldSrc={motionHoldSrc}
             sourceOriginal={isFanwork ? detail.sourceOriginal : undefined}
             sourceFanwork={isFanwork ? detail.sourceFanwork : undefined}
             /* #89 移动单列：可见的媒体区是行内画廊（≥1100px 才隐藏），
@@ -510,6 +534,7 @@ export function ContentDetailOverlayLayer({
         <ContentDetail
           data={{ ...content, attachments: detail.attachments, tags: detail.tags }}
           coverSync
+          coverHoldSrc={motionHoldSrc}
           sourceOriginal={isFanwork ? detail.sourceOriginal : undefined}
           sourceFanwork={isFanwork ? detail.sourceFanwork : undefined}
           onGalleryReachEnd={handleReachEnd}
