@@ -14,7 +14,7 @@ interface CategoryDisplay {
   i18n: string;
   name_i18n?: Record<string, string>;
 }
-interface ContentResponse { contents?: unknown[]; }
+interface ContentResponse { contents?: unknown[]; total?: number; }
 interface SearchParams { category?: string; sort?: string; }
 
 const PRIMARY_CATEGORIES_FALLBACK: CategoryDisplay[] = [
@@ -59,15 +59,20 @@ async function fetchStats(apiBase: string): Promise<StatsSummary | null> {
   } catch { return null; }
 }
 
-async function fetchContents(apiBase: string, search: Required<SearchParams>): Promise<ContentCardData[]> {
+async function fetchContents(apiBase: string, search: Required<SearchParams>): Promise<{ items: ContentCardData[]; total: number | null }> {
   const sort = resolveDefaultSort({ category: search.category, sort: search.sort });
-  const params = new URLSearchParams({ zone: "original", sort, time_range: "all", page_size: "24" });
+  /* #410 F2：首屏 = 每页 = 12 条（2026-09-07 全局裁决）。 */
+  const params = new URLSearchParams({ zone: "original", sort, time_range: "all", page: "1", page_size: "12" });
   if (search.category) params.set("category", search.category);
   try {
     const res = await fetch(`${apiBase}/contents?${params.toString()}`, { cache: "no-store" });
-    if (!res.ok) return [];
-    return normalizeContentList(((await res.json()) as ContentResponse).contents);
-  } catch { return []; }
+    if (!res.ok) return { items: [], total: null };
+    const data = (await res.json()) as ContentResponse;
+    return {
+      items: normalizeContentList(data.contents),
+      total: typeof data.total === "number" ? data.total : null,
+    };
+  } catch { return { items: [], total: null }; }
 }
 
 export default async function OriginalPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -75,7 +80,7 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
   const raw = await searchParams;
   const current = { category: raw.category || "", sort: raw.sort || "" };
   const apiBase = getServerApiBase();
-  const [categories, contents, stats] = await Promise.all([fetchCategories(apiBase), fetchContents(apiBase, current), fetchStats(apiBase)]);
+  const [categories, firstPage, stats] = await Promise.all([fetchCategories(apiBase), fetchContents(apiBase, current), fetchStats(apiBase)]);
 
   return (
     <div className="mx-auto flex w-full max-w-[1280px] min-h-[calc(100vh-52px)]">
@@ -100,7 +105,8 @@ export default async function OriginalPage({ searchParams }: { searchParams: Pro
         <OriginalFeedClient
           apiBase={getBrowserApiBase()}
           categories={categories}
-          initialContents={contents}
+          initialContents={firstPage.items}
+          initialTotal={firstPage.total}
           initialCategory={current.category}
           initialSort={current.sort}
         />

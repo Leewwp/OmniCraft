@@ -18,6 +18,7 @@ interface IPResponse {
 
 interface ContentResponse {
   contents?: ContentCardData[];
+  total?: number;
 }
 
 
@@ -36,21 +37,25 @@ async function fetchIPs(apiBase: string): Promise<IPItem[]> {
   }
 }
 
-async function fetchContents(apiBase: string): Promise<ContentCardData[]> {
+async function fetchContents(apiBase: string): Promise<{ items: ContentCardData[]; total: number | null }> {
   try {
+    /* #410 F2：首屏 = 每页 = 12 条（2026-09-07 全局裁决）。 */
     const res = await fetch(
-      `${apiBase}/contents?zone=fanwork&sort=hot&time_range=all&page_size=24`,
+      `${apiBase}/contents?zone=fanwork&sort=hot&time_range=all&page=1&page_size=12`,
       {
         cache: "no-store",
       }
     );
     if (!res.ok) {
-      return [];
+      return { items: [], total: null };
     }
     const data = (await res.json()) as ContentResponse;
-    return normalizeContentList(data.contents);
+    return {
+      items: normalizeContentList(data.contents),
+      total: typeof data.total === "number" ? data.total : null,
+    };
   } catch {
-    return [];
+    return { items: [], total: null };
   }
 }
 
@@ -77,7 +82,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function HomePage() {
   const apiBase = getServerApiBase();
   const browserApiBase = getBrowserApiBase();
-  const [initialIPs, initialContents] = await Promise.all([
+  const [initialIPs, firstPage] = await Promise.all([
     fetchIPs(apiBase),
     fetchContents(apiBase),
   ]);
@@ -86,7 +91,8 @@ export default async function HomePage() {
     <HomePageClient
       apiBase={browserApiBase}
       initialIPs={initialIPs}
-      initialContents={initialContents}
+      initialContents={firstPage.items}
+      initialContentTotal={firstPage.total}
     />
   );
 }
