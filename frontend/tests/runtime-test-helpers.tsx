@@ -170,7 +170,14 @@ export const testMessages = {
       },
     },
   },
+  nav: {
+    siteName: "OmniCraft",
+  },
   studio: {
+    sidebar: {
+      collapse: "Collapse sidebar",
+      expand: "Expand sidebar",
+    },
     publish: {
       media: {
         imageTitle: "Image set",
