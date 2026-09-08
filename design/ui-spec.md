@@ -111,7 +111,7 @@
 - Component: ComplianceCheckBadge
 - Component: UsageGuidePanel
 - Component: GlobalSearchInput
-- Component: FollowButton
+- Component: FollowButton 关注按钮（#415 O1b 恒宽规范，取代「已关注=outline」旧契约）
 - Component: NotificationDropdown
 - Component: NotificationList
 - Component: ConversationList
@@ -635,7 +635,7 @@ interface FacetedSearchSidebarProps {
 - 内容分享 tab 只收该 IP 的二创（zone=fanwork）；作品卡复用内容详情浮层（`Component: ContentDetailOverlay`）。
 - 讨论帖详情为页内浮层（DiscussionDetailOverlay）：标题/正文/作者 + 回帖；Esc、浏览器后退、点遮罩或 X 关闭；加载失败呈现 role="alert" + 重试。
 - 共治提案卡片：字段级 diff（简介文本块 / 封面 URL / 标签 +绿 −红 chips）+ 赞成/反对双色进度条 + 门槛刻度（取自后端 config，禁止前端硬编码）+ 剩余天数 + 投票按钮；已投显示所投选择并锁按钮；未关注者投票被拒（PROPOSAL_NOT_ELIGIBLE）→ 页内「关注后可参与共治投票」面板一键关注原地解锁。
-- 头部身份区：封面/名称/类目/简介/TagBadge 标签 + 关注数/讨论数/作品数三统计 + FollowButton（min-w-[104px] 固定宽度防 hover 抖动）；统计随搜索命中收缩展示。
+- 头部身份区：封面/名称/类目/简介/TagBadge 标签 + 关注数/讨论数/作品数三统计 + FollowButton（#415 O1b 恒宽规范：组件内置「取消关注」隐藏占位，无外部 min-w）；统计随搜索命中收缩展示。
 - 旧子路由 301 收敛：`/ip/[ipId]/[category]` → `?tab=share&type=<category>`；`/ip/[ipId]/discussions*` → `?tab=discussions`。
 - ContentCard 上的「一键部署」按钮：`agent_enabled=true && content_type IN ('mod','prompt')` 才显示。
 - 支持渲染 SWR 或 SSR，并提供加载骨架 Skeleton 动画；SSR 只提供身份区与统计首屏，模块列表客户端拉取。
@@ -3656,43 +3656,42 @@ interface GlobalSearchInputProps {
 **i18n key namespace**
 - `search.input.*`、`search.suggestions.*`、`search.history.*`、`search.a11y.*`。
 
-## Component: FollowButton
+## Component: FollowButton 关注按钮（#415 O1b 恒宽规范，2026-09-07 裁决定稿）
+
+> 覆盖文件：`frontend/components/social/FollowButton.tsx`。
+> **裁决更替记载（2026-09-07 SP-14 O1b，用户确认）**：本节取代 #64 决策 20 / 审计问题 10 的「已关注 = 克制 outline 态」旧契约——实测已关注 outline 底色与页面画布同值、辨识度不足，且按钮宽度随状态/悬停跳变。
 
 **Key Constraints**
-- FollowButton 未登录时：点击跳转 `/login`，不显示已关注状态。
-- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，故该表面保持 shadow-none。
-- **状态契约（#64 决策 20 / 审计问题 10 权威）**：未关注是显眼主操作（primary 实底）；已关注是克制的 outline 态；hover/focus 已关注时显示「取消关注」。实现不得与本节相反（先例：2026-08-07 审计实测 `variant={following ? "default" : "outline"}` 与本节颠倒）。
+- **宽度恒定**：以最长状态文案「取消关注」（en: Unfollow）为常驻隐藏占位（grid 同格叠放），未关注/已关注/悬停取消关注三态与任意位置宽度不变；禁止外部 `min-w-[...]` 补丁。
+- **底色一致**：已关注与未关注同为 primary 实底（`variant="default"`），不得按状态翻转 outline；勾号与加号图标一律移除（纯文字，视觉与宽度恒定）。
+- **悬停已关注**：文案变「取消关注」+ destructive 红色边框与文字（`hover:border-destructive! hover:text-destructive!`，focus-visible 同理），宽度不变。
+- 未登录点击跳转 `/login`；信誉/封禁禁用态沿用 AuthContext capabilities（`can_interact`）与 denial title 提示；busy 期间禁用。
+- 可选 `onFollowed?: () => void`：关注成功后回调（提案页一键关注原地解锁投票权等）。
 
 **Props 接口**
 ```ts
 interface FollowButtonProps {
+  targetType: "user" | "ip";
+  targetId: number;
+  initialFollowing?: boolean;
   className?: string;
-  userId: number;
-  isFollowing: boolean;
-  followerCount?: number;
-  showCount?: boolean;
-  isLoading?: boolean;
-  size?: 'sm' | 'md';
-  onToggle: (userId: number, newState: boolean) => void;
+  onFollowed?: () => void;   // 关注成功回调（#415 新增）
 }
 ```
 
 **视觉结构**
-- 按钮容器: `<button className="inline-flex items-center justify-center gap-1.5 rounded-md text-sm font-medium transition-colors">`
-- 未关注态: `bg-primary text-primary-foreground px-4 py-2 hover:opacity-90` — 显示 "+ 关注"
-- 已关注态: `border border-border-default bg-canvas-default text-foreground px-4 py-2 hover:bg-canvas-subtle hover:text-destructive hover:border-destructive` — 显示 "已关注"（hover/focus 显示 "取消关注"）
+- 恒宽占位：`<span className="grid justify-items-center">` 内三格同位叠放——常驻 `invisible` 的「取消关注」占位 + 当前态文案（已关注时再叠 hover 态「取消关注」，`group-hover:hidden/inline` 切换）。
+- 未关注态：primary 实底 + 「关注」；已关注态：primary 实底 + 「已关注」（hover → 「取消关注」+ 红边红字）。
+- 尺寸沿用 Button `size="sm"`；圆形胶囊变体（侧栏创作者卡片）由接入方传 `rounded-full` 类。
 
-**尺寸规范**
-- md: `h-9 px-4 py-2 text-sm`（默认）
-- sm: `h-7 px-3 py-1 text-xs`
+**接入位（四处交互位 + 两处收敛，全部同一组件/同一视觉）**
+- IP 详情身份区（IPHubClient，原 `min-w-[104px]` 过宽补丁已移除）/ 内容浮层作者侧栏 + 浮层竖屏作者行（ContentDetailOverlayLayer 两处）/ 用户主页（UserProfileClient）。
+- 内容侧栏静态兜底拷贝（ContentSidebar，SSR 无交互场景）与提案页一键关注引导（IPProposalsTab FollowHint，经 `onFollowed` 解锁）已收敛为同一视觉/同一组件。
 
 **状态变体**
-- default: 未关注时 primary 色按钮；已关注时 outline 按钮。
-- hover 未关注: `opacity-90` 加深。
-- hover/focus 已关注: 背景变 subtle + 边框/文字变 destructive 色（提示取消关注），文本切换为「取消关注」。
-- loading: 按钮内嵌 Spinner，文字变为处理中。
-- disabled: `opacity-50 cursor-not-allowed`（信誉分不足或未登录）。
-- 未登录: 点击跳转 `/login`，无 loading 状态。
+- default（未关注/已关注）：primary 实底；hover 微反馈沿用 Button 默认。
+- hover/focus-visible（已关注）：destructive 边框与文字 + 文案切换。
+- disabled：busy/interactionBlocked；title = denial 原因的可读文案。
 
 ## Component: NotificationDropdown
 
