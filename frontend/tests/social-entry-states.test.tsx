@@ -93,14 +93,27 @@ test("compact discussion entry fails closed with the server denial reason", asyn
   assert.ok(view.getByText("Insufficient reputation"));
 });
 
-test("FollowButton preserves primary idle and restrained reversible following states", async () => {
+test("FollowButton keeps constant width, solid both states, destructive hover unfollow (#415 O1b)", async () => {
   const source = await readFile(new URL("../components/social/FollowButton.tsx", import.meta.url), "utf8");
 
-  assert.match(source, /variant=\{isFollowing \? "outline" : "default"\}/);
+  // 已关注与未关注底色一致：不再按状态翻转 variant
+  assert.match(source, /variant="default"/);
+  assert.doesNotMatch(source, /isFollowing \? "outline"/);
+  // 恒宽：最长文案「取消关注」隐藏占位（grid 同格叠放），任何状态宽度不变
+  assert.match(source, /invisible col-start-1 row-start-1/);
+  assert.match(source, /social\.unfollow/);
+  // hover 已关注 → 取消关注 + destructive 红边红字
   assert.match(source, /group-hover:hidden group-focus-visible:hidden/);
   assert.match(source, /group-hover:inline group-focus-visible:inline/);
-  assert.match(source, /social\.unfollow/);
+  assert.match(source, /hover:border-destructive!/);
+  // 勾号与加号图标移除（无图标，宽度与视觉恒定）
+  assert.doesNotMatch(source, /<Check/);
+  assert.doesNotMatch(source, /<Plus/);
+  // 既有行为保持：信誉禁用、未登录跳登录
   assert.match(source, /disabled=\{interactionBlocked \|\| busy\}/);
+  assert.match(source, /router\.push\("\/login"\)/);
+  // 提案页一键关注收敛：关注成功回调
+  assert.match(source, /onFollowed\?\.\(\)/);
 });
 
 function mockDiscussions(discussions: Array<{ id: number; title: string }>) {
@@ -138,3 +151,53 @@ const messages = {
     deniedUnavailable: "Interaction unavailable",
   },
 };
+
+/* ── #415 O1b：恒宽结构断言（DOM 级） ─────────────────────────────── */
+
+test("FollowButton renders the hidden unfollow sizer in every state so width cannot flap", async () => {
+  installDom();
+  const { FollowButton } = await import("../components/social/FollowButton");
+  const messages = (await import("../messages/en.json")).default;
+  const calls: string[] = [];
+
+  // 复用文件既有的可变 authStub 与 api 补丁模式（避免模块缓存下二次 stub 失效）
+  authStub.user = { id: 1 };
+  authStub.capabilities = { can_interact: true, interaction_denial_reason: "" };
+  const realPost = api.post;
+  api.post = (async (p: string) => {
+    calls.push(p);
+    return {};
+  }) as typeof api.post;
+
+  try {
+    for (const initialFollowing of [false, true]) {
+      const view = render(
+        <IntlProvider locale="en" messages={messages}>
+          <FollowButton targetType="user" targetId={9} initialFollowing={initialFollowing} />
+        </IntlProvider>,
+      );
+      const button = view.getByRole("button");
+      // 隐藏占位格（最长文案 Unfollow）在两种状态下都必须存在
+      const sizer = button.querySelector("span.invisible");
+      assert.ok(sizer, "hidden unfollow sizer present");
+      assert.match(sizer.textContent ?? "", /Unfollow/i);
+      // 无图标节点（勾号与加号均已移除）
+      assert.equal(button.querySelector("svg"), null);
+      cleanup();
+    }
+
+    // 关注成功触发 onFollowed（提案页解锁契约）
+    let unlocked = false;
+    const view = render(
+      <IntlProvider locale="en" messages={messages}>
+        <FollowButton targetType="ip" targetId={3} initialFollowing={false} onFollowed={() => { unlocked = true; }} />
+      </IntlProvider>,
+    );
+    await waitFor(() => view.getByRole("button").click());
+    await waitFor(() => assert.equal(unlocked, true));
+    assert.deepEqual(calls, ["/api/v1/ips/3/follow"]);
+  } finally {
+    api.post = realPost;
+    cleanup();
+  }
+});

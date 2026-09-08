@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Check, Clock, History, Minus, Plus, Search, ThumbsDown, ThumbsUp, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FollowButton } from "@/components/social/FollowButton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterPills } from "@/components/ui/filter-pills";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -418,26 +419,21 @@ function ProposalCard({
 function FollowHint({ ipId, onDone }: { ipId: number; onDone: () => void }) {
   const t = useTranslations();
   const { toast } = useToast();
-  const [busy, setBusy] = useState(false);
 
-  async function follow() {
-    setBusy(true);
-    try {
-      await api.post(`/api/v1/ips/${ipId}/follow`, {});
-      toast("success", t("proposal.followedUnlocked"));
-      onDone();
-    } catch (e) {
-      silentError(e, { component: "FollowHint", action: "follow" });
-      toast("error", t(getUserFacingErrorKey(e, "proposal.followFailed")));
-    } finally {
-      setBusy(false);
-    }
-  }
-
+  /* #415 O1b：独立按钮实现收敛为共享 FollowButton（onFollowed 原地解锁）；
+     toast 与错误回退由组件承担（失败提示走组件统一 operationFailed）。 */
   return (
     <div className="flex items-center gap-2 rounded-md border border-border bg-accent-subtle/60 px-3 py-1.5">
       <span className="text-xs text-accent-emphasis">{t('proposal.followToVote')}</span>
-      <Button size="sm" variant="outline" disabled={busy} onClick={() => void follow()}>{t('proposal.followNow')}</Button>
+      <FollowButton
+        targetType="ip"
+        targetId={ipId}
+        initialFollowing={false}
+        onFollowed={() => {
+          toast("success", t("proposal.followedUnlocked"));
+          onDone();
+        }}
+      />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ArrowRight, FileText, GitBranchPlus } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface AuthorInfo {
   id?: number;
@@ -172,12 +173,26 @@ export function ContentSidebar({
             {followAction ? (
               <div className="mt-3">{followAction}</div>
             ) : (
+              /* #415 O1b：静态兜底与 FollowButton 同视觉（实底恒定 + hover 取消关注红边；无交互） */
               <Button
-                variant={isFollowing ? "outline" : "default"}
+                variant="default"
                 size="sm"
-                className="mt-3 w-full rounded-full"
+                className={cn(
+                  "group mt-3 w-full rounded-full",
+                  isFollowing && "hover:border-destructive! hover:text-destructive!",
+                )}
               >
-                {isFollowing ? t('social.following') : t('social.follow')}
+                <span className="grid justify-items-center">
+                  <span className="invisible col-start-1 row-start-1" aria-hidden="true">{t('social.unfollow')}</span>
+                  {isFollowing ? (
+                    <>
+                      <span className="col-start-1 row-start-1 group-hover:hidden">{t('social.following')}</span>
+                      <span className="hidden col-start-1 row-start-1 group-hover:inline">{t('social.unfollow')}</span>
+                    </>
+                  ) : (
+                    <span className="col-start-1 row-start-1">{t('social.follow')}</span>
+                  )}
+                </span>
               </Button>
             )}
           </div>
