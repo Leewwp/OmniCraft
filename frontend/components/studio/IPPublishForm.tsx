@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { FileUploader, type UploadedAsset } from "@/components/content/FileUploader";
 import { ipCategoryOptions } from "@/components/ip/ipCategory";
+import { FilterPills } from "@/components/ui/filter-pills";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { fetchPublicConfig, uploadMaxMBForType } from "@/lib/public-config";
@@ -227,27 +228,16 @@ export function IPPublishForm({ onBack }: IPPublishFormProps) {
 
       <div>
         <label className="mb-1.5 block text-sm font-medium text-foreground">{t("categoryLabel")}</label>
-        <div className="flex flex-wrap gap-2">
-          {CATEGORY_OPTIONS.map((option) => {
-            const active = category === option.key;
-            return (
-              <button
-                key={option.key}
-                type="button"
-                onClick={() => setCategory(active ? "" : option.key)}
-                aria-pressed={active}
-                className={cn(
-                  "min-h-11 rounded-full border px-3.5 text-xs font-medium transition-colors duration-150",
-                  active
-                    ? "border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold"
-                    : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground",
-                )}
-              >
-                {tRoot(option.label)}
-              </button>
-            );
-          })}
-        </div>
+        {/* #414 O1a：类目选择收敛为共享 FilterPills；clearable 保持原有
+            「点击已选中项反选回空」语义（类目可选） */}
+        <FilterPills
+          wrap
+          clearable
+          ariaLabel={t("categoryLabel")}
+          options={CATEGORY_OPTIONS.map((option) => ({ value: option.key, label: tRoot(option.label) }))}
+          value={category}
+          onChange={setCategory}
+        />
       </div>
 
       <div>

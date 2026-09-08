@@ -176,6 +176,7 @@
     "errorInvalidPassword": "当前密码不正确"
   },
   "home": {
+    "contentFilterLabel": "内容类型筛选",
     "heroTitle": "发现、分享、共创你的热爱。",
     "heroSubtitle": "OmniCraft 万象工坊 — 全民创意分享平台",
     "heroDescription": "二创区、原创区 — 发现、分享、共创你的热爱。Mod 下载与部署、乐谱分享、AI 辅助创作。",
@@ -1523,6 +1524,7 @@
     "listView": "列表视图",
     "filter": {
       "mainCategory": "大类",
+      "tagsLabel": "标签筛选",
       "selectedTags": "已选标签",
       "clearAll": "全部清除",
       "tags": "标签",
