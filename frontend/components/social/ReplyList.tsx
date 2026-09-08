@@ -6,9 +6,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
-import { Button } from "@/components/ui/button";
-import { Send } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Composer } from "@/components/ui/composer";
 
 interface Reply {
   id: number;
@@ -74,19 +73,18 @@ export function ReplyList({ discussionId, replies, onRefresh, className }: Reply
       )}
 
       {user && (
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
-            placeholder={t("discussion.replyPlaceholder")}
-            className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-          />
-          <Button size="sm" onClick={handleSubmit} disabled={busy || !body.trim()}>
-            <Send className="h-4 w-4" />
-          </Button>
-        </div>
+        /* #413 F6a：讨论回复升级共享 Composer 多行形态（Enter 提交保持，
+           Shift+Enter 换行为多行化自然新增） */
+        <Composer
+          value={body}
+          onChange={setBody}
+          onSubmit={() => void handleSubmit()}
+          keyMode="enter"
+          placeholder={t("discussion.replyPlaceholder")}
+          submitLabel={t("discussion.replyAction")}
+          submitDisabled={busy || !body.trim()}
+          submitting={busy}
+        />
       )}
 
       {error && <p className="text-xs text-destructive">{error}</p>}

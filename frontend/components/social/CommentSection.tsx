@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { MessageCircle, Send, ThumbsUp, ThumbsDown, Reply, Pencil, Trash2, Flag } from "lucide-react";
+import { MessageCircle, ThumbsUp, ThumbsDown, Reply, Pencil, Trash2, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Composer } from "@/components/ui/composer";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -233,29 +234,18 @@ export function CommentSection({ contentId, className }: CommentSectionProps) {
       </div>
 
       {user ? (
-        <div className="flex gap-2">
-          <textarea
-            className="min-h-[60px] flex-1 rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-            placeholder={canComment ? t('social.commentPlaceholder') : t(denialKey)}
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            disabled={!canComment || busy}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault();
-                void submit();
-              }
-            }}
-          />
-          <Button
-            size="sm"
-            disabled={!canComment || !body.trim() || busy}
-            onClick={() => void submit()}
-            className="self-end"
-          >
-            <Send className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+        /* #413 F6a：公共 Composer 内嵌发送按钮（Ctrl/Cmd+Enter 提交语义保持） */
+        <Composer
+          value={body}
+          onChange={setBody}
+          onSubmit={() => void submit()}
+          keyMode="ctrl-enter"
+          rows={2}
+          placeholder={canComment ? t('social.commentPlaceholder') : t(denialKey)}
+          submitLabel={t('social.sendComment')}
+          disabled={!canComment || busy}
+          submitDisabled={!body.trim() || busy}
+        />
       ) : (
         <p className="rounded-md border border-border bg-muted/20 p-3 text-center text-xs text-muted-foreground">
           {t('social.loginToComment')}
@@ -527,22 +517,18 @@ function CommentItem({
           </div>
 
           {replyOpen && (
-            <div className="mt-2 flex gap-2">
-              <textarea
-                className="min-h-[44px] flex-1 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
-                placeholder={t('social.replyPlaceholder', { name: comment.author?.username || `#${comment.author_id}` })}
+            /* #413 F6a：一级回复接入公共 Composer（内嵌按钮；仅按钮提交的现状语义保持） */
+            <div className="mt-2">
+              <Composer
                 value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
+                onChange={setReplyText}
+                onSubmit={() => { onReply(replyText); setReplyText(""); setReplyOpen(false); }}
+                keyMode="button-only"
+                placeholder={t('social.replyPlaceholder', { name: comment.author?.username || `#${comment.author_id}` })}
+                submitLabel={t('social.reply')}
+                submitDisabled={!replyText.trim()}
                 maxLength={5000}
               />
-              <Button
-                size="sm"
-                className="h-8 self-end"
-                disabled={!replyText.trim()}
-                onClick={() => { onReply(replyText); setReplyText(""); setReplyOpen(false); }}
-              >
-                {t('social.reply')}
-              </Button>
             </div>
           )}
 

@@ -1120,6 +1120,7 @@
     "reportFailed": "举报提交失败，请稍后重试",
     "comments": "评论",
     "commentPlaceholder": "写下你的评论...",
+    "sendComment": "发布评论",
     "loginToComment": "请登录后参与评论",
     "noComments": "暂无评论，来抢沙发吧",
     "noCommentsHint": "评论和回复会在对话开始后显示在这里。",
@@ -1591,7 +1592,8 @@
     "bodyPlaceholder": "写下你的想法...",
     "replyCount": "{count} 条回复",
     "noReplies": "暂无回复，来发表第一条评论吧",
-    "replyPlaceholder": "写下你的回复..."
+    "replyPlaceholder": "写下你的回复...",
+    "replyAction": "回复"
   },
   "support": {
     "title": "支持创作者",
