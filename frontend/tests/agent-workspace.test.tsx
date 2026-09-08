@@ -903,12 +903,14 @@ test("citation cards persist under their own answer after a follow-up turn", asy
     const view = renderWithIntl(<AgentWorkspace />);
     const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
     fireEvent.change(composer, { target: { value: "first question" } });
-    fireEvent.submit(composer.closest("form")!);
+    /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
+    fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => assert.ok(view.getByText("first answer")), { timeout: 3000 });
     await waitFor(() => assert.ok(view.getByRole("button", { name: /Cited content/ })));
 
     fireEvent.change(composer, { target: { value: "second question" } });
-    fireEvent.submit(composer.closest("form")!);
+    /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
+    fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => assert.ok(view.getByText("second answer")), { timeout: 3000 });
 
     /* 第二轮完成后，第一轮的引用卡片必须仍在（历史端点回放落库引用），第二轮的新卡片同屏。 */
@@ -962,7 +964,8 @@ test("clicking an inline citation badge opens the shared overlay directly", asyn
     const view = renderWithIntl(<AgentWorkspace />);
     const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
     fireEvent.change(composer, { target: { value: "find me a guide" } });
-    fireEvent.submit(composer.closest("form")!);
+    /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
+    fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => assert.ok(view.getByText(/see this/)), { timeout: 3000 });
 
     /* 等引用卡片出现 = done 事件已结算（角标按钮只在 done 后可点）。此后 done 触发的
@@ -1742,7 +1745,8 @@ test("chat requests use the A-01 continuation body and carry conversation_id on 
     const view = renderWithIntl(<AgentWorkspace />);
     const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
     fireEvent.change(composer, { target: { value: "first question" } });
-    fireEvent.submit(composer.closest("form")!);
+    /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
+    fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => assert.ok(view.getByText("first answer")), { timeout: 3000 });
 
     assert.equal(stub.bodies.length, 1);
@@ -1786,7 +1790,8 @@ test("three-layer generation: thinking block streams open then auto-collapses, t
     const view = renderWithIntl(<AgentWorkspace />);
     const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
     fireEvent.change(composer, { target: { value: "最近有点 emo" } });
-    fireEvent.submit(composer.closest("form")!);
+    /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
+    fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => assert.ok(view.getByText("这是带思考过程的回答。")), { timeout: 3000 });
 
     /* 思考折叠区：完成后自动折叠，可重新展开。done→activeId→历史回载会交换
@@ -1945,7 +1950,8 @@ test("assistant message actions: copy writes to the clipboard with a toast", asy
     const view = renderWithIntl(<AgentWorkspace />);
     const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
     fireEvent.change(composer, { target: { value: "复制我" } });
-    fireEvent.submit(composer.closest("form")!);
+    /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
+    fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => assert.ok(view.getByText("可复制的回答。")), { timeout: 3000 });
 
     /* 操作行只在 !streaming 且历史回载完成后出现（done→activeId→回载存在
@@ -1997,7 +2003,8 @@ test("regenerate keeps the user message, drops the previous answer rows and re-s
     const view = renderWithIntl(<AgentWorkspace />);
     const composer = await waitFor(() => view.getByRole("textbox", { name: "Ask the agent" }));
     fireEvent.change(composer, { target: { value: "重新生成我" } });
-    fireEvent.submit(composer.closest("form")!);
+    /* #417：输入区为公共 Composer（无 form 元素），按真实路径 Enter 发送 */
+    fireEvent.keyDown(composer, { key: "Enter" });
     await waitFor(() => assert.ok(view.getByText("第一版回答")), { timeout: 3000 });
 
     await waitFor(() =>
@@ -2124,4 +2131,15 @@ test("#416 title inline edit: Enter saves via rename contract, Esc cancels, blan
   const patch = calls.find((call) => call.method === "PATCH");
   assert.ok(patch, "rename PATCH sent");
   assert.deepEqual(patch?.body, { title: "新标题" });
+});
+
+test("#417 agent composer delegates to the shared embedded Composer", async () => {
+  const source = await readFile(
+    new URL("../components/agent/AgentWorkspace.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /<Composer/, "agent input area consumes the shared Composer");
+  assert.match(source, /stopLabel=\{streaming/, "streaming swaps the embedded slot to the stop action");
+  assert.doesNotMatch(source, /composer\.style\.height/, "local auto-grow removed (component-owned)");
+  assert.match(source, /ref=\{composerRef\}/, "focus flows preserved via ref forwarding");
 });

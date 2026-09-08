@@ -678,3 +678,46 @@ test("#416 O2 empty/conversation/edit layouts (no page dividers, big empty compo
   await page.keyboard.press("Escape");
   await expect(page.getByRole("heading", { name: "星尘设定集" })).toBeVisible();
 });
+
+/* #417 F6b：Agent 输入 = 公共 Composer 内嵌形态（发送/停止同位右下角）。 */
+test("#417 F6b agent composer embeds send/stop in the input's bottom-right corner", async ({ page }) => {
+  await mockCreatorSession(page);
+  await enableAgent(page);
+  await mockConversationList(page, [], {});
+  /* addInitScript 须在首航前安装（fetch 钩子随文档初始化注入）。 */
+  await installStreamingChat(page);
+
+  /* 空态大输入框：发送按钮内嵌 wrapper 右下角。 */
+  await page.goto("/agent");
+  const composer = page.getByPlaceholder("Describe the works, sources or usage you want to find");
+  await expect(composer).toBeVisible({ timeout: 15_000 });
+  const wrap = page.locator("textarea").locator("xpath=..");
+  const send = wrap.getByRole("button", { name: "Send message" });
+  await expect(send).toBeVisible();
+  const wrapBox = await wrap.boundingBox();
+  const sendBox = await send.boundingBox();
+  if (!wrapBox || !sendBox) throw new Error("composer geometry unavailable");
+  const insetRight = wrapBox.x + wrapBox.width - (sendBox.x + sendBox.width);
+  const insetBottom = wrapBox.y + wrapBox.height - (sendBox.y + sendBox.height);
+  expect(insetRight).toBeGreaterThan(0);
+  expect(insetBottom).toBeGreaterThan(0);
+  expect(insetRight).toBeLessThanOrEqual(14);
+  expect(insetBottom).toBeLessThanOrEqual(14);
+  await page.screenshot({ path: "../screenshots/417-agent-composer-embedded.png" });
+
+  /* 流式期：同一内嵌位切换为停止按钮（300×60ms 长流保窗口）。 */
+  const deltas = Array.from({ length: 300 }, (_, i) => ({ type: "delta", delta: `chunk-${i + 1} ` }));
+  await page.evaluate((events) => {
+    (window as unknown as { __agentStreamMock: { delayMs: number; events: unknown[] } }).__agentStreamMock = {
+      delayMs: 60,
+      events,
+    };
+  }, deltas);
+  await composer.fill("Blender 插件安装教程");
+  await composer.press("Enter");
+  await expect(wrap.getByRole("button", { name: "Stop generating" })).toBeVisible({ timeout: 10_000 });
+  await expect(wrap.getByRole("button", { name: "Send message" })).toHaveCount(0);
+  await page.screenshot({ path: "../screenshots/417-agent-composer-stop.png" });
+  await wrap.getByRole("button", { name: "Stop generating" }).click();
+  await expect(page.getByText("Stopped generating")).toBeVisible({ timeout: 10_000 });
+});

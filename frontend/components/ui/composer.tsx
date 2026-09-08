@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { LoaderCircle, Send } from "lucide-react";
+import { forwardRef, useEffect, useRef } from "react";
+import { LoaderCircle, Send, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* #413 F6a 公共聊天式 Composer：发送按钮内嵌输入框右下角（与内边缘 8px），
@@ -33,13 +33,16 @@ interface ComposerProps {
   submitDisabled?: boolean;
   /** 提交中（按钮转 spinner）。 */
   submitting?: boolean;
+  /** #417 F6b：流式停止——两值齐备时内嵌位渲染停止按钮（Agent 工作台语义）。 */
+  stopLabel?: string;
+  onStop?: () => void;
   rows?: number;
   maxHeight?: number;
   maxLength?: number;
   className?: string;
 }
 
-export function Composer({
+export const Composer = forwardRef(function Composer({
   value,
   onChange,
   onSubmit,
@@ -54,7 +57,11 @@ export function Composer({
   maxHeight = COMPOSER_MAX_HEIGHT,
   maxLength,
   className,
-}: ComposerProps) {
+  stopLabel,
+  onStop,
+}: ComposerProps,
+ref: React.ForwardedRef<HTMLTextAreaElement>,
+) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   /* 自动增高：贴内容长高，maxHeight 封顶转内部滚动。 */
@@ -90,7 +97,11 @@ export function Composer({
       )}
     >
       <textarea
-        ref={textareaRef}
+        ref={(node) => {
+          textareaRef.current = node;
+          if (typeof ref === "function") ref(node);
+          else if (ref) ref.current = node;
+        }}
         value={value}
         rows={rows}
         disabled={disabled}
@@ -102,7 +113,19 @@ export function Composer({
         className="block w-full resize-none overflow-y-auto bg-transparent px-3 pb-10 pt-2 pr-12 text-sm text-fg-default placeholder:text-fg-subtle focus:outline-none disabled:cursor-not-allowed"
         style={{ maxHeight }}
       />
-      {/* 内嵌发送按钮：右下角 8px、背景融合（透明底，hover 才有 subtle 反馈） */}
+      {/* 内嵌动作按钮：右下角 8px、背景融合（透明底，hover 才有 subtle 反馈）。
+          #417：流式期渲染停止按钮（同一内嵌位，Square 图标 + stopLabel）。 */}
+      {stopLabel && onStop ? (
+        <button
+          type="button"
+          aria-label={stopLabel}
+          onClick={onStop}
+          className="absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-md text-fg-muted transition-colors duration-150 hover:bg-canvas-subtle hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Square className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+          <span className="sr-only">{stopLabel}</span>
+        </button>
+      ) : (
       <button
         type="button"
         aria-label={submitLabel}
@@ -110,13 +133,14 @@ export function Composer({
         disabled={submitDisabled || disabled}
         className="absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-md text-fg-muted transition-colors duration-150 hover:bg-canvas-subtle hover:text-accent-emphasis focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
       >
-        {submitting ? (
-          <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
-        ) : (
-          <Send className="h-4 w-4" aria-hidden="true" />
-        )}
-        <span className="sr-only">{submitLabel}</span>
-      </button>
+          {submitting ? (
+            <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Send className="h-4 w-4" aria-hidden="true" />
+          )}
+          <span className="sr-only">{submitLabel}</span>
+        </button>
+      )}
     </div>
   );
-}
+});

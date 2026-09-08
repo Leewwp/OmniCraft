@@ -3,8 +3,9 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { AlertCircle, BookOpen, Copy, Loader2, Menu, RotateCw, Send, X } from "lucide-react";
+import { AlertCircle, BookOpen, Copy, Loader2, Menu, RotateCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Composer } from "@/components/ui/composer";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { useToast } from "@/components/ui/Toast";
 import { useContentDetailOverlay } from "@/components/content/use-content-detail-overlay";
@@ -30,7 +31,6 @@ import {
 const SIDEBAR_STORAGE_KEY = "agentSidebarCollapsed";
 const STICKY_BOTTOM_THRESHOLD = 80;
 /** 输入自动增高上限：约 8 行（leading-6 = 24px × 8 + 上下 padding）后转内部滚动。 */
-const COMPOSER_MAX_HEIGHT = 208;
 
 export interface AgentWorkspaceProps {
   initialConversationId?: number;
@@ -148,14 +148,6 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   useEffect(() => {
     setCollapsed(window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "collapsed");
   }, []);
-
-  /* 输入自动增高：内容变化时贴着内容长高，8 行封顶转内部滚动。 */
-  useEffect(() => {
-    const composer = composerRef.current;
-    if (!composer) return;
-    composer.style.height = "auto";
-    composer.style.height = `${Math.min(composer.scrollHeight, COMPOSER_MAX_HEIGHT)}px`;
-  }, [input]);
 
   /* 选中会话时加载服务端历史；新对话清空本地消息。think 行（phase="think"）
      以思考折叠块回放；A-05 blocked 行渲染占位提示。注意：done 事件会把新会话
@@ -697,58 +689,28 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   /* #416 O2：同一表单的两种布局形态——空态 = 大号输入框（rows 4、宽占比
      更大）随引导区；会话态 = 底部常规形态（rows 1）。发送按钮与按键语义
      两形态一致（发送按钮改造属 #417，本轮不动）。 */
+  /* #417 F6b：输入区切换到公共 Composer（#413 F6a 产出）——发送/停止按钮
+     内嵌右下角背景融合；Enter 发送、Shift+Enter 换行、自动增高 208 上限、
+     isComposing 防护随组件内建；URL 预填与流式停止行为保持。 */
   const renderComposer = (emptyVariant: boolean) => (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        handleSend();
-      }}
-      className={emptyVariant ? "w-full" : "shrink-0 bg-canvas-default p-3"}
-    >
-      <div className="flex items-end gap-2">
-        <textarea
-          ref={composerRef}
-          rows={emptyVariant ? 4 : 1}
-          aria-label={t("agent.workspace.composerLabel")}
-          placeholder={t("agent.workspace.inputPlaceholder")}
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              handleSend();
-            }
-          }}
-          disabled={streaming}
-          style={{ maxHeight: COMPOSER_MAX_HEIGHT }}
-          className={emptyVariant
-            ? "min-h-28 flex-1 resize-none self-auto overflow-y-auto rounded-md border border-border-default bg-canvas-default px-3 py-2 text-sm leading-6 text-fg-default placeholder:text-fg-muted focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
-            : "min-h-11 flex-1 resize-none self-auto overflow-y-auto rounded-md border border-border-default bg-canvas-default px-3 py-2 text-sm leading-6 text-fg-default placeholder:text-fg-muted focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"}
-        />
-            {streaming ? (
-              <Button
-                type="button"
-                size="sm"
-                className="h-11 w-11 shrink-0 p-0"
-                aria-label={t("agent.workspace.stopGenerating")}
-                onClick={handleStop}
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            ) : (
-              <Button
-                type="submit"
-                size="sm"
-                className="h-11 w-11 shrink-0 p-0"
-                aria-label={t("agent.workspace.sendMessage")}
-                disabled={!input.trim()}
-              >
-                <Send className="h-4 w-4" aria-hidden="true" />
-              </Button>
-          )}
-        </div>
-        <p className="mt-1.5 px-1 text-xs text-fg-muted">{t("agent.workspace.composerHint")}</p>
-      </form>
+    <div className={emptyVariant ? "w-full" : "shrink-0 bg-canvas-default p-3"}>
+      <Composer
+        ref={composerRef}
+        value={input}
+        onChange={setInput}
+        onSubmit={() => handleSend()}
+        keyMode="enter"
+        rows={emptyVariant ? 4 : 1}
+        ariaLabel={t("agent.workspace.composerLabel")}
+        placeholder={t("agent.workspace.inputPlaceholder")}
+        submitLabel={t("agent.workspace.sendMessage")}
+        submitDisabled={!input.trim() || streaming}
+        disabled={streaming}
+        stopLabel={streaming ? t("agent.workspace.stopGenerating") : undefined}
+        onStop={streaming ? handleStop : undefined}
+      />
+      <p className="mt-1.5 px-1 text-xs text-fg-muted">{t("agent.workspace.composerHint")}</p>
+    </div>
   );
   return (
     <main
