@@ -11,6 +11,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { FileUploader, toUploadedAsset, type UploadItem } from "@/components/content/FileUploader";
 import { MarkdownEditor } from "@/components/content/MarkdownEditor";
+import { FilterPills } from "@/components/ui/filter-pills";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { cn } from "@/lib/utils";
 import { AgentFeatureGate } from "@/components/agent/AgentFeatureGate";
@@ -474,20 +475,14 @@ export function PublishForm({ zone, contentType, onBack, prefillSourceOriginalId
           <label className="mb-1.5 block text-sm font-medium text-foreground">
             {t('studio.publish.categoryLabel')} <span className="text-destructive">*</span>
           </label>
-          <div className="flex flex-wrap gap-2">
-            {ORIGINAL_CATEGORIES.map((cat) => (
-              <button key={cat} type="button" onClick={() => setCategory(cat)}
-                aria-pressed={category === cat}
-                className={cn(
-                  "rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors duration-150",
-                  category === cat
-                    ? "border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold"
-                    : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground"
-                )}>
-                {t(CATEGORY_I18N[cat])}
-              </button>
-            ))}
-          </div>
+          {/* #414 O1a：类目选择收敛为共享 FilterPills */}
+          <FilterPills
+            wrap
+            ariaLabel={t('studio.publish.categoryLabel')}
+            options={ORIGINAL_CATEGORIES.map((cat) => ({ value: cat, label: t(CATEGORY_I18N[cat]) }))}
+            value={category}
+            onChange={setCategory}
+          />
         </div>
       )}
 

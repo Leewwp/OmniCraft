@@ -137,15 +137,18 @@ test("filter selected states share the colored pill contract with semantic state
   ]);
 
   const pill = /border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold/;
-  for (const source of [home, filterPills]) {
-    assert.match(source, pill, "selected state must use the shared colored pill");
-    assert.match(source, /rounded-full/, "selected pill must be rounded-full");
-    assert.match(source, /aria-pressed/, "selection must be exposed semantically");
-  }
+  // #414 O1a：选中态契约收敛到共享组件本体（矮药丸新基准）；二创首页本地拷贝已删除，改断言委托。
+  assert.match(filterPills, pill, "selected state must use the shared colored pill");
+  assert.match(filterPills, /rounded-full/, "selected pill must be rounded-full");
+  assert.match(filterPills, /aria-pressed/, "selection must be exposed semantically");
+  assert.match(filterPills, /py-1\.5/, "compact height tier (SP-14 O1a 矮药丸裁决)");
+  assert.doesNotMatch(filterPills, /min-h-11/, "44px 触控档已由 O1a 裁决取代");
+  assert.doesNotMatch(filterPills, /Check/, "勾号图标已移除（可及性改底色/描边/字重/aria-pressed 四线索）");
 
   // Selection must not rely on color alone: semantic attribute or text is required.
-  assert.match(home, /aria-pressed=\{active\}/);
   assert.match(filterPills, /aria-pressed=\{active\}/);
+  assert.match(home, /<FilterPills/, "二创首页筛选收敛为共享 FilterPills（本地拷贝已删除）");
+  assert.doesNotMatch(home, /border-accent-emphasis bg-accent-subtle/, "本地药丸样式不得残留");
 
   // The original zone page delegates the pill form + sticky row to the in-place feed client.
   assert.match(originalPage, /<OriginalFeedClient/);

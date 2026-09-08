@@ -193,12 +193,14 @@
 
 ### 筛选选择控件（FilterPills 形态基准）
 
-- 形态：药丸 `rounded-full`、44px 触控高度（`min-h-11`）、容器横向滚动（溢出时不换页布局）、`aria-pressed` 表达选中。
-- **选中态基准（全站唯一，零新 token）**：`bg-accent-subtle` 浅底 + `text-accent-emphasis` 文字 + 1px 主色描边（`border-accent-emphasis`）+ Check 图标（`h-3.5 w-3.5`）+ semibold。
+> **裁决更替记载（2026-09-07 SP-14 O1a，用户确认）**：本节基准取代 SP-12 批次（2026-09-01）「IP 库现有效果即基准 = 44px 触控高度（`min-h-11`）+ Check 勾号图标」的旧裁决；旧形态自 #414 起不再是任何页面的合法形态。两者不得并存引用。
+
+- 形态：药丸 `rounded-full`、**紧凑高度档（`px-3.5 py-1.5`，约 28px，即二创首页原基准）**、无勾号图标；容器默认横向滚动（溢出不换页布局），侧栏窄容器可传 `wrap` 换行堆叠；`aria-pressed` 表达选中。
+- **选中态基准（全站唯一，零新 token）**：`bg-accent-subtle` 浅底 + `text-accent-emphasis` 文字 + 1px 主色描边（`border-accent-emphasis`）+ semibold。可及性四线索 = 底色 + 描边 + 字重 + `aria-pressed`（不依赖图标，满足「不只靠颜色」）。
 - 未选中态：透明底/透明描边 + `text-muted-foreground`；hover `bg-muted` + `text-foreground`。
-- 切换交互：**就地切换 + URL query 同步**（`router.replace`，不滚动不跳页）。
-- 基准实现：`/ips` IP 库分类筛选；新筛选一律复用共享 FilterPills 组件（组件规格见 `design/ui-spec.md`）。
-- 既有筛选组件（ContentTypeFilter 等）在接入批次收敛到本基准，收敛前不得新增偏离形态。
+- 切换交互：**就地切换 + URL query 同步**（`router.replace`，不滚动不跳页）。选择模式由组件 `selectionMode` 显式声明：`single`（可选 `clearable` = 点击已选中项清空）/ `multiple`（点击添加、再次点击移除、可清空）。
+- 基准实现：共享 `FilterPills` 组件（`frontend/components/ui/filter-pills.tsx`，组件规格见 `design/ui-spec.md`）；全站筛选/类目选择（IP 库、原创区、二创首页、IP 详情内容/提案、搜索侧栏、Studio 发布表单、收藏集）一律复用，禁止新增本地拷贝。
+- 特例（裁决 #3，2026-09-07）：管理后台下拉保持；时间/排序类下拉为信息密度控件不药丸化；TagBadge 为信息标签非选择控件，不在本基准范围。
 
 ### Modal / Popover / Dropdown
 

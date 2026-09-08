@@ -85,7 +85,7 @@
 - Component: TagBadge
 - Component: IPCard
 - Component: IPCategoryTabs
-- Component: FilterPills 筛选药丸（U-01 新增，全站筛选形态基准）
+- Component: FilterPills 筛选药丸（全站筛选形态基准；2026-09-07 O1a 矮化裁决取代 SP-12 旧基准）
 - Component: ContentStatusBadge 内容状态徽标（T44/FIX-14 新增）
 - Component: ContentDetail
 - Component: ContentDetailOverlay
@@ -319,6 +319,7 @@ interface HeaderProps {
 - 仅提供普通关键词、标签和分类分面筛选；不得在侧边栏嵌入 Agent 模式或自然语言问答入口。
 - 组件必须保持 1px border 扁平设计，无阴影 `shadow-none`。
 - 所有间距（gap/padding/margin）使用 Tailwind 类名。
+- **三组筛选药丸收敛（#414 O1a）**：分类（单选）/ 标签（多选）/ 内容类型（多选）全部为共享 `Component: FilterPills`（wrap 换行形态）；primary 色系药丸废除；标签「已选即禁用」废除，多选语义 = 点击添加、再次点击移除（与已选摘要 chips 的移除语义一致）。
 
 **Props 接口**
 ```ts
@@ -2172,32 +2173,34 @@ interface IPCardProps {
 
 - 组件已删除：IP 详情页重构为单页三模块 Hub 后，类目间跳转 tab 不再存在。类目/媒体类型筛选由 `Component: FilterPills` 承担（`IPShareTab` 内），模块切换由 Hub 三 tab（`IPHubClient`）承担。本节仅作历史索引，不再是实现依据；新代码禁止复活本组件。
 
-## Component: FilterPills 筛选药丸（SP-12 U-01 新增，全站筛选形态基准）
+## Component: FilterPills 筛选药丸（全站筛选形态基准；2026-09-07 SP-14 O1a 矮化裁决定稿）
 
-> 覆盖文件：`frontend/components/ui/filter-pills.tsx`（U-03 从 /ips 现有实现提炼，归入 ui 原语目录）。
+> 覆盖文件：`frontend/components/ui/filter-pills.tsx`（U-03 从 /ips 现有实现提炼；#414 O1a 按矮药丸新基准改造并收敛全部本地拷贝）。
 > 权威：形态/选中态/动效 token 以 `design/design-system.md`「筛选选择控件」为唯一 token 权威，本节为组件规格。
+> **裁决更替记载（2026-09-07 SP-14 O1a，用户确认）**：本节取代 SP-12 批次「44px 触控高度 + Check 勾号」旧规格；旧形态不再是任何页面的合法形态。
 
 **Key Constraints**
-- 全站筛选/类目选择控件的唯一形态：药丸 `rounded-full`、44px 触控高度（`min-h-11`）、`aria-pressed` 表达选中。
-- 选中态全站唯一基准：`bg-accent-subtle` + `text-accent-emphasis` + 1px `border-accent-emphasis` + Check 图标（`h-3.5 w-3.5`）+ `font-semibold`；未选中：透明底/透明描边 + `text-muted-foreground`，hover `bg-muted` + `text-foreground`。零新 token。
+- 全站筛选/类目选择控件的唯一形态：药丸 `rounded-full`、紧凑高度档（`px-3.5 py-1.5`，约 28px）、**无勾号图标**、`aria-pressed` 表达选中。
+- 选中态全站唯一基准：`bg-accent-subtle` + `text-accent-emphasis` + 1px `border-accent-emphasis` + `font-semibold`；未选中：透明底/透明描边 + `text-muted-foreground`，hover `bg-muted` + `text-foreground`。零新 token。
+- 可及性「不只靠颜色」四线索：底色 + 描边 + 字重 + `aria-pressed`（#414 起不依赖勾号图标）。
 - 切换交互一律**就地切换 + URL query 同步**（`router.replace`，不滚动不跳页）；禁止整页跳转式筛选。
+- 选择模式由 `selectionMode` 显式声明：`"single"`（默认，可选 `clearable` = 点击已选中项清空，用于类目可选场景）/ `"multiple"`（点击添加、再次点击移除、可清空，用于搜索侧栏标签/内容类型）。
 - 操作按钮（提交/发布等）不得使用本组件形态（形状语义：矩形=操作、药丸=选择）。
 
 **Props 接口**
 ```ts
-interface FilterPillsProps {
-  options: { value: string; label: string; count?: number }[];
-  value: string;
-  onChange: (value: string) => void;
-  ariaLabel: string;        // 容器 nav 的 aria-label（i18n）
-  className?: string;
-}
+interface FilterPillOption { value: string; label: string; count?: number }
+
+// 判别联合：single（默认）与 multiple 各自约束 value/onChange 形态
+{ selectionMode?: "single"; value: string; onChange: (value: string) => void; clearable?: boolean }
+{ selectionMode: "multiple"; value: string[]; onChange: (value: string[]) => void }
+// 公共：options / ariaLabel（必传，i18n）/ className? / loading? / disabled? / wrap?
 ```
 
 **布局规范**
-- 容器：`nav` + 横向 `overflow-x-auto`（溢出横向滚动，`scrollbar-width: none`，底部 `pb-1` 防裁切），项间 `gap-1`。
-- 每项：`inline-flex min-h-11 flex-shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-medium whitespace-nowrap`。
-- 移动端 (375px) 保持 44px 触控高度与横向滚动，不换行堆叠。
+- 容器：`nav`，默认横向 `overflow-x-auto`（`scrollbar-width: none`，底部 `pb-1` 防裁切，项间 `gap-1`）；侧栏等窄容器传 `wrap` 改为 `flex flex-wrap gap-1.5` 换行堆叠。
+- 每项：`inline-flex flex-shrink-0 items-center gap-1 rounded-full border px-3.5 py-1.5 text-xs font-medium whitespace-nowrap select-none`。
+- 移动端 (375px) 保持紧凑高度与横向滚动（或 wrap 换行），不整页跳转。
 
 **状态变体**
 - selected：见 Key Constraints 选中态基准（aria-pressed=true）。
@@ -2210,14 +2213,15 @@ interface FilterPillsProps {
 - 全部经 token 自动映射（accent-subtle/accent-emphasis dark 值）；dark `--accent-emphasis` #818CF8 对暗卡片 6.34:1 ≥AA（FIX-05 裁决）。
 
 **可访问性**
-- 容器 `nav` + `aria-label`；各项 `aria-pressed`；选中不得只靠颜色（Check 图标 + 描边 + 字重三线索）。
+- 容器 `nav` + `aria-label`；各项 `aria-pressed`；选中不得只靠颜色（底色 + 描边 + 字重三视觉线索 + aria-pressed 程序线索）。
 - 键盘：Tab 逐项、Enter/Space 选中；横向滚动区域可用方向键滚动。
 
 **i18n key namespace**
 - 由接入方传入 options label（复用各页面既有类目/类型键，如 `home.*`）；本组件自身无常驻字符串，`ariaLabel` 必传。
 
-**收敛注记**
-- 既有筛选组件（ContentTypeFilter、IP 详情类目 tab 等）在 U-03/U-04 接入时收敛到本基准；收敛完成前不得新增偏离形态的筛选控件。
+**收敛注记（#414 O1a 收敛完成态）**
+- 已收敛消费方：ContentTypeFilter（收藏集）、IP 库（IPBrowseClient）、原创区（OriginalFeedClient）、IP 详情内容/提案（IPShareTab/IPProposalsTab）、二创首页（HomePageClient，本地拷贝已删除——本页即矮药丸原始基准）、搜索侧栏（FacetedSearchSidebar 三组：分类单选/标签多选/内容类型多选，primary 色系已废）、Studio 发布表单两处（PublishForm 原创类目 + IPPublishForm IP 类目（clearable））。
+- 禁止新增偏离形态的筛选控件或本地拷贝；特例（管理后台下拉、时间/排序下拉、TagBadge）见 design-system.md「筛选选择控件」。
 
 ## Component: ContentDetail
 
