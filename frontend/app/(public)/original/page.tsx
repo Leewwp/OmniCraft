@@ -52,7 +52,8 @@ interface StatsSummary { users: number; ips: number; contents: number; }
 
 async function fetchStats(apiBase: string): Promise<StatsSummary | null> {
   try {
-    const res = await fetch(`${apiBase}/stats/summary`, { cache: "no-store" });
+    /* #411 F3：原创区头部 = 分区统计（内容数只计原创、创作者 = 区内去重作者数）。 */
+    const res = await fetch(`${apiBase}/stats/summary?zone=original`, { cache: "no-store" });
     if (!res.ok) return null;
     const data = await res.json() as { summary: StatsSummary };
     return data.summary || null;
