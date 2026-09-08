@@ -13,6 +13,7 @@ import { ContentCardData } from "@/components/content/ContentCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sidebar, type SidebarItem, type TrendingEntry } from "@/components/layout/Sidebar";
 import { SortSelect } from "@/components/ui/SortSelect";
+import { FilterPills } from "@/components/ui/filter-pills";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import { useContentInfiniteFeed, type ContentFeedPage } from "@/components/content/use-content-infinite-feed";
 import { api } from "@/lib/api";
@@ -227,26 +228,14 @@ export function HomePageClient({ apiBase, initialIPs, initialContents, initialCo
         {/* Content toolbar */}
         <div className="sticky top-[52px] z-40 bg-background px-4 py-2.5 md:px-6">
           <div className="flex min-w-0 items-center gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-              {contentTypeOptions.map((opt) => {
-                const active = contentType === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setContentType(opt.value)}
-                    aria-pressed={active}
-                    className={`flex-shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors duration-150 whitespace-nowrap select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                      active
-                        ? "border-accent-emphasis bg-accent-subtle text-accent-emphasis font-semibold"
-                        : "border-transparent text-fg-muted hover:bg-canvas-subtle hover:text-foreground cursor-pointer"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
+            {/* #414 O1a：本地筛选按钮收敛为共享 FilterPills（本页原形态即矮药丸基准） */}
+            <FilterPills
+              ariaLabel={t('home.contentFilterLabel')}
+              options={contentTypeOptions}
+              value={contentType}
+              onChange={setContentType}
+              className="min-w-0 flex-1"
+            />
             <div className="shrink-0">
               <SortSelect
                 ariaLabel={t('common.sortLabel')}

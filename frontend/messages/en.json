@@ -176,6 +176,7 @@
     "errorInvalidPassword": "The current password is incorrect"
   },
   "home": {
+    "contentFilterLabel": "Content type filter",
     "heroTitle": "Discover, share, and co-create your passion.",
     "heroSubtitle": "OmniCraft — A creative sharing platform for everyone",
     "heroDescription": "Fan Creation Zone & Original Zone — discover, share, and co-create. Mod downloads, sheet music sharing, AI-assisted creation.",
@@ -1522,6 +1523,7 @@
     "listView": "List view",
     "filter": {
       "mainCategory": "Category",
+      "tagsLabel": "Filter by tag",
       "selectedTags": "Selected",
       "clearAll": "Clear All",
       "tags": "Tags",
