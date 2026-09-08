@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { ArrowLeft, LoaderCircle, MessageSquare, Send } from "lucide-react";
+import { ArrowLeft, MessageSquare } from "lucide-react";
 import { ApiRequestError, api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/Toast";
 import { CollabInviteCard, type CollabInviteStatus } from "@/components/social/CollabInviteCard";
 import type { Conversation } from "@/components/social/ConversationList";
+import { Composer } from "@/components/ui/composer";
 
 interface Message {
   id: number;
@@ -192,26 +192,21 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
             })}
           </div>
       )}
-      <div className="flex items-end gap-2 border-t border-border-default p-3">
-        <textarea
+      {/* #413 F6a：公共 Composer 内嵌发送按钮（Enter 发送 / Shift+Enter 换行保持） */}
+      <div className="border-t border-border-default p-3">
+        <Composer
           value={text}
-          rows={1}
-          disabled={loading}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              void sendMessage();
-            }
-          }}
-          aria-label={t("messages.chat.inputLabel")}
+          onChange={setText}
+          onSubmit={() => void sendMessage()}
+          keyMode="enter"
+          ariaLabel={t("messages.chat.inputLabel")}
           placeholder={t("messages.chat.inputPlaceholder")}
-          className="min-h-11 max-h-36 flex-1 resize-y rounded-md border border-border-default bg-canvas-default px-3 py-2 text-sm text-fg-default focus:outline-none focus:ring-2 focus:ring-accent-emphasis disabled:cursor-not-allowed disabled:opacity-60"
+          submitLabel={isSending ? t("messages.chat.sending") : t("messages.chat.send")}
+          disabled={loading}
+          submitDisabled={isSending || !text.trim()}
+          submitting={isSending}
+          className="min-h-11"
         />
-        <Button size="sm" className="h-11 w-11 shrink-0 p-0" aria-label={t("messages.chat.send")} onClick={() => void sendMessage()} disabled={loading || isSending || !text.trim()}>
-          {isSending ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />}
-          <span className="sr-only">{isSending ? t("messages.chat.sending") : t("messages.chat.send")}</span>
-        </Button>
       </div>
     </section>
   );
