@@ -128,3 +128,45 @@ test("submitting state swaps the glyph to a spinner and disables", () => {
   assert.match(button.className, /disabled:opacity-40/);
   assert.equal(button.getAttribute("disabled"), "");
 });
+
+/* ── #417 F6b：流式停止位与 ref 转发（Agent 工作台语义） ──────────── */
+
+test("stop variant: embedded stop button replaces submit and reports onStop", () => {
+  installDom();
+  const stops: number[] = [];
+  const view = renderWithIntl(
+    <Composer
+      value="流式中的输入"
+      onChange={() => {}}
+      onSubmit={() => {}}
+      submitLabel="Send"
+      keyMode="enter"
+      stopLabel="Stop generating"
+      onStop={() => stops.push(Date.now())}
+    />,
+  );
+  const stopButton = view.getByRole("button", { name: "Stop generating" });
+  assert.match(stopButton.className, /absolute bottom-2 right-2/, "stop sits in the same embedded slot");
+  assert.equal(view.queryByRole("button", { name: "Send" }), null, "submit button hidden while stop is active");
+  stopButton.click();
+  assert.equal(stops.length, 1);
+  cleanup();
+});
+
+test("forwards its ref to the textarea (agent focus flows keep working)", () => {
+  installDom();
+  let captured: unknown = null;
+  const view = renderWithIntl(
+    <Composer
+      ref={(node) => { captured = node; }}
+      value=""
+      onChange={() => {}}
+      onSubmit={() => {}}
+      submitLabel="Send"
+      keyMode="enter"
+    />,
+  );
+  assert.equal((captured as Element | null)?.tagName, "TEXTAREA", "ref exposes the inner textarea");
+  assert.equal(captured, view.container.querySelector("textarea"));
+  cleanup();
+});
