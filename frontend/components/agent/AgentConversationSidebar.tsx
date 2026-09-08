@@ -147,7 +147,7 @@ export function AgentConversationSidebar({
       aria-label={t("agent.workspace.sidebarLabel")}
       className="flex w-64 shrink-0 flex-col border-r border-border-default bg-canvas-default"
     >
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border-default px-2">
+      <div className="flex h-14 shrink-0 items-center justify-between px-2">
         <span className="px-2 text-sm font-medium text-fg-default">
           {t("agent.workspace.sidebarLabel")}
         </span>
@@ -284,7 +284,7 @@ export function AgentConversationSidebar({
         )}
       </nav>
 
-      <p className="shrink-0 border-t border-border-default px-3 py-2 text-xs text-fg-muted">
+      <p className="shrink-0 px-3 py-2 text-xs text-fg-muted">
         {t("agent.workspace.privacyHint")}
       </p>
     </aside>
