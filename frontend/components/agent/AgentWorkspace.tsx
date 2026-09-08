@@ -634,11 +634,39 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   }
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeId) ?? null;
+  /* #416 O2：主区标题只来自会话标题（与左侧列表同源）；未选会话或空态
+     一律不渲染标题（「开启新对话」固定文案退出主区）。 */
   const headerTitle =
-    activeId === null
-      ? t("agent.workspace.newConversation")
-      : activeConversation?.title?.trim() || `${t("agent.workspace.untitled")} #${activeId}`;
+    activeConversation?.title?.trim() || `${t("agent.workspace.untitled")} #${activeId}`;
+
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+
+  /* #416 O2：标题原地编辑——复用侧栏重命名契约（非空、≤50 字符）；
+     Enter/失焦保存、Esc 取消、空白不保存恢复原标题。 */
+  function startTitleEdit() {
+    if (activeId === null || emptyConversation) return;
+    setEditingTitle(true);
+    setTitleDraft(activeConversation?.title ?? "");
+  }
+
+  function commitTitleEdit() {
+    setEditingTitle(false);
+    const trimmed = titleDraft.trim().slice(0, 50);
+    if (activeId === null || trimmed === "" || trimmed === activeConversation?.title) return;
+    void handleRename(activeId, trimmed);
+  }
+
+  function cancelTitleEdit() {
+    setEditingTitle(false);
+  }
   const turnExtrasPresent = turnThinking !== "" || turnTools.length > 0;
+
+  /* #416 O2：空态判定 = 当前会话无任何消息（含未选会话与已选空会话）。
+     空态下主区不渲染标题、主体中部偏下渲染引导 + 大号输入框（同一表单
+     组件的两种布局形态）。 */
+  const emptyConversation =
+    !messagesLoading && !messagesLoadError && messages.length === 0 && !streaming && !turnExtrasPresent;
   const lastAnswerIndex = messages.map((message) => message.role).lastIndexOf("assistant");
   const lastMessageIsUser = messages[messages.length - 1]?.role === "user";
 
@@ -666,6 +694,62 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     );
   }
 
+  /* #416 O2：同一表单的两种布局形态——空态 = 大号输入框（rows 4、宽占比
+     更大）随引导区；会话态 = 底部常规形态（rows 1）。发送按钮与按键语义
+     两形态一致（发送按钮改造属 #417，本轮不动）。 */
+  const renderComposer = (emptyVariant: boolean) => (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        handleSend();
+      }}
+      className={emptyVariant ? "w-full" : "shrink-0 bg-canvas-default p-3"}
+    >
+      <div className="flex items-end gap-2">
+        <textarea
+          ref={composerRef}
+          rows={emptyVariant ? 4 : 1}
+          aria-label={t("agent.workspace.composerLabel")}
+          placeholder={t("agent.workspace.inputPlaceholder")}
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              handleSend();
+            }
+          }}
+          disabled={streaming}
+          style={{ maxHeight: COMPOSER_MAX_HEIGHT }}
+          className={emptyVariant
+            ? "min-h-28 flex-1 resize-none self-auto overflow-y-auto rounded-md border border-border-default bg-canvas-default px-3 py-2 text-sm leading-6 text-fg-default placeholder:text-fg-muted focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+            : "min-h-11 flex-1 resize-none self-auto overflow-y-auto rounded-md border border-border-default bg-canvas-default px-3 py-2 text-sm leading-6 text-fg-default placeholder:text-fg-muted focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"}
+        />
+            {streaming ? (
+              <Button
+                type="button"
+                size="sm"
+                className="h-11 w-11 shrink-0 p-0"
+                aria-label={t("agent.workspace.stopGenerating")}
+                onClick={handleStop}
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                size="sm"
+                className="h-11 w-11 shrink-0 p-0"
+                aria-label={t("agent.workspace.sendMessage")}
+                disabled={!input.trim()}
+              >
+                <Send className="h-4 w-4" aria-hidden="true" />
+              </Button>
+          )}
+        </div>
+        <p className="mt-1.5 px-1 text-xs text-fg-muted">{t("agent.workspace.composerHint")}</p>
+      </form>
+  );
   return (
     <main
       aria-label={t("agent.workspace.sidebarLabel")}
@@ -722,7 +806,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
         aria-label={t("agent.workspace.transcriptLabel")}
         className="relative flex min-w-0 flex-1 flex-col border-l border-border-default"
       >
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border-default px-2">
+        <header className="flex h-14 shrink-0 items-center gap-2 px-2">
           <button
             type="button"
             aria-label={t("agent.workspace.openConversations")}
@@ -731,20 +815,82 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
           >
             <Menu className="h-4 w-4" aria-hidden="true" />
           </button>
-          <h1 className="min-w-0 flex-1 truncate px-1 text-sm font-semibold text-fg-default">
-            {headerTitle}
-          </h1>
+          {/* #416 O2：空态不渲染标题（消除与侧栏「开启新对话」的语义重复）；
+              会话态标题与会话列表同源，点击进入原地编辑 */}
+          {emptyConversation || activeId === null ? null : editingTitle ? (
+            <input
+              autoFocus
+              value={titleDraft}
+              onChange={(event) => setTitleDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  commitTitleEdit();
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  cancelTitleEdit();
+                }
+              }}
+              onBlur={commitTitleEdit}
+              aria-label={t("agent.workspace.editTitleLabel")}
+              maxLength={50}
+              className="min-w-0 flex-1 truncate rounded-md border border-border-default bg-canvas-default px-2 py-1 text-sm font-semibold text-fg-default focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          ) : (
+            <h1
+              className="min-w-0 flex-1 cursor-text truncate rounded-md px-1 py-0.5 text-sm font-semibold text-fg-default hover:bg-canvas-subtle focus:outline-none focus:ring-2 focus:ring-ring"
+              title={t("agent.workspace.editTitleLabel")}
+              tabIndex={0}
+              onClick={startTitleEdit}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  startTitleEdit();
+                }
+              }}
+            >
+              {headerTitle}
+            </h1>
+          )}
         </header>
 
-        <div
-          ref={transcriptRef}
-          role="log"
-          aria-live="polite"
-          aria-label={t("agent.workspace.transcriptLabel")}
-          data-slot="agent-transcript"
-          onScroll={handleTranscriptScroll}
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4"
-        >
+        {emptyConversation ? (
+          /* #416 O2 空态形态：主体中部偏下 = 引导内容（顺序文案不变）+ 大号
+             输入框；点击示例气泡直接发送 */
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-end overflow-y-auto px-4 pb-[12vh] pt-8 text-center">
+            <div className="flex size-14 items-center justify-center rounded-full bg-accent-subtle text-accent-emphasis">
+              <BookOpen className="size-6" aria-hidden="true" />
+            </div>
+            <h2 className="mt-4 text-base font-medium text-fg-default">
+              {t("agent.workspace.emptyTitle")}
+            </h2>
+            <p className="mt-2 text-sm text-fg-muted">{t("agent.workspace.emptyDescription")}</p>
+            <ul className="mt-5 flex flex-wrap items-center justify-center gap-2">
+              {SUGGESTION_KEYS.map((key) => (
+                <li key={key}>
+                  <button
+                    type="button"
+                    onClick={() => handleSend(t(key))}
+                    className="inline-flex items-center rounded-full border border-border-default bg-card px-3 py-1.5 text-sm text-fg-muted transition-colors duration-150 hover:border-border-strong hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    {t(key)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-8 w-full max-w-2xl text-left">{renderComposer(true)}</div>
+          </div>
+        ) : (
+          <>
+            <div
+              ref={transcriptRef}
+              role="log"
+              aria-live="polite"
+              aria-label={t("agent.workspace.transcriptLabel")}
+              data-slot="agent-transcript"
+              onScroll={handleTranscriptScroll}
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4"
+            >
           {messagesLoading ? (
             <div className="space-y-3" aria-busy="true">
               <div className="h-10 w-2/3 animate-pulse rounded bg-canvas-subtle" />
@@ -755,29 +901,6 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
             <div className="mx-auto mt-16 max-w-sm rounded-md border border-border-destructive px-4 py-3 text-sm text-fg-default">
               {t("agent.workspace.conversationLoadFailed")}
             </div>
-          ) : messages.length === 0 && !streaming && !turnExtrasPresent ? (
-            <section className="mx-auto flex max-w-md flex-col items-center px-4 pt-24 text-center">
-              <div className="flex size-14 items-center justify-center rounded-full bg-accent-subtle text-accent-emphasis">
-                <BookOpen className="size-6" aria-hidden="true" />
-              </div>
-              <h2 className="mt-4 text-base font-medium text-fg-default">
-                {t("agent.workspace.emptyTitle")}
-              </h2>
-              <p className="mt-2 text-sm text-fg-muted">{t("agent.workspace.emptyDescription")}</p>
-              <ul className="mt-5 flex flex-wrap items-center justify-center gap-2">
-                {SUGGESTION_KEYS.map((key) => (
-                  <li key={key}>
-                    <button
-                      type="button"
-                      onClick={() => handleSend(t(key))}
-                      className="inline-flex items-center rounded-full border border-border-default bg-card px-3 py-1.5 text-sm text-fg-muted transition-colors duration-150 hover:border-border-strong hover:bg-canvas-subtle hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      {t(key)}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
           ) : (
             <div className="mx-auto flex max-w-3xl flex-col gap-3">
               {messages.map((message, index) => {
@@ -955,72 +1078,28 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
               )}
             </div>
           )}
-        </div>
+            </div>
 
-        {showJumpToLatest && !streaming && (
-          <div className="pointer-events-none absolute bottom-24 left-1/2 z-10 -translate-x-1/2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="pointer-events-auto h-9"
-              onClick={scrollToLatest}
-            >
-              <X className="mr-1.5 h-3.5 w-3.5 rotate-45" aria-hidden="true" />
-              {t("agent.workspace.jumpToLatest")}
-            </Button>
-          </div>
-        )}
-
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            handleSend();
-          }}
-          className="shrink-0 border-t border-border-default bg-canvas-default p-3"
-        >
-          <div className="flex items-end gap-2">
-            <textarea
-              ref={composerRef}
-              rows={1}
-              aria-label={t("agent.workspace.composerLabel")}
-              placeholder={t("agent.workspace.inputPlaceholder")}
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  handleSend();
-                }
-              }}
-              disabled={streaming}
-              style={{ maxHeight: COMPOSER_MAX_HEIGHT }}
-              className="min-h-11 flex-1 resize-none self-auto overflow-y-auto rounded-md border border-border-default bg-canvas-default px-3 py-2 text-sm leading-6 text-fg-default placeholder:text-fg-muted focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
-            />
-            {streaming ? (
-              <Button
-                type="button"
-                size="sm"
-                className="h-11 w-11 shrink-0 p-0"
-                aria-label={t("agent.workspace.stopGenerating")}
-                onClick={handleStop}
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            ) : (
-              <Button
-                type="submit"
-                size="sm"
-                className="h-11 w-11 shrink-0 p-0"
-                aria-label={t("agent.workspace.sendMessage")}
-                disabled={!input.trim()}
-              >
-                <Send className="h-4 w-4" aria-hidden="true" />
-              </Button>
+            {showJumpToLatest && !streaming && (
+              <div className="pointer-events-none absolute bottom-24 left-1/2 z-10 -translate-x-1/2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="pointer-events-auto h-9"
+                  onClick={scrollToLatest}
+                >
+                  <X className="mr-1.5 h-3.5 w-3.5 rotate-45" aria-hidden="true" />
+                  {t("agent.workspace.jumpToLatest")}
+                </Button>
+              </div>
             )}
-          </div>
-          <p className="mt-1.5 px-1 text-xs text-fg-muted">{t("agent.workspace.composerHint")}</p>
-        </form>
+
+            {renderComposer(false)}
+          </>
+        )}
       </section>
+
+
 
       {overlayElement}
 

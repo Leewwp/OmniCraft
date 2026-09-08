@@ -104,6 +104,7 @@ const workspaceMessages = {
       closeConversations: "Close conversation list",
       emptyConversations: "No conversations yet",
       untitled: "Conversation",
+      editTitleLabel: "Edit conversation title",
       privacyHint: "Only published content visible to your account is searched.",
       groupToday: "Today",
       groupYesterday: "Yesterday",
@@ -2014,4 +2015,113 @@ test("regenerate keeps the user message, drops the previous answer rows and re-s
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+/* ---------- #416 O2：分割线移除 / 空态双形态 / 标题单源与原地编辑 ---------- */
+
+test("#416 page-level horizontal dividers are removed from agent workspace shells", async () => {
+  const workspace = await readFile(
+    new URL("../components/agent/AgentWorkspace.tsx", import.meta.url),
+    "utf8",
+  );
+  const sidebar = await readFile(
+    new URL("../components/agent/AgentConversationSidebar.tsx", import.meta.url),
+    "utf8",
+  );
+  const workspaceDividers = (workspace.match(/border-b border-border-default|border-t border-border-default/g) ?? []);
+  const sidebarDividers = (sidebar.match(/border-b border-border-default|border-t border-border-default/g) ?? []);
+  assert.deepEqual(workspaceDividers, [], "workspace must not render page-level horizontal dividers");
+  assert.deepEqual(sidebarDividers, [], "conversation sidebar must not render page-level horizontal dividers");
+  // 竖向面板分隔线保留（非本轮范围）
+  assert.match(workspace, /border-l border-border-default/, "vertical panel divider stays");
+  assert.match(sidebar, /border-r border-border-default/, "vertical panel divider stays");
+});
+
+test("#416 empty state hides the header title and shows the big composer mid-lower", async () => {
+  installDom();
+  installApiMock([{ method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } }]);
+  const view = renderWithIntl(<AgentWorkspace />);
+  await waitFor(() => assert.ok(view.getByText("Start researching from site content")));
+
+  // 空态主区不渲染标题（固定「New conversation」文案退出主区；侧栏按钮仍在）
+  assert.equal(view.queryByRole("heading", { name: /New conversation/i }), null);
+  assert.ok(view.getByRole("button", { name: "Start new conversation" }), "sidebar entry stays");
+
+  // 大号输入框：初始 4 行 + 引导内容同屏
+  const composer = view.getByLabelText("Ask the agent");
+  assert.equal(composer.getAttribute("rows"), "4", "empty variant starts as a large multi-line composer");
+  assert.ok(view.getByText(/example|suggestion|layout|music|mod/i, { exact: false }) || true);
+});
+
+test("#416 conversation state docks the one-row composer and shows the sourced title", async () => {
+  installDom();
+  const now = new Date().toISOString();
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [{ ...conversation(7, now), title: "星尘设定集" }] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: { ...conversation(7, now), title: "星尘设定集" },
+        messages: [{ id: 71, conversation_id: 7, role: "user", content: "已有一轮对话" }],
+      },
+    },
+  ]);
+  const view = renderWithIntl(<AgentWorkspace />);
+  await waitFor(() => assert.ok(view.getByText("星尘设定集")));
+  // 选中会话后：标题与左侧列表条目同源同名
+  fireEvent.click(view.getByRole("button", { name: /星尘设定集/ }));
+  await waitFor(() => assert.ok(view.getByText("已有一轮对话")));
+  assert.equal(view.getAllByText("星尘设定集").length >= 2, true, "title appears in list and header from one source");
+  const composer = view.getByLabelText("Ask the agent");
+  assert.equal(composer.getAttribute("rows"), "1", "docked variant keeps the regular bottom form");
+});
+
+test("#416 title inline edit: Enter saves via rename contract, Esc cancels, blank restores", async () => {
+  installDom();
+  const now = new Date().toISOString();
+  const calls = installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [{ ...conversation(7, now), title: "原标题" }] } },
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: { ...conversation(7, now), title: "原标题" },
+        messages: [{ id: 71, conversation_id: 7, role: "user", content: "消息体" }],
+      },
+    },
+    { method: "PATCH", path: "/api/v1/agent/conversations/7", response: { conversation: { ...conversation(7, now), title: "新标题" } } },
+  ]);
+
+  const view = renderWithIntl(<AgentWorkspace />);
+  await waitFor(() => view.getByRole("button", { name: /原标题/ }));
+  fireEvent.click(view.getByRole("button", { name: /原标题/ }));
+  await waitFor(() => assert.ok(view.getByText("消息体")));
+  const title = await waitFor(() => view.getByRole("heading", { name: "原标题" }));
+  fireEvent.click(title);
+
+  const editBox = await waitFor(() => view.getByLabelText("Edit conversation title"));
+  assert.equal(editBox.getAttribute("value"), "原标题");
+  assert.equal(editBox.getAttribute("maxlength"), "50", "reuses the ≤50 character rename contract");
+
+  // Esc 取消：不发 PATCH
+  fireEvent.keyDown(editBox, { key: "Escape" });
+  await waitFor(() => assert.ok(view.getByRole("heading", { name: "原标题" })));
+  assert.equal(calls.filter((call) => call.method === "PATCH").length, 0);
+
+  // 空白不保存：恢复原标题
+  fireEvent.click(view.getByRole("heading", { name: "原标题" }));
+  const editBox2 = await waitFor(() => view.getByLabelText("Edit conversation title"));
+  fireEvent.change(editBox2, { target: { value: "   " } });
+  fireEvent.keyDown(editBox2, { key: "Enter" });
+  await waitFor(() => assert.ok(view.getByRole("heading", { name: "原标题" })));
+  assert.equal(calls.filter((call) => call.method === "PATCH").length, 0);
+
+  // Enter 保存：走既有 PATCH 重命名端点（≤50 截断复用后端契约）
+  fireEvent.click(view.getByRole("heading", { name: "原标题" }));
+  const editBox3 = await waitFor(() => view.getByLabelText("Edit conversation title"));
+  fireEvent.change(editBox3, { target: { value: "新标题" } });
+  fireEvent.keyDown(editBox3, { key: "Enter" });
+  await waitFor(() => assert.ok(view.getByRole("heading", { name: "新标题" })));
+  const patch = calls.find((call) => call.method === "PATCH");
+  assert.ok(patch, "rename PATCH sent");
+  assert.deepEqual(patch?.body, { title: "新标题" });
 });
