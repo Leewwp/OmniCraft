@@ -260,8 +260,10 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(body),
     }),
-  getStatsSummary: () =>
+  /** #411 F3：可选 zone（original|fanwork）——分区统计（内容数按区过滤、
+      users = 区内去重作者数）；缺省为全局语义。 */
+  getStatsSummary: (zone?: "original" | "fanwork") =>
     request<{
       summary: { users: number; ips: number; contents: number };
-    }>("/api/v1/stats/summary"),
+    }>(zone ? `/api/v1/stats/summary?zone=${zone}` : "/api/v1/stats/summary"),
 };
