@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth, interactionDenialKey } from "@/contexts/AuthContext";
@@ -15,9 +14,17 @@ interface FollowButtonProps {
   targetId: number;
   initialFollowing?: boolean;
   className?: string;
+  /** 关注成功后的回调（提案页一键关注解锁投票权等原地联动）。 */
+  onFollowed?: () => void;
 }
 
-export function FollowButton({ targetType, targetId, initialFollowing = false, className }: FollowButtonProps) {
+/* #415 O1b 全站关注按钮唯一规范（2026-09-07 裁决）：
+   - 宽度恒定：以最长文案「取消关注」为隐藏占位（grid 同格叠放），任何
+     状态/悬停切换宽度不变；
+   - 已关注与未关注底色一致（primary 实底），勾号图标移除（无图标）；
+   - 悬停已关注 → 文案变「取消关注」+ destructive 红边红字；
+   - 未登录点击跳登录、信誉禁用等既有行为保持。 */
+export function FollowButton({ targetType, targetId, initialFollowing = false, className, onFollowed }: FollowButtonProps) {
   const t = useTranslations();
   const router = useRouter();
   const { user, capabilities } = useAuth();
@@ -43,6 +50,7 @@ export function FollowButton({ targetType, targetId, initialFollowing = false, c
       } else {
         await api.post(`/api/v1/${targetType}s/${targetId}/follow`, {});
         setFollowing(true);
+        onFollowed?.();
       }
     } catch {
       setFollowing(previousState);
@@ -52,12 +60,14 @@ export function FollowButton({ targetType, targetId, initialFollowing = false, c
     }
   }
 
+  const unfollowLabel = t("social.unfollow");
+
   return (
     <Button
       size="sm"
-      variant={isFollowing ? "outline" : "default"}
+      variant="default"
       className={cn(
-        "group gap-1",
+        "group",
         isFollowing &&
           "hover:border-destructive! hover:text-destructive! focus-visible:border-destructive focus-visible:text-destructive",
         className,
@@ -66,18 +76,18 @@ export function FollowButton({ targetType, targetId, initialFollowing = false, c
       disabled={interactionBlocked || busy}
       title={interactionBlocked ? t(interactionDenialKey(capabilities.interaction_denial_reason)) : undefined}
     >
-      {isFollowing ? (
-        <>
-          <Check className="h-3.5 w-3.5" />
-          <span className="group-hover:hidden group-focus-visible:hidden">{t("social.following")}</span>
-          <span className="hidden group-hover:inline group-focus-visible:inline">{t("social.unfollow")}</span>
-        </>
-      ) : (
-        <>
-          <Plus className="h-3.5 w-3.5" />
-          {t("social.follow")}
-        </>
-      )}
+      {/* 恒宽占位：最长文案「取消关注」常驻隐藏格，宽度任何状态下不变 */}
+      <span className="grid justify-items-center">
+        <span className="invisible col-start-1 row-start-1" aria-hidden="true">{unfollowLabel}</span>
+        {isFollowing ? (
+          <>
+            <span className="col-start-1 row-start-1 group-hover:hidden group-focus-visible:hidden">{t("social.following")}</span>
+            <span className="hidden col-start-1 row-start-1 group-hover:inline group-focus-visible:inline">{unfollowLabel}</span>
+          </>
+        ) : (
+          <span className="col-start-1 row-start-1">{t("social.follow")}</span>
+        )}
+      </span>
     </Button>
   );
 }

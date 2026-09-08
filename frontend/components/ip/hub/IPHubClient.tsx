@@ -216,12 +216,11 @@ export function IPHubClient({ ip, stats, apiBase }: IPHubClientProps) {
               </div>
             )}
             <div className="flex flex-wrap items-center gap-3">
+              {/* #415 O1b：恒宽规范由组件内置占位承担，过宽 min-w 与状态 key 重挂移除 */}
               <FollowButton
                 targetType="ip"
                 targetId={ip.id}
                 initialFollowing={ip.is_following ?? false}
-                className="min-w-[104px]"
-                key={ip.is_following ? "following" : "not-following"}
               />
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                 <Users className="h-3.5 w-3.5" aria-hidden="true" />
