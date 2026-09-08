@@ -1121,6 +1121,7 @@
     "reportFailed": "Failed to submit report. Please try again later.",
     "comments": "Comments",
     "commentPlaceholder": "Write a comment...",
+    "sendComment": "Post comment",
     "loginToComment": "Please log in to comment",
     "noComments": "No comments yet. Be the first!",
     "noCommentsHint": "Comments and replies will appear here once the conversation begins.",
@@ -1593,7 +1594,8 @@
     "bodyPlaceholder": "Write your thoughts...",
     "replyCount": "{count} replies",
     "noReplies": "No replies yet. Be the first to comment!",
-    "replyPlaceholder": "Write your reply..."
+    "replyPlaceholder": "Write your reply...",
+    "replyAction": "Reply"
   },
   "support": {
     "title": "Support Creator",

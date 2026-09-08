@@ -40,8 +40,10 @@ test("conversation and chat surfaces preserve endpoints and expose stable states
   assert.match(chat, /`\/api\/v1\/messages\/\$\{conversationId\}`/);
   assert.match(chat, /recipient_id: recipient\.id, text: body/);
   assert.match(chat, /role="log"/);
-  assert.match(chat, /<textarea/);
-  assert.match(chat, /event\.key === "Enter" && !event\.shiftKey/);
+  // #413 F6a：输入面收敛为公共 Composer（Enter 发送 / Shift+Enter 换行由
+  // keyMode="enter" 显式声明，行为契约由 tests/composer.test.tsx 覆盖）。
+  assert.match(chat, /<Composer/);
+  assert.match(chat, /keyMode="enter"/);
   assert.match(chat, /messages\.chat\.unsupportedMessage/);
   assert.doesNotMatch(chat, /err\.message|error\.message/);
 });
