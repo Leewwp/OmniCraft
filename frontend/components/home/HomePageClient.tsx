@@ -81,7 +81,8 @@ export function HomePageClient({ apiBase, initialIPs, initialContents, initialCo
 
   // Fetch stats summary
   useEffect(() => {
-    api.getStatsSummary()
+    /* #411 F3：二创区头部 = 分区统计（内容数只计二创、创作者 = 区内去重作者数）。 */
+    api.getStatsSummary("fanwork")
       .then(d => { if (d?.summary) setStatsSummary(d.summary); })
       .catch(() => {});
   }, []);
