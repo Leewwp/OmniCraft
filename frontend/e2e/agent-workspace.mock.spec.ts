@@ -637,3 +637,44 @@ test("release evidence screenshots (plan Task 6 Step 4)", async ({ page }) => {
   await expect(page.getByText(/Blender 插件安装的回答/).last()).toBeVisible();
   await page.screenshot({ path: "../screenshots/web-agent-recovered-search.png", fullPage: true });
 });
+
+/* #416 O2：空态/会话态/编辑态三布局取证（标题显隐 + 双形态输入框 + 分割线移除）。 */
+test("#416 O2 empty/conversation/edit layouts (no page dividers, big empty composer, inline title edit)", async ({ page }) => {
+  await mockCreatorSession(page);
+  await enableAgent(page);
+  await mockConversationList(
+    page,
+    [{ id: 9, context_type: "global", title: "星尘设定集", updated_at: "2026-08-10T00:00:00Z" }],
+    {
+      9: [
+        { id: 91, role: "user", content: "已有一轮对话" },
+        { id: 92, role: "assistant", content: "已回答。" },
+      ],
+    },
+  );
+
+  /* 空态：无主区标题 + 中部偏下大号输入框（rows=4）+ 引导内容 */
+  await page.goto("/agent");
+  const emptyComposer = page.getByPlaceholder("Describe the works, sources or usage you want to find");
+  await expect(emptyComposer).toBeVisible({ timeout: 15_000 });
+  await expect(emptyComposer).toHaveAttribute("rows", "4");
+  await expect(page.getByRole("heading", { name: /New conversation|开启新对话/i })).toHaveCount(0);
+  await page.screenshot({ path: "../screenshots/416-agent-empty.png" });
+
+  /* 会话态：标题 = 会话标题（同源）+ 底部单行输入框 */
+  await page.getByRole("button", { name: "星尘设定集" }).click();
+  await expect(page.getByText("已有一轮对话")).toBeVisible({ timeout: 15_000 });
+  const dockedComposer = page.getByPlaceholder("Describe the works, sources or usage you want to find");
+  await expect(dockedComposer).toHaveAttribute("rows", "1");
+  await expect(page.getByRole("heading", { name: "星尘设定集" })).toBeVisible();
+  await page.screenshot({ path: "../screenshots/416-agent-conversation.png" });
+
+  /* 编辑态：点击标题原地变输入框，Esc 取消恢复 */
+  await page.getByRole("heading", { name: "星尘设定集" }).click();
+  const editBox = page.getByLabel("Edit conversation title");
+  await expect(editBox).toBeVisible();
+  await expect(editBox).toHaveValue("星尘设定集");
+  await page.screenshot({ path: "../screenshots/416-agent-title-edit.png" });
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("heading", { name: "星尘设定集" })).toBeVisible();
+});

@@ -1387,6 +1387,7 @@
       "closeConversations": "关闭对话列表",
       "emptyConversations": "还没有会话，点击上方按钮开启新对话。",
       "untitled": "对话",
+      "editTitleLabel": "编辑会话标题",
       "privacyHint": "仅检索当前账号可见的已发布内容；站内事实回答必须带有效引用。",
       "groupToday": "今天",
       "groupYesterday": "昨天",

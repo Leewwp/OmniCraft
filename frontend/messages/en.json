@@ -1387,6 +1387,7 @@
       "closeConversations": "Close conversation list",
       "emptyConversations": "No conversations yet. Start a new one above.",
       "untitled": "Conversation",
+      "editTitleLabel": "Edit conversation title",
       "privacyHint": "Only published content visible to your account is searched; grounded answers carry verified references.",
       "groupToday": "Today",
       "groupYesterday": "Yesterday",
