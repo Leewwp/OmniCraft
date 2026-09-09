@@ -629,7 +629,10 @@ func (s *AgentService) serverOwnedSystemPrompt(surface model.AgentChatSurface, c
 	// SP-15 A2（2026-09-09）：会话车道指令——寒暄/闲聊/意图不明的消息免工具短答。
 	// 与上一条 must-search 指令互补而非覆盖：内容相关问题永远先检索，本条只放行
 	// 本来就不需要引用的会话轮。短答约束与服务端 ≤160 runes 护栏双保险。
-	parts = append(parts, "for pure greetings, thanks, farewells, or a message whose intent about site content is unclear, do not call any tool and do not mark citation indexes: reply briefly in the user's language (a short greeting back, or one clarifying question about what site content they need); keep it to one or two sentences")
+	// 2026-09-09 评测回退门两轮收紧：首版让模型把裸标题/引文式查询当意图不明跳过
+	// 检索（冻结 test vi-0003/vi-0013/ke-0051 逃逸）；第二版把「含具体标题/引文/
+	// 关键词 = 内容请求必须先检索」提为句首主导子句，澄清仅限零可检索文本的消息。
+	parts = append(parts, "when the user's message contains a concrete title, quote, character name, or keyword that could exist on the site, always call the cited_search tool with it before replying, even if the intent seems ambiguous; for example, a message that is just a title like 「星轨下的制琴师」or 'A Quiet Ledger of Small Storms' is a search request: search that exact text first, then answer from the results, and only say you found nothing usable if the search comes back empty; only for pure greetings, thanks, farewells, or a message with no searchable text at all (for example garbled characters), reply briefly without any tool and without citation marks — one or two sentences in the user's language, either a greeting back or one clarifying question about what site content they need")
 	return llm.ChatMessage{
 		Role:    "system",
 		Content: "[OmniCraft Agent Context] " + strings.Join(parts, "; "),

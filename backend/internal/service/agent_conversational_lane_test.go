@@ -344,7 +344,10 @@ func TestConversationalLaneSystemPromptDirective(t *testing.T) {
 	} else if conversationalIdx := strings.Index(prompt, "for pure greetings, thanks, farewells"); conversationalIdx < idx {
 		t.Fatal("conversational directive must come after the must-search directive")
 	}
-	if !strings.Contains(prompt, "do not call any tool") || !strings.Contains(prompt, "do not mark citation indexes") {
+	if !strings.Contains(prompt, "no searchable text at all") || !strings.Contains(prompt, "one clarifying question") {
 		t.Fatalf("conversational directive incomplete: %q", prompt)
+	}
+	if !strings.Contains(prompt, "always call the cited_search tool with it before replying, even if the intent seems ambiguous") {
+		t.Fatalf("gate tightening missing (bare titles/quotes must search first): %q", prompt)
 	}
 }
