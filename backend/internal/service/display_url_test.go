@@ -67,18 +67,70 @@ func TestDisplayURLSignerSignsPlatformURLsOnly(t *testing.T) {
 func TestDisplayURLSignerUsesConfiguredTTLOrDefault(t *testing.T) {
 	before := time.Now().Unix()
 
+	// #428: expiry is bucket-aligned, so the URL never expires sooner than
+	// the configured ttl and lands on the deterministic aligned second
+	// (within the SDK's 1s truncation slop).
 	configured := NewDisplayURLSigner(displayTestConfig(120)).SignURL(
 		aliyun.ObjectURL(displayTestDomain, "uploads/7/image/ttl.png"))
-	require.InDelta(t, float64(before+120), float64(signedExpires(t, configured)), 5,
-		"Expires must reflect oss.display_url_ttl_sec")
+	configuredAligned := alignDisplayExpiry(time.Unix(before, 0), 120*time.Second, displayURLSignatureBucketSec)
+	require.InDelta(t, float64(configuredAligned), float64(signedExpires(t, configured)), 2,
+		"Expires must be the bucket-aligned value for oss.display_url_ttl_sec")
 
 	// Zero/negative config falls back to the architecture default of 1h,
 	// which also stays above the 300s Redis display cache TTL so a cached
 	// entry never outlives its re-issued signature.
 	fallback := NewDisplayURLSigner(displayTestConfig(0)).SignURL(
 		aliyun.ObjectURL(displayTestDomain, "uploads/7/image/ttl-default.png"))
-	require.InDelta(t, float64(before+3600), float64(signedExpires(t, fallback)), 5,
-		"Expires must default to 3600s")
+	fallbackAligned := alignDisplayExpiry(time.Unix(before, 0), 3600*time.Second, displayURLSignatureBucketSec)
+	require.InDelta(t, float64(fallbackAligned), float64(signedExpires(t, fallback)), 2,
+		"Expires must be the bucket-aligned default (3600s budget)")
+}
+
+// #428: the signed URL must be byte-identical within one bucket window so
+// /_next/image (cache key = full signed URL) hits across responses, and must
+// rotate once the window advances.
+func TestDisplayURLSignerStableWithinBucketAndRotatesAcross(t *testing.T) {
+	signer := NewDisplayURLSigner(displayTestConfig(0))
+	platform := aliyun.ObjectURL(displayTestDomain, "uploads/9/image/bucket.png")
+
+	first := signer.SignURL(platform)
+	second := signer.SignURL(platform)
+	require.Equal(t, first, second, "two serializations inside one bucket window must produce the identical signed URL")
+
+	now := time.Now()
+	inBucket := alignDisplayExpiry(now, time.Hour, displayURLSignatureBucketSec)
+	nextBucket := alignDisplayExpiry(now.Add(time.Duration(displayURLSignatureBucketSec)*time.Second), time.Hour, displayURLSignatureBucketSec)
+	require.NotEqual(t, inBucket, nextBucket, "advancing the clock one bucket must rotate the aligned expiry")
+	require.Equal(t, int64(0), nextBucket%displayURLSignatureBucketSec, "aligned expiry must be epoch-aligned to the bucket")
+}
+
+func TestAlignDisplayExpiryBucketMath(t *testing.T) {
+	const bucket = displayURLSignatureBucketSec
+	base := time.Unix(3*bucket, 0) // exactly on a bucket boundary
+
+	for _, tc := range []struct {
+		offsetSec int64
+		ttl       time.Duration
+	}{
+		{0, time.Hour},
+		{1, time.Hour},
+		{bucket - 1, time.Hour},
+		{7, 2 * time.Hour},
+	} {
+		now := base.Add(time.Duration(tc.offsetSec) * time.Second)
+		got := alignDisplayExpiry(now, tc.ttl, bucket)
+		want := now.Unix() + int64(tc.ttl.Seconds())
+		if rem := want % bucket; rem != 0 {
+			want += bucket - rem
+		}
+		require.Equal(t, want, got, "offset=%d ttl=%v", tc.offsetSec, tc.ttl)
+		require.GreaterOrEqual(t, got, now.Unix()+int64(tc.ttl.Seconds()),
+			"ceil alignment must never shorten the validity below the ttl")
+		require.Equal(t, int64(0), got%bucket)
+	}
+
+	// Degenerate bucket disables alignment (pure ttl semantics).
+	require.Equal(t, base.Unix()+600, alignDisplayExpiry(base, 10*time.Minute, 0))
 }
 
 func TestDisplayURLSignerFailsOpenWithoutOSS(t *testing.T) {
