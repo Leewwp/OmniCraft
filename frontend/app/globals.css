@@ -224,28 +224,22 @@
   }
 }
 
-/* ContentDetailOverlay — native dialog backdrop mask (P-01 approved values). */
-.content-detail-overlay::backdrop {
+/* ContentDetailOverlay — 遮罩（P-01 approved values 保持不变）。
+   2026-09-09 遮罩同钟契约：视觉由 dialog 外兄弟层 .content-detail-backdrop
+   承载，不透明度与壳层/封面同一时钟 JS 驱动；::backdrop 仅保留透明命中层
+   （背板点击 target === dialog）。废弃原因：VT 快照期间真实元素不渲染、
+   Safari 不执行 ::backdrop 动画——CSS 动画两方向实测瞬现瞬消，与共享元素
+   放缩完全脱钩。 */
+.content-detail-backdrop {
   background: rgb(9 9 11 / 0.58);
-  animation: overlay-backdrop-in 300ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-.dark .content-detail-overlay::backdrop {
+.dark .content-detail-backdrop {
   background: rgb(1 4 9 / 0.78);
 }
 
-.content-detail-overlay[data-closing="true"]::backdrop {
-  animation: overlay-backdrop-out 240ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
-}
-
-@keyframes overlay-backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes overlay-backdrop-out {
-  from { opacity: 1; }
-  to { opacity: 0; }
+.content-detail-overlay::backdrop {
+  background: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
