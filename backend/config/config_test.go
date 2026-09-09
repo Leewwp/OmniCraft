@@ -569,6 +569,23 @@ func TestDefaultConfigDeclaresCreatorSupportDisabled(t *testing.T) {
 	require.False(t, cfg.Features.CreatorSupportEnabled)
 }
 
+// TestDefaultConfigDeclaresConversationalLane pins the SP-15 A1/A2 factory
+// wiring: the shortcut ships enabled with the keyword table, and the
+// conversational guardrail stays positive so the lane can never silently
+// widen into an unbounded no-citation escape.
+func TestDefaultConfigDeclaresConversationalLane(t *testing.T) {
+	cfg := loadDefaultConfigForTest(t)
+	require.True(t, cfg.Agent.ChitchatShortcutEnabled)
+	require.Equal(t, 160, cfg.Agent.ConversationalMaxRunes)
+	require.Contains(t, cfg.Agent.ChitchatPatterns, "你好")
+	require.Contains(t, cfg.Agent.ChitchatPatterns, "hello")
+	require.Contains(t, cfg.Agent.ChitchatPatterns, "thank you")
+	for _, pattern := range cfg.Agent.ChitchatPatterns {
+		require.NotEmpty(t, pattern)
+		require.LessOrEqual(t, len([]rune(pattern)), 9, "pattern %q exceeds the exact-match rune bound", pattern)
+	}
+}
+
 func TestDefaultConfigHasAbuseControlLimits(t *testing.T) {
 	cfg := loadDefaultConfigForTest(t)
 

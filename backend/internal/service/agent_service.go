@@ -626,6 +626,10 @@ func (s *AgentService) serverOwnedSystemPrompt(surface model.AgentChatSurface, c
 	// 移除；该问题仍未解决，待换方案重试。）
 	parts = append(parts, "for any request to find, search, recommend, compare or summarize site content, you must call the cited_search tool first and ground the answer only in its results; never recommend or describe site content from your own knowledge")
 	parts = append(parts, "never mention internal numeric content ids in your answer")
+	// SP-15 A2（2026-09-09）：会话车道指令——寒暄/闲聊/意图不明的消息免工具短答。
+	// 与上一条 must-search 指令互补而非覆盖：内容相关问题永远先检索，本条只放行
+	// 本来就不需要引用的会话轮。短答约束与服务端 ≤160 runes 护栏双保险。
+	parts = append(parts, "for pure greetings, thanks, farewells, or a message whose intent about site content is unclear, do not call any tool and do not mark citation indexes: reply briefly in the user's language (a short greeting back, or one clarifying question about what site content they need); keep it to one or two sentences")
 	return llm.ChatMessage{
 		Role:    "system",
 		Content: "[OmniCraft Agent Context] " + strings.Join(parts, "; "),
