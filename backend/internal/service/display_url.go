@@ -17,6 +17,32 @@ import (
 // could expire.
 const defaultDisplayURLTTLSec = 3600
 
+// displayURLSignatureBucketSec aligns signed-URL expiry to a fixed 30-minute
+// epoch-aligned window (#428). Within one window every serialization of the
+// same object produces a byte-identical signed URL, so downstream caches
+// (notably /_next/image, whose cache key contains the full signed URL) hit
+// across responses instead of re-fetching and re-transforming per response.
+// Constraint: bucket < ttl, so a URL's remaining validity stays at or above
+// ttl - bucket and the exposure window never exceeds ttl + bucket.
+const displayURLSignatureBucketSec = 1800
+
+// alignDisplayExpiry returns the absolute unix expiry for a display URL
+// signed at now with budget ttl: ceil((now + ttl) / bucket) * bucket. The
+// ceil keeps the effective validity at or above ttl (never shorter), and the
+// epoch alignment makes the value depend only on the wall-clock window, not
+// on the individual request.
+func alignDisplayExpiry(now time.Time, ttl time.Duration, bucketSec int64) int64 {
+	ttlSec := int64(ttl.Seconds())
+	if bucketSec <= 0 {
+		return now.Unix() + ttlSec
+	}
+	expiry := now.Unix() + ttlSec
+	if rem := expiry % bucketSec; rem != 0 {
+		expiry += bucketSec - rem
+	}
+	return expiry
+}
+
 // DisplayURLSigner re-issues short-lived signed GET URLs for display media
 // (IP covers, content covers, avatars, gallery attachments) at the API
 // serialization boundary. The private OSS bucket rejects anonymous reads
@@ -64,7 +90,12 @@ func (s *DisplayURLSigner) SignURL(rawURL string) string {
 	if !ok {
 		return rawURL
 	}
-	signed, err := s.client.GetSignedURL(key, http.MethodGet, s.ttl)
+	// #428: hand the client the distance to the bucket-aligned absolute
+	// expiry instead of a plain ttl, so every call inside the same window
+	// signs the same Expires second (the SDK derives the URL timestamp from
+	// its own clock plus this duration).
+	remaining := time.Until(time.Unix(alignDisplayExpiry(time.Now(), s.ttl, displayURLSignatureBucketSec), 0))
+	signed, err := s.client.GetSignedURL(key, http.MethodGet, remaining)
 	if err != nil {
 		return rawURL
 	}
