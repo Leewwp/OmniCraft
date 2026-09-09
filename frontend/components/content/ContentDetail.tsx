@@ -46,6 +46,9 @@ interface RelatedFanworksSlot {
   titleKey: string;
   createHref?: string;
   viewAllHref?: string;
+  /** 扇出收敛（2026-09-09）：浮层层内已拉取的关联行数据——提供时 RelatedFanworks
+      不再自拉同一接口；undefined 回退自拉。 */
+  initialData?: { items: ContentCardData[]; total: number };
 }
 
 interface ContentDetailProps {

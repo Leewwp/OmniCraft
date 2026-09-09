@@ -311,7 +311,10 @@ agent:
 
 rate_limit:
   enabled: true
-  normal_per_minute: 100
+  # 2026-09-09 用户裁决 100→300：详情浮窗一次打开 3-6 个请求（读多写少 SPA，
+  # dev StrictMode 翻倍），100/min 下正常浏览节奏（连开数个详情+瀑布流翻页）即触顶，
+  # 实测连开 5 次得 429；敏感桶（credential 5/min、search 30/min、upload 200/h）不动。
+  normal_per_minute: 300
   upload_per_hour: 200
   credential_per_minute: 5
   search_per_minute: 30

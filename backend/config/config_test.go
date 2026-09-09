@@ -364,7 +364,7 @@ rate_limit:
 	require.Equal(t, 3, cfg.Queue.MaxAttempts)
 	require.False(t, cfg.RateLimit.Enabled)
 	require.Equal(t, 0, cfg.RateLimit.SearchPerMinute)
-	require.Equal(t, 100, cfg.RateLimit.NormalPerMinute, "absent sibling key must not be zeroed")
+	require.Equal(t, 300, cfg.RateLimit.NormalPerMinute, "absent sibling key must not be zeroed")
 	require.Equal(t, 200, cfg.RateLimit.UploadPerHour, "absent sibling key must not be zeroed")
 }
 
