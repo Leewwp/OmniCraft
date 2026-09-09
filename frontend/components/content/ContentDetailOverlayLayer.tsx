@@ -99,6 +99,9 @@ export function ContentDetailOverlayLayer({
   const [detail, setDetail] = useState<NormalizedContentDetailResponse | null>(null);
   const [related, setRelated] = useState<ContentCardData[]>([]);
   const [relatedTotal, setRelatedTotal] = useState(0);
+  /* 扇出收敛（2026-09-09）：层内关联行拉取落定标记——就绪后向 ContentDetail 的
+     relatedFanworks 插槽直供数据（RelatedFanworks 不再自拉同一接口）。 */
+  const [relatedLoaded, setRelatedLoaded] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [coverReady, setCoverReady] = useState<boolean | undefined>(undefined);
   /* #90 桌面相关内容块：仅 ≥1100px 把关联行插槽交给 ContentDetail（RelatedContents
@@ -164,6 +167,7 @@ export function ContentDetailOverlayLayer({
     setDetail(null);
     setRelated([]);
     setRelatedTotal(0);
+    setRelatedLoaded(false);
     setCoverReady(undefined);
 
     api
@@ -206,9 +210,14 @@ export function ContentDetailOverlayLayer({
         if (cancelled) return;
         setRelated(normalizeContentList(raw.contents));
         setRelatedTotal(raw.total ?? 0);
+        setRelatedLoaded(true);
       })
       .catch(() => {
-        if (!cancelled) setRelated([]);
+        if (!cancelled) {
+          setRelated([]);
+          setRelatedTotal(0);
+          setRelatedLoaded(true);
+        }
       });
 
     return () => {
@@ -393,6 +402,7 @@ export function ContentDetailOverlayLayer({
       ? `/studio/publish/fanwork?source_fanwork_id=${content.id}`
       : `/studio/publish/fanwork?source_original_id=${content.id}`,
     viewAllHref: !isFanwork ? `/original/${content.id}/fanworks` : undefined,
+    initialData: relatedLoaded ? { items: related, total: relatedTotal } : undefined,
   };
   const relatedFanworksSummary = related.map((item) => ({
     id: item.id,

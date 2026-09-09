@@ -21,6 +21,9 @@ interface RelatedFanworksProps {
   onData?: (items: ContentCardData[]) => void;
   /** #90 嵌入模式：不渲染自身 bordered 容器（由宿主 RelatedContents 提供外层单容器）。 */
   embedded?: boolean;
+  /** 扇出收敛（2026-09-09 用户裁决）：宿主（浮层层内）已拉取同一接口时直供数据，
+      不再自拉；竞速期宿主未就绪时为 undefined，回退自拉（行为同旧版）。 */
+  initialData?: { items: ContentCardData[]; total: number };
 }
 
 type RowStatus = "loading" | "ready" | "error";
@@ -36,6 +39,7 @@ export function RelatedFanworks({
   onOpenDetail,
   onData,
   embedded = false,
+  initialData,
 }: RelatedFanworksProps) {
   const t = useTranslations();
   const [items, setItems] = useState<ContentCardData[]>([]);
@@ -48,7 +52,18 @@ export function RelatedFanworks({
     onDataRef.current = onData;
   }, [onData]);
 
+  /* 扇出收敛：宿主直供时消费宿主数据并回报 onData（RelatedContents 空态判定
+     依赖落定信号），不发请求。 */
   useEffect(() => {
+    if (!initialData) return;
+    setItems(initialData.items);
+    setTotal(initialData.total);
+    setStatus("ready");
+    onDataRef.current?.(initialData.items);
+  }, [initialData]);
+
+  useEffect(() => {
+    if (initialData) return;
     let cancelled = false;
     setStatus("loading");
     api
@@ -69,7 +84,7 @@ export function RelatedFanworks({
     return () => {
       cancelled = true;
     };
-  }, [sourceContentId, attempt]);
+  }, [sourceContentId, attempt, initialData]);
 
   const containerClass = embedded
     ? undefined
