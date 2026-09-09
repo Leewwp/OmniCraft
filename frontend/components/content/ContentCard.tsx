@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import Image from "next/image";
@@ -8,7 +8,11 @@ import { Heart, MessageCircle } from "lucide-react";
 import { TagBadge } from "@/components/ui/TagBadge";
 import { cn } from "@/lib/utils";
 import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
-import { coverRenderSrc, prefetchCoverVariant } from "@/lib/overlay-motion";
+import {
+  CARD_COVER_VARIANT_WIDTH,
+  coverRenderSrc,
+  prefetchCoverVariant,
+} from "@/lib/overlay-motion";
 
 export interface ContentCardData {
   id: number;
@@ -138,11 +142,12 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
       >
         {coverUrl ? (
           onOpenDetail ? (
-            /* #409 F1 同源图契约：浮窗模式卡片封面与点击预取、浮窗首帧渲染同一
-               URL 串（规范变体/SVG 直通）——三处不同宽度源是转场闪烁的直接根因。
+            /* #430 两变体渐进（修订 #409 F1）：信息流卡片封面用轻量快变体
+               （w=420，带宽/解码更轻）——浮窗首帧保持层与该串同源，必命中缓存；
+               1080 规范变体由 pointerdown/hover 预取预热、settle 后交叉淡入。
                next/image 的响应式 sizes 无法跨端钉死同一变体，故用受控 <img>。 */
             <img
-              src={coverRenderSrc(coverUrl) ?? coverUrl}
+              src={coverRenderSrc(coverUrl, CARD_COVER_VARIANT_WIDTH) ?? coverUrl}
               alt={displayTitle}
               loading="lazy"
               decoding="async"
@@ -266,14 +271,38 @@ export function ContentCard({ data, className, onOpenDetail }: ContentCardProps)
   );
 
   /* 浮窗模式：主点击区为按钮打开共享详情浮层；作者身份入口分离为独立链接。
-     #398 C1/C4：点击瞬间预取浮窗显示宽度的同源封面变体并解码（data: 占位
-     在助手内自动跳过），浮窗封面挂载时大概率已解码，转场不再等 MB 级原图。 */
+     #430 预取时机前移（instant.page 口径）：hover 65ms 防抖 + pointerdown 即刻
+     预取 1080 规范变体（settle 交叉淡入与就绪门的消费目标）；onClick 保留为
+     键盘激活路径兜底（prefetchCoverVariant 内部去重，重复调用零成本）。
+     #398 C1/C4：浮窗封面挂载时大概率已解码，转场不再等 MB 级原图。 */
+  const hoverPrefetchTimer = useRef<number | null>(null);
+  const prefetchTarget = coverUrl ?? placeholderSrc;
+  const scheduleHoverPrefetch = () => {
+    if (hoverPrefetchTimer.current !== null) return;
+    hoverPrefetchTimer.current = window.setTimeout(() => {
+      hoverPrefetchTimer.current = null;
+      prefetchCoverVariant(prefetchTarget);
+    }, 65);
+  };
+  const cancelHoverPrefetch = () => {
+    if (hoverPrefetchTimer.current === null) return;
+    window.clearTimeout(hoverPrefetchTimer.current);
+    hoverPrefetchTimer.current = null;
+  };
+  const prefetchNow = () => {
+    cancelHoverPrefetch();
+    prefetchCoverVariant(prefetchTarget);
+  };
+
   if (onOpenDetail) {
     return (
       <article className={cardClasses}>
         <button
           type="button"
           aria-label={displayTitle}
+          onPointerDown={prefetchNow}
+          onMouseEnter={scheduleHoverPrefetch}
+          onMouseLeave={cancelHoverPrefetch}
           onClick={(event) => {
             prefetchCoverVariant(coverUrl ?? placeholderSrc);
             onOpenDetail(data, event.currentTarget);
