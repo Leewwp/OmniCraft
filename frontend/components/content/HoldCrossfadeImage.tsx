@@ -63,6 +63,14 @@ export function HoldCrossfadeImage({
   /* 淡出条件：hold 已释放 + 规范层就绪。未释放或规范层未就绪时保持层满不透明。 */
   const fadeOut = !holding && canonicalReady;
 
+  /* 淡出完成门：transitionEnd 为主，定时器兜底——入场 VT 收尾窗口可能把进行中的
+     过渡打断为 transitioncancel（不派发 transitionend），保持层将永久滞留。 */
+  useEffect(() => {
+    if (!fadeOut) return;
+    const timer = window.setTimeout(() => setHoldGone(true), OVERLAY_COVER_CROSSFADE_MS + 80);
+    return () => window.clearTimeout(timer);
+  }, [fadeOut]);
+
   const settleReady = useRef(false);
   const settleError = useRef(false);
   const handleSettle = (state: "ready" | "error") => {
