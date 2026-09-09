@@ -26,7 +26,10 @@ export default async function RootLayout({
       suppressHydrationWarning
       className="h-full antialiased"
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground">
+      {/* 浏览器扩展（视频下载/倍速类）会在 hydration 前向 <body> 注入自定义属性，
+          产生属性级 hydration mismatch；suppressHydrationWarning 仅静默本元素
+          的属性差异，不掩盖子树内容错位。 */}
+      <body suppressHydrationWarning className="min-h-full flex flex-col bg-background text-foreground">
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-accent-emphasis focus:px-4 focus:py-2 focus:text-sm focus:text-white focus:outline-none"

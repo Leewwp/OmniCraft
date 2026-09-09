@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { selectMediaItems, type MediaGalleryItem } from "@/components/content/MediaGallery";
 import { getCoverPlaceholder } from "@/lib/coverPlaceholder";
-import { coverRenderSrc } from "@/lib/overlay-motion";
+import { coverRenderSrc, prefetchCoverVariant } from "@/lib/overlay-motion";
 import type { NormalizedContentDetailResponse } from "@/lib/content";
 
 /**
@@ -101,6 +101,11 @@ export function useOverlayMedia(detail: NormalizedContentDetailResponse | null):
       return;
     }
     const base = buildOverlayMedia(detail);
+    /* #409 F1 同源预热：媒体链首项的规范变体在数据落定瞬间预取并解码——
+       入场落定后 holdSrc→真实媒体的切换不再撞冷缓存（展示 URL 按响应逐次签名，
+       卡片封面预取与媒体集常为不同文件/不同串，落定切换必然是全新请求），
+       预取与几何实测/入场转场并行，落定时大概率已解码命中。 */
+    if (base.length > 0) prefetchCoverVariant(base[0].url);
     const pending = base.filter(
       (item) => (!item.width || !item.height) && item.url && !item.url.startsWith("data:"),
     );
