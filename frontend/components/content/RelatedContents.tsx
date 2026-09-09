@@ -16,6 +16,8 @@ export interface RelatedContentsFanworksSlot {
   titleKey: string;
   createHref?: string;
   viewAllHref?: string;
+  /** 扇出收敛（2026-09-09）：宿主直供关联行数据（提供时 RelatedFanworks 不自拉）。 */
+  initialData?: { items: ContentCardData[]; total: number };
 }
 
 export interface RelatedContentsProps {
