@@ -2321,6 +2321,7 @@ interface ContentDetailProps {
 - **F1 单一时间轴（2026-09-08 取代 #398 落地时的壳层先行反馈形态）**：壳层不透明度与封面几何动画同帧起跑、同长结束、同一缓动族——开 300ms / 关 240ms 逐向单一时钟（每个方向内部壳层与封面共用同一时钟，几何与缓动方向互逆）；旧「壳层 160ms 先行反馈淡入」与「VT root 180ms 交叉淡化」并存的档位差已移除（VT root 交叉淡化并入 300/240 档，关闭方向经 `html[data-vt-close]` 统一压到 240ms）；FLIP/VT/降级三路径同契约。参与 transform 动画的元素动效期间临时提升合成层（will-change），结束释放。
 - **F1 动效期间零换图**：动画进行中禁止封面 src 变化、骨架消失、媒体链附件替换；媒体链选出与卡片封面不同的文件时，首帧保持渲染卡片封面（`coverHoldSrc` 传递），入场落定后才切换到链内媒体。
 - **F1 起跑前几何冻结**：竖屏集媒体列的 width 过渡在入场未落定期关闭（挂载期从百分比兜底到实测像素的过渡不得与共享元素转场同窗）；variant 布局的转场起跑额外等待媒体列首次实测（ResizeObserver 回报）后才测量。
+- **遮罩与面板同钟（2026-09-09 用户验收反馈轮确立）**：遮罩视觉由 dialog 外兄弟层 `.content-detail-backdrop` 承载（`pointer-events-none fixed inset-0 z-[70]`，top-layer 语义保证其在面板之下、页面之上），不透明度与壳层/封面同一时钟驱动——开 = 按压反馈层 0.35（160ms ease-out，数据未就绪期的唯一视觉反馈）→ 入场动效起跑同帧升至 1（VT 路径经「回调内置新态」由 root 交叉淡化承载）；关 = 与壳层同帧 240ms 降至 0；reduced-motion 随 100ms 淡化档。**禁止**使用 `::backdrop` CSS 动画（VT 快照期间真实元素不渲染 + Safari 不执行 `::backdrop` 动画，两方向瞬现瞬消，2026-09-09 用户录屏实锤）；原生 `::backdrop` 仅保留透明命中层（背板点击 target === dialog）。VT 开路径壳层置 1 只能在 startViewTransition 回调内（新态）——回调前置 1 会烘进旧快照、root 交叉淡化失去壳层渐显。桌面面板视觉（底色/边框/圆角/阴影）随壳层元素走、dialog 永久只承担定位与尺寸——入场前壳层 opacity 0 时旧快照里不得残留白板面板。
 - 时长与缓动：开 300ms / 关 240ms，共享缓动 `cubic-bezier(0.22,0.61,0.36,1)`；栈内层切换水平滑动 240ms 同缓动；reduced-motion 降级为 100ms 纯透明度淡化（SP-12「动效 150ms」豁免项，用户 2026-09-06 裁决）。
 - 封面加载与主体同步：浮层在最终封面几何内展示媒体加载态（骨架/稳定占位）；封面加载成功才显示主体内容；加载失败显示稳定占位符后仍展示可用详情，不无限阻塞。
 
@@ -2985,6 +2986,20 @@ interface ReactionBarProps {
 **响应式行为**
 - 移动 (≤700px): 按钮无文字仅图标，紧凑排列 `gap-0.5`。
 - 平板+ (≥701px): 图标 + 文字显示，`gap-1`。
+
+## Component: Composer
+
+**Key Constraints**
+- 全站唯一聊天式输入组件（#413 F6a 确立）：私信窗、IP 讨论回复、顶层评论、Agent 工作台四处复用；不得再新建平行实现。
+- 容器：1px border 输入盒（`rounded-md border-border-default bg-canvas-default`，focus-within 转 `accent-emphasis` 边 + 1px ring），背景融合非独立悬浮卡片；多行自动增高、上限 208px 转内部滚动。
+- 按键语义显式模式三档（`enter` / `ctrl-enter` / `button-only`），统一 isComposing 防护：输入法选词 Enter 不得提交。
+
+**发送按钮（2026-09-09 用户验收拍板，参照两态附件图）**
+- 位置与形状：内嵌输入盒右下角（与内边缘 8px），**36px 实底圆钮**（`h-9 w-9 rounded-full`），白色上箭头图形（ArrowUp, 2.5 描边）；文本区右/底各预留 44px（`pr-11 pb-11`）任何输入量下不重叠。
+- 双态显性：**可发送 = 主题色实底**（`bg-primary text-primary-foreground`，hover `primary/90`）；**不可发送（空文本/禁用）= 浅灰实底 + 弱化图形**（`bg-canvas-subtle text-fg-subtle`）。空灰/满彩的两态切换由调用方 `submitDisabled`（通常 `!text.trim() || busy`）驱动。
+- 提交中：保持主题色实底，图形换 spinner（行动进行中的视觉连续性）。
+- 流式停止钮（#417）：同一内嵌位、同规格圆钮（主题色实底 + 白色方块图形），渲染期间替代发送钮。
+- a11y：按钮 aria-label 必填（sr-only 文本同源）；focus-visible 2px ring。
 
 ## Component: CommentSection
 

@@ -100,15 +100,22 @@ test("auto-grow clamps at maxHeight and switches to internal scrolling", async (
   assert.equal(ta.getAttribute("style")?.includes("max-height: 208px"), true, "style ceiling is applied");
 });
 
-test("button is anchored inside the bottom-right corner with fused background", async () => {
+test("send button is a two-state filled circle anchored in the bottom-right corner", async () => {
   installDom();
-  const { view, button } = setup({});
+  const { button } = setup({ submitDisabled: true });
   await new Promise((r) => setTimeout(r, 30));
   assert.match(button.className, /absolute/, "button is anchored (not flex flow)");
   assert.match(button.className, /bottom-2 right-2/, "8px inset from the inner edges");
-  assert.match(button.className, /text-fg-muted/, "fused: transparent background, muted glyph");
+  assert.match(button.className, /h-9 w-9/, "36px tier circle");
+  assert.match(button.className, /rounded-full/, "circular shape (2026-09-09 验收契约)");
+  assert.match(button.className, /bg-canvas-subtle/, "empty text: gray filled state");
+  assert.match(button.className, /text-fg-subtle/, "empty text: subdued glyph");
   assert.doesNotMatch(button.className, /border-/, "not an independent floating card");
+  cleanup();
 
+  const { view, button: idleButton } = setup({ submitDisabled: false });
+  assert.match(idleButton.className, /bg-primary/, "ready to send: theme-colored fill");
+  assert.match(idleButton.className, /text-primary-foreground/, "ready to send: white glyph");
   const wrap = view.container.firstElementChild as HTMLElement;
   assert.match(wrap.className, /relative/, "wrapper establishes the anchor context");
 });
@@ -117,15 +124,16 @@ test("textarea reserves padding so text never overlaps the button", async () => 
   installDom();
   const { textarea } = setup({});
   await new Promise((r) => setTimeout(r, 30));
-  assert.match(textarea.className, /pr-12/, "48px right padding clears the 32px button + 8px inset");
-  assert.match(textarea.className, /pb-10/, "40px bottom padding clears the button row");
+  assert.match(textarea.className, /pr-11/, "44px right padding clears the 36px button + 8px inset");
+  assert.match(textarea.className, /pb-11/, "44px bottom padding clears the button row");
   assert.match(textarea.className, /resize-none/, "height is component-controlled");
 });
 
-test("submitting state swaps the glyph to a spinner and disables", () => {
+test("submitting state keeps the theme fill, swaps the glyph to a spinner and disables", () => {
   installDom();
   const { button } = setup({ submitting: true, submitDisabled: true });
-  assert.match(button.className, /disabled:opacity-40/);
+  assert.match(button.className, /bg-primary/, "in-flight keeps the prominent fill");
+  assert.match(button.querySelector("svg")?.getAttribute("class") ?? "", /animate-spin/, "glyph is a spinner");
   assert.equal(button.getAttribute("disabled"), "");
 });
 
@@ -147,6 +155,7 @@ test("stop variant: embedded stop button replaces submit and reports onStop", ()
   );
   const stopButton = view.getByRole("button", { name: "Stop generating" });
   assert.match(stopButton.className, /absolute bottom-2 right-2/, "stop sits in the same embedded slot");
+  assert.match(stopButton.className, /rounded-full bg-primary/, "stop shares the theme-filled circle contract");
   assert.equal(view.queryByRole("button", { name: "Send" }), null, "submit button hidden while stop is active");
   stopButton.click();
   assert.equal(stops.length, 1);

@@ -22,6 +22,11 @@ export const OVERLAY_MOTION = {
   reducedDuration: 100,
   easing: "cubic-bezier(0.22, 0.61, 0.36, 1)",
   fallbackScale: 0.96,
+  /** 遮罩按压反馈层（2026-09-09 遮罩同钟契约）：点击后先淡到该不透明度
+      （时长 backdropFeedbackMs），入场动效起跑时再随壳层/封面同钟升至 1——
+      避免数据未就绪期全黑遮罩先到位的突兀感，同时保留即时点击反馈。 */
+  backdropFeedbackOpacity: 0.35,
+  backdropFeedbackMs: 160,
 } as const;
 
 /** 浮层封面容器 data-slot（FLIP/VT 的目标锚点）。 */
