@@ -85,6 +85,10 @@ export function ContentDetailOverlay({
   const titleRef = useRef<HTMLHeadingElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+  /* 遮罩同钟（2026-09-09）：dialog 外兄弟层承载遮罩视觉，与壳层/封面同一
+     时钟驱动。::backdrop 动画废弃——VT 快照期间真实元素不渲染、Safari 也不
+     执行 ::backdrop 动画，实测遮罩瞬现瞬消与图片放缩完全脱钩。 */
+  const backdropRef = useRef<HTMLDivElement>(null);
 
   const [stack, setStack] = useState<OverlayLayerState[]>([]);
   const [closing, setClosing] = useState(false);
@@ -204,6 +208,13 @@ export function ContentDetailOverlay({
       shell.style.transition = "none";
       shell.style.transform = "none";
       shell.style.opacity = "0";
+    }
+    /* 遮罩按压反馈层：点击确认（数据未就绪期的唯一视觉反馈），随后由入场
+       动效同钟接棒升至 1。 */
+    const backdrop = backdropRef.current;
+    if (backdrop && !entranceDoneRef.current) {
+      backdrop.style.transition = `opacity ${OVERLAY_MOTION.backdropFeedbackMs}ms ease-out`;
+      backdrop.style.opacity = `${OVERLAY_MOTION.backdropFeedbackOpacity}`;
     }
     if (safetyTimerRef.current === null && !entranceDoneRef.current) {
       safetyTimerRef.current = window.setTimeout(() => {
@@ -385,6 +396,11 @@ export function ContentDetailOverlay({
           `transform ${OVERLAY_MOTION.openDuration}ms ${OVERLAY_MOTION.easing}`;
         shell.style.opacity = "1";
         shell.style.transform = "none";
+        const backdrop = backdropRef.current;
+        if (backdrop) {
+          backdrop.style.transition = `opacity ${OVERLAY_MOTION.openDuration}ms ${OVERLAY_MOTION.easing}`;
+          backdrop.style.opacity = "1";
+        }
         motionTimerRef.current = window.setTimeout(() => {
           if (token !== motionRunRef.current) return;
           shell.style.removeProperty("will-change");
@@ -421,6 +437,11 @@ export function ContentDetailOverlay({
         cover.style.transform = "none";
         shell.style.transition = `opacity ${OVERLAY_MOTION.openDuration}ms ${OVERLAY_MOTION.easing}`;
         shell.style.opacity = "1";
+        const backdrop = backdropRef.current;
+        if (backdrop) {
+          backdrop.style.transition = `opacity ${OVERLAY_MOTION.openDuration}ms ${OVERLAY_MOTION.easing}`;
+          backdrop.style.opacity = "1";
+        }
         motionTimerRef.current = window.setTimeout(() => {
           if (token !== motionRunRef.current) return;
           cover.style.transition = "";
@@ -446,15 +467,23 @@ export function ContentDetailOverlay({
       const cardAnchor = sourceAnchorRef.current;
       const coverVt = getVtElement(cover);
       const cardVt = cardAnchor ? getVtElement(cardAnchor) : null;
+      /* 快照前壳层必须保持 opacity 0（旧态=纯信息流）：置 1 只能在回调内
+         （新态）。2026-09-09 实测修复——回调前置 1 会烘进旧快照，root 交叉
+         淡化失去壳层渐显，观感为壳层瞬现（用户录屏实锤）；桌面面板视觉
+         （底色/边框/圆角/阴影）已随壳层走，dialog 永久透明，旧快照无白板。 */
       shell.style.transition = "";
-      shell.style.opacity = "1";
       shell.style.transform = "";
+      /* 遮罩经 VT root 交叉淡化承载：回调内瞬时置 1（transition 必须为 none），
+         新旧快照的遮罩差值随 300ms 交叉淡化自然与封面组放缩同步呈现。 */
+      const backdrop = backdropRef.current;
+      if (backdrop) backdrop.style.transition = "none";
       try {
         cardVt?.style.setProperty("view-transition-name", OVERLAY_VT_NAME);
         const transition = document.startViewTransition(() => {
           coverVt.style.setProperty("view-transition-name", OVERLAY_VT_NAME);
           cardVt?.style.removeProperty("view-transition-name");
           shell.style.opacity = "1";
+          if (backdropRef.current) backdropRef.current.style.opacity = "1";
         });
         transitionRef.current = transition;
         let fallbackStarted = false;
@@ -509,6 +538,11 @@ export function ContentDetailOverlay({
     if (path === "fade") {
       shell.style.transition = `opacity ${OVERLAY_MOTION.reducedDuration}ms ease-out`;
       shell.style.opacity = "1";
+      const backdrop = backdropRef.current;
+      if (backdrop) {
+        backdrop.style.transition = `opacity ${OVERLAY_MOTION.reducedDuration}ms ease-out`;
+        backdrop.style.opacity = "1";
+      }
       motionTimerRef.current = window.setTimeout(() => {
         markEntranceSettled(token);
       }, OVERLAY_MOTION.reducedDuration);
@@ -619,6 +653,11 @@ export function ContentDetailOverlay({
     if (path === "fade") {
       shell.style.transition = `opacity ${OVERLAY_MOTION.reducedDuration}ms ease-out`;
       shell.style.opacity = "0";
+      const backdrop = backdropRef.current;
+      if (backdrop) {
+        backdrop.style.transition = `opacity ${OVERLAY_MOTION.reducedDuration}ms ease-out`;
+        backdrop.style.opacity = "0";
+      }
     } else if (path === "fallback") {
       shell.style.willChange = "opacity, transform";
       shell.style.transition =
@@ -626,17 +665,27 @@ export function ContentDetailOverlay({
         `transform ${OVERLAY_MOTION.closeDuration}ms ${OVERLAY_MOTION.easing}`;
       shell.style.opacity = "0";
       shell.style.transform = `scale(${OVERLAY_MOTION.fallbackScale})`;
-      } else {
-        const cover = getTopCover();
-        const sourceRect = measureSourceRect(restoreRef.current?.trigger ?? null);
-        /* 超高图当前项同样退化为居中缩淡（与开路径同因，见 runEntranceMotion）。 */
-        if (!cover || !sourceRect || !rectHasArea(readElementRect(cover)) || cover.dataset.ultraTall === "true") {
+      const backdrop = backdropRef.current;
+      if (backdrop) {
+        backdrop.style.transition = `opacity ${OVERLAY_MOTION.closeDuration}ms ${OVERLAY_MOTION.easing}`;
+        backdrop.style.opacity = "0";
+      }
+    } else {
+      const cover = getTopCover();
+      const sourceRect = measureSourceRect(restoreRef.current?.trigger ?? null);
+      /* 超高图当前项同样退化为居中缩淡（与开路径同因，见 runEntranceMotion）。 */
+      if (!cover || !sourceRect || !rectHasArea(readElementRect(cover)) || cover.dataset.ultraTall === "true") {
         shell.style.willChange = "opacity, transform";
         shell.style.transition =
           `opacity ${OVERLAY_MOTION.closeDuration}ms ${OVERLAY_MOTION.easing}, ` +
           `transform ${OVERLAY_MOTION.closeDuration}ms ${OVERLAY_MOTION.easing}`;
         shell.style.opacity = "0";
         shell.style.transform = `scale(${OVERLAY_MOTION.fallbackScale})`;
+        const backdrop = backdropRef.current;
+        if (backdrop) {
+          backdrop.style.transition = `opacity ${OVERLAY_MOTION.closeDuration}ms ${OVERLAY_MOTION.easing}`;
+          backdrop.style.opacity = "0";
+        }
       } else if (path === "vt") {
         const cardAnchor = sourceAnchorRef.current;
         const coverVt = getVtElement(cover);
@@ -645,12 +694,17 @@ export function ContentDetailOverlay({
         /* #409 F1：关闭方向标记（globals.css 把 root 交叉淡化与命名组压到
            240ms 档）；转场结束移除。 */
         document.documentElement.setAttribute(VT_CLOSE_ATTR, "");
+        /* 遮罩同钟（关）：回调内瞬时置 0，root 交叉淡化把 1→0 与封面组
+           回归放缩同窗呈现（transition 置 none 防真实元素在快照期自跑）。 */
+        const backdrop = backdropRef.current;
+        if (backdrop) backdrop.style.transition = "none";
         try {
           const transition = document.startViewTransition(() => {
             cardVt?.style.setProperty("view-transition-name", OVERLAY_VT_NAME);
             coverVt.style.removeProperty("view-transition-name");
             shell.style.transition = "none";
             shell.style.opacity = "0";
+            if (backdropRef.current) backdropRef.current.style.opacity = "0";
           });
           transitionRef.current = transition;
           /* 兜底挂在 ready 上（与开路径同因）：跳过场景 finished 可能正常
@@ -703,6 +757,11 @@ export function ContentDetailOverlay({
         `transform ${OVERLAY_MOTION.closeDuration}ms ${OVERLAY_MOTION.easing}`;
       shell.style.opacity = "0";
       shell.style.transform = `scale(${OVERLAY_MOTION.fallbackScale})`;
+      const backdrop = backdropRef.current;
+      if (backdrop) {
+        backdrop.style.transition = `opacity ${OVERLAY_MOTION.closeDuration}ms ${OVERLAY_MOTION.easing}`;
+        backdrop.style.opacity = "0";
+      }
       return;
     }
     const invert = computeFlipTransform(sourceRect, readElementRect(cover));
@@ -719,6 +778,11 @@ export function ContentDetailOverlay({
       cover.style.transform = flipTransformToCss(invert);
       shell.style.transition = `opacity ${OVERLAY_MOTION.closeDuration}ms ${OVERLAY_MOTION.easing}`;
       shell.style.opacity = "0";
+      const backdrop = backdropRef.current;
+      if (backdrop) {
+        backdrop.style.transition = `opacity ${OVERLAY_MOTION.closeDuration}ms ${OVERLAY_MOTION.easing}`;
+        backdrop.style.opacity = "0";
+      }
     });
   }, []);
 
@@ -835,14 +899,26 @@ export function ContentDetailOverlay({
   if (depth === 0 && !closing) return null;
 
   return (
-    <dialog
+    <>
+      {/* 遮罩同钟层：top-layer 语义保证它在 dialog 面板之下、页面之上；
+          pointer-events-none——背板点击仍由原生（透明）::backdrop 命中
+          dialog 承担。z-[70] 盖过页面 chrome 全部层级（最高 z-[60]）。 */}
+      <div
+        ref={backdropRef}
+        aria-hidden="true"
+        className="content-detail-backdrop pointer-events-none fixed inset-0 z-[70]"
+        style={{ opacity: 0 }}
+      />
+      <dialog
       ref={dialogRef}
       className={cn(
+        /* 2026-09-09 遮罩同钟配套：dialog 保留桌面居中面板的定位与尺寸，但
+           视觉（底色/边框/圆角/阴影）全部随壳层走——入场前壳层 opacity 0 时
+           旧快照里不残留白板面板。 */
         "content-detail-overlay fixed inset-0 m-0 h-dvh w-full max-h-none max-w-none overflow-hidden border-0 bg-transparent p-0 text-foreground",
-        "lg:m-auto lg:h-[min(92dvh,900px)] lg:w-[min(1120px,calc(100%-2rem))] lg:rounded-lg lg:border lg:border-border lg:bg-card lg:shadow-[var(--elevation-3)]",
+        "lg:m-auto lg:h-[min(92dvh,900px)] lg:w-[min(1120px,calc(100%-2rem))]",
       )}
       aria-labelledby={titleId}
-      data-closing={closing ? "true" : undefined}
       onCancel={(event) => {
         event.preventDefault();
         handleBack();
@@ -854,7 +930,7 @@ export function ContentDetailOverlay({
       <div
         ref={shellRef}
         className={cn(
-          "relative grid h-full w-full bg-card",
+          "relative grid h-full w-full overflow-hidden bg-card lg:rounded-lg lg:border lg:border-border lg:shadow-[var(--elevation-3)]",
           topIsVariant ? "grid-rows-[minmax(0,1fr)]" : "grid-rows-[auto_minmax(0,1fr)]",
           closing && "pointer-events-none",
         )}
@@ -981,5 +1057,6 @@ export function ContentDetailOverlay({
         </div>
       </div>
     </dialog>
+    </>
   );
 }
