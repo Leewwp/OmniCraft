@@ -28,6 +28,7 @@ import {
   AgentConversationSidebar,
   type AgentConversationSummary,
 } from "@/components/agent/AgentConversationSidebar";
+import { AgentFollowUpChips } from "@/components/agent/AgentFollowUpChips";
 const SIDEBAR_STORAGE_KEY = "agentSidebarCollapsed";
 const STICKY_BOTTOM_THRESHOLD = 80;
 /** 输入自动增高上限：约 8 行（leading-6 = 24px × 8 + 上下 padding）后转内部滚动。 */
@@ -100,6 +101,10 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
   const [turnErrorCode, setTurnErrorCode] = useState<string | null>(null);
   const [turnTraceId, setTurnTraceId] = useState<string | null>(null);
   const [turnUsage, setTurnUsage] = useState<{ prompt_tokens: number; completion_tokens: number } | null>(null);
+  /* SP-15 B #435：轮内推荐追问（done 事件携带，v1 不落库）。挂在轮级状态
+     而非消息行——done 会把新会话 id 写入 activeId 并触发历史重载，消息行
+     会被服务端历史行替换（无 followUps），轮级状态 + 轮尾渲染才能存活。 */
+  const [turnFollowUps, setTurnFollowUps] = useState<string[]>([]);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -251,6 +256,7 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     setTurnErrorCode(null);
     setTurnTraceId(null);
     setTurnUsage(null);
+    setTurnFollowUps([]);
     turnAnswerIdRef.current = null;
   }
 
@@ -527,6 +533,11 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
             if (event.citations && event.citations.length > 0) setTurnCitations([]);
           }
           setLastAnswerKind(event.answer_kind ?? null);
+          setTurnFollowUps(
+            event.answer_kind === "grounded_content" && !event.degraded && event.follow_ups
+              ? event.follow_ups
+              : [],
+          );
           setStreaming(false);
           break;
         }
@@ -597,6 +608,13 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
     controllerRef.current?.abort();
     setStoppedNotice(true);
     setStreaming(false);
+  }
+
+  /* SP-15 B #435：追问药丸点击 = 仅填入并聚焦 composer，不自动发送
+     （用户回车确认，防误触）。 */
+  function handleFollowUpFill(query: string) {
+    setInput(query);
+    composerRef.current?.focus({ preventScroll: true });
   }
 
   /* 重新生成：保留到最后一跳用户消息为止的历史，撤下其后的 think/answer 行重发。 */
@@ -946,6 +964,12 @@ export function AgentWorkspace({ initialConversationId, initialQuery, onCitation
                   {turnThinking !== "" && <AgentThinkingBlock content={turnThinking} streaming={streaming} />}
                   {turnTools.length > 0 && <AgentToolStatus tools={turnTools} live={streaming} />}
                 </Fragment>
+              )}
+
+              {/* SP-15 B #435：轮内推荐追问——当前轮答案（及其引用）下方的
+                  动作药丸；轮级态 + 轮尾渲染，历史重载不冲掉、下轮开始清空。 */}
+              {!streaming && turnFollowUps.length > 0 && (
+                <AgentFollowUpChips followUps={turnFollowUps} onFill={handleFollowUpFill} />
               )}
 
               {!streaming && (turnUsage || turnTraceId) && (
