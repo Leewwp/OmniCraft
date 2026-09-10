@@ -1486,7 +1486,7 @@
     },
     "noEvidence": {
       "title": "Not enough evidence",
-      "description": "Public content does not have enough material to support this answer. The agent did not fabricate a conclusion.",
+      "description": "Not enough material was found in public content. Try rephrasing or adding detail — genre, type, or author — and ask again.",
       "searchCta": "Search site content"
     },
     "degraded": {

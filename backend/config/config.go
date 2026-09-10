@@ -479,6 +479,20 @@ type AgentConfig struct {
 	// history (estimated tokens; CJK-heavy so rune count is a safe upper
 	// bound). The system prompt is always included outside this budget.
 	ChatContextTokenBudget int `mapstructure:"chat_context_token_budget" json:"chat_context_token_budget"`
+	// ChitchatShortcutEnabled gates the rule-layer chitchat shortcut (SP-15
+	// A1): an exact-match greeting consumes no LLM call and replays a
+	// server-owned template with answer_kind=conversational.
+	ChitchatShortcutEnabled bool `mapstructure:"chitchat_shortcut_enabled" json:"chitchat_shortcut_enabled"`
+	// ChitchatPatterns is the exact-match keyword table for the shortcut.
+	// Matching is trim + full/half-width fold + case fold, ≤8 runes, whole
+	// message equal to one pattern (no substring matches).
+	ChitchatPatterns []string `mapstructure:"chitchat_patterns" json:"chitchat_patterns"`
+	// ConversationalMaxRunes is the deterministic guardrail for the
+	// model-routed conversational lane (SP-15 A2): a zero-tool, zero-citation
+	// reply is kept only while it stays within this many runes; anything
+	// longer falls back to no_evidence. Zero disables the lane entirely
+	// (fail-closed: a missing key can never loosen the citation guard).
+	ConversationalMaxRunes int `mapstructure:"conversational_max_runes" json:"conversational_max_runes"`
 }
 
 type CaptchaConfig struct {
