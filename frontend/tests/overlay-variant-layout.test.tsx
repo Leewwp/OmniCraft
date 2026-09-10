@@ -420,10 +420,10 @@ test("#397 related block pins order: source original → series → derivatives,
 
   /* #430 挂载分帧：关联块/评论区经 DeferredMount（双 rAF + 低优先级）延后一拍
      挂载，存在性断言须等延后挂载落定（jsdom 的 rAF 由 act 异步泵送）。 */
-  let block: Element | null = null;
-  await waitFor(() => {
-    block = document.querySelector('[data-slot="overlay-related-block"]');
-    assert.ok(block, "related block renders when relations exist");
+  const block = await waitFor(() => {
+    const el = document.querySelector('[data-slot="overlay-related-block"]');
+    assert.ok(el, "related block renders when relations exist");
+    return el;
   });
 
   const sourceBtn = block?.querySelector('[data-slot="related-source-btn"]');
