@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -87,6 +88,27 @@ func TestAgentAnswerKindEnum(t *testing.T) {
 	require.Equal(t, AgentAnswerKind("grounded_content"), AgentAnswerGroundedContent)
 	require.Equal(t, AgentAnswerKind("no_evidence"), AgentAnswerNoEvidence)
 	require.Equal(t, AgentAnswerKind("publish_suggestion"), AgentAnswerPublishSuggestion)
+	require.Equal(t, AgentAnswerKind("conversational"), AgentAnswerConversational)
+}
+
+// TestClassifyStreamAnswerConversationalLane locks the deterministic
+// conversational admission rules (SP-15 A2): every condition is checked
+// server-side and any miss falls back to the strict grounded classification.
+func TestClassifyStreamAnswerConversationalLane(t *testing.T) {
+	longAnswer := strings.Repeat("好", 161)
+	shortAnswer := strings.Repeat("好", 160)
+	oneCitation := []AgentCitation{{ContentID: 88, Title: "T", Zone: "original"}}
+	oneTool := []AgentToolExecution{{Name: "search_content", Status: AgentToolStatusSuccess}}
+
+	require.Equal(t, AgentAnswerConversational, ClassifyStreamAnswer(nil, nil, shortAnswer, false, 160), "all conditions met")
+	require.Equal(t, AgentAnswerNoEvidence, ClassifyStreamAnswer(nil, nil, "", false, 160), "empty answer never conversational")
+	require.Equal(t, AgentAnswerNoEvidence, ClassifyStreamAnswer(nil, nil, "   ", false, 160), "whitespace-only answer never conversational")
+	require.Equal(t, AgentAnswerNoEvidence, ClassifyStreamAnswer(nil, nil, longAnswer, false, 160), "over-guardrail lazy answer cleared")
+	require.Equal(t, AgentAnswerNoEvidence, ClassifyStreamAnswer(nil, nil, shortAnswer, true, 160), "degraded turn cleared")
+	require.Equal(t, AgentAnswerGroundedContent, ClassifyStreamAnswer(oneCitation, nil, shortAnswer, false, 160), "cited answer stays grounded")
+	require.Equal(t, AgentAnswerNoEvidence, ClassifyStreamAnswer(nil, oneTool, shortAnswer, false, 160), "tools ran but nothing cited -> no_evidence")
+	require.Equal(t, AgentAnswerNoEvidence, ClassifyStreamAnswer(nil, nil, shortAnswer, false, 0), "guardrail 0 disables the lane (fail-closed)")
+	require.Equal(t, AgentAnswerNoEvidence, ClassifyStreamAnswer(nil, nil, shortAnswer, false, -1), "negative guardrail disables the lane")
 }
 
 // TestAgentSafeErrorDTO locks the safe error wire format; raw Provider errors

@@ -259,7 +259,7 @@ test("no-evidence question shows the refusal card", async ({ page }) => {
   await ask(page, "明天的天气怎么样");
 
   await expect(page.getByText("Not enough evidence")).toBeVisible();
-  await expect(page.getByText(/did not fabricate a conclusion/i)).toBeVisible();
+  await expect(page.getByText(/try rephrasing or adding detail/i)).toBeVisible();
 });
 
 test("provider failure falls back to ordinary keyword search", async ({ page }) => {

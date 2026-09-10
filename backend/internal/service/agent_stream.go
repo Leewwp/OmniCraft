@@ -225,6 +225,15 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 		return err
 	}
 
+	// SP-15 A1 rule-layer shortcut: an exact-match chitchat message replays a
+	// server-owned template without any Provider call. The turn already
+	// passed the moderation input gate and consumed its reserved quota (both
+	// happen in the handler before ChatStream), and the user row is already
+	// stored by resolveChatConversation — the shortcut only skips the LLM.
+	if template, ok := s.chitchatShortcutReply(turn.Message); ok {
+		return s.emitChitchatTemplateTurn(traceID, conv, template, handler)
+	}
+
 	policy := s.ToolPolicy()
 	systemMsg := s.serverOwnedSystemPrompt(resolved.Surface, resolved.Content)
 	req := llm.ChatRequest{
@@ -420,8 +429,8 @@ loop:
 	}
 
 	citations := s.revalidateCitations(ctx, userID, citationCandidates, traceID)
-	kind := ClassifyGroundedAnswer(citations)
 	answer := answerBuf.String()
+	kind := ClassifyStreamAnswer(citations, executedTools, answer, degraded, s.conversationalMaxRunes())
 	// 引用上限之外的 [n] 标注是死引用（前端渲染为不可点角标）：终稿与落库前
 	// 统一剥离，SSE delta 阶段已流出的角标由 done 终稿替换回收。
 	answer = stripOrphanCitationMarkers(answer, len(citations))
@@ -511,6 +520,62 @@ loop:
 
 	traceAgentEvent(traceID, "chat_done", "conversation_id", convID, "surface", resolved.Surface, "answer_kind", kind, "tools", len(executedTools))
 	return nil
+}
+
+// emitChitchatTemplateTurn finishes a rule-layer shortcut turn (SP-15 A1):
+// one delta carrying the whole template, then a conversational done event.
+// The assistant template row persists like any answer (history replay stays
+// complete), but no LLM auto-title is scheduled — a chitchat excerpt is not
+// worth a title call and the title-IS-NUL semantics let the first real
+// question name the conversation later. Output moderation is skipped too: the
+// text is a server-owned constant, not model- or user-generated content.
+func (s *AgentService) emitChitchatTemplateTurn(traceID string, conv *model.AgentConversation, template string, handler func(ev AgentStreamEvent) error) error {
+	if err := handler(AgentStreamEvent{Type: AgentEventDelta, Delta: template}); err != nil {
+		return err
+	}
+	messageID := int64(0)
+	if s.db != nil {
+		storeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		answerRow := model.AgentMessage{
+			ConversationID: conv.ID,
+			Role:           "assistant",
+			Content:        &template,
+			CreatedAt:      time.Now(),
+		}
+		if err := s.db.WithContext(storeCtx).Create(&answerRow).Error; err != nil {
+			cancel()
+			slog.Error("failed to persist agent chitchat template message", "error", err)
+			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
+		}
+		messageID = answerRow.ID
+		if err := s.db.WithContext(storeCtx).Model(conv).Update("updated_at", time.Now()).Error; err != nil {
+			cancel()
+			slog.Error("failed to update agent conversation timestamp", "error", err)
+			return emitAgentStreamError(handler, AgentErrorCodeStorage, err)
+		}
+		cancel()
+	}
+	if err := handler(AgentStreamEvent{
+		Type:           AgentEventDone,
+		TraceID:        traceID,
+		ConversationID: conv.ID,
+		MessageID:      messageID,
+		AnswerKind:     AgentAnswerConversational,
+		Answer:         template,
+		Usage:          &AgentUsage{},
+	}); err != nil {
+		return err
+	}
+	traceAgentEvent(traceID, "chat_done", "conversation_id", conv.ID, "answer_kind", AgentAnswerConversational, "shortcut", "chitchat")
+	return nil
+}
+
+// conversationalMaxRunes guards against a nil cfg (DB-less service seams).
+func (s *AgentService) conversationalMaxRunes() int {
+	if s.cfg == nil {
+		return 0
+	}
+	return s.cfg.Agent.ConversationalMaxRunes
 }
 
 // ModerateChatInput applies the A-05 input admission gate over a chat message

@@ -584,6 +584,23 @@ func ClassifyGroundedAnswer(citations []AgentCitation) AgentAnswerKind {
 	return AgentAnswerGroundedContent
 }
 
+// ClassifyStreamAnswer extends the grounded classification with the
+// conversational lane (SP-15 A2): a streamed reply that used no tools, kept no
+// citations, is non-empty, did not degrade, and fits within the configured
+// rune guardrail is conversational and survives the no_evidence clearing.
+// Every condition is server-side and deterministic — the model cannot opt
+// itself into the lane. Any miss (including conversationalMaxRunes <= 0,
+// which disables the lane) falls back to the strict grounded classification,
+// so a lazy zero-retrieval long answer on a content question is still cleared.
+func ClassifyStreamAnswer(citations []AgentCitation, executedTools []AgentToolExecution, answer string, degraded bool, conversationalMaxRunes int) AgentAnswerKind {
+	trimmed := strings.TrimSpace(answer)
+	if len(citations) == 0 && len(executedTools) == 0 && trimmed != "" && !degraded &&
+		conversationalMaxRunes > 0 && len([]rune(trimmed)) <= conversationalMaxRunes {
+		return AgentAnswerConversational
+	}
+	return ClassifyGroundedAnswer(citations)
+}
+
 // untracedTraceID is an explicit marker for direct service callers that do
 // not pass through HTTP tracing. Production requests replace it with the
 // OTel trace ID created by the HTTP root span.

@@ -19,6 +19,12 @@ const (
 	// AgentAnswerNoEvidence marks answers without valid evidence; the caller
 	// falls back to keyword search instead of a fabricated citation.
 	AgentAnswerNoEvidence AgentAnswerKind = "no_evidence"
+	// AgentAnswerConversational marks turns that never needed evidence in the
+	// first place (SP-15 A2): a deterministic server-side lane admitting only
+	// zero-tool, zero-citation, non-degraded replies within the configured
+	// rune guardrail. The model never opts in itself; every condition is
+	// checked server-side after the stream finishes.
+	AgentAnswerConversational AgentAnswerKind = "conversational"
 	// AgentAnswerPublishSuggestion is the typed contract for publish-metadata
 	// suggestions; it carries no site-content citation requirement.
 	AgentAnswerPublishSuggestion AgentAnswerKind = "publish_suggestion"

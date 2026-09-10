@@ -306,6 +306,65 @@ func TestAgentChatStreamFeatureDisabledReturns503(t *testing.T) {
 	}
 }
 
+// TestAgentChatStreamChitchatConsumesQuotaWithoutProvider locks the SP-15 A1
+// anti-abuse contract: the shortcut skips the LLM call but the reserved quota
+// is still consumed (unified 防刷 accounting), and the SSE stream still emits
+// the full start → delta → done(conversational) sequence.
+func TestAgentChatStreamChitchatConsumesQuotaWithoutProvider(t *testing.T) {
+	provider := &recordingAgentHTTPProvider{deltas: []llm.ChatDelta{{Content: "must never stream"}}}
+	cfg := &config.Config{Agent: config.AgentConfig{
+		WebAgentEnabled: true, RateLimitPerMinute: 5, RateLimitPerDay: 50,
+		MaxUserMessageChars: 4000, ChatMaxContextMsgs: 10, ChatContextTokenBudget: 100000,
+		MaxToolCallsPerTurn: 8, MaxOutputTokens: 1200, CitationMaxCount: 5,
+		ChitchatShortcutEnabled: true,
+		ChitchatPatterns:        []string{"你好", "hello", "hi"},
+		ConversationalMaxRunes:  160,
+	}}
+	handler, mr, _ := newAgentStreamTestHandler(t, provider, cfg)
+
+	rec := postAgentChat(t, handler, 7, `{"message": "hi"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+
+	events := parseAgentSSE(t, rec.Body.String())
+	names := streamEventNames(events)
+	if names[0] != "start" || names[len(names)-1] != "done" {
+		t.Fatalf("events = %v, want start..done", names)
+	}
+	var doneData map[string]any
+	var deltaText string
+	for _, e := range events {
+		if e.Name == "done" {
+			doneData = e.Data
+		}
+		if e.Name == "delta" {
+			delta, _ := e.Data["delta"].(string)
+			deltaText += delta
+		}
+	}
+
+	if kind, _ := doneData["answer_kind"].(string); kind != "conversational" {
+		t.Fatalf("done answer_kind = %q, want conversational", kind)
+	}
+	if answer, _ := doneData["answer"].(string); answer == "" {
+		t.Fatal("done answer must carry the template")
+	}
+	if deltaText == "" {
+		t.Fatal("shortcut turn must stream exactly one template delta")
+	}
+	if strings.Contains(deltaText, "must never stream") {
+		t.Fatalf("provider text leaked into the shortcut stream: %q", deltaText)
+	}
+
+	if _, err := mr.Get(handler.quota.DayKey(7)); err != nil {
+		t.Fatalf("day quota key missing after chitchat turn: %v", err)
+	}
+	if _, err := mr.Get(handler.quota.MinuteKey(7)); err != nil {
+		t.Fatalf("minute quota key missing after chitchat turn: %v", err)
+	}
+}
+
 func TestAgentChatStreamOversizedMessageRejectedWithoutQuota(t *testing.T) {
 	provider := &recordingAgentHTTPProvider{}
 	cfg := &config.Config{Agent: config.AgentConfig{

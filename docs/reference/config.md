@@ -15,9 +15,15 @@
 | `agent.chat_context_token_budget` | `int` | ChatContextTokenBudget caps the server-side assembled conversation
 history (estimated tokens; CJK-heavy so rune count... |
 | `agent.chat_max_context_messages` | `int` | ChatMaxContextMsgs |
+| `agent.chitchat_patterns` | `[]string` | ChitchatPatterns is the exact-match keyword table for the shortcut.
+Matching is trim + full/half-width fold + case fo... |
+| `agent.chitchat_shortcut_enabled` | `bool` | ChitchatShortcutEnabled gates the rule-layer chitchat shortcut (SP-15
+A1): an exact-match greeting consumes no LLM ca... |
 | `agent.citation_max_count` | `int` | CitationMaxCount |
 | `agent.conversation_list_limit` | `int` | ConversationListLimit |
 | `agent.conversation_page_size` | `int` | ConversationPageSize |
+| `agent.conversational_max_runes` | `int` | ConversationalMaxRunes is the deterministic guardrail for the
+model-routed conversational lane (SP-15 A2): a zero-too... |
 | `agent.embedding_api_base` | `string` | EmbeddingAPIBase |
 | `agent.embedding_api_key` | `string` | EmbeddingAPIKey |
 | `agent.embedding_dimensions` | `int` | EmbeddingDimensions |

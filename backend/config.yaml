@@ -308,6 +308,35 @@ agent:
   conversation_list_limit: 50
   conversation_page_size: 20
   chat_context_token_budget: 8000
+  # SP-15 A1（2026-09-09）：规则层闲聊短路——消息 trim+全半角/大小写归一后 ≤8 runes
+  # 且完全匹配关键词表（整条=关键词，不做子串包含），在 Provider 之前短路，回复服务端
+  # 模板（answer_kind=conversational）；quota 预留与 moderation 输入门照常。
+  chitchat_shortcut_enabled: true
+  chitchat_patterns:
+    - "你好"
+    - "您好"
+    - "嗨"
+    - "哈喽"
+    - "hello"
+    - "hi"
+    - "hey"
+    - "在吗"
+    - "谢谢"
+    - "多谢"
+    - "感谢"
+    - "thanks"
+    - "thank you"
+    - "再见"
+    - "拜拜"
+    - "晚安"
+    - "早上好"
+    - "中午好"
+    - "下午好"
+    - "晚上好"
+  # SP-15 A2：conversational 车道确定性护栏——零有效引用+零已执行工具+非空+未降级
+  # 且答案 ≤ 该 rune 上限时保留为 conversational；任一不满足回落 no_evidence 清空。
+  # 防幻觉语义保留：模型对内容题偷懒不检索而长答时仍被清空。0 = 车道整体关闭。
+  conversational_max_runes: 160
 
 rate_limit:
   enabled: true
