@@ -223,6 +223,14 @@ export function normalizeAgentEvent(raw: unknown): AgentStreamEvent | null {
         }
       }
       if (typeof candidate.degraded === "boolean") event.degraded = candidate.degraded;
+      /* SP-15 B #435：done 携带的推荐追问逐条校验为非空字符串，上限 3 条；
+         缺失/畸形一律省略（渐进增强，无则无）。 */
+      if (Array.isArray(candidate.follow_ups)) {
+        const followUps = candidate.follow_ups.filter(
+          (item): item is string => typeof item === "string" && item.trim() !== "",
+        );
+        if (followUps.length > 0) event.follow_ups = followUps.slice(0, 3);
+      }
       return event;
     }
     case "error": {

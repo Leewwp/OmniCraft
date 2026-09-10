@@ -158,6 +158,9 @@ const workspaceMessages = {
       copySuccess: "Copied to clipboard",
       copyFailed: "Copy failed, please select the text manually",
       regenerate: "Regenerate",
+      /* #435 推荐追问键镜像真实 en.json catalog（MISSING_MESSAGE 防护）。 */
+      followUpsLabel: "Suggested follow-ups",
+      followUpFill: "Fill the composer",
     },
     thinking: {
       label: "Thought process",
@@ -489,6 +492,18 @@ test("parseAgentStreamLine decodes SSE v2 events: think_delta, tool step details
   });
 });
 
+test("parseAgentStreamLine keeps validated follow_ups on done and drops malformed entries (#435)", () => {
+  const line = (payload: string) => `data: ${payload}`;
+  const kept = parseAgentStreamLine(
+    line(JSON.stringify({ type: "done", answer_kind: "grounded_content", answer: "a", follow_ups: ["第一问", "  ", 7, "second question"] })),
+  ) as Extract<AgentStreamEvent, { type: "done" }>;
+  assert.deepEqual(kept.follow_ups, ["第一问", "second question"], "non-string/blank entries filtered in order");
+  const absent = parseAgentStreamLine(
+    line(JSON.stringify({ type: "done", answer_kind: "grounded_content", answer: "a" })),
+  ) as Extract<AgentStreamEvent, { type: "done" }>;
+  assert.equal(absent.follow_ups, undefined, "missing field stays undefined (progressive enhancement)");
+});
+
 test("startAgentStream POSTs the surface contract and emits events in order", async () => {
   const stub = installSSEFetch(streamEvents());
   const events: AgentStreamEvent[] = [];
@@ -721,6 +736,76 @@ test("clear history failure keeps messages and shows the localized error", async
 });
 
 /* ---------- AgentWorkspace：流式回答与引用浮窗（复用 Ticket 02 底座） ---------- */
+
+test("grounded done with follow_ups renders chips; click fills composer without sending (#435)", async () => {
+  installDom();
+  const now = new Date();
+  const events = streamEvents().map((event) =>
+    event.type === "done"
+      ? { ...event, follow_ups: ["What else by this author?", "Show watercolor tutorials"] }
+      : event,
+  );
+  const stub = installSSEFetch(events);
+  const now2 = new Date();
+  installApiMock([
+    { method: "GET", path: "/api/v1/agent/conversations", response: { conversations: [] } },
+    /* done 会把新会话 id 写入 activeId 并触发历史重载——必须 mock 历史端点，
+       否则 messagesLoadError 分支替换正文区（chips 轮尾渲染也随之消失）。 */
+    {
+      method: "GET", path: "/api/v1/agent/conversations/7",
+      response: {
+        conversation: conversation(7, now2.toISOString()),
+        messages: [
+          { id: 1, conversation_id: 7, role: "user", content: "find me a guide" },
+          { id: 2, conversation_id: 7, role: "assistant", content: "hello world", citations: [{ content_id: 3, title: "Cited content", zone: "original", excerpt: "excerpt line" }] },
+        ],
+      },
+    },
+  ]);
+  try {
+    const view = renderWithIntl(<AgentWorkspace />);
+    const suggestion = await waitFor(() =>
+      view.getByRole("button", { name: "Find beginner-friendly furniture mods" }),
+    );
+    fireEvent.click(suggestion);
+    await waitFor(() => assert.ok(view.getByText("hello world")), { timeout: 3000 });
+
+    /* 追问药丸：chips 由 done 事件副作用挂载（晚于 delta 流出的正文）——
+       必须等副作用生效，不能在正文出现后同步查询（node:test+RTL 已知陷阱）。 */
+    const chip = await waitFor(
+      () => {
+        assert.ok(
+          view.getByRole("group", { name: "Suggested follow-ups" }),
+          "chips group labelled via next-intl",
+        );
+        return view.getByRole("button", { name: /Show watercolor tutorials/ });
+      },
+      { timeout: 3000 },
+    );
+
+    /* 点击 = 填入 composer（textbox 值变更）且不自动发送（无第二次 stream POST）。 */
+    const postsBefore = stub.calls.length;
+    fireEvent.click(chip);
+    const composer = view.getByRole("textbox") as HTMLTextAreaElement;
+    assert.equal(composer.value, "Show watercolor tutorials", "chip click fills the composer");
+    assert.equal(stub.calls.length, postsBefore, "clicking a chip must not send a new turn");
+    /* 不发送 = transcript 内不出现该文本的用户气泡（chip 与 composer 值
+       本来就含该文本，须限定容器计数）。 */
+    const transcriptNode = document.querySelector('[data-slot="agent-transcript"]');
+    assert.ok(transcriptNode, "transcript container exists");
+    const inTranscript = within(transcriptNode as HTMLElement)
+      .queryAllByText("Show watercolor tutorials")
+      .filter((node) => node.closest("button") === null);
+    assert.equal(inTranscript.length, 0, "chip click must not append a user bubble");
+    /* 历史重载（done 后 activeId 触发）不得冲掉当前轮 chips（轮级态）。 */
+    await waitFor(
+      () => assert.ok(view.getByRole("group", { name: "Suggested follow-ups" }), "chips survive the history reload"),
+      { timeout: 3000 },
+    );
+  } finally {
+    stub.restore();
+  }
+});
 
 test("workspace streams an answer and renders citation cards", async () => {
   installDom();

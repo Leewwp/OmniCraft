@@ -1409,6 +1409,8 @@
       "emptyTitle": "从站内内容开始研究",
       "emptyDescription": "询问作品、来源、使用方式或创作方向。Agent 会给出经服务端校验的站内引用；没有依据时会明确停止。",
       "jumpToLatest": "跳到最新",
+      "followUpsLabel": "推荐追问",
+      "followUpFill": "填入输入框",
       "errorTitle": "本次请求未完成",
       "errorRetry": "重新发送",
       "conversationLoadFailed": "会话加载失败",

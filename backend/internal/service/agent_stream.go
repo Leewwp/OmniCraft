@@ -64,19 +64,26 @@ type AgentStreamEvent struct {
 	ConversationID int64                `json:"conversation_id,omitempty"`
 	// MessageID identifies the persisted assistant answer row; it is set on
 	// the done event so clients can reference the stored message.
-	MessageID     int64                `json:"message_id,omitempty"`
-	AnswerKind     AgentAnswerKind      `json:"answer_kind,omitempty"`
-	Delta          string               `json:"delta,omitempty"`
-	Tool           *AgentToolExecution  `json:"tool,omitempty"`
-	Citation       *AgentCitation       `json:"citation,omitempty"`
-	Usage          *AgentUsage          `json:"usage,omitempty"`
-	Answer         string               `json:"answer,omitempty"`
-	Citations      []AgentCitation      `json:"citations,omitempty"`
-	Tools          []AgentToolExecution `json:"tools,omitempty"`
-	Degraded       bool                 `json:"degraded"`
-	DegradedReason string               `json:"degraded_reason,omitempty"`
-	ErrorCode      string               `json:"error_code,omitempty"`
-	ErrorMessage   string               `json:"error_message,omitempty"`
+	MessageID  int64                `json:"message_id,omitempty"`
+	AnswerKind AgentAnswerKind      `json:"answer_kind,omitempty"`
+	Delta      string               `json:"delta,omitempty"`
+	Tool       *AgentToolExecution  `json:"tool,omitempty"`
+	Citation   *AgentCitation       `json:"citation,omitempty"`
+	Usage      *AgentUsage          `json:"usage,omitempty"`
+	Answer     string               `json:"answer,omitempty"`
+	Citations  []AgentCitation      `json:"citations,omitempty"`
+	Tools      []AgentToolExecution `json:"tools,omitempty"`
+	// FollowUps carries 2-3 suggested next questions (SP-15 B #435). Only the
+	// done event of a grounded_content turn may carry them; generation is a
+	// speculative non-streaming call started at the first answer delta and
+	// joined before done assembly with a bounded budget — a miss, timeout or
+	// parse failure leaves the field empty (progressive enhancement, never a
+	// stream failure). v1 does not persist follow-ups.
+	FollowUps      []string `json:"follow_ups,omitempty"`
+	Degraded       bool     `json:"degraded"`
+	DegradedReason string   `json:"degraded_reason,omitempty"`
+	ErrorCode      string   `json:"error_code,omitempty"`
+	ErrorMessage   string   `json:"error_message,omitempty"`
 }
 
 // ResolvedChatContext is the viewer-preloaded, server-owned chat context. The
@@ -252,6 +259,13 @@ func (s *AgentService) ChatStream(ctx context.Context, userID int64, turn ChatTu
 	degraded := false
 	streamErr := error(nil)
 	var lastUsage *llm.TokenUsage
+	// SP-15 B speculative follow-up generation (#435): started at the first
+	// answer delta of a turn that already executed a tool (grounded answers
+	// always have one; chitchat/clarification turns never start a call), joined
+	// below with the remaining budget before done assembly.
+	followUpCh := make(chan []string, 1)
+	followUpStarted := false
+	followUpStartedAt := time.Time{}
 
 loop:
 	for {
@@ -278,6 +292,20 @@ loop:
 			}
 			if delta.Content != "" {
 				answerBuf.WriteString(delta.Content)
+				if !followUpStarted && len(executedTools) > 0 && s.llmProvider != nil {
+					followUpStarted = true
+					followUpStartedAt = time.Now()
+					question := turn.Message
+					titles := followUpTitles(citationCandidates)
+					prefix := delta.Content
+					provider := s.llmProvider
+					sid := traceID
+					recovery.GoSafe(func() {
+						ctx, cancel := context.WithTimeout(context.Background(), followUpBudget)
+						defer cancel()
+						followUpCh <- generateFollowUps(ctx, provider, sid, question, titles, prefix)
+					})
+				}
 				if err := handler(AgentStreamEvent{Type: AgentEventDelta, Delta: delta.Content}); err != nil {
 					return err
 				}
@@ -431,6 +459,39 @@ loop:
 	citations := s.revalidateCitations(ctx, userID, citationCandidates, traceID)
 	answer := answerBuf.String()
 	kind := ClassifyStreamAnswer(citations, executedTools, answer, degraded, s.conversationalMaxRunes())
+	// SP-15 B join (#435): only a grounded, non-degraded turn waits for the
+	// speculative follow-up call. A result already sitting in the buffered
+	// channel is taken non-blockingly even when the budget has elapsed; only a
+	// still-missing result waits, bounded by what remains of followUpBudget
+	// since the first delta. A miss or timeout attaches nothing.
+	followUps := []string(nil)
+	if followUpStarted && kind == AgentAnswerGroundedContent && !degraded {
+		received := false
+		select {
+		case items := <-followUpCh:
+			followUps = items
+			received = true
+		default:
+		}
+		if !received {
+			remaining := followUpBudget - time.Since(followUpStartedAt)
+			if remaining > 0 {
+				timer := time.NewTimer(remaining)
+				select {
+				case items := <-followUpCh:
+					followUps = items
+				case <-timer.C:
+					traceAgentEvent(traceID, "follow_ups_missed", "reason", "timeout")
+				}
+				timer.Stop()
+			} else {
+				traceAgentEvent(traceID, "follow_ups_missed", "reason", "budget_elapsed")
+			}
+		}
+	}
+	if len(followUps) > 0 {
+		traceAgentEvent(traceID, "follow_ups_attached", "count", len(followUps))
+	}
 	// 引用上限之外的 [n] 标注是死引用（前端渲染为不可点角标）：终稿与落库前
 	// 统一剥离，SSE delta 阶段已流出的角标由 done 终稿替换回收。
 	answer = stripOrphanCitationMarkers(answer, len(citations))
@@ -514,6 +575,7 @@ loop:
 		Tools:          executedTools,
 		Usage:          usage,
 		Degraded:       degraded,
+		FollowUps:      followUps,
 	}); err != nil {
 		return err
 	}
@@ -576,6 +638,133 @@ func (s *AgentService) conversationalMaxRunes() int {
 		return 0
 	}
 	return s.cfg.Agent.ConversationalMaxRunes
+}
+
+// SP-15 B (#435) follow-up generation constants. followUpBudget is a var so
+// tests can shorten the join window; production reads the 4s spec value.
+var followUpBudget = 4 * time.Second
+
+const (
+	followUpMaxCount = 3
+	// followUpMaxTokens 需覆盖思考型模型的 reasoning 开销：M3 的思考链会先吃
+	// completion 预算（SP-13 既有教训），128 时正文只剩 2 字符残根。
+
+	followUpMaxRunes   = 20
+	followUpMaxTitles  = 8
+	followUpPrefixCap  = 200
+	followUpMaxTokens  = 1024
+	followUpMaxTitleLn = 80
+)
+
+// followUpTitles lifts the display titles of the current citation candidates
+// for the generation prompt (pre-revalidation is fine: the prompt only needs
+// what the model saw while answering).
+func followUpTitles(candidates []AgentCitation) []string {
+	titles := make([]string, 0, followUpMaxTitles)
+	for _, c := range candidates {
+		if len(titles) >= followUpMaxTitles {
+			break
+		}
+		if t := strings.TrimSpace(c.Title); t != "" {
+			titles = append(titles, truncateChatRunes(t, followUpMaxTitleLn))
+		}
+	}
+	return titles
+}
+
+// followUpRequest builds the bounded non-streaming prompt: user question +
+// retrieved titles + answer prefix, asking for 2-3 same-language follow-up
+// questions, one per line, each within the rune cap.
+func followUpRequest(question string, titles []string, answerPrefix string) llm.ChatRequest {
+	var b strings.Builder
+	b.WriteString("You suggest follow-up questions for a site-content assistant. ")
+	b.WriteString("Based on the user's question, the retrieved result titles, and the beginning of the answer, propose 2-3 short follow-up questions the user might ask next about site content (works, IPs, usage). ")
+	b.WriteString("Rules: one question per line, no numbering, no bullets; each question at most 20 characters; write in the same language as the user's question; output nothing else.\n")
+	b.WriteString("User question: ")
+	b.WriteString(strings.TrimSpace(question))
+	b.WriteString("\nRetrieved titles: ")
+	if len(titles) == 0 {
+		b.WriteString("(none)")
+	} else {
+		b.WriteString(strings.Join(titles, " / "))
+	}
+	b.WriteString("\nAnswer beginning: ")
+	b.WriteString(truncateChatRunes(strings.TrimSpace(answerPrefix), followUpPrefixCap))
+	return llm.ChatRequest{
+		Messages:  []llm.ChatMessage{{Role: "user", Content: b.String()}},
+		MaxTokens: followUpMaxTokens,
+	}
+}
+
+// generateFollowUps runs the small non-streaming call and parses its line
+// output. Every failure mode (call error, empty or over-long lines, garbage)
+// returns nil — the feature degrades to "no follow-ups" silently and never
+// affects the main stream. The traceID labels the side call for diagnosis.
+func generateFollowUps(ctx context.Context, provider llm.LLMProvider, traceID, question string, titles []string, answerPrefix string) []string {
+	resp, err := provider.Chat(ctx, followUpRequest(question, titles, answerPrefix))
+	if err != nil {
+		reason := "provider_error"
+		if ctx.Err() == context.DeadlineExceeded {
+			reason = "deadline_exceeded"
+		}
+		traceAgentEvent(traceID, "follow_ups_call_failed", "reason", reason)
+		return nil
+	}
+	if resp == nil {
+		traceAgentEvent(traceID, "follow_ups_call_failed", "reason", "nil_response")
+		return nil
+	}
+	items := parseFollowUpItems(resp.Content)
+	if len(items) == 0 {
+		traceAgentEvent(traceID, "follow_ups_parse_empty", "content_runes", len([]rune(resp.Content)))
+	}
+	return items
+}
+
+// parseFollowUpItems normalizes model line output into 1..3 trimmed, deduped,
+// rune-bounded questions; anything invalid is dropped.
+func parseFollowUpItems(content string) []string {
+	seen := make(map[string]bool, followUpMaxCount)
+	items := make([]string, 0, followUpMaxCount)
+	for _, raw := range strings.Split(content, "\n") {
+		line := strings.TrimSpace(raw)
+		line = strings.TrimPrefix(line, "-")
+		line = strings.TrimPrefix(line, "*")
+		line = strings.TrimSpace(line)
+		line = strings.TrimSuffix(line, "。")
+		line = strings.TrimSpace(line)
+		// M3 常见编号前缀（prompt 已禁但不可全信）：1. / 1、 / (1) / ①。
+		for {
+			trimmed := strings.TrimLeft(line, "0123456789")
+			if trimmed != line && (strings.HasPrefix(trimmed, ".") || strings.HasPrefix(trimmed, "、") || strings.HasPrefix(trimmed, ")")) {
+				line = strings.TrimSpace(strings.TrimLeft(trimmed, ".、) "))
+				continue
+			}
+			break
+		}
+		if strings.HasPrefix(line, "①") || strings.HasPrefix(line, "②") || strings.HasPrefix(line, "③") {
+			line = strings.TrimSpace(line[3:])
+		}
+		if line == "" || strings.HasPrefix(line, "(") || strings.HasPrefix(line, "（") {
+			continue
+		}
+		runes := []rune(line)
+		if len(runes) == 0 || len(runes) > followUpMaxRunes {
+			continue
+		}
+		if seen[line] {
+			continue
+		}
+		seen[line] = true
+		items = append(items, line)
+		if len(items) >= followUpMaxCount {
+			break
+		}
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	return items
 }
 
 // ModerateChatInput applies the A-05 input admission gate over a chat message

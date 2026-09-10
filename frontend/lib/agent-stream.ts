@@ -44,6 +44,8 @@ export type AgentStreamEvent =
       tools?: AgentStreamTool[];
       usage?: { prompt_tokens: number; completion_tokens: number };
       degraded?: boolean;
+      /** SP-15 B #435：grounded 轮推荐追问（2-3 条、每条 ≤20 runes）；缺失 = 无。 */
+      follow_ups?: string[];
     }
   | {
       type: "error";
