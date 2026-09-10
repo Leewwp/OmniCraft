@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { coverRenderSrc } from "@/lib/overlay-motion";
+import { HoldCrossfadeImage } from "@/components/content/HoldCrossfadeImage";
 import { MediaViewer } from "@/components/content/MediaViewer";
 import type { MediaGalleryItem } from "@/components/content/MediaGallery";
 import { isUltraTallItem, itemAspectRatio } from "@/lib/overlay-media";
@@ -75,9 +76,9 @@ interface MediaSlideProps {
 }
 
 /** 媒体项渲染：contain 不裁切；超高图 h-auto 超出锚点盒高度 → 内部滚动。
-    #409 F1 同源图：图片一律经 coverRenderSrc 取唯一规范变体（SVG/data:
-    直通），与卡片封面、点击预取同一 URL 串；next/image 的响应式 sizes
-    无法跨端钉死同一变体，故用受控 <img>。 */
+    #409 F1 同源图 + #430 两变体渐进：规范层 w=1080（coverRenderSrc），
+    首项入场保持层 = 卡片快变体（holdSrc），落定且规范层就绪后 180ms 交叉淡入；
+    next/image 的响应式 sizes 无法钉死变体，故用受控 <img>。 */
 function MediaSlide({ item, index, total, onSettle, holdSrc }: MediaSlideProps) {
   const t = useTranslations();
   const tall = isUltraTallItem(item);
@@ -104,17 +105,13 @@ function MediaSlide({ item, index, total, onSettle, holdSrc }: MediaSlideProps) 
 
   return (
     <div className={cn("relative", tall ? "h-auto" : "h-full")}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={(index === 0 && holdSrc) || coverRenderSrc(item.url) || item.url}
+      <HoldCrossfadeImage
+        canonicalSrc={coverRenderSrc(item.url) || item.url}
+        holdSrc={index === 0 ? holdSrc : null}
         alt={alt}
-        draggable={false}
-        className={cn(
-          "cursor-zoom-in object-contain",
-          tall ? "h-auto w-full" : "absolute inset-0 h-full w-full",
-        )}
-        onLoad={() => settleIfFirst("ready")}
-        onError={() => settleIfFirst("error")}
+        imgClassName="cursor-zoom-in object-contain"
+        flowLayout={tall}
+        onSettle={settleIfFirst}
       />
     </div>
   );
