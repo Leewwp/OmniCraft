@@ -633,6 +633,13 @@ func (s *AgentService) serverOwnedSystemPrompt(surface model.AgentChatSurface, c
 	// 检索（冻结 test vi-0003/vi-0013/ke-0051 逃逸）；第二版把「含具体标题/引文/
 	// 关键词 = 内容请求必须先检索」提为句首主导子句，澄清仅限零可检索文本的消息。
 	parts = append(parts, "when the user's message contains a concrete title, quote, character name, or keyword that could exist on the site, always call the cited_search tool with it before replying, even if the intent seems ambiguous; for example, a message that is just a title like 「星轨下的制琴师」or 'A Quiet Ledger of Small Storms' is a search request: search that exact text first, then answer from the results, and only say you found nothing usable if the search comes back empty; only for pure greetings, thanks, farewells, or a message with no searchable text at all (for example garbled characters), reply briefly without any tool and without citation marks — one or two sentences in the user's language, either a greeting back or one clarifying question about what site content they need")
+	// SP-15 D1/D2（2026-09-10 #434）：查询理解三件套，prompt 层指令为主。
+	// D1 自包含改写——search_content 的 query 必须消解指代/省略，独立可理解；
+	// few-shot 示例刻意避开冻结评测集查询与站内真实标题（防背题）。D2 复合
+	// 问题拆分——多个子问题多次检索，预算 max_tool_calls_per_turn=8 内充足。
+	// 上方 must-search 与 A2 会话车道指令原文不动，本组指令追加其后。
+	parts = append(parts, "every search_content query must be fully self-contained: resolve all pronouns, ellipsis and context references into the concrete entities they point to (exact titles, author or character names, topics), so each query is understandable with zero prior conversation context; for example, when the user asks 「第二个的作者还有什么作品」 after earlier results, the query must be rewritten like 「《迟到的邮差》的作者的其他作品」 with the resolved title, never a bare reference such as 「第二个」 or 「它的作者」; a message that is just a bare title or quote is itself the self-contained query for its first search")
+	parts = append(parts, "when one message combines several independent sub-questions, decompose it into multiple search_content calls — one call per sub-question, each with its own self-contained query — instead of merging them into a single vague query; the per-turn tool budget is sized for this")
 	return llm.ChatMessage{
 		Role:    "system",
 		Content: "[OmniCraft Agent Context] " + strings.Join(parts, "; "),
