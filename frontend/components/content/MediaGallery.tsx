@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { coverRenderSrc } from "@/lib/overlay-motion";
+import { HoldCrossfadeImage } from "@/components/content/HoldCrossfadeImage";
 import { MediaViewer } from "@/components/content/MediaViewer";
 import type { AttachmentData } from "@/lib/content";
 
@@ -253,33 +254,26 @@ export function MediaGallery({
                       <span className="text-xs">{t("media.gallery.error.loadFailed")}</span>
                     </div>
                   ) : (
-                    /* #409 F1 同源图：封面一律经 coverRenderSrc 取唯一规范变体
-                       （SVG/data: 直通），与卡片封面、点击预取同一 URL 串；
-                       #398 C1 的 next/image sizes 无法跨端钉死同一变体。
-                       首帧保持：入场未落定时首项图片渲染卡片封面 src（hold）。 */
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={
-                        (itemIndex === 0 && firstItemHoldSrc) ||
-                        coverRenderSrc(item.url) ||
-                        item.url
-                      }
+                    /* #409 F1 同源图 + #430 两变体渐进：规范层 w=1080
+                       （coverRenderSrc），首项保持层 = 卡片快变体（holdSrc），
+                       落定且规范层就绪后 180ms 交叉淡入。 */
+                    <HoldCrossfadeImage
+                      canonicalSrc={coverRenderSrc(item.url) || item.url}
+                      holdSrc={itemIndex === 0 ? firstItemHoldSrc : null}
                       alt={t("media.gallery.imageAlt", {
                         current: itemIndex + 1,
                         total: items.length,
                       })}
-                      draggable={false}
-                      className={cn(
-                        "object-contain",
-                        tall ? "h-auto w-full" : "absolute inset-0 h-full w-full",
-                      )}
-                      onLoad={() => {
-                        setLoaded((prev) => ({ ...prev, [item.id]: true }));
-                        if (itemIndex === 0) settleFirstMedia("ready");
-                      }}
-                      onError={() => {
-                        setFailed((prev) => ({ ...prev, [item.id]: true }));
-                        if (itemIndex === 0) settleFirstMedia("error");
+                      imgClassName="object-contain"
+                      flowLayout={tall}
+                      onSettle={(state) => {
+                        if (state === "ready") {
+                          setLoaded((prev) => ({ ...prev, [item.id]: true }));
+                          if (itemIndex === 0) settleFirstMedia("ready");
+                        } else {
+                          setFailed((prev) => ({ ...prev, [item.id]: true }));
+                          if (itemIndex === 0) settleFirstMedia("error");
+                        }
                       }}
                     />
                   )}

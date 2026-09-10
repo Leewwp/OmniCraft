@@ -183,9 +183,9 @@ test("coverVariantUrl builds the optimizer-variant URL and skips data placeholde
   assert.equal(coverVariantUrl(""), null);
 });
 
-test("#409 F1 coverRenderSrc is the single canonical render source across the transition pipeline", () => {
+test("#409 F1 / #430 coverRenderSrc is the shared render source: canonical 1080 default, card quick variant opt-in", () => {
   const { coverRenderSrc } = require("@/lib/overlay-motion") as typeof import("@/lib/overlay-motion");
-  /* 位图 → 唯一规范变体（卡片封面 / 预取 / 浮窗首帧三处共用同一 URL 串）。 */
+  /* 位图 → 规范变体（浮窗规范层 / 预取目标缺省 1080）。 */
   assert.equal(
     coverRenderSrc("https://oss.example.aliyuncs.com/bucket/pic.jpg"),
     "/_next/image?url=https%3A%2F%2Foss.example.aliyuncs.com%2Fbucket%2Fpic.jpg&w=1080&q=75",
@@ -193,6 +193,20 @@ test("#409 F1 coverRenderSrc is the single canonical render source across the tr
   assert.equal(
     coverRenderSrc("/seed-media/real/covers/cover.png"),
     "/_next/image?url=%2Fseed-media%2Freal%2Fcovers%2Fcover.png&w=1080&q=75",
+  );
+  /* #430 两变体渐进：卡片封面（= 浮窗首帧保持层）用 420 快变体。 */
+  const { CARD_COVER_VARIANT_WIDTH, OVERLAY_COVER_VARIANT_WIDTH, OVERLAY_COVER_CROSSFADE_MS } =
+    require("@/lib/overlay-motion") as typeof import("@/lib/overlay-motion");
+  assert.equal(CARD_COVER_VARIANT_WIDTH, 420);
+  assert.equal(OVERLAY_COVER_VARIANT_WIDTH, 1080);
+  assert.equal(
+    coverRenderSrc("https://oss.example.aliyuncs.com/bucket/pic.jpg", CARD_COVER_VARIANT_WIDTH),
+    "/_next/image?url=https%3A%2F%2Foss.example.aliyuncs.com%2Fbucket%2Fpic.jpg&w=420&q=75",
+    "card cover renders the quick variant the overlay first frame holds",
+  );
+  assert.ok(
+    OVERLAY_COVER_CROSSFADE_MS >= 150 && OVERLAY_COVER_CROSSFADE_MS <= 200,
+    "settle crossfade stays in the 150-200ms window",
   );
   /* SVG → 原地址直通（优化器对 SVG 返回 400；next/image 对 .svg 本就直通）。 */
   assert.equal(coverRenderSrc("/seed-media/real/gallery/r2-portrait.svg"), "/seed-media/real/gallery/r2-portrait.svg");
