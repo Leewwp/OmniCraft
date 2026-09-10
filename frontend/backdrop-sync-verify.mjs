@@ -85,7 +85,9 @@ async function runPass(browser, { label, killVt }) {
     });
   }
   const page = await context.newPage();
-  await page.goto(`${BASE}${PAGE}`, { waitUntil: "networkidle" });
+  /* networkidle 在多 pass 后偶发不落定（服务器侧悬挂请求，非断言对象）——
+     改 domcontentloaded + 各段自己的元素等待。 */
+  await page.goto(`${BASE}${PAGE}`, { waitUntil: "domcontentloaded" });
   await page.evaluate(SAMPLER);
 
   /* ── 开：早期反馈层 + 落定 ─────────────────────────────── */
@@ -175,7 +177,7 @@ async function composerStates(browser) {
   await page.fill('input[type="password"]', "A06Verify#2026");
   await page.click('button[type="submit"]');
   await page.waitForURL(/agent|recommend|\/$/, { timeout: 15000 }).catch(() => {});
-  await page.goto(`${BASE}/agent`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/agent`, { waitUntil: "domcontentloaded" });
   const textarea = page.locator("textarea").first();
   await textarea.waitFor({ state: "visible", timeout: 10000 });
   const composerBtn = page.locator("div:has(> textarea) > button").last();
@@ -197,11 +199,96 @@ async function composerStates(browser) {
   await context.close();
 }
 
+/* ── #430 首帧渐进断言：卡片 420 快变体 → 浮窗首帧保持层秒出 → settle 后
+   交叉淡入 1080 规范变体（保持层卸载）。机制级（DOM/加载状态），不依赖
+   录屏帧率，dev 与生产构建均可跑。 */
+async function firstFrameProgressive(browser) {
+  console.log("\n===== pass: #430 first-frame progressive =====");
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  /* load + 尽力 networkidle + 稳定窗：domcontentloaded 即点卡片会与水合竞态
+     （点击无响应→浮窗迟开，首帧断言失真）；networkidle 偶发不落定不做硬门。 */
+  await page.goto(`${BASE}${PAGE}`, { waitUntil: "load" });
+  await page.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(300);
+
+  /* 卡片封面 = 420 快变体（选位图封面卡：SVG 直通无变体链路，不属本断言面）。 */
+  const card = page
+    .locator("article button[aria-label]", { hasText: "" })
+    .filter({
+      has: page.locator('[data-slot="card-cover"] img[src*="/_next/image"]'),
+    })
+    .first();
+  await card.waitFor({ state: "visible", timeout: 10000 });
+  const cardImg = card.locator('[data-slot="card-cover"] img[src*="/_next/image"]').first();
+  /* currentSrc（绝对地址）与浮窗捕获的 hold src 同形——用解析后的地址比对。 */
+  const cardSrc = await cardImg.evaluate((el) => el.src);
+  check("[first-frame] card cover uses the 420 quick variant", /w=420&q=75/.test(cardSrc ?? ""), cardSrc ?? "");
+
+  /* hover 65ms+ 预热 1080（预取时机前移的目标变体），随后点击。
+     位图卡可能在折叠线下：先滚入视口并等瀑布流稳定，避免点击与无限滚动
+     竞态（Playwright actionability 稳定门会重试到超时）。 */
+  await card.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(800);
+  await card.hover();
+  await page.waitForTimeout(200);
+  const clickStarted = Date.now();
+  await card.click();
+
+  /* 早期窗（≤1.5s，含详情拉取+挂载）：保持层已出图（complete+naturalWidth>0）
+     ——无 spinner 空窗。waitFor visible 只保证进 DOM，不保证解码完成。 */
+  const holdLocator = page.locator('dialog img[data-slot="cover-hold"]');
+  let earlyHoldPainted = false;
+  try {
+    await page.waitForFunction(
+      () => {
+        const el = document.querySelector("dialog img[data-slot='cover-hold']");
+        return Boolean(el && el.complete && el.naturalWidth > 0);
+      },
+      null,
+      { timeout: 1500 },
+    );
+    earlyHoldPainted = true;
+  } catch { /* fallthrough to the check */ }
+  check(
+    "[first-frame] overlay first frame paints the held card variant (no spinner gap)",
+    earlyHoldPainted,
+    `elapsed=${Date.now() - clickStarted}ms`,
+  );
+  const holdSrc = earlyHoldPainted ? await holdLocator.first().getAttribute("src") : null;
+  check("[first-frame] hold layer src matches the card quick variant", holdSrc === cardSrc, `${holdSrc}`);
+  await page.screenshot({ path: `${OUT}/sp430-first-frame-hold.png` });
+
+  /* settle 后交叉淡入：保持层淡出并卸载，规范层 1080 承接可视。 */
+  let holdGone = false;
+  try {
+    await holdLocator.first().waitFor({ state: "detached", timeout: 8000 });
+    holdGone = true;
+  } catch { /* fallthrough */ }
+  check("[first-frame] hold layer fades out and unmounts after settle", holdGone);
+
+  const coverImg = page.locator('dialog [data-slot="detail-cover"] img').first();
+  const settledSrc = await coverImg.getAttribute("src").catch(() => null);
+  check(
+    "[first-frame] settled cover is the 1080 canonical variant",
+    /w=1080&q=75/.test(settledSrc ?? ""),
+    settledSrc ?? "",
+  );
+  const settledPainted = await coverImg.evaluate((el) => el.naturalWidth > 0).catch(() => false);
+  check("[first-frame] settled canonical variant is decoded and visible", settledPainted);
+  await page.screenshot({ path: `${OUT}/sp430-settled-1080.png` });
+
+  await context.close();
+}
+
+/* ONLY=first-frame 可单独跑某段（服务器多轮全页加载后偶发降速时分段复验）。 */
+const ONLY = process.env.ONLY ?? "";
 const browser = await chromium.launch();
 try {
-  await runPass(browser, { label: "vt", killVt: false });
-  await runPass(browser, { label: "flip-fallback", killVt: true });
-  await composerStates(browser);
+  if (!ONLY || ONLY === "vt") await runPass(browser, { label: "vt", killVt: false });
+  if (!ONLY || ONLY === "flip") await runPass(browser, { label: "flip-fallback", killVt: true });
+  if (!ONLY || ONLY === "first-frame") await firstFrameProgressive(browser);
+  if (!ONLY || ONLY === "composer") await composerStates(browser);
 } finally {
   await browser.close();
 }

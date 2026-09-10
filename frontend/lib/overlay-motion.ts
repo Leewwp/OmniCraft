@@ -127,14 +127,21 @@ export function viewTransitionAvailable(): boolean {
 
 /* ── C1/C4 图源统一与真就绪（#398 动效契约）──────────────────────────────
    ── F1 三处同源（#409 动效契约重建）─────────────────────────────────────
-   转场管线三处渲染端（卡片封面 / 点击预取 / 浮窗首帧）强制解析为同一 URL 串：
-   位图统一走唯一规范变体（w=1080，优化器同管线）；SVG 与 data: 占位直通原地址
-   （优化器对 SVG 返回 400，next/image 对 .svg 本就直通——两侧同串即同源）。
-   「一闪一闪」的直接根因就是三处宽度源互不一致（卡片 sizes 响应式 /
-   预取 1080 / 浮窗 sizes 620-800px），各自命中不同变体文件。 */
+   ── #430 两变体渐进（修订 F1「三处同源」契约）─────────────────────────────
+   信息流卡片封面用轻量快变体（w=420，带宽/解码更轻）；浮窗首帧沿用卡片当前
+   渲染变体（必命中缓存、秒出）；入场落定且规范变体解码就绪后短交叉淡入换入
+   唯一规范变体（w=1080）。「动效期间零换图」契约保持——落定前规范层 opacity 0。
+   三处宽度源契约：卡片封面 420 = 浮窗首帧 hold；点击/悬停预取 1080 = settle
+   换图目标。SVG 与 data: 占位直通原地址（优化器对 SVG 返回 400——两侧同串即同源）。 */
 
-/** 浮窗封面变体宽度（CSS 显示宽 ≈540-672px，@2x 设备像素 ≈1080-1344）。 */
+/** 浮窗封面规范变体宽度（CSS 显示宽 ≈540-672px，@2x 设备像素 ≈1080-1344）。 */
 export const OVERLAY_COVER_VARIANT_WIDTH = 1080;
+
+/** 信息流卡片封面快变体宽度（#430）：浮窗首帧保持层与卡片同串，必命中缓存。 */
+export const CARD_COVER_VARIANT_WIDTH = 420;
+
+/** settle 后保持层→规范层的交叉淡入时长（#430，落在 150-200ms 区间中点）。 */
+export const OVERLAY_COVER_CROSSFADE_MS = 180;
 
 /** 构造与 next/image 同优化器的规范变体地址；data: 占位与空值不参与（两侧同串）。 */
 export function coverVariantUrl(url: string, width = OVERLAY_COVER_VARIANT_WIDTH): string | null {
@@ -142,13 +149,13 @@ export function coverVariantUrl(url: string, width = OVERLAY_COVER_VARIANT_WIDTH
   return `/_next/image?url=${encodeURIComponent(url)}&w=${width}&q=75`;
 }
 
-/** 渲染端同源封面地址（#409 契约）：卡片封面与浮窗首帧一律经此函数取 src——
-    位图 = 唯一规范变体；SVG / data: = 原地址直通。纯字符串函数（SSR 安全）。 */
-export function coverRenderSrc(url: string | null | undefined): string | null {
+/** 渲染端同源封面地址（#409/#430 契约）：卡片封面传 CARD_COVER_VARIANT_WIDTH、
+    浮窗规范层缺省 1080；SVG / data: = 原地址直通。纯字符串函数（SSR 安全）。 */
+export function coverRenderSrc(url: string | null | undefined, width = OVERLAY_COVER_VARIANT_WIDTH): string | null {
   if (!url) return null;
   if (url.startsWith("data:")) return url;
   if (/\.svg($|\?)/i.test(url)) return url;
-  return coverVariantUrl(url);
+  return coverVariantUrl(url, width);
 }
 
 const prefetchedCoverVariants = new Set<string>();

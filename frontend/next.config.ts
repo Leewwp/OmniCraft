@@ -45,6 +45,9 @@ const nextConfig: NextConfig = {
         hostname: '*.oss-cn-*.aliyuncs.com',
       },
     ],
+    // #430 信息流卡片快变体（overlay-motion.ts CARD_COVER_VARIANT_WIDTH）：
+    // 优化器只接受白名单宽度，420 不在默认 deviceSizes → 400，须显式登记。
+    deviceSizes: [420, 640, 750, 828, 1080, 1200, 1920, 2048, 3840],
   },
 };
 

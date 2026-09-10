@@ -65,7 +65,8 @@ const SAMPLER = () => {
           t: performance.now(),
           so,
           ct,
-          src: cover.querySelector("img")?.currentSrc ?? null,
+          /* #430 双层：可见层 = 保持层（动效期，卡片同串）在顶，否则规范层。 */
+          src: (cover.querySelector('img[data-slot="cover-hold"]') ?? cover.querySelector("img"))?.currentSrc ?? null,
           sk: Boolean(cover.querySelector(".animate-pulse")),
         });
       }
@@ -282,7 +283,8 @@ try {
      预取命中断言移至 JPG 夹具段（位图才有规范变体请求）。 */
 
   /* 同源断言：卡片封面与浮窗首帧渲染同一地址（SVG 直通 / 位图规范变体）。 */
-  const paneImgSrc = await page.locator('[data-slot="variant-media-pane"] img').getAttribute("src").catch(() => null);
+  /* #430 双层：canonical 层（首 img）为规范源；hold 层为卡片同串（fade 后卸载）。 */
+  const paneImgSrc = await page.locator('[data-slot="variant-media-pane"] img').first().getAttribute("src").catch(() => null);
   check("vt: C1 overlay cover keeps the same source media", paneImgSrc === "/seed-media/real/gallery/f1-portrait-1.svg", `src=${paneImgSrc?.slice(0, 70)}`);
   await residueCheck(page, "vt portrait");
   await page.screenshot({ path: `${OUT}/f1-vt-portrait-open.png` });
@@ -336,17 +338,23 @@ try {
     const el = document.evaluate("//article[.//*[contains(text(),'JPG竖封面文章')]]", document, null, 9, null).singleNodeValue;
     return el?.querySelector('[data-slot="card-cover"] img')?.getAttribute("src") ?? null;
   });
-  const jpgPaneSrc = await page.locator('[data-slot="variant-media-pane"] img').getAttribute("src").catch(() => null);
+  const jpgPaneSrc = await page.locator('[data-slot="variant-media-pane"] img').first().getAttribute("src").catch(() => null);
+  const jpgHoldSrc = await page
+    .locator('[data-slot="variant-media-pane"] img[data-slot="cover-hold"]')
+    .getAttribute("src")
+    .catch(() => null);
+  /* #430 两变体渐进（修订 #409 F1 三处同源）：卡片 420 快变体；浮窗规范层
+     w=1080；若保持层仍在（位图且未过 settle 窗），其串 = 卡片 420 变体。 */
   check(
-    "vt: jpg card and overlay cover share the canonical w=1080 variant",
+    "vt: jpg card quick variant 420, overlay canonical 1080 (two-variant progressive)",
     Boolean(
       jpgCardSrc &&
-      jpgPaneSrc &&
-      jpgCardSrc === jpgPaneSrc &&
       jpgCardSrc.includes("/_next/image") &&
-      jpgCardSrc.includes("w=1080"),
+      jpgCardSrc.includes("w=420") &&
+      jpgPaneSrc?.includes("w=1080") &&
+      (!jpgHoldSrc || jpgHoldSrc.includes("w=420")),
     ),
-    `card=${jpgCardSrc?.slice(0, 70)} pane=${jpgPaneSrc?.slice(0, 70)}`,
+    `card=${jpgCardSrc?.slice(0, 70)} pane=${jpgPaneSrc?.slice(0, 70)} hold=${jpgHoldSrc?.slice(0, 70)}`,
   );
   check("vt: C4 click-time prefetch fired for the bitmap cover", prefetchHits.some((u) => u.includes("w=1080")), `w1080 hits=${prefetchHits.filter((u) => u.includes("w=1080")).length}/${prefetchHits.length}`);
   await residueCheck(page, "vt jpg");
@@ -357,6 +365,11 @@ try {
   /* 其余形态：方图 / 混合 / 全横（split 路径走 MediaGallery 变体）。 */
   for (const key of ["square", "mixed", "landscape"]) {
     check(`vt: ${key} overlay opens`, await openOverlay(page, TITLES[key]));
+    await page
+      .locator('[data-slot="variant-media-pane"] img, [data-slot="detail-cover"] img')
+      .first()
+      .waitFor({ state: "visible", timeout: 6000 })
+      .catch(() => {});
     await page.waitForTimeout(1100);
     const paneImgs = await page
       .locator('[data-slot="variant-media-pane"] img, [data-slot="detail-cover"] img')

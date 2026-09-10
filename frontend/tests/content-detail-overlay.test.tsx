@@ -279,8 +279,13 @@ async function openOverlay(
 }
 
 async function pushRelatedLayer(view: ReturnType<typeof render>, relatedId: number) {
+  /* #430 挂载分帧：关联块经 DeferredMount 延后一拍挂载，卡片按钮须等延后
+     挂载落定再取（同步查询在慢 runner 上会先于双 rAF 翻面执行）。 */
+  const relatedTrigger = await waitFor(() =>
+    view.getByRole("button", { name: `Open content detail: Related ${relatedId}` }),
+  );
   await act(async () => {
-    fireEvent.click(view.getByRole("button", { name: `Open content detail: Related ${relatedId}` }));
+    fireEvent.click(relatedTrigger);
     await Promise.resolve();
   });
   await waitFor(() =>
@@ -341,7 +346,9 @@ test("related content pushes onto the stack; back button pops and returns focus 
   const view = renderOverlay(<OverlayHarness entryId={1} zone="original" />);
   await openOverlay(view);
 
-  const relatedTrigger = view.getByRole("button", { name: "Open content detail: Related 101" });
+  const relatedTrigger = await waitFor(() =>
+    view.getByRole("button", { name: "Open content detail: Related 101" }),
+  );
   await pushRelatedLayer(view, 101);
   assert.ok(view.getByRole("button", { name: "Back to Original 1" }));
 
@@ -404,8 +411,12 @@ test("stack depth is capped at five", async () => {
     await pushRelatedLayer(view, 101 + step);
   }
   const callsAtCap = relatedCallCount;
+  /* #430 挂载分帧：上限层自己的关联块同样延后一拍，先等落定再点。 */
+  const cappedTrigger = await waitFor(() =>
+    view.getByRole("button", { name: "Open content detail: Related 105" }),
+  );
   await act(async () => {
-    fireEvent.click(view.getByRole("button", { name: "Open content detail: Related 105" }));
+    fireEvent.click(cappedTrigger);
     await Promise.resolve();
   });
   assert.equal(relatedCallCount, callsAtCap);

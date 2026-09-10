@@ -148,17 +148,36 @@ test("#409 F1: gallery images render the canonical variant source (same URL stri
   }
 });
 
-test("#409 F1: firstItemHoldSrc renders the card cover source on the first item until cleared", () => {
-  const holdSrc = "/_next/image?url=%2Fseed-media%2Freal%2Fcovers%2Fcard-cover.jpg&w=1080&q=75";
+test("#409 F1 / #430: firstItemHoldSrc holds the card-cover quick variant until released, canonical beneath", () => {
+  /* #430 两变体渐进：入场窗内首项 = 双层——保持层（data-slot="cover-hold"，
+     卡片快变体）在顶，规范层（w=1080）在底异步加载且不可见（零换图契约）。 */
+  const holdSrc = "/_next/image?url=%2Fseed-media%2Freal%2Fcovers%2Fcard-cover.jpg&w=420&q=75";
   const held = renderGallery({ firstItemHoldSrc: holdSrc });
-  const heldSrc = held.container.querySelector('[aria-current="true"] img')?.getAttribute("src");
-  assert.equal(heldSrc, holdSrc, "entrance window: first item renders the held card-cover source");
+  const activeImages = Array.from(
+    held.container.querySelectorAll<HTMLElement>('[aria-current="true"] img'),
+  );
+  const holdLayer = activeImages.find((img) => img.getAttribute("data-slot") === "cover-hold");
+  const canonical = activeImages.find((img) => img.getAttribute("data-slot") !== "cover-hold");
+  assert.equal(holdLayer?.getAttribute("src"), holdSrc, "entrance window: hold layer renders the card-cover source");
+  assert.equal(
+    canonical?.getAttribute("src"),
+    "/_next/image?url=%2Fseed-media%2Fgallery%2Fitem-1.jpg&w=1080&q=75",
+    "canonical layer preloads its own variant beneath the hold layer",
+  );
+  assert.equal(holdLayer?.style.opacity, "1", "hold layer is the only visible layer during the motion window");
+  assert.equal(canonical?.style.opacity, "0", "canonical layer stays invisible until settle + decode-ready");
   cleanup();
 
-  /* 落定后清除 hold → 回到自身规范变体。 */
+  /* 无 hold（无卡片锚点/已释放并完成淡出）：仅规范层。 */
   const settled = renderGallery({ firstItemHoldSrc: null });
-  const settledSrc = settled.container.querySelector('[aria-current="true"] img')?.getAttribute("src");
-  assert.equal(settledSrc, "/_next/image?url=%2Fseed-media%2Fgallery%2Fitem-1.jpg&w=1080&q=75");
+  const settledImages = Array.from(
+    settled.container.querySelectorAll<HTMLElement>('[aria-current="true"] img'),
+  );
+  assert.equal(settledImages.length, 1, "no hold anchor renders a single canonical layer");
+  assert.equal(
+    settledImages[0]?.getAttribute("src"),
+    "/_next/image?url=%2Fseed-media%2Fgallery%2Fitem-1.jpg&w=1080&q=75",
+  );
 });
 
 /* ---------- 渲染顺序与稳定几何（AC1） ---------- */

@@ -3,6 +3,8 @@
 import { useTranslations, useLocale } from "next-intl";
 import { useState, useEffect } from "react";
 import { coverRenderSrc } from "@/lib/overlay-motion";
+import { HoldCrossfadeImage } from "@/components/content/HoldCrossfadeImage";
+import { DeferredMount } from "@/components/content/DeferredMount";
 import {
   FileText,
   Image as ImageIcon,
@@ -86,6 +88,10 @@ interface ContentDetailProps {
   /** #409 F1 首帧保持：入场转场未落定期，封面/媒体集首项以卡片封面 src
       渲染（媒体链与卡片封面不同文件时防动效期间换图）；落定后由上层清除。 */
   coverHoldSrc?: string | null;
+  /** #430 挂载分帧：浮层宿主传入 true 时默认尾部重子树（系列导航/关联行/
+      评论区/相关内容块）延后一拍挂载，降低入场动画期主线程拥塞；独立详情页
+      不传（无动画窗口，直接挂载）。 */
+  deferTail?: boolean;
 }
 
 function getTypeLabel(t: (key: string) => string, contentType: string): string {
@@ -142,15 +148,14 @@ function CoverImage({ url, contentType, title, typeLabel, coverSync, coverState,
       {/* 封面与正文共享同一水平框架：外层 w-full 恒定，高度上限只裁内框不缩宽度（#64 决策 12）。 */}
       <div className="relative aspect-[16/9] max-h-96 w-full">
         {showImage && url ? (
-          /* #409 F1 同源图：与卡片封面/点击预取同一规范变体（coverRenderSrc）。 */
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={holdSrc || coverRenderSrc(url) || url}
+          /* #409 F1 同源图 + #430 两变体渐进：规范层 w=1080，保持层 = 卡片快变体
+             （holdSrc），入场落定且规范层就绪后 180ms 交叉淡入。 */
+          <HoldCrossfadeImage
+            canonicalSrc={coverRenderSrc(url) || url}
+            holdSrc={holdSrc}
             alt={title}
-            draggable={false}
-            className={cn("absolute inset-0 h-full w-full object-cover", showSkeleton && "opacity-0")}
-            onLoad={() => onCoverSettled("ready")}
-            onError={() => onCoverSettled("error")}
+            imgClassName={cn("object-cover", showSkeleton && "opacity-0")}
+            onSettle={onCoverSettled}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
@@ -187,6 +192,7 @@ export function ContentDetail({
   authorAction,
   variantTail,
   coverHoldSrc,
+  deferTail,
 }: ContentDetailProps) {
   const t = useTranslations();
   const locale = useLocale();
@@ -509,8 +515,9 @@ export function ContentDetail({
       />
 
       {/* #397 竖屏集新版布局：variantTail 替换默认尾部（关联内容块 + 评论区末块，
-          胜者记录 §7 布局钉死）。 */}
+          胜者记录 §7 布局钉死）。#430：浮层宿主 deferTail 时默认尾部延后一拍。 */}
       {variantTail ?? (
+      <DeferredMount defer={deferTail}>
       <>
       {data.series_memberships && data.series_memberships.length > 0 && (
         <SeriesNav memberships={data.series_memberships} onNavigateInOverlay={onNavigateInOverlay} />
@@ -543,6 +550,7 @@ export function ContentDetail({
         onOpenDetail={onOpenRelatedDetail}
       />
       </>
+      </DeferredMount>
       )}
       </div>
     </div>

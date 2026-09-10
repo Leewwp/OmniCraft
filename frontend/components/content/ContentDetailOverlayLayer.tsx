@@ -24,6 +24,7 @@ import { FollowButton } from "@/components/social/FollowButton";
 import { CommentSection } from "@/components/social/CommentSection";
 import { OverlayVariantLayout } from "@/components/content/OverlayVariantLayout";
 import { OverlayRelatedBlock } from "@/components/content/OverlayRelatedBlock";
+import { DeferredMount } from "@/components/content/DeferredMount";
 import { isPortraitMediaSet, useOverlayMedia } from "@/lib/overlay-media";
 
 export type OverlaySource = "recommendation" | "zone-page" | "ip-page" | "agent-citation";
@@ -412,8 +413,10 @@ export function ContentDetailOverlayLayer({
 
   /* 创作者栏/相关列表（ui-spec:2402 相关推荐 + :2438 创作者栏）：单列时是右侧栏；
      双栏时下置于信息列末尾，维持关联入口（≥1100 显示，<1100 依旧隐藏）。 */
+  /* #430 挂载分帧：侧栏延后一拍（双 rAF + 低优先级），降低动画期主线程拥塞。 */
   const sidebar = (
-    <ContentSidebar
+    <DeferredMount>
+      <ContentSidebar
       author={content.author?.id ? { id: content.author.id, username: content.author.username } : undefined}
       zone={isFanwork ? "fanwork" : "original"}
       ip={isFanwork && content.ip?.id && content.ip.name ? content.ip : undefined}
@@ -439,7 +442,8 @@ export function ContentDetailOverlayLayer({
           <FollowButton targetType="user" targetId={content.author.id} />
         ) : undefined
       }
-    />
+      />
+    </DeferredMount>
   );
 
   /* #397 竖屏集新版布局（胜者记录 §7 = A 基底 + C 逐张自适应 + 方案二 float 壳层）：
@@ -467,19 +471,23 @@ export function ContentDetailOverlayLayer({
             content.author?.id ? <FollowButton targetType="user" targetId={content.author.id} /> : undefined
           }
           variantTail={
-            <>
-              <OverlayRelatedBlock
-                sourceOriginal={isFanwork ? detail.sourceOriginal ?? null : null}
-                series={content.series_memberships ?? []}
-                related={relatedEntries}
-                relatedLabelKey={relatedLabelKey}
-                onOpenRelated={handleOpenEntry}
-                onNavigateSeries={handleNavigateInOverlay}
-              />
-              <section className="rounded-md border border-border bg-card p-4">
-                <CommentSection contentId={content.id} />
-              </section>
-            </>
+            /* #430 挂载分帧：关联内容块与评论区延后一拍（双 rAF + 低优先级），
+               降低入场动画期主线程拥塞。 */
+            <DeferredMount>
+              <>
+                <OverlayRelatedBlock
+                  sourceOriginal={isFanwork ? detail.sourceOriginal ?? null : null}
+                  series={content.series_memberships ?? []}
+                  related={relatedEntries}
+                  relatedLabelKey={relatedLabelKey}
+                  onOpenRelated={handleOpenEntry}
+                  onNavigateSeries={handleNavigateInOverlay}
+                />
+                <section className="rounded-md border border-border bg-card p-4">
+                  <CommentSection contentId={content.id} />
+                </section>
+              </>
+            </DeferredMount>
           }
         />
       </OverlayVariantLayout>
@@ -519,6 +527,7 @@ export function ContentDetailOverlayLayer({
             data={{ ...content, attachments: detail.attachments, tags: detail.tags }}
             coverSync
             mediaSlot="split"
+            deferTail
             coverReady={coverReady}
             coverHoldSrc={motionHoldSrc}
             sourceOriginal={isFanwork ? detail.sourceOriginal : undefined}
@@ -544,6 +553,7 @@ export function ContentDetailOverlayLayer({
         <ContentDetail
           data={{ ...content, attachments: detail.attachments, tags: detail.tags }}
           coverSync
+          deferTail
           coverHoldSrc={motionHoldSrc}
           sourceOriginal={isFanwork ? detail.sourceOriginal : undefined}
           sourceFanwork={isFanwork ? detail.sourceFanwork : undefined}
