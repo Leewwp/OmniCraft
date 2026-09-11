@@ -23,8 +23,8 @@ export default function AgentAccessPage() {
     {
       icon: Plug,
       titleKey: "agentAccess.mcp.title",
-      statusKey: "agentAccess.status.planned",
-      live: false,
+      statusKey: "agentAccess.status.live",
+      live: true,
       points: [
         "agentAccess.mcp.point1",
         "agentAccess.mcp.point2",
@@ -33,8 +33,8 @@ export default function AgentAccessPage() {
     {
       icon: Puzzle,
       titleKey: "agentAccess.skill.title",
-      statusKey: "agentAccess.status.planned",
-      live: false,
+      statusKey: "agentAccess.status.live",
+      live: true,
       points: [
         "agentAccess.skill.point1",
         "agentAccess.skill.point2",

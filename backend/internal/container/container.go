@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/mcpserver"
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/captcha"
 	"omnicraft/backend/internal/pkg/clamav"
@@ -80,6 +81,7 @@ type ServiceContainer struct {
 	PRService           *service.PRService
 	VersionService      *service.VersionService
 	UsageGuideService   *service.UsageGuideService
+	MCPHandler          http.Handler
 	SearchService       *service.SearchService
 	IPProposalService   *service.IPProposalService
 	FeedbackService     *service.FeedbackService
@@ -248,6 +250,17 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 		repository.NewUsageGuideRepository(db),
 		c.ContentRepo,
 	)
+
+	// MCP server surface (SP-16 #449): the four anonymous read-only tools
+	// close over the same repos as the public REST surface.
+	c.MCPHandler = mcpserver.NewHandler(mcpserver.Deps{
+		DB:            db,
+		SearchRepo:    c.SearchRepo,
+		ContentRepo:   c.ContentRepo,
+		CategoryRepo:  c.CategoryRepo,
+		GuideSvc:      c.UsageGuideService,
+		DisplaySigner: c.DisplayURLSigner,
+	})
 
 	// Create AgentService for worker use
 	provider := llm.NewProvider(cfg)

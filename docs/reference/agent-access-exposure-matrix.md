@@ -51,6 +51,9 @@
 | GET /api/v1/ips/stats/category_counts | IP 类目计数 | approved IP 类目哈希（非内容派生） |
 | GET /api/v1/categories | 类目表 | 类目静态数据 |
 | GET /api/v1/openapi.json | OpenAPI 3.1 契约文档 | 静态文档（无实数据；#448） |
+| POST /api/v1/mcp | MCP 工具调用 | 每个工具内置 ApplyContentVisibilityScope(viewer=0)；限流 mcp_per_minute（#449 暴露面复核） |
+| GET /api/v1/mcp | MCP SSE 流通道 | 协议通道（无 POST 不出工具数据） |
+| DELETE /api/v1/mcp | MCP 会话终止 | 协议通道 |
 | GET /api/v1/tags/faceted | 标签分面 | 共现计数仅统计匿名可见内容 |
 | GET /api/v1/tags/search | 标签搜索 | 全局使用计数（非按内容） |
 | GET /api/v1/search/suggestions | 搜索建议 | 内联可见性谓词（status/软删/作者/IP/is_public） |

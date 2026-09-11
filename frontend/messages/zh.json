@@ -2668,13 +2668,13 @@
     },
     "mcp": {
       "title": "MCP Server",
-      "point1": "Streamable HTTP 端点 /api/v1/mcp（P3 上线后回填地址）",
-      "point2": "匿名只读四工具：搜索 / 详情 / 使用指导 / 分类"
+      "point1": "Streamable HTTP 端点：POST /api/v1/mcp（本站同源）",
+      "point2": "匿名只读四工具：omnicraft_search / omnicraft_get_content / omnicraft_get_usage_guide / omnicraft_list_categories"
     },
     "skill": {
       "title": "Agent Skill",
-      "point1": "SKILL.md + 一键安装脚本（P3 上线后回填 raw.githubusercontent 地址）",
-      "point2": "教你的 Agent 搜内容、读指导、按步骤配置"
+      "point1": "一键安装：curl -fsSL https://raw.githubusercontent.com/Leewwp/OmniCraft/main/agent-access/skill/install.sh | bash",
+      "point2": "教 Agent 搜内容、读使用指导、按步骤配置（含强制确认门）"
     },
     "verify": {
       "title": "验证问题",
