@@ -4,10 +4,12 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/service"
 )
 
 const csrfHeaderName = "X-CSRF-Token"
@@ -18,6 +20,16 @@ func CSRF(cfg *config.Config) gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		if isInternalPath(c.Request.URL.Path) {
+			c.Next()
+			return
+		}
+
+		// Machine channel (SP-16 #450): a request bearing a PAT carries its
+		// own explicit credential and no ambient cookies, so CSRF does not
+		// apply — neither the double-submit check nor cookie issuance. The
+		// web frontend always authenticates with JWTs, never PATs, so this
+		// branch cannot become a browser-side CSRF bypass.
+		if requestCarriesPAT(c) {
 			c.Next()
 			return
 		}
@@ -84,6 +96,17 @@ func isInternalPath(path string) bool {
 		return true
 	}
 	return false
+}
+
+// requestCarriesPAT reports whether the Authorization header authenticates
+// via the PAT machine channel ("Bearer oc_pat_...").
+func requestCarriesPAT(c *gin.Context) bool {
+	header := c.GetHeader("Authorization")
+	parts := strings.SplitN(header, " ", 2)
+	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+		return false
+	}
+	return strings.HasPrefix(parts[1], service.AgentTokenPrefix)
 }
 
 func GetCSRFToken(c *gin.Context) string {
