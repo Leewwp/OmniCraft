@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# OmniCraft Agent Skill installer (SP-16 #449).
+# OmniCraft Agent Skill installer (SP-16 #449/#451; v2 adds PAT download/upload).
 #   ./install.sh                # install to ~/.agents/skills/omnicraft
 #   ./install.sh --target claude  # also create the Claude Code skills symlink
 #   ./install.sh --target agents  # explicit default target
@@ -33,5 +33,6 @@ if [ "$TARGET" = "claude" ]; then
 fi
 
 echo
-echo "next: export OMNICRAFT_BASE_URL=\"https://app.leeppp.online\""
+echo "next: export OMNICRAFT_BASE_URL=\"https://app.leeppp.online\"
+echo "      optional: export OMNICRAFT_PAT=\"oc_pat_...\" for download/upload"
 echo "      then ask your agent: 搜一下乐谱，并给出第一首的使用步骤"

@@ -65,7 +65,7 @@ var optAuthRouteRegistry = []optAuthRouteAudit{
 	{Method: "GET", Path: "/api/v1/ips/stats/category_counts", ReturnsContent: false, Mechanism: "approved-IP category hash (not content-derived)"},
 	{Method: "GET", Path: "/api/v1/categories", ReturnsContent: false, Mechanism: "category taxonomy"},
 	{Method: "GET", Path: "/api/v1/openapi.json", ReturnsContent: false, Mechanism: "static contract document (no live data; #448)"},
-	{Method: "POST", Path: "/api/v1/mcp", ReturnsContent: true, Mechanism: "MCP protocol endpoint; every tool applies ApplyContentVisibilityScope(viewer=0) - exposure review in mcpserver tests (#449)"},
+	{Method: "POST", Path: "/api/v1/mcp", ReturnsContent: true, Mechanism: "MCP protocol endpoint; read tools apply ApplyContentVisibilityScope (viewer=0 anonymous, PAT viewer for scoped tools); write tools are PAT-scope gated per call - exposure review in mcpserver tests (#449/#451)"},
 	{Method: "GET", Path: "/api/v1/mcp", ReturnsContent: false, Mechanism: "MCP protocol SSE stream channel (no tool data without POST)"},
 	{Method: "DELETE", Path: "/api/v1/mcp", ReturnsContent: false, Mechanism: "MCP session termination"},
 	{Method: "GET", Path: "/api/v1/tags/faceted", ReturnsContent: true, Mechanism: "co-occurrence counts restricted to anonymous-visible content"},

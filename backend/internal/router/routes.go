@@ -9,6 +9,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/container"
 	"omnicraft/backend/internal/handler"
+	"omnicraft/backend/internal/mcpserver"
 	"omnicraft/backend/internal/middleware"
 )
 
@@ -69,13 +70,25 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	// SP-16 #448: the anonymous v1 contract is served at a stable URL.
 	v1.GET("/openapi.json", optAuth, handler.NewOpenAPIV1Handler().Serve)
 
-	// SP-16 #449: MCP Streamable HTTP endpoint (protocol POST/GET/DELETE on
-	// one URL). optAuth keeps the PAT channel available for #451's
-	// authenticated tools without touching route registration again.
+	// SP-16 #449/#451: MCP Streamable HTTP endpoint (protocol
+	// POST/GET/DELETE on one URL). optAuth resolves the PAT channel; the
+	// adapter copies the resolved identity into the request context so the
+	// MCP handler can register the scope-shaped write tools. PAT requests
+	// already consumed the per-token window inside optAuth.
+	mcpIdentity := func(c *gin.Context) {
+		if middleware.GetAuthChannel(c) == middleware.AuthChannelPAT {
+			uid := middleware.GetUserID(c)
+			if uid != 0 {
+				id := mcpserver.Identity{UserID: uid, Scopes: middleware.GetPATScopes(c)}
+				c.Request = c.Request.WithContext(mcpserver.WithIdentity(c.Request.Context(), id))
+			}
+		}
+		c.Next()
+	}
 	mcpProxy := gin.WrapH(ctr.MCPHandler)
-	v1.POST("/mcp", optAuth, mcpLimiter, mcpProxy)
-	v1.GET("/mcp", optAuth, mcpLimiter, mcpProxy)
-	v1.DELETE("/mcp", optAuth, mcpLimiter, mcpProxy)
+	v1.POST("/mcp", optAuth, mcpIdentity, mcpLimiter, mcpProxy)
+	v1.GET("/mcp", optAuth, mcpIdentity, mcpLimiter, mcpProxy)
+	v1.DELETE("/mcp", optAuth, mcpIdentity, mcpLimiter, mcpProxy)
 	captchaHandler := handler.NewCaptchaHandler(ctr.CaptchaProvider, ctr.CaptchaTickets)
 	v1.POST("/captcha/verify", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), captchaHandler.Verify)
 
