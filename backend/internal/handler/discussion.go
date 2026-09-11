@@ -56,6 +56,10 @@ func (h *DiscussionHandler) SetDisplayURLSigner(signer *service.DisplayURLSigner
 
 func (h *DiscussionHandler) ListDiscussions(c *gin.Context) {
 	ipID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	if !h.ipDiscussionsVisible(c, ipID) {
+		c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
+		return
+	}
 	sort := c.DefaultQuery("sort", "latest_reply")
 	query := c.Query("q")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -207,6 +211,10 @@ func (h *DiscussionHandler) PinDiscussion(c *gin.Context) {
 
 func (h *DiscussionHandler) SearchDiscussions(c *gin.Context) {
 	ipID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	if !h.ipDiscussionsVisible(c, ipID) {
+		c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
+		return
+	}
 	keyword := c.Query("q")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
@@ -229,11 +237,22 @@ func (h *DiscussionHandler) ListByUser(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 
-	discussions, total, err := h.discRepo.ListByUser(userID, page, pageSize)
+	discussions, total, err := h.discRepo.ListByUser(userID, page, pageSize, middleware.GetUserID(c))
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
 	h.displaySigner.DecorateDiscussions(discussions)
 	c.JSON(http.StatusOK, gin.H{"discussions": discussions, "total": total})
+}
+
+// ipDiscussionsVisible gates the ip-scoped discussion surfaces behind IP
+// visibility (#446 / SP-16 P0): discussions of a non-approved IP are only
+// for its creator (and admins).
+func (h *DiscussionHandler) ipDiscussionsVisible(c *gin.Context, ipID int64) bool {
+	ip, err := h.ipRepo.FindByID(ipID)
+	if err != nil || ip == nil {
+		return false
+	}
+	return ipVisibleToViewer(c, ip)
 }

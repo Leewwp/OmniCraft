@@ -87,12 +87,13 @@ func (s *StatsService) getSummary(ctx context.Context, zone StatsZone) (StatsSum
 		if err := s.db.WithContext(ctx).Table("users").Where("deleted_at IS NULL AND is_banned = false").Count(&summary.Users).Error; err != nil {
 			return summary, fmt.Errorf("count users: %w", err)
 		}
-		if err := s.db.WithContext(ctx).Table("content_items").Where("status = ? AND deleted_at IS NULL", "published").Count(&summary.Contents).Error; err != nil {
+		if err := s.db.WithContext(ctx).Table("content_items").Where(statusCountsAnonymousVisibleSQL()).Count(&summary.Contents).Error; err != nil {
 			return summary, fmt.Errorf("count contents: %w", err)
 		}
 	} else {
 		zoneFilter := s.db.WithContext(ctx).Table("content_items").
-			Where("status = ? AND deleted_at IS NULL AND zone = ?", "published", string(zone))
+			Where(statusCountsAnonymousVisibleSQL()).
+			Where("zone = ?", string(zone))
 		if err := zoneFilter.Session(&gorm.Session{}).Count(&summary.Contents).Error; err != nil {
 			return summary, fmt.Errorf("count contents by zone: %w", err)
 		}
@@ -114,4 +115,14 @@ func (s *StatsService) getSummary(ctx context.Context, zone StatsZone) (StatsSum
 	}
 
 	return summary, nil
+}
+
+// statusCountsAnonymousVisibleSQL keeps public aggregates consistent with
+// what an anonymous viewer can actually see (#446 / SP-16 P0): private,
+// soft-deleted, banned and banned-author content must not inflate public
+// counters.
+func statusCountsAnonymousVisibleSQL() string {
+	return "status = 'published' AND deleted_at IS NULL AND is_public = true" +
+		" AND author_id NOT IN (SELECT id FROM users WHERE is_banned = true OR deleted_at IS NOT NULL)" +
+		" AND (ip_id IS NULL OR ip_id NOT IN (SELECT id FROM ips WHERE status = 'banned'))"
 }
