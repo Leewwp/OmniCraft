@@ -64,6 +64,7 @@ var optAuthRouteRegistry = []optAuthRouteAudit{
 	{Method: "GET", Path: "/api/v1/stats/summary", ReturnsContent: true, Mechanism: "counts restricted to anonymous-visible content (visibility predicate)"},
 	{Method: "GET", Path: "/api/v1/ips/stats/category_counts", ReturnsContent: false, Mechanism: "approved-IP category hash (not content-derived)"},
 	{Method: "GET", Path: "/api/v1/categories", ReturnsContent: false, Mechanism: "category taxonomy"},
+	{Method: "GET", Path: "/api/v1/openapi.json", ReturnsContent: false, Mechanism: "static contract document (no live data; #448)"},
 	{Method: "GET", Path: "/api/v1/tags/faceted", ReturnsContent: true, Mechanism: "co-occurrence counts restricted to anonymous-visible content"},
 	{Method: "GET", Path: "/api/v1/tags/search", ReturnsContent: false, Mechanism: "global usage counters (not per-content)"},
 	{Method: "GET", Path: "/api/v1/search/suggestions", ReturnsContent: true, Mechanism: "inline visibility predicate (status/deleted/author/ip/is_public)"},
