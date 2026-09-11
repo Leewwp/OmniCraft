@@ -49,29 +49,10 @@ func TestContentDownload_RejectsAttachmentFromOtherContent(t *testing.T) {
 }
 
 func TestContentDownload_UsesConfigurableTTL(t *testing.T) {
-	source := readHandlerSource(t, "content.go")
+	// SP-16 #451: the TTL policy moved into the service orchestration.
+	source := readHandlerSource(t, "../service/content_download.go")
 	if !strings.Contains(source, "DownloadURLTTL") && !strings.Contains(source, "download_url_ttl") {
 		t.Fatal("DownloadContent must use configurable download URL TTL from config, not hardcoded value")
-	}
-}
-
-func TestArchiveDownloadTTLUsesArchivePolicyAndCapsAtFiveMinutes(t *testing.T) {
-	cfg := &config.Config{
-		Features: config.FeaturesConfig{ArchiveMalwareScanEnabled: true},
-		OSS:      config.OSSConfig{DownloadURLTTL: 300},
-		ArchiveScan: config.ArchiveScanConfig{URLTTLSec: 120},
-	}
-	archive := model.ContentAttachment{FileType: "mod", ScanRequired: true}
-	if got := downloadURLTTL(cfg, archive); got != 120*time.Second {
-		t.Fatalf("archive ttl = %s, want 2m", got)
-	}
-	cfg.ArchiveScan.URLTTLSec = 900
-	if got := downloadURLTTL(cfg, archive); got != 300*time.Second {
-		t.Fatalf("capped archive ttl = %s, want 5m", got)
-	}
-	nonArchive := model.ContentAttachment{FileType: "image"}
-	if got := downloadURLTTL(cfg, nonArchive); got != 300*time.Second {
-		t.Fatalf("non-archive ttl = %s, want OSS ttl", got)
 	}
 }
 
