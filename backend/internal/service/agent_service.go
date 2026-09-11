@@ -32,6 +32,7 @@ type AgentService struct {
 	embeddingRepo   *repository.EmbeddingRepository
 	contentRepo     *repository.ContentRepository
 	searchRepo      *repository.SearchRepository
+	usageGuideSvc   *UsageGuideService
 	ragChunkRepo    *repository.RagChunkRepository
 	hybridRetriever AgentContentRetriever
 	greenClient     agentGreenScanner
@@ -378,9 +379,14 @@ func (s *AgentService) listVisibleNLSearchContents(contentIDs []int64, viewerID 
 
 type UsageGuideResult struct {
 	Guide string `json:"guide"`
+	// Structured marks that the guide came from persisted structured data
+	// (system template + author specifics) instead of a live LLM call
+	// (SP-16 #447).
+	Structured bool   `json:"structured,omitempty"`
+	Source     string `json:"source,omitempty"`
 }
 
-func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID int64) (*UsageGuideResult, error) {
+func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID int64, forceLLM bool) (*UsageGuideResult, error) {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return nil, ErrAgentDisabled
 	}
@@ -388,6 +394,18 @@ func (s *AgentService) UsageGuide(ctx context.Context, viewerID, contentItemID i
 	content, err := s.resolveVisibleContent(ctx, viewerID, contentItemID)
 	if err != nil {
 		return nil, err
+	}
+
+	// SP-16 #447 structured-first: persisted specifics render without any
+	// LLM call; forceLLM (studio draft button) regenerates instead.
+	if !forceLLM {
+		if view, ok := s.structuredUsageGuide(ctx, contentItemID); ok {
+			return &UsageGuideResult{
+				Guide:      RenderUsageGuideMarkdown(view),
+				Structured: true,
+				Source:     view.Source,
+			}, nil
+		}
 	}
 
 	var guideType string
@@ -424,7 +442,7 @@ Format as Markdown.`, content.Title, content.ContentType, content.Description, g
 	return &UsageGuideResult{Guide: resp.Content}, nil
 }
 
-func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentItemID int64, handler func(delta string, done bool) error) error {
+func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentItemID int64, forceLLM bool, handler func(delta string, done bool) error) error {
 	if !s.cfg.Agent.WebAgentEnabled {
 		return ErrAgentDisabled
 	}
@@ -432,6 +450,17 @@ func (s *AgentService) UsageGuideStream(ctx context.Context, viewerID, contentIt
 	content, err := s.resolveVisibleContent(ctx, viewerID, contentItemID)
 	if err != nil {
 		return err
+	}
+
+	// SP-16 #447 structured-first on the stream contract: one delta carries
+	// the rendered markdown, then done.
+	if !forceLLM {
+		if view, ok := s.structuredUsageGuide(ctx, contentItemID); ok {
+			if err := handler(RenderUsageGuideMarkdown(view), false); err != nil {
+				return err
+			}
+			return handler("", true)
+		}
 	}
 
 	prompt := fmt.Sprintf("Generate a concise usage guide for: %s (type: %s)", content.Title, content.ContentType)
@@ -546,6 +575,56 @@ func (s *AgentService) SetQueueProducer(p queue.Producer) {
 // conversational search is unavailable (degraded mode).
 func (s *AgentService) SetSearchRepository(repo *repository.SearchRepository) {
 	s.searchRepo = repo
+}
+
+// SetUsageGuideService wires the merged guide view the in-site agent reads
+// before falling back to LLM generation (SP-16 #447).
+func (s *AgentService) SetUsageGuideService(svc *UsageGuideService) {
+	s.usageGuideSvc = svc
+}
+
+// structuredUsageGuide returns the merged view when the content has
+// persisted specifics (pure templates never short-circuit the LLM here —
+// they are generic, not content-specific guidance).
+func (s *AgentService) structuredUsageGuide(ctx context.Context, contentItemID int64) (*UsageGuideView, bool) {
+	if s.usageGuideSvc == nil {
+		return nil, false
+	}
+	view, err := s.usageGuideSvc.GetMergedView(ctx, contentItemID, "zh")
+	if err != nil || view == nil || view.Source == "" {
+		return nil, false
+	}
+	return view, true
+}
+
+// HasStructuredGuide reports whether the usage-guide read will be served
+// from persisted specifics, letting the handler skip quota reservation for
+// non-LLM answers.
+func (s *AgentService) HasStructuredGuide(ctx context.Context, contentItemID int64) bool {
+	_, ok := s.structuredUsageGuide(ctx, contentItemID)
+	return ok
+}
+
+// RenderUsageGuideMarkdown flattens a merged guide view into the Markdown
+// shape the in-site agent surface has always served.
+func RenderUsageGuideMarkdown(view *UsageGuideView) string {
+	var b strings.Builder
+	b.WriteString("## 前置要求\n")
+	for _, item := range view.Requirements {
+		b.WriteString("- " + item + "\n")
+	}
+	b.WriteString("\n## 使用步骤\n")
+	for i, step := range view.Steps {
+		b.WriteString(fmt.Sprintf("%d. %s\n", i+1, step))
+	}
+	if strings.TrimSpace(view.Notes) != "" {
+		b.WriteString("\n## 说明\n" + view.Notes + "\n")
+	}
+	b.WriteString("\n## 安全提示\n")
+	for _, item := range view.Safety {
+		b.WriteString("- " + item + "\n")
+	}
+	return b.String()
 }
 
 // SetContentRetriever injects the viewer-aware hybrid retrieval boundary used

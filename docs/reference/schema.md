@@ -235,6 +235,7 @@
 | `scan_version` | `INTEGER` | NOT NULL DEFAULT 0 | scan_version |
 | `last_scan_job_id` | `BIGINT` | - | last_scan_job_id |
 | `scanned_at` | `TIMESTAMPTZ` | - | scanned_at |
+| `checksum_sha256` | `VARCHAR(64)` | - | checksum_sha256 |
 
 ### content_contributors
 
@@ -318,6 +319,21 @@
 |------|------|------|------|
 | `content_item_id` | `BIGINT` | NOT NULL -> content_items.id | content_item_id |
 | `tag` | `VARCHAR(50)` | NOT NULL | tag |
+
+### content_usage_guides
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `content_id` | `BIGINT` | NOT NULL -> content_items.id | content_id |
+| `locale` | `VARCHAR(10)` | NOT NULL | locale |
+| `requirements` | `JSONB` | NOT NULL DEFAULT '[]' | requirements |
+| `steps` | `JSONB` | NOT NULL DEFAULT '[]' | steps |
+| `notes` | `TEXT` | NOT NULL DEFAULT '' | notes |
+| `source` | `VARCHAR(20)` | NOT NULL DEFAULT 'author' | source |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | updated_at |
+| — | — | UNIQUE (`content_id`, `locale`) | table constraint |
 
 ### content_versions
 

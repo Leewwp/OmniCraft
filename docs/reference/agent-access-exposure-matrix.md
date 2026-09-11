@@ -34,6 +34,7 @@
 | GET /api/v1/contents/:id/related-fanworks | 关联二创 | 来源走 GetVisibleContent，子项走 scope |
 | GET /api/v1/contents/:id/versions | 版本谱系 | 内容可见性门（storage_type=full 的行携带全文正文） |
 | GET /api/v1/contents/:id/prs | PR 列表 | 内容可见性门（message/reject_reason 为派生文本） |
+| GET /api/v1/contents/:id/guide | 使用指导合并视图 | 内容可见性门（作者/admin/匿名可见）；ETag + s-maxage=300（#447） |
 | GET /api/v1/contents/search | 内容搜索 | search repo 内联可见性谓词 |
 | GET /api/v1/versions/:id | 版本详情 | 参与者门：作者/提案提交者/admin（F-056） |
 | GET /api/v1/pr/:id | PR 详情 | 参与者门：作者/提交者/admin |

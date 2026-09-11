@@ -1,0 +1,18 @@
+{
+  "content_type": "video",
+  "locale": "en",
+  "requirements": [
+    "A player supporting the video codec (MP4 / WebM, …)",
+    "For editing: a matching video editor"
+  ],
+  "steps": [
+    "Download the video file",
+    "Play it directly, or import into an editor for derivative work",
+    "Keep attribution when reusing the footage"
+  ],
+  "notes": "Some codecs need an extra decoder; check that first if playback fails.",
+  "safety": [
+    "Check the author's license before redistributing or commercial use",
+    "Do not remove watermarks or source identifiers"
+  ]
+}

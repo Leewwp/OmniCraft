@@ -194,6 +194,21 @@
 - 未知/未来状态返回 null（不渲染），状态词表收敛在组件内 `STATUS_STYLES`/`STATUS_KEYS`。
 - banned 行在 studio 列表额外携带 ban_reason 文本与「去申诉」outline 按钮（`/appeals?target_type=content&target_id=` 预填跳转）；编辑按钮 disabled（终态禁改，T43/FIX-13 的前端呼应）。
 
+## Component: UsageGuideDialog studio 使用指导编辑弹层（SP-16 #447 新增）
+
+**覆盖文件**: `components/studio/UsageGuideDialog.tsx`（studio 列表行 BookOpen 图标按钮触发）
+
+**视觉契约**
+- 弹层形态沿用 FIX-14 编辑弹层同款：`fixed inset-0 z-50` + `bg-foreground/40` 遮罩、`max-w-lg` 卡片（`rounded-lg` + 1px `border-border` + `bg-card`）、高内容用 `max-h-[85vh]` 内滚动。
+- locale 切换 = 同排两个 28px 高 pill 按钮（`h-7 px-3 text-xs`），选中 default、未选 outline——与 IP 库 pill 选择态同档。
+- 三字段全部走 Form Controls 原语（Label 14px medium + Textarea `rounded-lg` 边框态）；「AI 草稿」按钮 = notes 标签行右对齐 outline sm 档 + Sparkles 14px 图标，生成中 disabled。
+- AI 草稿提示 = 12px `text-muted-foreground` 行内文本，不用颜色/图标单独表达。
+
+**行为契约**
+- requirements/steps 按行拆分为字符串数组（trim + 去空行）；notes 为自由 Markdown；保存 `PUT /contents/:id/guide`（source= llm_assisted 当内容含 AI 草稿）。
+- AI 草稿走站内 agent 端点 `GET /agent/usage-guide/:id?draft=true`（强制生成路径），草稿只填入空 notes 不覆盖作者手写内容。
+- 留空字段在读者侧回退系统模板（安全提示永远来自模板，作者不可移除）；i18n `studio.guide.*` zh/en 全量。
+
 ## Component: Card 共享容器原语
 
 **视觉契约**

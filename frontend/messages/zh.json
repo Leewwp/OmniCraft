@@ -2327,7 +2327,26 @@
       "deleted": "内容已删除",
       "deleteFailed": "删除内容失败",
       "deleteTitle": "删除内容",
-      "deleteDescription": "确认删除《{title}》吗？此操作不可撤销。"
+      "deleteDescription": "确认删除《{title}》吗？此操作不可撤销。",
+      "guide": "使用指导"
+    },
+    "guide": {
+      "dialogTitle": "使用指导",
+      "dialogHint": "填写安装/使用要求与步骤；留空字段对读者回退到系统模板。",
+      "fieldRequirements": "前置要求（每行一条）",
+      "requirementsPlaceholder": "例如：Minecraft 1.20.1+\nForge 47",
+      "fieldSteps": "使用步骤（每行一步）",
+      "stepsPlaceholder": "例如：\n1. 解压下载文件\n2. 放入 mods 目录",
+      "fieldNotes": "补充说明",
+      "notesPlaceholder": "补充说明或备注（支持 Markdown）",
+      "draftButton": "AI 草稿",
+      "drafting": "生成中…",
+      "draftedHint": "当前内容包含 AI 草稿，保存后将标记 source=llm_assisted。",
+      "save": "保存",
+      "saved": "使用指导已保存",
+      "loadFailed": "加载使用指导失败",
+      "draftFailed": "AI 草稿生成失败",
+      "saveFailed": "保存使用指导失败"
     },
     "pr": {
       "title": "PR 管理",
