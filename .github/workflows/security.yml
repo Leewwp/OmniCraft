@@ -1,6 +1,13 @@
 name: OmniCraft Security
 
 on:
+  # Audit F-05 finding 3: the security gates used to run weekly only, so PRs
+  # and main pushes had no security scan at all while scan-policy.json
+  # declared pull_request/push_main triggers. PRs run every gate except the
+  # container-image builds (slow; scheduled and main-push runs keep them).
+  pull_request:
+  push:
+    branches: [main]
   schedule:
     - cron: "0 6 * * 1" # weekly Monday 06:00 UTC; daily runs repeated identical trivy scans for unchanged code
   workflow_dispatch:
@@ -42,7 +49,12 @@ jobs:
       - name: Security contract tests
         run: bash scripts/security/verify-pinned-actions.tests.sh && bash scripts/security/verify-security.tests.sh
       - name: Security verification
-        run: bash scripts/security/verify-security.sh -BuildImages -ReportDir artifacts/security
+        run: |
+          EXTRA_ARGS=""
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            EXTRA_ARGS="-BuildImages"
+          fi
+          bash scripts/security/verify-security.sh $EXTRA_ARGS -ReportDir artifacts/security
       - name: Upload security evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
