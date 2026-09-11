@@ -66,9 +66,12 @@ GREEN_ACCESS_KEY_ID=<green-access-key-id>
 GREEN_ACCESS_KEY_SECRET=<green-access-key-secret>
 GREEN_REGION=cn-shanghai
 GREEN_CALLBACK_URL=https://api.leeppp.online/api/v1/internal/ai-callback
-# Callback signature seed ([A-Za-z0-9_], max 64 chars). A generated template
-# value is provided; deployers may replace it before first launch.
-GREEN_SEED=eGvqrYixTEzFRDUToSd1lgy3plgaMJDqr0X5Ji7P4TY
+# Callback signature seed ([A-Za-z0-9_], max 64 chars). MUST be generated at
+# deploy time (e.g. `openssl rand -hex 24`) before first launch: it is the
+# only credential behind /internal/ai-callback signature verification, and
+# any shared/template value lets holders forge callbacks. Release validation
+# rejects the historical factory template value outright.
+GREEN_SEED=<deploy-time-generated-seed>
 # Aliyun MAIN account UID from the console top-right account info (not the RAM UID).
 GREEN_UID=<aliyun-main-account-uid>
 
@@ -95,10 +98,10 @@ Generate strong local secrets on the server:
 openssl rand -base64 64
 openssl rand -base64 64
 openssl rand -base64 32
-openssl rand -base64 32
+openssl rand -hex 24
 ```
 
-The first three are for `JWT_SECRET`, `LLM_KEY_ENCRYPTION_SECRET` and `LOG_IP_HASH_SECRET`; the fourth generates the optional `GREEN_SEED` replacement (take the first 48 `[A-Za-z0-9_]` characters). The generated template `GREEN_SEED` is already valid — regenerating is optional, do it before the first launch if you want a server-local secret.
+The first three are for `JWT_SECRET`, `LLM_KEY_ENCRYPTION_SECRET` and `LOG_IP_HASH_SECRET`; the fourth is the REQUIRED `GREEN_SEED` value (`openssl rand -hex 24` yields 48 hex characters, matching the `[A-Za-z0-9_]` ≤64 format). `GREEN_SEED` must be a deploy-time generated secret: it is the only credential behind `/internal/ai-callback` signature verification, and release validation rejects the historical factory template value.
 
 ## 4. Create Backend Override YAML
 

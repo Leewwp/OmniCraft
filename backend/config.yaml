@@ -353,6 +353,10 @@ rate_limit:
   credential_per_minute: 5
   search_per_minute: 30
   mcp_per_minute: 120
+  # 2026-09-11 安全审查 F-04：/internal/ai-callback 专属固定窗口桶（独立于
+  # 全局 IP 限流），压制对回调签名的暴力猜测；真实回调来自阿里云 Green
+  # 服务，正常审核吞吐远低于 30/min。
+  ai_callback_per_minute: 30
   agent_window_sec: 86400
   agent_minute_window_sec: 60
   # SP-16 #450（spec D2）：PAT 档在匿名 IP 窗口之上叠加 per-token 固定窗口。

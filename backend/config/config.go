@@ -25,6 +25,15 @@ var (
 	greenUIDFormat  = regexp.MustCompile(`^\d+$`)
 )
 
+// greenSeedFactoryTemplate is the historical factory template value that used
+// to ship in the deployment templates (.env.production.example and the deploy
+// docs). It has been public in git history since it was committed, so a
+// deployment that keeps it lets anyone who knows the literal (plus the
+// account UID) forge /internal/ai-callback checksums. Release validation
+// rejects it outright; publishing the literal as a blacklist constant adds no
+// new exposure. Security audit 2026-09-11 F-04.
+const greenSeedFactoryTemplate = "eGvqrYixTEzFRDUToSd1lgy3plgaMJDqr0X5Ji7P4TY"
+
 const RAGEmbeddingDimensions = 1536
 
 // RAG retrieval defaults mirror backend/config.yaml. They are used only as a
@@ -576,6 +585,7 @@ type RateLimitConfig struct {
 	PATPerMinute         int   `mapstructure:"pat_per_minute" json:"pat_per_minute"`
 	PATWindowSec         int   `mapstructure:"pat_window_sec" json:"pat_window_sec"`
 	MCPPerMinute         int   `mapstructure:"mcp_per_minute" json:"mcp_per_minute"`
+	AICallbackPerMinute  int   `mapstructure:"ai_callback_per_minute" json:"ai_callback_per_minute"`
 	MaxJSONBodyBytes     int64 `mapstructure:"max_json_body_bytes" json:"max_json_body_bytes"`
 	MaxQueryChars        int   `mapstructure:"max_query_chars" json:"max_query_chars"`
 	MaxSearchLimit       int   `mapstructure:"max_search_limit" json:"max_search_limit"`
@@ -1129,6 +1139,9 @@ func (c *Config) ValidateRelease() error {
 	requireHTTPSURL(&errs, "green.callback_url", c.Green.CallbackURL)
 	requireReleaseValue(&errs, "green.seed", c.Green.Seed)
 	requireReleaseValue(&errs, "green.uid", c.Green.UID)
+	if seed := strings.TrimSpace(c.Green.Seed); seed != "" && seed == greenSeedFactoryTemplate {
+		errs = append(errs, "green.seed must not be the factory template value in release mode; generate a deploy-time value (see the runbook secret-generation step)")
+	}
 	if seed := strings.TrimSpace(c.Green.Seed); seed != "" && !greenSeedFormat.MatchString(seed) {
 		errs = append(errs, "green.seed must be 1-64 characters of [A-Za-z0-9_] in release mode")
 	}

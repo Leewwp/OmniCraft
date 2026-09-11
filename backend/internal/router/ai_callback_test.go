@@ -266,10 +266,39 @@ func TestAICallbackBlockThenPassKeepsBanned(t *testing.T) {
 	}
 }
 
+// TestAICallbackDedicatedRateLimitReturns429 pins audit F-04: the internal
+// callback endpoint carries its own fixed-window bucket (rate_limit.
+// ai_callback_per_minute), so a burst beyond the limit is answered with 429
+// even though every request would go on to signature verification.
+func TestAICallbackDedicatedRateLimitReturns429(t *testing.T) {
+	router, _, _, cleanup := buildAICallbackRouter(t, queue.NewNoopProducer(), "pending",
+		func(c *config.Config) { c.RateLimit.AICallbackPerMinute = 2 })
+	defer cleanup()
+
+	content := callbackContentJSON("content:1", "task-rate-limit", "pass")
+	for i := 0; i < 3; i++ {
+		rec := postCallback(t, router, checksumOf(testCallbackUID, testCallbackSeed, content), content)
+		if i < 2 {
+			if rec.Code == http.StatusTooManyRequests {
+				t.Fatalf("request %d status = 429, want allowed within the bucket; body = %s", i, rec.Body.String())
+			}
+			continue
+		}
+		if rec.Code != http.StatusTooManyRequests {
+			t.Fatalf("request %d status = %d, want 429 once the dedicated bucket is exhausted; body = %s", i, rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "RATE_LIMIT_EXCEEDED") {
+			t.Fatalf("429 body = %s, want RATE_LIMIT_EXCEEDED code", rec.Body.String())
+		}
+	}
+}
+
 // buildAICallbackRouter wires a router with the real ReviewService, sqlite
 // storage and the given queue producer, plus one author user (id 1) and one
-// content item (id 1) in the given start status.
-func buildAICallbackRouter(t *testing.T, producer queue.Producer, contentStartStatus string) (*gin.Engine, *config.Config, *gorm.DB, func()) {
+// content item (id 1) in the given start status. Optional cfg mutators run
+// before route registration so tests can pin rate-limit buckets and other
+// registration-time configuration.
+func buildAICallbackRouter(t *testing.T, producer queue.Producer, contentStartStatus string, cfgMutators ...func(*config.Config)) (*gin.Engine, *config.Config, *gorm.DB, func()) {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -375,6 +404,10 @@ func buildAICallbackRouter(t *testing.T, producer queue.Producer, contentStartSt
 			Seed: testCallbackSeed,
 			UID:  testCallbackUID,
 		},
+	}
+
+	for _, mutate := range cfgMutators {
+		mutate(cfg)
 	}
 
 	userRepo := repository.NewUserRepository(db)

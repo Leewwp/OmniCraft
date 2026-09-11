@@ -180,6 +180,7 @@ pg_jieba path, default) or "opensearch" (optional ac... |
 | `rag.rerank.timeout_sec` | `int` | TimeoutSec |
 | `rate_limit.agent_minute_window_sec` | `int` | AgentMinuteWindowSec |
 | `rate_limit.agent_window_sec` | `int` | AgentWindowSec |
+| `rate_limit.ai_callback_per_minute` | `int` | AICallbackPerMinute |
 | `rate_limit.credential_per_minute` | `int` | CredentialPerMinute |
 | `rate_limit.enabled` | `bool` | Enabled |
 | `rate_limit.max_json_body_bytes` | `int64` | MaxJSONBodyBytes |

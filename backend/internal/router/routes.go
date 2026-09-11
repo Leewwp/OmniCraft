@@ -461,7 +461,18 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	internalHandler.SetQueueProducer(ctr.QueueProducer)
 	internal := v1.Group("/internal")
 	{
-		internal.POST("/ai-callback", internalHandler.AICallback)
+		// Security audit 2026-09-11 F-04: the callback endpoint carries its
+		// own fixed-window bucket (rate_limit.ai_callback_per_minute) on top
+		// of the global per-IP limiter, throttling checksum-guessing bursts
+		// before they reach signature verification.
+		aiCallbackLimiter := middleware.RedisFixedWindowLimit(
+			rdb,
+			"ratelimit:ai-callback",
+			cfg.RateLimit.AICallbackPerMinute,
+			time.Minute,
+			false,
+		)
+		internal.POST("/ai-callback", aiCallbackLimiter, internalHandler.AICallback)
 	}
 
 	v1.POST("/deploy-grants", func(c *gin.Context) {
