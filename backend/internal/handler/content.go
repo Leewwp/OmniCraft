@@ -1,10 +1,8 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -16,7 +14,6 @@ import (
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/pkg/archivezip"
 	"omnicraft/backend/internal/pkg/queue"
-	"omnicraft/backend/internal/pkg/recovery"
 	"omnicraft/backend/internal/pkg/response"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -59,6 +56,7 @@ func NewContentHandler(db *gorm.DB, cfg *config.Config, rdb *redis.Client) *Cont
 		WithUploadGrantService(uploadGrants).
 		WithUploadedObjectVerifier(ossSvc).
 		WithArchiveScanConfig(&cfg.ArchiveScan).
+		WithArchiveScanGateEnabled(cfg.Features.ArchiveMalwareScanEnabled).
 		WithImageDimensionsResolver(ossSvc).
 		WithUploadConfig(&cfg.Upload)
 
@@ -407,18 +405,37 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 	}
 
 	if content.SourceOriginalID != nil && *content.SourceOriginalID > 0 {
-		source, srcErr := h.contentSvc.GetContent(*content.SourceOriginalID)
-		if srcErr == nil && source != nil {
-			resp["source_original"] = gin.H{"id": source.ID, "title": source.Title, "zone": "original"}
+		if id, title, ok := h.visibleSourceLite(c, *content.SourceOriginalID); ok {
+			resp["source_original"] = gin.H{"id": id, "title": title, "zone": "original"}
 		}
 	}
 	if content.SourceFanworkID != nil && *content.SourceFanworkID > 0 {
-		source, srcErr := h.contentSvc.GetContent(*content.SourceFanworkID)
-		if srcErr == nil && source != nil {
-			resp["source_fanwork"] = gin.H{"id": source.ID, "title": source.Title, "zone": "fanwork"}
+		if id, title, ok := h.visibleSourceLite(c, *content.SourceFanworkID); ok {
+			resp["source_fanwork"] = gin.H{"id": id, "title": title, "zone": "fanwork"}
 		}
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+// visibleSourceLite returns the id+title of a source reference only when the
+// source itself is visible to the caller (#446 / SP-16 P0): a published
+// fanwork must not leak the title of a later-banned or privated source.
+func (h *ContentHandler) visibleSourceLite(c *gin.Context, sourceID int64) (int64, string, bool) {
+	type sourceRow struct {
+		ID    int64
+		Title string
+	}
+	var row sourceRow
+	visSQL, visArgs := repository.ContentVisibilitySQL(middleware.GetUserID(c))
+	err := h.contentRepo.DB().Model(&model.ContentItem{}).
+		Select("id", "title").
+		Where("id = ?", sourceID).
+		Where(visSQL, visArgs...).
+		Take(&row).Error
+	if err != nil {
+		return 0, "", false
+	}
+	return row.ID, row.Title, true
 }
 
 func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
@@ -669,137 +686,48 @@ func (h *ContentHandler) DownloadContent(c *gin.Context) {
 		return
 	}
 
-	content, err := h.contentRepo.FindByID(id)
-	if err != nil || content == nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
-		return
-	}
-
-	if content.Status != "published" {
-		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "content not available for download"})
-		return
-	}
-
-	var visibleCount int64
-	if err := repository.ApplyContentVisibilityScope(h.contentRepo.DB().Model(&model.ContentItem{}), callerID).
-		Where("content_items.id = ?", id).
-		Count(&visibleCount).Error; err != nil {
-		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
-		return
-	}
-	if visibleCount == 0 {
-		c.JSON(http.StatusForbidden, gin.H{"code": "CONTENT_UNAVAILABLE", "message": "content is unavailable"})
-		return
-	}
-
-	if !content.AllowCopy {
-		c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "download not allowed"})
-		return
-	}
-
-	if h.ossSvc == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "OSS_NOT_CONFIGURED", "message": "oss service not configured"})
-		return
-	}
-
-	attachments, _ := h.contentRepo.GetAttachments(id)
-	if len(attachments) == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"code": "NO_ATTACHMENTS", "message": "no downloadable files"})
-		return
-	}
-
-	var target *model.ContentAttachment
-	attachmentIDStr := c.Query("attachment_id")
-	if attachmentIDStr != "" {
-		attachmentID, err := strconv.ParseInt(attachmentIDStr, 10, 64)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ATTACHMENT_ID", "message": "invalid attachment_id"})
-			return
-		}
-		for i := range attachments {
-			if attachments[i].ID == attachmentID {
-				target = &attachments[i]
-				break
-			}
-		}
-		if target == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "ATTACHMENT_MISMATCH", "message": "attachment does not belong to this content"})
-			return
-		}
-	} else {
-		var primaries []int
-		for i := range attachments {
-			if attachments[i].IsPrimary != nil && *attachments[i].IsPrimary {
-				primaries = append(primaries, i)
-			}
-		}
-		if len(primaries) == 1 {
-			target = &attachments[primaries[0]]
-		} else {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "AMBIGUOUS_ATTACHMENT", "message": "specify attachment_id; cannot determine a unique primary attachment"})
-			return
-		}
-	}
-
-	if h.archiveGate != nil {
-		if err := h.archiveGate.RequireAttachmentClean(c.Request.Context(), target.ID); err != nil {
-			if errors.Is(err, service.ErrArchiveNotClean) {
-				response.Error(c, http.StatusForbidden, "ARCHIVE_NOT_CLEAN", "archive is not clean")
-				return
-			}
-			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
-			return
-		}
-	}
-
-	ttl := downloadURLTTL(h.cfg, *target)
-
-	url, err := h.ossSvc.GeneratePresignDownloadURL(context.Background(), target.OSSKey, ttl)
+	// SP-16 #451: the orchestration lives in ContentService.RequestDownload
+	// so the MCP tool omnicraft_request_download shares byte-identical
+	// semantics; this handler only maps sentinel errors onto the historical
+	// HTTP contract.
+	res, err := h.contentSvc.RequestDownload(c.Request.Context(), callerID, id, c.Query("attachment_id"))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": "OSS_ERROR", "message": "failed to generate download url"})
+		switch {
+		case errors.Is(err, service.ErrDownloadUnauthorized):
+			c.JSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "login required"})
+		case errors.Is(err, service.ErrContentNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+		case errors.Is(err, service.ErrDownloadNotPublished):
+			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "content not available for download"})
+		case errors.Is(err, service.ErrDownloadUnavailable):
+			c.JSON(http.StatusForbidden, gin.H{"code": "CONTENT_UNAVAILABLE", "message": "content is unavailable"})
+		case errors.Is(err, service.ErrDownloadNotAllowed):
+			c.JSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "download not allowed"})
+		case errors.Is(err, service.ErrOSSNotConfigured):
+			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "OSS_NOT_CONFIGURED", "message": "oss service not configured"})
+		case errors.Is(err, service.ErrNoAttachments):
+			c.JSON(http.StatusNotFound, gin.H{"code": "NO_ATTACHMENTS", "message": "no downloadable files"})
+		case errors.Is(err, service.ErrInvalidAttachmentID):
+			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ATTACHMENT_ID", "message": "invalid attachment_id"})
+		case errors.Is(err, service.ErrAttachmentMismatch):
+			c.JSON(http.StatusBadRequest, gin.H{"code": "ATTACHMENT_MISMATCH", "message": "attachment does not belong to this content"})
+		case errors.Is(err, service.ErrAmbiguousAttachment):
+			c.JSON(http.StatusBadRequest, gin.H{"code": "AMBIGUOUS_ATTACHMENT", "message": "specify attachment_id; cannot determine a unique primary attachment"})
+		case errors.Is(err, service.ErrArchiveNotClean):
+			response.Error(c, http.StatusForbidden, "ARCHIVE_NOT_CLEAN", "archive is not clean")
+		case errors.Is(err, service.ErrDownloadPresignFailed):
+			c.JSON(http.StatusInternalServerError, gin.H{"code": "OSS_ERROR", "message": "failed to generate download url"})
+		default:
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		}
 		return
-	}
-
-	if _, ok := h.queueProducer.(*queue.NoopProducer); !ok && h.queueProducer != nil {
-		recovery.GoSafe(func() {
-			payload, _ := json.Marshal(map[string]interface{}{
-				"content_id": id,
-				"action":     "download",
-			})
-			if err := h.queueProducer.Publish(context.Background(), "count.download", payload); err != nil {
-				slog.Error("failed to publish download count message", "content_id", id, "error", err)
-			}
-		})
-	} else if h.rdb != nil {
-		recovery.GoSafe(func() {
-			ctx := context.Background()
-			h.rdb.ZIncrBy(ctx, "rank:download:counts", 1, fmt.Sprintf("%d", id))
-		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"download_url": url,
-		"expires_in":   int64(ttl.Seconds()),
+		"download_url": res.URL,
+		"expires_in":   res.ExpiresIn,
 	})
 }
-
-func downloadURLTTL(cfg *config.Config, attachment model.ContentAttachment) time.Duration {
-	ttlSec := 300
-	if cfg != nil {
-		ttlSec = cfg.OSS.DownloadURLTTL
-		if cfg.Features.ArchiveMalwareScanEnabled && (attachment.FileType == "mod" || attachment.ScanRequired) {
-			ttlSec = cfg.ArchiveScan.URLTTLSec
-			if ttlSec <= 0 || ttlSec > 300 {
-				ttlSec = 300
-			}
-		}
-	}
-	if ttlSec <= 0 {
-		ttlSec = 300
-	}
-	return time.Duration(ttlSec) * time.Second
-}
-
 // isAdminRole reports whether the caller holds the admin role.
 func isAdminRole(c *gin.Context) bool {
 	role, exists := c.Get(middleware.UserRoleKey)
@@ -841,8 +769,24 @@ func (h *ContentHandler) contentVisibleToViewer(content *model.ContentItem, c *g
 			return true
 		}
 	}
+	// #446/SP-16 P0：与列表口径对齐——封禁 IP 下的内容详情不再对非参与方
+	// 可读（此前仅列表过滤，直连详情仍可读）。
+	if content.IPID != nil && *content.IPID > 0 && h.contentIPBanned(*content.IPID) {
+		return false
+	}
 	return content.Status == "published" &&
 		content.IsPublic &&
 		!content.Author.IsBanned &&
 		content.Author.DeletedAt == nil
+}
+
+// contentIPBanned reports whether the IP a content row hangs under is banned.
+func (h *ContentHandler) contentIPBanned(ipID int64) bool {
+	var status string
+	if err := h.contentRepo.DB().Model(&model.IP{}).
+		Where("id = ?", ipID).
+		Pluck("status", &status).Error; err != nil {
+		return false
+	}
+	return status == "banned"
 }

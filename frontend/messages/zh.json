@@ -1300,6 +1300,43 @@
         "malicious_tag_report": "恶意标签举报",
         "admin_adjust": "管理员调整"
       }
+    },
+    "agentTokens": {
+      "title": "Agent 接入令牌",
+      "description": "为你的外部 Agent（Claude Code、Codex 等）签发访问令牌；泄露可随时吊销止血。",
+      "create": "创建令牌",
+      "createConfirm": "签发",
+      "nameLabel": "令牌名称",
+      "scope": {
+        "download": "下载（download）",
+        "upload": "上传（upload）"
+      },
+      "scopeHelp": "下载 scope 允许获取内容下载链接；上传 scope 允许通过 Agent 发布内容（走完整审核流）。",
+      "empty": "还没有令牌。创建一枚，配合 /agent 页面的接入说明交给你的 Agent 使用。",
+      "lastUsed": "最近使用：{time}",
+      "never": "从未使用",
+      "revoke": "吊销",
+      "revokeConfirm": {
+        "title": "吊销这枚令牌？",
+        "description": "「{name}」（{prefix}…）吊销后立即失效，使用它的 Agent 会马上收到 401。此操作不可撤销。"
+      },
+      "issued": {
+        "title": "令牌已创建——请立即复制保存",
+        "copy": "复制",
+        "copied": "已复制",
+        "onceWarning": "这是该令牌明文的唯一一次展示，关闭后无法再次查看。",
+        "done": "我已保存，关闭"
+      },
+      "error": {
+        "invalid": "请填写令牌名称并至少勾选一个 scope。",
+        "create": "创建令牌失败，请稍后重试。"
+      },
+      "toast": {
+        "loadFailed": "令牌列表加载失败",
+        "copyFailed": "复制失败，请手动选择复制",
+        "revoked": "令牌已吊销",
+        "revokeFailed": "吊销失败，请稍后重试"
+      }
     }
   },
   "tagGroups": {
@@ -2327,7 +2364,26 @@
       "deleted": "内容已删除",
       "deleteFailed": "删除内容失败",
       "deleteTitle": "删除内容",
-      "deleteDescription": "确认删除《{title}》吗？此操作不可撤销。"
+      "deleteDescription": "确认删除《{title}》吗？此操作不可撤销。",
+      "guide": "使用指导"
+    },
+    "guide": {
+      "dialogTitle": "使用指导",
+      "dialogHint": "填写安装/使用要求与步骤；留空字段对读者回退到系统模板。",
+      "fieldRequirements": "前置要求（每行一条）",
+      "requirementsPlaceholder": "例如：Minecraft 1.20.1+\nForge 47",
+      "fieldSteps": "使用步骤（每行一步）",
+      "stepsPlaceholder": "例如：\n1. 解压下载文件\n2. 放入 mods 目录",
+      "fieldNotes": "补充说明",
+      "notesPlaceholder": "补充说明或备注（支持 Markdown）",
+      "draftButton": "AI 草稿",
+      "drafting": "生成中…",
+      "draftedHint": "当前内容包含 AI 草稿，保存后将标记 source=llm_assisted。",
+      "save": "保存",
+      "saved": "使用指导已保存",
+      "loadFailed": "加载使用指导失败",
+      "draftFailed": "AI 草稿生成失败",
+      "saveFailed": "保存使用指导失败"
     },
     "pr": {
       "title": "PR 管理",
@@ -2591,5 +2647,53 @@
   "markdown": {
     "copyCode": "复制代码",
     "citationJump": "跳转到引用 {index}"
+  },
+  "agentAccess": {
+    "hero": {
+      "title": "把 OmniCraft 接进你的 Agent",
+      "subtitle": "匿名只读搜索、浏览内容与使用指导；PAT 令牌解锁下载与一句话上传（含强制确认门）——在你的 Claude Code / Codex / Gemini CLI 里直接用。"
+    },
+    "status": {
+      "live": "可用",
+      "planned": "P3 上线"
+    },
+    "channels": {
+      "aria": "接入通道"
+    },
+    "rest": {
+      "title": "REST API v1",
+      "point1": "匿名只读：搜索 / 列表 / 详情 / 版本 / 使用指导 / 分类 / 标签 / IP / 用户 / 统计",
+      "point2": "OpenAPI 3.1 契约：GET /api/v1/openapi.json（含 curl 消费示例）",
+      "point3": "匿名 GET 带 s-maxage=300 缓存与 ETag 条件请求（304）"
+    },
+    "mcp": {
+      "title": "MCP Server",
+      "point1": "Streamable HTTP 端点：POST /api/v1/mcp（本站同源）",
+      "point2": "匿名只读四工具：omnicraft_search / omnicraft_get_content / omnicraft_get_usage_guide / omnicraft_list_categories；PAT 按令牌 scope 追加 omnicraft_request_download（download）与 omnicraft_suggest_publish_metadata / omnicraft_create_content / omnicraft_request_upload_url（upload）"
+    },
+    "skill": {
+      "title": "Agent Skill",
+      "point1": "一键安装：curl -fsSL https://raw.githubusercontent.com/Leewwp/OmniCraft/main/agent-access/skill/install.sh | bash",
+      "point2": "教 Agent 搜内容、读使用指导、按步骤安装，以及凭 PAT 下载与一句话上传（含强制确认门：完整草稿摘要经你确认后才写）"
+    },
+    "verify": {
+      "title": "验证问题",
+      "subtitle": "装好后用这个问题冒烟——两行 curl 应返回含乐谱内容的搜索结果与使用指导：",
+      "keyword": "乐谱"
+    },
+    "limits": {
+      "title": "频率与配额",
+      "point1": "限流按 IP：搜索 30 次/分钟，常规读取 300 次/分钟",
+      "point2": "匿名面只读；下载与上传需要个人访问令牌（PAT，账户设置 → Agent 令牌，scope 分 download / upload）",
+      "point3": "响应均为 JSON；分页默认 page_size=20，搜索上限 50"
+    },
+    "versioning": {
+      "title": "版本承诺",
+      "body": "v1 契约内不 break：字段只增不改义。破坏性变更走 v2 并保留弃用期——届时在此页与 OpenAPI 文档同步公告迁移指引。"
+    },
+    "boundary": {
+      "title": "能力边界",
+      "body": "匿名面只返回已发布且公开的内容（草稿/私密/审核中/封禁内容绝不出现在任何匿名响应中）；使用指导的安全提示恒来自平台模板。"
+    }
   }
 }

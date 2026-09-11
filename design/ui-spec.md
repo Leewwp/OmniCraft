@@ -194,6 +194,21 @@
 - 未知/未来状态返回 null（不渲染），状态词表收敛在组件内 `STATUS_STYLES`/`STATUS_KEYS`。
 - banned 行在 studio 列表额外携带 ban_reason 文本与「去申诉」outline 按钮（`/appeals?target_type=content&target_id=` 预填跳转）；编辑按钮 disabled（终态禁改，T43/FIX-13 的前端呼应）。
 
+## Component: UsageGuideDialog studio 使用指导编辑弹层（SP-16 #447 新增）
+
+**覆盖文件**: `components/studio/UsageGuideDialog.tsx`（studio 列表行 BookOpen 图标按钮触发）
+
+**视觉契约**
+- 弹层形态沿用 FIX-14 编辑弹层同款：`fixed inset-0 z-50` + `bg-foreground/40` 遮罩、`max-w-lg` 卡片（`rounded-lg` + 1px `border-border` + `bg-card`）、高内容用 `max-h-[85vh]` 内滚动。
+- locale 切换 = 同排两个 28px 高 pill 按钮（`h-7 px-3 text-xs`），选中 default、未选 outline——与 IP 库 pill 选择态同档。
+- 三字段全部走 Form Controls 原语（Label 14px medium + Textarea `rounded-lg` 边框态）；「AI 草稿」按钮 = notes 标签行右对齐 outline sm 档 + Sparkles 14px 图标，生成中 disabled。
+- AI 草稿提示 = 12px `text-muted-foreground` 行内文本，不用颜色/图标单独表达。
+
+**行为契约**
+- requirements/steps 按行拆分为字符串数组（trim + 去空行）；notes 为自由 Markdown；保存 `PUT /contents/:id/guide`（source= llm_assisted 当内容含 AI 草稿）。
+- AI 草稿走站内 agent 端点 `GET /agent/usage-guide/:id?draft=true`（强制生成路径），草稿只填入空 notes 不覆盖作者手写内容。
+- 留空字段在读者侧回退系统模板（安全提示永远来自模板，作者不可移除）；i18n `studio.guide.*` zh/en 全量。
+
 ## Component: Card 共享容器原语
 
 **视觉契约**
@@ -400,6 +415,61 @@ interface AgentFollowUpChipsProps {
 **关键交互**
 - 点击 = `onFill(追问文本)`，由工作台 `setInput` 并把焦点移到 composer；Enter 发送仍由用户执行。
 - 原生 button 语义：Tab 可达，Enter/Space 触发；无 loading/disabled 态（错过 done 的 follow_ups 静默不存在，渐进增强）。
+
+## Page: /agent-access 外部 Agent 接入落地页（SP-16 #448 新增）
+
+**Key Constraints**
+- 公开页（(public) 组，Header/Footer 由 public layout 提供）；无侧边栏、无认证态内容。
+- 遵循全局 Indigo 三档层级：卡片 `bg-card` + 1px `border-border` + `rounded-lg`（8px）+ shadow-none。
+- 路径说明：票面原文「/agent 落地页」因 /agent 已被站内 Agent 工作台占用（同路径两 route group 会构建冲突），落位 /agent-access——票内已留痕待用户裁决。
+
+**视觉层级**
+- 顶部 hero：BookOpen 32px primary 图标 + 2xl 标题 + sm muted 副标题。
+- 三通道卡（`md:grid-cols-3`）：每卡 = 图标 + 右上角状态药丸（可用=primary/10 底+primary 字；P3 上线=muted 底+muted 字）、14px semibold 标题、12px muted 要点列表（1px 圆点引导）。
+- 验证问题卡：等宽字体代码块（`bg-canvas-subtle` + `rounded-lg` + 12px）展示两行 curl 与期望输出注释。
+- 频率/版本/边界三卡：`md:grid-cols-2` 两卡 + 全宽一卡；16px 图标 + 14px semibold 标题 + 12px muted 正文。
+
+**状态变体**
+- 三通道均为 live 态（primary 药丸）——#449（P3）落地后 MCP/Skill 卡已回填地址与安装命令并翻态。
+
+**交互细节**
+- 卡片纯展示无交互锚点（安装动作由用户复制 curl 完成）；外部链接仅 openapi.json 地址文本。
+- i18n：`agentAccess.*` zh/en 全量；关键词（如验证问题关键词「乐谱/sheet music」）走 i18n 而非硬编码。
+
+**响应式规则**
+- 移动（≤700px）：三通道卡纵向堆叠；代码块横向滚动。
+- 桌面：max-w-4xl 居中容器。
+
+## Component: AgentTokensCard 令牌管理卡片（SP-16 #450 新增）
+
+**覆盖文件**: `components/settings/AgentTokensCard.tsx`（挂载于 `/settings` 分组卡区）
+
+**Key Constraints**
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，表面保持 shadow-none、1px border，颜色引用预定义 token。
+- **令牌明文只在创建成功弹层展示一次**（复制按钮 + 关闭即永不可再见）；列表只显示 token_prefix、名称、scopes、最近使用时间，任何状态不得出现完整明文。
+- 吊销为破坏性操作，必须 `ConfirmModal` 二次确认；确认文案携带被吊销令牌的名称与前缀。
+
+**视觉契约**
+- 分组卡与设置页其他组一致：`rounded-md border border-border bg-card p-4 space-y-3`，标题 14px semibold + 说明 12px muted。
+- 令牌行使用紧凑列表：名称 14px medium、`oc_pat_xxxxx` 前缀等宽字体 12px、scopes 用 TagBadge 药丸（download/upload 各一枚）、最近使用 12px muted（空值显示 never 文案）；行右侧吊销按钮 `size=sm variant=outline`（destructive 文案色）。
+- 创建入口为卡片头部 `size=sm` 主按钮；创建表单为卡片内联展开区（`bg-canvas-subtle` 1px border 容器）：名称 Input（36px 档，maxLength 64）+ download/upload 两枚 Checkbox（显式 label，默认勾选 download）。
+- 明文展示弹层：等宽字体全宽文本块 + `bg-canvas-subtle` 底 + 复制按钮；下方 12px destructive 警示文案（「关闭后无法再次查看」）。
+
+**状态变体**
+- loading: 行区 Skeleton，高度镜像单行令牌。
+- empty: 组内 EmptyState（无 CTA），提示前往 `/agent` 了解接入方式。
+- creating/saving: 按钮内嵌 Spinner + disabled。
+- error: 行内红字（i18n `settings.agentTokens.error.*`）+ Toast。
+- limit-reached（409 AGENT_TOKEN_LIMIT_REACHED）: 创建表单内行内错误，提示先吊销。
+
+**交互与 i18n**
+- 全部文案走 `settings.agentTokens.*`（zh/en 双语齐全，禁硬编码）。
+- 键盘：创建/复制/吊销按钮原生可达；Checkbox 显式 label。
+- 数据：`GET/POST /api/v1/users/me/agent-tokens`、`DELETE /api/v1/users/me/agent-tokens/:id`；创建成功后刷新列表并弹明文层。
+
+**Playwright 截图检查点**
+- `screenshots/sp16-settings-agent-tokens-zh.png`：设置页令牌管理卡（含至少一枚令牌行，zh）。
+- `screenshots/sp16-settings-agent-tokens-create-en.png`：创建弹层 + 明文一次展示（en，截图前须对明文做遮挡或使用已吊销令牌）。
 
 ## Page: / 首页
 

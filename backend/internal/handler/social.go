@@ -159,7 +159,7 @@ func (h *SocialHandler) ListComments(c *gin.Context) {
 	}
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	comments, total, err := h.socialSvc.ListComments(contentID, parentID, page, pageSize)
+	comments, total, err := h.socialSvc.ListComments(contentID, parentID, page, pageSize, middleware.GetUserID(c))
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
@@ -178,7 +178,7 @@ func (h *SocialHandler) ListDiscussions(c *gin.Context) {
 	}
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	discussions, total, err := h.socialSvc.ListDiscussions(ipID, contentID, page, pageSize)
+	discussions, total, err := h.socialSvc.ListDiscussions(ipID, contentID, page, pageSize, middleware.GetUserID(c))
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
@@ -227,6 +227,12 @@ func (h *SocialHandler) GetDiscussion(c *gin.Context) {
 	}
 	d, err := h.socialSvc.GetDiscussion(id)
 	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "discussion not found"})
+		return
+	}
+	// #446/SP-16 P0：与 /discussions/:id 同口径（T12/F-106）——未发布
+	// （under_review/hidden）讨论不透出详情，此前 social 路径漏了这层门。
+	if d.Status != "published" {
 		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "discussion not found"})
 		return
 	}

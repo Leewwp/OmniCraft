@@ -1,0 +1,17 @@
+{
+  "content_type": "article",
+  "locale": "en",
+  "requirements": [
+    "A modern browser or any Markdown/text reader"
+  ],
+  "steps": [
+    "Read the article online",
+    "Download an offline copy if provided",
+    "Cite the author and source when quoting"
+  ],
+  "notes": "For long articles use the table of contents to read by section.",
+  "safety": [
+    "Redistribution requires the author's permission and attribution",
+    "Stay cautious about third-party links inside the article"
+  ]
+}

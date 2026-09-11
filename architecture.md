@@ -361,6 +361,7 @@ backend/
 | `DELETE` | `/api/v1/contents/:id` | contentHandler.DeleteContent |
 | `DELETE` | `/api/v1/dashboard/contributors/:userId/block` | prHandler.UnblockContributor |
 | `DELETE` | `/api/v1/ips/:id/follow` | followHandler.UnfollowIP |
+| `DELETE` | `/api/v1/mcp` | mcpProxy |
 | `DELETE` | `/api/v1/messages/:id` | msgHandler.DeleteMessage |
 | `DELETE` | `/api/v1/messages/conversations/:id` | msgHandler.LeaveConversation |
 | `DELETE` | `/api/v1/series/:id` | seriesHandler.DeleteSeries |
@@ -368,6 +369,7 @@ backend/
 | `DELETE` | `/api/v1/social/comments/:id` | socialHandler.DeleteComment |
 | `DELETE` | `/api/v1/users/:id/follow` | followHandler.UnfollowUser |
 | `DELETE` | `/api/v1/users/me` | userHandler.DeleteAccount |
+| `DELETE` | `/api/v1/users/me/agent-tokens/:id` | agentTokenHandler.Revoke |
 | `DELETE` | `/api/v1/users/me/history` | histHandler.ClearHistory |
 | `DELETE` | `/api/v1/users/me/saved-searches/:id` | tagHandler.DeleteSavedSearch |
 | `DELETE` | `/api/v1/users/me/tag-groups/:id` | tagHandler.DeleteTagGroup |
@@ -400,6 +402,8 @@ backend/
 | `GET` | `/api/v1/contents` | contentHandler.ListContents |
 | `GET` | `/api/v1/contents/:id` | contentHandler.GetContent |
 | `GET` | `/api/v1/contents/:id/download` | contentHandler.DownloadContent |
+| `GET` | `/api/v1/contents/:id/guide` | usageGuideHandler.GetGuide |
+| `GET` | `/api/v1/contents/:id/guide/specifics` | usageGuideHandler.GetAuthorGuide |
 | `GET` | `/api/v1/contents/:id/prs` | prHandler.ListPRs |
 | `GET` | `/api/v1/contents/:id/related-fanworks` | contentHandler.ListRelatedFanworks |
 | `GET` | `/api/v1/contents/:id/versions` | handler.NewVersionHandler(...).ListVersions |
@@ -420,10 +424,12 @@ backend/
 | `GET` | `/api/v1/judge/cases/:id/verdict` | judgeHandler.GetVerdictDetail |
 | `GET` | `/api/v1/judge/exam/:category` | judgeHandler.GetExam |
 | `GET` | `/api/v1/judge/queue` | judgeHandler.GetQueue |
+| `GET` | `/api/v1/mcp` | mcpProxy |
 | `GET` | `/api/v1/messages` | msgHandler.ListConversations |
 | `GET` | `/api/v1/messages/:id` | msgHandler.ListMessages |
 | `GET` | `/api/v1/notifications` | notifHandler.ListNotifications |
 | `GET` | `/api/v1/notifications/unread-count` | notifHandler.UnreadCount |
+| `GET` | `/api/v1/openapi.json` | handler.NewOpenAPIV1Handler(...).Serve |
 | `GET` | `/api/v1/pr/:id` | prHandler.GetPR |
 | `GET` | `/api/v1/rehab/courses` | rehabHandler.ListCourses |
 | `GET` | `/api/v1/rehab/courses/:id` | rehabHandler.GetCourse |
@@ -448,6 +454,7 @@ backend/
 | `GET` | `/api/v1/users/:id/followers` | followHandler.GetFollowers |
 | `GET` | `/api/v1/users/:id/following` | followHandler.GetFollowing |
 | `GET` | `/api/v1/users/:id/reputation` | userHandler.GetReputation |
+| `GET` | `/api/v1/users/me/agent-tokens` | agentTokenHandler.List |
 | `GET` | `/api/v1/users/me/contents` | userHandler.GetMyContents |
 | `GET` | `/api/v1/users/me/contributors` | userHandler.GetMyContributors |
 | `GET` | `/api/v1/users/me/followers/stats` | followHandler.GetFollowerStats |
@@ -529,6 +536,7 @@ backend/
 | `POST` | `/api/v1/judge/exam/submit` | judgeHandler.SubmitExam |
 | `POST` | `/api/v1/judge/reasons/:id/vote` | judgeHandler.VoteReason |
 | `POST` | `/api/v1/judge/vote` | judgeHandler.SubmitVote |
+| `POST` | `/api/v1/mcp` | mcpProxy |
 | `POST` | `/api/v1/messages` | msgHandler.SendMessage |
 | `POST` | `/api/v1/notifications/read-all` | notifHandler.MarkAllRead |
 | `POST` | `/api/v1/pr` | prHandler.SubmitPR |
@@ -544,6 +552,7 @@ backend/
 | `POST` | `/api/v1/social/discussions` | socialHandler.PostDiscussion |
 | `POST` | `/api/v1/social/reactions` | socialHandler.React |
 | `POST` | `/api/v1/users/:id/follow` | followHandler.FollowUser |
+| `POST` | `/api/v1/users/me/agent-tokens` | agentTokenHandler.Create |
 | `POST` | `/api/v1/users/me/history` | histHandler.RecordView |
 | `POST` | `/api/v1/users/me/ip-visits/merge` | ipVisitHistoryHandler.MergeVisits |
 | `POST` | `/api/v1/users/me/saved-searches` | tagHandler.CreateSavedSearch |
@@ -551,6 +560,7 @@ backend/
 | `PUT` | `/api/v1/admin/categories/reorder` | catHandler.AdminReorderCategories |
 | `PUT` | `/api/v1/collections/:id` | collectionHandler.UpdateCollection |
 | `PUT` | `/api/v1/collections/:id/items/:itemId` | collectionHandler.UpdateItem |
+| `PUT` | `/api/v1/contents/:id/guide` | usageGuideHandler.SaveGuide |
 | `PUT` | `/api/v1/series/:id` | seriesHandler.UpdateSeries |
 | `PUT` | `/api/v1/series/:id/items/reorder` | seriesHandler.ReorderItems |
 | `PUT` | `/api/v1/users/me/ip-visits/:ipId` | ipVisitHistoryHandler.RecordVisit |

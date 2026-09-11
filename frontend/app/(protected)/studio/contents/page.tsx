@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { Eye, Heart, MessageCircle, Edit, Trash2, FileText, ShieldQuestion } from "lucide-react";
+import { Eye, Heart, MessageCircle, Edit, Trash2, FileText, ShieldQuestion, BookOpen } from "lucide-react";
 import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { ContentStatusBadge } from "@/components/studio/ContentStatusBadge";
+import { UsageGuideDialog } from "@/components/studio/UsageGuideDialog";
 import { useToast } from "@/components/ui/Toast";
 
 interface StudioContentRow {
@@ -46,6 +47,8 @@ export default function StudioContentsPage() {
   const [editForm, setEditForm] = useState({ title: "", cover_image_url: "", is_public: true, allow_copy: true });
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<StudioContentRow | null>(null);
+  // 使用指导最小填写入口（SP-16 #447）：三字段 + LLM 草稿建议。
+  const [guideEditing, setGuideEditing] = useState<StudioContentRow | null>(null);
 
   const load = useCallback(async (nextPage = 1, append = false) => {
     if (append) setLoadingMore(true); else setLoading(contentsRef.current.length === 0);
@@ -205,6 +208,14 @@ export default function StudioContentsPage() {
                 <Button
                   variant="ghost"
                   size="icon-sm"
+                  title={t('studio.contents.guide')}
+                  onClick={() => setGuideEditing(item)}
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
                   title={t('studio.contents.delete')}
                   onClick={() => setDeleting(item)}
                 >
@@ -272,6 +283,14 @@ export default function StudioContentsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {guideEditing && (
+        <UsageGuideDialog
+          contentId={guideEditing.id}
+          contentType={guideEditing.content_type}
+          onClose={() => setGuideEditing(null)}
+        />
       )}
 
       <ConfirmModal

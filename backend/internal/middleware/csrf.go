@@ -4,10 +4,12 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/service"
 )
 
 const csrfHeaderName = "X-CSRF-Token"
@@ -18,6 +20,19 @@ func CSRF(cfg *config.Config) gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		if isInternalPath(c.Request.URL.Path) {
+			c.Next()
+			return
+		}
+
+		// Machine channels carry their own explicit credentials (or none at
+		// all) and never ambient cookies, so CSRF does not apply — neither
+		// the double-submit check nor cookie issuance.
+		// - PAT requests (#450): the web frontend always authenticates with
+		//   JWTs, never PATs, so this cannot become a browser-side bypass.
+		// - The MCP endpoint (#449): anonymous Streamable-HTTP JSON-RPC,
+		//   per-IP rate-limited; authenticated MCP tools (#451) use the
+		//   Authorization header, which a cross-site form cannot set.
+		if requestCarriesPAT(c) || isMCPProtocolPath(c.Request.URL.Path) {
 			c.Next()
 			return
 		}
@@ -86,6 +101,17 @@ func isInternalPath(path string) bool {
 	return false
 }
 
+// requestCarriesPAT reports whether the Authorization header authenticates
+// via the PAT machine channel ("Bearer oc_pat_...").
+func requestCarriesPAT(c *gin.Context) bool {
+	header := c.GetHeader("Authorization")
+	parts := strings.SplitN(header, " ", 2)
+	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+		return false
+	}
+	return strings.HasPrefix(parts[1], service.AgentTokenPrefix)
+}
+
 func GetCSRFToken(c *gin.Context) string {
 	if val, exists := c.Get("csrfToken"); exists {
 		if s, ok := val.(string); ok && s != "" {
@@ -117,4 +143,8 @@ func hmacEqual(a, b string) bool {
 		diff |= a[i] ^ b[i]
 	}
 	return diff == 0
+}
+
+func isMCPProtocolPath(path string) bool {
+	return path == "/api/v1/mcp"
 }

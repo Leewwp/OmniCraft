@@ -9,6 +9,7 @@ import (
 	"omnicraft/backend/config"
 	"omnicraft/backend/internal/container"
 	"omnicraft/backend/internal/handler"
+	"omnicraft/backend/internal/mcpserver"
 	"omnicraft/backend/internal/middleware"
 )
 
@@ -35,6 +36,20 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		false,
 	)
 
+	// SP-16 #448: the contracted anonymous GETs share the public caching
+	// contract (s-maxage + body-hash ETag revalidation).
+	cacheable := middleware.CacheableAnonymousGET(300)
+
+	// SP-16 #449: the MCP endpoint joins the per-IP rate-limit matrix with
+	// its own bucket (mcp_per_minute from config, never hardcoded).
+	mcpLimiter := middleware.RedisFixedWindowLimit(
+		rdb,
+		"ratelimit:mcp",
+		cfg.RateLimit.MCPPerMinute,
+		time.Minute,
+		false,
+	)
+
 	publishGuard := middleware.InteractionRequired(cfg, db, rdb, publishingInteractionPolicy())
 	editDeleteGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
 	commentsGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
@@ -52,6 +67,28 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 
 	publicConfigHandler := handler.NewPublicConfigHandler(cfg)
 	v1.GET("/config/public", publicConfigHandler.GetPublicConfig)
+	// SP-16 #448: the anonymous v1 contract is served at a stable URL.
+	v1.GET("/openapi.json", optAuth, handler.NewOpenAPIV1Handler().Serve)
+
+	// SP-16 #449/#451: MCP Streamable HTTP endpoint (protocol
+	// POST/GET/DELETE on one URL). optAuth resolves the PAT channel; the
+	// adapter copies the resolved identity into the request context so the
+	// MCP handler can register the scope-shaped write tools. PAT requests
+	// already consumed the per-token window inside optAuth.
+	mcpIdentity := func(c *gin.Context) {
+		if middleware.GetAuthChannel(c) == middleware.AuthChannelPAT {
+			uid := middleware.GetUserID(c)
+			if uid != 0 {
+				id := mcpserver.Identity{UserID: uid, Scopes: middleware.GetPATScopes(c)}
+				c.Request = c.Request.WithContext(mcpserver.WithIdentity(c.Request.Context(), id))
+			}
+		}
+		c.Next()
+	}
+	mcpProxy := gin.WrapH(ctr.MCPHandler)
+	v1.POST("/mcp", optAuth, mcpIdentity, mcpLimiter, mcpProxy)
+	v1.GET("/mcp", optAuth, mcpIdentity, mcpLimiter, mcpProxy)
+	v1.DELETE("/mcp", optAuth, mcpIdentity, mcpLimiter, mcpProxy)
 	captchaHandler := handler.NewCaptchaHandler(ctr.CaptchaProvider, ctr.CaptchaTickets)
 	v1.POST("/captcha/verify", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), captchaHandler.Verify)
 
@@ -72,19 +109,26 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	userHandler := handler.NewUserHandler(db, authService, rdb, cfg, ctr.ReviewService)
 	users := v1.Group("/users")
 	{
-		users.GET("/:id", optAuth, userHandler.GetUser)
+		users.GET("/:id", optAuth, cacheable, userHandler.GetUser)
 		users.PATCH("/:id", authReq, userHandler.UpdateUser)
 		users.GET("/:id/reputation", optAuth, userHandler.GetReputation)
 		users.GET("/:id/contents", optAuth, userHandler.GetUserContents)
 		users.DELETE("/me", authReq, userHandler.DeleteAccount)
 		users.PATCH("/me/password", authReq, userHandler.ChangePassword)
 		users.PATCH("/me/support-info", authReq, userHandler.UpdateSupportInfo)
+
+		// SP-16 #450: PAT management for the settings page. JWT-only by
+		// design — a leaked PAT must never mint more PATs.
+		agentTokenHandler := handler.NewAgentAccessTokenHandler(ctr.AgentTokenService)
+		users.GET("/me/agent-tokens", authReq, middleware.RequireJWTChannel(), agentTokenHandler.List)
+		users.POST("/me/agent-tokens", authReq, middleware.RequireJWTChannel(), agentTokenHandler.Create)
+		users.DELETE("/me/agent-tokens/:id", authReq, middleware.RequireJWTChannel(), agentTokenHandler.Revoke)
 	}
 
 	ipHandler := handler.NewIPHandlerWithCache(db, rdb, cfg)
 	ips := v1.Group("/ips")
 	{
-		ips.GET("", optAuth, ipHandler.ListIPs)
+		ips.GET("", optAuth, cacheable, ipHandler.ListIPs)
 		// T15 (F-103): IP creation enters the review queue and publishes
 		// public free text, so it carries the same publishing guard + upload
 		// rate limit as content creation.
@@ -102,22 +146,33 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 
 	prHandler := handler.NewPRHandlerWithService(ctr.PRService)
 	prHandler.SetNotificationService(notifSvc)
+	// SP-16 #447: public usage-guide surface (merged template+specifics).
+	usageGuideHandler := handler.NewUsageGuideHandler(ctr.UsageGuideService, ctr.ContentRepo)
+
 	contentHandler := handler.NewContentHandler(db, cfg, rdb)
 	contentHandler.SetQueueProducer(ctr.QueueProducer)
 	contentHandler.SetOutboxRepository(ctr.OutboxRepo)
 	contentHandler.SetArchiveScanRepository(ctr.ArchiveScanRepo)
 	contents := v1.Group("/contents")
 	{
-		contents.GET("", optAuth, contentHandler.ListContents)
-		contents.POST("", authReq, publishGuard, middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.CreateContent)
-		contents.POST("/oss-token", authReq, middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.GenerateOSSToken)
+		contents.GET("", optAuth, cacheable, contentHandler.ListContents)
+		// SP-16 #450: PAT scope gates on the machine channel. JWT sessions
+		// pass through untouched; a download-only PAT cannot create content
+		// or mint upload URLs (spec D2/D5).
+		contents.POST("", authReq, middleware.RequireScopeForPAT("upload"), publishGuard, middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.CreateContent)
+		contents.POST("/oss-token", authReq, middleware.RequireScopeForPAT("upload"), middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.GenerateOSSToken)
 		contents.GET("/:id/related-fanworks", optAuth, contentHandler.ListRelatedFanworks)
-		contents.GET("/:id", optAuth, contentHandler.GetContent)
+		contents.GET("/:id", optAuth, cacheable, contentHandler.GetContent)
 		contents.PATCH("/:id", authReq, editDeleteGuard, contentHandler.UpdateContent)
 		contents.DELETE("/:id", authReq, editDeleteGuard, contentHandler.DeleteContent)
-		contents.GET("/:id/versions", optAuth, handler.NewVersionHandler(db).ListVersions)
+		contents.GET("/:id/versions", optAuth, cacheable, handler.NewVersionHandler(db).ListVersions)
 		contents.GET("/:id/prs", optAuth, prHandler.ListPRs)
-		contents.GET("/:id/download", authReq, downloadsGuard, contentHandler.DownloadContent)
+		contents.GET("/:id/guide", optAuth, usageGuideHandler.GetGuide)
+		contents.GET("/:id/guide/specifics", authReq, editDeleteGuard, usageGuideHandler.GetAuthorGuide)
+		contents.PUT("/:id/guide", authReq, editDeleteGuard, usageGuideHandler.SaveGuide)
+		// Download is metered + malware-gated, so it needs the PAT download
+		// scope (spec D1/D3); JWT users keep today's behavior.
+		contents.GET("/:id/download", authReq, middleware.RequireScopeForPAT("download"), downloadsGuard, contentHandler.DownloadContent)
 	}
 
 	versionHandler := handler.NewVersionHandler(db)
@@ -202,17 +257,17 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	}
 
 	statsHandler := handler.NewStatsHandler(ctr.StatsService)
-	v1.GET("/stats/summary", optAuth, statsHandler.GetSummary)
+	v1.GET("/stats/summary", optAuth, cacheable, statsHandler.GetSummary)
 
 	ipStatsHandler := handler.NewIPStatsHandler(ctr.IPStatsService)
 	v1.GET("/ips/stats/category_counts", optAuth, ipStatsHandler.GetCategoryCounts)
 
 	catHandler := handler.NewCategoryHandler(db, ctr.AdminAuditService)
-	v1.GET("/categories", optAuth, catHandler.ListCategories)
+	v1.GET("/categories", optAuth, cacheable, catHandler.ListCategories)
 
 	tagHandler := handler.NewTagHandler(db, rdb, &cfg.Cache, cfg.RateLimit.MaxQueryChars)
 	tagHandler.SetNotificationService(notifSvc)
-	v1.GET("/tags/faceted", optAuth, tagHandler.GetFacetedTags)
+	v1.GET("/tags/faceted", optAuth, cacheable, tagHandler.GetFacetedTags)
 	v1.GET("/tags/search", optAuth, tagHandler.SearchTags)
 	contents.POST("/:id/tags/suggest", authReq, tagHandler.SuggestTag)
 	dashboard.GET("/tag-suggestions", tagHandler.ListTagSuggestions)
@@ -244,7 +299,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	searchHandler := handler.NewSearchHandler(ctr.SearchService, cfg)
 	v1.GET("/search/suggestions", optAuth, searchLimiter, searchHandler.Suggestions)
 	v1.GET("/search/trending", optAuth, searchLimiter, searchHandler.Trending)
-	v1.GET("/contents/search", optAuth, searchLimiter, searchHandler.SearchContents)
+	v1.GET("/contents/search", optAuth, searchLimiter, cacheable, searchHandler.SearchContents)
 
 	users.POST("/:id/follow", authReq, followsGuard, followHandler.FollowUser)
 	users.DELETE("/:id/follow", authReq, followsGuard, followHandler.UnfollowUser)

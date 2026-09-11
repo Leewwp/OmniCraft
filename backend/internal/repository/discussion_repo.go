@@ -107,7 +107,7 @@ func (r *DiscussionRepository) SearchByKeyword(ipID int64, keyword string, page,
 	return discussions, err
 }
 
-func (r *DiscussionRepository) ListByUser(userID int64, page, pageSize int) ([]model.Discussion, int64, error) {
+func (r *DiscussionRepository) ListByUser(userID int64, page, pageSize int, viewerID int64) ([]model.Discussion, int64, error) {
 	commentSubq := r.db.Model(&model.Comment{}).
 		Select("discussion_id").
 		Where("author_id = ? AND discussion_id IS NOT NULL", userID)
@@ -119,6 +119,13 @@ func (r *DiscussionRepository) ListByUser(userID int64, page, pageSize int) ([]m
 	)
 	// T12/F-106 顺带收口：用户主页讨论列表同样只透出 published 讨论。
 	base = base.Where("status = ?", "published")
+	// #446/SP-16 P0：挂在内容上的讨论随内容可见性走——非公开内容的讨论
+	// 不在用户主页列表透出（content_item_id 指向与正文均属内容派生数据）。
+	visSQL, visArgs := ContentVisibilitySQL(viewerID)
+	base = base.Where(
+		"content_item_id IS NULL OR content_item_id IN (SELECT id FROM content_items WHERE "+visSQL+")",
+		visArgs...,
+	)
 
 	var total int64
 	base.Model(&model.Discussion{}).Count(&total)

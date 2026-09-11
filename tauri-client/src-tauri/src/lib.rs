@@ -86,7 +86,6 @@ pub fn run() {
         .manage(DeployState(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             get_deploy_params,
-            commands::security::verify_script_signature,
             commands::file_ops::download_file,
             commands::file_ops::extract_archive,
             commands::file_ops::move_file,

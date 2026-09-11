@@ -12,6 +12,8 @@ import (
 	"gorm.io/gorm"
 
 	"omnicraft/backend/config"
+	"omnicraft/backend/internal/mcpserver"
+	"omnicraft/backend/internal/middleware"
 	"omnicraft/backend/internal/pkg/aliyun"
 	"omnicraft/backend/internal/pkg/captcha"
 	"omnicraft/backend/internal/pkg/clamav"
@@ -75,9 +77,12 @@ type ServiceContainer struct {
 	StatsService        *service.StatsService
 	IPStatsService      *service.IPStatsService
 	AgentService        *service.AgentService
+	AgentTokenService   *service.AgentAccessTokenService
 	NotificationService *service.NotificationService
 	PRService           *service.PRService
 	VersionService      *service.VersionService
+	UsageGuideService   *service.UsageGuideService
+	MCPHandler          http.Handler
 	SearchService       *service.SearchService
 	IPProposalService   *service.IPProposalService
 	FeedbackService     *service.FeedbackService
@@ -240,11 +245,88 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.IPService.SetQueueProducer(c.QueueProducer)
 	c.NotificationService.SetQueueProducer(c.QueueProducer)
 
+	// Usage-guide merged view (SP-16 #447): constructed before AgentService
+	// so the in-site agent can read structured guides first.
+	c.UsageGuideService = service.NewUsageGuideService(
+		repository.NewUsageGuideRepository(db),
+		c.ContentRepo,
+	)
+
+	// MCP server surface (SP-16 #449/#451): the four anonymous read-only
+	// tools close over the same repos as the public REST surface; the
+	// PAT-scoped write tools reuse the studio publish/download chains. The
+	// content service here mirrors NewContentHandler's construction (OSS
+	// presign, upload grants, object verifier, archive gate) so external
+	// agents hit byte-identical validation.
+	mcpOSS, mcpOSSErr := service.NewOSSService(cfg)
+	if mcpOSSErr != nil {
+		slog.Warn("MCP upload/download presign is unavailable", "error", mcpOSSErr)
+	}
+	mcpGrantTTL := time.Duration(cfg.Feedback.UploadGrantTTLSec) * time.Second
+	if mcpGrantTTL <= 0 {
+		mcpGrantTTL = 5 * time.Minute
+	}
+	mcpUploadGrants := service.NewUploadGrantService(rdb, mcpGrantTTL)
+	mcpContentSvc := service.NewContentServiceWithOSS(c.ContentRepo, c.ReviewService, rdb, &cfg.Cache, mcpOSS).
+		WithUploadGrantService(mcpUploadGrants).
+		WithUploadedObjectVerifier(mcpOSS).
+		WithArchiveScanConfig(&cfg.ArchiveScan).
+		WithArchiveScanGateEnabled(cfg.Features.ArchiveMalwareScanEnabled).
+		WithImageDimensionsResolver(mcpOSS).
+		WithUploadConfig(&cfg.Upload)
+	mcpContentSvc.SetVersionService(c.VersionService)
+	mcpContentSvc.SetQueueProducer(c.QueueProducer)
+	mcpContentSvc.SetArchiveScanRepository(c.ArchiveScanRepo, cfg.Features.ArchiveMalwareScanEnabled)
+	c.MCPHandler = mcpserver.NewHandler(mcpserver.Deps{
+		DB:            db,
+		SearchRepo:    c.SearchRepo,
+		ContentRepo:   c.ContentRepo,
+		CategoryRepo:  c.CategoryRepo,
+		GuideSvc:      c.UsageGuideService,
+		DisplaySigner: c.DisplayURLSigner,
+		Cfg:           cfg,
+		ContentSvc:    mcpContentSvc,
+		// SuggestPublishMetadata reuses the in-chat upload-assist LLM;
+		// AgentService is constructed below, hence the late-bound closure.
+		SuggestPublishMetadata: func(ctx context.Context, title, description, filename, contentType string) (*service.UploadAssistResult, error) {
+			return c.AgentService.UploadAssist(ctx, 0, title, description, filename, contentType)
+		},
+		// IssueUploadURL mirrors POST /contents/oss-token: presign then
+		// register the grant the later create call consumes.
+		IssueUploadURL: func(ctx context.Context, req service.PresignUploadRequest, userID int64) (*service.PresignUploadResponse, error) {
+			resp, err := mcpOSS.GeneratePresignUploadURL(ctx, req, userID)
+			if err != nil {
+				return nil, err
+			}
+			grant, err := mcpUploadGrants.Issue(ctx, service.UploadGrant{
+				UserID:   userID,
+				Purpose:  "content",
+				OSSKey:   resp.OSSKey,
+				FileType: req.FileType,
+				MimeType: req.MimeType,
+				FileSize: req.FileSize,
+			})
+			if err != nil {
+				return nil, err
+			}
+			resp.GrantID = grant.ID
+			return resp, nil
+		},
+		// The shared per-user hourly upload window (same redis keys as the
+		// web studio uploads).
+		ConsumeUploadQuota: func(ctx context.Context, userID int64) error {
+			return middleware.ConsumeUploadQuota(ctx, rdb, &cfg.RateLimit, userID)
+		},
+	})
+
 	// Create AgentService for worker use
 	provider := llm.NewProvider(cfg)
 	greenClient := aliyun.NewGreenClient(cfg.Green.AccessKeyID, cfg.Green.AccessKeySecret, cfg.Green.Region)
 	c.AgentService = service.NewAgentService(provider, c.EmbeddingRepo, c.ContentRepo, greenClient, db, cfg)
+	c.AgentTokenService = service.NewAgentAccessTokenService(
+		repository.NewAgentAccessTokenRepository(db), cfg)
 	c.AgentService.SetSearchRepository(c.SearchRepo)
+	c.AgentService.SetUsageGuideService(c.UsageGuideService)
 	c.AgentService.SetQueueProducer(c.QueueProducer)
 	opensearchTimeout := time.Duration(cfg.RAG.Index.TimeoutSec) * time.Second
 	c.OpenSearchRepo = repository.NewOpenSearchRepositoryWithLimits(
