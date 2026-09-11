@@ -88,6 +88,12 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	// FindByID 对不存在用户返回 (nil, nil)——此前 nil 直传投影函数会 panic
+	//（契约测试以不存在 id 打端点时触发，#448 顺手收口为 404）。
+	if user == nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": "USER_NOT_FOUND", "message": "user not found"})
+		return
+	}
 
 	var resp gin.H
 	if isSelfOrAdmin(c, id) {

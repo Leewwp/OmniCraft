@@ -35,6 +35,10 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		false,
 	)
 
+	// SP-16 #448: the contracted anonymous GETs share the public caching
+	// contract (s-maxage + body-hash ETag revalidation).
+	cacheable := middleware.CacheableAnonymousGET(300)
+
 	publishGuard := middleware.InteractionRequired(cfg, db, rdb, publishingInteractionPolicy())
 	editDeleteGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
 	commentsGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
@@ -52,6 +56,8 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 
 	publicConfigHandler := handler.NewPublicConfigHandler(cfg)
 	v1.GET("/config/public", publicConfigHandler.GetPublicConfig)
+	// SP-16 #448: the anonymous v1 contract is served at a stable URL.
+	v1.GET("/openapi.json", optAuth, handler.NewOpenAPIV1Handler().Serve)
 	captchaHandler := handler.NewCaptchaHandler(ctr.CaptchaProvider, ctr.CaptchaTickets)
 	v1.POST("/captcha/verify", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), captchaHandler.Verify)
 
@@ -72,7 +78,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	userHandler := handler.NewUserHandler(db, authService, rdb, cfg, ctr.ReviewService)
 	users := v1.Group("/users")
 	{
-		users.GET("/:id", optAuth, userHandler.GetUser)
+		users.GET("/:id", optAuth, cacheable, userHandler.GetUser)
 		users.PATCH("/:id", authReq, userHandler.UpdateUser)
 		users.GET("/:id/reputation", optAuth, userHandler.GetReputation)
 		users.GET("/:id/contents", optAuth, userHandler.GetUserContents)
@@ -84,7 +90,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	ipHandler := handler.NewIPHandlerWithCache(db, rdb, cfg)
 	ips := v1.Group("/ips")
 	{
-		ips.GET("", optAuth, ipHandler.ListIPs)
+		ips.GET("", optAuth, cacheable, ipHandler.ListIPs)
 		// T15 (F-103): IP creation enters the review queue and publishes
 		// public free text, so it carries the same publishing guard + upload
 		// rate limit as content creation.
@@ -111,14 +117,14 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	contentHandler.SetArchiveScanRepository(ctr.ArchiveScanRepo)
 	contents := v1.Group("/contents")
 	{
-		contents.GET("", optAuth, contentHandler.ListContents)
+		contents.GET("", optAuth, cacheable, contentHandler.ListContents)
 		contents.POST("", authReq, publishGuard, middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.CreateContent)
 		contents.POST("/oss-token", authReq, middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.GenerateOSSToken)
 		contents.GET("/:id/related-fanworks", optAuth, contentHandler.ListRelatedFanworks)
-		contents.GET("/:id", optAuth, contentHandler.GetContent)
+		contents.GET("/:id", optAuth, cacheable, contentHandler.GetContent)
 		contents.PATCH("/:id", authReq, editDeleteGuard, contentHandler.UpdateContent)
 		contents.DELETE("/:id", authReq, editDeleteGuard, contentHandler.DeleteContent)
-		contents.GET("/:id/versions", optAuth, handler.NewVersionHandler(db).ListVersions)
+		contents.GET("/:id/versions", optAuth, cacheable, handler.NewVersionHandler(db).ListVersions)
 		contents.GET("/:id/prs", optAuth, prHandler.ListPRs)
 		contents.GET("/:id/guide", optAuth, usageGuideHandler.GetGuide)
 		contents.GET("/:id/guide/specifics", authReq, editDeleteGuard, usageGuideHandler.GetAuthorGuide)
@@ -208,17 +214,17 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	}
 
 	statsHandler := handler.NewStatsHandler(ctr.StatsService)
-	v1.GET("/stats/summary", optAuth, statsHandler.GetSummary)
+	v1.GET("/stats/summary", optAuth, cacheable, statsHandler.GetSummary)
 
 	ipStatsHandler := handler.NewIPStatsHandler(ctr.IPStatsService)
 	v1.GET("/ips/stats/category_counts", optAuth, ipStatsHandler.GetCategoryCounts)
 
 	catHandler := handler.NewCategoryHandler(db, ctr.AdminAuditService)
-	v1.GET("/categories", optAuth, catHandler.ListCategories)
+	v1.GET("/categories", optAuth, cacheable, catHandler.ListCategories)
 
 	tagHandler := handler.NewTagHandler(db, rdb, &cfg.Cache, cfg.RateLimit.MaxQueryChars)
 	tagHandler.SetNotificationService(notifSvc)
-	v1.GET("/tags/faceted", optAuth, tagHandler.GetFacetedTags)
+	v1.GET("/tags/faceted", optAuth, cacheable, tagHandler.GetFacetedTags)
 	v1.GET("/tags/search", optAuth, tagHandler.SearchTags)
 	contents.POST("/:id/tags/suggest", authReq, tagHandler.SuggestTag)
 	dashboard.GET("/tag-suggestions", tagHandler.ListTagSuggestions)
@@ -250,7 +256,7 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	searchHandler := handler.NewSearchHandler(ctr.SearchService, cfg)
 	v1.GET("/search/suggestions", optAuth, searchLimiter, searchHandler.Suggestions)
 	v1.GET("/search/trending", optAuth, searchLimiter, searchHandler.Trending)
-	v1.GET("/contents/search", optAuth, searchLimiter, searchHandler.SearchContents)
+	v1.GET("/contents/search", optAuth, searchLimiter, cacheable, searchHandler.SearchContents)
 
 	users.POST("/:id/follow", authReq, followsGuard, followHandler.FollowUser)
 	users.DELETE("/:id/follow", authReq, followsGuard, followHandler.UnfollowUser)

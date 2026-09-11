@@ -416,6 +416,30 @@ interface AgentFollowUpChipsProps {
 - 点击 = `onFill(追问文本)`，由工作台 `setInput` 并把焦点移到 composer；Enter 发送仍由用户执行。
 - 原生 button 语义：Tab 可达，Enter/Space 触发；无 loading/disabled 态（错过 done 的 follow_ups 静默不存在，渐进增强）。
 
+## Page: /agent-access 外部 Agent 接入落地页（SP-16 #448 新增）
+
+**Key Constraints**
+- 公开页（(public) 组，Header/Footer 由 public layout 提供）；无侧边栏、无认证态内容。
+- 遵循全局 Indigo 三档层级：卡片 `bg-card` + 1px `border-border` + `rounded-lg`（8px）+ shadow-none。
+- 路径说明：票面原文「/agent 落地页」因 /agent 已被站内 Agent 工作台占用（同路径两 route group 会构建冲突），落位 /agent-access——票内已留痕待用户裁决。
+
+**视觉层级**
+- 顶部 hero：BookOpen 32px primary 图标 + 2xl 标题 + sm muted 副标题。
+- 三通道卡（`md:grid-cols-3`）：每卡 = 图标 + 右上角状态药丸（可用=primary/10 底+primary 字；P3 上线=muted 底+muted 字）、14px semibold 标题、12px muted 要点列表（1px 圆点引导）。
+- 验证问题卡：等宽字体代码块（`bg-canvas-subtle` + `rounded-lg` + 12px）展示两行 curl 与期望输出注释。
+- 频率/版本/边界三卡：`md:grid-cols-2` 两卡 + 全宽一卡；16px 图标 + 14px semibold 标题 + 12px muted 正文。
+
+**状态变体**
+- 三通道中 REST 为 live 态（primary 药丸），MCP/Skill 为 planned 态（muted 药丸）——P3 上线后回填地址并翻态。
+
+**交互细节**
+- 卡片纯展示无交互锚点（安装动作由用户复制 curl 完成）；外部链接仅 openapi.json 地址文本。
+- i18n：`agentAccess.*` zh/en 全量；关键词（如验证问题关键词「乐谱/sheet music」）走 i18n 而非硬编码。
+
+**响应式规则**
+- 移动（≤700px）：三通道卡纵向堆叠；代码块横向滚动。
+- 桌面：max-w-4xl 居中容器。
+
 ## Page: / 首页
 
 **Key Constraints**

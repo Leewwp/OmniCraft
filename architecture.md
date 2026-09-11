@@ -426,6 +426,7 @@ backend/
 | `GET` | `/api/v1/messages/:id` | msgHandler.ListMessages |
 | `GET` | `/api/v1/notifications` | notifHandler.ListNotifications |
 | `GET` | `/api/v1/notifications/unread-count` | notifHandler.UnreadCount |
+| `GET` | `/api/v1/openapi.json` | handler.NewOpenAPIV1Handler(...).Serve |
 | `GET` | `/api/v1/pr/:id` | prHandler.GetPR |
 | `GET` | `/api/v1/rehab/courses` | rehabHandler.ListCourses |
 | `GET` | `/api/v1/rehab/courses/:id` | rehabHandler.GetCourse |

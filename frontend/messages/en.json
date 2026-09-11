@@ -2610,5 +2610,53 @@
   "markdown": {
     "copyCode": "Copy code",
     "citationJump": "Jump to citation {index}"
+  },
+  "agentAccess": {
+    "hero": {
+      "title": "Wire OmniCraft into your Agent",
+      "subtitle": "Anonymous read-only access to search, browsing and usage guides — straight from your Claude Code / Codex / Gemini CLI."
+    },
+    "status": {
+      "live": "Live",
+      "planned": "Coming in P3"
+    },
+    "channels": {
+      "aria": "Access channels"
+    },
+    "rest": {
+      "title": "REST API v1",
+      "point1": "Anonymous read-only: search / list / detail / versions / usage guides / categories / tags / IPs / users / stats",
+      "point2": "OpenAPI 3.1 contract: GET /api/v1/openapi.json (curl-friendly)",
+      "point3": "Anonymous GETs carry s-maxage=300 caching and ETag revalidation (304)"
+    },
+    "mcp": {
+      "title": "MCP Server",
+      "point1": "Streamable HTTP endpoint /api/v1/mcp (address filled in once P3 lands)",
+      "point2": "Four anonymous read-only tools: search / detail / usage guide / categories"
+    },
+    "skill": {
+      "title": "Agent Skill",
+      "point1": "SKILL.md + one-line installer (raw.githubusercontent URL filled in once P3 lands)",
+      "point2": "Teach your Agent to search content, read guides and follow setup steps"
+    },
+    "verify": {
+      "title": "Verification question",
+      "subtitle": "Smoke-test your setup with this question — two curl lines should return sheet-music search hits plus the usage guide:",
+      "keyword": "sheet music"
+    },
+    "limits": {
+      "title": "Rate limits",
+      "point1": "Per-IP rate limits: search 30 req/min, regular reads 300 req/min",
+      "point2": "The anonymous surface is read-only; downloads and uploads need a personal access token (PAT, coming later)",
+      "point3": "All responses are JSON; pagination defaults to page_size=20, search caps at 50"
+    },
+    "versioning": {
+      "title": "Versioning promise",
+      "body": "No breaking changes within v1: fields are only added, never repurposed. Breaking changes ship as v2 with a deprecation period — migration notes will be announced here and in the OpenAPI document."
+    },
+    "boundary": {
+      "title": "Capability boundary",
+      "body": "The anonymous surface only returns published, public content (drafts / private / in-review / banned content never appears in any anonymous response); usage-guide safety notes always come from the platform template."
+    }
   }
 }
