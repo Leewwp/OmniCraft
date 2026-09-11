@@ -1300,6 +1300,43 @@
         "malicious_tag_report": "Malicious tag report",
         "admin_adjust": "Admin adjustment"
       }
+    },
+    "agentTokens": {
+      "title": "Agent access tokens",
+      "description": "Issue tokens for your external agents (Claude Code, Codex, …); revoke anytime to stop a leak.",
+      "create": "Create token",
+      "createConfirm": "Issue",
+      "nameLabel": "Token name",
+      "scope": {
+        "download": "Download",
+        "upload": "Upload"
+      },
+      "scopeHelp": "The download scope allows fetching content download URLs; the upload scope allows publishing via agents (full moderation flow applies).",
+      "empty": "No tokens yet. Create one and hand it to your agent following the /agent access guide.",
+      "lastUsed": "Last used: {time}",
+      "never": "Never used",
+      "revoke": "Revoke",
+      "revokeConfirm": {
+        "title": "Revoke this token?",
+        "description": "\"{name}\" ({prefix}…) stops working immediately — agents using it will get 401s. This cannot be undone."
+      },
+      "issued": {
+        "title": "Token created — copy it now",
+        "copy": "Copy",
+        "copied": "Copied",
+        "onceWarning": "This is the only time the full token is shown; it cannot be viewed again after closing.",
+        "done": "Saved, close"
+      },
+      "error": {
+        "invalid": "Enter a name and pick at least one scope.",
+        "create": "Failed to create the token, please retry."
+      },
+      "toast": {
+        "loadFailed": "Failed to load tokens",
+        "copyFailed": "Copy failed, please select and copy manually",
+        "revoked": "Token revoked",
+        "revokeFailed": "Failed to revoke, please retry"
+      }
     }
   },
   "tagGroups": {
@@ -2327,7 +2364,26 @@
       "deleted": "Content deleted",
       "deleteFailed": "Failed to delete content",
       "deleteTitle": "Delete content",
-      "deleteDescription": "Delete \"{title}\"? This cannot be undone."
+      "deleteDescription": "Delete \"{title}\"? This cannot be undone.",
+      "guide": "Usage guide"
+    },
+    "guide": {
+      "dialogTitle": "Usage guide",
+      "dialogHint": "Fill in requirements and steps; empty fields fall back to the system template for readers.",
+      "fieldRequirements": "Requirements (one per line)",
+      "requirementsPlaceholder": "e.g. Minecraft 1.20.1+\nForge 47",
+      "fieldSteps": "Steps (one per line)",
+      "stepsPlaceholder": "e.g.\n1. Unpack the download\n2. Drop it into the mods folder",
+      "fieldNotes": "Notes",
+      "notesPlaceholder": "Extra notes (Markdown supported)",
+      "draftButton": "AI draft",
+      "drafting": "Drafting…",
+      "draftedHint": "Contains an AI draft; saving will mark source=llm_assisted.",
+      "save": "Save",
+      "saved": "Usage guide saved",
+      "loadFailed": "Failed to load the usage guide",
+      "draftFailed": "Failed to generate an AI draft",
+      "saveFailed": "Failed to save the usage guide"
     },
     "pr": {
       "title": "PR Management",
@@ -2591,5 +2647,53 @@
   "markdown": {
     "copyCode": "Copy code",
     "citationJump": "Jump to citation {index}"
+  },
+  "agentAccess": {
+    "hero": {
+      "title": "Wire OmniCraft into your Agent",
+      "subtitle": "Anonymous read-only search, browsing and usage guides; a personal access token unlocks downloads and one-sentence publishing (with a mandatory confirmation gate) — use it right inside Claude Code / Codex / Gemini CLI."
+    },
+    "status": {
+      "live": "Live",
+      "planned": "Coming in P3"
+    },
+    "channels": {
+      "aria": "Access channels"
+    },
+    "rest": {
+      "title": "REST API v1",
+      "point1": "Anonymous read-only: search / list / detail / versions / usage guides / categories / tags / IPs / users / stats",
+      "point2": "OpenAPI 3.1 contract: GET /api/v1/openapi.json (curl-friendly)",
+      "point3": "Anonymous GETs carry s-maxage=300 caching and ETag revalidation (304)"
+    },
+    "mcp": {
+      "title": "MCP Server",
+      "point1": "Streamable HTTP endpoint: POST /api/v1/mcp (same origin as this site)",
+      "point2": "Anonymous read-only tools: omnicraft_search / omnicraft_get_content / omnicraft_get_usage_guide / omnicraft_list_categories; a PAT adds omnicraft_request_download (download scope) and omnicraft_suggest_publish_metadata / omnicraft_create_content / omnicraft_request_upload_url (upload scope)"
+    },
+    "skill": {
+      "title": "Agent Skill",
+      "point1": "One-line install: curl -fsSL https://raw.githubusercontent.com/Leewwp/OmniCraft/main/agent-access/skill/install.sh | bash",
+      "point2": "Teaches your agent to search, read usage guides, install step by step, and — with a PAT — download and publish in one sentence (mandatory confirmation gate: the full draft summary must be approved before any write)"
+    },
+    "verify": {
+      "title": "Verification question",
+      "subtitle": "Smoke-test your setup with this question — two curl lines should return sheet-music search hits plus the usage guide:",
+      "keyword": "sheet music"
+    },
+    "limits": {
+      "title": "Rate limits",
+      "point1": "Per-IP rate limits: search 30 req/min, regular reads 300 req/min",
+      "point2": "The anonymous surface is read-only; downloads and uploads need a personal access token (PAT, account settings → Agent tokens, download / upload scopes)",
+      "point3": "All responses are JSON; pagination defaults to page_size=20, search caps at 50"
+    },
+    "versioning": {
+      "title": "Versioning promise",
+      "body": "No breaking changes within v1: fields are only added, never repurposed. Breaking changes ship as v2 with a deprecation period — migration notes will be announced here and in the OpenAPI document."
+    },
+    "boundary": {
+      "title": "Capability boundary",
+      "body": "The anonymous surface only returns published, public content (drafts / private / in-review / banned content never appears in any anonymous response); usage-guide safety notes always come from the platform template."
+    }
   }
 }

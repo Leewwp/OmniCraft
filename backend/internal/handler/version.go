@@ -43,9 +43,14 @@ func (h *VersionHandler) ListVersions(c *gin.Context) {
 		pageSize = 20
 	}
 
-	// proposed versions are author-only in the list (FIX-21①).
-	versions, total, err := h.versionSvc.ListVersionsPagedForViewer(contentID, page, pageSize, middleware.GetUserID(c))
+	// proposed versions are author-only in the list (FIX-21①); the whole
+	// listing is content-visibility gated (#446).
+	versions, total, err := h.versionSvc.ListVersionsPagedForViewer(contentID, page, pageSize, middleware.GetUserID(c), middleware.IsAdmin(c))
 	if err != nil {
+		if err == service.ErrContentNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}

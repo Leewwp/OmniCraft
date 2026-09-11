@@ -1,0 +1,19 @@
+{
+  "content_type": "prompt",
+  "locale": "en",
+  "requirements": [
+    "Any LLM assistant that accepts text input (chat or agent)",
+    "Prepare the information needed for the prompt's variable placeholders"
+  ],
+  "steps": [
+    "Copy the prompt text in full",
+    "Replace the placeholders with your concrete input",
+    "Send it to the model; follow the prompt's iteration hints if the first output misses",
+    "Save useful variations as your own variants"
+  ],
+  "notes": "Prompt effectiveness varies across model versions; compare on a fixed model.",
+  "safety": [
+    "Never paste personal or confidential data into the prompt",
+    "Fact-check model output before adopting it"
+  ]
+}

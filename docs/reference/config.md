@@ -45,6 +45,7 @@ model-routed conversational lane (SP-15 A2): a zero-too... |
 | `agent.rate_limit_per_minute` | `int` | RateLimitPerMinute |
 | `agent.upload_assist_max_file_mb` | `int` | UploadAssistMaxFileMB |
 | `agent.web_agent_enabled` | `bool` | WebAgentEnabled |
+| `agent_access.max_tokens_per_user` | `int` | MaxTokensPerUser |
 | `archive_scan.clamd_address` | `string` | ClamdAddress |
 | `archive_scan.max_entry_uncompressed_mb` | `int` | MaxEntryUncompressedMB |
 | `archive_scan.max_recursion_depth` | `int` | MaxRecursionDepth |
@@ -185,8 +186,11 @@ pg_jieba path, default) or "opensearch" (optional ac... |
 | `rate_limit.max_query_chars` | `int` | MaxQueryChars |
 | `rate_limit.max_search_limit` | `int` | MaxSearchLimit |
 | `rate_limit.max_search_page` | `int` | MaxSearchPage |
+| `rate_limit.mcp_per_minute` | `int` | MCPPerMinute |
 | `rate_limit.normal_per_minute` | `int` | NormalPerMinute |
 | `rate_limit.normal_window_sec` | `int` | NormalWindowSec |
+| `rate_limit.pat_per_minute` | `int` | PATPerMinute |
+| `rate_limit.pat_window_sec` | `int` | PATWindowSec |
 | `rate_limit.search_per_minute` | `int` | SearchPerMinute |
 | `rate_limit.upload_per_hour` | `int` | UploadPerHour |
 | `rate_limit.upload_window_sec` | `int` | UploadWindowSec |

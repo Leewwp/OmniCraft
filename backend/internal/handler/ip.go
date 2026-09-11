@@ -142,6 +142,10 @@ func (h *IPHandler) GetIP(c *gin.Context) {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
+	if !ipVisibleToViewer(c, ip) {
+		c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
+		return
+	}
 
 	// GetIP may be served from the Redis detail cache; the signature is
 	// re-issued on every response so it is never frozen into cached rows.
@@ -149,6 +153,20 @@ func (h *IPHandler) GetIP(c *gin.Context) {
 	// Hub stats are computed live (never cached inside the IP detail cache)
 	// so follow/discussion counts stay fresh (#290).
 	c.JSON(http.StatusOK, gin.H{"ip": ip, "stats": h.hubStats(id)})
+}
+
+// ipVisibleToViewer gates the IP detail surface (#446 / SP-16 P0): only
+// approved IPs are public; creators keep access to their own
+// pending/rejected hubs (studio flows), admins keep full access.
+func ipVisibleToViewer(c *gin.Context, ip *model.IP) bool {
+	if ip == nil || ip.Status == "approved" {
+		return true
+	}
+	if middleware.IsAdmin(c) {
+		return true
+	}
+	viewer := middleware.GetUserID(c)
+	return ip.CreatorID != nil && *ip.CreatorID == viewer
 }
 
 // ipHubStats powers the IP detail header: follower / discussion / work counts.
@@ -185,6 +203,20 @@ func (h *IPHandler) GetIPContents(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid ip id"})
+		return
+	}
+
+	ip, err := h.ipSvc.GetIP(id)
+	if err != nil {
+		if err == service.ErrIPNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
+			return
+		}
+		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
+		return
+	}
+	if !ipVisibleToViewer(c, ip) {
+		c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
 		return
 	}
 

@@ -168,8 +168,8 @@ func (s *SocialService) EditComment(ctx context.Context, commentID int64, caller
 	return c, nil
 }
 
-func (s *SocialService) ListComments(contentID int64, parentID *int64, page, pageSize int) ([]model.Comment, int64, error) {
-	return s.socialRepo.ListComments(contentID, parentID, page, pageSize)
+func (s *SocialService) ListComments(contentID int64, parentID *int64, page, pageSize int, viewerID int64) ([]model.Comment, int64, error) {
+	return s.socialRepo.ListComments(contentID, parentID, page, pageSize, viewerID)
 }
 
 type PostDiscussionInput struct {
@@ -209,8 +209,8 @@ func (s *SocialService) GetDiscussion(id int64) (*model.Discussion, error) {
 	return d, nil
 }
 
-func (s *SocialService) ListDiscussions(ipID *int64, contentID *int64, page, pageSize int) ([]model.Discussion, int64, error) {
-	return s.socialRepo.ListDiscussions(ipID, contentID, page, pageSize)
+func (s *SocialService) ListDiscussions(ipID *int64, contentID *int64, page, pageSize int, viewerID int64) ([]model.Discussion, int64, error) {
+	return s.socialRepo.ListDiscussions(ipID, contentID, page, pageSize, viewerID)
 }
 
 type ReactInput struct {

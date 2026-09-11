@@ -170,6 +170,18 @@ func (h *AgentHandler) UsageGuide(c *gin.Context) {
 		response.NotFound(c, "content not found")
 		return
 	}
+	// SP-16 #447: structured-first reads are a DB render, not an LLM call —
+	// they skip quota; draft=true (studio LLM suggestion) forces generation.
+	forceLLM := c.Query("draft") == "true"
+	if !forceLLM && h.agentSvc.HasStructuredGuide(c.Request.Context(), id) {
+		result, err := h.agentSvc.UsageGuide(c.Request.Context(), viewerID, id, false)
+		if err != nil {
+			response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
+			return
+		}
+		c.JSON(http.StatusOK, result)
+		return
+	}
 	if !h.reserveGenerationQuota(c) {
 		return
 	}
@@ -177,7 +189,7 @@ func (h *AgentHandler) UsageGuide(c *gin.Context) {
 	if c.Query("stream") == "true" {
 		writer := &agentSSEWriter{c: c}
 		writer.begin()
-		err := h.agentSvc.UsageGuideStream(c.Request.Context(), viewerID, id, func(delta string, done bool) error {
+		err := h.agentSvc.UsageGuideStream(c.Request.Context(), viewerID, id, forceLLM, func(delta string, done bool) error {
 			if done {
 				return writer.emit(service.AgentStreamEvent{Type: service.AgentEventDone})
 			}
@@ -196,7 +208,7 @@ func (h *AgentHandler) UsageGuide(c *gin.Context) {
 		return
 	}
 
-	result, err := h.agentSvc.UsageGuide(c.Request.Context(), viewerID, id)
+	result, err := h.agentSvc.UsageGuide(c.Request.Context(), viewerID, id, forceLLM)
 	if err != nil {
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "AGENT_ERROR", err)
 		return
