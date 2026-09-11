@@ -52,11 +52,11 @@ jobs:
           name: sbom-evidence
           path: artifacts/sbom
       - name: Attest release manifest
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:
           subject-path: artifacts/sbom/release-manifest.json
       - name: Attest SBOM set
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:
           subject-path: artifacts/sbom/sboms/*.cdx.json
       - name: Verify attestation identity
