@@ -28,6 +28,6 @@
   "scan_triggers": {
     "pull_request": true,
     "push_main": true,
-    "schedule": "0 6 * * *"
+    "schedule": "0 6 * * 1"
   }
 }
