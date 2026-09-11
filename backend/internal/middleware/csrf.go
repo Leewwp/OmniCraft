@@ -24,12 +24,15 @@ func CSRF(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		// Machine channel (SP-16 #450): a request bearing a PAT carries its
-		// own explicit credential and no ambient cookies, so CSRF does not
-		// apply — neither the double-submit check nor cookie issuance. The
-		// web frontend always authenticates with JWTs, never PATs, so this
-		// branch cannot become a browser-side CSRF bypass.
-		if requestCarriesPAT(c) {
+		// Machine channels carry their own explicit credentials (or none at
+		// all) and never ambient cookies, so CSRF does not apply — neither
+		// the double-submit check nor cookie issuance.
+		// - PAT requests (#450): the web frontend always authenticates with
+		//   JWTs, never PATs, so this cannot become a browser-side bypass.
+		// - The MCP endpoint (#449): anonymous Streamable-HTTP JSON-RPC,
+		//   per-IP rate-limited; authenticated MCP tools (#451) use the
+		//   Authorization header, which a cross-site form cannot set.
+		if requestCarriesPAT(c) || isMCPProtocolPath(c.Request.URL.Path) {
 			c.Next()
 			return
 		}
@@ -140,4 +143,8 @@ func hmacEqual(a, b string) bool {
 		diff |= a[i] ^ b[i]
 	}
 	return diff == 0
+}
+
+func isMCPProtocolPath(path string) bool {
+	return path == "/api/v1/mcp"
 }

@@ -361,6 +361,7 @@ backend/
 | `DELETE` | `/api/v1/contents/:id` | contentHandler.DeleteContent |
 | `DELETE` | `/api/v1/dashboard/contributors/:userId/block` | prHandler.UnblockContributor |
 | `DELETE` | `/api/v1/ips/:id/follow` | followHandler.UnfollowIP |
+| `DELETE` | `/api/v1/mcp` | mcpProxy |
 | `DELETE` | `/api/v1/messages/:id` | msgHandler.DeleteMessage |
 | `DELETE` | `/api/v1/messages/conversations/:id` | msgHandler.LeaveConversation |
 | `DELETE` | `/api/v1/series/:id` | seriesHandler.DeleteSeries |
@@ -423,6 +424,7 @@ backend/
 | `GET` | `/api/v1/judge/cases/:id/verdict` | judgeHandler.GetVerdictDetail |
 | `GET` | `/api/v1/judge/exam/:category` | judgeHandler.GetExam |
 | `GET` | `/api/v1/judge/queue` | judgeHandler.GetQueue |
+| `GET` | `/api/v1/mcp` | mcpProxy |
 | `GET` | `/api/v1/messages` | msgHandler.ListConversations |
 | `GET` | `/api/v1/messages/:id` | msgHandler.ListMessages |
 | `GET` | `/api/v1/notifications` | notifHandler.ListNotifications |
@@ -534,6 +536,7 @@ backend/
 | `POST` | `/api/v1/judge/exam/submit` | judgeHandler.SubmitExam |
 | `POST` | `/api/v1/judge/reasons/:id/vote` | judgeHandler.VoteReason |
 | `POST` | `/api/v1/judge/vote` | judgeHandler.SubmitVote |
+| `POST` | `/api/v1/mcp` | mcpProxy |
 | `POST` | `/api/v1/messages` | msgHandler.SendMessage |
 | `POST` | `/api/v1/notifications/read-all` | notifHandler.MarkAllRead |
 | `POST` | `/api/v1/pr` | prHandler.SubmitPR |

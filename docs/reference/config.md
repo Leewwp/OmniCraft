@@ -186,6 +186,7 @@ pg_jieba path, default) or "opensearch" (optional ac... |
 | `rate_limit.max_query_chars` | `int` | MaxQueryChars |
 | `rate_limit.max_search_limit` | `int` | MaxSearchLimit |
 | `rate_limit.max_search_page` | `int` | MaxSearchPage |
+| `rate_limit.mcp_per_minute` | `int` | MCPPerMinute |
 | `rate_limit.normal_per_minute` | `int` | NormalPerMinute |
 | `rate_limit.normal_window_sec` | `int` | NormalWindowSec |
 | `rate_limit.pat_per_minute` | `int` | PATPerMinute |

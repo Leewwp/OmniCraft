@@ -39,6 +39,16 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	// contract (s-maxage + body-hash ETag revalidation).
 	cacheable := middleware.CacheableAnonymousGET(300)
 
+	// SP-16 #449: the MCP endpoint joins the per-IP rate-limit matrix with
+	// its own bucket (mcp_per_minute from config, never hardcoded).
+	mcpLimiter := middleware.RedisFixedWindowLimit(
+		rdb,
+		"ratelimit:mcp",
+		cfg.RateLimit.MCPPerMinute,
+		time.Minute,
+		false,
+	)
+
 	publishGuard := middleware.InteractionRequired(cfg, db, rdb, publishingInteractionPolicy())
 	editDeleteGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
 	commentsGuard := middleware.InteractionRequired(cfg, db, rdb, standardVerifiedInteractionPolicy())
@@ -58,6 +68,14 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	v1.GET("/config/public", publicConfigHandler.GetPublicConfig)
 	// SP-16 #448: the anonymous v1 contract is served at a stable URL.
 	v1.GET("/openapi.json", optAuth, handler.NewOpenAPIV1Handler().Serve)
+
+	// SP-16 #449: MCP Streamable HTTP endpoint (protocol POST/GET/DELETE on
+	// one URL). optAuth keeps the PAT channel available for #451's
+	// authenticated tools without touching route registration again.
+	mcpProxy := gin.WrapH(ctr.MCPHandler)
+	v1.POST("/mcp", optAuth, mcpLimiter, mcpProxy)
+	v1.GET("/mcp", optAuth, mcpLimiter, mcpProxy)
+	v1.DELETE("/mcp", optAuth, mcpLimiter, mcpProxy)
 	captchaHandler := handler.NewCaptchaHandler(ctr.CaptchaProvider, ctr.CaptchaTickets)
 	v1.POST("/captcha/verify", middleware.CredentialRateLimit(rdb, &cfg.RateLimit), captchaHandler.Verify)
 
