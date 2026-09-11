@@ -2668,13 +2668,13 @@
     },
     "mcp": {
       "title": "MCP Server",
-      "point1": "Streamable HTTP endpoint /api/v1/mcp (address filled in once P3 lands)",
-      "point2": "Four anonymous read-only tools: search / detail / usage guide / categories"
+      "point1": "Streamable HTTP endpoint: POST /api/v1/mcp (same origin as this site)",
+      "point2": "Four anonymous read-only tools: omnicraft_search / omnicraft_get_content / omnicraft_get_usage_guide / omnicraft_list_categories"
     },
     "skill": {
       "title": "Agent Skill",
-      "point1": "SKILL.md + one-line installer (raw.githubusercontent URL filled in once P3 lands)",
-      "point2": "Teach your Agent to search content, read guides and follow setup steps"
+      "point1": "One-line install: curl -fsSL https://raw.githubusercontent.com/Leewwp/OmniCraft/main/agent-access/skill/install.sh | bash",
+      "point2": "Teach your Agent to search, read usage guides and follow setup steps (with a mandatory confirmation gate)"
     },
     "verify": {
       "title": "Verification question",

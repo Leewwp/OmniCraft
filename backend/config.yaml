@@ -352,6 +352,7 @@ rate_limit:
   upload_per_hour: 200
   credential_per_minute: 5
   search_per_minute: 30
+  mcp_per_minute: 120
   agent_window_sec: 86400
   agent_minute_window_sec: 60
   # SP-16 #450（spec D2）：PAT 档在匿名 IP 窗口之上叠加 per-token 固定窗口。

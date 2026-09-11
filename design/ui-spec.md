@@ -430,7 +430,7 @@ interface AgentFollowUpChipsProps {
 - 频率/版本/边界三卡：`md:grid-cols-2` 两卡 + 全宽一卡；16px 图标 + 14px semibold 标题 + 12px muted 正文。
 
 **状态变体**
-- 三通道中 REST 为 live 态（primary 药丸），MCP/Skill 为 planned 态（muted 药丸）——P3 上线后回填地址并翻态。
+- 三通道均为 live 态（primary 药丸）——#449（P3）落地后 MCP/Skill 卡已回填地址与安装命令并翻态。
 
 **交互细节**
 - 卡片纯展示无交互锚点（安装动作由用户复制 curl 完成）；外部链接仅 openapi.json 地址文本。

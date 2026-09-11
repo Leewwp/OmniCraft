@@ -575,6 +575,7 @@ type RateLimitConfig struct {
 	SearchPerMinute      int   `mapstructure:"search_per_minute" json:"search_per_minute"`
 	PATPerMinute         int   `mapstructure:"pat_per_minute" json:"pat_per_minute"`
 	PATWindowSec         int   `mapstructure:"pat_window_sec" json:"pat_window_sec"`
+	MCPPerMinute         int   `mapstructure:"mcp_per_minute" json:"mcp_per_minute"`
 	MaxJSONBodyBytes     int64 `mapstructure:"max_json_body_bytes" json:"max_json_body_bytes"`
 	MaxQueryChars        int   `mapstructure:"max_query_chars" json:"max_query_chars"`
 	MaxSearchLimit       int   `mapstructure:"max_search_limit" json:"max_search_limit"`
