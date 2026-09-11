@@ -32,6 +32,22 @@ expect_exit() {
   echo "OK: $label"
 }
 
+# Verdict-fixture variant: runs only the verdict (-VerdictOnly) over the
+# reports already present in the given report dir, so crafted scanner reports
+# can be judged without running the real scanners.
+expect_verdict() {
+  local expected="$1" label="$2" root="$3" gates="$4" report_dir="$5"
+  local actual=0
+  bash "$VERIFY" -RepoRoot "$root" -Gates "$gates" -ReportDir "$report_dir" -VerdictOnly \
+    >"$TEMP_ROOT/$label.out" 2>"$TEMP_ROOT/$label.err" || actual=$?
+  if [ "$actual" -ne "$expected" ]; then
+    echo "FAIL: $label: expected exit $expected, got $actual" >&2
+    cat "$TEMP_ROOT/$label.err" >&2
+    exit 1
+  fi
+  echo "OK: $label"
+}
+
 # ------------------------------------------------------------- real policy
 expect_exit 0 "repository policy gate passes" "$REPO_ROOT" "policy"
 
@@ -376,5 +392,82 @@ EOF
     && npm install --package-lock-only --registry=https://registry.npmjs.org --ignore-scripts >/dev/null 2>&1
 )
 expect_exit 0 "clean lockfiles pass the npm audit gate (discrimination)" "$NPM_ROOT" "npm"
+
+# ------------------------------------------------- verdict parsing fixtures
+# govulncheck -format json is a multi-document stream (config/progress/osv/
+# finding documents); the historical single-object json.load raised "Extra
+# data", the verdict swallowed it and always reported zero go findings
+# (audit F-05 finding 1). A stream containing a finding must be judged.
+VERDICT_ROOT="$TEMP_ROOT/verdict"
+mkdir -p "$VERDICT_ROOT/security"
+cp "$SECURITY_DIR"/*.json "$VERDICT_ROOT/security/"
+GVC_REPORT="$TEMP_ROOT/report-govulncheck-stream"
+mkdir -p "$GVC_REPORT"
+python3 - "$GVC_REPORT/govulncheck.json" <<'PY'
+import json, sys
+docs = [
+    {"config": {"modules": ["omnicraft/backend"]}},
+    {"progress": {"message": "Scanning your code and 50 packages..."}},
+    {"osv": {"id": "GO-9999-0001", "summary": "fixture osv"}},
+    {"osv": {"id": "GO-9999-0002", "summary": "fixture osv (module-level only)"}},
+    {"finding": {"osv": "GO-9999-0001", "fixed_version": "v0.3.8",
+                 "trace": [{"module": "golang.org/x/text", "version": "v0.3.0"}]}},
+]
+with open(sys.argv[1], "w", encoding="utf-8") as f:
+    for d in docs:
+        f.write(json.dumps(d) + "\n")
+PY
+expect_verdict 1 "verdict reports findings from streaming govulncheck json" \
+  "$VERDICT_ROOT" "go" "$GVC_REPORT"
+python3 - "$GVC_REPORT/security-verdict.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+go = [f for f in d["findings"] if f["source"] == "govulncheck"]
+assert any(f["id"] == "GO-9999-0001" and f["component"] == "golang.org/x/text"
+           for f in go), go
+assert not any(f["id"] == "scanner-failure:govulncheck" for f in d["findings"])
+print("verdict stream finding asserted")
+PY
+
+# A missing trivy-fs report must FAIL the verdict (scanner failure is not
+# zero findings; audit F-05 finding 2), and a valid empty report must pass.
+TRIVY_MISSING="$TEMP_ROOT/report-trivy-missing"
+mkdir -p "$TRIVY_MISSING"
+expect_verdict 1 "verdict fails when trivy-fs report is missing" \
+  "$VERDICT_ROOT" "trivy-fs" "$TRIVY_MISSING"
+python3 - "$TRIVY_MISSING/security-verdict.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+assert any(f["id"] == "scanner-failure:trivy-fs" and f["severity"] == "critical"
+           for f in d["blocked_findings"]), d["blocked_findings"]
+print("trivy scanner-failure asserted")
+PY
+TRIVY_CLEAN="$TEMP_ROOT/report-trivy-clean"
+mkdir -p "$TRIVY_CLEAN"
+printf '{"SchemaVersion": 2, "Results": []}' > "$TRIVY_CLEAN/trivy-fs.json"
+expect_verdict 0 "verdict passes on a valid empty trivy-fs report" \
+  "$VERDICT_ROOT" "trivy-fs" "$TRIVY_CLEAN"
+
+# A missing govulncheck report must equally fail the verdict (same scanner-
+# failure class, covering the go gate's historical zero-findings swallow).
+GO_MISSING="$TEMP_ROOT/report-govulncheck-missing"
+mkdir -p "$GO_MISSING"
+expect_verdict 1 "verdict fails when govulncheck report is missing" \
+  "$VERDICT_ROOT" "go" "$GO_MISSING"
+
+# ------------------------------------------- workflow trigger drift fixture
+# scan-policy scan_triggers must match security.yml's actual `on:` block.
+# Removing the pull_request trigger from a copy of the real workflow while
+# the policy still declares it must fail the policy gate.
+DRIFT_ROOT="$TEMP_ROOT/drift"
+mkdir -p "$DRIFT_ROOT/security" "$DRIFT_ROOT/.github/workflows"
+cp "$SECURITY_DIR"/*.json "$DRIFT_ROOT/security/"
+sed 's/^  pull_request:$//' "$REPO_ROOT/.github/workflows/security.yml" \
+  > "$DRIFT_ROOT/.github/workflows/security.yml"
+expect_exit 1 "policy-rejects-workflow-trigger-drift" "$DRIFT_ROOT" "policy"
+grep -q "scan_triggers.pull_request" "$TEMP_ROOT/policy-rejects-workflow-trigger-drift.err" || {
+  echo "FAIL: trigger drift must be cited in the policy errors" >&2
+  exit 1
+}
 
 echo "OK: verify-security contract tests passed"
