@@ -377,4 +377,47 @@ EOF
 )
 expect_exit 0 "clean lockfiles pass the npm audit gate (discrimination)" "$NPM_ROOT" "npm"
 
+# ------------------------------------------------- npm audit scope fixtures
+# scan-policy npm_audit_scope=production audits only the runtime dependency
+# tree (--omit=dev): a dev-only vulnerable lockfile must pass the gate (the
+# dev-tree risk is characterized in npm_dev_risk_notes, not gated), while the
+# same lockfile under scope=all must fail. Proves the omit flag is actually
+# applied rather than ignored.
+cat > "$NPM_ROOT/frontend/package.json" <<'EOF'
+{
+  "name": "fixture-dev-only",
+  "version": "1.0.0",
+  "devDependencies": {
+    "lodash": "4.17.15"
+  }
+}
+EOF
+(
+  cd "$NPM_ROOT/frontend" \
+    && npm install --package-lock-only --registry=https://registry.npmjs.org --ignore-scripts >/dev/null 2>&1
+)
+expect_exit 0 "dev-only vulnerable lockfile passes npm gate under production scope" "$NPM_ROOT" "npm"
+python3 - "$NPM_ROOT/security/scan-policy.json" <<'PY'
+import json, sys
+path = sys.argv[1]
+d = json.load(open(path, encoding="utf-8"))
+d["npm_audit_scope"] = "all"
+json.dump(d, open(path, "w"), indent=2)
+PY
+expect_exit 1 "dev-only vulnerable lockfile fails npm gate under all scope" "$NPM_ROOT" "npm"
+
+# Invalid scope value must be rejected by the policy gate (drift protection:
+# the policy key the npm gate reads cannot silently rot).
+SCOPE_ROOT="$TEMP_ROOT/scope"
+mkdir -p "$SCOPE_ROOT/security"
+cp "$SECURITY_DIR"/*.json "$SCOPE_ROOT/security/"
+python3 - "$SCOPE_ROOT/security/scan-policy.json" <<'PY'
+import json, sys
+path = sys.argv[1]
+d = json.load(open(path, encoding="utf-8"))
+d["npm_audit_scope"] = "everything"
+json.dump(d, open(path, "w"), indent=2)
+PY
+expect_exit 1 "policy with invalid npm_audit_scope rejected" "$SCOPE_ROOT" "policy"
+
 echo "OK: verify-security contract tests passed"
