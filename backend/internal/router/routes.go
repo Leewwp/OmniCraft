@@ -85,6 +85,13 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		users.DELETE("/me", authReq, userHandler.DeleteAccount)
 		users.PATCH("/me/password", authReq, userHandler.ChangePassword)
 		users.PATCH("/me/support-info", authReq, userHandler.UpdateSupportInfo)
+
+		// SP-16 #450: PAT management for the settings page. JWT-only by
+		// design — a leaked PAT must never mint more PATs.
+		agentTokenHandler := handler.NewAgentAccessTokenHandler(ctr.AgentTokenService)
+		users.GET("/me/agent-tokens", authReq, middleware.RequireJWTChannel(), agentTokenHandler.List)
+		users.POST("/me/agent-tokens", authReq, middleware.RequireJWTChannel(), agentTokenHandler.Create)
+		users.DELETE("/me/agent-tokens/:id", authReq, middleware.RequireJWTChannel(), agentTokenHandler.Revoke)
 	}
 
 	ipHandler := handler.NewIPHandlerWithCache(db, rdb, cfg)
@@ -118,8 +125,11 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 	contents := v1.Group("/contents")
 	{
 		contents.GET("", optAuth, cacheable, contentHandler.ListContents)
-		contents.POST("", authReq, publishGuard, middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.CreateContent)
-		contents.POST("/oss-token", authReq, middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.GenerateOSSToken)
+		// SP-16 #450: PAT scope gates on the machine channel. JWT sessions
+		// pass through untouched; a download-only PAT cannot create content
+		// or mint upload URLs (spec D2/D5).
+		contents.POST("", authReq, middleware.RequireScopeForPAT("upload"), publishGuard, middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.CreateContent)
+		contents.POST("/oss-token", authReq, middleware.RequireScopeForPAT("upload"), middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.GenerateOSSToken)
 		contents.GET("/:id/related-fanworks", optAuth, contentHandler.ListRelatedFanworks)
 		contents.GET("/:id", optAuth, cacheable, contentHandler.GetContent)
 		contents.PATCH("/:id", authReq, editDeleteGuard, contentHandler.UpdateContent)
@@ -129,7 +139,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		contents.GET("/:id/guide", optAuth, usageGuideHandler.GetGuide)
 		contents.GET("/:id/guide/specifics", authReq, editDeleteGuard, usageGuideHandler.GetAuthorGuide)
 		contents.PUT("/:id/guide", authReq, editDeleteGuard, usageGuideHandler.SaveGuide)
-		contents.GET("/:id/download", authReq, downloadsGuard, contentHandler.DownloadContent)
+		// Download is metered + malware-gated, so it needs the PAT download
+		// scope (spec D1/D3); JWT users keep today's behavior.
+		contents.GET("/:id/download", authReq, middleware.RequireScopeForPAT("download"), downloadsGuard, contentHandler.DownloadContent)
 	}
 
 	versionHandler := handler.NewVersionHandler(db)

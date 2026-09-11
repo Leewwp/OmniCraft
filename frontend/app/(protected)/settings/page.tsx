@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { getUserFacingErrorKey } from "@/lib/user-facing-error";
 import { silentError } from "@/lib/error-handler";
 import ReputationDetail from "@/components/settings/ReputationDetail";
+import AgentTokensCard from "@/components/settings/AgentTokensCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -263,6 +264,9 @@ export default function SettingsPage() {
           </p>
         )}
       </div>
+
+      {/* SP-16 #450：外部 Agent 接入令牌（PAT）管理。 */}
+      <AgentTokensCard />
 
       {!isVerified && (
         <VerificationReminderCard email={user?.email || ""} />

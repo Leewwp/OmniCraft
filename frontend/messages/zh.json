@@ -1300,6 +1300,43 @@
         "malicious_tag_report": "恶意标签举报",
         "admin_adjust": "管理员调整"
       }
+    },
+    "agentTokens": {
+      "title": "Agent 接入令牌",
+      "description": "为你的外部 Agent（Claude Code、Codex 等）签发访问令牌；泄露可随时吊销止血。",
+      "create": "创建令牌",
+      "createConfirm": "签发",
+      "nameLabel": "令牌名称",
+      "scope": {
+        "download": "下载（download）",
+        "upload": "上传（upload）"
+      },
+      "scopeHelp": "下载 scope 允许获取内容下载链接；上传 scope 允许通过 Agent 发布内容（走完整审核流）。",
+      "empty": "还没有令牌。创建一枚，配合 /agent 页面的接入说明交给你的 Agent 使用。",
+      "lastUsed": "最近使用：{time}",
+      "never": "从未使用",
+      "revoke": "吊销",
+      "revokeConfirm": {
+        "title": "吊销这枚令牌？",
+        "description": "「{name}」（{prefix}…）吊销后立即失效，使用它的 Agent 会马上收到 401。此操作不可撤销。"
+      },
+      "issued": {
+        "title": "令牌已创建——请立即复制保存",
+        "copy": "复制",
+        "copied": "已复制",
+        "onceWarning": "这是该令牌明文的唯一一次展示，关闭后无法再次查看。",
+        "done": "我已保存，关闭"
+      },
+      "error": {
+        "invalid": "请填写令牌名称并至少勾选一个 scope。",
+        "create": "创建令牌失败，请稍后重试。"
+      },
+      "toast": {
+        "loadFailed": "令牌列表加载失败",
+        "copyFailed": "复制失败，请手动选择复制",
+        "revoked": "令牌已吊销",
+        "revokeFailed": "吊销失败，请稍后重试"
+      }
     }
   },
   "tagGroups": {

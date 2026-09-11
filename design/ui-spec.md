@@ -440,6 +440,37 @@ interface AgentFollowUpChipsProps {
 - 移动（≤700px）：三通道卡纵向堆叠；代码块横向滚动。
 - 桌面：max-w-4xl 居中容器。
 
+## Component: AgentTokensCard 令牌管理卡片（SP-16 #450 新增）
+
+**覆盖文件**: `components/settings/AgentTokensCard.tsx`（挂载于 `/settings` 分组卡区）
+
+**Key Constraints**
+- 遵守全局 Indigo 三档层级规则；本节未声明 elevation，表面保持 shadow-none、1px border，颜色引用预定义 token。
+- **令牌明文只在创建成功弹层展示一次**（复制按钮 + 关闭即永不可再见）；列表只显示 token_prefix、名称、scopes、最近使用时间，任何状态不得出现完整明文。
+- 吊销为破坏性操作，必须 `ConfirmModal` 二次确认；确认文案携带被吊销令牌的名称与前缀。
+
+**视觉契约**
+- 分组卡与设置页其他组一致：`rounded-md border border-border bg-card p-4 space-y-3`，标题 14px semibold + 说明 12px muted。
+- 令牌行使用紧凑列表：名称 14px medium、`oc_pat_xxxxx` 前缀等宽字体 12px、scopes 用 TagBadge 药丸（download/upload 各一枚）、最近使用 12px muted（空值显示 never 文案）；行右侧吊销按钮 `size=sm variant=outline`（destructive 文案色）。
+- 创建入口为卡片头部 `size=sm` 主按钮；创建表单为卡片内联展开区（`bg-canvas-subtle` 1px border 容器）：名称 Input（36px 档，maxLength 64）+ download/upload 两枚 Checkbox（显式 label，默认勾选 download）。
+- 明文展示弹层：等宽字体全宽文本块 + `bg-canvas-subtle` 底 + 复制按钮；下方 12px destructive 警示文案（「关闭后无法再次查看」）。
+
+**状态变体**
+- loading: 行区 Skeleton，高度镜像单行令牌。
+- empty: 组内 EmptyState（无 CTA），提示前往 `/agent` 了解接入方式。
+- creating/saving: 按钮内嵌 Spinner + disabled。
+- error: 行内红字（i18n `settings.agentTokens.error.*`）+ Toast。
+- limit-reached（409 AGENT_TOKEN_LIMIT_REACHED）: 创建表单内行内错误，提示先吊销。
+
+**交互与 i18n**
+- 全部文案走 `settings.agentTokens.*`（zh/en 双语齐全，禁硬编码）。
+- 键盘：创建/复制/吊销按钮原生可达；Checkbox 显式 label。
+- 数据：`GET/POST /api/v1/users/me/agent-tokens`、`DELETE /api/v1/users/me/agent-tokens/:id`；创建成功后刷新列表并弹明文层。
+
+**Playwright 截图检查点**
+- `screenshots/sp16-settings-agent-tokens-zh.png`：设置页令牌管理卡（含至少一枚令牌行，zh）。
+- `screenshots/sp16-settings-agent-tokens-create-en.png`：创建弹层 + 明文一次展示（en，截图前须对明文做遮挡或使用已吊销令牌）。
+
 ## Page: / 首页
 
 **Key Constraints**

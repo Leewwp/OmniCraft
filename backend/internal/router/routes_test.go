@@ -35,7 +35,7 @@ func TestRouterSourcePreservesRepresentativeRouteContracts(t *testing.T) {
 	source := readRoutesSource(t)
 	contracts := []string{
 		`v1.GET("/config/public", publicConfigHandler.GetPublicConfig)`,
-		`contents.POST("", authReq, publishGuard, middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.CreateContent)`,
+		`contents.POST("", authReq, middleware.RequireScopeForPAT("upload"), publishGuard, middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.CreateContent)`,
 		`admin := v1.Group("/admin", authReq, middleware.AdminRequired())`,
 		`v1.POST("/deploy-grants", func(c *gin.Context)`,
 		`c.JSON(http.StatusServiceUnavailable, gin.H{"code": "FEATURE_DISABLED", "message": "desktop deploy is not enabled"})`,

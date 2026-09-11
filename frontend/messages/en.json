@@ -1300,6 +1300,43 @@
         "malicious_tag_report": "Malicious tag report",
         "admin_adjust": "Admin adjustment"
       }
+    },
+    "agentTokens": {
+      "title": "Agent access tokens",
+      "description": "Issue tokens for your external agents (Claude Code, Codex, …); revoke anytime to stop a leak.",
+      "create": "Create token",
+      "createConfirm": "Issue",
+      "nameLabel": "Token name",
+      "scope": {
+        "download": "Download",
+        "upload": "Upload"
+      },
+      "scopeHelp": "The download scope allows fetching content download URLs; the upload scope allows publishing via agents (full moderation flow applies).",
+      "empty": "No tokens yet. Create one and hand it to your agent following the /agent access guide.",
+      "lastUsed": "Last used: {time}",
+      "never": "Never used",
+      "revoke": "Revoke",
+      "revokeConfirm": {
+        "title": "Revoke this token?",
+        "description": "\"{name}\" ({prefix}…) stops working immediately — agents using it will get 401s. This cannot be undone."
+      },
+      "issued": {
+        "title": "Token created — copy it now",
+        "copy": "Copy",
+        "copied": "Copied",
+        "onceWarning": "This is the only time the full token is shown; it cannot be viewed again after closing.",
+        "done": "Saved, close"
+      },
+      "error": {
+        "invalid": "Enter a name and pick at least one scope.",
+        "create": "Failed to create the token, please retry."
+      },
+      "toast": {
+        "loadFailed": "Failed to load tokens",
+        "copyFailed": "Copy failed, please select and copy manually",
+        "revoked": "Token revoked",
+        "revokeFailed": "Failed to revoke, please retry"
+      }
     }
   },
   "tagGroups": {

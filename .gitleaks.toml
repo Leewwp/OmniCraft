@@ -9,6 +9,16 @@ title = "OmniCraft gitleaks allowlist"
 [extend]
 useDefault = true
 
+# SP-16 #450: OmniCraft Agent access tokens (PAT) are bearer credentials
+# (oc_pat_ + 43 base62 chars, spec D2). Committed tree and history must never
+# carry one; tests generate tokens at runtime so this rule only fires on
+# real leaks. Exact-length regex; the docs use non-literal placeholders.
+[[rules]]
+id = "omnicraft-agent-access-token"
+description = "OmniCraft Agent access token (PAT)"
+regex = '''\boc_pat_[0-9A-Za-z]{43}\b'''
+keywords = ["oc_pat_"]
+
 [allowlist]
 # Each path below is allowlisted because matches occur only in test
 # fixtures, documentation examples or template constants. The current

@@ -368,6 +368,7 @@ backend/
 | `DELETE` | `/api/v1/social/comments/:id` | socialHandler.DeleteComment |
 | `DELETE` | `/api/v1/users/:id/follow` | followHandler.UnfollowUser |
 | `DELETE` | `/api/v1/users/me` | userHandler.DeleteAccount |
+| `DELETE` | `/api/v1/users/me/agent-tokens/:id` | agentTokenHandler.Revoke |
 | `DELETE` | `/api/v1/users/me/history` | histHandler.ClearHistory |
 | `DELETE` | `/api/v1/users/me/saved-searches/:id` | tagHandler.DeleteSavedSearch |
 | `DELETE` | `/api/v1/users/me/tag-groups/:id` | tagHandler.DeleteTagGroup |
@@ -451,6 +452,7 @@ backend/
 | `GET` | `/api/v1/users/:id/followers` | followHandler.GetFollowers |
 | `GET` | `/api/v1/users/:id/following` | followHandler.GetFollowing |
 | `GET` | `/api/v1/users/:id/reputation` | userHandler.GetReputation |
+| `GET` | `/api/v1/users/me/agent-tokens` | agentTokenHandler.List |
 | `GET` | `/api/v1/users/me/contents` | userHandler.GetMyContents |
 | `GET` | `/api/v1/users/me/contributors` | userHandler.GetMyContributors |
 | `GET` | `/api/v1/users/me/followers/stats` | followHandler.GetFollowerStats |
@@ -547,6 +549,7 @@ backend/
 | `POST` | `/api/v1/social/discussions` | socialHandler.PostDiscussion |
 | `POST` | `/api/v1/social/reactions` | socialHandler.React |
 | `POST` | `/api/v1/users/:id/follow` | followHandler.FollowUser |
+| `POST` | `/api/v1/users/me/agent-tokens` | agentTokenHandler.Create |
 | `POST` | `/api/v1/users/me/history` | histHandler.RecordView |
 | `POST` | `/api/v1/users/me/ip-visits/merge` | ipVisitHistoryHandler.MergeVisits |
 | `POST` | `/api/v1/users/me/saved-searches` | tagHandler.CreateSavedSearch |

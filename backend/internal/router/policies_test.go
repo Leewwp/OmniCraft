@@ -53,7 +53,7 @@ func TestRoutePolicyAttachmentsPreserveOperationSpecificGuards(t *testing.T) {
 	}
 
 	contracts := []string{
-		`contents.POST("", authReq, publishGuard, middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.CreateContent)`,
+		`contents.POST("", authReq, middleware.RequireScopeForPAT("upload"), publishGuard, middleware.UploadRateLimit(rdb, &cfg.RateLimit), contentHandler.CreateContent)`,
 		// T15 (F-103): IP creation enters the review queue and is public-facing
 		// free text, so it carries the same publishing guard + upload rate
 		// limit as content publishing.
