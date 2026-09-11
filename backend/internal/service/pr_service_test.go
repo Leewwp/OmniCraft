@@ -69,6 +69,18 @@ func createPRBaseSchema(t *testing.T, db *gorm.DB) {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
+		CREATE TABLE ips (
+			id BIGSERIAL PRIMARY KEY,
+			name VARCHAR(255) NOT NULL,
+			slug VARCHAR(255) UNIQUE NOT NULL,
+			description TEXT,
+			cover_url TEXT,
+			category VARCHAR(50),
+			creator_id BIGINT,
+			status VARCHAR(20) NOT NULL DEFAULT 'pending',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
 		CREATE TABLE reputation_logs (
 			id BIGSERIAL PRIMARY KEY,
 			user_id BIGINT NOT NULL,
@@ -143,13 +155,13 @@ func TestSubmitPRPersistsProposedVersion(t *testing.T) {
 	require.Equal(t, submitter, proposed.AuthorID)
 
 	// 作者视角：v1 + proposed 都可见
-	authorVersions, total, err := vSvc.ListVersionsPagedForViewer(contentID, 1, 20, author)
+	authorVersions, total, err := vSvc.ListVersionsPagedForViewer(contentID, 1, 20, author, false)
 	require.NoError(t, err)
 	require.EqualValues(t, 2, total)
 	require.True(t, containsVersionStatus(authorVersions, "proposed"))
 
 	// 读者视角：只见 active
-	readerVersions, total, err := vSvc.ListVersionsPagedForViewer(contentID, 1, 20, reader)
+	readerVersions, total, err := vSvc.ListVersionsPagedForViewer(contentID, 1, 20, reader, false)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total)
 	require.False(t, containsVersionStatus(readerVersions, "proposed"))

@@ -35,10 +35,14 @@ func (r *SocialRepository) FindComment(id int64) (*model.Comment, error) {
 	return &c, nil
 }
 
-func (r *SocialRepository) ListComments(contentID int64, parentID *int64, page, pageSize int) ([]model.Comment, int64, error) {
+func (r *SocialRepository) ListComments(contentID int64, parentID *int64, page, pageSize int, viewerID int64) ([]model.Comment, int64, error) {
 	var comments []model.Comment
 	var total int64
 	q := r.db.Model(&model.Comment{}).Where("content_item_id = ? AND status = ?", contentID, "published")
+	// #446/SP-16 P0：评论随父内容可见性走——非公开内容下的评论不透出
+	// （评论正文可能引用/讨论隐藏内容，content_item_id 亦是指向泄露）。
+	visSQL, visArgs := ContentVisibilitySQL(viewerID)
+	q = q.Where("content_item_id IN (SELECT id FROM content_items WHERE "+visSQL+")", visArgs...)
 	if parentID == nil {
 		q = q.Where("parent_id IS NULL")
 	} else {
@@ -176,7 +180,7 @@ func (r *SocialRepository) FindDiscussion(id int64) (*model.Discussion, error) {
 	return &d, nil
 }
 
-func (r *SocialRepository) ListDiscussions(ipID *int64, contentID *int64, page, pageSize int) ([]model.Discussion, int64, error) {
+func (r *SocialRepository) ListDiscussions(ipID *int64, contentID *int64, page, pageSize int, viewerID int64) ([]model.Discussion, int64, error) {
 	var discussions []model.Discussion
 	var total int64
 	q := r.db.Model(&model.Discussion{}).Where("status = ?", "published")
@@ -184,7 +188,10 @@ func (r *SocialRepository) ListDiscussions(ipID *int64, contentID *int64, page, 
 		q = q.Where("ip_id = ?", *ipID)
 	}
 	if contentID != nil {
-		q = q.Where("content_item_id = ?", *contentID)
+		// #446/SP-16 P0：按内容过滤时随内容可见性走（与 ListComments 同口径）。
+		visSQL, visArgs := ContentVisibilitySQL(viewerID)
+		q = q.Where("content_item_id = ?", *contentID).
+			Where("content_item_id IN (SELECT id FROM content_items WHERE "+visSQL+")", visArgs...)
 	}
 	q.Count(&total)
 	offset := (page - 1) * pageSize

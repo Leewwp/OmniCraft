@@ -407,18 +407,37 @@ func (h *ContentHandler) GetContent(c *gin.Context) {
 	}
 
 	if content.SourceOriginalID != nil && *content.SourceOriginalID > 0 {
-		source, srcErr := h.contentSvc.GetContent(*content.SourceOriginalID)
-		if srcErr == nil && source != nil {
-			resp["source_original"] = gin.H{"id": source.ID, "title": source.Title, "zone": "original"}
+		if id, title, ok := h.visibleSourceLite(c, *content.SourceOriginalID); ok {
+			resp["source_original"] = gin.H{"id": id, "title": title, "zone": "original"}
 		}
 	}
 	if content.SourceFanworkID != nil && *content.SourceFanworkID > 0 {
-		source, srcErr := h.contentSvc.GetContent(*content.SourceFanworkID)
-		if srcErr == nil && source != nil {
-			resp["source_fanwork"] = gin.H{"id": source.ID, "title": source.Title, "zone": "fanwork"}
+		if id, title, ok := h.visibleSourceLite(c, *content.SourceFanworkID); ok {
+			resp["source_fanwork"] = gin.H{"id": id, "title": title, "zone": "fanwork"}
 		}
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+// visibleSourceLite returns the id+title of a source reference only when the
+// source itself is visible to the caller (#446 / SP-16 P0): a published
+// fanwork must not leak the title of a later-banned or privated source.
+func (h *ContentHandler) visibleSourceLite(c *gin.Context, sourceID int64) (int64, string, bool) {
+	type sourceRow struct {
+		ID    int64
+		Title string
+	}
+	var row sourceRow
+	visSQL, visArgs := repository.ContentVisibilitySQL(middleware.GetUserID(c))
+	err := h.contentRepo.DB().Model(&model.ContentItem{}).
+		Select("id", "title").
+		Where("id = ?", sourceID).
+		Where(visSQL, visArgs...).
+		Take(&row).Error
+	if err != nil {
+		return 0, "", false
+	}
+	return row.ID, row.Title, true
 }
 
 func (h *ContentHandler) ListRelatedFanworks(c *gin.Context) {
@@ -841,8 +860,24 @@ func (h *ContentHandler) contentVisibleToViewer(content *model.ContentItem, c *g
 			return true
 		}
 	}
+	// #446/SP-16 P0：与列表口径对齐——封禁 IP 下的内容详情不再对非参与方
+	// 可读（此前仅列表过滤，直连详情仍可读）。
+	if content.IPID != nil && *content.IPID > 0 && h.contentIPBanned(*content.IPID) {
+		return false
+	}
 	return content.Status == "published" &&
 		content.IsPublic &&
 		!content.Author.IsBanned &&
 		content.Author.DeletedAt == nil
+}
+
+// contentIPBanned reports whether the IP a content row hangs under is banned.
+func (h *ContentHandler) contentIPBanned(ipID int64) bool {
+	var status string
+	if err := h.contentRepo.DB().Model(&model.IP{}).
+		Where("id = ?", ipID).
+		Pluck("status", &status).Error; err != nil {
+		return false
+	}
+	return status == "banned"
 }
