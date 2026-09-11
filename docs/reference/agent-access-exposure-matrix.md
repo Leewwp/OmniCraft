@@ -50,6 +50,7 @@
 | GET /api/v1/stats/summary | 站点统计 | 计数仅统计匿名可见内容 |
 | GET /api/v1/ips/stats/category_counts | IP 类目计数 | approved IP 类目哈希（非内容派生） |
 | GET /api/v1/categories | 类目表 | 类目静态数据 |
+| GET /api/v1/openapi.json | OpenAPI 3.1 契约文档 | 静态文档（无实数据；#448） |
 | GET /api/v1/tags/faceted | 标签分面 | 共现计数仅统计匿名可见内容 |
 | GET /api/v1/tags/search | 标签搜索 | 全局使用计数（非按内容） |
 | GET /api/v1/search/suggestions | 搜索建议 | 内联可见性谓词（status/软删/作者/IP/is_public） |

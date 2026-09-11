@@ -2610,5 +2610,53 @@
   "markdown": {
     "copyCode": "复制代码",
     "citationJump": "跳转到引用 {index}"
+  },
+  "agentAccess": {
+    "hero": {
+      "title": "把 OmniCraft 接进你的 Agent",
+      "subtitle": "搜索、浏览内容与使用指导的匿名只读接口——在你的 Claude Code / Codex / Gemini CLI 里直接用。"
+    },
+    "status": {
+      "live": "可用",
+      "planned": "P3 上线"
+    },
+    "channels": {
+      "aria": "接入通道"
+    },
+    "rest": {
+      "title": "REST API v1",
+      "point1": "匿名只读：搜索 / 列表 / 详情 / 版本 / 使用指导 / 分类 / 标签 / IP / 用户 / 统计",
+      "point2": "OpenAPI 3.1 契约：GET /api/v1/openapi.json（含 curl 消费示例）",
+      "point3": "匿名 GET 带 s-maxage=300 缓存与 ETag 条件请求（304）"
+    },
+    "mcp": {
+      "title": "MCP Server",
+      "point1": "Streamable HTTP 端点 /api/v1/mcp（P3 上线后回填地址）",
+      "point2": "匿名只读四工具：搜索 / 详情 / 使用指导 / 分类"
+    },
+    "skill": {
+      "title": "Agent Skill",
+      "point1": "SKILL.md + 一键安装脚本（P3 上线后回填 raw.githubusercontent 地址）",
+      "point2": "教你的 Agent 搜内容、读指导、按步骤配置"
+    },
+    "verify": {
+      "title": "验证问题",
+      "subtitle": "装好后用这个问题冒烟——两行 curl 应返回含乐谱内容的搜索结果与使用指导：",
+      "keyword": "乐谱"
+    },
+    "limits": {
+      "title": "频率与配额",
+      "point1": "限流按 IP：搜索 30 次/分钟，常规读取 300 次/分钟",
+      "point2": "匿名面只读；下载与上传需要个人访问令牌（PAT，后续开放）",
+      "point3": "响应均为 JSON；分页默认 page_size=20，搜索上限 50"
+    },
+    "versioning": {
+      "title": "版本承诺",
+      "body": "v1 契约内不 break：字段只增不改义。破坏性变更走 v2 并保留弃用期——届时在此页与 OpenAPI 文档同步公告迁移指引。"
+    },
+    "boundary": {
+      "title": "能力边界",
+      "body": "匿名面只返回已发布且公开的内容（草稿/私密/审核中/封禁内容绝不出现在任何匿名响应中）；使用指导的安全提示恒来自平台模板。"
+    }
   }
 }
