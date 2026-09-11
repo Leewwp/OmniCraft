@@ -2327,7 +2327,26 @@
       "deleted": "Content deleted",
       "deleteFailed": "Failed to delete content",
       "deleteTitle": "Delete content",
-      "deleteDescription": "Delete \"{title}\"? This cannot be undone."
+      "deleteDescription": "Delete \"{title}\"? This cannot be undone.",
+      "guide": "Usage guide"
+    },
+    "guide": {
+      "dialogTitle": "Usage guide",
+      "dialogHint": "Fill in requirements and steps; empty fields fall back to the system template for readers.",
+      "fieldRequirements": "Requirements (one per line)",
+      "requirementsPlaceholder": "e.g. Minecraft 1.20.1+\nForge 47",
+      "fieldSteps": "Steps (one per line)",
+      "stepsPlaceholder": "e.g.\n1. Unpack the download\n2. Drop it into the mods folder",
+      "fieldNotes": "Notes",
+      "notesPlaceholder": "Extra notes (Markdown supported)",
+      "draftButton": "AI draft",
+      "drafting": "Drafting…",
+      "draftedHint": "Contains an AI draft; saving will mark source=llm_assisted.",
+      "save": "Save",
+      "saved": "Usage guide saved",
+      "loadFailed": "Failed to load the usage guide",
+      "draftFailed": "Failed to generate an AI draft",
+      "saveFailed": "Failed to save the usage guide"
     },
     "pr": {
       "title": "PR Management",

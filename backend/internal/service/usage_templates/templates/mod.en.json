@@ -1,0 +1,22 @@
+{
+  "content_type": "mod",
+  "locale": "en",
+  "requirements": [
+    "Confirm your game version matches the one the mod requires",
+    "Confirm your mod loader (e.g. Forge / Fabric / NeoForge) matches the mod",
+    "An archive tool if the download ships as a compressed bundle"
+  ],
+  "steps": [
+    "Download the mod file completely (usually a .jar or an archive)",
+    "If it is an archive, unpack it first and check the layout",
+    "Locate the mods folder inside your game directory (create it if missing)",
+    "Move the mod file into mods, keeping the filename intact",
+    "Launch the game and verify the mod appears in the mod list"
+  ],
+  "notes": "The mods directory differs per loader; watch for version conflicts when installing several mods at once.",
+  "safety": [
+    "Only fetch files from this site's download page, not third-party mirrors",
+    "Check the security scan status shown on the page before downloading",
+    "If the game crashes, remove the most recently installed mod first"
+  ]
+}

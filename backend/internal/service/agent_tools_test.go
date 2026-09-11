@@ -268,21 +268,21 @@ func TestAgentGrounding(t *testing.T) {
 	})
 
 	t.Run("usage-guide endpoints reuse the same viewer-aware resolver", func(t *testing.T) {
-		_, err := svc.UsageGuide(ctx, viewerID, 101)
+		_, err := svc.UsageGuide(ctx, viewerID, 101, false)
 		if err == nil || !errors.Is(err, ErrContentNotFound) {
 			t.Fatalf("UsageGuide(private) err = %v, want ErrContentNotFound", err)
 		}
-		_, err = svc.UsageGuide(ctx, viewerID, 102)
+		_, err = svc.UsageGuide(ctx, viewerID, 102, false)
 		if err == nil || !errors.Is(err, ErrContentNotFound) {
 			t.Fatalf("UsageGuide(banned author) err = %v, want ErrContentNotFound", err)
 		}
-		if err := svc.UsageGuideStream(ctx, viewerID, 103, func(string, bool) error { return nil }); !errors.Is(err, ErrContentNotFound) {
+		if err := svc.UsageGuideStream(ctx, viewerID, 103, false, func(string, bool) error { return nil }); !errors.Is(err, ErrContentNotFound) {
 			t.Fatalf("UsageGuideStream(under review) err = %v, want ErrContentNotFound", err)
 		}
 		if provider.chatCalls+provider.streamCalls != 0 {
 			t.Fatal("hidden usage-guide requests must never reach the provider")
 		}
-		if err := svc.UsageGuideStream(ctx, viewerID, 100, func(string, bool) error { return nil }); err != nil {
+		if err := svc.UsageGuideStream(ctx, viewerID, 100, false, func(string, bool) error { return nil }); err != nil {
 			t.Fatalf("UsageGuideStream(visible) err = %v, want success", err)
 		}
 		if provider.streamCalls != 1 {

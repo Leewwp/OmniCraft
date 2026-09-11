@@ -1,0 +1,17 @@
+{
+  "content_type": "other",
+  "locale": "en",
+  "requirements": [
+    "Check the work's description for the required software environment"
+  ],
+  "steps": [
+    "Download the work's files",
+    "Open or install following the description on the work page",
+    "Consult the author's notes or comments when stuck"
+  ],
+  "notes": "This work belongs to a type without a dedicated category; follow the author's notes.",
+  "safety": [
+    "Only fetch files from this site's download page",
+    "Check the author's license before commercial use or redistribution"
+  ]
+}

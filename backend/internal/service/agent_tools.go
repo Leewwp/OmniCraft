@@ -437,7 +437,9 @@ func (s *AgentService) toolGetUsageGuide(ctx context.Context, rawArgs json.RawMe
 	if _, err := s.resolveVisibleContent(ctx, viewerID, args.ContentID); err != nil {
 		return nil, err
 	}
-	guide, err := s.UsageGuide(ctx, viewerID, args.ContentID)
+	// Structured-first applies to the in-chat tool too (SP-16 #447):
+	// persisted specifics render without an LLM round-trip.
+	guide, err := s.UsageGuide(ctx, viewerID, args.ContentID, false)
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,17 @@
+{
+  "content_type": "template",
+  "locale": "en",
+  "requirements": [
+    "Confirm the host application and version the template targets (design tool, office suite, spreadsheet, …)"
+  ],
+  "steps": [
+    "Download the template file",
+    "Load it via the host application's open/import flow",
+    "Replace the placeholder content with your own following the inline hints"
+  ],
+  "notes": "Some templates depend on specific fonts or plugins of the host application; install those first.",
+  "safety": [
+    "Check the author's license before resharing the template itself",
+    "Do not fill in other people's sensitive information"
+  ]
+}

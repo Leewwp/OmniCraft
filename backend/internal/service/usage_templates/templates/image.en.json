@@ -1,0 +1,17 @@
+{
+  "content_type": "image",
+  "locale": "en",
+  "requirements": [
+    "An image viewer; for editing: an image editor"
+  ],
+  "steps": [
+    "Download the image (mind the resolution variant)",
+    "View it, set as wallpaper, or import into an editor",
+    "Credit the source when publishing derivative work"
+  ],
+  "notes": "For print use, confirm the resolution is at least 300 DPI.",
+  "safety": [
+    "Check the author's license before redistributing or commercial use",
+    "Do not strip the author's signature or watermark"
+  ]
+}

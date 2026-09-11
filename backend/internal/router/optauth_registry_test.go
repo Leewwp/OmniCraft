@@ -48,6 +48,7 @@ var optAuthRouteRegistry = []optAuthRouteAudit{
 	{Method: "GET", Path: "/api/v1/contents/:id/related-fanworks", ReturnsContent: true, Mechanism: "GetVisibleContent for source + scope on children"},
 	{Method: "GET", Path: "/api/v1/contents/:id/versions", ReturnsContent: true, Mechanism: "content visibility gate before listing version lineage (body text lives in storage_key)"},
 	{Method: "GET", Path: "/api/v1/contents/:id/prs", ReturnsContent: true, Mechanism: "content visibility gate before listing PRs"},
+	{Method: "GET", Path: "/api/v1/contents/:id/guide", ReturnsContent: true, Mechanism: "content visibility gate (author/admin/anon-visible); merged template+specifics view, ETag+s-maxage (#447)"},
 	{Method: "GET", Path: "/api/v1/contents/search", ReturnsContent: true, Mechanism: "ApplyContentVisibilityScope(viewer) in search repo"},
 	{Method: "GET", Path: "/api/v1/versions/:id", ReturnsContent: true, Mechanism: "participant gate: author/proposed-submitter/admin (F-056)"},
 	{Method: "GET", Path: "/api/v1/pr/:id", ReturnsContent: true, Mechanism: "participant gate: author/submitter/admin (FIX-21④)"},

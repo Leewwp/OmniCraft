@@ -102,6 +102,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 
 	prHandler := handler.NewPRHandlerWithService(ctr.PRService)
 	prHandler.SetNotificationService(notifSvc)
+	// SP-16 #447: public usage-guide surface (merged template+specifics).
+	usageGuideHandler := handler.NewUsageGuideHandler(ctr.UsageGuideService, ctr.ContentRepo)
+
 	contentHandler := handler.NewContentHandler(db, cfg, rdb)
 	contentHandler.SetQueueProducer(ctr.QueueProducer)
 	contentHandler.SetOutboxRepository(ctr.OutboxRepo)
@@ -117,6 +120,9 @@ func RegisterRoutes(v1 *gin.RouterGroup, cfg *config.Config, ctr *container.Serv
 		contents.DELETE("/:id", authReq, editDeleteGuard, contentHandler.DeleteContent)
 		contents.GET("/:id/versions", optAuth, handler.NewVersionHandler(db).ListVersions)
 		contents.GET("/:id/prs", optAuth, prHandler.ListPRs)
+		contents.GET("/:id/guide", optAuth, usageGuideHandler.GetGuide)
+		contents.GET("/:id/guide/specifics", authReq, editDeleteGuard, usageGuideHandler.GetAuthorGuide)
+		contents.PUT("/:id/guide", authReq, editDeleteGuard, usageGuideHandler.SaveGuide)
 		contents.GET("/:id/download", authReq, downloadsGuard, contentHandler.DownloadContent)
 	}
 

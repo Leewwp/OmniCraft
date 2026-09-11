@@ -1,0 +1,18 @@
+{
+  "content_type": "sheet_music",
+  "locale": "en",
+  "requirements": [
+    "A PDF reader (for PDF scores) or notation software (for .mscz / .musicxml sources)",
+    "For printing: an A4 printer and paper"
+  ],
+  "steps": [
+    "Download the score file and confirm its format",
+    "Open PDFs with any reader; open source files in the matching notation software",
+    "Adjust print scaling as needed, or transpose in software before playing"
+  ],
+  "notes": "Source files can be transposed and edited in notation software; PDFs are best used as printed.",
+  "safety": [
+    "Scores are for personal study and performance",
+    "Check the author's stated license before redistributing or performing publicly"
+  ]
+}
