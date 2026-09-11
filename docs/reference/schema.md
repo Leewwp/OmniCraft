@@ -21,6 +21,20 @@
 | `result` | `VARCHAR(24)` | NOT NULL | result |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
 
+### agent_access_tokens
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | `BIGSERIAL` | PK | id |
+| `user_id` | `BIGINT` | NOT NULL -> users.id | user_id |
+| `name` | `VARCHAR(64)` | NOT NULL | name |
+| `token_hash` | `VARCHAR(64)` | NOT NULL | token_hash |
+| `token_prefix` | `VARCHAR(12)` | NOT NULL | token_prefix |
+| `scopes` | `VARCHAR(32)` | NOT NULL DEFAULT 'download' | scopes |
+| `last_used_at` | `TIMESTAMPTZ` | - | last_used_at |
+| `revoked_at` | `TIMESTAMPTZ` | - | revoked_at |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT NOW() | created_at |
+
 ### agent_conversations
 
 | 列名 | 类型 | 约束 | 说明 |

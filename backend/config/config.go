@@ -67,6 +67,7 @@ type Config struct {
 	Publish        PublishConfig        `mapstructure:"publish" json:"publish"`
 	ArchiveScan    ArchiveScanConfig    `mapstructure:"archive_scan" json:"archive_scan"`
 	Agent          AgentConfig          `mapstructure:"agent" json:"agent"`
+	AgentAccess    AgentAccessConfig    `mapstructure:"agent_access" json:"agent_access"`
 	RAG            RAGConfig            `mapstructure:"rag" json:"rag"`
 	SMTP           SMTPConfig           `mapstructure:"smtp" json:"smtp"`
 	Captcha        CaptchaConfig        `mapstructure:"captcha" json:"captcha"`
@@ -92,6 +93,12 @@ type Config struct {
 type RelayConfig struct {
 	BatchSize       int `mapstructure:"batch_size" json:"batch_size"`
 	PollIntervalSec int `mapstructure:"poll_interval_sec" json:"poll_interval_sec"`
+}
+
+// AgentAccessConfig configures the external-agent PAT identity (SP-16 #450,
+// spec D2). Values are read from config.yaml, never hardcoded (Key Rule 6).
+type AgentAccessConfig struct {
+	MaxTokensPerUser int `mapstructure:"max_tokens_per_user" json:"max_tokens_per_user"`
 }
 
 // Relay tuning bounds guard the relay loop against nonsense configuration in
@@ -566,6 +573,8 @@ type RateLimitConfig struct {
 	AgentMinuteWindowSec int   `mapstructure:"agent_minute_window_sec" json:"agent_minute_window_sec"`
 	CredentialPerMinute  int   `mapstructure:"credential_per_minute" json:"credential_per_minute"`
 	SearchPerMinute      int   `mapstructure:"search_per_minute" json:"search_per_minute"`
+	PATPerMinute         int   `mapstructure:"pat_per_minute" json:"pat_per_minute"`
+	PATWindowSec         int   `mapstructure:"pat_window_sec" json:"pat_window_sec"`
 	MaxJSONBodyBytes     int64 `mapstructure:"max_json_body_bytes" json:"max_json_body_bytes"`
 	MaxQueryChars        int   `mapstructure:"max_query_chars" json:"max_query_chars"`
 	MaxSearchLimit       int   `mapstructure:"max_search_limit" json:"max_search_limit"`
