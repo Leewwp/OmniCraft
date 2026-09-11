@@ -148,6 +148,21 @@ func TestOptAuthAnonymousSurfaceZeroLeak(t *testing.T) {
 		assertNoLeak(t, "pr detail", rec, false)
 	})
 
+	t.Run("usage guide endpoint", func(t *testing.T) {
+		rec := anonGet(fmt.Sprintf("/api/v1/contents/%d/guide", fx.cPub))
+		expectStatus(t, "pub guide", rec, http.StatusOK)
+		assertNoLeak(t, "pub guide", rec, false)
+
+		for label, id := range map[string]int64{
+			"pending": fx.cPending, "under_review": fx.cUnder, "private": fx.cPriv,
+			"soft-deleted": fx.cDel, "banned": fx.cBanned, "banned-author": fx.cBAuth,
+		} {
+			rec := anonGet(fmt.Sprintf("/api/v1/contents/%d/guide", id))
+			expectStatus(t, label+" guide", rec, http.StatusNotFound)
+			assertNoLeak(t, label+" guide", rec, false)
+		}
+	})
+
 	t.Run("related fanworks", func(t *testing.T) {
 		for label, id := range map[string]int64{"private": fx.cPriv, "banned": fx.cBanned} {
 			rec := anonGet(fmt.Sprintf("/api/v1/contents/%d/related-fanworks", id))
@@ -355,7 +370,7 @@ func buildOptAuthLeakAuditStack(t *testing.T) (*gin.Engine, *gorm.DB, *config.Co
 	if err := db.AutoMigrate(
 		&model.User{}, &model.IP{}, &model.IPTag{}, &model.IPProposal{}, &model.IPProposalVote{}, &model.IPProfileVersion{},
 		&model.ContentItem{}, &model.ContentAttachment{}, &model.ContentTag{}, &model.Tag{},
-		&model.ContentVersion{}, &model.PullRequest{},
+		&model.ContentVersion{}, &model.PullRequest{}, &model.ContentUsageGuide{},
 		&model.Reaction{}, &model.Follow{},
 		&model.Collection{}, &model.CollectionItem{},
 		&model.ContentSeries{}, &model.ContentSeriesItem{},

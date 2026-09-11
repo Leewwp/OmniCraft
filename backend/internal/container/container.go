@@ -78,6 +78,7 @@ type ServiceContainer struct {
 	NotificationService *service.NotificationService
 	PRService           *service.PRService
 	VersionService      *service.VersionService
+	UsageGuideService   *service.UsageGuideService
 	SearchService       *service.SearchService
 	IPProposalService   *service.IPProposalService
 	FeedbackService     *service.FeedbackService
@@ -240,11 +241,19 @@ func NewContainer(db *gorm.DB, rdb *redis.Client, cfg *config.Config) *ServiceCo
 	c.IPService.SetQueueProducer(c.QueueProducer)
 	c.NotificationService.SetQueueProducer(c.QueueProducer)
 
+	// Usage-guide merged view (SP-16 #447): constructed before AgentService
+	// so the in-site agent can read structured guides first.
+	c.UsageGuideService = service.NewUsageGuideService(
+		repository.NewUsageGuideRepository(db),
+		c.ContentRepo,
+	)
+
 	// Create AgentService for worker use
 	provider := llm.NewProvider(cfg)
 	greenClient := aliyun.NewGreenClient(cfg.Green.AccessKeyID, cfg.Green.AccessKeySecret, cfg.Green.Region)
 	c.AgentService = service.NewAgentService(provider, c.EmbeddingRepo, c.ContentRepo, greenClient, db, cfg)
 	c.AgentService.SetSearchRepository(c.SearchRepo)
+	c.AgentService.SetUsageGuideService(c.UsageGuideService)
 	c.AgentService.SetQueueProducer(c.QueueProducer)
 	opensearchTimeout := time.Duration(cfg.RAG.Index.TimeoutSec) * time.Second
 	c.OpenSearchRepo = repository.NewOpenSearchRepositoryWithLimits(

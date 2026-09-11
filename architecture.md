@@ -400,6 +400,8 @@ backend/
 | `GET` | `/api/v1/contents` | contentHandler.ListContents |
 | `GET` | `/api/v1/contents/:id` | contentHandler.GetContent |
 | `GET` | `/api/v1/contents/:id/download` | contentHandler.DownloadContent |
+| `GET` | `/api/v1/contents/:id/guide` | usageGuideHandler.GetGuide |
+| `GET` | `/api/v1/contents/:id/guide/specifics` | usageGuideHandler.GetAuthorGuide |
 | `GET` | `/api/v1/contents/:id/prs` | prHandler.ListPRs |
 | `GET` | `/api/v1/contents/:id/related-fanworks` | contentHandler.ListRelatedFanworks |
 | `GET` | `/api/v1/contents/:id/versions` | handler.NewVersionHandler(...).ListVersions |
@@ -551,6 +553,7 @@ backend/
 | `PUT` | `/api/v1/admin/categories/reorder` | catHandler.AdminReorderCategories |
 | `PUT` | `/api/v1/collections/:id` | collectionHandler.UpdateCollection |
 | `PUT` | `/api/v1/collections/:id/items/:itemId` | collectionHandler.UpdateItem |
+| `PUT` | `/api/v1/contents/:id/guide` | usageGuideHandler.SaveGuide |
 | `PUT` | `/api/v1/series/:id` | seriesHandler.UpdateSeries |
 | `PUT` | `/api/v1/series/:id/items/reorder` | seriesHandler.ReorderItems |
 | `PUT` | `/api/v1/users/me/ip-visits/:ipId` | ipVisitHistoryHandler.RecordVisit |
