@@ -361,6 +361,46 @@ interface FacetedSearchSidebarProps {
 - 点击行为触发传入的回调 `onAction` 或 Link 路由跳转。
 - 键盘行为：支持 Tab 索引切换，Enter 选中，Esc 取消浮层。
 
+## Component: AgentFollowUpChips 推荐追问药丸（SP-15 B #435 新增）
+
+**Key Constraints**
+- **动作药丸（action pill），非选择控件**：与共享 `Component: FilterPills` 的筛选语义明确区分——无 `aria-pressed`、无选中态、无就地切换/URL 同步；点击 = 将追问文本填入 composer 输入框并聚焦，**不自动发送**（用户回车确认，防误触）。
+- 仅 `grounded_content` 答案轮渲染（no_evidence/conversational/degraded/流式中一律不渲染）；v1 不落库，历史回放不渲染（done 事件 `follow_ups` 是唯一数据源）。
+- 每条 ≤20 runes、2-3 条、跟随用户语言，由服务端生成与裁剪；组件只做展示与点击回调，不做内容加工。
+- 无障碍标签走 next-intl（容器 `agent.workspace.followUpsLabel`；每颗药丸 aria-label = 追问文本 + `agent.workspace.followUpFill` 动作说明）。
+
+**Props 接口**
+```ts
+interface AgentFollowUpChipsProps {
+  followUps: string[];
+  /** 填入 composer（不发送）；由工作台把焦点移至输入框 */
+  onFill: (query: string) => void;
+}
+```
+
+**视觉结构**
+- 容器: 答案消息（及其引用列表）下方 `<div role="group" className="flex flex-wrap gap-2">`
+- 药丸: 原生 `<button type="button">`，`rounded-full border border-border-default bg-canvas-default px-3.5 py-1.5 text-sm`
+
+**尺寸规范**
+- 紧凑高度档：`px-3.5 py-1.5`（约 28px，与 FilterPills 同档但语义为动作触发）
+- 字号: `text-sm` (14px)；容器间距 `gap-2`
+
+**状态变体**
+- default: 透明底 + 1px `border-border-default` + `text-fg-default`
+- hover / focus-visible: `bg-accent-subtle` + `text-accent-emphasis` + `border-accent-emphasis`（悬停预告主动作；token 与 FilterPills 选中态相同但语义不同——本组件无持久选中态）
+- focus-visible 追加标准 `focus-visible:ring-2 focus-visible:ring-ring`；150ms `transition-colors`
+
+**响应式行为**
+- flex wrap 换行，小屏自然堆叠，无横向滚动。
+
+**暗色模式适配**
+- 全局切换暗色类后组件自动映射 canvas/accent token 变量。
+
+**关键交互**
+- 点击 = `onFill(追问文本)`，由工作台 `setInput` 并把焦点移到 composer；Enter 发送仍由用户执行。
+- 原生 button 语义：Tab 可达，Enter/Space 触发；无 loading/disabled 态（错过 done 的 follow_ups 静默不存在，渐进增强）。
+
 ## Page: / 首页
 
 **Key Constraints**
@@ -3413,7 +3453,7 @@ interface AgentToolStatus {
 - thinking（流式）：思考折叠区展开跟随 think_delta；完成后自动折叠为「已深度思考」行。
 - streaming：正文逐字增量渲染，显示停止按钮；`aria-live=”polite”` 按完整短句/节流批次播报，不能逐 token 打断读屏。
 - tool-running：工具步骤区展开跟随新增步骤；只展示用户向短文案、参数摘要、命中数与耗时（≥1s），不得展示原始参数 JSON 或 chain-of-thought。
-- grounded-success：回答下方展示引用列表；站内事实回答至少一个有效引用；行内 [n] 角标可点击锚定。
+- grounded-success：回答下方展示引用列表；站内事实回答至少一个有效引用；行内 [n] 角标可点击锚定；done 事件携带 `follow_ups` 时引用列表下方渲染推荐追问药丸（`Component: AgentFollowUpChips`，SP-15 B #435：仅 grounded 轮、点击填入 composer 不自动发送、v1 不落库历史回放不渲染）。
 - no-evidence：done 终态裁决撤下已流出正文，显示「未找到足够依据」和普通关键词搜索 CTA，不伪造回答。
 - degraded：Provider 不可用但搜索可用时，撤下模型总结，显示降级说明和关键词回退结果。
 - stopped：保留已收到的内容（含思考块）并显示「已停止生成」；允许重新发送。

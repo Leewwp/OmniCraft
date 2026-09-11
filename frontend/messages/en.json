@@ -1409,6 +1409,8 @@
       "emptyTitle": "Start researching from site content",
       "emptyDescription": "Ask about works, sources, usage or creative directions. The agent only cites server-verified public content and stops when there is no evidence.",
       "jumpToLatest": "Jump to latest",
+      "followUpsLabel": "Suggested follow-ups",
+      "followUpFill": "Fill the composer",
       "errorTitle": "This request was not completed",
       "errorRetry": "Resend",
       "conversationLoadFailed": "Failed to load conversation",

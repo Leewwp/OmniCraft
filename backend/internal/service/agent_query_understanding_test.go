@@ -86,7 +86,7 @@ func TestMultiTurnTurnCarriesHistoryAndRewrittenQuery(t *testing.T) {
 	provider := &streamToolProvider{rounds: [][]llm.ChatDelta{
 		{toolCallDelta("search_content", `{"query":"配色练习 原创内容"}`)},
 		{{Content: "第一个结果介绍 [1]。"}, {Done: true}},
-		{toolCallDelta("search_content", `{"query":"` + rewritten + `"}`)},
+		{toolCallDelta("search_content", `{"query":"`+rewritten+`"}`)},
 		{{Content: "同一作者的另一件作品介绍 [1]。"}, {Done: true}},
 	}}
 	cfg := conversationalLaneTestConfig()
