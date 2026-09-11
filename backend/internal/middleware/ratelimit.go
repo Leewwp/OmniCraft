@@ -58,37 +58,46 @@ func RateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.HandlerFunc {
 	}
 }
 
+// ConsumeUploadQuota is the per-user hourly upload window shared by
+// middleware.UploadRateLimit (web/JWT channel) and the MCP upload tools
+// (SP-16 #451): external agents burn the same quota as studio uploads, never
+// a parallel one. It increments first and rejects after, matching the
+// middleware's historical counter semantics; nil redis fails open.
+func ConsumeUploadQuota(ctx context.Context, rdb *redis.Client, cfg *config.RateLimitConfig, userID int64) error {
+	if rdb == nil || cfg == nil || !cfg.Enabled || userID == 0 {
+		return nil
+	}
+	limit := cfg.UploadPerHour
+	if limit <= 0 {
+		limit = 10
+	}
+
+	window := time.Now().Unix() / 3600
+	key := fmt.Sprintf("ratelimit:upload:%d:%d", userID, window)
+
+	count, err := rdb.Incr(ctx, key).Result()
+	if err != nil {
+		return nil
+	}
+	uploadWindowTTL := 2 * time.Hour
+	if cfg.UploadWindowSec > 0 {
+		uploadWindowTTL = time.Duration(cfg.UploadWindowSec) * time.Second
+	}
+	rdb.Expire(ctx, key, uploadWindowTTL)
+	if int(count) > limit {
+		return fmt.Errorf("upload limit exceeded (limit %d per window)", limit)
+	}
+	return nil
+}
+
 func UploadRateLimit(rdb *redis.Client, cfg *config.RateLimitConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if rdb == nil || cfg == nil || !cfg.Enabled {
-			c.Next()
-			return
-		}
-		limit := cfg.UploadPerHour
-		if limit <= 0 {
-			limit = 10
-		}
-
 		userID := GetUserID(c)
 		if userID == 0 {
 			c.Next()
 			return
 		}
-		window := time.Now().Unix() / 3600
-		key := fmt.Sprintf("ratelimit:upload:%d:%d", userID, window)
-
-		ctx := context.Background()
-		count, err := rdb.Incr(ctx, key).Result()
-		if err != nil {
-			c.Next()
-			return
-		}
-		uploadWindowTTL := 2 * time.Hour
-		if cfg.UploadWindowSec > 0 {
-			uploadWindowTTL = time.Duration(cfg.UploadWindowSec) * time.Second
-		}
-		rdb.Expire(ctx, key, uploadWindowTTL)
-		if int(count) > limit {
+		if err := ConsumeUploadQuota(c.Request.Context(), rdb, cfg, userID); err != nil {
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"code":    "UPLOAD_RATE_LIMIT_EXCEEDED",
 				"message": "upload limit exceeded, please try again later",

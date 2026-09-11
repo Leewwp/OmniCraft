@@ -1,11 +1,12 @@
-// Package mcpserver exposes OmniCraft's anonymous read-only surface over the
-// Model Context Protocol (SP-16 #449). The Streamable HTTP handler mounts at
-// POST/GET/DELETE /api/v1/mcp; four tools mirror the public REST semantics:
-// PG keyword search (NOT the in-site hybrid retrieval — spec Non-goals bar
-// hybrid from public surfaces), visibility-scoped content detail, the merged
-// usage-guide view, and the category taxonomy. All tools are read-only and
-// viewer=0 (anonymous) by construction; write tools arrive with PAT auth in
-// #451 and must never be registered here.
+// Package mcpserver exposes OmniCraft's public surface over the Model
+// Context Protocol (SP-16 #449/#451). The Streamable HTTP handler mounts at
+// POST/GET/DELETE /api/v1/mcp. Anonymous sessions get the four read-only
+// tools (PG keyword search, visibility-scoped detail, merged usage guide,
+// category taxonomy — viewer=0 by construction). A PAT injected into the
+// request context by the gin adapter additionally registers the scoped write
+// tools: download scope adds omnicraft_request_download, upload scope adds
+// the three publish tools. Every write tool re-checks its scope at execution
+// time so session reuse can never outrank the current token.
 package mcpserver
 
 import (
@@ -19,6 +20,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"gorm.io/gorm"
 
+	"omnicraft/backend/config"
 	"omnicraft/backend/internal/model"
 	"omnicraft/backend/internal/repository"
 	"omnicraft/backend/internal/service"
@@ -31,18 +33,32 @@ type Deps struct {
 	CategoryRepo  *repository.CategoryRepository
 	GuideSvc      *service.UsageGuideService
 	DisplaySigner *service.DisplayURLSigner
+	// Write-channel dependencies (SP-16 #451). Optional: when absent the
+	// corresponding tools are simply not registered.
+	Cfg        *config.Config
+	ContentSvc *service.ContentService
+	// SuggestPublishMetadata reuses the in-chat upload-assist LLM logic
+	// (container binds AgentService.UploadAssist).
+	SuggestPublishMetadata func(ctx context.Context, title, description, filename, contentType string) (*service.UploadAssistResult, error)
+	// IssueUploadURL binds the OSS presign + upload grant issuance shared
+	// with POST /contents/oss-token.
+	IssueUploadURL func(ctx context.Context, req service.PresignUploadRequest, userID int64) (*service.PresignUploadResponse, error)
+	// ConsumeUploadQuota binds the shared per-user hourly upload window
+	// (middleware.ConsumeUploadQuota).
+	ConsumeUploadQuota func(ctx context.Context, userID int64) error
 }
 
-// NewHandler builds the Streamable HTTP handler with the four anonymous
-// read-only tools. The returned handler is a standard http.Handler so it can
-// be mounted inside the gin router.
+// NewHandler builds the Streamable HTTP handler. The per-request callback
+// resolves the PAT identity from the request context (injected by the gin
+// adapter after the shared auth middleware) and returns the capability-shaped
+// server; the SDK binds the session to whichever server served initialize.
 func NewHandler(deps Deps) http.Handler {
-	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "omnicraft", Version: "v1"}, nil)
-	addSearchTool(server, deps)
-	addGetContentTool(server, deps)
-	addGetUsageGuideTool(server, deps)
-	addListCategoriesTool(server, deps)
-	return sdkmcp.NewStreamableHTTPHandler(func(*http.Request) *sdkmcp.Server { return server }, nil)
+	cache := newServerCache(deps)
+	return sdkmcp.NewStreamableHTTPHandler(func(r *http.Request) *sdkmcp.Server {
+		id := IdentityFromContext(r.Context())
+		return cache.get(identityHasScope(id, "download") && deps.ContentSvc != nil,
+			identityHasScope(id, "upload") && deps.uploadReady())
+	}, nil)
 }
 
 func textResult(v any) (*sdkmcp.CallToolResult, any, error) {

@@ -61,6 +61,7 @@ type ContentService struct {
 	archiveScanEnabled     bool
 	archiveValidator       ArchiveValidator
 	archiveScanCfg         *config.ArchiveScanConfig
+	downloadSigner         DownloadURLSigner
 }
 
 type UploadedObjectVerifier interface {
@@ -132,6 +133,15 @@ func (s *ContentService) SetArchiveValidator(validator ArchiveValidator) {
 
 func (s *ContentService) WithArchiveScanConfig(cfg *config.ArchiveScanConfig) *ContentService {
 	s.archiveScanCfg = cfg
+	return s
+}
+
+// WithArchiveScanGateEnabled toggles the presign-time archive gate behind the
+// download orchestration. The routes wiring still prefers
+// SetArchiveScanRepository (it also wires the scan repo); this setter covers
+// handler-local construction where only the feature flag is known.
+func (s *ContentService) WithArchiveScanGateEnabled(enabled bool) *ContentService {
+	s.archiveScanEnabled = enabled
 	return s
 }
 
