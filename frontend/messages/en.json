@@ -2651,7 +2651,7 @@
   "agentAccess": {
     "hero": {
       "title": "Wire OmniCraft into your Agent",
-      "subtitle": "Anonymous read-only access to search, browsing and usage guides — straight from your Claude Code / Codex / Gemini CLI."
+      "subtitle": "Anonymous read-only search, browsing and usage guides; a personal access token unlocks downloads and one-sentence publishing (with a mandatory confirmation gate) — use it right inside Claude Code / Codex / Gemini CLI."
     },
     "status": {
       "live": "Live",
@@ -2669,12 +2669,12 @@
     "mcp": {
       "title": "MCP Server",
       "point1": "Streamable HTTP endpoint: POST /api/v1/mcp (same origin as this site)",
-      "point2": "Four anonymous read-only tools: omnicraft_search / omnicraft_get_content / omnicraft_get_usage_guide / omnicraft_list_categories"
+      "point2": "Anonymous read-only tools: omnicraft_search / omnicraft_get_content / omnicraft_get_usage_guide / omnicraft_list_categories; a PAT adds omnicraft_request_download (download scope) and omnicraft_suggest_publish_metadata / omnicraft_create_content / omnicraft_request_upload_url (upload scope)"
     },
     "skill": {
       "title": "Agent Skill",
       "point1": "One-line install: curl -fsSL https://raw.githubusercontent.com/Leewwp/OmniCraft/main/agent-access/skill/install.sh | bash",
-      "point2": "Teach your Agent to search, read usage guides and follow setup steps (with a mandatory confirmation gate)"
+      "point2": "Teaches your agent to search, read usage guides, install step by step, and — with a PAT — download and publish in one sentence (mandatory confirmation gate: the full draft summary must be approved before any write)"
     },
     "verify": {
       "title": "Verification question",
@@ -2684,7 +2684,7 @@
     "limits": {
       "title": "Rate limits",
       "point1": "Per-IP rate limits: search 30 req/min, regular reads 300 req/min",
-      "point2": "The anonymous surface is read-only; downloads and uploads need a personal access token (PAT, coming later)",
+      "point2": "The anonymous surface is read-only; downloads and uploads need a personal access token (PAT, account settings → Agent tokens, download / upload scopes)",
       "point3": "All responses are JSON; pagination defaults to page_size=20, search caps at 50"
     },
     "versioning": {
