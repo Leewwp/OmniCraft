@@ -5,6 +5,12 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # v0.1.13+ of the gorm otel plugin makes its tracing subpackage import
+      # gorm.io/driver/clickhouse, dragging the ClickHouse ch-go chain into
+      # the module graph (242 govulncheck findings for code we never use).
+      # Pinned at v0.1.12; revisit when the plugin drops that import.
+      - dependency-name: gorm.io/plugin/opentelemetry
 
   - package-ecosystem: npm
     directory: /frontend
