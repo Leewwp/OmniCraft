@@ -29,7 +29,7 @@ func TestStatsSummaryCountsApprovedIPsOnly(t *testing.T) {
 	require.NoError(t, db.Create(&model.IP{Slug: "r1", Name: "rejected", Status: "rejected"}).Error)
 	require.NoError(t, db.Create(&model.IP{Slug: "b1", Name: "banned", Status: "banned"}).Error)
 	// contents keep the published vocabulary — must not affect the IP count
-	require.NoError(t, db.Create(&model.ContentItem{Title: "c1", Status: "published"}).Error)
+	require.NoError(t, db.Create(&model.ContentItem{Title: "c1", Status: "published", IsPublic: true}).Error)
 
 	svc := NewStatsService(db, nil)
 	summary, err := svc.GetSummary(context.Background())
@@ -53,7 +53,7 @@ func seedZoneStats(t *testing.T) *gorm.DB {
 	require.NoError(t, db.Create(&model.User{Email: "u3@t.local", Username: "u3", PasswordHash: "x"}).Error)
 
 	mk := func(title, zone, status string, author int64, deleted bool) model.ContentItem {
-		item := model.ContentItem{Title: title, Zone: zone, Status: status, AuthorID: author}
+		item := model.ContentItem{Title: title, Zone: zone, Status: status, AuthorID: author, IsPublic: true}
 		if author == 0 {
 			item.AuthorID = 0
 		}

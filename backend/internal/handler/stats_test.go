@@ -37,9 +37,9 @@ func setupStatsHandlerTest(t *testing.T) *gin.Engine {
 	// fanwork 1 条（作者 u1）/ original 2 条（作者 u2）/ pending 1 条不计。
 	require.NoError(t, db.Create(&model.User{Email: "u1@t.local", Username: "u1", PasswordHash: "x"}).Error)
 	require.NoError(t, db.Create(&model.User{Email: "u2@t.local", Username: "u2", PasswordHash: "x"}).Error)
-	require.NoError(t, db.Create(&model.ContentItem{Title: "f1", Zone: "fanwork", Status: "published", AuthorID: 1}).Error)
-	require.NoError(t, db.Create(&model.ContentItem{Title: "o1", Zone: "original", Status: "published", AuthorID: 2}).Error)
-	require.NoError(t, db.Create(&model.ContentItem{Title: "o2", Zone: "original", Status: "published", AuthorID: 2}).Error)
+	require.NoError(t, db.Create(&model.ContentItem{Title: "f1", Zone: "fanwork", Status: "published", AuthorID: 1, IsPublic: true}).Error)
+	require.NoError(t, db.Create(&model.ContentItem{Title: "o1", Zone: "original", Status: "published", AuthorID: 2, IsPublic: true}).Error)
+	require.NoError(t, db.Create(&model.ContentItem{Title: "o2", Zone: "original", Status: "published", AuthorID: 2, IsPublic: true}).Error)
 	require.NoError(t, db.Create(&model.ContentItem{Title: "pend", Zone: "fanwork", Status: "pending", AuthorID: 1}).Error)
 
 	svc := service.NewStatsService(db, nil)

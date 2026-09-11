@@ -41,6 +41,10 @@ func (h *IPProposalHandler) ListProposals(c *gin.Context) {
 
 	views, total, err := h.svc.ListProposals(c.Request.Context(), ipID, status, query, page, pageSize, viewerID)
 	if err != nil {
+		if err == service.ErrIPNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
@@ -119,8 +123,12 @@ func (h *IPProposalHandler) ListVersions(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid ip id"})
 		return
 	}
-	versions, err := h.svc.ListVersions(c.Request.Context(), ipID)
+	versions, err := h.svc.ListVersions(c.Request.Context(), ipID, middleware.GetUserID(c))
 	if err != nil {
+		if err == service.ErrIPNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}
@@ -131,6 +139,9 @@ func (h *IPProposalHandler) mapError(c *gin.Context, err error) {
 	switch err {
 	case service.ErrProposalNotFound:
 		c.JSON(http.StatusNotFound, gin.H{"code": "PROPOSAL_NOT_FOUND", "message": "proposal not found"})
+	case service.ErrIPNotFound:
+		// #446：提案随 IP 可见性走——所属 IP 不可见时按 IP 不存在回应。
+		c.JSON(http.StatusNotFound, gin.H{"code": "IP_NOT_FOUND", "message": "ip not found"})
 	case service.ErrProposalNotEligible:
 		c.JSON(http.StatusForbidden, gin.H{"code": "PROPOSAL_NOT_ELIGIBLE", "message": "reputation too low, or not following the ip (voting requires following)"})
 	case service.ErrProposalOpenExists:

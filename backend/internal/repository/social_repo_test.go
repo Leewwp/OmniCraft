@@ -24,8 +24,8 @@ func setupSocialCommentsDB(t *testing.T) *gorm.DB {
 	}
 	// in-memory sqlite：钉单连接，避免连接池拿到空库（social_service_test 同款）。
 	sqlDB.SetMaxOpenConns(1)
-	if err := db.AutoMigrate(&model.User{}); err != nil {
-		t.Fatalf("migrate user model: %v", err)
+	if err := db.AutoMigrate(&model.User{}, &model.IP{}, &model.ContentItem{}); err != nil {
+		t.Fatalf("migrate visibility-scope models: %v", err)
 	}
 	// model.Comment 带 GORM `DEFAULT NOW()` 渲染，sqlite DDL 不认，手建表。
 	if err := db.Exec(`
@@ -60,6 +60,13 @@ func TestListCommentsPreloadsAuthor(t *testing.T) {
 		t.Fatalf("seed author: %v", err)
 	}
 	contentID := int64(7301)
+	// #446：评论随父内容可见性走——夹具补一条对匿名可见的父内容。
+	if err := db.Create(&model.ContentItem{
+		ID: contentID, Title: "t45 parent", AuthorID: author.ID, Zone: "original",
+		ContentType: "article", Status: "published", IsPublic: true,
+	}).Error; err != nil {
+		t.Fatalf("seed parent content: %v", err)
+	}
 	rows := []model.Comment{
 		{ContentItemID: &contentID, AuthorID: author.ID, Body: "first", Status: "published"},
 		{ContentItemID: &contentID, AuthorID: author.ID, Body: "second", Status: "published"},
@@ -69,7 +76,7 @@ func TestListCommentsPreloadsAuthor(t *testing.T) {
 	}
 
 	repo := NewSocialRepository(db)
-	got, total, err := repo.ListComments(contentID, nil, 1, 20)
+	got, total, err := repo.ListComments(contentID, nil, 1, 20, 0)
 	if err != nil {
 		t.Fatalf("ListComments() error = %v", err)
 	}
@@ -161,6 +168,13 @@ func TestListCommentsPopulatesReactionCountsFromReactions(t *testing.T) {
 		t.Fatalf("seed author: %v", err)
 	}
 	contentID := int64(7401)
+	// #446：评论随父内容可见性走——夹具补一条对匿名可见的父内容。
+	if err := db.Create(&model.ContentItem{
+		ID: contentID, Title: "t47 parent", AuthorID: author.ID, Zone: "original",
+		ContentType: "article", Status: "published", IsPublic: true,
+	}).Error; err != nil {
+		t.Fatalf("seed parent content: %v", err)
+	}
 	rows := []model.Comment{
 		{ID: 8301, ContentItemID: &contentID, AuthorID: author.ID, Body: "hot", Status: "published"},
 		{ID: 8302, ContentItemID: &contentID, AuthorID: author.ID, Body: "calm", Status: "published"},
@@ -183,7 +197,7 @@ func TestListCommentsPopulatesReactionCountsFromReactions(t *testing.T) {
 	}
 
 	repo := NewSocialRepository(db)
-	got, _, err := repo.ListComments(contentID, nil, 1, 20)
+	got, _, err := repo.ListComments(contentID, nil, 1, 20, 0)
 	if err != nil {
 		t.Fatalf("ListComments() error = %v", err)
 	}

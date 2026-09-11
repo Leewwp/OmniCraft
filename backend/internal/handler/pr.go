@@ -114,8 +114,12 @@ func (h *PRHandler) ListPRs(c *gin.Context) {
 		pageSize = 20
 	}
 
-	prs, total, err := h.prSvc.ListPRsPaged(contentID, c.Query("status"), page, pageSize)
+	prs, total, err := h.prSvc.ListPRsPagedForViewer(contentID, c.Query("status"), page, pageSize, middleware.GetUserID(c), middleware.IsAdmin(c))
 	if err != nil {
+		if err == service.ErrContentNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": "content not found"})
+			return
+		}
 		response.SafeErrorResponse(c, http.StatusInternalServerError, "DB_ERROR", err)
 		return
 	}

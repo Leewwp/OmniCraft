@@ -104,26 +104,34 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 }
 
 func (h *UserHandler) getUserStatsAndFollowers(userID int64) (gin.H, int64) {
-	var contentsCount int64
-	var likesReceived int64
-	var followersCount int64
+	// #446/SP-16 P0：主页计数只统计匿名可见内容（私密/软删/封禁作者不进
+	// 公开计数）；同时修复原 Scan 匿名结构体列名不匹配导致的恒 0 bug
+	// （Count/Likes/Followers 字段名与 contents_count 等列名对不上）。
+	visSQL, visArgs := repository.ContentVisibilitySQL(0)
+	contentsWhere := strings.ReplaceAll(visSQL, "content_items.", "")
+	queryArgs := []interface{}{userID}
+	queryArgs = append(queryArgs, visArgs...)
+	queryArgs = append(queryArgs, userID)
+	queryArgs = append(queryArgs, visArgs...)
+	queryArgs = append(queryArgs, userID)
 
+	row := struct {
+		ContentsCount int64 `gorm:"column:contents_count"`
+		LikesReceived int64 `gorm:"column:likes_received"`
+		Followers     int64 `gorm:"column:followers_count"`
+	}{}
 	h.contentRepo.DB().Raw(
 		`SELECT
-			(SELECT COUNT(*) FROM content_items WHERE author_id = ? AND status = 'published') AS contents_count,
-			COALESCE((SELECT SUM(like_count) FROM content_items WHERE author_id = ? AND status = 'published'), 0) AS likes_received,
+			(SELECT COUNT(*) FROM content_items WHERE author_id = ? AND `+contentsWhere+`) AS contents_count,
+			COALESCE((SELECT SUM(like_count) FROM content_items WHERE author_id = ? AND `+contentsWhere+`), 0) AS likes_received,
 			(SELECT COUNT(*) FROM follows WHERE target_type = 'user' AND target_id = ?) AS followers_count`,
-		userID, userID, userID,
-	).Scan(&struct {
-		Count     *int64
-		Likes     *int64
-		Followers *int64
-	}{Count: &contentsCount, Likes: &likesReceived, Followers: &followersCount})
+		queryArgs...,
+	).Scan(&row)
 
 	return gin.H{
-		"contents_count": contentsCount,
-		"likes_received": likesReceived,
-	}, followersCount
+		"contents_count": row.ContentsCount,
+		"likes_received": row.LikesReceived,
+	}, row.Followers
 }
 
 func (h *UserHandler) checkIsFollowing(c *gin.Context, targetID int64) bool {

@@ -157,7 +157,18 @@ func (s *PRService) ListPRs(contentID int64, status string) ([]model.PullRequest
 	return s.prRepo.ListByContent(contentID, status)
 }
 
-func (s *PRService) ListPRsPaged(contentID int64, status string, page, pageSize int) ([]model.PullRequest, int64, error) {
+// ListPRsPagedForViewer gates the content PR listing behind content
+// visibility (#446 / SP-16 P0): PR message / reject_reason are
+// content-derived free text and must not surface for non-public content.
+func (s *PRService) ListPRsPagedForViewer(contentID int64, status string, page, pageSize int, viewerID int64, viewerIsAdmin bool) ([]model.PullRequest, int64, error) {
+	content, err := s.contentRepo.FindByID(contentID)
+	if err != nil || content == nil {
+		return nil, 0, ErrContentNotFound
+	}
+	if viewerID != content.AuthorID && !viewerIsAdmin &&
+		!repository.ContentVisibleToViewer(s.contentRepo.DB(), content, viewerID) {
+		return nil, 0, ErrContentNotFound
+	}
 	return s.prRepo.ListByContentPaged(contentID, status, page, pageSize)
 }
 

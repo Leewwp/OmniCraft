@@ -365,6 +365,10 @@ func (s *IPProposalService) GetProposal(ctx context.Context, proposalID, viewerI
 	if p == nil {
 		return nil, ErrProposalNotFound
 	}
+	// #446/SP-16 P0：提案随所属 IP 可见性走（非 approved 仅创作者可见）。
+	if _, err := s.visibleIPForViewer(ctx, p.IPID, viewerID); err != nil {
+		return nil, err
+	}
 	view := &IPProposalView{IPProposal: *p, MyVote: s.myVote(proposalID, viewerID)}
 	if view.Proposer == nil {
 		if u, err := s.userRepo.FindByID(p.ProposerID); err == nil && u != nil {
@@ -379,6 +383,10 @@ func (s *IPProposalService) GetProposal(ctx context.Context, proposalID, viewerI
 // change; status "all" spans statuses for counting; pageSize<=0 = 全量.
 func (s *IPProposalService) ListProposals(ctx context.Context, ipID int64, status, query string, page, pageSize int, viewerID int64) ([]IPProposalView, int64, error) {
 	s.closeExpired(time.Now())
+	// #446/SP-16 P0：提案列表随所属 IP 可见性走（非 approved 仅创作者可见）。
+	if _, err := s.visibleIPForViewer(ctx, ipID, viewerID); err != nil {
+		return nil, 0, err
+	}
 	filter := repository.ListIPProposalsFilter{IPID: ipID, Status: status, Query: query, Page: page, PageSize: pageSize}
 	rows, err := s.proposalRepo.List(filter)
 	if err != nil {
@@ -420,8 +428,32 @@ func (s *IPProposalService) GovernanceDisplay() (minVotes int, passThreshold flo
 	return minVotes, passThreshold
 }
 
-func (s *IPProposalService) ListVersions(ctx context.Context, ipID int64) ([]model.IPProfileVersion, error) {
+func (s *IPProposalService) ListVersions(ctx context.Context, ipID int64, viewerID int64) ([]model.IPProfileVersion, error) {
+	if _, err := s.visibleIPForViewer(ctx, ipID, viewerID); err != nil {
+		return nil, err
+	}
 	return s.proposalRepo.ListVersions(ipID)
+}
+
+// visibleIPForViewer gates the proposal surfaces behind IP visibility
+// (#446 / SP-16 P0): proposals/versions of a non-approved IP are only for
+// its creator. Pending/rejected IPs must not leak governance text through
+// the proposal endpoints when their hub detail is already hidden.
+func (s *IPProposalService) visibleIPForViewer(ctx context.Context, ipID, viewerID int64) (*model.IP, error) {
+	ip, err := s.ipRepo.FindByID(ipID)
+	if err != nil {
+		return nil, err
+	}
+	if ip == nil {
+		return nil, ErrIPNotFound
+	}
+	if ip.Status == "approved" {
+		return ip, nil
+	}
+	if ip.CreatorID != nil && *ip.CreatorID == viewerID {
+		return ip, nil
+	}
+	return nil, ErrIPNotFound
 }
 
 // SubmitVote casts an immutable yes/no vote. When the vote crosses

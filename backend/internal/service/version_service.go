@@ -159,9 +159,16 @@ func (s *VersionService) ListVersions(contentID int64) ([]model.ContentVersion, 
 
 // ListVersionsPagedForViewer hides proposed versions from everyone but the
 // content author: readers only ever see the active lineage (FIX-21①).
-func (s *VersionService) ListVersionsPagedForViewer(contentID int64, page, pageSize int, viewerID int64) ([]model.ContentVersion, int64, error) {
+// The whole lineage is additionally gated on content visibility (#446 /
+// SP-16 P0): storage_type=full rows carry the complete body text, so version
+// listings of non-public content are a full-text leak (F-01 class).
+func (s *VersionService) ListVersionsPagedForViewer(contentID int64, page, pageSize int, viewerID int64, viewerIsAdmin bool) ([]model.ContentVersion, int64, error) {
 	content, err := s.contentRepo.FindByID(contentID)
 	if err != nil || content == nil {
+		return nil, 0, ErrContentNotFound
+	}
+	if viewerID != content.AuthorID && !viewerIsAdmin &&
+		!repository.ContentVisibleToViewer(s.contentRepo.DB(), content, viewerID) {
 		return nil, 0, ErrContentNotFound
 	}
 	return s.versionRepo.ListByContentPagedForViewer(contentID, page, pageSize, viewerID == content.AuthorID)
