@@ -166,6 +166,8 @@ if policy is not None:
             errors.append("scan-policy unknown category: %s" % c)
     if not isinstance(policy.get("fail_on_severities"), list):
         errors.append("scan-policy fail_on_severities must be a list")
+    if policy.get("npm_audit_scope") not in ("production", "all"):
+        errors.append("scan-policy npm_audit_scope must be 'production' or 'all' (got %r)" % policy.get("npm_audit_scope"))
     if "secret" not in policy.get("non_waivable", []):
         errors.append("scan-policy non_waivable must include 'secret'")
     if "critical" not in policy.get("non_waivable", []):
@@ -345,7 +347,10 @@ run_go_gate() {
 # ----------------------------------------------------------------- npm gate
 # npm audit exits 1 when findings exist at or above the audit level; findings
 # are judged by the verdict. A missing/error JSON (no "vulnerabilities" key)
-# is a gate error.
+# is a gate error. scan-policy npm_audit_scope=production audits only the
+# runtime dependency tree (--omit=dev): dev-tree findings are build-time
+# toolchain risk, characterized in scan-policy.json (npm_dev_risk_notes) and
+# deliberately out of the gate's scope.
 run_npm_gate() {
   local rc=0
   local registry
@@ -354,6 +359,14 @@ import json, sys
 print(json.load(open(sys.argv[1], encoding="utf-8")).get("npm_registry", "https://registry.npmjs.org"))
 PY
 )" || registry="https://registry.npmjs.org"
+  local scope
+  scope="$(python3 - "$REPO_ROOT/security/scan-policy.json" <<'PY' 2>/dev/null
+import json, sys
+print(json.load(open(sys.argv[1], encoding="utf-8")).get("npm_audit_scope", "production"))
+PY
+)" || scope="production"
+  local audit_flags=(--registry="$registry")
+  if [ "$scope" = "production" ]; then audit_flags+=(--omit=dev); fi
   for pkg in frontend tauri-client; do
     if [ ! -f "$REPO_ROOT/$pkg/package-lock.json" ]; then
       echo "{\"ok\": false, \"error\": \"missing $pkg/package-lock.json\"}" \
@@ -363,7 +376,7 @@ PY
       continue
     fi
     local sub=0
-    (cd "$REPO_ROOT/$pkg" && npm audit --registry="$registry" \
+    (cd "$REPO_ROOT/$pkg" && npm audit "${audit_flags[@]}" \
       --json > "$REPORT_DIR/npm-$pkg-audit.json" 2>"$REPORT_DIR/npm-$pkg-audit.log") || sub=1
     if ! json_report_has_key "$REPORT_DIR/npm-$pkg-audit.json" "vulnerabilities"; then
       echo "npm audit: failed for $pkg (invalid or error JSON)" >&2
